@@ -91,7 +91,7 @@ my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
 my $config = NMISNG::Util::loadConfTable( dir => $customconfdir,
 																					debug => $cmdline->{debug},
 																					info => $cmdline->{info});
-die "no config available!\n" if (ref($config) ne "HASH" 
+die "no config available!\n" if (ref($config) ne "HASH"
 																 or !keys %$config);
 
 # log to stderr if debug or info are given
@@ -103,7 +103,7 @@ warn "failed to set permissions: $error\n" if ($error);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $cmdline->{debug},
 																 info => $cmdline->{info}) // $config->{log_level},
-															 path  => (defined($cmdline->{debug}) 
+															 path  => (defined($cmdline->{debug})
 																				 || defined($cmdline->{info})? undef : $logfile));
 
 # now get us an nmisng object, which has a database handle and all the goods
@@ -112,14 +112,14 @@ my $nmisng = NMISNG->new(config => $config, log  => $logger);
 
 
 # import from nodes file, overwriting existing data in the db
-if ($cmdline->{act} =~ /^import[_-]bulk$/ 
+if ($cmdline->{act} =~ /^import[_-]bulk$/
 		&& (my $nodesfile = $cmdline->{nodes}))
 {
 	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
-	
+
 	$logger->info("Starting bulk import of nodes");
 	my $node_table = NMISNG::Util::readFiletoHash(file => $nodesfile);
-	die "nodes file contains no data!\n" 
+	die "nodes file contains no data!\n"
 			if (ref($node_table) ne "HASH" or !keys %$node_table);
 
 	my %stats = (created => 0, updated => 0);
@@ -128,11 +128,11 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	{
 		# note that this looks up the node by uuid, exclusively. if the nodes file has dud uuids,
 		# then existing nodes will NOT be found.
-		my $node = $nmisng->node( uuid => $onenode->{uuid} || NMISNG::Util::getUUID($onenode->{name}), 
+		my $node = $nmisng->node( uuid => $onenode->{uuid} || NMISNG::Util::getUUID($onenode->{name}),
 															create => 1 );
 		++$stats{ $node->is_new? "created":"updated" };
 		$logger->debug(($node->is_new? "creating": "updating")." node $onenode->{name}");
-		
+
 		# any node on this system must have this system's cluster_id.
 		$onenode->{cluster_id} = $config->{cluster_id};
 
@@ -146,7 +146,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 
 		# and save
 		my ($op,$error) = $node->save();
-		if($error)
+		if($op <= 0)									# zero is no saving needed
 		{
 			$logger->error("Error saving node ".$node->name.": $error");
 		}
@@ -158,7 +158,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	$logger->info("Bulk import complete, newly created $stats{created}, updated $stats{updated} nodes");
 	exit 0;
 }
-elsif ($cmdline->{act} =~ /^import[_-]bulk$/ 
+elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 			 && (my $nodeconfdir = $cmdline->{nodeconf}))
 {
 	die "invalid nodeconf directory $nodeconfdir!\n" if (!-d $nodeconfdir);
@@ -195,9 +195,9 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 		# don't bother saving the name in it
 		delete $data->{name};
 		$node->overrides($data);
-		
+
 		my ($op,$error) = $node->save();
-		$logger->error("Error saving node: ",$error) if($error);
+		$logger->error("Error saving node: ",$error) if ($op <= 0); # zero is no saving needed
 
 		$logger->debug( "imported nodeconf for $node_name, overrides saved to database, op: $op" );
 	}
@@ -258,7 +258,7 @@ elsif ($cmdline->{act} eq "export")
 		# if just one node was wanted then we write a hash; in all other cases
 		# we write the array
 		my $which = ($node && !ref($node) && @$allofthem == 1)? $allofthem->[0] : $allofthem;
-		
+
 		# ensure that the output is indeed valid json, utf-8 encoded
 		print $fh JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $which);
 	}
@@ -272,7 +272,7 @@ elsif ($cmdline->{act} eq "show")
 	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
 	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
 
-	die "Cannot show node without node argument!\n\n$usage\n" 
+	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
 
 	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
@@ -282,7 +282,7 @@ elsif ($cmdline->{act} eq "show")
 	# we want the config AND any overrides
 	my $dumpables = $nodeobj->configuration;
 	$dumpables->{overrides} = $nodeobj->overrides;
-	
+
 	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables);
 	die "failed to transform output: $error\n" if ($error);
 	for my $k (sort keys %flatearth)
@@ -298,8 +298,8 @@ elsif ($cmdline->{act} eq "show")
 elsif ($cmdline->{act} eq "set")
 {
 	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
-	
-	die "Cannot set node without node argument!\n\n$usage\n" 
+
+	die "Cannot set node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
 
 	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
@@ -309,7 +309,7 @@ elsif ($cmdline->{act} eq "set")
 	my $curconfig = $nodeobj->configuration;
 	my $curoverrides = $nodeobj->overrides;
 	my $anythingtodo;
-	
+
 	for my $name (keys %$cmdline)
 	{
 		next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
@@ -347,19 +347,19 @@ or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing g
 	$nodeobj->configuration($curconfig);
 
 	(my $op, $error) = $nodeobj->save;
-	die "Failed to save $node: $error\n" if ($error);
+	die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed
 
 	print STDERR "Successfully updated node $node.
-You should run '".$config->{'<nmis_bin>'}."/poll type=update node=$node' soon.\n" 
-if (-t \*STDOUT);								# if terminal
-	
+You should run '".$config->{'<nmis_bin>'}."/poll type=update node=$node' soon.\n"
+if (-t \*STDERR);								# if terminal
+
 	exit 0;
 }
 
 elsif ($cmdline->{act} eq "delete")
 {
 	my ($node,$group,$confirmation,$nukedata) = @{$cmdline}{"node","group","confirm","deletedata"};
-	
+
 	die "Cannot delete without node or group argument!\n\n$usage\n" if (!$node and !$group);
 	die "NOT deleting anything:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
 			if (!$confirmation or $confirmation ne "YES");
@@ -379,39 +379,74 @@ elsif ($cmdline->{act} eq "delete")
 	}
 	exit 0;
 }
-__END__
-elsif ($cmdline{act} eq "rename")
+elsif ($cmdline->{act} eq "rename")
 {
-	my ($old, $new) = @args{"old","new"};
+	my ($old, $new, $uuid) = @{$cmdline}{"old","new","uuid"}; # uuid is safest for lookup
 
+	die "Cannot rename node without old and new arguments!\n\n$usage\n"
+			if ((!$old && !$uuid) || !$new);
 
-	my ($error, $msg) = NMIS::rename_node(old => $old, new => $new,
-																				originator => "node_admin",
-																				info => $infolevel, debug => $debuglevel);
-	die "$msg\n" if ($error);
-	print STDERR "Successfully renamed node $cmdline{old} to $cmdline{new}.\n";
+	my $nodeobj = $nmisng->node(uuid => $uuid, name => $old);
+	die "Node $old does not exist.\n" if (!$nodeobj);
+	$old ||= $nodeobj->name;			# if looked up via uuid
 
-	# any property setting operations requested?
-	if (my @todo =  grep(/^entry\..+/, keys %args))
+	my ($ok, $msg) = $nodeobj->rename(new_name => $new,
+																								 originator => "node_admin");
+	die "$msg\n" if (!$ok);
+
+	print STDERR "Successfully renamed node $cmdline->{old} to $cmdline->{new}.\n"
+			if (-t \*STDERR);
+
+	# any further property setting operations requested?
+	if (my @todo =  grep(/^entry\..+/, keys %$cmdline))
 	{
-		$nodeinfo = Compat::NMIS::loadLocalNodeTable(); # reread after the rename
-		my $noderec = $nodeinfo->{$new};
+		my $curconfig = $nodeobj->configuration;
+		my $curoverrides = $nodeobj->overrides;
 
 		for my $name (@todo)
 		{
-			my $value = $cmdline{$name};
+			my $value = $cmdline->{$name};
 			$name =~ s/^entry\.//;
 
-			$noderec->{$name} = $value;
-			my $error = translate_dotfields($noderec);
-			die "translation of arguments failed: $error\n" if ($error);
+			if ($name =~ /^overrides\.(.+)$/)
+			{
+				$curoverrides->{$1} = $value;
+			}
+			else
+			{
+				$curconfig->{$name} = $value;
+			}
 		}
-		# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-		NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
-		print STDERR "Successfully updated node $new.\n";
+		my $error = NMISNG::Util::translate_dotfields($curconfig);
+		die "translation of config arguments failed: $error\n" if ($error);
+		$error = NMISNG::Util::translate_dotfields($curoverrides);
+		die "translation of override arguments failed: $error\n" if ($error);
+
+		# check the group - only warn about
+		my @knowngroups = split(/\s*,\s*/, $config->{group_list});
+		if (!grep($_ eq $curconfig->{group}, @knowngroups))
+		{
+			print STDERR "\nWarning: your node info sets group \"$curconfig->{group}\", which does not exist!
+Please adjust group_list in your configuration,
+or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing groups.\n\n";
+		}
+
+		$nodeobj->overrides($curoverrides);
+		$nodeobj->configuration($curconfig);
+
+		(my $op, $error) = $nodeobj->save;
+		die "Failed to save $new: $error\n" if ($op <= 0); # zero is no saving needed
+
+		print STDERR "Successfully updated node $new.
+You should run '".$config->{'<nmis_bin>'}."/poll type=update node=$new' soon.\n"
+if (-t \*STDERR);								# if terminal
+
 	}
 	exit 0;
 }
+
+
+__END__
 elsif ($cmdline{act} eq "mktemplate")
 {
 	# default: no placeholder
@@ -549,5 +584,3 @@ else
 }
 
 exit 0;
-
-

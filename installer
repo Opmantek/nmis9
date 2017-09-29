@@ -137,8 +137,9 @@ These modules can be installed with CPAN:
 
 	# curl is present in most basic redhat install
 	# wget is present on debian/ubuntu via priority:important
-	my $testres = system("curl -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
-	$testres = system("wget -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
+	# however, ca-certificates may be missing/incomplete at this time
+	my $testres = system("curl --insecure -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
+	$testres = system("wget --no-check-certificate -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
 			if ($testres);
 	my $can_use_web = !$testres;
 	
@@ -208,8 +209,9 @@ printBanner("Copying Files");
 find(sub {
 	my ($name,$dir,$fn) = ($_, $File::Find::dir, $File::Find::name);
 	next if ($name =~ /^\./ # no hidden files
-					 or $name =~  /^(installer|installer_hooks|pre-install.sh)$/); # or installer files
-
+					 or $name =~  /^(installer|pre-install.sh)$/ # or installer files
+					 or $dir =~ m!/installer_hooks$!  # installer files
+					 or ($name eq "installer_hooks" && -d $fn)); # installer files
 	print ".";
 
 	# $dir includes sourcedir prefix
@@ -305,8 +307,9 @@ sub check_installed_modules
 	# these modules are in core since 5.19 or thereabouts
 	
 	$modules{"IO::Socket::IP"} = { file => undef, usetype  => "use",
-																 usedby => "lib/NMISNG/Auth.pm", priority => 99 };
+																 usedby => "lib/NMISNG/Auth.pm", priority => 98 };
 	# io socket ip needs at least this version of socket...
+	# and that must be FIRST
 	$modules{"Socket"} = { file => undef, usetype  => "use",
 												 usedby => "lib/NMISNG/Auth.pm", 
 												 minversion => "1.97",
@@ -326,6 +329,28 @@ sub check_installed_modules
 	$modules{"Test::More"} = { file => undef, usetype => "use",
 														 usedby => "lib/NMSING/Auth.pm", 
 														 minversion => "0.96", priority => 100 };
+
+	# for compiling the mongodb perl driver
+	$modules{"Config::AutoConf"} = { file => undef, usetype => "use",
+														 usedby => "lib/NMSING/DB.pm", 
+																	 minversion => "0.3", priority => 100 };
+
+	$modules{"Path::Tiny"} = { file => undef, usetype => "use",
+														 usedby => "lib/NMSING/DB.pm", 
+														 # minversion => "0.3", 
+														 priority => 100 };
+
+	# must be cpan'd before datetime and mongodb
+	$modules{"DateTime::Locale"} = { file => undef, usetype => "use",
+																	 usedby => "lib/NMSING/DB.pm", 
+																	 # minversion => "0.3", 
+																	 priority => 100 };
+
+	# we strictly requre mojolicious 6.47 or newer,
+	# as the older mojo::log api is too different
+	$modules{"Mojolicious"} = { file => undef, usetype => "use",
+															usedby => "lib/NMISNG/Log.pm",
+															minversion => "6.47", };
 	
 	my $libprefix = "$sourcedir/lib";
 
@@ -468,21 +493,30 @@ sub moduleVersion
 sub input_yn
 {
 	my ($query) = @_;
-
-	print $query;
-	if ($noninteractive)
+	
+	while (1)
 	{
-		print " (auto-default YES)\n\n";
-		return 1;
-	}
-	else
-	{
-		print "\nType 'y' or hit <Enter> to accept, any other key for 'no': ";
-		my $input = <STDIN>;
-		chomp $input;
-		logmsg(0, "User input for \"$query\": \"$input\"");
+		print $query;
+		if ($noninteractive)
+		{
+			print " (auto-default YES)\n\n";
+			return 1;
+		}
+		else
+		{
+			print "\nType 'y' or <Enter> to accept, or 'n' to decline: ";
+			my $input = <STDIN>;
+			chomp $input;
+			logmsg(0, "User input for \"$query\": \"$input\"");
 
-		return ($input =~ /^\s*(y|yes)?\s*$/i)? 1:0;
+			if ($input !~ /^\s*[yn]?\s*$/i)
+			{
+				print "Invalid input \"$input\"\n\n";
+				next;
+			}
+
+			return ($input =~ /^\s*y?\s*$/i)? 1:0;
+		}
 	}
 }
 

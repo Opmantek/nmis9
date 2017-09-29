@@ -43,23 +43,32 @@ input_ok() {
 
 # print prompt, print static blurb, read response (or auto-yes)
 input_yn() {
-		echo "$@"
-		echo -n "Type 'y' or hit <Enter> to accept, any other key for 'no': "
-		if [ -z "$UNATTENDED" ]; then
-				local X
-				read X
-				logmsg "User input for '$@': '$X'"
-				X=`echo $X | tr -d '[:space:]'| tr '[A-Z]' '[a-z]'`
-				if [ -z "$X" -o "$X" = "y" -o "$X" = "yes" ]; then
-						return 0								# ok
+		while true; do
+				echo "$@"
+				echo -n "Type 'y' or <Enter> to accept, or 'n' to decline: "
+				if [ -z "$UNATTENDED" ]; then
+						local X
+						read X
+						logmsg "User input for '$@': '$X'"
+						X=`echo "$X" | tr -d '[:space:]'| tr '[A-Z]' '[a-z]'`
+
+						if [ "$X" != 'y' -a "$X" != '' -a "$X" != 'n' ]; then
+								echo "Invalid input \"$X\""
+								echo 
+								continue;
+						fi
+						
+						if [ -z "$X" -o "$X" = "y" ]; then
+								return 0								# ok
+						else
+								return 1								# nok
+						fi
 				else
-						return 1								# nok
+						echo "(auto-default YES)"
+						echo
+						return 0
 				fi
-		else
-				echo "(auto-default YES)"
-				echo
-				return 0
-		fi
+		done
 }
 
 # print prompt, print static blurb, read response string and

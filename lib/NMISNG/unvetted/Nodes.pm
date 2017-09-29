@@ -27,6 +27,8 @@
 #
 # *****************************************************************************
 
+die __PACKAGE__ ." is dead, not usable in nmis9 yet!";
+
 # this module provides a generic object for
 # configuration, handling and finding of nodes: names, properties,
 # ip addresses and so on. it's meant to be used by all products eventually

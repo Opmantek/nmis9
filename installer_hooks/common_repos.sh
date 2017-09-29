@@ -10,14 +10,14 @@ is_web_available()
 {
 		printBanner "Checking if Web is accessible..."
 		# curl is available even on minimal centos install
-		if type curl >/dev/null 2>&1 && curl -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null;
+		if type curl >/dev/null 2>&1 && curl --insecure -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null;
 		then
 				echolog "Web access is OK."
 				return 0
 		fi
 
 		# hmm, maybe we have wget?
-		if type wget >/dev/null 2>&1 && wget -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null; then
+		if type wget >/dev/null 2>&1 && wget --no-check-certificate -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null; then
 				echolog "Web access is OK."
 				return 0
 		fi
@@ -138,7 +138,7 @@ enable_custom_repo() {
 
 		elif [ "$REPONAME" = "gf" ]; then
 				printBanner "Enabling Ghettoforge repository";
-				execPrint yum -y install "http://mirror.symnds.com/distributions/gf/el/${OS_MAJOR}/gf/x86_64/gf-release-${OS_MAJOR}-10.gf.el${OS_MAJOR}.noarch.rpm"
+				execPrint yum -y install "http://mirror.ghettoforge.org/distributions/gf/gf-release-latest.gf.el${OS_MAJOR}.noarch.rpm"
 
 		elif [ "$REPONAME" = "repoforge" -o "$REPONAME" = "rpmforge" ]; then
 				printBanner "Enabling RepoForge repository"

@@ -194,6 +194,8 @@ my %hash = (
 		'max_child_runtime' => undef,
 		# to disable the generation of "nmis runtime exceeded" events, set this to 1 or true
 		'disable_nmis_process_events' => undef,
+		# true: produce output on STDERR if nmis processes are being killed
+		'verbose_nmis_process_events' => 'true',
 		# to enable the logging of polling time to the NMIS log, will log every node every 5 minutes, set this to 1 or true
 		'log_polling_time' => undef,
 		# various selftest limits

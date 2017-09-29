@@ -751,7 +751,10 @@ sub ensure_index
 	return "cannot ensureIndex with invalid db argument!"    # only required if coll is not collection object
 		if ( !ref($coll) && ref($db) ne "MongoDB::Database" );
 	return "cannot ensureIndex without one or more index specs!" if ( ref($indexlist) ne "ARRAY"
-		or !@$indexlist );
+																																		or !@$indexlist );
+
+	# works in 1.4.5, noisy and required in 1.8.0
+	my $mustuseindexview = ( version->parse($MongoDB::VERSION) >= version->parse("1.4.5") );
 
 	# string is ok, so is collection object
 	return "cannot ensureIndex with invalid collection argument!"
@@ -764,30 +767,46 @@ sub ensure_index
 	$coll = getCollection( db => $db, name => $coll ) if ( !ref($coll) );
 	return "failed to getCollection $coll!" if ( !$coll );
 
-	my ( @currentindices, %desiredindices );
-	@currentindices = $coll->get_indexes if ($drop);    # not needed if unwanteds are ignored
+	my ( @currentindices, %desiredindices, $indexview );
+
+	if ($mustuseindexview)
+	{
+		$indexview = $coll->indexes;
+		@currentindices = $indexview->list->all if ($drop);
+	}
+	else
+	{
+		@currentindices = $coll->get_indexes if ($drop);    # not needed if unwanteds are ignored
+	}
 
 	for my $oneidx (@$indexlist)
 	{
 		return "cannot ensureIndex with invalid index specification!"
-			if (
-			ref($oneidx) ne "ARRAY" or !@$oneidx or @$oneidx > 2    # spec, options
-			or ref( $oneidx->[0] ) !~ /^(ARRAY|HASH|Tie::IxHash)$/  # spec can be any of these
-			or ( ref( $oneidx->[1] ) and ref( $oneidx->[1] ) ne "HASH" )
-			);                                                      # options must be hash
+				if (
+					ref($oneidx) ne "ARRAY" or !@$oneidx or @$oneidx > 2    # spec, options
+					or ref( $oneidx->[0] ) !~ /^(ARRAY|HASH|Tie::IxHash)$/  # spec can be any of these
+					or ( ref( $oneidx->[1] ) and ref( $oneidx->[1] ) ne "HASH" )
+				);                                                      # options must be hash
 
 		my $spec = $oneidx->[0];
 		my $options = $oneidx->[1] // {};
 		$options->{background} = $background if ($background);
 
-		eval { $coll->ensure_index( $spec, $options ); };
-		return "ensure_index on $coll->{name} failed: $@" if ($@);
+		if ($mustuseindexview)
+		{
+			eval { $indexview->create_one($spec, $options); };
+			return "create_one index on $coll->{name} failed: $@" if ($@);
+		}
+		else
+		{
+			eval { $coll->ensure_index( $spec, $options ); };
+			return "ensure_index on $coll->{name} failed: $@" if ($@);
+		}
 
 		# mark the index as desired, go by the index name (= key_dir_key_dir)
 		if ($drop)
 		{
-			my $thisname = ( ref($spec) eq "Tie::IxHash" )
-				?
+			my $thisname = ( ref($spec) eq "Tie::IxHash" )?
 
 				# each doesn't work on a tie::ixhash object :-(
 				join( "_", map { ( $_, $spec->FETCH($_) ) } ( $spec->Keys ) )
@@ -807,8 +826,16 @@ sub ensure_index
 			{
 
 				# print STDERR "removing index $maybe->{name} from collection $coll->{name}\n";
-				eval { $coll->drop_index( $maybe->{name} ); };
-				return "drop_index on $coll->{name} failed: $@" if ($@);
+				if ($mustuseindexview)
+				{
+					eval { $indexview->drop_one( $maybe->{name} ); };
+					return "drop_one index on $coll->{name} failed: $@" if ($@);
+				}
+				else
+				{
+					eval { $coll->drop_index( $maybe->{name} ); };
+					return "drop_index on $coll->{name} failed: $@" if ($@);
+				}
 			}
 		}
 	}
@@ -817,12 +844,16 @@ sub ensure_index
 }
 
 # combines arguments into a query pipeline for mongodb, and fires that
-# returns the resulting mongodb cursor, or undef if the args are duds
-# sets the error_string if problems are encountered.
 #
 # args: collection and query are required,
 # sort, skip and limit are optional.
 # fields_hash takes a hash of { field1 => 1, field2 => 1, ... }
+#
+# note: newer perl driver does NOT support cursor->count anymore,
+# you must run a separate collection->count operation!
+#
+# returns the resulting mongodb cursor, or undef if the args are duds
+# sets the error_string if problems are encountered.
 sub find
 {
 	my %arg        = @_;
@@ -924,7 +955,7 @@ sub get_db_connection
 	my $CONF    = $args{conf};
 
 	if( ref($CONF) ne 'HASH' || $CONF->{db_server} eq '' )
-	{	
+	{
 		$error_string = "No config provided to get_db_connection, not attempting any type of connection\n";
 		return;
 	}
@@ -1000,7 +1031,7 @@ sub get_db_connection
 		try
 		{
 			# authenticate to admin so we can run serverStatus
-			my $auth = $new_conn->authenticate( $db, $username, $password );		
+			my $auth = $new_conn->authenticate( $db, $username, $password );
 			if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
 			{
 				$error_string = "Error authenticating to MongoDB db:$db database\n";
@@ -1088,8 +1119,8 @@ sub get_query
 #
 # if value is not defined or empty, then the column is not added to the hash.
 #
-# if the value is a hash, each value is checked, and only the ones that exist 
-# and are nonblank are added as a hash for that column. 
+# if the value is a hash, each value is checked, and only the ones that exist
+# and are nonblank are added as a hash for that column.
 # exception: if the key is $eq or $ne then undef is passed through as-is.
 #
 # if the value is an array, then the query is set to $in all array values
@@ -1158,7 +1189,7 @@ sub get_query_part
 		if( ref($col_value) eq "MongoDB::OID" ) {
 			$ret_hash->{$col_name} = $col_value;
 		}
-		else 
+		else
 		{
 			# constructor dies if the input isn't valid as oid value (== 24 char hex string)
 			$col_value = "badc0ffee0ddf00ddeadbabe" # that's valid but won't match, which is good

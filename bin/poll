@@ -51,6 +51,8 @@ use Proc::Queue ':all';
 use Data::Dumper;
 use File::Find;
 use File::Spec;
+use Clone;
+use Carp::Assert;
 use Statistics::Lite qw(mean);
 use POSIX qw(:sys_wait_h);
 
@@ -460,7 +462,7 @@ sub runThreads
 			$nmisng->log->fatal("Failed to load catchall inventory: $result->{error}");
 			die "Failed to load catchall inventory: $result->{error}\n";
 		}
-		my $accessor = $result->{model_data};		
+		my $accessor = $result->{model_data};
 		# node information, by node uuid
 		my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
 
@@ -637,7 +639,9 @@ sub runThreads
 				next if (!$pid);
 
 				$needgrace = 1;
-				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n";
+				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n"
+						if ( !NMISNG::Util::getbool($C->{verbose_nmis_process_events},
+																				"invert")); # === if ne false
 				NMISNG::Util::logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
 				kill("TERM",$pid);
 
@@ -927,7 +931,9 @@ sub catch_zap
 	{
 		# do NOT lock the logfile
 		NMISNG::Util::logMsg( "INFO Process $$ ($0) was killed by signal $rs", 1 );
-		die "Process $$ ($0) was killed by signal $rs\n";
+		die "Process $$ ($0) was killed by signal $rs\n"
+				if (!NMISNG::Util::getbool($C->{verbose_nmis_process_events},"invert")); # === if ne false
+		exit 0;
 	}
 }
 
@@ -962,9 +968,9 @@ sub doUpdate
 	my $lockHandle = NMISNG::Util::createPollLock( type => "update", conf => $C->{conf}, node => $name );
 
 	# now check for collect jobs; if one is running we shoot it - but not ourselves!
-	my $conflict = NMISNG::Util::existsPollLock(type => "collect", 
+	my $conflict = NMISNG::Util::existsPollLock(type => "collect",
 																							conf => $C->{conf}, node => $name);
-	if (defined($conflict) && $conflict != $$)
+	if ($conflict && $conflict != $$)
 	{
 		NMISNG::Util::logMsg("WARNING collect lock for $node interferes with update. Killing process $conflict.");
 		if ($conflict > 1)						# nope, not init
@@ -1013,8 +1019,9 @@ sub doUpdate
 	}
 	else
 	{
-		# make all things historic, they can bring them back if they want
-		$S->nmisng_node->bulk_update_inventory_historic();
+		# make all things for this node historic, they can bring them back if they want
+		my $result = $S->nmisng_node->bulk_update_inventory_historic();
+		$S->nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
 	}
 
 	# prime default values, overridden if we can find anything better
@@ -2205,11 +2212,12 @@ sub checkNodeConfiguration
 }
 
 # Create the Interface configuration from SNMP Stuff
-# except on collect it is always called with a blank interface info
 #
 # fixme: this function works ONLY if snmp is enabled for the node!
 #
-# returns: 1 if happy, 0 otherwise
+# args: sys (required), index - optional ifindex. if present only this interface is updated.
+# returns, no index given: 1 if happy, 0 otherwise
+# returns, with index given: the inventory object for this interface if happy, undef otherwise
 sub getIntfInfo
 {
 	my %args     = @_;
@@ -2220,7 +2228,7 @@ sub getIntfInfo
 	if ( !$S->status->{snmp_enabled} )
 	{
 		NMISNG::Util::info("Not performing getIntfInfo for $S->{name}: SNMP not enabled for this node");
-		return 0;                   # no interfaces collected, treat this as error
+		return undef;                   # no interfaces collected, treat this as error
 	}
 
 	my $V    = $S->view;
@@ -2228,11 +2236,8 @@ sub getIntfInfo
 	my $SNMP = $S->snmp;
 	my $NC   = $S->ndcfg;           # node config table
 
-	my $singleInterface = 0;
-	if ( defined $intf_one and $intf_one ne "" )
-	{
-		$singleInterface = 1;
-	}
+	my $singleInterface = (defined $intf_one and $intf_one ne "");
+	my $inventory;
 
 	my $C        = NMISNG::Util::loadConfTable();
 	my $nodename = $catchall_data->{name};
@@ -2284,13 +2289,6 @@ sub getIntfInfo
 		NMISNG::Util::info("Starting");
 		NMISNG::Util::info("Get Interface Info of node $catchall_data->{name}, model $catchall_data->{nodeModel}");
 
-		# lets delete what we have in memory and start from scratch.
-		# BUT only if this is for all interfaces
-		if ( not $singleInterface )
-		{
-			NMISNG::Util::TODO("fixme9 Need to mark interfaces as historic!");
-		}
-
 		# load interface types (IANA). number => name
 		my $IFT = Compat::NMIS::loadifTypesTable();
 
@@ -2301,9 +2299,7 @@ sub getIntfInfo
 		$override ||= {};
 
 		# get interface Index table
-		my @ifIndexNum;
-		my $ifIndexTable;
-		my $ifIndexMap = {};
+		my (@ifIndexNum,  $ifIndexTable, %activeones);
 
 		if ($singleInterface)
 		{
@@ -2321,7 +2317,6 @@ sub getIntfInfo
 						$ifIndexTable->{$oid} = unpack( "I", pack( "i", $ifIndexTable->{$oid} ) );
 					}
 					push @ifIndexNum, $ifIndexTable->{$oid};
-					$ifIndexMap->{$ifIndexTable->{$oid}} = 1;
 				}
 			}
 			else
@@ -2338,18 +2333,9 @@ sub getIntfInfo
 					HandleNodeDown( sys => $S, type => "snmp", details => $SNMP->error );
 				}
 
-				NMISNG::Util::info("Finished");
+				NMISNG::Util::info("Finished (snmp failure)");
 				return 0;
 			}
-
-			# remove unknown interfaces, found in previous runs, from table
-			my @active_indices = keys %$ifIndexMap;
-			my $result = $S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => 'interface' );
-			NMISNG::Util::dbg("Interfaces marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
-				"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");
-			NMISNG::Util::logMsg("INFO ($S->{name}) marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
-				"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");    # test info
-
 			delete $V->{interface};    # rebuild interface view table
 		}
 
@@ -2636,14 +2622,17 @@ sub getIntfInfo
 		{
 			my $target = $target_table->{$i};
 
-			#foreach my $i (keys %{$IF}) {
+			# fixme9: this cannot work. interface inventories are STRICTLY identified by ifdescr,
+			# which must be unique and correspond to what the device reports.
+			# ifdescr massaging like this means the new inventory is instantly lost, cannot be found
+			# when collecting interface data
+
 			# ifDescr must always be filled
 			$target->{ifDescr} ||= $i;
-
+			# ifDescr is duplicated?
 			if ( exists $ifDescrIndx->{$target->{ifDescr}} and $ifDescrIndx->{$target->{ifDescr}} ne "" )
 			{
-				# ifDescr is duplicated.
-				$target->{ifDescr} = "$target->{ifDescr}-$i";                  # add index to string
+				$target->{ifDescr} .= "-$i";                  # add index to string
 				$V->{interface}{"${i}_ifDescr_value"} = $target->{ifDescr};    # update
 				NMISNG::Util::info("Interface ifDescr changed to $target->{ifDescr}");
 			}
@@ -2654,7 +2643,6 @@ sub getIntfInfo
 		}
 		NMISNG::Util::info("Completed duplicate ifDescr processing");
 
-		### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 		foreach my $index (@ifIndexNum)
 		{
 			next if ( $singleInterface and $intf_one ne $index );
@@ -2805,7 +2793,10 @@ sub getIntfInfo
 			{
 				my $thisintfover = $override->{$ifDescr};
 
-				if ( $thisintfover->{collect} and $thisintfover->{ifDescr} eq $target->{ifDescr} )
+				if ( $thisintfover->{collect}
+						 # fixme9: this is stupid. the override is already keyed by this ifdescr...why copy and check AGAIN?
+						 and $thisintfover->{ifDescr} eq $target->{ifDescr} )
+
 				{
 					$target->{nc_collect} = $target->{collect};
 					$target->{collect}    = $thisintfover->{collect};
@@ -2874,8 +2865,8 @@ sub getIntfInfo
 			$intfCollect++ if ( NMISNG::Util::getbool( $target->{collect} )
 				&& NMISNG::Util::getbool( $target->{event} ) );
 
-			# save values only if all interfaces are updated
-			if ( $intf_one eq '' )
+			# save values only iff all interfaces are updated
+			if (not $singleInterface)
 			{
 				$catchall_data->{intfTotal}   = $intfTotal;
 				$catchall_data->{intfCollect} = $intfCollect;
@@ -2921,23 +2912,30 @@ sub getIntfInfo
 			# at this point every thing is ready for the rrd speed limit enforcement
 			my $desiredlimit = $target->{setlimits};
 
-			# write if inventory data now. the speed limit/checking code requires the entries to exist in order to correctly find them in parseString/etc
-
-
-			# For now, create inventory at the very end
+			# write if inventory data now. the speed limit/checking code requires the entries to exist in order
+			# to correctly find them in parseString/etc
+			#
 			# get the inventory object for this, path_keys required as we don't know what type it will be
-			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target );
+			# if interface descriptions change for existing interfaces, then we MUST NOT create duplicates
+			# so, only the ifdescr may go into the path calculation logic, NOT ifindex
+			my $pathdata = Clone::clone($target);
+			delete $pathdata->{index};
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $pathdata, partial => 1 );
+
 			if( ref($path) eq 'ARRAY')
 			{
-				my ( $inventory, $error_message ) = $nmisng_node->inventory(
+				( $inventory, my $error_message ) = $nmisng_node->inventory(
 					concept   => 'interface',
 					path      => $path,
 					create    => 1
 				);
 				$S->nmisng->log->error("Failed to create interface inventory, error:$error_message") && next if ( !$inventory );
-				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-				$inventory->path( recalculate => 1 );
+
 				$inventory->data( $target );
+				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+				# for a new object this must happen AFTER data is set
+				$inventory->path( recalculate => 1 );
+				$path = $inventory->path; # no longer the same - path was partial, now it no longer is
 				$inventory->description( $target->{Description} || $target->{ifDescr} );
 
 				# historic is only set when the index/_id is in the db but not found in the device, we are looping
@@ -2956,9 +2954,12 @@ sub getIntfInfo
 				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
 				my ( $op, $error ) = $inventory->save();
-				NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
+				NMISNG::Util::info( "saved ".join(',', @{$inventory->path})." op: $op");
 				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-					if ($error);
+						if ($error);
+
+				# mark as nonhistoric so that we can ditch the actually historic ones...
+				$activeones{$inventory->id} = 1;
 			}
 			else
 			{
@@ -2998,7 +2999,9 @@ sub getIntfInfo
 					my ( $datatype, $dsregex ) = @$_;
 
 					# rrd file exists and readable?
-					if ( -r ( my $rrdfile = $S->makeRRDname( graphtype => $datatype, index => $index ) ) )
+					if ( -r ( my $rrdfile = $S->makeRRDname( graphtype => $datatype,
+																									 index => $index,
+																									 inventory => $inventory ) ) )
 					{
 						my $fileinfo = RRDs::info($rrdfile);
 						for my $matching ( grep /^ds\[.+\]\.max$/, keys %$fileinfo )
@@ -3028,7 +3031,16 @@ sub getIntfInfo
 					}
 				}
 			}
+		}
 
+		# if checking more than one intf, mark any unknown interfaces as historic
+		# has to happen by inventory id, ifindex can and does change
+		if (!$singleInterface)
+		{
+			my $result = $S->nmisng_node->bulk_update_inventory_historic( active_ids => [keys %activeones],
+																																		concept => 'interface' );
+			$nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
+			NMISNG::Util::logMsg("$nodename, found intfs alive: $result->{matched_nothistoric}, already historic: $result->{matched_historic}, marked alive: $result->{marked_nothistoric}, marked historic: $result->{marked_historic}");
 		}
 
 		NMISNG::Util::info("Finished");
@@ -3042,7 +3054,7 @@ sub getIntfInfo
 		NMISNG::Util::info("Skipping, interfaces not defined in Model");
 	}
 
-	return 1;
+	return ($singleInterface? $inventory: 1);
 }    # end getIntfInfo
 
 #=========================================================================================
@@ -3094,9 +3106,12 @@ sub checkIntfInfo
 
 	$V->{interface}{"${index}_ifSpeed_value"} = NMISNG::Util::convertIfSpeed( $thisintf->{ifSpeed} );
 
-	# convert time integer to time string
-	$V->{interface}{"${index}_ifLastChange_value"} = $thisintf->{ifLastChange}
-		= NMISNG::Util::convUpTime( $thisintf->{ifLastChangeSec} = int( $thisintf->{ifLastChange} / 100 ) );
+	# convert time integer from ticks to time string
+	# fixme9: unsafe, non-idempotent, broken if function is called more than once, self-referential loopy
+	# trashing of ifLastChange via ifLastChangeSec...
+	$V->{interface}{"${index}_ifLastChange_value"}
+	= $thisintf->{ifLastChange} = NMISNG::Util::convUpTime(
+		$thisintf->{ifLastChangeSec} = int( $thisintf->{ifLastChange} / 100 ) );
 
 }    # end checkIntfInfo
 
@@ -3260,9 +3275,6 @@ sub getSystemHealthInfo
 	);
 	for my $section (@healthSections)
 	{
-		# TODO:
-		NMISNG::Util::TODO("fixme9 Does deleting all of the inventory for a section does not make sense, need to loop through and mark unused as historic!");
-
 		next
 			if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
 
@@ -3353,9 +3365,14 @@ sub getSystemHealthInfo
 				next;
 			}
 
-			# update historic setting in records
+			# we need to ditch no longer existent stuff by marking it historic, and for that we
+			# keep track of the live inventory items
 			my @active_indices = keys %$fields;
-			$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
+			my $res = $S->nmisng_node->bulk_update_inventory_historic(
+				active_indices => \@active_indices,
+				concept => $section );
+			$nmisng->log->error("bulk update historic failed: $res->{error}") if ($res->{error});
+
 
 			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
 			for my $indexvalue ( @active_indices )
@@ -3478,7 +3495,9 @@ sub getSystemHealthInfo
 
 			# mark historic records
 			my @active_indices = (sort keys %healthIndexNum);
-			$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
+			my $result = $S->nmisng_node->bulk_update_inventory_historic(
+				active_indices => \@active_indices, concept => $section );
+			$nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
 
 			# Loop to get information, will be stored in {info}{$section} table
 			foreach my $index ( @active_indices )
@@ -4085,7 +4104,11 @@ sub checkNodeHealth
 
 #=========================================================================================
 
+# poll performance data for all known interfaces for this node
+# this has to handle mogrifying interfaces, ie. reordered/added/removed/transitioned
 # fixme: this function currently does not work for wmi-only nodes!
+# args: sys, modeldebug (default false)
+# returns: 1 if ok
 sub getIntfData
 {
 	my %args = @_;
@@ -4097,41 +4120,51 @@ sub getIntfData
 		return 1;
 	}
 
-	my $V    = $S->view;
-	my $RI   = $S->reach;
-	my $SNMP = $S->snmp;
-	my $IFCACHE;
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	# get any nodeconf overrides if such exists for this node
 	my $nodename = $S->{name};
-	my ( $errmsg, $override ) = Compat::NMIS::get_nodeconf( node => $nodename )
-		if ( Compat::NMIS::has_nodeconf( node => $nodename ) );
-	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
-	$override ||= {};
+	NMISNG::Util::info("Starting Interface get data for node $nodename");
 
-	# load the node here for now, this should be passed in as a param in the future
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	# get any nodeconf overrides if such exists for this node
+	my $overrides = $nmisng_node->overrides;
 
-	my $createdone = "false";
 
-	NMISNG::Util::info("Starting Interface get data, node $S->{name}");
+	# adminstatus only uses 1..3 , operstatus can have all 1..7.
+	my %knownadminstates = ( 1 => 'up',
+													 2 => 'down',
+													 3 => 'testing',
+													 4 => 'unknown',
+													 5 => 'dormant',
+													 6 => 'notPresent',
+													 7 => 'lowerLayerDown' );
 
-	$RI->{intfUp} = $RI->{intfColUp} = 0;    # reset counters of interface Up and interface collected Up
+	# this is a multi-stage process by necessity:
+	# 1. get the inventory information for all interfaces (index->ifdescr and others)
+	# 2. collect 'cheap' snmp data and stash it locally (strictly by index)
+	# 3. determine which interfaces have shifted indices or have transitioned
+	# 	 or been changed/added/removed, and need getintfinfo() done on them
+	# 4. do getintfinfo for these to determine their true new nature,
+	# 	 and reorganise the inventories accordingly
+	# 5. get the non-cheap modelled data for the interfaces that we know are collectable
+	# 6. determine interface index vs. ifdescr mismatches, ie. reordered interfaces
+	# 	 note: ifdescr is NOT necessarily just the raw snmp ifdescr! must run through getData=model logic!
+	# 7. perform stage 4 for any interfaces that have become collectable because of 6.
+	#
+	# 8. work with the stashed modelleed snmp data, send it to rrd, the inventories etc.
+	# 9. mark any leftover present-but-unwanted inventories as historic (by inventory id!)
 
-	# find all id's that are needed for the first section of searching
+	# 1. get the interface inventories for this node, but only the bits we need (so far)
 	my $result = $nmisng_node->get_inventory_model(
 		'concept' => 'interface',
 		fields_hash => {
 			'_id' => 1,
 			'data.collect' => 1,
 			'data.ifAdminStatus' => 1,
+			'data.ifOperStatus' => 1,
 			'data.ifDescr' => 1,
 			'data.ifIndex' => 1,
-			'data.ifLastChange' => 1,
+			'data.ifLastChangeSec' => 1, # ifLastChange is textual and NO GOOD
+			'data.real' => 1,
 			'enabled' => 1,
 			'historic' => 1
 		} );
@@ -4140,407 +4173,538 @@ sub getIntfData
 		$nmisng->log->error("get inventory model failed: $result->{error}");
 		return undef;
 	}
-	my $data = $result->{model_data}->data();
-	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-	my %if_data_map = map
+
+	my (%if_data_map, %leftovers);	# leftovers: 1 is presumed dead, 0 is ok
+
+	# create a map of the inventory state,
+	# by ifindex so we can look them up easily, clone _id into data to make things easier
+	# note that ifdescr is treated as invariant, NOT ifindex.
+	# note also: this includes disabled and historic interfaces, too, IFF their ifIndex is nonclashing
+	# make sure non-historic ones are tackled before historic stuff!
+	for my $maybeevil (sort { $a->{historic} cmp $b->{historic} } @{$result->{model_data}->data()})
+	{
+		$leftovers{ $maybeevil->{_id} } = 1; # everything goes here, clash or noclash
+
+		my $thisindex = $maybeevil->{data}->{ifIndex};
+		if (exists $if_data_map{$thisindex} )
 		{
-			$_->{data}{_id} = $_->{_id};
-			$_->{data}{enabled} = $_->{enabled};
-			$_->{data}{historic} = $_->{historic};
-			$_->{data}{ifIndex} => $_->{data}
+			$nmisng->log->warn("clashing inventories for interface index $thisindex!");
+			next;
 		}
-		(@$data);
+
+		# move these over into data for simplicity
+		for my $thing (qw(_id enabled historic))
+		{
+			$maybeevil->{data}->{$thing} = $maybeevil->{$thing};
+		}
+		$if_data_map{ $thisindex } = $maybeevil->{data};
+	}
+
+	# 2a. get the ifadminstatus, ifoperstatus and iflastchange tables
+	# and add them to our knowledge
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
-	my ($ran_admin,$ran_change) = (0,0);
-	my ( $ifAdminTable, $ifOperTable ) = ({},{});
-	if (ref( $S->{mdl}->{custom} ) ne "HASH"    # don't autovivify
-		or ref( $S->{mdl}{custom}->{interface} ) ne "HASH"
-		or !NMISNG::Util::getbool( $S->{mdl}->{custom}->{interface}->{ifAdminStatus}, "invert" )
-		)
+	my $dontwanna_ifadminstatus = (ref($S->{mdl}->{custom}) eq "HASH"    # don't autovivify
+																 and ref($S->{mdl}->{custom}->{interface} ) eq "HASH"
+																 # and explicitely set to false
+																 and NMISNG::Util::getbool( $S->{mdl}->{custom}->{interface}->{ifAdminStatus}, "invert"));
+	if (!$dontwanna_ifadminstatus)
 	{
 		# fixme: this cannot work for non-snmp nodes
 		NMISNG::Util::info("Using ifAdminStatus and ifOperStatus for Interface Change Detection");
 
-		if ( $ifAdminTable = $SNMP->getindex('ifAdminStatus') )
+		# want both or we don't care
+		my $ifAdminTable = $S->snmp->getindex('ifAdminStatus');
+		my $ifOperTable = $S->snmp->getindex('ifOperStatus');
+		if ($ifAdminTable && $ifOperTable)
 		{
-			$ran_admin = 1;
-			$ifOperTable = $SNMP->getindex('ifOperStatus');
+			# index == ifindex
 			for my $index ( keys %{$ifAdminTable} )
 			{
-				NMISNG::Util::logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table")
-					if( !exists $if_data_map{$index}->{ifAdminStatus} );
-
-				if ( ( $ifAdminTable->{$index} == 1 and $if_data_map{$index}->{ifAdminStatus} ne 'up' )
-					or ( $ifAdminTable->{$index} != 1 and $if_data_map{$index}->{ifAdminStatus} eq 'up' ) )
-				{
-					### NMISNG::Util::logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
-					getIntfInfo( sys => $S, index => $index );    # update this interface
-				}
-
-				# total number of interfaces up
-				$RI->{intfUp}++
-					if $ifOperTable->{$index} == 1
-					and NMISNG::Util::getbool( $if_data_map{$index}{real} );
+				# save the textual info; inventory has the same content, but names without _
+				$if_data_map{$index}->{_ifAdminStatus} = $knownadminstates{ $ifAdminTable->{$index} };
+				$if_data_map{$index}->{_ifOperStatus} =  $knownadminstates{ $ifOperTable->{$index} };
 			}
 		}
 	}
-
-	# so get the ifLastChange for each interface and see if it has changed, if it has then run an update.
-	# if an interface is added this will find it to.
-	# if it changes admin or oper state it will find it.
-	# this can be enabled on a model by model basis is false by default.
-	my $ifLastChangeTable = {};
-	if (    ref( $S->{mdl}{custom} ) eq "HASH"
-		and ref( $S->{mdl}{custom}{interface} ) eq "HASH"
-		and NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{ifLastChange} ) )
+	# default for ifLastChange-based detection is OFF
+	if ((ref( $S->{mdl}{custom} ) eq "HASH"
+			and ref( $S->{mdl}{custom}{interface} ) eq "HASH"
+			and NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{ifLastChange} ) ))
 	{
 		# fixme: this cannot work for non-snmp node
 		NMISNG::Util::info("Using ifLastChange for Interface Change Detection");
 
-		if ( $ifLastChangeTable = $SNMP->getindex('ifLastChange') )
+		# iflastchange is in 1/100s ticks
+		if ( my $ifLastChangeTable = $S->snmp->getindex('ifLastChange') )
 		{
-			$ran_change = 1;
-			for my $index ( sort { $a <=> $b } ( keys %{$ifLastChangeTable} ) )
+			for my $index (keys %$ifLastChangeTable)
 			{
-				my $ifLastChangeSec = int( $ifLastChangeTable->{$index} / 100 );
-				if( exists($if_data_map{$index}) && $ifLastChangeSec == $if_data_map{$index}->{ifLastChange} )
-				{
-					NMISNG::Util::info("$if_data_map{$index}->{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
-				}
-				else
-				{
-					NMISNG::Util::info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec") if( !exists($if_data_map{$index}) );
-					NMISNG::Util::info("$if_data_map{$index}->{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$if_data_map{$index}->{ifLastChangeSec}")
-						if($ifLastChangeSec != $if_data_map{$index}->{ifLastChangeSec}); # don't care about vivify here
-					getIntfInfo( sys => $S, index => $index );    # add/update this interface
-					# $IF->{$index}{ifLastChangeSec} = $ifLastChangeSec; # the getIntfInfo update should do this for us
-				}
+				$if_data_map{$index}->{_ifLastChangeSec} = int($ifLastChangeTable->{$index} / 100);
 			}
 		}
 	}
 
-	# This used to be in the ifLastChange if statement, it's been taken out and now looks at both last change and admintable
-	# check for deleted interfaces, which exist in our inventory but are not reported by the device
-	if( $ran_change || $ran_admin )
+	# 3. who needs updating based on what we know so far?
+	for my $index (sort keys %if_data_map)
 	{
-		# build a list of all active indices
-		my %active_index_map = ();
-		map { $active_index_map{$_} = 1 } (keys %$ifLastChangeTable);
-		map { $active_index_map{$_} = 1 } (keys %$ifAdminTable);
-		my @active_indices = keys %active_index_map;
-		# this will update all historic settings to be correct
-		my $result = $S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => 'interface' );
-		NMISNG::Util::dbg("Interfaces marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
-			"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");
-		NMISNG::Util::logMsg("INFO ($S->{name}) marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
-			"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");    # test info
+		my $thisif = $if_data_map{$index};
 
-		# NOTE: this info is nice, can we have bulk_update_inventory_historic do something like it?
-		# NMISNG::Util::info("$data->{ifDescr}: Interface Removed ifIndex=$index");
-	}
+		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
 
-	# grab the list of interfaces again, now that the list has possibly been updated
-	# (could track the changes above and only do it if necessary)
-	# this could also query for ifDescr being the value we want instead of doing the if below
-	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
-	NMISNG::Util::info("Processing Interface Table");
-	foreach my $id ( sort @$ids )
-	{
-		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $id );
-		$nmisng->log->error("Failed to get interface inventory, _id:$id, error_message:$error_message") && next if(!$inventory);
-		# replace minimal data with all data known
-		my $inventory_data = $inventory->data();
-		my $index = $inventory_data->{ifIndex};
-		my $previous_pit = $inventory->get_newest_timed_data();
-
-		# only collect on interfaces that are defined, with collection turned on globally,
-		# also don't bother with ones without ifdescr
-		if ( !defined( $inventory_data->{ifDescr} )	or $inventory_data->{ifDescr} eq "" )
+		# new interface, no inventory yet?
+		if (!$thisif->{_id})
 		{
-			NMISNG::Util::dbg("NOT Collected: $if_data_map{$index}->{ifDescr}: ifIndex=$if_data_map{$index}->{ifIndex}, OperStatus=$if_data_map{$index}->{ifOperStatus}, ifAdminStatus=$if_data_map{$index}->{ifAdminStatus}, Interface Collect=$if_data_map{$index}->{collect}"
-			);
+			$nmisng->log->info("Interface $index is new, needs update");
+			$thisif->{_needs_update} = 1;
+			next;
+		}
+		# removed interface? skippy!
+		elsif (!exists $thisif->{_ifAdminStatus})
+		{
+			# we have to track already dead ones (in if_data_map), but we don't work on them
+			$nmisng->log->info("Interface $index, $thisif->{ifDescr} was removed!")
+					if (!$thisif->{historic});
+
+			delete $if_data_map{$index}; # nothing to do except mark it as historic at the end
+			next;
+		}
+		# disabled interface? skippy, too, but mark as nonhistoric
+		elsif (defined($thisif->{enabled}) && !$thisif->{enabled}) # ie. don't skip if enabled is unknown
+		{
+			$leftovers{$thisif->{_id}} = 0; # it's disabled but it's NOT a historic leftover!
 			next;
 		}
 
-		NMISNG::Util::info(
-			"$inventory_data->{ifDescr}: ifIndex=$inventory_data->{ifIndex}, was => OperStatus=$inventory_data->{ifOperStatus}, ifAdminStatus=$inventory_data->{ifAdminStatus}, Collect=$inventory_data->{collect}"
-		);
+		# admin status changed in a relevant transition?
+		my $curstatus = $thisif->{ifAdminStatus};
+		my $newstate = $thisif->{_ifAdminStatus};
 
-		NMISNG::Util::dbg("collect interface index=$index");
+		NMISNG::Util::logMsg("INFO ($S->{name}) no ifAdminStatus for index=$index currently present")
+				if (!defined $curstatus);
 
-		# this is safe from using {info}{interface}, uses graphtype data a lot
-		my $rrdData    = $S->getData( class => 'interface', index => $index, model => $model );
-		my $howdiditgo = $S->status;
-		my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
-
-		# were there any errors?
-		if ( !$anyerror && !$howdiditgo->{skipped} )
+		# relevant transition === entering or leaving up state
+		if ((defined $newstate and $newstate eq "up")
+				xor (defined $curstatus and $curstatus eq "up"))
 		{
-			processAlerts( S => $S );
-			foreach my $sect ( keys %{$rrdData} )
+			$nmisng->log->info("Interface $index, admin status changed from $curstatus to $newstate, needs update");
+			$thisif->{_needs_update} = 1;
+			next;
+		}
+
+		# or has ifLastChange changed? not enabled by default, must check if it's been loaded
+		if ( defined($thisif->{_ifLastChangeSec}) # we've consulted snmp for it
+				 and ( !defined($thisif->{ifLastChangeSec}) # and we had none before
+							 or $thisif->{ifLastChangeSec} != $thisif->{_ifLastChangeSec}) ) # or the old value is different
+		{
+			$nmisng->log->info("Interface index $index, needs update because of ifLastChange $thisif->{_ifLastChangeSec}s"
+												 . ($thisif->{ifLastChangeSec}? ", was $thisif->{ifLastChangeSec}"
+														: ", new interface"));
+			$thisif->{_needs_update} = 1;
+			# no next, this is the last cheap test
+		}
+	}
+
+	# 4. perform getIntfInfo for the interfaces that need it
+	for my $needsmust (grep($if_data_map{$_}->{_needs_update}, keys %if_data_map))
+	{
+		# all done by index, so far
+		my $thisif = $if_data_map{$needsmust};
+		$nmisng->log->debug("Performing phase 1 getIntfInfo for index $needsmust");
+
+		# this returns an inventory object...
+		my $maybenew = getIntfInfo( sys => $S, index => $needsmust);
+		# ...which MAY be different from the one we've got in the if_data_map
+		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id})
+		{
+			$nmisng->log->debug2("Interface index $needsmust "
+													 .(defined($thisif->{_id})? "has changed substantially" : "is new")
+													 . " and has a new inventory");
+
+			# update the if_data_map. index is the same, contents may differ; must keep relevant stuff!
+			$if_data_map{$needsmust} = { %{$maybenew->data},
+																	 _id => $maybenew->id,
+																	 _was_updated => 1, # mark as 'getintfinfo done'
+																	 # if this is a new inventory then it lacks both enabled and historic...
+																	 enabled  => $maybenew->{enabled} // 1,
+																	 historic => $maybenew->{historic} // 0,
+																	 _ifAdminStatus => $maybenew->data->{ifAdminStatus},
+																	 _ifOperStatus => $maybenew->data->{ifOperStatus},
+			};
+		}
+		else
+		{
+			# just mark this interface as updated
+			$if_data_map{$needsmust}->{_was_updated} = 1;
+			delete $if_data_map{$needsmust}->{_needs_update};
+		}
+	}
+
+	# 5. collect modelled data for enabled, nonhistoric, collectable interfaces
+	# and stash it as we don't necessarily know the final inventory target yet
+	NMISNG::Util::info("Collecting Interface Data");
+	for my $index (sort grep($if_data_map{$_}->{enabled} && !$if_data_map{$_}->{historic},
+													 keys %if_data_map))
+	{
+		my $thisif = $if_data_map{$index};
+
+		# only collect on interfaces that are defined, with collection turned on globally,
+		# also don't bother with ones without ifdescr
+		if ( !defined $thisif->{ifDescr}
+				 or $thisif->{ifDescr} eq "" ) # note: 0 would be acceptable
+		{
+			$nmisng->log->debug("NOT collecting: ifIndex=$index: no description");
+			next;
+		}
+
+		# returns undef if no good
+		my $rrdData = $S->getData( class => 'interface', index => $index,
+															 model => $model );
+		my $howdiditgo =$thisif->{_rrd_status} = $S->status;
+
+		# any errors?
+		if (my $anyerror  = $howdiditgo->{error}
+				|| $howdiditgo->{snmp_error}
+				|| $howdiditgo->{wmi_error})
+		{
+			$nmisng->log->error("$nodename failed to get interface data for ifIndex=$index: $anyerror");
+		}
+
+		# 5a. a certain amount of data massaging is required before we can make use of the rrd data,
+		# ie. moving of HC octet counters
+		# that's because the 'special handling for manual interface discovery' needs the ifoctet counters...
+
+		# getdata returns a weird structure: section top, then $index underneath
+		for my $datasection (keys %$rrdData)
+		{
+			my $thisone = $rrdData->{$datasection}->{$index};
+
+			# if HC counters exist then MOVE values to the non-HC names
+			if (ref($thisone->{ifHCInOctets}) eq "HASH")
 			{
-				my $D = $rrdData->{$sect}{$index};
-
-				# if HC exists then copy values
-				if ( exists $D->{ifHCInOctets} )
+				$nmisng->log->debug("processing HC counters for index $index");
+				for ( ["ifHCInOctets", "ifInOctets"], ["ifHCOutOctets", "ifOutOctets"] )
 				{
-					NMISNG::Util::dbg("processing HC counters");
-					for ( ["ifHCInOctets", "ifInOctets"], ["ifHCOutOctets", "ifOutOctets"] )
-					{
-						my ( $source, $dest ) = @$_;
+					my ($source, $dest) = @$_;
 
-						if ( $D->{$source}->{value} =~ /^\d+$/ )
-						{
-							$D->{$dest}->{value}  = $D->{$source}->{value};
-							$D->{$dest}->{option} = $D->{$source}->{option};
-						}
-						delete $D->{$source};
+					if ( $thisone->{$source}->{value} =~ /^\d+$/ )
+					{
+						$thisone->{$dest}->{value}  = $thisone->{$source}->{value};
+						$thisone->{$dest}->{option} = $thisone->{$source}->{option};
 					}
+					delete $thisone->{$source};
 				}
-
-				# ...and copy these over as well
-				if ( $sect eq 'pkts' or $sect eq 'pkts_hc' )
+			}
+			# ...and MOVE these over as well
+			if ( $datasection eq 'pkts' or $datasection eq 'pkts_hc' )
+			{
+				my $debugdone = 0;
+				for ( ["ifHCInUcastPkts",  "ifInUcastPkts"],
+							["ifHCOutUcastPkts", "ifOutUcastPkts"],
+							["ifHCInMcastPkts",  "ifInMcastPkts"],
+							["ifHCOutMcastPkts", "ifOutMcastPkts"],
+							["ifHCInBcastPkts",  "ifInBcastPkts"],
+							["ifHCOutBcastPkts", "ifOutBcastPkts"], )
 				{
-					my $debugdone = 0;
+					my ( $source, $dest ) = @$_;
 
-					for (
-						["ifHCInUcastPkts",  "ifInUcastPkts"],
-						["ifHCOutUcastPkts", "ifOutUcastPkts"],
-						["ifHCInMcastPkts",  "ifInMcastPkts"],
-						["ifHCOutMcastPkts", "ifOutMcastPkts"],
-						["ifHCInBcastPkts",  "ifInBcastPkts"],
-						["ifHCOutBcastPkts", "ifOutBcastPkts"],
-						)
+					if ( $thisone->{$source}->{value} =~ /^\d+$/ )
 					{
-						my ( $source, $dest ) = @$_;
-
-						if ( $D->{$source}->{value} =~ /^\d+$/ )
-						{
-							NMISNG::Util::dbg("process HC counters of $sect") if ( !$debugdone++ );
-							$D->{$dest}->{value}  = $D->{$source}->{value};
-							$D->{$dest}->{option} = $D->{$source}->{option};
-						}
-						delete $D->{$source};
+						$nmisng->log->debug("process HC counters of $datasection for $index")
+								if ( !$debugdone++ );
+						$thisone->{$dest}->{value}  = $thisone->{$source}->{value};
+						$thisone->{$dest}->{option} = $thisone->{$source}->{option};
 					}
+					delete $thisone->{$source};
 				}
+			}
+		}
 
-				if ( $sect eq 'interface' )
+		# stash the data for this index
+		$thisif->{_rrd_data} = $rrdData;
+	}
+
+	# 6. figure out if any other interfaces need an update, based on the snmp information now available
+	# this covers reordered interfaces (interface index is not invariant, ifdescr is treated as invariant)
+	# new interfaces should have been handled in 4.
+	for my $index (keys %if_data_map)
+	{
+		my $thisif = $if_data_map{$index};
+
+		next if (!$thisif->{enabled} # we track historic/disabled ones but don't work on them...
+						 or $thisif->{historic}
+						 or !$thisif->{_rrd_data} # no rrd data collectable -> cannot do anything
+						 or ref($thisif->{_rrd_data}->{interface}) ne "HASH");
+
+		my $intfsection = $thisif->{_rrd_data}->{interface}->{$index};
+
+		my $newifdescr = NMISNG::Util::rmBadChars( $intfsection->{ifDescr}->{value} );
+		if ($newifdescr ne $thisif->{ifDescr})
+		{
+			$nmisng->log->info("Interface $index, ifDescr changed from $thisif->{ifDescr} to $newifdescr, needs update");
+			$thisif->{_needs_update} = 1;
+			next;
+		}
+
+		# now check the interface operational status for transition, if there are counters
+		# and if the adminstatus check isn't disabled
+		if (!$dontwanna_ifadminstatus
+				&& $intfsection->{ifInOctets} ne ''
+				&& $intfsection->{ifOutOctets} ne '')
+		{
+			my $prevstatus = $thisif->{ifOperStatus}; # that's inventory
+			my $newstatus = $thisif->{_ifOperStatus}; # that's snmp-sourced
+
+			# relevant transition === entering or leaving up state
+			if (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
+					or ($newstatus !~ /^(up|ok|dormant)$/))
+			{
+				$nmisng->log->info("Interface $index, oper status changed from $prevstatus to $newstatus, needs update");
+				$thisif->{_needs_update} = 1;
+			}
+		}
+	}
+
+	# 7. redo the getIntfInfo exercise from 4. for these other interfaces in need of help
+	# these 'other' interfaces should not be totally new ones, those should have been covered in 4.
+	for my $needsmust (grep($if_data_map{$_}->{_needs_update}, keys %if_data_map))
+	{
+		# all done by index, so far
+		my $thisif = $if_data_map{$needsmust};
+		$nmisng->log->debug("Performing phase 2 getIntfInfo for index $needsmust");
+
+		assert(!$thisif->{_was_updated}, "should getintfinfo-update index $needsmust at most once!");
+
+		# this returns an inventory object...
+		my $maybenew = getIntfInfo( sys => $S, index => $needsmust);
+		# ...which MAY be different from the one we've got in the if_data_map
+		if ($maybenew->id ne $thisif->{_id})
+		{
+			$nmisng->log->debug2("Interface index $needsmust has changed substantially and has a new inventory");
+
+			# update the if_data_map. index is the same, contents may differ
+			# we must keep the relevant already collected stuff, especially the rrd data!
+			$if_data_map{$needsmust} = { %{$maybenew->data},
+																	 _id => $maybenew->id,
+																	 _was_updated => 1, # mark as 'getintfinfo done'
+																	 # a new inventory may be lacking both enabled and historic
+																	 enabled  => $maybenew->{enabled} // 1,
+																	 historic => $maybenew->{historic} // 0,
+																	 #
+																	 _ifAdminStatus => $maybenew->data->{ifAdminStatus},
+																	 _ifOperStatus => $maybenew->data->{ifOperStatus},
+																	 _rrd_data => $thisif->{_rrd_data}, # keep
+																	 _rrd_status => $thisif->{_rrd_status} , # keep
+			};
+		}
+		else
+		{
+			# just mark this interface as updated
+			$if_data_map{$needsmust}->{_was_updated} = 1;
+			delete $if_data_map{$needsmust}->{_needs_update};
+		}
+	}
+
+	# 8. do something with the stashed rrd data; now if_data_map should have
+	# the correct inventory id attached for every single interface
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live(); # live, no saving needed
+	my $V    = $S->view;
+	my $RI   = $S->reach;
+	$RI->{intfUp} = $RI->{intfColUp} = 0;
+
+	# work on enabled and nonhistoric
+	for my $index (sort grep($if_data_map{$_}->{enabled}
+													 && !$if_data_map{$_}->{historic}, keys %if_data_map))
+	{
+		my $thisif = $if_data_map{$index};
+
+		# instantiate inventory
+		my ($inventory, $error_message) = $nmisng_node->inventory( _id => $thisif->{_id} );
+		if (!$inventory)
+		{
+			$nmisng->log->error("Failed to get interface inventory, _id: $thisif->{_id}: $error_message");
+			next;
+		}
+		$leftovers{$inventory->id} = 0; # clearly an interface we're handling, so not dead
+
+		# r/o, superset of what if_data_map carries, except for _rrd_data
+		my $inventory_data = $inventory->data;
+
+		my $alsoindex = $inventory_data->{ifIndex};
+		assert($index eq $alsoindex, "Interface inventory _id: $thisif->{_id} invalid, says ifindex is $alsoindex but current is $index");
+
+
+		NMISNG::Util::info(
+			"$inventory_data->{ifDescr}: ifIndex=$inventory_data->{ifIndex}, was: OperStatus=$inventory_data->{ifOperStatus}, ifAdminStatus=$inventory_data->{ifAdminStatus}, Collect=$inventory_data->{collect}"
+				);
+
+
+		# was an interface section collectable? certain amounts of massaging required
+		if (ref(my $ifsection = ref($thisif->{_rrd_data}->{interface}) eq "HASH"?
+						$thisif->{_rrd_data}->{interface}->{$index} : undef) eq "HASH")
+		{
+			# update the CURRENT oper and adminstates from snmp-sourced goodies
+			# these are already textualised
+			$thisif->{_ifAdminStatus} = $ifsection->{ifAdminStatus}{value};
+			$thisif->{_ifOperStatus} = $ifsection->{ifOperStatus}{value};
+
+			# special handling for manual interface discovery which does not use getIntfInfo
+			if ($dontwanna_ifadminstatus)
+			{
+				# ifAdminStatus is from inventory, _ifAdminStatus is from snmp, model etc.
+				NMISNG::Util::dbg("handling up/down, now admin=$thisif->{_ifAdminStatus}, oper=$thisif->{_ifOperStatus} was admin=$thisif->{ifAdminStatus}, oper=$thisif->{ifOperStatus}" );
+
+				# interface now up or down, check and set or clear outstanding event.
+				# fixme not quite correct logic, checkevent happens if ifadminstatus is not up/ok...
+				if ($thisif->{_ifAdminStatus} =~ /^(up|ok)$/
+						and $thisif->{_ifOperStatus} !~ /^(up|ok|dormant)$/ )
 				{
-					$D->{ifDescr}{value} = NMISNG::Util::rmBadChars( $D->{ifDescr}{value} );
-
-					# Cache any data for use later.
-					$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
-					$IFCACHE->{$index}{ifOperStatus}  = $D->{ifOperStatus}{value};
-
-					if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" )
+					if ( NMISNG::Util::getbool( $inventory_data->{event} ) )
 					{
-						if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-							and not NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{ifAdminStatus} ) )
-						{
-							### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
-							# interface now up or down, check and set or clear outstanding event.
-							NMISNG::Util::dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$if_data_map{$index}->{ifAdminStatus}, oper=$if_data_map{$index}->{ifOperStatus}"
-							);
-							$inventory_data->{ifAdminStatus} = $D->{ifAdminStatus}{value};
-							$inventory_data->{ifOperStatus}  = $D->{ifOperStatus}{value};
-
-							if (  $inventory_data->{ifAdminStatus} =~ /up|ok/
-								and $inventory_data->{ifOperStatus} !~ /up|ok|dormant/ )
-							{
-								if ( NMISNG::Util::getbool( $inventory_data->{event} ) )
-								{
-									Compat::NMIS::notify(
-										sys     => $S,
-										event   => "Interface Down",
-										element => $inventory_data->{ifDescr},
-										details => $inventory_data->{Description},
-										context => {type => "interface"}
-									);
-								}
-							}
-							else
-							{
-								Compat::NMIS::checkEvent(
-									sys     => $S,
-									event   => "Interface Down",
-									level   => "Normal",
-									element => $inventory_data->{ifDescr},
-									details => $inventory_data->{Description}
-								);
-							}
-						}
-						else
-						{
-							NMISNG::Util::dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$if_data_map{$index}->{ifAdminStatus}, oper=$if_data_map{$index}->{ifOperStatus}"
-							);
-							if ( $D->{ifOperStatus}{value} eq 'down' )
-							{
-								if ( $inventory_data->{ifOperStatus} =~ /up|ok/ )
-								{
-									# going down
-									getIntfInfo( sys => $S, index => $index );    # update this interface
-								}
-							}
-
-							# must be up
-							else
-							{
-								# Check if the status changed
-								if ( $inventory_data->{ifOperStatus} !~ /up|ok|dormant/ )
-								{
-									# going up
-									getIntfInfo( sys => $S, index => $index );    # update this interface
-								}
-							}
-						}
-
-						# If new ifDescr is different from old ifDescr rebuild interface info table
-						# check if nodeConf modified this inteface
-						my $node    = $S->{name};
-						my $ifDescr = $inventory_data->{ifDescr};
-
-						# nodeconf override for the ifDescr?
-						my $have_overridden_ifdescr;
-						$have_overridden_ifdescr = 1
-							if ( ref( $override->{$ifDescr} ) eq "HASH"
-							and $override->{$ifDescr}->{ifDescr} );
-
-						if (   !$have_overridden_ifdescr
-							and $D->{ifDescr}{value} ne ''
-							and $D->{ifDescr}{value} ne $inventory_data->{ifDescr} )
-						{
-							# Reload the interface config won't get that one right but should get the next one right
-							NMISNG::Util::logMsg(
-								"INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$inventory_data->{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"
-							);
-							getIntfInfo( sys => $S, index => $index );    # update this interface
-						}
-
-						delete $D->{ifDescr};                             # dont store in rrd
-						delete $D->{ifAdminStatus};
-
-						if ( exists $D->{ifLastChange}{value} )
-						{
-							# convert time integer to time string
-							$V->{interface}{"${index}_ifLastChange_value"} = $inventory_data->{ifLastChange}
-								= NMISNG::Util::convUpTime( $inventory_data->{ifLastChangeSec} = int( $D->{ifLastChange}{value} / 100 ) );
-							NMISNG::Util::dbg("last change time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}");
-						}
-						delete $D->{ifLastChange};
-
-						my $operStatus;
-
-						# Calculate Operational Status
-						$operStatus = ( $D->{ifOperStatus}{value} =~ /up|ok|dormant/ ) ? 100 : 0;
-						$D->{ifOperStatus}{value} = $operStatus;    # store real value in rrd
-
-						# While updating start calculating the total availability of the node, depends on events set
-						my $opstatus = NMISNG::Util::getbool( $inventory_data->{event} ) ? $operStatus : 100;
-						$RI->{operStatus} = $RI->{operStatus} + $opstatus;
-						$RI->{operCount}  = $RI->{operCount} + 1;
-
-						# count total number of collected interfaces up ( if events are set on)
-						$RI->{intfColUp} += $operStatus / 100
-							if NMISNG::Util::getbool( $inventory_data->{event} );
+						Compat::NMIS::notify(
+							sys     => $S,
+							event   => "Interface Down",
+							element => $inventory_data->{ifDescr},
+							details => $inventory_data->{Description},
+							context => {type => "interface"} );
 					}
-					else
-					{
-						NMISNG::Util::logMsg("ERROR ($S->{name}) ifIndex=$index, no values for ifInOctets and ifOutOctets received");
-					}
-				}
-
-				if ( $C->{debug} )
-				{
-					foreach my $ds ( keys %{$D} )
-					{
-						NMISNG::Util::dbg( "rrdData section $sect, ds $ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}", 2 );
-					}
-				}
-
-				# RRD Database update and remember filename
-				NMISNG::Util::info( "updateRRD type$sect index=$index", 2 );
-				my $db = $S->create_update_rrd( data => $D, type => $sect, index => $index, inventory => $inventory );
-				if ( !$db )
-				{
-					NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 				}
 				else
 				{
-					# convert data into values we can use in pit (eg resolve counters)
-					my $target = {};
-					NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $sect );
-					my $period = getThresholdPeriod( subconcept => $sect );
-					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
-																											 subconcept => $sect, start => $period, end => time);
-					# add data and stats
-					$stats //= {};
-					my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
-																									time => $catchall_data->{last_poll}, delay_insert => 1 );
-					NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
+					Compat::NMIS::checkEvent(
+						sys     => $S,
+						event   => "Interface Down",
+						level   => "Normal",
+						element => $inventory_data->{ifDescr},
+						details => $inventory_data->{Description}
+							);
+				}
+
+				# synthetic
+				$V->{interface}{"${index}_ifAdminStatus_color"} = Compat::NMIS::getAdminColor(
+					collect       => $inventory_data->{collect},
+					ifAdminStatus => $thisif->{_ifAdminStatus},
+					ifOperStatus  => $thisif->{_ifOperStatus} );
+				$V->{interface}{"${index}_ifOperStatus_color"} = Compat::NMIS::getOperColor(
+					collect       => $inventory_data->{collect},
+					ifAdminStatus => $thisif->{_ifAdminStatus},
+					ifOperStatus  => $thisif->{_ifOperStatus} );
+
+				$V->{interface}{"${index}_ifAdminStatus_value"} = $thisif->{_ifAdminStatus};
+				$V->{interface}{"${index}_ifOperStatus_value"}  = $thisif->{_ifOperStatus};
+			}
+
+			# and update the inventory with state, for saving later
+			$inventory_data->{ifAdminStatus} = $if_data_map{$index}->{_ifAdminStatus};
+			$inventory_data->{ifOperStatus} = $if_data_map{$index}->{_ifOperStatus};
+
+			# other interface section things
+			# cannot store text in rrd, don't need the ifadminstatus
+			delete $ifsection->{ifDescr};
+			delete $ifsection->{ifAdminStatus};
+
+			# convert time 1/100s tics to uptime string, but also save the seconds
+			if (ref($ifsection->{ifLastChange}) eq "HASH"
+					&& defined($ifsection->{ifLastChange}->{value}))
+			{
+				$V->{interface}{"${index}_ifLastChange_value"}
+				= $inventory_data->{ifLastChange}
+				= NMISNG::Util::convUpTime(
+					$inventory_data->{ifLastChangeSec}
+					= int( $ifsection->{ifLastChange}{value} / 100 ) );
+				NMISNG::Util::dbg("last change for index $index time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}");
+			}
+			delete $ifsection->{ifLastChange};
+
+			# accumulate total number of non-virtual interfaces that are up
+			$RI->{intfUp}++ if ($thisif->{_ifOperStatus} eq "up"
+													and NMISNG::Util::getbool($thisif->{real}));
+			++$RI->{intfTotal};
+
+			# Calculate numeric Operational Status
+			my $operStatus = ( $thisif->{_ifOperStatus} =~ /up|ok|dormant/ ) ? 100 : 0;
+			$ifsection->{ifOperStatus}->{value} = $operStatus;    # can only store numeric value in rrd
+
+			# While updating start calculating the total availability of the node, depends on events set
+			my $opstatus = NMISNG::Util::getbool( $inventory_data->{event} ) ? $operStatus : 100;
+			$RI->{operStatus} = $RI->{operStatus} + $opstatus;
+			++$RI->{operCount};
+
+			# count total number of collected interfaces up ( if events are set on)
+			++$RI->{intfColUp} if ($opstatus && NMISNG::Util::getbool($inventory_data->{event}));
+		} # end of the interface section special stuff
+
+
+		my $previous_pit = $inventory->get_newest_timed_data(); # one needed for the pit updates,
+
+		# now walk all rrd data sections and send them off to rrd
+		for my $sectionname (sort keys %{$thisif->{_rrd_data}})
+		{
+			my $thissection = $thisif->{_rrd_data}->{$sectionname}->{$index};
+			if ( $C->{debug} )
+			{
+				for my $ds (keys %{$thissection})
+				{
+					$nmisng->log->debug2( "rrdData section $sectionname, ds $ds, value=$thissection->{$ds}->{value}, option=$thissection->{$ds}->{option}");
 				}
 			}
 
-			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
-			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
-			my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S,
-																																	inventory => $inventory,
-																																	subconcept => 'interface',
-																																	start => $period, end => time);
-
-			$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability};
-			$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil};
-			$V->{interface}{"${index}_operAvail_color"} = Compat::NMIS::colorHighGood( $interface_util_stats->{availability} );
-			$V->{interface}{"${index}_totalUtil_color"} = Compat::NMIS::colorLowGood( $interface_util_stats->{totalUtil} );
-
-			if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-				and NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{ifAdminStatus}, "invert" ) )
+			# RRD Database update and remember filename
+			NMISNG::Util::info( "updateRRD type=$sectionname index=$index", 2 );
+			my $db = $S->create_update_rrd( data => $thissection,
+																			type => $sectionname,
+																			index => $index,
+																			inventory => $inventory );
+			if ( !$db )
 			{
-				NMISNG::Util::dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}"
-				);
-				$V->{interface}{"${index}_ifAdminStatus_color"} = Compat::NMIS::getAdminColor(
-					collect       => $inventory_data->{collect},
-					ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus},
-					ifOperStatus  => $IFCACHE->{$index}{ifOperStatus}
-				);
-				$V->{interface}{"${index}_ifOperStatus_color"} = Compat::NMIS::getOperColor(
-					collect       => $inventory_data->{collect},
-					ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus},
-					ifOperStatus  => $IFCACHE->{$index}{ifOperStatus}
-				);
-				$V->{interface}{"${index}_ifAdminStatus_value"} = $IFCACHE->{$index}{ifAdminStatus};
-				$V->{interface}{"${index}_ifOperStatus_value"}  = $IFCACHE->{$index}{ifOperStatus};
+				NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 			}
-
-			### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
-			### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
-			if ( Compat::NMIS::eventExist( $node, "Interface Down", $inventory_data->{ifDescr} )
-				and $inventory_data->{ifOperStatus} =~ /up|ok|dormant/ )
+			else
 			{
-				Compat::NMIS::checkEvent(
-					sys     => $S,
-					event   => "Interface Down",
-					level   => "Normal",
-					element => $inventory_data->{ifDescr},
-					details => $inventory_data->{Description}
-				);
+				# convert data into values we can use in pit (eg resolve counters)
+				my $target = {};
+
+				NMISNG::Inventory::parse_rrd_update_data($thissection, $target, $previous_pit, $sectionname);
+				my $period = getThresholdPeriod( subconcept => $sectionname );
+				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+																										 subconcept => $sectionname,
+																										 start => $period, end => time);
+				# add data and stats
+				$stats //= {};
+				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats,
+																								subconcept => $sectionname,
+																								time => $catchall_data->{last_poll},
+																								delay_insert => 1 );
+				NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error")
+						if ($error);
 			}
 		}
-		elsif( $howdiditgo->{skipped} ) {}
-		else
+
+		# can't re-use stats here because these run on default 6h, normal stats run on 15m
+		my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
+		my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S,
+																																inventory => $inventory,
+																																subconcept => 'interface',
+																																start => $period,
+																																end => time);
+
+		$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability} // "N/A";
+		$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil} // "N/A";
+		$V->{interface}{"${index}_operAvail_color"} = Compat::NMIS::colorHighGood( $interface_util_stats->{availability} );
+		$V->{interface}{"${index}_totalUtil_color"} = Compat::NMIS::colorLowGood( $interface_util_stats->{totalUtil} );
+
+		### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
+		### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
+		if ( Compat::NMIS::eventExist( $nodename, "Interface Down", $inventory_data->{ifDescr} )
+				 and $inventory_data->{ifOperStatus} =~ /up|ok|dormant/ )
 		{
-			NMISNG::Util::logMsg("ERROR ($S->{name}) on getIntfData of interface=$index, $anyerror");
-
-			$V->{interface}{"${index}_operAvail_value"} = 'N/A';
-			$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
-
-			# interface problems but no usable data, don't make an event
-			if ( NMISNG::Util::getbool( $inventory_data->{event} ) )
-			{
-				NMISNG::Util::logMsg(
-					"ERROR: Interface SNMP Data: ifAdminStatus=$inventory_data->{ifAdminStatus} ifOperStatus=$inventory_data->{ifOperStatus} enabled=".$inventory->enabled()
-				);
-			}
+			Compat::NMIS::checkEvent(
+				sys     => $S,
+				event   => "Interface Down",
+				level   => "Normal",
+				element => $inventory_data->{ifDescr},
+				details => $inventory_data->{Description}
+					);
 		}
 
 		# header info of web page
@@ -4548,10 +4712,12 @@ sub getIntfData
 		$V->{interface}{"${index}_totalUtil_title"} = $C->{interface_util_label} || 'Util. 6hrs';    # backwards compat
 
 		# check escalation if event is on
-		if ( NMISNG::Util::getbool( $inventory_data->{event} ) )
+		if ( NMISNG::Util::getbool($inventory_data->{event}))
 		{
 			my $escalate = 'none';
-			if ( my $event_exist = Compat::NMIS::eventExist( $S->{node}, "Interface Down", $inventory_data->{ifDescr} ) )
+			if (my $event_exist = Compat::NMIS::eventExist( $nodename,
+																											"Interface Down",
+																											$inventory_data->{ifDescr} ))
 			{
 				my $erec = Compat::NMIS::eventLoad( filename => $event_exist );
 				$escalate = $erec->{escalate} if ( $erec and defined( $erec->{escalate} ) );
@@ -4559,12 +4725,46 @@ sub getIntfData
 			$V->{interface}{"${index}_escalate_title"} = 'Esc.';
 			$V->{interface}{"${index}_escalate_value"} = $escalate;
 		}
+
 		# don't recalculate path, that should happen in update, any place where we find
 		# the interface has changed enough runs update code anyway. I believe not doing this is correct
 		$inventory->data( $inventory_data );
-		$inventory->save();
+		$inventory->historic(0);
+		$inventory->enabled(1);
+
+		my ($op, $error) = $inventory->save();
+		$nmisng->log->error("failed to save inventory for $nodename, interface $inventory_data->{ifDescr}: $error")
+				if ($op <= 0);
+
 	}
+
+	# handle accumulated alerts
+	processAlerts( S => $S );
+
+	# done walking the interfaces, now mark as historic what is known unwanted
+	# leftovers holds all observed inventoies, 1 is dead 0 is good
+	my @keep;
+	for my $invid (keys %leftovers)
+	{
+		if ($leftovers{$invid})
+		{
+			# note that leftovers contain already marked historic ones, so that debug isn't super-useful
+			$nmisng->log->debug3("$nodename, (re)marking inventory $invid as historic");
+		}
+		else
+		{
+			push @keep, $invid;
+		}
+	}
+
+	my $nuked = $S->nmisng_node->bulk_update_inventory_historic(
+		active_ids => \@keep, concept => 'interface' );
+	$nmisng->log->error("bulk update historic failed: $nuked->{error}") if ($nuked->{error});
+
+	NMISNG::Util::logMsg("$nodename, found intfs alive: $nuked->{matched_nothistoric}, already historic: $nuked->{matched_historic}, marked alive: $nuked->{marked_nothistoric}, marked historic: $nuked->{marked_historic}");
+
 	NMISNG::Util::info("Finished");
+	return 1;
 }
 
 ### Class Based Qos handling
@@ -4773,7 +4973,7 @@ sub getCBQoSwalk
 			$nmisng->log->error("get inventory model failed: $result->{error}");
 			next;
 		}
-	
+
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my $data = $result->{model_data}->data();
 		my %if_data_map = map
@@ -5760,12 +5960,12 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 	# find and mark as historic any services no longer configured for this host
 	my %desiredservices = map { ($_ => 1) } (split /,/, $NT->{$S->{name}}{services} );
 
-	
+
 	my $result = $nmisng_node->get_inventory_model(concept => "service",
 																								 filter => { historic => 0 },
 																								 fields_hash => { "data.service" => 1,
 																																	_id => 1, });
-	# fixme: better error handling 
+	# fixme: better error handling
 	if ($result->{success} && $result->{model_data}->count)
 	{
 		my %oldservice = map { ($_->{data}->{service} => $_->{_id}) } (@{$result->{model_data}->data});
@@ -5871,10 +6071,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			($servicetype eq "service" && !$snmp_allowed)? "Not checking name=$name, no SNMP available"
 			: "Checking service_type=$servicetype name=$name service_name=$servicename" );
 
-		# clear global hash each time around as this is used to pass results to rrd update
-		my $ret      = 0;
-		my $snmpdown = 0;
 
+		my $ret      = 0;
 		# record the service response time, more precisely the time it takes us testing the service
 		$timer->resetTime;
 		my $responsetime;    # blank the responsetime
@@ -5965,101 +6163,80 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			}
 		}
 
-		# now the snmp services - but only if snmp is on
-		# only do the SNMP checking if and when you are supposed to!
-		# snmp not allowed also includes the case of snmp having failed just now
+		# now the snmp services - but only if snmp is on and if it did work.
 		elsif ( $servicetype eq "service"
 						and NMISNG::Util::getbool($NT->{$node}{collect}) )
 		{
+			# snmp not allowed also includes the case of snmp having failed just now
+			# in which case we cannot and must not say anything about this service
 			next if (!$snmp_allowed);
 
-			NMISNG::Util::dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$catchall_data->{snmpdown} nodedown=$catchall_data->{nodedown}"
-			);
-			if (NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error}, "invert" )
-				or (    NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} )
-					and !NMISNG::Util::getbool( $catchall_data->{snmpdown} )
-					and !NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
-				)
+			my $wantedprocname = $servicename;
+			my $parametercheck = $thisservice->{Service_Parameters};
+
+			if ( !$wantedprocname and !$parametercheck )
 			{
-				my $wantedprocname = $servicename;
-				my $parametercheck = $thisservice->{Service_Parameters};
+				NMISNG::Util::info("ERROR, Both Service_Name and Service_Parameters are empty");
+				NMISNG::Util::logMsg(
+					"ERROR, ($S->{name}) service=$service Service_Name and Service_Parameters are empty!");
+				next;
+			}
 
-				if ( !$wantedprocname and !$parametercheck )
-				{
-					NMISNG::Util::dbg("ERROR, Both Service_Name and Service_Parameters are empty");
-					NMISNG::Util::logMsg(
-						"ERROR, ($S->{name}) service=$service Service_Name and Service_Parameters are empty!");
-					next;
-				}
+			# one of the two blank is ok
+			$wantedprocname ||= ".*";
+			$parametercheck ||= ".*";
 
-				# one of the two blank is ok
-				$wantedprocname ||= ".*";
-				$parametercheck ||= ".*";
+			# lets check the service status from snmp for matching process(es)
+			# it's common to have multiple processes with the same name on a system,
+			# heuristic: one or more living processes -> service is ok,
+			# no living ones -> down.
+			# living in terms of host-resources mib = runnable or running;
+			# interpretation of notrunnable is not clear.
+			# invalid is for (short-lived) zombies, which should be ignored.
 
-				# lets check the service status from snmp for matching process(es)
-				# it's common to have multiple processes with the same name on a system,
-				# heuristic: one or more living processes -> service is ok,
-				# no living ones -> down.
-				# living in terms of host-resources mib = runnable or running;
-				# interpretation of notrunnable is not clear.
-				# invalid is for (short-lived) zombies, which should be ignored.
+			# we check: the process name, against regex from Service_Name definition,
+			# AND the process path + parameters, against regex from Service_Parameters
+			# services list is keyed by "name:pid"
+			my @matchingpids = grep( ( /^$wantedprocname:\d+$/
+																 && ( $services{$_}->{hrSWRunPath} . " " . $services{$_}->{hrSWRunParameters} )
+																 =~ /$parametercheck/
+															 ),
+															 keys %services );
+			my @livingpids = grep ( $services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids );
 
-				# we check: the process name, against regex from Service_Name definition,
-				# AND the process path + parameters, against regex from Service_Parameters
-				# services list is keyed by "name:pid"
-				my @matchingpids = grep( (
-						/^$wantedprocname:\d+$/
-							&& ( $services{$_}->{hrSWRunPath} . " " . $services{$_}->{hrSWRunParameters} )
-							=~ /$parametercheck/
-					),
-					keys %services );
+			NMISNG::Util::dbg(      "runServices: found "
+															. scalar(@matchingpids)
+															. " total and "
+															. scalar(@livingpids)
+															. " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
+															. join( " ", @livingpids) );
 
-				my @livingpids = grep ( $services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids );
+			if ( !@livingpids )
+			{
+				$ret       = 0;
+				$cpu       = 0;
+				$memory    = 0;
+				$gotMemCpu = 1;
 
-				NMISNG::Util::dbg(      "runServices: found "
-						. scalar(@matchingpids)
-						. " total and "
-						. scalar(@livingpids)
-						. " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
-						. join( " ", @livingpids) );
-
-				if ( !@livingpids )
-				{
-					$ret       = 0;
-					$cpu       = 0;
-					$memory    = 0;
-					$gotMemCpu = 1;
-					NMISNG::Util::logMsg(
-						"INFO, service $name is down, "
-							. (
-							@matchingpids
-							? "only non-running processes"
-							: "no matching processes"
-							)
-					);
-				}
-				else
-				{
-					# return the average values for cpu and mem
-					$ret       = 1;
-					$gotMemCpu = 1;
-
-					# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
-					# memory is in kb, and a gauge.
-					$cpu = int( mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ) );
-					$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
-
-				  #					NMISNG::Util::dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
-				  #					NMISNG::Util::dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
-
-					NMISNG::Util::info(
-						"INFO, service $name is up, " . scalar(@livingpids) . " running process(es)" );
-				}
+				NMISNG::Util::logMsg("INFO, service $name is down, "
+														 . ( @matchingpids? "only non-running processes" : "no matching processes" ));
 			}
 			else
 			{
-				# is the service already down?
-				$snmpdown = 1;
+				# return the average values for cpu and mem
+				$ret       = 1;
+				$gotMemCpu = 1;
+
+				# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
+				# memory is in kb, and a gauge.
+				$cpu = int( mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ) );
+				$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
+
+				#					NMISNG::Util::dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
+				#					NMISNG::Util::dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
+
+				NMISNG::Util::info(
+					"INFO, service $name is up, " . scalar(@livingpids) . " running process(es)" );
 			}
 		}
 
@@ -6352,14 +6529,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			. uri_escape($service);
 
 		# let's raise or clear service events based on the status
-		if ($snmpdown)    # only set IFF this is an snmp-based service AND snmp is broken/down.
-		{
-			NMISNG::Util::dbg("$servicetype $name is not checked, snmp is down");
-			$V->{system}{"${service}_value"} = 'unknown';
-			$V->{system}{"${service}_color"} = 'gray';
-			$serviceValue                    = '';
-		}
-		elsif ( $serviceValue == 100 )    # service is fully up
+		if ( $serviceValue == 100 )    # service is fully up
 		{
 			NMISNG::Util::dbg("$servicetype $name is available ($serviceValue)");
 
@@ -6576,8 +6746,9 @@ sub runAlerts
 
 	foreach my $sect ( keys %{$CA} )
 	{
-		# only use inventory that already exists
-		my $ids = $S->nmisng_node->get_inventory_ids( concept => $sect );
+		# get the inventory instances that are relevant for this section,
+		# ie. only enabled and nonhistoric ones
+		my $ids = $S->nmisng_node->get_inventory_ids( concept => $sect, filter => { enabled => 1, historic => 0 } );
 		NMISNG::Util::info("Custom Alerts for $sect");
 		foreach my $id ( @$ids )
 		{
@@ -9574,14 +9745,14 @@ sub doThresholdsAndCreateStatus
 				$callargs{nmisng} = $nmisng;
 				$callargs{class_name} = { "concept" => \&NMISNG::Inventory::get_inventory_class };
 				my $result = $S->nmisng_node->get_inventory_model(%callargs);
-				
+
 				if (!$result->{success})
 				{
 					$nmisng->log->error("get inventory model failed: $result->{error}");
 					return undef;
 				}
 				my $inventory_model = $result->{model_data};
-						 
+
 				NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
 
 				# turn the 'models' into objects so that parseString can use it if required
@@ -9597,7 +9768,7 @@ sub doThresholdsAndCreateStatus
 					my $data = $inventory->data;
 					my $index = $data->{index} // undef;
 
-					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, 
+					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index,
 																						 eval => 1, inventory => $inventory ) )
 					{
 						NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
