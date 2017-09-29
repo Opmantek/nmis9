@@ -601,6 +601,9 @@ sub save
 
 	# make 100% certain we've got the uuid correct
 	$entry->{uuid} = $self->uuid;
+	
+	# need the time it was last saved
+	$entry->{lastupdate} = time;
 
 	if ( $self->is_new() )
 	{

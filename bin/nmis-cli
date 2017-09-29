@@ -297,6 +297,10 @@ elsif ($Q->{act} eq "dbcleanup")
 	my $res = dbcleanup(simulate => $Q->{simulate});
 	die "$res\n" if ($res);
 }
+elsif ($Q->{act} eq 'noderefresh')
+{
+	noderefresh();
+}
 elsif ($Q->{act} eq "fixperms")
 {
 	if ($wantverbose)
@@ -694,4 +698,35 @@ sub dbcleanup
 
 	$logger->info("Database cleanup complete");
 	return undef;
+}
+
+# resave nodes, forces lastupdate to be new and all validation to be run
+sub noderefresh
+{
+	my $updated = 0;
+	# get all nodes
+	my $md = $nmisng->get_nodes_model( name => $Q->{node} );
+	my $object_ret = $md->objects();
+	if( $object_ret->{success} )
+	{		
+		foreach my $node ( @{$object_ret->{objects}} )
+		{
+			# tell the node it's dirty so the save happens
+			$node->_dirty(1,"nothing");
+			my ($op,$error) = $node->save();
+			if( $op < 1 || $error )
+			{
+				print "Error saving: ".$node->name.", op:$op, error: $error" 	
+			}
+			else
+			{
+				$updated++;
+			}
+		}
+	}
+	else
+	{
+		print "Error making node objects: $object_ret->{error}\n";
+	}
+	print "total nodes: ".$md->count.", updated:$updated\n";
 }

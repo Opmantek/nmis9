@@ -717,6 +717,7 @@ sub end_bulk
 			$result->{modified_count} = $res->modified_count;
 			$result->{op_count}       = $res->op_count;
 			$result->{matched_count}  = $res->matched_count;
+			$success = 1;
 		}
 	}
 	catch
