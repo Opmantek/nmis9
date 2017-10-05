@@ -1043,6 +1043,16 @@ sub getValues
 				next;
 			}
 		}
+
+		# check if we should just skip any collect and leave this to a plugin to collect
+		# we need to have an rrd section so we can define the graphtypes.
+		if ($thissection->{skip_collect} and NMISNG::Util::getbool($thissection->{skip_collect}))
+		{
+			NMISNG::Util::dbg("skip_collect $thissection->{skip_collect} found for section=$sectionname",2);
+			$status{skipped} = "skipped $sectionname because skip_collect set to true";
+			next;
+		}
+
 		NMISNG::Util::TODO("GRAPHTYPE: Does full removal of this code make sense?");
 		# # should we add graphtype to given (info) table?
 		# if ( ref($tbl) eq "HASH" )
