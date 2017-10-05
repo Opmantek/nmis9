@@ -234,7 +234,7 @@ sub get_inventory_model
 	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
 
 	my $q = $self->get_inventory_model_query( %args );
-
+	# print "query:".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->inventory_collection,
 		query      => $q,
@@ -243,6 +243,7 @@ sub get_inventory_model
 		skip       => $args{skip},
 		fields_hash => $args{fields_hash},
 			);
+
 	return { error => "find failed: ".NMISNG::DB::get_error_string } if (!defined $entries);
 
 	my @all;
@@ -299,6 +300,45 @@ sub get_inventory_model_query
 	return $q;
 }
 
+# returns latest data
+# arg: filter - kvp's of filters to be applied
+sub get_latest_data_model
+{
+	my ( $self, %args ) = @_;
+	my $filter = $args{filter};
+	my $fields_hash = $args{fields_hash};
+
+	my $q = NMISNG::DB::get_query( and_part => $filter );
+
+	my $entries = [];
+	my $query_count;
+	if ( $args{count} )
+	{
+		$query_count = NMISNG::DB::count( collection => $self->latest_data_collection, query => $q );	
+	}
+	# print "get_nodes_model, q".Dumper($q);
+	my $cursor = NMISNG::DB::find(
+		collection => $self->latest_data_collection,
+		query      => $q,
+		fields_hash => $fields_hash,
+		sort       => $args{sort},
+		limit      => $args{limit},
+		skip       => $args{skip}
+	);
+
+	while ( my $entry = $cursor->next )
+	{
+		push @$entries, $entry;
+	}
+	my $model_data_object = NMISNG::ModelData->new( nmisng => $self,
+																									data => $entries,
+																									query_count => $query_count,
+																									sort       => $args{sort},
+																									limit      => $args{limit},
+																									skip       => $args{skip} );
+	return $model_data_object;
+}
+
 # returns selection of nodes, as array of hashes
 # args: id, name, host, group for selection;
 #
@@ -307,8 +347,10 @@ sub get_inventory_model_query
 # arg sort: mongo sort criteria
 # arg limit: return only N records at the most
 # arg skip: skip N records at the beginning. index N in the result set is at 0 in the response
-# arg paginate: sets the pagination mode, in which case the result array is fudged up sparsely to
+# arg paginate: not supported, should be implemented at different level, sort/skip/limit does happen here
+# arg count: 
 # arg filter: any other filters on the list of nodes required, hashref
+# arg fields_hash: hash of fields that should be grabbed for each node record, whole thing for each if not provided
 # return 'complete' result elements without limit! - a dummy element is inserted at the 'complete' end,
 # but only 0..limit are populated
 sub get_nodes_model
@@ -319,20 +361,21 @@ sub get_nodes_model
 	$filter->{'name'}  = $args{name};
 	$filter->{'host'}  = $args{host};
 	$filter->{'group'} = $args{group};
+	my $fields_hash = $args{fields_hash};
 
 	my $q = NMISNG::DB::get_query( and_part => $filter );
 
 	my $model_data = [];
-	if ( $args{paginate} )
+	my $query_count;
+	if ( $args{count} )
 	{
-		# fudge up a dummy result to make it reflect the total number
-		my $count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
-		$model_data->[$count - 1] = {} if ($count);
+		$query_count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );	
 	}
 	# print "get_nodes_model, q".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->nodes_collection,
 		query      => $q,
+		fields_hash => $fields_hash,
 		sort       => $args{sort},
 		limit      => $args{limit},
 		skip       => $args{skip}
@@ -347,7 +390,11 @@ sub get_nodes_model
 
 	my $model_data_object = NMISNG::ModelData->new( class_name => "NMISNG::Node",
 																									nmisng => $self,
-																									data => $model_data );
+																									data => $model_data,
+																									query_count => $query_count,
+																									sort       => $args{sort},
+																									limit      => $args{limit},
+																									skip       => $args{skip} );
 	return $model_data_object;
 }
 

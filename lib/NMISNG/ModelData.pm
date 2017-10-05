@@ -57,6 +57,11 @@ sub new
 		_attribute_name => undef,
 		_nmisng => $args{nmisng},
 		_data => $args{data},
+		# handy for housekeeping, no accessors yet
+		_query_count => $args{query_count},
+		_sort => $args{sort},
+		_limit => $args{limit},
+		_skip => $args{skip}
 									 }, $class );
 	
 	my $maybestatic = $args{class_name};
