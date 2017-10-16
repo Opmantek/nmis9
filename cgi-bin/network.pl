@@ -1965,6 +1965,19 @@ EO_HTML
 		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
 	}
 
+	# this will handle the Name and URL for additional node information
+	my $context;
+	if ( defined $configuration->{node_context_name} and $configuration->{node_context_name} ne "" ) {
+		my $url = $configuration->{node_context_url} if $configuration->{node_context_url};
+		# substitute any known parameters
+		$url =~ s/\$host/$configuration->{host}/g;
+		$url =~ s/\$name/$configuration->{name}/g;
+		$url =~ s/\$node/$configuration->{name}/g;
+
+		$context = qq| <a href="$url" target="context_$node" style="color:white;">$configuration->{node_context_name}</a>|;
+	}
+
+	# this will handle the Name and URL for remote management connection
 	my $remote;
 	if ( defined $configuration->{remote_connection_name} and $configuration->{remote_connection_name} ne "" )
 	{
@@ -1994,6 +2007,7 @@ EO_HTML
 	$nodeDetails .= " - $editnode" if $editnode;
 	$nodeDetails .= " - $editconf" if $editconf;
 	$nodeDetails .= " - $remote"   if $remote;
+	$nodeDetails .= " - $context" if $context;
 
 	print Tr( th( {class => 'title', colspan => '2'}, $nodeDetails ) );
 	print start_Tr;
