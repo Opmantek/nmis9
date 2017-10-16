@@ -118,8 +118,10 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
 
 	$logger->info("Starting bulk import of nodes");
-	my $node_table = NMISNG::Util::readFiletoHash(file => $nodesfile);
-	die "nodes file contains no data!\n"
+	# rfth is silly wrt guessing extensions...
+	my $node_table = NMISNG::Util::readFiletoHash(file => $nodesfile,
+																								json => ($nodesfile =~ /\.json$/i));
+	die "nodes file contains no usable data!\n"
 			if (ref($node_table) ne "HASH" or !keys %$node_table);
 
 	my %stats = (created => 0, updated => 0);
@@ -251,7 +253,11 @@ elsif ($cmdline->{act} eq "export")
 		map { delete $_->{overrides}; delete $_->{addresses}; } (@$allofthem);
 		my %compathash = map { ($_->{name} => $_) } (@$allofthem);
 
-		print $fh Data::Dumper->new([\%compathash],[qw(*hash)])->Sortkeys(1)->Dump;
+		# export in nodes layout, but in nmis/perl format or json?
+		# stdout: perl default, also for anything.nmis
+		print $fh (($file && $file =~ /^(-|.+\.nmis)$/i)?
+							 Data::Dumper->new([\%compathash],[qw(*hash)])->Sortkeys(1)->Dump
+							 : JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode(\%compathash));
 	}
 	else
 	{
