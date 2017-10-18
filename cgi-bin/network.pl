@@ -1972,7 +1972,7 @@ EO_HTML
 		# substitute any known parameters
 		$url =~ s/\$host/$configuration->{host}/g;
 		$url =~ s/\$name/$configuration->{name}/g;
-		$url =~ s/\$node/$configuration->{name}/g;
+		$url =~ s/\$node_name/$configuration->{name}/g;
 
 		$context = qq| <a href="$url" target="context_$node" style="color:white;">$configuration->{node_context_name}</a>|;
 	}
@@ -1986,7 +1986,7 @@ EO_HTML
 		# substitute any known parameters
 		$url =~ s/\$host/$configuration->{host}/g;
 		$url =~ s/\$name/$configuration->{name}/g;
-		$url =~ s/\$node/$configuration->{name}/g;
+		$url =~ s/\$node_name/$configuration->{name}/g;
 
 		$remote
 			= qq| <a href="$url" target="remote_$node" style="color:white;">$configuration->{remote_connection_name}</a>|;
