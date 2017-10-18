@@ -75,6 +75,41 @@ use Compat::DBfunc;							# fixme9: should be removed
 use NMISNG::MIB;
 use NMISNG::Sys;
 
+
+my $usage = "NMIS Polling Engine - Network Management Information System
+
+Copyright (C) Opmantek Limited (www.opmantek.com)
+This program comes with ABSOLUTELY NO WARRANTY;
+This is free software licensed under GNU GPL, and you are welcome to
+redistribute it under certain conditions; see www.opmantek.com or email
+contact\@opmantek.com
+
+NMIS version $Compat::NMIS::VERSION
+
+Usage: $0 [option=value...]
+
+options:
+  type=<action>, default=collect
+      collect   NMIS will collect all statistics (incl. Services)
+      update    Update all the dynamic NMIS configuration
+      threshold Calculate thresholds
+      services  Run Services data collection only
+      master    Run NMIS Master Functions
+      escalate  Run the escalation routine only ( debug use only)
+      links     Generate the links.csv file.
+      rme       Read and generate a node.csv file from a Ciscoworks RME file
+  [conf=<file name>]     Optional alternate configuation file in conf directory
+  [node=<node name>]     Run operations on a single node;
+  [group=<group name>]   Run operations on all nodes in the named group;
+  [force=true|false]     Makes operations run from scratch, ignoring interval policies
+  [debug=true|false|0-9] default=false - Show debugging information
+  [rmefile=<file name>]  RME file to import.
+  [mthread=true|false]   Enable Multithreading or not;
+  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
+  [maxthreads=<1..XX>]   How many threads should nmis use, at most\n\n";
+
+die $usage if (@ARGV == 1 && $ARGV[0] =~ /^(-h|--help|-\?)$/);
+
 # Variables for command line munging
 my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
@@ -194,47 +229,9 @@ elsif ( $type eq "links" )      { runLinks(); }                                 
 elsif ( $type eq "rme" )        { Compat::NMIS::loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # USUALLY included in type=collect
 elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # MIGHT be included in type=collect
-
-
 else
 {
-		print qq!
-
-NMIS Polling Engine - Network Management Information System
-
-Copyright (C) Opmantek Limited (www.opmantek.com)
-This program comes with ABSOLUTELY NO WARRANTY;
-This is free software licensed under GNU GPL, and you are welcome to
-redistribute it under certain conditions; see www.opmantek.com or email
-contact\@opmantek.com
-
-NMIS version $Compat::NMIS::VERSION
-
-Usage: $0 <type=action> [option=value...]
-
-command line options are:
-  type=<option>
-    Where <option> is one of the following:
-      collect   NMIS will collect all statistics (incl. Services)
-      update    Update all the dynamic NMIS configuration
-      threshold Calculate thresholds
-      services  Run Services data collection only
-      master    Run NMIS Master Functions
-      escalate  Run the escalation routine only ( debug use only)
-      links     Generate the links.csv file.
-      rme       Read and generate a node.csv file from a Ciscoworks RME file
-  [conf=<file name>]     Optional alternate configuation file in conf directory
-  [node=<node name>]     Run operations on a single node;
-  [group=<group name>]   Run operations on all nodes in the named group;
-  [force=true|false]     Makes operations run from scratch, ignoring interval policies
-  [debug=true|false|0-9] default=false - Show debugging information
-  [rmefile=<file name>]  RME file to import.
-  [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
-  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
-  [maxthreads=<1..XX>]  default=$C->{nmis_maxthreads} - How many threads should nmis use, at most\n
-!;
-
-	exit 1;
+	die $usage;
 }
 exit 0;
 

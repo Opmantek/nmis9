@@ -78,9 +78,14 @@ my @models = ('automatic', sort keys %knownmodels);
 	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Customers')}] }},
 	 { businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{Compat::NMIS::loadGenericTable('BusinessServices')} ] }},
 	 { serviceStatus => { header => 'Service Status',display => 'popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('ServiceStatus')} ] }},
-	 { extra_options => { special => 'separator', header => 'Remote Connection'}},
+
+	 { extra_options => { special => 'separator', header => 'Name and URL for additional node information'}},
+	 { node_context_name => { header => 'Node Context Name',display => 'text',value => ["Node Context"] }},
+	 { node_context_url => { header => 'Node Context URL',display => 'text',value => ["https://somelink.com/map/thing/"] }},
+	 { extra_options => { special => 'separator', header => 'Name and URL for remote management connection'}},
 	 { remote_connection_name => { header => 'Remote Connection Name',display => 'text',value => ["SSH to Node"] }},
 	 { remote_connection_url => { header => 'Remote Connection URL',display => 'text',value => ["ssh://\$host"] }},
+
 	 { extra_options => { special => 'separator', header => 'Extra Options'}},
 	 { display_name => { header => "Display Name", display => "header,text", value => [""] }},
 	 { notes => { header => 'Notes',display => 'header,textbox',value => [""] }},
