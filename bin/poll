@@ -7596,11 +7596,13 @@ sub getIntfAllInfo
 	NMISNG::Util::dbg("Getting Interface Info from all nodes");
 
 	my $nmisng = Compat::NMIS::new_nmisng();
-	my $node_names = $nmisng->get_node_names();
+	my $get_node_uuids = $nmisng->get_node_uuids( filter => { cluster_id => $C->{cluster_id} } );
 	# Write a node entry for each node
-	foreach my $node_name ( sort @$node_names )
+	foreach my $node_uuid ( sort @$get_node_uuids )
 	{
-		my $nmisng_node = $nmisng->node( name => $node_name );
+
+		my $nmisng_node = $nmisng->node( uuid => $node_uuid );
+		my $node_name = $nmisng_node->name();
 		my $configuration = $nmisng_node->configuration;
 		if ( NMISNG::Util::getbool( $configuration->{active} ) and NMISNG::Util::getbool( $configuration->{collect} ) )
 		{

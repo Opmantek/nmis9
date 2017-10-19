@@ -120,16 +120,6 @@ sub viewOutage {
 
 	if ($AU->CheckAccess("Table_Outages_rw",'check')) {
 
-		print Tr(td({class=>'header',colspan=>'6'},'Add Outage'));
-	
-		print Tr(
-			td({class=>'header',align=>'center'},'Node'),
-			td({class=>'header',align=>'center'},'Start'),
-			td({class=>'header',align=>'center'},'End'),
-			td({class=>'header',align=>'center'},'Change'),
-			td({class=>'header',align=>'center',colspan=>'2'},'Action')
-			);
-	
 		my $start = $time+300;
 		my $end = $time+3600;
 		my $change = 'ticket #';
@@ -138,27 +128,50 @@ sub viewOutage {
 			$end = $Q->{end};
 			$change = $Q->{change};
 		}
+
 		my @nodes = grep { $AU->InGroup($NT->{$_}{group}) } sort {lc $a cmp lc $b} keys %{$NT};
 		my @nd = split(/,/,$node);
+
+		print Tr(td({class=>'header',colspan=>'3'},'Add Planned Outage'));
 		print Tr(
-			td({class=>'info'},
-				scrolling_list(-name=>'node',-multiple=>'true',-size=>'12',override=>'1',-values=>\@nodes,-default=>\@nd) ),
-			td({class=>'info'},
+			td({class=>'header',align=>'left'},'Planned Outage Start'),
+			td({class=>'info',colspan=>'2'},
 				textfield(-name=>'start',-id=>'id_start',-style=>'background-color:yellow;width:100%;',override=>'1',
-					-value=>NMISNG::Util::returnDateStamp($start)),div({-id=>'calendar-start'}) ),
-			td({class=>'info'},
+					-value=>NMISNG::Util::returnDateStamp($start)),div({-id=>'calendar-start'}) )
+			);
+
+		print Tr(
+			td({class=>'header',align=>'left'},'Planned Outage End'),
+			td({class=>'info',colspan=>'2'},
 				textfield(-name=>'end',-id=>'id_end',-style=>'background-color:yellow;width:100%;',override=>'1',
-					-value=>NMISNG::Util::returnDateStamp($end)),div({-id=>'calendar-end'}) ),
-			td({class=>'info'},
-				textfield(-name=>'change',-style=>'background-color:yellow;width:200px;',override=>'1',-value=>$change)),
-			td({class=>'info',colspan=>'2',align=>'center'},
+					-value=>NMISNG::Util::returnDateStamp($end)),div({-id=>'calendar-end'}) )
+			);
+			
+		print Tr(
+			td({class=>'header',align=>'left'},'Related Change Details'),
+			td({class=>'info',colspan=>'2'},
+				textfield(-name=>'change',-style=>'background-color:yellow;width:200px;',override=>'1',-value=>$change))
+			);
+
+		print Tr(
+			td({class=>'header',align=>'left'},'Select Node or Nodes'),
+			td({class=>'info',colspan=>'2'},
+				scrolling_list(-name=>'node',-multiple=>'true',-size=>'12',override=>'1',-values=>\@nodes,-default=>\@nd) )
+			);
+
+		print Tr(
+			td({class=>'header',align=>'left'},'Action'),
+			td({class=>'info',align=>'center',colspan=>'2'},
 				button(-name=>'button',-onclick=> ($wantwidget? "get('nmisOutages');" : "submit()"),
 							 -value=>"Add"))
 			);
+
 		if ($Q->{error} ne '') {
-			print Tr(td({class=>'error',colspan=>'6'},$Q->{error}));
+			print Tr(td({class=>'error',colspan=>'3'},$Q->{error}));
 		}
 	}
+
+	print Tr(td({class=>'info',colspan=>'2'},'&nbsp;'));
 
 	#====
 
@@ -199,7 +212,7 @@ sub viewOutage {
 	if ($#out > 0) {
 		print @out;
 	} else {
-		print Tr(td({class=>'info',colspan=>'5'},'No outage current',eval { return " of Node $node" if $node ne '';}));
+		print Tr(td({class=>'info',colspan=>'6'},'No outage current',eval { return " of Node $node" if $node ne '';}));
 	}
 
 	print end_table;
