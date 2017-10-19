@@ -259,16 +259,29 @@ sub rrdDraw
 		GLINE => NMISNG::Util::getbool($C->{graph_split}) ? "AREA" : "LINE1",
 		weight => 0.983,
 	};
-	# escape any : chars which might be in the database name e.g handling C: in the RPN
-	$extras->{database} =~ s/:/\\:/g;
 
-	foreach my $str (@opt)
+	for my $oidx (0..$#opt)
 	{
-	# each call to this funciton modifies the extras, not sure if that matters but
-		# give a copy for now to make sure
-		# should add a way of telling the function it doesn't need to do any extra figuring
-		my $extras_copy = { %$extras };
-		my $parsed = $S->parseString( string => $str, index => $intf, item => $item, sect => $subconcept, extras => $extras_copy, eval => 0 );
+		my $str = $opt[$oidx];
+
+		my %parseargs = ( string => $str,
+											index => $intf,
+											item => $item,
+											sect => $subconcept,
+											extras => { %$extras } ); # extras is modified by every call, so pass in a copy
+
+		# escape any ':' chars which might be in the database name (e.g C:\\) or the other
+		# inputs (e.g. indx == service name). this must be done for ALL substitutables.
+		# EXCEPT in --title, where we can't have colon escaping. grrrrrr!
+		if  ($oidx <= 0 || $opt[$oidx-1] ne "--title")
+		{
+			$parseargs{index} = Compat::NMIS::postcolonial($parseargs{index});
+			$parseargs{item} = Compat::NMIS::postcolonial($parseargs{item});
+			$parseargs{extras} = { map { $_ => Compat::NMIS::postcolonial($extras->{$_}) } (keys %$extras) };
+		}
+		my $parsed = $S->parseString( %parseargs, eval => 0 );
+		print F "parsestring returned: $parsed\n";
+		close F;
 		push @finalopts,$parsed;
 	}
 
