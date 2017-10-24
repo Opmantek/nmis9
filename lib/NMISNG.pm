@@ -114,29 +114,31 @@ sub new
 #
 # args: noderecord (ref)
 # returns: amended noderecord (still the same ref)
+
+# NOTE: disabled because it caused hearst servers to go into extreeme load. not sure why
 sub _mergeaddresses
 {
-	my ( $self, $noderecord ) = @_;
+	# my ( $self, $noderecord ) = @_;
 
-	if ($noderecord)
-	{
-		$noderecord->{"addresses"} ||= [];
+	# if ($noderecord)
+	# {
+	# 	$noderecord->{"addresses"} ||= [];
 
-		# find this node's ip addresses (if any)
-		my $ipcursor = NMISNG::DB::find(
-			collection  => $self->ip_collection,
-			query       => {"node" => $noderecord->{_id}},
-			fields_hash => {"_id" => 1}
-		);
-		while ( my $ipentry = $ipcursor->next )
-		{
-			my $address = $ipentry->{"_id"};
+	# 	# find this node's ip addresses (if any)
+	# 	my $ipcursor = NMISNG::DB::find(
+	# 		collection  => $self->ip_collection,
+	# 		query       => {"node" => $noderecord->{_id}},
+	# 		fields_hash => {"_id" => 1}
+	# 	);
+	# 	while ( my $ipentry = $ipcursor->next )
+	# 	{
+	# 		my $address = $ipentry->{"_id"};
 
-		   # at this point we're only interested in ip address entries, not temporary dns intermediaries or fqdn entries
-			push @{$noderecord->{addresses}}, $address if ( $address =~ /^[a-fA-F0-9:.]+$/ );
-		}
-	}
-	return $noderecord;
+	# 	   # at this point we're only interested in ip address entries, not temporary dns intermediaries or fqdn entries
+	# 		push @{$noderecord->{addresses}}, $address if ( $address =~ /^[a-fA-F0-9:.]+$/ );
+	# 	}
+	# }
+	# return $noderecord;
 }
 
 ###########
@@ -384,7 +386,8 @@ sub get_nodes_model
 	my $index = 0;
 	while ( my $entry = $entries->next )
 	{
-		$self->_mergeaddresses($entry);
+		# NOTE: disabled because caused extreme load on hearst servers
+		# $self->_mergeaddresses($entry);
 		$model_data->[$index++] = $entry;
 	}
 
