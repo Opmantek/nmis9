@@ -6,18 +6,6 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
-flavour
-if [ "$OSFLAVOUR" != "debian" -o "$OS_MAJOR" != 9 ]; then
-		printBanner "Unsupported OS!"
-		cat <<EOF
-This version of $PRODUCT can only be installed on 
-Debian 9 aka Debian Stretch. Your OS $OSFLAVOUR $OS_MAJOR
-is not supported.
-
-EOF
-		exit 1;
-fi
-
 printBanner "This is an alpha release!"
 
 cat <<EOF

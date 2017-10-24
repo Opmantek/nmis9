@@ -120,6 +120,9 @@ sub typeGraph {
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
+	my $urlsafeindex= uri_escape($index);
+	my $urlsafeitem = uri_escape($item);
+
 
 	my $length;
 
@@ -454,7 +457,7 @@ sub typeGraph {
 				# Fast select graphtype buttons
 				td({class=>'header',align=>'center',colspan=>'2'}, div({class=>"header"}, eval {
 						my @out;
-						my $cg = "conf=$Q->{conf}&group=$urlsafegroup&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
+						my $cg = "group=$urlsafegroup&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
 						foreach my $gtp (keys %graph_button_table) {
 							foreach my $gt (keys %{$GTT}) {
 								if ($gtp eq $gt) {
@@ -548,7 +551,7 @@ sub typeGraph {
 		}
 
 		if (%buttons) {
-			my $cg = "conf=$Q->{conf}&act=network_graph_view&graphtype=$graphtype&start=$start&end=$end&node=".uri_escape($Q->{node});
+			my $cg = "act=network_graph_view&graphtype=$graphtype&start=$start&end=$end&node=".uri_escape($Q->{node});
 			push @output, start_Tr;
 			if ($htitle ne "") {
 				push @output, td({class=>'header',colspan=>'1'},$htitle),td({class=>'info Plain',colspan=>'1'},$hvalue);
@@ -561,8 +564,8 @@ sub typeGraph {
 			push @output, end_Tr;
 		}
 
-		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
-				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
+		my $graphLink="$C->{'rrddraw'}?amp;act=draw_graph_view".
+				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$urlsafeindex&item=$urlsafeitem";
 		my $chartDiv = "";
 		
 		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ ) {

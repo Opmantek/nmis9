@@ -993,8 +993,6 @@ sub getSummaryStats
 
 	push @option, ("--start", "$start", "--end", "$end") ;
 
-	# escape any : chars which might be in the database name, e.g handling C: in the RPN
-	$db =~ s/:/\\:/g;
 	if( $index )
 	{
 		no strict;
@@ -1011,9 +1009,10 @@ sub getSummaryStats
 			$outSpeed = $data->{ifSpeedOut} if $index ne "" and $data->{ifSpeedOut};
 		}
 		# read from Model and translate variable ($database etc.) rrd options
+		# escape colons in ALL inputs, not just database, but only if not already escaped
 		foreach my $str (@{$M->{stats}{type}{$type}}) {
 			my $s = $str;
-			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			$s =~ s{\$(\w+)}{if(defined${$1}){postcolonial(${$1});}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($s =~ /ERROR/) {
 				NMISNG::Util::logMsg("ERROR ($S->{name}) model=$catchall_data->{nodeModel} type=$type ($str) in expanding variables, $s");
 				return; # error
@@ -1053,6 +1052,15 @@ sub getSummaryStats
 		}
 	}
 	return;
+}
+
+# whatever it is that goes into rrdgraph arguments, colons are Not Good
+sub postcolonial
+{
+	my ($unsafe) = @_;
+	# but escaping already escaped colons isn't that much better
+	$unsafe =~ s/(?<!\\):/\\:/g;
+	return $unsafe;
 }
 
 # compute stats via rrd for a given subconcept,
@@ -1136,9 +1144,6 @@ sub getSubconceptStats
 
 	push @option, ("--start", "$start", "--end", "$end") ;
 
-	# escape any : chars which might be in the database name, e.g handling C: in the RPN
-	$db =~ s/:/\\:/g;
-
 	# NOTE: is there any reason we don't use parse string or some other generic function here?
 	{
 		no strict;
@@ -1154,9 +1159,10 @@ sub getSubconceptStats
 			$outSpeed = $data->{ifSpeedOut} if $index ne "" and $data->{ifSpeedOut};
 		}
 		# read from Model and translate variable ($database etc.) rrd options
+		# escape colons in ALL inputs, not just database but only if not already escaped
 		foreach my $str (@{$M->{stats}{type}{$stats_section}}) {
 			my $s = $str;
-			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			$s =~ s{\$(\w+)}{if(defined${$1}){postcolonial(${$1});}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($s =~ /ERROR/) {
 				NMISNG::Util::logMsg("ERROR ($S->{name}) model=$catchall_data->{nodeModel} subconcept=$subconcept ($str) in expanding variables, $s");
 				return; # error
@@ -2267,7 +2273,7 @@ sub htmlGraph {
 		$target = $group;
 	}
 
-	my $id = "$target-$intf-$graphtype";
+	my $id = uri_escape("$target-$intf-$graphtype"); # both node and intf are unsafe
 	my $C = NMISNG::Util::loadConfTable();
 
 	my $width = $args{width}; # graph size
@@ -2277,18 +2283,19 @@ sub htmlGraph {
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
+	my $urlsafeintf = uri_escape($intf);
 
 	my $time = time();
-	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$intf&server=$server&node=$urlsafenode";
+	my $clickurl = "$C->{'node'}?act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&server=$server&node=$urlsafenode";
 
 
 	if( NMISNG::Util::getbool($C->{display_opcharts}) ) {
-		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $graphLink = "$C->{'rrddraw'}?act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
 		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;
 	}
 	else {
-		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $src = "$C->{'rrddraw'}?act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
 		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
