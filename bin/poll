@@ -3991,6 +3991,8 @@ sub processAlerts
 			level    => $tresult,
 			status   => $statusResult,
 			element  => $alert->{ds},
+			# name does not exist for simple alerts, let's synthesize it from ds
+      name => $alert->{alert} || $alert->{ds},        
 			value    => $alert->{value},
 			updated  => time()
 		};
