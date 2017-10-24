@@ -89,7 +89,8 @@
         'element' => 'tempDescr',
         'event' => 'High Temperature',
         'test' => '',
-        'unit' => 'celsius',
+				'title' => "Temperature",
+        'unit' => '°C',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },

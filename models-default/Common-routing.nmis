@@ -36,6 +36,7 @@
         'level' => 'Warning',
         'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
         'type' => 'test',
+				'title' => "BGP Peer Status",
         'unit' => '',
         'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
       }
@@ -47,6 +48,7 @@
         'level' => 'Warning',
         'test' => 'CVAR1=ospfNbrState;$CVAR1 ne 100',
         'type' => 'test',
+				'title' => "OSPF Neighbor Status",
         'unit' => '',
         'value' => 'CVAR1=ospfNbrState;int($CVAR1)'
       }

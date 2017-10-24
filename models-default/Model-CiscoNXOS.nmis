@@ -65,6 +65,7 @@
         'level' => 'Warning',
         'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
         'type' => 'test',
+				'title' => "BGP Peer Status",
         'unit' => '',
         'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
       }
@@ -83,8 +84,9 @@
         'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device|Inlet|Crossbar|CPU|DDR)/',
         'element' => 'tempDescr',
         'event' => 'High Temperature',
+				'title' => "Temperature",
         'test' => '',
-        'unit' => 'celsius',
+        'unit' => '°C',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },
