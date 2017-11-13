@@ -34,7 +34,6 @@
       'HighDiskUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-        	'Normal' => '70',
         	'Warning' => '75',
         	'Minor' => '80',
         	'Major' => '95',
@@ -53,9 +52,8 @@
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-        	'Normal' => '85',
-        	'Warning' => '0',
-        	'Minor' => '0',
+        	'Warning' => '90',
+        	'Minor' => '90',
         	'Major' => '90',
         	'Critical' => '95',
         	'Fatal' => '98',

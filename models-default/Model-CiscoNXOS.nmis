@@ -74,7 +74,6 @@
       'tempStatus' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '79',
           'Warning' => '80',
           'Minor' => '85',
           'Major' => '80',
