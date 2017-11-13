@@ -46,9 +46,26 @@ my $C;
 
 if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-# widget default on, only off if explicitely set to off
-my $wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
-my$widget = $wantwidget ? "true" : "false";
+#======================================================================
+
+# if somehow someone defines refresh disable it.
+if ( defined $Q->{refresh} ) {
+	delete $Q->{refresh};
+}
+
+my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
+$Q->{expand} = "true" if ($widget eq "true");
+
+### unless told otherwise, and this is not JQuery call, widget is false!
+if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+if ( not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+my $wantwidget = ($widget eq "true");
 
 my $formid = 'nodeconf';
 
