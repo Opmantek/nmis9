@@ -57,7 +57,8 @@
         'level' => 'Warning',
         'test' => 'CVAR1=vmwVmState;"$CVAR1" ne "powered on" and "$CVAR1" ne "noSuchInstance"',
         'type' => 'test',
-        'unit' => 'state',
+				'title' => "Virtual Machine Status",
+        'unit' => '',
         'value' => 'CVAR1=vmwVmState;return "$CVAR1"'
       },
     },
@@ -65,7 +66,6 @@
       'HighDiskUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '70',
           'Warning' => '75',
           'Minor' => '80',
           'Major' => '90',
@@ -75,6 +75,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				"title" => "Disk Usage",
         'unit' => '%',
         'event' => 'High Disk Usage',
         'level' => '',
@@ -83,7 +84,6 @@
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '90',
           'Warning' => '92',
           'Minor' => '94',
           'Major' => '96',
@@ -93,6 +93,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				"title" => "Memory Usage",
         'unit' => '%',
         'event' => 'High Memory Usage',
         'level' => '',

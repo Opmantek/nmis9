@@ -33,6 +33,9 @@
       'util_out' => {
         'item' => 'outputUtil',
         'event' => 'Proactive Interface Output Utilisation',
+				'title' => "Output Utilisation",
+				'unit' => "%",
+				
         'select' => {
           '10' => {
             'value' => {
@@ -88,6 +91,9 @@
       'pkt_errors_out' => {
         'item' => 'ifOutErrorsProc',
         'event' => 'Proactive Interface Error Output Packets',
+				'title' => "Output Error Packets",
+				'unit' => "packets",
+				
         'select' => {
           'default' => {
             'value' => {
@@ -103,6 +109,9 @@
       'pkt_discards_in' => {
         'item' => 'ifInDiscardsProc',
         'event' => 'Proactive Interface Discards Input Packets',
+				'title' => "Input Discard Packets",
+				'unit' => "packets",
+				
         'select' => {
           'default' => {
             'value' => {
@@ -118,6 +127,9 @@
       'cpuUtil' => {
         'item' => 'cpuUtil',
         'event' => 'Proactive CPU',
+				'title' => "CPU Utilisation",
+				'unit' => "%",
+				
         'select' => {
           '10' => {
             'value' => {
@@ -163,6 +175,9 @@
       'cpu_cpm' => {
         'item' => 'cpmCPUTotal5min',
         'event' => 'Proactive CPU',
+				'title' => "CPU Utilisation",
+				'unit' => "%",
+				
         'select' => {
           '10' => {
             'value' => {
@@ -208,7 +223,10 @@
       'cpu' => {
         'item' => 'avgBusy5min',
         'event' => 'Proactive CPU',
-        'select' => {
+				'title' => "CPU Utilisation",
+				'unit' => "%",
+				
+				'select' => {
           '10' => {
             'value' => {
               'critical' => '60',
@@ -252,8 +270,11 @@
       },
       'hrdisk' => {
         'event' => 'Proactive Disk Usage',
+				'title' => "Disk Usage",
+				'unit' => "%",
+				
         'item' => 'hrDiskUsedPer',
-        'select' => {
+				'select' => {
           '10' => {
             'control' => '$hrDiskSize <= 209715200000 and $hrStorageType =~ /(Fixed|Network) Disk/',
             'value' => {
@@ -323,6 +344,9 @@
       'hrsmpcpu' => {
         'item' => 'hrCpuLoad',
         'event' => 'Proactive CPU',
+				'title' => "CPU Utilisation",
+				'unit' => "%",
+				
         'select' => {
           '10' => {
             'value' => {
@@ -368,6 +392,9 @@
       'env_temp' => {
         'item' => 'currentTemp',
         'event' => 'Proactive Temp',
+				'title' => "Temperature",
+				'unit' => "°C",
+				
         'select' => {
           'default' => {
             'value' => {
@@ -383,6 +410,8 @@
       'reachable' => {
         'item' => 'reachable',
         'event' => 'Proactive Reachability',
+				"title" => "Node Reachability",
+				# unitless kpi metric
         'select' => {
           'default' => {
             'value' => {
@@ -398,6 +427,9 @@
       'response' => {
         'item' => 'response',
         'event' => 'Proactive Response Time',
+				'title' => "Response Time",
+				'unit' => 'ms',
+				
         'select' => {
           '10' => {
             'value' => {
@@ -433,6 +465,9 @@
       'mem-proc' => {
         'item' => 'ProcMemFree',
         'event' => 'Proactive Memory Free',
+				'title' => "Free Memory",
+				'unit' => '%',
+
         'select' => {
           'default' => {
             'value' => {
@@ -448,6 +483,9 @@
       'ccpu' => {
         'item' => 'avgBusy5min',
         'event' => 'Proactive CPU',
+				'title' => "CPU Utilisation",
+				'unit' => '%',
+
         'select' => {
           'default' => {
             'value' => {
@@ -463,6 +501,9 @@
       'util_in' => {
         'item' => 'inputUtil',
         'event' => 'Proactive Interface Input Utilisation',
+				'title' => "Input Utilisation",
+				'unit' => '%',
+
         'select' => {
           '40' => {
             'value' => {
@@ -518,6 +559,9 @@
       'pkt_discards_out' => {
         'item' => 'ifOutDiscardsProc',
         'event' => 'Proactive Interface Discards Output Packets',
+				'title' => "Output Discard Packets",
+				'unit' => 'packets',
+				
         'select' => {
           'default' => {
             'value' => {
@@ -533,6 +577,9 @@
       'pkt_errors_in' => {
         'item' => 'ifInErrorsProc',
         'event' => 'Proactive Interface Error Input Packets',
+				'title' => "Input Error Packets",
+				'unit' => 'packets',
+
         'select' => {
           'default' => {
             'value' => {
@@ -548,6 +595,9 @@
       'available' => {
         'item' => 'available',
         'event' => 'Proactive Interface Availability',
+				'title' => "Interface Availability",
+				# unitless kpi metric
+				
         'select' => {
           'default' => {
             'value' => {
@@ -563,6 +613,9 @@
       'ssCpuRawIdle' => {
         'item' => 'ssCpuRawIdle',
         'event' => 'Proactive CPU Idle',
+				'title' => "Idle CPU",
+				'unit' => '%',
+				
         'select' => {
           'default' => {
             'value' => {
@@ -578,7 +631,10 @@
       'ssCpuRawUser' => {
         'item' => 'ssCpuRawUser',
         'event' => 'Proactive CPU User',
-        'select' => {
+				'title' => "User CPU",
+				'unit' => '%',
+
+				'select' => {
           'default' => {
             'value' => {
               'fatal' => '90',
@@ -593,6 +649,9 @@
       'ssCpuRawSystem' => {
         'item' => 'ssCpuRawSystem',
         'event' => 'Proactive CPU System',
+				'title' => "System CPU",
+				'unit' => '%',
+
         'select' => {
           'default' => {
             'value' => {
@@ -608,6 +667,9 @@
       'ssCpuRawWait' => {
         'item' => 'ssCpuRawWait',
         'event' => 'Proactive CPU IO Wait',
+				'title' => "IO Wait CPU",
+				'unit' => '%',
+
         'select' => {
           '10' => {
             'value' => {
@@ -653,6 +715,9 @@
       'memUtil' => {
         'item' => 'memUtil',
         'event' => 'Proactive Memory Utilisation',
+				'title' => "Memory Utilisation",
+				'unit' => '%',
+				
         'select' => {
           'default' => {
             'value' => {
@@ -668,6 +733,9 @@
       'memPoolUtil' => {
         'item' => 'memUtil',
         'event' => 'Proactive Memory Utilisation',
+				'title' => "Memory Utilisation",
+				'unit' => '%',
+
         'select' => {
           'default' => {
             'value' => {
@@ -683,6 +751,9 @@
       'bufferUtil' => {
         'item' => 'bufferUtil',
         'event' => 'Proactive Buffer Utilisation',
+				'title' => "Buffer Utilisation",
+				'unit' => '%',
+
         'select' => {
           'default' => {
             'value' => {
@@ -698,6 +769,9 @@
       'bufferMissPct' => {
         'item' => 'bufferMissPct',
         'event' => 'Proactive Buffer Misses',
+				'title' => "Buffer Misses",
+				'unit' => '%',
+
         'select' => {
           'default' => {
             'value' => {
@@ -712,6 +786,9 @@
       },
       'jnx_cpu' => {
         'event' => 'Proactive CPU',
+				'title' => "CPU Utilisation",
+				'unit' => '%',
+				
         'item' => 'jnxOper5MinLoadAvg',
         'select' => {
           '10' => {
@@ -757,6 +834,9 @@
       },
       'jnx_buffer' => {
         'event' => 'Proactive Buffer Utilisation',
+				'title' => "Buffer Utilisation",
+				'unit' => '%',
+
         'item' => 'jnxOperatingBuffer',
         'select' => {
           'default' => {
@@ -772,6 +852,9 @@
       },
       'jnx_heap' => {
         'event' => 'Proactive Heap Utilisation',
+				'title' => "Heap Utilisation",
+				'unit' => '%',
+
         'item' => 'jnxOperatingHeap',
         'select' => {
           'default' => {
@@ -787,6 +870,9 @@
       },
       'jnx_temp' => {
         'event' => 'Proactive Temp',
+				'title' => "Temperature",
+				'unit' => '°C',
+
         'item' => 'jnxOperatingTemp',
         'select' => {
           'default' => {
@@ -802,6 +888,9 @@
       },
       'qos_pkt_drop' => {
         'event' => 'Proactive QoS Packet Drops',
+				'title' => "QoS Packet Drops",
+				'unit' => 'packets',
+
         'item' => 'DropPkt',
         'control_regex' => 'Critical|Voice|Video',
         'control_regex_comment' => 'Use the control regex field to limit which CBQoS Classes will match.',
@@ -821,6 +910,9 @@
       },
       'qos_pkt_drop_no_buf' => {
         'event' => 'Proactive QoS no buffer Packet Drops',
+				'title' => "QoS no buffer Packet Drops",
+				'unit' => 'packets',
+
         'item' => 'NoBufDropPkt',
         'control_regex' => 'Critical|Voice|Video',
         'select' => {
@@ -838,7 +930,10 @@
       'WindowsProcessor' => {
         'item' => 'percentProcessor',
         'event' => 'Proactive CPU',
-        'select' => {
+				'title' => "CPU Utilisation",
+				'unit' => '%',
+
+				'select' => {
           'default' => {
             'value' => {
               'fatal' => '100',
@@ -853,6 +948,9 @@
       'WindowsPaging' => {
         'item' => 'percentPageUsage',
         'event' => 'Proactive Page File Usage',
+				'title' => "Page File Usage",
+				'unit' => '%',
+
         'select' => {
           'default' => {
             'value' => {
@@ -868,6 +966,9 @@
       'DiskQueueLength' => {
         'item' => 'AvgDiskQLen',
         'event' => 'Proactive Disk Queue Length',
+				'title' => "Disk Queue Length",
+				'unit' => 'transfers',
+
         'select' => {
           'default' => {
             'value' => {

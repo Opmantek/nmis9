@@ -456,7 +456,6 @@
       'HighDiskUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '70',
           'Warning' => '75',
           'Minor' => '80',
           'Major' => '90',
@@ -466,6 +465,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				'title' => "Disk Usage",
         'unit' => '%',
         'event' => 'High Disk Usage',
         'level' => '',
@@ -474,9 +474,8 @@
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '99.3',
-          'Warning' => '0',
-          'Minor' => '0',
+          'Warning' => '99.4',
+          'Minor' => '99.4',
           'Major' => '99.4',
           'Critical' => '99.6',
           'Fatal' => '100',
@@ -484,6 +483,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				'title' => "Memory Usage",
         'unit' => '%',
         'event' => 'High Memory Usage',
         'level' => '',
@@ -492,7 +492,6 @@
       'HighSwapUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '11',
           'Warning' => '15',
           'Minor' => '20',
           'Major' => '30',
@@ -502,6 +501,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				'title' => "Swap Usage",
         'unit' => '%',
         'event' => 'High Swap Usage',
         'level' => '',

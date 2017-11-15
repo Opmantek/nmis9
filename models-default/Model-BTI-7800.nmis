@@ -57,6 +57,7 @@
         'level' => 'Major',
         'test' => 'CVAR1=ifOperStatus;$CVAR1 ne "up"',
         'type' => 'test',
+				'title' => "Interface Operational Status",
         'unit' => '',
       }
     },

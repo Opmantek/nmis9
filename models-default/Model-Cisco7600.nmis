@@ -78,7 +78,6 @@
       'tempStatus' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '50',
           'Warning' => '60',
           'Minor' => '70',
           'Major' => '75',
@@ -89,7 +88,8 @@
         'element' => 'tempDescr',
         'event' => 'High Temperature',
         'test' => '',
-        'unit' => 'celsius',
+				'title' => "Temperature",
+        'unit' => '°C',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },

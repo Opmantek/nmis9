@@ -37,6 +37,7 @@
         'level' => 'Warning',
         'test' => 'CVAR1=fanValue;$CVAR1 < 80',
         'type' => 'test',
+				'title' => "Fan Status",
         'unit' => '',
         'value' => 'CVAR1=fanValue;int($CVAR1)'
       }
@@ -48,6 +49,7 @@
         'level' => 'Warning',
         'test' => 'CVAR1=psuValue;$CVAR1 < 80',
         'type' => 'test',
+				'title' => "PSU Status",
         'unit' => '',
         'value' => 'CVAR1=psuValue;int($CVAR1)'
       }
@@ -59,7 +61,8 @@
         'level' => 'Warning',
         'test' => 'CVAR1=tempValue;$CVAR1 < 80',
         'type' => 'test',
-        'unit' => '',
+				'title' => "Temperature",
+        'unit' => '°C',
         'value' => 'CVAR1=tempValue;int($CVAR1)'
       }
     },

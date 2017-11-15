@@ -35,7 +35,6 @@
         'control' => 'CVAR=MemPoolName;$CVAR =~ /(processor|reserved)/',
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '75',
           'Warning' => '80',
           'Minor' => '85',
           'Major' => '90',
@@ -44,7 +43,8 @@
         },
         'element' => 'MemPoolName',
         'event' => 'High Memory Utilisation',
-        'unit' => '',
+				'title' => "Memory Utilisation",
+        'unit' => '%',
         'value' => 'CVAR1=MemPoolUtil5M;int($CVAR1)'
       }
     },

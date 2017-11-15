@@ -34,7 +34,6 @@
       'HighDiskUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-        	'Normal' => '70',
         	'Warning' => '75',
         	'Minor' => '80',
         	'Major' => '95',
@@ -45,6 +44,7 @@
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
         'unit' => '%',
+				'title' => "Disk Usage",
         'event' => 'High Disk Usage',
         'level' => 'Warning',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
@@ -52,9 +52,8 @@
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-        	'Normal' => '85',
-        	'Warning' => '0',
-        	'Minor' => '0',
+        	'Warning' => '90',
+        	'Minor' => '90',
         	'Major' => '90',
         	'Critical' => '95',
         	'Fatal' => '98',
@@ -62,6 +61,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				'title' => "Memory Usage",
         'unit' => '%',
         'event' => 'High Memory Usage',
         'level' => 'Warning',
@@ -86,7 +86,7 @@
             }
 					},
 					'clockDeltaCritical' => {
-						#title => "System Clock Delta",
+						title => "System Clock Delta",
 						query => "select * from win32_operatingsystem",
 						field => "LocalDateTime", # 20160824173101.375199+600
 						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); my $delta = Time::HiRes::time - $r; return ($delta>=0? $delta:-$delta);',

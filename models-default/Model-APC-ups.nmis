@@ -193,6 +193,7 @@
 							'test' => '$r != 2',
 							'event' => "UPS Output Status",
 							'level' => 'Major',
+							# unit-less
 						}
 					},
 		
@@ -203,6 +204,7 @@
 							'event' => "UPS Battery Status",
 							'test' => '$r != 2',
 							'level' => 'Major'
+							# unit-less
 						}
 					},
 				}

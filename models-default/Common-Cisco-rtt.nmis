@@ -10,10 +10,10 @@
           'Fatal' => '5000',
           'Major' => '2000',
           'Minor' => '1000',
-          'Normal' => '300',
           'Warning' => '600'
         },
-        'type' => 'threshold-rising',
+				'type' => 'threshold-rising',
+				'title' => "Oper Completion Time",			
         'unit' => 'ms',
         'value' => 'CVAR1=OperCompletionTime;int($CVAR1)'
       },
@@ -23,7 +23,8 @@
         'level' => 'Warning',
         'test' => 'CVAR1=OperSenseValue;$CVAR1 != 1',
         'type' => 'test',
-        'unit' => 'OperSense',
+				'title' => "RTT Completion Status",			
+        # unit-less
         'value' => 'CVAR1=OperSenseValue;int($CVAR1)'
       }
     },

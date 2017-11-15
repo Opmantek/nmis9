@@ -362,6 +362,7 @@
         'level' => 'Critical',
         'test' => 'CVAR1=fkGponOnuStatus;$CVAR1 == 0',
         'type' => 'test',
+				'title' => "ONU Status",
         'unit' => '',
         'value' => 'CVAR1=fkGponOnuStatus;int($CVAR1)'
       }
