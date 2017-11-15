@@ -670,11 +670,14 @@ sub inventory_collection
 			collection    => $self->{_db_inventory},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				[ Tie::IxHash->new("concept" => 1, enabled => 1, historic => 1), {unique => 0}],
+				# replaces path, makes path.0,path.1... lookups work on index
+				[ ["path.0" => 1,"path.1" => 1,"path.2" => 1,"path.3" => 1], {unique => 0}],
+				# needed for joins
+				[ [node_uuid => 1]],
+				[ [concept => 1, enabled => 1, historic => 1], {unique => 0}],
 				[{"lastupdate"  => 1}, {unique => 0}],
-				[{"path"        => 1}, {unique => 0}],		# can't make this unique, index must be unique per array element for that
 				[{"subconcepts" => 1}, {unique => 0}],
-				[{"data_info"   => 1}, {unique => 0}],
+				[{"data_info.subconcept"   => 1}, {unique => 0}],
 				[ { expire_at => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
 			] );
 		$self->log->error("index setup failed for inventory: $err") if ($err);
@@ -779,8 +782,10 @@ sub nodes_collection
 		my $err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_nodes},
 			drop_unwanted => $drop_unwanted,
-			indices       => [[{"uuid" => 1}, {unique => 1}]]
-				);
+			indices       => [
+				[{"uuid" => 1}, {unique => 1}],
+				[{"name" => 1}, {unique => 0}]
+			]);
 		$self->log->error("index setup failed for nodes: $err") if ($err);
 	}
 	return $self->{_db_nodes};
