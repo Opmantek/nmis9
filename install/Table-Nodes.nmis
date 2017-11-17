@@ -72,7 +72,7 @@ my @models = ('automatic', sort keys %knownmodels);
 
 	 { wmi => { special=>'separator', header => "WMI Options", } },
 	 { wmiusername => { header => "WMI Username", display => 'text', value => [''] }},
-	 { wmipassword => { header => "WMI Password", display => 'text', value => [''] }},
+	 { wmipassword => { header => "WMI Password", display => 'password', value => [''] }},
 
 	 { service_management => { special => 'separator', header => 'Service Management Options',display => 'readonly',value => [""] }},
 	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Customers')}] }},
@@ -111,11 +111,12 @@ my @models = ('automatic', sort keys %knownmodels);
 	 { port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
 	 { username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
 	 { context => { header => 'SNMP Context',display => 'text',value => [""] }},
-	 { authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},
-	 { authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{default_authkey}"] }},
+
+	 { authpassword => { header => 'SNMP Auth Password',display => 'password',value => ["$C->{default_authpassword}"] }},
+	 { authkey => { header => 'SNMP Auth Key',display => 'password',value => ["$C->{default_authkey}"] }},
 	 { authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'] }},
-	 { privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{default_privpassword}"] }},
-	 { privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{default_privkey}"] }},
+	 { privpassword => { header => 'SNMP Priv Password',display => 'password',value => ["$C->{default_privpassword}"] }},
+	 { privkey => { header => 'SNMP Priv Key',display => 'password',value => ["$C->{default_privkey}"] }},
 	 { privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'] }},
 	]
 		);
