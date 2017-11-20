@@ -46,116 +46,69 @@
 #   generate_cookie, and provided a wrapper so that they would be more easily
 #   incorporated in NMIS and more generally into other web programs needing
 #   user authentication.
-#
-#   This module is used in the following manner to enforce authentication:
-#
-#   use NMISNG::Auth;
-#
-#   my $AU = NMISNG::Auth->new();
-#
-#	if ($AU->Require) {
-#		exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
-#					password=>$Q->{auth_password},headeropts=>$headeropts) ;
-#
 package NMISNG::Auth;
-our $VERSION = "1.4.0";
+our $VERSION = "2.0.0";
 
 use strict;
 
-my $C;													# fixme9: that looks dodgy
-
 use NMISNG::Util;
 use NMISNG::Notify;											# for auth lockout emails
+
 use MIME::Base64;
-
+use Digest::SHA;								# for cookie_flavour omk
 use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
-use CGI qw(:standard);										# needed for current url lookup, http header, plus td/tr/bla_field helpery
-
-# import additional modules
+use CGI qw(:standard);					# needed for current url lookup, http header, plus td/tr/bla_field helpery
 use Time::ParseDate;
 use File::Basename;
-
 use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
-
-# for handling errors in javascript
 use JSON::XS;
 
-# You should set config's auth_web_key (or edit this source file), so that cookies are unique for your site
-my $CHOCOLATE_CHIP = '8fhmgBC4YSVcZMnBsWtY32KQvTE9JBeuIp1y';
-my $auth_user_name_regex = qr/[\w \-\.\@\`\']+/;
+# You MUST set config's auth_web_key so that cookies are unique for your site. this fallback key is NOT safe for internet-facing sites!
+my $CHOCOLATE_CHIP = '5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv';
 
-my $debug = 0;
-
-#----------------------------------
-
-
-sub new 
+# record non-standard "conf" ONLY if confname is given as argument
+# attention: arg conf is a LIVE config (confname is the name)
+# args:
+sub new
 {
-	my $this = shift;
+	my ($this, %arg) = @_;
 	my $class = ref($this) || $this;
 
-	my %arg = @_;
-	$C = $arg{conf};
+	my $config = ref($arg{conf}) eq "HASH"? $arg{conf}: NMISNG::Util::loadConfTable();
 
-	my $banner = undef;
-	if ( $arg{banner} ne "" ) {
-		$banner = $arg{banner}
-	}
-
-	my $self = {
-		_require => 1,
+	my $self = bless({
+		_require => (defined $config->{auth_require})? $config->{auth_require} : 1,
 		dir => $arg{dir},
 		user => undef,
-		confname => $arg{confname},
-		banner => $banner,
+		config => $config, # a live config, loaded or passed in by the caller
+		confname => $arg{confname},	# optional
+		banner => $arg{banner},
 		priv => undef,
 		privlevel => 0, # default all
-		cookie => undef,
+		cookie_flavour => $config->{auth_cookie_flavour} || 'nmis',
 		groups => undef,
 		all_groups_allowed => undef,
-	};
-	bless $self, $class;
-	$self->_auth_init;
-	$debug = NMISNG::Util::getbool($C->{auth_debug});
-
-	$auth_user_name_regex	= qr/$C->{auth_user_name_regex}/ if $C->{auth_user_name_regex} ne "";
+		debug => NMISNG::Util::getbool($config->{auth_debug}),
+									 }, $class);
 
 	return $self;
 }
 
-#----------------------------------
-
+# getter for the require flag
 sub Require {
 	my $self = shift;
 	return $self->{_require};
 }
 
-
-#----------------------------------
-
-sub _loadConf {
-	my $self = shift;
-	if ( not defined $C->{'<nmis_base>'} || $C->{'<nmis_base>'} eq "" ) {
-		$C = NMISNG::Util::loadConfTable();
-	}
-}
-
-#----------------------------------
-
-sub _auth_init {
-	my $self = shift;
-	$self->{_require} = $C->{auth_require} if defined $C->{auth_require};
-	$self->_loadConf;
-}
-
-#----------------------------------
-
+# setter-getter for the debug flag
+# new value must be defined, but 0 is obviously ok
 sub debug {
-	my $self = shift;
-	$debug = shift;
+	my ($self, $newvalue) = @_;
+
+	$self->{debug} = getbool($newvalue)
+			if defined ($newvalue);
 }
+
 
 #----------------------------------
 #
@@ -192,12 +145,10 @@ sub CheckAccess {
 	my $cmd = shift;
 	my $option = shift;
 
-	my $C = NMISNG::Util::loadConfTable(); # get pointer of NMIS config table
-
 	my @cookies = ();
 
 	# check if authentication is required
-	return 1 if not $C->{auth_require};
+	return 1 if not $self->{config}->{auth_require}; # fixme why check both? that's really really silly
 	return 1 unless $self->{_require};
 
 	if ( ! $self->{user} ) {
@@ -227,6 +178,7 @@ sub CheckAccess {
 }
 
 
+
 ##########################################################################
 #
 # The following routines in whole and in part are from Routers2.cgi and
@@ -243,11 +195,14 @@ sub CheckAccess {
 #    generate_cookie
 #
 # All Java code include herein is also courtesy of Steve Shipway.
+
+
+# produces weak checksum from username,
+# remote address (or debug/fake auth_debug_remote_addr) and configured key/secret
+# used only for auth_cookie_flavour 'nmis'
 #
-###########################################################################
-# for security - create login page, verify username/password/cookie
-# routers.conf:
-#
+# args: username
+# returns: string
 sub get_cookie_token
 {
 	my $self = shift;
@@ -259,29 +214,30 @@ sub get_cookie_token
 		$remote_addr = $self->{config}{auth_debug_remote_addr};
 	}
 
+	my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
+	NMIS::Util::logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key")
+			if ($self->{debug});
 
-	# NMISNG::Util::logAuth("DEBUG: get_cookie_token: $self->{config}{auth_debug} $self->{config}{auth_debug_remote_addr}") if $debug;
-	my $web_key = (defined $C->{'auth_web_key'}) ? $C->{'auth_web_key'} : $CHOCOLATE_CHIP;
-	NMISNG::Util::logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key") if $debug;
-	$token = $user_name . $remote_addr;
-	$token .= $web_key;
-	$token = unpack('%32C*',$token); # generate checksum
+	# generate checksum
+	my $checksum = unpack('%32C*', $user_name . $remote_addr . $web_key);
+	NMIS::Util::logAuth("DEBUG: get_cookie_token: generated token=$checksum")
+			if ($self->{debug});
 
-	NMISNG::Util::logAuth("DEBUG: get_cookie_token: generated token=$token") if $debug;
-	return $token;
+	return $checksum;
 }
 
+# returns the configured ssh domain (if any), or a blank string
 sub get_cookie_domain
 {
 	my $self = shift;
-	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com") {
-		return $C->{'auth_sso_domain'};
-	}
-	else {
-		return;
-	}
+	my $maybe = $self->{config}->{auth_sso_domain};
+
+	return $maybe if (defined $maybe and $maybe ne ".domain.com"); # must skip old default value
+	return '';
 }
 
+# produces nmis-style cookie name
+# only used when auth_cookie_flavour is set to nmis
 sub get_cookie_name
 {
 	my $self = shift;
@@ -289,69 +245,156 @@ sub get_cookie_name
 	return $name;
 }
 
-sub get_cookie
+# verify_id reads an existing cookie and verifies its authenticity
+# returns: verified username or blank string if invalid/errors
+sub verify_id
 {
 	my $self = shift;
-	my $cookie;
-	$cookie = CGI::cookie( $self->get_cookie_name() );
-	NMISNG::Util::logAuth("get_cookie: got cookie $cookie") if $debug;
-	return $cookie;
-}
 
-# verify_id -- reads cookies and params, returns verified username
-sub verify_id {
-	my $self = shift;
-	# now taste cookie
-	my $cookie = $self->get_cookie();
-	# NMISNG::Util::logAuth("DEBUG: verify_id: got cookie $cookie") if $debug;
-	if(!defined($cookie) ) {
-		NMISNG::Util::logAuth("verify_id: cookie not defined");
-		NMISNG::Util::logAuth("DEBUG: verify_id: cookie not defined") if $debug;
+	# retrieve the cookie
+	my $cookie = CGI::cookie( ($self->{cookie_flavour} eq "nmis")?
+														$self->get_cookie_name()
+														: "mojolicious" );
+	if(!defined($cookie) )
+	{
+		NMIS::Util::logAuth("verify_id: cookie not defined");
 		return ''; # not defined
 	}
 
-	### 2013-02-07 keiths: handling for spaces in user names required the cookie cutter to handle spaces.
-	if($cookie !~ /^($auth_user_name_regex):(.+)$/) {
-		NMISNG::Util::logAuth("verify_id: cookie bad format");
-		NMISNG::Util::logAuth("DEBUG: verify_id: cookie bad format") if $debug;
-		return ''; # bad format
+	if ($self->{cookie_flavour} eq "nmis")
+	{
+		# nmis-style cookies: username:numeric weak checksum
+		if($cookie !~ /(^.+):(\d+)$/)
+		{
+			NMIS::Util::logAuth("verify_id: cookie bad format");
+			return ''; # bad format
+		}
+		my ($user_name, $token) = ($1,$2);
+		my $checksum = $self->get_cookie_token($user_name);
+
+		NMIS::Util::logAuth("DEBUG: verify_id: $user_name, cookie $token vs. computed $checksum")
+				if ($self->{debug});
+
+		return ($token eq $checksum)? $user_name : '';
 	}
+	elsif ($self->{cookie_flavour} eq "omk")
+	{
+		# structure: base64 session info--cryptographic signature
+		# base64 doesn't use '-'
+		my ($sessiondata,$signature) = split(/--/, $cookie, 2);
+		if (!$sessiondata or !$signature)
+		{
+			NMIS::Util::logAuth('Invalid OMK cookie');
+			return '';
+		}
 
-	my ($user_name, $checksum) = ($1,$2);
-	my $token = $self->get_cookie_token($user_name);
-	# NMISNG::Util::logAuth("Username $user_name, checksum $checksum, token $token\n";
+		# signed with what key?
+		my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
 
-	NMISNG::Util::logAuth("DEBUG: verify_id: $token vs. $checksum") if $debug;
-	return $user_name if( $token eq $checksum ); # yummy
-
-	# bleah, nasty taste
-	return '';
+		# first, compare the checksum from cookie with a new one generated from cookie value
+		my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
+		if ($expected ne $signature)
+		{
+			NMIS::Util::logAuth('OMK cookie did not validate correctly!'
+							.($self->{debug}? " expected $expected but cookie had $signature" : ""));
+			return '';
+		}
+		# only then decode and json-parse the structure
+		my $sessioninfo = eval { decode_json(decode_base64($sessiondata)); };
+		if ($@ or ref($sessioninfo) ne "HASH")
+		{
+			NMIS::Util::logAuth("OMK cookie unparseable! $@");
+			return '';
+		}
+		if (!exists $sessioninfo->{auth_data})
+		{
+			NMIS::Util::logAuth("OMK cookie invalid: no auth_data field!");
+			return '';
+		}
+		my $user_name = $sessioninfo->{auth_data};
+		NMIS::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
+						.decode_base64($sessiondata)) if $self->{debug};
+		return $user_name;
+	}
+	# unrecognisable cookie_flavour
+	else
+	{
+		return '';
+	}
 }
-#----------------------------------
 
-# generate_cookie -- returns a cookie with current username, expiry
-sub generate_cookie {
-	my $self = shift;
-	my %args = @_;
+
+# generate_cookie creates a cookie string
+# based on given username, sso domain, expiration, flavour settings
+# args: user_name (required);
+#  expires (optional), value (optional, only good for producing invalid/logged-out cookie)
+# returns: cookie string, empty if problems encountered
+sub generate_cookie
+{
+	my ($self, %args) = @_;
+
 	my $authuser = $args{user_name};
-	return "" if ( ! $authuser );
+	return "" if (!defined $authuser or $authuser eq '');
 
-	my $expires = $args{expires};
-	if( !defined($expires) ){
-		$expires = ( $C->{auth_expire} ne "" ) ? $C->{auth_expire} : "+60min"
+	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
+	my $cookiedomain = $self->get_cookie_domain;
+
+	# cookie flavor determines the ingredients
+	if ($self->{cookie_flavour} eq "nmis")
+	{
+		return CGI::cookie( -name => $self->get_cookie_name,
+												-domain => $cookiedomain,
+												-expires => $expires,
+												-value => (exists($args{value}) ?
+																	 $args{value}
+																	 : ("$authuser:" . $self->get_cookie_token($authuser)) )); # weak checksum
 	}
+	elsif ($self->{cookie_flavour} eq "omk")
+	{
+		# omk flavour needs the expiration value as unix-seconds timestamp
+		my $expires_ts;
+		if ($expires eq "now")
+		{
+			$expires_ts = time();
+		}
+		elsif ($expires =~ /^([+-]?\d+)\s*({s|m|min|h|d|M|y})$/)
+		{
+			my ($offset, $unit) = ($1, $2);
+			# the last two are clearly imprecise
+			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
 
-	my $value = $args{value};
-	if( !exists($args{value}) ) {
-		$value = $self->get_cookie_token($authuser);
-		$value = $authuser . ':' . $value; # checksum
+			$expires_ts = time + ($offset * $factors{$unit});
+		}
+		else # assume it's something absolute and parsable
+		{
+			$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
+		}
+
+		# create session data structure, encode as base64, sign with key and combine
+		my $sessiondata = encode_json( { auth_data => $authuser,
+																		 omkd_sso_domain => $cookiedomain,
+																		 expires => $expires_ts } );
+		my $value = encode_base64($sessiondata, ''); # no end of line separator please
+		$value =~ y/=/-/;
+		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
+		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
+
+		logAuth("generated OMK cookie for $authuser: $value--$signature")
+				if ($self->{debug});
+
+		return  CGI::cookie( { -name => "mojolicious",
+													 -domain => $cookiedomain,
+													 -value => "$value--$signature",
+													 -expires => $expires } );
 	}
-
-	my $domain = $self->get_cookie_domain();
-	my $cookie = CGI::cookie( {-name=> $self->get_cookie_name(), -domain=>$domain, -value=>$value, -expires=>$expires} ) ;
-
-	return $cookie;
+	else
+	{
+		logAuth("ERROR unrecognisable auth_cookie_flavour configuration!");
+		return '';
+	}
 }
+
+
 #----------------------------------
 
 # call appropriate verification routine
@@ -368,17 +411,14 @@ sub user_verify {
 		return 1;
 	}
 
-	#2011-11-14 Integrating changes from Till Dierkesmann
-	if ( ! defined($C->{auth_method_1}) ) {
-		$C->{auth_method_1} = "apache";
-	}
-	elsif ($C->{auth_method_1} eq "") {
-		$C->{auth_method_1} = "apache";
-	}
+	# fixme why?
+	$self->{config}->{auth_method_1} = "apache"  if 	(!$self->{config}->{auth_method_1});
 
-	#NMISNG::Util::logAuth("DEBUG: auth_method_1=$C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3}") if $debug;
 	my $authCount = 0;
-	for my $auth ( $C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3} ) {
+	for my $auth ( $self->{config}->{auth_method_1},
+								 $self->{config}->{auth_method_2},
+								 $self->{config}->{auth_method_3} )
+	{
 		next if $auth eq '';
 		++$authCount;
 
@@ -386,7 +426,7 @@ sub user_verify {
 			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }
 			else { $exit=0; }
 		} elsif ( $auth eq "htpasswd" ) {
-			$exit = $self->_file_verify($C->{auth_htpasswd_file},$u,$p,$C->{auth_htpasswd_encrypt});
+			$exit = $self->_file_verify($self->{config}->{auth_htpasswd_file},$u,$p,$self->{config}->{auth_htpasswd_encrypt});
 
 		} elsif ( $auth eq "radius" ) {
 			$exit = $self->_radius_verify($u,$p);
@@ -414,16 +454,6 @@ sub user_verify {
 		} elsif ( $auth eq "connectwise" ) {
 			$exit = $self->_connectwise_verify($u,$p);
 		}
-	#	} elsif ( defined( $C->{'web-htpasswd-file'} ) ) {
-	#		$rv = _file_verify($C->{'web-htpasswd-file'},$u,$p,1);
-	#		return $rv if($rv);
-	#	} elsif ( defined( $C->{'web-md5-password-file'} ) ) {
-	#		$rv = _file_verify($C->{'web-md5-password-file'},$u,$p,2);
-	#		return $rv if($rv);
-	#	} elsif ( defined( $C->{'web-unix-password-file'} ) ) {
-	#		$rv = file_verify($C->{'web-unix-password-file'},$u,$p,3);
-	#		return $rv if($rv);
-	# }
 
 		if ($exit) {
 			#Redundant logging
@@ -446,7 +476,7 @@ sub _file_verify {
 	my $self = shift;
 	my($pwfile,$u,$p,$encmode) = @_;
 
-	NMISNG::Util::logAuth("DEBUG: _file_verify($pwfile,$u,$p,$encmode)") if $debug;
+	NMISNG::Util::logAuth("DEBUG: _file_verify($pwfile,$u,$p,$encmode)") if $self->{debug};
 
 	my $allowplaintext = ($encmode eq "plaintext");
 	# the other encmode parameters are ignored.
@@ -478,12 +508,12 @@ sub _file_verify {
 	}
 	elsif ($havematch == -1)					# no user
 	{
-		NMISNG::Util::logAuth("User $u not found in $pwfile.") if $debug;
+		NMISNG::Util::logAuth("User $u not found in $pwfile.") if $self->{debug};
 		return 0;
 	}
 	elsif (!$havematch)
 	{
-		NMISNG::Util::logAuth("Password mismatch for user $u.") if $debug;
+		NMISNG::Util::logAuth("Password mismatch for user $u.") if $self->{debug};
 		return 0;
 	}
 }
@@ -517,19 +547,19 @@ sub _ldap_verify {
 
 	# Connect to LDAP and verify username and password
 	if($sec) {
-		$ldap = new Net::LDAPS($C->{'auth_ldaps_server'});
+		$ldap = new Net::LDAPS($self->{config}->{'auth_ldaps_server'});
 	} else {
-		$ldap = new Net::LDAP($C->{'auth_ldap_server'});
+		$ldap = new Net::LDAP($self->{config}->{'auth_ldap_server'});
 	}
 	if(!$ldap) {
 		NMISNG::Util::logAuth("ERROR, no LDAP object created, maybe ldap server address missing in configuration of NMIS");
 		return 0;
 	}
 	@attrlist = ( 'uid','cn' );
-	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
-		if( $C->{'auth_ldap_attr'} );
+	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
+		if( $self->{config}->{'auth_ldap_attr'} );
 
-	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
+	foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
 		foreach $attr ( @attrlist ) {
 			$dn = "$attr=$u,".$context;
 			$msg = $ldap->bind($dn, password=>$p) ;
@@ -574,23 +604,17 @@ sub _novell_ldap_verify {
 
 	# Connect to LDAP and verify username and password
 	if($sec) {
-		$ldap = new Net::LDAPS($C->{'auth_ldaps_server'});
+		$ldap = new Net::LDAPS($self->{config}->{'auth_ldaps_server'});
 	} else {
-		$ldap = new Net::LDAP($C->{'auth_ldap_server'});
+		$ldap = new Net::LDAP($self->{config}->{'auth_ldap_server'});
 	}
 	if(!$ldap) {
 		NMISNG::Util::logAuth2("no LDAP object created, maybe ldap server address missing in configuration of NMIS","ERROR");
 		return 0;
 	}
 	@attrlist = ( 'uid','cn' );
-	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
-		if( $C->{'auth_ldap_attr'} );
-
-	#if($debug) {
-	#	NMISNG::Util::logAuth("DEBUG: _novell_ldap_verify: auth_ldap_attr=(";
-	#	NMISNG::Util::logAuth(join(',',@attrlist);
-	#	NMISNG::Util::logAuth(")\n";
-	#}
+	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
+		if( $self->{config}->{'auth_ldap_attr'} );
 
 	# TODO: Implement non-anonymous bind
 
@@ -601,19 +625,13 @@ sub _novell_ldap_verify {
 		return 0;
 	}
 
-	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
-
-		#NMISNG::Util::logAuth("DEBUG: _novell_ldap_verify: context=$context") if $debug;
+	foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
 
 		$dn = undef;
 		# Search "attr=user" in each context
 		foreach $attr ( @attrlist ) {
 
-			#NMISNG::Util::logAuth("DEBUG: _novell_ldap_verify: search ($attr=$u)") if $debug;
-
 			$msg = $ldap->search(base=>$context,filter=>"$attr=$u",scope=>"sub",attrs=>["dn"]);
-
-			#NMISNG::Util::logAuth("DEBUG: _novell_ldap_verify: search result: code=" . $msg->code . ", count=" . $msg->count . "") if $debug;
 
 			if ( $msg->is_error ) { #|| ($msg->count != 1)) { # not Found, try next context
 				next;
@@ -625,20 +643,14 @@ sub _novell_ldap_verify {
 
 		return 0 unless defined($dn);
 
-		#NMISNG::Util::logAuth("DEBUG: _novell_ldap_verify: found, trying to bind as $dn") if $debug;
-
 		$msg = $ldap->bind($dn, password=>$p) ;
 		if(!$msg->is_error) {
-
-			#NMISNG::Util::logAuth("DEBUG: _novell_ldap_verify: bind success") if $debug;
 
 			$ldap->unbind();
 			return 1;
 		}
 
 		else {
-			#NMISNG::Util::logAuth("DEBUG: _novell_ldap_verify: bind failed with ". $msg->error . "") if $debug;
-
 			# A bind failure in one context is fatal.
 			return 0;
 		}
@@ -650,10 +662,8 @@ sub _novell_ldap_verify {
 
 #----------------------------------
 # Microsoft LDAP verify username/password
-#
-# 18-4-10 Jan v. K.
-#
-sub _ms_ldap_verify {
+sub _ms_ldap_verify
+{
 	my $self = shift;
 	my($u, $p, $sec) = @_;
 	my $ldap;
@@ -663,9 +673,10 @@ sub _ms_ldap_verify {
 	my $entry;
 	my $dn;
 
-	$C->{auth_ms_ldap_debug} =  NMISNG::Util::getbool($C->{auth_ms_ldap_debug});
+	my $extra_ldap_debug  = NMISNG::Util::getbool($self->{config}->{auth_ms_ldap_debug});
 
-	if($sec) {
+	if($sec)
+	{
 		# load the LDAPS module
 		eval { require IO::Socket::SSL; require Net::LDAPS; };
 		if($@) {
@@ -683,9 +694,9 @@ sub _ms_ldap_verify {
 
 	# Connect to LDAP by know (readonly) account
 	if($sec) {
-		$ldap = new Net::LDAPS($C->{'auth_ms_ldaps_server'});
+		$ldap = new Net::LDAPS($self->{config}->{'auth_ms_ldaps_server'});
 	} else {
-		$ldap = new Net::LDAP($C->{'auth_ms_ldap_server'});
+		$ldap = new Net::LDAP($self->{config}->{'auth_ms_ldap_server'});
 	}
 	if(!$ldap) {
 		NMISNG::Util::logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing in configuration of NMIS");
@@ -693,25 +704,28 @@ sub _ms_ldap_verify {
 	}
 
 	# bind LDAP for request DN of user
-	$status = $ldap->bind("$C->{'auth_ms_ldap_dn_acc'}",password=>"$C->{'auth_ms_ldap_dn_psw'}");
+	$status = $ldap->bind( $self->{config}->{'auth_ms_ldap_dn_acc'},
+												 password=> $self->{config}->{'auth_ms_ldap_dn_psw'});
 	if ($status->code() ne 0) {
-		NMISNG::Util::logAuth("ERROR LDAP validation of $C->{'auth_ms_ldap_dn_acc'}, error msg ".$status->error()." ");
+
+		NMISNG::Util::logAuth("ERROR LDAP validation of $self->{config}->{'auth_ms_ldap_dn_acc'}, error msg ".$status->error()." ");
 		return 0;
 	}
 
-	NMISNG::Util::logAuth("DEBUG LDAP Base user=$C->{'auth_ms_ldap_dn_acc'} authorized") if $C->{auth_ms_ldap_debug};
+	NMISNG::Util::logAuth("DEBUG LDAP Base user=$self->{config}->{'auth_ms_ldap_dn_acc'} authorized") if $extra_ldap_debug;
 
-	for my $attr ( split ',',$C->{'auth_ms_ldap_attr'}) {
 
-		NMISNG::Util::logAuth("DEBUG LDAP search, base=$C->{'auth_ms_ldap_base'},".
-						"filter=${attr}=$u, attr=distinguishedName") if $C->{auth_ms_ldap_debug};
+	for my $attr ( split ',',$self->{config}->{'auth_ms_ldap_attr'}) {
 
-		my $results = $ldap->search(scope=>'sub',base=>"$C->{'auth_ms_ldap_base'}",filter=>"($attr=$u)",attrs=>['distinguishedName']);
+		NMISNG::Util::logAuth("DEBUG LDAP search, base=$self->{config}->{'auth_ms_ldap_base'},".
+													"filter=${attr}=$u, attr=distinguishedName") if $extra_ldap_debug;
+
+		my $results = $ldap->search(scope=>'sub',base=>"$self->{config}->{'auth_ms_ldap_base'}",filter=>"($attr=$u)",attrs=>['distinguishedName']);
 
 		# if full debugging dumps are requested, put it in a separate log file
-		if ($C->{auth_ms_ldap_debug})
+		if ($extra_ldap_debug)
 		{
-			open(F, ">>", $C->{'<nmis_logs>'}."/auth-ms-ldap-debug.log");
+			open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ms-ldap-debug.log");
 			print F NMISNG::Util::returnDateStamp(). Dumper($results) ."\n";
 			close(F);
 		}
@@ -719,27 +733,27 @@ sub _ms_ldap_verify {
 		if (($entry = $results->entry(0))) {
 			$dn = $entry->get_value('distinguishedName');
 		} else {
-			NMISNG::Util::logAuth("DEBUG LDAP search failed") if $C->{auth_ms_ldap_debug};
+			NMISNG::Util::logAuth("DEBUG LDAP search failed") if $extra_ldap_debug;
 		}
 	}
 
 	if ($dn eq '') {
-		NMISNG::Util::logAuth("DEBUG user $u not found in Active Directory") if $C->{auth_ms_ldap_debug};
+		NMISNG::Util::logAuth("DEBUG user $u not found in Active Directory") if $extra_ldap_debug;
 		$ldap->unbind();
 		return 0;
 	}
 
 	my $d = $dn;
 	$d =~ s/\\//g;
-	NMISNG::Util::logAuth("DEBUG LDAP found distinguishedName=$d") if $C->{auth_ms_ldap_debug};
+	NMISNG::Util::logAuth("DEBUG LDAP found distinguishedName=$d") if $extra_ldap_debug;
 
 	# check user
 
 	# Connect to LDAP and verify username and password
 	if($sec) {
-		$ldap2 = new Net::LDAPS($C->{'auth_ms_ldaps_server'});
+		$ldap2 = new Net::LDAPS($self->{config}->{'auth_ms_ldaps_server'});
 	} else {
-		$ldap2 = new Net::LDAP($C->{'auth_ms_ldap_server'});
+		$ldap2 = new Net::LDAP($self->{config}->{'auth_ms_ldap_server'});
 	}
 	if(!$ldap2) {
 		NMISNG::Util::logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing");
@@ -747,7 +761,7 @@ sub _ms_ldap_verify {
 	}
 
 	$status2 = $ldap2->bind("$dn",password=>"$p");
-	NMISNG::Util::logAuth("DEBUG LDAP bind dn $d password $p status ".$status->code()) if $C->{auth_ms_ldap_debug};
+	NMISNG::Util::logAuth("DEBUG LDAP bind dn $d password $p status ".$status->code()) if $extra_ldap_debug;
 	if ($status2->code eq 0) {
 		# permitted
 		$ldap->unbind();
@@ -782,13 +796,13 @@ sub _connectwise_verify
 		return 0;
 	}
 
-	NMISNG::Util::logAuth("DEBUG start sub _connectwise_verify") if $debug;
+	NMISNG::Util::logAuth("DEBUG start sub _connectwise_verify") if $self->{debug};
 
 	# The bulk of what we need comes from Config.nmis
-	my $cw_server = $C->{auth_cw_server};
-	my $company_id = $C->{auth_cw_company_id};
-	my $public_key = $C->{auth_cw_public_key};
-	my $private_key = $C->{auth_cw_private_key};
+	my $cw_server = $self->{config}->{auth_cw_server};
+	my $company_id = $self->{config}->{auth_cw_company_id};
+	my $public_key = $self->{config}->{auth_cw_public_key};
+	my $private_key = $self->{config}->{auth_cw_private_key};
 
 	if ($cw_server eq "" || $company_id eq "" || $public_key eq "" || $private_key eq "") {
 		NMISNG::Util::logAuth("ERROR one or more required ConnectWise variables are missing from Config.nmis");
@@ -799,21 +813,21 @@ sub _connectwise_verify
 	# This is static, builds Authorization per Connectwise API
 	my $headers = {"Content-type" => 'application/json', Accept => 'application/json', Authorization => 'Basic ' . encode_base64($company_id . '+' . $public_key . ':' . $private_key,'')};
 
-	NMISNG::Util::logAuth("DEBUG built headers") if $debug;
+	NMISNG::Util::logAuth("DEBUG built headers") if $self->{debug};
 
 	my $client = Mojo::UserAgent->new();
-	NMISNG::Util::logAuth("DEBUG created Mojo::UserAgent") if $debug;
+	NMISNG::Util::logAuth("DEBUG created Mojo::UserAgent") if $self->{debug};
 
 	my $request_body = "{email: \"$u\",password: \"$p\"}";
 	my $urlValidateCredentials = $protocol . "://" . $cw_server. "/v4_6_release/apis/3.0/company/contacts/validatePortalCredentials";
 	my $responseContent = $client->post($urlValidateCredentials => $headers => $request_body);
-	NMISNG::Util::logAuth("DEBUG created client->POST") if $debug;
+	NMISNG::Util::logAuth("DEBUG created client->POST") if $self->{debug};
 
 	my $response = $responseContent->success();
-	NMISNG::Util::logAuth("DEBUG got responseContent->success") if $debug;
+	NMISNG::Util::logAuth("DEBUG got responseContent->success") if $self->{debug};
 	if ($response) {
 		my $body = decode_json($response->body());
-		NMISNG::Util::logAuth("DEBUG response->body converted from JSON") if $debug;
+		NMISNG::Util::logAuth("DEBUG response->body converted from JSON") if $self->{debug};
 
 		if ($body->{'success'}) {
 			# permitted
@@ -848,6 +862,8 @@ sub _connectwise_verify
 sub do_login {
 	my $self = shift;
 	my %args = @_;
+
+	# that's the NAME not the config data...
 	my $config = $args{conf} || $self->{confname};
 	my $msg = $args{msg};
 	my $listmodules = $args{listmodules};
@@ -863,7 +879,7 @@ sub do_login {
 	if( CGI::http("X-Requested-With") eq "XMLHttpRequest" )
 	{
 		# forward url will have a function in it, we want to go back to regular nmis
-		# my $url_no_forward = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";
+		# my $url_no_forward = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";
 		my $ret = { name => "JSONRequestError", message => "Authentication Error" };
 		my $json_data = encode_json( $ret ); #, { pretty => 1 } );
 
@@ -876,25 +892,25 @@ EOHTML
     return;
 	}
 	my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
-	NMISNG::Util::logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $debug;
+	NMISNG::Util::logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $self->{debug};
 	print CGI::header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
 	print qq
 |<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
   <head>
-    <title>$C->{auth_login_title}</title>
+    <title>$self->{config}->{auth_login_title}</title>
     <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store" />
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
+    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
+    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
+    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
+    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
   </head>
   <body>
 |;
@@ -910,12 +926,12 @@ EOHTML
 
 	print CGI::start_table({class=>""});
 
-	if ( $C->{'company_logo'} ne "" ) {
-		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$C->{'company_logo'}"/>|));
+	if ( $self->{config}->{'company_logo'} ne "" ) {
+		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$self->{config}->{'company_logo'}"/>|));
 	}
 
 	my $motd = "Authentication required: Please log in with your appropriate username and password in order to gain access to this system";
-	$motd = $C->{auth_login_motd} if $C->{auth_login_motd} ne "";
+	$motd = $self->{config}->{auth_login_motd} if $self->{config}->{auth_login_motd} ne "";
 
 	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},$motd));
 
@@ -924,8 +940,8 @@ EOHTML
 	print CGI::Tr(CGI::td({class=>'info Plain'},"&nbsp;") . CGI::td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
 
 
-	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com" ) {
-		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$C->{'auth_sso_domain'}\""));
+	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
+		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
 	}
 
 	print CGI::Tr(CGI::td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
@@ -982,6 +998,8 @@ EOHTML
 sub do_force_login {
 	my $self = shift;
 	my %args = @_;
+
+	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
 	my($javascript);
 	my($err) = shift;
@@ -990,7 +1008,7 @@ sub do_force_login {
 		$config = "&conf=$config";
 	}
 
-	my $url = CGI::url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";
+	my $url = CGI::url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";
 
 	# if this request is coming through an AJAX'Y method, respond in a different mannor that commonV8.js will understand
 	# and redirect for us
@@ -1013,7 +1031,7 @@ EOHTML
 #	$javascript .= "alert('$err'); " if($err);
 	$javascript .= " window.location = '" . $url . "'; }";
 
-	$javascript = "function redir() {} " if($C->{'web-auth-debug'});
+	$javascript = "function redir() {} " if($self->{config}->{'web-auth-debug'});
 
 	print CGI::header({ target=>'_top', expires=>"now" })."\n";
 	print CGI::start_html({ title =>"Login Required",
@@ -1033,6 +1051,8 @@ EOHTML
 sub do_logout {
 	my $self = shift;
 	my %args = @_;
+
+	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
 
 	# Javascript that sets window.location to login URL
@@ -1054,7 +1074,7 @@ sub do_logout {
 	#	-expires => "5s",
 	#	-script => $javascript,
 	#	-onload => "redir()",
-	#	-style=>{'src'=>"$C->{'<menu_url_base>'}/css/dash8.css"}
+	#	-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
 	#	}),"\n";
 
 	print qq
@@ -1068,11 +1088,11 @@ sub do_logout {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
+    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
+    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
+    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
+    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
     <script type="text/javascript">//<![CDATA[
 $javascript
 //]]></script>
@@ -1115,7 +1135,7 @@ sub do_login_banner {
 
 	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 
-	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;
+	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$self->{config}->{'nmis_favicon'}"/></a>|;
 	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
 	push @banner,CGI::div({class=>'title2'},"Network Management Information System");
 
@@ -1144,16 +1164,17 @@ sub _radius_verify {
 		return 0;
 	} # no Authen::Simple::RADIUS installed
 
-	my ($host,$port) = split(/:/,$C->{auth_radius_server});
+	my ($host,$port) = split(/:/,$self->{config}->{auth_radius_server});
 	if ($host eq "") {
 		NMISNG::Util::logAuth("ERROR, no radius server address specified in configuration of NMIS");
-	} elsif ($C->{auth_radius_secret} eq "") {
+	} elsif ($self->{config}->{auth_radius_secret} eq "") {
 		NMISNG::Util::logAuth("ERROR, no radius secret specified in configuration of NMIS");
+
 	} else {
 		$port = 1645 if $port eq "";
 		my $radius = Authen::Simple::RADIUS->new(
 			host   => $host,
-			secret => $C->{auth_radius_secret},
+			secret => $self->{config}->{auth_radius_secret},
 			port => $port
 		);
 		if ( $radius->authenticate( $user, $pswd ) ) {
@@ -1177,16 +1198,16 @@ sub _tacacs_verify {
 		return 0;
 	} # no Authen::TacacsPlus installed
 
-	my ($host,$port) = split(/:/,$C->{auth_tacacs_server});
+	my ($host,$port) = split(/:/,$self->{config}->{auth_tacacs_server});
 	if ($host eq "") {
 		NMISNG::Util::logAuth("ERROR, no tacacs server address specified in configuration of NMIS");
-	} elsif ($C->{auth_tacacs_secret} eq "") {
+	} elsif ($self->{config}->{auth_tacacs_secret} eq "") {
 		NMISNG::Util::logAuth("ERROR, no tacacs secret specified in configuration of NMIS");
 	} else {
 		$port = 49 if $port eq "";
 		my $tacacs = new Authen::TacacsPlus(
 			Host => $host,
-			Key => $C->{auth_tacacs_secret},
+			Key => $self->{config}->{auth_tacacs_secret},
 		);
 		if ( $tacacs->authen($user,$pswd)) {
 			$tacacs->close();
@@ -1209,6 +1230,8 @@ sub loginout {
 	my $type = lc($args{type});
 	my $username = $args{username};
 	my $password = $args{password};
+
+	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
 
 	my $listmodules = $args{listmodules};
@@ -1217,11 +1240,11 @@ sub loginout {
 	my @cookies = ();
 
 	NMISNG::Util::logAuth("DEBUG: loginout type=$type username=$username config=$config")
-			if $debug;
+			if $self->{debug};
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2013-01-22 markd, fixing Auth to use Cookies!
-	if($ENV{'REMOTE_USER'} and ($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") ) {
+	if($ENV{'REMOTE_USER'} and ($self->{config}->{auth_method_1} eq "" or $self->{config}->{auth_method_1} eq "apache") ) {
 		$username=$ENV{'REMOTE_USER'};
 		if( $type eq 'login' ) {
 			$type = ""; #apache takes care of showing the login screen
@@ -1233,7 +1256,7 @@ sub loginout {
 		return 0;
 	}
 
-	my $maxtries = $C->{auth_lockout_after};
+	my $maxtries = $self->{config}->{auth_lockout_after};
 
 	if (defined($username) && $username ne '')
 	{
@@ -1249,11 +1272,11 @@ sub loginout {
 				return 0;
 			}
 		}
-		NMISNG::Util::logAuth("DEBUG: verifying $username") if $debug;
+		NMISNG::Util::logAuth("DEBUG: verifying $username") if $self->{debug};
 		if( $self->user_verify($username,$password))
 		{
-			#NMISNG::Util::logAuth("DEBUG: user verified $username") if $debug;
-			#NMISNG::Util::logAuth("self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config") if $debug;
+			#logAuth("DEBUG: user verified $username") if $self->{debug};
+			#logAuth("self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config") if $self->{debug};
 
 			# login accepted, set privs
 			$self->SetUser($username);
@@ -1261,8 +1284,8 @@ sub loginout {
 			$self->update_failure_counter(user => $username, action => 'reset') if ($maxtries);
 
 			# handle default privileges or not.
-			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq ""
-																		 or NMISNG::Util::getbool($C->{auth_default_privilege},"invert")) ) {
+			if ( $self->{priv} eq "" and ( $self->{config}->{auth_default_privilege} eq ""
+																		 or getbool($self->{config}->{auth_default_privilege},"invert")) ) {
 				$self->do_login(msg=>"Privileges NOT defined, please contact your administrator",
 												listmodules => $listmodules);
 				return 0;
@@ -1277,7 +1300,7 @@ sub loginout {
 			}
 
 			NMISNG::Util::logAuth("user=$self->{user} logged in with config=$config");
-			NMISNG::Util::logAuth("DEBUG: loginout user=$self->{user} logged in with config=$config") if $debug;
+			NMISNG::Util::logAuth("DEBUG: loginout user=$self->{user} logged in with config=$config") if $self->{debug};
 		}
 		else
 		{ # bad login: try again, up to N times
@@ -1291,35 +1314,35 @@ sub loginout {
 					# notify of lockout when over the limit
 					NMISNG::Util::logAuth("Account $username now locked after $newcount login failures.");
 					# notify the server admin by email if setup
-					if ($C->{server_admin})
+					if ($self->{config}->{server_admin})
 					{
 						my ($status,$code,$msg) = NMISNG::Notify::sendEmail(
-							sender => $C->{mail_from},
-							recipients => [split(/\s*,\s*/, $C->{server_admin})],
+							sender => $self->{config}->{mail_from},
+							recipients => [split(/\s*,\s*/, $self->{config}->{server_admin})],
 
-							mailserver => $C->{mail_server},
-							serverport => $C->{mail_server_port},
-							hello => $C->{mail_domain},
-							usetls => $C->{mail_use_tls},
-							ipproto => $C->{mail_server_ipproto},
+							mailserver => $self->{config}->{mail_server},
+							serverport => $self->{config}->{mail_server_port},
+							hello => $self->{config}->{mail_domain},
+							usetls => $self->{config}->{mail_use_tls},
+							ipproto => $self->{config}->{mail_server_ipproto},
 
-							username => $C->{mail_user},
-							password => $C->{mail_password},
+							username => $self->{config}->{mail_user},
+							password => $self->{config}->{mail_password},
 
 							# and params for making the message on the go
-							to => $C->{server_admin},
-							from => $C->{mail_from},
+							to => $self->{config}->{server_admin},
+							from => $self->{config}->{mail_from},
 							subject => "Account \"$username\" locked after $newcount failed logins",
-							body => qq|The account \"$username\" on $C->{server_name} has exceeded the maximum number
+							body => qq|The account \"$username\" on $self->{config}->{server_name} has exceeded the maximum number
 of failed login attempts and was locked.
 
-To re-enable this account visit $C->{nmis_host_protocol}://$C->{nmis_host}$C->{"<cgi_url_base>"}/tables.pl?act=config_table_menu&table=Users&widget=false and select the "reset login count" option. |,
+To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{config}->{nmis_host}$self->{config}->{"<cgi_url_base>"}/tables.pl?act=config_table_menu&table=Users&widget=false and select the "reset login count" option. |,
 							priority => "High"
 								);
 
 						if (!$status)
 						{
-							NMISNG::Util::logAuth("Error: Sending of lockout notification email to $C->{server_admin} failed: $code $msg");
+							NMISNG::Util::logAuth("Error: Sending of lockout notification email to $self->{config}->{server_admin} failed: $code $msg");
 						}
 					}
 					$self->do_login( msg => "Too many failed attempts, account disabled",
@@ -1335,18 +1358,19 @@ To re-enable this account visit $C->{nmis_host_protocol}://$C->{nmis_host}$C->{"
 		}
 	}
 	else { # check cookie
-		NMISNG::Util::logAuth("DEBUG: valid session? check cookie") if $debug;
+		NMISNG::Util::logAuth("DEBUG: valid session? check cookie") if $self->{debug};
 
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
-			NMISNG::Util::logAuth("DEBUG: invalid session ") if $debug;
+			logAuth("DEBUG: invalid session ") if $self->{debug};
+
 			#$self->do_login(msg=>"Session Expired or Invalid Session");
 			$self->do_login(msg=>"", listmodules => $listmodules);
 			return 0;
 		}
 
 		$self->SetUser( $username );
-		NMISNG::Util::logAuth("DEBUG: cookie OK") if $debug;
+		NMISNG::Util::logAuth("DEBUG: cookie OK") if $self->{debug};
 	}
 
 	# logout has to be down here because we need the username loaded to generate the correct cookie
@@ -1357,7 +1381,7 @@ To re-enable this account visit $C->{nmis_host_protocol}://$C->{nmis_host}$C->{"
 
 	# user should be set at this point, if not then redirect
 	unless ($self->{user}) {
-		NMISNG::Util::logAuth("DEBUG: loginout forcing login, shouldn't have gotten this far") if $debug;
+		NMISNG::Util::logAuth("DEBUG: loginout forcing login, shouldn't have gotten this far") if $self->{debug};
 		$self->do_login(listmodules => $listmodules);
 		return 0;
 	}
@@ -1365,9 +1389,8 @@ To re-enable this account visit $C->{nmis_host_protocol}://$C->{nmis_host}$C->{"
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {
     push @cookies, $self->generate_cookie(user_name => $self->{user});
-  	NMISNG::Util::logAuth("DEBUG: loginout made cookie $cookies[0]") if $debug;
+  	NMISNG::Util::logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
 	}
-	$self->{cookie} = \@cookies;
 	$headeropts->{-cookie} = [@cookies];
 	return 1; # all oke
 }
@@ -1383,7 +1406,7 @@ sub update_failure_counter
 	return "cannot update failure counter without valid user argument!" if (!$user);
 	return "cannot update failure counter without valid action argument!" if (!$action or $action !~ /^(inc|reset)$/);
 
-	my $statedir = $C->{'<nmis_var>'}."/nmis_system/auth_failures";
+	my $statedir = $self->{config}->{'<nmis_var>'}."/nmis_system/auth_failures";
 	NMISNG::Util::createDir($statedir) if (!-d $statedir);
 
 	my $userdata = { count => 0 };
@@ -1412,9 +1435,9 @@ sub update_failure_counter
 	open(F,">$userstatefile") or return "cannot write $userstatefile: $!";
 	print F encode_json($userdata);
 	close(F);
-	NMISNG::Util::setFileProtDiag(file => $userstatefile, username => $C->{nmis_user}, 
-									groupname => $C->{nmis_group},
-									permission => $C->{os_fileperm}); # ignore problems with that
+	NMISNG::Util::setFileProtDiag(file => $userstatefile, username => $self->{config}->{nmis_user},
+																groupname => $self->{config}->{nmis_group},
+																permission => $self->{config}->{os_fileperm}); # ignore problems with that
 
 	return (undef, $userdata->{count});
 }
@@ -1428,7 +1451,7 @@ sub get_failure_counter
 	my $user = $args{"user"};
 	return "cannot get failure counter without valid user argument!" if (!$user);
 
-	my $statedir = $C->{'<nmis_var>'}."/nmis_system/auth_failures";
+	my $statedir = $self->{config}->{'<nmis_var>'}."/nmis_system/auth_failures";
 	NMISNG::Util::createDir($statedir) if (!-d $statedir);
 
 	my $userdata = { count => 0 };
@@ -1489,7 +1512,7 @@ sub InGroup {
 	if ( $self->{all_groups_allowed} )
 	{
 		NMISNG::Util::logAuth("InGroup: $self->{user}, all group: ok for $group")
-				if $debug;
+				if $self->{debug};
 		return 1;
 	}
 	return 0 if (!$group); # fixme why after the all logic?
@@ -1498,14 +1521,16 @@ sub InGroup {
 	{
 		if (lc($g) eq lc($group))
 		{
-			NMISNG::Util::logAuth("InGroup: $self->{user}, ok for $group") if $debug;
+			NMISNG::Util::logAuth("InGroup: $self->{user}, ok for $group") if $self->{debug};
 			return 1;
 		}
 	}
+
 	NMISNG::Util::logAuth("InGroup: $self->{user}, groups: "
-												.join(",", @{$self->{groups}})
-												.", NOT ok for $group")
-			if $debug;
+					.join(",", @{$self->{groups}})
+					.", NOT ok for $group")
+			if $self->{debug};
+
 	return 0;
 }
 
@@ -1522,7 +1547,7 @@ sub CheckAccessCmd {
 
 	my $perm = $AC->{$command}{"level$self->{privlevel}"};
 
-	NMISNG::Util::logAuth("CheckAccessCmd: $self->{user}, $command, $perm") if $debug;
+	NMISNG::Util::logAuth("CheckAccessCmd: $self->{user}, $command, $perm") if $self->{debug};
 
 	return $perm;
 }
@@ -1547,11 +1572,11 @@ sub _GetPrivs {
 		$self->{priv} = $UT->{$user}{privilege};
 	}
 	else {
-		if ( $C->{auth_default_privilege} ne ""
-				 and !NMISNG::Util::getbool($C->{auth_default_privilege},"invert") ) {
-			$self->{priv} = $C->{auth_default_privilege};
+		if ( $self->{config}->{auth_default_privilege} ne ""
+				 and !NMISNG::Util::getbool($self->{config}->{auth_default_privilege},"invert") ) {
+			$self->{priv} = $self->{config}->{auth_default_privilege};
 			$self->{privlevel} = 5;
-			NMISNG::Util::logAuth("INFO User \"$user\" not found in Users table, assigned default privilege $C->{auth_default_privilege}");
+			NMISNG::Util::logAuth("INFO User \"$user\" not found in Users table, assigned default privilege $self->{config}->{auth_default_privilege}");
 		}
 		else {
 			$self->{priv} = "";
@@ -1572,13 +1597,13 @@ sub _GetPrivs {
 	if ( $PMT->{$self->{priv}}{level} ne "" ) {
 		$self->{privlevel} = $PMT->{$self->{priv}}{level};
 	}
-	NMISNG::Util::logAuth("INFO User \"$user\" has priv=$self->{priv} and privlevel=$self->{privlevel}") if $debug;
+	NMISNG::Util::logAuth("INFO User \"$user\" has priv=$self->{priv} and privlevel=$self->{privlevel}") if $self->{debug};
 
 	# groups come from the user sertting or the auth_default_groups
 	my $grouplistraw = $UT->{$user}{groups};
-	if (!$grouplistraw && $C->{auth_default_groups})
+	if (!$grouplistraw && $self->{config}->{auth_default_groups})
 	{
-		$grouplistraw = $C->{auth_default_groups};
+		$grouplistraw = $self->{config}->{auth_default_groups};
 		NMISNG::Util::logAuth("INFO Groups not found for User \"$user\", using auth_default_groups from configuration");
 	}
 
