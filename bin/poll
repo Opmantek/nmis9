@@ -4687,8 +4687,8 @@ sub getIntfData
 																																start => $period,
 																																end => time);
 
-		$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability} // "N/A";
-		$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil} // "N/A";
+		$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability} // 'N/A';
+		$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil} // 'N/A'; # comment to fix my editor highlighting not finding /
 		$V->{interface}{"${index}_operAvail_color"} = Compat::NMIS::colorHighGood( $interface_util_stats->{availability} );
 		$V->{interface}{"${index}_totalUtil_color"} = Compat::NMIS::colorLowGood( $interface_util_stats->{totalUtil} );
 
@@ -8361,6 +8361,8 @@ LABEL_ESC:
 			# core, distrib and access could escalate at different rates.
 
 			my $nmisng_node = $nmisng->node( name => $thisevent->{node} );
+			$nmisng->log->error("Failed to get node for event, node:$thisevent->{node}") && next
+				if(!$nmisng_node);
 			my ($catchall_inventory,$error_message) = $nmisng_node->inventory( concept => "catchall" );
 			$nmisng->log->error("Failed to get catchall inventory for node:$thisevent->{node}, error_message:$error_message") && next
 				if(!$catchall_inventory);
