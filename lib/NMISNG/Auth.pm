@@ -215,12 +215,12 @@ sub get_cookie_token
 	}
 
 	my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
-	NMIS::Util::logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key")
+	NMISNG::Util::logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key")
 			if ($self->{debug});
 
 	# generate checksum
 	my $checksum = unpack('%32C*', $user_name . $remote_addr . $web_key);
-	NMIS::Util::logAuth("DEBUG: get_cookie_token: generated token=$checksum")
+	NMISNG::Util::logAuth("DEBUG: get_cookie_token: generated token=$checksum")
 			if ($self->{debug});
 
 	return $checksum;
@@ -257,7 +257,7 @@ sub verify_id
 														: "mojolicious" );
 	if(!defined($cookie) )
 	{
-		NMIS::Util::logAuth("verify_id: cookie not defined");
+		NMISNG::Util::logAuth("verify_id: cookie not defined");
 		return ''; # not defined
 	}
 
@@ -266,13 +266,13 @@ sub verify_id
 		# nmis-style cookies: username:numeric weak checksum
 		if($cookie !~ /(^.+):(\d+)$/)
 		{
-			NMIS::Util::logAuth("verify_id: cookie bad format");
+			NMISNG::Util::logAuth("verify_id: cookie bad format");
 			return ''; # bad format
 		}
 		my ($user_name, $token) = ($1,$2);
 		my $checksum = $self->get_cookie_token($user_name);
 
-		NMIS::Util::logAuth("DEBUG: verify_id: $user_name, cookie $token vs. computed $checksum")
+		NMISNG::Util::logAuth("DEBUG: verify_id: $user_name, cookie $token vs. computed $checksum")
 				if ($self->{debug});
 
 		return ($token eq $checksum)? $user_name : '';
@@ -284,7 +284,7 @@ sub verify_id
 		my ($sessiondata,$signature) = split(/--/, $cookie, 2);
 		if (!$sessiondata or !$signature)
 		{
-			NMIS::Util::logAuth('Invalid OMK cookie');
+			NMISNG::Util::logAuth('Invalid OMK cookie');
 			return '';
 		}
 
@@ -295,7 +295,7 @@ sub verify_id
 		my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
 		if ($expected ne $signature)
 		{
-			NMIS::Util::logAuth('OMK cookie did not validate correctly!'
+			NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
 							.($self->{debug}? " expected $expected but cookie had $signature" : ""));
 			return '';
 		}
@@ -303,16 +303,16 @@ sub verify_id
 		my $sessioninfo = eval { decode_json(decode_base64($sessiondata)); };
 		if ($@ or ref($sessioninfo) ne "HASH")
 		{
-			NMIS::Util::logAuth("OMK cookie unparseable! $@");
+			NMISNG::Util::logAuth("OMK cookie unparseable! $@");
 			return '';
 		}
 		if (!exists $sessioninfo->{auth_data})
 		{
-			NMIS::Util::logAuth("OMK cookie invalid: no auth_data field!");
+			NMISNG::Util::logAuth("OMK cookie invalid: no auth_data field!");
 			return '';
 		}
 		my $user_name = $sessioninfo->{auth_data};
-		NMIS::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
+		NMISNG::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
 						.decode_base64($sessiondata)) if $self->{debug};
 		return $user_name;
 	}
