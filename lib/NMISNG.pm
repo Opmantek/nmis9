@@ -83,7 +83,7 @@ sub new
 	$self->{_db} = $db;
 
 	# load and prime the statically defined collections
-	for my $collname (qw(nodes inventory ip latest_data))
+	for my $collname (qw(nodes inventory latest_data))
 	{
 		my $collhandle = NMISNG::DB::get_collection( db => $db, name => $collname );
 		if (ref($collhandle) ne "MongoDB::Collection")
@@ -107,39 +107,6 @@ sub new
 # Private:
 ###########
 
-# fixme: ip database structure doesn't match the rest of nmisng, doesn't really fit here! this should be in node.pm.
-
-# this is a small (internal) helper that fetches and merges a node's
-# secondary address records into a give node record
-#
-# args: noderecord (ref)
-# returns: amended noderecord (still the same ref)
-
-# NOTE: disabled because it caused hearst servers to go into extreeme load. not sure why
-sub _mergeaddresses
-{
-	# my ( $self, $noderecord ) = @_;
-
-	# if ($noderecord)
-	# {
-	# 	$noderecord->{"addresses"} ||= [];
-
-	# 	# find this node's ip addresses (if any)
-	# 	my $ipcursor = NMISNG::DB::find(
-	# 		collection  => $self->ip_collection,
-	# 		query       => {"node" => $noderecord->{_id}},
-	# 		fields_hash => {"_id" => 1}
-	# 	);
-	# 	while ( my $ipentry = $ipcursor->next )
-	# 	{
-	# 		my $address = $ipentry->{"_id"};
-
-	# 	   # at this point we're only interested in ip address entries, not temporary dns intermediaries or fqdn entries
-	# 		push @{$noderecord->{addresses}}, $address if ( $address =~ /^[a-fA-F0-9:.]+$/ );
-	# 	}
-	# }
-	# return $noderecord;
-}
 
 ###########
 # Public:
@@ -316,7 +283,7 @@ sub get_latest_data_model
 	my $query_count;
 	if ( $args{count} )
 	{
-		$query_count = NMISNG::DB::count( collection => $self->latest_data_collection, query => $q );	
+		$query_count = NMISNG::DB::count( collection => $self->latest_data_collection, query => $q );
 	}
 	# print "get_nodes_model, q".Dumper($q);
 	my $cursor = NMISNG::DB::find(
@@ -350,7 +317,7 @@ sub get_latest_data_model
 # arg limit: return only N records at the most
 # arg skip: skip N records at the beginning. index N in the result set is at 0 in the response
 # arg paginate: not supported, should be implemented at different level, sort/skip/limit does happen here
-# arg count: 
+# arg count:
 # arg filter: any other filters on the list of nodes required, hashref
 # arg fields_hash: hash of fields that should be grabbed for each node record, whole thing for each if not provided
 # return 'complete' result elements without limit! - a dummy element is inserted at the 'complete' end,
@@ -371,7 +338,7 @@ sub get_nodes_model
 	my $query_count;
 	if ( $args{count} )
 	{
-		$query_count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );	
+		$query_count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
 	}
 	# print "get_nodes_model, q".Dumper($q);
 	my $entries = NMISNG::DB::find(
@@ -386,8 +353,6 @@ sub get_nodes_model
 	my $index = 0;
 	while ( my $entry = $entries->next )
 	{
-		# NOTE: disabled because caused extreme load on hearst servers
-		# $self->_mergeaddresses($entry);
 		$model_data->[$index++] = $entry;
 	}
 
@@ -680,27 +645,6 @@ sub inventory_collection
 				[{"data_info.subconcept"   => 1}, {unique => 0}],
 				[ { expire_at => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
 			] );
-		$self->log->error("index setup failed for inventory: $err") if ($err);
-	}
-	return $self->{_db_inventory};
-}
-
-# helper to get/set ip collection, primes the indices on set
-# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
-# returns: current collection handle
-sub ip_collection
-{
-	my ( $self, $newvalue, $drop_unwanted ) = @_;
-	if ( ref($newvalue) eq "MongoDB::Collection" )
-	{
-		$self->{_db_ip} = $newvalue;
-
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_ip},
-			drop_unwanted => $drop_unwanted,
-				indices => [ [ { "node"=>1} ] ] ); # fixme will need something different
 		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
 	return $self->{_db_inventory};
