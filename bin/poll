@@ -985,8 +985,8 @@ sub doUpdate
 	                     # loads old node NMISNG::Util::info (unless force is active), and the DEFAULT(!) model (always!),
 	                     # and primes the sys object for snmp/wmi ops
 
-
-	if ( !$S->init( name => $name, update => 'true', force => $nvp{force} ) )
+	# specify clusterid because potentially other clusters could have nodes with the same name
+	if ( !$S->init( name => $name, update => 'true', force => $nvp{force}, cluster_id => $C->{cluster_id} ) )
 	{
 		NMISNG::Util::logMsg( "ERROR ($name) init failed: " . $S->status->{error} );    # fixme: why isn't this terminal?
 	}
@@ -1284,7 +1284,9 @@ sub doCollect
 	$0 = "poll-collect-$name";
 
 	my $S = NMISNG::Sys->new;
+	# specify clusterid because potentially other clusters could have nodes with the same name
 	if ( !$S->init( name => $name,
+									cluster_id => $C->{cluster_id}, 
 									snmp => $wantsnmp,
 									wmi => $wantwmi,
 									policy => $policy,
@@ -9680,8 +9682,12 @@ sub doThresholdsAndCreateStatus
 	{
 		if ( $node_model_data->count() > 1 || !$S )
 		{
+			my $C = NMISNG::Util::loadConfTable();    # config table from cache
 			$S = NMISNG::Sys->new;
-			next if ( !$S->init( name => $onenode->{name}, snmp => 'false' ) );
+			# Using cluster_id here so we can only run this on local nodes
+			# to make this work on all nodes (do we ever need that?) this 
+			# needs to take a node uuid instead of node name
+			next if ( !$S->init( name => $onenode->{name}, cluster_id => $C->{cluster_id}, snmp => 'false' ) );
 		}
 
 		my $M  = $S->mdl;       # pointer to Model table

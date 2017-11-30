@@ -70,7 +70,6 @@ if ( !$new_driver )
 # 	- post_count_pipeline (part of pipe to run after count if asked for)
 # 	- sort/skip/limit
 #   - allowtempfiles (0/1, default 0) - NOT passed if it's set to undef (for mongo < 2.6)
-#   - cursor 0/1, old driver only, new driver always returns cursor
 #   - batch_size, implies cursor=>1, INITIAL batch size of cursor
 # returns:
 #   - list of ( array of records, count, error ), count is = 0 if not asked for
@@ -78,13 +77,9 @@ sub aggregate
 {
 	my (%arg)               = @_;
 	my $collection          = $arg{collection};
-	my $pre_count_pipeline  = $arg{pre_count_pipeline};
-	my $post_count_pipeline = $arg{post_count_pipeline};
+	my $pre_count_pipeline  = $arg{pre_count_pipeline} // [];
+	my $post_count_pipeline = $arg{post_count_pipeline} // [];
 
-	my $cursor = $arg{cursor};
-
-	# new driver always returns cursors
-	$cursor = 1 if ($new_driver);
 
 	# this one option MUST be a boolean, 1/0 isn't good enough :-/
 	# it also MUST NOT be passed to a mongo older than 2.6.
@@ -92,19 +87,8 @@ sub aggregate
 		= ( defined $arg{allowtempfiles} ) ? {allowDiskUse => ( $arg{allowtempfiles} ? true : false )} : {};
 	if ( $arg{batch_size} )
 	{
-		if ($new_driver)
-		{
-			$aggoptions->{batchSize} = $arg{batch_size};
-		}
-		else
-		{
-			$cursor = 1;
-			$aggoptions->{cursor} = {batchSize => $arg{batch_size}};
-		}
+		$aggoptions->{batchSize} = $arg{batch_size};
 	}
-
-	$aggoptions->{cursor} = 1
-		if ( $cursor && !$new_driver );    # new driver always does cursor
 
 	return ( [], undef, "Aggregation pipeline must be an array of operations" )
 		if ( ( defined($pre_count_pipeline) && ref($pre_count_pipeline) ne "ARRAY" )
@@ -112,40 +96,8 @@ sub aggregate
 		or ( !$pre_count_pipeline and !$post_count_pipeline ) );
 	my $count = 0;
 
-	# count = before sort/skip/limit do a count because the system needs to know the total # of records
-	if ( $arg{count} )
-	{
-
-		# run modified pipeline to get the count, which is a single document
-		my @count_pipeline = (@$pre_count_pipeline);
-		push( @count_pipeline, {'$group' => {'_id' => undef, count => {'$sum' => 1}}} );
-
-		# for some reason or another, BOTH the aggregate call AND the cursor accesses
-		# can throw  exceptions on timeout, independent of each other!
-		# eval{} didn't seem to cut it fully, might as well use try/catch...
-		my $err;
-
-		try
-		{
-			my $result = $collection->aggregate( \@count_pipeline, $aggoptions );
-			if ($cursor)
-			{
-				my $only = $result
-					->next;   # somehow using count() on cursor count_out doesn't work in v0.70X, always returns zero...
-				$count = $only->{count} if ( ref($only) eq "HASH" );
-			}
-			else
-			{
-				$count = $result->[0]{count} if ( ref($result) eq "ARRAY" && @$result > 0 );
-			}
-		}
-		catch
-		{
-			$err = $_;
-		};
-		return ( [], undef, "pre-count aggregation failed: $err" ) if ($err);
-	}
-
+	my @pipeline = ();
+	@pipeline = @$pre_count_pipeline if ( ref($pre_count_pipeline) eq "ARRAY" && @$pre_count_pipeline );
 	if ( $arg{sort} )
 	{
 		push( @$post_count_pipeline, {'$sort' => $arg{sort}} );
@@ -159,30 +111,44 @@ sub aggregate
 		push( @$post_count_pipeline, {'$limit' => $arg{limit} + 0} );
 	}
 
-	my @pipeline = ();
-	@pipeline = @$pre_count_pipeline if ( ref($pre_count_pipeline) eq "ARRAY" && @$pre_count_pipeline );
-	push @pipeline, @$post_count_pipeline if ( ref($post_count_pipeline) eq "ARRAY" && @$post_count_pipeline );
+	# count means splitting the pipeline after the pre-count and running sum
+	# as well as gathering the main pipe data
+	# run modified pipeline to get the count, which is a single document
+	if ( $arg{count} )
+	{
+		# if post count is empty add what is hopefully a nop, this needs testing!
+		push @$post_count_pipeline, { '$skip' => 0 } if( @$post_count_pipeline == 0 );
+		my @count_pipeline = ( {'$group' => {'_id' => undef, count => {'$sum' => 1}}} );
+		push @pipeline, { '$facet' => {
+			count_data => \@count_pipeline,
+			primary_data => $post_count_pipeline
+		}};		
+	}
+	else
+	{		
+		push @pipeline, @$post_count_pipeline if ( ref($post_count_pipeline) eq "ARRAY" && @$post_count_pipeline );
+	}
 
 	# see note above: both aggregate and cursor throw timeout exceptions, separately...
 	my ( $out, $err );
 	try
 	{
-		my $result = $collection->aggregate( \@pipeline, $aggoptions );
-		if ($cursor)
-		{
-			my @all = $result->all();
-			$out = \@all;
-		}
-		else
-		{
-			$out = $result;
+		# print "trying pipeline:".Dumper(\@pipeline);
+		my $result = $collection->aggregate( \@pipeline, $aggoptions );		
+		my @all = $result->all();
+		$out = \@all;	
+		# print "got out:".Dumper($out);
+		if ( $arg{count} )
+		{	
+			$count = $out->[0]{count_data}[0]{count};
+			$out = $out->[0]{primary_data};
 		}
 	}
 	catch
 	{
 		$err = $_;
 	};
-	return ( [], undef, "post-count aggregation failed: $err" ) if ($err);
+	return ( [], undef, "aggregation failed: $err" ) if ($err);
 
 	return ( $out, $count, undef );
 }

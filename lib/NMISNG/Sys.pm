@@ -230,6 +230,7 @@ sub status
 # args: node (mostly required, or name), snmp (defaults to 1), wmi (defaults to the value for snmp),
 # update (defaults to 0), cache_models (see code comments for defaults), force (defaults to 0),
 # policy (default unset)
+# cluster_id can be provided, helpful when all you have is name
 #
 # update means ignore model loading errors, also disables cache_models
 # force means ignore the old node file, only relevant if update is enabled as well.
@@ -244,6 +245,7 @@ sub init
 
 	$self->{name} = $args{name};
 	$self->{node} = lc $args{name} if ($args{name});    # always lower case
+	$self->{uuid} = $args{uuid};
 
 	$self->{debug}  = $args{debug};
 	$self->{update} = NMISNG::Util::getbool( $args{update} );
@@ -273,7 +275,13 @@ sub init
 	# which we need to update metrics and other global stuff :-(
 	if ($self->{name})
 	{
-		$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
+		# use all data we may have
+		# If cluster_id was given use it
+		$self->{_nmisng_node} = $self->{_nmisng}->node( 
+			name => $self->{name}, 
+			uuid => $self->{uuid},
+			filter => {cluster_id => $args{cluster_id}} 
+		);
 		Carp::confess("Cannot instantiate sys object for $self->{name}!\n")
 				if (!$self->{_nmisng_node});
 	}
