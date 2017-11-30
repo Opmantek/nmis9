@@ -9682,8 +9682,12 @@ sub doThresholdsAndCreateStatus
 	{
 		if ( $node_model_data->count() > 1 || !$S )
 		{
+			my $C = NMISNG::Util::loadConfTable();    # config table from cache
 			$S = NMISNG::Sys->new;
-			next if ( !$S->init( name => $onenode->{name}, snmp => 'false' ) );
+			# Using cluster_id here so we can only run this on local nodes
+			# to make this work on all nodes (do we ever need that?) this 
+			# needs to take a node uuid instead of node name
+			next if ( !$S->init( name => $onenode->{name}, cluster_id => $C->{cluster_id}, snmp => 'false' ) );
 		}
 
 		my $M  = $S->mdl;       # pointer to Model table
