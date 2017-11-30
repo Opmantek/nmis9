@@ -292,7 +292,6 @@ sub get_latest_data_model
 	{
 		$query_count = NMISNG::DB::count( collection => $self->latest_data_collection, query => $q );
 	}
-	# print "get_nodes_model, q".Dumper($q);
 	my $cursor = NMISNG::DB::find(
 		collection => $self->latest_data_collection,
 		query      => $q,
@@ -315,10 +314,8 @@ sub get_latest_data_model
 	return $model_data_object;
 }
 
-# returns selection of nodes, as array of hashes
+# returns selection of nodes
 # args: id, name, host, group for selection;
-#
-# returns: ModelData object, with the stuff under key "addresses" synthesized from the ip cache collection
 #
 # arg sort: mongo sort criteria
 # arg limit: return only N records at the most
@@ -329,6 +326,8 @@ sub get_latest_data_model
 # arg fields_hash: hash of fields that should be grabbed for each node record, whole thing for each if not provided
 # return 'complete' result elements without limit! - a dummy element is inserted at the 'complete' end,
 # but only 0..limit are populated
+#
+# returns: ModelData object
 sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
@@ -343,24 +342,29 @@ sub get_nodes_model
 
 	my $model_data = [];
 	my $query_count;
+
 	if ( $args{count} )
 	{
 		$query_count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
 	}
-	# print "get_nodes_model, q".Dumper($q);
-	my $entries = NMISNG::DB::find(
-		collection => $self->nodes_collection,
-		query      => $q,
-		fields_hash => $fields_hash,
-		sort       => $args{sort},
-		limit      => $args{limit},
-		skip       => $args{skip}
-	);
 
-	my $index = 0;
-	while ( my $entry = $entries->next )
+	# if you want only a count but no data, set both count to 1 and limit to 0
+	if (!($args{count} && defined $args{limit} && $args{limit} == 0))
 	{
-		$model_data->[$index++] = $entry;
+		my $entries = NMISNG::DB::find(
+			collection => $self->nodes_collection,
+			query      => $q,
+			fields_hash => $fields_hash,
+			sort       => $args{sort},
+			limit      => $args{limit},
+			skip       => $args{skip}
+				);
+
+		my $index = 0;
+		while ( my $entry = $entries->next )
+		{
+			$model_data->[$index++] = $entry;
+		}
 	}
 
 	my $model_data_object = NMISNG::ModelData->new( class_name => "NMISNG::Node",
@@ -376,7 +380,7 @@ sub get_nodes_model
 sub get_node_names
 {
 	my ( $self, %args ) = @_;
-	my $model_data = $self->get_nodes_model(%args);
+	my $model_data = $self->get_nodes_model(%args, fields_hash => { name => 1 } );
 	my $data       = $model_data->data();
 	my @node_names = map { $_->{name} } @$data;
 	return \@node_names;
@@ -385,7 +389,7 @@ sub get_node_names
 sub get_node_uuids
 {
 	my ( $self, %args ) = @_;
-	my $model_data = $self->get_nodes_model(%args);
+	my $model_data = $self->get_nodes_model(%args, fields_hash => { uuid => 1 });
 	my $data       = $model_data->data();
 	my @uuids      = map { $_->{uuid} } @$data;
 	return \@uuids;

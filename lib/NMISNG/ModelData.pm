@@ -27,12 +27,12 @@
 #
 # *****************************************************************************
 
-# Generic class to hold modeldata (which is an array of hashes), 
+# Generic class to hold modeldata (which is an array of hashes),
 # but with optional object instantiation and access
 package NMISNG::ModelData;
 use strict;
 
-our $VERSION = "1.0.0";
+our $VERSION = "9.0.0a";
 
 use Scalar::Util;       # for weaken
 use Data::Dumper;
@@ -42,13 +42,13 @@ use Module::Load;       # for getting subclasses in instantiate
 # data must be array ref if given
 # class_name and nmisng are required if you want to use object(s) accessors
 # class_name can be either a string (for homogenous modeldata) or
-# a hashref of (attribute name => function ref) 
+# a hashref of (attribute name => function ref)
 # which will be called with the given attribute value as sole argument
 sub new
 {
 	my ($class, %args) = @_;
 
-	die "Data must be array\n" 
+	die "Data must be array\n"
 			if (defined($args{data}) && ref($args{data}) ne "ARRAY" );
 
 	my $self = bless({
@@ -57,18 +57,17 @@ sub new
 		_attribute_name => undef,
 		_nmisng => $args{nmisng},
 		_data => $args{data},
-		# handy for housekeeping, no accessors yet
 		_query_count => $args{query_count},
 		_sort => $args{sort},
 		_limit => $args{limit},
 		_skip => $args{skip}
 									 }, $class );
-	
+
 	my $maybestatic = $args{class_name};
 	if (ref($maybestatic) eq "HASH")
 	{
 		($self->{_attribute_name},$self->{_resolver}) = each(%$maybestatic);
-		die "Invalid class_name argument, resolver not a function\n" 
+		die "Invalid class_name argument, resolver not a function\n"
 				if (ref($self->{_resolver}) ne "CODE");
 	}
 	elsif (!ref($maybestatic))
@@ -79,9 +78,9 @@ sub new
 	{
 		die "Invalid class_name argument, neither static nor attribute/resolver!\n";
 	}
-	
+
 	# keeping a copy of nmisng which could go away means it needs weakening
-	Scalar::Util::weaken $self->{_nmisng} if (ref($self->{_nmisng}) 
+	Scalar::Util::weaken $self->{_nmisng} if (ref($self->{_nmisng})
 																						&& !Scalar::Util::isweak($self->{_nmisng}));
 	return $self;
 }
@@ -113,6 +112,14 @@ sub count
 	return (ref($self->{_data}) eq 'ARRAY')? scalar(@{$self->{_data}}) : 0;
 }
 
+# readonly - returns the number of entries the database reported,
+# if if reported any. returns undef otherwise. does NOT count the actual data.
+sub query_count
+{
+	my ($self) = @_;
+	return $self->{_query_count};
+}
+
 # returns a list of instantiated objects for the current data
 # args: none
 # returns: hashref, contains success, error, objects (list ref, may be empty)
@@ -121,10 +128,10 @@ sub objects
 	my ($self) = @_;
 
 	# nothing to do is NOT an error
-	return { success => 1, objects => [] } 
+	return { success => 1, objects => [] }
 	if (ref($self->{_data}) ne "ARRAY" or !@{$self->{_data}});
 	# but not knowing what objects to make is
-	return { error => "Missing class_name or nmisng, cannot instantiate objects!" } 
+	return { error => "Missing class_name or nmisng, cannot instantiate objects!" }
 	if ((!$self->{_class_name} and !$self->{_attribute_name})
 			or ref($self->{_nmisng}) ne "NMISNG");
 
@@ -148,7 +155,7 @@ sub objects
 			}
 			Module::Load::load($classname);
 		}
-		
+
 		my $thing = $classname->new(nmisng => $self->{_nmisng}, %$raw);
 		if ( !$thing )
 		{
@@ -171,13 +178,13 @@ sub object
 
 	return "Missing nth argument!" if (!defined $nth);
 	return "Missing class_name or nmisng, cannot instantiate objects!"
-			if ((!$self->{_class_name} and !$self->{_resolver}) 
+			if ((!$self->{_class_name} and !$self->{_resolver})
 					or ref($self->{_nmisng}) ne "NMISNG");
-	
+
 	return "nth argument outside of limits!"
 			if (ref($self->{_data}) ne "ARRAY"
 					or !exists $self->{_data}->[$nth]);
-	
+
 	my $raw = $self->{_data}->[$nth];
 
 	# how do we find out the class name? either static or via resolver function
