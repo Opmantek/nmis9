@@ -5,7 +5,8 @@ my %hash = (
     'db_port' => '27017',
     'db_query_timeout' => 5000,
     'db_server' => 'localhost',
-    'db_username' => 'opUserRW'
+    'db_username' => 'opUserRW',
+    'db_never_remove_indices' => [ 'nodes' ],
   },
 
   'modules' => {
@@ -307,6 +308,7 @@ my %hash = (
     'auth_method_1' => 'htpasswd',
     'auth_method_2' => '',
     'auth_method_3' => '',
+		'auth_cookie_flavour' => 'omk', # "nmis" or "omk"
     'auth_default_privilege' => '',
     'auth_default_groups' => '',
     'auth_htpasswd_file' => '<nmis_conf>/users.dat',

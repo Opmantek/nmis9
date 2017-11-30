@@ -692,7 +692,7 @@ function get(Id,optTrue,optFalse,evnt) {
 			}
 			else {
 
-				if (e.type=="text" || e.type=="textarea") {
+				if (e.type=="text" || e.type=="textarea" || e.type=="password") {
 					getstr+="&"+e.name+"="+encodeURIComponent(e.value);
 				}
 

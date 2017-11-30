@@ -282,8 +282,11 @@ sub viewTable {
 	# print items of table
 	for my $ref ( @{$CT}) { # trick for order of header items
 		for my $item (keys %{$ref}) {
-			print Tr(td({class=>'header',align=>'center'},escapeHTML($ref->{$item}{header})),
-				td({class=>'info Plain'},escapeHTML($T->{$key}{$item})));
+			print Tr(td({class=>'header',align=>'center'},
+									escapeHTML($ref->{$item}{header})),
+							 td({class=>'info Plain'},
+									escapeHTML($ref->{$item}->{display} =~ /password/?
+														 "<hidden>" : $T->{$key}{$item})));
 		}
 	}
 
@@ -485,12 +488,18 @@ sub editTable
 																					-rows => 3,
 																					-columns => ($wantwidget? 35 : 70)));
 									 }
-									 elsif ($thisitem->{display} =~ /text/) {
+									 elsif ($thisitem->{display} =~ /(text|password)/)
+									 {
+										 my $wantpassword = $1 eq "password";
 										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-										 #print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
-										 $line .= td(textfield(-name=>$item, -value=>$value,
-																					 -style=> 'width: 95%;',
-																					 -size=>  ($wantwidget? 35 : 70)));
+
+										 $line .= td(
+											 $wantpassword? password_field(-name=>$item, -value=>$value,
+																										 -style=> 'width: 95%;',
+																										 -size=>  ($wantwidget? 35 : 70))
+											 : textfield(-name=>$item, -value=>$value,
+																	 -style=> 'width: 95%;',
+																	 -size=>  ($wantwidget? 35 : 70)));
 									 }
 									 elsif ($thisitem->{display} =~ /readonly/) {
 										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
