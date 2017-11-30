@@ -315,7 +315,10 @@ sub get_latest_data_model
 }
 
 # returns selection of nodes
-# args: id, name, host, group for selection;
+# args: id, name, host, group, and filter (=hash) for selection
+#
+# note: if id/name/host/group and filter are given, then
+#the filter properties override id/name/host/group!
 #
 # arg sort: mongo sort criteria
 # arg limit: return only N records at the most
@@ -332,10 +335,14 @@ sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
-	$filter->{'uuid'}  = $args{uuid};
-	$filter->{'name'}  = $args{name};
-	$filter->{'host'}  = $args{host};
-	$filter->{'group'} = $args{group};
+
+	# copy convenience/shortcut arguments iff the filter
+	# hasn't already set them - the filter wins
+	for my $shortie (qw(uuid name host group))
+	{
+		$filter->{$shortie} = $args{$shortie}
+		if (exists($args{$shortie}) and !exists($filter->{$shortie}));
+	}
 	my $fields_hash = $args{fields_hash};
 
 	my $q = NMISNG::DB::get_query( and_part => $filter );
