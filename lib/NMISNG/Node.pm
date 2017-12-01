@@ -101,6 +101,22 @@ sub _dirty
 # Public:
 ###########
 
+# small r/o accessor for node activation status
+# args: none
+# returns: 1 if node is configured to be active
+sub is_active
+{
+	my ($self) = @_;
+
+	my $curcfg = $self->configuration;
+
+	# check the new-style 'activated.nmis' flag first, then the old-style 'active' property
+	return $curcfg->{activated}->{nmis} if (ref($curcfg->{activated}) eq "HASH"
+																					and defined $curcfg->{activated}->{nmis});
+	return NMISNG::Util::getbool($curcfg->{active});
+}
+
+
 # bulk set records to be historic which match this node and are
 # not in the array of active_indices (or active_ids) provided
 #
@@ -711,7 +727,7 @@ sub save
 
 	# make 100% certain we've got the uuid correct
 	$entry->{uuid} = $self->uuid;
-	
+
 	# need the time it was last saved
 	$entry->{lastupdate} = time;
 
