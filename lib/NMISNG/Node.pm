@@ -230,6 +230,8 @@ sub configuration
 
 		# UUID cannot be changed
 		$newvalue->{uuid} = $self->uuid;
+		# and an existing _id must be retained or the is_new logic fails
+		$newvalue->{_id} = $self->{_configuration}->{_id};
 
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
