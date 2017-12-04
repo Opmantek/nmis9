@@ -288,12 +288,12 @@ elsif ($cmdline->{act} eq "show")
 	# we want the config AND any overrides
 	my $dumpables = $nodeobj->configuration;
 	$dumpables->{overrides} = $nodeobj->overrides;
+	delete $dumpables{_id};			# no use in show
 
-	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables);
+	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables,"entry");
 	die "failed to transform output: $error\n" if ($error);
 	for my $k (sort keys %flatearth)
 	{
-		next if ($k eq "_id");			# no use in show
 		my $val = $flatearth{$k};
 		# any special-ish characters to quote?
 		print "$k=". ($wantquoted && $flatearth{$k} =~ /['"\$\s\(\)\{\}\[\]]/?
