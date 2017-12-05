@@ -54,7 +54,8 @@ my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act=list
-\t$bn act={create|update|show} node=nodeX
+\t$bn act=show node=nodeX
+\t$bn act={create|update} file=someFile.json
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY}
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
 \t$bn act=delete {node=nodeX|group=groupY}
@@ -69,10 +70,10 @@ create: requires file=NewNodeDef.json
 export: exports to file=someFile (or STDOUT if no file given),
  either json or as Nodes.nmis if format=nodes is given
 
-update: updates existing node from file=someFile.json (or STDIN)
+update: updates existing node from file=someFile.json
 delete: only deletes if confirm=yes (in uppercase) is given
 
-show: prints the nodes properties in the same format as set
+show: prints a node's properties in the same format as set
  with option quoted=true, show adds double-quotes where needed
 set: adjust one or more node properties
 
@@ -288,7 +289,7 @@ elsif ($cmdline->{act} eq "show")
 	# we want the config AND any overrides
 	my $dumpables = $nodeobj->configuration;
 	$dumpables->{overrides} = $nodeobj->overrides;
-	delete $dumpables{_id};			# no use in show
+	delete $dumpables->{_id};			# no use in show
 
 	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables,"entry");
 	die "failed to transform output: $error\n" if ($error);
@@ -311,6 +312,9 @@ elsif ($cmdline->{act} eq "set")
 	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
 	die "Node $node does not exist.\n" if (!$nodeobj);
 	$node ||= $nodeobj->name;			# if looked up via uuid
+
+	die "Please use act=rename for node renaming!\n"
+			if (exists($cmdline->{"entry.name"}));
 
 	my $curconfig = $nodeobj->configuration;
 	my $curoverrides = $nodeobj->overrides;
@@ -450,97 +454,59 @@ if (-t \*STDERR);								# if terminal
 	}
 	exit 0;
 }
-
-
-__END__
-elsif ($cmdline{act} eq "mktemplate")
+elsif ($cmdline->{act} eq "mktemplate")
 {
-	# default: no placeholder
-	my $wantblank = !$cmdline{placeholder};
+	my $file = $cmdline->{file};
+	die "File \"$file\" already exists, NOT overwriting!\n"
+			if (defined $file && $file ne "-" && -f $file);
 
-	my @nodecomments = ( "Please see https://community.opmantek.com/display/NMIS/Home for further descriptions of the properties!", undef,
-											 "name is essential and sets the node's name",
-											 "host sets the primary hostname for communication (can be short name,",
-											 " fully qualified name or ip address)",
-											 "group is for node categorization",
-											 "the above properties are REQUIRED!",undef,
+	my $withplaceholder = NMISNG::Util::getbool($cmdline->{placeholder});
 
-											 "community defines the SNMP read community",
-											 "model defines what type of device this is",
-											 "active defines whether the node is enabled or disabled",
-											 "collect defines whether SNMP information should be collected",
-											 "ping defines whether reachability statistics should be collected",
-											 "version sets the SNMP protocol version (snmpv1, snmpv2c, snmpv3)",
+	my %mininode = ( map { my $key = $_; $key => ($withplaceholder?
+																								"__REPLACE_".uc($key)."__" : "") }
+									 (qw(name host uuid group notes
+community roleType netType location model active ping collect version port  username authpassword authkey  authprotocol privpassword privkey privprotocol))  );
 
-											 "notes is for free-form notes or comments",
-											 "location provides further categorization info" );
-
-	my $dummynode = {
-		name => $wantblank? '' : "__REPLACE_NAME__",
-		host => $wantblank? '' : "__REPLACE_HOST__",
-		notes => $wantblank? '' : "__REPLACE_NOTES__",
-		model => $wantblank? 'automatic' : "__REPLACE_MODEL__",
-		group => $wantblank? '' : "__REPLACE_GROUP__",
-		netType =>  $wantblank? '' : "__REPLACE_NETTYPE__",
-		roleType => $wantblank? '' : "__REPLACE_ROLETYPE__",
-		location => $wantblank? '' : "__REPLACE_LOCATION__",
-
-		active => $wantblank? 'true' : "__REPLACE_ACTIVE__",
-		ping => $wantblank? 'true' : "__REPLACE_PING__",
-		collect => $wantblank? 'true' : "__REPLACE_COLLECT__",
-		community => $wantblank? '': "__REPLACE_COMMUNITY__",
-		version => $wantblank? 'snmpv2c': "__REPLACE_VERSION__",
-	};
-
-	print "// ",join("\n// ",@nodecomments),"\n\n",
-	JSON::XS->new->pretty(1)->canonical(1)->utf8->encode($dummynode);
-
-	exit 0;
-}
-elsif ($cmdline{act} =~ /^(create|update)$/)
-{
-	my ($node,$file) = @args{"node","file"};
-
-	die "Cannot create or update node without node argument!\n\n$usage\n" if (!$node);
-	die "File \"$file\" does not exist!\n" if (defined $file && $file ne "-" && ! -f $file);
-
-	die "Invalid node name \"$node\"\n"
-			if ($node =~ /[^a-zA-Z0-9_-]/);
-
-	my $noderec = $nodeinfo->{$node};
-	die "Node $node does not exist.\n" if (!$noderec && $cmdline{act} eq "update");
-	die "Node $node already exist.\n" if ($noderec && $cmdline{act} eq "create");
-
-	print STDERR "Reading node configuration data for $node\n" if ($debuglevel or $infolevel);
-	# suck in the data
 	my $fh;
 	if (!$file or $file eq "-")
 	{
-		$fh = \*STDIN;
+		$fh = \*STDOUT;
 	}
 	else
 	{
-			 open($fh,"$file") or die "cannot read from $file: $!\n";
+		open($fh,">$file") or die "cannot write to $file: $!\n";
 	}
-	my $nodedata = join('', grep( !m!^\s*//\s+!, <$fh>));
-	close $fh if ($fh != \*STDIN);
+
+	# ensure that the output is indeed valid json, utf-8 encoded
+	print $fh JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode(\%mininode);
+	close $fh if ($fh != \*STDOUT);
+
+	print STDERR "Created minimal template ".($file and $file ne "-"? "in file $file.":".")
+			."\nPlease see https://community.opmantek.com/display/opCommon/Common+Node+Properties for detailed descriptions of the properties.\n";
+
+	exit 0;
+}
+elsif ($cmdline->{act} =~ /^(create|update)$/)
+{
+	my $file = $cmdline->{file};
+
+	open(F, $file) or die "Cannot read $file: $!\n";
+	my $nodedata = join('', grep( !m!^\s*//\s+!, <F>));
+	close(F);
 
 	# sanity check this first!
 	die "Invalid node data, __REPLACE_... placeholders are still present!\n"
 			if ($nodedata =~ /__REPLACE_\S+__/);
 
-	print STDERR "Parsing JSON node configuration data\n" if ($debuglevel or $infolevel);
 	my $mayberec;
 	# check correct encoding (utf-8) first, fall back to latin-1
 	$mayberec = eval { decode_json($nodedata); };
 	$mayberec = eval { JSON::XS->new->latin1(1)->decode($nodedata); } if ($@);
-
 	die "Invalid node data, JSON parsing failed: $@\n" if ($@);
 
-	die "Invalid node data, name value \"$mayberec->{name}\" does not match argument \"$node\".
-Use act=rename for renaming nodes.\n"
-			if ($mayberec->{name} ne $node);
-
+	my $name = $mayberec->{name};
+	die "Invalid node name \"$name\"\n"
+			if ($name =~ /[^a-zA-Z0-9_-]/);
 
 	die "Invalid node data, not a hash!\n" if (ref($mayberec) ne 'HASH');
 	die "Invalid node data, does not have required attributes name, host and group\n"
@@ -551,37 +517,42 @@ Use act=rename for renaming nodes.\n"
 	die "Invalid node data, roleType \"$mayberec->{roleType}\" is not known!\n"
 			if (!grep($mayberec->{roleType} eq $_, split(/\s*,\s*/, $config->{roletype_list})));
 
-	# no uuid? then we add one
-	if (!$mayberec->{uuid})
-	{
-		$mayberec->{uuid} = Compat::UUID::getUUID($node);
-	}
-
-	# ok, looks good enough. save the node info.
-	print STDERR "Saving node $node in Nodes table\n" if ($debuglevel or $infolevel);
-	$nodeinfo->{$node} = $mayberec;
-	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
-
-	# nix any pending events
-	if ($cmdline{act} eq "update")
-	{
-		print STDERR "Removing events for node $node\n" if ($debuglevel or $infolevel);
-		Compat::NMIS::cleanEvent($node,"node-admin");
-	}
-
 	# check the group
 	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
 	if (!grep($_ eq $mayberec->{group}, @knowngroups))
 	{
-		print STDERR "\nWarning: your node info sets group \"$mayberec->{group}\", which does not exist!
-Please adjust group_list in your configuration,
-or run '".$config->{'<nmis_bin>'}."/nmis.pl type=groupsync' to add all missing groups.\n\n";
+		print STDERR "\nWarning: your node info sets group \"$mayberec->{group}\", which does not exist!\n";
 	}
 
-	print STDERR "Successfully $cmdline{act}d node $node.
-You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon.\n";
-	exit 0;
+	# look up the node - ideally by uuid, fall back to name only if necessary
+	my %query = $mayberec->{uuid}? (uuid => $mayberec->{uuid}) : (name => $mayberec->{name});
+	my $nodeobj = $nmisng->node(%query);
+	die "Node $name does not exist.\n" if (!$nodeobj && $cmdline->{act} eq "update");
+	die "Node $name already exist.\n" if ($nodeobj && $cmdline->{act} eq "create");
+
+	die "Please use act=rename for node renaming. UUID ".$nodeobj->uuid." is already associated with name \"".$nodeobj->name."\".\n" if ($nodeobj->name ne $mayberec->{name});
+
+	# no uuid and creating a node? then we add one
+	$mayberec->{uuid} ||= Compat::UUID::getUUID($name) if ($cmdline->{act} eq "create");
+	$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1);
+	die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
+
+	my $isnew = $nodeobj->is_new;
+
+	# must split off overrides
+	my $overrides = $mayberec->{overrides};
+	delete $mayberec->{overrides};
+
+	$nodeobj->overrides($overrides);
+	$nodeobj->configuration($mayberec);
+
+	my ($status,$msg) = $nodeobj->save;
+	# zero is no saving needed, which is not good here
+	die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
+
+	my $name = $nodeobj->name;
+	print STDERR "Successfully updated node ".$nodeobj->uuid." ($name)\nYou should run '".$config->{'<nmis_bin>'}."/poll type=update node=$name' soon.\n"
+			if (-t \*STDERR);								# if terminal
 }
 else
 {
