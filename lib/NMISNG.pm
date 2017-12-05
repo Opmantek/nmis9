@@ -661,6 +661,8 @@ sub inventory_collection
 				[{"lastupdate"  => 1}, {unique => 0}],
 				[{"subconcepts" => 1}, {unique => 0}],
 				[{"data_info.subconcept"   => 1}, {unique => 0}],
+				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
+				[ ["data.ip.ipAdEntAddr" => 1 ], { unique => 0 } ],
 				[ { expire_at => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
 			] );
 		$self->log->error("index setup failed for inventory: $err") if ($err);
