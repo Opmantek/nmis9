@@ -1286,7 +1286,7 @@ sub doCollect
 	my $S = NMISNG::Sys->new;
 	# specify clusterid because potentially other clusters could have nodes with the same name
 	if ( !$S->init( name => $name,
-									cluster_id => $C->{cluster_id}, 
+									cluster_id => $C->{cluster_id},
 									snmp => $wantsnmp,
 									wmi => $wantwmi,
 									policy => $policy,
@@ -2346,6 +2346,9 @@ sub getIntfInfo
 
 			$target_table->{$index} = {};
 			my $target = $target_table->{$index};
+
+			# returns 0 iff there was an snmp or wmi failure
+			# however, noSuchInstance is NOT detected!
 			if ($S->loadInfo(
 					class  => 'interface',
 					index  => $index,
@@ -2354,6 +2357,14 @@ sub getIntfInfo
 				)
 				)
 			{
+				# we were given a removed interface's index -> complain about it and return 0
+				if ($target->{ifDescr} eq "noSuchInstance"
+						or $target->{ifType} eq "noSuchInstance")
+				{
+					$S->nmisng->log->error("Cannot retrieve interface $index: snmp reports nonexistent");
+					return undef;
+				}
+
 				# note: nodeconf overrides are NOT applied at this point!
 				checkIntfInfo( sys => $S, index => $index, iftype => $IFT, target => $target );
 
@@ -3994,7 +4005,7 @@ sub processAlerts
 			status   => $statusResult,
 			element  => $alert->{ds},
 			# name does not exist for simple alerts, let's synthesize it from ds
-      name => $alert->{alert} || $alert->{ds},        
+      name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
 			updated  => time()
 		};
@@ -4313,8 +4324,14 @@ sub getIntfData
 		my $thisif = $if_data_map{$needsmust};
 		$nmisng->log->debug("Performing phase 1 getIntfInfo for index $needsmust");
 
-		# this returns an inventory object...
+		# this returns an inventory object (or undef on error/nonexistent)...
 		my $maybenew = getIntfInfo( sys => $S, index => $needsmust);
+		if (!defined $maybenew)
+		{
+			$nmisng->log->warn("Interface index $needsmust was removed while trying to update");
+			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
+			next;
+		}
 		# ...which MAY be different from the one we've got in the if_data_map
 		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id})
 		{
@@ -4435,7 +4452,8 @@ sub getIntfData
 		next if (!$thisif->{enabled} # we track historic/disabled ones but don't work on them...
 						 or $thisif->{historic}
 						 or !$thisif->{_rrd_data} # no rrd data collectable -> cannot do anything
-						 or ref($thisif->{_rrd_data}->{interface}) ne "HASH");
+						 or ref($thisif->{_rrd_data}->{interface}) ne "HASH"
+						 or $thisif->{_was_updated}); # or if the interface was updated already...
 
 		my $intfsection = $thisif->{_rrd_data}->{interface}->{$index};
 
@@ -4476,8 +4494,14 @@ sub getIntfData
 
 		assert(!$thisif->{_was_updated}, "should getintfinfo-update index $needsmust at most once!");
 
-		# this returns an inventory object...
+		# this returns an inventory object (or undef if removed/error)...
 		my $maybenew = getIntfInfo( sys => $S, index => $needsmust);
+		if (!defined $maybenew)
+		{
+			$nmisng->log->warn("Interface index $needsmust was removed while trying to update");
+			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
+			next;
+		}
 		# ...which MAY be different from the one we've got in the if_data_map
 		if ($maybenew->id ne $thisif->{_id})
 		{
@@ -6744,7 +6768,7 @@ sub runAlerts
 	my $hrCpuLoad;
 
 	NMISNG::Util::info("Running Custom Alerts for node $S->{name}");
-	
+
 	foreach my $sect ( keys %{$CA} )
 	{
 		# get the inventory instances that are relevant for this section,
@@ -6842,7 +6866,7 @@ sub runAlerts
 					{
 						NMISNG::Util::dbg("Warning: ignoring deprecated threshold level Normal for alert \"$alrt\"!")
 								if (defined($CA->{$sect}->{$alrt}->{threshold}->{'Normal'}));
-						
+
 						my @matches;
 						# to disable particular levels, set their value to the same as the desired one
 						# comparison code looks for all matches and picks the worst/highest severity match
@@ -6863,7 +6887,7 @@ sub runAlerts
 							NMISNG::Util::logMsg("ERROR: skipping unknown alert type \"$CA->{$sect}{$alrt}{type}\"!");
 							next;
 						}
-						
+
 						# no matches for above threshold (for rising)? then "Normal"
 						# ditto for matches below threshold (for falling)
 						if (!@matches)
@@ -9685,7 +9709,7 @@ sub doThresholdsAndCreateStatus
 			my $C = NMISNG::Util::loadConfTable();    # config table from cache
 			$S = NMISNG::Sys->new;
 			# Using cluster_id here so we can only run this on local nodes
-			# to make this work on all nodes (do we ever need that?) this 
+			# to make this work on all nodes (do we ever need that?) this
 			# needs to take a node uuid instead of node name
 			next if ( !$S->init( name => $onenode->{name}, cluster_id => $C->{cluster_id}, snmp => 'false' ) );
 		}
