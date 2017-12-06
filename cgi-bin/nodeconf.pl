@@ -53,7 +53,7 @@ if ( defined $Q->{refresh} ) {
 	delete $Q->{refresh};
 }
 
-my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
+my $widget = NMISNG::Util::getbool($Q->{widget},"invert") ? 'false' : 'true';
 $Q->{expand} = "true" if ($widget eq "true");
 
 ### unless told otherwise, and this is not JQuery call, widget is false!
