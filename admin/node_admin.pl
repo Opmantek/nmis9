@@ -530,7 +530,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "Node $name does not exist.\n" if (!$nodeobj && $cmdline->{act} eq "update");
 	die "Node $name already exist.\n" if ($nodeobj && $cmdline->{act} eq "create");
 
-	die "Please use act=rename for node renaming. UUID ".$nodeobj->uuid." is already associated with name \"".$nodeobj->name."\".\n" if ($nodeobj->name ne $mayberec->{name});
+	die "Please use act=rename for node renaming. UUID ".$nodeobj->uuid." is already associated with name \"".$nodeobj->name."\".\n" if ($nodeobj and $nodeobj->name ne $mayberec->{name});
 
 	# no uuid and creating a node? then we add one
 	$mayberec->{uuid} ||= Compat::UUID::getUUID($name) if ($cmdline->{act} eq "create");
@@ -538,6 +538,8 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
 
 	my $isnew = $nodeobj->is_new;
+	# if creating, add missing cluster_id for local operation
+	$mayberec->{cluster_id} ||= $config->{cluster_id} if ($cmdline->{act} eq "create");
 
 	# must split off overrides
 	my $overrides = $mayberec->{overrides};

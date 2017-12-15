@@ -3,31 +3,31 @@
 ## $Id: ipslad.pl,v 8.5 2012/03/26 06:26:19 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System ("NMIS").
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 #
 # run this from the <nmis>/bin directory, normaly it will be start by nmis.pl
@@ -46,7 +46,7 @@ use POSIX;
 use Net::hostent;
 use Socket;
 use Carp;
-use Data::Dumper; 
+use Data::Dumper;
 $Data::Dumper::Indent = 1;
 use Fcntl qw(:DEFAULT :flock);
 
@@ -71,14 +71,17 @@ my $debug = NMISNG::Util::setDebug($nvp{debug});
 my $vardir = $nvp{vardir};
 
 # load configuration table
-my $C = NMISNG::Util::loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+my $customconfdir = $nvp{dir}? $nvp{dir}."/conf": undef;
+my $C = NMISNG::Util::loadConfTable(dir => $customconfdir,
+																		conf=>$nvp{conf},
+																		debug=>$nvp{debug});
 NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 unless ( $vardir ) { $vardir = $C->{'<nmis_var>'} }
 
 # load mib
 foreach my $file ( "CISCO-RTTMON-MIB.oid" ) {
-	if ( ! -r "$C->{mib_root}/$file" ) { 
+	if ( ! -r "$C->{mib_root}/$file" ) {
 		 warn NMISNG::Util::returnTime." ipslad.pl, mib file $C->{mib_root}/$file not found.\n";
 	}
 	else {
@@ -94,9 +97,9 @@ my %revOIDS = reverse %SNMP_util::OIDS; # the power of perl
 
 ### 2012-02-23 keiths, ipsla configuration options from the NMIS config.
 # collect interval time in seconds
-my $collect_time = $C->{ipsla_collect_time} ? $C->{ipsla_collect_time} : 60; 
+my $collect_time = $C->{ipsla_collect_time} ? $C->{ipsla_collect_time} : 60;
 # collect interval of buckets in seconds
-my $bucket_interval =  $C->{ipsla_bucket_interval} ? $C->{ipsla_bucket_interval} : 180; 
+my $bucket_interval =  $C->{ipsla_bucket_interval} ? $C->{ipsla_bucket_interval} : 180;
 # extra collect buckets for polling cycle
 my $extra_buckets = $C->{ipsla_extra_buckets} ? $C->{ipsla_extra_buckets} : 5;
 
@@ -116,13 +119,13 @@ if ( $nvp{type} eq "update") {
 # See if another instance of ourself is running, if so kill the process
 my $pidfile = $C->{ipsla_pidfile} || "/var/run/ipslad.pid";
 
-if (-f $pidfile) 
+if (-f $pidfile)
 {
   open(F, "<$pidfile");
   $pid = <F>;
   close(F);
   chomp $pid;
-	
+
   if (int($pid)											# exists
 			&& $pid != $$								# # and not this one (should be impossible)
 			&& kill(0,$pid))								# and alive
@@ -139,17 +142,17 @@ FORK: {
     if ($pid = fork) {
         # parent here
         # child process pid is available in $pid
-		exit;	
+		exit;
     }
     elsif (defined $pid) { # $pid is zero here if defined
         # child here
         # parent process pid is available with getppid
 
 		# dissociate from the controlling terminal
-		POSIX::setsid() or die "Can't start new session: $!"; 
+		POSIX::setsid() or die "Can't start new session: $!";
 		# set our named so that rc scripts can figure out who we are.
 		$0="NMIS ipslad debug=$debug";
-		
+
 		# Announce our presence via a PID file
 
 		open(PID, ">$pidfile") || exit;
@@ -182,14 +185,14 @@ FORK: {
 		# print a short status message and flush any errors so far to the file.
 		NMISNG::Util::logIpsla("IPSLAD: forked successfully debug=$debug\n");
 
-		# 
+		#
 		my $time1;
 		my $time2;
-		while ($time_to_die == 0 ) { 
+		while ($time_to_die == 0 ) {
 			$time1 = time();
 			open(PID, '+<',"$pidfile"); print PID $$; close(PID); # signal client that we are running again
 			runRTT(1);
-			$time2 = time(); 
+			$time2 = time();
 			if ( ($time2 - $time1) > $collect_time ) { NMISNG::Util::logIpsla("IPSLAD: runPD, runtime of collecting exceed collect interval time\n"); }
 			sleep( $collect_time - ($time2 % $collect_time) );
 		} # end of while loop
@@ -217,7 +220,7 @@ sub signal_handler {
 
 sub runRTT {
 	my $collect = shift;
-	
+
 	# Too verbose!
 	#NMISNG::Util::logIpsla("IPSLAD: runRTT just requested debug=$debug\n");
 
@@ -232,14 +235,14 @@ sub runRTT {
 	%RTTcfg = &readVartoHash("ipslacfg"); # global hash
 
 	delete $RTTcache{stats} ;
-	
+
 	if ( $debug ) {
 		print "DUMPER\n";
-		Dumper(%RTTcfg);		
+		Dumper(%RTTcfg);
 	}
 
 	my @keys = keys %RTTcfg;
-	
+
 	NMISNG::Util::logIpsla("IPSLAD: runRTT Begin debug=$debug\n") if $debug;
 	foreach my $nno (@keys) {
 		NMISNG::Util::logIpsla("IPSLAD: runRTT nno=$nno debug=$debug\n") if $debug;
@@ -264,7 +267,7 @@ sub runRTT {
 						# collect based on history buckets
 						if (runRTTcollect($nno)) {
 							if ($RTTcfg{$nno}{optype} =~ /echo|tcpConnect|dhcp|dns/i) {
-								$RTTcache{$nno}{nexttime} = $runtime + 
+								$RTTcache{$nno}{nexttime} = $runtime +
 									($RTTcfg{$nno}{frequence} > $bucket_interval) ? $RTTcfg{$nno}{frequence} : $bucket_interval;
 							}
 						}
@@ -275,7 +278,7 @@ sub runRTT {
 		}
 	}
 	NMISNG::Util::logIpsla("IPSLAD: runRTT End debug=$debug\n") if $debug;
-	
+
 	if (scalar(keys %{$RTTcache{stats}})) {
 		# also collecting of statistics, hourly
 		runRTTstats();
@@ -362,7 +365,7 @@ sub runRTTstart {
 	my $port = $NT->{$RTTcfg{$nno}{pnode}}{snmpport} ;
 	my $host = "$community"."@"."$node".":::::2";
 
-	my %protocol = ( 
+	my %protocol = (
 		'echo' => { 'type' => 1, 'prot' => 2 },			# ipIcmpEcho(2)
 		'echo-stats' => { 'type' => 1, 'prot' => 2 },	# ipIcmpEcho(2)
 		'pathEcho' => { 'type' => 2, 'prot' => 2 },		# ipIcmpEcho(2)
@@ -408,11 +411,11 @@ sub runRTTstart {
 	if ($state != 6) {
 		# check if database already exists and if it was created with the same interval/frequence
 		my $database = $RTTcfg{$nno}{database};
-		if ( (-r $database and -w $database) ) { 
+		if ( (-r $database and -w $database) ) {
 			NMISNG::Util::logIpsla("IPSLAD: RTTstart, database of this probe exists already") if $debug;
 			my $info = RRDs::info($database);
 			foreach my $key (keys %$info) {
-				if ( $key =~ /^step/) { 
+				if ( $key =~ /^step/) {
 					my $frequence = $RTTcfg{$nno}{optype} =~ /stats/ ? 3600 : $RTTcfg{$nno}{frequence} ;
 					if ($$info{$key} != $frequence) {
 						$RTTcfg{$nno}{message} = "existing database was created with an interval of $$info{$key} sec.";
@@ -478,7 +481,7 @@ sub runRTTstart {
 			push @params,"rttMonEchoAdminTOS.$entry",'integer',$RTTcfg{$nno}{tos} if $RTTcfg{$nno}{tos} ne "";
 			push @params,"rttMonEchoAdminVrfName.$entry",'string',$RTTcfg{$nno}{vrf} if $RTTcfg{$nno}{vrf} ne "";
 			push @params,"rttMonEchoAdminTargetPort.$entry",'integer',$RTTcfg{$nno}{tport} ;
-			
+
 			if ($RTTcfg{$nno}{codec} ne "") {
 				push @params,"rttMonEchoAdminCodecType.$entry",'integer',$RTTcfg{$nno}{codec};
 				push @params,"rttMonEchoAdminCodecInterval.$entry",'integer',$RTTcfg{$nno}{interval};
@@ -501,7 +504,7 @@ sub runRTTstart {
 
 		# start probe
 		@params = ();
-		push @params,"rttMonCtrlAdminOwner.$entry",'string','nmis' ; # 
+		push @params,"rttMonCtrlAdminOwner.$entry",'string','nmis' ; #
 		push @params,"rttMonScheduleAdminRttStartTime.$entry",'timeticks',1 ; # now
 		push @params,"rttMonScheduleAdminRttLife.$entry",'integer',2147483647 ; # forever
 		push @params,"rttMonCtrlAdminStatus.$entry",'integer',1 ;
@@ -527,7 +530,7 @@ sub runRTTstop {
 	my $entry = $RTTcfg{$nno}{entry};
 
 	NMISNG::Util::logIpsla("IPSLAD: RTTstop, probe $nno, flag delete db is $RTTcfg{$nno}{deldb}") if $debug;
- 
+
 	my $community = $RTTcfg{$RTTcfg{$nno}{pnode}}{community} ;
 	my $node = $RTTcfg{$nno}{pnode} ;
 	my $port = $NT->{$RTTcfg{$nno}{pnode}}{snmpport} ;
@@ -538,7 +541,7 @@ sub runRTTstop {
 	push @params,"rttMonCtrlAdminStatus.$entry",'integer',6 ;
 	snmpset($host, @params);
 
-	unlink $RTTcfg{$nno}{database} 
+	unlink $RTTcfg{$nno}{database}
 	if (NMISNG::Util::getbool($RTTcfg{$nno}{deldb})); # delete RRD
 
 	$RTTcfg{$nno}{status} = "remove";
@@ -563,7 +566,7 @@ sub runRTTresponder {
 		}
 		$state = snmpget($host,"rttMonApplResponder.0");
 		NMISNG::Util::logIpsla("IPSLAD: RTTcollect, state of responder $RTTcfg{$nno}{rnode} is $state") if $debug;
-		if ($state != 1) { 
+		if ($state != 1) {
 			if (!snmpset($host,"rttMonApplResponder.0","integer",1)) {
 				$RTTcfg{$nno}{message} = "error on activating responder on node $node" ;
 				NMISNG::Util::logIpsla("IPSLAD:, RTTstart, $RTTcfg{$nno}{message}") if $debug;
@@ -612,10 +615,10 @@ sub runRTTcollect {
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 
 	NMISNG::Util::logIpsla("IPSLAD: RTTcollect of probe $nno with entry $entry") if $debug;
- 
+
 	my $community = $RTTcfg{$RTTcfg{$nno}{pnode}}{community} ;
-	# resolve dns name 
-	if ($RTTcache{dns}{$RTTcfg{$nno}{pnode}} eq "") { 
+	# resolve dns name
+	if ($RTTcache{dns}{$RTTcfg{$nno}{pnode}} eq "") {
 		resolveDNS($nno,$RTTcfg{$nno}{pnode});
 	}
 	my $node = $RTTcache{dns}{$RTTcfg{$nno}{pnode}} ;
@@ -635,8 +638,8 @@ sub runRTTcollect {
 
 	# check if database exists
 	my $database = $RTTcfg{$nno}{database};
-	if ( not (-f $database and -r $database and -w $database) ) { 
-		if ( not runRRDcreate($nno,$database)) { return;} 
+	if ( not (-f $database and -r $database and -w $database) ) {
+		if ( not runRRDcreate($nno,$database)) { return;}
 		$last = $nmistime;
 	} else {
 		$last = RRDs::last($database);
@@ -652,7 +655,7 @@ sub runRTTcollect {
 		if (!runRTTstart($nno)) { return undef; } # configure probe node
 		$entry = $RTTcfg{$nno}{entry}; # new number from start
 		$numrtts = snmpget($host,"rttMonCtrlOperNumRtts.$entry") ;
-		if (!$numrtts) { 
+		if (!$numrtts) {
 			$RTTcfg{$nno}{message} = "error on reconfiguration of probe on node $RTTcfg{$nno}{pnode}";
 			NMISNG::Util::logIpsla("IPSLAD: RTTcollect, $RTTcfg{$nno}{message}");
 			$RTTcfg{$nno}{status} = "error";
@@ -673,7 +676,7 @@ sub runRTTcollect {
 				my $target = "$a0.$a1.$a2.$a3";
 
 				NMISNG::Util::logIpsla("IPSLAD: RTTcollect, entry $entry, index $index, time $time ($stime), rtt $rtt, sense $sense, addr $target") if $debug;
-				if ($stime > $lastupdate) { 
+				if ($stime > $lastupdate) {
 					$values{$k1}{$k2}{index} = $index;
 					$values{$k1}{$k2}{stime} = $stime;
 					$values{$k1}{$k2}{rtt} = $rtt;
@@ -732,7 +735,7 @@ sub runRTTcollect {
 				"rttMonLatestHTTPErrorSenseDescription.$entry")) {
 			my $stime = time();
 			my $tout=0;my $dnstout=0;my $tcptout=0;my $trantout=0;my $dnserr=0;my $httperr=0;my $error=0;
-			if ($sense != 1 ) { 
+			if ($sense != 1 ) {
 				if ($sense == 11) { $dnstout = 1; }
 				elsif ($sense == 12) { $tcptout = 1; }
 				elsif ($sense == 13) { $trantout = 1; }
@@ -750,7 +753,7 @@ sub runRTTcollect {
 			return undef;
 		}
 
-	} 
+	}
 	if ($RTTcfg{$nno}{optype} =~ /jitter/i) {
 		my ($posSD, $negSD, $posDS, $negDS, $lossSD, $lossDS, $OoS, $MIA, $late, $mos, $icpif, $sense);
 		if (($posSD, $negSD, $posDS, $negDS, $lossSD, $lossDS, $OoS, $MIA, $late, $mos, $icpif, $sense) = snmpget($host,
@@ -811,9 +814,9 @@ sub runRRDupdate {
 	my @options = ( "-t", $dsnames, $val);
 
 	my $database = $RTTcfg{$nno}{database};
-	if ( not (-f $database and -r $database and -w $database) ) { 
+	if ( not (-f $database and -r $database and -w $database) ) {
 		runRRDcreate($nno,$database) or return undef;
-	} 
+	}
 
 	# update RRD
 	RRDs::update($database,@options);
@@ -829,8 +832,8 @@ sub runRRDupdate {
 		# find the missing DS name
 		my @ds = ();
 		my $frequence = ($RTTcfg{$nno}{optype} =~ /stats/) ? 3600 : $RTTcfg{$nno}{frequence} ;
-		foreach my $dsnm (@dsnames) { 
-			if ( $rrdnames !~ /:$dsnm:/ ) { 
+		foreach my $dsnm (@dsnames) {
+			if ( $rrdnames !~ /:$dsnm:/ ) {
 				my $hb = $frequence * 3;
 				push @ds,"DS:$dsnm:GAUGE:$hb:U:U";
 			}
@@ -902,8 +905,8 @@ sub runRTTstats {
 
 	foreach my $pnode (keys %{$RTTcache{stats}{node}}) {
 		NMISNG::Util::logIpsla("IPSLAD: RTTstats, get statistics from probe node $pnode") if $debug;
-		# resolve dns name 
-		if ($RTTcache{dns}{$pnode} eq "") { 
+		# resolve dns name
+		if ($RTTcache{dns}{$pnode} eq "") {
 			resolveDNS(undef,$pnode);
 		}
 		my $node = $RTTcache{dns}{$pnode} ;
@@ -999,7 +1002,7 @@ sub runRTTecho_stats {
 				my $tmp = "sense"; # dummy
 				# search entry+node in config
 				foreach $nno (keys %RTTcfg) {
-					if ($RTTcfg{$nno}{entry} eq $entry and $RTTcfg{$nno}{pnode} eq $pnode 
+					if ($RTTcfg{$nno}{entry} eq $entry and $RTTcfg{$nno}{pnode} eq $pnode
 							and $RTTcfg{$nno}{optype} =~ /echo-stats|dhcp-stats|dns-stats|tcpConnect-stats|udpEcho-stats|pathEcho-stats/i) {
 						NMISNG::Util::logIpsla("IPSLAD: RTTecho-stats, key found for entry $entry in RTTcfg => $nno") if $debug;
 						my $Trys = 0;
@@ -1007,7 +1010,7 @@ sub runRTTecho_stats {
 							# avoid divide by zero errors
 							my $Avg = 0;
 							my $target = $RTTcfg{$nno}{ip}{$RTTcfg{$nno}{tnode}}; # ip address of target
-							if ( $Rtr{$entry}{$hop}{rttMonStatsCaptureCompletions} ) {	
+							if ( $Rtr{$entry}{$hop}{rttMonStatsCaptureCompletions} ) {
 								$Avg= $Rtr{$entry}{$hop}{rttMonStatsCaptureSumCompletionTime} / $Rtr{$entry}{$hop}{rttMonStatsCaptureCompletions};
 							}
 							my $Max = $Rtr{$entry}{$hop}{rttMonStatsCaptureCompletionTimeMax};
@@ -1116,7 +1119,7 @@ sub runRTTjitter_stats {
 					my $NegativeJitterSD = 0;
 					my $PositiveJitterDS = 0;
 					my $NegativeJitterDS = 0;
-	
+
 					if ( $Rtr{$entry}{rttMonJitterStatsNumOfPositivesSD}
 						and $Rtr{$entry}{rttMonJitterStatsNumOfNegativesSD}
 						and $Rtr{$entry}{rttMonJitterStatsNumOfPositivesDS}
@@ -1126,7 +1129,7 @@ sub runRTTjitter_stats {
 					$PositiveJitterDS = $Rtr{$entry}{rttMonJitterStatsSumOfPositivesDS} / $Rtr{$entry}{rttMonJitterStatsNumOfPositivesDS};
 					$NegativeJitterDS = $Rtr{$entry}{rttMonJitterStatsSumOfNegativesDS} / $Rtr{$entry}{rttMonJitterStatsNumOfNegativesDS};
 					}
-	
+
 					# avoid divide by zero errors
 					my $avgRTT = 0;
 					my $avgJitter = 0;
@@ -1225,13 +1228,13 @@ sub runRTThttp_stats {
 					my $AvgMax = $Rtr{$entry}{rttMonHTTPStatsRTTMax};
 					my $Trys = $Rtr{$entry}{rttMonHTTPStatsCompletions} + $Rtr{$entry}{rttMonHTTPStatsHTTPError} + $Rtr{$entry}{rttMonHTTPStatsTCPConnectTimeout} + $Rtr{$entry}{rttMonHTTPStatsDNSServerTimeout} + $Rtr{$entry}{rttMonHTTPStatsDNSQueryError} + $Rtr{$entry}{rttMonHTTPStatsError} + $Rtr{$entry}{rttMonHTTPStatsTransactionsTimeout};
 					my $Over = $Rtr{$entry}{rttMonHTTPStatsOverThresholds};
-					my $Error = $Rtr{$entry}{rttMonHTTPStatsHTTPError} 
+					my $Error = $Rtr{$entry}{rttMonHTTPStatsHTTPError}
 								+ $Rtr{$entry}{rttMonHTTPStatsDNSQueryError}
 								+ $Rtr{$entry}{rttMonHTTPStatsError}
 								+ $Rtr{$entry}{rttMonHTTPStatsTCPConnectTimeout}
 								+ $Rtr{$entry}{rttMonHTTPStatsDNSServerTimeout}
 								+ $Rtr{$entry}{rttMonHTTPStatsTransactionsTimeout};
-	
+
 					my $tmp = "sense:6L1_httpRTT:6L1_dnsRTT:6L1_tcpConnectRTT:6L1_transactionRTT:0P2_Trys:0A0_OverThresholds:0P2_Error";
 					my $val = "$stime:0:$AvgRTT:$AvgDNS:$AvgTCP:$AvgTran:$Trys:$Over:$Error";
 					runRRDupdate($nno,$tmp,$val);
@@ -1331,7 +1334,7 @@ sub readVartoHash {
 		flock($handle, LOCK_SH) or warn NMISNG::Util::returnTime." readVartoHash: can't lock file $datafile, $!\n";
 		while (<$handle>) { $line .= $_; }
 		close $handle;
-		
+
 		# convert data to hash
 		%hash = eval $line;
 	} else {

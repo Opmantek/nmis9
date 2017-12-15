@@ -68,7 +68,8 @@ a new daemon is started ONLY with restart=true.\n");
 }
 
 # load configuration table
-my $C = NMISNG::Util::loadConfTable(debug => $nvp{debug});
+my $customconfdir = $nvp{dir}? $nvp{dir}."/conf": undef;
+my $C = NMISNG::Util::loadConfTable(dir => $customconfdir, debug => $nvp{debug});
 
 # check if nmis is locked, if so shut down immediately.
 my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
