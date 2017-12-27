@@ -496,11 +496,20 @@ sub purge_files
 			location     => $C->{'<nmis_var>'} . "/events",
 			description  => "Old event history files",
 		},
-		{   minage => $C->{purge_jsonlog_after} || 30 * 86400,
+		{
+			minage => $C->{purge_jsonlog_after} || 30 * 86400,
 			also_empties => 1,
 			ext          => qr/\.json/,
 			location     => $C->{json_logs},
 			description  => "Old JSON log files",
+		},
+
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			also_empties => 1,
+			ext => qr/\.json/,
+			location => $C->{config_logs},
+			description => "Old node configuration JSON log files",
 		},
 	);
 
@@ -708,7 +717,7 @@ sub noderefresh
 	my $md = $nmisng->get_nodes_model( name => $Q->{node} );
 	my $object_ret = $md->objects();
 	if( $object_ret->{success} )
-	{		
+	{
 		foreach my $node ( @{$object_ret->{objects}} )
 		{
 			# tell the node it's dirty so the save happens
@@ -716,7 +725,7 @@ sub noderefresh
 			my ($op,$error) = $node->save();
 			if( $op < 1 || $error )
 			{
-				print "Error saving: ".$node->name.", op:$op, error: $error" 	
+				print "Error saving: ".$node->name.", op:$op, error: $error"
 			}
 			else
 			{
