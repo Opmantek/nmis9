@@ -280,8 +280,11 @@ sub verify_id
 	elsif ($self->{cookie_flavour} eq "omk")
 	{
 		# structure: base64 session info--cryptographic signature
-		# base64 doesn't use '-'
-		my ($sessiondata,$signature) = split(/--/, $cookie, 2);
+		my $sessiondata = $cookie;
+		# base64 doesn't use '-' BUT the mojo cookie setup replaces all = with -
+		# so we can't just split on --
+		my $signature = $1 if ($sessiondata =~ s/--([^\-]+)$//);
+
 		if (!$sessiondata or !$signature)
 		{
 			NMISNG::Util::logAuth('Invalid OMK cookie');
@@ -300,6 +303,7 @@ sub verify_id
 			return '';
 		}
 		# only then decode and json-parse the structure
+		$sessiondata =~ y/-/=/;
 		my $sessioninfo = eval { decode_json(decode_base64($sessiondata)); };
 		if ($@ or ref($sessioninfo) ne "HASH")
 		{
@@ -370,7 +374,7 @@ sub generate_cookie
 			$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
 		}
 
-		# create session data structure, encode as base64, sign with key and combine
+		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
 		my $sessiondata = encode_json( { auth_data => $authuser,
 																		 omkd_sso_domain => $cookiedomain,
 																		 expires => $expires_ts } );
