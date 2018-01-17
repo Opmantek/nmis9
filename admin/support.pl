@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.6.2";
+our $VERSION = "1.7.0";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -40,6 +40,9 @@ use lib "$FindBin::Bin/../lib";
 
 print "Opmantek NMIS Support Tool Version $VERSION\n";
 
+die "The Support Tool must be run with root privileges, terminating now.\n"
+		if ($> != 0);
+
 my $usage = "Usage: ".basename($0)." action=collect [public=t/f] [node=nodeA,nodeB...]\n
 action=collect: collect general support info in an archive file
  if node argument given: also collect node-specific info
@@ -51,6 +54,8 @@ public: if set to false, then credentials, community, passwords
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-[h\?]/);
 
 my %args = &getArguments(@ARGV);
+
+die $usage if ($args{action} ne "collect");
 
 my $configname = $args{config} || "Config.nmis";
 my $maxzip = $args{maxzipsize} || 10*1024*1024; # 10meg
