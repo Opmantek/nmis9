@@ -94,93 +94,10 @@ if [ "$CANUSEWEB" = 1 ]; then
 		[ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ] && prime_apt
 fi
 
-# ignore mongodb if NO_LOCAL_MONGODB is set
-if [ -n "$NO_LOCAL_MONGODB" ]; then
-		printBanner "Ignoring local MongoDB installation state as directed!"
-		cat <<EOF
-The installer has been instructed to not check or install a local
-MongoDB instance. Please note that $PRODUCT will not work unless
-you deploy and configure a network-accessible MongoDB instance
-as documented on this page:
 
-https://community.opmantek.com/x/h4Aj
-
-EOF
-		input_ok "Hit <Enter> when ready to continue: "
-
-elif ! is_mongo_installed; then
-		echo
-		printBanner "No local MongoDB installation detected."
-		cat <<EOF
-
-Please note that $PRODUCT requires MongoDB to be either installed
-locally on this server, OR accessible via the network. MongoDB also
-MUST be configured for authentication, and needs to be primed
-specifically for Opmantek use as documented on this page:
-
-https://community.opmantek.com/x/h4Aj
-
-EOF
-		if input_yn "Would you like to install MongoDB locally?"; then
-
-				if [ "$CANUSEWEB" != 1 ]; then
-						printBanner "Cannot install MongoDB without Web access!"
-						cat <<EOF
-
-Web access is required for installing MongoDB, but your system
-does not have that.
-
-You will have to install MongoDB manually (downloadable
-from http://mongodb.org/).
-
-EOF
-						exit 1
-				fi
-
-				echolog "Installing MongoDB repository and software"
-				add_mongo_repository
-				install_mongo
-		else
-				echo
-				echolog "Not installing MongoDB as instructed."
-		fi
-
-else
-		echo
-		echolog "MongoDB package is installed locally."
-
-		if [ -z "$MONGO_VERSION" ]; then
-				printBanner "Could not determine MongoDB Version!";
-				cat <<EOF
-It seems that MongoDB is installed on your system but the installer
-could not find the 'mongod' executable and thus could not determine
-your MongoDB version. Please ensure that the PATH
-environment variable includes the directory of the 'mongod' executable,
-then restart the installer, e.g.:
-
-PATH=\$PATH:/where/mongod/lives sh ./$PRODUCT-Linux-x86_64-$VERSION.run
-
-EOF
-				input_ok "Hit <Enter> when ready to continue: "
-				exit 1;
-		elif ! version_meets_min "$MONGO_MAJOR" "$MONGO_MINOR" "$MONGO_PATCH" 3 4 0; then
-				printBanner "MongoDB Version is too old."
-				cat <<EOF
-Your installed version of MongoDB ($MONGO_VERSION) is too old for $PRODUCT.
-$PRODUCT requires MongoDB 3.4.0 or newer for correct operation.
-
-Please upgrade your installation to MongoDB 3.4.0, then restart
-the $PRODUCT installer. MongoDB can be downloaded
-from http://mongodb.org/ and our wiki has further information about
-MongoDB upgrades here: https://community.opmantek.com/x/h4Aj
-
-EOF
- 				logmsg "MongoDB Version $MONGO_VERSION is too old to continue."
-				exit 1
-		else
-				echolog "MongoDB version is $MONGO_VERSION."
-		fi
-fi
+# check and get mongodb, returns 0 if ok, 1 or 2 otherwise
+# absolute min for nmis 9 is 3.4.0
+mongo_or_bust 3 4 0 || exit 1
 
 # sets MISSING, returns 1 if missing stuff
 printBanner "Checking Installed Packages"
