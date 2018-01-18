@@ -95,14 +95,16 @@ EOF
 install_mongo () {
 		if [ "$OSFLAVOUR" = "redhat" ]; then
 				yum install -y mongodb-org
-				# redhat installs don't start servers
+				# redhat installs don't start servers - do a stop and start, important for upgrade
+				service mongod stop
 				service mongod start
 				sleep 10								# to give it time to start up
 		elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 				DEBIAN_FRONTEND=noninteractive
 				export DEBIAN_FRONTEND
-				# remove any installed debian's mongo-tools, undeclared conflict with mongodb-org-tools, not co-installable
-				apt-get -yq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install mongodb-org mongo-tools-
+				# remove any installed debian's mongo-tools, undeclared conflict with mongodb-org-tools, not co-installable :-(
+				# mongodb-org: doesn't have versioned dependencies :-(
+				apt-get -yq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install mongodb-org mongodb-org-shell mongodb-org-server mongodb-org-mongos mongodb-org-tools mongo-tools-
 				# normally mongod should start on installation, but with systemd that seems unreliable
 				sleep 3 # to give it time to start up
 				# ubuntu: service X status is running through pager and thus blocks :-(
@@ -218,7 +220,7 @@ EOF
 				if ! version_meets_min "$MONGO_MAJOR" "$MONGO_MINOR" "$MONGO_PATCH" "$MIN_MAJ" "$MIN_MIN" "$MIN_PATCH"; then
 						printBanner "Your MongoDB Version is too old."
 
-						# can we offer an upgrade? that's doable for 3.x to 3.4, not feasible for anything older than that
+						# can we offer an upgrade? that's doable for 3.x to 3.2 to 3.4, not feasible for anything older than that
 						# also only possible if web access is available
 						if [ "$MONGO_MAJOR" -ge 3 -a "$CANUSEWEB" = 1 ]; then
 								cat <<EOF
@@ -236,7 +238,14 @@ EOF
 								fi
 
 								echolog "Upgrading MongoDB repository and software"
-								add_mongo_repository
+								# 3.0? must go to 3.2 first :-(
+								if [ "$MONGO_MINOR" -lt 2 ]; then
+										echolog "Performing intermediate upgrade to 3.2"
+										add_mongo_repository 3.2
+										install_mongo
+								fi
+								echolog "Performing upgrade to 3.4"
+								add_mongo_repository 3.4
 								install_mongo
 						else
 								# too old, cannot upgrade, give up
@@ -285,7 +294,14 @@ EOF
 								fi
 
 								echolog "Upgrading MongoDB repository and software"
-								add_mongo_repository
+								# 3.0? must go to 3.2 first :-(
+								if [ "$MONGO_MINOR" -lt 2 ]; then
+										echolog "Performing intermediate upgrade to 3.2"
+										add_mongo_repository 3.2
+										install_mongo
+								fi
+								echolog "Performing upgrade to 3.4"
+								add_mongo_repository 3.4
 								install_mongo
 						else
 								input_ok "Hit <Enter> when ready to continue: "
