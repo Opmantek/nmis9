@@ -756,8 +756,9 @@ sub save
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->nodes_collection(),
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
+			freeform   => 1,					# we need to replace the whole record
 			record     => $entry
-		);
+				);
 		assert( $result->{success}, "Record updated successfully" );
 
 		$self->_dirty( 0, 'configuration' );

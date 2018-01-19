@@ -122,10 +122,10 @@ sub aggregate
 		push @pipeline, { '$facet' => {
 			count_data => \@count_pipeline,
 			primary_data => $post_count_pipeline
-		}};		
+		}};
 	}
 	else
-	{		
+	{
 		push @pipeline, @$post_count_pipeline if ( ref($post_count_pipeline) eq "ARRAY" && @$post_count_pipeline );
 	}
 
@@ -134,12 +134,12 @@ sub aggregate
 	try
 	{
 		# print "trying pipeline:".Dumper(\@pipeline);
-		my $result = $collection->aggregate( \@pipeline, $aggoptions );		
+		my $result = $collection->aggregate( \@pipeline, $aggoptions );
 		my @all = $result->all();
-		$out = \@all;	
+		$out = \@all;
 		# print "got out:".Dumper($out);
 		if ( $arg{count} )
-		{	
+		{
 			$count = $out->[0]{count_data}[0]{count};
 			$out = $out->[0]{primary_data};
 		}
@@ -1475,8 +1475,10 @@ sub run_command
 # args: upsert is optional, changes the update to an 'upsert'
 # args: constraints is optional, by default it will constrain, IFF given and 0 then no record munging is performed.
 # 	otherwise the record is sanitized by renaming all keys with "."
-# args: freeform, if set the record has to be deep structure with mongodb update operators
-# otherwise '$set' is used with the record.
+#
+# args: freeform, if set the record is used as-is and has to be either only update operators
+#  or no update operators at all (for replace).
+#  if freeform isn't set, then '$set' is used with the record.
 # args: multiple is optional. if not given only one record is updated.
 # args: safe, optional allows setting write concern, see http://search.cpan.org/~mongodb/MongoDB-v0.705.0.0/lib/MongoDB/MongoClient.pm#w
 sub update
@@ -1497,21 +1499,17 @@ sub update
 	my ( $error, $error_type ) = ( undef, undef );
 	my $upsert   = $arg{upsert}   || 0;
 	my $multiple = $arg{multiple} || 0;
+
 	my $updates = ( $arg{freeform} ) ? $new_record : {'$set' => $new_record};
 
 	if ($new_driver)
 	{
+		# freeform and no update ops? must use replace function, not update - those expect update operators
+		my $methodname = ( $arg{freeform} && !grep(/^\$/, keys %$updates)?
+											 "replace_one" : $multiple? "update_many": "update_one" );
 		try
 		{
-			my $result;
-			if ($multiple)
-			{
-				$result = $collection->update_many( $query, $updates, {upsert => $upsert} );
-			}
-			else
-			{
-				$result = $collection->update_one( $query, $updates, {upsert => $upsert} );
-			}
+			my $result = $collection->$methodname($query, $updates, {upsert => $upsert});
 			if ( $result->acknowledged )
 			{
 				$updated_records = $result->modified_count;
