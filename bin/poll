@@ -1950,7 +1950,7 @@ sub getNodeInfo
 		$V->{system}{netType_title}   = 'Net';
 
 		# get the current ip address if the host property was a name
-		if ( ( my $addr = Compat::NMIS::resolveDNStoAddr( $catchall_data->{host} ) ) )
+		if ( ( my $addr = NMISNG::Util::resolveDNStoAddr( $catchall_data->{host} ) ) )
 		{
 			$catchall_data->{host_addr}      = $addr;    # cache it
 			$V->{system}{host_addr_value} = $addr;

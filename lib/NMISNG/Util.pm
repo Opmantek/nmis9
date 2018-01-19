@@ -49,7 +49,7 @@ use version 0.77;
 use Carp;
 use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
 use IO::Handle;
-
+use Socket 2.001;								# for getnameinfo() used by resolve_dns_name
 use JSON::XS;
 use Proc::ProcessTable;
 
@@ -3000,6 +3000,42 @@ sub audit_log
 	my $res = NMISNG::Util::setFileProtDiag(file => $auditlogfile);
 
 	return undef;
+}
+
+# quick dns lookup for names
+# args: name
+# returns: list of addresses (or empty array)
+sub resolve_dns_name
+{
+	my ($lookup) = @_;
+	my @results;
+
+	# full ipv6 support works only with newer socket module
+	my ($err,@possibles) = Socket::getaddrinfo($lookup,'',
+																						 {socktype => SOCK_RAW});
+	return () if ($err);
+
+	for my $address (@possibles)
+	{
+		my ($err,$ipaddr) = Socket::getnameinfo(
+			$address->{addr},
+			Socket::NI_NUMERICHOST(),
+			Socket::NIx_NOSERV());
+		push @results, $ipaddr if (!$err and $ipaddr ne $lookup); # suppress any nop results
+	}
+	return @results;
+}
+
+# wrapper around resolve_dns_name,
+# returns the _first_ available ip _v4_ address or undef
+sub resolveDNStoAddr
+{
+	my ($name) = @_;
+
+	my @addrs = resolve_dns_name($name);
+	my @v4 = grep(/^\d+.\d+.\d+\.\d+$/, @addrs);
+
+	return $v4[0];
 }
 
 1;

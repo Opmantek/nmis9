@@ -57,7 +57,7 @@ use NMISNG::rrdfunc;
 use NMISNG::Notify;
 
 
-# fixme9 thise need to go and/or become state vars!
+# fixme9 these need to go and/or become state vars!
 my $NT_cache = undef; # node table (local + remote)
 my $NT_modtime; # file modification time
 my $LNT_cache = undef; # local node table
@@ -322,287 +322,38 @@ sub findCfgEntry
 	return undef;
 }
 
-# this returns an almost config-like structure that describes the well-known config keys,
-# how to display them and what options they have
-# args: none!
-sub loadCfgTable {
+# this loads a Table-<sometable> config structure (for the gui)
+# and returns the <sometable> substructure - outermost is always hash,
+# substructure is usually an array (except for Table-Config, which is one level deeper)
+#
+# args: table name (e.g. Nodes), defaults to "Config",
+# user (optional, if given will be set in %ENV for any dynamic tables that need it)
+#
+# returns: (array or hash)ref or undef on error
+sub loadCfgTable
+{
 	my %args = @_;
 
-	my $table = $args{table}; # fixme ignored, has no function
+	my $tablename = $args{table} || "Config";
 
-	my %Cfg = (
-  	'online' => [
-				{ 'nmis_docs_online' => { display => 'text', value => ['https://community.opmantek.com/']}},
-		],
+	# some tables contain complex code, call auth methods  etc,
+	# and need to know who the originator is
+	my $oldcontext = $ENV{"NMIS_USER"};
+	if (my $usercontext = $args{user})
+	{
+		$ENV{"NMIS_USER"} = $usercontext;
+	}
+	my $goodies = loadGenericTable("Table-$tablename");
+	$ENV{"NMIS_USER"} = $oldcontext; # let's not leave a mess behind.
 
-  	'directories' => [
-				{ '<nmis_base>' => { display => 'text', value => ['/usr/local/nmis']}},
-				{ '<nmis_bin>' => { display => 'text', value => ['<nmis_base>/bin']}},
-				{ '<nmis_cgi>' => { display => 'text', value => ['<nmis_base>/cgi-bin']}},
-				{ '<nmis_conf>' => { display => 'text', value => ['<nmis_base>/conf']}},
-				{ '<nmis_data>' => { display => 'text', value => ['<nmis_base>']}},
-				{ '<nmis_logs>' => { display => 'text', value => ['<nmis_base>/logs']}},
-				{ '<nmis_menu>' => { display => 'text', value => ['<nmis_base>/menu']}},
-				{ '<nmis_models>' => { display => 'text', value => ['<nmis_base>/models']}},
-				{ '<nmis_var>' => { display => 'text', value => ['<nmis_base>/var']}},
-				{ '<menu_base>' => { display => 'text', value => ['<nmis_base>/menu']}},
-				{ 'database_root' => { display => 'text', value => ['<nmis_data>/database']}},
-				{ 'log_root' => { display => 'text', value => ['<nmis_logs>']}},
-				{ 'mib_root' => { display => 'text', value => ['<nmis_base>/mibs']}},
-				{ 'report_root' => { display => 'text', value => ['<nmis_data>/htdocs/reports']}},
-				{ 'script_root' => { display => 'text', value => ['<nmis_conf>/scripts']}},
-				{ 'web_root' => { display => 'text', value => ['<nmis_data>/htdocs']}}
-		],
-
-		'system' => [
-			{ 'group_list' => { display => 'text', value => ['']}},
-			{ 'roletype_list' => { display => 'text', value => ['']}},
-			{ 'nettype_list' => { display => 'text', value => ['']}},
-			{ 'nodetype_list' => { display => 'text', value => ['']}},
-			{ 'nmis_host' => { display => 'text', value => ['localhost']}},
-				{ 'domain_name' => { display => 'text', value => ['']}},
-				{ 'cache_summary_tables' => { display => 'popup', value => ["true", "false"]}},
-				{ 'cache_var_tables' => { display => 'popup', value => ["true", "false"]}},
-				{ 'page_refresh_time' => { display => 'text', value => ['60']}},
-				{ 'os_posix' => { display => 'popup', value => ["true", "false"]}},
-				{ 'os_cmd_read_file_reverse' => { display => 'text', value => ['tac']}},
-				{ 'os_cmd_file_decompress' => { display => 'text', value => ['gzip -d -c']}},
-				{ 'os_kernelname' => { display => 'text', value => ['']}},
-				{ 'os_fileperm' => { display => 'text', value => ['0775']}},
-				{ 'report_files_max' => { display => 'text', value => ['60']}},
-				{ 'loc_sysLoc_format' => { display => 'text', value => ['']}},
-				{ 'loc_from_DNSloc' => { display => 'popup', value => ["true", "false"]}},
-				{ 'loc_from_sysLoc' => { display => 'popup', value => ["true", "false"]}},
-				{ 'cbqos_cm_collect_all' => { display => 'popup', value => ["true", "false"]}},
-				{ 'buttons_in_logs' => { display => 'popup', value => ["true", "false"]}},
-				{ 'node_button_in_logs' => { display => 'popup', value => ["true", "false"]}},
-				{ 'page_bg_color_full' => { display => 'popup', value => ["true", "false"]}},
-				{ 'http_req_timeout' => { display => 'text', value => ['30']}},
-				{ 'ping_timeout' => { display => 'text', value => ['500']}},
-				{ 'server_name' => { display => 'text', value => ['localhost']}},
-				{ 'response_time_threshold' => { display => 'text', value => ['3']}},
-				{ 'nmis_user' => { display => 'text', value => ['nmis']}},
-				{ 'nmis_group' => { display => 'text', value => ['nmis']}},
-				{ 'fastping_timeout' => { display => 'text', value => ['300']}},
-				{ 'fastping_packet' => { display => 'text', value => ['56']}},
-				{ 'fastping_retries' => { display => 'text', value => ['3']}},
-				{ 'fastping_count' => { display => 'text', value => ['3']}},
-				{ 'fastping_sleep' => { display => 'text', value => ['60']}},
-				{ 'fastping_node_poll' => { display => 'text', value => ['300']}},
-				{ 'ipsla_collect_time' => { display => 'text', value => ['60']}},
-				{ 'ipsla_bucket_interval' => { display => 'text', value => ['180']}},
-				{ 'ipsla_extra_buckets' => { display => 'text', value => ['5']}},
-				{ 'ipsla_mthread' => { display => 'popup', value => ["true", "false"]}},
-				{ 'ipsla_maxthreads' => { display => 'text', value => ['10']}},
-				{ 'ipsla_mthreaddebug' => { display => 'popup', value => ["false", "true"]}},
-				{ 'ipsla_dnscachetime' => { display => 'text', value => ['3600']}},
-				{ 'ipsla_control_enable_other' => { display => 'popup', value => ["true", "false"]}},
-				{ 'fastping_timeout' => { display => 'text', value => ['300']}},
-				{ 'fastping_packet' => { display => 'text', value => ['56']}},
-				{ 'fastping_retries' => { display => 'text', value => ['3']}},
-				{ 'fastping_count' => { display => 'text', value => ['3']}},
-				{ 'fastping_sleep' => { display => 'text', value => ['60']}},
-				{ 'fastping_node_poll' => { display => 'text', value => ['300']}},
-				{ 'default_graphtype' => { display => 'text', value => ['abits']}},
-				{ 'ping_timeout' => { display => 'text', value => ['300']}},
-				{ 'ping_packet' => { display => 'text', value => ['56']}},
-				{ 'ping_retries' => { display => 'text', value => ['3']}},
-				{ 'ping_count' => { display => 'text', value => ['3']}},
-				{ 'global_collect' => { display => 'popup', value => ["true", "false"]}},
-				{ 'wrap_node_names' => { display => 'popup', value => ["false", "true"]}},
-				{ 'nmis_summary_poll_cycle' => { display => 'popup', value => ["true", "false"]}},
-				{ 'snpp_server' => { display => 'text', value => ['<server_name>']}},
-				{ 'snmp_timeout' => { display => 'text', value => ['5']}},
-				{ 'snmp_retries' => { display => 'text', value => ['1']}},
-				{ 'snmp_stop_polling_on_error' => { display => 'popup', value => ["false", "true"]}},
-		],
-
-  	'url' => [
-				{ '<url_base>' => { display => 'text', value => ['/nmis9']}},
-				{ '<cgi_url_base>' => { display => 'text', value => ['/cgi-nmis9']}},
-				{ '<menu_url_base>' => { display => 'text', value => ['/menu9']}},
-				{ 'web_report_root' => { display => 'text', value => ['<url_base>/reports']}}
-
-		],
-
-		'tools' => [
-				{ 'view_ping' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_trace' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_telnet' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_mtr' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_lft' => { display => 'popup', value => ["true", "false"]}}
-		],
-
-		'files' => [
-				{ 'styles' => { display => 'text', value => ['<url_base>/nmis.css']}},
-				{ 'syslog_log' => { display => 'text', value => ['<nmis_logs>/cisco.log']}},
-				{ 'event_log' => { display => 'text', value => ['<nmis_logs>/event.log']}},
-				{ 'outage_log' => { display => 'text', value => ['<nmis_logs>/outage.log']}},
-				{ 'help_file' => { display => 'text', value => ['<url_base>/help.pod.html']}},
-				{ 'nmis' => { display => 'text', value => ['<cgi_url_base>/nmiscgi.pl']}},
-				{ 'nmis_log' => { display => 'text', value => ['<nmis_logs>/nmis.log']}}
-		],
-
-		'email' => [
-			{ 'mail_server' => { display => 'text', value => ['mail.domain.com']}},
-			{ 'mail_domain' => { display => 'text', value => ['domain.com']}},
-			{ 'mail_from' => { display => 'text', value => ['nmis@domain.com']}},
-			{ 'mail_combine' => { display => 'popup', value => ['true','false']}},
-			{ 'mail_from' => { display => "text", value => ['nmis@yourdomain.com']}},
-			{	'mail_use_tls' => { display => 'popup', value => ['true','false']}},
-			{ 'mail_server_port' => { display => "text", value => ['25']}},
-			{ 'mail_server_ipproto' => { display => "popup", value => ['','ipv4','ipv6']}},
-			{ 'mail_user' => { display => "text", value => ['your mail username']}},
-			{ 'mail_password' => { display => "text", value => ['']}},
-		],
-
-		'menu' => [
-				{ 'menu_title' => { display => 'text', value => ['NMIS']}},
-				{ 'menu_types_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_types_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_types_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_groups_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_groups_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_groups_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_vendors_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_vendors_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_vendors_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_maxitems' => { display => 'text', value => ['30']}},
-				{ 'menu_suspend_link' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_start_page_id' => { display => 'text', value => ['']}}
-		],
-
-		'icons' => [
-				{ 'normal_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-green.gif']}},
-				{ 'arrow_down_green' => { display => 'text', value => ['<menu_url_base>/img/arrow_down_green.gif']}},
-				{ 'arrow_up_big' => { display => 'text', value => ['<menu_url_base>/img/bigup.gif']}},
-				{ 'logs_icon' => { display => 'text', value => ['<menu_url_base>/img/logs.jpg']}},
-				{ 'mtr_icon' => { display => 'text', value => ['<menu_url_base>/img/mtr.jpg']}},
-				{ 'arrow_up' => { display => 'text', value => ['<menu_url_base>/img/arrow_up.gif']}},
-				{ 'help_icon' => { display => 'text', value => ['<menu_url_base>/img/help.jpg']}},
-				{ 'telnet_icon' => { display => 'text', value => ['<menu_url_base>/img/telnet.jpg']}},
-				{ 'back_icon' => { display => 'text', value => ['<menu_url_base>/img/back.jpg']}},
-				{ 'lft_icon' => { display => 'text', value => ['<menu_url_base>/img/lft.jpg']}},
-				{ 'fatal_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-red.gif']}},
-				{ 'trace_icon' => { display => 'text', value => ['<menu_url_base>/img/trace.jpg']}},
-				{ 'nmis_icon' => { display => 'text', value => ['<menu_url_base>/img/nmis.jpg']}},
-				{ 'summary_icon' => { display => 'text', value => ['<menu_url_base>/img/summary.jpg']}},
-				{ 'banner_image' => { display => 'text', value => ['<menu_url_base>/img/NMIS_Logo.gif']}},
-				{ 'map_icon' => { display => 'text', value => ['<menu_url_base>/img/australia-line.gif']}},
-				{ 'minor_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-yellow.gif']}},
-				{ 'arrow_down_big' => { display => 'text', value => ['<menu_url_base>/img/bigdown.gif']}},
-				{ 'ping_icon' => { display => 'text', value => ['<menu_url_base>/img/ping.jpg']}},
-				{ 'unknown_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-white.gif']}},
-				{ 'doc_icon' => { display => 'text', value => ['<menu_url_base>/img/doc.jpg']}},
-				{ 'arrow_down' => { display => 'text', value => ['<menu_url_base>/img/arrow_down.gif']}},
-				{ 'arrow_up_red' => { display => 'text', value => ['<menu_url_base>/img/arrow_up_red.gif']}},
-				{ 'major_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-amber.gif']}},
-				{ 'critical_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-red.gif']}}
-		],
-
-		'authentication' => [
-				{ 'auth_method_1' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
-				{ 'auth_method_2' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
-				{ 'auth_expire' => { display => 'text', value => ['+20min']}},
-				{ 'auth_htpasswd_encrypt' => { display => 'popup', value => ['crypt','md5','plaintext']}},
-				{ 'auth_htpasswd_file' => { display => 'text', value => ['<nmis_conf>/users.dat']}},
-				{ 'auth_ldap_server' => { display => 'text', value => ['']}},
-				{ 'auth_ldaps_server' => { display => 'text', value => ['']}},
-				{ 'auth_ldap_attr' => { display => 'text', value => ['']}},
-				{ 'auth_ldap_context' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_server' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_dn_acc' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_dn_psw' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_base' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_attr' => { display => 'text', value => ['']}},
-				{ 'auth_radius_server' => { display => 'text', value => ['']}},
-				{ 'auth_radius_secret' => { display => 'text', value => ['secret']}},
-				{ 'auth_tacacs_server' => { display => 'text', value => ['']}},
-				{ 'auth_tacacs_secret' => { display => 'text', value => ['secret']}},
-				{ 'auth_web_key' => { display => 'text', value => ['thisismysecretkey']}}
-		],
-
-		'escalation' => [
-				{ 'escalate0' => { display => 'text', value => ['300']}},
-				{ 'escalate1' => { display => 'text', value => ['900']}},
-				{ 'escalate2' => { display => 'text', value => ['1800']}},
-				{ 'escalate3' => { display => 'text', value => ['2400']}},
-				{ 'escalate4' => { display => 'text', value => ['3000']}},
-				{ 'escalate5' => { display => 'text', value => ['3600']}},
-				{ 'escalate6' => { display => 'text', value => ['7200']}},
-				{ 'escalate7' => { display => 'text', value => ['10800']}},
-				{ 'escalate8' => { display => 'text', value => ['21600']}},
-				{ 'escalate9' => { display => 'text', value => ['43200']}},
-				{ 'escalate10' => { display => 'text', value => ['86400']}}
-		],
-
-		'daemons' => [
-				{ 'daemon_ipsla_active' => { display => 'popup', value => ['true','false']}},
-				{ 'daemon_ipsla_filename' => { display => 'text', value => ['ipslad.pl']}},
-				{ 'daemon_fping_active' => { display => 'popup', value => ['true','false']}},
-				{ 'daemon_fping_filename' => { display => 'text', value => ['fpingd.pl']}}
-		],
-
-		'metrics' => [
-				{ 'weight_availability' => { display => 'text', value => ['0.1']}},
-				{ 'weight_int' => { display => 'text', value => ['0.2']}},
-				{ 'weight_mem' => { display => 'text', value => ['0.1']}},
-				{ 'weight_cpu' => { display => 'text', value => ['0.1']}},
-				{ 'weight_reachability' => { display => 'text', value => ['0.3']}},
-				{ 'weight_response' => { display => 'text', value => ['0.2']}},
-				{ 'metric_health' => { display => 'text', value => ['0.4']}},
-				{ 'metric_availability' => { display => 'text', value => ['0.2']}},
-				{ 'metric_reachability' => { display => 'text', value => ['0.4']}}
-		],
-
-		'graph' => [
-				{ 'graph_amount' => { display => 'text', value => ['48']}},
-				{ 'graph_unit' => { display => 'text', value => ['hours']}},
-				{ 'graph_factor' => { display => 'text', value => ['2']}},
-				{ 'graph_width' => { display => 'text', value => ['700']}},
-				{ 'graph_height' => { display => 'text', value => ['250']}},
-				{ 'graph_split' => { display => 'popup', value => ['true','false']}},
-				{ 'win_width' => { display => 'text', value => ['835']}},
-				{ 'win_height' => { display => 'text', value => ['570']}}
-		],
-
-		'tables NMIS4' => [
-				{ 'Interface_Table' => { display => 'text', value => ['']}},
-				{ 'Interface_Key' => { display => 'text', value => ['']}},
-				{ 'Escalation_Table' => { display => 'text', value => ['']}},
-				{ 'Escalation_Key' => { display => 'text', value => ['']}},
-				{ 'Locations_Table' => { display => 'text', value => ['']}},
-				{ 'Locations_Key' => { display => 'text', value => ['']}},
-				{ 'Nodes_Table' => { display => 'text', value => ['']}},
-				{ 'Nodes_Key' => { display => 'text', value => ['']}},
-				{ 'Users_Table' => { display => 'text', value => ['']}},
-				{ 'Users_Key' => { display => 'text', value => ['']}},
-				{ 'Contacts_Table' => { display => 'text', value => ['']}},
-				{ 'Contacts_Key' => { display => 'text', value => ['']}}
- 			],
-
-		'mibs' => [
-				{ 'full_mib' => { display => 'text', value => ['nmis_mibs.oid']}}
-		],
-
-		'database' => [
-				{ 'db_events_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_nodes_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_users_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_locations_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_contacts_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_privmap_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_escalations_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_services_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_iftypes_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_access_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_logs_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_links_sql' => { display => 'popup', value => ['true','false']}}
-		]
-	);
-
-	return \%Cfg;
+	if (ref($goodies) ne "HASH" or !keys %$goodies)
+	{
+		logMsg("ERROR, failed to load Table-$tablename");
+		return undef;
+	}
+	return $goodies->{$tablename};
 }
+
 
 sub loadRMENodes {
 
@@ -2240,23 +1991,6 @@ sub dutyTime {
 	return 0;		# dutytime was valid, but no timezone match, return false.
 }
 
-
-sub resolveDNStoAddr {
-	my $dns = shift;
-	my $addr;
-	my $oct;
-
-	# convert node name to octal ip address
-	if ($dns ne "" ) {
-		if ($dns !~ /\d+\.\d+\.\d+\.\d+/) {
-			my $h = gethostbyname($dns);
-			return if not $h;
-			$addr = inet_ntoa($h->addr) ;
-		} else { $addr = $dns; }
-		return $addr if $addr =~ /\d+\.\d+\.\d+\.\d+/;
-	}
-	return;
-}
 
 
 # create http for a clickable graph
