@@ -91,7 +91,7 @@ my $logger = NMISNG::Log->new( level => (NMISNG::Log::parse_debug_level(
 																					 debug => $nvp{debug} || $nvp{logging})
 																				 // $C->{log_level}),
 															 path  => defined($nvp{debug})? undef : $logfile);
-my $pidfile = "/var/run/fpingd.pid";
+my $pidfile = $C->{'<nmis_var>'}."/fpingd.pid";
 
 # check for any running fpingd instance
 my $alreadyrunning;
