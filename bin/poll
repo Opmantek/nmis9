@@ -70,7 +70,6 @@ use NMISNG::Sapi;
 use Compat::IP;
 use NMISNG::Notify;
 use NMISNG::rrdfunc;
-use Compat::DBfunc;							# fixme9: should be removed
 
 use NMISNG::MIB;
 use NMISNG::Sys;
@@ -9235,14 +9234,7 @@ sub runLinks
 		return;
 	}
 
-	if ( NMISNG::Util::getbool( $C->{db_links_sql} ) )
-	{
-		$links = Compat::DBfunc::->select( table => 'Links' );
-	}
-	else
-	{
-		$links = NMISNG::Util::loadTable( dir => 'conf', name => 'Links' );
-	}
+	$links = NMISNG::Util::loadTable( dir => 'conf', name => 'Links' );
 
 	my $link_ifTypes = $C->{link_ifTypes} ne '' ? $C->{link_ifTypes} : '.';
 	my $qr_link_ifTypes = qr/$link_ifTypes/i;
@@ -9325,15 +9317,6 @@ sub runLinks
 					and $links->{$_}{ifIndex1} eq $subnets{$subnet}{ifIndex1}
 				} keys %{$links};
 
-			# insert entry in db if not exists
-			if ( NMISNG::Util::getbool( $C->{db_links_sql} ) )
-			{
-				if ( not exists $links->{$subnet}{subnet} )
-				{
-					Compat::DBfunc::->insert( table => 'Links', data => {index => $subnet} );
-				}
-			}
-
 			# form a key - use subnet as the unique key, same as read in, so will update any links with new information
 			if (    defined $subnets{$subnet}{description}
 				and $subnets{$subnet}{description} ne 'noSuchObject'
@@ -9395,16 +9378,6 @@ sub runLinks
 			# dont overwrite any manually configured dependancies.
 			if ( !exists $links->{$subnet}{depend} ) { $links->{$subnet}{depend} = "N/A" }
 
-			# reformat the name
-			##	$links->{$subnet}{link} =~ s/ /_/g;
-
-			if ( NMISNG::Util::getbool( $C->{db_links_sql} ) )
-			{
-				if ( not exists $links->{$subnet}{subnet} )
-				{
-					Compat::DBfunc::->update( table => 'Links', data => $links->{$subnet}, index => $subnet );
-				}
-			}
 			NMISNG::Util::dbg("Adding link $links->{$subnet}{link} for $subnet to links");
 		}
 	}

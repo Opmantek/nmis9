@@ -42,7 +42,6 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 use Compat::NMIS;
 use NMISNG::Sys;
-use Compat::DBfunc;							# fixme9: should be removed
 use NMISNG::Util;
 use NMISNG::Auth;
 
@@ -120,12 +119,7 @@ sub loadReqTable {
 	}
 	else
 	{
-		my $db = "db_".lc($table)."_sql";
-		if (NMISNG::Util::getbool($C->{$db})) {
-			$T = Compat::DBfunc::->select(table=>$table); # full table
-		} else {
-			$T = NMISNG::Util::loadTable(dir=>'conf',name=>$table);
-		}
+		$T = NMISNG::Util::loadTable(dir=>'conf',name=>$table);
 	}
 	if (!$T and !NMISNG::Util::getbool($msg,"invert")) {
 		print Tr(td({class=>'error'},"Error on loading table $table"));
@@ -804,24 +798,7 @@ sub doeditTable
 	}
 	else
 	{
-		my $db = "db_".lc($table)."_sql";
-		if ( NMISNG::Util::getbool($C->{$db}) ) {
-			my $stat;
-			$V->{index} = $key; # add this column
-			if ($Q->{act} =~ /doadd/) {
-				$stat = Compat::DBfunc::->insert(table=>$table,data=>$V);
-			} else {
-				$stat = Compat::DBfunc::->update(table=>$table,data=>$V,index=>$key);
-			}
-			if (!$stat) {
-				print header({-type=>"text/html",-expires=>'now'});
-				print Tr(td({class=>'error'} , escapeHTML(Compat::DBfunc::->error())));
-				return 0;
-			}
-		} else {
-			NMISNG::Util::writeTable(dir=>'conf',name=>$table, data=>$T);
-		}
-
+		NMISNG::Util::writeTable(dir=>'conf',name=>$table, data=>$T);
 	}
 
 	return 1;

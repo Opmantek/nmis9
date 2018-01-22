@@ -40,7 +40,6 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 use Net::IP;
 
 use Compat::NMIS;
-use Compat::DBfunc;							# fixme9: should be removed
 use NMISNG::Util;
 use NMISNG::Auth;
 
@@ -101,7 +100,6 @@ if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_doedit') {
 	displayConfig()  if (doEditConfig() or $Q->{error_message});
 } elsif ($Q->{act} eq 'config_nmis_dodelete') { doDeleteConfig(); displayConfig();
-} elsif ($Q->{act} eq 'config_nmis_dostore') { 	doStoreTable(); displayConfig();
 } else { notfound(); }
 
 exit 1;
@@ -401,15 +399,6 @@ sub doEditConfig
 	my $section = $Q->{section};
 	my $item = $Q->{item};
 	my $value = $Q->{value};
-
-	# check if DB <=> file change
-	# fixme9 remove
-	if ($section eq 'database' and $item =~ /^db.*sql$/
-			and $C->{$item} ne $value and ($C->{$item} ne ''
-																		 or NMISNG::Util::getbool($value)) ) {
-		storeTable(section=>$section,item=>$item,value=>$value);
-		return 0;
-	}
 
 	# that's the  non-flattened raw hash
 	my ($CC,undef) = NMISNG::Util::readConfData();
@@ -747,145 +736,7 @@ sub doAddConfig {
 	NMISNG::Util::writeConfData(data=>$CC);
 }
 
-# store full table in DB
-sub storeTable {
-	my %args = @_;
 
-	my $section = $args{section};
-	my $item = $args{item};
-	my $value = $args{value};
-
-	my $table;
-
-	my %tables = (
-		'db_events_sql'=> 'Events',
-		'db_nodes_sql' => 'Nodes',
-		'db_users_sql' => 'Users',
-		'db_locations_sql' => 'Locations',
-		'db_contacts_sql' => 'Contacts',
-		'db_privmap_sql' => 'PrivMap',
-		'db_escalations_sql' => 'Escalations',
-		'db_services_sql' => 'Services',
-		'db_iftypes_sql' => 'ifTypes',
-		'db_access_sql' => 'Access',
-		'db_logs_sql' => 'Logs',
-		'db_links_sql' => 'Links'
-		) ;
-
-	#start of page
-	print header($headeropts);
-	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
-
-	if (!($table = $tables{$item})) {
-		print Tr(td({class=>'error'},"ERROR, table does not exist"));
-		return;
-	}
-
-	# check if DB exists
-	my $dbh = Compat::DBfunc::->new();
-	if ( !$dbh->connect()) {
-		print Tr(td({class=>'error'},"ERROR, no mySQL server active"));
-		return;
-	}
-
-	# start of form, see comment for first two start_forms
-	print start_form(-name=>"nmisconfig",-id=>"nmisconfig",-href=>url(-absolute=>1)."?")
-			. hidden(-override => 1, -name => "act", -value => "config_nmis_dostore")
-			. hidden(-override => 1, -name => "widget", -value => $widget)
-			. hidden(-override => 1, -name => "table", -value => $table)
-			. hidden(-override => 1, -name => "section", -value => $section)
-			. hidden(-override => 1, -name => "item", -value => $item)
-			. hidden(-override => 1, -name => "value", -value => $value)
-			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
-			. hidden(-override => 1, -name => "file", -value => '', -id=> "fileinput")
-			. hidden(-override => 1, -name => "db", -value => '', -id=> "dbinput");
-
-	print start_table;
-
-	if ( NMISNG::Util::getbool($C->{$item}) ) {
-		print Tr(td({class=>'info Plain'}," mySQL Database is active now"));
-	} else {
-		my $ext = NMISNG::Util::getExtension(dir=>'conf');
-		print Tr(td({class=>'info Plain'}," conf/$table.$ext is active now"));
-	}
-
-	print Tr(td('Make your choice'));
-
-	print Tr(td(
-				eval {
-					if (NMISNG::Util::getbool($value)) {
-						return button(-name=>"button",
-													onclick=> '$("#dbinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
-													-value=>'Transfer from file to DB');
-					} else {
-						return button(-name=>"button",
-													onclick=> '$("#fileinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
-													-value=>'Transfer from DB to file');
-					}
-				},
-				button(-name=>'button',
-							 onclick=> '$("#cancelinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
-							 -value=>"Cancel")));
-
-	print end_table;
-	print end_form;
-	Compat::NMIS::pageEnd if (!$wantwidget);
-
-}
-
-sub doStoreTable {
-	my $section = $Q->{section};
-	my $item = $Q->{item};
-	my $value = $Q->{value};
-	my $table = $Q->{table};
-
-	my $T;
-
-	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
-
-	if (NMISNG::Util::getbool($Q->{db})) {
-		# from file to DB
-		if (($T = NMISNG::Util::loadTable(dir=>'conf',name=>$table)) ) { # load requested table
-			if (Compat::DBfunc::->delete(table=>$table,where=>'*')) { # delete all rows
-				NMISNG::Util::logMsg("INFO all rows of table=$table removed");
-				my $cnt = 0;
-				for my $k (keys %{$T}) {
-					$T->{$k}{index} = $k; #
-					if ( ! Compat::DBfunc::->insert(table=>$table,data=>$T->{$k})) {
-						print header($headeropts);
-						Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
-
-						print "\n</pre>\n";
-						print Compat::DBfunc->error."<br>\n";
-						Compat::NMIS::pageEnd if (!$wantwidget);
-						last;
-					}
-				}
-				NMISNG::Util::logMsg("INFO file transfer table=$table to DB done");
-			} else {
-				NMISNG::Util::logMsg("ERROR delete all rows of table$table");
-				return;
-			}
-		} else {
-			return;
-		}
-	} else {
-		# from DB to file
-		if (($T = Compat::DBfunc::->select(table=>$table)) ) {
-			NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$T);
-			my $ext = NMISNG::Util::getExtension(dir=>'conf');
-			NMISNG::Util::logMsg("INFO table=$table transfer from DB to file=conf/$table.$ext done");
-		} else {
-			return;
-		}
-	}
-
-	# update config
-	my ($CC,undef) = NMISNG::Util::readConfData();
-	$CC->{$section}{$item} = $value;
-	NMISNG::Util::writeConfData(data=>$CC);
-
-}
 
 #============================================================================
 

@@ -49,7 +49,6 @@ $Data::Dumper::Indent = 1;			# fixme9: costs, should not be enabled
 
 use Compat::IP;
 use NMISNG::CSV;
-use Compat::DBfunc;							# fixme9: should be removed
 
 use NMISNG;
 use NMISNG::Sys;
@@ -226,11 +225,7 @@ sub loadFileOrDBTable {
 	my $ltable = lc $table;
 
 	my $C = NMISNG::Util::loadConfTable();
-	if (NMISNG::Util::getbool($C->{"db_${ltable}_sql"})) {
-		return Compat::DBfunc::->select(table=>$table);
-	} else {
-		return NMISNG::Util::loadTable(dir=>'conf',name=>$table);
-	}
+	return NMISNG::Util::loadTable(dir=>'conf',name=>$table);
 }
 
 sub loadGenericTable{
