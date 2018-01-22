@@ -511,10 +511,20 @@ sub purge_files
 			location => $C->{config_logs},
 			description => "Old node configuration JSON log files",
 		},
+
+		{
+			minage => $C->{purge_reports_after} || 365*86400,
+			also_empties => 0,
+			ext => qr/\.html$/,
+			location => $C->{report_root},
+			description => "Very old report files",
+		},
+
 	);
 
 	for my $rule (@purgatory)
 	{
+		next if ($rule->{minage} <= 0);	# purging can be disabled by setting the minage to -1
 		my $olderthan = time - $rule->{minage};
 		next if ( !$rule->{location} );
 		NMISNG::Util::info("checking dir $rule->{location} for $rule->{description}");
