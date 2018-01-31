@@ -53,7 +53,7 @@ use NMISNG::Util;
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
 
-\t$bn act=list
+\t$bn act={list|list_uuid}
 \t$bn act=show node=nodeX
 \t$bn act={create|update} file=someFile.json
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY}
@@ -208,18 +208,25 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 	$logger->info("Bulk import complete, updated overrides for $counter nodes");
 	exit 0;
 }
-elsif ($cmdline->{act} eq "list")
+if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 {
-	# just list the nodes in existence - just their names
-	my $nodelist = $nmisng->get_node_names;
-	if (ref($nodelist) ne "ARRAY" or !@$nodelist)
+	# just list the nodes in existence - possibly with uuids
+	my $wantuuid = $1;
+
+	# returns a modeldata object
+	my $nodelist = $nmisng->get_nodes_model(fields_hash => { name => 1, uuid => 1});
+	if (!$nodelist or !$nodelist->count)
 	{
-		print STDERR "No nodes exist.\n"; # but not an error, so let's not die
+		print STDERR "No nodes exist.\n" # but not an error, so let's not die
+				if (!$cmdline->{quiet});
 	}
 	else
 	{
-		print "Node Names:\n===========\n" if (-t \*STDOUT); # if to terminal, not pipe etc.
-		print join("\n",sort @$nodelist),"\n";
+		print($wantuuid? "Node UUID\tNode Name\n=========================\n" : "Node Names:\n===========\n")
+				if (-t \*STDOUT); # if to terminal, not pipe etc.
+
+		print join("\n", map { ($wantuuid? ($_->{uuid}."\t".$_->{name}) : $_->{name}) }
+							 (sort { $a->{name} cmp $b->{name} } (@{$nodelist->data})) ),"\n";
 	}
 	exit 0;
 }
