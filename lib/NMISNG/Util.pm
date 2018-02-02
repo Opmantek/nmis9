@@ -41,8 +41,12 @@ use File::Basename;
 use File::stat;
 use File::Spec;
 use File::Copy;
-use Time::ParseDate; # fixme: actually NOT used by func
+
+use Time::ParseDate;
 use Time::Local;
+use Time::Moment;
+use DateTime::TimeZone;
+
 use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
@@ -3036,6 +3040,120 @@ sub resolveDNStoAddr
 	my @v4 = grep(/^\d+.\d+.\d+\.\d+$/, @addrs);
 
 	return $v4[0];
+}
+
+# takes anything that time::parsedate understands, plus an optional timezone argument
+# and returns full seconds (ie. unix epoch seconds in utc)
+#
+# if no timezone is given, the local timezone is used.
+# attention: parsedate by itself does NOT understand the iso8601 format with timezone Z or
+# with negative offset; relative time specs also don't work well with timezones OR dst changes!
+#
+# az recommends using parseDateTime || getUnixTime for max compat.
+sub getUnixTime
+{
+	my ($timestring, $tzdef) = @_;
+
+	# to make the tz-dependent stuff work, we MUST give parsedate a tz spec...
+	# - but we don't know the applicable offset until after we've parsed the
+	# time (== catch 22 when dst is involved)
+	# - and parsedate doesn't understand most timezone names, so we must compute a numeric offset...fpos.
+	# (== catch 22^2)
+	# - plus trying to fix in postprocessing with shift FAILS if the time was a relative one (e.g. now),
+	# and parsedate doesn't tell us whether the time in question was relative or absolute. fpos^2.
+	#
+	# best effort: take the current time's offset, hope it's applicable to the actual time in question
+
+	my $tz = DateTime::TimeZone->new(name => 'local');
+
+	my $tmobj = Time::Moment->now_utc;							 # don't do any local timezone stuff
+	my $tzoffset = $tz->offset_for_datetime($tmobj); # in seconds
+	# want [+-]HHMM
+	my $tzspec = sprintf("%s%02u%02u", ($tzoffset < 0? "-":"+"),
+											 (($tzoffset < 0? -$tzoffset: $tzoffset)/3600),
+											 ($tzoffset%3600)/60);
+
+  my $epochseconds = parsedate($timestring, ZONE => $tzspec);
+	return $epochseconds;
+}
+
+# convert an iso8601/rfc3339 time into (fractional!) unix epoch seconds
+# returns undef if the input string is invalid
+# note: timezone suffixes ARE parsed and taken into account!
+# if no tz suffix is present, use the local timezone
+sub parseDateTime
+{
+	my ($dtstring) = @_;
+	# YYYY-MM-DDTHH:MM:SS.SSS, millis are optional
+	# also allowed: timezone suffixes Z, +NN, -NN, +NNMM, -NNMM, +NN:MM, -NN:MM
+
+	# meh: time::moment strictly REQUIRES tz - just constructing with from_string()
+	# fails on implicit local zone (and is likely more expensive even with fixup work, as lenient is
+	# required because the damn thing otherwise refuses +NNMM as that has no ":"...
+	if ($dtstring =~ /^(\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+)(\.\d+)?(Z|([\+-])(\d{2})\:?(\d{2})?)?/)
+	{
+		my $eleven = $11 // "00"; # datetime wants offsets as +-HHMM, nost just +-HH
+		my $tzn = (defined($8)? $8 eq "Z"? $8 : $9.$10.$eleven : undef);
+		my $tz = DateTime::TimeZone->new(name => $tzn // "local");
+
+		# oh the convolutions...make obj w/o tz, then figure out offset for THAT time,
+		# then apply the offset. meh.
+		my $when = Time::Moment->new(year => $1, month => $2, day => $3,
+																 hour => $4,  minute => $5, second => $6,
+																 nanosecond => (defined $7? $7 * 1e9: 0));
+		my $tzoffset = $tz->offset_for_datetime($when) / 60;
+
+		my $inthezone = $when->with_offset_same_local($tzoffset);
+		return $inthezone->epoch + $inthezone->nanosecond / 1e9;
+	}
+	else
+	{
+		return undef;
+	}
+}
+
+# small helper to handle X.Y.Z or X.N.M indirection into a deep structure
+# takes anchor of structure, follows X.Y.Z or X.N.M or X.-N.M indirections
+#
+# args: structure (ref), path (string)
+# returns: value (or undef), error: undef/0 for ok, 1 for nonexistent key/index,
+# 2 for type mismatch (eg. hash expected but scalar or array observed)
+sub follow_dotted
+{
+	my ($anchor, $path) = @_;
+	my ($error, $value);
+
+	for my $indirection (split(/\./, $path))
+	{
+		if (ref($anchor) eq "ARRAY" and $indirection =~ /^-?\d+$/)
+		{
+			if (!exists $anchor->[$indirection])
+			{
+				return (undef, 1);
+			}
+			else
+			{
+				$anchor = $anchor->[$indirection];
+			}
+		}
+		elsif (ref($anchor) eq "HASH")
+		{
+			if (!exists $anchor->{$indirection})
+			{
+				return (undef, 1);
+			}
+			else
+			{
+				$anchor = $anchor->{$indirection};
+			}
+		}
+		else
+		{
+			return (undef, 2);			# type mismatch
+		}
+	}
+	$value = $anchor;
+	return ($value, 0);
 }
 
 1;
