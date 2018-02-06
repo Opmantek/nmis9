@@ -1948,8 +1948,11 @@ EO_HTML
 	my @keys = grep { $_ =~ /value$/ } sort keys %{$V->{system}};
 	map { $_ =~ s/_value$// } @keys;
 	my @items;
+
+	# create ordered list of items (from undesirably ordered input keys,
+  # and where listed in the order input - unlisted stuff stays at the end
 	foreach my $i (@order)
-	{    # create array with order
+	{
 		for ( my $ii = 0; $ii <= $#keys; $ii++ )
 		{
 			if ( lc $i eq lc $keys[$ii] ) { push @items, $i; splice( @keys, $ii, 1 ); last; }
@@ -1962,8 +1965,6 @@ EO_HTML
 		}
 	}
 	@items = ( @items, @keys );
-
-	# print STDERR "order=@order items=@items\n";
 
 	### 2013-03-13 Keiths, adding an edit node button.
 	my $editnode;
@@ -1980,7 +1981,7 @@ EO_HTML
 	{
 		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?conf=$Q->{conf}&act=config_nodeconf_view&widget=$widget&node="
 			. uri_escape($node);
-		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
+		$editconf = qq| <a href="$url" id="cfg_nodecGfg" style="color:white;">Node Configuration</a>|;
 	}
 
 	# this will handle the Name and URL for additional node information
@@ -2030,228 +2031,219 @@ EO_HTML
 	print Tr( th( {class => 'title', colspan => '2'}, $nodeDetails ) );
 	print start_Tr;
 
+	my @firstcoldata;
+	foreach my $k (@items)
+	{
+		# the default title is the key name.
+		# but can I get a better title?
+		my $title = (
+			defined( $V->{system}->{"${k}_title"} )
+			? $V->{system}{"${k}_title"}
+			: $S->getTitle( attr => $k, section => 'system' )
+				) || $k;
+
+		next if ($title eq '');
+
+		my $color = $V->{system}{"${k}_color"} || '#FFF';
+		my $gurl = $V->{system}{"${k}_gurl"}; # create new window
+
+		# existing window, possibly widgeted or not
+		# but that's unknown when nmis.pl creates the view entry!
+		my $url;
+		if ($V->{system}{"${k}_url"})
+		{
+			my $u = URI->new($V->{system}{"${k}_url"});
+			$u->query_param("widget" => ($wantwidget? "true": "false"));
+			$url = $u->as_string;
+		}
+
+		my $value;
+		# get the value from the view if it one of the special ones, or only present there
+		if ( $k
+				 =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
+							 or not exists( $catchall_data->{$k} ) )
+		{
+			$value = $V->{system}{"${k}_value"};
+		}
+		else
+		{
+			$value = $catchall_data->{$k};
+		}
+
+
+		# escape the input if there's anything in need of escaping;
+		# we don't want doubly-escaped uglies.
+		$value = escapeHTML($value) if ( $value =~ /[<>]/ );
+
+		$color = NMISNG::Util::colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
+		$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
+
+		# a few special ones
+		if ( $k eq 'status' )
+		{
+			if ( !$status{overall} )
+			{
+				$value = "unreachable";
+				$color = "#F00";
+			}
+			elsif ( $status{overall} == -1 )
+			{
+				$value = "degraded";
+				$color = "#FF0";
+			}
+			else
+			{
+				$value = "reachable";
+				$color = "#0F0";
+			}
+		}
+		# from outageCheck, neither nodeinfo nor view
+		elsif ($k eq 'outage')
+		{
+			my ($outagestatus, $nextoutage) = NMISNG::Outage::outageCheck(node => $nmisng_node,
+																																		time => time());
+
+			# slightly special: don't show this row unless current or pending
+			next if (!$outagestatus);
+
+			$title = "Outage Status";
+			if ($outagestatus eq "current")
+			{
+				$value = "Outage \"".($nextoutage->{change_id} || $nextoutage->{description})."\" is Current";
+				$color = NMISNG::Util::eventColor("Warning");
+			}
+			else
+			{
+				$value = "Planned Future Outage \"".($nextoutage->{change_id} || $nextoutage->{description}).'"';
+				$color = NMISNG::Util::eventColor("Normal"); # it's not active yet, let's show it as good/green/whatever
+			}
+		}
+		elsif ($k eq 'lastUpdate')
+		{
+			# check lastupdate
+			my $time = $catchall_data->{last_poll};
+			if ( $time ne "" )
+			{
+				if ( $time < ( time - 60 * 15 ) )
+				{
+					$color = "#ffcc00";    # too late
+				}
+			}
+		}
+		elsif ( $k eq 'TimeSinceTopologyChange' and $catchall_data->{TimeSinceTopologyChange} =~ /\d+/ )
+		{
+			if ( $value ne "N/A" )
+			{
+				# convert to uptime format, time since change
+				$value = NMISNG::Util::convUpTime( $catchall_data->{TimeSinceTopologyChange} / 100 );
+
+				# did this reset in the last 1 h
+				if ( $catchall_data->{TimeSinceTopologyChange} / 100 < 360000 )
+				{
+					$color = "#ffcc00";    # to late
+				}
+			}
+		}
+
+		### 2012-02-21 keiths, fixed popup window not opening correctly.
+		my $content = $value;
+		if ($gurl)
+		{
+			$content = a(
+				{   target  => "Graph-$node",
+						onClick => "viewwndw(\'$node\',\'$gurl\',$C->{win_width},$C->{win_height})"
+				},
+				"$value"
+					);
+		}
+		elsif ($url)
+		{
+			$content = a( {href => $url}, $value );
+		}
+
+		if (not(
+					($k eq "customer" and not Compat::NMIS::tableExists('Customers')
+					 or ($k eq "businessService" and not Compat::NMIS::tableExists('BusinessServices'))
+					 or ($k eq "serviceStatus"  and not Compat::NMIS::tableExists('ServiceStatus'))
+					 or ($k eq "location" and not Compat::NMIS::tableExists('Locations')))))
+		{
+			push @firstcoldata,
+			Tr( td( {class => 'info Plain'}, escapeHTML($title) ),
+					td( {class => 'info Plain', style => NMISNG::Util::getBGColor($color)}, $content ) );
+		}
+	}
+
+	# display events for this one node - also close one if asked to
+	if ( my %nodeevents = Compat::NMIS::loadAllEvents( node => $node ) )
+	{
+		push @firstcoldata, Tr( td( {class => 'header', colspan => '2'}, 'Events' ) );
+		my $usermayclose = $AU->CheckAccess( "src_events", "check" );
+
+		my $closemeurl
+				= url( -absolute => 1 )
+				. "?conf=$Q->{conf}&amp;act=network_node_view"
+				. "&amp;widget=$widget"
+				. "&amp;node="
+				. uri_escape($node);
+
+		for my $eventkey ( sort keys %nodeevents )
+		{
+			my $thisevent = $nodeevents{$eventkey};
+
+			# closing an event creates a temporary up event...we don't want to see that.
+			next if ( $usermayclose && $thisevent->{details} =~ /^closed from GUI/ );
+
+			# is this the event to close? same node, same name, element the same
+			if (   $usermayclose
+						 && $Q->{closeevent} eq $thisevent->{event}
+						 && $Q->{closeelement} eq $thisevent->{element} )
+			{
+				Compat::NMIS::checkEvent(
+					sys     => $S,
+					node    => $node,
+					event   => $thisevent->{event},
+					element => $thisevent->{element},
+					details => "closed from GUI"
+						);
+				next;    # event is gone, don't show it
+			}
+
+			# offer a button for closing this event if the user is sufficiently privileged
+			# fixme: does currently NOT offer confirmation!
+			my @ecolumn = "Event";
+			if ($usermayclose)
+			{
+				my $closethisurl
+						= $closemeurl
+						. "&amp;closeevent="
+						. uri_escape( $thisevent->{event} )
+						. "&amp;closeelement="
+						. uri_escape( $thisevent->{element} );
+
+				push @ecolumn,
+				qq|<a href='$closethisurl' title="Close this Event"><img src="$C->{'<menu_url_base>'}/img/v8/icons/note_delete.gif"></a>|;
+			}
+
+			my $state = NMISNG::Util::getbool( $thisevent->{ack}, "invert" ) ? 'active' : 'inactive';
+			my $details = $thisevent->{details};
+			$details = "$thisevent->{element} $details" if ( $thisevent->{event} =~ /^Proactive|^Alert/ );
+			$details = $thisevent->{element}            if ( !$details );
+			push @firstcoldata,
+			Tr(
+				td( {class => 'info Plain'}, join( "", @ecolumn ) ),
+				td( {class => 'info Plain'},
+						"$thisevent->{event} - $details, Escalate $thisevent->{escalate}, $state"
+				)
+					);
+		}
+	}
+
 	# first column
 	print td(
 		{valign => 'top'},
 		table(
 			{class => 'dash'},
-
-			# list of values
-			eval {
-				my @out;
-				foreach my $k (@items)
-				{
-					# the default title is the key name.
-					# but can I get a better title?
-					my $title = (
-						defined( $V->{system}->{"${k}_title"} )
-						? $V->{system}{"${k}_title"}
-						: $S->getTitle( attr => $k, section => 'system' )
-						)
-						|| $k;
-
-					next if ($title eq '');
-
-					my $color = $V->{system}{"${k}_color"} || '#FFF';
-					my $gurl = $V->{system}{"${k}_gurl"}; # create new window
-
-					# existing window, possibly widgeted or not
-					# but that's unknown when nmis.pl creates the view entry!
-					my $url;
-					if ($V->{system}{"${k}_url"})
-					{
-						my $u = URI->new($V->{system}{"${k}_url"});
-						$u->query_param("widget" => ($wantwidget? "true": "false"));
-						$url = $u->as_string;
-					}
-
-					my $value;
-					# get the value from the view if it one of the special ones, or only present there
-					if ( $k
-							 =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
-							 or not exists( $catchall_data->{$k} ) )
-					{
-						$value = $V->{system}{"${k}_value"};
-					}
-					else
-					{
-						$value = $catchall_data->{$k};
-					}
-
-
-					# escape the input if there's anything in need of escaping;
-					# we don't want doubly-escaped uglies.
-					$value = escapeHTML($value) if ( $value =~ /[<>]/ );
-
-					$color = NMISNG::Util::colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
-					$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
-
-					# a few special ones
-					if ( $k eq 'status' )
-					{
-						if ( !$status{overall} )
-						{
-							$value = "unreachable";
-							$color = "#F00";
-						}
-						elsif ( $status{overall} == -1 )
-						{
-							$value = "degraded";
-							$color = "#FF0";
-						}
-						else
-						{
-							$value = "reachable";
-							$color = "#0F0";
-						}
-					}
-					# from outageCheck, neither nodeinfo nor view
-					elsif ($k eq 'outage')
-					{
-						my ($outagestatus, $nextoutage) = NMISNG::Outage::outageCheck(node => $nmisng_node,
-																																					time => time());
-
-						# slightly special: don't show this row unless current or pending
-						next if (!$outagestatus);
-
-						$title = "Outage Status";
-						if ($outagestatus eq "current")
-						{
-							$value = "Outage \"".($nextoutage->{change_id} || $nextoutage->{description})."\" is Current";
-							$color = eventColor("Warning");
-						}
-						else
-						{
-							$value = "Planned Future Outage \"".($nextoutage->{change_id} || $nextoutage->{description}).'"';
-							$color = eventColor("Normal"); # it's not active yet, let's show it as good/green/whatever
-						}
-					}
-					elsif ($k eq 'lastUpdate')
-					{
-						# check lastupdate
-						my $time = $catchall_data->{last_poll};
-						if ( $time ne "" )
-						{
-							if ( $time < ( time - 60 * 15 ) )
-							{
-								$color = "#ffcc00";    # too late
-							}
-						}
-					}
-					elsif ( $k eq 'TimeSinceTopologyChange' and $catchall_data->{TimeSinceTopologyChange} =~ /\d+/ )
-					{
-						if ( $value ne "N/A" )
-						{
-							# convert to uptime format, time since change
-							$value = NMISNG::Util::convUpTime( $catchall_data->{TimeSinceTopologyChange} / 100 );
-
-							# did this reset in the last 1 h
-							if ( $catchall_data->{TimeSinceTopologyChange} / 100 < 360000 )
-							{
-								$color = "#ffcc00";    # to late
-							}
-						}
-					}
-
-					### 2012-02-21 keiths, fixed popup window not opening correctly.
-					my $content = $value;
-					if ($gurl)
-					{
-						$content = a(
-							{   target  => "Graph-$node",
-									onClick => "viewwndw(\'$node\',\'$gurl\',$C->{win_width},$C->{win_height})"
-							},
-							"$value"
-								);
-					}
-					elsif ($url)
-					{
-						$content = a( {href => $url}, $value );
-					}
-
-					my $printData = 1;
-					$printData = 0 if $k eq "customer"        and not Compat::NMIS::tableExists('Customers');
-					$printData = 0 if $k eq "businessService" and not Compat::NMIS::tableExists('BusinessServices');
-					$printData = 0 if $k eq "serviceStatus"   and not Compat::NMIS::tableExists('ServiceStatus');
-					$printData = 0 if $k eq "location"        and not Compat::NMIS::tableExists('Locations');
-
-						if ($printData)
-						{
-							push @out,
-							Tr( td( {class => 'info Plain'}, escapeHTML($title) ),
-									td( {class => 'info Plain', style => NMISNG::Util::getBGColor($color)}, $content ) );
-						}
-				}
-
-				# display events for this one node - also close one if asked to
-				if ( my %nodeevents = Compat::NMIS::loadAllEvents( node => $node ) )
-				{
-					push @out, Tr( td( {class => 'header', colspan => '2'}, 'Events' ) );
-					my $usermayclose = $AU->CheckAccess( "src_events", "check" );
-
-					my $closemeurl
-							= url( -absolute => 1 )
-							. "?conf=$Q->{conf}&amp;act=network_node_view"
-							. "&amp;widget=$widget"
-							. "&amp;node="
-							. uri_escape($node);
-
-					for my $eventkey ( sort keys %nodeevents )
-					{
-						my $thisevent = $nodeevents{$eventkey};
-
-						# closing an event creates a temporary up event...we don't want to see that.
-						next if ( $usermayclose && $thisevent->{details} =~ /^closed from GUI/ );
-
-						# is this the event to close? same node, same name, element the same
-						if (   $usermayclose
-									 && $Q->{closeevent} eq $thisevent->{event}
-									 && $Q->{closeelement} eq $thisevent->{element} )
-						{
-							Compat::NMIS::checkEvent(
-								sys     => $S,
-								node    => $node,
-								event   => $thisevent->{event},
-								element => $thisevent->{element},
-								details => "closed from GUI"
-									);
-							next;    # event is gone, don't show it
-						}
-
-						# offer a button for closing this event if the user is sufficiently privileged
-						# fixme: does currently NOT offer confirmation!
-						my @ecolumn = "Event";
-						if ($usermayclose)
-						{
-							my $closethisurl
-									= $closemeurl
-									. "&amp;closeevent="
-									. uri_escape( $thisevent->{event} )
-									. "&amp;closeelement="
-									. uri_escape( $thisevent->{element} );
-
-							push @ecolumn,
-							qq|<a href='$closethisurl' title="Close this Event"><img src="$C->{'<menu_url_base>'}/img/v8/icons/note_delete.gif"></a>|;
-						}
-
-						my $state = NMISNG::Util::getbool( $thisevent->{ack}, "invert" ) ? 'active' : 'inactive';
-						my $details = $thisevent->{details};
-						$details = "$thisevent->{element} $details" if ( $thisevent->{event} =~ /^Proactive|^Alert/ );
-						$details = $thisevent->{element}            if ( !$details );
-						push @out,
-						Tr(
-							td( {class => 'info Plain'}, join( "", @ecolumn ) ),
-							td( {class => 'info Plain'},
-									"$thisevent->{event} - $details, Escalate $thisevent->{escalate}, $state"
-							)
-								);
-					}
-				}
-
-				return @out;
-			},
-		)
-	);
+			@firstcoldata ));
 
 	# second column
 	print start_td( {valign => 'top'} ), start_table;
