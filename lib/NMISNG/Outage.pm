@@ -430,7 +430,7 @@ sub check_outages
 		$nodeconfig = $node->configuration;
 		my ($catchall,$error) = $node->inventory(concept => "catchall");
 		$nodemodel = $catchall->data->{nodeModel} if (!$error
-																									&& ref($catchall) eq "NMISNG::ModelData"
+																									&& ref($catchall) =~ /^NMISNG::Inventory::/
 																									&& ref($catchall->data) eq "HASH");
 	}
 
