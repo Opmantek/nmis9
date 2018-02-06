@@ -3,42 +3,45 @@
 ## $Id: outages.pl,v 8.5 2012/04/28 00:59:36 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use Time::ParseDate;
+use JSON::XS;
+
 use Compat::NMIS;
 use NMISNG::Sys;
 use NMISNG::Util;
+use NMISNG::Outage;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -57,7 +60,7 @@ use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -90,20 +93,27 @@ exit;
 
 #===================
 
-sub viewOutage {
-
+sub viewOutage
+{
 	my @out;
 	my $node = $Q->{node};
-	
+
 	my $title = $node? "Outages for $node" : "List of Outages";
 
 	my $time = time();
 
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
-	
-	my $OT = Compat::NMIS::loadOutageTable();
+
 	my $NT = Compat::NMIS::loadNodeTable();
+	my $res = NMISNG::Outage::find_outages(); # attention: cannot filter by affected node
+	if (!$res->{success})
+	{
+		$Q->{error} = "Cannot find outages: $res->{error}";
+		return;
+	}
+	my @outages = @{$res->{outages}};
+
 
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
@@ -114,7 +124,10 @@ sub viewOutage {
 			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
-	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	# doesn't make sense to run the bar creator if it can't create any output anyway...
+	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},
+																			widget=>$widget, conf => $Q->{conf}, AU => $AU)
+			if ($node);
 
 	print start_table;
 
@@ -146,7 +159,7 @@ sub viewOutage {
 				textfield(-name=>'end',-id=>'id_end',-style=>'background-color:yellow;width:100%;',override=>'1',
 					-value=>NMISNG::Util::returnDateStamp($end)),div({-id=>'calendar-end'}) )
 			);
-			
+
 		print Tr(
 			td({class=>'header',align=>'left'},'Related Change Details'),
 			td({class=>'info',colspan=>'2'},
@@ -179,40 +192,67 @@ sub viewOutage {
 	print Tr(td({class=>'header',colspan=>'6'},$hd));
 
 	push @out, Tr(
-		td({class=>'header',align=>'center'},'Node'),
+		td({class=>'header',align=>'center'},'Node Selector'),
 		td({class=>'header',align=>'center'},'Start'),
 		td({class=>'header',align=>'center'},'End'),
 		td({class=>'header',align=>'center'},'Change'),
 		td({class=>'header',align=>'center'},'Status'),
 		td({class=>'header',align=>'center'},'Action')
 		);
-	foreach my $ot (NMISNG::Util::sortall($OT,'start','rev')) {
-		next unless $AU->InGroup($NT->{$OT->{$ot}{node}}{group});
-		next if $Q->{node} ne '' and $node !~ /$OT->{$ot}{node}/;
 
-		my $outage = 'closed';
-		my $color = "#FFFFFF";
-		if ($OT->{$ot}{start} <= $time and $OT->{$ot}{end} >= $time) {
-			$outage = 'current';
-			$color = "#00FF00";
-		} elsif ($OT->{$ot}{start} >= $time) {
-			$outage = 'pending';
-			$color = "#FFFF00";
+
+	for my $outage (@outages)
+	{
+
+		# no coloring/status for anything but non-recurring+current ones
+		my ($status,$color) = ($outage->{frequency},"white");
+
+		if ($outage->{frequency} eq "once")
+		{
+			if ($time >= $outage->{end})
+			{
+				$status =  'closed';
+				$color = "#FFFFFF";
+			}
+			elsif ($time < $outage->{start})
+			{
+				$status = "pending";
+			}
+			else
+			{
+				$status = 'current';
+				$color = "#00FF00";
+			}
 		}
 
+		# very rough stringification of the of the selector
+		my $visual = JSON::XS->new->encode($outage->{selector});
+
 		push @out, Tr(
-			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},$NT->{$OT->{$ot}{node}}{name}),
-			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},NMISNG::Util::returnDateStamp($OT->{$ot}{start})),
-			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},NMISNG::Util::returnDateStamp($OT->{$ot}{end})),
-			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},$OT->{$ot}{change}),
-			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},$outage),
-			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&hash=$ot&widget=$widget"},'delete'))
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},
+				 $visual),
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},
+				 $outage->{start} =~ /^\d+(\.\d+)?$/?
+				 POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($outage->{start})) : $outage->{start}),
+
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},
+				 $outage->{end} =~ /^\d+(\.\d+)?$/?
+				 POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($outage->{end})) : $outage->{end}),
+
+
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)}, $outage->{change_id}),
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)}, $status),
+			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&id=$outage->{id}&widget=$widget"},'delete'))
 			);
 	}
-	if ($#out > 0) {
+
+	if (@out)
+	{
 		print @out;
-	} else {
-		print Tr(td({class=>'info',colspan=>'6'},'No outage current',eval { return " of Node $node" if $node ne '';}));
+	}
+	else
+	{
+		print Tr(td({class=>'info',colspan=>'6'}, 'No outage current' . ($node ne ''? " of Node $node": "")));
 	}
 
 	print end_table;
@@ -281,32 +321,41 @@ sub doaddOutage {
 		return;
 	}
 
-	$change =~ s/,//g; # remove comma
+	$Q->{node} = '';			# fixme: what is that for??
+	$change =~ s/,//g; # remove comma to appease brittle event log system
 
-	my ($OT,$handle) = NMISNG::Util::loadTable(dir=>'conf',name=>'Outage',lock=>'true');
+	# process multiple node selection - which arrives \0-packed if POSTed, ie. nonwidget,
+	# or comma separated in widget mode
+	my $sep = $wantwidget? qr/\s*,\s*/ : qr/\0/;
+	my @nodes = split( $sep, $node);
 
-	# process multiple node select
-	foreach my $nd ( split(/,/,$node) ) {
-		my $outageHash = "$nd-$start-$end"; # key
-		$OT->{$outageHash}{node} = $nd;
-		$OT->{$outageHash}{start} = $start;
-		$OT->{$outageHash}{end} = $end;
-		$OT->{$outageHash}{change} = $change;
-		$OT->{$outageHash}{user} = $AU->User();
+	my $res = NMISNG::Outage::update_outage(frequency => "once",
+																					change_id => $change,
+																					start => $start,
+																					end => $end,
+																					meta => { user => $AU->User },
+																					selector => { node =>
+																												{ name =>
+																															(@nodes > 1? \@nodes : $nodes[0]) } }); # array only if more than one
+
+
+	if (!$res->{success})
+	{
+		$Q->{error} = "Failed to create outage: $res->{error}";
+		return;
 	}
-
-	NMISNG::Util::writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
-
-	$Q->{node} = '';
 }
 
-sub dodeleteOutage {
-
+# requires the outage id
+sub dodeleteOutage
+{
 	$AU->CheckAccess("Table_Outages_rw",'header');
 
-	Compat::NMIS::outageRemove(key=>$Q->{hash});
+	$Q->{node} = '';                                                        # fixme what is that for?
 
-
-	$Q->{node} = '';
+	my $res = NMISNG::Outage::remove_outage(id => $Q->{id}, meta => { user => $AU->User } );
+	if (!$res->{success})
+	{
+		$Q->{error} = "Failed to delete outage $Q->{id}: $res->{error}";
+	}
 }
-

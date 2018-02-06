@@ -390,7 +390,7 @@ sub displayEventItems {
 	printRow(1,"user",$thisevent->{user});
 	printRow(1,"notify up",$ntf_str);
 
-	my ($outage,undef) = Compat::NMIS::outageCheck($thisevent->{node},time());
+	my ($outage,undef) = NMISNG::Outage::outageCheck(node => S->nmisng_node, time => time());
 	if ( $outage eq "current" 
 			 and NMISNG::Util::getbool($thisevent->{ack},"invert") ) {
 		# check outage

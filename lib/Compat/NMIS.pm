@@ -54,6 +54,7 @@ use NMISNG;
 use NMISNG::Sys;
 use NMISNG::rrdfunc;
 use NMISNG::Notify;
+use NMISNG::Outage;
 
 
 # fixme9 these need to go and/or become state vars!
@@ -185,7 +186,7 @@ sub loadNodeTable {
 						( not defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} eq "" )
 						or
 						( defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} ne "" and $NT->{$node}{server_priority}  > $NT_cache->{$node}{server_priority} )
-					) {
+							) {
 						foreach my $k (keys %{$NT->{$node}} ) {
 							$NT_cache->{$node}{$k} = $NT->{$node}{$k};
 						}
@@ -371,9 +372,9 @@ sub loadRMENodes {
 	sysopen(DATAFILE, "$file", O_RDONLY) or warn NMISNG::Util::returnTime." loadRMENodes, Cannot open $file. $!\n";
 	flock(DATAFILE, LOCK_SH) or warn "loadRMENodes, can't lock filename: $!";
 	while (<DATAFILE>) {
-	        chomp;
+		chomp;
 		# Don't want comments
-	        if ( $_ !~ /^\;|^$ciscoHeader/ ) {
+		if ( $_ !~ /^\;|^$ciscoHeader/ ) {
 			# whack all the splits into an array
 			(@nodedetails) = split ",", $_;
 
@@ -490,8 +491,8 @@ sub nodeStatus {
 
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (NMISNG::Util::getbool($catchall_data->{ping},"invert")
-			 and ( eventExist($catchall_data->{name}, $snmp_down, "")
-						 or eventExist($catchall_data->{name}, $wmi_down_event, "")))
+			and ( eventExist($catchall_data->{name}, $snmp_down, "")
+						or eventExist($catchall_data->{name}, $wmi_down_event, "")))
 	{
 		$status = 0;
 	}
@@ -515,7 +516,7 @@ sub nodeStatus {
 		and defined $catchall_data->{status_updated}
 		and $catchall_data->{status_summary} <= 99
 		and $catchall_data->{status_updated} > time - 500
-	) {
+			) {
 		$status = -1;
 	}
 	else {
@@ -732,8 +733,8 @@ sub getSummaryStats
 
 		my $severity = "INFO";
 		NMISNG::Util::logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
-					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
-					 .($status{wmi_enabled}?"enabled":"disabled") );
+												 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+												 .($status{wmi_enabled}?"enabled":"disabled") );
 		return;
 	}
 
@@ -883,8 +884,8 @@ sub getSubconceptStats
 
 		my $severity = "INFO";
 		NMISNG::Util::logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
-					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
-					 .($status{wmi_enabled}?"enabled":"disabled") );
+												 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+												 .($status{wmi_enabled}?"enabled":"disabled") );
 		return;
 	}
 
@@ -961,101 +962,6 @@ sub getSubconceptStats
 	return;
 }
 
-# ### 2011-12-29 keiths, added for consistent nodesummary generation
-# sub getNodeSummary {
-# 	my %args = @_;
-# 	my $C = $args{C};
-# 	my $group = $args{group};
-
-# 	my $NT = loadLocalNodeTable();
-# 	my $OT = loadOutageTable();
-# 	my %nt;
-# 	my $nmisng = new_nmisng();
-
-# 	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
-# 	my $node_summary_field_list = "customer,businessService";
-# 	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
-# 		$node_summary_field_list = $C->{node_summary_field_list};
-# 	}
-
-# 	my @node_summary_properties = split(",",$node_summary_field_list);
-
-# 	foreach my $nd (keys %{$NT}) {
-# 		next if (!NMISNG::Util::getbool($NT->{$nd}{active}));
-# 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
-
-# 		# could use name here I guess
-# 		my $nmisng_node = $nmisng->node( uuid => $NT->{$nd}{uuid} );
-# 		my ($inventory,$error) = $nmisng_node->inventory( concept => 'catchall' );
-# 		$nmisng->log->error("Failed to get catchall inventory for node:$nd, error:$error") && next
-# 			if(!$inventory);
-
-# 		# we know the data here isn't changing so no need to use live data
-# 		my $catchall_data = $inventory->data();
-
-# 		$nt{$nd}{name} = $catchall_data->{name};
-# 		$nt{$nd}{group} = $catchall_data->{group};
-# 		$nt{$nd}{collect} = $catchall_data->{collect};
-# 		$nt{$nd}{active} = $NT->{$nd}{active};
-# 		$nt{$nd}{ping} = $NT->{$nd}{ping};
-# 		$nt{$nd}{netType} = $catchall_data->{netType};
-# 		$nt{$nd}{roleType} = $catchall_data->{roleType};
-# 		$nt{$nd}{nodeType} = $catchall_data->{nodeType};
-# 		$nt{$nd}{nodeModel} = $catchall_data->{nodeModel};
-# 		$nt{$nd}{nodeVendor} = $catchall_data->{nodeVendor};
-# 		$nt{$nd}{lastUpdateSec} = $catchall_data->{lastUpdateSec};
-# 		$nt{$nd}{sysName} = $catchall_data->{sysName};
-# 		$nt{$nd}{server} = $C->{'server_name'};
-
-# 		foreach my $property (@node_summary_properties) {
-# 			$nt{$nd}{$property} = $catchall_data->{$property};
-# 		}
-
-# 		$nt{$nd}{nodedown} = $catchall_data->{nodedown};
-# 		# find out if a node down event exists, and if so store
-# 		# its escalate setting
-# 		my $curescalate = undef;
-# 		if (my $eventexists = eventExist($nd, "Node Down", undef))
-# 		{
-# 			my $erec = eventLoad(filename => $eventexists);
-# 			$curescalate = $erec->{escalate} if ($erec);
-# 		}
-# 		$nt{$nd}{escalate} = $curescalate;
-
-# 		### adding node_status to the summary data
-# 		# check status from event db
-# 		my $nodestatus = nodeStatus(catchall_data => $catchall_data);
-# 		if ( not $nodestatus ) {
-# 			$nt{$nd}{nodestatus} = "unreachable";
-# 		}
-# 		elsif ( $nodestatus == -1 ) {
-# 			$nt{$nd}{nodestatus} = "degraded";
-# 		}
-# 		else {
-# 			$nt{$nd}{nodestatus} = "reachable";
-# 		}
-
-# 		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
-# 		my $outageText;
-# 		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
-# 			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
-
-# 			my $outageText = "node=$OT->{$otgHash}{node}<br>start=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{start})
-# 			."<br>end=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{end})."<br>change=$OT->{$otgHash}{change}";
-# 		}
-# 		$nt{$nd}{outage} = $otgStatus;
-# 		$nt{$nd}{outageText} = $outageText;
-
-# 		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
-# 		my $sysLocation = $catchall_data->{sysLocation};
-# 		if (($catchall_data->{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
-# 			# Node has sysLocation that is formatted for Geo Data
-# 			( my $lat, my $long, my $alt, $sysLocation) = split(',',$catchall_data->{sysLocation});
-# 		}
-# 		$nt{$nd}{sysLocation} = $sysLocation ;
-# 	}
-# 	return \%nt;
-# }
 
 ### AS 9/4/01 added getGroupSummary for doing the metric stuff centrally!
 ### AS 24/5/01 fixed so that colors show for things which aren't complete
@@ -1097,7 +1003,7 @@ sub getGroupSummary {
 		filters => { 'node_config.group' => $group },
 		group_by => $group_by,
 		include_nodes => $include_nodes
-	);
+			);
 
 	if( $error || @$entries != 1 )
 	{
@@ -1143,15 +1049,15 @@ sub getGroupSummary {
 	{
 		# new weighting for metric
 		$summaryHash{average}{metric} = sprintf("%.3f",(
-			( $summaryHash{average}{reachable} * $C->{metric_reachability} ) +
-			( $summaryHash{average}{available} * $C->{metric_availability} ) +
-			( $summaryHash{average}{health} * $C->{metric_health} ))
-		);
+																							( $summaryHash{average}{reachable} * $C->{metric_reachability} ) +
+																							( $summaryHash{average}{available} * $C->{metric_availability} ) +
+																							( $summaryHash{average}{health} * $C->{metric_health} ))
+				);
 		$summaryHash{average}{"16_metric"} = sprintf("%.3f",(
-			( $group_summary->{"16_reachable_avg"} * $C->{metric_reachability} ) +
-			( $group_summary->{"16_available_avg"} * $C->{metric_availability} ) +
-			( $group_summary->{"16_health_avg"} * $C->{metric_health} ))
-		);
+																									 ( $group_summary->{"16_reachable_avg"} * $C->{metric_reachability} ) +
+																									 ( $group_summary->{"16_available_avg"} * $C->{metric_availability} ) +
+																									 ( $group_summary->{"16_health_avg"} * $C->{metric_health} ))
+				);
 		$summaryHash{average}{metric_diff} = $summaryHash{average}{"16_metric"} - $summaryHash{average}{metric};
 	}
 
@@ -1178,23 +1084,26 @@ sub getGroupSummary {
 			++$nodecount{counttotal};
 			my $outage = '';
 			$summaryHash{$node} = $entry;
+
+			my $nodeobj = $nmisng->node(name => $node);
+
 			# check nodes
 			# Carefull logic here, if nodedown is false then the node is up
 			#print STDERR "DEBUG: node=$node nodedown=$summaryHash{$node}{nodedown}\n";
 			if (NMISNG::Util::getbool($summaryHash{$node}{nodedown})) {
 				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Down",$entry->{roleType});
 				++$nodecount{countdown};
-				($outage,undef) = outageCheck(node=>$node,time=>time());
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 			}
 			elsif (exists $C->{display_status_summary}
-				and NMISNG::Util::getbool($C->{display_status_summary})
-				and exists $summaryHash{$node}{nodestatus}
-				and $summaryHash{$node}{nodestatus} eq "degraded"
-			) {
+						 and NMISNG::Util::getbool($C->{display_status_summary})
+						 and exists $summaryHash{$node}{nodestatus}
+						 and $summaryHash{$node}{nodestatus} eq "degraded"
+					) {
 				$summaryHash{$node}{event_status} = "Error";
 				$summaryHash{$node}{event_color} = "#ffff00";
 				++$nodecount{countdegraded};
-				($outage,undef) = outageCheck(node=>$node,time=>time());
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 			}
 			else {
 				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Up",$entry->{roleType});
@@ -1426,7 +1335,8 @@ sub colorResponseTimeStatic {
 # fixme: az looks like this function should be reworked with
 # or ditched in favour of nodeStatus() and PreciseNodeStatus()
 # fixme: this also doesn't understand wmidown (properly)
-sub overallNodeStatus {
+sub overallNodeStatus
+{
 	my %args = @_;
 	my $group = $args{group};
 	my $customer = $args{customer};
@@ -1448,116 +1358,55 @@ sub overallNodeStatus {
 
 	my %statusHash;
 
+	my $nmisng = new_nmisng();
 	my $C = NMISNG::Util::loadConfTable();
 	my $NT = loadNodeTable();
 	my $NS = loadNodeSummary();
 
+	foreach $node (sort keys %{$NT} )
+	{
+		next if (!NMISNG::Util::getbool($NT->{$node}{active}));
 
-	if ( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (NMISNG::Util::getbool($NT->{$node}{active})) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} ) {
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
-					$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
+		if (
+			( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" )
+			or
+			( $netType ne "" and $roleType ne ""
+				and $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" )
+			or ($group ne "" and $NT->{$node}{group} eq $group)
+			or ($customer ne "" and $NT->{$node}{customer} eq $customer)
+			or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ ) )
+		{
+			my $nodedown = 0;
+			my $outage = "";
 
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( NMISNG::Util::getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
+			my $nodeobj = $nmisng->node(name  => $node);
 
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
+			if ( $NT->{$node}{server} eq $C->{server_name} ) {
+				### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+				my $down_event = "Node Down";
+				$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
+				$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
 
-				++$statusHash{$event_status};
-				++$statusHash{count};
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 			}
-		}
-	}
-	elsif ( $netType ne "" and $roleType ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (NMISNG::Util::getbool($NT->{$node}{active})) {
-				if ( $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" ) {
-					my $nodedown = 0;
-					my $outage = "";
-					if ( $NT->{$node}{server} eq $C->{server_name} )
-					{
-						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-						my $down_event = "Node Down";
-						$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
-						$nodedown = eventExist($node, $down_event, undef)? 1 : 0;
-
-						($outage,undef) = outageCheck(node=>$node,time=>time());
-					}
-					else {
-						$outage = $NS->{$node}{outage};
-						if ( NMISNG::Util::getbool($NS->{$node}{nodedown})) {
-							$nodedown = 1;
-						}
-					}
-
-					if ( $nodedown and $outage ne 'current' ) {
-						($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-					}
-					else {
-						($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-					}
-
-					++$statusHash{$event_status};
-					++$statusHash{count};
-				}
-			}
-		}
-	}
-	elsif ( $group ne "" or $customer ne "" or $business ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (
-				NMISNG::Util::getbool($NT->{$node}{active})
-				and ( ($group ne "" and $NT->{$node}{group} eq $group)
-							or ($customer ne "" and $NT->{$node}{customer} eq $customer)
-							or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
-						)
-			) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} )
+			else
+			{
+				$outage = $NS->{$node}{outage};
+				if ( NMISNG::Util::getbool($NS->{$node}{nodedown}))
 				{
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
-
-					$nodedown = eventExist($node, $down_event, undef)? 1:0;
-					($outage,undef) = outageCheck(node=>$node,time=>time());
+					$nodedown = 1;
 				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( NMISNG::Util::getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
-
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
-
-				++$statusHash{$event_status};
-				++$statusHash{count};
-				#print STDERR returnDateStamp()." overallNodeStatus: $node $group $event_status event=$statusHash{$event_status} count=$statusHash{count}\n";
 			}
+
+			if ( $nodedown and $outage ne 'current' ) {
+				($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
+			}
+			else {
+				($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
+			}
+
+			++$statusHash{$event_status};
+			++$statusHash{count};
 		}
 	}
 
@@ -1682,7 +1531,7 @@ sub convertConfFiles {
 
 					$NT->{$node}{rancid} = $nodeTable{$i}{rancid} || 'false';
 					$NT->{$node}{services} = $nodeTable{$i}{services} ;
-				#	$NT->{$node}{runupdate} = $nodeTable{$i}{runupdate} ;
+					#	$NT->{$node}{runupdate} = $nodeTable{$i}{runupdate} ;
 					$NT->{$node}{webserver} = 'false' ;
 					$NT->{$node}{model} = $nodeTable{$i}{model} || 'automatic';
 					$NT->{$node}{version} = $nodeTable{$i}{version} || 'snmpv2c';
@@ -1797,135 +1646,6 @@ sub loadEnterpriseTable {
 }
 
 
-sub loadOutageTable {
-	my $OT = NMISNG::Util::loadTable(dir=>'conf',name=>'Outage'); # get in cache
-}
-
-#
-# check outage of node
-# return status,key where status is pending or current, key is hash key of event table
-#
-# args: node, time (required)
-sub outageCheck
-{
-	my %args = @_;
-	my $node = $args{node};
-	my $time = $args{time};
-
-	my $OT = loadOutageTable();
-
-	# Get each of the nodes info in a HASH for playing with
-	foreach my $key (sort keys %{$OT})
-	{
-		if (($time-300) > $OT->{$key}{end})
-		{
-			outageRemove(key=>$key); # past
-		}
-		else
-		{
-			if ( $node eq $OT->{$key}{node})
-			{
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} )
-				{
-					return "current",$key;
-				}
-				elsif ($time < $OT->{$key}{start})
-				{
-					return "pending",$key;
-				}
-			}
-		}
-	}
-	# check also dependency
-	my $NT = loadNodeTable();
-	foreach my $nd ( split(/,/,$NT->{$node}{depend}) )
-	{
-		foreach my $key (sort keys %{$OT}) {
-			if ( $nd eq $OT->{$key}{node})
-			{
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} )
-				{
-					# check if this other node is down
-					my $S = NMISNG::Sys->new;
-					$S->init( name => $nd, snmp => 'false' );
-					my $status = PreciseNodeStatus(system => $S);
-					if (!$status->{overall}) # node unreachable
-					{
-						return "current",$key;
-					}
-				}
-			}
-		}
-	}
-}
-
-sub outageRemove {
-	my %args = @_;
-	my $key = $args{key};
-
-	my $C = NMISNG::Util::loadConfTable();
-	my $time = time();
-	my $string;
-
-	my ($OT,$handle) = NMISNG::Util::loadTable(dir=>'conf',name=>'Outage',lock=>'true');
-
-	# dont log pending
-	if ($time > $OT->{$key}{start})  {
-		$string = ", Node $OT->{$key}{node}, Start $OT->{$key}{start}, End $OT->{$key}{end}, "
-							."Change $OT->{$key}{change}, Closed $time, User $OT->{$key}{user}";
-	}
-
-	delete $OT->{$key};
-
-	NMISNG::Util::writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
-
-	my @problems;
-
-	if ($string ne '') {
-		# fixme9: should use a sensible log mechanism
-		# log this action but DON'T DEADLOCK - NMISNG::Util::logMsg locks, too!
-		if ( open($handle,">>$C->{outage_log}") ) {
-			if ( flock($handle, LOCK_EX) ) {
-				if ( not print $handle NMISNG::Util::returnDateStamp()." $string\n" ) {
-					push(@problems, "cannot write file $C->{outage_log}: $!");
-				}
-			} else {
-				push(@problems, "cannot lock file $C->{outage_log}: $!");
-			}
-			close $handle;
-			map { NMISNG::Util::logMsg("ERROR (nmis) $_") } (@problems);
-
-			NMISNG::Util::setFileProtDiag(file =>$C->{outage_log});
-		} else {
-			NMISNG::Util::logMsg("ERROR (nmis) cannot open file $C->{outage_log}: $!");
-		}
-	}
-}
-
-### HIGHLY EXPERIMENTAL!
-#sub sendTrap {
-#	my %arg = @_;
-#	use SNMP_util;
-#	my @servers = split(",",$arg{server});
-#	foreach my $server (@servers) {
-#		print "Sending trap to $server\n";
-#		#my($host, $ent, $agent, $gen, $spec, @vars) = @_;
-#		snmptrap(
-#			$server,
-#			".1.3.6.1.4.1.4818",
-#			"127.0.0.1",
-#			6,
-#			1000,
-#	        ".1.3.6.1.4.1.4818.1.1000",
-#	        "int",
-#	        "2448816"
-#	    );
-#    }
-#}
-
-
-
-
 # small translator from event level to priority: header for email
 sub eventToSMTPPri {
 	my $level = shift;
@@ -1957,7 +1677,7 @@ sub dutyTime {
 	my $finish_time;
 
 	if ( $$table{$contact}{DutyTime} ) {
-	    # dutytime has some values, so assume TZ offset to localtime has as well
+		# dutytime has some values, so assume TZ offset to localtime has as well
 		my @ltime = localtime( time() + ($$table{$contact}{TimeZone}*60*60));
 		my $out = sprintf("Using corrected time %s for Contact:$contact, localtime:%s, offset:$$table{$contact}{TimeZone}", scalar localtime(time()+($$table{$contact}{TimeZone}*60*60)), scalar localtime());
 		NMISNG::Util::dbg($out);
@@ -2025,7 +1745,7 @@ sub htmlGraph {
 	}
 	else {
 		my $src = "$C->{'rrddraw'}?act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
-			"&start=&end=&width=$width&height=$height&time=$time";
+				"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
 		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
 <img alt='Network Info' src="$src"></img></a>|;
@@ -2072,23 +1792,23 @@ sub createHrButtons
 			if (!NMISNG::Util::getbool($widget));
 
 	push @out, CGI::td({class=>'header litehead'},'Node ',
-			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
+										 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
 
 	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
 		push @out, CGI::td({class=>'header litehead'},
-			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 	}
 
 	if (NMISNG::Util::getbool($catchall_data->{collect})) {
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
 				if defined $NI->{status} and defined $C->{display_status_summary}
 		and NMISNG::Util::getbool($C->{display_status_summary});
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if (defined $S->{mdl}{interface});
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
 
 		# this should potentially be querying for active/not-historic
@@ -2096,26 +1816,26 @@ sub createHrButtons
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if ( @$ids > 0 )
 		{
-					push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
+			push @out, CGI::td({class=>'header litehead'},
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}
 		if ($S->getTypeInstances(graphtype => "hrsmpcpu")) {
-					push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
+			push @out, CGI::td({class=>'header litehead'},
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
 		}
 
 		# let's show the possibly many systemhealth items in a dropdown menu
@@ -2137,9 +1857,9 @@ sub createHrButtons
 	}
 
 	push @out, CGI::td({class=>'header litehead'},
-			CGI::a({class=>'wht',href=>"events.pl?conf=$confname&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
+										 CGI::a({class=>'wht',href=>"events.pl?conf=$confname&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
 	push @out, CGI::td({class=>'header litehead'},
-			CGI::a({class=>'wht',href=>"outages.pl?conf=$confname&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+										 CGI::a({class=>'wht',href=>"outages.pl?conf=$confname&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
 
 
 	# and let's combine these in a 'diagnostic' menu as well
@@ -2148,7 +1868,7 @@ sub createHrButtons
 	# drill-in for the node's collect/update time
 	push @out, CGI::li(CGI::a({class=>"wht",
 														 href=> "$C->{'<cgi_url_base>'}/node.pl?conf=$confname&act=network_graph_view&widget=false&node=$urlsafenode&graphtype=polltime",
-																 target=>"_blank"},
+														 target=>"_blank"},
 														"Collect/Update Runtime"));
 
 	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$catchall_data->{host}",target=>'_blank'},"telnet"))
@@ -2158,36 +1878,36 @@ sub createHrButtons
 		my $ssh_url = $C->{ssh_url} ? $C->{ssh_url} : "ssh://";
 		my $ssh_port = $C->{ssh_port} ? ":$C->{ssh_port}" : "";
 		push @out, CGI::li(CGI::a({class=>'wht',href=>"$ssh_url$catchall_data->{host}$ssh_port",
-										 target=>'_blank'},"ssh"));
+															 target=>'_blank'},"ssh"));
 	}
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
 			if NMISNG::Util::getbool($C->{view_ping});
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
 			if NMISNG::Util::getbool($C->{view_trace});
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
 			if NMISNG::Util::getbool($C->{view_mtr});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
 			if NMISNG::Util::getbool($C->{view_lft});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"http://$catchall_data->{host}",target=>'_blank'},"http"))
+														 href=>"http://$catchall_data->{host}",target=>'_blank'},"http"))
 			if NMISNG::Util::getbool($catchall_data->{webserver});
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
 	if ($catchall_data->{server} eq $C->{server_name}) {
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
-					if $catchall_data->{sysContact} ne '';
+											 CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+				if $catchall_data->{sysContact} ne '';
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
-					if $catchall_data->{sysLocation} ne '';
+											 CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+				if $catchall_data->{sysLocation} ne '';
 	}
 
 	push @out, "</tr></table>";
@@ -2327,34 +2047,34 @@ sub startNmisPage {
 	my $C = NMISNG::Util::loadConfTable();
 
 	print qq
-|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
-  <head>
-    <title>$title</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
-    <meta http-equiv="Expires" content="-1" />
-    <meta http-equiv="Robots" content="none" />
-    <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
-    <script src="$C->{'calendar'}" type="text/javascript"></script>
-    <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
-    <script src="$C->{'nmis_common'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
-  </head>
-  <body>
-|;
+			|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+			<html>
+			<head>
+			<title>$title</title>
+			<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+			<meta http-equiv="Pragma" content="no-cache" />
+			<meta http-equiv="Cache-Control" content="no-cache, no-store" />
+			<meta http-equiv="Expires" content="-1" />
+			<meta http-equiv="Robots" content="none" />
+			<meta http-equiv="Googlebot" content="noarchive" />
+			<link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+			<script src="$C->{'jquery'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
+			<script src="$C->{'calendar'}" type="text/javascript"></script>
+			<script src="$C->{'calendar_setup'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
+			<script src="$C->{'nmis_common'}" type="text/javascript"></script>
+			<script src="$C->{'highstock'}" type="text/javascript"></script>
+			<script src="$C->{'chart'}" type="text/javascript"></script>
+			</head>
+			<body>
+			|;
 	return 1;
 }
 
@@ -2370,30 +2090,30 @@ sub pageStart {
 	my $C = NMISNG::Util::loadConfTable();
 
 	print qq
-|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
-  <head>
-    <title>$title</title>
-    <meta http-equiv="refresh" content="$refresh" />
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
-    <meta http-equiv="Expires" content="-1" />
-    <meta http-equiv="Robots" content="none" />
-    <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
-    <script>
-$jscript
-</script>
-  </head>
-  <body>
-|;
+			|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+			<html>
+			<head>
+			<title>$title</title>
+			<meta http-equiv="refresh" content="$refresh" />
+			<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+			<meta http-equiv="Pragma" content="no-cache" />
+			<meta http-equiv="Cache-Control" content="no-cache, no-store" />
+			<meta http-equiv="Expires" content="-1" />
+			<meta http-equiv="Robots" content="none" />
+			<meta http-equiv="Googlebot" content="noarchive" />
+			<link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+			<script src="$C->{'jquery'}" type="text/javascript"></script>
+			<script src="$C->{'highstock'}" type="text/javascript"></script>
+			<script src="$C->{'chart'}" type="text/javascript"></script>
+			<script>
+			$jscript
+			</script>
+			</head>
+			<body>
+			|;
 }
 
 
@@ -2407,35 +2127,35 @@ sub pageStartJscript {
 	my $C = NMISNG::Util::loadConfTable();
 
 	print qq
-|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
-  <head>
-    <title>$title</title>
-    <meta http-equiv="refresh" content="$refresh" />
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
-    <meta http-equiv="Expires" content="-1" />
-    <meta http-equiv="Robots" content="none" />
-    <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
-    <script src="$C->{'calendar'}" type="text/javascript"></script>
-    <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
-    <script src="$C->{'nmis_common'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
-  </head>
-  <body>
-|;
+			|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+			<html>
+			<head>
+			<title>$title</title>
+			<meta http-equiv="refresh" content="$refresh" />
+			<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+			<meta http-equiv="Pragma" content="no-cache" />
+			<meta http-equiv="Cache-Control" content="no-cache, no-store" />
+			<meta http-equiv="Expires" content="-1" />
+			<meta http-equiv="Robots" content="none" />
+			<meta http-equiv="Googlebot" content="noarchive" />
+			<link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+			<script src="$C->{'jquery'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
+			<script src="$C->{'calendar'}" type="text/javascript"></script>
+			<script src="$C->{'calendar_setup'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
+			<script src="$C->{'nmis_common'}" type="text/javascript"></script>
+			<script src="$C->{'highstock'}" type="text/javascript"></script>
+			<script src="$C->{'chart'}" type="text/javascript"></script>
+			</head>
+			<body>
+			|;
 	return 1;
 }
 
@@ -2446,15 +2166,15 @@ sub pageEnd {
 
 sub getJavaScript {
 	my $jscript = <<JS_END;
-function viewwndw(wndw,url,width,height)
-{
-	var attrib = "scrollbars=yes,resizable=yes,width=" + width + ",height=" + height;
-	ViewWindow = window.open(url,wndw,attrib);
-	ViewWindow.focus();
-};
-JS_END
+	function viewwndw(wndw,url,width,height)
+	{
+		var attrib = "scrollbars=yes,resizable=yes,width=" + width + ",height=" + height;
+		ViewWindow = window.open(url,wndw,attrib);
+		ViewWindow.focus();
+	};
+	JS_END
 
-	return $jscript;
+			return $jscript;
 }
 
 ### 2012-03-09 keiths, summary sub to avoid changing much other code
@@ -2681,8 +2401,8 @@ sub eventDelete
 			and $historydirname and -d $historydirname)
 	{
 		my $newfn = "$historydirname/".time."-".basename($efn);
-			rename($efn, $newfn)
-					or return"could not move event file $efn to history: $!";
+		rename($efn, $newfn)
+				or return"could not move event file $efn to history: $!";
 	}
 	else
 	{
@@ -2780,7 +2500,7 @@ sub loadServiceStatus
 
 		push @selectors, ( "node_uuid" =>  $noderec->uuid,
 											 "cluster_id" => $noderec->cluster_id,
-											);
+		);
 	}
 	push @selectors, ("cluster_id" => $wantcluster) if ($wantcluster);
 	push @selectors, ("data.service" => $wantservice ) if ($wantservice);
@@ -3104,7 +2824,7 @@ sub eventAdd
 	my $existing = undef;
 	if (-f $efn)
 	{
-	    $existing = eventLoad(filename => $efn);
+		$existing = eventLoad(filename => $efn);
 	}
 
 	# is this an already EXISTING stateless event?
@@ -3133,9 +2853,9 @@ sub eventAdd
 	# before we log, check the state if there is an event and if it's current
 	elsif ( ref($existing) eq "HASH" && NMISNG::Util::getbool($existing->{current}) )
 	{
-	    NMISNG::Util::dbg("event exists, node=$node, event=$event, level=$level, element=$element, details=$details");
-	    NMISNG::Util::logMsg("ERROR cannot add event=$event, node=$node: already exists, is current and not stateless!");
-	    return "cannot add event: already exists, is current and not stateless!";
+		NMISNG::Util::dbg("event exists, node=$node, event=$event, level=$level, element=$element, details=$details");
+		NMISNG::Util::logMsg("ERROR cannot add event=$event, node=$node: already exists, is current and not stateless!");
+		return "cannot add event: already exists, is current and not stateless!";
 	}
 	# doesn't exist or isn't current
 	# fixme: existing but not current isn't cleanly handled here
@@ -3261,20 +2981,23 @@ sub checkEvent
 		{
 			$event =~ s/down/Up/i;
 		}
+		elsif ($event =~ /\Wopen($|\W)/i)
+		{
+			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
+		}
 
 		# event was renamed/inverted/massaged, need to get the right control record
 		# this is likely not needed
 		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
-		$details .= " Time=$outage";
+		$details .= ($details? " " : "") . "Time=$outage";
+
 
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
-		my $OT = loadOutageTable();
-
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		my ($otg,$outageinfo) = NMISNG::Outage::outageCheck(node => $S->nmisng_node, time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= ($details? " ":""). "outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# now we save the new up event, and move the old down event into history
@@ -3323,7 +3046,7 @@ sub checkEvent
 				level => $level,
 				element => $element,
 				details => $details
-			);
+					);
 		}
 	}
 }
@@ -3397,12 +3120,10 @@ sub notify
 		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
 												or NMISNG::Util::getbool($thisevent_control->{Stateful}))? "false": "true";
 
-		### 2016-04-30 ks adding outage tagging to event when opened.
-		my $OT = loadOutageTable();
 
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		my ($otg,$outageinfo) = NMISNG::Outage::outageCheck(node => $S->nmisng_node, time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# Create and store this new event; record whether stateful or not
@@ -3528,7 +3249,7 @@ sub update_nodeconf
 		$node->overrides( {} );
 		my $op = $node->save();
 		return "Could not remove nodeconf for $nodename"
-			if ($op < 1);
+				if ($op < 1);
 	}
 	# we overwrite whatever may have been there
 	else
@@ -3537,7 +3258,7 @@ sub update_nodeconf
 		$node->overrides( $data );
 		my $op = $node->save();
 		return "Error saving nodeconf for $nodename"
-			if ($op < 1);
+				if ($op < 1);
 	}
 	return;
 }

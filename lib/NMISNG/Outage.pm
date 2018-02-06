@@ -583,4 +583,81 @@ sub check_outages
 	return { success => 1,  past => \@past, current => \@current, future => \@future };
 }
 
+
+# a compat wrapper around check_outages
+# checks outage(s) for one node X and all nodes that X depends on
+#
+#
+# fixme: why check dependency nodes at all? why only if those are down?
+# and only if no direct future outages?
+#
+# args: node (node object!), time (unix ts), both required
+# returns: nothing or ('current', FIRST current outage record)
+# or ('pending', FIRST future outage)
+#
+sub outageCheck
+{
+	my %args = @_;
+
+	my $node = $args{node};
+	my $time = $args{time};
+
+	if (ref($node) ne "NMISNG::Node")
+	{
+		NMISNG::Util::logMsg("ERROR invalid node argument!");
+		return;
+	}
+	my $nmisng = $node->nmisng;
+	my $nodename = $node->name;
+
+	my $nodeoutages = check_outages(node => $node, time => $time);
+	if (!$nodeoutages->{success})
+	{
+		$nmisng->log->error("failed to check $nodename outages: $nodeoutages->{error}");
+		return;
+	}
+
+	if (@{$nodeoutages->{current}})
+	{
+		return ("current", $nodeoutages->{current}->[0]);
+	}
+	elsif (@{$nodeoutages->{future}})
+	{
+		return ("pending", $nodeoutages->{future}->[0]);
+	}
+
+	# if neither current nor future, check dependency nodes with
+	# current outages and that are down
+	foreach my $nd ( split(/,/,$node->configuration->{depend}) )
+	{
+		# ignore nonexistent stuff, defaults and circular self-dependencies
+		next if ($nd =~ m!^(N/A|$nodename)?$!);
+		my $depnode = $nmisng->node(name => $nd);
+		my $depoutages = check_outages(node => $depnode, time => $time);
+		if (!$depoutages->{success})
+		{
+			$nmisng->log->error("failed to check $nd outages: $depoutages->{error}");
+			return;
+		}
+		if (@{$depoutages->{current}})
+		{
+			# check if this node is down
+			my ($catchall_inv, $error) = $depnode->inventory(concept => "catchall");
+			if ($error)
+			{
+				$nmisng->log->error("failed to load inventory for $nd: $error");
+				return;
+			}
+			my $catchall_data = $catchall_inv? $catchall_inv->data : {};
+
+			if (getbool($catchall_data->{nodedown}))
+			{
+				return ("current", $depoutages->{current}->[0]);
+			}
+		}
+	}
+	return;
+}
+
+
 1;

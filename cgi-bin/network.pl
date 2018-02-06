@@ -371,7 +371,7 @@ sub getSummaryStatsbyGroup
 		business => $business,
 		include_nodes => $include_nodes
 	);
-	
+
 	$overallStatus = Compat::NMIS::overallNodeStatus( group => $group, customer => $customer, business => $business );
 	$overallColor = NMISNG::Util::eventColor($overallStatus);
 
@@ -381,7 +381,7 @@ sub getSummaryStatsbyGroup
 	foreach my $t (@h)
 	{
 		# defaults
-		#$icon{${t}} = 'arrow_down_black';		
+		#$icon{${t}} = 'arrow_down_black';
 		if ( $groupSummary->{average}{"${t}_dif"} + ( $C->{average_diff} )  >= 0 )
 		{
 			$icon{${t}} = ( $t eq "response" ) ? 'arrow_up_red' : 'arrow_up';
@@ -1420,7 +1420,7 @@ sub selectLarge
 			{
 				# defaults
 				#$icon{${t}} = 'arrow_down_black';
-				
+
 				if ( $groupSummary->{$node}{"${t}_dif"} + ( $C->{average_diff} )  >= 0 )
 				{
 					$icon{${t}} = ( $t eq "response" ) ? 'arrow_up_red' : 'arrow_up';
@@ -1599,7 +1599,7 @@ sub viewPollingSummary
 				{
 					my $ifentry = $oneif->{data}; # oneif is an inventory datastructure (but not object)
 					# data area contains old-style info
-					
+
 					++$sum->{count}{interface};
 					++$sum->{ifType}->{ $ifentry->{ifType} };
 					if ( NMISNG::Util::getbool( $ifentry->{collect} ) )
@@ -1624,12 +1624,12 @@ sub viewPollingSummary
 					{
 						++$sum->{$cbqos}->{interface};
 						# we want the number  of classes == same as number of subconcepts
-						
+
 						$sum->{$cbqos}->{classes} += scalar(@{$oneclass->{subconcepts}});
 					}
 				}
 			}
-			
+
 			if ( NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 			{
 				++$sum->{count}{collect};
@@ -1914,10 +1914,28 @@ EO_HTML
 
 	# fallback/default order and set of propertiess for displaying all information
 	my @order = (
-		'status',          'sysName',       'host_addr',  'group',    'customer',   'location',
-		'businessService', 'serviceStatus', 'notes',      'nodeType', 'nodeModel',  'sysUpTime',
-		'ifNumber',        'sysLocation',   'sysContact', 'sysDescr', 'lastUpdate', 'nodeVendor',
-		'sysObjectName',   'roleType',      'netType'
+		'status',
+		'outage',
+		'sysName',
+		'host_addr',
+		'group',
+    'customer',
+		'location',
+		'businessService',
+		'serviceStatus',
+		'notes',
+		'nodeType',
+		'nodeModel',
+		'sysUpTime',
+		'ifNumber',
+		'sysLocation',
+		'sysContact',
+		'sysDescr',
+		'lastUpdate',
+		'nodeVendor',
+		'sysObjectName',
+		'roleType',
+		'netType'
 	);
 
 	# the fallback is overruled and the list can be extended with custom properties
@@ -2032,120 +2050,137 @@ EO_HTML
 						)
 						|| $k;
 
-					# print STDERR "DEBUG: k=$k, title=$title\n";
+					next if ($title eq '');
 
-					if ( $title ne '' )
+					my $color = $V->{system}{"${k}_color"} || '#FFF';
+					my $gurl = $V->{system}{"${k}_gurl"}; # create new window
+
+					# existing window, possibly widgeted or not
+					# but that's unknown when nmis.pl creates the view entry!
+					my $url;
+					if ($V->{system}{"${k}_url"})
 					{
-						my $color = $V->{system}{"${k}_color"} || '#FFF';
-						my $gurl = $V->{system}{"${k}_gurl"};    # create new window
+						my $u = URI->new($V->{system}{"${k}_url"});
+						$u->query_param("widget" => ($wantwidget? "true": "false"));
+						$url = $u->as_string;
+					}
 
-						# existing window, possibly widgeted or not
-						# but that's unknown when collect run creates the view entry!
-						my $url;
-						if ( $V->{system}{"${k}_url"} )
+					my $value;
+					# get the value from the view if it one of the special ones, or only present there
+					if ( $k
+							 =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
+							 or not exists( $catchall_data->{$k} ) )
+					{
+						$value = $V->{system}{"${k}_value"};
+					}
+					else
+					{
+						$value = $catchall_data->{$k};
+					}
+
+
+					# escape the input if there's anything in need of escaping;
+					# we don't want doubly-escaped uglies.
+					$value = escapeHTML($value) if ( $value =~ /[<>]/ );
+
+					$color = NMISNG::Util::colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
+					$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
+
+					# a few special ones
+					if ( $k eq 'status' )
+					{
+						if ( !$status{overall} )
 						{
-							my $u = URI->new( $V->{system}{"${k}_url"} );
-							$u->query_param( "widget" => ( $wantwidget ? "true" : "false" ) );
-							$url = $u->as_string;
+							$value = "unreachable";
+							$color = "#F00";
 						}
-
-						my $value;
-
-						# get the value from the view if it one of the special ones, or only present there
-						if ( $k
-							=~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
-							or not exists( $catchall_data->{$k} ) )
+						elsif ( $status{overall} == -1 )
 						{
-							$value = $V->{system}{"${k}_value"};
+							$value = "degraded";
+							$color = "#FF0";
 						}
 						else
 						{
-							$value = $catchall_data->{$k};
+							$value = "reachable";
+							$color = "#0F0";
 						}
+					}
+					# from outageCheck, neither nodeinfo nor view
+					elsif ($k eq 'outage')
+					{
+						my ($outagestatus, $nextoutage) = NMISNG::Outage::outageCheck(node => $nmisng_node,
+																																					time => time());
 
-						# escape the input if there's anything in need of escaping;
-						# we don't want doubly-escaped uglies.
-						$value = escapeHTML($value) if ( $value =~ /[<>]/ );
+						# slightly special: don't show this row unless current or pending
+						next if (!$outagestatus);
 
-						$color = NMISNG::Util::colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
-						$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
-
-						if ( $k eq 'status' )
+						$title = "Outage Status";
+						if ($outagestatus eq "current")
 						{
-							if ( !$status{overall} )
-							{
-								$value = "unreachable";
-								$color = "#F00";
-							}
-							elsif ( $status{overall} == -1 )
-							{
-								$value = "degraded";
-								$color = "#FF0";
-							}
-							else
-							{
-								$value = "reachable";
-								$color = "#0F0";
-							}
+							$value = "Outage \"".($nextoutage->{change_id} || $nextoutage->{description})."\" is Current";
+							$color = eventColor("Warning");
 						}
-
-						if ( $k eq 'lastUpdate' )
+						else
 						{
-							# check lastupdate
-							my $time = $catchall_data->{last_poll};
-							if ( $time ne "" )
+							$value = "Planned Future Outage \"".($nextoutage->{change_id} || $nextoutage->{description}).'"';
+							$color = eventColor("Normal"); # it's not active yet, let's show it as good/green/whatever
+						}
+					}
+					elsif ($k eq 'lastUpdate')
+					{
+						# check lastupdate
+						my $time = $catchall_data->{last_poll};
+						if ( $time ne "" )
+						{
+							if ( $time < ( time - 60 * 15 ) )
 							{
-								if ( $time < ( time - 60 * 15 ) )
-								{
-									$color = "#ffcc00";    # to late
-								}
+								$color = "#ffcc00";    # too late
 							}
 						}
-
-						if ( $k eq 'TimeSinceTopologyChange' and $catchall_data->{TimeSinceTopologyChange} =~ /\d+/ )
+					}
+					elsif ( $k eq 'TimeSinceTopologyChange' and $catchall_data->{TimeSinceTopologyChange} =~ /\d+/ )
+					{
+						if ( $value ne "N/A" )
 						{
-							if ( $value ne "N/A" )
-							{
-								# convert to uptime format, time since change
-								$value = NMISNG::Util::convUpTime( $catchall_data->{TimeSinceTopologyChange} / 100 );
+							# convert to uptime format, time since change
+							$value = NMISNG::Util::convUpTime( $catchall_data->{TimeSinceTopologyChange} / 100 );
 
-								# did this reset in the last 1 h
-								if ( $catchall_data->{TimeSinceTopologyChange} / 100 < 360000 )
-								{
-									$color = "#ffcc00";    # to late
-								}
+							# did this reset in the last 1 h
+							if ( $catchall_data->{TimeSinceTopologyChange} / 100 < 360000 )
+							{
+								$color = "#ffcc00";    # to late
 							}
 						}
+					}
 
-						### 2012-02-21 keiths, fixed popup window not opening correctly.
-						my $content = $value;
-						if ($gurl)
-						{
-							$content = a(
-								{   target  => "Graph-$node",
+					### 2012-02-21 keiths, fixed popup window not opening correctly.
+					my $content = $value;
+					if ($gurl)
+					{
+						$content = a(
+							{   target  => "Graph-$node",
 									onClick => "viewwndw(\'$node\',\'$gurl\',$C->{win_width},$C->{win_height})"
-								},
-								"$value"
-							);
-						}
-						elsif ($url)
-						{
-							$content = a( {href => $url}, $value );
-						}
+							},
+							"$value"
+								);
+					}
+					elsif ($url)
+					{
+						$content = a( {href => $url}, $value );
+					}
 
-						my $printData = 1;
-						$printData = 0 if $k eq "customer"        and not Compat::NMIS::tableExists('Customers');
-						$printData = 0 if $k eq "businessService" and not Compat::NMIS::tableExists('BusinessServices');
-						$printData = 0 if $k eq "serviceStatus"   and not Compat::NMIS::tableExists('ServiceStatus');
-						$printData = 0 if $k eq "location"        and not Compat::NMIS::tableExists('Locations');
+					my $printData = 1;
+					$printData = 0 if $k eq "customer"        and not Compat::NMIS::tableExists('Customers');
+					$printData = 0 if $k eq "businessService" and not Compat::NMIS::tableExists('BusinessServices');
+					$printData = 0 if $k eq "serviceStatus"   and not Compat::NMIS::tableExists('ServiceStatus');
+					$printData = 0 if $k eq "location"        and not Compat::NMIS::tableExists('Locations');
 
 						if ($printData)
 						{
 							push @out,
-								Tr( td( {class => 'info Plain'}, escapeHTML($title) ),
-								td( {class => 'info Plain', style => NMISNG::Util::getBGColor($color)}, $content ) );
+							Tr( td( {class => 'info Plain'}, escapeHTML($title) ),
+									td( {class => 'info Plain', style => NMISNG::Util::getBGColor($color)}, $content ) );
 						}
-					}
 				}
 
 				# display events for this one node - also close one if asked to
@@ -2155,11 +2190,11 @@ EO_HTML
 					my $usermayclose = $AU->CheckAccess( "src_events", "check" );
 
 					my $closemeurl
-						= url( -absolute => 1 )
-						. "?conf=$Q->{conf}&amp;act=network_node_view"
-						. "&amp;widget=$widget"
-						. "&amp;node="
-						. uri_escape($node);
+							= url( -absolute => 1 )
+							. "?conf=$Q->{conf}&amp;act=network_node_view"
+							. "&amp;widget=$widget"
+							. "&amp;node="
+							. uri_escape($node);
 
 					for my $eventkey ( sort keys %nodeevents )
 					{
@@ -2170,8 +2205,8 @@ EO_HTML
 
 						# is this the event to close? same node, same name, element the same
 						if (   $usermayclose
-							&& $Q->{closeevent} eq $thisevent->{event}
-							&& $Q->{closeelement} eq $thisevent->{element} )
+									 && $Q->{closeevent} eq $thisevent->{event}
+									 && $Q->{closeelement} eq $thisevent->{element} )
 						{
 							Compat::NMIS::checkEvent(
 								sys     => $S,
@@ -2179,7 +2214,7 @@ EO_HTML
 								event   => $thisevent->{event},
 								element => $thisevent->{element},
 								details => "closed from GUI"
-							);
+									);
 							next;    # event is gone, don't show it
 						}
 
@@ -2189,14 +2224,14 @@ EO_HTML
 						if ($usermayclose)
 						{
 							my $closethisurl
-								= $closemeurl
-								. "&amp;closeevent="
-								. uri_escape( $thisevent->{event} )
-								. "&amp;closeelement="
-								. uri_escape( $thisevent->{element} );
+									= $closemeurl
+									. "&amp;closeevent="
+									. uri_escape( $thisevent->{event} )
+									. "&amp;closeelement="
+									. uri_escape( $thisevent->{element} );
 
 							push @ecolumn,
-								qq|<a href='$closethisurl' title="Close this Event"><img src="$C->{'<menu_url_base>'}/img/v8/icons/note_delete.gif"></a>|;
+							qq|<a href='$closethisurl' title="Close this Event"><img src="$C->{'<menu_url_base>'}/img/v8/icons/note_delete.gif"></a>|;
 						}
 
 						my $state = NMISNG::Util::getbool( $thisevent->{ack}, "invert" ) ? 'active' : 'inactive';
@@ -2204,12 +2239,12 @@ EO_HTML
 						$details = "$thisevent->{element} $details" if ( $thisevent->{event} =~ /^Proactive|^Alert/ );
 						$details = $thisevent->{element}            if ( !$details );
 						push @out,
-							Tr(
+						Tr(
 							td( {class => 'info Plain'}, join( "", @ecolumn ) ),
 							td( {class => 'info Plain'},
-								"$thisevent->{event} - $details, Escalate $thisevent->{escalate}, $state"
+									"$thisevent->{event} - $details, Escalate $thisevent->{escalate}, $state"
 							)
-							);
+								);
 					}
 				}
 
@@ -4339,7 +4374,7 @@ sub viewTop10
 					historic => 0,
 					subconcepts => "nodehealth",
 					"dataset_info.datasets" => "avgBusy5" } );
-			if ($result->{success} 
+			if ($result->{success}
 					&& $result->{model_data}->count
 					&& NMISNG::Util::getbool( $catchall_data->{collect} ))
 			{
@@ -4356,19 +4391,19 @@ sub viewTop10
 				);
 			}
 
-			my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface', 
+			my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface',
 																												 filter => { historic => 0 });
 			if ($intfresult->{success})
 			{
 				foreach my $entry ( @{$intfresult->{model_data}->data})
 				{
 					my $thisintf = $entry->{data};
-					
+
 					if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
 					{
 						# availability, inputUtil, outputUtil, totalUtil
 						my $intf = $thisintf->{ifIndex}; # === index
-						
+
 						# Availability, inputBits, outputBits
 						my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
 																											index => $intf );
@@ -4651,10 +4686,10 @@ sub nodeAdminSummary
 
 				my $S          = NMISNG::Sys->new;    # get system object
 				$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-				
+
 
 				my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-				my $result = $S->nmisng_node->get_inventory_model( concept => 'interface', 
+				my $result = $S->nmisng_node->get_inventory_model( concept => 'interface',
 																													 filter => { historic => 0 });
 				# Is the node active and are we doing stats on it.
 				if ( NMISNG::Util::getbool( $LNT->{$node}{active} )

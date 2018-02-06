@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::rrdfunc;
-our $VERSION = "2.4.0";
+our $VERSION = "2.5.0";
 
 use strict;
 use feature 'state';
@@ -64,12 +64,12 @@ sub require_RRDs
 			# ones are added dynamically, too!
 			if (-d "$loc/$Config{archname}/auto")
 			{
-					unshift @INC, "$loc/$Config{archname}";
+				unshift @INC, "$loc/$Config{archname}";
 			}
 			for my $extras ("$loc/$Config{version}",
 											"$loc/$Config{version}/$Config{archname}")
 			{
-					unshift @INC, $extras if (-d $extras);
+				unshift @INC, $extras if (-d $extras);
 			}
 		}
 		require RRDs;
@@ -136,11 +136,11 @@ sub getRRDasHash
 			my $hour = $timecomponents[2];
 			if (!$mustcheckhours or
 					(
-						# between from (incl) and to (excl) hour if not inverted
-						( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
-						or
-						# before to (excl) or after from (incl) hour if inverted,
-						( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
+					 # between from (incl) and to (excl) hour if not inverted
+					 ( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
+					 or
+					 # before to (excl) or after from (incl) hour if inverted,
+					 ( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
 			{
 				$s{$time}{time} = $time;
 				# we DON'T want to rerun localtime() again, so no NMISNG::Util::returnDateStamp()
@@ -205,17 +205,17 @@ sub getRRDStats
 			my $hour = $timecomponents[2];
 			for(my $b = 0; $b <= $#{$data->[$a]}; ++$b)
 			{
-					if ( defined $data->[$a][$b]
-							 and
-							 (
-								 # between from (incl) and to (excl) hour if not inverted
-								 ( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
-								 or
-								 # before to (excl) or after from (incl) hour if inverted,
-								 ( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
-					{
-							push(@{$s{$name->[$b]}{values}},$data->[$a][$b]);
-					}
+				if ( defined $data->[$a][$b]
+						 and
+						 (
+							# between from (incl) and to (excl) hour if not inverted
+							( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
+							or
+							# before to (excl) or after from (incl) hour if inverted,
+							( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
+				{
+					push(@{$s{$name->[$b]}{values}},$data->[$a][$b]);
+				}
 			}
 			$time = $time + $step;
 		}
@@ -290,46 +290,46 @@ sub addDStoRRD
 	#prepare inserts
 	foreach my $ds (@ds) {
 		if ( $ds =~ /^DS:([a-zA-Z0-9_]{1,19}):(\w+):(\d+):([\dU]+):([\dU]+)/) {
-				# Variables
-				my $dsName      = $1;
-				my $dsType      = $2;
-				my $dsHeartBeat = $3;
-				my $dsMin       = $4 eq 'U' ? 'NaN' : $4;
-				my $dsMax       = $5 eq 'U' ? 'NaN' : $5;
+			# Variables
+			my $dsName      = $1;
+			my $dsType      = $2;
+			my $dsHeartBeat = $3;
+			my $dsMin       = $4 eq 'U' ? 'NaN' : $4;
+			my $dsMax       = $5 eq 'U' ? 'NaN' : $5;
 
-				if ( $dsType !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE)$/ )
-				{
-					NMISNG::Util::logMsg("ERROR, unknown DS type in $ds");
-					$stats{error} = "unknown DS type in $ds";
-					return undef;
-				}
-				if ($xml =~ /<name> $dsName </)
-				{
-					NMISNG::Util::logMsg("DS $ds already in database $ds");
-				}
-				else
-				{
+			if ( $dsType !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE)$/ )
+			{
+				NMISNG::Util::logMsg("ERROR, unknown DS type in $ds");
+				$stats{error} = "unknown DS type in $ds";
+				return undef;
+			}
+			if ($xml =~ /<name> $dsName </)
+			{
+				NMISNG::Util::logMsg("DS $ds already in database $ds");
+			}
+			else
+			{
 				$DSname .= "	<ds>
-			<name> $dsName </name>
-			<type> $dsType </type>
-			<minimal_heartbeat> $dsHeartBeat </minimal_heartbeat>
-			<min> $dsMin </min>
-			<max> $dsMax </max>
+<name> $dsName </name>
+<type> $dsType </type>
+<minimal_heartbeat> $dsHeartBeat </minimal_heartbeat>
+<min> $dsMin </min>
+<max> $dsMax </max>
 
-			<!-- PDP Status -->
-			<last_ds> UNKN </last_ds>
-			<value> 0.0000000000e+00 </value>
-			<unknown_sec> 0 </unknown_sec>
-		</ds>\n";
+<!-- PDP Status -->
+<last_ds> UNKN </last_ds>
+<value> 0.0000000000e+00 </value>
+<unknown_sec> 0 </unknown_sec>
+</ds>\n";
 
 				$DSvalue = $DSvalue eq "" ? "<v> NaN " : "$DSvalue </v><v> NaN ";
 
 				if ($version > 11) {
 					$DSprep .= "
-				 <ds>
-				<primary_value> 0.0000000000e+00 </primary_value>
-				<secondary_value> 0.0000000000e+00 </secondary_value>
-				<value> NaN </value>  <unknown_datapoints> 0 </unknown_datapoints></ds>\n";
+<ds>
+<primary_value> 0.0000000000e+00 </primary_value>
+<secondary_value> 0.0000000000e+00 </secondary_value>
+<value> NaN </value>  <unknown_datapoints> 0 </unknown_datapoints></ds>\n";
 				} else {
 					$DSprep .= "<ds><value> NaN </value>  <unknown_datapoints> 0 </unknown_datapoints></ds>\n";
 				}
@@ -344,64 +344,64 @@ sub addDStoRRD
 			# check priv.
 			if ( -w $rrd )
 			{
-		 		# Move the old source
-	   			if (rename($rrd,$rrd.".bak"))
-					{
-						NMISNG::Util::dbg("$rrd moved to $rrd.bak");
-						if ( -e "$rrd.xml" ) {
-							# from previous action
-							unlink $rrd.".xml";
-							NMISNG::Util::dbg("$rrd.xml deleted (previous action)");
+				# Move the old source
+				if (rename($rrd,$rrd.".bak"))
+				{
+					NMISNG::Util::dbg("$rrd moved to $rrd.bak");
+					if ( -e "$rrd.xml" ) {
+						# from previous action
+						unlink $rrd.".xml";
+						NMISNG::Util::dbg("$rrd.xml deleted (previous action)");
+					}
+					# update xml and rite output
+					if (open(OUTF, ">$rrd.xml")) {
+						foreach my $line (split(/\n/,$xml)) {
+							if ( $line=~ /Round Robin Archives/ ) {
+								print OUTF $DSname.$line;
+							} elsif ($line =~ /^(.+?<row>)(.+?)(<\/row>.*)$/) {
+								my @datasources_in_entry = split(/<\/v>/, $2);
+								splice(@datasources_in_entry, 999, 0, "$DSvalue");
+								my $new_line = join("</v>", @datasources_in_entry);
+								print OUTF "$1$new_line</v>$3\n";
+							} elsif ($line =~ /<\/cdp_prep>/) {
+								print OUTF $DSprep.$line ;
+							} else {
+								print OUTF $line;
+							}
 						}
-						# update xml and rite output
-						if (open(OUTF, ">$rrd.xml")) {
-							foreach my $line (split(/\n/,$xml)) {
-								if ( $line=~ /Round Robin Archives/ ) {
-									print OUTF $DSname.$line;
-								} elsif ($line =~ /^(.+?<row>)(.+?)(<\/row>.*)$/) {
-									my @datasources_in_entry = split(/<\/v>/, $2);
-									splice(@datasources_in_entry, 999, 0, "$DSvalue");
-									my $new_line = join("</v>", @datasources_in_entry);
-									print OUTF "$1$new_line</v>$3\n";
-								} elsif ($line =~ /<\/cdp_prep>/) {
-									print OUTF $DSprep.$line ;
-								} else {
-									print OUTF $line;
-								}
-							}
-							close (OUTF);
-							NMISNG::Util::dbg("xml written to $rrd.xml");
-							# Re-import
-							RRDs::restore($rrd.".xml",$rrd);
-							if (my $ERROR = RRDs::error() )
-							{
-								NMISNG::Util::logMsg("update ERROR database=$rrd: $ERROR");
-								$stats{error} = "update database=$rrd: $ERROR";
-							}
-							else
-							{
-								NMISNG::Util::dbg("$rrd created");
-								NMISNG::Util::setFileProtDiag(file =>$rrd); # set file owner/permission, default: nmis, 0775
-								unlink $rrd.".xml";
-								NMISNG::Util::dbg("$rrd.xml deleted");
-								unlink $rrd.".bak";
-								NMISNG::Util::dbg("$rrd.bak deleted");
-								NMISNG::Util::logMsg("INFO DataSource @ds added to $rrd");
-								return 1;
-							}
+						close (OUTF);
+						NMISNG::Util::dbg("xml written to $rrd.xml");
+						# Re-import
+						RRDs::restore($rrd.".xml",$rrd);
+						if (my $ERROR = RRDs::error() )
+						{
+							NMISNG::Util::logMsg("update ERROR database=$rrd: $ERROR");
+							$stats{error} = "update database=$rrd: $ERROR";
 						}
 						else
 						{
-							NMISNG::Util::logMsg("ERROR, could not open $rrd.xml for writing: $!");
-							$stats{error} = "could not open $rrd.xml for writing: $!";
-							rename($rrd.".bak",$rrd); # backup
+							NMISNG::Util::dbg("$rrd created");
+							NMISNG::Util::setFileProtDiag(file =>$rrd); # set file owner/permission, default: nmis, 0775
+							unlink $rrd.".xml";
+							NMISNG::Util::dbg("$rrd.xml deleted");
+							unlink $rrd.".bak";
+							NMISNG::Util::dbg("$rrd.bak deleted");
+							NMISNG::Util::logMsg("INFO DataSource @ds added to $rrd");
+							return 1;
 						}
 					}
 					else
 					{
-						NMISNG::Util::logMsg("ERROR, cannot rename $rrd: $!");
-						$stats{error} = "cannot rename $rrd: $!";
+						NMISNG::Util::logMsg("ERROR, could not open $rrd.xml for writing: $!");
+						$stats{error} = "could not open $rrd.xml for writing: $!";
+						rename($rrd.".bak",$rrd); # backup
 					}
+				}
+				else
+				{
+					NMISNG::Util::logMsg("ERROR, cannot rename $rrd: $!");
+					$stats{error} = "cannot rename $rrd: $!";
+				}
 			}
 			else
 			{
@@ -421,8 +421,11 @@ sub addDStoRRD
 # arsg: sys, database, data (absolutely required), type/index/item (more or less required), extras (optional),
 #
 # the sys object is for the catch-22 issue of optionsRRD requiring knowledge from the model(s),
-# plus there's the fixme: node-reset and nodeinfo reliance!
-# fixme: the logic for node-reset and so on needs rework and likely needs doing elsewhere
+# plus there's the node-reset logic that requires catchall
+#
+# if node has admin marker node_was_reset or outage_nostats, then inbound
+# data is IGNORED and 'U' is written instead
+# (except for type "health", DS "outage", "polltime" and "updatetime", which are always let through)
 #
 # returns: the database file name or undef; sets the internal error indicator
 sub updateRRD
@@ -472,8 +475,13 @@ sub updateRRD
 
 	# ro clone is good enough. fixme9: non-node mode is an ugly hack
 	my $catchall = $S->{name}? $S->inventory( concept => 'catchall' )->data : {};
-	NMISNG::Util::dbg("node was reset, inserting U values") if ($catchall->{node_was_reset});
-	foreach my $var (keys %{$data})
+
+	# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
+	NMISNG::Util::dbg("node was reset, inserting U values") if ($catchall->{admin}->{node_was_reset});
+	NMISNG::Util::dbg("node has current outage with nostats option, inserting U values")
+			if ($catchall->{admin}->{outage_nostats});
+
+	for my $var (keys %{$data})
 	{
 		# handle the nosave option
 		if (exists($data->{$var}->{option}) && $data->{$var}->{option} eq "nosave")
@@ -483,8 +491,9 @@ sub updateRRD
 		}
 
 		push @ds, $var;
-		# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
-		if ($catchall->{node_was_reset})
+		# type health, ds outage, polltime, updatetime: are never overridden
+		if ( ($catchall->{admin}->{node_was_reset} or $catchall->{admin}->{outage_nostats})
+				 and ($type ne "health" or  $var !~ /^(outage|polltime|updatetime)$/))
 		{
 			push @values, 'U';
 		}

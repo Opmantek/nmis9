@@ -987,6 +987,20 @@ sub doUpdate
 
 	my $NC = $S->ndcfg;
 
+	# look for any current outages with options.nostats set,
+	# and set a marker in catchall so that updaterrd writes nothing but 'U'
+	my $outageres = NMISNG::Outage::check_outages(node => $S->nmisng_node, time => time);
+	if (!$outageres->{success})
+	{
+		$S->nmisng->log->error("Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$catchall_data->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																																				&& $_->{options}->{nostats} }
+																									@{$outageres->{current}} )? 1 : 0;
+	}
+
 	if ( !NMISNG::Util::getbool( $nvp{force} ) )
 	{
 		$S->readNodeView;    # from prev. run, but only if force isn't active
@@ -1218,6 +1232,26 @@ sub doServices
 	my $S = NMISNG::Sys->new;
 	$S->init( name => $name );
 
+	my $catchall_inventory = $S->inventory(concept => 'catchall');
+	$S->nmisng->log->fatal("Failed to load catchall inventory for node:$name") && return if(!$catchall_inventory);
+	# catchall uses 'live' data which is a direct reference to the data because it's too easy to
+	# end up with stale/wrong data with all the functions using it
+	my $catchall_data = $catchall_inventory->data_live();
+
+	# look for any current outages with options.nostats set,
+	# and set a marker in catchall so that updaterrd writes nothing but 'U'
+	my $outageres = NMISNG::Outage::check_outages(node => $S->nmisng_node, time => time);
+	if (!$outageres->{success})
+	{
+		$S->nmisng->log->error("Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$catchall_data->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																																				&& $_->{options}->{nostats} }
+																									@{$outageres->{current}}) ? 1:0;
+	}
+
 	$S->readNodeView;    # init does not load the node view, but runservices updates view data!
 	runServices( sys => $S, snmp => 'false' );
 
@@ -1288,6 +1322,20 @@ sub doCollect
 	$S->copyModelCfgInfo( type => 'all' );
 
 	$S->readNodeView;    # s->init does NOT load that, but we need it as we're overwriting some view info
+
+	# look for any current outages with options.nostats set,
+	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
+	my $outageres = NMISNG::Outage::check_outages(node => $S->nmisng_node, time => time);
+	if (!$outageres->{success})
+	{
+		$S->nmisng->log->error("Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$catchall_data->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																																				&& $_->{options}->{nostats} }
+																									@{$outageres->{current}} ) ? 1 : 0;
+	}
 
 	# run an update INSTEAD if no update poll time is known
 	if ( !exists( $catchall_data->{last_update} ) or !$catchall_data->{last_update} )
@@ -3747,8 +3795,8 @@ sub updateNodeInfo
 
 	NMISNG::Util::info("Starting Update Node Info, node $S->{name}");
 
-	# clear the node reset indication from the last run
-	$catchall_data->{node_was_reset} = 0;
+	# clear any node reset indication from the last run
+  delete $catchall_data->{admin}->{node_was_reset};
 
 	# save what we need now for check of this node
 	my $sysObjectID  = $catchall_data->{sysObjectID};
@@ -3853,9 +3901,9 @@ sub updateNodeInfo
 				context => {type => "node"}
 			);
 
-			# now stash this info in the node info object, to ensure we insert one set of U's into the rrds
+			# now stash this info in the catchall object, to ensure we insert ONE set of U's into the rrds
 			# so that no spikes appear in the graphs
-			$catchall_data->{node_was_reset} = 1;
+			$catchall_data->{admin}->{node_was_reset}=1;
 		}
 
 		$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
@@ -7019,8 +7067,8 @@ sub HandleNodeDown
 # performs various node health status checks
 # optionally! updates rrd
 # args: sys, delayupdate (default: 0),
-# if delayupdate is set, this DOES NOT update the
-#type 'health' rrd (to be done later, with total polltime)
+# if delayupdate is set, this DOES NOT update the type 'health' rrd (to be done later, with total polltime)
+#
 # returns: reachability data (hashref)
 sub runReach
 {
@@ -7161,8 +7209,28 @@ sub runReach
 	}
 	elsif ( $reach{availability} eq "" ) { $reach{availability} = $intAvailValueWhenDown; }
 
-	my ( $outage, undef ) = Compat::NMIS::outageCheck( node => $S->{node}, time => time() );
-	NMISNG::Util::dbg("Outage for $S->{name} is $outage");
+	my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $S->nmisng_node, time => time() );
+	NMISNG::Util::dbg("Outage for $S->{name} is ". ($outage || "<none>"));
+
+	$reach{outage} = $outage eq "current"? 1 : 0;
+	# raise a planned outage event, or close it
+	if ($outage eq "current")
+	{
+		Compat::NMIS::notify(sys=>$S,
+												 event=> "Planned Outage Open",
+												 level => "Warning",
+												 element => "",
+												 details=> "",                          # filled in by notify
+												 context => { type => "node" }, );
+
+	}
+	else
+	{
+		Compat::NMIS::checkEvent(sys=>$S, event=>"Planned Outage Open",
+														 level=> "Normal",
+														 element=> "",
+														 details=> "" );
+	}
 
 	# Health should actually reflect a combination of these values
 	# ie if response time is high health should be decremented.
@@ -7475,7 +7543,11 @@ sub runReach
 	}
 
 	$reach{health} = ( $reach{health} > 100 ) ? 100 : $reach{health};
+
+		# massaged result with rrd metadata
 	my %reachVal;
+	$reachVal{outage} =  { value => $reach{outage},
+												 option => "gauge,0:1" };
 	$reachVal{reachability}{value} = $reach{reachability};
 	$reachVal{availability}{value} = $reach{availability};
 	$reachVal{responsetime}{value} = $reach{responsetime};
@@ -8226,10 +8298,11 @@ LABEL_ESC:
 			}
 		}
 
-		# if an planned outage is in force, keep writing the start time of any unack event to the current start time
+		# if a planned outage is in force, keep writing the start time of any unack event to the current start time
 		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
-		my ( $outage, undef ) = Compat::NMIS::outageCheck( node => $thisevent->{node}, time => time() );
-		NMISNG::Util::dbg("Outage for $thisevent->{node} is $outage");
+		my $nodeobj = $nmisng->node(name => $thisevent->{node});
+		my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $nodeobj, time => time() );
+		NMISNG::Util::dbg("Outage status for $thisevent->{node} is ". ($outage || "<none>"));
 		if ( $outage eq "current" and NMISNG::Util::getbool( $thisevent->{ack}, "invert" ) )
 		{
 			$thisevent->{startdate} = time();
