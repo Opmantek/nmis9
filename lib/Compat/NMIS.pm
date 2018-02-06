@@ -2172,7 +2172,7 @@ sub getJavaScript {
 		ViewWindow = window.open(url,wndw,attrib);
 		ViewWindow.focus();
 	};
-	JS_END
+JS_END
 
 			return $jscript;
 }
