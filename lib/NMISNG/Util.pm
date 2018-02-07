@@ -1854,7 +1854,7 @@ sub checkFile
 	my $prettyfile = File::Spec->abs2rel(Cwd::abs_path($file), $C->{'<nmis_base>'});
 
 	# does it even exist?
-	return (0, "ERROR: file $prettyfile does not exist") if ( not -f $file );
+	return (0, "ERROR: file $prettyfile ($file) does not exist") if ( not -f $file );
 
 	my $fstat = stat($file);
 
@@ -2221,9 +2221,7 @@ sub selftest
 											$config->{'config_logs'},
 											$config->{'json_logs'},
 											$config->{'<menu_base>'},
-											$config->{'report_root'},
-											$config->{'script_root'}, # commonly under nmis_conf
-											$config->{'plugin_root'}, ) # ditto
+											$config->{'report_root'},  )
 		{
 			my $where = Cwd::abs_path($location);
 			next if ($done{$where});
