@@ -293,7 +293,7 @@ var rssWidgetHeight = $C->{'rss_widget_height'};
 var logName = '$logName';
 
 \$(document).ready(function() {
-	commonv8Init("$widget_refresh","$Q->{conf}",$installedModules);
+	commonv8Init("$widget_refresh","$Q->{conf}","$installedModules ");
 });
 var savedWindowState = $savedWindowState;
 var userWindowData = $userWindowData;
