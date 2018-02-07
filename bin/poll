@@ -1162,29 +1162,42 @@ sub load_plugins
 {
 	my @activeplugins;
 
-	# check for plugins enabled and the dir
+	# check for plugins enabled and the two dirs, default and custom
 	return () if ( !NMISNG::Util::getbool( $C->{plugins_enabled} )
-		or !$C->{plugin_root}
-		or !-d $C->{plugin_root} );
+								 or ( !$C->{plugin_root} and !$C->{plugin_root_default})
+								 or (!-d $C->{plugin_root}  and !-d $C->{plugin_root_default}));
 
-	if ( !opendir( PD, $C->{plugin_root} ) )
+
+	# first check the custom plugin dir, then the default dir;
+	# files in custom win over files in default
+	my %candfiles;								# filename => fullpath
+	for my $dir ($C->{plugin_root}, $C->{plugin_root_default})
 	{
-		NMISNG::Util::logMsg("Error: cannot open plugin dir $C->{plugin_root}: $!");
-		return ();
+		next if (!-d $dir);
+		if (!opendir( PD, $dir))
+		{
+			NMISNG::Util::logMsg("Error: cannot open plugin dir $dir: $!");
+			return ();
+		}
+		for my $cand (grep(/\.pm$/, readdir(PD)))
+		{
+			$candfiles{$cand} //= "$dir/$cand";
+		}
+		closedir(PD);
 	}
-	my @candidates = grep( /\.pm$/, readdir(PD) );
-	closedir(PD);
 
-	for my $candidate (@candidates)
+	for my $candidate (keys %candfiles)
 	{
 		my $packagename = $candidate;
 		$packagename =~ s/\.pm$//;
+		my $pluginfile = $candfiles{$candidate};
 
 		# read it and check that it has precisely one matching package line
-		NMISNG::Util::dbg("Checking candidate plugin $candidate");
-		if ( !open( F, $C->{plugin_root} . "/$candidate" ) )
+		NMISNG::Util::dbg("Checking candidate plugin $candidate ($pluginfile)");
+
+		if (!open(F, $pluginfile))
 		{
-			NMISNG::Util::logMsg("Error: cannot open plugin file $candidate: $!");
+			NMISNG::Util::logMsg("Error: cannot open plugin file $pluginfile: $!");
 			next;
 		}
 		my @plugindata = <F>;
@@ -1197,10 +1210,10 @@ sub load_plugins
 		}
 
 		# do the actual load and eval
-		eval { require $C->{plugin_root} . "/$candidate"; };
+		eval { require "$pluginfile"; };
 		if ($@)
 		{
-			NMISNG::Util::logMsg("Ignoring plugin $candidate as it isn't valid perl: $@");
+			NMISNG::Util::logMsg("Ignoring plugin $candidate ($pluginfile) as it isn't valid perl: $@");
 			next;
 		}
 
@@ -2324,7 +2337,7 @@ sub getIntfInfo
 		NMISNG::Util::info("Get Interface Info of node $catchall_data->{name}, model $catchall_data->{nodeModel}");
 
 		# load interface types (IANA). number => name
-		my $IFT = Compat::NMIS::loadifTypesTable();
+		my $IFT = Compat::NMIS::loadGenericTable("ifTypes");
 
 		my ( $error, $override ) = ( undef, undef );
 		( $error, $override ) = Compat::NMIS::get_nodeconf( node => $nodename )
@@ -5889,7 +5902,7 @@ sub runServices
 	my $msg;
 	my %services;    # hash to hold snmp gathered service status.
 
-	my $ST    = Compat::NMIS::loadServicesTable();
+	my $ST    = Compat::NMIS::loadGenericTable("Services");
 	my $timer = Compat::Timing->new;
 
 	my $nmisng = $S->nmisng;
@@ -6305,7 +6318,9 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		{
 			# OMK-3237, use sensible and non-clashing config source:
 			# now service_name sets the script file name, temporarily falling back to $service
-			my $scriptfn = "$C->{script_root}/". $servicename || $service;
+			my $scriptfn = $C->{script_root}."/". ($servicename || $service);
+			# try conf/scripts, fallback to conf-default/scripts
+			$scriptfn = $C->{script_root_default}. "/". ($servicename || $service) if (!-e  $scriptfn);
 			if (!open(F, $scriptfn))
 			{
 				NMISNG::Util::dbg("ERROR, can't open script file $scriptfn for $service: $!");
@@ -7899,17 +7914,16 @@ sub runEscalate
 	NMISNG::Util::dbg("Starting");
 	NMISNG::Util::update_operations_stamp( type => "escalate", start => $starttime, stop => undef )
 		if ( $type eq "escalate" );    # not if part of collect
-	                                   # load Contacts table
-	my $CT = Compat::NMIS::loadContactsTable();
+	my $CT = Compat::NMIS::loadGenericTable("Contacts");
 
 	# load the escalation policy table
-	my $EST = Compat::NMIS::loadEscalationsTable();
+	my $EST = Compat::NMIS::loadGenericTable("Escalations");
 
 	### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
 	# load the interface file to later check interface collect status.
 	#my $II = Compat::NMIS::loadInterfaceInfo();
 
-	my $LocationsTable = Compat::NMIS::loadLocationsTable();
+	my $LocationsTable = Compat::NMIS::loadGenericTable("Locations");
 
 	### keiths, work around for extra tables.
 	my $ServiceStatusTable;

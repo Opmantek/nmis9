@@ -57,16 +57,6 @@ use NMISNG::Notify;
 use NMISNG::Outage;
 
 
-# fixme9 these need to go and/or become state vars!
-my $NT_cache = undef; # node table (local + remote)
-my $NT_modtime; # file modification time
-my $LNT_cache = undef; # local node table
-my $LNT_modtime;
-my $GT_cache = undef; # group table
-my $GT_modtime;
-my $ST_cache = undef; # server table
-my $ST_modtime;
-
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
 #
@@ -113,167 +103,66 @@ sub loadLocalNodeTable
 {
 	my $nmisng = new_nmisng();
 
+	# ask the database for all of my nodes, ie. with my cluster id
 	my $modelData = $nmisng->get_nodes_model( filter => { cluster_id => $nmisng->config->{cluster_id} } );
 	my $data = $modelData->data();
 	my %map = map { $_->{name} => $_ } @$data;
 	return \%map;
 }
 
-# fixme9: rework
-sub loadNodeTable {
+# load all nodes, local and foreign
+# args: none
+# returns: hash of node name -> node record
+sub loadNodeTable
+{
+	my $nmisng = new_nmisng();
 
-	my $reload = 'false';
+	# ask the database for all noes, my cluster id and all others
+	my $modelData = $nmisng->get_nodes_model();
+	my $data = $modelData->data();
 
-	my $C = NMISNG::Util::loadConfTable();
-
-	if (NMISNG::Util::getbool($C->{server_master})) {
-		# check modify of remote node tables
-		my $ST = loadServersTable();
-		for my $srv (keys %{$ST}) {
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-
-			my $name = "nmis-${srv}-Nodes";
-			if (! NMISNG::Util::loadTable(dir=>'var',name=>$name,check=>'true') ) {
-				$reload = 'true';
-			}
-		}
-	}
-
-	if (not defined $NT_cache or ( NMISNG::Util::mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) ) {
-		$reload = 'true';
-	}
-
-	return $NT_cache if NMISNG::Util::getbool($reload,"invert");
-
-	# rebuild tables
-	$NT_cache = undef;
-	$GT_cache = undef;
-
-	my $LNT = loadLocalNodeTable();
-	my $master_server_priority = $C->{master_server_priority} || 10;
-
-	foreach my $node (keys %{$LNT}) {
-		$NT_cache->{$node}{server} = $C->{server_name};
-		### set the default server priority to 10 as local node
-		$NT_cache->{$node}{server_priority} = $master_server_priority;
-		foreach my $k (keys %{$LNT->{$node}} ) {
-			$NT_cache->{$node}{$k} = $LNT->{$node}{$k};
-		}
-		if ( NMISNG::Util::getbool($LNT->{$node}{active})) {
-			$GT_cache->{$LNT->{$node}{group}} = $LNT->{$node}{group};
-		}
-	}
-	$NT_modtime = NMISNG::Util::mtimeFile(dir=>'conf',name=>'Nodes');
-
-	if (NMISNG::Util::getbool($C->{server_master})) {
-		# check modify of remote node tables
-		my $ST = loadServersTable();
-		my $NT;
-		for my $srv (keys %{$ST}) {
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-
-			# Relies on nmis.pl getting the file every 5 minutes.
-			my $name = "nmis-${srv}-Nodes";
-			my $server_priority = $ST->{$srv}{server_priority} || 5;
-
-			if (($NT = NMISNG::Util::loadTable(dir=>'var',name=>$name)) ) {
-				foreach my $node (keys %{$NT}) {
-					$NT->{$node}{server} = $srv ;
-					$NT->{$node}{server_priority} = $server_priority ;
-					if (
-						( not defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} eq "" )
-						or
-						( defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} ne "" and $NT->{$node}{server_priority}  > $NT_cache->{$node}{server_priority} )
-							) {
-						foreach my $k (keys %{$NT->{$node}} ) {
-							$NT_cache->{$node}{$k} = $NT->{$node}{$k};
-						}
-						if ( NMISNG::Util::getbool($NT->{$node}{active})) {
-							$GT_cache->{$NT->{$node}{group}} = $NT->{$node}{group};
-						}
-					}
-				}
-			}
-		}
-	}
-	return $NT_cache;
+	my %map = map { $_->{name} => $_ } @$data;
+	return \%map;
 }
 
-sub loadGroupTable {
-
-	if( not defined $GT_cache or not defined $NT_cache or ( NMISNG::Util::mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) ) {
-		loadNodeTable();
-	}
-
-	return $GT_cache;
+# returns hash (ref) of group name -> group name
+# fixme9: this should be an array
+sub loadGroupTable
+{
+	my $allnodes = loadNodeTable;
+	my %group2group = map { $_->{group} => $_->{group} } (values %$allnodes);
+	return \%group2group;
 }
 
-sub tableExists {
+# check if a table-ish file exists in conf (or conf-default)
+# args: file name, relative, may be short w/o extension
+# returns: 1 if file exists, 0 otherwise
+sub tableExists
+{
 	my $table = shift;
-	my $exists = 0;
 
-	if (NMISNG::Util::existFile(dir=>"conf",name=>$table)) {
-		$exists = 1;
-	}
-
-	return $exists;
+	return (NMISNG::Util::existFile(dir=>"conf",
+																	name=>$table)
+					|| NMISNG::Util::existFile(dir=>"conf_default",
+																		 name=>$table))? 1 : 0;
 }
 
-sub loadFileOrDBTable {
-	my $table = shift;
-	my $ltable = lc $table;
-
-	my $C = NMISNG::Util::loadConfTable();
-	return NMISNG::Util::loadTable(dir=>'conf',name=>$table);
+# load a table from conf (or conf-default)
+# args: file name, relative, may be short w/o extension
+# returns: hash ref of data
+sub loadGenericTable
+{
+	my ($tablename) = @_;
+	return NMISNG::Util::loadTable(dir => "conf", name => $tablename );
 }
 
-sub loadGenericTable{
-	return loadFileOrDBTable( shift );
-}
-
-sub loadContactsTable {
-	return loadFileOrDBTable('Contacts');
-}
-
-sub loadAccessTable {
-	return loadFileOrDBTable('Access');
-}
-
-sub loadPrivMapTable {
-	return loadFileOrDBTable('PrivMap');
-}
-
-sub loadUsersTable {
-	return loadFileOrDBTable('Users');
-}
-
-sub loadLocationsTable {
-	return loadFileOrDBTable('Locations');
-}
-
-sub loadifTypesTable {
-	return loadFileOrDBTable('ifTypes');
-}
-
-sub loadServicesTable {
-	return loadFileOrDBTable('Services');
-}
-
-sub loadLinksTable {
-	return NMISNG::Util::loadTable(dir=>'conf',name=>'Links');
-}
-
-sub loadEscalationsTable {
-	return loadFileOrDBTable('Escalations');
-}
 
 sub loadWindowStateTable
 {
 	my $C = NMISNG::Util::loadConfTable();
 
-	return {} if (not -r NMISNG::Util::getFileName(file => "$C->{'<nmis_var>'}/nmis-windowstate"));
+	return {} if (not NMISNG::Util::existFile(dir => 'var',
+																						name => "nmis-windowstate"));
 	return NMISNG::Util::loadTable(dir=>'var',name=>'nmis-windowstate');
 }
 

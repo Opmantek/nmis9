@@ -41,8 +41,8 @@ if (!$template or !-f $template or !$live or !-f $live)
 {
 	my $me = basename($0);
 	
-	die "Usage: $me <install template> <live config>
-e.g. $me /usr/local/nmis9/install/Config.nmis /usr/local/nmis9/conf/Config.nmis
+	die "Usage: $me <default template> <live config>
+e.g. $me /usr/local/nmis9/conf-default/Config.nmis /usr/local/nmis9/conf/Config.nmis
 
 This script updates your current NMIS Config with new config entries
 based on the NMIS install \"template\". Only missing entries are added.\n\n";

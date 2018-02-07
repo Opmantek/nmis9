@@ -122,9 +122,6 @@ sub numify
 	return ( $maybe =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) ? ( $maybe + 0 ) : $maybe;
 }
 
-# fixme9 get rid of?
-my %Table_cache;
-
 my $confdebug = 0;
 
 # synchronisation with the main signal handler, to terminate gracefully
@@ -985,7 +982,7 @@ sub setFileProtParents
 	return;
 }
 
-# expand directory name if its one of the short names var, models, conf, logs, mibs;
+# expand directory name if its one of the short names var, models, conf, conf_default, logs, mibs;
 # args: dir
 # returns expanded value or original input
 sub getDir
@@ -995,7 +992,7 @@ sub getDir
 	my $C = NMISNG::Util::loadConfTable(); # cache, in general
 
 	# known expansions
-	for my $maybe (qw(var models default_models conf logs mibs))
+	for my $maybe (qw(var models default_models conf conf_default logs mibs))
 	{
 		return $C->{"<nmis_$maybe>"} if ($dir eq $maybe);
 	}
@@ -1035,13 +1032,13 @@ sub mtimeFile {
 	}
 }
 
-### Cache system for hash tables/files reading from disk
+# function for reading hash tables/files
 #
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy') returns pointer of table, if not in cache or file is updated then load from file
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy',check=>'true') returns 1 if cache and file are valid else 0
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy',mtime=>'true') returns pointer of table and mtime of file
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy',lock=>'true') returns pointer of table and handle without caching
-# extra argument: suppress_errors, if set loadTable will not log errors but just return
+# args: dir, name (both required, name may be w/o extension)
+#  suppress_errors (optional, default 0, if set loadtable will not log errors but just return),
+#  lock (optional, default 0, if 0 loadtable returns (data,locked handle), if 0 returns just data
+#
+# returns: (hashref) or (hashref,locked handle), or (0/1)
 #
 # ATTENTION: fixme dir logic is very convoluted! dir is generally NOT a garden-variety real dir path!
 # ATTENTION: no useful error handling, cannot  distinguish between file with empty hash and failure to load
@@ -1051,60 +1048,54 @@ sub loadTable
 	my $dir =  $args{dir}; # name of directory
 	my $name = $args{name};	# name of table or short file name
 
-	my $check = NMISNG::Util::getbool($args{check}); # if 'true' then check only if table is valid in cache
-	my $mtime = NMISNG::Util::getbool($args{mtime}); # if 'true' then mtime is also returned
-	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching
+	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching and no fallbacks
 
-	my $C = NMISNG::Util::loadConfTable();
+	# full path -> { data => ..., mtime => ... }
+	state %cache;
 
 	if (!$name or !$dir)
 	{
+		# fixme9 convert to log
 		NMISNG::Util::logMsg("ERROR: invalid arguments, name or dir missing!");
 		return {};
 	}
 
-	my $file = getDir(dir=>$dir)."/$name"; # expands dirs like 'conf' or 'logs' into full location
+	my $expandeddir = getDir(dir => $dir); # expands dirs like 'conf' or 'logs' into full location
+	my $file = "$expandeddir/$name";
 	$file = NMISNG::Util::getFileName(file => $file);		 # mangles file name into extension'd one
 
+	# special case for files under conf: if lock is not set and conf/file is missing, fall back automatically conf-default/file
+	if ($expandeddir eq getDir(dir => "conf") && !$lock && !-e $file)
+	{
+		$file = NMISNG::Util::getFileName(file => getDir(dir => "conf_default")."/$name");
+	}
+
+	# fixme9 convert to log
+	print STDERR "DEBUG loadTable: name=$name dir=$dir expanded to file=$file\n" if $confdebug;
+
+	# no file? nothing to do but bail out
 	if (!-e $file)
 	{
+		# fixme9 convert to log
 		NMISNG::Util::logMsg("ERROR file $file does not exist or has bad permissions (dir=$dir name=$name)")
 				if (!$args{suppress_errors});
 		return {};
 	}
 
-	print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
-	if ($lock)
+	return NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock)
+			if ($lock);
+
+	# look at the cache, does it have existing non-stale data?
+		my $filetime = stat($file)->mtime;
+	if (ref($cache{$file}) ne "HASH"
+			|| $filetime != $cache{$file}->{mtime})
 	{
-		return NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock);
+		# nope, reread
+		$cache{$file} = { "data" => NMISNG::Util::readFiletoHash(file=>$file),
+											"mtime" => $filetime };
 	}
-	else
-	{
-		# known dir
-		my $index = lc "$dir$name";
-		if (exists $Table_cache{$index}{data})
-		{
-			# already in cache, check for update of file
-			if (stat($file)->mtime eq $Table_cache{$index}{mtime})
-			{
-				return 1 if ($check);
-				# else
-				return ($Table_cache{$index}{data}, $Table_cache{$index}{mtime})
-						if ($mtime); # oke
-				# else
-				return $Table_cache{$index}{data}; # oke
-			}
-		}
-		return 0 if ($check); # cached data/table not valid
-		# else
-		# read from file
-		$Table_cache{$index}{data} = NMISNG::Util::readFiletoHash(file=>$file);
-		$Table_cache{$index}{mtime} = stat($file)->mtime;
-		return ($Table_cache{$index}{data},$Table_cache{$index}{mtime})
-				if ($mtime); # oke
-		# else
-		return $Table_cache{$index}{data}; # oke
-	}
+
+	return $cache{$file}->{data};
 }
 
 sub writeTable {
@@ -2581,11 +2572,6 @@ sub find_nmis_processes
 	return \%others;
 }
 
-# semi-internal accessor for the table cache structure
-sub _table_cache
-{
-	return \%Table_cache;
-}
 
 # this small helper converts an ethernet or similar layer2 address
 # from pure binary or 0xsomething into a string of the colon-separated bytes in the address

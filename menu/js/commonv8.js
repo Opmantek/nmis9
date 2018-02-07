@@ -51,7 +51,7 @@ deviceContext['Group'] = new Object();
 // jQuery document ready in nmiscgi.pl will call this first
 // put all init calls here.
 
-function commonv8Init(widget_refresh,configinit,registered,modules) {
+function commonv8Init(widget_refresh,configinit,modules) {
 	config = configinit;
 	widget_refresh_glob = widget_refresh;
 
@@ -228,16 +228,6 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 		// draw the quick search widget after the others.
 		selectNodeOpen();
 
-	}
-
-	if ( ! registered ) {
-		createDialog({
-			id       : 'cfg_registration',
-			url      : 'registration.pl?conf=' + config,
-			title    : 'NMIS Open Source Community',
-			width	   : 420,
-			position : [ 1000, 70 ]
-			});
 	}
 
 	// except that the setup window should be the topmost dialog if active
@@ -782,19 +772,7 @@ function get(Id,optTrue,optFalse,evnt) {
 	// log what we got to the console for debugging.
 	// alert( 'id=' + dialogID ); alert( 'href=' + href ); alert( 'getstr=' + getstr );
 
-	// NMIS Registration onClick handler
-	// look for act=register in the url, and ajax post to Opmantek
-	// then normal post to server with success or not of Opmantek post.
-
-	var retval = '';
-	if ( 'register' ==  gup( 'act', url )) {
-		retval = OpmantekRegister( 'https://www.opmantek.com/cgi-bin/registration.cgi', getstr );
-		if ( (typeof retval !== 'undefined') && ( retval.length )) {
-			url=url + '&error=' + retval;
-		}
-	}
 	// update widget with new content
-
 	createDialog({
 		id 		: dialogID,
 		url 	: url
@@ -803,46 +781,6 @@ return false;
 
 };
 
-//==========================================
-
-// post the registration details to Opmantek
-
-	function OpmantekRegister( h, str ) {
-		var result='';
-		$.ajax({
-			url			: h,
-			data		: str,
-			async		: false,
-			type 		: 'POST',
-			cache		: false,
-			success	: function(data) {
-				result = '';			// we dont expect any html to be returned
-			},
-			error	:		function(x,e){
-				confirm(e);
-				if(e=='parsererror'){
-					result = 'Error.\nParsing JSON Request failed.';
-				} else if (e=='timeout'){
-					result = 'Request Time out.' ;
-				} else if(x.status==0){
-					result = 'You are offline!!\n Please Check Your Network.';
-					//alert( 'Status 0 !responseText: ' + x.responseText,  '!statusText': x.statusText, '@readyState' : x.readyState);
-
-				} else if(x.status==404){
-					result = 'Requested URL not found.';
-				} else if(x.status==500){
-					result = 'Internel Server Error.' ;
-				} else {
-					result = 'Unknown Error.\n'+x.responseText;
-				}
-				alert( 'h='+ h +', str='+ str +', x.status='+ x.status +', x.statusText='+ x.statusText +', x.responseText='+ x.responseText );
-			}
-		});
-
-		return result;
-	}
-
-//===========================================
 
 // helper
 function isEmpty(obj) { for(var i in obj) { return false; } return true; }

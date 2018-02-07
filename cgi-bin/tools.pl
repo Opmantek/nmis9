@@ -54,7 +54,7 @@ use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -258,7 +258,7 @@ sub viewDNS {
 	elsif ($Q->{dns} eq 'loc') { viewLocDNS(); }
 }
 
-sub getInterfaceTable 
+sub getInterfaceTable
 {
 
 	my $NT = Compat::NMIS::loadNodeTable();
@@ -407,7 +407,7 @@ sub viewArpaDNS {
 	print end_table,end_td,end_Tr;
 }
 
-sub viewLocDNS 
+sub viewLocDNS
 {
 	my $node;
 	my $location;
@@ -416,7 +416,7 @@ sub viewLocDNS
 	#Load the Interface Information table
 	my $ii = getInterfaceTable();
 	#Load the location data.
-	my $LT = Compat::NMIS::loadLocationsTable();
+	my $LT = Compat::NMIS::loadGenericTable("Locations");
 
 
 # Extract from RFC1876 A Means for Expressing Location Information in the Domain Name System
@@ -469,14 +469,14 @@ sub viewLocDNS
 
 	foreach my $ip (NMISNG::Util::sortall($ii,'node','fwd')) {
 		if ( $ii->{$ip}{ipAdEntAddr} ne "" ) {
-			if ( $node ne $ii->{$ip}{node} ) 
+			if ( $node ne $ii->{$ip}{node} )
 			{
 				$node = $ii->{$ip}{node};
 
 				my $S    = NMISNG::Sys->new;
 				$S->init( name => $node, snmp => 'false' );
 				my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-								
+
 				my $location = lc($catchall_data->{sysLocation}); # fixme why lowercase?
 				if ( $LT->{$location}{Latitude} ne "" and
 					$LT->{$location}{Longitude} ne "" and

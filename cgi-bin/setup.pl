@@ -130,7 +130,7 @@ sub display_setup
 
 	# get the current config, structure unflattened; and the default config too!
 	my $rawconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_conf>'}."/$C->{conf}");
-	my $defaultconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_base>'}."/install/$C->{conf}");
+	my $defaultconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_conf_default>'}."/$C->{conf}");
 
 	my $iconok = "<img src='".$C->{'<menu_url_base>'}."/img/v8/icons/icon_accept.gif'>";
 	my $iconbad = "<img src='".$C->{'<menu_url_base>'}."/img/v8/icons/icon_alert.gif'>";

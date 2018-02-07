@@ -5,7 +5,20 @@ NMIS code plugins are meant to augment and extend the update and collect
 functionality, if and when classic modelling doesn't suffice to handle a 
 particular scenario.
 
-each plugin must be valid perl, be named X.pm, must have a 'package X;' line, 
+Each plugin must be valid perl, be named <SomeThing>.pm, and reside in
+conf/plugins/ ( or conf-default/plugins/ -  NMIS ships its default 
+plugins in conf-default/plugins. Do not modify those files, as they
+will be overwritten on upgrade! )
+
+Plugins in conf/plugins/ are loaded first, then any "extra" plugins
+from conf-default/plugins/ - but only if their file names are different
+from already loaded ones. In other words, a plugin conf/plugins/Xyz.pm
+wins over conf-default/plugisn/Xyz.pm.
+
+Files that aren't named "<SomeThing>.pm" are ignored.
+To disable an undesired default plugin, rename it to "<SomeThing>.pm.disabled".
+
+Each plugin must have a correct 'package <SomeThing>;' line, 
 and its package name must not clash with the other NMIS components. the 
 plugin MUST NOT use Exporter to export anything from its namespace.
 
@@ -16,8 +29,8 @@ the plugin may load extra perl modules with use or require, but it
 must not use any package-level global variables. all its variables and any
 objects that it might create must have local scope.
 
-a plugin can offer one or more of the functions update_plugin(), collect_plugin()
-after_update_plugin() or after_collect_plugin().
+a plugin can offer one or more of the functions update_plugin(),
+collect_plugin() after_update_plugin() or after_collect_plugin().
 
 collect_plugin and update_plugin:
 ---------------------------------

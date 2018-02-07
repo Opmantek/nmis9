@@ -38,7 +38,6 @@ use lib "$FindBin::Bin/../lib";
 use NMISNG::Util;
 use Compat::NMIS;
 use Compat::Modules;
-use Compat::License;
 use JSON::XS;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
@@ -126,12 +125,6 @@ if ($AU->Require) {
 #		<script type="text/javascript" src="js/jquery-ui-1.8.15.custom.min.js"></script>
 #
 # other files required are JdMenu js/css, and support libaries  - positionBy, bgiframe.
-
-# Check to see if NMIS has been Registered.  To be in licensing of commercial modules.
-my $registered = "false";
-my $L = Compat::License->new();
-my ($licenseValid,$licenseMessage) = $L->checkLicense();
-$registered = "true" if $licenseValid;
 
 ### 2012-12-06 keiths, added a HTML5 compliant header.
 print $q->header($headeropts);
@@ -300,7 +293,7 @@ var rssWidgetHeight = $C->{'rss_widget_height'};
 var logName = '$logName';
 
 \$(document).ready(function() {
-	commonv8Init("$widget_refresh","$Q->{conf}",$registered,"$installedModules ");
+	commonv8Init("$widget_refresh","$Q->{conf}",$installedModules);
 });
 var savedWindowState = $savedWindowState;
 var userWindowData = $userWindowData;

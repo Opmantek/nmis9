@@ -3491,7 +3491,7 @@ sub viewService
 	print Tr( th( {class => 'title', colspan => '3'}, "Monitored services on node $catchall_data->{name}" ) );
 
 	# for the type determination
-	my $ST = Compat::NMIS::loadServicesTable;
+	my $ST = Compat::NMIS::loadGenericTable("Services");
 
 	if ( my @servicelist = split( ",", $catchall_data->{services} ) )
 	{

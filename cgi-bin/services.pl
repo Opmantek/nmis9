@@ -105,7 +105,7 @@ sub display_details
 		return;
 	}
 
-	my $ST = Compat::NMIS::loadServicesTable;
+	my $ST = Compat::NMIS::loadGenericTable("Services");
 	my %sstatus = Compat::NMIS::loadServiceStatus(node => $wantnode, service => $wantservice);
 	# only interested in this server's services!
 	%sstatus = %{$sstatus{$C->{cluster_id}}} if (ref($sstatus{$C->{cluster_id}}) eq "HASH");
@@ -358,7 +358,7 @@ sub display_overview
 	# service -> node -> data
 	my %sstatus = Compat::NMIS::loadServiceStatus;
 	# also need the service table for interval config
-	my $ST = Compat::NMIS::loadServicesTable;
+	my $ST = Compat::NMIS::loadGenericTable("Services");
 
 	# only interested in this server's services!
 	%sstatus = %{$sstatus{$C->{cluster_id}}} if (ref($sstatus{$C->{cluster_id}}) eq "HASH");

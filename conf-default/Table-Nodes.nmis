@@ -104,7 +104,7 @@ my @models = ('automatic', sort keys %knownmodels);
 									 validate => { "onefromlist" => undef }  }},
 	 { advanced_options => { special => 'separator', header => 'Advanced Options'}},
 	 { polling_policy => { header => "Polling Policy", display => 'header,popup', value => [@pollingpolicies]}},
-	 
+
 	 { model => { header => 'Model',display => 'popup',value => [@models],
 								validate => { "onefromlist" => undef }  }},
 	 { active => { header => 'Active',display => 'header,popup',value => ["true", "false"],
@@ -122,7 +122,7 @@ my @models = ('automatic', sort keys %knownmodels);
 	 { depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ],
 								validate => { "multifromlist" => undef } }},
 	 { services => { header => 'Services', display => 'header,scrolling',
-									 value => ["", sort keys %{Compat::NMIS::loadServicesTable()}],
+									 value => ["", sort keys %{Compat::NMIS::loadGenericTable("Services")}],
 										validate => { "multifromlist" => undef } }},
 	 { timezone => { header => 'Time Zone',display => 'text',value => ["0"],
 									 validate => { regex => qr/^([+-]?\d{1,2}(:\d{1,2})?)?$/ } } },

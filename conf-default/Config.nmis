@@ -30,12 +30,13 @@ my %hash = (
     '<nmis_bin>' => '<nmis_base>/bin',
     '<nmis_cgi>' => '<nmis_base>/cgi-bin',
     '<nmis_conf>' => '<nmis_base>/conf',
+		'<nmis_conf_default>' => '<nmis_base>/conf-default',
     '<nmis_data>' => '<nmis_base>',
     '<nmis_logs>' => '<nmis_base>/logs',
     '<nmis_menu>' => '<nmis_base>/menu',
 
-	'<nmis_models>' => '<nmis_base>/models-custom',
-	'<nmis_default_models>' => '<nmis_base>/models-default',
+		'<nmis_models>' => '<nmis_base>/models-custom',
+		'<nmis_default_models>' => '<nmis_base>/models-default',
 
     '<nmis_var>' => '<nmis_data>/var',
     '<menu_base>' => '<nmis_base>/menu',
@@ -45,9 +46,14 @@ my %hash = (
     'config_logs' => '<nmis_logs>/config',
     'mib_root' => '<nmis_base>/mibs',
     'report_root' => '<nmis_base>/htdocs/reports',
+
     'script_root' => '<nmis_conf>/scripts',
-    'web_root' => '<nmis_base>/htdocs',
 		'plugin_root' => '<nmis_conf>/plugins',
+
+		'script_root_default' => '<nmis_conf_default>/scripts',
+		'plugin_root_default' => '<nmis_conf_default>/plugins',
+    
+		'web_root' => '<nmis_base>/htdocs',
 		'<nmis_backups>' => '<nmis_data>/backups',
   },
 
@@ -135,7 +141,7 @@ my %hash = (
     'response_time_threshold' => '500',
     'nmis_user' => 'nmis',
     'nmis_group' => 'nmis',
-		'nmis_executable' => '(/(bin|admin|installer_hooks|install/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh|/installer)$',
+		'nmis_executable' => '(/(bin|admin|installer_hooks|conf-default/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh|/installer)$',
     'file_size_warning' => '100000000',
     'default_communityRO' => 'public',
     'default_username' => '',
