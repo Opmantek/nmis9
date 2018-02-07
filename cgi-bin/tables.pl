@@ -106,7 +106,8 @@ exit;
 #==================================================================
 #
 
-sub loadReqTable {
+sub loadReqTable
+{
 	my %args = @_;
 	my $table = $args{table};
 	my $msg = $args{msg};
@@ -161,24 +162,24 @@ EOF
 
 	# print short info
 	#print header
-	print Tr( eval { my $line; my $colspan = 1;
-			for my $ref ( @{$CT}) { # trick for order of header items
-				for my $item (keys %{$ref}) {
-					if ($ref->{$item}{display} =~ /header/ ) {
-						$line .= td({class=>'header',align=>'center'},$ref->{$item}{header});
-						$colspan++;
-					}
-				}
+	my $line;
+	my $colspan = 1;
+	for my $ref ( @{$CT}) { # trick for order of header items
+		for my $item (keys %{$ref})
+		{
+			if ($ref->{$item}{display} =~ /header/ ) {
+				$line .= td({class=>'header',align=>'center'},$ref->{$item}{header});
+				$colspan++;
 			}
-			$line .= td({class=>'header',align=>'center'},'Action',
-					eval {
-						if ($AU->CheckAccess("Table_${table}_rw","check")) {
-							return ' > '.a({href=>"$url&act=config_table_add&widget=$widget"},'add'),
-						} else { return ''; }
-					}
-				);
-			return Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line;
-		});
+		}
+	}
+	my $link = $AU->CheckAccess("Table_${table}_rw","check")?
+			(' > '.a({href=>"$url&act=config_table_add&widget=$widget"},'add')) : '';
+
+	$line .= td({class=>'header',align=>'center'},'Action', $link);
+	print Tr(Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line);
+
+
 	# print data
 	for my $k (sort {lc($a) cmp lc($b)} keys %{$T}) {
 		my $display = 1;
@@ -228,16 +229,14 @@ EOF
 }
 
 # shows the table contents, optionally with a delete button
-sub viewTable {
-
+sub viewTable
+{
 	my $table = $Q->{table};
 	my $key = $Q->{key};
 
 	#start of page
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript(title => "View Table $table") if (NMISNG::Util::getbool($widget,"invert"));
-
-	$AU->CheckAccess("Table_${table}_view");
 
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
@@ -445,68 +444,67 @@ sub editTable
 			}
 			else
 			{
+				my $line;
+				if ($thisitem->{display} =~ /key/)
+				{
+					push @hash,$item;
+				}
+
+				# things tagged key are NOT editable, only settable initially on add.
+				# on edit the text is static
+				if ($func eq 'doedit' and $thisitem->{display} =~ /key/)
+				{
+					$line .= td({class=>'header'}, escapeHTML($thiscontent));
+					$line .= hidden("-name"=>$item, "-default"=>$thiscontent, "-override"=>'1');
+				}
+				elsif ($thisitem->{display} =~ /textbox/)
+				{
+					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+					$line .= td(textarea(-name=> $item, -value=>$value,
+															 -style=> 'width: 95%;',
+															 -rows => 3,
+															 -columns => ($wantwidget? 35 : 70)));
+				}
+				elsif ($thisitem->{display} =~ /(text|password)/)
+				{
+					my $wantpassword = $1 eq "password";
+					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+
+					$line .= td(
+						$wantpassword? password_field(-name=>$item, -value=>$value,
+																					-style=> 'width: 95%;',
+																					-size=>  ($wantwidget? 35 : 70))
+						: textfield(-name=>$item, -value=>$value,
+												-style=> 'width: 95%;',
+												-size=>  ($wantwidget? 35 : 70)));
+				}
+				elsif ($thisitem->{display} =~ /readonly/) {
+					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+
+					$line .= td(escapeHTML($value));
+					$line .= hidden(-name=>$item, -default=>$value, -override=>'1');
+				}
+				elsif ($thisitem->{display} =~ /pop/) {
+					#print STDERR "DEBUG editTable: popup -- item=$item\n";
+					$line .= td(popup_menu(
+												-name=> $item,
+
+												-values=>$thisitem->{value},
+												-style=>'width: 95%;',
+												-default=>$thiscontent));
+				}
+				elsif ($thisitem->{display} =~ /scrol/) {
+					my @items = split(/,/,$T->{$key}{$item});
+					$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
+																		-style=>'width: 95%;',
+																		-size=>'6',
+																		-values=>$thisitem->{value},
+																		-default=>\@items));
+				}
+
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
 										escapeHTML($thisitem->{header}).$mandatory),
-								 eval {
-									 my $line;
-									 if ($thisitem->{display} =~ /key/)
-									 {
-										 push @hash,$item;
-									 }
-
-									 # things tagged key are NOT editable, only settable initially on add.
-									 # on edit the text is static
-									 if ($func eq 'doedit' and $thisitem->{display} =~ /key/)
-									 {
-										 $line .= td({class=>'header'}, escapeHTML($thiscontent));
-										 $line .= hidden("-name"=>$item, "-default"=>$thiscontent, "-override"=>'1');
-									 }
-									 elsif ($thisitem->{display} =~ /textbox/)
-									 {
-										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-										 $line .= td(textarea(-name=> $item, -value=>$value,
-																					-style=> 'width: 95%;',
-																					-rows => 3,
-																					-columns => ($wantwidget? 35 : 70)));
-									 }
-									 elsif ($thisitem->{display} =~ /(text|password)/)
-									 {
-										 my $wantpassword = $1 eq "password";
-										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-
-										 $line .= td(
-											 $wantpassword? password_field(-name=>$item, -value=>$value,
-																										 -style=> 'width: 95%;',
-																										 -size=>  ($wantwidget? 35 : 70))
-											 : textfield(-name=>$item, -value=>$value,
-																	 -style=> 'width: 95%;',
-																	 -size=>  ($wantwidget? 35 : 70)));
-									 }
-									 elsif ($thisitem->{display} =~ /readonly/) {
-										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-
-										 $line .= td(escapeHTML($value));
-										 $line .= hidden(-name=>$item, -default=>$value, -override=>'1');
-									 }
-									 elsif ($thisitem->{display} =~ /pop/) {
-										 #print STDERR "DEBUG editTable: popup -- item=$item\n";
-										 $line .= td(popup_menu(
-																	 -name=> $item,
-
-																	 -values=>$thisitem->{value},
-																	 -style=>'width: 95%;',
-																	 -default=>$thiscontent));
-									 }
-									 elsif ($thisitem->{display} =~ /scrol/) {
-										 my @items = split(/,/,$T->{$key}{$item});
-										 $line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
-																							 -style=>'width: 95%;',
-																							 -size=>'6',
-																							 -values=>$thisitem->{value},
-																							 -default=>\@items));
-									 }
-									 return $line;
-								 });
+								 $line );
 			}
 		}
 	}
