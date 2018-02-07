@@ -233,7 +233,7 @@ sub loadCfgTable
 
 	if (ref($goodies) ne "HASH" or !keys %$goodies)
 	{
-		logMsg("ERROR, failed to load Table-$tablename");
+		NMISNG::Util::logMsg("ERROR, failed to load Table-$tablename");
 		return undef;
 	}
 	return $goodies->{$tablename};
