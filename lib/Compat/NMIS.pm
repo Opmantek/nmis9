@@ -125,12 +125,12 @@ sub loadNodeTable
 	return \%map;
 }
 
-# returns hash (ref) of group name -> group name
+# returns hash (ref) of group name -> group name, for all active nodes
 # fixme9: this should be an array
 sub loadGroupTable
 {
 	my $allnodes = loadNodeTable;
-	my %group2group = map { $_->{group} => $_->{group} } (values %$allnodes);
+	my %group2group = map { $_->{group} => $_->{group} } (grep(NMISNG::Util::getbool($_->{active}), values %$allnodes));
 	return \%group2group;
 }
 
