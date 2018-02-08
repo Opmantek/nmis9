@@ -34,29 +34,15 @@ my $extraLogging = 0;
 
 # *****************************************************************************
 package Notify::noc;
-
-require 5;
+our $VERSION="1.0.1";
 
 use strict;
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
-
-use Exporter;
 use NMISNG::Util;
 use NMISNG::Notify;
 
-$VERSION = 1.00;
-
-@ISA = qw(Exporter);
-
-@EXPORT = qw(
-		noc
-	);
-
-@EXPORT_OK = qw(	);
-
-
-sub sendNotification {
+sub sendNotification 
+{
 	my %arg = @_;
 	my $contact = $arg{contact};
 	my $event = $arg{event};
@@ -65,13 +51,18 @@ sub sendNotification {
 
 	# get syslog config from config file.
 	if (NMISNG::Util::existFile(dir=>'conf',name=>'nocSyslog')) {
+		# loadtable falls back to conf-default if conf doesn't have the file
 		my $syslogConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'nocSyslog');
 		$syslog_facility = $syslogConfig->{syslog}{syslog_facility};
 		$syslog_server = $syslogConfig->{syslog}{syslog_server};
 		$extraLogging = NMISNG::Util::getbool($syslogConfig->{syslog}{extra_logging});
 	}
 
+	# get the blacklist from conf/ or conf-default/
 	my $blackListFile = "$C->{'<nmis_conf>'}/nocBlackList.txt";
+	$blackListFile = $C->{'<nmis_conf_default>'}."/nocBlackList.txt"
+			if (!-r $blackListFile);
+	
 	my @blackList = loadBlackList($blackListFile);
 	
 	# is there a valid event coming in?

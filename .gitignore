@@ -3,6 +3,8 @@ backups/*
 bin/webtest*
 conf/*
 models-custom/*
+database
+htdocs/reports/*
 logs
 var/*
 database/*

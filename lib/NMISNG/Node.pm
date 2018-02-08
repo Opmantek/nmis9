@@ -324,8 +324,12 @@ sub rename
 	my $newname = $args{new_name};
 	my $old = $self->name;
 
-	return (0, "Invalid new_name argument")
-			if (!$newname or $newname =~ /[^a-zA-Z0-9_-]/); # fixme should we be less picky? allow spaces?
+	return (0, "Invalid new_name argument") if (!$newname);
+
+	# note: if sub validate is changed to be stricter wrt node name, then this needs to be changed as well!
+	# '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
+	return (0, "new_name argument contains forbidden character '/'") if ($newname =~ m!/!);
+
 	return (1, "new_name same as current, nothing to do")
 			if ($newname eq $old);
 
@@ -752,8 +756,9 @@ sub save
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->nodes_collection(),
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
+			freeform   => 1,					# we need to replace the whole record
 			record     => $entry
-		);
+				);
 		assert( $result->{success}, "Record updated successfully" );
 
 		$self->_dirty( 0, 'configuration' );
@@ -789,6 +794,11 @@ sub validate
 	{
 		return (-1, "node requires $musthave property") if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
+
+	# note: if ths is changed to be stricter, then sub rename needs to be changed as well!
+	# '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
+	return (-1, "node name contains forbidden character '/'") if ($configuration->{name} =~ m!/!);
+
 	return (-3, "given netType is not a known type")
 			if (!grep($configuration->{netType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{nettype_list})));

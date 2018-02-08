@@ -37,7 +37,6 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use Compat::NMIS;
 use NMISNG::Util;
-use Compat::License;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;

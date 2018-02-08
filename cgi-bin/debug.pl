@@ -368,9 +368,8 @@ print "<h2>Current Events</h2>";
 my %allevents = Compat::NMIS::loadAllEvents;
 print dumper_html(\%allevents);
 
-my $OT = Compat::NMIS::loadOutageTable();
 print "<h2>Outage Table</h2>";
-print dumper_html($OT);
+print dumper_html(NMISNG::Outage::find_outages);
 
 my $ext = NMISNG::Util::getExtension(dir=>'var');
 

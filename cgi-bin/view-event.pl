@@ -3,36 +3,36 @@
 ## $Id: view-event.pl,v 8.5 2012/10/02 05:45:49 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-# 
+#
 use strict;
 use Compat::NMIS;
 use NMISNG::Util;
@@ -55,7 +55,7 @@ if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { 
 use NMISNG::Auth;
 
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C);  
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -77,8 +77,8 @@ my $colspan = 6;
 if ($Q->{act} eq 'event_database_list') {			displayEventList();
 } elsif ($Q->{act} eq 'event_database_view') {		displayEvent();
 } elsif ($Q->{act} eq 'event_database_delete') {	displayEvent();
-} elsif ($Q->{act} eq 'event_database_dodelete') 
-{	
+} elsif ($Q->{act} eq 'event_database_dodelete')
+{
 	# deletion requires node, event, element arguments
 	if (my $err = Compat::NMIS::eventDelete( event => { node => $Q->{node},
 																				event => $Q->{event},
@@ -111,7 +111,7 @@ sub displayFlow{
 	print header($headeropts);
 	Compat::NMIS::pageStart(title => "View Event Flow - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
-	my %events = ( 
+	my %events = (
 		event => ["Generic Down", "Generic Up", "Interface Down", "Interface Up",
 					"Node Down", "Node Reset", "Node Up", "Node Failover", "Proactive", "Proactive Closed",
 					"RPS Fail", "SNMP Down", "SNMP Up"],
@@ -134,7 +134,7 @@ sub displayFlow{
 	print Tr(td({class=>'header',colspan=>'4'},"${homelink}View Event Flow"));
 
 	my @headers = ("Event", "Node", "Element","view");
-	print Tr( 
+	print Tr(
 		eval { my $line;
 			for (@headers) {
 				$line .= td({class=>'header',align=>'center',width=>'120px'},$_);
@@ -142,13 +142,13 @@ sub displayFlow{
 			return $line;
 		} );
 
-	print Tr( 
+	print Tr(
 		eval { my $line;
 			for (@headers) {
 				my $field = lc $_;
 				if ($field eq "view" ) {
 					$line .= td({class=>'info',align=>'center'},button(-name=>'button',
-																														 onclick => ($wantwidget? 
+																														 onclick => ($wantwidget?
 																																				 "get('tls_event_flow_form');"
 																																				 : "submit()" ),
 																														 -value=>'Go'));
@@ -187,7 +187,7 @@ sub displayEventList
 
 	print Tr(td({class=>'header',colspan=>'3'},"${homelink}View Event Database"));
 	my $flag = 0;
-	foreach my $eventkey (sort keys %allevents)  
+	foreach my $eventkey (sort keys %allevents)
 	{
 		my $thisevent = $allevents{$eventkey};
 		next if (!NMISNG::Util::getbool($thisevent->{current}));
@@ -224,9 +224,9 @@ sub	displayEvent {
 
 	# show a link home if not in widget mode
 	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
-	
+
 	print Tr(td({class=>'header',colspan=>'6'},"${homelink}View Event Database - $Q->{node}"));
-	
+
 	displayEventItems();
 
 	print end_table;
@@ -255,7 +255,7 @@ sub displayEventFlow {
 
 	print Tr(td({class=>'header',colspan=>'6'},"Event Policy"));
 
-	if (!$catchall->{nodeModel}) 
+	if (!$catchall->{nodeModel})
 	{
 		print Tr(td({class=>'error'},"this node does not have a node Model"));
 		return;
@@ -264,10 +264,10 @@ sub displayEventFlow {
 	# Get the event policy and the rest is easy.
 	if ( 	$event =~ /Proactive.*Closed/ ) { $pol_event = "Proactive Closed"; }
 	elsif ( $event =~ /Proactive/ ) 	{ $pol_event = "Proactive"; }
-	elsif ( $event =~ /down/i and $event !~ /SNMP|Node|Interface/ ) { 
+	elsif ( $event =~ /down/i and $event !~ /SNMP|Node|Interface/ ) {
 		$pol_event = "Generic Down";
 	}
-	elsif ( $event =~ /up/i and $event !~ /SNMP|Node|Interface/ ) { 
+	elsif ( $event =~ /up/i and $event !~ /SNMP|Node|Interface/ ) {
 		$pol_event = "Generic Up";
 	}
 	else 	{ $pol_event = $event; }
@@ -294,7 +294,7 @@ sub displayEventFlow {
 	$Q->{role} = $role;
 	$Q->{type} = $type;
 
-	if ($event !~ /Proactive.*Closed/ ) {	
+	if ($event !~ /Proactive.*Closed/ ) {
 		print Tr(td({class=>'header',colspan=>'6'},'Event Escalation'));
 		displayEventItems(flag=>"true");
 	}
@@ -326,9 +326,9 @@ sub displayEventItems {
 	my $contact;
 
 	# load Contact table
-	$CT = Compat::NMIS::loadContactsTable();
+	$CT = Compat::NMIS::loadGenericTable("Contacts");
 	# load the escalation policy table
-	my $EST = Compat::NMIS::loadEscalationsTable();
+	my $EST = Compat::NMIS::loadGenericTable("Escalations");
 	# load Node table
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 
@@ -340,7 +340,7 @@ sub displayEventItems {
 		return;
 	}
 
-	if ( NMISNG::Util::getbool($flag) ) 
+	if ( NMISNG::Util::getbool($flag) )
 	{
 		# generate entry for display event Flow
 		$thisevent->{current} = "true";
@@ -376,7 +376,7 @@ sub displayEventItems {
 	printRow(1,"node",$thisevent->{node});
 
 	# info
-	my $ack_str = NMISNG::Util::getbool($thisevent->{ack}) ?  ", event waiting for activating" : ", event active"; 
+	my $ack_str = NMISNG::Util::getbool($thisevent->{ack}) ?  ", event waiting for activating" : ", event active";
 	my $esc_str = ($thisevent->{escalate} eq -1) ? ", no level set" : "";
 	my $ntf_str = ($thisevent->{notify} ne '') ? $thisevent->{notify} : "no UP notify sending";
 
@@ -390,8 +390,8 @@ sub displayEventItems {
 	printRow(1,"user",$thisevent->{user});
 	printRow(1,"notify up",$ntf_str);
 
-	my ($outage,undef) = Compat::NMIS::outageCheck($thisevent->{node},time());
-	if ( $outage eq "current" 
+	my ($outage,undef) = NMISNG::Outage::outageCheck(node => S->nmisng_node, time => time());
+	if ( $outage eq "current"
 			 and NMISNG::Util::getbool($thisevent->{ack},"invert") ) {
 		# check outage
 		printRow(1,"status","node at Outage, no escalation");
@@ -450,7 +450,7 @@ sub displayEventItems {
 			$EST->{$esc}{Event_Node} =~ s;/;;g;
 			$EST->{$esc}{Event_Element} =~ s;/;;g;
 			if ($klst eq $esc_short and
-					$thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i and 
+					$thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i and
 					$thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i ) {
 				$keyhash{$esc} = $klst;
 				NMISNG::Util::dbg("match found for escalation key=$esc");
@@ -509,7 +509,7 @@ sub displayEventItems {
 							}
 						}
 
-						if ( $contact_cnt eq 0 ) { 
+						if ( $contact_cnt eq 0 ) {
 							$target = $CT->{default}{Email};
 							$contact = "default";
 						}
@@ -543,7 +543,7 @@ sub displayEventItems {
 							}
 						}
 
-						if ( $contact_cnt eq 0 ) { 
+						if ( $contact_cnt eq 0 ) {
 							$target = $CT->{default}{Email};
 							$contact = "default";
 						}
@@ -571,7 +571,7 @@ sub displayEventItems {
 							}
 							if ( exists $CT->{$contact} ) {
 								$contact_cnt++;
-								printRow(3,"contact",$contact);			
+								printRow(3,"contact",$contact);
 								printRowDutyTime(4,$contact);
 								printRowTimeZone(5,$contact);
 								printRowPager(4,$contact);
@@ -582,7 +582,7 @@ sub displayEventItems {
 								printRow(3,"contact","$contact not found in Contacts","error");
 							}
 						}
-						if ( $contact_cnt eq 0 ) { 
+						if ( $contact_cnt eq 0 ) {
 							$target = $CT->{default}{Pager};
 							$contact = "default";
 						}
@@ -609,11 +609,11 @@ DELETE:
 
 # in column PassOn may be defined Contacts. With dutytime specified there are special possibilities.
 
-sub printPassOn 
+sub printPassOn
 {
 	my $contact = shift;
 	my $passon_lvl = shift;
-	
+
 	if ( exists $CT->{$contact}{PassOn} and $CT->{$contact}{PassOn} ne ""){
 		if ($passon_lvl < 10) {
 			my @passon =  split /:/, lc $CT->{$contact}{PassOn}; # pass on an other contact
@@ -639,7 +639,7 @@ sub printPassOn
 
 # print a table row
 
-sub printRow 
+sub printRow
 {
 		my $colhead = shift; # position in the row
 		my $headtxt = shift; # text of head
@@ -659,7 +659,7 @@ sub printRow
 
 #=====================================================
 
-sub printRowEmail 
+sub printRowEmail
 {
 		my $head = shift;
 		my $contact = shift;
@@ -693,9 +693,9 @@ sub printRowTimeZone
 {
 	my $head = shift;
 	my $contact = shift;
-	
+
 	if ($CT->{$contact}{TimeZone} ne 0) { printRow($head,"timezone","$CT->{$contact}{TimeZone} hour");}
-	
+
 }
 #=====================================================
 
@@ -710,8 +710,8 @@ sub printRowPager
 #=====================================================
 
 # test the dutytime on syntax
-# return true if OK 
-sub checkDutyTime 
+# return true if OK
+sub checkDutyTime
 {
 		my $dutytime = shift;
 		my $today;
@@ -730,5 +730,3 @@ sub checkDutyTime
 			}
 		}
 }
-
-

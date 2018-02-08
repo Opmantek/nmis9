@@ -121,7 +121,7 @@ sub CheckButton {
 
 	return 1 unless $self->{_require};
 
-	my $AC = Compat::NMIS::loadAccessTable(); # get pointer of Access table
+	my $AC = Compat::NMIS::loadGenericTable('Access'); # get pointer of Access table
 
 	my $perm = $AC->{$identifier}{"level$self->{privlevel}"};
 
@@ -406,7 +406,7 @@ sub user_verify {
 	my $self = shift;
 	my($rv) = 0; # default: refuse
 	my($u,$p) = @_;
-	my $UT = Compat::NMIS::loadUsersTable();
+	my $UT = Compat::NMIS::loadGenericTable("Users");
 	my $exit = 0;
 
 	my $lc_u = lc $u;
@@ -1547,7 +1547,7 @@ sub CheckAccessCmd {
 
 	return 1 unless $self->{_require};
 
-	my $AC = Compat::NMIS::loadAccessTable();
+	my $AC = Compat::NMIS::loadGenericTable('Access');
 
 	my $perm = $AC->{$command}{"level$self->{privlevel}"};
 
@@ -1569,8 +1569,8 @@ sub _GetPrivs {
 	my $user = lc shift;
 
 	my $GT = Compat::NMIS::loadGroupTable();
-	my $UT = Compat::NMIS::loadUsersTable();
-	my $PMT = Compat::NMIS::loadPrivMapTable();
+	my $UT = Compat::NMIS::loadGenericTable("Users");
+	my $PMT = Compat::NMIS::loadGenericTable("PrivMap");
 
 	if ( exists $UT->{$user}{privilege} and $UT->{$user}{privilege} ne ""  ) {
 		$self->{priv} = $UT->{$user}{privilege};

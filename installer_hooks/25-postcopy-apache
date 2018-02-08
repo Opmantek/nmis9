@@ -8,7 +8,7 @@ SCRIPTPATH=${0%/*}
 # guesses os flavour, sets OSFLAVOUR and OS_*
 flavour
 
-CFGSRC=$TARGETDIR/install/apache/
+CFGSRC=$TARGETDIR/conf-default/apache/
 SRCNAME=nmis_apache.conf
 CFGNAME=nmis.conf
 
@@ -28,7 +28,7 @@ if [ -z "$CFGTARGET" -o ! -d "$CFGTARGET" ]; then
 
 You will need to integrate NMIS with your web server manually.
 
-Please use configuration file examples from $TARGETDIR/install/apache 
+Please use configuration file examples from $TARGETDIR/conf-default/apache 
 and check the NMIS Installation guide at 
 https://community.opmantek.com/x/Dgh4
 for further info.\n";

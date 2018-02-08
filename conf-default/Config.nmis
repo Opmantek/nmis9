@@ -30,12 +30,13 @@ my %hash = (
     '<nmis_bin>' => '<nmis_base>/bin',
     '<nmis_cgi>' => '<nmis_base>/cgi-bin',
     '<nmis_conf>' => '<nmis_base>/conf',
+		'<nmis_conf_default>' => '<nmis_base>/conf-default',
     '<nmis_data>' => '<nmis_base>',
     '<nmis_logs>' => '<nmis_base>/logs',
     '<nmis_menu>' => '<nmis_base>/menu',
 
-	'<nmis_models>' => '<nmis_base>/models-custom',
-	'<nmis_default_models>' => '<nmis_base>/models-default',
+		'<nmis_models>' => '<nmis_base>/models-custom',
+		'<nmis_default_models>' => '<nmis_base>/models-default',
 
     '<nmis_var>' => '<nmis_data>/var',
     '<menu_base>' => '<nmis_base>/menu',
@@ -45,10 +46,15 @@ my %hash = (
     'config_logs' => '<nmis_logs>/config',
     'mib_root' => '<nmis_base>/mibs',
     'report_root' => '<nmis_base>/htdocs/reports',
+
     'script_root' => '<nmis_conf>/scripts',
-    'web_root' => '<nmis_base>/htdocs',
-	'plugin_root' => '<nmis_conf>/plugins',
-	'<nmis_backups>' => '<nmis_data>/backups',
+		'plugin_root' => '<nmis_conf>/plugins',
+
+		'script_root_default' => '<nmis_conf_default>/scripts',
+		'plugin_root_default' => '<nmis_conf_default>/plugins',
+    
+		'web_root' => '<nmis_base>/htdocs',
+		'<nmis_backups>' => '<nmis_data>/backups',
   },
 
   'globals' => {
@@ -90,7 +96,7 @@ my %hash = (
 																access => [ 'Minor', 'Warning' ], default => [ 'Major', 'Minor' ] },
     # if this option is present, then *only* properties listed here will be shown in the node view,
     # and in precisely this order. custom properties are supported.
-    'network_viewNode_field_list' => 'status,sysName,host_addr,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastUpdate,nodeVendor,sysObjectName,roleType,netType',
+    'network_viewNode_field_list' => 'status,outage,sysName,host_addr,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastUpdate,nodeVendor,sysObjectName,roleType,netType',
 
 		# if this option is present use binary logic for node down and set the level to the overall_node_status_level
     'overall_node_status_coarse' => 'false',
@@ -135,7 +141,7 @@ my %hash = (
     'response_time_threshold' => '500',
     'nmis_user' => 'nmis',
     'nmis_group' => 'nmis',
-		'nmis_executable' => '(/(bin|admin|installer_hooks|install/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh|/installer)$',
+		'nmis_executable' => '(/(bin|admin|installer_hooks|conf-default/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh|/installer)$',
     'file_size_warning' => '100000000',
     'default_communityRO' => 'public',
     'default_username' => '',
@@ -236,10 +242,8 @@ my %hash = (
     'outage_file' => '<nmis_conf>/outage.dat',
     'nmis_log' => '<nmis_logs>/nmis.log',
     'fpingd_log' => '<nmis_logs>/fpingd.log',
-		'fpingd_pidfile' => "/var/run/fpingd.pid",
     'auth_log' => '<nmis_logs>/auth.log',
     'ipsla_log' => '<nmis_logs>/ipsla.log',
-		'ipsla_pidfile' => "/var/run/ipslad.pid",
     'polling_log' => '<nmis_logs>/polling.log',
     'syslog_log' => '<nmis_logs>/cisco.log',
     'event_log' => '<nmis_logs>/event.log',
@@ -496,6 +500,7 @@ my %hash = (
   },
 
 	'expiration' => {
+		# non-automatic ones: set to -1 to disable expiration
 		'purge_rrd_after' => 30*86400,		# unused rrd files older than 30 days
 		'purge_backup_after' => 30*86400, # backup files
 		'purge_state_after' => 30*86400,	 # unused nmis state files
@@ -503,5 +508,6 @@ my %hash = (
 		'purge_jsonlog_after' => 30*86400, # json log files
 		'purge_timeddata_after' => 86400,		 # timed data (automatic expiration)
 		'purge_inventory_after' => 14*86400,		 # unused/historic inventory data (automatic expiration)
+		'purge_reports_after' => 365*86400,			 # html reports
 	},
 );

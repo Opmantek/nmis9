@@ -500,4 +500,13 @@
     'Description' => 'The collect process for a node has been killed to ensure that polling continues for other nodes.',
   },
 
+  "Planned Outage Open" => {
+               "Event" => "Planned Outage Open",
+               "Notify" => "true",
+               "Status" => "false",                            # does not contribute to status summary calculations
+               "Log" => "true",                                                # needs to be logged for opEvents and others
+               "Stateful" => "true",
+               "CancelingEvent" => "Planned Outage Closed",
+               "Description" => "A scheduled outage window for a node has become active.",
+       },
 );

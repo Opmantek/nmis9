@@ -38,7 +38,7 @@ use Getopt::Std;
 use NMISNG::Util;
 
 my $usage="Usage: ".basename($0)." [-q] <CONFIG_1> <CONFIG_2 or dir>
-eg: ".basename($0)." /usr/local/nmis9/install/Config.nmis /usr/local/nmis9/conf/
+eg: ".basename($0)." /usr/local/nmis9/conf-default/Config.nmis /usr/local/nmis9/conf/
 
 This script compares two NMIS Config files and reports the differences.
 

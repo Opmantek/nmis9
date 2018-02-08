@@ -8,9 +8,9 @@ SCRIPTPATH=${0%/*}
 # rh6: has ancient pre-3.8.0 logrotate
 flavour
 
-SRCFILE=$TARGETDIR/install/logrotate/logrotate.conf
+SRCFILE=$TARGETDIR/conf-default/logrotate/logrotate.conf
 [ "$OSFLAVOUR" = "redhat" -a "$OS_MAJOR" -lt 7 ] \
-		&& SRCFILE=$TARGETDIR/install/logrotate/logrotate_ancient.conf
+		&& SRCFILE=$TARGETDIR/conf-default/logrotate/logrotate_ancient.conf
 TARGETFILE=/etc/logrotate.d/nmis9.conf
 
 # compare file against shipped version and offer to replace

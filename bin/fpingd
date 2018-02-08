@@ -91,7 +91,7 @@ my $logger = NMISNG::Log->new( level => (NMISNG::Log::parse_debug_level(
 																					 debug => $nvp{debug} || $nvp{logging})
 																				 // $C->{log_level}),
 															 path  => defined($nvp{debug})? undef : $logfile);
-my $pidfile = "/var/run/fpingd.pid";
+my $pidfile = $C->{'<nmis_var>'}."/fpingd.pid";
 
 # check for any running fpingd instance
 my $alreadyrunning;
@@ -289,7 +289,7 @@ while (!$mustexit)
 			if (!$thisstate->{ip} or $now >= $thisstate->{nextdns})
 			{
 				# fixme: this returns only v4 addresses, see fping6 comment above
-				$thisstate->{ip} = Compat::NMIS::resolveDNStoAddr($thisstate->{host}) # may be undef
+				$thisstate->{ip} = NMISNG::Util::resolveDNStoAddr($thisstate->{host}) # may be undef
 						||  $thisstate->{host}; # again falling back to leaving this to fping
 				$logger->debug2("refreshed dns for $thisstate->{host} to $thisstate->{ip}"
 							.($thisstate->{nextdns}?

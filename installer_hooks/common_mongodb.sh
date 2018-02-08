@@ -62,6 +62,7 @@ EOF
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
 
 				# get the release key first
+				# however, as of [2018-02-08 Thu 12:18] the 3.4 repository signing is broken: BADSIG
 				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -s -m 20 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
 				# apt-key adv doesn't work cleanly with gpg 2.1+
 				$GIMMEKEY | apt-key add -
@@ -71,7 +72,8 @@ EOF
 				# debian 9: 3.2 is in debian proper but we normally need 3.4.
 				if [ "$OSFLAVOUR" = "debian" ]; then
 						[ "$OS_MAJOR" = 7 ] && MONGORELNAME=wheezy || MONGORELNAME=jessie
-						echo "deb http://repo.mongodb.org/apt/debian $MONGORELNAME/mongodb-org/$DESIREDVER main" >$SOURCESFILE
+						# BADSIG on repository as of [2018-02-08 Thu 12:22]
+						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/debian $MONGORELNAME/mongodb-org/$DESIREDVER main" >$SOURCESFILE
 						# debian 9: mongo package for jessie requires older libssl, only a/v in jessie
 						[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
 				else
@@ -80,7 +82,8 @@ EOF
 						[ "$OS_MAJOR" = "14" ] && MONGORELNAME="trusty" # 14.04
 						[ "$OS_MAJOR" = "12" ] && MONGORELNAME="precise" # aka 12.04
 
-						echo "deb http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >$SOURCESFILE
+						# BADSIG on repository as of [2018-02-08 Thu 12:22]
+						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >$SOURCESFILE
 				fi
 
 				apt-get update -qq

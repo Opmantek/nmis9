@@ -1384,7 +1384,6 @@ sub outageReport
 	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
 	my $NT = Compat::NMIS::loadNodeTable();
-	my $OT = Compat::NMIS::loadOutageTable();
 
 	my $index;
 	my %logreport;

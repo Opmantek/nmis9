@@ -41,15 +41,19 @@ use File::Basename;
 use File::stat;
 use File::Spec;
 use File::Copy;
-use Time::ParseDate; # fixme: actually NOT used by func
+
+use Time::ParseDate;
 use Time::Local;
+use Time::Moment;
+use DateTime::TimeZone;
+
 use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
 use Carp;
 use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
 use IO::Handle;
-
+use Socket 2.001;								# for getnameinfo() used by resolve_dns_name
 use JSON::XS;
 use Proc::ProcessTable;
 
@@ -117,9 +121,6 @@ sub numify
 	# integer or full ieee floating point with optional exponent notation
 	return ( $maybe =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) ? ( $maybe + 0 ) : $maybe;
 }
-
-# fixme9 get rid of?
-my %Table_cache;
 
 my $confdebug = 0;
 
@@ -981,7 +982,7 @@ sub setFileProtParents
 	return;
 }
 
-# expand directory name if its one of the short names var, models, conf, logs, mibs;
+# expand directory name if its one of the short names var, models, conf, conf_default, logs, mibs;
 # args: dir
 # returns expanded value or original input
 sub getDir
@@ -991,7 +992,7 @@ sub getDir
 	my $C = NMISNG::Util::loadConfTable(); # cache, in general
 
 	# known expansions
-	for my $maybe (qw(var models default_models conf logs mibs))
+	for my $maybe (qw(var models default_models conf conf_default logs mibs))
 	{
 		return $C->{"<nmis_$maybe>"} if ($dir eq $maybe);
 	}
@@ -1031,13 +1032,13 @@ sub mtimeFile {
 	}
 }
 
-### Cache system for hash tables/files reading from disk
+# function for reading hash tables/files
 #
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy') returns pointer of table, if not in cache or file is updated then load from file
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy',check=>'true') returns 1 if cache and file are valid else 0
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy',mtime=>'true') returns pointer of table and mtime of file
-#	NMISNG::Util::loadTable(dir=>'xx',name=>'yy',lock=>'true') returns pointer of table and handle without caching
-# extra argument: suppress_errors, if set loadTable will not log errors but just return
+# args: dir, name (both required, name may be w/o extension)
+#  suppress_errors (optional, default 0, if set loadtable will not log errors but just return),
+#  lock (optional, default 0, if 0 loadtable returns (data,locked handle), if 0 returns just data
+#
+# returns: (hashref) or (hashref,locked handle), or (0/1)
 #
 # ATTENTION: fixme dir logic is very convoluted! dir is generally NOT a garden-variety real dir path!
 # ATTENTION: no useful error handling, cannot  distinguish between file with empty hash and failure to load
@@ -1047,60 +1048,54 @@ sub loadTable
 	my $dir =  $args{dir}; # name of directory
 	my $name = $args{name};	# name of table or short file name
 
-	my $check = NMISNG::Util::getbool($args{check}); # if 'true' then check only if table is valid in cache
-	my $mtime = NMISNG::Util::getbool($args{mtime}); # if 'true' then mtime is also returned
-	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching
+	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching and no fallbacks
 
-	my $C = NMISNG::Util::loadConfTable();
+	# full path -> { data => ..., mtime => ... }
+	state %cache;
 
 	if (!$name or !$dir)
 	{
+		# fixme9 convert to log
 		NMISNG::Util::logMsg("ERROR: invalid arguments, name or dir missing!");
 		return {};
 	}
 
-	my $file = getDir(dir=>$dir)."/$name"; # expands dirs like 'conf' or 'logs' into full location
+	my $expandeddir = getDir(dir => $dir); # expands dirs like 'conf' or 'logs' into full location
+	my $file = "$expandeddir/$name";
 	$file = NMISNG::Util::getFileName(file => $file);		 # mangles file name into extension'd one
 
+	# special case for files under conf: if lock is not set and conf/file is missing, fall back automatically conf-default/file
+	if ($expandeddir eq getDir(dir => "conf") && !$lock && !-e $file)
+	{
+		$file = NMISNG::Util::getFileName(file => getDir(dir => "conf_default")."/$name");
+	}
+
+	# fixme9 convert to log
+	print STDERR "DEBUG loadTable: name=$name dir=$dir expanded to file=$file\n" if $confdebug;
+
+	# no file? nothing to do but bail out
 	if (!-e $file)
 	{
+		# fixme9 convert to log
 		NMISNG::Util::logMsg("ERROR file $file does not exist or has bad permissions (dir=$dir name=$name)")
 				if (!$args{suppress_errors});
 		return {};
 	}
 
-	print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
-	if ($lock)
+	return NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock)
+			if ($lock);
+
+	# look at the cache, does it have existing non-stale data?
+		my $filetime = stat($file)->mtime;
+	if (ref($cache{$file}) ne "HASH"
+			|| $filetime != $cache{$file}->{mtime})
 	{
-		return NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock);
+		# nope, reread
+		$cache{$file} = { "data" => NMISNG::Util::readFiletoHash(file=>$file),
+											"mtime" => $filetime };
 	}
-	else
-	{
-		# known dir
-		my $index = lc "$dir$name";
-		if (exists $Table_cache{$index}{data})
-		{
-			# already in cache, check for update of file
-			if (stat($file)->mtime eq $Table_cache{$index}{mtime})
-			{
-				return 1 if ($check);
-				# else
-				return ($Table_cache{$index}{data}, $Table_cache{$index}{mtime})
-						if ($mtime); # oke
-				# else
-				return $Table_cache{$index}{data}; # oke
-			}
-		}
-		return 0 if ($check); # cached data/table not valid
-		# else
-		# read from file
-		$Table_cache{$index}{data} = NMISNG::Util::readFiletoHash(file=>$file);
-		$Table_cache{$index}{mtime} = stat($file)->mtime;
-		return ($Table_cache{$index}{data},$Table_cache{$index}{mtime})
-				if ($mtime); # oke
-		# else
-		return $Table_cache{$index}{data}; # oke
-	}
+
+	return $cache{$file}->{data};
 }
 
 sub writeTable {
@@ -1859,7 +1854,7 @@ sub checkFile
 	my $prettyfile = File::Spec->abs2rel(Cwd::abs_path($file), $C->{'<nmis_base>'});
 
 	# does it even exist?
-	return (0, "ERROR: file $prettyfile does not exist") if ( not -f $file );
+	return (0, "ERROR: file $prettyfile ($file) does not exist") if ( not -f $file );
 
 	my $fstat = stat($file);
 
@@ -2226,9 +2221,7 @@ sub selftest
 											$config->{'config_logs'},
 											$config->{'json_logs'},
 											$config->{'<menu_base>'},
-											$config->{'report_root'},
-											$config->{'script_root'}, # commonly under nmis_conf
-											$config->{'plugin_root'}, ) # ditto
+											$config->{'report_root'},  )
 		{
 			my $where = Cwd::abs_path($location);
 			next if ($done{$where});
@@ -2577,11 +2570,6 @@ sub find_nmis_processes
 	return \%others;
 }
 
-# semi-internal accessor for the table cache structure
-sub _table_cache
-{
-	return \%Table_cache;
-}
 
 # this small helper converts an ethernet or similar layer2 address
 # from pure binary or 0xsomething into a string of the colon-separated bytes in the address
@@ -3000,6 +2988,156 @@ sub audit_log
 	my $res = NMISNG::Util::setFileProtDiag(file => $auditlogfile);
 
 	return undef;
+}
+
+# quick dns lookup for names
+# args: name
+# returns: list of addresses (or empty array)
+sub resolve_dns_name
+{
+	my ($lookup) = @_;
+	my @results;
+
+	# full ipv6 support works only with newer socket module
+	my ($err,@possibles) = Socket::getaddrinfo($lookup,'',
+																						 {socktype => SOCK_RAW});
+	return () if ($err);
+
+	for my $address (@possibles)
+	{
+		my ($err,$ipaddr) = Socket::getnameinfo(
+			$address->{addr},
+			Socket::NI_NUMERICHOST(),
+			Socket::NIx_NOSERV());
+		push @results, $ipaddr if (!$err and $ipaddr ne $lookup); # suppress any nop results
+	}
+	return @results;
+}
+
+# wrapper around resolve_dns_name,
+# returns the _first_ available ip _v4_ address or undef
+sub resolveDNStoAddr
+{
+	my ($name) = @_;
+
+	my @addrs = resolve_dns_name($name);
+	my @v4 = grep(/^\d+.\d+.\d+\.\d+$/, @addrs);
+
+	return $v4[0];
+}
+
+# takes anything that time::parsedate understands, plus an optional timezone argument
+# and returns full seconds (ie. unix epoch seconds in utc)
+#
+# if no timezone is given, the local timezone is used.
+# attention: parsedate by itself does NOT understand the iso8601 format with timezone Z or
+# with negative offset; relative time specs also don't work well with timezones OR dst changes!
+#
+# az recommends using parseDateTime || getUnixTime for max compat.
+sub getUnixTime
+{
+	my ($timestring, $tzdef) = @_;
+
+	# to make the tz-dependent stuff work, we MUST give parsedate a tz spec...
+	# - but we don't know the applicable offset until after we've parsed the
+	# time (== catch 22 when dst is involved)
+	# - and parsedate doesn't understand most timezone names, so we must compute a numeric offset...fpos.
+	# (== catch 22^2)
+	# - plus trying to fix in postprocessing with shift FAILS if the time was a relative one (e.g. now),
+	# and parsedate doesn't tell us whether the time in question was relative or absolute. fpos^2.
+	#
+	# best effort: take the current time's offset, hope it's applicable to the actual time in question
+
+	my $tz = DateTime::TimeZone->new(name => 'local');
+
+	my $tmobj = Time::Moment->now_utc;							 # don't do any local timezone stuff
+	my $tzoffset = $tz->offset_for_datetime($tmobj); # in seconds
+	# want [+-]HHMM
+	my $tzspec = sprintf("%s%02u%02u", ($tzoffset < 0? "-":"+"),
+											 (($tzoffset < 0? -$tzoffset: $tzoffset)/3600),
+											 ($tzoffset%3600)/60);
+
+  my $epochseconds = parsedate($timestring, ZONE => $tzspec);
+	return $epochseconds;
+}
+
+# convert an iso8601/rfc3339 time into (fractional!) unix epoch seconds
+# returns undef if the input string is invalid
+# note: timezone suffixes ARE parsed and taken into account!
+# if no tz suffix is present, use the local timezone
+sub parseDateTime
+{
+	my ($dtstring) = @_;
+	# YYYY-MM-DDTHH:MM:SS.SSS, millis are optional
+	# also allowed: timezone suffixes Z, +NN, -NN, +NNMM, -NNMM, +NN:MM, -NN:MM
+
+	# meh: time::moment strictly REQUIRES tz - just constructing with from_string()
+	# fails on implicit local zone (and is likely more expensive even with fixup work, as lenient is
+	# required because the damn thing otherwise refuses +NNMM as that has no ":"...
+	if ($dtstring =~ /^(\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+)(\.\d+)?(Z|([\+-])(\d{2})\:?(\d{2})?)?/)
+	{
+		my $eleven = $11 // "00"; # datetime wants offsets as +-HHMM, nost just +-HH
+		my $tzn = (defined($8)? $8 eq "Z"? $8 : $9.$10.$eleven : undef);
+		my $tz = DateTime::TimeZone->new(name => $tzn // "local");
+
+		# oh the convolutions...make obj w/o tz, then figure out offset for THAT time,
+		# then apply the offset. meh.
+		my $when = Time::Moment->new(year => $1, month => $2, day => $3,
+																 hour => $4,  minute => $5, second => $6,
+																 nanosecond => (defined $7? $7 * 1e9: 0));
+		my $tzoffset = $tz->offset_for_datetime($when) / 60;
+
+		my $inthezone = $when->with_offset_same_local($tzoffset);
+		return $inthezone->epoch + $inthezone->nanosecond / 1e9;
+	}
+	else
+	{
+		return undef;
+	}
+}
+
+# small helper to handle X.Y.Z or X.N.M indirection into a deep structure
+# takes anchor of structure, follows X.Y.Z or X.N.M or X.-N.M indirections
+#
+# args: structure (ref), path (string)
+# returns: value (or undef), error: undef/0 for ok, 1 for nonexistent key/index,
+# 2 for type mismatch (eg. hash expected but scalar or array observed)
+sub follow_dotted
+{
+	my ($anchor, $path) = @_;
+	my ($error, $value);
+
+	for my $indirection (split(/\./, $path))
+	{
+		if (ref($anchor) eq "ARRAY" and $indirection =~ /^-?\d+$/)
+		{
+			if (!exists $anchor->[$indirection])
+			{
+				return (undef, 1);
+			}
+			else
+			{
+				$anchor = $anchor->[$indirection];
+			}
+		}
+		elsif (ref($anchor) eq "HASH")
+		{
+			if (!exists $anchor->{$indirection})
+			{
+				return (undef, 1);
+			}
+			else
+			{
+				$anchor = $anchor->{$indirection};
+			}
+		}
+		else
+		{
+			return (undef, 2);			# type mismatch
+		}
+	}
+	$value = $anchor;
+	return ($value, 0);
 }
 
 1;

@@ -44,11 +44,10 @@ use Time::Local;
 use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
 
-
-use Compat::NMIS;			# fixme9: should we rewrite add-outage code to not use loadLocalNodeTable?
 use NMISNG;
 use NMISNG::Log;
 use NMISNG::Util;
+use NMISNG::Outage;
 
 if ( @ARGV == 1 && $ARGV[0] eq "--version" )
 {
@@ -59,20 +58,71 @@ if ( @ARGV == 1 && $ARGV[0] eq "--version" )
 my $thisprogram = basename($0);
 my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
- act=groupsync
- act=add-outage {node|group}=name start=HH:MM end=HH:MM [comment=text]
- act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
+ act=fixperms
  act=config-backup
+ act=groupsync
+
  act=purge [simulate=t/f] [info=t/f]
  act=dbcleanup [simulate=t/f] [info=t/f]
 
- act=fixperms
+ act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
+
+ act=list-outages [filter=X...]
+ act=create-oudate [outage.A=B... outage.X.Y=Z...]
+ act=update-outage id=<outid> [outage.A=B... outage.X.Y=Z...]
+ act={delete-outage|show-outage} id=<outid>
+ act=check-outages [node=X|uuid=Y] [time=T]
+  act=outage-help for more detailed help
+
 \n";
+
+my $outageusage = qq|Outage Management:
+
+list-outages: shows overview of selected outage schedules
+show-outage: displays the details for one outage instance
+
+create-outage: creates new outage schedule
+update-oudate: updates existing outage schedule
+ only the given outage.A, outage.X.Y properties are changed.
+
+check-outage: reports which outages would apply at the given time
+ (or now) and  for one node (if given) or all nodes
+
+Supported Arguments for Outage Creation:
+
+outage.description: free-form textual description.
+outage.change_id: change management ticket identifier, used for event tagging
+
+outage.frequency: one of 'once', 'daily', 'weekly' or 'monthly'
+outage.start, outage.end: date and time of outage start and end,
+ format depends on frequency
+  daily: "HH:MM" or "HH:MM:SS". 24:00 is allowed for end.
+  weekly: "MDAY HH:MM" or "MDAY HH:MM:SS", MDAY one of 'Mon', 'Tue' etc.
+  monthly: "D HH:MM:SS", "-D HH:MM:SS", "D HH:MM", "-D HH:MM"
+   D is the numeric day of the month, 1..31.  -D counts from the end of the month,
+   -1 is the last day of the month, -2 the second to last etc.
+  once: ISO8601 date time recommended,
+   e.g. 2017-10-31T03:04:26+0000
+
+outage.options: optional key=values to adjust NMIS' behaviour during an outage
+outage.selector: any number of criteria for selecting devices for this outage
+  selector keys: node.X or config.Y, node config or global config properties
+  selector values: single string, /regex string/ or array or single strings.
+  arrays must be given as separate indexed entries.
+  all selectors must match for a node to be subject to the outage.
+
+example: $thisprogram act=create-outage \\
+outage.description='certain nodes are busy each month start' \\
+outage.change_id='ticket #42' \\
+outage.frequency=monthly outage.start="1 12:00" outage.end="1 13:30" \\
+outage.selector.node.group.0="busybodies" \\
+outage.selector.node.group.1="alsobad"\n\n|;
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
 
 my $wantverbose = (NMISNG::Util::getbool($Q->{verbose}));
+my $wantquiet  = NMISNG::Util::getbool($Q->{quiet});
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
@@ -104,67 +154,220 @@ my $nmisng = NMISNG->new(
 	log    => $logger,
 );
 
+# for audit logging
+my ($thislogin) = getpwuid($<); # only first field is of interest
 
-if ($Q->{act} eq "add-outage")
+# outage management first
+if ($Q->{act} =~ /^outage[_-]help$/)
 {
-	my $outages = NMISNG::Util::loadTable(dir => "conf", name => "Outage");
-	my $nodes = Compat::NMIS::loadLocalNodeTable;
-
-	die "Invalid arguments!\n$usage"
-			if (!$Q->{start} || !$Q->{end}
-					|| !( $Q->{group} xor $Q->{node} )
-					|| $Q->{start} !~ /^\d+:\d+$/ || $Q->{end} !~ /^\d+:\d+$/ );
-
-	die "Unknown node \"$Q->{node}\" given, aborting!\n"
-			if ($Q->{node} && !$nodes->{$Q->{node}});
-
-	my @now = localtime;
-	my @hm = split(/:/, $Q->{start});
-
-	die "start time \"$Q->{start}\" unparseable!\n"
-			if ($hm[0]>=24 || $hm[1]>=60);
-
-	my $begtime = POSIX::mktime(0,$hm[1],$hm[0],@now[3..5]);
-	@hm = split(/:/, $Q->{end});
-
-	die "end time \"$Q->{end}\" unparseable!\n"
-			if ($hm[0]>=24 || $hm[1]>=60);
-
-	my $endtime = POSIX::mktime(0,$hm[1],$hm[0],@now[3..5]);
-
-	# if the endtime is earlier than the begin, add one day to end
-	if ( $endtime < $begtime )
-	{
-		$endtime += 86400;
-	}
-	# if the time specified is earlier than now, add one day
-	if ( $begtime < time )
-	{
-		$begtime += 86400;
-		$endtime += 86400;
-	}
-
-	my @candidates = $Q->{node}? ($Q->{node})
-			: (grep { $nodes->{$_}->{group} eq $Q->{group} } keys %{$nodes}); # fixme9 better way to get the nodes of a group?
-
-	die "group \"$Q->{group}\" has no members, aborting!\n" if (!@candidates);
-
-	print "Outage window is from ".localtime($begtime)." to ".
-			localtime($endtime)."\n" if ($wantverbose);
-
-	for my $node (@candidates)
-	{
-		$outages->{ join("-",$node,$begtime,$endtime) } = {
-			node => $node,
-			start => $begtime,
-			end => $endtime,
-			change => $Q->{comment} };
-
-		print "Applying to node $node\n"
-				if ($wantverbose);
-	}
-	NMISNG::Util::writeTable(dir=> "conf", name => "Outage", data => $outages);
+	print $outageusage;
+	exit 0;
 }
+# overview of all or selected outages
+elsif ($Q->{act} =~ /^list[_-]outages$/)
+{
+	my %filter;
+	for my $maybe (keys %$Q)
+	{
+		next if ($maybe !~ /^(id|description|change_id|frequency|start|end|options\.nostats|selector.(config|node).[^=]+)$/);
+
+		if ($Q->{$maybe} =~ m!^/(.*)/(i)?$!)
+		{
+			my ($re,$options) = ($1,$2);
+			$filter{$maybe} = ($options? qr{$re}i : qr{$re});
+		}
+		else
+		{
+			$filter{$maybe} =  $Q->{$maybe};
+		}
+	}
+
+	my $res = NMISNG::Outage::find_outages(filter => \%filter);
+	die "Error: failed to find outages: $res->{error}\n" if (!$res->{success});
+
+	if (!@{$res->{outages}})
+	{
+		print STDERR "No matching outages.\n" if (!$wantquiet);
+		exit 0;
+	}
+
+	# uuids are 36c wide, align only if output is to tty
+	my $fmt = (-t \*STDOUT? "%36s\t%16s\t%30s\t\%10s\t%20s\t%20s\n" : "%s\t%s\t%s\t%s\t%s\t%s\n");
+	# header only if tty
+	printf($fmt, "ID", "Change ID", "Description",
+				 "Frequency", "Start", "End") if (-t \*STDOUT);
+
+	for my $orec (@{$res->{outages}})
+	{
+		printf($fmt,
+					 $orec->{id},
+					 $orec->{change_id},
+					 $orec->{description},
+					 $orec->{frequency},
+					 ($orec->{frequency} eq "once" && $orec->{start} =~ /^\d+(\.\d+)?$/?
+						POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($orec->{start})) : $orec->{start}),
+					 ($orec->{frequency} eq "once" && $orec->{end} =~ /^\d+(\.\d+)?$/?
+						POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($orec->{end})) : $orec->{end})
+					 , );
+
+	}
+}
+# remove one outage by id
+elsif ($Q->{act} =~ /^delete[_-]outage$/)
+{
+	my $outid = $Q->{"id"};
+	die "Error: Cannot delete outage without id argument!\n\n$outageusage\n" if (!$outid);
+
+	my $res = NMISNG::Outage::remove_outage(id => $outid, meta => { user => $thislogin });
+	die "Error: failed to remove outage: $res->{error}\n" if (!$res->{success});
+}
+# show one outage structure in flattened form
+elsif ($Q->{act} =~ /^show[_-]outage$/)
+{
+	my $outid = $Q->{"id"};
+	die "Error: Cannot show outage without id argument!\n\n$outageusage\n" if (!$outid);
+
+	my $res = NMISNG::Outage::find_outages(filter => { id => $outid });
+	die "Error: Failed to lookup outage: $res->{error}" if (!$res->{success});
+	# there can be at most one with this id
+	my $theoneandonly = $res->{outages}->[0];
+	die "Error: No outage with id $outid exists!\n" if (!$theoneandonly);
+
+	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($theoneandonly);
+	for my $k (sort keys %flatearth)
+	{
+		my $val = $flatearth{$k};
+		print "$k=$flatearth{$k}\n";
+	}
+	exit 0;
+}
+elsif ($Q->{act} =~ /^update[_-]outage$/)
+{
+	# update: id required
+	my $outid = $Q->{id};
+
+	die "Error: Cannot update outage without id argument!\n\n$outageusage\n"
+			if (!$outid);
+
+	# look it up, amend with given values
+	my $res = NMISNG::Outage::find_outages(filter => { id => $outid });
+	die "Error: Failed to lookup outage: $res->{error}" if (!$res->{success});
+	# there can be at most one with this id
+	my $updateme = $res->{outages}->[0];
+	die "Error: No outage with id $outid exists!\n" if (!$updateme);
+
+	my $dosomething;
+	for my $name (grep(/^outage\./, keys %$Q))
+	{
+		my $dotted = $name; $dotted =~ s/^outage\.//;
+		$updateme->{$dotted} = (defined($Q->{$name}) && $Q->{$name} ne "")?
+				$Q->{$name} : undef;
+		++$dosomething;
+
+		my $error = NMISNG::Util::translate_dotfields($updateme);
+		die "Error: translation of arguments failed: $error\n" if ($error);
+	}
+	die "Error: No changes for outage \"$outid\"!\n" if (!$dosomething);
+
+	$updateme->{id} = $outid;			# bsts...
+	$res = NMISNG::Outage::update_outage(%$updateme, meta => { user => $thislogin });
+	die "Error: Failed to update \"$outid\": $res->{error}\n" if (!$res->{success});
+}
+elsif ($Q->{act} =~ /^create[_-]outage$/)
+{
+	# create w/o args? show help
+	die "Error: Cannot create outage without arguments!\n\n$outageusage\n"
+			if (!grep(/^outage\./, keys %$Q));
+
+	my ($addables,%createme);
+	for my $name (grep(/^outage\./, keys %$Q))
+	{
+		my $dotted = $name; $dotted =~ s/^outage\.//;
+		$createme{$dotted} = (defined($Q->{$name}) && $Q->{$name} ne "")?
+				$Q->{$name} : undef;
+		++$addables;
+
+		my $error = NMISNG::Util::translate_dotfields(\%createme);
+		die "Error: translation of arguments failed: $error\n" if ($error);
+	}
+	die "Error: No valid arguments for creating an outage!\n\n$outageusage\n" if (!$addables);
+	# make sure the user doesn't pass a clashing id arg!
+	$createme{id} //= $Q->{id} if (defined $Q->{id});
+	if ($createme{id})
+	{
+		my $clash = NMISNG::Outage::find_outages(filter => { id => $createme{id} });
+		die "Error: Failed to lookup outage: $clash->{error}" if (!$clash->{success});
+		die "Error: Cannot create outage with id \"$createme{id}\": already exists!\n"
+				if (@{$clash->{outages}});
+	}
+
+	my $res = NMISNG::Outage::update_outage(%createme, meta => { user => $thislogin });
+	die "Error: Failed to create: $res->{error}\n" if (!$res->{success});
+
+	# print the created id if not quiet, and without fluff if not tty
+	print((-t \*STDOUT? "Created outage \"$res->{id}\"\n" : $res->{id}."\n"))
+			if (!$wantquiet);
+	exit 0;
+}
+elsif ($Q->{act} =~ /^check[_-]outages$/)
+{
+	my $nodeobj;									# particular node?
+
+	if (my $nodename = $Q->{node} or my $uuid = $Q->{uuid})
+	{
+		my %nodesel;
+		$nodesel{name} = $nodename if ($nodename);
+		$nodesel{uuid} = $uuid if ($uuid);
+
+		$nodeobj = $nmisng->node(%nodesel);
+		die "Invalid node/uuid arguments, no matching node exists!\n"
+				if (!$nodeobj);
+	}
+
+	my $when = $Q->{time} || time;
+	if ($when !~ /^\d+(\.\d+)?$/)
+	{
+		$when = NMISNG::Util::parseDateTime($when) || NMISNG::Util::getUnixTime($when);
+	}
+
+
+	my $res = NMISNG::Outage::check_outages( node => $nodeobj, nmisng => $nmisng, time => $when);
+	die "Failed to check outages: $res->{error}\n" if (!$res->{success});
+
+
+	print "\nRelevant outages"
+			.($nodeobj? (" for node ".$nodeobj->name.", "):"")
+			." at time "
+			.localtime($when).":\n";
+
+	for (["Past:", "past"], ["Future:", "future"], ["Current: ", "current" ])
+	{
+		my ($tag, $source) = @$_;
+
+		if (!@{$res->{$source}})
+		{
+			print "$tag None\n";
+		}
+		else
+		{
+			my @output;
+			for my $match (@{$res->{$source}})
+			{
+				my $msg = "\n\t\"$match->{description}\" ($match->{id})\n\t$match->{frequency} from '"
+						. ($match->{start} =~ /^\d+(\.\d+)?$/? scalar(localtime($match->{start})) : $match->{start})
+						."' to '"
+						. ($match->{end} =~ /^\d+(\.\d+)?$/? scalar(localtime($match->{end})) : $match->{end})."'";
+				$msg .= "\n\t(actual '".localtime($match->{actual_start}). "' to '".localtime($match->{actual_end})."')"
+						if ($match->{actual_start});
+				push @output, $msg;
+			}
+			print "$tag ".join("\n\n", @output)."\n";
+		}
+	}
+	print "\n";
+	exit 0;
+}
+
 elsif ($Q->{act} eq "run-reports")
 {
 	my ($period, $reporttype) = @{$Q}{"period","type"};
@@ -511,10 +714,20 @@ sub purge_files
 			location => $C->{config_logs},
 			description => "Old node configuration JSON log files",
 		},
+
+		{
+			minage => $C->{purge_reports_after} || 365*86400,
+			also_empties => 0,
+			ext => qr/\.html$/,
+			location => $C->{report_root},
+			description => "Very old report files",
+		},
+
 	);
 
 	for my $rule (@purgatory)
 	{
+		next if ($rule->{minage} <= 0);	# purging can be disabled by setting the minage to -1
 		my $olderthan = time - $rule->{minage};
 		next if ( !$rule->{location} );
 		NMISNG::Util::info("checking dir $rule->{location} for $rule->{description}");

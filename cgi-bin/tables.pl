@@ -27,44 +27,48 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
+our $VERSION="9.0.0a";
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#
-use strict;
-use Compat::NMIS;
-use NMISNG::Sys;
-use Compat::DBfunc;							# fixme9: should be removed
-use NMISNG::Util;
-use Net::hostent;
+use Net::IP;
 use Socket;
 use Data::Dumper;
 use URI::Escape;
 use UUID::Tiny;									# for nodes table uuid test
-
 use CGI qw(:standard *table *Tr *td *form *Select *div);
+
+use Compat::NMIS;
+use NMISNG::Sys;
+use NMISNG::Util;
+use NMISNG::Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
 
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
-# Before going any further, check to see if we must handle
-# an authentication login or logout request
-
-# NMIS Authentication module
-use NMISNG::Auth;
+# if arguments present, then called from command line
+if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = NMISNG::Auth->new(conf => $C);
 
-if ($AU->Require) {
+if ($AU->Require)
+{
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
+else
+{
+	# that's the command line/debugger scenario, where we assume a full admin
+	$AU->SetUser("nmis");
+}
+
 
 # check for remote request
 if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
@@ -102,7 +106,8 @@ exit;
 #==================================================================
 #
 
-sub loadReqTable {
+sub loadReqTable
+{
 	my %args = @_;
 	my $table = $args{table};
 	my $msg = $args{msg};
@@ -115,36 +120,13 @@ sub loadReqTable {
 	}
 	else
 	{
-		my $db = "db_".lc($table)."_sql";
-		if (NMISNG::Util::getbool($C->{$db})) {
-			$T = Compat::DBfunc::->select(table=>$table); # full table
-		} else {
-			$T = NMISNG::Util::loadTable(dir=>'conf',name=>$table);
-		}
+		$T = NMISNG::Util::loadTable(dir=>'conf',name=>$table);
 	}
 	if (!$T and !NMISNG::Util::getbool($msg,"invert")) {
 		print Tr(td({class=>'error'},"Error on loading table $table"));
 		return;
 	}
 	return $T;
-}
-
-sub localLoadCfgTable {
-	my %args = @_;
-	my $table = $args{table};
-
-	# Set the Environment VAR to tell the EVAL'd program who the user is.
-	$ENV{'NMIS_USER'} = $AU->{user};
-
-	my $tabCfg = Compat::NMIS::loadGenericTable("Table-$table");
-	my %Cfg = %{$tabCfg};
-
-	if (!($Cfg{$table})) {
-		print Tr(td({class=>'error'},"Configuration of table $table does not exists"));
-		return;
-	}
-
-	return $Cfg{$table};
 }
 
 #
@@ -173,31 +155,31 @@ EOF
 	$T = loadReqTable(table=>$table); # load requested table
 
 	my $CT;
-	return if (!($CT = localLoadCfgTable(table=>$table))); # load configuration of table
+	return if (!($CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table))); # load configuration of table
 	print start_table;
 
 	my $url = url(-absolute=>1)."?conf=$Q->{conf}&table=$table";
 
 	# print short info
 	#print header
-	print Tr( eval { my $line; my $colspan = 1;
-			for my $ref ( @{$CT}) { # trick for order of header items
-				for my $item (keys %{$ref}) {
-					if ($ref->{$item}{display} =~ /header/ ) {
-						$line .= td({class=>'header',align=>'center'},$ref->{$item}{header});
-						$colspan++;
-					}
-				}
+	my $line;
+	my $colspan = 1;
+	for my $ref ( @{$CT}) { # trick for order of header items
+		for my $item (keys %{$ref})
+		{
+			if ($ref->{$item}{display} =~ /header/ ) {
+				$line .= td({class=>'header',align=>'center'},$ref->{$item}{header});
+				$colspan++;
 			}
-			$line .= td({class=>'header',align=>'center'},'Action',
-					eval {
-						if ($AU->CheckAccess("Table_${table}_rw","check")) {
-							return ' > '.a({href=>"$url&act=config_table_add&widget=$widget"},'add'),
-						} else { return ''; }
-					}
-				);
-			return Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line;
-		});
+		}
+	}
+	my $link = $AU->CheckAccess("Table_${table}_rw","check")?
+			(' > '.a({href=>"$url&act=config_table_add&widget=$widget"},'add')) : '';
+
+	$line .= td({class=>'header',align=>'center'},'Action', $link);
+	print Tr(Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line);
+
+
 	# print data
 	for my $k (sort {lc($a) cmp lc($b)} keys %{$T}) {
 		my $display = 1;
@@ -247,8 +229,8 @@ EOF
 }
 
 # shows the table contents, optionally with a delete button
-sub viewTable {
-
+sub viewTable
+{
 	my $table = $Q->{table};
 	my $key = $Q->{key};
 
@@ -256,12 +238,10 @@ sub viewTable {
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript(title => "View Table $table") if (NMISNG::Util::getbool($widget,"invert"));
 
-	$AU->CheckAccess("Table_${table}_view");
-
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = localLoadCfgTable(table=>$table); # load table configuration
+	my $CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table); # load table configuration
 	# not delete -> we assume view
 	my $action= $Q->{act} =~ /delete/? "config_table_dodelete": "config_table_menu";
 
@@ -353,7 +333,7 @@ sub showTable {
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = localLoadCfgTable(table=>$table); # load table configuration
+	my $CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table); # load table configuration
 
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
@@ -413,7 +393,7 @@ sub editTable
 	my $T;
 	return if (!($T = loadReqTable(table=>$table,msg=>'false')) and $Q->{act} =~ /edit/); # load requested table
 
-	my $CT = localLoadCfgTable(table=>$table);
+	my $CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table);
 
 	my $func = ($Q->{act} eq 'config_table_add') ? 'doadd' : 'doedit';
 	my $button = ($Q->{act} eq 'config_table_add') ? 'Add' : 'Edit';
@@ -464,68 +444,67 @@ sub editTable
 			}
 			else
 			{
+				my $line;
+				if ($thisitem->{display} =~ /key/)
+				{
+					push @hash,$item;
+				}
+
+				# things tagged key are NOT editable, only settable initially on add.
+				# on edit the text is static
+				if ($func eq 'doedit' and $thisitem->{display} =~ /key/)
+				{
+					$line .= td({class=>'header'}, escapeHTML($thiscontent));
+					$line .= hidden("-name"=>$item, "-default"=>$thiscontent, "-override"=>'1');
+				}
+				elsif ($thisitem->{display} =~ /textbox/)
+				{
+					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+					$line .= td(textarea(-name=> $item, -value=>$value,
+															 -style=> 'width: 95%;',
+															 -rows => 3,
+															 -columns => ($wantwidget? 35 : 70)));
+				}
+				elsif ($thisitem->{display} =~ /(text|password)/)
+				{
+					my $wantpassword = $1 eq "password";
+					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+
+					$line .= td(
+						$wantpassword? password_field(-name=>$item, -value=>$value,
+																					-style=> 'width: 95%;',
+																					-size=>  ($wantwidget? 35 : 70))
+						: textfield(-name=>$item, -value=>$value,
+												-style=> 'width: 95%;',
+												-size=>  ($wantwidget? 35 : 70)));
+				}
+				elsif ($thisitem->{display} =~ /readonly/) {
+					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+
+					$line .= td(escapeHTML($value));
+					$line .= hidden(-name=>$item, -default=>$value, -override=>'1');
+				}
+				elsif ($thisitem->{display} =~ /pop/) {
+					#print STDERR "DEBUG editTable: popup -- item=$item\n";
+					$line .= td(popup_menu(
+												-name=> $item,
+
+												-values=>$thisitem->{value},
+												-style=>'width: 95%;',
+												-default=>$thiscontent));
+				}
+				elsif ($thisitem->{display} =~ /scrol/) {
+					my @items = split(/,/,$T->{$key}{$item});
+					$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
+																		-style=>'width: 95%;',
+																		-size=>'6',
+																		-values=>$thisitem->{value},
+																		-default=>\@items));
+				}
+
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
 										escapeHTML($thisitem->{header}).$mandatory),
-								 eval {
-									 my $line;
-									 if ($thisitem->{display} =~ /key/)
-									 {
-										 push @hash,$item;
-									 }
-
-									 # things tagged key are NOT editable, only settable initially on add.
-									 # on edit the text is static
-									 if ($func eq 'doedit' and $thisitem->{display} =~ /key/)
-									 {
-										 $line .= td({class=>'header'}, escapeHTML($thiscontent));
-										 $line .= hidden("-name"=>$item, "-default"=>$thiscontent, "-override"=>'1');
-									 }
-									 elsif ($thisitem->{display} =~ /textbox/)
-									 {
-										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-										 $line .= td(textarea(-name=> $item, -value=>$value,
-																					-style=> 'width: 95%;',
-																					-rows => 3,
-																					-columns => ($wantwidget? 35 : 70)));
-									 }
-									 elsif ($thisitem->{display} =~ /(text|password)/)
-									 {
-										 my $wantpassword = $1 eq "password";
-										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-
-										 $line .= td(
-											 $wantpassword? password_field(-name=>$item, -value=>$value,
-																										 -style=> 'width: 95%;',
-																										 -size=>  ($wantwidget? 35 : 70))
-											 : textfield(-name=>$item, -value=>$value,
-																	 -style=> 'width: 95%;',
-																	 -size=>  ($wantwidget? 35 : 70)));
-									 }
-									 elsif ($thisitem->{display} =~ /readonly/) {
-										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-
-										 $line .= td(escapeHTML($value));
-										 $line .= hidden(-name=>$item, -default=>$value, -override=>'1');
-									 }
-									 elsif ($thisitem->{display} =~ /pop/) {
-										 #print STDERR "DEBUG editTable: popup -- item=$item\n";
-										 $line .= td(popup_menu(
-																	 -name=> $item,
-
-																	 -values=>$thisitem->{value},
-																	 -style=>'width: 95%;',
-																	 -default=>$thiscontent));
-									 }
-									 elsif ($thisitem->{display} =~ /scrol/) {
-										 my @items = split(/,/,$T->{$key}{$item});
-										 $line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
-																							 -style=>'width: 95%;',
-																							 -size=>'6',
-																							 -values=>$thisitem->{value},
-																							 -default=>\@items));
-									 }
-									 return $line;
-								 });
+								 $line );
 			}
 		}
 	}
@@ -553,14 +532,18 @@ sub editTable
 	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
 
+# this function performs the actual modification of the files with values
 # called for both adding and editing
 sub doeditTable
 {
 	my $table = $Q->{table};
 	my $hash = $Q->{hash};
 
+	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
+
 	# no editing for the Polling Policy, only add and delete
-	return 1 if ($table eq "Polling-Policy" and $Q->{act} eq "config_table_doedit");
+	return 1 if ($table eq "Polling-Policy"
+							 and $Q->{act} eq "config_table_doedit");
 
 	my $new_name;									# only needed for nodes table
 
@@ -570,7 +553,7 @@ sub doeditTable
 
 	my $T = loadReqTable(table=>$table,msg=>'false');
 
-	my $CT = localLoadCfgTable(table=>$table);
+	my $CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table);
 	my $TAB = Compat::NMIS::loadGenericTable('Tables');
 
 	# combine key from values, values separated by underscrore
@@ -583,7 +566,7 @@ sub doeditTable
 		$key = NMISNG::Util::stripSpaces($key);
 	}
 
-	# test on existing key
+	# test for invalid or existing key
 	if ($Q->{act} =~ /doadd/)
 	{
 		if (exists $T->{$key}) {
@@ -601,7 +584,8 @@ sub doeditTable
 	# make room, make room! accessing a nonexistent $T->{$key} does NOT attach it to $T...
 	my $thisentry  = $T->{$key} ||= {};
 
-	my $V;
+	my $V;												# fixme: deprecated, in sql db mode only
+
 	# store new values in table structure
 	for my $ref ( @{$CT})
 	{
@@ -621,33 +605,136 @@ sub doeditTable
 			# any such into comma-sep data - but for a standalone submission that does not happen.
 			my $value = join(",", unpack("(Z*)*", NMISNG::Util::stripSpaces($Q->{$item})));
 			$thisentry->{$item} = $V->{$item} = $value;
+
+			# and validate if told to
+			next if (ref($thisitem->{validate}) ne "HASH");
+
+			# supported validation mechanisms:
+			# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max.
+			# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
+			#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
+			# "int-or-empty", "float-or-empty" work like their namesakes, but accept nothing/blank/undef as well.
+			# "regex" => qr//,
+			# "ip" => [ 4 or 6 or 4, 6],
+			# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
+			# "onefromlist" => [ list of accepted values ] or undef - if undef, 'value' list is used
+			#   accepts exactly one value
+			# "multifromlist" => [ list of accepted values ] or undef, like fromlist but more than one
+			#   accepts any number of values from the list, including none whatsoever!
+			# more than one rule possible but likely not very useful
+			for my $valtype (sort keys %{$thisitem->{validate}})
+			{
+				my $valprops = $thisitem->{validate}->{$valtype};
+
+				if ($valtype =~ /^(int|float)(-or-empty)?$/)
+				{
+					my ($actualtype, $emptyisok) = ($1,$2);
+
+					# checks required if not both emptyisok and blank input
+					if (!$emptyisok or (defined($value) and $value ne ""))
+					{
+						return validation_abort($item, "'$value' is not an integer!")
+								if ($actualtype eq "int" and int($value) ne $value);
+						return validation_abort($item, "'$value' is not a floating point number!")
+								# integer or full ieee floating point with optional exponent notation
+								if ($actualtype eq "float"
+										and $value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+
+						my ($min,$max,$above,$below) = (ref($valprops) eq "ARRAY"? @{$valprops}
+																						: (undef,undef,undef,undef));
+						return validation_abort($item, "$value below minimum $min!")
+								if (defined($min) and $value < $min);
+						return validation_abort($item,"$value above maximum $max!")
+								if (defined($max) and $value > $max);
+
+						# integers don't subdivide infinitely precisely so above and below not needed
+						if ($actualtype eq "float")
+						{
+							return validation_abort($item, "$value is not above $above!")
+									if (defined($above) and $value <= $above);
+
+							return validation_abort($item, "$value is not below $below!")
+									if (defined($below) and $value >= $below);
+						}
+					}
+				}
+				elsif ($valtype eq "regex")
+				{
+					my $expected = ref($valprops) eq "Regexp"? $valprops : qr//; # fallback will match anything
+					return validation_abort($item, "'$value' didn't match regular expression \"$expected\"!")
+							if ($value !~ $expected);
+				}
+				elsif ($valtype eq "ip")
+				{
+					my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
+
+					my $ipobj = Net::IP->new($value);
+					return validation_abort($item, "'$value' is not a valid IP address!")
+							if (!$ipobj);
+
+					return validation_abort($item, "'$value' is IP address of the wrong type!")
+							if (($ipobj->version == 6 and !grep($_ == 6, @ipversions))
+									or $ipobj->version == 4 and !grep($_ == 4, @ipversions));
+				}
+				elsif ($valtype eq "resolvable")
+				{
+					return validation_abort($item, "'$value' is not a resolvable name or IP address!")
+							if (!$value);
+
+					my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
+
+					my $alreadyip = Net::IP->new($value);
+					if ($alreadyip)
+					{
+						return validation_abort($item, "'$value' is IP address of the wrong type!")
+								if (!grep($_ == $alreadyip->version, @ipversions));
+						# otherwise, we're happy...
+					}
+					else
+					{
+						my @addresses = NMISNG::Util::resolve_dns_name($value);
+						return validation_abort($item, "DNS failed to resolve '$value'!")
+								if (!@addresses);
+
+						my @addr_objs = map { Net::IP->new($_) } (@addresses);
+						my $goodones;
+						for my $type (4,6)
+						{
+							$goodones += grep($_->version == $type, @addr_objs) if (grep($_ == $type, @ipversions));
+						}
+						return validation_abort($item,
+																		"'$value' does not resolve to an IP address of the right type!")
+								if (!$goodones);
+					}
+				}
+				elsif ($valtype eq "onefromlist" or $valtype eq "multifromlist")
+				{
+					# either explicit list of acceptables, or the 'value' config item
+					my @acceptable = ref($valprops) eq "ARRAY"? @$valprops :
+							ref($thisitem->{value}) eq "ARRAY"? @{$thisitem->{value}}: ();
+					return validation_abort($item, "no validation choices configured!")
+							if (!@acceptable);
+
+					# for multifromlist assume that value is now comma-separated. *sigh*
+					# for onefromlist values with colon are utterly unspecial *double sigh*
+					my @mustcheckthese = ($valtype eq "multifromlist")? split(/,/, $value) : $value;
+					for my $oneofmany (@mustcheckthese)
+					{
+						return validation_abort($item, "'$oneofmany' is not in list of acceptable values!")
+								if (!List::Util::any { $oneofmany eq $_ } (@acceptable));
+					}
+				}
+				else
+				{
+					return validation_abort($item, "unknown validation type \"$valtype\"");
+				}
+			}
 		}
 	}
 
-	# some sanity checks BEFORE writing the data out
+	# nodes requires special handling, extra sanity checks, and dealing with rename
 	if ($table eq 'Nodes')
 	{
-		# check host address
-		if (!$thisentry->{host})
-		{
-			print header($headeropts);
-			print Tr(td({class=>'error'} , "Field \'host\' must be filled in table $table"));
-			return 0;
-		}
-
-		### test the DNS for DNS names, if no IP returned, error exit
-		# fixme: ipv6 not supported yet
-		if ( $thisentry->{host} !~ /\d+\.\d+\.\d+\.\d+/ )
-		{
-			my $address = Compat::NMIS::resolveDNStoAddr($thisentry->{host});
-			if ( $address !~ /\d+\.\d+\.\d+\.\d+/ or !$address ) {
-				print header($headeropts);
-				print Tr(td({class=>'error'} , escapeHTML("ERROR, cannot resolve IP address \'$thisentry->{host}\'")
-										."<br>". "Please correct this item in table $table"));
-				return 0;
-			}
-		}
-
 		# ensure a real uuid is present
 		if (!$thisentry->{uuid} or !UUID::Tiny::is_uuid_string($thisentry->{uuid}))
 		{
@@ -709,27 +796,20 @@ sub doeditTable
 	}
 	else
 	{
-		my $db = "db_".lc($table)."_sql";
-		if ( NMISNG::Util::getbool($C->{$db}) ) {
-			my $stat;
-			$V->{index} = $key; # add this column
-			if ($Q->{act} =~ /doadd/) {
-				$stat = Compat::DBfunc::->insert(table=>$table,data=>$V);
-			} else {
-				$stat = Compat::DBfunc::->update(table=>$table,data=>$V,index=>$key);
-			}
-			if (!$stat) {
-				print header({-type=>"text/html",-expires=>'now'});
-				print Tr(td({class=>'error'} , escapeHTML(Compat::DBfunc::->error())));
-				return 0;
-			}
-		} else {
-			NMISNG::Util::writeTable(dir=>'conf',name=>$table, data=>$T);
-		}
-
+		NMISNG::Util::writeTable(dir=>'conf',name=>$table, data=>$T);
 	}
 
 	return 1;
+}
+
+# print (negative) html response
+sub validation_abort
+{
+	my ($item, $message) = @_;
+
+	print header($headeropts),
+	Tr(td({class=>'error'} , escapeHTML("'$item' failed to validate: $message")));
+	return undef;
 }
 
 sub dodeleteTable {

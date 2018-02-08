@@ -37,6 +37,7 @@ use Cwd;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+use Compat::NMIS;								# fixme9: replace with direct/full db access?
 
 print "Opmantek NMIS Support Tool Version $VERSION\n";
 
@@ -424,14 +425,15 @@ sub collect_evidence
 	mkdir("$targetdir/conf/scripts",0755);
 	mkdir("$targetdir/conf/nodeconf",0755);
 
-	# copy all of conf/ and models/ but NOT any stray stuff beneath
-	system("cp","-r","$basedir/models",$targetdir) == 0
-			or warn "can't copy models to $targetdir: $!\n";
+	# copy all of conf/ and models-custom/ but NOT any stray stuff beneath
+	system("cp","-r","$basedir/models-custom",$targetdir) == 0
+			or warn "can't copy models-custom to $targetdir: $!\n";
 	system("cp $basedir/conf/* $targetdir/conf 2>/dev/null");
 
 	# for conf, clean out sensitive bits if requested
 	if ($nosensitive)
 	{
+		# fixme9: rework for database access!
 		open(F, "$targetdir/conf/Nodes.nmis") or die "can't read nodes file: $!\n";
 		my @lines = <F>;
 		close F;

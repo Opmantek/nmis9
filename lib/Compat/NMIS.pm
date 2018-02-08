@@ -49,23 +49,13 @@ $Data::Dumper::Indent = 1;			# fixme9: costs, should not be enabled
 
 use Compat::IP;
 use NMISNG::CSV;
-use Compat::DBfunc;							# fixme9: should be removed
 
 use NMISNG;
 use NMISNG::Sys;
 use NMISNG::rrdfunc;
 use NMISNG::Notify;
+use NMISNG::Outage;
 
-
-# fixme9 thise need to go and/or become state vars!
-my $NT_cache = undef; # node table (local + remote)
-my $NT_modtime; # file modification time
-my $LNT_cache = undef; # local node table
-my $LNT_modtime;
-my $GT_cache = undef; # group table
-my $GT_modtime;
-my $ST_cache = undef; # server table
-my $ST_modtime;
 
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
@@ -113,171 +103,66 @@ sub loadLocalNodeTable
 {
 	my $nmisng = new_nmisng();
 
+	# ask the database for all of my nodes, ie. with my cluster id
 	my $modelData = $nmisng->get_nodes_model( filter => { cluster_id => $nmisng->config->{cluster_id} } );
 	my $data = $modelData->data();
 	my %map = map { $_->{name} => $_ } @$data;
 	return \%map;
 }
 
-# fixme9: rework
-sub loadNodeTable {
+# load all nodes, local and foreign
+# args: none
+# returns: hash of node name -> node record
+sub loadNodeTable
+{
+	my $nmisng = new_nmisng();
 
-	my $reload = 'false';
+	# ask the database for all noes, my cluster id and all others
+	my $modelData = $nmisng->get_nodes_model();
+	my $data = $modelData->data();
 
-	my $C = NMISNG::Util::loadConfTable();
-
-	if (NMISNG::Util::getbool($C->{server_master})) {
-		# check modify of remote node tables
-		my $ST = loadServersTable();
-		for my $srv (keys %{$ST}) {
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-
-			my $name = "nmis-${srv}-Nodes";
-			if (! NMISNG::Util::loadTable(dir=>'var',name=>$name,check=>'true') ) {
-				$reload = 'true';
-			}
-		}
-	}
-
-	if (not defined $NT_cache or ( NMISNG::Util::mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) ) {
-		$reload = 'true';
-	}
-
-	return $NT_cache if NMISNG::Util::getbool($reload,"invert");
-
-	# rebuild tables
-	$NT_cache = undef;
-	$GT_cache = undef;
-
-	my $LNT = loadLocalNodeTable();
-	my $master_server_priority = $C->{master_server_priority} || 10;
-
-	foreach my $node (keys %{$LNT}) {
-		$NT_cache->{$node}{server} = $C->{server_name};
-		### set the default server priority to 10 as local node
-		$NT_cache->{$node}{server_priority} = $master_server_priority;
-		foreach my $k (keys %{$LNT->{$node}} ) {
-			$NT_cache->{$node}{$k} = $LNT->{$node}{$k};
-		}
-		if ( NMISNG::Util::getbool($LNT->{$node}{active})) {
-			$GT_cache->{$LNT->{$node}{group}} = $LNT->{$node}{group};
-		}
-	}
-	$NT_modtime = NMISNG::Util::mtimeFile(dir=>'conf',name=>'Nodes');
-
-	if (NMISNG::Util::getbool($C->{server_master})) {
-		# check modify of remote node tables
-		my $ST = loadServersTable();
-		my $NT;
-		for my $srv (keys %{$ST}) {
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-
-			# Relies on nmis.pl getting the file every 5 minutes.
-			my $name = "nmis-${srv}-Nodes";
-			my $server_priority = $ST->{$srv}{server_priority} || 5;
-
-			if (($NT = NMISNG::Util::loadTable(dir=>'var',name=>$name)) ) {
-				foreach my $node (keys %{$NT}) {
-					$NT->{$node}{server} = $srv ;
-					$NT->{$node}{server_priority} = $server_priority ;
-					if (
-						( not defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} eq "" )
-						or
-						( defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} ne "" and $NT->{$node}{server_priority}  > $NT_cache->{$node}{server_priority} )
-					) {
-						foreach my $k (keys %{$NT->{$node}} ) {
-							$NT_cache->{$node}{$k} = $NT->{$node}{$k};
-						}
-						if ( NMISNG::Util::getbool($NT->{$node}{active})) {
-							$GT_cache->{$NT->{$node}{group}} = $NT->{$node}{group};
-						}
-					}
-				}
-			}
-		}
-	}
-	return $NT_cache;
+	my %map = map { $_->{name} => $_ } @$data;
+	return \%map;
 }
 
-sub loadGroupTable {
-
-	if( not defined $GT_cache or not defined $NT_cache or ( NMISNG::Util::mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) ) {
-		loadNodeTable();
-	}
-
-	return $GT_cache;
+# returns hash (ref) of group name -> group name, for all active nodes
+# fixme9: this should be an array
+sub loadGroupTable
+{
+	my $allnodes = loadNodeTable;
+	my %group2group = map { $_->{group} => $_->{group} } (grep(NMISNG::Util::getbool($_->{active}), values %$allnodes));
+	return \%group2group;
 }
 
-sub tableExists {
+# check if a table-ish file exists in conf (or conf-default)
+# args: file name, relative, may be short w/o extension
+# returns: 1 if file exists, 0 otherwise
+sub tableExists
+{
 	my $table = shift;
-	my $exists = 0;
 
-	if (NMISNG::Util::existFile(dir=>"conf",name=>$table)) {
-		$exists = 1;
-	}
-
-	return $exists;
+	return (NMISNG::Util::existFile(dir=>"conf",
+																	name=>$table)
+					|| NMISNG::Util::existFile(dir=>"conf_default",
+																		 name=>$table))? 1 : 0;
 }
 
-sub loadFileOrDBTable {
-	my $table = shift;
-	my $ltable = lc $table;
-
-	my $C = NMISNG::Util::loadConfTable();
-	if (NMISNG::Util::getbool($C->{"db_${ltable}_sql"})) {
-		return Compat::DBfunc::->select(table=>$table);
-	} else {
-		return NMISNG::Util::loadTable(dir=>'conf',name=>$table);
-	}
+# load a table from conf (or conf-default)
+# args: file name, relative, may be short w/o extension
+# returns: hash ref of data
+sub loadGenericTable
+{
+	my ($tablename) = @_;
+	return NMISNG::Util::loadTable(dir => "conf", name => $tablename );
 }
 
-sub loadGenericTable{
-	return loadFileOrDBTable( shift );
-}
-
-sub loadContactsTable {
-	return loadFileOrDBTable('Contacts');
-}
-
-sub loadAccessTable {
-	return loadFileOrDBTable('Access');
-}
-
-sub loadPrivMapTable {
-	return loadFileOrDBTable('PrivMap');
-}
-
-sub loadUsersTable {
-	return loadFileOrDBTable('Users');
-}
-
-sub loadLocationsTable {
-	return loadFileOrDBTable('Locations');
-}
-
-sub loadifTypesTable {
-	return loadFileOrDBTable('ifTypes');
-}
-
-sub loadServicesTable {
-	return loadFileOrDBTable('Services');
-}
-
-sub loadLinksTable {
-	return NMISNG::Util::loadTable(dir=>'conf',name=>'Links');
-}
-
-sub loadEscalationsTable {
-	return loadFileOrDBTable('Escalations');
-}
 
 sub loadWindowStateTable
 {
 	my $C = NMISNG::Util::loadConfTable();
 
-	return {} if (not -r NMISNG::Util::getFileName(file => "$C->{'<nmis_var>'}/nmis-windowstate"));
+	return {} if (not NMISNG::Util::existFile(dir => 'var',
+																						name => "nmis-windowstate"));
 	return NMISNG::Util::loadTable(dir=>'var',name=>'nmis-windowstate');
 }
 
@@ -322,287 +207,38 @@ sub findCfgEntry
 	return undef;
 }
 
-# this returns an almost config-like structure that describes the well-known config keys,
-# how to display them and what options they have
-# args: none!
-sub loadCfgTable {
+# this loads a Table-<sometable> config structure (for the gui)
+# and returns the <sometable> substructure - outermost is always hash,
+# substructure is usually an array (except for Table-Config, which is one level deeper)
+#
+# args: table name (e.g. Nodes), defaults to "Config",
+# user (optional, if given will be set in %ENV for any dynamic tables that need it)
+#
+# returns: (array or hash)ref or undef on error
+sub loadCfgTable
+{
 	my %args = @_;
 
-	my $table = $args{table}; # fixme ignored, has no function
+	my $tablename = $args{table} || "Config";
 
-	my %Cfg = (
-  	'online' => [
-				{ 'nmis_docs_online' => { display => 'text', value => ['https://community.opmantek.com/']}},
-		],
+	# some tables contain complex code, call auth methods  etc,
+	# and need to know who the originator is
+	my $oldcontext = $ENV{"NMIS_USER"};
+	if (my $usercontext = $args{user})
+	{
+		$ENV{"NMIS_USER"} = $usercontext;
+	}
+	my $goodies = loadGenericTable("Table-$tablename");
+	$ENV{"NMIS_USER"} = $oldcontext; # let's not leave a mess behind.
 
-  	'directories' => [
-				{ '<nmis_base>' => { display => 'text', value => ['/usr/local/nmis']}},
-				{ '<nmis_bin>' => { display => 'text', value => ['<nmis_base>/bin']}},
-				{ '<nmis_cgi>' => { display => 'text', value => ['<nmis_base>/cgi-bin']}},
-				{ '<nmis_conf>' => { display => 'text', value => ['<nmis_base>/conf']}},
-				{ '<nmis_data>' => { display => 'text', value => ['<nmis_base>']}},
-				{ '<nmis_logs>' => { display => 'text', value => ['<nmis_base>/logs']}},
-				{ '<nmis_menu>' => { display => 'text', value => ['<nmis_base>/menu']}},
-				{ '<nmis_models>' => { display => 'text', value => ['<nmis_base>/models']}},
-				{ '<nmis_var>' => { display => 'text', value => ['<nmis_base>/var']}},
-				{ '<menu_base>' => { display => 'text', value => ['<nmis_base>/menu']}},
-				{ 'database_root' => { display => 'text', value => ['<nmis_data>/database']}},
-				{ 'log_root' => { display => 'text', value => ['<nmis_logs>']}},
-				{ 'mib_root' => { display => 'text', value => ['<nmis_base>/mibs']}},
-				{ 'report_root' => { display => 'text', value => ['<nmis_data>/htdocs/reports']}},
-				{ 'script_root' => { display => 'text', value => ['<nmis_conf>/scripts']}},
-				{ 'web_root' => { display => 'text', value => ['<nmis_data>/htdocs']}}
-		],
-
-		'system' => [
-			{ 'group_list' => { display => 'text', value => ['']}},
-			{ 'roletype_list' => { display => 'text', value => ['']}},
-			{ 'nettype_list' => { display => 'text', value => ['']}},
-			{ 'nodetype_list' => { display => 'text', value => ['']}},
-			{ 'nmis_host' => { display => 'text', value => ['localhost']}},
-				{ 'domain_name' => { display => 'text', value => ['']}},
-				{ 'cache_summary_tables' => { display => 'popup', value => ["true", "false"]}},
-				{ 'cache_var_tables' => { display => 'popup', value => ["true", "false"]}},
-				{ 'page_refresh_time' => { display => 'text', value => ['60']}},
-				{ 'os_posix' => { display => 'popup', value => ["true", "false"]}},
-				{ 'os_cmd_read_file_reverse' => { display => 'text', value => ['tac']}},
-				{ 'os_cmd_file_decompress' => { display => 'text', value => ['gzip -d -c']}},
-				{ 'os_kernelname' => { display => 'text', value => ['']}},
-				{ 'os_fileperm' => { display => 'text', value => ['0775']}},
-				{ 'report_files_max' => { display => 'text', value => ['60']}},
-				{ 'loc_sysLoc_format' => { display => 'text', value => ['']}},
-				{ 'loc_from_DNSloc' => { display => 'popup', value => ["true", "false"]}},
-				{ 'loc_from_sysLoc' => { display => 'popup', value => ["true", "false"]}},
-				{ 'cbqos_cm_collect_all' => { display => 'popup', value => ["true", "false"]}},
-				{ 'buttons_in_logs' => { display => 'popup', value => ["true", "false"]}},
-				{ 'node_button_in_logs' => { display => 'popup', value => ["true", "false"]}},
-				{ 'page_bg_color_full' => { display => 'popup', value => ["true", "false"]}},
-				{ 'http_req_timeout' => { display => 'text', value => ['30']}},
-				{ 'ping_timeout' => { display => 'text', value => ['500']}},
-				{ 'server_name' => { display => 'text', value => ['localhost']}},
-				{ 'response_time_threshold' => { display => 'text', value => ['3']}},
-				{ 'nmis_user' => { display => 'text', value => ['nmis']}},
-				{ 'nmis_group' => { display => 'text', value => ['nmis']}},
-				{ 'fastping_timeout' => { display => 'text', value => ['300']}},
-				{ 'fastping_packet' => { display => 'text', value => ['56']}},
-				{ 'fastping_retries' => { display => 'text', value => ['3']}},
-				{ 'fastping_count' => { display => 'text', value => ['3']}},
-				{ 'fastping_sleep' => { display => 'text', value => ['60']}},
-				{ 'fastping_node_poll' => { display => 'text', value => ['300']}},
-				{ 'ipsla_collect_time' => { display => 'text', value => ['60']}},
-				{ 'ipsla_bucket_interval' => { display => 'text', value => ['180']}},
-				{ 'ipsla_extra_buckets' => { display => 'text', value => ['5']}},
-				{ 'ipsla_mthread' => { display => 'popup', value => ["true", "false"]}},
-				{ 'ipsla_maxthreads' => { display => 'text', value => ['10']}},
-				{ 'ipsla_mthreaddebug' => { display => 'popup', value => ["false", "true"]}},
-				{ 'ipsla_dnscachetime' => { display => 'text', value => ['3600']}},
-				{ 'ipsla_control_enable_other' => { display => 'popup', value => ["true", "false"]}},
-				{ 'fastping_timeout' => { display => 'text', value => ['300']}},
-				{ 'fastping_packet' => { display => 'text', value => ['56']}},
-				{ 'fastping_retries' => { display => 'text', value => ['3']}},
-				{ 'fastping_count' => { display => 'text', value => ['3']}},
-				{ 'fastping_sleep' => { display => 'text', value => ['60']}},
-				{ 'fastping_node_poll' => { display => 'text', value => ['300']}},
-				{ 'default_graphtype' => { display => 'text', value => ['abits']}},
-				{ 'ping_timeout' => { display => 'text', value => ['300']}},
-				{ 'ping_packet' => { display => 'text', value => ['56']}},
-				{ 'ping_retries' => { display => 'text', value => ['3']}},
-				{ 'ping_count' => { display => 'text', value => ['3']}},
-				{ 'global_collect' => { display => 'popup', value => ["true", "false"]}},
-				{ 'wrap_node_names' => { display => 'popup', value => ["false", "true"]}},
-				{ 'nmis_summary_poll_cycle' => { display => 'popup', value => ["true", "false"]}},
-				{ 'snpp_server' => { display => 'text', value => ['<server_name>']}},
-				{ 'snmp_timeout' => { display => 'text', value => ['5']}},
-				{ 'snmp_retries' => { display => 'text', value => ['1']}},
-				{ 'snmp_stop_polling_on_error' => { display => 'popup', value => ["false", "true"]}},
-		],
-
-  	'url' => [
-				{ '<url_base>' => { display => 'text', value => ['/nmis9']}},
-				{ '<cgi_url_base>' => { display => 'text', value => ['/cgi-nmis9']}},
-				{ '<menu_url_base>' => { display => 'text', value => ['/menu9']}},
-				{ 'web_report_root' => { display => 'text', value => ['<url_base>/reports']}}
-
-		],
-
-		'tools' => [
-				{ 'view_ping' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_trace' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_telnet' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_mtr' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_lft' => { display => 'popup', value => ["true", "false"]}}
-		],
-
-		'files' => [
-				{ 'styles' => { display => 'text', value => ['<url_base>/nmis.css']}},
-				{ 'syslog_log' => { display => 'text', value => ['<nmis_logs>/cisco.log']}},
-				{ 'event_log' => { display => 'text', value => ['<nmis_logs>/event.log']}},
-				{ 'outage_log' => { display => 'text', value => ['<nmis_logs>/outage.log']}},
-				{ 'help_file' => { display => 'text', value => ['<url_base>/help.pod.html']}},
-				{ 'nmis' => { display => 'text', value => ['<cgi_url_base>/nmiscgi.pl']}},
-				{ 'nmis_log' => { display => 'text', value => ['<nmis_logs>/nmis.log']}}
-		],
-
-		'email' => [
-			{ 'mail_server' => { display => 'text', value => ['mail.domain.com']}},
-			{ 'mail_domain' => { display => 'text', value => ['domain.com']}},
-			{ 'mail_from' => { display => 'text', value => ['nmis@domain.com']}},
-			{ 'mail_combine' => { display => 'popup', value => ['true','false']}},
-			{ 'mail_from' => { display => "text", value => ['nmis@yourdomain.com']}},
-			{	'mail_use_tls' => { display => 'popup', value => ['true','false']}},
-			{ 'mail_server_port' => { display => "text", value => ['25']}},
-			{ 'mail_server_ipproto' => { display => "popup", value => ['','ipv4','ipv6']}},
-			{ 'mail_user' => { display => "text", value => ['your mail username']}},
-			{ 'mail_password' => { display => "text", value => ['']}},
-		],
-
-		'menu' => [
-				{ 'menu_title' => { display => 'text', value => ['NMIS']}},
-				{ 'menu_types_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_types_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_types_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_groups_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_groups_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_groups_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_vendors_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_vendors_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_vendors_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_maxitems' => { display => 'text', value => ['30']}},
-				{ 'menu_suspend_link' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_start_page_id' => { display => 'text', value => ['']}}
-		],
-
-		'icons' => [
-				{ 'normal_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-green.gif']}},
-				{ 'arrow_down_green' => { display => 'text', value => ['<menu_url_base>/img/arrow_down_green.gif']}},
-				{ 'arrow_up_big' => { display => 'text', value => ['<menu_url_base>/img/bigup.gif']}},
-				{ 'logs_icon' => { display => 'text', value => ['<menu_url_base>/img/logs.jpg']}},
-				{ 'mtr_icon' => { display => 'text', value => ['<menu_url_base>/img/mtr.jpg']}},
-				{ 'arrow_up' => { display => 'text', value => ['<menu_url_base>/img/arrow_up.gif']}},
-				{ 'help_icon' => { display => 'text', value => ['<menu_url_base>/img/help.jpg']}},
-				{ 'telnet_icon' => { display => 'text', value => ['<menu_url_base>/img/telnet.jpg']}},
-				{ 'back_icon' => { display => 'text', value => ['<menu_url_base>/img/back.jpg']}},
-				{ 'lft_icon' => { display => 'text', value => ['<menu_url_base>/img/lft.jpg']}},
-				{ 'fatal_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-red.gif']}},
-				{ 'trace_icon' => { display => 'text', value => ['<menu_url_base>/img/trace.jpg']}},
-				{ 'nmis_icon' => { display => 'text', value => ['<menu_url_base>/img/nmis.jpg']}},
-				{ 'summary_icon' => { display => 'text', value => ['<menu_url_base>/img/summary.jpg']}},
-				{ 'banner_image' => { display => 'text', value => ['<menu_url_base>/img/NMIS_Logo.gif']}},
-				{ 'map_icon' => { display => 'text', value => ['<menu_url_base>/img/australia-line.gif']}},
-				{ 'minor_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-yellow.gif']}},
-				{ 'arrow_down_big' => { display => 'text', value => ['<menu_url_base>/img/bigdown.gif']}},
-				{ 'ping_icon' => { display => 'text', value => ['<menu_url_base>/img/ping.jpg']}},
-				{ 'unknown_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-white.gif']}},
-				{ 'doc_icon' => { display => 'text', value => ['<menu_url_base>/img/doc.jpg']}},
-				{ 'arrow_down' => { display => 'text', value => ['<menu_url_base>/img/arrow_down.gif']}},
-				{ 'arrow_up_red' => { display => 'text', value => ['<menu_url_base>/img/arrow_up_red.gif']}},
-				{ 'major_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-amber.gif']}},
-				{ 'critical_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-red.gif']}}
-		],
-
-		'authentication' => [
-				{ 'auth_method_1' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
-				{ 'auth_method_2' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
-				{ 'auth_expire' => { display => 'text', value => ['+20min']}},
-				{ 'auth_htpasswd_encrypt' => { display => 'popup', value => ['crypt','md5','plaintext']}},
-				{ 'auth_htpasswd_file' => { display => 'text', value => ['<nmis_conf>/users.dat']}},
-				{ 'auth_ldap_server' => { display => 'text', value => ['']}},
-				{ 'auth_ldaps_server' => { display => 'text', value => ['']}},
-				{ 'auth_ldap_attr' => { display => 'text', value => ['']}},
-				{ 'auth_ldap_context' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_server' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_dn_acc' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_dn_psw' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_base' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_attr' => { display => 'text', value => ['']}},
-				{ 'auth_radius_server' => { display => 'text', value => ['']}},
-				{ 'auth_radius_secret' => { display => 'text', value => ['secret']}},
-				{ 'auth_tacacs_server' => { display => 'text', value => ['']}},
-				{ 'auth_tacacs_secret' => { display => 'text', value => ['secret']}},
-				{ 'auth_web_key' => { display => 'text', value => ['thisismysecretkey']}}
-		],
-
-		'escalation' => [
-				{ 'escalate0' => { display => 'text', value => ['300']}},
-				{ 'escalate1' => { display => 'text', value => ['900']}},
-				{ 'escalate2' => { display => 'text', value => ['1800']}},
-				{ 'escalate3' => { display => 'text', value => ['2400']}},
-				{ 'escalate4' => { display => 'text', value => ['3000']}},
-				{ 'escalate5' => { display => 'text', value => ['3600']}},
-				{ 'escalate6' => { display => 'text', value => ['7200']}},
-				{ 'escalate7' => { display => 'text', value => ['10800']}},
-				{ 'escalate8' => { display => 'text', value => ['21600']}},
-				{ 'escalate9' => { display => 'text', value => ['43200']}},
-				{ 'escalate10' => { display => 'text', value => ['86400']}}
-		],
-
-		'daemons' => [
-				{ 'daemon_ipsla_active' => { display => 'popup', value => ['true','false']}},
-				{ 'daemon_ipsla_filename' => { display => 'text', value => ['ipslad.pl']}},
-				{ 'daemon_fping_active' => { display => 'popup', value => ['true','false']}},
-				{ 'daemon_fping_filename' => { display => 'text', value => ['fpingd.pl']}}
-		],
-
-		'metrics' => [
-				{ 'weight_availability' => { display => 'text', value => ['0.1']}},
-				{ 'weight_int' => { display => 'text', value => ['0.2']}},
-				{ 'weight_mem' => { display => 'text', value => ['0.1']}},
-				{ 'weight_cpu' => { display => 'text', value => ['0.1']}},
-				{ 'weight_reachability' => { display => 'text', value => ['0.3']}},
-				{ 'weight_response' => { display => 'text', value => ['0.2']}},
-				{ 'metric_health' => { display => 'text', value => ['0.4']}},
-				{ 'metric_availability' => { display => 'text', value => ['0.2']}},
-				{ 'metric_reachability' => { display => 'text', value => ['0.4']}}
-		],
-
-		'graph' => [
-				{ 'graph_amount' => { display => 'text', value => ['48']}},
-				{ 'graph_unit' => { display => 'text', value => ['hours']}},
-				{ 'graph_factor' => { display => 'text', value => ['2']}},
-				{ 'graph_width' => { display => 'text', value => ['700']}},
-				{ 'graph_height' => { display => 'text', value => ['250']}},
-				{ 'graph_split' => { display => 'popup', value => ['true','false']}},
-				{ 'win_width' => { display => 'text', value => ['835']}},
-				{ 'win_height' => { display => 'text', value => ['570']}}
-		],
-
-		'tables NMIS4' => [
-				{ 'Interface_Table' => { display => 'text', value => ['']}},
-				{ 'Interface_Key' => { display => 'text', value => ['']}},
-				{ 'Escalation_Table' => { display => 'text', value => ['']}},
-				{ 'Escalation_Key' => { display => 'text', value => ['']}},
-				{ 'Locations_Table' => { display => 'text', value => ['']}},
-				{ 'Locations_Key' => { display => 'text', value => ['']}},
-				{ 'Nodes_Table' => { display => 'text', value => ['']}},
-				{ 'Nodes_Key' => { display => 'text', value => ['']}},
-				{ 'Users_Table' => { display => 'text', value => ['']}},
-				{ 'Users_Key' => { display => 'text', value => ['']}},
-				{ 'Contacts_Table' => { display => 'text', value => ['']}},
-				{ 'Contacts_Key' => { display => 'text', value => ['']}}
- 			],
-
-		'mibs' => [
-				{ 'full_mib' => { display => 'text', value => ['nmis_mibs.oid']}}
-		],
-
-		'database' => [
-				{ 'db_events_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_nodes_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_users_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_locations_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_contacts_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_privmap_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_escalations_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_services_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_iftypes_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_access_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_logs_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_links_sql' => { display => 'popup', value => ['true','false']}}
-		]
-	);
-
-	return \%Cfg;
+	if (ref($goodies) ne "HASH" or !keys %$goodies)
+	{
+		NMISNG::Util::logMsg("ERROR, failed to load Table-$tablename");
+		return undef;
+	}
+	return $goodies->{$tablename};
 }
+
 
 sub loadRMENodes {
 
@@ -625,9 +261,9 @@ sub loadRMENodes {
 	sysopen(DATAFILE, "$file", O_RDONLY) or warn NMISNG::Util::returnTime." loadRMENodes, Cannot open $file. $!\n";
 	flock(DATAFILE, LOCK_SH) or warn "loadRMENodes, can't lock filename: $!";
 	while (<DATAFILE>) {
-	        chomp;
+		chomp;
 		# Don't want comments
-	        if ( $_ !~ /^\;|^$ciscoHeader/ ) {
+		if ( $_ !~ /^\;|^$ciscoHeader/ ) {
 			# whack all the splits into an array
 			(@nodedetails) = split ",", $_;
 
@@ -744,8 +380,8 @@ sub nodeStatus {
 
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (NMISNG::Util::getbool($catchall_data->{ping},"invert")
-			 and ( eventExist($catchall_data->{name}, $snmp_down, "")
-						 or eventExist($catchall_data->{name}, $wmi_down_event, "")))
+			and ( eventExist($catchall_data->{name}, $snmp_down, "")
+						or eventExist($catchall_data->{name}, $wmi_down_event, "")))
 	{
 		$status = 0;
 	}
@@ -769,7 +405,7 @@ sub nodeStatus {
 		and defined $catchall_data->{status_updated}
 		and $catchall_data->{status_summary} <= 99
 		and $catchall_data->{status_updated} > time - 500
-	) {
+			) {
 		$status = -1;
 	}
 	else {
@@ -986,8 +622,8 @@ sub getSummaryStats
 
 		my $severity = "INFO";
 		NMISNG::Util::logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
-					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
-					 .($status{wmi_enabled}?"enabled":"disabled") );
+												 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+												 .($status{wmi_enabled}?"enabled":"disabled") );
 		return;
 	}
 
@@ -1137,8 +773,8 @@ sub getSubconceptStats
 
 		my $severity = "INFO";
 		NMISNG::Util::logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
-					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
-					 .($status{wmi_enabled}?"enabled":"disabled") );
+												 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+												 .($status{wmi_enabled}?"enabled":"disabled") );
 		return;
 	}
 
@@ -1215,101 +851,6 @@ sub getSubconceptStats
 	return;
 }
 
-# ### 2011-12-29 keiths, added for consistent nodesummary generation
-# sub getNodeSummary {
-# 	my %args = @_;
-# 	my $C = $args{C};
-# 	my $group = $args{group};
-
-# 	my $NT = loadLocalNodeTable();
-# 	my $OT = loadOutageTable();
-# 	my %nt;
-# 	my $nmisng = new_nmisng();
-
-# 	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
-# 	my $node_summary_field_list = "customer,businessService";
-# 	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
-# 		$node_summary_field_list = $C->{node_summary_field_list};
-# 	}
-
-# 	my @node_summary_properties = split(",",$node_summary_field_list);
-
-# 	foreach my $nd (keys %{$NT}) {
-# 		next if (!NMISNG::Util::getbool($NT->{$nd}{active}));
-# 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
-
-# 		# could use name here I guess
-# 		my $nmisng_node = $nmisng->node( uuid => $NT->{$nd}{uuid} );
-# 		my ($inventory,$error) = $nmisng_node->inventory( concept => 'catchall' );
-# 		$nmisng->log->error("Failed to get catchall inventory for node:$nd, error:$error") && next
-# 			if(!$inventory);
-
-# 		# we know the data here isn't changing so no need to use live data
-# 		my $catchall_data = $inventory->data();
-
-# 		$nt{$nd}{name} = $catchall_data->{name};
-# 		$nt{$nd}{group} = $catchall_data->{group};
-# 		$nt{$nd}{collect} = $catchall_data->{collect};
-# 		$nt{$nd}{active} = $NT->{$nd}{active};
-# 		$nt{$nd}{ping} = $NT->{$nd}{ping};
-# 		$nt{$nd}{netType} = $catchall_data->{netType};
-# 		$nt{$nd}{roleType} = $catchall_data->{roleType};
-# 		$nt{$nd}{nodeType} = $catchall_data->{nodeType};
-# 		$nt{$nd}{nodeModel} = $catchall_data->{nodeModel};
-# 		$nt{$nd}{nodeVendor} = $catchall_data->{nodeVendor};
-# 		$nt{$nd}{lastUpdateSec} = $catchall_data->{lastUpdateSec};
-# 		$nt{$nd}{sysName} = $catchall_data->{sysName};
-# 		$nt{$nd}{server} = $C->{'server_name'};
-
-# 		foreach my $property (@node_summary_properties) {
-# 			$nt{$nd}{$property} = $catchall_data->{$property};
-# 		}
-
-# 		$nt{$nd}{nodedown} = $catchall_data->{nodedown};
-# 		# find out if a node down event exists, and if so store
-# 		# its escalate setting
-# 		my $curescalate = undef;
-# 		if (my $eventexists = eventExist($nd, "Node Down", undef))
-# 		{
-# 			my $erec = eventLoad(filename => $eventexists);
-# 			$curescalate = $erec->{escalate} if ($erec);
-# 		}
-# 		$nt{$nd}{escalate} = $curescalate;
-
-# 		### adding node_status to the summary data
-# 		# check status from event db
-# 		my $nodestatus = nodeStatus(catchall_data => $catchall_data);
-# 		if ( not $nodestatus ) {
-# 			$nt{$nd}{nodestatus} = "unreachable";
-# 		}
-# 		elsif ( $nodestatus == -1 ) {
-# 			$nt{$nd}{nodestatus} = "degraded";
-# 		}
-# 		else {
-# 			$nt{$nd}{nodestatus} = "reachable";
-# 		}
-
-# 		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
-# 		my $outageText;
-# 		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
-# 			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
-
-# 			my $outageText = "node=$OT->{$otgHash}{node}<br>start=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{start})
-# 			."<br>end=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{end})."<br>change=$OT->{$otgHash}{change}";
-# 		}
-# 		$nt{$nd}{outage} = $otgStatus;
-# 		$nt{$nd}{outageText} = $outageText;
-
-# 		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
-# 		my $sysLocation = $catchall_data->{sysLocation};
-# 		if (($catchall_data->{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
-# 			# Node has sysLocation that is formatted for Geo Data
-# 			( my $lat, my $long, my $alt, $sysLocation) = split(',',$catchall_data->{sysLocation});
-# 		}
-# 		$nt{$nd}{sysLocation} = $sysLocation ;
-# 	}
-# 	return \%nt;
-# }
 
 ### AS 9/4/01 added getGroupSummary for doing the metric stuff centrally!
 ### AS 24/5/01 fixed so that colors show for things which aren't complete
@@ -1351,7 +892,7 @@ sub getGroupSummary {
 		filters => { 'node_config.group' => $group },
 		group_by => $group_by,
 		include_nodes => $include_nodes
-	);
+			);
 
 	if( $error || @$entries != 1 )
 	{
@@ -1397,15 +938,15 @@ sub getGroupSummary {
 	{
 		# new weighting for metric
 		$summaryHash{average}{metric} = sprintf("%.3f",(
-			( $summaryHash{average}{reachable} * $C->{metric_reachability} ) +
-			( $summaryHash{average}{available} * $C->{metric_availability} ) +
-			( $summaryHash{average}{health} * $C->{metric_health} ))
-		);
+																							( $summaryHash{average}{reachable} * $C->{metric_reachability} ) +
+																							( $summaryHash{average}{available} * $C->{metric_availability} ) +
+																							( $summaryHash{average}{health} * $C->{metric_health} ))
+				);
 		$summaryHash{average}{"16_metric"} = sprintf("%.3f",(
-			( $group_summary->{"16_reachable_avg"} * $C->{metric_reachability} ) +
-			( $group_summary->{"16_available_avg"} * $C->{metric_availability} ) +
-			( $group_summary->{"16_health_avg"} * $C->{metric_health} ))
-		);
+																									 ( $group_summary->{"16_reachable_avg"} * $C->{metric_reachability} ) +
+																									 ( $group_summary->{"16_available_avg"} * $C->{metric_availability} ) +
+																									 ( $group_summary->{"16_health_avg"} * $C->{metric_health} ))
+				);
 		$summaryHash{average}{metric_diff} = $summaryHash{average}{"16_metric"} - $summaryHash{average}{metric};
 	}
 
@@ -1432,23 +973,26 @@ sub getGroupSummary {
 			++$nodecount{counttotal};
 			my $outage = '';
 			$summaryHash{$node} = $entry;
+
+			my $nodeobj = $nmisng->node(name => $node);
+
 			# check nodes
 			# Carefull logic here, if nodedown is false then the node is up
 			#print STDERR "DEBUG: node=$node nodedown=$summaryHash{$node}{nodedown}\n";
 			if (NMISNG::Util::getbool($summaryHash{$node}{nodedown})) {
 				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Down",$entry->{roleType});
 				++$nodecount{countdown};
-				($outage,undef) = outageCheck(node=>$node,time=>time());
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 			}
 			elsif (exists $C->{display_status_summary}
-				and NMISNG::Util::getbool($C->{display_status_summary})
-				and exists $summaryHash{$node}{nodestatus}
-				and $summaryHash{$node}{nodestatus} eq "degraded"
-			) {
+						 and NMISNG::Util::getbool($C->{display_status_summary})
+						 and exists $summaryHash{$node}{nodestatus}
+						 and $summaryHash{$node}{nodestatus} eq "degraded"
+					) {
 				$summaryHash{$node}{event_status} = "Error";
 				$summaryHash{$node}{event_color} = "#ffff00";
 				++$nodecount{countdegraded};
-				($outage,undef) = outageCheck(node=>$node,time=>time());
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 			}
 			else {
 				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Up",$entry->{roleType});
@@ -1680,7 +1224,8 @@ sub colorResponseTimeStatic {
 # fixme: az looks like this function should be reworked with
 # or ditched in favour of nodeStatus() and PreciseNodeStatus()
 # fixme: this also doesn't understand wmidown (properly)
-sub overallNodeStatus {
+sub overallNodeStatus
+{
 	my %args = @_;
 	my $group = $args{group};
 	my $customer = $args{customer};
@@ -1702,116 +1247,55 @@ sub overallNodeStatus {
 
 	my %statusHash;
 
+	my $nmisng = new_nmisng();
 	my $C = NMISNG::Util::loadConfTable();
 	my $NT = loadNodeTable();
 	my $NS = loadNodeSummary();
 
+	foreach $node (sort keys %{$NT} )
+	{
+		next if (!NMISNG::Util::getbool($NT->{$node}{active}));
 
-	if ( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (NMISNG::Util::getbool($NT->{$node}{active})) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} ) {
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
-					$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
+		if (
+			( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" )
+			or
+			( $netType ne "" and $roleType ne ""
+				and $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" )
+			or ($group ne "" and $NT->{$node}{group} eq $group)
+			or ($customer ne "" and $NT->{$node}{customer} eq $customer)
+			or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ ) )
+		{
+			my $nodedown = 0;
+			my $outage = "";
 
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( NMISNG::Util::getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
+			my $nodeobj = $nmisng->node(name  => $node);
 
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
+			if ( $NT->{$node}{server} eq $C->{server_name} ) {
+				### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+				my $down_event = "Node Down";
+				$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
+				$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
 
-				++$statusHash{$event_status};
-				++$statusHash{count};
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 			}
-		}
-	}
-	elsif ( $netType ne "" and $roleType ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (NMISNG::Util::getbool($NT->{$node}{active})) {
-				if ( $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" ) {
-					my $nodedown = 0;
-					my $outage = "";
-					if ( $NT->{$node}{server} eq $C->{server_name} )
-					{
-						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-						my $down_event = "Node Down";
-						$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
-						$nodedown = eventExist($node, $down_event, undef)? 1 : 0;
-
-						($outage,undef) = outageCheck(node=>$node,time=>time());
-					}
-					else {
-						$outage = $NS->{$node}{outage};
-						if ( NMISNG::Util::getbool($NS->{$node}{nodedown})) {
-							$nodedown = 1;
-						}
-					}
-
-					if ( $nodedown and $outage ne 'current' ) {
-						($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-					}
-					else {
-						($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-					}
-
-					++$statusHash{$event_status};
-					++$statusHash{count};
-				}
-			}
-		}
-	}
-	elsif ( $group ne "" or $customer ne "" or $business ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (
-				NMISNG::Util::getbool($NT->{$node}{active})
-				and ( ($group ne "" and $NT->{$node}{group} eq $group)
-							or ($customer ne "" and $NT->{$node}{customer} eq $customer)
-							or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
-						)
-			) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} )
+			else
+			{
+				$outage = $NS->{$node}{outage};
+				if ( NMISNG::Util::getbool($NS->{$node}{nodedown}))
 				{
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
-
-					$nodedown = eventExist($node, $down_event, undef)? 1:0;
-					($outage,undef) = outageCheck(node=>$node,time=>time());
+					$nodedown = 1;
 				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( NMISNG::Util::getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
-
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
-
-				++$statusHash{$event_status};
-				++$statusHash{count};
-				#print STDERR returnDateStamp()." overallNodeStatus: $node $group $event_status event=$statusHash{$event_status} count=$statusHash{count}\n";
 			}
+
+			if ( $nodedown and $outage ne 'current' ) {
+				($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
+			}
+			else {
+				($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
+			}
+
+			++$statusHash{$event_status};
+			++$statusHash{count};
 		}
 	}
 
@@ -1936,7 +1420,7 @@ sub convertConfFiles {
 
 					$NT->{$node}{rancid} = $nodeTable{$i}{rancid} || 'false';
 					$NT->{$node}{services} = $nodeTable{$i}{services} ;
-				#	$NT->{$node}{runupdate} = $nodeTable{$i}{runupdate} ;
+					#	$NT->{$node}{runupdate} = $nodeTable{$i}{runupdate} ;
 					$NT->{$node}{webserver} = 'false' ;
 					$NT->{$node}{model} = $nodeTable{$i}{model} || 'automatic';
 					$NT->{$node}{version} = $nodeTable{$i}{version} || 'snmpv2c';
@@ -2051,135 +1535,6 @@ sub loadEnterpriseTable {
 }
 
 
-sub loadOutageTable {
-	my $OT = NMISNG::Util::loadTable(dir=>'conf',name=>'Outage'); # get in cache
-}
-
-#
-# check outage of node
-# return status,key where status is pending or current, key is hash key of event table
-#
-# args: node, time (required)
-sub outageCheck
-{
-	my %args = @_;
-	my $node = $args{node};
-	my $time = $args{time};
-
-	my $OT = loadOutageTable();
-
-	# Get each of the nodes info in a HASH for playing with
-	foreach my $key (sort keys %{$OT})
-	{
-		if (($time-300) > $OT->{$key}{end})
-		{
-			outageRemove(key=>$key); # past
-		}
-		else
-		{
-			if ( $node eq $OT->{$key}{node})
-			{
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} )
-				{
-					return "current",$key;
-				}
-				elsif ($time < $OT->{$key}{start})
-				{
-					return "pending",$key;
-				}
-			}
-		}
-	}
-	# check also dependency
-	my $NT = loadNodeTable();
-	foreach my $nd ( split(/,/,$NT->{$node}{depend}) )
-	{
-		foreach my $key (sort keys %{$OT}) {
-			if ( $nd eq $OT->{$key}{node})
-			{
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} )
-				{
-					# check if this other node is down
-					my $S = NMISNG::Sys->new;
-					$S->init( name => $nd, snmp => 'false' );
-					my $status = PreciseNodeStatus(system => $S);
-					if (!$status->{overall}) # node unreachable
-					{
-						return "current",$key;
-					}
-				}
-			}
-		}
-	}
-}
-
-sub outageRemove {
-	my %args = @_;
-	my $key = $args{key};
-
-	my $C = NMISNG::Util::loadConfTable();
-	my $time = time();
-	my $string;
-
-	my ($OT,$handle) = NMISNG::Util::loadTable(dir=>'conf',name=>'Outage',lock=>'true');
-
-	# dont log pending
-	if ($time > $OT->{$key}{start})  {
-		$string = ", Node $OT->{$key}{node}, Start $OT->{$key}{start}, End $OT->{$key}{end}, "
-							."Change $OT->{$key}{change}, Closed $time, User $OT->{$key}{user}";
-	}
-
-	delete $OT->{$key};
-
-	NMISNG::Util::writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
-
-	my @problems;
-
-	if ($string ne '') {
-		# fixme9: should use a sensible log mechanism
-		# log this action but DON'T DEADLOCK - NMISNG::Util::logMsg locks, too!
-		if ( open($handle,">>$C->{outage_log}") ) {
-			if ( flock($handle, LOCK_EX) ) {
-				if ( not print $handle NMISNG::Util::returnDateStamp()." $string\n" ) {
-					push(@problems, "cannot write file $C->{outage_log}: $!");
-				}
-			} else {
-				push(@problems, "cannot lock file $C->{outage_log}: $!");
-			}
-			close $handle;
-			map { NMISNG::Util::logMsg("ERROR (nmis) $_") } (@problems);
-
-			NMISNG::Util::setFileProtDiag(file =>$C->{outage_log});
-		} else {
-			NMISNG::Util::logMsg("ERROR (nmis) cannot open file $C->{outage_log}: $!");
-		}
-	}
-}
-
-### HIGHLY EXPERIMENTAL!
-#sub sendTrap {
-#	my %arg = @_;
-#	use SNMP_util;
-#	my @servers = split(",",$arg{server});
-#	foreach my $server (@servers) {
-#		print "Sending trap to $server\n";
-#		#my($host, $ent, $agent, $gen, $spec, @vars) = @_;
-#		snmptrap(
-#			$server,
-#			".1.3.6.1.4.1.4818",
-#			"127.0.0.1",
-#			6,
-#			1000,
-#	        ".1.3.6.1.4.1.4818.1.1000",
-#	        "int",
-#	        "2448816"
-#	    );
-#    }
-#}
-
-
-
-
 # small translator from event level to priority: header for email
 sub eventToSMTPPri {
 	my $level = shift;
@@ -2211,7 +1566,7 @@ sub dutyTime {
 	my $finish_time;
 
 	if ( $$table{$contact}{DutyTime} ) {
-	    # dutytime has some values, so assume TZ offset to localtime has as well
+		# dutytime has some values, so assume TZ offset to localtime has as well
 		my @ltime = localtime( time() + ($$table{$contact}{TimeZone}*60*60));
 		my $out = sprintf("Using corrected time %s for Contact:$contact, localtime:%s, offset:$$table{$contact}{TimeZone}", scalar localtime(time()+($$table{$contact}{TimeZone}*60*60)), scalar localtime());
 		NMISNG::Util::dbg($out);
@@ -2240,23 +1595,6 @@ sub dutyTime {
 	return 0;		# dutytime was valid, but no timezone match, return false.
 }
 
-
-sub resolveDNStoAddr {
-	my $dns = shift;
-	my $addr;
-	my $oct;
-
-	# convert node name to octal ip address
-	if ($dns ne "" ) {
-		if ($dns !~ /\d+\.\d+\.\d+\.\d+/) {
-			my $h = gethostbyname($dns);
-			return if not $h;
-			$addr = inet_ntoa($h->addr) ;
-		} else { $addr = $dns; }
-		return $addr if $addr =~ /\d+\.\d+\.\d+\.\d+/;
-	}
-	return;
-}
 
 
 # create http for a clickable graph
@@ -2296,7 +1634,7 @@ sub htmlGraph {
 	}
 	else {
 		my $src = "$C->{'rrddraw'}?act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
-			"&start=&end=&width=$width&height=$height&time=$time";
+				"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
 		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
 <img alt='Network Info' src="$src"></img></a>|;
@@ -2343,23 +1681,23 @@ sub createHrButtons
 			if (!NMISNG::Util::getbool($widget));
 
 	push @out, CGI::td({class=>'header litehead'},'Node ',
-			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
+										 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
 
 	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
 		push @out, CGI::td({class=>'header litehead'},
-			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 	}
 
 	if (NMISNG::Util::getbool($catchall_data->{collect})) {
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
 				if defined $NI->{status} and defined $C->{display_status_summary}
 		and NMISNG::Util::getbool($C->{display_status_summary});
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if (defined $S->{mdl}{interface});
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
 
 		# this should potentially be querying for active/not-historic
@@ -2367,26 +1705,26 @@ sub createHrButtons
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if ( @$ids > 0 )
 		{
-					push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
+			push @out, CGI::td({class=>'header litehead'},
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}
 		if ($S->getTypeInstances(graphtype => "hrsmpcpu")) {
-					push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
+			push @out, CGI::td({class=>'header litehead'},
+												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
 		}
 
 		# let's show the possibly many systemhealth items in a dropdown menu
@@ -2408,9 +1746,9 @@ sub createHrButtons
 	}
 
 	push @out, CGI::td({class=>'header litehead'},
-			CGI::a({class=>'wht',href=>"events.pl?conf=$confname&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
+										 CGI::a({class=>'wht',href=>"events.pl?conf=$confname&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
 	push @out, CGI::td({class=>'header litehead'},
-			CGI::a({class=>'wht',href=>"outages.pl?conf=$confname&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+										 CGI::a({class=>'wht',href=>"outages.pl?conf=$confname&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
 
 
 	# and let's combine these in a 'diagnostic' menu as well
@@ -2419,7 +1757,7 @@ sub createHrButtons
 	# drill-in for the node's collect/update time
 	push @out, CGI::li(CGI::a({class=>"wht",
 														 href=> "$C->{'<cgi_url_base>'}/node.pl?conf=$confname&act=network_graph_view&widget=false&node=$urlsafenode&graphtype=polltime",
-																 target=>"_blank"},
+														 target=>"_blank"},
 														"Collect/Update Runtime"));
 
 	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$catchall_data->{host}",target=>'_blank'},"telnet"))
@@ -2429,36 +1767,36 @@ sub createHrButtons
 		my $ssh_url = $C->{ssh_url} ? $C->{ssh_url} : "ssh://";
 		my $ssh_port = $C->{ssh_port} ? ":$C->{ssh_port}" : "";
 		push @out, CGI::li(CGI::a({class=>'wht',href=>"$ssh_url$catchall_data->{host}$ssh_port",
-										 target=>'_blank'},"ssh"));
+															 target=>'_blank'},"ssh"));
 	}
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
 			if NMISNG::Util::getbool($C->{view_ping});
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
 			if NMISNG::Util::getbool($C->{view_trace});
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
 			if NMISNG::Util::getbool($C->{view_mtr});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"tools.pl?conf=$confname&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
+														 href=>"tools.pl?conf=$confname&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
 			if NMISNG::Util::getbool($C->{view_lft});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"http://$catchall_data->{host}",target=>'_blank'},"http"))
+														 href=>"http://$catchall_data->{host}",target=>'_blank'},"http"))
 			if NMISNG::Util::getbool($catchall_data->{webserver});
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
 	if ($catchall_data->{server} eq $C->{server_name}) {
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
-					if $catchall_data->{sysContact} ne '';
+											 CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+				if $catchall_data->{sysContact} ne '';
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
-					if $catchall_data->{sysLocation} ne '';
+											 CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+				if $catchall_data->{sysLocation} ne '';
 	}
 
 	push @out, "</tr></table>";
@@ -2598,34 +1936,34 @@ sub startNmisPage {
 	my $C = NMISNG::Util::loadConfTable();
 
 	print qq
-|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
-  <head>
-    <title>$title</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
-    <meta http-equiv="Expires" content="-1" />
-    <meta http-equiv="Robots" content="none" />
-    <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
-    <script src="$C->{'calendar'}" type="text/javascript"></script>
-    <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
-    <script src="$C->{'nmis_common'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
-  </head>
-  <body>
-|;
+			|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+			<html>
+			<head>
+			<title>$title</title>
+			<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+			<meta http-equiv="Pragma" content="no-cache" />
+			<meta http-equiv="Cache-Control" content="no-cache, no-store" />
+			<meta http-equiv="Expires" content="-1" />
+			<meta http-equiv="Robots" content="none" />
+			<meta http-equiv="Googlebot" content="noarchive" />
+			<link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+			<script src="$C->{'jquery'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
+			<script src="$C->{'calendar'}" type="text/javascript"></script>
+			<script src="$C->{'calendar_setup'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
+			<script src="$C->{'nmis_common'}" type="text/javascript"></script>
+			<script src="$C->{'highstock'}" type="text/javascript"></script>
+			<script src="$C->{'chart'}" type="text/javascript"></script>
+			</head>
+			<body>
+			|;
 	return 1;
 }
 
@@ -2641,30 +1979,30 @@ sub pageStart {
 	my $C = NMISNG::Util::loadConfTable();
 
 	print qq
-|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
-  <head>
-    <title>$title</title>
-    <meta http-equiv="refresh" content="$refresh" />
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
-    <meta http-equiv="Expires" content="-1" />
-    <meta http-equiv="Robots" content="none" />
-    <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
-    <script>
-$jscript
-</script>
-  </head>
-  <body>
-|;
+			|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+			<html>
+			<head>
+			<title>$title</title>
+			<meta http-equiv="refresh" content="$refresh" />
+			<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+			<meta http-equiv="Pragma" content="no-cache" />
+			<meta http-equiv="Cache-Control" content="no-cache, no-store" />
+			<meta http-equiv="Expires" content="-1" />
+			<meta http-equiv="Robots" content="none" />
+			<meta http-equiv="Googlebot" content="noarchive" />
+			<link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+			<script src="$C->{'jquery'}" type="text/javascript"></script>
+			<script src="$C->{'highstock'}" type="text/javascript"></script>
+			<script src="$C->{'chart'}" type="text/javascript"></script>
+			<script>
+			$jscript
+			</script>
+			</head>
+			<body>
+			|;
 }
 
 
@@ -2678,35 +2016,35 @@ sub pageStartJscript {
 	my $C = NMISNG::Util::loadConfTable();
 
 	print qq
-|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
-  <head>
-    <title>$title</title>
-    <meta http-equiv="refresh" content="$refresh" />
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
-    <meta http-equiv="Expires" content="-1" />
-    <meta http-equiv="Robots" content="none" />
-    <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
-    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
-    <script src="$C->{'calendar'}" type="text/javascript"></script>
-    <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
-    <script src="$C->{'nmis_common'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
-  </head>
-  <body>
-|;
+			|<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+			<html>
+			<head>
+			<title>$title</title>
+			<meta http-equiv="refresh" content="$refresh" />
+			<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+			<meta http-equiv="Pragma" content="no-cache" />
+			<meta http-equiv="Cache-Control" content="no-cache, no-store" />
+			<meta http-equiv="Expires" content="-1" />
+			<meta http-equiv="Robots" content="none" />
+			<meta http-equiv="Googlebot" content="noarchive" />
+			<link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
+			<link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+			<script src="$C->{'jquery'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
+			<script src="$C->{'calendar'}" type="text/javascript"></script>
+			<script src="$C->{'calendar_setup'}" type="text/javascript"></script>
+			<script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
+			<script src="$C->{'nmis_common'}" type="text/javascript"></script>
+			<script src="$C->{'highstock'}" type="text/javascript"></script>
+			<script src="$C->{'chart'}" type="text/javascript"></script>
+			</head>
+			<body>
+			|;
 	return 1;
 }
 
@@ -2717,15 +2055,15 @@ sub pageEnd {
 
 sub getJavaScript {
 	my $jscript = <<JS_END;
-function viewwndw(wndw,url,width,height)
-{
-	var attrib = "scrollbars=yes,resizable=yes,width=" + width + ",height=" + height;
-	ViewWindow = window.open(url,wndw,attrib);
-	ViewWindow.focus();
-};
+	function viewwndw(wndw,url,width,height)
+	{
+		var attrib = "scrollbars=yes,resizable=yes,width=" + width + ",height=" + height;
+		ViewWindow = window.open(url,wndw,attrib);
+		ViewWindow.focus();
+	};
 JS_END
 
-	return $jscript;
+			return $jscript;
 }
 
 ### 2012-03-09 keiths, summary sub to avoid changing much other code
@@ -2952,8 +2290,8 @@ sub eventDelete
 			and $historydirname and -d $historydirname)
 	{
 		my $newfn = "$historydirname/".time."-".basename($efn);
-			rename($efn, $newfn)
-					or return"could not move event file $efn to history: $!";
+		rename($efn, $newfn)
+				or return"could not move event file $efn to history: $!";
 	}
 	else
 	{
@@ -3051,7 +2389,7 @@ sub loadServiceStatus
 
 		push @selectors, ( "node_uuid" =>  $noderec->uuid,
 											 "cluster_id" => $noderec->cluster_id,
-											);
+		);
 	}
 	push @selectors, ("cluster_id" => $wantcluster) if ($wantcluster);
 	push @selectors, ("data.service" => $wantservice ) if ($wantservice);
@@ -3375,7 +2713,7 @@ sub eventAdd
 	my $existing = undef;
 	if (-f $efn)
 	{
-	    $existing = eventLoad(filename => $efn);
+		$existing = eventLoad(filename => $efn);
 	}
 
 	# is this an already EXISTING stateless event?
@@ -3404,9 +2742,9 @@ sub eventAdd
 	# before we log, check the state if there is an event and if it's current
 	elsif ( ref($existing) eq "HASH" && NMISNG::Util::getbool($existing->{current}) )
 	{
-	    NMISNG::Util::dbg("event exists, node=$node, event=$event, level=$level, element=$element, details=$details");
-	    NMISNG::Util::logMsg("ERROR cannot add event=$event, node=$node: already exists, is current and not stateless!");
-	    return "cannot add event: already exists, is current and not stateless!";
+		NMISNG::Util::dbg("event exists, node=$node, event=$event, level=$level, element=$element, details=$details");
+		NMISNG::Util::logMsg("ERROR cannot add event=$event, node=$node: already exists, is current and not stateless!");
+		return "cannot add event: already exists, is current and not stateless!";
 	}
 	# doesn't exist or isn't current
 	# fixme: existing but not current isn't cleanly handled here
@@ -3532,20 +2870,23 @@ sub checkEvent
 		{
 			$event =~ s/down/Up/i;
 		}
+		elsif ($event =~ /\Wopen($|\W)/i)
+		{
+			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
+		}
 
 		# event was renamed/inverted/massaged, need to get the right control record
 		# this is likely not needed
 		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
-		$details .= " Time=$outage";
+		$details .= ($details? " " : "") . "Time=$outage";
+
 
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
-		my $OT = loadOutageTable();
-
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		my ($otg,$outageinfo) = NMISNG::Outage::outageCheck(node => $S->nmisng_node, time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= ($details? " ":""). "outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# now we save the new up event, and move the old down event into history
@@ -3594,7 +2935,7 @@ sub checkEvent
 				level => $level,
 				element => $element,
 				details => $details
-			);
+					);
 		}
 	}
 }
@@ -3668,12 +3009,10 @@ sub notify
 		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
 												or NMISNG::Util::getbool($thisevent_control->{Stateful}))? "false": "true";
 
-		### 2016-04-30 ks adding outage tagging to event when opened.
-		my $OT = loadOutageTable();
 
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		my ($otg,$outageinfo) = NMISNG::Outage::outageCheck(node => $S->nmisng_node, time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# Create and store this new event; record whether stateful or not
@@ -3799,7 +3138,7 @@ sub update_nodeconf
 		$node->overrides( {} );
 		my $op = $node->save();
 		return "Could not remove nodeconf for $nodename"
-			if ($op < 1);
+				if ($op < 1);
 	}
 	# we overwrite whatever may have been there
 	else
@@ -3808,7 +3147,7 @@ sub update_nodeconf
 		$node->overrides( $data );
 		my $op = $node->save();
 		return "Error saving nodeconf for $nodename"
-			if ($op < 1);
+				if ($op < 1);
 	}
 	return;
 }
