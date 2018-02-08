@@ -69,7 +69,7 @@ my $config_file = shift(@ARGV);
 die "Config file \"$config_file\" does not exist or isn't readable!\n"
 		if (!-e $config_file or !-r $config_file);
 
-loadConfTable();	# or else writeHashtoFile will fail, as it calls 
+NMISNG::Util::loadConfTable();	# or else writeHashtoFile will fail, as it calls 
 # setfileprot which then has no config values for perms and uid/gid. 
 
 print "Operating on config file: $config_file\n\n";
