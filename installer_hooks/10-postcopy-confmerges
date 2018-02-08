@@ -65,7 +65,8 @@ done
 
 if [ -n "$FOUNDDIFFS" ]; then
 		
-		printBanner "Non-upgradeable customm confir files detected"
+		printBanner "Non-upgradeable custom config files detected"
+		logmsg "found differences in: $FOUNDDIFFS"
 		cat <<EOF
 The installer has detected the following custom configuration files 
 that require manual updating:
