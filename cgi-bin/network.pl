@@ -32,20 +32,19 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use Compat::NMIS;
-use NMISNG::Util;
-use Compat::Timing;
 use URI::Escape;
 use URI;
 use URI::QueryParam;
 use Net::SNMP qw(oid_lex_sort);
-
-use NMISNG;
-
 use Data::Dumper;
-$Data::Dumper::Indent = 1;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
+
+use Compat::NMIS;
+use NMISNG::Util;
+use Compat::Timing;
+use NMISNG;
+
 
 my $q = new CGI;     # This processes all parameters passed via GET and POST
 my $Q = $q->Vars;    # values in hash
@@ -1464,7 +1463,8 @@ sub selectLarge
 					= td( {class => 'info Plain', align => 'right', style => NMISNG::Util::getBGColor($color)}, "disabled" );
 			}
 			my $nodelink;
-			if ( $NT->{$node}{server} eq $C->{server_name} )
+			# is this node one of ours? if server_master is off, 'ours' is assumed automatically
+			if ( !NMISNG::Util::getbool($C->{server_master}) or $NT->{$node}->{cluster_id} eq $C->{cluster_id} )
 			{
 				# attention: this construction must match up with what commonv8.js's nodeInfoPanel() uses as id attrib!
 				my $idsafenode = $node;
@@ -1482,6 +1482,7 @@ sub selectLarge
 			}
 			else
 			{
+				# fixme9: server mode is nonfunctional at this time, links need to be made through opha
 				my $server = $NT->{$node}{server};
 				my $url
 					= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
@@ -1890,6 +1891,7 @@ sub viewNode
 
 	# who is responsible for this node?
 	# if no servers known, ignore any other server indications that you might find.
+	# fixme9: server mode is nonfunctional at this time
 	my $responsible = $C->{cluster_id};
 	if ( $nmisng_node->cluster_id ne $responsible
 			 && ref(my $ST = Compat::NMIS::loadServersTable()) eq "HASH")
