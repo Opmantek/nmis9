@@ -27,31 +27,39 @@ done
 printBanner "Looking for custom configuration files..."
 
 DIFFS=/tmp/custom_configuration_files
+ONEDIFF=/tmp/onediff
 # ...then all .nmis files
 for MAYBECUSTOM in `cd $TARGETDIR/conf-default; ls *.nmis`; do
+		[ "$MAYBECUSTOM" = "Config.nmis" ] && continue;
 		[ -f "$TARGETDIR/conf/$MAYBECUSTOM" ] || continue;
 		echo "Checking $MAYBECUSTOM" >> $DIFFS
 		# exits 0 on no differences
-		if ! $TARGETDIR/admin/diffconfigs.pl "$TARGETDIR/conf-default/$MAYBECUSTOM" "$TARGETDIR/conf/$MAYBECUSTOM" >>$DIFFS 2>&1; then
+		if ! $TARGETDIR/admin/diffconfigs.pl "$TARGETDIR/conf-default/$MAYBECUSTOM" "$TARGETDIR/conf/$MAYBECUSTOM" >$ONEDIFF 2>&1; then
 				FOUNDDIFFS="$FOUNDDIFFS $MAYBECUSTOM";
+				cat $ONEDIFF >> $DIFFS
+				rm -f $ONEDIFF
 		fi
 done
 
 # ...and the same for plugins and the scripts
-for MAYBE in `cd $TARGETDIR; ls conf-default/plugins/*`; do
+for MAYBE in `cd $TARGETDIR; ls conf-default/plugins/*.pm`; do
 		CUSTOM="$TARGETDIR/conf/plugins/"`basename "$MAYBE"`
 
 		echo "Checking $MAYBE" >> $DIFFS
-		if [ -e "$CUSTOM" ] && ! diff -u $MAYBE $CUSTOM >> $DIFFS 2>&1; then
+		if [ -e "$CUSTOM" ] && ! diff -u $MAYBE $CUSTOM >$ONEDIFF 2>&1; then
 				FOUNDDIFFS="$FOUNDDIFFS $MAYBE"
+				cat $ONEDIFF >> $DIFFS
+				rm -f $ONEDIFF
 		fi
 done
 for MAYBE in `cd $TARGETDIR; ls conf-default/scripts/*`; do
 		CUSTOM="$TARGETDIR/conf/scripts/"`basename "$MAYBE"`
 
 		echo "Checking $MAYBE" >> $DIFFS
-		if [ -e "$CUSTOM" ] && ! diff -u $MAYBE $CUSTOM >> $DIFFS 2>&1; then
+		if [ -e "$CUSTOM" ] && ! diff -u $MAYBE $CUSTOM >$ONEDIFF 2>&1; then
 				FOUNDDIFFS="$FOUNDDIFFS $MAYBE"
+				cat $ONEDIFF >> $DIFFS
+				rm -f $ONEDIFF
 		fi
 done
 
