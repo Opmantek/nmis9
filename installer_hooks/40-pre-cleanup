@@ -5,9 +5,14 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
+ONLYFRESH=$TARGETDIR/conf-default
+if [ -d "$ONLYFRESH" ]; then
+		execPrint "rm -rf $ONLYFRESH"
+fi
+
 GONER=$TARGETDIR/install
 if [ -d "$GONER" ]; then
-		echolog "Adjusting for conf-default"
+		echolog "Adjusting for conf-default (instead of install)"
 		execPrint "rm -rf $GONER"
 fi
 

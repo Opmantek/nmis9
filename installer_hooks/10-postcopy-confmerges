@@ -72,7 +72,6 @@ or remove the custom files so that NMIS falls back to the defaults.
 
 EOF
 		input_ok "Hit <Enter> when ready to continue: "
-fi
 else
 		echo "No custom config files with differences were encountered."
 		logmsg "No custom config files with differences were encountered."
