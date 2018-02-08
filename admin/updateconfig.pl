@@ -37,7 +37,7 @@ use lib "$FindBin::Bin/../lib";
 use NMISNG::Util;
 
 my ($template, $live, $wantdebug) = @ARGV;
-if (!$template or !-f $template or !$live or !-f $live)
+if (!$template or !-f $template or !$live)
 {
 	my $me = basename($0);
 	
@@ -51,8 +51,9 @@ based on the NMIS install \"template\". Only missing entries are added.\n\n";
 # load the live config or the results will be messy wrt perms
 my $current = NMISNG::Util::loadConfTable();
 
+# template must be present, liveconf may be missing and autocreated
 my $templateconf = NMISNG::Util::readFiletoHash(file => $template);
-my $liveconf = NMISNG::Util::readFiletoHash(file => $live);
+my $liveconf = (-f $live)? NMISNG::Util::readFiletoHash(file => $live) : {};
 
 die "Invalid template config!\n" if (ref($templateconf) ne "HASH");
 die "Invalid live config!\n" if (ref($liveconf) ne "HASH");
