@@ -203,8 +203,8 @@ my %hash = (
 			{ 'auth_radius_secret' => { display => 'text', value => ['secret']}},
 			{ 'auth_tacacs_server' => { display => 'text', value => ['']}},
 			{ 'auth_tacacs_secret' => { display => 'text', value => ['secret']}},
-			{ 'auth_web_key' => { display => 'text', value => ['thisismysecretkey']}}
-				],
+			{ 'auth_web_key' => { display => 'text', value => ['thisismysecretkey']}},
+			{ 'auth_cookie_flavour' => { display => "popup", value => ['nmis','omk']}},				],
 
 		'escalation' => [
 			{ 'escalate0' => { display => 'text', value => ['0'],
