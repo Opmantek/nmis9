@@ -37,7 +37,7 @@ remain unchanged.
 
 You may want to use the tools diffconfigs.pl, compare_models 
 and patch_config.pl (in $TARGETDIR/admin/) to detect differences between 
-the new defaults in $TARGETDIR/install and your active configuration.
+the new defaults in $TARGETDIR/conf-default and your active configuration.
 
 You will find more information in the release notes at
 

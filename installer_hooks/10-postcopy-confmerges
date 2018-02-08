@@ -12,50 +12,71 @@ fi
 
 printBanner "Config file updates"
 
-cat <<EOF
+# main config first...
+execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf/Config.nmis
 
-The installer can update most configuration files with new
-settings, which doesn't overwrite customisations. It is
-highly recommended that you let the installer perform this
-operation.
+# ...then the crucial auth-related files (if changed ones exist)
+for i in POSSIBLE in Users.nmis Access.nmis PrivMap.nmis; do
+		if [ -f "$TARGETDIR/conf/$POSSIBLE" ]; then
+				execPrint $TARGETDIR/admin/updateconfig.pl "$TARGETDIR/conf-default/$POSSIBLE" "$TARGETDIR/conf/$POSSIBLE"
+		fi
+done
+
+
+# then look for custom files, produce diffs in /tmp and report them to the user
+printBanner "Looking for custom configuration files..."
+
+DIFFS=/tmp/custom_configuration_files
+# ...then all .nmis files
+for MAYBECUSTOM in `cd $TARGETDIR/conf-default; ls *.nmis`; do
+		[ -f "$TARGETDIR/conf/$MAYBECUSTOM" ] || continue;
+		echo "Checking $MAYBECUSTOM" >> $DIFFS
+		# exits 0 on no differences
+		if ! $TARGETDIR/admin/diffconfigs.pl "$TARGETDIR/conf-default/$MAYBECUSTOM" "$TARGETDIR/conf/$MAYBECUSTOM" >>$DIFFS 2>&1; then
+				FOUNDDIFFS="$FOUNDDIFFS $MAYBECUSTOM";
+		fi
+done
+
+# ...and the same for plugins and the scripts
+for MAYBE in `cd $TARGETDIR; ls conf-default/plugins/*`; do
+		CUSTOM="$TARGETDIR/conf/plugins/"`basename "$MAYBE"`
+
+		echo "Checking $MAYBE" >> $DIFFS
+		if [ -e "$CUSTOM" ] && ! diff -u $MAYBE $CUSTOM >> $DIFFS 2>&1; then
+				FOUNDDIFFS="$FOUNDDIFFS $MAYBE"
+		fi
+done
+for MAYBE in `cd $TARGETDIR; ls conf-default/scripts/*`; do
+		CUSTOM="$TARGETDIR/conf/scripts/"`basename "$MAYBE"`
+
+		echo "Checking $MAYBE" >> $DIFFS
+		if [ -e "$CUSTOM" ] && ! diff -u $MAYBE $CUSTOM >> $DIFFS 2>&1; then
+				FOUNDDIFFS="$FOUNDDIFFS $MAYBE"
+		fi
+done
+
+if [ -n "$FOUNDDIFFS" ]; then
+		
+		printBanner "Non-upgradeable customm confir files detected"
+		cat <<EOF
+The installer has detected the following custom configuration files 
+that require manual updating:
+
+$FOUNDDIFFS
+
+The file $DIFFS has more details about the actual differences.
+
+To resolve this issue, you can manually merge your custom files
+with the appropriate new data from conf-default, 
+or remove the custom files so that NMIS falls back to the defaults.
 
 EOF
-
-if input_yn "OK to update config files with new options?"; then
-		# main config first...
-	 	execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/install/Config.nmis $TARGETDIR/conf/Config.nmis
-
-		# ...non-table files next
-		for MERGABLE in `cd $TARGETDIR/install; ls *.nmis | grep -v Table`; do
-				execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/install/$MERGABLE $TARGETDIR/conf/$MERGABLE;
-		done
-
-
-		# handle table files, automatically where possible
-		# note: don't capture
-		$TARGETDIR/admin/upgrade_tables.pl $TARGETDIR/install $TARGETDIR/conf >/dev/null 2>&1;
-		STATE=$?										# 2 or 3 means upgradables
-
-		if [ "$STATE" = 2 -o "$STATE" = 3 ]; then
-				printBanner "Performing Table Upgrades"
-
-				execPrint $TARGETDIR/admin/upgrade_tables.pl -u $TARGETDIR/install $TARGETDIR/conf
-		fi
-
-		if [ "$STATE" = 1 -o "$STATE" = 3 ]; then
-
-				printBanner "Non-upgradeable Table files detected"
-				cat <<EOF
-The installer has detected the following table files that require
-manual updating:
-EOF
-				$TARGETDIR/admin/upgrade_tables.pl -p $TARGETDIR/install $TARGETDIR/conf
-
-				input_ok "Hit <Enter> when ready to continue: "
-		fi
+		input_ok "Hit <Enter> when ready to continue: "
+fi
 else
-		echo "Not updating config files, as directed."
-		logmsg "Not updating config files, as directed."
+		echo "No custom config files with differences were encountered."
+		logmsg "No custom config files with differences were encountered."
+		rm -f $DIFFS
 fi
 
 exit 0

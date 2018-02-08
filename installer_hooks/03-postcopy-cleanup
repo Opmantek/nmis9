@@ -1,0 +1,14 @@
+#!/bin/sh
+# clean up some of the earlier releases' leftovers
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+GONER=$TARGETDIR/install
+if [ -d "$GONER" ]; then
+		echolog "Adjusting for conf-default"
+		execPrint "rm -rf $GONER"
+fi
+
+exit 0

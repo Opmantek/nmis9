@@ -7,7 +7,7 @@ SCRIPTPATH=${0%/*}
 
 printBanner "NMIS Scheduling Setup"
 
-SRCFILE=$TARGETDIR/install/cron.d/nmis9
+SRCFILE=$TARGETDIR/conf-default/cron.d/nmis9
 DESTFILE=/etc/cron.d/nmis9
 
 # be polite, ask before doing anything harsh
