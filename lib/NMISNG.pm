@@ -708,7 +708,8 @@ sub node
 	my $modeldata = $self->get_nodes_model(%args);
 	if( $modeldata->count() > 1 )
 	{
-		$self->log->warn("Node request returned more than one node, returning nothing");
+		my @names = map { $_->{name} } @{$modeldata->data()};
+		$self->log->warn("Node request returned more than one node, returning nothing, names:".join(",", @names));
 		return;
 	}
 	elsif ( $modeldata->count() == 1 )

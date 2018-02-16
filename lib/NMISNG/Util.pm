@@ -2310,7 +2310,7 @@ sub selftest
 	}
 	push @details, ["CRON daemon",$cron_status];
 
-	if ($config->{daemon_fping_active} && !$fpingd_found)
+	if (NMISNG::Util::getbool($config->{daemon_fping_active}) && !$fpingd_found)
 	{
 		$fpingd_status = "No ".$config->{daemon_fping_filename}." daemon seems to be running!";
 		$allok=0;
