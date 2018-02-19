@@ -52,7 +52,7 @@ my %hash = (
 
 		'script_root_default' => '<nmis_conf_default>/scripts',
 		'plugin_root_default' => '<nmis_conf_default>/plugins',
-    
+
 		'web_root' => '<nmis_base>/htdocs',
 		'<nmis_backups>' => '<nmis_data>/backups',
   },
@@ -509,5 +509,6 @@ my %hash = (
 		'purge_timeddata_after' => 86400,		 # timed data (automatic expiration)
 		'purge_inventory_after' => 14*86400,		 # unused/historic inventory data (automatic expiration)
 		'purge_reports_after' => 365*86400,			 # html reports
+		'purge_outages_after' => 86400,			 # past non-recurring outages
 	},
 );

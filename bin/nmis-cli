@@ -494,6 +494,9 @@ elsif ($Q->{act} eq 'purge')
 {
 	my $res = purge_files(simulate => $Q->{simulate});
 	die "$res\n" if ($res);
+
+	$res = NMISNG::Outage::purge_outages(nmisng => $nmisng, simulate => $Q->{simulate});
+	die "$res->{error}\n" if (!$res->{success});
 }
 elsif ($Q->{act} eq "dbcleanup")
 {
