@@ -106,6 +106,8 @@ my %hash = (
     'node_status_uses_status_summary' => 'false',
     'display_status_summary' => 'false',
 
+		'demote_faulty_nodes' => 'true', # try totally unpollable nodes just once a day?
+
 		# to have additional fields in the node summary data.
     'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 
