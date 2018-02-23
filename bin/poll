@@ -6402,7 +6402,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 
 			# run given program with given arguments and possibly read from it
 			# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
-				my $stderrsink = POSIX::tmpnam();    # good enough, no atomic open required
+				my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");		# good enough, no atomic open required
 				NMISNG::Util::dbg(      "running external program '$svc->{Program} $finalargs', "
 						. ( NMISNG::Util::getbool( $svc->{Collect_Output} ) ? "collecting" : "ignoring" )
 						. " output" );
