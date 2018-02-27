@@ -833,8 +833,9 @@ sub find
 		$error_string = "Cannot use Find with invalid collection argument!";
 		return;
 	}
-	my $retval;
 
+	undef $error_string;
+	my $retval;
 	try
 	{
 		$retval = $collection->find($query);
@@ -858,70 +859,21 @@ sub find
 		{
 			$retval = $retval->limit( $arg{limit} );
 		}
+
+		# tickle the cursor with has_next so that any late exceptions
+		# pop up now, where they're expected and caught
+		$retval->has_next;
 	}
 	catch
 	{
 		$error_string = $_;
 	};
 
-	return $retval;
+	# if the  cursor access has caused an exception, then retval is present
+	# but so is error_string...
+	return $error_string? undef: $retval;
 }
 
-# a tiny wrapper around cursor->next
-# necessary because with new mongodb, sort/skip/limit are evaluated late,
-# on cursor access, which can throw an exception.
-# args: the cursor in question
-# returns: the result of next, AND sets error_string if problems are encountered
-sub next_result
-{
-	my ($cursor) = @_;
-
-	$error_string = undef;
-	if (ref($cursor) ne "MongoDB::Cursor")
-	{
-		$error_string = "Cannot run next_result without cursor!";
-		return undef;
-	}
-
-	my $result;
-	try
-	{
-		$result = $cursor->next;
-	}
-	catch
-	{
-		$error_string = $_;
-	};
-	return $result;
-}
-
-# a tiny wrapper around cursor->all
-# necessary because with new mongodb, sort/skip/limit are evaluated late,
-# on cursor access, which can throw an exception.
-# args: the cursor in question
-# returns: array ref of the results, AND sets error_string if problems are encountered
-sub all_results
-{
-	my ($cursor) = @_;
-
-	$error_string = undef;
-	if (ref($cursor) ne "MongoDB::Cursor")
-	{
-		$error_string = "Cannot run all_results without cursor!";
-		return undef;
-	}
-
-	my @results;
-	try
-	{
-		@results = $cursor->all;
-	}
-	catch
-	{
-		$error_string = $_;
-	};
-	return \@results;
-}
 
 # a thin wrapper around get_collection
 # mainly for future-proofing at this point - but might get additional functionality, eg. index making
