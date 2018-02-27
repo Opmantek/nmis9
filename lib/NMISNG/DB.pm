@@ -867,6 +867,62 @@ sub find
 	return $retval;
 }
 
+# a tiny wrapper around cursor->next
+# necessary because with new mongodb, sort/skip/limit are evaluated late,
+# on cursor access, which can throw an exception.
+# args: the cursor in question
+# returns: the result of next, AND sets error_string if problems are encountered
+sub next_result
+{
+	my ($cursor) = @_;
+
+	$error_string = undef;
+	if (ref($cursor) ne "MongoDB::Cursor")
+	{
+		$error_string = "Cannot run next_result without cursor!";
+		return undef;
+	}
+
+	my $result;
+	try
+	{
+		$result = $cursor->next;
+	}
+	catch
+	{
+		$error_string = $_;
+	};
+	return $result;
+}
+
+# a tiny wrapper around cursor->all
+# necessary because with new mongodb, sort/skip/limit are evaluated late,
+# on cursor access, which can throw an exception.
+# args: the cursor in question
+# returns: array ref of the results, AND sets error_string if problems are encountered
+sub all_results
+{
+	my ($cursor) = @_;
+
+	$error_string = undef;
+	if (ref($cursor) ne "MongoDB::Cursor")
+	{
+		$error_string = "Cannot run all_results without cursor!";
+		return undef;
+	}
+
+	my @results;
+	try
+	{
+		@results = $cursor->all;
+	}
+	catch
+	{
+		$error_string = $_;
+	};
+	return \@results;
+}
+
 # a thin wrapper around get_collection
 # mainly for future-proofing at this point - but might get additional functionality, eg. index making
 # args: db, name (both required)
