@@ -38,25 +38,28 @@ use Scalar::Util;       # for weaken
 use Data::Dumper;
 use Module::Load;       # for getting subclasses in instantiate
 
-# accepts data, class_name, nmisng, all optional
-# data must be array ref if given
-# class_name and nmisng are required if you want to use object(s) accessors
-# class_name can be either a string (for homogenous modeldata) or
-# a hashref of (attribute name => function ref)
-# which will be called with the given attribute value as sole argument
+# args: data, error, class_name, nmisng (all optional)
+#  data must be array ref if given
+#  only one of error and data should be given (but not enforced)
+#   note: error can only be set here!
+#  class_name and nmisng are required if you want to use object(s) accessors
+#   class_name can be either a string (for homogenous modeldata) or
+#   a hashref of (attribute name => function ref)
+#   which will be called with the given attribute value as sole argument
 sub new
 {
 	my ($class, %args) = @_;
 
 	die "Data must be array\n"
-			if (defined($args{data}) && ref($args{data}) ne "ARRAY" );
+			if (exists($args{data}) && ref($args{data}) ne "ARRAY" );
 
 	my $self = bless({
 		_class_name => undef,
 		_resolver => undef,
 		_attribute_name => undef,
 		_nmisng => $args{nmisng},
-		_data => $args{data},
+		_data => $args{data} // [],
+		_error => $args{error},
 		_query_count => $args{query_count},
 		_sort => $args{sort},
 		_limit => $args{limit},
@@ -83,6 +86,15 @@ sub new
 	Scalar::Util::weaken $self->{_nmisng} if (ref($self->{_nmisng})
 																						&& !Scalar::Util::isweak($self->{_nmisng}));
 	return $self;
+}
+
+# r/o accessor for error indicator
+# args: none
+# returns: the current value of the error indicator
+sub error
+{
+	my ($self) = @_;
+	return $self->{_error};
 }
 
 # a setter-getter for the data array
