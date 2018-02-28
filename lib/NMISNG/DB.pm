@@ -906,6 +906,19 @@ sub get_db
 	return $conn->get_database( $CONF->{db_name} );
 }
 
+# small convenience accessor that returns the connection handle object
+# of a given database object (ie. mongodb::mongoclient from mongodb::database)
+# relies on undocumented mongodb accessor
+# args: database handle
+# returns: connection handle or undef on error
+sub connection_of_db
+{
+	my ($dbhandle) = @_;
+	return undef if (ref($dbhandle) ne "MongoDB::Database"
+									 or !$dbhandle->can("_client"));
+	return $dbhandle->_client;
+}
+
 # opens a new connection to the configured db server
 # args: app_key, conf; optional: connection_timeout, query_timeout
 #  conf must have a db_server entry, dealing with errors because of no conf down the road
