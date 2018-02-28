@@ -391,7 +391,7 @@ sub find_outages
 
 # removes past none-recurring outages after a configurable time
 # args: nmisng object (required), simulate (optional, default false)
-# returns: hashref, keys success/error
+# returns: hashref, keys success/error and info (array ref)
 sub purge_outages
 {
 	my (%args) = @_;
@@ -409,24 +409,26 @@ sub purge_outages
 			if (NMISNG::Util::existFile(dir => "conf", name => "Outages")); # or we get lots of log noise
 	return { success => 1, message => "No outages exist." } if !$data;
 
-	my @problems;
+	my (@problems, @info);
 	for my $outid (keys %$data)
 	{
 		my $thisoutage = $data->{$outid};
 		next if ($thisoutage->{frequency} ne "once"
 						 or $thisoutage->{end} >= time - $maxage);
 
-		if ($simulate)
-		{
-			$nmisng->log->info("Would purge expired outage $outid, description \"$thisoutage->{description}\", ended at "
-												 .scalar(localtime($thisoutage->{end})));
-			next;
-		}
+		push @info, ( $simulate? "Would purge ":"Purging ")
+				. "expired outage $outid, description \"$thisoutage->{description}\", ended at " 
+				. scalar(localtime($thisoutage->{end}));
+
+		next if ($simulate);
 		my $res = remove_outage(id => $outid, meta => {details => "purging expired past outage" });
 		push @problems, "$outid: $res->{error}" if (!$res->{success}); # but let's continue
 	}
 
-	return (@problems? { error => join("\n", @problems) } : { success => 1 });
+	return { 
+		info => \@info, 
+		error => join("\n", @problems),
+		success => @problems? 0 : 1 };
 }
 
 # find active/future/past outages for a given context,

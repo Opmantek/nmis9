@@ -240,71 +240,14 @@ sub loadCfgTable
 }
 
 
-sub loadRMENodes {
-
-	my $file = shift;
-
-	my %nodeTable;
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	my $ciscoHeader = "Cisco Systems NM";
-	my @nodedetails;
-	my @statsSplit;
-	my $nodeType;
-
-	if ( $file eq "" ) {
-		print "\t the type=rme option requires a file arguement for source rme CSV file\ni.e. $0 type=rme rmefile=/data/file/rme.csv\n";
-		return;
-	}
-
-	sysopen(DATAFILE, "$file", O_RDONLY) or warn NMISNG::Util::returnTime." loadRMENodes, Cannot open $file. $!\n";
-	flock(DATAFILE, LOCK_SH) or warn "loadRMENodes, can't lock filename: $!";
-	while (<DATAFILE>) {
-		chomp;
-		# Don't want comments
-		if ( $_ !~ /^\;|^$ciscoHeader/ ) {
-			# whack all the splits into an array
-			(@nodedetails) = split ",", $_;
-
-			# check that the device is to be included in STATS
-			$nodedetails[4] =~ s/ //g;
-			@statsSplit = split(":",$nodedetails[4]);
-			if ( $statsSplit[0] =~ /t/ ) {
-				# sopme defaults
-				$nodeTable{$nodedetails[0]}{depend} = "N/A";
-				$nodeTable{$nodedetails[0]}{runupdate} = "false";
-				$nodeTable{$nodedetails[0]}{snmpport} = "161";
-				$nodeTable{$nodedetails[0]}{active} = "true";
-				$nodeTable{$nodedetails[0]}{group} = "RME";
-
-				$nodeTable{$nodedetails[0]}{host} = $nodedetails[0];
-				$nodeTable{$nodedetails[0]}{community} = $nodedetails[1];
-				$nodeTable{$nodedetails[0]}{netType} = $statsSplit[1];
-				$nodeTable{$nodedetails[0]}{nodeType} = $statsSplit[2];
-				# Convert role c, d or a to core, distribution or access (or default)
-				if ( $statsSplit[3] eq "c" ) { $nodeTable{$nodedetails[0]}{roleType} = "core"; }
-				elsif ( $statsSplit[3] eq "d" ) { $nodeTable{$nodedetails[0]}{roleType} = "distribution"; }
-				elsif ( $statsSplit[3] eq "a" ) { $nodeTable{$nodedetails[0]}{roleType} = "access"; }
-				else
-				{
-					$nodeTable{$nodedetails[0]}{roleType} = "default";
-				}
-				# Convert collect t or f to  true or false
-				if ( $statsSplit[4] eq "t" ) { $nodeTable{$nodedetails[0]}{collect} = "true"; }
-				elsif ( $statsSplit[4] eq "f" ) { $nodeTable{$nodedetails[0]}{collect} = "false"; }
-			}
-		}
-	}
-	close(DATAFILE) or warn "loadRMENodes, can't close filename: $!";
-	writeNodesFile("$C->{Nodes_Table}.new",\%nodeTable);
+# fixme9: cannot work that way anymore
+sub loadServersTable 
+{
+	return {};
+#	return NMISNG::Util::loadTable(dir=>'conf',name=>'Servers');
 }
 
-# load servers info table
-sub loadServersTable {
-	return NMISNG::Util::loadTable(dir=>'conf',name=>'Servers');
-}
-
+# fixme9: cannot work that way anymore
 ### 2011-01-06 keiths, loading node summary from cached files!
 sub loadNodeSummary {
 	my %args = @_;
@@ -329,7 +272,9 @@ sub loadNodeSummary {
 	}
 
 	### 2011-12-29 keiths, moving master handling outside of Cache handling!
-	if (NMISNG::Util::getbool($C->{server_master}) or NMISNG::Util::getbool($master)) {
+	# fixme9: config server_master is gone!
+	if ( # NMISNG::Util::getbool($C->{server_master}) or 
+			 NMISNG::Util::getbool($master)) {
 		NMISNG::Util::dbg("Master, processing Slave Servers");
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
@@ -577,12 +522,16 @@ sub getSummaryStats
 
 	my $C = NMISNG::Util::loadConfTable();
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
-	if (NMISNG::Util::getbool($C->{server_master}) and $catchall_data->{server}
-			and lc($catchall_data->{server}) ne lc($C->{server_name}))
+
+	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
+	if ( # NMISNG::Util::getbool($C->{server_master}) and 
+			 $catchall_data->{server}
+			 and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
 		# send request to remote server
 		NMISNG::Util::dbg("serverConnect to $catchall_data->{server} for node=$S->{node}");
-		#return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
+		# fixme9: does not exist
+		# return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
 		#		gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
 	}
 
@@ -725,12 +674,16 @@ sub getSubconceptStats
 
 	my $C = NMISNG::Util::loadConfTable();
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
-	if (NMISNG::Util::getbool($C->{server_master}) and $catchall_data->{server}
+
+	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
+	if (# NMISNG::Util::getbool($C->{server_master}) and 
+			$catchall_data->{server}
 			and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
 		# send request to remote server
 		NMISNG::Util::dbg("serverConnect to $catchall_data->{server} for node=$S->{node}");
-		#return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
+		# fixme9: does not exist
+		# return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
 		#		gtype=>$type,start=>$start,end=>$end,index=>$index);
 	}
 
@@ -912,7 +865,6 @@ sub getGroupSummary {
 	}
 
 	my $C = NMISNG::Util::loadConfTable();
-	my $master_server_priority = $C->{master_server_priority} || 10;
 
 	my @loopdata = ({key =>"reachable", precision => "3f"},{key =>"available", precision => "3f"},{key =>"health", precision => "3f"},{key =>"response", precision => "3f"});
 	foreach my $entry ( @loopdata )
@@ -1670,7 +1622,8 @@ sub createHrButtons
 
 	return unless $AU->InGroup($catchall_data->{group});
 
-	my $server = NMISNG::Util::getbool($C->{server_master}) ? '' : $catchall_data->{server};
+	# fixme9: logic wrong, must check cluster_id, not server name property
+	my $server =  $catchall_data->{server}; # fixme9: gone NMISNG::Util::getbool($C->{server_master}) ? '' : $catchall_data->{server};
 	my $urlsafenode = uri_escape($node);
 
 	push @out, "<table class='table'><tr>\n";

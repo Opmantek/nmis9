@@ -348,15 +348,16 @@ sub convertSecsHours {
 								 int($seconds % 60));
 }
 
-# 3 Mar 02 - Integrating Trent O'Callaghan's changes for granular graphing.
-sub convertTime {
+# takes number N and unit string X, returns now minus N times (numeric value for X)
+sub convertTime 
+{
 	my $amount = shift;
 	my $units = shift;
 	my $timenow = time;
 	my $newtime;
 
-	if ( $units eq "" ) { $units = "days" }
-	else { $units = $units }
+	$units ||= "days";
+	
 	# convert length code into Graph start time
 	if ( $units eq "minutes" ) { $newtime = $timenow - $amount * 60; }
 	elsif ( $units eq "hours" ) { $newtime = $timenow - $amount * 60 * 60; }
@@ -368,6 +369,39 @@ sub convertTime {
 	return $newtime;
 }
 
+# translates period value into human-friendly string
+# input: period value, optional onlysingleunit, optional fractions
+# fractions is honored only when onlysingleunit is set
+# returns things like 4d or 95m with onlysingleunit, or 1h20m otherwise
+# or 1.34d (onlysingleunit 1 and fractions 2)
+sub period_friendly
+{
+		my ($value,$onlysingleunit,$fractions) = @_;
+
+		my ($string,$div);
+		my %units = ("y" => 86400*365, "d" => 86400, "h" => 3600, "m" => 60, "s" => 1);
+
+		# break it into the largest available unit, then the next and so on
+		# OR use only ONE unit, the largest that allows division without remainder,
+		# or the largest one smaller than the input if fractions are allowed.
+		for my $unitname (sort { $units{$b} <=> $units{$a}} keys %units)
+		{
+			my $unitvalue = $units{$unitname};
+			my $mod = $value % $unitvalue;
+			my $div = $value / $unitvalue;
+
+			next if ($onlysingleunit && !$fractions && $mod);
+
+			if ($div >= 1)
+			{
+				my $layout = ($onlysingleunit && $fractions)? "%.${fractions}f%s" : "%d%s";
+				$string .= sprintf($layout, $div, $unitname);
+				$value = $mod;
+				last if ($onlysingleunit && $fractions);
+			}
+		}
+		return $string;
+}
 
 sub convertUpTime {
 	my $timeString = shift;

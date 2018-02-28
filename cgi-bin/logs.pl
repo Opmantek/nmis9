@@ -150,14 +150,7 @@ my $GT = Compat::NMIS::loadGroupTable();
 my $logFileName;						# this gets set to the full qualified filename in conf/Logs.xxxx config fiel
 
 # defaults
-my $logName = 'Event_Log';
-if ( NMISNG::Util::getbool($C->{server_master}) and $Q->{logname} eq "" ) {
-	$logName = 'Slave_Event_Log';
-}
-elsif ($Q->{logname} ne "" ) {
-	$logName = $Q->{logname};
-}
-
+my $logName = $Q->{logname} || 'Event_Log';
 my $logSort = defined $Q->{sort} ? $Q->{sort} : 'descending';
 my $logLines =  defined $Q->{lines} ? $Q->{lines} : '50' ;
 my $logLevel = defined $Q->{level} ? $Q->{level} : 'ALL';

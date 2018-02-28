@@ -184,26 +184,9 @@ sub listEvent
 
 	print start_table;
 
+	# fixme9: needs adjustment; remote events may be a/v in the db with opHA 3.
 	my %localevents = Compat::NMIS::loadAllEvents;
 	displayEvents(\%localevents, $C->{'server_name'}); #single server
-
-	if (NMISNG::Util::getbool($C->{server_master})) {
-		# check modify of remote node tables
-		my $ST = Compat::NMIS::loadServersTable();
-		for my $srv (keys %{$ST}) {
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-			
-			my $table = "nmis-$srv-event";       
-			if ( -r NMISNG::Util::getFileName(file => "$C->{'<nmis_var>'}/$table") ) 
-			{
-				# this is: either an old-style eventhash->event table file,
-				# or a new-style eventfilename->event structure. fortunately the guts are compatible.
-				my $remote_events = NMISNG::Util::loadTable(name=>$table, dir => 'var');
-				displayEvents($remote_events, "Slave Server $srv"); #single server
-			}
-		}
-	}
 
 	print end_table;
 	print end_form;

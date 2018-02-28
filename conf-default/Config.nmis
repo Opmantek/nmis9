@@ -346,19 +346,6 @@ my %hash = (
     'auth_cw_private_key' => '',
   },
 
-  'master_slave' => {
-    'nmis_master_poll_cycle' => 'false',
-    'server_master' => 'false',
-    'master_dash' => 'false',
-    'master_report' => 'false',
-    'master_sleep' => '15',
-    'master_server_priority' => 10,
-    'slave_community' => 'secret',
-    'auth_src_ip' => '127.0.0.1',
-    'server_community' => 'secret',
-    'server_user' => 'nmismst'
-  },
-
   'tools' => {
     'view_ssh' => 'true',
     'ssh_port' => '',
@@ -513,4 +500,14 @@ my %hash = (
 		'purge_reports_after' => 365*86400,			 # html reports
 		'purge_outages_after' => 86400,			 # past non-recurring outages
 	},
+
+	'schedule' => {
+		# 0 or negative to disable automatic scheduling
+		'schedule_configbackup' => 86400,
+#		'schedule_reports' => 86400, # fixme not good
+		'schedule_purge' => 86400,
+		'schedule_dbcleanup' => 86400,
+		'schedule_update' => 86400, 
+	},
+		
 );

@@ -1273,12 +1273,6 @@ sub selectLarge
 		'Last Update'
 	);
 
-	my $ST;
-	if ( NMISNG::Util::getbool( $C->{server_master} ) )
-	{
-		$ST = Compat::NMIS::loadServersTable();
-	}
-
 	my $CT;
 	if ( $C->{network_health_view} eq "Customer" or $customer ne "" )
 	{
@@ -1463,8 +1457,8 @@ sub selectLarge
 					= td( {class => 'info Plain', align => 'right', style => NMISNG::Util::getBGColor($color)}, "disabled" );
 			}
 			my $nodelink;
-			# is this node one of ours? if server_master is off, 'ours' is assumed automatically
-			if ( !NMISNG::Util::getbool($C->{server_master}) or $NT->{$node}->{cluster_id} eq $C->{cluster_id} )
+			# ours or remotely-managed-but-opHA-transferred node?
+			if ($NT->{$node}->{cluster_id} eq $C->{cluster_id})
 			{
 				# attention: this construction must match up with what commonv8.js's nodeInfoPanel() uses as id attrib!
 				my $idsafenode = $node;
@@ -1484,6 +1478,7 @@ sub selectLarge
 			{
 				# fixme9: server mode is nonfunctional at this time, links need to be made through opha
 				my $server = $NT->{$node}{server};
+				my $ST = {};
 				my $url
 					= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
 					. uri_escape($node);
