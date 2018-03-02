@@ -27,12 +27,9 @@
 #
 # *****************************************************************************
 package NMISNG::Sys;
-our $VERSION = "2.1.0";
+our $VERSION = "2.1.1";
 
 use strict;
-
-# fixme9: is that required?
-#use lib "../../lib";
 
 use NMISNG::Util;          # common functions
 use NMISNG::Snmp;
@@ -277,10 +274,10 @@ sub init
 	{
 		# use all data we may have
 		# If cluster_id was given use it
-		$self->{_nmisng_node} = $self->{_nmisng}->node( 
-			name => $self->{name}, 
+		$self->{_nmisng_node} = $self->{_nmisng}->node(
+			name => $self->{name},
 			uuid => $self->{uuid},
-			filter => {cluster_id => $args{cluster_id}} 
+			filter => {cluster_id => $args{cluster_id}}
 		);
 		Carp::confess("Cannot instantiate sys object for $self->{name}!\n")
 				if (!$self->{_nmisng_node});
@@ -1924,7 +1921,7 @@ sub parseString
 
 	NMISNG::Util::dbg( "parseString:: sect:$sect, type:$type, string to parse '$str'", 3 );
 
-	# if there is no eval and no variables for substiting are found return
+	# if there is no eval and no variables for substitution are found, just return
 	if( !$eval && $str !~ /\$/ )
 	{
 		return $str;
@@ -1963,7 +1960,7 @@ sub parseString
 		$str = $rebuilt;
 	}
 
-	$extras //= {};
+	$extras = Clone::clone( $extras // {}); # we want no changes to the caller's variables
 
 	$self->prep_extras_with_catchalls( extras => $extras,
 																		 index => $indx,
