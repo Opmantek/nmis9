@@ -8307,7 +8307,7 @@ LABEL_ESC:
 					next if $node_depend eq "N/A";                 # default setting
 					next if $node_depend eq $event_obj->node_name;    # remove the catch22 of self dependancy.
 					                                               #only do dependancy if node is active.
-					my $node_depend_rec = $$nmisng_node->configuration;
+					my $node_depend_rec = $nmisng_node->configuration;
 					if ( defined $node_depend_rec->{active} )
 					{
 						my ($error,$erec) = $nmisng->events->eventLoad( 
