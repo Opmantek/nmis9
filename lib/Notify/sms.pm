@@ -90,7 +90,7 @@ sub sendNotification {
 	#  'location' => 'Cloud',
 	#  'mobile' => '0433355840',
 	#  'nmis_server' => 'nmisdev64',
-	#  'node' => 'branch1',
+	#  'node_name' => 'branch1',
 	#  'notify' => 'syslog:server,json:server,mylog:keiths,mylog:keith2',
 	#  'serviceStatus' => 'Dev-Test',
 	#  'startdate' => 1366603124,
@@ -104,7 +104,7 @@ sub sendNotification {
 	if ( $event->{level} =~ /Major|Critical|Fatal/ ) {
 		my $smstime = dateString($event->{startdate});
 		
-		my $msgstr = "$event->{node} $event->{level} $event->{event} $event->{element} $event->{details}";
+		my $msgstr = "$event->{node_name} $event->{level} $event->{event} $event->{element} $event->{details}";
 		my $message = "$smstime: $msgstr";
 		my $to = $contact->{Mobile};
 		my $from = "NMIS";

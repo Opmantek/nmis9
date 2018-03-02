@@ -66,8 +66,8 @@ sub sendNotification
 	my @blackList = loadBlackList($blackListFile);
 	
 	# is there a valid event coming in?
-	if ( defined $event->{node} and $event->{node} ) {
-		my $node = $event->{node};
+	if ( defined $event->{node_name} and $event->{node_name} ) {
+		my $node_name = $event->{node_name};
 		
 		# is the node in the black list?
 		if (not grep { $event->{event} =~ /$_/ } @blackList) { 			
@@ -79,9 +79,9 @@ sub sendNotification
 			# the seperator for the details field.
 			my $detailSep = " -- ";
 				
-			NMISNG::Util::dbg("Processing $node $event->{event}");
+			NMISNG::Util::dbg("Processing $node_name $event->{event}");
 			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node, snmp=>'false');
+			$S->init(name=>$node_name, snmp=>'false');
 
 			my @detailBits;
 		
@@ -105,21 +105,21 @@ sub sendNotification
 				facility => $syslog_facility,
 				nmis_host => $C->{server_name},
 				time => time(),
-				node => $node,
+				node => $node_name,
 				event => $event->{event},
 				level => $event->{level},
 				element => $event->{element},
 				details => $details
 			);
 			if ( $success ) {
-				NMISNG::Util::logMsg("INFO: syslog sent: $event->{node} $event->{event} $event->{element} $details") if $extraLogging;
+				NMISNG::Util::logMsg("INFO: syslog sent: $event->{node_name} $event->{event} $event->{element} $details") if $extraLogging;
 			}
 			else {
-				NMISNG::Util::logMsg("ERROR: syslog failed to $syslog_server: $event->{node} $event->{event} $event->{element} $details");
+				NMISNG::Util::logMsg("ERROR: syslog failed to $syslog_server: $event->{node_name} $event->{event} $event->{element} $details");
 			}			
 		}
 		else {
-			NMISNG::Util::logMsg("INFO: event not sent as event in blacklist $event->{node} $event->{event} $event->{element}.") if $extraLogging;
+			NMISNG::Util::logMsg("INFO: event not sent as event in blacklist $event->{node_name} $event->{event} $event->{element}.") if $extraLogging;
 		}
 	}
 	else {

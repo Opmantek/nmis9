@@ -584,6 +584,7 @@ sub getDiskBytes {
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
+	print "setDebug, string:$string\n";
 
 	if (!defined $string) { $debug = 0; }
 	elsif ( $string eq "true" ) { $debug = 1; }

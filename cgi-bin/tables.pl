@@ -786,7 +786,7 @@ sub doeditTable
 			$key = $new_name;
 		}
 
-		Compat::NMIS::cleanEvent($key, "tables.pl.editNodeTable");
+		$nmisng->events->cleanNodeEvents($node, "tables.pl.editNodeTable");		
 
 		if (NMISNG::Util::getbool($Q->{update}))
 		{

@@ -80,7 +80,7 @@ if ($Q->{act} eq 'event_database_list') {			displayEventList();
 } elsif ($Q->{act} eq 'event_database_dodelete')
 {
 	# deletion requires node, event, element arguments
-	if (my $err = Compat::NMIS::eventDelete( event => { node => $Q->{node},
+	if (my $err = $nmisng->events->eventDelete( event => { node_uuid => $Q->{node_uuid},
 																				event => $Q->{event},
 																				element => $Q->{element} } ))
 	{
@@ -178,7 +178,7 @@ sub displayEventList
 	Compat::NMIS::pageStart(title => "View Event Database - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	# load all events, for all nodes
-	my %allevents = Compat::NMIS::loadAllEvents;
+	my $event_ret = $nmisng->events->get_events_model(filter => { active => 1 });
 
 	# second print a list of event database entries
 	print start_table;
@@ -187,15 +187,12 @@ sub displayEventList
 
 	print Tr(td({class=>'header',colspan=>'3'},"${homelink}View Event Database"));
 	my $flag = 0;
-	foreach my $eventkey (sort keys %allevents)
+	for my $thisevent ( sort {$a->{event} cmp $b->{event}} @{$event_ret->{model_data}->data})
 	{
-		my $thisevent = $allevents{$eventkey};
-		next if (!NMISNG::Util::getbool($thisevent->{current}));
-
 		my $start = $thisevent->{startdate};
 		my $date = NMISNG::Util::returnDate($thisevent->{startdate});
 		my $time = NMISNG::Util::returnTime($thisevent->{startdate});
-		my $node = $thisevent->{node};
+		my $node = $thisevent->{node_name};
 		my $event = $thisevent->{event};
 		my $element = $thisevent->{element};
 		my $details = $thisevent->{details};
@@ -309,7 +306,7 @@ sub displayEventItems {
 	my %args = @_;
 	my $flag = $args{flag};
 
-	my $node = $Q->{node};
+	my $node_name = $Q->{node};
 	my $event = $Q->{event};
 	my $element = $Q->{element};
 	my $details = $Q->{details};
@@ -332,11 +329,21 @@ sub displayEventItems {
 	# load Node table
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 
+	my $S = NMISNG::Sys->new;
+	$S->init(name=>$node,snmp=>'false');
+	my $node_uuid = $S->nmisng_node->uuid;
+	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+
 	# suck in this one event
-	my $thisevent = Compat::NMIS::eventLoad(node => $node, event => $event, element => $element);
+	my ($error,$thisevent) = $S->nmisng_node->eventLoad(event => $event, element => $element);
 	if (!$thisevent)
 	{
 		print Tr(td({class=>'info'},"No such event!"));
+		return;
+	}
+	elsif( $error )
+	{
+		Tr(td({class=>'error'},"Error loading event: $error!"));
 		return;
 	}
 
@@ -346,7 +353,7 @@ sub displayEventItems {
 		$thisevent->{current} = "true";
 		$thisevent->{startdate} = time;
 		$thisevent->{lastchange} = time;
-		$thisevent->{node} = $node;
+		$thisevent->{node_name} = $node_name;
 		$thisevent->{event} = $event;
 		$thisevent->{level} = $level;
 		$thisevent->{element} = $element;
@@ -355,13 +362,9 @@ sub displayEventItems {
 		$thisevent->{escalate} = -1;
 		$thisevent->{notify} = "false";
 		$thisevent->{user} = "";
-	}
+	}	
 
-	my $S = NMISNG::Sys->new;
-	$S->init(name=>$node,snmp=>'false');
-	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
-
-	my $group = lc($NT->{$thisevent->{node}}{group}); # group of node - fixme why lowercase???
+	my $group = lc($NT->{$thisevent->{node_name}}{group}); # group of node - fixme why lowercase???
 	my $role = lc($catchall->{roleType}); # role of node, fixme why lowercase?
 	my $type = lc($catchall->{nodeType}); # type of node, fixme why lowercase
 	my $escalate = $thisevent->{escalate};	# save this as a flag
@@ -373,7 +376,7 @@ sub displayEventItems {
 	$time = NMISNG::Util::returnTime($thisevent->{startdate});
 	printRow(1,"start time","$date $time");
 
-	printRow(1,"node",$thisevent->{node});
+	printRow(1,"node",$thisevent->{node_name});
 
 	# info
 	my $ack_str = NMISNG::Util::getbool($thisevent->{ack}) ?  ", event waiting for activating" : ", event active";
@@ -397,15 +400,22 @@ sub displayEventItems {
 		printRow(1,"status","node at Outage, no escalation");
 	}
 
-	if ( exists $NT->{$thisevent->{node}}{depend} ) {
+	if ( exists $NT->{$thisevent->{node_name}}{depend} ) {
 		# we have list of nodes that this node depends on in $NT->{$runnode}{depend}
 		# if any of those have a current Node Down alarm, then lets just move on with a debug message
 		# should we log that we have done this - maybe not....
 
-		foreach my $node_depend ( split /,/ , lc($NT->{$thisevent->{node}}{depend}) ) {
+		foreach my $node_depend ( split /,/ , lc($NT->{$thisevent->{node_name}}{depend}) ) {
 			next if $node_depend eq "N/A" ;		# default setting
-			next if $node_depend eq $thisevent->{node};	# remove the catch22 of self dependancy.
-			if ( Compat::NMIS::eventExist($node_depend, "Node Down", "" ) ) {
+			next if $node_depend eq $thisevent->{node_name};	# remove the catch22 of self dependancy.
+			my $node_depend_rec = $NT->{$node_depend};
+			my ($error,$erec) = $nmisng->events->eventLoad( 
+				node_uuid => $node_depend_rec->{uuid}, 
+				event => "Node Down", 
+				active => 1 
+			);
+			
+			if ( !$error && $erec )
 				printRow(1,"status","dependant $node_depend is reported as down");
 				return;
 			}
@@ -413,7 +423,7 @@ sub displayEventItems {
 	}
 
 	# checking that we have a valid node -the node may have been deleted.
-	if ( !exists $NT->{$thisevent->{node}}{name} ) {
+	if ( !exists $NT->{$thisevent->{node_name}}{name} ) {
 		printRow(1,"status","node deleted");
 		goto DELETE;
 	}
@@ -450,7 +460,7 @@ sub displayEventItems {
 			$EST->{$esc}{Event_Node} =~ s;/;;g;
 			$EST->{$esc}{Event_Element} =~ s;/;;g;
 			if ($klst eq $esc_short and
-					$thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i and
+					$thisevent->{node_name} =~ /$EST->{$esc}{Event_Node}/i and
 					$thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i ) {
 				$keyhash{$esc} = $klst;
 				NMISNG::Util::dbg("match found for escalation key=$esc");
@@ -467,7 +477,7 @@ sub displayEventItems {
 		printRow(2,"role",$field[1]);
 		printRow(2,"type",$field[2]);
 		printRow(2,"event",$field[3]);
-		printRow(2,"message","Escalation $thisevent->{node} $thisevent->{event_level} $thisevent->{event}\n $thisevent->{element} $thisevent->{details}");
+		printRow(2,"message","Escalation $thisevent->{node_name} $thisevent->{event_level} $thisevent->{event}\n $thisevent->{element} $thisevent->{details}");
 		my $not_str = NMISNG::Util::getbool($EST->{$esc_key}{UpNotify}) ? ", an UP event notification will be sent to the list of Contacts who received a \'down\' event notification" : "";
 		printRow(2,"upnotify","$EST->{$esc_key}{UpNotify} $not_str");
 
@@ -601,7 +611,7 @@ DELETE:
 	if ($Q->{act} =~ /delete$/) {
 		# $event has been mangled for the escalation lookup...
 		print Tr(td({class=>'header'},b('Delete this Event ? ')),
-			td(a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_dodelete&node=$node&event="
+			td(a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_dodelete&node_uuid=$node_uuid&event="
 								.$thisevent->{event}."&element=$element&widget=$widget"},'DELETE')));
 	}
 	#=====================================================

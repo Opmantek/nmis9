@@ -2171,7 +2171,8 @@ EO_HTML
 	}
 
 	# display events for this one node - also close one if asked to
-	if ( my %nodeevents = Compat::NMIS::loadAllEvents( node => $node ) )
+	my $event_ret = $nmisng_node->get_events_model();
+	if ( !$event_ret->{error} )
 	{
 		push @firstcoldata, Tr( td( {class => 'header', colspan => '2'}, 'Events' ) );
 		my $usermayclose = $AU->CheckAccess( "src_events", "check" );
@@ -2182,11 +2183,9 @@ EO_HTML
 				. "&amp;widget=$widget"
 				. "&amp;node="
 				. uri_escape($node);
-
-		for my $eventkey ( sort keys %nodeevents )
+		my $events = $event_ret->{model_data}->data();		
+		foreach my $thisevent ( sort {$a->{event} cmp $b->{event}} @{$events} )
 		{
-			my $thisevent = $nodeevents{$eventkey};
-
 			# closing an event creates a temporary up event...we don't want to see that.
 			next if ( $usermayclose && $thisevent->{details} =~ /^closed from GUI/ );
 
@@ -2200,10 +2199,12 @@ EO_HTML
 					node    => $node,
 					event   => $thisevent->{event},
 					element => $thisevent->{element},
-					details => "closed from GUI"
-						);
+					details => "closed from GUI",
+					inventory_id => $thisevent->{inventory_id}
+				);
 				next;    # event is gone, don't show it
 			}
+		
 
 			# offer a button for closing this event if the user is sufficiently privileged
 			# fixme: does currently NOT offer confirmation!

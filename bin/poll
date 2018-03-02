@@ -651,7 +651,7 @@ sub runThreads
 						 and NMISNG::Util::getbool($thisevent_control->{Log})))
 				{
 					# logging this event as the node name so it shows up as a problem with the node
-					Compat::NMIS::logEvent(node => $otherprocesses->{$pid}->{node},
+					$nmisng->events->logEvent(node_name => $otherprocesses->{$pid}->{node},
 																 event => $event,
 																 level => "Warning",
 																 element => $otherprocesses->{$pid}->{node},
@@ -886,8 +886,8 @@ sub catch_zap
 			or !NMISNG::Util::getbool( $C->{disable_nmis_process_events} ) )
 		)
 	{
-		Compat::NMIS::logEvent(
-			node    => $C->{server_name},
+		Compat::NMIS::new_nmisng->events->logEvent(
+			node_name    => $C->{server_name},
 			event   => "NMIS runtime exceeded",
 			level   => "Warning",
 			element => undef,
@@ -1183,7 +1183,7 @@ sub load_plugins
 		}
 		for my $cand (grep(/\.pm$/, readdir(PD)))
 		{
-			$candfiles{$cand} //= "$dir/$cand";
+			$candfiles{$cand} //= "$dir/$cand"; #"
 		}
 		closedir(PD);
 	}
@@ -1444,7 +1444,7 @@ sub doCollect
 			runServer( sys => $S );
 
 			# Custom Alerts
-			runAlerts( sys => $S ) if defined $S->{mdl}{alerts};
+				runAlerts( sys => $S ) if defined $S->{mdl}{alerts};
 
 		}
 		else
@@ -1620,7 +1620,7 @@ sub runPing
 			{
 				# up
 				# are the nodedown status and event db out of sync?
-				if ( not NMISNG::Util::getbool( $catchall_data->{nodedown} ) and Compat::NMIS::eventExist( $nodename, "Node Down", "" ) )
+				if ( not NMISNG::Util::getbool( $catchall_data->{nodedown} ) and $S->nmisng_node->eventExist( "Node Down" ) )
 				{
 					my $result = Compat::NMIS::checkEvent(
 						sys     => $S,
@@ -2131,7 +2131,8 @@ sub checkPower
 				event   => "RPS Fail",
 				level   => "Normal",
 				element => $attr,
-				details => "RPS failed"
+				details => "RPS failed",
+				inventory_id => $S->inventory( concept => 'catchall' )->id
 			);
 			$V->{system}{"${attr}_color"} = '#0F0';
 		}
@@ -2142,7 +2143,8 @@ sub checkPower
 				event   => "RPS Fail",
 				element => $attr,
 				details => "RPS failed",
-				context => {type => "rps"}
+				context => {type => "rps"},
+				inventory_id => $S->inventory( concept => 'catchall' )->id
 			);
 			$V->{system}{"${attr}_color"} = 'red';
 		}
@@ -2892,35 +2894,6 @@ sub getIntfInfo
 				}
 			}
 
-			# interface now up or down, check and set or clear outstanding event.
-			if (    NMISNG::Util::getbool( $target->{collect} )
-				and $target->{ifAdminStatus} =~ /up|ok/
-				and $target->{ifOperStatus} !~ /up|ok|dormant/ )
-			{
-				if ( NMISNG::Util::getbool( $target->{event} ) )
-				{
-					Compat::NMIS::notify(
-						sys     => $S,
-						event   => "Interface Down",
-						element => $target->{ifDescr},
-						details => $target->{Description},
-						context => {type => "interface"},
-					);
-				}
-			}
-			else
-			{
-				Compat::NMIS::checkEvent(
-					sys     => $S,
-					event   => "Interface Down",
-					level   => "Normal",
-					element => $target->{ifDescr},
-					details => $target->{Description}
-				);
-			}
-
-
-
 			# number of interfaces collected with collect and event on
 			$intfCollect++ if ( NMISNG::Util::getbool( $target->{collect} )
 				&& NMISNG::Util::getbool( $target->{event} ) );
@@ -2981,7 +2954,7 @@ sub getIntfInfo
 			my $pathdata = Clone::clone($target);
 			delete $pathdata->{index};
 			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $pathdata, partial => 1 );
-
+			my $inventory_id;
 			if( ref($path) eq 'ARRAY')
 			{
 				( $inventory, my $error_message ) = $nmisng_node->inventory(
@@ -3020,10 +2993,40 @@ sub getIntfInfo
 
 				# mark as nonhistoric so that we can ditch the actually historic ones...
 				$activeones{$inventory->id} = 1;
+				$inventory_id = $inventory->id;
 			}
 			else
 			{
 				$nmisng->log->error("Failed to create path for inventory, error:$path");
+			}
+
+			# interface now up or down, check and set or clear outstanding event.
+			if (    NMISNG::Util::getbool( $target->{collect} )
+				and $target->{ifAdminStatus} =~ /up|ok/
+				and $target->{ifOperStatus} !~ /up|ok|dormant/ )
+			{
+				if ( NMISNG::Util::getbool( $target->{event} ) )
+				{
+					Compat::NMIS::notify(
+						sys     => $S,
+						event   => "Interface Down",
+						element => $target->{ifDescr},
+						details => $target->{Description},
+						context => {type => "interface"},
+						inventory_id => $inventory_id
+					);
+				}
+			}
+			else
+			{
+				Compat::NMIS::checkEvent(
+					sys     => $S,
+					event   => "Interface Down",
+					level   => "Normal",
+					element => $target->{ifDescr},
+					details => $target->{Description},
+					inventory_id => $inventory_id
+				);
 			}
 
 			# the following don't modify $target so no extra saving required
@@ -4039,7 +4042,8 @@ sub processAlerts
 				event   => "Alert: " . $alert->{event},
 				level   => $alert->{level},
 				element => $alert->{ds},
-				details => $details
+				details => $details,
+				inventory_id => $alert->{inventory_id}
 			);
 		}
 
@@ -4057,7 +4061,8 @@ sub processAlerts
 			# name does not exist for simple alerts, let's synthesize it from ds
       name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
-			updated  => time()
+			updated  => time(),
+			inventory_id => $alert->{inventory_id}
 		};
 	}
 }
@@ -4641,7 +4646,10 @@ sub getIntfData
 							event   => "Interface Down",
 							element => $inventory_data->{ifDescr},
 							details => $inventory_data->{Description},
-							context => {type => "interface"} );
+							context => {type => "interface"},
+							inventory_id => $inventory->id 
+						);
+
 					}
 				}
 				else
@@ -4651,8 +4659,9 @@ sub getIntfData
 						event   => "Interface Down",
 						level   => "Normal",
 						element => $inventory_data->{ifDescr},
-						details => $inventory_data->{Description}
-							);
+						details => $inventory_data->{Description},
+						inventory_id => $inventory->id 
+					);
 				}
 
 				# synthetic
@@ -4770,7 +4779,7 @@ sub getIntfData
 
 		### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
 		### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
-		if ( Compat::NMIS::eventExist( $nodename, "Interface Down", $inventory_data->{ifDescr} )
+		if ( $S->nmisng_node->eventExist( "Interface Down", $inventory_data->{ifDescr} )
 				 and $inventory_data->{ifOperStatus} =~ /up|ok|dormant/ )
 		{
 			Compat::NMIS::checkEvent(
@@ -4778,8 +4787,9 @@ sub getIntfData
 				event   => "Interface Down",
 				level   => "Normal",
 				element => $inventory_data->{ifDescr},
-				details => $inventory_data->{Description}
-					);
+				details => $inventory_data->{Description},
+				inventory_id => $inventory->id 
+			);
 		}
 
 		# header info of web page
@@ -4789,12 +4799,17 @@ sub getIntfData
 		# check escalation if event is on
 		if ( NMISNG::Util::getbool($inventory_data->{event}))
 		{
-			my $escalate = 'none';
-			if (my $event_exist = Compat::NMIS::eventExist( $nodename,
-																											"Interface Down",
-																											$inventory_data->{ifDescr} ))
-			{
-				my $erec = Compat::NMIS::eventLoad( filename => $event_exist );
+
+			my $escalate = 'none';			
+			my ($error,$erec) = $S->nmisng_node->eventLoad(				
+				event => "Interface Down", 
+				element => $inventory_data->{ifDescr},
+				# don't pass this in yet because if we do it will try and filter and may not be set so worn't work
+				# inventory_id => $inventory->id,			 
+				active => 1
+			);
+			if( !$error && $erec )
+			{				
 				$escalate = $erec->{escalate} if ( $erec and defined( $erec->{escalate} ) );
 			}
 			$V->{interface}{"${index}_escalate_title"} = 'Esc.';
@@ -6006,18 +6021,15 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			NMISNG::Util::logMsg("ERROR: snmp_services timed data saving failed: $error") if ($error);
 
 			# now clear events that applied to processes that no longer exist
-			my %nodeevents = Compat::NMIS::loadAllEvents( node => $S->{name} );
-			for my $eventkey ( keys %nodeevents )
+			my $event_ret = $nmisng_node->get_events_model( filter => { event => 'regex:process memory' } );
+			NMISNG::Util::logMsg("ERROR: snmp_services error getting events: $event_ret->{error}") if ($event_ret->{error});
+			for my $thisevent ( @{$event_ret->{model_data}->data} )
 			{
-				my $thisevent = $nodeevents{$eventkey};
-
-		  # fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
-		  # until then we trigger on the element format plus event name
-				if (   $thisevent->{element} =~ /^\S+:\d+$/
-					&& $thisevent->{event} =~ /process memory/i
-					&& !exists $services{$thisevent->{element}} )
+			  # fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
+			  # until then we trigger on the element format plus event name
+				if ( $thisevent->{element} =~ /^\S+:\d+$/ && !exists $services{$thisevent->{element}} )
 				{
-					NMISNG::Util::dbg(      "clearing event $thisevent->{event} for node $thisevent->{node} as process "
+					NMISNG::Util::dbg(      "clearing event $thisevent->{event} for node $thisevent->{node_name} as process "
 							. $thisevent->{element}
 							. " no longer exists" );
 					Compat::NMIS::checkEvent(
@@ -6025,7 +6037,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 						event   => $thisevent->{event},
 						level   => $thisevent->{level},
 						element => $thisevent->{element},
-						details => $thisevent->{details}
+						details => $thisevent->{details},
+						inventory_id => $processinventory->id 
 					);
 				}
 			}
@@ -6616,7 +6629,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				event   => "Service Down",
 				level   => "Normal",
 				element => $name,
-				details => ( $status{status_text} || "" )
+				details => ( $status{status_text} || "" ),
+				inventory_id => $inventory->id
 			);
 
 			Compat::NMIS::checkEvent(
@@ -6624,7 +6638,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				event   => "Service Degraded",
 				level   => "Warning",
 				element => $name,
-				details => ( $status{status_text} || "" )
+				details => ( $status{status_text} || "" ),
+				inventory_id => $inventory->id
 			);
 		}
 		elsif ( $serviceValue > 0 )    # service is up but degraded
@@ -6638,7 +6653,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				event   => "Service Down",
 				level   => "Fatal",
 				element => $name,
-				details => ( $status{status_text} || "" )
+				details => ( $status{status_text} || "" ),
+				inventory_id => $inventory->id
 			);
 
 			# ...and create a degraded
@@ -6648,7 +6664,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				level   => "Warning",
 				element => $name,
 				details => ( $status{status_text} || "" ),
-				context => {type => "service"}
+				context => {type => "service"},
+				inventory_id => $inventory->id
 			);
 		}
 		else    # Service is down
@@ -6662,7 +6679,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				event   => "Service Degraded",
 				level   => "Warning",
 				element => $name,
-				details => ( $status{status_text} || "" )
+				details => ( $status{status_text} || "" ),
+				inventory_id => $inventory->id
 			);
 
 			# and now create a down event
@@ -6672,7 +6690,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				level   => "Fatal",
 				element => $name,
 				details => ( $status{status_text} || "" ),
-				context => {type => "service"}
+				context => {type => "service"},
+				inventory_id => $inventory->id
 			);
 		}
 
@@ -7051,7 +7070,7 @@ sub runCheckValues
 sub HandleNodeDown
 {
 	my %args = @_;
-	my ( $S, $typeofdown, $details, $goingup ) = @args{"sys", "type", "details", "up"};
+	my ( $S, $typeofdown, $details, $goingup) = @args{"sys", "type", "details", "up"};
 	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|node)$/ );
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
@@ -7072,7 +7091,8 @@ sub HandleNodeDown
 		element => '',
 		details => $details,
 		level   => ( $goingup ? 'Normal' : undef ),
-		context => {type => "node"}
+		context => {type => "node"},
+		inventory_id => $S->inventory( concept => 'catchall' )
 	);
 
 	$catchall_data->{"${typeofdown}down"} = $goingup ? 'false' : 'true';
@@ -7238,7 +7258,8 @@ sub runReach
 												 level => "Warning",
 												 element => "",
 												 details=> "",                          # filled in by notify
-												 context => { type => "node" }, );
+												 context => { type => "node" },
+												 inventory_id => $catchall_inventory->id );
 
 	}
 	else
@@ -7246,7 +7267,8 @@ sub runReach
 		Compat::NMIS::checkEvent(sys=>$S, event=>"Planned Outage Open",
 														 level=> "Normal",
 														 element=> "",
-														 details=> "" );
+														 details=> "",
+														 inventory_id => $catchall_inventory->id );
 	}
 
 	# Health should actually reflect a combination of these values
@@ -7890,26 +7912,29 @@ sub runEscalate
 	my $msgtime = NMISNG::Util::get_localtime();
 
 	# first load all non-historic events for all nodes
-	my %allevents = Compat::NMIS::loadAllEvents;
+	my $active_ret    = $nmisng->events->get_events_model( filter => { historic => 0, active => 1 });
+	my $inactive_ret = $nmisng->events->get_events_model( filter => { historic => 0, active => 0 });
 
+	print STDERR "a_error:".Dumper($active_ret->{error}) if ($active_ret->{error});
+	print STDERR "inactive_error:".Dumper($inactive_ret->{error}) if ($inactive_ret->{error});
 	# then send UP events to all those contacts to be notified as part of the escalation procedure
-	# this loop skips ALL marked-as-current events!
-	# current flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
+	# this loop skips ALL marked-as-active events!
+	# active flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
 	# we might rename that transition t/f, and have this function handle only the ones with transition true.
-	my @mustupnotify = grep( !NMISNG::Util::getbool( $allevents{$_}->{current} ), keys %allevents );
-	for my $eventkey (@mustupnotify)
+	
+	for( my $i = 0; $i < $inactive_ret->{model_data}->count; $i++)
 	{
-		my $thisevent = $allevents{$eventkey};
-
+		my $event_obj = $inactive_ret->{model_data}->object($i);
+		my $event_data = $event_obj->data(); # for easier string printing
 		# if the event is configured for no notify, do nothing
-		my $thisevent_control = $events_config->{$thisevent->{event}}
+		my $thisevent_control = $events_config->{$event_obj->event}
 			|| {Log => "true", Notify => "true", Status => "true"};
 
 		# in case of Notify being off for this event, we don't have to check/walk/handle any notify fields at all
 		# as we're deleting the record after the loop anyway.
 		if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 		{
-			foreach my $field ( split( ',', $thisevent->{notify} ) )    # field = type:contact
+			foreach my $field ( split( ',', $event_obj->notify ) )    # field = type:contact
 			{
 				$target = "";
 				my @x    = split /:/, $field;
@@ -7965,7 +7990,7 @@ sub runEscalate
 							if ( $type eq "pager" )
 							{
 								$msgTable{$type}{$trgt}{$serial_ns}{message}
-									= "NMIS: UP Notify $thisevent->{node} Normal $thisevent->{event} $thisevent->{element}";
+									= "NMIS: UP Notify $event_data->{node_name} Normal $event_data->{event} $event_data->{element}";
 								$serial_ns++;
 							}
 							else
@@ -7977,12 +8002,12 @@ sub runEscalate
 								}
 								else
 								{
-									$priority = &Compat::NMIS::eventToSMTPPri( $thisevent->{level} );
+									$priority = &Compat::NMIS::eventToSMTPPri( $event_obj->level );
 								}
-								$event_age = NMISNG::Util::convertSecsHours( time - $thisevent->{startdate} );
+								$event_age = NMISNG::Util::convertSecsHours( time - $event_obj->startdate );
 
 								$message
-									.= "Node:\t$thisevent->{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\n\n";
+									.= "Node:\t$event_data->{node_name}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$event_data->{event}\nElement:\t$event_data->{element}\nDetails:\t$event_data->{details}\n\n";
 
 								if ( NMISNG::Util::getbool( $C->{mail_combine} ) )
 								{
@@ -7998,7 +8023,7 @@ sub runEscalate
 								else
 								{
 									$msgTable{$type}{$trgt}{$serial}{subject}
-										= "$thisevent->{node} $thisevent->{event} - $thisevent->{element} - $thisevent->{details} at $msgtime";
+										= "$event_data->{node_name} $event_data->{event} - $event_data->{element} - $event_data->{details} at $msgtime";
 									$msgTable{$type}{$trgt}{$serial}{message}  = $message;
 									$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
 									$msgTable{$type}{$trgt}{$serial}{count}    = 1;
@@ -8008,15 +8033,15 @@ sub runEscalate
 						}
 
 						# log the meta event, ONLY if both Log (and Notify) are enabled
-						Compat::NMIS::logEvent(
-							node    => $thisevent->{node},
+						$nmisng->events->logEvent(
+							node_name    => $event_obj->node_name,
 							event   => "$type to $target UP Notify",
 							level   => "Normal",
-							element => $thisevent->{element},
-							details => $thisevent->{details}
+							element => $event_obj->element,
+							details => $event_obj->details
 						) if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) );
 
-						NMISNG::Util::dbg("Escalation $type UP Notification node=$thisevent->{node} target=$target level=$thisevent->{level} event=$thisevent->{event} element=$thisevent->{element} details=$thisevent->{details} group=$NT->{$thisevent->{node}}{group}"
+						NMISNG::Util::dbg("Escalation $type UP Notification node=$event_data->{node_name} target=$target level=$event_data->{level} event=$event_data->{event} element=$event_data->{element} details=$event_data->{details} group=$NT->{$event_data->{node_name}}{group}"
 						);
 					}
 				}    # end email,ccopy,pager
@@ -8024,7 +8049,7 @@ sub runEscalate
 				elsif ( $type eq "netsend" )
 				{
 					my $message
-						= "UP Event Notification $thisevent->{node} Normal $thisevent->{event} $thisevent->{element} $thisevent->{details} at $msgtime";
+						= "UP Event Notification $event_data->{node_name} Normal $event_data->{event} $event_data->{element} $event_data->{details} at $msgtime";
 					foreach my $trgt (@x)
 					{
 						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
@@ -8032,12 +8057,12 @@ sub runEscalate
 						NMISNG::Util::dbg("NetSend $message to $trgt");
 
 						# log the meta event, ONLY if both Log (and Notify) are enabled
-						Compat::NMIS::logEvent(
-							node    => $thisevent->{node},
+						$nmisng->events->logEvent(
+							node_name    => $event_obj->node_name,
 							event   => "NetSend $message to $trgt UP Notify",
 							level   => "Normal",
-							element => $thisevent->{element},
-							details => $thisevent->{details}
+							element => $event_obj->element,
+							details => $event_obj->details
 						) if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) );
 					}    #foreach
 				}    # end netsend
@@ -8047,8 +8072,8 @@ sub runEscalate
 					{
 						my $timenow = time();
 						my $message
-							= "NMIS_Event::$C->{server_name}::$timenow,$thisevent->{node},$thisevent->{event},$thisevent->{level},$thisevent->{element},$thisevent->{details}";
-						my $priority = NMISNG::Notify::eventToSyslog( $thisevent->{level} );
+							= "NMIS_Event::$C->{server_name}::$timenow,$event_data->{node_name},$event_data->{event},$event_data->{level},$event_data->{element},$event_data->{details}";
+						my $priority = NMISNG::Notify::eventToSyslog( $event_obj->level );
 
 						foreach my $trgt (@x)
 						{
@@ -8063,38 +8088,38 @@ sub runEscalate
 				{
 					# log the event as json file, AND save those updated bits back into the
 					# soon-to-be-deleted/archived event record.
-					my $node = $NT->{$thisevent->{node}};
-					$thisevent->{nmis_server} = $C->{server_name};
-					$thisevent->{customer}    = $node->{customer};
-					$thisevent->{location}    = $LocationsTable->{$node->{location}}{Location};
-					$thisevent->{geocode}     = $LocationsTable->{$node->{location}}{Geocode};
+					my $node = $NT->{$event_obj->node_name};
+					$event_obj->custom_data( 'nmis_server', $C->{server_name} );
+					$event_obj->custom_data( 'customer', $node->{customer} );
+					$event_obj->custom_data( 'location', $LocationsTable->{$node->{location}}{Location} );
+					$event_obj->custom_data( 'geocode', $LocationsTable->{$node->{location}}{Geocode} );
 
 					if ($useServiceStatusTable)
 					{
-						$thisevent->{serviceStatus}  = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
-						$thisevent->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+						$event_obj->custom_data( 'serviceStatus', $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus} );
+						$event_obj->custom_data( 'statusPriority', $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority} );
 					}
 
 					if ($useBusinessServicesTable)
 					{
-						$thisevent->{businessService}
-							= $BusinessServicesTable->{$node->{businessService}}{businessService};
-						$thisevent->{businessPriority}
-							= $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+						$event_obj->custom_data( 'businessService',
+							$BusinessServicesTable->{$node->{businessService}}{businessService} );
+						$event_obj->custom_data( 'businessPriority',
+							$BusinessServicesTable->{$node->{businessService}}{businessPriority} );
 					}
 
 					# Copy the fields from nodes to the event
 					my @nodeFields = split( ",", $C->{'json_node_fields'} );
 					foreach my $field (@nodeFields)
 					{
-						$thisevent->{$field} = $node->{$field};
+						$event_obj->custom_data( $field, $node->{$field} );
 					}
 
-					NMISNG::Notify::logJsonEvent( event => $thisevent, dir => $C->{'json_logs'} );
+					NMISNG::Notify::logJsonEvent( event => $event_data, dir => $C->{'json_logs'} );
 
 					# may sound silly to update-then-archive but i'd rather have the historic event record contain
 					# the full story
-					if ( my $err = Compat::NMIS::eventUpdate( event => $thisevent ) )
+					if ( my $err = event_obj->save( update => 1 ) )
 					{
 						NMISNG::Util::logMsg("ERROR $err");
 					}
@@ -8109,7 +8134,7 @@ sub runEscalate
 						my $timenow = time();
 						my $datenow = NMISNG::Util::returnDateStamp();
 						my $message
-							= "$datenow: $thisevent->{node}, $thisevent->{event}, $thisevent->{level}, $thisevent->{element}, $thisevent->{details}";
+							= "$datenow: $event_data->{node_name}, $event_data->{event}, $event_data->{level}, $event_data->{element}, $event_data->{details}";
 						foreach $contact (@x)
 						{
 							if ( exists $CT->{$contact} )
@@ -8119,22 +8144,21 @@ sub runEscalate
 									    # check if UpNotify is true, and save with this event
 									    # and send all the up event notifies when the event is cleared.
 									if ( NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
-										and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i )
+										and $event_obj->event =~ /$C->{upnotify_stateful_events}/i )
 									{
 										my $ct = "$type:$contact";
-										my @l = split( ',', $thisevent->{notify} );
+										my @l = split( ',', $event_obj->notify );
 										if ( not grep { $_ eq $ct } @l )
 										{
 											push @l, $ct;
-											$thisevent->{notify}
-												= join( ',', @l );   # note: updated only for msgtable below, NOT saved!
+											$event_obj->notify( join( ',', @l )) ;   # note: updated only for msgtable below, NOT saved!
 										}
 									}
 
 									#$serial
 									$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
 									$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
-									$msgTable{$type}{$contact}{$serial_ns}{event}   = $thisevent;
+									$msgTable{$type}{$contact}{$serial_ns}{event}   = $event_data;
 									$serial_ns++;
 								}
 							}
@@ -8146,7 +8170,7 @@ sub runEscalate
 					}
 					else
 					{
-						NMISNG::Util::dbg("ERROR runEscalate problem with escalation target unknown at level$thisevent->{escalate} $level type=$type"
+						NMISNG::Util::dbg("ERROR runEscalate problem with escalation target unknown at level$event_data->{escalate} $level type=$type"
 						);
 					}
 				}
@@ -8154,11 +8178,10 @@ sub runEscalate
 		}
 
 		# now remove this event
-		if ( my $err = Compat::NMIS::eventDelete( event => $thisevent ) )
+		if ( my $err = $event_obj->delete() )
 		{
 			NMISNG::Util::logMsg("ERROR $err");
-		}
-		delete $allevents{$eventkey};    # ditch the removed event in the in-mem snapshot, too.
+		}		
 	}
 
 	#===========================================
@@ -8166,46 +8189,52 @@ sub runEscalate
 
 	# now handle the actual escalations; only events marked-as-current are left now.
 LABEL_ESC:
-	for my $eventkey ( keys %allevents )
+	for(my $i = 0; $i < $active_ret->{model_data}->count; $i++) 
 	{
-		my $thisevent  = $allevents{$eventkey};
+		my $event_obj = $active_ret->{model_data}->object($i);
+		my $nmisng_node = $nmisng->node(uuid => $event_obj->node_uuid);
+		# get the data in the event as a hash so it's easier to print
+		my $event_data = $event_obj->data();
+	
 		my $mustupdate = undef;                   # live changes to thisevent are ok, but saved back ONLY if this is set
-		NMISNG::Util::dbg("processing event $eventkey");
+		
+		NMISNG::Util::dbg("processing event $event_data->{event}");
 
 		# checking if event is stateless and dampen time has passed.
-		if ( NMISNG::Util::getbool( $thisevent->{stateless} ) and time() > $thisevent->{startdate} + $stateless_event_dampening )
+		if ( $event_obj->stateless and time() > $event_obj->startdate + $stateless_event_dampening )
 		{
 			# yep, remove the event completely.
-			NMISNG::Util::dbg("stateless event $thisevent->{event} has exceeded dampening time of $stateless_event_dampening seconds."
+			NMISNG::Util::dbg("stateless event $event_data->{event} has exceeded dampening time of $stateless_event_dampening seconds."
 			);
-			Compat::NMIS::eventDelete( event => $thisevent );
+			$event_obj->delete();			
 		}
 
 		# set event control to policy or default=enabled.
-		my $thisevent_control = $events_config->{$thisevent->{event}}
+		my $thisevent_control = $events_config->{$event_obj->event}
 			|| {Log => "true", Notify => "true", Status => "true"};
 
-		my $nd = $thisevent->{node};
+		my $node_name = $event_obj->node_name;
 
 		# lets start with checking that we have a valid node - the node may have been deleted.
 		# note: Compat::NMIS::loadAllEvents() doesn't return events for vanished nodes (but for inactive ones it does)
-		if ( !$NT->{$nd} or NMISNG::Util::getbool( $NT->{$nd}{active}, "invert" ) )
+		if ( !$NT->{$node_name} or !$nmisng_node->configuration->{active} )
 		{
 			if (    NMISNG::Util::getbool( $thisevent_control->{Log} )
 				and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )    # meta-events are subject to both Notify and Log
 			{
-				Compat::NMIS::logEvent(
-					node    => $nd,
-					event   => "Deleted Event: $thisevent->{event}",
-					level   => $thisevent->{level},
-					element => $thisevent->{element},
-					details => $thisevent->{details}
+				$nmisng->events->logEvent(
+					node_name    => $node_name,
+					node_uuid => $nmisng_node->uuid,
+					event   => "Deleted Event: ".$event_obj->event,
+					level   => $event_obj->level,
+					element => $event_obj->element,
+					details => $event_obj->details
 				);
 
 				my $timenow = time();
 				my $message
-					= "NMIS_Event::$C->{server_name}::$timenow,$thisevent->{node},Deleted Event: $thisevent->{event},$thisevent->{level},$thisevent->{element},$thisevent->{details}";
-				my $priority = NMISNG::Notify::eventToSyslog( $thisevent->{level} );
+					= "NMIS_Event::$C->{server_name}::$timenow,$event_data->{node_name},Deleted Event: $event_data->{event},$event_data->{level},$event_data->{element},$event_data->{details}";
+				my $priority = NMISNG::Notify::eventToSyslog( $event_obj->{level} );
 				NMISNG::Notify::sendSyslog(
 					server_string => $C->{syslog_server},
 					facility      => $C->{syslog_facility},
@@ -8214,92 +8243,91 @@ LABEL_ESC:
 				);
 			}
 
-			NMISNG::Util::logMsg("INFO ($nd) Node not active, deleted Event=$thisevent->{event} Element=$thisevent->{element}");
-			Compat::NMIS::eventDelete( event => $thisevent );
+			NMISNG::Util::logMsg("INFO ($node_name) Node not active, deleted Event=$event_data->{event} Element=$event_data->{element}");
+			$event_obj->delete();			
 
 			next LABEL_ESC;
 		}
 
 		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
-		if (    $thisevent->{event} =~ /interface/i
-			and $thisevent->{event} !~ /proactive/i )
+		if ( $event_obj->event =~ /interface/i && !$event_obj->is_proactive )
 		{
 			### load the interface information and check the collect status.
 			my $S = NMISNG::Sys->new;    # node object
-			if ( $S->init( name => $nd, snmp => 'false' ) )
+			if ( $S->init( name => $node_name, snmp => 'false' ) )
 			{                    # get cached info of node only
 				my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
-				if ( !NMISNG::Util::getbool( $IFD->{$thisevent->{element}}{collect} ) )
+				if ( !NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
 				{
 					# meta events are subject to both Log and Notify controls
 					if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 					{
-						Compat::NMIS::logEvent(
-							node    => $thisevent->{node},
-							event   => "Deleted Event: $thisevent->{event}",
-							level   => $thisevent->{level},
-							element => " no matching interface or no collect Element=$thisevent->{element}"
+						$S->nmisng_node->eventLog(
+							event   => "Deleted Event: $event_data->{event}",
+							level   => $event_obj->level,
+							element => " no matching interface or no collect Element=$event_data->{element}"
 						);
 					}
 					NMISNG::Util::logMsg(
-						"INFO ($thisevent->{node}) Interface not active, deleted Event=$thisevent->{event} Element=$thisevent->{element}"
+						"INFO ($event_data->{node_name}) Interface not active, deleted Event=$event_data->{event} Element=$event_data->{element}"
 					);
-
-					Compat::NMIS::eventDelete( event => $thisevent );
+					$event_obj->delete();					
 					next LABEL_ESC;
 				}
 			}
 		}
 
 		# if a planned outage is in force, keep writing the start time of any unack event to the current start time
-		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
-		my $nodeobj = $nmisng->node(name => $thisevent->{node});
-		my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $nodeobj, time => time() );
-		NMISNG::Util::dbg("Outage status for $thisevent->{node} is ". ($outage || "<none>"));
-		if ( $outage eq "current" and NMISNG::Util::getbool( $thisevent->{ack}, "invert" ) )
+		# so when the outage expires, and the event is still current, we escalate as if the event had just occured		
+		my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $nmisng_node, time => time() );
+		NMISNG::Util::dbg("Outage status for $event_data->{node_name} is ". ($outage || "<none>"));
+		if ( $outage eq "current" and !$event_obj->ack )
 		{
-			$thisevent->{startdate} = time();
-			if ( my $err = Compat::NMIS::eventUpdate( event => $thisevent ) )
+			$event_obj->startdate(time());
+			if ( my $err = thisevent->save() )
 			{
 				NMISNG::Util::logMsg("ERROR $err");
 			}
 		}
 
 		# set the current outage time
-		$outage_time = time() - $thisevent->{startdate};
+		$outage_time = time() - $event_obj->startdate;
 
 		# if we are to escalate, this event must not be part of a planned outage and un-ack.
-		if ( $outage ne "current" and NMISNG::Util::getbool( $thisevent->{ack}, "invert" ) )
+		if ( $outage ne "current" and !$event_obj->ack )
 		{
 			# we have list of nodes that this node depends on in $NT->{$runnode}{depend}
 			# if any of those have a current Node Down alarm, then lets just move on with a debug message
 			# should we log that we have done this - maybe not....
 
-			if ( $NT->{$thisevent->{node}}{depend} ne '' )
+			if ( $nmisng_node->configuration->{depend} ne '' )
 			{
-				foreach my $node_depend ( split /,/, $NT->{$thisevent->{node}}{depend} )
+				foreach my $node_depend ( split /,/, $nmisng_node->configuration->{depend} )
 				{
 					next if $node_depend eq "N/A";                 # default setting
-					next if $node_depend eq $thisevent->{node};    # remove the catch22 of self dependancy.
+					next if $node_depend eq $event_obj->node_name;    # remove the catch22 of self dependancy.
 					                                               #only do dependancy if node is active.
-					if ( defined $NT->{$node_depend}{active} and NMISNG::Util::getbool( $NT->{$node_depend}{active} ) )
+					my $node_depend_rec = $$nmisng_node->configuration;
+					if ( defined $node_depend_rec->{active} )
 					{
-						if ( my $event_exists = Compat::NMIS::eventExist( $node_depend, "Node Down", undef ) )
+						my ($error,$erec) = $nmisng->events->eventLoad( 
+							node_uuid => $node_depend_rec->{uuid}, 
+							event => "Node Down", 
+							active => 1 
+						);
+						if (!$error && ref($erec) eq "HASH" )
 						{
-							my $erec = Compat::NMIS::eventLoad( filename => $event_exists ) if ($event_exists);
-							if ( ref($erec) eq "HASH" and $erec->{current} )
-							{
-								NMISNG::Util::dbg("NOT escalating $thisevent->{node} $thisevent->{event} as dependant $node_depend is reported as down"
-								);
-								next LABEL_ESC;
-							}
+							NMISNG::Util::dbg("NOT escalating $event_data->{node_name} $event_data->{event} as dependant $node_depend is reported as down"
+							);
+							next LABEL_ESC;
 						}
+						
 					}
 				}
 			}
 
 			undef %keyhash;    # clear this every loop
-			$escalate = $thisevent->{escalate};    # save this as a flag
+			$escalate = $event_obj->escalate;    # save this as a flag
 
 			# now depending on the event escalate the event up a level or so depending on how long it has been active
 			# now would be the time to notify as to the event. node down every 15 minutes, interface down every 4 hours?
@@ -8307,23 +8335,22 @@ LABEL_ESC:
 			# proactive events would be escalated daily
 			# when escalation hits 10 they could auto delete?
 			# core, distrib and access could escalate at different rates.
-
-			my $nmisng_node = $nmisng->node( name => $thisevent->{node} );
-			$nmisng->log->error("Failed to get node for event, node:$thisevent->{node}") && next
+			
+			$nmisng->log->error("Failed to get node for event, node:$event_data->{node_name}") && next
 				if(!$nmisng_node);
 			my ($catchall_inventory,$error_message) = $nmisng_node->inventory( concept => "catchall" );
-			$nmisng->log->error("Failed to get catchall inventory for node:$thisevent->{node}, error_message:$error_message") && next
+			$nmisng->log->error("Failed to get catchall inventory for node:$event_data->{node_name}, error_message:$error_message") && next
 				if(!$catchall_inventory);
 			# in this case we have no guarantee that we have catchall and if we don't creating it is pointless.
 			my $catchall_data = $catchall_inventory->data_live();
 			$group = lc( $catchall_data->{group} );
 			$role  = lc( $catchall_data->{roleType} );
 			$type  = lc( $catchall_data->{nodeType} );
-			$event = lc( $thisevent->{event} );
+			$event = lc( $event_obj->event );
 
-			NMISNG::Util::dbg("looking for Event to Escalation Table match for Event[ Node:$thisevent->{node} Event:$event Element:$thisevent->{element} ]"
+			NMISNG::Util::dbg("looking for Event to Escalation Table match for Event[ Node:$event_data->{node_name} Event:$event Element:$event_data->{element} ]"
 			);
-			NMISNG::Util::dbg("and node values node=$thisevent->{node} group=$group role=$role type=$type");
+			NMISNG::Util::dbg("and node values node=$event_data->{node_name} group=$group role=$role type=$type");
 
 			# Escalation_Key=Group:Role:Type:Event
 			my @keylist = (
@@ -8361,8 +8388,8 @@ LABEL_ESC:
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
 					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
 					if (    $klst eq $esc_short
-						and $thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i
-						and $thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i )
+						and $event_obj->node_name =~ /$EST->{$esc}{Event_Node}/i
+						and $event_obj->element =~ /$EST->{$esc}{Event_Element}/i )
 					{
 						$keyhash{$esc} = $klst;
 						NMISNG::Util::dbg("match found for escalation key=$esc");
@@ -8375,13 +8402,13 @@ LABEL_ESC:
 			}
 
 			my $cnt_hash = keys %keyhash;
-			NMISNG::Util::dbg("$cnt_hash match(es) found for $thisevent->{node}");
+			NMISNG::Util::dbg("$cnt_hash match(es) found for $event_data->{node_name}");
 
 			foreach $esc_key ( keys %keyhash )
 			{
 				NMISNG::Util::dbg("Matched Escalation Table Group:$EST->{$esc_key}{Group} Role:$EST->{$esc_key}{Role} Type:$EST->{$esc_key}{Type} Event:$EST->{$esc_key}{Event} Event_Node:$EST->{$esc_key}{Event_Node} Event_Element:$EST->{$esc_key}{Event_Element}"
 				);
-				NMISNG::Util::dbg("Pre Escalation : $thisevent->{node} Event $thisevent->{event} is $outage_time seconds old escalation is $thisevent->{escalate}"
+				NMISNG::Util::dbg("Pre Escalation : $event_data->{node_name} Event $event_data->{event} is $outage_time seconds old escalation is $event_data->{escalate}"
 				);
 
 				# default escalation for events
@@ -8390,31 +8417,31 @@ LABEL_ESC:
 				{
 					if ( $outage_time >= $C->{"escalate$esclevel"} )
 					{
-						$mustupdate = 1 if ( $thisevent->{escalate} != $esclevel );    # if level has changed
-						$thisevent->{escalate} = $esclevel;
+						$mustupdate = 1 if ( $event_obj->escalate != $esclevel );    # if level has changed
+						$event_obj->escalate( $esclevel );
 						last;
 					}
 				}
 
-				NMISNG::Util::dbg("Post Escalation: $thisevent->{node} Event $thisevent->{event} is $outage_time seconds old, escalation is $thisevent->{escalate}"
+				NMISNG::Util::dbg("Post Escalation: $event_data->{node_name} Event $event_data->{event} is $outage_time seconds old, escalation is $event_data->{escalate}"
 				);
-				if ( $C->{debug} and $escalate == $thisevent->{escalate} )
+				if ( $C->{debug} and $escalate == $event_obj->escalate )
 				{
-					my $level = "Level" . ( $thisevent->{escalate} + 1 );
+					my $level = "Level" . ( $event_obj->escalate + 1 );
 					NMISNG::Util::dbg("Next Notification Target would be $level");
 					NMISNG::Util::dbg( "Contact: " . $EST->{$esc_key}{$level} );
 				}
 
 				# send a new email message as the escalation again.
 				# ehg 25oct02 added win32 netsend message type (requires SAMBA on this host)
-				if ( $escalate != $thisevent->{escalate} )
+				if ( $escalate != $event_obj->escalate )
 				{
-					$event_age = NMISNG::Util::convertSecsHours( time - $thisevent->{startdate} );
+					$event_age = NMISNG::Util::convertSecsHours( time - $event_obj->startdate );
 					$time      = &NMISNG::Util::returnDateStamp;
 
 					# get the string of type email:contact1:contact2,netsend:contact1:contact2,\
 					# pager:contact1:contact2,email:sysContact
-					$level = lc( $EST->{$esc_key}{'Level' . $thisevent->{escalate}} );
+					$level = lc( $EST->{$esc_key}{'Level' . $event_obj->escalate} );
 
 					if ( $level ne "" )
 					{
@@ -8440,7 +8467,7 @@ LABEL_ESC:
 										if ( $catchall_data->{sysContact} ne '' )
 										{
 											$contact = lc $catchall_data->{sysContact};
-											NMISNG::Util::dbg("Using node $thisevent->{node} sysContact $catchall_data->{sysContact}");
+											NMISNG::Util::dbg("Using node $event_data->{node_name} sysContact $catchall_data->{sysContact}");
 										}
 										else
 										{
@@ -8454,15 +8481,15 @@ LABEL_ESC:
 										# check if UpNotify is true, and save with this event
 										# and send all the up event notifies when the event is cleared.
 										if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
-											and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
+											and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
 											and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 										{
 											my $ct = "$type:$contact";
-											my @l = split( ',', $thisevent->{notify} );
+											my @l = split( ',', $event_obj->notify );
 											if ( not grep { $_ eq $ct } @l )
 											{
 												push @l, $ct;
-												$thisevent->{notify} = join( ',', @l );
+												$event_obj->notify( join( ',', @l ) );
 												$mustupdate = 1;
 											}
 										}
@@ -8480,15 +8507,15 @@ LABEL_ESC:
 												NMISNG::Util::dbg("SEND Contact $contact no filtering by Level defined");
 												$contactLevelSend = 1;
 											}
-											elsif ( $thisevent->{level} =~ /$CT->{$contact}{Level}/i )
+											elsif ( $event_obj->level =~ /$CT->{$contact}{Level}/i )
 											{
-												NMISNG::Util::dbg("SEND Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $thisevent->{level}"
+												NMISNG::Util::dbg("SEND Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $event_data->{level}"
 												);
 												$contactLevelSend = 1;
 											}
-											elsif ( $thisevent->{level} !~ /$CT->{$contact}{Level}/i )
+											elsif ( $event_obj->level !~ /$CT->{$contact}{Level}/i )
 											{
-												NMISNG::Util::dbg("STOP Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $thisevent->{level}"
+												NMISNG::Util::dbg("STOP Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $event_data->{level}"
 												);
 												$contactLevelSend = 0;
 											}
@@ -8514,15 +8541,15 @@ LABEL_ESC:
 											# check if UpNotify is true, and save with this event
 											# and send all the up event notifies when the event is cleared.
 											if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
-												and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
+												and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
 												and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 											{
 												my $ct = "$type:$contact";
-												my @l = split( ',', $thisevent->{notify} );
+												my @l = split( ',', $event_obj->notify );
 												if ( not grep { $_ eq $ct } @l )
 												{
 													push @l, $ct;
-													$thisevent->{notify} = join( ',', @l );
+													$event_obj->notify( join( ',', @l ) );
 													$mustupdate = 1;
 												}
 											}
@@ -8566,7 +8593,7 @@ LABEL_ESC:
 											if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 											{
 												$msgTable{$type}{$trgt}{$serial_ns}{message}
-													= "NMIS: Esc. $thisevent->{escalate} $event_age $thisevent->{node} $thisevent->{level} $thisevent->{event} $thisevent->{details}";
+													= "NMIS: Esc. $event_data->{escalate} $event_age $event_data->{node_name} $event_data->{level} $event_data->{event} $event_data->{details}";
 												$serial_ns++;
 											}
 										}
@@ -8579,25 +8606,25 @@ LABEL_ESC:
 											}
 											else
 											{
-												$priority = &Compat::NMIS::eventToSMTPPri( $thisevent->{level} );
+												$priority = &Compat::NMIS::eventToSMTPPri( $event_obj->level );
 											}
 
 											###2013-10-08 arturom, keiths, Added link to interface name if interface event.
 											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
 											$message
-												.= "Node:\t$thisevent->{node}\nNotification at Level$thisevent->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$thisevent->{level}\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$thisevent->{node}\n";
-											if ( $thisevent->{event} =~ /Interface/ )
+												.= "Node:\t$event_data->{node_name}\nNotification at Level$event_data->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$event_data->{level}\nEvent:\t$event_data->{event}\nElement:\t$event_data->{element}\nDetails:\t$event_data->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$event_data->{node_name}\n";
+											if ( $event_obj->event =~ /Interface/ )
 											{
 												my $ifIndex = undef;
 												my $S       = NMISNG::Sys->new;    # sys accessor object
-												if ( ( $S->init( name => $thisevent->{node}, snmp => 'false' ) ) )
+												if ( ( $S->init( name => $event_obj->node_name, snmp => 'false' ) ) )
 												{                          # get cached info of node only
 													my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
-													if ( NMISNG::Util::getbool( $IFD->{$thisevent->{element}}{collect} ) )
+													if ( NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
 													{
-														$ifIndex = $IFD->{$thisevent->{element}}{ifIndex};
+														$ifIndex = $IFD->{$event_obj->element}{ifIndex};
 														$message
-															.= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$thisevent->{node}&intf=$ifIndex\n";
+															.= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$event_data->{node_name}&intf=$ifIndex\n";
 													}
 												}
 											}
@@ -8619,7 +8646,7 @@ LABEL_ESC:
 												else
 												{
 													$msgTable{$type}{$trgt}{$serial}{subject}
-														= "$thisevent->{node} $thisevent->{event} - $thisevent->{element} - $thisevent->{details} at $msgtime";
+														= "$event_data->{node_name} $event_data->{event} - $event_data->{element} - $event_data->{details} at $msgtime";
 													$msgTable{$type}{$trgt}{$serial}{message}  = $message;
 													$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
 													$msgTable{$type}{$trgt}{$serial}{count}    = 1;
@@ -8630,18 +8657,17 @@ LABEL_ESC:
 									}
 
 									# meta-events are subject to Notify and Log
-									Compat::NMIS::logEvent(
-										node    => $thisevent->{node},
-										event   => "$type to $target Esc$thisevent->{escalate} $thisevent->{event}",
-										level   => $thisevent->{level},
-										element => $thisevent->{element},
-										details => $thisevent->{details}
+									$nmisng->events->logEvent(
+										node_name    => $event_obj->node_name,
+										event   => "$type to $target Esc$event_data->{escalate} $event_data->{event}",
+										level   => $event_obj->level,
+										element => $event_obj->element,
+										details => $event_obj->details									
 										)
 										if (NMISNG::Util::getbool( $thisevent_control->{Notify} )
 										and NMISNG::Util::getbool( $thisevent_control->{Log} ) );
 
-									NMISNG::Util::dbg("Escalation $type Notification node=$thisevent->{node} target=$target level=$thisevent->{level} event=$thisevent->{event} element=$thisevent->{element} details=$thisevent->{details} group=$NT->{$thisevent->{node}}{group}"
-									);
+									NMISNG::Util::dbg("Escalation $type Notification node=$event_data->{node_name} target=$target level=$event_data->{level} event=$event_data->{event} element=$event_data->{element} details=$event_data->{details} group=".$nmisng_node->configuration->{group});
 								}    # if $target
 							}    # end email,ccopy,pager
 
@@ -8651,7 +8677,7 @@ LABEL_ESC:
 								if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 								{
 									my $message
-										= "Escalation $thisevent->{escalate} $thisevent->{node} $thisevent->{level} $thisevent->{event} $thisevent->{element} $thisevent->{details} at $msgtime";
+										= "Escalation $event_data->{escalate} $event_data->{node_name} $event_data->{level} $event_data->{event} $event_data->{element} $event_data->{details} at $msgtime";
 									foreach my $trgt (@x)
 									{
 										$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
@@ -8659,12 +8685,12 @@ LABEL_ESC:
 										NMISNG::Util::dbg("NetSend $message to $trgt");
 
 										# meta-events are subject to both
-										Compat::NMIS::logEvent(
-											node    => $thisevent->{node},
-											event   => "NetSend $message to $trgt $thisevent->{event}",
-											level   => $thisevent->{level},
-											element => $thisevent->{element},
-											details => $thisevent->{details}
+										$nmisng->events->logEvent(
+											node_name    => $event_obj->node_name,
+											event   => "NetSend $message to $trgt $event_data->{event}",
+											level   => $event_obj->level,
+											element => $event_obj->element,
+											details => $event_obj->details
 										) if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) );
 									}    #foreach
 								}
@@ -8674,15 +8700,15 @@ LABEL_ESC:
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
 								if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
-									and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
+									and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
 									and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 								{
 									my $ct = "$type:server";
-									my @l = split( ',', $thisevent->{notify} );
+									my @l = split( ',', $event_obj->notify );
 									if ( not grep { $_ eq $ct } @l )
 									{
 										push @l, $ct;
-										$thisevent->{notify} = join( ',', @l );
+										$event_obj->notify( join( ',', @l ) );
 										$mustupdate = 1;
 									}
 								}
@@ -8691,8 +8717,8 @@ LABEL_ESC:
 								{
 									my $timenow = time();
 									my $message
-										= "NMIS_Event::$C->{server_name}::$timenow,$thisevent->{node},$thisevent->{event},$thisevent->{level},$thisevent->{element},$thisevent->{details}";
-									my $priority = NMISNG::Notify::eventToSyslog( $thisevent->{level} );
+										= "NMIS_Event::$C->{server_name}::$timenow,$event_data->{node_name},$event_data->{event},$event_data->{level},$event_data->{element},$event_data->{details}";
+									my $priority = NMISNG::Notify::eventToSyslog( $event_obj->level );
 									if ( NMISNG::Util::getbool( $C->{syslog_use_escalation} ) )
 									{
 										foreach my $trgt (@x)
@@ -8708,15 +8734,15 @@ LABEL_ESC:
 							elsif ( $type eq "json" )
 							{
 								if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
-									and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
+									and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
 									and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
 								{
 									my $ct = "$type:server";
-									my @l = split( ',', $thisevent->{notify} );
+									my @l = split( ',', $event_obj->notify );
 									if ( not grep { $_ eq $ct } @l )
 									{
 										push @l, $ct;
-										$thisevent->{notify} = join( ',', @l );
+										$event_obj->notify( join( ',', @l ) );
 										$mustupdate = 1;
 									}
 								}
@@ -8724,36 +8750,36 @@ LABEL_ESC:
 								# amend the event - attention: this changes the live event,
 								# and will be saved back!
 								$mustupdate = 1;
-								my $node = $NT->{$thisevent->{node}};
-								$thisevent->{nmis_server} = $C->{server_name};
-								$thisevent->{customer}    = $node->{customer};
-								$thisevent->{location}    = $LocationsTable->{$node->{location}}{Location};
-								$thisevent->{geocode}     = $LocationsTable->{$node->{location}}{Geocode};
+								my $node = $nmisng_node->configuration;
+								$event_obj->custom_data( 'nmis_server', $C->{server_name} );
+								$event_obj->custom_data( 'customer', $node->{customer} );
+								$event_obj->custom_data( 'location', $LocationsTable->{$node->{location}}{Location} );
+								$event_obj->custom_data( 'geocode' , $LocationsTable->{$node->{location}}{Geocode} );
 
 								if ($useServiceStatusTable)
 								{
-									$thisevent->{serviceStatus}
-										= $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
-									$thisevent->{statusPriority}
-										= $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+									$event_obj->custom_data( 'serviceStatus',
+										$ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus} );
+									$event_obj->custom_data( 'statusPriority',
+										$ServiceStatusTable->{$node->{serviceStatus}}{statusPriority} );
 								}
 
 								if ($useBusinessServicesTable)
 								{
-									$thisevent->{businessService}
-										= $BusinessServicesTable->{$node->{businessService}}{businessService};
-									$thisevent->{businessPriority}
-										= $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+									$event_obj->custom_data( 'businessService',
+										$BusinessServicesTable->{$node->{businessService}}{businessService} );
+									$event_obj->custom_data( 'businessPriority',
+										$BusinessServicesTable->{$node->{businessService}}{businessPriority} );
 								}
 
 								# Copy the fields from nodes to the event
 								my @nodeFields = split( ",", $C->{'json_node_fields'} );
 								foreach my $field (@nodeFields)
 								{
-									$thisevent->{$field} = $node->{$field};
+									$event_obj->custom_data( $field, $node->{$field} );
 								}
 
-								NMISNG::Notify::logJsonEvent( event => $thisevent, dir => $C->{'json_logs'} )
+								NMISNG::Notify::logJsonEvent( event => $event_obj, dir => $C->{'json_logs'} )
 									if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) );
 							}    # end json
 							elsif ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
@@ -8764,7 +8790,7 @@ LABEL_ESC:
 									my $timenow = time();
 									my $datenow = NMISNG::Util::returnDateStamp();
 									my $message
-										= "$datenow: $thisevent->{node}, $thisevent->{event}, $thisevent->{level}, $thisevent->{element}, $thisevent->{details}";
+										= "$datenow: $event_data->{node_name}, $event_data->{event}, $event_data->{level}, $event_data->{element}, $event_data->{details}";
 									foreach $contact (@x)
 									{
 										if ( exists $CT->{$contact} )
@@ -8774,14 +8800,14 @@ LABEL_ESC:
 												    # check if UpNotify is true, and save with this event
 												    # and send all the up event notifies when the event is cleared.
 												if ( NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
-													and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i )
+													and $event_obj->event =~ /$C->{upnotify_stateful_events}/i )
 												{
 													my $ct = "$type:$contact";
-													my @l = split( ',', $thisevent->{notify} );
+													my @l = split( ',', $event_obj->notify );
 													if ( not grep { $_ eq $ct } @l )
 													{
 														push @l, $ct;
-														$thisevent->{notify} = join( ',', @l );    # fudged up
+														$event_obj->notify( join( ',', @l ) );    # fudged up
 														$mustupdate = 1;
 													}
 												}
@@ -8789,7 +8815,7 @@ LABEL_ESC:
 												#$serial
 												$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
 												$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
-												$msgTable{$type}{$contact}{$serial_ns}{event}   = $thisevent;
+												$msgTable{$type}{$contact}{$serial_ns}{event}   = $event_data;
 												$serial_ns++;
 											}
 										}
@@ -8801,7 +8827,7 @@ LABEL_ESC:
 								}
 								else
 								{
-									NMISNG::Util::dbg("ERROR runEscalate problem with escalation target unknown at level$thisevent->{escalate} $level type=$type"
+									NMISNG::Util::dbg("ERROR runEscalate problem with escalation target unknown at level$event_data->{escalate} $level type=$type"
 									);
 								}
 							}
@@ -8811,12 +8837,13 @@ LABEL_ESC:
 			}    # foreach esc_key
 		}    # end of outage check
 
-# now we're done with this event, let's update it if we have to - and if nobody has deleted the event since the start of this update run (as we're not locking this globally) - eventkey is the full filename
-		if ( $mustupdate && -f $eventkey )
+		# now we're done with this event, let's update it if we have to
+		if ( $mustupdate )
 		{
-			if ( my $err = Compat::NMIS::eventUpdate( event => $thisevent ) )
+			if ( my $err = $event_obj->save( update => 1 ) )
 			{
 				NMISNG::Util::logMsg("ERROR $err");
+				print "event:".Dumper($event_obj->data);
 			}
 		}
 	}
@@ -9769,7 +9796,7 @@ sub doThresholdsAndCreateStatus
 			$catchall_data->{status_updated} = time();
 
 			# cache the current nodestatus for use in the dash
-			my $nodestatus = Compat::NMIS::nodeStatus( catchall_data => $catchall_data );
+			my $nodestatus = Compat::NMIS::nodeStatus( node => $S->nmisng_node, catchall_data => $catchall_data );
 			$catchall_data->{nodestatus} = "reachable";
 			if ( not $nodestatus )
 			{
@@ -9985,8 +10012,9 @@ sub applyThresholdToInventory
 			reset    => $reset,
 			thrname  => $nm,         # crucial for context
 			index    => $index,      # crucial for context
-			class    => $class
-		);                           # crucial for context
+			class    => $class,        # crucial for context
+			inventory_id => $inventory->id
+		);                   
 	}
 }
 
@@ -10145,7 +10173,8 @@ sub thresholdProcess
 				element => $args{element},
 				details => $details,
 				value   => $args{value},
-				reset   => $args{reset}
+				reset   => $args{reset},
+				inventory_id => $args{inventory_id}
 			);
 		}
 		else
@@ -10163,7 +10192,8 @@ sub thresholdProcess
 					thresholdtype => $args{type},
 					index         => $args{index},
 					class         => $args{class},
-				}
+				},
+				inventory_id => $args{inventory_id}
 			);
 			$statusResult = "error";
 		}
@@ -10186,7 +10216,8 @@ sub thresholdProcess
 			status   => $statusResult,
 			element  => $args{element},
 			value    => $args{value},
-			updated  => time()
+			updated  => time(),
+			inventory_id => $args{inventory_id}
 		};
 	}
 	else
