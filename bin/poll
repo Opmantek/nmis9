@@ -61,7 +61,6 @@ use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
 
 use Compat::NMIS;
-use Compat::Connect;
 use Compat::Timing;
 
 use NMISNG::Util;
@@ -93,16 +92,13 @@ options:
       update    Update all the dynamic NMIS configuration
       threshold Calculate thresholds
       services  Run Services data collection only
-      master    Run NMIS Master Functions
       escalate  Run the escalation routine only ( debug use only)
       links     Generate the links.csv file.
-      rme       Read and generate a node.csv file from a Ciscoworks RME file
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
   [force=true|false]     Makes operations run from scratch, ignoring interval policies
   [debug=true|false|0-9] default=false - Show debugging information
-  [rmefile=<file name>]  RME file to import.
   [mthread=true|false]   Enable Multithreading or not;
   [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
   [maxthreads=<1..XX>]   How many threads should nmis use, at most\n\n";
@@ -181,7 +177,6 @@ if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) 
 # all arguments are now stored in nvp (name value pairs)
 my $type     = $nvp{type};
 my $node     = $nvp{node};
-my $rmefile  = $nvp{rmefile};
 my $runGroup = $nvp{group};
 my $sleep    = $nvp{sleep};
 
@@ -224,9 +219,7 @@ elsif ( $type eq "escalate" ) { runEscalate(); printRunTime(); }    # included i
 
 
 elsif ( $type eq "links" )      { runLinks(); }                                            # included in type=update
-elsif ( $type eq "rme" )        { Compat::NMIS::loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # USUALLY included in type=collect
-elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # MIGHT be included in type=collect
 else
 {
 	die $usage;
@@ -510,16 +503,37 @@ sub runThreads
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			# nodes that have not been pollable since forever: run at most once hourly
+			# nodes that have not been pollable since forever: run at most once daily
+			# ...except if the demote_faulty_nodes config option is set to false
 			elsif (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model")
 			{
 				my $lasttry = $ninfo->{last_poll} // 0;
-				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 3600 * 0.95) : $now;
-				NMISNG::Util::dbg("Node $maybe has no valid nodeModel, never polled successfully, demoting to hourly check, last attempt $lasttry, next $nexttry");
+
+				# try once every 5 minutes if demote_faulty_nodes is set to false,
+				# otherwise: was polling attempted at all and in the last 30 days? then once daily from
+				# that last try - otherwise try one now
+				my $nexttry = !NMISNG::Util::getbool($C->{demote_faulty_nodes},"invert")? # === ne false
+						($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
+
 				if ($nexttry <= $now)
 				{
 					push @todo_nodes, $maybe;
 					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+				}
+				# if demotion is enabled, log this pretty dire situation
+				# but not too noisily - with a default poll every minute this
+				# will log the issue once an hour.
+				elsif (!NMISNG::Util::getbool($C->{demote_faulty_nodes},"invert")) # === ne false
+				{
+					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
+					my $msg = "Node $maybe has no valid nodeModel, never polled successfully, "
+							 . "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
+					NMISNG::Util::logMsg($msg) if ($goodtimes == 0);
+					NMISNG::Util::dbg($msg);
+				}
+				else
+				{
+					NMISNG::Util::dbg("Node $maybe has no valid nodeModel, never polled successfully. demote_faulty_nodes is disabled, last attempt $lasttry, next $nexttry.");
 				}
 			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
@@ -743,18 +757,6 @@ sub runThreads
 	{
 		$S = NMISNG::Sys->new;           # object nmis-system
 		$S->init();
-
-		# do some masterly type things
-		if ( !NMISNG::Util::getbool( $C->{'nmis_master_poll_cycle'},"invert")  # if not false
-				 && NMISNG::Util::getbool( $C->{server_master} ) )
-		{
-			my $pollTimer = Compat::Timing->new;
-
-			NMISNG::Util::dbg("Starting nmisMaster");
-			nmisMaster();
-			NMISNG::Util::logMsg( "Poll Time: nmisMaster, " . $pollTimer->elapTime() )
-			if (NMISNG::Util::getbool($C->{log_polling_time}) );
-		}
 
 		NMISNG::Util::dbg("Starting runMetrics");
 		runMetrics( sys => $S );
@@ -6394,7 +6396,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 
 			# run given program with given arguments and possibly read from it
 			# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
-				my $stderrsink = POSIX::tmpnam();    # good enough, no atomic open required
+				my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");		# good enough, no atomic open required
 				NMISNG::Util::dbg(      "running external program '$svc->{Program} $finalargs', "
 						. ( NMISNG::Util::getbool( $svc->{Collect_Output} ) ? "collecting" : "ignoring" )
 						. " output" );
@@ -7822,68 +7824,6 @@ sub weightResponseTime
 
 #=========================================================================================
 
-### 2011-12-29 keiths, centralising the copy of the remote files from slaves, so others can just load them.
-sub nmisMaster
-{
-	my %args = @_;
-
-	$C->{master_sleep} = 15 if $C->{master_sleep} eq "";
-
-	if ( NMISNG::Util::getbool( $C->{server_master} ) )
-	{
-		NMISNG::Util::info("Running NMIS Master Functions");
-
-		if ( $C->{master_sleep} or $sleep )
-		{
-			my $sleepNow = $C->{master_sleep};
-			$sleepNow = $sleep if $sleep;
-			NMISNG::Util::info("Master is sleeping $sleepNow seconds (waiting for summary updates on slaves)");
-			sleep $sleepNow;
-		}
-
-		my $ST = Compat::NMIS::loadServersTable();
-		for my $srv ( keys %{$ST} )
-		{
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-
-			NMISNG::Util::info("Master, processing Slave Server $srv, $ST->{$srv}{host}");
-
-			NMISNG::Util::dbg("Get loadnodedetails from $srv");
-			Compat::Connect::getFileFromRemote(
-				server => $srv,
-				func   => "loadnodedetails",
-				group  => $ST->{$srv}{group},
-				format => "text",
-				file   => NMISNG::Util::getFileName( file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes" )
-			);
-
-			NMISNG::Util::dbg("Get sumnodetable from $srv");
-			Compat::Connect::getFileFromRemote(
-				server => $srv,
-				func   => "sumnodetable",
-				group  => $ST->{$srv}{group},
-				format => "text",
-				file   => NMISNG::Util::getFileName( file => "$C->{'<nmis_var>'}/nmis-${srv}-nodesum" )
-			);
-
-			my @hours = qw(8 16);
-			foreach my $hour (@hours)
-			{
-				my $function = "summary" . $hour . "h";
-				NMISNG::Util::dbg("get summary$hour from $srv");
-				Compat::Connect::getFileFromRemote(
-					server => $srv,
-					func   => "summary$hour",
-					group  => $ST->{$srv}{group},
-					format => "text",
-					file   => NMISNG::Util::getFileName( file => "$C->{'<nmis_var>'}/nmis-$srv-$function" )
-				);
-			}
-		}
-	}
-}
-
 
 ### Added escalate 0, to allow fast escalation and to implement
 ### consistent policies for notification.  This also helps to get rid of flapping
@@ -9274,7 +9214,7 @@ sub runLinks
 
 					my ($inventory,$error) = $nodeobj->inventory(concept => "catchall");
 					die "Failed to retrieve $neednode inventory: $error\n" if ($error);
-					$catchall{$neednode} = $inventory->data;
+					$catchall{$neednode} = ref($inventory)? $inventory->data : {};
 				}
 
 				if ( !exists $subnets{$subnet}{subnet} )

@@ -166,7 +166,7 @@ check_missing_packages() {
 								echolog "Package $PKG is installed.";
 						fi
 				elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
-						if ! `dpkg -l $PKG 2>/dev/null | grep -qE ^ii`; then
+						if ! `dpkg -l $PKG 2>/dev/null | grep -qE ^[hi]i`; then
 								MISSING="$MISSING $PKG"
 								echolog "Package $PKG is NOT installed."
 						else

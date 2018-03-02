@@ -29,7 +29,7 @@
 #
 # this module queries WMI services via the standalone wmic executable
 package NMISNG::WMI;
-our $VERSION = "1.1.0";
+our $VERSION = "1.1.1";
 
 use strict;
 use File::Temp;
@@ -231,9 +231,11 @@ sub _run_query
 		{
 			$result{error} .= " exit code ".($exitcode>>8);
 		}
+		unlink($tfn);								# not needed anymore
 	}
 	else
 	{
+		unlink($tfn);								# not needed here
 		# worked? extract class, fieldnames
 		# produce hash for each class, array of subhashes for the rows
 		my ($classname, @fieldnames, %nicedata);
@@ -277,7 +279,6 @@ sub _run_query
 		$result{ok} = 1;
 		$result{data} = \%nicedata;
 	}
-	unlink $tfn;
 
 	return %result;
 }

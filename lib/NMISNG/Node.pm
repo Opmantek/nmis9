@@ -437,7 +437,8 @@ sub get_distinct_values
 #  if none is found then:
 #    concept, data, path path_keys, create - 0/1
 #    (possibly not path_keys but whatever path info is needed for that specific inventory type)
-# returns: (inventory object, undef) or (undef, error message)
+# returns: (inventory object, undef) or (undef, error message) 
+# OR (undef,undef) if the inventory doesn't exist but create wasn't specified
 sub inventory
 {
 	my ( $self, %args ) = @_;
@@ -498,7 +499,7 @@ sub inventory
 		$inventory = $class->new(%args);
 	}
 
-	return ( $inventory, undef );
+	return ($inventory, undef);
 }
 
 # get all subconcepts and any dataset found within that subconcept

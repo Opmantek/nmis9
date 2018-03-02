@@ -4,7 +4,7 @@
 			 'order' => '1',
 			 'name' => "opCharts",
 			 'base' => "omk",
-			 'file' => "/install/nmisd.init.d",
+			 'file' => "/install/opchartsd.init.d",
 			 'link' => "/omk/opCharts",
 			 'description' => "opCharts brings dynamic, interactive charting to NMIS data, including custom dashboards and custom charts combining multiple data sets. This also provides a simplified view of node information from NMIS. opCharts is perfect as a customer portal.",
 			 'tagline' => "Delivers interactive charts, custom dashboards and network diagrams." ,

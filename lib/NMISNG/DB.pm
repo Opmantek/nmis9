@@ -833,8 +833,9 @@ sub find
 		$error_string = "Cannot use Find with invalid collection argument!";
 		return;
 	}
-	my $retval;
 
+	undef $error_string;
+	my $retval;
 	try
 	{
 		$retval = $collection->find($query);
@@ -858,14 +859,21 @@ sub find
 		{
 			$retval = $retval->limit( $arg{limit} );
 		}
+
+		# tickle the cursor with has_next so that any late exceptions
+		# pop up now, where they're expected and caught
+		$retval->has_next;
 	}
 	catch
 	{
 		$error_string = $_;
 	};
 
-	return $retval;
+	# if the  cursor access has caused an exception, then retval is present
+	# but so is error_string...
+	return $error_string? undef: $retval;
 }
+
 
 # a thin wrapper around get_collection
 # mainly for future-proofing at this point - but might get additional functionality, eg. index making
@@ -896,6 +904,19 @@ sub get_db
 	my $CONF = $args{conf};
 	my $conn = get_db_connection( conf => $CONF );
 	return $conn->get_database( $CONF->{db_name} );
+}
+
+# small convenience accessor that returns the connection handle object
+# of a given database object (ie. mongodb::mongoclient from mongodb::database)
+# relies on undocumented mongodb accessor
+# args: database handle
+# returns: connection handle or undef on error
+sub connection_of_db
+{
+	my ($dbhandle) = @_;
+	return undef if (ref($dbhandle) ne "MongoDB::Database"
+									 or !$dbhandle->can("_client"));
+	return $dbhandle->_client;
 }
 
 # opens a new connection to the configured db server

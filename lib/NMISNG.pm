@@ -1,4 +1,4 @@
-#
+
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -37,7 +37,13 @@ use strict;
 
 use Data::Dumper;
 use Tie::IxHash;
+use File::Find;
+use File::Spec;
 use boolean;
+use Fcntl qw(:DEFAULT :flock :mode); # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
+use Errno qw(EAGAIN ESRCH EPERM);
+use Mojo::File;									# slurp and spurt
+use JSON::XS;
 
 use NMISNG::DB;
 use NMISNG::Events;
@@ -84,7 +90,7 @@ sub new
 	$self->{_db} = $db;
 
 	# load and prime the statically defined collections
-	for my $collname (qw(nodes events inventory latest_data))
+	for my $collname (qw(nodes events inventory latest_data queue opstatus))
 	{
 		my $collhandle = NMISNG::DB::get_collection( db => $db, name => $collname );
 		if (ref($collhandle) ne "MongoDB::Collection")
@@ -127,7 +133,8 @@ sub config
 	return $self->{_config};
 }
 
-# returns db
+# returns mongodb db handle - note this is NOT the connection handle!
+# (nmisng::db::connection_of_db() can provide the conn handle)
 sub get_db
 {
 	my ($self) = @_;
@@ -387,13 +394,18 @@ sub get_nodes_model
 
 	if ( $args{count} )
 	{
-		$query_count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
+		my $res = NMISNG::DB::count( collection => $self->nodes_collection,
+																 query => $q,
+																 verbose => 1);
+		return NMISNG::ModelData->new(nmisng => $self, error => "Count failed: $res->{error}")
+				if (!$res->{success});
+		$query_count = $res->count;
 	}
 
 	# if you want only a count but no data, set both count to 1 and limit to 0
 	if (!($args{count} && defined $args{limit} && $args{limit} == 0))
 	{
-		my $entries = NMISNG::DB::find(
+		my $cursor = NMISNG::DB::find(
 			collection => $self->nodes_collection,
 			query      => $q,
 			fields_hash => $fields_hash,
@@ -402,11 +414,10 @@ sub get_nodes_model
 			skip       => $args{skip}
 				);
 
-		my $index = 0;
-		while ( my $entry = $entries->next )
-		{
-			$model_data->[$index++] = $entry;
-		}
+		return NMISNG::ModelData->new(nmisng => $self, error => "Find failed: ".NMISNG::DB::get_error_string)
+				if (!defined $cursor);
+
+		@$model_data = $cursor->all;
 	}
 
 	my $model_data_object = NMISNG::ModelData->new( class_name => "NMISNG::Node",
@@ -705,6 +716,55 @@ sub inventory_collection
 	return $self->{_db_inventory};
 }
 
+# helper to get/set queue collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub queue_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_queue} = $newvalue;
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_queue},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				# need to search/sort by time, priority and in_progress
+				[ [ "time" => 1, "priority" => 1, "in_progress" => 1 ]]
+			] );
+		$self->log->error("index setup failed for queue: $err") if ($err);
+	}
+	return $self->{_db_queue};
+}
+
+# helper to get/set opstatus collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub opstatus_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_opstatus} = $newvalue;
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_opstatus},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				# opstatus: searchable by when, by status (good/bad), by activity, context and type
+				# not included: details and stats
+				[ { "time" => -1 } ],
+				[ { "status" => 1 } ],
+				[ { "activity" => 1 } ],
+				[ { "context" => 1 } ],
+				[ { "type" => 1 } ],
+			] );
+		$self->log->error("index setup failed for opstatus: $err") if ($err);
+	}
+	return $self->{_db_opstatus};
+}
+
 # helper to get/set latest_derived_data collection, primes the indices on set
 # args: new collection handle, optional drop - unwanted indices are dropped if this is 1
 # returns: current collection handle
@@ -858,6 +918,538 @@ sub timed_concept_collection
 	}
 
 	return $self->{$stashname};
+}
+
+# job queue handling functions follow
+# queued jobs have time (=actual ts for when the work should be done),
+# a type marker ("collect", "update", "threshold" etc),
+# a priority between 0..1 incl.
+# a hash of args (= anything required to handle the job),
+# an in_progress marker (=ts when this job was started, 0 if not started yet)
+# and an optional status subhash with info about the operation while being in_progress (e.g. pid)
+
+# this function adds or updates a queued job entry
+# if _id is present, the matching record is updated (but see atomic);
+# otherwise a new record is created
+#
+# args: jobdata (= hash of all required queuing info, required),
+# atomic (optional, hash of further clauses for selection)
+#
+# if atomic is present, then _id AND the atomic clauses are used as update query.
+# atomic is not relevant for insertion of new records.
+#
+# returns: (undef,id) or error message
+sub update_queue
+{
+	my ($self, %args) = @_;
+	my ($jobdata,$atomic) = @args{"jobdata","atomic"};
+
+	return "Cannot update queue entry without valid jobdata argument!" if (ref($jobdata) ne "HASH"
+																																				 or !keys %$jobdata
+																																				 or !$jobdata->{type}
+																																				 # 0 is ok, absence is not
+																																				 or !defined($jobdata->{priority})
+																																				 or !$jobdata->{time}
+																																				 # 0 is ok, absence is not
+																																				 or !defined($jobdata->{in_progress})
+  );
+
+	# verify that the type of activity is one of the schedulable ones
+	return "Unrecognised job type \"$jobdata->{type}\"!"
+			if ($jobdata->{type} !~ /^(collect|update|services|threshold|escalate|configbackup|purge|dbcleanup)$/);
+	
+
+	my $jobid = $jobdata->{_id};
+	delete $jobdata->{_id};
+	my $isnew = !$jobid;
+	if (!$jobid)
+	{
+		my $res = NMISNG::DB::insert( collection => $self->queue_collection,
+																	record => $jobdata);
+		return "Insertion of queue entry failed: $res->{error}" if (!$res->{success});
+		$jobdata->{_id} = $jobid = $res->{id};
+	}
+	else
+	{
+		# extend the query with atomic-operation enforcement clauses if any are given
+		my %qargs = ( _id => $jobid );
+		if (ref($atomic) eq "HASH" && keys %$atomic)
+		{
+			map { $qargs{$_} = $atomic->{$_}; } (keys %$atomic);
+		}
+
+		my $res = NMISNG::DB::Update( collection => $self->queue_collection,
+																	query => NMISNG::DB::get_query(and_part => \%qargs),
+																	record => $jobdata );
+		$jobdata->{_id} = $jobid;			# put it back!
+		return "Update of queue entry failed: $res->{error}" if (!$res->{success});
+		return "No matching object!" if (!$res->{updated_records});
+	}
+	return (undef, $jobid);
+}
+
+# removes a given job queue entry
+# args: id (required)
+# returns: undef or error message
+sub remove_queue
+{
+	my ($self, %args) = @_;
+	my $id = $args{id};
+
+	return "Cannot remove queue entry without id argument!" if (!$id);
+
+	my $res = NMISNG::DB::remove(collection => $self->queue_collection,
+															 query => NMISNG::DB::get_query( and_part => { "_id" => $id }) );
+	return "Deleting of queue entry failed: $res->{error}"
+			if (!$res->{success});
+	return "Deletion failed: no matching queue entry found" if (!$res->{removed_records});
+
+	return undef;
+}
+
+# looks up queued jobs and returns modeldata object of the result
+# args: id OR selection clauses (all optional)
+# also sort/skip/limit/count - all optional
+#  if count is given, then a pre-skip-limit query count is computed
+#
+# returns: modeldata object
+sub get_queue_model
+{
+	my ($self, %args) = @_;
+
+	my $wantedid = $args{id}; delete $args{id}; # _id vs id
+	my %extras;
+	map { if (exists($args{$_}))
+				{ $extras{$_} = $args{$_}; delete $args{$_}; } } (qw(sort skip limit count));
+
+	my $q = NMISNG::DB::get_query(and_part => { '_id' => $wantedid, %args });
+
+	my $querycount;
+	if ($extras{count})
+	{
+		my $res = NMISNG::DB::count(collection => $self->queue_collection,
+																query => $q,
+																verbose => 1);
+		return NMISNG::ModelData->new(nmisng => $self, error => "Count failed: $res->{error}")
+				if (!$res->{success});
+		$querycount = $res->count;
+	}
+
+	# now perform the actual retrieval, with skip, limit and sort passed in
+	my $cursor = NMISNG::DB::find( collection => $self->queue_collection,
+																 query => $q,
+																 sort => $extras{sort},
+																 limit => $extras{limit},
+																 skip => $extras{skip} );
+
+	return NMISNG::ModelData->new(nmisng => $self, 
+																error => "Find failed: ".NMISNG::DB::get_error_string)
+			if (!defined $cursor);
+	my @data = $cursor->all;
+
+	# asking for nonexistent id is treated as failure
+	return NMISNG::ModelData->new(nmisng => $self, error => "No matching queue entry!")
+			if (!@data && $wantedid);
+
+	return NMISNG::ModelData->new(nmisng => $self,
+																query_count => $querycount,
+																data => \@data,
+																sort => $extras{sort},
+																limit => $extras{limit},
+																skip => $extras{skip} );
+	
+}
+
+
+# this is a maintenance command for removing old, 
+# broken or unwanted files
+#
+# args: self, simulate (default: false, if true only reports what it would do)
+# returns: hashref, success/error and info (info is array ref) 
+sub purge_old_files
+{
+	my ($self, %args) = @_;
+	my %nukem;
+
+	my $simulate = NMISNG::Util::getbool( $args{simulate} );
+	my $C = $self->config;
+	my @info;
+
+	push @info, "Starting to look for purgable files"
+			.($simulate? ", in simulation mode":"");
+
+	# config option, extension, where to look...
+	my @purgatory = (
+		{   ext          => qr/\.rrd$/,
+			minage       => $C->{purge_rrd_after} || 30 * 86400,
+			location     => $C->{database_root},
+			also_empties => 1,
+			description  => "Old RRD files",
+		},
+		{   ext          => qr/\.(tgz|tar\.gz)$/,
+			minage       => $C->{purge_backup_after} || 30 * 86400,
+			location     => $C->{'<nmis_backups>'},
+			also_empties => 1,
+			description  => "Old Backup files",
+		},
+		{
+			# old nmis state files - legacy .nmis under var
+			minage => $C->{purge_state_after} || 30 * 86400,
+			ext => qr/\.nmis$/,
+			location     => $C->{'<nmis_var>'},
+			also_empties => 1,
+			description  => "Legacy .nmis files",
+		},
+		{
+			# old nmis state files - json files but only directly in var,
+			# or in network or in service_status
+			minage => $C->{purge_state_after} || 30 * 86400,
+			location     => $C->{'<nmis_var>'},
+			path         => qr!^$C->{'<nmis_var>'}/*(network|service_status)?/*[^/]+\.json$!,
+			also_empties => 1,
+			description  => "Old JSON state files",
+		},
+		{
+			# old nmis state files - json files under nmis_system,
+			# except auth_failure files
+			minage => $C->{purge_state_after} || 30 * 86400,
+			location     => $C->{'<nmis_var>'} . "/nmis_system",
+			notpath      => qr!^$C->{'<nmis_var>'}/nmis_system/auth_failures/!,
+			ext          => qr/\.json$/,
+			also_empties => 1,
+			description  => "Old internal JSON state files",
+		},
+		{
+			# broken empty json files - don't nuke them immediately, they may be tempfiles!
+			minage       => 3600,                       # 60 minutes seems a safe upper limit for tempfiles
+			ext          => qr/\.json$/,
+			location     => $C->{'<nmis_var>'},
+			only_empties => 1,
+			description  => "Empty JSON state files",
+		},
+		{   minage => $C->{purge_event_after} || 30 * 86400,
+			path => qr!events/.+?/history/.+\.json$!,
+			also_empties => 1,
+			location     => $C->{'<nmis_var>'} . "/events",
+			description  => "Old event history files",
+		},
+		{
+			minage => $C->{purge_jsonlog_after} || 30 * 86400,
+			also_empties => 1,
+			ext          => qr/\.json/,
+			location     => $C->{json_logs},
+			description  => "Old JSON log files",
+		},
+
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			also_empties => 1,
+			ext => qr/\.json/,
+			location => $C->{config_logs},
+			description => "Old node configuration JSON log files",
+		},
+
+		{
+			minage => $C->{purge_reports_after} || 365*86400,
+			also_empties => 0,
+			ext => qr/\.html$/,
+			location => $C->{report_root},
+			description => "Very old report files",
+		},
+
+	);
+
+	for my $rule (@purgatory)
+	{
+		next if ($rule->{minage} <= 0);	# purging can be disabled by setting the minage to -1
+		my $olderthan = time - $rule->{minage};
+		next if ( !$rule->{location} );
+		push @info, "checking dir $rule->{location} for $rule->{description}";
+
+		File::Find::find( 
+			{
+				wanted => sub {
+					my $localname = $_;
+					
+					# don't need it at the moment my $dir = $File::Find::dir;
+					my $fn   = $File::Find::name;
+					my @stat = stat($fn);
+					
+					next
+							if (
+								!S_ISREG( $stat[2] )    # not a file
+								or ( $rule->{ext}     and $localname !~ $rule->{ext} )    # not a matching ext
+								or ( $rule->{path}    and $fn !~ $rule->{path} )          # not a matching path
+								or ( $rule->{notpath} and $fn =~ $rule->{notpath} )
+							);                                                        # or an excluded path
+					
+					# also_empties: purge by age or empty, versus only_empties: only purge empties
+					if ( $rule->{only_empties} )
+					{
+						next if ( $stat[7] );                                     # size
+					}
+					else
+					{
+						next
+								if (
+									( $stat[7] or !$rule->{also_empties} )                # zero size allowed if empties is off
+									and ( $stat[9] >= $olderthan )
+								);                                                    # younger than the cutoff?
+					}
+					$nukem{$fn} = $rule->{description};
+				},
+				follow => 1,
+			},
+			$rule->{location}
+		);
+	}
+
+	for my $fn ( sort keys %nukem )
+	{
+		my $shortfn = File::Spec->abs2rel( $fn, $C->{'<nmis_base>'} );
+		if ($simulate)
+		{
+			push @info, "purge: rule '$nukem{$fn}' matches $shortfn";
+		}
+		else
+		{
+			push @info, "removing $shortfn (rule '$nukem{$fn}')";
+			unlink($fn) or return { error => "Failed to unlink $fn: $!", info => \@info };
+		}
+	}
+	push @info, "Purging complete";
+	return { success => 1, info => \@info };
+}
+
+# this is a maintenance command for removing invalid database material
+# (old stuff is automatically done via TTL index on expire_at)
+#
+# args: self,  simulate (default: false, if true only returns what it would do)
+# returns: hashref, success/error and info (array ref)
+sub dbcleanup
+{
+	my ($self, %args) = @_;
+
+	my $simulate = NMISNG::Util::getbool( $args{simulate} );
+	# we want to remove:
+	# all inventory entries whose node is gone,
+ 	# and all timed data whose inventory is gone.
+	# note that for timed orphans we have no cluster_id;
+
+	my @info;
+	push @info, "Starting Database cleanup";
+
+	# first find ditchable inventories
+	push @info, "Looking for orphaned inventory records";
+
+	my $invcoll = $self->inventory_collection;
+	my ($goners, undef, $error) = NMISNG::DB::aggregate(
+		collection => $invcoll,
+		pre_count_pipeline => undef,
+		count => undef,
+		allowtempfiles => 1,
+		post_count_pipeline => [
+			# link inventory to parent node
+			{ '$lookup' => { from => "nodes",
+											 localField => "node_uuid",
+											 foreignField => "uuid",
+											 as =>  "parent"} },
+			# then select the ones without parent
+			{ '$match' => { parent => { '$size' => 0 } } },
+			# then give me just the inventory ids
+			{ '$project'  => { '_id' =>  1 } }]);
+
+	if ($error)
+	{
+		return { error => "inventory aggregation failed: $error",
+						 info => \@info };
+	}
+	my @ditchables =  map { $_->{_id} } (@$goners);
+
+	# second, remove those - possibly orphaning stuff that we should pick up
+	if (!@ditchables)
+	{
+		push @info, "No orphaned inventory records detected.";
+	}
+	elsif ($simulate)
+	{
+		push @info, "Cleanup would remove "
+				.scalar(@ditchables). " orphaned inventory records, but not in simulation mode.";
+	}
+	else
+	{
+		my $res = NMISNG::DB::remove(collection => $invcoll,
+																 query => NMISNG::DB::get_query(
+																	 and_part => { _id => \@ditchables }));
+		if (!$res->{success})
+		{
+			return { error =>  "failed to remove inventory instances: $res->{error}",
+							 info => \@info };
+		}
+		push @info, "Removed $res->{removed_records} orphaned inventory records.";
+	}
+
+	# third, determine what concepts exist, get their timed data collections
+	# and verify those against the inventory - plus the latest_data look-aside-cache
+	my $conceptnames = NMISNG::DB::distinct(collection => $self->inventory_collection,
+																					key => "concept");
+	if (ref($conceptnames) ne "ARRAY")
+	{
+		return { error => "failed to determine distinct concepts!",
+						 info => \@info };
+	}
+	for my $concept ("latest_data", @$conceptnames)
+	{
+		my $timedcoll = $concept eq "latest_data"?
+				$self->latest_data_collection :
+				$self->timed_concept_collection(concept => $concept);
+		next  if (!$timedcoll);		# timed_concept_collection already logs, ditto latest_data_collection
+
+		my $collname = $timedcoll->name;
+
+		push @info, "Looking for orphaned timed records for $concept";
+
+		my ($goners, undef, $error) = NMISNG::DB::aggregate(
+			collection => $timedcoll,
+			pre_count_pipeline => undef,
+			count => undef,
+			allowtempfiles => 1,
+			post_count_pipeline => [
+				# link to inventory parent
+				{ '$lookup' => { from => $invcoll->name,
+											 localField => "inventory_id",
+												 foreignField => "_id",
+												 as =>  "parent"} },
+				# then select the ones without parent
+				{ '$match' => { parent => { '$size' => 0 } } },
+				# then give me just the inventory ids
+				{ '$project'  => { '_id' =>  1 } }]);
+		if ($error)
+		{
+			return { error => "$collname aggregation failed: $error",
+							 info => \@info };
+		}
+
+		my @ditchables = map { $_->{_id} } (@$goners);
+		if (!@ditchables)
+		{
+			push @info, "No orphaned $concept records detected.";
+		}
+		elsif ($simulate)
+		{
+			push @info, "cleanup would remove ".scalar(@ditchables)
+					. " orphaned timed $concept records, but not in simulation mode.";
+		}
+		else
+		{
+			my $res = NMISNG::DB::remove(collection => $timedcoll,
+																	 query => NMISNG::DB::get_query(
+																	 and_part => { _id => \@ditchables }));
+			if (!$res->{success})
+			{
+				return { error => "failed to remove $collname instances: $res->{error}", 
+								 info => \@info };
+			}
+			push @info, "removed $res->{removed_records} orphaned timed records for $concept.";
+		}
+	}
+
+	push @info, "Database cleanup complete";
+
+	return { success => 1, info => \@info};
+}
+
+
+# maintenance function that captures and dumps relevant configuration data
+# args: self
+# returns: hashref with success/error, and file (=path to resulting file)
+sub config_backup
+{
+	my ($self, %args) = @_;
+	my $C = $self->config;
+
+	my $backupdir = $C->{'<nmis_backups>'};
+	if (!-d $backupdir)
+	{
+		mkdir($backupdir,0700) or return { error => "Cannot create $backupdir: $!" };
+	}
+
+	return { error => "Cannot write to directory $backupdir, check permissions!" }
+	if (!-w $backupdir);
+	return { error => "Cannot access directory $backupdir, check permissions!" }
+	if (!-r $backupdir or !-x $backupdir);
+
+	# now let's take a new backup...
+	my $backupprefix = "nmis-config-backup-";
+	my $backupfilename = "$backupdir/$backupprefix".POSIX::strftime("%Y-%m-%d-%H%M",localtime).".tar";
+
+	# ...of a dump of all node configuration (from the database), which we stash temporarily in conf
+	my $nodes = $self->get_nodes_model();
+	my $nodedumpfile = $C->{'<nmis_conf>'}."/all_nodes.json";
+	if (!$nodes->error && @{$nodes->data})
+	{
+		# ensure that the output is indeed valid json, utf-8 encoded
+		Mojo::File->new($nodedumpfile)->spurt(
+			JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode($nodes->data) );
+	}
+
+	# ...and of _custom_ models and configuration files (and the default ones for good measure)
+	my @relativepaths = (map { File::Spec->abs2rel($_, $C->{'<nmis_base>'}) }
+											 ($C->{'<nmis_models>'},
+												$C->{'<nmis_default_models>'},
+												$C->{'<nmis_conf>'},
+												$C->{'<nmis_conf_default>'} ));
+
+	my $status = system("tar","-cf",$backupfilename,
+											"-C", $C->{'<nmis_base>'},
+											@relativepaths);
+	if ($status == -1)
+	{
+		return  { error => "Failed to execute tar!" };
+	}
+	elsif ($status & 127)
+	{
+		return { error => "Backup failed, tar killed with signal ".($status & 127) };
+	}
+	elsif ($status >> 8)
+	{
+		return { error => "Backup failed, tar exited with exit code ".($status >> 8) };
+	}
+
+	# ...and the various cron files
+	my $td = File::Temp::tempdir(CLEANUP => 1);
+
+	mkdir("$td/cron",0755) or return { error => "Cannot create $td/cron: $! " };
+	system("cp -a /etc/cron* $td/cron/ 2>/dev/null");
+	system("crontab -l -u root > $td/cron/root_crontab 2>/dev/null");
+	system("crontab -l -u nmis > $td/cron/nmis_crontab 2>/dev/null");
+
+	$status = system("tar","-C",$td, "-rf",$backupfilename,"cron");
+	if ($status == -1)
+	{
+		File::Temp::cleanup;
+		return { error => "Failed to execute tar!" };
+	}
+	elsif ($status & 127)
+	{
+		File::Temp::cleanup;
+		return { error => "Backup failed, tar killed with signal ".($status & 127) };
+	}
+	elsif ($status >> 8)
+	{
+		File::Temp::cleanup;
+		return { error => "Backup failed, tar exited with exit code ".($status >> 8) };
+	}
+	File::Temp::cleanup;
+
+	$status = system("gzip",$backupfilename);
+	if ($status >> 8)
+	{
+		return { error => "Backup failed, gzip exited with exit code ".($status >> 8) };
+	}
+
+	unlink $nodedumpfile if (-f $nodedumpfile);
+	return  { success => 1, file => "$backupfilename.gz" };
 }
 
 1;

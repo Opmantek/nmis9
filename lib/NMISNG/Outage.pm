@@ -194,7 +194,7 @@ sub update_outage
 
 	NMISNG::Util::audit_log(who => $meta->{user},
 													what => ($op_create? "create_outage" : "update_outage"),
-													where => $outid, how => "ok", defails => $meta->{details}, when => undef);
+													where => $outid, how => "ok", details => $meta->{details}, when => undef);
 
 	return { success => 1, id => $outid};
 }
@@ -336,7 +336,7 @@ sub remove_outage
 													what => "remove_outage",
 													where => $id,
 													how => "ok",
-													defails => $meta->{details},
+													details => $meta->{details},
 													when => undef);
 
 	return { success => 1};
@@ -386,6 +386,49 @@ sub find_outages
 	}
 
 	return { success => 1, outages => \@matches };
+}
+
+
+# removes past none-recurring outages after a configurable time
+# args: nmisng object (required), simulate (optional, default false)
+# returns: hashref, keys success/error and info (array ref)
+sub purge_outages
+{
+	my (%args) = @_;
+	my $nmisng = $args{nmisng};
+	my $simulate = NMISNG::Util::getbool( $args{simulate} );
+
+	return { error => "cannot purge outages without nmisng argument!" }
+	if (ref($nmisng) ne "NMISNG");
+	my $maxage = $nmisng->config->{purge_outages_after} // 86400;
+
+	return { success => 1, message => "Outage expiration is disabled." }
+	if ($maxage <= 0); # 0 or negative? no purging
+
+	my $data = NMISNG::Util::loadTable(dir => "conf", name => "Outages")
+			if (NMISNG::Util::existFile(dir => "conf", name => "Outages")); # or we get lots of log noise
+	return { success => 1, message => "No outages exist." } if !$data;
+
+	my (@problems, @info);
+	for my $outid (keys %$data)
+	{
+		my $thisoutage = $data->{$outid};
+		next if ($thisoutage->{frequency} ne "once"
+						 or $thisoutage->{end} >= time - $maxage);
+
+		push @info, ( $simulate? "Would purge ":"Purging ")
+				. "expired outage $outid, description \"$thisoutage->{description}\", ended at " 
+				. scalar(localtime($thisoutage->{end}));
+
+		next if ($simulate);
+		my $res = remove_outage(id => $outid, meta => {details => "purging expired past outage" });
+		push @problems, "$outid: $res->{error}" if (!$res->{success}); # but let's continue
+	}
+
+	return { 
+		info => \@info, 
+		error => join("\n", @problems),
+		success => @problems? 0 : 1 };
 }
 
 # find active/future/past outages for a given context,

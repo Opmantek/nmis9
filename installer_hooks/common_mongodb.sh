@@ -11,7 +11,7 @@ is_mongo_installed() {
 				if [ "$OSFLAVOUR" = "redhat" ]; then
 						rpm -qa | fgrep -q mongodb-org-server || return 1
 				elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
-						dpkg -l mongodb-server mongodb-org-server 2>/dev/null | grep -q ^ii || return 1
+						dpkg -l mongodb-server mongodb-org-server 2>/dev/null | grep -q ^[hi]i || return 1
 				fi
 		fi
 

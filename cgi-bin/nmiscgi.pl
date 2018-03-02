@@ -194,13 +194,7 @@ NMIS $Compat::NMIS::VERSION - $C->{server_name}</span>
 # Nodenames go seperatly - simple array list
 
 # defaults
-my $logName = 'Event_Log';
-if ( NMISNG::Util::getbool($C->{server_master}) and $Q->{logname} eq "" ) {
-	$logName = 'Slave_Event_Log';
-}
-elsif ($Q->{logname} ne "" ) {
-	$logName = $Q->{logname};
-}
+my $logName = $Q->{logname} || 'Event_Log';
 
 # send the default list of all names
 my $NT = Compat::NMIS::loadNodeTable(); # load node table
