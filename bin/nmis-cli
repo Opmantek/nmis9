@@ -198,9 +198,11 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 	# show the scheduled periods for the known automatic actions
 	print "\nAutomatic Schedule:\nWhat\t\tFrequency\n";
 	for ( [ "update", "Node Update"],
+				[ "links", "Links Update" ],
 				[ "configbackup", "Configuration Backup"],
 				[ "purge", "Old File Purging"],
-				[ "dbcleanup", "Database Cleanup"], )
+				[ "dbcleanup", "Database Cleanup"],
+			 )
 	{
 		my ($key, $label) = @$_;
 		my $freq = defined($C->{"schedule_$key"}) && $C->{"schedule_$key"} > 0?

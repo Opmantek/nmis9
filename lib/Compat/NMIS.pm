@@ -241,7 +241,7 @@ sub loadCfgTable
 
 
 # fixme9: cannot work that way anymore
-sub loadServersTable 
+sub loadServersTable
 {
 	return {};
 #	return NMISNG::Util::loadTable(dir=>'conf',name=>'Servers');
@@ -273,7 +273,7 @@ sub loadNodeSummary {
 
 	### 2011-12-29 keiths, moving master handling outside of Cache handling!
 	# fixme9: config server_master is gone!
-	if ( # NMISNG::Util::getbool($C->{server_master}) or 
+	if ( # NMISNG::Util::getbool($C->{server_master}) or
 			 NMISNG::Util::getbool($master)) {
 		NMISNG::Util::dbg("Master, processing Slave Servers");
 		my $ST = loadServersTable();
@@ -315,11 +315,11 @@ sub nodeStatus {
 	die "nodestatus requries node" if (!$node);
 	if( !$catchall_data )
 	{
-		my $inventory =  $node->inventory( concept => "catchall" );	
-		$catchall_data = $inventory->data();		
+		my $inventory =  $node->inventory( concept => "catchall" );
+		$catchall_data = $inventory->data();
 	}
 	my $C = NMISNG::Util::loadConfTable();
-	
+
 
 	# 1 for reachable
 	# 0 for unreachable
@@ -466,7 +466,7 @@ sub getSummaryStats
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
-	if ( # NMISNG::Util::getbool($C->{server_master}) and 
+	if ( # NMISNG::Util::getbool($C->{server_master}) and
 			 $catchall_data->{server}
 			 and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
@@ -618,7 +618,7 @@ sub getSubconceptStats
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
-	if (# NMISNG::Util::getbool($C->{server_master}) and 
+	if (# NMISNG::Util::getbool($C->{server_master}) and
 			$catchall_data->{server}
 			and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
@@ -2211,12 +2211,13 @@ sub loadServiceStatus
 #
 # and then calls notify with a new Up event including the time of the outage
 # args: a LIVE sys object for the node, event(name);
-#  element, details and level are optional 
+#  element, details and level are optional
 sub checkEvent
 {
 	my (%args) = @_;
 	my $nmisng = new_nmisng();
 	my $S = $args{sys};
+
 	$args{node_uuid} = $S->nmisng_node()->uuid;
 	# create event with attributes we are looking for
 	my $event = $nmisng->events->event( %args	);
@@ -2253,10 +2254,9 @@ sub notify
 	NMISNG::Util::dbg("Start of Notify");
 
 	# events.nmis controls which events are active/logging/notifying
-	# cannot use loadGenericTable as that checks and clashes with db_events_sql
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-	
+
 	# create new event object with all properties, when load is called if it is found these will
 	# be overwritten by the existing properties
 	my $event_obj = $S->nmisng_node->event(event => $event, element => $element);
@@ -2287,9 +2287,9 @@ sub notify
 			NMISNG::Util::dbg("Event node=$node event=$event element=$element already exists");
 		}
 	}
-	else 
+	else
 	{
-		# event doesn't exist OR exists and is inactive (but not historic)		
+		# event doesn't exist OR exists and is inactive (but not historic)
 		 $event_obj->event( $event );
 		 $event_obj->element( $element );
 		 $event_obj->active( 1 );
@@ -2297,7 +2297,7 @@ sub notify
 		 $event_obj->details( $details );
 		 $event_obj->context( $args{context} );
 
-		# get level(if not defined) and log status from Model		
+		# get level(if not defined) and log status from Model
 		($level,$log,$syslog) = $event_obj->getLogLevel(sys=>$S);
 		$event_obj->level($level);
 
@@ -2330,7 +2330,7 @@ sub notify
 
 	# log events if allowed
 	if ( NMISNG::Util::getbool($log) and NMISNG::Util::getbool($thisevent_control->{Log}))
-	{		
+	{
 		$event_obj->level($level);
 		$event_obj->log();
 	}

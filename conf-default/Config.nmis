@@ -507,7 +507,8 @@ my %hash = (
 #		'schedule_reports' => 86400, # fixme not good
 		'schedule_purge' => 86400,
 		'schedule_dbcleanup' => 86400,
-		'schedule_update' => 86400, 
+		'schedule_update' => 86400,
+		'schedule_links' => 86400,
 	},
-		
+
 );
