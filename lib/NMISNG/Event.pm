@@ -66,7 +66,8 @@ our $VERSION = "1.0.0";
 # 				expire_at    => $args{expire_at}
 # 			},
 # sys not required as argument but can't be left in the args
-my %known_attrs = (_id => 1,ack => 1,active => 1,context => 1,details => 1,element => 1,escalate => 1,event_previous => 1,expire_at => 1,historic => 1,inventory_id => 1,lastupdate => 1,level => 1,node_name => 1,node_uuid => 1,notify => 1,startdate => 1,stateless => 1,user => 1);
+# here is a list of the known attributes, these will be givent getter/setters, everything else is 'custom_data'
+my %known_attrs = (_id => 1,ack => 1,active => 1, cluster_id => 1,context => 1,details => 1,element => 1,escalate => 1,event_previous => 1,expire_at => 1,historic => 1,inventory_id => 1,lastupdate => 1,level => 1,node_name => 1,node_uuid => 1,notify => 1,startdate => 1,stateless => 1,user => 1);
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -740,6 +741,9 @@ sub save
 			# Does this really need to be "" ?
 			$self->{data}{notify}    //= "";
 			$self->{data}{stateless} //= 0;
+
+			# set clusterid 
+			$self->{data}{cluster_id} = $self->nmisng->config->{cluster_id};
 		}
 	}
 
