@@ -39,11 +39,12 @@ use Data::Dumper;
 use Tie::IxHash;
 use boolean;
 
-use NMISNG::Util;
-use NMISNG::Log;
 use NMISNG::DB;
+use NMISNG::Events;
+use NMISNG::Log;
 use NMISNG::ModelData;
 use NMISNG::Node;
+use NMISNG::Util;
 
 # params:
 #  config - hash containing object
@@ -83,7 +84,7 @@ sub new
 	$self->{_db} = $db;
 
 	# load and prime the statically defined collections
-	for my $collname (qw(nodes inventory latest_data))
+	for my $collname (qw(nodes events inventory latest_data))
 	{
 		my $collhandle = NMISNG::DB::get_collection( db => $db, name => $collname );
 		if (ref($collhandle) ne "MongoDB::Collection")
@@ -132,6 +133,40 @@ sub get_db
 	my ($self) = @_;
 	return $self->{_db};
 }
+
+# return the events object
+sub events
+{
+	my ($self) = @_;
+	return NMISNG::Events->new( nmisng => $self );
+}
+
+# helper to get/set event collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub events_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_events} = $newvalue;
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_events},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				# needed for joins
+				[ [node_uuid => 1]],
+				[ {lastupdate  => 1}, {unique => 0}],
+				[ [node_uuid=>1,event=>1,element=>1,historic=>1,startdate=>1], {unique => 1}],
+				# [ [node_uuid=>1,event=>1,element=>1,active=>1], {unique => 1}],
+				[ { expire_at => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
+			] );
+		$self->log->error("index setup failed for inventory: $err") if ($err);
+	}
+	return $self->{_db_events};
+}
+
 
 # find all unique concep/subconcept pairs for the given path/filter
 # filtering for active things possible (eg, enabled => 1, historic => 0)
@@ -563,7 +598,7 @@ sub grouped_node_summary
 		{ '$match'  => { 'concept' => 'catchall' } },
 		{ '$lookup' => { 'from' => 'nodes', 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'node_config'}},
 		{ '$unwind' => { 'path' => '$node_config', 'preserveNullAndEmptyArrays' => boolean::false }},
-		{ '$match'  => { 'node_config.active' => 'true' } },
+		{ '$match'  => { 'node_config.active' => 1 } },
 		{ '$lookup' => { 'from' => 'latest_data', 'localField' => '_id', 'foreignField' => 'inventory_id', 'as' => 'latest_data'}},
 		{ '$unwind' => { 'path' => '$latest_data', 'preserveNullAndEmptyArrays' => true }},
 		{ '$unwind' => { 'path' => '$latest_data.subconcepts', 'preserveNullAndEmptyArrays' => boolean::true } },
@@ -709,6 +744,7 @@ sub node
 	if( $modeldata->count() > 1 )
 	{
 		my @names = map { $_->{name} } @{$modeldata->data()};
+		$self->log->debug("Node request returned more than one node, args".Dumper(\%args));
 		$self->log->warn("Node request returned more than one node, returning nothing, names:".join(",", @names));
 		return;
 	}

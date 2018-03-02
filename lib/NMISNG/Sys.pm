@@ -1367,7 +1367,7 @@ sub getValues
 					NMISNG::Util::logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
 				}
 				NMISNG::Util::dbg( "test $test, result=$result", 3 );
-
+				print "pushing alert $thing->{item}\n";
 				push @{$self->{alerts}}, {
 					name    => $self->{name},
 					type    => "test",

@@ -215,6 +215,7 @@ my $origscript = $FindBin::RealBin."/".$FindBin::Script;
 my @restartparams = map { "$_=".$nvp{$_}; } (grep($_ ne "kill", keys %nvp));
 $0 = $me;
 
+my $nmisng = NMISNG->new( config => $C,log => $logger );
 
 my (%state,											# nodename -> ip, lastping, nextping, nextdns, avg, loss
 		$preveventcfg,							# change detection
@@ -253,24 +254,30 @@ while (!$mustexit)
 
 	# nodes, polling-policy: reread every cycle, cached
 	my $policies = NMISNG::Util::loadTable(dir => 'conf', name => "Polling-Policy") || {};
-	my $lnt = Compat::NMIS::loadLocalNodeTable() || {};
+	my $nodes_model = $nmisng->get_nodes_model( filter => { 
+		cluster_id => $C->{cluster_id},
+		active => 1,
+		ping => 1
+	});
 
+	my %node_map = map { $_->{name} => $_ } @{$nodes_model->data};
+	
 	# first: find the candidate nodes (and ditch deleted/disabled ones)
 	for my $maybegoner (keys %state)
 	{
-		delete $state{$maybegoner}
-		if (ref($lnt->{$maybegoner}) ne "HASH"
-				or !NMISNG::Util::getbool($lnt->{$maybegoner}->{active})
-				or !NMISNG::Util::getbool($lnt->{$maybegoner}->{ping}));
+		# !active and !ping already filtered
+		delete $state{$maybegoner} if (ref($node_map{$maybegoner}) ne "HASH");
 	}
 
 	my @todos;
-	for my $noderec (values %$lnt)
+	for my $noderec (@{$nodes_model->data()})
 	{
-		next if (!NMISNG::Util::getbool($noderec->{active}) or !NMISNG::Util::getbool($noderec->{ping}));
+		# done in query
+		# next if (!NMISNG::Util::getbool($noderec->{active}) or !NMISNG::Util::getbool($noderec->{ping}));
 
 		my $thisstate = $state{ $noderec->{name} } ||= {
 			name => $noderec->{name},
+			node_uuid => $noderec->{uuid}
 			# dynamically managed: ip, lastping,nextping, policy , nextdns, avg min max loss
 		};
 		# what needs filling in, what could change between poll cycles?
@@ -418,6 +425,9 @@ while (!$mustexit)
 			map { $logger->warn($_) } (@problems);
 		}
 
+		# check the event existence AND its currency!
+		my $event = $nmisng->events->event( node_uuid => $thisstate->{node_uuid}, event => "Node Down" );
+
 		# submit changes in status to the nmis event system
 		if ( $thisstate->{loss} == 100 )
 		{
@@ -426,7 +436,7 @@ while (!$mustexit)
 			# for fixed-ip nodes this is not relevant
 			undef $thisstate->{nextdns};
 
-			if (!Compat::NMIS::eventExist($nodename, "Node Down", undef))
+			if (!$event->exists)
 			{
 				# Device is DOWN, was up, as no entry in event database
 				$logger->debug("$nodename is now DOWN, was UP, updating event database");
@@ -437,19 +447,15 @@ while (!$mustexit)
 		else # node somewhat pingable, not 100% loss
 		{
 			$logger->debug("$nodename is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
-
-			# check the event existence AND its currency!
-			my $event_exists = Compat::NMIS::eventExist($nodename, "Node Down", undef);
-			my $erec = Compat::NMIS::eventLoad(filename => $event_exists) if ($event_exists);
-
-			if ($event_exists and $erec and NMISNG::Util::getbool($erec->{current}))
+			
+			if ($event->exists && $event->active)
 			{
 				# Device was down is now UP!
 				# Only post the status if the event database records as currently down
 				$logger->debug("$nodename is now UP, was DOWN, updating event database");
 				fpingCheckEvent($nodename);
 				++$escalatables;
-			}
+			}			
 		}
 	}
 

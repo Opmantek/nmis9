@@ -934,6 +934,7 @@ sub noderefresh
 		foreach my $node ( @{$object_ret->{objects}} )
 		{
 			# tell the node it's dirty so the save happens
+			$node->configuration( $node->configuration );
 			$node->_dirty(1,"nothing");
 			my ($op,$error) = $node->save();
 			if( $op < 1 || $error )

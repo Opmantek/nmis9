@@ -1507,6 +1507,7 @@ sub update
 		# freeform and no update ops? must use replace function, not update - those expect update operators
 		my $methodname = ( $arg{freeform} && !grep(/^\$/, keys %$updates)?
 											 "replace_one" : $multiple? "update_many": "update_one" );
+		# print "calling $methodname, upsert:$upsert with query".Dumper($query)."and updates ".Dumper($updates);
 		try
 		{
 			my $result = $collection->$methodname($query, $updates, {upsert => $upsert});

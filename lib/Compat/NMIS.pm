@@ -365,9 +365,16 @@ sub loadNodeSummary {
 # file cannot be guaranteed to be up to date if that happens.
 sub nodeStatus {
 	my %args = @_;
-	my $catchall_data = $args{catchall_data};
-	die "nodeStatus requires catchall_data" if (!$catchall_data);
+	my ($catchall_data,$node) = @args{'catchall_data','node'};
+	# die "nodeStatus requires catchall_data" if (!$catchall_data);
+	die "nodestatus requries node" if (!$node);
+	if( !$catchall_data )
+	{
+		my $inventory =  $node->inventory( concept => "catchall" );	
+		$catchall_data = $inventory->data();		
+	}
 	my $C = NMISNG::Util::loadConfTable();
+	
 
 	# 1 for reachable
 	# 0 for unreachable
@@ -379,21 +386,19 @@ sub nodeStatus {
 	my $wmi_down_event = "WMI Down";
 
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
-	if (NMISNG::Util::getbool($catchall_data->{ping},"invert")
-			and ( eventExist($catchall_data->{name}, $snmp_down, "")
-						or eventExist($catchall_data->{name}, $wmi_down_event, "")))
+	if ( NMISNG::Util::getbool($catchall_data->{ping},"invert")
+			and ( $node->eventExist($snmp_down) or $node->eventExist( $wmi_down_event)) )
 	{
 		$status = 0;
 	}
 	# ping enabled, but unpingable -> down
-	elsif ( eventExist($catchall_data->{name}, $node_down, "") ) {
+	elsif ( $node->eventExist($node_down) ) {
 		$status = 0;
 	}
 	# ping enabled, pingable but dead snmp or dead wmi -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( NMISNG::Util::getbool($catchall_data->{collect}) and
-					( eventExist($catchall_data->{name}, $snmp_down, "")
-						or eventExist($catchall_data->{name}, $wmi_down_event, "")))
+					( $node->eventExist($snmp_down)	or $node->eventExist($wmi_down_event)) )
 	{
 		$status = -1;
 	}
@@ -425,10 +430,11 @@ sub PreciseNodeStatus
 	my $S = $args{system};
 	return ( error => "Invalid arguments, no Sys object!" ) if (ref($S) ne "NMISNG::Sys");
 
+	my $node = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	my $C = NMISNG::Util::loadConfTable();
 
-	my $nodename = $catchall_data->{name};
+	my $nodename = $node->name;
 
 	# reason for looking for events (instead of wmidown/snmpdown markers):
 	# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
@@ -444,9 +450,9 @@ sub PreciseNodeStatus
 									wmi_status => undef,
 									ping_status => undef );
 
-	$precise{ping_status} = (eventExist($nodename, "Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
-	$precise{wmi_status} = (eventExist($nodename, "WMI Down")?0:1) if ($precise{wmi_enabled});
-	$precise{snmp_status} = (eventExist($nodename, "SNMP Down")?0:1) if ($precise{snmp_enabled});
+	$precise{ping_status} = ($node->eventExist("Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
+	$precise{wmi_status} = ($node->eventExist("WMI Down")?0:1) if ($precise{wmi_enabled});
+	$precise{snmp_status} = ($node->eventExist("SNMP Down")?0:1) if ($precise{snmp_enabled});
 
 	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (!$precise{ping_enabled}
@@ -495,72 +501,8 @@ sub logConfigEvent {
 	logJsonEvent(event => $event_hash, dir => $dir);
 }
 
-sub getLevelLogEvent {
-	my %args = @_;
-	my $S = $args{sys};
-	my $M = $S->mdl;
-	my $event = $args{event};
-	my $level = $args{level};
-
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-
-	my $mdl_level;
-	my $log = 'true';
-	my $syslog = 'true';
-	my $pol_event;
-
-	my $role = $catchall_data->{roleType} || 'access' ;
-	my $type = $catchall_data->{nodeType} || 'router' ;
-
-	# Get the event policy and the rest is easy.
-	if ( $event !~ /^Proactive|^Alert/i ) {
-		# proactive does already level defined
-		if ( $event =~ /down/i and $event !~ /SNMP|Node|Interface|Service/i ) {
-			$pol_event = "Generic Down";
-		}
-		elsif ( $event =~ /up/i and $event !~ /SNMP|Node|Interface|Service/i ) {
-			$pol_event = "Generic Up";
-		}
-		else { $pol_event = $event; }
-
-		# get the level and log from Model of this node
-		if ($mdl_level = $M->{event}{event}{lc $pol_event}{lc $role}{level}) {
-			$log = $M->{event}{event}{lc $pol_event}{lc $role}{logging};
-			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
-		}
-		elsif ($mdl_level = $M->{event}{event}{default}{lc $role}{level}) {
-			$log = $M->{event}{event}{default}{lc $role}{logging};
-			$syslog = $M->{event}{event}{default}{lc $role}{syslog} if ($M->{event}{event}{default}{lc $role}{syslog} ne "");
-		}
-		else {
-			$mdl_level = 'Major';
-			# not found, use default
-			NMISNG::Util::logMsg("node=$catchall_data->{name}, event=$event, role=$role not found in class=event of model=$catchall_data->{nodeModel}");
-		}
-	}
-	elsif ( $event =~ /^Alert/i ) {
-		# Level set by custom!
-		### 2013-03-08 keiths, adding policy based logging for Alerts.
-		# We don't get the level but we can get the logging policy.
-		$pol_event = "Alert";
-		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
-			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
-		}
-	}
-	else {
-		### 2012-03-02 keiths, adding policy based logging for Proactive.
-		# We don't get the level but we can get the logging policy.
-		$pol_event = "Proactive";
-		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
-			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
-		}
-	}
-	# overwrite the level argument if it wasn't set AND if the models reported something useful
-	if ($mdl_level && !defined $level) {
-		$level = $mdl_level;
-	}
-	return ($level,$log,$syslog);
-}
+# sub getLevelLogEvent {
+# }
 
 sub getSummaryStats
 {
@@ -892,11 +834,12 @@ sub getGroupSummary {
 		filters => { 'node_config.group' => $group },
 		group_by => $group_by,
 		include_nodes => $include_nodes
-			);
+	);
 
 	if( $error || @$entries != 1 )
 	{
-		$error ||= "No data returned";
+		my $group_by_str = ($group_by)?join(",",@$group_by):"";
+		$error ||= "No data returned for group:$group,group_by:$group_by_str include_nodes:$include_nodes";
 		$nmisng->log->error("Failed to get grouped_node_summary data, error:$error");
 		return \%summaryHash;
 	}
@@ -1237,7 +1180,7 @@ sub overallNodeStatus
 		$group = shift;
 	}
 
-	my $node;
+	my $node_name;
 	my $event_status;
 	my $overall_status;
 	my $status_number;
@@ -1252,46 +1195,47 @@ sub overallNodeStatus
 	my $NT = loadNodeTable();
 	my $NS = loadNodeSummary();
 
-	foreach $node (sort keys %{$NT} )
+	foreach $node_name (sort keys %{$NT} )
 	{
-		next if (!NMISNG::Util::getbool($NT->{$node}{active}));
+		my $config = $NT->{$node_name};
+		next if (!NMISNG::Util::getbool($config->{active}));
 
 		if (
 			( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" )
 			or
 			( $netType ne "" and $roleType ne ""
-				and $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" )
-			or ($group ne "" and $NT->{$node}{group} eq $group)
-			or ($customer ne "" and $NT->{$node}{customer} eq $customer)
-			or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ ) )
+				and $config->{net} eq "$netType" && $config->{role} eq "$roleType" )
+			or ($group ne "" and $config->{group} eq $group)
+			or ($customer ne "" and $config->{customer} eq $customer)
+			or ($business ne "" and $config->{businessService} =~ /$business/ ) )
 		{
 			my $nodedown = 0;
 			my $outage = "";
 
-			my $nodeobj = $nmisng->node(name  => $node);
+			my $nodeobj = $nmisng->node(uuid => $config->{uuid});
 
-			if ( $NT->{$node}{server} eq $C->{server_name} ) {
+			if ( $config->{server} eq $C->{server_name} ) {
 				### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 				my $down_event = "Node Down";
-				$down_event = "SNMP Down" if NMISNG::Util::getbool($NT->{$node}{ping},"invert");
-				$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
+				$down_event = "SNMP Down" if NMISNG::Util::getbool($config->{ping},"invert");
+				$nodedown = $nodeobj->eventExist($down_event);
 
 				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 			}
 			else
 			{
-				$outage = $NS->{$node}{outage};
-				if ( NMISNG::Util::getbool($NS->{$node}{nodedown}))
+				$outage = $NS->{$node_name}{outage};
+				if ( NMISNG::Util::getbool($NS->{$node_name}{nodedown}))
 				{
 					$nodedown = 1;
 				}
 			}
 
 			if ( $nodedown and $outage ne 'current' ) {
-				($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
+				($event_status) = eventLevel("Node Down",$config->{roleType});
 			}
 			else {
-				($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
+				($event_status) = eventLevel("Node Up",$config->{roleType});
 			}
 
 			++$statusHash{$event_status};
@@ -2214,144 +2158,6 @@ sub eventLevel {
 	return ($event_level,$event_color);
 }
 
-# this function checks if a particular event exists
-# in the list of current event, NOT the history list!
-#
-# args: node, event(name), element (element may be missing)
-# returns event file name if present, 0/undef otherwise
-sub eventExist
-{
-	my ($node, $eventname, $element) = @_;
-
-	my $efn = event_to_filename(event => { node => $node,
-																				 event => $eventname,
-																				 element => $element },
-															category => "current" );
-	return ($efn and -f $efn)? $efn : 0;
-}
-
-# returns the detailed event record for the given CURRENT event
-# args: node, event(name), element OR filename
-# returns event hash or undef
-sub eventLoad
-{
-	my (%args) = @_;
-
-	my $efn = $args{filename}
-	|| event_to_filename( event => { node => $args{node},
-																	 event => $args{event},
-																	 element => $args{element} },
-												category => "current" );
-	return undef if (!$efn or !-f $efn);
-	if (!open(F, "$efn"))
-	{
-		NMISNG::Util::logMsg("ERROR cannot open event file $efn: $!");
-		return undef;
-	}
-	my $erec = eval { decode_json(join("", <F>)) };
-	close(F);
-	if (ref($erec) ne "HASH" or $@)
-	{
-		NMISNG::Util::logMsg("ERROR event file $efn has malformed data: $@");
-		return undef;
-	}
-
-	return $erec;
-}
-
-# deletes ONE event, does NOT (event-)log anything
-# args: event (=record suitably filled in to find the file)
-# the event file is parked in the history subdir, iff possible and allowed to
-# returns undef if ok, error message otherwise
-sub eventDelete
-{
-	my (%args) = @_;
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	return "Cannot remove unnamed event!" if (!$args{event});
-	my $efn = event_to_filename( event => $args{event},
-															 category => "current" );
-
-	return "Cannot find event file for node=$args{event}->{node}, event=$args{event}->{event}, element=$args{event}->{element}" if (!$efn or !-f $efn);
-
-	# be polite and robust, fix up any dir perm messes
-	NMISNG::Util::setFileProtParents(dirname($efn), $C->{'<nmis_var>'});
-
-	my $hfn = event_to_filename( event => $args{event},
-															 category => "history" ); # file to dir is a bit of a hack
-	my $historydirname = dirname($hfn) if ($hfn);
-	NMISNG::Util::createDir($historydirname) if ($historydirname and !-d $historydirname);
-	NMISNG::Util::setFileProtParents($historydirname, $C->{'<nmis_var>'}) if (-d $historydirname);
-
-	# now move the event into the history section if we can,
-	# and if we're allowed to
-	if (!NMISNG::Util::getbool($C->{"keep_event_history"},"invert") # if not set to 'false'
-			and $historydirname and -d $historydirname)
-	{
-		my $newfn = "$historydirname/".time."-".basename($efn);
-		rename($efn, $newfn)
-				or return"could not move event file $efn to history: $!";
-	}
-	else
-	{
-		unlink($efn)
-				or return "could not remove event file $efn: $!";
-	}
-	return undef;
-}
-
-# replaces the event data for one given EXISTING event
-# or CREATES a new event with option create_if_missing
-#
-# args: event (=full record, for finding AND updating)
-# create_if_missing (default false)
-#
-# the node, event name and elements of an event CANNOT be changed,
-# because they are part of the naming components!
-#
-# returns undef if ok, error message otherwise
-sub eventUpdate
-{
-	my (%args) = @_;
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	return "Cannot update unnamed event!" if (!$args{event});
-	my $efn = event_to_filename( event => $args{event},
-															 category => "current" );
-	return "Cannot find event file for node=$args{event}->{node}, event=$args{event}->{event}, element=$args{event}->{element}" if (!$efn or (!-f $efn and !$args{create_if_missing}));
-
-	my $dirname = dirname($efn);
-	if (!-d $dirname)
-	{
-		NMISNG::Util::createDir($dirname);
-		NMISNG::Util::setFileProtParents($dirname, $C->{'<nmis_var>'}); # which includes the parents up to nmis_base
-	}
-
-	my $filemode = (-f $efn)? "+<": ">"; # clobber if nonex
-
-	my @problems;
-	if (!open(F, $filemode, $efn))
-	{
-		return "Cannot open event file $efn ($filemode): $!";
-	}
-	flock(F, LOCK_EX)  or push(@problems, "Cannot lock file $efn: $!");
-	&NMISNG::Util::enter_critical;
-	seek(F, 0, 0);
-	truncate(F, 0) or push(@problems, "Cannot truncate file $efn: $!");
-	print F encode_json($args{event});
-	close(F) or push(@problems, "Cannot close file $efn: $!");
-	&NMISNG::Util::leave_critical;
-
-	NMISNG::Util::setFileProtDiag(file =>$efn);
-	if (@problems)
-	{
-		return join("\n", @problems);
-	}
-	return undef;
-}
-
 # loads one or more service statuses
 #
 # args: service, node, cluster_id, only_known (all optional)
@@ -2446,499 +2252,26 @@ sub loadServiceStatus
 	return %result;
 }
 
-
-# looks up all events (for one node or all),
-# in current or history section
-#
-# args: node (optional, if not there all are loaded),
-# category (optional: default is "current")
-# returns hash of: event file name (=full path!) => the event's record
-sub loadAllEvents
-{
-	my (%args) = @_;
-
-	my $C = NMISNG::Util::loadConfTable();			# cached
-
-	my @wantednodes = $args{node}? ($args{node}) : (keys %{loadLocalNodeTable()});
-	my $category  = $args{category} || "current";
-	my %results = ();
-
-	for my $node (@wantednodes)
-	{
-		# find the relevant dir via a dummy event and suck them all in
-		my $efn = event_to_filename( event => { node => $node,
-																						event => "dummy",
-																						element => "dummy" },
-																 category => $category );
-		my $dirname = dirname($efn) if ($efn);
-		next if (!$dirname or !-d $dirname);
-
-		opendir(D, $dirname) or NMISNG::Util::logMsg("ERROR could not opendir $dirname: $!");
-		my @candidates = readdir(D);
-		closedir(D);
-
-		for my $efn (@candidates)
-		{
-			next if ($efn =~ /^\./ or $efn !~ /\.json$/);
-
-			$efn = "$dirname/$efn";		# for loading and storage
-			my $erec = eventLoad(filename => $efn);
-			next if (ref($erec) ne "HASH"); # eventLoad already logs errors
-			$results{$efn} = $erec;
-		}
-	}
-	return %results;
-}
-
-# removes all current events for a node
-# this is normally used after editing/deleting nodes to clean the slate and
-# make sure there's no lingering phantom events
-#
-# note: logs if allowed to
-# args: node, caller (for logging)
-# return nothing
-sub cleanEvent
-{
-	my ($node, $caller) = @_;
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	# find the relevant dir via a dummy event and empty it
-	my $efn = event_to_filename( event => { node => $node, event => "dummy", element => "dummy" },
-															 category => "current" );
-	my $dirname = dirname($efn) if ($efn);
-	return if (!$dirname or !-d $dirname);
-	NMISNG::Util::setFileProtParents($dirname, $C->{'<nmis_var>'});
-
-	$efn = event_to_filename( event => { node => $node, event => "dummy", element => "dummy" },
-														category => "history" );
-	my $historydirname = dirname($efn) if $efn; # shouldn't fail but BSTS
-	NMISNG::Util::createDir($historydirname)
-			if ($historydirname and !-d $historydirname);
-	NMISNG::Util::setFileProtParents($historydirname, $C->{'<nmis_var>'}) if (-d $historydirname);
-
-	# get the event configuration which controls logging
-	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
-
-	opendir(D, $dirname) or NMISNG::Util::logMsg("ERROR could not opendir $dirname: $!");
-	my @candidates = readdir(D);
-	closedir(D);
-
-	for my $moriturus (@candidates)
-	{
-		next if ($moriturus =~ /^\./ or -d $moriturus or $moriturus !~ /\.json$/);
-
-		# load it so that we can determine whether to log its deletion
-		my $erec = eventLoad(filename => "$dirname/$moriturus");
-		if (ref($erec) ne "HASH")
-		{
-			NMISNG::Util::logMsg("ERROR failed to load event file $dirname/$moriturus!");
-		}
-		my $eventname = $erec->{event} if $erec;
-
-		# log the deletion meta-event iff the original event had logging enabled
-		# event logging: true unless overridden by event_config
-		if (!$eventname or ref($events_config->{$eventname}) ne "HASH"
-				or !NMISNG::Util::getbool($events_config->{$eventname}->{Log}, "invert") )
-		{
-			logEvent( node => $node,
-								event => "$caller: deleted event: $eventname",
-								level => "Normal",
-								element => $erec->{element}||'',
-								details => $erec->{details}||'');
-		}
-		# now move the event into the history section if we can
-		if ($historydirname and -d $historydirname)
-		{
-			my $newfn = "$historydirname/".time."-$moriturus";
-			rename("$dirname/$moriturus", $newfn)
-					or  NMISNG::Util::logMsg("ERROR could not move event file $dirname/$moriturus to history: $!");
-		}
-		else
-		{
-			unlink("$dirname/$moriturus")
-					or NMISNG::Util::logMsg("ERROR could not remove event file $dirname/$moriturus: $!");
-		}
-	}
-	return;
-}
-
-# write a record for a given event to the event log file
-# args: node, event, element (may be missing), level, details (may be missing)
-# logs errors
-# returns: undef if ok, error message otherwise
-sub logEvent
-{
-	my %args = @_;
-
-	my $node = $args{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $level = $args{level};
-	my $details = $args{details};
-	$details =~ s/,//g; # strip any commas
-
-	if (!$node  or !$event or !$level)
-	{
-		NMISNG::Util::logMsg("ERROR logging event, required argument missing: node=$node, event=$event, level=$level");
-		return "required argument missing: node=$node, event=$event, level=$level";
-	}
-
-	my $time = time();
-	my $C = NMISNG::Util::loadConfTable();
-
-	my @problems;
-
-	# MUST NOT NMISNG::Util::logMsg while holding that lock, as logmsg locks, too!
-	sysopen(DATAFILE, "$C->{event_log}", O_WRONLY | O_APPEND | O_CREAT)
-			or push(@problems, "Cannot open $C->{event_log}: $!");
-	flock(DATAFILE, LOCK_EX)
-			or push(@problems,"Cannot lock $C->{event_log}: $!");
-	&NMISNG::Util::enter_critical;
-	# it's possible we shouldn't write if we can't lock it...
-	print DATAFILE "$time,$node,$event,$level,$element,$details\n";
-	close(DATAFILE) or push(@problems, "Cannot close $C->{event_log}: $!");
-	&NMISNG::Util::leave_critical;
-	NMISNG::Util::setFileProtDiag(file =>$C->{event_log}); # set file owner/permission, default: nmis, 0775
-
-	if (@problems)
-	{
-		my $msg = join("\n", @problems);
-		NMISNG::Util::logMsg("ERROR $msg");
-		return $msg;
-	}
-	return undef;
-}
-
-# this function (un)acknowledges an existing event
-# if configured to it also (event-)logs the activity
-#
-# args: node, event, element, level, details, ack, user;
-# returns: undef if ok, error message otherwise
-sub eventAck
-{
-	my %args = @_;
-
-	my $node = $args{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $level = $args{level};
-	my $details = $args{details};
-	my $ack = $args{ack};
-	my $user = $args{user};
-
-	my $C = NMISNG::Util::loadConfTable();
-	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
-
-	# first, find the event
-	my $erec = eventLoad(node => $node, event => $event, element => $element);
-	if (ref($erec) ne "HASH")
-	{
-		NMISNG::Util::logMsg("ERROR cannot find event for node=$node, event=$event, element=$element");
-		return "cannot find event for node=$node, event=$event, element=$element";
-	}
-
-	# event control for logging:  as configured or default true, ie. only off if explicitely configured off.
-	my $wantlog = (!$events_config or !$events_config->{$event}
-								 or !NMISNG::Util::getbool($events_config->{$event}->{Log}, "invert"))? 1 : 0;
-
-	# events are only acknowledgeable while they are current (ie. not in the process of
-	# being deleted)!
-	return undef if (!NMISNG::Util::getbool($erec->{current}));
-
-	### if a TRAP type event, then trash when ack. event record will be in event log if required
-	if (NMISNG::Util::getbool($ack) and NMISNG::Util::getbool($erec->{ack},"invert") and $event eq "TRAP")
-	{
-		if (my $error = eventDelete(event => $erec))
-		{
-			NMISNG::Util::logMsg("ERROR: $error");
-		}
-		logEvent(node => $node, event => "deleted event: $event",
-						 level => "Normal", element => $element) if ($wantlog);
-	}
-	else	# a 'normal' event
-	{
-		# nothing to do if requested ack and saved ack the same...
-		if (NMISNG::Util::getbool($ack) != NMISNG::Util::getbool($erec->{ack}))
-		{
-			my $newack = NMISNG::Util::getbool($ack)? 'true' : 'false';
-
-			$erec->{ack} = $newack;
-			$erec->{user} = $user;
-			if (my $error = eventUpdate(event => $erec))
-			{
-				NMISNG::Util::logMsg("ERROR: $error");
-			}
-
-			logEvent(node => $node, event => $event,
-							 level => "Normal", element => $element,
-							 details => "acknowledge=$newack ($user)")
-					if $wantlog;
-		}
-	}
-	return undef;
-}
-
-# this adds one new event OR updates an existing stateless event
-# this is a HIGHLEVEL function, doing all kinds of nmis-related stuff!
-# to JUST create an event record, use eventUpdate() w/create_if_missing
-#
-# args: node, event, element (may be missing), level,
-# details (may be missing), stateless (optional, default false),
-# context (optional, just passed through)
-#
-# returns: undef if ok, error message otherwise
-sub eventAdd
-{
-	my %args = @_;
-
-	my $node = $args{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $level = $args{level};
-	my $details = $args{details};
-	my $stateless = $args{stateless} || "false";
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	my $efn = event_to_filename( event => { node => $node,
-																					event => $event,
-																					element => $element },
-															 category => "current" );
-	return "Cannot create event with missing parameters, node=$node, event=$event, element=$element!"
-			if (!$efn);
-
-	# workaround for perl bug(?); the next if's misfire if
-	# we do "my $existing = eventLoad() if (-f $efn);"...
-	my $existing = undef;
-	if (-f $efn)
-	{
-		$existing = eventLoad(filename => $efn);
-	}
-
-	# is this an already EXISTING stateless event?
-	# they will reset after the dampening time, default dampen of 15 minutes.
-	if ( ref($existing) eq "HASH" && NMISNG::Util::getbool($existing->{stateless}) )
-	{
-		my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
-
-		# if the stateless time is greater than the dampening time, reset the escalate.
-		if ( time() > $existing->{startdate} + $stateless_event_dampening )
-		{
-			$existing->{current} = 'true';
-			$existing->{startdate} = time();
-			$existing->{escalate} = -1;
-			$existing->{ack} = 'false';
-			$existing->{context} ||= $args{context};
-
-			NMISNG::Util::dbg("event stateless, node=$node, event=$event, level=$level, element=$element, details=$details");
-			if (my $error = eventUpdate(event => $existing))
-			{
-				NMISNG::Util::logMsg("ERROR $error");
-				return $error;
-			}
-		}
-	}
-	# before we log, check the state if there is an event and if it's current
-	elsif ( ref($existing) eq "HASH" && NMISNG::Util::getbool($existing->{current}) )
-	{
-		NMISNG::Util::dbg("event exists, node=$node, event=$event, level=$level, element=$element, details=$details");
-		NMISNG::Util::logMsg("ERROR cannot add event=$event, node=$node: already exists, is current and not stateless!");
-		return "cannot add event: already exists, is current and not stateless!";
-	}
-	# doesn't exist or isn't current
-	# fixme: existing but not current isn't cleanly handled here
-	else
-	{
-		$existing ||= {};
-
-		$existing->{current} = 'true';
-		$existing->{startdate} = time();
-		$existing->{node} = $node;
-		$existing->{event} = $event;
-		$existing->{level} = $level;
-		$existing->{element} = $element;
-		$existing->{details} = $details;
-		$existing->{ack} = 'false';
-		$existing->{escalate} = -1;
-		$existing->{notify} = "";
-		$existing->{stateless} = $stateless;
-		$existing->{context} = $args{context};
-
-		if (my $error = eventUpdate(event => $existing, create_if_missing => !(-f $efn)))
-		{
-			NMISNG::Util::logMsg("ERROR $error");
-			return $error;
-		}
-		NMISNG::Util::dbg("event added, node=$node, event=$event, level=$level, element=$element, details=$details");
-		##	NMISNG::Util::logMsg("INFO event added, node=$node, event=$event, level=$level, element=$element, details=$details");
-	}
-
-	return undef;
-}
-
 # Check event is called after determining that something is back up!
 # Check event checks if the given event exists - args are the DOWN event!
 # if it exists it deletes it from the event state table/log
 #
 # and then calls notify with a new Up event including the time of the outage
 # args: a LIVE sys object for the node, event(name);
-#  element, details and level are optional
-#
-# returns: nothing
+#  element, details and level are optional 
 sub checkEvent
 {
-	my %args = @_;
-
+	my (%args) = @_;
+	my $nmisng = new_nmisng();
 	my $S = $args{sys};
-	my $node = $S->{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $details = $args{details};
-	my $level = $args{level};
-	my $log;
-	my $syslog;
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	# events.nmis controls which events are active/logging/notifying
-	# cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
-	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-
-	# set defaults just in case any are blank.
-	$C->{'non_stateful_events'} ||= 'Node Configuration Change, Node Reset';
-	$C->{'threshold_falling_reset_dampening'} ||= 1.1;
-	$C->{'threshold_rising_reset_dampening'} ||= 0.9;
-
-	# check if the event exists and load its details
-	my $event_exists = eventExist($node, $event, $element);
-	my $erec = eventLoad(filename => $event_exists) if $event_exists;
-
-	if ($event_exists
-			and NMISNG::Util::getbool($erec->{current}))
-	{
-		# a down event exists, so log an UP and delete the original event
-
-		# cmpute the event period for logging
-		my $outage = NMISNG::Util::convertSecsHours(time() - $erec->{startdate});
-
-		# Just log an up event now.
-		if ( $event eq "Node Down" )
-		{
-			$event = "Node Up";
-		}
-		elsif ( $event eq "Interface Down" )
-		{
-			$event = "Interface Up";
-		}
-		elsif ( $event eq "RPS Fail" )
-		{
-			$event = "RPS Up";
-		}
-		elsif ( $event =~ /Proactive/ )
-		{
-			my ($value,$reset) = @args{"value","reset"};
-			if (defined $value and defined $reset)
-			{
-				# but only if we have cleared the threshold by 10%
-				# for thresholds where high = good (default 1.1)
-				# for thresholds where low = good (default 0.9)
-				my $cutoff = $reset * ($value >= $reset?
-															 $C->{'threshold_falling_reset_dampening'}
-															 : $C->{'threshold_rising_reset_dampening'});
-
-				if ( $value >= $reset && $value <= $cutoff )
-				{
-					NMISNG::Util::info("Proactive Event value $value too low for dampening limit $cutoff. Not closing.");
-					return;
-				}
-				elsif ($value < $reset && $value >= $cutoff)
-				{
-					NMISNG::Util::info("Proactive Event value $value too high for dampening limit $cutoff. Not closing.");
-					return;
-				}
-			}
-			$event = "$event Closed";
-		}
-		elsif ( $event =~ /^Alert/ )
-		{
-			# A custom alert is being cleared.
-			$event = "$event Closed";
-		}
-		elsif ( $event =~ /down/i )
-		{
-			$event =~ s/down/Up/i;
-		}
-		elsif ($event =~ /\Wopen($|\W)/i)
-		{
-			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
-		}
-
-		# event was renamed/inverted/massaged, need to get the right control record
-		# this is likely not needed
-		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-
-		$details .= ($details? " " : "") . "Time=$outage";
-
-
-		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
-
-		my ($otg,$outageinfo) = NMISNG::Outage::outageCheck(node => $S->nmisng_node, time=>time());
-		if ($otg eq 'current') {
-			$details .= ($details? " ":""). "outage_current=true change=$outageinfo->{change_id}";
-		}
-
-		# now we save the new up event, and move the old down event into history
-		my $newevent = { %$erec };
-		$newevent->{current} = 'false'; # next processing by escalation routine
-		$newevent->{event} = $event;
-		$newevent->{details} = $details;
-		$newevent->{level} = $level;
-
-		# make the new one FIRST
-		if (my $error = eventUpdate(event => $newevent, create_if_missing => 1))
-		{
-			NMISNG::Util::logMsg("ERROR $error");
-		}
-		# then delete/move the old one, but only if all is well
-		else
-		{
-			if ($error = eventDelete(event => $erec))
-			{
-				NMISNG::Util::logMsg("ERROR $error");
-			}
-		}
-
-		NMISNG::Util::dbg("event node=$erec->{node}, event=$erec->{event}, element=$erec->{element} marked for UP notify and delete");
-		if (NMISNG::Util::getbool($log) and NMISNG::Util::getbool($thisevent_control->{Log}))
-		{
-			logEvent( node=>$S->{name},
-								event=>$event,
-								level=>$level,
-								element=>$element,
-								details=>$details);
-		}
-
-		# Syslog must be explicitly enabled in the config and will escalation is not being used.
-		if (NMISNG::Util::getbool($C->{syslog_events}) and NMISNG::Util::getbool($syslog)
-				and NMISNG::Util::getbool($thisevent_control->{Log})
-				and !NMISNG::Util::getbool($C->{syslog_use_escalation}))
-		{
-			NMISNG::Notify::sendSyslog(
-				server_string => $C->{syslog_server},
-				facility => $C->{syslog_facility},
-				nmis_host => $C->{server_name},
-				time => time(),
-				node => $S->{name},
-				event => $event,
-				level => $level,
-				element => $element,
-				details => $details
-					);
-		}
-	}
-}
+	$args{node_uuid} = $S->nmisng_node()->uuid;
+	# create event with attributes we are looking for
+	my $event = $nmisng->events->event( %args	);
+	# only take the missing data from the db, that way our new details/level will
+	# be used instead of what is in the db
+	$event->load( only_take_missing => 1 );
+	return $event->check( %args );
+};
 
 # notify creates new events
 # OR updates level changes for existing threshold/alert ones
@@ -2958,6 +2291,7 @@ sub notify
 	my $details = $args{details};
 	my $level = $args{level};
 	my $node = $S->{name};
+	my $inventory_id = $args{inventory_id};
 	my $log;
 	my $syslog;
 
@@ -2969,30 +2303,29 @@ sub notify
 	# cannot use loadGenericTable as that checks and clashes with db_events_sql
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-
-
-	my $event_exists = eventExist($S->{name},$event,$element);
-	my $erec = eventLoad(filename => $event_exists) if $event_exists;
-
-
-	if ( $event_exists and NMISNG::Util::getbool($erec->{current}))
+	
+	# create new event object with all properties, when load is called if it is found these will
+	# be overwritten by the existing properties
+	my $event_obj = $S->nmisng_node->event(event => $event, element => $element);
+	$event_obj->load();
+	if ($event_obj->exists() && $event_obj->active )
 	{
 		# event exists, maybe a level change of proactive threshold?
-		if ($event =~ /Proactive|Alert\:/ )
+		if ($event_obj->event =~ /Proactive|Alert\:/ )
 		{
-			if ($erec->{level} ne $level)
+			if ($event_obj->level ne $level)
 			{
 				# change of level; must update the event record
 				# note: 2014-08-27 keiths, update the details as well when changing the level
-				$erec->{level} = $level;
-				$erec->{details} = $details;
-				$erec->{context} ||= $args{context};
-				if (my $error = eventUpdate(event => $erec))
+				$event_obj->level( $level );
+				$event_obj->details( $details );
+				$event_obj->context( $args{context} ) if( !$event_obj->context );
+				if (my $error = $event_obj->save() )
 				{
 					NMISNG::Util::logMsg("ERROR $error");
 				}
 
-				(undef, $log, $syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>$level);
+				(undef, $log, $syslog) = $event_obj->getLogLevel(sys=>$S);
 				$details .= " Updated";
 			}
 		}
@@ -3001,14 +2334,23 @@ sub notify
 			NMISNG::Util::dbg("Event node=$node event=$event element=$element already exists");
 		}
 	}
-	else # event doesn't exist OR is set to non-current
+	else 
 	{
-		# get level(if not defined) and log status from Model
-		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>$level);
+		# event doesn't exist OR exists and is inactive (but not historic)		
+		 $event_obj->event( $event );
+		 $event_obj->element( $element );
+		 $event_obj->active( 1 );
+		 $event_obj->level( $level );
+		 $event_obj->details( $details );
+		 $event_obj->context( $args{context} );
+
+		# get level(if not defined) and log status from Model		
+		($level,$log,$syslog) = $event_obj->getLogLevel(sys=>$S);
+		$event_obj->level($level);
 
 		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
-												or NMISNG::Util::getbool($thisevent_control->{Stateful}))? "false": "true";
-
+												or NMISNG::Util::getbool($thisevent_control->{Stateful}))? 0: 1;
+		$event_obj->stateless($is_stateless);
 
 		my ($otg,$outageinfo) = NMISNG::Outage::outageCheck(node => $S->nmisng_node, time=>time());
 		if ($otg eq 'current') {
@@ -3017,9 +2359,7 @@ sub notify
 
 		# Create and store this new event; record whether stateful or not
 		# a stateless event should escalate to a level and then be automatically deleted.
-		if (my $error = eventAdd( node=>$node, event=>$event, level=>$level,
-															element=>$element, details=>$details,
-															stateless => $is_stateless, context => $args{context}))
+		if (my $error = $event_obj->save())
 		{
 			NMISNG::Util::logMsg("ERROR: $error");
 		}
@@ -3037,8 +2377,9 @@ sub notify
 
 	# log events if allowed
 	if ( NMISNG::Util::getbool($log) and NMISNG::Util::getbool($thisevent_control->{Log}))
-	{
-		logEvent(node=>$node, event=>$event, level=>$level, element=>$element, details=>$details);
+	{		
+		$event_obj->level($level);
+		$event_obj->log();
 	}
 
 	# Syslog must be explicitly enabled in the config and
@@ -3063,50 +2404,6 @@ sub notify
 
 	NMISNG::Util::dbg("Finished");
 }
-
-# translates a full event structure into a filename
-# args: event (= hashref), category (optional, current or history;
-# otherwise taken from event - event with current=false go into history)
-#
-# returns: file name or undef if inputs make no sense
-sub event_to_filename
-{
-	my (%args) = @_;
-	my $C = NMISNG::Util::loadConfTable();			# likely cached
-
-	my $erec = $args{event};
-	return undef if (!$erec or ref($erec) ne "HASH" or !$erec->{node}
-									 or !$erec->{event}); # element is optional
-
-	# note: just a few spots need to know anything about this structure (or its location):
-	# here, in the upgrade_events_structure function (assumes under var),
-	# eventDelete, eventUpdate and cleanEvent functions (assume under nmis_var)
-	# and in nmis_file_cleanup.sh.
-	#
-	# structure: nmis_var/events/lcNODENAME/{current,history}/EVENTNAME.json
-	my $eventbasedir = $C->{'<nmis_var>'}."/events";
-	# make sure the event dir exists, ASAP.
-	if (! -d $eventbasedir)
-	{
-		NMISNG::Util::createDir($eventbasedir);
-		NMISNG::Util::setFileProtDiag(file =>$eventbasedir);
-	}
-
-	# overridden, or not current then history, or
-	my $category = defined($args{category}) && $args{category} =~ /^(current|history)$/?
-			$args{category} : NMISNG::Util::getbool($erec->{current})? "current" : "history";
-
-	my $nodecomp = lc($erec->{node});
-	$nodecomp =~ s![ :/]!_!g; # no slashes possible, no colons and spaces just for backwards compat
-
-	my $eventcomp = lc($erec->{event}."-".($erec->{element}? $erec->{element} : ''));
-	$eventcomp =~ s![ :/]!_!g;			#  backwards compat
-
-	my $result = "$eventbasedir/$nodecomp/$category/$eventcomp.json";
-	return $result;
-}
-
-
 
 # saves a given nodeconf data structure in the per-node nodeconf file
 # args: node, data (required)

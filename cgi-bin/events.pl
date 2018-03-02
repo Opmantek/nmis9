@@ -79,7 +79,6 @@ my $wantwidget = $widget eq 'true';
 #======================================================================
 
 # select function
-
 if ($Q->{act} eq 'event_table_view') 
 {	
 	viewEvent();
@@ -131,13 +130,11 @@ sub viewEvent
 		});
 
 	# print data
-	my %nodeevents = Compat::NMIS::loadAllEvents(node => $node);
-	my $cnt = keys %nodeevents;
-	for my $eventkey (NMISNG::Util::sorthash(\%nodeevents,['startdate'],'fwd')) 
+	my $event_ret = $S->nmisng_node->get_events_model(filter => {	historic => 0});
+	my $nodeevents = $event_ret->{model_data}->data;
+	for my $thisevent (sort { $a->{startdate} <=> $b->{startdate}} @$nodeevents)
 	{
-		my $thisevent = $nodeevents{$eventkey};
-
-		my $state = NMISNG::Util::getbool($thisevent->{ack},"invert") ? 'active' : 'inactive';
+		my $state = !$thisevent->{ack} ? 'active' : 'inactive';
 		print Tr( eval { my $line;
 										 $line .= td({class=>'info Plain'},
 																 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node));
@@ -154,7 +151,7 @@ sub viewEvent
 							});
 	}
 	
-	if (!$cnt) 
+	if (!$event_ret->{model_data}->count ) 
 	{
 		print Tr(td({class=>'info Plain',colspan=>'4'},"No events current for Node $node"));
 	}
@@ -184,8 +181,9 @@ sub listEvent
 
 	print start_table;
 
-	my %localevents = Compat::NMIS::loadAllEvents;
-	displayEvents(\%localevents, $C->{'server_name'}); #single server
+	my $nmisng = Compat::NMIS::new_nmisng();
+	my $event_ret = $nmisng->events()->get_events_model(filter => {historic => 0});
+	displayEvents($event_ret->{model_data}->data, $C->{'server_name'}); #single server
 
 	if (NMISNG::Util::getbool($C->{server_master})) {
 		# check modify of remote node tables
@@ -243,25 +241,23 @@ sub displayEvents
 	print Tr(th({class=>'title',colspan=>'10'},"$server Event List"));
        
 	# only display the table if there are any events.
-	if (not keys %{$eventdata}) {
+	if (@$eventdata < 1) {
 		print Tr(td({class=>'info Plain'},"No Events Current"));
 		return; # ready
 	}
 
 	# rip thru the table once and count all the events by node....helps heaps later.
-	for my $eventkey ( keys %{$eventdata})  
-	{
-		my $thisevent = $eventdata->{$eventkey};
-		
-		if ( NMISNG::Util::getbool($thisevent->{ack}) ) 
+	for my $thisevent ( @$eventdata ) 
+	{		
+		if ( $thisevent->{ack} ) 
 		{
-			++$eventackcount{$thisevent->{node}};
+			++$eventackcount{$thisevent->{node_name}};
 		}
 		else 
 		{
-			++$eventnoackcount{$thisevent->{node}};
+			++$eventnoackcount{$thisevent->{node_name}};
 		}
-		++$eventcount{$thisevent->{node}};
+		++$eventcount{$thisevent->{node_name}};
 	}
 
 	# always print the active event table header
@@ -269,21 +265,18 @@ sub displayEvents
 	$tempnodeack = '';
 	my $display = '';
 	my $tmpack = '';
-	my $match = 'false';
 
 	my $event_cnt = 0; # index for update routine Compat::NMIS::eventAck()
 
-	for my $eventkey ( sort { $eventdata->{$a}{ack} cmp  $eventdata->{$b}{ack} 
-														 or $eventdata->{$a}{node} cmp $eventdata->{$b}{node} 
-														 or $eventdata->{$b}{startdate} cmp $eventdata->{$a}{startdate} 
-														 or $eventdata->{$a}{escalate} cmp $eventdata->{$b}{escalate}
-											} keys %{$eventdata})  
+	for my $thisevent ( sort { $a->{ack} <=> $b->{ack} 
+														 or $a->{node_uuid} cmp $b->{node_uuid} 
+														 or $b->{startdate} cmp $a->{startdate} 
+														 or $a->{escalate} cmp $b->{escalate}
+											} (@$eventdata)  )
 	{
-		my $thisevent = $eventdata->{$eventkey};
-		next if (!$thisevent->{node}); # should not ever be hit
+		next if (!$thisevent->{node_uuid}); # should not ever be hit
 		# check auth
-		next unless $AU->InGroup($NT->{$thisevent->{node}}{group});
-
+		next unless $AU->InGroup($NT->{$thisevent->{node_name}}{group});
 		# print all events
 
 		# print header if ack changed
@@ -292,35 +285,37 @@ sub displayEvents
 			typeHeader();
 		}
 
-		if (!NMISNG::Util::getbool($tmpack,"invert") and NMISNG::Util::getbool($thisevent->{ack},"invert")) {
+		if (!NMISNG::Util::getbool($tmpack,"invert") and !$thisevent->{ack}) 
+		{
 			$tmpack = 'false';
 			print Tr(td({class=>'heading3',colspan=>'10'},"Active Events. (Set All Events Inactive",
-						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'false$server')",-checked=>'',override=>'1'),
+						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'0$server')",-checked=>'',override=>'1'),
 					")"));
 		}
 
-		if (!NMISNG::Util::getbool($tmpack) and NMISNG::Util::getbool($thisevent->{ack})) {
+		if (!NMISNG::Util::getbool($tmpack) and $thisevent->{ack}) 
+		{
 			$tmpack = 'true';
 			$display ='none';
 			$node_cnt = 0;
 			print Tr(td({class=>'heading3',colspan=>'10'},"Inactive Events. (Set All Events Active ",
-						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'true$server')",-checked=>'',override=>'1'),
+						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'1$server')",-checked=>'',override=>'1'),
 					")"));
 		}
 
-		if ( $tempnode ne $thisevent->{node} ) {
-			$tempnode = $thisevent->{node};
+		if ( $tempnode ne $thisevent->{node_name} ) {
+			$tempnode = $thisevent->{node_name};
 			$node_cnt = 0;
 
 			active($server,$tempnode,$tempnodeack,\%eventnoackcount) 
-					if (NMISNG::Util::getbool($thisevent->{ack},"invert"));
+					if (!$thisevent->{ack});
 			inactive($server,$tempnode,$tempnodeack,\%eventackcount) 
-					if (NMISNG::Util::getbool($thisevent->{ack}));
+					if ($thisevent->{ack});
 
 		}
 
 		# now write the events, hidden or not hidden
-		if ( NMISNG::Util::getbool($thisevent->{ack},"invert") ) {
+		if ( !$thisevent->{ack} ) {
 			$color = NMISNG::Util::eventColor($thisevent->{level});
 		}
 		else {
@@ -329,8 +324,9 @@ sub displayEvents
 		$start = NMISNG::Util::returnDateStamp($thisevent->{startdate});
 		$last = NMISNG::Util::returnDateStamp($thisevent->{lastchange});
 		$outage = NMISNG::Util::convertSecsHours(time() - $thisevent->{startdate});
+		
 		# User logic, hmmmm how will users interpret this!
-		if ( NMISNG::Util::getbool($thisevent->{ack},"invert") ) {
+		if ( !$thisevent->{ack} ) {
 			$button = "true";
 		}
 		else {
@@ -338,12 +334,13 @@ sub displayEvents
 		}
 		# print row , Tr with id for set hidden
 		### 2012-10-02 keiths, changed color to be done by CSS
-		print Tr({id=>"$thisevent->{ack}$tempnode$node_cnt",style=>"display:$display;"},
+		my $ack_tf = ($thisevent->{ack}) ? 'true' : 'false';
+		print Tr({id=>"$ack_tf$tempnode$node_cnt",style=>"display:$display;"},
 			td({class=>"info $thisevent->{level}"},
 				eval {
 					return $AU->CheckAccess("src_events","check")
-						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$thisevent->{node}&sort=descending&widget=$widget"},$thisevent->{node})
-							: "$thisevent->{node}";
+						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$thisevent->{node_name}&sort=descending&widget=$widget"},$thisevent->{node_name})
+							: "$thisevent->{node_name}";
 					}),
 			td({class=>"info $thisevent->{level}"},$outage),
 			td({class=>"info $thisevent->{level}"},$start),
@@ -357,9 +354,7 @@ sub displayEvents
 			td({class=>"info $thisevent->{level}"},$thisevent->{user})
 			);
 
-		print hidden(-name=>"node",-default=>"$thisevent->{node}",override=>'1');
-		print hidden(-name=>"event",-default=>"$thisevent->{event}",override=>'1');
-		print hidden(-name=>"element",-default=>"$thisevent->{element}",override=>'1');
+		print hidden(-name=>"event_id",-default=>"$thisevent->{_id}",override=>'1');
 		print hidden(-name=>"ack",-default=>"$button",override=>'1');
 
 		$event_cnt++;
@@ -421,33 +416,28 @@ sub typeHeader {
 
 # change ack for the matching events
 sub updateEvent 
-{
+{	
+	my $nmisng = Compat::NMIS::new_nmisng();
 	my @par = $q->param(); # parameter names
-	my @nm = $q->param('node'); # node names
-	my @elmnt = $q->param('element'); # event details
+	my @ids = $q->param('event_id'); # node names
 	my @ack = $q->param('ack'); # event ack status
-	my @evnt = $q->param('event'); # event type
-
+	
 	# the value of the checkbox is equal to the index of arrays
 	my $i = 0;
 	# the value of the checkbox is equal to the index of arrays
 	for my $par (@par) 
 	{
-		if ($par =~ /false|true/) 
+		if ($par =~ /^0|1/) 
 		{ 		# false|true is part of the checkbox name
 			my @a = $q->param($par);		# get the values (numbers) of the checkboxes
 			foreach my $i (@a) 
 			{
 				# check for change of event
-				if ($i ne "" and ((NMISNG::Util::getbool($ack[$i]) and $par =~ /false/) 
-													or (NMISNG::Util::getbool($ack[$i],"invert") and $par =~ /true/))) 
+				if ($i ne "" and ((NMISNG::Util::getbool($ack[$i]) and $par =~ /^0/) 
+													or (NMISNG::Util::getbool($ack[$i],"invert") and $par =~ /^1/))) 
 				{
-					# event changes
-					Compat::NMIS::eventAck( ack=>$ack[$i], 
-										node=>$nm[$i],
-										event=>$evnt[$i],
-										element=>$elmnt[$i],
-										user=>$AU->User() );
+					my $event = $nmisng->events->event( _id => $ids[$i] );
+					$event->acknowledge( ack => $ack[$i], user => $AU->User() );
 				}
 			}
 		}

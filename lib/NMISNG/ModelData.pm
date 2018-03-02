@@ -61,7 +61,7 @@ sub new
 		_sort => $args{sort},
 		_limit => $args{limit},
 		_skip => $args{skip}
-									 }, $class );
+	}, $class );
 
 	my $maybestatic = $args{class_name};
 	if (ref($maybestatic) eq "HASH")
@@ -110,14 +110,6 @@ sub count
 	my ($self) = @_;
 
 	return (ref($self->{_data}) eq 'ARRAY')? scalar(@{$self->{_data}}) : 0;
-}
-
-# readonly - returns the number of entries the database reported,
-# if if reported any. returns undef otherwise. does NOT count the actual data.
-sub query_count
-{
-	my ($self) = @_;
-	return $self->{_query_count};
 }
 
 # returns a list of instantiated objects for the current data
@@ -210,6 +202,14 @@ sub object
 	}
 
 	return (undef, $thing);
+}
+
+# readonly - returns the number of entries the database reported,
+# if if reported any. returns undef otherwise. does NOT count the actual data.
+sub query_count
+{
+	my ($self) = @_;
+	return $self->{_query_count};
 }
 
 1;

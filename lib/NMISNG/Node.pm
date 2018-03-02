@@ -43,7 +43,6 @@ use Data::Dumper;
 
 use NMISNG::DB;
 use NMISNG::Inventory;
-use Compat::NMIS;								# for cleanEvent
 
 # create a new node object
 # params:
@@ -101,22 +100,7 @@ sub _dirty
 # Public:
 ###########
 
-# small r/o accessor for node activation status
-# args: none
-# returns: 1 if node is configured to be active
-sub is_active
-{
-	my ($self) = @_;
-
-	my $curcfg = $self->configuration;
-
-	# check the new-style 'activated.nmis' flag first, then the old-style 'active' property
-	return $curcfg->{activated}->{nmis} if (ref($curcfg->{activated}) eq "HASH"
-																					and defined $curcfg->{activated}->{nmis});
-	return NMISNG::Util::getbool($curcfg->{active});
-}
-
-
+#
 # bulk set records to be historic which match this node and are
 # not in the array of active_indices (or active_ids) provided
 #
@@ -233,6 +217,12 @@ sub configuration
 		# and an existing _id must be retained or the is_new logic fails
 		$newvalue->{_id} = $self->{_configuration}->{_id};
 
+		# convert true/false to 0/1
+		foreach my $no_more_tf (qw(active calls collect ping rancid threshold webserver))
+		{
+			$newvalue->{$no_more_tf} = NMISNG::Util::getbool($newvalue->{$no_more_tf}) if( $newvalue->{$no_more_tf} );
+		}
+
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
@@ -297,7 +287,7 @@ sub delete
 	}
 
 	# delete any open events, failure undetectable *sigh* and not error-worthy
-	Compat::NMIS::cleanEvent($self->name, "NMISNG::Node"); # fixme9: we don't have any useful caller
+	$self->eventsClean("NMISNG::Node"); # fixme9: we don't have any useful caller
 
  	# finally delete the node record itself
 	$result = NMISNG::DB::remove(
@@ -311,104 +301,78 @@ sub delete
 	return (1,undef);
 }
 
-# this utility function renames a node and all its files,
-# and deletes the node's events (cannot be renamed sensibly)
-#
-# function doesn't have to do anything about inventories, because
-# these are linked by node's uuid which is invariant
-# args: new_name, optional originator (for events)
-# returns: (success, message) or (0, error message)
-sub rename
+# convenience function to help create an event object
+sub event
 {
-	my ($self, %args) = @_;
-	my $newname = $args{new_name};
-	my $old = $self->name;
-
-	return (0, "Invalid new_name argument") if (!$newname);
-
-	# note: if sub validate is changed to be stricter wrt node name, then this needs to be changed as well!
-	# '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
-	return (0, "new_name argument contains forbidden character '/'") if ($newname =~ m!/!);
-
-	return (1, "new_name same as current, nothing to do")
-			if ($newname eq $old);
-
-	my $clash = $self->nmisng->get_nodes_model(name => $newname);
-	return (0, "A node named \"$newname\" already exists!")
-			if ($clash->count);
-
-	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
-	# find the node's var files and  hardlink them - do not delete anything yet!
-	my @todelete;
-
-	my $vardir = $self->nmisng->config->{'<nmis_var>'};
-	opendir(D, $vardir) or return(1, "cannot read dir $vardir: $!");
-	for my $fn (readdir(D))
-	{
-		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
-		{
-			my ($component,$ext) = ($1,$2);
-			my $newfn = lc("$newname-$component.$ext");
-			push @todelete, "$vardir/$fn";
-			$self->nmisng->log->debug("Renaming/linking var/$fn to $newfn");
-			link("$vardir/$fn", "$vardir/$newfn") or
-					return(0, "cannot hardlink $fn to $newfn: $!");
-		}
-	}
-	closedir(D);
-
-	# find all the node's inventory instances, tell them to hardlink their rrds
-	# get everything, historic or not - make it instantiatable
-	# concept type is unknown/dynamic, so have it ask nmisng
-	my $result = $self->get_inventory_model(
-		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
-	return (0, "Failed to retrieve inventories: $result->{error}")
-			if (!$result->{success});
-
-	my $gimme = $result->{model_data}->objects;
-	return (0, "Failed to instantiate inventory: $gimme->{error}")
-			if (!$gimme->{success});
-	for my $invinstance (@{$gimme->{objects}})
-	{
-		$self->nmisng->log->debug("relocating rrds for inventory instance "
-															.$invinstance->id
-															.", concept ".$invinstance->concept
-															.", description \"".$invinstance->description.'"');
-		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old,
-																															 new => $newname);
-		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
-				if (!$ok);
-		# informational
-		$self->nmisng->log->debug2("relocation reported $error") if ($error);
-
-		# relocate storage returns relative names
-		my $dbroot = $self->nmisng->config->{'database_root'};
-		push @todelete, map { "$dbroot/$_" } (@oktorm);
-	}
-
-	# then update ourself and save
-	$self->{_configuration}->{name} = $newname;
-	$self->_dirty(1, 'configuration');
-	my ($ok, $error) = $self->save;
-	return (0, "Failed to save node record: $error") if ($ok <= 0);
-
-	# and finally deal with the no longer required old links
-	for my $fn (@todelete)
-	{
-		next if (!defined $fn);
-		my $relfn = File::Spec->abs2rel($fn, $self->nmisng->config->{'<nmis_base>'});
-		$self->nmisng->log->debug("Deleting file $relfn, no longer required");
-		unlink($fn);
-	}
-
-	# now clear all events for old node
-	$self->nmisng->log->debug("Removing events for old node");
-	Compat::NMIS::cleanEvent($old, $args{originator});
-
-	$self->nmisng->log->debug("Successfully renamed node $old to $newname");
-	return (1,undef);
+	my ( $self, %args ) = @_;	
+	$args{node_uuid} = $self->uuid;
+	$args{node_name} = $self->name;
+	my $event = $self->nmisng->events->event( %args );
+	return $event;
 }
 
+# convenience function for adding an event to this node
+#
+sub eventAdd
+{
+	my ($self, %args) = @_;
+	$args{node} = $self;
+	return $self->nmisng->events->eventAdd(%args);
+}
+
+sub eventDelete
+{
+	my ($self, %args) = @_;
+	my $event = $args{event};
+	$event->{node_uuid} = $self->uuid;
+	# just make sure this isn't passed in
+	delete $event->{node};
+	return $self->nmisng->events->eventDelete(event => $event);	
+}
+
+sub eventExist
+{
+	my ($self, $event, $element) = @_;	
+	return $self->nmisng->events->eventExist($self,$event,$element);
+}
+
+sub eventLoad
+{
+	my ($self, %args) = @_;
+	$args{node_uuid} = $self->uuid;
+	return $self->nmisng->events->eventLoad( %args );
+}
+
+sub eventLog
+{
+	my ($self, %args) = @_;
+	$args{node_name} = $self->name;
+	$args{node_uuid} = $self->uuid;
+	return $self->nmisng->events->logEvent(%args);
+}
+
+sub eventUpdate
+{
+	my ($self, %args) = @_;
+	my $event = $args{event};
+	$event->{node_uuid} = $self->uuid;
+	return $self->nmisng->events->eventUpdate(%args);
+}
+
+sub eventsClean
+{
+	my ($self, $caller) = @_;
+	return $self->nmisng->events->cleanNodeEvents( $self, $caller );	
+}
+
+sub get_events_model
+{
+	my ( $self, %args ) = @_;
+	# modify filter to make sure it's getting just events for this node
+	my $filter = $args{filter};
+	$filter->{node_uuid} = $self->uuid;
+	return $self->nmisng->events->get_events_model( %args );
+}
 
 # get a list of id's for inventory related to this node,
 # useful for iterating through all inventory
@@ -614,6 +578,21 @@ sub inventory_path
 	return $path;
 }
 
+# small r/o accessor for node activation status
+# args: none
+# returns: 1 if node is configured to be active
+sub is_active
+{
+	my ($self) = @_;
+
+	my $curcfg = $self->configuration;
+
+	# check the new-style 'activated.nmis' flag first, then the old-style 'active' property
+	return $curcfg->{activated}->{nmis} if (ref($curcfg->{activated}) eq "HASH"
+																					and defined $curcfg->{activated}->{nmis});
+	return NMISNG::Util::getbool($curcfg->{active});
+}
+
 # returns 0/1 if the object is new or not.
 # new means it is not yet in the database
 sub is_new
@@ -625,6 +604,15 @@ sub is_new
 	# print "id".Dumper($configuration);
 	my $has_id = ( defined($configuration) && defined( $configuration->{_id} ) );
 	return ($has_id) ? 0 : 1;
+}
+
+# return bool (0/1) if node is down in catchall/info section
+sub is_nodedown
+{
+	my ($self) = @_;
+	my $inventory =  $self->inventory( concept => "catchall" );	
+	my $info = ($inventory) ? $inventory->data : {};
+	return NMISNG::Util::getbool( $info->{nodedown} );
 }
 
 # load data for this node from the database, named load_part because the module Module::Load has load which clashes
@@ -675,6 +663,13 @@ sub name
 	return $self->configuration()->{name};
 }
 
+# return nmisng object this node is using
+sub nmisng
+{
+	my ($self) = @_;
+	return $self->{_nmisng};
+}
+
 # get/set the overrides for this node
 # setting data means the overrides is dirty and will
 #  be saved next time save is called, even if it is identical to what
@@ -704,6 +699,104 @@ sub overrides
 
 	# loading will set this to an empty hash if it's not defined
 	return $self->{_overrides};
+}
+
+# this utility function renames a node and all its files,
+# and deletes the node's events (cannot be renamed sensibly)
+#
+# function doesn't have to do anything about inventories, because
+# these are linked by node's uuid which is invariant
+# args: new_name, optional originator (for events)
+# returns: (success, message) or (0, error message)
+sub rename
+{
+	my ($self, %args) = @_;
+	my $newname = $args{new_name};
+	my $old = $self->name;
+
+	return (0, "Invalid new_name argument") if (!$newname);
+
+	# note: if sub validate is changed to be stricter wrt node name, then this needs to be changed as well!
+	# '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
+	return (0, "new_name argument contains forbidden character '/'") if ($newname =~ m!/!);
+
+	return (1, "new_name same as current, nothing to do")
+			if ($newname eq $old);
+
+	my $clash = $self->nmisng->get_nodes_model(name => $newname);
+	return (0, "A node named \"$newname\" already exists!")
+			if ($clash->count);
+
+	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
+	# find the node's var files and  hardlink them - do not delete anything yet!
+	my @todelete;
+
+	my $vardir = $self->nmisng->config->{'<nmis_var>'};
+	opendir(D, $vardir) or return(1, "cannot read dir $vardir: $!");
+	for my $fn (readdir(D))
+	{
+		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
+		{
+			my ($component,$ext) = ($1,$2);
+			my $newfn = lc("$newname-$component.$ext");
+			push @todelete, "$vardir/$fn";
+			$self->nmisng->log->debug("Renaming/linking var/$fn to $newfn");
+			link("$vardir/$fn", "$vardir/$newfn") or
+					return(0, "cannot hardlink $fn to $newfn: $!");
+		}
+	}
+	closedir(D);
+
+	# find all the node's inventory instances, tell them to hardlink their rrds
+	# get everything, historic or not - make it instantiatable
+	# concept type is unknown/dynamic, so have it ask nmisng
+	my $result = $self->get_inventory_model(
+		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
+	return (0, "Failed to retrieve inventories: $result->{error}")
+			if (!$result->{success});
+
+	my $gimme = $result->{model_data}->objects;
+	return (0, "Failed to instantiate inventory: $gimme->{error}")
+			if (!$gimme->{success});
+	for my $invinstance (@{$gimme->{objects}})
+	{
+		$self->nmisng->log->debug("relocating rrds for inventory instance "
+															.$invinstance->id
+															.", concept ".$invinstance->concept
+															.", description \"".$invinstance->description.'"');
+		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old,
+																															 new => $newname);
+		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
+				if (!$ok);
+		# informational
+		$self->nmisng->log->debug2("relocation reported $error") if ($error);
+
+		# relocate storage returns relative names
+		my $dbroot = $self->nmisng->config->{'database_root'};
+		push @todelete, map { "$dbroot/$_" } (@oktorm);
+	}
+
+	# then update ourself and save
+	$self->{_configuration}->{name} = $newname;
+	$self->_dirty(1, 'configuration');
+	my ($ok, $error) = $self->save;
+	return (0, "Failed to save node record: $error") if ($ok <= 0);
+
+	# and finally deal with the no longer required old links
+	for my $fn (@todelete)
+	{
+		next if (!defined $fn);
+		my $relfn = File::Spec->abs2rel($fn, $self->nmisng->config->{'<nmis_base>'});
+		$self->nmisng->log->debug("Deleting file $relfn, no longer required");
+		unlink($fn);
+	}
+
+	# now clear all events for old node
+	$self->nmisng->log->debug("Removing events for old node");
+	$self->eventsClean( $args{originator} ); # fixme9: we don't have any useful caller
+
+	$self->nmisng->log->debug("Successfully renamed node $old to $newname");
+	return (1,undef);
 }
 
 # Save object to DB if it is dirty
@@ -768,12 +861,6 @@ sub save
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
 
-# return nmisng object this node is using
-sub nmisng
-{
-	my ($self) = @_;
-	return $self->{_nmisng};
-}
 
 # get the nodes id (which is its UUID)
 sub uuid
