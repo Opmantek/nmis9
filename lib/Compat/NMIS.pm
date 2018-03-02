@@ -241,7 +241,7 @@ sub loadCfgTable
 
 
 # fixme9: cannot work that way anymore
-sub loadServersTable 
+sub loadServersTable
 {
 	return {};
 #	return NMISNG::Util::loadTable(dir=>'conf',name=>'Servers');
@@ -273,7 +273,7 @@ sub loadNodeSummary {
 
 	### 2011-12-29 keiths, moving master handling outside of Cache handling!
 	# fixme9: config server_master is gone!
-	if ( # NMISNG::Util::getbool($C->{server_master}) or 
+	if ( # NMISNG::Util::getbool($C->{server_master}) or
 			 NMISNG::Util::getbool($master)) {
 		NMISNG::Util::dbg("Master, processing Slave Servers");
 		my $ST = loadServersTable();
@@ -524,7 +524,7 @@ sub getSummaryStats
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
-	if ( # NMISNG::Util::getbool($C->{server_master}) and 
+	if ( # NMISNG::Util::getbool($C->{server_master}) and
 			 $catchall_data->{server}
 			 and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
@@ -676,7 +676,7 @@ sub getSubconceptStats
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
-	if (# NMISNG::Util::getbool($C->{server_master}) and 
+	if (# NMISNG::Util::getbool($C->{server_master}) and
 			$catchall_data->{server}
 			and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
@@ -2755,7 +2755,6 @@ sub checkEvent
 	my $C = NMISNG::Util::loadConfTable();
 
 	# events.nmis controls which events are active/logging/notifying
-	# cannot use loadGenericTable as that checks and clashes with db_events_sql
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
@@ -2919,7 +2918,6 @@ sub notify
 	NMISNG::Util::dbg("Start of Notify");
 
 	# events.nmis controls which events are active/logging/notifying
-	# cannot use loadGenericTable as that checks and clashes with db_events_sql
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 

@@ -1,4 +1,4 @@
-
+#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -921,7 +921,7 @@ sub update_queue
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
 			if ($jobdata->{type} !~ /^(collect|update|services|threshold|escalate|configbackup|purge|dbcleanup)$/);
-	
+
 
 	my $jobid = $jobdata->{_id};
 	delete $jobdata->{_id};
@@ -1006,7 +1006,7 @@ sub get_queue_model
 																 limit => $extras{limit},
 																 skip => $extras{skip} );
 
-	return NMISNG::ModelData->new(nmisng => $self, 
+	return NMISNG::ModelData->new(nmisng => $self,
 																error => "Find failed: ".NMISNG::DB::get_error_string)
 			if (!defined $cursor);
 	my @data = $cursor->all;
@@ -1021,15 +1021,15 @@ sub get_queue_model
 																sort => $extras{sort},
 																limit => $extras{limit},
 																skip => $extras{skip} );
-	
+
 }
 
 
-# this is a maintenance command for removing old, 
+# this is a maintenance command for removing old,
 # broken or unwanted files
 #
 # args: self, simulate (default: false, if true only reports what it would do)
-# returns: hashref, success/error and info (info is array ref) 
+# returns: hashref, success/error and info (info is array ref)
 sub purge_old_files
 {
 	my ($self, %args) = @_;
@@ -1130,15 +1130,15 @@ sub purge_old_files
 		next if ( !$rule->{location} );
 		push @info, "checking dir $rule->{location} for $rule->{description}";
 
-		File::Find::find( 
+		File::Find::find(
 			{
 				wanted => sub {
 					my $localname = $_;
-					
+
 					# don't need it at the moment my $dir = $File::Find::dir;
 					my $fn   = $File::Find::name;
 					my @stat = stat($fn);
-					
+
 					next
 							if (
 								!S_ISREG( $stat[2] )    # not a file
@@ -1146,7 +1146,7 @@ sub purge_old_files
 								or ( $rule->{path}    and $fn !~ $rule->{path} )          # not a matching path
 								or ( $rule->{notpath} and $fn =~ $rule->{notpath} )
 							);                                                        # or an excluded path
-					
+
 					# also_empties: purge by age or empty, versus only_empties: only purge empties
 					if ( $rule->{only_empties} )
 					{
@@ -1311,7 +1311,7 @@ sub dbcleanup
 																	 and_part => { _id => \@ditchables }));
 			if (!$res->{success})
 			{
-				return { error => "failed to remove $collname instances: $res->{error}", 
+				return { error => "failed to remove $collname instances: $res->{error}",
 								 info => \@info };
 			}
 			push @info, "removed $res->{removed_records} orphaned timed records for $concept.";
@@ -1415,5 +1415,184 @@ sub config_backup
 	unlink $nodedumpfile if (-f $nodedumpfile);
 	return  { success => 1, file => "$backupfilename.gz" };
 }
+
+# poll/update-type action which updates the Links.nmis configuration(?) file
+# args: self
+# returns: nothing
+sub update_links
+{
+	my ($self, %args) = @_;
+
+	my $C = $self->config;
+
+	if ( NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
+	{
+		NMISNG::Util::logMsg("update_links disabled because disable_interfaces_summary=$C->{disable_interfaces_summary}");
+		return;
+	}
+	my (%subnets, $II, %catchall);
+
+	NMISNG::Util::dbg("Start");
+	if ( !( $II = Compat::NMIS::loadInterfaceInfo() ) )
+	{
+		NMISNG::Util::logMsg("ERROR reading all interface info");
+		return;
+	}
+
+	my $links = NMISNG::Util::loadTable( dir => 'conf', name => 'Links' ) // {};
+
+	my $link_ifTypes = $C->{link_ifTypes} || '.';
+	my $qr_link_ifTypes = qr/$link_ifTypes/i;
+
+	NMISNG::Util::dbg("Collecting Interface Linkage Information");
+	foreach my $intHash ( sort keys %{$II} )
+	{
+		my $cnt = 1;
+		my $thisintf = $II->{$intHash};
+
+		while (defined(my $subnet = $thisintf->{"ipSubnet$cnt"}) )
+		{
+			my $ipAddr = $thisintf->{"ipAdEntAddr$cnt"};
+
+			if ($ipAddr ne ""
+					and $ipAddr ne "0.0.0.0"
+					and $ipAddr !~ /^127/
+					and NMISNG::Util::getbool($thisintf->{collect})
+					and $thisintf->{ifType} =~ /$qr_link_ifTypes/ )
+			{
+				my $neednode = $thisintf->{node};
+				if (!$catchall{$neednode})
+				{
+					my $nodeobj = $self->node(name => $neednode);
+					die "No node named $neednode exists!\n" if (!$nodeobj); # fixme9: better option?
+
+					my ($inventory,$error) = $nodeobj->inventory(concept => "catchall");
+					die "Failed to retrieve $neednode inventory: $error\n" if ($error);
+					$catchall{$neednode} = ref($inventory)? $inventory->data : {};
+				}
+
+				if (!exists $subnets{$subnet}->{subnet} )
+				{
+					$subnets{$subnet}{subnet}      = $subnet;
+					$subnets{$subnet}{address1}    = $ipAddr;
+					$subnets{$subnet}{count}       = 1;
+					$subnets{$subnet}{description} = $thisintf->{Description};
+					$subnets{$subnet}{mask}        = $thisintf->{"ipAdEntNetMask$cnt"};
+					$subnets{$subnet}{ifSpeed}     = $thisintf->{ifSpeed};
+					$subnets{$subnet}{ifType}      = $thisintf->{ifType};
+					$subnets{$subnet}{net1}        = $catchall{$neednode}->{netType};
+					$subnets{$subnet}{role1}       = $catchall{$neednode}->{roleType};
+					$subnets{$subnet}{node1}       = $thisintf->{node};
+					$subnets{$subnet}{ifDescr1}    = $thisintf->{ifDescr};
+					$subnets{$subnet}{ifIndex1}    = $thisintf->{ifIndex};
+				}
+				else
+				{
+					++$subnets{$subnet}{count};
+
+					if (!defined $subnets{$subnet}{description})
+					{    # use node2 description if node1 description did not exist.
+						$subnets{$subnet}{description} = $thisintf->{Description};
+					}
+					$subnets{$subnet}{net2}     = $catchall{$neednode}->{netType};
+					$subnets{$subnet}{role2}    = $catchall{$neednode}->{roleType};
+					$subnets{$subnet}{node2}    = $thisintf->{node};
+					$subnets{$subnet}{ifDescr2} = $thisintf->{ifDescr};
+					$subnets{$subnet}{ifIndex2} = $thisintf->{ifIndex};
+				}
+			}
+			if ( $C->{debug} > 2 )
+			{
+					NMISNG::Util::dbg("found subnet: ".
+														Data::Dumper->new([$subnets{$subnet}])->Terse(1)->Indent(0)->Pair("=")->Dump);
+			}
+			$cnt++;
+		}
+	}
+
+	NMISNG::Util::dbg("Generating Links datastructure");
+	foreach my $subnet ( sort keys %subnets )
+	{
+		my $thisnet = $subnets{$subnet};
+		next if ( $thisnet->{count} != 2 ); # ignore networks that are attached to only one node
+
+		# skip subnet for same node-interface in link table
+		next if (grep {
+			$links->{$_}->{node1} eq $thisnet->{node1}
+			and $links->{$_}->{ifIndex1} eq $thisnet->{ifIndex1}
+						 } (keys %{$links}));
+
+		my $thislink = ($links->{$subnet} //= {});
+
+		# form a key - use subnet as the unique key, same as read in, so will update any links with new information
+		if ( defined $thisnet->{description}
+				 and $thisnet->{description} ne 'noSuchObject'
+				 and $thisnet->{description} ne "" )
+		{
+			$thislink->{link} = $thisnet->{description};
+		}
+		else
+		{
+			# label the link as the subnet if no description
+			$thislink->{link} = $subnet;
+		}
+		$thislink->{subnet}  = $thisnet->{subnet};
+		$thislink->{mask}    = $thisnet->{mask};
+		$thislink->{ifSpeed} = $thisnet->{ifSpeed};
+		$thislink->{ifType}  = $thisnet->{ifType};
+
+		# define direction based on wan-lan and core-distribution-access
+		# selection weights cover the most well-known types
+		# fixme: this is pretty ugly and doesn't use $C->{severity_by_roletype}
+		my %netweight = ( wan => 1, lan => 2, _ => 3, );
+		my %roleweight = ( core => 1, distribution => 2, _ => 3, access => 4 );
+
+		my $netweight1
+				= defined( $netweight{$thisnet->{net1}} )
+				? $netweight{$thisnet->{net1}}
+		: $netweight{"_"};
+		my $netweight2
+				= defined( $netweight{$thisnet->{net2}} )
+				? $netweight{$thisnet->{net2}}
+		: $netweight{"_"};
+
+		my $roleweight1
+				= defined( $roleweight{$thisnet->{role1}} )
+				? $roleweight{$thisnet->{role1}}
+		: $roleweight{"_"};
+		my $roleweight2
+				= defined( $roleweight{$thisnet->{role2}} )
+				? $roleweight{$thisnet->{role2}}
+		: $roleweight{"_"};
+
+		my $k
+				= ( ( $netweight1 == $netweight2 && $roleweight1 > $roleweight2 ) || $netweight1 > $netweight2 )
+				? 2
+				: 1;
+
+		$thislink->{net}  = $thisnet->{"net$k"};
+		$thislink->{role} = $thisnet->{"role$k"};
+
+		$thislink->{node1}      = $thisnet->{"node$k"};
+		$thislink->{interface1} = $thisnet->{"ifDescr$k"};
+		$thislink->{ifIndex1}   = $thisnet->{"ifIndex$k"};
+
+		$k = $k == 1 ? 2 : 1;
+		$thislink->{node2}      = $thisnet->{"node$k"};
+		$thislink->{interface2} = $thisnet->{"ifDescr$k"};
+		$thislink->{ifIndex2}   = $thisnet->{"ifIndex$k"};
+
+		# dont overwrite any manually configured dependancies.
+		if ( !exists $thislink->{depend} ) { $thislink->{depend} = "N/A" }
+
+		NMISNG::Util::dbg("Adding link $thislink->{link} for $subnet to links");
+	}
+
+	NMISNG::Util::writeTable( dir => 'conf', name => 'Links', data => $links );
+	NMISNG::Util::logMsg("Check table Links and update link names and other entries");
+
+	NMISNG::Util::dbg("Finished");
+}
+
 
 1;

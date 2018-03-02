@@ -93,7 +93,7 @@ options:
       threshold Calculate thresholds
       services  Run Services data collection only
       escalate  Run the escalation routine only ( debug use only)
-      links     Generate the links.csv file.
+      links     Update the Links.nmis file.
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
@@ -218,7 +218,7 @@ if ( $type =~ /^(collect|update|services)$/ )
 elsif ( $type eq "escalate" ) { runEscalate(); printRunTime(); }    # included in type=collect
 
 
-elsif ( $type eq "links" )      { runLinks(); }                                            # included in type=update
+elsif ( $type eq "links" )      { Compat::NMIS::new_nmisng->update_links; }                                            # included in type=update
 elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # USUALLY included in type=collect
 else
 {
@@ -748,7 +748,7 @@ sub runThreads
 		if ( !NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
 		{
 			getIntfAllInfo();    # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
-			runLinks();
+			$nmisng->update_links;
 		}
 	}
 
@@ -7883,8 +7883,7 @@ sub runEscalate
 	}
 
 	# the events configuration table, controls active/notify/logging for each known event
-	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' )
-		;    # cannot use loadGenericTable as that checks and clashes with db_events_sql
+	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
 
 	# add a full format time string for emails and message notifications
 	# pull the system timezone and then the local time
@@ -9306,10 +9305,7 @@ sub runLinks
 		}
 	}
 	$links = {} if !$links;
-	if ( !NMISNG::Util::getbool( $C->{db_links_sql} ) )
-	{
-		NMISNG::Util::writeTable( dir => 'conf', name => 'Links', data => $links );
-	}
+	NMISNG::Util::writeTable( dir => 'conf', name => 'Links', data => $links );
 	NMISNG::Util::logMsg("Check table Links and update link names and other entries");
 
 	NMISNG::Util::dbg("Finished");

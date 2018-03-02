@@ -297,18 +297,20 @@ my %hash = (
 				],
 
 		'database' => [
-			{ 'db_events_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_nodes_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_users_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_locations_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_contacts_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_privmap_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_escalations_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_services_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_iftypes_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_access_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_logs_sql' => { display => 'popup', value => ['true','false']}},
-			{ 'db_links_sql' => { display => 'popup', value => ['true','false']}},
+			{ db_name =>  { display => "text", value => [ "nmisng" ] ,
+											validate => { 'regex' => qr/^[a-zA-Z0-9_-]{1,63}$/ }}},
+
+			{ db_password => { display => "text", value => ["op42flow42"],
+												 validate => { 'regex' => qr/^.+$/}}},
+
+			{ db_port => { display => "text", value => ["27017"],
+										 validate => { 'int' => [ 1, 65535 ] }}},
+
+			{ db_server => { display => "text", value => ["localhost"],
+											 validate => { "resolvable" => [ 4 ] } } },
+
+			{ db_username => { display => "text", value => ['opUserRW'],
+ 												 validate => { 'regex' => qr/^.+$/}}},
 				],
 	}
 		);

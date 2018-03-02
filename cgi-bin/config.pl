@@ -820,19 +820,6 @@ sub getHelp {
 		'menu_suspend_link' =>	'Format: true | false<br>set if you wish to suspend the link info on the statusbar',
 		'menu_title' =>			'Format: string<br>will be displayed in the horizontal Menu bar',
 		'menu_start_page_id'=>	'Format: string<br>id of start page<br>id is defined in menu.pl',
-# database
-		'db_events_sql'		=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_nodes_sql'		=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_users_sql'		=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_locations_sql'	=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_contacts_sql'	=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_privmap_sql'	=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_escalations_sql'=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_services_sql'	=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_iftypes_sql'	=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_access_sql'		=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_logs_sql'		=>	'Format: true | false<br>set if you wish to use sql database, else use file',
-		'db_links_sql'		=>	'Format: true | false<br>set if you wish to use sql database, else use file'
 
 	);
 
