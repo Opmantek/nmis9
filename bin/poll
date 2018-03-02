@@ -8285,7 +8285,7 @@ LABEL_ESC:
 		if ( $outage eq "current" and !$event_obj->ack )
 		{
 			$event_obj->startdate(time());
-			if ( my $err = thisevent->save() )
+			if ( my $err = $event_obj->save() )
 			{
 				NMISNG::Util::logMsg("ERROR $err");
 			}
