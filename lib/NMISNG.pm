@@ -1032,7 +1032,7 @@ sub get_queue_model
 																verbose => 1);
 		return NMISNG::ModelData->new(nmisng => $self, error => "Count failed: $res->{error}")
 				if (!$res->{success});
-		$querycount = $res->count;
+		$querycount = $res->{count};
 	}
 
 	# now perform the actual retrieval, with skip, limit and sort passed in
