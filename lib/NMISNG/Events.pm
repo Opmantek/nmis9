@@ -169,9 +169,9 @@ sub eventExist
 	my ( $self, $node, $event, $element ) = @_;
 
 	# only want non-historic events which are active (which is the default)
-	my $event
+	my $eventobj
 		= $self->event( node_uuid => $node->uuid, event => $event, element => $element, historic => 0, active => 1 );
-	return $event->exists;
+	return $eventobj->exists;
 }
 
 # gets the detailed event record for the given event
