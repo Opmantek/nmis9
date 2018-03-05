@@ -2220,11 +2220,10 @@ sub checkEvent
 
 	$args{node_uuid} = $S->nmisng_node()->uuid;
 	# create event with attributes we are looking for
-	my $event = $nmisng->events->event( %args	);
+	my $event = $nmisng->events->event( _id => $args{_id}, node_uuid => $args{node_uuid}, event => $args{event}, element => $args{element} );
 	# only take the missing data from the db, that way our new details/level will
-	# be used instead of what is in the db
-	$event->load( only_take_missing => 1 );
-	return $event->check( %args );
+	# be used instead of what is in the db	
+	return $event->check( sys => $S, details => $args{details}, level => $args{level} );
 };
 
 # notify creates new events
