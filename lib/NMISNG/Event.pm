@@ -421,7 +421,8 @@ sub custom_data
 # it's here so existing code that's expecting a node to be a hash can have it's hash
 sub data
 {
-	return shift->{data};
+	my ($self) = @_;
+	return $self->{data};
 }
 
 # this will either delete the event or mark it as historic and set the expire_at
@@ -624,7 +625,7 @@ sub load
 	my $only_take_missing = $args{only_take_missing};
 
 	# undef if we are not new and are not forced to check
-	return if ( $self->{_loaded} && !$force );
+	return if ( $self->loaded && !$force );
 
 	# don't add active to filter, we want !historic but don't care about active because if one
 	# exists that is inactive (but not historic) we want to make that active again if threshold
@@ -655,7 +656,7 @@ sub load
 				}
 			}
 		}
-		$self->{_loaded} = 1;
+		$self->loaded( 1 );
 	}
 	elsif ( !$error && $model_data->count > 1 )
 	{
@@ -665,6 +666,17 @@ sub load
 	}
 
 	return $error;
+}
+
+sub loaded
+{	
+	my ( $self, $newvalue ) = @_;
+	my $current = $self->{_loaded};
+	if ( @_ == 2 )
+	{
+		$self->{_loaded} = $newvalue;
+	}
+	return $current;
 }
 
 # log this event to the event log, any arugments provided will override what is in this object

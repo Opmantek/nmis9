@@ -8192,6 +8192,9 @@ LABEL_ESC:
 	for(my $i = 0; $i < $active_ret->{model_data}->count; $i++) 
 	{
 		my $event_obj = $active_ret->{model_data}->object($i);
+		# we must tell the object it's already loaded or whenever load is called
+		# (which save does call) will clober any changes made before it's called
+		$event_obj->loaded( 1 );
 		my $nmisng_node = $nmisng->node(uuid => $event_obj->node_uuid);
 		# get the data in the event as a hash so it's easier to print
 		my $event_data = $event_obj->data();
