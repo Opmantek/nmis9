@@ -435,7 +435,8 @@ sub delete
 	if ( !NMISNG::Util::getbool( $self->nmisng->config->{"keep_event_history"}, "invert" ) )
 	{
 		# mark it inactive/historic, and make it go away eventually
-		my $expire_at = time + $self->nmisng->config->{purge_event_after} // 86400;
+		my $expire_at = $self->nmisng->config->{purge_event_after} // 86400;
+		$expire_at = Time::Moment->from_epoch(time + $expire_at);
 
 		$self->historic(1);
 		$self->expire_at($expire_at);
