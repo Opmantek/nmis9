@@ -50,27 +50,27 @@ our $VERSION = "1.0.0";
 # sys not required as argument but can't be left in the args
 # here is a list of the known attributes, these will be givent getter/setters, everything else is 'custom_data'
 my %known_attrs = (
-	_id => 1,
-	ack => 1,
-	active => 1,
-	cluster_id => 1,
-	context => 1,
-	details => 1,
-	element => 1,
-	escalate => 1,
+	_id            => 1,
+	ack            => 1,
+	active         => 1,
+	cluster_id     => 1,
+	context        => 1,
+	details        => 1,
+	element        => 1,
+	escalate       => 1,
 	event_previous => 1,
-	expire_at => 1,
-	historic => 1,
-	inventory_id => 1,
-	lastupdate => 1,
-	level => 1,
-	logged => 1,
-	node_name => 1,
-	node_uuid => 1,
-	notify => 1,
-	startdate => 1,
-	stateless => 1,
-	user => 1
+	expire_at      => 1,
+	historic       => 1,
+	inventory_id   => 1,
+	lastupdate     => 1,
+	level          => 1,
+	logged         => 1,
+	node_name      => 1,
+	node_uuid      => 1,
+	notify         => 1,
+	startdate      => 1,
+	stateless      => 1,
+	user           => 1
 );
 
 sub new
@@ -85,10 +85,10 @@ sub new
 			"not enough info to create an event, id:$args{_id}, node_uuid:$args{node_uuid}, event:$args{event},element:$args{element}";
 	}
 
-	my ($nmisng,$S) = @args{'nmisng','sys'};
+	my ( $nmisng, $S ) = @args{'nmisng', 'sys'};
 	delete $args{nmisng};
-	delete $args{sys};	
-	
+	delete $args{sys};
+
 	# note: defautls are not set here, they are done on save so that loading with only_take_missing doesn't get taken
 	#   by values that were set for you
 	my $self = bless(
@@ -106,7 +106,7 @@ sub new
 
 # quick get/setters for plain attributes
 # having setters for these isn't really necessary
-for my $name (keys %known_attrs)
+for my $name ( keys %known_attrs )
 {
 	no strict 'refs';
 	*$name = sub {
@@ -437,7 +437,7 @@ sub delete
 	{
 		# mark it inactive/historic, and make it go away eventually
 		my $expire_at = $self->nmisng->config->{purge_event_after} // 86400;
-		$expire_at = Time::Moment->from_epoch(time + $expire_at);
+		$expire_at = Time::Moment->from_epoch( time + $expire_at );
 
 		$self->historic(1);
 		$self->expire_at($expire_at);
@@ -562,10 +562,12 @@ sub id
 	return $self->{data}{_id} // undef;
 }
 
-sub is_proactive
+# is this thing an alert? there should be a better way to do this, alerts
+# should tell us that we are an alert
+sub is_alert
 {
 	my ($self) = @_;
-	return ( $self->event =~ /proactive/i );
+	return ( $self->event =~ /Alert:/i );
 }
 
 # returns 0/1 if the object is new or not.
@@ -580,6 +582,10 @@ sub is_new
 	return ($has_id) ? 0 : 1;
 }
 
+# is this thing proactive? there should be a better way to do this, it
+# should tell us that we are proactive
+# also note, the nmis code does this in several ways, this is the least
+# specific way the check is done
 sub is_proactive
 {
 	my ($self) = @_;
@@ -636,27 +642,28 @@ sub load
 	if ( !$error && $model_data->count == 1 )
 	{
 		$event_in_db = $model_data->data->[0];
+
 		# set our new attributes, if found in db _id is already set
 		# keep some copies as well so we can figure out state if we need to
 		$self->{_data_from_db}     = {%$event_in_db};
 		$self->{_data_before_load} = {%{$self->{data}}};
-		
+
 		foreach my $key ( keys %$event_in_db )
 		{
 			if ( !$only_take_missing || !defined( $self->$key() ) )
 			{
 				# use setter/getter if it's defined, otherwise it's 'custom_data'
-				if( defined($known_attrs{$key}) )
+				if ( defined( $known_attrs{$key} ) )
 				{
 					$self->$key( $event_in_db->{$key} );
 				}
 				else
 				{
-					$self->custom_data($key, $event_in_db->{$key});
+					$self->custom_data( $key, $event_in_db->{$key} );
 				}
 			}
 		}
-		$self->loaded( 1 );
+		$self->loaded(1);
 	}
 	elsif ( !$error && $model_data->count > 1 )
 	{
@@ -669,7 +676,7 @@ sub load
 }
 
 sub loaded
-{	
+{
 	my ( $self, $newvalue ) = @_;
 	my $current = $self->{_loaded};
 	if ( @_ == 2 )
@@ -717,9 +724,15 @@ sub save
 	# set update when you want to skip the logic that came from eventAdd
 	my $update = $args{update};
 
+	# we must load to find out if this thing exists, if the first load of this object
+	# is happening this late we assume that the caller does not want to clobber all the
+	# attributes that are now set so only take on the missing ones, this seems like the
+	# least
+	$self->load( only_take_missing => 1 );
+	my $exists = $self->exists();
+
 	# is this an already EXISTING stateless event?
 	# they will reset after the dampening time, default dampen of 15 minutes.
-	my $exists = $self->exists();
 	if ( !$update )
 	{
 		if ( $exists && $self->stateless )
@@ -769,7 +782,7 @@ sub save
 			$self->{data}{notify}    //= "";
 			$self->{data}{stateless} //= 0;
 
-			# set clusterid 
+			# set clusterid
 			$self->{data}{cluster_id} = $self->nmisng->config->{cluster_id};
 			$self->{data}{logged} //= 0;
 		}
@@ -785,7 +798,7 @@ sub save
 		# don't try and update the id and don't let it be there to be set to undef either
 		my %data = %{$self->data};
 		delete $data{_id};
-		
+
 		my $dbres = NMISNG::DB::update(
 			collection => $self->nmisng->events_collection(),
 			query      => $q,
@@ -800,6 +813,7 @@ sub save
 			$self->nmisng->log->debug1(
 				"Created new event $data{event} $dbres->{upserted_id} for node $data{node_name}");
 		}
+
 		# now that we've updated the db, update what we think is in the db
 		$self->{_data_from_db} = {%data};
 	}
