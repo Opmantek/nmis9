@@ -46,28 +46,33 @@ our $VERSION = "1.0.0";
 # note: this used to specifiy all the attributes in the event
 # but there are places that put data into the event willy/nilly
 # custom_data has been added to set this
-# {
-# 				_id          => $args{_id},
-# 				active       => $args{active},
-# 				historic     => $args{historic},
-# 				startdate    => $args{startdate},
-# 				node_uuid    => $args{node_uuid},
-# 				node_name    => $args{node_name},
-# 				event        => $args{event},
-# 				level        => $args{level},
-# 				element      => $args{element},
-# 				inventory_id => $args{inventory_id},
-# 				details      => $args{details},
-# 				ack          => $args{ack},
-# 				escalate     => $args{escalate},
-# 				notify       => $args{notify},
-# 				stateless    => $args{stateless},
-# 				context      => $args{context},
-# 				expire_at    => $args{expire_at}
-# 			},
+
 # sys not required as argument but can't be left in the args
 # here is a list of the known attributes, these will be givent getter/setters, everything else is 'custom_data'
-my %known_attrs = (_id => 1,ack => 1,active => 1, cluster_id => 1,context => 1,details => 1,element => 1,escalate => 1,event_previous => 1,expire_at => 1,historic => 1,inventory_id => 1,lastupdate => 1,level => 1,node_name => 1,node_uuid => 1,notify => 1,startdate => 1,stateless => 1,user => 1);
+my %known_attrs = (
+	_id => 1,
+	ack => 1,
+	active => 1,
+	cluster_id => 1,
+	context => 1,
+	details => 1,
+	element => 1,
+	escalate => 1,
+	event_previous => 1,
+	expire_at => 1,
+	historic => 1,
+	inventory_id => 1,
+	lastupdate => 1,
+	level => 1,
+	logged => 1,
+	node_name => 1,
+	node_uuid => 1,
+	notify => 1,
+	startdate => 1,
+	stateless => 1,
+	user => 1
+);
+
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -82,8 +87,8 @@ sub new
 
 	my ($nmisng,$S) = @args{'nmisng','sys'};
 	delete $args{nmisng};
-	delete $args{sys};
-
+	delete $args{sys};	
+	
 	# note: defautls are not set here, they are done on save so that loading with only_take_missing doesn't get taken
 	#   by values that were set for you
 	my $self = bless(
@@ -362,12 +367,6 @@ sub check
 		$self->details($details);
 		$self->level($level);
 
-		if ( my $error = $self->save() )
-		{
-			NMISNG::Util::logMsg("ERROR $error");
-			confess $error;
-		}
-
 		NMISNG::Util::dbg( "event node_name="
 				. $self->node_name
 				. ", event="
@@ -378,6 +377,12 @@ sub check
 		if ( NMISNG::Util::getbool($log) and NMISNG::Util::getbool( $thisevent_control->{Log} ) )
 		{
 			$self->log();
+		}
+
+		if ( my $error = $self->save() )
+		{
+			NMISNG::Util::logMsg("ERROR $error");
+			confess $error;
 		}
 
 		# Syslog must be explicitly enabled in the config and will escalation is not being used.
@@ -555,6 +560,12 @@ sub id
 	return $self->{data}{_id} // undef;
 }
 
+sub is_proactive
+{
+	my ($self) = @_;
+	return ( $self->event =~ /proactive/i );
+}
+
 # returns 0/1 if the object is new or not.
 # new means it is not yet in the database
 # TODO: potentially this thing should call load first or keep a load
@@ -623,11 +634,11 @@ sub load
 	if ( !$error && $model_data->count == 1 )
 	{
 		$event_in_db = $model_data->data->[0];
-
 		# set our new attributes, if found in db _id is already set
 		# keep some copies as well so we can figure out state if we need to
 		$self->{_data_from_db}     = {%$event_in_db};
 		$self->{_data_before_load} = {%{$self->{data}}};
+		
 		foreach my $key ( keys %$event_in_db )
 		{
 			if ( !$only_take_missing || !defined( $self->$key() ) )
@@ -656,9 +667,12 @@ sub load
 }
 
 # log this event to the event log, any arugments provided will override what is in this object
+# internally track if we've been logged, this is not saved, perhaps it's useful? one issue:
+# event can be logged without using the object
 sub log
 {
 	my ( $self, %args ) = @_;
+	$self->logged( $self->logged() + 1 );
 	return $self->nmisng->events->logEvent(
 		node_name => $args{node_name} // $self->node_name,
 		event     => $args{event}     // $self->event,
@@ -744,6 +758,7 @@ sub save
 
 			# set clusterid 
 			$self->{data}{cluster_id} = $self->nmisng->config->{cluster_id};
+			$self->{data}{logged} //= 0;
 		}
 	}
 
@@ -757,7 +772,7 @@ sub save
 		# don't try and update the id and don't let it be there to be set to undef either
 		my %data = %{$self->data};
 		delete $data{_id};
-
+		
 		my $dbres = NMISNG::DB::update(
 			collection => $self->nmisng->events_collection(),
 			query      => $q,
@@ -772,7 +787,6 @@ sub save
 			$self->nmisng->log->debug1(
 				"Created new event $data{event} $dbres->{upserted_id} for node $data{node_name}");
 		}
-
 		# now that we've updated the db, update what we think is in the db
 		$self->{_data_from_db} = {%data};
 	}
