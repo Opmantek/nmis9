@@ -369,8 +369,8 @@ sub get_events_model
 {
 	my ( $self, %args ) = @_;
 	# modify filter to make sure it's getting just events for this node
-	my $filter = $args{filter};
-	$filter->{node_uuid} = $self->uuid;
+	$args{filter} //= {};;
+	$args{filter}->{node_uuid} = $self->uuid;
 	return $self->nmisng->events->get_events_model( %args );
 }
 

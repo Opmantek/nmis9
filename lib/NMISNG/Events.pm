@@ -247,7 +247,7 @@ sub get_events_model
 		);
 	}
 
-	# print "q:" . Dumper($q);
+	# print STDERR "q:" . Dumper($q);
 	my $cursor = NMISNG::DB::find(
 		collection  => $self->nmisng->events_collection,
 		query       => $q,
