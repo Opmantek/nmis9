@@ -61,6 +61,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=fixperms
  act=config-backup
  act=groupsync
+ act=noderefresh
 
  act=schedule [at=time] <type=activity> [priority=0..1] [args.X=....]
  act=list-schedules
