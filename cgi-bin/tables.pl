@@ -130,7 +130,8 @@ sub loadReqTable
 }
 
 #
-sub menuTable{
+sub menuTable
+{
 
 	my $table = $Q->{table};
 	#start of page
@@ -225,7 +226,6 @@ EOF
 	print end_table;
 
 	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
-
 }
 
 # shows the table contents, optionally with a delete button
@@ -260,13 +260,19 @@ sub viewTable
 	print Tr(td({class=>'header',colspan=>'2'},"Table $table"));
 
 	# print items of table
-	for my $ref ( @{$CT}) { # trick for order of header items
+	# flagged as password, show '<hidden>'
+	# flagged as bool, show 'true' or 'false'
+	for my $ref ( @{$CT})
+	{
 		for my $item (keys %{$ref}) {
 			print Tr(td({class=>'header',align=>'center'},
 									escapeHTML($ref->{$item}{header})),
 							 td({class=>'info Plain'},
 									escapeHTML($ref->{$item}->{display} =~ /password/?
-														 "<hidden>" : $T->{$key}{$item})));
+														 "<hidden>"
+														 : $ref->{$item}->{display} =~ /bool/?
+														 ($T->{$key}->{$item}? "true":"false")
+														 : $T->{$key}{$item})));
 		}
 	}
 
@@ -391,7 +397,8 @@ sub editTable
 	$AU->CheckAccess("Table_${table}_rw");
 
 	my $T;
-	return if (!($T = loadReqTable(table=>$table,msg=>'false')) and $Q->{act} =~ /edit/); # load requested table
+	return if (!($T = loadReqTable(table=>$table,msg=>'false'))
+						 and $Q->{act} =~ /edit/); # load requested table
 
 	my $CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table);
 
@@ -448,6 +455,12 @@ sub editTable
 				if ($thisitem->{display} =~ /key/)
 				{
 					push @hash,$item;
+				}
+
+				# things tagged bool are stored as 1/0 internally, but are shown as true/false
+				if ($thisitem->{display} =~ /bool/)
+				{
+					$thiscontent = $thiscontent? "true": "false";
 				}
 
 				# things tagged key are NOT editable, only settable initially on add.
@@ -622,6 +635,8 @@ sub doeditTable
 			# "multifromlist" => [ list of accepted values ] or undef, like fromlist but more than one
 			#   accepts any number of values from the list, including none whatsoever!
 			# more than one rule possible but likely not very useful
+			#
+			# note: validation happens on the VISIBLE values, ie. BEFORE internal conversion for items flagged bool
 			for my $valtype (sort keys %{$thisitem->{validate}})
 			{
 				my $valprops = $thisitem->{validate}->{$valtype};
@@ -786,7 +801,7 @@ sub doeditTable
 			$key = $new_name;
 		}
 
-		$nmisng->events->cleanNodeEvents($node, "tables.pl.editNodeTable");		
+		$nmisng->events->cleanNodeEvents($node, "tables.pl.editNodeTable");
 
 		if (NMISNG::Util::getbool($Q->{update}))
 		{
