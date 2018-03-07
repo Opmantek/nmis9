@@ -140,6 +140,8 @@ sub nmisng_node    { my $self = shift; return $self->{_nmisng_node} };
 #  [nolog] - set to 1 if it's ok that the inventory is not found and an error should not be logged
 # NOTE: for now this caches the catchall/global inventory object because it's used all over the place
 #  and needs to have a longer life
+#
+# fixme9: consider merging with nmisng::node::inventory as there's about 95% overlap
 sub inventory
 {
 	my ($self,%args) = @_;
@@ -224,7 +226,9 @@ sub status
 # you need a new sys object every time you want to call init().
 #
 # node config is loaded if snmp or wmi args are true
-# args: node (mostly required, or name), snmp (defaults to 1), wmi (defaults to the value for snmp),
+# args: node (live node object),
+#   or uuid (of the node) or (least desirable) name.
+# snmp (defaults to 1), wmi (defaults to the value for snmp),
 # update (defaults to 0), cache_models (see code comments for defaults), force (defaults to 0),
 # policy (default unset)
 # cluster_id can be provided, helpful when all you have is name
@@ -240,49 +244,55 @@ sub init
 {
 	my ( $self, %args ) = @_;
 
-	$self->{name} = $args{name};
-	$self->{node} = lc $args{name} if ($args{name});    # always lower case
-	$self->{uuid} = $args{uuid};
-
-	$self->{debug}  = $args{debug};
-	$self->{update} = NMISNG::Util::getbool( $args{update} );
-
-	my $policy = $args{policy};		# optional
-
-	# flag for init snmp accessor, default is yes
-	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
-
-	# ditto for wmi, but default from snmp
-	my $wantwmi = NMISNG::Util::getbool( exists $args{wmi} ? $args{wmi} : $snmp );
-
-	my $C = NMISNG::Util::loadConfTable();           # needed to determine the correct dir; generally cached and a/v anyway
-	if ( ref($C) ne "HASH" or !keys %$C )
-	{
-		$self->{error} = "failed to load configuration table!";
-		return 0;
-	}
-
 	Carp::confess("Sys objects cannot be reinitialised!")
 			if (defined $self->{_nmisng}); # new doesn't set that
 
-	# fixme9: assumption is that the caller has loaded compat::nmis, usually justified i guess...
-	$self->{_nmisng} = Compat::NMIS::new_nmisng();
-
-	# fixme9: assumptions about availability of certain features conflict with non-node mode,
-	# which we need to update metrics and other global stuff :-(
-	if ($self->{name})
+	my $C;
+	if (ref($args{node}) eq "NMISNG::Node")
 	{
+		my $nodeobj  = $args{node};
+
+		$self->{_nmisng} = $nodeobj->nmisng;
+		$C = $self->{_nmisng}->config;
+		$self->{_nmisng_node} = $nodeobj;
+		$self->{uuid} = $nodeobj->uuid;
+		$self->{name} = $nodeobj->name;
+		$self->{node} = lc($self->{name}); # meh
+	}
+	elsif ($args{uuid} or $args{name})
+	{
+		$self->{name} = $args{name};
+		$self->{node} = lc $args{name} if ($args{name});    # always lower case
+		$self->{uuid} = $args{uuid};
+
+		$self->{_nmisng} = Compat::NMIS::new_nmisng();
+
 		# use all data we may have
 		# If cluster_id was given use it
 		$self->{_nmisng_node} = $self->{_nmisng}->node(
 			name => $self->{name},
 			uuid => $self->{uuid},
 			filter => {cluster_id => $args{cluster_id}}
-		);
+				);
 		Carp::confess("Cannot instantiate sys object for $self->{name}!\n")
 				if (!$self->{_nmisng_node});
 	}
 
+	$C ||= NMISNG::Util::loadConfTable();           # needed to determine the correct dir; generally cached and a/v anyway
+	if ( ref($C) ne "HASH" or !keys %$C )
+	{
+		Carp::confess("failed to load configuration table!");
+	}
+	$self->{_nmisng} ||= Compat::NMIS::new_nmisng();
+
+	$self->{debug}  = $args{debug};
+	$self->{update} = NMISNG::Util::getbool($args{update});
+	my $policy = $args{policy};		# optional
+
+	# flag for init snmp accessor, default is yes
+	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
+	# ditto for wmi, but default from snmp
+	my $wantwmi = NMISNG::Util::getbool( exists $args{wmi} ? $args{wmi} : $snmp );
 	my $catchall_data = {};
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
@@ -362,7 +372,7 @@ sub init
 			and $self->{name} )
 	{
 		$self->{cfg}->{node} = $self->nmisng_node->configuration()
-			if ( $self->nmisng_node );
+				if ( $self->nmisng_node );
 
 		if ( $self->{cfg}->{node} )
 		{
