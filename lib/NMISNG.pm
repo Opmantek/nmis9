@@ -66,8 +66,9 @@ sub new
 
 	my $self = bless(
 		{   _config => $args{config},
-			_db     => $args{db},
-			_log    => $args{log},
+				_db     => $args{db},
+				_log    => $args{log},
+				_plugins => undef, 			# sub plugins populates that on the go
 		},
 		$class
 	);
@@ -1630,5 +1631,2177 @@ sub update_links
 	NMISNG::Util::dbg("Finished");
 }
 
+
+# loads code plugins if necessary, returns the names
+# args: none
+# returns: list of package/class names
+sub plugins
+{
+	my ($self, %args) = @_;
+
+	if (ref($self->{_plugins}) eq "ARRAY")
+	{
+		return @{$self->{_plugins}};
+	}
+
+	my $C = $self->config;
+	$self->{_plugins} = [];
+
+	# check for plugins enabled and the two dirs, default and custom
+	return () if ( !NMISNG::Util::getbool( $C->{plugins_enabled} )
+								 or ( !$C->{plugin_root} and !$C->{plugin_root_default})
+								 or (!-d $C->{plugin_root}  and !-d $C->{plugin_root_default}));
+	
+	# first check the custom plugin dir, then the default dir;
+	# files in custom win over files in default
+	my %candfiles;								# filename => fullpath
+	for my $dir ($C->{plugin_root}, $C->{plugin_root_default})
+	{
+		next if (!-d $dir);
+		if (!opendir( PD, $dir))
+		{
+			$self->log->error("Error: cannot open plugin dir $dir: $!");
+			return ();
+		}
+		for my $cand (grep(/\.pm$/, readdir(PD)))
+		{
+			$candfiles{$cand} //= "$dir/$cand";
+		}
+		closedir(PD);
+	}
+	
+	for my $candidate (keys %candfiles)
+	{
+		my $packagename = $candidate;
+		$packagename =~ s/\.pm$//;
+		my $pluginfile = $candfiles{$candidate};
+		
+		# read it and check that it has precisely one matching package line
+		$self->log->debug("Checking candidate plugin $candidate ($pluginfile)");
+
+		if (!open(F, $pluginfile))
+		{
+			$self->log->error("Error: cannot open plugin file $pluginfile: $!");
+			next;
+		}
+		my @plugindata = <F>;
+		close F;
+		my @packagelines = grep( /^\s*package\s+[a-zA-Z0-9_:-]+\s*;\s*$/, @plugindata );
+		if ( @packagelines > 1 or $packagelines[0] !~ /^\s*package\s+$packagename\s*;\s*$/ )
+		{
+			$self->log->info("Plugin $candidate doesn't have correct \"package\" declaration. Ignoring.");
+			next;
+		}
+
+		# do the actual load and eval
+		eval { require "$pluginfile"; };
+		if ($@)
+		{
+			$self->log->info("Ignoring plugin $candidate ($pluginfile) as it isn't valid perl: $@");
+			next;
+		}
+
+		# we're interested if one or more of the supported plugin functions are provided
+		push @{$self->{_plugins}}, $packagename
+				if ( $packagename->can("update_plugin")
+						 or $packagename->can("collect_plugin")
+						 or $packagename->can("after_collect_plugin")
+						 or $packagename->can("after_update_plugin") );
+	}
+
+	return @{$self->{_plugins}};
+}
+
+# this function finds nodes that are due for a given operation;
+# consults the various policies and previous node states
+# args: self, type (=operation, required), force (optional, default 0), 
+#  filters (optional, ARRAY of filter hashrefs to be applied independently)
+# returns: hashref with error/success, 
+#  nodes => hash of uuid, value node config data,
+#  flavours => hash of uuid -> snmp/wmi -> 0/1 (only for collect),
+#  processes => hash of uuid =>  pid => processinfo (for nmis processes for this node and op)
+sub find_due_nodes
+{
+	my ($self, %args) = @_;
+	my $whichop = $args{type};
+	my $force = $args{force};
+
+	return { error => "Unknown operation \"$whichop\"!" } if ($whichop !~ /^(collect|update|services)$/);
+	return { error => "Filters must be list of filter expressions!" } 
+	if (exists($args{filters}) && ref($args{filters} ne "ARRAY"));
+
+	my %cands;
+	# what to work on? all active nodes or only the selected lists of nodes
+	# multiple filters are applied independently, e.g. select by group and then extra nodes
+	for my $onefilter (@{$args{filters}} || { }) # default: blank unrestricted filter
+	{
+		$onefilter->{active} = 1;	# never consider inactive nodes
+		my $possibles = $self->get_nodes_model(filter => $onefilter);
+		return { error => $possibles->error } if ($possibles->error);
+
+		map { $cands{$_->{uuid}} = $_ } (@{$possibles->data});
+	}
+	# no filters returned anybody? 
+	return { success => 1, nodes => [] } if (!keys %cands);
+
+	# services? all nodes - granularity is per-service
+	# update? all nodes, for now only - fixme9: consult schedule for staggered operation
+	if ($whichop eq "update" or $whichop eq "services")
+	{
+		return { success => 1, nodes => \%cands }; # cheaper to return everything
+	}
+
+	# collect? subject to policies
+	# get the polling policies and translate into seconds (for rrd file options)
+	my $policies = NMISNG::Util::loadTable(dir => 'conf',
+																				 name => "Polling-Policy") || {};
+	my %intervals = ( default => { ping=> 60, snmp => 300, wmi => 300 });
+	# translate period specs X.Ys, A.Bm, etc. into seconds
+	for my $polname (keys %$policies)
+	{
+		next if (ref($policies->{$polname}) ne "HASH");
+		for my $subtype (qw(snmp wmi ping))
+		{
+			my $interval = $policies->{$polname}->{$subtype};
+			if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+			{
+				my ($rawvalue, $unit) = ($1, $3);
+				$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600
+																 : $unit eq 'd'? 86400 : 1);
+			}
+			$intervals{$polname}->{$subtype} = $interval; # now in seconds
+		}
+	}
+
+	# find all other nmis processes of the same type
+	my $otherprocesses = NMISNG::Util::find_nmis_processes(type => $whichop,
+																												 config => $self->config);
+	# find out what nodes are due as per polling policy - also honor force,
+	# and any in-progress polling that hasn't finished yet
+	
+	# unfortunately we require each candidate node's nodeinfo/catchall data to make the
+	# candidate-or-not decision...
+	my $allcatchalls = $self->get_inventory_model(concept => "catchall",
+																								cluster_id => $self->config->{cluster_id},
+																								uuid => [ keys %cands ]);
+	if (!$allcatchalls->{success})
+	{
+		return { error => "Failed to load catchall inventory: $allcatchalls->{error}" };
+	}
+
+	my $accessor = $allcatchalls->{model_data};
+	# dynamic node information, by node uuid
+	my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
+	
+	my $now = time;
+	my (%due, %flavours, %procs);
+	for my $maybe (keys %cands)		# by uuid
+	{
+		my $nodeconfig = $cands{$maybe};
+		my $nodename = $nodeconfig->{name};
+		
+		my $polname = $nodeconfig->{polling_policy} || "default";
+		$self->log->debug("Node $nodename is using polling policy \"$polname\"");
+
+		# dynamic info from previous collects/updates
+		my $ninfo = $node_info_ro{ $maybe } // {};
+
+		my $lastpolicy = $ninfo->{last_polling_policy};
+		my $lastsnmp = $ninfo->{last_poll_snmp};
+		my $lastwmi = $ninfo->{last_poll_wmi};
+		
+		# that's it for completed polls - for in-progress uncompleted
+		# we need other time logic,
+		# overriding these markers from the active process' start time
+		my @isinprogress = grep($otherprocesses->{$_}->{node} &&
+														$otherprocesses->{$_}->{node} eq $nodename,
+														keys %$otherprocesses);
+		if (@isinprogress)
+		{
+			map { $procs{$maybe}->{$_} = $otherprocesses->{$_}; } (@isinprogress);
+		}
+
+		if (!$force and @isinprogress)
+		{
+			# there should be at most one, we ignore any unexpected others
+			my $otherstart = $otherprocesses->{ $isinprogress[0] }->{start};
+			$self->log->debug("Node $nodename: collect in progress, using process start $otherstart instead of last_poll markers");
+			$lastsnmp = $lastwmi = $otherstart;
+			$lastpolicy = $polname;	# and no policy change triggering either...
+		}
+		
+		# handle the case of a changed polling policy: move all rrd files
+		# out of the way, and poll now
+		# note that this does NOT work with non-standard common-database structures
+		if (defined($lastpolicy) && $lastpolicy ne $polname)
+		{
+			$self->log->info("Node $nodename is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
+			my $lcnode = lc($nodename);
+			my $curdir = $self->config->{'database_root'}."/nodes/$lcnode";
+			my $backupdir = "$curdir.policy-$lastpolicy.".time();
+
+			if (!-d $curdir)
+			{
+				$self->log->warn("Node $maybe doesn't have RRD files under $curdir!");
+			}
+			else
+			{
+				rename($curdir,$backupdir)
+						or $self->log->error("failed to mv rrd files for $maybe: $!");
+			}
+
+			$due{$maybe} = $nodeconfig;
+			$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+		}
+		elsif ($force)
+		{
+			$self->log->debug("force is enabled, Node $nodename will be polled at $now");
+			$due{$maybe} = $nodeconfig;
+			$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+		}
+		# nodes that have not been pollable since forever: run at most once daily
+		# ...except if the demote_faulty_nodes config option is set to false
+		elsif (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model")
+		{
+			my $lasttry = $ninfo->{last_poll} // 0;
+			
+			# try once every 5 minutes if demote_faulty_nodes is set to false,
+			# otherwise: was polling attempted at all and in the last 30 days? then once daily from
+			# that last try - otherwise try one now
+			my $nexttry = !NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")? # === ne false
+					($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
+			
+			if ($nexttry <= $now)
+			{
+				$due{$maybe} = $nodeconfig;
+				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
+			}
+			# if demotion is enabled, log this pretty dire situation
+			# but not too noisily - with a default poll every minute this
+			# will log the issue once an hour.
+			elsif (!NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")) # === ne false
+			{
+				my $goodtimes = int((($now - $lasttry) % 3600) / 60);
+				my $msg = "Node $nodename has no valid nodeModel, never polled successfully, "
+						. "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
+				$self->log->info($msg) if ($goodtimes == 0);
+			}
+			else
+			{
+				$self->log->debug("Node $nodename has no valid nodeModel, never polled successfully. demote_faulty_nodes is disabled, last attempt $lasttry, next $nexttry.");
+			}
+		}
+		# logic for collect now or later: candidate if no past successful collect whatsoever,
+		# or if either of the two worked and was done long enough ago.
+		#
+		# if no history is known for a source, then disregard it for the now-or-later logic
+		# but DO enable it for trying!
+		# note that collect=false, i.e. ping-only nodes need to be excepted,
+		elsif (!defined($lastsnmp) && !defined($lastwmi) && $nodeconfig->{collect})
+		{
+			$self->log->debug("Node $nodename has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
+			$due{$maybe} = $nodeconfig;
+			$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
+		}
+		else
+		{
+			# for collect false/pingonly nodes the single 'generic' collect run counts,
+			# and the 'snmp' policy is applied
+			if (!$nodeconfig->{collect})
+			{
+				$lastsnmp = $ninfo->{last_poll} // 0;
+				$self->log->debug("Node $nodename is non-collecting, applying snmp policy to last check at $lastsnmp");
+			}
+			
+			# accept delta-previous-now interval if it's at least 95% of the configured interval
+			# strict 100% would mean that we might skip a full interval when polling takes longer
+			my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
+			my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
+			
+			# only flavours which worked in the past contribute to the now-or-later logic
+			if ((defined($lastsnmp) && $nextsnmp <= $now )
+					|| (defined($lastwmi) && $nextwmi <= $now))
+			{
+				$self->log->debug("Node $nodename is due for poll at $now, last snmp: ".($lastsnmp//"never")
+													.", last wmi: ".($lastwmi//"never")
+													. ", next snmp: ".($lastsnmp ? (($now - $nextsnmp)."s ago"):"n/a")
+													.", next wmi: ".($lastwmi? (($now - $nextwmi)."s ago"):"n/a"));
+				$due{$maybe} = $nodeconfig;
+				
+				# but if we've decided on polling, then DO try flavours that have not worked in the past!
+				# nextwmi <= now also covers the case of undefined lastwmi...
+				$flavours{$maybe}->{wmi} = ($nextwmi <= $now);
+				$flavours{$maybe}->{snmp} = ($nextsnmp <= $now);
+			}
+			else
+			{
+				$self->log->debug("Node $nodename is NOT due for poll at $now, last snmp: "
+													.($lastsnmp//"never")
+													.", last wmi: ".($lastwmi//"never")
+													. ", next snmp: ".($lastsnmp? $nextsnmp :"n/a")
+													.", next wmi: ".($lastwmi? $nextwmi :"n/a"));
+			}
+		}
+	}
+	
+	return { success => 1, nodes => \%due, 
+					 flavours => \%flavours, processes => \%procs };
+}
+
+	
+# tiny helper that returns one of two threshold period configurations
+# args: self, subconcept (both required)
+# returns: rrd-style time period
+sub _threshold_period
+{
+	my ($self, %args) = @_;
+
+	for my $maybe ($args{subconcept}, "default")
+	{
+		return $self->config->{"threshold_period-$maybe"} if ($self->config->{"threshold_period-$maybe"});
+	}
+	return "-15 minutes";
+}
+
+
+# fixme9: where should this function go? this isn't a great spot.
+# fixme9: this should accept a live node object
+#
+# figures out which threshold alerts need to be run for one (or all) nodes, based on model
+# delegates the evaluation work to applyThresholdToInventory, then updates info structures.
+#
+# args: self, name (optional, a node name), table (required, must be hash ref but may be empty),
+# sys (optional, only used if name is given)
+#
+# note: writes node info file if run as part of type=threshold
+# returns: nothing
+sub doThresholdsAndCreateStatus
+{
+	my ($self, %args) = @_;
+	my $name = $args{name};
+	my $sts  = $args{table};    # pointer to data built up by doSummaryBuild
+	my $S    = $args{sys};
+	my $running_independently = $args{running_independently};
+
+	NMISNG::Util::dbg("Starting");
+	my $pollTimer = Compat::Timing->new;
+
+	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
+	my $node_model_data = $self->get_nodes_model( name => $name, 
+																									filter => { active => 'true', threshold => 'true' }, 
+																									sort => { name => 1 } );
+
+	for my $onenode (@{$node_model_data->data})
+	{
+		if ( $node_model_data->count() > 1 || !$S )
+		{
+			$S = NMISNG::Sys->new;
+			# Using cluster_id here so we can only run this on local nodes
+			# to make this work on all nodes (do we ever need that?) this
+			# needs to take a node uuid instead of node name
+			next if ( !$S->init( name => $onenode->{name}, cluster_id => $self->cluster_id, snmp => 'false' ) );
+		}
+
+		my $M  = $S->mdl;       # pointer to Model table
+		my $catchall_inventory = $S->inventory( concept => 'catchall' );
+		my $catchall_data = $catchall_inventory->data_live();
+
+		# fixme9 one of the few spots that still require nodeinfo
+		my $statusinfo = $S->compat_nodeinfo->{status};
+
+		# skip if node down
+		if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
+		{
+			NMISNG::Util::info("Node down, skipping thresholding for $S->{name}");
+			next;
+		}
+		NMISNG::Util::info("Starting Thresholding node=$S->{name}");
+
+		# first the standard thresholds
+		my $thrname = [qw(response reachable available)];
+		$self->applyThresholdToInventory( sys => $S, table => $sts, type => 'health', 
+																			thrname => $thrname, inventory => $catchall_inventory );
+
+		# search for threshold names in Model of this node
+		foreach my $s ( keys %{$M} )    # section name
+		{
+			# thresholds live ONLY under rrd, other 'types of store' don't interest us here
+			my $ts = 'rrd';
+			foreach my $type ( keys %{$M->{$s}{$ts}} )    # name/type of subsection
+			{
+				my $thissection = $M->{$s}->{$ts}->{$type};
+
+				if ( !$thissection->{threshold} )
+				{
+					NMISNG::Util::dbg( "section $s, type $type has no threshold" );
+					next;     # nothing to do
+				}
+				NMISNG::Util::dbg( "section $s, type $type has a threshold" );
+
+
+				# get commasep string of threshold name(s), turn it into an array, unless it's already an array
+				$thrname = ( ref($thissection->{threshold}) ne 'ARRAY' )
+					? [ split( /,/, NMISNG::Util::stripSpaces($thissection->{threshold}) ) ]
+					: $thissection->{threshold};
+
+				# attention: control expressions for indexed section must be run per instance,
+				# and no more getbool possible (see below for reason)
+				my $control = $thissection->{control};
+				NMISNG::Util::dbg( "control found:$control for section=$s type=$type", 1 ) if($control);
+
+				# find all instances of this subconcept and try and run thresholding for them, doesn't matter if indexed
+				# or not, this will run them all
+				# cbqos stores subconcepts for classes, searching for subconcept here can't work, have to use concept
+				my %callargs = ($type =~ /cbqos/)? (concept => $type, filter => { enabled => 1, historic => 0 })
+						: (filter => { subconcepts => $type, enabled => 1, historic => 0 });
+
+				# pass the modeldata object enough info to figure out what object to instantiate
+				$callargs{nmisng} = $self;
+				$callargs{class_name} = { "concept" => \&NMISNG::Inventory::get_inventory_class };
+
+				my $result = $S->nmisng_node->get_inventory_model(%callargs);
+
+				if (!$result->{success})
+				{
+					$self->log->error("get inventory model failed: $result->{error}");
+					return undef;
+				}
+				my $inventory_model = $result->{model_data};
+
+				NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
+
+				# turn the 'models' into objects so that parseString can use it if required
+				my $objectresult = $inventory_model->objects;
+				if (!$objectresult->{success})
+				{
+					$self->log->error("object access failed: $objectresult->{error}");
+					return undef;
+				}
+				# these are now objects
+				foreach my $inventory (@{$objectresult->{objects}})
+				{
+					my $data = $inventory->data;
+					my $index = $data->{index} // undef;
+
+					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index,
+																						 eval => 1, inventory => $inventory ) )
+					{
+						NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
+						next;
+					}
+					if( $data->{threshold} && !NMISNG::Util::getbool( $data->{threshold} ) )
+					{
+						NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
+						next;
+					}
+					$self->applyThresholdToInventory(
+						sys     => $S,
+						table   => $sts,
+						type    => $type,
+						thrname => $thrname,
+						index   => $index,
+						inventory => $inventory
+					);
+				}
+			}
+		}
+
+		## process each status and have it decay the overall node status......
+		#"High TCP Connection Count--tcpCurrEstab" : {
+		#   "status" : "ok",
+		#   "value" : "1",
+		#   "event" : "High TCP Connection Count",
+		#   "element" : "tcpCurrEstab",
+		#   "index" : null,
+		#   "level" : "Normal",
+		#   "type" : "test",
+		#   "updated" : 1423619108,
+		#   "method" : "Alert",
+		#   "property" : "$r > 250"
+		#},
+		my $count   = 0;
+		my $countOk = 0;
+		foreach my $statusKey ( sort keys %$statusinfo )
+		{
+			my $eventKey = $statusinfo->{$statusKey}{event};
+			$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}"
+				if $statusinfo->{$statusKey}{method} eq "Alert";
+
+			# event control is as configured or all true.
+			my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
+
+			# if this is an alert and it is older than 1 full poll cycle, delete it from status.
+			if ( $statusinfo->{$statusKey}{updated} < time - 500 )
+			{
+				delete $statusinfo->{$statusKey};
+			}
+
+			# in case of Status being off for this event, we don't have to include it in the calculations
+			elsif ( not NMISNG::Util::getbool( $thisevent_control->{Status} ) )
+			{
+				NMISNG::Util::dbg("Status Summary Ignoring: event=$statusinfo->{$statusKey}{event}, Status=$thisevent_control->{Status}",
+					1
+				);
+				$statusinfo->{$statusKey}{status} = "ignored";
+				++$count;
+				++$countOk;
+			}
+			else
+			{
+				++$count;
+				if ( $statusinfo->{$statusKey}{status} eq "ok" )
+				{
+					++$countOk;
+				}
+			}
+		}
+		if ( $count and $countOk )
+		{
+			my $perOk = sprintf( "%.2f", $countOk / $count * 100 );
+			NMISNG::Util::info("Status Summary = $perOk, $count, $countOk\n");
+			$catchall_data->{status_summary} = $perOk;
+			$catchall_data->{status_updated} = time();
+
+			# cache the current nodestatus for use in the dash
+			my $nodestatus = Compat::NMIS::nodeStatus( node => $S->nmisng_node, catchall_data => $catchall_data );
+			$catchall_data->{nodestatus} = "reachable";
+			if ( not $nodestatus )
+			{
+				$catchall_data->{nodestatus} = "unreachable";
+			}
+			elsif ( $nodestatus == -1 )
+			{
+				$catchall_data->{nodestatus} = "degraded";
+			}
+		}
+
+		# Save the new status results, but only if run standalone
+		if( $running_independently )
+		{
+			$S->writeNodeInfo();
+			$catchall_inventory->save();
+		}
+
+	}
+
+	NMISNG::Util::dbg("Finished");
+	if ( defined $self->config->{log_polling_time} and NMISNG::Util::getbool( $self->config->{log_polling_time} ) )
+	{
+		my $polltime = $pollTimer->elapTime();
+		if ($name)
+		{
+			NMISNG::Util::logMsg("Poll Time: $name, $polltime");
+		}
+		else
+		{
+			NMISNG::Util::logMsg("Poll Time: $polltime");
+		}
+	}
+}
+
+# fixme9: where should this function go? not ideal here
+# fixme9: should accept a live node object, not just sys
+# 	
+# performs the threshold value checking and event raising for
+# one or more threshold configurations
+# uses latest_data to get derived_data(stats) which should hold the stats with the correct
+# period calculated at the last poll cycle
+# args: self, sys, type, thrname (arrayref), index, item, class, inventory (all required),
+# table (required hashref but may be empty),
+# type is subconcept
+# returns: nothing but raises/clears events (via thresholdProcess) and updates table
+#  formerly runThrhld
+sub applyThresholdToInventory
+{
+	my ($self, %args) = @_;
+
+	my $S    = $args{sys};
+	my $inventory = $args{inventory};
+	my $M    = $S->mdl;
+
+	my $sts     = $args{table};
+	my $type    = $args{type};
+	my $thrname = $args{thrname};
+	my $index   = $args{index};
+	my $item    = $args{item};
+	my $class   = $args{class};
+	my $stats;
+	my $element;
+	die "cannot applyThresholdToInventory on something with no inventory, subconcept:$type,index:$index" if(!$inventory);
+
+	NMISNG::Util::dbg("WORKING ON Threshold for thrname=".join(",",@$thrname)." type=$type index=$index item=$item, inventory_id:".$inventory->id);
+
+	my $data = $inventory->data();
+
+	#	check if values are already in table (done by doSummaryBuild)
+	if ( exists $sts->{$S->{name}}{$type} )
+	{
+		$stats = $sts->{$S->{name}}{$type};
+	}
+	else
+	{
+		# stats have already been calculated and stored in derived data, the threshold_period
+		# should have been used on them then, so just look up the last value
+		my $latest_data_ret = $inventory->get_newest_timed_data();
+		if( $latest_data_ret->{success} )
+		{
+			$stats = $latest_data_ret->{derived_data}{$type};
+			NMISNG::Util::dbg("Using stats from newest timed data for subconcept=$type", 2);
+		}
+		else
+		{
+			die "could not get latest_data for inventory: subconcept:$type, index:$index";
+		}
+	}
+
+	if ( $index eq '' )
+	{
+		$element = '';
+	}
+	else
+	{
+		$element = $inventory->description;
+	}
+
+	NMISNG::Util::TODO("Inventory will require description to be accurate");
+	NMISNG::Util::TODO("Inventory cbqos needs to be figured out after it's timed_data is complete");
+	# elsif ( $index ne '' and $thrname =~ /^hrsmpcpu/ )
+	# {
+	# 	$element = "CPU $index";
+	# }
+	# elsif ( $index ne '' and $thrname =~ /^hrdisk/ )
+	# {
+	# 	$inventory = $S->inventory( concept => 'storage', index => $index );
+	# 	$data = ( $inventory ) ? $inventory->data : {};
+	# 	$element = "$data->{hrStorageDescr}";
+	# }
+	# elsif ( $type =~ /cbqos|interface|pkts/ )
+	# {
+	# 	#inventory keyed by index and ifDescr so we need partial
+	# 	my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 );
+	# 	$data = ( $inventory ) ? $inventory->data : {};
+	# 	if( $data->{ifDescr} )
+	# 	{
+	# 		$element = $data->{ifDescr};
+	# 		$element = "$data->{ifDescr}: $item" if($type =~ /cbqos/);
+	# 	}
+	# }
+	# elsif ( defined $M->{systemHealth}{sys}{$type}{indexed}
+	# 	and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
+	# {
+	# 	NMISNG::Util::TODO("Inventory migration not complete here (and below)");
+	# 	my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
+	# 	$inventory = $S->inventory( concept => $type, index => $index );
+	# 	$data = ($inventory) ? $inventory->data() : {};
+	# 	$element = $data->{$elementVar} if ($data->{$elementVar} ne "" );
+	# }
+	if ( $element eq "" )
+	{
+		$element = $index;
+	}
+
+	# walk through threshold names
+	foreach my $nm (@$thrname)
+	{
+		NMISNG::Util::dbg("processing threshold $nm");
+
+		# check for control_regex
+		if (    defined $M->{threshold}{name}{$nm}
+			and $M->{threshold}{name}{$nm}{control_regex} ne ""
+			and $item ne "" )
+		{
+			if ( $item =~ /$M->{threshold}{name}{$nm}{control_regex}/ )
+			{
+				NMISNG::Util::dbg("MATCHED threshold $nm control_regex MATCHED $item");
+			}
+			else
+			{
+				NMISNG::Util::dbg("SKIPPING threshold $nm: $item did not match control_regex");
+				next();
+			}
+		}
+
+		my ( $level, $value, $thrvalue, $reset ) = $self->getThresholdLevel(
+			sys     => $S,
+			thrname => $nm,
+			stats   => $stats,
+			index   => $index,
+			item    => $item
+		);
+
+		# get 'Proactive ....' string of Model
+		my $event = $S->parseString( string => $M->{threshold}{name}{$nm}{event}, index => $index, eval => 0 );
+
+		my $details = "";
+		my $spacer  = "";
+
+		if ( $type =~ /interface|pkts/ &&  $data->{Description} ne "" )
+		{
+			$details = $data->{Description};
+			$spacer  = " ";
+		}
+
+		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
+		if (  NMISNG::Util::getbool( $self->config->{global_events_bandwidth} )
+			and $type =~ /interface|pkts/
+			and $inventory->ifSpeed ne "" )
+		{
+			my $ifSpeed = $inventory->ifSpeed();
+			$ifSpeed = $inventory->ifSpeedIn if ( $event =~ /Input/ );
+			$ifSpeed = $inventory->ifSpeedOut if ( $event =~ /Output/ );
+			$details .= $spacer . "Bandwidth=" . NMISNG::Util::convertIfSpeed($ifSpeed);
+		}
+
+		$self->thresholdProcess(
+			sys      => $S,
+			type     => $type,       # crucial for event context
+			event    => $event,
+			level    => $level,
+			element  => $element,    # crucial for context
+			details  => $details,
+			value    => $value,
+			thrvalue => $thrvalue,
+			reset    => $reset,
+			thrname  => $nm,         # crucial for context
+			index    => $index,      # crucial for context
+			class    => $class,        # crucial for context
+			inventory_id => $inventory->id
+		);                   
+	}
+}
+
+
+# fixme9: where should this function live? only called once, why even a function?
+# args: self, sys
+# returns: nothing
+sub thresholdProcess
+{
+	my ($self, %args) = @_;
+	my $S    = $args{sys};
+
+	# fixme why no error checking? what about negative or floating point values like 1.3e5?
+	if ( $args{value} =~ /^\d+$|^\d+\.\d+$/ )
+	{
+		NMISNG::Util::info("$args{event}, $args{level}, $args{element}, value=$args{value} reset=$args{reset}");
+
+		my $details = "Value=$args{value} Threshold=$args{thrvalue}";
+		if ( defined $args{details} and $args{details} ne "" )
+		{
+			$details = "$args{details}: Value=$args{value} Threshold=$args{thrvalue}";
+		}
+		my $statusResult = "ok";
+		if ( $args{level} =~ /Normal/i )
+		{
+			Compat::NMIS::checkEvent(
+				sys     => $S,
+				event   => $args{event},
+				level   => $args{level},
+				element => $args{element},
+				details => $details,
+				value   => $args{value},
+				reset   => $args{reset},
+				inventory_id => $args{inventory_id}
+			);
+		}
+		else
+		{
+			Compat::NMIS::notify(
+				sys     => $S,
+				event   => $args{event},     # this is cooked at this point and no good for context
+				level   => $args{level},
+				element => $args{element},
+				details => $details,
+				context => {
+					type          => "threshold",
+					source        => "snmp",           # fixme needs extension to support wmi as source
+					name          => $args{thrname},
+					thresholdtype => $args{type},
+					index         => $args{index},
+					class         => $args{class},
+				},
+				inventory_id => $args{inventory_id}
+			);
+			$statusResult = "error";
+		}
+		my $index = $args{index};
+		if ( $index eq "" )
+		{
+			$index = 0;
+		}
+		my $statusKey = "$args{thrname}--$index";
+
+		$statusKey = "$args{thrname}--$index--$args{class}" if defined $args{class} and $args{class};
+
+		$S->{info}{status}{$statusKey} = {
+			method   => "Threshold",
+			type     => $args{type},
+			property => $args{thrname},
+			event    => $args{event},
+			index    => $args{index},
+			level    => $args{level},
+			status   => $statusResult,
+			element  => $args{element},
+			value    => $args{value},
+			updated  => time(),
+			inventory_id => $args{inventory_id}
+		};
+	}
+	else
+	{
+		NMISNG::Util::dbg("Skipped $args{thrname}, $args{event}, $args{level}, $args{element}, value=$args{value}, bad value",2);
+	}
+}
+
+# fixme9: where should this function go? unclear if this is the best place, sys?
+# fixme9: unclear what it's supposed to do
+# fixme9: broken logic, thrvalue vs reset in response indistinguishable
+#
+# args: self, sys, thrname, stats, index, item
+# returns: level, value, thrvalue, reset OR  level, value, reset; 
+sub getThresholdLevel
+{
+	my ($self, %args) = @_;
+	my $S    = $args{sys};
+	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
+	my $thrname = $args{thrname};
+	my $stats   = $args{stats};      # value of items
+	my $index   = $args{index};
+	my $item    = $args{item};
+
+	my $val;
+	my $level;
+	my $thrvalue;
+
+	NMISNG::Util::dbg("Start threshold=$thrname, index=$index item=$item");
+
+	# find subsection with threshold values in Model
+	my $T = $M->{threshold}{name}{$thrname}{select};
+	foreach my $thr ( sort { $a <=> $b } keys %{$T} )
+	{
+		next if $thr eq 'default';    # skip now the default values
+		if ( ( $S->parseString( string => "($T->{$thr}{control})?1:0", index => $index, item => $item, eval => 1 ) ) )
+		{
+			$val = $T->{$thr}{value};
+			NMISNG::Util::dbg("found threshold=$thrname entry=$thr");
+			last;
+		}
+	}
+
+	# if not found and there are default values available get this now
+	if ( $val eq "" and $T->{default}{value} ne "" )
+	{
+		$val = $T->{default}{value};
+		NMISNG::Util::dbg("found threshold=$thrname entry=default");
+	}
+	if ( $val eq "" )
+	{
+		NMISNG::Util::logMsg("ERROR, no threshold=$thrname entry found in Model=$catchall_data->{nodeModel}");
+		return;
+	}
+
+	my $value;    # value of doSummary()
+	my $reset = 0;
+
+	# item is the attribute name of summary stats of Model
+	$value = $stats->{$M->{threshold}{name}{$thrname}{item}};
+	NMISNG::Util::dbg("threshold=$thrname, item=$M->{threshold}{name}{$thrname}{item}, value=$value");
+
+	# check unknow value
+	if ( $value =~ /NaN/i )
+	{
+		NMISNG::Util::dbg("INFO, illegal value $value, skipped");
+		return ( "Normal", $value, $reset );
+	}
+
+	### all zeros policy to disable thresholding - match and return 'normal'
+	if (    $val->{warning} == 0
+		and $val->{minor} == 0
+		and $val->{major} == 0
+		and $val->{critical} == 0
+		and $val->{fatal} == 0
+		and defined $val->{warning}
+		and defined $val->{minor}
+		and defined $val->{major}
+		and defined $val->{critical}
+		and defined $val->{fatal} )
+	{
+		return ( "Normal", $value, $reset );
+	}
+
+	# Thresholds for higher being good and lower bad
+	if (    $val->{warning} > $val->{fatal}
+		and defined $val->{warning}
+		and defined $val->{minor}
+		and defined $val->{major}
+		and defined $val->{critical}
+		and defined $val->{fatal} )
+	{
+		if ( $value <= $val->{fatal} ) { $level = "Fatal"; $thrvalue = $val->{fatal}; }
+		elsif ( $value <= $val->{critical} and $value > $val->{fatal} )
+		{
+			$level    = "Critical";
+			$thrvalue = $val->{critical};
+		}
+		elsif ( $value <= $val->{major} and $value > $val->{critical} ) { $level = "Major"; $thrvalue = $val->{major}; }
+		elsif ( $value <= $val->{minor} and $value > $val->{major} )    { $level = "Minor"; $thrvalue = $val->{minor}; }
+		elsif ( $value <= $val->{warning} and $value > $val->{minor} )
+		{
+			$level    = "Warning";
+			$thrvalue = $val->{warning};
+		}
+		elsif ( $value > $val->{warning} ) { $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
+	}
+
+	# Thresholds for lower being good and higher being bad
+	elsif ( $val->{warning} < $val->{fatal}
+		and defined $val->{warning}
+		and defined $val->{minor}
+		and defined $val->{major}
+		and defined $val->{critical}
+		and defined $val->{fatal} )
+	{
+		if ( $value < $val->{warning} ) { $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
+		elsif ( $value >= $val->{warning} and $value < $val->{minor} )
+		{
+			$level    = "Warning";
+			$thrvalue = $val->{warning};
+		}
+		elsif ( $value >= $val->{minor} and $value < $val->{major} )    { $level = "Minor"; $thrvalue = $val->{minor}; }
+		elsif ( $value >= $val->{major} and $value < $val->{critical} ) { $level = "Major"; $thrvalue = $val->{major}; }
+		elsif ( $value >= $val->{critical} and $value < $val->{fatal} )
+		{
+			$level    = "Critical";
+			$thrvalue = $val->{critical};
+		}
+		elsif ( $value >= $val->{fatal} ) { $level = "Fatal"; $thrvalue = $val->{fatal}; }
+	}
+	if ( $level eq "" )
+	{
+		NMISNG::Util::logMsg(
+			"ERROR no policy found, threshold=$thrname, value=$value, node=$S->{name}, model=$catchall_data->{nodeModel} section threshold"
+		);
+		$level = "Normal";
+	}
+	NMISNG::Util::dbg("result threshold=$thrname, level=$level, value=$value, thrvalue=$thrvalue, reset=$reset");
+	return ( $level, $value, $thrvalue, $reset );
+}
+
+
+# this function processes escalations and notifications
+# args: self
+# returns: nothing 
+sub process_escalations
+{
+	my ($self, %args) = @_;
+
+	my $pollTimer = Compat::Timing->new;
+
+	my $C = $self->config;
+
+	my $outage_time;
+	my $planned_outage;
+	my $event_hash;
+	my %location_data;
+	my $time;
+	my $escalate;
+	my $event_age;
+	my $esc_key;
+	my $event;
+	my $index;
+	my $group;
+	my $role;
+	my $type;
+	my $details;
+	my @x;
+	my $k;
+	my $level;
+	my $contact;
+	my $target;
+	my $field;
+	my %keyhash;
+	my $ifDescr;
+	my %msgTable;
+	my $serial    = 0;
+	my $serial_ns = 0;
+	my %seen;
+
+
+	NMISNG::Util::dbg("Starting");
+	my $CT = Compat::NMIS::loadGenericTable("Contacts");
+
+	# load the escalation policy table
+	my $EST = Compat::NMIS::loadGenericTable("Escalations");
+
+	### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
+	# load the interface file to later check interface collect status.
+	#my $II = Compat::NMIS::loadInterfaceInfo();
+
+	my $LocationsTable = Compat::NMIS::loadGenericTable("Locations");
+
+	### keiths, work around for extra tables.
+	my $ServiceStatusTable;
+	my $useServiceStatusTable = 0;
+	if ( Compat::NMIS::tableExists('ServiceStatus') )
+	{
+		$ServiceStatusTable    = Compat::NMIS::loadGenericTable('ServiceStatus');
+		$useServiceStatusTable = 1;
+	}
+
+	my $BusinessServicesTable;
+	my $useBusinessServicesTable = 0;
+	if ( Compat::NMIS::tableExists('BusinessServices') )
+	{
+		$BusinessServicesTable    = Compat::NMIS::loadGenericTable('BusinessServices');
+		$useBusinessServicesTable = 1;
+	}
+
+	# the events configuration table, controls active/notify/logging for each known event
+	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
+
+	# add a full format time string for emails and message notifications
+	# pull the system timezone and then the local time
+	my $msgtime = NMISNG::Util::get_localtime();
+
+	# first load all non-historic events for all nodes
+	my $active_ret    = $self->events->get_events_model( filter => { historic => 0, active => 1 });
+	my $inactive_ret = $self->events->get_events_model( filter => { historic => 0, active => 0 });
+
+	print STDERR "a_error:".Dumper($active_ret->{error}) if ($active_ret->{error});
+	print STDERR "inactive_error:".Dumper($inactive_ret->{error}) if ($inactive_ret->{error});
+	# then send UP events to all those contacts to be notified as part of the escalation procedure
+	# this loop skips ALL marked-as-active events!
+	# active flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
+	# we might rename that transition t/f, and have this function handle only the ones with transition true.
+	
+	for( my $i = 0; $i < $inactive_ret->{model_data}->count; $i++)
+	{
+		my $event_obj = $inactive_ret->{model_data}->object($i);
+		my $event_data = $event_obj->data(); # for easier string printing
+		# if the event is configured for no notify, do nothing
+		my $thisevent_control = $events_config->{$event_obj->event}
+			|| {Log => "true", Notify => "true", Status => "true"};
+
+		# in case of Notify being off for this event, we don't have to check/walk/handle any notify fields at all
+		# as we're deleting the record after the loop anyway.
+		if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+		{
+			foreach my $field ( split( ',', $event_obj->notify ) )    # field = type:contact
+			{
+				$target = "";
+				my @x    = split /:/, $field;
+				my $type = shift @x;                                    # netsend, email, or pager ?
+				NMISNG::Util::dbg("Escalation type=$type contact=$contact");
+
+				if ( $type =~ /email|ccopy|pager/ )
+				{
+					foreach $contact (@x)
+					{
+						if ( exists $CT->{$contact} )
+						{
+							if ( Compat::NMIS::dutyTime( $CT, $contact ) )
+							{                                           # do we have a valid dutytime ??
+								if ( $type eq "pager" )
+								{
+									$target = $target ? $target . "," . $CT->{$contact}{Pager} : $CT->{$contact}{Pager};
+								}
+								else
+								{
+									$target = $target ? $target . "," . $CT->{$contact}{Email} : $CT->{$contact}{Email};
+								}
+							}
+						}
+						else
+						{
+							NMISNG::Util::dbg("Contact $contact not found in Contacts table");
+						}
+					}
+
+					# no email targets found, and if default contact not found, assume we are not covering 
+					# 24hr dutytime in this slot, so no mail.
+					# maybe the next levelx escalation field will fill in the gap
+					if ( !$target )
+					{
+						if ( $type eq "pager" )
+						{
+							$target = $CT->{default}{Pager};
+						}
+						else
+						{
+							$target = $CT->{default}{Email};
+						}
+						NMISNG::Util::dbg("No $type contact matched (maybe check DutyTime and TimeZone?) - looking for default contact $target"
+						);
+					}
+
+					if ($target)
+					{
+						foreach my $trgt ( split /,/, $target )
+						{
+							my $message;
+							my $priority;
+							if ( $type eq "pager" )
+							{
+								$msgTable{$type}{$trgt}{$serial_ns}{message}
+									= "NMIS: UP Notify $event_data->{node_name} Normal $event_data->{event} $event_data->{element}";
+								$serial_ns++;
+							}
+							else
+							{
+								if ( $type eq "ccopy" )
+								{
+									$message  = "FOR INFORMATION ONLY\n";
+									$priority = &Compat::NMIS::eventToSMTPPri("Normal");
+								}
+								else
+								{
+									$priority = &Compat::NMIS::eventToSMTPPri( $event_obj->level );
+								}
+								$event_age = NMISNG::Util::convertSecsHours( time - $event_obj->startdate );
+
+								$message
+									.= "Node:\t$event_data->{node_name}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$event_data->{event}\nElement:\t$event_data->{element}\nDetails:\t$event_data->{details}\n\n";
+
+								if ( NMISNG::Util::getbool( $C->{mail_combine} ) )
+								{
+									$msgTable{$type}{$trgt}{$serial}{count}++;
+									$msgTable{$type}{$trgt}{$serial}{subject}
+										= "NMIS Escalation Message, contains $msgTable{$type}{$trgt}{$serial}{count} message(s), $msgtime";
+									$msgTable{$type}{$trgt}{$serial}{message} .= $message;
+									if ( $priority gt $msgTable{$type}{$trgt}{$serial}{priority} )
+									{
+										$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
+									}
+								}
+								else
+								{
+									$msgTable{$type}{$trgt}{$serial}{subject}
+										= "$event_data->{node_name} $event_data->{event} - $event_data->{element} - $event_data->{details} at $msgtime";
+									$msgTable{$type}{$trgt}{$serial}{message}  = $message;
+									$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
+									$msgTable{$type}{$trgt}{$serial}{count}    = 1;
+									$serial++;
+								}
+							}
+						}
+
+						# log the meta event, ONLY if both Log (and Notify) are enabled
+						$self->events->logEvent(
+							node_name    => $event_obj->node_name,
+							event   => "$type to $target UP Notify",
+							level   => "Normal",
+							element => $event_obj->element,
+							details => $event_obj->details
+						) if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) );
+
+						NMISNG::Util::dbg("Escalation $type UP Notification node=$event_data->{node_name} target=$target level=$event_data->{level} event=$event_data->{event} element=$event_data->{element} details=$event_data->{details}"
+						);
+					}
+				}
+				elsif ( $type eq "netsend" )
+				{
+					my $message
+						= "UP Event Notification $event_data->{node_name} Normal $event_data->{event} $event_data->{element} $event_data->{details} at $msgtime";
+					foreach my $trgt (@x)
+					{
+						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+						$serial_ns++;
+						NMISNG::Util::dbg("NetSend $message to $trgt");
+
+						# log the meta event, ONLY if both Log (and Notify) are enabled
+						$self->events->logEvent(
+							node_name    => $event_obj->node_name,
+							event   => "NetSend $message to $trgt UP Notify",
+							level   => "Normal",
+							element => $event_obj->element,
+							details => $event_obj->details
+						) if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) );
+					}
+				}
+				elsif ( $type eq "syslog" )
+				{
+					if ( NMISNG::Util::getbool( $C->{syslog_use_escalation} ) )    # syslog action
+					{
+						my $timenow = time();
+						my $message
+							= "NMIS_Event::$C->{server_name}::$timenow,$event_data->{node_name},$event_data->{event},$event_data->{level},$event_data->{element},$event_data->{details}";
+						my $priority = NMISNG::Notify::eventToSyslog( $event_obj->level );
+
+						foreach my $trgt (@x)
+						{
+							$msgTable{$type}{$trgt}{$serial_ns}{message}  = $message;
+							$msgTable{$type}{$trgt}{$serial_ns}{priority} = $priority;
+							$serial_ns++;
+							NMISNG::Util::dbg("syslog $message");
+						}
+					}
+				}
+				elsif ( $type eq "json" )
+				{
+					# log the event as json file, AND save those updated bits back into the
+					# soon-to-be-deleted/archived event record.
+
+					my $nmisng_node = $self->node(uuid => $event_obj->node_uuid); # will be undef if the node was removed!
+					my $node = $nmisng_node->configuration;
+					
+					# fixme9: nmis_server cannot work
+					$event_obj->custom_data( 'nmis_server', $C->{server_name} );
+					$event_obj->custom_data( 'customer', $node->{customer} );
+					$event_obj->custom_data( 'location', $LocationsTable->{$node->{location}}{Location} );
+					$event_obj->custom_data( 'geocode', $LocationsTable->{$node->{location}}{Geocode} );
+
+					if ($useServiceStatusTable)
+					{
+						$event_obj->custom_data( 'serviceStatus', $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus} );
+						$event_obj->custom_data( 'statusPriority', $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority} );
+					}
+
+					if ($useBusinessServicesTable)
+					{
+						$event_obj->custom_data( 'businessService',
+							$BusinessServicesTable->{$node->{businessService}}{businessService} );
+						$event_obj->custom_data( 'businessPriority',
+							$BusinessServicesTable->{$node->{businessService}}{businessPriority} );
+					}
+
+					# Copy the fields from nodes to the event
+					my @nodeFields = split( ",", $C->{'json_node_fields'} );
+					foreach my $field (@nodeFields)
+					{
+						$event_obj->custom_data( $field, $node->{$field} );
+					}
+
+					NMISNG::Notify::logJsonEvent( event => $event_data, dir => $C->{'json_logs'} );
+
+					# may sound silly to update-then-archive but i'd rather have the historic event record contain
+					# the full story
+					if ( my $err = event_obj->save( update => 1 ) )
+					{
+						NMISNG::Util::logMsg("ERROR $err");
+					}
+				}    # end json
+				     # any custom notification methods?
+				else
+				{
+					if ( NMISNG::Util::checkPerlLib("Notify::$type") )
+					{
+						NMISNG::Util::dbg("Notify::$type $contact");
+
+						my $timenow = time();
+						my $datenow = NMISNG::Util::returnDateStamp();
+						my $message
+							= "$datenow: $event_data->{node_name}, $event_data->{event}, $event_data->{level}, $event_data->{element}, $event_data->{details}";
+						foreach $contact (@x)
+						{
+							if ( exists $CT->{$contact} )
+							{
+								if ( Compat::NMIS::dutyTime( $CT, $contact ) )
+								{    # do we have a valid dutytime ??
+									    # check if UpNotify is true, and save with this event
+									    # and send all the up event notifies when the event is cleared.
+									if ( NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
+										and $event_obj->event =~ /$C->{upnotify_stateful_events}/i )
+									{
+										my $ct = "$type:$contact";
+										my @l = split( ',', $event_obj->notify );
+										if ( not grep { $_ eq $ct } @l )
+										{
+											push @l, $ct;
+											$event_obj->notify( join( ',', @l )) ;   # note: updated only for msgtable below, NOT saved!
+										}
+									}
+
+									#$serial
+									$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
+									$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
+									$msgTable{$type}{$contact}{$serial_ns}{event}   = $event_data;
+									$serial_ns++;
+								}
+							}
+							else
+							{
+								NMISNG::Util::dbg("Contact $contact not found in Contacts table");
+							}
+						}
+					}
+					else
+					{
+						NMISNG::Util::dbg("ERROR process_escalations problem with escalation target unknown at level$event_data->{escalate} $level type=$type"
+						);
+					}
+				}
+			}
+		}
+
+		# now remove this event
+		if ( my $err = $event_obj->delete() )
+		{
+			NMISNG::Util::logMsg("ERROR $err");
+		}		
+	}
+
+	#===========================================
+	my $stateless_event_dampening = $C->{stateless_event_dampening} || 900;
+
+	# now handle the actual escalations; only events marked-as-current are left now.
+LABEL_ESC:
+	for (my $i = 0; $i < $active_ret->{model_data}->count; $i++) 
+	{
+		my $event_obj = $active_ret->{model_data}->object($i);
+		my $nmisng_node = $self->node(uuid => $event_obj->node_uuid); # will be undef if the node was removed!
+
+		# get the data in the event as a hash so it's easier to print
+		my $event_data = $event_obj->data();
+	
+		my $mustupdate = undef;                   # live changes to thisevent are ok, but saved back ONLY if this is set
+		
+		NMISNG::Util::dbg("processing event $event_data->{event}");
+
+		# checking if event is stateless and dampen time has passed.
+		if ( $event_obj->stateless and time() > $event_obj->startdate + $stateless_event_dampening )
+		{
+			# yep, remove the event completely.
+			NMISNG::Util::dbg("stateless event $event_data->{event} has exceeded dampening time of $stateless_event_dampening seconds."
+			);
+			$event_obj->delete();			
+		}
+
+		# set event control to policy or default=enabled.
+		my $thisevent_control = $events_config->{$event_obj->event}
+			|| {Log => "true", Notify => "true", Status => "true"};
+
+		my $node_name = $event_obj->node_name;
+
+		# lets start with checking that we have a valid node - the node may have been deleted.
+		# note: Compat::NMIS::loadAllEvents() doesn't return events for vanished nodes (but for inactive ones it does)
+		if ( !$nmisng_node or !$nmisng_node->configuration->{active} )
+		{
+			if (    NMISNG::Util::getbool( $thisevent_control->{Log} )
+				and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )    # meta-events are subject to both Notify and Log
+			{
+				$self->events->logEvent(
+					node_name    => $node_name,
+					node_uuid => $nmisng_node->uuid,
+					event   => "Deleted Event: ".$event_obj->event,
+					level   => $event_obj->level,
+					element => $event_obj->element,
+					details => $event_obj->details
+				);
+
+				my $timenow = time();
+				my $message
+					= "NMIS_Event::$C->{server_name}::$timenow,$event_data->{node_name},Deleted Event: $event_data->{event},$event_data->{level},$event_data->{element},$event_data->{details}";
+				my $priority = NMISNG::Notify::eventToSyslog( $event_obj->{level} );
+				NMISNG::Notify::sendSyslog(
+					server_string => $C->{syslog_server},
+					facility      => $C->{syslog_facility},
+					message       => $message,
+					priority      => $priority
+				);
+			}
+
+			NMISNG::Util::logMsg("INFO ($node_name) Node not active, deleted Event=$event_data->{event} Element=$event_data->{element}");
+			$event_obj->delete();			
+
+			next LABEL_ESC;
+		}
+
+		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
+		if ( $event_obj->event =~ /interface/i && !$event_obj->is_proactive )
+		{
+			### load the interface information and check the collect status.
+			my $S = NMISNG::Sys->new;    # node object
+			if ( $S->init( node => $nmisng_node, snmp => 'false' ))
+			{
+				my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
+				if ( !NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
+				{
+					# meta events are subject to both Log and Notify controls
+					if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+					{
+						$nmisng_node->eventLog(
+							event   => "Deleted Event: $event_data->{event}",
+							level   => $event_obj->level,
+							element => " no matching interface or no collect Element=$event_data->{element}"
+						);
+					}
+					NMISNG::Util::logMsg(
+						"INFO ($event_data->{node_name}) Interface not active, deleted Event=$event_data->{event} Element=$event_data->{element}"
+					);
+					$event_obj->delete();					
+					next LABEL_ESC;
+				}
+			}
+		}
+
+		# if a planned outage is in force, keep writing the start time of any unack event to the current start time
+		# so when the outage expires, and the event is still current, we escalate as if the event had just occured		
+		my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $nmisng_node, time => time() );
+		NMISNG::Util::dbg("Outage status for $event_data->{node_name} is ". ($outage || "<none>"));
+		if ( $outage eq "current" and !$event_obj->ack )
+		{
+			$event_obj->startdate(time());
+			if ( my $err = $event_obj->save(update => 1) )
+			{
+				NMISNG::Util::logMsg("ERROR $err");
+			}
+		}
+
+		# set the current outage time
+		$outage_time = time() - $event_obj->startdate;
+
+		# if we are to escalate, this event must not be part of a planned outage and un-ack.
+		if ( $outage ne "current" and !$event_obj->ack )
+		{
+			# we have list of nodes that this node depends
+			# if any of those have a current Node Down alarm, then lets just move on with a debug message
+			# should we log that we have done this - maybe not....
+
+			if ( $nmisng_node->configuration->{depend} ne '' )
+			{
+				foreach my $node_depend ( split /,/, $nmisng_node->configuration->{depend} )
+				{
+					next if $node_depend eq "N/A";                 # default setting
+					next if $node_depend eq $event_obj->node_name;    # remove the catch22 of self dependancy.
+					                                               #only do dependancy if node is active.
+					my $node_depend_rec = $nmisng_node->configuration;
+					if ( defined $node_depend_rec->{active} )
+					{
+						my ($error,$erec) = $self->events->eventLoad( 
+							node_uuid => $node_depend_rec->{uuid}, 
+							event => "Node Down", 
+							active => 1 
+						);
+						if (!$error && ref($erec) eq "HASH" )
+						{
+							NMISNG::Util::dbg("NOT escalating $event_data->{node_name} $event_data->{event} as dependant $node_depend is reported as down"
+							);
+							next LABEL_ESC;
+						}
+						
+					}
+				}
+			}
+
+			undef %keyhash;    # clear this every loop
+			$escalate = $event_obj->escalate;    # save this as a flag
+
+			# now depending on the event escalate the event up a level or so depending on how long it has been active
+			# now would be the time to notify as to the event. node down every 15 minutes, interface down every 4 hours?
+			# maybe a deccreasing run 15,30,60,2,4,etc
+			# proactive events would be escalated daily
+			# when escalation hits 10 they could auto delete?
+			# core, distrib and access could escalate at different rates.
+
+			# fixme9: unreachable - vanished node already handled earlier...
+			$self->log->error("Failed to get node for event, node:$event_data->{node_name}") && next
+				if(!$nmisng_node);
+			my ($catchall_inventory,$error_message) = $nmisng_node->inventory( concept => "catchall" );
+			$self->log->error("Failed to get catchall inventory for node:$event_data->{node_name}, error_message:$error_message") && next
+				if(!$catchall_inventory);
+			# in this case we have no guarantee that we have catchall and if we don't creating it is pointless.
+			my $catchall_data = $catchall_inventory->data_live();
+			$group = lc( $catchall_data->{group} );
+			$role  = lc( $catchall_data->{roleType} );
+			$type  = lc( $catchall_data->{nodeType} );
+			$event = lc( $event_obj->event );
+
+			NMISNG::Util::dbg("looking for Event to Escalation Table match for Event[ Node:$event_data->{node_name} Event:$event Element:$event_data->{element} ]"
+			);
+			NMISNG::Util::dbg("and node values node=$event_data->{node_name} group=$group role=$role type=$type");
+
+			# Escalation_Key=Group:Role:Type:Event
+			my @keylist = (
+				$group . "_" . $role . "_" . $type . "_" . $event,
+				$group . "_" . $role . "_" . $type . "_" . "default",
+				$group . "_" . $role . "_" . "default" . "_" . $event,
+				$group . "_" . $role . "_" . "default" . "_" . "default",
+				$group . "_" . "default" . "_" . $type . "_" . $event,
+				$group . "_" . "default" . "_" . $type . "_" . "default",
+				$group . "_" . "default" . "_" . "default" . "_" . $event,
+				$group . "_" . "default" . "_" . "default" . "_" . "default",
+				"default" . "_" . $role . "_" . $type . "_" . $event,
+				"default" . "_" . $role . "_" . $type . "_" . "default",
+				"default" . "_" . $role . "_" . "default" . "_" . $event,
+				"default" . "_" . $role . "_" . "default" . "_" . "default",
+				"default" . "_" . "default" . "_" . $type . "_" . $event,
+				"default" . "_" . "default" . "_" . $type . "_" . "default",
+				"default" . "_" . "default" . "_" . "default" . "_" . $event,
+				"default" . "_" . "default" . "_" . "default" . "_" . "default"
+			);
+
+			# lets allow all possible keys to match !
+			# so one event could match two or more escalation rules
+			# can have specific notifies to one group, and a 'catch all' to manager for example.
+
+			foreach my $klst (@keylist)
+			{
+				foreach my $esc ( keys %{$EST} )
+				{
+					my $esc_short = lc "$EST->{$esc}{Group}_$EST->{$esc}{Role}_$EST->{$esc}{Type}_$EST->{$esc}{Event}";
+
+					$EST->{$esc}{Event_Node} = ( $EST->{$esc}{Event_Node} eq '' ) ? '.*' : $EST->{$esc}{Event_Node};
+					$EST->{$esc}{Event_Element}
+						= ( $EST->{$esc}{Event_Element} eq '' ) ? '.*' : $EST->{$esc}{Event_Element};
+					$EST->{$esc}{Event_Node} =~ s;/;;g;
+					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
+					if (    $klst eq $esc_short
+						and $event_obj->node_name =~ /$EST->{$esc}{Event_Node}/i
+						and $event_obj->element =~ /$EST->{$esc}{Event_Element}/i )
+					{
+						$keyhash{$esc} = $klst;
+						NMISNG::Util::dbg("match found for escalation key=$esc");
+					}
+					else
+					{
+						#NMISNG::Util::dbg("no match found for escalation key=$esc, esc_short=$esc_short");
+					}
+				}
+			}
+
+			my $cnt_hash = keys %keyhash;
+			NMISNG::Util::dbg("$cnt_hash match(es) found for $event_data->{node_name}");
+
+			foreach $esc_key ( keys %keyhash )
+			{
+				NMISNG::Util::dbg("Matched Escalation Table Group:$EST->{$esc_key}{Group} Role:$EST->{$esc_key}{Role} Type:$EST->{$esc_key}{Type} Event:$EST->{$esc_key}{Event} Event_Node:$EST->{$esc_key}{Event_Node} Event_Element:$EST->{$esc_key}{Event_Element}"
+				);
+				NMISNG::Util::dbg("Pre Escalation : $event_data->{node_name} Event $event_data->{event} is $outage_time seconds old escalation is $event_data->{escalate}"
+				);
+
+				# default escalation for events
+				# 28 apr 2003 moved times to nmis.conf
+				for my $esclevel ( reverse( 0 .. 10 ) )
+				{
+					if ( $outage_time >= $C->{"escalate$esclevel"} )
+					{
+						$mustupdate = 1 if ( $event_obj->escalate != $esclevel );    # if level has changed
+						$event_obj->escalate( $esclevel );
+						last;
+					}
+				}
+
+				NMISNG::Util::dbg("Post Escalation: $event_data->{node_name} Event $event_data->{event} is $outage_time seconds old, escalation is $event_data->{escalate}"
+				);
+				if ( $C->{debug} and $escalate == $event_obj->escalate )
+				{
+					my $level = "Level" . ( $event_obj->escalate + 1 );
+					NMISNG::Util::dbg("Next Notification Target would be $level");
+					NMISNG::Util::dbg( "Contact: " . $EST->{$esc_key}{$level} );
+				}
+
+				# send a new email message as the escalation again.
+				# ehg 25oct02 added win32 netsend message type (requires SAMBA on this host)
+				if ( $escalate != $event_obj->escalate )
+				{
+					$event_age = NMISNG::Util::convertSecsHours( time - $event_obj->startdate );
+					$time      = &NMISNG::Util::returnDateStamp;
+
+					# get the string of type email:contact1:contact2,netsend:contact1:contact2,\
+					# pager:contact1:contact2,email:sysContact
+					$level = lc( $EST->{$esc_key}{'Level' . $event_obj->escalate} );
+
+					if ( $level ne "" )
+					{
+						# Now we have a string, check for multiple notify types
+						foreach $field ( split ",", $level )
+						{
+							$target = "";
+							@x      = split /:/, lc $field;
+							$type   = shift @x;               # first entry is email, ccopy, netsend or pager
+
+							NMISNG::Util::dbg("Escalation type=$type");
+
+							if ( $type =~ /email|ccopy|pager/ )
+							{
+								foreach $contact (@x)
+								{
+									my $contactLevelSend = 0;
+									my $contactDutyTime  = 0;
+
+									# if sysContact, use device syscontact as key into the contacts table hash
+									if ( $contact eq "syscontact" )
+									{
+										if ( $catchall_data->{sysContact} ne '' )
+										{
+											$contact = lc $catchall_data->{sysContact};
+											NMISNG::Util::dbg("Using node $event_data->{node_name} sysContact $catchall_data->{sysContact}");
+										}
+										else
+										{
+											$contact = 'default';
+										}
+									}
+
+									### better handling of upnotify for certain notification types.
+									if ( $type !~ /email|pager/ )
+									{
+										# check if UpNotify is true, and save with this event
+										# and send all the up event notifies when the event is cleared.
+										if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
+											and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
+											and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+										{
+											my $ct = "$type:$contact";
+											my @l = split( ',', $event_obj->notify );
+											if ( not grep { $_ eq $ct } @l )
+											{
+												push @l, $ct;
+												$event_obj->notify( join( ',', @l ) );
+												$mustupdate = 1;
+											}
+										}
+									}
+
+									if ( exists $CT->{$contact} )
+									{
+										if ( Compat::NMIS::dutyTime( $CT, $contact ) )
+										{    # do we have a valid dutytime ??
+											$contactDutyTime = 1;
+
+											# Duty Time is OK check level match
+											if ( $CT->{$contact}{Level} eq "" )
+											{
+												NMISNG::Util::dbg("SEND Contact $contact no filtering by Level defined");
+												$contactLevelSend = 1;
+											}
+											elsif ( $event_obj->level =~ /$CT->{$contact}{Level}/i )
+											{
+												NMISNG::Util::dbg("SEND Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $event_data->{level}"
+												);
+												$contactLevelSend = 1;
+											}
+											elsif ( $event_obj->level !~ /$CT->{$contact}{Level}/i )
+											{
+												NMISNG::Util::dbg("STOP Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $event_data->{level}"
+												);
+												$contactLevelSend = 0;
+											}
+										}
+
+										if ( $contactDutyTime and $contactLevelSend )
+										{
+											if ( $type eq "pager" )
+											{
+												$target
+													= $target
+													? $target . "," . $CT->{$contact}{Pager}
+													: $CT->{$contact}{Pager};
+											}
+											else
+											{
+												$target
+													= $target
+													? $target . "," . $CT->{$contact}{Email}
+													: $CT->{$contact}{Email};
+											}
+
+											# check if UpNotify is true, and save with this event
+											# and send all the up event notifies when the event is cleared.
+											if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
+												and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
+												and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+											{
+												my $ct = "$type:$contact";
+												my @l = split( ',', $event_obj->notify );
+												if ( not grep { $_ eq $ct } @l )
+												{
+													push @l, $ct;
+													$event_obj->notify( join( ',', @l ) );
+													$mustupdate = 1;
+												}
+											}
+										}
+										else
+										{
+											NMISNG::Util::dbg("STOP Contact duty time: $contactDutyTime, contact level: $contactLevelSend"
+											);
+										}
+									}
+									else
+									{
+										NMISNG::Util::dbg("Contact $contact not found in Contacts table");
+									}
+								}    #foreach
+
+								# no email targets found, and if default contact not found, assume we are not
+								# covering 24hr dutytime in this slot, so no mail.
+								# maybe the next levelx escalation field will fill in the gap
+								if ( !$target )
+								{
+									if ( $type eq "pager" )
+									{
+										$target = $CT->{default}{Pager};
+									}
+									else
+									{
+										$target = $CT->{default}{Email};
+									}
+									NMISNG::Util::dbg("No $type contact matched (maybe check DutyTime and TimeZone?) - looking for default contact $target"
+									);
+								}
+								else    # have target
+								{
+									foreach my $trgt ( split /,/, $target )
+									{
+										my $message;
+										my $priority;
+										if ( $type eq "pager" )
+										{
+											if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+											{
+												$msgTable{$type}{$trgt}{$serial_ns}{message}
+													= "NMIS: Esc. $event_data->{escalate} $event_age $event_data->{node_name} $event_data->{level} $event_data->{event} $event_data->{details}";
+												$serial_ns++;
+											}
+										}
+										else
+										{
+											if ( $type eq "ccopy" )
+											{
+												$message  = "FOR INFORMATION ONLY\n";
+												$priority = &Compat::NMIS::eventToSMTPPri("Normal");
+											}
+											else
+											{
+												$priority = &Compat::NMIS::eventToSMTPPri( $event_obj->level );
+											}
+
+											###2013-10-08 arturom, keiths, Added link to interface name if interface event.
+											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
+											$message
+												.= "Node:\t$event_data->{node_name}\nNotification at Level$event_data->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$event_data->{level}\nEvent:\t$event_data->{event}\nElement:\t$event_data->{element}\nDetails:\t$event_data->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$event_data->{node_name}\n";
+											if ( $event_obj->event =~ /Interface/ )
+											{
+												my $ifIndex = undef;
+												my $S       = NMISNG::Sys->new;    # sys accessor object
+												if ( ( $S->init( name => $event_obj->node_name, snmp => 'false' ) ) )
+												{                          # get cached info of node only
+													my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
+													if ( NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
+													{
+														$ifIndex = $IFD->{$event_obj->element}{ifIndex};
+														$message
+															.= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$event_data->{node_name}&intf=$ifIndex\n";
+													}
+												}
+											}
+											$message .= "\n";
+
+											if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+											{
+												if ( NMISNG::Util::getbool( $C->{mail_combine} ) )
+												{
+													$msgTable{$type}{$trgt}{$serial}{count}++;
+													$msgTable{$type}{$trgt}{$serial}{subject}
+														= "NMIS Escalation Message, contains $msgTable{$type}{$trgt}{$serial}{count} message(s), $msgtime";
+													$msgTable{$type}{$trgt}{$serial}{message} .= $message;
+													if ( $priority gt $msgTable{$type}{$trgt}{$serial}{priority} )
+													{
+														$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
+													}
+												}
+												else
+												{
+													$msgTable{$type}{$trgt}{$serial}{subject}
+														= "$event_data->{node_name} $event_data->{event} - $event_data->{element} - $event_data->{details} at $msgtime";
+													$msgTable{$type}{$trgt}{$serial}{message}  = $message;
+													$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
+													$msgTable{$type}{$trgt}{$serial}{count}    = 1;
+													$serial++;
+												}
+											}
+										}
+									}
+
+									# meta-events are subject to Notify and Log
+									$self->events->logEvent(
+										node_name    => $event_obj->node_name,
+										event   => "$type to $target Esc$event_data->{escalate} $event_data->{event}",
+										level   => $event_obj->level,
+										element => $event_obj->element,
+										details => $event_obj->details									
+										)
+										if (NMISNG::Util::getbool( $thisevent_control->{Notify} )
+										and NMISNG::Util::getbool( $thisevent_control->{Log} ) );
+
+									NMISNG::Util::dbg("Escalation $type Notification node=$event_data->{node_name} target=$target level=$event_data->{level} event=$event_data->{event} element=$event_data->{element} details=$event_data->{details} group=".$nmisng_node->configuration->{group});
+								}    # if $target
+							}    # end email,ccopy,pager
+
+							# now the netsends
+							elsif ( $type eq "netsend" )
+							{
+								if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+								{
+									my $message
+										= "Escalation $event_data->{escalate} $event_data->{node_name} $event_data->{level} $event_data->{event} $event_data->{element} $event_data->{details} at $msgtime";
+									foreach my $trgt (@x)
+									{
+										$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+										$serial_ns++;
+										NMISNG::Util::dbg("NetSend $message to $trgt");
+
+										# meta-events are subject to both
+										$self->events->logEvent(
+											node_name    => $event_obj->node_name,
+											event   => "NetSend $message to $trgt $event_data->{event}",
+											level   => $event_obj->level,
+											element => $event_obj->element,
+											details => $event_obj->details
+										) if ( NMISNG::Util::getbool( $thisevent_control->{Log} ) );
+									}    #foreach
+								}
+							}    # end netsend
+							elsif ( $type eq "syslog" )
+							{
+								# check if UpNotify is true, and save with this event
+								# and send all the up event notifies when the event is cleared.
+								if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
+									and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
+									and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+								{
+									my $ct = "$type:server";
+									my @l = split( ',', $event_obj->notify );
+									if ( not grep { $_ eq $ct } @l )
+									{
+										push @l, $ct;
+										$event_obj->notify( join( ',', @l ) );
+										$mustupdate = 1;
+									}
+								}
+
+								if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+								{
+									my $timenow = time();
+									my $message
+										= "NMIS_Event::$C->{server_name}::$timenow,$event_data->{node_name},$event_data->{event},$event_data->{level},$event_data->{element},$event_data->{details}";
+									my $priority = NMISNG::Notify::eventToSyslog( $event_obj->level );
+									if ( NMISNG::Util::getbool( $C->{syslog_use_escalation} ) )
+									{
+										foreach my $trgt (@x)
+										{
+											$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+											$msgTable{$type}{$trgt}{$serial}{priority}   = $priority;
+											$serial_ns++;
+											NMISNG::Util::dbg("syslog $message");
+										}    #foreach
+									}
+								}
+							}    # end syslog
+							elsif ( $type eq "json" )
+							{
+								if (    NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
+									and $event_obj->event =~ /$C->{upnotify_stateful_events}/i
+									and NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+								{
+									my $ct = "$type:server";
+									my @l = split( ',', $event_obj->notify );
+									if ( not grep { $_ eq $ct } @l )
+									{
+										push @l, $ct;
+										$event_obj->notify( join( ',', @l ) );
+										$mustupdate = 1;
+									}
+								}
+
+								# amend the event - attention: this changes the live event,
+								# and will be saved back!
+								$mustupdate = 1;
+								my $node = $nmisng_node->configuration;
+								$event_obj->custom_data( 'nmis_server', $C->{server_name} );
+								$event_obj->custom_data( 'customer', $node->{customer} );
+								$event_obj->custom_data( 'location', $LocationsTable->{$node->{location}}{Location} );
+								$event_obj->custom_data( 'geocode' , $LocationsTable->{$node->{location}}{Geocode} );
+
+								if ($useServiceStatusTable)
+								{
+									$event_obj->custom_data( 'serviceStatus',
+										$ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus} );
+									$event_obj->custom_data( 'statusPriority',
+										$ServiceStatusTable->{$node->{serviceStatus}}{statusPriority} );
+								}
+
+								if ($useBusinessServicesTable)
+								{
+									$event_obj->custom_data( 'businessService',
+										$BusinessServicesTable->{$node->{businessService}}{businessService} );
+									$event_obj->custom_data( 'businessPriority',
+										$BusinessServicesTable->{$node->{businessService}}{businessPriority} );
+								}
+
+								# Copy the fields from nodes to the event
+								my @nodeFields = split( ",", $C->{'json_node_fields'} );
+								foreach my $field (@nodeFields)
+								{
+									$event_obj->custom_data( $field, $node->{$field} );
+								}
+
+								NMISNG::Notify::logJsonEvent( event => $event_obj, dir => $C->{'json_logs'} )
+									if ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) );
+							}    # end json
+							elsif ( NMISNG::Util::getbool( $thisevent_control->{Notify} ) )
+							{
+								if ( NMISNG::Util::checkPerlLib("Notify::$type") )
+								{
+									NMISNG::Util::dbg("Notify::$type $contact");
+									my $timenow = time();
+									my $datenow = NMISNG::Util::returnDateStamp();
+									my $message
+										= "$datenow: $event_data->{node_name}, $event_data->{event}, $event_data->{level}, $event_data->{element}, $event_data->{details}";
+									foreach $contact (@x)
+									{
+										if ( exists $CT->{$contact} )
+										{
+											if ( Compat::NMIS::dutyTime( $CT, $contact ) )
+											{    # do we have a valid dutytime ??
+												    # check if UpNotify is true, and save with this event
+												    # and send all the up event notifies when the event is cleared.
+												if ( NMISNG::Util::getbool( $EST->{$esc_key}{UpNotify} )
+													and $event_obj->event =~ /$C->{upnotify_stateful_events}/i )
+												{
+													my $ct = "$type:$contact";
+													my @l = split( ',', $event_obj->notify );
+													if ( not grep { $_ eq $ct } @l )
+													{
+														push @l, $ct;
+														$event_obj->notify( join( ',', @l ) );    # fudged up
+														$mustupdate = 1;
+													}
+												}
+
+												#$serial
+												$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
+												$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
+												$msgTable{$type}{$contact}{$serial_ns}{event}   = $event_data;
+												$serial_ns++;
+											}
+										}
+										else
+										{
+											NMISNG::Util::dbg("Contact $contact not found in Contacts table");
+										}
+									}
+								}
+								else
+								{
+									NMISNG::Util::dbg("ERROR process_escalations problem with escalation target unknown at level$event_data->{escalate} $level type=$type"
+									);
+								}
+							}
+						}    # foreach field
+					}    # endif $level
+				}    # if escalate
+			}    # foreach esc_key
+		}    # end of outage check
+
+		# now we're done with this event, let's update it if we have to
+		if ( $mustupdate )
+		{
+			if ( my $err = $event_obj->save( update => 1 ) )
+			{
+				NMISNG::Util::logMsg("ERROR $err");
+				print "event:".Dumper($event_obj->data);
+			}
+		}
+	}
+
+	# now send the messages that have accumulated in msgTable
+	NMISNG::Util::dbg("Starting Message Sending");
+	foreach my $method ( keys %msgTable )
+	{
+		NMISNG::Util::dbg("Method $method");
+		if ( $method eq "email" )
+		{
+			# fixme: this is slightly inefficient as the new sendEmail can send to multiple targets in one go
+			foreach my $target ( keys %{$msgTable{$method}} )
+			{
+				foreach my $serial ( keys %{$msgTable{$method}{$target}} )
+				{
+					next if $C->{mail_server} eq '';
+
+					my ( $status, $code, $errmsg ) = NMISNG::Notify::sendEmail(
+
+						# params for connection and sending
+						sender     => $C->{mail_from},
+						recipients => [$target],
+
+						mailserver => $C->{mail_server},
+						serverport => $C->{mail_server_port},
+						hello      => $C->{mail_domain},
+						usetls     => $C->{mail_use_tls},
+						ipproto    => $C->{mail_server_ipproto},
+
+						username => $C->{mail_user},
+						password => $C->{mail_password},
+
+						# and params for making the message on the go
+						to       => $target,
+						from     => $C->{mail_from},
+						subject  => $msgTable{$method}{$target}{$serial}{subject},
+						body     => $msgTable{$method}{$target}{$serial}{message},
+						priority => $msgTable{$method}{$target}{$serial}{priority},
+					);
+
+					if ( !$status )
+					{
+						NMISNG::Util::logMsg("Error: Sending email to $target failed: $code $errmsg");
+					}
+					else
+					{
+						NMISNG::Util::dbg("Escalation Email Notification sent to $target");
+					}
+				}
+			}
+		}    # end email
+		### Carbon copy notifications - no action required - FYI only.
+		elsif ( $method eq "ccopy" )
+		{
+			# fixme: this is slightly inefficient as the new sendEmail can send to multiple targets in one go
+			foreach my $target ( keys %{$msgTable{$method}} )
+			{
+				foreach my $serial ( keys %{$msgTable{$method}{$target}} )
+				{
+					next if $C->{mail_server} eq '';
+
+					my ( $status, $code, $errmsg ) = NMISNG::Notify::sendEmail(
+
+						# params for connection and sending
+						sender     => $C->{mail_from},
+						recipients => [$target],
+
+						mailserver => $C->{mail_server},
+						serverport => $C->{mail_server_port},
+						hello      => $C->{mail_domain},
+						usetls     => $C->{mail_use_tls},
+						ipproto    => $C->{mail_server_ipproto},
+
+						username => $C->{mail_user},
+						password => $C->{mail_password},
+
+						# and params for making the message on the go
+						to       => $target,
+						from     => $C->{mail_from},
+						subject  => $msgTable{$method}{$target}{$serial}{subject},
+						body     => $msgTable{$method}{$target}{$serial}{message},
+						priority => $msgTable{$method}{$target}{$serial}{priority},
+					);
+
+					if ( !$status )
+					{
+						NMISNG::Util::logMsg("Error: Sending email to $target failed: $code $errmsg");
+					}
+					else
+					{
+						NMISNG::Util::dbg("Escalation CC Email Notification sent to $target");
+					}
+				}
+			}
+		}    # end ccopy
+		elsif ( $method eq "netsend" )
+		{
+			foreach my $target ( keys %{$msgTable{$method}} )
+			{
+				foreach my $serial ( keys %{$msgTable{$method}{$target}} )
+				{
+					NMISNG::Util::dbg("netsend $msgTable{$method}{$target}{$serial}{message} to $target");
+
+					# read any stdout messages and throw them away
+					if ( $^O =~ /win32/i )
+					{
+						# win32 platform
+						my $dump = `net send $target $msgTable{$method}{$target}{$serial}{message}`;
+					}
+					else
+					{
+						# Linux box
+						my $dump = `echo $msgTable{$method}{$target}{$serial}{message}|smbclient -M $target`;
+					}
+				}    # end netsend
+			}
+		}
+
+		# now the syslog
+		elsif ( $method eq "syslog" )
+		{
+			foreach my $target ( keys %{$msgTable{$method}} )
+			{
+				foreach my $serial ( keys %{$msgTable{$method}{$target}} )
+				{
+					NMISNG::Util::dbg(" sendSyslog to $target");
+					NMISNG::Notify::sendSyslog(
+						server_string => $C->{syslog_server},
+						facility      => $C->{syslog_facility},
+						message       => $msgTable{$method}{$target}{$serial}{message},
+						priority      => $msgTable{$method}{$target}{$serial}{priority}
+					);
+				}    # end syslog
+			}
+		}
+
+		# now the pagers
+		elsif ( $method eq "pager" )
+		{
+			foreach my $target ( keys %{$msgTable{$method}} )
+			{
+				foreach my $serial ( keys %{$msgTable{$method}{$target}} )
+				{
+					next if $C->{snpp_server} eq '';
+					NMISNG::Util::dbg(" SendSNPP to $target");
+					NMISNG::Notify::sendSNPP(
+						server  => $C->{snpp_server},
+						pagerno => $target,
+						message => $msgTable{$method}{$target}{$serial}{message}
+					);
+				}
+			}    # end pager
+		}
+
+		# now the extensible stuff.......
+		else
+		{
+			my $class       = "Notify::$method";
+			my $classMethod = $class . "::sendNotification";
+			if ( NMISNG::Util::checkPerlLib($class) )
+			{
+				eval "require $class";
+				NMISNG::Util::logMsg($@) if $@;
+				NMISNG::Util::dbg("Using $classMethod to send notification to $msgTable{$method}{$target}{$serial}{contact}->{Contact}"
+				);
+				my $function = \&{$classMethod};
+				foreach $target ( keys %{$msgTable{$method}} )
+				{
+					foreach $serial ( keys %{$msgTable{$method}{$target}} )
+					{
+						NMISNG::Util::dbg( "Notify method=$method, target=$target, serial=$serial message="
+								. $msgTable{$method}{$target}{$serial}{message} );
+						if ( $target and $msgTable{$method}{$target}{$serial}{message} )
+						{
+							$function->(
+								message  => $msgTable{$method}{$target}{$serial}{message},
+								event    => $msgTable{$method}{$target}{$serial}{event},
+								contact  => $msgTable{$method}{$target}{$serial}{contact},
+								priority => $msgTable{$method}{$target}{$serial}{priority},
+								C        => $C
+							);
+						}
+					}
+				}
+			}
+			else
+			{
+				NMISNG::Util::dbg("ERROR unknown device $method");
+			}
+		}
+	}
+	
+	NMISNG::Util::dbg("Finished");
+	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
+	{
+		my $polltime = $pollTimer->elapTime();
+		NMISNG::Util::logMsg("Poll Time: $polltime");
+	}
+}
 
 1;
