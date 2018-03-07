@@ -2668,8 +2668,9 @@ sub process_escalations
 	my $active_ret    = $self->events->get_events_model( filter => { historic => 0, active => 1 });
 	my $inactive_ret = $self->events->get_events_model( filter => { historic => 0, active => 0 });
 
-	print STDERR "a_error:".Dumper($active_ret->{error}) if ($active_ret->{error});
-	print STDERR "inactive_error:".Dumper($inactive_ret->{error}) if ($inactive_ret->{error});
+	#	print STDERR "a_error:".Dumper($active_ret->{error}) if ($active_ret->{error});
+	#	print STDERR "inactive_error:".Dumper($inactive_ret->{error}) if ($inactive_ret->{error});
+	
 	# then send UP events to all those contacts to be notified as part of the escalation procedure
 	# this loop skips ALL marked-as-active events!
 	# active flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
@@ -2949,8 +2950,10 @@ LABEL_ESC:
 	for (my $i = 0; $i < $active_ret->{model_data}->count; $i++) 
 	{
 		my $event_obj = $active_ret->{model_data}->object($i);
-		my $nmisng_node = $self->node(uuid => $event_obj->node_uuid); # will be undef if the node was removed!
-
+		# we must tell the object it's already loaded or whenever load is called
+		# (which save does call) will clober any changes made before it's called
+		$event_obj->loaded( 1 );
+		my $nmisng_node = $self->node(uuid => $event_obj->node_uuid);
 		# get the data in the event as a hash so it's easier to print
 		my $event_data = $event_obj->data();
 	
@@ -3036,7 +3039,7 @@ LABEL_ESC:
 		}
 
 		# if a planned outage is in force, keep writing the start time of any unack event to the current start time
-		# so when the outage expires, and the event is still current, we escalate as if the event had just occured		
+		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
 		my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $nmisng_node, time => time() );
 		NMISNG::Util::dbg("Outage status for $event_data->{node_name} is ". ($outage || "<none>"));
 		if ( $outage eq "current" and !$event_obj->ack )

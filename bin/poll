@@ -943,6 +943,7 @@ sub runMetrics
 	$data->{intfColUp}{value}    = $groupSummary->{average}{intfColUp};
 	$data->{intfAvail}{value}    = $groupSummary->{average}{intfAvail};
 
+
 	# RRD options
 	$data->{reachability}{option} = "gauge,0:100";
 	$data->{availability}{option} = "gauge,0:100";

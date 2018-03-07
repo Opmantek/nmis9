@@ -2220,11 +2220,10 @@ sub checkEvent
 
 	$args{node_uuid} = $S->nmisng_node()->uuid;
 	# create event with attributes we are looking for
-	my $event = $nmisng->events->event( %args	);
+	my $event = $nmisng->events->event( _id => $args{_id}, node_uuid => $args{node_uuid}, event => $args{event}, element => $args{element} );
 	# only take the missing data from the db, that way our new details/level will
-	# be used instead of what is in the db
-	$event->load( only_take_missing => 1 );
-	return $event->check( %args );
+	# be used instead of what is in the db	
+	return $event->check( sys => $S, details => $args{details}, level => $args{level} );
 };
 
 # notify creates new events
@@ -2248,9 +2247,9 @@ sub notify
 	my $inventory_id = $args{inventory_id};
 	my $log;
 	my $syslog;
+	my $saveupdate = undef;
 
 	my $C = NMISNG::Util::loadConfTable();
-
 	NMISNG::Util::dbg("Start of Notify");
 
 	# events.nmis controls which events are active/logging/notifying
@@ -2273,13 +2272,11 @@ sub notify
 				$event_obj->level( $level );
 				$event_obj->details( $details );
 				$event_obj->context( $args{context} ) if( !$event_obj->context );
-				if (my $error = $event_obj->save() )
-				{
-					NMISNG::Util::logMsg("ERROR $error");
-				}
 
 				(undef, $log, $syslog) = $event_obj->getLogLevel(sys=>$S);
 				$details .= " Updated";
+
+				$saveupdate = 1;
 			}
 		}
 		else # not an proactive/alert event - no changes are supported
@@ -2308,13 +2305,7 @@ sub notify
 		my ($otg,$outageinfo) = NMISNG::Outage::outageCheck(node => $S->nmisng_node, time=>time());
 		if ($otg eq 'current') {
 			$details .= " outage_current=true change=$outageinfo->{change_id}";
-		}
-
-		# Create and store this new event; record whether stateful or not
-		# a stateless event should escalate to a level and then be automatically deleted.
-		if (my $error = $event_obj->save())
-		{
-			NMISNG::Util::logMsg("ERROR: $error");
+			$event_obj->details( $details );
 		}
 
 		if (NMISNG::Util::getbool($C->{log_node_configuration_events})
@@ -2325,14 +2316,26 @@ sub notify
 										 element=>$element, details=>$details, host => $catchall_data->{host},
 										 nmis_server => $C->{nmis_host} );
 		}
-		$catchall_data->{nodedown} = "true";
+		# want a save, not update
+		$saveupdate = 0;
 	}
 
 	# log events if allowed
+	# and do it before save so we can log that this thing has been saved
 	if ( NMISNG::Util::getbool($log) and NMISNG::Util::getbool($thisevent_control->{Log}))
+	{		
+		# details get changed a bit for the log so pass them through
+		$event_obj->log(details => $details);
+	}
+
+	# Create and store this new event; record whether stateful or not
+	# a stateless event should escalate to a level and then be automatically deleted.
+	# or update existing event (and skip add logic)
+	my $error;
+	$error = $event_obj->save( update => $saveupdate ) if( defined($saveupdate) );
+	if ( $error )
 	{
-		$event_obj->level($level);
-		$event_obj->log();
+		NMISNG::Util::logMsg("ERROR $error");
 	}
 
 	# Syslog must be explicitly enabled in the config and
@@ -2354,7 +2357,7 @@ sub notify
 			details => $details
 				);
 	}
-
+	return $event_obj;
 	NMISNG::Util::dbg("Finished");
 }
 

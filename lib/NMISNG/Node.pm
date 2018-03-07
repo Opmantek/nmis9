@@ -382,8 +382,8 @@ sub get_events_model
 {
 	my ( $self, %args ) = @_;
 	# modify filter to make sure it's getting just events for this node
-	my $filter = $args{filter};
-	$filter->{node_uuid} = $self->uuid;
+	$args{filter} //= {};;
+	$args{filter}->{node_uuid} = $self->uuid;
 	return $self->nmisng->events->get_events_model( %args );
 }
 
@@ -2498,7 +2498,7 @@ sub update_intf_info
 			}
 
 			# interface now up or down, check and set or clear outstanding event.
-			if (    NMISNG::Util::getbool( $target->{collect} )
+			if ( NMISNG::Util::getbool( $target->{collect} )
 				and $target->{ifAdminStatus} =~ /up|ok/
 				and $target->{ifOperStatus} !~ /up|ok|dormant/ )
 			{
@@ -5080,6 +5080,7 @@ sub process_alerts
 				level   => $alert->{level},
 				element => $alert->{ds},                  # vital part of context, too
 				details => $details,
+				inventory_id => $alert->{inventory_id},
 				context => {
 					type    => "alert",
 					source  => $alert->{source},
