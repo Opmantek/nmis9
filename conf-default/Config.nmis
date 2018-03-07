@@ -131,7 +131,7 @@ my %hash = (
     'page_bg_color_full' => 'true',
     'loc_from_sysLoc' => 'false',
     'loc_from_DNSloc' => 'false',
-    'loc_sysLoc_format' => '^-*\\d{1,3}\\.\\d{1,4},-*\\d{1,3}\\.\\d{1,4},\\d{0,4},.',
+    'loc_sysLoc_format' => '^-?\\d{1,3}(\\.\\d+)?,-?\\d{1,3}(\\.\\d+)?,-?\\d+,.+$',
     'cbqos_cm_collect_all' => 'true',
     'buttons_in_logs' => 'false',
     'node_button_in_logs' => 'true',
@@ -509,6 +509,8 @@ my %hash = (
 		'schedule_dbcleanup' => 86400,
 		'schedule_update' => 86400,
 		'schedule_links' => 86400,
+		'schedule_selftest' => 15*60,
+		'schedule_permission_test' => 2*3600,
 	},
 
 );
