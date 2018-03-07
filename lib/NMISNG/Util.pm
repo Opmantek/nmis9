@@ -349,7 +349,7 @@ sub convertSecsHours {
 }
 
 # takes number N and unit string X, returns now minus N times (numeric value for X)
-sub convertTime 
+sub convertTime
 {
 	my $amount = shift;
 	my $units = shift;
@@ -357,7 +357,7 @@ sub convertTime
 	my $newtime;
 
 	$units ||= "days";
-	
+
 	# convert length code into Graph start time
 	if ( $units eq "minutes" ) { $newtime = $timenow - $amount * 60; }
 	elsif ( $units eq "hours" ) { $newtime = $timenow - $amount * 60 * 60; }
@@ -2489,75 +2489,6 @@ sub selftest
 	return ($allok, \@details);
 }
 
-# updates the operations start/stop timestamps
-# args: type (=collect, update, threshold, summary etc),
-# start (= time), stop (= time or undef to record the start)
-# returns nothing
-sub update_operations_stamp
-{
-	my (%args) = @_;
-	my ($type,$start,$stop) = @args{"type","start","stop"};
-
-	return if (!$type or !$start); # we associate start with stop
-
-	my $C = loadConfTable;
-	# having this hardcoded twice isn't great...
-	my $oplogdir = $C->{'<nmis_var>'}."/nmis_system/timestamps";
-	for my $maybedir ($C->{'<nmis_var>'}."/nmis_system/", $oplogdir)
-	{
-		if (!-d $maybedir)
-		{
-			mkdir($maybedir,0755) or die "cannot create $maybedir: $!\n";
-			NMISNG::Util::setFileProtDiag(file =>$maybedir);
-		}
-	}
-
-	# simple setup: update-123456- for start
-	# and update-1234567-1400000 for stop
-	my $startstamp = sprintf("$oplogdir/$type-%d-",$start); # if these are fractional secs
-	my $endstamp =  sprintf("$oplogdir/$type-%d-%d",$start, $stop);
-
-	if (!$stop)
-	{
-		open(F,">$startstamp") or die "cannot write to $startstamp: $!\n";
-		close(F);
-		NMISNG::Util::setFileProtDiag(file =>$startstamp);
-	}
-	else
-	{
-		# we actually should only have a start- stamp file to rename
-		unlink($endstamp) if (-f $endstamp);
-		if (-f $startstamp)
-		{
-			rename($startstamp,$endstamp)
-					or die "cannot rename $startstamp to $endstamp: $!\n";
-			NMISNG::Util::setFileProtDiag(file =>$endstamp);
-		}
-		else
-		{
-			open(F,">$endstamp") or die "cannot write to $endstamp: $!\n";
-			close(F);
-			NMISNG::Util::setFileProtDiag(file =>$endstamp);
-		}
-
-		# now be a good camper and ensure that we don't leave too many
-		# of these files around
-		opendir(D,$oplogdir) or die "cannot open dir $oplogdir: $!\n";
-		# need these sorted by first timestamp
-		my @files = sort { my ($first,$second) = ($a,$b);
-											 $first =~ s/^$type-(\d+).*$/$1/;
-											 $second =~ s/^$type-(\d+).*$/$1/;
-											 $second <=> $first; } grep(/^$type-/, readdir(D));
-		my $maxfiles = 500;
-
-		for my $idx ($maxfiles..$#files)
-		{
-			unlink("$oplogdir/$files[$idx]")
-					or die "cannot remove $oplogdir/$files[$idx]: $!\n";
-		}
-		close F;
-	}
-}
 
 # small helper that returns hash of other nmis processes that are
 # running the given function
@@ -2673,31 +2604,30 @@ sub parse_dateandtime
 	}
 }
 
-sub getFilePollLock {
-	my %args = @_;
+sub getFilePollLock
+{
+	my (%args) = @_;
 	my $type = $args{type};
-	my $conf = $args{conf};
 	my $node = $args{node};
-	my $C = NMISNG::Util::loadConfTable();
 
-	my $lockFile = $C->{'<nmis_var>'}."/".lc($node)."-$conf-$type.lock";
+	my $C = NMISNG::Util::loadConfTable();
+	my $lockFile = $C->{'<nmis_var>'}."/".lc($node)."-$type.lock";
 
 	return($lockFile);
 }
 
 # checks a lock's status
-# args: type, conf, node (all required)
+# args: type, node (all required)
 #
 # returns: (pid of holder or 1) iff poll lock file exists
 # and some other process is holding the lock, 0 otherwise
 sub existsPollLock
 {
-	my %args = @_;
+	my (%args) = @_;
 	my $type = $args{type};
-	my $conf = $args{conf};
 	my $node = $args{node};
 
-	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
+	my $lockFile = getFilePollLock(type => $type, node => $node);
 	my $handle;
 
 	return 0 if (!-f $lockFile);	# no file, no locker for sure
@@ -2718,19 +2648,18 @@ sub existsPollLock
 # this creates a new lock IF and ONLY IF none exists
 # note: this is not sufficiently atomic to be safe!
 # ie. delta time between existspolllock and creating the lock
-# args: type, conf, node (required).
+# args: type, node (required).
 #
 # returns: undef if the locking op failed or somebody else already holds the lock,
 # the open lock handle otherwise.
 sub createPollLock
 {
-	my %args = @_;
+	my (%args) = @_;
 	my $type = $args{type};
-	my $conf = $args{conf};
 	my $node = $args{node};
 
 	my $C = NMISNG::Util::loadConfTable();
-	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
+	my $lockFile = getFilePollLock(type => $type, node => $node);
 
 	# attention: this is not quite atomic enough to be totally safe!
 	if ( not NMISNG::Util::existsPollLock(%args) )
@@ -2755,16 +2684,18 @@ sub createPollLock
 	return undef;
 }
 
-sub releasePollLock {
-	my %args = @_;
+sub releasePollLock
+{
+	my (%args) = @_;
+
 	my $type = $args{type};
-	my $conf = $args{conf};
 	my $node = $args{node};
 	my $handle = $args{handle};
 
-	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
+	my $lockFile = getFilePollLock(type => $type, node => $node);
 
-	if (defined $handle) {
+	if (defined $handle)
+	{
 		flock($handle, LOCK_UN) or warn "releasePollLock: ERROR Cannot unlock $lockFile - $!\n";
 		close($handle) or warn "releasePollLock: ERROR can't close file $lockFile, $!\n";
 		unlink($lockFile) or warn "releasePollLock: ERROR can't delete file $lockFile, $!\n";
@@ -3024,6 +2955,33 @@ sub audit_log
 
 	return undef;
 }
+
+# quick and dirty dns lookup for ip addresses
+# args: address (ipv4 or ipv6)
+# returns: list of hostnames (or empty array)
+sub resolve_dns_address
+{
+	my ($lookup) = @_;
+
+	my @results;
+	# full ipv6 support works only with newer socket module
+	my ($err,@possibles) = Socket::getaddrinfo($lookup,'',
+																						 {
+																							 # don't bother with any service
+																							 socktype => SOCK_RAW,
+																							 #  and only REVERSE lookups
+																							 flags => Socket::AI_NUMERICHOST });
+	return () if ($err);
+	for my $address (@possibles)
+	{
+		my ($err,$hostname) = Socket::getnameinfo(
+			$address->{addr},
+			Socket::NIx_NOSERV());
+		push @results,$hostname if (!$err and $hostname ne $lookup);
+	}
+	return @results;
+}
+
 
 # quick dns lookup for names
 # args: name
