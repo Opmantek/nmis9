@@ -38,7 +38,7 @@ our $VERSION = "1.0.0";
 use Module::Load 'none';
 use Carp::Assert;
 use Carp;
-use Clone;    # for copying overrides out of the record
+use Clone;
 use List::Util;
 use Data::Dumper;
 use Time::HiRes;
@@ -47,8 +47,18 @@ use Statistics::Lite;
 use URI::Escape;
 use POSIX qw(:sys_wait_h);
 
+use NMISNG::Util;
 use NMISNG::DB;
 use NMISNG::Inventory;
+use NMISNG::Sapi;								# for collect_services()
+use NMISNG::MIB;
+use NMISNG::Sys;
+use NMISNG::Ping;
+use NMISNG::Notify;
+use NMISNG::rrdfunc;
+
+use Compat::IP;
+
 
 # create a new node object
 # params:

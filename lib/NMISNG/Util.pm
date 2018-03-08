@@ -2188,10 +2188,6 @@ sub selftest
 	{
 		$result = "NMIS is disabled! Remove the file $lockoutfile to re-enable.";
 	}
-	elsif (NMISNG::Util::getbool($config->{global_collect},"invert"))
-	{
-		$result = "NMIS is disabled! Set the configuration variable \"global_collect\" to \"true\" to re-enable.";
-	}
 	push @details, [$testname, $result];
 	$allok = 0 if ($result);
 

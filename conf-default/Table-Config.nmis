@@ -89,7 +89,6 @@ my %hash = (
 													 validate => { 'int' => [ 1, 100 ] }}},
 			{ 'ping_count' => { display => 'text', value => ['3'],
 													 validate => { 'int' => [ 1, 100 ] }}},
-			{ 'global_collect' => { display => 'popup', value => ["true", "false"]}},
 			{ 'wrap_node_names' => { display => 'popup', value => ["false", "true"]}},
 			{ 'nmis_summary_poll_cycle' => { display => 'popup', value => ["true", "false"]}},
 			{ 'snpp_server' => { display => 'text', value => ['<server_name>']}},

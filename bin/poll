@@ -59,19 +59,11 @@ use POSIX qw(:sys_wait_h);
 use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
 
-use Compat::NMIS;
-use Compat::Timing;
-
 use NMISNG::Util;
-use NMISNG::Ping;
-use NMISNG::Sapi;
-use Compat::IP;
-use NMISNG::Notify;
-use NMISNG::rrdfunc;
-
-use NMISNG::MIB;
 use NMISNG::Sys;
 
+use Compat::NMIS;
+use Compat::Timing;
 
 my $usage = "NMIS Polling Engine - Network Management Information System
 
@@ -127,7 +119,7 @@ $selftest_dbdir_status = undef;
 # useful for disabling nmis poll for server maintenance, nmis upgrades etc.
 my $lockoutfile = $C->{'<nmis_conf>'} . "/NMIS_IS_LOCKED";
 
-if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) )
+if ( -f $lockoutfile )
 {
 	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
 	my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
@@ -150,26 +142,18 @@ if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) 
 		data => {status => $allok, lastupdate => time, tests => $tests}
 	);
 	NMISNG::Util::info( "Selftest completed (status " . ( $allok ? "ok" : "FAILED!" ) . "), cache file written" );
-	if ( -f $lockoutfile )
-	{
-		my $installerpresence = "/tmp/nmis_install_running";
 
-		# installer should not need to lock this box for more than a few minutes
-		if ( -f $installerpresence && ( stat($installerpresence) )[9] > time - 3600 )
-		{
-			NMISNG::Util::logMsg("INFO NMIS is currently disabled, installer is performing upgrade, exiting.");
-			exit(0);
-		}
-		else
-		{
-			NMISNG::Util::logMsg("WARNING NMIS is currently disabled! Remove the file $lockoutfile to re-enable.");
-			die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
-		}
+	my $installerpresence = "/tmp/nmis_install_running";
+	# installer should not need to lock this box for more than a few minutes
+	if ( -f $installerpresence && ( stat($installerpresence) )[9] > time - 3600 )
+	{
+		NMISNG::Util::logMsg("INFO NMIS is currently disabled, installer is performing upgrade, exiting.");
+		exit(0);
 	}
 	else
 	{
-		die
-			"Attention: NMIS is currently disabled!\nSet the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n";
+		NMISNG::Util::logMsg("WARNING NMIS is currently disabled! Remove the file $lockoutfile to re-enable.");
+		die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
 	}
 }
 

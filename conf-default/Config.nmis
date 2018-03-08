@@ -139,7 +139,6 @@ my %hash = (
     'http_req_timeout' => '60',
     'server_name' => 'localhost',
 		'server_admin' => 'root@localhost',
-    'global_collect' => 'true',
     'response_time_threshold' => '500',
     'nmis_user' => 'nmis',
     'nmis_group' => 'nmis',

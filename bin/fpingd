@@ -73,11 +73,9 @@ my $C = NMISNG::Util::loadConfTable(dir => $customconfdir, debug => $nvp{debug})
 
 # check if nmis is locked, if so shut down immediately.
 my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
-if (-f $lockoutfile or NMISNG::Util::getbool($C->{global_collect},"invert"))
+if (-f $lockoutfile)
 {
-	die ("Attention: NMIS is currently disabled, fpingd.pl is terminating!\n"
-			 .(-f $lockoutfile? "Remove the file $lockoutfile to re-enable.\n\n" :
-				 "Set the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n"))
+	die ("Attention: NMIS is currently disabled, fpingd.pl is terminating!\nRemove the file $lockoutfile to re-enable.\n\n");
 }
 
 # setup logging
@@ -229,7 +227,7 @@ while (!$mustexit)
 
 	# nmis locked? nothing for this daemon to do
 	my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
-	if (-f $lockoutfile or NMISNG::Util::getbool($C->{global_collect},"invert"))
+	if (-f $lockoutfile)
 	{
 		$logger->warn("fping is terminating because NMIS is disabled.");
 		exit 0;
