@@ -1733,7 +1733,8 @@ sub find_due_nodes
 	my %cands;
 	# what to work on? all active nodes or only the selected lists of nodes
 	# multiple filters are applied independently, e.g. select by group and then extra nodes
-	for my $onefilter (@{$args{filters}} || { }) # default: blank unrestricted filter
+	# default: blank unrestricted filter
+	for my $onefilter ( @{$args{filters}}? @{$args{filters}}: ({}) )
 	{
 		$onefilter->{active} = 1;	# never consider inactive nodes
 		my $possibles = $self->get_nodes_model(filter => $onefilter);
@@ -3806,5 +3807,86 @@ LABEL_ESC:
 		NMISNG::Util::logMsg("Poll Time: $polltime");
 	}
 }
+
+# this function computes overall metrics for all nodes/groups
+# args: self
+# returns: hashref, keys success/error - fixme9 error handling incomplete
+sub compute_metrics
+{
+	my ($self, %args) = @_;
+
+	# this needs a sys object in 'global'/non-node/nmis-system mode
+	my $S = NMISNG::Sys->new();
+	$S->init;
+	
+	my $pollTimer = Compat::Timing->new;
+	NMISNG::Util::dbg("Starting");
+
+	# Doing the whole network - this defaults to -8 hours span
+	my $groupSummary = Compat::NMIS::getGroupSummary();
+	my $status  = Compat::NMIS::statusNumber( Compat::NMIS::overallNodeStatus() );
+	my $data = {};
+
+	$data->{status}{value}       = $status;
+	$data->{reachability}{value} = $groupSummary->{average}{reachable};
+	$data->{availability}{value} = $groupSummary->{average}{available};
+	$data->{responsetime}{value} = $groupSummary->{average}{response};
+	$data->{health}{value}       = $groupSummary->{average}{health};
+	$data->{intfCollect}{value}  = $groupSummary->{average}{intfCollect};
+	$data->{intfColUp}{value}    = $groupSummary->{average}{intfColUp};
+	$data->{intfAvail}{value}    = $groupSummary->{average}{intfAvail};
+
+	# RRD options
+	$data->{reachability}{option} = "gauge,0:100";
+	$data->{availability}{option} = "gauge,0:100";
+	### 2014-03-18 keiths, setting maximum responsetime to 30 seconds.
+	$data->{responsetime}{option} = "gauge,0:30000";
+	$data->{health}{option}       = "gauge,0:100";
+	$data->{status}{option}       = "gauge,0:100";
+	$data->{intfCollect}{option}  = "gauge,0:U";
+	$data->{intfColUp}{option}    = "gauge,0:U";
+	$data->{intfAvail}{option}    = "gauge,0:U";
+
+	NMISNG::Util::dbg("Doing Network Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}"
+	);
+
+	if (!$S->create_update_rrd( data => $data, type => "metrics", item => 'network'))
+	{
+		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
+	}
+
+	my $GT = Compat::NMIS::loadGroupTable();
+	for my $group ( sort keys %{$GT} )
+	{
+		my $groupSummary = Compat::NMIS::getGroupSummary( group => $group );
+		my $status  = Compat::NMIS::statusNumber( Compat::NMIS::overallNodeStatus( group => $group ) );
+
+		my $data = {};
+		$data->{reachability}{value} = $groupSummary->{average}{reachable};
+		$data->{availability}{value} = $groupSummary->{average}{available};
+		$data->{responsetime}{value} = $groupSummary->{average}{response};
+		$data->{health}{value}       = $groupSummary->{average}{health};
+		$data->{status}{value}       = $status;
+		$data->{intfCollect}{value}  = $groupSummary->{average}{intfCollect};
+		$data->{intfColUp}{value}    = $groupSummary->{average}{intfColUp};
+		$data->{intfAvail}{value}    = $groupSummary->{average}{intfAvail};
+
+		NMISNG::Util::dbg("Doing group=$group Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}"
+		);
+		#
+
+		if (!$S->create_update_rrd( data => $data, type => "metrics", item => $group ))
+		{
+			NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
+		}
+	}
+	NMISNG::Util::dbg("Finished");
+	
+	NMISNG::Util::logMsg( "Poll Time: " . $pollTimer->elapTime() )
+			if (NMISNG::Util::getbool( $self->config->{log_polling_time}));
+	
+	return { success => 1 };
+}
+		
 
 1;
