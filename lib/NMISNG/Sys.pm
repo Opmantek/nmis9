@@ -2420,4 +2420,168 @@ sub readNodeView
 	}
 }
 
+# this function translates threshold information into textual level
+# and related category/bucket/level information
+#
+# args: self, thrname, stats, index, item; pretty much all required
+# note: works only for per-node mode!
+#
+# returns hashref with keys:
+# level (=textual level),
+# level_value (= numeric value)
+# level_threshold (=comparison value that caused this level to be chosen),
+# level_select (=default or key of the threshold level set that was chosen),
+# reset (=?),
+# error (n/a if things work)
+sub translate_threshold_level
+{
+	my ($self, %args) = @_;
+
+	my $M  = $self->mdl;
+
+	my $thrname = $args{thrname};
+	my $stats = $args{stats}; # value of items
+	my $index = $args{index};
+	my $item = $args{item};
+
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
+
+	my $val;											# hash of level cutoffs to compare against
+	my $level;										# text
+	my $thrvalue;									# numeric value
+	my $level_select;
+
+	$self->nmisng->log->debug("Start threshold=$thrname, index=$index item=$item");
+
+	# look for applicable level selection set in model
+	return {
+		error => "no threshold=$thrname entry found in Model=$catchall_data->{nodeModel}"
+	}
+	if (ref($M->{threshold}{name}{$thrname}) ne "HASH"
+			or ref($M->{threshold}{name}{$thrname}{select}) ne "HASH"
+			or !keys %{$M->{threshold}{name}{$thrname}{select}}); # at least ONE level must be there
+
+	# which level selector works for this thing? check in order of the level_select keys
+	my $T = $M->{threshold}{name}{$thrname}{select};
+	foreach my $thr (sort {$a <=> $b} keys %{$T})
+	{
+		next if $thr eq 'default'; # skip now the default values
+		if (($self->parseString(string=>"($T->{$thr}{control})?1:0",
+														index=>$index,
+														item=>$item,
+														eval => 1)))
+		{
+			$val = $T->{$thr}{value};
+			$level_select = $thr;
+			$self->nmisng->log->debug("found threshold=$thrname entry=$thr");
+			last;
+		}
+	}
+	# if nothing found and there are default values available, use these
+	if (!defined($val) and $T->{default}{value} ne "")
+	{
+		$val = $T->{default}{value};
+		$level_select = "default";
+		$self->nmisng->log->debug("found threshold=$thrname entry=default");
+	}
+	# still no luck? error out
+	if (!defined($val))
+	{
+		$self->nmisng->log->error("$thrname in Model=$catchall_data->{nodeModel} has no select!");
+		return  { error => "$thrname in Model=$catchall_data->{nodeModel} has no select!" };
+	}
+
+
+	my $reset = 0;
+	# item is the attribute name of summary stats of Model
+	my $attribname = $M->{threshold}->{name}->{$thrname}->{item};
+	my $value = $stats->{$attribname}; # note: stats is separate per index, ie. flat
+	$self->nmisng->log->debug("threshold=$thrname, item=$attribname, value=$value");
+
+	# check unknown/nonnumeric value, treat it as normal
+	if ($value =~ /NaN/i) {
+		$self->nmisng->log->debug("illegal value $value, skipped.");
+		return { level => "Normal",
+						 reset => $reset,
+						 level_select => $level_select,
+						 level_value => $value };
+	}
+
+	### all zeros policy to disable thresholding - match and return 'normal'
+	if ( $val->{warning} == 0
+			and $val->{minor} == 0
+			and $val->{major} == 0
+			and $val->{critical} == 0
+			and $val->{fatal} == 0
+			and defined $val->{warning}
+			and defined $val->{minor}
+			and defined $val->{major}
+			and defined $val->{critical}
+			and defined $val->{fatal}) {
+		return { level => "Normal", level_value => $value,
+						 level_select => $level_select,
+						 reset => $reset };
+	}
+
+	# Thresholds for higher being good and lower bad
+	if ( $val->{warning} > $val->{fatal}
+			and defined $val->{warning}
+			and defined $val->{minor}
+			and defined $val->{major}
+			and defined $val->{critical}
+			and defined $val->{fatal} ) {
+		if ( $value <= $val->{fatal} ) { $level = "Fatal"; $thrvalue = $val->{fatal};}
+		elsif ( $value <= $val->{critical} and $value > $val->{fatal} )
+		{ $level = "Critical"; $thrvalue = $val->{critical};}
+		elsif ( $value <= $val->{major} and $value > $val->{critical} )
+		{ $level = "Major"; $thrvalue = $val->{major}; }
+		elsif ( $value <= $val->{minor} and $value > $val->{major} )
+		{ $level = "Minor"; $thrvalue = $val->{minor}; }
+		elsif ( $value <= $val->{warning} and $value > $val->{minor} )
+		{ $level = "Warning"; $thrvalue = $val->{warning}; }
+		elsif ( $value > $val->{warning} )
+		{ $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
+	}
+	# Thresholds for lower being good and higher being bad
+	elsif ( $val->{warning} < $val->{fatal}
+			and defined $val->{warning}
+			and defined $val->{minor}
+			and defined $val->{major}
+			and defined $val->{critical}
+			and defined $val->{fatal} ) {
+		if ( $value < $val->{warning} )
+		{ $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
+		elsif ( $value >= $val->{warning} and $value < $val->{minor} )
+		{ $level = "Warning"; $thrvalue = $val->{warning}; }
+		elsif ( $value >= $val->{minor} and $value < $val->{major} )
+		{ $level = "Minor"; $thrvalue = $val->{minor}; }
+		elsif ( $value >= $val->{major} and $value < $val->{critical} )
+		{ $level = "Major"; $thrvalue = $val->{major}; }
+		elsif ( $value >= $val->{critical} and $value < $val->{fatal} )
+		{ $level = "Critical"; $thrvalue = $val->{critical}; }
+		elsif ( $value >= $val->{fatal} )
+		{ $level = "Fatal"; $thrvalue = $val->{fatal}; }
+	}
+
+	# fixme: why is level normal returned if the threshold config is broken??
+	if (!defined $level)
+	{
+		$self->nmisng->log->error("no policy found, threshold=$thrname, value=$value, node=$self->{name}, model=$catchall_data->{nodeModel} section threshold");
+
+		return { error => "no policy found, threshold=$thrname, value=$value, node=$self->{name}, model=$catchall_data->{nodeModel} section threshold",
+						 level => "Normal",
+						 level_value => $value,
+						 level_select => $level_select,
+						 reset => $reset };
+	}
+	$self->nmisng->log->debug("result threshold=$thrname, level=$level, value=$value, thrvalue=$thrvalue, reset=$reset");
+
+	return { level => $level,
+					 level_value => $value,
+					 level_threshold => $thrvalue,
+					 reset => $reset,
+					 level_select => $level_select };
+}
+
+
 1;

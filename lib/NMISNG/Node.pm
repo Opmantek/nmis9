@@ -7609,9 +7609,10 @@ sub collect
 	my $reachdata = $self->compute_reachability( sys => $S, delayupdate => 1 );
 
 	# compute thresholds with the node, if configured to do so
-	if ( NMISNG::Util::getbool( $C->{threshold_poll_node} ) )
+	if ( NMISNG::Util::getbool($C->{global_threshold}) && # any thresholds whatsoever?
+			 NMISNG::Util::getbool( $C->{threshold_poll_node} ) ) # and computed as part of collect or not?
 	{
-		$self->nmisng->doThresholdsAndCreateStatus( name => $self->name, sys => $S, table => {} );
+		$self->nmisng->compute_thresholds(sys => $S, running_independently => 0);
 	}
 
 	$S->writeNodeView;

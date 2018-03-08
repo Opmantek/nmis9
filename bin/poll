@@ -53,7 +53,7 @@ use File::Find;
 use File::Spec;
 use Clone;
 use Carp::Assert;
-# use Statistics::Lite qw(mean);
+
 use POSIX qw(:sys_wait_h);
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -157,11 +157,9 @@ if ( -f $lockoutfile )
 	}
 }
 
-# note: 
 my $type     = $nvp{type};
 my $node     = $nvp{node};
 my $group =  $nvp{group};
-my $sleep    = $nvp{sleep};
 
 ### 2012-12-03 keiths, adding some model testing and debugging options.
 my $model = NMISNG::Util::getbool( $nvp{model} );
@@ -169,11 +167,7 @@ my $model = NMISNG::Util::getbool( $nvp{model} );
 # multiprocessing: commandline overrides config
 my $mthread    = ( exists $nvp{mthread}    ? $nvp{mthread}    : $C->{nmis_mthread} )    || 0;
 my $maxThreads = ( exists $nvp{maxthreads} ? $nvp{maxthreads} : $C->{nmis_maxthreads} ) || 1;
-
 my $mthreadDebug = $nvp{mthreaddebug};    # cmdline only for this debugging flag
-
-# park the list of collect/update plugins globally
-my @active_plugins;
 
 Proc::Queue::size($maxThreads); # changing limit of concurrent processes
 Proc::Queue::trace(0);          # trace mode on
@@ -196,13 +190,13 @@ NMIS version $Compat::NMIS::VERSION
 
 if ( $type =~ /^(collect|update|services)$/ )
 {
-	runThreads( type => $type, 
-							node => $node, group => $group, 
+	runThreads( type => $type,
+							node => $node, group => $group,
 							mthread => $mthread, mthreadDebug => $mthreadDebug );
 }
 elsif ( $type eq "escalate" ) { Compat::NMIS::new_nmisng->process_escalations(); printRunTime(); }    # included in type=collect
 elsif ( $type eq "links" )      { Compat::NMIS::new_nmisng->update_links; } # included in type=update
-elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # USUALLY included in type=collect
+elsif ( $type eq "threshold" )  { runThreshold(node => $node, group => $group); printRunTime(); } # normally part of type=collect
 else
 {
 	die $usage;
@@ -220,10 +214,10 @@ sub runThreads
 	my $mthread      = NMISNG::Util::getbool( $args{mthread} );
 	my $mthreadDebug = NMISNG::Util::getbool( $args{mthreadDebug} );
 
-	
+
 	die "Unknown operation type=$type, terminating!\n"
 			if ($type !~ /^(update|collect|services)$/);
-			
+
 	NMISNG::Util::dbg("Starting, operation is $type");
 
 	# do a selftest and cache the result, but not too often
@@ -358,7 +352,7 @@ sub runThreads
 
 	# what to work on? one or more named node; the members of a one ore more groups or all nodes
 	# iff active and the polling policy agrees, that is...
-	my @select;  
+	my @select;
 	push @select, { name => $node_select } if ((ref($node_select) eq "ARRAY") or (!ref($node_select) and $node_select));
 	push @select, { group => $group_select }  if ((ref($group_select) eq "ARRAY") or (!ref($group_select) and $group_select));
 
@@ -373,15 +367,16 @@ sub runThreads
 		NMISNG::Util::logMsg("Found no nodes due for $type.");
 		return;
 	}
-			
+
 	my @list_of_handled_nodes;		# for any after_x_plugin() functions
 	# logmsg not useful for services, separate per-service policy in force
 	NMISNG::Util::logMsg("INFO Selected nodes for $type: "
-											 .join(" ", sort map { $_->{name} } (values %{$whattodo->{nodes}}))) 
+											 .join(" ", sort map { $_->{name} } (values %{$whattodo->{nodes}})))
 			if ($type ne "services");
-	
+
 	$mthread = 0 if (keys %{$whattodo->{nodes}} <= 1); # multiprocessing makes no sense with just one todo node
 
+	my @active_plugins;
 	# now perform process safety operations
 	# test if there are any collect processes running for any of the todo nodes
 	if ( $type eq 'collect' or $type eq "update")
@@ -393,7 +388,7 @@ sub runThreads
 		{
 			my $problematic = ref($whattodo->{processes}) eq "HASH" && ref($whattodo->{processes}->{$onenode}) eq "HASH"?
 					$whattodo->{processes}->{$onenode} : {};
-			
+
 			next if (!keys %$problematic);
 
 			# if this is a collect and if told to ignore running processes (ignore_running=1/t),
@@ -410,7 +405,7 @@ sub runThreads
 				my $eventconfig = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
 				my $event = "NMIS runtime exceeded";
 				my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
-				
+
 				# if not told otherwise, shoot the others politely
 				my $needgrace;
 
@@ -424,7 +419,7 @@ sub runThreads
 																					"invert")); # === if ne false
 					NMISNG::Util::logMsg("ERROR killing old NMIS $type process $pid ($problematic->{$pid}->{node}) which has not finished!");
 					kill("TERM",$pid);
-					
+
 					# and raise an event to inform the operator - unless told NOT to
 					# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
 					if ((!defined $C->{disable_nmis_process_events}
@@ -468,23 +463,23 @@ sub runThreads
 				# this will be run only by the child
 				print "CHILD $$-> I am a CHILD with the PID $$ processing $nodename ($uuid)\n"
 						if ($mthreadDebug);
-				
+
 				# make sure this gets a NEW nmisng object, with NEW database handles!
 				$nmisng = Compat::NMIS::new_nmisng(nocache => 1);
 				my $node = $nmisng->node(uuid => $uuid);
-				die "Failed to create node object for $nodename ($uuid)!\n" 
+				die "Failed to create node object for $nodename ($uuid)!\n"
 						if (ref($node) ne "NMISNG::Node");
 
 				# don't run longer than X seconds
 				alarm($maxruntime) if ($maxruntime);
-				
+
 				my @methodargs = (starttime => $starttime, force => NMISNG::Util::getbool($nvp{force}));
 				push @methodargs, (wantsnmp => NMISNG::Util::getbool($nvp{force}) ||  $whattodo->{flavours}->{$uuid}->{snmp},
 													 wantwmi => NMISNG::Util::getbool($nvp{force}) || $whattodo->{flavours}->{$uuid}->{wmi})
 						if ($type eq "collect"); # flavours irrelevant for update
 
 				$node->$type(@methodargs);
-				
+
 				# all the work in this thread is done now this child will die.
 				print "CHILD $$-> $nodename ($uuid) is done, exiting\n"
 						if ($mthreadDebug);
@@ -504,9 +499,9 @@ sub runThreads
 			alarm($maxruntime);
 
 			my $node = $nmisng->node(uuid => $uuid);
-			die "Failed to create node object for $nodename ($uuid)!\n" 
+			die "Failed to create node object for $nodename ($uuid)!\n"
 					if (ref($node) ne "NMISNG::Node");
-			
+
 			my @methodargs = (starttime => $starttime, force => NMISNG::Util::getbool($nvp{force}));
 			# try both flavours if force is on
 			push @methodargs, (wantsnmp => NMISNG::Util::getbool($nvp{force}) ||  $whattodo->{flavours}->{$uuid}->{snmp},
@@ -545,26 +540,8 @@ sub runThreads
 	# some collect post-processing
 	elsif ( $type eq "collect")
 	{
+		NMISNG::Util::dbg("Starting Metrics computation");
 		$nmisng->compute_metrics();
-
-		# thresholds can be run: independent (=t_p_n and t_p_c false), post-collect (=t_p_n false, t_p_c true),
-		# or combined with collect (t_p_n true, t_p_c ignored)
-		if ( !NMISNG::Util::getbool( $C->{threshold_poll_node} ) )
-		{
-			# not false
-			if ( !NMISNG::Util::getbool( $C->{threshold_poll_cycle}, "invert" ) )
-			{
-				NMISNG::Util::dbg("Starting runThreshold (for all selected nodes)");
-				# the 0 here tells it that it's running in a collect cycle
-				# fixme9: teach this to run on N nodes, not all and not just one!
-				runThreshold(undef, 0);
-			}
-			else
-			{
-				NMISNG::Util::dbg("Skipping runThreshold with configuration 'threshold_poll_cycle' = $C->{'threshold_poll_cycle'}");
-			}
-		}
-
 		NMISNG::Util::dbg("Starting escalation processing");
 		$nmisng->process_escalations;
 
@@ -792,23 +769,6 @@ sub getIntfAllInfo
 	NMISNG::Util::dbg("Finished");
 }
 
-#=========================================================================================
-
-
-
-#=========================================================================================
-
-
-
-#=========================================================================================
-
-
-#=========================================================================================
-
-
-
-#=========================================================================================
-
 # starts up fpingd and/or opslad if desired and none present
 # args: none
 # returns: nothing
@@ -885,195 +845,43 @@ sub runDaemons
 
 #=========================================================================================
 
-# run threshold calculation operation on all or one node, in a single loop
-# args:
-#   node - (optional),
-#   running_independently - set to 1 if not in collect/outer loop that will do saves
+# run threshold calculation operation on the given nodes, in a single loop
+# args: node, group (selectors)
 # returns: nothing
-# 
-# fixme9: won't be able to run 'at end  of collect'
-# fixme9: needs to be taught to run for N nodes which are not all and not just a single one!
 sub runThreshold
 {
-	my ($node,$running_independently) = @_;
-
-	# check global_threshold not explicitely set to false
-	if ( !NMISNG::Util::getbool( $C->{global_threshold}, "invert" ) )
-	{
-		my $node_select;
-		if ($node)
-		{
-			die "Invalid node=$node: No node of that name\n"
-				if ( !( $node_select = Compat::NMIS::checkNodeName($node) ) );
-		}
-
-		Compat::NMIS::new_nmisng->doThresholdsAndCreateStatus( name => $node_select, 
-																													 table => doSummaryBuild( name => $node_select ), 
-																													 running_independently => $running_independently );
-	}
-	else
-	{
-		NMISNG::Util::dbg("Skipping runThreshold with configuration 'global_threshold' = $C->{'global_threshold'}");
-	}
-}
-
-# fixme9: useful? required?
-# fixme9: unclear what data is saved, and why under node name not uuid?
-#
-# collects (using getSummaryStats) and returns summary stats
-# for one or all nodes, also writes two debug files.
-#
-# args: name (optional)
-# returns: summary stats hash
-sub doSummaryBuild
-{
 	my (%args) = @_;
-	my $node = $args{name};
+
+	if (!NMISNG::Util::getbool($C->{global_threshold}))
+	{
+		NMISNG::Util::dbg("Skipping runThreshold because configuration 'global_threshold' is set to false");
+		return;
+	}
+
+	my ($node_select, $group_select) = @args{"node","group"};
+	my @selectors;
+	push @selectors, { name => $node_select } if ((ref($node_select) eq "ARRAY") or (!ref($node_select) and $node_select));
+	push @selectors, { group => $group_select }  if ((ref($group_select) eq "ARRAY") or (!ref($group_select) and $group_select));
 
 	my $nmisng = Compat::NMIS::new_nmisng();
-	NMISNG::Util::dbg("Start of Summary Build");
+	my $selected = $nmisng->expand_node_selection(@selectors);
+	die "Failed to lookup nodes: ".$selected->error."\n" if ($selected->error);
 
-	# load one requestd node or all node objects
-	my %filter = ( active => 1, collect => 1 ); # only nodes both active and flagged for collect are relevant here
-	$filter{name} = $node if ($node);
-	my $selected = $nmisng->get_nodes_model(filter => \%filter);
-	die "failed to lookup nodes: ".$selected->error."\n" if ($selected->error);
+	# anything to do?
+	return if (!$selected->count);
 
-	my $res = $selected->objects;
-	die "failed to instantiate nodes: $res->{error}\n" if (!$res->{success});
-	
-	my %stshlth;
-	my %stats;
-	my %stsintf;
+	my $gimme = $selected->objects;
+	die "Failed to instantiate nodes: $gimme->{error}\n"
+			if (!$gimme->{success});
 
-	foreach my $nodeobj (@{$res->{objects}})
+	for my $nodeobj (@{$gimme->{objects}})
 	{
-		my $nd = $nodeobj->name;
+		my $S = NMISNG::Sys->new();
+		die "failed to instantiate Sys!\n" if (!$S->init(node => $nodeobj));
 
-		my $S = NMISNG::Sys->new;
-		next if ( !$S->init( node => $nodeobj, snmp => 'false' ) ); # fixme: why not terminal?
-
-		
-		my $M  = $S->mdl;       # model ref
-		my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-
-		next if NMISNG::Util::getbool( $catchall_data->{nodedown} );
-		
-		# oke, look for requests in summary of Model
-		foreach my $tp ( keys %{$M->{summary}{statstype}} )
-		{
-			next if ( !exists $M->{system}->{rrd}->{$tp}->{threshold} );
-			my $threshold_period = $nmisng->_threshold_period( subconcept => $tp );
-
-			# check whether this is an indexed section, ie. whether there are multiple instances with
-			# their own indices
-			# fixme: this is wrong, $tp should be either graphtype OR section
-			my @instances = $S->getTypeInstances( graphtype => $tp, section => $tp );
-			if (@instances)
-			{
-				foreach my $i (@instances)
-				{
-					my $sts = Compat::NMIS::getSummaryStats(
-						sys   => $S,
-						type  => $tp,
-						start => $threshold_period,
-						end   => 'now',
-						index => $i
-							);
-					
-					# save all info from %sts for threshold run
-					foreach ( keys %{$sts->{$i}} ) { $stats{$nd}{$tp}{$i}{$_} = $sts->{$i}{$_}; }
-
-					foreach my $nm ( keys %{$M->{summary}{statstype}{$tp}{sumname}} )
-					{
-						$stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{Description}
-						=  "WHAT GOES HERE? NI->label makes no sense";#$NI->{label}{$tp}{$i};    # descr
-						# check if threshold level available, thresholdname must be equal to type
-						if ( exists $M->{threshold}{name}{$tp} )
-						{
-							( $stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{level}, undef, undef )
-									= $nmisng->getThresholdLevel( sys => $S, thrname => $tp, stats => $sts, index => $i );
-						}
-						
-						# save values
-						foreach my $stsname ( @{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}} )
-						{
-							$stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
-							NMISNG::Util::dbg("stored summary health node=$nd type=$tp name=$stsname index=$i value=$sts->{$i}{$stsname}"
-									);
-						}
-					}
-				}
-			}
-
-			# non-indexed
-			else
-			{
-				my $dbname = $S->makeRRDname( graphtype => $tp );
-				if ( $dbname && -r $dbname )
-				{
-					my $sts = Compat::NMIS::getSummaryStats( sys => $S, type => $tp, start => $threshold_period, end => 'now' );
-					
-					# save all info from %sts for threshold run
-					foreach ( keys %{$sts} ) { $stats{$nd}{$tp}{$_} = $sts->{$_}; }
-					
-					# check if threshold level available, thresholdname must be equal to type
-					if ( exists $M->{threshold}{name}{$tp} )
-					{
-						( $stshlth{ $catchall_data->{nodeType} }{$nd}{"${tp}_level"}, undef, undef )
-								= $nmisng->getThresholdLevel( sys => $S, thrname => $tp, stats => $sts, index => '' );
-					}
-					foreach my $nm ( keys %{$M->{summary}{statstype}{$tp}{sumname}} )
-					{
-						foreach my $stsname ( @{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}} )
-						{
-							$stshlth{ $catchall_data->{nodeType} }{$nd}{$stsname} = $sts->{$stsname};
-							NMISNG::Util::dbg("stored summary health node=$nd type=$tp name=$stsname value=$sts->{$stsname}");
-						}
-					}
-				}
-			}
-			
-			# reset the threshold period, may have been changed to threshold_period-<something>
-			my $tp = "interface";
-			$threshold_period = $nmisng->_threshold_period( subconcept => $tp );
-			
-			# this could maybe use the model and get collect right away as that's
-			# all it seems to be used for right now
-			my $ids = $nodeobj->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
-			# get all collected interfaces
-			foreach my $id (@$ids)
-			{
-				my ($intf_inventory,$intf_error) = $nodeobj->inventory( _id => $id );
-				my $data = $intf_inventory->data();
-				my $index = $data->{index};
-				
-				my $sts = Compat::NMIS::getSummaryStats(
-					sys   => $S,
-					type  => $tp,
-					start => $threshold_period,
-					end   => time(),
-					index => $index
-						);
-				foreach ( keys %{$sts->{$index}} )
-				{
-					$stats{$nd}{interface}{$index}{$_} = $sts->{$index}{$_};
-				}    # save for threshold
-				
-				# copy all stats into the stsintf info.
-				foreach ( keys %{$sts->{$index}} ) { $stsintf{"${index}.$S->{name}"}{$_} = $sts->{$index}{$_}; }
-			}
-		}
+		$nmisng->compute_thresholds(sys => $S, running_independently => 1);
 	}
-
-	# these two tables are produced ONLY for debugging, they're not used by nmis
-	NMISNG::Util::writeTable( dir => 'var', name => "nmis-summaryintf15m",   data => \%stsintf );
-	NMISNG::Util::writeTable( dir => 'var', name => "nmis-summaryhealth15m", data => \%stshlth );
-	NMISNG::Util::dbg("Finished");
-
-	return \%stats;    # input for threshold process
 }
-
 
 sub printRunTime
 {

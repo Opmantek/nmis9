@@ -1651,7 +1651,7 @@ sub plugins
 	return () if ( !NMISNG::Util::getbool( $C->{plugins_enabled} )
 								 or ( !$C->{plugin_root} and !$C->{plugin_root_default})
 								 or (!-d $C->{plugin_root}  and !-d $C->{plugin_root_default}));
-	
+
 	# first check the custom plugin dir, then the default dir;
 	# files in custom win over files in default
 	my %candfiles;								# filename => fullpath
@@ -1669,13 +1669,13 @@ sub plugins
 		}
 		closedir(PD);
 	}
-	
+
 	for my $candidate (keys %candfiles)
 	{
 		my $packagename = $candidate;
 		$packagename =~ s/\.pm$//;
 		my $pluginfile = $candfiles{$candidate};
-		
+
 		# read it and check that it has precisely one matching package line
 		$self->log->debug("Checking candidate plugin $candidate ($pluginfile)");
 
@@ -1712,11 +1712,41 @@ sub plugins
 	return @{$self->{_plugins}};
 }
 
+# little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)
+# and returns the active nodes that match
+#
+# args: list of selectors, must be hashes
+# returns: modeldata object with the matching nodes
+sub expand_node_selection
+{
+	my ($self, @selectors) = @_;
+
+	my ($mdata, %lotsanodes);
+	for my $onefilter (@selectors? @selectors: {})
+	{
+		return NMISNG::ModelData->new(nmisng => $self,
+																	error => { "invalid filter structure, not a hash!" })
+				if (ref($onefilter) ne "HASH");
+
+		$onefilter->{active} = 1;	# never consider inactive nodes
+		my $possibles = $self->get_nodes_model(filter => $onefilter);
+		return NMISNG::ModelData->new(nmisng => $self,
+																	error => { "node lookup failed: ".$possibles->error })
+				if ($possibles->error);
+		map { $lotsanodes{$_->{uuid}} //= $_ } (@{$possibles->data});
+		# reuse the first one for the response
+		$mdata //= $possibles;
+	}
+
+	$mdata->data([values %lotsanodes]);
+	return $mdata;
+}
+
 # this function finds nodes that are due for a given operation;
 # consults the various policies and previous node states
-# args: self, type (=operation, required), force (optional, default 0), 
+# args: self, type (=operation, required), force (optional, default 0),
 #  filters (optional, ARRAY of filter hashrefs to be applied independently)
-# returns: hashref with error/success, 
+# returns: hashref with error/success,
 #  nodes => hash of uuid, value node config data,
 #  flavours => hash of uuid -> snmp/wmi -> 0/1 (only for collect),
 #  processes => hash of uuid =>  pid => processinfo (for nmis processes for this node and op)
@@ -1727,7 +1757,7 @@ sub find_due_nodes
 	my $force = $args{force};
 
 	return { error => "Unknown operation \"$whichop\"!" } if ($whichop !~ /^(collect|update|services)$/);
-	return { error => "Filters must be list of filter expressions!" } 
+	return { error => "Filters must be list of filter expressions!" }
 	if (exists($args{filters}) && ref($args{filters} ne "ARRAY"));
 
 	my %cands;
@@ -1742,7 +1772,7 @@ sub find_due_nodes
 
 		map { $cands{$_->{uuid}} = $_ } (@{$possibles->data});
 	}
-	# no filters returned anybody? 
+	# no filters returned anybody?
 	return { success => 1, nodes => [] } if (!keys %cands);
 
 	# services? all nodes - granularity is per-service
@@ -1779,7 +1809,7 @@ sub find_due_nodes
 																												 config => $self->config);
 	# find out what nodes are due as per polling policy - also honor force,
 	# and any in-progress polling that hasn't finished yet
-	
+
 	# unfortunately we require each candidate node's nodeinfo/catchall data to make the
 	# candidate-or-not decision...
 	my $allcatchalls = $self->get_inventory_model(concept => "catchall",
@@ -1793,14 +1823,14 @@ sub find_due_nodes
 	my $accessor = $allcatchalls->{model_data};
 	# dynamic node information, by node uuid
 	my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
-	
+
 	my $now = time;
 	my (%due, %flavours, %procs);
 	for my $maybe (keys %cands)		# by uuid
 	{
 		my $nodeconfig = $cands{$maybe};
 		my $nodename = $nodeconfig->{name};
-		
+
 		my $polname = $nodeconfig->{polling_policy} || "default";
 		$self->log->debug("Node $nodename is using polling policy \"$polname\"");
 
@@ -1810,7 +1840,7 @@ sub find_due_nodes
 		my $lastpolicy = $ninfo->{last_polling_policy};
 		my $lastsnmp = $ninfo->{last_poll_snmp};
 		my $lastwmi = $ninfo->{last_poll_wmi};
-		
+
 		# that's it for completed polls - for in-progress uncompleted
 		# we need other time logic,
 		# overriding these markers from the active process' start time
@@ -1830,7 +1860,7 @@ sub find_due_nodes
 			$lastsnmp = $lastwmi = $otherstart;
 			$lastpolicy = $polname;	# and no policy change triggering either...
 		}
-		
+
 		# handle the case of a changed polling policy: move all rrd files
 		# out of the way, and poll now
 		# note that this does NOT work with non-standard common-database structures
@@ -1865,13 +1895,13 @@ sub find_due_nodes
 		elsif (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model")
 		{
 			my $lasttry = $ninfo->{last_poll} // 0;
-			
+
 			# try once every 5 minutes if demote_faulty_nodes is set to false,
 			# otherwise: was polling attempted at all and in the last 30 days? then once daily from
 			# that last try - otherwise try one now
 			my $nexttry = !NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")? # === ne false
 					($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
-			
+
 			if ($nexttry <= $now)
 			{
 				$due{$maybe} = $nodeconfig;
@@ -1913,12 +1943,12 @@ sub find_due_nodes
 				$lastsnmp = $ninfo->{last_poll} // 0;
 				$self->log->debug("Node $nodename is non-collecting, applying snmp policy to last check at $lastsnmp");
 			}
-			
+
 			# accept delta-previous-now interval if it's at least 95% of the configured interval
 			# strict 100% would mean that we might skip a full interval when polling takes longer
 			my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
 			my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
-			
+
 			# only flavours which worked in the past contribute to the now-or-later logic
 			if ((defined($lastsnmp) && $nextsnmp <= $now )
 					|| (defined($lastwmi) && $nextwmi <= $now))
@@ -1928,7 +1958,7 @@ sub find_due_nodes
 													. ", next snmp: ".($lastsnmp ? (($now - $nextsnmp)."s ago"):"n/a")
 													.", next wmi: ".($lastwmi? (($now - $nextwmi)."s ago"):"n/a"));
 				$due{$maybe} = $nodeconfig;
-				
+
 				# but if we've decided on polling, then DO try flavours that have not worked in the past!
 				# nextwmi <= now also covers the case of undefined lastwmi...
 				$flavours{$maybe}->{wmi} = ($nextwmi <= $now);
@@ -1944,12 +1974,12 @@ sub find_due_nodes
 			}
 		}
 	}
-	
-	return { success => 1, nodes => \%due, 
+
+	return { success => 1, nodes => \%due,
 					 flavours => \%flavours, processes => \%procs };
 }
 
-	
+
 # tiny helper that returns one of two threshold period configurations
 # args: self, subconcept (both required)
 # returns: rrd-style time period
@@ -1968,241 +1998,222 @@ sub _threshold_period
 # fixme9: where should this function go? this isn't a great spot.
 # fixme9: this should accept a live node object
 #
-# figures out which threshold alerts need to be run for one (or all) nodes, based on model
+# figures out which threshold alerts need to be run for one node, based on model
 # delegates the evaluation work to applyThresholdToInventory, then updates info structures.
 #
-# args: self, name (optional, a node name), table (required, must be hash ref but may be empty),
-# sys (optional, only used if name is given)
+# args: self, sys (required), running_independently (optional, default 0)
+# note: writes node info file and saves inventory if running_independently is 0
 #
-# note: writes node info file if run as part of type=threshold
 # returns: nothing
-sub doThresholdsAndCreateStatus
+sub compute_thresholds
 {
 	my ($self, %args) = @_;
-	my $name = $args{name};
-	my $sts  = $args{table};    # pointer to data built up by doSummaryBuild
+
 	my $S    = $args{sys};
 	my $running_independently = $args{running_independently};
 
-	NMISNG::Util::dbg("Starting");
 	my $pollTimer = Compat::Timing->new;
-
 	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
-	my $node_model_data = $self->get_nodes_model( name => $name, 
-																									filter => { active => 'true', threshold => 'true' }, 
-																									sort => { name => 1 } );
+	my $sts  = {};
 
-	for my $onenode (@{$node_model_data->data})
+	my $M  = $S->mdl;       # pointer to Model table
+	my $catchall_inventory = $S->inventory( concept => 'catchall' );
+	my $catchall_data = $catchall_inventory->data_live();
+
+	# fixme9 one of the few spots that still require nodeinfo
+	my $statusinfo = $S->compat_nodeinfo->{status};
+
+	# skip if node down
+	if (NMISNG::Util::getbool( $catchall_data->{nodedown}))
 	{
-		if ( $node_model_data->count() > 1 || !$S )
+		NMISNG::Util::info("Node down, skipping thresholding for $S->{name}");
+		return;
+	}
+	if (!$S->nmisng_node->configuration->{threshold})
+	{
+		NMISNG::Util::info("Node $S->{name} not enabled for thresholding, skipping.");
+		return;
+	}
+
+	NMISNG::Util::info("Starting Thresholding for node $S->{name}");
+
+	# first the standard thresholds
+	my $thrname = [qw(response reachable available)];
+	$self->applyThresholdToInventory( sys => $S, table => $sts, type => 'health',
+																		thrname => $thrname, inventory => $catchall_inventory );
+
+	# search for threshold names in Model of this node
+	foreach my $s ( keys %{$M} )    # section name
+	{
+		# thresholds live ONLY under rrd, other 'types of store' don't interest us here
+		my $ts = 'rrd';
+		foreach my $type ( keys %{$M->{$s}{$ts}} )    # name/type of subsection
 		{
-			$S = NMISNG::Sys->new;
-			# Using cluster_id here so we can only run this on local nodes
-			# to make this work on all nodes (do we ever need that?) this
-			# needs to take a node uuid instead of node name
-			next if ( !$S->init( name => $onenode->{name}, cluster_id => $self->cluster_id, snmp => 'false' ) );
-		}
+			my $thissection = $M->{$s}->{$ts}->{$type};
 
-		my $M  = $S->mdl;       # pointer to Model table
-		my $catchall_inventory = $S->inventory( concept => 'catchall' );
-		my $catchall_data = $catchall_inventory->data_live();
-
-		# fixme9 one of the few spots that still require nodeinfo
-		my $statusinfo = $S->compat_nodeinfo->{status};
-
-		# skip if node down
-		if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
-		{
-			NMISNG::Util::info("Node down, skipping thresholding for $S->{name}");
-			next;
-		}
-		NMISNG::Util::info("Starting Thresholding node=$S->{name}");
-
-		# first the standard thresholds
-		my $thrname = [qw(response reachable available)];
-		$self->applyThresholdToInventory( sys => $S, table => $sts, type => 'health', 
-																			thrname => $thrname, inventory => $catchall_inventory );
-
-		# search for threshold names in Model of this node
-		foreach my $s ( keys %{$M} )    # section name
-		{
-			# thresholds live ONLY under rrd, other 'types of store' don't interest us here
-			my $ts = 'rrd';
-			foreach my $type ( keys %{$M->{$s}{$ts}} )    # name/type of subsection
+			if ( !$thissection->{threshold} )
 			{
-				my $thissection = $M->{$s}->{$ts}->{$type};
-
-				if ( !$thissection->{threshold} )
-				{
-					NMISNG::Util::dbg( "section $s, type $type has no threshold" );
-					next;     # nothing to do
-				}
-				NMISNG::Util::dbg( "section $s, type $type has a threshold" );
+				NMISNG::Util::dbg( "section $s, type $type has no threshold" );
+				next;     # nothing to do
+			}
+			NMISNG::Util::dbg( "section $s, type $type has a threshold" );
 
 
-				# get commasep string of threshold name(s), turn it into an array, unless it's already an array
-				$thrname = ( ref($thissection->{threshold}) ne 'ARRAY' )
+			# get commasep string of threshold name(s), turn it into an array, unless it's already an array
+			$thrname = ( ref($thissection->{threshold}) ne 'ARRAY' )
 					? [ split( /,/, NMISNG::Util::stripSpaces($thissection->{threshold}) ) ]
 					: $thissection->{threshold};
 
-				# attention: control expressions for indexed section must be run per instance,
-				# and no more getbool possible (see below for reason)
-				my $control = $thissection->{control};
-				NMISNG::Util::dbg( "control found:$control for section=$s type=$type", 1 ) if($control);
+			# attention: control expressions for indexed section must be run per instance,
+			# and no more getbool possible (see below for reason)
+			my $control = $thissection->{control};
+			NMISNG::Util::dbg( "control found:$control for section=$s type=$type", 1 ) if($control);
 
-				# find all instances of this subconcept and try and run thresholding for them, doesn't matter if indexed
-				# or not, this will run them all
-				# cbqos stores subconcepts for classes, searching for subconcept here can't work, have to use concept
-				my %callargs = ($type =~ /cbqos/)? (concept => $type, filter => { enabled => 1, historic => 0 })
-						: (filter => { subconcepts => $type, enabled => 1, historic => 0 });
+			# find all instances of this subconcept and try and run thresholding for them, doesn't matter if indexed
+			# or not, this will run them all
+			# cbqos stores subconcepts for classes, searching for subconcept here can't work, have to use concept
+			my %callargs = ($type =~ /cbqos/)? (concept => $type, filter => { enabled => 1, historic => 0 })
+					: (filter => { subconcepts => $type, enabled => 1, historic => 0 });
 
-				# pass the modeldata object enough info to figure out what object to instantiate
-				$callargs{nmisng} = $self;
-				$callargs{class_name} = { "concept" => \&NMISNG::Inventory::get_inventory_class };
+			# pass the modeldata object enough info to figure out what object to instantiate
+			$callargs{nmisng} = $self;
+			$callargs{class_name} = { "concept" => \&NMISNG::Inventory::get_inventory_class };
 
-				my $result = $S->nmisng_node->get_inventory_model(%callargs);
+			my $result = $S->nmisng_node->get_inventory_model(%callargs);
 
-				if (!$result->{success})
+			if (!$result->{success})
+			{
+				$self->log->error("get inventory model failed: $result->{error}");
+				return undef;
+			}
+			my $inventory_model = $result->{model_data};
+
+			NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
+
+			# turn the 'models' into objects so that parseString can use it if required
+			my $objectresult = $inventory_model->objects;
+			if (!$objectresult->{success})
+			{
+				$self->log->error("object access failed: $objectresult->{error}");
+				return undef;
+			}
+			# these are now objects
+			foreach my $inventory (@{$objectresult->{objects}})
+			{
+				my $data = $inventory->data;
+				my $index = $data->{index} // undef;
+
+				if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index,
+																					 eval => 1, inventory => $inventory ) )
 				{
-					$self->log->error("get inventory model failed: $result->{error}");
-					return undef;
+					NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
+					next;
 				}
-				my $inventory_model = $result->{model_data};
-
-				NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
-
-				# turn the 'models' into objects so that parseString can use it if required
-				my $objectresult = $inventory_model->objects;
-				if (!$objectresult->{success})
+				if( $data->{threshold} && !NMISNG::Util::getbool( $data->{threshold} ) )
 				{
-					$self->log->error("object access failed: $objectresult->{error}");
-					return undef;
+					NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
+					next;
 				}
-				# these are now objects
-				foreach my $inventory (@{$objectresult->{objects}})
-				{
-					my $data = $inventory->data;
-					my $index = $data->{index} // undef;
-
-					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index,
-																						 eval => 1, inventory => $inventory ) )
-					{
-						NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
-						next;
-					}
-					if( $data->{threshold} && !NMISNG::Util::getbool( $data->{threshold} ) )
-					{
-						NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
-						next;
-					}
-					$self->applyThresholdToInventory(
-						sys     => $S,
-						table   => $sts,
-						type    => $type,
-						thrname => $thrname,
-						index   => $index,
-						inventory => $inventory
-					);
-				}
+				$self->applyThresholdToInventory(
+					sys     => $S,
+					table   => $sts,
+					type    => $type,
+					thrname => $thrname,
+					index   => $index,
+					inventory => $inventory
+						);
 			}
 		}
-
-		## process each status and have it decay the overall node status......
-		#"High TCP Connection Count--tcpCurrEstab" : {
-		#   "status" : "ok",
-		#   "value" : "1",
-		#   "event" : "High TCP Connection Count",
-		#   "element" : "tcpCurrEstab",
-		#   "index" : null,
-		#   "level" : "Normal",
-		#   "type" : "test",
-		#   "updated" : 1423619108,
-		#   "method" : "Alert",
-		#   "property" : "$r > 250"
-		#},
-		my $count   = 0;
-		my $countOk = 0;
-		foreach my $statusKey ( sort keys %$statusinfo )
-		{
-			my $eventKey = $statusinfo->{$statusKey}{event};
-			$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}"
-				if $statusinfo->{$statusKey}{method} eq "Alert";
-
-			# event control is as configured or all true.
-			my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
-
-			# if this is an alert and it is older than 1 full poll cycle, delete it from status.
-			if ( $statusinfo->{$statusKey}{updated} < time - 500 )
-			{
-				delete $statusinfo->{$statusKey};
-			}
-
-			# in case of Status being off for this event, we don't have to include it in the calculations
-			elsif ( not NMISNG::Util::getbool( $thisevent_control->{Status} ) )
-			{
-				NMISNG::Util::dbg("Status Summary Ignoring: event=$statusinfo->{$statusKey}{event}, Status=$thisevent_control->{Status}",
-					1
-				);
-				$statusinfo->{$statusKey}{status} = "ignored";
-				++$count;
-				++$countOk;
-			}
-			else
-			{
-				++$count;
-				if ( $statusinfo->{$statusKey}{status} eq "ok" )
-				{
-					++$countOk;
-				}
-			}
-		}
-		if ( $count and $countOk )
-		{
-			my $perOk = sprintf( "%.2f", $countOk / $count * 100 );
-			NMISNG::Util::info("Status Summary = $perOk, $count, $countOk\n");
-			$catchall_data->{status_summary} = $perOk;
-			$catchall_data->{status_updated} = time();
-
-			# cache the current nodestatus for use in the dash
-			my $nodestatus = Compat::NMIS::nodeStatus( node => $S->nmisng_node, catchall_data => $catchall_data );
-			$catchall_data->{nodestatus} = "reachable";
-			if ( not $nodestatus )
-			{
-				$catchall_data->{nodestatus} = "unreachable";
-			}
-			elsif ( $nodestatus == -1 )
-			{
-				$catchall_data->{nodestatus} = "degraded";
-			}
-		}
-
-		# Save the new status results, but only if run standalone
-		if( $running_independently )
-		{
-			$S->writeNodeInfo();
-			$catchall_inventory->save();
-		}
-
 	}
 
-	NMISNG::Util::dbg("Finished");
-	if ( defined $self->config->{log_polling_time} and NMISNG::Util::getbool( $self->config->{log_polling_time} ) )
+	## process each status and have it decay the overall node status......
+	#"High TCP Connection Count--tcpCurrEstab" : {
+	#   "status" : "ok",
+	#   "value" : "1",
+	#   "event" : "High TCP Connection Count",
+	#   "element" : "tcpCurrEstab",
+	#   "index" : null,
+	#   "level" : "Normal",
+	#   "type" : "test",
+	#   "updated" : 1423619108,
+	#   "method" : "Alert",
+	#   "property" : "$r > 250"
+	#},
+	my $count   = 0;
+	my $countOk = 0;
+	foreach my $statusKey ( sort keys %$statusinfo )
 	{
-		my $polltime = $pollTimer->elapTime();
-		if ($name)
+		my $eventKey = $statusinfo->{$statusKey}{event};
+		$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}"
+				if $statusinfo->{$statusKey}{method} eq "Alert";
+
+		# event control is as configured or all true.
+		my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
+
+		# if this is an alert and it is older than 1 full poll cycle, delete it from status.
+		# fixme: this logic is broken for variable polling
+		if ( $statusinfo->{$statusKey}{updated} < time - 500 )
 		{
-			NMISNG::Util::logMsg("Poll Time: $name, $polltime");
+			delete $statusinfo->{$statusKey};
+		}
+
+		# in case of Status being off for this event, we don't have to include it in the calculations
+		elsif ( not NMISNG::Util::getbool( $thisevent_control->{Status} ) )
+		{
+			NMISNG::Util::dbg("Status Summary Ignoring: event=$statusinfo->{$statusKey}{event}, Status=$thisevent_control->{Status}",
+												1
+					);
+			$statusinfo->{$statusKey}{status} = "ignored";
+			++$count;
+			++$countOk;
 		}
 		else
 		{
-			NMISNG::Util::logMsg("Poll Time: $polltime");
+			++$count;
+			if ( $statusinfo->{$statusKey}{status} eq "ok" )
+			{
+				++$countOk;
+			}
 		}
+	}
+	if ( $count and $countOk )
+	{
+		my $perOk = sprintf( "%.2f", $countOk / $count * 100 );
+		NMISNG::Util::info("Status Summary = $perOk, $count, $countOk\n");
+		$catchall_data->{status_summary} = $perOk;
+		$catchall_data->{status_updated} = time();
+
+		# cache the current nodestatus for use in the dash
+		my $nodestatus = Compat::NMIS::nodeStatus( node => $S->nmisng_node, catchall_data => $catchall_data );
+		$catchall_data->{nodestatus} = "reachable";
+		if ( not $nodestatus )
+		{
+			$catchall_data->{nodestatus} = "unreachable";
+		}
+		elsif ( $nodestatus == -1 )
+		{
+			$catchall_data->{nodestatus} = "degraded";
+		}
+	}
+
+	# Save the new status results, but only if run standalone
+	if( $running_independently )
+	{
+		$S->writeNodeInfo();
+		$catchall_inventory->save();
+	}
+
+	NMISNG::Util::dbg("Finished");
+	if (NMISNG::Util::getbool( $self->config->{log_polling_time}))
+	{
+		my $polltime = $pollTimer->elapTime();
+		NMISNG::Util::logMsg("Threshold Time: $S->{name}, $polltime");
 	}
 }
 
 # fixme9: where should this function go? not ideal here
 # fixme9: should accept a live node object, not just sys
-# 	
+#
 # performs the threshold value checking and event raising for
 # one or more threshold configurations
 # uses latest_data to get derived_data(stats) which should hold the stats with the correct
@@ -2234,7 +2245,7 @@ sub applyThresholdToInventory
 
 	my $data = $inventory->data();
 
-	#	check if values are already in table (done by doSummaryBuild)
+	#	check if values are already in table - fixme9: doSummaryBuild is gone, table is never populated anymore
 	if ( exists $sts->{$S->{name}}{$type} )
 	{
 		$stats = $sts->{$S->{name}}{$type};
@@ -2322,13 +2333,11 @@ sub applyThresholdToInventory
 			}
 		}
 
-		my ( $level, $value, $thrvalue, $reset ) = $self->getThresholdLevel(
-			sys     => $S,
-			thrname => $nm,
-			stats   => $stats,
-			index   => $index,
-			item    => $item
-		);
+		# fixme errors are ignored
+		my $levelinfo = $S->translate_threshold_level(thrname => $nm,
+																									stats   => $stats,
+																									index   => $index,
+																									item    => $item );
 
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString( string => $M->{threshold}{name}{$nm}{event}, index => $index, eval => 0 );
@@ -2357,17 +2366,17 @@ sub applyThresholdToInventory
 			sys      => $S,
 			type     => $type,       # crucial for event context
 			event    => $event,
-			level    => $level,
+			level    => $levelinfo->{level},
 			element  => $element,    # crucial for context
 			details  => $details,
-			value    => $value,
-			thrvalue => $thrvalue,
-			reset    => $reset,
+			value    => $levelinfo->{level_value},
+			thrvalue => $levelinfo->{level_threshold},
+			reset    => $levelinfo->{reset},
 			thrname  => $nm,         # crucial for context
 			index    => $index,      # crucial for context
 			class    => $class,        # crucial for context
 			inventory_id => $inventory->id
-		);                   
+		);
 	}
 }
 
@@ -2433,6 +2442,7 @@ sub thresholdProcess
 
 		$statusKey = "$args{thrname}--$index--$args{class}" if defined $args{class} and $args{class};
 
+		# fixme9: datastructure is written to node-info file, cannot contain blessed objects
 		$S->{info}{status}{$statusKey} = {
 			method   => "Threshold",
 			type     => $args{type},
@@ -2444,7 +2454,9 @@ sub thresholdProcess
 			element  => $args{element},
 			value    => $args{value},
 			updated  => time(),
-			inventory_id => $args{inventory_id}
+			inventory_id => (ref($args{inventory_id}) eq "MongoDB::OID"?
+											 $args{inventory_id}->TO_JSON : $args{inventory_id})
+
 		};
 	}
 	else
@@ -2453,146 +2465,9 @@ sub thresholdProcess
 	}
 }
 
-# fixme9: where should this function go? unclear if this is the best place, sys?
-# fixme9: unclear what it's supposed to do
-# fixme9: broken logic, thrvalue vs reset in response indistinguishable
-#
-# args: self, sys, thrname, stats, index, item
-# returns: level, value, thrvalue, reset OR  level, value, reset; 
-sub getThresholdLevel
-{
-	my ($self, %args) = @_;
-	my $S    = $args{sys};
-	my $M    = $S->mdl;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-
-	my $thrname = $args{thrname};
-	my $stats   = $args{stats};      # value of items
-	my $index   = $args{index};
-	my $item    = $args{item};
-
-	my $val;
-	my $level;
-	my $thrvalue;
-
-	NMISNG::Util::dbg("Start threshold=$thrname, index=$index item=$item");
-
-	# find subsection with threshold values in Model
-	my $T = $M->{threshold}{name}{$thrname}{select};
-	foreach my $thr ( sort { $a <=> $b } keys %{$T} )
-	{
-		next if $thr eq 'default';    # skip now the default values
-		if ( ( $S->parseString( string => "($T->{$thr}{control})?1:0", index => $index, item => $item, eval => 1 ) ) )
-		{
-			$val = $T->{$thr}{value};
-			NMISNG::Util::dbg("found threshold=$thrname entry=$thr");
-			last;
-		}
-	}
-
-	# if not found and there are default values available get this now
-	if ( $val eq "" and $T->{default}{value} ne "" )
-	{
-		$val = $T->{default}{value};
-		NMISNG::Util::dbg("found threshold=$thrname entry=default");
-	}
-	if ( $val eq "" )
-	{
-		NMISNG::Util::logMsg("ERROR, no threshold=$thrname entry found in Model=$catchall_data->{nodeModel}");
-		return;
-	}
-
-	my $value;    # value of doSummary()
-	my $reset = 0;
-
-	# item is the attribute name of summary stats of Model
-	$value = $stats->{$M->{threshold}{name}{$thrname}{item}};
-	NMISNG::Util::dbg("threshold=$thrname, item=$M->{threshold}{name}{$thrname}{item}, value=$value");
-
-	# check unknow value
-	if ( $value =~ /NaN/i )
-	{
-		NMISNG::Util::dbg("INFO, illegal value $value, skipped");
-		return ( "Normal", $value, $reset );
-	}
-
-	### all zeros policy to disable thresholding - match and return 'normal'
-	if (    $val->{warning} == 0
-		and $val->{minor} == 0
-		and $val->{major} == 0
-		and $val->{critical} == 0
-		and $val->{fatal} == 0
-		and defined $val->{warning}
-		and defined $val->{minor}
-		and defined $val->{major}
-		and defined $val->{critical}
-		and defined $val->{fatal} )
-	{
-		return ( "Normal", $value, $reset );
-	}
-
-	# Thresholds for higher being good and lower bad
-	if (    $val->{warning} > $val->{fatal}
-		and defined $val->{warning}
-		and defined $val->{minor}
-		and defined $val->{major}
-		and defined $val->{critical}
-		and defined $val->{fatal} )
-	{
-		if ( $value <= $val->{fatal} ) { $level = "Fatal"; $thrvalue = $val->{fatal}; }
-		elsif ( $value <= $val->{critical} and $value > $val->{fatal} )
-		{
-			$level    = "Critical";
-			$thrvalue = $val->{critical};
-		}
-		elsif ( $value <= $val->{major} and $value > $val->{critical} ) { $level = "Major"; $thrvalue = $val->{major}; }
-		elsif ( $value <= $val->{minor} and $value > $val->{major} )    { $level = "Minor"; $thrvalue = $val->{minor}; }
-		elsif ( $value <= $val->{warning} and $value > $val->{minor} )
-		{
-			$level    = "Warning";
-			$thrvalue = $val->{warning};
-		}
-		elsif ( $value > $val->{warning} ) { $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
-	}
-
-	# Thresholds for lower being good and higher being bad
-	elsif ( $val->{warning} < $val->{fatal}
-		and defined $val->{warning}
-		and defined $val->{minor}
-		and defined $val->{major}
-		and defined $val->{critical}
-		and defined $val->{fatal} )
-	{
-		if ( $value < $val->{warning} ) { $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
-		elsif ( $value >= $val->{warning} and $value < $val->{minor} )
-		{
-			$level    = "Warning";
-			$thrvalue = $val->{warning};
-		}
-		elsif ( $value >= $val->{minor} and $value < $val->{major} )    { $level = "Minor"; $thrvalue = $val->{minor}; }
-		elsif ( $value >= $val->{major} and $value < $val->{critical} ) { $level = "Major"; $thrvalue = $val->{major}; }
-		elsif ( $value >= $val->{critical} and $value < $val->{fatal} )
-		{
-			$level    = "Critical";
-			$thrvalue = $val->{critical};
-		}
-		elsif ( $value >= $val->{fatal} ) { $level = "Fatal"; $thrvalue = $val->{fatal}; }
-	}
-	if ( $level eq "" )
-	{
-		NMISNG::Util::logMsg(
-			"ERROR no policy found, threshold=$thrname, value=$value, node=$S->{name}, model=$catchall_data->{nodeModel} section threshold"
-		);
-		$level = "Normal";
-	}
-	NMISNG::Util::dbg("result threshold=$thrname, level=$level, value=$value, thrvalue=$thrvalue, reset=$reset");
-	return ( $level, $value, $thrvalue, $reset );
-}
-
-
 # this function processes escalations and notifications
 # args: self
-# returns: nothing 
+# returns: nothing
 sub process_escalations
 {
 	my ($self, %args) = @_;
@@ -2671,12 +2546,12 @@ sub process_escalations
 
 	#	print STDERR "a_error:".Dumper($active_ret->{error}) if ($active_ret->{error});
 	#	print STDERR "inactive_error:".Dumper($inactive_ret->{error}) if ($inactive_ret->{error});
-	
+
 	# then send UP events to all those contacts to be notified as part of the escalation procedure
 	# this loop skips ALL marked-as-active events!
 	# active flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
 	# we might rename that transition t/f, and have this function handle only the ones with transition true.
-	
+
 	for( my $i = 0; $i < $inactive_ret->{model_data}->count; $i++)
 	{
 		my $event_obj = $inactive_ret->{model_data}->object($i);
@@ -2720,7 +2595,7 @@ sub process_escalations
 						}
 					}
 
-					# no email targets found, and if default contact not found, assume we are not covering 
+					# no email targets found, and if default contact not found, assume we are not covering
 					# 24hr dutytime in this slot, so no mail.
 					# maybe the next levelx escalation field will fill in the gap
 					if ( !$target )
@@ -2846,7 +2721,7 @@ sub process_escalations
 
 					my $nmisng_node = $self->node(uuid => $event_obj->node_uuid); # will be undef if the node was removed!
 					my $node = $nmisng_node->configuration;
-					
+
 					# fixme9: nmis_server cannot work
 					$event_obj->custom_data( 'nmis_server', $C->{server_name} );
 					$event_obj->custom_data( 'customer', $node->{customer} );
@@ -2940,7 +2815,7 @@ sub process_escalations
 		if ( my $err = $event_obj->delete() )
 		{
 			NMISNG::Util::logMsg("ERROR $err");
-		}		
+		}
 	}
 
 	#===========================================
@@ -2948,7 +2823,7 @@ sub process_escalations
 
 	# now handle the actual escalations; only events marked-as-current are left now.
 LABEL_ESC:
-	for (my $i = 0; $i < $active_ret->{model_data}->count; $i++) 
+	for (my $i = 0; $i < $active_ret->{model_data}->count; $i++)
 	{
 		my $event_obj = $active_ret->{model_data}->object($i);
 		# we must tell the object it's already loaded or whenever load is called
@@ -2957,9 +2832,9 @@ LABEL_ESC:
 		my $nmisng_node = $self->node(uuid => $event_obj->node_uuid);
 		# get the data in the event as a hash so it's easier to print
 		my $event_data = $event_obj->data();
-	
+
 		my $mustupdate = undef;                   # live changes to thisevent are ok, but saved back ONLY if this is set
-		
+
 		NMISNG::Util::dbg("processing event $event_data->{event}");
 
 		# checking if event is stateless and dampen time has passed.
@@ -2968,7 +2843,7 @@ LABEL_ESC:
 			# yep, remove the event completely.
 			NMISNG::Util::dbg("stateless event $event_data->{event} has exceeded dampening time of $stateless_event_dampening seconds."
 			);
-			$event_obj->delete();			
+			$event_obj->delete();
 		}
 
 		# set event control to policy or default=enabled.
@@ -3006,7 +2881,7 @@ LABEL_ESC:
 			}
 
 			NMISNG::Util::logMsg("INFO ($node_name) Node not active, deleted Event=$event_data->{event} Element=$event_data->{element}");
-			$event_obj->delete();			
+			$event_obj->delete();
 
 			next LABEL_ESC;
 		}
@@ -3033,7 +2908,7 @@ LABEL_ESC:
 					NMISNG::Util::logMsg(
 						"INFO ($event_data->{node_name}) Interface not active, deleted Event=$event_data->{event} Element=$event_data->{element}"
 					);
-					$event_obj->delete();					
+					$event_obj->delete();
 					next LABEL_ESC;
 				}
 			}
@@ -3072,10 +2947,10 @@ LABEL_ESC:
 					my $node_depend_rec = $nmisng_node->configuration;
 					if ( defined $node_depend_rec->{active} )
 					{
-						my ($error,$erec) = $self->events->eventLoad( 
-							node_uuid => $node_depend_rec->{uuid}, 
-							event => "Node Down", 
-							active => 1 
+						my ($error,$erec) = $self->events->eventLoad(
+							node_uuid => $node_depend_rec->{uuid},
+							event => "Node Down",
+							active => 1
 						);
 						if (!$error && ref($erec) eq "HASH" )
 						{
@@ -3083,7 +2958,7 @@ LABEL_ESC:
 							);
 							next LABEL_ESC;
 						}
-						
+
 					}
 				}
 			}
@@ -3425,7 +3300,7 @@ LABEL_ESC:
 										event   => "$type to $target Esc$event_data->{escalate} $event_data->{event}",
 										level   => $event_obj->level,
 										element => $event_obj->element,
-										details => $event_obj->details									
+										details => $event_obj->details
 										)
 										if (NMISNG::Util::getbool( $thisevent_control->{Notify} )
 										and NMISNG::Util::getbool( $thisevent_control->{Log} ) );
@@ -3799,7 +3674,7 @@ LABEL_ESC:
 			}
 		}
 	}
-	
+
 	NMISNG::Util::dbg("Finished");
 	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
 	{
@@ -3818,7 +3693,7 @@ sub compute_metrics
 	# this needs a sys object in 'global'/non-node/nmis-system mode
 	my $S = NMISNG::Sys->new();
 	$S->init;
-	
+
 	my $pollTimer = Compat::Timing->new;
 	NMISNG::Util::dbg("Starting");
 
@@ -3881,12 +3756,12 @@ sub compute_metrics
 		}
 	}
 	NMISNG::Util::dbg("Finished");
-	
+
 	NMISNG::Util::logMsg( "Poll Time: " . $pollTimer->elapTime() )
 			if (NMISNG::Util::getbool( $self->config->{log_polling_time}));
-	
+
 	return { success => 1 };
 }
-		
+
 
 1;

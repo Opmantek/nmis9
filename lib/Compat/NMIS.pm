@@ -166,24 +166,6 @@ sub loadWindowStateTable
 	return NMISNG::Util::loadTable(dir=>'var',name=>'nmis-windowstate');
 }
 
-# check node name case insentive, return good one
-sub checkNodeName {
-	my $name = shift;
-	my $NT;
-
-	if ($NT = loadLocalNodeTable()) {
-		foreach my $nm (keys %{$NT}) {
-			if (lc $name eq lc $nm) {
-				# found
-				return $nm;
-			}
-		}
-		NMISNG::Util::logMsg("ERROR (nmis) node=$name does not exists in table Nodes");
-	}
-	return;
-}
-
-#==================================================================
 
 # this small helper takes an optional section and a require config item name,
 # and returns the structure info for that item from loadCfgTable
@@ -2222,7 +2204,7 @@ sub checkEvent
 	# create event with attributes we are looking for
 	my $event = $nmisng->events->event( _id => $args{_id}, node_uuid => $args{node_uuid}, event => $args{event}, element => $args{element} );
 	# only take the missing data from the db, that way our new details/level will
-	# be used instead of what is in the db	
+	# be used instead of what is in the db
 	return $event->check( sys => $S, details => $args{details}, level => $args{level} );
 };
 
@@ -2323,7 +2305,7 @@ sub notify
 	# log events if allowed
 	# and do it before save so we can log that this thing has been saved
 	if ( NMISNG::Util::getbool($log) and NMISNG::Util::getbool($thisevent_control->{Log}))
-	{		
+	{
 		# details get changed a bit for the log so pass them through
 		$event_obj->log(details => $details);
 	}
