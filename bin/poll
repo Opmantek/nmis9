@@ -44,7 +44,6 @@ use lib "$FindBin::Bin/../lib";
 use Cwd qw();
 use Time::HiRes;
 use Socket;
-use Net::SNMP qw(oid_lex_sort);
 use Net::DNS;	# used for plotting major events on world map in 'Current Events' display
 use Proc::ProcessTable;
 use Proc::Queue ':all';

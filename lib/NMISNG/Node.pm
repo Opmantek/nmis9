@@ -46,6 +46,7 @@ use Net::DNS;
 use Statistics::Lite;
 use URI::Escape;
 use POSIX qw(:sys_wait_h);
+use Net::SNMP;									# for oid_lex_sort
 
 use NMISNG::Util;
 use NMISNG::DB;
@@ -1869,7 +1870,7 @@ sub update_intf_info
 		{
 			if ( $ifIndexTable = $SNMP->gettable('ifIndex') )
 			{
-				foreach my $oid ( oid_lex_sort( keys %{$ifIndexTable} ) )
+				foreach my $oid ( Net::SNMP::oid_lex_sort( keys %{$ifIndexTable} ) )
 				{
 					# to handle stupid devices with ifIndexes which are 64 bit integers
 					if ( $ifIndexTable->{$oid} < 0 )
@@ -4002,7 +4003,7 @@ sub collect_systemhealth_info
 			if ( $healthIndexTable = $SNMP->gettable($index_snmp) )
 			{
 				# NMISNG::Util::dbg("systemHealth: table is ".Dumper($healthIndexTable) );
-				foreach my $oid ( oid_lex_sort( keys %{$healthIndexTable} ) )
+				foreach my $oid ( Net::SNMP::oid_lex_sort( keys %{$healthIndexTable} ) )
 				{
 					my $index = $oid;
 					if ( $oid =~ /$index_regex/ )
