@@ -2432,31 +2432,24 @@ sub selftest
 	# check the last successful operation completion, see if it was too long ago
 	my $max_update_age = $config->{selftest_max_update_age} || 604800;
 	my $max_collect_age = $config->{selftest_max_collect_age} || 900;
+
+	# fixme9: switch the 'last op' timestamp to opstatus in db!
+
 	# having this hardcoded twice isn't great...
 	my $oplogdir = $config->{'<nmis_var>'}."/nmis_system/timestamps";
 	if (-d $oplogdir)
 	{
-		opendir(D, $oplogdir) or die "cannot open dir $oplogdir: $!\n";
-		# last _successful_ op
-		my ($last_update_start,$last_update_end, $last_collect_start, $last_collect_end);
-		for my $f (readdir(D))
+		my ($last_update_end, $last_collect_end);
+		if (my $statrec = stat("$oplogdir/collect"))
 		{
-			if ($f =~ /^(update|collect)-(\d+)-(\d*)$/)
-			{
-				my ($op,$start,$end) = ($1,$2,$3);
-				my ($target_start,$target_end) = ($op eq "update")?
-						(\$last_update_start, \$last_update_end) :
-						(\$last_collect_start, \$last_collect_end);
-
-				if ($end && $start >= $$target_start && $end >= $$target_end)
-				{
-						$$target_start = $start;
-						$$target_end = $end;
-				}
-			}
+			$last_collect_end = $statrec->mtime;
 		}
-		closedir(D);
+		if (my $statrec = stat("$oplogdir/update"))
+		{
+			$last_update_end = $statrec->mtime;
+		}
 		my ($updatestatus, $collectstatus);
+
     # for bootstrapping until first update with timestamping runs: treat no timestamps whatsoever
 		# as NO error (for metrics), but put error text in (for details page)
 		if (!defined $last_update_end)

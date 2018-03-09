@@ -526,6 +526,14 @@ sub runThreads
 	my $collecttime = Time::HiRes::time();
 	my $S;
 
+	# fixme9: switch the 'last op' timestamp to opstatus in db!
+	my $markerfile = $C->{'<nmis_var>'}."/nmis_system/timestamps/$type";
+	if (!-f $markerfile)
+	{
+		open(F, ">$markerfile") && close(F);
+	}
+	utime(undef,undef, $markerfile);
+	
 	# on update prime the interface summary
 	if ( $type eq "update" )
 	{
@@ -535,7 +543,6 @@ sub runThreads
 			$nmisng->update_links;
 		}
 	}
-
 	# some collect post-processing
 	elsif ( $type eq "collect")
 	{
