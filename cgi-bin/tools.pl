@@ -262,7 +262,7 @@ sub getInterfaceTable
 {
 
 	my $NT = Compat::NMIS::loadNodeTable();
-	#Load the Interface Information file
+	# fixme9: needs to be rewritten to NOT use slow and inefficient loadInterfaceInfo!
 	my $II = Compat::NMIS::loadInterfaceInfo();
 	my $ii;
 

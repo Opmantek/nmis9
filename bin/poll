@@ -83,7 +83,6 @@ options:
       threshold Calculate thresholds
       services  Run Services data collection only
       escalate  Run the escalation routine only ( debug use only)
-      links     Update the Links.nmis file.
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
@@ -194,7 +193,6 @@ if ( $type =~ /^(collect|update|services)$/ )
 							mthread => $mthread, mthreadDebug => $mthreadDebug );
 }
 elsif ( $type eq "escalate" ) { Compat::NMIS::new_nmisng->process_escalations(); printRunTime(); }    # included in type=collect
-elsif ( $type eq "links" )      { Compat::NMIS::new_nmisng->update_links; } # included in type=update
 elsif ( $type eq "threshold" )  { runThreshold(node => $node, group => $group); printRunTime(); } # normally part of type=collect
 else
 {
@@ -534,17 +532,8 @@ sub runThreads
 	}
 	utime(undef,undef, $markerfile);
 	
-	# on update prime the interface summary
-	if ( $type eq "update" )
-	{
-		if ( !NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
-		{
-			getIntfAllInfo();    # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
-			$nmisng->update_links;
-		}
-	}
 	# some collect post-processing
-	elsif ( $type eq "collect")
+	if ( $type eq "collect")
 	{
 		NMISNG::Util::dbg("Starting Metrics computation");
 		$nmisng->compute_metrics();
@@ -686,94 +675,6 @@ sub catch_zap
 
 #=========================================================================================
 
-# this generates the data for nmis-interfaces.json,
-# NOTE: this should not be required for NMISNG
-sub getIntfAllInfo
-{
-	my $index;
-	my $tmpDesc;
-	my $intHash;
-	my %interfaceInfo;
-
-	### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
-	if ( NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
-	{
-		NMISNG::Util::logMsg("getIntfAllInfo disabled with disable_interfaces_summary=$C->{disable_interfaces_summary}");
-		return;
-	}
-
-	NMISNG::Util::dbg("Starting");
-
-	NMISNG::Util::dbg("Getting Interface Info from all nodes");
-
-	my $nmisng = Compat::NMIS::new_nmisng();
-	my $get_node_uuids = $nmisng->get_node_uuids( filter => { cluster_id => $C->{cluster_id} } );
-	# Write a node entry for each node
-	foreach my $node_uuid ( sort @$get_node_uuids )
-	{
-
-		my $nmisng_node = $nmisng->node( uuid => $node_uuid );
-		my $node_name = $nmisng_node->name();
-		my $configuration = $nmisng_node->configuration;
-		if ( NMISNG::Util::getbool( $configuration->{active} ) and NMISNG::Util::getbool( $configuration->{collect} ) )
-		{
-			# ony grab active interfaces
-			my $ids = $nmisng_node->get_inventory_ids(concept => 'interface', filter => { enabled => 1, historic => 0});
-			NMISNG::Util::dbg( "ADD node=$node_name", 3 );
-			NMISNG::Util::logMsg("INFO empty interface info file of node $node_name") if(!$ids || @$ids < 1);
-			foreach my $id ( @$ids )
-			{
-				my ($inventory,$error_message) = $nmisng_node->inventory( _id => $id );
-
-				$nmisng->log->error("Failed to get inventory, error_message:$error_message") && next
-					if(!$inventory);
-
-				my $data = $inventory->data();
-				$tmpDesc = &NMISNG::Util::convertIfName( $data->{ifDescr} );
-
-				$intHash = "$node_name-$tmpDesc";
-
-				NMISNG::Util::dbg( "$node_name $tmpDesc hash=$intHash $data->{ifDescr}", 3 );
-
-				if ( $data->{ifDescr} ne "" )
-				{
-					NMISNG::Util::dbg( "Add node=$node_name interface=$data->{ifDescr}", 2 );
-					my $source = $data;
-					my $dest = $interfaceInfo{$intHash} ||= {};
-
-					$dest->{node} = $node_name;
-					# TODO: revive this if we still need this function
-					# $dest->{sysName} = $info->{system}->{sysName};
-
-					for my $copyme (
-						qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus
-						ifOperStatus ifLastChange Description display_name portModuleIndex portIndex portDuplex portIfIndex
-						portSpantreeFastStart vlanPortVlan portAdminSpeed)
-						)
-					{
-						$dest->{$copyme} = $source->{$copyme};
-					}
-
-					my $cnt = 1;
-					while ( defined( $source->{"ipAdEntAddr$cnt"} ) )
-					{
-						for my $copymeprefix (qw(ipAdEntAddr ipAdEntNetMask ipSubnet ipSubnetBits))
-						{
-							my $copyme = $copymeprefix . $cnt;
-							$dest->{$copyme} = $source->{$copyme};
-						}
-						$cnt++;
-					}
-				}
-			}
-
-		}
-	}    # foreach $linkname
-	     # Write the interface table out.
-	NMISNG::Util::dbg("Writing Interface Info from all nodes");
-	NMISNG::Util::writeTable( dir => 'var', name => "nmis-interfaces", data => \%interfaceInfo );
-	NMISNG::Util::dbg("Finished");
-}
 
 # starts up fpingd and/or opslad if desired and none present
 # args: none

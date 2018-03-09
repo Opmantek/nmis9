@@ -1395,19 +1395,61 @@ sub loadNodeInfoTable
 	return NMISNG::Util::loadTable(dir=>'var', name=>"$node-node",  suppress_errors => $args{suppress_errors});
 }
 
-# load info of all interfaces
-sub loadInterfaceInfo {
+# load info of all interfaces - fixme9: this is likely dead slow 
+# and wasteful (as it combines EVERYTHING) - should be replaced by much more targetted lookups!
+sub loadInterfaceInfo 
+{
+	my $nmisng = new_nmisng();
 
-	return NMISNG::Util::loadTable(dir=>'var',name=>"nmis-interfaces"); # my $II = loadInterfaceInfo();
+	my $get_node_uuids = $nmisng->get_node_uuids( 
+		filter => { cluster_id => $nmisng->config->{cluster_id}, active => 1, collect => 1 } );
+
+	my %interfaceInfo;
+	foreach my $node_uuid ( @$get_node_uuids )
+	{
+		my $nmisng_node = $nmisng->node( uuid => $node_uuid );
+		my $node_name = $nmisng_node->name();
+
+		# ony grab active interfaces
+		my $ids = $nmisng_node->get_inventory_ids(concept => 'interface', filter => { enabled => 1, historic => 0});
+		foreach my $id ( @$ids )
+		{
+			my ($inventory,$error_message) = $nmisng_node->inventory( _id => $id );
+			$nmisng->log->error("Failed to get inventory, error_message:$error_message") && next
+					if(!$inventory);
+
+			my $data = $inventory->data();
+			next if ($data->{ifDescr} eq "");
+
+			my $tmpDesc = &NMISNG::Util::convertIfName( $data->{ifDescr} );
+			my $dest = $interfaceInfo{"$node_name-$tmpDesc"} = {};
+
+			$dest->{node} = $node_name;
+			
+			for my $copyme (
+				qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus
+						ifOperStatus ifLastChange Description display_name portModuleIndex portIndex portDuplex portIfIndex
+						portSpantreeFastStart vlanPortVlan portAdminSpeed)
+					)
+			{
+				$dest->{$copyme} = $data->{$copyme};
+			}
+			
+			my $cnt = 1;
+			while ( defined( $data->{"ipAdEntAddr$cnt"} ) )
+			{
+				for my $copymeprefix (qw(ipAdEntAddr ipAdEntNetMask ipSubnet ipSubnetBits))
+				{
+					my $copyme = $copymeprefix . $cnt;
+					$dest->{$copyme} = $data->{$copyme};
+				}
+				$cnt++;
+			}
+		}
+	}
+	return \%interfaceInfo;
 }
 
-# load info of all interfaces
-sub loadInterfaceInfoShort {
-
-	return NMISNG::Util::loadTable(dir=>'var',name=>"nmis-interfaces-short"); # my $II = loadInterfaceInfoShort();
-}
-
-#
 sub loadEnterpriseTable {
 	return NMISNG::Util::loadTable(dir=>'conf',name=>'Enterprise');
 }

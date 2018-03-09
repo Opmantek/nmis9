@@ -99,34 +99,29 @@ sub menuFind
 {
 	my $obj = shift;
 
-	if ($obj eq 'interface' && NMISNG::Util::getbool($C->{disable_interfaces_summary}))
-	{
-		print("Error: finding interfaces requires config option disable_interfaces_summary=false!");
-	}
-	else
-	{
-		my $thisurl = url(-absolute=>1)."?";
-		# the get() code doesn't work without a query param, nor does it work with all params present
-		# conversely the non-widget mode needs post inputs as query params are ignored
-		print start_form(-id=>'find_the_monkey', -href => $thisurl);
-		print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
-				. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
-				. hidden(-override => 1, -name => "widget", -value => $widgetstate);
-		
-		print table(
-			Tr(td({class=>'header',align=>'center',colspan=>'4'},
-						eval { return ($obj eq 'node') ? 'Find a Node' : 'Find an Interface';} )),
-			Tr(td({class=>'header'},'Find String '),td(textfield(-name=>"find",size=>'35',value=>'')),
-				 # making the button type=submit activates it as the enter key handler, which Is A Good Thing(tm).
-				 # however, making the click handler not return false Is A Bad Thing(tm)...
-				 td(submit(-name=>'submit',onclick=>
-									 ($wantwidget? "javascript:get('find_the_monkey');" : "submit();")."return false;",
-									 -value=>"Go"))));
-		print end_form;
-	}
+	my $thisurl = url(-absolute=>1)."?";
+	# the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>'find_the_monkey', -href => $thisurl);
+	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
+			. hidden(-override => 1, -name => "widget", -value => $widgetstate);
+	
+	print table(
+		Tr(td({class=>'header',align=>'center',colspan=>'4'},
+					eval { return ($obj eq 'node') ? 'Find a Node' : 'Find an Interface';} )),
+		Tr(td({class=>'header'},'Find String '),td(textfield(-name=>"find",size=>'35',value=>'')),
+			 # making the button type=submit activates it as the enter key handler, which Is A Good Thing(tm).
+			 # however, making the click handler not return false Is A Bad Thing(tm)...
+			 td(submit(-name=>'submit',onclick=>
+								 ($wantwidget? "javascript:get('find_the_monkey');" : "submit();")."return false;",
+								 -value=>"Go"))));
+	print end_form;
 }
 
 
+# fixme9: needs to be rewritten to NOT use slow 
+# and inefficient loadInterfaceInfo()!
 sub viewInterfaceFind 
 {
 	my $find = $Q->{find};
@@ -142,14 +137,6 @@ sub viewInterfaceFind
 		return;
 	}
 
-	if (NMISNG::Util::getbool($C->{disable_interfaces_summary}))
-	{
-		print Tr(td({class=>'error'},'ERROR: Finding interfaces requires config option disable_interfaces_summary=false!'));
-		return;
-	}
-
-
-	# nmisdev 2011-09-13: fixed case insensitve search with a compiled regex.
 	my $qrfind = qr/$find/i;
 
 	my $II = Compat::NMIS::loadInterfaceInfo();

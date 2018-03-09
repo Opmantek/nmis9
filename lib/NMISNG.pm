@@ -1447,7 +1447,8 @@ sub config_backup
 	return  { success => 1, file => "$backupfilename.gz" };
 }
 
-# poll/update-type action which updates the Links.nmis configuration(?) file
+# fixme9: should be changed to use something smarter than loadInterfaceInfo!
+# optional non-automatic action which updates the Links.nmis configuration(?) file
 # args: self
 # returns: nothing
 sub update_links
@@ -1456,11 +1457,6 @@ sub update_links
 
 	my $C = $self->config;
 
-	if ( NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
-	{
-		NMISNG::Util::logMsg("update_links disabled because disable_interfaces_summary=$C->{disable_interfaces_summary}");
-		return;
-	}
 	my (%subnets, $II, %catchall);
 
 	NMISNG::Util::dbg("Start");

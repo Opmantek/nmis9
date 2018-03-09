@@ -475,6 +475,7 @@ sub availReport
 
 #===============
 
+# fixme9: needs to be rewritten to NOT use slow and inefficient loadInterfaceInfo!
 sub portReport
 {
 
@@ -907,6 +908,7 @@ sub timesReport
 
 #===============
 
+# fixme9: needs to be rewritten to NOT use slow and inefficient loadInterfaceInfo!
 sub top10Report
 {
 	my %reportTable;

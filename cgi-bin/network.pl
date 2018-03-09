@@ -4143,9 +4143,9 @@ sub viewSystemHealth
 	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
+# fixme9: needs to be rewritten to NOT use slow and inefficient loadInterfaceInfo!
 sub viewOverviewIntf
 {
-
 	my $node;
 
 	#	my @out;
@@ -4157,7 +4157,7 @@ sub viewOverviewIntf
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	my $NT     = Compat::NMIS::loadNodeTable();
-	my $II     = Compat::NMIS::loadInterfaceInfo();
+	my $II     = Compat::NMIS::loadInterfaceInfo(); # fixme9: slow and wasteful...
 	my $GT     = Compat::NMIS::loadGroupTable();
 	my $ii_cnt = keys %{$II};
 

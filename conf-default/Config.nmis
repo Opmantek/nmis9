@@ -175,7 +175,6 @@ my %hash = (
     'ping_count' => '3',
     'wrap_node_names' => 'true',
     'nmis_summary_poll_cycle' => 'false',
-    'disable_interfaces_summary' => 'false',
 		'interface_util_period' => '-6 hours',
 		'interface_util_label' => 'Util. 6hrs',
     'interface_max_number' => '5000',
