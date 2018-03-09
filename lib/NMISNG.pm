@@ -1128,12 +1128,6 @@ sub purge_old_files
 			only_empties => 1,
 			description  => "Empty JSON state files",
 		},
-		{   minage => $C->{purge_event_after} || 30 * 86400,
-			path => qr!events/.+?/history/.+\.json$!,
-			also_empties => 1,
-			location     => $C->{'<nmis_var>'} . "/events",
-			description  => "Old event history files",
-		},
 		{
 			minage => $C->{purge_jsonlog_after} || 30 * 86400,
 			also_empties => 1,
