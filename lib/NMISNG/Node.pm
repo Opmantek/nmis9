@@ -4314,7 +4314,7 @@ sub collect_cbqos_info
 	}
 
 	my $SNMP = $S->snmp;
-	my $C = $self->nsisng->config;
+	my $C = $self->nmisng->config;
 
 	NMISNG::Util::info("start table scanning");
 
