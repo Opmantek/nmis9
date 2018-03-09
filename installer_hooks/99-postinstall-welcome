@@ -48,11 +48,11 @@ fi
 
 cat <<EOF
 
-You should now be able to access NMIS at
+You should now be able to access $PRODUCT at
 
 http://<HOSTNAME_OR_IP>/nmis9/
 
-If your browser is running on the same machine as opEvents was 
+If your browser is running on the same machine as $PRODUCT was 
 installed onto, this would be
 
 http://localhost/nmis9/
