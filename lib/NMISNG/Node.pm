@@ -5973,6 +5973,7 @@ sub update
 #
 # fixme9: in the future this can be removed, summary8/16 should be calculatable from the PIT data, there
 #  really is no need to do this. aggregations or something should be able to pull this off.
+#  HOWEVER, the standard-or'-15 min' thresholds STILL need to be computed w/o 8/16 prefix!
 #
 # args: self, sys, inventory
 # returns: stats hash ref
@@ -5985,26 +5986,36 @@ sub compute_summary_stats
 	my $C = $self->nmisng->config;
 
 	my $section = 'health';
+
+	# compute standard one, first/-8h and second/-16h backwards-compat data,
+	# standard stuff is not compat-tag-prefixed, the other two are
+	my $standard_period =  $self->nmisng->_threshold_period( subconcept => $section );
 	my $metricsFirstPeriod  = $C->{'metric_comparison_first_period'} // "-8 hours";
 	my $metricsSecondPeriod	= $C->{'metric_comparison_second_period'} // "-16 hours";
+
+	my $standardstats  = Compat::NMIS::getSubconceptStats(
+		sys => $S,
+		inventory => $inventory,
+		subconcept => $section,
+		start => $standard_period,
+		end => time );
 
 	my $stats8  = Compat::NMIS::getSubconceptStats(
 		sys => $S,
 		inventory => $inventory,
 		subconcept => $section,
 		start => $metricsFirstPeriod,
-		end => time
-	);
+		end => time );
+
 	my $stats16 = Compat::NMIS::getSubconceptStats(
 		sys => $S,
 		inventory => $inventory,
 		subconcept => $section,
 		start => $metricsSecondPeriod,
-		end => $metricsFirstPeriod
-	);
+		end => $metricsFirstPeriod ); # funny one, from -16h to -8h... has been that way for a while
 
 	# map all stats into one package for derived, don't know if we want to keep it this way
-	my %allstats = ();
+	my %allstats = (%$standardstats);
 	map { $allstats{'08_'.$_} = $stats8->{$_} } (keys %$stats8);
 	map { $allstats{'16_'.$_} = $stats8->{$_} } (keys %$stats16);
 	return \%allstats;
