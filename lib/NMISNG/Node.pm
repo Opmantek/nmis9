@@ -4392,7 +4392,7 @@ sub collect_cbqos_info
 
 				# get the policy config table for this interface
 				my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
-				$self->nmisng->debug5("qos index table $PIndex: ".Dumper ($qosIndexTable));
+				$self->nmisng->log->debug5("qos index table $PIndex: ".Dumper ($qosIndexTable));
 
 				# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
 			BLOCK2:
