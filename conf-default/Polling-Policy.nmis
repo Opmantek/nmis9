@@ -4,13 +4,15 @@
     'name' => 'half_hourly',
     'ping' => '5m',
     'snmp' => '30m',
-    'wmi' => '30m'
+    'wmi' => '30m',
+		'update' => '1d',
   },
   'very_infrequently' => {
     'description' => 'poll very infrequently',
     'name' => 'very_infrequently',
     'ping' => '30m',
     'snmp' => '1h',
-    'wmi' => '1h'
+    'wmi' => '1h',
+		'update' => '2d',
   }
 );

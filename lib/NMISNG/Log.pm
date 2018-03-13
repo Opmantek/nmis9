@@ -162,8 +162,8 @@ sub reopen
 	return;
 }
 
-# small package-function helper, replacement for the yucky setDebug thing
-# translates given info and/or debug arguments
+# small package-function helper (replaces nmisng::util::setDebug())
+# which translates given info and/or debug arguments
 # into ONE log_level (== debug, info, warn, error, fatal, or 1..9.
 # debug is the same as 1
 # but fixme9: for compat-purposes we return 1, until everything stops comparing $C->{debug} numerically
@@ -201,6 +201,60 @@ sub parse_debug_level
 		$level = "info" if ($info =~ /^\s*(1|t|true|y|yes)\s*$/i);
 	}
 	return $level;
+}
+
+# helper method that changes verbosity up or down
+# also returns the next more or less verbose setting,
+# jumping levels where applicable.
+#
+# args: positive or negative number (value is ignored, sign counts)
+# returns: nothing
+sub change_level
+{
+	my ($self,$wantmorenoise) = @_;
+	my $curlevel = $self->level;	# that's the mojo level, no detaillevel
+	my $curdetail = $self->detaillevel; # that's our extra
+
+	return if (!$wantmorenoise); # want neg or pos, we bail on undef or zero
+
+	my @knownlevels = (qw(debug info warn error fatal));
+	my $curidx  = List::MoreUtils::first_index { $curlevel eq $knownlevels[$_] } (0..$#knownlevels);
+	# dud?
+	return if ($curidx < 0);
+
+	if ($wantmorenoise > 0)
+	{
+		if ($curidx == 0)
+		{
+			# level already debug, cannot be more noisy
+			# but debug detail can go up
+			$self->detaillevel($curdetail+1) if ($curdetail < 9);
+		}
+		else
+		{
+			# new noisier level...
+			$self->level($knownlevels[$curidx-1]);
+			# ...and if we've reached debug land, set the detail level
+			$self->detaillevel( $curidx == 1? 1 : 0);
+		}
+	}
+	else
+	{
+		# already on fatal? cannot be less noisy, debug details unchangable too
+		# inbetween? one level up, debug details unchanged
+		# level debug and details > 1? stay there, change details,
+		# level debug, details 1, switch to info
+		if ($curidx == 0 && $curdetail > 1)
+		{
+			$self->detaillevel($curdetail-1);
+		}
+		elsif (($curidx == 0 && $curdetail == 1)
+					 || ($curidx < $#knownlevels))
+		{
+			$self->level($knownlevels[$curidx+1]);
+			$self->detaillevel(0);
+		}
+	}
 }
 
 1;

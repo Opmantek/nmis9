@@ -110,8 +110,9 @@ my %hash = (
 		# to have additional fields in the node summary data.
     'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 
-		'nmis_mthread' => 'false',
-		'nmis_maxthreads' => '10',
+		'nmisd_max_workers' => 10, # set to zero to disable multiprocessing
+		'nmisd_worker_cycle' => 30,	# workers sleep no longer than X between cycles
+		'nmisd_scheduler_cycle' => 10, # the supervisor daemon sleeps no longer than X between cycles
 
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
@@ -504,8 +505,6 @@ my %hash = (
 #		'schedule_reports' => 86400, # fixme not good
 		'schedule_purge' => 86400,
 		'schedule_dbcleanup' => 86400,
-		'schedule_update' => 86400,
-		'schedule_links' => 86400,
 		'schedule_selftest' => 15*60,
 		'schedule_permission_test' => 2*3600,
 	},

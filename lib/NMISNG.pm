@@ -731,8 +731,10 @@ sub queue_collection
 			collection    => $self->{_db_queue},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				# need to search/sort by time, priority and in_progress
-				[ [ "time" => 1, "priority" => 1, "in_progress" => 1 ]]
+				# need to search/sort by time, priority and in_progress, and both type and tag
+				[ [ "time" => 1, "in_progress" => 1, "priority" => 1, ]],
+				[ [ "time" => 1, "in_progress" => 1, "tag" => 1 ]], # fixme: or separate for tag?
+				[ [ "time" => 1, "in_progress" => 1, "type" => 1 ]],	# fixme: or separate?
 			] );
 		$self->log->error("index setup failed for queue: $err") if ($err);
 	}
@@ -957,7 +959,7 @@ sub update_queue
 
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
-			if ($jobdata->{type} !~ /^(collect|update|services|threshold|escalate|configbackup|purge|dbcleanup)$/);
+			if ($jobdata->{type} !~ /^(collect|update|services|threshold|escalate|configbackup|purge|dbcleanup|selftest|permission-test|report)$/);
 
 
 	my $jobid = $jobdata->{_id};

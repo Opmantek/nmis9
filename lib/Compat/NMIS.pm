@@ -60,7 +60,9 @@ use NMISNG::Outage;
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
 #
-# args: nocache (optional, if set create new nmisng object)
+# args: nocache (optional, if set create new nmisng object),
+#  debug (optional, if present overrules the configuration
+#   ALSO causes logging to go to stderr, not the logfile)
 # returns: ref to one nmisng object
 sub new_nmisng
 {
@@ -72,20 +74,20 @@ sub new_nmisng
 		# Carp::cluck("creating new nmisng obj in $$");
 
 		my $C = NMISNG::Util::loadConfTable();
-		my $debug = NMISNG::Util::getDebug();
 		die "Config required" if ( ref( $C ) ne "HASH" );
 
 		# log level is controlled by debug (from commandline or config file),
 		# output is stderr if debug came from command line, log file otherwise
 		my $logfile = $C->{'<nmis_logs>'} . "/nmis.log";
-
 		my $error = NMISNG::Util::setFileProtDiag(file => $logfile)
 				if (-f $logfile);
 		warn "failed to set permissions: $error\n" if ($error);
 
 		my $logger = NMISNG::Log->new(
-			level => $debug // $C->{log_level},
-			path  =>  ($debug? undef : $logfile ),
+			level => ( NMISNG::Log::parse_debug_level( debug => $args{debug},
+																							 info => undef # fixme9, deprecated
+								 ) // $C->{log_level} ),
+			path  =>  ($args{debug}? undef : $logfile ),
 				);
 
 		$_nmisng = NMISNG->new(

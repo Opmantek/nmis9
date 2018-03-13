@@ -56,6 +56,7 @@ use Compat::NMIS;
 use BER;
 use NMISNG::rrdfunc;
 use NMISNG::Util;
+use NMISNG::Log;
 
 
 my $pid;
@@ -66,7 +67,7 @@ my $time_to_die = 0;
 my %nvp = getArguments(@ARGV);
 
 # Set debugging level.
-my $debug = NMISNG::Util::setDebug($nvp{debug});
+my $debug = NMISNG::Log::parse_debug_level(debug => $nvp{debug});
 #$debug = $debug;
 my $vardir = $nvp{vardir};
 

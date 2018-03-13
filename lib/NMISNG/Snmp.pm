@@ -64,7 +64,7 @@ sub new
 			config => {},
 
 			# optionals
-			debug => defined($arg{debug})? NMISNG::Util::getbool($arg{debug}) : 0,
+			debug => defined($arg{debug})? $arg{debug} : 0,
 			logging => defined($arg{logging})? NMISNG::Util::getbool($arg{logging}): 1,
 			log_regex => undef,
 		}, $class);
@@ -460,7 +460,7 @@ sub getarray
 		{
 			push @retvals, $result->{$oid};
 
-			if ($self->{debug} && &NMISNG::Util::getDebug >= 4)	# don't waste time translating if not debugging
+			if ($self->{debug} >= 4)	# don't waste time translating if not debugging
 			{
 				my $var = NMISNG::MIB::oid2name($oid);
 				NMISNG::Util::dbg("result: var=$var, value=$result->{$oid}",4);

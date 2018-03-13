@@ -47,7 +47,7 @@ use Time::Local;
 use Time::Moment;
 use DateTime::TimeZone;
 
-use POSIX qw();			 # we want just strftime
+use POSIX qw();
 use Cwd qw();
 use version 0.77;
 use Carp;
@@ -56,6 +56,7 @@ use IO::Handle;
 use Socket 2.001;								# for getnameinfo() used by resolve_dns_name
 use JSON::XS;
 use Proc::ProcessTable;
+use List::Util 1.33;
 
 use Data::Dumper;
 $Data::Dumper::Indent=1;				# fixme9: do we really need these globally on?
@@ -576,24 +577,6 @@ sub getDiskBytes {
 	elsif ( $_ > 1048576 ) { $_ /= 1048576; /(\d+\.\d\d)/; return "$1 MB${ps}"; }
 	elsif ( $_ > 1024 ) { $_ /= 1024; /(\d+\.\d\d)/; return "$1 KB${ps}"; }
 	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
-}
-
-# tiny helper that translates level names or levels
-# into a debug number, does NOT set any config!
-# NOT smart enough. DEPRECATED - use NMISNG::Log::parse_debug_level instead.
-sub setDebug {
-	my $string = shift;
-	my $debug = 0;
-	print "setDebug, string:$string\n";
-
-	if (!defined $string) { $debug = 0; }
-	elsif ( $string eq "true" ) { $debug = 1; }
-	elsif (  $string eq "verbose" ) { $debug = 9; }
-	elsif ( $string =~ /\d+/ ) { $debug = $string; }
-	else { $debug = 0; }
-
-
-	return $debug;
 }
 
 # performs a binary copy of a file, used for backup of files.
@@ -1458,14 +1441,6 @@ sub info
 	}
 }
 
-# return the current debug level from the config cache
-# fixme9: should be reviewed
-sub getDebug
-{
-	my $C = loadConfTable();
-	return $C->{debug};
-}
-
 # print debug info to stdout, with (class::)method names and line number
 # args: message, level (default 1), upcall (only relevant if level is 1)
 sub dbg
@@ -2080,13 +2055,14 @@ sub setFileProtDirectory {
 # rgb(255,0,0) > rgb(255,255,0) > rgb(0,255,0)
 #
 
-sub colorPercentHi {
-	use List::Util qw[min max];
+sub colorPercentHi
+{
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = 100 - int($val);
 		return sprintf("#%2.2X%2.2X00",
-									 int(min($val*2*2.55,255)), int(min( (100-$val)*2*2.55,255)));
+									 int(List::Util::min($val*2*2.55,255)),
+									 int(List::Util::min( (100-$val)*2*2.55,255)));
 	}
 	else {
 		return '#AAAAAA';
@@ -2095,11 +2071,11 @@ sub colorPercentHi {
 
 sub colorPercentLo
 {
-	use List::Util qw[min max];
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = int($val);
-		return sprintf("%2.2X%2.2X00", int(min($val*2*2.55,255)), int(min( (100-$val)*2*2.55,255)));
+		return sprintf("%2.2X%2.2X00", int(List::Util::min($val*2*2.55,255)),
+									 int(List::Util::min( (100-$val)*2*2.55,255)));
 	}
 	else {
 		return '#AAAAAA';
@@ -2136,26 +2112,43 @@ sub checkPerlLib {
 
 
 # a quick selftest function to verify that the runtime environment is ok
-# function name not exported, on purpose
-# args: an nmis config structure (needed for the paths),
-# and delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no),
-# optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise),
-# optional perms (default: 0, if 1 CRITICAL permissions are checked)
+# updates the selftest status cache file
+#
+# args: an nmisng config structure (needed for the paths),
+#  delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no),
+#  optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise),
+#  optional perms (default: 0, if 1 CRITICAL permissions are checked)
 # returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
 sub selftest
 {
 	my (%args) = @_;
-	my ($allok, @details);
+	my @details;
 
 	my $config = $args{config};
 	return (0,{ "Config missing" =>  "cannot perform selftest without configuration!"})
 			if (ref($config) ne "HASH" or !keys %$config);
 	my $candelay = NMISNG::Util::getbool($args{delay_is_ok});
+	my $wantpermsnow = NMISNG::Util::getbool($args{perms});
 
 	my $dbdir_status = $args{report_database_status};
 	$$dbdir_status = 1 if (ref($dbdir_status) eq "SCALAR"); # assume the database dir passes the test
 
-	$allok=1;
+	# always verify and fix-up the most critical file permissions: config dir, custom models dir, var dir
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_conf>'},1);    # do recurse
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_var>'},0);  # no recursion
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_models>'},0)
+			if (-d $config->{'<nmis_models>'});														# dir isn't necessarily present
+
+	my $varsysdir = "$config->{'<nmis_var>'}/nmis_system";
+	if ( !-d $varsysdir )
+	{
+		NMISNG::Util::createDir($varsysdir);
+		NMISNG::Util::setFileProtDiag(file =>$varsysdir);
+	}
+	my $statefile = "$varsysdir/selftest.json";
+	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1 ) // { tests => [] };
+
+	my $allok=1;
 
 	# check that we have a new enough RRDs module
 	my $minversion=version->parse("1.4004");
@@ -2234,7 +2227,8 @@ sub selftest
 		}
 	}
 
-	if (NMISNG::Util::getbool($args{perms}))
+	$testname = "Permissions";
+	if ($wantpermsnow)
 	{
 		# check the permissions, but only the most critical aspects: don't bother with precise permissions
 		# as long as the nmis user and group can work with the dirs and files
@@ -2292,7 +2286,6 @@ sub selftest
 			$done{$where} = 1;
 		}
 
-		$testname = "Permissions"; # note: this is hardcoded in poll, too!
 		if (@permproblems)
 		{
 			$allok=0;
@@ -2302,6 +2295,12 @@ sub selftest
 		{
 			push @details, [$testname, undef];
 		}
+	}
+	else
+	{
+		# keep the old permission test result as-is
+		my $prev = List::Util::first { $_->[0] eq $testname } (@{$laststate->{tests}});
+		push @details, $prev // [ $testname, undef ];
 	}
 
 	# check the number of nmis processes, complain if above limit
@@ -2474,6 +2473,16 @@ sub selftest
 		# put these at the beginning
 		unshift @details, ["Last Update", $updatestatus], [ "Last Collect", $collectstatus];
 	}
+
+	# update the status
+	NMISNG::Util::writeHashtoFile(
+		file => $statefile,
+		json => 1,
+		data => {status => $allok,
+						 lastupdate => time,
+						 lastupdate_perms => ( $wantpermsnow? time : $laststate->{lastupdate_perms}),
+						 tests => \@details }
+			);
 
 	return ($allok, \@details);
 }
@@ -3121,5 +3130,29 @@ sub follow_dotted
 	$value = $anchor;
 	return ($value, 0);
 }
+
+# this is a general-purpose reaper of zombies
+# args: none, returns: hash of process ids -> statuses that were reaped
+#
+# you can use this to just periodically collect zombies,
+# or as a signal handler, but:
+#
+# PLEASE NOTE: if you attach it to $SIG{CHLD}, then
+# this CAN AND WILL interfere with getting exit codes from
+# backticks, system, and open-with-pipe, because the child handler
+# can run before the perl standard wait() for these ipc ops,
+# hence $? becomes -1 because the wait() was preempted.
+#
+sub reaper
+{
+	my %exparrots;
+
+	while ((my $pid = waitpid(-1, POSIX::WNOHANG)) > 0)
+	{
+		$exparrots{$pid} = $?;
+	}
+	return %exparrots;
+}
+
 
 1;

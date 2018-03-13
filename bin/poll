@@ -221,97 +221,21 @@ sub runThreads
 	# this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
-	if ( !$node_select and $type ne "services" )
+	# fixme9: goes away in daemon
+	my $cachefileage = (stat("$C->{'<nmis_var>'}/nmis_system/selftest.json"))[9]; 
+	if ( !$node_select and $type ne "services" 
+			 and (time - $cachefileage > 900) )
 	{
-		NMISNG::Util::info("Ensuring correct permissions on conf and model directories...");
-		NMISNG::Util::setFileProtDirectory( $C->{'<nmis_conf>'},   1 );    # do recurse
-		# that's the dir for custom models
-		NMISNG::Util::createDir($C->{'<nmis_models>'}) if (!-d $C->{'<nmis_models>'});
-		NMISNG::Util::setFileProtDirectory( $C->{'<nmis_models>'}, 0 );    # no recursion required
-		# that's the dir of shipped=default models
-		NMISNG::Util::setFileProtDirectory( $C->{'<nmis_default_models>'}, 0 );    # no recursion required
+		NMISNG::Util::info("Starting selftest (takes about 5 seconds)...");
+		
+		my ( $allok, $tests ) = NMISNG::Util::selftest(
+			config                 => $C,
+			delay_is_ok            => 1,
+			perms                  => (time - $cachefileage > 7200),
+			report_database_status => \$selftest_dbdir_status
+				);
 
-
-		my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
-		if ( !-d $varsysdir )
-		{
-			NMISNG::Util::createDir($varsysdir);
-			NMISNG::Util::setFileProtDiag(file =>$varsysdir);
-		}
-
-		my $selftest_cache = "$varsysdir/selftest";
-
-
-		# fixme9 consult schedule_selftest, schedule_permission_test
-		# fixme9 make self-contained
-
-		# check the current state, to see if a perms check is due? once every 2 hours
-		my $laststate = NMISNG::Util::readFiletoHash( file => $selftest_cache, json => 1 );
-		# check if a selftest is due? once every 15 minutes
-		my $wantselftestnow = 1 if (ref($laststate) ne "HASH"
-																|| !defined($laststate->{lastupdate})
-																|| ($laststate->{lastupdate} + 900 < time));
-		# check the current state, to see if a perms check is due? once every 2 hours
-		my $wantpermsnow = 1 if (ref($laststate) ne "HASH"
-														 || !defined($laststate->{lastupdate_perms})
-														 || $laststate->{lastupdate_perms} + 7200 < time);
-
-		if ($wantselftestnow)
-		{
-			NMISNG::Util::info("Starting selftest (takes about 5 seconds)...");
-
-			my ( $allok, $tests ) = NMISNG::Util::selftest(
-				config                 => $C,
-				delay_is_ok            => 'true',
-				perms                  => $wantpermsnow,
-				report_database_status => \$selftest_dbdir_status
-					);
-
-		# keep the old permissions state if this test did not run a permissions test
-		# hardcoded test name isn't great, though.
-		if ( !$wantpermsnow )
-		{
-			$laststate ||= {tests => []};
-
-			my ($oldstate) = grep( $_->[0] eq "Permissions",
-														 @{$laststate->{tests}} );    # there will at most one
-			if ( defined $oldstate )
-			{
-				my ($targetidx) = grep( $tests->[$_]->[0] eq "Permissions",
-																( 0 .. $#{$tests} ) );
-				if ( defined $targetidx )
-				{
-					$tests->[$targetidx] = $oldstate;
-				}
-				else
-				{
-					push @$tests, $oldstate;
-				}
-				$allok = 0 if ( $oldstate->[1] );                                         # not ok until that's cleared
-			}
-		}
-
-			NMISNG::Util::writeHashtoFile(
-				file => $selftest_cache,
-				json => 1,
-				data => {
-					status           => $allok,
-					lastupdate       => time,
-					lastupdate_perms => (
-					  $wantpermsnow ? time
-						: $laststate    ? $laststate->{lastupdate_perms}
-						:                 undef
-							),
-								tests => $tests
-				}
-					);
-			NMISNG::Util::info( "Selftest completed (status " . ( $allok ? "ok" : "FAILED!" ) . "), cache file written" );
-		}
-		else
-		{
-			NMISNG::Util::info("Skipping selftest, last run at "
-												 . NMISNG::Util::returnDateStamp($laststate->{lastupdate}));
-		}
+		NMISNG::Util::info( "Selftest completed (status " . ( $allok ? "ok" : "FAILED!" ) . ")" );
 	}
 
 	# load all the files we need here

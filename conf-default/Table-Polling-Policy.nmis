@@ -1,8 +1,8 @@
 %hash = (
 	"Polling-Policy" => [
-		{ 'name'  => { mandatory => 'true', 
-									 header => 'Policy Name', 
-									 display => 'key,header,text', 
+		{ 'name'  => { mandatory => 'true',
+									 header => 'Policy Name',
+									 display => 'key,header,text',
 									 value => [ "" ] }},
 		{  'ping' => { mandatory => 'true',
 									 header => 'ICMP/Ping Frequency',
@@ -19,8 +19,13 @@
 									display => 'header,popup',
 									value => [ "5m", "1m", "2m", "15m", "30m", "1h", "6h", "1d" ] }},
 
-		{ 'description' => { header => "Description", 
-												 display => "header,textbox", 
+		{  'update' => { mandatory => 'true',
+										 header => 'Node Update Frequency',
+										 display => 'header,popup',
+										 value => [ "1d", "4h", "6h", "12h", "2d" ] }},
+
+		{ 'description' => { header => "Description",
+												 display => "header,textbox",
 												 value => [ '' ] }},
 
 	]);
