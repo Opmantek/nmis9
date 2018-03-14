@@ -39,7 +39,7 @@ our $VERSION = "1.1.0";
 # so we can't enforce that here
 use Mojo::Base 'Mojo::Log';
 use strict;
-
+use List::MoreUtils;
 use Carp;
 
 # extra attribute to distinguish between debug levels 1 to 9
