@@ -47,7 +47,7 @@
 #   incorporated in NMIS and more generally into other web programs needing
 #   user authentication.
 package NMISNG::Auth;
-our $VERSION = "2.0.0";
+our $VERSION = "3.0.0";
 
 use strict;
 
@@ -1222,28 +1222,22 @@ sub _tacacs_verify {
 	return 0;
 }
 
-#####################################################################
-#
-# 5-03-07, Jan v. K.
-#
 # check login - logout - go
-
-sub loginout {
+# args: type, username, password, headeropts, listmodules
+sub loginout
+{
 	my $self = shift;
 	my %args = @_;
 	my $type = lc($args{type});
 	my $username = $args{username};
 	my $password = $args{password};
 
-	# that's the NAME not the config data
-	my $config = $args{conf} || $self->{confname};
-
 	my $listmodules = $args{listmodules};
 
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 
-	NMISNG::Util::logAuth("DEBUG: loginout type=$type username=$username config=$config")
+	NMISNG::Util::logAuth("DEBUG: loginout type=$type username=$username")
 			if $self->{debug};
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -1279,9 +1273,6 @@ sub loginout {
 		NMISNG::Util::logAuth("DEBUG: verifying $username") if $self->{debug};
 		if( $self->user_verify($username,$password))
 		{
-			#logAuth("DEBUG: user verified $username") if $self->{debug};
-			#logAuth("self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config") if $self->{debug};
-
 			# login accepted, set privs
 			$self->SetUser($username);
 			# and reset the failure counter
@@ -1295,8 +1286,8 @@ sub loginout {
 				return 0;
 			}
 
-			NMISNG::Util::logAuth("user=$self->{user} logged in with config=$config");
-			NMISNG::Util::logAuth("DEBUG: loginout user=$self->{user} logged in with config=$config") if $self->{debug};
+			NMISNG::Util::logAuth("user=$self->{user} logged in");
+			NMISNG::Util::logAuth("DEBUG: loginout user=$self->{user} logged in") if $self->{debug};
 		}
 		else
 		{ # bad login: try again, up to N times

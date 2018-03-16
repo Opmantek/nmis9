@@ -67,7 +67,7 @@ my $C;
 
 $SIG{PIPE} = sub { };  # Supress broken pipe error messages.
 
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
 # -------------------------------------------------------
 # Before going any further, check to see if we must handlegrep
@@ -1091,4 +1091,3 @@ sub logSummary {
 	}
 	print "</table>";
 }
-
