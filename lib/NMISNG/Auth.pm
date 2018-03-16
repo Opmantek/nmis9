@@ -1295,14 +1295,6 @@ sub loginout {
 				return 0;
 			}
 
-			# check the name of the NMIS config file specified on url
-			# only bypass for administrator
-			if ($self->{privlevel} gt 1 and $self->{config} ne '' and $config ne $self->{config}) {
-				$self->do_login(msg=>"Invalid config file specified on url",
-												listmodules => $listmodules);
-				return 0;
-			}
-
 			NMISNG::Util::logAuth("user=$self->{user} logged in with config=$config");
 			NMISNG::Util::logAuth("DEBUG: loginout user=$self->{user} logged in with config=$config") if $self->{debug};
 		}
