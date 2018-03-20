@@ -32,10 +32,11 @@
 # doesn't have index.
 
 package NMISNG::Inventory::ServiceInventory;
-use parent 'NMISNG::Inventory';
-use strict;
+our $VERSION = "1.0.1";
 
-our $VERSION = "1.0.0";
+use strict;
+use parent 'NMISNG::Inventory';
+use NMISNG::Util;
 
 #  returns (positive, nothing) if the inventory is valid,
 # (negative or zero, error message) if it's no good
@@ -47,7 +48,7 @@ sub validate
 	# services must be named (in property service), and must have a uuid.
 	# anything else is optional
 	my $data = $self->data;
-	return (-1, "ServiceInventory requires data section") 
+	return (-1, "ServiceInventory requires data section")
 			if (!defined($data) or ref($data) ne "HASH"
 					or !keys %$data);
 	for my $musthave (qw(service uuid))
@@ -81,4 +82,34 @@ sub make_path
 		partial => $args{partial});
 
 	return $path;
+}
+
+# service inventories contain an independent uuid for compatibility reasons,
+# which is tedious to maintain so the data method takes care of that
+# for us, on both GET and SET
+#
+# args: optional data (hashref),
+# returns: clone of data, logs on error
+sub data
+{
+	my ($self, $newvalue) = @_;
+
+	# we want a recreatable V5 uuid from config'd namespace+cluster_id+service+node's uuid
+	if (defined($newvalue))
+	{
+		$newvalue->{uuid} //= NMISNG::Util::getComponentUUID( $self->cluster_id,
+																													$newvalue->{service},
+																													$self->node_uuid );
+		return $self->SUPER::data($newvalue);
+	}
+	else
+	{
+		my $clone = $self->SUPER::data();
+		# making that uuid won't work until service property is set
+		$clone->{uuid} //= NMISNG::Util::getComponentUUID( $self->cluster_id,
+																											 $clone->{service},
+																											 $self->node_uuid )
+				if ($clone->{service});
+		return $clone;
+	}
 }

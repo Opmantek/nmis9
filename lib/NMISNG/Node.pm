@@ -28,12 +28,12 @@
 # *****************************************************************************
 
 # Node class, use for access/manipulation of single node
-# every node must have a UUID, this object will not devine one for you
+# note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
 use strict;
 
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use Module::Load 'none';
 use Carp::Assert;
@@ -5741,9 +5741,9 @@ sub update
 
 	NMISNG::Util::dbg("================================");
 	NMISNG::Util::dbg("Starting update, node $name");
-	$0 = "poll-update-$name";
+	$0 = "nmisd worker update $name";
 
-	# Check for existing update LOCK
+	# Check for existing update lock
 	if ( NMISNG::Util::existsPollLock( type => "update", node => $name ) )
 	{
 		print STDERR "Error: update lock exists for $name which has not finished!\n";
@@ -5753,18 +5753,12 @@ sub update
 	my $lockHandle = NMISNG::Util::createPollLock( type => "update", node => $name );
 	return { error => "Failed to create update lock for $name!" } if (!$lockHandle);
 
-	# now check for collect jobs; if one is running we shoot it - but not ourselves!
+	# check for interfering poll lock - bail out if one exists, the scheduler will reschedule the operation
 	my $conflict = NMISNG::Util::existsPollLock(type => "collect",
 																							node => $name);
 	if ($conflict && $conflict != $$)
 	{
-		NMISNG::Util::logMsg("WARNING collect lock for $name interferes with update. Killing process $conflict.");
-		if ($conflict > 1)	# nope, not init
-		{
-			kill('TERM', $conflict);
-			Time::HiRes::sleep(0.5);
-			kill('KILL', $conflict);
-		}
+		return { error => "collect lock exists for $name, owned by process $conflict", locked => 1 };
 	}
 
 	my $S = NMISNG::Sys->new;    # create system object
@@ -5789,11 +5783,14 @@ sub update
 	# end up with stale/wrong data with all the functions using it
 	my $catchall_data = $catchall_inventory->data_live();
 
-	NMISNG::Util::dbg("node=$name "
+	# record that we are trying an update; last_update records only successfully completed updates...
+	$catchall_data->{last_update_attempt} = $args{starttime} // Time::HiRes::time;
+
+	$self->nmisng->log->debug("node=$name "
 			. join( " ",
-			( map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ),
-			( map { "$_=" . $S->status->{$_} } (qw(snmp_enabled wmi_enabled)) ) )
-	);
+							( map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ),
+							( map { "$_=" . $S->status->{$_} } (qw(snmp_enabled wmi_enabled)) ) )
+			);
 
 	# this uses the node config loaded by init, and updates the node info table
 	# (model and nodetype set only if missing)
@@ -5904,12 +5901,13 @@ sub update
 
 		NMISNG::Util::dbg("Running update plugin $plugin with node $name");
 		my ( $status, @errors );
-		$self->nmisng->log->logprefix("$plugin ");
+		my $prevprefix = $self->nmisng->log->logprefix;
+		$self->nmisng->log->logprefix("$plugin\[$$\] ");
 		eval { ( $status, @errors ) = &$funcname( node => $name,
 																							sys => $S,
 																							config => $C,
 																							nmisng => $self->nmisng, ); };
-		$self->nmisng->log->logprefix(undef);
+		$self->nmisng->log->logprefix($prevprefix);
 		if ( $status >= 2 or $status < 0 or $@ )
 		{
 			NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
@@ -6448,18 +6446,21 @@ sub collect_server_data
 # this function handles standalone service-polling for a node,
 # ie. when triggered OUTSIDE and INDEPENDENT of a collect operation
 # consequentially it does not cover snmp-based services!
-# args: self, optional force
+# args: self, optional force, optional services (list of names)
+#  if force is 1: collects all possible services
+#  if services arg is present: collects only the listed services
 # returns: hashref, keys success/error
 sub services
 {
 	my ($self, %args) = @_;
+	my $preselected = $args{services};
 
 	my $name = $self->name;
 
 	NMISNG::Util::info("================================");
 	NMISNG::Util::info("Starting services, node $name");
 	# lets change our name for process runtime checking
-	$0 = "poll-services-$name";
+	$0 = "nmisd worker services $name";
 
 	my $S = NMISNG::Sys->new;
 	if (!$S->init( node => $self, force => $args{force} ))
@@ -6491,20 +6492,23 @@ sub services
 																									@{$outageres->{current}}) ? 1:0;
 	}
 	$S->readNodeView;    # init does not load the node view, but runservices updates view data!
-	$self->collect_services( sys => $S, snmp => 0, force => $args{force} );
+	$self->collect_services( sys => $S, snmp => 0,
+													 force => $args{force},
+													 services => $preselected );
 	# we have to update the node view file, or newly added service status info will be lost/missed...
 	$S->writeNodeView;
 
 	return { success => 1 };
 }
 
-
-
-
 # this function collects all service data for this node
 # called either as part of a collect or standalone/independent from services().
 #
-# args: self, sys object, optional snmp (true/false), optional force (default 0)
+# args: self, sys object, optional snmp (true/false),
+#  optional force (default 0), services (list of preselected services to collect)
+#  if force is 1: all possible services are collected
+#  if services is present: these services are collected (if due)
+#
 # returns: nothing
 #
 # attention: when run with snmp false then snmp-based services are NOT checked!
@@ -6513,6 +6517,7 @@ sub collect_services
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
+	my $preselected = $args{services};
 
 	my $V    = $S->view;
 	my $SNMP = $S->snmp;
@@ -6523,7 +6528,7 @@ sub collect_services
 
 	my $node = $self->name;
 	my $C = $self->nmisng->config;
-	NMISNG::Util::info("Starting Services collection, node=$node, nodeType=$catchall_data->{nodeType}");
+	$self->nmisng->log->debug("Starting Services collection, node=$node nodeType=$catchall_data->{nodeType}");
 
 	my $cpu;
 	my $memory;
@@ -6539,8 +6544,8 @@ sub collect_services
 	my ( $snmpcmd, @ret, $var, $i );
 	my $write = 0;
 
-	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
-	# if so, then do the collection here
+	# do we have snmp-based services and are we allowed to check them?
+	# ie node active and collect on if so, then do the collection here
 	if ( $snmp_allowed
 			 and  $self->configuration->{active}
 			 and $self->configuration->{collect}
@@ -6548,9 +6553,7 @@ sub collect_services
 								 split( /,/, $self->configuration->{services} ) )
 			)
 	{
-		NMISNG::Util::info("node has SNMP services to check");
-
-		NMISNG::Util::dbg("get index of hrSWRunName by snmp, then get some data");
+		$self->nmisng->log->debug2("node $node has SNMP services to check");
 		my $hrIndextable;
 
 		# get the process parameters by column, allowing efficient bulk requests
@@ -6570,16 +6573,16 @@ sub collect_services
 					$value = snmp2date($value) if ( $textoid =~ /date\./i );
 					( $textoid, $inst ) = split /\./, $textoid, 2;
 					$snmpTable{$textoid}{$inst} = $value;
-					NMISNG::Util::dbg( "Indextable=$inst textoid=$textoid value=$value", 2 );
+					$self->nmisng->log->debug3( "Indextable=$inst textoid=$textoid value=$value");
 				}
 			}
 
 			# SNMP failed, so mark SNMP down so code below handles results properly
 			else
 			{
-				NMISNG::Util::logMsg("$node SNMP failed while collecting SNMP Service Data");
+				$self->nmisng->log->error("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
 				$self->handle_down( sys => $S, type => "snmp",
-														details => "get SNMP Service Data: " . $SNMP->error );
+														details => "get SNMP Service Data: " . $SNMP->error);
 				$snmp_allowed = 0;
 				last;
 			}
@@ -6604,13 +6607,13 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 																			'notRunnable', 'invalid' )[ $snmpTable{hrSWRunStatus}->{$pid}];
 				if ($newrecord{hrSWRunStatus} eq "invalid")
 				{
-					NMISNG::Util::dbg("skipping process in state 'invalid': ".
-														Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump, 3);
+					$self->nmisng->log->debug4("skipping process in state 'invalid': ".
+														Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump);
 					next;
 				}
 
 				$services{$newkey} = \%newrecord;
-				NMISNG::Util::dbg("Found process: ".Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump, 2);
+				$self->nmisng->log->debug4("Found process: ".Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump);
 			}
 
 			# keep all processes for display, not rrd - park this as timed-data
@@ -6628,11 +6631,11 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
 			$error = $processinventory->add_timed_data(data => \%services, derived_data => {},
 																								 subconcept => 'snmp_services');
-			NMISNG::Util::logMsg("ERROR: snmp_services timed data saving failed: $error") if ($error);
+			$self->nmisng->log->error("snmp_services timed data saving failed: $error") if ($error);
 
 			# now clear events that applied to processes that no longer exist
 			my $event_ret = $self->get_events_model( filter => { event => 'regex:process memory' } );
-			NMISNG::Util::logMsg("ERROR: snmp_services error getting events: $event_ret->{error}") if ($event_ret->{error});
+			$self->nmisng->log->error("snmp_services error getting events: $event_ret->{error}") if ($event_ret->{error});
 			for my $thisevent ( @{$event_ret->{model_data}->data} )
 			{
 			  # fixme NMIS-73: this should be tied to both the element format
@@ -6640,9 +6643,9 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			  # until then we trigger on the element format plus event name
 				if ( $thisevent->{element} =~ /^\S+:\d+$/ && !exists $services{$thisevent->{element}} )
 				{
-					NMISNG::Util::dbg(      "clearing event $thisevent->{event} for node $thisevent->{node_name} as process "
-							. $thisevent->{element}
-							. " no longer exists" );
+					$self->nmisng->log->debug2("clearing event $thisevent->{event} for node $thisevent->{node_name} as process "
+																		 . $thisevent->{element}
+																		 . " no longer exists" );
 					Compat::NMIS::checkEvent(
 						sys     => $S,
 						event   => $thisevent->{event},
@@ -6657,6 +6660,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 	}
 
 	# find and mark as historic any services no longer configured for this host
+	# all possible services are desired at this point
 	my %desiredservices = map { ($_ => 1) } (split /,/, $self->configuration->{services});
 
 	my $result = $self->get_inventory_model(concept => "service",
@@ -6670,13 +6674,20 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		for my $maybedead (keys %oldservice)
 		{
 			next if ($desiredservices{$maybedead});
-			NMISNG::Util::dbg("marking as historic inventory record for service $maybedead");
+			$self->nmisng->log->debug2("marking as historic inventory record for service $maybedead");
 			my ( $invobj, $error) = $self->inventory(_id => $oldservice{$maybedead});
+
 			die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
 			$invobj->historic(1);
 			$error = $invobj->save();
-			NMISNG::Util::logMsg("ERROR failed to save historic inventory object for service $maybedead: $error") if ($error);
+			$self->nmisng->log->error("failed to save historic inventory object for service $maybedead: $error") if ($error);
 		}
+	}
+
+	# explicit list of services passed in? then these only, modulo period
+	if (ref($preselected) eq "ARRAY")
+	{
+		%desiredservices  = map { ($_ => 1) } (@$preselected);
 	}
 
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
@@ -6697,13 +6708,10 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		# load the service inventory, most recent point-in-time data and check the last run time
 		my $inventorydata = {
 			service     => $service, # == key in Services.nmis, primary identifier
-			# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+cluster_id+service+node's uuid
-			uuid        => NMISNG::Util::getComponentUUID( $self->cluster_id,
-																										 $service,
-																										 $catchall_data->{uuid} ),
 			description => $thisservice->{Description},
 			display_name => $name, # logic-free, no idea why/how that can differ from $service
 			node => $node, # backwards-compat
+			# note that backwards-compat uuid property is added automatically
 		};
 
 		my $path_keys = [ 'service' ];
@@ -6721,7 +6729,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		die "failed to create or load inventory for $service: $error\n" if (!$inventory);
 
 		# when was this service checked last?
-		my $lastrun = ref($inventory->data) eq "HASH"? $inventory->data->{last_run} : 0;
+		my $lastrun = ref($inventory->data) eq "HASH"
+				&& $inventory->data->{last_run}? $inventory->data->{last_run} : 0;
 
 		my $serviceinterval = $thisservice->{Poll_Interval} || 300;                       # 5min
 		my $msg = "Service $service on $node (interval \"$serviceinterval\") last ran at "
@@ -6735,7 +6744,9 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		# we don't run the service exactly at the same time in the collect cycle,
 		# so allow up to 10% underrun
 		# note that force overrules the timing policy
-		if ( !$args{force} && $lastrun && ( ( time - $lastrun ) < $serviceinterval * 0.9 ) )
+		if ( !$args{force}
+				 && $lastrun
+				 && ( ( time - $lastrun ) < $serviceinterval * 0.9 ) )
 		{
 			$msg .= "skipping this time.";
 			$self->nmisng->log->debug($msg);
@@ -6755,9 +6766,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		my (%Val, %status);
 
 		# log that we're checking (or why not)
-		NMISNG::Util::info(
-			($servicetype eq "service" && !$snmp_allowed)? "Not checking name=$name, no SNMP available"
-			: "Checking service_type=$servicetype name=$name service_name=$servicename" );
+		$self->nmisng->log->debug(($servicetype eq "service" && !$snmp_allowed)? "Not checking name=$name, no SNMP available"
+															: "Checking service_type=$servicetype name=$name service_name=$servicename" );
 
 
 		my $ret      = 0;
@@ -6772,10 +6782,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			my $lookfor = $servicename;
 			if ( !$lookfor )
 			{
-				NMISNG::Util::dbg("Service_Name for $catchall_data->{host} must be a FQDN or IP address");
-				NMISNG::Util::logMsg(
-					"ERROR, ($node) Service_name for service=$service must contain an FQDN or IP address"
-				);
+				$self->nmisng->log->error("($node) Service_name for service=$service must contain an FQDN or IP address");
 				next;
 			}
 			my $res = Net::DNS::Resolver->new;
@@ -6788,12 +6795,12 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			if ( !defined $packet )
 			{
 				$ret = 0;
-				NMISNG::Util::dbg("ERROR Unable to lookup $lookfor on DNS server $catchall_data->{host}");
+				$self->nmisng->log->error("Unable to lookup $lookfor on DNS server $catchall_data->{host}");
 			}
 			else
 			{
 				$ret = 1;
-				NMISNG::Util::dbg( "DNS data for $lookfor from $catchall_data->{host} was " . $packet->string );
+				$self->nmisng->log->debug3("DNS data for $lookfor from $catchall_data->{host} was " . $packet->string );
 			}
 		}    # end DNS
 
@@ -6815,8 +6822,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			if ( !defined $pid )
 			{
 				my $errmsg = "ERROR, Cannot fork to execute nmap: $!";
-				NMISNG::Util::logMsg($errmsg);
-				NMISNG::Util::info($errmsg);
+				$self->nmisng->log->error($errmsg);
 			}
 			while (<NMAP>)
 			{
@@ -6833,20 +6839,17 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			}
 			if ($exitcode)
 			{
-				NMISNG::Util::logMsg( "ERROR, NMAP ($nmap) returned exitcode " . ( $exitcode >> 8 ) . " (raw $exitcode)" );
-				NMISNG::Util::info( "$nmap returned exitcode " .                 ( $exitcode >> 8 ) . " (raw $exitcode)" );
+				$self->nmisng->log->error( "NMAP ($nmap) returned exitcode " . ( $exitcode >> 8 ) . " (raw $exitcode)" );
 			}
 			if ( $msg =~ /Ports: $port\/open/ )
 			{
 				$ret = 1;
-				NMISNG::Util::info("NMAP reported success for port $port: $msg");
-				NMISNG::Util::logMsg("INFO, NMAP reported success for port $port: $msg") if ( $C->{debug} or $C->{info} );
+				$self->nmisng->log->debug("NMAP reported success for port $port: $msg");
 			}
 			else
 			{
 				$ret = 0;
-				NMISNG::Util::info("NMAP reported failure for port $port: $msg");
-				NMISNG::Util::logMsg("INFO, NMAP reported failure for port $port: $msg") if ( $C->{debug} or $C->{info} );
+				$self->nmisng->log->debug("NMAP reported failure for port $port: $msg");
 			}
 		}
 
@@ -6863,9 +6866,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 
 			if ( !$wantedprocname and !$parametercheck )
 			{
-				NMISNG::Util::info("ERROR, Both Service_Name and Service_Parameters are empty");
-				NMISNG::Util::logMsg(
-					"ERROR, ($node) service=$service Service_Name and Service_Parameters are empty!");
+				$self->nmisng->log->error("($node) service=$service Service_Name and Service_Parameters are empty!");
 				next;
 			}
 
@@ -6891,12 +6892,12 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 															 keys %services );
 			my @livingpids = grep ( $services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids );
 
-			NMISNG::Util::dbg(      "collect_services: found "
-															. scalar(@matchingpids)
-															. " total and "
-															. scalar(@livingpids)
-															. " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
-															. join( " ", @livingpids) );
+			$self->nmisng->log->debug("collect_services: found "
+																 . scalar(@matchingpids)
+																 . " total and "
+																 . scalar(@livingpids)
+																 . " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
+																 . join( " ", @livingpids) );
 
 			if ( !@livingpids )
 			{
@@ -6905,8 +6906,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				$memory    = 0;
 				$gotMemCpu = 1;
 
-				NMISNG::Util::logMsg("INFO, service $name is down, "
-														 . ( @matchingpids? "only non-running processes" : "no matching processes" ));
+				$self->nmisng->log->info("service $name is down, " . ( @matchingpids? "only non-running processes" : "no matching processes" ));
 			}
 			else
 			{
@@ -6922,8 +6922,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				#					NMISNG::Util::dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
 				#					NMISNG::Util::dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
 
-				NMISNG::Util::info(
-					"INFO, service $name is up, " . scalar(@livingpids) . " running process(es)" );
+				$self->nmisng->log->info("service $name is up, " . scalar(@livingpids) . " running process(es)");
 			}
 		}
 
@@ -6937,7 +6936,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			$scriptfn = $C->{script_root_default}. "/". ($servicename || $service) if (!-e  $scriptfn);
 			if (!open(F, $scriptfn))
 			{
-				NMISNG::Util::dbg("ERROR, can't open script file $scriptfn for $service: $!");
+				$self->nmisng->log->error("can't open script file $scriptfn for $service: $!");
 			}
 			else
 			{
@@ -6947,7 +6946,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				my $timeout = ( $thisservice->{Max_Runtime} > 0 ) ? $thisservice->{Max_Runtime} : 3;
 
 				( $ret, $msg ) = NMISNG::Sapi::sapi( $catchall_data->{host}, $thisservice->{Port}, $scripttext, $timeout );
-				NMISNG::Util::dbg("Results of $service is $ret, msg is $msg");
+				$self->nmisng->log->debug("Results of $service is $ret, msg is $msg");
 			}
 		}
 
@@ -6959,8 +6958,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			my $svc = $thisservice;
 			if ( !$svc->{Program} or !-x $svc->{Program} )
 			{
-				NMISNG::Util::info("ERROR, service $service defined with no working Program to run!");
-				NMISNG::Util::logMsg("ERROR service $service defined with no working Program to run!");
+				$self->nmisng->log->error("service $service defined with no working Program to run!");
 				next;
 			}
 
@@ -6976,7 +6974,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
 				# or if there's a nonword char before node.xyz.
 				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$catchall_data->{$3}/g;
-				NMISNG::Util::dbg("external program args were $svc->{Args}, now $finalargs");
+				$self->nmisng->log->debug3("external program args were $svc->{Args}, now $finalargs");
 			}
 
 			my $programexit = 0;
@@ -6984,7 +6982,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			# save and restore any previously running alarm,
 			# but don't bother subtracting the time spent here
 			my $remaining = alarm(0);
-			NMISNG::Util::dbg("saving running alarm, $remaining seconds remaining");
+			$self->nmisng->log->debug3("saving running alarm, $remaining seconds remaining");
 			my $pid;
 			eval {
 				my @responses;
@@ -6996,15 +6994,14 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			# run given program with given arguments and possibly read from it
 			# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
 				my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");		# good enough, no atomic open required
-				NMISNG::Util::dbg(      "running external program '$svc->{Program} $finalargs', "
-						. ( NMISNG::Util::getbool( $svc->{Collect_Output} ) ? "collecting" : "ignoring" )
-						. " output" );
+				$self->nmisng->log->debug2("running external program '$svc->{Program} $finalargs', "
+																	 . ( NMISNG::Util::getbool( $svc->{Collect_Output} ) ? "collecting" : "ignoring" )
+																	 . " output" );
 				$pid = open( PRG, "$svc->{Program} $finalargs </dev/null 2>$stderrsink |" );
 				if ( !$pid )
 				{
 					alarm(0) if ($svcruntime);       # cancel any timeout
-					NMISNG::Util::info("ERROR, cannot start service program $svc->{Program}: $!");
-					NMISNG::Util::logMsg("ERROR: cannot start service program $svc->{Program}: $!");
+					$self->nmisng->log->error("cannot start service program $svc->{Program}: $!");
 				}
 				else
 				{
@@ -7013,7 +7010,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 					$programexit = $?;
 					alarm(0) if ($svcruntime);       # cancel any timeout
 
-					NMISNG::Util::dbg( "service exit code is " . ( $programexit >> 8 ) );
+					$self->nmisng->log->debug("service $service exit code is " . ( $programexit >> 8 ) );
 
 					# consume and warn about any stderr-output
 					if ( -f $stderrsink && -s $stderrsink )
@@ -7021,9 +7018,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 						open( UNWANTED, $stderrsink );
 						my $badstuff = join( "", <UNWANTED> );
 						chomp($badstuff);
-						NMISNG::Util::logMsg(
-							"WARNING: Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
-						NMISNG::Util::info("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
+						$self->nmisng->log->warn("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
 						close(UNWANTED);
 					}
 					unlink($stderrsink);
@@ -7058,7 +7053,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 							# the first line is special; it sets the textual status
 							if ( $idx == 0 )
 							{
-								NMISNG::Util::dbg("service status text is \"$response\"");
+								$self->nmisng->log->debug("service status text is \"$response\"");
 								$status{status_text} = $response;
 								next;
 							}
@@ -7097,7 +7092,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 								if ( $value_with_unit =~ /^([0-9\.]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/ )
 								{
 									my ( $numericval, $unit ) = ( $1, $2 );
-									NMISNG::Util::dbg("performance data for label '$k': raw value '$value_with_unit'");
+									$self->nmisng->log->debug2("performance data for label '$k': raw value '$value_with_unit'");
 
 									# imperfect storage location, pit vs inventory
 									$status{units}->{$k} = $unit;    # keep track of the input unit
@@ -7115,8 +7110,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 									$rescaledv = $v * $factors{$unit} if ( defined $factors{$unit} );
 								}
 							}
-							NMISNG::Util::dbg( "collected response '$k' value '$v'"
-									. ( defined $rescaledv ? " rescaled '$rescaledv'" : "" ) );
+							$self->nmisng->log->debug( "collected response '$k' value '$v'"
+																				 . ( defined $rescaledv ? " rescaled '$rescaledv'" : "" ) );
 
 							# for rrd storage, but only numeric values can be stored!
 							# k needs sanitizing for rrd: only a-z0-9_ allowed
@@ -7149,10 +7144,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			if ( $@ and $@ eq "alarm\n" )
 			{
 				kill('TERM', $pid);    # get rid of the service tester, it ran over time...
-				NMISNG::Util::info(
-					"ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
-				NMISNG::Util::logMsg(
-					"ERROR: service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+				$self->nmisng->log->error("service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 				$ret = 0;
 				kill( "KILL", $pid );
 			}
@@ -7163,7 +7155,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				if ( WIFEXITED($programexit) )
 				{
 					$programexit = WEXITSTATUS($programexit);
-					NMISNG::Util::dbg("external program terminated with exit code $programexit");
+					$self->nmisng->log->debug("external program terminated with exit code $programexit");
 
 					# nagios knows four states: 0 ok, 1 warning, 2 critical, 3 unknown
 					# we'll map those to 100, 50 and 0 for everything else.
@@ -7178,17 +7170,17 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				}
 				else
 				{
-					NMISNG::Util::logMsg("WARNING: service program $svc->{Program} terminated abnormally!");
+					$self->nmisng->log->warn("service program $svc->{Program} terminated abnormally!");
 					$ret = 0;
 				}
 			}
 			alarm($remaining) if ($remaining);    # restore previously running alarm
-			NMISNG::Util::dbg("restored alarm, $remaining seconds remaining");
+			$self->nmisng->log->debug3("restored alarm, $remaining seconds remaining");
 		}    # end of program/nagios-plugin service type
 		else
 		{
 			# no service type found
-			NMISNG::Util::logMsg("ERROR: skipping service $service, invalid service type!");
+			$self->nmisng->log->error("skipping service \"$service\", invalid service type!");
 			next;    # just do the next one - no alarms
 		}
 
@@ -7201,7 +7193,6 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		my $serviceValue = ( $servicetype =~ /^(program|nagios-plugin)$/ ) ? $ret : $ret * 100;
 		$status{status} = NMISNG::Util::numify($serviceValue);
 
-		#NMISNG::Util::logMsg("Updating $node Service, $name, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $name";
 		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0 ? "degraded" : 'down';
 		$V->{system}{"${service}_color"} = $serviceValue == 100 ? 'white' : $serviceValue > 0 ? "orange" : 'red';
@@ -7220,7 +7211,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		# let's raise or clear service events based on the status
 		if ( $serviceValue == 100 )    # service is fully up
 		{
-			NMISNG::Util::dbg("$servicetype $name is available ($serviceValue)");
+			$self->nmisng->log->debug("$servicetype $name is available ($serviceValue)");
 
 			# all perfect, so we need to clear both degraded and down events
 			Compat::NMIS::checkEvent(
@@ -7243,7 +7234,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		}
 		elsif ( $serviceValue > 0 )    # service is up but degraded
 		{
-			NMISNG::Util::dbg("$servicetype $name is degraded ($serviceValue)");
+			$self->nmisng->log->debug("$servicetype $name is degraded ($serviceValue)");
 
 			# is this change towards the better or the worse?
 			# we clear the down (if one exists) as it's not totally dead anymore...
@@ -7269,7 +7260,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		}
 		else    # Service is down
 		{
-			NMISNG::Util::dbg("$servicetype $name is down");
+			$self->nmisng->log->debug("$servicetype $name is down");
 
 			# clear the degraded event
 			# but don't just eventDelete, so that no state engines downstream of nmis get confused!
@@ -7332,7 +7323,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 																					type => "service",
 																					item => $service,
 																					inventory => $inventory );
-		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() ) if (!$fullpath);
+		$self->nmisng->log->error("updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() ) if (!$fullpath);
 
 		# known/available graphs go into storage, as subconcept => rrd => fn
 		# rrd file for this should now be present and a/v, we want relative path,
@@ -7352,7 +7343,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		closedir(D);
 
 		map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
-		NMISNG::Util::dbg( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
+		$self->nmisng->log->debug2( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
 
 		push @servicegraphs, @cands;
 
@@ -7395,7 +7386,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		# TODO: enable this? needs to know some things to show potentially
 		$inventory->data_info( subconcept => 'service', enabled => 0 );
 		( my $op, $error ) = $inventory->save();
-		NMISNG::Util::logMsg("ERROR: service status saving inventory failed: $error") if ($error);
+		$self->nmisng->log->error("service status saving inventory failed: $error") if ($error);
 
 		# and add a new point-in-time record for this service
 		# must provide datasets info as status info is pretty deep
@@ -7415,10 +7406,10 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 																				time => NMISNG::Util::numify($thisrun),
 																				datasets => { "service" => \%dspresent },
 																				subconcept => "service" );
-		NMISNG::Util::logMsg("ERROR: service timed data saving failed: $error") if ($error);
+		$self->nmisng->log->error("service timed data saving failed: $error") if ($error);
 	}
 
-	NMISNG::Util::info("Finished");
+	$self->nmisng->log->debug("Finished");
 }
 
 
@@ -7441,7 +7432,7 @@ sub collect
 	NMISNG::Util::dbg("================================");
 	NMISNG::Util::dbg("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
 										 .", want WMI: ".($wantwmi?"yes":"no"));
-	$0 = "poll-collect-$name";
+	$0 = "nmisd worker collect $name";
 
 	# Check for both update and collect locks - note that update lock existence is NOT
 	# an error when we're polling frequently!
@@ -7480,6 +7471,11 @@ sub collect
 
 	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $catchall_inventory->data_live();
+
+	# record that we are trying a collect/poll;
+	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
+	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
+
 
 	$self->nmisng->log->debug( "node=$name "
 														 . join( " ", map { "$_=" . $catchall_data->{$_} }
@@ -7638,12 +7634,13 @@ sub collect
 
 		NMISNG::Util::dbg("Running collect plugin $plugin with node $name");
 		my ( $status, @errors );
-		$self->nmisng->log->logprefix("$plugin ");
+		my $prevprefix = $self->nmisng->log->logprefix;
+		$self->nmisng->log->logprefix("$plugin\[$$\] ");
 		eval { ( $status, @errors ) = &$funcname( node => $name,
 																							sys => $S,
 																							config => $C,
 																							nmisng => $self->nmisng ); };
-		$self->nmisng->log->logprefix(undef);
+		$self->nmisng->log->logprefix($prevprefix);
 		if ( $status >= 2 or $status < 0 or $@ )
 		{
 			NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);

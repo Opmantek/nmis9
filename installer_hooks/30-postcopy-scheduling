@@ -1,0 +1,72 @@
+#!/bin/sh
+# setup cron jobs for NMIS, prepare init script for the NMIS9 daemon
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+printBanner "NMIS Scheduling and Daemon Setup"
+
+SRCFILE=$TARGETDIR/conf-default/init/nmis9d
+DESTFILE=/etc/init.d/nmis9d
+SERVICENAME=`basename $DESTFILE`
+
+# be polite, ask before doing anything harsh
+if [ ! -f $DESTFILE ] || ! diff -q $DESTFILE $SRCFILE; then
+		printBanner "Updated init script for $PRODUCT daemon available"
+
+		cat <<EOF
+
+Your system has no init script for the $PRODUCT daemon,
+or it is different from the script shipped with ${PRODUCT}.
+
+EOF
+
+
+		if input_yn "Ok to install or update the $PRODUCT daemon init script?" ; then
+				execPrint cp -af $SRCFILE $DESTFILE
+				echolog "Updated init script in $DESTFILE."
+		else
+				echolog "Not creating or overwriting $DESTFILE, as directed."
+				cat <<EOF
+
+$PRODUCT requires that its daemon is active for correct operation.
+
+You need to install a daeon init script as $DESTFILE
+(possibly using the example one from $SRCFILE),
+or ensure by other means that the $PRODUCT daemon is started automatically
+on system boot before $PRODUCT will work.
+
+EOF
+				input_ok "Hit <Enter> when ready to continue: "
+		fi
+else
+		echolog "Up-to-date init script for $PRODUCT daemon already present."
+fi
+
+SRCFILE=$TARGETDIR/conf-default/cron.d/nmis9
+DESTFILE=/etc/cron.d/nmis9
+
+# be polite, ask before doing anything harsh
+if [ ! -f $DESTFILE ] || ! diff -q $DESTFILE $SRCFILE; then
+		if input_yn "Ok to install new NMIS cron schedule?" ; then
+				execPrint cp -af $SRCFILE $DESTFILE
+				echolog "Created schedule in $DESTFILE."
+		else
+				echolog "Not creating or overwriting $DESTFILE, as directed."
+				cat <<EOF
+
+$PRODUCT requires some periodic scheduling setup to work fully.
+An example default Cron schedule is available in
+$SRCFILE, which should be installed as $DESTFILE after
+any local customisations.
+
+EOF
+				input_ok "Hit <Enter> when ready to continue: "
+		fi
+else
+		echolog "NMIS's cron schedule is uptodate."
+fi
+
+
+exit 0

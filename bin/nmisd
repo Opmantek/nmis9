@@ -1,0 +1,970 @@
+#!/usr/bin/perl
+#
+#  Copyright 1999-2018 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+use strict;
+our $VERSION="9.0.0a";
+
+if (@ARGV == 1 && $ARGV[0] eq "--version")
+{
+	print "version=$VERSION\n";
+	exit 0;
+}
+
+# local modules live in <nmis-base>/lib
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use feature 'state';
+use File::Basename;
+use Proc::ProcessTable;
+use Try::Tiny;
+use Mojo::File;
+use Data::Dumper;
+use Time::HiRes;
+
+use NMISNG;;
+use NMISNG::Util;
+use Compat::NMIS;
+
+# for worker_loop
+use constant { EXIT_POLITE => 0, EXIT_TTL => 1, EXIT_IMMEDIATELY => 2, EXIT_ERROR => 3, EXIT_IDLE => 4 };
+# relative priorities for scheduling; escalations and collect highest prio, then
+# update and after-collect/update plugins and  services third; rest are mostly nice-to-have
+my %priorities = ( "escalations" => 0.9,
+									 "collect" => 0.85,
+									 "update" => 0.8,
+									 "plugins" => 0.85, # post-update and post-collect plugins
+									 "services" => 0.75,
+									 "thresholds" => 0.7, "metrics" => 0.7,
+									 "configbackup" => 0.3, "purge" => 0.3, "dbcleanup" => 0.3,
+									 "selftest" => 0.2,
+									 "permission_test" => 0.1 );
+
+my $me = basename($0);
+my $usage = "Usage: $me [option=value...] [act=command]
+
+ act=version: print version of this daemon and exit
+ act=stop: shut down running daemon and workers
+ act=abort: terminate all workers and kill running daemon
+
+if no act argument is present: daemon starts
+
+option foreground=1: stay in the foreground, don't daemonize
+option max_workers=N: overrides the configuration
+option debug=0/1: print extra debug information
+
+option confdir=path: path to configuration files\n\n";
+
+die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-(h|\?|-help)$/);
+my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
+die $usage if ($cmdline->{act} && $cmdline->{act} !~ /^(stop|abort|version)$/);
+
+if ( $cmdline->{act} eq "version")
+{
+	print "$me version=$VERSION\n";
+	exit 0;
+}
+
+# get the config from a potentially custom directory
+my $config  = NMISNG::Util::loadConfTable(dir => $cmdline->{confdir});
+die "no config available!\n" if (ref($config) ne "HASH" or !keys %$config);
+
+# use debug, or info arg, or configured log_level
+my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
+																 debug => $cmdline->{debug},
+																 info => undef) // $config->{log_level}, # fixme9: info not supported
+															 path  =>  (defined($cmdline->{debug})? undef : $logfile));
+# this opens a database connection - which we must not share with any children!
+my $nmisng = NMISNG->new(config => $config, log => $logger);
+NMISNG::rrdfunc::require_RRDs(config => $config);
+
+# make sure that no more than one daemon runs
+my $varsysdir = $config->{'<nmis_var>'} . "/nmis_system";
+if ( !-d $varsysdir )
+{
+	NMISNG::Util::createDir($varsysdir);
+	NMISNG::Util::setFileProtDiag(file =>$varsysdir);
+}
+my $pidfile = "$varsysdir/nmisd.pid";
+my $other = Mojo::File->new($pidfile)->slurp() if (-f $pidfile);
+chomp($other);
+
+if ( int($other)				# it's a number
+		 and $other != $$	# and it's not me (should be impossible)
+		 and kill(0, $other)) # and it's really alive
+{
+	die "Another instance of $me is running (pid $other)!\n"
+			if  ($cmdline->{act} !~ /^(stop|abort)$/);
+
+	# int: please shut down when you're ready. term: shut down now
+	my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
+	kill($whichsignal, $other);		# polite
+	sleep(1);
+	kill('KILL', $other);					# then  firm
+	unlink($pidfile);
+	$logger->info("Killed process $other as instructed.");
+	exit (0);
+}
+
+# allowed to become a daemon? foreground mode is mostly just for debugging
+if (!NMISNG::Util::getbool($cmdline->{foreground}))
+{
+	if (!defined(my $pid = fork))
+	{
+		die "cannot fork: $!\n";
+	}
+	elsif ($pid)
+	{
+		# parent: exits
+		$logger->info("$me daemon was started (pid $pid).");
+		exit (0);
+	}
+
+	# child continues with the actual work
+	srand();
+	$logger->logprefix("$me\[$$\] ");
+	POSIX::setsid() or die "Can't start new session: $!";
+	chdir('/') or die "Can't chdir to /: $!";
+
+	# Reopen stdout, stdin with /dev/null; stderr to the main logfile
+	# if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang
+	open(STDIN, "<", "/dev/null") or die "cannot reopen stdin: $!\n";
+	# leave those open if debug mode enabled
+	if (!defined($cmdline->{debug}))
+	{
+		open(STDOUT, ">", "/dev/null") or die "cannot reopen stdout: $!\n";
+		open(STDERR, ">>", $logfile) or die "cannot open stdout to $logfile: $!\n";
+	}
+	$0 = "nmisd scheduler";
+}
+Mojo::File->new($pidfile)->spurt("$$\n");
+
+my (%zoo,												# state structure for manage_processes
+		$exit_marker);							# signal handler scribbles here
+
+# signal handlers: INT and TERM for shutdown, HUP for log reopening
+# and these need forwarding to the child processes
+$SIG{"HUP"} = sub {
+	my ($sig) = @_;
+	$nmisng->log->debug("received $sig, reopening logfile");
+	$nmisng->log->reopen;
+	$nmisng->log->debug("logfile was reopened");
+	# and forward...
+	kill($sig, keys %zoo) if (keys %zoo);
+};
+$SIG{"TERM"} = $SIG{"INT"} = sub {
+	my ($signame) = @_;
+	$nmisng->log->info("received $signame, shutting down");
+	$exit_marker = $signame;
+	kill($signame, keys %zoo) if (keys %zoo);
+
+	# int means when ready, term means now
+	exit(0) if ($signame eq "TERM");
+};
+
+# signal handler for USR1/USR2 is just for this process
+$SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
+
+my $statefile = "$varsysdir/nmisd_state.json";
+my $scheduler_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );
+$scheduler_state->{last_process_check} = 0; # DO run up worker children on startup
+
+while (!$exit_marker)
+{
+	my $ready_jobs;								# marker set if there are worker-jobs ready to start
+
+	# nmis locked? don't do anything at all
+	if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
+	{
+		$nmisng->log->debug("nmis is locked, sleeping 60 seconds");
+		sleep(60);
+		next;
+	}
+
+	# look for type=schedule jobs - that's work for the supervisory daemon itself
+#	fixme
+
+	# overdue or stuck jobs? ditch and report if older than an hour
+	# fixme: ideally, deduplicate these overdue ones
+	# (run only the newest of type X and args Y)
+	# fixme: maybe shoot a worker that is stuck for too long?
+
+
+	# handle policy-controlled operations (services, node updates and node polling),
+	# attention: these need tagging so that after-op plugins are schedulable!
+	for my $operation (qw(update collect services))
+	{
+		$nmisng->log->debug2("Looking for nodes due for $operation operation");
+		my $duenodes = $nmisng->find_due_nodes(type => $operation);
+		if ($duenodes->{error})
+		{
+			$nmisng->log->error("Failed to check due nodes for $operation: $duenodes->{error}");
+			next;
+		}
+		my $nrtodo = scalar(keys %{$duenodes->{nodes}});
+		$nmisng->log->debug("Found $nrtodo nodes due for $operation operation");
+		next if (!$nrtodo);
+
+		my $tag = int(rand(1<<31));
+		$nmisng->log->debug3("Jobs for this $operation operation share tag \"$tag\"");
+		for my $nodeuuid (keys %{$duenodes->{nodes}})
+		{
+			# let's hand the work to somebody!
+			# but only if nothing interferes, ie. no in-progress jobs nor overdue ones
+			if (ref($duenodes->{in_progress}) eq "HASH"
+					&& exists($duenodes->{in_progress}->{$nodeuuid}))
+			{
+				$nmisng->log->warn("Not queueing $operation for node $nodeuuid ($duenodes->{nodes}->{$nodeuuid}->{name}), job already in progress!");
+				next;
+			}
+			if (ref($duenodes->{overdue}) eq "HASH"
+					&& exists($duenodes->{overdue}->{$nodeuuid}))
+			{
+				$nmisng->log->warn("Not queueing $operation for node $nodeuuid ($duenodes->{nodes}->{$nodeuuid}->{name}), an overdue job is queued already!");
+				next;
+			}
+
+			# fixme: should the schedules be spread out a bit over time? how much and under what circumstances?
+			# maybe use number of workers a/v versus number of due jobs in queue?
+			my $jobdueat = Time::HiRes::time;
+
+			my %jobargs = (uuid => $nodeuuid);
+			if( $operation eq "collect")
+			{
+				$jobargs{wantwmi} = $duenodes->{flavours}->{$nodeuuid}->{wmi};
+				$jobargs{wantsnmp} = $duenodes->{flavours}->{$nodeuuid}->{snmp};
+			}
+			elsif ($operation eq "services")
+			{
+				$jobargs{services} = $duenodes->{services}->{$nodeuuid};
+			}
+
+			my ($error, $qid) = $nmisng->update_queue( jobdata =>
+																								 {
+																									 type => $operation,
+																									 time => $jobdueat,
+																									 priority => $priorities{$operation},
+																									 in_progress => 0,
+																									 args => \%jobargs,
+																									 tag => $tag });
+			if ($error)
+			{
+				$nmisng->log->error("failed to queue job $operation on $nodeuuid: $error!");
+				next;
+			}
+			$nmisng->log->debug2("Queued job $operation for $nodeuuid ($duenodes->{nodes}->{$nodeuuid}->{name})");
+			++$ready_jobs;
+
+			# memorise the tagged jobs that are in flight,
+			# so that we can trigger after-collect/after-update plugins (not required for services)
+			if ($operation eq "collect" or $operation eq "update")
+			{
+				$scheduler_state->{in_flight}->{$operation}->{$tag}->{$nodeuuid}
+				=  [ (ref($qid) eq "MongoDB::OID"? $qid->TO_JSON: $qid), $jobdueat ];
+			}
+		}
+	}
+
+	# then look at completed related jobs, ie. same op and same tag
+	# and schedule post-xyz operations (e.g. plugins, stats collection like total time)
+	#
+	# in_flight carries operation, tag, uuid and queue id plus desired start time
+	# check op+tag, any jobs left in queue? wait longer. none left? schedule plugin
+	# fixme: add logic to give up on stuck/overdue jobs? or leave that to nmis-cli act=abort
+	for my $icanhasplugin (qw(update collect))
+	{
+		$nmisng->log->debug2("Checking (un)finished $icanhasplugin jobs");
+		next if (ref($scheduler_state->{in_flight}->{$icanhasplugin}) ne "HASH"
+						 or !keys %{$scheduler_state->{in_flight}->{$icanhasplugin}});
+
+		for my $tag (keys %{$scheduler_state->{in_flight}->{$icanhasplugin}})
+		{
+			my $thisflock = $scheduler_state->{in_flight}->{$icanhasplugin}->{$tag};
+			if (ref($thisflock) ne "HASH" or !keys %$thisflock)
+			{
+				delete $scheduler_state->{in_flight}->{$icanhasplugin}->{$tag};
+				next;
+			}
+
+			# any instances for this flock of jobs left in the queue?
+			my $arewethereyet = $nmisng->get_queue_model(type => $icanhasplugin,
+																									 tag => $tag);
+			if (my $error = $arewethereyet->error)
+			{
+				$nmisng->log->error("failed to query job queue: $error");
+				next;
+			}
+			if (my $notyetdone = $arewethereyet->count)
+			{
+				$nmisng->log->debug3("$notyetdone incomplete $icanhasplugin jobs with tag \"$tag\" present");
+				next;
+			}
+			# fixme: what stats collection do we want to perform at the end of a multi-node collect/update?
+			# fixme: rely on opstatus (precise) or the inflight plus current time (=next cycle, so not precise)
+
+			# looks like it's time for a post-op plugin, so let's schedule one
+			# IFF there are any plugins that provide after_xyz_plugin functions...
+			if (grep( $_->can("after_${icanhasplugin}_plugin"), $nmisng->plugins))
+			{
+				$nmisng->log->debug2("Scheduling post-$icanhasplugin plugin execution for tag $tag and "
+														 .(scalar keys %$thisflock)." nodes");
+
+				my ($error, $qid) = $nmisng->update_queue( jobdata =>
+																									 {
+																										 type => "plugins",
+																										 time => Time::HiRes::time,
+																										 priority => $priorities{"plugins"},
+																									 in_progress => 0,
+																										 args => {
+																											 phase => $icanhasplugin, # post-collect or post-update plugins
+																											 uuid => [ keys %$thisflock ], # these were the nodes in the op
+																										 },
+																										 tag => $tag });
+				if ($error)
+				{
+					$nmisng->log->error("failed to queue post-$icanhasplugin plugins for tag $tag: $error!");
+					next;
+				}
+			}
+
+			# we're done with this flock
+			delete $scheduler_state->{in_flight}->{$icanhasplugin}->{$tag};
+			++$ready_jobs;
+		}
+	}
+
+
+# fixme! how about reports? schedulable or not?
+
+	# consult the ops frequencies config for non-node-specific schedulable operations
+	# escalate and metrics were post-collect in the past, but unpleasant to schedule that way
+	my @schedulables = (qw(escalations metrics configbackup purge dbcleanup selftest permission_test));
+	# thresholds are done for each node unless threshold_poll_node is set to false
+	push @schedulables, "thresholds"
+			if (NMISNG::Util::getbool($config->{global_threshold})
+					and !NMISNG::Util::getbool($config->{threshold_poll_node}));
+	for my $automagic (@schedulables)
+	{
+		my $period = $config->{"schedule_$automagic"};
+		if (!exists($config->{"schedule_$automagic"}))
+		{
+			$nmisng->log->warn("Configuration is lacking schedule_$automagic, falling back to 5min");
+			$period = 300;
+		}
+		next if (!defined($period) or $period <= 0);
+		my $jobtype = $automagic;
+
+		# don't schedule another if an instance is due or already in progress
+		my $running = $nmisng->get_queue_model(type => $jobtype,
+																					 in_progress => { '$ne' => 0 });
+		$nmisng->log->error("failed to query job queue: ".$running->error)
+				if ($running->error);
+		my $overdue = $nmisng->get_queue_model(type => $jobtype,
+																					 time => { '$lt' => Time::HiRes::time },
+																					 in_progess => 0 );
+		$nmisng->log->error("failed to query job queue: ".$overdue->error)
+				if ($overdue->error);
+
+		if (!$running->error and !$overdue->error
+				and ($running->count or $overdue->count))
+		{
+			$nmisng->log->warn("Not scheduling $automagic operation: "
+												 .$running->count." instance(s) currently running, "
+												 . $overdue->count ." overdue");
+			++$ready_jobs if ($overdue->count); # mostly for picking up in foreground/debug mode
+			next;
+		}
+
+		my $previous = $scheduler_state->{$automagic} // 0;
+		if (Time::HiRes::time - $previous > $period)
+		{
+			$nmisng->log->debug("Scheduling job $automagic, last performed at ". ($previous // "n/a"));
+
+			# due now, let's hand it to somebody
+		  my ($error,$qid) = $nmisng->update_queue(jobdata => {
+				type => $jobtype,
+				time => Time::HiRes::time,
+				# some ops are mostly nice-to-have, others are much more critical
+				priority => $priorities{$jobtype},
+				in_progress => 0, } );
+
+			if ($error)
+			{
+				$nmisng->log->error("failed to queue job: $error!");
+			}
+			else
+			{
+				# and mark it as started/done now (not quite true but good enough)
+				$scheduler_state->{$automagic} = time;
+				++$ready_jobs;
+			}
+		}
+		else
+		{
+			$nmisng->log->debug3("skipping $automagic, not due: last performed at $previous");
+		}
+	}
+
+	# anything added for the workers? then signal the idle ones to get the job picked up asap
+	if ($ready_jobs)
+	{
+		my @workers = grep($zoo{$_}->{processtype} eq "worker", keys %zoo);
+		if (@workers)
+		{
+			$nmisng->log->debug2("signalling workers about ready-to-pick jobs");
+			kill("URG", @workers);
+		}
+	}
+
+	# in foreground/debugging mode there are no workers to delegate to
+	# instead, handle up to 5 ops sequentially
+	if (NMISNG::Util::getbool($cmdline->{foreground}))
+	{
+		for my $seq (1..5)
+		{
+			$nmisng->log->info("Running one worker cycle - in foreground mode");
+			my $dummymarker;
+			my $status = worker_loop(nmisng => $nmisng,
+															 max_cycles => 1, #
+															 exit_marker => \$dummymarker);
+			$nmisng->log->info("Single worker cycle returned status $status");
+			# save the state more often for foreground/debug mode
+			NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
+			last if ($status == EXIT_IDLE);
+		}
+	}
+	else
+	{
+		# every 30 s: check the process zoo and herd some cats,
+		# also tally the number of processes and execution stats and update the nmis rrd
+		# fixme nmis rrd: what can we collect and park there?
+		if (!$scheduler_state->{last_process_check}
+				or time - $scheduler_state->{last_process_check} >= 30)
+		{
+			$nmisng->log->debug2("running a worker process check");
+			my $res = manage_processes(nmisng => $nmisng,
+																 max_workers => $cmdline->{max_workers},
+																 zoo => \%zoo); # logs by itself
+			$scheduler_state->{last_process_check} = time;
+		}
+	}
+
+	# reap any finished processes
+	my %goners = &NMISNG::Util::reaper;
+	$nmisng->log->debug2("reaper cleared these pids and exitcodes: "
+											 . Data::Dumper->new([\%goners])->Terse(1)->Indent(0)->Pair(": ")->Dump)
+			if (%goners && $nmisng->log->is_level(2)); # don't bother with the dumper unless debug2 or higher
+
+
+	# save the scheduler state, in case the daemon restarts (local state and file is cheaper than trawling opstatus)
+	NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
+
+	# trivial SIGURG listener so that the outer supervisor also is wakeable by others
+	$SIG{"URG"} = sub { (my $sig) = @_; $nmisng->log->debug2("received $sig"); };
+	sleep($config->{nmisd_scheduler_cycle} // 10);
+	$SIG{"URG"} = "IGNORE";
+}
+$nmisng->log->info("$me terminating");
+exit(0);
+
+# ensure that the right number of worker processes (and fpingd, opslad)
+# are present
+# args: nmisng object, zoo (state of current processes), max_workers (override for config)
+# returns: hashref, success/error
+sub manage_processes
+{
+	my (%args) = @_;
+	my ($nmisng,$zoo) = @args{"nmisng","zoo"};
+
+	# zoo structure:
+	# pid => { processtype (e.g. worker, fpingd, ipslad), start(time)}
+
+	# the record of all the cats we're herding
+	my $config = $nmisng->config;
+	my %result;
+
+	# figure out the actual state,
+	# make sure that only the right processes remain in our list
+	# then (re)start or stop stuff to get back to the desired state
+	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
+	my %bypid = map { ($_->pid => $_) } (@{$pt->table});
+
+	for my $minion (keys %$zoo)
+	{
+		my $minioninfo = $zoo->{$minion};
+
+		# is the process still around and is it the right one?
+		# nmis changes $0 === cmndline, so not very useful for id,
+		# but the starttime should remain as-is
+		if (!exists($bypid{$minion})	# gone
+				or $minioninfo->{starttime} != $bypid{$minion}->start # different process
+				or !kill(0, $minion))															# not our process
+		{
+			$nmisng->log->debug("Process $minion ($minioninfo->{processtype}) has terminated");
+			delete $zoo->{$minion};
+		}
+	}
+
+	# fpingd: start one fast ping daemon if desired and none is running,
+	# or if the one that is running is in bad shape
+	if (NMISNG::Util::getbool($config->{daemon_fping_active}))
+	{
+		my $fping_data_age = NMISNG::Util::mtimeFile(dir => 'var', name => 'nmis-fping');
+		my $staleafter = $config->{daemon_fping_maxage} || 900; # nothing in 15 minutes?
+		my $data_too_old = (time - $fping_data_age) > $staleafter;
+		my $progname = $config->{daemon_fping_filename};
+
+		my $fpingd_present = grep($zoo->{$_}->{processtype} eq "fpingd", keys %$zoo);
+		if (!$fpingd_present or $data_too_old)
+		{
+			$nmisng->log->info( !$fpingd_present? "no $progname running, will start one"
+													: "$progname seems dead, last file update at $fping_data_age,
+will restart");
+
+			my $fpingpath  = "$config->{'<nmis_bin>'}/$progname";
+			if (!-x $fpingpath)
+			{
+				$nmisng->log->error("cannot start fpingd, $fpingpath is not executable!");
+				$result{error} = "cannot start fpingd, $fpingpath is not executable!";
+			}
+			else
+			{
+				my $res = system($fpingpath, "restart=true");
+				if ($res)
+				{
+					$nmisng->log->error("failed to start fpingd, exit code ".($res >> 8));
+					$result{error} = "failed to start fpingd, exit code ".($res >> 8);
+				}
+				# fixme9: should become internal callable function, fork is to happen here
+				# so that we can get the pid directly
+				# this is not precise enough, will catch other processes
+				for my $maybe (grep($_->cmndline =~ /$progname/, @{$pt->table}))
+				{
+					$zoo->{$maybe->pid} = { processtype => "fpingd", starttime => $maybe->start };
+					$nmisng->log->info("launched $progname daemon ". $maybe->pid);
+				}
+			}
+		}
+	}
+
+	# ipsla daemon desired and in need of being started?
+	my $ipslad_present = grep($zoo->{$_}->{processtype} eq "ipslad", keys %$zoo);
+	if ( NMISNG::Util::getbool($config->{daemon_ipsla_active}) && !$ipslad_present)
+	{
+		my $ipsladpath = "$config->{'<nmis_bin>'}/$config->{daemon_ipsla_filename}";
+		if (!-x $ipsladpath)
+		{
+			$nmisng->log->error("cannot start ipslad, $ipsladpath is not executable!");
+			$result{error} = "cannot start ipslad, $ipsladpath is not executable!";
+		}
+		else
+		{
+			my $res = system($ipsladpath);
+			if ($res)
+			{
+				$nmisng->log->error("failed to start ipslad, exit code ".($res >> 8));
+				$result{error} = "failed to start ipslad, exit code ".($res >> 8);
+			}
+			# fixme9: should become internal callable function, fork is to happen here
+			# so that we can get the pid directly
+			# this is not precise enough, will catch other processes
+			for my $maybe (grep($_->cmndline =~ /$config->{daemon_ipsla_filename}/,
+													@{$pt->table}))
+			{
+				$zoo->{$maybe->pid} = { processtype => "ipslad", starttime => $maybe->start };
+				$nmisng->log->info("launched $config->{daemon_ipsla_filename} daemon ". $maybe->pid);
+			}
+		}
+	}
+
+	# workers: how many are we allowed to have?
+	my $allowed = $args{max_workers} // $config->{nmisd_max_workers};
+	my $current = grep($_->{processtype} eq "worker", values %zoo);
+
+	my $delta = $allowed - $current;
+	if ($delta < 0)
+	{
+		$nmisng->log->info("too many active workers, allowed $allowed but have $current");
+		for my $moriturus ((keys %zoo)[0..(-$delta)]) # keys is random enough
+		{
+			$nmisng->log->debug("instructing worker $moriturus to terminate");
+			kill("HUP", $moriturus);
+			delete $zoo->{$moriturus};
+		}
+	}
+	elsif ($delta > 0)
+	{
+		$nmisng->log->info("not enough active workers, allowed $allowed but only have $current");
+		# start N new ones
+		while ($delta--)
+		{
+			my $newpid = fork;
+			if (!defined $newpid)
+			{
+				$nmisng->log->error("failed to fork: $!");
+				$result{error} = "failed to fork: $!";
+			}
+			elsif (!$newpid)					# the child, worker process
+			{
+				# worker process:
+				srand();
+				# make sure this gets a NEW nmisng object, with NEW database handles!
+				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $cmdline->{debug});
+				$nmisng->log->logprefix("worker\[$$\] ");
+				$nmisng->log->info("started");
+				$0 = "nmisd worker";
+
+				my $exit_marker;
+				# setup signal handlers: HUP and USR1/USR2, INT, TERM
+				$SIG{"HUP"} = sub {
+					my ($sig) = @_;
+					$nmisng->log->debug("received $sig, reopening logfile");
+					$nmisng->log->reopen;
+					$nmisng->log->debug("logfile was reopened");
+				};
+				$SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
+
+				$SIG{"TERM"} = $SIG{"INT"} = sub { my ($signame) = @_;
+																					 $nmisng->log->info("received $signame, shutting down");
+																					 $exit_marker = $signame;
+																					 exit(0) if ($signame eq "TERM"); };
+
+				# run worker loop (until signalled to shutdown)
+				my $status = worker_loop(nmisng => $nmisng,
+																 exit_marker => \$exit_marker,
+																 max_cycles => $config->{nmisd_worker_max_cycles});
+				exit( $status != EXIT_ERROR ? 0 : EXIT_ERROR );
+			}
+			else											# the parent
+			{
+				$nmisng->log->debug("started worker process $newpid");
+				# starttime is a tad hard to access and just guessing may be a bad idea
+				my ($newinfo) = grep($_->pid == $newpid, @{$pt->table}); # there must be exactly one
+				$zoo->{$newpid} = { processtype => "worker",
+														starttime => $newinfo->start };
+			}
+		}
+	}
+
+	return { success => 1 };
+}
+
+# attached to usr1 for more verbosity and usr2 for less
+# requires closure for finding the right logger object
+sub verbosity_signal_handler
+{
+	my ($signame, $logger) = @_;
+
+	return if (ref($logger) ne "NMISNG::Log");
+	if ($signame =~ /^USR([12])$/)
+	{
+		# reconfigure yourself for more/less debug
+		my $wantmorenoise = ($1 == 1)?  1 : -1;
+		$logger->change_level($wantmorenoise);
+		my $newlevel = $logger->level;
+		my $newdebug = $logger->detaillevel;
+
+		# and log the change at the new level , may look odd but better than no info
+		$logger->$newlevel("received SIG$signame, "
+											 .($wantmorenoise > 0? "inc":"dec")
+											 ."remented verbosity level to $newlevel, debug to $newdebug");
+	}
+	return;
+}
+
+# the main worker loop: claim jobs from the queue and processes them,
+# updates opstatus when done, sleeps a little and repeat...
+#
+# args: nmisng,
+#  exit_marker (scalar ref, holds undef or signal name - required)
+#  max_cycles (optional, default: unlimited - set to 1 for a single cycle)
+#
+# returns: EXIT_POLITE if signalled INT, EXIT_TTL if reached max nr of cycles,
+# EXIT_IMMEDIATELY if signalled TERM, EXIT_IDLE if max_cycles was 1 and no jobs were handled,
+# EXIT_ERROR for anything else
+sub worker_loop
+{
+	my (%args) = @_;
+
+	my ($nmisng,$max_cycles,$mustdie) = @args{"nmisng","max_cycles","exit_marker"};
+	die "invalid arguments, no NMISNG object available!\n" if (ref($nmisng) ne "NMISNG");
+	die "invalid arguments, exit_marker is not a ref!\n" if (ref($mustdie) ne "SCALAR");
+
+	my $config = $nmisng->config;
+	my $ttl = $max_cycles;
+
+	while (!$$mustdie and (!defined($ttl) or $ttl))
+	{
+		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
+		{
+			$nmisng->log->debug("nmis is locked, sleeping 60 seconds");
+			sleep(60);
+			next;
+		}
+
+		# look for and claim the next due worker job from the database, perform the action and opstatus-report result
+		my $jobs = $nmisng->get_queue_model(time => { '$lt' => Time::HiRes::time }, # due to start now
+																				type => { '$ne' => 'schedule' }, # a job for a worker
+																				in_progress => 0, # and not in claimed and in progress yet
+
+																				sort => [ priority => -1, time => 1 ], # first by highest prio, then oldest job
+				);
+		if (my $error = $jobs->error)
+		{
+			$nmisng->log->error("Failed to check job queue: $error - sleeping 60 seconds");
+			sleep(60);
+			next;
+		}
+
+		# try to claim one of the N jobs on the menu
+		my $ourjob;
+		my $feelingsleepy = ($jobs->count < 2); # loop tightly until out of work to do
+		for my $canihaveit (@{$jobs->data})
+		{
+			# mark the job as in-progress and owned by this process,
+			# but atomically so as to not interfere with other workers trying the same thing
+			$canihaveit->{in_progress} = Time::HiRes::time;
+			$canihaveit->{status}->{pid} = $$;
+
+			my ($error, undef) = $nmisng->update_queue(jobdata => $canihaveit,
+																								 atomic => { in_progress => 0 });
+			if ($error)
+			{
+				# no matching object or the like means this process was preempted
+				if ($error =~ /no matching object/i)
+				{
+					$nmisng->log->debug2("Ignoring Job $canihaveit->{_id}: claimed by other worker");
+				}
+				else
+				{
+					$nmisng->log->debug("Could not claim job $canihaveit->{_id}: $error");
+				}
+				next;
+			}
+
+			$ourjob = $canihaveit;
+			last;
+		}
+
+		# if running in single-op mode but left without any work, say so
+		return EXIT_IDLE if ($max_cycles == 1 && !$ourjob);
+
+		# we have some work to do!
+		if ($ourjob)
+		{
+			$nmisng->log->debug2("Processing job $ourjob->{_id}, type $ourjob->{type}"
+													 .($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
+			my $result;								# for opstatus
+
+			if ($ourjob->{type} eq "selftest" or $ourjob->{type} eq "permission_test")
+			{
+				my ($allok, $tests) = NMISNG::Util::selftest(config => $nmisng->config,
+																										 delay_is_ok => 1,
+																										 perms => ($ourjob->{type} eq "permission_test") );
+				# fixme result
+			}
+			elsif ($ourjob->{type} eq "configbackup")
+			{
+				$result = $nmisng->config_backup;
+			}
+			elsif ($ourjob->{type} eq "purge")
+			{
+				$result->{files} = $nmisng->purge_old_files(simulate => 0);
+				$result->{outages} = NMISNG::Outage::purge_outages(nmisng => $nmisng,
+																													 simulate => 0);
+			}
+			elsif ($ourjob->{type} eq "dbcleanup")
+			{
+				$result = $nmisng->dbcleanup(simulate => 0);
+			}
+			elsif ($ourjob->{type} eq "escalations")
+			{
+				# fixme: does not return anything
+				$nmisng->process_escalations;
+			}
+			elsif ($ourjob->{type} eq "metrics")
+			{
+				$result = $nmisng->compute_metrics;
+			}
+			elsif ($ourjob->{type} eq "plugins")
+			{
+				# run after-collect/after-update plugins once all node jobs are done
+				# required args: phase and uuid (array)
+				my $phase = $ourjob->{args}->{phase};
+				my $uuids = $ourjob->{args}->{uuid};
+				if ($phase !~ /^(update|collect)$/
+						or ref($uuids) ne "ARRAY" or !@$uuids)
+				{
+					$result = { error => "invalid arguments for plugin invocation!" };
+				}
+				else
+				{
+					$nmisng->log->debug("Starting post-${phase} plugins for "
+															.scalar(@$uuids)." nodes, tag was \"$ourjob->{tag}\"");
+
+					# lookup the node names so that we can provide both names
+					# and uuids in the same order
+					my $u2n = $nmisng->get_nodes_model(uuid => $uuids,
+																						 fields_hash => { uuid => 1, name => 1 });
+					my (@node_names, @node_uuids);
+					map { push @node_names, $_->{name}; push @node_uuids, $_->{uuid}; } (@{$u2n->data});
+
+					my $S;
+					for my $plugin ($nmisng->plugins)
+					{
+						my $funcname = $plugin->can("after_${phase}_plugin");
+						next if ( !$funcname );
+
+						if (!$S)
+						{
+							$S = NMISNG::Sys->new;    # the nmis-system object
+							$S->init();
+						}
+
+						$nmisng->log->debug2("Running after_${phase} plugin $plugin");
+						my $prevprefix = $nmisng->log->logprefix;
+						$nmisng->log->logprefix("$plugin\[$$\] ");
+						my ($status, @errors, $fatality);
+						try
+						{
+							( $status, @errors ) = &$funcname( sys => $S,
+																								 config => $nmisng->config,
+																								 nodes => \@node_names,
+																								 nodes_uuids => \@node_uuids,
+																								 nmisng => $nmisng  );
+						}
+						catch
+						{
+							$fatality = $_;
+						};
+
+						$nmisng->log->logprefix($prevprefix);
+						if ($status >= 2 or $status < 0 or $fatality)
+						{
+							$nmisng->log->error("Plugin $plugin failed to run: $fatality") if ($fatality);
+							for my $err (@errors)
+							{
+								$nmisng->log->error("Plugin $plugin: $err");
+							}
+						}
+						else
+						{
+							$nmisng->log->debug("Plugin $plugin "
+																	. ($status? "indicated success" : "indicated no changes"));
+						}
+					}
+					$result = { success => 1 };
+				}
+			}
+			elsif ($ourjob->{type} =~ /^(collect|update|services)$/)
+			{
+				# required: args with uuid of node to work on,
+				# optional force
+				# collect: also requires wantsnmp and wantwmi
+				# services: also expects services (=list of names)
+				my $nodeuuid = $ourjob->{args}->{uuid};
+
+				my $methodname = $ourjob->{type};
+				my @methodargs;
+				if ($ourjob->{type} eq "collect")
+				{
+					@methodargs = ( wantsnmp => $ourjob->{args}->{wantsnmp},
+													wantwmi => $ourjob->{args}->{wantwmi} );
+				}
+				elsif ($ourjob->{type} eq "services")
+				{
+					@methodargs = ( services => $ourjob->{args}->{services} );
+				}
+				push @methodargs, (force => 1) if ($ourjob->{args}->{force});
+
+				my $maxruntime = defined($config->{max_child_runtime})
+						&& $config->{max_child_runtime} > 0 ?
+						$config->{max_child_runtime} : 0;
+				alarm($maxruntime) if ($maxruntime);
+
+				my $thenode = $nmisng->node(uuid => $nodeuuid);
+				$nmisng->log->debug("Starting $methodname for node $nodeuuid (".$thenode->name.")");
+				$result = $thenode->$methodname(@methodargs);
+				alarm(0) if ($maxruntime);
+				$0 = "nmisd worker";
+			}
+			else
+			{
+				# fixme how to handle unsupported job types?
+				croak("unsupported ".Dumper($ourjob));
+			}
+
+			# fixme:  work is done, report result in opstatus,
+
+			# and delete the job from the queue
+			$nmisng->log->debug2("Completed job $ourjob->{_id}, $ourjob->{type}, removing from queue");
+			if (my $error = $nmisng->remove_queue(id => $ourjob->{_id}))
+			{
+				$nmisng->log->error("Failed to remove job $ourjob->{_id} from queue: $error");
+			}
+		}
+
+		# sleep if there's no work left to do, and no cycle limit or not the final cycle yet
+		if ($feelingsleepy and (!defined($ttl) or $ttl > 1))
+		{
+			# we want to react to SIGURG only while idle
+			$SIG{"URG"} = sub { (my $sig) = @_; $nmisng->log->debug2("received $sig"); };
+			my $catnap = $config->{nmisd_worker_cycle} // 30;
+			$nmisng->log->debug2("Sleeping for up to $catnap seconds");
+			sleep($catnap);
+			$SIG{"URG"} = 'IGNORE';
+		}
+		--$ttl if (defined($ttl) && $ttl > 0);
+	}
+	return defined($$mustdie)? $$mustdie eq "INT"? EXIT_POLITE : EXIT_IMMEDIATELY
+			: $max_cycles? EXIT_TTL : EXIT_ERROR;
+}
+
+
+__END__
+
+signals for the nmisd processes
+usr1 +verbose,
+usr2 -verbose,
+hup reopen log files
+int polite shutdown (ie. when you're ready)
+term standard termination, immediate
+urg to wake up idle workers (get them out of sleep)
+
+
+job structure:
+type: operation
+tag: marker for ops that need post-completion marshalling
+args: hashref of stuff for the op
+ collect, update, services expect uuid => single node uuid to work on
+ collect, update, services allow force
+ services: also want list of services
+ schedule: fixme node,group,operation etc etc
+ plugins: require phase = collect or update, and uuid => array of 'handled nodes' uuids

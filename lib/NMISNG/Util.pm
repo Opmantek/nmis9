@@ -2119,6 +2119,8 @@ sub checkPerlLib {
 #  optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise),
 #  optional perms (default: 0, if 1 CRITICAL permissions are checked)
 # returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
+#
+# fixme9: dbdir_status cannot work across processes
 sub selftest
 {
 	my (%args) = @_;
@@ -2488,6 +2490,8 @@ sub selftest
 }
 
 
+# fixme9: deprecated, doesn't work for the nmisd and its children, let's get rid of it
+#
 # small helper that returns hash of other nmis processes that are
 # running the given function
 # args: type (=collect or update)

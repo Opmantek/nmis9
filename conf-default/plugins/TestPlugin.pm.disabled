@@ -1,17 +1,19 @@
 # this is a small example plugin, which doesn't do
 # anything useful but demonstrate the concept.
 package TestPlugin;
-our $VERSION = "2.0.0";
+our $VERSION = "3.0.0";
 use strict;
 
 sub after_update_plugin
 {
 	my (%args) = @_;
-	my ($nodes, $S, $C, $NG) = @args{qw(nodes sys config nmisng)};
+	my ($nodes, $uuids, $S, $C, $NG) = @args{qw(nodes nodes_uuids sys config nmisng)};
 
 	$NG->log->debug("The test plugin was run in the after_update phase");
 	$NG->log->debug("Nodes that this update handled: ".join(", ",@$nodes))
 			if (ref($nodes) eq "ARRAY");
+	$NG->log->debug("Node UUIDs that this update handled: ".join(", ",@$uuids))
+			if (ref($uuids) eq "ARRAY");
 
 	return (0,undef);
 }
@@ -19,11 +21,13 @@ sub after_update_plugin
 sub after_collect_plugin
 {
 	my (%args) = @_;
-	my ($nodes, $S, $C, $NG) = @args{qw(nodes sys config nmisng)};
+	my ($nodes, $uuids, $S, $C, $NG) = @args{qw(nodes nodes_uuids sys config nmisng)};
 
 	$NG->log->debug("The test plugin was run in the after_collect phase");
 	$NG->log->debug("Nodes that this collect handled: ".join(", ",@$nodes))
 			if (ref($nodes) eq "ARRAY");
+	$NG->log->debug("Node UUIDs that this collect handled: ".join(", ",@$uuids))
+			if (ref($uuids) eq "ARRAY");
 
 	return (0,undef);
 }

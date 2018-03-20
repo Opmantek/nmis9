@@ -38,7 +38,8 @@ use File::Basename;
 use File::Spec;
 use File::Find;
 use Data::Dumper;
-use Time::Local;
+use Time::Local;								# report stuff - fixme needs rework!
+use Time::HiRes;
 
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -66,8 +67,9 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=noderefresh
 
  act=schedule [at=time] <type=activity> [priority=0..1] [args.X=....]
- act=list-schedules
+ act=list-schedules [verbose=t/f]
  act=delete-schedule id=<schedule_id>
+ act=abort id=<schedule_id>
 
  act=purge [simulate=t/f] [info=t/f]
  act=dbcleanup [simulate=t/f] [info=t/f]
@@ -167,10 +169,11 @@ my ($thislogin) = getpwuid($<); # only first field is of interest
 # scheduling of actions
 if ($Q->{act} eq "schedule")
 {
-	# type must be one
+	#fixmeaz continue here!
 
 }
 # print in-progess and queued jobs, and automatically scheduled stuff
+# shorten the args unless verbose=true
 elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 {
 	my $queued = $nmisng->get_queue_model(sort => { time => 1 });
@@ -182,44 +185,103 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 	my $queuedjobs = $queued->data;
 	if (!@$queuedjobs)
 	{
-		print STDERR "No active or scheduled activities.\n" if (!$wantquiet);
+		print STDERR "No activities scheduled or in-progress.\n" if (!$wantquiet);
 	}
 	else
 	{
-		print "Scheduled and Active jobs:\nId\tWhen\tStatus\tWhat\tParameters\n";
+		my $fmt = "%-26s%-26s%-48s%-20s%s\n";
+		printf("Scheduled and Active jobs:\n$fmt",
+					 "Id","When","Status","What",
+					 "Parameters");
+
 		for my $sched (@$queuedjobs)
 		{
-			print join("\t",
-								 $sched->{_id},
-								 scalar(localtime($sched->{time})),
-								 ($sched->{in_progress}? ("In Progress since ".localtime($sched->{in_progress})): "Queued"),
-								 $sched->{type},
-								 Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump),"\n";
+			my $printable = $sched->{args}?
+					Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
+			$printable = "<skipped, too long>"
+					if (!$wantverbose && length($printable) > 64);
+
+			printf($fmt,
+						 $sched->{_id},
+						 scalar(localtime($sched->{time})),
+						 ($sched->{in_progress}? ("In Progress since "
+																			.localtime($sched->{in_progress})
+																			. ($wantverbose?
+																			" (Worker $sched->{status}->{pid}) ":""))
+							: ("Queued (priority ".$sched->{priority}.")")),
+						 $sched->{type},
+						 $printable);
 		}
 	}
 
 	# show the scheduled periods for the known automatic actions
-	print "\nAutomatic Schedule:\nWhat\t\tFrequency\n";
-	for ( [ "update", "Node Update"],
-				[ "links", "Links Update" ],
+	my $fmt = "%-30s%s\n";
+	printf("\nAutomatic Schedule:\n$fmt", "Operation","Frequency");
+	for ( [ "escalations", "Escalations" ],
+				[ "thresholds", "Threshold Computations" ],
+				[ "metrics", "Metrics Computation" ],
 				[ "configbackup", "Configuration Backup"],
 				[ "purge", "Old File Purging"],
 				[ "dbcleanup", "Database Cleanup"],
+				[ "selftest", "Selftest" ],
+				[ "permission_test", "File Permission Test" ],
 			 )
 	{
 		my ($key, $label) = @$_;
+		# thresholds are usually computed during a node's collect operation
+		next if ($key eq "thresholds"
+						 and
+						 (!NMISNG::Util::getbool($C->{global_threshold}) # totally disabled
+							or NMISNG::Util::getbool($C->{threshold_poll_node}))); # or done with node
+
 		my $freq = defined($C->{"schedule_$key"}) && $C->{"schedule_$key"} > 0?
 				NMISNG::Util::period_friendly($C->{"schedule_$key"}) : "Disabled";
 
-		print "$label\t$freq\n";
+		printf($fmt,$label, $freq);
 	}
 
 	exit 0;
 }
-elsif ($Q->{act} =~ /^delete[_-]schedule$/)
+# delete-schedule removes a scheduled job entry,
+# abort does that and terminates the worker process that is working on that job
+elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 {
+	my $wantabort = ($1 eq "abort");
+
 	my $id = $Q->{id};
 	die "No schedule ID given!\n" if (!$id);
+
+	if ($wantabort)
+	{
+		my $job = $nmisng->get_queue_model(id => $id);
+		if (my $fault = $job->error)
+		{
+			die "Failed to lookup schedule: $fault\n";
+		}
+		die "No matching schedule exists!\n" if ($job->count != 1);
+
+		my $thejob = $job->data->[0]; 	# we want the first and only schedule entry
+		if ($thejob->{in_progress}
+				&& ref($thejob->{status}) eq "HASH"
+				&& defined($thejob->{status}->{pid})
+				&& $thejob->{status}->{pid} > 1
+				&& kill(0,$thejob->{status}->{pid}))
+		{
+			my $shootme = $thejob->{status}->{pid};
+			# let's be careful: is it an nmis process?
+			my $pt = Proc::ProcessTable->new(enable_ttys => 0);
+			my %bypid = map { ($_->pid => $_) } (@{$pt->table});
+
+			if (defined $bypid{$shootme}
+					&& $bypid{$shootme}->cmndline =~ /^nmisd worker/)
+			{
+				print STDERR "Terminating process $shootme (".$bypid{$shootme}->cmndline.") which owns job $id\n";
+				kill("TERM", $shootme);	 # polite
+				Time::HiRes::sleep(0.5);
+				kill(0,$shootme) && kill("KILL", $shootme); # then firm if required
+			}
+		}
+	}
 
 	my $error = $nmisng->remove_queue(id => $id);
 	die "$error\n" if ($error);

@@ -7,21 +7,9 @@
 # some tools like fping reside outside the minimal path
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# note that almost all operations are now performed by the nmisd
+
 # m h dom month dow user command
-
-# Run (selective) Statistics and Service Status Collection
-* * * * *  root /usr/local/nmis9/bin/poll type=collect mthread=true; /usr/local/nmis9/bin/poll type=services mthread=true
-
-# Run the update once a day
-30 20 * * *  root /usr/local/nmis9/bin/poll type=update mthread=true
-
-# backup configuration, models and crontabs once a day (kept for 30 days)
-22 8 * * *  root /usr/local/nmis9/bin/nmis-cli act=config-backup
-
-# purge old files daily
-21 2 * * *  root /usr/local/nmis9/bin/nmis-cli act=purge
-# cleanup orphaned database records daily as well
-42 3 * * *  root /usr/local/nmis9/bin/nmis-cli act=dbcleanup
 
 # create reports, Daily Monthly Weekly
 9 0 * * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=day type=all

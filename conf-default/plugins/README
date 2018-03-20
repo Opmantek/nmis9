@@ -1,12 +1,12 @@
 NMIS plugins
 ------------
 
-NMIS code plugins are meant to augment and extend the update and collect 
-functionality, if and when classic modelling doesn't suffice to handle a 
+NMIS code plugins are meant to augment and extend the update and collect
+functionality, if and when classic modelling doesn't suffice to handle a
 particular scenario.
 
 Each plugin must be valid perl, be named <SomeThing>.pm, and reside in
-conf/plugins/ ( or conf-default/plugins/ -  NMIS ships its default 
+conf/plugins/ ( or conf-default/plugins/ -  NMIS ships its default
 plugins in conf-default/plugins. Do not modify those files, as they
 will be overwritten on upgrade! )
 
@@ -18,14 +18,14 @@ wins over conf-default/plugisn/Xyz.pm.
 Files that aren't named "<SomeThing>.pm" are ignored.
 To disable an undesired default plugin, rename it to "<SomeThing>.pm.disabled".
 
-Each plugin must have a correct 'package <SomeThing>;' line, 
-and its package name must not clash with the other NMIS components. the 
+Each plugin must have a correct 'package <SomeThing>;' line,
+and its package name must not clash with the other NMIS components. the
 plugin MUST NOT use Exporter to export anything from its namespace.
 
-it's recommended that the plugin have a version declaration right after the 
-package line, i.e. 'our $VERSION = "1.2.3";' 
+it's recommended that the plugin have a version declaration right after the
+package line, i.e. 'our $VERSION = "1.2.3";'
 
-the plugin may load extra perl modules with use or require, but it 
+the plugin may load extra perl modules with use or require, but it
 must not use any package-level global variables. all its variables and any
 objects that it might create must have local scope.
 
@@ -43,11 +43,11 @@ every node regardless of the plugins success or failure indications.
 
 the calling interface is the same for both functions:
 
-sub update_plugin(node => nodename, sys => live sys object, 
+sub update_plugin(node => nodename, sys => live sys object,
 		config => read-only configuration object/hash,
 		nmisng => live nmisng object)
 
-sub collect_plugin(node => nodename, sys => live sys object, 
+sub collect_plugin(node => nodename, sys => live sys object,
 		config => configuration object/hash, treat as read-only,
 		nmisng => live nmisng object)
 
@@ -66,7 +66,7 @@ non-matching model for example)
 will save the nodeinfo and view components.
 
 - (2,list of error messages) means the plugin failed to work and NMIS
-should please log the error messages. no nodeinfo/view saving will be 
+should please log the error messages. no nodeinfo/view saving will be
 performed.
 
 after_update_plugin() and after_collect_plugin():
@@ -76,37 +76,41 @@ these functions will be called ONCE at the end of the respective operation,
 after all the nodes were handled. there is thus no node context for these
 plugin functions.
 
-just like with the per-node functions, all existing valid plugins will be 
-loaded and all available after_update_plugin()/after_collect_plugin() functions 
+just like with the per-node functions, all existing valid plugins will be
+loaded and all available after_update_plugin()/after_collect_plugin() functions
 will be run in sequence.
 
 the calling interface is the same for both functions:
 
-sub after_update_plugin(nodes => list of nodes that were handled, 
-		sys => live sys object, 
+sub after_update_plugin(nodes => list of node names that were handled,
+		nodes_uuids => list of the handled nodes' uuids
+		sys => live sys object,
 		config => read-only configuration object/hash,
-		nmisng => live nmisng object)	
+		nmisng => live nmisng object)
 
 sub after_collect_plugin(nodes => list of nodes that were handled,
+		nodes_uuids => list of the handled nodes' uuids
 		sys => live sys object,
 		config => configuration object/hash, treat as read-only,
 		nmisng => live nmisng object)
 
 the sys object is the 'global' one used for calculating system-wide metrics
-and so on. the plugin can modify any attributes via sys where required. it 
-may call other nmis code (but care needs to be taken of nmis config/table 
-caching if that is done). neither the local config object nor the 
+and so on. the plugin can modify any attributes via sys where required. it
+may call other nmis code (but care needs to be taken of nmis config/table
+caching if that is done). neither the local config object nor the
 global nmis config must be modified by a plugin.
+
+the nodes (names) and nodes_uuids arguments list nodes in the same order.
 
 return values:
 
 - (0 or undef,rest ignored) means no changes were made, or that the
-plugin declined to run altogether (for example, because the environment 
+plugin declined to run altogether (for example, because the environment
 doesn't match the plugin's needs)
 
 - (1,rest ignored) means changes were made to the sys object, and nmis
 should save the nodeinfo and view components.
 
 - (2,list of error messages) means the plugin failed to work and NMIS
-should please log the error messages. no nodeinfo/view saving will be 
+should please log the error messages. no nodeinfo/view saving will be
 performed.

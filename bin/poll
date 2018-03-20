@@ -222,12 +222,12 @@ sub runThreads
 	# however, DON'T do one if nmis is run in handle-just-this-node mode
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
 	# fixme9: goes away in daemon
-	my $cachefileage = (stat("$C->{'<nmis_var>'}/nmis_system/selftest.json"))[9]; 
-	if ( !$node_select and $type ne "services" 
+	my $cachefileage = (stat("$C->{'<nmis_var>'}/nmis_system/selftest.json"))[9];
+	if ( !$node_select and $type ne "services"
 			 and (time - $cachefileage > 900) )
 	{
 		NMISNG::Util::info("Starting selftest (takes about 5 seconds)...");
-		
+
 		my ( $allok, $tests ) = NMISNG::Util::selftest(
 			config                 => $C,
 			delay_is_ok            => 1,
@@ -307,6 +307,7 @@ sub runThreads
 
 		for my $onenode (keys %{$whattodo->{nodes}})
 		{
+			# fixme gone  in daemon - look at in_progress and overdue
 			my $problematic = ref($whattodo->{processes}) eq "HASH" && ref($whattodo->{processes}->{$onenode}) eq "HASH"?
 					$whattodo->{processes}->{$onenode} : {};
 
@@ -455,7 +456,7 @@ sub runThreads
 		open(F, ">$markerfile") && close(F);
 	}
 	utime(undef,undef, $markerfile);
-	
+
 	# some collect post-processing
 	if ( $type eq "collect")
 	{

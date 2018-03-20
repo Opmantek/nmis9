@@ -52,6 +52,8 @@ use NMISNG::ModelData;
 use NMISNG::Node;
 use NMISNG::Util;
 
+use Compat::Timing;
+
 # params:
 #  config - hash containing object
 #  log - NMISNG::Log object to log to, required.
@@ -272,6 +274,8 @@ sub get_inventory_model
 	}
 
 	# create modeldata object with instantiation info from caller
+	# add in the fallback automagic function, if class_name isn't present
+	$args{class_name} //= { "concept" => \&NMISNG::Inventory::get_inventory_class };
 	my $model_data_object = NMISNG::ModelData->new( nmisng => $self,
 																									class_name => $args{class_name},
 																									data => \@all );
@@ -731,10 +735,12 @@ sub queue_collection
 			collection    => $self->{_db_queue},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				# need to search/sort by time, priority and in_progress, and both type and tag
+				# need to search/sort by time, priority and in_progress, both type and tag,
+				# and also args.uuid
 				[ [ "time" => 1, "in_progress" => 1, "priority" => 1, ]],
 				[ [ "time" => 1, "in_progress" => 1, "tag" => 1 ]], # fixme: or separate for tag?
 				[ [ "time" => 1, "in_progress" => 1, "type" => 1 ]],	# fixme: or separate?
+				[ [ "args.uuid" => 1 ] ],
 			] );
 		$self->log->error("index setup failed for queue: $err") if ($err);
 	}
@@ -959,8 +965,33 @@ sub update_queue
 
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
-			if ($jobdata->{type} !~ /^(collect|update|services|threshold|escalate|configbackup|purge|dbcleanup|selftest|permission-test|report)$/);
+			if ($jobdata->{type} !~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|reports|plugins)$/);
 
+	# perform minimal argument validation
+	if ($jobdata->{type} =~ /^(collect|update|services|plugins)$/)
+	{
+		return "Invalid job data, missing or empty args property!"
+				if (ref($jobdata->{args}) ne "HASH" or !keys %{$jobdata->{args}});
+	}
+
+	if ($jobdata->{type} =~ /^(collect|update|services)$/
+			and !$jobdata->{args}->{uuid})
+	{
+		return "Invalid job data, args must contain uuid property!";
+	}
+	if ($jobdata->{type} eq "collect"
+			and (!defined($jobdata->{args}->{wantsnmp})
+					 or !defined($jobdata->{args}->{wantwmi})))
+	{
+		return "Invalid job data, args is missing wantsnmp or wantwmi properties!";
+	}
+	if ($jobdata->{type} eq "plugins")
+	{
+		return "Invalid job data, args has invalid or empty plugin phase property"
+				if (!defined($jobdata->{args}->{phase}) or $jobdata->{args}->{phase} !~ /^(update|collect)$/);
+		return "Invalid job data, args has no or empty uuid list property"
+				if (ref($jobdata->{args}->{uuid}) ne "ARRAY" or !@{$jobdata->{args}->{uuid}});
+	}
 
 	my $jobid = $jobdata->{_id};
 	delete $jobdata->{_id};
@@ -981,7 +1012,7 @@ sub update_queue
 			map { $qargs{$_} = $atomic->{$_}; } (keys %$atomic);
 		}
 
-		my $res = NMISNG::DB::Update( collection => $self->queue_collection,
+		my $res = NMISNG::DB::update( collection => $self->queue_collection,
 																	query => NMISNG::DB::get_query(and_part => \%qargs),
 																	record => $jobdata );
 		$jobdata->{_id} = $jobid;			# put it back!
@@ -1365,6 +1396,7 @@ sub config_backup
 	my ($self, %args) = @_;
 	my $C = $self->config;
 
+	$self->log->info("Starting Configuration Backup operation");
 	my $backupdir = $C->{'<nmis_backups>'};
 	if (!-d $backupdir)
 	{
@@ -1444,8 +1476,9 @@ sub config_backup
 	{
 		return { error => "Backup failed, gzip exited with exit code ".($status >> 8) };
 	}
-
 	unlink $nodedumpfile if (-f $nodedumpfile);
+
+	$self->log->info("Completed Configuration Backup operation, created $backupfilename.gz");
 	return  { success => 1, file => "$backupfilename.gz" };
 }
 
@@ -1735,13 +1768,19 @@ sub expand_node_selection
 }
 
 # this function finds nodes that are due for a given operation;
-# consults the various policies and previous node states
-# args: self, type (=operation, required), force (optional, default 0),
+# consults the various policies and previous node states,
+# and looks up any relevant queued jobs (in_progress and overdue)
+#
+# args: self, type (=one of collect/update/services, required),
+#  force (optional, default 0),
 #  filters (optional, ARRAY of filter hashrefs to be applied independently)
+#
 # returns: hashref with error/success,
 #  nodes => hash of uuid, value node config data,
 #  flavours => hash of uuid -> snmp/wmi -> 0/1 (only for collect),
-#  processes => hash of uuid =>  pid => processinfo (for nmis processes for this node and op)
+#  services => hash of uuid -> array of service names (only for services)
+#  in_progress => hash of uuid => queue id => queue record
+#  overdue => hash of uuid => queue id => queue record
 sub find_due_nodes
 {
 	my ($self, %args) = @_;
@@ -1756,7 +1795,7 @@ sub find_due_nodes
 	# what to work on? all active nodes or only the selected lists of nodes
 	# multiple filters are applied independently, e.g. select by group and then extra nodes
 	# default: blank unrestricted filter
-	for my $onefilter ( @{$args{filters}}? @{$args{filters}}: ({}) )
+	for my $onefilter ( ref($args{filters}) eq "ARRAY" && @{$args{filters}}? @{$args{filters}}: ({}) )
 	{
 		$onefilter->{active} = 1;	# never consider inactive nodes
 		my $possibles = $self->get_nodes_model(filter => $onefilter);
@@ -1767,41 +1806,71 @@ sub find_due_nodes
 	# no filters returned anybody?
 	return { success => 1, nodes => [] } if (!keys %cands);
 
-	# services? all nodes - granularity is per-service
-	# update? all nodes, for now only - fixme9: consult schedule for staggered operation
-	if ($whichop eq "update" or $whichop eq "services")
-	{
-		return { success => 1, nodes => \%cands }; # cheaper to return everything
-	}
+	# get the queued jobs that could be of relevance
+	my $running = $self->get_queue_model(type => $whichop,
+																			 in_progress => { '$ne' => 0 },
+																			 "args.uuid" => [ keys %cands ] );
+	$self->log->error("failed to query job queue: ".$running->error)
+			if ($running->error);
+	# want uuid =>  qid => queue record
+	my %runningbynode = map { ( $_->{args}->{uuid} => { $_->{_id} =>  $_ } ) } (@{$running->data});
 
-	# collect? subject to policies
-	# get the polling policies and translate into seconds (for rrd file options)
-	my $policies = NMISNG::Util::loadTable(dir => 'conf',
-																				 name => "Polling-Policy") || {};
-	my %intervals = ( default => { ping=> 60, snmp => 300, wmi => 300 });
-	# translate period specs X.Ys, A.Bm, etc. into seconds
-	for my $polname (keys %$policies)
+	my $overdue = $self->get_queue_model(type => $whichop,
+																			 in_progress => 0,
+																			 time => { '$lt' => Time::HiRes::time },
+																			 "args.uuid" => [ keys %cands ] );
+	$self->log->error("failed to query job queue: ".$overdue->error)
+				if ($overdue->error);
+	my %overduebynode = map { ( $_->{args}->{uuid} => { $_->{_id} => $_ } ) } (@{$overdue->data});
+
+
+	# policy name => various times for collect/update
+	# service name => period for services
+	my %intervals;
+	my $servicedefs;							# for tracking snmp-only services....
+
+	if ($whichop eq "collect" or $whichop eq "update")
 	{
-		next if (ref($policies->{$polname}) ne "HASH");
-		for my $subtype (qw(snmp wmi ping))
+		# collect and update? subject to policies
+		# get the polling policies and translate into seconds (for rrd file options)
+		my $policies = NMISNG::Util::loadTable(dir => 'conf',
+																					 name => "Polling-Policy") || {};
+		%intervals = ( default => { ping=> 60, snmp => 300, wmi => 300, update => 86400 });
+		# translate period specs X.Ys, A.Bm, etc. into seconds
+		for my $polname (keys %$policies)
 		{
-			my $interval = $policies->{$polname}->{$subtype};
+			next if (ref($policies->{$polname}) ne "HASH");
+			for my $subtype (qw(snmp wmi ping update))
+			{
+				my $interval = $policies->{$polname}->{$subtype};
+				if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+				{
+					my ($rawvalue, $unit) = ($1, $3);
+					$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600
+																	 : $unit eq 'd'? 86400 : 1);
+				}
+				$intervals{$polname}->{$subtype} = $interval; # now in seconds
+			}
+		}
+	}
+	elsif ($whichop eq "services")
+	{
+		$servicedefs = NMISNG::Util::loadTable(dir => "conf", name => "Services") || {};
+
+		for my $servicekey (keys %$servicedefs)
+		{
+			my $interval = $servicedefs->{$servicekey}->{Poll_Interval} || 300;
 			if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
 			{
 				my ($rawvalue, $unit) = ($1, $3);
 				$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600
 																 : $unit eq 'd'? 86400 : 1);
 			}
-			$intervals{$polname}->{$subtype} = $interval; # now in seconds
+			$intervals{$servicekey} = $interval;
 		}
 	}
 
-	# find all other nmis processes of the same type
-	my $otherprocesses = NMISNG::Util::find_nmis_processes(type => $whichop,
-																												 config => $self->config);
-	# find out what nodes are due as per polling policy - also honor force,
-	# and any in-progress polling that hasn't finished yet
-
+	# find out what nodes are due as per polling policy or service status - also honor force
 	# unfortunately we require each candidate node's nodeinfo/catchall data to make the
 	# candidate-or-not decision...
 	my $allcatchalls = $self->get_inventory_model(concept => "catchall",
@@ -1811,164 +1880,244 @@ sub find_due_nodes
 	{
 		return { error => "Failed to load catchall inventory: $allcatchalls->{error}" };
 	}
-
 	my $accessor = $allcatchalls->{model_data};
 	# dynamic node information, by node uuid
 	my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
 
 	my $now = time;
-	my (%due, %flavours, %procs);
-	for my $maybe (keys %cands)		# by uuid
+	my (%due, %flavours, %procs, %services);
+	for my $maybe (keys %cands)		# nodes by uuid
 	{
 		my $nodeconfig = $cands{$maybe};
 		my $nodename = $nodeconfig->{name};
-
-		my $polname = $nodeconfig->{polling_policy} || "default";
-		$self->log->debug("Node $nodename is using polling policy \"$polname\"");
-
-		# dynamic info from previous collects/updates
+		# that's the catchall dynamic info from previous collects/updates
 		my $ninfo = $node_info_ro{ $maybe } // {};
 
-		my $lastpolicy = $ninfo->{last_polling_policy};
-		my $lastsnmp = $ninfo->{last_poll_snmp};
-		my $lastwmi = $ninfo->{last_poll_wmi};
-
-		# that's it for completed polls - for in-progress uncompleted
-		# we need other time logic,
-		# overriding these markers from the active process' start time
-		my @isinprogress = grep($otherprocesses->{$_}->{node} &&
-														$otherprocesses->{$_}->{node} eq $nodename,
-														keys %$otherprocesses);
-		if (@isinprogress)
+		# services? need to check the service inventories for when they ran last
+		if ($whichop eq "services")
 		{
-			map { $procs{$maybe}->{$_} = $otherprocesses->{$_}; } (@isinprogress);
-		}
-
-		if (!$force and @isinprogress)
-		{
-			# there should be at most one, we ignore any unexpected others
-			my $otherstart = $otherprocesses->{ $isinprogress[0] }->{start};
-			$self->log->debug("Node $nodename: collect in progress, using process start $otherstart instead of last_poll markers");
-			$lastsnmp = $lastwmi = $otherstart;
-			$lastpolicy = $polname;	# and no policy change triggering either...
-		}
-
-		# handle the case of a changed polling policy: move all rrd files
-		# out of the way, and poll now
-		# note that this does NOT work with non-standard common-database structures
-		if (defined($lastpolicy) && $lastpolicy ne $polname)
-		{
-			$self->log->info("Node $nodename is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
-			my $lcnode = lc($nodename);
-			my $curdir = $self->config->{'database_root'}."/nodes/$lcnode";
-			my $backupdir = "$curdir.policy-$lastpolicy.".time();
-
-			if (!-d $curdir)
+			# get the previous service runs for all services for this node
+			my $prevruns = $self->get_inventory_model(concept => "service",
+																								cluster_id => $self->config->{cluster_id},
+																								node_uuid => $maybe,
+																								filter => { historic => 0 },
+																								fields_hash => {
+																									'data.service' => 1,
+																									'data.last_run' => 1 }, );
+			if (!$prevruns->{success})
 			{
-				$self->log->warn("Node $maybe doesn't have RRD files under $curdir!");
+				return { error => "Failed to load services inventory: $prevruns->{error}" };
 			}
-			else
+			my %service_lastrun = ( map { ($_->{data}->{service} => $_->{data}->{last_run}) }
+															(@{$prevruns->{model_data}->data}));
+
+			for my $maybesvc (split(/\s*,\s*/, $nodeconfig->{services}))
 			{
-				rename($curdir,$backupdir)
-						or $self->log->error("failed to mv rrd files for $maybe: $!");
+				# listed for a node doesn't mean the service definition (still) exists
+				if (!exists $intervals{$maybesvc})
+				{
+					$self->log->warn("Ignoring non-existent service \"$maybesvc\" for node $nodename");
+					next;
+				}
+				# services of type 'service', ie. snmp, can only work if done during/after a collect
+				if ($servicedefs->{$maybesvc}->{Service_Type} eq "service")
+				{
+					$self->log->debug("Ignoring SNMP-based service \"$maybesvc\" for node $nodename (only checkable during collect)");
+					next;
+				}
+
+				# when was this service checked last?
+				my $lastrun = $service_lastrun{$maybesvc} // 0;
+				my $serviceinterval = $intervals{$maybesvc} || 300; # bsts fallback
+
+				my $msg = "Service $maybesvc on $nodename, interval \"$serviceinterval\", ran last at "
+						. NMISNG::Util::returnDateStamp($lastrun) . ", ";
+
+				# we don't run the service exactly at the same time in the collect cycle,
+				# so allow up to 10% underrun
+				# note that force overrules the timing policy
+				if ( !$args{force} && $lastrun && ( ( time - $lastrun ) < $serviceinterval * 0.9 ) )
+				{
+					$msg .= "skipping this time.";
+					$self->log->debug($msg);
+					next;
+				}
+				else
+				{
+					$msg .= "is due for checking at this time.";
+					$self->log->debug($msg);
+
+					$due{$maybe} = $nodeconfig;
+					$services{$maybe} //= [];
+					push @{$services{$maybe}}, $maybesvc;
+				}
 			}
-
-			$due{$maybe} = $nodeconfig;
-			$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 		}
-		elsif ($force)
+		elsif ($whichop eq "collect" or $whichop eq "update")
 		{
-			$self->log->debug("force is enabled, Node $nodename will be polled at $now");
-			$due{$maybe} = $nodeconfig;
-			$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
-		}
-		# nodes that have not been pollable since forever: run at most once daily
-		# ...except if the demote_faulty_nodes config option is set to false
-		elsif (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model")
-		{
-			my $lasttry = $ninfo->{last_poll} // 0;
+			my $polname = $nodeconfig->{polling_policy} || "default";
+			$self->log->debug2("Node $nodename is using polling policy \"$polname\"");
 
-			# try once every 5 minutes if demote_faulty_nodes is set to false,
-			# otherwise: was polling attempted at all and in the last 30 days? then once daily from
-			# that last try - otherwise try one now
-			my $nexttry = !NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")? # === ne false
-					($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
+			my $lastpolicy = $ninfo->{last_polling_policy};
+			my $lastsnmp = $ninfo->{last_poll_snmp};
+			my $lastwmi = $ninfo->{last_poll_wmi};
 
-			if ($nexttry <= $now)
+			# handle the case of a changed polling policy: move all rrd files
+			# out of the way, and poll now
+			# note that this does NOT work with non-standard common-database structures
+			if (defined($lastpolicy) && $lastpolicy ne $polname)
 			{
+				$self->log->info("Node $nodename is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
+				my $lcnode = lc($nodename);
+				my $curdir = $self->config->{'database_root'}."/nodes/$lcnode";
+				my $backupdir = "$curdir.policy-$lastpolicy.".time();
+
+				if (!-d $curdir)
+				{
+					$self->log->warn("Node $maybe doesn't have RRD files under $curdir!");
+				}
+				else
+				{
+					rename($curdir,$backupdir)
+							or $self->log->error("failed to mv rrd files for $maybe: $!");
+				}
+
+				$due{$maybe} = $nodeconfig;
+				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+			}
+			# nodes that have not been pollable since forever: run at most once daily
+			# ...except if the demote_faulty_nodes config option is set to false
+			# fixme: logic should be updated  to make use of last_poll_attempt!
+			elsif (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model")
+			{
+				my $lasttry = $ninfo->{last_poll} // $ninfo->{last_poll_attempt} // 0;
+
+				# try once every 5 minutes if demote_faulty_nodes is set to false,
+				# otherwise: was polling attempted at all and in the last 30 days? then once daily from
+				# that last try - otherwise try one now
+				my $nexttry = !NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")? # === ne false
+						($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
+
+				if ($nexttry <= $now)
+				{
+					$due{$maybe} = $nodeconfig;
+					$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
+				}
+				# if demotion is enabled, log this pretty dire situation
+				# but not too noisily - with a default poll every minute this
+				# will log the issue once an hour.
+				elsif (!NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")) # === ne false
+				{
+					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
+					my $msg = "Node $nodename has no valid nodeModel, never polled successfully, "
+							. "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
+					$self->log->info($msg) if ($goodtimes == 0);
+				}
+				else
+				{
+					$self->log->debug("Node $nodename has no valid nodeModel, never polled successfully. demote_faulty_nodes is disabled, last attempt $lasttry, next $nexttry.");
+				}
+			}
+			# logic for update now or later:
+			# due if no past successful update at all or if that was too long ago,
+			# BUT no more than four attempts per update period
+			# (without the latter an unpingable or uncollectable node would be retried every few seconds)
+			elsif ($whichop eq "update")
+			{
+				my $lastupdate = $ninfo->{last_update};
+				my $lastattempt = $ninfo->{last_update_attempt};
+
+				my $nextupdate = ($lastupdate // 0) + $intervals{$polname}->{update} * 0.95;
+				my $nextattempt = ($lastattempt // 0) + $intervals{$polname}->{update} * 0.95 / 4;
+
+				if (!defined($lastupdate) or $nextupdate <= $now)
+				{
+					if (!defined($lastattempt) or $nextattempt <= $now)
+					{
+						$self->log->debug("Node $nodename is due for update at $now, last update: "
+															. ($lastupdate? sprintf("%.1fs ago", $now - $lastupdate) : "never")
+															." last attempt: "
+															. ($lastattempt? sprintf("%.1fs ago", $now - $lastattempt) : "never"));
+						$due{$maybe} = $nodeconfig;
+					}
+					else
+					{
+						$self->log->debug("Node $nodename is NOT due for update at $now, last update: "
+															.sprintf("%.1fs ago", $now - $lastupdate)
+															. " but last attempt: "
+															. ($lastattempt? sprintf("%.1fs ago", $now - $lastattempt) : "never"));
+					}
+				}
+				else
+				{
+					$self->log->debug("Node $nodename is NOT due for update at $now, last update: "
+														.sprintf("%.1fs ago", $now - $lastupdate));
+				}
+			}
+			# logic for collect now or later: candidate if no past successful collect whatsoever,
+			# or if either of the two worked and was done long enough ago.
+			#
+			# if no history is known for a source, then disregard it for the now-or-later logic
+			# but DO enable it for trying!
+			# note that collect=false, i.e. ping-only nodes need to be excepted,
+			elsif (!defined($lastsnmp) && !defined($lastwmi) && $nodeconfig->{collect})
+			{
+				$self->log->debug("Node $nodename has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
 				$due{$maybe} = $nodeconfig;
 				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
 			}
-			# if demotion is enabled, log this pretty dire situation
-			# but not too noisily - with a default poll every minute this
-			# will log the issue once an hour.
-			elsif (!NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")) # === ne false
-			{
-				my $goodtimes = int((($now - $lasttry) % 3600) / 60);
-				my $msg = "Node $nodename has no valid nodeModel, never polled successfully, "
-						. "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
-				$self->log->info($msg) if ($goodtimes == 0);
-			}
 			else
 			{
-				$self->log->debug("Node $nodename has no valid nodeModel, never polled successfully. demote_faulty_nodes is disabled, last attempt $lasttry, next $nexttry.");
-			}
-		}
-		# logic for collect now or later: candidate if no past successful collect whatsoever,
-		# or if either of the two worked and was done long enough ago.
-		#
-		# if no history is known for a source, then disregard it for the now-or-later logic
-		# but DO enable it for trying!
-		# note that collect=false, i.e. ping-only nodes need to be excepted,
-		elsif (!defined($lastsnmp) && !defined($lastwmi) && $nodeconfig->{collect})
-		{
-			$self->log->debug("Node $nodename has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
-			$due{$maybe} = $nodeconfig;
-			$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
-		}
-		else
-		{
-			# for collect false/pingonly nodes the single 'generic' collect run counts,
-			# and the 'snmp' policy is applied
-			if (!$nodeconfig->{collect})
-			{
-				$lastsnmp = $ninfo->{last_poll} // 0;
-				$self->log->debug("Node $nodename is non-collecting, applying snmp policy to last check at $lastsnmp");
-			}
+				# for collect false/pingonly nodes the single 'generic' collect run counts,
+				# and the 'snmp' policy is applied
+				if (!$nodeconfig->{collect})
+				{
+					$lastsnmp = $ninfo->{last_poll} // 0;
+					$self->log->debug("Node $nodename is non-collecting, applying snmp policy to last check at $lastsnmp");
+				}
 
-			# accept delta-previous-now interval if it's at least 95% of the configured interval
-			# strict 100% would mean that we might skip a full interval when polling takes longer
-			my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
-			my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
+				# accept delta-previous-now interval if it's at least 95% of the configured interval
+				# strict 100% would mean that we might skip a full interval when polling takes longer
+				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
+				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
 
-			# only flavours which worked in the past contribute to the now-or-later logic
-			if ((defined($lastsnmp) && $nextsnmp <= $now )
-					|| (defined($lastwmi) && $nextwmi <= $now))
-			{
-				$self->log->debug("Node $nodename is due for poll at $now, last snmp: ".($lastsnmp//"never")
-													.", last wmi: ".($lastwmi//"never")
-													. ", next snmp: ".($lastsnmp ? (($now - $nextsnmp)."s ago"):"n/a")
-													.", next wmi: ".($lastwmi? (($now - $nextwmi)."s ago"):"n/a"));
-				$due{$maybe} = $nodeconfig;
+				# only flavours which worked in the past contribute to the now-or-later logic
+				if ((defined($lastsnmp) && $nextsnmp <= $now )
+						|| (defined($lastwmi) && $nextwmi <= $now))
+				{
+					$self->log->debug("Node $nodename is due for poll at $now, last snmp: ".($lastsnmp//"never")
+														.", last wmi: ".($lastwmi//"never")
+														. ", next snmp: ".($lastsnmp? sprintf("%.1fs ago", $now - $nextsnmp) : "n/a")
+														.", next wmi: ".($lastwmi? sprintf("%.1fs ago", $now - $nextwmi) : "n/a"));
+					$due{$maybe} = $nodeconfig;
 
-				# but if we've decided on polling, then DO try flavours that have not worked in the past!
-				# nextwmi <= now also covers the case of undefined lastwmi...
-				$flavours{$maybe}->{wmi} = ($nextwmi <= $now);
-				$flavours{$maybe}->{snmp} = ($nextsnmp <= $now);
-			}
-			else
-			{
-				$self->log->debug("Node $nodename is NOT due for poll at $now, last snmp: "
-													.($lastsnmp//"never")
-													.", last wmi: ".($lastwmi//"never")
-													. ", next snmp: ".($lastsnmp? $nextsnmp :"n/a")
-													.", next wmi: ".($lastwmi? $nextwmi :"n/a"));
+					# but if we've decided on polling, then DO try flavours that have not worked in the past!
+					# nextwmi <= now also covers the case of undefined lastwmi...
+					$flavours{$maybe}->{wmi} = ($nextwmi <= $now)? 1:0;
+					$flavours{$maybe}->{snmp} = ($nextsnmp <= $now)? 1:0;
+				}
+				else
+				{
+					$self->log->debug("Node $nodename is NOT due for poll at $now, last snmp: "
+														.($lastsnmp//"never")
+														.", last wmi: ".($lastwmi//"never")
+														. ", next snmp: ".($lastsnmp? $nextsnmp :"n/a")
+														.", next wmi: ".($lastwmi? $nextwmi :"n/a"));
+				}
 			}
 		}
 	}
 
-	return { success => 1, nodes => \%due,
-					 flavours => \%flavours, processes => \%procs };
+	# ignore in-progress and overdue queued jobs for nodes not due
+	map { delete $runningbynode{$_} if (!exists $due{$_}); } (keys %runningbynode);
+	map { delete $overduebynode{$_} if (!exists $due{$_}); } (keys %overduebynode);
+
+	return { success => 1,
+					 nodes => \%due,
+					 flavours => \%flavours,
+					 services => \%services,
+					 in_progress => \%runningbynode,
+					 overdue => \%overduebynode, };
 }
 
 

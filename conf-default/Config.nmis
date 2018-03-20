@@ -506,6 +506,9 @@ my %hash = (
 		'schedule_dbcleanup' => 86400,
 		'schedule_selftest' => 15*60,
 		'schedule_permission_test' => 2*3600,
+		'schedule_escalations' => 90,
+		'schedule_metrics' => 120,
+		'schedule_thresholds' => 120, # ignored if global_threshold is false or threshold_poll_node is true
 	},
 
 );
