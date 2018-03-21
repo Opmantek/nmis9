@@ -576,19 +576,28 @@ will restart");
 			}
 			else
 			{
+				# fixme9: fpingd code needs to become internal callable function, fork must happen here
+				# so that we can get the pid directly
 				my $res = system($fpingpath, "restart=true");
 				if ($res)
 				{
 					$nmisng->log->error("failed to start fpingd, exit code ".($res >> 8));
 					$result{error} = "failed to start fpingd, exit code ".($res >> 8);
 				}
-				# fixme9: should become internal callable function, fork is to happen here
-				# so that we can get the pid directly
 				# fpingd does not change $0, so progname check works for now at least...
-				for my $maybe (grep($_->cmndline eq $progname, @{$pt->table}))
+				# however, the process can take a few seconds to actually show up :-(
+				$fpingd_present = 0;
+				while (!$fpingd_present)
 				{
-					$zoo->{$maybe->pid} = { processtype => "fpingd", starttime => $maybe->start };
-					$nmisng->log->info("launched $progname daemon ". $maybe->pid);
+					$nmisng->log->debug2("launched $progname, looking for its pid...");
+					for my $maybe (grep($_->cmndline eq $progname, @{$pt->table}))
+					{
+						$zoo->{$maybe->pid} = { processtype => "fpingd", starttime => $maybe->start };
+						$nmisng->log->info("launched $progname daemon ". $maybe->pid);
+						$fpingd_present = 1;
+						last;
+					}
+					Time::HiRes::sleep(0.5) if (!$fpingd_present);
 				}
 			}
 		}
