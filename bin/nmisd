@@ -418,6 +418,11 @@ while (!$exit_marker)
 		}
 
 		my $previous = $scheduler_state->{$automagic} // 0;
+		# selftest: also depends on the existence of the selftest file
+		# which is removed by the gui to enforce a refresh soonest
+		$previous = 0 if (($automagic eq "selftest" or $automagic eq "permission_test")
+											and !-f "$varsysdir/selftest.json");
+
 		if (Time::HiRes::time - $previous > $period)
 		{
 			$nmisng->log->debug("Scheduling job $automagic, last performed at ". ($previous // "n/a"));
