@@ -1397,13 +1397,13 @@ sub loadNodeInfoTable
 	return NMISNG::Util::loadTable(dir=>'var', name=>"$node-node",  suppress_errors => $args{suppress_errors});
 }
 
-# load info of all interfaces - fixme9: this is likely dead slow 
+# load info of all interfaces - fixme9: this is likely dead slow
 # and wasteful (as it combines EVERYTHING) - should be replaced by much more targetted lookups!
-sub loadInterfaceInfo 
+sub loadInterfaceInfo
 {
 	my $nmisng = new_nmisng();
 
-	my $get_node_uuids = $nmisng->get_node_uuids( 
+	my $get_node_uuids = $nmisng->get_node_uuids(
 		filter => { cluster_id => $nmisng->config->{cluster_id}, active => 1, collect => 1 } );
 
 	my %interfaceInfo;
@@ -1427,7 +1427,7 @@ sub loadInterfaceInfo
 			my $dest = $interfaceInfo{"$node_name-$tmpDesc"} = {};
 
 			$dest->{node} = $node_name;
-			
+
 			for my $copyme (
 				qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus
 						ifOperStatus ifLastChange Description display_name portModuleIndex portIndex portDuplex portIfIndex
@@ -1436,7 +1436,7 @@ sub loadInterfaceInfo
 			{
 				$dest->{$copyme} = $data->{$copyme};
 			}
-			
+
 			my $cnt = 1;
 			while ( defined( $data->{"ipAdEntAddr$cnt"} ) )
 			{
@@ -2241,8 +2241,8 @@ sub loadServiceStatus
 sub checkEvent
 {
 	my (%args) = @_;
-	my $nmisng = new_nmisng();
 	my $S = $args{sys};
+	my $nmisng = $S->nmisng;
 
 	$args{node_uuid} = $S->nmisng_node()->uuid;
 	# create event with attributes we are looking for
