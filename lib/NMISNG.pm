@@ -2646,23 +2646,23 @@ sub process_escalations
 
 
 	NMISNG::Util::dbg("Starting");
-	my $CT = Compat::NMIS::loadGenericTable("Contacts");
+	my $CT = NMISNG::Util::loadTable(dir => "conf", name => "Contacts");
 
 	# load the escalation policy table
-	my $EST = Compat::NMIS::loadGenericTable("Escalations");
+	my $EST = NMISNG::Util::loadTable(dir => "conf", name => "Escalations");
 
 	### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
 	# load the interface file to later check interface collect status.
 	#my $II = Compat::NMIS::loadInterfaceInfo();
 
-	my $LocationsTable = Compat::NMIS::loadGenericTable("Locations");
+	my $LocationsTable = NMISNG::Util::loadTable(dir => "conf", name => "Locations");
 
 	### keiths, work around for extra tables.
 	my $ServiceStatusTable;
 	my $useServiceStatusTable = 0;
 	if ( Compat::NMIS::tableExists('ServiceStatus') )
 	{
-		$ServiceStatusTable    = Compat::NMIS::loadGenericTable('ServiceStatus');
+		$ServiceStatusTable    = NMISNG::Util::loadTable(dir => "conf", name => 'ServiceStatus');
 		$useServiceStatusTable = 1;
 	}
 
@@ -2670,7 +2670,7 @@ sub process_escalations
 	my $useBusinessServicesTable = 0;
 	if ( Compat::NMIS::tableExists('BusinessServices') )
 	{
-		$BusinessServicesTable    = Compat::NMIS::loadGenericTable('BusinessServices');
+		$BusinessServicesTable    = NMISNG::Util::loadTable(dir => "conf", name => 'BusinessServices');
 		$useBusinessServicesTable = 1;
 	}
 
