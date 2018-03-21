@@ -813,8 +813,8 @@ sub worker_loop
 		# we have some work to do!
 		if ($ourjob)
 		{
-			$nmisng->log->debug2("Processing job $ourjob->{_id}, type $ourjob->{type}"
-													 .($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
+			$nmisng->log->debug("Processing job $ourjob->{_id}, type $ourjob->{type}"
+													.($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
 			my $result;								# for opstatus
 
 			if ($ourjob->{type} eq "selftest" or $ourjob->{type} eq "permission_test")
@@ -967,7 +967,7 @@ sub worker_loop
 			# fixme:  work is done, report result in opstatus,
 
 			# and delete the job from the queue
-			$nmisng->log->debug2("Completed job $ourjob->{_id}, $ourjob->{type}, removing from queue");
+			$nmisng->log->debug("Completed job $ourjob->{_id}, $ourjob->{type}, removing from queue");
 			if (my $error = $nmisng->remove_queue(id => $ourjob->{_id}))
 			{
 				$nmisng->log->error("Failed to remove job $ourjob->{_id} from queue: $error");
