@@ -948,6 +948,15 @@ sub worker_loop
 				$result = $thenode->$methodname(@methodargs);
 				alarm(0) if ($maxruntime);
 				$0 = "nmisd worker";
+
+				# fixme9: selftest currently relies on those timestamp markers
+				# fixme9: switch the 'last op' timestamp to opstatus in db!
+				my $markerfile = "$varsysdir/timestamps/$ourjob->{type}";
+				if (!-f $markerfile)
+				{
+					open(F, ">$markerfile") && close(F);
+				}
+				utime(undef,undef, $markerfile);
 			}
 			else
 			{
