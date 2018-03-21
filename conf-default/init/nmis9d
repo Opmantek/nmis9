@@ -126,7 +126,9 @@ elif [ -r /etc/redhat-release ]; then
 		
 		status_of_proc()
 		{
-				status "$NAME"
+				# nmisd executable vs. service name nmis9d,
+				# plus changing cmdline means we must rely on the pidfile
+				status -p "$PIDFILE" "$NAME"
 		}
 fi
 
