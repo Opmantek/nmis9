@@ -2147,7 +2147,7 @@ sub selftest
 		NMISNG::Util::createDir($varsysdir);
 		NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 	}
-	my $statefile = "$varsysdir/selftest.json";
+	my $statefile = "$varsysdir/selftest.json"; # name also embedded in nmisd and gui
 	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1 ) // { tests => [] };
 
 	my $allok=1;
