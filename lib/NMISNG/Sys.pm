@@ -279,15 +279,15 @@ sub init
 				if (!$self->{_nmisng_node});
 	}
 
-	Scalar::Util::weaken $self->{_nmisng} if (!Scalar::Util::isweak($self->{_nmisng}));
-	Scalar::Util::weaken $self->{_nmisng_node} if ($self->{_nmisng_node} && !Scalar::Util::isweak($self->{_nmisng_node}));
-
 	$C ||= NMISNG::Util::loadConfTable();           # needed to determine the correct dir; generally cached and a/v anyway
 	if ( ref($C) ne "HASH" or !keys %$C )
 	{
 		Carp::confess("failed to load configuration table!");
 	}
 	$self->{_nmisng} ||= Compat::NMIS::new_nmisng();
+
+	Scalar::Util::weaken $self->{_nmisng} if (!Scalar::Util::isweak($self->{_nmisng}));
+	Scalar::Util::weaken $self->{_nmisng_node} if ($self->{_nmisng_node} && !Scalar::Util::isweak($self->{_nmisng_node}));
 
 	$self->{debug}  = $args{debug};
 	$self->{update} = NMISNG::Util::getbool($args{update});
