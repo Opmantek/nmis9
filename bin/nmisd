@@ -42,13 +42,13 @@ use lib "$FindBin::Bin/../lib";
 
 use feature 'state';
 use File::Basename;
-use Proc::ProcessTable;
+use Proc::ProcessTable 0.53;
 use Try::Tiny;
 use Mojo::File;
 use Data::Dumper;
 use Time::HiRes;
 
-use NMISNG;;
+use NMISNG;
 use NMISNG::Util;
 use Compat::NMIS;
 
@@ -113,24 +113,43 @@ if ( !-d $varsysdir )
 	NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 }
 my $pidfile = "$varsysdir/nmisd.pid";
-my $other = Mojo::File->new($pidfile)->slurp() if (-f $pidfile);
-chomp($other);
+my $otherdaemon = Mojo::File->new($pidfile)->slurp() if (-f $pidfile);
+chomp($otherdaemon);
 
-if ( int($other)				# it's a number
-		 and $other != $$	# and it's not me (should be impossible)
-		 and kill(0, $other)) # and it's really alive
+# for act=stop/abort we need to load the previous state to examine any zoo of worker procs
+my $statefile = "$varsysdir/nmisd_state.json";
+my $scheduler_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );
+$scheduler_state->{last_process_check} = 0; # DO run up worker children on startup
+my @otherprocs = (ref($scheduler_state->{zoo}) eq "HASH"?
+									keys %{$scheduler_state->{zoo}} : ());
+
+if ( int($otherdaemon)				# it's a number
+		 and $otherdaemon != $$	# and it's not me (should be impossible)
+		 and kill(0, $otherdaemon)) # and it's really alive
 {
-	die "Another instance of $me is running (pid $other)!\n"
+	die "Another instance of $me is running (pid $otherdaemon)!\n"
 			if  ($cmdline->{act} !~ /^(stop|abort)$/);
 
 	# int: please shut down when you're ready. term: shut down now
+	# note: signalling that scheduling daemon will take care of its workers as well
 	my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
-	kill($whichsignal, $other);		# polite
+	kill($whichsignal, $otherdaemon);		# polite
 	sleep(1);
-	kill('KILL', $other);					# then  firm
+	kill('KILL', $otherdaemon);					# then  firm
 	unlink($pidfile);
-	$logger->info("Killed process $other as instructed.");
+	$logger->info("Killed process $otherdaemon as instructed.");
 	exit (0);
+}
+# if stop/abort, get rid of these; if starting up
+# they'll get 'adopted' by this scheduler daemon
+elsif (@otherprocs && $cmdline->{act} =~ /^(stop|abort)$/)
+{
+	my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
+	kill($whichsignal, @otherprocs);
+	sleep(1);
+	kill("KILL", @otherprocs);
+	$logger->info("Killed worker processes ".join(" ",@otherprocs). " as instructed");
+	exit(0);
 }
 
 # allowed to become a daemon? foreground mode is mostly just for debugging
@@ -166,8 +185,8 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 }
 Mojo::File->new($pidfile)->spurt("$$\n");
 
-my (%zoo,												# state structure for manage_processes
-		$exit_marker);							# signal handler scribbles here
+my $zoo = ($scheduler_state->{zoo} //= {}); # process state structure for manage_processes
+my $exit_marker;							# signal handler scribbles here
 
 # signal handlers: INT and TERM for shutdown, HUP for log reopening
 # and these need forwarding to the child processes
@@ -177,13 +196,13 @@ $SIG{"HUP"} = sub {
 	$nmisng->log->reopen;
 	$nmisng->log->debug("logfile was reopened");
 	# and forward...
-	kill($sig, keys %zoo) if (keys %zoo);
+	kill($sig, keys %$zoo) if (keys %$zoo);
 };
 $SIG{"TERM"} = $SIG{"INT"} = sub {
 	my ($signame) = @_;
 	$nmisng->log->info("received $signame, shutting down");
 	$exit_marker = $signame;
-	kill($signame, keys %zoo) if (keys %zoo);
+	kill($signame, keys %$zoo) if (keys %$zoo);
 
 	# int means when ready, term means now
 	exit(0) if ($signame eq "TERM");
@@ -191,10 +210,6 @@ $SIG{"TERM"} = $SIG{"INT"} = sub {
 
 # signal handler for USR1/USR2 is just for this process
 $SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
-
-my $statefile = "$varsysdir/nmisd_state.json";
-my $scheduler_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );
-$scheduler_state->{last_process_check} = 0; # DO run up worker children on startup
 
 while (!$exit_marker)
 {
@@ -435,7 +450,7 @@ while (!$exit_marker)
 	# anything added for the workers? then signal the idle ones to get the job picked up asap
 	if ($ready_jobs)
 	{
-		my @workers = grep($zoo{$_}->{processtype} eq "worker", keys %zoo);
+		my @workers = grep($zoo->{$_}->{processtype} eq "worker", keys %$zoo);
 		if (@workers)
 		{
 			$nmisng->log->debug2("signalling workers about ready-to-pick jobs");
@@ -445,7 +460,11 @@ while (!$exit_marker)
 
 	# in foreground/debugging mode there are no workers to delegate to
 	# instead, handle up to 5 ops sequentially
-	if (NMISNG::Util::getbool($cmdline->{foreground}))
+	# so foreground 1, singleprocess 0: supervisor stays in FG but workers are created
+	# foreground 1, singleprocess 1: only supervisor process and nothing else
+	# singleprocess is ignored if foreground is 0.
+	if (NMISNG::Util::getbool($cmdline->{foreground})
+			&& NMISNG::Util::getbool($cmdline->{singleprocess}))
 	{
 		for my $seq (1..5)
 		{
@@ -469,9 +488,10 @@ while (!$exit_marker)
 				or time - $scheduler_state->{last_process_check} >= 30)
 		{
 			$nmisng->log->debug2("running a worker process check");
+			# manage_processes logs by itself - fixme: res not useful at this time
 			my $res = manage_processes(nmisng => $nmisng,
 																 max_workers => $cmdline->{max_workers},
-																 zoo => \%zoo); # logs by itself
+																 zoo => $zoo);
 			$scheduler_state->{last_process_check} = time;
 		}
 	}
@@ -606,13 +626,13 @@ will restart");
 
 	# workers: how many are we allowed to have?
 	my $allowed = $args{max_workers} // $config->{nmisd_max_workers};
-	my $current = grep($_->{processtype} eq "worker", values %zoo);
+	my $current = grep($_->{processtype} eq "worker", values %$zoo);
 
 	my $delta = $allowed - $current;
 	if ($delta < 0)
 	{
 		$nmisng->log->info("too many active workers, allowed $allowed but have $current");
-		for my $moriturus ((keys %zoo)[0..(-$delta)]) # keys is random enough
+		for my $moriturus ((keys %$zoo)[0..(-$delta)]) # keys is random enough
 		{
 			$nmisng->log->debug("instructing worker $moriturus to terminate");
 			kill("HUP", $moriturus);

@@ -55,7 +55,7 @@ use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
 use IO::Handle;
 use Socket 2.001;								# for getnameinfo() used by resolve_dns_name
 use JSON::XS;
-use Proc::ProcessTable;
+use Proc::ProcessTable 0.53;		# older versions are not totally reliable
 use List::Util 1.33;
 
 use Data::Dumper;
