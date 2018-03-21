@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::Sys;
-our $VERSION = "2.1.1";
+our $VERSION = "3.0.0";
 
 use strict;
 
@@ -44,6 +44,7 @@ $Data::Dumper::Indent = 1;
 use List::Util;
 use Clone;
 use Carp qw(longmess);
+use Scalar::Util;
 
 # the sys constructor does next to nothing, just roughly setup the structure
 sub new
@@ -277,6 +278,9 @@ sub init
 		Carp::confess("Cannot instantiate sys object for $self->{name}!\n")
 				if (!$self->{_nmisng_node});
 	}
+
+	Scalar::Util::weaken $self->{_nmisng} if (!Scalar::Util::isweak($self->{_nmisng}));
+	Scalar::Util::weaken $self->{_nmisng_node} if ($self->{_nmisng_node} && !Scalar::Util::isweak($self->{_nmisng_node}));
 
 	$C ||= NMISNG::Util::loadConfTable();           # needed to determine the correct dir; generally cached and a/v anyway
 	if ( ref($C) ne "HASH" or !keys %$C )
