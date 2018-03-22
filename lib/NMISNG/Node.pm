@@ -39,7 +39,7 @@ use Module::Load 'none';
 use Carp::Assert;
 use Carp;
 use Clone;
-use List::Util;
+use List::Util 1.33;
 use Data::Dumper;
 use Time::HiRes;
 use Net::DNS;
@@ -6525,7 +6525,8 @@ sub collect_services
 	my $C = $self->nmisng->config;
 	$self->nmisng->log->debug("Starting Services collection, node=$node nodeType=$catchall_data->{nodeType}");
 
-	my ($cpu, $memory, $V, %services);  # services holds snmp-gathered service status.
+	my ($cpu, $memory, $V, %services);
+	# services holds snmp-gathered service status, process name -> array of instances
 
 	my $ST    = NMISNG::Util::loadTable(dir => "conf", name => "Services");
 	my $timer = Compat::Timing->new;
@@ -6584,25 +6585,24 @@ sub collect_services
 			# prepare service list for all observed services, but ditch 'invalid' == zombies
 			for my $pid ( keys %{$snmpTable{hrSWRunName}} )
 			{
-				# nmis keys services by name:pid (*sigh*)
-				my $newkey = "$snmpTable{hrSWRunName}{$pid}:$pid";
-				my %newrecord = ( pid => $pid, # cleaner/more useful
-													hrSWRunName => $newkey, # name mangling is bad
-													map { ($_ => $snmpTable{$_}->{$pid}) } (qw(hrSWRunPath hrSWRunParameters
-hrSWRunPerfCPU hrSWRunPerfMem)) );
-				$newrecord{hrSWRunType} = ( '', 'unknown', 'operatingSystem',
-																		'deviceDriver', 'application' )[ $snmpTable{hrSWRunType}->{$pid}];
-				$newrecord{hrSWRunStatus} = ( '', 'running', 'runnable',
-																			'notRunnable', 'invalid' )[ $snmpTable{hrSWRunStatus}->{$pid}];
-				if ($newrecord{hrSWRunStatus} eq "invalid")
+				my %instance = ( pid => $pid, # cleaner/more useful
+												 map { ($_ => $snmpTable{$_}->{$pid}) }
+												 (qw(hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunPerfCPU hrSWRunPerfMem)) );
+				$instance{hrSWRunType} = ( '', 'unknown', 'operatingSystem',
+																	 'deviceDriver', 'application' )[ $snmpTable{hrSWRunType}->{$pid}];
+				$instance{hrSWRunStatus} = ( '', 'running', 'runnable',
+																		 'notRunnable', 'invalid' )[ $snmpTable{hrSWRunStatus}->{$pid}];
+				if ($instance{hrSWRunStatus} eq "invalid")
 				{
 					$self->nmisng->log->debug4("skipping process in state 'invalid': ".
-														Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump);
+																		 Data::Dumper->new([\%instance])->Terse(1)->Indent(0)->Pair("=")->Dump);
 					next;
 				}
 
-				$services{$newkey} = \%newrecord;
-				$self->nmisng->log->debug4("Found process: ".Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump);
+				# key by process name, keep array of instances
+				$services{ $instance{hrSWRunName} } //= [];
+				push @{$services{ $instance{hrSWRunName} }}, \%instance;
+				$self->nmisng->log->debug4("Found process: ".Data::Dumper->new([\%instance])->Terse(1)->Indent(0)->Pair("=")->Dump);
 			}
 
 			# keep all processes for display, not rrd - park this as timed-data
@@ -6630,19 +6630,23 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			  # fixme NMIS-73: this should be tied to both the element format
 				# and a to-be-added 'service' field of the event
 			  # until then we trigger on the element format plus event name
-				if ( $thisevent->{element} =~ /^\S+:\d+$/ && !exists $services{$thisevent->{element}} )
+				# fixme9: nothing raises these events - if and when that changes, event needs to contain process name plus pid, separately
+				if ( $thisevent->{element} =~ /^(\S.+):(\d+)$/)
 				{
-					$self->nmisng->log->debug2("clearing event $thisevent->{event} for node $thisevent->{node_name} as process "
-																		 . $thisevent->{element}
-																		 . " no longer exists" );
-					Compat::NMIS::checkEvent(
-						sys     => $S,
-						event   => $thisevent->{event},
-						level   => $thisevent->{level},
-						element => $thisevent->{element},
-						details => $thisevent->{details},
-						inventory_id => $processinventory->id
-					);
+					my ($processname, $pid)  = ($1,$2);
+					if (ref($services{$processname}) ne "ARRAY" or none { $_->{pid} == $pid } (@{$services{$processname}}))
+					{
+						$self->nmisng->log->debug("clearing event $thisevent->{event} for node $thisevent->{node_name}: process $processname (pid $pid) no longer exists");
+
+						Compat::NMIS::checkEvent(
+							sys     => $S,
+							event   => $thisevent->{event},
+							level   => $thisevent->{level},
+							element => $thisevent->{element},
+							details => $thisevent->{details},
+							inventory_id => $processinventory->id
+								);
+					}
 				}
 			}
 		}
@@ -6873,29 +6877,28 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 
 			# we check: the process name, against regex from Service_Name definition,
 			# AND the process path + parameters, against regex from Service_Parameters
-			# services list is keyed by "name:pid"
-			my @matchingpids = grep( ( /^$wantedprocname:\d+$/
-																 && ( $services{$_}->{hrSWRunPath} . " " . $services{$_}->{hrSWRunParameters} )
-																 =~ /$parametercheck/
-															 ),
-															 keys %services );
-			my @livingpids = grep ( $services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids );
+
+			# services list is keyed by name, values are lists of process instances
+			my @matchingprocs = grep($_->{hrSWRunName} =~ /^$wantedprocname$/
+																&& "$_->{hrSWRunPath} $_->{hrSWRunParameters}" =~ /$parametercheck/, (map { @$_} (values %services)));
+			my @livingprocs = grep($_->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingprocs);
 
 			$self->nmisng->log->debug("collect_services: found "
-																 . scalar(@matchingpids)
+																. scalar(@matchingprocs)
 																 . " total and "
-																 . scalar(@livingpids)
-																 . " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
-																 . join( " ", @livingpids) );
+																 . scalar(@livingprocs)
+																. " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
+																. join( " ", map { "$_->{hrSWRunName}:$_->{pid}" } (@livingprocs) ));
 
-			if ( !@livingpids )
+			if ( !@livingprocs )
 			{
 				$ret       = 0;
 				$cpu       = 0;
 				$memory    = 0;
 				$gotMemCpu = 1;
 
-				$self->nmisng->log->info("service $name is down, " . ( @matchingpids? "only non-running processes" : "no matching processes" ));
+				$self->nmisng->log->info("service $name is down, "
+																 . ( @matchingprocs? "only non-running processes" : "no matching processes" ));
 			}
 			else
 			{
@@ -6905,13 +6908,10 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 
 				# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
 				# memory is in kb, and a gauge.
-				$cpu = int( Statistics::Lite::mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ) );
-				$memory = Statistics::Lite::mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
+				$cpu = int( Statistics::Lite::mean( map { $_->{hrSWRunPerfCPU} } (@livingprocs) ) );
+				$memory = Statistics::Lite::mean( map { $_->{hrSWRunPerfMem} } (@livingprocs) );
 
-				#					NMISNG::Util::dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
-				#					NMISNG::Util::dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
-
-				$self->nmisng->log->info("service $name is up, " . scalar(@livingpids) . " running process(es)");
+				$self->nmisng->log->info("service $name is up, " . scalar(@livingprocs) . " running process(es)");
 			}
 		}
 

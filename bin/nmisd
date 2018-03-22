@@ -48,10 +48,6 @@ use Mojo::File;
 use Data::Dumper;
 use Time::HiRes;
 
-# fixmeaz - mem leak finding only
-# use Devel::Leak::Object qw{ GLOBAL_bless };
-# $Devel::Leak::Object::TRACKSOURCELINES = 1;
-
 use NMISNG;
 use NMISNG::Util;
 use Compat::NMIS;
@@ -768,9 +764,6 @@ sub worker_loop
 			next;
 		}
 
-		# fixmeaz: leak finding only, remove!
-		#$nmisng->log->warn("process size at loop start: ".mysize());
-
 		# look for and claim the next due worker job from the database, perform the action and opstatus-report result
 		my $jobs = $nmisng->get_queue_model(time => { '$lt' => Time::HiRes::time }, # due to start now
 																				type => { '$ne' => 'schedule' }, # a job for a worker
@@ -1012,20 +1005,9 @@ sub worker_loop
 		}
 		--$ttl if (defined($ttl) && $ttl > 0);
 
-		# fixmeaz: leak finding only, remove!
-		#$nmisng->log->warn("process size at loop end: ".mysize());
 	}
 	return defined($$mustdie)? $$mustdie eq "INT"? EXIT_POLITE : EXIT_IMMEDIATELY
 			: $max_cycles? EXIT_TTL : EXIT_ERROR;
-}
-
-# fixmeaz: leak finding only, remove!
-sub mysize
-{
-	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
-
-	my @me = grep($_->pid == $$, @{$pt->table});
-	return $me[0]->rss;
 }
 
 
