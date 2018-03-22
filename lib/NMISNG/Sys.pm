@@ -286,9 +286,6 @@ sub init
 	}
 	$self->{_nmisng} ||= Compat::NMIS::new_nmisng();
 
-	Scalar::Util::weaken $self->{_nmisng} if (!Scalar::Util::isweak($self->{_nmisng}));
-	Scalar::Util::weaken $self->{_nmisng_node} if ($self->{_nmisng_node} && !Scalar::Util::isweak($self->{_nmisng_node}));
-
 	$self->{debug}  = $args{debug};
 	$self->{update} = NMISNG::Util::getbool($args{update});
 	my $policy = $args{policy};		# optional
