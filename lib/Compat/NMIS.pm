@@ -60,10 +60,14 @@ use NMISNG::Outage;
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
 #
-# args: nocache (optional, if set create new nmisng object),
-#  debug (optional, if present overrules the configuration
-#   ALSO causes logging to go to stderr, not the logfile)
-# returns: ref to one nmisng object
+# args: nocache (optional, if set creates new nmisng object),
+#  config (optional, if present must be live config structure),
+#  log (optional, if present must be nmisng::logger instance),
+#  debug (optional, ignored if log argument given!
+#   if debug is present, it overrules the configuration AND causes
+#   logging to go to stderr, not the logfile)
+#
+# returns: ref to one persistent nmisng object
 sub new_nmisng
 {
 	my (%args) = @_;
@@ -71,29 +75,30 @@ sub new_nmisng
 
 	if (ref($_nmisng) ne "NMISNG" or $args{nocache})
 	{
-		# Carp::cluck("creating new nmisng obj in $$");
+		# config: given or in need of loading?
+		my $C = ref($args{config}) eq "HASH"? $args{config} : NMISNG::Util::loadConfTable();
+		Carp::config("Config required but missing") if (ref($C) ne "HASH"  or !keys %$C);
 
-		my $C = NMISNG::Util::loadConfTable();
-		die "Config required" if ( ref( $C ) ne "HASH" );
+		# logger given? then use that, otherwise prime one from config and debug args
+		my $logger = $args{log};
+		if (ref($logger) ne "NMISNG::Log")
+		{
+			# log level is controlled by debug (from commandline or config file),
+			# output is stderr if debug came from command line, log file otherwise
+			my $logfile = $C->{'<nmis_logs>'} . "/nmis.log";
+			my $error = NMISNG::Util::setFileProtDiag(file => $logfile)
+					if (-f $logfile);
+			warn "failed to set $logfile permissions: $error\n" if ($error); # fixme bad output channel
 
-		# log level is controlled by debug (from commandline or config file),
-		# output is stderr if debug came from command line, log file otherwise
-		my $logfile = $C->{'<nmis_logs>'} . "/nmis.log";
-		my $error = NMISNG::Util::setFileProtDiag(file => $logfile)
-				if (-f $logfile);
-		warn "failed to set permissions: $error\n" if ($error);
+			$logger = NMISNG::Log->new(
+				level => ( NMISNG::Log::parse_debug_level( debug => $args{debug},
+																									 info => undef # fixme9, deprecated
+									 ) // $C->{log_level} ),
+				path  =>  ($args{debug}? undef : $logfile ),
+					);
+		}
 
-		my $logger = NMISNG::Log->new(
-			level => ( NMISNG::Log::parse_debug_level( debug => $args{debug},
-																							 info => undef # fixme9, deprecated
-								 ) // $C->{log_level} ),
-			path  =>  ($args{debug}? undef : $logfile ),
-				);
-
-		$_nmisng = NMISNG->new(
-			config => $C,
-			log => $logger,
-				);
+		$_nmisng = NMISNG->new(config => $C, log => $logger);
 	}
 	return $_nmisng;
 }

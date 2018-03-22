@@ -945,7 +945,7 @@ sub pingable
 	my $nodename = $self->name;
 	my $C = $self->nmisng->config;
 
-	if ( NMISNG::Util::getbool($self->configuration->{ping}) )
+	if ( NMISNG::Util::getbool($self->configuration->{ping}))
 	{
 		my ($PT, $didfallback);
 
@@ -960,14 +960,14 @@ sub pingable
 			# copy values
 			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
 			$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
-			NMISNG::Util::info("INFO ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			$self->nmisng->log->debug("($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 		}
 		else
 		{
 			# fallback to OLD/internal system
 			$didfallback = 1;
 			# but warn about that only if not in update
-			NMISNG::Util::logMsg("INFO ($nodename) using internal ping system, daemon fpingd had no or oudated information")
+			$self->nmisng->log->info("($nodename) using internal ping system, daemon fpingd had no or oudated information")
 					if (NMISNG::Util::getbool($C->{daemon_fping_active})
 							and !NMISNG::Util::getbool($S->{update})); # fixme: unclean access to internal property
 
@@ -976,7 +976,7 @@ sub pingable
 			my $packet  = $C->{ping_packet}  ? $C->{ping_packet}  : 56;
 			my $host = $self->configuration->{host};          # ip name/adress of node
 
-			NMISNG::Util::info("Starting internal ping of ($nodename = $host) with timeout=$timeout retries=$retries packet=$packet");
+			$self->nmisng->log->debug("Starting internal ping of ($nodename = $host) with timeout=$timeout retries=$retries packet=$packet");
 
 			( $ping_min, $ping_avg, $ping_max, $ping_loss )
 					= NMISNG::Ping::ext_ping( $host, $packet, $retries, $timeout );
@@ -1002,13 +1002,13 @@ sub pingable
 						element => "",
 						details => "Ping failed"
 							);
-					NMISNG::Util::info("Fixing Event DB error: $nodename, Event DB says Node Down but nodedown said not.");
+					$self->nmisng->log->warn("Fixing Event DB error: $nodename, Event DB says Node Down but nodedown said not.");
 				}
 				else
 				{
 					# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
 					# frontend Compat::NMIS::nodeStatus() takes proper care of.
-					NMISNG::Util::info("$nodename is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					$self->nmisng->log->debug("$nodename is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					$self->handle_down(
 						sys     => $S,
 						type    => "node",
@@ -1020,7 +1020,7 @@ sub pingable
 			else
 			{
 				# down - log if not already down
-				NMISNG::Util::logMsg("ERROR ($nodename) ping failed")
+				$self->nmisng->log->error("($nodename) ping failed")
 						if ( !NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
 				$self->handle_down( sys => $S, type => "node", details => "Ping failed" );
 			}
@@ -1040,7 +1040,7 @@ sub pingable
 	}
 	else
 	{
-		NMISNG::Util::info("($nodename) not configured for pinging");
+		$self->nmisng->log->debug("($nodename) not configured for pinging");
 		$RI->{pingresult} = $pingresult = 100;    # results for sub runReach
 		$RI->{pingavg}    = 0;
 		$RI->{pingloss}   = 0;
@@ -1062,12 +1062,13 @@ sub pingable
 		$catchall_data->{nodestatus} = 'unreachable';
 	}
 
-	NMISNG::Util::info(     "Finished with exit="
-			. ( $pingresult ? 1 : 0 )
-			. ", nodedown=$catchall_data->{nodedown} nodestatus=$catchall_data->{nodestatus}" );
+	$self->nmisng->log->debug("Finished with exit="
+														. ( $pingresult ? 1 : 0 )
+														. ", nodedown=$catchall_data->{nodedown} nodestatus=$catchall_data->{nodestatus}" );
 
 	return ( $pingresult ? 1 : 0 );
 }
+
 
 # create event for node that has <something> down, or clear said event (and state)
 # args: self, sys, type (all required), details (optional),
@@ -1857,7 +1858,7 @@ sub update_intf_info
 		NMISNG::Util::info("Get Interface Info of node $nodename, model $catchall_data->{nodeModel}");
 
 		# load interface types (IANA). number => name
-		my $IFT = Compat::NMIS::loadGenericTable("ifTypes");
+		my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes");
 
 		# get interface Index table
 		my (@ifIndexNum,  $ifIndexTable, %activeones);
@@ -3785,7 +3786,7 @@ sub collect_systemhealth_info
 	my $name = $self->name;
 	my $C = $self->nmisng->config;
 
-	my $V    = $S->view;
+	my $V; # view object, loaded if and when needed
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
 
@@ -6491,13 +6492,9 @@ sub services
 																																				&& $_->{options}->{nostats} }
 																									@{$outageres->{current}}) ? 1:0;
 	}
-	$S->readNodeView;    # init does not load the node view, but runservices updates view data!
 	$self->collect_services( sys => $S, snmp => 0,
 													 force => $args{force},
 													 services => $preselected );
-	# we have to update the node view file, or newly added service status info will be lost/missed...
-	$S->writeNodeView;
-
 	return { success => 1 };
 }
 
@@ -6519,8 +6516,6 @@ sub collect_services
 	my $S    = $args{sys};
 	my $preselected = $args{services};
 
-	my $V    = $S->view;
-	my $SNMP = $S->snmp;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	# don't attempt anything silly if this is a wmi-only node
@@ -6530,22 +6525,16 @@ sub collect_services
 	my $C = $self->nmisng->config;
 	$self->nmisng->log->debug("Starting Services collection, node=$node nodeType=$catchall_data->{nodeType}");
 
-	my $cpu;
-	my $memory;
-	my $msg;
-	my %services;    # hash to hold snmp gathered service status.
+	my ($cpu, $memory, $V, %services);  # services holds snmp-gathered service status.
 
-	my $ST    = Compat::NMIS::loadGenericTable("Services");
+	my $ST    = NMISNG::Util::loadTable(dir => "conf", name => "Services");
 	my $timer = Compat::Timing->new;
 
 	# do an snmp service poll first, regardless of whether any specific services being enabled or not
-	my %snmpTable;
-	my $timeout = 3;
-	my ( $snmpcmd, @ret, $var, $i );
-	my $write = 0;
 
+	my %snmpTable;
 	# do we have snmp-based services and are we allowed to check them?
-	# ie node active and collect on if so, then do the collection here
+	# ie node active and collect on; if so, then do the snmp collection here
 	if ( $snmp_allowed
 			 and  $self->configuration->{active}
 			 and $self->configuration->{collect}
@@ -6554,7 +6543,7 @@ sub collect_services
 			)
 	{
 		$self->nmisng->log->debug2("node $node has SNMP services to check");
-		my $hrIndextable;
+		my $SNMP = $S->snmp;
 
 		# get the process parameters by column, allowing efficient bulk requests
 		# but possibly running into bad agents at times, which gettable/getindex
@@ -6564,7 +6553,7 @@ sub collect_services
 			hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem)
 			)
 		{
-			if ( $hrIndextable = $SNMP->getindex($var) )
+			if ( my $hrIndextable = $SNMP->getindex($var) )
 			{
 				foreach my $inst ( keys %{$hrIndextable} )
 				{
@@ -7193,6 +7182,13 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		my $serviceValue = ( $servicetype =~ /^(program|nagios-plugin)$/ ) ? $ret : $ret * 100;
 		$status{status} = NMISNG::Util::numify($serviceValue);
 
+		# sys::init does not automatically read the node view, but we clearly need it now
+		if (!$V)
+		{
+			$S->readNodeView;
+			$V = $S->view;
+		}
+
 		$V->{system}{"${service}_title"} = "Service $name";
 		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0 ? "degraded" : 'down';
 		$V->{system}{"${service}_color"} = $serviceValue == 100 ? 'white' : $serviceValue > 0 ? "orange" : 'red';
@@ -7408,6 +7404,9 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 																				subconcept => "service" );
 		$self->nmisng->log->error("service timed data saving failed: $error") if ($error);
 	}
+
+	# if we made changes, we have to update the node view file
+	$S->writeNodeView if ($V);
 
 	$self->nmisng->log->debug("Finished");
 }

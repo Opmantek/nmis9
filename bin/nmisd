@@ -48,6 +48,10 @@ use Mojo::File;
 use Data::Dumper;
 use Time::HiRes;
 
+# fixmeaz - mem leak finding only
+# use Devel::Leak::Object qw{ GLOBAL_bless };
+# $Devel::Leak::Object::TRACKSOURCELINES = 1;
+
 use NMISNG;
 use NMISNG::Util;
 use Compat::NMIS;
@@ -102,7 +106,7 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 info => undef) // $config->{log_level}, # fixme9: info not supported
 															 path  =>  (defined($cmdline->{debug})? undef : $logfile));
 # this opens a database connection - which we must not share with any children!
-my $nmisng = NMISNG->new(config => $config, log => $logger);
+my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
 NMISNG::rrdfunc::require_RRDs(config => $config);
 
 # make sure that no more than one daemon runs
@@ -478,10 +482,11 @@ while (!$exit_marker)
 			my $status = worker_loop(nmisng => $nmisng,
 															 max_cycles => 1, #
 															 exit_marker => \$dummymarker);
+
 			$nmisng->log->info("Single worker cycle returned status $status");
 			# save the state more often for foreground/debug mode
 			NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
-			last if ($status == EXIT_IDLE);
+			last if ($status == EXIT_IDLE or $exit_marker);
 		}
 	}
 	else
@@ -763,6 +768,9 @@ sub worker_loop
 			next;
 		}
 
+		# fixmeaz: leak finding only, remove!
+		#$nmisng->log->warn("process size at loop start: ".mysize());
+
 		# look for and claim the next due worker job from the database, perform the action and opstatus-report result
 		my $jobs = $nmisng->get_queue_model(time => { '$lt' => Time::HiRes::time }, # due to start now
 																				type => { '$ne' => 'schedule' }, # a job for a worker
@@ -815,156 +823,174 @@ sub worker_loop
 		{
 			$nmisng->log->debug("Processing job $ourjob->{_id}, type $ourjob->{type}"
 													.($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
-			my $result;								# for opstatus
 
-			if ($ourjob->{type} eq "selftest" or $ourjob->{type} eq "permission_test")
+			my $result;								# for opstatus and exception handling
+
+			# we don't want to end up with stuck jobs if anything dies, so bsts
+			try
 			{
-				my ($allok, $tests) = NMISNG::Util::selftest(config => $nmisng->config,
-																										 delay_is_ok => 1,
-																										 perms => ($ourjob->{type} eq "permission_test") );
-				# fixme result
-			}
-			elsif ($ourjob->{type} eq "configbackup")
-			{
-				$result = $nmisng->config_backup;
-			}
-			elsif ($ourjob->{type} eq "purge")
-			{
-				$result->{files} = $nmisng->purge_old_files(simulate => 0);
-				$result->{outages} = NMISNG::Outage::purge_outages(nmisng => $nmisng,
-																													 simulate => 0);
-			}
-			elsif ($ourjob->{type} eq "dbcleanup")
-			{
-				$result = $nmisng->dbcleanup(simulate => 0);
-			}
-			elsif ($ourjob->{type} eq "escalations")
-			{
-				# fixme: does not return anything
-				$nmisng->process_escalations;
-			}
-			elsif ($ourjob->{type} eq "metrics")
-			{
-				$result = $nmisng->compute_metrics;
-			}
-			elsif ($ourjob->{type} eq "plugins")
-			{
-				# run after-collect/after-update plugins once all node jobs are done
-				# required args: phase and uuid (array)
-				my $phase = $ourjob->{args}->{phase};
-				my $uuids = $ourjob->{args}->{uuid};
-				if ($phase !~ /^(update|collect)$/
-						or ref($uuids) ne "ARRAY" or !@$uuids)
+				if ($ourjob->{type} eq "selftest" or $ourjob->{type} eq "permission_test")
 				{
-					$result = { error => "invalid arguments for plugin invocation!" };
+					my ($allok, $tests) = NMISNG::Util::selftest(config => $nmisng->config,
+																											 delay_is_ok => 1,
+																											 perms => ($ourjob->{type} eq "permission_test") );
+					# fixme result
+				}
+				elsif ($ourjob->{type} eq "configbackup")
+				{
+					$result = $nmisng->config_backup;
+				}
+				elsif ($ourjob->{type} eq "purge")
+				{
+					$result->{files} = $nmisng->purge_old_files(simulate => 0);
+					$result->{outages} = NMISNG::Outage::purge_outages(nmisng => $nmisng,
+																														 simulate => 0);
+				}
+				elsif ($ourjob->{type} eq "dbcleanup")
+				{
+					$result = $nmisng->dbcleanup(simulate => 0);
+				}
+				elsif ($ourjob->{type} eq "escalations")
+				{
+					# fixme9: under what circumstances does that thing crash the process?
+					# fixme: does not return anything
+					$nmisng->process_escalations;
+				}
+				elsif ($ourjob->{type} eq "metrics")
+				{
+					$result = $nmisng->compute_metrics;
+				}
+				elsif ($ourjob->{type} eq "plugins")
+				{
+					# run after-collect/after-update plugins once all node jobs are done
+				# required args: phase and uuid (array)
+					my $phase = $ourjob->{args}->{phase};
+					my $uuids = $ourjob->{args}->{uuid};
+					if ($phase !~ /^(update|collect)$/
+							or ref($uuids) ne "ARRAY" or !@$uuids)
+					{
+						$result = { error => "invalid arguments for plugin invocation!" };
+					}
+					else
+					{
+						$nmisng->log->debug("Starting post-${phase} plugins for "
+																.scalar(@$uuids)." nodes, tag was \"$ourjob->{tag}\"");
+
+						# lookup the node names so that we can provide both names
+						# and uuids in the same order
+						my $u2n = $nmisng->get_nodes_model(uuid => $uuids,
+																							 fields_hash => { uuid => 1, name => 1 });
+						my (@node_names, @node_uuids);
+						map { push @node_names, $_->{name}; push @node_uuids, $_->{uuid}; } (@{$u2n->data});
+
+						my $S;
+						for my $plugin ($nmisng->plugins)
+						{
+							my $funcname = $plugin->can("after_${phase}_plugin");
+							next if ( !$funcname );
+
+							if (!$S)
+							{
+								$S = NMISNG::Sys->new;    # the nmis-system object
+								$S->init();
+							}
+
+							$nmisng->log->debug2("Running after_${phase} plugin $plugin");
+							my $prevprefix = $nmisng->log->logprefix;
+							$nmisng->log->logprefix("$plugin\[$$\] ");
+
+							my ($status, @errors, $fatality);
+							# we can't trust the plugins fully, so...
+							try
+							{
+								( $status, @errors ) = &$funcname( sys => $S,
+																									 config => $nmisng->config,
+																									 nodes => \@node_names,
+																									 nodes_uuids => \@node_uuids,
+																									 nmisng => $nmisng  );
+							}
+							catch
+							{
+								$fatality = $_;
+							};
+
+							$nmisng->log->logprefix($prevprefix);
+							if ($status >= 2 or $status < 0 or $fatality)
+							{
+								$nmisng->log->error("Plugin $plugin failed to run: $fatality") if ($fatality);
+								for my $err (@errors)
+								{
+									$nmisng->log->error("Plugin $plugin: $err");
+								}
+							}
+							else
+							{
+								$nmisng->log->debug("Plugin $plugin "
+																		. ($status? "indicated success" : "indicated no changes"));
+							}
+						}
+						$result = { success => 1 };
+					}
+				}
+				elsif ($ourjob->{type} =~ /^(collect|update|services)$/)
+				{
+					# required: args with uuid of node to work on,
+					# optional force
+					# collect: also requires wantsnmp and wantwmi
+					# services: also expects services (=list of names)
+					my $nodeuuid = $ourjob->{args}->{uuid};
+
+					my $methodname = $ourjob->{type};
+					my @methodargs;
+					if ($ourjob->{type} eq "collect")
+					{
+						@methodargs = ( wantsnmp => $ourjob->{args}->{wantsnmp},
+														wantwmi => $ourjob->{args}->{wantwmi} );
+					}
+					elsif ($ourjob->{type} eq "services")
+					{
+						@methodargs = ( services => $ourjob->{args}->{services} );
+					}
+					push @methodargs, (force => 1) if ($ourjob->{args}->{force});
+
+					my $maxruntime = defined($config->{max_child_runtime})
+							&& $config->{max_child_runtime} > 0 ?
+							$config->{max_child_runtime} : 0;
+					alarm($maxruntime) if ($maxruntime);
+
+					my $thenode = $nmisng->node(uuid => $nodeuuid);
+					$nmisng->log->debug("Starting $methodname for node $nodeuuid (".$thenode->name.")");
+					$result = $thenode->$methodname(@methodargs);
+					alarm(0) if ($maxruntime);
+					$0 = "nmisd worker";
+
+					# fixme9: selftest currently relies on those timestamp markers
+					# fixme9: switch the 'last op' timestamp to opstatus in db!
+					my $markerfile = "$varsysdir/timestamps/$ourjob->{type}";
+					if (!-f $markerfile)
+					{
+						open(F, ">$markerfile") && close(F);
+					}
+					utime(undef,undef, $markerfile);
 				}
 				else
 				{
-					$nmisng->log->debug("Starting post-${phase} plugins for "
-															.scalar(@$uuids)." nodes, tag was \"$ourjob->{tag}\"");
-
-					# lookup the node names so that we can provide both names
-					# and uuids in the same order
-					my $u2n = $nmisng->get_nodes_model(uuid => $uuids,
-																						 fields_hash => { uuid => 1, name => 1 });
-					my (@node_names, @node_uuids);
-					map { push @node_names, $_->{name}; push @node_uuids, $_->{uuid}; } (@{$u2n->data});
-
-					my $S;
-					for my $plugin ($nmisng->plugins)
-					{
-						my $funcname = $plugin->can("after_${phase}_plugin");
-						next if ( !$funcname );
-
-						if (!$S)
-						{
-							$S = NMISNG::Sys->new;    # the nmis-system object
-							$S->init();
-						}
-
-						$nmisng->log->debug2("Running after_${phase} plugin $plugin");
-						my $prevprefix = $nmisng->log->logprefix;
-						$nmisng->log->logprefix("$plugin\[$$\] ");
-						my ($status, @errors, $fatality);
-						try
-						{
-							( $status, @errors ) = &$funcname( sys => $S,
-																								 config => $nmisng->config,
-																								 nodes => \@node_names,
-																								 nodes_uuids => \@node_uuids,
-																								 nmisng => $nmisng  );
-						}
-						catch
-						{
-							$fatality = $_;
-						};
-
-						$nmisng->log->logprefix($prevprefix);
-						if ($status >= 2 or $status < 0 or $fatality)
-						{
-							$nmisng->log->error("Plugin $plugin failed to run: $fatality") if ($fatality);
-							for my $err (@errors)
-							{
-								$nmisng->log->error("Plugin $plugin: $err");
-							}
-						}
-						else
-						{
-							$nmisng->log->debug("Plugin $plugin "
-																	. ($status? "indicated success" : "indicated no changes"));
-						}
-					}
-					$result = { success => 1 };
+					# fixme how to handle unsupported job types?
+					croak("unsupported job type in ".Dumper($ourjob));
 				}
 			}
-			elsif ($ourjob->{type} =~ /^(collect|update|services)$/)
+			catch
 			{
-				# required: args with uuid of node to work on,
-				# optional force
-				# collect: also requires wantsnmp and wantwmi
-				# services: also expects services (=list of names)
-				my $nodeuuid = $ourjob->{args}->{uuid};
+				$result->{exception} = $_;
+			};
 
-				my $methodname = $ourjob->{type};
-				my @methodargs;
-				if ($ourjob->{type} eq "collect")
-				{
-					@methodargs = ( wantsnmp => $ourjob->{args}->{wantsnmp},
-													wantwmi => $ourjob->{args}->{wantwmi} );
-				}
-				elsif ($ourjob->{type} eq "services")
-				{
-					@methodargs = ( services => $ourjob->{args}->{services} );
-				}
-				push @methodargs, (force => 1) if ($ourjob->{args}->{force});
-
-				my $maxruntime = defined($config->{max_child_runtime})
-						&& $config->{max_child_runtime} > 0 ?
-						$config->{max_child_runtime} : 0;
-				alarm($maxruntime) if ($maxruntime);
-
-				my $thenode = $nmisng->node(uuid => $nodeuuid);
-				$nmisng->log->debug("Starting $methodname for node $nodeuuid (".$thenode->name.")");
-				$result = $thenode->$methodname(@methodargs);
-				alarm(0) if ($maxruntime);
-				$0 = "nmisd worker";
-
-				# fixme9: selftest currently relies on those timestamp markers
-				# fixme9: switch the 'last op' timestamp to opstatus in db!
-				my $markerfile = "$varsysdir/timestamps/$ourjob->{type}";
-				if (!-f $markerfile)
-				{
-					open(F, ">$markerfile") && close(F);
-				}
-				utime(undef,undef, $markerfile);
-			}
-			else
+			if ($result->{exception})
 			{
-				# fixme how to handle unsupported job types?
-				croak("unsupported ".Dumper($ourjob));
+				$nmisng->log->fatal("Exception while processing job $ourjob->{_id}: $result->{exception}");
 			}
 
-			# fixme:  work is done, report result in opstatus,
+			# fixme: work is done, report result in opstatus,
+			# handle exceptions
 
 			# and delete the job from the queue
 			$nmisng->log->debug("Completed job $ourjob->{_id}, $ourjob->{type}, removing from queue");
@@ -985,9 +1011,21 @@ sub worker_loop
 			$SIG{"URG"} = 'IGNORE';
 		}
 		--$ttl if (defined($ttl) && $ttl > 0);
+
+		# fixmeaz: leak finding only, remove!
+		#$nmisng->log->warn("process size at loop end: ".mysize());
 	}
 	return defined($$mustdie)? $$mustdie eq "INT"? EXIT_POLITE : EXIT_IMMEDIATELY
 			: $max_cycles? EXIT_TTL : EXIT_ERROR;
+}
+
+# fixmeaz: leak finding only, remove!
+sub mysize
+{
+	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
+
+	my @me = grep($_->pid == $$, @{$pt->table});
+	return $me[0]->rss;
 }
 
 
