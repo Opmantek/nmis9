@@ -703,6 +703,19 @@ elsif ($Q->{act} eq "groupsync")
 		close $fh;									# release lock
 	}
 }
+# do sanitary checking on inventory
+elsif ($Q->{act} eq 'check_inventory')
+{
+	my ($entries,$error) = NMISNG::Inventory::check_inventory_for_bad_things($nmisng,$Q->{min_size});
+	if( $error )
+	{
+		print "Error: ".Dumper($error);
+	}
+	else
+	{
+		print "Result: ".Dumper($entries);
+	}
+}
 else
 {
 	die $usage;
