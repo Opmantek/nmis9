@@ -220,6 +220,29 @@ sub parse_model_subconcept_headers
 	return $retval;
 }
 
+sub check_inventory_for_bad_things
+{
+	my ($nmisng,$min_size) = @_;
+	$min_size //= 50;
+	my @pipeline = (
+		{ '$unwind' => '$dataset_info' },
+		{	'$project' => {
+			'_id' => 1,
+			'node_uuid' => 1,
+			'subconcept' => '$dataset_info.subconcept',
+			'dataset_info_datsets_size' => { '$size' => '$dataset_info.datasets' }
+		}},
+		{	'$match' => { 
+			'dataset_info_datsets_size' => { '$gt' => $min_size }
+		}}
+	);
+	my ($entries,$count,$error) = NMISNG::DB::aggregate(
+		collection => $nmisng->inventory_collection,
+		post_count_pipeline => \@pipeline,
+	);
+	return ($entries,$error);
+}
+
 ###########
 # Public:
 ###########
