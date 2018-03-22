@@ -48,10 +48,6 @@ if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { 
 
 #======================================================================
 
-# if somehow someone defines refresh disable it.
-if ( defined $Q->{refresh} ) {
-	delete $Q->{refresh};
-}
 
 my $widget = NMISNG::Util::getbool($Q->{widget},"invert") ? 'false' : 'true';
 $Q->{expand} = "true" if ($widget eq "true");
@@ -123,7 +119,7 @@ sub displayNodemenu
 	print header($headeropts);
 	if (!$wantwidget)
 	{
-			Compat::NMIS::pageStart(title => $Q->{node}." Node Configuration", refresh => $Q->{refresh});
+			Compat::NMIS::pageStart(title => $Q->{node}." Node Configuration");
 	}
 	my $menuformid = "${formid}_menu";
 
