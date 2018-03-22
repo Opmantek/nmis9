@@ -3557,7 +3557,6 @@ sub viewService
 sub viewServiceList
 {
 	my $sort = $Q->{sort} ? $Q->{sort} : "Service";
-
 	my $sortField = $sort eq "CPU"? "hrSWRunPerfCPU" :
 			$sort eq "Memory"? "hrSWRunPerfMem" : "hrSWRunName";
 
@@ -3639,32 +3638,29 @@ sub viewServiceList
 				td( {class => 'header'}, a( {href => "$url&sort=Memory",  class => "wht"}, "Allocated Memory" ) )
 					);
 
-			for my $id ( sort { sortServiceList( $sort, $sortField, $processlist, $a, $b ) } keys %$processlist)
+			# produce sortable flat process list; old structure was keyed by "processname:pid",
+			# timed_data is "processname" -> [ list of process instance hashes ]
+			my @flatlist = map { @$_ } (values %$processlist);
+			
+			for my $thisservice (sort { sortServiceList($sortField, $a, $b) } @flatlist)
 			{
-				my $thisservice = $processlist->{$id};
-
 				# ignore status 'invalid', these are generally zombies without useful information
 				next if ($thisservice->{hrSWRunStatus} eq "invalid");
 
 				my $color;
 				$color = NMISNG::Util::colorPercentHi(100) if $thisservice->{hrSWRunStatus} =~ /running|runnable/;
 				$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
-				my ( $prog, $pid ) = split( ":", $thisservice->{hrSWRunName} );
-
-				# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
-				my $cpusecs = $thisservice->{hrSWRunPerfCPU} / 100;
-				my $parameters
-						= $thisservice->{hrSWRunPath} . " " . $thisservice->{hrSWRunParameters};
 
 				print Tr(
-					td( {class => 'info Plain'}, $prog ),
-					td( {class => 'info Plain'}, $parameters ),
+					td( {class => 'info Plain'}, $thisservice->{hrSWRunName} ),
+					td( {class => 'info Plain'}, "$thisservice->{hrSWRunPath} $thisservice->{hrSWRunParameters}"),
 					td( {class => 'info Plain'}, $thisservice->{hrSWRunType} ),
 					td( {class => 'info Plain', style => "background-color:" . $color},
 							$thisservice->{hrSWRunStatus}
 					),
-					td( {class => 'info Plain'}, $pid ),
-					td( {class => 'info Plain'}, sprintf( "%.3f s", $cpusecs ) ),
+					td( {class => 'info Plain'}, $thisservice->{pid} ),
+					# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
+					td( {class => 'info Plain'}, sprintf( "%.3f s", $thisservice->{hrSWRunPerfCPU} / 100 ) ),
 					td( {class => 'info Plain'}, $thisservice->{hrSWRunPerfMem} . " KBytes" )
 						);
 			}
@@ -3679,15 +3675,15 @@ sub viewServiceList
 
 sub sortServiceList
 {
-	my ( $sort, $sortField, $bigset, $a, $b ) = @_;
+	my ($sortField, $a, $b ) = @_;
 
-	if ( $sort eq "Service" )
+	if ( $sortField eq "hrSWRunName" )
 	{
-		return $bigset->{$a}->{$sortField} cmp $bigset->{$b}->{$sortField};
+		return $a->{$sortField} cmp $b->{$sortField};
 	}
 	else
 	{
-		return $bigset->{$b}->{$sortField} <=> $bigset->{$a}->{$sortField};
+		return $b->{$sortField} <=> $a->{$sortField};
 	}
 }
 
