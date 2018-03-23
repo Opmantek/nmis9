@@ -169,7 +169,9 @@ my ($thislogin) = getpwuid($<); # only first field is of interest
 # scheduling of actions
 if ($Q->{act} eq "schedule")
 {
-	#fixmeaz continue here!
+	# at=time or now
+	# type 
+	
 
 }
 # print in-progess and queued jobs, and automatically scheduled stuff
@@ -248,43 +250,46 @@ elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 {
 	my $wantabort = ($1 eq "abort");
 
-	my $id = $Q->{id};
-	die "No schedule ID given!\n" if (!$id);
+	die "No schedule ID given!\n" if (!$Q->{id});
+	my @todo = ref($Q->{id}) eq "ARRAY"? @{$Q->{id}}: $Q->{id};
 
-	if ($wantabort)
+	for my $id (@todo)
 	{
-		my $job = $nmisng->get_queue_model(id => $id);
-		if (my $fault = $job->error)
+		if ($wantabort)
 		{
-			die "Failed to lookup schedule: $fault\n";
-		}
-		die "No matching schedule exists!\n" if ($job->count != 1);
-
-		my $thejob = $job->data->[0]; 	# we want the first and only schedule entry
-		if ($thejob->{in_progress}
-				&& ref($thejob->{status}) eq "HASH"
-				&& defined($thejob->{status}->{pid})
-				&& $thejob->{status}->{pid} > 1
-				&& kill(0,$thejob->{status}->{pid}))
-		{
-			my $shootme = $thejob->{status}->{pid};
-			# let's be careful: is it an nmis process?
-			my $pt = Proc::ProcessTable->new(enable_ttys => 0);
-			my %bypid = map { ($_->pid => $_) } (@{$pt->table});
-
-			if (defined $bypid{$shootme}
-					&& $bypid{$shootme}->cmndline =~ /^nmisd worker/)
+			my $job = $nmisng->get_queue_model(id => $id);
+			if (my $fault = $job->error)
 			{
-				print STDERR "Terminating process $shootme (".$bypid{$shootme}->cmndline.") which owns job $id\n";
-				kill("TERM", $shootme);	 # polite
-				Time::HiRes::sleep(0.5);
-				kill(0,$shootme) && kill("KILL", $shootme); # then firm if required
+				die "Failed to lookup schedule: $fault\n";
+			}
+			die "No matching schedule exists!\n" if ($job->count != 1);
+			
+			my $thejob = $job->data->[0]; 	# we want the first and only schedule entry
+			if ($thejob->{in_progress}
+					&& ref($thejob->{status}) eq "HASH"
+					&& defined($thejob->{status}->{pid})
+					&& $thejob->{status}->{pid} > 1
+					&& kill(0,$thejob->{status}->{pid}))
+			{
+				my $shootme = $thejob->{status}->{pid};
+				# let's be careful: is it an nmis process?
+				my $pt = Proc::ProcessTable->new(enable_ttys => 0);
+				my %bypid = map { ($_->pid => $_) } (@{$pt->table});
+				
+				if (defined $bypid{$shootme}
+						&& $bypid{$shootme}->cmndline =~ /^nmisd worker/)
+				{
+					print STDERR "Terminating process $shootme (".$bypid{$shootme}->cmndline.") which owns job $id\n";
+					kill("TERM", $shootme);	 # polite
+					Time::HiRes::sleep(0.5);
+					kill(0,$shootme) && kill("KILL", $shootme); # then firm if required
+				}
 			}
 		}
+		
+		my $error = $nmisng->remove_queue(id => $id);
+		die "$error\n" if ($error);
 	}
-
-	my $error = $nmisng->remove_queue(id => $id);
-	die "$error\n" if ($error);
 	exit 0;
 }
 
@@ -593,7 +598,7 @@ elsif ($Q->{act} eq "fixperms")
 
 	if ( $< != 0)
 	{
-		print STDERR "\nWARNING: Not running with root privileges, so this operation may not work fully!\n\n";
+		print STDERR "\nWARNING: Not running with root privileges, so this operation may not succeed entirely!\n\n";
 	}
 	else
 	{
