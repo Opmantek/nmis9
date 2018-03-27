@@ -241,12 +241,12 @@ while (!$mustexit)
 											"Events List" :
 											(defined($prevmaincfg) && !eq_deeply($prevmaincfg,$mainconfig) ?
 											 "Config" : undef));
-	if ($whichchanged)
-	{
-		$logger->info("fpingd will restart, $whichchanged has changed");
-		exec($origscript,@restartparams);
-		die "$0 couldn't restart itself: $!\n"; # shouldn't be reached
-	}
+#	if ($whichchanged)
+#	{
+#		$logger->info("fpingd will restart, $whichchanged has changed");
+#		exec($origscript,@restartparams);
+#		die "$0 couldn't restart itself: $!\n"; # shouldn't be reached
+#	}
 	$preveventcfg = $eventconfig;
 	$prevmaincfg = $mainconfig;
 
@@ -460,11 +460,12 @@ while (!$mustexit)
 	# if desired and useful, run the NMIS escalation process here
 	# for faster outage notifications; also runs as part of collect,
 	# or can be run via cron.
-	if ($escalatables && NMISNG::Util::getbool($C->{daemon_fping_run_escalation}))
-	{
-		# but we certainly don't wait for it to finish
-		fork || exec("$C->{'<nmis_bin>'}/poll","type=escalate");
-	}
+#	fixme9: this is not possible that way anymore - hotfix until fping logic goes into nmisd itself
+#	if ($escalatables && NMISNG::Util::getbool($C->{daemon_fping_run_escalation}))
+#	{
+#		# but we certainly don't wait for it to finish
+#		fork || exec("$C->{'<nmis_bin>'}/poll","type=escalate");
+#	}
 
 	# we're done for this cycle, so how long should we sleep?
 	# who's next? don't show gazillions of nodes unless debug level is really high
