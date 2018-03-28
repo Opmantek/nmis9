@@ -800,8 +800,10 @@ sub latest_data_collection
 
 # get or create an NMISNG::Node object from the given arguments (that should make it unique)
 # the first node found matching all arguments is provided (if >1 is found)
-# arg: create => 0/1, if 1 and node is not found a new one will be returned, it is
+#
+# args: create => 0/1, if 1 and node is not found a new one will be returned, it is
 #   not persisted into the db until the object has it's save method called
+# returns: node object or undef
 sub node
 {
 	my ( $self, %args ) = @_;

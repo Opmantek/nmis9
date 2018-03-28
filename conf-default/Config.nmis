@@ -114,6 +114,8 @@ my %hash = (
 		'nmisd_worker_cycle' => 30,	# workers sleep no longer than X between cycles
 		'nmisd_scheduler_cycle' => 10, # the supervisor daemon sleeps no longer than X between cycles
 
+		'nmisd_fping_worker' => 'true', # if true, at dedicated worker for fping use used
+
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
     'domain_name' => '',
@@ -150,12 +152,15 @@ my %hash = (
     'default_authkey' => '',
     'default_privpassword' => '',
     'default_privkey' => '',
-    'fastping_timeout' => '5000',
-    'fastping_packet' => '56',
-    'fastping_retries' => '3',
-    'fastping_count' => '3',
-    'fastping_sleep' => '60',
-    'fastping_node_poll' => '200',
+
+		'fastping_timeout' => 5000,
+    'fastping_packet' => 56,
+    'fastping_retries' => 3,
+    'fastping_count' => 3,
+    'fastping_node_poll' => 200,
+		'fastping_cache_dns' => 'true',
+		'fastping_maxage' => 900,
+
     'ipsla_collect_time' => '60',
     'ipsla_bucket_interval' => '180',
     'ipsla_extra_buckets' => '5',
@@ -240,7 +245,7 @@ my %hash = (
     'logs' => '<cgi_url_base>/logs.pl',
     'outage_file' => '<nmis_conf>/outage.dat',
     'nmis_log' => '<nmis_logs>/nmis.log',
-    'fpingd_log' => '<nmis_logs>/fpingd.log',
+    'fping_log' => '<nmis_logs>/fping.log',
     'auth_log' => '<nmis_logs>/auth.log',
     'ipsla_log' => '<nmis_logs>/ipsla.log',
     'polling_log' => '<nmis_logs>/polling.log',
@@ -295,13 +300,8 @@ my %hash = (
   },
 
   'daemons' => {
-    'logwatch' => 'false',
     'daemon_ipsla_active' => 'false',
     'daemon_ipsla_filename' => 'ipslad',
-    'daemon_fping_active' => 'true',
-    'daemon_fping_dns_cache' => 'true',
-    'daemon_fping_run_escalation' => 'true',
-    'daemon_fping_filename' => 'fpingd'
   },
 
   'authentication' => {

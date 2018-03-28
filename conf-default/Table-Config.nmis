@@ -57,6 +57,17 @@ my %hash = (
 																validate => { 'int' => [ 1, undef ] }}},
 			{ 'nmis_user' => { display => 'text', value => ['nmis']}},
 			{ 'nmis_group' => { display => 'text', value => ['nmis']}},
+
+			{ 'nmisd_max_workers' => { display => 'text', value => ['10'],
+																 validate => { 'int' => [ 0, undef ] }}},
+			{ 'nmisd_worker_cycle' => { display => 'text', value => ['30'],
+																	validate => { 'int' => [ 1, undef ] }}},
+			{ 'nmisd_scheduler_cycle' => { display => 'text', value => ['10'],
+																		 validate => { 'int' => [ 1, undef ] }}},
+			{ 'nmisd_fping_worker' => { display => 'popup', value => ["true", "false"],
+																	validate => { "onefromlist" => undef }}},
+
+
 			{ 'fastping_timeout' => { display => 'text', value => ['300']}},
 			{ 'fastping_packet' => { display => 'text', value => ['56'],
 															 validate => { 'int' => [ 40, 65535 ] }}},
@@ -67,6 +78,10 @@ my %hash = (
 
 			{ 'fastping_node_poll' => { display => 'text', value => ['200'],
 																	validate => { 'int' => [ 1, undef ] }}},
+			{ 'fastping_cache_dns' => { display => 'popup', value => ["true", "false"]}},
+			{ 'fastping_maxage' => { display => 'text', value => [900],
+															 validate => { 'int' => [ 1, undef ] }}},
+
 			{ 'ipsla_collect_time' => { display => 'text', value => ['60']}},
 			{ 'ipsla_bucket_interval' => { display => 'text', value => ['180']}},
 			{ 'ipsla_extra_buckets' => { display => 'text', value => ['5']}},
@@ -75,12 +90,7 @@ my %hash = (
 			{ 'ipsla_mthreaddebug' => { display => 'popup', value => ["false", "true"]}},
 			{ 'ipsla_dnscachetime' => { display => 'text', value => ['3600']}},
 			{ 'ipsla_control_enable_other' => { display => 'popup', value => ["true", "false"]}},
-			{ 'fastping_timeout' => { display => 'text', value => ['300']}},
-			{ 'fastping_packet' => { display => 'text', value => ['56']}},
-			{ 'fastping_retries' => { display => 'text', value => ['3']}},
-			{ 'fastping_count' => { display => 'text', value => ['3']}},
-			{ 'fastping_sleep' => { display => 'text', value => ['60']}},
-			{ 'fastping_node_poll' => { display => 'text', value => ['300']}},
+
 			{ 'default_graphtype' => { display => 'text', value => ['abits']}},
 			{ 'ping_timeout' => { display => 'text', value => ['300']}},
 			{ 'ping_packet' => { display => 'text', value => ['56'],
@@ -233,8 +243,6 @@ my %hash = (
 		'daemons' => [
 			{ 'daemon_ipsla_active' => { display => 'popup', value => ['true','false']}},
 			{ 'daemon_ipsla_filename' => { display => 'text', value => ['ipslad.pl']}},
-			{ 'daemon_fping_active' => { display => 'popup', value => ['true','false']}},
-			{ 'daemon_fping_filename' => { display => 'text', value => ['fpingd.pl']}}
 				],
 
 		'metrics' => [

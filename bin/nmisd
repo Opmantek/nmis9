@@ -47,9 +47,11 @@ use Try::Tiny;
 use Mojo::File;
 use Data::Dumper;
 use Time::HiRes;
+use Statistics::Lite;
 
 use NMISNG;
 use NMISNG::Util;
+use NMISNG::Sys;
 use Compat::NMIS;
 
 # for worker_loop
@@ -464,13 +466,22 @@ while (!$exit_marker)
 	}
 
 	# in foreground/debugging mode there are no workers to delegate to
-	# instead, handle up to 5 ops sequentially
+	# instead, handle up to 5 ops sequentially and run one fping cycle
 	# so foreground 1, singleprocess 0: supervisor stays in FG but workers are created
 	# foreground 1, singleprocess 1: only supervisor process and nothing else
 	# singleprocess is ignored if foreground is 0.
 	if (NMISNG::Util::getbool($cmdline->{foreground})
 			&& NMISNG::Util::getbool($cmdline->{singleprocess}))
 	{
+		# first one fping...
+		$nmisng->log->info("Running one fping worker cycle - in foreground mode");
+		my $dummymarker;
+		my $status = fping_loop(nmisng => $nmisng,
+														exit_marker => \$dummymarker,
+														max_cycles => 1);
+		$nmisng->log->info("Fping cycle returned status $status");
+
+		# ...then up to 5 worker cycles
 		for my $seq (1..5)
 		{
 			$nmisng->log->info("Running one worker cycle - in foreground mode");
@@ -484,6 +495,8 @@ while (!$exit_marker)
 			NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
 			last if ($status == EXIT_IDLE or $exit_marker);
 		}
+
+
 	}
 	else
 	{
@@ -520,7 +533,7 @@ while (!$exit_marker)
 $nmisng->log->info("$me terminating");
 exit(0);
 
-# ensure that the right number of worker processes (and fpingd, opslad)
+# ensure that the right number of worker and fping processes (and opslad)
 # are present
 # args: nmisng object, zoo (state of current processes), max_workers (override for config)
 # returns: hashref, success/error
@@ -530,7 +543,7 @@ sub manage_processes
 	my ($nmisng,$zoo) = @args{"nmisng","zoo"};
 
 	# zoo structure:
-	# pid => { processtype (e.g. worker, fpingd, ipslad), start(time)}
+	# pid => { processtype (e.g. worker, fping, ipslad), start(time)}
 
 	# the record of all the cats we're herding
 	my $config = $nmisng->config;
@@ -558,54 +571,71 @@ sub manage_processes
 		}
 	}
 
-	# fpingd: start one fast ping daemon if desired and none is running,
-	# or if the one that is running is in bad shape
-	if (NMISNG::Util::getbool($config->{daemon_fping_active}))
+	# start exactly one worker dedicated to fping if configured to
+	my @fpingworkers = grep($zoo->{$_}->{processtype} eq "fping", keys %$zoo);
+	my $wantfpingworker = NMISNG::Util::getbool($config->{nmisd_fping_worker});
+
+	if (@fpingworkers && !$wantfpingworker)
 	{
-		my $fping_data_age = NMISNG::Util::mtimeFile(dir => 'var', name => 'nmis-fping');
-		my $staleafter = $config->{daemon_fping_maxage} || 900; # nothing in 15 minutes?
-		my $data_too_old = (time - $fping_data_age) > $staleafter;
-		my $progname = $config->{daemon_fping_filename};
-
-		my $fpingd_present = grep($zoo->{$_}->{processtype} eq "fpingd", keys %$zoo);
-		if (!$fpingd_present or $data_too_old)
+		$nmisng->log->info("fping worker(s) present but configured for none");
+		for my $moriturus (@fpingworkers)
 		{
-			$nmisng->log->info( !$fpingd_present? "no $progname running, will start one"
-													: "$progname seems dead, last file update at $fping_data_age,
-will restart");
+			$nmisng->log->debug("instructing fping worker $moriturus to terminate");
+			kill("TERM", $moriturus);
+			delete $zoo->{$moriturus};
+		}
+	}
+	elsif (!@fpingworkers && $wantfpingworker)
+	{
+		$nmisng->log->info("no fping worker active, starting one");
 
-			my $fpingpath  = "$config->{'<nmis_bin>'}/$progname";
-			if (!-x $fpingpath)
-			{
-				$nmisng->log->error("cannot start fpingd, $fpingpath is not executable!");
-				$result{error} = "cannot start fpingd, $fpingpath is not executable!";
-			}
-			else
-			{
-				# fixme9: fpingd code needs to become internal callable function, fork must happen here
-				# so that we can get the pid directly
-				my $res = system($fpingpath, "restart=true");
-				if ($res)
-				{
-					$nmisng->log->error("failed to start fpingd, exit code ".($res >> 8));
-					$result{error} = "failed to start fpingd, exit code ".($res >> 8);
-				}
-				# fpingd does not change $0, so progname check works for now at least...
-				# however, the process can take a few seconds to actually show up :-(
-				$fpingd_present = 0;
-				while (!$fpingd_present)
-				{
-					$nmisng->log->debug2("launched $progname, looking for its pid...");
-					for my $maybe (grep($_->cmndline eq $progname, @{$pt->table}))
-					{
-						$zoo->{$maybe->pid} = { processtype => "fpingd", starttime => $maybe->start };
-						$nmisng->log->info("launched $progname daemon ". $maybe->pid);
-						$fpingd_present = 1;
-						last;
-					}
-					Time::HiRes::sleep(0.5) if (!$fpingd_present);
-				}
-			}
+		my $newpid = fork;
+		if (!defined $newpid)
+		{
+			$nmisng->log->error("failed to fork: $!");
+			$result{error} = "failed to fork: $!";
+		}
+		elsif (!$newpid)					# the child, fping process
+		{
+			# the  fping worker process
+			srand();
+			# make sure this gets a NEW nmisng object, with NEW database handles!
+			$nmisng = Compat::NMIS::new_nmisng(nocache => 1,
+																				 debug => $cmdline->{debug});
+			# note: fping worker logs to its own logfile
+			$nmisng->log->path($config->{'fping_log'});
+			$nmisng->log->logprefix("fping\[$$\] ");
+			$nmisng->log->info("started");
+			$0 = "nmisd fping";
+
+			my $exit_marker;
+			# setup signal handlers: HUP and USR1/USR2, INT, TERM
+			$SIG{"HUP"} = sub {
+				my ($sig) = @_;
+				$nmisng->log->debug("received $sig, reopening logfile");
+				$nmisng->log->reopen;
+				$nmisng->log->debug("logfile was reopened");
+			};
+			$SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
+
+			$SIG{"TERM"} = $SIG{"INT"} = sub { my ($signame) = @_;
+																				 $nmisng->log->info("received $signame, shutting down");
+																				 $exit_marker = $signame;
+																				 exit(0) if ($signame eq "TERM"); };
+
+			# run fping loop (until signalled to shutdown)
+			my $status = fping_loop(nmisng => $nmisng,
+															exit_marker => \$exit_marker,
+															max_cycles => $config->{nmisd_worker_max_cycles});
+			exit( $status != EXIT_ERROR ? 0 : EXIT_ERROR );
+		}
+		else											# the parent
+		{
+			$nmisng->log->debug("started fping worker process $newpid");
+			# starttime is a tad hard to access and just guessing may be a bad idea
+			my ($newinfo) = grep($_->pid == $newpid, @{$pt->table}); # there must be exactly one
+			$zoo->{$newpid} = { processtype => "fping",
+													starttime => $newinfo->start };
 		}
 	}
 
@@ -650,7 +680,7 @@ will restart");
 		for my $moriturus ((keys %$zoo)[0..(-$delta)]) # keys is random enough
 		{
 			$nmisng->log->debug("instructing worker $moriturus to terminate");
-			kill("HUP", $moriturus);
+			kill("TERM", $moriturus);
 			delete $zoo->{$moriturus};
 		}
 	}
@@ -693,8 +723,8 @@ will restart");
 
 				# run worker loop (until signalled to shutdown)
 				my $status = worker_loop(nmisng => $nmisng,
-																 exit_marker => \$exit_marker,
-																 max_cycles => $config->{nmisd_worker_max_cycles});
+																exit_marker => \$exit_marker,
+																max_cycles => $config->{nmisd_worker_max_cycles});
 				exit( $status != EXIT_ERROR ? 0 : EXIT_ERROR );
 			}
 			else											# the parent
@@ -952,6 +982,9 @@ sub worker_loop
 					alarm($maxruntime) if ($maxruntime);
 
 					my $thenode = $nmisng->node(uuid => $nodeuuid);
+					die("Invalid arguments for $methodname: no node with uuid $nodeuuid exists!\n")
+							if (!$thenode or $thenode->is_new);
+
 					$nmisng->log->debug("Starting $methodname for node $nodeuuid (".$thenode->name.")");
 					$result = $thenode->$methodname(@methodargs);
 					alarm(0) if ($maxruntime);
@@ -1005,6 +1038,299 @@ sub worker_loop
 		}
 		--$ttl if (defined($ttl) && $ttl > 0);
 
+	}
+	return defined($$mustdie)? $$mustdie eq "INT"? EXIT_POLITE : EXIT_IMMEDIATELY
+			: $max_cycles? EXIT_TTL : EXIT_ERROR;
+}
+
+# the dedicated fping worker loop: ping nodes in need of,
+# update status file, sleep a little and repeat...
+#
+# args: nmisng,
+#  exit_marker (scalar ref, holds undef or signal name - required)
+#  max_cycles (optional, default: unlimited - set to 1 for a single cycle)
+#
+# returns: EXIT_POLITE if signalled INT, EXIT_TTL if reached max nr of cycles,
+# EXIT_IMMEDIATELY if signalled TERM, EXIT_IDLE if max_cycles was 1 and no jobs were handled,
+# EXIT_ERROR for anything else
+sub fping_loop
+{
+	my (%args) = @_;
+
+	my ($nmisng,$max_cycles,$mustdie) = @args{"nmisng","max_cycles","exit_marker"};
+	die "invalid arguments, no NMISNG object available!\n" if (ref($nmisng) ne "NMISNG");
+	die "invalid arguments, exit_marker is not a ref!\n" if (ref($mustdie) ne "SCALAR");
+
+	my $config = $nmisng->config;
+	my $ttl = $max_cycles;
+
+	my $fpingpath;
+
+	# we want fping to do the work, no need to avg/min/max ourselves
+	# -c X produces: 'somenode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.73/0.86/0.97'
+	my @fpingargs = ( "-t", ($config->{fastping_timeout} || 300),
+										"-c", ($config->{fastping_count} || 3),
+										"-q",
+										"-r", ($config->{fastping_retries} || 3),
+										# min packet size is 20+4 bytes, default is 56
+										"-b", ($config->{fastping_packet}?
+													 $config->{fastping_packet} >= 24? $config->{fastping_packet} : 24 : 56));
+
+	push @fpingargs, ($< == 0?
+									 # we may use these options if we run as root
+									 ("-i", 1, "-p", 1)
+									 : 	# non-root requires i >= 10, p >= 20, r < 20, and t >= 50
+									 ("-i", 10, "-p", 20));
+
+	my %state;
+
+	while (!$$mustdie and (!defined($ttl) or $ttl))
+	{
+		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
+		{
+			$nmisng->log->debug("nmis is locked, sleeping 60 seconds");
+			sleep(60);
+			next;
+		}
+		# on first startup, find the fping executable
+		if (!defined $fpingpath)
+		{
+			for my $pathcomp (split(/:/, $ENV{PATH}))
+			{
+				if (-x(my $maybe = "$pathcomp/fping"))
+				{
+					$fpingpath = $maybe;
+					last;
+				}
+			}
+			if (!defined $fpingpath)
+			{
+				$nmisng->log->fatal("no fping executable available! sleeping 60 seconds");
+				sleep(60);
+				next;
+			}
+		}
+
+		# who needs pinging?
+		# polling-policy: reread every cycle, cached
+		my $policies = NMISNG::Util::loadTable(dir => 'conf', name => "Polling-Policy") || {};
+
+		my $nodesmodel = $nmisng->get_nodes_model( filter => { 	cluster_id => $config->{cluster_id},
+																														active => 1,
+																														ping => 1 });
+		if (my $failure = $nodesmodel->error)
+		{
+			$nmisng->log->error("Failed to query active nodes: $failure, sleeping 60s");
+			sleep(60);
+			next;
+		}
+
+		my $now = Time::HiRes::time;
+		my $allnodes = $nodesmodel->data; # array of node config records
+		my %byuuid = map { $_->{uuid} =>  $_} (@$allnodes); # state is kept by uuid
+
+		# first: ditch deleted/disabled nodes
+		for my $maybegoner (keys %state)
+		{
+			delete $state{$maybegoner} if (ref($byuuid{$maybegoner}) ne "HASH");
+		}
+
+		# second: find out which nodes are due for a ping
+		my @todos;
+		for my $noderec (values %byuuid)
+		{
+			my $thisstate = $state{ $noderec->{uuid} } ||= {
+				name => $noderec->{name},
+				uuid => $noderec->{uuid},
+				# dynamically managed: ip, lastping,nextping, policy , nextdns, avg min max loss
+			};
+
+			# what needs filling in, what could change between poll cycles?
+			$thisstate->{host} = $noderec->{host};
+			$thisstate->{policy} = $noderec->{polling_policy} || 'default';
+
+			# honor fixed ip address given
+			# fixme: fping doesn't do ipv6, we would have to use fping6 for that.
+			if ($thisstate->{host} =~ /^\d+\.\d+\.\d+\.\d+$/)
+			{
+				$thisstate->{ip} = $thisstate->{host};
+			}
+			# allowed to resolve name and cache address?
+			elsif (!NMISNG::Util::getbool($config->{fastping_cache_dns},"invert"))
+			{
+				if (!$thisstate->{ip} or $now >= $thisstate->{nextdns})
+				{
+					# fixme: this returns only v4 addresses, see fping6 comment above
+					$thisstate->{ip} = NMISNG::Util::resolveDNStoAddr($thisstate->{host}) # may be undef
+							||  $thisstate->{host}; # again falling back to leaving this to fping
+					$nmisng->log->debug2("refreshed dns for $thisstate->{host} to $thisstate->{ip}"
+															 .($thisstate->{nextdns}?
+																 sprintf(", was due %.2fs ago", $now - $thisstate->{nextdns}):""));
+					$thisstate->{nextdns} = $now + 900; # dns-sourced addresses may be remembered for 15 minutes
+				}
+			}
+			# otherwise leave it to fping to Do Something with the host (name or whatever)
+			else
+			{
+				$thisstate->{ip} = $thisstate->{host};
+			}
+
+			if (!$thisstate->{nextping} or $thisstate->{nextping} <= $now)
+			{
+				$nmisng->log->debug2("will ping node $thisstate->{uuid} ($thisstate->{name}) this cycle"
+														 . ($thisstate->{nextping}?
+																sprintf(", was due %.2fs ago", $now - $thisstate->{nextping}): "" ));
+				push @todos, $thisstate->{uuid};
+			}
+		}
+
+		# third: ping the ones in need, in chunks if necessary
+		my @thistime = @todos;				# todos is consumed
+		while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
+		{
+			my %ip2node; # for associating the results
+
+			my @cmd = ($fpingpath, @fpingargs);
+			for my $uuid (@chunk)
+			{
+				my $thisip = $state{$uuid}->{ip};
+
+				push @cmd, $thisip;
+				$ip2node{$thisip} = $uuid;
+			}
+			$nmisng->log->debug("about to run: ".join(" ",@cmd));
+
+			# pity that fping reports on stderr, NOT stdout; so we need
+			# the shell redirection (or a child and replumb)
+			if (!open(FROMFPING, "-|", join(" ", @cmd, "2>&1")))
+			{
+				$nmisng->log->fatal("failed to run fping: $!");
+				die "Failed to run fping: $!\n";
+			}
+
+			while (my $line = <FROMFPING>)
+			{
+				chomp $line;
+				# goodnode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.89/0.96/1.05
+				# badnode : xmt/rcv/%loss = 5/0/100%
+				# or nothing for unresolvable.
+				$nmisng->log->debug3("fping returned: $line");
+
+				my ($hostname,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6)
+						if ($line =~ m!^\s*(\S+)\s*:\s*xmt/rcv/%loss\s*=\s*\d+/\d+/(\d+)%(?:,\s*min/avg/max\s*=\s*(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?))?$!);
+
+				if ($hostname								# parseable?
+						&& $ip2node{$hostname}  # known?
+						&& $loss =~ /^\d+$/ )		  # structure good enough for the reachability at least?
+				{
+					my $thisstate = $state{ $ip2node{$hostname} };
+					# what does the policy say about the interval?
+					# policy present, use that; fall back to 60 seconds otherwise
+					my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
+							$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
+
+					# supports NNN (seconds) or MMMU with U being s, m, h or d, fractional NNN or MMM also ok
+					if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+					{
+						my ($rawvalue, $unit) = ($1, $3);
+						$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+					}
+
+					# the regex extraction sets missing to blank string, would prefer undef or number
+					$thisstate->{loss} = int($loss);
+					$thisstate->{avg} = $avg ne ""? 0+$avg : undef;
+					$thisstate->{min} = $min ne ""? 0+$min : undef;
+					$thisstate->{max} = $max ne ""? 0+$max : undef;
+
+					$thisstate->{lastping} = $now;
+					$thisstate->{nextping} = $now + $interval;
+
+					$nmisng->log->debug3("parsed result for node $hostname: "
+															 .Dumper($thisstate));
+				}
+				else
+				{
+					$nmisng->log->error("fping result \"$line\" was not parseable!");
+				}
+			}
+			close FROMFPING;
+		}
+		# all pinging done, let's dump the state onto disk as soon as we can
+		NMISNG::Util::writeTable(dir => 'var', name => "nmis-fping", data => \%state);
+
+		# fourth: analyse the results we've got this time, trigger events if required
+		for my $uuid (@thistime)
+		{
+			my $thisstate = $state{$uuid};
+
+			# check the event existence AND its currency!
+			my $event = $nmisng->events->event( node_uuid => $uuid, event => "Node Down" );
+			my $goingup;					# undef for none, 0 for down, 1 for up
+
+			# raise events when required, ie. new state
+			if ( $thisstate->{loss} == 100 )
+			{
+				$nmisng->log->debug("$uuid ($thisstate->{name}) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
+				# for unreachable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
+				# for fixed-ip nodes this is not relevant
+				undef $thisstate->{nextdns};
+
+				if (!$event->exists)
+				{
+					# Device is DOWN, was up, and no entry in event database
+					$nmisng->log->debug("$uuid ($thisstate->{name}) is now DOWN, was UP, raising event");
+					$goingup = 0;
+				}
+			}
+			else # node somewhat pingable, not 100% loss
+			{
+				$nmisng->log->debug("$uuid ($thisstate->{name}) is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
+
+				if ($event->exists && $event->active)
+				{
+					# Device was down, is now UP
+					$logger->debug("$uuid ($thisstate->{name}) is now UP, was DOWN, closing event");
+					$goingup = 1;
+				}
+			}
+			# event-work required? then instantiate node (and sys) object and tell it to handle the up/down
+			if (defined $goingup)
+			{
+				my $node = $nmisng->node(uuid => $uuid);
+				my $sys = NMISNG::Sys->new;
+				$sys->init(node => $node, snmp => 0);
+				$node->handle_down( sys => $sys, type => "node", up => $goingup, details => "Ping failed");
+				$sys->inventory( concept => 'catchall' )->save; # we changed something
+			}
+		}
+
+		# we're done for this cycle, so how long should we sleep?
+		# who's next? don't show gazillions of nodes unless debug level is really high
+		if ($nmisng->log->detaillevel > 5)
+		{
+			my @soontonever = sort { $state{$a}->{nextping} <=> $state{$b}->{nextping} } (keys %state);
+			$logger->debug("next ping ordering:\n\t"
+										 . join("\n\t", map { sprintf("%s (%s) in %.2fs", $_,
+																									$state{$_}->{name},
+																									$state{$_}->{nextping}-$now) } (@soontonever)));
+		}
+		my $nextone = Statistics::Lite::min( map { $_->{nextping} } (values %state));
+
+		# sleep if no cycle limit or not the final cycle yet
+		my $naptime = ($nextone && $nextone - $now > 0)? int(0.5 + $nextone - $now) : 10;
+		if ($naptime > 0 and (!defined($ttl) or $ttl > 1))
+		{
+			$nmisng->log->debug("sleeping $naptime seconds");
+			sleep($naptime);
+		}
+
+
+		my %goners = &NMISNG::Util::reaper;
+		$nmisng->log->debug2("reaper cleared these pids and exitcodes: "
+												 . Data::Dumper->new([\%goners])->Terse(1)->Indent(0)->Pair(": ")->Dump)
+				if (%goners && $nmisng->log->is_level(2)); # don't bother with the dumper unless debug2 or higher
+
+		--$ttl if (defined($ttl) && $ttl > 0);
 	}
 	return defined($$mustdie)? $$mustdie eq "INT"? EXIT_POLITE : EXIT_IMMEDIATELY
 			: $max_cycles? EXIT_TTL : EXIT_ERROR;

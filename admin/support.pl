@@ -391,7 +391,7 @@ sub collect_evidence
 	if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
 	{
 		@logfiles = map { "$globalconf->{'<nmis_logs>'}/$_" }
-		(qw(nmis.log auth.log fpingd.log event.log slave_event.log trap.log"));
+		(qw(nmis.log auth.log fping.log event.log slave_event.log trap.log"));
 	}
 	for my $aperrlog ("/var/log/httpd/error_log", "/var/log/apache/error.log", "/var/log/apache2/error.log")
 	{
@@ -401,9 +401,9 @@ sub collect_evidence
 	{
 		if (!-f $lfn)
 		{
-			# two special cases: fpingd and polling.log aren't necessarily present.
+			# two special cases: fping and polling.log aren't necessarily present.
 			warn "ATTENTION: logfile $lfn configured but does not exist!\n"
-					if (basename($lfn) !~ /^(fpingd|polling).log$/);
+					if (basename($lfn) !~ /^(fping|polling).log$/);
 			next;
 		}
 

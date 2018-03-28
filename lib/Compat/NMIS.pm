@@ -295,7 +295,7 @@ sub loadNodeSummary {
 # used instead of just looking at local system info nodedown
 #
 # reason for looking for events (instead of wmidown/snmpdown markers):
-# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
+# underlying events state can change asynchronously (eg. fping), and the per-node status from the node
 # file cannot be guaranteed to be up to date if that happens.
 sub nodeStatus {
 	my %args = @_;

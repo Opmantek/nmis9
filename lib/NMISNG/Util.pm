@@ -2316,7 +2316,7 @@ sub selftest
 	}
 	push @details, ["NMIS process count",$status];
 
-	# check that there is some sort of cron running, ditto for fpingd (if enabled)
+	# check that there is some sort of cron running, ditto for fping worker (if enabled)
 	my $cron_name = $config->{selftest_cron_name}? qr/$config->{selftest_cron_name}/ : qr!(^|/)crond?$!;
 	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
 	my ($cron_found, $fpingd_found, $cron_status, $fpingd_status);
@@ -2327,9 +2327,9 @@ sub selftest
 			$cron_found=1;
 			last if ($cron_found && $fpingd_found);
 		}
-		# fpingd is identifyable only by cmdline
-		elsif (NMISNG::Util::getbool($config->{daemon_fping_active})
-					 && $pentry->cmndline =~ $config->{daemon_fping_filename})
+		# nmisd fping worker is identifiable by command line
+		elsif (NMISNG::Util::getbool($config->{nmisd_fping_worker})
+					 && $pentry->cmndline eq "nmisd fping")
 		{
 			$fpingd_found=1;
 			last if ($cron_found && $fpingd_found);
@@ -2342,12 +2342,12 @@ sub selftest
 	}
 	push @details, ["CRON daemon",$cron_status];
 
-	if (NMISNG::Util::getbool($config->{daemon_fping_active}) && !$fpingd_found)
+	if (NMISNG::Util::getbool($config->{nmisd_fping_worker}) && !$fpingd_found)
 	{
-		$fpingd_status = "No ".$config->{daemon_fping_filename}." daemon seems to be running!";
+		$fpingd_status = "No fping worker seems to be running!";
 		$allok=0;
 	}
-	push @details, ["FastPing daemon", $fpingd_status];
+	push @details, ["FastPing worker", $fpingd_status];
 
 	# check iowait and general busyness of the system
 	# however, do that ONLY if we are allowed to delay for a few seconds

@@ -87,7 +87,7 @@ my $prodversion = eval { do "./.version" };
 logdie("Invalid release - no version!")
 		if ($@ or !$prodversion);
 
-	
+
 printBanner("NMIS ($prodversion) Installation script");
 my $hostname = `hostname --fqdn`; chomp $hostname;
 
@@ -126,7 +126,7 @@ if (!$isok)
 that NMIS depends on, if your system has Internet access.
 
 These modules can be installed with CPAN:
-  
+
   perl -MCPAN -e shell
     install [module name]
 
@@ -140,15 +140,15 @@ These modules can be installed with CPAN:
 	$testres = system("wget --no-check-certificate -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
 			if ($testres);
 	my $can_use_web = !$testres;
-	
+
 	if (!$can_use_web or !input_yn("OK to use CPAN to install missing modules?"))
 	{
 		logmsg(0, "Cannot install missing CPAN modules: ".join(" ",@missingones));
-		
+
 		print "Cannot Cannot install missing CPAN modules!\nNMIS will not work properly until the following Perl modules are installed (from CPAN):\n\n".join(" ",@missingones)
 				."\n\nWe recommend that you stop the installer now, resolve the dependencies,
 and then restart the installer.\n\n";
-		
+
 		if (input_yn("Stop the installer?"))
 		{
 			die "\nAborting the installation. Please install the missing Perl packages\nwith cpan, then restart the installer.\n";
@@ -192,7 +192,7 @@ please exit the CPAN\nshell with 'exit'.\n";
 }
 
 # ready to install/upgrade,
-# before copying anything, kill fpingd and lock nmis (fpingd doesn't even start if locked out)
+# before copying anything, lock nmis
 
 #  fixme: make these into precopy stage!
 open(F,">$targetdir/conf/NMIS_IS_LOCKED");
@@ -201,7 +201,6 @@ close F;
 open(F, ">/tmp/nmis_install_running");
 print F $$;
 close(F);
-execPrint("$targetdir/bin/fpingd kill=true") if (-x "$targetdir/bin/fpingd");
 
 printBanner("Copying Files");
 find(sub {
@@ -232,7 +231,7 @@ run_hooks("postcopy");					# users config stuff, migrations, patching
 
 
 printBanner("Performing Final Operations");
-run_hooks("postinstall"); # unlock 
+run_hooks("postinstall"); # unlock
 
 # ensure the logfile and manifest are rwr-r-, regardless of system umask
 # fixme  move chmod(0644, $logfile) if (-f $logfile);
@@ -248,12 +247,12 @@ exit 0;
 # updates %modules
 # returns: nothing
 # note: callback from file::find means DON'T use the same filehandle F as elsewhere!
-sub getModules 
+sub getModules
 {
 	my ($dirname, $shortname, $fullpath) = ($File::Find::dir, $_, $File::Find::name);
 	# interesting? yes if it's a .pm or .pl, or if it lives in bin (no extensions there)
 
-	return if (-d $fullpath 
+	return if (-d $fullpath
 						 or $shortname =~ /^\./
 						 or !($shortname =~ /\.p[ml]$/ or $dirname eq "$sourcedir/bin"));
 
@@ -274,15 +273,15 @@ sub getModules
 
 			# ignore "use 5.10.11"
 			next if ($mod =~ /^[0-9\.]+$/);
-			
+
 			$modules{$mod}->{file} = undef; # mark as not found, resolved later
 			$modules{$mod}->{usetype} = $usetype; # only last one is kept
 			# keep highest
-			$modules{$mod}->{minversion} = $minversion if (defined($minversion) 
+			$modules{$mod}->{minversion} = $minversion if (defined($minversion)
 																										 && (!defined($modules{$mod}->{minversion})
 																												 or version->parse($modules{$mod}->{minversion}) < version->parse($minversion)));
 			$modules{$mod}->{priority} = 10; # low default
-			push @{$modules{$mod}->{usedby}}, $fullpath 
+			push @{$modules{$mod}->{usedby}}, $fullpath
 					if (!grep($_ eq $fullpath, @{$modules{$mod}->{usedby}}))
 		}
 	}
@@ -290,58 +289,58 @@ sub getModules
 }
 
 
-# returns (1) if no critical modules missing, 
+# returns (1) if no critical modules missing,
 # (0,critical modules) otherwise
 # args: none, walks the $sourcedir
 sub check_installed_modules
 {
 	printBanner("Checking for required Perl modules");
-	
+
 	# walk the walk...
 	find(\&getModules, $sourcedir);
-	
+
 	# fudge in a few indirectly needed ones
 	# these are critical for getting mojolicious installed, as centos 6 perl has a much too old perl
 	# these modules are in core since 5.19 or thereabouts
-	
+
 	$modules{"IO::Socket::IP"} = { file => undef, usetype  => "use",
 																 usedby => "lib/NMISNG/Auth.pm", priority => 98 };
 	# io socket ip needs at least this version of socket...
 	# and that must be FIRST
 	$modules{"Socket"} = { file => undef, usetype  => "use",
-												 usedby => "lib/NMISNG/Auth.pm", 
+												 usedby => "lib/NMISNG/Auth.pm",
 												 minversion => "1.97",
 												 priority => 99 };
 	# and socket needs at least this version of extutils constant to build
 	$modules{"ExtUtils::Constant"} = { file => undef, usetype  => "use",
-																		 usedby => "lib/NMISNG/Auth.pm", 
+																		 usedby => "lib/NMISNG/Auth.pm",
 																		 minversion => "0.23",
 																		 priority => 100 };
 	# and mojolicious needs all these
 	$modules{"JSON::PP"} = { file => undef, usetype => "use",
 													 usedby => "lib/NMISNG/Auth.pm", priority => 99 };
 	$modules{"Time::Local"} = { file => undef, usetype => "use",
-															usedby => "lib/NMSING/Auth.pm", 
+															usedby => "lib/NMSING/Auth.pm",
 															minversion => "1.2", priority => 99 };
 	# and time::local needs at least this version of test::More
 	$modules{"Test::More"} = { file => undef, usetype => "use",
-														 usedby => "lib/NMSING/Auth.pm", 
+														 usedby => "lib/NMSING/Auth.pm",
 														 minversion => "0.96", priority => 100 };
 
 	# for compiling the mongodb perl driver
 	$modules{"Config::AutoConf"} = { file => undef, usetype => "use",
-														 usedby => "lib/NMSING/DB.pm", 
+														 usedby => "lib/NMSING/DB.pm",
 																	 minversion => "0.3", priority => 100 };
 
 	$modules{"Path::Tiny"} = { file => undef, usetype => "use",
-														 usedby => "lib/NMSING/DB.pm", 
-														 # minversion => "0.3", 
+														 usedby => "lib/NMSING/DB.pm",
+														 # minversion => "0.3",
 														 priority => 100 };
 
 	# must be cpan'd before datetime and mongodb
 	$modules{"DateTime::Locale"} = { file => undef, usetype => "use",
-																	 usedby => "lib/NMSING/DB.pm", 
-																	 # minversion => "0.3", 
+																	 usedby => "lib/NMSING/DB.pm",
+																	 # minversion => "0.3",
 																	 priority => 100 };
 
 	# we strictly requre mojolicious 6.47 or newer,
@@ -349,7 +348,7 @@ sub check_installed_modules
 	$modules{"Mojolicious"} = { file => undef, usetype => "use",
 															usedby => "lib/NMISNG/Log.pm",
 															minversion => "6.47", };
-	
+
 	my $libprefix = "$sourcedir/lib";
 
 	# now determine if installed or not.
@@ -358,17 +357,17 @@ sub check_installed_modules
 	{
 		my $mFile = "$modname.pm";
 		$mFile =~ s/::/\//g;				# translate logical namespaced name into path
-		
+
 		my $thisentry = $modules{$modname};
 		next if ($thisentry->{version}); # already checked
-		
+
 		# do we have it?
 		if (-f (my $ours = "$libprefix/$mFile" ))
 		{
 			$thisentry->{file} = $ours;
 			$thisentry->{version} = moduleVersion($ours, $modname);
 		}
-		else 
+		else
 		{
 			# Now look in @INC for module path and name and record the highest-versioned one
 			for my $incpath (@INC)
@@ -376,7 +375,7 @@ sub check_installed_modules
 				if (-f (my $upstream = "$incpath/$mFile"))
 				{
 					my $thisversion = moduleVersion($upstream, $modname);
-					
+
 					if (!$thisentry->{version}
 							or version->parse($thisversion) >= version->parse($thisentry->{version}))
 					{
@@ -387,29 +386,29 @@ sub check_installed_modules
 			}
 		}
 	}
-	
+
 	# now figure out what's missing (and which might be ignorable)
 	# note that they need to be returned in order of cpan sequencing priority!
   my (@missing, @critmissing);
   my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1,
 										 "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1,
 										 "SOAP::Lite" => 1, "UI::Dialog" => 1, );
-	
+
   logmsg(0, "Detected Module Status:\nName - Minimum Version - Current Version - Current Path\n");
 	# sort by install prio (highest first), or file
 	foreach my $k ( sort { $modules{$b}->{priority} <=> $modules{$a}->{priority}
 												 or $modules{$a}->{file} cmp $modules{$b}->{file} } keys %modules)
 	{
 		my $thisentry = $modules{$k};
-		
+
     logmsg(0, join("\t", $k, ($thisentry->{minversion} || "N/A"),
 									 ($thisentry->{version}||"N/A"),
 									 ($thisentry->{file} || "NOT FOUND")));
-		
+
 		# report as missing: if not present, or version below required minimum
     push @missing, $k if 	(!defined $thisentry->{file}
 													 or (defined $thisentry->{minversion}
-															 and version->parse($thisentry->{version}) 
+															 and version->parse($thisentry->{version})
 															 < version->parse($thisentry->{minversion})));
 	}
 
@@ -417,7 +416,7 @@ sub check_installed_modules
 	{
 		@critmissing = grep( !$noncritical{$_}, @missing);
 		my @optionals = grep ($noncritical{$_}, @missing);
-		
+
 		if (@optionals)
 		{
 			printBanner("Some Optional Perl Modules are missing (or too old)");
@@ -436,7 +435,7 @@ to be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @cri
 			logmsg(0, "Missing Required modules: ".join(" ", @critmissing));
 		}
 	}
-	
+
 	return (@critmissing?0:1, @critmissing);
 }
 
@@ -448,7 +447,7 @@ sub moduleVersion
 {
 	my ($mFile, $modname) = @_;
 	my $ver;
-	
+
 	open FH, "$mFile" or return undef;
 	while (<FH>)
 	{
@@ -463,7 +462,7 @@ sub moduleVersion
 		}
 	}
 	close FH;
-	
+
 	# present but didn't match? load and ask the module then...
 	logmsg(1,"loading module $modname from $mFile for version check...");
 	eval { no warnings; require $mFile; };
@@ -491,7 +490,7 @@ sub moduleVersion
 sub input_yn
 {
 	my ($query) = @_;
-	
+
 	while (1)
 	{
 		print $query;
@@ -559,7 +558,7 @@ sub execPrint
 
 # copy file from a to b, but only if the target is not a symlink
 #
-# if symlink, warn the user about it and request 
+# if symlink, warn the user about it and request
 # confirmation (default action: leave unchanged)
 #
 # creates dirs where required
@@ -705,7 +704,7 @@ sub run_hooks
 	closedir(D);
 }
 
-sub printBanner 
+sub printBanner
 {
 	my ($string) = @_;
 	print "\n\n++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -742,4 +741,3 @@ sub logmsg
 		close(LH);
 	}
 }
-

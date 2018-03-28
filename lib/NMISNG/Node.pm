@@ -917,7 +917,7 @@ sub validate
 }
 
 
-# this function accesses fpingd results if conf'd and a/v, or runs a synchronous ping
+# this function accesses fping results if conf'd and a/v, or runs a synchronous ping
 # args: self, sys (required), time_marker (optional)
 # returns: 1 if pingable, 0 otherwise
 sub pingable
@@ -947,29 +947,28 @@ sub pingable
 
 	if ( NMISNG::Util::getbool($self->configuration->{ping}))
 	{
-		my ($PT, $didfallback);
-
-		my $staleafter = $C->{daemon_fping_maxage} || 900;
 		# use fastping info if available and not stale
-		if ( NMISNG::Util::getbool($C->{daemon_fping_active})
-				 && ($PT = NMISNG::Util::loadTable(dir=>'var',name=>'nmis-fping')) # cached
-				 && ref($PT->{$nodename}) eq "HASH"	# record present
-				 && (time - $PT->{$nodename}->{lastping}) < $staleafter  # and not stale, 15 minutes seems ample
-				)
+
+		my $didfallback;
+		my $staleafter = $C->{fastping_maxage} || 900; # no fping updates in 15min -> ignore
+		my $PT = NMISNG::Util::loadTable(dir=>'var',name=>'nmis-fping'); # cached until mtime changes
+
+		if (ref($PT) eq "HASH"										 # any data available?
+				&& ref($PT->{ $self->uuid }) eq "HASH"	# record for this node's uuid present?
+				&& (time - $PT->{ $self->uuid }->{lastping}) < $staleafter ) # and not stale
 		{
 			# copy values
-			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
+			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$self->uuid}}{"min","avg","max","loss"};
 			$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
-			$self->nmisng->log->debug("($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			$self->nmisng->log->debug($self->uuid." ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 		}
 		else
 		{
 			# fallback to OLD/internal system
 			$didfallback = 1;
 			# but warn about that only if not in update
-			$self->nmisng->log->info("($nodename) using internal ping system, daemon fpingd had no or oudated information")
-					if (NMISNG::Util::getbool($C->{daemon_fping_active})
-							and !NMISNG::Util::getbool($S->{update})); # fixme: unclean access to internal property
+			$self->nmisng->log->info("($nodename) using internal ping system, no or oudated fping information")
+					if (!NMISNG::Util::getbool($S->{update})); # fixme: unclean access to internal property
 
 			my $retries = $C->{ping_retries} ? $C->{ping_retries} : 3;
 			my $timeout = $C->{ping_timeout} ? $C->{ping_timeout} : 300;
@@ -984,8 +983,8 @@ sub pingable
 		}
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
-		# in the fpingd case all up/down events are handled by it, otherwise we need to do that here
-		# this includes the case of a faulty fpingd
+		# in the fping case all up/down events are handled by it, otherwise we need to do that here
+		# this includes the case of a faulty fping worker
 		if ($didfallback)
 		{
 			if ($pingresult)
