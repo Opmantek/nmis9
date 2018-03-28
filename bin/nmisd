@@ -99,6 +99,7 @@ die "no config available!\n" if (ref($config) ne "HASH" or !keys %$config);
 
 # use debug, or info arg, or configured log_level
 my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+NMISNG::Util::setFileProtDiag(file =>$logfile) if (-f $logfile);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $cmdline->{debug},
 																 info => undef) // $config->{log_level}, # fixme9: info not supported
@@ -602,8 +603,13 @@ sub manage_processes
 			# make sure this gets a NEW nmisng object, with NEW database handles!
 			$nmisng = Compat::NMIS::new_nmisng(nocache => 1,
 																				 debug => $cmdline->{debug});
-			# note: fping worker logs to its own logfile
-			$nmisng->log->path($config->{'fping_log'});
+			if (!defined $cmdline->{debug})
+			{
+				# fping worker logs to its own logfile
+				my $fpinglogfile = $config->{'fping_log'};
+				$nmisng->log->path($fpinglogfile);
+				NMISNG::Util::setFileProtDiag(file => $fpinglogfile) if (-f $fpinglogfile);
+			}
 			$nmisng->log->logprefix("fping\[$$\] ");
 			$nmisng->log->info("started");
 			$0 = "nmisd fping";
