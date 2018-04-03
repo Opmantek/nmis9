@@ -6859,16 +6859,19 @@ sub collect_services
 			my $remaining = alarm(0);
 			$self->nmisng->log->debug3("saving running alarm, $remaining seconds remaining");
 			my $pid;
-			eval {
+
+			# good enough, no atomic open required, removed after eval
+			my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");
+			eval 
+			{
 				my @responses;
 				my $svcruntime = defined( $svc->{Max_Runtime} ) && $svc->{Max_Runtime} > 0 ? $svc->{Max_Runtime} : 0;
-
+				
 				local $SIG{ALRM} = sub { die "alarm\n"; };
 				alarm($svcruntime) if ($svcruntime);    # setup execution timeout
 
-			# run given program with given arguments and possibly read from it
-			# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
-				my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");		# good enough, no atomic open required
+				# run given program with given arguments and possibly read from it
+				# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
 				$self->nmisng->log->debug2("running external program '$svc->{Program} $finalargs', "
 																	 . ( NMISNG::Util::getbool( $svc->{Collect_Output} ) ? "collecting" : "ignoring" )
 																	 . " output" );
@@ -6896,7 +6899,6 @@ sub collect_services
 						$self->nmisng->log->warn("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
 						close(UNWANTED);
 					}
-					unlink($stderrsink);
 
 					if ( NMISNG::Util::getbool( $svc->{Collect_Output} ) )
 					{
@@ -7015,6 +7017,7 @@ sub collect_services
 					}
 				}
 			};
+			unlink($stderrsink);
 
 			if ( $@ and $@ eq "alarm\n" )
 			{
