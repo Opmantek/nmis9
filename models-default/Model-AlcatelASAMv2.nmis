@@ -783,8 +783,6 @@
   'custom' => {
 		'interface' => {
 			'ifAdminStatus' => 'false',
-# replaced by plugins/AlcatelInterface.pm
-#			'script' => 'admin/alcatel_interface_discovery.pl'
 		}
 	},
   'interface' => {

@@ -3487,59 +3487,6 @@ sub checkPIX
 }
 
 
-# fixme9: this is deprecated and subject to removal!
-# verifies a cisco ciscoEnvMonSupplyState-style power status,
-# raises/clears event if required, updates view a little
-# args: self, sys, attr (all required)
-sub check_power
-{
-	my ($self, %args) = @_;
-	my $S    = $args{sys};
-
-	my $V    = $S->view;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-	NMISNG::Util::info("Starting");
-
-	my $attr = $args{attr};
-
-	NMISNG::Util::info("Start with attribute=$attr");
-
-	delete $V->{system}{"${attr}_value"};
-
-	NMISNG::Util::info("Power check attribute=$attr value=$catchall_data->{$attr}");
-	if ( $catchall_data->{$attr} ne '' and $catchall_data->{$attr} !~ /noSuch/ )
-	{
-		$V->{system}{"${attr}_value"} = $catchall_data->{$attr};
-
-		if ( $catchall_data->{$attr} =~ /normal|unknown|notPresent/ )
-		{
-			Compat::NMIS::checkEvent(
-				sys     => $S,
-				event   => "RPS Fail",
-				level   => "Normal",
-				element => $attr,
-				details => "RPS failed",
-				inventory_id => $S->inventory( concept => 'catchall' )->id
-			);
-			$V->{system}{"${attr}_color"} = '#0F0';
-		}
-		else
-		{
-			Compat::NMIS::notify(
-				sys     => $S,
-				event   => "RPS Fail",
-				element => $attr,
-				details => "RPS failed",
-				context => {type => "rps"},
-				inventory_id => $S->inventory( concept => 'catchall' )->id
-			);
-			$V->{system}{"${attr}_color"} = 'red';
-		}
-	}
-
-	NMISNG::Util::info("Finished");
-	return;
-}
 
 # this function handles nodes with configuration save timestamps
 # i.e. try to figure out if the config of a device has been saved or not,
@@ -3652,67 +3599,7 @@ sub handle_configuration_changes
 	return;
 }
 
-# fixme9: this is deprecated and subject to removal!
-#
-# check model sections (but only under sys!), look for 'check' properties,
-# and if a known check type is seen, run the appropriate function - there is only one, check_power
-# args: self, sys
-# returns: nothing
-sub handle_check_sections
-{
-	my ($self, %args) = @_;
-	my $S    = $args{sys};
 
-
-	my $M    = $S->mdl;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-
-	my $C = $self->nmisng->config;
-	my $name = $self->name;
-
-	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )    #  don't bother with dead nodes
-	{
-		NMISNG::Util::dbg("Node $name is down, not looking for check values");
-		return;
-	}
-
-	for my $sect ( keys %{$M->{system}->{sys}} )
-	{
-		if ( my $control = $M->{system}{sys}{$sect}{control} )    # check if skipped by control
-		{
-			NMISNG::Util::dbg( "control=$control found for section=$sect", 2 );
-			if ( !$S->parseString( string => "($control) ? 1:0", sect => $sect, eval => 1 ) )
-			{
-				NMISNG::Util::dbg("checkvalues of section $sect skipped by control=$control");
-				next;
-			}
-			my $thissection = $M->{system}->{sys}->{$sect};
-
-			for my $source (qw(wmi snmp))
-			{
-				next if ( ref( $thissection->{$source} ) ne "HASH" );
-
-				for my $attr ( keys %{$thissection->{$source}} )
-				{
-					my $thisattr = $thissection->{$source}->{$attr};
-					if ( my $checktype = $thisattr->{check} )
-					{
-						if ( $checktype eq 'checkPower' )
-						{
-							$self->check_power( sys => $S, attr => $attr );
-						}
-						else
-						{
-							NMISNG::Util::logMsg(
-								"ERROR ($name) unknown check method=$checktype in section $sect, source $source");
-						}
-					}
-				}
-			}
-		}
-	}
-	NMISNG::Util::dbg("Finished");
-}
 
 # find location from dns LOC record if configured to try (loc_from_DNSloc)
 # or fall back to syslocation if loc_from_sysLoc is set
@@ -7608,8 +7495,6 @@ sub collect
 	$self->collect_services( sys => $S,
 													 snmp => NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true',
 													 force => $force );
-
-	$self->handle_check_sections(sys => $S);
 
 	# don't let that function perform the rrd update, we want to add the polltime to it!
 	my $reachdata = $self->compute_reachability( sys => $S, delayupdate => 1 );

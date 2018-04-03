@@ -165,8 +165,6 @@
   'custom' => {
 		'interface' => {
 		  'ifAdminStatus' => 'false',
-# replaced by plugins/NetGearInterface.pm
-#			script => 'admin/manual_interface_discovery.pl'
 		}
 	},
   'interface' => {

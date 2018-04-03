@@ -258,7 +258,6 @@
               '2' => 'warning',
               '5' => 'notPresent'
             },
-            'check' => 'checkPower',
             'oid' => 'ciscoEnvMonSupplyState.1',
             'title' => 'Power Supply 1'
           },
@@ -291,7 +290,6 @@
               '2' => 'warning',
               '5' => 'notPresent'
             },
-            'check' => 'checkPower',
             'oid' => 'ciscoEnvMonSupplyState.2',
             'title' => 'Power Supply 2'
           }
