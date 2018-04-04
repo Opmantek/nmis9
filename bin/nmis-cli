@@ -68,7 +68,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=schedule [at=time] <job.type=activity> [job.priority=0..1] [job.X=....]
   act=schedule-help for more detailed help
- act=list-schedules [verbose=t/f]
+ act=list-schedules [verbose=t/f] [only=active|queued]
  act=delete-schedule id=<schedule_id>
  act=abort id=<schedule_id>
 
@@ -91,6 +91,8 @@ my $scheduleusage = qq|Job Scheduling:
 
 list-schedules: displays overview of pending and active jobs;
   verbose=t causes job arguments to be displayed fully.
+  only=queued shows pending jobs only,
+  only=active shows only jobs that are in progress.
 
 delete-schedule: removes a schedule record from the database
 abort: like delete-schedule but also terminates any worker process that is
@@ -333,55 +335,91 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 	}
 	else
 	{
-		my $fmt = "%-26s%-26s%-48s%-20s%s\n";
-		printf("Scheduled and Active jobs:\n$fmt",
-					 "Id","When","Status","What",
-					 "Parameters");
-
-		for my $sched (@$queuedjobs)
+		if (!defined($Q->{only}) or $Q->{only} eq "active")
 		{
-			my $printable = $sched->{args}?
-					Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
-			$printable = "<skipped, too long>"
-					if (!$wantverbose && length($printable) > 64);
+			my $fmt = "%-26s%-26s%-48s%-20s%s\n";
+			printf("Active Jobs:\n$fmt",
+						 "Id","When","Status","What",
+						 "Parameters");
 
-			printf($fmt,
-						 $sched->{_id},
-						 scalar(localtime($sched->{time})),
-						 ($sched->{in_progress}? ("In Progress since "
-																			.localtime($sched->{in_progress})
-																			. ($wantverbose?
-																			" (Worker $sched->{status}->{pid}) ":""))
-							: ("Queued (priority ".$sched->{priority}.")")),
-						 $sched->{type},
-						 $printable);
+			my $some;
+			for my $active (grep($_->{in_progress}, @$queuedjobs))
+			{
+				$some = 1;
+
+				my $printable = $active->{args}?
+					Data::Dumper->new([$active->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
+				$printable = "<skipped, too long>"
+						if (!$wantverbose && length($printable) > 64);
+
+				printf($fmt,
+							 $active->{_id},
+							 scalar(localtime($active->{time})),
+							 ("In Progress since "
+								.localtime($active->{in_progress})
+								. ($wantverbose? " (Worker $active->{status}->{pid}) " : "")),
+							 $active->{type},
+							 $printable);
+			}
+			print "No active jobs at this time.\n" if (!$some);
+			print "\n";
+		}
+
+		if (!defined($Q->{only}) or $Q->{only} eq "queued")
+		{
+			my $fmt = "%-26s%-26s%-12s%-20s%s\n";
+			printf("Queued Jobs:\n$fmt",
+						 "Id","When","Priority","What","Parameters");
+
+			my $some;
+			for my $sched (grep(!$_->{in_progress}, @$queuedjobs))
+			{
+				$some = 1;
+				my $printable = $sched->{args}?
+						Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
+				$printable = "<skipped, too long>"
+						if (!$wantverbose && length($printable) > 64);
+
+				printf($fmt,
+							 $sched->{_id},
+							 scalar(localtime($sched->{time})),
+							 $sched->{priority},
+							 $sched->{type},
+							 $printable);
+			}
+
+			print "No active jobs at this time.\n" if (!$some);
+			print "\n";
 		}
 	}
 
-	# show the scheduled periods for the known automatic actions
-	my $fmt = "%-30s%s\n";
-	printf("\nAutomatic Schedule:\n$fmt", "Operation","Frequency");
-	for ( [ "escalations", "Escalations" ],
-				[ "thresholds", "Threshold Computations" ],
-				[ "metrics", "Metrics Computation" ],
-				[ "configbackup", "Configuration Backup"],
-				[ "purge", "Old File Purging"],
-				[ "dbcleanup", "Database Cleanup"],
-				[ "selftest", "Selftest" ],
-				[ "permission_test", "File Permission Test" ],
-			 )
+	if (!defined $Q->{only})
 	{
-		my ($key, $label) = @$_;
-		# thresholds are usually computed during a node's collect operation
-		next if ($key eq "thresholds"
-						 and
-						 (!NMISNG::Util::getbool($C->{global_threshold}) # totally disabled
-							or NMISNG::Util::getbool($C->{threshold_poll_node}))); # or done with node
+		# show the scheduled periods for the known automatic actions
+		my $fmt = "%-30s%s\n";
+		printf("\nAutomatic Schedule:\n$fmt", "Operation","Frequency");
+		for ( [ "escalations", "Escalations" ],
+					[ "thresholds", "Threshold Computations" ],
+					[ "metrics", "Metrics Computation" ],
+					[ "configbackup", "Configuration Backup"],
+					[ "purge", "Old File Purging"],
+					[ "dbcleanup", "Database Cleanup"],
+					[ "selftest", "Selftest" ],
+					[ "permission_test", "File Permission Test" ],
+				)
+		{
+			my ($key, $label) = @$_;
+			# thresholds are usually computed during a node's collect operation
+			next if ($key eq "thresholds"
+							 and
+							 (!NMISNG::Util::getbool($C->{global_threshold}) # totally disabled
+								or NMISNG::Util::getbool($C->{threshold_poll_node}))); # or done with node
 
-		my $freq = defined($C->{"schedule_$key"}) && $C->{"schedule_$key"} > 0?
-				NMISNG::Util::period_friendly($C->{"schedule_$key"}) : "Disabled";
+			my $freq = defined($C->{"schedule_$key"}) && $C->{"schedule_$key"} > 0?
+					NMISNG::Util::period_friendly($C->{"schedule_$key"}) : "Disabled";
 
-		printf($fmt,$label, $freq);
+			printf($fmt,$label, $freq);
+		}
 	}
 
 	exit 0;

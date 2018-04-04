@@ -1087,9 +1087,9 @@ sub get_queue_model
 			if (!defined $cursor);
 	my @data = $cursor->all;
 
-	# asking for nonexistent id is treated as failure
+	# asking for nonexistent id is treated as failure - asking for 'id NOT matching X' is not
 	return NMISNG::ModelData->new(nmisng => $self, error => "No matching queue entry!")
-			if (!@data && $wantedid);
+			if (!@data && ref($wantedid) eq "MongoDB::OID");
 
 	return NMISNG::ModelData->new(nmisng => $self,
 																query_count => $querycount,

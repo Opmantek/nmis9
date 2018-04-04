@@ -359,7 +359,7 @@ while (!$exit_marker)
 																										 type => "plugins",
 																										 time => Time::HiRes::time,
 																										 priority => $priorities{"plugins"},
-																									 in_progress => 0,
+																										 in_progress => 0,
 																										 args => {
 																											 phase => $icanhasplugin, # post-collect or post-update plugins
 																											 uuid => [ keys %$thisflock ], # these were the nodes in the op
@@ -825,7 +825,8 @@ sub worker_loop
 			$canihaveit->{status}->{pid} = $$;
 
 			my ($error, undef) = $nmisng->update_queue(jobdata => $canihaveit,
-																								 atomic => { in_progress => 0 });
+																								 atomic => { in_progress => 0,
+																														 time => $canihaveit->{time} }); # see postpone below
 			if ($error)
 			{
 				# no matching object or the like means this process was preempted
@@ -838,6 +839,58 @@ sub worker_loop
 					$nmisng->log->debug("Could not claim job $canihaveit->{_id}: $error");
 				}
 				next;
+			}
+
+			# a job was claimable, but is it safe to perform this op right now?
+			# look for in_progress interfering jobs (needs args check for node-specific stuff!)
+			my %checkargs = ( time => { '$lt' => Time::HiRes::time }, # should have started
+												in_progress => { '$ne' => 0 },					# has started
+												id => { '$ne' => $canihaveit->{_id} },	# is not this job
+												type => $canihaveit->{type} );					# but of the same type
+			# and concerns the same node as this job
+			$checkargs{"args.uuid"} = $canihaveit->{args}->{uuid} if ($canihaveit->{type} =~ /^(collect|update|services)$/);
+
+			my $maybeclash = $nmisng->get_queue_model(%checkargs);
+			if (my $error = $maybeclash->error)
+			{
+				$nmisng->log->error("Failed to check for clashing jobs: $error - assuming no in_progress instances exist");
+				$ourjob = $canihaveit;
+				last;
+			}
+			if ($maybeclash->count)
+			{
+				# possible reactions? a) abort the job completely (until somebody schedules another instance),
+				# or b) unclaim the job and postpone it for a few seconds
+				my $postpone = $nmisng->config->{postpone_clashing_schedule};
+				if ($postpone && $postpone > 0)
+				{
+					$canihaveit->{in_progress} = 0;
+					$canihaveit->{time} += $postpone;
+					$canihaveit->{status} = { pid => undef };
+
+					$nmisng->log->warn("An in-progress job clashes with job $canihaveit->{_id}, postponing this job");
+
+					my ($error, undef) = $nmisng->update_queue(jobdata => $canihaveit);
+					if ($error)
+					{
+						$nmisng->log->error("Failed to postpone job $canihaveit->{_id}: $error");
+						# we're stuck owning the job that we can't safely process, nothing to be done really
+						# safer to terminate the worker than silently abandoning the claimed job
+						die("Failed to postpone job $canihaveit->{_id}: $error\n");
+					}
+				}
+				else
+				{
+					# abort the job as unprocessable
+					# fixme9 report opstatus
+					$nmisng->log->warn("An in-progress job clashes with job $canihaveit->{_id}, discarding this job");
+					if (my $error = $nmisng->remove_queue(id => $canihaveit->{_id}))
+					{
+						$nmisng->log->error("Failed to remove job $canihaveit->{_id} from queue: $error");
+						die("Failed to remove job $canihaveit->{_id}: $error\n"); # owned but cannot dispose of...
+					}
+				}
+				next;										# try another job, this one wasn't processable
 			}
 
 			$ourjob = $canihaveit;
@@ -1365,5 +1418,5 @@ args: hashref of stuff for the op
  collect, update, services expect uuid => single node uuid to work on
  collect, update, services allow force
  services: also want list of services
- schedule: fixme node,group,operation etc etc
+ schedule: fixme9 tbd - for telling the scheduler to do X at time Y; node,group,operation etc etc
  plugins: require phase = collect or update, and uuid => array of 'handled nodes' uuids
