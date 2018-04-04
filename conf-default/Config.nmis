@@ -214,7 +214,6 @@ my %hash = (
 		'selftest_min_diskfree_mb' => 25,
 		'selftest_max_collect_age' => 900, # seconds, 15 min
 		'selftest_max_update_age' => 604800, # seconds, one week
-		'selftest_max_nmis_procs' => 50,
 		'selftest_max_system_cpu' => 60, # utilization in percent
 		'selftest_max_system_iowait' => 20, # in percent
 		'selftest_max_swap' => 50, # in percent
