@@ -2307,8 +2307,12 @@ sub selftest
 	}
 
 	# check the number of nmis processes, complain if above limit
-	my $nr_procs = keys %{&find_nmis_processes(config => $config)}; # does not count this process
-	my $max_nmis_processes = $config->{selftest_max_nmis_procs} || 50;
+	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
+
+	my $nr_procs = grep($_->{cmndline} =~ /^nmisd( .+)?$/, @{$ptable->table});
+	my $max_nmis_processes = 1 		# the scheduler
+			+ (NMISNG::Util::getbool($config->{nmisd_fping_worker})? 1:0) # the fping worker
+			+ $config->{nmisd_max_workers} * 1.1; # the configured workers and 10% extra for transitionals
 	my $status;
 	if ($nr_procs > $max_nmis_processes)
 	{
@@ -2319,7 +2323,6 @@ sub selftest
 
 	# check that there is some sort of cron running, ditto for fping worker (if enabled)
 	my $cron_name = $config->{selftest_cron_name}? qr/$config->{selftest_cron_name}/ : qr!(^|/)crond?$!;
-	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
 	my ($cron_found, $fpingd_found, $cron_status, $fpingd_status);
 	for my $pentry (@{$ptable->table})
 	{
@@ -2488,55 +2491,6 @@ sub selftest
 			);
 
 	return ($allok, \@details);
-}
-
-
-# fixme9: deprecated, doesn't work for the nmisd and its children, let's get rid of it
-#
-# small helper that returns hash of other nmis processes that are
-# running the given function
-# args: type (=collect or update)
-# with type given, collects the processes that run that cmd AND have the same config
-# without type, collects ALL procs running perl and called nmis-something-... or nmis.pl,
-# NOT just the ones with this config!
-# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
-sub find_nmis_processes
-{
-	my (%args) = @_;
-	my $type = $args{type};
-
-	my %others;
-
-	my $pst = Proc::ProcessTable->new(enable_ttys => 0);
-	foreach my $procentry (@{$pst->table})
-	{
-		next if ($procentry->pid == $$);
-
-		my $procname = $procentry->cmndline;
-		my $starttime = $procentry->start;
-		my $execname = $procentry->fname;
-		# some versions of proc::processtable are buggy and show the shortened cmndline as fname
-		if ($procname =~ /^$execname/)
-		{
-			$execname = readlink("/proc/".$procentry->pid."/exe");
-		}
-
-		if ($type && $procname =~ /^poll-$type(-(.*))?$/)
-		{
-			my $trouble = $2;
-			$others{$procentry->pid} = { name => $procname,
-																	 exe => $execname,
-																	 node => $trouble,
-																	 start => $starttime };
-		}
-		elsif (!$type && $execname =~ /(perl|poll)/ && $procname =~ /(poll-\S+-\S+)/)
-		{
-			$others{$procentry->pid} = { name => $procname,
-																	 exe => $execname,
-																	 start => $starttime };
-		}
-	}
-	return \%others;
 }
 
 
