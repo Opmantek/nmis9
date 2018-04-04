@@ -379,7 +379,7 @@ while (!$exit_marker)
 	}
 
 
-# fixme! how about reports? schedulable or not?
+	# fixme9! how about reports? schedulable or not?
 
 	# consult the ops frequencies config for non-node-specific schedulable operations
 	# escalate and metrics were post-collect in the past, but unpleasant to schedule that way
@@ -881,9 +881,13 @@ sub worker_loop
 				}
 				elsif ($ourjob->{type} eq "escalations")
 				{
-					# fixme9: under what circumstances does that thing crash the process?
 					# fixme: does not return anything
 					$nmisng->process_escalations;
+				}
+				elsif ($ourjob->{type} eq "thresholds")
+				{
+					# fixme: does not return anything
+					$nmisng->compute_all_thresholds;
 				}
 				elsif ($ourjob->{type} eq "metrics")
 				{
@@ -892,7 +896,7 @@ sub worker_loop
 				elsif ($ourjob->{type} eq "plugins")
 				{
 					# run after-collect/after-update plugins once all node jobs are done
-				# required args: phase and uuid (array)
+					# required args: phase and uuid (array)
 					my $phase = $ourjob->{args}->{phase};
 					my $uuids = $ourjob->{args}->{uuid};
 					if ($phase !~ /^(update|collect)$/
@@ -966,7 +970,7 @@ sub worker_loop
 					# required: args with uuid of node to work on,
 					# optional force
 					# collect: also requires wantsnmp and wantwmi
-					# services: also expects services (=list of names)
+					# services: also allows services (=list of preselected service names)
 					my $nodeuuid = $ourjob->{args}->{uuid};
 
 					my $methodname = $ourjob->{type};

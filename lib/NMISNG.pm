@@ -50,6 +50,7 @@ use NMISNG::Events;
 use NMISNG::Log;
 use NMISNG::ModelData;
 use NMISNG::Node;
+use NMISNG::Sys;
 use NMISNG::Util;
 
 use Compat::Timing;
@@ -967,8 +968,11 @@ sub update_queue
 
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
-			if ($jobdata->{type} !~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|reports|plugins)$/);
+			if ($jobdata->{type} !~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins)$/);
 
+	return "Job type \"$jobdata->{type}\" not schedulable because of configuration global_threshold or threshold_poll_node"
+			if ($jobdata->{type} eq "thresholds" && (!NMISNG::Util::getbool($self->config->{global_threshold})
+																							 || NMISNG::Util::getbool($self->config->{threshold_poll_node})));
 	# perform minimal argument validation
 	if ($jobdata->{type} =~ /^(collect|update|services|plugins)$/)
 	{
@@ -2137,9 +2141,57 @@ sub _threshold_period
 	return "-15 minutes";
 }
 
+# convenience-wrapper around compute_thresholds, used only in case threshold_poll_node
+# is configured off. iterates over all active nodes and runs compute_thresholds on each.
+#
+# args: self
+# returns: nothing
+sub compute_all_thresholds
+{
+	my ($self, %args) = @_;
 
-# fixme9: where should this function go? this isn't a great spot.
-# fixme9: this should accept a live node object
+	# function should not be reached in these two cases
+	if (!NMISNG::Util::getbool($self->config->{global_threshold}))
+	{
+		$self->log->error("Global thresholding is disabled, not computing any thresholds!");
+		return;
+	}
+	elsif (NMISNG::Util::getbool($self->config->{threshold_poll_node}))
+	{
+		$self->log->warn("Thresholding is performed with nodes, not computing any thresholds now.");
+		return;
+	}
+
+	my $activenodes = $self->get_nodes_model(filter => { active => 1});
+	if (my $error = $activenodes->error)
+	{
+		$self->log->error("Failed to lookup active nodes: $error");
+		return;
+	}
+	# anything to do?
+	return if (!$activenodes->count);
+
+	my $gimme = $activenodes->objects;
+	if (!$gimme->{success})
+	{
+		$self->log->error("Failed to instantiate nodes: $gimme->{error}");
+		return;
+	}
+
+	for my $nodeobj (@{$gimme->{objects}})
+	{
+		my $S = NMISNG::Sys->new();
+		if (!$S->init(node => $nodeobj, snmp => 0))
+		{
+			$self->log->error("failed to instantiate Sys: ".$S->status->{error});
+			next;
+		}
+		$self->compute_thresholds(sys => $S, running_independently => 1);
+	}
+	return;
+}
+
+# fixme9: where should this function go? this isn't a great spot...should become node method
 #
 # figures out which threshold alerts need to be run for one node, based on model
 # delegates the evaluation work to applyThresholdToInventory, then updates info structures.
@@ -2269,19 +2321,6 @@ sub compute_thresholds
 		}
 	}
 
-	## process each status and have it decay the overall node status......
-	#"High TCP Connection Count--tcpCurrEstab" : {
-	#   "status" : "ok",
-	#   "value" : "1",
-	#   "event" : "High TCP Connection Count",
-	#   "element" : "tcpCurrEstab",
-	#   "index" : null,
-	#   "level" : "Normal",
-	#   "type" : "test",
-	#   "updated" : 1423619108,
-	#   "method" : "Alert",
-	#   "property" : "$r > 250"
-	#},
 	my $count   = 0;
 	my $countOk = 0;
 	foreach my $statusKey ( sort keys %$statusinfo )
@@ -2354,8 +2393,7 @@ sub compute_thresholds
 	}
 }
 
-# fixme9: where should this function go? not ideal here
-# fixme9: should accept a live node object, not just sys
+# fixme9: where should this function go? not ideal here, should become node method
 #
 # performs the threshold value checking and event raising for
 # one or more threshold configurations

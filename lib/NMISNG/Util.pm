@@ -145,6 +145,7 @@ sub enter_critical
 	return ++$_critical_section;
 }
 
+# fixme9: not supported by the signal handler anymore
 # this handles pending interrupts if catch_zap has signalled any.
 sub leave_critical
 {
@@ -157,7 +158,7 @@ sub leave_critical
 	return $_critical_section;
 }
 
-# fixme move away
+# fixme9 move away
 sub getCGIForm {
 	my $buffer = shift;
 	my (%FORM, $name, $value, $pair, @pairs);

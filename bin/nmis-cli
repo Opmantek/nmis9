@@ -66,7 +66,8 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=groupsync
  act=noderefresh
 
- act=schedule [at=time] <type=activity> [priority=0..1] [args.X=....]
+ act=schedule [at=time] <job.type=activity> [job.priority=0..1] [job.X=....]
+  act=schedule-help for more detailed help
  act=list-schedules [verbose=t/f]
  act=delete-schedule id=<schedule_id>
  act=abort id=<schedule_id>
@@ -84,6 +85,48 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
   act=outage-help for more detailed help
 
 \n";
+
+
+my $scheduleusage = qq|Job Scheduling:
+
+list-schedules: displays overview of pending and active jobs;
+  verbose=t causes job arguments to be displayed fully.
+
+delete-schedule: removes a schedule record from the database
+abort: like delete-schedule but also terminates any worker process that is
+  processing that job.
+
+create-schedule: inserts a new job record into the database.
+
+Supported Arguments for Schedule Creation:
+
+at: optional time argument for the job to commence, default is now.
+
+job.type: job type, required, one of: collect update services
+  thresholds escalations metrics configbackup purge dbcleanup
+  selftest permission_test or plugins
+
+job.priority: optional number between 0 (lowest) and 1 (highest) job priority.
+ default is 1 for manually scheduled jobs
+
+For collect/update/services:
+job.node: node name
+job.uuid: node uuid
+job.group: group name
+  All three are optional and can be repeated. If none are given,
+  all active nodes are chosen.
+
+For collect:
+job.wantsnmp, job.wantwmi: optional, default is 1.
+
+For plugins:
+job.phase: required, one of update or collect
+job.uuid: required, one or more node uuids to operate on
+
+job.force: optional, if set to 1 certain job types ignore scheduling policies
+ and bypass any cached data.
+|;
+
 
 my $outageusage = qq|Outage Management:
 
@@ -166,13 +209,112 @@ my $nmisng = NMISNG->new(
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
-# scheduling of actions
-if ($Q->{act} eq "schedule")
+if ($Q->{act} =~ /^schedule[_-]help$/)
 {
-	# at=time or now
-	# type 
-	
+	print $scheduleusage;
+	exit 0;
+}
+# scheduling of actions, overriding/augmenting what nmisd automatically schedules
+elsif ($Q->{act} eq "schedule")
+{
+	# no args at all? print help
+	my $what = $Q->{"job.type"};
+	if (!defined $what)
+	{
+		print $scheduleusage;
+		exit 1;
+	}
+	my $priority = $Q->{"job.priority"} // 1; # default assumption is non-automatic custom job, hence max priority
 
+	# at=time or now
+	my $when = $Q->{at}? NMISNG::Util::parseDateTime($Q->{at}) || NMISNG::Util::getUnixTime($Q->{at}) : Time::HiRes::time;
+	die "Invalid time specification \"$Q->{at}\"!\n" if (!$when);
+
+	my %jobargs;
+	for my $match (grep(/^job\..+$/, keys %$Q))
+	{
+		next if ($match =~ /^job\.(type|priority)$/); # these don't go into the job args
+		my $argument = $match;
+		$argument =~ s/^job\.//;
+		$jobargs{$argument} = ( $argument eq "force"? # for force we'd like 1/0
+														NMISNG::Util::getbool($Q->{$match})?1:0 : $Q->{$match});
+	}
+
+	# perform any necessary arg conversions and expansions
+	# collect/services/update, find the nodes implied and schedule a separate job for each
+	# post-update/collect plugins require a list of node uuids - should normally be left to the daemon to schedule
+	if ($what =~ /^(collect|update|services|plugins)$/)
+	{
+		my @filters;
+		for my $filterable (qw(node name group uuid)) # job.node === job.name === node name
+		{
+			my @inputs = ref($jobargs{$filterable}) eq "ARRAY"? @{$jobargs{$filterable}}: $jobargs{$filterable} // ();
+			map { push @filters, { ($filterable eq "node"? "name" : $filterable) => $_ }; } (@inputs);
+		}
+
+		my $possibles = $nmisng->expand_node_selection(@filters);
+		die "Failed to query nodes: ".$possibles->error."\n" if ($possibles->error);
+		die "No nodes found matching your selectors!\n" if (!$possibles->count);
+
+		map { delete $jobargs{$_} } (qw(name node group)); # no longer needed, uuid is what counts
+		if ($what eq "collect")
+		{
+			$jobargs{wantwmi} = $Q->{"job.wantwmi"} // 1;
+			$jobargs{wantsnmp} = $Q->{"job.wantsnmp"} // 1;
+		}
+
+		if ($what eq "plugins")			# one combined job with the node uuids passed in
+		{
+			$jobargs{uuid} = [ map { $_->{uuid} } (@{$possibles->data}) ];
+
+			my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => $what,
+					time => $when,
+					priority => $priority,
+					in_progress => 0,					# somebody else is to work on this
+					args => \%jobargs });
+			die "Failed to add schedule: $error\n" if ($error);
+			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$wantquiet);
+		}
+		# collect/update/services need separate scheduling for each node
+		else
+		{
+			for my $onenode (@{$possibles->data})
+			{
+				$jobargs{uuid} = $onenode->{uuid};
+
+				my ($error,$jobid) = $nmisng->update_queue(
+					jobdata => {
+						type => $what,
+						time => $when,
+						priority => $priority,
+						in_progress => 0,					# somebody else is to work on this
+						args => \%jobargs });
+				die "Failed to add schedule: $error\n" if ($error);
+				print "Job $jobid created for node $onenode->{name} ($onenode->{uuid}) and type $what.\n" if (!$wantquiet);
+			}
+		}
+	}
+	# none of these take any job arguments
+	elsif ($what =~ /^(selftest|permission_test|configbackup|purge|dbcleanup|escalations|metrics|thresholds)$/)
+	{
+		my ($error,$jobid) = $nmisng->update_queue(
+			jobdata => {
+				type => $what,
+				time => $when,
+				priority => $priority,
+				in_progress => 0,					# somebody else is to work on this
+			});
+		die "Failed to add schedule: $error\n" if ($error);
+		print "Job $jobid created for type $what.\n" if (!$wantquiet);
+	}
+	else
+	{
+		die "Unrecognized job type \"$what\"!\n";
+	}
+
+	exit 0;
 }
 # print in-progess and queued jobs, and automatically scheduled stuff
 # shorten the args unless verbose=true
@@ -263,7 +405,7 @@ elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 				die "Failed to lookup schedule: $fault\n";
 			}
 			die "No matching schedule exists!\n" if ($job->count != 1);
-			
+
 			my $thejob = $job->data->[0]; 	# we want the first and only schedule entry
 			if ($thejob->{in_progress}
 					&& ref($thejob->{status}) eq "HASH"
@@ -275,7 +417,7 @@ elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 				# let's be careful: is it an nmis process?
 				my $pt = Proc::ProcessTable->new(enable_ttys => 0);
 				my %bypid = map { ($_->pid => $_) } (@{$pt->table});
-				
+
 				if (defined $bypid{$shootme}
 						&& $bypid{$shootme}->cmndline =~ /^nmisd worker/)
 				{
@@ -286,7 +428,7 @@ elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 				}
 			}
 		}
-		
+
 		my $error = $nmisng->remove_queue(id => $id);
 		die "$error\n" if ($error);
 	}
