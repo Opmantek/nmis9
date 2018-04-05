@@ -102,7 +102,7 @@ my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 NMISNG::Util::setFileProtDiag(file =>$logfile) if (-f $logfile);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $cmdline->{debug},
-																 info => undef) // $config->{log_level}, # fixme9: info not supported
+																 info => undef) // $config->{log_level}, # fixme9: info cmdline arg not supported
 															 path  =>  (defined($cmdline->{debug})? undef : $logfile));
 # this opens a database connection - which we must not share with any children!
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
@@ -227,13 +227,53 @@ while (!$exit_marker)
 	}
 
 	# look for type=schedule jobs - that's work for the supervisory daemon itself
-#	fixme
+	#	fixme9: not implemented yet
 
-	# overdue or stuck jobs? ditch and report if older than an hour
-	# fixme: ideally, deduplicate these overdue ones
-	# (run only the newest of type X and args Y)
-	# fixme: maybe shoot a worker that is stuck for too long?
+	# overdue stuck jobs? abort, terminate the worker (if still around), and report
+	# first look for jobs that might be stuck,
+	# ie. anything older than the lowest maximum acceptable age
+	my $bestbefore = Statistics::Lite::min(grep(defined($_) && $_ > 0,
+																							map { $config->{$_} } (grep(/^abort_\S+_after$/, keys %$config))));
+	if ($bestbefore && $bestbefore > 0)
+	{
+		my $now = Time::HiRes::time;
+		my $maybestuck = $nmisng->get_queue_model(
+			in_progress => { '$gt' => 0, '$lt' => ($now-$bestbefore) });
+		if (my $error = $maybestuck->error)
+		{
+			$nmisng->log->error("Failed to query job queue: $error");
+		}
+		else
+		{
+			for my $onejob (@{$maybestuck->data})
+			{
+				# then ensure the job is past the actual job type's use by date
+				my $realmaxage = $config->{"abort_$onejob->{type}_after"};
+				if (defined($realmaxage) && $realmaxage > 0 && $onejob->{in_progress} < ($now - $realmaxage) )
+				{
+					$nmisng->log->error("Job $onejob->{_id}, type $onejob->{type}"
+														 . ($onejob->{type} =~ /^(collect|update|services)$/?
+																" for node $onejob->{args}->{uuid}":"")
+														 . " is too old, in progress for "
+														 .int($now - $onejob->{in_progress})."s, maximum allowed ${realmaxage}s");
+					# remove the job, terminate the worker (if one is left)
+					my $workerpid = $onejob->{status}->{pid};
 
+					$nmisng->log->warn("Aborting job $onejob->{_id} due to age");
+					my $error = $nmisng->remove_queue(id => $onejob->{_id});
+					$nmisng->log->error("Failed to remove job: $error") if ($error); # not terminal though
+
+					if (exists($zoo->{$workerpid}))
+					{
+						$nmisng->log->warn("Terminating worker process $workerpid that owned $onejob->{_id} for too long");
+						kill("TERM",$workerpid);
+					}
+
+					# fixme9: report via opstatus
+				}
+			}
+		}
+	}
 
 	# handle policy-controlled operations (services, node updates and node polling),
 	# attention: these need tagging so that after-op plugins are schedulable!
@@ -499,9 +539,9 @@ while (!$exit_marker)
 
 
 	}
-	else
+	else	# process management only in non-debug mode
 	{
-		# every 30 s: check the process zoo and herd some cats,
+		# every 30s: check the process zoo and herd some cats,
 		# also tally the number of processes and execution stats and update the nmis rrd
 		# fixme nmis rrd: what can we collect and park there?
 		if (!$scheduler_state->{last_process_check}
@@ -515,6 +555,50 @@ while (!$exit_marker)
 			$scheduler_state->{last_process_check} = time;
 		}
 	}
+
+	# collect some queue status information: how many queued, overdue, in-progress
+	# and track the last 30 minutes in the scheduler state,
+	# for trend detection and warning
+	my $now = Time::HiRes::time;
+	$scheduler_state->{queue_states} //= [];
+	my $queued = $nmisng->get_queue_model(limit => 0, # want no data, just the count
+																				count => 1, in_progress => 0);
+	if (my $error = $queued->error)
+	{
+		$nmisng->log->error("Failed to count queued jobs: $error");
+	}
+	my $overdue = $nmisng->get_queue_model(limit => 0, count => 1,
+																				 # allow up to one nmisd_worker_cycle of delay
+																				 time => { '$lt' => $now - $config->{nmisd_worker_cycle} },
+																				 in_progress => 0);
+	if (my $error = $overdue->error)
+	{
+		$nmisng->log->error("Failed to count overdue jobs: $error");
+	}
+	my $active = $nmisng->get_queue_model(limit => 0, count => 1, in_progress => { '$ne' => 0 });
+	if (my $error = $active->error)
+	{
+		$nmisng->log->error("Failed to count in-progress jobs: $error");
+	}
+
+	my @keepsakes = grep( ($now - $_->[0]) < 1800, @{$scheduler_state->{queue_states}});
+	push @keepsakes, [ $now, $queued->query_count,
+										 $active->query_count, $overdue->query_count ];
+	$scheduler_state->{queue_states} = \@keepsakes;
+
+	# warn if there are more overdue jobs than 2 times the allowed workers,
+	$nmisng->log->warn("Performance warning: ".$overdue->query_count." overdue queued jobs!")
+			if ($overdue->query_count > 2 * $config->{nmisd_max_workers});
+
+	# warn if there are more queued jobs than 4 times the active nodes,
+	# or 10 times the allowed workers, whichever is higher.
+	# as collect, update, services are schedulable per node just counting workers is not good
+	my $lotsaqueued = $queued->query_count;
+	my $nrnodes = $nmisng->get_nodes_model(filter => { active => 1},
+																				 count => 1, limit => 0)->query_count; # ignores any errors
+
+	$nmisng->log->warn("Performance warning: $lotsaqueued queued jobs!")
+			if ($lotsaqueued > Statistics::Lite::max(4 * $nrnodes, 10 * $config->{nmisd_max_workers}));
 
 	# reap any finished processes
 	my %goners = &NMISNG::Util::reaper;

@@ -201,13 +201,7 @@ my %hash = (
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
     'auto_expand_more_graphs' => 'true',
 
-		# maximum runtime of nmis collect or update (child) processes
-		# unlimited if set to zero or undef
-		'max_child_runtime' => undef,
-		# to disable the generation of "nmis runtime exceeded" events, set this to 1 or true
-		'disable_nmis_process_events' => undef,
-		# true: produce output on STDERR if nmis processes are being killed
-		'verbose_nmis_process_events' => 'true',
+		'max_child_runtime' => undef, 		# maximum runtime of per-node operations (ie. collect, update, services). unlimited if set to zero or undef
 		# to enable the logging of polling time to the NMIS log, will log every node every 5 minutes, set this to 1 or true
 		'log_polling_time' => undef,
 		# various selftest limits
@@ -499,7 +493,7 @@ my %hash = (
 	},
 
 	'schedule' => {
-		# 0 or negative to disable automatic scheduling
+		# empty, 0 or negative to disable automatic scheduling
 		'schedule_configbackup' => 86400,
 #		'schedule_reports' => 86400, # fixme not good
 		'schedule_purge' => 86400,
@@ -511,4 +505,18 @@ my %hash = (
 		'schedule_thresholds' => 120, # ignored if global_threshold is false or threshold_poll_node is true
 	},
 
+	"overtime_schedule" => {
+		# empty, 0 or negative to not abort stuck overtime jobs
+		"abort_collect_after" => 900, # seconds
+		"abort_update_after" => 7200,
+		"abort_services_after" => 900,
+		"abort_configbackup_after" => 900, # seconds
+		'abort_purge_after' => 600,
+		'abort_dbcleanup_after' => 600,
+		'abort_selftest_after' => 120,
+		'abort_permission_test_after' => 240,
+		'abort_escalations_after' => 300,
+		'abort_metrics_after' => 300,
+		'abort_thresholds_after' => 300,
+	},
 );
