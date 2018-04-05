@@ -213,7 +213,6 @@ my %hash = (
 		'selftest_max_system_iowait' => 20, # in percent
 		'selftest_max_swap' => 50, # in percent
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
-		'nmis4_compatibility' => 'false',
 		'plugins_enabled' => 'true',
 
 		# set to false to disable keeping of closed events in history section
@@ -415,21 +414,6 @@ my %hash = (
     'small_graph_width' => '400', # 'small_graph_width' => '400',
     'graph_default_font_standard' => 'DEFAULT:8:Sans-Serif',
     'graph_default_font_small' => 'DEFAULT:8:Sans-Serif',
-  },
-
-  'tables NMIS4' => {
-    'Users_Key' => 'user',
-    'Interface_Table' => '<nmis_var>/interface.csv',
-    'Interface_Key' => 'node:ifDescr',
-    'Locations_Table' => '<nmis_conf>/locations.csv',
-    'Escalation_Table' => '<nmis_conf>/escalation.csv',
-    'Contacts_Key' => 'Contact',
-    'Locations_Key' => 'Location',
-    'Contacts_Table' => '<nmis_conf>/contacts.csv',
-    'Nodes_Table' => '<nmis_conf>/nodes.csv',
-    'Nodes_Key' => 'node',
-    'Users_Table' => '<nmis_conf>/users.csv',
-    'Escalation_Key' => 'Group:Role:Type:Event:Event_Node:Event_Element'
   },
 
   'mibs' => {

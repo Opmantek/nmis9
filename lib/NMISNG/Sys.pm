@@ -2178,7 +2178,7 @@ sub getTypeInstances
 # index and item; and certainly the information in the node's model and common-database.
 #
 # args: type or graphtype, index, item (mostly required), inventory (optional),
-# extras (optional, hash), nmis4 (optional),
+# extras (optional, hash),
 # relative (optional, default false - if set, path is relative to database_root)
 #
 # if graphtype is given, a translation from that to rrd section name is performed (e.g. abits => interface)
@@ -2228,12 +2228,6 @@ sub makeRRDname
 		return undef;
 	}
 
-	# nmis4 compatibility requested?
-	if (NMISNG::Util::getbool($args{nmis4_compatibility}))
-	{
-		# nmis4 knows host, not node
-		$template =~ s/\$node\b/\$host/g;
-	}
 
 	# if we have no index but item: fall back to that, and vice versa
 	if ( defined $item && $item ne '' && ( !defined $index || $index eq '' ) )

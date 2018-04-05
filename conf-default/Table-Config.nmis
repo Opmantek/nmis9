@@ -284,21 +284,6 @@ my %hash = (
 													validate => { 'int' => [ 200, undef ] }}}
 				],
 
-		'tables NMIS4' => [
-			{ 'Interface_Table' => { display => 'text', value => ['']}},
-			{ 'Interface_Key' => { display => 'text', value => ['']}},
-			{ 'Escalation_Table' => { display => 'text', value => ['']}},
-			{ 'Escalation_Key' => { display => 'text', value => ['']}},
-			{ 'Locations_Table' => { display => 'text', value => ['']}},
-			{ 'Locations_Key' => { display => 'text', value => ['']}},
-			{ 'Nodes_Table' => { display => 'text', value => ['']}},
-			{ 'Nodes_Key' => { display => 'text', value => ['']}},
-			{ 'Users_Table' => { display => 'text', value => ['']}},
-			{ 'Users_Key' => { display => 'text', value => ['']}},
-			{ 'Contacts_Table' => { display => 'text', value => ['']}},
-			{ 'Contacts_Key' => { display => 'text', value => ['']}}
-				],
-
 		'mibs' => [
 			{ 'full_mib' => { display => 'text', value => ['nmis_mibs.oid']}}
 				],

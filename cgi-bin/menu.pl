@@ -445,10 +445,11 @@ sub menu_bar_portal {
 				push @menu_portal,	( qq|<a href="nmiscgi.pl?conf=$Q->{conf}" target='_self'>NMIS9 Home</a>|);
 				push @menu_portal,	( qq|Client Views|,
 												[
-												 qq|<a href="http://master.domain.com/cgi-master/nmiscgi.pl" target='_blank'>NMIS4 Demo Master/Slave</a>|,
-												  qq|<a href="#" >Customer A</a>|,
-												   qq|<a href="#" >Customer B</a>|
-
+# fixme9: none of this works with nmis9
+# 		 qq|<a href="http://master.domain.com/cgi-master/nmiscgi.pl" target='_blank'>NMIS4 Demo Master/Slave</a>|,
+#												  qq|<a href="#" >Customer A</a>|,
+#												   qq|<a href="#" >Customer B</a>|
+#
 												]);
 
 		return [ @menu_portal ];
