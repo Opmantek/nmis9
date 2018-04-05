@@ -1813,7 +1813,7 @@ sub find_due_nodes
 		map { $cands{$_->{uuid}} = $_ } (@{$possibles->data});
 	}
 	# no filters returned anybody?
-	return { success => 1, nodes => [] } if (!keys %cands);
+	return { success => 1, nodes => {} } if (!keys %cands);
 
 	# get the queued jobs that could be of relevance
 	my $running = $self->get_queue_model(type => $whichop,
