@@ -547,32 +547,8 @@ sub doNodeUpdate {
 									-onclick => ($wantwidget? "javascript:get('$formid');" : "submit()"),
 									-value=>'Ok'))));
 
-	print "<pre>\n";
-	print "Running update on node $node - Please wait.....\n\n\n";
-
-	open(PIPE, "$C->{'<nmis_bin>'}/poll type=update node=$node info=true force=true 2>&1 |");
-	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
-
-	while ( <PIPE> ) {
-		print ;
-	}
-	close(PIPE);
-	print "\n</pre>\n";
-
-	print "<pre>\n";
-	print "Running collect on node $node - Please wait.....\n\n\n";
-
-	open(PIPE, "$C->{'<nmis_bin>'}/poll type=collect node=$node info=true 2>&1 |");
-	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
-
-	while ( <PIPE> ) {
-		print ;
-	}
-	close(PIPE);
-	print "\n</pre>\n";
-
+	# fixme9: must schedule a type=update and type=collect job instead, poll no longer exists!
+	# fixme: must show warning text re async response
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
 				td(button(-name=>'button',

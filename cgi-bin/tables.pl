@@ -882,57 +882,12 @@ sub doNodeUpdate {
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "table", -value => $Q->{table});
 
-
-#									 conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget",
-#									 -action => url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget" );
-
 	print table(Tr(td({class=>'header'}, escapeHTML("Completed web user initiated update of $node")),
 				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
 									-value=>'Ok'))));
-	print "<pre>\n";
-	print escapeHTML("Running update on node $node\n\n\n");
 
-	my $pid = open(PIPE, "-|");
-	if (!defined $pid)
-	{
-		print "Error: cannot fork: $!\n";
-	}
-	elsif (!$pid)
-	{
-		# child
-		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
-		exec("$C->{'<nmis_bin>'}/poll","type=update", "node=$node", "info=true", "force=true");
-		die "Failed to exec: $!\n";
-	}
-	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-	select((select(STDOUT), $| = 1)[0]);		# unbuffer stdout
-
-	while ( <PIPE> ) {
-		print escapeHTML($_);
-	}
-	close(PIPE);
-	print "\n</pre>\n<pre>\n";
-	print escapeHTML("Running collect on node $node\n\n\n");
-
-	$pid = open(PIPE, "-|");
-	if (!defined $pid)
-	{
-		print "Error: cannot fork: $!\n";
-	}
-	elsif (!$pid)
-	{
-		# child
-		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
-		exec("$C->{'<nmis_bin>'}/poll","type=collect", "node=$node", "info=true");
-		die "Failed to exec: $!\n";
-	}
-	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-
-	while ( <PIPE> ) {
-		print escapeHTML($_);
-	}
-	close(PIPE);
-	print "\n</pre>\n";
+	# fixme9: must schedule a type=update and type=collect job instead, poll no longer exists!
+	# fixme: must show warning text re async response
 
 	print table(Tr(td({class=>'header'},escapeHTML("Completed web user initiated update of $node")),
 				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
