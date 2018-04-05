@@ -30,7 +30,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="9.0.0a";
+our $VERSION="9.0.0b";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";

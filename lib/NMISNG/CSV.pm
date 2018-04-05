@@ -27,16 +27,16 @@
 #
 # *****************************************************************************
 package NMISNG::CSV;
-our $VERSION = "9.0.0a";
+our $VERSION = "9.0.0b";
 
 use strict;
 use Text::CSV;
 
 # backwards-compatible function that loads a given file,
-# and rearranges the data in a hash with outer key being from 
+# and rearranges the data in a hash with outer key being from
 # the given named column, and value being a hash of all columns.
 #
-# note that this REQUIRES that the csv was written with 
+# note that this REQUIRES that the csv was written with
 # the first line being the column names.
 #
 # args: filename, column name (both required)
@@ -62,7 +62,7 @@ sub loadCSV
 	my @collist = $csv->fields;
 	# column name as per heading -> index of the column
 	my %knowncols = map { $collist[$_] => $_; } (0..$#collist);
-	return "duplicate columns in \"$headings\"!" 
+	return "duplicate columns in \"$headings\"!"
 			if (scalar keys %knowncols != @collist);
 	return "key column not present in input!"
 			if (!defined $knowncols{$keycolname});
