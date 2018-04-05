@@ -221,7 +221,7 @@ while (!$exit_marker)
 	# nmis locked? don't do anything at all
 	if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
 	{
-		$nmisng->log->debug("nmis is locked, sleeping 60 seconds");
+		$nmisng->log->info("nmis is locked, sleeping 60 seconds");
 		sleep(60);
 		next;
 	}
@@ -247,11 +247,11 @@ while (!$exit_marker)
 			next;
 		}
 		my $nrtodo = scalar(keys %{$duenodes->{nodes}});
-		$nmisng->log->debug("Found $nrtodo nodes due for $operation operation");
+		$nmisng->log->info("Found $nrtodo nodes due for $operation operation");
 		next if (!$nrtodo);
 
 		my $tag = int(rand(1<<31));
-		$nmisng->log->debug3("Jobs for this $operation operation share tag \"$tag\"");
+		$nmisng->log->info("Jobs for this $operation operation share tag \"$tag\"");
 		for my $nodeuuid (keys %{$duenodes->{nodes}})
 		{
 			# let's hand the work to somebody!
@@ -351,7 +351,7 @@ while (!$exit_marker)
 			# IFF there are any plugins that provide after_xyz_plugin functions...
 			if (grep( $_->can("after_${icanhasplugin}_plugin"), $nmisng->plugins))
 			{
-				$nmisng->log->debug2("Scheduling post-$icanhasplugin plugin execution for tag $tag and "
+				$nmisng->log->info("Scheduling post-$icanhasplugin plugin execution for tag $tag and "
 														 .(scalar keys %$thisflock)." nodes");
 
 				my ($error, $qid) = $nmisng->update_queue( jobdata =>
@@ -567,7 +567,7 @@ sub manage_processes
 				or $minioninfo->{starttime} != $bypid{$minion}->start # different process
 				or !kill(0, $minion))															# not our process
 		{
-			$nmisng->log->debug("Process $minion ($minioninfo->{processtype}) has terminated");
+			$nmisng->log->info("Process $minion ($minioninfo->{processtype}) has terminated");
 			delete $zoo->{$minion};
 		}
 	}
@@ -795,7 +795,7 @@ sub worker_loop
 	{
 		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
 		{
-			$nmisng->log->debug("nmis is locked, sleeping 60 seconds");
+			$nmisng->log->info("nmis is locked, sleeping 60 seconds");
 			sleep(60);
 			next;
 		}
@@ -903,7 +903,7 @@ sub worker_loop
 		# we have some work to do!
 		if ($ourjob)
 		{
-			$nmisng->log->debug("Processing job $ourjob->{_id}, type $ourjob->{type}"
+			$nmisng->log->info("Processing job $ourjob->{_id}, type $ourjob->{type}"
 													.($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
 
 			my $result;								# for opstatus and exception handling
@@ -959,7 +959,7 @@ sub worker_loop
 					}
 					else
 					{
-						$nmisng->log->debug("Starting post-${phase} plugins for "
+						$nmisng->log->info("Starting post-${phase} plugins for "
 																.scalar(@$uuids)." nodes, tag was \"$ourjob->{tag}\"");
 
 						# lookup the node names so that we can provide both names
@@ -1048,7 +1048,7 @@ sub worker_loop
 					die("Invalid arguments for $methodname: no node with uuid $nodeuuid exists!\n")
 							if (!$thenode or $thenode->is_new);
 
-					$nmisng->log->debug("Starting $methodname for node $nodeuuid (".$thenode->name.")");
+					$nmisng->log->info("Starting $methodname for node $nodeuuid (".$thenode->name.")");
 					$result = $thenode->$methodname(@methodargs);
 					alarm(0) if ($maxruntime);
 					$0 = "nmisd worker";
@@ -1082,7 +1082,7 @@ sub worker_loop
 			# handle exceptions
 
 			# and delete the job from the queue
-			$nmisng->log->debug("Completed job $ourjob->{_id}, $ourjob->{type}, removing from queue");
+			$nmisng->log->info("Completed job $ourjob->{_id}, $ourjob->{type}, removing from queue");
 			if (my $error = $nmisng->remove_queue(id => $ourjob->{_id}))
 			{
 				$nmisng->log->error("Failed to remove job $ourjob->{_id} from queue: $error");
@@ -1151,7 +1151,7 @@ sub fping_loop
 	{
 		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
 		{
-			$nmisng->log->debug("nmis is locked, sleeping 60 seconds");
+			$nmisng->log->info("nmis is locked, sleeping 60 seconds");
 			sleep(60);
 			next;
 		}
