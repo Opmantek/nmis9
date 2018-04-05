@@ -14,7 +14,7 @@ is_mongo_installed() {
 						dpkg -l mongodb-server mongodb-org-server 2>/dev/null | grep -q ^[hi]i || return 1
 				fi
 		fi
-
+		
 		# let's get the version if we can.
 		if type mongod >/dev/null 2>&1 ; then
 				# prints something like "db version v3.0.7" plus other gunk AND other lines
@@ -23,7 +23,7 @@ is_mongo_installed() {
 				MONGO_MINOR=`echo $MONGO_VERSION | cut -f 2 -d .`
 				MONGO_PATCH=`echo $MONGO_VERSION | cut -f 3 -d .`
 		fi
-
+		
 		return 0
 }
 
@@ -35,10 +35,10 @@ add_mongo_repository () {
 		local REPOFILE
 		local SOURCESFILE
 		local RELEASENAME
-
+		
 		local DESIREDVER
 		DESIREDVER=${1:-3.4}
-
+		
 		# redhat/centos: mongodb supplies rpms for 3.2 and 3.4 for all platforms and versions we care about
 		if [ "$OSFLAVOUR" = "redhat" ]; then
 				REPOFILE=/etc/yum.repos.d/mongodb-org-$DESIREDVER.repo
@@ -60,13 +60,13 @@ EOF
 		elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 				SOURCESFILE=/etc/apt/sources.list.d/mongodb-org-$DESIREDVER.list
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
-
+				
 				# get the release key first
 				# however, as of [2018-02-08 Thu 12:18] the 3.4 repository signing is broken: BADSIG
 				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -s -m 20 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
 				# apt-key adv doesn't work cleanly with gpg 2.1+
 				$GIMMEKEY | apt-key add -
-
+				
 				RELEASENAME=`lsb_release -sc`
 				# debian 7, 8: 3.4 is a/v - upstream doesn't have newer version-specific packages
 				# debian 9: 3.2 is in debian proper but we normally need 3.4.
@@ -81,11 +81,11 @@ EOF
 						MONGORELNAME="xenial"; # aka 16.xx
 						[ "$OS_MAJOR" = "14" ] && MONGORELNAME="trusty" # 14.04
 						[ "$OS_MAJOR" = "12" ] && MONGORELNAME="precise" # aka 12.04
-
+						
 						# BADSIG on repository as of [2018-02-08 Thu 12:22]
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >$SOURCESFILE
 				fi
-
+				
 				apt-get update -qq
  		else
 				logmsg "Unknown distribution $OSFLAVOUR!"
@@ -105,9 +105,14 @@ install_mongo () {
 		elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 				DEBIAN_FRONTEND=noninteractive
 				export DEBIAN_FRONTEND
-				# remove any installed debian's mongo-tools, undeclared conflict with mongodb-org-tools, not co-installable :-(
-				# mongodb-org: doesn't have versioned dependencies :-(
-				apt-get -yq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install mongodb-org mongodb-org-shell mongodb-org-server mongodb-org-mongos mongodb-org-tools mongo-tools-
+				
+        # remove debian's mongo-tools, undeclared conflict with
+				# mongodb-org-tools, not co-installable
+        dpkg -l mongo-tools >/dev/null 2>&1 && apt-get -yq remove mongo-tools
+				
+				# mongodb-org doesn't have versioned dependencies
+				apt-get -yq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install mongodb-org mongodb-org-shell mongodb-org-server mongodb-org-mongos mongodb-org-tools 
+
 				# normally mongod should start on installation, but with systemd that seems unreliable
 				sleep 3 # to give it time to start up
 				# ubuntu: service X status is running through pager and thus blocks :-(
