@@ -4,7 +4,8 @@
 #
 ### BEGIN INIT INFO
 # Provides: nmis9d
-# Required-Start: $local_fs mongod
+# Required-Start: $local_fs
+# Should-Start:  mongod
 # Required-Stop: $local_fs
 # Default-Start:  2 3 4 5
 # Default-Stop: 0 1 6
@@ -14,6 +15,9 @@
 
 # unified startup script for debian and redhat, based on debian standard
 # Do NOT "set -e"
+
+# do not create or use systemd unit files
+export _SYSTEMCTL_SKIP_REDIRECT=1
 
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
 PATH=/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin

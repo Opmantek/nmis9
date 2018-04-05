@@ -22,10 +22,17 @@ or it is different from the script shipped with ${PRODUCT}.
 
 EOF
 
-
 		if input_yn "Ok to install or update the $PRODUCT daemon init script?" ; then
 				execPrint cp -af $SRCFILE $DESTFILE
 				echolog "Updated init script in $DESTFILE."
+
+				if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
+            execPrint "update-rc.d nmis9d defaults"
+        elif [ "$OSFLAVOUR" = "redhat" ]; then
+            execPrint "chkconfig --add nmis9d"
+            execPrint "chkconfig nmis9d on"
+        fi
+
 		else
 				echolog "Not creating or overwriting $DESTFILE, as directed."
 				cat <<EOF

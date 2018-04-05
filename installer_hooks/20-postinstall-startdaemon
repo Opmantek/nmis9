@@ -1,0 +1,21 @@
+#!/bin/sh
+# start the nmis9 daemon, unlock nmis
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if [ -x /etc/init.d/nmis9d ]; then
+		echolog "Starting NMIS9 Daemon"
+				execPrint "service nmis9d start"
+else
+		echolog "No init script for the NMIS9 daemon on the system, cannot start it until that is installed (as /etc/init.d/nmis9d)."
+		input_ok "Hit <Enter> when ready to continue: "
+fi
+
+# remove the lock file, installer status file and  stale selftest file
+rm -f /tmp/nmis_install_running $TARGETDIR/conf/NMIS_IS_LOCKED $TARGETDIR/var/nmis_system/selftest.json
+
+exit 0
+
+

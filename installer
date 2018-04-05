@@ -184,8 +184,7 @@ enter 'o conf init' on the CPAN prompt.
 Should you get prompted to choose Perl Library directories, 'local::lib'
 or the like, please choose 'sudo' or 'manual' - NOT 'local::lib'!
 
-To return to the installer when done,
-please exit the CPAN\nshell with 'exit'.\n";
+To return to the installer when done, please exit the CPAN shell with 'exit'.\n";
 				input_ok();
 				system("cpan");
 			}
