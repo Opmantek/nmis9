@@ -405,10 +405,10 @@ sub get_nodes_model
 																 verbose => 1);
 		return NMISNG::ModelData->new(nmisng => $self, error => "Count failed: $res->{error}")
 				if (!$res->{success});
-		$query_count = $res->count;
+		$query_count = $res->{count};
 	}
 
-	# if you want only a count but no data, set both count to 1 and limit to 0
+	# if you want only a count but no data, set count to 1 and limit to 0
 	if (!($args{count} && defined $args{limit} && $args{limit} == 0))
 	{
 		my $cursor = NMISNG::DB::find(
@@ -420,7 +420,8 @@ sub get_nodes_model
 			skip       => $args{skip}
 				);
 
-		return NMISNG::ModelData->new(nmisng => $self, error => "Find failed: ".NMISNG::DB::get_error_string)
+		return NMISNG::ModelData->new(nmisng => $self,
+																	error => "Find failed: ".NMISNG::DB::get_error_string)
 				if (!defined $cursor);
 
 		@$model_data = $cursor->all;
@@ -1058,13 +1059,11 @@ sub get_queue_model
 	my ($self, %args) = @_;
 
 	my $wantedid = $args{id}; delete $args{id}; # _id vs id
-	my %extras;
+	my (%extras, $querycount, @modeldata);
 	map { if (exists($args{$_}))
 				{ $extras{$_} = $args{$_}; delete $args{$_}; } } (qw(sort skip limit count));
 
 	my $q = NMISNG::DB::get_query(and_part => { '_id' => $wantedid, %args });
-
-	my $querycount;
 	if ($extras{count})
 	{
 		my $res = NMISNG::DB::count(collection => $self->queue_collection,
@@ -1075,25 +1074,29 @@ sub get_queue_model
 		$querycount = $res->{count};
 	}
 
-	# now perform the actual retrieval, with skip, limit and sort passed in
-	my $cursor = NMISNG::DB::find( collection => $self->queue_collection,
-																 query => $q,
-																 sort => $extras{sort},
-																 limit => $extras{limit},
-																 skip => $extras{skip} );
+	# if you want only a count but no data, set count to 1 and limit to 0
+	if (!($extras{count} && defined $extras{limit} && $extras{limit} == 0))
+	{
+		# now perform the actual retrieval, with skip, limit and sort passed in
+		my $cursor = NMISNG::DB::find( collection => $self->queue_collection,
+																	 query => $q,
+																	 sort => $extras{sort},
+																	 limit => $extras{limit},
+																	 skip => $extras{skip} );
 
-	return NMISNG::ModelData->new(nmisng => $self,
-																error => "Find failed: ".NMISNG::DB::get_error_string)
-			if (!defined $cursor);
-	my @data = $cursor->all;
+		return NMISNG::ModelData->new(nmisng => $self,
+																	error => "Find failed: ".NMISNG::DB::get_error_string)
+				if (!defined $cursor);
+		@modeldata = $cursor->all;
+	}
 
 	# asking for nonexistent id is treated as failure - asking for 'id NOT matching X' is not
 	return NMISNG::ModelData->new(nmisng => $self, error => "No matching queue entry!")
-			if (!@data && ref($wantedid) eq "MongoDB::OID");
+			if (!@modeldata && ref($wantedid) eq "MongoDB::OID");
 
 	return NMISNG::ModelData->new(nmisng => $self,
 																query_count => $querycount,
-																data => \@data,
+																data => \@modeldata,
 																sort => $extras{sort},
 																limit => $extras{limit},
 																skip => $extras{skip} );
