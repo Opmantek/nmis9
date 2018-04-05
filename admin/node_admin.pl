@@ -45,6 +45,7 @@ use File::Basename;
 use File::Spec;
 use Data::Dumper;
 use JSON::XS;
+use Mojo::File;
 
 use NMISNG;
 use NMISNG::Log;
@@ -111,7 +112,6 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 my $nmisng = NMISNG->new(config => $config, log  => $logger);
 
 
-
 # import from nodes file, overwriting existing data in the db
 if ($cmdline->{act} =~ /^import[_-]bulk$/
 		&& (my $nodesfile = $cmdline->{nodes}))
@@ -119,15 +119,16 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
 
 	$logger->info("Starting bulk import of nodes");
-	# rfth is silly wrt guessing extensions...
+
+	# old-style nodes file: hash. export w/o format=nodes: plain array,
+	# readfiletohash doesn't understand arrays.
 	my $node_table = NMISNG::Util::readFiletoHash(file => $nodesfile,
-																								json => ($nodesfile =~ /\.json$/i));
-	die "nodes file contains no usable data!\n"
-			if (ref($node_table) ne "HASH" or !keys %$node_table);
+																								json => ($nodesfile =~ /\.json$/i))
+			// decode_json(Mojo::File->new($nodesfile)->slurp);
 
 	my %stats = (created => 0, updated => 0);
-	# this kind of thing ALWAYS has key repeated as value 'name'
-	foreach my $onenode ( values %$node_table )
+
+	foreach my $onenode ( ref($node_table) eq "HASH"? values %$node_table : @$node_table )
 	{
 		# note that this looks up the node by uuid, exclusively. if the nodes file has dud uuids,
 		# then existing nodes will NOT be found.
@@ -366,8 +367,7 @@ or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing g
 	(my $op, $error) = $nodeobj->save;
 	die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed
 
-	print STDERR "Successfully updated node $node.
-You should run '".$config->{'<nmis_bin>'}."/poll type=update node=$node' soon.\n"
+	print STDERR "Successfully updated node $node.\n"
 if (-t \*STDERR);								# if terminal
 
 	exit 0;
@@ -454,9 +454,8 @@ or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing g
 		(my $op, $error) = $nodeobj->save;
 		die "Failed to save $new: $error\n" if ($op <= 0); # zero is no saving needed
 
-		print STDERR "Successfully updated node $new.
-You should run '".$config->{'<nmis_bin>'}."/poll type=update node=$new' soon.\n"
-if (-t \*STDERR);								# if terminal
+		print STDERR "Successfully updated node $new.\n"
+				if (-t \*STDERR);								# if terminal
 
 	}
 	exit 0;
@@ -559,8 +558,8 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	# zero is no saving needed, which is not good here
 	die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
 
-	my $name = $nodeobj->name;
-	print STDERR "Successfully updated node ".$nodeobj->uuid." ($name)\nYou should run '".$config->{'<nmis_bin>'}."/poll type=update node=$name' soon.\n"
+	$name = $nodeobj->name;
+	print STDERR "Successfully updated node ".$nodeobj->uuid." ($name)\n\n"
 			if (-t \*STDERR);								# if terminal
 }
 else
