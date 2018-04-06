@@ -99,6 +99,8 @@ die "no config available!\n" if (ref($config) ne "HASH" or !keys %$config);
 
 # use debug, or info arg, or configured log_level
 my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+# create the logfile so that permissions can be adjusted
+Mojo::File->new($logfile)->spurt("") if (!-f $logfile);
 NMISNG::Util::setFileProtDiag(file =>$logfile) if (-f $logfile);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $cmdline->{debug},
@@ -691,8 +693,11 @@ sub manage_processes
 			{
 				# fping worker logs to its own logfile
 				my $fpinglogfile = $config->{'fping_log'};
+				# create it so that the permissions can be adjusted
+				Mojo::File->new($fpinglogfile)->spurt("") if (!-f $fpinglogfile);
+				NMISNG::Util::setFileProtDiag(file => $fpinglogfile);
 				$nmisng->log->path($fpinglogfile);
-				NMISNG::Util::setFileProtDiag(file => $fpinglogfile) if (-f $fpinglogfile);
+
 			}
 			$nmisng->log->logprefix("fping\[$$\] ");
 			$nmisng->log->info("started");
@@ -1140,10 +1145,8 @@ sub worker_loop
 					# fixme9: selftest currently relies on those timestamp markers
 					# fixme9: switch the 'last op' timestamp to opstatus in db!
 					my $markerfile = "$varsysdir/timestamps/$ourjob->{type}";
-					if (!-f $markerfile)
-					{
-						open(F, ">$markerfile") && close(F);
-					}
+					Mojo::File->new($markerfile)->spurt("") if (!-f $markerfile);
+					NMISNG::Util::setFileProtDiag(file => $markerfile);
 					utime(undef,undef, $markerfile);
 				}
 				else
