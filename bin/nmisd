@@ -189,6 +189,7 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 	$0 = "nmisd scheduler";
 }
 Mojo::File->new($pidfile)->spurt("$$\n");
+NMISNG::Util::setFileProtDiag(file => $pidfile); # or the selftest complains
 
 my $zoo = ($scheduler_state->{zoo} //= {}); # process state structure for manage_processes
 my $exit_marker;							# signal handler scribbles here
