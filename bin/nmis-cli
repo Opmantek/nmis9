@@ -388,7 +388,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 							 $printable);
 			}
 
-			print "No active jobs at this time.\n" if (!$some);
+			print "No queued jobs at this time.\n" if (!$some);
 			print "\n";
 		}
 	}
