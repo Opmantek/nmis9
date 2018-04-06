@@ -2309,7 +2309,8 @@ sub selftest
 	# check the number of nmis processes, complain if above limit
 	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
 
-	my $nr_procs = grep($_->{cmndline} =~ /^nmisd( .+)?$/, @{$ptable->table});
+	# all nmisd processes are calling themselves 'nmisd something' - the nmisd from opcharts 3 does not.
+	my $nr_procs = grep($_->{cmndline} =~ /^nmisd .+$/, @{$ptable->table});
 	my $max_nmis_processes = 1 		# the scheduler
 			+ (NMISNG::Util::getbool($config->{nmisd_fping_worker})? 1:0) # the fping worker
 			+ $config->{nmisd_max_workers} * 1.1; # the configured workers and 10% extra for transitionals
