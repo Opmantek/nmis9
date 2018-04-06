@@ -73,7 +73,7 @@ use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type => 'text/html', expires => 'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -191,17 +191,17 @@ sub displayNodeConf
 		print Tr,td({class=>'error',colspan=>'3'},"Error on getting info of node $node");
 		return;
 	}
-	
+
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	my $result = $S->nmisng_node->get_inventory_model( 
+	my $result = $S->nmisng_node->get_inventory_model(
 		concept => 'interface', filter => { historic => 0 });
-		
+
 	# get any existing nodeconf overrides for this node
 	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)
 			if (Compat::NMIS::has_nodeconf(node => $node));
 	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
-	
+
 	print Tr(td({class=>"header",width=>'20%'}),td({class=>"header",width=>'20%'}),
 			td({class=>"header",width=>'20%'},'<b>Original value</b>'),
 			eval {
@@ -281,7 +281,7 @@ sub displayNodeConf
 		foreach my $intf (NMISNG::Util::sorthash( \%ifinfo, ['ifDescr'], 'fwd'))
 		{
 			my $intfstatus = $ifinfo{$intf};
-			
+
 			next if (ref($intfstatus) ne "HASH" or !keys %$intfstatus
 							 or !defined($intfstatus->{ifDescr})
 							 or $intfstatus->{ifDescr} eq ''); # exists but empty text should no longer happen
@@ -432,11 +432,11 @@ sub updateNodeConf {
 		print Tr,td({class=>'error',colspan=>'4'},"Error on getting info of node $node");
 		return;
 	}
-		
+
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 	my %ifinfo;
-	my $result = $S->nmisng_node->get_inventory_model( 
-		concept => 'interface', 
+	my $result = $S->nmisng_node->get_inventory_model(
+		concept => 'interface',
 		filter => { historic => 0 });
 	if ($result->{success})
 	{
@@ -514,7 +514,7 @@ sub updateNodeConf {
 	NMISNG::Util::logMsg("ERROR $errmsg") if ($errmsg);
 
 	# signal from button - schedule update job with high priority
-	if ( NMISNG::Util::getbool($Q->{update}) ) 
+	if ( NMISNG::Util::getbool($Q->{update}) )
 	{
 		my $nmisng = $S->nmisng;
 
@@ -531,28 +531,23 @@ sub updateNodeConf {
 		{
 			Compat::NMIS::pageStart(title => "$node update");
 		}
-		
+
 		my $thisurl = url(-absolute => 1)."?";
 		print start_form(-id=>$formid, -href => $thisurl);
 		print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 				. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
 				. hidden(-override => 1, -name => "widget", -value => $widget);
-		
-		print table(Tr(td({class=>'header'},"User-initiated update of $node"))),
-		
+
+		print table(Tr(td({class=>'header'},escapeHTML("User-initiated update of $node")))),
+
 		$error? "<strong>Failed to schedule update: $error</strong>" :
 				"An update operation was scheduled for this node (job id $jobid),
-which should start processing within a minute.<p>Please reload the node's dashboard page 
+which should start processing within a minute.<p>Please reload the node's dashboard page
 once that update operation has completed.<p>";
 
-		print table(Tr(td({class=>'header'},"Scheduled user-initiated update of $node"),
-									 td(button(-name=>'button',
-														 -onclick => ($wantwidget? "get('$formid');" : "submit()"),
-														 -value=>'Ok'))));
 		print end_form;
-		
+
 		return 0;
 	}
 	return 1;
 }
-

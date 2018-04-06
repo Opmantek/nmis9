@@ -803,9 +803,40 @@ sub doeditTable
 
 		$nmisng->events->cleanNodeEvents($node, "tables.pl.editNodeTable");
 
+		# signal from button - schedule update job with high priority
 		if (NMISNG::Util::getbool($Q->{update}))
 		{
-			doNodeUpdate(node=>$key);
+
+			my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => "update",
+					time => time,
+					priority => 1,
+					in_progress => 0,
+					args => { uuid => $node->uuid }});
+
+			print header($headeropts);
+			if (!$wantwidget)
+			{
+				Compat::NMIS::pageStart(title => $node->name." update");
+			}
+
+			my $thisurl = url(-absolute => 1)."?";
+			print start_form(-id=>$formid, -href => $thisurl)
+					. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+					. hidden(-override => 1, -name => "act", -value => "config_table_menu")
+					. hidden(-override => 1, -name => "widget", -value => $widget)
+					. hidden(-override => 1, -name => "table", -value => $Q->{table});
+
+			print table(Tr(td({class=>'header'}, escapeHTML("User-initiated update of ".$node->name)))),
+
+			$error? "<strong>Failed to schedule update: $error</strong>" :
+					"An update operation was scheduled for this node (job id $jobid),
+which should start processing within a minute.<p>Please reload the node's dashboard page
+once that update operation has completed.<p>";
+
+			print end_form;
+
 			return 0;
 		}
 	}
@@ -862,36 +893,4 @@ sub dodeleteTable {
 			}
 		}
 	}
-}
-
-sub doNodeUpdate {
-	my %args = @_;
-	my $node = $args{node};
-
-	# note that this will force poll to skip the pingtest as we are a non-root user !!
-	# for now - just pipe the output of a debug run, so the user can see what is going on !
-
-	# now run the update and display
-	print header($headeropts);
-	Compat::NMIS::pageStartJscript(title => "Run update on $node") if (NMISNG::Util::getbool($widget,"invert"));
-
-	print start_form(-id => "$formid",
-									 -href => url(-absolute=>1)."?")
-			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
-			. hidden(-override => 1, -name => "act", -value => "config_table_menu")
-			. hidden(-override => 1, -name => "widget", -value => $widget)
-			. hidden(-override => 1, -name => "table", -value => $Q->{table});
-
-	print table(Tr(td({class=>'header'}, escapeHTML("Completed web user initiated update of $node")),
-				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
-									-value=>'Ok'))));
-
-	# fixme9: must schedule a type=update and type=collect job instead, poll no longer exists!
-	# fixme: must show warning text re async response
-
-	print table(Tr(td({class=>'header'},escapeHTML("Completed web user initiated update of $node")),
-				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
-									-value=>'Ok'))));
-	print end_form;
-	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
