@@ -5,6 +5,9 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
+# guesses os flavour, sets OSFLAVOUR
+flavour
+
 printBanner "NMIS Scheduling and Daemon Setup"
 
 SRCFILE=$TARGETDIR/conf-default/init/nmis9d
