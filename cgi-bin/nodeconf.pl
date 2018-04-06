@@ -513,46 +513,46 @@ sub updateNodeConf {
 	$errmsg = Compat::NMIS::update_nodeconf(node => $node, data => $override);
 	NMISNG::Util::logMsg("ERROR $errmsg") if ($errmsg);
 
-	# signal from button
-	if ( NMISNG::Util::getbool($Q->{update}) ) {
-		doNodeUpdate(node=>$node);
+	# signal from button - schedule update job with high priority
+	if ( NMISNG::Util::getbool($Q->{update}) ) 
+	{
+		my $nmisng = $S->nmisng;
+
+		my ($error,$jobid) = $nmisng->update_queue(
+			jobdata => {
+				type => "update",
+				time => time,
+				priority => 1,
+				in_progress => 0,
+				args => { uuid => $S->nmisng_node->uuid }});
+
+		print header($headeropts);
+		if (!$wantwidget)
+		{
+			Compat::NMIS::pageStart(title => "$node update");
+		}
+		
+		my $thisurl = url(-absolute => 1)."?";
+		print start_form(-id=>$formid, -href => $thisurl);
+		print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+				. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
+				. hidden(-override => 1, -name => "widget", -value => $widget);
+		
+		print table(Tr(td({class=>'header'},"User-initiated update of $node"))),
+		
+		$error? "<strong>Failed to schedule update: $error</strong>" :
+				"An update operation was scheduled for this node (job id $jobid),
+which should start processing within a minute.<p>Please reload the node's dashboard page 
+once that update operation has completed.<p>";
+
+		print table(Tr(td({class=>'header'},"Scheduled user-initiated update of $node"),
+									 td(button(-name=>'button',
+														 -onclick => ($wantwidget? "get('$formid');" : "submit()"),
+														 -value=>'Ok'))));
+		print end_form;
+		
 		return 0;
 	}
 	return 1;
 }
 
-sub doNodeUpdate {
-	my %args = @_;
-	my $node = $args{node};
-
-	# note that this will force poll to skip the pingtest as we are a non-root user !!
-	# for now - just pipe the output of a debug run, so the user can see what is going on !
-
-	# now run the update and display
-	print header($headeropts);
-
-	if (!$wantwidget)
-	{
-			Compat::NMIS::pageStart(title => "$node update");
-	}
-
-	my $thisurl = url(-absolute => 1)."?";
-	print start_form(-id=>$formid, -href => $thisurl);
-	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
-			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
-			. hidden(-override => 1, -name => "widget", -value => $widget);
-
-	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
-				td(button(-name=>'button',
-									-onclick => ($wantwidget? "javascript:get('$formid');" : "submit()"),
-									-value=>'Ok'))));
-
-	# fixme9: must schedule a type=update and type=collect job instead, poll no longer exists!
-	# fixme: must show warning text re async response
-
-	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
-				td(button(-name=>'button',
-									-onclick => ($wantwidget? "get('$formid');" : "submit()"),
-									-value=>'Ok'))));
-	print end_form;
-}
