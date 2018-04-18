@@ -71,6 +71,8 @@ if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$heade
 #======================================================================
 
 my $colspan = 6;
+my $nmisng = Compat::NMIS::new_nmisng();
+
 
 # select function
 
@@ -79,6 +81,7 @@ if ($Q->{act} eq 'event_database_list') {			displayEventList();
 } elsif ($Q->{act} eq 'event_database_delete') {	displayEvent();
 } elsif ($Q->{act} eq 'event_database_dodelete')
 {
+	
 	# deletion requires node, event, element arguments
 	if (my $err = $nmisng->events->eventDelete( event => { node_uuid => $Q->{node_uuid},
 																				event => $Q->{event},
@@ -178,7 +181,7 @@ sub displayEventList
 	Compat::NMIS::pageStart(title => "View Event Database - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	# load all events, for all nodes
-	my $event_ret = $nmisng->events->get_events_model(filter => { active => 1 });
+	my $eventsmodel = $nmisng->events->get_events_model(filter => { active => 1 });
 
 	# second print a list of event database entries
 	print start_table;
@@ -187,7 +190,7 @@ sub displayEventList
 
 	print Tr(td({class=>'header',colspan=>'3'},"${homelink}View Event Database"));
 	my $flag = 0;
-	for my $thisevent ( sort {$a->{event} cmp $b->{event}} @{$event_ret->{model_data}->data})
+	for my $thisevent ( sort {$a->{event} cmp $b->{event}} @{$eventsmodel->data})
 	{
 		my $start = $thisevent->{startdate};
 		my $date = NMISNG::Util::returnDate($thisevent->{startdate});
@@ -330,7 +333,7 @@ sub displayEventItems {
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 
 	my $S = NMISNG::Sys->new;
-	$S->init(name=>$node,snmp=>'false');
+	$S->init(name=>$node_name,snmp=>'false');
 	my $node_uuid = $S->nmisng_node->uuid;
 	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
@@ -416,6 +419,7 @@ sub displayEventItems {
 			);
 			
 			if ( !$error && $erec )
+			{
 				printRow(1,"status","dependant $node_depend is reported as down");
 				return;
 			}

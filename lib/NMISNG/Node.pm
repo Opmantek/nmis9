@@ -389,6 +389,8 @@ sub eventsClean
 	return $self->nmisng->events->cleanNodeEvents( $self, $caller );
 }
 
+# fixme: args should be documented here!
+# returns: modeldata object (always, mabe empty - check ->error)
 sub get_events_model
 {
 	my ( $self, %args ) = @_;
@@ -6509,9 +6511,12 @@ sub collect_services
 			$self->nmisng->log->error("snmp_services timed data saving failed: $error") if ($error);
 
 			# now clear events that applied to processes that no longer exist
-			my $event_ret = $self->get_events_model( filter => { event => 'regex:process memory' } );
-			$self->nmisng->log->error("snmp_services error getting events: $event_ret->{error}") if ($event_ret->{error});
-			for my $thisevent ( @{$event_ret->{model_data}->data} )
+			my $eventsmodel = $self->get_events_model( filter => { event => 'regex:process memory' } );
+			if (my $error = $eventsmodel->error)
+			{
+				$self->nmisng->log->error("snmp_services error getting events: $error");
+			}
+			for my $thisevent ( @{$eventsmodel->data} )
 			{
 			  # fixme NMIS-73: this should be tied to both the element format
 				# and a to-be-added 'service' field of the event

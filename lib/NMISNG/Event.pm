@@ -636,8 +636,9 @@ sub load
 	# don't add active to filter, we want !historic but don't care about active because if one
 	# exists that is inactive (but not historic) we want to make that active again if threshold
 	# has not run
-	my $events_ret = $self->nmisng->events->get_events_model( query => $self->_query(0) );
-	my ( $event_in_db, $error, $model_data ) = ( undef, $events_ret->{error}, $events_ret->{model_data} );
+	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(0) );
+	my $error = $model_data->error;
+	my $event_in_db; 
 
 	if ( !$error && $model_data->count == 1 )
 	{

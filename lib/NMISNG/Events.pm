@@ -70,7 +70,7 @@ sub new
 #
 # note: logs if allowed to
 # args: node obj, caller (for logging)
-# return nothing
+# return undef or error message
 sub cleanNodeEvents
 {
 	my ( $self, $node, $caller ) = @_;
@@ -80,8 +80,12 @@ sub cleanNodeEvents
 	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
 
 	# get all events that will be cleaned so we can log if needed
-	my $events_ret = $self->get_events_model( filter => {node_uuid => $node->uuid, historic => 0} );	
-	if ( $events_ret->{model_data}->count > 0 )
+	my $eventsmodel = $self->get_events_model( filter => {node_uuid => $node->uuid, historic => 0} );
+	if (my $failure = $eventsmodel->error)
+	{
+		return $failure;
+	}
+	if ( $eventsmodel->count > 0 )
 	{
 		my $expire_at = time + $C->{purge_event_after} // 86400;
 
@@ -92,10 +96,10 @@ sub cleanNodeEvents
 			record     => {'$set' => {active => 0, historic => 1, expire_at => $expire_at}},
 			freeform   => 1,
 			multiple   => 1
-		);		
+		);
 		return "failed to upsert event: $dbres->{error}" if ( !$dbres->{success} );
 
-		foreach my $event ( @{$events_ret->{model_data}->data()} )
+		foreach my $event ( @{$eventsmodel->data()} )
 		{
 			my $eventname = $event->{event};
 
@@ -115,7 +119,7 @@ sub cleanNodeEvents
 			}
 		}
 	}
-	return;
+	return undef;
 }
 
 # convenience function to help create an event object
@@ -216,8 +220,7 @@ sub eventUpdate
 # 		active 1/0, historic 1/0 (defaults to 0)
 #  as well as sort/skip/limit/fields_hash
 
-# returns hash of  array of event records
-# was sub loadAllEvents
+# returns: modeldata object (maybe empty, check ->error)
 sub get_events_model
 {
 	my ( $self, %args ) = @_;
@@ -226,7 +229,9 @@ sub get_events_model
 	my $q      = $args{query};
 
 	my $node = $filter->{node};
-	die "give me a node object for node or use a different argument" if ( $node && ref($node) ne 'NMISNG::Node' );
+	return NMISNG::ModelData->new(error => "give me a node object for node or use a different argument")
+			if ( $node && ref($node) ne 'NMISNG::Node' );
+
 	my $node_uuid = $filter->{node_uuid};
 	$node_uuid = $node->uuid if ( !$node_uuid && $node );
 
@@ -264,17 +269,15 @@ sub get_events_model
 	}
 	else
 	{
-		$error = NMISNG::DB::get_error_string;
+		return NMISNG::ModelData->new(error => &NMISNG::DB::get_error_string);
 	}
 
 	# create modeldata object with instantiation info from caller
-	$model_data_object = NMISNG::ModelData->new(
+	return NMISNG::ModelData->new(
 		nmisng     => $self->nmisng,
 		class_name => 'NMISNG::Event',
 		data       => \@all
 	);
-
-	return {error => $error, model_data => $model_data_object};
 }
 
 # write a record for a given event to the event log file

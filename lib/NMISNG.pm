@@ -2725,20 +2725,25 @@ sub process_escalations
 	my $msgtime = NMISNG::Util::get_localtime();
 
 	# first load all non-historic events for all nodes
-	my $active_ret    = $self->events->get_events_model( filter => { historic => 0, active => 1 });
-	my $inactive_ret = $self->events->get_events_model( filter => { historic => 0, active => 0 });
-
-	#	print STDERR "a_error:".Dumper($active_ret->{error}) if ($active_ret->{error});
-	#	print STDERR "inactive_error:".Dumper($inactive_ret->{error}) if ($inactive_ret->{error});
+	my $activemodel    = $self->events->get_events_model( filter => { historic => 0, active => 1 });
+	if (my $error = $activemodel->error)
+	{
+		$self->log->error("Failed to retrieve active events: $error");
+	}
+	my $inactivemodel = $self->events->get_events_model( filter => { historic => 0, active => 0 });
+	if (my $error = $inactivemodel->error)
+	{
+		$self->log->error("Failed to retrieve inactive events: $error");
+	}
 
 	# then send UP events to all those contacts to be notified as part of the escalation procedure
 	# this loop skips ALL marked-as-active events!
 	# active flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
 	# we might rename that transition t/f, and have this function handle only the ones with transition true.
 
-	for( my $i = 0; $i < $inactive_ret->{model_data}->count; $i++)
+	for( my $i = 0; $i < $inactivemodel->count; $i++)
 	{
-		my $event_obj = $inactive_ret->{model_data}->object($i);
+		my $event_obj = $inactivemodel->object($i);
 		my $event_data = $event_obj->data(); # for easier string printing
 		# if the event is configured for no notify, do nothing
 		my $thisevent_control = $events_config->{$event_obj->event}
@@ -3007,9 +3012,9 @@ sub process_escalations
 
 	# now handle the actual escalations; only events marked-as-current are left now.
 LABEL_ESC:
-	for (my $i = 0; $i < $active_ret->{model_data}->count; $i++)
+	for (my $i = 0; $i < $activemodel->count; $i++)
 	{
-		my $event_obj = $active_ret->{model_data}->object($i);
+		my $event_obj = $activemodel->object($i);
 		# we must tell the object it's already loaded or whenever load is called
 		# (which save does call) will clober any changes made before it's called
 		$event_obj->loaded( 1 );

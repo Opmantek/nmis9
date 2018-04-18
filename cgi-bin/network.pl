@@ -2171,8 +2171,8 @@ EO_HTML
 	}
 
 	# display events for this one node - also close one if asked to
-	my $event_ret = $nmisng_node->get_events_model();
-	if ( !$event_ret->{error} )
+	my $eventsmodel = $nmisng_node->get_events_model();
+	if ( !$eventsmodel->error )
 	{
 		push @firstcoldata, Tr( td( {class => 'header', colspan => '2'}, 'Events' ) );
 		my $usermayclose = $AU->CheckAccess( "src_events", "check" );
@@ -2183,7 +2183,7 @@ EO_HTML
 				. "&amp;widget=$widget"
 				. "&amp;node="
 				. uri_escape($node);
-		my $events = $event_ret->{model_data}->data();		
+		my $events = $eventsmodel->data();
 		foreach my $thisevent ( sort {$a->{event} cmp $b->{event}} @{$events} )
 		{
 			# closing an event creates a temporary up event...we don't want to see that.
@@ -2204,7 +2204,7 @@ EO_HTML
 				);
 				next;    # event is gone, don't show it
 			}
-		
+
 
 			# offer a button for closing this event if the user is sufficiently privileged
 			# fixme: does currently NOT offer confirmation!
@@ -3641,7 +3641,7 @@ sub viewServiceList
 			# produce sortable flat process list; old structure was keyed by "processname:pid",
 			# timed_data is "processname" -> [ list of process instance hashes ]
 			my @flatlist = map { @$_ } (values %$processlist);
-			
+
 			for my $thisservice (sort { sortServiceList($sortField, $a, $b) } @flatlist)
 			{
 				# ignore status 'invalid', these are generally zombies without useful information
