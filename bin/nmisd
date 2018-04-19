@@ -283,7 +283,9 @@ while (!$exit_marker)
 	for my $operation (qw(update collect services))
 	{
 		$nmisng->log->debug2("Looking for nodes due for $operation operation");
-		my $duenodes = $nmisng->find_due_nodes(type => $operation);
+		# only consider our own nodes
+		my $duenodes = $nmisng->find_due_nodes(type => $operation,
+																					 filters => [ { cluster_id => $config->{cluster_id } } ]);
 		if ($duenodes->{error})
 		{
 			$nmisng->log->error("Failed to check due nodes for $operation: $duenodes->{error}");

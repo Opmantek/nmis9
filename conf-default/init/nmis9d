@@ -158,7 +158,7 @@ case "$1" in
 				;;
 
 		status)
-				status_of_proc "$NAME" "$NAME" && exit 0 || exit $?
+				status_of_proc -p $PIDFILE $DAEMON "$NAME" && exit 0 || exit $?
 				;;
 
 		reload)
