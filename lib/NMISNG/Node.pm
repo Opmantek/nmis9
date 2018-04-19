@@ -284,10 +284,12 @@ sub delete
 	# concept type is unknown/dynamic, so have it ask nmisng
 	my $result = $self->get_inventory_model(
 		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
-	return (0, "Failed to retrieve inventories: $result->{error}")
-			if (!$result->{success});
+	if (my $error = $result->error)
+	{
+		return (0, "Failed to retrieve inventories: $error");
+	}
 
-	my $gimme = $result->{model_data}->objects;
+	my $gimme = $result->objects;
 	return (0, "Failed to instantiate inventory: $gimme->{error}")
 			if (!$gimme->{success});
 	for my $invinstance (@{$gimme->{objects}})
@@ -413,10 +415,10 @@ sub get_inventory_ids
 	$args{fields_hash} = {'_id' => 1};
 
 	my $result = $self->get_inventory_model(%args);
-	# fixme: add better error handling
-	if ($result->{success} && $result->{model_data}->count)
+
+	if (!$result->error && $result->count)
 	{
-		return [ map { $_->{_id}->{value} } (@{$result->{model_data}->data()}) ];
+		return [ map { $_->{_id}->{value} } (@{$result->data()}) ];
 	}
 	else
 	{
@@ -426,7 +428,7 @@ sub get_inventory_ids
 
 # wrapper around the global inventory model accessor
 # which adds in the  current node's uuid and cluster id
-# returns: hash ref with success, error, model_data
+# returns: modeldata object (may be empty, do check ->error)
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
@@ -485,14 +487,16 @@ sub inventory
 	$path->[1] = $self->uuid;
 
 	# tell get_inventory_model enough to instantiate object later
-	my $result = $self->nmisng->get_inventory_model(
+	my $model_data = $self->nmisng->get_inventory_model(
 		class_name => { "concept" => \&NMISNG::Inventory::get_inventory_class },
 		sort => { _id => 1 },				# normally just one object -> no cost
 		%args);
-	return (undef, "failed to get inventory: $result->{error}")
-			if (!$result->{success} && !$create);
 
-	my $model_data = $result->{model_data};
+	if ((my $error = $model_data->error) && !$create)
+	{
+		return (undef, "failed to get inventory: $error");
+	}
+
 	if ( $model_data->count() > 0 )
 	{
 		my $bestchoice = 0;
@@ -775,10 +779,12 @@ sub rename
 	# concept type is unknown/dynamic, so have it ask nmisng
 	my $result = $self->get_inventory_model(
 		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
-	return (0, "Failed to retrieve inventories: $result->{error}")
-			if (!$result->{success});
+	if (my $error = $result->error)
+	{
+		return (0, "Failed to retrieve inventories: $error");
+	}
 
-	my $gimme = $result->{model_data}->objects;
+	my $gimme = $result->objects;
 	return (0, "Failed to instantiate inventory: $gimme->{error}")
 			if (!$gimme->{success});
 	for my $invinstance (@{$gimme->{objects}})
@@ -2692,9 +2698,9 @@ sub collect_intf_data
 			'enabled' => 1,
 			'historic' => 1
 		} );
-	if (!$result->{success})
+	if (my $error = $result->error)
 	{
-		$self->nmisng->log->error("get inventory model failed: $result->{error}");
+		$self->nmisng->log->error("get inventory model failed: $error");
 		return undef;
 	}
 
@@ -2705,7 +2711,7 @@ sub collect_intf_data
 	# note that ifdescr is treated as invariant, NOT ifindex.
 	# note also: this includes disabled and historic interfaces, too, IFF their ifIndex is nonclashing
 	# make sure non-historic ones are tackled before historic stuff!
-	for my $maybeevil (sort { $a->{historic} cmp $b->{historic} } @{$result->{model_data}->data()})
+	for my $maybeevil (sort { $a->{historic} cmp $b->{historic} } @{$result->data()})
 	{
 		$leftovers{ $maybeevil->{_id} } = 1; # everything goes here, clash or noclash
 
@@ -4226,14 +4232,15 @@ sub collect_cbqos_info
 				'historic' => 1
 			}
 				);
-		if (!$result->{success})
+
+		if (my $error = $result->error)
 		{
-			$self->nmisng->log->error("get inventory model failed: $result->{error}");
+			$self->nmisng->log->error("get inventory model failed: $error");
 			next;
 		}
 
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-		my $data = $result->{model_data}->data();
+		my $data = $result->data();
 		my %if_data_map = map
 			{
 				$_->{data}{_id} = $_->{_id};
@@ -6551,10 +6558,13 @@ sub collect_services
 																					filter => { historic => 0 },
 																					fields_hash => { "data.service" => 1,
 																													 _id => 1, });
-	# fixme: better error handling
-	if ($result->{success} && $result->{model_data}->count)
+	if (my $error = $result->error)
 	{
-		my %oldservice = map { ($_->{data}->{service} => $_->{_id}) } (@{$result->{model_data}->data});
+		$self->nmisng->log->error("failed to get service inventory: $error");
+	}
+	elsif ($result->count)
+	{
+		my %oldservice = map { ($_->{data}->{service} => $_->{_id}) } (@{$result->data});
 		for my $maybedead (keys %oldservice)
 		{
 			next if ($desiredservices{$maybedead});
@@ -6867,11 +6877,11 @@ sub collect_services
 
 			# good enough, no atomic open required, removed after eval
 			my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");
-			eval 
+			eval
 			{
 				my @responses;
 				my $svcruntime = defined( $svc->{Max_Runtime} ) && $svc->{Max_Runtime} > 0 ? $svc->{Max_Runtime} : 0;
-				
+
 				local $SIG{ALRM} = sub { die "alarm\n"; };
 				alarm($svcruntime) if ($svcruntime);    # setup execution timeout
 

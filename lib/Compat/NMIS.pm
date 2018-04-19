@@ -2053,14 +2053,14 @@ sub loadServiceStatus
 	# then get the newest timed data for them
 	my $result = $nmisng->get_inventory_model(@selectors,
 																						class_name => NMISNG::Inventory::get_inventory_class("service"));
-	if (!$result->{success})
+	if (my $error = $result->error)
 	{
-		$nmisng->log->error("failed to retrieve service inventory: $result->{error}");
-		die "failed to retrieve service inventory: $result->{error}\n";
+		$nmisng->log->error("failed to retrieve service inventory: $error");
+		die "failed to retrieve service inventory: $error\n";
 	}
-	return %result if (!$result->{model_data}->count);
+	return %result if (!$result->count);
 
-	my $objectresult = $result->{model_data}->objects; # we need objects
+	my $objectresult = $result->objects; # we need objects
 	if (!$objectresult->{success})
 	{
 		$nmisng->log->error("object access failed: $objectresult->{error}");

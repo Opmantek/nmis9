@@ -113,12 +113,12 @@ sub ifinfo
 
 	my $result = $self->nmisng_node->get_inventory_model(concept => "interface",
 																											 filter => { historic => 0 });
-	if (!$result->{success})
+	if (my $error = $result->error)
 	{
-		$self->nmisng->log->error("get inventory model failed: $result->{error}");
+		$self->nmisng->log->error("get inventory model failed: $error");
 		return {};
 	}
-	my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
+	my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 	return \%ifdata;
 }
 
@@ -653,12 +653,12 @@ sub ifDescrInfo
 	else
 	{
 		my $result = $self->nmisng_node->get_inventory_model( concept => 'interface' );
-		if (!$result->{success})
+		if (my $error = $result->error)
 		{
-			$self->nmisng->log->error("get inventory model failed: $result->{error}");
+			$self->nmisng->log->error("get inventory model failed: $error");
 			return {};
 		}
-		foreach my $model (@{$result->{model_data}->data})
+		foreach my $model (@{$result->data})
 		{
 			my $thisentry = $model->{data};
 			my $ifDescr   = $thisentry->{ifDescr};
@@ -1878,9 +1878,11 @@ sub prep_extras_with_catchalls
 		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
 		{
 			# inventory keyed by index and ifDescr so we need partial; using _the_ passed in
-			# inventory is clearly safer
-			my $interface_inventory = $inventory
-					|| $self->inventory(concept => 'interface', index => $index, nolog => 1, partial => 1);
+			# inventory is clearly safer - IFF it's of the right type
+			my $interface_inventory = ($inventory && $inventory->concept eq "interface"?
+																 $inventory
+																 : $self->inventory(concept => 'interface',
+																										index => $index, nolog => 1, partial => 1));
 			if( $interface_inventory )
 			{
 				# no fallback to info section as interface update is running
@@ -2073,21 +2075,20 @@ sub getTypeInstances
 																										node_uuid => $self->nmisng_node->uuid,
 																										concept => $section,
 																										fields_hash => $fields_hash );
-		# fixme: better error handling would be nice
-		if (!$result->{success})
+		if (my $error = $result->error)
 		{
-			$self->nmisng->log->error("get inventory model failed: $result->{error}");
+			$self->nmisng->log->error("get inventory model failed: $error");
 		}
-		elsif ($result->{model_data}->count && !$want_modeldata)
+		elsif ($result->count && !$want_modeldata)
 		{
-			for my $entry (@{$result->{model_data}->data})
+			for my $entry (@{$result->data})
 			{
 				push @instances, $entry->{data}->{index} // $entry->{data}->{service};
 			}
 		}
 		else
 		{
-			$modeldata = $result->{model_data};
+			$modeldata = $result;
 		}
 	}
 
@@ -2154,21 +2155,20 @@ sub getTypeInstances
 																											 concept => $concept,
 																											 filter => $filter,
 																											 fields_hash => $fields_hash );
-			# fixme: better error handling would be nice
-			if (!$result->{success})
+			if (my $error = $result->error)
 			{
-				$self->nmisng->log->error("get inventory model failed: $result->{error}");
+				$self->nmisng->log->error("get inventory model failed: $error");
 			}
-			elsif ($result->{model_data}->count && !$want_modeldata)
+			elsif ($result->count && !$want_modeldata)
 			{
-				for my $entry (@{$result->{model_data}->data})
+				for my $entry (@{$result->data})
 				{
 					push @instances, $entry->{data}->{index} // $entry->{data}->{service};
 				}
 			}
 			else
 			{
-				$modeldata = $result->{model_data};
+				$modeldata = $result;
 			}
 		}
 	}

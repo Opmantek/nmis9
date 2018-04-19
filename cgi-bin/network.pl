@@ -1589,9 +1589,9 @@ sub viewPollingSummary
 
 			my $result = $S->nmisng_node->get_inventory_model(
 				concept => 'interface', filter => { historic => 0 });
-			if ($result->{success})
+			if (!$result->error)
 			{
-				for my $oneif (@{$result->{model_data}->data})
+				for my $oneif (@{$result->data})
 				{
 					my $ifentry = $oneif->{data}; # oneif is an inventory datastructure (but not object)
 					# data area contains old-style info
@@ -1612,11 +1612,11 @@ sub viewPollingSummary
 				my $result = $S->nmisng_node->get_inventory_model(
 					concept => $cbqos,
 					filter => { historic => 0 });
-				if ($result->{success} && $result->{model_data}->count)
+				if (!$result->error && $result->count)
 				{
 					++$sum->{count}{$cbqos};
 
-					foreach my $oneclass (@{$result->{model_data}->data})
+					foreach my $oneclass (@{$result->data})
 					{
 						++$sum->{$cbqos}->{interface};
 						# we want the number  of classes == same as number of subconcepts
@@ -4360,8 +4360,8 @@ sub viewTop10
 					historic => 0,
 					subconcepts => "nodehealth",
 					"dataset_info.datasets" => "avgBusy5" } );
-			if ($result->{success}
-					&& $result->{model_data}->count
+			if (!$result->error
+					&& $result->count
 					&& NMISNG::Util::getbool( $catchall_data->{collect} ))
 			{
 				%cpuTable = (
@@ -4379,9 +4379,9 @@ sub viewTop10
 
 			my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface',
 																												 filter => { historic => 0 });
-			if ($intfresult->{success})
+			if (!$intfresult->error)
 			{
-				foreach my $entry ( @{$intfresult->{model_data}->data})
+				foreach my $entry ( @{$intfresult->data})
 				{
 					my $thisintf = $entry->{data};
 
@@ -4681,9 +4681,9 @@ sub nodeAdminSummary
 				if ( NMISNG::Util::getbool( $LNT->{$node}{active} )
 						 and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 				{
-					if ($result->{success})
+					if (!$result->error)
 					{
-						for my $entry (@{$result->{model_data}->data})
+						for my $entry (@{$result->data})
 						{
 							++$intCount;
 							++$intCollect if (NMISNG::Util::getbool($entry->{data}->{collect}));

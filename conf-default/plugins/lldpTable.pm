@@ -31,7 +31,7 @@
 # for linkage in the nmis gui
 
 package lldpTable;
-our $VERSION = "2.0.0";
+our $VERSION = "2.0.1";
 
 use strict;
 
@@ -55,22 +55,22 @@ sub update_plugin
 	# we don't want to re-query multiple times for the same interface...
 	my $result = $S->nmisng_node->get_inventory_model(concept => "interface",
 																										filter => { historic => 0 });
-	if (!$result->{success})
+	if (my $error = $result->error)
 	{
-		$NG->log->error("Failed to get interface inventory: $result->{error}");
+		$NG->log->error("Failed to get interface inventory: $error");
 		return(0,undef);
 	}
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
 	# ditto for lldpLocal
 	 $result = $S->nmisng_node->get_inventory_model(concept => "lldpLocal",
 																									filter => { historic => 0 });
-	if (!$result->{success})
+	if (my $error = $result->error)
 	{
-		$NG->log->error("Failed to get lldpLocal inventory: $result->{error}");
+		$NG->log->error("Failed to get lldpLocal inventory: $error");
 		return(0,undef);
 	}
-	my %lldplocaldata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
+	my %lldplocaldata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
 	for my $lldpid (@$ids)
 	{

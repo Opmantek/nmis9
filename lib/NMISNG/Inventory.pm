@@ -232,7 +232,7 @@ sub check_inventory_for_bad_things
 			'subconcept' => '$dataset_info.subconcept',
 			'dataset_info_datsets_size' => { '$size' => '$dataset_info.datasets' }
 		}},
-		{	'$match' => { 
+		{	'$match' => {
 			'dataset_info_datsets_size' => { '$gt' => $min_size }
 		}}
 	);
@@ -1038,9 +1038,11 @@ sub reload
 
 	if ( !$self->is_new )
 	{
-		my $result = $self->nmisng->get_inventory_model( _id => $self->id );
-		return "get inventory model failed: $result->{error}" if (!$result->{success});
-		my $modeldata = $result->{model_data};
+		my $modeldata = $self->nmisng->get_inventory_model( _id => $self->id );
+		if (my $error = $modeldata->error)
+		{
+			return "get inventory model failed: $error";
+		}
 		return "no inventory object with id " . $self->id . " in database!" if ( !$modeldata->count );
 		my $newme = $modeldata->data()->[0];
 
