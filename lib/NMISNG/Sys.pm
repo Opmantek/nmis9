@@ -1875,9 +1875,11 @@ sub prep_extras_with_catchalls
 		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
 		{
 			# inventory keyed by index and ifDescr so we need partial; using _the_ passed in
-			# inventory is clearly safer
-			my $interface_inventory = $inventory
-					|| $self->inventory(concept => 'interface', index => $index, nolog => 1, partial => 1);
+			# inventory is clearly safer - IFF it's of the right type
+			my $interface_inventory = ($inventory && $inventory->concept eq "interface"?
+																 $inventory
+																 : $self->inventory(concept => 'interface',
+																										index => $index, nolog => 1, partial => 1));
 			if( $interface_inventory )
 			{
 				# no fallback to info section as interface update is running
