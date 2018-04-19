@@ -248,7 +248,7 @@ sub get_inventory_available_concepts
 #    whole record is returned
 #.   sort/skip/limit - adjusts the query
 #
-# returns: hash ref with success, error, model_data object
+# returns: model_data object (which may be empty - do check ->error)
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
@@ -266,7 +266,8 @@ sub get_inventory_model
 		fields_hash => $args{fields_hash},
 			);
 
-	return { error => "find failed: ".NMISNG::DB::get_error_string } if (!defined $entries);
+	return NMISNG::ModelData->new(error => "find failed: ".NMISNG::DB::get_error_string)
+			if (!defined $entries);
 
 	my @all;
 	while ( my $entry = $entries->next )
@@ -280,7 +281,7 @@ sub get_inventory_model
 	my $model_data_object = NMISNG::ModelData->new( nmisng => $self,
 																									class_name => $args{class_name},
 																									data => \@all );
-	return { success => 1, error => undef, model_data => $model_data_object };
+	return $model_data_object;
 }
 
 # this does not need to be a member function, could be 'static'
@@ -324,8 +325,10 @@ sub get_inventory_model_query
 	return $q;
 }
 
-# returns latest data
-# arg: filter - kvp's of filters to be applied
+# retrieve latest data
+# arg: filter - kvp's of filters to be applied,
+# fields_hash, sort/skip/limit
+# returns: modeldata object (which may be empty - do check ->error)
 sub get_latest_data_model
 {
 	my ( $self, %args ) = @_;
@@ -338,7 +341,10 @@ sub get_latest_data_model
 	my $query_count;
 	if ( $args{count} )
 	{
-		$query_count = NMISNG::DB::count( collection => $self->latest_data_collection, query => $q );
+		my $res = NMISNG::DB::count( collection => $self->latest_data_collection, query => $q, verbose => 1 );
+		return NMISNG::ModelData->new(error => "Count failed: $res->{error}") if (!$res->{success});
+
+		$query_count = $res->{count};
 	}
 	my $cursor = NMISNG::DB::find(
 		collection => $self->latest_data_collection,
@@ -347,7 +353,11 @@ sub get_latest_data_model
 		sort       => $args{sort},
 		limit      => $args{limit},
 		skip       => $args{skip}
-	);
+			);
+
+	return NMISNG::ModelData->new(error => "find failed: ".NMISNG::DB::get_error_string)
+			if (!defined $cursor);
+
 
 	while ( my $entry = $cursor->next )
 	{
@@ -461,8 +471,7 @@ sub get_node_uuids
 #  OR inventory_id (which overrules all of the above)
 #  time, (for timed-data selection)
 #  sort/skip/limit - FIXME sorts/skip/limit not supported if the selection spans more than one concept!
-# returns: modeldata object or undef if error (and error is logged)
-# fixme: better error reporting would be good
+# returns: modeldata object (always, may be empty - check ->error)
 sub get_timed_data_model
 {
 	my ($self, %args) = @_;
@@ -477,15 +486,13 @@ sub get_timed_data_model
 																	fields_hash =>  { concept => 1 });
 		if (!$cursor)
 		{
-			$self->log->error("Failed to retrieve inventory $args{inventory_id}: "
-												.NMISNG::DB::get_error_string);
-			return undef;
+			return NMISNG::ModelData->new(error => "Failed to retrieve inventory $args{inventory_id}: "
+																		.NMISNG::DB::get_error_string);
 		}
 		my $inv = $cursor->next;
 		if (!defined $inv)
 		{
-			$self->log->error("inventory $args{inventory_id} does not exist!");
-			return undef;;
+			return NMISNG::ModelData->new(error => "inventory $args{inventory_id} does not exist!")
 		}
 
 		$concept2cand{$inv->{concept}} = $args{inventory_id};
@@ -501,14 +508,12 @@ sub get_timed_data_model
 			$selectionargs{filter}->{$maybe} = $args{$maybe} if (exists $args{$maybe});
 		}
 		$selectionargs{fields_hash} = { _id => 1, concept => 1 }; # don't need anything else
-		my $result = $self->get_inventory_model(%selectionargs);
-		if (!$result->{success})
-		{
-			$self->log->error("get inventory model failed: $result->{error}");
-			return undef;
-		}
-		my $lotsamaybes = $result->{model_data};
-		return undef if (!$lotsamaybes or !$lotsamaybes->count); # fixme: nosuch inventory should count as an error or not?
+
+		my $lotsamaybes = $self->get_inventory_model(%selectionargs);
+		return $lotsamaybes if ($lotsamaybes->error); # it's a modeldata object with error set
+
+		# fixme: should nosuch inventory count as an error or not?
+		return NMISNG::ModelData->new(data => []) if (!$lotsamaybes->count);
 
 		for my $oneinv (@{$lotsamaybes->data})
 		{
@@ -524,7 +529,8 @@ sub get_timed_data_model
 																													 $self->inventory_collection
 																													 : $self->inventory_collection->name ),
 																					 key => "concept");
-		return undef if (ref($allconcepts) ne "ARRAY" or !@$allconcepts); # fixme: no inventory at all is an error or not?
+		# fixme: no inventory at all counts as an error or not?
+		return NMISNG::ModelData->new(data => []) if (ref($allconcepts) ne "ARRAY" or !@$allconcepts);
 		for my $thisone (@$allconcepts)
 		{
 			$concept2cand{$thisone} = undef; # undef is not array ref and not string
@@ -550,13 +556,15 @@ sub get_timed_data_model
 																	 sort => $args{sort},
 																	 skip => $args{skip},
 																	 limit => $args{limit} );
+		return NMISNG::ModelData->new(error => "Find failed: ".&NMISNG::DB::getErrorString)
+				if (!$cursor);
 		while (my $tdata = $cursor->next)
 		{
 			push @rawtimedata, $tdata;
 		}
 	}
 
-	# no object instantiation expected or possible for timed data
+	# no object instantiation is expected or possible for timed data
 	return NMISNG::ModelData->new(data => \@rawtimedata);
 }
 
@@ -1882,14 +1890,13 @@ sub find_due_nodes
 	# find out what nodes are due as per polling policy or service status - also honor force
 	# unfortunately we require each candidate node's nodeinfo/catchall data to make the
 	# candidate-or-not decision...
-	my $allcatchalls = $self->get_inventory_model(concept => "catchall",
-																								cluster_id => $self->config->{cluster_id},
-																								uuid => [ keys %cands ]);
-	if (!$allcatchalls->{success})
+	my $accessor = $self->get_inventory_model(concept => "catchall",
+																						cluster_id => $self->config->{cluster_id},
+																						uuid => [ keys %cands ]);
+	if (my $error = $accessor->error)
 	{
-		return { error => "Failed to load catchall inventory: $allcatchalls->{error}" };
+		return { error => "Failed to load catchall inventory: $error" };
 	}
-	my $accessor = $allcatchalls->{model_data};
 	# dynamic node information, by node uuid
 	my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
 
@@ -1913,12 +1920,12 @@ sub find_due_nodes
 																								fields_hash => {
 																									'data.service' => 1,
 																									'data.last_run' => 1 }, );
-			if (!$prevruns->{success})
+			if (my $error = $prevruns->error)
 			{
-				return { error => "Failed to load services inventory: $prevruns->{error}" };
+				return { error => "Failed to load services inventory: $error" };
 			}
 			my %service_lastrun = ( map { ($_->{data}->{service} => $_->{data}->{last_run}) }
-															(@{$prevruns->{model_data}->data}));
+															(@{$prevruns->data}));
 
 			for my $maybesvc (split(/\s*,\s*/, $nodeconfig->{services}))
 			{
@@ -2277,14 +2284,12 @@ sub compute_thresholds
 			$callargs{nmisng} = $self;
 			$callargs{class_name} = { "concept" => \&NMISNG::Inventory::get_inventory_class };
 
-			my $result = $S->nmisng_node->get_inventory_model(%callargs);
-
-			if (!$result->{success})
+			my $inventory_model = $S->nmisng_node->get_inventory_model(%callargs);
+			if (my $error = $inventory_model->error)
 			{
-				$self->log->error("get inventory model failed: $result->{error}");
+				$self->log->error("get inventory model failed: $error");
 				return undef;
 			}
-			my $inventory_model = $result->{model_data};
 
 			NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
 

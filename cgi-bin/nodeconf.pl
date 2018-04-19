@@ -272,11 +272,11 @@ sub displayNodeConf
 
 	# result is from interface inventory lookup
 	if ( NMISNG::Util::getbool($catchall_data->{collect})
-			 && $result->{success} && $result->{model_data}->count )
+			 && !$result->error && $result->count )
 	{
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
 
-		my %ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$result->{model_data}->data});
+		my %ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$result->data});
 
 		foreach my $intf (NMISNG::Util::sorthash( \%ifinfo, ['ifDescr'], 'fwd'))
 		{
@@ -438,9 +438,9 @@ sub updateNodeConf {
 	my $result = $S->nmisng_node->get_inventory_model(
 		concept => 'interface',
 		filter => { historic => 0 });
-	if ($result->{success})
+	if (!$result->error)
 	{
-		%ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$result->{model_data}->data});
+		%ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$result->data});
 	}
 
 	# get the current nodeconf overrides

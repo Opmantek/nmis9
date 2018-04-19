@@ -62,7 +62,7 @@ my $logoutButton;
 
 # variables used for the security mods
 my $headeropts = {}; #{type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -358,20 +358,20 @@ sub displayIPSLAmenu {
 	}
 
 	# create source address list of probe node
-	if ( $pnode ) 
+	if ( $pnode )
 	{
 		my $S = NMISNG::Sys->new; # get system object
 		$S->init(name=>$pnode,snmp=>'false'); # load node info and Model if name exists
-		
-		my $result = $S->nmisng_node->get_inventory_model( 
+
+		my $result = $S->nmisng_node->get_inventory_model(
 			concept => 'interface', filter => { historic => 0 });
-		if($result->{success})
+		if(!$result->error)
 		{
-			for my $oneif (sort { $a->{data}->{index} <=> $b->{data}->{index} } 
-										 @{$result->{model_data}->data})
+			for my $oneif (sort { $a->{data}->{index} <=> $b->{data}->{index} }
+										 @{$result->data})
 			{
-				if ($oneif->{data}->{ifAdminStatus} eq "up" 
-						and $oneif->{data}->{ipAdEntAddr1} ne "" ) 
+				if ($oneif->{data}->{ifAdminStatus} eq "up"
+						and $oneif->{data}->{ipAdEntAddr1} ne "" )
 				{
 					push (@saddr, $oneif->{data}->{ipAdEntAddr1});
 				}
@@ -561,7 +561,7 @@ sub displayIPSLAmenu {
 					} elsif ( !NMISNG::Util::getbool($C->{daemon_ipsla_active}) ) {
 						$class = "Error";
 						$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon ipslad.pl";
-					} 
+					}
 					elsif (not -r "/var/run/ipslad.pid")
 					{
 						$class = "Error";

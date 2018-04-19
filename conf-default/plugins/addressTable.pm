@@ -32,7 +32,7 @@
 # and produces linkage for the nmis gui
 #
 package addressTable;
-our $VERSION = "2.0.0";
+our $VERSION = "2.0.1";
 
 use strict;
 use NMISNG::Util;								# for beautify_physaddress
@@ -57,14 +57,14 @@ sub update_plugin
 	my $result = $S->nmisng_node->get_inventory_model(
 		concept => "interface",
 		filter => { historic => 0 });
-	
-	if (!$result->{success})
+
+	if (my $error = $result->error)
 	{
-		$NG->log->error("Failed to get inventory: $result->{error}");
+		$NG->log->error("Failed to get inventory: $error");
 		return(0,undef);
 	}
 
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
 	for my $atid (@$atitems)
 	{

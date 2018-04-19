@@ -31,7 +31,7 @@
 # like CBQoS and Netflow; produces linkages for the gui
 
 package Cisco_Features;
-our $VERSION = "2.0.0";
+our $VERSION = "2.0.1";
 
 use strict;
 
@@ -55,14 +55,13 @@ sub update_plugin
 		my $result = $S->nmisng_node->get_inventory_model(
 			concept => "entityMib",
 			filter => { historic => 0 });
-		if (!$result->{success})
+		if (my $error = $result->error)
 		{
-			$NG->log->error("Failed to get inventory: $result->{error}");
+			$NG->log->error("Failed to get inventory: $error");
 			return(0,undef);
 		}
-				
-		my %emibdata =  map { ($_->{data}->{index} => $_->{data}) }
-		(@{$result->{model_data}->data});
+
+		my %emibdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
 		for my $cpuid (@$cpuids)
 		{
@@ -102,12 +101,12 @@ sub update_plugin
 	# as well, but a non-object r/o copy of just the data (no meta) is enough
 	my $result = $S->nmisng_node->get_inventory_model(concept => "interface",
 																										filter => { historic => 0 });
-	if (!$result->{success})
+	if (my $error = $result->error)
 	{
-		$NG->log->error("Failed to get inventory: $result->{error}");
+		$NG->log->error("Failed to get inventory: $error");
 		return(0,undef);
 	}
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
 	# cisco-cbqos items need to be linked to interfaces
 	# does that node collect cisco-type qos information?
