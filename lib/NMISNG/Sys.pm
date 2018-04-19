@@ -709,6 +709,9 @@ sub copyModelCfgInfo
 		$catchall_data->{nodeType} = $self->{mdl}{system}{nodeType}
 			if ( !$catchall_data->{nodeType} or $mustoverwrite );
 	}
+	my @graphs = split /,/,$self->{mdl}{system}{nodegraph};
+	$catchall_data->{nodegraph} = \@graphs;
+			# if ( !$catchall_data->{nodegraph} or $mustoverwrite );
 }
 
 # get info from node, using snmp and/or wmi
