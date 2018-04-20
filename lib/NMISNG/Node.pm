@@ -46,6 +46,7 @@ use Net::DNS;
 use Statistics::Lite;
 use URI::Escape;
 use POSIX qw(:sys_wait_h);
+use Fcntl qw(:DEFAULT :flock :mode); # for flock
 use Net::SNMP;									# for oid_lex_sort
 
 use NMISNG::Util;
@@ -5624,9 +5625,10 @@ sub compute_reachability
 
 
 # perform update operation for this one node
-# args: self, optional force, optional starttime (default now)
+# args: self, optional force, optional starttime (default now),
+# lock (optional, a live lock structure, if collect() decides to switch to update() on the go)
 # returns: hashref, keys success/error/locked
-#  success 0 + locked 1 is for early bail-out due to collect/update lock
+#  success 0 + locked 1 is for early bail-out due to node lock
 sub update
 {
 	my ($self, %args) = @_;
@@ -5639,22 +5641,20 @@ sub update
 	NMISNG::Util::dbg("Starting update, node $name");
 	$0 = "nmisd worker update $name";
 
-	# Check for existing update lock
-	if ( NMISNG::Util::existsPollLock( type => "update", node => $name ) )
-	{
-		print STDERR "Error: update lock exists for $name which has not finished!\n";
-		NMISNG::Util::logMsg("WARNING update lock exists for $name which has not finished!");
-		return { error => "update lock exists for $name", locked => 1 };
-	}
-	my $lockHandle = NMISNG::Util::createPollLock( type => "update", node => $name );
-	return { error => "Failed to create update lock for $name!" } if (!$lockHandle);
+	# continue with the held lock, regardless of type announcement (but update it)
+	# or try to lock the node (announcing what for)
+	$self->nmisng->log->debug2("Getting lock for node $name");
+	my $lock = $self->lock(type => 'update', lock => $args{lock});
 
-	# check for interfering poll lock - bail out if one exists, the scheduler will reschedule the operation
-	my $conflict = NMISNG::Util::existsPollLock(type => "collect",
-																							node => $name);
-	if ($conflict && $conflict != $$)
+	return { error => "failed to lock node: $lock->{error}" } if ($lock->{error}); # a fault, not a lock held
+	# somebody else holds the lock for any reason?
+	if ($lock->{conflict})
 	{
-		return { error => "collect lock exists for $name, owned by process $conflict", locked => 1 };
+		# note that an active collect lock is NOT considered an error when polling frequently
+		my $severity = ($lock->{type} eq "collect")? "info":"warn";
+
+		$self->nmisng->log->$severity("skipping update for node $name: active $lock->{type} lock held by $lock->{conflict}");
+		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
 
 	my $S = NMISNG::Sys->new;    # create system object
@@ -5663,6 +5663,7 @@ sub update
 
 	if (!$S->init(node => $self,	update => 'true', force => $args{force}))
 	{
+		$self->unlock(lock => $lock);
 		NMISNG::Util::logMsg( "ERROR ($name) init failed: " . $S->status->{error} );
 		return { error => "Sys init failed: ".$S->status->{error} };
 	}
@@ -5671,6 +5672,7 @@ sub update
 	my $catchall_inventory = $S->inventory(concept => 'catchall');
 	if(!$catchall_inventory)
 	{
+		$self->unlock(lock => $lock);
 		$self->nmisng->log->fatal("Failed to load catchall inventory for node $name");
 		return { error => "Failed to load catchall inventory for node $name" };
 	}
@@ -5851,7 +5853,10 @@ sub update
 	$S->close;
 
 	$catchall_inventory->save();
-	NMISNG::Util::releasePollLock( handle => $lockHandle, type => "update", node => $name );
+	if (my $issues = $self->unlock(lock => $lock))
+	{
+		$self->nmisng->log->error($issues);
+	}
 
 	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
 	{
@@ -7315,6 +7320,86 @@ sub collect_services
 	$self->nmisng->log->debug("Finished");
 }
 
+# acquire a lock for this node, mark it with the given type
+# args: type (required),
+# lock (optional, must be held and live; if given the lock's type is updated)
+#
+# returns: hashref, error/conflict/type/handle
+# error is set on fault, conflict holds pid of other holder IFF conflicting,
+# type is set from conflict or arg, handle is the open fh, file
+#
+# note: mostly irrelevant, nmisd workers normally don't start jobs if clashing
+sub lock
+{
+	my ($self, %args) = @_;
+	my $lock = $args{lock} // {};
+
+	my $config = $self->nmisng->config;
+	my $fn = $lock->{file} = $config->{'<nmis_var>'}."/".$self->name.".lock";
+	$lock->{type} = $args{type};
+
+	# create if not present yet
+	if (!-f $fn)
+	{
+		open(F, ">$fn") or return { error => "Failed to create lock file $fn: $!" };
+		close(F);
+
+		# ignore any problems with the perms, that's just to appease the selftest
+		NMISNG::Util::setFileProtDiag(file => $fn,
+																	username => $config->{nmis_user},
+																	groupname => $config->{nmis_group},
+																	permission => $config->{os_fileperm});
+	}
+
+	# open if not already open
+	my $fhandle = $lock->{handle};
+	if (!defined $fhandle)
+	{
+		if (!open($fhandle, "+<", $fn))
+		{
+			return { error => "Failed to open lock file $fn: $!" };
+		}
+		$lock->{handle} = $fhandle;
+
+		# lock if not given an already open lock to adjust, but don't block
+		if (!flock($fhandle, LOCK_EX|LOCK_NB))
+		{
+			my ($pid,$op) = split(/\s+/, <$fhandle>);
+			close($fhandle);
+			return { conflict => ($pid || -1), type => ($op || "N/A") };
+		}
+	}
+
+	# write out our stuff - may upgrade the lock's type
+	seek($fhandle,0,0);
+	print $fhandle "$$ $lock->{type}\n";
+	truncate($fhandle, tell($fhandle));
+	$fhandle->autoflush;
+
+	return $lock;
+}
+
+# unlock an existing lock and cleans up the lockfile afterwards
+# args: lock
+# returns: undef if ok, error otherwise
+sub unlock
+{
+	my ($self, %args) = @_;
+	my $lock = $args{lock};
+
+	return "Invalid lock structure!" if (ref($lock) ne "HASH" or !$lock->{file}
+																			 or !$lock->{handle});
+	my @unhappies;
+	if (!flock($lock->{handle}, LOCK_UN))
+	{
+		push (@unhappies, "failed to unlock $lock->{file}: $!"); # but continue...
+	}
+	close($lock->{handle})
+			or (push @unhappies, "failed to close $lock->{handle} for $lock->{file}: $!");
+	unlink($lock->{file}) or (push @unhappies, "failed to unlink $lock->{file}: $!");
+	return @unhappies? join("\n", @unhappies) : undef;
+}
+
 
 # perform collect operation for this one node
 # args: self, wantsnmp and wantwmi (both required),
@@ -7337,21 +7422,20 @@ sub collect
 										 .", want WMI: ".($wantwmi?"yes":"no"));
 	$0 = "nmisd worker collect $name";
 
-	# Check for both update and collect locks - note that update lock existence is NOT
-	# an error when we're polling frequently!
-	if ( NMISNG::Util::existsPollLock( type => "update", node => $name ) )
-	{
-		$self->nmisng->log->info("skipping collect for node $name because of active update lock");
-		return { error => "update lock exists for node $name", locked => 1 };
+	# try to lock the node (announcing what for)
+	$self->nmisng->log->debug2("Getting lock for node $name");
+	my $lock = $self->lock(type => 'collect');
+	return { error => "failed to lock node: $lock->{error}" } if ($lock->{error}); # a fault, not a lock
 
-	}
-	if ( NMISNG::Util::existsPollLock( type => "collect", node => $name ) )
+	# somebody else holds the lock for any reason?
+	if ($lock->{conflict})
 	{
-		$self->nmisng->log->warn("skipping collect for node $name because of active collect lock");
-		return { error => "collect lock exists for node $name", locked => 1 };
+		# note that update lock is NOT considered an error when we're polling frequently
+		my $severity = ($lock->{type} eq "update")? "info":"warn";
+
+		$self->nmisng->log->$severity("skipping collect for node $name: active $lock->{type} lock held by $lock->{conflict}");
+		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
-	my $lockHandle = NMISNG::Util::createPollLock( type => "collect", node => $name );
-	return { error => "Failed to create collect lock for $name!" } if (!$lockHandle);
 
 	my $S = NMISNG::Sys->new;
 
@@ -7366,9 +7450,8 @@ sub collect
 													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
 
 		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
-		my $res = $self->update();
+		my $res = $self->update(lock => $lock); # 'upgrade' the one lock we currently hold
 		# collect will have to wait until a next run...but do clean the lock up now
-		NMISNG::Util::releasePollLock(handle => $lockHandle, type => "collect", node => $name);
 		return $res;
 	}
 
@@ -7406,9 +7489,8 @@ sub collect
 	if ( !exists( $catchall_data->{last_update} ) or !$catchall_data->{last_update} )
 	{
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
-		my $res = $self->update();
-		# collect will have to wait until a next run...but do clean the lock up now
-		NMISNG::Util::releasePollLock(handle => $lockHandle, type => "collect", node => $name);
+		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
+		# collect will have to wait until a next run...
 		return $res;
 	}
 
@@ -7587,9 +7669,11 @@ sub collect
 	NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
 
 	$S->close;
-
 	$catchall_inventory->save();
-	NMISNG::Util::releasePollLock( handle => $lockHandle, type => "collect", node => $name );
+	if (my $issues = $self->unlock(lock => $lock))
+	{
+		$self->nmisng->log->error($issues);
+	}
 
 	# fixme9: opstatus instead
 	if ( NMISNG::Util::getbool( $C->{log_polling_time} ) )
