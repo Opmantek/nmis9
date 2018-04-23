@@ -49,16 +49,19 @@ if [ -r /etc/debian_version ]; then
 
 		do_start()
 		{
-				start-stop-daemon --start --quiet --exec $DAEMON --pidfile $PIDFILE --test > /dev/null 	|| return 1
+				# --exec doesn't work for scripts and/or scripts
+				# that change their process name...like nmisd
+				start-stop-daemon --start --quiet --startas $DAEMON --pidfile $PIDFILE --test > /dev/null 	|| return 1
 				start-stop-daemon --start --quiet --pidfile $PIDFILE \
-						--exec $DAEMON -- $DAEMON_ARGS || return 2
+						--startas $DAEMON -- $DAEMON_ARGS || return 2
 		}
 
 		do_stop()
 		{
-				# nmisd does change its name
+				# --exec doesn't work for scripts and/or scripts
+				# that change their process name...like nmisd
 				start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
-						--pidfile $PIDFILE --exec $DAEMON
+						--pidfile $PIDFILE
 				RETVAL="$?"
 				[ "$RETVAL" = 2 ] && return 2
 				# Many daemons don't delete their pidfiles when they exit.
@@ -69,8 +72,10 @@ if [ -r /etc/debian_version ]; then
 		# send a SIGHUP for reopening log files etc.
 		do_reload()
 		{
+				# --exec doesn't work for scripts and/or scripts
+				# that change their process name...like nmisd
 				start-stop-daemon --stop --quiet --signal 1 \
-													--pidfile $PIDFILE --exec $DAEMON
+													--pidfile $PIDFILE
 				return $?
 		}
 
