@@ -771,13 +771,14 @@ sub opstatus_collection
 			collection    => $self->{_db_opstatus},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				# opstatus: searchable by when, by status (good/bad), by activity, context and type
+				# opstatus: searchable by when, by status (good/bad), by activity, context (node) and type
 				# not included: details and stats
 				[ { "time" => -1 } ],
 				[ { "status" => 1 } ],
 				[ { "activity" => 1 } ],
-				[ { "context" => 1 } ],
+				[ { "context.node_uuid" => 1 } ],
 				[ { "type" => 1 } ],
+				[ { "expire_at" => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
 			] );
 		$self->log->error("index setup failed for opstatus: $err") if ($err);
 	}
@@ -806,6 +807,117 @@ sub latest_data_collection
 		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
 	return $self->{_db_latest_data};
+}
+
+# records/updates the status of an operation
+# args: time (defaults to now), activity (what succeeded/failed, freeform but  required),
+# status (required, "ok", "info", "inprogress" or "error"),
+# type (event type, freeform error or status name),
+# details (optional, freeform, may be undef for delete on update),
+# stats (optional, structure, may be undef for delete on update),
+# context (what node/thing/job was involved, optional, may be undef for delete on update),
+# id (optional but required for updating an existing record)
+#
+# returns (undef, record id) if ok, error message otherwise
+sub save_opstatus
+{
+	my ($self,%args) = @_;
+
+	my ($when, $activity, $type, $status, $oldrec)
+			= @args{qw(time activity type status id)};
+	return "save_opstatus requires activity argument!\n" if (!$activity);
+	return "status must be one of error, info, inprogress or ok!"
+			if ($status !~ /^(ok|info|inprogress|error)$/);
+
+	my $statusrec;
+	if ($oldrec)
+	{
+		my $cursor = NMISNG::DB::find(collection => $self->opstatus_collection,
+																	query => NMISNG::DB::get_query( and_part => { _id => $oldrec }));
+		$statusrec = $cursor->next if ($cursor);
+		return "Cannot update nonexistent record $oldrec!" if (!$cursor or !$statusrec);
+	}
+
+	$statusrec->{time} = $when || Time::HiRes::time;
+	$statusrec->{activity} = $activity;
+	$statusrec->{status} = $status;
+	$statusrec->{type} = $type;
+	$statusrec->{context} = $args{context} if (exists $args{context}); # undef is ok for deletion
+	$statusrec->{details} = $args{details} if (exists $args{details}); # undef is ok for deletion
+	$statusrec->{stats} = $args{stats} if (exists $args{details}); # undef is ok for deletion
+	delete $statusrec->{_id};			# must not be present for update
+
+	my $expire_at = $statusrec->{time} + ($self->config->{purge_opstatus_after} || 60*86400);
+	# to make the db ttl expiration work this must be
+	# an acceptable date type for the driver version
+	$statusrec->{expire_at} = $NMISNG::DB::new_driver?
+			Time::Moment->from_epoch($expire_at)
+			: DateTime->from_epoch(epoch => $expire_at, time_zone => "UTC");
+
+	my $result;
+	if ($oldrec)
+	{
+		$result = NMISNG::DB::update(collection => $self->opstatus_collection,
+																 query => NMISNG::DB::get_query( and_part => { _id => $oldrec }),
+																 record => $statusrec);
+	}
+	else
+	{
+		$result = NMISNG::DB::insert(collection => $self->opstatus_collection,
+																 record => $statusrec);
+	}
+	# update doesn't return the id
+	return $result->{success}? (undef, $oldrec||$result->{id}) : $result->{error};
+}
+
+# looks up ops status log entries and returns modeldata object with matches
+# args: id/time/activity/type/status/context/details for selecting material
+#  (attention: details are NOT indexed)
+#  sort/skip/limit/count for tuning the query (also all optional),
+#   count=1 and limit=0 causes a count but no data retrieval
+#
+# returns: modeldata object (may be empty, check ->error)
+sub get_opstatus_model
+{
+	my ($self,%args) = @_;
+
+	my $q = NMISNG::DB::get_query(and_part => { '_id' => $args{id},
+																							map { ($_ => $args{$_}) }
+																							(qw(time type activity status context details)) });
+	my (@modeldata, $querycount);
+
+	if ($args{count}) 								# for pagination
+	{
+		my $res = NMISNG::DB::count(collection => $self->opstatus_collection,
+																query => $q, verbose => 1);
+		return NMISNG::ModelData->new(nmisng => $self, error => "Count failed: $res->{error}")
+				if (!$res->{success});
+		$querycount = $res->{count};
+	}
+
+	# if you want only a count but no data, set count to 1 and limit to 0
+	if (!($args{count} && defined $args{limit} && $args{limit} == 0))
+	{
+		# now perform the actual retrieval, with skip and limit passed in
+		my $cursor = NMISNG::DB::find( collection => $self->opstatus_collection,
+																	 query => $q,
+																	 sort => $args{sort}, limit => $args{limit}, skip => $args{skip} );
+		return NMISNG::ModelData->new(nmisng => $self,
+																	error => "Find failed: ".NMISNG::DB::get_error_string)
+				if (!defined $cursor);
+		@modeldata = $cursor->all;
+	}
+
+	# asking for nonexistent id is treated as failure - asking for 'id NOT matching X' is not
+	return NMISNG::ModelData->new(nmisng => $self, error => "No matching opstatus entry!")
+			if (!@modeldata && ref($args{id}) eq "MongoDB::OID");
+
+	return NMISNG::ModelData->new(nmisng => $self,
+																query_count => $querycount,
+																data => \@modeldata,
+																sort => $args{sort},
+																limit => $args{limit},
+																skip => $args{skip} );
 }
 
 # get or create an NMISNG::Node object from the given arguments (that should make it unique)

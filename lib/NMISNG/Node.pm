@@ -7681,7 +7681,7 @@ sub collect
 		NMISNG::Util::logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $polltime");
 	}
 	NMISNG::Util::info("Finished");
-	return;
+	return { success => 1};
 }
 
 1;
