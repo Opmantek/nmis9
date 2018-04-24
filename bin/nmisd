@@ -444,14 +444,17 @@ while (!$exit_marker)
 		next if (!defined($period) or $period <= 0);
 		my $jobtype = $automagic;
 
-		# don't schedule another if an instance is due or already in progress
+		# don't schedule another if an instance is already in progress
 		my $running = $nmisng->get_queue_model(type => $jobtype,
 																					 in_progress => { '$ne' => 0 });
 		$nmisng->log->error("failed to query job queue: ".$running->error)
 				if ($running->error);
+		# also don't schedule anything if overdue instances exist,
+		# or if a job is 'almost due' (arbitrary choice: now plus one minute)
+		my $overdue_or_almost = Time::HiRes::time + 60;
 		my $overdue = $nmisng->get_queue_model(type => $jobtype,
-																					 time => { '$lt' => Time::HiRes::time },
-																					 in_progess => 0 );
+																					 time => { '$lt' => $overdue_or_almost },
+																					 in_progress => 0 );
 		$nmisng->log->error("failed to query job queue: ".$overdue->error)
 				if ($overdue->error);
 
@@ -460,11 +463,13 @@ while (!$exit_marker)
 		{
 			$nmisng->log->warn("Not scheduling $automagic operation: "
 												 .$running->count." instance(s) currently running, "
-												 . $overdue->count ." overdue");
+												 . $overdue->count ." overdue (or nearly so)");
 			++$ready_jobs if ($overdue->count); # mostly for picking up in foreground/debug mode
 			next;
 		}
 
+		# fixme9: this needs to take into account not only the last-scheduled time
+		# but also the opstatus to find the last execution time!
 		my $previous = $scheduler_state->{$automagic} // 0;
 		# selftest: also depends on the existence of the selftest file
 		# which is removed by the gui to enforce a refresh soonest
@@ -473,7 +478,7 @@ while (!$exit_marker)
 
 		if (Time::HiRes::time - $previous > $period)
 		{
-			$nmisng->log->debug("Scheduling job $automagic, last performed at ". ($previous // "n/a"));
+			$nmisng->log->debug("Scheduling job $automagic, last scheduled/performed at ". ($previous // "n/a"));
 
 			# due now, let's hand it to somebody
 		  my ($error,$qid) = $nmisng->update_queue(jobdata => {
