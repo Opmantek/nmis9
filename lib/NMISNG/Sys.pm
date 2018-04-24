@@ -256,9 +256,6 @@ sub init
 		$self->{_nmisng} = $nodeobj->nmisng;
 		$C = $self->{_nmisng}->config;
 		$self->{_nmisng_node} = $nodeobj;
-		$self->{uuid} = $nodeobj->uuid;
-		$self->{name} = $nodeobj->name;
-		$self->{node} = lc($self->{name}); # meh
 	}
 	elsif ($args{uuid} or $args{name})
 	{
@@ -274,9 +271,17 @@ sub init
 			name => $self->{name},
 			uuid => $self->{uuid},
 			filter => {cluster_id => $args{cluster_id}}
-				);
+		);
 		Carp::confess("Cannot instantiate sys object for $self->{name}!\n")
 				if (!$self->{_nmisng_node});
+	}
+	
+	# apply these uniformly (so a caller only providing uuid still gets them)
+	if( $self->{_nmisng_node} )
+	{
+		$self->{uuid} = $self->{_nmisng_node}->uuid;
+		$self->{name} = $self->{_nmisng_node}->name;
+		$self->{node} = lc($self->{name}); # meh
 	}
 
 	$C ||= NMISNG::Util::loadConfTable();           # needed to determine the correct dir; generally cached and a/v anyway
