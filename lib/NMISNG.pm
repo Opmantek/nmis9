@@ -353,7 +353,7 @@ sub get_latest_data_model
 		sort       => $args{sort},
 		limit      => $args{limit},
 		skip       => $args{skip}
-			);
+	);
 
 	return NMISNG::ModelData->new(error => "find failed: ".NMISNG::DB::get_error_string)
 			if (!defined $cursor);

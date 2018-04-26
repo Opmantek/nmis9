@@ -769,9 +769,14 @@ sub loadConfTable
 		my %deepdata = do $fn;
 		# should the file have unwanted gunk after the %hash = ();
 		# it'll most likely be a '1;' and do returns the last statement result...
-		if ($@ or keys %deepdata < 2)
+		if ($@ )
 		{
 			warn("configuration file $fn unparseable: $@\n");
+			return undef;
+		}
+		elsif (keys %deepdata < 2)
+		{
+			warn("configuration does not have enough depth, potentially didn't have permission, depth:".Dumper( (keys %deepdata)) );
 			return undef;
 		}
 

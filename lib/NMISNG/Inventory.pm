@@ -444,7 +444,8 @@ sub add_timed_data
 			: DateTime->from_epoch(epoch => $expire_at, time_zone => "UTC");
 
 	# if the request is to delay, append to the existing queue (or make an empty hash), otherwise make a new record
-	my $timedrecord = { time => $time, expire_at => $expire_at };
+	# cluster_id here is just handy, not necessarily required
+	my $timedrecord = { time => $time, expire_at => $expire_at, cluster_id => $self->cluster_id };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
 
 	# if datasets was not given (and not flushing) try and figure out what the datasets are
