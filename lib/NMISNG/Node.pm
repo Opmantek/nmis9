@@ -94,6 +94,17 @@ sub new
 # Private:
 ###########
 
+# fill in properties we want and expect
+sub _defaults
+{
+	my ( $self,$configuration ) = @_;	
+	$configuration->{port} //= 161;
+	$configuration->{max_msg_size} //= $self->nmisng->config->{snmp_max_msg_size};
+	$configuration->{max_repetitions} //= 0;
+
+	return $configuration;
+}
+
 # tell the object that it's been changed so if save is
 # called something needs to be done
 # each section is tracked for being dirty, if it's 1 it's dirty
@@ -247,6 +258,9 @@ sub configuration
 
 		# and let's set the defuault polling policy if none was given
 		$newvalue->{polling_policy} ||= "default";
+
+		# fill in defaults
+		$newvalue = $self->_defaults($newvalue);
 
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
