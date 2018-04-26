@@ -207,7 +207,9 @@ sub get_inventory_available_concepts
 		{
 			if ( $args{$arg_name} )
 			{
-				$path->[$index] = $args{$arg_name};
+				# we still want to have regex and other options so run this through the query code
+				my $part = NMISNG::DB::get_query_part( $arg_name, $args{$arg_name} );
+				$path->[$index] = $part->{$arg_name};
 				delete $args{$arg_name};
 			}
 			$index++;
@@ -314,7 +316,9 @@ sub get_inventory_model_query
 			{
 				if ( $args{$arg_name} )
 				{
-					$path->[$index] = $args{$arg_name};
+					# we still want to have regex and other options so run this through the query code
+					my $part = NMISNG::DB::get_query_part( $arg_name, $args{$arg_name} );
+					$path->[$index] = $part->{$arg_name};
 					delete $args{$arg_name};
 				}
 				$index++;
