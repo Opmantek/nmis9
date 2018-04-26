@@ -975,6 +975,8 @@ sub worker_loop
 						# safer to terminate the worker than silently abandoning the claimed job
 						die("Failed to postpone job $canihaveit->{_id}: $error\n");
 					}
+
+					# fixme9 add opstatus
 				}
 				else
 				{
@@ -1001,9 +1003,25 @@ sub worker_loop
 		if ($ourjob)
 		{
 			$nmisng->log->info("Processing job $ourjob->{_id}, type $ourjob->{type}"
-													.($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
+												 .($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
 
-			my $result;								# for opstatus and exception handling
+
+			my $state = { stats => { time => Time::HiRes::time }};		# for opstatus and exception handling
+
+			# the simpler jobs don't have extra args that need to go into opstatus context
+			if ($ourjob->{type} =~ /^(selftest|permissions_test|configbackup|purge|dbcleanup|escalations|thresholds|metrics)$/)
+			{
+				(my $error, $state->{statusid}) =
+						$nmisng->save_opstatus(activity => $ourjob->{type},
+																	 status => "inprogress",
+																	 type => "start",
+																	 details => "Worker $$ starting operation",
+																	 context => { queue_id => $ourjob->{_id},
+																								queue_tag => $ourjob->{tag},
+																								worker_process => $$ },
+						);
+				$nmisng->log->error("Failed to save opstatus: $error") if ($error);
+			}
 
 			# we don't want to end up with stuck jobs if anything dies, so bsts
 			try
@@ -1013,35 +1031,60 @@ sub worker_loop
 					my ($allok, $tests) = NMISNG::Util::selftest(config => $nmisng->config,
 																											 delay_is_ok => 1,
 																											 perms => ($ourjob->{type} eq "permission_test") );
-					# fixme result
+
+					$state->{status} = ($allok?"ok":"error");
+					$state->{details} = "completed"
+							.($allok? " successfully" : ("with failed tests: ". join(", ",keys %$tests))),
 				}
 				elsif ($ourjob->{type} eq "configbackup")
 				{
-					$result = $nmisng->config_backup;
+					my $result = $nmisng->config_backup;
+					$state->{status} = ($result->{success}? "ok":"error");
+					$state->{details} = "completed"
+							.($result->{success}? " successfully, backup saved as $result->{file}"
+								: "failed: $result->{error}"),
 				}
 				elsif ($ourjob->{type} eq "purge")
 				{
-					$result->{files} = $nmisng->purge_old_files(simulate => 0);
-					$result->{outages} = NMISNG::Outage::purge_outages(nmisng => $nmisng,
-																														 simulate => 0);
+					my $files_res = $nmisng->purge_old_files(simulate => 0);
+					my $outages_res = NMISNG::Outage::purge_outages(nmisng => $nmisng,
+																													 simulate => 0);
+					my $totalsuccess = $files_res->{success} && $outages_res->{success};
+					my $errors = join("\n", grep(defined $_, $files_res->{error}, $outages_res->{error}));
+					my $allinfos = join("\n", "", grep(defined $_, @{$files_res->{info}},
+																						 $outages_res->{message}, @{$outages_res->{info}}));
+
+					$state->{status} = $totalsuccess? "ok":"error";
+					$state->{details} => "completed"
+							.( $totalsuccess? " successfully" : "failed: $errors").$allinfos,
 				}
 				elsif ($ourjob->{type} eq "dbcleanup")
 				{
-					$result = $nmisng->dbcleanup(simulate => 0);
+					my $result = $nmisng->dbcleanup(simulate => 0);
+					$state->{status} = $result->{success}? "ok":"error";
+					$state->{details} = "completed"
+							.($result->{success}? " successfully" : "failed: $result->{error}")
+							.join("\n", "", @{$result->{info}});
 				}
 				elsif ($ourjob->{type} eq "escalations")
 				{
 					# fixme: does not return anything
 					$nmisng->process_escalations;
+					$state->{status} = "ok";
+					$state->{details} = undef;
 				}
 				elsif ($ourjob->{type} eq "thresholds")
 				{
 					# fixme: does not return anything
 					$nmisng->compute_all_thresholds;
+					$state->{status} = "ok";
+					$state->{details} = undef;
 				}
 				elsif ($ourjob->{type} eq "metrics")
 				{
-					$result = $nmisng->compute_metrics;
+					my $result = $nmisng->compute_metrics;
+					$state->{status} = $result->{success}? "ok":"error";
+					$state->{details} = $result->{success}? "completed successfully" : "failed: $result->{error}";
 				}
 				elsif ($ourjob->{type} eq "plugins")
 				{
@@ -1052,12 +1095,13 @@ sub worker_loop
 					if ($phase !~ /^(update|collect)$/
 							or ref($uuids) ne "ARRAY" or !@$uuids)
 					{
-						$result = { error => "invalid arguments for plugin invocation!" };
+						$state->{status} = "error";
+						$state->{details} = "aborted: invalid arguments for plugin invocation!";
 					}
 					else
 					{
 						$nmisng->log->info("Starting post-${phase} plugins for "
-																.scalar(@$uuids)." nodes, tag was \"$ourjob->{tag}\"");
+															 .scalar(@$uuids)." nodes, tag was \"$ourjob->{tag}\"");
 
 						# lookup the node names so that we can provide both names
 						# and uuids in the same order
@@ -1065,6 +1109,19 @@ sub worker_loop
 																							 fields_hash => { uuid => 1, name => 1 });
 						my (@node_names, @node_uuids);
 						map { push @node_names, $_->{name}; push @node_uuids, $_->{uuid}; } (@{$u2n->data});
+
+						# we'd like the opstatus to carry a useful context
+						(my $error, $state->{statusid}) =
+								$nmisng->save_opstatus(activity => $ourjob->{type},
+																			 status => "inprogress",
+																			 type => "start",
+																			 details => "Worker $$ starting operation",
+																			 context => { queue_id => $ourjob->{_id},
+																										queue_tag => $ourjob->{tag},
+																										worker_process => $$,
+																										node_uuid => \@node_uuids },
+								);
+						$nmisng->log->error("Failed to save opstatus: $error") if ($error);
 
 						my $S;
 						for my $plugin ($nmisng->plugins)
@@ -1081,6 +1138,7 @@ sub worker_loop
 							$nmisng->log->debug2("Running after_${phase} plugin $plugin");
 							my $prevprefix = $nmisng->log->logprefix;
 							$nmisng->log->logprefix("$plugin\[$$\] ");
+							++$state->{stats}->{plugins};
 
 							my ($status, @errors, $fatality);
 							# we can't trust the plugins fully, so...
@@ -1100,6 +1158,12 @@ sub worker_loop
 							$nmisng->log->logprefix($prevprefix);
 							if ($status >= 2 or $status < 0 or $fatality)
 							{
+								$state->{status} = "error";
+								$state->{problems} //= [];
+								++$state->{stats}->{pluginfaults};
+								push @{$state->{problems}}, "Plugin $plugin failed to run: $fatality" if ($fatality);
+								push @{$state->{problems}}, @errors;
+
 								$nmisng->log->error("Plugin $plugin failed to run: $fatality") if ($fatality);
 								for my $err (@errors)
 								{
@@ -1112,7 +1176,11 @@ sub worker_loop
 																		. ($status? "indicated success" : "indicated no changes"));
 							}
 						}
-						$result = { success => 1 };
+
+						$state->{status} ||= "ok";
+						$state->{details} = "completed ". (ref($state->{problems}) eq "ARRAY"?
+																							 ("with errors: ".join("\n",
+																																		 @{$state->{problems}})) : "successfully");
 					}
 				}
 				elsif ($ourjob->{type} =~ /^(collect|update|services)$/)
@@ -1145,10 +1213,27 @@ sub worker_loop
 					die("Invalid arguments for $methodname: no node with uuid $nodeuuid exists!\n")
 							if (!$thenode or $thenode->is_new);
 
+					# we'd like the opstatus to carry a useful context
+					(my $error, $state->{statusid}) =
+							$nmisng->save_opstatus(activity => $ourjob->{type},
+																		 status => "inprogress",
+																		 type => "start",
+																		 details => "Worker $$ starting operation for ".$thenode->name,
+																		 context => { queue_id => $ourjob->{_id},
+																									queue_tag => $ourjob->{tag},
+																									worker_process => $$,
+																									node_uuid => $nodeuuid},
+							);
+					$nmisng->log->error("Failed to save opstatus: $error") if ($error);
+
 					$nmisng->log->info("Starting $methodname for node $nodeuuid (".$thenode->name.")");
-					$result = $thenode->$methodname(@methodargs);
+					my $result = $thenode->$methodname(@methodargs);
 					alarm(0) if ($maxruntime);
-					$0 = "nmisd worker";
+					$nmisng->log->debug2("Finished $methodname for node $nodeuuid (".$thenode->name.")");
+
+					# locked is not-quite an error, so we report it as informational
+					$state->{status} = $result->{success}? "ok": $result->{locked}? "info" : "error";
+					$state->{details} = $result->{success}? "completed successfully" : "failed: $result->{error}";
 
 					# fixme9: selftest currently relies on those timestamp markers
 					# fixme9: switch the 'last op' timestamp to opstatus in db!
@@ -1165,16 +1250,34 @@ sub worker_loop
 			}
 			catch
 			{
-				$result->{exception} = $_;
+				$state->{exception} = $_;
 			};
 
-			if ($result->{exception})
-			{
-				$nmisng->log->fatal("Exception while processing job $ourjob->{_id}: $result->{exception}");
-			}
+			$0 = "nmisd worker";			# some of the ops rename the process temporarily
 
-			# fixme: work is done, report result in opstatus,
-			# handle exceptions
+			if ($state->{exception})
+			{
+				$nmisng->log->fatal("Exception while processing job $ourjob->{_id}: $state->{exception}");
+				# don't care about success or failure of that here
+				$nmisng->save_opstatus(id => $state->{statusid},
+															 activity => $ourjob->{type},
+															 status => "error",
+															 type => "exception",
+															 details => $state->{exception},
+															 stats => undef );
+			}
+			else
+			{
+				# work is done, report result in opstatus
+				$state->{stats}->{time} = Time::HiRes::time - $state->{stats}->{time}; # time was start marker, want it to be delta
+				my ($error, undef) = $nmisng->save_opstatus(id => $state->{statusid},
+																										activity => $ourjob->{type},
+																										type => "completed",
+																										status => $state->{status},
+																										details => $state->{details},
+																										stats => $state->{stats} );
+				$nmisng->log->error("Failed to save opstatus: $error") if ($error);
+			}
 
 			# and delete the job from the queue
 			$nmisng->log->info("Completed job $ourjob->{_id}, $ourjob->{type}, removing from queue");
