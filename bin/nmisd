@@ -822,7 +822,7 @@ sub manage_processes
 				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $cmdline->{debug});
 				$nmisng->log->logprefix("worker\[$$\] ");
 				$nmisng->log->info("started");
-				$0 = "nmisd worker";
+				$0 = "nmisd worker <idle>";
 
 				my $exit_marker;
 				# setup signal handlers: HUP and USR1/USR2, INT, TERM
@@ -1268,7 +1268,7 @@ sub worker_loop
 				$state->{exception} = $_;
 			};
 
-			$0 = "nmisd worker";			# some of the ops rename the process temporarily
+			$0 = "nmisd worker <idle>";			# some of the ops rename the process temporarily
 
 			if ($state->{exception})
 			{
