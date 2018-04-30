@@ -775,12 +775,14 @@ sub opstatus_collection
 			collection    => $self->{_db_opstatus},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				# opstatus: searchable by when, by status (good/bad), by activity, context (node) and type
+				# opstatus: searchable by when, by status (good/bad), by activity,
+				# context (primarily node but also queue_id), and by type
 				# not included: details and stats
 				[ { "time" => -1 } ],
 				[ { "status" => 1 } ],
 				[ { "activity" => 1 } ],
 				[ { "context.node_uuid" => 1 } ],
+				[ { "context.queue_id" => 1 } ],
 				[ { "type" => 1 } ],
 				[ { "expire_at" => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
 			] );
@@ -875,7 +877,7 @@ sub save_opstatus
 }
 
 # looks up ops status log entries and returns modeldata object with matches
-# args: id/time/activity/type/status/context/details for selecting material
+# args: id/time/activity/type/status/context.X/details for selecting material
 #  (attention: details are NOT indexed)
 #  sort/skip/limit/count for tuning the query (also all optional),
 #   count=1 and limit=0 causes a count but no data retrieval
@@ -887,7 +889,10 @@ sub get_opstatus_model
 
 	my $q = NMISNG::DB::get_query(and_part => { '_id' => $args{id},
 																							map { ($_ => $args{$_}) }
-																							(qw(time type activity status context details)) });
+																							# flat
+																							(qw(time type activity status details),
+																							 # dotted/deep
+																							 grep(/^context\./, keys %args)) });
 	my (@modeldata, $querycount);
 
 	if ($args{count}) 								# for pagination

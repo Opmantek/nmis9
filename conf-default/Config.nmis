@@ -504,4 +504,20 @@ my %hash = (
 		'abort_metrics_after' => 300,
 		'abort_thresholds_after' => 300,
 	},
+
+	# relative priorities for automatic job scheduling,
+	"priority_schedule" => {
+		 "priority_escalations" => 0.9,
+		 "priority_collect" => 0.85,
+		 "priority_update" => 0.8,
+		 "priority_plugins" => 0.85, # post-update and post-collect plugins
+		 "priority_services" => 0.75,
+		 "priority_thresholds" => 0.7,
+		 "priority_metrics" => 0.7,
+		 "priority_configbackup" => 0.3,
+		 "priority_purge" => 0.3,
+		 "priority_dbcleanup" => 0.3,
+		 "priority_selftest" => 0.2,
+		 "priority_permission_test" => 0.1,
+	},
 );

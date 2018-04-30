@@ -56,17 +56,6 @@ use Compat::NMIS;
 
 # for worker_loop
 use constant { EXIT_POLITE => 0, EXIT_TTL => 1, EXIT_IMMEDIATELY => 2, EXIT_ERROR => 3, EXIT_IDLE => 4 };
-# relative priorities for scheduling; escalations and collect highest prio, then
-# update and after-collect/update plugins and  services third; rest are mostly nice-to-have
-my %priorities = ( "escalations" => 0.9,
-									 "collect" => 0.85,
-									 "update" => 0.8,
-									 "plugins" => 0.85, # post-update and post-collect plugins
-									 "services" => 0.75,
-									 "thresholds" => 0.7, "metrics" => 0.7,
-									 "configbackup" => 0.3, "purge" => 0.3, "dbcleanup" => 0.3,
-									 "selftest" => 0.2,
-									 "permission_test" => 0.1 );
 
 my $me = basename($0);
 my $usage = "Usage: $me [option=value...] [act=command]
@@ -272,7 +261,27 @@ while (!$exit_marker)
 						kill("TERM",$workerpid);
 					}
 
-					# fixme9: report via opstatus
+					# find and update any inprogress opstatus record in question - context.queue_id links back to the queue
+					my $oldopstatus = $nmisng->get_opstatus_model("context.queue_id" => $onejob->{_id},
+																												status => "inprogress"  );
+					if (my $error = $oldopstatus->error)
+					{
+						$nmisng->log->error("Failed to query opstatus: $error");
+					}
+					my ($oldstatusid,$oldcontext);
+					if ($oldopstatus->count == 1)
+					{
+						($oldstatusid,$oldcontext) = @{$oldopstatus->data->[0]}{"_id","context"};
+					}
+					$nmisng->save_opstatus(id => $oldstatusid,
+																 activity => $onejob->{type},
+																 status => "error",
+																 type => "aborted",
+																 details => ("Aborted job: too old, in progress for "
+																						 .int($now - $onejob->{in_progress})."s, maximum allowed ${realmaxage}s"),
+																 stats => undef,
+																 context => $oldcontext,
+							);
 				}
 			}
 		}
@@ -333,7 +342,8 @@ while (!$exit_marker)
 																								 {
 																									 type => $operation,
 																									 time => $jobdueat,
-																									 priority => $priorities{$operation},
+																									 priority =>
+																											 $config->{"priority_$operation"} // 0.5,
 																									 in_progress => 0,
 																									 args => \%jobargs,
 																									 tag => $tag });
@@ -360,7 +370,7 @@ while (!$exit_marker)
 	#
 	# in_flight carries operation, tag, uuid and queue id plus desired start time
 	# check op+tag, any jobs left in queue? wait longer. none left? schedule plugin
-	# fixme: add logic to give up on stuck/overdue jobs? or leave that to nmis-cli act=abort
+	# fixme: should we add logic to give up on plugins for stuck/overdue jobs? or leave that to nmis-cli act=abort
 	for my $icanhasplugin (qw(update collect))
 	{
 		$nmisng->log->debug2("Checking (un)finished $icanhasplugin jobs");
@@ -403,7 +413,8 @@ while (!$exit_marker)
 																									 {
 																										 type => "plugins",
 																										 time => Time::HiRes::time,
-																										 priority => $priorities{"plugins"},
+																										 priority =>
+																												 $config->{"priority_plugins"} // 0.5,
 																										 in_progress => 0,
 																										 args => {
 																											 phase => $icanhasplugin, # post-collect or post-update plugins
@@ -450,8 +461,9 @@ while (!$exit_marker)
 		$nmisng->log->error("failed to query job queue: ".$running->error)
 				if ($running->error);
 		# also don't schedule anything if overdue instances exist,
-		# or if a job is 'almost due' (arbitrary choice: now plus one minute)
-		my $overdue_or_almost = Time::HiRes::time + 60;
+		# or if a job is 'almost due' (arbitrary choice: now plus one minute, or half the job's period,
+		# whichever is shorter)
+		my $overdue_or_almost = Time::HiRes::time + Statistics::Lite::min($period/2, 60);
 		my $overdue = $nmisng->get_queue_model(type => $jobtype,
 																					 time => { '$lt' => $overdue_or_almost },
 																					 in_progress => 0 );
@@ -468,9 +480,14 @@ while (!$exit_marker)
 			next;
 		}
 
-		# fixme9: this needs to take into account not only the last-scheduled time
-		# but also the opstatus to find the last execution time!
-		my $previous = $scheduler_state->{$automagic} // 0;
+		# check when this operation was last tried/run/performed, based on opstatus entries except inprogress
+		my $mostrecent = $nmisng->get_opstatus_model(activity => $jobtype,
+																								 # failure is always an option...actually ok here
+																								 status => { '$ne' => "inprogress" },
+																								 sort => { 'time' => -1 },
+																								 limit => 1);
+		my $previous = ($mostrecent->error or !$mostrecent->count)? 0 : $mostrecent->data->[0]->{time};
+
 		# selftest: also depends on the existence of the selftest file
 		# which is removed by the gui to enforce a refresh soonest
 		$previous = 0 if (($automagic eq "selftest" or $automagic eq "permission_test")
@@ -478,26 +495,24 @@ while (!$exit_marker)
 
 		if (Time::HiRes::time - $previous > $period)
 		{
-			$nmisng->log->debug("Scheduling job $automagic, last scheduled/performed at ". ($previous // "n/a"));
+			$nmisng->log->debug("Scheduling job $automagic, last scheduled/performed at "
+													. ($previous? sprintf("%s (%ds ago)",
+																								$previous,
+																								time - $previous): "n/a"));
 
 			# due now, let's hand it to somebody
 		  my ($error,$qid) = $nmisng->update_queue(jobdata => {
 				type => $jobtype,
 				time => Time::HiRes::time,
 				# some ops are mostly nice-to-have, others are much more critical
-				priority => $priorities{$jobtype},
+				priority => $config->{"priority_$jobtype"},
 				in_progress => 0, } );
 
 			if ($error)
 			{
 				$nmisng->log->error("failed to queue job: $error!");
 			}
-			else
-			{
-				# and mark it as started/done now (not quite true but good enough)
-				$scheduler_state->{$automagic} = time;
-				++$ready_jobs;
-			}
+			++$ready_jobs;
 		}
 		else
 		{
