@@ -1290,6 +1290,7 @@ sub loadInterfaceInfo
 			my $dest = $interfaceInfo{"$node_name-$tmpDesc"} = {};
 
 			$dest->{node} = $node_name;
+			$dest->{uuid} = $nmisng_node->uuid;
 
 			for my $copyme (
 				qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus

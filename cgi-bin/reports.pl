@@ -70,7 +70,7 @@ NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 # if no options, assume called from web interface ....
 my $outputfile;
-if ( @ARGV ) 
+if ( @ARGV )
 {
 	my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
@@ -102,7 +102,7 @@ use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -178,40 +178,40 @@ sub healthReport {
 	my $header = "Summary Health Metrics from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $reportnode (sort keys %{$NT}) 
+	foreach my $reportnode (sort keys %{$NT})
 	{
 		next if (defined $AU && !$AU->InGroup($NT->{$reportnode}{group}));
 		next if (!NMISNG::Util::getbool($NT->{$reportnode}{active}));
 
 		my $S = NMISNG::Sys->new;
-		$S->init(name=>$reportnode,snmp=>'false');
+		$S->init(uuid => $NT->{$reportnode}->{uuid}, snmp=>'false');
 		my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
 		# get reachable, available, health, response
 		my $h;
 		if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",
-																						start=>$start,end=>$end,index=>$reportnode))) 
+																						start=>$start,end=>$end,index=>$reportnode)))
 		{
 			%reportTable = (%reportTable, %{$h});
 			my $thisnoderep = $reportTable{$reportnode} ||= {};
-			
+
 			$thisnoderep->{node} = $NT->{$reportnode}{name};
-			
+
 			$thisnoderep->{reachable} = 0 if $thisnoderep->{reachable} eq "NaN";
 			$thisnoderep->{available} = 0 if $thisnoderep->{available} eq "NaN";
 			$thisnoderep->{health} = 0 if $thisnoderep->{health} eq "NaN";
 			$thisnoderep->{response} = 0 if $thisnoderep->{response} eq "NaN";
 			$thisnoderep->{loss} = 0 if $thisnoderep->{loss} eq "NaN";
-			
+
 			$thisnoderep->{net} = $NT->{$reportnode}{netType};
 			$thisnoderep->{role} = $NT->{$reportnode}{roleType};
 			$thisnoderep->{devicetype} = $catchall->{nodeType};
 			$thisnoderep->{group} = $NT->{$reportnode}{group};
-			
+
 			# Calculate the summaries - fixme should be deep
 			$summaryhash = "-$thisnoderep->{net}-$thisnoderep->{role}";
 			my $thisentry = $summaryTable{$summaryhash} ||= {};
-			
+
 			$thisentry->{net} = $thisnoderep->{net};
 			$thisentry->{role} = $thisnoderep->{role};
 			$thisentry->{reachable} = $thisentry->{reachable} + $thisnoderep->{reachable};
@@ -220,10 +220,10 @@ sub healthReport {
 			$thisentry->{response} = $thisentry->{response} + $thisnoderep->{response};
 			$thisentry->{loss} = $thisentry->{loss} + $thisnoderep->{loss};
 			++$thisentry->{count};
-			
+
 			$summaryhash = $thisnoderep->{group};
 			$thisentry = $summaryTable{$summaryhash} ||= {};
-			
+
 			$thisentry->{net} = $thisnoderep->{group};
 			$thisentry->{role} = "";
 			$thisentry->{group} = $thisnoderep->{group};
@@ -252,7 +252,7 @@ sub healthReport {
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			if (not $Q->{print});
 	print start_table;
-	
+
 	# header with time info
 	print Tr(td({id=>'top',class=>'header',colspan=>'2'},$header));
 
@@ -327,10 +327,10 @@ sub healthReport {
 			);
 
 		$Q->{sort} = 'node' if $Q->{sort} eq '';
-		for my $reportnode (NMISNG::Util::sortall(\%reportTable, $Q->{sort}, $sortdir)) 
+		for my $reportnode (NMISNG::Util::sortall(\%reportTable, $Q->{sort}, $sortdir))
 		{
 			my $thisnoderep = $reportTable{$reportnode};
-			
+
 			if ($thisnoderep->{group} eq $group) {
 				print Tr(
 					td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$thisnoderep->{node})),
@@ -359,7 +359,7 @@ sub healthReport {
 
 #===============
 
-sub availReport 
+sub availReport
 {
 	my $period = $Q->{period};
 	my $summaryhash;
@@ -398,15 +398,15 @@ sub availReport
 	my $header = "Availability Metric from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $reportnode (keys %{$NT}) 
+	foreach my $reportnode (keys %{$NT})
 	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) )
 		{
 			my $S = NMISNG::Sys->new;
-			$S->init(name=>$reportnode,snmp=>'false');
+			$S->init(uuid => $NT->{$reportnode}->{uuid}, snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
-			
+
 			my $h;
 			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
 																							type=>"health",
@@ -414,7 +414,7 @@ sub availReport
 				%reportTable = (%reportTable,%{$h});
 
 				my $thisnoderep = $reportTable{$reportnode} ||= {};
-				
+
 				$thisnoderep->{nodeType} = $catchall->{nodeType};
 				$thisnoderep->{node} = $reportnode;
 			}
@@ -452,11 +452,11 @@ sub availReport
 				a({href=>"$url&sort=reachable"},'% Availability'))
 		);
 
-	foreach my $reportnode (NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) 
+	foreach my $reportnode (NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir))
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		my $thisnoderep = $reportTable{$reportnode};
-		
+
 		print Tr(
 			td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain'},$thisnoderep->{nodeType}),
@@ -499,7 +499,7 @@ sub portReport
 	print start_table;
 
 	my $II = Compat::NMIS::loadInterfaceInfo();
-	my $NT = Compat::NMIS::loadNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 
 	my %interfaceInfo = %{$II}; # copy
 
@@ -658,7 +658,7 @@ sub responseReport
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = Compat::NMIS::loadNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
 
 	my ($time_elements,$start,$end) = getPeriod();
@@ -674,19 +674,19 @@ sub responseReport
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) )
 		{
 			my $S = NMISNG::Sys->new;
-			$S->init(name=>$reportnode, snmp=>'false');
+			$S->init(uuid => $NT->{$reportnode}->{uuid}, snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
-			
+
 			my $h;
 			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
 																							type=>"health",
 																							start=>$start,end=>$end,index=>$reportnode))) {
 				%reportTable = (%reportTable,%{$h});
 				my $thisnoderep = $reportTable{$reportnode} ||= {};
-				
+
 				$thisnoderep->{nodeType} = $catchall->{nodeType};
 				$thisnoderep->{node} = $NT->{$reportnode}{name};
 			}
@@ -738,12 +738,12 @@ sub responseReport
 
 
 	# drop the NaN's like this: @sorted = sort { $a <=> $b } grep { $_ == $_ } @unsorted
-	foreach my $reportnode ( NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) 
+	foreach my $reportnode ( NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir))
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 
 		my $thisnoderep = $reportTable{$reportnode};
-		
+
 		my $color = NMISNG::Util::colorResponseTime($thisnoderep->{response});
 		print Tr(
 			td({class=>'info Plain'},
@@ -786,7 +786,7 @@ sub timesReport
 
 	my @report;
 
-	my $NT = Compat::NMIS::loadNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 	foreach my $reportnode (keys %{$NT})
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
@@ -794,7 +794,7 @@ sub timesReport
 		if ( NMISNG::Util::getbool($NT->{$reportnode}->{active}) )
 		{
 			my $S = NMISNG::Sys->new;
-			$S->init(name => $reportnode, snmp=>'false');
+			$S->init(uuid => $NT->{$reportnode}->{uuid}, snmp=>'false');
 			my $normalpoll = $S->{mdl}{database}{db}{poll} || 300;
 
 			my %entry = ( node => $reportnode,
@@ -809,7 +809,7 @@ sub timesReport
 																								 sys => $S, graphtype => "health",
 																								 index => undef, item => undef,
 																								 start => $start,  end => $end);
-				
+
 				for my $thing (qw(polltime updatetime))
 				{
 					my $value = $stats->{$thing}->{mean};
@@ -909,6 +909,8 @@ sub timesReport
 #===============
 
 # fixme9: needs to be rewritten to NOT use slow and inefficient loadInterfaceInfo!
+# fixme9: loadinterfaceinfo cannot work properly with non-unique
+# node names! (ie. one local, one remote)
 sub top10Report
 {
 	my %reportTable;
@@ -922,9 +924,9 @@ sub top10Report
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = Compat::NMIS::loadNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
-	my $II = Compat::NMIS::loadInterfaceInfo();
+	my $II = Compat::NMIS::loadInterfaceInfo(); # all interfaces of all local nodes
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -939,16 +941,16 @@ sub top10Report
 
 	# Get each of the nodes info in a HASH for playing with
 	my %cpuTable;
-	foreach my $reportnode ( keys %{$NT} ) 
+	foreach my $reportnode ( keys %{$NT} )
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 
-		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) )
 		{
 			my $S = NMISNG::Sys->new;
-			$S->init(name=>$reportnode,snmp=>'false');
+			$S->init(uuid => $NT->{$reportnode}->{uuid}, snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
-			
+
 			# reachable, available, health, response
 			my $h;
 			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
@@ -989,11 +991,14 @@ sub top10Report
 	my $S;
 	my %interfaceInfo = %{$II}; # copy
 
-	foreach my $int (NMISNG::Util::sortall(\%interfaceInfo,'node','fwd') ) 
+	foreach my $int (NMISNG::Util::sortall(\%interfaceInfo,'node','fwd') )
 	{
-		if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect}) ) 
+		if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect}) )
 		{
-			if (defined $AU) { next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group}) };
+			if (defined $AU)
+			{
+				next unless $AU->InGroup( $NT->{$interfaceInfo{$int}{node}}->{group} );
+			};
 			# availability, inputUtil, outputUtil, totalUtil
 			my $tmpifDescr = NMISNG::Util::convertIfName($interfaceInfo{$int}{ifDescr});
 			my $intf = $interfaceInfo{$int}{ifIndex};
@@ -1004,7 +1009,7 @@ sub top10Report
 				and $interfaceInfo{$int}{ifOperStatus} ne "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "ok"
 				and $interfaceInfo{$int}{ifOperStatus} ne "dormant"
-			) 
+			)
 			{
 				$downTable{$int}{node} = $interfaceInfo{$int}{node} ;
 				$downTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr} ;
@@ -1012,23 +1017,26 @@ sub top10Report
 				$downTable{$int}{ifLastChange} = $interfaceInfo{$int}{ifLastChange};
 			}
 
-			if ($interfaceInfo{$int}{node} ne $prev_node) 
+			if ($interfaceInfo{$int}->{uuid} ne $prev_node)
 			{
 				$S = NMISNG::Sys->new;	# can be initialised exactly ONCE
-				$S->init(name=>$interfaceInfo{$int}{node},snmp=>'false');
-				$prev_node = $interfaceInfo{$int}{node};
+				$S->init(uuid => $interfaceInfo{$int}->{uuid}, snmp=>'false');
+				$prev_node = $interfaceInfo{$int}->{uuid};
 			}
 
 			# Availability, inputBits, outputBits
-			my $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"interface",start=>$start,end=>$end,index=>$intf);
-			foreach my $k (keys %{$hash->{$intf}}) {
+			my $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"interface",
+																							 start=>$start,end=>$end,
+																							 index=>$intf);
+			foreach my $k (keys %{$hash->{$intf}})
+			{
 				$linkTable{$int}{$k} = $hash->{$intf}{$k};
 				$linkTable{$int}{$k} =~ s/NaN/0/ ;
 				$linkTable{$int}{$k} ||= 0 ;
 			}
-			$linkTable{$int}{node} = $interfaceInfo{$int}{node} ;
-			$linkTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr} ;
-			$linkTable{$int}{Description} = $interfaceInfo{$int}{Description} ;
+			$linkTable{$int}{node} = $interfaceInfo{$int}{node};
+			$linkTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr};
+			$linkTable{$int}{Description} = $interfaceInfo{$int}{Description};
 
 			$linkTable{$int}{totalBits} = ($linkTable{$int}{inputBits} + $linkTable{$int}{outputBits} ) / 2 ;
 			# only report these if pkts rrd available to us.
@@ -1111,12 +1119,12 @@ sub top10Report
 		);
 
 	my $i=10;
-	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'response','rev')) 
+	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'response','rev'))
 	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 
 		my $thisnoderep = $reportTable{$reportnode};
-		
+
 		$thisnoderep->{response} =~ /(^\d+)/;
 		my $bar = $1 / 2;
 		print Tr(
@@ -1139,7 +1147,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'loss','rev')) 
+	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'loss','rev'))
 	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 
@@ -1385,7 +1393,7 @@ sub outageReport
 	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
 	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
-	my $NT = Compat::NMIS::loadNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 
 	my $index;
 	my %logreport;
@@ -1559,7 +1567,7 @@ sub nodedetailsReport {
 		return;
 	}
 
-	my $NT = Compat::NMIS::loadNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
 
 	# this will launch Excel - as it is the default application handler for .csv files
@@ -1573,19 +1581,19 @@ sub nodedetailsReport {
 	println( 'Name','Type','Location','System Uptime',
 					 'Node Vendor','NodeModel', 'SystemName','S/N','Chassis','ProcMem','Version');
 
-	foreach my $group (sort keys %{$GT}) 
+	foreach my $group (sort keys %{$GT})
 	{
 		next if (defined $AU && !$AU->InGroup($group));
 
-		foreach my $node (sort keys %{$NT}) 
+		foreach my $node (sort keys %{$NT})
 		{
 			next if ($NT->{$node}{group} ne "$group" );
 
 			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false');
+			$S->init(uuid => $NT->{$node}->{uuid}, snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
-			
-			my @line = map { $catchall->{$_} } (qw(name nodeType sysLocation sysUpTime nodeVendor 
+
+			my @line = map { $catchall->{$_} } (qw(name nodeType sysLocation sysUpTime nodeVendor
 nodeModel sysObjectName serialNum chassisVer processorRam));
 
 			my $detailvar = $catchall->{sysDescr};
@@ -1599,7 +1607,7 @@ nodeModel sysObjectName serialNum chassisVer processorRam));
 			$detailvar =~ s/built by.*$//;
 			# maybe a windows box ?
 			$detailvar =~ s/^.*Windows/Windows/;
-			
+
 			push( @line, $detailvar);
 			println( @line );
 		}
