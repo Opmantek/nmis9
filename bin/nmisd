@@ -1395,6 +1395,23 @@ sub fping_loop
 		# polling-policy: reread every cycle, cached
 		my $policies = NMISNG::Util::loadTable(dir => 'conf', name => "Polling-Policy") || {};
 
+		# translate unitised values into raw seconds
+		for my $polname (keys %$policies)
+		{
+			next if (ref($policies->{$polname}) ne "HASH"); # bsts
+			for my $mayhaveunit (qw(ping))											# we only need the ping policy interval here
+			{
+				my $interval = $policies->{$polname}->{$mayhaveunit} // 60; # seconds
+				# supports NNN (seconds) or MMMU with U being s, m, h or d, fractional NNN or MMM also ok
+				if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+				{
+					my ($rawvalue, $unit) = ($1, $3);
+					$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+				}
+				$policies->{$polname}->{$mayhaveunit} = $interval;
+			}
+		}
+
 		my $nodesmodel = $nmisng->get_nodes_model( filter => { 	cluster_id => $config->{cluster_id},
 																														active => 1,
 																														ping => 1 });
@@ -1468,7 +1485,7 @@ sub fping_loop
 		my @thistime = @todos;				# todos is consumed
 		while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
 		{
-			my %ip2node; # for associating the results
+			my %ip2node; # for associating the results - one ip can owned by more than one node!
 
 			my @cmd = ($fpingpath, @fpingargs);
 			for my $uuid (@chunk)
@@ -1476,7 +1493,8 @@ sub fping_loop
 				my $thisip = $state{$uuid}->{ip};
 
 				push @cmd, $thisip;
-				$ip2node{$thisip} = $uuid;
+				$ip2node{$thisip} //= [];
+				push @{$ip2node{$thisip}}, $uuid;
 			}
 			$nmisng->log->debug("about to run: ".join(" ",@cmd));
 
@@ -1503,30 +1521,25 @@ sub fping_loop
 						&& $ip2node{$hostname}  # known?
 						&& $loss =~ /^\d+$/ )		  # structure good enough for the reachability at least?
 				{
-					my $thisstate = $state{ $ip2node{$hostname} };
-					# what does the policy say about the interval?
-					# policy present, use that; fall back to 60 seconds otherwise
-					my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
-							$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
-
-					# supports NNN (seconds) or MMMU with U being s, m, h or d, fractional NNN or MMM also ok
-					if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+					for my $owner (@{$ip2node{$hostname}})
 					{
-						my ($rawvalue, $unit) = ($1, $3);
-						$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+						my $thisstate = $state{$owner};
+						# what does the policy say about the interval?
+						my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
+								$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
+
+						# the regex extraction sets missing to blank string, would prefer undef or number
+						$thisstate->{loss} = int($loss);
+						$thisstate->{avg} = $avg ne ""? 0+$avg : undef;
+						$thisstate->{min} = $min ne ""? 0+$min : undef;
+						$thisstate->{max} = $max ne ""? 0+$max : undef;
+
+						$thisstate->{lastping} = $now;
+						$thisstate->{nextping} = $now + $interval;
+
+						$nmisng->log->debug3("parsed result for node $hostname: "
+																 .Dumper($thisstate));
 					}
-
-					# the regex extraction sets missing to blank string, would prefer undef or number
-					$thisstate->{loss} = int($loss);
-					$thisstate->{avg} = $avg ne ""? 0+$avg : undef;
-					$thisstate->{min} = $min ne ""? 0+$min : undef;
-					$thisstate->{max} = $max ne ""? 0+$max : undef;
-
-					$thisstate->{lastping} = $now;
-					$thisstate->{nextping} = $now + $interval;
-
-					$nmisng->log->debug3("parsed result for node $hostname: "
-															 .Dumper($thisstate));
 				}
 				else
 				{
@@ -1548,12 +1561,24 @@ sub fping_loop
 			my $goingup;					# undef for none, 0 for down, 1 for up
 
 			# raise events when required, ie. new state
-			if ( $thisstate->{loss} == 100 )
+			if ( !exists($thisstate->{loss}) or $thisstate->{loss} == 100  )
 			{
-				$nmisng->log->debug("$uuid ($thisstate->{name}) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
-				# for unreachable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
+				$nmisng->log->debug("$uuid ($thisstate->{name}) is NOT REACHABLE, "
+														.( $thisstate->{loss}? "fping reported loss=$thisstate->{loss}%"
+															 : "fping could not resolve host" ));
+				# for unreachable/unresolvable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
 				# for fixed-ip nodes this is not relevant
 				undef $thisstate->{nextdns};
+				if (!exists $thisstate->{loss})
+				{
+					$thisstate->{lastping} = $now;
+
+					# what does the policy say about the interval?
+ 					my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
+							$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
+
+					$thisstate->{nextping} = $now + $interval;
+				}
 
 				if (!$event->exists)
 				{
