@@ -2118,30 +2118,30 @@ sub checkPerlLib {
 
 
 # a quick selftest function to verify that the runtime environment is ok
-# updates the selftest status cache file
+# updates the selftest status cache file, also manages var/nmis_system/dbdir_full marker
 #
-# args: an nmisng config structure (needed for the paths),
-#  delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no),
-#  optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise),
+# args: nmisng (live object),
+#  delay_is_ok (= whether iostat and cpu computation are allowed to delay
+#  for a few seconds, default: no),
 #  optional perms (default: 0, if 1 CRITICAL permissions are checked)
-# returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
 #
-# fixme9: dbdir_status cannot work across processes
+# returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
 sub selftest
 {
 	my (%args) = @_;
 	my @details;
 
-	my $config = $args{config};
+	# bsts fallback is a bit ugly, also assumes caller has loaded compat::nmis
+	my $nmisng = $args{nmisng} || Compat::NMIS::new_nmisng();
+	my $config = $nmisng->config;
+
 	return (0,{ "Config missing" =>  "cannot perform selftest without configuration!"})
 			if (ref($config) ne "HASH" or !keys %$config);
 	my $candelay = NMISNG::Util::getbool($args{delay_is_ok});
 	my $wantpermsnow = NMISNG::Util::getbool($args{perms});
 
-	my $dbdir_status = $args{report_database_status};
-	$$dbdir_status = 1 if (ref($dbdir_status) eq "SCALAR"); # assume the database dir passes the test
-
-	# always verify and fix-up the most critical file permissions: config dir, custom models dir, var dir
+	# always verify and fix-up the most critical file permissions: config dir,
+	# custom models dir, var dir
 	NMISNG::Util::setFileProtDirectory($config->{'<nmis_conf>'},1);    # do recurse
 	NMISNG::Util::setFileProtDirectory($config->{'<nmis_var>'},0);  # no recursion
 	NMISNG::Util::setFileProtDirectory($config->{'<nmis_models>'},0)
@@ -2155,6 +2155,8 @@ sub selftest
 	}
 	my $statefile = "$varsysdir/selftest.json"; # name also embedded in nmisd and gui
 	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1 ) // { tests => [] };
+	my $dbdir_full = "$varsysdir/dbdir_full"; # marker file name also embedded in rrdfunc.pm
+	unlink($dbdir_full);											# assume the database dir passes...until proven otherwise
 
 	my $allok=1;
 
@@ -2211,7 +2213,6 @@ sub selftest
 		{
 			push @details, [$testname, "Could not determine free space: $!"];
 			$allok=0;
-			$$dbdir_status = undef if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			next;
 		}
 		# Filesystem       1048576-blocks  Used Available Capacity Mounted on
@@ -2220,13 +2221,16 @@ sub selftest
 		if (100-$usedpercent < $minfreepercent)
 		{
 			push @details, [$testname, "Only ".(100-$usedpercent)."% free in $dir!"];
-			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
+			if ($dir eq $config->{"database_root"})
+			{
+				open(F, ">$dbdir_full") && close(F);
+			}
 			$allok=0;
 		}
 		elsif ($remaining < $minfreemegs)
 		{
 			push @details, [$testname, "Only $remaining Megabytes free in $dir!"];
-			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
+			unlink($dbdir_full) if ($dir eq $config->{"database_root"});
 			$allok=0;
 		}
 		else
@@ -2314,8 +2318,18 @@ sub selftest
 	# check the number of nmis processes, complain if above limit
 	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
 
-	# all nmisd processes are calling themselves 'nmisd something' - the nmisd from opcharts 3 does not.
-	my $nr_procs = grep($_->{cmndline} =~ /^nmisd .+$/, @{$ptable->table});
+	# all nmisd processes are calling themselves 'nmisd something'
+	# the nmisd from opcharts 3 does not.
+	my @ourprocs = grep($_->cmndline =~ /^nmisd .+$/, @{$ptable->table});
+	if (NMISNG::Util::getbool($config->{nmisd_fping_worker}))
+	{
+		my $status = (List::Util::any { $_->cmndline eq "nmisd fping" } @ourprocs)?
+				undef : "No fping worker seems to be running!";
+		push @details, ["FastPing worker", $status];
+		$allok = 0 if ($status);
+	}
+
+	my $nr_procs = @ourprocs;
 	my $max_nmis_processes = 1 		# the scheduler
 			+ (NMISNG::Util::getbool($config->{nmisd_fping_worker})? 1:0) # the fping worker
 			+ $config->{nmisd_max_workers} * 1.1; # the configured workers and 10% extra for transitionals
@@ -2325,39 +2339,26 @@ sub selftest
 		$status = "Too many NMIS processes running: current count $nr_procs";
 		$allok=0;
 	}
+	elsif (!$nr_procs)
+	{
+		$status = "No NMIS workers running!";
+		$allok=0;
+	}
 	push @details, ["NMIS process count",$status];
 
-	# check that there is some sort of cron running, ditto for fping worker (if enabled)
-	my $cron_name = $config->{selftest_cron_name}? qr/$config->{selftest_cron_name}/ : qr!(^|/)crond?$!;
-	my ($cron_found, $fpingd_found, $cron_status, $fpingd_status);
-	for my $pentry (@{$ptable->table})
-	{
-		if ($pentry->fname =~ $cron_name)
-		{
-			$cron_found=1;
-			last if ($cron_found && $fpingd_found);
-		}
-		# nmisd fping worker is identifiable by command line
-		elsif (NMISNG::Util::getbool($config->{nmisd_fping_worker})
-					 && $pentry->cmndline eq "nmisd fping")
-		{
-			$fpingd_found=1;
-			last if ($cron_found && $fpingd_found);
-		}
-	}
-	if (!$cron_found)
-	{
-		$cron_status = "No CRON daemon seems to be running!";
-		$allok=0;
-	}
-	push @details, ["CRON daemon",$cron_status];
+	# check that there is an nmis scheduler running
+	my $schedstatus = (grep($_->cmndline eq "nmisd scheduler", @ourprocs))?
+			undef : "No scheduler process running!";
+	push @details, ["NMIS daemon", $schedstatus];
 
-	if (NMISNG::Util::getbool($config->{nmisd_fping_worker}) && !$fpingd_found)
-	{
-		$fpingd_status = "No fping worker seems to be running!";
-		$allok=0;
-	}
-	push @details, ["FastPing worker", $fpingd_status];
+	# check that there is some sort of cron running
+	my $cron_name = $config->{selftest_cron_name}?
+			qr/$config->{selftest_cron_name}/ : qr!(^|/)crond?$!;
+
+	my $cron_status = (grep($_->fname =~ $cron_name, @{$ptable->table})?
+										 undef : "No CRON daemon seems to be running!");
+	push @details, ["CRON daemon",$cron_status];
+	$allok = 0 if ($cron_status);
 
 	# check iowait and general busyness of the system
 	# however, do that ONLY if we are allowed to delay for a few seconds
@@ -2440,50 +2441,34 @@ sub selftest
 		push @details, ["Server Swap Memory", $swapstatus];
 	}
 
-	# check the last successful operation completion, see if it was too long ago
-	my $max_update_age = $config->{selftest_max_update_age} || 604800;
-	my $max_collect_age = $config->{selftest_max_collect_age} || 900;
-
-	# fixme9: switch the 'last op' timestamp to opstatus in db!
-
-	# having this hardcoded twice isn't great...
-	my $oplogdir = $config->{'<nmis_var>'}."/nmis_system/timestamps";
-	if (-d $oplogdir)
+	# check the last operation completion for update and collect, see if it was too long ago
+	for (['update', 'Update', $config->{selftest_max_update_age} || 604800 ], # 1 week
+			 ['collect', 'Collect', $config->{selftest_max_collect_age} || 3600 ], ) # 1 hr
 	{
-		my ($last_update_end, $last_collect_end);
-		if (my $statrec = stat("$oplogdir/collect"))
-		{
-			$last_collect_end = $statrec->mtime;
-		}
-		if (my $statrec = stat("$oplogdir/update"))
-		{
-			$last_update_end = $statrec->mtime;
-		}
-		my ($updatestatus, $collectstatus);
+		my ($op, $name, $maxage)  = @$_;
 
-    # for bootstrapping until first update with timestamping runs: treat no timestamps whatsoever
-		# as NO error (for metrics), but put error text in (for details page)
-		if (!defined $last_update_end)
+		my $mostrecent = $nmisng->get_opstatus_model(activity => $op,
+																							 # failure is always an option...actually ok here
+																							 status => { '$ne' => "inprogress" },
+																							 sort => { 'time' => -1 },
+																								 limit => 1);
+		my $status = undef;
+		my $last_time = $mostrecent->data->[0]->{time}
+
+		if (!$mostrecent->error && $mostrecent->data);
+		if ($mostrecent->error or !$mostrecent->count)
 		{
-			$updatestatus = "Could not determine last Update status";
-		}
-		elsif ($last_update_end < time - $max_update_age)
-		{
-			$updatestatus = "Last update completed too long ago, at ".NMISNG::Util::returnDateStamp($last_update_end);
+			$status = "Could not determine last $name status";
 			$allok = 0;
 		}
-		# same bootstrapping logic as above
-		if (!defined $last_collect_end)
+		elsif ($last_time < time - $maxage)
 		{
-			$collectstatus = "Could not determine last Collect status";
-		}
-		elsif ($last_collect_end < time - $max_collect_age)
-		{
-			$collectstatus = "Last collect completed too long ago, at ".NMISNG::Util::returnDateStamp($last_collect_end);
+			$status = "Last $op completed too long ago, at "
+					.NMISNG::Util::returnDateStamp($last_time);
 			$allok = 0;
 		}
-		# put these at the beginning
-		unshift @details, ["Last Update", $updatestatus], [ "Last Collect", $collectstatus];
+		# put these two the beginning
+		unshift @details, ["Last $name", $status];
 	}
 
 	# update the status

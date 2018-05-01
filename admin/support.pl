@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.7.0";
+our $VERSION = "2.0.0a";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -69,7 +69,7 @@ my %options;										# dummy-ish, for input_yn and friends
 my $globalconf = { '<nmis_base>' => Cwd::abs_path("$FindBin::RealBin/../"),
 }; # fixme log files
 
-eval { require NMIS; NMIS->import(); require NMISNG::Util; };
+eval { require NMISNG; require NMISNG::Util; require Compat::NMIS; };
 if ($@)
 {
 	warn "Attention: The NMIS modules could not be loaded: '$@'\n
@@ -89,11 +89,11 @@ else
 # make tempdir
 my $td = File::Temp::tempdir("/tmp/nmis-support.XXXXXX", CLEANUP => 1);
 
-if (!$@ && func->can("selftest"))
+if (!$@ && NMISNG::Util->can("selftest"))
 {
 	# run the selftest in interactive mode - if our nmis is new enough
 	print "Performing Selftest, please wait...\n";
-	my ($testok, $testdetails) = NMISNG::Util::selftest(config => $globalconf, delay_is_ok => 'true');
+	my ($testok, $testdetails) = NMISNG::Util::selftest(nmisng => Compat::NMIS::new_nmisng, delay_is_ok => 'true');
 	if (!$testok)
 	{
 		print STDERR "\n\nAttention: NMIS Selftest Failed!

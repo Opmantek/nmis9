@@ -809,8 +809,7 @@ elsif ($Q->{act} eq "fixperms")
 										$C->{'report_root'},
 										$C->{'script_root'}, # commonly under nmis_conf
 										$C->{'plugin_root'}, # ditto
-										# fixme: removed when opstatus is in db
-										$C->{'<nmis_var>'}."/nmis_system/timestamps", )
+ )
 	{
 		next if ($done{$location});
 

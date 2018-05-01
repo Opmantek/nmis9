@@ -668,13 +668,17 @@ sub optionsRRD
 	return @options;
 }
 
-### createRRD now checks if RRD exists and only creates if doesn't exist.
-### also add node directory create for node directories, if rrd is not found
-### note that the function does NOT create an rrd file if $main::selftest_dbdir_status is 0 (not undef)
+# createRRD: checks if RRD exists, creates one if necessary
+# (as well as dir hierarchy)
+# note: does NOT create anything if the file var/nmis_system/dbdir_full exists
+# (which is created by selftest)
+#
 # args: sys, data, database, type,  index - all required
+# returns: 1 if ok, 0 otherwise.
 sub createRRD
 {
 	my %args = @_;
+
 	my $S = $args{sys};
 	my $data = $args{data};
 	my $type = $args{type};
@@ -682,80 +686,59 @@ sub createRRD
 	my $database = $args{database};
 
 	require_RRDs(config => $args{config});
-
 	my $C = NMISNG::Util::loadConfTable();
 
-	my $exit = 1;
+	$S->nmisng->log->debug("check and/or create RRD database $database");
 
-	NMISNG::Util::dbg("Starting");
-	NMISNG::Util::dbg("check and/or create RRD database $database");
-
-	# Does the database exist already?
-	if ( -f $database and -r $database and -w $database ) {
-		# nothing to do!
-		NMISNG::Util::dbg("Database $database exists and is R/W");
-	}
-	# Check if the RRD Database Exists but is ReadOnly
-	# Maybe this should check for valid directory or not.
-	elsif ( -f $database and not -w $database )
-	{
-		$stats{error} = "($S->{name}) database $database Exists but is readonly";
-		NMISNG::Util::dbg("ERROR ($S->{name}) database $database Exists but is readonly");
-		$exit = 0;
-	}
 	# are we allowed to create new files, or is the filesystem with the database dir (almost) full already?
-	elsif (defined $main::selftest_dbdir_status && !$main::selftest_dbdir_status)
+	# marker file name also embedded in util.pm
+	if (-f "$C->{'<nmis_var>'}/nmis_system/dbdir_full")
 	{
 		$stats{error} = "Not creating $database, as database filesystem is (almost) full!";
-		NMISNG::Util::logMsg("ERROR: Not creating $database, as database filesystem is (almost) full!");
+		$S->nmisng->log->error("Not creating $database, as database filesystem is (almost) full!");
 		return 0;
 	}
-	# create new rrd file, maybe dir structure too
-	else
+
+	# Does the database exist already?
+	if (-f $database)
 	{
-		my $dir = dirname($database);
-		NMISNG::Util::createDir($dir) if (!-d $dir);
-
-		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
-
-		if ( @options ) {
-			NMISNG::Util::logMsg("Creating new RRD database $database");
-
-			NMISNG::Util::dbg("options to create database $database");
-			foreach my $t (@options) {
-				NMISNG::Util::dbg($t);
-			}
-			RRDs::create("$database",@options);
-			my $ERROR = RRDs::error();
-			if ($ERROR)
-			{
-				$stats{error} = "($S->{name}) unable to create $database: $ERROR";
-				NMISNG::Util::logMsg("ERROR ($S->{name}) unable to create $database: $ERROR");
-				$exit = 0;
-			}
-			# set file owner and permission, default: nmis, 0775.
-			NMISNG::Util::setFileProtDiag(file =>$database);
-			# Double check created OK for this user
-			if ( -f $database and -r $database and -w $database )
-			{
-				NMISNG::Util::logMsg("INFO ($S->{name}) created RRD $database");
-			}
-			else
-			{
-				$stats{error} = "($S->{name}) could not create RRD $database - check directory permissions";
-				NMISNG::Util::logMsg("ERROR ($S->{name}) could not create RRD $database - check directory permissions");
-				$exit = 0;
-			}
-		}
-		else
-		{
-			$stats{error} = "($S->{name}) unknown type=$type";
-			NMISNG::Util::logMsg("ERROR ($S->{name}) unknown type=$type");
-			$exit = 0;
-		}
+		# nothing to do!
+		$S->nmisng->log->debug("Database $database already exists");
+		return 1;
 	}
-	NMISNG::Util::dbg("Finished");
-	return $exit;
-} # end createRRD
+
+	# create new rrd file, maybe dir structure too
+	my $dir = dirname($database);
+	NMISNG::Util::createDir($dir) if (!-d $dir);
+
+	my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
+	if (!@options)
+	{
+		$stats{error} = "($S->{name}) unknown type=$type";
+		$S->nmisng->log->error("($S->{name}) unknown type=$type");
+		return 0;
+	}
+
+	$S->nmisng->log->info("Creating new RRD database $database");
+	$S->nmisng->log->debug("Options for creating $database: ".
+												 Data::Dumper->new([\@options])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+	RRDs::create("$database",@options);
+	my $ERROR = RRDs::error();
+	if ($ERROR)
+	{
+		$stats{error} = "($S->{name}) unable to create $database: $ERROR";
+		$S->nmisng->log->error("($S->{name}) unable to create $database: $ERROR");
+		return 0;
+	}
+	# set file owner and permission, default: nmis, 0775.
+	NMISNG::Util::setFileProtDiag(file =>$database);
+
+	# Double check created OK for this user
+	return 1 if ( -f $database and -r $database and -w $database );
+
+	$stats{error} = "($S->{name}) could not create RRD $database - check directory permissions";
+	$S->nmisng->log->error("($S->{name}) could not create RRD $database - check directory permissions");
+	return 0;
+}
 
 1;

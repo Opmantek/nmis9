@@ -458,12 +458,15 @@ sub selectMetrics
 	{
 		# allowed to, but do we have a problem to show?
 		# this widget is overridden for selftest alerting, iff the last nmis selftest was unsuccessful
-		my $cachefile = NMISNG::Util::getFileName(
-			file => $C->{'<nmis_var>'} . "/nmis_system/selftest",
-			json => 'true'
-		);
+		my $cachefile = $C->{'<nmis_var>'} . "/nmis_system/selftest.json";
 		if ( -f $cachefile )
 		{
+			# too old? then run a non-delaying limited selftest right now
+			if (time - (stat($cachefile))[9] > 2 * $C->{schedule_selftest})
+			{
+				NMISNG::Util::selftest(nmisng => $nmisng, delay_is_ok => 0, perms => 0);
+			}
+
 			my $selfteststatus = NMISNG::Util::readFiletoHash( file => $cachefile, json => 'true' );
 			if ( !$selfteststatus->{status} )
 			{
@@ -1714,10 +1717,7 @@ sub viewSelfTest
 	# using the same auth type as the nmis runtime graph
 	if ( $AU->CheckAccess( "tls_nmis_runtime", "header" ) )
 	{
-		my $cachefile = NMISNG::Util::getFileName(
-			file => $C->{'<nmis_var>'} . "/nmis_system/selftest",
-			json => 'true'
-		);
+		my $cachefile = $C->{'<nmis_var>'} . "/nmis_system/selftest.json";
 		if ( -f $cachefile )
 		{
 			my $selfteststatus = NMISNG::Util::readFiletoHash( file => $cachefile, json => 'true' );

@@ -1043,13 +1043,15 @@ sub worker_loop
 			{
 				if ($ourjob->{type} eq "selftest" or $ourjob->{type} eq "permission_test")
 				{
-					my ($allok, $tests) = NMISNG::Util::selftest(config => $nmisng->config,
+					my ($allok, $tests) = NMISNG::Util::selftest(nmisng => $nmisng,
 																											 delay_is_ok => 1,
 																											 perms => ($ourjob->{type} eq "permission_test") );
 
 					$state->{status} = ($allok?"ok":"error");
 					$state->{details} = "completed"
-							.($allok? " successfully" : ("with failed tests: ". join(", ",keys %$tests))),
+							.($allok? " successfully" : (" with failed tests: ".
+																					 join(", ",
+																								map { $_->[0] } (grep(defined $_->[1], @$tests)))));
 				}
 				elsif ($ourjob->{type} eq "configbackup")
 				{
@@ -1249,13 +1251,6 @@ sub worker_loop
 					# locked is not-quite an error, so we report it as informational
 					$state->{status} = $result->{success}? "ok": $result->{locked}? "info" : "error";
 					$state->{details} = $result->{success}? "completed successfully" : "failed: $result->{error}";
-
-					# fixme9: selftest currently relies on those timestamp markers
-					# fixme9: switch the 'last op' timestamp to opstatus in db!
-					my $markerfile = "$varsysdir/timestamps/$ourjob->{type}";
-					Mojo::File->new($markerfile)->spurt("") if (!-f $markerfile);
-					NMISNG::Util::setFileProtDiag(file => $markerfile);
-					utime(undef,undef, $markerfile);
 				}
 				else
 				{
