@@ -2165,11 +2165,12 @@ sub selftest
 	my $testname="RRDs Module";
 	my $curversion;
 	eval {
-		require RRDs;
+		NMISNG::rrdfunc::require_RRDs(config => $config);
 		$curversion = version->parse($RRDs::VERSION);
 	};
 	if ($@)
 	{
+		$nmisng->log->debug("RRDs module test failed: $@");
 		push @details, [$testname, "RRDs Module not present!"];
 		$allok=0;
 	}
@@ -2448,9 +2449,9 @@ sub selftest
 		my ($op, $name, $maxage)  = @$_;
 
 		my $mostrecent = $nmisng->get_opstatus_model(activity => $op,
-																							 # failure is always an option...actually ok here
-																							 status => { '$ne' => "inprogress" },
-																							 sort => { 'time' => -1 },
+																								 # failure is always an option...actually ok here
+																								 status => { '$ne' => "inprogress" },
+																								 sort => { 'time' => -1 },
 																								 limit => 1);
 		my $status = undef;
 		my $last_time = $mostrecent->data->[0]->{time}
