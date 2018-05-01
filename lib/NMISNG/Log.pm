@@ -203,6 +203,58 @@ sub parse_debug_level
 	return $level;
 }
 
+# combine level and detaillevel into an acceptable input for parse_debug_level
+# args: none
+# returns: string (== debug, info, warn, error, fatal, or 1..9)
+sub unparse_debug_level
+{
+	my ($self) = @_;
+	my $curlevel  = $self->level;
+	my $curdetail = $self->detaillevel;
+
+	if ($curlevel eq "debug")
+	{
+		return ($curdetail > 0? $curdetail : "debug");
+	}
+	else
+	{
+		return $curlevel;
+	}
+}
+
+
+# helper method that changes to a new level
+# args: level (anything that parse_debug_level understands)
+# returns: previous level
+sub new_level
+{
+	my ($self,$unparsed) = @_;
+	my $previous = $self->unparse_debug_level; # for future calls
+
+	my $newlevel = my $curlevel = $self->level;	# that's the mojo level, no detaillevel
+	my $newdetail = my  $curdetail = $self->detaillevel; # that's our extra
+
+	if (defined(my $parsed = parse_debug_level(debug => $unparsed)))
+	{
+		if ($parsed =~ /^[1-9]$/)
+		{
+			$self->level('debug');
+			$self->detaillevel($parsed);
+		}
+		elsif ($parsed eq "debug")
+		{
+			$self->level('debug');
+			$self->detaillevel(1);
+		}
+		else
+		{
+			$self->level($parsed);
+			$self->detaillevel(0);
+		}
+	}
+	return $previous;
+}
+
 # helper method that changes verbosity up or down
 # also returns the next more or less verbose setting,
 # jumping levels where applicable.

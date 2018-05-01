@@ -127,6 +127,9 @@ job.uuid: required, one or more node uuids to operate on
 
 job.force: optional, if set to 1 certain job types ignore scheduling policies
  and bypass any cached data.
+job.verbosity: optional, verbosity level for this one job.
+ must be one of 1..9, debug, info, warn, error or fatal.
+
 |;
 
 
@@ -227,6 +230,7 @@ elsif ($Q->{act} eq "schedule")
 		exit 1;
 	}
 	my $priority = $Q->{"job.priority"} // 1; # default assumption is non-automatic custom job, hence max priority
+	my $verbosity = $Q->{"job.verbosity"};
 
 	# at=time or now
 	my $when = $Q->{at}? NMISNG::Util::parseDateTime($Q->{at}) || NMISNG::Util::getUnixTime($Q->{at}) : Time::HiRes::time;
@@ -235,7 +239,7 @@ elsif ($Q->{act} eq "schedule")
 	my %jobargs;
 	for my $match (grep(/^job\..+$/, keys %$Q))
 	{
-		next if ($match =~ /^job\.(type|priority)$/); # these don't go into the job args
+		next if ($match =~ /^job\.(type|priority|verbosity)$/); # these don't go into the job args
 		my $argument = $match;
 		$argument =~ s/^job\.//;
 		$jobargs{$argument} = ( $argument eq "force"? # for force we'd like 1/0
@@ -274,6 +278,7 @@ elsif ($Q->{act} eq "schedule")
 					type => $what,
 					time => $when,
 					priority => $priority,
+					verbosity => $verbosity,
 					in_progress => 0,					# somebody else is to work on this
 					args => \%jobargs });
 			die "Failed to add schedule: $error\n" if ($error);
@@ -291,6 +296,7 @@ elsif ($Q->{act} eq "schedule")
 						type => $what,
 						time => $when,
 						priority => $priority,
+						verbosity => $verbosity,
 						in_progress => 0,					# somebody else is to work on this
 						args => \%jobargs });
 				die "Failed to add schedule: $error\n" if ($error);
@@ -306,6 +312,7 @@ elsif ($Q->{act} eq "schedule")
 				type => $what,
 				time => $when,
 				priority => $priority,
+				verbosity => $verbosity,
 				in_progress => 0,					# somebody else is to work on this
 			});
 		die "Failed to add schedule: $error\n" if ($error);
