@@ -219,8 +219,11 @@ my ($thislogin) = getpwuid($<); # only first field is of interest
 if ($Q->{act} =~ /^(daemon[-_])?status$/)
 {
 	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
-	my %ours = map { ($_->pid => $_) } (grep($_->cmndline =~ /^nmisd .+$/,
-																					 @{$pt->table}));
+	# opcharts 3 'nmisd' calls itself 'nmisd',
+	# 'nmisd worker' or 'nmisd collector <something>' - exclude these
+	my %ours = ( map { ($_->pid => $_) }
+							 (grep($_->cmndline =~ /^nmisd (fping|scheduler|worker .+)$/,
+										 @{$pt->table})));
 	die "No NMIS9 daemons running!\n" if (!keys %ours);
 
 	my $fmt = (-t \*STDOUT? "%-16s%-48s\n" : "%s\t%s\n");

@@ -2320,8 +2320,10 @@ sub selftest
 	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
 
 	# all nmisd processes are calling themselves 'nmisd something'
-	# the nmisd from opcharts 3 does not.
-	my @ourprocs = grep($_->cmndline =~ /^nmisd .+$/, @{$ptable->table});
+	# opcharts 3's nmisd calls itself 'nmisd',
+	# 'nmisd worker' or 'nmisd collector <something>' - exclude these
+	my @ourprocs = grep($_->cmndline =~ /^nmisd (fping|scheduler|worker .+)$/,
+											@{$ptable->table});
 	if (NMISNG::Util::getbool($config->{nmisd_fping_worker}))
 	{
 		my $status = (List::Util::any { $_->cmndline eq "nmisd fping" } @ourprocs)?
