@@ -1928,6 +1928,8 @@ EO_HTML
 		'sysLocation',
 		'sysContact',
 		'sysDescr',
+		'lastPing',
+		'lastCollect',
 		'lastUpdate',
 		'nodeVendor',
 		'sysObjectName',

@@ -954,7 +954,7 @@ sub pingable
 	my $time_marker = $args{time_marker} || time;
 	my $catchall_data = $S->inventory(concept => 'catchall')->data_live();
 
-	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult );
+	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
 
 	# setup log filter for getNodeInfo() - fixme why is that done here?
 	$S->snmp->logFilterOut(qr/no response from/)
@@ -981,7 +981,7 @@ sub pingable
 				&& (time - $PT->{ $self->uuid }->{lastping}) < $staleafter ) # and not stale
 		{
 			# copy values
-			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$self->uuid}}{"min","avg","max","loss"};
+			($ping_min, $ping_avg, $ping_max, $ping_loss, $lastping) = @{$PT->{$self->uuid}}{"min","avg","max","loss","lastping"};
 			$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
 			$self->nmisng->log->debug($self->uuid." ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 		}
@@ -1003,8 +1003,9 @@ sub pingable
 			( $ping_min, $ping_avg, $ping_max, $ping_loss )
 					= NMISNG::Ping::ext_ping( $host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
+			$lastping = Time::HiRes::time;
 		}
-		# at this point ping_{min,avg,max,loss} and pingresult are all set
+		# at this point ping_{min,avg,max,loss}, lastping and pingresult are all set
 
 		# in the fping case all up/down events are handled by it, otherwise we need to do that here
 		# this includes the case of a faulty fping worker
@@ -1052,13 +1053,9 @@ sub pingable
 		$RI->{pingresult} = $pingresult;
 		$RI->{pingloss}   = $ping_loss;
 
-		# info for web page
-		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp();
-		$V->{system}{lastUpdate_title} = 'Last Update';
-
-		# fixme9: why is that set by pingable, ever?
-		$catchall_data->{last_poll}   = $time_marker;
-		delete $catchall_data->{lastCollectPoll}; # replaced by last_poll
+		# a bit of info for web page
+		$V->{system}{lastPing_value} = NMISNG::Util::returnDateStamp($lastping);
+		$V->{system}{lastPing_title} = 'Last Ping';
 	}
 	else
 	{
@@ -1645,8 +1642,6 @@ sub collect_node_info
 		$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
 		$V->{system}{sysUpTime_title} = 'Uptime';
 
-		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp();
-		$V->{system}{lastUpdate_title} = 'Last Update';
 		# that's actually critical for other functions down the track
 		$catchall_data->{last_poll}   = $time_marker;
 		delete $catchall_data->{lastCollectPoll}; # replaced by last_poll
@@ -5798,6 +5793,11 @@ sub update
 		}
 		$S->close;    # close snmp session if one is open
 		$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
+
+		# last_update timestamp is not known to update_node_info, so we set that here...
+		my $V = $S->view;
+		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp($catchall_data->{last_update});
+		$V->{system}{lastUpdate_title} = 'Last Update';
 	}
 
 	my $reachdata = $self->compute_reachability(sys => $S,
@@ -7512,7 +7512,6 @@ sub collect
 	NMISNG::Util::info("vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
 
 	# are we meant to and able to talk to the node?
-	# runping sets the last_poll marker - fixme9: no idea why
 	if ($self->pingable(sys => $S) && $self->configuration->{collect})
 	{
 		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly
@@ -7619,6 +7618,11 @@ sub collect
 	{
 		$self->nmisng->compute_thresholds(sys => $S, running_independently => 0);
 	}
+
+	# add some timing info for the gui
+	my $V = $S->view;
+	$V->{system}{lastCollect_value} = NMISNG::Util::returnDateStamp($catchall_data->{last_poll});
+	$V->{system}{lastCollect_title} = 'Last Collect';
 
 	$S->writeNodeView;
 	$S->writeNodeInfo();
