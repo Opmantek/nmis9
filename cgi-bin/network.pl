@@ -2059,7 +2059,7 @@ EO_HTML
 		my $value;
 		# get the value from the view if it one of the special ones, or only present there
 		if ( $k
-				 =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
+				 =~ /^(host_addr|lastUpdate|lastPing|lastCollect|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
 							 or not exists( $catchall_data->{$k} ) )
 		{
 			$value = $V->{system}{"${k}_value"};
@@ -2117,16 +2117,18 @@ EO_HTML
 				$color = NMISNG::Util::eventColor("Normal"); # it's not active yet, let's show it as good/green/whatever
 			}
 		}
-		elsif ($k eq 'lastUpdate')
+		elsif ($k eq "lastUpdate" or $k eq "lastCollect") # lastX as in last time for type=X operation, NOT db record updated!
 		{
-			# check lastupdate
-			my $time = $catchall_data->{last_poll};
-			if ( $time ne "" )
+			my $jobtype = ($k eq "lastUpdate"? "update" : "collect");
+			# check if a job of this type is scheduled 'real soon' or already in progress
+			my $due_or_active = $nmisng->get_queue_model(type => $jobtype,
+																								 time => { '$lt' => time + 30 }, # arbitrary choice
+																								 "args.uuid" => [ $nmisng_node->uuid ],
+																								 count => 1, limit => 0); # need a count, no data
+			if (!$due_or_active->error && $due_or_active->query_count)
 			{
-				if ( $time < ( time - 60 * 15 ) )
-				{
-					$color = "#ffcc00";    # too late
-				}
+				$value .= "<br>($jobtype in progress/pending)";
+				$color = "#ffcc00";
 			}
 		}
 		elsif ( $k eq 'TimeSinceTopologyChange' and $catchall_data->{TimeSinceTopologyChange} =~ /\d+/ )
@@ -2139,12 +2141,11 @@ EO_HTML
 				# did this reset in the last 1 h
 				if ( $catchall_data->{TimeSinceTopologyChange} / 100 < 360000 )
 				{
-					$color = "#ffcc00";    # to late
+					$color = "#ffcc00";    # too late
 				}
 			}
 		}
 
-		### 2012-02-21 keiths, fixed popup window not opening correctly.
 		my $content = $value;
 		if ($gurl)
 		{

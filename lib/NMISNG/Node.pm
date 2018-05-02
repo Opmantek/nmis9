@@ -97,7 +97,7 @@ sub new
 # fill in properties we want and expect
 sub _defaults
 {
-	my ( $self,$configuration ) = @_;	
+	my ( $self,$configuration ) = @_;
 	$configuration->{port} //= 161;
 	$configuration->{max_msg_size} //= $self->nmisng->config->{snmp_max_msg_size};
 	$configuration->{max_repetitions} //= 0;
@@ -1053,7 +1053,8 @@ sub pingable
 		$RI->{pingresult} = $pingresult;
 		$RI->{pingloss}   = $ping_loss;
 
-		# a bit of info for web page
+		# a bit of info for web page - fixme9: view is updated
+		# only when polling, not by fping -> view info will be slightly stale
 		$V->{system}{lastPing_value} = NMISNG::Util::returnDateStamp($lastping);
 		$V->{system}{lastPing_title} = 'Last Ping';
 	}
