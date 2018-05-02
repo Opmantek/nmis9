@@ -65,6 +65,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=config-backup
  act=groupsync
  act=noderefresh
+ act=daemon-status (or act=status)
 
  act=schedule [at=time] <job.type=activity> [job.priority=0..1] [job.X=....]
   act=schedule-help for more detailed help
@@ -214,7 +215,23 @@ my $nmisng = NMISNG->new(
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
-if ($Q->{act} =~ /^schedule[_-]help$/)
+# show the daemon status
+if ($Q->{act} =~ /^(daemon[-_])?status$/)
+{
+	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
+	my %ours = map { ($_->pid => $_) } (grep($_->cmndline =~ /^nmisd .+$/,
+																					 @{$pt->table}));
+	die "No NMIS9 daemons running!\n" if (!keys %ours);
+
+	my $fmt = (-t \*STDOUT? "%-16s%-48s\n" : "%s\t%s\n");
+	printf($fmt,"PID","Daemon Role") if (-t \*STDOUT);
+	for my $pid (sort keys %ours)
+	{
+		printf($fmt, $pid, $ours{$pid}->cmndline);
+	}
+	exit 0;
+}
+elsif ($Q->{act} =~ /^schedule[_-]help$/)
 {
 	print $scheduleusage;
 	exit 0;
