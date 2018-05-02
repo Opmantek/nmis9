@@ -994,10 +994,16 @@ sub nodes_collection
 	return $self->{_db_nodes};
 }
 
-# returns this objects log object
+# getter/setter for this object's logger
+# args: new logger, optional, must be nmisng::log instance if present
+# returns: the current logger
 sub log
 {
-	my ($self) = @_;
+	my ($self, $newlogger) = @_;
+
+	$self->{_log} = $newlogger
+			if (ref($newlogger) eq "NMISNG::Log");
+	
 	return $self->{_log};
 }
 

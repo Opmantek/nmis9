@@ -42,6 +42,7 @@ use lib "$FindBin::Bin/../lib";
 
 use feature 'state';
 use File::Basename;
+use File::Spec;
 use Proc::ProcessTable 0.53;
 use Try::Tiny;
 use Mojo::File;
@@ -1017,9 +1018,40 @@ sub worker_loop
 		# we have some work to do!
 		if ($ourjob)
 		{
-			# does the job carry a custom verbosity flag? then apply that temporarily
-			my $oldverbosity;
-			if (defined(my $joblevel = $ourjob->{verbosity}))
+			my ($oldverbosity, $normallog);
+
+			# does the job carry a custom output directive?
+			# then TEMPORARILY switch to that
+			if (defined(my $logpathprefix = $ourjob->{output}))
+			{
+				$normallog = $nmisng->log;
+				$logpathprefix = File::Spec->rel2abs($logpathprefix, $nmisng->config->{'<nmis_logs>'});
+
+				# expectation is that verbosity is also given
+				my $verbosity = $ourjob->{verbosity} // $nmisng->config->{log_level};
+
+				my $logfn = "$logpathprefix-".Time::HiRes::time.".log";
+				if (!-d dirname($logfn)) # we don't create new dirs
+				{
+					$nmisng->log->error("Ignoring custom output directive, directory for file \"$logfn\" does not exist!");
+					undef $normallog;			# not switching, so no switching back
+				}
+				elsif (-f $logfn)				# unlikely but BSTS - don't overwrite/change any existing files, ever
+				{
+					$nmisng->log->error("Ignoring custom output directive, file \"$logfn\" already exists!");
+					undef $normallog;			# not switching, so no switching back
+				}
+				else
+				{
+					$nmisng->log->debug("Temporarily switching to custom log file \"$logfn\", verbosity \"$verbosity\" for job $ourjob->{_id}");
+					my $thisjoblog = NMISNG::Log->new(level => NMISNG::Log::parse_debug_level(debug => $verbosity),
+																						path => $logfn);
+					$thisjoblog->logprefix($nmisng->log->logprefix); # do keep the logprefix
+					$nmisng->log($thisjoblog);
+				}
+			}
+			# ordoes the job carry a custom verbosity flag? then apply that temporarily
+			elsif (defined(my $joblevel = $ourjob->{verbosity}))
 			{
 				$oldverbosity = $nmisng->log->new_level($joblevel);
 			}
@@ -1302,8 +1334,19 @@ sub worker_loop
 				$nmisng->log->error("Failed to remove job $ourjob->{_id} from queue: $error");
 			}
 
-			# and restore the original verbosity level if there was a per-job one
-			$nmisng->log->new_level($oldverbosity) if (defined $oldverbosity);
+			# restore the normal long-term logger and ditch the
+			if (defined $normallog)
+			{
+				my $templog = $nmisng->log;
+				close $templog->handle if ($templog->handle);
+
+				$nmisng->log($normallog);
+			}
+			elsif (defined $oldverbosity)
+			{
+				# or restore the original verbosity level if there was a per-job one
+				$nmisng->log->new_level($oldverbosity)
+			}
 		}
 
 		# sleep if there's no work left to do, and no cycle limit or not the final cycle yet
