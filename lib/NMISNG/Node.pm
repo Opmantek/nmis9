@@ -844,7 +844,7 @@ sub rename
 }
 
 # Save object to DB if it is dirty
-# returns tuple, ($sucess,$error_message),
+# returns tuple, ($success,$error_message),
 # 0 if no saving required
 #-1 if node is not valid,
 # >0 if all good
@@ -1171,7 +1171,8 @@ sub makesysuptime
 # also determines node model if it can
 #
 # args: self, sys
-# returns: 1 if _something_ worked, 0 if all a/v collection mechanisms failed
+# returns: hashref, keys success (1 if _something_ worked,, 0 if all a/v collection mechanisms failed),
+# error (arrayref of error messages, may be present even if success is 1)
 #
 # attention: this deletes the interface info if other steps successful
 # attention: this function disables all sys' sources that indicate any errors on loadnodeNMISNG::Util::info()!
@@ -1189,9 +1190,9 @@ sub update_node_info
 	my $C    = $self->nmisng->config;
 
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-
-	my $exit = 0;                  # assume failure by default
 	$RI->{snmpresult} = $RI->{wmiresult} = 0;
+
+	my ($success, @problems);
 
 	NMISNG::Util::info("Starting");
 
@@ -1226,6 +1227,8 @@ sub update_node_info
 				# copy over the error so that we can figure out that this source is indeed down,
 				# not just disabled from the get-go
 				$oldstate->{"${source}_error"} = $curstate->{"${source}_error"};
+
+				push @problems, $curstate->{"${source}_error"};
 			}
 		}
 
@@ -1351,7 +1354,11 @@ sub update_node_info
 				$curstate = $S->status;
 				for my $source (qw(snmp wmi))
 				{
-					$S->disable_source($source) if ( $curstate->{"${source}_error"} );
+					if ( $curstate->{"${source}_error"} )
+					{
+						$S->disable_source($source);
+						push @problems, $curstate->{"${source}_error"};
+					}
 				}
 
 				if ($secondloadok)
@@ -1373,7 +1380,7 @@ sub update_node_info
 					# PIX failover test
 					$self->checkPIX( sys => $S );
 
-					$exit = 1;    # done
+					$success = 1;    # done
 				}
 				else
 				{
@@ -1396,7 +1403,7 @@ sub update_node_info
 	else
 	{
 		NMISNG::Util::dbg("node $S->{name} is marked collect is 'false'");
-		$exit = 1;                # done
+		$success = 1;                # done
 	}
 
 	# get and apply any nodeconf override if such exists for this node
@@ -1454,7 +1461,7 @@ sub update_node_info
 		}
 	}
 
-	if ($exit)
+	if ($success)
 	{
 		# add web page info
 		$V->{system}{timezone_value}  = $catchall_data->{timezone};
@@ -1499,10 +1506,10 @@ sub update_node_info
 		}
 	}
 
-	NMISNG::Util::info( "Finished with exit=$exit "
+	NMISNG::Util::info( "Finished "
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(nodedown snmpdown wmidown)) ) );
 
-	return $exit;
+	return { success => $success, error => \@problems };
 }
 
 # collect and updates the node info and node view structures, during collect type operation
@@ -1510,7 +1517,7 @@ sub update_node_info
 # fixme: what good is this as a function? details are lost, exit 1/0 is not really enough
 #
 # args: sys, time_marker (optional, default: now)
-# returns: 1 if node is up, and at least one source worked for retrieval; 0 if node is down/to be skipped etc.
+# returns: (1 if node is up, and at least one source worked for retrieval; 0 if node is down/to be skipped etc.
 sub collect_node_info
 {
 	my ($self, %args) = @_;
@@ -1581,11 +1588,14 @@ sub collect_node_info
 			&& !$S->status->{snmp_error}
 			&& $sysObjectID ne $catchall_data->{sysObjectID} )
 		{
-			# fixme: why not a complete update()?
+			# fixme9: why not a complete update()?
 			NMISNG::Util::logMsg("INFO ($nodename) Device type/model changed $sysObjectID now $catchall_data->{sysObjectID}");
-			$exit = $self->update_node_info( sys => $S );
-			NMISNG::Util::info("Finished with exit=$exit");
-			return $exit;
+			my $result = $self->update_node_info( sys => $S );
+
+			# fixme9: errors must be passed back to caller!
+			return 1 if ($result->{success});
+			$self->nmisng->log->error("update_node_info failed: ".join(" ",$result->{error}))
+					if (ref($result->{error}) eq "ARRAY" && @{$result->{error}});
 		}
 
 		# if ifNumber has changed, then likely an interface has been added or removed.
@@ -1696,13 +1706,6 @@ sub collect_node_info
 		}
 	}
 
-	# some model testing and debugging options.
- 	if (0) # 	# fixme9 gone in nmis9 if ($model)
-	{
-		print
-				"MODEL $S->{name}: nodedown=$catchall_data->{nodedown} sysUpTime=$catchall_data->{sysUpTime} sysObjectID=$catchall_data->{sysObjectID}\n";
-	}
-
 	NMISNG::Util::info("Finished with exit=$exit");
 	return $exit;
 }
@@ -1711,7 +1714,7 @@ sub collect_node_info
 # also causes alert processing
 #
 # args: sys
-# returns: 1 if all sucessful, 0 if everything failed
+# returns: 1 if all successful, 0 if everything failed
 sub collect_node_data
 {
 	my ($self, %args) = @_;
@@ -5651,6 +5654,8 @@ sub update
 	NMISNG::Util::dbg("Starting update, node $name");
 	$0 = "nmisd worker update $name";
 
+	my @problems;
+
 	# continue with the held lock, regardless of type announcement (but update it)
 	# or try to lock the node (announcing what for)
 	$self->nmisng->log->debug2("Getting lock for node $name");
@@ -5761,7 +5766,12 @@ sub update
 
 		# this will try all enabled sources, 0 only if none worked
 		# it also disables sys sources that don't work!
-		if ($self->update_node_info(sys => $S))
+		my $result = $self->update_node_info(sys => $S);
+
+		@problems = @{$result->{error}} if (ref($result->{error}) eq "ARRAY"
+																		 && @{$result->{error}}); # (partial) success doesn't mean no errors reported
+
+		if ($result->{success})			# something worked, not necessarily everything though!
 		{
 			# update_node_info will have deleted the interface info, need to rebuild from scratch
 			if ( NMISNG::Util::getbool( $self->configuration->{collect} ) )
@@ -5792,6 +5802,11 @@ sub update
 				NMISNG::Util::dbg("node is set to collect=false, not collecting any info");
 			}
 		}
+		else
+		{
+			$self->nmisng->log->error("update_node_info failed completely: ".join(" ",@problems));
+		}
+
 		$S->close;    # close snmp session if one is open
 		$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
 
@@ -5874,7 +5889,7 @@ sub update
 	}
 	NMISNG::Util::info("Finished");
 
-	return { sucess => 1 };
+	return @problems? { error => join(" ",@problems) } : { success => 1 };
 }
 
 # calculate the summary8 and summary16 data like it used to be, this will be stored in the db as
@@ -7416,7 +7431,7 @@ sub unlock
 #  starttime (optional, default: now),
 #  force (optiona, default 0)
 #
-# returns: hashref, keys sucess/error/locked,
+# returns: hashref, keys success/error/locked,
 #  success 0 + locked 1 is for early bail-out due to collect/update lock
 sub collect
 {

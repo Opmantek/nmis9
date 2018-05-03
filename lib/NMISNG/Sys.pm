@@ -275,7 +275,7 @@ sub init
 		Carp::confess("Cannot instantiate sys object for $self->{name}!\n")
 				if (!$self->{_nmisng_node});
 	}
-	
+
 	# apply these uniformly (so a caller only providing uuid still gets them)
 	if( $self->{_nmisng_node} )
 	{
