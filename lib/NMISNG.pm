@@ -1003,7 +1003,7 @@ sub log
 
 	$self->{_log} = $newlogger
 			if (ref($newlogger) eq "NMISNG::Log");
-	
+
 	return $self->{_log};
 }
 
@@ -2099,9 +2099,18 @@ sub find_due_nodes
 		elsif ($whichop eq "collect" or $whichop eq "update")
 		{
 			my $polname = $nodeconfig->{polling_policy} || "default";
-			$self->log->debug2("Node $nodename is using polling policy \"$polname\"");
-
 			my $lastpolicy = $ninfo->{last_polling_policy};
+
+			if (ref($intervals{$polname}) ne "HASH")
+			{
+				$self->log->warn("Misconfigured node $nodename, polling policy \"$polname\" does not exist! Using default instead.");
+				$polname = $lastpolicy = "default"; # let's NOT treat this broken situation as a policy change
+			}
+			else
+			{
+				$self->log->debug2("Node $nodename is using polling policy \"$polname\"");
+			}
+
 			my $lastsnmp = $ninfo->{last_poll_snmp};
 			my $lastwmi = $ninfo->{last_poll_wmi};
 
