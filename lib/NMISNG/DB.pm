@@ -1112,7 +1112,8 @@ sub get_query
 #
 # if the value is an array, then the query is set to $in all array values
 #
-# if the value starts with "regex:" then a case insenstive regex is created unless _no_regex is set
+# if the value starts with "regex:" then a case SENsitive regex is created unless _no_regex is set
+# ditto for "iregex:", but caseINsensitive.
 #
 # if the column value starts with type: then the query is rewritten as $type for that column
 #
@@ -1156,11 +1157,11 @@ sub get_query_part
 	{
 		$ret_hash->{$col_name} = { '$in' => $col_value } ;
 	}
-	elsif ( $col_value =~ /regex:(.*)/ && $options->{no_regex} ne "true" )
+	elsif ( $col_value =~ /(i)?regex:(.*)/ && $options->{no_regex} ne "true" )
 	{
-		my $regex = $1;
-		$ret_hash->{$col_name} = { '$regex' => $regex , '$options' => 'i' } ;
-		# $ret_hash->{$col_name} = qr/$regex/;
+		my ($wantedcase,$regex) = ($1,$2);
+		$ret_hash->{$col_name} = { '$regex' => $regex };
+		$ret_hash->{$col_name}->{'$options'} = 'i' if ($wantedcase eq "i");
 	}
 	elsif ( $col_value =~ /type:(.*)/ )
 	{
