@@ -816,13 +816,16 @@ sub latest_data_collection
 }
 
 # records/updates the status of an operation
-# args: time (defaults to now), activity (what succeeded/failed, freeform but  required),
-# status (required, "ok", "info", "inprogress" or "error"),
-# type (event type, freeform error or status name),
-# details (optional, freeform, may be undef for delete on update),
-# stats (optional, structure, may be undef for delete on update),
-# context (what node/thing/job was involved, optional, may be undef for delete on update),
-# id (optional but required for updating an existing record)
+# args: id (optional but required for updating an existing record)
+#  time (defaults to now),
+#  activity (what succeeded/failed, freeform but required),
+#  status (required, "ok", "info", "inprogress" or "error"),
+#  type (event type, freeform error or status name),
+#  details (optional, freeform, may be undef for delete on update),
+#  stats (optional, structure, may be undef for delete on update),
+#  context (what node/thing/job was involved, optional,
+#   may be undef for delete on update.
+#   SHOULD have context.node_uuid = singleton or array of involved nodes),
 #
 # returns (undef, record id) if ok, error message otherwise
 sub save_opstatus
@@ -831,7 +834,6 @@ sub save_opstatus
 
 	my ($when, $activity, $type, $status, $oldrec)
 			= @args{qw(time activity type status id)};
-	return "save_opstatus requires activity argument!\n" if (!$activity);
 	return "status must be one of error, info, inprogress or ok!"
 			if ($status !~ /^(ok|info|inprogress|error)$/);
 
@@ -845,7 +847,12 @@ sub save_opstatus
 	}
 
 	$statusrec->{time} = $when || Time::HiRes::time;
-	$statusrec->{activity} = $activity;
+
+	# activity must come in either as argument or from existing record
+	$statusrec->{activity} = $activity if (defined $activity);
+	return "save_opstatus requires activity argument!\n"
+			if (!$statusrec->{activity});
+
 	$statusrec->{status} = $status;
 	$statusrec->{type} = $type;
 	$statusrec->{context} = $args{context} if (exists $args{context}); # undef is ok for deletion
@@ -2530,11 +2537,6 @@ sub compute_thresholds
 	}
 
 	NMISNG::Util::dbg("Finished");
-	if (NMISNG::Util::getbool( $self->config->{log_polling_time}))
-	{
-		my $polltime = $pollTimer->elapTime();
-		NMISNG::Util::logMsg("Threshold Time: $S->{name}, $polltime");
-	}
 }
 
 # fixme9: where should this function go? not ideal here, should become node method
@@ -4006,11 +4008,6 @@ LABEL_ESC:
 	}
 
 	NMISNG::Util::dbg("Finished");
-	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
-	{
-		my $polltime = $pollTimer->elapTime();
-		NMISNG::Util::logMsg("Poll Time: $polltime");
-	}
 }
 
 # this function computes overall metrics for all nodes/groups
@@ -4086,10 +4083,6 @@ sub compute_metrics
 		}
 	}
 	NMISNG::Util::dbg("Finished");
-
-	NMISNG::Util::logMsg( "Poll Time: " . $pollTimer->elapTime() )
-			if (NMISNG::Util::getbool( $self->config->{log_polling_time}));
-
 	return { success => 1 };
 }
 

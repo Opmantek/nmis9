@@ -203,7 +203,6 @@ my %hash = (
 
 		'max_child_runtime' => undef, 		# maximum runtime of per-node operations (ie. collect, update, services). unlimited if set to zero or undef
 		# to enable the logging of polling time to the NMIS log, will log every node every 5 minutes, set this to 1 or true
-		'log_polling_time' => undef,
 		# various selftest limits
 		'selftest_min_diskfree_percent' => 10,
 		'selftest_min_diskfree_mb' => 25,

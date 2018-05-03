@@ -5872,11 +5872,6 @@ sub update
 	{
 		$self->nmisng->log->error($issues);
 	}
-
-	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
-	{
-		NMISNG::Util::logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $updatetime");
-	}
 	NMISNG::Util::info("Finished");
 
 	return { sucess => 1 };
@@ -7694,11 +7689,6 @@ sub collect
 		$self->nmisng->log->error($issues);
 	}
 
-	# fixme9: opstatus instead
-	if ( NMISNG::Util::getbool( $C->{log_polling_time} ) )
-	{
-		NMISNG::Util::logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $polltime");
-	}
 	NMISNG::Util::info("Finished");
 	return { success => 1};
 }
