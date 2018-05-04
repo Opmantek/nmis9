@@ -1449,50 +1449,50 @@ sub info
 
 # print debug info to stdout, with (class::)method names and line number
 # args: message, level (default 1), upcall (only relevant if level is 1)
+# fixme9: get rid of, cannot work that way
 sub dbg
 {
 	my $msg = shift;
 	my $level = shift || 1;
 	my $upCall = shift || undef;
 
-	my $C = loadConfTable();
+	# fixme9: this is utterly non-efficient!
+	my $nmisng = Compat::NMIS::new_nmisng();
+	return if (!$nmisng->log->is_level($level));
 
 	my $string;
 	my $caller;
 
-	if ($C->{debug} >= $level or $level == 0)
+	if ($level == 1)
 	{
-		if ($level == 1)
+		if ( defined $upCall ) {
+			$string = $upCall;
+		}
+		else {
+			($string = (caller(1))[3]) =~ s/\w+:://;
+		}
+		$string .= ",";
+	}
+	else
+	{
+		if ((my $caller = (caller(1))[3]) =~ s/main:://)
 		{
-			if ( defined $upCall ) {
-				$string = $upCall;
-			}
-			else {
-				($string = (caller(1))[3]) =~ s/\w+:://;
-			}
-			$string .= ",";
+			my $ln = (caller(0))[2];
+			$string = "$caller#$ln,";
 		}
 		else
 		{
-			if ((my $caller = (caller(1))[3]) =~ s/main:://)
+			for my $i (1..10)
 			{
-				my $ln = (caller(0))[2];
-				$string = "$caller#$ln,";
-			}
-			else
-			{
-				for my $i (1..10)
-				{
-					my ($caller) = (caller($i))[3];
-					my ($ln) = (caller($i-1))[2];
+				my ($caller) = (caller($i))[3];
+				my ($ln) = (caller($i-1))[2];
 					$string = "$caller#$ln->".$string;
-					last if $string =~ s/main:://;
-				}
-				$string = "$string\n\t";
+				last if $string =~ s/main:://;
 			}
+			$string = "$string\n\t";
 		}
-		print returnTime." $string $msg\n";
 	}
+	$nmisng->log->debug("$string $msg");
 }
 
 # this function logs to the nmis_log via the nmisng::log buffered logger
