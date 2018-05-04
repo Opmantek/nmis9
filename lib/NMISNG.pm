@@ -2154,7 +2154,25 @@ sub find_due_nodes
 
 				my $lasttry = $ninfo->{$whichop eq "collect"? "last_poll_attempt"
 																	 : "last_update_attempt"} // 0; # this gets updated every attempt
-				my $graceperiod_start = ($ninfo->{demote_grace} //= $now);
+				my $graceperiod_start = $ninfo->{demote_grace};
+				if (!defined($graceperiod_start)) # none set? then set one and update the database!
+				{
+					my ($error, $invobj) = $self->get_inventory_model(concept => "catchall",
+																														cluster_id => $self->config->{cluster_id},
+																														node_uuid => $maybe)->object(0);
+					if ($error)
+					{
+						$self->log->error("Failed to retrieve inventory: $error");
+					}
+					else
+					{
+						my $shortlived = $invobj->data_live;
+						$shortlived->{demote_grace} = $graceperiod_start = $ninfo->{demote_grace} = $now;
+						my ($op,$error) = $invobj->save;
+            $self->log->error("Failed to update inventory: $error") if ($error);
+					}
+				}
+
 				my $normalperiod = $whichop eq "collect"?
 						Statistics::Lite::min($intervals{$polname}->{snmp},
 																	$intervals{$polname}->{wmi})
