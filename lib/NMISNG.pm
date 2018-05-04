@@ -2144,39 +2144,6 @@ sub find_due_nodes
 				$due{$maybe} = $nodeconfig;
 				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			# nodes that have not been pollable since forever: run at most once daily
-			# ...except if the demote_faulty_nodes config option is set to false
-			# fixme: logic should be updated  to make use of last_poll_attempt!
-			elsif (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model")
-			{
-				my $lasttry = $ninfo->{last_poll} // $ninfo->{last_poll_attempt} // 0;
-
-				# try once every 5 minutes if demote_faulty_nodes is set to false,
-				# otherwise: was polling attempted at all and in the last 30 days? then once daily from
-				# that last try - otherwise try one now
-				my $nexttry = !NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")? # === ne false
-						($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
-
-				if ($nexttry <= $now)
-				{
-					$due{$maybe} = $nodeconfig;
-					$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
-				}
-				# if demotion is enabled, log this pretty dire situation
-				# but not too noisily - with a default poll every minute this
-				# will log the issue once an hour.
-				elsif (!NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert")) # === ne false
-				{
-					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
-					my $msg = "Node $nodename has no valid nodeModel, never polled successfully, "
-							. "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
-					$self->log->info($msg) if ($goodtimes == 0);
-				}
-				else
-				{
-					$self->log->debug("Node $nodename has no valid nodeModel, never polled successfully. demote_faulty_nodes is disabled, last attempt $lasttry, next $nexttry.");
-				}
-			}
 			# logic for update now or later:
 			# due if no past successful update at all or if that was too long ago,
 			# BUT no more than four attempts per update period
@@ -2214,16 +2181,48 @@ sub find_due_nodes
 				}
 			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
-			# or if either of the two worked and was done long enough ago.
+			# (subject to demotion rate-limiting for long-dead nodes),
+			# or if either of snmp/wmi worked and was done long enough ago.
 			#
 			# if no history is known for a source, then disregard it for the now-or-later logic
 			# but DO enable it for trying!
 			# note that collect=false, i.e. ping-only nodes need to be excepted,
 			elsif (!defined($lastsnmp) && !defined($lastwmi) && $nodeconfig->{collect})
 			{
-				$self->log->debug("Node $nodename has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
-				$due{$maybe} = $nodeconfig;
-				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
+				# if demote_faulty_nodes config option is true, demote nodes that have not been pollable ever:
+				# after 14 days of normal attempts change to collect at most once daily
+				if (!NMISNG::Util::getbool($self->config->{demote_faulty_nodes},"invert") # === ne false
+						&& (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model"))
+				{
+					my $lasttry = $ninfo->{last_poll_attempt} // 0; # this gets updated every attempt
+					my $graceperiod_start = ($ninfo->{demote_grace} //= $now);
+
+					# once a day if beyond the grace time, min of snmp/wmi policy otherwise
+					my $nexttry = $lasttry + 0.95 * Statistics::Lite::min($intervals{$polname}->{snmp},
+																																$intervals{$polname}->{wmi});
+					if ($now - $graceperiod_start > 14*86400)
+					{
+						$nexttry = $lasttry + 86400 * 0.95;
+
+						# log the demotion situation but not more than once an hour
+						$self->log->info("Node $nodename has no valid nodeModel, never polled successfully, "
+														 . "past demotion grace window (started at $graceperiod_start) so demoted to frequency once daily, last attempt $lasttry, next $nexttry") if (0 == int((($now - $lasttry) % 3600) / 60));
+					}
+
+					$self->log->debug("Node $nodename has no valid nodeModel, never polled successfully, demote_faulty_nodes is on, grace window started at $graceperiod_start, last poll attempt $lasttry, next $nexttry.");
+
+					if ($nexttry <= $now)
+					{
+						$due{$maybe} = $nodeconfig;
+						$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
+					}
+				}
+				else
+				{
+					$self->log->debug("Node $nodename has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
+					$due{$maybe} = $nodeconfig;
+					$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
+				}
 			}
 			else
 			{

@@ -7583,10 +7583,11 @@ sub collect
 					$S->disable_source($source);
 				}
 			}
-			# if pingable hasn't set the last_poll marker, set it here unconditionally
 			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
 			$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+			# we polled something, so outside of dead node demotion grace period
+			delete $catchall_data->{demote_grace};
 
 			# fixme: why no error handling for any of these?
 
