@@ -5802,6 +5802,8 @@ sub update
 				NMISNG::Util::dbg("node is set to collect=false, not collecting any info");
 			}
 			$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
+			# we updated something, so outside of dead node demotion grace period
+			delete $catchall_data->{demote_grace};
 		}
 		else
 		{
