@@ -269,12 +269,14 @@ while (!$exit_marker)
 					{
 						$nmisng->log->error("Failed to query opstatus: $error");
 					}
-					my ($oldstatusid,$oldcontext);
+					my ($oldstatusid,$oldcontext,$oldact);
 					if ($oldopstatus->count == 1)
 					{
-						($oldstatusid,$oldcontext) = @{$oldopstatus->data->[0]}{"_id","context"};
+						($oldstatusid,$oldcontext,$oldact)
+								= @{$oldopstatus->data->[0]}{"_id","context","activity"};
 					}
 					$nmisng->save_opstatus(id => $oldstatusid,
+																 activity => $oldact // $onejob->{type},
 																 status => "error",
 																 type => "aborted",
 																 details => ("Aborted job: too old, in progress for "
@@ -1164,9 +1166,11 @@ sub worker_loop
 						my (@node_names, @node_uuids);
 						map { push @node_names, $_->{name}; push @node_uuids, $_->{uuid}; } (@{$u2n->data});
 
-						# we'd like the opstatus to carry a useful context
+						$state->{activity} = "post-${phase} $ourjob->{type}";
+						# we'd like the opstatus to carry a useful context,
+						# so try to include some/all node uuids (fixme9: index too big errors can occur)
 						(my $error, $state->{statusid}) =
-								$nmisng->save_opstatus(activity => "post-${phase} $ourjob->{type}",
+								$nmisng->save_opstatus(activity => $state->{activity},
 																			 status => "inprogress",
 																			 type => "start",
 																			 details => "Worker $$ starting operation",
@@ -1310,6 +1314,7 @@ sub worker_loop
 				$nmisng->log->fatal("Exception while processing job $ourjob->{_id}: $state->{exception}");
 				# don't care about success or failure of that here
 				$nmisng->save_opstatus(id => $state->{statusid},
+															 activity => $state->{activity} // $ourjob->{type},
 															 status => "error",
 															 type => "exception",
 															 details => $state->{exception},
@@ -1320,6 +1325,7 @@ sub worker_loop
 				# work is done, report result in opstatus
 				$state->{stats}->{time} = Time::HiRes::time - $state->{stats}->{time}; # time was start marker, want it to be delta
 				my ($error, undef) = $nmisng->save_opstatus(id => $state->{statusid},
+																										activity => $state->{activity} // $ourjob->{type},
 																										type => "completed",
 																										status => $state->{status},
 																										details => $state->{details},
