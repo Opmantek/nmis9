@@ -1116,6 +1116,11 @@ sub worker_loop
 				}
 				elsif ($ourjob->{type} eq "dbcleanup")
 				{
+					# for the dbcleanup create a new nmisng object with drop_unwanted_indices set to true
+					$nmisng = NMISNG->new(config => $nmisng->config,
+																log => $nmisng->log,
+																drop_unwanted_indices => 1);
+					
 					my $result = $nmisng->dbcleanup(simulate => 0);
 					$state->{status} = $result->{success}? "ok":"error";
 					$state->{details} = "completed"

@@ -108,14 +108,15 @@ sub new
 
 		# figure out if index dropping is allowed for a given collection (by name)
 		# needs to be disabled for collections that are shared across products
-		$args{drop_unwanted_indices} = 0
-				if ($args{drop_unwanted_indices}
+		my $dropunwanted = $args{drop_unwanted_indices};
+		$dropunwanted = 0
+				if ($dropunwanted
 						and ref($self->{_config}->{db_never_remove_indices}) eq "ARRAY"
 						and grep($_ eq $collname, @{$self->{_config}->{db_never_remove_indices}}));
 
 		# now prime the indices and park the collection handles in self - the coll accessors do that
 		my $setfunction = "${collname}_collection";
-		$self->$setfunction($collhandle, $args{drop_unwanted_indices});
+		$self->$setfunction($collhandle, $dropunwanted);
 	}
 
 	return $self;
