@@ -5801,16 +5801,15 @@ sub update
 			{
 				NMISNG::Util::dbg("node is set to collect=false, not collecting any info");
 			}
+			$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
 		}
 		else
 		{
 			$self->nmisng->log->error("update_node_info failed completely: ".join(" ",@problems));
 		}
-
 		$S->close;    # close snmp session if one is open
-		$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
 
-		# last_update timestamp is not known to update_node_info, so we set that here...
+		# last_update timestamp is not known to update_node_info, so we update that here...
 		my $V = $S->view;
 		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp($catchall_data->{last_update});
 		$V->{system}{lastUpdate_title} = 'Last Update';
