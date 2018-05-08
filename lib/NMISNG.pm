@@ -259,6 +259,14 @@ sub get_inventory_model
 	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
 
 	my $q = $self->get_inventory_model_query( %args );
+	my $query_count;
+	if ( $args{count} )
+	{
+		my $res = NMISNG::DB::count( collection => $self->inventory_collection, query => $q, verbose => 1 );
+		return NMISNG::ModelData->new(error => "Count failed: $res->{error}") if (!$res->{success});
+
+		$query_count = $res->{count};
+	}
 	# print "query:".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->inventory_collection,
@@ -267,7 +275,7 @@ sub get_inventory_model
 		limit      => $args{limit},
 		skip       => $args{skip},
 		fields_hash => $args{fields_hash},
-			);
+	);
 
 	return NMISNG::ModelData->new(error => "find failed: ".NMISNG::DB::get_error_string)
 			if (!defined $entries);
@@ -283,7 +291,8 @@ sub get_inventory_model
 	$args{class_name} //= { "concept" => \&NMISNG::Inventory::get_inventory_class };
 	my $model_data_object = NMISNG::ModelData->new( nmisng => $self,
 																									class_name => $args{class_name},
-																									data => \@all );
+																									data => \@all,
+																									query_count => $query_count );
 	return $model_data_object;
 }
 

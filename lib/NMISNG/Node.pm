@@ -936,7 +936,9 @@ sub validate
 	return (-3, "given roleType is not a known type")
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
-		return (1,undef);
+	return( -3, "threshold must be set to something") if( !defined($configuration->{threshold}) );
+
+	return (1,undef);
 }
 
 
