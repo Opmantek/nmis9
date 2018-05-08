@@ -5818,43 +5818,50 @@ sub update
 		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp($catchall_data->{last_update});
 		$V->{system}{lastUpdate_title} = 'Last Update';
 	}
+	else
+	{
+		push @problems, "Node is unreachable, cannot perform update.";
+	}
 
 	my $reachdata = $self->compute_reachability(sys => $S,
 																							delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
 	$S->writeNodeView;                                # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo();
 
-	# done with the standard work, now run any plugins that offer update_plugin()
-	for my $plugin ($self->nmisng->plugins)
+	if (!@problems)
 	{
-		my $funcname = $plugin->can("update_plugin");
-		next if ( !$funcname );
-
-		NMISNG::Util::dbg("Running update plugin $plugin with node $name");
-		my ( $status, @errors );
-		my $prevprefix = $self->nmisng->log->logprefix;
-		$self->nmisng->log->logprefix("$plugin\[$$\] ");
-		eval { ( $status, @errors ) = &$funcname( node => $name,
-																							sys => $S,
-																							config => $C,
-																							nmisng => $self->nmisng, ); };
-		$self->nmisng->log->logprefix($prevprefix);
-		if ( $status >= 2 or $status < 0 or $@ )
+		# done with the standard work, now run any plugins that offer update_plugin()
+		for my $plugin ($self->nmisng->plugins)
 		{
-			NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
-			for my $err (@errors)
+			my $funcname = $plugin->can("update_plugin");
+			next if ( !$funcname );
+			
+			NMISNG::Util::dbg("Running update plugin $plugin with node $name");
+			my ( $status, @errors );
+			my $prevprefix = $self->nmisng->log->logprefix;
+			$self->nmisng->log->logprefix("$plugin\[$$\] ");
+			eval { ( $status, @errors ) = &$funcname( node => $name,
+																								sys => $S,
+																								config => $C,
+																								nmisng => $self->nmisng, ); };
+			$self->nmisng->log->logprefix($prevprefix);
+			if ( $status >= 2 or $status < 0 or $@ )
 			{
-				NMISNG::Util::logMsg("Error: Plugin $plugin: $err");
+				NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
+				for my $err (@errors)
+				{
+					NMISNG::Util::logMsg("Error: Plugin $plugin: $err");
+				}
 			}
-		}
-		elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
-		{
-			NMISNG::Util::dbg("Plugin $plugin indicated success, updating node and view files");
-			$S->writeNodeView;
-		}
-		elsif ( $status == 0 )
-		{
-			NMISNG::Util::dbg("Plugin $plugin indicated no changes");
+			elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
+			{
+				NMISNG::Util::dbg("Plugin $plugin indicated success, updating node and view files");
+				$S->writeNodeView;
+			}
+			elsif ( $status == 0 )
+			{
+				NMISNG::Util::dbg("Plugin $plugin indicated no changes");
+			}
 		}
 	}
 

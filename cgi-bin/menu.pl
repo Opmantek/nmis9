@@ -345,6 +345,8 @@ sub menu_bar_site {
 		};
 		push @hostdiags, qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|;
 
+		push @hostdiags, qq|<a id="nmis_opstatus" href="opstatus.pl?">NMIS Ops Status</a>|;
+
 		for my $cmd (qw(date df ps iostat vmstat who))
 		{
 				push @hostdiags, qq|<a id='tls_$cmd' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_$cmd">$cmd</a>|
