@@ -5060,10 +5060,13 @@ sub process_alerts
 			# name does not exist for simple alerts, let's synthesize it from ds
       name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
-			updated  => time(),
 			inventory_id => $alert->{inventory_id}
 		);
-		$status_obj->save();
+		my $save_error = $status_obj->save();
+		if( $save_error )
+		{
+			$self->log->error("Failed to save status alert object, error:".$save_error);
+		}
 	}
 }
 

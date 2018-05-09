@@ -4134,7 +4134,11 @@ sub thresholdProcess
 			class      => $args{class},
 			inventory_id => NMISNG::DB::make_oid( $args{inventory_id} )
 		);
-		$status_obj->save();
+		my $save_error = $status_obj->save();
+		if( $save_error )
+		{
+			$self->log->error("Failed to save status object, error:".$save_error);
+		}
 	}
 	else
 	{
