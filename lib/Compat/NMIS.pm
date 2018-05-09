@@ -1475,11 +1475,12 @@ sub createHrButtons
 											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 	}
 
-	if (NMISNG::Util::getbool($catchall_data->{collect})) {
+	if (NMISNG::Util::getbool($catchall_data->{collect})) 
+	{
+		my $status_md = $nmisng_node->get_status_model();
 		push @out, CGI::td({class=>'header litehead'},
 											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
-				if defined $NI->{status} and defined $C->{display_status_summary}
-		and NMISNG::Util::getbool($C->{display_status_summary});
+			if $status_md->count > 0 and defined $C->{display_status_summary} and NMISNG::Util::getbool($C->{display_status_summary});
 		push @out, CGI::td({class=>'header litehead'},
 											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if (defined $S->{mdl}{interface});
