@@ -6717,7 +6717,7 @@ sub collect_services
 			if ( !$lookfor )
 			{
 				$self->nmisng->log->error("($node) Service_name for service=$service must contain an FQDN or IP address");
-				$status{$service}->{status_text} = "Service misconfigured: Service_name must be a FQDN or IP address";
+				$status{status_text} = "Service misconfigured: Service_name must be a FQDN or IP address";
 				$ret = 0;
 			}
 			else
@@ -6749,7 +6749,7 @@ sub collect_services
 			if ($thisservice->{Port} !~ /^(tcp|udp):\d+$/i)
 			{
 				$self->nmisng->log->error("$node misconfigured: Port for service=$service must be tcp:<port> or udp:<port>!");
-				$status{$service}->{status_text} = "Service misconfigured: Port must be tcp:<port> or udp:<port>!";
+				$status{status_text} = "Service misconfigured: Port must be tcp:<port> or udp:<port>!";
 				$ret = 0;
 			}
 			else
@@ -6812,7 +6812,7 @@ sub collect_services
 			if ( !$wantedprocname and !$parametercheck )
 			{
 				$self->nmisng->log->error("($node) service=$service Service_Name and Service_Parameters are empty!");
-				$status{$service}->{status_text} = "Service misconfigured: Service_Name and Service_Parameters are empty!";
+				$status{status_text} = "Service misconfigured: Service_Name and Service_Parameters are empty!";
 				$ret = 0;
 			}
 			else
@@ -6882,7 +6882,7 @@ sub collect_services
 			{
 				my $cause = $!;
 				$self->nmisng->log->error("can't open script file $scriptfn for $service: $cause");
-				$status{$service}->{status_text} = "Service misconfigured: cannot open script file $scriptfn: $cause";
+				$status{status_text} = "Service misconfigured: cannot open script file $scriptfn: $cause";
 				$ret = 0;
 			}
 			else
@@ -6906,7 +6906,7 @@ sub collect_services
 			if ( !$svc->{Program} or !-x $svc->{Program} )
 			{
         $self->nmisng->log->error("($node) misconfigured: no working Program to run for service $service!");
-				$status{$service}->{status_text} = "Service misconfigured: no working Program to run!";
+				$status{status_text} = "Service misconfigured: no working Program to run!";
 			}
 			else
 			{
