@@ -47,6 +47,7 @@ use JSON::XS;
 
 use NMISNG::DB;
 use NMISNG::Events;
+use NMISNG::Status;
 use NMISNG::Log;
 use NMISNG::ModelData;
 use NMISNG::Node;
@@ -95,7 +96,7 @@ sub new
 	$self->{_db} = $db;
 
 	# load and prime the statically defined collections
-	for my $collname (qw(nodes events inventory latest_data queue opstatus))
+	for my $collname (qw(nodes events inventory latest_data queue opstatus status))
 	{
 		my $collhandle = NMISNG::DB::get_collection( db => $db, name => $collname );
 		if ( ref($collhandle) ne "MongoDB::Collection" )
@@ -573,9 +574,6 @@ sub compute_thresholds
 	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall_data      = $catchall_inventory->data_live();
 
-	# fixme9 one of the few spots that still require nodeinfo
-	my $statusinfo = $S->compat_nodeinfo->{status};
-
 	# skip if node down
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
 	{
@@ -695,39 +693,45 @@ sub compute_thresholds
 		}
 	}
 
-	my $count   = 0;
-	my $countOk = 0;
-	foreach my $statusKey ( sort keys %$statusinfo )
+	my $count       = 0;
+	my $countOk     = 0;
+	my $status_md   = $S->nmisng_node->get_status_model();
+	my $objects_ret = $status_md->objects();
+	my $status_objs = $objects_ret->{objects} // [];
+	if( !$objects_ret->{success} )
 	{
-		my $eventKey = $statusinfo->{$statusKey}{event};
-		$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}"
-			if $statusinfo->{$statusKey}{method} eq "Alert";
+		$self-log->error("Failed to get status data for node:".$S->nmisng_node->name." error:".$objects_ret->{error});
+	}
+	foreach my $status_obj (@$status_objs)
+	{
+		my $eventKey = $status_obj->event;
+		$eventKey = "Alert: $eventKey"
+			if ( $status_obj->is_alert );
 
 		# event control is as configured or all true.
 		my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
 
 		# if this is an alert and it is older than 1 full poll cycle, delete it from status.
 		# fixme: this logic is broken for variable polling
-		if ( $statusinfo->{$statusKey}{updated} < time - 500 )
+		if ( $status_obj->lastupdate < time - 500 )
 		{
-			delete $statusinfo->{$statusKey};
+			$status_obj->delete();
 		}
 
 		# in case of Status being off for this event, we don't have to include it in the calculations
 		elsif ( not NMISNG::Util::getbool( $thisevent_control->{Status} ) )
 		{
 			NMISNG::Util::dbg(
-				"Status Summary Ignoring: event=$statusinfo->{$statusKey}{event}, Status=$thisevent_control->{Status}",
-				1
-			);
-			$statusinfo->{$statusKey}{status} = "ignored";
+				"Status Summary Ignoring: event=" . $status_obj->event . ", Status=$thisevent_control->{Status}", 1 );
+			$status_obj->status("ignored");
+			$status_obj->save();
 			++$count;
 			++$countOk;
 		}
 		else
 		{
 			++$count;
-			if ( $statusinfo->{$statusKey}{status} eq "ok" )
+			if ( $status_obj->status eq "ok" )
 			{
 				++$countOk;
 			}
@@ -756,7 +760,6 @@ sub compute_thresholds
 	# Save the new status results, but only if run standalone
 	if ($running_independently)
 	{
-		$S->writeNodeInfo();
 		$catchall_inventory->save();
 	}
 
@@ -1904,7 +1907,52 @@ sub get_queue_model
 		limit       => $extras{limit},
 		skip        => $extras{skip}
 	);
+}
 
+sub get_status_model
+{
+	my ( $self, %args ) = @_;
+	my $filter      = $args{filter};
+	my $fields_hash = $args{fields_hash};
+
+	my $q = NMISNG::DB::get_query( and_part => $filter );
+
+	my $entries = [];
+	my $query_count;
+	if ( $args{count} )
+	{
+		my $res = NMISNG::DB::count( collection => $self->nmisng->status_collection, query => $q, verbose => 1 );
+		return NMISNG::ModelData->new( error => "Count failed: $res->{error}" ) if ( !$res->{success} );
+
+		$query_count = $res->{count};
+	}
+
+	my $cursor = NMISNG::DB::find(
+		collection  => $self->status_collection,
+		query       => $q,
+		fields_hash => $fields_hash,
+		sort        => $args{sort},
+		limit       => $args{limit},
+		skip        => $args{skip}
+	);
+
+	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
+		if ( !defined $cursor );
+
+	while ( my $entry = $cursor->next )
+	{
+		push @$entries, $entry;
+	}
+	my $model_data_object = NMISNG::ModelData->new(
+		nmisng      => $self,
+		class_name  => "NMISNG::Status",
+		data        => $entries,
+		query_count => $query_count,
+		sort        => $args{sort},
+		limit       => $args{limit},
+		skip        => $args{skip}
+	);
+	return $model_data_object;
 }
 
 # accessor for finding timed data for one (or more) inventory instances
@@ -2279,8 +2327,6 @@ sub nodes_collection
 	if ( ref($newvalue) eq "MongoDB::Collection" )
 	{
 		$self->{_db_nodes} = $newvalue;
-
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
 
 		my $err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_nodes},
@@ -3928,6 +3974,29 @@ sub save_opstatus
 	return $result->{success} ? ( undef, $oldrec || $result->{id} ) : $result->{error};
 }
 
+# helper to get the status collection
+sub status_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_status} = $newvalue;
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_status},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
+				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],				
+				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+			]
+		);
+		$self->log->error("index setup failed for nodes: $err") if ($err);
+	}
+	return $self->{_db_status};
+
+}
+
 # helper to instantiate/get/update one of the dynamic collections
 # for timed data, one per concept
 # indices are set up on set or instantiate
@@ -4047,31 +4116,25 @@ sub thresholdProcess
 			);
 			$statusResult = "error";
 		}
-		my $index = $args{index};
-		if ( $index eq "" )
-		{
-			$index = 0;
-		}
-		my $statusKey = "$args{thrname}--$index";
-
-		$statusKey = "$args{thrname}--$index--$args{class}" if defined $args{class} and $args{class};
-
-		# fixme9: datastructure is written to node-info file, cannot contain blessed objects
-		$S->{info}{status}{$statusKey} = {
-			method   => "Threshold",
-			type     => $args{type},
-			property => $args{thrname},
-			event    => $args{event},
-			index    => $args{index},
-			level    => $args{level},
-			status   => $statusResult,
-			element  => $args{element},
-			value    => $args{value},
-			updated  => time(),
-			inventory_id =>
-				( ref( $args{inventory_id} ) eq "MongoDB::OID" ? $args{inventory_id}->TO_JSON : $args{inventory_id} )
-
-		};
+		my ($cluster_id,$node_uuid) = ($S->nmisng_node) ? ($S->nmisng_node->cluster_id,$S->nmisng_node->uuid) :
+			($self->config->{cluster_id}, undef);
+		my $status_obj = NMISNG::Status->new(
+			nmisng     => $self,
+			cluster_id => $cluster_id,
+			node_uuid  => $node_uuid,
+			method     => "Threshold",
+			type       => $args{type},
+			property   => $args{thrname},
+			event      => $args{event},
+			index      => $args{index},
+			level      => $args{level},
+			status     => $statusResult,
+			element    => $args{element},
+			value      => $args{value},
+			class      => $args{class},
+			inventory_id => NMISNG::DB::make_oid( $args{inventory_id} )
+		);
+		$status_obj->save();
 	}
 	else
 	{

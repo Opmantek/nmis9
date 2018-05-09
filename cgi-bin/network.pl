@@ -3806,7 +3806,6 @@ sub viewStatus
 	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
-	my $NI = $S->compat_nodeinfo; # still needed for status section
 	my $nmisng_node = $S->nmisng_node;
 	my $configuration = $nmisng_node->configuration();
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
@@ -3875,7 +3874,8 @@ sub viewStatus
 		= url( -absolute => 1 )
 		. "?conf=$Q->{conf}&act=network_status_view&refresh=$Q->{refresh}&widget=$widget&node="
 		. uri_escape($node);
-	if ( defined $NI->{status} )
+	my $status_md = $nmisng_node->get_status_model();
+	if ( $status_md->count > 0 )
 	{
 		print Tr(
 			td( {class => 'header'}, a( {href => "$url&sort=method",   class => "wht"}, "Method" ) ),
@@ -3886,32 +3886,33 @@ sub viewStatus
 			td( {class => 'header'}, a( {href => "$url&sort=status",   class => "wht"}, "Status" ) ),
 			td( {class => 'header'}, "Updated" ),
 		);
-		foreach my $status ( sort { sortStatus( $sort, $sortField, $NI, $a, $b ) } keys %{$NI->{status}} )
+		my $data = $status_md->data();
+		foreach my $entry ( sort { sortStatus($sort, $sortField, $a, $b) } ( @$data ) )
 		{
-			if ( exists $NI->{status}{$status}{updated} and $NI->{status}{$status}{updated} > time - 3600 )
+			if ( $entry->{lastupdate} > time - 3600 )
 			{
-				my $updated     = NMISNG::Util::returnDateStamp( $NI->{status}{$status}{updated} );
-				my $elementLink = $NI->{status}{$status}{element};
+				my $lastupdate     = NMISNG::Util::returnDateStamp( $entry->{lastupdate} );
+				my $elementLink = $entry->{element};
 				$elementLink = $node if not $elementLink;
-				if ( $NI->{status}{$status}{type} =~ "(interface|pkts)" )
+				if ( $entry->{type} =~ "(interface|pkts)" )
 				{
 					$elementLink = a(
 						{   href =>
-								"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$NI->{status}{$status}{index}&refresh=$Q->{refresh}&widget=$widget&node="
+								"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$entry->{index}&refresh=$Q->{refresh}&widget=$widget&node="
 								. uri_escape($node)
 						},
-						$NI->{status}{$status}{element}
+						$entry->{element}
 					);
 				}
 
 				print Tr(
-					td( {class => 'info Plain'},                               $NI->{status}{$status}{method} ),
+					td( {class => 'info Plain'},                               $entry->{method} ),
 					td( {class => 'lft Plain'},                                $elementLink ),
-					td( {class => 'info Plain'},                               $NI->{status}{$status}{event} ),
-					td( {class => 'rht Plain'},                                $NI->{status}{$status}{value} ),
-					td( {class => "info Plain $NI->{status}{$status}{level}"}, $NI->{status}{$status}{level} ),
-					td( {class => 'info Plain'},                               $NI->{status}{$status}{status} ),
-					td( {class => 'info Plain'},                               $updated )
+					td( {class => 'info Plain'},                               $entry->{event} ),
+					td( {class => 'rht Plain'},                                $entry->{value} ),
+					td( {class => "info Plain $entry->{level}"},               $entry->{level} ),
+					td( {class => 'info Plain'},                               $entry->{status} ),
+					td( {class => 'info Plain'},                               $lastupdate )
 				);
 			}
 		}
@@ -3926,15 +3927,15 @@ sub viewStatus
 
 sub sortStatus
 {
-	my ( $sort, $sortField, $NI, $a, $b ) = @_;
+	my ( $sort, $sortField, $a, $b ) = @_;
 
 	if ( $sort =~ "(property|level|element|status|method)" )
 	{
-		return $NI->{status}{$a}{$sortField} cmp $NI->{status}{$b}{$sortField};
+		return $a->{$sortField} cmp $b->{$sortField};
 	}
 	else
 	{
-		return $NI->{status}{$b}{$sortField} <=> $NI->{status}{$a}{$sortField};
+		return $a->{$sortField} <=> $b->{$sortField};
 	}
 }
 

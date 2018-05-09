@@ -99,6 +99,7 @@ sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my 
 sub compat_nodeinfo
 {
 	my ($self) = @_;
+	die "this isn't supported anymore";
 	return $self->{info};
 }
 
@@ -340,19 +341,24 @@ sub init
 		else
 		{
 			$catchall_data = $catchall->data_live();
-			$self->{info} = NMISNG::Util::loadTable( dir => 'var', name => "$self->{node}-node" );
 			# load the saved node info data - note that an empty {} nodeinfo file is ok!
-			if ( ref( $self->{info} ) eq "HASH" )
+			# if ( ref( $self->{info} ) eq "HASH" )
+			if ( (keys %$catchall_data) > 0 )
 			{
 				if ( NMISNG::Util::getbool( $self->{debug} ) )
 				{
-					NMISNG::Util::TODO("Recreate this debug output, possibly need a way to ask a node for it's concepts/sections?")
-					# foreach my $k ( keys %{$self->{info}} )
-					# {
-					# 	NMISNG::Util::dbg( "Node=$self->{name} info $k=$self->{info}{$k}", 3 );
-					# }
+					my $values = $self->nmisng_node->get_distinct_values(
+						collection => $self->nmisng->inventory_collection,
+						filter => { enabled => 1, historic => 0 },
+						key => 'subconcepts'
+					);
+					# NOTE, this is an attempt at recreateing the output, it may not be what we want
+					NMISNG::Util::TODO("Recreate this debug output, possibly need a way to ask a node for it's concepts/sections?");
+					foreach my $value ( @$values )
+					{
+						NMISNG::Util::dbg( "Node=$self->{name} info $value", 3 );
+					}
 				}
-				NMISNG::Util::dbg("info of node=$self->{name} loaded");
 			}
 			# or bail out if this is not an update operation, all gigo if we continued w/o.
 			elsif ( !$self->{update} )
@@ -1891,7 +1897,6 @@ sub prep_extras_with_catchalls
 			if( $interface_inventory )
 			{
 				# no fallback to info section as interface update is running
-				# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
 				$data = $interface_inventory->data();
 				foreach my $key (qw(ifAlias Description ifType))
 				{

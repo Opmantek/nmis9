@@ -368,6 +368,8 @@ sub eventDelete
 	$event->{node_uuid} = $self->uuid;
 	# just make sure this isn't passed in
 	delete $event->{node};
+	$args{event} = $event;
+
 	return $self->nmisng->events->eventDelete(event => $event);
 }
 
@@ -397,6 +399,7 @@ sub eventUpdate
 	my ($self, %args) = @_;
 	my $event = $args{event};
 	$event->{node_uuid} = $self->uuid;
+	$args{event} = $event;
 	return $self->nmisng->events->eventUpdate(%args);
 }
 
@@ -412,7 +415,7 @@ sub get_events_model
 {
 	my ( $self, %args ) = @_;
 	# modify filter to make sure it's getting just events for this node
-	$args{filter} //= {};;
+	$args{filter} //= {};
 	$args{filter}->{node_uuid} = $self->uuid;
 	return $self->nmisng->events->get_events_model( %args );
 }
@@ -461,12 +464,28 @@ sub get_distinct_values
 	my ($self, %args) = @_;
 	my $collection = $args{collection};
 	my $key = $args{key};
-	my $filter = $args{filter};
+	my $filter = $args{filter} // {};
 
 	$filter->{cluster_id} = $self->cluster_id;
 	$filter->{node_uuid} = $self->uuid;
-
+	
 	return $self->nmisng->get_distinct_values( collection => $collection, key => $key, filter => $filter );
+}
+
+# wrapper around the global status model accessor
+# which adds in the  current node's uuid and cluster id
+# returns: modeldata object (may be empty, do check ->error)
+sub get_status_model
+{
+	my ( $self, %args ) = @_;
+	my $filter = $args{filter} // {};
+
+	$filter->{cluster_id} = $self->cluster_id;
+	$filter->{node_uuid} = $self->uuid;
+	$args{filter} = $filter;
+
+	my $result = $self->nmisng->get_status_model(%args);
+	return $result;
 }
 
 # find or create inventory object based on arguments
@@ -5026,8 +5045,10 @@ sub process_alerts
 		}
 
 		### save the Alert result into the Status thingy
-		my $statusKey = "$alert->{event}--$alert->{ds}";
-		$S->compat_nodeinfo->{status}->{$statusKey} = {
+		my $status_obj = NMISNG::Status->new(
+			nmisng   => $self->nmisng,
+			cluster_id => $self->cluster_id,
+			node_uuid => $self->uuid,
 			method   => "Alert",
 			type     => $alert->{type},
 			property => $alert->{test},
@@ -5041,7 +5062,8 @@ sub process_alerts
 			value    => $alert->{value},
 			updated  => time(),
 			inventory_id => $alert->{inventory_id}
-		};
+		);
+		$status_obj->save();
 	}
 }
 
