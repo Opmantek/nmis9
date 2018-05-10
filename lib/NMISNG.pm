@@ -700,7 +700,7 @@ sub compute_thresholds
 	my $status_objs = $objects_ret->{objects} // [];
 	if( !$objects_ret->{success} )
 	{
-		$self-log->error("Failed to get status data for node:".$S->nmisng_node->name." error:".$objects_ret->{error});
+		$self->log->error("Failed to get status data for node:".$S->nmisng_node->name." error:".$objects_ret->{error});
 	}
 	foreach my $status_obj (@$status_objs)
 	{
