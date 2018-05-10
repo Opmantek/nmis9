@@ -67,7 +67,7 @@ sub new
 	confess "nmisng required" if ( ref( $args{nmisng} ) ne "NMISNG" );
 	confess "cluster_id required" if ( !$args{cluster_id} );
 
-	my ( $nmisng ) = @args{'nmisng'};
+	my $nmisng = $args{'nmisng'};
 	delete $args{nmisng};
 	
 	my $self = bless(
