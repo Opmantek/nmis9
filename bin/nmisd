@@ -561,10 +561,14 @@ while (!$exit_marker)
 			$nmisng->log->info("Single worker cycle returned status $status");
 			# save the state more often for foreground/debug mode
 			NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
+			
+			if( defined($cmdline->{max_jobs}) )
+			{
+				$cmdline->{max_jobs}--;
+				$exit_marker = 1 if($cmdline->{max_jobs} < 1); 
+			}
 			last if ($status == EXIT_IDLE or $exit_marker);
 		}
-
-
 	}
 	else	# process management only in non-debug mode
 	{

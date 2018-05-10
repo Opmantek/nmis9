@@ -2525,13 +2525,15 @@ sub process_escalations
 	# pull the system timezone and then the local time
 	my $msgtime = NMISNG::Util::get_localtime();
 
-	# first load all non-historic events for all nodes
-	my $activemodel = $self->events->get_events_model( filter => {historic => 0, active => 1} );
+	# first load all non-historic events for all nodes for this cluster
+	my $activemodel = $self->events->get_events_model( filter => {historic => 0, active => 1, 
+		cluster_id => $self->config->{cluster_id}} );
 	if ( my $error = $activemodel->error )
 	{
 		$self->log->error("Failed to retrieve active events: $error");
 	}
-	my $inactivemodel = $self->events->get_events_model( filter => {historic => 0, active => 0} );
+	my $inactivemodel = $self->events->get_events_model( filter => {historic => 0, active => 0,
+		cluster_id => $self->config->{cluster_id}} );
 	if ( my $error = $inactivemodel->error )
 	{
 		$self->log->error("Failed to retrieve inactive events: $error");

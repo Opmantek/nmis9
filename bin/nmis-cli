@@ -468,9 +468,30 @@ elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 {
 	my $wantabort = ($1 eq "abort");
 
-	die "No schedule ID given!\n" if (!$Q->{id});
-	my @todo = ref($Q->{id}) eq "ARRAY"? @{$Q->{id}}: $Q->{id};
-
+	die "No schedule ID given!\n" if (!$Q->{id} && !$Q->{remove_all});
+	
+	my @todo;
+	@todo = ref($Q->{id}) eq "ARRAY"? @{$Q->{id}}: $Q->{id} if($Q->{id});
+	if( $Q->{remove_all} )
+	{
+		# look for any job.* values and try and filter by themn
+		my %args;
+		foreach my $key (keys %$Q)
+		{
+			if( $key =~ /^job\.(.*)$/)
+			{
+				my ($filter_key) = ($1);
+				$args{$filter_key} = $Q->{$key};
+			}
+		}
+		my $jobs = $nmisng->get_queue_model(%args);
+		if (my $fault = $jobs->error)
+		{
+			die "Failed to lookup schedule: $fault\n";
+		}
+		@todo = map { $_->{_id}{value} } (@{$jobs->data()});		
+	}	
+	
 	for my $id (@todo)
 	{
 		if ($wantabort)
