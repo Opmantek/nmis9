@@ -35,12 +35,13 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use NMISNG::Util;
+use Compat::NMIS;								# for nmisng::util::dbg, fixme9
 
 my ($template, $live, $wantdebug) = @ARGV;
 if (!$template or !-f $template or !$live)
 {
 	my $me = basename($0);
-	
+
 	die "Usage: $me <default template> <live config>
 e.g. $me /usr/local/nmis9/conf-default/Config.nmis /usr/local/nmis9/conf/Config.nmis
 
@@ -73,7 +74,7 @@ exit 0;
 # recursively fill in _missing_ things from install into live
 # args: install, live - hash ref, loc (textual), further recursion allowed yes/no
 # returns: nothing
-sub updateConfig 
+sub updateConfig
 {
 	my ($install, $live, $loc, $recurseok, $accum) = @_;
 
@@ -110,4 +111,3 @@ sub updateConfig
 	}
 	return;
 }
-

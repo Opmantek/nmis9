@@ -50,6 +50,7 @@ use Mojo::File;
 use NMISNG;
 use NMISNG::Log;
 use NMISNG::Util;
+use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]

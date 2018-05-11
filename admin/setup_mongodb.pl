@@ -43,6 +43,7 @@ use Tie::IxHash;
 
 use NMISNG::DB;
 use NMISNG::Util;
+use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 
 if (@ARGV == 1 && $ARGV[0] =~ /^--?(h|help|\?)$/i)
 {
@@ -83,7 +84,7 @@ been setup with a database user that has full administrative credentials.
 
 To configure MongoDB on a remote server please see the documentation at
 https://community.opmantek.com/x/h4Aj\n\n";
-	
+
 	input_ok("Hit enter to continue, Ctrl-C to abort: ");
 	print "\n";
 	$islocal=0;
@@ -149,8 +150,8 @@ if (!$isnoauth)
 	print "\n";
 	$adminpwd = input_str("Enter your MongoDB ADMIN password",$conf->{db_password},1);
 	print "\n";
-	
-	
+
+
 	# old mongo driver: can authenticate at run time
 	# new mongo driver: can ONLY authenticate at connection creation time!
 	my $authfailed;
@@ -176,7 +177,7 @@ if (!$isnoauth)
 																				 db => $conn->get_database("admin"));
 		$authfailed = $verify->{err} if (!$verify->{ok});
 	}
-	
+
 	print $authfailed? "ERROR $authfailed\nWill attempt to continue!\n"
 			: "INFO: authentication succeeded.\n";
 }
@@ -203,7 +204,7 @@ print "INFO: server version is $serverinfo->{version}.\n";
 
 # check whether the user exists already, if so grant full privileges for all dbs and ensure the password is set
 my $userlist = NMISNG::DB::run_command(db => $admindb,
-																			 command => { 
+																			 command => {
 																				 "usersInfo" => { user => $adminuser, db => "admin" }, });
 # returns users->[0], roles are array of hashes in users->[0]->roles, keys db and role
 if (ref($userlist) ne "HASH" or ref($userlist->{users}) ne "ARRAY" or !@{$userlist->{users}})
@@ -215,7 +216,7 @@ if (ref($userlist) ne "HASH" or ref($userlist->{users}) ne "ARRAY" or !@{$userli
 																						 "createUser" => $adminuser,
 																						 "pwd" => $adminpwd,
 																						 "roles" => ['root'] ) );
-	
+
 	warn "creating $adminuser with root role failed: $create_result\n"
 			if (ref($create_result) ne "HASH");
 	warn "creating $adminuser with root role failed: $create_result->{errmsg}\n"
@@ -230,7 +231,7 @@ else
 			if (ref($privl_result) ne "HASH");
 	warn "upgrade to root role for $adminuser failed: $privl_result->{errmsg}\n"
 			if (!$privl_result->{ok});
-	
+
 	print "INFO: setting password for user $adminuser\n";
 	$cmd = Tie::IxHash->new("updateUser" => $adminuser, "pwd" => $adminpwd);
 	my $pwd_result =  NMISNG::DB::run_command(db => $admindb, command => $cmd);
@@ -275,7 +276,7 @@ else
 			if (ref($privl_result) ne "HASH");
 	warn "upgrade to dbOwner role for $dbuser failed: $privl_result->{errmsg}\n"
 			if (!$privl_result->{ok});
-	
+
 	print "INFO: setting password for user $dbuser\n";
 	$cmd = Tie::IxHash->new("updateUser" => $dbuser, "pwd" => $password);
 	my $pwd_result =  NMISNG::DB::run_command(db => $dbhandle, command => $cmd);
@@ -283,7 +284,7 @@ else
 			if (ref($pwd_result) ne "HASH");
 	warn "setting password for $dbuser failed: $pwd_result->{errmsg}\n"
 			if (!$pwd_result->{ok});
-	
+
 }
 
 # warn about auth being very much recommended!

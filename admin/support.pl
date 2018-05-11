@@ -37,7 +37,7 @@ use Cwd;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use Compat::NMIS;								# fixme9: replace with direct/full db access?
+use Compat::NMIS;	# fixme9: replace with direct/full db access?
 
 print "Opmantek NMIS Support Tool Version $VERSION\n";
 

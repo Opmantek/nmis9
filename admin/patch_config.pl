@@ -40,6 +40,7 @@ use Data::Dumper;
 use File::Basename;
 use Getopt::Std;
 use NMISNG::Util;
+use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -47,12 +48,12 @@ if (@ARGV == 1 && $ARGV[0] eq "--version")
 	exit 0;
 }
 
-# fixme: maybe add capability for making an empty hash, empty array? 
+# fixme: maybe add capability for making an empty hash, empty array?
 my $usage = "Usage: ".basename($0)." [-fb] [-n] <configfile.nmis> <key=newvalue ...>
 
 key is either 'confkeyname' or '/section/sub1/sub2/keyname'
 
-operation is = for overwriting scalar, 
+operation is = for overwriting scalar,
 or += for adding to array (only if missing)
 or ,= for adding to comma-separated list (only if missing)
 newvalue is value to set or \"undef\".
@@ -69,13 +70,13 @@ my $config_file = shift(@ARGV);
 die "Config file \"$config_file\" does not exist or isn't readable!\n"
 		if (!-e $config_file or !-r $config_file);
 
-NMISNG::Util::loadConfTable();	# or else writeHashtoFile will fail, as it calls 
-# setfileprot which then has no config values for perms and uid/gid. 
+NMISNG::Util::loadConfTable();	# or else writeHashtoFile will fail, as it calls
+# setfileprot which then has no config values for perms and uid/gid.
 
 print "Operating on config file: $config_file\n\n";
 my $cfg = NMISNG::Util::readFiletoHash(file => $config_file);
 
-die "Config file \"$config_file\" was not parseable or is empty!\n" 
+die "Config file \"$config_file\" was not parseable or is empty!\n"
 		if (!$cfg);
 
 my @patches;
@@ -109,9 +110,9 @@ while (grep(defined $_, @patches))
 	# handle mods to fully existing keys
 	my $errmsg = patch_config($cfg, undef, undef);
 	die "Patching failed: $errmsg\n" if ($errmsg);
-	
+
 	# but there might be new stuff, too
-	# this function only applies ONE patch, as afterwards we might 
+	# this function only applies ONE patch, as afterwards we might
 	# have to go back to the existing key case
 	$errmsg = &add_new();
 	die "Adding of new entries failed: $errmsg\n" if ($errmsg);
@@ -126,7 +127,7 @@ NMISNG::Util::writeHashtoFile(file => $config_file, data => $cfg);
 # args: current location in cfg tree, path name, elem name (if any)
 # uses global %patches, updates the cfg tree
 # returns undef if successful, error message otherwise
-sub patch_config 
+sub patch_config
 {
 	my ($curloc, $curpath, $curelem) = @_;
 
@@ -135,7 +136,7 @@ sub patch_config
 	{
 		for my $subkey (sort keys %$curloc)
 		{
-			my $error = patch_config(ref($curloc->{$subkey})? $curloc->{$subkey} 
+			my $error = patch_config(ref($curloc->{$subkey})? $curloc->{$subkey}
 															 : \$curloc->{$subkey} ,"$curpath/$subkey",$subkey);
 			return $error if $error;
 		}
@@ -160,11 +161,11 @@ sub patch_config
 				# ensure that the value isn't in that list already
 				$curloc = add_to_list_unique($curloc, $value);
 
-				# patch applied, no longer needed, delete 
+				# patch applied, no longer needed, delete
 				$patches[$pidx] = undef;
 			}
 		}
-		
+
 		# now recurse into array
 		for my $idx (0..$#$curloc)
 		{
@@ -210,7 +211,7 @@ sub patch_config
 	else
 	{
 		die "Unexpected element encountered in $curpath!\n";
-	}			
+	}
 
   return undef;
 }
@@ -219,7 +220,7 @@ sub patch_config
 # ignores ref is not listref, and makes a new one
 
 # args: ref to list, new elem
-# returns: list ref 
+# returns: list ref
 sub add_to_list_unique
 {
 	my ($listref, $newelem) = @_;
@@ -238,7 +239,7 @@ sub add_to_list_unique
 # returns undef if ok, error message otherwise
 sub add_new
 {
-	# now deal with the FIRST of the remaining patches, which clearly 
+	# now deal with the FIRST of the remaining patches, which clearly
 	# must be related to nonexistent data
 	for my $pidx (0..$#patches)
 	{
@@ -252,7 +253,7 @@ sub add_new
 		# /this/and/key[5]/subkey[7]/thingy = whatever
 		# make the bla[x] steps an easier to parse /bla/[x]
 		my $consume = $patchpath;
-		$consume =~ s!\[!/[!g;		
+		$consume =~ s!\[!/[!g;
 
 		my @elems = (split(m!/!, $consume));
 		for my $pathidx (1..$#elems)
@@ -268,18 +269,18 @@ sub add_new
 				if ($needarray)
 				{
 					die "cannot convert existing object $elem in $patchpath to ".ref($nextblank)
-							." without -f\n" 
+							." without -f\n"
 							if (!$opts{f} &&  exists $parent->[$elem] && ref($parent->[$elem]) ne ref($nextblank));
 
 					$parent->[$elem] = $nextblank
-							if (!exists $parent->[$elem] or ref($parent->[$elem]) ne ref($nextblank)); 
+							if (!exists $parent->[$elem] or ref($parent->[$elem]) ne ref($nextblank));
 
 					$parent = $parent->[$elem];
 				}
 				else
 				{
 					die "cannot convert existing object $elem in $patchpath to ".ref($nextblank)
-							." without -f\n" 
+							." without -f\n"
 							if (!$opts{f} &&  exists $parent->{$elem} && ref($parent->{$elem}) ne ref($nextblank));
 
 					$parent->{$elem} = $nextblank
@@ -293,18 +294,18 @@ sub add_new
 				{
 					if ($op eq "+=")
 					{
-						die "cannot convert structure at $elem to ARRAY without -f\n" 
+						die "cannot convert structure at $elem to ARRAY without -f\n"
 								if (ref($parent->[$elem]) && ref($parent->[$elem]) ne "ARRAY" && !$opts{f});
-						
+
 						print "Adding to new array $patchpath\n";
 						$parent->[$elem] = [];
 						add_to_list_unique($parent->[$elem], $value);
 					}
 					else
 					{
-						die "cannot overwrite deep structure at $elem without -f\n" 
+						die "cannot overwrite deep structure at $elem without -f\n"
 								if (ref($parent->[$elem]) && !$opts{f});
-						
+
 						print "Creating new element $patchpath\n";
 						$parent->[$elem] = $value;
 					}
@@ -313,23 +314,23 @@ sub add_new
 				{
 					if ($op eq "+=")
 					{
-						die "cannot convert structure at $elem to ARRAY without -f\n" 
+						die "cannot convert structure at $elem to ARRAY without -f\n"
 								if (ref($parent->{$elem}) && ref($parent->{$elem}) ne "ARRAY" && !$opts{f});
-						
+
 						print "Adding to new array $patchpath\n";
 						$parent->{$elem} = [];
 						add_to_list_unique($parent->{$elem}, $value);
 					}
 					else
 					{
-						die "cannot overwrite deep structure at $elem without -f\n" 
+						die "cannot overwrite deep structure at $elem without -f\n"
 								if (ref($parent->{$elem})  && !$opts{f});
-						
+
 						print "Creating new element $patchpath\n";
 						$parent->{$elem} = $value;
 					}
 				}
-		 
+
 			}
 		}
 		# patch applied, no longer needed, forget it

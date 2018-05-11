@@ -36,13 +36,14 @@ use File::Basename;
 use Getopt::Std;
 
 use NMISNG::Util;
+use Compat::NMIS;								# for nmisng::util::dbg, fixme9
 
 my $usage="Usage: ".basename($0)." [-q] <CONFIG_1> <CONFIG_2 or dir>
 eg: ".basename($0)." /usr/local/nmis9/conf-default/Config.nmis /usr/local/nmis9/conf/
 
 This script compares two NMIS Config files and reports the differences.
 
-If the second argument is a directory, then the relative file name 
+If the second argument is a directory, then the relative file name
 from CONFIG_1 will be used inside the CONFIG_2 directory.
 
 Exit code 0: no differences, exit code 1: differences were found, other exit codes: internal failure\n\n";
@@ -50,7 +51,7 @@ Exit code 0: no differences, exit code 1: differences were found, other exit cod
 my %opts;
 getopts("q",\%opts) or die $usage;
 
-die($usage) if (@ARGV != 2 or !-f $ARGV[0] or (!-f $ARGV[1] 
+die($usage) if (@ARGV != 2 or !-f $ARGV[0] or (!-f $ARGV[1]
 																							 and !-d $ARGV[1]));
 my ($cf1,$cf2)=@ARGV;
 
@@ -69,7 +70,7 @@ compare($c1,$c2,"");
 
 my @diffsummary;
 
-# compare deep structures first and second and print differences 
+# compare deep structures first and second and print differences
 # is called recursive, curpath identifies the location
 sub compare
 {
@@ -146,4 +147,3 @@ else
 	print "No differences found.\n";
 	exit 0;
 }
-
