@@ -30,7 +30,7 @@ perl-Authen-SASL perl-B-Hooks-EndOfScope perl-boolean perl-Capture-Tiny \
 perl-Class-Inspector perl-Class-Data-Inheritable \
 perl-DateTime  perl-Devel-StackTrace perl-Devel-GlobalDestruction-XS \
 perl-List-MoreUtils perl-File-ShareDir perl-Carp-Assert \
-perl-Try-Tiny perl-Text-CSV perl-Proc-Queue perl-Tie-IxHash \
+perl-Try-Tiny perl-Text-CSV perl-Text-CSV_XS perl-Proc-Queue perl-Tie-IxHash \
 perl-Safe-Isa perl-Test-Requires \
 perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta \
 perl-Class-XSAccessor perl-JSON-MaybeXS perl-Test-Deep \
@@ -63,7 +63,7 @@ else
     libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl \
     libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
     libmongodb-perl libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl
-    libtext-csv-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl"
+    libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl"
 
 		# 9/stretch has that in perl, older need the updated package
 		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl"

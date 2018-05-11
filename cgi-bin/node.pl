@@ -1,12 +1,10 @@
 #!/usr/bin/perl
 #
-## $Id: node.pl,v 8.5 2012/04/28 00:59:36 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
-#  This file is part of Network Management Information System (“NMIS”).
+#  This file is part of Network Management Information System ( NMIS ).
 #
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -33,39 +31,38 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#
 use strict;
-use List::Util;
+use List::Util 1.33;						# older versions don't have a usable any()
+use Time::ParseDate;
+use URI::Escape;
+use Data::Dumper;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Text::CSV;
+
 use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::Sys;
 use NMISNG::rrdfunc;
-use Time::ParseDate;
-use URI::Escape;
-
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
+use NMISNG::Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
 
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+my $nmisng = Compat::NMIS::new_nmisng;
+my $C = $nmisng->config;
 NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
-# NMIS Authentication module
-use NMISNG::Auth;
+# if arguments present, then called from command line, no auth.
+if ( @ARGV ) { $C->{auth_require} = 0; }
+
 my $user;
 my $privlevel;
 
-# variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C);  
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -77,27 +74,41 @@ if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$heade
 
 #======================================================================
 
-# select function
+# cancel? go to graph view
+if ($Q->{cancel} || $Q->{act} eq 'network_graph_view')
+{
+	typeGraph();
+}
+elsif ($Q->{act} eq 'network_export')
+{
+	typeExport();
+}
+elsif ($Q->{act} eq 'network_export_options')
+{
+	show_export_options();
+}
+elsif ($Q->{act} eq 'network_stats')
+{
+	typeStats();
+}
+else { bailout(message => "Unrecognised arguments! act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}<br>")};
 
-if ($Q->{act} eq 'network_graph_view') {		typeGraph();
-} elsif ($Q->{act} eq 'network_export') {		typeExport();
-} elsif ($Q->{act} eq 'network_stats') {		typeStats();
-} else { notfound(); }
+exit 0;
 
-sub notfound {
-	my ($message) = @_;
-	print header($headeropts);
-	print start_html();
-	print "Network: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf} <br>\n";
-	print $message || "Request not found\n";
-	print end_html;
+# print minimal header, complaint message and exits
+# args: code (optional, default: 400), message (required)
+sub bailout
+{
+	my (%args) = @_;
+
+	my $code = $args{code} // 400;
+	my $message = $args{message} // "Failure";
+	print header(-status => $code), start_html, $message, end_html;
+	exit 0;
 }
 
-exit;
-
-#============================================================
-
-sub typeGraph {
+sub typeGraph
+{
 	my %args = @_;
 
 	my $node = $Q->{node};
@@ -115,14 +126,12 @@ sub typeGraph {
 	my $p_date_end = $Q->{p_date_end};
 	my $graphx = $Q->{'graphimg.x'}; # points
 	my $graphy = $Q->{'graphimg.y'};
-
 	my $graphtype = $Q->{graphtype};
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
 	my $urlsafeindex= uri_escape($index);
 	my $urlsafeitem = uri_escape($item);
-
 
 	my $length;
 
@@ -136,11 +145,11 @@ sub typeGraph {
 	my $loadok = $S->init(name => $node);
 	if ($node && !$loadok)
 	{
-		return notfound("Node $node not found");
+		bailout(message => "Node $node not found");
 	}
 	# fixme9: catchall_data is not even used?!?
 	my $catchall_data = $node? $S->inventory( concept => 'catchall' )->data_live() : {};
-			
+
 	my $M = $S->mdl;
 	my $V = $S->view;
 
@@ -160,7 +169,7 @@ sub typeGraph {
 		'a3errors'		=> 'Errors'	);
 
 	# graphtypes for custom service graphs are fixed and not found in the model system
-	# note: format known here, in services.pl and poll
+	# note: format known here, in services.pl and NMISNG::Node
 	my $heading;
 	if ($graphtype =~ /^service-custom-([a-z0-9\.-])+-([a-z0-9\._-]+)$/)
 	{
@@ -172,12 +181,6 @@ sub typeGraph {
 	}
 
 	print header($headeropts);
-	my $opcharts_scripts = "";
-	if( $C->{display_opcharts} ) {
-		$opcharts_scripts = "<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>".
-			"<script src=\"$C->{'highstock'}\" type=\"text/javascript\"></script>".
-			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>";
-	}
 	print start_html(
 		-title => "Graph Drill In for $heading @ ".NMISNG::Util::returnDateStamp." - $C->{server_name}",
 		-meta => { 'CacheControl' => "no-cache",
@@ -185,14 +188,13 @@ sub typeGraph {
 			'Expires' => -1
 			},
 		-head=>[
-			Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
-			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"}),
-			$opcharts_scripts
-			]
+			 Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
+			 Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+		],
+		-script => {-src => $C->{'jquery'}, -type=>"text/javascript"},
 		);
 
 	# verify that user is authorized to view the node within the user's group list
-
 	if ( $node ) {
 		if ( ! $AU->InGroup($NT->{$node}{group}) ) {
 			print "Not Authorized to view graphs on node '$node' in group $NT->{$node}{group}";
@@ -204,6 +206,8 @@ sub typeGraph {
 			return 0;
 		}
 	}
+
+
 	my $time = time();
 
 	my $width = $C->{graph_width};
@@ -283,21 +287,6 @@ sub typeGraph {
 	$date_start = NMISNG::Util::returnDateStamp($start);
 	$date_end = NMISNG::Util::returnDateStamp($end);
 
-
-	my $GTT = $S->loadGraphTypeTable(index=>$index);
-	my $section;
-	if ($Q->{graphtype} eq 'metrics') {
-		$group = 'network' if $group eq "";
-		$item = $group;
-	}
-	elsif ($Q->{graphtype} =~ /cbqos/) 
-	{
-		$section = $Q->{graphtype};
-	} 
-	elsif ($GTT->{$graphtype} eq 'interface') {
-		$item = '';
-	}
-
 	### 2012-04-12 keiths, fix for node list with unauthorised nodes.
 	my @nodelist;
 	for my $node ( sort keys %{$NT}) {
@@ -319,161 +308,145 @@ sub typeGraph {
 			}
 		}
 	}
-	print comment("typeGraph begin");
 
-	# fixme9: we have enough data to not need getTypeInstances anymore, should be able to
-	# directly access inventory
-	
-	# section needed to find cbqos instances
-	my $modeldata = $S->getTypeInstances(section => $section, 
-																			 graphtype => $graphtype, 
-																			 want_modeldata => 1, 
-																			 want_active => 1 );
-	# fixme9: non-node mode means no graphttypetable means no menu and nothing works...
-	$GTT->{$graphtype} = $graphtype if (!$node && !$modeldata->count && !keys %$GTT);
-			
-	my $data = $modeldata->data;
-	# we can assume that the concept is the same in all entries
-	my $concept = ($modeldata->count > 0) ? $data->[0]{concept} : undef;	
-	my $subconcept = $GTT->{$graphtype};
-	my %index_map = map { $_->{data}{index} => $_ } @$data;
-	my $index_model = ($index) ? $index_map{$index} : {};
+	my $GTT = $S->loadGraphTypeTable(index=>$index);
+	my $section;
 
-	# different graphs get their label/name from different places, this normalises
-	# that and allows grabbing the data from the inventory model
-	# do this by subconcept, concept is too broad, things like storage break it
-	my %title_struct = (
-		hrsmpcpu => { name => 'CPU' },
-		hrdisk => { name => 'Disk', label_key =>'hrStorageDescr' },
-		interface => { name => 'Interface', label_key => 'ifDescr' },
-		pkts => { name => 'Interface', label_key => 'ifDescr' },
-		pkts_hc => { name => 'Interface', label_key => 'ifDescr' },
-		'cbqos-in' => { name => 'Interface', label_key => 'ifDescr' },
-		'cbqos-out' => { name => 'Interface', label_key => 'ifDescr' },
-	);
-
-	$S->nmisng->log->debug("concept:$concept,subconcept:$subconcept,graphtype:$graphtype index:$index");
-	# get the dropdown info for system health, we need to figure out which of the 
-	# inventory data entries should be used for the label_key and name
-	if( $concept && defined($M->{systemHealth}{sys}{$concept}) )
-	{		
-		my $sys = $M->{systemHealth}{sys}{$concept};		
-		my $systemHealthLabel;
-		my $systemHealthTitle = "";
-
-		# all model entries will have the same inventory concept so just use the first one
-		if( @$data > 0 )
-		{
-			my $model = $data->[0];
-			$S->nmisng->log->debug("model, index: $model->{data}{index}");
-			if ( $sys->{headers} !~ /,/ ) {
-				$systemHealthLabel = $sys->{headers};
-			}
-			else {
-				my @tmpHeaders = split(",",$sys->{headers});
-				$systemHealthLabel = $tmpHeaders[0];
-			}
-
-			if ( exists $sys->{snmp}{$systemHealthLabel}{title} and $sys->{snmp}{$systemHealthLabel}{title} ne "" ) {
-				$systemHealthTitle = $sys->{snmp}{$systemHealthLabel}{title};
-			}
-			else {
-				$systemHealthTitle = $systemHealthLabel;
-			}			
-			# indexes are already where they should be
-		}
-		$title_struct{$subconcept} = { name => $systemHealthTitle, label_key => $systemHealthLabel };
+	if ($Q->{graphtype} eq 'metrics')
+	{
+		$group = 'network' if $group eq "";
+		$item = $group;
+	}
+	elsif ($Q->{graphtype} =~ /cbqos/)
+	{
+		$section = $Q->{graphtype};
+	}
+	elsif ($GTT->{$graphtype} eq 'interface') {
+		$item = '';
 	}
 
-	print start_form( -method=>'get', -name=>"dograph", -action=>url(-absolute=>1));
+	my ($title_struct, $concept, $subconcept, $index_model, $data) = get_graphtype_titles(sys => $S, graphtype => $graphtype,
+																																	 graphtypetable => $GTT,
+																																	 section => $section,
+																																	 index => $index);
 
-	print start_table();
+
+	$S->nmisng->log->debug("concept:$concept,subconcept:$subconcept,graphtype:$graphtype index:$index section:$section");
+
+	# primary form part - if we want the url to have the params then we need to use GET
+	# and tell cgi explicitely to use the appropriate encoding type...
+
+	print start_form(-method => 'GET', -enctype => "application/x-www-form-urlencoded",
+									 -name=>"dograph", -action=>url(-absolute=>1)),
+	start_table();
 
 	#print Tr(th({class=>'title',colspan=>'1'},"<div>$heading<span class='right'>User: $user, Auth: Level$privlevel</span></div>"));
 	print Tr(th({class=>'title',colspan=>'1'},"$heading"));
 	print Tr(td({colspan=>'1'},
-			table({class=>'table',width=>'100%'},
-				Tr(
-				# Start date field
-				td({class=>'header',align=>'center',colspan=>'1'},"Start",
-					textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
-				# Node select menu
-				td({class=>'header',align=>'center',colspan=>'1'},eval {
-						return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
-							if $graphtype eq 'metrics' or $graphtype  eq 'nmis';
-						return "Node ",popup_menu(-name=>'node', -override=>'1', 
-																			tabindex=>"3",
-																			-values=>[@nodelist],
-																			-default=>"$Q->{node}",
-																			-onChange=>'JavaScript:this.form.submit()');
-					}),
-				# Graphtype select menu
-				# NOTE: this list needs to be adjusted to only show things are actually collect/storing
-				#   cbqos-in/out is one example that isn't working
-				td({class=>'header',align=>'center',colspan=>'1'},"Type ",
-					popup_menu(-name=>'graphtype', -override=>'1', tabindex=>"4",
-						-values=>[sort keys %{$GTT}],
-						-default=>"$graphtype",
-						-onChange=>'JavaScript:this.form.submit()')),
-				# Submit button
-				td({class=>'header',align=>'center',colspan=>'1'},
-					submit(-name=>"dograph",-value=>"Submit"))),
-				# next row
-				Tr(
-				# End date field
-				td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
-					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
+							table({class=>'table',width=>'100%'},
+										Tr(
+											# Start date field
+											td({class=>'header',align=>'center',colspan=>'1'},"Start",
+							 textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
+											# Node select menu
+											td({class=>'header',align=>'center',colspan=>'1'},eval {
+												return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
+														if $graphtype eq 'metrics' or $graphtype  eq 'nmis';
+												return "Node ",popup_menu(-name=>'node', -override=>'1',
+																									tabindex=>"3",
+																									-values=>[@nodelist],
+																									-default=>"$Q->{node}",
+																									-onChange=>'this.form.submit()');
+												 }),
+											# Graphtype select menu
+											# fixme9: this list needs to be adjusted to only show things are actually collect/storing
+											#   cbqos-in/out is one example that isn't working
+											td({class=>'header',align=>'center',colspan=>'1'},"Type ",
+												 popup_menu(-name=>'graphtype', -override=>'1', tabindex=>"4",
+																		-values=>[sort keys %{$GTT}],
+																		-default=>"$graphtype",
+																		-onChange=>'this.form.submit()')),
+											# Submit button
+											td({class=>'header',align=>'center',colspan=>'1'},
+												 submit(-name=>"dograph",-value=>"Submit"))),
+										# next row
+										Tr(
+											# End date field
+											td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
+												 textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
 
-				# Group or Interface select menu
-				td({class=>'header',align=>'center',colspan=>'1'}, eval {
-						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $graphtype eq 'nmis';
-						if( defined( $title_struct{ $subconcept } ) )
-						{							
-							my $def = $title_struct{ $subconcept };							
-							my @sorted = sort { $a->{data}{index} <=> $b->{data}{index} } @$data;
-							my @values = map { $_->{data}{index} } @sorted;
-							my %labels = ( defined($def->{label_key}) ) ? map { $_->{data}{index} => $_->{data}{ $def->{label_key} } } @sorted : undef;
-							unshift @sorted, '';
-							return "$def->{name} ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['', @values],
-										-default=>"$index",
-										-labels=> \%labels,
-										-onChange=>'JavaScript:this.form.submit()');
-						}
-						elsif ( $graphtype eq "metrics") {
-							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
-										-default=>"$group",
-										-onChange=>'JavaScript:this.form.submit()'),
-										hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
-						}
-					 	elsif ($graphtype =~ /service|service-cpumem|service-response/) {
-							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',tabindex=>"5",
-										-values=>['',sort $S->getTypeInstances(section => "service")],
-										-default=>"$index",
-										-onChange=>'JavaScript:this.form.submit()');
-						}
-					}),
-				# Fast select graphtype buttons
-				td({class=>'header',align=>'center',colspan=>'2'}, div({class=>"header"}, eval {
-						my @out;
-						my $cg = "group=$urlsafegroup&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
-						foreach my $gtp (keys %graph_button_table) {
-							foreach my $gt (keys %{$GTT}) {
-								if ($gtp eq $gt) {
-									push @out,a({class=>'button', tabindex=>"-1", 
-															 href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},
-															$graph_button_table{$gtp});
-								}
-							}
-						}
-						if (not($graphtype =~ /cbqos/ and $Q->{item} eq '')) {
-							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$graphtype"},"Export");
-							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$graphtype"},"Stats");
-						}
-						push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},"NMIS");
-						return @out;
-					})) ))));
+											# Group or Interface select menu
+											td({class=>'header',align=>'center',colspan=>'1'}, eval {
+												return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $graphtype eq 'nmis';
+												if( defined( $title_struct->{ $subconcept } ) )
+												{
+													my $def = $title_struct->{ $subconcept };
+
+													my @sorted = sort { $a->{data}{index} <=> $b->{data}{index} } @$data;
+													my @values = map { $_->{data}{index} } @sorted;
+													my %labels = ( defined($def->{label_key}) ) ? map { $_->{data}{index} => $_->{data}{ $def->{label_key} } } @sorted : undef;
+													unshift @sorted, '';
+													return "$def->{name} ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																														-values=>['', @values],
+																														-default=>"$index",
+																														-labels=> \%labels,
+																														-onChange=>'this.form.submit()');
+												}
+												elsif ( $graphtype eq "metrics") {
+													return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
+																											-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
+																											-default=>"$group",
+																											-onChange=>'this.form.submit()'),
+													hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
+												}
+												elsif ($graphtype =~ /service|service-cpumem|service-response/) {
+													return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',tabindex=>"5",
+																												-values=>['',sort $S->getTypeInstances(section => "service")],
+																												-default=>"$index",
+																												-onChange=>'this.form.submit()');
+												}
+												 }),
+											# Fast select graphtype buttons
+
+											td({class=>'header',align=>'center',colspan=>'2'},
+												 div({class=>"header"},
+														 eval {
+															 my @out;
+															 my $cg = "group=$urlsafegroup&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
+
+															 push @out, a({class=>'button', tabindex=>"-1",
+																						 href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},
+																						"NMIS");
+
+															 foreach my $gtp (keys %graph_button_table) {
+																 foreach my $gt (keys %{$GTT}) {
+																	 if ($gtp eq $gt) {
+																		 push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},$graph_button_table{$gtp});
+																	 }
+																 }
+															 }
+
+															 if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq ''))
+															 {
+																 push @out,a({class=>'button', tabindex=>"-1",
+																							href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$Q->{graphtype}"},
+																						 "Stats");
+
+																 # export: one link, direct export with default resolution,
+																 # one link to a separate page with option form
+																 push @out, (
+																	 a({class=>'button', tabindex=>"-1",
+																			href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$Q->{graphtype}"},
+																		 "Export"),
+																	 a({class=>"button", tabindex => -1,
+																			href => url(-absolute=>1)."?$cg&act=network_export_options&graphtype=$Q->{graphtype}"},
+																		 "Adv. Export"), );
+															 }
+
+
+															 return @out;
+														 }))
+ ))));
 
 
 	# interface info
@@ -481,14 +454,16 @@ sub typeGraph {
 
 		my $db;
 		my $lastUpdate;
-		my $intf_data = $index_model->{data};
+
+
+my $intf_data = $index_model->{data};
 		# cbqos shows interface data so load if if we are doing cbqos
 		if( $subconcept =~ /cbqos/ && $index != '')
 		{
 			$intf_data = $S->inventory( concept => 'interface', index => $index, partial => 1 )->data();
 		}
 		# NOTE: this could use the inventory last update time
-		if (($subconcept =~ /cbqos/i and $item ne "") or $subconcept =~ /interface|pkts/i ) 
+		if (($subconcept =~ /cbqos/i and $item ne "") or $subconcept =~ /interface|pkts/i )
 		{
 			$db = $S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item);
 			$time = RRDs::last($db);
@@ -560,14 +535,14 @@ sub typeGraph {
 											 popup_menu(-name=>'item', -override=>'1',
 																	-values=>['',map { $buttons{$_}{name} } keys %buttons],
 																	-default=>"$item",
-																	-onChange=>'JavaScript:this.form.submit()'));
+																	-onChange=>'this.form.submit()'));
 			push @output, end_Tr;
 		}
 
 		my $graphLink="$C->{'rrddraw'}?amp;act=draw_graph_view".
 				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$urlsafeindex&item=$urlsafeitem";
 		my $chartDiv = "";
-		
+
 		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ ) {
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE',-tabindex=>"-1")));
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
@@ -590,128 +565,252 @@ sub typeGraph {
 	print hidden(-name=>'p_start', -default=>"$p_start",-override=>'1');
 	print hidden(-name=>'p_end', -default=>"$p_end",-override=>'1');
 	print hidden(-name=>'p_time', -default=>"$time",-override=>'1');
-	print hidden(-name=>'act', -default=>"network_graph_view",-override=>'1');
-	print hidden(-name=>'obj', -default=>"graph",-override=>'1');
-	print hidden(-name=>'func', -default=>"view",-override=>'1');
+	print hidden(-name=>'act', -default=>"network_graph_view", -override=>'1');
+	print hidden(-name=>'obj', -default=>"graph",-override=>'1'); # for rrddraw
 
 	print "</form>", comment("typeGraph end");
 	print end_html;
 
 } # end typeGraph
 
-sub typeExport 
+# shows a form with options for exporting, submission target is typeExport()
+sub show_export_options
+{
+	my ($node,$item,$intf,$group,$graphtype) = @{$Q}{qw(node item intf group graphtype)};
+
+	bailout(message => "Invalid arguments, missing node!") if (!$node);
+
+	my $S = NMISNG::Sys->new;
+	my $isok = $S->init(name => $node, snmp => 'false');
+	bailout(message => "Invalid arguments, could not load data for nonexistent node!") if (!$isok);
+
+	# verify that user is authorized to view the node within the user's group list
+	my $nodegroup = $S->nmisng_node->configuration->{group} if ($S->nmisng_node);
+	if ($node && !$AU->InGroup($nodegroup))
+	{
+		bailout(code => 403,
+						message => escapeHTML("Not Authorized to export rrd data for node '$node' in group '$nodegroup'."));
+	}
+	elsif ($group && !$AU->InGroup($group))
+	{
+		bailout(code => 403,
+						message => escapeHTML("Not Authorized to export rrd data for nodes in group '$group'."));
+	}
+
+	# graphtypes for custom service graphs are fixed and not found in the model system
+	# note: format known here, in services.pl and nmis.pl
+	my $heading;
+	if ($graphtype =~ /^service-custom-([a-z0-9\.-])+-([a-z0-9\._-]+)$/)
+	{
+		$heading = $2;
+	}
+	else
+	{
+		# fixme: really group in item???
+		$heading = $S->graphHeading(graphtype=>$graphtype, index=>$intf, item=>$group);
+	}
+	$heading = escapeHTML($heading);
+
+	# headers, html setup, form
+	print header($headeropts),
+	start_html(-title => "Export Options for Graph $heading - $C->{server_name}",
+						 -head => [
+								Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'nmis_favicon'}"}),
+								Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+						 ],
+						 -script => {-src => $C->{'jquery'}, -type=>"text/javascript"},),
+
+								# this form should post. we don't want anything in the url.
+								start_form( -name => 'exportopts',
+														-action => url(-absolute => 1)),
+								hidden(-name => 'act', -default => 'network_export', -override => 1),
+								# not selectable: node/group, graphtype, item/intf
+								hidden(-name => "node", -default => $node, -override => 1),
+								hidden(-name => "group", -default => $group, -override => 1),
+								hidden(-name => "graphtype", -default => $graphtype, -override => 1),
+								hidden(-name => "item", -default => $item, -override => 1),
+								hidden(-name => "intf", -default => $intf, -override => 1);
+
+	# figure out how to label the selector/index/intf properties
+	my $GTT = $S->loadGraphTypeTable(index=>$intf);
+	my ($title_struct, $concept, $subconcept, $index_model, $data) = get_graphtype_titles(sys => $S, graphtype => $graphtype,
+																																												graphtypetable => $GTT,
+																																												section => ($graphtype =~ /cbqos/? $graphtype: undef),
+																																												index => $intf);
+	my %graphtype2itemname = ( metrics => 'Group',
+														 hrsmpcpu => 'Cpu',
+														 ( map { ($_ => "Service") } (qw(service service-cpumem service-response))),
+														 hrdisk => 'Disk',
+														 ( map { ($_ => 'Sensor') } (qw(env_temp akcp_temp akcp_hum csscontent))),
+														 cssgroup => 'Group',
+														 nmis => undef); # no item label is shown
+
+	print qq|<table><tr><th class='title' colspan='2'>Export Options for Graph "$heading"</th></tr>|;
+
+	my $label = $graphtype2itemname{$graphtype};
+	$label //= $title_struct->{$subconcept}->{name} if ($title_struct->{$subconcept});
+
+	my $property = ( $graphtype eq "nmis"? undef
+									 : $graphtype eq "metrics"? $group : $intf );
+
+	print qq|<tr><td class="header">Node</td><td>|.escapeHTML($node).qq|</td></tr>|
+			if ($graphtype ne "nmis" && $graphtype ne "metrics");
+	if (defined $label && defined $property)
+	{
+		print qq|<tr><td class="header">$label</td><td>|.escapeHTML($property).qq|</td></tr>|;
+	}
+
+	my $graphhours =$C->{graph_amount};
+	$graphhours *= 24 if ($C->{graph_unit} eq "days");
+
+	my $date_start = NMISNG::Util::returnDateStamp( time - $graphhours*3600);
+	my $date_end = NMISNG::Util::returnDateStamp(time);
+
+	print qq|<tr><td class='header'>Start</td><td>|
+			. textfield(-name=>"date_start", -override=>1, -value=> $date_start, size=>'23', tabindex=>"1")
+			. qq|</td></tr><tr><td class='header'>End</td><td>|
+			. textfield(-name=>"date_end", -override=>1, -value=> $date_end, size=>'23', tabindex=>"2")
+			. qq|</td></tr>|;
+
+
+	# make a dropdown list for export summarisation options
+	my @options = ref($C->{export_summarisation_periods}) eq "ARRAY"?
+			@{$C->{export_summarisation_periods}}: ( 300, 900, 1800, 3600, 4*3600 );
+	my %labels = ( '' => "best", map { ($_=> NMISNG::Util::period_friendly($_)) } (@options));
+
+	print qq|<tr><td class='header'>Resolution</td><td>Select one of |
+			. popup_menu(-name => "resolution",
+									 -id => "exportres",
+									 -values => [ '', @options ],
+									 -override => 1,
+									 -labels => \%labels, )
+			# also add an input field for a one-off text input
+			. qq| or enter |
+			.textfield(-name => "custom_resolution",
+								 -id => "exportrescustom",
+								 -override => 1,
+								 -placeholder => "NNN",
+								 -size => 6	)
+			. qq| seconds </td></tr>|;
+
+	print  qq|<tr><td class='header' colspan='2' align='center'>|
+			. hidden(-name => 'cancel', -id => 'cancelinput', -default => '', -override => 1)
+			. submit( -value=>'Export')
+			.qq| or <input name="cancel" type='button' value="Cancel" onclick="\$('#cancelinput').val(1); this.form.submit()"></td></tr></table>|;
+}
+
+
+# exports the underlying data for a particular graph as csv,
+# optionally further bucketised into fewer readings
+# params: node (or group?), graphtype, intf/item, start/end (or date_start/date_end),
+# resolution (optional; default or blank, zero: use best resolution),
+# also custom_resolution (optional, if present overrides resolution)
+sub typeExport
 {
 	my $S = NMISNG::Sys->new; # get system object
-	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
-
-	my $graphtype = $Q->{graphtype};
-
-	my $NT = Compat::NMIS::loadLocalNodeTable();
+	$S->init(name => $Q->{node}, snmp => 'false');
 
 	my %interfaceTable;
 	my $database;
 	my $extName;
 
- 	# verify access to this command/tool bar/button
-	#
-	if ( $AU->Require ) {
-		# CheckAccess will throw up a web page and stop if access is not allowed
-		# $AU->CheckAccess("") or die "Attempted unauthorized access";
-		if ( ! $AU->User ) {
-			do_force_login("Authentication is required to access this function. Please login.");
-			exit 0;
-		}
-	}
-
 	# verify that user is authorized to view the node within the user's group list
-	#
-	if ( $Q->{node} ) {
-		if ( ! $AU->InGroup($NT->{$Q->{node}}{group}) ) {
-			print "Not Authorized to export rrd data on node '$Q->{node}' in group '$NT->{$Q->{node}}{group}'.","grey";
-			return 0;
-		}
-	} elsif ( $Q->{group} ) {
-		if ( ! $AU->InGroup($Q->{group}) ) {
-			print "Not Authorized to export rrd data on nodes in group '$Q->{group}'.","grey";
-			return 0;
-		}
-	}
-
-	my $db = $S->makeRRDname(graphtype => $graphtype, index=>$Q->{intf},item=>$Q->{item});
-	my ($statval,$head) = NMISNG::rrdfunc::getRRDasHash(database=>$db, sys=>$S,
-																											graphtype=>$graphtype,mode=>"AVERAGE",
-																											start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
-	my $filename = "$Q->{node}"."-"."$graphtype";
-	if ( $Q->{node} eq "" ) { $filename = "$Q->{group}-$graphtype" }
-	print "Content-type: text/csv;\n";
-	print "Content-Disposition: attachment; filename=$filename.csv\n\n";
-
-	# print header line first - expectation is that w/o ds list/header there's also no data.
-	if (ref($head) eq "ARRAY" && @$head)
+	my $nodegroup = $S->nmisng_node->configuration->{group} if ($Q->{node});
+	if ($Q->{node} && !$AU->InGroup($nodegroup))
 	{
-		print join("\t", @$head)."\n";
-
-		# print any row that has at least one reading with known ds/header name
-		foreach my $rtime (sort keys %{$statval})
-		{
-			if ( List::Util::any { defined $statval->{$rtime}->{$_} } (@$head) )
-			{
-				print join("\t", map { $statval->{$rtime}->{$_} } (@$head))."\n";
-			}
-		}
+		bailout(code => 403, message => "Not Authorized to export rrd data for node '$Q->{node}' in group '$nodegroup'.");
+	} elsif ( $Q->{group} && !$AU->InGroup($Q->{group}))
+	{
+		bailout(code => 403, message => "Not Authorized to export rrd data for nodes in group '$Q->{group}'.");
 	}
-}
 
-sub typeStats 
-{
-	my $S = NMISNG::Sys->new; # get system object
-	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
-	
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-	my $C = NMISNG::Util::loadConfTable();
+	# figure out start and end
+	my ($start, $end) = @{$Q}{"start","end"};
+	$start //= NMISNG::Util::parseDateTime($Q->{date_start})
+			|| NMISNG::Util::getUnixTime($Q->{date_start}) if ($Q->{date_start});
+	$end //= NMISNG::Util::parseDateTime($Q->{date_end})
+			|| NMISNG::Util::getUnixTime($Q->{date_end}) if ($Q->{date_end});
+
+	my $mayberesolution = ( defined($Q->{custom_resolution}) && $Q->{custom_resolution} =~ /^\d+$/?
+													$Q->{custom_resolution}
+													: defined($Q->{resolution})
+													&& $Q->{resolution} =~ /^\d+$/
+													&& $Q->{resolution} != 0?
+													$Q->{resolution}: undef );
+
+	my $db = $S->makeRRDname(graphtype => $Q->{graphtype}, index=>$Q->{intf},item=>$Q->{item});
+	my ($statval,$head,$meta) = NMISNG::rrdfunc::getRRDasHash(database => $db,
+																														graphtype=>$Q->{graphtype},
+																														index=>$Q->{intf},item=>$Q->{item},
+																														mode=>"AVERAGE",
+																														start => $start,
+																														end => $end,
+																														resolution => $mayberesolution);
+	bailout(message => "Failed to retrieve RRD data: $meta->{error}\n") if ($meta->{error});
+
+	# no data? complain, don't produce an empty csv
+	bailout(message => "No exportable data found!") if (!keys %$statval or !$meta->{rows_with_data});
+
+	my $filename = ($Q->{node} || $Q->{group})."-$Q->{graphtype}.csv";
+	$headeropts->{type} = "text/csv";
+	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
 
 	print header($headeropts);
 
-	print start_html(
-		-title => "Statistics",
-		-meta => { 'CacheControl' => "no-cache",
-			'Pragma' => "no-cache",
-			'Expires' => -1
-			},
-		-head=>[
-			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"})
-			]
-		);
+	my $csv = Text::CSV->new;
+	# header line, then the goodies
+	if (ref($head) eq "ARRAY" && @$head)
+	{
+		$csv->combine(@$head);
+		print $csv->string,"\n";
+	}
 
-	# verify access to this command/tool bar/button
-	#
-	if ( $AU->Require ) {
-		if ( ! $AU->User ) {
-			do_force_login("Authentication is required to access this function. Please login.");
-			exit 0;
+	# print any row that has at least one reading with known ds/header name
+	foreach my $rtime (sort keys %{$statval})
+	{
+		if ( List::Util::any { defined $statval->{$rtime}->{$_} } (@$head) )
+		{
+			$csv->combine(map { $statval->{$rtime}->{$_} } (@$head));
+			print $csv->string,"\n";
 		}
 	}
+	exit 0;
+}
+
+sub typeStats
+{
+	my $S = NMISNG::Sys->new; # get system object
+	bailout(message => "Node not found") if( !$S->init(name=>$Q->{node}) );
+
+	my $C = $nmisng->config;
+
 
 	# verify that user is authorized to view the node within the user's group list
-	#
-	if ( $Q->{node} ) {
-		if ( ! $AU->InGroup($NT->{$Q->{node}}{group}) ) {
-			print "Not Authorized to export rrd data on node $Q->{node} in group $NT->{$Q->{node}}{group}";
-			return 0;
-		}
-	} elsif ( $Q->{group} ) {
-		if ( ! $AU->InGroup($Q->{group}) ) {
-			print "Not Authorized to export rrd data on nodes in group $Q->{group}";
-			return 0;
-		}
+	my $nodegroup = $S->nmisng_node->configuration->{group} if ($Q->{node});
+	if ( $Q->{node} && !$AU->InGroup($nodegroup) )
+	{
+		bailout(code => 403, message => "Not Authorized to export rrd data on node $Q->{node} in group $nodegroup");
+	} elsif ( $Q->{group} && !$AU->InGroup($Q->{group}) )
+	{
+		bailout(code => 403, message => "Not Authorized to export rrd data on nodes in group $Q->{group}");
 	}
 
+	print header($headeropts), start_html(
+		-title => "Statistics",
+		-meta => { 'CacheControl' => "no-cache",
+							 'Pragma' => "no-cache",
+			'Expires' => -1
+		},
+		-head=>[
+			 Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+		],
+		-script => {-src => $C->{'jquery'}, -type=>"text/javascript"},
+			);
 
 	$Q->{intf} = $Q->{group} if $Q->{group} ne '';
 
 	my $db = $S->makeRRDname(graphtype => $Q->{graphtype}, index=>$Q->{intf},item=>$Q->{item});
-	my $statval = (-f $db? NMISNG::rrdfunc::getRRDStats(sys=>$S,
-																											database => $db, 
+	my $statval = (-f $db? NMISNG::rrdfunc::getRRDStats(database => $db,
 																											graphtype=>$Q->{graphtype},
 																											mode=>"AVERAGE",
 																											start=>$Q->{start},
@@ -724,7 +823,7 @@ sub typeStats
 	print start_table;
 
 	# fixme9: if ifdescr is really needed to be shown here, then then the inventory for interface needs to be loaded
-	# $IF->{$Q->{intf}}{ifDescr} 
+	# $IF->{$Q->{intf}}{ifDescr}
 	print Tr(td({class=>'header',colspan=>'11'},"NMIS RRD Graph Stats $Q->{node} $Q->{intf} $Q->{item} $starttime to $endtime"));
 
 	foreach my $m (sort keys %{$statval}) {
@@ -755,4 +854,79 @@ sub typeStats
 
 	print end_table,end_html;
 
+}
+
+# determine if the given graphtype belongs to systemhealth-modelled section,
+# and if so, look up the labels
+# args: sys object, graphtype, graphtypetable, section, index (all required)
+# returns: title_struct (hashref), concept, subconcept, index_mode, data
+#
+# note: graphtypetable may be modified!
+# fixme9: this is an utter mess
+sub get_graphtype_titles
+{
+	my (%args) = @_;
+
+	my ($S,$graphtype,$GTT,$section,$index) = @args{"sys","graphtype","graphtypetable","section","index"};
+	my $M = $S->mdl;
+
+	# fixme9: we have enough data to not need getTypeInstances anymore, should be able to
+	# directly access inventory
+
+	# section needed to find cbqos instances
+	my $modeldata = $S->getTypeInstances(section => $section,
+																			 graphtype => $graphtype,
+																			 want_modeldata => 1,
+																			 want_active => 1 );
+
+	my $data = $modeldata->data;
+	# we can assume that the concept is the same in all entries
+	my $concept = ($modeldata->count > 0) ? $data->[0]{concept} : undef;
+	my $subconcept = $GTT->{$graphtype};
+	my %index_map = map { $_->{data}{index} => $_ } @$data; # fixme9: cannot work for concept=service and other non-indexed
+	my $index_model = ($index) ? $index_map{$index} : {};
+
+	# fixme9: non-node mode means no graphttypetable means no menu and nothing works...
+	$GTT->{$graphtype} = $graphtype if (!$S->nmisng_node && !$modeldata->count && !keys %$GTT);
+
+	# different graphs get their label/name from different places, this normalises
+	# that and allows grabbing the data from the inventory model
+	# do this by subconcept, concept is too broad, things like storage break it
+	my %title_struct = (
+		hrsmpcpu => { name => 'CPU' },
+		hrdisk => { name => 'Disk', label_key =>'hrStorageDescr' },
+		interface => { name => 'Interface', label_key => 'ifDescr' },
+		pkts => { name => 'Interface', label_key => 'ifDescr' },
+		pkts_hc => { name => 'Interface', label_key => 'ifDescr' },
+		'cbqos-in' => { name => 'Interface', label_key => 'ifDescr' },
+		'cbqos-out' => { name => 'Interface', label_key => 'ifDescr' },
+			);
+
+	# get the dropdown info for system health, we need to figure out which of the
+	# inventory data entries should be used for the label_key and name
+	if( $concept && defined($M->{systemHealth}{sys}{$concept}) )
+	{
+		my $thismdlsect = $M->{systemHealth}->{sys}->{$concept};
+
+		# all model entries will have the same inventory concept so just use the first one
+		if( @$data > 0 )
+		{
+			my $model = $data->[0];
+			$S->nmisng->log->debug("model, index: $model->{data}{index}");
+
+			my $label = $thismdlsect->{headers};
+			$label =~ s/,.*$//;
+			my $title = $label;
+
+			if ( exists $thismdlsect->{snmp}->{$label}->{title}
+					 and $thismdlsect->{snmp}->{$label}->{title} ne "" )
+			{
+				$title = $thismdlsect->{snmp}->{$label}->{title};
+			}
+			# indexes are already where they should be
+			$title_struct{$subconcept} = { name => $title, label_key => $label };
+		}
+	}
+
+	return (\%title_struct, $concept, $subconcept, $index_model, $data);
 }
