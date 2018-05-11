@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::rrdfunc;
-our $VERSION = "2.5.0";
+our $VERSION = "9.0.0b";
 
 use strict;
 use feature 'state';
@@ -95,43 +95,85 @@ sub getUpdateStats
 }
 
 # returns the rrd data for a given rrd type as a hash
-# args: database (both required), optional: hours_from and hours_to (default: no restriction)
-# this uses the Sys object to translate between graphtype and rrd section (Sys::getTypeName)
-# returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
-# metadata hash: actual begin and end as per rrd, and step
+# args: database (required),
+#  mode (required, AVERAGE,MIN,MAX or LAST)
+# optional: hours_from and hours_to (default: no restriction)
+# optional: resolution (default: highest resolution that rrd can provide)
+# optional: config (live config structure)
 #
+# returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
+# metadata hash: actual begin, end, step as per rrd, error if necessary, rows (=count), rows_with_data
 sub getRRDasHash
 {
 	my %args = @_;
 	my $db = $args{database};
-	die "getRRDasHash requires database argument!\n" if (!$db);
+
+	return ({},[], { error => "getRRDasHash requires database argument!"}) if (!$db or !-f $db);
 	require_RRDs(config => $args{config});
 
 	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
 	my $mustcheckhours = ($minhr != 0  and $maxhr != 24);
 	my $invertperiod = $minhr > $maxhr;
+	my $wantedresolution = $args{resolution};
 
-	my ($begin,$step,$name,$data) = RRDs::fetch($db, $args{mode},"--start",$args{start},"--end",$args{end});
-	my %s;
-	my @h;
-	my $date;
-	my $d;
-	my $time = $begin;
-	# loop over the readings over time
-	for(my $a = 0; $a <= $#{$data}; ++$a) {
-		$d = 0;
-		# loop over the datasets per individual reading
-		for(my $b = 0; $b <= $#{$data->[$a]}; ++$b)
+	my @rrdargs = ($db, $args{mode});
+	my ($bucketsize, $resolution);
+	if (defined($wantedresolution) && $wantedresolution > 0)
+	{
+		# rrdfetch selects resolutions only from existing RRAs (no multiples),
+		# so we need to determine what native resolutions are available,
+		# look for equality or fall back to the smallest/best/step,
+		# post-process into buckets of the desired size...
+		my ($error, @available) = getRRDResolutions($db, $args{mode});
+		return ({},[], { error => $error }) if ($error);
+
+		# this can work if the desired resolution is directly equal to an RRA period,
+		# or if the step divides the desired resolution cleanly
+		if (grep($_ == $wantedresolution, @available))
 		{
-			push(@h, $name->[$b]) if ($a == 0); # populate ds header names on first reading
-			$s{$time}{$name->[$b]} = $data->[$a][$b];
-
-			if ( defined $data->[$a][$b] ) { $d = 1; }
+			$resolution = $wantedresolution;
 		}
-		# compute date and time only if at least on ds col has defined data
-		if ($d)
+		elsif ( $wantedresolution % $available[0] == 0)
 		{
+			# we must bucketise ourselves
+			$bucketsize = $wantedresolution / $available[0];
+			$resolution = $available[0];
+		}
+		else
+		{
+			return ({},[], { error => "Summarisation with resolution $wantedresolution not possible, available RRD resolutions: "
+													 .join(", ",@available) });
+		}
+
+		push @rrdargs, ("--resolution",$resolution);
+		$args{start} = $args{start} - $args{start} % $resolution;
+		$args{end} = $args{end} - $args{end} % $resolution;
+	}
+	push @rrdargs, ("--start",$args{start},"--end",$args{end});
+	my ($begin,$step,$name,$data) = RRDs::fetch(@rrdargs);
+
+	my @dsnames = @$name if (defined $name);
+	my %s;
+	my $time = $begin;
+	my $rowswithdata;
+
+	# loop over the readings over time
+	for(my $row = 0; $row <= $#{$data}; ++$row, $time += $step)
+	{
+		my $thisrow = $data->[$row];
+		my $datapresent;
+		# loop over the datasets per individual reading
+		for(my $dsidx = 0; $dsidx <= $#{$thisrow}; ++$dsidx)
+		{
+			$s{$time}->{ $dsnames[$dsidx] } = $thisrow->[$dsidx];
+			$datapresent ||= 1 if (defined $thisrow->[$dsidx]);
+		}
+
+		# compute date only if at least on ds col has defined data
+		if ($datapresent)
+		{
+			++$rowswithdata;
 			my @timecomponents = localtime($time);
 			my $hour = $timecomponents[2];
 			if (!$mustcheckhours or
@@ -142,28 +184,107 @@ sub getRRDasHash
 					 # before to (excl) or after from (incl) hour if inverted,
 					 ( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
 			{
-				$s{$time}{time} = $time;
-				# we DON'T want to rerun localtime() again, so no NMISNG::Util::returnDateStamp()
+				$s{$time}->{time} = $time;
+				# we DON'T want to rerun localtime() again, so no func::returnDateStamp()
 				# want 24-Mar-2014 11:22:33, regardless of LC_*, so %b isn't good.
 				my $mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$timecomponents[4]];
-				$s{$time}{date} = POSIX::strftime("%d-$mon-%Y %H:%M:%S", @timecomponents);
+				$s{$time}->{date} = POSIX::strftime("%d-$mon-%Y %H:%M:%S", @timecomponents);
 			}
 			else
 			{
 				delete $s{$time};				# out of specified hours
 			}
 		}
-		$time = $time + $step;
 	}
 
-	# two artificial ds header cols
-	push(@h,"time","date");
+	# bucket post-processing needed?
+	if ($bucketsize)
+	{
+		my $nrdatapoints = @$data;
 
-	# actual data, the ds cols, and the meta data
-	return (\%s, \@h, { step => $step, start => $begin, end => $time });
+		for my $bucket (1..int($nrdatapoints/$bucketsize)+1) # last bucket may end up partially filled
+		{
+			my $targettime = $begin + $bucket * $bucketsize * $step;
+
+			my %acc;
+			for my $slot (0..$bucketsize-1) # backwards
+			{
+				my $contribtime = $targettime - $slot*$step;
+				next if (!exists $s{$contribtime}); # holes in the data are possible
+
+				for my $ds (@dsnames)
+				{
+					$acc{$ds} ||= [];
+					push @{$acc{$ds}}, $s{$contribtime}->{$ds};
+				}
+				delete $s{$contribtime} if ($slot); # last timeslot receives all the readings for the whole bucket
+			}
+
+			if (!keys %acc)						# all gone?
+			{
+				delete $s{$targettime};
+			}
+			else
+			{
+				for my $ds (@dsnames)
+				{
+					$s{$targettime}->{$ds} = Statistics::Lite::mean(@{$acc{$ds}});
+				}
+
+				# last bucket may be partial and lack time or date
+				if (!exists $s{$targettime}->{time})
+				{
+					$s{$targettime}->{time} = $targettime;
+					my @timecomponents = localtime($targettime);
+					# we DON'T want to rerun localtime() again, so no func::returnDateStamp()
+					# want 24-Mar-2014 11:22:33, regardless of LC_*, so %b isn't good.
+					my $mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$timecomponents[4]];
+					$s{$targettime}->{date} = POSIX::strftime("%d-$mon-%Y %H:%M:%S", @timecomponents);
+				}
+			}
+			$time = $targettime;			# so that last bucket is included in meta
+		}
+		$step = $bucketsize * $step; # again for meta
+
+	}
+
+	# two artificial ds header cols - let's put them first
+	unshift(@dsnames,"time","date");
+
+	# actual data, the dsname list, and the meta data
+	return (\%s, \@dsnames, { step => $step, start => $begin, end => $time,
+														rows => scalar @$data, rows_with_data => $rowswithdata });
 }
 
+# args: rrdfile (full path), mode (one of AVERAGE, MIN or MAX - LAST makes no sense here)
+# returns: (undef, array of resolutions, seconds, ascending) or (error)
+sub getRRDResolutions
+{
+	my ($rrdfile,$mode) = @_;
+	my $info = RRDs::info($rrdfile);
 
+	return "failed to retrieve RRD info: ".&RRDs::error
+			if (ref($info) ne "HASH");
+
+	my $basicstep = $info->{step};
+	my (@others, $rrasection);
+	for my $k (sort keys %$info)
+	{
+		if ($k =~ /^rra\[(\d+)\]\.cf$/)
+		{
+			next if ($info->{$k} ne $mode);
+			$rrasection = $1;
+		}
+		elsif (defined($rrasection) && $k =~ /^rra\[$rrasection\]\.pdp_per_row$/)
+		{
+			push @others, $info->{$k};
+			undef $rrasection;
+		}
+	}
+
+	# return ascending
+	return (undef, map { $basicstep * $_ } (sort { $a <=> $b } @others));
+}
 
 # retrieves rrd data and computes a number of descriptive stats
 # args: database, required; hour_from hour_to define the daily period [from,to].

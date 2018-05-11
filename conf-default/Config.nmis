@@ -10,7 +10,6 @@ my %hash = (
   },
 
   'modules' => {
-    'display_opcharts' => 'false',
     'display_community_rss_widget' => 'true',
     'display_module_list' => 'true',
     'display_network_view' => 'true',
@@ -266,9 +265,6 @@ my %hash = (
     'calendar_setup' => '<menu_url_base>/js/calendar-setup.js',
     'jquery_ba_dotimeout' => '<menu_url_base>/js/jquery.ba-dotimeout.min.js',
     'nmis_common' => '<menu_url_base>/js/commonv8.js',
-    'chart' => '', #'<menu_url_base>/js/chart.js',
-    'highcharts' => '', #'<menu_url_base>/js/highcharts.js',
-    'highstock' => '', #'<menu_url_base>/js/highstock.js'
   },
 
   'email' => {
@@ -519,4 +515,9 @@ my %hash = (
 		 "priority_selftest" => 0.2,
 		 "priority_permission_test" => 0.1,
 	},
+
+	'gui' => {
+		'export_summarisation_periods' => [ 300, 900, 1800, 3600, 4*3600 ],
+	},
+
 );

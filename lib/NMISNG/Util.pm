@@ -1456,9 +1456,9 @@ sub dbg
 	my $level = shift || 1;
 	my $upCall = shift || undef;
 
-	# fixme9: this is utterly non-efficient!
+	# fixme9: this is utterly non-efficient, AND can cause infinite recursion!
 	my $nmisng = Compat::NMIS::new_nmisng();
-	return if (!$nmisng->log->is_level($level));
+	return if (!$nmisng || !$nmisng->log->is_level($level));
 
 	my $string;
 	my $caller;
