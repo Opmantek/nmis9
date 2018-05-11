@@ -507,7 +507,7 @@ while (!$exit_marker)
 				type => $jobtype,
 				time => Time::HiRes::time,
 				# some ops are mostly nice-to-have, others are much more critical
-				priority => $config->{"priority_$jobtype"},
+				priority => $config->{"priority_$jobtype"} // 0.5,
 				in_progress => 0, } );
 
 			if ($error)
