@@ -70,7 +70,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=schedule [at=time] <job.type=activity> [job.priority=0..1] [job.X=....]
   act=schedule-help for more detailed help
  act=list-schedules [verbose=t/f] [only=active|queued]
- act=delete-schedule id=<schedule_id>
+ act=delete-schedule id=<schedule_id|ALL> [job.X=...]
  act=abort id=<schedule_id>
 
  act=purge [simulate=t/f] [info=t/f]
@@ -98,6 +98,9 @@ list-schedules: displays overview of pending and active jobs;
 delete-schedule: removes a schedule record from the database
 abort: like delete-schedule but also terminates any worker process that is
   processing that job.
+
+  if id=ALL is given, then additional job.X properties can be used
+  to select particular schedule records.
 
 create-schedule: inserts a new job record into the database.
 
@@ -462,36 +465,44 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 
 	exit 0;
 }
-# delete-schedule removes a scheduled job entry,
+# delete-schedule removes one or more specific scheduled job entry (if identified by id),
+# or many/all if given the id=ALL and any number of job.XYZ filters.
+#
 # abort does that and terminates the worker process that is working on that job
 elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 {
 	my $wantabort = ($1 eq "abort");
-
-	die "No schedule ID given!\n" if (!$Q->{id} && !$Q->{remove_all});
-	
 	my @todo;
-	@todo = ref($Q->{id}) eq "ARRAY"? @{$Q->{id}}: $Q->{id} if($Q->{id});
-	if( $Q->{remove_all} )
+
+	# by filter or wholesale?
+	if ($Q->{id} eq "ALL")
 	{
 		# look for any job.* values and try and filter by themn
-		my %args;
+		my %queryargs;
 		foreach my $key (keys %$Q)
 		{
 			if( $key =~ /^job\.(.*)$/)
 			{
-				my ($filter_key) = ($1);
-				$args{$filter_key} = $Q->{$key};
+				$queryargs{$1} = $Q->{$key};
 			}
 		}
-		my $jobs = $nmisng->get_queue_model(%args);
+		my $jobs = $nmisng->get_queue_model(%queryargs);
+
 		if (my $fault = $jobs->error)
 		{
 			die "Failed to lookup schedule: $fault\n";
 		}
-		@todo = map { $_->{_id}{value} } (@{$jobs->data()});		
-	}	
-	
+		@todo = map { $_->{_id}->{value} } (@{$jobs->data()});
+	}
+	elsif ($Q->{id})
+	{
+		@todo = ref($Q->{id}) eq "ARRAY"? @{$Q->{id}}: $Q->{id};
+	}
+	else
+	{
+		die "No schedule ID given!\n";
+	}
+
 	for my $id (@todo)
 	{
 		if ($wantabort)
