@@ -142,12 +142,22 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		$onenode->{cluster_id} = $config->{cluster_id};
 
 		# and OVERWRITE the configuration
-		my $curconfig = $node->configuration; # mostly empty when new
-		for my $copyable (grep($_ ne "_id", keys %$onenode)) # must not trash that attrib
+		my $curconfig = $node->configuration; # almost entirely empty when new
+
+		# not all attribs go under configuration!
+		for my $copyable (grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides|configuration|aliases|addresses)$/,
+													 keys %$onenode))
 		{
-			$curconfig->{$copyable} = $onenode->{$copyable};
+			$curconfig->{$copyable} = $onenode->{$copyable} if (exists $onenode->{$copyable});
 		}
 		$node->configuration($curconfig);
+
+		# the first two top-level keepers are set on new, but nothing else is
+		# the last two are not used by plain nmis
+ 		for my $mustset (qw(cluster_id name activated overrides configuration))
+		{
+			$node->$mustset($onenode->{$mustset}) if (exists($onenode->{$mustset}));
+		}
 
 		# and save
 		my ($op,$error) = $node->save();
@@ -262,6 +272,16 @@ elsif ($cmdline->{act} eq "export")
 	{
 		map { delete $_->{overrides}; delete $_->{addresses}; } (@$allofthem);
 		my %compathash = map { ($_->{name} => $_) } (@$allofthem);
+		for my $flattenme (values %compathash)
+		{
+			for my $confprop (keys %{$flattenme->{configuration}})
+			{
+				$flattenme->{$confprop} = $flattenme->{configuration}->{$confprop};
+			}
+			delete $flattenme->{configuration};
+			$flattenme->{active} = $flattenme->{activated}->{nmis};
+			delete $flattenme->{activated};
+		}
 
 		# export in nodes layout, but in nmis/perl format or json?
 		# stdout: perl default, also for anything.nmis
@@ -295,10 +315,12 @@ elsif ($cmdline->{act} eq "show")
 	die "Node $node does not exist.\n" if (!$nodeobj);
 	$node ||= $nodeobj->name;			# if  looked up via uuid
 
-	# we want the config AND any overrides
+	# we want the config AND any overrides AND most other top-level things, but flattened
 	my $dumpables = $nodeobj->configuration;
-	$dumpables->{overrides} = $nodeobj->overrides;
-	delete $dumpables->{_id};			# no use in show
+	for my $alsodump (qw(overrides name cluster_id uuid activated))
+	{
+		$dumpables->{$alsodump} = $nodeobj->$alsodump;
+	}
 
 	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables,"entry");
 	die "failed to transform output: $error\n" if ($error);
@@ -327,6 +349,7 @@ elsif ($cmdline->{act} eq "set")
 
 	my $curconfig = $nodeobj->configuration;
 	my $curoverrides = $nodeobj->overrides;
+	my $curactivated = $nodeobj->activated;
 	my $anythingtodo;
 
 	for my $name (keys %$cmdline)
@@ -337,21 +360,34 @@ elsif ($cmdline->{act} eq "set")
 		my $value = $cmdline->{$name};
 		$name =~ s/^entry\.//;
 
+		# where does it go? overrides.X is obvious...
 		if ($name =~ /^overrides\.(.+)$/)
 		{
 			$curoverrides->{$1} = $value;
+		}
+		# ...name, cluster_id a bit less...
+		elsif ($name =~ /^(name|cluster_id)$/)
+		{
+			$nodeobj->$1($value);
+		}
+		# ...and activated.X not at all
+		elsif ($name =~ /^activated\.(.+)$/)
+		{
+			$curactivated->{$1} = $value;
 		}
 		else
 		{
 			$curconfig->{$name} = $value;
 		}
 	}
+	die "No changes for node \"$node\"!\n" if (!$anythingtodo);
+
 	my $error = NMISNG::Util::translate_dotfields($curconfig);
 	die "translation of config arguments failed: $error\n" if ($error);
 	$error = NMISNG::Util::translate_dotfields($curoverrides);
 	die "translation of override arguments failed: $error\n" if ($error);
-
-	die "No changes for node \"$node\"!\n" if (!$anythingtodo);
+	$error = NMISNG::Util::translate_dotfields($curactivated);
+	die "translation of activated arguments failed: $error\n" if ($error);
 
 	# check the group - only warn about
 	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
@@ -364,6 +400,7 @@ or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing g
 
 	$nodeobj->overrides($curoverrides);
 	$nodeobj->configuration($curconfig);
+	$nodeobj->activated($curactivated);
 
 	(my $op, $error) = $nodeobj->save;
 	die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed
@@ -373,7 +410,6 @@ if (-t \*STDERR);								# if terminal
 
 	exit 0;
 }
-
 elsif ($cmdline->{act} eq "delete")
 {
 	my ($node,$group,$confirmation,$nukedata) = @{$cmdline}{"node","group","confirm","deletedata"};
@@ -420,6 +456,7 @@ elsif ($cmdline->{act} eq "rename")
 	{
 		my $curconfig = $nodeobj->configuration;
 		my $curoverrides = $nodeobj->overrides;
+		my $curactivated = $nodeobj->activated;
 
 		for my $name (@todo)
 		{
@@ -430,6 +467,14 @@ elsif ($cmdline->{act} eq "rename")
 			{
 				$curoverrides->{$1} = $value;
 			}
+			elsif ($name =~ /^(name|cluster_id)$/)
+			{
+				$nodeobj->$1($value);
+			}
+			elsif ($name =~ /^activated\.(.+)$/)
+			{
+				$curactivated->{$1} = $value;
+			}
 			else
 			{
 				$curconfig->{$name} = $value;
@@ -439,6 +484,8 @@ elsif ($cmdline->{act} eq "rename")
 		die "translation of config arguments failed: $error\n" if ($error);
 		$error = NMISNG::Util::translate_dotfields($curoverrides);
 		die "translation of override arguments failed: $error\n" if ($error);
+		$error = NMISNG::Util::translate_dotfields($curactivated);
+		die "translation of activated arguments failed: $error\n" if ($error);
 
 		# check the group - only warn about
 		my @knowngroups = split(/\s*,\s*/, $config->{group_list});
@@ -451,6 +498,7 @@ or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing g
 
 		$nodeobj->overrides($curoverrides);
 		$nodeobj->configuration($curconfig);
+		$nodeobj->activated($curactivated);
 
 		(my $op, $error) = $nodeobj->save;
 		die "Failed to save $new: $error\n" if ($op <= 0); # zero is no saving needed
@@ -461,6 +509,7 @@ or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing g
 	}
 	exit 0;
 }
+# template is deeply structured, just like output of act=export (EXCEPT for act=export format=nodes)
 elsif ($cmdline->{act} eq "mktemplate")
 {
 	my $file = $cmdline->{file};
@@ -471,8 +520,8 @@ elsif ($cmdline->{act} eq "mktemplate")
 
 	my %mininode = ( map { my $key = $_; $key => ($withplaceholder?
 																								"__REPLACE_".uc($key)."__" : "") }
-									 (qw(name host uuid group notes
-community roleType netType location model active ping collect version port  username authpassword authkey  authprotocol privpassword privkey privprotocol))  );
+									 (qw(name cluster_id uuid configuration.host configuration.group configuration.notes
+configuration.community configuration.roleType configuration.netType configuration.location configuration.model activated.nmis configuration.ping configuration.collect configuration.version configuration.port configuration.username configuration.authpassword configuration.authkey configuration.authprotocol configuration.privpassword configuration.privkey configuration.privprotocol ))  );
 
 	my $fh;
 	if (!$file or $file eq "-")
@@ -483,6 +532,8 @@ community roleType netType location model active ping collect version port  user
 	{
 		open($fh,">$file") or die "cannot write to $file: $!\n";
 	}
+	my $error = NMISNG::Util::translate_dotfields(\%mininode);
+	die "Failed to create node template: $error\n" if ($error);
 
 	# ensure that the output is indeed valid json, utf-8 encoded
 	print $fh JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode(\%mininode);
@@ -493,6 +544,7 @@ community roleType netType location model active ping collect version port  user
 
 	exit 0;
 }
+# both create and update expect deeply structured inputs
 elsif ($cmdline->{act} =~ /^(create|update)$/)
 {
 	my $file = $cmdline->{file};
@@ -516,19 +568,27 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 			if ($name =~ /[^a-zA-Z0-9_-]/);
 
 	die "Invalid node data, not a hash!\n" if (ref($mayberec) ne 'HASH');
-	die "Invalid node data, does not have required attributes name, host and group\n"
-			if (!$mayberec->{name} or !$mayberec->{host} or !$mayberec->{group});
+	for my $mustbedeep (qw(configuration overrides activated))
+	{
+		die "Invalid node data, invalid structure for $mustbedeep!\n"
+				if (exists($mayberec->{$mustbedeep}) && ref($mayberec->{$mustbedeep}) ne "HASH");
+	}
 
-	die "Invalid node data, netType \"$mayberec->{netType}\" is not known!\n"
-			if (!grep($mayberec->{netType} eq $_, split(/\s*,\s*/, $config->{nettype_list})));
-	die "Invalid node data, roleType \"$mayberec->{roleType}\" is not known!\n"
-			if (!grep($mayberec->{roleType} eq $_, split(/\s*,\s*/, $config->{roletype_list})));
+	die "Invalid node data, does not have required attributes name, host and group\n"
+			if (!$mayberec->{name} or !$mayberec->{configuration}->{host} or !$mayberec->{configuration}->{group});
+
+	die "Invalid node data, netType \"$mayberec->{configuration}->{netType}\" is not known!\n"
+			if (!grep($mayberec->{configuration}->{netType} eq $_,
+								split(/\s*,\s*/, $config->{nettype_list})));
+	die "Invalid node data, roleType \"$mayberec->{configuration}->{roleType}\" is not known!\n"
+			if (!grep($mayberec->{configuration}->{roleType} eq $_,
+								split(/\s*,\s*/, $config->{roletype_list})));
 
 	# check the group
 	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
 	if (!grep($_ eq $mayberec->{group}, @knowngroups))
 	{
-		print STDERR "\nWarning: your node info sets group \"$mayberec->{group}\", which does not exist!\n";
+		print STDERR "\nWarning: your node info sets group \"$mayberec->{configuration}->{group}\", which does not exist!\n";
 	}
 
 	# look up the node - ideally by uuid, fall back to name only if necessary
@@ -537,7 +597,9 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "Node $name does not exist.\n" if (!$nodeobj && $cmdline->{act} eq "update");
 	die "Node $name already exist.\n" if ($nodeobj && $cmdline->{act} eq "create");
 
-	die "Please use act=rename for node renaming. UUID ".$nodeobj->uuid." is already associated with name \"".$nodeobj->name."\".\n" if ($nodeobj and $nodeobj->name ne $mayberec->{name});
+	die "Please use act=rename for node renaming.\nUUID "
+			.$nodeobj->uuid." is already associated with name \"".$nodeobj->name."\".\n"
+			if ($nodeobj and $nodeobj->name and $nodeobj->name ne $mayberec->{name});
 
 	# no uuid and creating a node? then we add one
 	$mayberec->{uuid} ||= Compat::UUID::getUUID($name) if ($cmdline->{act} eq "create");
@@ -545,15 +607,19 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
 
 	my $isnew = $nodeobj->is_new;
+	# must split off overrides, activated, name/cluster_id, rest goes under configuration
+	for my $mustset (qw(cluster_id name activated overrides))
+	{
+		$nodeobj->$mustset($mayberec->{$mustset}) if (exists($mayberec->{$mustset}));
+		delete $mayberec->{$mustset};
+	}
+	# there should be only configuration left at this point
+	my @nocando = grep($_ !~ /^(configuration|lastupdate|uuid)$/, keys %$mayberec);
+	die "unsupported extra properties \"".join(", ",@nocando)."\" in input!\n" if (@nocando);
+	$nodeobj->configuration($mayberec->{configuration});
 	# if creating, add missing cluster_id for local operation
-	$mayberec->{cluster_id} ||= $config->{cluster_id} if ($cmdline->{act} eq "create");
-
-	# must split off overrides
-	my $overrides = $mayberec->{overrides};
-	delete $mayberec->{overrides};
-
-	$nodeobj->overrides($overrides);
-	$nodeobj->configuration($mayberec);
+	$nodeobj->uuid($config->{cluster_id}) if ($cmdline->{act} eq "create"
+																						&& !$nodeobj->uuid);
 
 	my ($status,$msg) = $nodeobj->save;
 	# zero is no saving needed, which is not good here

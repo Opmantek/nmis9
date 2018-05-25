@@ -33,7 +33,7 @@
 package NMISNG::Node;
 use strict;
 
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use Module::Load 'none';
 use Carp::Assert;
@@ -61,7 +61,6 @@ use NMISNG::rrdfunc;
 
 use Compat::IP;
 
-
 # create a new node object
 # params:
 #   uuid - required
@@ -79,7 +78,7 @@ sub new
 		_dirty  => {},
 		_nmisng => $args{nmisng},
 		_id     => $args{_id} // $args{id} // undef,
-		uuid    => $args{uuid}
+		uuid    => $args{uuid},
 	};
 	bless( $self, $class );
 
@@ -95,26 +94,44 @@ sub new
 ###########
 
 # fill in properties we want and expect
+# args: hash ref (configuration)
+# returns: same hash ref, modified elements
 sub _defaults
 {
-	my ( $self,$configuration ) = @_;
+	my ( $self, $configuration ) = @_;
+
 	$configuration->{port} //= 161;
 	$configuration->{max_msg_size} //= $self->nmisng->config->{snmp_max_msg_size};
 	$configuration->{max_repetitions} //= 0;
+	# and let's set the default polling policy if none was given
+	$configuration->{polling_policy} ||= "default";
 
 	return $configuration;
 }
 
-# tell the object that it's been changed so if save is
-# called something needs to be done
+# mark the object as changed to tell save() that something needs to be done
 # each section is tracked for being dirty, if it's 1 it's dirty
+#
+# args: nothing or (0) or (N,section)
+#  nothing: no changes,
+#  0: clear all dirty flags,
+#  value+section: set/clear flag for that section
+#
+# returns: overall dirty 1/0
 sub _dirty
 {
 	my ( $self, $newvalue, $whatsdirty ) = @_;
 
-	if ( defined($newvalue) )
+	# clear all dirty
+	if (defined($newvalue)  && !$newvalue)
 	{
-		$self->{_dirty}{$whatsdirty} = $newvalue;
+		$self->{_dirty} = {};
+		return 0;
+	}
+	elsif ( defined($newvalue) )
+	{
+		$self->{_dirty}->{$whatsdirty} = $newvalue;
+		return 1 if ($newvalue);
 	}
 
 	my @keys = keys %{$self->{_dirty}};
@@ -124,6 +141,44 @@ sub _dirty
 	}
 	return 0;
 }
+
+# load data for this node from the database
+# params: none
+# returns: nothing, (but the node object is updated)
+sub _load
+{
+	my ($self) = @_;
+
+	my $query = NMISNG::DB::get_query( and_part => { uuid => $self->uuid } );
+	my $cursor = NMISNG::DB::find(
+		collection => $self->nmisng->nodes_collection(),
+		query      => $query,
+		limit => 1,									# there can't be more than one
+	);
+
+	my $entry = $cursor->next;
+	if ($entry)
+	{
+		# translate from db to our local names where needed
+		$self->{_id} = $entry->{_id};
+		$self->{_name} = $entry->{name};
+		$self->{_cluster_id} = $entry->{cluster_id};
+
+		$self->{_overrides} = $entry->{overrides} // {};
+		$self->{_configuration} = $entry->{configuration} // {}; # unlikely to be blank
+		$self->{_activated} =
+				(ref($entry->{activated}) eq "HASH"? # but fall back to old style active flag if needed
+				 $entry->{activated} : { nmis => (exists($self->{_configuration}->{active})?
+																					$self->{_configuration}->{active} : 0)
+				 });
+		$self->_dirty(0);						# nothing is dirty at this point
+	}
+	else
+	{
+		$self->nmisng->log->warn("NMISNG::Node with uuid ".$self->uuid." seems nonexistent in the DB?");
+	}
+}
+
 
 ###########
 # Public:
@@ -215,37 +270,95 @@ sub bulk_update_inventory_historic
 	return $retval;
 }
 
+# get/set cluster_id for this node
+# args: cluster_id (optional, must be single id)
+#  if a new value is set, then the node will be
+#  marked dirty and will require save()ing.
+#
+# returns: current/new cluster_id
+#
+# fixme9: for multipolling, cluster_id becoming an array, this will require reworking
 sub cluster_id
 {
-	my ($self) = @_;
-	my $configuration = $self->configuration();
-	return $configuration->{cluster_id};
+	my ($self, $newvalue) = @_;
+	if (defined $newvalue)
+	{
+		# warn about fiddlery, not initial setting
+		$self->nmisng->log->warn("NMISNG::Node::cluster_id was set to new value $newvalue!")
+				if ($self->{_cluster_id} && $newvalue ne $self->{_cluster_id});
+
+		$self->_dirty(1, "cluster_id");
+		$self->{_cluster_id} = $newvalue;
+	}
+	# skeleton node? try to load the goods
+	elsif (!$self->is_new && !defined $self->{_cluster_id})
+	{
+		$self->_load;
+	}
+
+	return $self->{_cluster_id};
+}
+
+# get-set accessor for node name
+# args: node name, optional
+#
+# attention: only initial setting of the node name is supported,
+# renaming is more complex and requires use of the rename() function
+#
+# returns: current node name
+sub name
+{
+	my ($self, $newvalue) = @_;
+
+	if (defined($newvalue) && !defined($self->{_name}))
+	{
+		$self->{_name} = $newvalue;
+		$self->_dirty(1, "name");
+	}
+	elsif (!$self->is_new && !defined($newvalue) && !defined($self->{_name}))
+	{
+		$self->_load;
+	}
+	return $self->{_name};
+}
+
+# get-set accessor for node activation status
+# args: hashref (=new activation info, productname => 0/1),
+#  if given, node object is marked dirty and needs saving
+# returns: hashref with current activation state (cloned)
+sub activated
+{
+	my ($self, $newstate) = @_;
+	if (ref($newstate) eq "HASH")
+	{
+		$self->_dirty(1, "activated");
+		$self->{_activated} = $newstate;
+		# propagate to the old-style active flag for compat
+		$self->{_configuration}->{active} = $newstate->{nmis}? 1:0;
+	}
+	return Clone::clone($self->{_activated});
 }
 
 # get/set the configuration for this node
+#
 # setting data means the configuration is dirty and will
 #  be saved next time save is called, even if it is identical to what
 #  is in the database
+#
 # getting will load the configuration if it's not already loaded and return a copy so
 #   any changes made will not affect this object until they are put back (set) using this function
+#
 # params:
 #  newvalue - if set will replace what is currently loaded for the config
 #   and set the object to be dirty
-# returns configuration hash
+#
+# returns: configuration hash(ref, cloned)
 sub configuration
 {
 	my ( $self, $newvalue ) = @_;
 
-	if ( defined($newvalue) )
+	if (ref($newvalue) eq "HASH")
 	{
-		$self->nmisng->log->warn("NMISNG::Node::configuration given new config with uuid that does not match")
-			if ( $newvalue->{uuid} && $newvalue->{uuid} ne $self->uuid );
-
-		# UUID cannot be changed
-		$newvalue->{uuid} = $self->uuid;
-		# and an existing _id must be retained or the is_new logic fails
-		$newvalue->{_id} = $self->{_configuration}->{_id};
-
 		# convert true/false to 0/1
 		foreach my $no_more_tf (qw(active calls collect ping rancid threshold webserver))
 		{
@@ -253,26 +366,27 @@ sub configuration
 					if (defined($newvalue->{$no_more_tf}));
 		}
 
-		# make sure activated.nmis is also set and that it mirrors the old-style active flag
-		$newvalue->{activated}->{nmis} = $newvalue->{active};
+		# make sure activated.nmis is set and mirrors the old-style active flag
+		$self->{_activated}->{nmis} = $newvalue->{active} if (defined($newvalue->{active}));
+		$self->_dirty(1, "activated");
 
-		# and let's set the defuault polling policy if none was given
-		$newvalue->{polling_policy} ||= "default";
-
-		# fill in defaults
+		# fill in other defaults
 		$newvalue = $self->_defaults($newvalue);
 
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
-
-	# if there is no config try and load it
-	if ( !defined( $self->{_configuration} ) )
+	# if there is no config and the node is not new, try and load stuff from database
+	elsif (!defined($self->{_configuration}) && !$self->is_new)
 	{
-		$self->load_part( load_configuration => 1 );
+		$self->_load();
+
+		# make sure that the old-style active flag mirrors activated.nmis
+		$self->{_configuration}->{active} = $self->{_activated}->{nmis}
+		if (ref($self->{_configuration}) eq "HASH" && ref($self->{_activated}) eq "HASH");
 	}
 
-	return Clone::clone( $self->{_configuration} );
+	return $self->{_configuration}? Clone::clone( $self->{_configuration} ) : {};  # cover the new node case
 }
 
 # remove this node from the db and clean up all leftovers:
@@ -343,9 +457,11 @@ sub delete
 }
 
 # convenience function to help create an event object
+# see NMISNG::Event::new for required/possible arguments
 sub event
 {
 	my ( $self, %args ) = @_;
+	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$args{node_uuid} = $self->uuid;
 	$args{node_name} = $self->name;
 	my $event = $self->nmisng->events->event( %args );
@@ -353,7 +469,7 @@ sub event
 }
 
 # convenience function for adding an event to this node
-#
+# see NMISNG::Events::eventAdd for arguments
 sub eventAdd
 {
 	my ($self, %args) = @_;
@@ -365,6 +481,7 @@ sub eventDelete
 {
 	my ($self, %args) = @_;
 	my $event = $args{event};
+	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$event->{node_uuid} = $self->uuid;
 	# just make sure this isn't passed in
 	delete $event->{node};
@@ -382,6 +499,7 @@ sub eventExist
 sub eventLoad
 {
 	my ($self, %args) = @_;
+	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$args{node_uuid} = $self->uuid;
 	return $self->nmisng->events->eventLoad( %args );
 }
@@ -389,6 +507,7 @@ sub eventLoad
 sub eventLog
 {
 	my ($self, %args) = @_;
+	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$args{node_name} = $self->name;
 	$args{node_uuid} = $self->uuid;
 	return $self->nmisng->events->logEvent(%args);
@@ -398,6 +517,7 @@ sub eventUpdate
 {
 	my ($self, %args) = @_;
 	my $event = $args{event};
+	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$event->{node_uuid} = $self->uuid;
 	$args{event} = $event;
 	return $self->nmisng->events->eventUpdate(%args);
@@ -415,6 +535,7 @@ sub get_events_model
 {
 	my ( $self, %args ) = @_;
 	# modify filter to make sure it's getting just events for this node
+	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$args{filter} //= {};
 	$args{filter}->{node_uuid} = $self->uuid;
 	return $self->nmisng->events->get_events_model( %args );
@@ -423,7 +544,7 @@ sub get_events_model
 # get a list of id's for inventory related to this node,
 # useful for iterating through all inventory
 # filters/arguments:
-#  cluster_id,node_uuid,concept
+#  cluster_id, node_uuid, concept
 # returns: array ref (may be empty)
 sub get_inventory_ids
 {
@@ -468,7 +589,7 @@ sub get_distinct_values
 
 	$filter->{cluster_id} = $self->cluster_id;
 	$filter->{node_uuid} = $self->uuid;
-	
+
 	return $self->nmisng->get_distinct_values( collection => $collection, key => $key, filter => $filter );
 }
 
@@ -569,7 +690,8 @@ sub inventory
 # get all subconcepts and any dataset found within that subconcept
 # returns hash keyed by subconcept which holds hashes { subconcept => $subconcept, datasets => [...], indexed => 0/1 }
 # args: - filter, basically any filter that can be put on an inventory can be used
-#  enough rope to hang yourself here.  special case arg: subconcepts gets mapped into datasets.subconcepts
+#  enough rope to hang yourself here.
+# special case arg: subconcepts gets mapped into datasets.subconcepts
 sub inventory_datasets_by_subconcept
 {
 	my ( $self, %args ) = @_;
@@ -646,12 +768,13 @@ sub is_active
 {
 	my ($self) = @_;
 
-	my $curcfg = $self->configuration;
+	# check the new-style 'activated.nmis' flag first,
+	# then the old-style 'active' configuration property
+	return $self->{_activated}->{nmis} if (ref($self->{_activated}) eq "HASH"
+																				 and defined $self->{_activated}->{nmis});
 
-	# check the new-style 'activated.nmis' flag first, then the old-style 'active' property
-	return $curcfg->{activated}->{nmis} if (ref($curcfg->{activated}) eq "HASH"
-																					and defined $curcfg->{activated}->{nmis});
-	return NMISNG::Util::getbool($curcfg->{active});
+	return $self->{_configuration}?
+			NMISNG::Util::getbool($self->{_configuration}->{active}) : 0;
 }
 
 # returns 0/1 if the object is new or not.
@@ -659,12 +782,7 @@ sub is_active
 sub is_new
 {
 	my ($self) = @_;
-
-	my $configuration = $self->configuration();
-
-	# print "id".Dumper($configuration);
-	my $has_id = ( defined($configuration) && defined( $configuration->{_id} ) );
-	return ($has_id) ? 0 : 1;
+	return (defined($self->{_id})) ? 0 : 1;
 }
 
 # return bool (0/1) if node is down in catchall/info section
@@ -674,54 +792,6 @@ sub is_nodedown
 	my ($inventory,$error) =  $self->inventory( concept => "catchall" );
 	my $info = ($inventory && !$error) ? $inventory->data : {};
 	return NMISNG::Util::getbool( $info->{nodedown} );
-}
-
-# load data for this node from the database, named load_part because the module Module::Load has load which clashes
-# and i don't know how else to resolve the issue
-# params:
-#  options - hash, if not set or present all data for the node is loaded
-#    load_overrides => 1 will load overrides
-#    load_configuration => 1 will load overrides
-# no return value
-sub load_part
-{
-	my ( $self, %options ) = @_;
-	my @options_keys = keys %options;
-	my $no_options   = ( @options_keys == 0 );
-
-	my $query = NMISNG::DB::get_query( and_part => {uuid => $self->uuid} );
-	my $cursor = NMISNG::DB::find(
-		collection => $self->nmisng->nodes_collection(),
-		query      => $query
-	);
-	my $entry = $cursor->next;
-	if ($entry)
-	{
-
-		if ( $no_options || $options{load_overrides} )
-		{
-			# return an empty hash if it's not defined
-			$entry->{overrides} //= {};
-			$self->{_overrides} = Clone::clone( $entry->{overrides} );
-			$self->_dirty( 0, 'overrides' );
-		}
-		delete $entry->{overrides};
-
-		if ( $no_options || $options{load_configuration} )
-		{
-			# everything else is the configuration
-			$self->{_configuration} = $entry;
-			$self->_dirty( 0, 'configuration' );
-		}
-	}
-}
-
-# ro-accessor for node name
-# renaming is more complex and requires use of the rename() function
-sub name
-{
-	my ($self) = @_;
-	return $self->configuration()->{name};
 }
 
 # return nmisng object this node is using
@@ -743,23 +813,18 @@ sub nmisng
 sub overrides
 {
 	my ( $self, $newvalue ) = @_;
-	if ( defined($newvalue) )
+
+	if (ref($newvalue) eq "HASH")
 	{
 		$self->{_overrides} = $newvalue;
 		$self->_dirty( 1, 'overrides' );
 	}
-
-	# if there is no config try and load it
-	if ( !defined( $self->{_overrides} ) )
+	# if there is no config and the node is not new, try and load stuff from database
+	elsif ( !defined($self->{_overrides}) && !$self->is_new )
 	{
-		if ( !$self->is_new && $self->uuid )
-		{
-			$self->load_part( load_overrides => 1 );
-		}
+		$self->_load();
 	}
-
-	# loading will set this to an empty hash if it's not defined
-	return $self->{_overrides};
+	return ($self->{_overrides}? Clone::clone($self->{_overrides}) : {}); # cover the new node case
 }
 
 # this utility function renames a node and all its files,
@@ -772,6 +837,7 @@ sub overrides
 sub rename
 {
 	my ($self, %args) = @_;
+
 	my $newname = $args{new_name};
 	my $old = $self->name;
 
@@ -840,8 +906,8 @@ sub rename
 	}
 
 	# then update ourself and save
-	$self->{_configuration}->{name} = $newname;
-	$self->_dirty(1, 'configuration');
+	$self->{_name} = $newname;
+	$self->_dirty(1, 'name');
 	my ($ok, $error) = $self->save;
 	return (0, "Failed to save node record: $error") if ($ok <= 0);
 
@@ -868,7 +934,7 @@ sub rename
 #-1 if node is not valid,
 # >0 if all good
 #
-# TODO: error checking just uses assert right now, we may want
+# TODO/fixme9: error checking just uses assert right now, we may want
 #   a differnent way of doing this
 sub save
 {
@@ -881,51 +947,50 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
-	my $result;
-	my $op;
+	my ($result, $op);
 
-	my $entry = $self->configuration();
-	$entry->{overrides} = $self->overrides();
+	my %entry = ( uuid => $self->{uuid},
+								name => $self->{_name},
+								cluster_id => $self->{_cluster_id},
+								lastupdate => time, # time of last save
+								configuration => $self->{_configuration},
+								overrides => $self->{_overrides},
+								activated => $self->{_activated},
+			);
 
-	# make 100% certain we've got the uuid correct
-	$entry->{uuid} = $self->uuid;
-
-	# need the time it was last saved
-	$entry->{lastupdate} = time;
-
-	if ( $self->is_new() )
+	if ($self->is_new())
 	{
 		# could maybe be upsert?
 		$result = NMISNG::DB::insert(
 			collection => $self->nmisng->nodes_collection(),
-			record     => $entry,
+			record     => \%entry,
 		);
 		assert( $result->{success}, "Record inserted successfully" );
-		$self->{_configuration}{_id} = $result->{id} if ( $result->{success} );
+		$self->{_id} = $result->{id} if ( $result->{success} );
 
-		$self->_dirty( 0, 'configuration' );
-		$self->_dirty( 0, 'overrides' );
+		$self->_dirty(0); # all clean now
 		$op = 1;
 	}
 	else
 	{
+
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->nodes_collection(),
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
 			freeform   => 1,					# we need to replace the whole record
-			record     => $entry
+			record     => \%entry
 				);
 		assert( $result->{success}, "Record updated successfully" );
 
-		$self->_dirty( 0, 'configuration' );
-		$self->_dirty( 0, 'overrides' );
+		$self->_dirty(0);
 		$op = 2;
 	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
 
 
-# get the nodes id (which is its UUID)
+# get the node's id, ie. its UUID,
+# which is globally unique (even with multipolling, where cluster_id is an array)
 sub uuid
 {
 	my ($self) = @_;
@@ -937,17 +1002,21 @@ sub uuid
 sub validate
 {
 	my ($self) = @_;
-	my $configuration = $self->configuration();
 
-	return (-2, "node requires cluster_id") if ( !$configuration->{cluster_id} );
-	for my $musthave (qw(name host group))
+	return (-2, "node requires cluster_id") if ( !$self->{_cluster_id} );
+	return (-2, "node requires name") if ( !$self->{_name} );
+
+	my $configuration = $self->configuration;
+	for my $musthave (qw(host group))
 	{
-		return (-1, "node requires $musthave property") if (!$configuration->{$musthave} ); # empty or zero is not ok
+		return (-1, "node requires $musthave property")
+				if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
 
-	# note: if ths is changed to be stricter, then sub rename needs to be changed as well!
+	# note: if this is changed to be stricter, then sub rename needs to be changed as well!
 	# '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
-	return (-1, "node name contains forbidden character '/'") if ($configuration->{name} =~ m!/!);
+	return (-1, "node name contains forbidden character '/'")
+			if ($self->{_name} =~ m!/!);
 
 	return (-3, "given netType is not a known type")
 			if (!grep($configuration->{netType} eq $_,
@@ -959,7 +1028,6 @@ sub validate
 
 	return (1,undef);
 }
-
 
 # this function accesses fping results if conf'd and a/v, or runs a synchronous ping
 # args: self, sys (required), time_marker (optional)
@@ -6497,7 +6565,8 @@ sub collect_services
 	# do we have snmp-based services and are we allowed to check them?
 	# ie node active and collect on; if so, then do the snmp collection here
 	if ( $snmp_allowed
-			 and  $self->configuration->{active}
+
+			 and  $self->is_active
 			 and $self->configuration->{collect}
 			 and grep( exists( $ST->{$_} ) && $ST->{$_}->{Service_Type} eq "service",
 								 split( /,/, $self->configuration->{services} ) )
@@ -7764,3 +7833,20 @@ sub collect
 }
 
 1;
+
+=pod
+
+=head1 node structure in db
+
+_id (database id)
+uuid (globally unique for this node, R/O)
+name (display name)
+cluster_id (the collecting/controlling server's cluster_id)
+activated (hash of product -> 0/1)
+lastupdate (timestamp of last change in db, only written)
+configuration (hash substructure)
+overrides (hash substructure)
+aliases (hash substructure, not used by plain nmis itself)
+addresses (hash substructure, not used by plain nmis itself)
+
+=cut

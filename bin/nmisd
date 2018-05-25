@@ -561,11 +561,11 @@ while (!$exit_marker)
 			$nmisng->log->info("Single worker cycle returned status $status");
 			# save the state more often for foreground/debug mode
 			NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
-			
+
 			if( defined($cmdline->{max_jobs}) )
 			{
 				$cmdline->{max_jobs}--;
-				$exit_marker = 1 if($cmdline->{max_jobs} < 1); 
+				$exit_marker = 1 if($cmdline->{max_jobs} < 1);
 			}
 			last if ($status == EXIT_IDLE or $exit_marker);
 		}
@@ -1124,7 +1124,7 @@ sub worker_loop
 					$nmisng = NMISNG->new(config => $nmisng->config,
 																log => $nmisng->log,
 																drop_unwanted_indices => 1);
-					
+
 					my $result = $nmisng->dbcleanup(simulate => 0);
 					$state->{status} = $result->{success}? "ok":"error";
 					$state->{details} = "completed"
@@ -1475,8 +1475,8 @@ sub fping_loop
 		}
 
 		my $nodesmodel = $nmisng->get_nodes_model( filter => { 	cluster_id => $config->{cluster_id},
-																														active => 1,
-																														ping => 1 });
+																														"activated.nmis" => 1,
+																														"configuration.ping" => 1 });
 		if (my $failure = $nodesmodel->error)
 		{
 			$nmisng->log->error("Failed to query active nodes: $failure, sleeping 60s");
@@ -1505,8 +1505,8 @@ sub fping_loop
 			};
 
 			# what needs filling in, what could change between poll cycles?
-			$thisstate->{host} = $noderec->{host};
-			$thisstate->{policy} = $noderec->{polling_policy} || 'default';
+			$thisstate->{host} = $noderec->{configuration}->{host};
+			$thisstate->{policy} = $noderec->{configuration}->{polling_policy} || 'default';
 
 			# honor fixed ip address given
 			# fixme: fping doesn't do ipv6, we would have to use fping6 for that.

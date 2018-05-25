@@ -344,7 +344,7 @@ sub compute_all_thresholds
 		return;
 	}
 
-	my $activenodes = $self->get_nodes_model( filter => {active => 1} );
+	my $activenodes = $self->get_nodes_model( filter => {"activated.nmis" => 1} );
 	if ( my $error = $activenodes->error )
 	{
 		$self->log->error("Failed to lookup active nodes: $error");
@@ -955,7 +955,7 @@ sub expand_node_selection
 			error  => {"invalid filter structure, not a hash!"}
 		) if ( ref($onefilter) ne "HASH" );
 
-		$onefilter->{active} = 1;    # never consider inactive nodes
+		$onefilter->{"activated.nmis"} = 1;    # never consider inactive nodes
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return NMISNG::ModelData->new(
 			nmisng => $self,
@@ -1016,7 +1016,7 @@ sub events_collection
 #  filters (optional, ARRAY of filter hashrefs to be applied independently)
 #
 # returns: hashref with error/success,
-#  nodes => hash of uuid, value node config data,
+#  nodes => hash of uuid, value node data (same deep record as get_nodes_model returns!)
 #  flavours => hash of uuid -> snmp/wmi -> 0/1 (only for collect),
 #  services => hash of uuid -> array of service names (only for services)
 #  in_progress => hash of uuid => queue id => queue record
@@ -1038,7 +1038,7 @@ sub find_due_nodes
 	# default: blank unrestricted filter
 	for my $onefilter ( ref( $args{filters} ) eq "ARRAY" && @{$args{filters}} ? @{$args{filters}} : ( {} ) )
 	{
-		$onefilter->{active} = 1;    # never consider inactive nodes
+		$onefilter->{"activated.nmis"} = 1;    # never consider inactive nodes
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return {error => $possibles->error} if ( $possibles->error );
 
@@ -1147,8 +1147,8 @@ sub find_due_nodes
 	my ( %due, %flavours, %procs, %services );
 	for my $maybe ( keys %cands )    # nodes by uuid
 	{
-		my $nodeconfig = $cands{$maybe};
-		my $nodename   = $nodeconfig->{name};
+		my $nodename   = $cands{$maybe}->{name};
+		my $nodeconfig = $cands{$maybe}->{configuration};
 
 		# that's the catchall dynamic info from previous collects/updates
 		my $ninfo = $node_info_ro{$maybe} // {};
@@ -1212,7 +1212,7 @@ sub find_due_nodes
 					$msg .= "is due for checking at this time.";
 					$self->log->debug($msg);
 
-					$due{$maybe} = $nodeconfig;
+					$due{$maybe} = $cands{$maybe}; # we need the whole node record
 					$services{$maybe} //= [];
 					push @{$services{$maybe}}, $maybesvc;
 				}
@@ -1259,7 +1259,7 @@ sub find_due_nodes
 						or $self->log->error("failed to mv rrd files for $maybe: $!");
 				}
 
-				$due{$maybe} = $nodeconfig;
+				$due{$maybe} = $cands{$maybe};
 				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;    # and ignore the last-xyz markers
 			}
 
@@ -1321,7 +1321,7 @@ sub find_due_nodes
 
 				if ( $nexttry <= $now )
 				{
-					$due{$maybe} = $nodeconfig;
+					$due{$maybe} = $cands{$maybe};
 					$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1 if ( $whichop eq "collect" );
 				}
 			}
@@ -1346,7 +1346,7 @@ sub find_due_nodes
 								. ( $lastupdate ? sprintf( "%.1fs ago", $now - $lastupdate ) : "never" )
 								. " last attempt: "
 								. ( $lastattempt ? sprintf( "%.1fs ago", $now - $lastattempt ) : "never" ) );
-						$due{$maybe} = $nodeconfig;
+						$due{$maybe} = $cands{$maybe};
 					}
 					else
 					{
@@ -1373,7 +1373,7 @@ sub find_due_nodes
 			elsif ( !defined($lastsnmp) && !defined($lastwmi) && $nodeconfig->{collect} )
 			{
 				$self->log->debug("Node $nodename has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
-				$due{$maybe} = $nodeconfig;
+				$due{$maybe} = $cands{$maybe};
 				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
 			}
 			else
@@ -1404,7 +1404,7 @@ sub find_due_nodes
 							. ( $lastsnmp ? sprintf( "%.1fs ago", $now - $nextsnmp ) : "n/a" )
 							. ", next wmi: "
 							. ( $lastwmi ? sprintf( "%.1fs ago", $now - $nextwmi ) : "n/a" ) );
-					$due{$maybe} = $nodeconfig;
+					$due{$maybe} = $cands{$maybe};
 
 					# but if we've decided on polling, then DO try flavours that have not worked in the past!
 					# nextwmi <= now also covers the case of undefined lastwmi...
@@ -1701,13 +1701,18 @@ sub get_nodes_model
 
 	# copy convenience/shortcut arguments iff the filter
 	# hasn't already set them - the filter wins
-	for my $shortie (qw(uuid name host group))
+	for my $shortie (qw(uuid name)) # db keeps these at the top level...
 	{
 		$filter->{$shortie} = $args{$shortie}
 			if ( exists( $args{$shortie} ) and !exists( $filter->{$shortie} ) );
 	}
-	my $fields_hash = $args{fields_hash};
+	for my $confshortie (qw(host group)) # ...but these are kept as configuration.X
+	{
+		$filter->{"configuration.$confshortie"} = $args{$confshortie}
+		if ( exists( $args{$confshortie} ) and !exists( $filter->{"configuration.$confshortie"} ) );
+	}
 
+	my $fields_hash = $args{fields_hash};
 	my $q = NMISNG::DB::get_query( and_part => $filter );
 
 	my $model_data = [];
@@ -2290,7 +2295,8 @@ sub node
 	delete $args{create};
 
 	my $node;
-	my $modeldata = $self->get_nodes_model(%args);
+	# we only need the uuid, and the name only for error handling
+	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1});
 	if ( $modeldata->count() > 1 )
 	{
 		my @names = map { $_->{name} } @{$modeldata->data()};
@@ -2300,18 +2306,19 @@ sub node
 	}
 	elsif ( $modeldata->count() == 1 )
 	{
+		# fixme9: why not use md->object(0)?
 		my $model = $modeldata->data()->[0];
 		$node = NMISNG::Node->new(
 			_id    => $model->{_id},
 			uuid   => $model->{uuid},
-			nmisng => $self
+			nmisng => $self,
 		);
 	}
 	elsif ($create)
 	{
 		$node = NMISNG::Node->new(
 			uuid   => $args{uuid},
-			nmisng => $self
+			nmisng => $self,
 		);
 	}
 
@@ -2526,7 +2533,7 @@ sub process_escalations
 	my $msgtime = NMISNG::Util::get_localtime();
 
 	# first load all non-historic events for all nodes for this cluster
-	my $activemodel = $self->events->get_events_model( filter => {historic => 0, active => 1, 
+	my $activemodel = $self->events->get_events_model( filter => {historic => 0, active => 1,
 		cluster_id => $self->config->{cluster_id}} );
 	if ( my $error = $activemodel->error )
 	{
@@ -3989,7 +3996,7 @@ sub status_collection
 			drop_unwanted => $drop_unwanted,
 			indices       => [
 				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
-				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],				
+				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
 				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 			]
 		);

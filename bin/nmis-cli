@@ -285,7 +285,9 @@ elsif ($Q->{act} eq "schedule")
 		for my $filterable (qw(node name group uuid)) # job.node === job.name === node name
 		{
 			my @inputs = ref($jobargs{$filterable}) eq "ARRAY"? @{$jobargs{$filterable}}: $jobargs{$filterable} // ();
-			map { push @filters, { ($filterable eq "node"? "name" : $filterable) => $_ }; } (@inputs);
+			map { push @filters, { ($filterable eq "node"? "name" :
+															$filterable =~ /^(name|uuid)$/?
+															$filterable : "configuration.$filterable") => $_ }; } (@inputs);
 		}
 
 		my $possibles = $nmisng->expand_node_selection(@filters);
@@ -977,35 +979,67 @@ else
 exit 0;
 
 
-
 # resave nodes, forces lastupdate to be new and all validation to be run
 sub noderefresh
 {
 	my $updated = 0;
-	# get all nodes
+
+	# get all nodes (or just one, not documented)
 	my $md = $nmisng->get_nodes_model( name => $Q->{node} );
-	my $object_ret = $md->objects();
-	if( $object_ret->{success} )
+	if (my $error = $md->error)
 	{
-		foreach my $node ( @{$object_ret->{objects}} )
+		die "Failed to lookup nodes: $error\n";
+	}
+
+	if (!$md->count)
+	{
+		print STDERR "No matching nodes.\n";
+		exit 0;
+	}
+
+	for my $nth (0..($md->count-1))
+	{
+		my $rawdata = $md->data->[$nth];
+		my ($insterror, $node) = $md->object($nth);
+		die "Failed to instantiate node object: $insterror\n" if ($insterror);
+
+		# first, check if the db data needs the configuration to be moved,
+		# so that the record's top level holds only the known few properties
+		if (!exists($rawdata->{configuration}))
 		{
-			# tell the node it's dirty so the save happens
-			$node->configuration( $node->configuration );
-			$node->_dirty(1,"nothing");
-			my ($op,$error) = $node->save();
-			if( $op < 1 || $error )
+			my %newconfig;
+
+			# only these may remain: _id, uuid, cluster_id, name, activated, lastupdate,
+			# overrides, configuration, aliases, addresses
+			for my $moveme (grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides)$/,
+													 keys %$rawdata))
 			{
-				print "Error saving: ".$node->name.", op:$op, error: $error"
+				$newconfig{$moveme} = $rawdata->{$moveme};
+				delete $rawdata->{$moveme};
 			}
-			else
+			$node->configuration(\%newconfig); # which makes the node dirty
+
+			# the first two top-level keepers are set on new, but nothing else is; the last two are
+			# not used by nmis itself
+			for my $mustset (qw(cluster_id name activated overrides))
 			{
-				$updated++;
+				$node->$mustset($rawdata->{$mustset}) if (exists($rawdata->{$mustset}));
+				delete $rawdata->{$mustset};
 			}
 		}
+
+		# now retrigger config validation and saving
+		$node->configuration( $node->configuration );
+		$node->_dirty(1,"forcing a save");
+		my ($op,$error) = $node->save();
+		if( $op < 1 || $error )
+		{
+			print "Error saving: ".$node->name.", op:$op, error: $error"
+		}
+		else
+		{
+			$updated++;
+		}
 	}
-	else
-	{
-		print "Error making node objects: $object_ret->{error}\n";
-	}
-	print "total nodes: ".$md->count.", updated:$updated\n";
+	print "total nodes: ".$md->count.", updated: $updated\n";
 }

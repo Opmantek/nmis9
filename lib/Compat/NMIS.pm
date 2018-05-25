@@ -111,7 +111,8 @@ sub new_nmisng
 
 # load local nodes (only!)
 # args: none
-# returns: hash of node name -> node record
+# returns: hash of node name -> node record, FLATTENED!
+# deprecated - cannot deal with name clashes, doesn't support cluster_id and discards structural information!
 sub loadLocalNodeTable
 {
 	my $nmisng = new_nmisng();
@@ -119,13 +120,26 @@ sub loadLocalNodeTable
 	# ask the database for all of my nodes, ie. with my cluster id
 	my $modelData = $nmisng->get_nodes_model( filter => { cluster_id => $nmisng->config->{cluster_id} } );
 	my $data = $modelData->data();
-	my %map = map { $_->{name} => $_ } @$data;
+
+	my %map = map { ($_->{name} => $_) } @$data;
+	for my $flattenme (values %map)
+	{
+		for my $confprop (keys %{$flattenme->{configuration}})
+		{
+			$flattenme->{$confprop} = $flattenme->{configuration}->{$confprop};
+		}
+		delete $flattenme->{configuration};
+		$flattenme->{active} = $flattenme->{activated}->{nmis};
+		delete $flattenme->{activated};
+	}
+
 	return \%map;
 }
 
 # load all nodes, local and foreign
 # args: none
-# returns: hash of node name -> node record
+# returns: hash of node name -> node record, FLATTENED!
+# deprecated - cannot deal with name clashes, doesn't support cluster_id and discards structural information!
 sub loadNodeTable
 {
 	my $nmisng = new_nmisng();
@@ -135,6 +149,16 @@ sub loadNodeTable
 	my $data = $modelData->data();
 
 	my %map = map { $_->{name} => $_ } @$data;
+	for my $flattenme (values %map)
+	{
+		for my $confprop (keys %{$flattenme->{configuration}})
+		{
+			$flattenme->{$confprop} = $flattenme->{configuration}->{$confprop};
+		}
+		delete $flattenme->{configuration};
+		$flattenme->{active} = $flattenme->{activated}->{nmis};
+		delete $flattenme->{activated};
+	}
 	return \%map;
 }
 
@@ -1273,7 +1297,7 @@ sub loadInterfaceInfo
 	my $nmisng = new_nmisng();
 
 	my $get_node_uuids = $nmisng->get_node_uuids(
-		filter => { cluster_id => $nmisng->config->{cluster_id}, active => 1, collect => 1 } );
+		filter => { cluster_id => $nmisng->config->{cluster_id}, "activated.nmis" => 1, "configuration.collect" => 1 } );
 
 	my %interfaceInfo;
 	foreach my $node_uuid ( @$get_node_uuids )
@@ -2323,6 +2347,8 @@ sub has_nodeconf
 # returns: (undef, hashref) or (errmsg, undef)
 # if asked for a single node, then hashref is JUST the node's settings
 # if asked for all nodes, then hashref is nodename => per-node-settings
+#
+# FIXME: deprecated, cannot handle name clashes!
 sub get_nodeconf
 {
 	my (%args) = @_;
@@ -2361,7 +2387,7 @@ sub get_nodeconf
 			}
 
 			# structure is real_nodename => data for this node
-			$allofthem{$node->configuration()->{name}} = $overrides;
+			$allofthem{ $node->name } = $overrides;
 		}
 		return (undef, \%allofthem);
 	}
