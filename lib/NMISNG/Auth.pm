@@ -47,7 +47,7 @@
 #   incorporated in NMIS and more generally into other web programs needing
 #   user authentication.
 package NMISNG::Auth;
-our $VERSION = "3.0.0";
+our $VERSION = "4.0.0";
 
 use strict;
 
@@ -236,12 +236,18 @@ sub get_cookie_domain
 	return '';
 }
 
-# produces nmis-style cookie name
-# only used when auth_cookie_flavour is set to nmis
+# produces cookie name, with sso domain factored in
+# used for both omk and nmis flavoured cookies
 sub get_cookie_name
 {
 	my $self = shift;
-	my $name = "nmis_auth".$self->get_cookie_domain;
+
+	my $nameprefix =  ($self->{cookie_flavour} eq "nmis"?
+										 "nmis_auth" : "omk");
+
+	my $name = "$nameprefix.".$self->get_cookie_domain;
+	$name =~ s/\.+/./g;						# we want a.x.y.com, not a..x.y.com...
+	$name =~ s/\.$//;							# ...not 'nmis_auth.' and not 'omk.'
 	return $name;
 }
 
@@ -251,10 +257,8 @@ sub verify_id
 {
 	my $self = shift;
 
-	# retrieve the cookie
-	my $cookie = CGI::cookie( ($self->{cookie_flavour} eq "nmis")?
-														$self->get_cookie_name()
-														: "mojolicious" );
+	# retrieve the right cookie
+	my $cookie = CGI::cookie($self->get_cookie_name());
 	if(!defined($cookie) )
 	{
 		NMISNG::Util::logAuth("verify_id: cookie not defined");
@@ -376,7 +380,6 @@ sub generate_cookie
 
 		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
 		my $sessiondata = encode_json( { auth_data => $authuser,
-																		 omkd_sso_domain => $cookiedomain,
 																		 expires => $expires_ts } );
 		my $value = encode_base64($sessiondata, ''); # no end of line separator please
 		$value =~ y/=/-/;
@@ -386,7 +389,7 @@ sub generate_cookie
 		logAuth("generated OMK cookie for $authuser: $value--$signature")
 				if ($self->{debug});
 
-		return  CGI::cookie( { -name => "mojolicious",
+		return  CGI::cookie( { -name => $self->get_cookie_name,
 													 -domain => $cookiedomain,
 													 -value => "$value--$signature",
 													 -expires => $expires } );
@@ -1224,10 +1227,9 @@ sub _tacacs_verify {
 
 # check login - logout - go
 # args: type, username, password, headeropts, listmodules
-sub loginout
-{
-	my $self = shift;
-	my %args = @_;
+sub loginout {
+	my ($self, %args) = @_;
+
 	my $type = lc($args{type});
 	my $username = $args{username};
 	my $password = $args{password};
