@@ -173,6 +173,15 @@ sub delete
 	return undef;	
 }
 
+# convenience function, makes api similar to inventory
+# NOTE: id will only be there if this thing was loaded from db, a saved
+# or updated object which came from 'new' won't get it on save/update
+sub id
+{
+	my ($self) = @_;
+	return $self->{data}{_id};	
+}
+
 # is this thing an alert? there should be a better way to do this, alerts
 # should tell us that we are an alert
 sub is_alert
