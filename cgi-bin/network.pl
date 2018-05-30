@@ -1915,6 +1915,7 @@ EO_HTML
 		'outage',
 		'sysName',
 		'host_addr',
+		'host_addr_backup',
 		'group',
     'customer',
 		'location',
@@ -2059,7 +2060,7 @@ EO_HTML
 		my $value;
 		# get the value from the view if it one of the special ones, or only present there
 		if ( $k
-				 =~ /^(host_addr|lastUpdate|lastPing|lastCollect|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
+				 =~ /^(host_addr|host_addr_backup|lastUpdate|lastPing|lastCollect|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
 							 or not exists( $catchall_data->{$k} ) )
 		{
 			$value = $V->{system}{"${k}_value"};
@@ -2095,6 +2096,11 @@ EO_HTML
 				$value = "reachable";
 				$color = "#0F0";
 			}
+		}
+		# skip if not present
+		elsif ($k eq "host_addr_backup")
+		{
+			next if (!defined $value or $value eq "");
 		}
 		# from outageCheck, neither nodeinfo nor view
 		elsif ($k eq 'outage')
@@ -2684,6 +2690,8 @@ sub viewInterface
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '2'},
@@ -2964,6 +2972,8 @@ sub viewAllIntf
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(
 			td( {class => 'Warning'},
@@ -3177,6 +3187,8 @@ sub viewActivePort
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(
 			td( {class => 'Warning'},
@@ -3375,6 +3387,9 @@ sub viewStorage
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
+
 
 		print Tr(
 			td( {class => 'Warning', colspan => '3'},
@@ -3481,6 +3496,8 @@ sub viewService
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '3'},
@@ -3603,6 +3620,8 @@ sub viewServiceList
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '7'},
@@ -3733,6 +3752,8 @@ sub viewCpuList
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '7'},
@@ -3843,6 +3864,8 @@ sub viewStatus
 		my @causes;
 		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => $colspan},
@@ -4050,6 +4073,8 @@ sub viewSystemHealth
 				my @causes;
 				push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
 				push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
+				push @causes, "Node Polling Failover"
+						if (defined($status{failover_status}) && !$status{failover_status});
 
 				print Tr(
 					td( {class => 'Warning', colspan => $colspan},

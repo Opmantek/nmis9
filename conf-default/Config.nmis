@@ -94,7 +94,7 @@ my %hash = (
 																access => [ 'Minor', 'Warning' ], default => [ 'Major', 'Minor' ] },
     # if this option is present, then *only* properties listed here will be shown in the node view,
     # and in precisely this order. custom properties are supported.
-    'network_viewNode_field_list' => 'status,outage,sysName,host_addr,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastPing,lastCollect,lastUpdate,nodeVendor,sysObjectName,roleType,netType',
+    'network_viewNode_field_list' => 'status,outage,sysName,host_addr,host_addr_backup,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastPing,lastCollect,lastUpdate,nodeVendor,sysObjectName,roleType,netType',
 
 		# if this option is present use binary logic for node down and set the level to the overall_node_status_level
     'overall_node_status_coarse' => 'false',

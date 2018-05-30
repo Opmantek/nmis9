@@ -126,6 +126,7 @@
     'CancelingEvent' => 'N/A',
     'Description' => 'A node reset has been detected, the operating system has restarted.',
   },
+
   'Node Failover' => {
     'Event' => 'Node Failover',
     'Notify' => 'true',
@@ -135,6 +136,17 @@
     'CancelingEvent' => 'N/A',
     'Description' => 'A redundant node pair has failed over, typically a Cisco PIX or ASA.',
   },
+
+  'Node Polling Failover' => {
+    'Event' => 'Node Polling Failover',
+    'Notify' => 'true',
+		'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'Node Polling Failover Closed',
+    'Description' => 'SNMP has failed over to the host_backup address.',
+	},
+
   'Node Configuration Change' => {
     'Event' => 'Node Configuration Change',
     'Notify' => 'true',
