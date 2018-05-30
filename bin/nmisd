@@ -1513,7 +1513,7 @@ sub fping_loop
 		{
 			# if a node is dual-homed then it needs to be pinged twice, so two records with two keys...
 			my $statekey = $noderec->{uuid};
-			if ($noderec->{host_backup})
+			if ($noderec->{configuration}->{host_backup})
 			{
 				# first time round, handle primary and add the secondary
 				if (!$multihomed{$noderec->{uuid}})
@@ -1526,7 +1526,7 @@ sub fping_loop
 				# second time round, do handle the secondary
 				else
 				{
-					$noderec->{host} = $noderec->{host_backup};
+					$noderec->{host} = $noderec->{configuration}->{host_backup};
 					$statekey .= ":1";
 				}
 			}
