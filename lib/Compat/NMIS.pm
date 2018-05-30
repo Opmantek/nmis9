@@ -327,7 +327,8 @@ sub loadNodeSummary {
 # reason for looking for events (instead of wmidown/snmpdown markers):
 # underlying events state can change asynchronously (eg. fping), and the per-node status from the node
 # file cannot be guaranteed to be up to date if that happens.
-sub nodeStatus {
+sub nodeStatus
+{
 	my %args = @_;
 	my ($catchall_data,$node) = @args{'catchall_data','node'};
 	# die "nodeStatus requires catchall_data" if (!$catchall_data);
@@ -348,6 +349,7 @@ sub nodeStatus {
 	my $node_down = "Node Down";
 	my $snmp_down = "SNMP Down";
 	my $wmi_down_event = "WMI Down";
+	my $failover_event = "Node Polling Failover";
 
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if ( NMISNG::Util::getbool($catchall_data->{ping},"invert")
@@ -359,10 +361,12 @@ sub nodeStatus {
 	elsif ( $node->eventExist($node_down) ) {
 		$status = 0;
 	}
-	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi or failover'd -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( NMISNG::Util::getbool($catchall_data->{collect}) and
-					( $node->eventExist($snmp_down)	or $node->eventExist($wmi_down_event)) )
+					( $node->eventExist($snmp_down)
+						or $node->eventExist($wmi_down_event)
+						or $node->eventExist($failover_event) ))
 	{
 		$status = -1;
 	}
@@ -387,7 +391,7 @@ sub nodeStatus {
 # this is a variation of nodeStatus, which doesn't say why a node is degraded
 # args: system object (doesn't have to be init'd with snmp/wmi)
 # returns: hash of error (if dud args), overall (-1,0,1), snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
-# ping_enabled and ping_status, wmi_enabled and wmi_status
+# ping_enabled and ping_status, wmi_enabled and wmi_status, failover_status (0,1,undef if unknown/irrelevant)
 sub PreciseNodeStatus
 {
 	my (%args) = @_;
@@ -412,11 +416,13 @@ sub PreciseNodeStatus
 									ping_enabled => NMISNG::Util::getbool($catchall_data->{ping}),
 									snmp_status => undef,
 									wmi_status => undef,
-									ping_status => undef );
+									ping_status => undef,
+									failover_status => undef );
 
 	$precise{ping_status} = ($node->eventExist("Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
 	$precise{wmi_status} = ($node->eventExist("WMI Down")?0:1) if ($precise{wmi_enabled});
 	$precise{snmp_status} = ($node->eventExist("SNMP Down")?0:1) if ($precise{snmp_enabled});
+	$precise{failover_status} = $node->eventExist("Node Polling Failover")? 0:1 if ($precise{snmp_enabled});
 
 	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (!$precise{ping_enabled}
@@ -430,10 +436,11 @@ sub PreciseNodeStatus
 	{
 		$precise{overall} = 0;
 	}
-	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
-					or ($precise{snmp_enabled} and !$precise{snmp_status}) )
+					or ($precise{snmp_enabled} and
+							(!$precise{snmp_status} or !$precise{failover_status})) )
 	{
 		$precise{overall} = -1;
 	}
@@ -2124,7 +2131,7 @@ sub loadServiceStatus
 # if it exists it deletes it from the event state table/log
 #
 # and then calls notify with a new Up event including the time of the outage
-# args: a LIVE sys object for the node, event(name);
+# args: a LIVE sys object for the node, event(name), upevent (name, optional)
 #  element, details and level are optional
 sub checkEvent
 {
@@ -2132,12 +2139,17 @@ sub checkEvent
 	my $S = $args{sys};
 	my $nmisng = $S->nmisng;
 
+	my $upevent = $args{upevent};   # that's the optional name of the up event to log
+
 	$args{node_uuid} = $S->nmisng_node()->uuid;
 	# create event with attributes we are looking for
 	my $event = $nmisng->events->event( _id => $args{_id}, node_uuid => $args{node_uuid}, event => $args{event}, element => $args{element} );
+
 	# only take the missing data from the db, that way our new details/level will
 	# be used instead of what is in the db
-	return $event->check( sys => $S, details => $args{details}, level => $args{level} );
+	return $event->check( sys => $S,
+												details => $args{details}, level => $args{level},
+												upevent => $upevent );
 };
 
 # notify creates new events

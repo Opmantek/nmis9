@@ -49,6 +49,7 @@ use Mojo::File;
 use Data::Dumper;
 use Time::HiRes;
 use Statistics::Lite;
+use List::Util 1.33;
 
 use NMISNG;
 use NMISNG::Util;
@@ -1491,22 +1492,53 @@ sub fping_loop
 		# first: ditch deleted/disabled nodes
 		for my $maybegoner (keys %state)
 		{
-			delete $state{$maybegoner} if (ref($byuuid{$maybegoner}) ne "HASH");
+			my ($uuid,$declash) = split(/:/, $maybegoner);
+
+			delete $state{$maybegoner}
+			if (ref($byuuid{$uuid}) ne "HASH");
+		}
+		# the same needs to happen for no-longer multi-homed nodes
+		for my $maybegoner (grep(defined($state{$_}->{has_sibling}),
+														 keys %state))
+		{
+			delete $state{$maybegoner}
+			if (!$byuuid{ $state{$maybegoner}->{uuid} }->{host_backup});
 		}
 
 		# second: find out which nodes are due for a ping
-		my @todos;
-		for my $noderec (values %byuuid)
+		my (@todos, %multihomed);
+		my @tocheck = values %byuuid;
+
+		while (my $noderec = pop @tocheck)
 		{
-			my $thisstate = $state{ $noderec->{uuid} } ||= {
+			# if a node is dual-homed then it needs to be pinged twice, so two records with two keys...
+			my $statekey = $noderec->{uuid};
+			if ($noderec->{host_backup})
+			{
+				# first time round, handle primary and add the secondary
+				if (!$multihomed{$noderec->{uuid}})
+				{
+					$multihomed{$noderec->{uuid}} = 1;
+					push @tocheck, $noderec;
+					$statekey .= ":0";
+					$nmisng->log->debug("Node $noderec->{name} is multi-homed, will ping both $noderec->{host} and $noderec->{host_backup}");
+				}
+				# second time round, do handle the secondary
+				else
+				{
+					$noderec->{host} = $noderec->{host_backup};
+					$statekey .= ":1";
+				}
+			}
+
+			my $thisstate = $state{ $statekey } ||= {
 				name => $noderec->{name},
 				uuid => $noderec->{uuid},
-				# dynamically managed: ip, lastping,nextping, policy , nextdns, avg min max loss
+				host => $noderec->{configuration}->{host},       # this is either the  primary or the secondary host/ip
+				policy => $noderec->{configuration}->{polling_policy} || 'default',
 			};
-
-			# what needs filling in, what could change between poll cycles?
-			$thisstate->{host} = $noderec->{configuration}->{host};
-			$thisstate->{policy} = $noderec->{configuration}->{polling_policy} || 'default';
+			$thisstate->{has_sibling} = $thisstate->{uuid}
+			if (exists($multihomed{$thisstate->{uuid}})); # temporary property is present for both
 
 			# honor fixed ip address given
 			# fixme: fping doesn't do ipv6, we would have to use fping6 for that.
@@ -1536,10 +1568,10 @@ sub fping_loop
 
 			if (!$thisstate->{nextping} or $thisstate->{nextping} <= $now)
 			{
-				$nmisng->log->debug2("will ping node $thisstate->{uuid} ($thisstate->{name}) this cycle"
+				$nmisng->log->debug2("will ping node $thisstate->{uuid} ($thisstate->{name}, $thisstate->{host}) this cycle"
 														 . ($thisstate->{nextping}?
 																sprintf(", was due %.2fs ago", $now - $thisstate->{nextping}): "" ));
-				push @todos, $thisstate->{uuid};
+				push @todos, $statekey;
 			}
 		}
 
@@ -1547,16 +1579,16 @@ sub fping_loop
 		my @thistime = @todos;				# todos is consumed
 		while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
 		{
-			my %ip2node; # for associating the results - one ip can owned by more than one node!
+			my %ip2staterec;
 
 			my @cmd = ($fpingpath, @fpingargs);
-			for my $uuid (@chunk)
+			for my $statekey (@chunk)
 			{
-				my $thisip = $state{$uuid}->{ip};
+				my $thisip = $state{$statekey}->{ip};
 
 				push @cmd, $thisip;
-				$ip2node{$thisip} //= [];
-				push @{$ip2node{$thisip}}, $uuid;
+				$ip2staterec{$thisip} //= [];
+				push @{$ip2staterec{$thisip}}, $statekey;
 			}
 			$nmisng->log->debug("about to run: ".join(" ",@cmd));
 
@@ -1576,14 +1608,14 @@ sub fping_loop
 				# or nothing for unresolvable.
 				$nmisng->log->debug3("fping returned: $line");
 
-				my ($hostname,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6)
+				my ($hostnameorip,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6)
 						if ($line =~ m!^\s*(\S+)\s*:\s*xmt/rcv/%loss\s*=\s*\d+/\d+/(\d+)%(?:,\s*min/avg/max\s*=\s*(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?))?$!);
 
-				if ($hostname								# parseable?
-						&& $ip2node{$hostname}  # known?
+				if ($hostnameorip								# parseable?
+						&& $ip2staterec{$hostnameorip} # known?
 						&& $loss =~ /^\d+$/ )		  # structure good enough for the reachability at least?
 				{
-					for my $owner (@{$ip2node{$hostname}})
+					for my $owner (@{$ip2staterec{$hostnameorip}})
 					{
 						my $thisstate = $state{$owner};
 						# what does the policy say about the interval?
@@ -1599,7 +1631,7 @@ sub fping_loop
 						$thisstate->{lastping} = $now;
 						$thisstate->{nextping} = $now + $interval;
 
-						$nmisng->log->debug3("parsed result for node $hostname: "
+						$nmisng->log->debug3("parsed result for node $hostnameorip: "
 																 .Dumper($thisstate));
 					}
 				}
@@ -1614,44 +1646,67 @@ sub fping_loop
 		NMISNG::Util::writeTable(dir => 'var', name => "nmis-fping", data => \%state);
 
 		# fourth: analyse the results we've got this time, trigger events if required
-		for my $uuid (@thistime)
+		for my $statekey (@thistime)
 		{
-			my $thisstate = $state{$uuid};
+			my $thisstate = $state{$statekey};
+			my $uuid = $thisstate->{uuid};
 
 			# check the event existence AND its currency!
 			my $event = $nmisng->events->event( node_uuid => $uuid, event => "Node Down" );
 			my $goingup;					# undef for none, 0 for down, 1 for up
 
 			# raise events when required, ie. new state
-			if ( !exists($thisstate->{loss}) or $thisstate->{loss} == 100  )
+			# note that multi-homed nodes are down IFF all ips are unreachable
+			if (!exists($thisstate->{loss}) or $thisstate->{loss} == 100)
 			{
-				$nmisng->log->debug("$uuid ($thisstate->{name}) is NOT REACHABLE, "
-														.( $thisstate->{loss}? "fping reported loss=$thisstate->{loss}%"
-															 : "fping could not resolve host" ));
-				# for unreachable/unresolvable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
-				# for fixed-ip nodes this is not relevant
-				undef $thisstate->{nextdns};
-				if (!exists $thisstate->{loss})
+				my $fpingmsg = $thisstate->{loss}? "fping reported loss=$thisstate->{loss}%"
+						: "fping could not resolve host";
+
+				my $raisenodedown;
+				# not multihomed? normal down handling
+				if (!$thisstate->{has_sibling})
 				{
-					$thisstate->{lastping} = $now;
-
-					# what does the policy say about the interval?
- 					my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
-							$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
-
-					$thisstate->{nextping} = $now + $interval;
+					$nmisng->log->debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, $fpingmsg.");
+					$raisenodedown = 1;
 				}
-
-				if (!$event->exists)
+				# multihomed and all dead
+				elsif (List::Util::none { $_->{has_sibling} eq $thisstate->{has_sibling}
+																	&& $_->{loss} != 100 } (values %state))
 				{
-					# Device is DOWN, was up, and no entry in event database
-					$nmisng->log->debug("$uuid ($thisstate->{name}) is now DOWN, was UP, raising event");
-					$goingup = 0;
+					$nmisng->log->debug("Node $thisstate->{name} ($thisstate->{ip} and all siblings) is NOT REACHABLE, $fpingmsg.");
+					$raisenodedown = 1;
+				}
+				# multihomed but somebody else is up
+				else
+				{
+					$nmisng->log->debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, $fpingmsg, but other siblings are up.");
+				}
+				if ($raisenodedown)
+				{
+					# for unreachable/unresolvable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
+					# for fixed-ip nodes this is not relevant
+					undef $thisstate->{nextdns};
+					if (!exists $thisstate->{loss})
+					{
+						$thisstate->{lastping} = $now;
+
+						# what does the policy say about the interval?
+						my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
+								$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
+
+						$thisstate->{nextping} = $now + $interval;
+					}
+					if (!$event->exists)
+					{
+						# Device is DOWN, was up, and no entry in event database
+						$nmisng->log->debug("$uuid ($thisstate->{name}) is now DOWN, was UP, raising event");
+						$goingup = 0;
+					}
 				}
 			}
 			else # node somewhat pingable, not 100% loss
 			{
-				$nmisng->log->debug("$uuid ($thisstate->{name}) is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
+				$nmisng->log->debug("$uuid ($thisstate->{name}) ($thisstate->{ip}) is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
 
 				if ($event->exists && $event->active)
 				{
@@ -1660,6 +1715,7 @@ sub fping_loop
 					$goingup = 1;
 				}
 			}
+
 			# event-work required? then instantiate node (and sys) object and tell it to handle the up/down
 			if (defined $goingup)
 			{

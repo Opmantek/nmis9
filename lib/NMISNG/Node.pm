@@ -1045,11 +1045,7 @@ sub pingable
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
 
-	# setup log filter for getNodeInfo() - fixme why is that done here?
-	$S->snmp->logFilterOut(qr/no response from/)
-		if ($S->snmp && NMISNG::Util::getbool($catchall_data->{snmpdown}));
-
-	# preset view of node status
+	# preset view of node status - fixme9 get rid of
 	$V->{system}{status_value} = 'unknown';
 	$V->{system}{status_title} = 'Node Status';
 	$V->{system}{status_color} = '#0F0';
@@ -1060,25 +1056,36 @@ sub pingable
 	if ( NMISNG::Util::getbool($self->configuration->{ping}))
 	{
 		# use fastping info if available and not stale
-
-		my $didfallback;
+		my $mustping = 1;
 		my $staleafter = $C->{fastping_maxage} || 900; # no fping updates in 15min -> ignore
 		my $PT = NMISNG::Util::loadTable(dir=>'var',name=>'nmis-fping'); # cached until mtime changes
 
-		if (ref($PT) eq "HASH"										 # any data available?
-				&& ref($PT->{ $self->uuid }) eq "HASH"	# record for this node's uuid present?
-				&& (time - $PT->{ $self->uuid }->{lastping}) < $staleafter ) # and not stale
+		if (ref($PT) eq "HASH")										 # any data available?
 		{
-			# copy values
-			($ping_min, $ping_avg, $ping_max, $ping_loss, $lastping) = @{$PT->{$self->uuid}}{"min","avg","max","loss","lastping"};
-			$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
-			$self->nmisng->log->debug($self->uuid." ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			# for multihomed nodes there are two records to check, keyed uuid:N
+			my $uuid = $self->uuid;
+			my @tocheck = (defined $self->configuration->{host_backup}?
+										 grep($_ =~ /^$uuid:\d$/, keys %$PT) : $uuid);
+			for my $onekey (@tocheck)
+			{
+				if (ref($PT->{$onekey}) eq "HASH"
+						&& (time - $PT->{$onekey}->{lastping}) < $staleafter)
+				{
+					# copy the fastping data...
+					($ping_min, $ping_avg, $ping_max, $ping_loss, $lastping) = @{$PT->{$onekey}}{"min","avg","max","loss","lastping"};
+					$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
+					$self->nmisng->log->debug2("$uuid ($nodename = $PT->{$onekey}->{ip}) PINGability min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					# ...but also try the fallback if the primary is unreachable
+					last if ($pingresult);
+				}
+			}
+			$mustping = !defined($pingresult); # nothing or nothing fresh found?
 		}
-		else
+
+		# fallback to synchronous/internal pinging
+		if ($mustping)
 		{
-			# fallback to OLD/internal system
-			$didfallback = 1;
-			# but warn about that only if not in update
+			# and warn about that, if not in type=update
 			$self->nmisng->log->info("($nodename) using internal ping system, no or oudated fping information")
 					if (!NMISNG::Util::getbool($S->{update})); # fixme: unclean access to internal property
 
@@ -1093,12 +1100,21 @@ sub pingable
 					= NMISNG::Ping::ext_ping( $host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
 			$lastping = Time::HiRes::time;
+
+			if (!$pingresult && (my $fallback = $self->configuration->{host_backup}))
+			{
+				$self->nmisng->log->info("Starting internal ping of ($nodename = backup address $fallback) with timeout=$timeout retries=$retries packet=$packet");
+				( $ping_min, $ping_avg, $ping_max, $ping_loss) = NMISNG::Ping::ext_ping($fallback,
+																																								$packet, $retries, $timeout );
+				$pingresult = defined $ping_min ? 100 : 0;              # ping_min is undef if unreachable.
+				$lastping = Time::HiRes::time;
+			}
 		}
 		# at this point ping_{min,avg,max,loss}, lastping and pingresult are all set
 
 		# in the fping case all up/down events are handled by it, otherwise we need to do that here
 		# this includes the case of a faulty fping worker
-		if ($didfallback)
+		if ($mustping)
 		{
 			if ($pingresult)
 			{
@@ -1564,19 +1580,23 @@ sub update_node_info
 		$V->{system}{netType_value}   = $catchall_data->{netType};
 		$V->{system}{netType_title}   = 'Net';
 
-		# get the current ip address if the host property was a name
-		if ( ( my $addr = NMISNG::Util::resolveDNStoAddr( $catchall_data->{host} ) ) )
+		# get the current ip address if the host property was a name, ditto host_backup
+		for (["host","host_addr","IP Address"], ["host_backup", "host_addr_backup", "Backup IP Address"])
 		{
-			$catchall_data->{host_addr}      = $addr;    # cache it
-			$V->{system}{host_addr_value} = $addr;
-			$V->{system}{host_addr_value} .= " ($catchall_data->{host})" if ( $addr ne $catchall_data->{host} );
-			$V->{system}{host_addr_title} = 'IP Address';
-		}
-		else
-		{
-			$catchall_data->{host_addr}    = '';
-			$V->{system}{host_addr_value} = "N/A";
-			$V->{system}{host_addr_title} = 'IP Address';
+			my ($sourceprop, $targetprop, $title) = @$_;
+			$V->{system}->{"${targetprop}_title"} = $title;
+
+			my $sourceval = $self->configuration->{$sourceprop};
+			if ($sourceval && (my $addr = NMISNG::Util::resolveDNStoAddr($sourceval)))
+			{
+				$catchall_data->{$targetprop} = $V->{system}{"${targetprop}_value"} = $addr; # cache and display
+				$V->{system}{"${targetprop}_value"} .= " ($sourceval)" if ($addr ne $sourceval);
+			}
+			else
+			{
+				$catchall_data->{$targetprop} = '';
+				$V->{system}{"${targetprop}_value"} = $sourceval; # ...but give network.pl something to show
+			}
 		}
 	}
 	else
@@ -5730,8 +5750,6 @@ sub compute_reachability
 	return \%reachVal;
 }
 
-
-
 # perform update operation for this one node
 # args: self, optional force, optional starttime (default now),
 # lock (optional, a live lock structure, if collect() decides to switch to update() on the go)
@@ -5745,8 +5763,7 @@ sub update
 	my $updatetimer = Compat::Timing->new;
 	my $C = $self->nmisng->config;
 
-	NMISNG::Util::dbg("================================");
-	NMISNG::Util::dbg("Starting update, node $name");
+	$self->nmisng->log->debug("Starting update, node $name");
 	$0 = "nmisd worker update $name";
 
 	my @problems;
@@ -5774,7 +5791,7 @@ sub update
 	if (!$S->init(node => $self,	update => 'true', force => $args{force}))
 	{
 		$self->unlock(lock => $lock);
-		NMISNG::Util::logMsg( "ERROR ($name) init failed: " . $S->status->{error} );
+		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
 		return { error => "Sys init failed: ".$S->status->{error} };
 	}
 
@@ -5838,25 +5855,51 @@ sub update
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if ($self->pingable(sys => $S))
 	{
-		# snmp-enabled node? then try to create a session obj
-		# (but as snmp is still predominantly udp it won't connect yet!)
-		$S->open(
-			timeout      => $C->{snmp_timeout},
-			retries      => $C->{snmp_retries},
-			max_msg_size => $C->{snmp_max_msg_size},
-
-			# how many oids/pdus per bulk request, or let net::snmp guess a value
-			max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
-
-			# how many oids per simple get request (for getarray), or default (no guessing)
-			oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10
-		) if ( $S->status->{snmp_enabled} );
-
-		# failed already?
-		if ( $S->status->{snmp_error} )
+		# snmp-enabled node? then try to open a session (and test it)
+		if ( $S->status->{snmp_enabled} )
 		{
-			NMISNG::Util::logMsg( "ERROR SNMP session open to $name failed: " . $S->status->{snmp_error} );
-			$S->disable_source("snmp");
+			my $candosnmp = $S->open(
+				timeout      => $C->{snmp_timeout},
+				retries      => $C->{snmp_retries},
+				max_msg_size => $C->{snmp_max_msg_size},
+
+				# how many oids/pdus per bulk request, or let net::snmp guess a value
+				max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+
+				# how many oids per simple get request (for getarray), or default (no guessing)
+				oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10,
+					);
+
+			# failed altogether?
+			if (!$candosnmp or $S->status->{snmp_error} )
+			{
+				$self->nmisng->log->error("SNMP session open to $name failed: " . $S->status->{snmp_error} );
+				$S->disable_source("snmp");
+				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error});
+			}
+			# or did we have to fall back to the backup address for this node?
+			elsif ($candosnmp && $S->status->{fallback})
+			{
+				Compat::NMIS::notify(sys => $S,
+														 event => "Node Polling Failover",
+														 element => undef,
+														 details => ("SNMP Session switched to backup address \"".
+																				 $self->configuration->{host_backup}.'"'),
+														 context => { type => "node" });
+			}
+			# or are we using the primary address?
+			elsif ($candosnmp)
+			{
+				Compat::NMIS::checkEvent(sys => $S,
+																 event => "Node Polling Failover",
+																 upevent => "Node Polling Failover Closed", # please log it with this name
+																 element => undef,
+																 level => "Normal",
+																 details => ("SNMP Session using primary address \"".
+																						 $self->configuration->{host}. '"'));
+			}
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok")
+					if ($candosnmp);
 		}
 
 		# this will try all enabled sources, 0 only if none worked
@@ -5873,9 +5916,7 @@ sub update
 			{
 				if ($self->update_intf_info(sys => $S))
 				{
-					NMISNG::Util::dbg("node=$name role=$catchall_data->{roleType} type=$catchall_data->{nodeType}");
-					NMISNG::Util::dbg("vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}"
-					);
+					$self->nmisng->log->debug("node=$name role=$catchall_data->{roleType} type=$catchall_data->{nodeType} vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
 
 					# fixme9 doesn't exist if ($model)
 					if (0)
@@ -5894,7 +5935,7 @@ sub update
 			}
 			else
 			{
-				NMISNG::Util::dbg("node is set to collect=false, not collecting any info");
+				$self->nmisng->log->debug("node is set to collect=false, not collecting any info");
 			}
 			$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
 			# we updated something, so outside of dead node demotion grace period
@@ -5929,7 +5970,7 @@ sub update
 			my $funcname = $plugin->can("update_plugin");
 			next if ( !$funcname );
 
-			NMISNG::Util::dbg("Running update plugin $plugin with node $name");
+			$self->nmisng->log->debug("Running update plugin $plugin with node $name");
 			my ( $status, @errors );
 			my $prevprefix = $self->nmisng->log->logprefix;
 			$self->nmisng->log->logprefix("$plugin\[$$\] ");
@@ -5940,20 +5981,20 @@ sub update
 			$self->nmisng->log->logprefix($prevprefix);
 			if ( $status >= 2 or $status < 0 or $@ )
 			{
-				NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
+				$self->nmisng->log->error("Plugin $plugin failed to run: $@") if ($@);
 				for my $err (@errors)
 				{
-					NMISNG::Util::logMsg("Error: Plugin $plugin: $err");
+					$self->nmisng->log->error("Plugin $plugin: $err");
 				}
 			}
 			elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
 			{
-				NMISNG::Util::dbg("Plugin $plugin indicated success, updating node and view files");
+				$self->nmisng->log->debug("Plugin $plugin indicated success, updating node and view files");
 				$S->writeNodeView;
 			}
 			elsif ( $status == 0 )
 			{
-				NMISNG::Util::dbg("Plugin $plugin indicated no changes");
+				$self->nmisng->log->debug("Plugin $plugin indicated no changes");
 			}
 		}
 	}
@@ -5972,7 +6013,7 @@ sub update
 	$reachdata->{polltime} = {value => $prevval, option => "gauge,0:U,"};
 	if (!$S->create_update_rrd(data=> $reachdata, type=>"health",inventory=>$catchall_inventory))
 	{
-		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
+		$self->nmisng->log->error("updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 	}
 
 	my $pit = {};
@@ -5981,7 +6022,7 @@ sub update
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
 																									time => $catchall_data->{last_poll}, delay_insert => 1 );
-	NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
+	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
 
@@ -7565,9 +7606,8 @@ sub collect
 	my $pollTimer = Compat::Timing->new;
 	my $C = $self->nmisng->config;
 
-	NMISNG::Util::dbg("================================");
-	NMISNG::Util::dbg("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
-										 .", want WMI: ".($wantwmi?"yes":"no"));
+	$self->nmisng->log->debug("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
+														.", want WMI: ".($wantwmi?"yes":"no"));
 	$0 = "nmisd worker collect $name";
 
 	# try to lock the node (announcing what for)
@@ -7642,34 +7682,60 @@ sub collect
 		return $res;
 	}
 
-	NMISNG::Util::info("node=$catchall_data->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType}");
-	NMISNG::Util::info("vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
+	$self->nmisng->log->debug("node=$catchall_data->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType} vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
 
 	# are we meant to and able to talk to the node?
 	if ($self->pingable(sys => $S) && $self->configuration->{collect})
 	{
-		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly
-		# udp it won't connect yet!)
-		$S->open(
-			timeout      => $C->{snmp_timeout},
-			retries      => $C->{snmp_retries},
-			max_msg_size => $C->{snmp_max_msg_size},
-
-			# how many oids/pdus per bulk request, or let net::snmp guess a value
-			max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
-
-			# how many oids per simple get request for getarray, or default (no guessing)
-			oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10
-				) if ($S->status->{snmp_enabled});
-
-		# failed already?
-		if ( $S->status->{snmp_error} )
+		# snmp-enabled node? then try to open a session (and test it)
+		if ($S->status->{snmp_enabled})
 		{
-			NMISNG::Util::logMsg( "ERROR SNMP session open to $name failed: " . $S->status->{snmp_error} );
-			$S->disable_source("snmp");
+			my $candosnmp = $S->open(
+				timeout      => $C->{snmp_timeout},
+				retries      => $C->{snmp_retries},
+				max_msg_size => $C->{snmp_max_msg_size},
+
+				# how many oids/pdus per bulk request, or let net::snmp guess a value
+				max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+
+				# how many oids per simple get request for getarray, or default (no guessing)
+				oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10, );
+
+
+			# failed altogether?
+			if (!$candosnmp or $S->status->{snmp_error})
+			{
+				$self->nmisng->log->error("SNMP session open to $name failed: " . $S->status->{snmp_error} );
+				$S->disable_source("snmp");
+				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error});
+			}
+			# or did we have to fall back to the backup address for this node?
+			elsif ($candosnmp && $S->status->{fallback})
+			{
+				Compat::NMIS::notify(sys => $S,
+														 event => "Node Polling Failover",
+														 element => undef,
+														 details => ("SNMP Session switched to backup address \""
+																				 . $self->configuration->{host_backup}.'"'),
+														 context => { type => "node" });
+			}
+			# or are we using the primary address?
+			elsif ($candosnmp)
+			{
+				Compat::NMIS::checkEvent(sys => $S,
+																 event => "Node Polling Failover",
+																 upevent => "Node Polling Failover Closed", # please log it thusly
+																 element => undef,
+																 level => "Normal",
+																 details => ("SNMP Session using primary address \"".
+																						 $self->configuration->{host}.'"'), );
+			}
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok")
+					if ($candosnmp);
 		}
 
-		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo/catchall
+		# returns 1 if one or more sources have worked,
+		# also updates snmp/wmi down states in nodeinfo/catchall
 		# and sets the relevant last_poll_xyz markers
 		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $args{starttime} // Time::HiRes::time);
 		my $curstate = $S->status;  # collect_node_info does NOT disable faulty sources!
@@ -7683,7 +7749,7 @@ sub collect
 						and NMISNG::Util::getbool( $catchall_data->{snmpdown} )
 						and NMISNG::Util::getbool( $catchall_data->{wmidown} ) )
 		{
-			NMISNG::Util::logMsg(
+			$self->nmisng->log->info(
 				"Polling stopped for $catchall_data->{name} because SNMP and WMI had errors, snmpdown=$catchall_data->{snmpdown} wmidown=$catchall_data->{wmidown}"
 					);
 		}
@@ -7733,8 +7799,7 @@ sub collect
 		{
 			my $msg = "updateNodeInfo for $name failed: "
 				. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) );
-			NMISNG::Util::logMsg("ERROR $msg");
-			NMISNG::Util::info("Error: $msg");
+			$self->nmisng->log->error($msg);
 		}
 	}
 
@@ -7768,7 +7833,7 @@ sub collect
 		my $funcname = $plugin->can("collect_plugin");
 		next if ( !$funcname );
 
-		NMISNG::Util::dbg("Running collect plugin $plugin with node $name");
+		$self->nmisng->log->debug("Running collect plugin $plugin with node $name");
 		my ( $status, @errors );
 		my $prevprefix = $self->nmisng->log->logprefix;
 		$self->nmisng->log->logprefix("$plugin\[$$\] ");
@@ -7779,24 +7844,24 @@ sub collect
 		$self->nmisng->log->logprefix($prevprefix);
 		if ( $status >= 2 or $status < 0 or $@ )
 		{
-			NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
+			$self->nmisng->log->error("Plugin $plugin failed to run: $@") if ($@);
 			for my $err (@errors)
 			{
-				NMISNG::Util::logMsg("Error: Plugin $plugin: $err");
+				$self->nmisng->log->error("Plugin $plugin: $err");
 			}
 		}
 		elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
 		{
-			NMISNG::Util::dbg("Plugin $plugin indicated success, updating node and view files");
+			$self->nmisng->log->debug("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
 		}
 		elsif ( $status == 0 )
 		{
-			NMISNG::Util::dbg("Plugin $plugin indicated no changes");
+			$self->nmisng->log->debug("Plugin $plugin indicated no changes");
 		}
 	}
 	my $polltime = $pollTimer->elapTime();
-	NMISNG::Util::info("polltime for $name was $polltime");
+	$self->nmisng->log->debug("polltime for $name was $polltime");
 	$reachdata->{polltime} = {value => $polltime, option => "gauge,0:U"};
 
 	# parrot the previous reading's update time
@@ -7809,7 +7874,7 @@ sub collect
 	$reachdata->{updatetime} = {value => $prevval, option => "gauge,0:U," . ( 86400 * 3 )};
 	if (!$S->create_update_rrd(data=> $reachdata, type=>"health",inventory=>$catchall_inventory))
 	{
-		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
+		$self->nmisng->log->error("updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 	}
 
 	my $pit = {};
@@ -7819,7 +7884,7 @@ sub collect
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
 																					time => $catchall_data->{last_poll}, delay_insert => 1 );
-	NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
+	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
 	$catchall_inventory->save();
@@ -7828,7 +7893,7 @@ sub collect
 		$self->nmisng->log->error($issues);
 	}
 
-	NMISNG::Util::info("Finished");
+	$self->nmisng->log->debug("Finished");
 	return { success => 1};
 }
 
