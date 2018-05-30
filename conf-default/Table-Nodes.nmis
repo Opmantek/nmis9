@@ -72,6 +72,7 @@ my @models = ('automatic', sort keys %knownmodels);
 							 # nmis doesn't support ipv6 yet
 							 validate => { "resolvable" => [ 4 ] } }
 	 },
+
 	 { host_backup => { header => 'Fallback Host Name/IP Address',
 											display => 'header,text',value => [""],
 											# nmis doesn't support ipv6 yet

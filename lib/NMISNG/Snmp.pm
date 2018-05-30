@@ -399,9 +399,9 @@ sub testsession
 {
 	my ($self) = @_;
 
-	my $oid = "1.3.6.1.2.1.1.2.0";
+	my $oid = "1.3.6.1.2.1.1.2.0"; # SNMPv2-MIB::sysObjectID.0
 	my $result = $self->get($oid);
-	return ref($result) eq "HASH" && $result->{$oid};
+	return (ref($result) eq "HASH" && $result->{$oid})? 1 : 0;
 }
 
 # retrieves X variables with one or more get requests, returns array

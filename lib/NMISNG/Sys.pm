@@ -71,6 +71,7 @@ sub new
 			error      => undef,    # last internal error
 			wmi_error  => undef,    # last wmi accessor error
 			snmp_error => undef,    # last snmp accessor error
+			fallback => undef,      # snmp session established but to backup address?
 
 			debug        => 0,
 			update       => 0,      # flag for update vs collect operation - attention: read by others!
@@ -207,8 +208,10 @@ sub inventory
 # wmi_error is from wmi, undef if no wmi configured or not (yet) active or ok
 # wmi_enabled is 1 if the config was suitable for wmi and init() was called with wmi
 # snmp_enabled is 1 if config was suitable for snmp and init() was called with snmp
+# fallback is 1 iff all of: snmp is configured, host_backup property is given
+#  and session to primary address failed
+# skipped is 1 after data retrieval ops, if some data was skipped (due to control expression etc)
 #
-# note: all info exept error is valid only AFTER init() was run
 sub status
 {
 	my ($self) = @_;
@@ -219,7 +222,8 @@ sub status
 		wmi_enabled  => $self->{wmi} ? 1 : 0,
 		snmp_error   => $self->{snmp_error},
 		wmi_error    => $self->{wmi_error},
-		skipped      => $self->{skipped}
+		skipped      => $self->{skipped},
+		fallback => $self->{fallback},
 	};
 }
 
@@ -336,7 +340,7 @@ sub init
 		{
 			$catchall->data( {} );
 			$catchall_data = $catchall->data_live();
-			NMISNG::Util::dbg("Not loading info of node=$self->{name}, force means start from scratch");
+			$self->nmisng->log->debug("Not loading info of node=$self->{name}, force means start from scratch");
 		}
 		else
 		{
@@ -356,7 +360,7 @@ sub init
 					NMISNG::Util::TODO("Recreate this debug output, possibly need a way to ask a node for it's concepts/sections?");
 					foreach my $value ( @$values )
 					{
-						NMISNG::Util::dbg( "Node=$self->{name} info $value", 3 );
+						$self->nmisng->log->debug3( "Node=$self->{name} info $value" );
 					}
 				}
 			}
@@ -388,7 +392,7 @@ sub init
 
 		if ( $self->{cfg}->{node} )
 		{
-			NMISNG::Util::dbg("cfg of node=$self->{name} loaded");
+			$self->nmisng->log->debug("cfg of node=$self->{name} loaded");
 		}
 		else
 		{
@@ -398,7 +402,7 @@ sub init
 	}
 	else
 	{
-		NMISNG::Util::dbg("no loading of cfg of node=$self->{name}");
+		$self->nmisng->log->debug("no loading of cfg of node=$self->{name}");
 	}
 
 	# load Model of node or the base Model, or give up
@@ -424,7 +428,7 @@ sub init
 		}
 
 		# default model otherwise
-		NMISNG::Util::dbg("loading model $loadthis for node $self->{name}");
+		$self->nmisng->log->debug("loading model $loadthis for node $self->{name}");
 	}
 
 	# model loading failures are terminal
@@ -449,8 +453,8 @@ sub init
 
 				if ($hassnmp and $haswmi)
 				{
-					NMISNG::Util::dbg("section $subsect subject to both snmp and wmi poll policy overrides: "
-														. "poll snmp $policy->{snmp}, wmi $policy->{wmi}") if ($self->{debug} > 1);
+					$self->nmisng->log->debug2("section $subsect subject to both snmp and wmi poll policy overrides: "
+														. "poll snmp $policy->{snmp}, wmi $policy->{wmi}");
 					# poll: smaller of the two, heartbeat: larger of the two
 					my $poll = defined($policy->{snmp})?  $policy->{snmp} : 300;
 					$poll = $policy->{wmi} if (defined($policy->{wmi}) && $policy->{wmi} < $poll);
@@ -466,7 +470,7 @@ sub init
 					$thistiming->{poll} = $poll;
 					$thistiming->{heartbeat} = $heartbeat;
 
-					NMISNG::Util::dbg("overrode rrd timings for $subsect with step $poll, heartbeat $heartbeat");
+					$self->nmisng->log->debug("overrode rrd timings for $subsect with step $poll, heartbeat $heartbeat");
 					$resizeme{$subsect} = $standardstep / $poll;
 				}
 				elsif ($haswmi or $hassnmp)
@@ -474,8 +478,7 @@ sub init
 					my $which = $hassnmp? "snmp" : "wmi";
 					if (defined $policy->{$which})
 					{
-						NMISNG::Util::dbg("section \"$subsect\" subject to $which polling policy override: poll $policy->{$which}")
-								if ($self->{debug} > 1);
+						$self->nmisng->log->debug2("section \"$subsect\" subject to $which polling policy override: poll $policy->{$which}");
 
 						my $thistiming = $self->{mdl}->{database}->{db}->{timing}->{$subsect} ||= {};
 						$thistiming->{poll} = $policy->{$which} || 300;
@@ -514,7 +517,8 @@ sub init
 				$sizesection->{$maybe}->{"rows_$period"} =
 						int($factor * $sizesection->{$maybe}->{"rows_$period"} + 0.5); # round up/down
 			}
-			NMISNG::Util::dbg(sprintf("overrode rrd row counts for $maybe by factor %.2f",$factor)) if ($self->{debug} > 1);
+			$self->nmisng->log->debug2(
+				sprintf("overrode rrd row counts for $maybe by factor %.2f",$factor));
 		}
 	}
 
@@ -569,12 +573,17 @@ sub wmi
 # and doesn't imply snmp works, just that it's configured
 sub snmp { my $self = shift; return $self->{snmp} }
 
-# open snmp session based on host address
+
+# open snmp session based on host address, and test it end-to-end.
+# if a host_backup is configured, attempt to fall back to that if
+# the primary address doesn't work.
 #
 # for max message size we try in order: host-specific value if set for this host,
 # what is given as argument or default 1472. argument is expected to reflect the
 # global default.
-# returns: 1 if ok, 0 otherwise
+#
+# args: timeout, retries, oidpkt, max_repetitions, max_msg_size (all optional)
+# returns: 1 if a working connection exists, 0 otherwise; fallback property in status() is also set.
 #
 # note: function MUST NOT skip connection opening based on collect t/f, because
 # otherwise update ops can never bootstrap stuff.
@@ -595,12 +604,30 @@ sub open
 
 	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
 
-	return 0 if (
-		!$self->{snmp}->open(
-			config => $snmpcfg,
-			debug  => $self->{debug}
-		)
-	);
+	undef $self->{fallback};
+	# first try to open the session and test it end to end;
+	# if that doesn't work but a backup host address is a/v, try that as well
+	# and flag the failover situation
+	$self->nmisng->log->debug("Opening SNMP session for $self->{name} to $snmpcfg->{host}");
+	my $isok = $self->{snmp}->open(config => $snmpcfg, debug => $self->{debug})
+			&& $self->{snmp}->testsession;
+	if (!$isok)
+	{
+		if (defined($self->{cfg}->{node}->{host_backup}))
+		{
+			$snmpcfg->{host} = $self->{cfg}->{node}->{host_backup};
+			$self->nmisng->log->debug("SNMP session using primary address for $self->{name} failed, trying backup address $snmpcfg->{host}");
+			$isok = $self->{snmp}->open(config => $snmpcfg,
+																	debug => $self->{debug})
+					&& $self->{snmp}->testsession;
+			$self->{fallback} = 1;
+		}
+		if (!$isok)
+		{
+			$self->{snmp_error} = $self->{snmp}->error;
+			return 0;
+		}
+	}
 
 	$catchall_data->{snmpVer} = $self->{snmp}->version;    # get back actual info
 	return 1;
@@ -623,7 +650,7 @@ sub disable_source
 	return if ( $moriturus !~ /^(wmi|snmp)$/ );
 
 	$self->close() if ( $moriturus eq "snmp" );                      # bsts, avoid leakage
-	NMISNG::Util::dbg("disabling source $moriturus") if ( $self->{$moriturus} );
+	$self->nmisng->log->debug("disabling source $moriturus") if ( $self->{$moriturus} );
 	delete $self->{$moriturus};
 }
 
@@ -711,7 +738,7 @@ sub copyModelCfgInfo
 	{
 		my $mustoverwrite = ( $type eq 'overwrite' );
 
-		NMISNG::Util::dbg("DEBUG: nodeType=$catchall_data->{nodeType} nodeType(mdl)=$self->{mdl}{system}{nodeType} nodeModel=$catchall_data->{nodeModel} nodeModel(mdl)=$self->{mdl}{system}{nodeModel}"
+		$self->nmisng->log->debug("nodeType=$catchall_data->{nodeType} nodeType(mdl)=$self->{mdl}{system}{nodeType} nodeModel=$catchall_data->{nodeModel} nodeModel(mdl)=$self->{mdl}{system}{nodeModel}"
 		);
 
 		# make the changes unconditionally if overwrite requested, otherwise only if not present
@@ -753,7 +780,7 @@ sub loadInfo
 	if ( !$target )
 	{
 		$self->{error} = "loadInfo failed for $self->{name}: target not provided!";
-		NMISNG::Util::dbg("loadInfo failed for $self->{name}: target not provided!");
+		$self->nmisng->log->error("loadInfo failed for $self->{name}: target not provided!");
 		return 0;
 	}
 
@@ -777,15 +804,15 @@ sub loadInfo
 	}
 	elsif ( $result->{skipped} )    # nothing to report because model said skip these items, apparently all of them...
 	{
-		NMISNG::Util::dbg("no results, skipped because of control expression or index mismatch");
+		$self->nmisng->log->debug("no results, skipped because of control expression or index mismatch");
 		return 2;
 	}
 	else                            # we have data, maybe errors too?
 	{
-		NMISNG::Util::dbg("got data, but errors as well: error=$self->{error} snmp=$self->{snmp_error} wmi=$self->{wmi_error}")
+		$self->nmisng->log->debug("got data, but errors as well: error=$self->{error} snmp=$self->{snmp_error} wmi=$self->{wmi_error}")
 			if ( $self->{error} or $self->{snmp_error} or $self->{wmi_error} );
 
-		NMISNG::Util::dbg("MODEL loadInfo $self->{name} class=$class") if $wantdebug;
+		$self->nmisng->log->debug3("MODEL loadInfo $self->{name} class=$class") if $wantdebug;
 
 		# this takes each section returned and merges them together (all writes to output data do not mention the $section or $sect )
 		foreach my $sect ( keys %{$result} )
@@ -800,8 +827,8 @@ sub loadInfo
 				die "Expecting a single index back from getValues which corresponds to the data for the index requested"
 					if ( @keys > 1 || $keys[0] ne $index );
 
-				NMISNG::Util::dbg("MODEL section=$sect") if $wantdebug;
-				print "  MODEL section=$sect\n" if $dmodel;
+				$self->nmisng->log->debug3("MODEL section=$sect") if $wantdebug;
+# fixme9 gone 				print "  MODEL section=$sect\n" if $dmodel;
 				### 2013-07-26 keiths: need a default index for SNMP vars which don't have unique descriptions
 				if ( $target->{index} eq '' )
 				{
@@ -824,14 +851,14 @@ sub loadInfo
 					# complain about nosuchxyz
 					if ( $wantdebug && $thisval =~ /^no(SuchObject|SuchInstance)$/ )
 					{
-						NMISNG::Util::dbg( ( $1 eq "SuchObject" ? "ERROR" : "WARNING" ) . ": name=$ds index=$index value=$thisval" );
+						$self->nmisng->log->debug3( ( $1 eq "SuchObject" ? "ERROR" : "WARNING" ) . ": name=$ds index=$index value=$thisval" );
 						$modext = ( $1 eq "SuchObject" ? "ERROR" : "WARNING" );
 					}
 					print
 						"  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds index=$index value=$result->{$sect}{$index}{$ds}{value}\n"
 						if $dmodel;
 
-					NMISNG::Util::dbg( "store: class=$class, type=$sect, DS=$ds, index=$index, value=$thisval", 3 );
+					$self->nmisng->log->debug3( "store: class=$class, type=$sect, DS=$ds, index=$index, value=$thisval" );
 				}
 
 			}
@@ -852,10 +879,12 @@ sub loadInfo
 					# complain about nosuchxyz
 					if ( $wantdebug && $thisval =~ /^no(SuchObject|SuchInstance)$/ )
 					{
-						NMISNG::Util::dbg( ( $1 eq "SuchObject" ? "ERROR" : "WARNING" ) . ": name=$ds  value=$thisval" );
+						my $level = $1 eq "SuchObject" ? "error" : "warn";
+						$self->nmisng->log->$level("name=$ds  value=$thisval" );
 						$modext = ( $1 eq "SuchObject" ? "ERROR" : "WARNING" );
 					}
-					NMISNG::Util::dbg( "store: class=$class, type=$sect, DS=$ds, value=$thisval", 3 );
+					$self->nmisng->log->debug3( "store: class=$class, type=$sect, DS=$ds, value=$thisval");
+					# fixme9 gone
 					print
 						"  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds value=$result->{$sect}{$ds}{value}\n"
 						if $dmodel;
@@ -892,7 +921,7 @@ sub loadNodeInfo
 		my %tmptable = $self->{snmp}->gettable( 'cnpdStatusTable', $max_repetitions );
 
 		$catchall_data->{nbarpd} = keys %tmptable ? "true" : "false";
-		NMISNG::Util::dbg("NBARPD is $catchall_data->{nbarpd} on this node");
+		$self->nmisng->log->debug("NBARPD is $catchall_data->{nbarpd} on this node");
 	}
 	return $exit;
 }
@@ -914,16 +943,16 @@ sub getData
 
 	my $wantdebug = $args{debug};
 	my $dmodel    = $args{model};
-	NMISNG::Util::dbg("index=$index port=$port class=$class section=$section");
+	$self->nmisng->log->debug("index=$index port=$port class=$class section=$section");
 
 	if ( !$class )
 	{
-		NMISNG::Util::dbg("ERROR ($self->{name}) no class name given!");
+		$self->nmisng->log->error("($self->{name}) no class name given!");
 		return;
 	}
 	if ( ref( $self->{mdl}->{$class} ) ne "HASH" or ref( $self->{mdl}->{$class}->{rrd} ) ne "HASH" )
 	{
-		NMISNG::Util::dbg("ERROR ($self->{name}) no rrd section for class $class!");
+		$self->nmisng->log->error("($self->{name}) no rrd section for class $class!");
 		return;
 	}
 
@@ -945,7 +974,7 @@ sub getData
 	# data? we're happy-ish
 	if ( keys %$result )
 	{
-		NMISNG::Util::dbg( "MODEL getData $self->{name} class=$class:" . Dumper($result) ) if ($wantdebug);
+		$self->nmisng->log->debug3( "MODEL getData $self->{name} class=$class:" . Dumper($result) ) if ($wantdebug);
 		if ($dmodel)
 		{
 			print "MODEL getData $self->{name} class=$class:\n";
@@ -989,12 +1018,12 @@ sub getData
 	}
 	elsif ( $status->{skipped} )
 	{
-		NMISNG::Util::dbg("getValues skipped collection, no results");
+		$self->nmisng->log->debug("getValues skipped collection, no results");
 	}
 	elsif ( $status->{error} )
 	{
-		NMISNG::Util::dbg("MODEL ERROR: $status->{error}") if ($wantdebug);
-		print "MODEL ERROR: $status->{error}\n" if ($dmodel);
+		$self->nmisng->log->error("Model: $status->{error}") if ($wantdebug);
+# fixme9 gone		print "MODEL ERROR: $status->{error}\n" if ($dmodel);
 	}
 	return $result;
 }
@@ -1038,19 +1067,19 @@ sub getValues
 	# check reasons for skipping first
 	for my $sectionname (@todosections)
 	{
-		NMISNG::Util::dbg("wanted section=$section, now handling section=$sectionname");
+		$self->nmisng->log->debug("wanted section=$section, now handling section=$sectionname");
 		my $thissection = $class->{$sectionname};
 
 		if ( defined($index) && $index ne '' && !$thissection->{indexed} )
 		{
-			NMISNG::Util::dbg("collect of type $sectionname skipped: NON-indexed section definition but index given");
+			$self->nmisng->log->debug("collect of type $sectionname skipped: NON-indexed section definition but index given");
 
 			# we don't mark this as intentional skip, so the 'no oid' error may show up
 			next;
 		}
 		elsif ( ( !defined($index) or $index eq '' ) and $thissection->{indexed} )
 		{
-			NMISNG::Util::dbg("collect of section $sectionname skipped: indexed section but no index given");
+			$self->nmisng->log->debug("collect of section $sectionname skipped: indexed section but no index given");
 			$status{skipped} = "skipped $sectionname because indexed section but no index given";
 			next;
 		}
@@ -1058,7 +1087,7 @@ sub getValues
 		# check control expression next
 		if ( $thissection->{control} )
 		{
-			NMISNG::Util::dbg( "control $thissection->{control} found for section=$sectionname", 2 );
+			$self->nmisng->log->debug2( "control $thissection->{control} found for section=$sectionname");
 
 			if (!$self->parseString(
 					string => "($thissection->{control}) ? 1:0",
@@ -1068,7 +1097,7 @@ sub getValues
 				)
 				)
 			{
-				NMISNG::Util::dbg( "collect of section $sectionname with index=$index skipped: control $thissection->{control}", 2 );
+				$self->nmisng->log->debug2( "collect of section $sectionname with index=$index skipped: control $thissection->{control}");
 				$status{skipped} = "skipped $sectionname because of control expression";
 				next;
 			}
@@ -1078,7 +1107,7 @@ sub getValues
 		# we need to have an rrd section so we can define the graphtypes.
 		if ($thissection->{skip_collect} and NMISNG::Util::getbool($thissection->{skip_collect}))
 		{
-			NMISNG::Util::dbg("skip_collect $thissection->{skip_collect} found for section=$sectionname",2);
+			$self->nmisng->log->debug2("skip_collect $thissection->{skip_collect} found for section=$sectionname");
 			$status{skipped} = "skipped $sectionname because skip_collect set to true";
 			next;
 		}
@@ -1120,14 +1149,14 @@ sub getValues
 				= ( defined($port) && $port ne '' ) ? ".$port"
 				: ( defined($index) && $index ne '' ) ? ".$index"
 				:                                       "";
-			NMISNG::Util::dbg("class: index=$index port=$port suffix=$suffix");
+			$self->nmisng->log->debug("class: index=$index port=$port suffix=$suffix");
 
 			for my $itemname ( keys %{$thissection->{snmp}} )
 			{
 				my $thisitem = $thissection->{snmp}->{$itemname};
 				next if ( !exists $thisitem->{oid} );
 
-				NMISNG::Util::dbg( "oid for section $sectionname, item $itemname primed for loading", 3 );
+				$self->nmisng->log->debug3( "oid for section $sectionname, item $itemname primed for loading");
 
 				# for snmp each oid belongs to one reportable thingy, and we want to get all oids in one go
 				# HOWEVER, the same thing is often saved in multiple sections!
@@ -1143,9 +1172,7 @@ sub getValues
 					push @{$todos{$itemname}->{section}}, $sectionname;
 					push @{$todos{$itemname}->{details}}, $thisitem;
 
-					NMISNG::Util::dbg("item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} ),
-						3
-					);
+					$self->nmisng->log->debug3("item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} ));
 				}
 				else
 				{
@@ -1167,7 +1194,7 @@ sub getValues
 				next if ( $itemname eq "-common-" );    # that's not a collectable item
 				my $thisitem = $thissection->{wmi}->{$itemname};
 
-				NMISNG::Util::dbg( "wmi query for section $sectionname, item $itemname primed for loading", 3 );
+				$self->nmisng->log->debug3( "wmi query for section $sectionname, item $itemname primed for loading");
 
 				# check if there's a -common- section with a query for multiple items?
 				my $query = (
@@ -1200,9 +1227,7 @@ sub getValues
 					push @{$todos{$itemname}->{section}}, $sectionname;
 					push @{$todos{$itemname}->{details}}, $thisitem;
 
-					NMISNG::Util::dbg("item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} ),
-						3
-					);
+					$self->nmisng->log->debug3("item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} ));
 				}
 				else
 				{
@@ -1225,7 +1250,7 @@ sub getValues
 		my @rawsnmp = $self->{snmp}->getarray( map { $todos{$_}->{oid} } (@haveoid) );
 		if ( my $error = $self->{snmp}->error )
 		{
-			NMISNG::Util::dbg("ERROR ($self->{name}) on get values by snmp: $error");
+			$self->nmisng->log->error("($self->{name}) on get values by snmp: $error");
 			$status{snmp_error} = $error;
 		}
 		else
@@ -1269,7 +1294,7 @@ sub getValues
 				}
 				if ($error)
 				{
-					NMISNG::Util::dbg("ERROR ($self->{name}) on get values by wmi: $error");
+					$self->nmisng->log->error("($self->{name}) on get values by wmi: $error");
 					$status{wmi_error} = $error;
 				}
 				else
@@ -1373,7 +1398,7 @@ sub getValues
 				&& $sectiondetails->{alert}->{test} )
 			{
 				my $test = $sectiondetails->{alert}->{test};
-				NMISNG::Util::dbg( "checking test $test for basic alert \"$target->{title}\"", 3 );
+				$self->nmisng->log->debug3( "checking test $test for basic alert \"$target->{title}\"" );
 
 				# setup known var value list so that eval_string can handle CVARx substitutions
 				my ( $error, $result ) = $self->eval_string(
@@ -1388,7 +1413,7 @@ sub getValues
 					$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
 					NMISNG::Util::logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
 				}
-				NMISNG::Util::dbg( "test $test, result=$result", 3 );
+				$self->nmisng->log->debug3( "test $test, result=$result");
 				push @{$self->{alerts}}, {
 					name    => $self->{name},
 					type    => "test",
@@ -1410,10 +1435,10 @@ sub getValues
 		my $sections = join( ", ", $section, @todosections );
 		$status{error} = "ERROR ($self->{name}): no values collected for $sections!";
 	}
-	NMISNG::Util::dbg(      "loaded "
-			. ( keys %todos || 0 )
-			. " values, status: "
-			. ( join( ", ", map {"$_='$status{$_}'"} ( keys %status ) ) || 'ok' ) );
+	$self->nmisng->log->debug("loaded "
+														. ( keys %todos || 0 )
+														. " values, status: "
+														. ( join( ", ", map {"$_='$status{$_}'"} ( keys %status ) ) || 'ok' ) );
 
 	return ( \%data, \%status );
 }
@@ -1472,11 +1497,9 @@ sub eval_string
 	my $r = $context;                          # backwards compat naming: allow $r inside expression
 	$r = eval $rebuiltcalc;
 
-	NMISNG::Util::dbg("calc translated \"$input\" into \"$rebuiltcalc\", used variables: "
-			. join( ", ", "\$r=$context", map {"CVAR$_=$cvar{$_}"} ( sort keys %cvar ) )
-			. ", result \"$r\"",
-		3
-	);
+	$self->nmisng->log->debug3("calc translated \"$input\" into \"$rebuiltcalc\", used variables: "
+														 . join( ", ", "\$r=$context", map {"CVAR$_=$cvar{$_}"} ( sort keys %cvar ) )
+														 . ", result \"$r\"");
 	if ($@)
 	{
 		return "calculation=$rebuiltcalc failed: $@";
@@ -1509,14 +1532,14 @@ sub selectNodeModel
 				{
 					if ( $descr =~ /$listofmodels->{$mdl}/i )
 					{
-						NMISNG::Util::dbg("INFO, Model \'$mdl\' found for Vendor $vendor and sysDescr $descr");
+						$self->nmisng->log->debug("INFO, Model \'$mdl\' found for Vendor $vendor and sysDescr $descr");
 						return $mdl;
 					}
 				}
 			}
 		}
 	}
-	NMISNG::Util::dbg("ERROR, No model found for Vendor $vendor, returning Model=Default");
+	$self->nmisng->log->error("No model found for Vendor $vendor, returning Model=Default");
 	return 'Default';
 }
 
@@ -1543,7 +1566,7 @@ sub loadModel
 	my $modelpol = NMISNG::Util::loadTable( dir => 'conf', name => 'Model-Policy' );
 	if ( ref($modelpol) ne "HASH" or !keys %$modelpol )
 	{
-		NMISNG::Util::dbg("WARN, ignoring invalid or empty model policy");
+		$self->nmisng->log->warn("ignoring invalid or empty model policy");
 	}
 	$modelpol ||= {};
 
@@ -1563,7 +1586,7 @@ sub loadModel
 			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache)!";
 			$exit = 0;
 		}
-		NMISNG::Util::dbg("INFO, model $model loaded (from cache)");
+		$self->nmisng->log->debug("model $model loaded (from cache)");
 	}
 	else
 	{
@@ -1607,7 +1630,7 @@ sub loadModel
 					}
 				}
 			}
-			NMISNG::Util::dbg("INFO, model $model loaded (from source)");
+			$self->nmisng->log->debug("model $model loaded (from source)");
 
 			# save to cache BEFORE the policy application, if caching is on OR if in update operation
 			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
@@ -1676,7 +1699,7 @@ sub loadModel
 				}
 				next NEXTRULE if ( !$rulematches );    # all IF clauses must match
 			}
-			NMISNG::Util::dbg( "policy rule $polnr matched", 2 );
+			$self->nmisng->log->debug2("policy rule $polnr matched");
 
 			# policy rule has matched, let's apply the settings
 			# systemHealth is the only supported setting so far
@@ -1695,12 +1718,12 @@ sub loadModel
 
 					if ( NMISNG::Util::getbool( $thisrule->{$sectionname}->{$conceptname} ) )
 					{
-						NMISNG::Util::dbg( "adding $conceptname to $sectionname", 2 );
+						$self->nmisng->log->debug2("adding $conceptname to $sectionname" );
 						push @current, $conceptname if ( !defined $ispresent );
 					}
 					else
 					{
-						NMISNG::Util::dbg( "removing $conceptname from $sectionname", 2 );
+						$self->nmisng->log->debug2( "removing $conceptname from $sectionname");
 						splice( @current, $ispresent, 1 ) if ( defined $ispresent );
 					}
 				}
@@ -1778,7 +1801,7 @@ sub _mergeHash
 
 	while ( my ( $k, $v ) = each %{$source} )
 	{
-		NMISNG::Util::dbg( "$lvl key=$k, val=$v", 4 );
+		$self->nmisng->log->debug4( "$lvl key=$k, val=$v" );
 
 		if ( ref( $dest->{$k} ) eq "HASH" and ref($v) eq "HASH" )
 		{
@@ -1793,7 +1816,7 @@ sub _mergeHash
 		else
 		{
 			$dest->{$k} = $v;
-			NMISNG::Util::dbg( "$lvl > load key=$k, val=$v", 4 );
+			$self->nmisng->log->debug4( "$lvl > load key=$k, val=$v");
 		}
 	}
 	return $dest;
@@ -1944,7 +1967,7 @@ sub parseString
 
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory"};
 
-	NMISNG::Util::dbg( "parseString:: sect:$sect, type:$type, string to parse '$str'", 3 );
+	$self->nmisng->log->debug3( "parseString:: sect:$sect, type:$type, string to parse '$str'");
 
 	# if there is no eval and no variables for substitution are found, just return
 	if( !$eval && $str !~ /\$/ )
@@ -1973,14 +1996,12 @@ sub parseString
 			# let's set the global CVAR or CVARn to whatever value from the node info section
 			$extras->{"CVAR$number"} = $data->{$thing};
 
-			NMISNG::Util::dbg( "found assignment for CVAR$number, $thing, value " . $extras->{"CVAR$number"}, 3 );
+			$self->nmisng->log->debug3( "found assignment for CVAR$number, $thing, value " . $extras->{"CVAR$number"});
 		}
 		$rebuilt .= $consumeme;    # what's left after looking for CVAR assignments
 
-		NMISNG::Util::dbg("var extraction transformed \"$str\" into \"$rebuilt\"\nvariables: "
-				. join( ", ", map { "CVAR$_=" . $extras->{"CVAR$_"}; } ( "", 0 .. 9 ) ),
-			3
-		);
+		$self->nmisng->log->debug3("var extraction transformed \"$str\" into \"$rebuilt\"\nvariables: "
+															 . join( ", ", map { "CVAR$_=" . $extras->{"CVAR$_"}; } ( "", 0 .. 9 ) ));
 
 		$str = $rebuilt;
 	}
@@ -1994,7 +2015,7 @@ sub parseString
 																		 str => $str,
 																		 type => $type,
 																		 inventory => $inventory);
-	NMISNG::Util::dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
+	$self->nmisng->log->debug3( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump);
 
 	# massage the string and replace any available variables from extras,
 	# but ONLY WHERE no compatibility hardcoded variable is present.
@@ -2014,7 +2035,7 @@ sub parseString
 			# no look-ahead assertion is possible, we don't know what the string is used for...
 			if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g )
 			{
-				NMISNG::Util::dbg( "substituted '$maybe', str before '$presubst', after '$str'", 3 );
+				$self->nmisng->log->debug3( "substituted '$maybe', str before '$presubst', after '$str'" );
 				# print "substituted '$maybe', str before '$presubst', after '$str'\n";
 			}
 		}
@@ -2028,7 +2049,7 @@ sub parseString
 
 	my $product = ($eval) ? eval $str : $str;
 	NMISNG::Util::logMsg("parseString failed for str:$str, error:$@") if($@);
-	NMISNG::Util::dbg( "parseString:: result is str=$product", 3 );
+	$self->nmisng->log->debug3( "parseString:: result is str=$product");
 	return $product;
 }
 
@@ -2142,7 +2163,7 @@ sub getTypeInstances
 				&& defined($section)
 				&& (($section eq $concept) || ($section eq $graphtype)))
 		{
-			NMISNG::Util::dbg("covered section $section, not looking up graphtype $graphtype",2);
+			$self->nmisng->log->debug2("covered section $section, not looking up graphtype $graphtype");
 			# modeldata is just a container here, no object instantiation expected or possible
 			return $want_modeldata? ($modeldata || NMISNG::ModelData->new(data => \@instances)) : @instances;
 		}
@@ -2245,12 +2266,12 @@ sub makeRRDname
 	# if we have no index but item: fall back to that, and vice versa
 	if ( defined $item && $item ne '' && ( !defined $index || $index eq '' ) )
 	{
-		NMISNG::Util::dbg( "synthetic index from item for type=$type, item=$item", 2 );
+		$self->nmisng->log->debug2( "synthetic index from item for type=$type, item=$item");
 		$index = $item;
 	}
 	elsif ( defined $index && $index ne '' && ( !defined $item || $item eq '' ) )
 	{
-		NMISNG::Util::dbg( "synthetic item from index for type=$type, index=$index", 2 );
+		$self->nmisng->log->debug2( "synthetic item from index for type=$type, index=$index" );
 		$item = $index;
 	}
 
@@ -2277,7 +2298,7 @@ sub makeRRDname
 		return undef;
 	}
 	$dbpath = $C->{database_root}."/".$dbpath if (!$wantrelative);
-	NMISNG::Util::dbg("filename for graphtype=$graphtype, type=$type is $dbpath");
+	$self->nmisng->log->debug("filename for graphtype=$graphtype, type=$type is $dbpath");
 	return $dbpath;
 }
 
@@ -2410,7 +2431,7 @@ sub writeNodeView
 	}
 	else
 	{
-		NMISNG::Util::dbg("not overwriting view file for $self->{node}: no view data present!");
+		$self->nmisng->log->debug("not overwriting view file for $self->{node}: no view data present!");
 	}
 }
 

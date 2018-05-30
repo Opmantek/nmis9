@@ -248,8 +248,10 @@ sub acknowledge
 # if it exists it deletes it from the event state table/log
 #
 # and then calls notify with a new Up event including the time of the outage
-# args: a LIVE sys object for the node
-#  details and level are optional, if provided override what is in the event
+# args: a LIVE sys object for the node;
+#  details and level are optional, if provided override what is in the event,
+#  upevent (=event name, optional, overrides the event name, otherwise heuristic is applied,
+#   e.g. ...down -> up)
 #
 # returns: nothing
 sub check
@@ -291,8 +293,12 @@ sub check
 		# cmpute the event period for logging
 		my $outage = NMISNG::Util::convertSecsHours( time() - $self->startdate );
 
-		# Just log an up event now.
-		if ( $self->event eq "Node Down" )
+		# Log an up event now, either use the passed-in name or guess a decent one
+		if ($args{upevent})
+		{
+			$new_event = $args{upevent};
+		}
+		elsif ( $self->event eq "Node Down" )
 		{
 			$new_event = "Node Up";
 		}
@@ -638,7 +644,7 @@ sub load
 	# has not run
 	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(0) );
 	my $error = $model_data->error;
-	my $event_in_db; 
+	my $event_in_db;
 
 	if ( !$error && $model_data->count == 1 )
 	{
