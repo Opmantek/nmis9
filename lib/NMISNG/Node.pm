@@ -319,13 +319,13 @@ sub delete
 	}
 
 	# delete all status entries as well
-	my $result = $self->get_status_model();		
+	$result = $self->get_status_model();		
 	if (my $error = $result->error)
 	{
 		return (0, "Failed to retrieve status': $error");
 	}
 
-	my $gimme = $result->objects;
+	$gimme = $result->objects;
 	return (0, "Failed to instantiate status: $gimme->{error}")
 			if (!$gimme->{success});
 	for my $instance (@{$gimme->{objects}})
