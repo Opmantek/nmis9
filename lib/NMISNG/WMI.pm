@@ -29,7 +29,7 @@
 #
 # this module queries WMI services via the standalone wmic executable
 package NMISNG::WMI;
-our $VERSION = "1.1.1";
+our $VERSION = "2.1.0";
 
 use strict;
 use File::Temp;
@@ -165,6 +165,10 @@ sub _run_query
 
 	# prep tempfile for wmic's stderr
 	my ($tfh, $tfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
+	# and another for its auth data
+	my ($authfh, $authfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
+	chmod(0600,$authfn);
+
 	# random column delimiter, 10 letters should do
 	my $delim = join('', map { ('a'..'z')[rand 26] } (0..9));
 	my (@rawdata, $exitcode, %result);
@@ -173,7 +177,7 @@ sub _run_query
 	my $pid = open(WMIC, "-|");
 	if (!defined $pid)
 	{
-		unlink($tfn);
+		unlink($tfn, $authfn);
 		return (error => "cannot fork to run wmic: $!");
 	}
 	elsif ($pid)
@@ -187,6 +191,7 @@ sub _run_query
 			alarm($timeout) if ($timeout); # setup execution timeout
 
 			close $tfh;									# not ours to use
+			close $authfh;
 			@rawdata = <WMIC>;					# read the goodies from the child
 			close(WMIC);
 			$exitcode = $?;
@@ -198,7 +203,7 @@ sub _run_query
 			# don't want the wmic process to hang around, we stopped consuming its output
 			# and it can't do anything useful anymore
 			kill("KILL",$pid);
-			unlink($tfn);
+			unlink($tfn, $authfn);
 			return (error => "timeout after $timeout seconds");
 		}
 	}
@@ -208,12 +213,19 @@ sub _run_query
 		open(STDIN, "<", "/dev/null");
 		open(STDERR, ">&", $tfh);		# stderr to go there, please
 
+		# -A format is badly documented. smbclient manpage has a little bit of info
+		# however, unclear if that password can be quoted or contain spaces or the like...
+		print $authfh "username = $self->{username}\n";
+		print $authfh "password = $self->{password}\n" if ($self->{password});
+		close $authfh;
+
 		my @cmdargs = ($self->{program},
 									 "--delimiter=$delim",
-									 "--user=".$self->{username},
-									 ($self->{password}? ("--password=".$self->{password}): "--no-pass"),
+									 "-A", $authfn,
 									 "//".$self->{host},
 									 $query);
+		push @cmdargs, "--no-pass" if (!$self->{password});
+
 		exec(@cmdargs);
 		die "exec failed: $!\n";
 	}
@@ -231,11 +243,11 @@ sub _run_query
 		{
 			$result{error} .= " exit code ".($exitcode>>8);
 		}
-		unlink($tfn);								# not needed anymore
+		unlink($tfn,$authfn);								# not needed anymore
 	}
 	else
 	{
-		unlink($tfn);								# not needed here
+		unlink($tfn, $authfn);								# not needed here
 		# worked? extract class, fieldnames
 		# produce hash for each class, array of subhashes for the rows
 		my ($classname, @fieldnames, %nicedata);
