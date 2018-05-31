@@ -1198,8 +1198,10 @@ sub getExtension
 }
 
 # look up model file in models-custom, falling back to models-default,
-# args: model (= model name, without extension)
-# returns: hashref (success, error, data, is_custom)
+# args: model (= model name, without extension),
+#  only_mtime (optional, if set no data is returned)
+#
+# returns: hashref (success, error, data, is_custom, mtime)
 # with success 1/0, error message, data structure, and is_custom is 1 if the model came from models-custom
 # success is set IFF valid data came back.
 # note: not exported.
@@ -1216,11 +1218,15 @@ sub getModelFile
 		my $fn = getDir(dir => $choices)."/$relfn";
 		if (-e $fn)
 		{
+			my $age = stat($fn)->mtime;
+
+			return { success => 1, mtime => $age, is_custom => $iscustom } if ($args{only_mtime});
+
 			# loadtable caches, therefore preferred over readfiletohash
 			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn);
 			return { error => "failed to read file $fn: $!" } if (ref($modeldata) ne "HASH"
 																														or !keys %$modeldata);
-			return { success => 1, data => $modeldata, is_custom => $iscustom};
+			return { success => 1, data => $modeldata, is_custom => $iscustom, mtime => $age};
 		}
 	}
 	return { error => "no model definition file available for model $args{model}!" };

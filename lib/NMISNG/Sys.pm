@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::Sys;
-our $VERSION = "3.0.0";
+our $VERSION = "3.1.0";
 
 use strict;
 
@@ -1577,18 +1577,64 @@ sub loadModel
 		NMISNG::Util::setFileProtDiag(file =>$modelcachedir);
 	}
 	my $thiscf = "$modelcachedir/$model.json";
+	my $mustloadfromsource = 1;
 
 	if ( $self->{cache_models} && -f $thiscf )
 	{
+		# check if the cached data is stale: load the model, check all the mtimes of the common-xyz inputs and a few others
 		$self->{mdl} = NMISNG::Util::readFiletoHash( file => $thiscf, json => 1, lock => 0 );
 		if ( ref( $self->{mdl} ) ne "HASH" or !keys %{$self->{mdl}} )
 		{
 			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache)!";
 			$exit = 0;
 		}
-		$self->nmisng->log->debug("model $model loaded (from cache)");
+		else
+		{
+			my $cfage = (stat($thiscf))[9];
+			$self->nmisng->log->debug2("Verifying freshness of cached model \"$model\"");
+
+			my $isstale;
+			my @depstocheck = ( "Config", "Model", $model );
+			map { push @depstocheck, "Common-".$self->{mdl}->{"-common-"}->{class}->{$_}->{"common-model"}; }
+			(keys %{$self->{mdl}{'-common-'}{class}}) if (ref($self->{mdl}->{'-common-'}) eq "HASH"
+																										&& ref($self->{mdl}->{'-common-'}->{class}) eq "HASH");
+			for my $other (@depstocheck)
+			{
+				my $othermtime;
+				if ($other eq "Config")	# all other others are models
+				{
+					$othermtime = NMISNG::Util::mtimeFile(dir => "conf", name => $other);
+				}
+				else
+				{
+					my $meta =  NMISNG::Util::getModelFile(model => $other, only_mtime => 1);
+					$othermtime = $meta->{mtime} if ($meta->{success});
+				}
+				if ($othermtime > $cfage)
+				{
+					$self->nmisng->log->debug2("Cached model \"$model\" stale: mtime $cfage, older than \"$other\" ($othermtime).");
+					$isstale = 1;
+					last;
+				}
+				else
+				{
+					$self->nmisng->log->debug2("Cached model \"$model\" mtime $cfage compares ok to \"$other\" ($othermtime).");
+				}
+			}
+			if ($isstale)
+			{
+				$mustloadfromsource = 1;
+				$self->nmisng->log->debug("Cache for model $model stale, loading from source.");
+			}
+			else
+			{
+				$self->nmisng->log->debug("model $model loaded (from cache)");
+				$mustloadfromsource = 0;
+			}
+		}
 	}
-	else
+
+	if ($mustloadfromsource)
 	{
 		# load the model file in question
 		my $res = NMISNG::Util::getModelFile(model => $model);
