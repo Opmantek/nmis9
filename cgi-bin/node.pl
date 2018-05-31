@@ -692,7 +692,14 @@ sub show_export_options
 								 -override => 1,
 								 -placeholder => "NNN",
 								 -size => 6	)
-			. qq| seconds </td></tr>|;
+			. qq| seconds </td></tr>|
+			. qq|<tr><td class='header'>Compute Min/Max for each period?</td><td>|
+			.checkbox(-name=>'add_minmax',
+								-checked => 0,
+								-override => 1,
+								-value=>1,
+								-label=>'')
+			. qq| (only for Resolutions other than 'best')</td></tr>|;
 
 	print  qq|<tr><td class='header' colspan='2' align='center'>|
 			. hidden(-name => 'cancel', -id => 'cancelinput', -default => '', -override => 1)
@@ -745,7 +752,7 @@ sub typeExport
 																														start => $start,
 																														end => $end,
 																														resolution => $mayberesolution,
-																														add_minmax => 1);
+																														add_minmax => $Q->{add_minmax}?1:0);
 	bailout(message => "Failed to retrieve RRD data: $meta->{error}\n") if ($meta->{error});
 
 	# no data? complain, don't produce an empty csv

@@ -132,7 +132,8 @@ sub getRRDasHash
 
 		# this can work if the desired resolution is directly equal to an RRA period,
 		# or if the step divides the desired resolution cleanly
-		if (grep($_ == $wantedresolution, @available))
+		# HOWEVER, if add_minmax is requested the we must do our own bucketising as rrd likely won't have MIN and MAX rras!
+		if (grep($_ == $wantedresolution, @available) && !$args{add_minmax})
 		{
 			$resolution = $wantedresolution;
 		}
