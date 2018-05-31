@@ -29,7 +29,7 @@
 #
 # this module queries WMI services via the standalone wmic executable
 package NMISNG::WMI;
-our $VERSION = "2.1.0";
+our $VERSION = "2.2.0";
 
 use strict;
 use File::Temp;
