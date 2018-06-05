@@ -432,6 +432,24 @@ sub delete
 				if (!$ok);
 	}
 
+	# delete all status entries as well
+	$result = $self->get_status_model();		
+	if (my $error = $result->error)
+	{
+		return (0, "Failed to retrieve status': $error");
+	}
+
+	$gimme = $result->objects;
+	return (0, "Failed to instantiate status: $gimme->{error}")
+			if (!$gimme->{success});
+	for my $instance (@{$gimme->{objects}})
+	{
+		$self->nmisng->log->debug("deleting status instance ".$instance->id);
+		my ($ok, $error) = $instance->delete();
+		return (0, "Failed to delete status ".$instance->id.": $error")
+				if (!$ok);
+	}
+
 	# node and view files, if present - failure is not error-worthy
 	for my $goner (map { $self->nmisng->config->{'<nmis_var>'}
 											 .lc($self->name)."-$_.json" } ('node','view'))

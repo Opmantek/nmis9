@@ -100,6 +100,8 @@ sub getUpdateStats
 # optional: hours_from and hours_to (default: no restriction)
 # optional: resolution (default: highest resolution that rrd can provide)
 # optional: config (live config structure)
+# optional: add_minmax (default: unset, if set AND if resolution is set,
+#  then <ds>_min and <ds>_max are added for each bucket)
 #
 # returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
 # metadata hash: actual begin, end, step as per rrd, error if necessary, rows (=count), rows_with_data
@@ -130,7 +132,8 @@ sub getRRDasHash
 
 		# this can work if the desired resolution is directly equal to an RRA period,
 		# or if the step divides the desired resolution cleanly
-		if (grep($_ == $wantedresolution, @available))
+		# HOWEVER, if add_minmax is requested the we must do our own bucketising as rrd likely won't have MIN and MAX rras!
+		if (grep($_ == $wantedresolution, @available) && !$args{add_minmax})
 		{
 			$resolution = $wantedresolution;
 		}
@@ -197,14 +200,22 @@ sub getRRDasHash
 		}
 	}
 
+	my %meta = ( step => $step, start => $begin, end => $time,
+							 rows => scalar @$data, rows_with_data => $rowswithdata );
 	# bucket post-processing needed?
 	if ($bucketsize)
 	{
-		my $nrdatapoints = @$data;
+		my $bucketstart = $meta{start} = $args{start}; # $begin can be one step interval later
+		$meta{step} = $bucketsize * $step;
 
-		for my $bucket (1..int($nrdatapoints/$bucketsize)+1) # last bucket may end up partially filled
+		my $nrdatapoints = @$data;
+		my $nrbuckets = int($nrdatapoints/$bucketsize + 0.5); # last bucket may end up partially filled
+		$meta{rows} = $meta{rows_with_data} = $nrbuckets;
+
+		for my $bucket (1..$nrbuckets)
 		{
-			my $targettime = $begin + $bucket * $bucketsize * $step;
+			my $targettime = $bucketstart + $bucket * $wantedresolution;
+			$meta{end} = $targettime;	# so that last bucket is included in meta
 
 			my %acc;
 			for my $slot (0..$bucketsize-1) # backwards
@@ -220,15 +231,21 @@ sub getRRDasHash
 				delete $s{$contribtime} if ($slot); # last timeslot receives all the readings for the whole bucket
 			}
 
-			if (!keys %acc)						# all gone?
+			if (!keys %acc)	# all gone?
 			{
 				delete $s{$targettime};
+				--$meta{rows_with_data};
 			}
 			else
 			{
 				for my $ds (@dsnames)
 				{
 					$s{$targettime}->{$ds} = Statistics::Lite::mean(@{$acc{$ds}});
+					if ($args{add_minmax})
+					{
+						$s{$targettime}->{"${ds}_min"} = Statistics::Lite::min(@{$acc{$ds}});
+						$s{$targettime}->{"${ds}_max"} = Statistics::Lite::max(@{$acc{$ds}});
+					}
 				}
 
 				# last bucket may be partial and lack time or date
@@ -242,18 +259,22 @@ sub getRRDasHash
 					$s{$targettime}->{date} = POSIX::strftime("%d-$mon-%Y %H:%M:%S", @timecomponents);
 				}
 			}
-			$time = $targettime;			# so that last bucket is included in meta
 		}
-		$step = $bucketsize * $step; # again for meta
 
+		# ditch trailing stuff
+		map { delete $s{$_}; } (grep($_ > $meta{end}, keys %s));
+		# reorganise the ds names to list ds, min, max,... in that order
+		if ($args{add_minmax})
+		{
+			@dsnames = map { ($_, "${_}_min","${_}_max") } (@dsnames);
+		}
 	}
 
 	# two artificial ds header cols - let's put them first
 	unshift(@dsnames,"time","date");
 
 	# actual data, the dsname list, and the meta data
-	return (\%s, \@dsnames, { step => $step, start => $begin, end => $time,
-														rows => scalar @$data, rows_with_data => $rowswithdata });
+	return (\%s, \@dsnames, \%meta);
 }
 
 # args: rrdfile (full path), mode (one of AVERAGE, MIN or MAX - LAST makes no sense here)

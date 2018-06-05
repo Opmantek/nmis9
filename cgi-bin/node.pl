@@ -620,16 +620,17 @@ sub show_export_options
 						 ],
 						 -script => {-src => $C->{'jquery'}, -type=>"text/javascript"},),
 
-								# this form should post. we don't want anything in the url.
+								 # this form should post. we don't want anything in the url.
 								start_form( -name => 'exportopts',
 														-action => url(-absolute => 1)),
-								hidden(-name => 'act', -default => 'network_export', -override => 1),
-								# not selectable: node/group, graphtype, item/intf
-								hidden(-name => "node", -default => $node, -override => 1),
-								hidden(-name => "group", -default => $group, -override => 1),
-								hidden(-name => "graphtype", -default => $graphtype, -override => 1),
-								hidden(-name => "item", -default => $item, -override => 1),
-								hidden(-name => "intf", -default => $intf, -override => 1);
+								 hidden(-name => 'act', -default => 'network_export', -override => 1),
+								 # not selectable: node/group, graphtype, item/intf
+								 hidden(-name => "node", -default => $node, -override => 1),
+								 hidden(-name => "group", -default => $group, -override => 1),
+								 hidden(-name => "graphtype", -default => $graphtype, -override => 1),
+								 hidden(-name => "item", -default => $item, -override => 1),
+								 hidden(-name => "intf", -default => $intf, -override => 1);
+
 
 	# figure out how to label the selector/index/intf properties
 	my $GTT = $S->loadGraphTypeTable(index=>$intf);
@@ -691,7 +692,14 @@ sub show_export_options
 								 -override => 1,
 								 -placeholder => "NNN",
 								 -size => 6	)
-			. qq| seconds </td></tr>|;
+			. qq| seconds </td></tr>|
+			. qq|<tr><td class='header'>Compute Min/Max for each period?</td><td>|
+			.checkbox(-name=>'add_minmax',
+								-checked => 0,
+								-override => 1,
+								-value=>1,
+								-label=>'')
+			. qq| (only for Resolutions other than 'best')</td></tr>|;
 
 	print  qq|<tr><td class='header' colspan='2' align='center'>|
 			. hidden(-name => 'cancel', -id => 'cancelinput', -default => '', -override => 1)
@@ -740,18 +748,33 @@ sub typeExport
 
 	my $db = $S->makeRRDname(graphtype => $Q->{graphtype}, index=>$Q->{intf},item=>$Q->{item});
 	my ($statval,$head,$meta) = NMISNG::rrdfunc::getRRDasHash(database => $db,
-																														graphtype=>$Q->{graphtype},
-																														index=>$Q->{intf},item=>$Q->{item},
 																														mode=>"AVERAGE",
 																														start => $start,
 																														end => $end,
-																														resolution => $mayberesolution);
+																														resolution => $mayberesolution,
+																														add_minmax => $Q->{add_minmax}?1:0);
 	bailout(message => "Failed to retrieve RRD data: $meta->{error}\n") if ($meta->{error});
 
 	# no data? complain, don't produce an empty csv
 	bailout(message => "No exportable data found!") if (!keys %$statval or !$meta->{rows_with_data});
 
-	my $filename = ($Q->{node} || $Q->{group})."-$Q->{graphtype}.csv";
+	# graphtypes for custom service graphs are fixed and not found in the model system
+	# note: format known here, in services.pl and nmis.pl
+	my $heading;
+	if ($Q->{graphtype} =~ /^service-custom-([a-z0-9\.-])+-([a-z0-9\._-]+)$/)
+	{
+		$heading = $2;
+	}
+	else
+	{
+		# fixme: really group in item???
+		$heading = $S->graphHeading(graphtype=>$Q->{graphtype}, index=>$Q->{intf}, item=>$Q->{group});
+	}
+	# some graphtypes have a heading that includes an identifier (eg. most interface graphs),
+	# but most others don't (e.g. Services, disks...), so we must include the intf/item in the filename
+	my $filename  = join("-", ($Q->{node} || $Q->{group}), $heading, $Q->{intf}//$Q->{item}).".csv";
+	$filename =~ s![/: '"]+!_!g;	# no /, no colons or quotes or spaces please
+
 	$headeropts->{type} = "text/csv";
 	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
 
