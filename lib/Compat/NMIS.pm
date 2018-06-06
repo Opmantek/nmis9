@@ -896,7 +896,7 @@ sub getGroupSummary {
 			my $outage = '';
 			$summaryHash{$node} = $entry;
 
-			my $nodeobj = $nmisng->node(name => $node);
+			my $nodeobj = $nmisng->node(uuid => $entry->{uuid}); # much safer than by node name
 
 			# check nodes
 			# Carefull logic here, if nodedown is false then the node is up

@@ -2147,7 +2147,7 @@ sub grouped_node_summary
 			'health'       => '$latest_data.subconcepts.data.health',
 			'08_health'    => '$latest_data.subconcepts.derived_data.08_health',
 			'16_health'    => '$latest_data.subconcepts.derived_data.16_health',
-			'available'    => '$latest_data.subconcepts.data.available',
+			'available'    => '$latest_data.subconcepts.data.availability',
 			'08_available' => '$latest_data.subconcepts.derived_data.08_available',
 			'16_available' => '$latest_data.subconcepts.derived_data.16_available',
 			'08_response'  => '$latest_data.subconcepts.derived_data.08_response',
