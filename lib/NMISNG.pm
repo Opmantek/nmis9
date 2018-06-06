@@ -2084,6 +2084,8 @@ sub get_timed_data_model
 # args: group_by - the field, include_nodes - 1/0, if set return value changes to array with hash, one hash
 #  entry for the grouped data and another for the nodes included in the groups, this is added for backwards
 #  compat with how nmis group data worked in 8
+#  ATTENTION: 'node_config' prefix in group_by is required to get access to the node config record.
+#
 # If no group_by is given all nodes will be used and put into a single group, this is required to get overall
 # status
 sub grouped_node_summary
@@ -2120,7 +2122,7 @@ sub grouped_node_summary
 				{'from' => 'nodes', 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'node_config'}
 		},
 		{'$unwind' => {'path'               => '$node_config', 'preserveNullAndEmptyArrays' => boolean::false}},
-		{'$match'  => {'node_config.active' => 1}},
+		{'$match'  => {'node_config.activated.nmis' => 1}},
 		{   '$lookup' => {
 				'from'         => 'latest_data',
 				'localField'   => '_id',

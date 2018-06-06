@@ -806,11 +806,12 @@ sub getGroupSummary {
 	NMISNG::Util::dbg("Starting");
 	my %summaryHash = ();
 	my $nmisng = new_nmisng();
-	my $group_by = ['node_config.group'];
+	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
+	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
 	$group_by = undef if( !$group );
 
 	my ($entries,$count,$error) = $nmisng->grouped_node_summary(
-		filters => { 'node_config.group' => $group },
+		filters => { 'node_config.configuration.group' => $group },
 		group_by => $group_by,
 		include_nodes => $include_nodes
 	);
