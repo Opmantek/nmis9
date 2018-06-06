@@ -344,7 +344,7 @@ sub compute_all_thresholds
 		return;
 	}
 
-	my $activenodes = $self->get_nodes_model( filter => {"activated.nmis" => 1} );
+	my $activenodes = $self->get_nodes_model( filter => {"activated.NMIS" => 1} );
 	if ( my $error = $activenodes->error )
 	{
 		$self->log->error("Failed to lookup active nodes: $error");
@@ -955,7 +955,7 @@ sub expand_node_selection
 			error  => {"invalid filter structure, not a hash!"}
 		) if ( ref($onefilter) ne "HASH" );
 
-		$onefilter->{"activated.nmis"} = 1;    # never consider inactive nodes
+		$onefilter->{"activated.NMIS"} = 1;    # never consider inactive nodes
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return NMISNG::ModelData->new(
 			nmisng => $self,
@@ -1038,7 +1038,7 @@ sub find_due_nodes
 	# default: blank unrestricted filter
 	for my $onefilter ( ref( $args{filters} ) eq "ARRAY" && @{$args{filters}} ? @{$args{filters}} : ( {} ) )
 	{
-		$onefilter->{"activated.nmis"} = 1;    # never consider inactive nodes
+		$onefilter->{"activated.NMIS"} = 1;    # never consider inactive nodes
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return {error => $possibles->error} if ( $possibles->error );
 
@@ -2123,7 +2123,7 @@ sub grouped_node_summary
 				{'from' => 'nodes', 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'node_config'}
 		},
 		{'$unwind' => {'path'               => '$node_config', 'preserveNullAndEmptyArrays' => boolean::false}},
-		{'$match'  => {'node_config.activated.nmis' => 1}},
+		{'$match'  => {'node_config.activated.NMIS' => 1}},
 		{   '$lookup' => {
 				'from'         => 'latest_data',
 				'localField'   => '_id',
@@ -2753,11 +2753,11 @@ sub process_escalations
 					my @nodeFields = split( ",", $C->{'json_node_fields'} );
 					foreach my $field (@nodeFields)
 					{
-						# uuid, name, active/activated.nmis, cluster_id, are NOT under configuration
+						# uuid, name, active/activated.NMIS, cluster_id, are NOT under configuration
 						my $val = ($field =~ /^(uuid|name|cluster_id)$/)?
 								$nmisng_node->$field
-								: ($field eq "active" or $field eq "activated.nmis")?
-								$nmisng_node->activated->{nmis} : $node->{$field};
+								: ($field eq "active" or $field eq "activated.NMIS")?
+								$nmisng_node->activated->{NMIS} : $node->{$field};
 
 						$event_obj->custom_data( $field, $val );
 					}
@@ -2968,7 +2968,7 @@ LABEL_ESC:
 					#only do dependancy if that dependency node is active.
 					my $node_depend_obj = $self->node( name => $node_depend );
 
-					if (ref($node_depend_obj) eq "NMISNG::Node" && $node_depend_obj->activated->{nmis})
+					if (ref($node_depend_obj) eq "NMISNG::Node" && $node_depend_obj->activated->{NMIS})
 					{
 						my ( $error, $erec ) = $self->events->eventLoad(
 							node_uuid => $node_depend_obj->uuid,
@@ -3454,11 +3454,11 @@ LABEL_ESC:
 								my @nodeFields = split( ",", $C->{'json_node_fields'} );
 								foreach my $field (@nodeFields)
 								{
-									# uuid, name, active/activated.nmis, cluster_id, are NOT under configuration
+									# uuid, name, active/activated.NMIS, cluster_id, are NOT under configuration
 									my $val = ($field =~ /^(uuid|name|cluster_id)$/)?
 											$nmisng_node->$field
-											: ($field eq "active" or $field eq "activated.nmis")?
-											$nmisng_node->activated->{nmis} : $node->{$field};
+											: ($field eq "active" or $field eq "activated.NMIS")?
+											$nmisng_node->activated->{NMIS} : $node->{$field};
 
 									$event_obj->custom_data( $field, $val );
 								}

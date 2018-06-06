@@ -177,7 +177,7 @@ sub _load
 		$self->{_configuration} = $entry->{configuration} // {}; # unlikely to be blank
 		$self->{_activated} =
 				(ref($entry->{activated}) eq "HASH"? # but fall back to old style active flag if needed
-				 $entry->{activated} : { nmis => (exists($self->{_configuration}->{active})?
+				 $entry->{activated} : { NMIS => (exists($self->{_configuration}->{active})?
 																					$self->{_configuration}->{active} : 0)
 				 });
 		$self->_dirty(0);						# nothing is dirty at this point
@@ -335,7 +335,7 @@ sub activated
 		$self->_dirty(1, "activated");
 		$self->{_activated} = $newstate;
 		# propagate to the old-style active flag for compat
-		$self->{_configuration}->{active} = $newstate->{nmis}? 1:0;
+		$self->{_configuration}->{active} = $newstate->{NMIS}? 1:0;
 	}
 	return Clone::clone($self->{_activated});
 }
@@ -368,7 +368,7 @@ sub configuration
 		}
 
 		# make sure activated.nmis is set and mirrors the old-style active flag
-		$self->{_activated}->{nmis} = $newvalue->{active} if (defined($newvalue->{active}));
+		$self->{_activated}->{NMIS} = $newvalue->{active} if (defined($newvalue->{active}));
 		$self->_dirty(1, "activated");
 
 		# fill in other defaults
@@ -778,10 +778,10 @@ sub is_active
 {
 	my ($self) = @_;
 
-	# check the new-style 'activated.nmis' flag first,
+	# check the new-style 'activated.NMIS' flag first,
 	# then the old-style 'active' configuration property
-	return $self->{_activated}->{nmis} if (ref($self->{_activated}) eq "HASH"
-																				 and defined $self->{_activated}->{nmis});
+	return $self->{_activated}->{NMIS} if (ref($self->{_activated}) eq "HASH"
+																				 and defined $self->{_activated}->{NMIS});
 
 	return $self->{_configuration}?
 			NMISNG::Util::getbool($self->{_configuration}->{active}) : 0;
@@ -7918,7 +7918,7 @@ _id (database id)
 uuid (globally unique for this node, R/O)
 name (display name)
 cluster_id (the collecting/controlling server's cluster_id)
-activated (hash of product -> 0/1)
+activated (hash of product, NMIS/opXYZ/... -> 0/1)
 lastupdate (timestamp of last change in db, only written)
 configuration (hash substructure)
 overrides (hash substructure)

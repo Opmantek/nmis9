@@ -129,7 +129,7 @@ sub loadLocalNodeTable
 			$flattenme->{$confprop} = $flattenme->{configuration}->{$confprop};
 		}
 		delete $flattenme->{configuration};
-		$flattenme->{active} = $flattenme->{activated}->{nmis};
+		$flattenme->{active} = $flattenme->{activated}->{NMIS};
 		delete $flattenme->{activated};
 	}
 
@@ -156,7 +156,7 @@ sub loadNodeTable
 			$flattenme->{$confprop} = $flattenme->{configuration}->{$confprop};
 		}
 		delete $flattenme->{configuration};
-		$flattenme->{active} = $flattenme->{activated}->{nmis};
+		$flattenme->{active} = $flattenme->{activated}->{NMIS};
 		delete $flattenme->{activated};
 	}
 	return \%map;
@@ -1305,7 +1305,7 @@ sub loadInterfaceInfo
 	my $nmisng = new_nmisng();
 
 	my $get_node_uuids = $nmisng->get_node_uuids(
-		filter => { cluster_id => $nmisng->config->{cluster_id}, "activated.nmis" => 1, "configuration.collect" => 1 } );
+		filter => { cluster_id => $nmisng->config->{cluster_id}, "activated.NMIS" => 1, "configuration.collect" => 1 } );
 
 	my %interfaceInfo;
 	foreach my $node_uuid ( @$get_node_uuids )

@@ -495,7 +495,7 @@ sub check_outages
 					my $actual = ($selcat eq "config"?
 												$globalconfig->{$propname} :
 												$propname eq "nodeModel"? $nodemodel
-												# uuid, cluster_id, name, activated.nmis, overrides live OUTSIDE of configuration!
+												# uuid, cluster_id, name, activated.NMIS, overrides live OUTSIDE of configuration!
 												: $propname =~ /^(uuid|cluster_id|name)$/?
 												$node->$propname
 												: $nodeconfig->{$propname});

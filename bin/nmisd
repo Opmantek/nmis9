@@ -1476,7 +1476,7 @@ sub fping_loop
 		}
 
 		my $nodesmodel = $nmisng->get_nodes_model( filter => { 	cluster_id => $config->{cluster_id},
-																														"activated.nmis" => 1,
+																														"activated.NMIS" => 1,
 																														"configuration.ping" => 1 });
 		if (my $failure = $nodesmodel->error)
 		{

@@ -283,7 +283,7 @@ elsif ($cmdline->{act} eq "export")
 				$flattenme->{$confprop} = $flattenme->{configuration}->{$confprop};
 			}
 			delete $flattenme->{configuration};
-			$flattenme->{active} = $flattenme->{activated}->{nmis};
+			$flattenme->{active} = $flattenme->{activated}->{NMIS};
 			delete $flattenme->{activated};
 		}
 
@@ -525,7 +525,7 @@ elsif ($cmdline->{act} eq "mktemplate")
 	my %mininode = ( map { my $key = $_; $key => ($withplaceholder?
 																								"__REPLACE_".uc($key)."__" : "") }
 									 (qw(name cluster_id uuid configuration.host configuration.group configuration.notes
-configuration.community configuration.roleType configuration.netType configuration.location configuration.model activated.nmis configuration.ping configuration.collect configuration.version configuration.port configuration.username configuration.authpassword configuration.authkey configuration.authprotocol configuration.privpassword configuration.privkey configuration.privprotocol ))  );
+configuration.community configuration.roleType configuration.netType configuration.location configuration.model activated.NMIS configuration.ping configuration.collect configuration.version configuration.port configuration.username configuration.authpassword configuration.authkey configuration.authprotocol configuration.privpassword configuration.privkey configuration.privprotocol ))  );
 
 	my $fh;
 	if (!$file or $file eq "-")
