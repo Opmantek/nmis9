@@ -1019,11 +1019,16 @@ sub noderefresh
 			}
 			$node->configuration(\%newconfig); # which makes the node dirty
 
-			# the first two top-level keepers are set on new, but nothing else is; the last two are
-			# not used by nmis itself
-			for my $mustset (qw(cluster_id name activated overrides))
+			# the first two top-level keepers are set on new, but nothing else is
+			for my $mustset (qw(cluster_id name))
 			{
-				$node->$mustset($rawdata->{$mustset}) if (exists($rawdata->{$mustset}));
+				$node->$mustset($rawdata->{$mustset}) if (defined($rawdata->{$mustset}));
+				delete $rawdata->{$mustset};
+			}
+			# these two must be hashes
+			for my $mustset (qw(activated overrides))
+			{
+				$node->$mustset($rawdata->{$mustset}) if (ref($rawdata->{$mustset}) eq "HASH");
 				delete $rawdata->{$mustset};
 			}
 		}

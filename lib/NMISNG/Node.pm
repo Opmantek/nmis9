@@ -65,7 +65,10 @@ use Compat::IP;
 # params:
 #   uuid - required
 #   nmisng - NMISNG object, required ( for model loading, config and log)
-#   id or _id - optional db id
+#   id or _id - optional db id - if given, then the node is expected
+#    to be pre-existing and its node data is loaded from db.
+#    if that fails, the node is treated as new.
+#
 # note: you must call one of the accessors to update the object before it can be saved!
 sub new
 {
@@ -85,6 +88,12 @@ sub new
 	# weaken the reference to nmisx to avoid circular reference problems
 	# not sure if the check for isweak is required
 	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
+
+	if ($self->{_id}) # === !is_new
+	{
+		# not loadable? then treat it as a new node
+		undef $self->{_id} if (!$self->_load);
+	}
 
 	return $self;
 }
@@ -144,7 +153,7 @@ sub _dirty
 
 # load data for this node from the database
 # params: none
-# returns: nothing, (but the node object is updated)
+# returns: 1 if node data was loadable, 0 otherwise
 sub _load
 {
 	my ($self) = @_;
@@ -177,6 +186,7 @@ sub _load
 	{
 		$self->nmisng->log->warn("NMISNG::Node with uuid ".$self->uuid." seems nonexistent in the DB?");
 	}
+	return $entry? 1:0;
 }
 
 
@@ -290,11 +300,6 @@ sub cluster_id
 		$self->_dirty(1, "cluster_id");
 		$self->{_cluster_id} = $newvalue;
 	}
-	# skeleton node? try to load the goods
-	elsif (!$self->is_new && !defined $self->{_cluster_id})
-	{
-		$self->_load;
-	}
 
 	return $self->{_cluster_id};
 }
@@ -314,10 +319,6 @@ sub name
 	{
 		$self->{_name} = $newvalue;
 		$self->_dirty(1, "name");
-	}
-	elsif (!$self->is_new && !defined($newvalue) && !defined($self->{_name}))
-	{
-		$self->_load;
 	}
 	return $self->{_name};
 }
@@ -376,15 +377,6 @@ sub configuration
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
-	# if there is no config and the node is not new, try and load stuff from database
-	elsif (!defined($self->{_configuration}) && !$self->is_new)
-	{
-		$self->_load();
-
-		# make sure that the old-style active flag mirrors activated.nmis
-		$self->{_configuration}->{active} = $self->{_activated}->{nmis}
-		if (ref($self->{_configuration}) eq "HASH" && ref($self->{_activated}) eq "HASH");
-	}
 
 	return $self->{_configuration}? Clone::clone( $self->{_configuration} ) : {};  # cover the new node case
 }
@@ -433,7 +425,7 @@ sub delete
 	}
 
 	# delete all status entries as well
-	$result = $self->get_status_model();		
+	$result = $self->get_status_model();
 	if (my $error = $result->error)
 	{
 		return (0, "Failed to retrieve status': $error");
@@ -837,11 +829,7 @@ sub overrides
 		$self->{_overrides} = $newvalue;
 		$self->_dirty( 1, 'overrides' );
 	}
-	# if there is no config and the node is not new, try and load stuff from database
-	elsif ( !defined($self->{_overrides}) && !$self->is_new )
-	{
-		$self->_load();
-	}
+
 	return ($self->{_overrides}? Clone::clone($self->{_overrides}) : {}); # cover the new node case
 }
 
@@ -1341,6 +1329,8 @@ sub update_node_info
 
 		# source that hasn't worked? disable immediately
 		$curstate = $S->status;
+		push @problems, $curstate->{error} if ($curstate->{error});
+
 		for my $source (qw(snmp wmi))
 		{
 			if ( $curstate->{"${source}_error"} )
@@ -1519,8 +1509,12 @@ sub update_node_info
 		else                      # fixme unclear why this reaction to failed getnodeinfo?
 		{
 			# load the model prev found
-			$S->loadModel( model => "Model-$catchall_data->{nodeModel}" )
-					if ( $catchall_data->{nodeModel} ne '' );
+			if ( $catchall_data->{nodeModel} ne '' )
+			{
+				my $maybeuseful = "Model-$catchall_data->{nodeModel}";
+				$maybeuseful = "Model" if ($maybeuseful eq "Model-Model");
+				$S->loadModel( model => $maybeuseful )
+			}
 		}
 	}
 	else
@@ -5923,7 +5917,6 @@ sub update
 		# this will try all enabled sources, 0 only if none worked
 		# it also disables sys sources that don't work!
 		my $result = $self->update_node_info(sys => $S);
-
 		@problems = @{$result->{error}} if (ref($result->{error}) eq "ARRAY"
 																		 && @{$result->{error}}); # (partial) success doesn't mean no errors reported
 

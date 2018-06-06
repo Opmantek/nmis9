@@ -1875,7 +1875,7 @@ sub viewNode
 	}
 	if ( !$AU->InGroup( $configuration->{group} ) )
 	{
-		print "You are not authorized for this request! (group=$NT->{$node}{group})";
+		print "You are not authorized for this request! (group=$configuration->{group})";
 		return;
 	}
 
@@ -1899,7 +1899,7 @@ sub viewNode
 			= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$ST->{$server}{config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node="
 			. uri_escape($node);
 		my $nodelink = a( {target => "NodeDetails-$node", onclick => "viewwndw(\'$node\',\'$url\',$wd,$ht)"},
-			$configuration->{name} );
+			$node );
 		print "$nodelink is managed by server $configuration->{server}";
 		print <<EO_HTML;
 	<script>
@@ -1990,8 +1990,7 @@ EO_HTML
 		my $url = $configuration->{node_context_url} if $configuration->{node_context_url};
 		# substitute any known parameters
 		$url =~ s/\$host/$configuration->{host}/g;
-		$url =~ s/\$name/$configuration->{name}/g;
-		$url =~ s/\$node_name/$configuration->{name}/g;
+		$url =~ s/\$(name|node_name)/$node/g;
 
 		$context = qq| <a href="$url" target="context_$node" style="color:white;">$configuration->{node_context_name}</a>|;
 	}
@@ -2004,8 +2003,7 @@ EO_HTML
 
 		# substitute any known parameters
 		$url =~ s/\$host/$configuration->{host}/g;
-		$url =~ s/\$name/$configuration->{name}/g;
-		$url =~ s/\$node_name/$configuration->{name}/g;
+		$url =~ s/\$(name|node_name)/$node/g;
 
 		$remote
 			= qq| <a href="$url" target="remote_$node" style="color:white;">$configuration->{remote_connection_name}</a>|;
@@ -3828,7 +3826,6 @@ sub viewStatus
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
 	my $nmisng_node = $S->nmisng_node;
-	my $configuration = $nmisng_node->configuration();
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);

@@ -2750,7 +2750,13 @@ sub process_escalations
 					my @nodeFields = split( ",", $C->{'json_node_fields'} );
 					foreach my $field (@nodeFields)
 					{
-						$event_obj->custom_data( $field, $node->{$field} );
+						# uuid, name, active/activated.nmis, cluster_id, are NOT under configuration
+						my $val = ($field =~ /^(uuid|name|cluster_id)$/)?
+								$nmisng_node->$field
+								: ($field eq "active" or $field eq "activated.nmis")?
+								$nmisng_node->activated->{nmis} : $node->{$field};
+
+						$event_obj->custom_data( $field, $val );
 					}
 
 					NMISNG::Notify::logJsonEvent( event => $event_data, dir => $C->{'json_logs'} );
@@ -2945,7 +2951,7 @@ LABEL_ESC:
 		# if we are to escalate, this event must not be part of a planned outage and un-ack.
 		if ( $outage ne "current" and !$event_obj->ack )
 		{
-			# we have list of nodes that this node depends
+			# we have list of nodes that this node depends on
 			# if any of those have a current Node Down alarm, then lets just move on with a debug message
 			# should we log that we have done this - maybe not....
 
@@ -2955,19 +2961,21 @@ LABEL_ESC:
 				{
 					next if $node_depend eq "N/A";                    # default setting
 					next if $node_depend eq $event_obj->node_name;    # remove the catch22 of self dependancy.
-					                                                  #only do dependancy if node is active.
-					my $node_depend_rec = $nmisng_node->configuration;
-					if ( defined $node_depend_rec->{active} )
+
+					#only do dependancy if that dependency node is active.
+					my $node_depend_obj = $self->node( name => $node_depend );
+
+					if (ref($node_depend_obj) eq "NMISNG::Node" && $node_depend_obj->activated->{nmis})
 					{
 						my ( $error, $erec ) = $self->events->eventLoad(
-							node_uuid => $node_depend_rec->{uuid},
+							node_uuid => $node_depend_obj->uuid,
 							event     => "Node Down",
 							active    => 1
 						);
 						if ( !$error && ref($erec) eq "HASH" )
 						{
 							NMISNG::Util::dbg(
-								"NOT escalating $event_data->{node_name} $event_data->{event} as dependant $node_depend is reported as down"
+								"NOT escalating $event_data->{node_name} $event_data->{event} as depending on $node_depend, which is reported as down"
 							);
 							next LABEL_ESC;
 						}
@@ -3443,7 +3451,13 @@ LABEL_ESC:
 								my @nodeFields = split( ",", $C->{'json_node_fields'} );
 								foreach my $field (@nodeFields)
 								{
-									$event_obj->custom_data( $field, $node->{$field} );
+									# uuid, name, active/activated.nmis, cluster_id, are NOT under configuration
+									my $val = ($field =~ /^(uuid|name|cluster_id)$/)?
+											$nmisng_node->$field
+											: ($field eq "active" or $field eq "activated.nmis")?
+											$nmisng_node->activated->{nmis} : $node->{$field};
+
+									$event_obj->custom_data( $field, $val );
 								}
 
 								NMISNG::Notify::logJsonEvent( event => $event_obj, dir => $C->{'json_logs'} )

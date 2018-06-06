@@ -417,7 +417,7 @@ sub purge_outages
 						 or $thisoutage->{end} >= time - $maxage);
 
 		push @info, ( $simulate? "Would purge ":"Purging ")
-				. "expired outage $outid, description \"$thisoutage->{description}\", ended at " 
+				. "expired outage $outid, description \"$thisoutage->{description}\", ended at "
 				. scalar(localtime($thisoutage->{end}));
 
 		next if ($simulate);
@@ -425,8 +425,8 @@ sub purge_outages
 		push @problems, "$outid: $res->{error}" if (!$res->{success}); # but let's continue
 	}
 
-	return { 
-		info => \@info, 
+	return {
+		info => \@info,
 		error => join("\n", @problems),
 		success => @problems? 0 : 1 };
 }
@@ -494,7 +494,11 @@ sub check_outages
 				{
 					my $actual = ($selcat eq "config"?
 												$globalconfig->{$propname} :
-												$propname eq "nodeModel"? $nodemodel: $nodeconfig->{$propname});
+												$propname eq "nodeModel"? $nodemodel
+												# uuid, cluster_id, name, activated.nmis, overrides live OUTSIDE of configuration!
+												: $propname =~ /^(uuid|cluster_id|name)$/?
+												$node->$propname
+												: $nodeconfig->{$propname});
 					# choices can be: regex, or fixed string, or array of fixed strings
 					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
 

@@ -753,7 +753,7 @@ sub doeditTable
 		}
 	}
 
-	# nodes requires special handling, extra sanity checks, and dealing with rename
+	# nodes requires special handling, extra sanity checks, dealing with rename and deep/separated structure
 	if ($table eq 'Nodes')
 	{
 		# ensure a real uuid is present
@@ -775,15 +775,22 @@ sub doeditTable
 		# well have more than that (e.g. other products), so the form-supplied info
 		# needs to be merged into what's there
 		my $configuration = $node->configuration();
-		# do merge manually for now
-		map { $configuration->{$_} = $thisentry->{$_} } keys( %$thisentry );
+
+		# split the data into toplevel bits, activated, and configuration
+		map { $configuration->{$_} = $thisentry->{$_} }
+		(grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides)$/, keys %$thisentry ));
+
+		my $activated = $node->activated // {};
+		$activated->{'nmis'} = NMISNG::Util::getbool($thisentry->{active})?1:0;
 
 		# required for every node in nmis9, not usefully representable in the tables form
 		if ($node->is_new)
 		{
-			$configuration->{cluster_id} = $C->{cluster_id};
+			$node->cluster_id($C->{cluster_id});
 		}
 		$node->configuration( $configuration);
+		$node->activated($activated);
+
 		my ($success,  $errmsg) = $node->save();
 		if ($success <= 0)						# 0 is no saving required, neg is bad
 		{
@@ -794,7 +801,7 @@ sub doeditTable
 
 		# further special handling for nodes: rename and general update
 		# handle the renaming case
-		if ($new_name && $new_name ne $thisentry->{name})
+		if ($new_name && $new_name ne $node->name)
 		{
 			my ($ok,$message) = $node->rename(new_name => $new_name,
 																				originator => "tables.pl.editNodeTable");

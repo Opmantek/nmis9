@@ -91,7 +91,10 @@ sub mdl       { my $self = shift; return $self->{mdl} };                   # my 
 sub view      { my $self = shift; return $self->{view} };                  # my $V = $S->view
 
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
-sub ndcfg     { my $self = shift; return $self->{cfg} };                   # my $NC = $S->ndcfg
+
+# attention: that thing has an extra static 'node' outer wrapper!
+# it also contains ONLY the nmisng::node's configuration(), not uuid/cluster_id/name/activated()!
+sub ndcfg     { my $self = shift; return $self->{cfg} };
 
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
 
@@ -528,8 +531,8 @@ sub init
 		# remember name for error message, no relevance for comms
 		$self->{snmp} = NMISNG::Snmp->new(
 			debug => $self->{debug},
-			name  => $self->{cfg}->{node}->{name}
-		);    # fixme why not self->{name}?
+			name  => $self->{name},
+		);
 	}
 
 	# wmi: no connections supported AND we try this only if
@@ -596,7 +599,9 @@ sub open
 	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
 
 	# check if numeric ip address is available for speeding up, conversion done by type=update
-	$snmpcfg->{host} = ( $catchall_data->{host_addr} || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
+	$snmpcfg->{host} = ( $catchall_data->{host_addr}
+											 || $self->{cfg}{node}{host}
+											 || $self->{name} );
 	$snmpcfg->{timeout}         = $args{timeout}         || 5;
 	$snmpcfg->{retries}         = $args{retries}         || 1;
 	$snmpcfg->{oidpkt}          = $args{oidpkt}          || 10;
@@ -798,8 +803,8 @@ sub loadInfo
 	# no data? okish iff marked as skipped
 	if ( !keys %$result )
 	{
-		$self->{error} = "loadInfo failed for $self->{name}: $result->{error}";
-		print "MODEL ERROR: ($self->{name}) on loadInfo, $result->{error}\n" if $dmodel;
+		$self->{error} = "loadInfo failed for $self->{name}: $status->{error}";
+		print "MODEL ERROR: ($self->{name}) on loadInfo, $status->{error}\n" if $dmodel;
 		return 0;
 	}
 	elsif ( $result->{skipped} )    # nothing to report because model said skip these items, apparently all of them...
@@ -1432,8 +1437,8 @@ sub getValues
 	# nothing found but no reason why? not good.
 	if ( !%data && !$status{skipped} )
 	{
-		my $sections = join( ", ", $section, @todosections );
-		$status{error} = "ERROR ($self->{name}): no values collected for $sections!";
+		my $sections = join(", ", @todosections);
+		$status{error} = "ERROR ($self->{name}): ".(@todosections? "no values collected for section(s) $sections!" : "found no sections to collect!");
 	}
 	$self->nmisng->log->debug("loaded "
 														. ( keys %todos || 0 )

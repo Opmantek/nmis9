@@ -153,10 +153,14 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		$node->configuration($curconfig);
 
 		# the first two top-level keepers are set on new, but nothing else is
-		# the last two are not used by plain nmis
- 		for my $mustset (qw(cluster_id name activated overrides configuration))
+		for my $mustset (qw(cluster_id name))
 		{
 			$node->$mustset($onenode->{$mustset}) if (exists($onenode->{$mustset}));
+		}
+		# these two must be hashes
+		for my $mustset (qw(overrides activated))
+		{
+			$node->$mustset($onenode->{$mustset}) if (ref($onenode->{$mustset}) eq "HASH");
 		}
 
 		# and save
