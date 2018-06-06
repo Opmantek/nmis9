@@ -1304,10 +1304,11 @@ sub find_due_nodes
 					: $intervals{$polname}->{update};
 
 				# once a day if beyond the grace time, min of snmp/wmi/update policy otherwise
-				my $nexttry = $lasttry + 0.95 * $normalperiod;
+				# and make sure to handle a never-polled node
+				my $nexttry = ($lasttry || $now) + 0.95 * $normalperiod;
 				if ( $now - $graceperiod_start > 14 * 86400 )
 				{
-					$nexttry = $lasttry + 86400 * 0.95;
+					$nexttry = ($lasttry || $now) + 86400 * 0.95;
 
 					# log the demotion situation but not more than once an hour
 					$self->log->info( "Node $nodename has no valid nodeModel, never polled successfully, "
