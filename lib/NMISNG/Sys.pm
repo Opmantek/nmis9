@@ -370,7 +370,7 @@ sub init
 			# or bail out if this is not an update operation, all gigo if we continued w/o.
 			elsif ( !$self->{update} )
 			{
-				$self->{error} = "Failed to load node info file for $self->{node}!";
+				$self->{error} = "Failed to load catchall data for $self->{node}!";
 				return 0;
 			}
 		}
