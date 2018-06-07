@@ -168,7 +168,8 @@ sub _load
 	my $entry = $cursor->next;
 	if ($entry)
 	{
-		# translate from db to our local names where needed
+		# translate from db to our local names where needed,
+		# and load the parts that we know about...
 		$self->{_id} = $entry->{_id};
 		$self->{_name} = $entry->{name};
 		$self->{_cluster_id} = $entry->{cluster_id};
@@ -180,6 +181,13 @@ sub _load
 				 $entry->{activated} : { NMIS => (exists($self->{_configuration}->{active})?
 																					$self->{_configuration}->{active} : 0)
 				 });
+		$self->{_addresses} = $entry->{addresses} if (ref($entry->{addresses}) eq "ARRAY");
+		$self->{_aliases} = $entry->{aliases} if (ref($entry->{aliases}) eq "ARRAY");
+
+		# ...but, for extensibility's sake, also load unknown extra stuff and drag it along
+		my %unknown = map { ($_ => $entry->{$_}) } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate|aliases|addresses)$/, keys %$entry));
+		$self->{_unknown} = \%unknown;
+
 		$self->_dirty(0);						# nothing is dirty at this point
 	}
 	else
@@ -321,6 +329,55 @@ sub name
 		$self->_dirty(1, "name");
 	}
 	return $self->{_name};
+}
+
+# getter-setter for unknown/extra data
+# that we drag along from the database
+#
+# args: hashref of new unknown data
+# returns: hashref of existing unknown
+sub unknown
+{
+	my ($self, $newvalue) = @_;
+
+	if (ref($newvalue) eq "HASH")
+	{
+		$self->{_unknown} = $newvalue;
+		$self->_dirty(1, "unknown");
+	}
+	return Clone::clone($self->{_unknown} // {});
+}
+
+# getter-setter for aliases data,
+# which must be array of hashes with inner key alias
+#
+# args: new aliases array ref, optional
+# returns: arrayref of current aliases structure
+sub aliases
+{
+	my ($self, $newaliases) = @_;
+	if (ref($newaliases) eq "ARRAY")
+	{
+		$self->{_aliases}  = $newaliases;
+		$self->_dirty(1, "aliases");
+	}
+	return Clone::clone($self->{_aliases} // []);
+}
+
+# getter-setter for addresses data,
+# which must be array of hashes with inner key address
+#
+# args: new addresses array ref, optional
+# returns: arrayref of current addresses structure
+sub addresses
+{
+	my ($self, $newaddys) = @_;
+	if (ref($newaddys) eq "ARRAY")
+	{
+		$self->{_addresses}  = $newaddys;
+		$self->_dirty(1, "addresses");
+	}
+	return Clone::clone($self->{_addresses} // []);
 }
 
 # get-set accessor for node activation status
@@ -962,7 +1019,11 @@ sub save
 								configuration => $self->{_configuration},
 								overrides => $self->{_overrides},
 								activated => $self->{_activated},
+								addresses => $self->{_addresses} // [],
+								aliases => $self->{_aliases} // [],
 			);
+	# and, should we have any legacy/unknown extra things around, save them back - where safe!
+	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate)$/, keys %{$self->{_unknown}}));
 
 	if ($self->is_new())
 	{
@@ -993,7 +1054,6 @@ sub save
 	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
-
 
 # get the node's id, ie. its UUID,
 # which is globally unique (even with multipolling, where cluster_id is an array)
@@ -1031,6 +1091,36 @@ sub validate
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
 	return( -3, "threshold must be set to something") if( !defined($configuration->{threshold}) );
+
+	# if addresses/aliases are present, they must be arrays of hashes, each hash with correct
+	# inner property and expires must make sense
+	for (["addresses","address"], ["aliases","alias"])
+	{
+		my ($outer,$inner) = @$_;
+		next if (!exists $self->{"_$outer"});
+
+		return (-2, "invalid $outer structure - must be array")
+				if (ref($self->{"_$outer"}) ne "ARRAY");
+		for my $record (@{$self->{"_$outer"}})
+		{
+			return (-3, "invalid $outer structure - entries must be hashes" )
+					if (ref($record) ne "HASH");
+			# record must have an alias/address field, nonblank, and address field must be a legit address
+			return (-4, "invalid $outer structure - entry has no $inner property" )
+					if (!defined($record->{$inner}) or $record->{$inner} eq "");
+			return (-5, "invalid $outer structure - entry has no $inner property" )
+					if (!defined($record->{$inner}) or $record->{$inner} eq "");
+
+			return (-6, "invalid $outer structure - address record with invalid address")
+					if ($outer eq "addresses" and $record->{$inner} !~ /^([0-9\.]+|[0-9a-fA-F:]+)$/);
+
+			# and expires must be missing altogether or numeric
+			# note that we allow explicit undef for convenience, as attrib deletion doesn't work well - yet
+			return (-7, "invalid $outer structure - invalid expires attribute")
+					if (defined($record->{expires})
+							&& $record->{expires} !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+		}
+	}
 
 	return (1,undef);
 }
@@ -7922,7 +8012,7 @@ activated (hash of product, NMIS/opXYZ/... -> 0/1)
 lastupdate (timestamp of last change in db, only written)
 configuration (hash substructure)
 overrides (hash substructure)
-aliases (hash substructure, not used by plain nmis itself)
-addresses (hash substructure, not used by plain nmis itself)
+aliases (array of hashes substructure, not used by plain nmis itself)
+addresses (array of hashes substructure, not used by plain nmis itself)
 
 =cut

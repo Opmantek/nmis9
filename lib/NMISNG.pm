@@ -2330,6 +2330,8 @@ sub node
 
 # helper to get/set nodes collection, primes the indices on set
 # args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# attention: this collection may carry extra indices unknown to NMIS that should not be dropped!
+#
 # returns: current collection handle
 sub nodes_collection
 {
@@ -2341,8 +2343,14 @@ sub nodes_collection
 		my $err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_nodes},
 			drop_unwanted => $drop_unwanted,
-			indices       => [[{"uuid" => 1}, {unique => 1}], [{"name" => 1}, {unique => 0}]]
-		);
+			indices       => [[{"uuid" => 1}, {unique => 1}],
+												[{"name" => 1}, {unique => 0}],
+												# make sure activated.NMIS is indexed, as well
+												# as aliases.alias and addresses.address
+												# (for the semi-dynamic dns alias and address info)
+												[ [ "aliases.alias" => 1 ] ],
+												[ [ "addresses.address" => 1 ] ], ],
+				);
 		$self->log->error("index setup failed for nodes: $err") if ($err);
 	}
 	return $self->{_db_nodes};

@@ -325,6 +325,12 @@ elsif ($cmdline->{act} eq "show")
 	{
 		$dumpables->{$alsodump} = $nodeobj->$alsodump;
 	}
+	# if unknown extras exist, dump them too
+	# ditto for addresses and aliases
+	for my $otherstuff (qw(unknown addresses aliases))
+	{
+		$dumpables->{$otherstuff} = $nodeobj->$otherstuff();
+	}
 
 	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables,"entry");
 	die "failed to transform output: $error\n" if ($error);
@@ -354,6 +360,9 @@ elsif ($cmdline->{act} eq "set")
 	my $curconfig = $nodeobj->configuration;
 	my $curoverrides = $nodeobj->overrides;
 	my $curactivated = $nodeobj->activated;
+	my $curextras = $nodeobj->unknown;
+	my $curarraythings = { aliases => $nodeobj->aliases,
+												 addresses => $nodeobj->addresses };
 	my $anythingtodo;
 
 	for my $name (keys %$cmdline)
@@ -362,6 +371,7 @@ elsif ($cmdline->{act} eq "set")
 		++$anythingtodo;
 
 		my $value = $cmdline->{$name};
+		undef $value if ($value eq "undef");
 		$name =~ s/^entry\.//;
 
 		# where does it go? overrides.X is obvious...
@@ -379,6 +389,16 @@ elsif ($cmdline->{act} eq "set")
 		{
 			$curactivated->{$1} = $value;
 		}
+		# ...and then there's the unknown unknowns
+		elsif ($name =~ /^unknown\.(.+)$/)
+		{
+			$curextras->{$1} = $value;
+		}
+		# and aliases and addresses, but these are ARRAYS
+		elsif ($name =~ /^((aliases|addresses)\.(.+))$/)
+		{
+			$curarraythings->{$1} = $value;
+		}
 		else
 		{
 			$curconfig->{$name} = $value;
@@ -386,12 +406,17 @@ elsif ($cmdline->{act} eq "set")
 	}
 	die "No changes for node \"$node\"!\n" if (!$anythingtodo);
 
-	my $error = NMISNG::Util::translate_dotfields($curconfig);
-	die "translation of config arguments failed: $error\n" if ($error);
-	$error = NMISNG::Util::translate_dotfields($curoverrides);
-	die "translation of override arguments failed: $error\n" if ($error);
-	$error = NMISNG::Util::translate_dotfields($curactivated);
-	die "translation of activated arguments failed: $error\n" if ($error);
+	for ([$curconfig, "configuration"],
+			 [$curoverrides, "override"],
+			 [$curactivated, "activated"],
+			 [$curarraythings, "addresses/aliases" ],
+			 [$curextras, "unknown/extras" ])
+	{
+		my ($checkwhat, $name) = @$_;
+
+		my $error = NMISNG::Util::translate_dotfields($checkwhat);
+		die "translation of $name arguments failed: $error\n" if ($error);
+	}
 
 	# check the group - only warn about
 	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
@@ -405,6 +430,9 @@ or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing g
 	$nodeobj->overrides($curoverrides);
 	$nodeobj->configuration($curconfig);
 	$nodeobj->activated($curactivated);
+	$nodeobj->addresses($curarraythings->{addresses});
+	$nodeobj->aliases($curarraythings->{aliases});
+	$nodeobj->unknown($curextras);
 
 	(my $op, $error) = $nodeobj->save;
 	die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed
@@ -611,19 +639,19 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
 
 	my $isnew = $nodeobj->is_new;
-	# must split off overrides, activated, name/cluster_id, rest goes under configuration
-	for my $mustset (qw(cluster_id name activated overrides))
+	# must set overrides, activated, name/cluster_id, addresses/aliases, configuration; 
+	for my $mustset (qw(cluster_id name activated overrides configuration addresses aliases))
 	{
 		$nodeobj->$mustset($mayberec->{$mustset}) if (exists($mayberec->{$mustset}));
 		delete $mayberec->{$mustset};
 	}
-	# there should be only configuration left at this point
-	my @nocando = grep($_ !~ /^(configuration|lastupdate|uuid)$/, keys %$mayberec);
-	die "unsupported extra properties \"".join(", ",@nocando)."\" in input!\n" if (@nocando);
-	$nodeobj->configuration($mayberec->{configuration});
 	# if creating, add missing cluster_id for local operation
-	$nodeobj->uuid($config->{cluster_id}) if ($cmdline->{act} eq "create"
-																						&& !$nodeobj->uuid);
+	$nodeobj->cluster_id($config->{cluster_id}) if ($cmdline->{act} eq "create"
+																									&& !$nodeobj->cluster_id);
+	# there should be nothing left at this point, anything that is goes into unknown()
+	my %unknown = map { ($_ => $mayberec->{$_}) } (grep(!/^(configuration|lastupdate|uuid)$/,
+																											keys %$mayberec));
+	$nodeobj->unknown(\%unknown);
 
 	my ($status,$msg) = $nodeobj->save;
 	# zero is no saving needed, which is not good here
