@@ -42,6 +42,7 @@ use MongoDB 1.2.3;	 # we require a reasonably new Mongodb driver
 use Safe::Isa;       # provides $_isa, recommended by MongoDB driver for error handling
 use Time::Moment;    # opCharts needs times (for TTL) and using this is much faster
 use Carp;
+use Mojo::Util;									# for monkey_patch and  b64_encode/decode
 
 use version 0.77;    # needed to check driver version
 
@@ -50,7 +51,18 @@ use version 0.77;    # needed to check driver version
 #
 # note that you have to do your json encoding with JSON::XS->new->convert_blessed(1)->utf8(1)->encode(...)
 # if your records have real booleans (but at least with this TO_JSON fudge convert_blessed does work)
-*boolean::TO_JSON = sub { my $x = shift; return ( boolean($x)->isTrue ? JSON::XS::true : JSON::XS::false ); };
+Mojo::Util::monkey_patch("boolean",
+												 "TO_JSON" => sub { my $x = shift;
+																						return ( boolean($x)->isTrue ?
+																										 JSON::XS::true : JSON::XS::false ); });
+# we need a similar kind of thing for MongoDB::BSON::Binary because the
+# perl driver only makes OIDs convertable - see the extended json format info at
+# https://docs.mongodb.com/manual/reference/mongodb-extended-json/
+Mojo::Util::monkey_patch("MongoDB::BSON::Binary",
+												 TO_JSON => sub { my ($self) = @_;
+																					return { '$binary' => Mojo::Util::b64_encode($self->data,''),
+																									 '$type' => $self->subtype };
+												 });
 
 my $error_string;
 
@@ -319,6 +331,9 @@ sub coll_stats
 # these need conversion into boolean::true and ::false. any other blessed things are passed
 # through as-is.
 #
+# additionally, if extended json was used and created $oid or $binary, then we need to undo those
+#
+#
 # args: record, any depth
 # returns: a reworked clone of the record
 sub constrain_record
@@ -352,6 +367,16 @@ sub constrain_record
 	}
 	elsif ( ref($record) eq "HASH" )
 	{
+		if (my $val = $record->{'$oid'})
+		{
+			return MongoDB::OID->new(value => $val);
+		}
+		elsif (my $binval = $record->{'$binary'})
+		{
+			return MongoDB::BSON::Binary->new(data => Mojo::Util::b64_decode($binval),
+																				subtype => $record->{'$type'});
+		}
+
 		# check all keys, rename if needed; then check deeper.
 		my %newhash;
 		foreach my $key ( keys %$record )
