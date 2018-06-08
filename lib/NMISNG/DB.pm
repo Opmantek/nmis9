@@ -958,12 +958,18 @@ sub get_db_connection
 	my $write_concern = $CONF->{db_write_concern}      // 1;
 
 	my $new_conn;
+
+	# please return dates as time::moment objects; which is much faster than the backwards-compat
+	# old choice of DateTime. see man MongoDB::DataTypes
+	my $codec = MongoDB::BSON->new( dt_type => 'Time::Moment' );
+
 	eval {
 		$new_conn = MongoDB::MongoClient->new(
 			host          => "$server:$port",
 			w             => $write_concern,
 			timeout       => $timeout,
 			query_timeout => $query_timeout,
+			bson_codec => $codec,
 
 			# manpage claims that reconnects trigger re-auth but that's not true :-(
 			# so, with auto_reconnect on we get a connection that doesn't work because not authed,
