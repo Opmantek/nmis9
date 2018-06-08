@@ -61,6 +61,8 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY}
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
 \t$bn act=delete {node=nodeX|group=groupY}
+\t$bn act=dump {node=nodeX|uuid=uuidY} file=path
+\t$bn act=restore file=path
 
 \t$bn act=set node=nodeX entry.X=Y...
 \t$bn act=mktemplate [placeholder=1/0]
@@ -305,6 +307,29 @@ elsif ($cmdline->{act} eq "export")
 	close $fh if ($fh != \*STDOUT);
 
 	print STDERR "Successfully exported node configuration to file $file\n" if ($fh != \*STDOUT);
+	exit 0;
+}
+elsif  ($cmdline->{act} eq "dump")
+{
+	my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
+	my $res = $nmisng->dump_node(name => $nodename,
+															 uuid => $uuid,
+															 target => $file,
+															 options => { historic_events => 1, # max detail please
+																						opstatus_limit => undef });
+	die "Failed to dump node data: $res->{error}\n" if (!$res->{success});
+
+	print STDERR "Successfully dumped node data to file $file\n" if (!$cmdline->{quiet});
+	exit 0;
+}
+elsif  ($cmdline->{act} eq "restore")
+{
+	my $file = $cmdline->{"file"};
+	my $res = $nmisng->undump_node(source  => $file);
+	die "Failed to restore node data: $res->{error}\n" if (!$res->{success});
+
+	print STDERR "Successfully restored node $res->{node}->{name} ($res->{node}->{uuid})\n"
+			if (!$cmdline->{quiet});
 	exit 0;
 }
 elsif ($cmdline->{act} eq "show")
@@ -639,7 +664,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
 
 	my $isnew = $nodeobj->is_new;
-	# must set overrides, activated, name/cluster_id, addresses/aliases, configuration; 
+	# must set overrides, activated, name/cluster_id, addresses/aliases, configuration;
 	for my $mustset (qw(cluster_id name activated overrides configuration addresses aliases))
 	{
 		$nodeobj->$mustset($mayberec->{$mustset}) if (exists($mayberec->{$mustset}));

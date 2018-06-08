@@ -39,11 +39,13 @@ use Data::Dumper;
 use Tie::IxHash;
 use File::Find;
 use File::Spec;
+use File::Temp;
 use boolean;
 use Fcntl qw(:DEFAULT :flock :mode);    # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Errno qw(EAGAIN ESRCH EPERM);
 use Mojo::File;                         # slurp and spurt
 use JSON::XS;
+use Archive::Zip 1.36;					# for dump()/undump()
 
 use NMISNG::DB;
 use NMISNG::Events;
@@ -4466,4 +4468,215 @@ sub update_queue
 	}
 	return ( undef, $jobid );
 }
+
+# export and encapsulate most of one node's data into a single zip file
+# primarily meant for diagnostics on a different machine
+#
+# this function is likely to be quite memory-hungry.
+# note: if it errors out early then its temporary directory is not removed!
+#
+# args: uuid (=node's uuid) or name (=node name),
+#  target (=full path to final file),
+#  options (optional, hash of extra things to include/skip)
+#   historic_events => 0 (default) or 1, only include current events if 0
+#   opstatus_limit => N or undef, default undef. include N most recent records or all
+#
+# returns: hashref, success/error
+sub dump_node
+{
+	my ($self, %args) = @_;
+	my $targetfile = $args{target};
+
+	my $uuid = $args{uuid};
+	my $nodename = $args{name};		# much less preferrable
+
+	my $options = ref($args{options}) eq 'HASH'? $args{options} : {};
+
+	return { error => "target argument missing!" } if (!$targetfile);
+	return { error => "target \"$targetfile\" already exists, not overwriting!" } if (-e $targetfile);
+	return { error => "uuid and name arguments missing!" }
+	if (!$uuid && !$nodename);
+
+	# node existence check gives us the node config data
+	my $md = $self->get_nodes_model(uuid => $uuid, name => $nodename);
+	if (my $error = $md->error)
+	{
+		return { error => "failed to lookup node: $error" };
+	}
+	elsif ($md->count != 1)
+	{
+		return { error => "invalid uuid, ".$md->count." matching nodes" };
+	}
+	my $noderec = $md->data->[0];
+	$uuid //= $noderec->{uuid};
+	$nodename //= $nodename->{name};
+
+	# create temp dir first, subdirs for each of the involved db collections
+	my $td = eval { File::Temp::tempdir("dump-$noderec->{uuid}-XXXXXXX",
+																			TMPDIR => 1, CLEANUP => 1); }; # under /tmp and get rid of it later
+	return { error => "could not create temp dir: $@" } if ($@ or !-d $td);
+
+	for my $collname (qw(nodes events inventory latest_data opstatus status))
+	{
+		mkdir("$td/$collname") or return { error => "could not create dir $td/$collname: $!" };
+	}
+
+	# now collect the things in need of dumping
+	# each dumped thing is named using its db id
+	my @todump = ( { where => "nodes", what => $noderec } );
+
+	# inventory items for this node, and latest_data for each
+	$md = $self->get_inventory_model(node_uuid => $uuid);
+	if (my $error = $md->error)
+	{
+		return { error => "failed to lookup inventory records: $error" };
+	}
+	for my $oneinv (@{$md->data})
+	{
+		delete $oneinv->{expire_at};	# undesirable in the exported data
+		push @todump, { where => "inventory", what => $oneinv };
+
+		# last_data is reachable by inventory id
+		my $lmd = $self->get_latest_data_model(filter => { inventory_id => $oneinv->{_id} });
+		if (my $error = $lmd->error)
+		{
+			return { error => "failed to lookup latest_data records: $error" };
+		}
+		map {	delete $_->{expire_at}; push @todump, { where => "latest_data", what => $_ }; } (@{$lmd->data});
+	}
+
+	# events, status, opstatus: bound to node uuid
+
+	# events: both current and historic or only current?
+	# get_events_model defaults to current only
+	$md = $self->events->get_events_model(filter => { node_uuid => $uuid,
+																										historic =>
+																												$options->{historic_events}? [0,1]: 0 });
+	if (my $error = $md->error)
+	{
+		return { error => "failed to lookup event records: $error" };
+	}
+	map {	delete $_->{expire_at}; push @todump, { where => "events", what => $_ }; } (@{$md->data});
+
+	$md = $self->get_status_model(filter => { node_uuid => $uuid});
+	if (my $error = $md->error)
+	{
+		return { error => "failed to lookup event records: $error" };
+	}
+	map {	delete $_->{expire_at}; push @todump, { where => "status", what => $_ }; } (@{$md->data});
+
+	# opstatus: selectable by node uuid within context;
+	# sort and limit only required if opstatus_limit is set
+	my @selectargs = ("context.node_uuid" => $uuid);
+	my $nomorethan = $options->{opstatus_limit};
+	if ($nomorethan && $nomorethan > 0)
+	{
+		push @selectargs, ("sort" => { time => -1 }, "limit" => $nomorethan );
+	}
+
+	$md = $self->get_opstatus_model(@selectargs);
+	if (my $error = $md->error)
+	{
+		return { error => "failed to lookup opstatus records: $error" };
+	}
+	map {	delete $_->{expire_at}; push @todump, { where => "opstatus", what => $_ }; } (@{$md->data});
+
+ 	# ready, go forth, dump your zip and prosper...
+	my $ziperr;
+	Archive::Zip::setErrorHandler(sub { $ziperr = shift;}); # a::z croaks by default
+	my $zip = Archive::Zip->new();
+	for my $dumpme (@todump)
+	{
+		my $relfile = "$dumpme->{where}/$dumpme->{what}->{_id}.json";
+		my $fullpath = "$td/$relfile";
+		my $zipname = "$uuid/$relfile";
+		return { error => "file clash: \"$fullpath\" already exists!" } if (-e $fullpath);
+
+		my $jsondata = eval { JSON::XS->new->convert_blessed(1)->utf8(1)->encode($dumpme->{what}); };
+		if ($@)
+		{
+			print STDERR "unconvertable object: ".Dumper($dumpme->{what}); # shouldn't be reached so noise is ok
+			return { error => "failed to convert object type $dumpme->{where}, id $dumpme->{what}->{_id}: $@"	};
+		}
+		Mojo::File->new($fullpath)->spurt($jsondata);
+		$zip->addFile({filename => $fullpath, zipName => $zipname});
+	}
+
+	my $res = $zip->writeToFileNamed($targetfile);
+	if ($res != Archive::Zip::AZ_OK)
+	{
+		File::Temp::cleanup;				# might as well...
+		return { error => "zip creation failed: $ziperr\n" };
+	}
+	File::Temp::cleanup;					# no need to wait for process termination
+
+	return { success => 1};
+}
+
+# take a dumped zip file and restore the node IFF it doesn't already exist
+# args: source (=full path to file)
+# returns: hashref, success/error, node (= node config record, if successful)
+sub undump_node
+{
+	my ($self, %args) = @_;
+	my $sourcefile = $args{source};
+
+	return { error => "source argument missing!" } if (!$sourcefile);
+	return { error => "source \"$sourcefile\" does not exist or is not readable!" } if (!-r $sourcefile);
+
+	my $ziperr;
+	Archive::Zip::setErrorHandler(sub { $ziperr = shift;}); # a::z croaks by default
+
+	my $zip = Archive::Zip->new();
+	if ($zip->read($sourcefile) != Archive::Zip::AZ_OK)
+	{
+		return { error => "failed to open \"$sourcefile\": $ziperr" };
+	}
+
+	# zip structure acceptable?
+	my @filenames = $zip->memberNames;
+
+	my @nodefiles = grep(m!^[a-f0-9-]+/nodes/[a-f0-9]+\.json$!, @filenames);
+	return { error => "invalid structure: must contain exactly one node record!" } if (@nodefiles != 1);
+	return { error => "invalid structure: unexpected (extra) data present!" }
+	if (grep(!m!^[a-f0-9-]+/(nodes|events|inventory|latest_data|opstatus|status)/!, @filenames));
+
+	my $noderec = eval { decode_json($zip->contents($nodefiles[0])) };
+	return { error => "invalid data: $nodefiles[0] unparsable: $@" }
+	if ($@ or ref($noderec) ne "HASH" or !keys %$noderec  or !$noderec->{uuid});
+
+	return { error => "invalid structure: node uuid doesn't match file names" }
+	if (grep(!m!^$noderec->{uuid}/!, @filenames));
+
+	my $existing = $self->get_nodes_model(uuid => $noderec->{uuid}, limit => 1, fields_hash => { name => 1});
+	return { error => "a clashing node named \""
+							 .$existing->data->[0]->{name}."\" with uuid \"$noderec->{uuid}\" exists!" }
+	if ($existing->count);
+
+	# right, looks ok - lets collect first (abort if any are duds) then insert them all
+	my @insertme = ({ where => "nodes", what => $noderec});
+	for my $fn (@filenames)
+	{
+		next if ($fn eq $nodefiles[0]);
+
+		(undef, my $collection, undef) = split(m!/!,$fn); # uuid/collection/oid.json, and oid is embedded
+		my $entry = eval { decode_json($zip->contents($fn)); };
+		return { error => "invalid data: $fn unparsable: $@" }
+		if ($@ or ref($entry) ne "HASH" or !keys %$entry or !$entry->{_id});
+		push @insertme, { where => $collection, what => $entry};
+	}
+
+	for my $onething (@insertme)
+	{
+		my $collfunc = "$onething->{where}_collection";
+		my $res = NMISNG::DB::insert(collection => $self->$collfunc,
+																 record => $onething->{what},
+																 constraints => 1); # constrain_record is vital for $oid, $binary...
+		return { error => "failed to insert record into $onething->{where} collection: $res->{error}" }
+		if (!$res->{success});
+	}
+
+	return { success => 1, node => $noderec };
+}
+
 1;
