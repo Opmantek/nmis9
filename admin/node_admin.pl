@@ -312,11 +312,12 @@ elsif ($cmdline->{act} eq "export")
 elsif  ($cmdline->{act} eq "dump")
 {
 	my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
+	my %options = ($cmdline->{everything}? (historic_events => 1, opstatus_limit => undef )
+								 : ( historic_events => 0, opstatus_limit => 1000));
 	my $res = $nmisng->dump_node(name => $nodename,
 															 uuid => $uuid,
 															 target => $file,
-															 options => { historic_events => 1, # max detail please
-																						opstatus_limit => undef });
+															 options => \%options);
 	die "Failed to dump node data: $res->{error}\n" if (!$res->{success});
 
 	print STDERR "Successfully dumped node data to file $file\n" if (!$cmdline->{quiet});
@@ -469,13 +470,13 @@ if (-t \*STDERR);								# if terminal
 }
 elsif ($cmdline->{act} eq "delete")
 {
-	my ($node,$group,$confirmation,$nukedata) = @{$cmdline}{"node","group","confirm","deletedata"};
+	my ($node,$uuid,$group,$confirmation,$nukedata) = @{$cmdline}{"node","uuid","group","confirm","deletedata"};
 
-	die "Cannot delete without node or group argument!\n\n$usage\n" if (!$node and !$group);
+	die "Cannot delete without node, uuid or group argument!\n\n$usage\n" if (!$node and !$group and !$uuid);
 	die "NOT deleting anything:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
 			if (!$confirmation or $confirmation ne "YES");
 
-	my $nodemodel = $nmisng->get_nodes_model(name => $node, group => $group);
+	my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group);
 	die "No matching nodes exist\n" if (!$nodemodel->count);
 
 	my $gimmeobj = $nodemodel->objects; # instantiate, please!
