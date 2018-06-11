@@ -309,7 +309,7 @@ sub collect_evidence
 	my $apachehome = -d "/etc/apache2"? "/etc/apache2": -d "/etc/httpd"? "/etc/httpd" : undef;
 	if ($apachehome)
 	{
-		my $apachetarget="$targetdir/system_status_apache/";
+		my $apachetarget="$targetdir/system_status/apache/";
 		# on centos/RH there are symlinks pointing to all the apache module binaries, we don't
 		# want these (so  -a or --dereference is essential)
 		system("cp -a $apachehome/* $apachetarget"); # subdirs
@@ -406,8 +406,8 @@ sub collect_evidence
 		# opstatus most recent N entries and most recent M errors
 		for (
 			[ 'db.getCollection("opstatus").find().toArray()', 'queue.json'],
-			[ 'db.getCollection("nodes").find()','nodes.json'],
-			[ 'db.getCollection("inventory").find({concept:"catchall"})', 'catchall.json'],
+			[ 'db.getCollection("nodes").find().toArray()','nodes.json'],
+			[ 'db.getCollection("inventory").find({concept:"catchall"}).toArray()', 'catchall.json'],
 			[ qq|db.getCollection("opstatus").find().sort({time:-1}).limit($maxopstatus).toArray()|,
 				'opstatus_recent.json'],
 			[
@@ -419,11 +419,12 @@ sub collect_evidence
 
 			open(F,"-|", "mongo",
 					 @mongoargs, $dbname, "--eval", $query);
-			my @nodeexport = <F>;
+			my @exportdata = <F>;
 			close(F);
+			translate_extended_json(\@exportdata);
 
 			open(F, ">$targetdir/db_dumps/$outputfile");
-			print F @nodeexport;
+			print F @exportdata;
 			close(F);
 		}
 	}
@@ -555,4 +556,22 @@ sub makearchive
 	return "failed to create support zip file $zfn: $!\n" if (POSIX::WEXITSTATUS($status));
 
 	return (undef, $archivefn);
+}
+
+# mongo 'shell mode' extended json, which isn't digestible to json_xs etc.
+# this small helper takes an array of lines, and replaces the shell-mode data
+# with the strict equivalents - as far as we're using those constructs!
+# args: array ref,
+# return: nothing, but modifies the lines
+sub translate_extended_json
+{
+	my ($lines) = @_;
+
+	for my $line (@$lines)
+	{
+		$line =~  s/BinData\s*\(\s*(.+?)\s*,\s*([^\)]+)\s*\)/{"\$type":$1, "\$binary":"$2"}/g;
+		$line =~ s/(?:new\s*Date|ISODate)\s*\(\s*"?([^")]+)"?\s*\)/{"\$date":"$1"}/g;
+		$line =~ s/ObjectId\s*\(\s*"([a-fA-F0-9]+)\s*"\s*\)/{"\$oid":"$1"}/g;
+		$line =~ s/NumberLong\s*\(\s*"(\d+)\s*"\s*\)/{"\$numberLong":"$1"}/g;
+	}
 }
