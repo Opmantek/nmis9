@@ -345,17 +345,11 @@ elsif ($cmdline->{act} eq "show")
 	die "Node $node does not exist.\n" if (!$nodeobj);
 	$node ||= $nodeobj->name;			# if  looked up via uuid
 
-	# we want the config AND any overrides AND most other top-level things, but flattened
-	my $dumpables = $nodeobj->configuration;
-	for my $alsodump (qw(overrides name cluster_id uuid activated))
+	# we want the true structure, unflattened
+	my $dumpables = { };
+	for my $alsodump (qw(configuration overrides name cluster_id uuid activated unknown aliases addresses))
 	{
 		$dumpables->{$alsodump} = $nodeobj->$alsodump;
-	}
-	# if unknown extras exist, dump them too
-	# ditto for addresses and aliases
-	for my $otherstuff (qw(unknown addresses aliases))
-	{
-		$dumpables->{$otherstuff} = $nodeobj->$otherstuff();
 	}
 
 	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables,"entry");
@@ -425,9 +419,14 @@ elsif ($cmdline->{act} eq "set")
 		{
 			$curarraythings->{$1} = $value;
 		}
+		# configuration.X
+		elsif ($name =~ /^configuration\.(.+)$/)
+		{
+			$curconfig->{$1} = $value;
+		}
 		else
 		{
-			$curconfig->{$name} = $value;
+			die "Unknown property \"$name\"!\n";
 		}
 	}
 	die "No changes for node \"$node\"!\n" if (!$anythingtodo);
