@@ -526,20 +526,16 @@ sub config_backup
 	$status = system( "tar", "-C", $td, "-rf", $backupfilename, "cron" );
 	if ( $status == -1 )
 	{
-		File::Temp::cleanup;
 		return {error => "Failed to execute tar!"};
 	}
 	elsif ( $status & 127 )
 	{
-		File::Temp::cleanup;
 		return {error => "Backup failed, tar killed with signal " . ( $status & 127 )};
 	}
 	elsif ( $status >> 8 )
 	{
-		File::Temp::cleanup;
 		return {error => "Backup failed, tar exited with exit code " . ( $status >> 8 )};
 	}
-	File::Temp::cleanup;
 
 	$status = system( "gzip", $backupfilename );
 	if ( $status >> 8 )
@@ -4472,8 +4468,8 @@ sub update_queue
 # export and encapsulate most of one node's data into a single zip file
 # primarily meant for diagnostics on a different machine
 #
-# this function is likely to be quite memory-hungry.
-# note: if it errors out early then its temporary directory is not removed!
+# this function is likely to be quite memory-hungry,
+# and temporary directories are NOT REMOVED until the process terminates!
 #
 # args: uuid (=node's uuid) or name (=node name),
 #  target (=full path to final file),
@@ -4605,10 +4601,8 @@ sub dump_node
 	my $res = $zip->writeToFileNamed($targetfile);
 	if ($res != Archive::Zip::AZ_OK)
 	{
-		File::Temp::cleanup;				# might as well...
 		return { error => "zip creation failed: $ziperr\n" };
 	}
-	File::Temp::cleanup;					# no need to wait for process termination
 
 	return { success => 1};
 }
