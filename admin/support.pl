@@ -404,11 +404,12 @@ sub collect_evidence
 
 		# and export: queue, nodes, their catchall inventories,
 		# opstatus most recent N entries and most recent M errors
+		# .toArray() would be nice BUT eats memory and cpu like crazy...
 		for (
-			[ 'db.getCollection("opstatus").find().toArray()', 'queue.json'],
-			[ 'db.getCollection("nodes").find().toArray()','nodes.json'],
-			[ 'db.getCollection("inventory").find({concept:"catchall"}).toArray()', 'catchall.json'],
-			[ qq|db.getCollection("opstatus").find().sort({time:-1}).limit($maxopstatus).toArray()|,
+			[ 'db.getCollection("queue").find().forEach(printjson)', 'queue.json'],
+			[ 'db.getCollection("nodes").find().forEach(printjson)','nodes.json'],
+			[ 'db.getCollection("inventory").find({concept:"catchall"}).forEach(printjson)', 'catchall.json'],
+			[ qq|db.getCollection("opstatus").find().sort({time:-1}).limit($maxopstatus).forEach(printjson)|,
 				'opstatus_recent.json'],
 			[
 			 qq|db.getCollection("opstatus").find({status:{\$ne:"ok"}}).sort({time:-1}).limit($maxoperrors).toArray()|,
@@ -416,11 +417,20 @@ sub collect_evidence
 				)
 		{
 			my ($query, $outputfile) = @$_;
-
+			
 			open(F,"-|", "mongo",
 					 @mongoargs, $dbname, "--eval", $query);
 			my @exportdata = <F>;
 			close(F);
+			# printjson does NOT produce arrays...
+			# ... so we'll have to help
+			push @exportdata, ']'; unshift @exportdata, '[';
+			for my $ln (0..$#exportdata)
+			{
+				$exportdata[$ln] .= ","
+						if ($exportdata[$ln] eq "}\n" && $exportdata[$ln+1] eq "{\n");
+			}
+			
 			translate_extended_json(\@exportdata);
 
 			open(F, ">$targetdir/db_dumps/$outputfile");
