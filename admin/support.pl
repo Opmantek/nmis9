@@ -303,7 +303,7 @@ sub collect_evidence
 
 	# capture the nmisd init script info
 	cp("/etc/init.d/nmis9d", "$targetdir/system_status/init");
-	system("find -L /etc/rc* -name \"*nmis9d\" -ls > $targetdir/system_status/nmisd_init_links");
+	system("find -L /etc/rc* -name \"*nmis9d\" -ls > $targetdir/system_status/init/nmisd_init_links");
 
 	# capture the apache configs
 	my $apachehome = -d "/etc/apache2"? "/etc/apache2": -d "/etc/httpd"? "/etc/httpd" : undef;
