@@ -1,15 +1,14 @@
 #!/bin/sh
-# warn the user regarding alpha level release,
-# and bail out for non-debian-9 releases
+# warn the user regarding beta release,
 
 # find out where we are, and get common functions
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
-printBanner "This is an alpha release!"
+printBanner "This is a beta release!"
 
 cat <<EOF
-Version $VERSION of $PRODUCT is an alpha release
+Version $VERSION of $PRODUCT is an beta release
 and not ready for production use. 
 
 Though unlikely, data loss and various faults are 
@@ -23,7 +22,7 @@ EOF
 
 input_text "Your choice? "
 if [ "$RESPONSE" = "CONTINUE" ]; then
-		echolog "User agrees to alpha warning.."
+		echolog "User agrees to beta warning.."
 		exit  0;
 else
 		echolog  "Aborting upgrade, as instructed."
