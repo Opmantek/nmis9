@@ -55,7 +55,7 @@ use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
 
-\t$bn act={list|list_uuid}
+\t$bn act={list|list_uuid} [node=X] [group=Y]
 \t$bn act=show node=nodeX
 \t$bn act={create|update} file=someFile.json
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY}
@@ -228,15 +228,17 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 }
 if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 {
-	# just list the nodes in existence - possibly with uuids
+	# list the nodes in existence - possibly with uuids.
+	# iff a node or group arg is given, then only matching nodes are included
 	my $wantuuid = $1;
 
 	# returns a modeldata object
-	my $nodelist = $nmisng->get_nodes_model(fields_hash => { name => 1, uuid => 1});
+	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1});
 	if (!$nodelist or !$nodelist->count)
 	{
-		print STDERR "No nodes exist.\n" # but not an error, so let's not die
+		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
 				if (!$cmdline->{quiet});
+		exit 1;
 	}
 	else
 	{
