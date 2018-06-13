@@ -390,16 +390,24 @@ sub init
 			and ( $snmp or $wantwmi )
 			and $self->{name} )
 	{
-		$self->{cfg}->{node} = $self->nmisng_node->configuration()
-				if ( $self->nmisng_node );
-
-		if ( $self->{cfg}->{node} )
+		# fixme9: this is truly not good, duplicated, wasteful and mangled data.
+		# sys::ndcfg and this should be eradicated altogether, and replaced by using the node object's
+		# accessors!
+		if (my $nodeobj = $self->nmisng_node)
 		{
+			# node configuration is separate from node name, uuid, activated, overrides, aliases and other things
+			$self->{cfg}->{node} = $nodeobj->configuration();
+			# ...but sys' customers expect all in one messy blob
+			for my $flatearth (qw(name uuid cluster_id activated overrides aliases addresses))
+			{
+				$self->{cfg}->{node}->{$flatearth} = $nodeobj->$flatearth;
+			}
+
 			$self->nmisng->log->debug("cfg of node=$self->{name} loaded");
 		}
 		else
 		{
-			$self->{error} = "Failed to load cfg of node=$self->{name}!";
+			$self->{error} = "Failed to load cfg of node=$self->{name} - no node object!";
 			return 0;    # cannot do anything further
 		}
 	}
