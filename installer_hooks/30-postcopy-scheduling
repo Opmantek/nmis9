@@ -28,6 +28,7 @@ EOF
 		if input_yn "Ok to install or update the $PRODUCT daemon init script?" ; then
 				execPrint cp -af $SRCFILE $DESTFILE
 				echolog "Updated init script in $DESTFILE."
+				echo
 
 				if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
             execPrint "update-rc.d nmis9d defaults"
@@ -62,6 +63,7 @@ if [ ! -f $DESTFILE ] || ! diff -q $DESTFILE $SRCFILE; then
 		if input_yn "Ok to install new NMIS cron schedule?" ; then
 				execPrint cp -af $SRCFILE $DESTFILE
 				echolog "Created schedule in $DESTFILE."
+				echo 
 		else
 				echolog "Not creating or overwriting $DESTFILE, as directed."
 				cat <<EOF

@@ -17,13 +17,15 @@ if ! input_yn "Should the installer configure NMIS 9 to monitor localhost?"; the
 		echolog "Not adding localhost for monitoring, as requested."
 		exit 0;
 fi
+echo
 
 # does the box have our snmpd.conf? if not, ask about replacing that
-if diff -q $TARGETDIR/conf-default/snmpd/snmpd.conf /etc/snmp/snmpd.conf ; then
+if diff -q $TARGETDIR/conf-default/snmpd/snmpd.conf /etc/snmp/snmpd.conf >/dev/null ; then
 		echolog "NMIS 9 snmpd.conf is already present."
 		COMMUNITY='nmisGig8'
 else
 		cat <<EOF
+
 An SNMPD configuration file is already present on your system, but the installer
 cannot extract the appropriate SNMP credentials.
 
@@ -41,6 +43,7 @@ EOF
 				COMMUNITY="Please Fix Me"
 
 				cate <<EOF
+
 Your SNMPD configuration in /etc/snmp/snmpd.conf has not been changed, 
 as requested. You will have to determine the correct credentials
 and update node localhost (in the GUI or with node_admin.pl) before NMIS 9
@@ -55,9 +58,10 @@ EOF
 				COMMUNITY="nmisGig8"
 
 				cat <<EOF
+
 The installer has saved your previous SNMPD configuration file as
 /etc/snmp/snmpd.conf.backup, and installed the NMIS default snmpd.conf
-(from $TARGETDIR/conf-default/snmpd/snmpd.conf)."
+(from $TARGETDIR/conf-default/snmpd/snmpd.conf).
 
 EOF
 				input_ok "Hit <Enter> when ready to continue: "
