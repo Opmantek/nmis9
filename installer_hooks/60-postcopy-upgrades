@@ -1,0 +1,21 @@
+#!/bin/sh
+# run various operations that are necessary on upgrades,
+# to be done after any configuration changes are complete
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if [ -n "$CLEANSLATE" ]; then
+		logmsg "No upgrade operations required"
+		exit 0
+fi
+
+rm -rf $TARGETDIR/var/nmis_system/timestamps
+
+printBanner "Upgrading Node Structures"
+execPrint $TARGETDIR/bin/nmis-cli act=noderefresh
+
+exit 0
+
+
