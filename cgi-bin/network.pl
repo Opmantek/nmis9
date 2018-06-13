@@ -2509,7 +2509,8 @@ EO_HTML
 			# check if database rule exists
 			next unless $GTT->{$graph} ne '';
 			next
-				if $graph eq 'response'
+					if $graph eq 'response'
+					# fixme9 wrong, use node configuration not catchall
 				and NMISNG::Util::getbool( $catchall_data->{ping}, "invert" );    # no ping done
 			                                                     # first two or all graphs
 
@@ -2550,7 +2551,7 @@ EO_HTML
 			}
 			else
 			{
-				push @pr, [$M->{heading}{graphtype}{$graph}, $graph] if $graph ne "hrsmpcpu";
+				push @pr, [ $S->graphHeading(graphtype => $graph), $graph] if $graph ne "hrsmpcpu";
 				if ( $graph =~ /(ss-cpu|WindowsProcessor)/ )
 				{
 					$gotAltCpu = 1;
