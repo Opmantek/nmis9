@@ -7,7 +7,7 @@ SCRIPTPATH=${0%/*}
 
 printBanner "Who monitors the monitor?"
 
-if $TARGETDIR/admin/node_admin.pl act=export | grep -q -P "\Whost\W+:\s+\W(localhost|127\.0\.0\.1)\W"; then
+if $TARGETDIR/admin/node_admin.pl act=export 2>/dev/null | grep -q -P "\Whost\W+:\s+\W(localhost|127\.0\.0\.1)\W"; then
 		echolog "NMIS 9 is already configured to monitor localhost";
 		exit 0;
 fi
@@ -19,7 +19,7 @@ if ! input_yn "Should the installer configure NMIS 9 to monitor localhost?"; the
 fi
 
 # does the box have our snmpd.conf? if not, ask about replacing that
-if diff -q $TARGETDIR/conf-default/snmp/snmpd.conf /etc/snmp/snmpd.conf ; then
+if diff -q $TARGETDIR/conf-default/snmpd/snmpd.conf /etc/snmp/snmpd.conf ; then
 		echolog "NMIS 9 snmpd.conf is already present."
 		COMMUNITY='nmisGig8'
 else
@@ -31,22 +31,33 @@ The installer can replace your SNMPD configuration file with NMIS's default
 one, or leave it unchanged.
 
 If the configuration is left as-is then localhost will be set up
-with incorrect SNMP credentials, and you would have to adjust that
+with incorrect SNMP credentials, and you will have to adjust that
 after the installation (using the NMIS 9 GUI or node_admin.pl).
+
+Answer the following question with 'No' to replace the SNMPD configuration.
 
 EOF
 		if input_yn "Leave SNMPD configuration unchanged?"; then
 				COMMUNITY="Please Fix Me"
+
+				cate <<EOF
+Your SNMPD configuration in /etc/snmp/snmpd.conf has not been changed, 
+as requested. You will have to determine the correct credentials
+and update node localhost (in the GUI or with node_admin.pl) before NMIS 9
+will be able to successfully poll localhost.
+
+EOF
+				input_ok "Hit <Enter> when ready to continue: "
 		else
 				execPrint "mv /etc/snmp/snmpd.conf /etc/snmp/snmpd.conf.backup"
-				execPrint "cp -a $TARGETDIR/conf-default/snmp/snmpd.conf /etc/snmp/snmpd.conf"
+				execPrint "cp -a $TARGETDIR/conf-default/snmpd/snmpd.conf /etc/snmp/snmpd.conf"
 				execPrint "service snmpd restart"
 				COMMUNITY="nmisGig8"
 
 				cat <<EOF
 The installer has saved your previous SNMPD configuration file as
 /etc/snmp/snmpd.conf.backup, and installed the NMIS default snmpd.conf
-(from $TARGETDIR/conf-default/snmp/snmpd.conf)."
+(from $TARGETDIR/conf-default/snmpd/snmpd.conf)."
 
 EOF
 				input_ok "Hit <Enter> when ready to continue: "
