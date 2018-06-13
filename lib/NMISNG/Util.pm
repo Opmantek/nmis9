@@ -750,9 +750,19 @@ sub loadConfTable
 	# the file of the previous call.
 	$fn = $config_cache->{configfile} if (ref($config_cache) eq "HASH"
 																				&& !defined $args{dir});
+	my $fallbackfn;								# only set if falling back
 	my $stat = stat($fn);
-	if (!$stat)			# no config, no hope, no future.
+	# try conf-default if that doesn't work
+	if (!$stat)
 	{
+		$fallbackfn = ($args{dir}?
+									 "$args{dir}/../conf-default/"
+									 : "$FindBin::RealBin/../conf-default/") ."Config.nmis";
+		$stat = stat($fallbackfn);
+	}
+	if (!$stat)
+	{
+		# no config, no hope, no future
 		confess("configuration file $fn unreadable: $!\n");
 		return undef;
 	}
@@ -766,7 +776,7 @@ sub loadConfTable
 
 		# cannot use readfiletohash here: infinite recursion as
 		# most helper functions (have to) call loadConfTable first!
-		my %deepdata = do $fn;
+		my %deepdata = do ($fallbackfn? $fallbackfn : $fn);
 		# should the file have unwanted gunk after the %hash = ();
 		# it'll most likely be a '1;' and do returns the last statement result...
 		if ($@ )
