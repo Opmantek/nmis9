@@ -1,0 +1,79 @@
+#!/bin/sh
+# ask if the user wants localhost to be monitored (with the default
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+printBanner "Who monitors the monitor?"
+
+if $TARGETDIR/admin/node_admin.pl act=export | grep -q -P "\Whost\W+:\s+\W(localhost|127\.0\.0\.1)\W"; then
+		echolog "NMIS 9 is already configured to monitor localhost";
+		exit 0;
+fi
+
+# desired state?
+if ! input_yn "Should the installer configure NMIS 9 to monitor localhost?"; then
+		echolog "Not adding localhost for monitoring, as requested."
+		exit 0;
+fi
+
+# does the box have our snmpd.conf? if not, ask about replacing that
+if diff -q $TARGETDIR/conf-default/snmp/snmpd.conf /etc/snmp/snmpd.conf ; then
+		echolog "NMIS 9 snmpd.conf is already present."
+		COMMUNITY='nmisGig8'
+else
+		cat <<EOF
+An SNMPD configuration file is already present on your system, but the installer
+cannot extract the appropriate SNMP credentials.
+
+The installer can replace your SNMPD configuration file with NMIS's default
+one, or leave it unchanged.
+
+If the configuration is left as-is then localhost will be set up
+with incorrect SNMP credentials, and you would have to adjust that
+after the installation (using the NMIS 9 GUI or node_admin.pl).
+
+EOF
+		if input_yn "Leave SNMPD configuration unchanged?"; then
+				COMMUNITY="Please Fix Me"
+		else
+				execPrint "mv /etc/snmp/snmpd.conf /etc/snmp/snmpd.conf.backup"
+				execPrint "cp -a $TARGETDIR/conf-default/snmp/snmpd.conf /etc/snmp/snmpd.conf"
+				execPrint "service snmpd restart"
+				COMMUNITY="nmisGig8"
+
+				cat <<EOF
+The installer has saved your previous SNMPD configuration file as
+/etc/snmp/snmpd.conf.backup, and installed the NMIS default snmpd.conf
+(from $TARGETDIR/conf-default/snmp/snmpd.conf)."
+
+EOF
+				input_ok "Hit <Enter> when ready to continue: "
+		fi
+fi
+
+# now add localhost with whatever community we have...
+cat <<EOF | $TARGETDIR/admin/node_admin.pl act=create file=-
+{
+   "name" : "localhost",
+   "activated" : {
+      "NMIS" : 1
+   },
+   "configuration" : {
+      "collect" : 1,
+      "ping" : 1,
+      "community" : "$COMMUNITY",
+      "group" : "NMIS9",
+      "host" : "127.0.0.1",
+      "model" : "automatic",
+      "netType" : "default",
+      "roleType" : "default",
+      "notes" : "added by NMIS 9 installer",
+      "version" : "snmpv2c",
+      "threshold" : 1
+   }
+}
+EOF
+
+exit 0
