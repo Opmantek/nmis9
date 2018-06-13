@@ -749,7 +749,9 @@ sub inventory
 
 		$args{nmisng} = $self->nmisng;
 		Module::Load::load $class;
-		$inventory = $class->new(%args);
+		$inventory = $class->new(%args); # this doesn't report errors!
+
+		return (undef, "failed to instantiate $class object!") if (!$inventory);
 	}
 
 	return ($inventory, undef);

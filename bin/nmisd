@@ -345,8 +345,9 @@ while (!$exit_marker)
 																								 {
 																									 type => $operation,
 																									 time => $jobdueat,
-																									 priority =>
-																											 $config->{"priority_$operation"} // 0.5,
+																									 priority => # newly added nodes should get updated FIRST
+																											 ($operation eq "update" && $duenodes->{newnodes}->{$nodeuuid}?
+																												1 : $config->{"priority_$operation"} // 0.5),
 																									 in_progress => 0,
 																									 args => \%jobargs,
 																									 tag => $tag });

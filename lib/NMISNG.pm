@@ -1019,6 +1019,7 @@ sub events_collection
 #  services => hash of uuid -> array of service names (only for services)
 #  in_progress => hash of uuid => queue id => queue record
 #  overdue => hash of uuid => queue id => queue record
+#  newnodes => hash of uuid => 1 (set for nodes that have been newly added)
 sub find_due_nodes
 {
 	my ( $self, %args ) = @_;
@@ -1135,14 +1136,14 @@ sub find_due_nodes
 	);
 	if ( my $error = $accessor->error )
 	{
-		return {error => "Failed to load catchall inventory: $error"};
+		return {error => "Failed to load catchall inventories: $error"};
 	}
 
 	# dynamic node information, by node uuid
 	my %node_info_ro = map { ( $_->{node_uuid} => $_->{data} ) } ( @{$accessor->data} );
 
 	my $now = time;
-	my ( %due, %flavours, %procs, %services );
+	my ( %due, %flavours, %procs, %services, %newnodes );
 	for my $maybe ( keys %cands )    # nodes by uuid
 	{
 		my $nodename   = $cands{$maybe}->{name};
@@ -1261,52 +1262,55 @@ sub find_due_nodes
 				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;    # and ignore the last-xyz markers
 			}
 
-		   # logic for dead node demotion/rate-limiting
-		   # if demote_faulty_nodes config option is true, demote nodes that have not been pollable (or updatable) ever:
-		   # after 14 days of normal attempts change to try at most once daily
+			# logic for dead node demotion/rate-limiting
+			# if demote_faulty_nodes config option is true, demote nodes that have not been pollable (or updatable) ever:
+			# after 14 days of normal attempts change to try at most once daily
 			elsif (
 				!NMISNG::Util::getbool( $self->config->{demote_faulty_nodes}, "invert" )    # === ne false
 				&& ( !$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model" )
 				)
 			{
-
-				my $lasttry = $ninfo->{
-					$whichop eq "collect"
-					? "last_poll_attempt"
-					: "last_update_attempt"
-				} // 0;    # this gets updated every attempt
+				# this property gets updated on every attempt
+				my $lasttry = $ninfo->{ $whichop eq "collect" ? "last_poll_attempt" : "last_update_attempt" };
 				my $graceperiod_start = $ninfo->{demote_grace};
-				if ( !defined($graceperiod_start) )    # none set? then set one and update the database!
+
+				# none set? then set one and update the database!
+				if ( !defined($graceperiod_start) )
 				{
-					my ( $error, $invobj ) = $self->get_inventory_model(
-						concept    => "catchall",
-						cluster_id => $self->config->{cluster_id},
-						node_uuid  => $maybe
-					)->object(0);
-					if ($error)
+					# creating the catchall pretty much requires a live node object, unfortunately...
+					# and we may need to if the node is new.
+					my $nodeobj = $self->node(uuid => $maybe);
+					my ($catchall, $error) = $nodeobj->inventory(
+						concept => "catchall", path_keys => [],
+						create => 1) if (ref($nodeobj) eq "NMISNG::Node");
+					if ($error or !$nodeobj or !$catchall)
 					{
-						$self->log->error("Failed to retrieve inventory: $error");
+						$self->log->error("Failed to retrieve or create catchall inventory: "
+															. $error ? $error : "No node object");
 					}
 					else
 					{
-						my $shortlived = $invobj->data_live;
+						my $shortlived = $catchall->data_live;
 						$shortlived->{demote_grace} = $graceperiod_start = $ninfo->{demote_grace} = $now;
-						my ( $op, $error ) = $invobj->save;
-						$self->log->error("Failed to update inventory: $error") if ($error);
+						# track newly added nodes, to prioritise type=update
+						$newnodes{$maybe} = 1 if ($catchall->is_new);
+						my ( $op, $error ) = $catchall->save;
+						$self->log->error("Failed to update catchall inventory: $error") if ($error);
 					}
 				}
 
+				# try only once a day if beyond the grace time, min of snmp/wmi/update policy otherwise;
 				my $normalperiod
 					= $whichop eq "collect"
 					? Statistics::Lite::min( $intervals{$polname}->{snmp}, $intervals{$polname}->{wmi} )
 					: $intervals{$polname}->{update};
 
-				# once a day if beyond the grace time, min of snmp/wmi/update policy otherwise
-				# and make sure to handle a never-polled node
-				my $nexttry = ($lasttry || $now) + 0.95 * $normalperiod;
-				if ( $now - $graceperiod_start > 14 * 86400 )
+				# but do make sure to try a newly added node NOW!
+				my $nexttry = defined $lasttry? $lasttry + 0.95 * $normalperiod : $now;
+				$newnodes{$maybe} = 1 if (!defined $lasttry);
+				if ($now - $graceperiod_start > 14 * 86400)
 				{
-					$nexttry = ($lasttry || $now) + 86400 * 0.95;
+					$nexttry = ( $lasttry // $now) + 86400 * 0.95;
 
 					# log the demotion situation but not more than once an hour
 					$self->log->info( "Node $nodename has no valid nodeModel, never polled successfully, "
@@ -1315,7 +1319,7 @@ sub find_due_nodes
 				}
 
 				$self->log->debug(
-					"Node $nodename has no valid nodeModel, never polled successfully, demote_faulty_nodes is on, grace window started at $graceperiod_start, last $whichop attempt $lasttry, next $nexttry."
+					"Node $nodename has no valid nodeModel, never polled successfully, demote_faulty_nodes is on, grace window started at $graceperiod_start, last $whichop attempt ".($lasttry // "never").", next $nexttry."
 				);
 
 				if ( $nexttry <= $now )
@@ -1435,7 +1439,8 @@ sub find_due_nodes
 		flavours    => \%flavours,
 		services    => \%services,
 		in_progress => \%runningbynode,
-		overdue     => \%overduebynode
+		overdue     => \%overduebynode,
+		newnodes => \%newnodes,
 	};
 }
 
