@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2018 Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
@@ -580,7 +580,7 @@ elsif ($cmdline->{act} eq "mktemplate")
 	my %mininode = ( map { my $key = $_; $key => ($withplaceholder?
 																								"__REPLACE_".uc($key)."__" : "") }
 									 (qw(name cluster_id uuid configuration.host configuration.group configuration.notes
-configuration.community configuration.roleType configuration.netType configuration.location configuration.model activated.NMIS configuration.ping configuration.collect configuration.version configuration.port configuration.username configuration.authpassword configuration.authkey configuration.authprotocol configuration.privpassword configuration.privkey configuration.privprotocol ))  );
+configuration.community configuration.roleType configuration.netType configuration.location configuration.model activated.NMIS configuration.ping configuration.collect configuration.version configuration.port configuration.username configuration.authpassword configuration.authkey configuration.authprotocol configuration.privpassword configuration.privkey configuration.privprotocol configuration.threshold ))  );
 
 	my $fh;
 	if (!$file or $file eq "-")
@@ -645,7 +645,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 
 	# check the group
 	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
-	if (!grep($_ eq $mayberec->{group}, @knowngroups))
+	if (!grep($_ eq $mayberec->{configuration}->{group}, @knowngroups))
 	{
 		print STDERR "\nWarning: your node info sets group \"$mayberec->{configuration}->{group}\", which does not exist!\n";
 	}
@@ -661,7 +661,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 			if ($nodeobj and $nodeobj->name and $nodeobj->name ne $mayberec->{name});
 
 	# no uuid and creating a node? then we add one
-	$mayberec->{uuid} ||= Compat::UUID::getUUID($name) if ($cmdline->{act} eq "create");
+	$mayberec->{uuid} ||= NMISNG::Util::getUUID($name) if ($cmdline->{act} eq "create");
 	$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1);
 	die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
 
@@ -685,7 +685,8 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
 
 	$name = $nodeobj->name;
-	print STDERR "Successfully updated node ".$nodeobj->uuid." ($name)\n\n"
+	print STDERR "Successfully ".($isnew? "created":"updated")
+			." node ".$nodeobj->uuid." ($name)\n\n"
 			if (-t \*STDERR);								# if terminal
 }
 else
