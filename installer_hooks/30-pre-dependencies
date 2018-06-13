@@ -63,7 +63,7 @@ else
     libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl \
     libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
     libmongodb-perl libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl
-    libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl"
+    libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl"
 
 		# 9/stretch has that in perl, older need the updated package
 		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl"
