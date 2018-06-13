@@ -2141,8 +2141,8 @@ sub grouped_node_summary
 	my $node_project = {
 		'$project' => {
 			'_id'       => 1,
-			'name'      => '$data.name',
-			'uuid'      => '$data.uuid',
+			'name'      => '$node_config.name',
+			'uuid'      => '$node_config.uuid',
 			'down'      => {'$cond' => {'if' => {'$eq' => ['$data.nodedown', 'true']}, 'then' => 1, 'else' => 0}},
 			'degraded'  => {'$cond' => {'if' => {'$eq' => ['$data.nodestatus', 'degraded']}, 'then' => 1, 'else' => 0}},
 			'reachable' => '$latest_data.subconcepts.data.reachability',
@@ -2157,14 +2157,14 @@ sub grouped_node_summary
 			'08_response'  => '$latest_data.subconcepts.derived_data.08_response',
 			'16_response'  => '$latest_data.subconcepts.derived_data.16_response',
 
-			# add in all the things network.pl is expecting:
+			# add in all the things network.pl is expecting: half are CONFIGURATION half are dynamic catchall/latest
 			'nodedown'    => '$data.nodedown',
 			'nodestatus'  => '$data.nodestatus',
-			'netType'     => '$data.netType',
+			'netType'     => '$node_config.configuration.netType',
 			'nodeType'    => '$data.nodeType',
 			'response'    => '$latest_data.subconcepts.data.responsetime',
-			'roleType'    => '$data.roleType',
-			'ping'        => '$data.ping',
+			'roleType'    => '$node_config.configuration.roleType',
+			'ping'        => '$node_config.configuration.ping',
 			'sysLocation' => '$data.sysLocation',
 			%groupproject_hash
 		}
