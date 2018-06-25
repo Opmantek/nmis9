@@ -42,7 +42,7 @@ EOF
 		if input_yn "Leave SNMPD configuration unchanged?"; then
 				COMMUNITY="Please Fix Me"
 
-				cate <<EOF
+				cat <<EOF
 
 Your SNMPD configuration in /etc/snmp/snmpd.conf has not been changed, 
 as requested. You will have to determine the correct credentials
