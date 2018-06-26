@@ -697,7 +697,7 @@ sub outageCheck
 			}
 			my $catchall_data = $catchall_inv? $catchall_inv->data : {};
 
-			if (getbool($catchall_data->{nodedown}))
+			if (NMISNG::Util::getbool($catchall_data->{nodedown}))
 			{
 				return ("current", $depoutages->{current}->[0]);
 			}
