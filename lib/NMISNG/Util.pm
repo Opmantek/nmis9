@@ -743,6 +743,8 @@ sub loadConfTable
 	state ($config_cache);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
+	# abspath and friends don't work properly if the dirs in question don't exist;
+	mkpath($dir, { verbose  => 0, mode => 0755} ) if (!-d $dir);
 
 	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
 	# ...but the caller may have given us a dir in a previous call and NONE now
