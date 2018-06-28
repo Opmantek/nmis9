@@ -762,10 +762,6 @@ sub doeditTable
 			$thisentry->{uuid} = $V->{uuid} = NMISNG::Util::getUUID($key);
 		}
 
-		# keep the new_name from being written to the config file
-		$new_name = $thisentry->{new_name};
-		delete $thisentry->{new_name};
-
 		my $nmisng = Compat::NMIS::new_nmisng;
 		# set create if addding node
 		my $node = $nmisng->node( uuid => $thisentry->{uuid},
@@ -776,9 +772,15 @@ sub doeditTable
 		# needs to be merged into what's there
 		my $configuration = $node->configuration();
 
+		# keep the new_name from being written anywhere
+		$new_name = $thisentry->{new_name};
+		delete $thisentry->{new_name};
+		$node->name($thisentry->{name} || $new_name) if $node->is_new;
+
 		# split the data into toplevel bits, activated, and configuration
 		map { $configuration->{$_} = $thisentry->{$_} }
 		(grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides)$/, keys %$thisentry ));
+
 
 		my $activated = $node->activated // {};
 		$activated->{'nmis'} = NMISNG::Util::getbool($thisentry->{active})?1:0;
