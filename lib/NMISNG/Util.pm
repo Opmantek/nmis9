@@ -743,6 +743,8 @@ sub loadConfTable
 	state ($config_cache);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
+	# abspath and friends don't work properly if the dirs in question don't exist;
+	mkpath($dir, { verbose  => 0, mode => 0755} ) if (!-d $dir);
 
 	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
 	# ...but the caller may have given us a dir in a previous call and NONE now
@@ -2708,7 +2710,7 @@ sub translate_dotfields
 # args: data (hashref or array ref), prefix (optional, if set each field name starts with "prefix.")
 # if data is array ref then prefix is required or you'll get ugly ".0.bla", ".1.blu" etc.
 #
-# hashes, arrays, mongodb::oids and json::xs::booleans are supported
+# hashes, arrays, mongodb::oids and (json::xs::)booleans are supported
 # oids are stringified, booleans are transformed into 1 or 0.
 #
 # returns: (undef, flattened hash) or (error message)
@@ -2729,7 +2731,7 @@ sub flatten_dotfields
 				{
 					$flatearth{$prefix.$k} =  $deep->{$k}->value;
 				}
-				elsif (ref($deep->{$k}) eq "JSON::XS::Boolean")
+				elsif (ref($deep->{$k}) =~ /^(JSON::XS::B|b)oolean$/)
 				{
 					$flatearth{$prefix.$k} = ( $deep->{$k}? 1:0);
 				}
@@ -2756,7 +2758,7 @@ sub flatten_dotfields
 				{
 					$flatearth{$prefix.$idx} =  $deep->[$idx]->value;
 				}
-				elsif (ref($deep->[$idx]) eq "JSON::XS::Boolean")
+				elsif (ref($deep->[$idx]) =~ /^(JSON::XS::B|b)oolean$/)
 				{
 					$flatearth{$prefix.$idx} = ($deep->[$idx]? 1:0);
 				}
