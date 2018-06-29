@@ -58,7 +58,7 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act={list|list_uuid} [node=X] [group=Y]
 \t$bn act=show node=nodeX
 \t$bn act={create|update} file=someFile.json
-\t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY}
+\t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY} [keep_ids=0/1]
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
 \t$bn act=delete {node=nodeX|group=groupY}
 \t$bn act=dump {node=nodeX|uuid=uuidY} file=path
@@ -252,7 +252,7 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 }
 elsif ($cmdline->{act} eq "export")
 {
-	my ($node,$group,$file,$wantformat) = @{$cmdline}{"node","group","file","format"};
+	my ($node,$group,$file,$wantformat,$keep_ids) = @{$cmdline}{"node","group","file","format","keep_ids"};
 
 	# no node, no group => export all of them
 	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file);
@@ -273,6 +273,12 @@ elsif ($cmdline->{act} eq "export")
 	my $allofthem = $nodemodel->data;
 	# ...except that the _id doesn't do us any good on export
 	map { delete $_->{_id}; } (@$allofthem);
+	# by default remove cluster_id and uuid because multi-polling is not yet supported, this helps 
+	# prevent users from creating a scenario that is not-yet-supported
+	if( !$keep_ids )
+	{
+		map { delete $_->{cluster_id}; delete $_->{uuid} } (@$allofthem);
+	}
 
 	# ...and if format=nodes is requested, ditch the nodeconf overrides and dummy addresses as well
 	# nodes.nmis is a hash of nodename => FLAT record
