@@ -2710,7 +2710,7 @@ sub translate_dotfields
 # args: data (hashref or array ref), prefix (optional, if set each field name starts with "prefix.")
 # if data is array ref then prefix is required or you'll get ugly ".0.bla", ".1.blu" etc.
 #
-# hashes, arrays, mongodb::oids and json::xs::booleans are supported
+# hashes, arrays, mongodb::oids and (json::xs::)booleans are supported
 # oids are stringified, booleans are transformed into 1 or 0.
 #
 # returns: (undef, flattened hash) or (error message)
@@ -2731,7 +2731,7 @@ sub flatten_dotfields
 				{
 					$flatearth{$prefix.$k} =  $deep->{$k}->value;
 				}
-				elsif (ref($deep->{$k}) eq "JSON::XS::Boolean")
+				elsif (ref($deep->{$k}) =~ /^(JSON::XS::B|b)oolean$/)
 				{
 					$flatearth{$prefix.$k} = ( $deep->{$k}? 1:0);
 				}
@@ -2758,7 +2758,7 @@ sub flatten_dotfields
 				{
 					$flatearth{$prefix.$idx} =  $deep->[$idx]->value;
 				}
-				elsif (ref($deep->[$idx]) eq "JSON::XS::Boolean")
+				elsif (ref($deep->[$idx]) =~ /^(JSON::XS::B|b)oolean$/)
 				{
 					$flatearth{$prefix.$idx} = ($deep->[$idx]? 1:0);
 				}
