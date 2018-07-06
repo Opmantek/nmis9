@@ -1163,12 +1163,14 @@ sub pingable
 		{
 			# for multihomed nodes there are two records to check, keyed uuid:N
 			my $uuid = $self->uuid;
-			my @tocheck = (defined $self->configuration->{host_backup}?
-										 grep($_ =~ /^$uuid:\d$/, keys %$PT) : $uuid);
+			my @tocheck = ( (defined($self->configuration->{host_backup})
+											 && $self->configuration->{host_backup}) ?
+											grep($_ =~ /^$uuid:\d$/, keys %$PT) : $uuid);
 			for my $onekey (@tocheck)
 			{
-				if (ref($PT->{$onekey}) eq "HASH"
-						&& (time - $PT->{$onekey}->{lastping}) < $staleafter)
+				if (ref($PT->{$onekey}) eq "HASH" # present
+						&& defined($PT->{$onekey}->{lastping}) # and valid
+						&& (time - $PT->{$onekey}->{lastping}) < $staleafter) # and not stale
 				{
 					# copy the fastping data...
 					($ping_min, $ping_avg, $ping_max, $ping_loss, $lastping) = @{$PT->{$onekey}}{"min","avg","max","loss","lastping"};

@@ -50,6 +50,7 @@ use Data::Dumper;
 use Time::HiRes;
 use Statistics::Lite;
 use List::Util 1.33;
+use Clone;
 
 use NMISNG;
 use NMISNG::Util;
@@ -1522,12 +1523,13 @@ sub fping_loop
 					$multihomed{$noderec->{uuid}} = 1;
 					push @tocheck, $noderec;
 					$statekey .= ":0";
-					$nmisng->log->debug("Node $noderec->{name} is multi-homed, will ping both $noderec->{host} and $noderec->{host_backup}");
+					$nmisng->log->debug("Node $noderec->{name} is multi-homed, will ping both $noderec->{configuration}->{host} and $noderec->{configuration}->{host_backup}");
 				}
 				# second time round, do handle the secondary
 				else
 				{
-					$noderec->{host} = $noderec->{configuration}->{host_backup};
+					$noderec = Clone::clone($noderec); # no overwriting of the original record!
+					$noderec->{configuration}->{host} = $noderec->{configuration}->{host_backup};
 					$statekey .= ":1";
 				}
 			}
@@ -1573,6 +1575,7 @@ sub fping_loop
 														 . ($thisstate->{nextping}?
 																sprintf(", was due %.2fs ago", $now - $thisstate->{nextping}): "" ));
 				push @todos, $statekey;
+				$thisstate->{pending} = 1;
 			}
 		}
 
@@ -1606,11 +1609,17 @@ sub fping_loop
 				chomp $line;
 				# goodnode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.89/0.96/1.05
 				# badnode : xmt/rcv/%loss = 5/0/100%
+				# or weirdnode : xmt/rcv/%return = 2/64/3200%, min/avg/max = 0.49/7.39/8.13
 				# or nothing for unresolvable.
 				$nmisng->log->debug3("fping returned: $line");
 
-				my ($hostnameorip,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6)
-						if ($line =~ m!^\s*(\S+)\s*:\s*xmt/rcv/%loss\s*=\s*\d+/\d+/(\d+)%(?:,\s*min/avg/max\s*=\s*(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?))?$!);
+				my ($hostnameorip,$dupsorloss,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6,$7)
+						if ($line =~ m!^\s*(\S+)\s*:\s*xmt/rcv/%(loss|return)\s*=\s*\d+/\d+/(\d+)%(?:,\s*min/avg/max\s*=\s*(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?))?$!);
+				if ($dupsorloss eq "return")
+				{
+					$nmisng->log->warn("fping reports ICMP packet duplication: \"$line\"");
+					$loss = 0;
+				}
 
 				if ($hostnameorip								# parseable?
 						&& $ip2staterec{$hostnameorip} # known?
@@ -1631,6 +1640,7 @@ sub fping_loop
 
 						$thisstate->{lastping} = $now;
 						$thisstate->{nextping} = $now + $interval;
+						delete $thisstate->{pending};
 
 						$nmisng->log->debug3("parsed result for node $hostnameorip: "
 																 .Dumper($thisstate));
@@ -1658,7 +1668,15 @@ sub fping_loop
 
 			# raise events when required, ie. new state
 			# note that multi-homed nodes are down IFF all ips are unreachable
-			if (!exists($thisstate->{loss}) or $thisstate->{loss} == 100)
+
+			# no answers whatsoever? then complain, we don't know if up or down so can't really raise any events
+			if ($thisstate->{pending})
+			{
+				$nmisng->log->error("fping has not reported any state for Node $thisstate->{name} ($thisstate->{ip})!");
+				# remove any misleading data from previous runs
+				delete @{$thisstate}{qw(avg min max loss lastping)};
+			}
+			elsif (!exists($thisstate->{loss}) or $thisstate->{loss} == 100)
 			{
 				my $fpingmsg = $thisstate->{loss}? "fping reported loss=$thisstate->{loss}%"
 						: "fping could not resolve host";
