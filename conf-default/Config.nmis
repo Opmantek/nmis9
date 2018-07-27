@@ -231,7 +231,6 @@ my %hash = (
 
   'files' => {
     'nmis' => '<cgi_url_base>/nmiscgi.pl',
-    'rrddraw' => '<cgi_url_base>/rrddraw.pl',
     'network' => '<cgi_url_base>/network.pl',
     'node' => '<cgi_url_base>/node.pl',
     'ipsla' => '<cgi_url_base>/ipsla.pl',
@@ -473,13 +472,14 @@ my %hash = (
 		'purge_reports_after' => 365*86400,			 # html reports
 		'purge_outages_after' => 86400,			 # past non-recurring outages
 		'purge_opstatus_after' => 60*86400,	 # opstatus records
+		'purge_graphcache_after' => 3600,				 # cached graph images
 	},
 
 	'schedule' => {
 		# empty, 0 or negative to disable automatic scheduling
 		'schedule_configbackup' => 86400,
 #		'schedule_reports' => 86400, # fixme not good
-		'schedule_purge' => 86400,
+		'schedule_purge' => 3600,
 		'schedule_dbcleanup' => 86400,
 		'schedule_selftest' => 15*60,
 		'schedule_permission_test' => 2*3600,

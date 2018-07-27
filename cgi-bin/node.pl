@@ -142,7 +142,7 @@ sub typeGraph
 
 	# load node info and Model iff name exists
 	# otherwise, use dodgy non-node mode - fixme9 is that sufficient for minimal operation?
-	my $loadok = $S->init(name => $node);
+	my $loadok = $S->init(name => $node, snmp => 'false');
 	if ($node && !$loadok)
 	{
 		bailout(message => "Node $node not found");
@@ -207,7 +207,6 @@ sub typeGraph
 		}
 	}
 
-
 	my $time = time();
 
 	my $width = $C->{graph_width};
@@ -222,16 +221,27 @@ sub typeGraph
 
 	# convert start time/date field to seconds
 	###
-	if ( $date_start eq "" ) {
-		if ( $start eq "" ) { $start = $p_start = $time - ($graphlength*60*60); }
-	} else {
+	if ( $date_start eq "" )
+	{
+		if ( $start eq "" )
+		{
+			$start = $p_start = $time - ($graphlength*60*60);
+		}
+	}
+	else
+	{
 		$start = parsedate($date_start);
 	}
 
 	# convert to seconds
-	if ( $date_end eq "" ) {
-		if ( $end eq "" ) { $end = $p_end = $time ; }
-	} else {
+	if ( $date_end eq "" )
+	{
+		if ( $end eq "" )
+		{ $end = $p_end = $time ;
+		}
+	}
+	else
+	{
 		$end = parsedate($date_end);
 	}
 
@@ -239,30 +249,38 @@ sub typeGraph
 
 	# width by default is 800, height is variable but always greater then 250
 	#left
-	if ( $graphx != 0 and $graphx < 150 ) {
+	if ( $graphx != 0 and $graphx < 150 )
+	{
 		$end = $end - ($length/2);
 		$start = $end - $length;
 	}
 	#right
-	elsif ( $graphx != 0 and $graphx > $width + 94 - 150 ) {
+	elsif ( $graphx != 0 and $graphx > $width + 94 - 150 )
+	{
 		$end = $end + ($length/2);
 		$start = $end - $length;
 	}
 	#zoom in
-	elsif ( $graphx != 0 and ( $graphy != 0 and $graphy <= $height / 2 ) ) {
+	elsif ( $graphx != 0 and ( $graphy != 0 and $graphy <= $height / 2 ) )
+	{
 #		$start = $start + ($length/2);
 		$end = $end - ($length/4);
 		$length = $length/2;
 		$start = $end - $length;
 	}
 	#zoom out
-	elsif ( $graphx != 0 and ( $graphy != 0 and $graphy > $height / 2 ) ) {
+	elsif ( $graphx != 0 and ( $graphy != 0 and $graphy > $height / 2 ) )
+	{
 #		$start = $start - ($length);
 		$end = $end + ($length/2);
 		$length = $length*2;
 		$start = $end - $length;
 	#
-	} elsif ($p_time ne '' and $date_start eq $p_date_start and $date_end eq $p_date_end) {
+	}
+	elsif ($p_time ne ''
+				 and $date_start eq $p_date_start
+				 and $date_end eq $p_date_end)
+	{
 		# pushed button, move with clock
 		$end = $end + ($time - $p_time);
 		$start = $end - $length;
@@ -287,9 +305,9 @@ sub typeGraph
 	$date_start = NMISNG::Util::returnDateStamp($start);
 	$date_end = NMISNG::Util::returnDateStamp($end);
 
-	### 2012-04-12 keiths, fix for node list with unauthorised nodes.
 	my @nodelist;
-	for my $node ( sort keys %{$NT}) {
+	for my $node ( sort keys %{$NT})
+	{
 		my $auth = 1;
 		if ($AU->Require) {
 			my $lnode = lc($NT->{$node}{name});
@@ -321,15 +339,16 @@ sub typeGraph
 	{
 		$section = $Q->{graphtype};
 	}
-	elsif ($GTT->{$graphtype} eq 'interface') {
+	elsif ($GTT->{$graphtype} eq 'interface')
+	{
 		$item = '';
 	}
 
-	my ($title_struct, $concept, $subconcept, $index_model, $data) = get_graphtype_titles(sys => $S, graphtype => $graphtype,
-																																	 graphtypetable => $GTT,
-																																	 section => $section,
-																																	 index => $index);
-
+	my ($title_struct, $concept, $subconcept, $index_model, $data)
+			= get_graphtype_titles(sys => $S, graphtype => $graphtype,
+														 graphtypetable => $GTT,
+														 section => $section,
+														 index => $index);
 
 	$S->nmisng->log->debug("concept:$concept,subconcept:$subconcept,graphtype:$graphtype index:$index section:$section");
 
@@ -347,7 +366,7 @@ sub typeGraph
 										Tr(
 											# Start date field
 											td({class=>'header',align=>'center',colspan=>'1'},"Start",
-							 textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
+												 textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
 											# Node select menu
 											td({class=>'header',align=>'center',colspan=>'1'},eval {
 												return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
@@ -446,17 +465,17 @@ sub typeGraph
 
 															 return @out;
 														 }))
- ))));
+										))));
 
 
 	# interface info
-	if ( $subconcept =~ /interface|pkts|cbqos/i and $index ne "") {
-
+	if ( $subconcept =~ /interface|pkts|cbqos/i and $index ne "")
+	{
 		my $db;
 		my $lastUpdate;
 
 
-my $intf_data = $index_model->{data};
+		my $intf_data = $index_model->{data};
 		# cbqos shows interface data so load if if we are doing cbqos
 		if( $subconcept =~ /cbqos/ && $index != '')
 		{
@@ -474,35 +493,39 @@ my $intf_data = $index_model->{data};
 		my $V = $S->view;
 		# instead of loading a new inventory object re-use the model loaded above
 		my $speed = &NMISNG::Util::convertIfSpeed($intf_data->{ifSpeed});
-		if ( $V->{interface}{"${index}_ifSpeedIn_value"} ne "" and $V->{interface}{"${index}_ifSpeedOut_value"} ne "" ) {
-				$speed = qq|IN: $V->{interface}{"${index}_ifSpeedIn_value"} OUT: $V->{interface}{"${index}_ifSpeedOut_value"}|;
+		if ( $V->{interface}{"${index}_ifSpeedIn_value"} ne ""
+				 and $V->{interface}{"${index}_ifSpeedOut_value"} ne "" )
+		{
+			$speed = qq|IN: $V->{interface}{"${index}_ifSpeedIn_value"} OUT: $V->{interface}{"${index}_ifSpeedOut_value"}|;
 		}
 
 		# info Type, Speed, Last Update, Description
 		print Tr(td({colspan=>'1'},
 			table({class=>'table',border=>'0',width=>'100%'},
-				Tr(td({class=>'header',align=>'center',},'Type'),
-					td({class=>'info Plain',},$intf_data->{ifType}),
-					td({class=>'header',align=>'center',},'Speed'),
-					td({class=>'info Plain'},$speed)),
-				Tr(td({class=>'header',align=>'center',},'Last Updated'),
-					td({class=>'info Plain'},$lastUpdate),
-					td({class=>'header',align=>'center',},'Description'),
-					td({class=>'info Plain'},$intf_data->{Description})) )));
+						Tr(td({class=>'header',align=>'center',},'Type'),
+							 td({class=>'info Plain',},$intf_data->{ifType}),
+							 td({class=>'header',align=>'center',},'Speed'),
+							 td({class=>'info Plain'},$speed)),
+						Tr(td({class=>'header',align=>'center',},'Last Updated'),
+							 td({class=>'info Plain'},$lastUpdate),
+							 td({class=>'header',align=>'center',},'Description'),
+							 td({class=>'info Plain'},$intf_data->{Description})) )));
 
-	} elsif ( $subconcept =~ /hrdisk/i and $index ne "") {
+	}
+	elsif ( $subconcept =~ /hrdisk/i and $index ne "")
+	{
 		print Tr(td({colspan=>'1'},
-			table({class=>'table',border=>'0',width=>'100%'},
-				Tr(td({class=>'header',align=>'center',},'Type'),
-					td({class=>'info Plain'},$index_model->{data}{hrStorageType}),
-					td({class=>'header',align=>'center',},'Description'),
-					td({class=>'info Plain'},$index_model->{data}{hrStorageDescr})) )));
+								table({class=>'table',border=>'0',width=>'100%'},
+											Tr(td({class=>'header',align=>'center',},'Type'),
+												 td({class=>'info Plain'},$index_model->{data}{hrStorageType}),
+												 td({class=>'header',align=>'center',},'Description'),
+												 td({class=>'info Plain'},$index_model->{data}{hrStorageDescr})) )));
 	}
 
 	my @output;
 	# check if database selectable with this info
 	if ( ($S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,
-											suppress_errors=>'true'))
+												suppress_errors=>'true'))
 			 or $graphtype =~ /cbqos/) {
 
 		my %buttons;
@@ -539,24 +562,40 @@ my $intf_data = $index_model->{data};
 			push @output, end_Tr;
 		}
 
-		my $graphLink="$C->{'rrddraw'}?amp;act=draw_graph_view".
-				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$urlsafeindex&item=$urlsafeitem";
-		my $chartDiv = "";
+		my $graphLink = Compat::NMIS::htmlGraph(only_link => 1, # we need the unwrapped link!
+																						sys => $S,
+																						node => $node,
+																						group => $group,
+																						graphtype => $graphtype,
+																						intf => $index,
+																						item => $item,
+																						start => $start,
+																						end => $end,
+																						width => $width,
+																						height => $height );
+		# NMISNG::Util::logMsg("asked for $graphtype, start $start end $end, got $graphLink");
 
-		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ ) {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE',-tabindex=>"-1")));
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
+		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ )
+		{
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},
+													image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE',-tabindex=>"-1")));
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},
+													"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 		}
-		else {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
+		else
+		{
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},
+													"Graph type not applicable for this data set."));
 		}
-	} else {
+	}
+	else
+	{
 		push @output, Tr(td({colspan=>'4',align=>'center'},"waiting for selection or no data available"));
 		push @output, hidden(-name=>'item', -default=>"$item",-override=>'1');
 	}
 	# push on page
 	print Tr(td({colspan=>'1'},
-			table({class=>'plain',width=>'100%'},@output)));
+							table({class=>'plain',width=>'100%'},@output)));
 
 	print "</table>";
 	print hidden(-name=>'conf', -default=>$Q->{conf},-override=>'1');
@@ -566,7 +605,6 @@ my $intf_data = $index_model->{data};
 	print hidden(-name=>'p_end', -default=>"$p_end",-override=>'1');
 	print hidden(-name=>'p_time', -default=>"$time",-override=>'1');
 	print hidden(-name=>'act', -default=>"network_graph_view", -override=>'1');
-	print hidden(-name=>'obj', -default=>"graph",-override=>'1'); # for rrddraw
 
 	print "</form>", comment("typeGraph end");
 	print end_html;

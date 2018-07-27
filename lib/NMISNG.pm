@@ -3759,13 +3759,22 @@ sub purge_old_files
 
 	# config option, extension, where to look...
 	my @purgatory = (
-		{   ext          => qr/\.rrd$/,
+		{
+			ext => qr/\.png$/,
+			minage => $C->{purge_graphcache_after} || 3600,
+			location => "$C->{web_root}/cache",
+			also_empties => 1,
+			description => "Old Graph Images",
+		},
+		{
+			ext          => qr/\.rrd$/,
 			minage       => $C->{purge_rrd_after} || 30 * 86400,
 			location     => $C->{database_root},
 			also_empties => 1,
 			description  => "Old RRD files",
 		},
-		{   ext          => qr/\.(tgz|tar\.gz)$/,
+		{
+			ext          => qr/\.(tgz|tar\.gz)$/,
 			minage       => $C->{purge_backup_after} || 30 * 86400,
 			location     => $C->{'<nmis_backups>'},
 			also_empties => 1,

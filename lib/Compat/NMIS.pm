@@ -41,21 +41,18 @@ use File::Basename;
 use feature 'state';						# for new_nmisng
 use Carp;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
+use Digest::MD5;										# for htmlGraph, nothing stronger is needed
 
 use Fcntl qw(:DEFAULT :flock);  # Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Data::Dumper;
 
-$Data::Dumper::Indent = 1;			# fixme9: costs, should not be enabled
-
 use Compat::IP;
 use NMISNG::CSV;
-
 use NMISNG;
 use NMISNG::Sys;
 use NMISNG::rrdfunc;
 use NMISNG::Notify;
 use NMISNG::Outage;
-
 
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
@@ -1419,43 +1416,119 @@ sub dutyTime {
 	return 0;		# dutytime was valid, but no timezone match, return false.
 }
 
-
-
-# create http for a clickable graph
-sub htmlGraph {
+# produce clickable graph and return html that can be pasted onto a page
+# rrd graph is created by this function and cached on disk
+#
+# args: node/group OR sys, intf/item, server, graphtype, width, height (all required),
+#  start, end (optional),
+#  only_link (optional, default: 0, if set ONLY the href for the graph is returned),
+# returns: html or link/href value
+sub htmlGraph
+{
 	my %args = @_;
+
+	my $C = NMISNG::Util::loadConfTable();
+
 	my $graphtype = $args{graphtype};
 	my $group = $args{group};
 	my $node = $args{node};
 	my $intf = $args{intf};
+	my $item  = $args{item};
 	my $server = $args{server};
-
-	my $target = $node;
-	if ($node eq "" and $group ne "") {
-		$target = $group;
-	}
-
-	my $id = uri_escape("$target-$intf-$graphtype"); # both node and intf are unsafe
-	my $C = NMISNG::Util::loadConfTable();
-
 	my $width = $args{width}; # graph size
 	my $height = $args{height};
-	my $win_width = $C->{win_width}; # window size
-	my $win_height = $C->{win_height};
+	my $omit_fluff = NMISNG::Util::getbool($args{only_link}); # return wrapped <a> etc. or just the href?
+
+	my $sys = $args{sys};
+	if (ref($sys) eq "NMISNG::Sys")
+	{
+		$node = $sys->nmisng_node->name;
+	}
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
 	my $urlsafeintf = uri_escape($intf);
+	my $urlsafeitem = uri_escape($item);
+
+	my $target = $node || $group; # only used for js/widget linkage
+	my $clickurl = "$C->{'node'}?act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&item=$urlsafeitem&server=$server&node=$urlsafenode";
 
 	my $time = time();
-	my $clickurl = "$C->{'node'}?act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&server=$server&node=$urlsafenode";
+	my $graphlength = ( $C->{graph_unit} eq "days" )?
+			86400 * $C->{graph_amount} : 3600 * $C->{graph_amount};
+	my $start = $args{start} || time-$graphlength;
+	my $end = $args{end} || $time;
 
+	# where to put the graph file? let's use htdocs/cache, that's web-accessible
+	my $cachedir = $C->{'web_root'}."/cache";
+	NMISNG::Util::createDir($cachedir) if (!-d $cachedir);
 
-	my $src = "$C->{'rrddraw'}?act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
-			"&start=&end=&width=$width&height=$height&time=$time";
-	### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
-	return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
-<img alt='Network Info' src="$src"></img></a>|;
+	# we need a time-invariant, short and safe file name component,
+	# which also must incorporate a server-specific bit of secret sauce
+	# that an external party does not have access to (to eliminate guessing)
+	my $graphfile_prefix = Digest::MD5::md5_hex(
+		join("__",
+				 $C->{auth_web_key},
+				 $group, $node, $intf, $item,
+				 $graphtype,
+				 $server, # fixme: needed?
+				 $width, $height));
+
+	# do we want to reuse an existing, 'new enough' graph?
+	opendir(D, $cachedir);
+	my @recyclables = grep(/^$graphfile_prefix/, readdir(D));
+	closedir(D);
+
+	my $graphfilename;
+	my $cachefilemaxage = $C->{graph_cache_maxage} // 60;
+
+	for my $maybe (sort { $b cmp $a } @recyclables)
+	{
+		next if ($maybe !~ /^\S+_(\d+)_(\d+)\.png$/); # should be impossible
+		my ($otherstart, $otherend) = ($1,$2);
+
+		# let's accept anything newer than 60 seconds as good enough
+		my $deltastart = $start - $otherstart;
+		$deltastart *= -1 if ($deltastart < 0);
+		my $deltaend = $end - $otherend;
+		$deltaend *= -1 if ($deltaend < 0);
+
+		if ($deltastart <= $cachefilemaxage && $deltaend <= $cachefilemaxage)
+		{
+			$graphfilename = $maybe;
+			NMISNG::Util::dbg("reusing cached graph $maybe for $graphtype, node $node: requested period off by "
+												.($start-$otherstart)." seconds");
+
+			last;
+		}
+	}
+
+	# nothing useful in the cache? then generate a new graph
+	if (!$graphfilename)
+	{
+		$graphfilename = $graphfile_prefix."_${start}_${end}.png";
+		NMISNG::Util::dbg("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, server=$server, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename");
+
+		my $target = "$cachedir/$graphfilename";
+		my $result = NMISNG::rrdfunc::draw(sys => $sys,
+																			 node => $node,
+																			 group => $group,
+																			 graphtype => $graphtype,
+																			 intf => $intf,
+																			 item => $item,
+																			 server => $server,
+																			 start => $start,
+																			 end =>  $end,
+																			 width => $width,
+																			 height => $height,
+																			 filename => $target);
+		return qq|<p>Error: $result->{error}</p>| if (!$result->{success});
+		NMISNG::Util::setFileProtDiag($target);	# to make the selftest happy...
+	}
+
+	# return just the href? or html?
+	return $omit_fluff? "$C->{'<url_base>'}/cache/$graphfilename"
+			: qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$C->{win_width},$C->{win_height})"><img alt='Network Info' src="$C->{'<url_base>'}/cache/$graphfilename"></img></a>|;
 }
 
 # args: user, node, system, refresh, widget, au (object),
@@ -1890,7 +1963,7 @@ sub requestServer {
 	return 0;
 }
 
-# Load and organize the CBQoS meta-data, used by both rrddraw.pl and node.pl
+# Load and organize the CBQoS meta-data
 # inputs: a sys object, an index and a graphtype
 # returns ref to sorted list of names, ref to hash of description/bandwidth/color/index/section
 # this function is not exported on purpose, to reduce namespace clashes.

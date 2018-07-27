@@ -883,4 +883,477 @@ sub createRRD
 	return 0;
 }
 
+# produce one graph
+# args: node/uuid/group OR live sys object, graphtype, intf/item, width, height (all required),
+#  start, end, filename (optional)
+#
+# if filename is given then the graph is saved there.
+# if no filename is given, then the graph is printed to stdout with minimal content-type header.
+#
+# returns: hashref (keys success/error, x,y, graph (=rrds::graph result array))
+sub draw
+{
+	my %args = @_;
+
+	my ($S,$nodename,$nodeuuid,$mygroup,$graphtype,$intf,$item,
+			$width,$height,$filename,$start,$end,$time,$debug)
+			= @args{qw(sys node uuid group graphtype intf item width height filename start end time debug)};
+
+	my $C = NMISNG::Util::loadConfTable();
+	require_RRDs(config => $C);
+
+	if (ref($S) ne "NMISNG::Sys")
+	{
+		$S = NMISNG::Sys->new;
+		$S->init(name => $nodename, uuid => $nodeuuid, snmp=>'false');
+	}
+	else
+	{
+		$nodename = $S->nmisng_node->name;
+	}
+
+	# fixme9: non-node mode is a dirty hack.
+	# fixme9: catchall_data is not used?!
+	if ($nodename)
+	{
+		my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	}
+	my $subconcept = $S->loadGraphTypeTable->{$graphtype};
+
+	# default unit is hours!
+	my $graphlength = ( $C->{graph_unit} eq "days" )?
+			86400 * $C->{graph_amount} : 3600 * $C->{graph_amount}; # want seconds
+
+	my $when = $time // time;
+	$start = $when-$graphlength if (!$start);
+	$end = $when if (!$end);
+
+	# prep human-friendly (imprecise!) length of graph period
+	my $mylength;									# cannot be called length
+	if (($end - $start) < 3600)
+	{
+		$mylength = int(($end - $start) / 60) . " minutes";
+	}
+	elsif (($end - $start) < (3600*48))
+	{
+		$mylength = int(($end - $start) / (3600)) . " hours";
+	}
+	else
+	{
+		$mylength = int(($end - $start) / (3600*24)) . " days";
+	}
+
+	my (@rrdargs, 								# final rrd graph args
+			$mydatabase);								# path to the rrd file
+
+	# special graphtypes: global metrics
+	if ($graphtype eq 'metrics')
+	{
+		$item = $mygroup;
+		undef $intf;
+	}
+
+	# special graphtypes: cbqos is dynamic (multiple inputs create one graph), ditto calls
+	if ($graphtype =~ /cbqos/)
+	{
+		@rrdargs = graphCBQoS(sys=>$S,
+													graphtype=>$graphtype,
+													intf=>$intf,
+													item=>$item,
+													start=>$start, end=>$end,
+													width=>$width, height=>$height);
+	}
+	else
+	{
+		$mydatabase = $S->makeRRDname(graphtype=>$graphtype, index=>$intf, item=>$item);
+		return { error => "failed to find database for graphtype $graphtype!" } if (!$mydatabase);
+
+		my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
+		return { return => "failed to read Graph-$graphtype!" } if (!$res->{success});
+		my $graph = $res->{data};
+
+
+		my $titlekey =  ($width <= 400 and $graph->{title}{short})? 'short' : 'standard';
+		my $vlabelkey = (NMISNG::Util::getbool($C->{graph_split}) and $graph->{vlabel}{split})? 'split'
+				: ($width <= 400 and $graph->{vlabel}{short})? 'short' : 'standard';
+		my $size =  ($width <= 400 and $graph->{option}{small})? 'small' : 'standard';
+
+		my $title = $graph->{title}{$titlekey};
+		my $label = $graph->{vlabel}{$vlabelkey};
+
+		#  fixme replace with log+debug
+		NMISNG::Util::logMsg("no title->$titlekey found in Graph-$graphtype") if (!$title);
+		NMISNG::Util::logMsg("no vlabel->$vlabelkey found in Graph-$graphtype") if (!$label);
+
+		@rrdargs = (
+			"--title", $title,
+			"--vertical-label", $label,
+			"--start", $start,
+			"--end", $end,
+			"--width", $width,
+			"--height", $height,
+			"--imgformat", "PNG",
+			"--interlaced",
+			"--disable-rrdtool-tag",
+			"--color", 'BACK#ffffff',      # Background Color
+			"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+			"--color", 'SHADEB#ffffff',    # was CFCFCF
+			"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+			"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+			"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+			"--color", 'FONT#222222',      # Font Color
+			"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+			"--color", 'FRAME#808080'      # Canvas Frame Color
+				);
+
+		if ($width > 400) {
+			push(@rrdargs, "--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+		}
+		else
+		{
+			push(@rrdargs, "--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+		}
+		push @rrdargs, @{$graph->{option}{$size}};
+	}
+
+	my $extras = {
+		node => $nodename,
+		datestamp_start => NMISNG::Util::returnDateStamp($start),
+		datestamp_end => NMISNG::Util::returnDateStamp($end),
+		datestamp => NMISNG::Util::returnDateStamp(time),
+		database => $mydatabase,
+		length => $mylength,
+		group => $mygroup,
+		itm => $item,
+		split => NMISNG::Util::getbool($C->{graph_split}) ? -1 : 1 ,
+		GLINE => NMISNG::Util::getbool($C->{graph_split}) ? "AREA" : "LINE1",
+		weight => 0.983,
+	};
+
+	for my $idx (0..$#rrdargs)
+	{
+		my $str = $rrdargs[$idx];
+
+		my %parseargs = ( string => $str,
+											index => $intf,
+											item => $item,
+											sect => $subconcept,
+											extras => { %$extras } ); # extras is modified by every call, so pass in a copy
+
+		# escape any ':' chars which might be in the database name (e.g C:\\) or the other
+		# inputs (e.g. indx == service name). this must be done for ALL substitutables,
+		# but no thanks to no strict we don't exactly know who they are, nor can we safely change
+		# their values without side-effects...so we do it on the go, and only where not already pre-escaped.
+
+		# EXCEPT in --title, where we can't have colon escaping. grrrrrr!
+		if  ($idx <= 0 || $rrdargs[$idx-1] ne "--title")
+		{
+			$parseargs{index} = Compat::NMIS::postcolonial($parseargs{index});
+			$parseargs{item} = Compat::NMIS::postcolonial($parseargs{item});
+			$parseargs{extras} = { map { $_ => Compat::NMIS::postcolonial($extras->{$_}) } (keys %$extras) };
+		}
+		my $parsed = $S->parseString( %parseargs, eval => 0 );
+		$rrdargs[$idx] = $parsed;
+	}
+
+	my ($graphret, $xs, $ys);
+	# finally, generate the graph - as an indep http response to stdout
+	# (bit uggly, no etag, expiration, content-length...)...
+	if (!$filename)
+	{
+		# if this isn't done, then the graph output overtakes the header output,
+		# and apache considers the cgi script broken and returns 500
+		STDOUT->autoflush(1);
+		print "Content-type: image/png\n\n";
+		($graphret,$xs,$ys) = RRDs::graph('-', @rrdargs);
+	}
+	# ...or as a file.
+	else
+	{
+		($graphret,undef,undef) = RRDs::graph($filename, @rrdargs);
+	}
+	if (my $error = RRDs::error())
+	{
+		return { error => "Graphing Error for graphtype $graphtype, database $mydatabase: $error" };
+	}
+	return { success => 1, x => $xs, y => $ys, graph => $graphret };
+}
+
+# special graph helper for CBQoS
+# this handles both cisco and huawei flavour cbqos
+# args: sys, graphtype, intf/item, start, end, width, height (all required)
+# returns: array of rrd args
+sub graphCBQoS
+{
+	my %args = @_;
+
+	my $C = NMISNG::Util::loadConfTable;
+	my ($S,$graphtype,$intf,$item,$start,$end,$width,$height,$debug)
+			= @args{qw(sys graphtype intf item start end width height debug)};
+
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+
+	# order the names, find colors and bandwidth limits, index and section names
+	my ($CBQosNames, $CBQosValues) = Compat::NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
+
+	# because cbqos we should find interface
+	my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0, partial => 1 );
+	my $if_data = ($inventory) ? $inventory->data : {};
+
+	# display all class-maps in one graph...
+	if ($item eq "")
+	{
+		my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
+		my $ifDescr = NMISNG::Util::shortInterface($if_data->{ifDescr});
+		my $vlabel = "Avg Bits per Second";
+		my $title;
+
+		if ( $width <= 400 ) {
+			$title = "$catchall_data->{name} $ifDescr $direction";
+			$title .= " - $CBQosNames->[0]" if ($CBQosNames->[0] && $CBQosNames->[0] !~ /^(in|out)bound$/i);
+			$title .= ' - $length';
+			$vlabel = "Avg bps";
+		}
+		else
+		{
+			$title = "$catchall_data->{name} $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end'; # fixme: why replace later??
+		}
+
+		my @opt = (
+			"--title", $title,
+			"--vertical-label", $vlabel,
+			"--start", $start,
+			"--end", $end,
+			"--width", $width,
+			"--height", $height,
+			"--imgformat", "PNG",
+			"--interlaced",
+			"--disable-rrdtool-tag",
+			"--color", 'BACK#ffffff',      # Background Color
+			"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+			"--color", 'SHADEB#ffffff',    #
+			"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+			"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+			"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+			"--color", 'FONT#222222',      # Font Color
+			"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+			"--color", 'FRAME#808080'      # Canvas Frame Color
+				);
+
+		if ($width > 400) {
+			push(@opt,"--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+		}
+		else {
+			push(@opt,"--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+		}
+
+		# calculate the sum (avg and max) of all Classmaps for PrePolicy and Drop
+		# note that these CANNOT be graphed by themselves, as 0 isn't a valid RPN expression in rrdtool
+		my $avgppr = "CDEF:avgPrePolicyBitrate=0";
+		my $maxppr = "CDEF:maxPrePolicyBitrate=0";
+		my $avgdbr = "CDEF:avgDropBitrate=0";
+		my $maxdbr = "CDEF:maxDropBitrate=0";
+
+		# is this hierarchical or flat?
+		my $HQOS = 0;
+		foreach my $i (1..$#$CBQosNames)
+		{
+			if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ )
+			{
+				$HQOS = 1;
+				last;
+			}
+		}
+
+		my $gtype = "AREA";
+		my $gcount = 0;
+		my $parent_name = "";
+		foreach my $i (1..$#$CBQosNames)
+		{
+			my $thisinfo = $CBQosValues->{$intf.$CBQosNames->[$i]};
+
+			my $database = $S->makeRRDname(graphtype => $thisinfo->{CfgSection},
+																index => $thisinfo->{CfgIndex},
+																item => $CBQosNames->[$i]	);
+			my $parent = 0;
+			if ( $CBQosNames->[$i] !~ /\w+\-\-\w+/ and $HQOS )
+			{
+				$parent = 1;
+				$gtype = "LINE1";
+			}
+
+			if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ )
+			{
+				$parent_name = $1;
+				NMISNG::Util::dbg("parent_name=$parent_name\n") if ($debug);
+			}
+
+			if ( not $parent and not $gcount)
+			{
+				$gtype = "AREA";
+				++$gcount;
+			}
+			elsif ( not $parent and $gcount)
+			{
+				$gtype = "STACK";
+				++$gcount;
+			}
+			my $alias = $CBQosNames->[$i];
+			$alias =~ s/$parent_name\-\-//g;
+			$alias =~ s/\-\-/\//g;
+
+			# rough alignment for the columns, necessarily imperfect
+			# as X-char strings aren't equally wide...
+			my $tab = "\\t";
+			if ( length($alias) <= 5 )
+			{
+				$tab = $tab x 4;
+			}
+			elsif ( length($alias) <= 14 )
+			{
+				$tab = $tab x 3;
+			}
+			elsif ( length($alias) <= 19 )
+			{
+				$tab = $tab x 2;
+			}
+
+			my $color = $CBQosValues->{$intf.$CBQosNames->[$i]}{'Color'};
+
+			push @opt, ("DEF:avgPPB$i=$database:".$thisinfo->{CfgDSNames}->[0].":AVERAGE",
+									"DEF:maxPPB$i=$database:".$thisinfo->{CfgDSNames}->[0].":MAX",
+									"DEF:avgDB$i=$database:".$thisinfo->{CfgDSNames}->[2].":AVERAGE",
+									"DEF:maxDB$i=$database:".$thisinfo->{CfgDSNames}->[2].":MAX",
+									"CDEF:avgPPR$i=avgPPB$i,8,*",
+									"CDEF:maxPPR$i=maxPPB$i,8,*",
+									"CDEF:avgDBR$i=avgDB$i,8,*",
+									"CDEF:maxDBR$i=maxDB$i,8,*",);
+
+			if ($width > 400)
+			{
+				push @opt, ("$gtype:avgPPR$i#$color:$alias$tab",
+										"GPRINT:avgPPR$i:AVERAGE:Avg %8.2lf%s\\t",
+										"GPRINT:maxPPR$i:MAX:Max %8.2lf%s\\t",
+										"GPRINT:avgDBR$i:AVERAGE:Avg Drops %6.2lf%s\\t",
+										"GPRINT:maxDBR$i:MAX:Max Drops %6.2lf%s\\l");
+			}
+			else
+			{
+				push(@opt,"$gtype:avgPPR$i#$color:$alias");
+			}
+
+			#push(@opt,"LINE1:avgPPR$i#$color:$CBQosNames->[$i]");
+			$avgppr .= ",avgPPR$i,+";
+			$maxppr .= ",maxPPR$i,+";
+			$avgdbr .= ",avgDBR$i,+";
+			$maxdbr .= ",maxDBR$i,+";
+		}
+
+		push @opt,$avgppr,$maxppr,$avgdbr, $maxdbr;
+
+		if ($width > 400)
+		{
+			push(@opt,"COMMENT:\\l",
+					 "GPRINT:avgPrePolicyBitrate:AVERAGE:PrePolicyBitrate\\t\\t\\tAvg %8.2lf%s\\t",
+					 "GPRINT:maxPrePolicyBitrate:MAX:Max\\t%8.2lf%s\\l",
+					 "GPRINT:avgDropBitrate:AVERAGE:DropBitrate\\t\\t\\tAvg %8.2lf%s\\t",
+					 "GPRINT:maxDropBitrate:MAX:Max\\t%8.2lf%s\\l");
+		}
+		return @opt;
+	}
+
+	# ...or display ONLY the selected class-map
+
+	my $thisinfo = $CBQosValues->{$intf.$item};
+	my $speed = defined $thisinfo->{CfgRate}? &NMISNG::Util::convertIfSpeed($thisinfo->{'CfgRate'}) : undef;
+	my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
+
+	my $database =  $S->makeRRDname(graphtype => $thisinfo->{CfgSection},
+															index => $thisinfo->{CfgIndex},
+															item => $item	);
+
+	# in this case we always use the FIRST color, not the one for this item
+	my $color = $CBQosValues->{$intf.$CBQosNames->[1]}->{'Color'};
+
+	my $ifDescr = NMISNG::Util::shortInterface($if_data->{ifDescr});
+	my $title = "$ifDescr $direction - $item from ".'$datestamp_start to $datestamp_end'; # fixme: why replace later??
+
+	my @opt = (
+		"--title", $title,
+		"--vertical-label", 'Avg Bits per Second',
+		"--start", $start,
+		"--end", $end,
+		"--width", $width,
+		"--height", $height,
+		"--imgformat", "PNG",
+		"--interlaced",
+		"--disable-rrdtool-tag",
+		"--color", 'BACK#ffffff',      # Background Color
+		"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+		"--color", 'SHADEB#ffffff',    #
+		"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+		"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+		"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+		"--color", 'FONT#222222',      # Font Color
+		"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+		"--color", 'FRAME#808080',      # Canvas Frame Color
+			);
+
+		if ($width > 400)
+		{
+			push(@opt,"--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+		}
+		else
+		{
+			push(@opt,"--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+		}
+
+		# needs to work for both types of qos, hence uses the CfgDSNames
+		push @opt, (
+			"DEF:PrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":AVERAGE",
+			"DEF:maxPrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":MAX",
+			"DEF:DropByte=$database:".$thisinfo->{CfgDSNames}->[2].":AVERAGE",
+			"DEF:maxDropByte=$database:".$thisinfo->{CfgDSNames}->[2].":MAX",
+			"DEF:PrePolicyPkt=$database:".$thisinfo->{CfgDSNames}->[3].":AVERAGE",
+			"DEF:DropPkt=$database:".$thisinfo->{CfgDSNames}->[5].":AVERAGE");
+
+		# huawei doesn't have NoBufDropPkt
+		push @opt, "DEF:NoBufDropPkt=$database:".$thisinfo->{CfgDSNames}->[6].":AVERAGE"
+				if (defined $thisinfo->{CfgDSNames}->[6]);
+
+		push @opt, (
+			"CDEF:PrePolicyBitrate=PrePolicyByte,8,*",
+			"CDEF:maxPrePolicyBitrate=maxPrePolicyByte,8,*",
+			"CDEF:DropBitrate=DropByte,8,*",
+			"TEXTALIGN:left",
+			"AREA:PrePolicyBitrate#$color:PrePolicyBitrate",
+		);
+
+		# detailed legends are only shown on the 'big' graphs
+		if ($width > 400) {
+			push(@opt,"GPRINT:PrePolicyBitrate:AVERAGE:\\tAvg %8.2lf %sbps\\t");
+			push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max %8.2lf %sbps");
+		}
+		# move back to previous line, then right-align
+		push @opt, "COMMENT:\\u", "AREA:DropBitrate#ff0000:DropBitrate\\r:STACK";
+
+		if ($width > 400)
+		{
+			push @opt, ( "GPRINT:PrePolicyByte:AVERAGE:Bytes transferred\\t\\tAvg %8.2lf %sB/s\\n",
+									 "GPRINT:DropByte:AVERAGE:Bytes dropped\\t\\t\\tAvg %8.2lf %sB/s\\t",
+									 "GPRINT:maxDropByte:MAX:Max %8.2lf %sB/s\\n",
+									 "GPRINT:PrePolicyPkt:AVERAGE:Packets transferred\\t\\tAvg %8.2lf\\l",
+									 "GPRINT:DropPkt:AVERAGE:Packets dropped\\t\\t\\tAvg %8.2lf");
+
+			# huawei doesn't have that
+			push(@opt,"COMMENT:\\l","GPRINT:NoBufDropPkt:AVERAGE:Packets No buffer dropped\\tAvg %8.2lf\\l")
+					if (defined $thisinfo->{CfgDSNames}->[6]);
+
+			# not all qos setups have a graphable bandwidth limit
+			push @opt, "COMMENT:\\u", "COMMENT:".$thisinfo->{CfgType}." $speed\\r" if (defined $speed);
+		}
+	return @opt;
+}
+
+
 1;
