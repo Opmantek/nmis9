@@ -5,6 +5,7 @@ var
 models-custom
 database
 htdocs/reports
+htdocs/cache
 .DS_Store
 ._.DS_Store
 dev
