@@ -116,6 +116,9 @@ my %hash = (
 		'nmisd_fping_worker' => 'true', # if true, at dedicated worker for fping use used
 		'postpone_clashing_schedule' => 30, # if positive, clashing jobs are retried N seconds later, otherwise clashing jobs are discarded
 
+		'polling_interval_factor' => 0.95, # fraction of the polling interval after which node is considered for next poll
+		'update_interval_factor' => 0.95,	 # ditto but for update operations
+
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
     'domain_name' => '',

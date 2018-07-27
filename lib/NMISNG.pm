@@ -1306,11 +1306,13 @@ sub find_due_nodes
 					: $intervals{$polname}->{update};
 
 				# but do make sure to try a newly added node NOW!
-				my $nexttry = defined $lasttry? $lasttry + 0.95 * $normalperiod : $now;
+				my $fudgefactor = ($self->config->{polling_interval_factor} || 0.95);
+				my $nexttry = defined $lasttry? $lasttry
+						+ $fudgefactor * $normalperiod : $now;
 				$newnodes{$maybe} = 1 if (!defined $lasttry);
 				if ($now - $graceperiod_start > 14 * 86400)
 				{
-					$nexttry = ( $lasttry // $now) + 86400 * 0.95;
+					$nexttry = ( $lasttry // $now) + 86400 * $fudgefactor;
 
 					# log the demotion situation but not more than once an hour
 					$self->log->info( "Node $nodename has no valid nodeModel, never polled successfully, "
@@ -1338,8 +1340,9 @@ sub find_due_nodes
 				my $lastupdate  = $ninfo->{last_update};
 				my $lastattempt = $ninfo->{last_update_attempt};
 
-				my $nextupdate  = ( $lastupdate  // 0 ) + $intervals{$polname}->{update} * 0.95;
-				my $nextattempt = ( $lastattempt // 0 ) + $intervals{$polname}->{update} * 0.95 / 4;
+				my $fudgefactor = ($self->config->{update_interval_factor} || 0.95);
+				my $nextupdate  = ( $lastupdate  // 0 ) + $intervals{$polname}->{update} * $fudgefactor;
+				my $nextattempt = ( $lastattempt // 0 ) + $intervals{$polname}->{update} * $fudgefactor / 4;
 
 				if ( !defined($lastupdate) or $nextupdate <= $now )
 				{
@@ -1392,8 +1395,9 @@ sub find_due_nodes
 
 				# accept delta-previous-now interval if it's at least 95% of the configured interval
 				# strict 100% would mean that we might skip a full interval when polling takes longer
-				my $nextsnmp = ( $lastsnmp // 0 ) + $intervals{$polname}->{snmp} * 0.95;
-				my $nextwmi  = ( $lastwmi  // 0 ) + $intervals{$polname}->{wmi} * 0.95;
+				my $fudgefactor = ($self->config->{polling_interval_factor} || 0.95);
+				my $nextsnmp = ( $lastsnmp // 0 ) + $intervals{$polname}->{snmp} * $fudgefactor;
+				my $nextwmi  = ( $lastwmi  // 0 ) + $intervals{$polname}->{wmi} * $fudgefactor;
 
 				# only flavours which worked in the past contribute to the now-or-later logic
 				if (   ( defined($lastsnmp) && $nextsnmp <= $now )
