@@ -159,7 +159,7 @@ EOF
 	return if (!($CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table))); # load configuration of table
 	print start_table;
 
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&table=$table";
+	my $url = url(-absolute=>1)."?table=$table";
 
 	# print short info
 	#print header

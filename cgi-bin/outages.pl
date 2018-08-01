@@ -242,7 +242,7 @@ sub viewOutage
 
 			td({class=>'info',style=>NMISNG::Util::getBGColor($color)}, $outage->{change_id}),
 			td({class=>'info',style=>NMISNG::Util::getBGColor($color)}, $status),
-			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&id=$outage->{id}&widget=$widget"},'delete'))
+			td({class=>'info'},a({href=>url(-absolute=>1)."?act=outage_table_dodelete&id=$outage->{id}&widget=$widget"},'delete'))
 			);
 	}
 

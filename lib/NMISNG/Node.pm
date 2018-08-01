@@ -7403,7 +7403,7 @@ sub collect_services
 		# now points to the per-service detail view. note: no widget info a/v at this time!
 		delete $V->{system}->{"${service}_gurl"};
 		$V->{system}{"${service}_url"}
-			= "$C->{'<cgi_url_base>'}/services.pl?conf=$C->{conf}&act=details&node="
+			= "$C->{'<cgi_url_base>'}/services.pl?act=details&node="
 			. uri_escape($node)
 			. "&service="
 			. uri_escape($service);

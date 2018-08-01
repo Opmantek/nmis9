@@ -483,7 +483,7 @@ sub selectMetrics
 					$message = ( substr( $message, 0, 64 ) . "&nbsp;&hellip;" ) if ( length($message) > 64 );
 					print Tr(
 						td( {class => "info Error"},
-							a(  {   href  => url( -absolute => 1 ) . "?conf=$Q->{conf}&amp;act=nmis_selftest_view",
+							a(  {   href  => url( -absolute => 1 ) . "?act=nmis_selftest_view",
 									id    => "nmis_selftest",
 									class => "black"
 								},
@@ -494,7 +494,7 @@ sub selectMetrics
 				}
 				print Tr(
 					td( {class => "info Major"},
-						a(  {href => url( -absolute => 1 ) . "?conf=$Q->{conf}&act=nmis_selftest_reset&widget=$widget"},
+						a(  {href => url( -absolute => 1 ) . "?act=nmis_selftest_reset&widget=$widget"},
 							"Reset Selftest Status"
 						)
 					)
@@ -646,7 +646,7 @@ sub selectNetworkHealth
 		print start_Tr,
 			td(
 			{class => 'infolft Plain'},
-			a( {href => url( -absolute => 1 ) . "?conf=$Q->{conf}&act=network_summary_allgroups"}, $healthTitle ),
+			a( {href => url( -absolute => 1 ) . "?act=network_summary_allgroups"}, $healthTitle ),
 			),
 			td( {class => "info $overallStatus"}, "$overallStatus" ),
 			td( {class => 'info Plain'},          "$groupSummary->{average}{counttotal}" );
@@ -757,7 +757,7 @@ sub selectSmall
 		print start_Tr,
 			th(
 			{class => 'info Plain'},
-			a(  {href => url( -absolute => 1 ) . "?conf=$Q->{conf}&act=network_summary_allgroups"}, "All Groups Status"
+			a(  {href => url( -absolute => 1 ) . "?act=network_summary_allgroups"}, "All Groups Status"
 			),
 			),
 			td( {class => "info $overallStatus"}, "$overallStatus" );
@@ -883,7 +883,7 @@ sub printGroup
 		# force a new window if clicked
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
+					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
 				id => "network_summary_$idsafegroup"
 			},
 			"$group"
@@ -1019,7 +1019,7 @@ sub selectNetworkView
 		print start_Tr,
 			td(
 			{class => "infolft $overallStatus"},
-			a( {href => url( -absolute => 1 ) . "?conf=$Q->{conf}&act=network_summary_allgroups"}, $healthTitle ),
+			a( {href => url( -absolute => 1 ) . "?act=network_summary_allgroups"}, $healthTitle ),
 			);
 		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
 		print td( {class => "info $overallStatus"},
@@ -1101,7 +1101,7 @@ sub printGroupView
 		# force a new window if clicked
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
+					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
 				id => "network_summary_$idsafegroup"
 			},
 			"$group"
@@ -1182,7 +1182,7 @@ sub printHealth
 	{
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?conf=$Q->{conf}&act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$customer",
+					. "?act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$customer",
 				id => "network_summary_$idsafecustomer"
 			},
 			"$customer"
@@ -1192,7 +1192,7 @@ sub printHealth
 	{
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?conf=$Q->{conf}&act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$business",
+					. "?act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$business",
 				id => "network_summary_$idsafebusiness"
 			},
 			"$business"
@@ -1333,7 +1333,7 @@ sub selectLarge
 						"$group Node List and Status",
 						a(  {   style => "color:white;",
 								href  => url( -absolute => 1 )
-									. "?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"
+									. "?act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"
 							},
 							"Node Admin Exceptions"
 							)
@@ -1386,7 +1386,7 @@ sub selectLarge
 #	$outage = td({class=>'info Plain',onmouseover=>"Tooltip.show(\"$groupSummary->{$node}{outageText}\",event);",onmouseout=>"Tooltip.hide();",style=>NMISNG::Util::getBGColor($color)},
 				$outage = td(
 					{class => 'info Plain'},
-					a(  {href => "outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$groupSummary->{$node}{name}"},
+					a(  {href => "outages.pl?act=outage_table_view&node=$groupSummary->{$node}{name}"},
 						$groupSummary->{$node}{outage}
 					)
 				);
@@ -1470,7 +1470,7 @@ sub selectLarge
 
 				$nodelink = a(
 					{   href => url( -absolute => 1 )
-							. "?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node="
+							. "?act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node="
 							. uri_escape($node),
 						id => "node_view_$idsafenode"
 					},
@@ -1483,7 +1483,7 @@ sub selectLarge
 				my $server = $NT->{$node}{server};
 				my $ST = {};
 				my $url
-					= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
+					= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
 					. uri_escape($node);
 				$nodelink = a(
 					{   target  => "Graph-$node",
@@ -1706,7 +1706,7 @@ sub clearSelfTest
 	else
 	{
 		# in non-widgetted mode a redirect is good enough
-		print $q->redirect( url( -absolute => 1 ) . "?conf=$Q->{conf}&act=network_summary_metrics" );
+		print $q->redirect( url( -absolute => 1 ) . "?act=network_summary_metrics" );
 	}
 }
 
@@ -1739,7 +1739,7 @@ sub viewSelfTest
 			{
 				print Tr(
 					td( {class => "info Major", colspan => 2},
-						a(  {href => url( -absolute => 1 ) . "?conf=$Q->{conf}&act=nmis_selftest_reset&widget=$widget"},
+						a(  {href => url( -absolute => 1 ) . "?act=nmis_selftest_reset&widget=$widget"},
 							"Reset Selftest Status"
 						)
 					)
@@ -1971,7 +1971,7 @@ EO_HTML
 	if ( $AU->CheckAccessCmd("Table_Nodes_rw") )
 	{
 		my $url
-			= "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget&key="
+			= "$C->{'<cgi_url_base>'}/tables.pl?act=config_table_edit&table=Nodes&widget=$widget&key="
 			. uri_escape($node);
 		$editnode = qq| <a href="$url" id="cfg_nodes" style="color:white;">Edit Node</a>|;
 	}
@@ -1979,7 +1979,7 @@ EO_HTML
 	my $editconf;
 	if ( $AU->CheckAccessCmd("table_nodeconf_view") )
 	{
-		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?conf=$Q->{conf}&act=config_nodeconf_view&widget=$widget&node="
+		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?act=config_nodeconf_view&widget=$widget&node="
 			. uri_escape($node);
 		$editconf = qq| <a href="$url" id="cfg_nodecGfg" style="color:white;">Node Configuration</a>|;
 	}
@@ -2186,7 +2186,7 @@ EO_HTML
 
 		my $closemeurl
 				= url( -absolute => 1 )
-				. "?conf=$Q->{conf}&amp;act=network_node_view"
+				. "?act=network_node_view"
 				. "&amp;widget=$widget"
 				. "&amp;node="
 				. uri_escape($node);
@@ -2526,7 +2526,7 @@ EO_HTML
 					print Tr(
 						td( {class => 'info Plain'},
 							a(  {         href => url( -absolute => 1 )
-										. "?conf=$Q->{conf}&act=network_node_view&expand=true&node="
+										. "?act=network_node_view&expand=true&node="
 										. uri_escape($node)
 								},
 								"More graphs"
@@ -2590,7 +2590,7 @@ EO_HTML
 			my $thiswidth = int( 2 / 3 * $smallGraphWidth );
 
 			my $serviceurl
-				= "$C->{'<cgi_url_base>'}/services.pl?conf=$Q->{conf}&act=details&widget=$widget&node="
+				= "$C->{'<cgi_url_base>'}/services.pl?act=details&widget=$widget&node="
 				. uri_escape($node)
 				. "&service="
 				. uri_escape($servicename);
@@ -2996,7 +2996,7 @@ sub viewAllIntf
 					td(
 					{class => 'header', align => 'center'},
 					a(  {         href => url( -absolute => 1 )
-								. "?conf=$Q->{conf}&act=network_interface_view_all&refresh=$Q->{refresh}&widget=$widget&sort=$k&dir=$dir&active=$Q->{active}&node="
+								. "?act=network_interface_view_all&refresh=$Q->{refresh}&widget=$widget&sort=$k&dir=$dir&active=$Q->{active}&node="
 								. uri_escape($node)
 						},
 						$hdr[0]
@@ -3036,7 +3036,7 @@ sub viewAllIntf
 							{
 								$line = a(
 									{         href => url( -absolute => 1 )
-											. "?conf=$Q->{conf}&act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&intf=$intf&node="
+											. "?act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&intf=$intf&node="
 											. uri_escape($node)
 									},
 									$view{$intf}{$k}{value}
@@ -3154,7 +3154,7 @@ sub viewActivePort
 	}
 
 	# fixme gone
-	my $url = "network.pl?conf=$Q->{conf}&act=network_port_view&node=" . uri_escape($node);
+	my $url = "network.pl?act=network_port_view&node=" . uri_escape($node);
 
 	my $graphtype = ( $Q->{graphtype} eq '' ) ? $C->{default_graphtype} : $Q->{graphtype};
 
@@ -3227,7 +3227,7 @@ sub viewActivePort
 					td(
 					{class => 'header', align => 'center'},
 					a(  {         href => url( -absolute => 1 )
-								. "?conf=$Q->{conf}&act=network_port_view&sort=$k&dir=$dir&graphtype=$graphtype&node="
+								. "?act=network_port_view&sort=$k&dir=$dir&graphtype=$graphtype&node="
 								. uri_escape($node)
 						},
 						$hdr[0]
@@ -3240,7 +3240,7 @@ sub viewActivePort
 				push @out,
 					td(
 					{class => 'header', align => 'center'},
-					a(  {   href => "network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-in&node="
+					a(  {   href => "network.pl?act=network_port_view&graphtype=cbqos-in&node="
 								. uri_escape($node)
 						},
 						'CBQoS in'
@@ -3253,7 +3253,7 @@ sub viewActivePort
 				push @out,
 					td(
 					{class => 'header', align => 'center'},
-					a(  {   href => "network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-out&node="
+					a(  {   href => "network.pl?act=network_port_view&graphtype=cbqos-out&node="
 								. uri_escape($node)
 						},
 						'CBQoS out'
@@ -3295,7 +3295,7 @@ sub viewActivePort
 							{
 								$line = a(
 									{         href => url( -absolute => 1 )
-											. "?conf=$Q->{conf}&act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&intf=$intf&node="
+											. "?act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&intf=$intf&node="
 											. uri_escape($node)
 									},
 									$if->{value}
@@ -3550,7 +3550,7 @@ sub viewService
 			}
 
 			my $serviceurl
-				= "$C->{'<cgi_url_base>'}/services.pl?conf=$Q->{conf}&act=details&widget=$widget&node="
+				= "$C->{'<cgi_url_base>'}/services.pl?act=details&widget=$widget&node="
 				. uri_escape($node)
 				. "&service="
 				. uri_escape($servicename);
@@ -3646,7 +3646,7 @@ sub viewServiceList
 
 			my $url
 					= url( -absolute => 1 )
-					. "?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
+					. "?act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
 					. uri_escape($node);
 
 			print Tr(
@@ -3765,7 +3765,7 @@ sub viewCpuList
 
 	my $url
 		= url( -absolute => 1 )
-		. "?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
+		. "?act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
 		. uri_escape($node);
 
 	# instead of using this hammer we'll fall back to using getTypeInstances
@@ -3893,7 +3893,7 @@ sub viewStatus
 
 	my $url
 		= url( -absolute => 1 )
-		. "?conf=$Q->{conf}&act=network_status_view&refresh=$Q->{refresh}&widget=$widget&node="
+		. "?act=network_status_view&refresh=$Q->{refresh}&widget=$widget&node="
 		. uri_escape($node);
 	my $status_md = $nmisng_node->get_status_model();
 	if ( $status_md->count > 0 )
@@ -3919,7 +3919,7 @@ sub viewStatus
 				{
 					$elementLink = a(
 						{   href =>
-								"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$entry->{index}&refresh=$Q->{refresh}&widget=$widget&node="
+								"network.pl?act=network_interface_view&intf=$entry->{index}&refresh=$Q->{refresh}&widget=$widget&node="
 								. uri_escape($node)
 						},
 						$entry->{element}
@@ -4292,7 +4292,7 @@ sub viewOverviewIntf
 				td(
 				{class => 'info Plain'},
 				a(  {         href => url( -absolute => 1 )
-							. "?conf=$Q->{conf}&act=network_node_view&widget=$widget&node="
+							. "?act=network_node_view&widget=$widget&node="
 							. uri_escape($node)
 					},
 					$NT->{$node}{name}
@@ -4326,7 +4326,7 @@ sub viewOverviewIntf
 		print td(
 			{class => 'info Plain'},
 			a(  {         href => url( -absolute => 1 )
-						. "?conf=$Q->{conf}&act=network_interface_view&intf=$II->{$key}{ifIndex}&refresh=$Q->{refresh}&widget=$widget&node="
+						. "?act=network_interface_view&intf=$II->{$key}{ifIndex}&refresh=$Q->{refresh}&widget=$widget&node="
 						. uri_escape($node),
 				},
 				img( {src => "$C->{'<menu_url_base>'}/img/$icon", border => '0', width => '11', height => '10'} )
@@ -4476,7 +4476,7 @@ sub viewTop10
 		push @out_resp,
 			td(
 			{class => "info Plain $nodewrap"},
-			a(  {href => "network.pl?conf=$Q->{conf}&act=network_node_view&node=" . uri_escape($reportnode)},
+			a(  {href => "network.pl?act=network_node_view&node=" . uri_escape($reportnode)},
 				$reportnode
 			)
 			) . td( {class => 'info Plain', align => 'center'}, $reportTable{$reportnode}{response} );
@@ -4491,7 +4491,7 @@ sub viewTop10
 		push @out_cpu,
 			td(
 			{class => "info Plain $nodewrap"},
-			a(  {href => "network.pl?conf=$Q->{conf}&act=network_node_view&node=" . uri_escape($reportnode)},
+			a(  {href => "network.pl?act=network_node_view&node=" . uri_escape($reportnode)},
 				$reportnode
 			)
 			) . td( {class => 'info Plain', align => 'center'}, $cpuTable{$reportnode}{avgBusy5min} );
@@ -4540,13 +4540,13 @@ sub viewTop10
 		my $output = $1;
 		print Tr(
 			td( {class => "info Plain $nodewrap"},
-				a(  {href => "network.pl?conf=$Q->{conf}&act=network_node_view&node=" . uri_escape($reportnode)},
+				a(  {href => "network.pl?act=network_node_view&node=" . uri_escape($reportnode)},
 					$reportnode
 				)
 			),
 			td( {class => 'info Plain'},
 				a(  {   href =>
-							"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$intf&refresh=$Q->{refresh}&widget=$widget&node="
+							"network.pl?act=network_interface_view&intf=$intf&refresh=$Q->{refresh}&widget=$widget&node="
 							. uri_escape($reportnode)
 					},
 					$linkTable{$reportlink}{ifDescr}
@@ -4579,13 +4579,13 @@ sub viewTop10
 		my $intf       = $linkTable{$reportlink}{intf};
 		print Tr(
 			td( {class => "info Plain $nodewrap"},
-				a(  {href => "network.pl?conf=$Q->{conf}&act=network_node_view&node=" . uri_escape($reportnode)},
+				a(  {href => "network.pl?act=network_node_view&node=" . uri_escape($reportnode)},
 					$reportnode
 				)
 			),
 			td( {class => 'info Plain'},
 				a(  {   href =>
-							"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$intf&refresh=$Q->{refresh}&widget=$widget&node="
+							"network.pl?act=network_interface_view&intf=$intf&refresh=$Q->{refresh}&widget=$widget&node="
 							. uri_escape($reportnode)
 					},
 					$linkTable{$reportlink}{ifDescr}
@@ -4657,19 +4657,19 @@ sub nodeAdminSummary
 				"Node Admin Summary$extra ",
 				a(  {   style => "color:white;",
 						href  => url( -absolute => 1 )
-							. "?conf=$Q->{conf}&amp;act=node_admin_summary&refresh=$C->{page_refresh_time}&widget=$widget"
+							. "?act=node_admin_summary&refresh=$C->{page_refresh_time}&widget=$widget"
 					},
 					"All Nodes"
 				),
 				a(  {   style => "color:white;",
 						href  => url( -absolute => 1 )
-							. "?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget"
+							. "?act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget"
 					},
 					"All Information"
 				),
 				a(  {   style => "color:white;",
 						href  => url( -absolute => 1 )
-							. "?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"
+							. "?act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"
 					},
 					"Only Exceptions"
 				)
@@ -4879,14 +4879,14 @@ sub nodeAdminSummary
 
 				my $nodelink = a(
 					{   href => url( -absolute => 1 )
-									. "?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node="
+									. "?act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node="
 									. uri_escape($node),
 									id => "node_view_$idsafenode"
 					},
 					$LNT->{$node}{name}
 						);
 
-				#my $url = "network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
+				#my $url = "network.pl?act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
 				#a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
 				my $issues = join( "<br/>", @issueList );
 
@@ -4908,7 +4908,7 @@ sub nodeAdminSummary
 						td( {class => "info Plain"}, $nodelink ),
 						td( {class => 'info Plain'},
 								a(  {   href => url( -absolute => 1 )
-														. "?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"
+														. "?act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"
 										},
 										$LNT->{$node}{group}
 								)

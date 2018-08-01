@@ -1011,9 +1011,6 @@ sub do_force_login {
 	my($javascript);
 	my($err) = shift;
 
-	if( $config ne '' ){
-		$config = "&conf=$config";
-	}
 
 	my $url = CGI::url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";
 
@@ -1064,8 +1061,6 @@ sub do_logout {
 
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
-	# ensure the  conf argument is kept
-	param(conf=>$config) if ($config);
 	CGI::delete('auth_type'); 		# but don't keep that one
 	my $url = CGI::url(-full=>1, -query=>1);
 	$url =~ s!^[^:]+://!//!;
@@ -1073,7 +1068,7 @@ sub do_logout {
 	my $javascript = "function redir() { window.location = '" . $url ."'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
-	NMISNG::Util::logAuth("INFO logout of user=$self->{user} conf=$config");
+	NMISNG::Util::logAuth("INFO logout of user=$self->{user}");
 
 	print CGI::header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
 	#print start_html({

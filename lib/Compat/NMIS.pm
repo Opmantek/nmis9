@@ -1567,29 +1567,29 @@ sub createHrButtons
 	push @out, "<table class='table'><tr>\n";
 
 	# provide link back to the main dashboard if not in widget mode
-	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?conf=$confname"},
+	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?"},
 																												"NMIS $Compat::NMIS::VERSION"))
 			if (!NMISNG::Util::getbool($widget));
 
 	push @out, CGI::td({class=>'header litehead'},'Node ',
-										 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
+										 CGI::a({class=>'wht',href=>"network.pl?act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
 
 	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 	}
 
 	if (NMISNG::Util::getbool($catchall_data->{collect}))
 	{
 		my $status_md = $nmisng_node->get_status_model();
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
 			if $status_md->count > 0 and defined $C->{display_status_summary} and NMISNG::Util::getbool($C->{display_status_summary});
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if (defined $S->{mdl}{interface});
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
 
 		# this should potentially be querying for active/not-historic
@@ -1597,14 +1597,14 @@ sub createHrButtons
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
@@ -1612,11 +1612,11 @@ sub createHrButtons
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}
 		if ($S->getTypeInstances(graphtype => "hrsmpcpu")) {
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
 		}
 
 		# let's show the possibly many systemhealth items in a dropdown menu
@@ -1630,7 +1630,7 @@ sub createHrButtons
 				# don't show spurious blank entries
 				if ( @$ids > 0 )
 				{
-					push @out, CGI::li(CGI::a({ class=>'wht',  href=>"network.pl?conf=$confname&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
+					push @out, CGI::li(CGI::a({ class=>'wht',  href=>"network.pl?act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
 				}
 			}
 			push @out, "</ul></li></ul></td>";
@@ -1638,9 +1638,9 @@ sub createHrButtons
 	}
 
 	push @out, CGI::td({class=>'header litehead'},
-										 CGI::a({class=>'wht',href=>"events.pl?conf=$confname&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
+										 CGI::a({class=>'wht',href=>"events.pl?act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
 	push @out, CGI::td({class=>'header litehead'},
-										 CGI::a({class=>'wht',href=>"outages.pl?conf=$confname&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+										 CGI::a({class=>'wht',href=>"outages.pl?act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
 
 
 	# and let's combine these in a 'diagnostic' menu as well
@@ -1648,7 +1648,7 @@ sub createHrButtons
 
 	# drill-in for the node's collect/update time
 	push @out, CGI::li(CGI::a({class=>"wht",
-														 href=> "$C->{'<cgi_url_base>'}/node.pl?conf=$confname&act=network_graph_view&widget=false&node=$urlsafenode&graphtype=polltime",
+														 href=> "$C->{'<cgi_url_base>'}/node.pl?act=network_graph_view&widget=false&node=$urlsafenode&graphtype=polltime",
 														 target=>"_blank"},
 														"Collect/Update Runtime"));
 
@@ -1663,17 +1663,17 @@ sub createHrButtons
 	}
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?conf=$confname&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
+														 href=>"tools.pl?act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
 			if NMISNG::Util::getbool($C->{view_ping});
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?conf=$confname&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
+														 href=>"tools.pl?act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
 			if NMISNG::Util::getbool($C->{view_trace});
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?conf=$confname&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
+														 href=>"tools.pl?act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
 			if NMISNG::Util::getbool($C->{view_mtr});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?conf=$confname&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
+														 href=>"tools.pl?act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
 			if NMISNG::Util::getbool($C->{view_lft});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
@@ -1684,10 +1684,10 @@ sub createHrButtons
 
 	if ($catchall_data->{server} eq $C->{server_name}) {
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+											 CGI::a({class=>'wht',href=>"tables.pl?act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
 				if $catchall_data->{sysContact} ne '';
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+											 CGI::a({class=>'wht',href=>"tables.pl?act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
 				if $catchall_data->{sysLocation} ne '';
 	}
 
@@ -1715,7 +1715,7 @@ sub loadPortalCode {
 			my $selected;
 
 			if ( $P->{$p}{Link} =~ /cgi-nmis9/ ) {
-				$P->{$p}{Link} .= "?conf=$conf";
+				$P->{$p}{Link} .= "?";
 			}
 
 			if ( $ENV{SCRIPT_NAME} =~ /nmiscgi/ and $P->{$p}{Link} =~ /nmiscgi/ and $P->{$p}{Name} =~ /NMIS9/ ) {
@@ -1765,7 +1765,7 @@ sub loadServerCode {
 			next if $srv eq "localhost";
 
 			# If the link is part of NMIS, append the config
-			$serverOption .= qq|<option value="$ST->{$srv}{portal_protocol}://$ST->{$srv}{portal_host}:$ST->{$srv}{portal_port}$ST->{$srv}{cgi_url_base}/nmiscgi.pl?conf=$ST->{$srv}{config}">$ST->{$srv}{name}</option>\n|;
+			$serverOption .= qq|<option value="$ST->{$srv}{portal_protocol}://$ST->{$srv}{portal_host}:$ST->{$srv}{portal_port}$ST->{$srv}{cgi_url_base}/nmiscgi.pl?">$ST->{$srv}{name}</option>\n|;
 		}
 
 
@@ -1801,7 +1801,7 @@ sub loadTenantCode {
 		foreach my $t ( sort {$MT->{$a}{Name} cmp $MT->{$b}{Name}} keys %{$MT} ) {
 			# If the link is part of NMIS, append the config
 
-			$tenantOption .= qq|<option value="?conf=$MT->{$t}{Config}">$MT->{$t}{Name}</option>\n|;
+			$tenantOption .= qq|<option value="?">$MT->{$t}{Name}</option>\n|;
 		}
 
 

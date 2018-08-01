@@ -158,7 +158,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 
 	// get and display top menubar
 	$.ajax({
-		url			:	'menu.pl?conf=' + config + '&act=menu_bar_site',
+		url			:	'menu.pl?act=menu_bar_site',
 		async		: false,
 		dataType: "html",
 		type 		: 'GET',
@@ -180,7 +180,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 			logStart = 400;
 			createDialog({
 				id		: 'ntw_view',
-				url		: 'network.pl?conf=' + config + '&act=network_summary_view&refresh=' + widget_refresh,
+				url		: 'network.pl?act=network_summary_view&refresh=' + widget_refresh,
 				title	: 'Network Metrics and Health',
 				width : 720,
 				height: 320,
@@ -190,7 +190,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 		else {
 			createDialog({
 				id		: 'ntw_health',
-				url		: 'network.pl?conf=' + config + '&act=network_summary_health&refresh=' + widget_refresh,
+				url		: 'network.pl?act=network_summary_health&refresh=' + widget_refresh,
 				title	: 'Network Status and Health',
 				width : 850,
 				height: 300,
@@ -200,7 +200,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 
 		createDialog({
 			id		: 'ntw_metrics',
-			url		: 'network.pl?conf=' + config + '&act=network_summary_metrics&refresh=' + widget_refresh,
+			url		: 'network.pl?act=network_summary_metrics&refresh=' + widget_refresh,
 			title	: 'Metrics',
 			width	:	210,
 			position : [ 10 , 70 ]
@@ -208,7 +208,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 
 		createDialog({
 			id		: 'log_file_view',
-			url		: 'logs.pl?conf=' + config + '&act=log_file_view&lines=50&logname=' + logName + '&refresh=' + widget_refresh,
+			url		: 'logs.pl?act=log_file_view&lines=50&logname=' + logName + '&refresh=' + widget_refresh,
 			title	: 'Log of Network Events',
 			width : 950,
 			height: 380,
@@ -235,7 +235,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 	{
 		createDialog({
 			id       : 'cfg_setup',
- 			url      : 'setup.pl?conf=' + config + '&amp;act=setup_menu&amp;widget=true',
+ 			url      : 'setup.pl?amp;act=setup_menu&amp;widget=true',
 			title    : 'Basic Setup',
 			position : [ 5, 65 ]
 		});
@@ -917,7 +917,7 @@ function nodeInfoPanel(nodename) {
 
 	//var pserver = getServer();
 	//var url ='network.pl?act=network_node_view&refresh=60&node=' + nodename + '&server=' + pserver + '';
-	var url ='network.pl?act=network_node_view&conf=' + config + '&refresh=' + widget_refresh_glob +  '&node=' + encodeURIComponent(nodename) + '';
+	var url ='network.pl?act=network_node_view&refresh=' + widget_refresh_glob +  '&node=' + encodeURIComponent(nodename) + '';
 
 	// attention: the id must match what network.pl's selectLarge() uses!
 	var node = nodename.split(".", 1 )[0];
