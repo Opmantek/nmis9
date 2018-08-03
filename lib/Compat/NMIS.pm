@@ -387,8 +387,15 @@ sub nodeStatus
 
 # this is a variation of nodeStatus, which doesn't say why a node is degraded
 # args: system object (doesn't have to be init'd with snmp/wmi)
-# returns: hash of error (if dud args), overall (-1,0,1), snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
-# ping_enabled and ping_status, wmi_enabled and wmi_status, failover_status (0,1,undef if unknown/irrelevant)
+#
+# returns: hash of error (if dud args),
+#  overall (-1 deg, 0 down, 1 up),
+#  snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
+#  ping_enabled and ping_status (note: ping status is 1 if primary or backup address are up)
+#  wmi_enabled and wmi_status,
+#  failover_status (0 failover, 1 ok, undef if unknown/irrelevant)
+#  failover_ping_status (0 backup host is down, 1 ok, undef if irrelevant)
+#  primary_ping_status (0 primary host is down, 1 ok, undef if irrelevant
 sub PreciseNodeStatus
 {
 	my (%args) = @_;
@@ -414,12 +421,25 @@ sub PreciseNodeStatus
 									snmp_status => undef,
 									wmi_status => undef,
 									ping_status => undef,
-									failover_status => undef );
+									failover_status => undef, # 1 ok, 0 in failover, undef if unknown/irrelevant
+									failover_ping_status => undef, # 1 backup host is pingable, 0 not, undef unknown/irrelevant
+									primary_ping_status => undef,
+			);
 
-	$precise{ping_status} = ($node->eventExist("Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
+	my $downexists = $node->eventExist("Node Down");
+	my $failoverexists = $node->eventExist("Node Polling Failover");
+	my $backupexists = $node->eventExist("Backup Host Down");
+
+	$precise{ping_status} = ($downexists?0:1) if ($precise{ping_enabled}); # otherwise we don't care
 	$precise{wmi_status} = ($node->eventExist("WMI Down")?0:1) if ($precise{wmi_enabled});
 	$precise{snmp_status} = ($node->eventExist("SNMP Down")?0:1) if ($precise{snmp_enabled});
-	$precise{failover_status} = $node->eventExist("Node Polling Failover")? 0:1 if ($precise{snmp_enabled});
+
+	if ($node->configuration->{host_backup})
+	{
+		$precise{failover_status} = $failoverexists? 0:1;
+		$precise{primary_ping_status} = ($downexists || $failoverexists)? 0:1; # the primary is dead if all are dead or if we failed-over
+		$precise{failover_ping_status} = ($backupexists || $downexists)? 0:1; # the secondary is dead if known to be dead or if all are dead
+	}
 
 	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (!$precise{ping_enabled}
@@ -436,8 +456,10 @@ sub PreciseNodeStatus
 	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
-					or ($precise{snmp_enabled} and
-							(!$precise{snmp_status} or !$precise{failover_status})) )
+					or ($precise{snmp_enabled} and !$precise{snmp_status})
+					or (defined($precise{failover_status}) && !$precise{failover_status})
+					or (defined($precise{failover_ping_status}) && !$precise{failover_ping_status})
+			)
 	{
 		$precise{overall} = -1;
 	}

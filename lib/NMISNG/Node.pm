@@ -1295,13 +1295,28 @@ sub pingable
 	return ( $pingresult ? 1 : 0 );
 }
 
+# tiny helper that makes the down type vs. event name relationship available
+# args: none, returns: hash ref
+sub handle_down_eventnames
+{
+	return {
+		'snmp' => "SNMP Down",
+		'wmi'  => "WMI Down",
+		'node' => "Node Down",
+		'failover' => "Node Polling Failover",
+		'backup' => "Backup Host Down",
+	};
+}
 
 # create event for node that has <something> down, or clear said event (and state)
 # args: self, sys, type (all required), details (optional),
 # up (optional, set to clear event, default is create)
 #
-# currently understands snmp, wmi, node (=the whole node)
-# also updates <something>down flag in node info
+# currently understands snmp, wmi, node (=the whole node), 
+#  failover (=primary down, switching to backup address), 
+#  backup (=the host_backup address is down)
+#
+# also updates <something>down flag in node info for snmp, wmi and node.
 #
 # returns: nothing
 sub handle_down
@@ -1309,32 +1324,30 @@ sub handle_down
 	my ($self, %args) = @_;
 
 	my ($S, $typeofdown, $details, $goingup) = @args{"sys", "type", "details", "up"};
-	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|node)$/ );
+	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|node|failover|backup)$/ );
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	$goingup = NMISNG::Util::getbool($goingup);
 
-	my %eventnames = (
-		'snmp' => "SNMP Down",
-		'wmi'  => "WMI Down",
-		'node' => "Node Down"
-	);
-	my $eventname = $eventnames{$typeofdown};
+	my $eventname = &handle_down_eventnames->{$typeofdown};
 	$details ||= "$typeofdown error";
-
+	
 	my $eventfunc = ( $goingup ? \&Compat::NMIS::checkEvent : \&Compat::NMIS::notify );
 	&$eventfunc(
 		sys     => $S,
 		event   => $eventname,
-		element => '',
+		# use specific failover closing event name 
+		upevent => ($typeofdown eq "failover"? "Node Polling Failover Closed" : undef),
 		details => $details,
 		level   => ( $goingup ? 'Normal' : undef ),
-		context => {type => "node"},
-		inventory_id => $S->inventory( concept => 'catchall' )
-	);
-
-	$catchall_data->{"${typeofdown}down"} = $goingup ? 'false' : 'true';
-
+		context => {type => $typeofdown },
+		inventory_id => $S->inventory( concept => 'catchall' ),
+			);
+	
+	# no marker for the others
+	$catchall_data->{"${typeofdown}down"} = ($goingup ? 'false' : 'true') 
+			if ($typeofdown =~ /^(snmp|wmi|node)$/);
+	
 	return;
 }
 

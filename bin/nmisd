@@ -1540,8 +1540,11 @@ sub fping_loop
 				host => $noderec->{configuration}->{host},       # this is either the  primary or the secondary host/ip
 				policy => $noderec->{configuration}->{polling_policy} || 'default',
 			};
-			$thisstate->{has_sibling} = $thisstate->{uuid}
-			if (exists($multihomed{$thisstate->{uuid}})); # temporary property is present for both
+			if (exists($multihomed{$thisstate->{uuid}})) # temporary property is present for both
+			{
+				$thisstate->{has_sibling} = $thisstate->{uuid};
+				$thisstate->{is_primary} = $statekey =~ /:0$/?1:0;
+			}
 
 			# honor fixed ip address given
 			# fixme: fping doesn't do ipv6, we would have to use fping6 for that.
@@ -1662,10 +1665,6 @@ sub fping_loop
 			my $thisstate = $state{$statekey};
 			my $uuid = $thisstate->{uuid};
 
-			# check the event existence AND its currency!
-			my $event = $nmisng->events->event( node_uuid => $uuid, event => "Node Down" );
-			my $goingup;					# undef for none, 0 for down, 1 for up
-
 			# raise events when required, ie. new state
 			# note that multi-homed nodes are down IFF all ips are unreachable
 
@@ -1678,31 +1677,38 @@ sub fping_loop
 			}
 			elsif (!exists($thisstate->{loss}) or $thisstate->{loss} == 100)
 			{
+				my ($whatevent, $details);
 				my $fpingmsg = $thisstate->{loss}? "fping reported loss=$thisstate->{loss}%"
 						: "fping could not resolve host";
 
-				my $raisenodedown;
-				# not multihomed? normal down handling
+				# not multihomed? normal 'node down' handling
 				if (!$thisstate->{has_sibling})
 				{
 					$nmisng->log->debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, $fpingmsg.");
-					$raisenodedown = 1;
+					$whatevent = "node";
+					$details = "Ping failed: fping reported 100% ping loss";
 				}
-				# multihomed and all dead
+				# multihomed and all dead, node down'
 				elsif (List::Util::none { $_->{has_sibling} eq $thisstate->{has_sibling}
 																	&& $_->{loss} != 100 } (values %state))
 				{
 					$nmisng->log->debug("Node $thisstate->{name} ($thisstate->{ip} and all siblings) is NOT REACHABLE, $fpingmsg.");
-					$raisenodedown = 1;
+					$whatevent = "node";
+					$details = "Ping failed: both primary and backup address are unreachable";
 				}
-				# multihomed but somebody else is up
+				# multihomed but not all dead? different events for primary and backup address
 				else
 				{
 					$nmisng->log->debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, $fpingmsg, but other siblings are up.");
+					# node polling failover events are also raised by the snmp/wmi collect code, so clearing is race-y.
+					$whatevent = ($thisstate->{is_primary}? "failover": "backup");
+					$details = ($thisstate->{is_primary}?"Primary address":"Backup address")
+							." $thisstate->{ip} is unreachable (but the other one is up).";
 				}
-				if ($raisenodedown)
+
+				if ($whatevent)
 				{
-					# for unreachable/unresolvable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
+					# for unreachable/unresolvable nodes where we're caching the dns-ip association, we mark it as 'recheck dns'
 					# for fixed-ip nodes this is not relevant
 					undef $thisstate->{nextdns};
 					if (!exists $thisstate->{loss})
@@ -1715,34 +1721,62 @@ sub fping_loop
 
 						$thisstate->{nextping} = $now + $interval;
 					}
+
+					# let's check the event existence before instantiating node and sys objects
+					my $eventname = &NMISNG::Node::handle_down_eventnames->{$whatevent};
+					my $event = $nmisng->events->event( node_uuid => $uuid, event => $eventname );
 					if (!$event->exists)
 					{
-						# Device is DOWN, was up, and no entry in event database
-						$nmisng->log->debug("$uuid ($thisstate->{name}) is now DOWN, was UP, raising event");
-						$goingup = 0;
+						$nmisng->log->debug("$uuid ($thisstate->{name}) is DOWN, raising event $eventname");
+
+						my $node = $nmisng->node(uuid => $uuid);
+						my $sys = NMISNG::Sys->new;
+						$sys->init(node => $node, snmp => 0);
+
+						$node->handle_down( sys => $sys,
+																type => $whatevent,
+																up => 0,
+																details => $details);
+						$sys->inventory( concept => 'catchall' )->save; # handle_down may have changed something
 					}
 				}
 			}
 			else # node somewhat pingable, not 100% loss
 			{
 				$nmisng->log->debug("$uuid ($thisstate->{name}) ($thisstate->{ip}) is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
+				my $details = "Ping ok: fping reported $thisstate->{loss}% loss";
 
-				if ($event->exists && $event->active)
+				# what kind of event(s) do we have to cancel/close?
+				# if not multihomed, or multihomed (and at least one of primary/backup is up,
+				#  which is already certain when in this logic branch): node down
+				# plus, if multihomed: 'backup host down' for the backup, or 'node polling failover' for the primary
+				my @toclear = ("node");
+				push @toclear, ($thisstate->{is_primary}? "failover" : "backup") if ($thisstate->{has_sibling});
+
+				my ($sys, $node);
+				for my $clearme (@toclear)
 				{
-					# Device was down, is now UP
-					$logger->debug("$uuid ($thisstate->{name}) is now UP, was DOWN, closing event");
-					$goingup = 1;
-				}
-			}
+					my $eventname = &NMISNG::Node::handle_down_eventnames->{$clearme};
+					my $event = $nmisng->events->event( node_uuid => $uuid, event => $eventname );
 
-			# event-work required? then instantiate node (and sys) object and tell it to handle the up/down
-			if (defined $goingup)
-			{
-				my $node = $nmisng->node(uuid => $uuid);
-				my $sys = NMISNG::Sys->new;
-				$sys->init(node => $node, snmp => 0);
-				$node->handle_down( sys => $sys, type => "node", up => $goingup, details => "Ping failed");
-				$sys->inventory( concept => 'catchall' )->save; # we changed something
+					# any event-work required? then instantiate node (and sys) object and tell it to handle the up/down
+					if ($event->exists && $event->active)
+					{
+						$logger->debug("$uuid ($thisstate->{name}) is now UP, closing event $eventname");
+						if (!ref($node))
+						{
+							$node = $nmisng->node(uuid => $uuid);
+							$sys = NMISNG::Sys->new;
+							$sys->init(node => $node, snmp => 0);
+						}
+
+						$node->handle_down( sys => $sys,
+																type => $clearme,
+																up => 1,
+																details => $details);
+						$sys->inventory( concept => 'catchall' )->save; # handle_down may have changed something
+					}
+				}
 			}
 		}
 

@@ -2095,10 +2095,17 @@ EO_HTML
 				$color = "#0F0";
 			}
 		}
-		# skip if not present
+		# skip if not present, color up if state is known
 		elsif ($k eq "host_addr_backup")
 		{
 			next if (!defined $value or $value eq "");
+			$color = ($status{failover_ping_status}? "#00ff00" : "#ff0000") if (defined $status{failover_ping_status});
+		}
+		# color up if state is known - but select primary state tag if multihomed
+		elsif ($k eq "host_addr")
+		{
+			my $source = defined($status{failover_status})? 'primary_ping_status' : 'ping_status';
+			$color = ($status{$source}? "#00ff00" : "#ff0000") if (defined $status{$source});
 		}
 		# from outageCheck, neither nodeinfo nor view
 		elsif ($k eq 'outage')
@@ -2691,6 +2698,8 @@ sub viewInterface
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				 if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '2'},
@@ -2973,6 +2982,8 @@ sub viewAllIntf
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(
 			td( {class => 'Warning'},
@@ -3188,6 +3199,8 @@ sub viewActivePort
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(
 			td( {class => 'Warning'},
@@ -3388,6 +3401,8 @@ sub viewStorage
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				 if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 
 		print Tr(
@@ -3497,6 +3512,8 @@ sub viewService
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				 if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '3'},
@@ -3621,6 +3638,8 @@ sub viewServiceList
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '7'},
@@ -3753,6 +3772,8 @@ sub viewCpuList
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				 if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => '7'},
@@ -3864,6 +3885,8 @@ sub viewStatus
 		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				 if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(
 			td( {class => 'Warning', colspan => $colspan},
@@ -4073,6 +4096,8 @@ sub viewSystemHealth
 				push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
 				push @causes, "Node Polling Failover"
 						if (defined($status{failover_status}) && !$status{failover_status});
+				push @causes, "Backup Host Down"
+						if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 				print Tr(
 					td( {class => 'Warning', colspan => $colspan},

@@ -144,8 +144,18 @@
     'Log' => 'true',
     'Stateful' => 'true',
     'CancelingEvent' => 'Node Polling Failover Closed',
-    'Description' => 'SNMP has failed over to the host_backup address.',
-	},
+    'Description' => 'Ping or SNMP has failed over to the host_backup address.',
+  },
+
+  'Backup Host Down' => {
+    'Event' => 'Backup Host Down',
+		'Notify' => 'true',
+		'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'Backup Host Up',
+    'Description' => 'The host_backup address has become unreachable.',
+   },
 
   'Node Configuration Change' => {
     'Event' => 'Node Configuration Change',
