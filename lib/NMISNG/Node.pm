@@ -31,9 +31,9 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-use strict;
+our $VERSION = "1.4.0";
 
-our $VERSION = "1.3.0";
+use strict;
 
 use Module::Load 'none';
 use Carp::Assert;
@@ -1312,8 +1312,8 @@ sub handle_down_eventnames
 # args: self, sys, type (all required), details (optional),
 # up (optional, set to clear event, default is create)
 #
-# currently understands snmp, wmi, node (=the whole node), 
-#  failover (=primary down, switching to backup address), 
+# currently understands snmp, wmi, node (=the whole node),
+#  failover (=primary down, switching to backup address),
 #  backup (=the host_backup address is down)
 #
 # also updates <something>down flag in node info for snmp, wmi and node.
@@ -1331,23 +1331,23 @@ sub handle_down
 
 	my $eventname = &handle_down_eventnames->{$typeofdown};
 	$details ||= "$typeofdown error";
-	
+
 	my $eventfunc = ( $goingup ? \&Compat::NMIS::checkEvent : \&Compat::NMIS::notify );
 	&$eventfunc(
 		sys     => $S,
 		event   => $eventname,
-		# use specific failover closing event name 
+		# use specific failover closing event name
 		upevent => ($typeofdown eq "failover"? "Node Polling Failover Closed" : undef),
 		details => $details,
 		level   => ( $goingup ? 'Normal' : undef ),
 		context => {type => $typeofdown },
 		inventory_id => $S->inventory( concept => 'catchall' ),
 			);
-	
+
 	# no marker for the others
-	$catchall_data->{"${typeofdown}down"} = ($goingup ? 'false' : 'true') 
+	$catchall_data->{"${typeofdown}down"} = ($goingup ? 'false' : 'true')
 			if ($typeofdown =~ /^(snmp|wmi|node)$/);
-	
+
 	return;
 }
 
@@ -1356,17 +1356,14 @@ sub handle_down
 # it's also used by and scribbled over in various places, and needs synthesizing
 # from two separate properties in case of a wmi-only node.
 #
-# args: self
+# args:  catchall_data (should be live)
 # returns: nothing, but attempts to bake sysUpTime and sysUpTimeSec catchall properties
 # from whatever sys' nodeinfo structure contains.
 sub makesysuptime
 {
-	my ($self) = @_;
+	my ($self, $catchall_data) = @_;
 
-	my ($inv,$error) = $self->inventory( concept => 'catchall' );
-	return if (!$inv or $error);
-	my $catchall_data = $inv->data_live();
-	return if ( !$catchall_data );
+	return if (ref($catchall_data) ne "HASH");
 
 	# if this is wmi, we need to make a sysuptime first. these are seconds
 	# who should own sysUpTime, this needs to only happen if SNMP not available OMK-3223
@@ -1586,7 +1583,7 @@ sub update_node_info
 				{
 					# sysuptime is only a/v if snmp, with wmi we have synthesize it as wintime-winboottime
 					# it's also mangled on the go
-					$self->makesysuptime;
+					$self->makesysuptime($catchall_data);
 					$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
 
 					# fixme9 cannot work!
@@ -1596,7 +1593,7 @@ sub update_node_info
 					$catchall_data->{sysDescr} =~ s/\// /g;
 
 					# collect DNS location info.
-					$self->get_dns_location;
+					$self->get_dns_location($catchall_data);
 
 					# PIX failover test
 					$self->checkPIX( sys => $S );
@@ -1769,11 +1766,12 @@ sub collect_node_info
 	# clear any node reset indication from the last run
   delete $catchall_data->{admin}->{node_was_reset};
 
-	# save what we need now for check of this node
+	# capture previous states now for checking of this node
 	my $sysObjectID  = $catchall_data->{sysObjectID};
 	my $ifNumber     = $catchall_data->{ifNumber};
 	my $sysUpTimeSec = $catchall_data->{sysUpTimeSec};
 	my $sysUpTime    = $catchall_data->{sysUpTime};
+
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
 	my $loadsuccess = $S->loadInfo( class => 'system',
@@ -1852,7 +1850,7 @@ sub collect_node_info
 		}
 
 		# make a sysuptime from the newly loaded data for testing
-		$self->makesysuptime;
+		$self->makesysuptime($catchall_data);
 		if ( defined $catchall_data->{snmpUpTime} )
 		{
 			# add processing for SNMP Uptime- handle just like sysUpTime
@@ -1863,20 +1861,31 @@ sub collect_node_info
 		}
 
 		NMISNG::Util::info("sysUpTime: Old=$sysUpTime New=$catchall_data->{sysUpTime}");
-		if ( $catchall_data->{sysUpTimeSec} && $sysUpTimeSec > $catchall_data->{sysUpTimeSec} )
-		{
-			NMISNG::Util::info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$catchall_data->{sysUpTimeSec}");
-			Compat::NMIS::notify(
-				sys     => $S,
-				event   => "Node Reset",
-				element => "",
-				details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$catchall_data->{sysUpTime}",
-				context => {type => "node"}
-			);
 
-			# now stash this info in the catchall object, to ensure we insert ONE set of U's into the rrds
-			# so that no spikes appear in the graphs
-			$catchall_data->{admin}->{node_was_reset}=1;
+
+		# has that node really been reset or has the uptime counter wrapped at 497 days and change?
+		# sysUpTime is in 0.01s timeticks and 32 bit wide, so 497.1 days is all it can hold
+		my $newuptime = $catchall_data->{sysUpTimeSec};
+		if ($newuptime && $sysUpTimeSec > $newuptime)
+		{
+			if ($sysUpTimeSec >= 496*86400) # ie. old uptime value within one day of the rollover
+			{
+				$self->nmisng->log->info("Node $nodename: sysUpTime has wrapped after 497 days");
+			}
+			else
+			{
+				NMISNG::Util::info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$newuptime");
+				Compat::NMIS::notify(
+					sys     => $S,
+					event   => "Node Reset",
+					details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptime",
+					context => {type => "node"}
+						);
+
+				# now stash this info in the catchall object, to ensure we insert ONE set of U's into the rrds
+				# so that no spikes appear in the graphs
+				$catchall_data->{admin}->{node_was_reset}=1;
+			}
 		}
 
 		$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
@@ -3854,17 +3863,13 @@ sub handle_configuration_changes
 
 # find location from dns LOC record if configured to try (loc_from_DNSloc)
 # or fall back to syslocation if loc_from_sysLoc is set
-# args: none
+# args: catchall_data (should be live)
 # returns: 1 if if finds something, 0 otherwise
 sub get_dns_location
 {
-	my ($self, %args) = @_;
+	my ($self, $catchall_data) = @_;
 
-	my ($inv,$error) = $self->inventory( concept => 'catchall' );
-	return 0 if (!$inv or $error);
-	my $catchall_data = $inv->data_live();
 	my $C = $self->nmisng->config;
-
 	NMISNG::Util::dbg("Starting");
 
 	# collect DNS location info. Update this info every update pass.
@@ -7551,14 +7556,17 @@ sub collect_services
 		my $safeservice = lc($service);
 		$safeservice =~ s/[^a-z0-9\._]//g;
 
-		opendir( D, $C->{'<nmis_models>'} ) or die "cannot open models dir: $!\n";
-		my @cands = grep( /^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D) );
-		closedir(D);
+		# check for custom graphs only in the models dir, not models-default
+		if (opendir( D, $C->{'<nmis_models>'} ))
+		{
+			my @cands = grep( /^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D) );
+			closedir(D);
 
-		map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
-		$self->nmisng->log->debug2( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
+			map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
+			$self->nmisng->log->debug2( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
 
-		push @servicegraphs, @cands;
+			push @servicegraphs, @cands;
+		}
 
 		# now record the right storage subconcept-to-filename set in the inventory
 		my $knownones = $inventory->storage; # there's at least the main subconcept 'service'
