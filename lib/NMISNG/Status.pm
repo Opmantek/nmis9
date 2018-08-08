@@ -55,7 +55,7 @@ my %known_attrs = (
 	name => 1,
 	property => 1,
 	status => 1,
-	type => 1,	
+	type => 1,
 	value => 1,
 	class => 1,
 	lastupdate => 1
@@ -69,7 +69,7 @@ sub new
 
 	my $nmisng = $args{'nmisng'};
 	delete $args{nmisng};
-	
+
 	my $self = bless(
 		{   _nmisng => $nmisng,
 			data    => \%args
@@ -151,26 +151,27 @@ sub _query
 }
 
 
-# this will either delete the event or mark it as historic and set the expire_at
-#
+# deletes this status instance from the database
+# returns (1, message) or (0,error)
 sub delete
 {
 	my ($self) = @_;
 
-	return "Cannot delete a status entry that is already deleted" if( $self->{_deleted} );
+	# not error but message doesn't hurt
+	return (1, "Status entry already deleted") if ($self->{_deleted});
 
 	my $res = NMISNG::DB::remove(
 		collection => $self->nmisng->status_collection,
 		query      => $self->_query(),
 		just_one => 1
 	);
-	
-	return "Deleting of status entry failed: $res->{error}"
+
+	return (0, "Deleting of status entry failed: $res->{error}")
 		if ( !$res->{success} );
-	return "Deletion failed: no matching status entry found" if ( !$res->{removed_records} );
+	return (0, "Deletion failed: no matching status entry found") if ( !$res->{removed_records} );
 
 	$self->{_deleted} = 1;
-	return undef;	
+	return (1, undef);
 }
 
 # convenience function, makes api similar to inventory
@@ -179,7 +180,7 @@ sub delete
 sub id
 {
 	my ($self) = @_;
-	return $self->{data}{_id};	
+	return $self->{data}{_id};
 }
 
 # is this thing an alert? there should be a better way to do this, alerts
@@ -241,7 +242,7 @@ sub save
 sub updated
 {
 	my ($self) = @_;
-	die "this has been changed to lastupdate";	
+	die "this has been changed to lastupdate";
 }
 
 # returns (1,nothing) if the node configuration is valid,
