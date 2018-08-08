@@ -68,6 +68,9 @@ my $C;
 if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 NMISNG::rrdfunc::require_RRDs(config=>$C);
 
+my $NT = Compat::NMIS::loadLocalNodeTable();
+my $GT = Compat::NMIS::loadGroupTable(only_configured => 1);
+
 # if no options, assume called from web interface ....
 my $outputfile;
 if ( @ARGV )
@@ -163,8 +166,6 @@ sub healthReport {
 	}
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-	my $GT = Compat::NMIS::loadGroupTable();
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -181,6 +182,7 @@ sub healthReport {
 	foreach my $reportnode (sort keys %{$NT})
 	{
 		next if (defined $AU && !$AU->InGroup($NT->{$reportnode}{group}));
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 		next if (!NMISNG::Util::getbool($NT->{$reportnode}{active}));
 
 		my $S = NMISNG::Sys->new;
@@ -366,9 +368,6 @@ sub availReport
 	my %reportTable;
 	my %summaryTable;
 
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-	my $GT = Compat::NMIS::loadGroupTable();
-
 	#start of page
 	if (not $Q->{print})
 	{
@@ -401,6 +400,7 @@ sub availReport
 	foreach my $reportnode (keys %{$NT})
 	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) )
 		{
 			my $S = NMISNG::Sys->new;
@@ -455,6 +455,7 @@ sub availReport
 	foreach my $reportnode (NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir))
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 		my $thisnoderep = $reportTable{$reportnode};
 
 		print Tr(
@@ -504,8 +505,11 @@ sub portReport
 	my %interfaceInfo = %{$II}; # copy
 
 	# Get each of the interface info in a HASH for playing with
-	foreach my $intHash (keys %interfaceInfo) {
+	foreach my $intHash (keys %interfaceInfo)
+	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$interfaceInfo{$intHash}{node}}{group})};
+		next if (!exists $GT->{ $NT->{$interfaceInfo{$intHash}->{node} }->{group} });
+
 		++$portCount{Total}{totalportcount};
 		if ( NMISNG::Util::getbool($interfaceInfo{$intHash}{real})  ) {
 			++$portCount{Total}{realportcount};
@@ -658,9 +662,6 @@ sub responseReport
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-	my $GT = Compat::NMIS::loadGroupTable();
-
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
 		print Tr(td({class=>'error'},'Illegal time values'));
@@ -672,8 +673,11 @@ sub responseReport
 
 	my $header = "Reponse Time Summary from $datestamp_start to $datestamp_end";
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $reportnode (keys %{$NT}) {
+	foreach my $reportnode (keys %{$NT})
+	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
 		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) )
 		{
 			my $S = NMISNG::Sys->new;
@@ -741,6 +745,7 @@ sub responseReport
 	foreach my $reportnode ( NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir))
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 
 		my $thisnoderep = $reportTable{$reportnode};
 
@@ -790,6 +795,7 @@ sub timesReport
 	foreach my $reportnode (keys %{$NT})
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 
 		if ( NMISNG::Util::getbool($NT->{$reportnode}->{active}) )
 		{
@@ -924,8 +930,6 @@ sub top10Report
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-	my $GT = Compat::NMIS::loadGroupTable();
 	my $II = Compat::NMIS::loadInterfaceInfo(); # all interfaces of all local nodes
 
 	my ($time_elements,$start,$end) = getPeriod();
@@ -944,6 +948,7 @@ sub top10Report
 	foreach my $reportnode ( keys %{$NT} )
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 
 		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) )
 		{
@@ -999,6 +1004,8 @@ sub top10Report
 			{
 				next unless $AU->InGroup( $NT->{$interfaceInfo{$int}{node}}->{group} );
 			};
+			next if (!exists $GT->{ $NT->{ $interfaceInfo{$int}->{node} }->{group} });
+
 			# availability, inputUtil, outputUtil, totalUtil
 			my $tmpifDescr = NMISNG::Util::convertIfName($interfaceInfo{$int}{ifDescr});
 			my $intf = $interfaceInfo{$int}{ifIndex};
@@ -1122,6 +1129,7 @@ sub top10Report
 	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'response','rev'))
 	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 
 		my $thisnoderep = $reportTable{$reportnode};
 
@@ -1150,6 +1158,7 @@ sub top10Report
 	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'loss','rev'))
 	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
 
 		my $thisnoderep = $reportTable{$reportnode};
 		last if $thisnoderep->{loss} == 0;	# early exit if rest are zero.
@@ -1177,8 +1186,11 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'avgBusy5min','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'avgBusy5min','rev'))
+	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1202,8 +1214,11 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'ProcMemUsed','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'ProcMemUsed','rev'))
+	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
 		$cpuTable{$reportnode}{ProcMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1227,8 +1242,11 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'IOMemUsed','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'IOMemUsed','rev'))
+	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
 		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1253,9 +1271,12 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportlink ( NMISNG::Util::sortall(\%linkTable,'totalUtil','rev')) {
+	for my $reportlink ( NMISNG::Util::sortall(\%linkTable,'totalUtil','rev'))
+	{
 		last if $linkTable{$reportlink}{inputUtil} and $linkTable{$reportlink}{outputUtil} == 0;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$linkTable{$reportlink}{node}}{group}) };
+		next if (!exists $GT->{ $NT->{ $linkTable{$reportlink}->{node} }->{group} });
+
 		my $reportnode = $linkTable{$reportlink}{node} ;
 		$linkTable{$reportlink}{inputUtil} =~ /(^\d+)/;
 		my $input = $1;
@@ -1291,6 +1312,8 @@ sub top10Report
 		last if $linkTable{$reportlink}{inputBits} and $linkTable{$reportlink}{outputBits} == 0;
 		my $reportnode = $linkTable{$reportlink}{node} ;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
 		$linkTable{$reportlink}{Description} = '' if $linkTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1322,6 +1345,8 @@ sub top10Report
 		last if $pktsTable{$reportlink}{totalDiscardsErrors} == 0;	# early exit if rest are zero.
 		my $reportnode = $pktsTable{$reportlink}{node} ;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
 		$pktsTable{$reportlink}{Description} = '' if $pktsTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1349,6 +1374,8 @@ sub top10Report
 	for my $reportlink ( NMISNG::Util::sortall(\%downTable,'ifLastChange','rev')) {
 		my $reportnode = $downTable{$reportlink}{node} ;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
+		next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
 		$downTable{$reportlink}{Description} = '' if $downTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1525,6 +1552,9 @@ sub outageReport
 			my $color = NMISNG::Util::colorTime($logreport{$index}{outime});
 			my $reportnode = $logreport{$index}{node} ;
 			if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
+			next if (!exists $GT->{ $NT->{$reportnode}->{group} });
+
+
 			print Tr(
 				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},NMISNG::Util::returnDateStamp($logreport{$index}{time})),
 				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},
@@ -1566,9 +1596,6 @@ sub nodedetailsReport {
 		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 		return;
 	}
-
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-	my $GT = Compat::NMIS::loadGroupTable();
 
 	# this will launch Excel - as it is the default application handler for .csv files
 	print "Content-type: application/octet-stream;\n";

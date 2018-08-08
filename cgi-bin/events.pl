@@ -216,7 +216,6 @@ sub displayEvents
 
 	my $C = NMISNG::Util::loadConfTable();
 	my $NT = Compat::NMIS::loadNodeTable();
-	my $GT = Compat::NMIS::loadGroupTable();
 
 	# header
 	print Tr(th({class=>'title',colspan=>'10'},"$server Event List"));

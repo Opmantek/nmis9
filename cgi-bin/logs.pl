@@ -139,14 +139,15 @@ my $LL;		# global ref to conf/Logs.xxxx configuration file
 # Therefore, create a hash, keyed by name records, values being the node key.
 ## TBD - add the node sysName in here, as a log source address could be it's sysname.
 my $NT = Compat::NMIS::loadNodeTable();
+my $GT = Compat::NMIS::loadGroupTable(only_configured => 1);
 my $NN;
 foreach my $k ( keys %{$NT} ) {
+	next if (!exists ($GT->{$NT->{$k}->{group}})); # skip nodes whose group isn't a configured one
 	$NN->{ $NT->{$k}{name} } = $k;			# create reference to node file key in new hash by name
 	$NN->{ $NT->{$k}{host} } = $k;			# create reference to node file key in new hash by host
 	$NN->{ $k } = $k;										# create reference to node file key in new hash by node file key
 }
 
-my $GT = Compat::NMIS::loadGroupTable();
 my $logFileName;						# this gets set to the full qualified filename in conf/Logs.xxxx config fiel
 
 # defaults
@@ -810,7 +811,10 @@ sub outputLine {
 
 	### 2012-08-29 keiths, enabling Authentication if group not blank
 	# Rule 3: if Authentication enabled, only print if user enabled for select Group
-	if ( $NT->{$logNode}{group} ne "" and $AU->Require and not $AU->InGroup($NT->{$logNode}{group}) ) { return 0 }
+	# same for recognised node whose group is not a configured one
+	return 0
+			if ( $NT->{$logNode}{group} ne "" and (( $AU->Require and not $AU->InGroup($NT->{$logNode}{group}))
+																						 or !$GT->{$NT->{$logNode}->{group}}));
 
 	if ( NMISNG::Util::getbool($C->{syslogDNSptr}) and (lc $logName eq "cisco_syslog")) {
 		# have a go at finding out the hostname for any ip address that may have been referenced in the log.

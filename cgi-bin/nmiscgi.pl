@@ -200,42 +200,41 @@ my $logName = $Q->{logname} || 'Event_Log';
 my $NT = Compat::NMIS::loadNodeTable(); # load node table
 my $NSum = Compat::NMIS::loadNodeSummary();
 
-#Only show authorised nodes in the list.
-my $auth;
+# Only show authorised nodes in the list - and only if members of configured groups!
 
 my @valNode;
-for my $node ( sort keys %{$NT}) {
-	$auth = 1;
-	if ($AU->Require) {
+my %configuredgroups = map { $_ => 1 } (split(/\s*,\s*/, $C->{group_list}));
+
+for my $node ( sort keys %{$NT})
+{
+	my $auth = 1;
+
+	if ($AU->Require)
+	{
 		my $lnode = lc($NT->{$node}{name});
-		if ( $NT->{$node}{group} ne "" ) {
+		if ( $NT->{$node}{group} ne "" )
+		{
 			if ( not $AU->InGroup($NT->{$node}{group}) ) {
 				$auth = 0;
 			}
 		}
-		else {
-			NMISNG::Util::logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.")
+		else
+		{
+			NMISNG::Util::logMsg("WARNING ($node) not able to find correct group for node!");
 		}
 	}
-	if ($auth) {
-		if ( NMISNG::Util::getbool($NT->{$node}{active}) ) {
-			push @valNode, $NT->{$node}{name};
-		}
-	}
+
+	# to be included node must be ok to see, active and belonging to a configured group
+	push @valNode, $NT->{$node}{name} if ($auth
+																				&& NMISNG::Util::getbool($NT->{$node}->{active})
+																				&& $configuredgroups{$NT->{$node}->{group}});
 }
-# my $jsNode = encode_json(\@valNode );
-# print script("namesAll = ".$jsNode);
 
 # upload list of nodenames that match predefined criteria
 # @header is list of criteria - in display english and sentence case etc.
 # @nk is the matching hash key
 my @header=( 'Type', 'Vendor', 'Model', 'Role', 'Net', 'Group');
 my @nk =( 'nodeType', 'nodeVendor', 'nodeModel', 'roleType', 'netType', 'group');
-# init the hash
-# my %NS = ();
-# foreach ( @header ) {
-# 	$NS{$_} = ();
-# }
 
 # read the hash - note al filenames are lowercase - loadTable should take care of this
 # list of nodes is already authorised, just load the details.

@@ -120,6 +120,11 @@ NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Begin act=$Q->{act}" ) if 
 
 my $nmisng = Compat::NMIS::new_nmisng;
 
+# these need loading before the yucky if selection below, which is terminal for some acts
+my $NT = Compat::NMIS::loadNodeTable();
+my $GT = Compat::NMIS::loadGroupTable(only_configured => 1);
+
+
 # select function
 my $select;
 
@@ -292,10 +297,6 @@ else
 Compat::NMIS::pageStartJscript( title => "NMIS Network Status - $C->{server_name}", refresh => $Q->{refresh} )
 	if ( !$wantwidget );
 
-NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Load Nodes and Groups" ) if $timing;
-
-my $NT = Compat::NMIS::loadNodeTable();
-my $GT = Compat::NMIS::loadGroupTable();
 
 # graph request
 my $ntwrk = ( $select eq 'large' ) ? 'network' : ( $Q->{group} eq '' ) ? 'network' : $Q->{group};
@@ -1768,9 +1769,6 @@ sub viewMetrics
 		return;
 	}
 
-	#prepend the network group!
-	#my @grouplist = split(",","network,$C->{group_list}");
-	my $GT        = Compat::NMIS::loadGroupTable;
 	my @grouplist = values %{$GT};
 	my @groups    = grep { $AU->InGroup($_) } sort (@grouplist);
 
@@ -1873,7 +1871,7 @@ sub viewNode
 		print "The requested node does not exist.";
 		return;
 	}
-	if ( !$AU->InGroup( $configuration->{group} ) )
+	if ( !$AU->InGroup( $configuration->{group} ) or !exists $GT->{$configuration->{group}} )
 	{
 		print "You are not authorized for this request! (group=$configuration->{group})";
 		return;
@@ -2653,7 +2651,7 @@ sub viewInterface
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}} )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -2918,7 +2916,7 @@ sub viewAllIntf
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}}  )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3126,7 +3124,7 @@ sub viewActivePort
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 	my $M  = $S->mdl;
 
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}}  )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3371,7 +3369,7 @@ sub viewStorage
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}} )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3477,7 +3475,7 @@ sub viewService
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}} )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3605,7 +3603,7 @@ sub viewServiceList
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}} )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3739,7 +3737,7 @@ sub viewCpuList
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}} )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3853,7 +3851,7 @@ sub viewStatus
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $catchall_data->{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) or !exists $GT->{$catchall_data->{group}} )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -4002,7 +4000,7 @@ sub viewSystemHealth
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $nmisng_node->configuration()->{group} ) )
+	if ( !$AU->InGroup( $nmisng_node->configuration()->{group} ) or !exists $GT->{$catchall_data->{group}} )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -4204,9 +4202,7 @@ sub viewOverviewIntf
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $NT     = Compat::NMIS::loadNodeTable();
 	my $II     = Compat::NMIS::loadInterfaceInfo(); # fixme9: slow and wasteful...
-	my $GT     = Compat::NMIS::loadGroupTable();
 	my $ii_cnt = keys %{$II};
 
 	my $gr_menu = "";
@@ -4219,7 +4215,6 @@ sub viewOverviewIntf
 
 	if ( $ii_cnt > 1000 )
 	{
-		my $GT = Compat::NMIS::loadGroupTable();
 		my @groups = ( '', sort keys %{$GT} );
 		$gr_menu = td(
 			{class => 'header', colspan => '1'},
@@ -4307,7 +4302,7 @@ sub viewOverviewIntf
 	foreach my $key ( NMISNG::Util::sortall2( $II, 'node', 'ifDescr', 'fwd' ) )
 	{
 		next if $Q->{group} ne '' and $NT->{$II->{$key}{node}}{group} ne $Q->{group};
-		next unless $AU->InGroup( $NT->{$II->{$key}{node}}{group} );
+		next if (!$AU->InGroup($NT->{$II->{$key}{node}}{group}) or !exists $GT->{$NT->{$II->{$key}{node}}{group}});
 		if ( $II->{$key}{node} ne $node )
 		{
 			print end_Tr if $node ne '';
@@ -4372,8 +4367,6 @@ sub viewTop10
 
 	print '<!-- Top10 report start -->';
 
-	my $NT = Compat::NMIS::loadNodeTable();
-	my $GT = Compat::NMIS::loadGroupTable();
 
 	my $start           = time() - ( 15 * 60 );
 	my $end             = time();
@@ -4389,7 +4382,7 @@ sub viewTop10
 
 	foreach my $reportnode ( keys %{$NT} )
 	{
-		next unless $AU->InGroup( $NT->{$reportnode}{group} );
+		next if (!$AU->InGroup( $NT->{$reportnode}{group}) or !exists $GT->{$NT->{$reportnode}{group}});
 		if ( NMISNG::Util::getbool( $NT->{$reportnode}{active} ) )
 		{
 			my $S  = NMISNG::Sys->new;
@@ -4649,7 +4642,7 @@ sub nodeAdminSummary
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$group - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( $group ne "" and !$AU->InGroup($group) )
+	if ( $group ne "" and !$AU->InGroup($group)  or !exists $GT->{$group})
 	{
 		print 'You are not authorized for this request';
 	}
@@ -4715,6 +4708,7 @@ sub nodeAdminSummary
 		foreach my $node ( sort keys %{$LNT} )
 		{
 			if ( $AU->InGroup( $LNT->{$node}{group} )
+					 and exists($GT->{ $LNT->{$node}{group} })
 					 and ( $group eq "" or $group eq $LNT->{$node}{group} ) )
 			{
 				my $intCollect = 0;
