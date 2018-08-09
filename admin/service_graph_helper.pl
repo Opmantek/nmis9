@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2018 Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
@@ -35,7 +35,7 @@
 #
 # this helper guides you through the process of creating custom graphs
 # for such services.
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -50,7 +50,8 @@ use lib "$FindBin::RealBin/../lib";
 use File::Basename;
 use JSON::XS;
 use Data::Dumper;
-use UI::Dialog;
+use UI::Dialog 1.13;
+use version 0.77;
 
 use NMISNG::Util;
 use Compat::NMIS;
@@ -60,7 +61,7 @@ my $bn = basename($0);
 my $usage = "Usage: $bn [debug=true] {--version}\n\n";
 
 die $usage if (@ARGV == 1 and $ARGV[0] =~ /^--?[h?]/);
-my %args = NMISNG::Util::getArguements(@ARGV);
+my %args = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
 # get us a common config first
 my $config = NMISNG::Util::loadConfTable(dir=>"$FindBin::RealBin/../conf",
@@ -71,7 +72,7 @@ die "could not load configuration!\n"
 my $dia = UI::Dialog->new('title' => "Service Graph Helper",
 													height => 20,
 													width =>  70,
-													listheight => 15, order => [ 'cdialog', 'ascii']); # whiptail/newt doesn't behave well
+													listheight => 15, order => [ 'cdialog', 'whiptail', 'ascii']);
 
 $dia->msgbox("text" => "This helper will guide you through the creation
 of a simple custom graph for an custom NMIS service.
@@ -83,7 +84,7 @@ die "User cancelled operation.\n" if ($dia->state ne "OK");
 
 my %allsvc = Compat::NMIS::loadServiceStatus;
 # only interested in this server's services!
-%allsvc = %{$allsvc{$config->{server_name}}} if (ref($allsvc{$config->{server_name}}) eq "HASH");
+%allsvc = %{$allsvc{$config->{cluster_id}}} if (ref($allsvc{$config->{cluster_id}}) eq "HASH");
 
 
 my $servicesel = $dia->menu( text => "Please select the service you want to graph:",
@@ -171,14 +172,14 @@ my %graph = ( title => { standard => '$node - $length from $datestamp_start to $
 # ask for: titles (with default)
 my $newtitle = $dia->inputbox( text => "Please set the new graph title below. This is full-sized graphs.
 NMIS-variables written as \"\$varname\" will be substituted.",
-															 entry => escape($graph{title}->{standard}) );
+															 entry => $graph{title}->{standard} );
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 $graph{title}->{standard} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/
 																					and $newtitle ne $graph{title}->{standard});
 
 $newtitle = $dia->inputbox( text => "Please set the new graph title below. This is for small graphs.
 NMIS-variables written as \"\$varname\" will be substituted.",
-															 entry => escape($graph{title}->{short}) );
+															 entry => $graph{title}->{short} );
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 $graph{title}->{short} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/
 																			 and $newtitle ne $graph{title}->{short});
@@ -305,8 +306,10 @@ $safeservice =~ s/[^a-z0-9\._]//g;
 
 my $graphname = "service-custom-$safeservice-$shortname";
 
-# nmis_models is the dir for custom models
+# nmis_models is the dir for custom models and graphs
 my $modeldir = $config->{'<nmis_models>'};
+NMISNG::Util::createDir($modeldir) if (!-d $modeldir);
+
 my $savefilename = "$modeldir/Graph-$graphname.nmis";
 my $tempfilewarning;
 
@@ -348,13 +351,3 @@ For further graphing and modelling info, please check out https://community.opma
 }
 
 exit 0;
-
-
-#  ui::dialog doesn't escape current values :-(
-sub escape
-{
-	my ($input) = @_;
-
-	$input =~ s/\$/\\\$/g;
-	return $input;
-}
