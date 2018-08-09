@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "1.4.0";
+our $VERSION = "1.5.0";
 
 use strict;
 
@@ -3916,7 +3916,7 @@ sub get_dns_location
 	return 0;
 }
 
-# retrieve system health index data from snmp, done during update
+# retrieve system health index data from snmp/wmi, done during update
 # args: self, sys
 # returns: 1 if all present sections worked, 0 otherwise
 # note: raises xyz down events if snmp or wmi are down
@@ -4062,6 +4062,22 @@ sub collect_systemhealth_info
 			{
 				NMISNG::Util::dbg("section=$section index=$index_var, found value=$indexvalue");
 
+				# allow disabling of collection for this instance,
+				# based on regex match against the index value
+				if (ref($thissection->{nocollect}) eq "HASH"
+						&& defined($thissection->{nocollect}->{$index_var}))
+				{
+					# this supports both 'nocollect' => { 'first' => qr/somere/i, 'second' => 'plaintext' }
+					my $rex = ref($thissection->{nocollect}->{$index_var}) eq "Regexp"?
+							$thissection->{nocollect}->{$index_var} : qr/$thissection->{nocollect}->{$index_var}/;
+
+					if ($indexvalue =~ $rex)
+					{
+						NMISNG::Util::dbg("nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping");
+						next;
+					}
+				}
+
 				# save the seen index value
 				my $target = {$index_var => $indexvalue};
 
@@ -4153,9 +4169,26 @@ sub collect_systemhealth_info
 					{
 						$index = $1;
 					}
-					$healthIndexNum{$index} = $index;
-					NMISNG::Util::dbg("section=$section index=$index is found, value=$healthIndexTable->{$oid}");
-					$targets->{$index}{$index_var} = $healthIndexTable->{$oid};
+					my $indexvalue = $healthIndexNum{$index} = $index;
+					NMISNG::Util::dbg("section=$section index=$index is found, value=$indexvalue");
+
+					# allow disabling of collection for this instance,
+					# based on regex match against the index value
+					if (ref($thissection->{nocollect}) eq "HASH"
+							&& defined($thissection->{nocollect}->{$index_var}))
+					{
+						# this supports both 'nocollect' => { 'first' => qr/somere/i, 'second' => 'plaintext' }
+						my $rex = ref($thissection->{nocollect}->{$index_var}) eq "Regexp"?
+								$thissection->{nocollect}->{$index_var} : qr/$thissection->{nocollect}->{$index_var}/;
+
+						if ($indexvalue =~ $rex)
+						{
+							NMISNG::Util::dbg("nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping");
+							next;
+						}
+					}
+
+					$targets->{$index}{$index_var} = $indexvalue;
 				}
 			}
 			else
