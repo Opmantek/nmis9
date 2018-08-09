@@ -29,7 +29,7 @@
 #
 # this module queries WMI services via the standalone wmic executable
 package NMISNG::WMI;
-our $VERSION = "2.2.0";
+our $VERSION = "2.3.0";
 
 use strict;
 use File::Temp;
@@ -215,7 +215,20 @@ sub _run_query
 
 		# -A format is badly documented. smbclient manpage has a little bit of info
 		# however, unclear if that password can be quoted or contain spaces or the like...
-		print $authfh "username = $self->{username}\n";
+
+		# let's accept usernames with domains, as user@domain or domain/user
+		if ($self->{username} =~ m!^([^/@]+)([/@])(.+)$!)
+		{
+			my ($user,$delim,$domain) = ($1,$2,$3);
+			($user,$domain) = ($domain,$user) if ($delim eq "/");
+
+			print $authfh "username = $user\ndomain = $domain\n";
+		}
+		else
+		{
+			print $authfh "username = $self->{username}\n";
+		}
+
 		print $authfh "password = $self->{password}\n" if ($self->{password});
 		close $authfh;
 
