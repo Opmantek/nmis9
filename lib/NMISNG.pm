@@ -1314,10 +1314,8 @@ sub find_due_nodes
 				{
 					$nexttry = ( $lasttry // $now) + 86400 * $fudgefactor;
 
-					# log the demotion situation but not more than once an hour
-					$self->log->info( "Node $nodename has no valid nodeModel, never polled successfully, "
-							. "past demotion grace window (started at $graceperiod_start) so demoted to frequency once daily, last $whichop attempt $lasttry, next $nexttry"
-					) if ( 0 == int( ( ( $now - $lasttry ) % 3600 ) / 60 ) );
+					$self->log->debug( "Node $nodename has no valid nodeModel, never polled successfully, "
+														 . "past demotion grace window (started at $graceperiod_start) so demoted to frequency once daily, last $whichop attempt $lasttry, next $nexttry");
 				}
 
 				$self->log->debug(
