@@ -612,7 +612,7 @@ sub updateRRD
 		}
 	}
 
-	my (@options, @ds);
+	my (@updateargs, @ds, %blankme);
 	my @values = ("N");							# that's 'reading is for Now'
 
 	# ro clone is good enough. fixme9: non-node mode is an ugly hack
@@ -620,6 +620,25 @@ sub updateRRD
 
 	# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
 	NMISNG::Util::dbg("node was reset, inserting U values") if ($catchall->{admin}->{node_was_reset});
+
+
+	# if the node has gone through a reset, then insert a U to avoid spikes for all COUNTER-ish DS
+	if ($catchall->{admin}->{node_was_reset})
+	{
+		NMISNG::Util::dbg("node was reset, inserting U values");
+
+		# get the DS definitions, extract the DS types and mark the counter-ish ones as blankable
+		for (grep(/^DS:/, optionsRRD(data=>$data, sys=>$S, type=>$type, index=>$index)))
+		{
+			my (undef, $dsid, $dstype) = split(/:/, $_);
+			if ($dstype ne "GAUGE")         # basically anything non-gauge is counter-ish
+			{
+				NMISNG::Util::dbg("marking DS $dsid in $type as blankable, DS type $dstype");
+				$blankme{$dsid} = 1;
+			}
+		}
+	}
+	# similar to the node reset case, but this also blanks GAUGE DS
 	NMISNG::Util::dbg("node has current outage with nostats option, inserting U values")
 			if ($catchall->{admin}->{outage_nostats});
 
@@ -631,11 +650,15 @@ sub updateRRD
 			NMISNG::Util::dbg("DS $var is marked as nosave, not saving to RRD", 3);
 			next;
 		}
-
 		push @ds, $var;
+
+		# in outage with nostats option active?
+		# then all rrds INCL health but EXCEPT health's outage/polltime/updatetime DS are overwritten
+		# or was the node reset? then all known-blankable DS are overwritten
 		# type health, ds outage, polltime, updatetime: are never overridden
-		if ( ($catchall->{admin}->{node_was_reset} or $catchall->{admin}->{outage_nostats})
-				 and ($type ne "health" or  $var !~ /^(outage|polltime|updatetime)$/))
+		if ( ($catchall->{admin}->{node_was_reset} and $blankme{$var})
+				 or ($catchall->{admin}->{outage_nostats}
+						 and ($type ne "health" or  $var !~ /^(outage|polltime|updatetime)$/)))
 		{
 			push @values, 'U';
 		}
@@ -661,7 +684,7 @@ sub updateRRD
 	}
 	my $thevalue =  join(":",@values);
 	my $theds = join(":",@ds);
-	push @options,("-t", $theds, $thevalue);
+	push @updateargs,("-t", $theds, $thevalue);
 
 	my $points = scalar @ds;
 	# for bytes consider a 64 bit word, 8 bytes for each thing.
@@ -676,17 +699,17 @@ sub updateRRD
 
 	NMISNG::Util::logPolling("$type,$S->{name},$index,$item,$theds,$thevalue");
 
-	if ( @options)
+	if (@updateargs)
 	{
 		# update RRD
-		RRDs::update($database,@options);
+		RRDs::update($database, @updateargs);
 		++$stats{rrdcount};
 
 		if (my $ERROR = RRDs::error())
 		{
 			if ($ERROR !~ /contains more DS|unknown DS name/)
 			{
-				$stats{error} = "($S->{name}) database=$database: $ERROR: options = @options";
+				$stats{error} = "($S->{name}) database=$database: $ERROR: options = @updateargs";
 				NMISNG::Util::logMsg("ERROR $stats{error}");
 			}
 			else
