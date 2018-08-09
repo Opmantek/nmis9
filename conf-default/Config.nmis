@@ -75,7 +75,9 @@ my %hash = (
 		'global_events_bandwidth' => 'true',
 
     'uuid_namespace_type' => 'NameSpace_URL',
-    'uuid_namespace_name' => 'www.domain.com'
+    'uuid_namespace_name' => 'www.domain.com',
+
+		'node_name_rule' => qr/^[a-zA-Z0-9_. -]+$/, # note: rule MUST exclude '/'
   },
 
 	'logging' => {

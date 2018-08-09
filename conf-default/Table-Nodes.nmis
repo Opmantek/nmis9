@@ -61,9 +61,9 @@ my @models = ('automatic', sort keys %knownmodels);
 	Nodes =>
 	[
 	 { name => { mandatory => 'true', header => 'Name',display => 'key,header,text',value => [""],
-							 validate => { 'regex' => qr!^[^/]+$! } }},
+							 validate => { 'regex' => $C->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/ } }},
 	 { new_name => { header => 'New Name', display => 'text,editonly', value => [""],
-		 							 validate => { 'regex' => qr!^[^/]*$! } }},
+									 validate => { 'regex-or-empty' => $C->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/ } }},
 
 	 # this will be filled in on save
 	 { uuid => { header => 'UUID',display => 'header,readonly',value => ['<created on save>'] }},

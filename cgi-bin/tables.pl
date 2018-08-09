@@ -627,7 +627,7 @@ sub doeditTable
 			# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
 			#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
 			# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
-			# "int-or-empty", "float-or-empty", "resolvable-or-empty" work like their namesakes,
+			# "int-or-empty", "float-or-empty", "resolvable-or-empty,  "regex-or-empty" work like their namesakes,
 			# but accept nothing/blank/undef as well.
 			# "regex" => qr//,
 			# "ip" => [ 4 or 6 or 4, 6],
@@ -674,11 +674,16 @@ sub doeditTable
 						}
 					}
 				}
-				elsif ($valtype eq "regex")
+				elsif ($valtype =~ /^regex(-or-empty)?$/)
 				{
-					my $expected = ref($valprops) eq "Regexp"? $valprops : qr//; # fallback will match anything
-					return validation_abort($item, "'$value' didn't match regular expression!")
-							if ($value !~ $expected);
+					my $emptyisok = $1;
+
+					if (!$emptyisok or (defined($value) and $value ne ""))
+					{
+						my $expected = ref($valprops) eq "Regexp"? $valprops : qr//; # fallback will match anything
+						return validation_abort($item, "'$value' didn't match regular expression!")
+								if ($value !~ $expected);
+					}
 				}
 				elsif ($valtype eq "ip")
 				{

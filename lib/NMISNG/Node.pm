@@ -909,9 +909,15 @@ sub rename
 
 	return (0, "Invalid new_name argument") if (!$newname);
 
-	# note: if sub validate is changed to be stricter wrt node name, then this needs to be changed as well!
-	# '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
+	# note: this function and sub validate must apply the same restrictions.
+	# '/' is one of the few characters that absolutely cannot work as
+	# node name (b/c of file and dir names)
 	return (0, "new_name argument contains forbidden character '/'") if ($newname =~ m!/!);
+
+	my $nodenamerule = $self->nmisng->config->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
+	return (0, "new node name does not match 'node_name_rule' regular expression")
+			if ($self->{_name} !~ $nodenamerule);
+
 
 	return (1, "new_name same as current, nothing to do")
 			if ($newname eq $old);
@@ -1082,10 +1088,16 @@ sub validate
 				if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
 
-	# note: if this is changed to be stricter, then sub rename needs to be changed as well!
-	# '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
+	# note: this function and sub rename must apply the same restrictions.
+	# '/' is one of the few characters that absolutely cannot work as
+	# node name (b/c of file and dir names)
 	return (-1, "node name contains forbidden character '/'")
 			if ($self->{_name} =~ m!/!);
+
+	my $nodenamerule = $self->nmisng->config->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
+	return (-1, "node name does not match 'node_name_rule' regular expression")
+			if ($self->{_name} !~ $nodenamerule);
+
 
 	return (-3, "given netType is not a known type")
 			if (!grep($configuration->{netType} eq $_,
