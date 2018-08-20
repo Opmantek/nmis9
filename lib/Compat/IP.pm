@@ -1,34 +1,34 @@
 #
 
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 package Compat::IP;
-our $VERSION = "9.0.0c";
+our $VERSION = "9.0.0d";
 
 use strict;
 
@@ -36,7 +36,7 @@ use strict;
 # ipContainsAddr( ipaddr => "x.x.x.x" , cidr => "x.x.x.x/x" )
 
 sub ipContainsAddr {
-	
+
 	my %arg = @_;
 	my $subnet;
 	my $mask;
@@ -46,28 +46,28 @@ sub ipContainsAddr {
 	my $max;
 	my $i;
 
-	($subnet,$mask) = split( /\//, $arg{cidr} ); 
+	($subnet,$mask) = split( /\//, $arg{cidr} );
 
 
-	# IP address/subnet packed into 32 bits 
-	$pip = ip32( $arg{ipaddr} ); 
-	$psn = ip32( $subnet ); 
+	# IP address/subnet packed into 32 bits
+	$pip = ip32( $arg{ipaddr} );
+	$psn = ip32( $subnet );
 
-	$max = 2**31; 
-	for ($i=0; $i<32; $i++) { 
-	    $masks{32-$i} = $max - 2**$i; 
-	} 
+	$max = 2**31;
+	for ($i=0; $i<32; $i++) {
+	    $masks{32-$i} = $max - 2**$i;
+	}
 
-	if ( ($pip & $masks{$mask}) == ($psn & $masks{$mask}) ) { 
+	if ( ($pip & $masks{$mask}) == ($psn & $masks{$mask}) ) {
 	    return 1;		# true !!
-	} else { 
+	} else {
 	    return 0;		# false !!
-	} 
+	}
 
-	sub ip32 { 
-	    my ($o1,$o2,$o3,$o4) = split(/\./, $_[0]); 
-	    ($o1 << 24) + ($o2 << 16) + ($o3 << 8) + $o4; 
-	} 
+	sub ip32 {
+	    my ($o1,$o2,$o3,$o4) = split(/\./, $_[0]);
+	    ($o1 << 24) + ($o2 << 16) + ($o3 << 8) + $o4;
+	}
 }
 
 sub ipSubnet {
@@ -82,20 +82,20 @@ sub ipSubnet {
 	my $b;
 	my @addressBits;
 	my @maskBits;
-	
+
 	my @addressOctets = split (/\./,$address);
 	my @maskOctets  = split (/\./,$mask);
 
 	for ( $i = 0; $i <= $#maskOctets; ++$i ) {
-		#if ( $maskOctets[$i] == 1255 ) { 
+		#if ( $maskOctets[$i] == 1255 ) {
 		#	$subnet = $subnet.".".$addressOctets[$i];
 		#	$subnetBits = $subnetBits + 8;
 		#}
-		#elsif ( $maskOctets[$i] == 1000 ) { 
+		#elsif ( $maskOctets[$i] == 1000 ) {
 		#	$subnet = $subnet.".".$maskOctets[$i];
 		#	$subnetBits = $subnetBits + 0;
 		#}
-		#else { 
+		#else {
 			$subnetByte = "";
 			@addressBits = split (//,&dec2bin($addressOctets[$i]));
 			@maskBits = split (//,&dec2bin($maskOctets[$i]));
@@ -147,9 +147,9 @@ sub ipNextSubnet {
 		$nextOctets[$i] = $subnetOctets[$i] + 255 - $maskOctets[$i];
 		if ( $nextOctets[$i] != $subnetOctets[$i] ) {
 			++$nextOctets[$i];
-			if ( $nextOctets[$i] > 255 ) { 
-				++$nextOctets[$i - 1]; 
-				$nextOctets[$i] = 0; 
+			if ( $nextOctets[$i] > 255 ) {
+				++$nextOctets[$i - 1];
+				$nextOctets[$i] = 0;
 			}
 		}
 	}
@@ -182,16 +182,16 @@ sub ipNumSubnets {
 			elsif ( $i == 2 ) { $numsubnets = ( $octets[$i] + 1 ) * 256; }
 			elsif ( $i == 1 ) { $numsubnets = ( $octets[$i] + 1 ) * 256 * 256; }
 			elsif ( $i == 0 ) { $numsubnets = ( $octets[$i] + 1 ) * 256 * 256 * 256; }
-		} 
+		}
 	}
 	if ( $numsubnets eq "" ) {
-		$numsubnets = 1; 
+		$numsubnets = 1;
 		for ( $i = 0; $i <= $#octets; ++$i ) {
 			if ( $octets[$i] != 0 ) {
 				$numsubnets = $numsubnets * $octets[$i];
-			} 
+			}
 		}
-	} 
+	}
 	return($numsubnets)
 }
 
@@ -207,9 +207,9 @@ sub ipHosts {
 	for ( $i = 0; $i <= $#maskOctets; ++$i ) {
 		$wildOctets[$i] = 255 - $maskOctets[$i];
 	}
-	$hosts = 	( $wildOctets[0] * 256 * 256 * 256 ) + 
-			( $wildOctets[1] * 256 * 256 ) + 
-			( $wildOctets[2] * 256 ) + 
+	$hosts = 	( $wildOctets[0] * 256 * 256 * 256 ) +
+			( $wildOctets[1] * 256 * 256 ) +
+			( $wildOctets[2] * 256 ) +
 			( $wildOctets[3] );
 	return($hosts - 1);
 }
@@ -219,7 +219,7 @@ sub ipBitsToMask {
         my $bits = $args{bits};
 
 	my $mask;
-	
+
 	#Lets cludge it for now!  Would like to calculate in Binary!!
 	if ( $bits == 24 ) 	{ $mask = "255.255.255.0"; }
 	elsif ( $bits == 16 ) 	{ $mask = "255.255.0.0"; }
@@ -244,9 +244,9 @@ sub ipBitsToMask {
 	elsif ( $bits == 12 ) 	{ $mask = "255.224.0.0"; }
 	elsif ( $bits == 10 ) 	{ $mask = "255.192.0.0"; }
 	elsif ( $bits == 9 ) 	{ $mask = "255.128.0.0"; }
-	
+
 	# Take bits devide by 8 take whole number for each whole
-	# number put 255, in mask 
+	# number put 255, in mask
 	# Take bits mod by 8 take remainder convert to bin then to mask
 	# I think the if statement is faster!!!!!!!!
 

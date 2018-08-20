@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION="9.0.0c";
+our $VERSION="9.0.0d";
 use strict;
 use File::Basename;
 

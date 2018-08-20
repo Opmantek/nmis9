@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.0.0c";
+our $VERSION = "9.0.0d";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -273,7 +273,7 @@ elsif ($cmdline->{act} eq "export")
 	my $allofthem = $nodemodel->data;
 	# ...except that the _id doesn't do us any good on export
 	map { delete $_->{_id}; } (@$allofthem);
-	# by default remove cluster_id and uuid because multi-polling is not yet supported, this helps 
+	# by default remove cluster_id and uuid because multi-polling is not yet supported, this helps
 	# prevent users from creating a scenario that is not-yet-supported
 	if( !$keep_ids )
 	{
