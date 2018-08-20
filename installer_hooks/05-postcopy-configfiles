@@ -1,5 +1,5 @@
 #!/bin/sh
-# minimal config file priming from the conf-default directory to conf 
+# minimal config file priming from the conf-default directory to conf
 
 # find out where we are, and get common functions
 SCRIPTPATH=${0%/*}
@@ -14,13 +14,13 @@ if [ -n "$CLEANSLATE" ]; then
 		done
 else
 		# upgrade case
-		printBanner "Updating any missing configuration files"
+		printBanner "Updating (missing) configuration files"
 
 		# copy only missing utterly crucial files
 		# -n/--noclobber vital here, and no recursion
 		execPrint "cp -van $TARGETDIR/conf-default/users.dat $TARGETDIR/conf/"
+
+		execPrint "$TARGETDIR/admin/patch_config-.p -b $TARGETDIR/conf/Config.nmis /system/keep_event_history=false /expiration/purge_event_after=604800"
 fi
 
 exit 0
-
-
