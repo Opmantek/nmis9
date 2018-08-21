@@ -365,7 +365,8 @@ while (!$exit_marker)
 			if ($operation eq "collect" or $operation eq "update")
 			{
 				$scheduler_state->{in_flight}->{$operation}->{$tag}->{$nodeuuid}
-				=  [ (ref($qid) eq "MongoDB::OID"? $qid->TO_JSON: $qid), $jobdueat ];
+				=  [ (ref($qid) =~ /^(BSON|MongoDB)::OID$/? $qid->TO_JSON: $qid),
+						 $jobdueat ];
 			}
 		}
 	}

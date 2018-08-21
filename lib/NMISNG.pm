@@ -1845,7 +1845,7 @@ sub get_opstatus_model
 
 	# asking for nonexistent id is treated as failure - asking for 'id NOT matching X' is not
 	return NMISNG::ModelData->new( nmisng => $self, error => "No matching opstatus entry!" )
-		if ( !@modeldata && ref( $args{id} ) eq "MongoDB::OID" );
+		if ( !@modeldata && ref( $args{id} ) =~ /^(BSON|MongoDB)::OID$/ );
 
 	return NMISNG::ModelData->new(
 		nmisng      => $self,
@@ -1908,7 +1908,7 @@ sub get_queue_model
 
 	# asking for nonexistent id is treated as failure - asking for 'id NOT matching X' is not
 	return NMISNG::ModelData->new( nmisng => $self, error => "No matching queue entry!" )
-		if ( !@modeldata && ref($wantedid) eq "MongoDB::OID" );
+		if ( !@modeldata && ref($wantedid) =~ /^(BSON|MongoDB)::OID$/ );
 
 	return NMISNG::ModelData->new(
 		nmisng      => $self,

@@ -55,17 +55,34 @@ Mojo::Util::monkey_patch("boolean",
 												 "TO_JSON" => sub { my $x = shift;
 																						return ( boolean($x)->isTrue ?
 																										 JSON::XS::true : JSON::XS::false ); });
-# we need a similar kind of thing for MongoDB::BSON::Binary because the
-# perl driver only makes OIDs convertable - see the extended json format info at
-# https://docs.mongodb.com/manual/reference/mongodb-extended-json/
-Mojo::Util::monkey_patch("MongoDB::BSON::Binary",
-												 TO_JSON => sub { my ($self) = @_;
-																					return { '$binary' => Mojo::Util::b64_encode($self->data,''),
-																									 '$type' => $self->subtype };
-												 });
+
+our $driver_generation = ( version->parse($MongoDB::VERSION) >= version->parse("2.0.0") ) ? 2 : 1;
+if ($driver_generation >= 2)
+{
+	# the 2.x driver uses BSON, BSON::Bytes, ::Time and others, which have TO_JSON but by default
+	# it does not interoperate with mongodb fully/cleanly - unless you set that env var...
+	$ENV{BSON_EXTJSON} = 1;
+
+	# and none of the necessary wrappers are imported by mongodb
+	require BSON::Types;
+	BSON::Types->import(":all");
+}
+else
+{
+	# with 1.x we need a to_json hack for MongoDB::BSON::Binary because that
+	# perl driver only makes OIDs convertable - see the extended json format info at
+	# https://docs.mongodb.com/manual/reference/mongodb-extended-json/
+	Mojo::Util::monkey_patch("MongoDB::BSON::Binary",
+													 TO_JSON => sub { my ($self) = @_;
+																						return { '$binary' => Mojo::Util::b64_encode($self->data,''),
+																										 '$type' => $self->subtype };
+													 });
+}
 
 my $error_string;
 
+# fixme9: new_driver and any remaining 0.x support should go away,
+# and doew
 # in some spots (TTL indices) downstream code must distinguish between driver flavours,
 # so let's expose that as $OMK::DB::new_driver
 our $new_driver = ( version->parse($MongoDB::VERSION) >= version->parse("1.0.0") ) ? 1 : 0;
@@ -268,7 +285,8 @@ sub count
 
 	try
 	{
-		$result = $collection->count($query);
+		$result = $driver_generation >= 2?
+				$collection->count_documents($query) : $collection->count($query);
 	}
 
 	catch
@@ -369,12 +387,15 @@ sub constrain_record
 	{
 		if (my $val = $record->{'$oid'})
 		{
-			return MongoDB::OID->new(value => $val);
+			return $driver_generation >= 2? bson_oid($val) : MongoDB::OID->new(value => $val);
 		}
 		elsif (my $binval = $record->{'$binary'})
 		{
-			return MongoDB::BSON::Binary->new(data => Mojo::Util::b64_decode($binval),
-																				subtype => $record->{'$type'});
+			return ($driver_generation >= 2)?
+					bson_bytes($binval, $record->{'$type'})
+					:
+					MongoDB::BSON::Binary->new(data => Mojo::Util::b64_decode($binval),
+																		 subtype => $record->{'$type'});
 		}
 
 		# check all keys, rename if needed; then check deeper.
@@ -840,8 +861,8 @@ sub ensure_index
 # sort, skip and limit are optional.
 # fields_hash takes a hash of { field1 => 1, field2 => 1, ... }
 #
-# note: newer perl driver does NOT support cursor->count anymore,
-# you must run a separate collection->count operation!
+# note: perl driver 2.x does NOT support cursor->count anymore,
+# you must run a separate collection->count_documents operation!
 #
 # returns the resulting mongodb cursor, or undef if the args are duds
 # sets the error_string if problems are encountered.
@@ -984,39 +1005,42 @@ sub get_db_connection
 
 	my $new_conn;
 
+	my @clientargs = (
+		host          => "$server:$port",
+		w             => $write_concern,
+		timeout       => $timeout,
+		query_timeout => $query_timeout,
+
+		# manpage claims that reconnects trigger re-auth but that's not true :-(
+		# so, with auto_reconnect on we get a connection that doesn't work because not authed,
+		# but there is no command to test auth short of doing a count() or something on a collection....
+		auto_reconnect => 0,
+
+		# NOTE: driver 1.X uses these BUT they DO bother the old driver, if undef - fails to start with "type constraint violated"
+		# and with defined but blank string the auth fails if the server is running without auth
+		# NOTE2: added a couple other timeout values as well, connect_timeout_ms is timeout from above (renamed)
+		username           => $username,
+		password           => $password,
+		connect_timeout_ms => $timeout,
+
+		# for socket_timeout_ms -1 means no timeout, but for max_time_ms it MUST be zero!
+		max_time_ms => ( $query_timeout > 0 ) ? $query_timeout : 0,
+
+		# if no timeout wanted -> set none, and ditch the socket timeout in that case, too
+		socket_timeout_ms => ( $query_timeout > 0 ) ? ( $query_timeout + 5000 ) : -1,
+		heartbeat_frequency_ms => 5000 );
+
 	# please return dates as time::moment objects; which is much faster than the backwards-compat
 	# old choice of DateTime. see man MongoDB::DataTypes
-	my $codec = MongoDB::BSON->new( dt_type => 'Time::Moment' );
+	# gone in the 2.x driver
+	if ($driver_generation == 1)
+	{
+		push @clientargs, (bson_codec => MongoDB::BSON->new( dt_type => 'Time::Moment' ));
+	}
 
-	eval {
-		$new_conn = MongoDB::MongoClient->new(
-			host          => "$server:$port",
-			w             => $write_concern,
-			timeout       => $timeout,
-			query_timeout => $query_timeout,
-			bson_codec => $codec,
-
-			# manpage claims that reconnects trigger re-auth but that's not true :-(
-			# so, with auto_reconnect on we get a connection that doesn't work because not authed,
-			# but there is no command to test auth short of doing a count() or something on a collection....
-			auto_reconnect => 0,
-
-# NOTE: driver 1.X uses these BUT they DO bother the old driver, if undef - fails to start with "type constraint violated"
-# and with defined but blank string the auth fails if the server is running without auth
-# NOTE2: added a couple other timeout values as well, connect_timeout_ms is timeout from above (renamed)
-			username           => $username,
-			password           => $password,
-			connect_timeout_ms => $timeout,
-
-			# for socket_timeout_ms -1 means no timeout, but for max_time_ms it MUST be zero!
-			max_time_ms => ( $query_timeout > 0 ) ? $query_timeout : 0,
-
-			# if no timeout wanted -> set none, and ditch the socket timeout in that case, too
-			socket_timeout_ms => ( $query_timeout > 0 ) ? ( $query_timeout + 5000 ) : -1,
-			heartbeat_frequency_ms => 5000
-		);
-
-		# max_bson_size => 8 * 1024*1024) };
+	eval
+	{
+		$new_conn = MongoDB::MongoClient->new(@clientargs);
 	};
 
 	if ($@)
@@ -1087,7 +1111,8 @@ sub get_last_error
 }
 
 # args: and_part, no_auto_oid, no_regex, or_part
-# no_auto_oid: if true then _id is not transformed into a mongodb::oid object (e.g. in nodes collection where name used as _id)
+# no_auto_oid: if true then _id is not transformed into a mongodb/bson::oid object
+# (e.g. in nodes collection where name used as _id)
 # if no_regex is 'true', then "regex:" is not treated specially as a column value
 #
 # ATTENTION: getquery cannot produce ORs anywhere except as a subclause of a set of ANDs!
@@ -1205,7 +1230,8 @@ sub get_query_part
 	}
 	elsif ( $col_name eq "_id" && $options->{no_auto_oid} eq "false" )
 	{
-		if( ref($col_value) eq "MongoDB::OID" ) {
+		if( ref($col_value) =~ /^(BSON|MongoDB)::OID$/ )
+		{
 			$ret_hash->{$col_name} = $col_value;
 		}
 		else
@@ -1213,7 +1239,8 @@ sub get_query_part
 			# constructor dies if the input isn't valid as oid value (== 24 char hex string)
 			$col_value = "badc0ffee0ddf00ddeadbabe" # that's valid but won't match, which is good
 					if ($col_value !~ /^[0-9a-fA-F]{24}$/);
-			$ret_hash->{$col_name} = MongoDB::OID->new(value => $col_value);
+			$ret_hash->{$col_name} = $driver_generation >= 2?
+					bson_oid($col_value) : MongoDB::OID->new(value => $col_value);
 		}
 	}
 	else
@@ -1310,17 +1337,26 @@ sub insert
 sub make_binary
 {
 	my (%arg) = @_;
-	return MongoDB::BSON::Binary->new( data => $arg{data} );
+	return $driver_generation >= 2? bson_bytes($arg{data})
+			: MongoDB::BSON::Binary->new( data => $arg{data} );
 }
 
-# Trivial wrapper around MongdoDB::OID, again
+# Trivial wrapper around MongdoDB/BSON::OID, again
 #  to keep mongo use out of modules
 sub make_oid
 {
 	my ($value) = @_;
-	return $value if ( ref($value) eq "MongoDB::OID" );
-	return MongoDB::OID->new( value => $value ) if ($value);
-	return MongoDB::OID->new();
+	return $value if ( ref($value) =~ /^(BSON|MongoDB)::OID$/ );
+
+	if ($driver_generation >= 2)
+	{
+		return bson_oid($value);
+	}
+	else
+	{
+		return MongoDB::OID->new( value => $value ) if ($value);
+		return MongoDB::OID->new();
+	}
 }
 
 # takes the same arguments as getdbconnection, plus optional existing "connection" handle

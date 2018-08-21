@@ -625,7 +625,10 @@ sub get_inventory_ids
 
 	if (!$result->error && $result->count)
 	{
-		return [ map { $_->{_id}->{value} } (@{$result->data()}) ];
+		# mongodb::oid differs from bson::oids, value() accessor only for compat
+		return [ map {
+			$_->{_id}->can("hex")? $_->{_id}->hex : $_->{_id}->value }
+						 (@{$result->data()}) ];
 	}
 	else
 	{

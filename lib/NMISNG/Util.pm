@@ -1259,10 +1259,18 @@ sub writeHashtoFile {
 
 	my $conf_says_json = NMISNG::Util::getbool($C->{use_json});
 
-	# handle _id getting into system
-	$data->{system}{_id} = $data->{system}{_id}{value}
-		if( defined($data->{system}) && defined($data->{system}{_id}) && ref($data->{system}{_id}) eq 'MongoDB::OID');
+	# handle _id getting into system - we save the stringified data,
+	# not extended json.
+	if( ref($data->{system}) eq "HASH"
+			&& ref($data->{system}->{_id}) =~ /^(BSON|MongoDB)::OID$/)
+	{
+		# bson::oid has value() only for backwards compat,
+		# offically supposed to use hex
 
+		$data->{system}->{_id} = $data->{system}->{_id}->can("hex")?
+				$data->{system}->{_id}->hex
+				: $data->{system}->{_id}->value;
+	}
 	# all files: use json if the arg says so
 	# var files: also use json if the config says so
 	# defaults: no json
@@ -2710,7 +2718,7 @@ sub translate_dotfields
 # args: data (hashref or array ref), prefix (optional, if set each field name starts with "prefix.")
 # if data is array ref then prefix is required or you'll get ugly ".0.bla", ".1.blu" etc.
 #
-# hashes, arrays, mongodb::oids and (json::xs::)booleans are supported
+# hashes, arrays, mongodb/bson::oid and (json::xs::)booleans are supported
 # oids are stringified, booleans are transformed into 1 or 0.
 #
 # returns: (undef, flattened hash) or (error message)
@@ -2730,6 +2738,11 @@ sub flatten_dotfields
 				if (ref($deep->{$k}) eq "MongoDB::OID")
 				{
 					$flatearth{$prefix.$k} =  $deep->{$k}->value;
+				}
+				# bson::oid also has undocumented value just for backwards compat
+				elsif (ref($deep->{$k}) eq "BSON::OID")
+				{
+					$flatearth{$prefix.$k} =  $deep->{$k}->hex;
 				}
 				elsif (ref($deep->{$k}) =~ /^(JSON::XS::B|b)oolean$/)
 				{
@@ -2757,6 +2770,10 @@ sub flatten_dotfields
 				if (ref($deep->[$idx]) eq "MongoDB::OID")
 				{
 					$flatearth{$prefix.$idx} =  $deep->[$idx]->value;
+				}
+				elsif (ref($deep->[$idx]) eq "BSON::OID")
+				{
+					$flatearth{$prefix.$idx} =  $deep->[$idx]->hex;
 				}
 				elsif (ref($deep->[$idx]) =~ /^(JSON::XS::B|b)oolean$/)
 				{
