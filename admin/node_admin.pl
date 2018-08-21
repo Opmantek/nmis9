@@ -59,6 +59,7 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act=show node=nodeX
 \t$bn act={create|update} file=someFile.json
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY} [keep_ids=0/1]
+\t$bn act=import file=somefile.json
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
 \t$bn act=delete {node=nodeX|group=groupY}
 \t$bn act=dump {node=nodeX|uuid=uuidY} file=path
@@ -73,6 +74,7 @@ mktemplate: prints blank template for node creation,
 create: requires file=NewNodeDef.json
 export: exports to file=someFile (or STDOUT if no file given),
  either json or as Nodes.nmis if format=nodes is given
+ uuid and cluster_id are NOT exported unless keep_ids is 1.
 
 update: updates existing node from file=someFile.json
 delete: only deletes if confirm=yes (in uppercase) is given
@@ -115,7 +117,7 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 my $nmisng = NMISNG->new(config => $config, log  => $logger);
 
 
-# import from nodes file, overwriting existing data in the db
+# import from nmis8 nodes file, overwriting existing data in the db
 if ($cmdline->{act} =~ /^import[_-]bulk$/
 		&& (my $nodesfile = $cmdline->{nodes}))
 {
@@ -170,6 +172,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		if($op <= 0)									# zero is no saving needed
 		{
 			$logger->error("Error saving node ".$node->name.": $error");
+			warn("Error saving node ".$node->name.": $error\n");
 		}
 		else
 		{
@@ -179,6 +182,52 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	$logger->info("Bulk import complete, newly created $stats{created}, updated $stats{updated} nodes");
 	exit 0;
 }
+# import nmis9 node configuration export
+elsif ($cmdline->{act} eq "import"
+			&& (my $infile = $cmdline->{file}))
+{
+	die "invalid file \"$infile\" argument!\n" if (!-f $infile);
+	$logger->info("Starting import of nodes");
+
+	# file can contain: one node hash, or array of X node hashes
+	my $lotsanodes = decode_json(Mojo::File->new($infile)->slurp);
+	die "invalid structure\n" if (ref($lotsanodes) !~ /^(HASH|ARRAY)$/);
+
+	my %stats = (created => 0, updated => 0);
+
+	foreach my $onenode ( ref($lotsanodes) eq "HASH"? ($lotsanodes) : @$lotsanodes )
+	{
+		my $node = $nmisng->node( uuid => $onenode->{uuid}
+															|| NMISNG::Util::getUUID($onenode->{name}),
+															create => 1 );
+		++$stats{ $node->is_new? "created":"updated" };
+		$logger->debug(($node->is_new? "creating": "updating")." node $onenode->{name}");
+
+		# any node on this system must have this system's cluster_id.
+		$onenode->{cluster_id} = $config->{cluster_id};
+
+		for my $setme (qw(cluster_id name activated configuration overrides aliases addresses))
+		{
+			next if (!exists $onenode->{$setme});
+			$node->$setme($onenode->{$setme});
+		}
+
+		# and save
+		my ($op,$error) = $node->save();
+		if($op <= 0)									# zero is no saving needed
+		{
+			$logger->error("Error saving node ".$node->name.": $error");
+			warn("Error saving node ".$node->name.": $error\n");
+		}
+		else
+		{
+			$logger->debug( $node->name."(".$node->uuid.") saved to database, op: $op" );
+		}
+	}
+	$logger->info("Import complete, newly created $stats{created}, updated $stats{updated} nodes");
+	exit 0;
+}
+# import nmis8 nodeconf overrides
 elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 			 && (my $nodeconfdir = $cmdline->{nodeconf}))
 {
