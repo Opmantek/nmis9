@@ -2309,7 +2309,7 @@ sub selftest
 											$config->{'<nmis_menu>'},
 											$config->{'mib_root'},
 											$config->{'database_root'},
-											$config->{'web_root'}, )
+											 )
 		{
 			my $where = Cwd::abs_path($location);
 			next if ($done{$where});
