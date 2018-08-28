@@ -2718,8 +2718,8 @@ sub translate_dotfields
 # args: data (hashref or array ref), prefix (optional, if set each field name starts with "prefix.")
 # if data is array ref then prefix is required or you'll get ugly ".0.bla", ".1.blu" etc.
 #
-# hashes, arrays, mongodb/bson::oid and (json::xs::)booleans are supported
-# oids are stringified, booleans are transformed into 1 or 0.
+# hashes, arrays, mongodb/bson::oid, mongodb::binary/bson::bytes, and (json::xs::)booleans are supported
+# oids are stringified, binary data is returned as-is, and booleans are transformed into 1 or 0.
 #
 # returns: (undef, flattened hash) or (error message)
 sub flatten_dotfields
@@ -2747,6 +2747,10 @@ sub flatten_dotfields
 				elsif (ref($deep->{$k}) =~ /^(JSON::XS::B|b)oolean$/)
 				{
 					$flatearth{$prefix.$k} = ( $deep->{$k}? 1:0);
+				}
+				elsif (ref($deep->{$k}) =~ /^(MongoDB::BSON::Binary|BSON::Bytes)$/)
+				{
+					$flatearth{$prefix.$k} = $deep->{$k}->data;
 				}
 				else
 				{
@@ -2778,6 +2782,10 @@ sub flatten_dotfields
 				elsif (ref($deep->[$idx]) =~ /^(JSON::XS::B|b)oolean$/)
 				{
 					$flatearth{$prefix.$idx} = ($deep->[$idx]? 1:0);
+				}
+				elsif (ref($deep->[$idx]) =~ /^(MongoDB::BSON::Binary|BSON::Bytes)$/)
+				{
+					$flatearth{$prefix.$idx} = $deep->[$idx]->data;
 				}
 				else
 				{
