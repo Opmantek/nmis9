@@ -560,7 +560,8 @@ sub addDStoRRD
 }
 
 # this function takes in a set of data items and updates the relevant rrd file
-# arsg: sys, database, data (absolutely required), type/index/item (more or less required), extras (optional),
+# arsg: sys, database, data (absolutely required), type/index/item (more or less required), 
+# extras (optional), time (optional, unix seconds; if given then that is passed to rrds as the reading's timestamp)
 #
 # the sys object is for the catch-22 issue of optionsRRD requiring knowledge from the model(s),
 # plus there's the node-reset logic that requires catchall
@@ -575,8 +576,8 @@ sub updateRRD
 	my %args = @_;
 	require_RRDs(config => $args{config});
 
-	my ($S,$data,$type,$index,$item,$database,$extras) =
-			@args{"sys","data","type","index","item","database","extras"};
+	my ($S,$data,$type,$index,$item,$database,$extras,$time) =
+			@args{"sys","data","type","index","item","database","extras","time"};
 
 	++ $stats{nodes}->{$S->{name}};
 	NMISNG::Util::dbg("Starting RRD Update Process, db=$database, type=$type, index=$index, item=$item");
@@ -613,7 +614,8 @@ sub updateRRD
 	}
 
 	my (@updateargs, @ds, %blankme);
-	my @values = ("N");							# that's 'reading is for Now'
+	# N means 'reading is for Now' - from RRDs' perspective, so maybe not ideal
+	my @values = defined($time) && $time > 0? int($time) : "N";
 
 	# ro clone is good enough. fixme9: non-node mode is an ugly hack
 	my $catchall = $S->{name}? $S->inventory( concept => 'catchall' )->data : {};
