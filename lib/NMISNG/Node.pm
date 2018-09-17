@@ -7423,7 +7423,13 @@ sub collect_services
 						}
 						else
 						{
-							$ret = $programexit > 100 ? 100 : $programexit;
+							# programs exiting with 255 (e.g. perl die) should be considered down, not up
+							if ($programexit < 0 || $programexit > 100)
+							{
+								$self->nmisng->log->error("service program $svc->{Program} terminated with unexpected exit code $programexit!");
+								$programexit = 0;
+							}
+							$ret = $programexit;
 						}
 					}
 					else

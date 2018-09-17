@@ -7,13 +7,14 @@
 # -f tells it to follow up to N redirections
 # -N makes the script ignore SSL certificate issues completely
 # -p sets a specific web proxy, no proxies used otherwise
+# -H headername=headervalue sets custom headers to send, can be repeated.
 #
 # exits with 100 if ok, 50 if the code is ok but the body is wrong, 0 otherwise
-our $VERSION = "1.3.0";
+our $VERSION = "2.0.0";
 
 use strict;
 use LWP::UserAgent;
-use Getopt::Std;
+use Getopt::Long qw(:config no_ignore_case no_auto_abbrev bundling);
 use Time::HiRes;
 
 my %opts;
@@ -24,9 +25,10 @@ die "Usage: $0 [options] <url>
 -D: send no-caching request headers
 -N: do NOT verify SSL certificates
 -d: append debug output to the given file
+-H headername=value [-H otherheader=othervalue...]
 -p http://proxy:port/ sets up access via web proxy
 \n\n"
-		if (!getopts("c:s:f:Nd:p:D",\%opts) or @ARGV != 1);
+		if (!GetOptions(\%opts, "c=s","s=s","f=i","D","N","d=s","H=s%","p=s") or @ARGV != 1);
 
 my $okcode = $opts{s}? qr/$opts{s}/ : qr/200/;
 my $okbody = $opts{c} &&  qr/$opts{c}/i;
@@ -76,10 +78,11 @@ $url = "http://$url" if ($url !~ m!^([a-z]+)://!);
 my @starttime = Time::HiRes::gettimeofday;
 print $dfh Time::HiRes::time." issuing GET".($opts{D}? " with no-cache headers":"")."\n"  if ($dfh);
 
+my @getargs = ($url);
+push @getargs, %{$opts{H}} if (ref($opts{H}) eq "HASH"); # custom headers
+push @getargs, ( "Pragma" => "no-cache", "Cache-Control" => "no-cache") if ($opts{D}); # no-cache headers
 
-my $res = ($opts{D})? $ua->get($url, 
-															 "Pragma" => "no-cache", 
-															 "Cache-Control" => "no-cache") : $ua->get($url);
+my $res = $ua->get(@getargs);
 my $responsetime = Time::HiRes::tv_interval(\@starttime);
 my $contentlength = length($res->decoded_content);
 
