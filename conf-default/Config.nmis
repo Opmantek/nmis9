@@ -103,8 +103,8 @@ my %hash = (
     'overall_node_status_level' => 'Critical',
 
 		# if this option is present and enabled, a nodes health impacts its reported summary, providing VERY granular status.
-    'node_status_uses_status_summary' => 'false',
-    'display_status_summary' => 'false',
+    'node_status_uses_status_summary' => 'true',
+    'display_status_summary' => 'true',
 
 		'demote_faulty_nodes' => 'true', # try totally unpollable nodes just once a day?
 
