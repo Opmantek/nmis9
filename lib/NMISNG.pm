@@ -1101,6 +1101,11 @@ sub find_due_nodes
 						:                1
 					);
 				}
+				else
+				{
+					$self->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
+					$interval = $intervals{devault}->{$subtype};
+				}
 				$intervals{$polname}->{$subtype} = $interval;    # now in seconds
 			}
 		}
