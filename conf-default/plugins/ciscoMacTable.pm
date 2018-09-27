@@ -32,7 +32,7 @@
 # fixme9: half of this plugin duplicates the vtpVlan plugin!
 
 package ciscoMacTable;
-our $VERSION = "2.0.1";
+our $VERSION = "2.0.2";
 
 use strict;
 
@@ -149,9 +149,11 @@ sub update_plugin
 				undef $snmp;
 					next;
 			}
+			# some devices seem to hand out vtpVlanIndex values that are marked operational
+			# but are not accessible in practice, hence logging at reduced severity
 			if (!$snmp->testsession)
 			{
-				$NG->log->error("Could not retrieve SNMP vars from node $node: ".$snmp->error);
+				$NG->log->warn("Could not retrieve SNMP data for vtp vlan index $vtpdata->{vtpVlanIndex} from node $node: ".$snmp->error);
 				next;
 			}
 
