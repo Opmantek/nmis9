@@ -1541,6 +1541,9 @@ sub fping_loop
 				host => $noderec->{configuration}->{host},       # this is either the  primary or the secondary host/ip
 				policy => $noderec->{configuration}->{polling_policy} || 'default',
 			};
+			# make sure host info isn't stale, ever (e.g. node with host field == ip address, which is then changed)
+			$thisstate->{host} = $noderec->{configuration}->{host};
+
 			if (exists($multihomed{$thisstate->{uuid}})) # temporary property is present for both
 			{
 				$thisstate->{has_sibling} = $thisstate->{uuid};
