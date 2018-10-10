@@ -834,7 +834,7 @@ sub dbcleanup
 	{
 		my $res = NMISNG::DB::remove(
 			collection => $invcoll,
-			query      => NMISNG::DB::get_query( and_part => {_id => \@ditchables} )
+			query      => NMISNG::DB::get_query( and_part => {_id => \@ditchables}, no_regex => 1 )
 		);
 		if ( !$res->{success} )
 		{
@@ -918,7 +918,7 @@ sub dbcleanup
 		{
 			my $res = NMISNG::DB::remove(
 				collection => $timedcoll,
-				query      => NMISNG::DB::get_query( and_part => {_id => \@ditchables} )
+				query      => NMISNG::DB::get_query( and_part => {_id => \@ditchables}, no_regex => 1 )
 			);
 			if ( !$res->{success} )
 			{
@@ -1990,7 +1990,7 @@ sub get_timed_data_model
 	{
 		my $cursor = NMISNG::DB::find(
 			collection => $self->inventory_collection,
-			query      => NMISNG::DB::get_query( and_part => {_id => $args{inventory_id}} ),
+			query      => NMISNG::DB::get_query( and_part => {_id => $args{inventory_id}}, no_regex => 1 ),
 			fields_hash => {concept => 1}
 		);
 		if ( !$cursor )
@@ -3942,7 +3942,7 @@ sub remove_queue
 
 	my $res = NMISNG::DB::remove(
 		collection => $self->queue_collection,
-		query      => NMISNG::DB::get_query( and_part => {"_id" => $id} )
+		query      => NMISNG::DB::get_query( and_part => {"_id" => $id},  no_regex => 1 )
 	);
 	return "Deleting of queue entry failed: $res->{error}"
 		if ( !$res->{success} );
@@ -3977,7 +3977,7 @@ sub save_opstatus
 	{
 		my $cursor = NMISNG::DB::find(
 			collection => $self->opstatus_collection,
-			query      => NMISNG::DB::get_query( and_part => {_id => $oldrec} )
+			query      => NMISNG::DB::get_query( and_part => {_id => $oldrec},  no_regex => 1)
 		);
 		$statusrec = $cursor->next if ($cursor);
 		return "Cannot update nonexistent record $oldrec!" if ( !$cursor or !$statusrec );
@@ -4011,7 +4011,7 @@ sub save_opstatus
 	{
 		$result = NMISNG::DB::update(
 			collection => $self->opstatus_collection,
-			query      => NMISNG::DB::get_query( and_part => {_id => $oldrec} ),
+			query      => NMISNG::DB::get_query( and_part => {_id => $oldrec}, no_regex => 1 ),
 			record     => $statusrec
 		);
 	}

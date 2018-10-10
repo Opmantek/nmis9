@@ -159,7 +159,7 @@ sub _load
 {
 	my ($self) = @_;
 
-	my $query = NMISNG::DB::get_query( and_part => { uuid => $self->uuid } );
+	my $query = NMISNG::DB::get_query( and_part => { uuid => $self->uuid }, no_regex => 1 );
 	my $cursor = NMISNG::DB::find(
 		collection => $self->nmisng->nodes_collection(),
 		query      => $query,
@@ -515,7 +515,7 @@ sub delete
  	# finally delete the node record itself
 	$result = NMISNG::DB::remove(
 		collection => $self->nmisng->nodes_collection,
-		query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} } ),
+		query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} }, no_regex => 1),
 		just_one   => 1 );
 	return (0, "Node config removal failed: $result->{error}") if (!$result->{success});
 
@@ -1055,7 +1055,7 @@ sub save
 
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->nodes_collection(),
-			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
+			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid}, no_regex => 1 ),
 			freeform   => 1,					# we need to replace the whole record
 			record     => \%entry
 				);

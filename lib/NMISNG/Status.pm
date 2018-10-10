@@ -128,13 +128,15 @@ sub _query
 	my ( $self ) = @_;
 	my $q;
 
+	# no regex specials as we want this thing and only this thing
 	if ( $self->{data}{_id} )
 	{
-		$q = NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}} );
+		$q = NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}}, no_regex => 1);
 	}
 	elsif ( !$q )
 	{
 		$q = NMISNG::DB::get_query(
+			no_regex => 1,
 			and_part => {
 				cluster_id => $self->{data}{cluster_id},
 				node_uuid => $self->{data}{node_uuid},

@@ -219,7 +219,8 @@ sub eventUpdate
 # args: filter hash, { can have node obj or node_uuid(optional, if not there all are loaded),
 # 		active 1/0, historic 1/0 (defaults to 0)
 #  as well as sort/skip/limit/fields_hash
-
+# search args are parsed for regex:/iregex:
+#
 # returns: modeldata object (maybe empty, check ->error)
 sub get_events_model
 {

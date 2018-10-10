@@ -46,6 +46,8 @@ use Mojo::Util;									# for monkey_patch and  b64_encode/decode
 
 use version 0.77;    # needed to check driver version
 
+use NMISNG::Util;								# for getbool and numify
+
 # this is a little bit unfriendly, but required because mongo uses boolean::true or ::false,
 # and json::xs's silly REQUIREMENT that bools be JSON::XS::true or ::false. very annoying.
 #
@@ -1110,24 +1112,33 @@ sub get_last_error
 	return $db->last_error( {w => $write_concern} );
 }
 
-# args: and_part, no_auto_oid, no_regex, or_part
-# no_auto_oid: if true then _id is not transformed into a mongodb/bson::oid object
-# (e.g. in nodes collection where name used as _id)
-# if no_regex is 'true', then "regex:" is not treated specially as a column value
+# args: and_part, or_part; no_auto_oid, no_regex, no_type,
 #
-# ATTENTION: getquery cannot produce ORs anywhere except as a subclause of a set of ANDs!
+# no_auto_oid (optional, default false/0)
+#  if 'true' then _id is not transformed into a mongodb::oid object
+# no_regex (optional, default false/0)
+#  if no_regex is 'true', then "regex:" is not treated specially
+#  as a column value
+# no_type (optional, default TRUE/1!)
+#  if true, then "type:N" is not treated specially as a column value
+#
+# ATTENTION: get_query cannot produce ORs anywhere except as
+# a subclause of a set of ANDs!
 # so (a AND b) OR (c AND d) cannot be created! see OMK-887 for details.
+#
+# attention: some field inputs are special-cased: i.e. fields _id
+# and text_search! look at the docs for get_query_part below.
 #
 # returns: query structure, sanitized (blank parts are omitted)
 sub get_query
 {
 	my (%arg) = @_;
 	my (%ret_hash, @or_hash);
-	# set defaults
-	my %options = ( no_auto_oid => $arg{no_auto_oid} // 'false',
-									no_regex => $arg{no_regex} // 'false' );
-	delete $arg{no_auto_oid};
-	delete $arg{no_regex};
+
+	my %options = ( no_auto_oid => NMISNG::Util::getbool($arg{no_auto_oid} // 'false'),
+									no_regex => NMISNG::Util::getbool($arg{no_regex} // 'false'),
+									no_type => NMISNG::Util::getbool($arg{no_type} // 'true'));
+	delete @arg{ keys %options };	# must not get into the query
 
 	while ( my ( $key, $value ) = each( %{$arg{and_part}} ) )
 	{
@@ -1157,7 +1168,9 @@ sub get_query
 
 # break down each key/value pair (column name and value) and map it into
 # a hash that works as a mongodb query
-# args: name (string), value (anything), options (a hashref with no_regex, no_auto_oid )
+#
+# args: name (string), value (anything),
+#  options (a hashref with no_regex, no_auto_oid, no_type, option values 0/1 )
 # returns: empty string (for omit) or a hashref
 #
 # if value is not defined or empty, then the column is not added to the hash.
@@ -1168,14 +1181,16 @@ sub get_query
 #
 # if the value is an array, then the query is set to $in all array values
 #
-# if the value starts with "regex:" then a case SENsitive regex is created unless _no_regex is set
+# if the value starts with "regex:" then a case sensitive regex is created, unless no_regex is set to 1.
 # ditto for "iregex:", but caseINsensitive.
 #
-# if the column value starts with type: then the query is rewritten as $type for that column
+# if the column value is  type:N then the query is rewritten as $type for that column,
+# unless no_type is set to 1.
 #
 # if the column name is text_search then a text search for that value is run
 #
-# if column name is _id the value is turned into an oid object, unless _no_auto_oid is set
+# if column name is _id the value is turned into an oid object, unless _no_auto_oid is set to 1,
+# in which case it's run through the other rules.
 #
 # all other cases: key/value is used as it is
 #
@@ -1213,22 +1228,22 @@ sub get_query_part
 	{
 		$ret_hash->{$col_name} = { '$in' => $col_value } ;
 	}
-	elsif ( $col_value =~ /(i)?regex:(.*)/ && $options->{no_regex} ne "true" )
+	elsif ( $col_value =~ /^(i)?regex:(.*)$/ && !$options->{no_regex} )
 	{
 		my ($wantedcase,$regex) = ($1,$2);
 		$ret_hash->{$col_name} = { '$regex' => $regex };
 		$ret_hash->{$col_name}->{'$options'} = 'i' if ($wantedcase eq "i");
 	}
-	elsif ( $col_value =~ /type:(.*)/ )
+	elsif ( $col_value =~ /^type:(\d+)$/ && !$options->{no_type})
 	{
 		my $type = $1;
-		$ret_hash->{$col_name} = { '$type' => $type+0 } ;
+		$ret_hash->{$col_name} = { '$type' => NMISNG::Util::numify($type) } ;
 	}
 	elsif ( $col_name eq "text_search" )
 	{
 		$ret_hash->{'$text'} = { '$search' => $col_value, '$language' => 'none' } ;
 	}
-	elsif ( $col_name eq "_id" && $options->{no_auto_oid} eq "false" )
+	elsif ( $col_name eq "_id" && !$options->{no_auto_oid} )
 	{
 		if( ref($col_value) =~ /^(BSON|MongoDB)::OID$/ )
 		{

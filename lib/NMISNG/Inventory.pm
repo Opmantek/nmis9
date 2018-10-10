@@ -548,7 +548,7 @@ sub get_newest_timed_data
 	{
 		$cursor = NMISNG::DB::find(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
-			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ),
+			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
 			limit => 1,
 			sort        => {time => -1},
 			fields_hash => {time => 1, subconcepts => 1}
@@ -558,7 +558,7 @@ sub get_newest_timed_data
 	{
 		$cursor = NMISNG::DB::find(
 			collection => $self->nmisng->latest_data_collection,
-			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ),
+			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
 			fields_hash => {time => 1, subconcepts => 1}
 		);
 	}
@@ -866,7 +866,7 @@ sub delete
 	{
 		my $result = NMISNG::DB::remove(
 			collection => $coll,
-			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ) );
+			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ) );
 		return (0, "Inventory instance removal from ".$coll->name." failed: ".$result->{error})
 				if (!$result->{success});
 		$self->nmisng->log->debug("deleted $result->{removed_records} from collection "
@@ -893,7 +893,7 @@ sub delete
 	# and finally the inventory itself
 	my $result = NMISNG::DB::remove(
 		collection => $self->nmisng->inventory_collection,
-		query      => NMISNG::DB::get_query( and_part => {_id => $self->id()} ),
+		query      => NMISNG::DB::get_query( and_part => {_id => $self->id()}, no_regex => 1 ),
 		just_one   => 1 );
 	return (0, "Inventory removal failed: $result->{error}") if (!$result->{success});
 
@@ -1228,7 +1228,7 @@ sub save
 		$record->{_id} = $self->id();
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
-			query      => NMISNG::DB::get_query( and_part => {_id => $record->{_id}} ),
+			query      => NMISNG::DB::get_query( and_part => {_id => $record->{_id}}, no_regex => 1 ),
 			record     => $record
 		);
 		$op = 2;

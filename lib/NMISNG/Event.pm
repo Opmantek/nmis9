@@ -152,7 +152,7 @@ sub _query
 
 	if ( $self->{data}{_id} )
 	{
-		$q = NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}} );
+		$q = NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}}, no_regex => 1 );
 	}
 	elsif ( !$q )
 	{
@@ -165,7 +165,8 @@ sub _query
 				# inventory_id => $self->{data}{inventory_id},
 				active   => $self->{data}{active}   // 1,
 				historic => $self->{data}{historic} // 0
-			}
+			},
+			no_regex => 1
 		);
 		delete $q->{active} if ( !$filter_active );
 
