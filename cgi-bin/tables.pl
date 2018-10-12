@@ -425,6 +425,9 @@ sub editTable
 	{
 		for my $item (keys %{$ref})
 		{
+			# what should we show, default value from the table config or the existing content?
+			my $this_is_new = !exists($T->{$key}) || !exists($T->{$key}->{$item});
+
 			my $thisitem = $ref->{$item}; # table config record for this item
 			my $thiscontent = $T->{$key}->{$item}; # table CONTENT for this item
 
@@ -457,10 +460,21 @@ sub editTable
 					push @hash,$item;
 				}
 
-				# things tagged bool are stored as 1/0 internally, but are shown as true/false
 				if ($thisitem->{display} =~ /bool/)
 				{
-					$thiscontent = $thiscontent? "true": "false";
+					# if not present yet, show the first of the possible choices
+					if ($this_is_new)
+					{
+						$thiscontent = ref($thisitem->{value}) eq "ARRAY"? $thisitem->{value}->[0]
+								: $thisitem->{value} // 'false';
+					}
+					else
+					{
+						# in nodes: things tagged bool are stored as 1/0 internally, 
+						# but are shown as true/false. let's accept all possible flavours and
+						# always show true/false.
+						$thiscontent = NMISNG::Util::getbool($thiscontent)? "true": "false";
+					}
 				}
 
 				# things tagged key are NOT editable, only settable initially on add.
