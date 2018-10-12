@@ -451,6 +451,9 @@ elsif ($cmdline->{act} eq "set")
 		undef $value if ($value eq "undef");
 		$name =~ s/^entry\.//;
 
+		# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+		$name = "activated.NMIS" if ($name eq "configuration.active");
+
 		# where does it go? overrides.X is obvious...
 		if ($name =~ /^overrides\.(.+)$/)
 		{
