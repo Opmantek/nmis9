@@ -786,9 +786,10 @@ sub doeditTable
 		map { $configuration->{$_} = $thisentry->{$_} }
 		(grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides)$/, keys %$thisentry ));
 
-
+		# table-nodes has active (ie. configuration.active) which is r/o shadow of activated.NMIS,
+		# present only for backwards compatibility.
 		my $activated = $node->activated // {};
-		$activated->{'nmis'} = NMISNG::Util::getbool($thisentry->{active})?1:0;
+		$activated->{'NMIS'} = NMISNG::Util::getbool($thisentry->{active})?1:0;
 
 		# required for every node in nmis9, not usefully representable in the tables form
 		if ($node->is_new)
