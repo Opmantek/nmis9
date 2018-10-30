@@ -40,16 +40,15 @@ perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
 perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
 perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings"
 
-		# custom rrdtool is compiled against centos/rh6 libpng(=12)
 		# time-modules package gone in centos/rh7
 		if [ $OS_MAJOR -ge 7 ]; then
-				PKGLIST="$PKGLIST libpng12 perl-Time-ParseDate"
+				PKGLIST="$PKGLIST perl-Time-ParseDate"
 		else
 				PKGLIST="$PKGLIST perl-Time-modules"
 		fi
 else
 		MGR=APT
-		PKGLIST="build-essential apache2 rrdtool apache2-utils ntp logrotate librrd4 libpng12-0 \
+		PKGLIST="build-essential apache2 rrdtool apache2-utils ntp logrotate \
 		autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev \
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \

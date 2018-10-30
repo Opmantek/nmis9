@@ -23,7 +23,6 @@ my %hash = (
   },
 
   'directories' => {
-    'rrd_lib' => '/usr/local/rrdtool/lib/perl', #  if not present or blank: let perl guess/use the standard rrd
     '<nmis_base>' => '/usr/local/nmis9',
     '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',

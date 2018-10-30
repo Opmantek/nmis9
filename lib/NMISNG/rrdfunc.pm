@@ -50,28 +50,7 @@ sub require_RRDs
 
 	if( !$RRD_included )
 	{
-		my $config = $args{config};
-		die "no config!" if (!$config);
-
 		$RRD_included = 1;
-		if ($config->{rrd_lib} ne '')
-		{
-			my $loc=$config->{rrd_lib};
-			unshift @INC, $loc;
-
-			# the "use lib" method works only at compile time,
-			# and does a bit more: arch-specific dirs and version+arch specific
-			# ones are added dynamically, too!
-			if (-d "$loc/$Config{archname}/auto")
-			{
-				unshift @INC, "$loc/$Config{archname}";
-			}
-			for my $extras ("$loc/$Config{version}",
-											"$loc/$Config{version}/$Config{archname}")
-			{
-				unshift @INC, $extras if (-d $extras);
-			}
-		}
 		require RRDs;
 		RRDs->import;
 	}
