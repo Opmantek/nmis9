@@ -717,7 +717,7 @@ sub manage_processes
 		}
 		elsif (!$newpid)					# the child, fping process
 		{
-			# the  fping worker process
+			# the fping worker process
 			srand();
 			# make sure this gets a NEW nmisng object, with NEW database handles!
 			$nmisng = Compat::NMIS::new_nmisng(nocache => 1,
@@ -900,7 +900,8 @@ sub verbosity_signal_handler
 #  max_cycles (optional, default: unlimited - set to 1 for a single cycle)
 #
 # returns: EXIT_POLITE if signalled INT, EXIT_TTL if reached max nr of cycles,
-# EXIT_IMMEDIATELY if signalled TERM, EXIT_IDLE if max_cycles was 1 and no jobs were handled,
+# EXIT_IMMEDIATELY if signalled TERM or if the  parent dies,
+# EXIT_IDLE if max_cycles was 1 and no jobs were handled,
 # EXIT_ERROR for anything else
 sub worker_loop
 {
@@ -912,9 +913,13 @@ sub worker_loop
 
 	my $config = $nmisng->config;
 	my $ttl = $max_cycles;
+	my $parent = getppid;
 
 	while (!$$mustdie and (!defined($ttl) or $ttl))
 	{
+		# should terminate if the parent nmisd dies, for any reason
+		return EXIT_IMMEDIATELY if (getppid != $parent);
+
 		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
 		{
 			$nmisng->log->info("nmis is locked, sleeping 60 seconds");
@@ -1397,7 +1402,8 @@ sub worker_loop
 #  max_cycles (optional, default: unlimited - set to 1 for a single cycle)
 #
 # returns: EXIT_POLITE if signalled INT, EXIT_TTL if reached max nr of cycles,
-# EXIT_IMMEDIATELY if signalled TERM, EXIT_IDLE if max_cycles was 1 and no jobs were handled,
+# EXIT_IMMEDIATELY if signalled TERM or if the parent dies,
+# EXIT_IDLE if max_cycles was 1 and no jobs were handled,
 # EXIT_ERROR for anything else
 sub fping_loop
 {
@@ -1429,9 +1435,13 @@ sub fping_loop
 									 ("-i", 10, "-p", 20));
 
 	my %state;
+	my $parent = getppid;
 
 	while (!$$mustdie and (!defined($ttl) or $ttl))
 	{
+		# should terminate if the parent nmisd dies, for any reason
+		return EXIT_IMMEDIATELY if (getppid != $parent);
+
 		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
 		{
 			$nmisng->log->info("nmis is locked, sleeping 60 seconds");
