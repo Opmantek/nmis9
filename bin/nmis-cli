@@ -79,7 +79,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
 
  act=list-outages [filter=X...]
- act=create-oudate [outage.A=B... outage.X.Y=Z...]
+ act=create-outage [outage.A=B... outage.X.Y=Z...]
  act=update-outage id=<outid> [outage.A=B... outage.X.Y=Z...]
  act={delete-outage|show-outage} id=<outid>
  act=check-outages [node=X|uuid=Y] [time=T]
@@ -90,19 +90,19 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
 my $scheduleusage = qq|Job Scheduling:
 
-list-schedules: displays overview of pending and active jobs;
+act=list-schedules: displays overview of pending and active jobs;
   verbose=t causes job arguments to be displayed fully.
   only=queued shows pending jobs only,
   only=active shows only jobs that are in progress.
 
-delete-schedule: removes a schedule record from the database
-abort: like delete-schedule but also terminates any worker process that is
+act=delete-schedule: removes a schedule record from the database
+act=abort: like delete-schedule but also terminates any worker process that is
   processing that job.
 
   if id=ALL is given, then additional job.X properties can be used
   to select particular schedule records.
 
-create-schedule: inserts a new job record into the database.
+act=schedule: inserts a new job record into the database.
 
 Supported Arguments for Schedule Creation:
 
