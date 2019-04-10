@@ -41,6 +41,7 @@ use File::Basename;
 use File::stat;
 use File::Spec;
 use File::Copy;
+use Sys::Syslog qw(:standard :macros);
 
 use Time::ParseDate;
 use Time::Local;
@@ -736,7 +737,7 @@ sub alpha
 # this function must be self-contained, as most stuff in NMISNG::Util:: calls loadconftable
 #
 # args: dir, debug, NMISNG::Util::info (all optional)
-# returns: hash ref or undef on failure
+# returns: hash ref, dies (verbosely) on failure
 sub loadConfTable
 {
 	my %args = @_;
@@ -751,6 +752,7 @@ sub loadConfTable
 	# in which case we assume they want the cached goodies, so we look at
 	# the file of the previous call.
 	$fn = $config_cache->{configfile} if (ref($config_cache) eq "HASH"
+																				&& $config_cache->{configfile}
 																				&& !defined $args{dir});
 	my $fallbackfn;								# only set if falling back
 	my $stat = stat($fn);
@@ -765,8 +767,7 @@ sub loadConfTable
 	if (!$stat)
 	{
 		# no config, no hope, no future
-		confess("configuration file $fn unreadable: $!\n");
-		return undef;
+		warn_die("all configuration files ($fn, $fallbackfn) are unreadable: $!");
 	}
 
 	# read the file if not read yet, or different dir requested
@@ -776,21 +777,27 @@ sub loadConfTable
 	{
 		$config_cache = {};				# clear it
 
-		# cannot use readfiletohash here: infinite recursion as
+		# note: cannot use readfiletohash here: infinite recursion as
 		# most helper functions (have to) call loadConfTable first!
-		my %deepdata = do ($fallbackfn? $fallbackfn : $fn);
+
+		# lock the file or config writing (which truncates) could cause race conditions
+		my $whichfile = $fallbackfn? $fallbackfn : $fn;
+		open(X, $whichfile) or warn_die("cannot open configuration file $whichfile: $!");
+		flock(X, LOCK_SH) or warn_die("cannot lock configuration file $whichfile: $!");
+
+		my %deepdata = do ($whichfile);
 		# should the file have unwanted gunk after the %hash = ();
 		# it'll most likely be a '1;' and do returns the last statement result...
-		if ($@ )
+		if ($@)
 		{
-			warn("configuration file $fn unparseable: $@\n");
-			return undef;
+			warn_die("configuration file $fn unparseable: $@");
 		}
 		elsif (keys %deepdata < 2)
 		{
-			warn("configuration does not have enough depth, potentially didn't have permission, depth:".Dumper( (keys %deepdata)) );
-			return undef;
+			warn_die("configuration does not have enough depth, only ". (scalar keys %deepdata). " entries!");
 		}
+		close(X);										# which unlocks
+
 
 		# strip the outer of two levels, does not flatten any deeper structure
 		for my $k (keys %deepdata)
@@ -798,7 +805,7 @@ sub loadConfTable
 			for my $kk (keys %{$deepdata{$k}})
 			{
 				warn("Config section \"$k\" contains clashing config entry \"$kk\"!\n")
-						if (defined($config_cache->{$kk}));
+						if (defined($config_cache->{$kk})); # not terminal
 				$config_cache->{$kk} = $deepdata{$k}->{$kk};
 			}
 		}
@@ -807,10 +814,14 @@ sub loadConfTable
 		if (!$config_cache->{cluster_id})
 		{
 			$deepdata{id}->{cluster_id} = $config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
+
 			# and write back the updated config file - cannot use writehashtofile yet!
-			open(F, ">$fn") or die "cannot write $fn: $!\n";
+			open(F, (-e $fn? "+<": ">"), $fn) or warn_die("cannot write configuration file $fn: $!");
+			seek(F,0,0);							# only relevant when opening existing file
+			truncate(F,0);						# ditto
+			flock(F, LOCK_EX) or warn_die("cannot lock configuration file $fn: $!");
 			print F Data::Dumper->Dump([\%deepdata], [qw(*hash)]);
-			close F;
+			close F;									# which unlocks
 			# and restat to get the new mtime
 			$stat = stat($fn);
 		}
@@ -889,6 +900,16 @@ sub loadConfTable
 	return $config_cache;
 }
 
+# small helper function that syslogs the exception message, then terminates
+# args: error message
+sub warn_die
+{
+	my ($msg) = @_;
+	my $me = $0 =~ m!/!? basename($0): $0;
+	openlog($me, "pid,ndelay,nofatal", LOG_DAEMON);
+	syslog(LOG_ERR, $msg);
+	die "$msg\n";
+}
 
 # sets file ownership and permissions, with diagnostic return values
 # args: file (required, path to file or dir), username, groupname, permission

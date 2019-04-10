@@ -84,16 +84,19 @@ is_distro_enabled() {
 # small helper that enables a debian/ubuntu distro,
 # which also sets up preferences to NEVER auto-pull from there
 # args: distribution name (the logical name, testing/unstable, NOT the code name!)
+# relies on $OSFLAVOUR to switch between ubuntu and debian
 enable_distro()
 {
 		local DISTRONAME
 		DISTRONAME=$1
 
 		printBanner "Enabling $DISTRONAME distribution"
-		cat >/etc/apt/sources.list.d/opmantek-$DISTRONAME.list <<EOF
+		if [ "$OSFLAVOUR" = "debian" ]; then
+
+				cat >/etc/apt/sources.list.d/opmantek-$DISTRONAME.list <<EOF
 deb http://deb.debian.org/debian $DISTRONAME main contrib non-free
 EOF
-		cat >/etc/apt/preferences.d/opmantek-$DISTRONAME <<EOF
+				cat >/etc/apt/preferences.d/opmantek-$DISTRONAME <<EOF
 # apt-get should not consider this distribution,
 # unless the package isn't available in another distribution.
 Package: *
@@ -101,9 +104,22 @@ Pin: release o=Debian,a=$DISTRONAME
 Pin-Priority: 10
 
 EOF
+		elif [ "$OSFLAVOUR" = "ubuntu" ]; then
+				cat >/etc/apt/sources.list.d/opmantek-$DISTRONAME.list <<EOF
+deb http://archive.ubuntu.com/ubuntu/ $DISTRONAME main restricted universe multiverse
+EOF
+				cat >/etc/apt/preferences.d/opmantek-$DISTRONAME <<EOF
+# apt-get should not consider this distribution,
+# unless the package isn't available in another distribution.
+Package: *
+Pin: release o=Ubuntu,a=$DISTRONAME
+Pin-Priority: 10
+
+EOF
+		fi
 		# reload the package list to finish
 		prime_apt;
-		}
+}
 
 
 # small helper that enables one of the known custom repos
