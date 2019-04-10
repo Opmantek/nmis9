@@ -351,6 +351,8 @@ sub collect_evidence
 	}
 	for my $x (glob("$basedir/conf/*"))
 	{
+		# skip copying Nodes.nmis
+		next if($x =~ m/\/conf\/Nodes.nmis/);
 		cp($x, "$targetdir/conf/");
 	}
 
@@ -493,6 +495,7 @@ The support tool won't be able to collect database status information!\n");
 	# same for general node export - NOT available for the full dumps!
 	if ($nosensitive)
 	{
+	    print STDERR "removing sensitive data from ";
 		open(F, "$targetdir/conf/Config.nmis") or die "can't read config file: $!\n";
 		my @lines = <F>;
 		close (F);
@@ -502,18 +505,22 @@ The support tool won't be able to collect database status information!\n");
 		}
 		open(F, ">$targetdir/conf/Config.nmis") or die "can't write config file: $!\n";
 		print F @lines;
+		print STDERR "Config.nmis - complete ";
 		close F;
 
-		if (open(F, "$targetdir/node_dumps/nodes.json"))
+		if (open(F, "$targetdir/db_dumps/nodes.json"))
 		{
 			@lines = <F>;
 			for my $tbc (@lines)
 			{
-				$tbc =~ s/((?:auth|priv|wmi)(?:password|key)|community|wmiusername|username)\b(['"]\s*:\s*)(.*)$/$1$2'_removed_',/g;
+				$tbc =~ s/((?:auth|priv|wmi)(?:password|key)|community|wmiusername|username)\b(['"]\s*:\s*)(.*)/$1$2'_removed_',/g;
 			}
 			open(F, ">$targetdir/node_dumps/nodes.json") or die "can't write node export file: $!\n";
 			print F @lines;
 			close F;
+			#delete $targetdir/db_dumps/nodes.json
+			unlink("$targetdir/db_dumps/nodes.json") or die "can't delete the file:$!\n";
+			print STDERR "nodes.json - complete\n";
 		}
 	}
 	return undef;
