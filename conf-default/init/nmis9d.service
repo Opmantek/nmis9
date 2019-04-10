@@ -1,0 +1,20 @@
+# simple systemd unit file for the nmis9 daemon
+
+[Unit]
+Description=Opmantek NMIS9 Daemon
+After=network-online.target
+After=mongodb.service
+Requires=mongod.service
+Wants=network-online.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=forking
+Restart=no
+PIDFile=/usr/local/nmis9/var/nmis_system/nmisd.pid
+TimeoutSec=90s
+KillMode=process
+ExecStart=/usr/local/nmis9/bin/nmisd
+

@@ -22,7 +22,7 @@ if [ $OSFLAVOUR = "redhat" ]; then
     perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
     perl-Proc-ProcessTable perl-Authen-SASL \
     perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP \
-    perl-GD rrdtool perl-SNMP_Session \
+    perl-GD perl-SNMP_Session \
     rrdtool-perl perl-Test-Deep dialog \
     perl-Excel-Writer-XLSX perl-Digest-HMAC perl-Crypt-DES perl-Clone \
     perl-CGI \
@@ -59,14 +59,19 @@ else
     libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl \
     libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl \
     libauthen-sasl-perl librrds-perl libtest-deep-perl dialog \
-    libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl \
+    libcrypt-des-perl libdigest-hmac-perl libclone-perl \
     libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
     libmongodb-perl libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl"
 
-		# 9/stretch has that in perl, older need the updated package
+		# debian: 9/stretch has that in perl, older need the updated package
 		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl"
+		# only 9/stretch doesn't have that packaged
+		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" != 9 ] && PKGLIST="$PKGLIST libui-dialog-perl"
 
+		# ubuntu: not packaged for 17 to 19
+		[ "$OSFLAVOUR" = "ubuntu" ] && [ "$OS_MAJOR" -le 16 -o "$OS_MAJOR" -ge 20 ] \
+				&& PKGLIST="$PKGLIST libui-dialog-perl"
 fi
 
 is_web_available && CANUSEWEB=1
