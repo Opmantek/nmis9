@@ -16,7 +16,7 @@ DESTFILE=/etc/init.d/nmis9d
 SERVICENAME=`basename $DESTFILE`
 
 # systemd init
-if type systemctl >/dev/null; then
+if type systemctl >/dev/null 2>&1; then
 		HAVESD=1
 		SRCFILESD=$TARGETDIR/conf-default/init/nmis9d.service
 		DESTFILESD=/etc/systemd/system/nmis9d.service
