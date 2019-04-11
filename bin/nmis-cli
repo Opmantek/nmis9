@@ -69,7 +69,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=schedule [at=time] <job.type=activity> [job.priority=0..1] [job.X=....]
   act=schedule-help for more detailed help
- act=list-schedules [verbose=t/f] [only=active|queued]
+ act=list-schedules [verbose=t/f] [only=active|queued] [job.X=...]
  act=delete-schedule id=<schedule_id|ALL> [job.X=...]
  act=abort id=<schedule_id>
 
@@ -363,9 +363,19 @@ elsif ($Q->{act} eq "schedule")
 }
 # print in-progess and queued jobs, and automatically scheduled stuff
 # shorten the args unless verbose=true
+# also supports job.X=... selectors
 elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 {
-	my $queued = $nmisng->get_queue_model(sort => { time => 1 });
+	my %queryargs = (sort => { time => 1 });
+	for my $match (grep(/^job\..+$/, keys %$Q))
+	{
+		my $what = $Q->{$match};
+		my $where = ($match =~ /^job\.(type|priority|verbosity|output|tag)$/)?  # these don't go into args.X
+				$1 : ($match =~ s/^job\./args./ && $match); # the rest does
+		$queryargs{$where} = $what;
+	}
+
+	my $queued = $nmisng->get_queue_model(%queryargs);
 	if (my $fault = $queued->error)
 	{
 		die "Failed to search queue: $fault\n";
