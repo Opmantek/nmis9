@@ -440,7 +440,7 @@ sub configuration
 }
 
 # remove this node from the db and clean up all leftovers:
-# node configuration, inventories, timed data,
+# queued jobs, node configuration, inventories, timed data, events, opstatus entries
 # -node and -view files.
 # args: keep_rrd (default false)
 # returns (success, message) or (0, error)
@@ -456,12 +456,38 @@ sub delete
 
 	$self->nmisng->log->debug("starting to delete node ".$self->name);
 
+	# first, deactivate the node if not inactive already
+	my $curcfg = $self->configuration;
+	if ($curcfg->{activated}->{NMIS})
+	{
+		$curcfg->{activated}->{NMIS} = $curcfg->{active} = 0;
+		$self->configuration($curcfg);
+		$self->save;
+	}
+
+	# then remove any queued jobs for this node, if not in-progess
+	my $result = $self->nmisng->get_queue_model("args.uuid" => [ $self->uuid ]);
+	if (my $error = $result->error)
+	{
+		return (0, "Failed to retrieve queued jobs: $error");
+	}
+	for my $jobdata (@{$result->data})
+	{
+		return (0, "Cannot delete node while $jobdata->{type} job (id $jobdata->{_id}) is active!")
+				if ($jobdata->{in_progress});
+
+		if (my $error = $self->nmisng->remove_queue(id => $jobdata->{_id}))
+		{
+			return (0, "Failed to remove queued job $jobdata->{_id}: $error");
+		}
+	}
+
 	# get all the inventory objects for this node
 	# tell them to delete themselves (and the rrd files)
 
 	# get everything, historic or not - make it instantiatable
 	# concept type is unknown/dynamic, so have it ask nmisng
-	my $result = $self->get_inventory_model(
+	$result = $self->get_inventory_model(
 		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
 	if (my $error = $result->error)
 	{
@@ -509,8 +535,30 @@ sub delete
 		unlink($goner) if (-f $goner);
 	}
 
-	# delete any open events, failure undetectable *sigh* and not error-worthy
-	$self->eventsClean("NMISNG::Node"); # fixme9: we don't have any useful caller
+	# delete all (ie. historic and active) events for this node, irretrievably and immediately
+	# note that eventsClean() is trying other high-level, non-deletion-related stuff
+	# events_model by default filters for filter historic = 0 :-/
+	$result = $self->get_events_model(filter => { historic => [0,1]},
+																		fields_hash => { _id => 1});
+	if (my $error = $result->error)
+	{
+		return (0, "Failed to retrieve events: $error");
+	}
+	my @gonerids = map { $_->{_id} } (@{$result->data});
+	$result = NMISNG::DB::remove(collection => $self->nmisng->events_collection,
+															 query => NMISNG::DB::get_query( and_part => { _id => \@gonerids } ));
+	return (0, "Failed to delete events: $result->{error}") if (!$result->{success});
+
+	# opstatus entries for this node
+	$result = $self->nmisng->get_opstatus_model("context.node_uuid" => $self->uuid); #
+	if (my $error = $result->error)
+	{
+		return (0, "Failed to retrieve opstatus entries: $error");
+	}
+	@gonerids = map { $_->{_id} } (@{$result->data});
+	$result = NMISNG::DB::remove(collection => $self->nmisng->opstatus_collection,
+															 query => NMISNG::DB::get_query( and_part => { _id => \@gonerids } ));
+	return (0, "Failed to delete opstatus entries: $result->{error}") if (!$result->{success});
 
  	# finally delete the node record itself
 	$result = NMISNG::DB::remove(
@@ -598,7 +646,7 @@ sub eventsClean
 }
 
 # fixme: args should be documented here!
-# returns: modeldata object (always, mabe empty - check ->error)
+# returns: modeldata object (always, may be empty - check ->error)
 sub get_events_model
 {
 	my ( $self, %args ) = @_;
