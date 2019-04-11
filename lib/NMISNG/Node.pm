@@ -508,6 +508,28 @@ sub delete
 				if (!$ok);
 	}
 
+	# however, NOT all rrds are properly inventory-backed!
+	# eg. health/health.rrd, health/mib2ip.rrd, misc/NetFlowStats.rrd...
+	# so use the filesystem - except this is messy as it cannot take a potential custom common_database
+	# scheme into account (ie. rrds not under /nodes/$lowercasednode/)
+	# but az doesn't know of any way to enumerate the non-inventory-backed oddball rrds
+	if (!$keeprrd)
+	{
+		my @errors;
+		File::Find::find(
+			{
+				wanted => sub
+				{
+					my $fn = $File::Find::name;
+					next if (!-f $fn);
+					unlink($fn) or push @errors, "$fn: $!";
+				},
+				follow => 1,
+			},
+			$self->nmisng->config->{database_root}."/nodes/".lc($self->name)); # we hates that lowercase, we do...
+		return (0, "Failed to delete some RRDs: ".join(" ", @errors)) if (@errors);
+	}
+
 	# delete all status entries as well
 	$result = $self->get_status_model();
 	if (my $error = $result->error)

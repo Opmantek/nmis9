@@ -370,8 +370,8 @@ elsif  ($cmdline->{act} eq "dump")
 {
 	my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
 	die "Cannot dump node data without node/uuid and file arguments!\n" if (!$file || (!$nodename && !$uuid));
-	my %options = ($cmdline->{everything}? (historic_events => 1, opstatus_limit => undef )
-								 : ( historic_events => 0, opstatus_limit => 1000));
+	my %options = ($cmdline->{everything}? (historic_events => 1, opstatus_limit => undef, rrd => 1 )
+								 : ( historic_events => 0, opstatus_limit => 1000, rrd => 0));
 	my $res = $nmisng->dump_node(name => $nodename,
 															 uuid => $uuid,
 															 target => $file,
