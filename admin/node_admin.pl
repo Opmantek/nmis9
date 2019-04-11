@@ -62,7 +62,7 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act=import file=somefile.json
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
 \t$bn act=delete {node=nodeX|group=groupY}
-\t$bn act=dump {node=nodeX|uuid=uuidY} file=path
+\t$bn act=dump {node=nodeX|uuid=uuidY} file=path [everything=0/1]
 \t$bn act=restore file=path
 
 \t$bn act=set node=nodeX entry.X=Y...
@@ -77,14 +77,14 @@ export: exports to file=someFile (or STDOUT if no file given),
  uuid and cluster_id are NOT exported unless keep_ids is 1.
 
 update: updates existing node from file=someFile.json
-delete: only deletes if confirm=yes (in uppercase) is given
+
+delete: only deletes if confirm=yes (in uppercase) is given,
+if deletedata=true (default) then RRD files for a node are
+also deleted.
 
 show: prints a node's properties in the same format as set
  with option quoted=true, show adds double-quotes where needed
 set: adjust one or more node properties
-
-extras: deletedata=<true,false> which makes delete also
-delete inventory data and RRD files for a node. default is true.
 
 extras: debug={1..9,verbose} sets debugging verbosity
 extras: info=1 sets general verbosity
@@ -369,6 +369,7 @@ elsif ($cmdline->{act} eq "export")
 elsif  ($cmdline->{act} eq "dump")
 {
 	my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
+	die "Cannot dump node data without node/uuid and file arguments!\n" if (!$file || (!$nodename && !$uuid));
 	my %options = ($cmdline->{everything}? (historic_events => 1, opstatus_limit => undef )
 								 : ( historic_events => 0, opstatus_limit => 1000));
 	my $res = $nmisng->dump_node(name => $nodename,
