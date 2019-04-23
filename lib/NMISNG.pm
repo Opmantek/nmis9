@@ -41,6 +41,7 @@ use File::Find;
 use File::Spec;
 use File::Temp;
 use File::Path;
+use File::Copy;
 use boolean;
 use Fcntl qw(:DEFAULT :flock :mode);    # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Errno qw(EAGAIN ESRCH EPERM);
@@ -4693,15 +4694,19 @@ sub dump_node
 }
 
 # take a dumped zip file and restore the node IFF it doesn't already exist
-# args: source (=full path to file)
+# args: source (=full path to file), localise_ids
 # returns: hashref, success/error, node (= node config record, if successful)
 sub undump_node
 {
 	my ($self, %args) = @_;
 	my $sourcefile = $args{source};
+	my $localiseme = $args{localise_ids};
 
 	return { error => "source argument missing!" } if (!$sourcefile);
 	return { error => "source \"$sourcefile\" does not exist or is not readable!" } if (!-r $sourcefile);
+
+	# let's get a tempdir for unpacking the zip file
+	my $td = File::Temp::tempdir( "undump.XXXXXXX", CLEANUP => 1, TMPDIR => 1 );
 
 	my $ziperr;
 	Archive::Zip::setErrorHandler(sub { $ziperr = shift;}); # a::z croaks by default
@@ -4722,9 +4727,34 @@ sub undump_node
 	return { error => "invalid structure: unexpected (extra) data present!" }
 	if (grep(!m!^[a-f0-9-]+/(rrd|nodes|events|inventory|latest_data|opstatus|status)/!, @filenames));
 
+
+	# a::z is very very slow on unpacking, let's look for unzip as first choice
+	if (NMISNG::Util::type_which("unzip"))
+	{
+		my $res = system("unzip", "-q", "-d", $td, $sourcefile); # quiet and under that dir
+		warn "unzip failed to unpack $sourcefile! \n" if ($res >> 8);
+	}
+	else
+	{
+		warn "unzipping ".(scalar @filenames)." files, please be patient...\n";
+	}
+
 	my $noderec = eval { decode_json($zip->contents($nodefiles[0])) };
 	return { error => "invalid data: $nodefiles[0] unparsable: $@" }
 	if ($@ or ref($noderec) ne "HASH" or !keys %$noderec  or !$noderec->{uuid});
+
+	# localisation required? then figure out the old cluster_id and replace it everywhere
+	my $foreign_cluster;
+	my $this_cluster = $self->config->{cluster_id};
+	if ($localiseme)
+	{
+		my $maybeforeign = $noderec->{cluster_id};
+		if ($maybeforeign ne $this_cluster)
+		{
+			$foreign_cluster = $maybeforeign;
+			$noderec->{cluster_id} = $this_cluster;
+		}
+	}
 
 	return { error => "invalid structure: node uuid doesn't match file names" }
 	if (grep(!m!^$noderec->{uuid}/!, @filenames));
@@ -4741,7 +4771,20 @@ sub undump_node
 		next if ($fn eq $nodefiles[0] or $fn =~ /\.rrd$/);
 
 		(undef, my $collection, undef) = split(m!/!,$fn); # uuid/collection/oid.json, and oid is embedded
-		my $entry = eval { decode_json($zip->contents($fn)); };
+
+		# extracting contents with a::z is  very slow, so prefer already undumped stuff
+		if (!-f "$td/$fn")
+		{
+			my $res = $zip->extractMember($fn, "$td/$fn");
+			return { error => "failed to unpack \"$fn\": $ziperr" }
+			if ($res != Archive::Zip::AZ_OK);
+		}
+
+		my $rawdata = Mojo::File->new("$td/$fn")->slurp;
+		$rawdata =~ s/"$foreign_cluster"/"$this_cluster"/g
+				if ($foreign_cluster);
+
+		my $entry = eval { decode_json($rawdata); };
 		return { error => "invalid data: $fn unparsable: $@" }
 		if ($@ or ref($entry) ne "HASH" or !keys %$entry or !$entry->{_id});
 		push @insertme, { where => $collection, what => $entry};
@@ -4768,6 +4811,7 @@ sub undump_node
 		File::Path::make_path($targetdir,
 													{ error => \$error,
 														mode =>  0755 } ); # umask is applied to this :-/
+		NMISNG::Util::setFileProtDiag(file => $targetdir);
 		if (ref($error) eq "ARRAY" and @$error)
 		{
 			my @errors;
@@ -4777,8 +4821,18 @@ sub undump_node
 			}
 			return { error => "failed to create directory $targetdir: ".join(", ",@errors)  };
 		}
-		my $res = $zip->extractMember( $zippedrrd, $targetfn);
-		return { error => "could not unpack $zippedrrd to $targetfn: $ziperr" } if ($res != Archive::Zip::AZ_OK);
+		# again, already unzipped to be preferred
+		if (-f "$td/$zippedrrd")
+		{
+			my $res = File::Copy::cp("$td/$zippedrrd", $targetfn);
+			return { error => "could not copy $zippedrrd to $targetfn: $!" } if (!$res);
+		}
+		else
+		{
+			my $res = $zip->extractMember( $zippedrrd, $targetfn);
+			return { error => "could not unpack $zippedrrd to $targetfn: $ziperr" } if ($res != Archive::Zip::AZ_OK);
+		}
+		NMISNG::Util::setFileProtDiag(file => $targetfn);
 	}
 	return { success => 1, node => $noderec };
 }

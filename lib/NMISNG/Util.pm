@@ -829,7 +829,6 @@ sub loadConfTable
 		# certain values get massaged in/to the config
 		$config_cache->{conf} = "Config"; # fixme9: this is no longer very useful, only one config supported
 		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
-		$config_cache->{server} = $config_cache->{server_name}; # fixme9: still necessary?
 
 		# fixme9: saving this back is likely a bad idea, config vs. command line
 		# fixme: none of this is nmisng::log compatible, where info is only t/f,
@@ -3071,5 +3070,17 @@ sub reaper
 	return %exparrots;
 }
 
+# trivial type/which implementation, saves us file::which or forking off a shell
+# args: program name
+# returns: full path or undef
+sub type_which
+{
+        my ($needle) = @_;
+        for my $maybe (split(/:/, $ENV{PATH}))
+        {
+                return "$maybe/$needle" if (-x "$maybe/$needle");
+        }
+        return undef;
+}
 
 1;

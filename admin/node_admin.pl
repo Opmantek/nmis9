@@ -63,7 +63,7 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
 \t$bn act=delete {node=nodeX|group=groupY}
 \t$bn act=dump {node=nodeX|uuid=uuidY} file=path [everything=0/1]
-\t$bn act=restore file=path
+\t$bn act=restore file=path [localise_ids=0/1]
 
 \t$bn act=set node=nodeX entry.X=Y...
 \t$bn act=mktemplate [placeholder=1/0]
@@ -71,20 +71,25 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
+
 create: requires file=NewNodeDef.json
+update: updates existing node from file=someFile.json
+
 export: exports to file=someFile (or STDOUT if no file given),
  either json or as Nodes.nmis if format=nodes is given
  uuid and cluster_id are NOT exported unless keep_ids is 1.
 
-update: updates existing node from file=someFile.json
-
 delete: only deletes if confirm=yes (in uppercase) is given,
-if deletedata=true (default) then RRD files for a node are
-also deleted.
+ if deletedata=true (default) then RRD files for a node are
+ also deleted.
 
 show: prints a node's properties in the same format as set
  with option quoted=true, show adds double-quotes where needed
 set: adjust one or more node properties
+
+restore: restores a previously dumped node's data. if 
+ localise_ids=true (default: false), then the cluster id is rewritten
+ to match the local nmis installation.
 
 extras: debug={1..9,verbose} sets debugging verbosity
 extras: info=1 sets general verbosity
@@ -384,7 +389,9 @@ elsif  ($cmdline->{act} eq "dump")
 elsif  ($cmdline->{act} eq "restore")
 {
 	my $file = $cmdline->{"file"};
-	my $res = $nmisng->undump_node(source  => $file);
+	my $localiseme = NMISNG::Util::getbool($cmdline->{localise_ids});
+	
+	my $res = $nmisng->undump_node(source  => $file, localise_ids => $localiseme );
 	die "Failed to restore node data: $res->{error}\n" if (!$res->{success});
 
 	print STDERR "Successfully restored node $res->{node}->{name} ($res->{node}->{uuid})\n"
