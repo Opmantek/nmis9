@@ -100,8 +100,8 @@ if ($AU->Require) {
 }
 # -------------------------------------------------------------
 
-# check for remote request
-if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
+# check for remote request - fixme9: not supported at this time
+exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 ### 2012-08-29 keiths, adding wiget less support, widget on by default.
 my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false" : "true";

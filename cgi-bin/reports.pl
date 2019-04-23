@@ -114,8 +114,8 @@ if ($AU->Require) {
 
 my $nodewrap = NMISNG::Util::getbool($C->{'wrap_node_names'})? "wrap" : "nowrap";
 
-# check for remote request
-if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
+# check for remote request - fixme9: not supported at this time
+exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 #======================================================================
 

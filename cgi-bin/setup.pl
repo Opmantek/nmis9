@@ -82,9 +82,8 @@ if ($AU->Require)
 }
 $AU->CheckAccess("table_config_view","header");
 
-# check for remote request, fixme - this never exits!
-if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
-
+# check for remote request - fixme9: not supported at this time
+exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 # just two actions: showing the setup (menu/panel), handling an edit action
 if ($Q->{act} eq 'setup_menu' or NMISNG::Util::getbool($Q->{cancel}))

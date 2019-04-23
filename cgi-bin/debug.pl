@@ -67,8 +67,8 @@ if ($AU->Require) {
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
 
-# check for remote request
-if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
+# check for remote request - fixme9: not supported at this time
+exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 #======================================================================
 
@@ -374,7 +374,7 @@ print dumper_html(NMISNG::Outage::find_outages);
 my $ext = NMISNG::Util::getExtension(dir=>'var');
 
 foreach my $node (sort keys %{$NT}) {
-	if ( $C->{server_name} eq $NT->{$node}{server} ) {
+	if ( $C->{server_name} eq $NT->{$node}{server} ) { # fixme9 property no longer present
 		# fixme9 this cannot work, there is no useful info in that node info file
 		my $nodeInfo = Compat::NMIS::loadNodeInfoTable($node);
 		

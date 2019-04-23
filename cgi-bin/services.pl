@@ -336,7 +336,7 @@ sub display_overview
 	my $homelink = $wantwidget? ''
 			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;";
 	# just append the nodename to complete
-	my $nodelink = "$C->{'<cgi_url_base>'}/network.pl?conf=$Q->{conf}&act=network_service_view&refresh=$Q->{refresh}&widget=$widget&server=$Q->{server}&node=";
+	my $nodelink = "$C->{'<cgi_url_base>'}/network.pl?conf=$Q->{conf}&act=network_service_view&refresh=$Q->{refresh}&widget=$widget&cluster_id=$Q->{cluster_id}&node=";
 
 
 	print $q->start_table({class=>"table"}),

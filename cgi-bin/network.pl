@@ -1481,7 +1481,7 @@ sub selectLarge
 			else
 			{
 				# fixme9: server mode is nonfunctional at this time, links need to be made through opha
-				my $server = $NT->{$node}{server};
+				my $server = $NT->{$node}{server}; 				# fixme9: no longer exists
 				my $ST = {};
 				my $url
 					= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
@@ -1892,7 +1892,7 @@ sub viewNode
 		my $wd = 850;
 		my $ht = 700;
 
-		my $server = $configuration->{server};
+		my $server = $configuration->{server}; # fixme9: property no longer exists, cannot work
 		my $url
 			= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$ST->{$server}{config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node="
 			. uri_escape($node);

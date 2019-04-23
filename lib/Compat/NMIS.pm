@@ -505,9 +505,6 @@ sub logConfigEvent {
 	logJsonEvent(event => $event_hash, dir => $dir);
 }
 
-# sub getLevelLogEvent {
-# }
-
 sub getSummaryStats
 {
 	my %args = @_;
@@ -523,18 +520,6 @@ sub getSummaryStats
 
 	my $C = NMISNG::Util::loadConfTable();
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
-
-	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
-	if ( # NMISNG::Util::getbool($C->{server_master}) and
-			 $catchall_data->{server}
-			 and lc($catchall_data->{server}) ne lc($C->{server_name}))
-	{
-		# send request to remote server
-		NMISNG::Util::dbg("serverConnect to $catchall_data->{server} for node=$S->{node}");
-		# fixme9: does not exist
-		# return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
-		#		gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
-	}
 
 	my $db;
 	my $ERROR;
@@ -675,18 +660,6 @@ sub getSubconceptStats
 
 	my $C = NMISNG::Util::loadConfTable();
 	NMISNG::rrdfunc::require_RRDs(config=>$C);
-
-	# fixme9: server_master is gone, logic here is broken - must use cluster_id, not server name property!
-	if (# NMISNG::Util::getbool($C->{server_master}) and
-			$catchall_data->{server}
-			and lc($catchall_data->{server}) ne lc($C->{server_name}))
-	{
-		# send request to remote server
-		NMISNG::Util::dbg("serverConnect to $catchall_data->{server} for node=$S->{node}");
-		# fixme9: does not exist
-		# return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
-		#		gtype=>$type,start=>$start,end=>$end,index=>$index);
-	}
 
 	my $db = $inventory->find_subconcept_type_storage( subconcept => $subconcept, type => 'rrd' );
 	my $data = $inventory->data;
@@ -1226,22 +1199,13 @@ sub overallNodeStatus
 
 			my $nodeobj = $nmisng->node(uuid => $config->{uuid});
 
-			if ( $config->{server} eq $C->{server_name} ) {
-				### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-				my $down_event = "Node Down";
-				$down_event = "SNMP Down" if NMISNG::Util::getbool($config->{ping},"invert");
-				$nodedown = $nodeobj->eventExist($down_event);
-
-				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
-			}
-			else
-			{
-				$outage = $NS->{$node_name}{outage};
-				if ( NMISNG::Util::getbool($NS->{$node_name}{nodedown}))
-				{
-					$nodedown = 1;
-				}
-			}
+			
+			### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+			my $down_event = "Node Down";
+			$down_event = "SNMP Down" if NMISNG::Util::getbool($config->{ping},"invert");
+			$nodedown = $nodeobj->eventExist($down_event);
+			
+			($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 
 			if ( $nodedown and $outage ne 'current' ) {
 				($event_status) = eventLevel("Node Down",$config->{roleType});
@@ -1455,7 +1419,7 @@ sub dutyTime {
 # produce clickable graph and return html that can be pasted onto a page
 # rrd graph is created by this function and cached on disk
 #
-# args: node/group OR sys, intf/item, server, graphtype, width, height (all required),
+# args: node/group OR sys, intf/item, cluster_id, graphtype, width, height (all required),
 #  start, end (optional),
 #  only_link (optional, default: 0, if set ONLY the href for the graph is returned),
 # returns: html or link/href value
@@ -1470,7 +1434,7 @@ sub htmlGraph
 	my $node = $args{node};
 	my $intf = $args{intf};
 	my $item  = $args{item};
-	my $server = $args{server};
+	my $parent = $args{cluster_id} || $C->{cluster_id}; # default: ours
 	my $width = $args{width}; # graph size
 	my $height = $args{height};
 	my $omit_fluff = NMISNG::Util::getbool($args{only_link}); # return wrapped <a> etc. or just the href?
@@ -1487,7 +1451,7 @@ sub htmlGraph
 	my $urlsafeitem = uri_escape($item);
 
 	my $target = $node || $group; # only used for js/widget linkage
-	my $clickurl = "$C->{'node'}?act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&item=$urlsafeitem&server=$server&node=$urlsafenode";
+	my $clickurl = "$C->{'node'}?act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&item=$urlsafeitem&cluster_id=$parent&node=$urlsafenode";
 
 	my $time = time();
 	my $graphlength = ( $C->{graph_unit} eq "days" )?
@@ -1507,7 +1471,7 @@ sub htmlGraph
 				 $C->{auth_web_key},
 				 $group, $node, $intf, $item,
 				 $graphtype,
-				 $server, # fixme: needed?
+				 $parent,
 				 $width, $height));
 
 	# do we want to reuse an existing, 'new enough' graph?
@@ -1543,7 +1507,7 @@ sub htmlGraph
 	if (!$graphfilename)
 	{
 		$graphfilename = $graphfile_prefix."_${start}_${end}.png";
-		NMISNG::Util::dbg("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, server=$server, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename");
+		NMISNG::Util::dbg("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, cluster_id=$parent, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename");
 
 		my $target = "$cachedir/$graphfilename";
 		my $result = NMISNG::rrdfunc::draw(sys => $sys,
@@ -1552,7 +1516,6 @@ sub htmlGraph
 																			 graphtype => $graphtype,
 																			 intf => $intf,
 																			 item => $item,
-																			 server => $server,
 																			 start => $start,
 																			 end =>  $end,
 																			 width => $width,
@@ -1591,14 +1554,13 @@ sub createHrButtons
 	# note, not using live data beause this isn't used in collect/update
 	my $catchall_data = $S->inventory( concept => 'catchall')->data();
 	my $nmisng_node = $S->nmisng_node;
+	my $parent = $nmisng_node->cluster_id; # cluster_id of the nmis polling this node
 
 	my $C = NMISNG::Util::loadConfTable();
-
 	return unless $AU->InGroup($catchall_data->{group});
 
-	# fixme9: logic wrong, must check cluster_id, not server name property
-	my $server =  $catchall_data->{server}; # fixme9: gone NMISNG::Util::getbool($C->{server_master}) ? '' : $catchall_data->{server};
 	my $urlsafenode = uri_escape($node);
+
 
 	push @out, "<table class='table'><tr>\n";
 
@@ -1608,24 +1570,24 @@ sub createHrButtons
 			if (!NMISNG::Util::getbool($widget));
 
 	push @out, CGI::td({class=>'header litehead'},'Node ',
-										 CGI::a({class=>'wht',href=>"network.pl?act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
+										 CGI::a({class=>'wht',href=>"network.pl?act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},$node));
 
 	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"services"));
 	}
 
 	if (NMISNG::Util::getbool($catchall_data->{collect}))
 	{
 		my $status_md = $nmisng_node->get_status_model();
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"status"))
 			if $status_md->count > 0 and defined $C->{display_status_summary} and NMISNG::Util::getbool($C->{display_status_summary});
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"interfaces"))
 				if (defined $S->{mdl}{interface});
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"network.pl?act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+											 CGI::a({class=>'wht',href=>"network.pl?act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"active intf"))
 				if defined $S->{mdl}{interface};
 
 		# this should potentially be querying for active/not-historic
@@ -1633,14 +1595,14 @@ sub createHrButtons
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"ports"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"storage"));
 		}
 		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
@@ -1648,11 +1610,11 @@ sub createHrButtons
 		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"service list"));
 		}
 		if ($S->getTypeInstances(graphtype => "hrsmpcpu")) {
 			push @out, CGI::td({class=>'header litehead'},
-												 CGI::a({class=>'wht',href=>"network.pl?act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
+												 CGI::a({class=>'wht',href=>"network.pl?act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"cpu list"));
 		}
 
 		# let's show the possibly many systemhealth items in a dropdown menu
@@ -1666,7 +1628,7 @@ sub createHrButtons
 				# don't show spurious blank entries
 				if ( @$ids > 0 )
 				{
-					push @out, CGI::li(CGI::a({ class=>'wht',  href=>"network.pl?act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
+					push @out, CGI::li(CGI::a({ class=>'wht',  href=>"network.pl?act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"}, $sysHealth));
 				}
 			}
 			push @out, "</ul></li></ul></td>";
@@ -1674,9 +1636,9 @@ sub createHrButtons
 	}
 
 	push @out, CGI::td({class=>'header litehead'},
-										 CGI::a({class=>'wht',href=>"events.pl?act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
+										 CGI::a({class=>'wht',href=>"events.pl?act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"events"));
 	push @out, CGI::td({class=>'header litehead'},
-										 CGI::a({class=>'wht',href=>"outages.pl?act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+										 CGI::a({class=>'wht',href=>"outages.pl?act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"outage"));
 
 
 	# and let's combine these in a 'diagnostic' menu as well
@@ -1699,17 +1661,17 @@ sub createHrButtons
 	}
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
+														 href=>"tools.pl?act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"ping"))
 			if NMISNG::Util::getbool($C->{view_ping});
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
+														 href=>"tools.pl?act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"trace"))
 			if NMISNG::Util::getbool($C->{view_trace});
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
+														 href=>"tools.pl?act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"mtr"))
 			if NMISNG::Util::getbool($C->{view_mtr});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-														 href=>"tools.pl?act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
+														 href=>"tools.pl?act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"lft"))
 			if NMISNG::Util::getbool($C->{view_lft});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
@@ -1718,12 +1680,13 @@ sub createHrButtons
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
-	if ($catchall_data->{server} eq $C->{server_name}) {
+	if ($parent eq $C->{cluster_id})
+	{
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"tables.pl?act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+											 CGI::a({class=>'wht',href=>"tables.pl?act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"contact"))
 				if $catchall_data->{sysContact} ne '';
 		push @out, CGI::td({class=>'header litehead'},
-											 CGI::a({class=>'wht',href=>"tables.pl?act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+											 CGI::a({class=>'wht',href=>"tables.pl?act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"location"))
 				if $catchall_data->{sysLocation} ne '';
 	}
 
@@ -1992,11 +1955,6 @@ sub getJavaScript {
 JS_END
 
 			return $jscript;
-}
-
-### 2012-03-09 keiths, summary sub to avoid changing much other code
-sub requestServer {
-	return 0;
 }
 
 # Load and organize the CBQoS meta-data

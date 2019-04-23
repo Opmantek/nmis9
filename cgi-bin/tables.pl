@@ -69,9 +69,8 @@ else
 	$AU->SetUser("nmis");
 }
 
-
-# check for remote request
-if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
+# check for remote request - fixme9: not supported at this time
+exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 my $formid = $Q->{table} ? "nmis$Q->{table}" : "nmisTable";
 

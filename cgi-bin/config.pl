@@ -79,8 +79,8 @@ else
 # $AU->CheckAccess, will send header and display message denying access if fails.
 $AU->CheckAccess("table_config_view","header");
 
-# check for remote request
-if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
+# check for remote request - fixme9: not supported at this time
+exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 #======================================================================
 

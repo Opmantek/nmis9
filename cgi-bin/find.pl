@@ -65,8 +65,8 @@ if ($AU->Require) {
 my $wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
 my $widgetstate = $wantwidget?"true":"false";
 
-# check for remote request
-if ($Q->{server} ne "") { exit 1 if Compat::NMIS::requestServer(headeropts=>$headeropts); }
+# check for remote request - fixme9: not supported at this time
+exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 # prime the output
 print header($headeropts);

@@ -1671,9 +1671,6 @@ sub update_node_info
 					$self->makesysuptime($catchall_data);
 					$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
 
-					# fixme9 cannot work!
-					$catchall_data->{server} = $C->{server_name};
-
 					# pull / from VPN3002 system descr
 					$catchall_data->{sysDescr} =~ s/\// /g;
 
