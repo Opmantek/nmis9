@@ -22,19 +22,19 @@
     }
   },
 
-  'system' => 
+  'system' =>
 	{
     'nodeModel' => 'net-snmp',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    
+
 		'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
-    
-		'sys' => 
+
+		'sys' =>
 		{
-      'standard' => 
-			{        
-        'snmp' => 
+      'standard' =>
+			{
+        'snmp' =>
 				{
           'sysLocation' => {
             'replace' => {
@@ -43,21 +43,21 @@
 						'oid' => 'sysLocation',
 						'title' => 'Location',
           },
-					
+
           'sysDescr' => {
             'oid' => 'sysDescr',
             'title' => 'Description',
           },
-					
+
           'sysObjectID' => {
             'oid' => 'sysObjectID',
           },
-					
+
           'ifNumber' => {
             'oid' => 'ifNumber',
             'title' => 'Interfaces',
           },
-					
+
           'sysContact' => {
             'replace' => {
               '' => 'default',
@@ -65,7 +65,7 @@
 						'oid' => 'sysContact',
             'title' => 'Contact',
           },
-					
+
           'sysName' => {
             'oid' => 'sysName',
           },
@@ -76,7 +76,7 @@
             'oid' => 'hrSystemUptime',
             'title' => 'Uptime',
           },
-          
+
 					'snmpUpTime' => {
             'oid' => 'sysUpTime',
             'title' => 'SNMP_Uptime',
@@ -200,7 +200,7 @@
           }
         }
       },
-      'systemStats' => {        
+      'systemStats' => {
         'graphtype' => 'ss-cpu,ss-blocks,ss-intcon',
         'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait,ssCpuRawIdle',
         'snmp' => {
@@ -289,7 +289,7 @@
             'info' => 'UCD-SNMP-MIB::ssRawSwapOut.0 = Counter32: 10695'
           },
         },
-      },      
+      },
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -418,8 +418,8 @@
   'systemHealth' => {
     'sections' => 'diskIOTable,software',
     'sys' => {
-      'diskIOTable' => {        
-        'indexed' => 'diskIOIndex',        
+      'diskIOTable' => {
+        'indexed' => 'diskIOIndex',
         'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.1',
         'headers' => 'diskIODevice',
         'snmp' => {
@@ -432,7 +432,7 @@
             'title' => 'IO Device Name'
           },
         },
-      },      
+      },
     },
     'rrd' => {
       'diskIOTable' => {
@@ -626,7 +626,7 @@
 						'oid' => 'ifName',
 						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
 					},
-					
+
 					'Hardware' => {
             'oid' => 'ifDescr',
 						'option' => 'nosave',
@@ -788,7 +788,7 @@
       }
     },
     'nocollect' => {
-      'Description' => '/mnt/cdrom|boot'
+      'Description' => '^(/mnt/cdrom$|/media|/run|/dev/shm|/sys)'
     }
   },
 );
