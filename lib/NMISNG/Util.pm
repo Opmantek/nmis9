@@ -894,6 +894,23 @@ sub loadConfTable
 				last;
 			}
 		}
+
+		# a little safety net (for init/systemd and other stuff that needs to find pidfiles etc):
+		# if the var directory configuration is non-standard,
+		# then maintain a symlink to the configured directory
+		# note: if var is reconfigured back to normal but symlink is correct, then no action is taken
+		my $confdvar = $config_cache->{'<nmis_var>'};
+		my @confdstat = (CORE::stat($confdvar))[0,1]; # device and inode
+		my $normalvar = "$config_cache->{'<nmis_base>'}/var";
+		my @normalstat = (CORE::stat($normalvar))[0,1]; # device and inode
+
+		if (-d $confdvar and ($confdstat[0] != $normalstat[0]
+													or $confdstat[1] != $normalstat[1]))
+		{
+			rename($normalvar, "$normalvar.deconfigured.$$") if (-e $normalvar);
+			symlink($confdvar, $normalvar)
+					or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
+		}
 	}
 
 	return $config_cache;
