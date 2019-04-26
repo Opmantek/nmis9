@@ -206,7 +206,13 @@ sub typeSect {
 	for my $k (@items_all)
 	{
 		my $value = $CC->{$section}{$k};
-		if ($section eq "system" and ( $k eq "group_list" or $k eq "roletype_list"))
+		# show arrays as space-sep list
+		if (ref($value) eq "ARRAY")
+		{
+			$value = join(" ", @$value);
+		}
+		# show commasep as space-sep list
+		if ($section eq "system" and $k =~ /^(roletype|nettype|nodetype)_list$/)
 		{
 			$value =  join(" ", sort split(/\s*,\s*/, $value));
 		}
@@ -264,43 +270,33 @@ sub editConfig{
 
 	print start_table() ; # first table level
 
-
-	# the more comfy group editing interface  has only two columns and
-	# the shared button should be named delete
 	my $numberofcols = 3;
 	my $submitbuttonvalue = "Edit";
 
-	if ($section eq "system" and $item eq "group_list")
+	# hiding groups: is array of groups to be hidden in the config, let's show checkboxes
+	if ($section eq "system" and $item eq "hide_groups")
 	{
 		$numberofcols = 2;
-		$submitbuttonvalue = "Delete";
-		print Tr(td({class=>"header",colspan=>'2'},"Edit of NMIS Config"));
+		$submitbuttonvalue = "Update";
+		print Tr(td({class=>"header",colspan=>'2'},"Edit of NMIS Config")),
+		Tr(td({class => "header", colspan => 2 }, "Hide Groups"));
 
-		# an entry for adding a group
-		print Tr(td({class => "header", colspan => 2 }, "Add New Group")),
-		Tr(td({class=>'info Plain', colspan => 2},
-					textfield(-name=>"newgroup", -style=>'font-size:14px;', -title => "Group names cannot contain spaces or commas.")
-					.button(-name=>"addbutton",
-									onclick=> ('$("#edittype").val("Add"); '. ($wantwidget? "get('nmisconfig');" : "submit()" )),
-									-value=>"Add"))),
-							Tr(td({class => "header", colspan => 2}, "Existing Groups"));
-
-		# figure out the number of members per group and warn the user if there are any members
+		# figure out the number of members per group for info purposes
 		my $LNT = Compat::NMIS::loadLocalNodeTable();
 		my %membercounts;
 		for my $node (values %$LNT)
 		{
-			$membercounts{$node->{group}}++ if ($node->{group});
+			$membercounts{$node->{group}}++;
 		}
-
-		# print the group rows, one per line plus delete button at the end
-		my @actualgroups = sort split(/\s*,\s*/, $CC->{$section}->{$item});
-		for my $group (@actualgroups)
+		for my $group (sort keys %membercounts)
 		{
-			my $escapedgroup = uri_escape($group);
-			print Tr(td( $membercounts{$group}? qq|<span title="If you remove this group, then its members will no longer be shown in NMIS.">$group ($membercounts{$group} members)</span>| : $group),
-							 td(checkbox(-name => "delete_group_$escapedgroup", -label => "Delete Group", -value => "nuke"))
-					);
+			my $ishidden = List::Util::any { $_ eq $group } @{$CC->{$section}->{$item}};
+
+			print Tr(td({colspan=>"2"},
+									checkbox(-name => "hide_groups",
+													 -value => $group,
+													 -checked => $ishidden,
+													 -label => "Hide $group ($membercounts{$group} members)")));
 		}
 	}
 	# edit roleTypes, netType, nodeType: prohibit commas and spaces
@@ -405,13 +401,12 @@ sub doEditConfig
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
-	# handle the comfy group_list editing and translate the separate values
-	# ditto for roletype, nettype and nodetype
-	if ($section eq "system" and ( $item =~ /^(group|roletype|nettype|nodetype)_list$/))
+	# handle the roletype, nettype and nodetype lists and translate the separate values
+	if ($section eq "system" and ( $item =~ /^(roletype|nettype|nodetype)_list$/))
 	{
 		my $concept = $1;
-		my $conceptname = $concept eq "group"? "Group"
-				: $concept eq "roletype"? "Role Type" : $concept eq "nettype"? "Network Type" : "Node Type"; # uggly
+		my $conceptname = $concept eq "roletype"?
+				"Role Type" : $concept eq "nettype"? "Network Type" : "Node Type"; # uggly
 		my @existing = split(/\s*,\s*/, $CC->{$section}->{$item});
 
 		my $newthing = $Q->{"new$concept"};
@@ -433,7 +428,7 @@ sub doEditConfig
 			{
 				next if $Q->{$deletable} ne "nuke";
 				my $deletablename = $deletable;
-				$deletablename =~ s/^delete_group_//;
+				$deletablename =~ s/^delete_${concept}_//;
 				my $unesc = uri_unescape($deletablename);
 
 				@existing = grep($_ ne $unesc, @existing);
@@ -441,6 +436,12 @@ sub doEditConfig
 		}
 		$value = join(",", sort @existing);
 	}
+	# hide_groups: is an array, multiple checkboxes convey desired state
+	if ($section eq "system" and $item eq "hide_groups")
+	{
+		$value = [ $q->multi_param($item) ];
+	}
+
 
 	my $thisrule = Compat::NMIS::findCfgEntry(section => $section, item => $item, table => $configrules);
 	if (ref($thisrule) eq "HASH" && ref($thisrule->{validate}) eq "HASH")

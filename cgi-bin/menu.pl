@@ -311,6 +311,10 @@ sub menu_bar_site {
 		push @tableMenu, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
 				if ($AU->CheckAccess("table_models_view","check"));
 
+		push @tableMenu,	qq|<a id='cfg_hidegroups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=hide_groups">Hide Groups</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+
 		push @tableMenu, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
 
 		foreach my $table (sort {$Tables->{$a}{DisplayName} cmp $Tables->{$b}{DisplayName} } keys %{$Tables}) {
@@ -362,16 +366,13 @@ sub menu_bar_site {
 
 		push @setupitems, qq|--- Advanced Setup ---| if (@setupitems); # no separator if there's nothing to separate...
 
-		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|
+		push @setupitems,	qq|<a id='cfg_ntypes' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nodetype_list">Add/Edit Node Types</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
-		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nodetype_list">Add/Edit Node Types</a>|
+		push @setupitems,	qq|<a id='cfg_nroles' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=roletype_list">Add/Edit Node Roles</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
-		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=roletype_list">Add/Edit Node Roles</a>|
-				if ($AU->CheckAccess("table_config_view","check"));
-
-		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nettype_list">Add/Edit Network Types</a>|
+		push @setupitems,	qq|<a id='cfg_nettypes' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nettype_list">Add/Edit Network Types</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
 		push @setupitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|

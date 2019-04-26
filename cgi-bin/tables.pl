@@ -167,7 +167,7 @@ EOF
 	for my $ref ( @{$CT}) { # trick for order of header items
 		for my $item (keys %{$ref})
 		{
-			if ($ref->{$item}{display} =~ /header/ ) {
+			if ($ref->{$item}{display} =~ /(^|,)header(,|$)/ ) {
 				$line .= td({class=>'header',align=>'center'},$ref->{$item}{header});
 				$colspan++;
 			}
@@ -189,7 +189,7 @@ EOF
 		print start_Tr if $display;
 		for my $ref ( @{$CT}) { # trick for order of header items
 			for my $item (keys %{$ref}) {
-				if ($ref->{$item}{display} =~ /header/ ) {
+				if ($ref->{$item}{display} =~ /(^|,)header(,|$)/ ) {
 					print td({class=>'info Plain'}, escapeHTML($T->{$k}{$item})) if $display;
 				}
 			}
@@ -267,9 +267,9 @@ sub viewTable
 			print Tr(td({class=>'header',align=>'center'},
 									escapeHTML($ref->{$item}{header})),
 							 td({class=>'info Plain'},
-									escapeHTML($ref->{$item}->{display} =~ /password/?
+									escapeHTML($ref->{$item}->{display} =~ /(^|,)password(,|$)/?
 														 "<hidden>"
-														 : $ref->{$item}->{display} =~ /bool/?
+														 : $ref->{$item}->{display} =~ /(^|,)bool(,|$)/?
 														 ($T->{$key}->{$item}? "true":"false")
 														 : $T->{$key}{$item})));
 		}
@@ -447,19 +447,19 @@ sub editTable
 										escapeHTML($thisitem->{header}).$mandatory));
 			}
 			# things tagged editonly are ONLY editable, NOT settable initially on add
-			elsif ($func eq "doadd" and $thisitem->{display} =~ /editonly/)
+			elsif ($func eq "doadd" and $thisitem->{display} =~ /(^|,)editonly(,|$)/)
 			{
 				# do nothing, skip this thing's row completely
 			}
 			else
 			{
 				my $line;
-				if ($thisitem->{display} =~ /key/)
+				if ($thisitem->{display} =~ /(^|,)key(,|$)/)
 				{
 					push @hash,$item;
 				}
 
-				if ($thisitem->{display} =~ /bool/)
+				if ($thisitem->{display} =~ /(^|,)bool(,|$)/)
 				{
 					# if not present yet, show the first of the possible choices
 					if ($this_is_new)
@@ -469,7 +469,7 @@ sub editTable
 					}
 					else
 					{
-						# in nodes: things tagged bool are stored as 1/0 internally, 
+						# in nodes: things tagged bool are stored as 1/0 internally,
 						# but are shown as true/false. let's accept all possible flavours and
 						# always show true/false.
 						$thiscontent = NMISNG::Util::getbool($thiscontent)? "true": "false";
@@ -478,12 +478,12 @@ sub editTable
 
 				# things tagged key are NOT editable, only settable initially on add.
 				# on edit the text is static
-				if ($func eq 'doedit' and $thisitem->{display} =~ /key/)
+				if ($func eq 'doedit' and $thisitem->{display} =~ /(^|,)key(,|$)/)
 				{
 					$line .= td({class=>'header'}, escapeHTML($thiscontent));
 					$line .= hidden("-name"=>$item, "-default"=>$thiscontent, "-override"=>'1');
 				}
-				elsif ($thisitem->{display} =~ /textbox/)
+				elsif ($thisitem->{display} =~ /(^|,)textbox(,|$)/)
 				{
 					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
 					$line .= td(textarea(-name=> $item, -value=>$value,
@@ -491,7 +491,7 @@ sub editTable
 															 -rows => 3,
 															 -columns => ($wantwidget? 35 : 70)));
 				}
-				elsif ($thisitem->{display} =~ /(text|password)/)
+				elsif ($thisitem->{display} =~ /(?:^|,)(text|password)(?:,|$)/)
 				{
 					my $wantpassword = $1 eq "password";
 					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
@@ -504,22 +504,31 @@ sub editTable
 												-style=> 'width: 95%;',
 												-size=>  ($wantwidget? 35 : 70)));
 				}
-				elsif ($thisitem->{display} =~ /readonly/) {
+				elsif ($thisitem->{display} =~ /(^|,)readonly(,|$)/) {
 					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
 
 					$line .= td(escapeHTML($value));
 					$line .= hidden(-name=>$item, -default=>$value, -override=>'1');
 				}
-				elsif ($thisitem->{display} =~ /pop/) {
-					#print STDERR "DEBUG editTable: popup -- item=$item\n";
-					$line .= td(popup_menu(
-												-name=> $item,
+				# show a drop down list, and optionally a text entry box for a custom value
+				elsif ($thisitem->{display} =~ /(^|,)popup(,|$)/)
+				{
+					$line .= "<td>"
+							. popup_menu(-name=> $item,
+													 -values=>$thisitem->{value},
+													 -style=>'width: 95%;',
+													 -default=>$thiscontent);
 
-												-values=>$thisitem->{value},
-												-style=>'width: 95%;',
-												-default=>$thiscontent));
+					if ($thisitem->{display} =~ /(^|,)pluscustom(,|$)/)
+					{
+						$line .= textfield(-name => "_custom_$item",
+															 -style => "width: 95%;",
+															 -size => ($wantwidget? 35 : 70),
+															 -placeholder => "Enter new $thisitem->{header} value");
+					}
+					$line .= "</td>";
 				}
-				elsif ($thisitem->{display} =~ /scrol/) {
+				elsif ($thisitem->{display} =~ /(^|,)scrolling(,|$)/) {
 					my @items = split(/,/,$T->{$key}{$item});
 					$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
 																		-style=>'width: 95%;',
@@ -631,6 +640,14 @@ sub doeditTable
 			# any such into comma-sep data - but for a standalone submission that does not happen.
 			my $value = join(",", unpack("(Z*)*", NMISNG::Util::stripSpaces($Q->{$item})));
 			$thisentry->{$item} = $V->{$item} = $value;
+
+			# and if the item is marked as pluscustom and a custom value is present,
+			# then replace the item value with _custom_<item>
+			if ($thisitem->{display} =~ /(^|,)pluscustom(,|$)/ && $Q->{"_custom_$item"} ne '')
+			{
+				$thisentry->{$item} = $V->{$item} = $Q->{"_custom_$item"};
+				delete $Q->{"_custom_$item"};
+			}
 
 			# and validate if told to
 			next if (ref($thisitem->{validate}) ne "HASH");

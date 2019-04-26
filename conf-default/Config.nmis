@@ -85,7 +85,8 @@ my %hash = (
 	},
 
   'system' => {
-    'group_list' => 'NMIS9,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
+		'hide_groups' => [],
+
 		"roletype_list" => "core,distribution,access,default",
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
 		"nodetype_list" => "generic,switch,router,firewall,server",

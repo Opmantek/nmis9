@@ -31,13 +31,13 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#
 use strict;
-use Compat::NMIS;
-use NMISNG::Util;
-
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 use URI::Escape;
+use List::Util 1.33;
+
+use Compat::NMIS;
+use NMISNG::Util;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -95,7 +95,7 @@ exit 0;
 
 #===================
 
-sub menuFind 
+sub menuFind
 {
 	my $obj = shift;
 
@@ -106,7 +106,7 @@ sub menuFind
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
 			. hidden(-override => 1, -name => "widget", -value => $widgetstate);
-	
+
 	print table(
 		Tr(td({class=>'header',align=>'center',colspan=>'4'},
 					eval { return ($obj eq 'node') ? 'Find a Node' : 'Find an Interface';} )),
@@ -120,9 +120,9 @@ sub menuFind
 }
 
 
-# fixme9: needs to be rewritten to NOT use slow 
+# fixme9: needs to be rewritten to NOT use slow
 # and inefficient loadInterfaceInfo()!
-sub viewInterfaceFind 
+sub viewInterfaceFind
 {
 	my $find = $Q->{find};
 
@@ -161,7 +161,10 @@ sub viewInterfaceFind
 					$thisintf->{vlanPortVlan} =~ /$qrfind/
 				)
 		{
-			if ($AU->InGroup($NT->{$thisintf->{node}}{group})) {
+			# if you're allowed to see this group AND the group isn't hidden
+			if ($AU->InGroup($NT->{$thisintf->{node}}->{group})
+					&& List::Util::none { $_ eq $NT->{$thisintf->{node}}->{group} } (@{$C->{hide_groups}}))
+			{
 				++$counter;
 
 				$thisintf->{ifSpeed} = NMISNG::Util::convertIfSpeed($thisintf->{ifSpeed});
@@ -248,8 +251,12 @@ sub viewNodeFind {
 				$thisnode->{services} =~ /$qrfind/ or
 				$thisnode->{description} =~ /$qrfind/ or
 				$thisnode->{depend} =~ /$qrfind/
-		) {
-			if ($AU->InGroup($thisnode->{group})) {
+		)
+		{
+			# if you're allowed to see this group AND the group isn't hidden
+			if ($AU->InGroup($thisnode->{group})
+					&& List::Util::none { $_ eq $thisnode->{group} } (@{$C->{hide_groups}}))
+			{
 				++$counter;
 
 				push @out,Tr(

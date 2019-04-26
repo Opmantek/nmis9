@@ -122,8 +122,9 @@ my $nmisng = Compat::NMIS::new_nmisng;
 
 # these need loading before the yucky if selection below, which is terminal for some acts
 my $NT = Compat::NMIS::loadNodeTable();
-my $GT = Compat::NMIS::loadGroupTable(only_configured => 1);
 
+my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
+my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
 
 # select function
 my $select;
@@ -307,7 +308,6 @@ my %icon;
 my $group    = $Q->{group};
 my $customer = $Q->{customer};
 my $business = $Q->{business};
-my @groups   = grep { $AU->InGroup($_) } sort keys %{$GT};
 
 ### 2014-08-28 keiths, configurable metric periods
 #my $graphtype = ($Q->{graphtype} eq '') ? $C->{default_graphtype} : $Q->{graphtype};
@@ -1769,9 +1769,6 @@ sub viewMetrics
 		return;
 	}
 
-	my @grouplist = values %{$GT};
-	my @groups    = grep { $AU->InGroup($_) } sort (@grouplist);
-
 	my $groupCode;
 	my $groupOption;
 
@@ -1827,9 +1824,6 @@ sub viewMetrics
 	print start_table( {class => 'dash'} );
 	print Tr( td( {class => 'heading'}, $groupCode ) );
 
-	#foreach my $g (@groups){
-	#	print a({href=>url(-absolute=>1)."", id=>"ntw_graph"},"$g");
-	#}
 
 	print Tr(
 		td( {class => 'image'},
@@ -4215,14 +4209,13 @@ sub viewOverviewIntf
 
 	if ( $ii_cnt > 1000 )
 	{
-		my @groups = ( '', sort keys %{$GT} );
 		$gr_menu = td(
 			{class => 'header', colspan => '1'},
 			"Select group "
 				. popup_menu(
 				-name     => 'group',
 				-override => '1',
-				-values   => \@groups,
+				-values   => [ "", @groups ],
 				-default  => $Q->{group},
 				-onChange => "javascript:get('ntw_int_overview');"
 				)

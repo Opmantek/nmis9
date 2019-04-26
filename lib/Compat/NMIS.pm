@@ -159,28 +159,6 @@ sub loadNodeTable
 	return \%map;
 }
 
-# this reports the groups of all active nodes, optionally reduced further
-#
-# args: only_configured (optional, default 0; if set then
-#  only groups from group_list configuration item are considered).
-#
-# returns: hash (ref) of group name -> group name
-# fixme9: this should be an array
-sub loadGroupTable
-{
-	my (%args) = @_;
-
-	my $allnodes = loadNodeTable;
-
-	my $C = NMISNG::Util::loadConfTable();
-	my %configuredgroups = map { $_ => 1 } (split(/\s*,\s*/, $C->{group_list}))
-			if ($args{only_configured});
-	my %group2group = (map { $_->{group} => $_->{group} }
-										 (grep(NMISNG::Util::getbool($_->{active})
-													 && (!$args{only_configured} || $configuredgroups{$_->{group}}),
-													 values %$allnodes)));
-	return \%group2group;
-}
 
 # check if a table-ish file exists in conf (or conf-default)
 # args: file name, relative, may be short w/o extension

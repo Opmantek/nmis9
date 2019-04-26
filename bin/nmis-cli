@@ -63,7 +63,6 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=fixperms
  act=config-backup
- act=groupsync
  act=noderefresh
  act=daemon-status (or act=status)
 
@@ -933,41 +932,7 @@ elsif ($Q->{act} eq "fixperms")
 }
 elsif ($Q->{act} eq "groupsync")
 {
-	# iterate over nodes and add any new groups to the configuration
-	# this is normally NOT automated, as groups are an administrative feature
-	# for maintenance (as nodes in unlisted groups are active but not
-	# shown in the gui)
-
-	my $NT = Compat::NMIS::loadLocalNodeTable();    # only local nodes
-	NMISNG::Util::dbg( "table Local Node loaded", 2 );
-
-	# reread the config with a lock and unflattened
-	my $fn = $C->{'<nmis_conf>'}. "/Config.nmis";
-	my ( $rawC, $fh ) = NMISNG::Util::readFiletoHash(file => $fn, lock => 'true' );
-	die "Error: failed to read config $fn!\n" if ( !$rawC or !keys %$rawC );
-
-	my %oldgroups = map { $_ => 1 } ( split( /\s*,\s*/, $rawC->{system}->{group_list} ) );
-	my %newgroups;
-	for my $node ( keys %$NT )
-	{
-		my $thisgroup = $NT->{$node}->{group};
-		next if ( $oldgroups{$thisgroup} );
-		++$newgroups{$thisgroup};
-	}
-
-	print "Existing groups:\n\t", ( %oldgroups ? join( "\n\t", keys %oldgroups ) : "<None>" ),
-	"\n\nNew groups to add:\n\t", ( %newgroups ? join( "\n\t", keys %newgroups ) : "<None>" ),
-	"\n\n";
-
-	if (%newgroups)
-	{
-		$rawC->{system}->{group_list} = join( ",", sort( keys %oldgroups, keys %newgroups ) );
-		NMISNG::Util::writeHashtoFile( file => $fn, handle => $fh, data => $rawC );
-	}
-	else
-	{
-		close $fh;									# release lock
-	}
+	die "groupsync is no longer supported or necessary.\n";
 }
 # do sanitary checking on inventory
 elsif ($Q->{act} eq 'check_inventory')

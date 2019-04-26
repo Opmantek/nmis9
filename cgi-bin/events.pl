@@ -29,22 +29,19 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Data::Dumper;
+use URI::Escape;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+use List::Util 1.33;
 
-#
-use strict;
 use Compat::NMIS;
 use NMISNG::Sys;
 use NMISNG::Util;
 
-use Data::Dumper;
 $Data::Dumper::Indent = 1;
-
-use URI::Escape;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -255,8 +252,11 @@ sub displayEvents
 											} (@$eventdata)  )
 	{
 		next if (!$thisevent->{node_uuid}); # should not ever be hit
-		# check auth
-		next unless $AU->InGroup($NT->{$thisevent->{node_name}}{group});
+
+		# check that you're allowed to see this group AND the group isn't hidden
+
+		next unless ($AU->InGroup($NT->{$thisevent->{node_name}}{group})
+								 and List::Util::none { $_ eq $NT->{$thisevent->{node_name}}->{group} } (@{$C->{hide_groups}}));
 		# print all events
 
 		# print header if ack changed

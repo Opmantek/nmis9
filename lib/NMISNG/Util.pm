@@ -829,6 +829,8 @@ sub loadConfTable
 		# certain values get massaged in/to the config
 		$config_cache->{conf} = "Config"; # fixme9: this is no longer very useful, only one config supported
 		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
+		# ensure hide_groups is present (saves us checking the ref all over the place)
+		$config_cache->{hide_groups} //= [];
 
 		# fixme9: saving this back is likely a bad idea, config vs. command line
 		# fixme: none of this is nmisng::log compatible, where info is only t/f,

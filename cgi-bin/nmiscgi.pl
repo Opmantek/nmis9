@@ -35,13 +35,13 @@
 use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use JSON::XS;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Data::Dumper;
+
 use NMISNG::Util;
 use Compat::NMIS;
 use Compat::Modules;
-use JSON::XS;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
-use Data::Dumper;
 
 my $q = CGI->new; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -203,7 +203,9 @@ my $NSum = Compat::NMIS::loadNodeSummary();
 # Only show authorised nodes in the list - and only if members of configured groups!
 
 my @valNode;
-my %configuredgroups = map { $_ => 1 } (split(/\s*,\s*/, $C->{group_list}));
+my $nmisng = Compat::NMIS::new_nmisng;
+my @groups  = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
+my %configuredgroups = map { $_ => $_ } (@groups);
 
 for my $node ( sort keys %{$NT})
 {

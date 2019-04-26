@@ -38,10 +38,8 @@ my $AU = NMISNG::Auth->new(conf => $C);
 # Calling program needs to do auth, then set the ENVIRONMENT before this is called.
 $AU->SetUser($ENV{'NMIS_USER'});
 
-my @groups = ();
-my $GT = Compat::NMIS::loadGroupTable();
-foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
-
+my $nmisng = Compat::NMIS::new_nmisng;
+my @groups = sort map { $AU->InGroup($_)? $_ :  () } ($nmisng->get_group_names);
 my @pollingpolicies = ("default", sort keys %{ Compat::NMIS::loadGenericTable("Polling-Policy") || {}});
 
 my @nodes = ();
@@ -79,7 +77,7 @@ my @models = ('automatic', sort keys %knownmodels);
 											validate => { "resolvable-or-empty" => [ 4 ] } }
 	 },
 
-	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup',value => [ @groups],
+	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup,pluscustom',value => [ @groups],
 								validate => { "onefromlist" => undef } } },
 	 { community => { mandatory => 'true', header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
 

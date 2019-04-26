@@ -24,7 +24,6 @@ my %hash = (
 				],
 
 		'system' => [
-			{ 'group_list' => { display => 'text', value => ['']}},
 			{ 'roletype_list' => { display => 'text', value => ['']}},
 			{ 'nettype_list' => { display => 'text', value => ['']}},
 			{ 'nodetype_list' => { display => 'text', value => ['']}},

@@ -34,7 +34,6 @@ package NMISNG;
 our $VERSION = "9.0.0e";
 
 use strict;
-
 use Data::Dumper;
 use Tie::IxHash;
 use File::Find;
@@ -42,6 +41,7 @@ use File::Spec;
 use File::Temp;
 use File::Path;
 use File::Copy;
+use List::Util 1.45;
 use boolean;
 use Fcntl qw(:DEFAULT :flock :mode);    # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Errno qw(EAGAIN ESRCH EPERM);
@@ -426,8 +426,7 @@ sub compute_metrics
 		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 	}
 
-	my $GT = Compat::NMIS::loadGroupTable();
-	for my $group ( sort keys %{$GT} )
+	for my $group (sort $self->get_group_names)
 	{
 		my $groupSummary = Compat::NMIS::getGroupSummary( group => $group );
 		my $status = Compat::NMIS::statusNumber( Compat::NMIS::overallNodeStatus( group => $group ) );
@@ -1791,6 +1790,38 @@ sub get_node_uuids
 	my $data       = $model_data->data();
 	my @uuids      = map { $_->{uuid} } @$data;
 	return \@uuids;
+}
+
+# returns list of non-hidden group names for some or all nodes
+# args:
+#  filter (optional hashref, default: active nodes
+#   and for this cluster_id only),
+#  include_hidden (optional, default: 0)
+# returns: list of group names, may be empty (e.g. errors)
+sub get_group_names
+{
+	my ($self, %args) = @_;
+	my $includehidden = NMISNG::Util::getbool($args{include_hidden});
+
+	# default: active nodes, and ours only
+	my $filter = exists($args{filter})? $args{filter} # undef is ok
+	: 	{ "activated.NMIS" => 1,
+				cluster_id => $self->config->{cluster_id }};
+
+	my $model_data = $self->get_nodes_model( filter => $filter,
+																					 fields_hash => {"configuration.group" => 1} );
+	return () if ($model_data->error);
+
+	my @groupnames  = List::Util::uniq(map { $_->{configuration}->{group} } @{$model_data->data});
+	# nothing to hide?
+	return @groupnames
+			if ($includehidden
+					or ref($self->{_config}->{hide_groups}) ne "ARRAY"
+					or !@{$self->{_config}->{hide_groups}});
+
+	# otherwise ditch hidden groups
+	my %hideme = map { $_ => 1} (@{$self->{_config}->{hide_groups}});
+	return map { $hideme{$_}? () : $_ } (@groupnames);
 }
 
 # looks up ops status log entries and returns modeldata object with matches

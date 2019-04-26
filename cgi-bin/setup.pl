@@ -264,22 +264,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 		print end_Tr;
 	}
 
-	# do the add nodes and add groups rows
-
-	my $havecustomgroups = $rawconf->{system}->{group_list} ne $defaultconf->{system}->{group_list};
-	print start_Tr(), td({class => "header", width => "20%"},
-											 ($havecustomgroups? $iconok: $iconbad) . "&nbsp; Groups");
-	print td({class => "infolft Plain"},  ($havecustomgroups? '' : $iconbad) . "&nbsp; "
-					 # make the link into a button, same styling as elsewhere
-					 . button(-name => "add_groups", -value => "Add or Edit Groups",
-										-onclick => $wantwidget? "createDialog({id: 'cfg_groups', url: 'config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list&amp;widget=$widget', title: 'Edit Groups'})" : "document.location='config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list&amp;widget=$widget'" )),
-
-			td({class => "infolft Plain"},
-				 ($havecustomgroups? "You have configured ".
-					scalar(split(/\s*,\s*/, $rawconf->{system}->{group_list})). " groups" :
-					"You have only the default NMIS groups.")."<br/>Use the button to the left to edit groups."),
-					end_Tr;
-
+	# do the add nodes row
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $havecustomnodes = (keys %$NT > 1);
 	print start_Tr(),

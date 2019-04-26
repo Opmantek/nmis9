@@ -511,15 +511,6 @@ elsif ($cmdline->{act} eq "set")
 		die "translation of $name arguments failed: $error\n" if ($error);
 	}
 
-	# check the group - only warn about
-	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
-	if (!grep($_ eq $curconfig->{group}, @knowngroups))
-	{
-		print STDERR "\nWarning: your node info sets group \"$curconfig->{group}\", which does not exist!
-Please adjust group_list in your configuration,
-or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing groups.\n\n";
-	}
-
 	$nodeobj->overrides($curoverrides);
 	$nodeobj->configuration($curconfig);
 	$nodeobj->activated($curactivated);
@@ -612,15 +603,6 @@ elsif ($cmdline->{act} eq "rename")
 		$error = NMISNG::Util::translate_dotfields($curactivated);
 		die "translation of activated arguments failed: $error\n" if ($error);
 
-		# check the group - only warn about
-		my @knowngroups = split(/\s*,\s*/, $config->{group_list});
-		if (!grep($_ eq $curconfig->{group}, @knowngroups))
-		{
-			print STDERR "\nWarning: your node info sets group \"$curconfig->{group}\", which does not exist!
-Please adjust group_list in your configuration,
-or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing groups.\n\n";
-		}
-
 		$nodeobj->overrides($curoverrides);
 		$nodeobj->configuration($curconfig);
 		$nodeobj->activated($curactivated);
@@ -708,13 +690,6 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	die "Invalid node data, roleType \"$mayberec->{configuration}->{roleType}\" is not known!\n"
 			if (!grep($mayberec->{configuration}->{roleType} eq $_,
 								split(/\s*,\s*/, $config->{roletype_list})));
-
-	# check the group
-	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
-	if (!grep($_ eq $mayberec->{configuration}->{group}, @knowngroups))
-	{
-		print STDERR "\nWarning: your node info sets group \"$mayberec->{configuration}->{group}\", which does not exist!\n";
-	}
 
 	# look up the node - ideally by uuid, fall back to name only if necessary
 	my %query = $mayberec->{uuid}? (uuid => $mayberec->{uuid}) : (name => $mayberec->{name});

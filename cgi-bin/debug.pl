@@ -356,10 +356,6 @@ print '<h2>NodeConf</h2>';
 print "<p>$errmsg</p>" if ($errmsg);
 print dumper_html($overrides);
 
-	my $GT = Compat::NMIS::loadGroupTable();
-print '<h2>Group Table [\$GT]</h2>';
-print dumper_html($GT);
-
 my $x = Compat::NMIS::loadInterfaceInfo;
 print "<h2>InterfaceInfo Table ( all node interfaces)</h2>";
 print dumper_html($x);

@@ -33,12 +33,13 @@ use lib "$FindBin::Bin/../lib";
 
 use strict;
 use URI::Escape;
+use List::Util 1.33;
+use CGI;
+use Data::Dumper;
 
 use NMISNG::Util;
 use Compat::NMIS;
 use NMISNG::Auth;
-use CGI;
-use Data::Dumper;
 
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
@@ -98,7 +99,9 @@ sub display_details
 			if (!$wantwidget);
 
 	my $LNT = Compat::NMIS::loadLocalNodeTable;
-	if (!$wantnode or !$LNT->{$wantnode} or !$AU->InGroup($LNT->{$wantnode}->{group}))
+	if (!$wantnode or !$LNT->{$wantnode}
+			or !$AU->InGroup($LNT->{$wantnode}->{group})
+			or List::Util::any { $_ eq $LNT->{$wantnode}->{group} } (@{$C->{hide_groups}}) )
 	{
 		print "You are not Authorized to view services on node '$wantnode'!";
 		Compat::NMIS::pageEnd if (!$wantwidget);
@@ -369,8 +372,10 @@ sub display_overview
 	{
 		for my $nname (keys %{$sstatus{$sname}})
 		{
-			# skip if we're not allowed to see this node
-			next if (!$AU->InGroup($LNT->{$nname}->{group}));
+			# skip if we're not allowed to see this node, ditto hidden groups
+			next if (!$AU->InGroup($LNT->{$nname}->{group})
+							 or List::Util::any { $_ eq $LNT->{$nname}->{group} } (@{$C->{hide_groups}}) );
+
 			next if ($filter and
 							 (( $filter eq "ok" and $sstatus{$sname}->{$nname}->{status} != 100)
 								or ($filter eq "notok" and $sstatus{$sname}->{$nname}->{status} == 100)));

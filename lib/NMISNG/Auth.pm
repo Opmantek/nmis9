@@ -1548,7 +1548,6 @@ sub _GetPrivs {
 	my $self = shift;
 	my $user = lc shift;
 
-	my $GT = Compat::NMIS::loadGroupTable();
 	my $UT = Compat::NMIS::loadGenericTable("Users");
 	my $PMT = Compat::NMIS::loadGenericTable("PrivMap");
 

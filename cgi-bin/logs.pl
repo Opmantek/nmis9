@@ -40,26 +40,22 @@
 # the sumamry view is now available from the menubar,and this will summarise over all log fils found.
 # The printed output list will be truncated by 'lines=' when displayed.
 #
-#
-# use CGI::Debug( report => 'everything', on => 'anything' );
-# Auto configure to the <nmis-base>/lib and <nmis-base>/files/nmis.conf
+use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use Data::Dumper;
 use Socket;
-
-use strict;
-use NMISNG::Util;
-use Compat::NMIS;
 use Time::Local;
 use Fcntl qw(:DEFAULT :flock);
-use NMISNG::Sys;
-
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
-
 use URI::Escape;
+
+use Compat::NMIS;
+use NMISNG::Util;
+use NMISNG::Sys;
+use NMISNG::Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -73,8 +69,7 @@ if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 # Before going any further, check to see if we must handlegrep
 # an authentication login or logout request
 
-# NMIS Authentication module
-use NMISNG::Auth;
+
 my $logoutButton;
 my $privlevel = 5;
 my $user;
@@ -139,7 +134,12 @@ my $LL;		# global ref to conf/Logs.xxxx configuration file
 # Therefore, create a hash, keyed by name records, values being the node key.
 ## TBD - add the node sysName in here, as a log source address could be it's sysname.
 my $NT = Compat::NMIS::loadNodeTable();
-my $GT = Compat::NMIS::loadGroupTable(only_configured => 1);
+
+my $nmisng = Compat::NMIS::new_nmisng;
+
+my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
+my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
+
 my $NN;
 foreach my $k ( keys %{$NT} ) {
 	next if (!exists ($GT->{$NT->{$k}->{group}})); # skip nodes whose group isn't a configured one
