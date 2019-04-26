@@ -73,7 +73,8 @@ if ($AU->Require) {
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 my $NT = Compat::NMIS::loadLocalNodeTable();
-my $GT = Compat::NMIS::loadGroupTable(only_configured => 1);
+my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
+my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
 
 # cancel? go to graph view
 if ($Q->{cancel} || $Q->{act} eq 'network_graph_view')

@@ -44,22 +44,22 @@
 # report=times
 # report=nodedetails (only from the gui)
 #
+use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use strict;
 use Fcntl qw(:DEFAULT :flock);
-
 use Time::ParseDate;
+use Data::Dumper;
+use URI::Escape;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+
 use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::Sys;
 use NMISNG::rrdfunc;
+use NMISNG::Auth;
 
-use Data::Dumper;
-use URI::Escape;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -68,8 +68,8 @@ my $C;
 if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 NMISNG::rrdfunc::require_RRDs(config=>$C);
 
+my $nmisng = Compat::NMIS::new_nmisng;
 my $NT = Compat::NMIS::loadLocalNodeTable();
-my $GT = Compat::NMIS::loadGroupTable(only_configured => 1);
 
 # if no options, assume called from web interface ....
 my $outputfile;
@@ -100,8 +100,6 @@ my $widget = $wantwidget ? "true" : "false";
 # bypass auth iff called from command line
 $C->{auth_require} = 0 if (@ARGV);
 
-# NMIS Authentication module
-use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
@@ -116,6 +114,10 @@ my $nodewrap = NMISNG::Util::getbool($C->{'wrap_node_names'})? "wrap" : "nowrap"
 
 # check for remote request - fixme9: not supported at this time
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
+
+my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
+my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
+
 
 #======================================================================
 
