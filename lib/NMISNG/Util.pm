@@ -1317,7 +1317,6 @@ sub writeHashtoFile {
 									|| $json );
 	$file = NMISNG::Util::getFileName(file => $file, json => $json);
 
-	NMISNG::Util::dbg("write data to $file");
 	if ($handle eq "") {
 		if (open($handle, "+<$file")) {
 			flock($handle, LOCK_EX) or warn "ERROR writeHashtoFile, can't lock $file, $!\n";

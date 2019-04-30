@@ -30,7 +30,7 @@
 # *****************************************************************************
 #
 # this is a small helper that modifies X.nmis-style config file entries
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -39,6 +39,8 @@ use strict;
 use Data::Dumper;
 use File::Basename;
 use Getopt::Std;
+use File::Copy;
+
 use NMISNG::Util;
 use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 
@@ -74,7 +76,7 @@ NMISNG::Util::loadConfTable();	# or else writeHashtoFile will fail, as it calls
 # setfileprot which then has no config values for perms and uid/gid.
 
 print "Operating on config file: $config_file\n\n";
-my $cfg = NMISNG::Util::readFiletoHash(file => $config_file);
+my ($cfg, $fh) = NMISNG::Util::readFiletoHash(file => $config_file, lock => 1);
 
 die "Config file \"$config_file\" was not parseable or is empty!\n"
 		if (!$cfg);
@@ -120,9 +122,9 @@ while (grep(defined $_, @patches))
 
 if ($opts{b})
 {
-	rename($config_file,"$config_file.prepatch") or die "cannot rename $config_file: $!\n";
+	File::Copy::cp($config_file,"$config_file.prepatch") or die "cannot backup $config_file: $!\n";
 }
-NMISNG::Util::writeHashtoFile(file => $config_file, data => $cfg);
+NMISNG::Util::writeHashtoFile(file => $config_file, data => $cfg, handle => $fh);
 
 # args: current location in cfg tree, path name, elem name (if any)
 # uses global %patches, updates the cfg tree
