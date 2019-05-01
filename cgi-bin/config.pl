@@ -439,7 +439,8 @@ sub doEditConfig
 	# hide_groups: is an array, multiple checkboxes convey desired state
 	if ($section eq "system" and $item eq "hide_groups")
 	{
-		$value = [ $q->multi_param($item) ];
+		# ...but deselected ones produce empty strings
+		$value = [ grep(!/^\s*$/, $q->multi_param($item)) ];
 	}
 
 
