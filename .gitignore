@@ -12,3 +12,5 @@ dev
 private
 build
 test
+.vagrant
+Vagrantfile
