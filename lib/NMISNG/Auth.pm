@@ -47,7 +47,7 @@
 #   incorporated in NMIS and more generally into other web programs needing
 #   user authentication.
 package NMISNG::Auth;
-our $VERSION = "4.0.0";
+our $VERSION = "5.0.0";
 
 use strict;
 
@@ -460,6 +460,8 @@ sub user_verify {
 			$exit = _novell_ldap_verify($u,$p,0);
 		} elsif ( $auth eq "connectwise" ) {
 			$exit = $self->_connectwise_verify($u,$p);
+		} elsif ( $auth eq "pam" ) {
+			$exit = $self->_pam_verify($u,$p);
 		}
 
 		if ($exit) {
@@ -1151,10 +1153,64 @@ sub do_login_banner {
 # by Sinclair Internetworking Ltd Pty and covered under the GNU GPL.
 #
 
-#####################################################################
-#
-# 5-10-06, Jan v. K.
-#
+sub _pam_verify 
+{
+	my ($self, $user, $password) = @_;
+
+	eval { require Authen::PAM; };
+	if ($@) 
+	{
+		NMISNG::Util::logAuth("ERROR, failed to load Authen::PAM module: $@");
+		return 0;
+	}
+
+	# let's authenticate with the rules for our own service, 'nmis'; 
+	# pam falls back to the rules for service 'other' if n/a
+
+	# NOTE that if pam_unix is involved, then /etc/shadow must be readable by the
+	# calling user, ie. the webserver
+	my $pamhandle = Authen::PAM->new("nmis", 
+																	 $user,				# can also be passed via conversation function
+																	 # use closure to control visilibity of the password
+																	 sub { 
+																		 my @messages = @_; # see man pam_conv
+																		 my @responses;
+																		 while (@messages)
+																		 {
+																			 my ($code, $msg) = (shift @messages, shift @messages);
+																			 if ($msg =~ /login/i 
+																					 && $code == Authen::PAM::PAM_PROMPT_ECHO_ON())
+																			 {
+																				 push @responses, Authen::PAM::PAM_SUCCESS(), $user;
+																			 }
+																			 elsif ($msg =~ /password/i 
+																							&& $code == Authen::PAM::PAM_PROMPT_ECHO_OFF())
+																			 {
+																				 push @responses, Authen::PAM::PAM_SUCCESS(), $password;
+																			 }
+																		 }
+																		 push @responses, Authen::PAM::PAM_SUCCESS();
+																		 return @responses; 
+																	 });
+	if (ref($pamhandle) ne "Authen::PAM")
+	{
+		NMISNG::Util::logAuth("ERROR, failed to instantiate PAM object: "
+													.Authen::PAM::pam_strerror($pamhandle));
+		return 0;
+	}
+
+	# failure of these two isn't vital for auth
+	$pamhandle->pam_set_item(Authen::PAM::PAM_RUSER(), $user);
+	$pamhandle->pam_set_item(Authen::PAM::PAM_RHOST(), CGI::remote_addr());
+
+	# time to go!
+	my $res = $pamhandle->pam_authenticate();
+	return 1 if ($res == Authen::PAM::PAM_SUCCESS());
+
+	NMISNG::Util::logAuth("ERROR, PAM authentication failed: "
+			. $pamhandle->pam_strerror($res));
+	return 0;
+}
 
 sub _radius_verify {
 	my $self = shift;
