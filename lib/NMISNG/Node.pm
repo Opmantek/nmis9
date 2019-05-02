@@ -175,7 +175,16 @@ sub _load
 		$self->{_name} = $entry->{name};
 		$self->{_cluster_id} = $entry->{cluster_id};
 
-		$self->{_overrides} = $entry->{overrides} // {};
+		$self->{_overrides} = {};
+		# translate the overrides keys back; note that some other get_nodes_model callers
+		# also need to know about this
+		for my $uglykey (keys %{$entry->{overrides}})
+		{
+			# must handle compat/legacy load before correct structure in db
+			my $nicekey = $uglykey =~ /^==([A-Za-z0-9+\/=]+)$/? Mojo::Util::b64_decode($1) : $uglykey;
+			$self->{_overrides}->{$nicekey} = $entry->{overrides}->{$uglykey};
+		}
+
 		$self->{_configuration} = $entry->{configuration} // {}; # unlikely to be blank
 		$self->{_activated} =
 				(ref($entry->{activated}) eq "HASH"? # but fall back to old style active flag if needed
@@ -442,7 +451,7 @@ sub configuration
 				$newvalue->{$wantarray} = [ map { $_ eq ''? () : $_ } (split(/\s*,\s*/, $newvalue->{$wantarray})) ];
 			}
 		}
-		
+
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
@@ -1103,14 +1112,20 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
-	my ($result, $op);
+	# massage the overrides for db storage,
+	# as they may have keys with dots which mongodb < 3.6 doesn't support
+	# simplest workaround: mark up with ==, then base64-encoded key.
+	# note: only outer keys are checked
+	# note also: node_admin's export and a few others use the raw db, so need to know this
+	my %dbsafeovers = map { "==".Mojo::Util::b64_encode($_,'') => $self->{_overrides}->{$_} } (keys %{$self->{_overrides}});
 
+	my ($result, $op);
 	my %entry = ( uuid => $self->{uuid},
 								name => $self->{_name},
 								cluster_id => $self->{_cluster_id},
 								lastupdate => time, # time of last save
 								configuration => $self->{_configuration},
-								overrides => $self->{_overrides},
+								overrides => \%dbsafeovers,
 								activated => $self->{_activated},
 								addresses => $self->{_addresses} // [],
 								aliases => $self->{_aliases} // [],
@@ -6860,7 +6875,7 @@ sub collect_services
 			 and $self->configuration->{collect}
 			 and ref($self->configuration->{services}) eq "ARRAY"
 			 and grep( exists( $ST->{$_} ) && $ST->{$_}->{Service_Type} eq "service",
-								 @{$self->configuration->{services}} ) 
+								 @{$self->configuration->{services}} )
 			)
 	{
 		$self->nmisng->log->debug2("node $node has SNMP services to check");

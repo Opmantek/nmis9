@@ -334,6 +334,22 @@ elsif ($cmdline->{act} eq "export")
 		map { delete $_->{cluster_id}; delete $_->{uuid} } (@$allofthem);
 	}
 
+	# ensure that overrides are untranslated from db-safe format
+	for my $entry (@$allofthem)
+	{
+		for my $uglykey (keys %{$entry->{overrides}})
+		{
+			# must handle compat/legacy load before correct structure in db
+			if ($uglykey =~ /^==([A-Za-z0-9+\/=]+)$/)
+			{
+				my $nicekey = Mojo::Util::b64_decode($1);
+				$entry->{overrides}->{$nicekey} = $entry->{overrides}->{$uglykey};
+				delete $entry->{overrides}->{$uglykey};
+			}
+		}
+	}
+
+
 	# ...and if format=nodes is requested, ditch the nodeconf overrides and dummy addresses as well
 	# nodes.nmis is a hash of nodename => FLAT record
 	if (defined($wantformat) && $wantformat eq "nodes")

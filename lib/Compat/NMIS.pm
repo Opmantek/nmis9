@@ -128,6 +128,18 @@ sub loadLocalNodeTable
 		delete $flattenme->{configuration};
 		$flattenme->{active} = $flattenme->{activated}->{NMIS};
 		delete $flattenme->{activated};
+
+		# untranslate override keys
+		for my $uglykey (keys %{$flattenme->{overrides}})
+		{
+			# must handle compat/legacy load before correct structure in db
+			if ($uglykey =~ /^==([A-Za-z0-9+\/=]+)$/)
+			{
+				my $nicekey = Mojo::Util::b64_decode($1);
+				$flattenme->{overrides}->{$nicekey} = $flattenme->{overrides}->{$uglykey};
+				delete $flattenme->{overrides}->{$uglykey};
+			}
+		}
 	}
 
 	return \%map;
@@ -155,6 +167,18 @@ sub loadNodeTable
 		delete $flattenme->{configuration};
 		$flattenme->{active} = $flattenme->{activated}->{NMIS};
 		delete $flattenme->{activated};
+
+		# untranslate override keys
+		for my $uglykey (keys %{$flattenme->{overrides}})
+		{
+			# must handle compat/legacy load before correct structure in db
+			if ($uglykey =~ /^==([A-Za-z0-9+\/=]+)$/)
+			{
+				my $nicekey = Mojo::Util::b64_decode($1);
+				$flattenme->{overrides}->{$nicekey} = $flattenme->{overrides}->{$uglykey};
+				delete $flattenme->{overrides}->{$uglykey};
+			}
+		}
 	}
 	return \%map;
 }
