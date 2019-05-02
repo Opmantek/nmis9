@@ -283,6 +283,7 @@ sub get_events_model
 
 # write a record for a given event to the event log file
 # args: node_name, event, element (may be missing), level, details (may be missing)
+# fixme9: some callers pass in node_uuid, which is currently ignored
 # logs errors
 # returns: undef if ok, error message otherwise
 sub logEvent

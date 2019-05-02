@@ -407,8 +407,9 @@ sub displayEventItems {
 		# we have list of nodes that this node depends on in $NT->{$runnode}{depend}
 		# if any of those have a current Node Down alarm, then lets just move on with a debug message
 		# should we log that we have done this - maybe not....
-
-		foreach my $node_depend ( split /,/ , lc($NT->{$thisevent->{node_name}}{depend}) ) {
+		foreach my $node_depend ( ref($NT->{$thisevent->{node_name}}->{depend}) eq "ARRAY"?
+															@{$NT->{$thisevent->{node_name}}{depend}} :  ())
+		{
 			next if $node_depend eq "N/A" ;		# default setting
 			next if $node_depend eq $thisevent->{node_name};	# remove the catch22 of self dependancy.
 			my $node_depend_rec = $NT->{$node_depend};

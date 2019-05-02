@@ -675,7 +675,8 @@ sub outageCheck
 
 	# if neither current nor future, check dependency nodes with
 	# current outages and that are down
-	foreach my $nd ( split(/,/,$node->configuration->{depend}) )
+	foreach my $nd ( ref($node->configuration->{depend}) eq "ARRAY"?
+									 @{$node->configuration->{depend}} :  ())
 	{
 		# ignore nonexistent stuff, defaults and circular self-dependencies
 		next if ($nd =~ m!^(N/A|$nodename)?$!);

@@ -240,18 +240,19 @@ sub viewNodeFind {
 
 	my $counter = 0;
 	my @out;
-	# Get each of the nodes info in a HASH for playing with
+
 	foreach my $node (sort keys %{$NT})
 	{
 		my $thisnode = $NT->{$node};
 
-		if ( 	$thisnode->{name} =~ /$qrfind/ or
-				$thisnode->{host} =~ /$qrfind/ or
-				$thisnode->{group} =~ /$qrfind/ or
-				$thisnode->{services} =~ /$qrfind/ or
-				$thisnode->{description} =~ /$qrfind/ or
-				$thisnode->{depend} =~ /$qrfind/
-		)
+		# match definition: name, group, host, services, description or a match on the nodes this one depends on
+		if ( 	$thisnode->{name} =~ /$qrfind/
+					or $thisnode->{host} =~ /$qrfind/
+					or $thisnode->{group} =~ /$qrfind/
+					or ( ref($thisnode->{services}) eq "ARRAY" and List::Util::any { /$qrfind/ } (@{$thisnode->{services}}) )
+					or $thisnode->{description} =~ /$qrfind/
+					or ( ref($thisnode->{depend}) eq "ARRAY" and List::Util::any { /$qrfind/ } (@{$thisnode->{depend}}) )
+				)
 		{
 			# if you're allowed to see this group AND the group isn't hidden
 			if ($AU->InGroup($thisnode->{group})
@@ -269,8 +270,8 @@ sub viewNodeFind {
 					td({class=>'info'},$thisnode->{group}),
 					td({class=>'info'},$thisnode->{active}),
 					td({class=>'info'},$thisnode->{ping}),
-					td({class=>'info'},$thisnode->{services}),
-					td({class=>'info'},$thisnode->{depend}),
+					td({class=>'info'},join(" ", @{$thisnode->{services}})),
+					td({class=>'info'},join(" ", @{$thisnode->{depend}})),
 				);
 			}
 		}

@@ -432,6 +432,17 @@ sub configuration
 		# fill in other defaults
 		$newvalue = $self->_defaults($newvalue);
 
+		# convert commasep services and depend to real arrays
+		for my $wantarray (qw(services depend))
+		{
+			if (defined $newvalue->{$wantarray}
+					&& ref($newvalue->{$wantarray}) ne "ARRAY")
+			{
+				# but ditch empty values
+				$newvalue->{$wantarray} = [ map { $_ eq ''? () : $_ } (split(/\s*,\s*/, $newvalue->{$wantarray})) ];
+			}
+		}
+		
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
@@ -647,7 +658,7 @@ sub eventLog
 	my ($self, %args) = @_;
 	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$args{node_name} = $self->name;
-	$args{node_uuid} = $self->uuid;
+	$args{node_uuid} = $self->uuid; # fixme9: logevent doesn't use uuid yet
 	return $self->nmisng->events->logEvent(%args);
 }
 
@@ -6845,11 +6856,11 @@ sub collect_services
 	# do we have snmp-based services and are we allowed to check them?
 	# ie node active and collect on; if so, then do the snmp collection here
 	if ( $snmp_allowed
-
-			 and  $self->is_active
+			 and $self->is_active
 			 and $self->configuration->{collect}
+			 and ref($self->configuration->{services}) eq "ARRAY"
 			 and grep( exists( $ST->{$_} ) && $ST->{$_}->{Service_Type} eq "service",
-								 split( /,/, $self->configuration->{services} ) )
+								 @{$self->configuration->{services}} ) 
 			)
 	{
 		$self->nmisng->log->debug2("node $node has SNMP services to check");
@@ -6966,7 +6977,8 @@ sub collect_services
 
 	# find and mark as historic any services no longer configured for this host
 	# all possible services are desired at this point
-	my %desiredservices = map { ($_ => 1) } (split /,/, $self->configuration->{services});
+	my %desiredservices = map { ($_ => 1) } (ref($self->configuration->{services}) eq "ARRAY"?
+																					 @{$self->configuration->{services}}: ());
 
 	my $result = $self->get_inventory_model(concept => "service",
 																					filter => { historic => 0 },

@@ -2574,7 +2574,7 @@ EO_HTML
 			}
 		}    # end for
 	}
-	elsif ( defined $catchall_data->{services} and $catchall_data->{services} ne "" )
+	elsif ( ref($configuration->{services}) eq "ARRAY" && @{$configuration->{services}} )
 	{
 		print Tr( td( {class => 'header'}, 'Monitored Services' ) );
 		my %servicestatus = Compat::NMIS::loadServiceStatus( node => $node );
@@ -3465,6 +3465,7 @@ sub viewService
 	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	my $configuration = $S->nmisng_node->configuration();
 
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
@@ -3519,7 +3520,7 @@ sub viewService
 	# for the type determination
 	my $ST = Compat::NMIS::loadGenericTable("Services");
 
-	if ( my @servicelist = split( ",", $catchall_data->{services} ) )
+	if ( my @servicelist = ref($configuration->{services}) eq "ARRAY"? @{$configuration->{services}} : () )
 	{
 		print Tr(
 			td( {class => 'header'}, "Service" ),
@@ -4151,8 +4152,6 @@ sub viewSystemHealth
 		{
 			# use 2/3 width so fits a little better.
 			my $thiswidth = int( 2 / 3 * $smallGraphWidth );
-
-			# fixme: this code does nothing: split /,/, $M->{system}{nodegraph};
 			my @graphtypes = split /,/, $M->{systemHealth}{rrd}{$section}{graphtype};
 
 			push( @cells, start_td );

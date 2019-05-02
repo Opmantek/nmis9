@@ -1179,7 +1179,7 @@ sub find_due_nodes
 			my %service_lastrun
 				= ( map { ( $_->{data}->{service} => $_->{data}->{last_run} ) } ( @{$prevruns->data} ) );
 
-			for my $maybesvc ( split( /\s*,\s*/, $nodeconfig->{services} ) )
+			for my $maybesvc ( ref($nodeconfig->{services}) eq "ARRAY"? @{$nodeconfig->{services}}: () )
 			{
 				# listed for a node doesn't mean the service definition (still) exists
 				if ( !exists $intervals{$maybesvc} )
@@ -2931,7 +2931,7 @@ LABEL_ESC:
 			{
 				$self->events->logEvent(
 					node_name => $node_name,
-					node_uuid => $nmisng_node->uuid,
+					node_uuid => ($nmisng_node? $nmisng_node->uuid : undef), # fixme9: not even used
 					event     => "Deleted Event: " . $event_obj->event,
 					level     => $event_obj->level,
 					element   => $event_obj->element,
@@ -3009,9 +3009,9 @@ LABEL_ESC:
 			# if any of those have a current Node Down alarm, then lets just move on with a debug message
 			# should we log that we have done this - maybe not....
 
-			if ( $nmisng_node->configuration->{depend} ne '' )
+			if (ref($nmisng_node->configuration->{depend}) eq "ARRAY")
 			{
-				foreach my $node_depend ( split /,/, $nmisng_node->configuration->{depend} )
+				for my $node_depend (@{$nmisng_node->configuration->{depend}})
 				{
 					next if $node_depend eq "N/A";                    # default setting
 					next if $node_depend eq $event_obj->node_name;    # remove the catch22 of self dependancy.

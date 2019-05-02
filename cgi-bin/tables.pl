@@ -190,7 +190,8 @@ EOF
 		for my $ref ( @{$CT}) { # trick for order of header items
 			for my $item (keys %{$ref}) {
 				if ($ref->{$item}{display} =~ /(^|,)header(,|$)/ ) {
-					print td({class=>'info Plain'}, escapeHTML($T->{$k}{$item})) if $display;
+					print td({class=>'info Plain'}, escapeHTML( ref($T->{$k}->{$item}) eq "ARRAY"?
+																											join(" ", @{$T->{$k}->{$item}}) : $T->{$k}{$item})) if $display;
 				}
 			}
 		}
@@ -528,13 +529,17 @@ sub editTable
 					}
 					$line .= "</td>";
 				}
-				elsif ($thisitem->{display} =~ /(^|,)scrolling(,|$)/) {
-					my @items = split(/,/,$T->{$key}{$item});
-					$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
+				elsif ($thisitem->{display} =~ /(^|,)scrolling(,|$)/)
+				{
+					# handle commasep lists as well as real lists
+					my @selected = ref($thiscontent) eq "ARRAY"? @$thiscontent: split(/,/, $thiscontent);
+
+					$line.= td(scrolling_list(-name=> $item,
+																		-multiple=>'true',
 																		-style=>'width: 95%;',
 																		-size=>'6',
-																		-values=>$thisitem->{value},
-																		-default=>\@items));
+																		-values => $thisitem->{value}, # that's possibles
+																		-default => \@selected));				 # that's the currently selected ones
 				}
 
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
@@ -634,11 +639,21 @@ sub doeditTable
 				delete $thisentry->{$item};
 				next;
 			}
-			# but handle multi-valued inputs correctly!
-			# with Vars we get that as packed string of null-separated entries
-			# if submission was under widget mode, then javascript:get() will have transformed
-			# any such into comma-sep data - but for a standalone submission that does not happen.
-			my $value = join(",", unpack("(Z*)*", NMISNG::Util::stripSpaces($Q->{$item})));
+			# handle multi-valued inputs correctly!
+			#
+			# if submission was under widget mode, then javascript:get() 
+			# will have transformed any such into comma-sep data
+			#
+			# for a standalone submission that does not happen, and
+			# we get that as packed string of null-separated entries
+			#
+			# furthermore, real array items (=marked as savearray) must 
+			# not become comma-separated
+			my @unpacked = $wantwidget? 
+					split(/\s*,\s*/, $Q->{$item}) 
+					: unpack("(Z*)*", NMISNG::Util::stripSpaces($Q->{$item}));
+			my $value = $thisitem->{display} =~ /(^|,)savearray(,|$)/? 
+					\@unpacked:  join(",", @unpacked);
 			$thisentry->{$item} = $V->{$item} = $value;
 
 			# and if the item is marked as pluscustom and a custom value is present,
@@ -773,7 +788,8 @@ sub doeditTable
 
 					# for multifromlist assume that value is now comma-separated. *sigh*
 					# for onefromlist values with colon are utterly unspecial *double sigh*
-					my @mustcheckthese = ($valtype eq "multifromlist")? split(/,/, $value) : $value;
+					my @mustcheckthese = ($valtype eq "multifromlist")?
+							ref($value) eq "ARRAY"? @$value : split(/,/, $value) : $value;
 					for my $oneofmany (@mustcheckthese)
 					{
 						return validation_abort($item, "'$oneofmany' is not in list of acceptable values!")
