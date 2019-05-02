@@ -2922,7 +2922,6 @@ LABEL_ESC:
 		my $node_name = $event_obj->node_name;
 
 		# lets start with checking that we have a valid node - the node may have been deleted.
-		# note: Compat::NMIS::loadAllEvents() doesn't return events for vanished nodes (but for inactive ones it does)
 		if ( !$nmisng_node or !$nmisng_node->configuration->{active} )
 		{
 			if (    NMISNG::Util::getbool( $thisevent_control->{Log} )

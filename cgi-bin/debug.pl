@@ -38,6 +38,7 @@ use strict;
 use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::CSV;
+use NMISNG::Auth;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -54,9 +55,6 @@ if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { 
 
 # bypass auth iff called from command line
 $C->{auth_require} = 0 if (@ARGV);
-
-# NMIS Authentication module
-use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
@@ -348,21 +346,18 @@ foreach my $id ( @TB ) {
 print "<h1>Dynamic Tables</h1></br>";
 
 
+my $nmisng = Compat::NMIS::new_nmisng;
+
 my $NT = Compat::NMIS::loadNodeTable();
 print '<h2>Node Table [\$NT]</h2>';
 print dumper_html($NT);
-my ($errmsg, $overrides) = Compat::NMIS::get_nodeconf();
-print '<h2>NodeConf</h2>';
-print "<p>$errmsg</p>" if ($errmsg);
-print dumper_html($overrides);
 
 my $x = Compat::NMIS::loadInterfaceInfo;
 print "<h2>InterfaceInfo Table ( all node interfaces)</h2>";
 print dumper_html($x);
 
 print "<h2>Current Events</h2>";
-my %allevents = Compat::NMIS::loadAllEvents;
-print dumper_html(\%allevents);
+print dumper_html($nmisng->events->get_events_model->data);
 
 print "<h2>Outage Table</h2>";
 print dumper_html(NMISNG::Outage::find_outages);

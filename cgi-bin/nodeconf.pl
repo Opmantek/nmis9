@@ -192,15 +192,13 @@ sub displayNodeConf
 		return;
 	}
 
+	my $nodeobj = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	my $result = $S->nmisng_node->get_inventory_model(
+	my $result = $nodeobj->get_inventory_model(
 		concept => 'interface', filter => { historic => 0 });
 
 	# get any existing nodeconf overrides for this node
-	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)
-			if (Compat::NMIS::has_nodeconf(node => $node));
-	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
-	$override ||= {};
+	my $override = $nodeobj->overrides;
 
 	print Tr(td({class=>"header",width=>'20%'}),td({class=>"header",width=>'20%'}),
 			td({class=>"header",width=>'20%'},'<b>Original value</b>'),
@@ -433,9 +431,10 @@ sub updateNodeConf {
 		return;
 	}
 
+	my $nodeobj = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 	my %ifinfo;
-	my $result = $S->nmisng_node->get_inventory_model(
+	my $result = $nodeobj->get_inventory_model(
 		concept => 'interface',
 		filter => { historic => 0 });
 	if (!$result->error)
@@ -444,10 +443,7 @@ sub updateNodeConf {
 	}
 
 	# get the current nodeconf overrides
-	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)
-			if (Compat::NMIS::has_nodeconf(node => $node));
-	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
-	$override ||= {};
+	my $override = $nodeobj->overrides;
 
 	if  ($Q->{contact} eq "") {
 		delete $override->{sysContact};
@@ -507,11 +503,12 @@ sub updateNodeConf {
 	# longterm fixme: instead this should report an 'update done' and show the same node again
 	delete $Q->{node};
 
-	# right; anything left to save?
-	# if not, tell update_nodeconf to delete the node's data (data arg undef)
-	undef $override if (!keys %$override);
-	$errmsg = Compat::NMIS::update_nodeconf(node => $node, data => $override);
-	NMISNG::Util::logMsg("ERROR $errmsg") if ($errmsg);
+	if (keys %$override)
+	{
+		$nodeobj->overrides($override);
+		my ($success, $errmsg) = $nodeobj->save;
+		NMISNG::Util::logMsg("ERROR $errmsg") if ($success < 0);
+	}
 
 	# signal from button - schedule update job with high priority
 	if ( NMISNG::Util::getbool($Q->{update}) )
