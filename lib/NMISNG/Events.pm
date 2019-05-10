@@ -27,9 +27,6 @@
 #
 # *****************************************************************************
 
-# Node class, use for access/manipulation of single node
-# every node must have a UUID, this object will not devine one for you
-
 package NMISNG::Events;
 use strict;
 
@@ -164,7 +161,7 @@ sub eventDelete
 	return $event->delete();
 }
 
-# this function checks if a particular event exists and is non-historic
+# this function checks if a particular event exists and is both active and non-historic
 #
 # args: node (object), event(name), element (element may be missing)
 # returns 1 if found, 0/undef otherwise
@@ -172,10 +169,12 @@ sub eventExist
 {
 	my ( $self, $node, $event, $element ) = @_;
 
-	# only want non-historic events which are active (which is the default)
+	# we only want non-historic events which are active
+	# non-historic is default, but active is ignored by event::load!
 	my $eventobj
-		= $self->event( node_uuid => $node->uuid, event => $event, element => $element, historic => 0, active => 1 );
-	return $eventobj->exists;
+		= $self->event( node_uuid => $node->uuid, event => $event, element => $element,
+										historic => 0, active => 1 );
+	return $eventobj->exists && $eventobj->active;
 }
 
 # gets the detailed event record for the given event
@@ -217,7 +216,7 @@ sub eventUpdate
 # looks up all events (for one node or all), filtering for active and historic possible
 #
 # args: filter hash, { can have node obj or node_uuid(optional, if not there all are loaded),
-# 		active 1/0, historic 1/0 (defaults to 0)
+# 		active 1/0, historic 1/0 (defaults to 0), cluster_id (defaults to local)
 #  as well as sort/skip/limit/fields_hash
 # search args are parsed for regex:/iregex:
 #
@@ -243,6 +242,7 @@ sub get_events_model
 			and_part => {
 				_id          => $filter->{_id},
 				node_uuid    => $node_uuid,
+				cluster_id => $filter->{cluster_id} // $self->nmisng->config->{cluster_id},
 				event        => $filter->{event},
 				element      => $filter->{element},
 				inventory_id => $filter->{inventory_id},
@@ -253,7 +253,6 @@ sub get_events_model
 		);
 	}
 
-	# print STDERR "q:" . Dumper($q);
 	my $cursor = NMISNG::DB::find(
 		collection  => $self->nmisng->events_collection,
 		query       => $q,

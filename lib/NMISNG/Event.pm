@@ -82,7 +82,7 @@ sub new
 	if ( !$args{_id} && ( !$args{node_uuid} && !$args{event} ) )
 	{
 		confess
-			"not enough info to create an event, id:$args{_id}, node_uuid:$args{node_uuid}, event:$args{event},element:$args{element}";
+			"not enough info to create an event, id:$args{_id}, node_uuid:$args{node_uuid}, event:$args{event}, element:$args{element}";
 	}
 
 	my ( $nmisng, $S ) = @args{'nmisng', 'sys'};
@@ -140,26 +140,31 @@ sub _generic_getset
 }
 
 # filter/query to find this thing, just a hash
-# if we have an id look for it using that (because we may want
+# if we have an id look for it using that and only that (because we may want
 # to update active/historic/etc), if we don't have an _id we have
 # to use what we are given because this is probably a new object
-# searching for it's data in the db
-# if filter_active => 0 then don't add "active" to the filter
+# searching for its data in the db
+#
+# args:
+# ignore_active (default: 0), iff set remove active from filter. n/a when _id is present.
+# include_previous (default: 0), iff set look for event in previous name. n/a when _id is present.
+#
+# returns: query hashref
 sub _query
 {
-	my ( $self, $filter_active ) = @_;
-	my $q;
+	my ($self, %options) = @_;
 
 	if ( $self->{data}{_id} )
 	{
-		$q = NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}}, no_regex => 1 );
+		return NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}}, no_regex => 1 );
 	}
-	elsif ( !$q )
+	else
 	{
-		$q = NMISNG::DB::get_query(
+		my $q = NMISNG::DB::get_query(
 			and_part => {
 				node_uuid => $self->{data}{node_uuid},
 				element   => $self->{data}{element},
+				event => ($options{include_previous}? undef : $self->{data}->{event}),
 
 				# can't use inventory for querying until it's uniform everywhere
 				# inventory_id => $self->{data}{inventory_id},
@@ -167,14 +172,21 @@ sub _query
 				historic => $self->{data}{historic} // 0
 			},
 			no_regex => 1
-		);
-		delete $q->{active} if ( !$filter_active );
+				);
+		# optionally find both active and inactive events
+		delete $q->{active} if ($options{ignore_active});
 
-		# find the event value in either event or event_previous (so that Up/Down events can find each other)
-		$q = {'$and' => [$q, {'$or' => [{event => $self->{data}{event}}, {event_previous => $self->{data}{event}},]}]};
+		# optionally find the event name in either event or event_previous
+		# (so that Up/Down events can find each other)
+		if ($options{include_previous})
+		{
+			$q = { '$and' => [$q,
+												{'$or' => [ {event => $self->{data}{event}},
+																		{event_previous => $self->{data}{event}},]}]};
+		}
+
+		return $q;
 	}
-
-	return $q;
 }
 
 ## this function (un)acknowledges an existing event
@@ -289,7 +301,7 @@ sub check
 	if ( $exists && $self->active )
 	{
 		# a down event exists, so log an UP and delete the original event
-		my $new_event;
+		my $new_event = $self->event;
 
 		# cmpute the event period for logging
 		my $outage = NMISNG::Util::convertSecsHours( time() - $self->startdate );
@@ -368,8 +380,9 @@ sub check
 			$details .= ( $details ? " " : "" ) . "outage_current=true change=$outageinfo->{change_id}";
 		}
 
-		# tell this event that it's no longer active (but not yet historic, runEscalate does that)
-		$self->active(0);    # next processing by escalation routine
+		# tell this event that it's no longer active
+		# but not yet historic, process_escalations is supposed to do that
+		$self->active(0);
 		$self->event($new_event);
 		$self->details($details);
 		$self->level($level);
@@ -615,6 +628,9 @@ sub event
 # returns if this event exists in the db
 # uses whatever data is currently in the object to try
 # and load from the db, if found an _id should be loaded which means it exists
+#
+# ATTENTION: this function IGNORES the event's active state,
+# different from nmisng::events::eventExist which only considers active and nonhistoric events.
 sub exists
 {
 	my ($self) = @_;
@@ -643,7 +659,7 @@ sub load
 	# don't add active to filter, we want !historic but don't care about active because if one
 	# exists that is inactive (but not historic) we want to make that active again if threshold
 	# has not run
-	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(0) );
+	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1) );
 	my $error = $model_data->error;
 	my $event_in_db;
 
@@ -726,8 +742,6 @@ sub nmisng
 sub save
 {
 	my ( $self,  %args )  = @_;
-	my ( $valid, $error ) = $self->validate();
-	return $error if ( !$valid );
 
 	# set update when you want to skip the logic that came from eventAdd
 	my $update = $args{update};
@@ -773,7 +787,7 @@ sub save
 				"event exists, node=$node_name, event=$event, level=$level, element=$element, details=$details");
 			NMISNG::Util::logMsg(
 				"ERROR cannot add event=$event, node=$node_name: already exists, is current and not stateless!");
-			$error = "cannot add event: already exists, is current and not stateless!";
+			return "cannot add event: already exists, is current and not stateless!";
 		}
 		else
 		{
@@ -791,65 +805,56 @@ sub save
 			$self->{data}{stateless} //= 0;
 
 			# set clusterid
-			$self->{data}{cluster_id} = $self->nmisng->config->{cluster_id};
+			$self->{data}{cluster_id} //= $self->nmisng->config->{cluster_id};
 			$self->{data}{logged} //= 0;
 		}
 	}
 
-	if ( !$error )
+	# ready for saving, does the event data make sense?
+	my ( $valid, $error ) = $self->validate();
+	return $error if (!$valid);
+
+	$self->{_lastupdate} = time;
+	my $q = $self->_query;
+
+	# this will update/insert a single record
+	# don't try and update the id and don't let it be there to be set to undef either
+	my %data = %{$self->data};
+	delete $data{_id};
+
+	my $dbres = NMISNG::DB::update(
+		collection => $self->nmisng->events_collection(),
+		query      => $q,
+		record     => \%data,
+		upsert     => 1
+			);
+
+	$error = $dbres->{error} if ( !$dbres->{success} );
+	if ( $dbres->{upserted_id} )
 	{
-		$self->{_lastupdate} = time;
-		my $q = $self->_query;
-
-		# this will update/insert a single record
-
-		# don't try and update the id and don't let it be there to be set to undef either
-		my %data = %{$self->data};
-		delete $data{_id};
-
-		my $dbres = NMISNG::DB::update(
-			collection => $self->nmisng->events_collection(),
-			query      => $q,
-			record     => \%data,
-			upsert     => 1
-		);
-
-		$error = $dbres->{error} if ( !$dbres->{success} );
-		if ( $dbres->{upserted_id} )
-		{
-			$self->{data}{_id} = $dbres->{upserted_id};
-			$self->nmisng->log->debug1(
-				"Created new event $data{event} $dbres->{upserted_id} for node $data{node_name}");
-		}
-
-		# now that we've updated the db, update what we think is in the db
-		$self->{_data_from_db} = {%data};
+		$self->{data}{_id} = $dbres->{upserted_id};
+		$self->nmisng->log->debug1(
+			"Created new event $data{event} $dbres->{upserted_id} for node $data{node_name}");
 	}
+
+	# now that we've updated the db, update what we think is in the db
+	$self->{_data_from_db} = {%data};
+
 	return $error;
 }
 
-# returns (1,nothing) if the node configuration is valid,
+# returns (1,nothing) if the event configuration is valid,
 # (negative or 0, explanation) otherwise
 sub validate
 {
 	my ($self) = @_;
 
-	# return (-2, "node requires cluster_id") if ( !$self->{cluster_id} );
-	# for my $musthave (qw(name host group))
-	# {
-	# 	return (-1, "node requires $musthave property") if (!$configuration->{$musthave} ); # empty or zero is not ok
-	# }
+	return (-2, "event requires cluster_id") if ( !$self->{data}->{cluster_id} );
+	for my $musthave (qw(node_uuid event))
+	{
+	 	return (-1, "event requires $musthave property") if (!$self->{data}->{$musthave}); # empty or zero is not ok
+	}
 
-	# # note: if ths is changed to be stricter, then sub rename needs to be changed as well!
-	# # '/' is one of the few characters that absolutely cannot work as node name (b/c of file and dir names)
-	# return (-1, "node name contains forbidden character '/'") if ($configuration->{name} =~ m!/!);
-
-	# return (-3, "given netType is not a known type")
-	# 		if (!grep($configuration->{netType} eq $_,
-	# 							split(/\s*,\s*/, $self->nmisng->config->{nettype_list})));
-	# return (-3, "given roleType is not a known type")
-	# 		if (!grep($configuration->{roleType} eq $_,
-	# 							split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
 	return ( 1, undef );
 }
 
