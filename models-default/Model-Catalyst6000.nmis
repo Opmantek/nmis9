@@ -91,7 +91,8 @@
             'title' => 'Contact'
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
+						'title' => 'System Name',
           }
         }
       },

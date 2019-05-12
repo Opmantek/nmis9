@@ -68,6 +68,7 @@
 
           'sysName' => {
             'oid' => 'sysName',
+						'title' => 'System Name',
           },
           # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
           #              has been running for, not the uptime of the box.  hrSystemUpTime

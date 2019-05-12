@@ -78,7 +78,8 @@
             'title' => 'Uptime'
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
+						'title' => 'System Name',
           }
         }
       },

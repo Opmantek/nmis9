@@ -85,7 +85,8 @@
             'title' => 'Description'
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
+						'title' => 'System Name',
           },
           'sysContact' => {
             'replace' => {

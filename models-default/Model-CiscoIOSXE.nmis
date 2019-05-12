@@ -594,7 +594,8 @@
             'title' => 'Location'
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
+						'title' => 'System Name',
           },
           'sysObjectID' => {
             'oid' => 'sysObjectID'

@@ -192,7 +192,8 @@
             'title' => 'Interfaces'
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
+						'title' => 'System Name',
           },
           'sysLocation' => {
             'replace' => {
