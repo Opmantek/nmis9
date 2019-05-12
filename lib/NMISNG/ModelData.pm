@@ -131,7 +131,10 @@ sub objects
 {
 	my ($self) = @_;
 
-	# nothing to do is NOT an error
+	# parrot error if the caller didn't care, e.g. ->get_xyz_model(...)->objects
+	return { error => $self->{_error} } if ($self->{_error});
+	
+	# otherwise, nothing to do is NOT an error
 	return { success => 1, objects => [] }
 	if (ref($self->{_data}) ne "ARRAY" or !@{$self->{_data}});
 	# but not knowing what objects to make is
