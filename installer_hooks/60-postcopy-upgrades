@@ -12,10 +12,9 @@ if [ -n "$CLEANSLATE" ]; then
 fi
 
 rm -rf $TARGETDIR/var/nmis_system/timestamps
+rm -f $TARGETDIR/var/*-node.json $TARGETDIR/var/*-view.json
 
 printBanner "Upgrading Node Structures"
 execPrint $TARGETDIR/bin/nmis-cli act=noderefresh
 
 exit 0
-
-

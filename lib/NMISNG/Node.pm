@@ -461,7 +461,6 @@ sub configuration
 
 # remove this node from the db and clean up all leftovers:
 # queued jobs, node configuration, inventories, timed data, events, opstatus entries
-# -node and -view files.
 # args: keep_rrd (default false)
 # returns (success, message) or (0, error)
 sub delete
@@ -566,15 +565,6 @@ sub delete
 		my ($ok, $error) = $instance->delete();
 		return (0, "Failed to delete status ".$instance->id.": $error")
 				if (!$ok);
-	}
-
-	# node and view files, if present - failure is not error-worthy
-	for my $goner (map { $self->nmisng->config->{'<nmis_var>'}
-											 .lc($self->name)."-$_.json" } ('node','view'))
-	{
-		next if (!-f $goner);
-		$self->nmisng->log->debug("deleting file $goner");
-		unlink($goner) if (-f $goner);
 	}
 
 	# delete all (ie. historic and active) events for this node, irretrievably and immediately
@@ -948,7 +938,7 @@ sub is_new
 	return (defined($self->{_id})) ? 0 : 1;
 }
 
-# return bool (0/1) if node is down in catchall/info section
+# return bool (0/1) if node is down as per catchall/info section
 sub is_nodedown
 {
 	my ($self) = @_;
@@ -956,6 +946,167 @@ sub is_nodedown
 	my $info = ($inventory && !$error) ? $inventory->data : {};
 	return NMISNG::Util::getbool( $info->{nodedown} );
 }
+
+# this is the most official reporter of coarse node status
+# returns: 1 for reachable, 0 for unreachable, -1 for degraded
+#
+# reason for looking for events (instead of wmidown/snmpdown markers):
+# underlying events state can change asynchronously (eg. fping), and the per-node status from the node
+# file cannot be guaranteed to be up to date if that happens.
+#
+# fixme9: catchall node info is now almost always up to date,
+# so looking for events should no longer be necessary
+#
+# fixme9: should be ditched in favour of precise_status' 'overall' result
+#
+sub coarse_status
+{
+	my ($self) = @_;
+
+	my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+	my $catchall_data = ($inventory && !$error)? $inventory->data() : {};
+
+	# 1 for reachable
+	# 0 for unreachable
+	# -1 for degraded
+	my $status = 1;
+
+	# note: only looks for active and non-historic events
+	my $node_down = "Node Down";
+	my $snmp_down = "SNMP Down";
+	my $wmi_down_event = "WMI Down";
+	my $failover_event = "Node Polling Failover";
+
+	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
+	if ( NMISNG::Util::getbool($catchall_data->{ping},"invert")
+			 and ( $self->eventExist($snmp_down) or $self->eventExist( $wmi_down_event)) )
+	{
+		$status = 0;
+	}
+	# ping enabled, but unpingable -> down
+	elsif ( $self->eventExist($node_down) )
+	{
+		$status = 0;
+	}
+	# ping enabled, pingable but dead snmp or dead wmi or failover'd -> degraded
+	# only applicable is collect eq true, handles SNMP Down incorrectness
+	elsif ( NMISNG::Util::getbool($catchall_data->{collect}) and
+					( $self->eventExist($snmp_down)
+						or $self->eventExist($wmi_down_event)
+						or $self->eventExist($failover_event) ))
+	{
+		$status = -1;
+	}
+	# let NMIS use the status summary calculations
+	elsif (
+		NMISNG::Util::getbool($self->nmisng->config->{node_status_uses_status_summary})
+		and defined $catchall_data->{status_summary}
+		and defined $catchall_data->{status_updated}
+		and $catchall_data->{status_summary} <= 99
+		and $catchall_data->{status_updated} > time - 500
+			)
+	{
+		$status = -1;
+	}
+
+	return $status;
+}
+
+# this is a more precise status reporter than coarse_status
+#
+# returns: hash of error (if dud args),
+#  overall (-1 deg, 0 down, 1 up),
+#  snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
+#  ping_enabled and ping_status (note: ping status is 1 if primary or backup address are up)
+#  wmi_enabled and wmi_status,
+#  failover_status (0 failover, 1 ok, undef if unknown/irrelevant)
+#  failover_ping_status (0 backup host is down, 1 ok, undef if irrelevant)
+#  primary_ping_status (0 primary host is down, 1 ok, undef if irrelevant
+sub precise_status
+{
+	my ($self) = @_;
+
+	my ($inventory,$error) = $self->inventory(concept => 'catchall');
+	return ( error => "failed to instantiate catchall inventory: $error") if ($error);
+
+	my $catchall_data = $inventory->data(); # r/o copy good enough
+
+	# fixme9: should be changed to ignore events in favour of just the
+	# inventory, once OMK-5961 is done
+
+	# reason for looking for events (instead of wmidown/snmpdown markers):
+	# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
+	# file cannot be guaranteed to be up to date if that happens.
+
+	# HOWEVER the markers snmpdown and wmidown are present iff the source was enabled at the last collect,
+	# and if collect was true as well.
+	my %precise = ( overall => 1, # 1 reachable, 0 unreachable, -1 degraded
+									snmp_enabled =>  defined($catchall_data->{snmpdown})||0,
+									wmi_enabled => defined($catchall_data->{wmidown})||0,
+									ping_enabled => NMISNG::Util::getbool($catchall_data->{ping}),
+									snmp_status => undef,
+									wmi_status => undef,
+									ping_status => undef,
+									failover_status => undef, # 1 ok, 0 in failover, undef if unknown/irrelevant
+									failover_ping_status => undef, # 1 backup host is pingable, 0 not, undef unknown/irrelevant
+									primary_ping_status => undef,
+			);
+
+	my $downexists = $self->eventExist("Node Down");
+	my $failoverexists = $self->eventExist("Node Polling Failover");
+	my $backupexists = $self->eventExist("Backup Host Down");
+
+	$precise{ping_status} = ($downexists?0:1) if ($precise{ping_enabled}); # otherwise we don't care
+	$precise{wmi_status} = ($self->eventExist("WMI Down")?0:1) if ($precise{wmi_enabled});
+	$precise{snmp_status} = ($self->eventExist("SNMP Down")?0:1) if ($precise{snmp_enabled});
+
+	if ($self->configuration->{host_backup})
+	{
+		$precise{failover_status} = $failoverexists? 0:1;
+		 # the primary is dead if all are dead or if we failed-over
+		$precise{primary_ping_status} = ($downexists || $failoverexists)? 0:1;
+		# the secondary is dead if known to be dead or if all are dead
+		$precise{failover_ping_status} = ($backupexists || $downexists)? 0:1;
+	}
+
+	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
+	if (!$precise{ping_enabled}
+			and ( ($precise{wmi_enabled} and !$precise{wmi_status})
+						or ($precise{snmp_enabled} and !$precise{snmp_status}) ))
+	{
+		$precise{overall} = 0;
+	}
+	# ping enabled, but unpingable -> unreachable
+	elsif ($precise{ping_enabled} && !$precise{ping_status} )
+	{
+		$precise{overall} = 0;
+	}
+	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
+	# only applicable is collect eq true, handles SNMP Down incorrectness
+	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
+					or ($precise{snmp_enabled} and !$precise{snmp_status})
+					or (defined($precise{failover_status}) && !$precise{failover_status})
+					or (defined($precise{failover_ping_status}) && !$precise{failover_ping_status})
+			)
+	{
+		$precise{overall} = -1;
+	}
+	# let NMIS use the status summary calculations, if recently updated
+	elsif ( NMISNG::Util::getbool($self->nmisng->config->{node_status_uses_status_summary})
+					and defined $catchall_data->{status_summary}
+					and defined $catchall_data->{status_updated}
+					and $catchall_data->{status_summary} <= 99
+					and $catchall_data->{status_updated} > time - 500 )
+	{
+		$precise{overall} = -1;
+	}
+	else
+	{
+		$precise{overall} = 1;
+	}
+	return %precise;
+}
+
 
 # return nmisng object this node is using
 sub nmisng
@@ -1247,18 +1398,12 @@ sub pingable
 	my ($self, %args) = @_;
 
 	my $S    = $args{sys};
-	my $V    = $S->view;      # node view data
 	my $RI   = $S->reach;     # reach table
 
 	my $time_marker = $args{time_marker} || time;
 	my $catchall_data = $S->inventory(concept => 'catchall')->data_live();
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
-
-	# preset view of node status - fixme9 get rid of
-	$V->{system}{status_value} = 'unknown';
-	$V->{system}{status_title} = 'Node Status';
-	$V->{system}{status_color} = '#0F0';
 
 	my $nodename = $self->name;
 	my $C = $self->nmisng->config;
@@ -1284,7 +1429,8 @@ sub pingable
 						&& (time - $PT->{$onekey}->{lastping}) < $staleafter) # and not stale
 				{
 					# copy the fastping data...
-					($ping_min, $ping_avg, $ping_max, $ping_loss, $lastping) = @{$PT->{$onekey}}{"min","avg","max","loss","lastping"};
+					($ping_min, $ping_avg, $ping_max, $ping_loss, $lastping)
+							= @{$PT->{$onekey}}{"min","avg","max","loss","lastping"};
 					$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
 					$self->nmisng->log->debug2("$uuid ($nodename = $PT->{$onekey}->{ip}) PINGability min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					# ...but also try the fallback if the primary is unreachable
@@ -1346,8 +1492,7 @@ sub pingable
 				}
 				else
 				{
-					# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
-					# frontend Compat::NMIS::nodeStatus() takes proper care of.
+					# note: up event is handled regardless of snmpdown/pingonly/snmponly
 					$self->nmisng->log->debug("$nodename is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					$self->handle_down(
 						sys     => $S,
@@ -1370,10 +1515,10 @@ sub pingable
 		$RI->{pingresult} = $pingresult;
 		$RI->{pingloss}   = $ping_loss;
 
-		# a bit of info for web page - fixme9: view is updated
-		# only when polling, not by fping -> view info will be slightly stale
-		$V->{system}{lastPing_value} = NMISNG::Util::returnDateStamp($lastping);
-		$V->{system}{lastPing_title} = 'Last Ping';
+		# update the inventory with the last ping time,
+		# but fixme9: updated only when polling, not by fping, so often stale
+		# see OMK-5961 for proper solution
+		$catchall_data->{last_ping} = $lastping;
 	}
 	else
 	{
@@ -1381,27 +1526,13 @@ sub pingable
 		$RI->{pingresult} = $pingresult = 100;    # results for sub runReach
 		$RI->{pingavg}    = 0;
 		$RI->{pingloss}   = 0;
+		delete $catchall_data->{last_ping};
 	}
 
-	if ($pingresult)
-	{
-		$V->{system}{status_value} = 'reachable' if ( NMISNG::Util::getbool( $self->configuration->{ping} ) );
-		$V->{system}{status_color} = '#0F0';
-		$catchall_data->{nodedown}    = 'false';
-	}
-	else
-	{
-		$V->{system}{status_value} = 'unreachable';
-		$V->{system}{status_color} = 'red';
-		$catchall_data->{nodedown}    = 'true';
-
-		# workaround for opCharts not using right data
-		$catchall_data->{nodestatus} = 'unreachable';
-	}
-
+	$catchall_data->{nodedown}  = $pingresult? 'false' : 'true';
 	$self->nmisng->log->debug("Finished with exit="
 														. ( $pingresult ? 1 : 0 )
-														. ", nodedown=$catchall_data->{nodedown} nodestatus=$catchall_data->{nodestatus}" );
+														. ", nodedown=$catchall_data->{nodedown}" );
 
 	return ( $pingresult ? 1 : 0 );
 }
@@ -1511,7 +1642,6 @@ sub update_node_info
 	my $S    = $args{sys};
 
 	my $RI   = $S->reach;          # reach table
-	my $V    = $S->view;           # web view
 	my $M    = $S->mdl;            # model table
 	my $SNMP = $S->snmp;           # snmp object
 	my $C    = $self->nmisng->config;
@@ -1522,14 +1652,6 @@ sub update_node_info
 	my ($success, @problems);
 
 	NMISNG::Util::info("Starting");
-
-	# fixme: unclean access to internal property,
-	# fixme also fails if we've switched to updating this node on the go!
-	if ( NMISNG::Util::getbool( $S->{update} )
-		and !NMISNG::Util::getbool( $self->configuration->{collect} ) )    # rebuild
-	{
-		delete $V->{interface};
-	}
 
 	my $oldstate = $S->status;                    # what did we start with for snmp_enabled, wmi_enabled?
 	my $curstate;
@@ -1636,44 +1758,6 @@ sub update_node_info
 				# so we'll force-overwrite those values
 				$S->copyModelCfgInfo( type => 'overwrite' );
 
-				# add web page info
-				delete $V->{system} if NMISNG::Util::getbool( $S->{update} );    # rebuild; fixme unclean access to internal property
-
-				$V->{system}{status_value}  = 'reachable';
-				$V->{system}{status_title}  = 'Node Status';
-				$V->{system}{status_color}  = '#0F0';
-				$V->{system}{sysName_value} = $catchall_data->{sysName};
-				$V->{system}{sysName_title} = 'System Name';
-
-				$V->{system}{sysObjectName_value}   = $catchall_data->{sysObjectName};
-				$V->{system}{sysObjectName_title}   = 'Object Name';
-				$V->{system}{nodeVendor_value}      = $catchall_data->{nodeVendor};
-				$V->{system}{nodeVendor_title}      = 'Vendor';
-				$V->{system}{group_value}           = $catchall_data->{group};
-				$V->{system}{group_title}           = 'Group';
-				$V->{system}{customer_value}        = $catchall_data->{customer};
-				$V->{system}{customer_title}        = 'Customer';
-				$V->{system}{location_value}        = $catchall_data->{location};
-				$V->{system}{location_title}        = 'Location';
-				$V->{system}{businessService_value} = $catchall_data->{businessService};
-				$V->{system}{businessService_title} = 'Business Service';
-				$V->{system}{serviceStatus_value}   = $catchall_data->{serviceStatus};
-				$V->{system}{serviceStatus_title}   = 'Service Status';
-				$V->{system}{notes_value}           = $catchall_data->{notes};
-				$V->{system}{notes_title}           = 'Notes';
-
-				# make sure any required data from network_viewNode_field_list gets added.
-				my @viewNodeFields = split( ",", $C->{network_viewNode_field_list} );
-				foreach my $field (@viewNodeFields)
-				{
-					if ( defined $catchall_data->{$field}
-						and
-						( not defined $V->{system}{"${field}_value"} or not defined $V->{system}{"${field}_title"} ) )
-					{
-						$V->{system}{"${field}_title"} = $field;
-						$V->{system}{"${field}_value"} = $catchall_data->{$field};
-					}
-				}
 
 				# update node info table a second time, but now with the actually desired model
 				# fixme: see logic problem above, should not have to do both
@@ -1695,7 +1779,6 @@ sub update_node_info
 					# sysuptime is only a/v if snmp, with wmi we have synthesize it as wintime-winboottime
 					# it's also mangled on the go
 					$self->makesysuptime($catchall_data);
-					$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
 
 					# pull / from VPN3002 system descr
 					$catchall_data->{sysDescr} =~ s/\// /g;
@@ -1740,13 +1823,13 @@ sub update_node_info
 	my $overrides = $self->overrides // {};
 	if ( $overrides->{sysLocation} )
 	{
-		$catchall_data->{sysLocation} = $V->{system}{sysLocation_value} = $overrides->{sysLocation};
+		$catchall_data->{sysLocation} = $overrides->{sysLocation};
 		NMISNG::Util::info("Manual update of sysLocation by nodeConf");
 	}
 
 	if ( $overrides->{sysContact} )
 	{
-		$catchall_data->{sysContact} = $V->{system}{sysContact_value} = $overrides->{sysContact};
+		$catchall_data->{sysContact} = $overrides->{sysContact};
 		NMISNG::Util::dbg("Manual update of sysContact by nodeConf");
 	}
 
@@ -1793,50 +1876,20 @@ sub update_node_info
 
 	if ($success)
 	{
-		# add web page info
-		$V->{system}{timezone_value}  = $catchall_data->{timezone};
-		$V->{system}{timezone_title}  = 'Time Zone';
-		$V->{system}{nodeModel_value} = $catchall_data->{nodeModel};
-		$V->{system}{nodeModel_title} = 'Model';
-		$V->{system}{nodeType_value}  = $catchall_data->{nodeType};
-		$V->{system}{nodeType_title}  = 'Type';
-		$V->{system}{roleType_value}  = $catchall_data->{roleType};
-		$V->{system}{roleType_title}  = 'Role';
-		$V->{system}{netType_value}   = $catchall_data->{netType};
-		$V->{system}{netType_title}   = 'Net';
-
 		# get the current ip address if the host property was a name, ditto host_backup
-		for (["host","host_addr","IP Address"], ["host_backup", "host_addr_backup", "Backup IP Address"])
+		for (["host","host_addr"], ["host_backup", "host_addr_backup"])
 		{
-			my ($sourceprop, $targetprop, $title) = @$_;
-			$V->{system}->{"${targetprop}_title"} = $title;
+			my ($sourceprop, $targetprop) = @$_;
 
 			my $sourceval = $self->configuration->{$sourceprop};
 			if ($sourceval && (my $addr = NMISNG::Util::resolveDNStoAddr($sourceval)))
 			{
-				$catchall_data->{$targetprop} = $V->{system}{"${targetprop}_value"} = $addr; # cache and display
-				$V->{system}{"${targetprop}_value"} .= " ($sourceval)" if ($addr ne $sourceval);
+				$catchall_data->{$targetprop} = $addr; # cache and display
 			}
 			else
 			{
 				$catchall_data->{$targetprop} = '';
-				$V->{system}{"${targetprop}_value"} = $sourceval; # ...but give network.pl something to show
 			}
-		}
-	}
-	else
-	{
-		# node status info web page
-		$V->{system}{status_title} = 'Node Status';
-		if ( NMISNG::Util::getbool( $self->configuration->{ping} ) )
-		{
-			$V->{system}{status_value} = 'degraded';
-			$V->{system}{status_color} = '#FFFF00';
-		}
-		else
-		{
-			$V->{system}{status_value} = 'unreachable';
-			$V->{system}{status_color} = 'red';
 		}
 	}
 
@@ -1857,7 +1910,6 @@ sub collect_node_info
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
 
-	my $V    = $S->view;
 	my $RI   = $S->reach;
 	my $M    = $S->mdl;
 
@@ -1883,7 +1935,6 @@ sub collect_node_info
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
 	my $loadsuccess = $S->loadInfo( class => 'system',
-																	# fixme9 gone model => $model,
 																	target => $catchall_data );
 
 	# polling policy needs saving regardless of success/failure
@@ -1964,8 +2015,6 @@ sub collect_node_info
 			# add processing for SNMP Uptime- handle just like sysUpTime
 			$catchall_data->{snmpUpTimeSec}   = int( $catchall_data->{snmpUpTime} / 100 );
 			$catchall_data->{snmpUpTime}      = NMISNG::Util::convUpTime( $catchall_data->{snmpUpTimeSec} );
-			$V->{system}{snmpUpTime_value} = $catchall_data->{snmpUpTime};
-			$V->{system}{snmpUpTime_title} = 'SNMP Uptime';
 		}
 
 		NMISNG::Util::info("sysUpTime: Old=$sysUpTime New=$catchall_data->{sysUpTime}");
@@ -1996,9 +2045,6 @@ sub collect_node_info
 			}
 		}
 
-		$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
-		$V->{system}{sysUpTime_title} = 'Uptime';
-
 		# that's actually critical for other functions down the track
 		$catchall_data->{last_poll}   = $time_marker;
 		delete $catchall_data->{lastCollectPoll}; # replaced by last_poll
@@ -2009,12 +2055,12 @@ sub collect_node_info
 		# anything to override?
 		if ( $overrides->{sysLocation} )
 		{
-			$catchall_data->{sysLocation} = $V->{system}{sysLocation_value} = $overrides->{sysLocation};
+			$catchall_data->{sysLocation} = $overrides->{sysLocation};
 			NMISNG::Util::info("Manual update of sysLocation by nodeConf");
 		}
 		if ( $overrides->{sysContact} )
 		{
-			$catchall_data->{sysContact} = $V->{system}{sysContact_value} = $overrides->{sysContact};
+			$catchall_data->{sysContact} = $overrides->{sysContact};
 			NMISNG::Util::info("Manual update of sysContact by nodeConf");
 		}
 
@@ -2025,8 +2071,8 @@ sub collect_node_info
 
 		$self->checkPIX(sys => $S);    # check firewall if needed
 
-		$V->{system}{status_value} = 'reachable';    # sort-of, at least one source worked
-		$V->{system}{status_color} = '#0F0';
+		$catchall_data->{nodedown} = 'false';    # sort-of, at least one source worked
+		# fixme9: what about the other sources?
 
 		# conditional on model section to ensure backwards compatibility with different Juniper values.
 		$self->handle_configuration_changes(sys => $S)
@@ -2039,16 +2085,14 @@ sub collect_node_info
 
 		if ( $self->configuration->{ping} )
 		{
-			# ping was ok but wmi and snmp were not
-			$V->{system}{status_value} = 'degraded';
-			$V->{system}{status_color} = '#FFFF00';
+			# ping was ok but wmi and snmp were not; hence not quite dead
+			$catchall_data->{nodedown} = 'false';
 		}
 		else
 		{
 			# ping was disabled, so sources wmi/snmp are the only thing that tells us about reachability
 			# note: ping disabled != runping failed
-			$V->{system}{status_value} = 'unreachable';
-			$V->{system}{status_color} = 'red';
+			$catchall_data->{nodedown}  = 'true';
 		}
 	}
 
@@ -2173,7 +2217,6 @@ sub update_intf_info
 		return undef;                   # no interfaces collected, treat this as error
 	}
 
-	my $V    = $S->view;
 	my $M    = $S->mdl;             # node model table
 	my $SNMP = $S->snmp;
 
@@ -2265,7 +2308,6 @@ sub update_intf_info
 				NMISNG::Util::info("Finished (snmp failure)");
 				return 0;
 			}
-			delete $V->{interface};    # rebuild interface view table
 		}
 
 		# Loop to get interface information; keep the ifIndexs we care about.
@@ -2319,20 +2361,6 @@ sub update_intf_info
 
 				if ( not $keepInterface )
 				{
-					# not easy.
-					foreach my $key ( keys %$target )
-					{
-						if ( exists $V->{interface}{"${index}_${key}_title"} )
-						{
-							delete $V->{interface}{"${index}_${key}_title"};
-						}
-						if ( exists $V->{interface}{"${index}_${key}_value"} )
-						{
-							delete $V->{interface}{"${index}_${key}_value"};
-						}
-					}
-
-					# easy!
 					delete $target_table->{$index};
 					NMISNG::Util::TODO("Should this info be kept but marked disabled?");
 				}
@@ -2379,22 +2407,13 @@ sub update_intf_info
 					{    # FastEthernet1/0/0
 						$port = $1 . '.' . $2;
 					}
-					if ($S->loadInfo(
-							class  => 'port',
-							index  => $index,
-							port   => $port,
-							table  => 'interface',
-							target => $target
-						)
-						)
-					{
-						#
-						last if $target->{vlanPortVlan} eq "";    # model does not support CISCO-STACK-MIB
-						$V->{interface}{"${index}_portAdminSpeed_value"}
-							= NMISNG::Util::convertIfSpeed( $target->{portAdminSpeed} );
-						NMISNG::Util::dbg("get VLAN details: index=$index, ifDescr=$target->{ifDescr}");
-						NMISNG::Util::dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}" );
-					}
+					$S->loadInfo(
+						class  => 'port',
+						index  => $index,
+						port   => $port,
+						table  => 'interface',
+						target => $target
+							);
 				}
 				else
 				{
@@ -2403,22 +2422,13 @@ sub update_intf_info
 					{                                                 # 0-0 Catalyst
 						$port = $1 . '.' . $2;
 					}
-					if ($S->loadInfo(
-							class  => 'port',
-							index  => $index,
-							port   => $port,
-							table  => 'interface',
-							target => $target
-						)
-						)
-					{
-						#
-						last if $target->{vlanPortVlan} eq "";    # model does not support CISCO-STACK-MIB
-						$V->{interface}{"${index}_portAdminSpeed_value"}
-							= NMISNG::Util::convertIfSpeed( $target->{portAdminSpeed} );
-						NMISNG::Util::dbg("get VLAN details: index=$index, ifDescr=$target->{ifDescr}");
-						NMISNG::Util::dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}" );
-					}
+					$S->loadInfo(
+						class  => 'port',
+						index  => $index,
+						port   => $port,
+						table  => 'interface',
+						target => $target
+							);
 				}
 			}
 		}
@@ -2453,9 +2463,6 @@ sub update_intf_info
 						(   $target_table->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
 							$target_table->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}
 						) = Compat::IP::ipSubnet( address => $addr, mask => $ifMaskTable->{$addr} );
-						$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_title"} = 'IP address / mask';
-						$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_value"}
-							= "$addr / $ifMaskTable->{$addr}";
 					}
 				}
 				else
@@ -2570,7 +2577,6 @@ sub update_intf_info
 			if ( exists $ifDescrIndx->{$target->{ifDescr}} and $ifDescrIndx->{$target->{ifDescr}} ne "" )
 			{
 				$target->{ifDescr} .= "-$i";                  # add index to string
-				$V->{interface}{"${i}_ifDescr_value"} = $target->{ifDescr};    # update
 				NMISNG::Util::info("Interface ifDescr changed to $target->{ifDescr}");
 			}
 			else
@@ -2604,16 +2610,12 @@ sub update_intf_info
 				if ( $thisintfover->{Description} )
 				{
 					$target->{nc_Description} = $target->{Description};                         # save
-					$target->{Description}    = $V->{interface}{"${index}_Description_value"}
-						= $thisintfover->{Description};
+					$target->{Description} = $thisintfover->{Description};
 					NMISNG::Util::info("Manual update of Description by nodeConf");
 				}
 				if ( $thisintfover->{display_name} )
 				{
-					$target->{display_name} = $V->{interface}->{"${index}_display_name_value"}
-						= $thisintfover->{display_name};
-					$V->{interface}->{"${index}_display_name_title"} = "Display Name";
-
+					$target->{display_name} = $thisintfover->{display_name};
 					# no log/diag msg as  this comes ONLY from nodeconf, it's not overriding anything
 				}
 
@@ -2623,9 +2625,6 @@ sub update_intf_info
 					{
 						$target->{"nc_$speedname"} = $target->{$speedname};    # save
 						$target->{$speedname} = $thisintfover->{$speedname};
-
-						### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-						$V->{interface}{"${index}_${speedname}_value"} = NMISNG::Util::convertIfSpeed( $target->{$speedname} );
 						NMISNG::Util::info("Manual update of $speedname by nodeConf");
 					}
 				}
@@ -2780,19 +2779,6 @@ sub update_intf_info
 				$catchall_data->{intfCollect} = $intfCollect;
 			}
 
-			# prepare values for web page
-			$V->{interface}{"${index}_event_value"} = $target->{event};
-			$V->{interface}{"${index}_event_title"} = 'Event on';
-
-			$V->{interface}{"${index}_threshold_value"}
-				= !NMISNG::Util::getbool( $self->configuration->{threshold} ) ? 'false' : $target->{threshold};
-			$V->{interface}{"${index}_threshold_title"} = 'Threshold on';
-
-			$V->{interface}{"${index}_collect_value"} = $target->{collect};
-			$V->{interface}{"${index}_collect_title"} = 'Collect on';
-
-			$V->{interface}{"${index}_nocollect_value"} = $target->{nocollect};
-			$V->{interface}{"${index}_nocollect_title"} = 'Reason';
 
 			# collect status
 			if ( NMISNG::Util::getbool( $target->{collect} ) )
@@ -2803,19 +2789,10 @@ sub update_intf_info
 			{
 				NMISNG::Util::info("$target->{ifDescr} ifIndex $index, collect=false, $target->{nocollect}");
 
-				# if  collect is of then disable event and threshold (clearly not applicable)
-				$target->{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
-				$target->{event}     = $V->{interface}{"${index}_event_value"}     = 'false';
+				# if collect is of then disable event and threshold (clearly not applicable)
+				$target->{threshold} = 'false';
+				$target->{event}     = 'false';
 			}
-
-			# get color depending of state
-			# NMISNG - TODO: trying to get the color from something not in the db, problem, causing warning
-			$V->{interface}{"${index}_ifAdminStatus_color"} = Compat::NMIS::getAdminColor( sys => $S, index => $index, data => $target );
-			$V->{interface}{"${index}_ifOperStatus_color"} = Compat::NMIS::getOperColor( sys => $S, index => $index, data => $target );
-
-			# index number of interface
-			$V->{interface}{"${index}_ifIndex_value"} = $index;
-			$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 
 			# at this point every thing is ready for the rrd speed limit enforcement
 			my $desiredlimit = $target->{setlimits};
@@ -3412,7 +3389,6 @@ sub collect_intf_data
 	# 8. do something with the stashed rrd data; now if_data_map should have
 	# the correct inventory id attached for every single interface
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live(); # live, no saving needed
-	my $V    = $S->view;
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
 
@@ -3488,18 +3464,6 @@ sub collect_intf_data
 					);
 				}
 
-				# synthetic
-				$V->{interface}{"${index}_ifAdminStatus_color"} = Compat::NMIS::getAdminColor(
-					collect       => $inventory_data->{collect},
-					ifAdminStatus => $thisif->{_ifAdminStatus},
-					ifOperStatus  => $thisif->{_ifOperStatus} );
-				$V->{interface}{"${index}_ifOperStatus_color"} = Compat::NMIS::getOperColor(
-					collect       => $inventory_data->{collect},
-					ifAdminStatus => $thisif->{_ifAdminStatus},
-					ifOperStatus  => $thisif->{_ifOperStatus} );
-
-				$V->{interface}{"${index}_ifAdminStatus_value"} = $thisif->{_ifAdminStatus};
-				$V->{interface}{"${index}_ifOperStatus_value"}  = $thisif->{_ifOperStatus};
 			}
 
 			# and update the inventory with state, for saving later
@@ -3515,9 +3479,7 @@ sub collect_intf_data
 			if (ref($ifsection->{ifLastChange}) eq "HASH"
 					&& defined($ifsection->{ifLastChange}->{value}))
 			{
-				$V->{interface}{"${index}_ifLastChange_value"}
-				= $inventory_data->{ifLastChange}
-				= NMISNG::Util::convUpTime(
+				$inventory_data->{ifLastChange} = NMISNG::Util::convUpTime(
 					$inventory_data->{ifLastChangeSec}
 					= int( $ifsection->{ifLastChange}{value} / 100 ) );
 				NMISNG::Util::dbg("last change for index $index time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}");
@@ -3587,19 +3549,6 @@ sub collect_intf_data
 			}
 		}
 
-		# can't re-use stats here because these run on default 6h, normal stats run on 15m
-		my $period = $self->nmisng->config->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
-		my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S,
-																																inventory => $inventory,
-																																subconcept => 'interface',
-																																start => $period,
-																																end => time);
-
-		$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability} // 'N/A';
-		$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil} // 'N/A'; # comment to fix my editor highlighting not finding /
-		$V->{interface}{"${index}_operAvail_color"} = Compat::NMIS::colorHighGood( $interface_util_stats->{availability} );
-		$V->{interface}{"${index}_totalUtil_color"} = Compat::NMIS::colorLowGood( $interface_util_stats->{totalUtil} );
-
 		### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
 		### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
 		if ( $self->eventExist( "Interface Down", $inventory_data->{ifDescr} )
@@ -3613,30 +3562,6 @@ sub collect_intf_data
 				details => $inventory_data->{Description},
 				inventory_id => $inventory->id
 			);
-		}
-
-		# header info of web page
-		$V->{interface}{"${index}_operAvail_title"} = 'Intf. Avail.';
-		$V->{interface}{"${index}_totalUtil_title"} = $self->nmisng->config->{interface_util_label} || 'Util. 6hrs';    # backwards compat
-
-		# check escalation if event is on
-		if ( NMISNG::Util::getbool($inventory_data->{event}))
-		{
-
-			my $escalate = 'none';
-			my ($error,$erec) = $self->eventLoad(
-				event => "Interface Down",
-				element => $inventory_data->{ifDescr},
-				# don't pass this in yet because if we do it will try and filter and may not be set so worn't work
-				# inventory_id => $inventory->id,
-				active => 1
-			);
-			if( !$error && $erec )
-			{
-				$escalate = $erec->{escalate} if ( $erec and defined( $erec->{escalate} ) );
-			}
-			$V->{interface}{"${index}_escalate_title"} = 'Esc.';
-			$V->{interface}{"${index}_escalate_value"} = $escalate;
 		}
 
 		# don't recalculate path, that should happen in update, any place where we find
@@ -3692,7 +3617,6 @@ sub checkIntfInfo
 	my $ifTypeDefs = $args{iftype};
 
 	my $target = $args{target};
-	my $V      = $S->view;
 
 	my $thisintf = $target;
 	if ( $thisintf->{ifDescr} eq "" ) { $thisintf->{ifDescr} = "null"; }
@@ -3712,7 +3636,7 @@ sub checkIntfInfo
 	{
 		$thisintf->{ifType} = "frameRelay-subinterface";
 	}
-	$V->{interface}{"${index}_ifType_value"} = $thisintf->{ifType};
+
 
 	# get 'ifHighSpeed' if 'ifSpeed' = 4,294,967,295 - refer RFC2863 HC interfaces.
 	# ditto if ifspeed is zero
@@ -3725,13 +3649,11 @@ sub checkIntfInfo
 	# final fallback in case SNMP agent is DODGY
 	$thisintf->{ifSpeed} ||= 1000000000;
 
-	$V->{interface}{"${index}_ifSpeed_value"} = NMISNG::Util::convertIfSpeed( $thisintf->{ifSpeed} );
 
 	# convert time integer from ticks to time string
 	# fixme9: unsafe, non-idempotent, broken if function is called more than once, self-referential loopy
 	# trashing of ifLastChange via ifLastChangeSec...
-	$V->{interface}{"${index}_ifLastChange_value"}
-	= $thisintf->{ifLastChange} = NMISNG::Util::convUpTime(
+	$thisintf->{ifLastChange} = NMISNG::Util::convUpTime(
 		$thisintf->{ifLastChangeSec} = int( $thisintf->{ifLastChange} / 100 ) );
 }
 
@@ -3751,7 +3673,6 @@ sub checkPIX
 		return 1;
 	}
 
-	my $V    = $S->view;
 	my $SNMP = $S->snmp;
 	my $result;
 
@@ -3765,90 +3686,46 @@ sub checkPIX
 	# if HardwareStatusDetail is blank ( ne 'Failover Off' ) then
 	# HardwareStatusValue will have 'active' or 'standby'
 
-	if ( $catchall_data->{nodeModel} eq "CiscoPIX" )
-	{
-		NMISNG::Util::dbg("checkPIX, Getting Cisco PIX Failover Status");
-		if ($result = $SNMP->get(
+	return if ( $catchall_data->{nodeModel} ne "CiscoPIX" );
+
+	NMISNG::Util::dbg("checkPIX, Getting Cisco PIX Failover Status");
+	if ($result = $SNMP->get(
 				'cfwHardwareStatusValue.6',  'cfwHardwareStatusValue.7',
 				'cfwHardwareStatusDetail.6', 'cfwHardwareStatusDetail.7'
 			)
 			)
+	{
+		$result = $SNMP->keys2name($result);    # convert oid in hash key to name
+
+		my %xlat = ( 0 => "Failover Off",
+								 3 => "Down",
+								 9 => "Active",
+								 10 => "Standby" );
+		$result->{'cfwHardwareStatusValue.6'} = $xlat{ $result->{'cfwHardwareStatusValue.6'} } // "Unknown";
+
+		$result->{'cfwHardwareStatusValue.7'} = $xlat{ $result->{'cfwHardwareStatusValue.7'} } // "Unknown";
+
+		# fixme unclean access to internal structure
+		# fixme also fails if we've switched to updating this node on the go!
+		if ( !NMISNG::Util::getbool( $S->{update} ) )
 		{
-			$result = $SNMP->keys2name($result);    # convert oid in hash key to name
-
-			if ( $result->{'cfwHardwareStatusDetail.6'} ne 'Failover Off' )
+			if (   $result->{'cfwHardwareStatusValue.6'} ne $catchall_data->{pixPrimary}
+						 or $result->{'cfwHardwareStatusValue.7'} ne $catchall_data->{pixSecondary} )
 			{
-				if ( $result->{'cfwHardwareStatusValue.6'} == 0 )
-				{
-					$result->{'cfwHardwareStatusValue.6'} = "Failover Off";
-				}
-				elsif ( $result->{'cfwHardwareStatusValue.6'} == 3 ) { $result->{'cfwHardwareStatusValue.6'} = "Down"; }
-				elsif ( $result->{'cfwHardwareStatusValue.6'} == 9 )
-				{
-					$result->{'cfwHardwareStatusValue.6'} = "Active";
-				}
-				elsif ( $result->{'cfwHardwareStatusValue.6'} == 10 )
-				{
-					$result->{'cfwHardwareStatusValue.6'} = "Standby";
-				}
-				else { $result->{'cfwHardwareStatusValue.6'} = "Unknown"; }
+				NMISNG::Util::dbg("PIX failover occurred");
 
-				if ( $result->{'cfwHardwareStatusValue.7'} == 0 )
-				{
-					$result->{'cfwHardwareStatusValue.7'} = "Failover Off";
-				}
-				elsif ( $result->{'cfwHardwareStatusValue.7'} == 3 ) { $result->{'cfwHardwareStatusValue.7'} = "Down"; }
-				elsif ( $result->{'cfwHardwareStatusValue.7'} == 9 )
-				{
-					$result->{'cfwHardwareStatusValue.7'} = "Active";
-				}
-				elsif ( $result->{'cfwHardwareStatusValue.7'} == 10 )
-				{
-					$result->{'cfwHardwareStatusValue.7'} = "Standby";
-				}
-				else { $result->{'cfwHardwareStatusValue.7'} = "Unknown"; }
-
-				# fixme unclean access to internal structure
-				# fixme also fails if we've switched to updating this node on the go!
-				if ( !NMISNG::Util::getbool( $S->{update} ) )
-				{
-					if (   $result->{'cfwHardwareStatusValue.6'} ne $catchall_data->{pixPrimary}
-						or $result->{'cfwHardwareStatusValue.7'} ne $catchall_data->{pixSecondary} )
-					{
-						NMISNG::Util::dbg("PIX failover occurred");
-
-						# As this is not stateful, alarm not sent to state table in sub eventAdd
-						Compat::NMIS::notify(
-							sys     => $S,
-							event   => "Node Failover",
-							element => 'PIX',
-							details =>
-								"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}"
+				# As this is not stateful, alarm not sent to state table in sub eventAdd
+				Compat::NMIS::notify(
+					sys     => $S,
+					event   => "Node Failover",
+					element => 'PIX',
+					details =>
+					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}"
 						);
-					}
-				}
-				$catchall_data->{pixPrimary}   = $result->{'cfwHardwareStatusValue.6'};    # remember
-				$catchall_data->{pixSecondary} = $result->{'cfwHardwareStatusValue.7'};
-
-				$V->{system}{firewall_title} = "Failover Status";
-				$V->{system}{firewall_value} = "Pri: $catchall_data->{pixPrimary} Sec: $catchall_data->{pixSecondary}";
-				if (    $catchall_data->{pixPrimary} =~ /Failover Off|Active/i
-					and $catchall_data->{pixSecondary} =~ /Failover Off|Standby/i )
-				{
-					$V->{system}{firewall_color} = "#00BB00";                           #normal
-				}
-				else
-				{
-					$V->{system}{firewall_color} = "#FFDD00";                           #warning
-
-				}
-			}
-			else
-			{
-				$V->{system}{firewall_title} = "Failover Status";
-				$V->{system}{firewall_value} = "Failover off";
 			}
 		}
+		$catchall_data->{pixPrimary}   = $result->{'cfwHardwareStatusValue.6'};    # remember
+		$catchall_data->{pixSecondary} = $result->{'cfwHardwareStatusValue.7'};
 	}
 	NMISNG::Util::dbg("Finished");
 	return 1;
@@ -3867,7 +3744,6 @@ sub handle_configuration_changes
 	my ($self, %args) = @_;
 
 	my $S    = $args{sys};
-	my $V    = $S->view;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	NMISNG::Util::info("Starting");
@@ -3905,56 +3781,23 @@ sub handle_configuration_changes
 		);
 	}
 
-	# check if config is saved:
-	$V->{system}{configLastChanged_value} = NMISNG::Util::convUpTime( $configLastChanged / 100 ) if defined $configLastChanged;
-	$V->{system}{configLastSaved_value}   = NMISNG::Util::convUpTime( $configLastViewed / 100 )  if defined $configLastViewed;
-	$V->{system}{bootConfigLastChanged_value} = NMISNG::Util::convUpTime( $bootConfigLastChanged / 100 )
-		if defined $bootConfigLastChanged;
-
-	### Cisco Node Configuration Change Only
-	if ( defined $configLastChanged && defined $bootConfigLastChanged )
-	{
-		$V->{system}{configurationState_title} = 'Configuration State'
-;
-		### when the router reboots bootConfigLastChanged = 0 and configLastChanged
-		# is about 2 seconds, which are the changes made by booting.
-		if ( $configLastChanged > $bootConfigLastChanged and $configLastChanged > 5000 )
-		{
-			$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
-			$V->{system}{"configurationState_color"} = "#FFDD00";                     #warning
-			NMISNG::Util::info("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
-		}
-		elsif ( $bootConfigLastChanged == 0 and $configLastChanged <= 5000 )
-		{
-			$V->{system}{"configurationState_value"} = "Config Not Changed Since Boot";
-			$V->{system}{"configurationState_color"} = "#00BB00";                         #normal
-			NMISNG::Util::info("checkNodeConfiguration, config not changed, $configLastChanged $bootConfigLastChanged");
-		}
-		else
-		{
-			$V->{system}{"configurationState_value"} = "Config Saved in NVRAM";
-			$V->{system}{"configurationState_color"} = "#00BB00";                         #normal
-		}
-	}
 
 	### If it is newer, someone changed it!
 	if ( $configLastChanged > $configLastChanged_prev )
 	{
 		$catchall_data->{configChangeCount}++;
-		$V->{system}{configChangeCount_value} = $catchall_data->{configChangeCount};
-		$V->{system}{configChangeCount_title} = "Configuration change count";
 
 		Compat::NMIS::notify(
 			sys     => $S,
 			event   => "Node Configuration Change",
 			element => "",
-			details => "Changed at " . $V->{system}{configLastChanged_value},
+			details => "Changed at " . NMISNG::Util::convUpTime( $configLastChanged / 100 ),
 			context => {type => "node"},
 		);
 		NMISNG::Util::logMsg("checkNodeConfiguration configuration change detected on $S->{name}, creating event");
 	}
 
-	#update previous values to be out current values
+	#update previous values to be our current values
 	for my $attr (@updatePrevValues)
 	{
 		if ( defined $catchall_data->{$attr} ne '' && $catchall_data->{$attr} ne '' )
@@ -4036,7 +3879,6 @@ sub collect_systemhealth_info
 	my $name = $self->name;
 	my $C = $self->nmisng->config;
 
-	my $V; # view object, loaded if and when needed
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
 
@@ -4198,7 +4040,6 @@ sub collect_systemhealth_info
 						section => $section,
 						index   => $indexvalue,
 						table   => $section,
-#fixme9 gone						model   => $model,
 						target  => $target
 					)
 					)
@@ -4333,7 +4174,6 @@ sub collect_systemhealth_info
 						section => $section,
 						index   => $index,
 						table   => $section,
-# fixme9 gone						model   => $model,
 						target  => $target
 				))
 				{
@@ -6101,11 +5941,7 @@ sub update
 																									@{$outageres->{current}} )? 1 : 0;
 	}
 
-	if ( !NMISNG::Util::getbool( $args{force} ) )
-	{
-		$S->readNodeView;    # from prev. run, but only if force isn't active
-	}
-	else
+	if (NMISNG::Util::getbool( $args{force} ) )
 	{
 		# make all things for this node historic, they can bring them back if they want
 		my $result = $self->bulk_update_inventory_historic();
@@ -6211,21 +6047,15 @@ sub update
 			$self->nmisng->log->error("update_node_info failed completely: ".join(" ",@problems));
 		}
 		$S->close;    # close snmp session if one is open
-
-		# last_update timestamp is not known to update_node_info, so we update that here...
-		my $V = $S->view;
-		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp($catchall_data->{last_update});
-		$V->{system}{lastUpdate_title} = 'Last Update';
 	}
 	else
 	{
 		push @problems, "Node is unreachable, cannot perform update.";
 	}
 
+	# don't let it make the rrd update, we want to add updatetime!
 	my $reachdata = $self->compute_reachability(sys => $S,
-																							delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
-	$S->writeNodeView;                                # save node view info in file var/$NI->{name}-view.xxxx
-	$S->writeNodeInfo();
+																							delayupdate => 1);
 
 	if (!@problems)
 	{
@@ -6254,8 +6084,7 @@ sub update
 			}
 			elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
 			{
-				$self->nmisng->log->debug("Plugin $plugin indicated success, updating node and view files");
-				$S->writeNodeView;
+				$self->nmisng->log->debug("Plugin $plugin indicated success");
 			}
 			elsif ( $status == 0 )
 			{
@@ -6290,6 +6119,10 @@ sub update
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
+
+	# update the coarse compat 'nodestatus' property, not multiple times
+	my $coarse = $self->coarse_status;
+	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 	$catchall_inventory->save();
 	if (my $issues = $self->unlock(lock => $lock))
@@ -6393,7 +6226,6 @@ sub collect_server_data
 		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
 		# doesn't use device global here, it's only an inventory concept right now
 		$S->loadInfo( class => 'device',
-									# fixme9 gone model => $model,
 									target => $overall_target );    # get cpu load without index
 
 		my $path = $self->inventory_path( concept => 'device_global',
@@ -6426,7 +6258,6 @@ sub collect_server_data
 			# create a new target for each index
 			my $device_target = {};
 			if ( $S->loadInfo( class => 'device', index => $index,
-												 # fixme9 gone model => $model,
 												 target => $device_target ) )
 			{
 				my $D = $device_target;
@@ -6538,7 +6369,6 @@ sub collect_server_data
 			my $wasloadable = $S->loadInfo(
 				class  => 'storage',
 				index  => $index,
-# fixme9 gone				model  => $model,
 				target => $storage_target
 			);
 			if ( $wasloadable )
@@ -6859,7 +6689,7 @@ sub collect_services
 	my $C = $self->nmisng->config;
 	$self->nmisng->log->debug("Starting Services collection, node=$node nodeType=$catchall_data->{nodeType}");
 
-	my ($cpu, $memory, $V, %services);
+	my ($cpu, $memory, %services);
 	# services holds snmp-gathered service status, process name -> array of instances
 
 	my $ST    = NMISNG::Util::loadTable(dir => "conf", name => "Services");
@@ -7552,28 +7382,6 @@ sub collect_services
 		my $serviceValue = ( $servicetype =~ /^(program|nagios-plugin)$/ ) ? $ret : $ret * 100;
 		$status{status} = NMISNG::Util::numify($serviceValue);
 
-		# sys::init does not automatically read the node view, but we clearly need it now
-		if (!$V)
-		{
-			$S->readNodeView;
-			$V = $S->view;
-		}
-
-		$V->{system}{"${service}_title"} = "Service $name";
-		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0 ? "degraded" : 'down';
-		$V->{system}{"${service}_color"} = $serviceValue == 100 ? 'white' : $serviceValue > 0 ? "orange" : 'red';
-
-		$V->{system}{"${service}_responsetime"} = $responsetime;
-		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
-
-		# now points to the per-service detail view. note: no widget info a/v at this time!
-		delete $V->{system}->{"${service}_gurl"};
-		$V->{system}{"${service}_url"}
-			= "$C->{'<cgi_url_base>'}/services.pl?act=details&node="
-			. uri_escape($node)
-			. "&service="
-			. uri_escape($service);
-
 		# let's raise or clear service events based on the status
 		if ( $serviceValue == 100 )    # service is fully up
 		{
@@ -7778,9 +7586,6 @@ sub collect_services
 		$self->nmisng->log->error("service timed data saving failed: $error") if ($error);
 	}
 
-	# if we made changes, we have to update the node view file
-	$S->writeNodeView if ($V);
-
 	$self->nmisng->log->debug("Finished");
 }
 
@@ -7932,7 +7737,6 @@ sub collect
 
 	# update node info data, merge in the node's configuration (which was loaded by sys' init)
 	$S->copyModelCfgInfo( type => 'all' );
-	$S->readNodeView;    # s->init does NOT load that, but we need it as we're overwriting some view info
 
 	# look for any current outages with options.nostats set,
 	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
@@ -8030,16 +7834,6 @@ sub collect
 		}
 		elsif ($updatewasok)    # at least some info was retrieved by wmi or snmp
 		{
-			# fixme9 gone in nmis9			if ( $model or $nvp{info} )
-			if (0)
-			{
-				print
-						"MODEL $S->{name}: role=$catchall_data->{roleType} type=$catchall_data->{nodeType} sysObjectID=$catchall_data->{sysObjectID} sysObjectName=$catchall_data->{sysObjectName}\n";
-				print "MODEL $S->{name}: sysDescr=$catchall_data->{sysDescr}\n";
-				print
-						"MODEL $S->{name}: vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}\n";
-			}
-
 			# at this point we need to tell sys that dead sources are to be ignored
 			for my $source (qw(snmp wmi))
 			{
@@ -8094,14 +7888,6 @@ sub collect
 		$self->nmisng->compute_thresholds(sys => $S, running_independently => 0);
 	}
 
-	# add some timing info for the gui
-	my $V = $S->view;
-	$V->{system}{lastCollect_value} = NMISNG::Util::returnDateStamp($catchall_data->{last_poll});
-	$V->{system}{lastCollect_title} = 'Last Collect';
-
-	$S->writeNodeView;
-	$S->writeNodeInfo();
-
 	# done with the standard work, now run any plugins that offer collect_plugin()
 	for my $plugin ($self->nmisng->plugins)
 	{
@@ -8127,8 +7913,7 @@ sub collect
 		}
 		elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
 		{
-			$self->nmisng->log->debug("Plugin $plugin indicated success, updating node and view files");
-			$S->writeNodeView;
+			$self->nmisng->log->debug("Plugin $plugin indicated success");
 		}
 		elsif ( $status == 0 )
 		{
@@ -8162,6 +7947,11 @@ sub collect
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
+
+	# update the coarse compat 'nodestatus' property, not multiple times
+	my $coarse = $self->coarse_status;
+	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
+
 	$catchall_inventory->save();
 	if (my $issues = $self->unlock(lock => $lock))
 	{
@@ -8171,6 +7961,8 @@ sub collect
 	$self->nmisng->log->debug("Finished");
 	return { success => 1};
 }
+
+
 
 1;
 

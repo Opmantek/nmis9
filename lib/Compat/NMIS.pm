@@ -334,168 +334,6 @@ sub loadNodeSummary {
 
 
 
-# this is the most official reporter of node status, and should be
-# used instead of just looking at local system info nodedown
-#
-# reason for looking for events (instead of wmidown/snmpdown markers):
-# underlying events state can change asynchronously (eg. fping), and the per-node status from the node
-# file cannot be guaranteed to be up to date if that happens.
-sub nodeStatus
-{
-	my %args = @_;
-	my ($catchall_data,$node) = @args{'catchall_data','node'};
-	# die "nodeStatus requires catchall_data" if (!$catchall_data);
-	die "nodestatus requries node" if (!$node);
-	if( !$catchall_data )
-	{
-		my $inventory =  $node->inventory( concept => "catchall" );
-		$catchall_data = $inventory->data();
-	}
-	my $C = NMISNG::Util::loadConfTable();
-
-
-	# 1 for reachable
-	# 0 for unreachable
-	# -1 for degraded
-	my $status = 1;
-
-	my $node_down = "Node Down";
-	my $snmp_down = "SNMP Down";
-	my $wmi_down_event = "WMI Down";
-	my $failover_event = "Node Polling Failover";
-
-	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
-	if ( NMISNG::Util::getbool($catchall_data->{ping},"invert")
-			and ( $node->eventExist($snmp_down) or $node->eventExist( $wmi_down_event)) )
-	{
-		$status = 0;
-	}
-	# ping enabled, but unpingable -> down
-	elsif ( $node->eventExist($node_down) ) {
-		$status = 0;
-	}
-	# ping enabled, pingable but dead snmp or dead wmi or failover'd -> degraded
-	# only applicable is collect eq true, handles SNMP Down incorrectness
-	elsif ( NMISNG::Util::getbool($catchall_data->{collect}) and
-					( $node->eventExist($snmp_down)
-						or $node->eventExist($wmi_down_event)
-						or $node->eventExist($failover_event) ))
-	{
-		$status = -1;
-	}
-	# let NMIS use the status summary calculations
-	elsif (
-		defined $C->{node_status_uses_status_summary}
-		and NMISNG::Util::getbool($C->{node_status_uses_status_summary})
-		and defined $catchall_data->{status_summary}
-		and defined $catchall_data->{status_updated}
-		and $catchall_data->{status_summary} <= 99
-		and $catchall_data->{status_updated} > time - 500
-			) {
-		$status = -1;
-	}
-	else {
-		$status = 1;
-	}
-
-	return $status;
-}
-
-# this is a variation of nodeStatus, which doesn't say why a node is degraded
-# args: system object (doesn't have to be init'd with snmp/wmi)
-#
-# returns: hash of error (if dud args),
-#  overall (-1 deg, 0 down, 1 up),
-#  snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
-#  ping_enabled and ping_status (note: ping status is 1 if primary or backup address are up)
-#  wmi_enabled and wmi_status,
-#  failover_status (0 failover, 1 ok, undef if unknown/irrelevant)
-#  failover_ping_status (0 backup host is down, 1 ok, undef if irrelevant)
-#  primary_ping_status (0 primary host is down, 1 ok, undef if irrelevant
-sub PreciseNodeStatus
-{
-	my (%args) = @_;
-	my $S = $args{system};
-	return ( error => "Invalid arguments, no Sys object!" ) if (ref($S) ne "NMISNG::Sys");
-
-	my $node = $S->nmisng_node;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-	my $C = NMISNG::Util::loadConfTable();
-
-	my $nodename = $node->name;
-
-	# reason for looking for events (instead of wmidown/snmpdown markers):
-	# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
-	# file cannot be guaranteed to be up to date if that happens.
-
-	# HOWEVER the markers snmpdown and wmidown are present iff the source was enabled at the last collect,
-	# and if collect was true as well.
-	my %precise = ( overall => 1, # 1 reachable, 0 unreachable, -1 degraded
-									snmp_enabled =>  defined($catchall_data->{snmpdown})||0,
-									wmi_enabled => defined($catchall_data->{wmidown})||0,
-									ping_enabled => NMISNG::Util::getbool($catchall_data->{ping}),
-									snmp_status => undef,
-									wmi_status => undef,
-									ping_status => undef,
-									failover_status => undef, # 1 ok, 0 in failover, undef if unknown/irrelevant
-									failover_ping_status => undef, # 1 backup host is pingable, 0 not, undef unknown/irrelevant
-									primary_ping_status => undef,
-			);
-
-	my $downexists = $node->eventExist("Node Down");
-	my $failoverexists = $node->eventExist("Node Polling Failover");
-	my $backupexists = $node->eventExist("Backup Host Down");
-
-	$precise{ping_status} = ($downexists?0:1) if ($precise{ping_enabled}); # otherwise we don't care
-	$precise{wmi_status} = ($node->eventExist("WMI Down")?0:1) if ($precise{wmi_enabled});
-	$precise{snmp_status} = ($node->eventExist("SNMP Down")?0:1) if ($precise{snmp_enabled});
-
-	if ($node->configuration->{host_backup})
-	{
-		$precise{failover_status} = $failoverexists? 0:1;
-		$precise{primary_ping_status} = ($downexists || $failoverexists)? 0:1; # the primary is dead if all are dead or if we failed-over
-		$precise{failover_ping_status} = ($backupexists || $downexists)? 0:1; # the secondary is dead if known to be dead or if all are dead
-	}
-
-	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
-	if (!$precise{ping_enabled}
-			and ( ($precise{wmi_enabled} and !$precise{wmi_status})
-						or ($precise{snmp_enabled} and !$precise{snmp_status}) ))
-	{
-		$precise{overall} = 0;
-	}
-	# ping enabled, but unpingable -> unreachable
-	elsif ($precise{ping_enabled} && !$precise{ping_status} )
-	{
-		$precise{overall} = 0;
-	}
-	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
-	# only applicable is collect eq true, handles SNMP Down incorrectness
-	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
-					or ($precise{snmp_enabled} and !$precise{snmp_status})
-					or (defined($precise{failover_status}) && !$precise{failover_status})
-					or (defined($precise{failover_ping_status}) && !$precise{failover_ping_status})
-			)
-	{
-		$precise{overall} = -1;
-	}
-	# let NMIS use the status summary calculations, if recently updated
-	elsif ( defined $C->{node_status_uses_status_summary}
-					and NMISNG::Util::getbool($C->{node_status_uses_status_summary})
-					and defined $catchall_data->{status_summary}
-					and defined $catchall_data->{status_updated}
-					and $catchall_data->{status_summary} <= 99
-					and $catchall_data->{status_updated} > time - 500 )
-	{
-		$precise{overall} = -1;
-	}
-	else
-	{
-		$precise{overall} = 1;
-	}
-	return %precise;
-}
-
 sub logConfigEvent {
 	my %args = @_;
 	my $dir = $args{dir};
@@ -552,11 +390,10 @@ sub getSummaryStats
 	if (! -f $db )
 	{
 		# unfortunately the sys object here is generally NOT a live one
-		# (ie. not init'd with snmp/wmi=true), so we use the PreciseNodeStatus workaround
+		# (ie. not init'd with snmp/wmi=true), so we use the precise_status as workaround
 		# to figure out if the right source is enabled
-		my %status = PreciseNodeStatus(system => $S);
+		my %status = $S->nmisng_node->precise_status;
 		# fixme unclear how to find the model's rrd section for this thing?
-
 		my $severity = "INFO";
 		NMISNG::Util::logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
 												 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
@@ -695,9 +532,9 @@ sub getSubconceptStats
 	if (! -f $db )
 	{
 		# unfortunately the sys object here is generally NOT a live one
-		# (ie. not init'd with snmp/wmi=true), so we use the PreciseNodeStatus workaround
+		# (ie. not init'd with snmp/wmi=true), so we use the precise_status as workaround
 		# to figure out if the right source is enabled
-		my %status = PreciseNodeStatus(system => $S);
+		my %status = $S->nmisng_node->precise_status;
 		# fixme unclear how to find the model's rrd section for this thing?
 
 		my $severity = "INFO";
@@ -1151,9 +988,9 @@ sub colorResponseTimeStatic {
 
 
 
-# fixme: az looks like this function should be reworked with
-# or ditched in favour of nodeStatus() and PreciseNodeStatus()
-# fixme: this also doesn't understand wmidown (properly)
+# fixme9: az thinks this function should be reworked
+# or ditched in favour of node->coarse_status) and node->precise_status
+# as this one also doesn't understand wmidown (properly)
 sub overallNodeStatus
 {
 	my %args = @_;
@@ -1201,12 +1038,12 @@ sub overallNodeStatus
 
 			my $nodeobj = $nmisng->node(uuid => $config->{uuid});
 
-			
+
 			### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 			my $down_event = "Node Down";
 			$down_event = "SNMP Down" if NMISNG::Util::getbool($config->{ping},"invert");
 			$nodedown = $nodeobj->eventExist($down_event);
-			
+
 			($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 
 			if ( $nodedown and $outage ne 'current' ) {
@@ -1286,16 +1123,6 @@ sub statusNumber {
 	return $level;
 }
 
-
-# load the info of a node
-# if optional arg suppress_errors is given, then no errors are logged
-sub loadNodeInfoTable
-{
-	my $node = lc shift;
-	my %args = @_;
-
-	return NMISNG::Util::loadTable(dir=>'var', name=>"$node-node",  suppress_errors => $args{suppress_errors});
-}
 
 # load info of all interfaces - fixme9: this is likely dead slow
 # and wasteful (as it combines EVERYTHING) - should be replaced by much more targetted lookups!
@@ -1551,8 +1378,6 @@ sub createHrButtons
 
 	my @out;
 
-	# fixme9: still need this for status, which hasn't been switched to inventory just yet
-	my $NI = loadNodeInfoTable($node);
 	# note, not using live data beause this isn't used in collect/update
 	my $catchall_data = $S->inventory( concept => 'catchall')->data();
 	my $nmisng_node = $S->nmisng_node;
@@ -1972,8 +1797,9 @@ sub loadCBQoS
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	# this is still used by huaweiqos, nothing else should be using it
-	# fixme9: this needs to  be reworked to use inventory for huwawei, too...
-	my $NI = $S->compat_nodeinfo;
+	# fixme9: this must be reworked to use inventory for huwaweiqos, too,
+	# and the admin/huaweirouter-helper.pl needs to become a proper plugin.
+	my $NI = {};
 
 	my $M = $S->mdl;
 	my $node = $catchall_data->{name};

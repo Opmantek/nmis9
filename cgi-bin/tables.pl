@@ -624,8 +624,6 @@ sub doeditTable
 	# make room, make room! accessing a nonexistent $T->{$key} does NOT attach it to $T...
 	my $thisentry  = $T->{$key} ||= {};
 
-	my $V;												# fixme: deprecated, in sql db mode only
-
 	# store new values in table structure
 	for my $ref ( @{$CT})
 	{
@@ -641,26 +639,26 @@ sub doeditTable
 			}
 			# handle multi-valued inputs correctly!
 			#
-			# if submission was under widget mode, then javascript:get() 
+			# if submission was under widget mode, then javascript:get()
 			# will have transformed any such into comma-sep data
 			#
 			# for a standalone submission that does not happen, and
 			# we get that as packed string of null-separated entries
 			#
-			# furthermore, real array items (=marked as savearray) must 
+			# furthermore, real array items (=marked as savearray) must
 			# not become comma-separated
-			my @unpacked = $wantwidget? 
-					split(/\s*,\s*/, $Q->{$item}) 
+			my @unpacked = $wantwidget?
+					split(/\s*,\s*/, $Q->{$item})
 					: unpack("(Z*)*", NMISNG::Util::stripSpaces($Q->{$item}));
-			my $value = $thisitem->{display} =~ /(^|,)savearray(,|$)/? 
+			my $value = $thisitem->{display} =~ /(^|,)savearray(,|$)/?
 					\@unpacked:  join(",", @unpacked);
-			$thisentry->{$item} = $V->{$item} = $value;
+			$thisentry->{$item} = $value;
 
 			# and if the item is marked as pluscustom and a custom value is present,
 			# then replace the item value with _custom_<item>
 			if ($thisitem->{display} =~ /(^|,)pluscustom(,|$)/ && $Q->{"_custom_$item"} ne '')
 			{
-				$thisentry->{$item} = $V->{$item} = $Q->{"_custom_$item"};
+				$thisentry->{$item} = $Q->{"_custom_$item"};
 				delete $Q->{"_custom_$item"};
 			}
 
@@ -810,7 +808,7 @@ sub doeditTable
 		# ensure a real uuid is present
 		if (!$thisentry->{uuid} or !UUID::Tiny::is_uuid_string($thisentry->{uuid}))
 		{
-			$thisentry->{uuid} = $V->{uuid} = NMISNG::Util::getUUID($key);
+			$thisentry->{uuid} = NMISNG::Util::getUUID($key);
 		}
 
 		my $nmisng = Compat::NMIS::new_nmisng;

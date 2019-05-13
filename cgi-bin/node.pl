@@ -146,11 +146,8 @@ sub typeGraph
 	{
 		bailout(message => "Node $node not found");
 	}
-	# fixme9: catchall_data is not even used?!?
-	my $catchall_data = $node? $S->inventory( concept => 'catchall' )->data_live() : {};
 
 	my $M = $S->mdl;
-	my $V = $S->view;
 
 	my %graph_button_table = (
 		# graphtype		==	display #
@@ -480,7 +477,6 @@ sub typeGraph
 		my $db;
 		my $lastUpdate;
 
-
 		my $intf_data = $index_model->{data};
 		# cbqos shows interface data so load if if we are doing cbqos
 		if( $subconcept =~ /cbqos/ && $index != '')
@@ -495,14 +491,12 @@ sub typeGraph
 			$lastUpdate = NMISNG::Util::returnDateStamp($time);
 		}
 
-		$S->readNodeView;
-		my $V = $S->view;
 		# instead of loading a new inventory object re-use the model loaded above
 		my $speed = &NMISNG::Util::convertIfSpeed($intf_data->{ifSpeed});
-		if ( $V->{interface}{"${index}_ifSpeedIn_value"} ne ""
-				 and $V->{interface}{"${index}_ifSpeedOut_value"} ne "" )
+		if ($intf_data->{ifSpeedIn} and $intf_data->{ifSpeedOut})
 		{
-			$speed = qq|IN: $V->{interface}{"${index}_ifSpeedIn_value"} OUT: $V->{interface}{"${index}_ifSpeedOut_value"}|;
+			$speed = "IN: ".&NMISNG::Util::convertIfSpeed($intf_data->{ifSpeedIn})
+					." OUT: ".&NMISNG::Util::convertIfSpeed($intf_data->{ifSpeedOut});
 		}
 
 		# info Type, Speed, Last Update, Description
@@ -889,8 +883,6 @@ sub typeStats
 
 	print start_table;
 
-	# fixme9: if ifdescr is really needed to be shown here, then then the inventory for interface needs to be loaded
-	# $IF->{$Q->{intf}}{ifDescr}
 	print Tr(td({class=>'header',colspan=>'11'},"NMIS RRD Graph Stats $Q->{node} $Q->{intf} $Q->{item} $starttime to $endtime"));
 
 	foreach my $m (sort keys %{$statval}) {
@@ -926,7 +918,7 @@ sub typeStats
 # determine if the given graphtype belongs to systemhealth-modelled section,
 # and if so, look up the labels
 # args: sys object, graphtype, graphtypetable, section, index (all required)
-# returns: title_struct (hashref), concept, subconcept, index_mode, data
+# returns: title_struct (hashref), concept, subconcept, index_model, data
 #
 # note: graphtypetable may be modified!
 # fixme9: this is an utter mess

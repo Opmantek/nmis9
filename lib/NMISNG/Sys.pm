@@ -60,8 +60,6 @@ sub new
 			snmp => undef,    # snmp accessor object
 			wmi  => undef,    # wmi accessor object
 
-			info   => {},     # node info table
-			view   => {},     # view info table
 			cfg    => {},     # configuration of node
 			reach  => {},     # tmp reach table
 			alerts => [],     # getValues() saves stuff there, nmis.pl consumes
@@ -88,24 +86,13 @@ sub new
 
 #===================================================================
 sub mdl       { my $self = shift; return $self->{mdl} };                   # my $M = $S->mdl
-sub view      { my $self = shift; return $self->{view} };                  # my $V = $S->view
-
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
+sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
 
 # attention: that thing has an extra static 'node' outer wrapper!
 # it also contains ONLY the nmisng::node's configuration(), not uuid/cluster_id/name/activated()!
 sub ndcfg     { my $self = shift; return $self->{cfg} };
 
-sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
-
-# returns self's info, like the removed  ndinfo() function
-# mostly deprecated - only threshold and alerts are still using that
-sub compat_nodeinfo
-{
-	my ($self) = @_;
-	die "this isn't supported anymore";
-	return $self->{info};
-}
 
 # deprecated, deliberately noisy, provides RO access to interface list
 # fixme: no error handling
@@ -326,13 +313,13 @@ sub init
 	# (re-)cleanup, set defaults
 	$self->{snmp} = $self->{wmi} = undef;
 	$self->{mdl} = undef;
-	for my $nuke (qw(info view rrd reach))
+	for my $nuke (qw(info rrd reach))
 	{
 		$self->{$nuke} = {};
 	}
 	$self->{cfg} = {node => {ping => 'true'}};
 
-	# load info of node and interfaces in tables of this object, if a node is given
+	# load info of node and interfaces into this object, if a node is given
 	# otherwise load the 'generic' sys object
 	if ( $self->{name} )
 	{
@@ -348,8 +335,6 @@ sub init
 		else
 		{
 			$catchall_data = $catchall->data_live();
-			# load the saved node info data - note that an empty {} nodeinfo file is ok!
-			# if ( ref( $self->{info} ) eq "HASH" )
 			if ( (keys %$catchall_data) > 0 )
 			{
 				if ( NMISNG::Util::getbool( $self->{debug} ) )
@@ -374,14 +359,6 @@ sub init
 				return 0;
 			}
 		}
-	}
-
-	# fixme9: unclear what that is supposed to be good for?
-	if (-f (my $globsysstatusfile = NMISNG::Util::getFileName(dir => 'var', name => "nmis-system")))
-	{
-		# This is overriding the devices with nodedown=true!
-		my $info = NMISNG::Util::loadTable( dir => 'var', name => "nmis-system" );
-		$self->_mergeHash( $self->{info}, $info ) if ($info);
 	}
 
 	# load node configuration - attention: only done if snmp or wmi are true
@@ -766,10 +743,11 @@ sub copyModelCfgInfo
 }
 
 # get info from node, using snmp and/or wmi
-# Values are stored in {info}, under class or given table arg
+# Values are stored in given target, under class or given table arg
 #
 # args: class, section, index/port (more or less required),
 # table (=name where data is parked, defaults to arg class),
+# target (=hashref of where to store results, usually an inventory)
 # debug (aka model; optional, just a debug flag!)
 #
 # returns 0 if retrieval was a _total_ failure, 1 if it worked (at least somewhat),
@@ -841,24 +819,14 @@ sub loadInfo
 					if ( @keys > 1 || $keys[0] ne $index );
 
 				$self->nmisng->log->debug3("MODEL section=$sect") if $wantdebug;
-# fixme9 gone 				print "  MODEL section=$sect\n" if $dmodel;
 				### 2013-07-26 keiths: need a default index for SNMP vars which don't have unique descriptions
 				if ( $target->{index} eq '' )
 				{
 					$target->{index} = $index;
 				}
-				foreach my $ds ( keys %{$result->{$sect}{$index}} )
+				foreach my $ds ( keys %{$result->{$sect}->{$index}} )
 				{
-					my $thisval = $target->{$ds} = $result->{$sect}{$index}{$ds}{value};    # store in {info}
-					      # if getvalues provided a title for this thing, store that in view
-					if ( exists( $result->{$sect}->{$index}->{$ds}->{title} ) )
-					{
-						$self->{view}->{$table}{"${index}_${ds}_value"}
-							= NMISNG::Util::rmBadChars( $result->{$sect}->{$index}->{$ds}->{value} );
-						$self->{view}{$table}{"${index}_${ds}_title"}
-							= NMISNG::Util::rmBadChars( $result->{$sect}->{$index}->{$ds}->{title} );
-					}
-
+					my $thisval = $target->{$ds} = $result->{$sect}{$index}{$ds}->{value};
 					my $modext = "";
 
 					# complain about nosuchxyz
@@ -879,14 +847,7 @@ sub loadInfo
 			{
 				foreach my $ds ( keys %{$result->{$sect}} )
 				{
-					my $thisval = $target->{$ds} = $result->{$sect}{$ds}{value};    # store in {info}
-					      # if getvalues provided a title for this thing, store that in view
-					if ( exists( $result->{$sect}->{$ds}->{title} ) )
-					{
-						$self->{view}->{$table}{"${ds}_value"} = NMISNG::Util::rmBadChars( $result->{$sect}->{$ds}->{value} );
-						$self->{view}{$table}{"${ds}_title"} = NMISNG::Util::rmBadChars( $result->{$sect}->{$ds}->{title} );
-					}
-
+					my $thisval = $target->{$ds} = $result->{$sect}{$ds}{value};
 					my $modext = "";
 
 					# complain about nosuchxyz
@@ -897,11 +858,6 @@ sub loadInfo
 						$modext = ( $1 eq "SuchObject" ? "ERROR" : "WARNING" );
 					}
 					$self->nmisng->log->debug3( "store: class=$class, type=$sect, DS=$ds, value=$thisval");
-					# fixme9 gone
-					print
-						"  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds value=$result->{$sect}{$ds}{value}\n"
-						if $dmodel;
-
 				}
 			}
 		}
@@ -910,7 +866,7 @@ sub loadInfo
 	}
 }
 
-# get node NMISNG::Util::info (subset) as defined by Model. Values are stored in table {info}
+# get node NMISNG::Util::info (subset) as defined by Model. Values are stored in catchall
 # args: none
 # returns: 1 if worked (at least somewhat), 0 otherwise - check status() for details
 # NOTE: inventory keeping this around for now because whole node file not completely replaced yet
@@ -968,9 +924,6 @@ sub getData
 		$self->nmisng->log->error("($self->{name}) no rrd section for class $class!");
 		return;
 	}
-
-	# fixme9 should go away
-	$self->{info}->{graphtype} ||= {};
 
 	# this returns all collected goodies, disregarding nosave - must be handled upstream
 	my ( $result, $status ) = $self->getValues(
@@ -1036,7 +989,6 @@ sub getData
 	elsif ( $status->{error} )
 	{
 		$self->nmisng->log->error("Model: $status->{error}") if ($wantdebug);
-# fixme9 gone		print "MODEL ERROR: $status->{error}\n" if ($dmodel);
 	}
 	return $result;
 }
@@ -1103,10 +1055,12 @@ sub getValues
 			$self->nmisng->log->debug2( "control $thissection->{control} found for section=$sectionname");
 
 			if (!$self->parseString(
-					string => "($thissection->{control}) ? 1:0",
-					index  => $index,
-					sect   => $sectionname,
-					eval => 1
+						 string => "($thissection->{control}) ? 1:0",
+						 index  => $index,
+						 sect   => $sectionname,
+						 type => defined $port? "interface": undef,
+						 eval => 1,
+
 				)
 				)
 			{
@@ -1914,12 +1868,16 @@ sub getTitle
 
 # add a whole bunch of variables to the extras hash that parseString added so are now
 # required for backwards compat
-# NOTE: if section is empty sometimes type has it ( getFileName from RRDfunc does this, interface comes through as, the type)
-#.  and sometimes neither have antyhing useful! (Like cbqos telling us the class name, useless!!!!
-#   Instead of blindly trying to load the interface everytime we will only do it when it makes sense, except we can't do this yet! :(
-#.  we need to be tell us when that is!
-# so for now if the section|type are interface|pkts, or the $str has interface in it (assuming we are making a filename) and we have
-# a valid index then load interface info
+#
+# NOTE: if section is empty sometimes type has it ( getFileName from RRDfunc does this,
+# interface comes through as, the type)
+#
+#.  and sometimes neither have anything useful! (Like cbqos telling us the class name, useless!!!!
+#   Instead of blindly trying to load the interface everytime we will only do it when it makes sense,
+#   except we can't do this yet! :(
+#.  we need to be told us when that is!
+# so for now if the section|type are interface|pkts, or the $str has interface in it
+# (assuming we are making a filename) and we have a valid index then load interface info
 #
 # fixme9: operation in non-node mode is a dirty hack
 sub prep_extras_with_catchalls
@@ -1968,7 +1926,9 @@ sub prep_extras_with_catchalls
 		}
 
 		# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
-		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
+		# fixme9: utterly and irredeemably borked
+		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/ || $type eq "interface")
+				 && $index =~ /\d+/ )
 		{
 			# inventory keyed by index and ifDescr so we need partial; using _the_ passed in
 			# inventory is clearly safer - IFF it's of the right type
@@ -2460,52 +2420,6 @@ sub graphHeading
 																	 item => $item,
 																	 eval => 0 );
 	return $parsed;
-}
-
-sub writeNodeInfo
-{
-	my $self = shift;
-
-	my $ext = NMISNG::Util::getExtension( dir => 'var' );
-	my $name = ( $self->{node} ne "" ) ? "$self->{node}-node" : 'nmis-system';
-
-	NMISNG::Util::writeTable( dir => 'var', name => $name, data => $self->{info} );    # write node info
-}
-
-# write out the node view information IFF the object has any, or if arg force is given
-# args: force, default 0
-# returns: nothing
-sub writeNodeView
-{
-	my ( $self, %args ) = @_;
-
-	if ( ( ref( $self->{view} ) eq "HASH" and keys %{$self->{view}} )
-		or NMISNG::Util::getbool( $args{force} ) )
-	{
-		NMISNG::Util::writeTable(
-			dir  => 'var',
-			name => "$self->{node}-view",
-			data => $self->{view}
-		);    # write view info
-	}
-	else
-	{
-		$self->nmisng->log->debug("not overwriting view file for $self->{node}: no view data present!");
-	}
-}
-
-sub readNodeView
-{
-	my $self = shift;
-	my $name = "$self->{node}-view";
-	if ( NMISNG::Util::existFile( dir => 'var', name => $name ) )
-	{
-		$self->{view} = NMISNG::Util::loadTable( dir => 'var', name => $name );
-	}
-	else
-	{
-		$self->{view} = {};
-	}
 }
 
 # this function translates threshold information into textual level

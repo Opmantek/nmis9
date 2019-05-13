@@ -3,37 +3,37 @@
 ## $Id: debug.pl,v 8.9 2012/01/10 01:49:11 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use Compat::NMIS;
 use NMISNG::Util;
@@ -107,7 +107,7 @@ print <<EOF;
 function createTOC()
 {
 	// to do : gracefully handle if h2 is top level id and not h1
-	
+
 	// configuration options
 	var page_block_id = 'contentcenter'; // this is the id which contains our h1's etc
 	var toc_page_position =-1; // used later to remember where in the page to put the final TOC
@@ -125,7 +125,7 @@ function createTOC()
 	myrow.appendChild(mycell);
 	mytablebody.appendChild(myrow);
 	y.appendChild(mytablebody);
-	
+
 	// create the two title strings so we can switch between the two later via the id
 	var a = mycell.appendChild(document.createElement('span'));
 	a.id = 'toc_hide';
@@ -136,12 +136,12 @@ function createTOC()
 	a.style.display='none'
 	a.innerHTML = '<b>Contents</b> <small>[<a href="" onclick="javascript:showhideTOC();return false;">show</a>]</small>';
 	a.style.textAlign='center';
-	
+
 	var z = mycell.appendChild(document.createElement('div'));
-	
+
 	// set the id so we can show/hide this div block later
 	z.id ='toc_contents';
-	
+
 	var toBeTOCced = new Array();
 	for (var i=0;i<x.length;i++)
 	{
@@ -151,7 +151,7 @@ function createTOC()
 			if (toc_page_position == -1)
 			{
 				// get the first one.. don't care which level it is
-				toc_page_position = 0; 
+				toc_page_position = 0;
 				// we should also remember which level is top of the page
 				top_level = x[i].nodeName;
 			}
@@ -165,7 +165,7 @@ function createTOC()
 	var counterArray = new Array();
 	for (var i=0;i<=7;i++)
 		{counterArray[i]=0;}
-	
+
 	// quit if it is a small toc
 	if (toBeTOCced.length <= 2) return;
 
@@ -176,13 +176,13 @@ function createTOC()
 		// tmp is link in toc
 		var tmp = document.createElement('a');
 		// tmp2 is name link for this heading ancor
-		var tmp2 = document.createElement('a');	
+		var tmp2 = document.createElement('a');
 
 		// we need to prefix with a number
 		var level = toBeTOCced[i].nodeName.charAt(1);
 		// we need to put in the upper numbers ie: 4.2 etc.
 		++counterArray[level];
-		
+
 		tmp.href = '#header_' + i;
 		tmp2.id = 'header_' + i;
 
@@ -193,7 +193,7 @@ function createTOC()
 				tmp_indent +=10;
 			}
 		tmp.innerHTML +=  ' ' + toBeTOCced[i].innerHTML;
-		
+
 		// if counterArray[+1] != 1 .. reset it and all the above
 		level++; // counterArray[level+1] was giving me issues... stupid javascript
 		if (counterArray[level] > 0) // if we dropped back down, clear out the upper numbers
@@ -204,7 +204,7 @@ function createTOC()
 
 		if (tmp_indent > 10)
 			tmp.style.paddingLeft=tmp_indent -10+'px';
-	
+
 		// if NOT h1 tag, add to toc
 		if (!skip_first)
 		{
@@ -215,7 +215,7 @@ function createTOC()
 		}
 		else // else, act as if this item was never created.
 		{
-			skip_first=false;	
+			skip_first=false;
 			// this is so the toc prefixes stay proper if the page starts with a h2 instead of a h1... we just reset the first heading to 0
 			--level;
 			--counterArray[level];
@@ -239,7 +239,7 @@ function createTOC()
 
 
 
-	// now we work on auto-jumping to a specific target 
+	// now we work on auto-jumping to a specific target
 	// document.location.hash has the target we want to jump to
 	if (document.location.hash.length >= 9) // we now it's gotta be atleast '#header_x'
 	{
@@ -319,9 +319,9 @@ print "<h2>URL parameters</h2>";
    printf( "<br>netloc url(-base => 1) %s", url(-base => 1 ));
 
    print "<br><br><h3>Scripts URL</h3>";
-   
+
 ###########
-my $urlcgi = $q->url(-relative => 1);	# Use relative url for all our script href - in effect our scriptname 
+my $urlcgi = $q->url(-relative => 1);	# Use relative url for all our script href - in effect our scriptname
 my $urlbase = $q->url(-base=>1) . $C->{'url_base'};	#  full url for static pages, img, gifs etc.
 my $urlcgibase = $q->url(-base=>1) . $C->{'cgi_url_base'};	# same for script base directory, use for handover to other scripts in same directory
 my $urlhost = $q->url(-base=>1);	# same for script base directory, use for handover to other scripts in same directory, appended by nmis::config var
@@ -336,7 +336,7 @@ print "<p>\$urlhost:&nbsp;$urlhost</p><br>";
 my @TB = qw( Nodes Logs Contacts Locations Events Escalation Thresholds Model SysNode SysInt Services );
 foreach my $id ( @TB ) {
 
-	my ($error,%TB) = NMISNG::CSV::loadCSV(	$C->{$id.'_Table'}, 
+	my ($error,%TB) = NMISNG::CSV::loadCSV(	$C->{$id.'_Table'},
 																					$C->{$id.'_Key'});
 	print "<h2>$id"."_Table</h2>";
 	print dumper_html(\$error, \%TB);
@@ -364,21 +364,11 @@ print dumper_html(NMISNG::Outage::find_outages);
 
 my $ext = NMISNG::Util::getExtension(dir=>'var');
 
-foreach my $node (sort keys %{$NT}) {
-	if ( $C->{server_name} eq $NT->{$node}{server} ) { # fixme9 property no longer present
-		# fixme9 this cannot work, there is no useful info in that node info file
-		my $nodeInfo = Compat::NMIS::loadNodeInfoTable($node);
-		
-		print "<h2>$node System File ( /var/$node.$ext) </h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$node.$ext\") *24*60) ]} minutes ago</b><br>";
-		print dumper_html($nodeInfo);
-	}
-}
-
 my $NS = Compat::NMIS::loadNodeSummary();
 print "<h2>Node Summary</h2>";
 print dumper_html($NS);
-	
-my $dir = "$FindBin::Bin/../var";	
+
+my $dir = "$FindBin::Bin/../var";
 foreach my $summary ( qw( nmis-summary8h nmis-summary16h ) ) {
 
 	my %summaryHash = NMISNG::Util::readFiletoHash(file=>"$dir/$summary");
@@ -413,7 +403,7 @@ print "<h1>Color Chart - Response Time Threshold set to $C->{response_time_thres
 print '<table><tr>';
 for my $i ( 0 .. $C->{response_time_threshold}) {
 	my $c = NMISNG::Util::colorResponseTime($i,$C->{response_time_threshold});
-	if ($i % 20 == 0) { 
+	if ($i % 20 == 0) {
 		print "<td style=background-color:$c;>$i</td>";
 	}
 }
@@ -445,7 +435,7 @@ sub dumper_html
     $unclean =~ s/>/&gt;/g;
 
     # and that's all that data::dumper::html did :-(
-    $unclean =~ s{\n}{<br />\n}g;    
+    $unclean =~ s{\n}{<br />\n}g;
     $unclean =~ s{\t}{    }g;
     $unclean=~ s{[ ]{5}}{&nbsp; &nbsp; &nbsp;}g;
     $unclean =~ s{[ ]{3}}{&nbsp; &nbsp;}g;
@@ -532,4 +522,3 @@ clear:both;
 color:#666666;
 font-size:11px;
 }
-

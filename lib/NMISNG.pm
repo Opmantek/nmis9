@@ -742,18 +742,6 @@ sub compute_thresholds
 		NMISNG::Util::info("Status Summary = $perOk, $count, $countOk\n");
 		$catchall_data->{status_summary} = $perOk;
 		$catchall_data->{status_updated} = time();
-
-		# cache the current nodestatus for use in the dash
-		my $nodestatus = Compat::NMIS::nodeStatus( node => $S->nmisng_node, catchall_data => $catchall_data );
-		$catchall_data->{nodestatus} = "reachable";
-		if ( not $nodestatus )
-		{
-			$catchall_data->{nodestatus} = "unreachable";
-		}
-		elsif ( $nodestatus == -1 )
-		{
-			$catchall_data->{nodestatus} = "degraded";
-		}
 	}
 
 	# Save the new status results, but only if run standalone
@@ -2556,10 +2544,6 @@ sub process_escalations
 	# load the escalation policy table
 	my $EST = NMISNG::Util::loadTable( dir => "conf", name => "Escalations" );
 
-	### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
-	# load the interface file to later check interface collect status.
-	#my $II = Compat::NMIS::loadInterfaceInfo();
-
 	my $LocationsTable = NMISNG::Util::loadTable( dir => "conf", name => "Locations" );
 
 	### keiths, work around for extra tables.
@@ -2880,7 +2864,7 @@ sub process_escalations
 		# now remove this event
 		if ( my $err = $event_obj->delete() )
 		{
-			NMISNG::Util::logMsg("ERROR $err");
+			$self->log->error("event deletion failed: $err");
 		}
 	}
 
