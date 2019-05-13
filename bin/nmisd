@@ -1099,11 +1099,22 @@ sub worker_loop
 																											 delay_is_ok => 1,
 																											 perms => ($ourjob->{type} eq "permission_test") );
 
+					my $failedtests = join(", ", map { $_->[0] } (grep(defined $_->[1], @$tests)));
+
 					$state->{status} = ($allok?"ok":"error");
 					$state->{details} = "completed"
-							.($allok? " successfully" : (" with failed tests: ".
-																					 join(", ",
-																								map { $_->[0] } (grep(defined $_->[1], @$tests)))));
+							.($allok? " successfully" : " with failed tests: $failedtests");
+
+					# on failure raise a stateless event (if possible, ie. if localhost node exists)
+					if (!$allok)
+					{
+						my $S = NMISNG::Sys->new;
+						if ($S->init(name => "localhost", snmp => 'false', wmi => 'false'))
+						{
+							Compat::NMIS::notify(sys => $S, event => "Selftest Failed",
+																	 details => "failed tests: $failedtests");
+						}
+					}
 				}
 				elsif ($ourjob->{type} eq "configbackup")
 				{

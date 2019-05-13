@@ -522,6 +522,18 @@
     'Description' => 'The collect process for a node has been killed to ensure that polling continues for other nodes.',
   },
 
+
+  'Selftest Failed' => {
+    'Event' => 'Selftest Failed',
+    'Notify' => 'true',
+    'Status' => 'false',
+    'Log' => 'true',
+    'Stateful' => 'false',
+    'CancelingEvent' => 'N/A',
+    'Description' => 'One or more subtests of the NMIS selftest failed.',
+  },
+
+
   "Planned Outage Open" => {
                "Event" => "Planned Outage Open",
                "Notify" => "true",
