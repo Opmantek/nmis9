@@ -793,8 +793,11 @@ sub data
 	return Clone::clone( $self->{_data} );
 }
 
-# returns a ref to the data, after doing this the object cannot be accessed via normal data function
-# returns: clone of data, logs on error
+# returns a ref to the data,
+# ATTENTION: after doing this the object cannot be accessed via normal data function!
+# this function should be used (much more) sparingly
+#
+# returns: direct ref for the data, logs on error
 sub data_live
 {
 	my ($self) = @_;
@@ -1111,9 +1114,14 @@ sub path
 #  using the path to make sure we don't create duplicates, this will clobber whatever
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
 #
-# args: lastupdate, optional, defaults to now
+# args: lastupdate, (optional, defaults to now),
+#  updateonly (optional, array of properties to update, ignored if inventory is new)
 #
 # note: lastupdate and expire_at currently not added to object but stored in db only
+#
+# if updateonly is given, then only the mentioned properties are updated in the db;
+# a reload is highly recommended as next operation!
+#
 # the object's _id and _path are refreshed
 # returns ($op,$error), op is 1 for insert, 2 for save, 0 or negative on error;
 # error is string if there was an error
@@ -1121,6 +1129,9 @@ sub save
 {
 	my ( $self, %args ) = @_;
 	my $lastupdate = $args{lastupdate} // time;
+	my @updateonly = (ref($args{updateonly}) eq "ARRAY" 
+										&& !$self->is_new)? 
+			@{$args{updateonly}} : ();
 
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
@@ -1226,11 +1237,22 @@ sub save
 	else
 	{
 		$record->{_id} = $self->id();
-		$result = NMISNG::DB::update(
+		my %updateargs  = (
 			collection => $self->nmisng->inventory_collection,
 			query      => NMISNG::DB::get_query( and_part => {_id => $record->{_id}}, no_regex => 1 ),
-			record     => $record
-		);
+			record => $record );
+
+		# only update specific properties?
+		if (@updateonly)
+		{
+			$updateargs{freeform} = 1;
+			$updateargs{constraints} = 0;
+			$updateargs{record} = { '$set' => 
+															{ ( map { ("data.$_" => $record->{data}->{$_}) } (@updateonly)),
+																"expire_at" => $record->{expire_at} } };
+		}
+			 
+		$result = NMISNG::DB::update(%updateargs);
 		$op = 2;
 	}
 
