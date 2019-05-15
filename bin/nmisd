@@ -1681,8 +1681,6 @@ sub fping_loop
 			}
 			close FROMFPING;
 		}
-		# all pinging done, let's dump the state onto disk as soon as we can
-		NMISNG::Util::writeTable(dir => 'var', name => "nmis-fping", data => \%state);
 
 		# fourth: analyse the results we've got this time, trigger events if required
 		for my $statekey (@thistime)
@@ -1690,17 +1688,65 @@ sub fping_loop
 			my $thisstate = $state{$statekey};
 			my $uuid = $thisstate->{uuid};
 
-			# raise events when required, ie. new state
-			# note that multi-homed nodes are down IFF all ips are unreachable
+			# save the statistics/results first - for/with the primary
+			my $timeddata = {
+				min_rtt => $thisstate->{min},
+				avg_rtt => $thisstate->{avg},
+				max_rtt => $thisstate->{max},
+				loss => $thisstate->{loss},
+				ip => $thisstate->{ip},
+			};
+			if ($thisstate->{has_sibling} && $thisstate->{is_primary})
+			{
+				my $secondary = List::Util::first { $_->{has_sibling} eq $thisstate->{has_sibling}
+																						&& !$_->{is_primary} } (values %state);
+
+				$timeddata->{backup_min_rtt} = $secondary->{min};
+				$timeddata->{backup_avg_rtt} = $secondary->{avg};
+				$timeddata->{backup_max_rtt} = $secondary->{max};
+				$timeddata->{backup_loss} = $secondary->{loss};
+				$timeddata->{backup_ip} = $secondary->{ip};
+			}
+			my $node = $nmisng->node(uuid => $uuid);
 
 			# no answers whatsoever? then complain, we don't know if up or down so can't really raise any events
 			if ($thisstate->{pending})
 			{
 				$nmisng->log->error("fping has not reported any state for Node $thisstate->{name} ($thisstate->{ip})!");
-				# remove any misleading data from previous runs
-				delete @{$thisstate}{qw(avg min max loss lastping)};
+				next;
 			}
-			elsif (!exists($thisstate->{loss}) or $thisstate->{loss} == 100)
+			# backup address goes with the primary
+			elsif (!$thisstate->{has_sibling} || $thisstate->{is_primary})
+			{
+				# get the node's ping inventory, and add timed data for it
+				# timed data is only possible for a particular inventory.
+				# but even with separate subconcepts, timed data cannot be saved 'incrementally'
+				# result: the collect code and this fping code cannot safely share
+				# the catchall inventory's timed data
+				my ($pinginv,$error) = $node->inventory(concept => "ping", create => 1,
+																								data => { }, path_keys => []); # not indexed, one per node
+				if ($error or !$pinginv)
+				{
+					$nmisng->log->error("Failed to instantiate ping inventory: $error");
+				}
+				else
+				{
+					$pinginv->save if ($pinginv->is_new); # timed data only possible once inventory is in the db
+
+					# this saves both timed data and the inventory
+					my $error = $pinginv->add_timed_data(
+						time => $thisstate->{lastping},
+						data => $timeddata,
+						derived_data => {},
+						subconcept => "ping",
+							);
+					$nmisng->log->error("Failed to add ping timed data: $error") if ($error);
+				}
+			}
+
+			# now raise events when required, ie. new state
+			# note that multi-homed nodes are down IFF all ips are unreachable
+			if (!exists($thisstate->{loss}) or $thisstate->{loss} == 100)
 			{
 				my ($whatevent, $details);
 				my $fpingmsg = $thisstate->{loss}? "fping reported loss=$thisstate->{loss}%"

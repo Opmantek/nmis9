@@ -2009,6 +2009,7 @@ nodeVendor sysObjectName roleType netType );
 
 		my %details;
 
+		# some properties are special wrt. formatting and/or source
 		if ($propname eq "host_addr" or $propname eq "host_addr_backup")
 		{
 			# title is static, value is dynamically generated or amended, color is state-driven
@@ -2078,20 +2079,34 @@ nodeVendor sysObjectName roleType netType );
 				}
 			}
 		}
+		# comes from the last timed data for concept 'ping'
+		elsif ($propname eq "last_ping")
+		{
+			%details = ( title => "Last Ping",
+									 value => "Unknown" );
+
+			my ($pinginv,$error) = $nmisng_node->inventory(concept => "ping");
+			if (!$error && $pinginv)
+			{
+				my $mostrecent = $pinginv->get_newest_timed_data();
+				if ($mostrecent->{success})
+				{
+					$details{value} = NMISNG::Util::returnDateStamp($mostrecent->{time});
+				}
+			}
+		}
 		# last_X as in last time for type=X operation, NOT db record updated!
-		elsif ($propname =~ /^last_(update|ping|collect)$/)
+		elsif ($propname =~ /^last_(update|collect)$/)
 		{
 			my $jobtype = $1;
 			# check if a job of this type is scheduled 'real soon' or already in progress
-			my $due_or_active = $jobtype ne "ping"?
-					$nmisng->get_queue_model(type => $jobtype,
-																	 time => { '$lt' => time + 30 }, # arbitrary choice
-																	 "args.uuid" => [ $nmisng_node->uuid ],
-																	 count => 1, limit => 0) # need a count, no data
-					: undef;
+			my $due_or_active = $nmisng->get_queue_model(
+				type => $jobtype,
+				time => { '$lt' => time + 30 }, # arbitrary choice
+				"args.uuid" => [ $nmisng_node->uuid ],
+				count => 1, limit => 0); # need a count, no data
 
-			%details = ( title => "Last ".($jobtype eq "update"? "Update" :
-																		 $jobtype eq "collect"? "Collect" : "Ping"),
+			%details = ( title => "Last ".($jobtype eq "update"? "Update" : "Collect"),
 									 value => NMISNG::Util::returnDateStamp($sourceval) );
 
 			if (defined $due_or_active && !$due_or_active->error && $due_or_active->query_count)

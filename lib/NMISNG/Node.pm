@@ -938,15 +938,6 @@ sub is_new
 	return (defined($self->{_id})) ? 0 : 1;
 }
 
-# return bool (0/1) if node is down as per catchall/info section
-sub is_nodedown
-{
-	my ($self) = @_;
-	my ($inventory,$error) =  $self->inventory( concept => "catchall" );
-	my $info = ($inventory && !$error) ? $inventory->data : {};
-	return NMISNG::Util::getbool( $info->{nodedown} );
-}
-
 # this is the most official reporter of coarse node status
 # returns: 1 for reachable, 0 for unreachable, -1 for degraded
 #
@@ -1244,7 +1235,7 @@ sub rename
 	return (1,undef);
 }
 
-# Save object to DB if it is dirty
+# Save the node object to DB if it is dirty - note: node, not inventories
 # returns tuple, ($success,$error_message),
 # 0 if no saving required
 #-1 if node is not valid,
@@ -1406,39 +1397,53 @@ sub pingable
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
 
 	my $nodename = $self->name;
+	my $uuid = $self->uuid;
 	my $C = $self->nmisng->config;
 
 	if ( NMISNG::Util::getbool($self->configuration->{ping}))
 	{
-		# use fastping info if available and not stale
+		# use fastping-sourced info if available and not stale
 		my $mustping = 1;
 		my $staleafter = $C->{fastping_maxage} || 900; # no fping updates in 15min -> ignore
-		my $PT = NMISNG::Util::loadTable(dir=>'var',name=>'nmis-fping'); # cached until mtime changes
 
-		if (ref($PT) eq "HASH")										 # any data available?
+		my ($pinginv,$error) = $self->inventory(concept => "ping"); # not indexed, one per node
+		if ($error or !$pinginv)
 		{
-			# for multihomed nodes there are two records to check, keyed uuid:N
-			my $uuid = $self->uuid;
-			my @tocheck = ( (defined($self->configuration->{host_backup})
-											 && $self->configuration->{host_backup}) ?
-											grep($_ =~ /^$uuid:\d$/, keys %$PT) : $uuid);
-			for my $onekey (@tocheck)
+			$self->nmisng->log->error("Failed to instantiate ping inventory: $error");
+		}
+		else
+		{
+			my $newestping = $pinginv->get_newest_timed_data;
+			if (!$newestping->{success})
 			{
-				if (ref($PT->{$onekey}) eq "HASH" # present
-						&& defined($PT->{$onekey}->{lastping}) # and valid
-						&& (time - $PT->{$onekey}->{lastping}) < $staleafter) # and not stale
+				$self->nmisng->log->error("Failed to get newest timed data: $newestping->{error}");
+			}
+			else
+			{
+				# copy the fastping data...
+				$lastping = $newestping->{time};
+
+				# ...if not stale
+				if ((time - $lastping) < $staleafter)
 				{
-					# copy the fastping data...
-					($ping_min, $ping_avg, $ping_max, $ping_loss, $lastping)
-							= @{$PT->{$onekey}}{"min","avg","max","loss","lastping"};
+					($ping_min, $ping_avg, $ping_max, $ping_loss)
+							= $newestping->{data}->{qw(min_rtt avg_rtt max_rtt loss)};
+					$self->nmisng->log->debug2("$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+
+					# ...and use the backup host data if the primary is unreachable
+					if (defined($self->configuration->{host_backup})
+							&& $self->configuration->{host_backup}
+							&& $ping_loss == 100)
+					{
+						($ping_min, $ping_avg, $ping_max, $ping_loss)
+								= $newestping->{data}->{qw(backup_min_rtt backup_avg_rtt backup_max_rtt backup_loss)};
+						$self->nmisng->log->debug2("$uuid ($nodename = $newestping->{data}->{backup_ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					}
 					$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
-					$self->nmisng->log->debug2("$uuid ($nodename = $PT->{$onekey}->{ip}) PINGability min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
-					# ...but also try the fallback if the primary is unreachable
-					last if ($pingresult);
 				}
 			}
-			$mustping = !defined($pingresult); # nothing or nothing fresh found?
 		}
+		$mustping = !defined($pingresult); # nothing or nothing fresh found?
 
 		# fallback to synchronous/internal pinging
 		if ($mustping)
@@ -1474,6 +1479,40 @@ sub pingable
 		# this includes the case of a faulty fping worker
 		if ($mustping)
 		{
+			# save the statistics/results first
+			my $timeddata = {
+				min_rtt => $ping_min,
+				avg_rtt => $ping_avg,
+				max_rtt => $ping_max,
+				loss => $ping_loss,
+				ip => undef,						# we don't know that with extping
+			};
+
+			# get the node's ping inventory, and add timed data for it
+			# timed data is only possible for a particular inventory.
+			# but even with separate subconcepts, timed data cannot be saved 'incrementally'
+			# result: the collect code and this fping code cannot safely share
+			# the catchall inventory's timed data
+			my ($pinginv,$error) = $self->inventory(concept => "ping", create => 1,
+																							data => { }, path_keys => []); # not indexed, one per node
+			if ($error or !$pinginv)
+			{
+				$self->nmisng->log->error("Failed to instantiate ping inventory: $error");
+			}
+			else
+			{
+				$pinginv->save if ($pinginv->is_new); # timed data only possible once inventory is in the db
+
+				# this saves both timed data and the inventory
+				my $error = $pinginv->add_timed_data(
+					time => $lastping,
+					data => $timeddata,
+					derived_data => {},
+					subconcept => "ping",
+						);
+				$self->nmisng->log->error("Failed to add ping timed data: $error") if ($error);
+			}
+
 			if ($pingresult)
 			{
 				# up
@@ -1514,11 +1553,6 @@ sub pingable
 		$RI->{pingavg}    = $ping_avg;     # results for sub runReach
 		$RI->{pingresult} = $pingresult;
 		$RI->{pingloss}   = $ping_loss;
-
-		# update the inventory with the last ping time,
-		# but fixme9: updated only when polling, not by fping, so often stale
-		# see OMK-5961 for proper solution
-		$catchall_data->{last_ping} = $lastping;
 	}
 	else
 	{
@@ -1526,9 +1560,12 @@ sub pingable
 		$RI->{pingresult} = $pingresult = 100;    # results for sub runReach
 		$RI->{pingavg}    = 0;
 		$RI->{pingloss}   = 0;
-		delete $catchall_data->{last_ping};
 	}
 
+	# cleanup, property deprecated, use get_newest_timed_data for concept ping
+	delete $catchall_data->{last_ping};
+
+	# note: may be stale, and possibly interfere with other users
 	$catchall_data->{nodedown}  = $pingresult? 'false' : 'true';
 	$self->nmisng->log->debug("Finished with exit="
 														. ( $pingresult ? 1 : 0 )
@@ -1892,7 +1929,6 @@ sub update_node_info
 			}
 		}
 	}
-
 	NMISNG::Util::info( "Finished "
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(nodedown snmpdown wmidown)) ) );
 
@@ -7729,7 +7765,6 @@ sub collect
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
 	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
-
 
 	$self->nmisng->log->debug( "node=$name "
 														 . join( " ", map { "$_=" . $catchall_data->{$_} }
