@@ -944,7 +944,8 @@ sub relocate_storage
 
 		# word chars are alphanum plus _, we want to allow _ as delimiter as well
 		# just count the matches, not the delims!
-		my @matches = ($existing =~ /(?:^|\W|_)$curname(?:$|\W|_)/g);
+		# for backwards compatibility accept both correct (new) and lowercased (legacy) names here
+		my @matches = ($existing =~ /(?:^|\W|_)$curname(?:$|\W|_)/ig);
 		if (!@matches)
 		{
 			return (0, "current name \"$curname\" not detected in \"$existing\" - cannot relocate!");
@@ -955,7 +956,8 @@ sub relocate_storage
 			$self->nmisng->log->warn("storage relocation of \"$existing\" ambiguous, \"$curname\" appeared ".scalar(@matches)." times. relocation will replace first match.");
 		}
 
-		$safetomangle->{$subconcept}->{"rrd"} =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/;
+		# for backwards compatibility accept both correct (new) and lowercased (legacy) names here
+		$safetomangle->{$subconcept}->{"rrd"} =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 		my $newfile = $safetomangle->{$subconcept}->{"rrd"};
 
 		return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
@@ -1129,8 +1131,8 @@ sub save
 {
 	my ( $self, %args ) = @_;
 	my $lastupdate = $args{lastupdate} // time;
-	my @updateonly = (ref($args{updateonly}) eq "ARRAY" 
-										&& !$self->is_new)? 
+	my @updateonly = (ref($args{updateonly}) eq "ARRAY"
+										&& !$self->is_new)?
 			@{$args{updateonly}} : ();
 
 	my ( $valid, $validation_error ) = $self->validate();
@@ -1247,11 +1249,11 @@ sub save
 		{
 			$updateargs{freeform} = 1;
 			$updateargs{constraints} = 0;
-			$updateargs{record} = { '$set' => 
+			$updateargs{record} = { '$set' =>
 															{ ( map { ("data.$_" => $record->{data}->{$_}) } (@updateonly)),
 																"expire_at" => $record->{expire_at} } };
 		}
-			 
+
 		$result = NMISNG::DB::update(%updateargs);
 		$op = 2;
 	}
