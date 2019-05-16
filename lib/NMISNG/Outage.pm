@@ -684,7 +684,7 @@ sub outageCheck
 		my $depoutages = check_outages(node => $depnode, time => $time);
 		if (!$depoutages->{success})
 		{
-			$nmisng->log->error("failed to check $nd outages: $depoutages->{error}");
+			$nmisng->log->error("failed to check $nd outages (dependency of $nodename): $depoutages->{error}");
 			return;
 		}
 		if (@{$depoutages->{current}})

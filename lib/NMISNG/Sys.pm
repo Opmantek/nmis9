@@ -54,7 +54,7 @@ sub new
 	my $self = bless(
 		{
 			name => undef,    # name of node
-			node => undef,    # node name is lc of name
+			node => undef,    # legacy copy of name (was lowercased but no longer)
 			mdl  => undef,    # ref Model modified
 
 			snmp => undef,    # snmp accessor object
@@ -254,8 +254,7 @@ sub init
 	}
 	elsif ($args{uuid} or $args{name})
 	{
-		$self->{name} = $args{name};
-		$self->{node} = lc $args{name} if ($args{name});    # always lower case
+		$self->{name} = $self->{node} = $args{name};
 		$self->{uuid} = $args{uuid};
 
 		$self->{_nmisng} = Compat::NMIS::new_nmisng();
@@ -275,8 +274,7 @@ sub init
 	if( $self->{_nmisng_node} )
 	{
 		$self->{uuid} = $self->{_nmisng_node}->uuid;
-		$self->{name} = $self->{_nmisng_node}->name;
-		$self->{node} = lc($self->{name}); # meh
+		$self->{name} = $self->{node} = $self->{_nmisng_node}->name;
 	}
 
 	$C ||= NMISNG::Util::loadConfTable();           # needed to determine the correct dir; generally cached and a/v anyway

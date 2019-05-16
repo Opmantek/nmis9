@@ -1232,24 +1232,29 @@ sub find_due_nodes
 
 			# handle the case of a changed polling policy: move all rrd files
 			# out of the way, and poll now
-			# note that this does NOT work with non-standard common-database structures
+			# please note that this does NOT work with non-standard common-database structures
+			# where rrd files aren't all under /nodes/nodename
 			if ( defined($lastpolicy) && $lastpolicy ne $polname )
 			{
 				$self->log->info(
 					"Node $nodename is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now"
-				);
-				my $lcnode    = lc($nodename);
-				my $curdir    = $self->config->{'database_root'} . "/nodes/$lcnode";
-				my $backupdir = "$curdir.policy-$lastpolicy." . time();
+						);
+				# backwards-compatibility with legacy lowercased directories
+				for my $maybedir ($nodename, lc($nodename))
+				{
+					my $curdir = $self->config->{'database_root'} . "/nodes/$maybedir";
+					my $backupdir = "$curdir.policy-$lastpolicy." . time();
 
-				if ( !-d $curdir )
-				{
-					$self->log->warn("Node $maybe doesn't have RRD files under $curdir!");
-				}
-				else
-				{
+					if ( !-d $curdir )
+					{
+						$self->log->warn("Node $maybe doesn't have RRD files under $curdir!")
+								if ($maybedir eq $nodename); # noise only for no data under the non-legacy structure
+					}
+					else
+					{
 					rename( $curdir, $backupdir )
-						or $self->log->error("failed to mv rrd files for $maybe: $!");
+						or $self->log->error("failed to rename directory $curdir for $maybe: $!");
+					}
 				}
 
 				$due{$maybe} = $cands{$maybe};
@@ -3042,7 +3047,7 @@ LABEL_ESC:
 
 			# in this case we have no guarantee that we have catchall and if we don't creating it is pointless.
 			my $catchall_data = $catchall_inventory->data_live();
-			$group = lc( $catchall_data->{group} );
+			$group = lc( $catchall_data->{group} ); # fixme9 lowercasing these is a bad idea
 			$role  = lc( $catchall_data->{roleType} );
 			$type  = lc( $catchall_data->{nodeType} );
 			$event = lc( $event_obj->event );
@@ -4623,8 +4628,8 @@ sub dump_node
 				},
 				follow => 1,
 			},
-			# we hates that lowercase, we do...
-			$self->config->{database_root}."/nodes/".lc($nodename)
+			$self->config->{database_root}."/nodes/".lc($nodename), 			# we hates that legacy compat lowercase, we do...
+			$self->config->{database_root}."/nodes/$nodename"
 				);
 	}
 

@@ -1175,7 +1175,7 @@ sub loadTable
 
 sub writeTable {
 	my %args = @_;
-	my $dir = lc $args{dir}; # name of directory
+	my $dir = $args{dir};			# name of directory, semi-symbolic
 	my $name = $args{name};	# name of table or short file name
 
 	my $C = NMISNG::Util::loadConfTable();

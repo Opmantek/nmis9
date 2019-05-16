@@ -1559,7 +1559,7 @@ sub InGroup {
 
 	foreach my $g (@{$self->{groups}})
 	{
-		if (lc($g) eq lc($group))
+		if (lc($g) eq lc($group))		# fixme9 dangerous
 		{
 			NMISNG::Util::logAuth("InGroup: $self->{user}, ok for $group") if $self->{debug};
 			return 1;

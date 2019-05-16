@@ -545,7 +545,8 @@ sub delete
 				},
 				follow => 1,
 			},
-			$self->nmisng->config->{database_root}."/nodes/".lc($self->name)); # we hates that lowercase, we do...
+			$self->nmisng->config->{database_root}."/nodes/".lc($self->name), # legacy lowercased
+			$self->nmisng->config->{database_root}."/nodes/".($self->name)); # new case-sensitive
 		return (0, "Failed to delete some RRDs: ".join(" ", @errors)) if (@errors);
 	}
 
@@ -1201,6 +1202,23 @@ sub rename
 	$self->_dirty(1, 'name');
 	my ($ok, $error) = $self->save;
 	return (0, "Failed to save node record: $error") if ($ok <= 0);
+
+	# at that point it Would Be Good if other nodes that depend on this one were reconfigured, too
+	my $needme = $self->nmisng->get_nodes_model(filter => { "configuration.depend" => $old })->objects;
+	if (my $errmsg = $needme->{error})
+	{
+		$self->nmisng->log->error("failed to lookup dependency nodes: $errmsg");
+	}
+	else
+	{
+		for my $othernode (@{$needme->{objects}})
+		{
+			my $othercfg = $othernode->configuration;
+			$othercfg->{depend} = [ map { $_ eq $old? $newname : $_ } (@{$othercfg->{depend}}) ];
+			$othernode->configuration($othercfg);
+			$othernode->save;
+		}
+	}
 
 	# and finally deal with the no longer required old links
 	for my $fn (@todelete)
