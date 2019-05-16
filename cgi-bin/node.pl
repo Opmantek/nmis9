@@ -313,7 +313,6 @@ sub typeGraph
 
 		if ($AU->Require)
 		{
-			my $lnode = lc($NT->{$node}{name});
 			if ( $NT->{$node}{group} ne "" ) {
 				if ( not $AU->InGroup($NT->{$node}{group}) ) {
 					$auth = 0;

@@ -213,7 +213,6 @@ for my $node ( sort keys %{$NT})
 
 	if ($AU->Require)
 	{
-		my $lnode = lc($NT->{$node}{name});
 		if ( $NT->{$node}{group} ne "" )
 		{
 			if ( not $AU->InGroup($NT->{$node}{group}) ) {
