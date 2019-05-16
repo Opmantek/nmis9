@@ -1151,7 +1151,7 @@ sub rename
 
 	my $nodenamerule = $self->nmisng->config->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
 	return (0, "new node name does not match 'node_name_rule' regular expression")
-			if ($self->{_name} !~ $nodenamerule);
+			if ($newname !~ $nodenamerule);
 
 
 	return (1, "new_name same as current, nothing to do")
@@ -1164,22 +1164,6 @@ sub rename
 	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
 	# find the node's var files and  hardlink them - do not delete anything yet!
 	my @todelete;
-
-	my $vardir = $self->nmisng->config->{'<nmis_var>'};
-	opendir(D, $vardir) or return(1, "cannot read dir $vardir: $!");
-	for my $fn (readdir(D))
-	{
-		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
-		{
-			my ($component,$ext) = ($1,$2);
-			my $newfn = lc("$newname-$component.$ext");
-			push @todelete, "$vardir/$fn";
-			$self->nmisng->log->debug("Renaming/linking var/$fn to $newfn");
-			link("$vardir/$fn", "$vardir/$newfn") or
-					return(0, "cannot hardlink $fn to $newfn: $!");
-		}
-	}
-	closedir(D);
 
 	# find all the node's inventory instances, tell them to hardlink their rrds
 	# get everything, historic or not - make it instantiatable
