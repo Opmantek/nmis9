@@ -37,8 +37,9 @@ use strict;
 use Carp;
 use Data::Dumper;
 use Test::Deep::NoTest;
+use Time::HiRes;
 
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 # params: all properties desired in the node, minimum is
 #  either _id or  node_name,event,[element] are required to
@@ -47,7 +48,6 @@ our $VERSION = "1.0.0";
 # but there are places that put data into the event willy/nilly
 # custom_data has been added to set this
 
-# sys not required as argument but can't be left in the args
 # here is a list of the known attributes, these will be givent getter/setters, everything else is 'custom_data'
 my %known_attrs = (
 	_id            => 1,
@@ -85,14 +85,17 @@ sub new
 			"not enough info to create an event, id:$args{_id}, node_uuid:$args{node_uuid}, event:$args{event}, element:$args{element}";
 	}
 
-	my ( $nmisng, $S ) = @args{'nmisng', 'sys'};
+	# sys not used as argument, also can't be left in the args
+	my $nmisng = $args{'nmisng'};
 	delete $args{nmisng};
 	delete $args{sys};
 
-	# note: defautls are not set here, they are done on save so that loading with only_take_missing doesn't get taken
-	#   by values that were set for you
+	# note: defaults are not set here, they are done on save so that
+	# loading with only_take_missing doesn't get taken by values 
+	# that were set for you
 	my $self = bless(
-		{   _nmisng => $nmisng,
+		{ 
+			_nmisng => $nmisng,
 			data    => \%args
 		},
 		$class
@@ -814,14 +817,15 @@ sub save
 	my ( $valid, $error ) = $self->validate();
 	return $error if (!$valid);
 
-	$self->{_lastupdate} = time;
-	my $q = $self->_query;
+	# ensure we have an accurate lastupdate marker
+	$self->{data}->{lastupdate} = Time::HiRes::time;
 
 	# this will update/insert a single record
-	# don't try and update the id and don't let it be there to be set to undef either
+	# don't try and update the id and don't let it be there - undef is no good
 	my %data = %{$self->data};
 	delete $data{_id};
 
+	my $q = $self->_query;
 	my $dbres = NMISNG::DB::update(
 		collection => $self->nmisng->events_collection(),
 		query      => $q,
