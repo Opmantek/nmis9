@@ -279,60 +279,36 @@ sub loadServersTable
 #	return NMISNG::Util::loadTable(dir=>'conf',name=>'Servers');
 }
 
-# fixme9: cannot work that way anymore
-### 2011-01-06 keiths, loading node summary from cached files!
-sub loadNodeSummary {
-	my %args = @_;
-	my $group = $args{group};
-	my $master = $args{master};
+# compat function that basically just parrots nodes' catchall information
+# args: none
+# returns: hashref (may be empty)
+# fixme9: argument master is currently not supported - no master/remote mode in nmis9 yet.
+sub loadNodeSummary
+{
+	my (%args) = @_;
+	# fixme9 gone my $master = $args{master};
 
-	my $C = NMISNG::Util::loadConfTable();
-	my $SUM;
-
-	my $nodesum = "nmis-nodesum";
-	# I should now have an up to date file, if I don't log a message
-	if (NMISNG::Util::existFile(dir=>'var',name=>$nodesum) ) {
-		NMISNG::Util::dbg("Loading $nodesum");
-		my $NS = NMISNG::Util::loadTable(dir=>'var',name=>$nodesum);
-		for my $node (keys %{$NS}) {
-			if ( $group eq "" or $group eq $NS->{$node}{group} ) {
-				for (keys %{$NS->{$node}}) {
-					$SUM->{$node}{$_} = $NS->{$node}{$_};
-				}
-			}
-		}
+	my $nmisng = new_nmisng();
+	my $lotsanodes = $nmisng->get_nodes_model()->objects;
+	if (my $err = $lotsanodes->{error})
+	{
+		$nmisng->log->error("failed to retrieve nodes: $err");
+		return {};
 	}
 
-	### 2011-12-29 keiths, moving master handling outside of Cache handling!
-	# fixme9: config server_master is gone!
-	if ( # NMISNG::Util::getbool($C->{server_master}) or
-			 NMISNG::Util::getbool($master)) {
-		NMISNG::Util::dbg("Master, processing Slave Servers");
-		my $ST = loadServersTable();
-		for my $srv (keys %{$ST}) {
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-
-			my $slavenodesum = "nmis-$srv-nodesum";
-			NMISNG::Util::dbg("Processing Slave $srv for $slavenodesum");
-			# I should now have an up to date file, if I don't log a message
-			if (NMISNG::Util::existFile(dir=>'var',name=>$slavenodesum) ) {
-				my $NS = NMISNG::Util::loadTable(dir=>'var',name=>$slavenodesum);
-				for my $node (keys %{$NS}) {
-					if ( $group eq "" or $group eq $NS->{$node}{group} ) {
-						for (keys %{$NS->{$node}}) {
-							$SUM->{$node}{$_} = $NS->{$node}{$_};
-						}
-					}
-				}
-			}
-		}
+	# hash of node name -> catchall data, until fixme9: OMK-5972 less stuff gets dumped into catchall
+	# also fixme9: will fail utterly with multipolling, node names are not unique, should use node_uuid
+	my %summary;
+	for my $onenode (@{$lotsanodes->{objects}})
+	{
+		# detour via sys for possibly cached catchall inventory
+		my $S = NMISNG::Sys->new;
+		$S->init(node => $onenode, snmp => 'false', wmi => 'false');
+		my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+		$summary{$onenode->name} = $catchall_data;
 	}
-	return $SUM;
+	return \%summary;
 }
-
-
-
 
 sub logConfigEvent {
 	my %args = @_;
@@ -618,16 +594,6 @@ sub getSubconceptStats
 }
 
 
-### AS 9/4/01 added getGroupSummary for doing the metric stuff centrally!
-### AS 24/5/01 fixed so that colors show for things which aren't complete
-### also reweighted the metric to be reachability = %40, availability = %20
-### and health = %40
-### AS 16 Mar 02, implementing David Gay's requirement for deactiving
-### a node, ie keep a node in nodes.csv but no collection done.
-### AS 16 Mar 02, implemented configurable reachability, availability, health
-### AS 3 Jun 02, fixed up blank dash, insert N/A for nasty things
-### ehg 17 sep 02 add nan to the trap for nasty things
-### ehg 17 sep 02 counted actual nodes down for summary display
 sub getGroupSummary {
 	my %args = @_;
 	my $group = $args{group};
