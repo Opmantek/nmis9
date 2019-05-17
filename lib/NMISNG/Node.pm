@@ -1414,9 +1414,14 @@ sub pingable
 		my $staleafter = $C->{fastping_maxage} || 900; # no fping updates in 15min -> ignore
 
 		my ($pinginv,$error) = $self->inventory(concept => "ping"); # not indexed, one per node
-		if ($error or !$pinginv)
+
+		if ($error)
 		{
 			$self->nmisng->log->error("Failed to instantiate ping inventory: $error");
+		}
+		elsif (!$pinginv)						# fping hasn't saved one yet
+		{
+			$self->nmisng->log->debug("No ping inventory available yet");
 		}
 		else
 		{
