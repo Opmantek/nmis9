@@ -46,6 +46,7 @@ use DateTime;										# ditto
 use List::MoreUtils;    # for uniq
 use Carp;
 use File::Basename;							# for relocate_storage
+use Test::Deep::NoTest;
 
 use NMISNG::DB;
 
@@ -141,8 +142,8 @@ sub make_path
 	die( __PACKAGE__ . "::make_path must be implemented by subclass!" );
 }
 
-# take data structure that create_update_rrd and convert it into
-# values that time_data can use.
+# take a data structure same as what create_update_rrd accepts
+# and convert it into values that time_data can use.
 # args:
 #  rrd_data - data sent to create_update_rrd, hashref, each entry holding a hash keys @{value,option}
 #  target - where to put the parsed data
@@ -243,6 +244,67 @@ sub check_inventory_for_bad_things
 	return ($entries,$error);
 }
 
+# mark the object as changed to tell save() that something needs to be done
+# each section is tracked for being dirty, if it's 1 it's dirty
+#
+# args: nothing or (0) or (N,section or reason)
+#  nothing: no changes,
+#  0: clear all dirty flags,
+#  value+section: set/clear flag for that section
+#
+# returns: overall dirty 1/0
+sub _dirty
+{
+	my ( $self, $newvalue, $whatsdirty ) = @_;
+
+	# clear all dirty
+	if (defined($newvalue)  && !$newvalue)
+	{
+		$self->{_dirty} = {};
+		return 0;
+	}
+	elsif ( defined($newvalue) )
+	{
+		$self->{_dirty}->{$whatsdirty} = $newvalue;
+		return 1 if ($newvalue);
+	}
+
+	foreach my $key (keys %{$self->{_dirty}})
+	{
+		return 1 if ( $self->{_dirty}{$key} );
+	}
+	return 0;
+}
+
+# returns list of dirty components, may be empty
+sub _whatisdirty
+{
+	my ($self) = @_;
+	return grep($self->{_dirty}->{$_}, keys %{$self->{_dirty}});
+}
+
+# a simple setter/getter for the object's 'data' properties (and only these!)
+# primarily meant for use by subclasses
+# expects: name => fieldname, optional value => newvalue
+# returns the old value for updates, current value for reads
+sub _generic_getset
+{
+	my ($self,%args) = @_;
+
+	die "cannot read option without name!\n" if (!exists $args{name});
+	my $fieldname = $args{name};
+
+	my $curval = $self->data()->{$fieldname};
+	if (exists $args{value})
+	{
+		my $newvalue = $args{value};
+		$self->dirty(1, "data")
+				if ($self->data->{$fieldname} ne $newvalue);
+		$self->data()->{$fieldname} = $newvalue;
+	}
+	return $curval;
+}
+
 ###########
 # Public:
 ###########
@@ -309,16 +371,17 @@ sub new
 	# set default properties, then update with args
 	my $self = bless(
 		{   _enabled  => 1,
-			_historic => 0,
-			(   map { ( "_$_" => $args{$_} ) } (
-					qw(concept node_uuid cluster_id data id nmisng
+				_historic => 0,
+				_dirty => {},
+				_datasets => {},
+				(   map { ( "_$_" => $args{$_} ) } (
+							qw(concept node_uuid cluster_id data id nmisng
 						path path_keys storage subconcepts description
             lastupdate)
+						)
 				)
-			)
 		},
-		$class
-	);
+		$class);
 
 	# enabled and historic: override defaults only if explicitely given
 	for my $onlyifgiven (qw(enabled historic))
@@ -330,7 +393,6 @@ sub new
 	# in the db they are stored optimally for querying/aggregating (array of arrays)
 	my $dataset_info = $args{dataset_info} // [];
 	die "dataset_info must be an array" . Carp::longmess() if ( ref($dataset_info) ne 'ARRAY' );
-	$self->{_datasets} = {};
 	foreach my $entry (@$dataset_info)
 	{
 		my $subconcept          = $entry->{subconcept};
@@ -346,34 +408,16 @@ sub new
 	$self->{_data_info} = {};
 	foreach my $entry (@$data_info)
 	{
-		$self->data_info( %$entry );
+		$self->data_info(%$entry);
 	}
+	# not dirty at this time
+	$self->_dirty(0);
 
-	# in addition to these, there's also on-demand _deleted
 	# keeping a copy of nmisng which could go away means it needs weakening
 	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
 	return $self;
 }
 
-# a simple setter/getter for the object,
-# usable by subclasses
-# expects: name => fieldname, optional value => newvalue
-# returns the old value for updates, current value for reads
-sub _generic_getset
-{
-		my ($self,%args) = @_;
-
-		die "cannot read option without name!\n" if (!exists $args{name});
-		my $fieldname = $args{name};
-
-		my $curval = $self->data()->{$fieldname};
-		if (exists $args{value})
-		{
-				my $newvalue = $args{value};
-				$self->data()->{$fieldname} = $newvalue;
-		}
-		return $curval;
-}
 
 # this function adds one point-in-time data record for this concept instance
 #
@@ -425,7 +469,8 @@ sub add_timed_data
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
 	return "cannot add timed data, invalid derived_data argument!"
 		if ( ref( $args{derived_data} ) ne "HASH" );    # empty hash is acceptable
-	my ( $data, $derived_data, $time, $delay_insert, $flush ) = @args{'data', 'derived_data', 'time', 'delay_insert','flush'};
+	my ( $data, $derived_data, $time, $delay_insert, $flush )
+			= @args{'data', 'derived_data', 'time', 'delay_insert','flush'};
 
 	# automatically take care of datasets
 	# one of these two must be defined
@@ -478,8 +523,8 @@ sub add_timed_data
 		}
 		# now store the data per subconcept, appending to data, replacing subconcept if it existed
 		# if flush is given we already have this, flush
-		$timedrecord->{data}{$subconcept} = $data;
-		$timedrecord->{derived_data}{$subconcept} = $derived_data;
+		$timedrecord->{data}->{$subconcept} = $data;
+		$timedrecord->{derived_data}->{$subconcept} = $derived_data;
 	}
 
 	if ( !$delay_insert || $flush )
@@ -603,6 +648,7 @@ sub description
 	my ( $self, $newdescription ) = @_;
 	if ( @_ == 2 )    # new value undef is ok, description is deletable
 	{
+		$self->_dirty(1,"description") if ($self->{_description} ne $newdescription);
 		$self->{_description} = $newdescription;
 	}
 	return $self->{_description};
@@ -617,6 +663,7 @@ sub enabled
 	my ( $self, $newstatus ) = @_;
 	if ( @_ == 2 )    # set new value even if input is undef
 	{
+		$self->_dirty(1,"enabled") if ($self->{_enabled} != $newstatus);
 		$self->{_enabled} = $newstatus ? 1 : 0;
 	}
 	return $self->{_enabled};
@@ -632,6 +679,7 @@ sub historic
 	my ( $self, $newstatus ) = @_;
 	if ( @_ == 2 )    # set new value even if input is undef
 	{
+		$self->_dirty(1,"historic") if ($self->{_historic} != $newstatus);
 		$self->{_historic} = $newstatus ? 1 : 0;
 	}
 	return $self->{_historic};
@@ -666,10 +714,14 @@ sub storage
 		}
 		else
 		{
+			$self->_dirty(1,"storage") if (!eq_deeply($newstorage,$self->{_storage}));
 			$self->{_storage} = Clone::clone($newstorage);
 
 			# and update the subconcepts list
-			$self->{_subconcepts} = [List::MoreUtils::uniq( keys %{$self->{_storage}} )];
+			my @newsubconcepts = List::MoreUtils::uniq(keys %{$self->{_storage}});
+			# order is not relevant
+			$self->_dirty(1,"subconcepts") if (!eq_deeply($self->{_subconcepts}, bag(@newsubconcepts)));
+			$self->{_subconcepts} = \@newsubconcepts;
 		}
 	}
 	return Clone::clone( $self->{_storage} );
@@ -722,17 +774,22 @@ sub set_subconcept_type_storage
 
 	if ( defined $data )
 	{
+		$self->_dirty(1,"storage") if (!eq_deeply($data,$self->{_storage}->{$subconcept}->{$type}));
 		$self->{_storage}->{$subconcept}->{$type} = $data;
 	}
 	else
 	{
 		delete $self->{_storage}->{$subconcept}->{$type};
 		delete $self->{_storage}->{$subconcept}
-			if ( !keys %{$self->{_storage}->{$subconcept}} );    # if nothing else left
+		if ( !keys %{$self->{_storage}->{$subconcept}} );    # if nothing else left
+		$self->_dirty(1,"storage");
 	}
 
 	# and update the subconcepts list
-	$self->{_subconcepts} = [List::MoreUtils::uniq( keys %{$self->{_storage}} )];
+	my @newsubconcepts = List::MoreUtils::uniq(keys %{$self->{_storage}});
+	# order is not relevant
+	$self->_dirty(1,"subconcepts") if (!eq_deeply($self->{_subconcepts}, bag(@newsubconcepts)));
+	$self->{_subconcepts} = \@newsubconcepts;
 
 	return;
 }
@@ -746,6 +803,7 @@ sub path_keys
 	my ( $self, $newvalue ) = @_;
 	if ( defined($newvalue) && ref($newvalue) eq 'ARRAY' )
 	{
+		$self->_dirty(1,"path_keys") if (!eq_deeply($newvalue,$self->{_path_keys}));
 		$self->{_path_keys} = Clone::clone($newvalue);
 	}
 	return Clone::clone( $self->{_path_keys} );
@@ -770,13 +828,12 @@ sub data
 
 	if ( defined($newvalue) )
 	{
-
 		if ( $self->{_live} )
 		{
 			$self->nmisng->log->fatal( "Accessing/saving data to this inventory, concept:"
-					. $self->concept
-					. " is not allowed because it's live\n"
-					. Carp::longmess() );
+																 . $self->concept
+																 . " is not allowed because it's live\n"
+																 . Carp::longmess() );
 		}
 		else
 		{
@@ -786,6 +843,9 @@ sub data
 			}
 			else
 			{
+				# park a copy of the original data for precise dirtyness detection, if not there yet
+				$self->{_data_orig} //= Clone::clone($self->{_data});
+				$self->_dirty(1,"data") if (!eq_deeply($self->{_data_orig}, $newvalue));
 				$self->{_data} = Clone::clone($newvalue);
 			}
 		}
@@ -802,8 +862,10 @@ sub data_live
 {
 	my ($self) = @_;
 
+	# mark...
 	$self->{_live} = 1;
-
+	# ..and park a copy of the original data for precise dirtyness detection, if not there yet
+	$self->{_data_orig} //= Clone::clone($self->{_data});
 	return $self->{_data};
 }
 
@@ -815,14 +877,13 @@ sub data_info
 	return "cannot get or set data_info, invalid subconcept argument:$subconcept!"
 		if ( !$subconcept );    # must be something
 
-	if( defined($enabled) || defined($display_keys) )
+	if (defined($enabled) || defined($display_keys))
 	{
-		$self->{_data_info}{$subconcept} = {
-			enabled => $enabled,
-			display_keys => $display_keys // []
-		};
+		my $newinfo = { enabled => $enabled, display_keys => Clone::clone($display_keys) // [] };
+		$self->_dirty(1,"data_info") if (!eq_deeply($self->{_data_info}->{$subconcept}, $newinfo));
+		$self->{_data_info}->{$subconcept} = $newinfo;
 	}
-	return $self->{_data_info}{$subconcept} // undef;
+	return Clone::clone($self->{_data_info}->{$subconcept});
 }
 
 # returns hashref of datasets defined for the specified subconcept or empty hash
@@ -839,12 +900,13 @@ sub dataset_info
 	if ( defined($datasets) )
 	{
 		return "cannot set datasets, invalid newvalue argument!"
-			if ( ref($datasets) ne "HASH" );    # empty hash is acceptable
-		$self->{_datasets}{$subconcept} = $datasets;
+				if ( ref($datasets) ne "HASH" );    # empty hash is acceptable
 
-		# print "set datasets for $subconcept to ".Dumper($self->{_datasets}{$subconcept});
+		$self->_dirty(1,"dataset_info") if (!eq_deeply($self->{_datasets}->{$subconcept},
+																									 $datasets));
+		$self->{_datasets}->{$subconcept} = $datasets;
 	}
-	return $self->{_datasets}{$subconcept} // {};
+	return $self->{_datasets}->{$subconcept} // {};
 }
 
 # remove this inventory entry from the db, including all timed_data instances,
@@ -995,6 +1057,8 @@ sub relocate_storage
 
 	# update storage and save
 	$self->{_storage} = $safetomangle;
+	$self->_dirty(1,"storage");
+
 	my ($op, $error) = $self->save;
 	return (0, "failed to save updated inventory: $error")
 			if ($op <= 0);
@@ -1019,7 +1083,7 @@ sub is_deleted
 }
 
 # returns 0/1 if the object is new or not.
-# new means it is not yet in the aabase
+# new means it is not yet in the database
 sub is_new
 {
 	my ($self) = @_;
@@ -1042,7 +1106,7 @@ sub reload
 {
 	my ($self) = @_;
 
-	if ( !$self->is_new )
+	if (!$self->is_new)
 	{
 		my $modeldata = $self->nmisng->get_inventory_model( _id => $self->id );
 		if (my $error = $modeldata->error)
@@ -1062,6 +1126,18 @@ sub reload
 		for my $settable (qw(data storage historic enabled path_keys description))
 		{
 			$self->$settable( $newme->{$settable} );
+		}
+		$self->_dirty(0);						# all clean at this point
+
+		# and any dirtyness decisions need to be based on what we (re)loaded from db
+		# but that's only necessary if we were in data_live mode which persists across reload
+		if ($self->{_live})
+		{
+			$self->{_data_orig} = Clone::clone($self->{_data});
+		}
+		else
+		{
+			delete $self->{_data_orig};
 		}
 	}
 	else
@@ -1108,6 +1184,7 @@ sub path
 
 		# always store the path, it may be re-calculated next time but that's fine
 		# if we don't store here recalculate/save won't work
+		$self->_dirty(1,"path") if (!eq_deeply($self->{_path},$newpath));
 		return $self->{_path} = $newpath;
 	}
 }
@@ -1117,26 +1194,28 @@ sub path
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
 #
 # args: lastupdate, (optional, defaults to now),
-#  updateonly (optional, array of properties to update, ignored if inventory is new)
-#
 # note: lastupdate and expire_at currently not added to object but stored in db only
 #
-# if updateonly is given, then only the mentioned properties are updated in the db;
-# a reload is highly recommended as next operation!
-#
 # the object's _id and _path are refreshed
-# returns ($op,$error), op is 1 for insert, 2 for save, 0 or negative on error;
+# returns ($op,$error), op is 1 for insert, 2 for update/save,
+# 3 for no updates required, 0 or negative on error;
+#
 # error is string if there was an error
 sub save
 {
 	my ( $self, %args ) = @_;
 	my $lastupdate = $args{lastupdate} // time;
-	my @updateonly = (ref($args{updateonly}) eq "ARRAY"
-										&& !$self->is_new)?
-			@{$args{updateonly}} : ();
 
+	# first, check if what we have is saveable at all
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
+
+	# second, check if there is anything to save
+	# the dirty marker is sufficient outside of data_live mode
+	return (3, "nothing to update")
+			if (!$self->is_new
+					&& !$self->_dirty
+					&& (!$self->{_live} || eq_deeply($self->{_data}, $self->{_data_orig})));
 
 	my ( $result, $op );
 
@@ -1196,9 +1275,9 @@ sub save
 		push( @{$record->{data_info}}, { %$subconcept_info, subconcept => $subconcept });
 	}
 
+	# if it's new upsert to try and make sure we're not making a duplicate
 	if ( $self->is_new() )
 	{
-		# if it's new upsert to try and make sure we're not making a duplicate
 		my ($q,$path) = (undef,$self->path());
 		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) } ( 0 .. $#$path );
 		$result = NMISNG::DB::update(
@@ -1214,14 +1293,16 @@ sub save
 			$self->{_id} = $result->{upserted_id};
 			$op = 1;
 		}
-		elsif( $result->{success} )
+		elsif ($result->{success})
 		{
-			# we updated when tryin to insert which means we thought we were new but were not, we need to grab our id
-			# as the update will have changed the record to what we think it is but not returned us an id
+			# we updated when trying to insert which means we thought we were new but were not,
+			# we need to grab our id as the update will have changed the record to what we think it is
+			# but not returned us an id
 			$op = 2;
 			my $find_result = NMISNG::DB::find(
 				collection => $self->nmisng->inventory_collection,
-				query      => $q
+				query      => $q,
+				fields_hash => { _id => 1 }
 			);
 			if( $find_result )
 			{
@@ -1236,23 +1317,60 @@ sub save
 			}
 		}
 	}
+
+	# not new, so we update it but try change as little as possible
 	else
 	{
 		$record->{_id} = $self->id();
+
 		my %updateargs  = (
 			collection => $self->nmisng->inventory_collection,
-			query      => NMISNG::DB::get_query( and_part => {_id => $record->{_id}}, no_regex => 1 ),
-			record => $record );
+			query      => NMISNG::DB::get_query( and_part => {_id => $record->{_id}},
+																					 no_regex => 1 ),
+				);
 
-		# only update specific properties?
-		if (@updateonly)
+		# what do we need to update?
+		# most properties are easy, except for data where we  want to update individual properties,
+		# which means the record must use 'data.X', which means the db module must not apply constraints
+		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
+		my %setthese = ( "expire_at" => $record->{expire_at}, lastupdate => $lastupdate );
+		my %unsetthese;
+
+		for my $saveme ($self->_whatisdirty)
 		{
-			$updateargs{freeform} = 1;
-			$updateargs{constraints} = 0;
-			$updateargs{record} = { '$set' =>
-															{ ( map { ("data.$_" => $record->{data}->{$_}) } (@updateonly)),
-																"expire_at" => $record->{expire_at} } };
+			$updateargs{freeform} //= 1;
+
+			if ($saveme eq "data")
+			{
+				# add new props, update changed props
+				for my $propname (keys %{$record->{data}})
+				{
+					$setthese{"data.$propname"}
+					= NMISNG::DB::constrain_record(record => $record->{data}->{$propname})
+							if (!exists($self->{_data_orig}->{$propname}) # new
+									or !eq_deeply($self->{_data_orig}->{$propname}, # changed; data.X should be shallow but BSTS
+																$record->{data}->{$propname}));
+				}
+				# and remove props that have gone
+				for my $maybegoner (keys %{$self->{_data_orig}})
+				{
+					$unsetthese{"data.$maybegoner"} if (!exists($record->{data}->{$maybegoner}));
+				}
+			}
+			else
+			{
+				die "inventory dirty status inconsistent ".Dumper($self->{_dirty}, $record) . Carp::longmess()
+						if (!exists $record->{$saveme});
+
+				# we may have to constrain the bits ourselves
+				$setthese{$saveme} = exists($updateargs{constraints})?
+						NMISNG::DB::constrain_record(record => $record->{$saveme}) : $record->{$saveme};
+			}
 		}
+		$updateargs{record} = { '$set' => \%setthese };
+		$updateargs{record}->{'$unset' => \%unsetthese } if (%unsetthese);
+
+		print STDERR "updating ".Dumper($updateargs{record});
 
 		$result = NMISNG::DB::update(%updateargs);
 		$op = 2;
@@ -1280,7 +1398,12 @@ sub save
 		}
 	}
 
-	$self->{_lastupdate} = $lastupdate if ( $result->{success} );
+	if ( $result->{success} )
+	{
+		$self->{_lastupdate} = $lastupdate;
+		$self->_dirty(0);						# all clean at this time
+		delete $self->{_data_orig};	# and up-to-date
+	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
 
