@@ -81,7 +81,7 @@ my %hash = (
 
 	'logging' => {
 		# can be set to info (default), debug, warn, error, fatal, or 1..9 for debug with extra verbosity 1..9
-		'log_level' => undef,
+		'log_level' => 'info',
 	},
 
   'system' => {
