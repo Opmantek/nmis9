@@ -534,19 +534,24 @@ sub delete
 	# but az doesn't know of any way to enumerate the non-inventory-backed oddball rrds
 	if (!$keeprrd)
 	{
+		my @whichdirs = ($self->nmisng->config->{database_root}."/nodes/".($self->name)); # new case-sensitive
+		push @whichdirs, ($self->nmisng->config->{database_root}."/nodes/".lc($self->name)) # legacy lowercased
+				if ($self->name ne lc($self->name));
+
 		my @errors;
-		File::Find::find(
-			{
-				wanted => sub
-				{
-					my $fn = $File::Find::name;
-					next if (!-f $fn);
-					unlink($fn) or push @errors, "$fn: $!";
-				},
-				follow => 1,
-			},
-			$self->nmisng->config->{database_root}."/nodes/".lc($self->name), # legacy lowercased
-			$self->nmisng->config->{database_root}."/nodes/".($self->name)); # new case-sensitive
+		eval { File::Find::find(
+						 {
+							 wanted => sub
+							 {
+								 my $fn = $File::Find::name;
+								 next if (!-f $fn);
+								 unlink($fn) or push @errors, "$fn: $!";
+							 },
+							 follow => 1,
+						 },
+						 @whichdirs);
+		};
+		push @errors, $@ if ($@);
 		return (0, "Failed to delete some RRDs: ".join(" ", @errors)) if (@errors);
 	}
 

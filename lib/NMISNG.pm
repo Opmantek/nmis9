@@ -4616,21 +4616,26 @@ sub dump_node
 	if ($options->{rrd})
 	{
 		my $dbrootdir = $self->config->{database_root};
-		File::Find::find(
-			{
-				wanted => sub
+		my @whichdirs = 			$self->config->{database_root}."/nodes/$nodename";
+		# we hates that legacy compat lowercase, we do...
+		push @whichdirs, $self->config->{database_root}."/nodes/".lc($nodename)
+				if ($nodename ne lc($nodename));
+
+		eval {
+			File::Find::find(
 				{
-					my $fn = $File::Find::name;
-					next if (!-f $fn);
-					(my $semirelname = $fn) =~ s!^$dbrootdir!!;
-					push @todump, { where => "rrd", what => { _id => $semirelname }}
-					if (!$dedup{$semirelname});
+					wanted => sub
+					{
+						my $fn = $File::Find::name;
+						next if (!-f $fn);
+						(my $semirelname = $fn) =~ s!^$dbrootdir!!;
+						push @todump, { where => "rrd", what => { _id => $semirelname }}
+						if (!$dedup{$semirelname});
+					},
+					follow => 1,
 				},
-				follow => 1,
-			},
-			$self->config->{database_root}."/nodes/".lc($nodename), 			# we hates that legacy compat lowercase, we do...
-			$self->config->{database_root}."/nodes/$nodename"
-				);
+				@whichdirs);
+		};
 	}
 
 	# events, status, opstatus: bound to node uuid

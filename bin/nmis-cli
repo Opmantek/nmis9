@@ -36,7 +36,6 @@ use lib "$FindBin::Bin/../lib";
 use POSIX qw();
 use File::Basename;
 use File::Spec;
-use File::Find;
 use Data::Dumper;
 use Time::Local;								# report stuff - fixme needs rework!
 use Time::HiRes;
