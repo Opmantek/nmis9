@@ -1354,7 +1354,7 @@ sub save
 				# and remove props that have gone
 				for my $maybegoner (keys %{$self->{_data_orig}})
 				{
-					$unsetthese{"data.$maybegoner"} if (!exists($record->{data}->{$maybegoner}));
+					$unsetthese{"data.$maybegoner"} = 1 if (!exists($record->{data}->{$maybegoner}));
 				}
 			}
 			else
@@ -1368,9 +1368,7 @@ sub save
 			}
 		}
 		$updateargs{record} = { '$set' => \%setthese };
-		$updateargs{record}->{'$unset' => \%unsetthese } if (%unsetthese);
-
-		print STDERR "updating ".Dumper($updateargs{record});
+		$updateargs{record}->{'$unset'} = \%unsetthese if (keys %unsetthese);
 
 		$result = NMISNG::DB::update(%updateargs);
 		$op = 2;
