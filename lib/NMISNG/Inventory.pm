@@ -819,38 +819,41 @@ sub data
 {
 	my ( $self, $newvalue ) = @_;
 
-	if ( $self->{_live} )
-	{
-		# in some instances this makes sense or all places will need to learn to check live, that might make sense
-		# not sure right now so this has been added
-		return $self->data_live();
-	}
-
 	if ( defined($newvalue) )
 	{
+		if (ref($newvalue) ne "HASH")
+		{
+			$self->nmisng->log->error( "data accessor called with invalid argument " . ref($newvalue) );
+			return $self->{_live}? $self->data_live : Clone::clone($self->{_data});
+		}
+
 		if ( $self->{_live} )
 		{
-			$self->nmisng->log->fatal( "Accessing/saving data to this inventory, concept:"
-																 . $self->concept
-																 . " is not allowed because it's live\n"
-																 . Carp::longmess() );
+			my $live = $self->data_live;
+			# retain the original ref...
+			map { delete $live->{$_}; } (keys %$live);
+			# ...but replace the values
+			map { $live->{$_} = $newvalue->{$_}; } (keys %$newvalue);
 		}
 		else
 		{
-			if ( ref($newvalue) ne "HASH" )
-			{
-				$self->nmisng->log->error( "data accessor called with invalid argument " . ref($newvalue) );
-			}
-			else
-			{
-				# park a copy of the original data for precise dirtyness detection, if not there yet
-				$self->{_data_orig} //= Clone::clone($self->{_data});
-				$self->_dirty(1,"data") if (!eq_deeply($self->{_data_orig}, $newvalue));
-				$self->{_data} = Clone::clone($newvalue);
-			}
+			# park a copy of the original data for precise dirtyness detection, if not there yet
+			$self->{_data_orig} //= Clone::clone($self->{_data});
+			$self->_dirty(1,"data") if (!eq_deeply($self->{_data_orig}, $newvalue));
+			$self->{_data} = Clone::clone($newvalue);
 		}
 	}
-	return Clone::clone( $self->{_data} );
+
+	# fixme9: in some instances this shortcut makes sense,
+	# otherwise all places will need to learn to check liveness
+	if ( $self->{_live} )
+	{
+		return $self->data_live();
+	}
+	else
+	{
+		return Clone::clone( $self->{_data} );
+	}
 }
 
 # returns a ref to the data,
@@ -866,6 +869,7 @@ sub data_live
 	$self->{_live} = 1;
 	# ..and park a copy of the original data for precise dirtyness detection, if not there yet
 	$self->{_data_orig} //= Clone::clone($self->{_data});
+	$self->_dirty(1,"data");			# assume the caller modifies the data; save() will find out what changed exactly
 	return $self->{_data};
 }
 
