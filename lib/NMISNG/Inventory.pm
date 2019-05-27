@@ -1208,7 +1208,7 @@ sub path
 sub save
 {
 	my ( $self, %args ) = @_;
-	my $lastupdate = $args{lastupdate} // time;
+	my $lastupdate = $args{lastupdate} // Time::HiRes::time;
 
 	# first, check if what we have is saveable at all
 	my ( $valid, $validation_error ) = $self->validate();
