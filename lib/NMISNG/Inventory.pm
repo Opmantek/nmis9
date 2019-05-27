@@ -1214,13 +1214,6 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
-	# second, check if there is anything to save
-	# the dirty marker is sufficient outside of data_live mode
-	return (3, "nothing to update")
-			if (!$self->is_new
-					&& !$self->_dirty
-					&& (!$self->{_live} || eq_deeply($self->{_data}, $self->{_data_orig})));
-
 	my ( $result, $op );
 
 	my $record = {
@@ -1321,7 +1314,6 @@ sub save
 			}
 		}
 	}
-
 	# not new, so we update it but try change as little as possible
 	else
 	{
@@ -1331,18 +1323,24 @@ sub save
 			collection => $self->nmisng->inventory_collection,
 			query      => NMISNG::DB::get_query( and_part => {_id => $record->{_id}},
 																					 no_regex => 1 ),
+			freeform => 1,
 				);
 
 		# what do we need to update?
 		# most properties are easy, except for data where we  want to update individual properties,
 		# which means the record must use 'data.X', which means the db module must not apply constraints
 		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
-		my %setthese = ( "expire_at" => $record->{expire_at}, lastupdate => $lastupdate );
+
+		my (%setthese, %unsetthese);
+		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
 		my %unsetthese;
 
+		$op = 3; # nothing to update
 		for my $saveme ($self->_whatisdirty)
 		{
-			$updateargs{freeform} //= 1;
+			$op = 2;	# something 'real' to update
+			$setthese{lastupdate} //= $lastupdate;
+
 
 			if ($saveme eq "data")
 			{
@@ -1371,11 +1369,10 @@ sub save
 						NMISNG::DB::constrain_record(record => $record->{$saveme}) : $record->{$saveme};
 			}
 		}
-		$updateargs{record} = { '$set' => \%setthese };
+		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);
 		$updateargs{record}->{'$unset'} = \%unsetthese if (keys %unsetthese);
 
-		$result = NMISNG::DB::update(%updateargs);
-		$op = 2;
+		$result = ($updateargs{record}? NMISNG::DB::update(%updateargs) : { success => 1});
 	}
 
 	# reset path to what was saved, probably the same but safe
