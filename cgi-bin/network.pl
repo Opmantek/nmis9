@@ -30,6 +30,7 @@
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+our $VERSION = "9.0.1a";
 
 use strict;
 use URI::Escape;
@@ -42,6 +43,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 use Compat::NMIS;
 use NMISNG::Util;
+use NMISNG::NetworkStatus;
 use Compat::Timing;
 use NMISNG;
 
@@ -119,9 +121,10 @@ $smallGraphWidth  = $C->{'small_graph_width'}  if $C->{'small_graph_width'} ne "
 NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Begin act=$Q->{act}" ) if $timing;
 
 my $nmisng = Compat::NMIS::new_nmisng;
+my $network_status = NMISNG::NetworkStatus->new( nmisng => $nmisng );
 
 # these need loading before the yucky if selection below, which is terminal for some acts
-my $NT = Compat::NMIS::loadNodeTable();
+#my $NT = Compat::NMIS::loadNodeTable();
 
 my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
 my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
@@ -372,7 +375,7 @@ sub getSummaryStatsbyGroup
 		include_nodes => $include_nodes
 	);
 
-	$overallStatus = Compat::NMIS::overallNodeStatus( group => $group, customer => $customer, business => $business );
+	$overallStatus = $network_status->overallNodeStatus( group => $group, customer => $customer, business => $business );
 	$overallColor = NMISNG::Util::eventColor($overallStatus);
 
 	# valid hash keys are metric reachable available health response
@@ -1270,6 +1273,8 @@ sub selectLarge
 	my $customer = $args{customer};
 	my $business = $args{business};
 
+	my $NT = $network_status->get_nt();
+	
 	getSummaryStatsbyGroup(include_nodes => 1);
 	my @headers = (
 		'Node',   'Location', 'Type',         'Net',        'Role',   'Status',
@@ -4319,6 +4324,7 @@ sub viewOverviewIntf
 	my $II     = Compat::NMIS::loadInterfaceInfo(); # fixme9: slow and wasteful...
 	my $ii_cnt = keys %{$II};
 
+	my $NT = $network_status->get_nt();
 	my $gr_menu = "";
 
 	# start of form
@@ -4486,6 +4492,8 @@ sub viewTop10
 	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
 	my $datestamp_end   = NMISNG::Util::returnDateStamp($end);
 
+	my $NT = $network_status->get_nt();
+	
 	my $header = "Network Top10 from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
