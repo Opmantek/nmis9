@@ -1806,6 +1806,10 @@ sub get_group_names
 	return () if ($model_data->error);
 
 	my @groupnames  = List::Util::uniq(map { $_->{configuration}->{group} } @{$model_data->data});
+
+	# if someone deletes all the nodes, give them one group to get started.
+	@groupnames = ("NMIS9") if !@groupnames;
+
 	# nothing to hide?
 	return @groupnames
 			if ($includehidden
