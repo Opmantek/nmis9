@@ -2340,8 +2340,31 @@ sub node
 	{
 		my @names = map { $_->{name} } @{$modeldata->data()};
 		$self->log->debug( "Node request returned more than one node, args" . Dumper( \%args ) );
-		$self->log->warn( "Node request returned more than one node, returning nothing, names:" . join( ",", @names ) );
-		return;
+		$self->log->warn( "Node request returned more than one node, names:" . join( ",", @names ) );
+
+		# Try filtering by cluster_id		
+		if ($args{name} && !$args{filter}{cluster_id})
+		{
+			$args{filter}{cluster_id} = $self->config->{cluster_id};
+			$modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1});
+			if ( $modeldata->count() == 1 )
+			{
+				my $model = $modeldata->data()->[0];
+				$node = NMISNG::Node->new(
+					_id    => $model->{_id},
+					uuid   => $model->{uuid},
+					nmisng => $self,
+				);
+				$self->log->info( "Getting local node:" . $model->{uuid} );
+			} else {
+				$self->log->warn( "Returning nothing, names:" . join( ",", @names ) );
+				return;
+			}
+		} else {
+			$self->log->warn( "Returning nothing, names:" . join( ",", @names ) );
+			return;
+		}
+
 	}
 	elsif ( $modeldata->count() == 1 )
 	{

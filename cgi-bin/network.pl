@@ -372,7 +372,8 @@ sub getSummaryStatsbyGroup
 		group    => $group,
 		customer => $customer,
 		business => $business,
-		include_nodes => $include_nodes
+		include_nodes => $include_nodes,
+		local_nodes => "true"
 	);
 
 	$overallStatus = $network_status->overallNodeStatus( group => $group, customer => $customer, business => $business );
@@ -383,6 +384,7 @@ sub getSummaryStatsbyGroup
 	my @h = qw/metric reachable available health response/;
 	foreach my $t (@h)
 	{
+
 		# defaults
 		#$icon{${t}} = 'arrow_down_black';
 		if ( $groupSummary->{average}{"${t}_dif"} + ( $C->{average_diff} )  >= 0 )
@@ -1273,7 +1275,7 @@ sub selectLarge
 	my $customer = $args{customer};
 	my $business = $args{business};
 
-	my $NT = $network_status->get_nt();
+	my $NT = $network_status->get_local_nt();
 	
 	getSummaryStatsbyGroup(include_nodes => 1);
 	my @headers = (
@@ -1876,6 +1878,7 @@ sub viewNode
 	# if no servers known, ignore any other server indications that you might find.
 	# fixme9: server mode is nonfunctional at this time
 	my $responsible = $C->{cluster_id};
+
 	if ( $nmisng_node->cluster_id ne $responsible
 			 && ref(my $ST = Compat::NMIS::loadServersTable()) eq "HASH")
 	{
@@ -2006,9 +2009,11 @@ nodeVendor sysObjectName roleType netType );
 	for my $i (0..$#shouldshow)
 	{
 		my $propname = $shouldshow[$i];
+
 		next if (ref $propname); # the custom ones are hashes already
 
 		my $sourceval = $catchall_data->{$propname}; # may not be present
+
 		# for a title also try the model or fall back to the raw property name
 		my $sourcetitle = $untitled{$propname} || $S->getTitle( attr => $propname, section => 'system') || $propname;
 
@@ -2047,8 +2052,8 @@ nodeVendor sysObjectName roleType netType );
 						if (defined $status{$source});
 			}
 		}
-		elsif ($propname eq "nodestatus")
-		{
+		elsif ($propname eq "status") {
+
 			my %status2colors = ( -1 => "#FF0", 0 => "#f00", 1 => "#0f0" );
 			my %status2value = ( -1 => "degraded", 0 => "unreachable", 1 => "reachable" );
 
@@ -2188,6 +2193,7 @@ nodeVendor sysObjectName roleType netType );
 
 	# fourth, show events for this one node - also close one if asked to
 	my $eventsmodel = $nmisng_node->get_events_model();
+
 	if ( !$eventsmodel->error && $eventsmodel->count )
 	{
 		push @shouldshow, { 'title' => "Events",
@@ -4324,7 +4330,7 @@ sub viewOverviewIntf
 	my $II     = Compat::NMIS::loadInterfaceInfo(); # fixme9: slow and wasteful...
 	my $ii_cnt = keys %{$II};
 
-	my $NT = $network_status->get_nt();
+	my $NT = $network_status->get_local_nt();
 	my $gr_menu = "";
 
 	# start of form
@@ -4492,7 +4498,7 @@ sub viewTop10
 	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
 	my $datestamp_end   = NMISNG::Util::returnDateStamp($end);
 
-	my $NT = $network_status->get_nt();
+	my $NT = $network_status->get_local_nt();
 	
 	my $header = "Network Top10 from $datestamp_start to $datestamp_end";
 

@@ -91,8 +91,8 @@ sub overallNodeStatus
 
 	my $t      = Compat::Timing->new();
 	my $C = $self->{_nmisng}->config;
-	my $NT = $self->get_nt();
-
+	# We only want the master nodes, so use cluster_id
+	my $NT = $self->get_local_nt();
 
 	foreach $node_name (sort keys %{$NT} )
 	{
@@ -192,6 +192,19 @@ sub get_nt {
 	return $self->{_nt};
 }
 
+# Get local nodes table
+# Only locals - Not pollers nodes
+# Saving this value is used like a cached value
+sub get_local_nt {
+    
+    my ( $self, %args ) = @_;
+    
+    unless (defined($self->{_local_nt})) {
+		$self->{_local_nt} = $self->get_load_node_table(local => "true");
+	}
+	return $self->{_local_nt};
+}
+
 # Get nodes summary
 # Saving this value is used like a cached value
 sub get_ns {
@@ -204,7 +217,22 @@ sub get_ns {
 	return $self->{_ns};
 }
 
-# Can cache this call, avoid doing twice
+# Get local nodes summary
+# Only locals, so filter by cluster_id
+# Saving this value is used like a cached value
+sub get_local_ns {
+    
+    my ( $self, %args ) = @_;
+    
+    unless (defined($self->{_local_ns})) {
+		$self->{_local_ns} = $self->get_load_node_summary(local => "true");
+	}
+	return $self->{_local_ns};
+}
+
+# Get nodes model
+# get all the nodes using nmisng method
+# This call can be cached, avoid doing twice
 sub get_nodes_model {
     
     my ( $self, %args ) = @_;
@@ -217,6 +245,23 @@ sub get_nodes_model {
 	return $self->{_nodes_model};
 }
 
+# Get local nodes model
+# So filter by cluster id
+# get all the nodes using nmisng method
+# This call can be cached, avoid doing twice
+sub get_local_nodes_model {
+    
+    my ( $self, %args ) = @_;
+	
+    unless (defined($self->{_local_nodes_model})) {
+		# This call it is not really overloading, but it is adding time if it is called many times
+		$self->{_local_nodes_model} = $self->{_nmisng}->get_nodes_model(
+									filter => { cluster_id => $self->{_nmisng}->config->{cluster_id} } );
+		
+	}
+	return $self->{_local_nodes_model};
+}
+
 # Get load node table
 # Replace loadNodeTable in NMIS.pm
 # to cache the get_nodes_model call if possible
@@ -224,9 +269,16 @@ sub get_nodes_model {
 sub get_load_node_table
 {
 	my ( $self, %args ) = @_;
+	my $modelData;
 	
-	# ask the database for all noes, my cluster id and all others
-	my $modelData = $self->get_nodes_model();
+	# With local, get only nodes from the master
+	if ($args{local}) {
+		$modelData = $self->get_local_nodes_model();
+	} else {
+		# ask the database for all noes, my cluster id and all others
+		$modelData = $self->get_nodes_model();
+	}
+
 	my $data = $modelData->data();
 
 	my %map = map { $_->{name} => $_ } @$data;
@@ -263,8 +315,17 @@ sub get_load_node_summary
 {
 	my ( $self, %args ) = @_;
 
-my $t      = Compat::Timing->new();
-	my $lotsanodes = $self->get_nodes_model()->objects;
+	my $t      = Compat::Timing->new();
+	my $lotsanodes;
+	
+	# With local, only get local nodes (from the master) Filter by cluster_id
+	if ($args{local}) {
+		$lotsanodes = $self->get_local_nodes_model()->objects;
+	} else {
+		# ask the database for all noes, my cluster id and all others
+		$lotsanodes = $self->get_nodes_model()->objects;
+	}
+	
 	if (my $err = $lotsanodes->{error})
 	{
 		$self->log->error("failed to retrieve nodes: $err");
