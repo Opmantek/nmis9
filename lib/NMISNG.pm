@@ -2336,6 +2336,7 @@ sub node
 	my $node;
 	# we only need the uuid, and the name only for error handling
 	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1});
+
 	if ( $modeldata->count() > 1 )
 	{
 		my @names = map { $_->{name} } @{$modeldata->data()};
@@ -2343,7 +2344,7 @@ sub node
 		$self->log->warn( "Node request returned more than one node, names:" . join( ",", @names ) );
 
 		# Try filtering by cluster_id		
-		if ($args{name} && !$args{filter}{cluster_id})
+		if (($args{name} || $args{filter}{name}) && !$args{filter}{cluster_id}  )
 		{
 			$args{filter}{cluster_id} = $self->config->{cluster_id};
 			$modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1});
