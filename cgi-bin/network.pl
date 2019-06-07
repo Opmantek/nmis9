@@ -2052,7 +2052,7 @@ nodeVendor sysObjectName roleType netType );
 						if (defined $status{$source});
 			}
 		}
-		elsif ($propname eq "status") {
+		elsif ($propname eq "nodestatus") {
 
 			my %status2colors = ( -1 => "#FF0", 0 => "#f00", 1 => "#0f0" );
 			my %status2value = ( -1 => "degraded", 0 => "unreachable", 1 => "reachable" );

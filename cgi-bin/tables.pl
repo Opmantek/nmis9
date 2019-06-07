@@ -245,7 +245,6 @@ sub viewTable
 	# not delete -> we assume view
 	my $action= $Q->{act} =~ /delete/? "config_table_dodelete": "config_table_menu";
 
-
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"$formid", -href=>url(-absolute=>1)."?");
@@ -297,8 +296,22 @@ sub viewTable
 		}
 		else
 		{
+			my $action = $wantwidget? "get('$formid');" : 'submit();';	
 			print Tr(td('&nbsp;'),
-							 td(button(-name=>"button",onclick => ($wantwidget? "get('$formid');" : 'submit()'),
+							td(button(-name=>"button",onclick => ('$("#dialog_confirm").dialog({
+															modal: true,
+															open: function() {
+																var markup = " Are you sure? All the data from this node will be deleted. You can create a <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> backup</a> first ";
+																$(this).html(markup);
+															  },
+															buttons: {
+															"Delete anyway":function(){
+																'. $action . ' $(this).dialog("close");
+															},
+															"Dont do it now":function(){
+																$(this).dialog("close");
+															} } });
+															'),
 												 -value=>"Delete"),
 									"Are you sure",
 									# need to set the cancel parameter
@@ -320,7 +333,11 @@ sub viewTable
 
 	print end_table;
 	print end_form;
+	
 	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
+	
+	print "<div id='dialog_confirm' title='Confirmation'>"
+	 ."</div>";
 }
 
 sub showTable {

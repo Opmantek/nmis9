@@ -660,7 +660,7 @@ sub getGroupSummary {
 		);
 	}
 	else {
-		$nmisng->log->info("getGroupSummary - Getting all nodes");
+		$nmisng->log->debug("getGroupSummary - Getting all nodes");
 		($entries,$count,$error) = $nmisng->grouped_node_summary(
 			filters => { 'node_config.configuration.group' => $group },
 			group_by => $group_by,
