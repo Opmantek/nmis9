@@ -2361,6 +2361,7 @@ sub node
 					nmisng => $self,
 				);
 				$self->log->info( "Getting local node:" . $model->{uuid} );
+				return $node;
 			} else {
 				$self->log->warn( "Returning nothing, names:" . join( ",", @names ) );
 				return;
