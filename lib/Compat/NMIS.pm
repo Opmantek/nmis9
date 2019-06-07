@@ -29,7 +29,7 @@
 package Compat::NMIS;
 use strict;
 
-our $VERSION = "9.0.1a";
+our $VERSION = "9.0.2";
 
 use Time::ParseDate;
 use Time::Local;
@@ -183,7 +183,6 @@ sub loadNodeTable
 	return \%map;
 }
 
-
 # check if a table-ish file exists in conf (or conf-default)
 # args: file name, relative, may be short w/o extension
 # returns: 1 if file exists, 0 otherwise
@@ -260,6 +259,7 @@ sub loadCfgTable
 	{
 		$ENV{"NMIS_USER"} = $usercontext;
 	}
+
 	my $goodies = loadGenericTable("Table-$tablename");
 	$ENV{"NMIS_USER"} = $oldcontext; # let's not leave a mess behind.
 
@@ -290,6 +290,33 @@ sub loadNodeSummary
 
 	my $nmisng = new_nmisng();
 	my $lotsanodes = $nmisng->get_nodes_model()->objects;
+	if (my $err = $lotsanodes->{error})
+	{
+		$nmisng->log->error("failed to retrieve nodes: $err");
+		return {};
+	}
+
+	# hash of node name -> catchall data, until fixme9: OMK-5972 less stuff gets dumped into catchall
+	# also fixme9: will fail utterly with multipolling, node names are not unique, should use node_uuid
+	my %summary;
+	for my $onenode (@{$lotsanodes->{objects}})
+	{
+		# detour via sys for possibly cached catchall inventory
+		my $S = NMISNG::Sys->new;
+		$S->init(node => $onenode, snmp => 'false', wmi => 'false');
+		my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+		$summary{$onenode->name} = $catchall_data;
+	}
+	return \%summary;
+}
+
+sub loadLocalNodeSummary
+{
+	my (%args) = @_;
+	# fixme9 gone my $master = $args{master};
+
+	my $nmisng = new_nmisng();
+	my $lotsanodes = $nmisng->get_nodes_model(filter => { cluster_id => $nmisng->config->{cluster_id} })->objects;
 	if (my $err = $lotsanodes->{error})
 	{
 		$nmisng->log->error("failed to retrieve nodes: $err");
@@ -602,6 +629,7 @@ sub getGroupSummary {
 	my $start_time = $args{start};
 	my $end_time = $args{end};
 	my $include_nodes = $args{include_nodes} // 0;
+	my $local_nodes = $args{local_nodes};
 
 	my @tmpsplit;
 	my @tmparray;
@@ -617,15 +645,28 @@ sub getGroupSummary {
 	NMISNG::Util::dbg("Starting");
 	my %summaryHash = ();
 	my $nmisng = new_nmisng();
+
 	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
 	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
 	$group_by = undef if( !$group );
 
-	my ($entries,$count,$error) = $nmisng->grouped_node_summary(
-		filters => { 'node_config.configuration.group' => $group },
-		group_by => $group_by,
-		include_nodes => $include_nodes
-	);
+	my ($entries,$count,$error);
+	if ($local_nodes) {
+		$nmisng->log->debug("getGroupSummary - Getting local nodes");
+		($entries,$count,$error) = $nmisng->grouped_node_summary(
+			filters => { 'node_config.configuration.group' => $group, cluster_id => $nmisng->config->{cluster_id}},
+			group_by => $group_by,
+			include_nodes => $include_nodes
+		);
+	}
+	else {
+		$nmisng->log->debug("getGroupSummary - Getting all nodes");
+		($entries,$count,$error) = $nmisng->grouped_node_summary(
+			filters => { 'node_config.configuration.group' => $group },
+			group_by => $group_by,
+			include_nodes => $include_nodes
+		);
+	}
 
 	if( $error || @$entries != 1 )
 	{
@@ -682,7 +723,6 @@ sub getGroupSummary {
 				);
 		$summaryHash{average}{metric_diff} = $summaryHash{average}{"16_metric"} - $summaryHash{average}{metric};
 	}
-
 
 	$summaryHash{average}{counttotal} = $group_summary->{count} || 0;
 	$summaryHash{average}{countdown} = $group_summary->{countdown} || 0;

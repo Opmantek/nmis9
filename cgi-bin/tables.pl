@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="9.0.1";
+our $VERSION="9.0.2";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -245,7 +245,6 @@ sub viewTable
 	# not delete -> we assume view
 	my $action= $Q->{act} =~ /delete/? "config_table_dodelete": "config_table_menu";
 
-
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"$formid", -href=>url(-absolute=>1)."?");
@@ -297,8 +296,22 @@ sub viewTable
 		}
 		else
 		{
+			my $action = $wantwidget? "get('$formid');" : 'submit();';	
 			print Tr(td('&nbsp;'),
-							 td(button(-name=>"button",onclick => ($wantwidget? "get('$formid');" : 'submit()'),
+							td(button(-name=>"button",onclick => ('$("#dialog_confirm").dialog({
+															modal: true,
+															open: function() {
+																var markup = " Are you sure? All the data from this node will be deleted. You can create a <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> backup</a> first ";
+																$(this).html(markup);
+															  },
+															buttons: {
+															"Delete anyway":function(){
+																'. $action . ' $(this).dialog("close");
+															},
+															"Dont do it now":function(){
+																$(this).dialog("close");
+															} } });
+															'),
 												 -value=>"Delete"),
 									"Are you sure",
 									# need to set the cancel parameter
@@ -320,7 +333,11 @@ sub viewTable
 
 	print end_table;
 	print end_form;
+	
 	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
+	
+	print "<div id='dialog_confirm' title='Confirmation'>"
+	 ."</div>";
 }
 
 sub showTable {
@@ -416,7 +433,15 @@ sub editTable
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
  			. hidden(-override => 1, -name => "update", -value => '', -id=> "updateinput");
 
-
+	# ugly hack to avoid Chrome autofill the form 
+	print  " <span style='display:none'>Username</span>" .
+			textfield(-name=>"authusername",
+								-style=> 'opacity: 0;position: absolute;',
+								-size=>  ($wantwidget? 35 : 70)),
+			" <span style='display:none'>Password</span>" .
+			 password_field(-name=>"fakepassword", 
+												-style=> 'opacity: 0;position: absolute;',
+												-size=>  ($wantwidget? 35 : 70) );
 	my $anyMandatory = 0;
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
@@ -568,6 +593,7 @@ sub editTable
 											-value=>"Cancel")));
 
 	print end_table;
+
 	print end_form;
 	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
