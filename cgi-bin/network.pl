@@ -30,7 +30,7 @@
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-our $VERSION = "9.0.1a";
+our $VERSION = "9.0.2";
 
 use strict;
 use URI::Escape;
