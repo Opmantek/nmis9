@@ -91,7 +91,9 @@ if ($Q->{act} eq 'config_table_menu') { 			menuTable();
 } elsif ($Q->{act} eq 'config_table_delete') { 		viewTable();
 } elsif ($Q->{act} eq 'config_table_doadd') { 		if (doeditTable()) { menuTable(); }
 } elsif ($Q->{act} eq 'config_table_doedit') { 		if (doeditTable()) { menuTable(); }
-} elsif ($Q->{act} eq 'config_table_dodelete') { 	dodeleteTable(); menuTable();
+} elsif ($Q->{act} eq 'config_table_dodelete') {
+	my $message = dodeleteTable();
+	menuTable(message => $message);
 } else { notfound(); }
 
 sub notfound {
@@ -131,12 +133,14 @@ sub loadReqTable
 #
 sub menuTable
 {
-
+	my %args = @_;
 	my $table = $Q->{table};
+	my $msg = $args{message};
+
 	#start of page
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript(title => "View Table $table") if (NMISNG::Util::getbool($widget,"invert"));
-
+	
 	$AU->CheckAccess("Table_${table}_view");
 
 	my $LNT;
@@ -177,8 +181,11 @@ EOF
 			(' > '.a({href=>"$url&act=config_table_add&widget=$widget"},'add')) : '';
 
 	$line .= td({class=>'header',align=>'center'},'Action', $link);
+	
+	if ( $msg ) {
+		print Tr(Tr(th({class=>'Warning',colspan=>$colspan}, $msg)));
+	}
 	print Tr(Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line);
-
 
 	# print data
 	for my $k (sort {lc($a) cmp lc($b)} keys %{$T}) {
@@ -979,8 +986,8 @@ sub dodeleteTable {
 			if (!$success)
 			{
 				print header($headeropts);
-				print Tr(td({class=>'error'} , escapeHTML("Error removing node: $error")));
-				return 0;
+				print Tr(td({class=>'error'} , escapeHTML("Error removing node: $error")));			
+				return $error;
 			}
 		}
 	}
