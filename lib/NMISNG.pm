@@ -4672,8 +4672,9 @@ sub dump_node
 	# events: both current and historic or only current?
 	# get_events_model defaults to current only
 	$md = $self->events->get_events_model(filter => { node_uuid => $uuid,
-																										historic =>
-																												$options->{historic_events}? [0,1]: 0 });
+									historic => $options->{historic_events}? [0,1]: 0,
+									cluster_id => $noderec->{cluster_id}
+									});
 	if (my $error = $md->error)
 	{
 		return { error => "failed to lookup event records: $error" };
