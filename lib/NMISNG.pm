@@ -943,6 +943,8 @@ sub expand_node_selection
 		) if ( ref($onefilter) ne "HASH" );
 
 		$onefilter->{"activated.NMIS"} = 1;    # never consider inactive nodes
+		# Only locals!
+		$onefilter->{"cluster_id"} = $self->config->{cluster_id};
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return NMISNG::ModelData->new(
 			nmisng => $self,
