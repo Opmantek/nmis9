@@ -4047,7 +4047,7 @@ sub save_opstatus
 	$statusrec->{stats}   = $args{stats} if ( exists $args{details} );      # undef is ok for deletion
 	delete $statusrec->{_id};                                               # must not be present for update
 
-	my $expire_at = $statusrec->{time} + ( $self->config->{purge_opstatus_after} || 60 * 86400 );
+	my $expire_at = $statusrec->{time} + ( $self->config->{purge_opstatus_after} || 7 * 86400 );
 
 	# to make the db ttl expiration work this must be
 	# an acceptable date type for the driver version
