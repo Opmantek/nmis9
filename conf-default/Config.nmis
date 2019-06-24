@@ -163,6 +163,9 @@ my %hash = (
     'fastping_node_poll' => 200,
 		'fastping_cache_dns' => 'true',
 		'fastping_maxage' => 900,
+    # some crazy firewalls like to have larger gaps between pings, so -i 80 and -p 100 could be used here.
+    'fastping_interval' => '1',
+    'fastping_target_interval' => '1',
 
     'ipsla_collect_time' => '60',
     'ipsla_bucket_interval' => '180',
