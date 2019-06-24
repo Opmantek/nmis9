@@ -166,6 +166,17 @@
     'CancelingEvent' => 'N/A',
     'Description' => 'A configuration change has been detected on this node.',
   },
+  
+  'Node Configuration Change Detected' => {
+    'Event' => 'Node Configuration Change Detected',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'false',
+    'CancelingEvent' => 'N/A',
+    'Description' => 'A configuration change has been detected on this node.',
+  },
+  
   'RPS Fail' => {
     'Event' => 'RPS Fail',
     'Notify' => 'true',
