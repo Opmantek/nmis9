@@ -3123,6 +3123,9 @@ LABEL_ESC:
 						= ( $EST->{$esc}{Event_Element} eq '' ) ? '.*' : $EST->{$esc}{Event_Element};
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
 					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
+					# to handle c:\\ as an element, the c:\\ gets converted to c:\ which is invalid so need to pad c:\\ to c:\\\\
+					$EST->{$esc}{Event_Element} =~ s;^(\w)\:\\$;$1\\:\\\\;g;
+
 					if (    $klst eq $esc_short
 						and $event_obj->node_name =~ /$EST->{$esc}{Event_Node}/i
 						and $event_obj->element =~ /$EST->{$esc}{Event_Element}/i )
