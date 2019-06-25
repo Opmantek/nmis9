@@ -259,6 +259,8 @@ sub collect_evidence
 	system("$basedir/bin/nmis-cli act=status > $targetdir/system_status/nmis_processes.txt 2>&1");
 	# the lock status
 	cp("/proc/locks","$targetdir/system_status/");
+	# the cpuinfo
+	cp("/proc/cpuinfo","$targetdir/system_status/");
 
 	# dump the memory info, free
 	cp("/proc/meminfo","$targetdir/system_status/meminfo");
