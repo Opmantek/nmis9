@@ -105,4 +105,16 @@
     'Service_Name' => 'nmis9_service',
     'Service_Type' => 'script'
   },
+   opmantek.pl' => {
+    'Args' => '',
+    'Collect_Output' => 'true',
+    'Max_Runtime' => '10',
+    'Name' => 'opmantek.pl',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'opmantek.pl',
+    'Service_Type' => 'service'
+  },
+
 );
