@@ -1206,7 +1206,8 @@ sub worker_loop
 																			 context => { queue_id => $ourjob->{_id},
 																										queue_tag => $ourjob->{tag},
 																										worker_process => $$,
-																										node_uuid => \@node_uuids },
+																										node_uuid => \@node_uuids,
+																										node_name => \@node_names },
 								);
 						$nmisng->log->error("Failed to save opstatus: $error") if ($error);
 
@@ -1309,7 +1310,8 @@ sub worker_loop
 																		 context => { queue_id => $ourjob->{_id},
 																									queue_tag => $ourjob->{tag},
 																									worker_process => $$,
-																									node_uuid => [ $nodeuuid ]},
+																									node_uuid => [ $nodeuuid ],
+																									node_name => [ $thenode->name ] },
 							);
 					$nmisng->log->error("Failed to save opstatus: $error") if ($error);
 
@@ -1429,6 +1431,17 @@ sub fping_loop
 
 	my $fpingpath;
 
+	# new fping options for "interval between sending ping packets" and "interval between ping packets to one target"
+	# some crazy firewalls like to have larger gaps, so -i 80 and -p 100 could be used in the config.
+	my $interval = $config->{fastping_interval} || 1;
+	my $target_interval   = $config->{fastping_target_interval} || 1;
+
+	# need to set these as well, but never less than the limits for non-root users.
+	my $non_root_interval = $config->{fastping_interval} || 10;
+	my $non_root_target_interval   = $config->{fastping_target_interval} || 20;
+	$non_root_interval = 10 if $non_root_interval < 10;
+	$non_root_target_interval = 20 if $non_root_interval < 20;
+
 	# we want fping to do the work, no need to avg/min/max ourselves
 	# -c X produces: 'somenode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.73/0.86/0.97'
 	my @fpingargs = ( "-t", ($config->{fastping_timeout} || 300),
@@ -1441,9 +1454,9 @@ sub fping_loop
 
 	push @fpingargs, ($< == 0?
 									 # we may use these options if we run as root
-									 ("-i", 1, "-p", 1)
+									 ("-i", $interval, "-p", $target_interval)
 									 : 	# non-root requires i >= 10, p >= 20, r < 20, and t >= 50
-									 ("-i", 10, "-p", 20));
+									 ("-i", $non_root_interval, "-p", $non_root_target_interval));
 
 	my %state;
 	my $parent = getppid;

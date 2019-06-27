@@ -127,6 +127,7 @@ sub viewEvent
 		});
 
 	# print data
+	# This call is going to get only the local nodes events
 	my $eventsmodel = $S->nmisng_node->get_events_model(filter => {	historic => 0});
 	my $nodeevents = $eventsmodel->data;
 	for my $thisevent (sort { $a->{startdate} <=> $b->{startdate}} @$nodeevents)

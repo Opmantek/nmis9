@@ -163,6 +163,9 @@ my %hash = (
     'fastping_node_poll' => 200,
 		'fastping_cache_dns' => 'true',
 		'fastping_maxage' => 900,
+    # some crazy firewalls like to have larger gaps between pings, so -i 80 and -p 100 could be used here.
+    'fastping_interval' => '1',
+    'fastping_target_interval' => '1',
 
     'ipsla_collect_time' => '60',
     'ipsla_bucket_interval' => '180',
@@ -194,7 +197,7 @@ my %hash = (
     'snmp_stop_polling_on_error' => 'true',
     'log_node_configuration_events' => 'false',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
-    'non_stateful_events' => 'Node Configuration Change, Node Reset, NMIS runtime exceeded',
+    'non_stateful_events' => 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded',
     'stateless_event_dampening' => 900,
     'upnotify_stateful_events' => 'down|proactive|alert',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
@@ -471,7 +474,7 @@ my %hash = (
 		'purge_inventory_after' => 14*86400,		 # unused/historic inventory data (automatic expiration)
 		'purge_reports_after' => 365*86400,			 # html reports
 		'purge_outages_after' => 86400,			 # past non-recurring outages
-		'purge_opstatus_after' => 60*86400,	 # opstatus records
+		'purge_opstatus_after' => 7*86400,	 # opstatus records
 		'purge_graphcache_after' => 3600,				 # cached graph images
 	},
 
