@@ -1472,7 +1472,7 @@ sub readFiletoHash
 			flock($handle, LOCK_EX) or warn "ERROR readFiletoHash: can't lock file $file, $!\n";
 			return (\%hash,$handle)
 		}
-		NMISNG::Util::logMsg("ERROR file=$file does not exist");
+		NMISNG::Util::logMsg("ERROR file=$file, $!");
 	}
 
 	return undef;

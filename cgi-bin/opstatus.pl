@@ -135,27 +135,17 @@ else
 	join("</th><th>", qw(Time Activity Type Status Details Context Stats)),
 	"</th></tr><tr>";
 
-	# get all node names and uuids
-	my $u2n = $nmisng->get_nodes_model(filter => { active => 1 },
-																		 fields_hash => { uuid => 1, name => 1 });
-	if (my $error = $u2n->error)
-	{
-		die "Failed to find active nodes: $error\n";
-	}
-	my %uuid2name = map { ($_->{uuid} => $_->{name}) } (@{$u2n->data});
-
 	for my $one (@{$ops->data})
 	{
 		# context: queue id, tag and worker process aren't too important here,
 		# but node_uuid is, as it links to the nodes in question
-
 		my $visualcontext = (ref($one->{context}) eq "HASH"
-												 && defined($one->{context}->{node_uuid}))?
-												 ref($one->{context}->{node_uuid}) eq "ARRAY"?
-												 join("<br>", map { $q->escapeHTML($uuid2name{$_}) }
-															(@{$one->{context}->{node_uuid}}))
-												 : $q->escapeHTML($uuid2name{$one->{context}->{node_uuid}})
+												 && defined($one->{context}->{node_name}))?
+												 ref($one->{context}->{node_name}) eq "ARRAY"?
+												 join("<br>", @{$one->{context}->{node_name}} )
+												 : $q->escapeHTML($one->{context}->{node_name} )
 												 : "";
+
 		# stats: currently only time may be present
 		my $visualstats = (ref($one->{stats}) eq "HASH"
 											 && defined($one->{stats}->{time}))?

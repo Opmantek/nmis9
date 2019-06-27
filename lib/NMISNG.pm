@@ -943,6 +943,8 @@ sub expand_node_selection
 		) if ( ref($onefilter) ne "HASH" );
 
 		$onefilter->{"activated.NMIS"} = 1;    # never consider inactive nodes
+		# Only locals!
+		$onefilter->{"cluster_id"} = $self->config->{cluster_id};
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return NMISNG::ModelData->new(
 			nmisng => $self,
@@ -3121,6 +3123,9 @@ LABEL_ESC:
 						= ( $EST->{$esc}{Event_Element} eq '' ) ? '.*' : $EST->{$esc}{Event_Element};
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
 					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
+					# to handle c:\\ as an element, the c:\\ gets converted to c:\ which is invalid so need to pad c:\\ to c:\\\\
+					$EST->{$esc}{Event_Element} =~ s;^(\w)\:\\$;$1\\:\\\\;g;
+
 					if (    $klst eq $esc_short
 						and $event_obj->node_name =~ /$EST->{$esc}{Event_Node}/i
 						and $event_obj->element =~ /$EST->{$esc}{Event_Element}/i )
@@ -4672,8 +4677,9 @@ sub dump_node
 	# events: both current and historic or only current?
 	# get_events_model defaults to current only
 	$md = $self->events->get_events_model(filter => { node_uuid => $uuid,
-																										historic =>
-																												$options->{historic_events}? [0,1]: 0 });
+									historic => $options->{historic_events}? [0,1]: 0,
+									cluster_id => $noderec->{cluster_id}
+									});
 	if (my $error = $md->error)
 	{
 		return { error => "failed to lookup event records: $error" };

@@ -256,6 +256,8 @@ sub _run_query
 		{
 			$result{error} .= " exit code ".($exitcode>>8);
 		}
+		# remove new lines in the error message
+		$result{error} =~ s/\n/\\n/;
 		unlink($tfn,$authfn);								# not needed anymore
 	}
 	else
