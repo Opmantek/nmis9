@@ -1936,7 +1936,7 @@ sub eventLevel {
 
 # loads one or more service statuses
 #
-# args: service, node, cluster_id, only_known (all optional)
+# args: service, node, cluster_id, only_known (all optional), all_cluster
 # if service or node are given, only matching services are returned.
 # cluster_id defaults to the local one, and is IGNORED unless only_known is 0.
 #
@@ -1946,6 +1946,10 @@ sub eventLevel {
 # if only_known is set to zero, then all services, remote or local,
 # active or not are returned.
 #
+# when all_cluster equals true, it is not going to filter by master cluster_id
+# when no cluster_id is provided
+# opCharts use this to show the MonitoredServices from the poller
+#
 # returns: hash of cluster_id -> service -> node -> data; empty if invalid args
 sub loadServiceStatus
 {
@@ -1954,7 +1958,10 @@ sub loadServiceStatus
 
 	my $wantnode = $args{node};
 	my $wantservice = $args{service};
-	my $wantcluster = $args{cluster_id} || $C->{cluster_id};
+	my $wantcluster;
+	if ($args{all_cluster} ne "true") {
+		$wantcluster = $args{cluster_id} || $C->{cluster_id};
+	}
 	my $only_known = !(NMISNG::Util::getbool($args{only_known}, "invert")); # default is 1
 
 	my $nmisng = new_nmisng();
