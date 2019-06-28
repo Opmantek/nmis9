@@ -105,7 +105,7 @@
     'Service_Name' => 'nmis9_service',
     'Service_Type' => 'script'
   },
-   opmantek.pl' => {
+   'opmantek.pl' => {
     'Args' => '',
     'Collect_Output' => 'true',
     'Max_Runtime' => '10',
