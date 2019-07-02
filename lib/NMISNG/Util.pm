@@ -870,8 +870,8 @@ sub read_load_cache
 	my $is_master = $args{master};
 	my $fn = $args{fn};
 
-	open(X, $whichfile) or warn_die("cannot open configuration file $whichfile: $!");
-	flock(X, LOCK_SH) or warn_die("cannot lock configuration file $whichfile: $!");
+	open(X, $whichfile) or warn_die("cannot open configuration file $whichfile: $!") if $is_master;
+	flock(X, LOCK_SH) or warn_die("cannot lock configuration file $whichfile: $!") if $is_master;
 
 	my %deepdata = do ($whichfile);
 	# should the file have unwanted gunk after the %hash = ();
