@@ -2013,6 +2013,8 @@ sub collect_node_info
 				$RI->{"${source}result"} = 0;
 			}
 		}
+		# Save the time anyway, to not to attempt to update every 10 seconds
+		$catchall_data->{"last_poll_$source"} = $time_marker;
 		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
@@ -7807,6 +7809,7 @@ sub collect
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
 		# collect will have to wait until a next run...
+		$catchall_inventory->save();
 		return $res;
 	}
 
