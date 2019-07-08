@@ -228,7 +228,7 @@ if ($Q->{act} =~ /^(daemon[-_])?status$/)
 	# opcharts 3 'nmisd' calls itself 'nmisd',
 	# 'nmisd worker' or 'nmisd collector <something>' - exclude these
 	my %ours = ( map { ($_->pid => $_) }
-							 (grep($_->cmndline =~ /^nmisd (fping|scheduler|worker .+)$/,
+							 (grep($_->cmndline =~ /^nmisd (fping|scheduler|worker .+)\s*$/,
 										 @{$pt->table})));
 	die "No NMIS9 daemons running!\n" if (!keys %ours);
 

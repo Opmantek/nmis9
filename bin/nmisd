@@ -788,7 +788,7 @@ sub manage_processes
 			# fixme9: should become internal callable function, fork is to happen here
 			# so that we can get the pid directly
 			# this is not precise enough, will catch other processes
-			for my $maybe (grep($_->cmndline =~ /$config->{daemon_ipsla_filename}/,
+			for my $maybe (grep($_->cmndline =~ /^$config->{daemon_ipsla_filename}/,
 													@{$pt->table}))
 			{
 				$zoo->{$maybe->pid} = { processtype => "ipslad", starttime => $maybe->start };
