@@ -1333,7 +1333,6 @@ sub save
 
 		my (%setthese, %unsetthese);
 		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
-		my %unsetthese;
 
 		$op = 3; # nothing to update
 		for my $saveme ($self->_whatisdirty)
