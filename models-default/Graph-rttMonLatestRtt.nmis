@@ -46,7 +46,7 @@
 			'HRULE:250#00ff00',
 			'HRULE:500#0000ff',
 			'HRULE:1000#ff0000',
-			'LINE1:response#0000ff:RTT Completion',
+			'LINE1:response#0000ff: RTT Completion',
 			'GPRINT:mresponse:MAX:Max RTT %1.2lf msec',
 			'GPRINT:response:AVERAGE:Avg RTT %1.2lf msec'
 		],
@@ -56,7 +56,7 @@
 			'HRULE:250#00ff00',
 			'HRULE:500#0000ff',
 			'HRULE:1000#ff0000',
-			'LINE1:response#0000ff:RTT Completion',
+			'LINE1:response#0000ff: RTT Completion',
 			'GPRINT:mresponse:MAX:Max RTT %1.2lf msec',
 			'GPRINT:response:AVERAGE:Avg RTT %1.2lf msec'
 		]

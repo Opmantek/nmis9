@@ -41,11 +41,11 @@
 	'option' => {
 		'standard' => [
 			'DEF:upsbattemp=$database:upsbattemp:AVERAGE',
-			'LINE1:upsbattemp#0000ff:Battery Temperature'
+			'LINE1:upsbattemp#0000ff: Battery Temperature'
 		],
 		'small' => [
 			'DEF:upsbattemp=$database:upsbattemp:AVERAGE',
-			'LINE1:upsbattemp#0000ff:Battery Temperature'
+			'LINE1:upsbattemp#0000ff: Battery Temperature'
 		]
 	}
 );

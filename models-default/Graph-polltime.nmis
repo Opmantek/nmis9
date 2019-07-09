@@ -42,12 +42,12 @@
 			'DEF:poll=$database:polltime:AVERAGE',
 			'DEF:update=$database:updatetime:AVERAGE',
 
-			'LINE2:poll#006400:Collect Time\t',
+			'LINE2:poll#006400: Collect Time\t',
 			'GPRINT:poll:AVERAGE:\tAvg %1.2lf seconds',
 			'GPRINT:poll:LAST:\tLast %1.2lf seconds',
 			'GPRINT:poll:MAX:\tMax %1.2lf seconds\l',
 
-			'LINE2:update#FF8c00:Update Time\t',
+			'LINE2:update#FF8c00: Update Time\t',
 			'GPRINT:update:AVERAGE:\tAvg %1.2lf seconds',
 			'GPRINT:update:LAST:\tLast %1.2lf seconds',
 			'GPRINT:update:MAX:\tMax %1.2lf seconds\l',

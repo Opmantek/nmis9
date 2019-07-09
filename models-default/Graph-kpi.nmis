@@ -55,39 +55,39 @@
 			'DEF:diskHealth=$database:diskHealth:AVERAGE',
 			'DEF:swapHealth=$database:swapHealth:AVERAGE',
 			
-			'AREA:reachabilityHealth#CD5C5C:Reachability KPI',
+			'AREA:reachabilityHealth#CD5C5C: Reachability KPI',
 			'GPRINT:reachabilityHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:availabilityHealth#ffff00:Availability KPI',
+			'STACK:availabilityHealth#ffff00: Availability KPI',
 			'GPRINT:availabilityHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:responseHealth#ffa500:Response KPI',
+			'STACK:responseHealth#ffa500: Response KPI',
 			'GPRINT:responseHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:cpuHealth#4daef6:CPU KPI',
+			'STACK:cpuHealth#4daef6: CPU KPI',
 			'GPRINT:cpuHealth:AVERAGE:Avg %6.2lf%%\\n',
 
-			'STACK:memHealth#00ffff:MEM KPI',
+			'STACK:memHealth#00ffff: MEM KPI',
 			'GPRINT:memHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:swapHealth#aa00aa:SWAP KPI',
+			'STACK:swapHealth#aa00aa: SWAP KPI',
 			'GPRINT:swapHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:intHealth#00cccc:Interface KPI',
+			'STACK:intHealth#00cccc: Interface KPI',
 			'GPRINT:intHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:diskHealth#00aaaa:Disk KPI',
+			'STACK:diskHealth#00aaaa: Disk KPI',
 			'GPRINT:diskHealth:AVERAGE:Avg %6.2lf%%\\n',
 
 			'GPRINT:health:AVERAGE:Overall Health Avg %6.2lf%%',
 
-			#'LINE2:health#ff9900:Health',
+			#'LINE2:health#ff9900: Health',
 			#'GPRINT:health:AVERAGE:Avg %6.2lf%%',
-			#'LINE2:reach#0000ff:Reachability',
+			#'LINE2:reach#0000ff: Reachability',
 			#'GPRINT:reach:AVERAGE:Avg %6.2lf%%',
-			#'LINE2:avail#00ff00:Availability',
+			#'LINE2:avail#00ff00: Availability',
 			#'GPRINT:avail:AVERAGE:Avg %6.2lf%%',
-			#'LINE2:loss#ff00ff:Ping_loss',
+			#'LINE2:loss#ff00ff: Ping_loss',
 			#'GPRINT:loss:AVERAGE:Avg %6.2lf%%\\n',
 		],
 		'small' => [
@@ -106,39 +106,39 @@
 			'DEF:diskHealth=$database:diskHealth:AVERAGE',
 			'DEF:swapHealth=$database:swapHealth:AVERAGE',
 
-			'AREA:reachabilityHealth#CD5C5C:Reachability KPI',
+			'AREA:reachabilityHealth#CD5C5C: Reachability KPI',
 			'GPRINT:reachabilityHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:availabilityHealth#ffff00:Availability KPI',
+			'STACK:availabilityHealth#ffff00: Availability KPI',
 			'GPRINT:availabilityHealth:AVERAGE:Avg %6.2lf%%\\n',
 
-			'STACK:responseHealth#ffa500:Response KPI',
+			'STACK:responseHealth#ffa500: Response KPI',
 			'GPRINT:responseHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:cpuHealth#4daef6:CPU KPI',
+			'STACK:cpuHealth#4daef6: CPU KPI',
 			'GPRINT:cpuHealth:AVERAGE:Avg %6.2lf%%\\n',
 
-			'STACK:memHealth#00ffff:MEM KPI',
+			'STACK:memHealth#00ffff: MEM KPI',
 			'GPRINT:memHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:swapHealth#aa00aa:SWAP KPI',
+			'STACK:swapHealth#aa00aa: SWAP KPI',
 			'GPRINT:swapHealth:AVERAGE:Avg %6.2lf%%\\n',
 
-			'STACK:intHealth#00cccc:Interface KPI',
+			'STACK:intHealth#00cccc: Interface KPI',
 			'GPRINT:intHealth:AVERAGE:Avg %6.2lf%%',
 
-			'STACK:diskHealth#00aaaa:Disk KPI',
+			'STACK:diskHealth#00aaaa: Disk KPI',
 			'GPRINT:diskHealth:AVERAGE:Avg %6.2lf%%\\n',
 
 			'GPRINT:health:AVERAGE:Overall Health Avg %6.2lf%%',
 
-			#'LINE2:health#ff9900:Health',
+			#'LINE2:health#ff9900: Health',
 			#'GPRINT:health:AVERAGE:Avg %6.2lf%%',
-			#'LINE2:reach#0000ff:Reachability',
+			#'LINE2:reach#0000ff: Reachability',
 			#'GPRINT:reach:AVERAGE:Avg %6.2lf%%\\n',
-			#'LINE2:avail#00ff00:Availability',
+			#'LINE2:avail#00ff00: Availability',
 			#'GPRINT:avail:AVERAGE:Avg %6.2lf%%',
-			#'LINE2:loss#ff00ff:Ping_loss',
+			#'LINE2:loss#ff00ff: Ping_loss',
 			#'GPRINT:loss:AVERAGE:Avg %6.2lf%%\\n',
 		]
 	}

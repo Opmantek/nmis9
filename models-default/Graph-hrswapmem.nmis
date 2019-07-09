@@ -44,9 +44,9 @@
 		'standard' => [
 			'DEF:hrSwapMemSize=$database:hrSwapMemSize:AVERAGE',
 			'DEF:hrSwapMemUsed=$database:hrSwapMemUsed:AVERAGE',
-			'LINE1:hrSwapMemSize#8B0000:Total Swap Space',
+			'LINE1:hrSwapMemSize#8B0000: Total Swap Space',
 			'GPRINT:hrSwapMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrSwapMemUsed#FF4500:Swap Used',
+			'AREA:hrSwapMemUsed#FF4500: Swap Used',
 			'GPRINT:hrSwapMemUsed:MIN:Min Used %1.3lf %sb',
 			'GPRINT:hrSwapMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
 			'GPRINT:hrSwapMemUsed:MAX:Max Used %1.3lf %Sb\\n'
@@ -54,9 +54,9 @@
 		'small' => [
 			'DEF:hrSwapMemSize=$database:hrSwapMemSize:AVERAGE',
 			'DEF:hrSwapMemUsed=$database:hrSwapMemUsed:AVERAGE',
-			'LINE1:hrSwapMemSize#8B0000:Total Memory',
+			'LINE1:hrSwapMemSize#8B0000: Total Memory',
 			'GPRINT:hrSwapMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrSwapMemUsed#FF4500:Memory Used',
+			'AREA:hrSwapMemUsed#FF4500: Memory Used',
 			'GPRINT:hrSwapMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
 			'GPRINT:hrSwapMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		]

@@ -44,7 +44,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:cpuUtil=$database:cpuUtil:AVERAGE',
-			'AREA:cpuUtil#00ff00:CPU Usage',
+			'AREA:cpuUtil#00ff00: CPU Usage',
 			'GPRINT:cpuUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:cpuUtil:MAX:Max %1.2lf%%\\n'
 		],
@@ -53,7 +53,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:cpuUtil=$database:cpuUtil:AVERAGE',
-			'AREA:cpuUtil#00ff00:CPU Usage',
+			'AREA:cpuUtil#00ff00: CPU Usage',
 			'GPRINT:cpuUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:cpuUtil:MAX:Max %1.2lf%%\\n'
 		]

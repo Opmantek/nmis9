@@ -52,17 +52,17 @@
 			'CDEF:ssIORawReceivedS=ssIORawReceived,$split,*',
 			'CDEF:ssRawSwapInS=ssRawSwapIn,$split,*',
 
-			'AREA:ssIORawReceivedS#00aaaa:IO Blocks Received\\t',
+			'AREA:ssIORawReceivedS#00aaaa: IO Blocks Received\\t',
 			'GPRINT:ssIORawReceived:AVERAGE:Avg %8.2lf\\t',
 			'GPRINT:ssIORawReceived:MAX:Max %8.2lf blocks/s\\n',
 			
-			'AREA:ssIORawSent#00ff00:IO Blocks Sent\\t',
+			'AREA:ssIORawSent#00ff00: IO Blocks Sent\\t',
 			'GPRINT:ssIORawSent:AVERAGE:Avg %8.2lf\\t',
 			'GPRINT:ssIORawSent:MAX:Max %8.2lf blocks/s\\n',
 
-			'LINE1:ssRawSwapInS#0000aa:Swap Blocks In\\t',
+			'LINE1:ssRawSwapInS#0000aa: Swap Blocks In\\t',
 			'GPRINT:ssRawSwapIn:AVERAGE:Avg %8.2lf blocks/s\\n',
-			'LINE1:ssRawSwapOut#00aa00:Swap Blocks Out\\t',
+			'LINE1:ssRawSwapOut#00aa00: Swap Blocks Out\\t',
 			'GPRINT:ssRawSwapOut:AVERAGE:Avg %8.2lf blocks/s\\n',
 
 			
@@ -81,14 +81,14 @@
 			'CDEF:ssIORawReceivedS=ssIORawReceived,$split,*',
 			'CDEF:ssRawSwapInS=ssRawSwapIn,$split,*',
 
-			'AREA:ssIORawReceivedS#00aaaa:IO Blocks Received',
+			'AREA:ssIORawReceivedS#00aaaa: IO Blocks Received',
 			'GPRINT:ssIORawReceived:AVERAGE:Avg %8.2lf',
-			'AREA:ssIORawSent#00ff00:IO Blocks Sent',
+			'AREA:ssIORawSent#00ff00: IO Blocks Sent',
 			'GPRINT:ssIORawSent:AVERAGE:Avg %8.2lf\\n',
 
-			'LINE1:ssRawSwapInS#0000aa:Swap Blocks In',
+			'LINE1:ssRawSwapInS#0000aa: Swap Blocks In',
 			'GPRINT:ssRawSwapIn:AVERAGE:Avg %8.2lf',
-			'LINE1:ssRawSwapOut#00aa00:Swap Blocks Out',
+			'LINE1:ssRawSwapOut#00aa00: Swap Blocks Out',
 			'GPRINT:ssRawSwapOut:AVERAGE:Avg %8.2lf\\n',
 		]
 	}

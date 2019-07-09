@@ -40,7 +40,7 @@
 		'standard' => [
                         '--lower-limit','0',
 			'DEF:pduOutletStatus=$database:pduOutletStatus:AVERAGE',
-			'AREA:pduOutletStatus#FA0000:Average Output Power',
+			'AREA:pduOutletStatus#FA0000: Average Output Power',
 			'GPRINT:pduOutletStatus:AVERAGE:%2.1lf Watts',
 			'COMMENT:\\n',	
 		],

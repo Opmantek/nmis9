@@ -49,7 +49,7 @@
 		'small' => [ 
 				 'DEF:InDropPackets=$database:InDropPackets:AVERAGE',
 				 
-				 'LINE2:InDropPackets#006400:packets\\t\\t',
+				 'LINE2:InDropPackets#006400: packets\\t\\t',
 				 'GPRINT:InDropPackets:AVERAGE:Avg %10.2lf',
 				 'GPRINT:InDropPackets:MIN:Min %10.2lf',
 				 'GPRINT:InDropPackets:MAX:Max %10.2lf\\n',

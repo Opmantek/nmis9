@@ -41,14 +41,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:PagesPerSec=$database:PagesPerSec:AVERAGE',
-			'LINE2:PagesPerSec#0000ff:Pages per sec\\n',
+			'LINE2:PagesPerSec#0000ff: Pages per sec\\n',
 			'GPRINT:PagesPerSec:MIN:Min Pages per sec %1.0lf',
 			'GPRINT:PagesPerSec:AVERAGE:Average Pages per sec %1.0lf',
 			'GPRINT:PagesPerSec:MAX:Max Pages per sec %1.0lf'
 		],
 	'small'=> [
 			'DEF:PagesPerSec=$database:PagesPerSec:AVERAGE',
-			'LINE2:PagesPerSec#0000ff:Pages per sec'
+			'LINE2:PagesPerSec#0000ff: Pages per sec'
 		]
 	}
 );

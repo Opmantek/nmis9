@@ -44,10 +44,10 @@
 			'--rigid',
 			'DEF:mscAtmIfTxLinkUtil=$database:mscAtmIfTxLinkUtil:AVERAGE',
 			'DEF:mscAtmIfRxLinkUtil=$database:mscAtmIfRxLinkUtil:AVERAGE',
-			'LINE2:mscAtmIfTxLinkUtil#00FF7F:Transmit Utilisation\t',
+			'LINE2:mscAtmIfTxLinkUtil#00FF7F: Transmit Utilisation\t',
 			'GPRINT:mscAtmIfTxLinkUtil:AVERAGE:Avg %10.2lf',
 			'GPRINT:mscAtmIfTxLinkUtil:MAX:Max %10.2lf\\n',
-			'LINE2:mscAtmIfRxLinkUtil#00BFFF:Receive Utilisation\t',
+			'LINE2:mscAtmIfRxLinkUtil#00BFFF: Receive Utilisation\t',
 			'GPRINT:mscAtmIfRxLinkUtil:AVERAGE:Avg %10.2lf',
 			'GPRINT:mscAtmIfRxLinkUtil:MAX:Max %10.2lf\\n',
 		]

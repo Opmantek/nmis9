@@ -44,14 +44,14 @@
 			'DEF:TempAVG=$database:hhmsSensorTemp:AVERAGE',
 			'DEF:TempMAX=$database:hhmsSensorTemp:MAX',
 			'DEF:TempMIN=$database:hhmsSensorTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature\\n',
+			'LINE1:TempAVG#0000ff: Temperature\\n',
 			'GPRINT:TempAVG:AVERAGE:Avg Temperature %1.1lf degrees\n',
 			'GPRINT:TempMAX:MAX:Max Temperature %1.1lf degrees\n',
 			'GPRINT:TempMIN:MIN:Min Temperature %1.1lf degrees\n'
 		],
 		'small' => [
 			'DEF:TempAVG=$database:hhmsSensorTemp:AVERAGE',
-			'LINE1:TempAVG#0000ff:Temperature\\n',
+			'LINE1:TempAVG#0000ff: Temperature\\n',
 		]
 	}
 );

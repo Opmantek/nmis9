@@ -45,9 +45,9 @@
 			'CDEF:xtempReading=tempReading,10,/',
 			'CDEF:xtempMinWarn=tempMinWarn,10,/',
 			'CDEF:xtempMaxWarn=tempMaxWarn,10,/',
-			'LINE2:xtempReading#00ff00:Avg Temp',
-			'LINE2:xtempMinWarn#0000ff:Min Alarm Temp',
-			'LINE2:xtempMaxWarn#ff0000:Max Alarm Temp',
+			'LINE2:xtempReading#00ff00: Avg Temp',
+			'LINE2:xtempMinWarn#0000ff: Min Alarm Temp',
+			'LINE2:xtempMaxWarn#ff0000: Max Alarm Temp',
 			'GPRINT:xtempReading:AVERAGE:Avg Temp %1.2lf Deg.',
 			'GPRINT:xtempReading:MAX:Max Temp %1.2lf Deg.'
 		]

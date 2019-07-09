@@ -42,10 +42,10 @@
 		'standard' => [
 			'DEF:diskIOReads=$database:diskIOReads:AVERAGE',
 			'DEF:diskIOWrites=$database:diskIOWrites:AVERAGE',
-			'LINE2:diskIOReads#0000ff:Blocks Read/s\t',
+			'LINE2:diskIOReads#0000ff: Blocks Read/s\t',
 			'GPRINT:diskIOReads:AVERAGE:Avg %8.2lf',
 			'GPRINT:diskIOReads:MAX:Max %8.2lf\\n',
-			'LINE2:diskIOWrites#00ff00:Blocks Written/s\t',
+			'LINE2:diskIOWrites#00ff00: Blocks Written/s\t',
 			'GPRINT:diskIOWrites:AVERAGE:Avg %8.2lf',
 			'GPRINT:diskIOWrites:MAX:Max %8.2lf\\n',
 		]

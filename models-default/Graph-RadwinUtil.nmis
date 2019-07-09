@@ -52,11 +52,11 @@
 			# CREATE SPLIT
 			'CDEF:split_hsutxrate=hsutxrate_x,-1,*',
 			# DRAW GRAPH
-			'AREA:hsurxrate_x#00BFFF:HSU Rx Rate',
+			'AREA:hsurxrate_x#00BFFF: HSU Rx Rate',
                         'GPRINT:hsurxrate_x:AVERAGE:Avg. %1.2lf %sbps',
                         'GPRINT:hsurxrate_x:MAX:Max %1.2lf %sbps\\n',
 			#
-                        'AREA:split_hsutxrate#00FF7F:HSU Tx Rate',
+                        'AREA:split_hsutxrate#00FF7F: HSU Tx Rate',
 			'GPRINT:hsutxrate_x:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:hsutxrate_x:MAX:Max %1.2lf %sbps\\n',
 		],
@@ -71,11 +71,11 @@
                         # CREATE SPLIT
                         'CDEF:split_hsutxrate=hsutxrate_x,-1,*',
                         # DRAW GRAPH
-                        'AREA:hsurxrate_x#00BFFF:HSU Rx Rate',
+                        'AREA:hsurxrate_x#00BFFF: HSU Rx Rate',
                         'GPRINT:hsurxrate_x:AVERAGE:Avg. %1.2lf %sbps',
                         'GPRINT:hsurxrate_x:MAX:Max %1.2lf %sbps\\n',
                         #
-                        'AREA:split_hsutxrate#00FF7F:HSU Tx Rate',
+                        'AREA:split_hsutxrate#00FF7F: HSU Tx Rate',
                         'GPRINT:hsutxrate_x:AVERAGE:Avg. %1.2lf %sbps',
                         'GPRINT:hsutxrate_x:MAX:Max %1.2lf %sbps\\n',
 		]

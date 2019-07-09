@@ -40,7 +40,7 @@
 	'option' => {
 		'standard' => [
 			'DEF:BandwidthUsed=$database:BandwidthUsed:AVERAGE', 
-			'LINE1:BandwidthUsed#0000ff:Avg Bandwidth',
+			'LINE1:BandwidthUsed#0000ff: Avg Bandwidth',
 			'GPRINT:BandwidthUsed:AVERAGE:Avg Bandwidth %1.2lf %%',
 			'GPRINT:BandwidthUsed:MAX:Max Bandwidth %1.2lf %%'
 		]

@@ -46,19 +46,19 @@
 			'DEF:dtpsConnectedUsers=$database:dtpsConnectedUsers:AVERAGE',
 			'DEF:dtpsLicensedUsers=$database:dtpsLicensedUsers:AVERAGE',
 
-			'LINE1:fwNumConn#4daef6:Connections\t\t',
+			'LINE1:fwNumConn#4daef6: Connections\t\t',
 			'GPRINT:fwNumConn:AVERAGE:Avg %10.0lf\t',
 			'GPRINT:fwNumConn:MAX:Max %10.0lf\n',
 
-			#'LINE1:fwPeakNumConn#000000:Peak Connections\t',
+			#'LINE1:fwPeakNumConn#000000: Peak Connections\t',
 			#'GPRINT:fwPeakNumConn:AVERAGE:Avg %10.0lf\t',
 			#'GPRINT:fwPeakNumConn:MAX:Max %10.0lf\\n',
 
-			'LINE1:dtpsConnectedUsers#00FF7F:Connected Users\t',
+			'LINE1:dtpsConnectedUsers#00FF7F: Connected Users\t',
 			'GPRINT:dtpsConnectedUsers:AVERAGE:Avg %10.0lf\t',
 			'GPRINT:dtpsConnectedUsers:MAX:Max %10.0lf\n',
 
-			'LINE1:dtpsLicensedUsers#40E0D0:Licensed Users\t',
+			'LINE1:dtpsLicensedUsers#40E0D0: Licensed Users\t',
 			'GPRINT:dtpsLicensedUsers:AVERAGE:Avg %10.0lf\n',
 
 		],

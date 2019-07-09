@@ -46,11 +46,11 @@
 			'DEF:PassedPackets=$database:PassedPackets:AVERAGE',
 			'DEF:DroppedPackets=$database:DroppedPackets:AVERAGE',
 
-			'AREA:PassedPackets#BCFD0A:Passed Packets',
+			'AREA:PassedPackets#BCFD0A: Passed Packets',
 			'GPRINT:PassedPackets:AVERAGE:Avg %1.2lf\t',
 			'GPRINT:PassedPackets:MAX:Max %1.2lf\n',
 
-			'STACK:DroppedPackets#9F000F:Dropped Packets',
+			'STACK:DroppedPackets#9F000F: Dropped Packets',
 			'GPRINT:DroppedPackets:AVERAGE:Avg %1.2lf\t',
 			'GPRINT:DroppedPackets:MAX:Max %1.2lf\n',
 
@@ -65,11 +65,11 @@
 			'DEF:PassedPackets=$database:PassedPackets:AVERAGE',
 			'DEF:DroppedPackets=$database:DroppedPackets:AVERAGE',
 
-			'AREA:PassedPackets#BCFD0A:Passed Packets',
+			'AREA:PassedPackets#BCFD0A: Passed Packets',
 			'GPRINT:PassedPackets:AVERAGE:Avg %1.2lf\t',
 			'GPRINT:PassedPackets:MAX:Max %1.2lf\n',
 
-			'STACK:DroppedPackets#9F000F:Dropped Packets',
+			'STACK:DroppedPackets#9F000F: Dropped Packets',
 			'GPRINT:DroppedPackets:AVERAGE:Avg %1.2lf\t',
 			'GPRINT:DroppedPackets:MAX:Max %1.2lf\n',
 

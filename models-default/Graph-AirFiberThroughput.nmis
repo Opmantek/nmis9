@@ -49,13 +49,13 @@
       'CDEF:split_txBits=txBits,-1,*',
 
       # DRAW GRAPH
-      'AREA:rxBits#00CED1:Received\\t',
+      'AREA:rxBits#00CED1: Received\\t',
       'GPRINT:rxBits:LAST:Current %6.2lf %sbps',
       'GPRINT:rxBits:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:rxBits:MAX:Max %6.2lf %sbps\\n',
 
       #
-      'AREA:split_txBits#4daef6:Transmitted\\t',
+      'AREA:split_txBits#4daef6: Transmitted\\t',
       'GPRINT:txBits:LAST:Current %6.2lf %sbps',
       'GPRINT:txBits:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:txBits:MAX:Max %6.2lf %sbps\\n',
@@ -72,12 +72,12 @@
       'CDEF:split_txBits=txBits,-1,*',
 
       # DRAW GRAPH
-      'AREA:rxBits#00CED1:Received\\t',
+      'AREA:rxBits#00CED1: Received\\t',
       'GPRINT:rxBits:AVERAGE:Avg. %1.2lf %sbps',
       'GPRINT:rxBits:MAX:Max %1.2lf %sbps\\n',
 
       #
-      'AREA:split_txBits#4daef6:Transmitted\\t',
+      'AREA:split_txBits#4daef6: Transmitted\\t',
       'GPRINT:txBits:AVERAGE:Avg. %1.2lf %sbps',
       'GPRINT:txBits:MAX:Max %1.2lf %sbps\\n',
 		]

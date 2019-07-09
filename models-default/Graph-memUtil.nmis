@@ -44,7 +44,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:memUtil=$database:memUtil:AVERAGE',
-			'AREA:memUtil#0000ff:Memory Usage',
+			'AREA:memUtil#0000ff: Memory Usage',
 			'GPRINT:memUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:memUtil:MAX:Max %1.2lf%%\\n'
 		],
@@ -53,7 +53,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:memUtil=$database:memUtil:AVERAGE',
-			'AREA:memUtil#0000ff:Memory Usage',
+			'AREA:memUtil#0000ff: Memory Usage',
 			'GPRINT:memUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:memUtil:MAX:Max %1.2lf%%\\n'
 		]

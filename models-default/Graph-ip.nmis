@@ -49,19 +49,19 @@
 			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
 			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
 
-			'AREA:ipOutRequests#00FF7F:IP Packets Sent',
+			'AREA:ipOutRequests#00FF7F: IP Packets Sent',
 			'GPRINT:ipOutRequests:AVERAGE:Avg %6.0lf',
 			'GPRINT:ipOutRequests:MAX:Max %6.0lf\\t',
 
-			'STACK:ipForwDatagrams#40E0D0:IP Packets Forwarded',
+			'STACK:ipForwDatagrams#40E0D0: IP Packets Forwarded',
 			'GPRINT:ipForwDatagrams:AVERAGE:Avg %6.0lf',
 			'GPRINT:ipForwDatagrams:MAX:Max %6.0lf\\n',
 
-			'AREA:ipInReceivesSplit#4daef6:IP Packets Received',
+			'AREA:ipInReceivesSplit#4daef6: IP Packets Received',
 			'GPRINT:ipInReceives:AVERAGE:Avg %6.0lf',
 			'GPRINT:ipInReceives:MAX:Max %6.0lf\\t',
 			
-			'LINE1:ipInDeliversSplit#000000:IP Packets Local',
+			'LINE1:ipInDeliversSplit#000000: IP Packets Local',
 			'GPRINT:ipInDelivers:AVERAGE:Avg %6.0lf',
 			'GPRINT:ipInDelivers:MAX:Max %6.0lf\\n',
 		],
@@ -74,13 +74,13 @@
 			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
 			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
 
-			'AREA:ipOutRequests#00FF7F:IP Packets Sent',
+			'AREA:ipOutRequests#00FF7F: IP Packets Sent',
 			'GPRINT:ipOutRequests:AVERAGE:Avg %6.0lf',
-			'STACK:ipForwDatagrams#40E0D0:IP Forwarded',
+			'STACK:ipForwDatagrams#40E0D0: IP Forwarded',
 			'GPRINT:ipForwDatagrams:AVERAGE:Avg %6.0lf\\n',
-			'AREA:ipInReceivesSplit#4daef6:IP Received',
+			'AREA:ipInReceivesSplit#4daef6: IP Received',
 			'GPRINT:ipInReceives:AVERAGE:Avg %6.0lf',
-			'LINE1:ipInDeliversSplit#000000:IP Local',
+			'LINE1:ipInDeliversSplit#000000: IP Local',
 			'GPRINT:ipInDelivers:AVERAGE:Avg %6.0lf\\n',
 		]
 	}

@@ -41,13 +41,13 @@
 	'option' => {
 		'standard' => [
 			'DEF:sysTraffic=$database:sysTraffic:AVERAGE',
-			'LINE1:sysTraffic#00ff00:Avg Traffic',
+			'LINE1:sysTraffic#00ff00: Avg Traffic',
 			'GPRINT:sysTraffic:AVERAGE:Avg Traffic %1.2lf %%',
 			'GPRINT:sysTraffic:MAX:Max Traffic %1.2lf %%'
 		],
 		'small' => [
 			'DEF:sysTraffic=$database:sysTraffic:AVERAGE',
-			'LINE1:sysTraffic#00ff00:Avg Traffic',
+			'LINE1:sysTraffic#00ff00: Avg Traffic',
 			'GPRINT:sysTraffic:AVERAGE:Avg Traffic %1.2lf %%',
 			'GPRINT:sysTraffic:MAX:Max Traffic %1.2lf %%'
 		]

@@ -44,14 +44,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:hrCacheMemUsed=$database:hrCacheMemUsed:AVERAGE',
-			'AREA:hrCacheMemUsed#EE82EE:Cached Memory',
+			'AREA:hrCacheMemUsed#EE82EE: Cached Memory',
 			'GPRINT:hrCacheMemUsed:MIN:Min Used %1.3lf %sb',
 			'GPRINT:hrCacheMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
 			'GPRINT:hrCacheMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		],
 		'small' => [
 			'DEF:hrCacheMemUsed=$database:hrCacheMemUsed:AVERAGE',
-			'AREA:hrCacheMemUsed#EE82EE:Cached Memory',
+			'AREA:hrCacheMemUsed#EE82EE: Cached Memory',
 			'GPRINT:hrCacheMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
 			'GPRINT:hrCacheMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		]

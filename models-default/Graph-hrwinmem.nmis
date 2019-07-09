@@ -42,8 +42,8 @@
 		'standard' => [
 			'DEF:AvailableBytes=$database:AvailableBytes:AVERAGE',
 			'DEF:CommittedBytes=$database:CommittedBytes:AVERAGE',
-			'LINE2:AvailableBytes#0000ff:Available bytes',
-			'LINE2:CommittedBytes#000000:Committed bytes\\n',
+			'LINE2:AvailableBytes#0000ff: Available bytes',
+			'LINE2:CommittedBytes#000000: Committed bytes\\n',
 			'GPRINT:AvailableBytes:MIN:Min Available %1.3lf %sb',
 			'GPRINT:AvailableBytes:AVERAGE:Avg Available %1.3lf %Sb',
 			'GPRINT:AvailableBytes:MAX:Max Available %1.3lf %Sb\\n',
@@ -54,8 +54,8 @@
 	'small'=> [
 			'DEF:AvailableBytes=$database:AvailableBytes:AVERAGE',
 			'DEF:CommittedBytes=$database:CommittedBytes:AVERAGE',
-			'LINE2:AvailableBytes#0000ff:Available bytes',
-			'LINE2:CommittedBytes#000000:Committed bytes'
+			'LINE2:AvailableBytes#0000ff: Available bytes',
+			'LINE2:CommittedBytes#000000: Committed bytes'
 		]
 	}
 );

@@ -50,12 +50,12 @@
 
 			'CDEF:split_inBits=inBits,-1,*',
 
-			'AREA:split_inBits#00BFFF:Port In',
+			'AREA:split_inBits#00BFFF: Port In',
 			'GPRINT:inBits:LAST:Current %6.2lf %sbps',
 			'GPRINT:inBits:AVERAGE:Avg. %6.2lf %sbps',
 			'GPRINT:inBits:MAX:Max %6.2lf %sbps\\n',
 
-			'AREA:outBits#00FF7F:Port Out',
+			'AREA:outBits#00FF7F: Port Out',
 			'GPRINT:outBits:LAST:Current %6.2lf %sbps',
 			'GPRINT:outBits:AVERAGE:Avg. %6.2lf %sbps',
 		 	'GPRINT:outBits:MAX:Max %6.2lf %sbps\\n',
@@ -69,11 +69,11 @@
 
 			'CDEF:split_inBits=inBits,-1,*',
 
-			'AREA:split_inBits#00BFFF:Port In',
+			'AREA:split_inBits#00BFFF: Port In',
 			'GPRINT:inBits:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:inBits:MAX:Max %1.2lf %sbps\\n',
 
-			'AREA:outBits#00FF7F:Port Out',
+			'AREA:outBits#00FF7F: Port Out',
 			'GPRINT:outBits:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:outBits:MAX:Max %1.2lf %sbps\\n',
 		]

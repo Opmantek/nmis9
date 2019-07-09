@@ -41,14 +41,14 @@
 		'standard' => [
 			'DEF:DwdmIfTrPower=$database:DwdmIfTrPower:AVERAGE',
 			'DEF:DwdmIfTrRefPower=$database:DwdmIfTrRefPower:AVERAGE',
-			'LINE1:DwdmIfTrPower#00ff00:Avg Busy 1min',
-			'LINE1:DwdmIfTrRefPower#0000ff:Avg Busy 5min'
+			'LINE1:DwdmIfTrPower#00ff00: Avg Busy 1min',
+			'LINE1:DwdmIfTrRefPower#0000ff: Avg Busy 5min'
 		],
 		'small' => [
 			'DEF:DwdmIfTrPower=$database:DwdmIfTrPower:AVERAGE',
 			'DEF:DwdmIfTrRefPower=$database:DwdmIfTrRefPower:AVERAGE',
-			'LINE1:DwdmIfTrPower#00ff00:Avg Busy 1min',
-			'LINE1:DwdmIfTrRefPower#0000ff:Avg Busy 5min',
+			'LINE1:DwdmIfTrPower#00ff00: Avg Busy 1min',
+			'LINE1:DwdmIfTrRefPower#0000ff: Avg Busy 5min',
 			'GPRINT:DwdmIfTrPower:AVERAGE:Avg Busy 1min %1.2lf %%',
 			'GPRINT:DwdmIfTrPower:MAX:Max Busy 1min %1.2lf %%',
 			'GPRINT:DwdmIfTrRefPower:AVERAGE:Avg Busy 5min %1.2lf %%',

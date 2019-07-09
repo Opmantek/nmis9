@@ -39,14 +39,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:StaCount=$database:StaCount:AVERAGE',
-			'LINE1:StaCount#4daef6:Stations',
+			'LINE1:StaCount#4daef6: Stations',
 			'GPRINT:StaCount:LAST:Current %6.2lf',
 			'GPRINT:StaCount:AVERAGE:Avg %6.2lf',
 			'GPRINT:StaCount:MAX:Max %6.2lf\\n',
 		],
 		'small' => [
 			'DEF:StaCount=$database:StaCount:AVERAGE',
-			'LINE1:StaCount#4daef6:Stations',
+			'LINE1:StaCount#4daef6: Stations',
 			'GPRINT:StaCount:LAST:Current %6.2lf',
 			'GPRINT:StaCount:AVERAGE:Avg %6.2lf',
 			'GPRINT:StaCount:MAX:Max %6.2lf\\n',

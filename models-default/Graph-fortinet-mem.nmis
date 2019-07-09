@@ -44,7 +44,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:fgSysMemUsage=$database:fgSysMemUsage:AVERAGE',
-			'AREA:fgSysMemUsage#00ffff:Memory usage',
+			'AREA:fgSysMemUsage#00ffff: Memory usage',
 			'GPRINT:fgSysMemUsage:AVERAGE:Avg %6.1lf%%',
 			'GPRINT:fgSysMemUsage:MAX:Max %6.1lf%%\n',	
 		],
@@ -53,7 +53,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:fgSysMemUsage=$database:fgSysMemUsage:AVERAGE',
-			'AREA:fgSysMemUsage#00ffff:Memory usage',
+			'AREA:fgSysMemUsage#00ffff: Memory usage',
 			'GPRINT:fgSysMemUsage:AVERAGE:Avg %6.1lf%%',
 			'GPRINT:fgSysMemUsage:MAX:Max %6.1lf%%\n',
 		]

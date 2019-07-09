@@ -41,7 +41,7 @@
 		'standard' => [
 			'DEF:throughput=$database:Octets:AVERAGE',
 			'CDEF:throughputBits=throughput,8,*',
-			'$GLINE:throughputBits#00BFFF:throughput\\t',
+			'$GLINE:throughputBits#00BFFF: throughput\\t',
 			'GPRINT:throughputBits:LAST:Current %6.0lf %Sbits/sec\\t',
 			'GPRINT:throughputBits:AVERAGE:Average %6.0lf %Sbits/sec\\t',
 			'GPRINT:throughputBits:MAX:Maximum %6.0lf %Sbits/sec\\n',
@@ -50,7 +50,7 @@
 		'small' => [
 			'DEF:throughput=$database:Octets:AVERAGE',
 			'CDEF:throughputBits=throughput,8,*',
-			'$GLINE:throughputBits#00BFFF:throughput',
+			'$GLINE:throughputBits#00BFFF: throughput',
 			'GPRINT:throughputBits:LAST:Current %6.0lf %Sbits/sec',
 			'GPRINT:throughputBits:AVERAGE:Avg. %6.0lf %Sbits/sec',
 			'GPRINT:throughputBits:MAX:Max %6.0lf %Sbits/sec\\n',

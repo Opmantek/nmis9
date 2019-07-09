@@ -50,27 +50,27 @@
 			'DEF:cpsCctEntryLds=$database:cpsCctEntryLds:AVERAGE',
 			'DEF:cpsCctEntryLss=$database:cpsCctEntryLss:AVERAGE',
 
-			'LINE1:cpsCctEntryVdc#191970:Voltage (volts)',
+			'LINE1:cpsCctEntryVdc#191970: Voltage (volts)',
 			'GPRINT:cpsCctEntryVdc:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsCctEntryAdc#800000:Current (mA)',
+			'LINE1:cpsCctEntryAdc#800000: Current (mA)',
 			'GPRINT:cpsCctEntryAdc:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsCctEntryStt#0000CD:State',
+			'LINE1:cpsCctEntryStt#0000CD: State',
 			'GPRINT:cpsCctEntryStt:AVERAGE:Avg %1.2lf',
 
 			'COMMENT:100=ON, 80=STANDBY, 20=MISSING, 0=VACANT\\n',
 
-			'LINE1:cpsCctEntryTmp#006400:Temperature (C)',
+			'LINE1:cpsCctEntryTmp#006400: Temperature (C)',
 			'GPRINT:cpsCctEntryTmp:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsCctEntryCfl#4682B4:Current Fail Alarm',
+			'LINE1:cpsCctEntryCfl#4682B4: Current Fail Alarm',
 			'GPRINT:cpsCctEntryCfl:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsCctEntryLds#ff0000:Load Drop Status',
+			'LINE1:cpsCctEntryLds#ff0000: Load Drop Status',
 			'GPRINT:cpsCctEntryLds:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsCctEntryLss#FFA500:Load Share Status',
+			'LINE1:cpsCctEntryLss#FFA500: Load Share Status',
 			'GPRINT:cpsCctEntryLss:AVERAGE:Avg %1.2lf',
 			'COMMENT:0 Alarm Inactive, 1 Alarm Active\\n'
 		],
@@ -85,27 +85,27 @@
 			'DEF:cpsCctEntryLds=$database:cpsCctEntryLds:AVERAGE',
 			'DEF:cpsCctEntryLss=$database:cpsCctEntryLss:AVERAGE',
 
-			'LINE1:cpsCctEntryVdc#191970:Voltage (volts)',
+			'LINE1:cpsCctEntryVdc#191970: Voltage (volts)',
 			'GPRINT:cpsCctEntryVdc:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsCctEntryAdc#800000:Current (mA)',
+			'LINE1:cpsCctEntryAdc#800000: Current (mA)',
 			'GPRINT:cpsCctEntryAdc:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsCctEntryStt#0000CD:State',
+			'LINE1:cpsCctEntryStt#0000CD: State',
 			'GPRINT:cpsCctEntryStt:AVERAGE:Avg %1.2lf',
 
 			'COMMENT:100=ON, 80=STANDBY, 20=MISSING, 0=VACANT\\n',
 
-			'LINE1:cpsCctEntryTmp#006400:Temperature (C)',
+			'LINE1:cpsCctEntryTmp#006400: Temperature (C)',
 			'GPRINT:cpsCctEntryTmp:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsCctEntryCfl#4682B4:Current Fail Alarm',
+			'LINE1:cpsCctEntryCfl#4682B4: Current Fail Alarm',
 			'GPRINT:cpsCctEntryCfl:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsCctEntryLds#ff0000:Load Drop Status',
+			'LINE1:cpsCctEntryLds#ff0000: Load Drop Status',
 			'GPRINT:cpsCctEntryLds:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsCctEntryLss#FFA500:Load Share Status',
+			'LINE1:cpsCctEntryLss#FFA500: Load Share Status',
 			'GPRINT:cpsCctEntryLss:AVERAGE:Avg %1.2lf',
 			'COMMENT:0 Alarm Inactive, 1 Alarm Active\\n'
 

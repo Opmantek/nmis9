@@ -42,10 +42,10 @@
 		'standard' => [
 			'DEF:diskIONReadX=$database:diskIONReadX:AVERAGE',
 			'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
-			'LINE2:diskIONReadX#0000ff:bytes Read/s\t',
+			'LINE2:diskIONReadX#0000ff: bytes Read/s\t',
 			'GPRINT:diskIONReadX:AVERAGE:Avg %10.0lf',
 			'GPRINT:diskIONReadX:MAX:Max %10.0lf\\n',
-			'LINE2:diskIONWrittenX#00ff00:bytes Written/s\t',
+			'LINE2:diskIONWrittenX#00ff00: bytes Written/s\t',
 			'GPRINT:diskIONWrittenX:AVERAGE:Avg %10.0lf',
 			'GPRINT:diskIONWrittenX:MAX:Max %10.0lf\\n',
 		]

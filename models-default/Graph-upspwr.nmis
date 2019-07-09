@@ -40,19 +40,19 @@
 	'option' => {
 		'standard' => [
 			'DEF:upsoutputpower1=$database:upsoutputpower1:AVERAGE',
-			'LINE1:upsoutputpower1#0000ff:Output Power 1',
+			'LINE1:upsoutputpower1#0000ff: Output Power 1',
 			'DEF:upsoutputpower2=$database:upsoutputpower2:AVERAGE',
-			'LINE1:upsoutputpower2#00ff00:Output Power 2',
+			'LINE1:upsoutputpower2#00ff00: Output Power 2',
 			'DEF:upsoutputpower3=$database:upsoutputpower3:AVERAGE',
-			'LINE1:upsoutputpower3#ff0000:Output Power 3'
+			'LINE1:upsoutputpower3#ff0000: Output Power 3'
 		],
 		'small' => [
 			'DEF:upsoutputpower1=$database:upsoutputpower1:AVERAGE',
-			'LINE1:upsoutputpower1#0000ff:Output Power 1',
+			'LINE1:upsoutputpower1#0000ff: Output Power 1',
 			'DEF:upsoutputpower2=$database:upsoutputpower2:AVERAGE',
-			'LINE1:upsoutputpower2#00ff00:Output Power 2',
+			'LINE1:upsoutputpower2#00ff00: Output Power 2',
 			'DEF:upsoutputpower3=$database:upsoutputpower3:AVERAGE',
-			'LINE1:upsoutputpower3#ff0000:Output Power 3'
+			'LINE1:upsoutputpower3#ff0000: Output Power 3'
 		]
 	}
 );

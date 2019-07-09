@@ -41,11 +41,11 @@
 		'standard' => [
 			'DEF:temp=$database:BoardTemperature:AVERAGE',
 			'DEF:power=$database:BoardPower:AVERAGE',
-			'AREA:temp#00cccc:Board Temperature\\t',
+			'AREA:temp#00cccc: Board Temperature\\t',
 			'GPRINT:temp:LAST:Current %4.2lf',
 			'GPRINT:temp:AVERAGE:Avg %4.2lf',
 			'GPRINT:temp:MAX:Max %4.2lf\\n',
-			'LINE2:power#ffa500:Board Power\\t\\t',
+			'LINE2:power#ffa500: Board Power\\t\\t',
 			'GPRINT:power:LAST:Current %4.2lf',
 			'GPRINT:power:AVERAGE:Avg %4.2lf',
 			'GPRINT:power:MAX:Max %4.2lf\\n'
@@ -53,11 +53,11 @@
 		'small' => [
 			'DEF:temp=$database:BoardTemperature:AVERAGE',
 			'DEF:power=$database:BoardPower:AVERAGE',
-			'AREA:temp#00cccc:Temp',
+			'AREA:temp#00cccc: Temp',
 			'GPRINT:temp:LAST:Current %4.2lf',
 			'GPRINT:temp:AVERAGE:Avg %4.2lf',
 			'GPRINT:temp:MAX:Max %4.2lf\\n',
-			'LINE2:power#ffa500:Power',
+			'LINE2:power#ffa500: Power',
 			'GPRINT:power:LAST:Current %4.2lf',
 			'GPRINT:power:AVERAGE:Avg %4.2lf',
 			'GPRINT:power:MAX:Max %4.2lf\\n'

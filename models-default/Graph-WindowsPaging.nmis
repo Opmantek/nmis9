@@ -43,7 +43,7 @@
 			'DEF:pageUsage=$database:pageUsage:AVERAGE',
 			'DEF:pageTotal=$database:pageTotal:AVERAGE',
 			'CDEF:percentPageUsage=pageUsage,pageTotal,/,100,*',
-			'LINE1:percentPageUsage#00BFFF:Percent Pagefile Usage',
+			'LINE1:percentPageUsage#00BFFF: Percent Pagefile Usage',
 			'GPRINT:percentPageUsage:LAST:Last %6.2lf',
 			'GPRINT:percentPageUsage:AVERAGE:Average %6.2lf',
 			'GPRINT:percentPageUsage:MAX:Max %6.2lf\\n'

@@ -44,14 +44,14 @@
 			'DEF:HumAVG=$database:hhmsSensorHum:AVERAGE',
 			'DEF:HumMAX=$database:hhmsSensorHum:MAX',
 			'DEF:HumMIN=$database:hhmsSensorHum:MIN',
-			'LINE1:HumAVG#0000ff:Humidity\\n',
+			'LINE1:HumAVG#0000ff: Humidity\\n',
 			'GPRINT:HumAVG:AVERAGE:Avg Humidity %1.1lf%%\n',
 			'GPRINT:HumMAX:MAX:Max Humidity %1.1lf%% \n',
 			'GPRINT:HumMIN:MIN:Min Humidity %1.1lf%% \n'
 		],
 		'small' => [
 			'DEF:HumAVG=$database:hhmsSensorHum:AVERAGE',
-			'LINE1:HumAVG#0000ff:Humidity\\n',
+			'LINE1:HumAVG#0000ff: Humidity\\n',
 		]
 	}
 );

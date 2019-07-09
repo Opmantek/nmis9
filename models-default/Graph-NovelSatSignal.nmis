@@ -39,14 +39,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:ChannelSNR=$database:LineChannelSNR:AVERAGE',
-			'LINE1:ChannelSNR#4daef6:Signal Noise Ratio',
+			'LINE1:ChannelSNR#4daef6: Signal Noise Ratio',
 			'GPRINT:ChannelSNR:LAST:Current %1.2lf dB',
 			'GPRINT:ChannelSNR:AVERAGE:Avg. %1.2lf dB',
 			'GPRINT:ChannelSNR:MAX:Max %1.2lf dB\\n',			
 		],
 		'small' => [
 			'DEF:ChannelSNR=$database:LineChannelSNR:AVERAGE',
-			'LINE1:ChannelSNR#4daef6:SNR dB',
+			'LINE1:ChannelSNR#4daef6: SNR dB',
 			'GPRINT:ChannelSNR:LAST:Current %1.2lf',
 			'GPRINT:ChannelSNR:AVERAGE:Avg. %1.2lf',
 			'GPRINT:ChannelSNR:MAX:Max %1.2lf\\n',

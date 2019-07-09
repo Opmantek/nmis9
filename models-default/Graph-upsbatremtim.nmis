@@ -41,11 +41,11 @@
 	'option' => {
 		'standard' => [
 			'DEF:upsbatremtim=$database:upsbatremtim:AVERAGE',
-			'LINE1:upsbatremtim#0000ff:Battery Remaining Time'
+			'LINE1:upsbatremtim#0000ff: Battery Remaining Time'
 		],
 		'small' => [
 			'DEF:upsbatremtim=$database:upsbatremtim:AVERAGE',
-			'LINE1:upsbatremtim#0000ff:Battery Remaining Time'
+			'LINE1:upsbatremtim#0000ff: Battery Remaining Time'
 		]
 	}
 );

@@ -39,14 +39,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:ChannelDataRate=$database:ChannelDataRate:AVERAGE',			
-			'LINE2:ChannelDataRate#FF0000:ChannelDataRate bps',
+			'LINE2:ChannelDataRate#FF0000: ChannelDataRate bps',
 			'GPRINT:ChannelDataRate:AVERAGE:Avg. %1.2lf %s',
 			'GPRINT:ChannelDataRate:MAX:Max %1.2lf %S\\n',
 
 		],
 		'small' => [
 			'DEF:ChannelDataRate=$database:ChannelDataRate:AVERAGE',		
-			'LINE2:ChannelDataRate#FF0000:ChannelDataRate',
+			'LINE2:ChannelDataRate#FF0000: ChannelDataRate',
 			'GPRINT:ChannelDataRate:AVERAGE:Avg. %1.2lf %s',
 			'GPRINT:ChannelDataRate:MAX:Max %1.2lf %S\\n',
 		]

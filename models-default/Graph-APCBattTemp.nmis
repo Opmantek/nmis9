@@ -41,7 +41,7 @@
 	'option' => {
 		'standard' => [
 			'DEF:upsbattemp=$database:BatTemp:AVERAGE',
-			'LINE1:upsbattemp#dc143c:Battery Temperature',
+			'LINE1:upsbattemp#dc143c: Battery Temperature',
 			'GPRINT:upsbattemp:AVERAGE:%2.1lf degC\\n',
 		],
 	}

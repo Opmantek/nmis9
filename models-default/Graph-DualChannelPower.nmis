@@ -42,22 +42,22 @@
                                  'DEF:rxSigCh1=$database:rxSigCh1:AVERAGE',
                                  'DEF:rxRemSigCh1=$database:rxRemSigCh1:AVERAGE',
 
-                                 'LINE2:rxSigCh0#006400:Ch0 Signal',
+                                 'LINE2:rxSigCh0#006400: Ch0 Signal',
                                  'GPRINT:rxSigCh0:LAST:Current %1.2lf dB',
                                  'GPRINT:rxSigCh0:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxSigCh0:MAX:Max %1.2lf dB\\n',
 
-                                 'LINE2:rxRemSigCh0#0000ff:Ch0 Remote',
+                                 'LINE2:rxRemSigCh0#0000ff: Ch0 Remote',
                                  'GPRINT:rxRemSigCh0:LAST:Current %1.2lf dB',
                                  'GPRINT:rxRemSigCh0:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxRemSigCh0:MAX:Max %1.2lf dB\\n',
 
-                                 'LINE2:rxSigCh1#7FFF00:Ch1 Signal',
+                                 'LINE2:rxSigCh1#7FFF00: Ch1 Signal',
                                  'GPRINT:rxSigCh1:LAST:Current %1.2lf dB',
                                  'GPRINT:rxSigCh1:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxSigCh1:MAX:Max %1.2lf dB\\n',
 
-                                 'LINE2:rxRemSigCh1#4daef6:Ch1 Remote',
+                                 'LINE2:rxRemSigCh1#4daef6: Ch1 Remote',
                                  'GPRINT:rxRemSigCh1:LAST:Current %1.2lf dB',
                                  'GPRINT:rxRemSigCh1:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxRemSigCh1:MAX:Max %1.2lf dB\\n',
@@ -68,22 +68,22 @@
 				 'DEF:rxSigCh1=$database:rxSigCh1:AVERAGE',
 				 'DEF:rxRemSigCh1=$database:rxRemSigCh1:AVERAGE',
 				 
-				 'LINE2:rxSigCh0#006400:Ch0 Signal',
+				 'LINE2:rxSigCh0#006400: Ch0 Signal',
                                  #'GPRINT:rxSigCh0:LAST:Current %1.2lf dB',
                                  'GPRINT:rxSigCh0:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxSigCh0:MAX:Max %1.2lf dB\\n',
 
-				 'LINE2:rxRemSigCh0#0000ff:Ch0 Remote',
+				 'LINE2:rxRemSigCh0#0000ff: Ch0 Remote',
                                  #'GPRINT:rxRemSigCh0:LAST:Current %1.2lf dB',
                                  'GPRINT:rxRemSigCh0:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxRemSigCh0:MAX:Max %1.2lf dB\\n',
 
-				 'LINE2:rxSigCh1#7FFF00:Ch1 Signal',
+				 'LINE2:rxSigCh1#7FFF00: Ch1 Signal',
                                  #'GPRINT:rxSigCh1:LAST:Current %1.2lf dB',
                                  'GPRINT:rxSigCh1:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxSigCh1:MAX:Max %1.2lf dB\\n',
 
-				 'LINE2:rxRemSigCh1#4daef6:Ch1 Remote',
+				 'LINE2:rxRemSigCh1#4daef6: Ch1 Remote',
                                  #'GPRINT:rxRemSigCh1:LAST:Current %1.2lf dB',
                                  'GPRINT:rxRemSigCh1:AVERAGE:Avg %1.2lf dB',
                                  'GPRINT:rxRemSigCh1:MAX:Max %1.2lf dB\\n',

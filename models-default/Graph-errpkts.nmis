@@ -55,13 +55,13 @@
 			'CDEF:PInErrors=ifInErrors,ifInPkts,/,100,*',
 			'CDEF:POutErrors=ifOutErrors,ifOutPkts,/,100,*',
 
-			'LINE2:PInDiscards#00cc00:ifInDiscards\\t',
+			'LINE2:PInDiscards#00cc00: ifInDiscards\\t',
 			'GPRINT:PInDiscards:AVERAGE:Avg Percentage InDiscards %6.2lf%%\n',
-			'LINE2:POutDiscards#ffbb00:ifOutDiscards\\t',
+			'LINE2:POutDiscards#ffbb00: ifOutDiscards\\t',
 			'GPRINT:POutDiscards:AVERAGE:Avg Percentage OutDiscards %6.2lf%%\n',
-			'LINE2:PInErrors#aa00cc:ifInErrors\\t\\t',
+			'LINE2:PInErrors#aa00cc: ifInErrors\\t\\t',
 			'GPRINT:PInErrors:AVERAGE:Avg Percentage InErrors %6.2lf%%\n',
-			'LINE2:POutErrors#ff0000:ifOutErrors\\t\\t',
+			'LINE2:POutErrors#ff0000: ifOutErrors\\t\\t',
 	 		'GPRINT:POutErrors:AVERAGE:Avg Percentage OutErrors %6.2lf%%\n',
 			'GPRINT:ifInPkts:AVERAGE:Avg Total Input Packets %6.2lf%s',
 			'GPRINT:ifOutPkts:AVERAGE:Avg Total Output Packets %6.2lf%s\n'
@@ -81,10 +81,10 @@
 			'CDEF:POutDiscards=ifOutDiscards,ifOutPkts,/,100,*',
 			'CDEF:PInErrors=ifInErrors,ifInPkts,/,100,*',
 			'CDEF:POutErrors=ifOutErrors,ifOutPkts,/,100,*',
-			'LINE2:PInDiscards#00cc00:ifInDiscards',
-			'LINE2:POutDiscards#ffbb00:ifOutDiscards',
-			'LINE2:PInErrors#aa00cc:ifInErrors',
-			'LINE2:POutErrors#ff0000:ifOutErrors'
+			'LINE2:PInDiscards#00cc00: ifInDiscards',
+			'LINE2:POutDiscards#ffbb00: ifOutDiscards',
+			'LINE2:PInErrors#aa00cc: ifInErrors',
+			'LINE2:POutErrors#ff0000: ifOutErrors'
 		]
 	}
 );

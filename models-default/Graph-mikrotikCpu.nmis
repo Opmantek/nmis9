@@ -44,7 +44,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:mikrotikCpu=$database:mikrotikCpu:AVERAGE',
-			'AREA:mikrotikCpu#00ff00:CPU Usage',
+			'AREA:mikrotikCpu#00ff00: CPU Usage',
 			'GPRINT:mikrotikCpu:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:mikrotikCpu:MAX:Max %1.2lf%%\\n'
 		],
@@ -53,7 +53,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:mikrotikCpu=$database:mikrotikCpu:AVERAGE',
-			'AREA:mikrotikCpu#00ff00:CPU Usage',
+			'AREA:mikrotikCpu#00ff00: CPU Usage',
 			'GPRINT:mikrotikCpu:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:mikrotikCpu:MAX:Max %1.2lf%%\\n'
 		]

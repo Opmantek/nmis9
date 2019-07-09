@@ -42,7 +42,7 @@
 		'standard' => [
 			'DEF:power=$database:power:AVERAGE',
 			'CDEF:powerAdj=power,100,/',
-			'LINE2:powerAdj#4daef6:Transmit Power',
+			'LINE2:powerAdj#4daef6: Transmit Power',
 			'GPRINT:powerAdj:LAST:Current %1.2lf dbm',
 			'GPRINT:powerAdj:AVERAGE:Avg. %1.2lf dbm',
 			'GPRINT:powerAdj:MAX:Max %1.2lf dbm\\n',			
@@ -50,7 +50,7 @@
 		'small' => [
 			'DEF:power=$database:power:AVERAGE',
 			'CDEF:powerAdj=power,100,/',
-			'LINE2:powerAdj#4daef6:Transmit Power',
+			'LINE2:powerAdj#4daef6: Transmit Power',
 			'GPRINT:powerAdj:LAST:Current %1.2lf dbm',
 			'GPRINT:powerAdj:AVERAGE:Avg. %1.2lf dbm',
 			'GPRINT:powerAdj:MAX:Max %1.2lf dbm\\n',

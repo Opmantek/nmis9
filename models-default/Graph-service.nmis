@@ -46,7 +46,7 @@
 			'--rigid',
 			'DEF:service=$database:service:AVERAGE',
 			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:service#ff0066:Service $index',
+			'LINE2:service#ff0066: Service $index',
 			'GPRINT:service:AVERAGE:Avg status %1.3lf\\n',
 			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs'
 		],
@@ -56,7 +56,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:service=$database:service:AVERAGE',
-			'LINE2:service#ff0066:$index',
+			'LINE2:service#ff0066: $index',
 			'GPRINT:service:AVERAGE:Avg status %1.3lf',
 		]
 	}

@@ -44,7 +44,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:fgSysCpuUsage=$database:fgSysCpuUsage:AVERAGE',
-			'LINE1:fgSysCpuUsage#4682B4:CPU usage',
+			'LINE1:fgSysCpuUsage#4682B4: CPU usage',
 			'GPRINT:fgSysCpuUsage:AVERAGE:Avg %6.1lf%%',
 			'GPRINT:fgSysCpuUsage:MAX:Max %6.1lf%%\\n',
 		],
@@ -53,7 +53,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:fgSysCpuUsage=$database:fgSysCpuUsage:AVERAGE',
-			'LINE1:fgSysCpuUsage#4682B4:CPU usage',
+			'LINE1:fgSysCpuUsage#4682B4: CPU usage',
 			'GPRINT:fgSysCpuUsage:AVERAGE: %6.1lf%%',
 			'GPRINT:fgSysCpuUsage:MAX:Max %6.1lf%%\\n',
 		]

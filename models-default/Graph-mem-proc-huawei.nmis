@@ -49,8 +49,8 @@
 			'CDEF:perFreeMem=MemFree,100,*,totalMem,/',
 			'AREA:perFreeMem#cccccc',
 #			'STACK:perUsedMem#cccccc',
-			'LINE2:perFreeMem#0000ff:% Processor Mem Free',
-			'LINE2:perUsedMem#000000:% Processor Mem Used\\n',
+			'LINE2:perFreeMem#0000ff: % Processor Mem Free',
+			'LINE2:perUsedMem#000000: % Processor Mem Used\\n',
 			'GPRINT:MemUsed:AVERAGE:Proc Mem Used %1.lf bytes',
 			'GPRINT:MemFree:AVERAGE:Proc Mem Free %1.lf bytes',
 			'GPRINT:totalMem:AVERAGE:Total Proc Mem %1.lf bytes\\n',
@@ -68,8 +68,8 @@
 			'CDEF:perFreeMem=MemFree,100,*,totalMem,/',
 			'AREA:perFreeMem#cccccc',
 			'STACK:perUsedMem#cccccc',
-			'LINE2:perFreeMem#0000ff:% Processor Mem Free',
-			'LINE2:perUsedMem#000000:% Processor Mem Used'
+			'LINE2:perFreeMem#0000ff: % Processor Mem Free',
+			'LINE2:perUsedMem#000000: % Processor Mem Used'
 		]
 	}
 );

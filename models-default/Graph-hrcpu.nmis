@@ -41,7 +41,7 @@
 	'option' => {
 		'standard' => [
 			'DEF:laLoad5=$database:laLoad5:AVERAGE',
-			'LINE2:laLoad5#0000ff:CPU Percent Time\\n',
+			'LINE2:laLoad5#0000ff: CPU Percent Time\\n',
 			'GPRINT:laLoad5:MIN:Min CPU Percent Time %1.0lf',
 			'GPRINT:laLoad5:AVERAGE:Average CPU Percent Time %1.0lf',
 			'GPRINT:laLoad5:MAX:Max CPU Percent Time %1.0lf'

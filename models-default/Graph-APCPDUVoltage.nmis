@@ -40,7 +40,7 @@
 		'standard' => [
 			'--lower-limit','0',
 			'DEF:ac1=$database:pduVoltage:AVERAGE',
-			'LINE:ac1#4B0082:Current Line Input Voltage',
+			'LINE:ac1#4B0082: Current Line Input Voltage',
 			'GPRINT:ac1:LAST:%5.2lf V\\n',
 		],
 	}

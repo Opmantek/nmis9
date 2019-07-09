@@ -62,12 +62,12 @@
       'CDEF:split_linkTxBits=linkTxBits,-1,*',
 
       # DRAW GRAPH
-      'AREA:linkRxBits#00cc00:Rx Link Rate',
+      'AREA:linkRxBits#00cc00: Rx Link Rate',
       'GPRINT:linkRxBits:LAST:Current %6.2lf %sbps',
       'GPRINT:linkRxBits:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:linkRxBits:MAX:Max %6.2lf %sbps\\n',
 
-      'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+      'AREA:split_linkTxBits#4daef6: Tx Link Rate',
       'GPRINT:linkTxBits:LAST:Current %6.2lf %sbps',
       'GPRINT:linkTxBits:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:linkTxBits:MAX:Max %6.2lf %sbps\\n',
@@ -82,11 +82,11 @@
       # CREATE SPLIT
       'CDEF:split_linkTxBits=linkTxBits,-1,*',
       # DRAW GRAPH
-      'AREA:linkRxBits#00cc00:Rx Link Rate',
+      'AREA:linkRxBits#00cc00: Rx Link Rate',
       'GPRINT:linkRxBits:AVERAGE:Avg. %1.2lf %sbps',
       'GPRINT:linkRxBits:MAX:Max %1.2lf %sbps\\n',
       #
-      'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+      'AREA:split_linkTxBits#4daef6: Tx Link Rate',
       'GPRINT:linkTxBits:AVERAGE:Avg. %1.2lf %sbps',
       'GPRINT:linkTxBits:MAX:Max %1.2lf %sbps\\n',
 		]

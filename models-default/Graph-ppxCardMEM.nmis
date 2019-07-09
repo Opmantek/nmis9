@@ -57,17 +57,17 @@
 			'CDEF:NormalRamUtilNZ=NormalRamUtil,UN,0,NormalRamUtil,IF',
 			'CDEF:SharedRamUtilNZ=SharedRamUtil,UN,0,SharedRamUtil,IF',
 
-			'LINE1:FastRamUtil#00CED1:Fast RAM\\t',
+			'LINE1:FastRamUtil#00CED1: Fast RAM\\t',
 			'GPRINT:FastRamUtilNZ:LAST:Current %4.2lf%%',
 			'GPRINT:FastRamUtilNZ:AVERAGE:Avg %4.2lf%%',
 			'GPRINT:FastRamUtilNZ:MAX:Max %4.2lf%%\\n',
 			
-			'LINE1:NormalRamUtil#4682B4:Normal RAM\\t',
+			'LINE1:NormalRamUtil#4682B4: Normal RAM\\t',
 			'GPRINT:NormalRamUtilNZ:LAST:Current %4.2lf%%',
 			'GPRINT:NormalRamUtilNZ:AVERAGE:Avg %4.2lf%%',
 			'GPRINT:NormalRamUtilNZ:MAX:Max %4.2lf%%\\n',
 
-			'LINE1:SharedRamUtil#FF82B4:Shared RAM\\t',
+			'LINE1:SharedRamUtil#FF82B4: Shared RAM\\t',
 			'GPRINT:SharedRamUtilNZ:LAST:Current %4.2lf%%',
 			'GPRINT:SharedRamUtilNZ:AVERAGE:Avg %4.2lf%%',
 			'GPRINT:SharedRamUtilNZ:MAX:Max %4.2lf%%\\n',
@@ -92,15 +92,15 @@
 			'CDEF:NormalRamUtilNZ=NormalRamUtil,UN,0,NormalRamUtil,IF',
 			'CDEF:SharedRamUtilNZ=SharedRamUtil,UN,0,SharedRamUtil,IF',
 
-			'LINE1:FastRamUtil#00CED1:Fast RAM\\t',
+			'LINE1:FastRamUtil#00CED1: Fast RAM\\t',
 			'GPRINT:FastRamUtilNZ:LAST:Current %4.2lf%%',
 			'GPRINT:FastRamUtilNZ:MAX:Max %4.2lf%%\\n',
 			
-			'LINE1:NormalRamUtil#4682B4:Normal RAM\\t',
+			'LINE1:NormalRamUtil#4682B4: Normal RAM\\t',
 			'GPRINT:NormalRamUtilNZ:LAST:Current %4.2lf%%',
 			'GPRINT:NormalRamUtilNZ:MAX:Max %4.2lf%%\\n',
 
-			'LINE1:SharedRamUtil#FF82B4:Shared RAM\\t',
+			'LINE1:SharedRamUtil#FF82B4: Shared RAM\\t',
 			'GPRINT:SharedRamUtilNZ:LAST:Current %4.2lf%%',
 			'GPRINT:SharedRamUtilNZ:MAX:Max %4.2lf%%\\n',
     ]

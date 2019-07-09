@@ -41,16 +41,16 @@
 		'standard' => [
 			'DEF:connectionsInUse=$database:connectionsInUse:AVERAGE',
 			'DEF:connectionsHigh=$database:connectionsHigh:AVERAGE',
-			'LINE1:connectionsInUse#00ff00:Connections In Use',
-			'LINE1:connectionsHigh#0000ff:Connections High',
+			'LINE1:connectionsInUse#00ff00: Connections In Use',
+			'LINE1:connectionsHigh#0000ff: Connections High',
 			'GPRINT:connectionsInUse:AVERAGE:Connections In Use %1.0lf',
 			'GPRINT:connectionsHigh:AVERAGE:Connections High %1.0lf'
 		],
 		'small' => [
 			'DEF:connectionsInUse=$database:connectionsInUse:AVERAGE',
 			'DEF:connectionsHigh=$database:connectionsHigh:AVERAGE',
-			'LINE1:connectionsInUse#00ff00:Connections In Use',
-			'LINE1:connectionsHigh#0000ff:Connections High',
+			'LINE1:connectionsInUse#00ff00: Connections In Use',
+			'LINE1:connectionsHigh#0000ff: Connections High',
 			'GPRINT:connectionsInUse:AVERAGE:Connections In Use %1.0lf',
 			'GPRINT:connectionsHigh:AVERAGE:Connections High %1.0lf'
 		]

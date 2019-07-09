@@ -43,12 +43,12 @@
 			'DEF:DiskWriteBytesSec=$database:DiskWriteBytesSec:AVERAGE',
 			'DEF:DiskReadBytesSec=$database:DiskReadBytesSec:AVERAGE',
 
-			'LINE1:DiskWriteBytesSec#ffff00:DiskWriteBytesSec\\t',
+			'LINE1:DiskWriteBytesSec#ffff00: DiskWriteBytesSec\\t',
 			'GPRINT:DiskWriteBytesSec:LAST:Last %8.2lf',
 			'GPRINT:DiskWriteBytesSec:AVERAGE:Average %8.2lf',
 			'GPRINT:DiskWriteBytesSec:MAX:Max %8.2lf\\n',
 
-			'LINE1:DiskReadBytesSec#00a5ff:DiskReadBytesSec\\t',
+			'LINE1:DiskReadBytesSec#00a5ff: DiskReadBytesSec\\t',
 			'GPRINT:DiskReadBytesSec:LAST:Last %8.2lf',
 			'GPRINT:DiskReadBytesSec:AVERAGE:Average %8.2lf',
 			'GPRINT:DiskReadBytesSec:MAX:Max %8.2lf\\n',
@@ -57,11 +57,11 @@
 			'DEF:DiskWriteBytesSec=$database:DiskWriteBytesSec:AVERAGE',
 			'DEF:DiskReadBytesSec=$database:DiskReadBytesSec:AVERAGE',
 
-			'LINE1:DiskWriteBytesSec#ffff00:DiskWriteBytesSec\\t',
+			'LINE1:DiskWriteBytesSec#ffff00: DiskWriteBytesSec\\t',
 			'GPRINT:DiskWriteBytesSec:LAST:Last %8.0lf',
 			'GPRINT:DiskWriteBytesSec:AVERAGE:Avg. %8.0lf\\n',
 
-			'LINE1:DiskReadBytesSec#00a5ff:DiskReadBytesSec\\t',
+			'LINE1:DiskReadBytesSec#00a5ff: DiskReadBytesSec\\t',
 			'GPRINT:DiskReadBytesSec:LAST:Last %8.0lf',
 			'GPRINT:DiskReadBytesSec:AVERAGE:Avg. %8.0lf\\n',
 		]		

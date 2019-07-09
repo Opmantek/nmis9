@@ -41,15 +41,15 @@
 	'option' => {
 		'standard' => [
 			'DEF:hhmsSensorHum0=$database:hhmsSensorHum0:AVERAGE',
-			'LINE1:hhmsSensorHum0#0000ff:Humidity warm corridor',
+			'LINE1:hhmsSensorHum0#0000ff: Humidity warm corridor',
 			'DEF:hhmsSensorHum1=$database:hhmsSensorHum1:AVERAGE',
-			'LINE1:hhmsSensorHum1#00ff00:Humidity cold corridor'
+			'LINE1:hhmsSensorHum1#00ff00: Humidity cold corridor'
 		],
 		'small' => [
 			'DEF:hhmsSensorHum0=$database:hhmsSensorHum0:AVERAGE',
-			'LINE1:hhmsSensorHum0#0000ff:Humidity warm corridor',
+			'LINE1:hhmsSensorHum0#0000ff: Humidity warm corridor',
 			'DEF:hhmsSensorHum1=$database:hhmsSensorHum1:AVERAGE',
-			'LINE1:hhmsSensorHum1#00ff00:Humidity cold corridor'
+			'LINE1:hhmsSensorHum1#00ff00: Humidity cold corridor'
 		]
 	}
 );

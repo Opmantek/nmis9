@@ -44,13 +44,13 @@
 			'DEF:establishedConn=$database:establishedConn:AVERAGE',
 			'DEF:halfOpenedConn=$database:halfOpenedConn:AVERAGE',
 			'DEF:halfClosedConn=$database:halfClosedConn:AVERAGE',
-			'LINE1:activeConn#0000ff:Active',
+			'LINE1:activeConn#0000ff: Active',
 			'GPRINT:activeConn:AVERAGE:Avg %1.2lf\\n',
-			'LINE1:establishedConn#00ff00:Established',
+			'LINE1:establishedConn#00ff00: Established',
 			'GPRINT:establishedConn:AVERAGE:Avg %1.2lf\\n',
-			'LINE1:halfOpenedConn#ff0000:Half Opened',
+			'LINE1:halfOpenedConn#ff0000: Half Opened',
 			'GPRINT:halfOpenedConn:AVERAGE:Avg %1.2lf\\n',
-			'LINE1:halfClosedConn#00ffff:Half Closed',
+			'LINE1:halfClosedConn#00ffff: Half Closed',
 			'GPRINT:halfClosedConn:AVERAGE:Avg %1.2lf\\n'
 		],
 		'small' => [
@@ -58,10 +58,10 @@
 			'DEF:establishedConn=$database:establishedConn:AVERAGE',
 			'DEF:halfOpenedConn=$database:halfOpenedConn:AVERAGE',
 			'DEF:halfClosedConn=$database:halfClosedConn:AVERAGE',
-			'LINE1:activeConn#0000ff:Active',
-			'LINE1:establishedConn#00ff00:Established',
-			'LINE1:halfOpenedConn#ff0000:Half Opened',
-			'LINE1:halfClosedConn#00ffff:Half Closed',
+			'LINE1:activeConn#0000ff: Active',
+			'LINE1:establishedConn#00ff00: Established',
+			'LINE1:halfOpenedConn#ff0000: Half Opened',
+			'LINE1:halfClosedConn#00ffff: Half Closed',
 		]
 	}
 );

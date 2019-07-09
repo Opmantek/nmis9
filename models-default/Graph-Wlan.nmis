@@ -48,12 +48,12 @@
 			'CDEF:split_wlanTxBits=wlanTxBits,-1,*',
 			
 			# DRAW GRAPH
-			'AREA:wlanRxBits#00FF7F:WLAN Rx Rate',
+			'AREA:wlanRxBits#00FF7F: WLAN Rx Rate',
 			'GPRINT:wlanRxBits:LAST:Current %1.2lf %sbps',
 			'GPRINT:wlanRxBits:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:wlanRxBits:MAX:Max %1.2lf %sbps\\n',
 			#
-			'AREA:split_wlanTxBits#00BFFF:WLAN Tx Rate',
+			'AREA:split_wlanTxBits#00BFFF: WLAN Tx Rate',
 			'GPRINT:wlanTxBits:LAST:Current %1.2lf %sbps',
 			'GPRINT:wlanTxBits:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:wlanTxBits:MAX:Max %1.2lf %sbps\\n',
@@ -69,11 +69,11 @@
 			'CDEF:split_wlanTxBits=wlanTxBits,-1,*',
 			
 			# DRAW GRAPH
-			'AREA:wlanRxBits#00FF7F:Rx Rate',
+			'AREA:wlanRxBits#00FF7F: Rx Rate',
 			'GPRINT:wlanRxBits:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:wlanRxBits:MAX:Max %1.2lf %sbps\\n',
 			#
-			'AREA:split_wlanTxBits#00BFFF:Tx Rate',
+			'AREA:split_wlanTxBits#00BFFF: Tx Rate',
 			'GPRINT:wlanTxBits:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:wlanTxBits:MAX:Max %1.2lf %sbps\\n',
 		]

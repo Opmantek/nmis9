@@ -40,9 +40,9 @@
 		'standard' => [
 			'DEF:b1=$database:batteryTemp0:AVERAGE',
 			'DEF:b2=$database:batteryTemp1:AVERAGE',
-			'LINE:b1#FF8c00:Sensor 1',
+			'LINE:b1#FF8c00: Sensor 1',
 			'GPRINT:b1:AVERAGE:%2.1lf degrees',
-			'LINE:b2#DC143C:Sensor 2',
+			'LINE:b2#DC143C: Sensor 2',
 			'GPRINT:b2:AVERAGE:%2.1lf degrees',
 		],
 	}

@@ -46,7 +46,7 @@
 			'DEF:PassedPackets=$database:PassedPackets:AVERAGE',
 			'DEF:DroppedPackets=$database:DroppedPackets:AVERAGE',
 
-			'AREA:MatchedBytes#BCFD0A:Matched Bytes',
+			'AREA:MatchedBytes#BCFD0A: Matched Bytes',
 			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf\t',
 			'GPRINT:MatchedBytes:MAX:Max %1.2lf\n',
 			
@@ -60,7 +60,7 @@
 		'small' => [
 			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
 
-			'AREA:MatchedBytes#BCFD0A:Matched Bytes',
+			'AREA:MatchedBytes#BCFD0A: Matched Bytes',
 			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf\t',
 			'GPRINT:MatchedBytes:MAX:Max %1.2lf\n',
 		]

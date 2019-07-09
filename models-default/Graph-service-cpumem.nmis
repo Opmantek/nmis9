@@ -47,9 +47,9 @@
 			'DEF:cpu=$database:cpu:AVERAGE',
 			'CDEF:memMBytes=memory,1024,/',
 			'CDEF:cpuSec=cpu,100,/',
-			'LINE2:memMBytes#ADFF2F:Memory $index',
+			'LINE2:memMBytes#ADFF2F: Memory $index',
 			'GPRINT:memMBytes:AVERAGE:Avg %1.3lf MBytes\\n',
-			'LINE2:cpuSec#DA70D6:CPU $index',
+			'LINE2:cpuSec#DA70D6: CPU $index',
 			'GPRINT:cpuSec:AVERAGE:Avg CPU %1.3lf CPU-seconds\\n',
 		],
 		'small' => [
@@ -59,8 +59,8 @@
 			'CDEF:cpuSec=cpu,100,/',
 			'DEF:memory=$database:memory:AVERAGE',
 			'CDEF:memMBytes=memory,1024,/',			
-			'LINE2:cpuSec#DA70D6:CPU $index',
-			'LINE2:memMBytes#ADFF2F:Memory $index',
+			'LINE2:cpuSec#DA70D6: CPU $index',
+			'LINE2:memMBytes#ADFF2F: Memory $index',
 		]
 	}
 );

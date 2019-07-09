@@ -46,7 +46,7 @@
 			'DEF:memTotal=$database:memTotal:AVERAGE',
 			'DEF:memUsed=$database:memUsed:AVERAGE',
 			'CDEF:memUtil=memUsed,memTotal,/,100,*',
-			'AREA:memUtil#0000ff:Memory Usage',
+			'AREA:memUtil#0000ff: Memory Usage',
 			'GPRINT:memUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:memUtil:MAX:Max %1.2lf%%\\n'
 		],
@@ -57,7 +57,7 @@
 			'DEF:memTotal=$database:memTotal:AVERAGE',
 			'DEF:memUsed=$database:memUsed:AVERAGE',
 			'CDEF:memUtil=memUsed,memTotal,/,100,*',
-			'AREA:memUtil#0000ff:Memory Usage',
+			'AREA:memUtil#0000ff: Memory Usage',
 			'GPRINT:memUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:memUtil:MAX:Max %1.2lf%%\\n'
 		]

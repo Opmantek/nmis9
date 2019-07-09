@@ -41,13 +41,13 @@
 	'option' => {
 		'standard' => [
 			'DEF:hrProcessorLoad=$database:hrProcessorLoad:MAX',
-			'LINE1:hrProcessorLoad#4169E1:Processor Load',                        
+			'LINE1:hrProcessorLoad#4169E1: Processor Load',                        
 			'GPRINT:hrProcessorLoad:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:hrProcessorLoad:MAX:Max %1.2lf%%\\n'
 		],
 		'small' => [
 			'DEF:hrProcessorLoad=$database:hrProcessorLoad:MAX',
-			'LINE1:hrProcessorLoad#4169E1:Processor Load',                        
+			'LINE1:hrProcessorLoad#4169E1: Processor Load',                        
 			'GPRINT:hrProcessorLoad:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:hrProcessorLoad:MAX:Max %1.2lf%%\\n'
 		]

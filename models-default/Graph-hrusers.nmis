@@ -40,7 +40,7 @@
 	'option' => {
 		'standard' => [
 			'DEF:hrNumUsers=$database:hrNumUsers:AVERAGE',
-			'LINE2:hrNumUsers#0000ff:Average Num Users\\n',
+			'LINE2:hrNumUsers#0000ff: Average Num Users\\n',
 			'GPRINT:hrNumUsers:MIN:Min Num Users %1.0lf',
 			'GPRINT:hrNumUsers:AVERAGE:Average Num Users %1.0lf',
 			'GPRINT:hrNumUsers:MAX:Max Num Users %1.0lf'

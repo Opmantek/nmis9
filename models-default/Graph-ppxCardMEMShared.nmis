@@ -45,23 +45,23 @@
 			'DEF:memMinSharedRam=$database:memMinSharedRam:AVERAGE',
 			'DEF:memMaxSharedRam=$database:memMaxSharedRam:AVERAGE',
 
-			'LINE1:memCapSharedRam#00CED1:Capacity Shared RAM',
+			'LINE1:memCapSharedRam#00CED1: Capacity Shared RAM',
 			'GPRINT:memCapSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memCapSharedRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memUsageSharedRam#4682B4:Usage Shared RAM',
+			'LINE1:memUsageSharedRam#4682B4: Usage Shared RAM',
 			'GPRINT:memUsageSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memUsageSharedRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memAvgSharedRam#FF82B4:Avg Shared RAM',
+			'LINE1:memAvgSharedRam#FF82B4: Avg Shared RAM',
 			'GPRINT:memAvgSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memAvgSharedRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memMinSharedRam#46FFB4:Min Shared RAM',
+			'LINE1:memMinSharedRam#46FFB4: Min Shared RAM',
 			'GPRINT:memMinSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMinSharedRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memMaxSharedRam#4682FF:Max Shared RAM',
+			'LINE1:memMaxSharedRam#4682FF: Max Shared RAM',
 			'GPRINT:memMaxSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMaxSharedRam:MAX:Max %4.0lf\\n'			
 		],
@@ -72,23 +72,23 @@
 			'DEF:memMinSharedRam=$database:memMinSharedRam:AVERAGE',
 			'DEF:memMaxSharedRam=$database:memMaxSharedRam:AVERAGE',
 
-			'LINE1:memCapSharedRam#00CED1:Capacity Shared RAM',
+			'LINE1:memCapSharedRam#00CED1: Capacity Shared RAM',
 			'GPRINT:memCapSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memCapSharedRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memUsageSharedRam#4682B4:Usage Shared RAM',
+			'LINE1:memUsageSharedRam#4682B4: Usage Shared RAM',
 			'GPRINT:memUsageSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memUsageSharedRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memAvgSharedRam#FF82B4:Avg Shared RAM',
+			'LINE1:memAvgSharedRam#FF82B4: Avg Shared RAM',
 			'GPRINT:memAvgSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memAvgSharedRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memMinSharedRam#46FFB4:Min Shared RAM',
+			'LINE1:memMinSharedRam#46FFB4: Min Shared RAM',
 			'GPRINT:memMinSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMinSharedRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memMaxSharedRam#4682FF:Max Shared RAM',
+			'LINE1:memMaxSharedRam#4682FF: Max Shared RAM',
 			'GPRINT:memMaxSharedRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMaxSharedRam:MAX:Max %4.0lf\\n'			
     ]

@@ -42,16 +42,16 @@
 		'standard' => [
 			'DEF:optimizedConn=$database:optimizedConn:AVERAGE',
 			'DEF:passthroughConn=$database:passthroughConn:AVERAGE',
-			'LINE1:optimizedConn#0000ff:Optimized',
+			'LINE1:optimizedConn#0000ff: Optimized',
 			'GPRINT:optimizedConn:AVERAGE:Avg %1.2lf\\n',
-			'LINE1:passthroughConn#00ff00:Passthrough',
+			'LINE1:passthroughConn#00ff00: Passthrough',
 			'GPRINT:passthroughConn:AVERAGE:Avg %1.2lf\\n'
 		],
 		'small' => [
 			'DEF:optimizedConn=$database:optimizedConn:AVERAGE',
 			'DEF:passthroughConn=$database:passthroughConn:AVERAGE',
-			'LINE1:optimizedConn#0000ff:Optimized',
-			'LINE1:passthroughConn#00ff00:Passthrough'
+			'LINE1:optimizedConn#0000ff: Optimized',
+			'LINE1:passthroughConn#00ff00: Passthrough'
 		]
 	}
 );

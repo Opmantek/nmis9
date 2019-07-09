@@ -42,12 +42,12 @@
 			'DEF:qpskbiterr=$database:qpskbiterr:AVERAGE',
 			'DEF:pvbiterr=$database:pvbiterr:AVERAGE',
 			
-			'LINE2:qpskbiterr#FF4500:QPSK Error Rate\\t',
+			'LINE2:qpskbiterr#FF4500: QPSK Error Rate\\t',
 			'GPRINT:qpskbiterr:AVERAGE:Avg %10.2lf%s err/s\\t',
 			'GPRINT:qpskbiterr:MIN:Min %10.2lf%s err/s\\t',
 			'GPRINT:qpskbiterr:MAX:Max %10.2lf%s err/s\\n',
 			
-			'LINE2:pvbiterr#8B0000:PV Error Rate\\t\\t',
+			'LINE2:pvbiterr#8B0000: PV Error Rate\\t\\t',
 			'GPRINT:pvbiterr:AVERAGE:Avg %10.2lf%s err/s\\t',
 			'GPRINT:pvbiterr:MIN:Min %10.2lf%s err/s\\t',
 			'GPRINT:pvbiterr:MAX:Max %10.2lf%s err/s\\n', 
@@ -60,10 +60,10 @@
 			'DEF:qpskbiterr=$database:qpskbiterr:AVERAGE',
 			'DEF:pvbiterr=$database:pvbiterr:AVERAGE',
 			
-			'LINE2:qpskbiterr#FF4500:QPSK Error Rate\\t',
+			'LINE2:qpskbiterr#FF4500: QPSK Error Rate\\t',
 			'GPRINT:qpskbiterr:AVERAGE:Avg %10.2lf%s\\t',
 			
-			'LINE2:pvbiterr#8B0000:PV Error Rate\\t',
+			'LINE2:pvbiterr#8B0000: PV Error Rate\\t',
 			'GPRINT:pvbiterr:AVERAGE:Avg %10.2lf%s',
 		],
 	}

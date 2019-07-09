@@ -56,13 +56,13 @@
       'CDEF:split_totalTx=totalTx,-1,*',
       
       # DRAW GRAPH
-      'AREA:totalRx#00CED1:Received\\t',
+      'AREA:totalRx#00CED1: Received\\t',
       'GPRINT:totalRx:LAST:Current %6.2lf %sbps',
       'GPRINT:totalRx:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:totalRx:MAX:Max %6.2lf %sbps\\n',
 
       #
-      'AREA:split_totalTx#4daef6:Transmitted\\t',
+      'AREA:split_totalTx#4daef6: Transmitted\\t',
       'GPRINT:totalTx:LAST:Current %6.2lf %sbps',
       'GPRINT:totalTx:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:totalTx:MAX:Max %6.2lf %sbps\\n',
@@ -82,13 +82,13 @@
       'CDEF:split_totalTx=totalTx,-1,*',
       
       # DRAW GRAPH
-      'AREA:totalRx#00CED1:Received',
+      'AREA:totalRx#00CED1: Received',
       'GPRINT:totalRx:LAST:Current %6.2lf %sbps',
       'GPRINT:totalRx:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:totalRx:MAX:Max %6.2lf %sbps\\n',
 
       #
-      'AREA:split_totalTx#4daef6:Transmitted',
+      'AREA:split_totalTx#4daef6: Transmitted',
       'GPRINT:totalTx:LAST:Current %6.2lf %sbps',
       'GPRINT:totalTx:AVERAGE:Avg. %6.2lf %sbps',
       'GPRINT:totalTx:MAX:Max %6.2lf %sbps\\n',

@@ -48,23 +48,23 @@
 			'DEF:ppxCardCpuUtilMin=$database:ppxCardCpuUtilMin:AVERAGE',
 			'DEF:ppxCardCpuUtilMax=$database:ppxCardCpuUtilMax:AVERAGE',
 
-			'LINE1:ppxCardTimeInt#00CED1:Interval',
+			'LINE1:ppxCardTimeInt#00CED1: Interval',
 			'GPRINT:ppxCardTimeInt:AVERAGE:Avg %1.2lf',
 			'GPRINT:ppxCardTimeInt:MAX:Max %1.2lf\\n',
 			
-			'LINE1:ppxCardCpuUtil#4682B4:Util',
+			'LINE1:ppxCardCpuUtil#4682B4: Util',
 			'GPRINT:ppxCardCpuUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtil:MAX:Max %1.2lf%%\\n',
 
-			'LINE1:ppxCardCpuUtilAvg#FF82B4:UtilAvg',
+			'LINE1:ppxCardCpuUtilAvg#FF82B4: UtilAvg',
 			'GPRINT:ppxCardCpuUtilAvg:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtilAvg:MAX:Max %1.2lf%%\\n',
 
-			'LINE1:ppxCardCpuUtilMin#46FFB4:UtilAvgMin',
+			'LINE1:ppxCardCpuUtilMin#46FFB4: UtilAvgMin',
 			'GPRINT:ppxCardCpuUtilMin:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtilMin:MAX:Max %1.2lf%%\\n',
 			
-			'LINE1:ppxCardCpuUtilMax#4682FF:UtilAvgMax',
+			'LINE1:ppxCardCpuUtilMax#4682FF: UtilAvgMax',
 			'GPRINT:ppxCardCpuUtilMax:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtilMax:MAX:Max %1.2lf%%\\n'
 			
@@ -79,23 +79,23 @@
 			'DEF:ppxCardCpuUtilMin=$database:ppxCardCpuUtilMin:AVERAGE',
 			'DEF:ppxCardCpuUtilMax=$database:ppxCardCpuUtilMax:AVERAGE',
 
-			'LINE1:ppxCardTimeInt#00CED1:Interval',
+			'LINE1:ppxCardTimeInt#00CED1: Interval',
 			'GPRINT:ppxCardTimeInt:AVERAGE:Avg %1.2lf',
 			'GPRINT:ppxCardTimeInt:MAX:Max %1.2lf\\n',
 			
-			'LINE1:ppxCardCpuUtil#4682B4:Util',
+			'LINE1:ppxCardCpuUtil#4682B4: Util',
 			'GPRINT:ppxCardCpuUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtil:MAX:Max %1.2lf%%\\n',
 
-			'LINE1:ppxCardCpuUtilAvg#FF82B4:UtilAvg',
+			'LINE1:ppxCardCpuUtilAvg#FF82B4: UtilAvg',
 			'GPRINT:ppxCardCpuUtilAvg:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtilAvg:MAX:Max %1.2lf%%\\n',
 
-			'LINE1:ppxCardCpuUtilMin#46FFB4:UtilAvgMin',
+			'LINE1:ppxCardCpuUtilMin#46FFB4: UtilAvgMin',
 			'GPRINT:ppxCardCpuUtilMin:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtilMin:MAX:Max %1.2lf%%\\n',
 			
-			'LINE1:ppxCardCpuUtilMax#4682FF:UtilAvgMax',
+			'LINE1:ppxCardCpuUtilMax#4682FF: UtilAvgMax',
 			'GPRINT:ppxCardCpuUtilMax:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:ppxCardCpuUtilMax:MAX:Max %1.2lf%%\\n'
     ]

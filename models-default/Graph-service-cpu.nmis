@@ -41,7 +41,7 @@
 		'standard' => [
 			'DEF:cpu=$database:cpu:AVERAGE',
 			'CDEF:cpuSec=cpu,100,/',
-			'LINE2:cpuSec#DA70D6:CPU $index',
+			'LINE2:cpuSec#DA70D6: CPU $index',
 			'GPRINT:cpuSec:AVERAGE:Avg %1.3lf CPU-seconds',
 			'GPRINT:cpuSec:MIN:Min %1.3lf CPU-seconds',
 			'GPRINT:cpuSec:MAX:Max %1.3lf CPU-seconds\\n',
@@ -49,7 +49,7 @@
 		'small' => [
 			'DEF:cpu=$database:cpu:AVERAGE',
 			'CDEF:cpuSec=cpu,100,/',
-			'LINE2:cpuSec#DA70D6:CPU $index',
+			'LINE2:cpuSec#DA70D6: CPU $index',
 		]
 	}
 );

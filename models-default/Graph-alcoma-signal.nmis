@@ -42,17 +42,17 @@
 			'DEF:sigquality=$database:sigquality:AVERAGE',
 			'DEF:snr=$database:snr:AVERAGE',
 			
-			'LINE2:signal#006400:Signal Level\\t',
+			'LINE2:signal#006400: Signal Level\\t',
 			'GPRINT:signal:LAST:Current %6.2lf',
 			'GPRINT:signal:AVERAGE:Avg. %6.2lf',
 			'GPRINT:signal:MAX:Max %6.2lf\\n',
 			
-			'LINE2:sigquality#4daef6:Signal Quality',
+			'LINE2:sigquality#4daef6: Signal Quality',
 			'GPRINT:sigquality:LAST:Current %6.2lf',
 			'GPRINT:sigquality:AVERAGE:Avg. %6.2lf',
 			'GPRINT:sigquality:MAX:Max %6.2lf\\n',
 
-			'LINE2:snr#7FFF00:SNR\\t\\t',
+			'LINE2:snr#7FFF00: SNR\\t\\t',
 			'GPRINT:snr:LAST:Current %6.2lf',
 			'GPRINT:snr:AVERAGE:Avg. %6.2lf',
 			'GPRINT:snr:MAX:Max %6.2lf\\n',
@@ -63,17 +63,17 @@
 			'DEF:sigquality=$database:sigquality:AVERAGE',
 			'DEF:snr=$database:snr:AVERAGE',
 			
-			'LINE2:signal#006400:Signal Level\\t',
+			'LINE2:signal#006400: Signal Level\\t',
 			'GPRINT:signal:LAST:Current %6.2lf',
 			'GPRINT:signal:AVERAGE:Avg. %6.2lf',
 			'GPRINT:signal:MAX:Max %6.2lf\\n',
 
-			'LINE2:sigquality#4daef6:Signal Quality',
+			'LINE2:sigquality#4daef6: Signal Quality',
 			'GPRINT:sigquality:LAST:Current %6.2lf',
 			'GPRINT:sigquality:AVERAGE:Avg. %6.2lf',
 			'GPRINT:sigquality:MAX:Max %6.2lf\\n',
 			
-			'LINE2:snr#7FFF00:SNR\\t\\t',
+			'LINE2:snr#7FFF00: SNR\\t\\t',
 			'GPRINT:snr:LAST:Current %6.2lf',
 			'GPRINT:snr:AVERAGE:Avg. %6.2lf',
 			'GPRINT:snr:MAX:Max %6.2lf\\n',

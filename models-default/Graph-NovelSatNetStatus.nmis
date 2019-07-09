@@ -54,42 +54,42 @@
 			'CDEF:RxDropS=RxDrop,-1,*',
 			'CDEF:RxOvrS=RxOvr,-1,*',
 
-			'AREA:RxOkS#00BFFF:RX OK\\t',
+			'AREA:RxOkS#00BFFF: RX OK\\t',
 			'GPRINT:RxOk:LAST:Current %6.1lf',
 			'GPRINT:RxOk:AVERAGE:Avg %6.1lf',
 			'GPRINT:RxOk:MAX:Max %6.1lf\\t',
 
-			'STACK:RxErrorS#aa00cc:RX ERR\\t',
+			'STACK:RxErrorS#aa00cc: RX ERR\\t',
 			'GPRINT:RxError:LAST:Current %6.1lf',
 			'GPRINT:RxError:AVERAGE:Avg %6.1lf',
 			'GPRINT:RxError:MAX:Max %6.1lf\\n',
 
-			'STACK:RxDropS#00cc00:RX DRP',
+			'STACK:RxDropS#00cc00: RX DRP',
 			'GPRINT:RxDrop:LAST:Current %6.1lf',
 			'GPRINT:RxDrop:AVERAGE:Avg %6.1lf',
 			'GPRINT:RxDrop:MAX:Max %6.1lf\\t',
 
-			'STACK:RxOvrS#0000bb:RX OVR\\t',
+			'STACK:RxOvrS#0000bb: RX OVR\\t',
 			'GPRINT:RxOvr:LAST:Current %6.1lf',
 			'GPRINT:RxOvr:AVERAGE:Avg %6.1lf',
 			'GPRINT:RxOvr:MAX:Max %6.1lf\\n',
 
-			'AREA:TxOk#00FF7F:TX OK\\t',
+			'AREA:TxOk#00FF7F: TX OK\\t',
 			'GPRINT:TxOk:LAST:Current %6.1lf',
 			'GPRINT:TxOk:AVERAGE:Avg %6.1lf',
 			'GPRINT:TxOk:MAX:Max %6.1lf\\t',
 
-			'STACK:TxError#ff0000:TX ERR\\t',
+			'STACK:TxError#ff0000: TX ERR\\t',
 			'GPRINT:TxError:LAST:Current %6.1lf',
 			'GPRINT:TxError:AVERAGE:Avg %6.1lf',
 			'GPRINT:TxError:MAX:Max %6.1lf\\n',
 
-			'STACK:TxDrop#ffbb00:TX DRP',
+			'STACK:TxDrop#ffbb00: TX DRP',
 			'GPRINT:TxDrop:LAST:Current %6.1lf',
 			'GPRINT:TxDrop:AVERAGE:Avg %6.1lf',
 			'GPRINT:TxDrop:MAX:Max %6.1lf\\t',
 
-			'STACK:TxOvr#00bb00:TX OVR\\t',
+			'STACK:TxOvr#00bb00: TX OVR\\t',
 			'GPRINT:TxOvr:LAST:Current %6.1lf',
 			'GPRINT:TxOvr:AVERAGE:Avg %6.1lf',
 			'GPRINT:TxOvr:MAX:Max %6.1lf\\n',
@@ -109,35 +109,35 @@
 			'CDEF:RxDropS=RxDrop,-1,*',
 			'CDEF:RxOvrS=RxOvr,-1,*',
 
-			'AREA:RxOkS#00BFFF:RX OK\\t\\t',
+			'AREA:RxOkS#00BFFF: RX OK\\t\\t',
 			'GPRINT:RxOk:LAST:Current %6.1lf\\t',
 			'GPRINT:RxOk:AVERAGE:Avg %6.1lf\\n',
 
-			'STACK:RxErrorS#aa00cc:RX ERR\\t',
+			'STACK:RxErrorS#aa00cc: RX ERR\\t',
 			'GPRINT:RxError:LAST:Current %6.1lf\\t',
 			'GPRINT:RxError:AVERAGE:Avg %6.1lf\\n',
 
-			'STACK:RxDropS#00cc00:RX DRP\\t',
+			'STACK:RxDropS#00cc00: RX DRP\\t',
 			'GPRINT:RxDrop:LAST:Current %6.1lf\\t',
 			'GPRINT:RxDrop:AVERAGE:Avg %6.1lf\\n',
 
-			'STACK:RxOvrS#0000bb:RX OVR\\t',
+			'STACK:RxOvrS#0000bb: RX OVR\\t',
 			'GPRINT:RxOvr:LAST:Current %6.1lf\\t',
 			'GPRINT:RxOvr:AVERAGE:Avg %6.1lf\\n',
 
-			'AREA:TxOk#00FF7F:TX OK\\t\\t',
+			'AREA:TxOk#00FF7F: TX OK\\t\\t',
 			'GPRINT:TxOk:LAST:Current %6.1lf\\t',
 			'GPRINT:TxOk:AVERAGE:Avg %6.1lf\\n',
 
-			'STACK:TxError#ff0000:TX ERR\\t',
+			'STACK:TxError#ff0000: TX ERR\\t',
 			'GPRINT:TxError:LAST:Current %6.1lf\\t',
 			'GPRINT:TxError:AVERAGE:Avg %6.1lf\\n',
 
-			'STACK:TxDrop#ffbb00:TX DRP\\t',
+			'STACK:TxDrop#ffbb00: TX DRP\\t',
 			'GPRINT:TxDrop:LAST:Current %6.1lf\\t',
 			'GPRINT:TxDrop:AVERAGE:Avg %6.1lf\\n',
 
-			'STACK:TxOvr#00bb00:TX OVR\\t',
+			'STACK:TxOvr#00bb00: TX OVR\\t',
 			'GPRINT:TxOvr:LAST:Current %6.1lf\\t',
 			'GPRINT:TxOvr:AVERAGE:Avg %6.1lf\\n',
 		]

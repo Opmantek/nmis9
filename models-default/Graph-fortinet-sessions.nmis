@@ -40,13 +40,13 @@
 	'option' => {
 		'standard' => [
 			'DEF:fgSysSesCount=$database:fgSysSesCount:AVERAGE',			
-			'LINE:fgSysSesCount#ffa500:% Sessions Count',
+			'LINE:fgSysSesCount#ffa500: % Sessions Count',
 			'GPRINT:fgSysSesCount:AVERAGE:Avg %6.0lf',
 			'GPRINT:fgSysSesCount:MAX:Max %6.0lf\n',
 		],
 		'small' => [
 			'DEF:fgSysSesCount=$database:fgSysSesCount:AVERAGE',			
-			'LINE:fgSysSesCount#ffa500:% Sessions Count',
+			'LINE:fgSysSesCount#ffa500: % Sessions Count',
 			'GPRINT:fgSysSesCount:AVERAGE:Avg %6.0lf',
 			'GPRINT:fgSysSesCount:MAX:Max %6.0lf\n',
 		]

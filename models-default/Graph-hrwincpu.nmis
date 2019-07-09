@@ -42,8 +42,8 @@
 		'standard' => [
 			'DEF:ProcessorTime=$database:ProcessorTime:AVERAGE',
 			'DEF:UserTime=$database:UserTime:AVERAGE',
-			'LINE1:ProcessorTime#0000ff:CPU Percent Time',
-			'LINE1:UserTime#000000:CPU User Time\\n',
+			'LINE1:ProcessorTime#0000ff: CPU Percent Time',
+			'LINE1:UserTime#000000: CPU User Time\\n',
 			'GPRINT:ProcessorTime:MIN:Min CPU Percent Time %1.0lf',
 			'GPRINT:ProcessorTime:AVERAGE:Average CPU Percent Time %1.0lf',
 			'GPRINT:ProcessorTime:MAX:Max CPU Percent Time %1.0lf \\n',
@@ -54,8 +54,8 @@
 		'small' => [
 			'DEF:ProcessorTime=$database:ProcessorTime:AVERAGE',
 			'DEF:UserTime=$database:UserTime:AVERAGE',
-			'LINE1:ProcessorTime#0000ff:CPU Percent Time',
-			'LINE1:UserTime#000000:CPU User Time'
+			'LINE1:ProcessorTime#0000ff: CPU Percent Time',
+			'LINE1:UserTime#000000: CPU User Time'
 		]
 	}
 );

@@ -46,7 +46,7 @@
 			'DEF:fgSysDiskUsage=$database:fgSysDiskUsage:AVERAGE',
 			'DEF:fgSysDiskCapacity=$database:fgSysDiskCapacity:AVERAGE',
 			'CDEF:diskUtil=fgSysDiskUsage,fgSysDiskCapacity,/,100,*',			
-			'AREA:diskUtil#00BFFF:% Disk Used',
+			'AREA:diskUtil#00BFFF: % Disk Used',
 			'GPRINT:diskUtil:AVERAGE:Avg %6.1lf%%\n',
 		],
 		'small' => [
@@ -56,7 +56,7 @@
 			'DEF:fgSysDiskUsage=$database:fgSysDiskUsage:AVERAGE',
 			'DEF:fgSysDiskCapacity=$database:fgSysDiskCapacity:AVERAGE',
 			'CDEF:diskUtil=fgSysDiskUsage,fgSysDiskCapacity,/,100,*',			
-			'AREA:diskUtil#00BFFF:% Disk Used',
+			'AREA:diskUtil#00BFFF: % Disk Used',
 			'GPRINT:diskUtil:AVERAGE:Avg %6.1lf%%\n',
 		]
 	}

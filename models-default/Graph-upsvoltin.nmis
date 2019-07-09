@@ -41,19 +41,19 @@
 	'option' => {
 		'standard' => [
 			'DEF:upsinputvolt1=$database:upsinputvolt1:AVERAGE',
-			'LINE1:upsinputvolt1#0000ff:Input Volt 1',
+			'LINE1:upsinputvolt1#0000ff: Input Volt 1',
 			'DEF:upsinputvolt2=$database:upsinputvolt2:AVERAGE',
-			'LINE1:upsinputvolt2#00ff00:Input Volt 2',
+			'LINE1:upsinputvolt2#00ff00: Input Volt 2',
 			'DEF:upsinputvolt3=$database:upsinputvolt3:AVERAGE',
-			'LINE1:upsinputvolt3#ff0000:Input Volt 3'
+			'LINE1:upsinputvolt3#ff0000: Input Volt 3'
 		],
 		'small' => [
 			'DEF:upsinputvolt1=$database:upsinputvolt1:AVERAGE',
-			'LINE1:upsinputvolt1#0000ff:Input Volt 1',
+			'LINE1:upsinputvolt1#0000ff: Input Volt 1',
 			'DEF:upsinputvolt2=$database:upsinputvolt2:AVERAGE',
-			'LINE1:upsinputvolt2#00ff00:Input Volt 2',
+			'LINE1:upsinputvolt2#00ff00: Input Volt 2',
 			'DEF:upsinputvolt3=$database:upsinputvolt3:AVERAGE',
-			'LINE1:upsinputvolt3#ff0000:Input Volt 3'
+			'LINE1:upsinputvolt3#ff0000: Input Volt 3'
 		]
 	}
 );

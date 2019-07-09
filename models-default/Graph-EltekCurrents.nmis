@@ -41,24 +41,24 @@
 			'DEF:loadc=$database:loadCurrent:AVERAGE',
 			'DEF:rectc=$database:rectifierCurrent:AVERAGE',
 			'CDEF:negrect=0,rectc,-',
-			'LINE:loadc#8b008b:Load Current',
+			'LINE:loadc#8b008b: Load Current',
 			'GPRINT:loadc:AVERAGE:%5.2lf A',
 			'COMMENT:\\n',	
-			'LINE:negrect#ff8c00:Rectifier Current',
+			'LINE:negrect#ff8c00: Rectifier Current',
 			'GPRINT:rectc:AVERAGE:%5.2lf A\\n',
 			'CDEF:axis=loadc,UN,0,0,IF',
-			'LINE:axis#808080:'                                                           
+			'LINE:axis#808080: '                                                           
 		],
 		'small' => [
 			'DEF:loadc=$database:loadCurrent:AVERAGE',
 			'DEF:rectc=$database:rectifierCurrent:AVERAGE',
 			'CDEF:negrect=0,rectc,-',
-			'LINE:loadc#8b008b:Load Current',
+			'LINE:loadc#8b008b: Load Current',
 			'GPRINT:loadc:AVERAGE:%5.2lf A',
-			'LINE:negrect#ff8c00:Rectifier Current',
+			'LINE:negrect#ff8c00: Rectifier Current',
 			'GPRINT:rectc:AVERAGE:%5.2lf A\\n',
 			'CDEF:axis=loadc,UN,0,0,IF',
-			'LINE:axis#808080:'                                                           
+			'LINE:axis#808080: '                                                           
 		]
 	}
 );

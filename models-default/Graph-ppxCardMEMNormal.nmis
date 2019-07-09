@@ -45,23 +45,23 @@
 			'DEF:memMinNormalRam=$database:memMinNormalRam:AVERAGE',
 			'DEF:memMaxNormalRam=$database:memMaxNormalRam:AVERAGE',
 
-			'LINE1:memCapNormalRam#00CED1:Capacity Normal RAM',
+			'LINE1:memCapNormalRam#00CED1: Capacity Normal RAM',
 			'GPRINT:memCapNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memCapNormalRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memUsageNormalRam#4682B4:Usage Normal RAM',
+			'LINE1:memUsageNormalRam#4682B4: Usage Normal RAM',
 			'GPRINT:memUsageNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memUsageNormalRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memAvgNormalRam#FF82B4:Avg Normal RAM',
+			'LINE1:memAvgNormalRam#FF82B4: Avg Normal RAM',
 			'GPRINT:memAvgNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memAvgNormalRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memMinNormalRam#46FFB4:Min Normal RAM',
+			'LINE1:memMinNormalRam#46FFB4: Min Normal RAM',
 			'GPRINT:memMinNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMinNormalRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memMaxNormalRam#4682FF:Max Normal RAM',
+			'LINE1:memMaxNormalRam#4682FF: Max Normal RAM',
 			'GPRINT:memMaxNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMaxNormalRam:MAX:Max %4.0lf\\n'			
 		],
@@ -72,23 +72,23 @@
 			'DEF:memMinNormalRam=$database:memMinNormalRam:AVERAGE',
 			'DEF:memMaxNormalRam=$database:memMaxNormalRam:AVERAGE',
 
-			'LINE1:memCapNormalRam#00CED1:Capacity Normal RAM',
+			'LINE1:memCapNormalRam#00CED1: Capacity Normal RAM',
 			'GPRINT:memCapNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memCapNormalRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memUsageNormalRam#4682B4:Usage Normal RAM',
+			'LINE1:memUsageNormalRam#4682B4: Usage Normal RAM',
 			'GPRINT:memUsageNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memUsageNormalRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memAvgNormalRam#FF82B4:Avg Normal RAM',
+			'LINE1:memAvgNormalRam#FF82B4: Avg Normal RAM',
 			'GPRINT:memAvgNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memAvgNormalRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memMinNormalRam#46FFB4:Min Normal RAM',
+			'LINE1:memMinNormalRam#46FFB4: Min Normal RAM',
 			'GPRINT:memMinNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMinNormalRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memMaxNormalRam#4682FF:Max Normal RAM',
+			'LINE1:memMaxNormalRam#4682FF: Max Normal RAM',
 			'GPRINT:memMaxNormalRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMaxNormalRam:MAX:Max %4.0lf\\n'			
     ]

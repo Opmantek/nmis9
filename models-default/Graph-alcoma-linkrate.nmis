@@ -40,14 +40,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
+			'LINE1:linkrate#4daef6: Link Rate',
 			'GPRINT:linkrate:LAST:Current %1.2lf',
 			'GPRINT:linkrate:AVERAGE:Avg. %1.2lf',
 			'GPRINT:linkrate:MAX:Max %1.2lf\\n',			
 		],
 		'small' => [
 			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
+			'LINE1:linkrate#4daef6: Link Rate',
 			'GPRINT:linkrate:LAST:Current %1.2lf',
 			'GPRINT:linkrate:AVERAGE:Avg. %1.2lf',
 			'GPRINT:linkrate:MAX:Max %1.2lf\\n',			

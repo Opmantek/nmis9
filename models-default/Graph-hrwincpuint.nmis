@@ -41,14 +41,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:InterruptsPerSec=$database:InterruptsPerSec:AVERAGE',
-			'LINE2:InterruptsPerSec#0000ff:CPU interrupts per sec\\n',
+			'LINE2:InterruptsPerSec#0000ff: CPU interrupts per sec\\n',
 			'GPRINT:InterruptsPerSec:MIN:Min CPU interrupts per sec %1.0lf',
 			'GPRINT:InterruptsPerSec:AVERAGE:Average CPU interrupts per sec %1.0lf',
 			'GPRINT:InterruptsPerSec:MAX:Max CPU interrupts per sec %1.0lf'
 		],
 	'small' => [
 			'DEF:InterruptsPerSec=$database:InterruptsPerSec:AVERAGE',
-			'LINE2:InterruptsPerSec#0000ff:CPU interrupts per sec'
+			'LINE2:InterruptsPerSec#0000ff: CPU interrupts per sec'
 		]
 	}
 );

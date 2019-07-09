@@ -40,11 +40,11 @@
 	'option' => {
 		'standard' => [
         'DEF:systemcapacity=$database:systemcapacity:AVERAGE',
-        'LINE1:systemcapacity#0000ff:% Capacity Remaining',
+        'LINE1:systemcapacity#0000ff: % Capacity Remaining',
 		],
 		'small' => [
         'DEF:systemcapacity=$database:systemcapacity:AVERAGE',
-        'LINE1:systemcapacity#0000ff:% Capacity Remaining',
+        'LINE1:systemcapacity#0000ff: % Capacity Remaining',
 		]
 	}
 );

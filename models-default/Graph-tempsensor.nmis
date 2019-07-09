@@ -41,15 +41,15 @@
 	'option' => {
 		'standard' => [
 			'DEF:hhmsSensorTemp0=$database:hhmsSensorTemp0:AVERAGE',
-			'LINE1:hhmsSensorTemp0#0000ff:Temperature warm corridor',
+			'LINE1:hhmsSensorTemp0#0000ff: Temperature warm corridor',
 			'DEF:hhmsSensorTemp1=$database:hhmsSensorTemp1:AVERAGE',
-			'LINE1:hhmsSensorTemp1#00ff00:Temperature cold corridor'
+			'LINE1:hhmsSensorTemp1#00ff00: Temperature cold corridor'
 		],
 		'small' => [
 			'DEF:hhmsSensorTemp0=$database:hhmsSensorTemp0:AVERAGE',
-			'LINE1:hhmsSensorTemp0#0000ff:Temperature warm corridor',
+			'LINE1:hhmsSensorTemp0#0000ff: Temperature warm corridor',
 			'DEF:hhmsSensorTemp1=$database:hhmsSensorTemp1:AVERAGE',
-			'LINE1:hhmsSensorTemp1#00ff00:Temperature cold corridor'
+			'LINE1:hhmsSensorTemp1#00ff00: Temperature cold corridor'
 		]
 	}
 );

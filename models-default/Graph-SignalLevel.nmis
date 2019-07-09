@@ -41,12 +41,12 @@
 				 'DEF:signal=$database:signallevel:AVERAGE',
 				 'DEF:snr=$database:snr:AVERAGE',
 				 
-				 'LINE2:signal#006400:Signal Level\\t\\t',
+				 'LINE2:signal#006400: Signal Level\\t\\t',
 				 'GPRINT:signal:AVERAGE:Avg %10.2lf',
 				 'GPRINT:signal:MIN:Min %10.2lf',
 				 'GPRINT:signal:MAX:Max %10.2lf\\n',
 				 
-				 'LINE2:snr#7FFF00:SNR\\t\\t\\t',
+				 'LINE2:snr#7FFF00: SNR\\t\\t\\t',
 				 'GPRINT:snr:AVERAGE:Avg %10.2lf',
 				 'GPRINT:snr:MIN:Min %10.2lf',
 				 'GPRINT:snr:MAX:Max %10.2lf\\n', 
@@ -59,10 +59,10 @@
 				 'DEF:signal=$database:signallevel:AVERAGE',
 				 'DEF:snr=$database:snr:AVERAGE',
 				 
-				 'LINE2:signal#006400:Signal Level\\t',
+				 'LINE2:signal#006400: Signal Level\\t',
 				 'GPRINT:signal:AVERAGE:Avg %10.2lf',
 
-				 'LINE2:snr#7FFF00:SNR',
+				 'LINE2:snr#7FFF00: SNR',
 				 'GPRINT:snr:AVERAGE:Avg %10.2lf',
 		],
 				

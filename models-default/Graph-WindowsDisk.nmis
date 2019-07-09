@@ -51,37 +51,37 @@
 
 			'CDEF:PercentUsedSpace=100,PercentFreeSpace,-',
 			
-			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
+			'LINE1:AvgDiskReadQLenM#CD5C5C: AvgDiskReadQLen\\t',
 			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
 			'GPRINT:AvgDiskReadQLenM:AVERAGE:Average %8.2lf',
 			'GPRINT:AvgDiskReadQLenM:MAX:Max %8.2lf\\n',
       
-			'LINE1:AvgDiskWriteQLenM#ffa500:AvgDiskWriteQLen\\t',
+			'LINE1:AvgDiskWriteQLenM#ffa500: AvgDiskWriteQLen\\t',
 			'GPRINT:AvgDiskWriteQLenM:LAST:Last %8.2lf',
 			'GPRINT:AvgDiskWriteQLenM:AVERAGE:Average %8.2lf',
 			'GPRINT:AvgDiskWriteQLenM:MAX:Max %8.2lf\\n',
 
-			'LINE1:DiskWritesPersec#00a5ff:DiskWritesPersec\\t',
+			'LINE1:DiskWritesPersec#00a5ff: DiskWritesPersec\\t',
 			'GPRINT:DiskWritesPersec:LAST:Last %8.2lf',
 			'GPRINT:DiskWritesPersec:AVERAGE:Average %8.2lf',
 			'GPRINT:DiskWritesPersec:MAX:Max %8.2lf\\n',
 
-			'LINE1:DiskReadsPersec#00FF7F:DiskReadsPersec\\t',
+			'LINE1:DiskReadsPersec#00FF7F: DiskReadsPersec\\t',
 			'GPRINT:DiskReadsPersec:LAST:Last %8.2lf',
 			'GPRINT:DiskReadsPersec:AVERAGE:Average %8.2lf',
 			'GPRINT:DiskReadsPersec:MAX:Max %8.2lf\\n',
 
-			#'LINE1:PerDiskReadTime#0000ff:PerDiskReadTime\\t',
+			#'LINE1:PerDiskReadTime#0000ff: PerDiskReadTime\\t',
 			#'GPRINT:PerDiskReadTime:LAST:Last %8.2lf',
 			#'GPRINT:PerDiskReadTime:AVERAGE:Average %8.2lf',
 			#'GPRINT:PerDiskReadTime:MAX:Max %8.2lf\\n',
       #
-			#'LINE1:PerDiskWriteTime#ff00ff:PerDiskWriteTime\\t',
+			#'LINE1:PerDiskWriteTime#ff00ff: PerDiskWriteTime\\t',
 			#'GPRINT:PerDiskWriteTime:LAST:Last %8.2lf',
 			#'GPRINT:PerDiskWriteTime:AVERAGE:Average %8.2lf',
 			#'GPRINT:PerDiskWriteTime:MAX:Max %8.2lf\\n',
 
-			'LINE1:PercentUsedSpace#ff00ff:PercentUsedSpace\\t',
+			'LINE1:PercentUsedSpace#ff00ff: PercentUsedSpace\\t',
 			'GPRINT:PercentUsedSpace:LAST:Last %8.2lf',
 			'GPRINT:PercentUsedSpace:AVERAGE:Average %8.2lf',
 			'GPRINT:PercentUsedSpace:MAX:Max %8.2lf\\n',
@@ -98,23 +98,23 @@
 			
 			'CDEF:PercentUsedSpace=100,PercentFreeSpace,-',
 			
-			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
+			'LINE1:AvgDiskReadQLenM#CD5C5C: AvgDiskReadQLen\\t',
 			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
 			'GPRINT:AvgDiskReadQLenM:AVERAGE:Avg. %8.2lf\\n',
       
-			'LINE1:AvgDiskWriteQLenM#ffa500:AvgDiskWriteQLen\\t',
+			'LINE1:AvgDiskWriteQLenM#ffa500: AvgDiskWriteQLen\\t',
 			'GPRINT:AvgDiskWriteQLenM:LAST:Last %8.2lf',
 			'GPRINT:AvgDiskWriteQLenM:AVERAGE:Avg. %8.2lf\\n',
 
-			'LINE1:DiskWritesPersec#00a5ff:DiskWritesPersec\\t',
+			'LINE1:DiskWritesPersec#00a5ff: DiskWritesPersec\\t',
 			'GPRINT:DiskWritesPersec:LAST:Last %8.0lf',
 			'GPRINT:DiskWritesPersec:AVERAGE:Avg. %8.0lf\\n',
 
-			'LINE1:DiskReadsPersec#00FF7F:DiskReadsPersec\\t',
+			'LINE1:DiskReadsPersec#00FF7F: DiskReadsPersec\\t',
 			'GPRINT:DiskReadsPersec:LAST:Last %8.0lf',
 			'GPRINT:DiskReadsPersec:AVERAGE:Avg. %8.0lf\\n',
 
-			'LINE1:PercentUsedSpace#ff00ff:PercentUsedSpace\\t',
+			'LINE1:PercentUsedSpace#ff00ff: PercentUsedSpace\\t',
 			'GPRINT:PercentUsedSpace:LAST:Last %8.2lf',
 			'GPRINT:PercentUsedSpace:AVERAGE:Avg. %8.2lf\\n',
 		]		

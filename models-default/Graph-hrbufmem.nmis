@@ -40,9 +40,9 @@
 		'standard' => [
 			'DEF:hrBufMemSize=$database:hrBufMemSize:AVERAGE',
 			'DEF:hrBufMemUsed=$database:hrBufMemUsed:AVERAGE',
-			'LINE1:hrBufMemSize#006400:Total Memory',
+			'LINE1:hrBufMemSize#006400: Total Memory',
 			'GPRINT:hrBufMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrBufMemUsed#6A5ACD:Memory Buffers Used',
+			'AREA:hrBufMemUsed#6A5ACD: Memory Buffers Used',
 			'GPRINT:hrBufMemUsed:MIN:Min Used %1.3lf %sb',
 			'GPRINT:hrBufMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
 			'GPRINT:hrBufMemUsed:MAX:Max Used %1.3lf %Sb\\n'
@@ -50,9 +50,9 @@
 		'small' => [
 			'DEF:hrBufMemSize=$database:hrBufMemSize:AVERAGE',
 			'DEF:hrBufMemUsed=$database:hrBufMemUsed:AVERAGE',
-			'LINE1:hrBufMemSize#006400:Total Memory',
+			'LINE1:hrBufMemSize#006400: Total Memory',
 			'GPRINT:hrBufMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrBufMemUsed#6A5ACD:Memory Buffers Used',
+			'AREA:hrBufMemUsed#6A5ACD: Memory Buffers Used',
 			'GPRINT:hrBufMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
 			'GPRINT:hrBufMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		]

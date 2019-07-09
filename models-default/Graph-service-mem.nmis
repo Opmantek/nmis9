@@ -41,7 +41,7 @@
 		'standard' => [
 			'DEF:memory=$database:memory:AVERAGE',
 			'CDEF:membytes=memory,1024,*',
-			'LINE2:membytes#ADFF2F:Memory $index',
+			'LINE2:membytes#ADFF2F: Memory $index',
 			'GPRINT:membytes:AVERAGE:Avg %1.3lf %sBytes',
 			'GPRINT:membytes:MIN:Min %1.3lf %sBytes',
 			'GPRINT:membytes:MAX:Max %1.3lf %sBytes\\n',
@@ -49,7 +49,7 @@
 		'small' => [
 			'DEF:memory=$database:memory:AVERAGE',
 			'CDEF:membytes=memory,1024,*',			
-			'LINE2:membytes#ADFF2F:Memory $index',
+			'LINE2:membytes#ADFF2F: Memory $index',
 		]
 	}
 );

@@ -39,14 +39,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:strength=$database:strength:AVERAGE',
-			'LINE2:strength#4daef6:Wireless Strength',
+			'LINE2:strength#4daef6: Wireless Strength',
 			'GPRINT:strength:LAST:Current %1.2lf dB',
 			'GPRINT:strength:AVERAGE:Avg. %1.2lf dB',
 			'GPRINT:strength:MAX:Max %1.2lf dB\\n',			
 		],
 		'small' => [
 			'DEF:strength=$database:strength:AVERAGE',
-			'LINE2:strength#4daef6:Strength',
+			'LINE2:strength#4daef6: Strength',
 			'GPRINT:strength:LAST:Current %1.0lf dB',
 			'GPRINT:strength:AVERAGE:Avg. %1.0lf',
 			'GPRINT:strength:MAX:Max %1.0lf\\n',

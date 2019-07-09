@@ -45,19 +45,19 @@
 #                       'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
 			'DEF:avgCpuUsage=$database:hwEntityCpuUsage:AVERAGE',
 #			'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
-			'LINE1:avgCpuUsage#00ff00:Avg Busy 5min',
+			'LINE1:avgCpuUsage#00ff00: Avg Busy 5min',
 			'GPRINT:avgCpuUsage:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:avgCpuUsage:MAX:Max %1.2lf%%\\n',
-#			'LINE1:avgBusy5#0000ff:Avg Busy 5min',
+#			'LINE1:avgBusy5#0000ff: Avg Busy 5min',
 #			'GPRINT:avgBusy5:AVERAGE:Avg %1.2lf%%',
 #			'GPRINT:avgBusy5:MAX:Max %1.2lf%%\\n'
 		],
 		'small' => [
 			'DEF:avgCpuUsage=$database:hwEntityCpuUsage:AVERAGE',
 #			'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
-			'LINE1:avgCpuUsage#00ff00:Avg Busy 5min',
+			'LINE1:avgCpuUsage#00ff00: Avg Busy 5min',
 			'GPRINT:avgCpuUsage:AVERAGE: %1.2lf%%',
-#			'LINE1:avgBusy5#0000ff:Avg Busy 5min',
+#			'LINE1:avgBusy5#0000ff: Avg Busy 5min',
 #			'GPRINT:avgBusy5:AVERAGE: %1.2lf%%'
 		]
 	}

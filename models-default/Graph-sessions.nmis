@@ -48,25 +48,25 @@
 			'DEF:panSessActICMP=$database:panSessActICMP:AVERAGE',
 			'DEF:panSessActSslProxy=$database:panSessActSslProxy:AVERAGE',
 
-			#'HRULE:panSessionMax#ff0000:Max Sessions',
+			#'HRULE:panSessionMax#ff0000: Max Sessions',
 
-			'LINE1:panSessionActive#00ff00:Active Sessions\t',
+			'LINE1:panSessionActive#00ff00: Active Sessions\t',
 			'GPRINT:panSessionActive:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:panSessionActive:MAX:Max %8.0lf\\n',
 
-			'LINE1:panSessActTcp#0000ff:Active TCP Sess.\t',
+			'LINE1:panSessActTcp#0000ff: Active TCP Sess.\t',
 			'GPRINT:panSessActTcp:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:panSessActTcp:MAX:Max %8.0lf\\n',
 
-			'LINE1:panSessActUdp#00ffff:Active UDP Sess.\t',
+			'LINE1:panSessActUdp#00ffff: Active UDP Sess.\t',
 			'GPRINT:panSessActUdp:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:panSessActUdp:MAX:Max %8.0lf\\n',
 
-			'LINE1:panSessActICMP#ff00ff:Active ICMP Sess.\t',
+			'LINE1:panSessActICMP#ff00ff: Active ICMP Sess.\t',
 			'GPRINT:panSessActICMP:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:panSessActICMP:MAX:Max %8.0lf\\n',
 
-			'LINE1:panSessActSslProxy#000000:Active SSL Proxy\t',
+			'LINE1:panSessActSslProxy#000000: Active SSL Proxy\t',
 			'GPRINT:panSessActSslProxy:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:panSessActSslProxy:MAX:Max %8.0lf\\n',
 
@@ -80,22 +80,22 @@
 			'DEF:panSessActICMP=$database:panSessActICMP:AVERAGE',
 			'DEF:panSessActSslProxy=$database:panSessActSslProxy:AVERAGE',
 
-			#'HRULE:panSessionMax#ff0000:Max Sessions',
+			#'HRULE:panSessionMax#ff0000: Max Sessions',
 
-			'LINE1:panSessionActive#00ff00:Avg Active Sess.',
+			'LINE1:panSessionActive#00ff00: Avg Active Sess.',
 			'GPRINT:panSessionActive:AVERAGE:%2.0lf\t',
 			'GPRINT:panSessionMax:MAX:Max Sessions %2.0lf\n',
 
-			'LINE1:panSessActTcp#0000ff:Avg TCP Sess.',
+			'LINE1:panSessActTcp#0000ff: Avg TCP Sess.',
 			'GPRINT:panSessActTcp:AVERAGE:%2.0lf\t',
 
-			'LINE1:panSessActUdp#00ffff:Avg UDP Sess.',
+			'LINE1:panSessActUdp#00ffff: Avg UDP Sess.',
 			'GPRINT:panSessActUdp:AVERAGE:%2.0lf\n',
 
-			'LINE1:panSessActICMP#ff00ff:Avg ICMP Sess.',
+			'LINE1:panSessActICMP#ff00ff: Avg ICMP Sess.',
 			'GPRINT:panSessActICMP:AVERAGE:%2.0lf\t',
 
-			'LINE1:panSessActSslProxy#000000:Avg SSL Proxy',
+			'LINE1:panSessActSslProxy#000000: Avg SSL Proxy',
 			'GPRINT:panSessActSslProxy:AVERAGE:%2.0lf\n',
 
 		]

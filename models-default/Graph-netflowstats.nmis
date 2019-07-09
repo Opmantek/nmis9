@@ -47,15 +47,15 @@
 			'DEF:PktsFailed=$database:PktsFailed:AVERAGE',
 			'DEF:PktsDropped=$database:PktsDropped:AVERAGE',
 
-			'LINE1:RecordsExported#4daef6:Records Exported/second\t',
+			'LINE1:RecordsExported#4daef6: Records Exported/second\t',
 			'GPRINT:RecordsExported:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:RecordsExported:MAX:Max %8.0lf\n',
 
-			'LINE1:PktsExported#00FF7F:Packets Exported/second\t',
+			'LINE1:PktsExported#00FF7F: Packets Exported/second\t',
 			'GPRINT:PktsExported:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:PktsExported:MAX:Max %8.0lf\n',
 
-			'LINE1:PktsFailed#40E0D0:Packets Failed/second\t',
+			'LINE1:PktsFailed#40E0D0: Packets Failed/second\t',
 			'GPRINT:PktsFailed:AVERAGE:Avg %8.0lf\t',
 			'GPRINT:PktsFailed:MAX:Max %8.0lf\n',
 		],

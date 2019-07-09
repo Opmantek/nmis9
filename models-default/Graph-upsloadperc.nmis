@@ -40,11 +40,11 @@
 	'option' => {
 		'standard' => [
 			'DEF:upsloadperc=$database:upsloadperc:AVERAGE',
-			'LINE1:mgeupsload#0000ff:UPS load'
+			'LINE1:mgeupsload#0000ff: UPS load'
 		],
 		'small' => [
 			'DEF:upsloadperc=$database:upsloadperc:AVERAGE',
-			'LINE1:mgeupsload#0000ff:UPS load'
+			'LINE1:mgeupsload#0000ff: UPS load'
 		]
 	}
 );

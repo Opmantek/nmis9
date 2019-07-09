@@ -54,27 +54,27 @@
       'VDEF:pingLast=ping,LAST',
       'VDEF:downloadLast=download,LAST',
       
-      'LINE1:rssi#ff0000:2G RSSI\t',
+      'LINE1:rssi#ff0000: 2G RSSI\t',
       'GPRINT:rssi:AVERAGE:Avg %8.2lf dBm\t',
       'GPRINT:rssiLast:Last %8.2lf dBm\t',
 
-      'LINE1:voice#00ff00:2G Voice\t',
+      'LINE1:voice#00ff00: 2G Voice\t',
       'GPRINT:voice:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:voiceLast:Last %8.2lf sec\n',
 
-      'LINE1:sms#0000ff:2G SMS\t',
+      'LINE1:sms#0000ff: 2G SMS\t',
       'GPRINT:sms:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:smsLast:Last %8.2lf sec\t\t',
 
-      'LINE1:apn#ff00ff:2G APN\t\t',
+      'LINE1:apn#ff00ff: 2G APN\t\t',
       'GPRINT:apn:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:apnLast:Last %8.2lf sec\n',
 
-      'LINE1:ping#000000:2G Ping\t',
+      'LINE1:ping#000000: 2G Ping\t',
       'GPRINT:ping:AVERAGE:Avg %8.2lf ms\t',
       'GPRINT:pingLast:Last %8.2lf ms\t\t',
 
-      'LINE1:download#00aaaa:2G Download\t',      
+      'LINE1:download#00aaaa: 2G Download\t',      
       'GPRINT:download:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:downloadLast:Last %8.2lf sec\n',
 		],
@@ -93,27 +93,27 @@
       'VDEF:pingLast=ping,LAST',
       'VDEF:downloadLast=download,LAST',
       
-      'LINE1:rssi#ff0000:2G RSSI\t',
+      'LINE1:rssi#ff0000: 2G RSSI\t',
       'GPRINT:rssi:AVERAGE:Avg %8.2lf dBm\t',
       'GPRINT:rssiLast:Last %8.2lf dBm\n',
 
-      'LINE1:voice#00ff00:2G Voice\t',
+      'LINE1:voice#00ff00: 2G Voice\t',
       'GPRINT:voice:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:voiceLast:Last %8.2lf sec\n',
 
-      'LINE1:sms#0000ff:2G SMS\t',
+      'LINE1:sms#0000ff: 2G SMS\t',
       'GPRINT:sms:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:smsLast:Last %8.2lf sec\n',
 
-      'LINE1:apn#ff00ff:2G APN\t\t',
+      'LINE1:apn#ff00ff: 2G APN\t\t',
       'GPRINT:apn:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:apnLast:Last %8.2lf sec\n',
 
-      'LINE1:ping#000000:2G Ping\t',
+      'LINE1:ping#000000: 2G Ping\t',
       'GPRINT:ping:AVERAGE:Avg %8.2lf ms\t',
       'GPRINT:pingLast:Last %8.2lf ms\n',
 
-      'LINE1:download#00aaaa:2G Download\t',      
+      'LINE1:download#00aaaa: 2G Download\t',      
       'GPRINT:download:AVERAGE:Avg %8.2lf sec\t',
       'GPRINT:downloadLast:Last %8.2lf sec\n',
 		]

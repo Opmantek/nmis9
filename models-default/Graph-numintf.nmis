@@ -45,13 +45,13 @@
 			'DEF:intfCollect=$database:intfCollect:AVERAGE',
 			'DEF:intfUp=$database:intfUp:AVERAGE',
 			'DEF:intfColUp=$database:intfColUp:AVERAGE',
-			'LINE1:intfTotal#00ff00:Total Real',
+			'LINE1:intfTotal#00ff00: Total Real',
 			'GPRINT:intfTotal:AVERAGE:\tAvg Total intf. %1.0lf%s\n',
-			'LINE1:intfUp#ff0000:Up        ',
+			'LINE1:intfUp#ff0000: Up        ',
 			'GPRINT:intfUp:AVERAGE:\tAvg Up intf. %1.0lf%s\n',
-			'LINE1:intfCollect#0000ff:Collect   ',
+			'LINE1:intfCollect#0000ff: Collect   ',
 			'GPRINT:intfCollect:AVERAGE:\tAvg Collect intf. %1.0lf%s\n',
-			'LINE1:intfColUp#ff00ff:Collect Up',
+			'LINE1:intfColUp#ff00ff: Collect Up',
 			'GPRINT:intfColUp:AVERAGE:\tAvg Collect Up intf. %1.0lf%s\n'
 		],
 		'small' => [
@@ -59,10 +59,10 @@
 			'DEF:intfCollect=$database:intfCollect:AVERAGE',
 			'DEF:intfUp=$database:intfUp:AVERAGE',
 			'DEF:intfColUp=$database:intfColUp:AVERAGE',
-			'LINE1:intfTotal#00ff00:Total intf',
-			'LINE1:intfUp#ff0000:Up intf',
-			'LINE1:intfCollect#0000ff:Collect intf',
-			'LINE1:intfColUp#ff00ff:Collect Up intf'
+			'LINE1:intfTotal#00ff00: Total intf',
+			'LINE1:intfUp#ff0000: Up intf',
+			'LINE1:intfCollect#0000ff: Collect intf',
+			'LINE1:intfColUp#ff00ff: Collect Up intf'
 		]
 	}
 );

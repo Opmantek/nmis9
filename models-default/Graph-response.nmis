@@ -43,7 +43,7 @@
 		'standard' => [
 			'DEF:response=$database:responsetime:AVERAGE',
 			'DEF:mresponse=$database:responsetime:MAX',
-			'LINE1:response#4169E1:Response\\n',
+			'LINE1:response#4169E1: Response\\n',
 			'HRULE:250#00ff00',
 			'HRULE:500#0000ff',
 			'HRULE:1000#ff0000',
@@ -53,7 +53,7 @@
 		'small' => [
 			'DEF:response=$database:responsetime:AVERAGE',
 			'DEF:mresponse=$database:responsetime:MAX',
-			'LINE1:response#4169E1:Response msec.',
+			'LINE1:response#4169E1: Response msec.',
 			'GPRINT:response:AVERAGE:Avg %1.2lf msec',
 			'GPRINT:mresponse:MAX:Max %1.2lf msec\\n',
 		]

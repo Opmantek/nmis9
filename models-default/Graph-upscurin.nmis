@@ -41,19 +41,19 @@
 	'option' => {
 		'standard' => [
 			'DEF:upsinputcur1=$database:upsinputcur1:AVERAGE',
-			'LINE1:upsinputcur1#0000ff:Input Current 1',
+			'LINE1:upsinputcur1#0000ff: Input Current 1',
 			'DEF:upsinputcur2=$database:upsinputcur2:AVERAGE',
-			'LINE1:upsinputcur2#00ff00:Input Current 2',
+			'LINE1:upsinputcur2#00ff00: Input Current 2',
 			'DEF:upsinputcur3=$database:upsinputcur3:AVERAGE',
-			'LINE1:upsinputcur3#ff0000:Input Current 3'
+			'LINE1:upsinputcur3#ff0000: Input Current 3'
 		],
 		'small' => [
 			'DEF:upsinputcur1=$database:upsinputcur1:AVERAGE',
-			'LINE1:upsinputcur1#0000ff:Input Current 1',
+			'LINE1:upsinputcur1#0000ff: Input Current 1',
 			'DEF:upsinputcur2=$database:upsinputcur2:AVERAGE',
-			'LINE1:upsinputcur2#00ff00:Input Current 2',
+			'LINE1:upsinputcur2#00ff00: Input Current 2',
 			'DEF:upsinputcur3=$database:upsinputcur3:AVERAGE',
-			'LINE1:upsinputcur3#ff0000:Input Current 3'
+			'LINE1:upsinputcur3#ff0000: Input Current 3'
 		]
 	}
 );

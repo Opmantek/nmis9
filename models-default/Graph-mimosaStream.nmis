@@ -44,11 +44,11 @@
                         # CREATE SPLIT
                         'CDEF:split_mimosaRxPhy=mimosaRxPhy,-1,*',
 
-			'AREA:mimosaTxPhy#4daef6:Transmit',
+			'AREA:mimosaTxPhy#4daef6: Transmit',
 			'GPRINT:mimosaTxPhy:LAST:Current %1.2lf %sbps',
 			'GPRINT:mimosaTxPhy:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:mimosaTxPhy:MAX:Max %1.2lf %sbps\\n',			
-			'AREA:split_mimosaRxPhy#40E0D0:Receive',
+			'AREA:split_mimosaRxPhy#40E0D0: Receive',
 			'GPRINT:mimosaRxPhy:LAST:Current %1.2lf %sbps',
 			'GPRINT:mimosaRxPhy:AVERAGE:Avg. %1.2lf %sbps',
 			'GPRINT:mimosaRxPhy:MAX:Max %1.2lf %sbps\\n',			
@@ -59,10 +59,10 @@
 			# CREATE SPLIT
                         'CDEF:split_mimosaRxPhy=mimosaRxPhy,-1,*',
 
-			'AREA:mimosaTxPhy#4daef6:Transmit',
+			'AREA:mimosaTxPhy#4daef6: Transmit',
 			'GPRINT:mimosaTxPhy:LAST:Current %1.0lf %sbps',
 			'GPRINT:mimosaTxPhy:AVERAGE:Avg. %1.0lf %sbps\\n',
-			'AREA:split_mimosaRxPhy#40E0D0:Receive',
+			'AREA:split_mimosaRxPhy#40E0D0: Receive',
 			'GPRINT:mimosaRxPhy:LAST:Current %1.0lf %sbps',
 			'GPRINT:mimosaRxPhy:AVERAGE:Avg. %1.0lf %sbps\\n',
 		]

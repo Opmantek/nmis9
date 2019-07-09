@@ -45,9 +45,9 @@
 			'DEF:ssRawInterrupts=$database:ssRawInterrupts:AVERAGE',
 			'DEF:ssRawContexts=$database:ssRawContexts:AVERAGE',
 
-			'LINE1:ssRawInterrupts#0000aa:Interupts Processed\\t',
+			'LINE1:ssRawInterrupts#0000aa: Interupts Processed\\t',
 			'GPRINT:ssRawInterrupts:AVERAGE:Avg %6.2lf\\t',
-			'LINE1:ssRawContexts#00aa00:Contexts Processed\\t',
+			'LINE1:ssRawContexts#00aa00: Contexts Processed\\t',
 			'GPRINT:ssRawContexts:AVERAGE:Avg %6.2lf\\n',
 		]
 	}

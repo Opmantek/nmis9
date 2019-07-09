@@ -42,16 +42,16 @@
 		'standard' => [
 			'DEF:hitsTotal=$database:hitsTotal:AVERAGE',
 			'DEF:missTotal=$database:missTotal:AVERAGE',
-			'LINE1:hitsTotal#0000ff:Hits',
+			'LINE1:hitsTotal#0000ff: Hits',
 			'GPRINT:hitsTotal:AVERAGE:Avg %1.2lf\\n',
-			'LINE1:missTotal#00ff00:Misses',
+			'LINE1:missTotal#00ff00: Misses',
 			'GPRINT:missTotal:AVERAGE:Avg %1.2lf\\n'
 		],
 		'small' => [
 			'DEF:hitsTotal=$database:hitsTotal:AVERAGE',
 			'DEF:missTotal=$database:missTotal:AVERAGE',
-			'LINE1:hitsTotal#0000ff:Hits',
-			'LINE1:missTotal#00ff00:Misses'
+			'LINE1:hitsTotal#0000ff: Hits',
+			'LINE1:missTotal#00ff00: Misses'
 		]
 	}
 );

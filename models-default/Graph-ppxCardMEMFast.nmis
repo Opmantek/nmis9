@@ -45,23 +45,23 @@
 			'DEF:memMinFastRam=$database:memMinFastRam:AVERAGE',
 			'DEF:memMaxFastRam=$database:memMaxFastRam:AVERAGE',
 
-			'LINE1:memCapFastRam#00CED1:Capacity Fast RAM',
+			'LINE1:memCapFastRam#00CED1: Capacity Fast RAM',
 			'GPRINT:memCapFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memCapFastRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memUsageFastRam#4682B4:Usage Fast RAM',
+			'LINE1:memUsageFastRam#4682B4: Usage Fast RAM',
 			'GPRINT:memUsageFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memUsageFastRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memAvgFastRam#FF82B4:Avg Fast RAM',
+			'LINE1:memAvgFastRam#FF82B4: Avg Fast RAM',
 			'GPRINT:memAvgFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memAvgFastRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memMinFastRam#46FFB4:Min Fast RAM',
+			'LINE1:memMinFastRam#46FFB4: Min Fast RAM',
 			'GPRINT:memMinFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMinFastRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memMaxFastRam#4682FF:Max Fast RAM',
+			'LINE1:memMaxFastRam#4682FF: Max Fast RAM',
 			'GPRINT:memMaxFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMaxFastRam:MAX:Max %4.0lf\\n'			
 		],
@@ -72,23 +72,23 @@
 			'DEF:memMinFastRam=$database:memMinFastRam:AVERAGE',
 			'DEF:memMaxFastRam=$database:memMaxFastRam:AVERAGE',
 
-			'LINE1:memCapFastRam#00CED1:Capacity Fast RAM',
+			'LINE1:memCapFastRam#00CED1: Capacity Fast RAM',
 			'GPRINT:memCapFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memCapFastRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memUsageFastRam#4682B4:Usage Fast RAM',
+			'LINE1:memUsageFastRam#4682B4: Usage Fast RAM',
 			'GPRINT:memUsageFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memUsageFastRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memAvgFastRam#FF82B4:Avg Fast RAM',
+			'LINE1:memAvgFastRam#FF82B4: Avg Fast RAM',
 			'GPRINT:memAvgFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memAvgFastRam:MAX:Max %4.0lf\\n',
 
-			'LINE1:memMinFastRam#46FFB4:Min Fast RAM',
+			'LINE1:memMinFastRam#46FFB4: Min Fast RAM',
 			'GPRINT:memMinFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMinFastRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memMaxFastRam#4682FF:Max Fast RAM',
+			'LINE1:memMaxFastRam#4682FF: Max Fast RAM',
 			'GPRINT:memMaxFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memMaxFastRam:MAX:Max %4.0lf\\n'			
     ]

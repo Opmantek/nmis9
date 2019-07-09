@@ -48,19 +48,19 @@
 			'DEF:cpsGrpEntryOlcap=$database:cpsGrpEntryOlcap:AVERAGE',
 			'DEF:cpsGrpEntryLrs=$database:cpsGrpEntryLrs:AVERAGE',
 
-			'LINE1:cpsGrpEntryTadc#006400:Total Current (mA)',
+			'LINE1:cpsGrpEntryTadc#006400: Total Current (mA)',
 			'GPRINT:cpsGrpEntryTadc:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsGrpEntryAadc#2E8B57:Average Current (mA)',
+			'LINE1:cpsGrpEntryAadc#2E8B57: Average Current (mA)',
 			'GPRINT:cpsGrpEntryAadc:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsGrpEntryCap#0000CD:Capacity (mA)',
+			'LINE1:cpsGrpEntryCap#0000CD: Capacity (mA)',
 			'GPRINT:cpsGrpEntryCap:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsGrpEntryOlcap#4682B4:Online Capacity (mA)',
+			'LINE1:cpsGrpEntryOlcap#4682B4: Online Capacity (mA)',
 			'GPRINT:cpsGrpEntryOlcap:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsGrpEntryLrs#ff0000:Loss of Redundancy Status',
+			'LINE1:cpsGrpEntryLrs#ff0000: Loss of Redundancy Status',
 			'GPRINT:cpsGrpEntryLrs:AVERAGE:Avg %1.2lf',
 			'COMMENT:0 Alarm Inactive, 1 Alarm Active\\n'
 		],
@@ -73,19 +73,19 @@
 			'DEF:cpsGrpEntryOlcap=$database:cpsGrpEntryOlcap:AVERAGE',
 			'DEF:cpsGrpEntryLrs=$database:cpsGrpEntryLrs:AVERAGE',
 
-			'LINE1:cpsGrpEntryTadc#006400:Total Current (mA)',
+			'LINE1:cpsGrpEntryTadc#006400: Total Current (mA)',
 			'GPRINT:cpsGrpEntryTadc:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsGrpEntryAadc#2E8B57:Average Current (mA)',
+			'LINE1:cpsGrpEntryAadc#2E8B57: Average Current (mA)',
 			'GPRINT:cpsGrpEntryAadc:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsGrpEntryCap#0000CD:Capacity (mA)',
+			'LINE1:cpsGrpEntryCap#0000CD: Capacity (mA)',
 			'GPRINT:cpsGrpEntryCap:AVERAGE:Avg %1.2lf',
 
-			'LINE1:cpsGrpEntryOlcap#4682B4:Online Capacity (mA)',
+			'LINE1:cpsGrpEntryOlcap#4682B4: Online Capacity (mA)',
 			'GPRINT:cpsGrpEntryOlcap:AVERAGE:Avg %1.2lf\\n',
 
-			'LINE1:cpsGrpEntryLrs#ff0000:Loss of Redundancy Status',
+			'LINE1:cpsGrpEntryLrs#ff0000: Loss of Redundancy Status',
 			'GPRINT:cpsGrpEntryLrs:AVERAGE:Avg %1.2lf',
 			'COMMENT:0 Alarm Inactive, 1 Alarm Active\\n'
 		]

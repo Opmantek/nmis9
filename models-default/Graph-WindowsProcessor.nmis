@@ -50,32 +50,32 @@
 			'DEF:percentDpc=$database:percentDpc:AVERAGE',
 			'DEF:percentIdle=$database:percentIdle:AVERAGE',
 
-			'LINE2:percentProcessor#ffa500:Percent Processor\\t',
+			'LINE2:percentProcessor#ffa500: Percent Processor\\t',
 			'GPRINT:percentProcessor:LAST:Last %6.2lf',
 			'GPRINT:percentProcessor:AVERAGE:Average %6.2lf',
 			'GPRINT:percentProcessor:MAX:Max %6.2lf\\n',
 
-			'AREA:percentUser#CD5C5C:Percent User\\t\\t',
+			'AREA:percentUser#CD5C5C: Percent User\\t\\t',
 			'GPRINT:percentUser:LAST:Last %6.2lf',
 			'GPRINT:percentUser:AVERAGE:Average %6.2lf',
 			'GPRINT:percentUser:MAX:Max %6.2lf\\n',
 
-			'STACK:percentInterrupt#0000ff:Percent Interrupt\\t',
+			'STACK:percentInterrupt#0000ff: Percent Interrupt\\t',
 			'GPRINT:percentInterrupt:LAST:Last %6.2lf',
 			'GPRINT:percentInterrupt:AVERAGE:Average %6.2lf',
 			'GPRINT:percentInterrupt:MAX:Max %6.2lf\\n',
 
-			'STACK:percentPrivileged#00a5ff:Percent Privileged\\t',
+			'STACK:percentPrivileged#00a5ff: Percent Privileged\\t',
 			'GPRINT:percentPrivileged:LAST:Last %6.2lf',
 			'GPRINT:percentPrivileged:AVERAGE:Average %6.2lf',
 			'GPRINT:percentPrivileged:MAX:Max %6.2lf\\n',
 
-			'STACK:percentDpc#00ffff:Percent DPC\\t\\t',
+			'STACK:percentDpc#00ffff: Percent DPC\\t\\t',
 			'GPRINT:percentDpc:LAST:Last %6.2lf',
 			'GPRINT:percentDpc:AVERAGE:Average %6.2lf',
 			'GPRINT:percentDpc:MAX:Max %6.2lf\\n',
 
-			#'STACK:percentIdle#00FF7F:Percent Idle\\t',
+			#'STACK:percentIdle#00FF7F: Percent Idle\\t',
 			#'GPRINT:percentIdle:LAST:Last %6.2lf',
 			#'GPRINT:percentIdle:AVERAGE:Average %6.2lf',
 			#'GPRINT:percentIdle:MAX:Max %6.2lf\\n',
@@ -87,7 +87,7 @@
 			'--rigid',
 			'DEF:percentProcessor=$database:percentProcessor:AVERAGE',
 
-			'LINE2:percentProcessor#ffa500:Percent Processor\\t',
+			'LINE2:percentProcessor#ffa500: Percent Processor\\t',
 			'GPRINT:percentProcessor:LAST:Last %6.2lf',
 			'GPRINT:percentProcessor:AVERAGE:Average %6.2lf',
 			'GPRINT:percentProcessor:MAX:Max %6.2lf\\n',
