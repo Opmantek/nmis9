@@ -201,7 +201,9 @@ sub typeGraph
 	}
 	elsif ( $group )
 	{
-		if ( ! $AU->InGroup($group) or !exists $GT->{$group} )
+		# group 'network' is used for metrics graphs and is special:
+		# it exists automatically no matter what the group_list configuration or group table says.
+		if ( ! $AU->InGroup($group) or (!exists $GT->{$group} and $group ne "network" ))
 		{
 			print "Not Authorized to view graphs on nodes in group $group";
 			return 0;
