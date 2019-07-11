@@ -197,8 +197,8 @@ NMIS $Compat::NMIS::VERSION - $C->{server_name}</span>
 my $logName = $Q->{logname} || 'Event_Log';
 
 # send the default list of all names
-my $NT = Compat::NMIS::loadLocalNodeTable(); # load node table
-my $NSum = Compat::NMIS::loadLocalNodeSummary();
+my $NT = Compat::NMIS::loadNodeTable(); # load node table
+my $NSum = Compat::NMIS::loadNodeSummary();
 
 # Only show authorised nodes in the list - and only if members of configured groups!
 

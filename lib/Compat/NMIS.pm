@@ -99,8 +99,8 @@ sub new_nmisng
 				path  =>  ($args{debug}? undef : $logfile ),
 					);
 		}
-
 		$_nmisng = NMISNG->new(config => $C, log => $logger);
+$_nmisng->log->info("******** Creating new NMISNG ");
 		undef $pending;
 	}
 	return $_nmisng;

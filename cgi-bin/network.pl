@@ -372,8 +372,7 @@ sub getSummaryStatsbyGroup
 		group    => $group,
 		customer => $customer,
 		business => $business,
-		include_nodes => $include_nodes,
-		local_nodes => "true"
+		include_nodes => $include_nodes
 	);
 
 	$overallStatus = $network_status->overallNodeStatus( group => $group, customer => $customer, business => $business );
@@ -1275,7 +1274,7 @@ sub selectLarge
 	my $customer = $args{customer};
 	my $business = $args{business};
 
-	my $NT = $network_status->get_local_nt();
+	my $NT = $network_status->get_nt();
 	
 	getSummaryStatsbyGroup(include_nodes => 1);
 	my @headers = (
@@ -1879,24 +1878,25 @@ sub viewNode
 	# fixme9: server mode is nonfunctional at this time
 	my $responsible = $C->{cluster_id};
 
-	if ( $nmisng_node->cluster_id ne $responsible
-			 && ref(my $ST = Compat::NMIS::loadServersTable()) eq "HASH")
+	if ( $nmisng_node->cluster_id ne $responsible)
 	{
+		my $remotes = $nmisng->get_remote(filter => {cluster_id => $nmisng_node->cluster_id});
 		my $wd = 850;
 		my $ht = 700;
+		# We are getting only one
+		my $remote = @$remotes[0];
 
-		my $server = $configuration->{server}; # fixme9: property no longer exists, cannot work
-		my $url
-			= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$ST->{$server}{config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node="
+		# Get node from remote collection
+		my $url = $remote->{url_base}."/".$remote->{nmis_cgi_url_base}."/network.pl?conf=$remote->{nmis_config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node="
 			. uri_escape($node);
 		my $nodelink = a( {target => "NodeDetails-$node", onclick => "viewwndw(\'$node\',\'$url\',$wd,$ht)"},
 			$node );
-		print "$nodelink is managed by server $configuration->{server}";
-		print <<EO_HTML;
-	<script>
-		viewwndw('$node','$url',$wd,$ht,'server');
-	</script>
-EO_HTML
+		print "$nodelink is managed by server $remote->{server_name}";
+#		print <<EO_HTML;
+#	<script>
+#		viewwndw('$node','$url',$wd,$ht,'server');
+#	</script>
+#EO_HTML
 		return;
 	}
 
@@ -4330,7 +4330,7 @@ sub viewOverviewIntf
 	my $II     = Compat::NMIS::loadInterfaceInfo(); # fixme9: slow and wasteful...
 	my $ii_cnt = keys %{$II};
 
-	my $NT = $network_status->get_local_nt();
+	my $NT = $network_status->get_nt();
 	my $gr_menu = "";
 
 	# start of form
@@ -4498,7 +4498,7 @@ sub viewTop10
 	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
 	my $datestamp_end   = NMISNG::Util::returnDateStamp($end);
 
-	my $NT = $network_status->get_local_nt();
+	my $NT = $network_status->get_nt();
 	
 	my $header = "Network Top10 from $datestamp_start to $datestamp_end";
 
