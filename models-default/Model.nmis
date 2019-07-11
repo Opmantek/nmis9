@@ -47,7 +47,7 @@
           'poll' => 300
         },
         'nmis' => {
-          'heartbeat' => 7200,
+          'heartbeat' => 86400*2,
           'poll' => 60
         }
       }

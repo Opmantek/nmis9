@@ -49,7 +49,7 @@
           'poll' => 300
         },
         'nmis' => {
-          'heartbeat' => 7200,
+          'heartbeat' => 86400*2,
           'poll' => 60
         }
       }
@@ -74,12 +74,12 @@
       'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
 
-			
+
 			'mtxrWlRtab' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
 			'mtxrWlAp' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
 			'HBS-Util' => '/nodes/$node/health/hbs.rrd',
 
-			
+
       'Stream' => '/nodes/$node/health/Stream-$index.rrd',
       'VirtMachines' => '/nodes/$node/health/VirtMachines-$index.rrd',
       'WindowsPagefile' => '/nodes/$node/health/WindowsPagefile-$index.rrd',

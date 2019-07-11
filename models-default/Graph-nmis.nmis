@@ -1,69 +1,85 @@
 #
-## $Id: Graph-nmis.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+#  Copyright Opmantek Limited (www.opmantek.com)
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
 %hash = (
-	'heading' => 'NMIS collect runtime',
+	'heading' => 'NMIS system performance',
 	'title' => {
-		'standard' => 'NMIS system - $length from $datestamp_start to $datestamp_end',
+		'standard' => 'NMIS system performance - $length from $datestamp_start to $datestamp_end',
 		'short' => 'NMIS system - $length'
 	},
 	'vlabel' => {
-		'standard' => 'NMIS runtime seconds',
+		'standard' => 'seconds',
 		'short' => 'seconds',
 	},
 	'option' => {
 		'standard' => [
 			'--right-axis','1:0',
-			'--right-axis-label','Processes',
+			'--right-axis-label','Jobs',
 
-			'DEF:total=$database:total:AVERAGE',
-			'DEF:collect=$database:collect:AVERAGE',
-			'DEF:procs=$database:nr_procs:AVERAGE',
-			'DEF:maxpar=$database:max_procs:AVERAGE',
+			'DEF:active=$database:activejobs:AVERAGE',
+			'DEF:queued=$database:queuedjobs:AVERAGE',
+			'DEF:overdue=$database:overduejobs:AVERAGE',
 
-			'LINE2:total#006400: total runtime\t',
-			'GPRINT:total:AVERAGE:\tAvg %1.2lf seconds',
-			'GPRINT:total:MAX:\tMax %1.2lf seconds\l',
+			'DEF:collectt=$database:collecttime:AVERAGE',
+			'DEF:updatet=$database:updatetime:AVERAGE',
+			'DEF:servicest=$database:servicestime:AVERAGE',
 
-			'LINE2:collect#32CD32: collect time\t',
-			'GPRINT:collect:AVERAGE:\tAvg %1.2lf seconds',
-			'GPRINT:collect:MAX:\tMax %1.2lf seconds\l',
+			'DEF:collectc=$database:collectcount:AVERAGE',
+			'DEF:updatec=$database:updatecount:AVERAGE',
+			'DEF:servicesc=$database:servicescount:AVERAGE',
 
-			'LINE2:procs#B22222: NMIS processes\t\t',
-			'GPRINT:procs:AVERAGE:Avg %6.1lf',
-			'GPRINT:procs:MAX:\tMax %6.1lf\l',
+			'LINE2:collectt#32CD32: collect time\t',
+			'GPRINT:collectt:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:collectt:MAX:\tMax %1.2lf seconds',
+			'GPRINT:collectc:MAX:\tAvg %1.2lf collects/min\l',
 
-			'LINE2:maxpar#FF8c00: Max Parallel processes\t',
-			'GPRINT:maxpar:AVERAGE:Avg %6.1lf',
-			'GPRINT:maxpar:MAX:\tMax %6.1lf\l',
+			'LINE2:updatet#20B2AA: update time\t',
+			'GPRINT:updatet:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:updatet:MAX:\tMax %1.2lf seconds',
+			'GPRINT:updatec:MAX:\tAvg %1.2lf updates/min\l',
+
+			'LINE2:servicest#FF8C00: services time\t',
+			'GPRINT:servicest:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:servicest:MAX:\tMax %1.2lf seconds',
+			'GPRINT:servicesc:MAX:\tAvg %1.2lf service checks/min\l',
+
+			'LINE2:active#7FFF00: active jobs\t',
+			'GPRINT:active:AVERAGE:\tAvg %1.2lf jobs',
+			'GPRINT:active:MAX:\tMax %1.2lf jobs\l',
+
+			'LINE2:queued#008080: queued jobs\t',
+			'GPRINT:queued:AVERAGE:\tAvg %1.2lf jobs',
+			'GPRINT:queued:MAX:\tMax %1.2lf jobs\l',
+
+			'LINE2:overdue#FF0000: overdue jobs\t',
+			'GPRINT:overdue:AVERAGE:\tAvg %1.2lf jobs',
+			'GPRINT:overdue:MAX:\tMax %1.2lf jobs\l',
 
 		]
 	}

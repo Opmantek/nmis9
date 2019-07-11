@@ -405,9 +405,6 @@ while (!$exit_marker)
 				$nmisng->log->debug3("$notyetdone incomplete $icanhasplugin jobs with tag \"$tag\" present");
 				next;
 			}
-			# fixme: what stats collection do we want to perform at the end of a multi-node collect/update?
-			# fixme: rely on opstatus (precise) or the inflight plus current time (=next cycle, so not precise)
-
 			# looks like it's time for a post-op plugin, so let's schedule one
 			# IFF there are any plugins that provide after_xyz_plugin functions...
 			if (grep( $_->can("after_${icanhasplugin}_plugin"), $nmisng->plugins))
@@ -642,7 +639,92 @@ while (!$exit_marker)
 			if (%goners && $nmisng->log->is_level(2)); # don't bother with the dumper unless debug2 or higher
 
 
-	# save the scheduler state, in case the daemon restarts (local state and file is cheaper than trawling opstatus)
+	# collect job performance statistics every N seconds and write them to the nmis-system rrd
+	# try to catch-up while possible
+	my $stats_period = 60; 				# must align with common-database/timing/nmis AND model/database/timing/nmis
+	my $S = NMISNG::Sys->new;
+	$S->init;										# need global/non-node/nmis-system mode
+
+	while (!$scheduler_state->{last_stats_time}
+				 or $now - $scheduler_state->{last_stats_time} >= $stats_period)
+	{
+		my $periodstart = $scheduler_state->{last_stats_time} || $now - $stats_period;
+		$scheduler_state->{last_stats_time} = $periodstart + $stats_period;
+		$nmisng->log->debug2("updating nmis performance stats, $stats_period seconds from $periodstart");
+
+		# various activity names from get_job_stats_model need shortening as DS names are limited to 19 chars
+		my %xlat = ( 'permissions_test' => 'perms',
+								 'configbackup' => 'backup',
+								 'post-update plugins' =>  'postupdate',
+								 'post-collect plugins' => 'postcollect',
+								 'escalations' => 'esc',
+								 'dbcleanup' =>  'cleanup', );
+
+		my %statsdata;
+		for my $ds (map { ("${_}time", "${_}count") } (qw(collect update services metrics
+selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect
+)))
+		{
+			$statsdata{$ds} = { option => "gauge,0:U", value => 'U' };
+		}
+		for my $ds (qw(procs queuedjobs activejobs overduejobs))
+		{
+			$statsdata{$ds} = { option => "gauge,0:U", value => 'U' };
+		}
+
+		# first get the data from zoo and queue_states
+		$statsdata{procs}->{value} = scalar keys %{$scheduler_state->{zoo}};
+		my $inperiodcount;
+		for my $inperiod (grep($_->[0] >= $periodstart && $_->[0] <= $periodstart + $stats_period,
+													 @{$scheduler_state->{queue_states}}))
+		{
+			++$inperiodcount;
+			for ([1,'queuedjobs'],[2,'activejobs'],[3,'overduejobs'])
+			{
+				my ($source,$target) = @$_;
+
+				$statsdata{$target}->{value} =
+						($statsdata{$target}->{value} eq "U")? 	$inperiod->[$source] :
+						$statsdata{$target}->{value} + $inperiod->[$source];
+			}
+		}
+		if ($inperiodcount)
+		{
+			map { $statsdata{$_}->{value} /= $inperiodcount } (qw(queuedjobs activejobs overduejobs));
+		}
+
+		# then get the timing and count data from opstatus
+		my $md = $nmisng->get_job_stats_model(filter => { 'time' => { '$gte' => $periodstart,
+																																	 '$lt' => $periodstart + $stats_period }});
+		if (my $error = $md->error)
+		{
+			$nmisng->log->error("failed to collect nmis performance stats: $error");
+		}
+		else
+		{
+			for my $statsentry (@{$md->data})
+			{
+				my $dsprefix = $xlat{$statsentry->{activity}} // $statsentry->{activity};
+				if (!exists $statsdata{"${dsprefix}time"})
+				{
+					$nmisng->log->error("skipping unrecognised opstatus activity type \"$dsprefix\"!");
+					next;
+				}
+
+				$statsdata{"${dsprefix}time"}->{value} = $statsentry->{totaltime};
+				$statsdata{"${dsprefix}count"}->{value} = $statsentry->{totalcount};
+			}
+		}
+
+
+		if (!$S->create_update_rrd(type => "nmis", data => \%statsdata))
+		{
+			$nmisng->log->error("failed to update nmis performance stats: ".NMISNG::rrdfunc::getRRDerror() );
+		}
+	}
+
+	# save the scheduler state, in case the daemon restarts
+	# (local state and file is cheaper than trawling opstatus)
 	NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
 
 	# trivial SIGURG listener so that the outer supervisor also is wakeable by others

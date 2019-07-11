@@ -1894,6 +1894,40 @@ sub get_opstatus_model
 	);
 }
 
+
+# retrieve/compute the timing stats for completed jobs from the opstatus collection
+# args: filter (optional, hashref of mongo query, criteria added to type completed)
+# returns: modeldata object (which may be empty - do check ->error)
+#
+# if unrestricted then stats for all of opstatus are computed, which may be slow
+# a minimal filter => { time => { '$gt' => ...now minus a few minutes }} is recommended
+sub get_job_stats_model
+{
+	my ($self, %args) = @_;
+
+	my $selector = ref($args{filter}) eq "HASH"? $args{filter} : {};
+	$selector->{type} = "completed"; # nothing else has time stats
+
+	# match by selector, group by activity, sum and avg time, sum 1 for count,
+	# rewrite to produce activity instead of _id
+	my ($entries, undef, $error) = NMISNG::DB::aggregate(
+		collection => $self->opstatus_collection,
+		count => 0,
+		pre_count_pipeline => [
+			{ '$match' => $selector },
+			{ '$group' => { '_id' => '$activity',
+											totaltime => { '$sum' => '$stats.time' },
+											avgtime => { '$avg' => '$stats.time' },
+											totalcount => { '$sum' =>  1 }}},
+			{ '$project' => { _id => 0,
+												activity => '$_id',
+												totaltime =>  1,
+												avgtime => 1,
+												totalcount => 1 }}]);
+	return NMISNG::ModelData->new(error => "Aggregation failed: $error") if ($error);
+	return NMISNG::ModelData->new(data => $entries);
+}
+
 # looks up queued jobs and returns modeldata object of the result
 # args: id OR selection clauses (all optional)
 # also sort/skip/limit/count - all optional
@@ -2349,7 +2383,7 @@ sub node
 		$self->log->debug( "Node request returned more than one node, args" . Dumper( \%args ) );
 		$self->log->warn( "Node request returned more than one node, names:" . join( ",", @names ) );
 
-		# Try filtering by cluster_id		
+		# Try filtering by cluster_id
 		if (($args{name} || $args{filter}{name}) && !$args{filter}{cluster_id}  )
 		{
 			$args{filter}{cluster_id} = $self->config->{cluster_id};
@@ -4049,7 +4083,7 @@ sub save_opstatus
 	$statusrec->{type}    = $type;
 	$statusrec->{context} = $args{context} if ( exists $args{context} );    # undef is ok for deletion
 	$statusrec->{details} = $args{details} if ( exists $args{details} );    # undef is ok for deletion
-	$statusrec->{stats}   = $args{stats} if ( exists $args{details} );      # undef is ok for deletion
+	$statusrec->{stats}   = $args{stats} if ( exists $args{stats} );      	# undef is ok for deletion
 	delete $statusrec->{_id};                                               # must not be present for update
 
 	my $expire_at = $statusrec->{time} + ( $self->config->{purge_opstatus_after} || 7 * 86400 );
