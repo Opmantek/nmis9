@@ -1275,7 +1275,7 @@ sub htmlGraph
 	my $omit_fluff = NMISNG::Util::getbool($args{only_link}); # return wrapped <a> etc. or just the href?
 
 	my $sys = $args{sys};
-	if (ref($sys) eq "NMISNG::Sys")
+	if (ref($sys) eq "NMISNG::Sys" && ref($sys->nmisng_node))
 	{
 		$node = $sys->nmisng_node->name;
 	}

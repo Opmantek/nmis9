@@ -913,7 +913,7 @@ sub draw
 	}
 	else
 	{
-		$nodename = $S->nmisng_node->name;
+		$nodename = $S->nmisng_node->name if (ref($S->nmisng_node));
 	}
 
 	# fixme9: non-node mode is a dirty hack.
