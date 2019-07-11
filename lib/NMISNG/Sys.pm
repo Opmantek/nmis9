@@ -601,7 +601,7 @@ sub open
 			&& $self->{snmp}->testsession;
 	if (!$isok)
 	{
-		if (defined($self->{cfg}->{node}->{host_backup}))
+		if ($self->{cfg}->{node}->{host_backup}) # present and non-empty
 		{
 			$snmpcfg->{host} = $self->{cfg}->{node}->{host_backup};
 			$self->nmisng->log->debug("SNMP session using primary address for $self->{name} failed, trying backup address $snmpcfg->{host}");
