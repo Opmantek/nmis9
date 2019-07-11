@@ -1801,7 +1801,7 @@ sub get_group_names
 	# default: active nodes, and ours only
 	my $filter = exists($args{filter})? $args{filter} # undef is ok
 	: 	{ "activated.NMIS" => 1,
-				cluster_id => $self->config->{cluster_id }};
+				};
 
 	my $model_data = $self->get_nodes_model( filter => $filter,
 																					 fields_hash => {"configuration.group" => 1} );

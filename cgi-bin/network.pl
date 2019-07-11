@@ -1892,11 +1892,11 @@ sub viewNode
 		my $nodelink = a( {target => "NodeDetails-$node", onclick => "viewwndw(\'$node\',\'$url\',$wd,$ht)"},
 			$node );
 		print "$nodelink is managed by server $remote->{server_name}";
-		print <<EO_HTML;
-	<script>
-		viewwndw('$node','$url',$wd,$ht,'server');
-	</script>
-EO_HTML
+#		print <<EO_HTML;
+#	<script>
+#		viewwndw('$node','$url',$wd,$ht,'server');
+#	</script>
+#EO_HTML
 		return;
 	}
 
