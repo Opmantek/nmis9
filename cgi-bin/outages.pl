@@ -105,7 +105,7 @@ sub viewOutage
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
 
-	my $NT = Compat::NMIS::loadLocalNodeTable();
+	my $NT = Compat::NMIS::loadNodeTable();
 	my $res = NMISNG::Outage::find_outages(); # attention: cannot filter by affected node
 	if (!$res->{success})
 	{

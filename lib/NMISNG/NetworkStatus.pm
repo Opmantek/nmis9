@@ -92,7 +92,7 @@ sub overallNodeStatus
 	my $t      = Compat::Timing->new();
 	my $C = $self->{_nmisng}->config;
 	# We only want the master nodes, so use cluster_id
-	my $NT = $self->get_local_nt();
+	my $NT = $self->get_nt();
 
 	foreach $node_name (sort keys %{$NT} )
 	{

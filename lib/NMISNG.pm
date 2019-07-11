@@ -100,7 +100,7 @@ sub new
 	$self->{_db} = $db;
 
 	# load and prime the statically defined collections
-	for my $collname (qw(nodes events inventory latest_data queue opstatus status))
+	for my $collname (qw(nodes events inventory latest_data queue opstatus status remote))
 	{
 		my $collhandle = NMISNG::DB::get_collection( db => $db, name => $collname );
 		if ( ref($collhandle) ne "MongoDB::Collection" )
@@ -2325,6 +2325,32 @@ sub log
 		if ( ref($newlogger) eq "NMISNG::Log" );
 
 	return $self->{_log};
+}
+
+# helper to get/set servers collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub remote_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	$self->log->info("index setup for remote");
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_remote} = $newvalue;
+
+		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_remote},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				# needed for joins
+				[[cluster_id => 1], {unique => 1}],
+			]
+		);
+		$self->log->error("index setup failed for remotes: $err") if ($err);
+	}
+	return $self->{_db_remote};
 }
 
 # get or create an NMISNG::Node object from the given arguments (that should make it unique)
@@ -4894,6 +4920,49 @@ sub undump_node
 		NMISNG::Util::setFileProtDiag(file => $targetfn);
 	}
 	return { success => 1, node => $noderec };
+}
+
+# Returns all the information available from a poller (Remote)
+# args: filter
+sub get_remote
+{
+	my ($self, %args) = @_;
+	my $filter = $args{filter};
+	
+	my $fields_hash = $args{fields_hash};
+	my $q = NMISNG::DB::get_query( and_part => $filter );
+
+	my $model_data = [];
+	my $query_count;
+	my $res;
+
+	if ( $args{count} )
+	{
+		$res = NMISNG::DB::count(
+			collection => $self->remote_collection,
+			query      => $q,
+			verbose    => 1
+		);
+
+		$query_count = $res->{count};
+	}
+
+	# if you want only a count but no data, set count to 1 and limit to 0
+	my $cursor = NMISNG::DB::find(
+			collection  => $self->remote_collection,
+			query       => $q,
+			fields_hash => $fields_hash,
+			sort        => $args{sort},
+			limit       => $args{limit},
+			skip        => $args{skip}
+		);
+	
+	while ( my $entry = $cursor->next )
+	{
+		push @$res, $entry;
+	}
+	
+	return $res;
 }
 
 1;
