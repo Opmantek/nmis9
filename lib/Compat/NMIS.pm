@@ -100,7 +100,7 @@ sub new_nmisng
 					);
 		}
 		$_nmisng = NMISNG->new(config => $C, log => $logger);
-$_nmisng->log->info("******** Creating new NMISNG ");
+
 		undef $pending;
 	}
 	return $_nmisng;
