@@ -32,20 +32,23 @@
 # plus our more fine-grained debug1==debug, and debug2 to debug9,
 # plus optional logprefix
 package NMISNG::Log;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 # note that we need mojo 6.47 or newer: older api lacks is_level
 # unfortunately there are no versions declared on any of the mojo packages,
-# so we can't enforce that here
+# so we can't enforce that here...nor can we cleanly distinguish between 7.x and 8.x :-(
 use Mojo::Base 'Mojo::Log';
 use strict;
 use List::MoreUtils;
 use Carp;
+use feature 'state';
 
 # extra attribute to distinguish between debug levels 1 to 9
 __PACKAGE__->attr('detaillevel');
 # and extra attribute for logprefix
 __PACKAGE__->attr('logprefix');
+# and an extra attribute to track the required argument order for _log :-(
+__PACKAGE__->attr('bottomsup');
 
 # args: all attributes from mojo::log (i.e. path, level, format, handle),
 # also extra level values,
@@ -89,25 +92,44 @@ sub new
 	$self->detaillevel($detaillevel);
 	$self->logprefix($logprefix);
 
+	# _log in 7.x takes level, message(s), but 8.x wants messages, level. meh!
+	# 'thanks' to no versions in any Mojo module whatsoever we've got
+	# to guess what vintage super is. we also must do that guesswork
+	# before modifying the format callback, as it relies on checking
+	# if super uses the yyyy-mm-dd time format
+	$self->bottomsup(&{$self->SUPER::format()}(0,"debug","message")
+									 =~ /^\[1970-/? 1 : 0);
+
+	# now overload the standard format function to avoid the undesirable
+	# mojo 8.x format. basically a clone of _default from 7.61.
+	$self->format(sub {
+		'[' . localtime(shift) . '] [' . shift() . '] ' . join "\n", @_, '';
+								});
+
 	return $self;
 }
 
-
-# (possibly overloaded) log function
+# overloaded log function
 # that adds logprefix to the first line if needed, and then delegates
 # to the correct superclass function - which depends on mojo versions :-/
+# for mojo 8.x it also enforces the level logic as that was moved to the
+# front end methods...
 sub _log
 {
 	my ($self, $level, @lines) = @_;
 
-	if (my $prefix = $self->logprefix)
+	# logic was in _message before 8.x
+	return unless $self->is_level($level);
+
+	my $prefix = $self->logprefix;
+	if ($prefix)
 	{
 		$lines[0] = $prefix.$lines[0];
 	}
 	# at some point mojo::log moved from log() to _log()
 	return Mojo::Log->can("log")?
-			$self->SUPER::log($level => @lines)
-			: $self->SUPER::_log($level => @lines);
+			$self->SUPER::log($level => @lines) # definitely pre-7.61
+			: $self->SUPER::_log($self->bottomsup? (@lines => $level) : ($level => @lines)); # confuse a cat!
 }
 
 # overloaded standard accessors

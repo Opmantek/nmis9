@@ -159,13 +159,15 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 	elsif ($pid)
 	{
 		# parent: exits
-		$logger->info("$me daemon was started (pid $pid).");
 		exit (0);
 	}
 
 	# child continues with the actual work
 	srand();
-	$logger->logprefix("$me\[$$\] ");
+	$nmisng->log->logprefix("$me\[$$\] ");
+	$nmisng->log->info("$me daemon was started (pid $$).");
+
+	
 	POSIX::setsid() or die "Can't start new session: $!";
 	chdir('/') or die "Can't chdir to /: $!";
 
