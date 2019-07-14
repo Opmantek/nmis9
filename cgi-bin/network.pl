@@ -1278,7 +1278,7 @@ sub selectLarge
 	
 	getSummaryStatsbyGroup(include_nodes => 1);
 	my @headers = (
-		'Node',   'Location', 'Type',         'Net',        'Role',   'Status',
+		'Node',   'SNMP Location', 'Type',         'Net',        'Role',   'Status',
 		'Health', 'Reach',    'Intf. Avail.', 'Resp. Time', 'Outage', 'Esc.',
 		'Last Update'
 	);
@@ -1991,7 +1991,7 @@ nodeVendor sysObjectName roleType netType );
 									 group => 'Group',
 									 customer => 'Customer',
 									 outage => "Outage Status",
-									 location => 'Location', # fixme9 OMK-3079
+									 location => 'Location',
 									 businessService => 'Business Service',
 									 serviceStatus => 'Service Status',
 									 notes => 'Notes',

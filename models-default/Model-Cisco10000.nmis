@@ -624,7 +624,7 @@
             'replace' => {
               '' => 'default'
             },
-            'title' => 'Location'
+            'title' => 'SNMP Location'
           },
           'sysName' => {
             'oid' => 'sysName',

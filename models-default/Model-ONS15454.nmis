@@ -158,7 +158,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'Location'
+            'title' => 'SNMP Location'
           },
           'sysObjectID' => {
             'oid' => 'sysObjectID'

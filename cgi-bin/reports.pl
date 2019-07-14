@@ -1607,7 +1607,7 @@ sub nodedetailsReport {
     print "Pragma: no-cache\n";
     print "Expires: 0\n\n";
 
-	println( 'Name','Type','Location','System Uptime',
+	println( 'Name','Type','SNMP Location','System Uptime',
 					 'Node Vendor','NodeModel', 'SystemName','S/N','Chassis','ProcMem','Version');
 
 	foreach my $group (sort keys %{$GT})

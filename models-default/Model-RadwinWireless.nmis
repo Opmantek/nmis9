@@ -290,7 +290,7 @@
             'replace' => {
               '' => 'default'
             },
-            'title' => 'Location'
+            'title' => 'SNMP Location'
           },
           'sysName' => {
             'oid' => 'sysName',
@@ -326,7 +326,7 @@
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
             'option' => 'nosave',
             'sysObjectName' => 'hsuLocation',
-            'title' => 'Location'
+            'title' => 'SNMP Location'
           },
           'hsuName' => {
             'calculate' => 'my @values = split(/\\,/, $r);$r = $values[2];',
@@ -523,7 +523,7 @@
             'calculate' => 'my @values = split(/\\,/, $r);$r = $values[3];',
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
             'sysObjectName' => 'hsuLocation',
-            'title' => 'Location'
+            'title' => 'SNMP Location'
           },
           'hsuName' => {
             'calculate' => 'my @values = split(/\\,/, $r);$r = $values[2];',

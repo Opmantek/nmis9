@@ -207,7 +207,6 @@ sub displayEvents
 	my %eventackcount;
 	my %eventnoackcount;
 	my %eventcount;
-	my $cleanedSysLocation;
 	my $node_cnt;
 
 	my $node = $Q->{node};
