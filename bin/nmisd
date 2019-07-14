@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="9.0.1";
+our $VERSION="9.0.3";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -665,11 +665,14 @@ while (!$exit_marker)
 selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect
 )))
 		{
-			$statsdata{$ds} = { option => "gauge,0:U", value => 'U' };
+			# no occurrences of op X -> count must be zero, not undefined.
+			# undefined is ok for cumulative time values, because
+			# we want rrdtool to compute max and avgs for times when such data is available
+			$statsdata{$ds} = { option => "gauge,0:U", value => $ds =~ /count$/? 0 : 'U' };
 		}
 		for my $ds (qw(procs queuedjobs activejobs overduejobs))
 		{
-			$statsdata{$ds} = { option => "gauge,0:U", value => 'U' };
+			$statsdata{$ds} = { option => "gauge,0:U", value => 0 };
 		}
 
 		# first get the data from zoo and queue_states
@@ -682,10 +685,7 @@ selftest perms backup purge cleanup esc thresholds metrics postupdate postcollec
 			for ([1,'queuedjobs'],[2,'activejobs'],[3,'overduejobs'])
 			{
 				my ($source,$target) = @$_;
-
-				$statsdata{$target}->{value} =
-						($statsdata{$target}->{value} eq "U")? 	$inperiod->[$source] :
-						$statsdata{$target}->{value} + $inperiod->[$source];
+				$statsdata{$target}->{value} += $inperiod->[$source];
 			}
 		}
 		if ($inperiodcount)
@@ -695,7 +695,7 @@ selftest perms backup purge cleanup esc thresholds metrics postupdate postcollec
 
 		# then get the timing and count data from opstatus
 		my $md = $nmisng->get_job_stats_model(filter => { 'time' => { '$gte' => $periodstart,
-																																	 '$lt' => $periodstart + $stats_period }});
+																																	'$lt' => $periodstart + $stats_period }});
 		if (my $error = $md->error)
 		{
 			$nmisng->log->error("failed to collect nmis performance stats: $error");
@@ -716,6 +716,10 @@ selftest perms backup purge cleanup esc thresholds metrics postupdate postcollec
 			}
 		}
 
+		$nmisng->log->debug3("inserting nmis performance stats for period $periodstart - "
+												. ($periodstart+$stats_period).": "
+												. Dumper({ map { ($_ => $statsdata{$_}->{value}) } (keys %statsdata) }))
+				if ($nmisng->log->detaillevel >= 3);
 
 		if (!$S->create_update_rrd(type => "nmis", data => \%statsdata))
 		{

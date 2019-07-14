@@ -54,17 +54,17 @@
 			'DEF:updatec=$database:updatecount:AVERAGE',
 			'DEF:servicesc=$database:servicescount:AVERAGE',
 
-			'LINE2:collectt#32CD32: collect time\t',
+			'LINE2:collectt#32CD32: total collect time\t',
 			'GPRINT:collectt:AVERAGE:\tAvg %1.2lf seconds',
 			'GPRINT:collectt:MAX:\tMax %1.2lf seconds',
 			'GPRINT:collectc:MAX:\tAvg %1.2lf collects/min\l',
 
-			'LINE2:updatet#20B2AA: update time\t',
+			'LINE2:updatet#20B2AA: total update time\t',
 			'GPRINT:updatet:AVERAGE:\tAvg %1.2lf seconds',
 			'GPRINT:updatet:MAX:\tMax %1.2lf seconds',
 			'GPRINT:updatec:MAX:\tAvg %1.2lf updates/min\l',
 
-			'LINE2:servicest#FF8C00: services time\t',
+			'LINE2:servicest#FF8C00: total services time\t',
 			'GPRINT:servicest:AVERAGE:\tAvg %1.2lf seconds',
 			'GPRINT:servicest:MAX:\tMax %1.2lf seconds',
 			'GPRINT:servicesc:MAX:\tAvg %1.2lf service checks/min\l',
