@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "1.5.0";
+our $VERSION = "9.0.4a";
 
 use strict;
 
@@ -1577,10 +1577,8 @@ sub pingable
 	}
 
 	# cleanup, property deprecated, use get_newest_timed_data for concept ping
-	delete $catchall_data->{last_ping};
+	delete $catchall_data->{last_ping} if exists $catchall_data->{last_ping};
 
-	# note: may be stale, and possibly interfere with other users
-	$catchall_data->{nodedown}  = $pingresult? 'false' : 'true';
 	$self->nmisng->log->debug("Finished with exit="
 														. ( $pingresult ? 1 : 0 )
 														. ", nodedown=$catchall_data->{nodedown}" );
@@ -1618,10 +1616,8 @@ sub handle_down
 
 	my ($S, $typeofdown, $details, $goingup) = @args{"sys", "type", "details", "up"};
 	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|node|failover|backup)$/ );
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	$goingup = NMISNG::Util::getbool($goingup);
-
 	my $eventname = &handle_down_eventnames->{$typeofdown};
 	$details ||= "$typeofdown error";
 
@@ -1637,9 +1633,18 @@ sub handle_down
 		inventory_id => $S->inventory( concept => 'catchall' ),
 			);
 
-	# no marker for the others
-	$catchall_data->{"${typeofdown}down"} = ($goingup ? 'false' : 'true')
-			if ($typeofdown =~ /^(snmp|wmi|node)$/);
+	# for these three we set a XYZdown marker in the catchall, in the most atomic fashion possible
+	# (to minimise race conditions with other processes holding a catchall_live)
+	if ($typeofdown =~ /^(snmp|wmi|node)$/)
+	{
+		my $catchall = $S->inventory(concept => 'catchall');
+		my $quicklynow = $catchall->data;
+		$quicklynow->{"${typeofdown}down"} = ($goingup ? 'false' : 'true');
+		$catchall->data($quicklynow);
+		$catchall->save;
+
+		$self->nmisng->log->debug($self->name.": changed ${typeofdown}down state to ".$quicklynow->{"${typeofdown}down"});
+	}
 
 	return;
 }
@@ -2123,9 +2128,6 @@ sub collect_node_info
 
 		$self->checkPIX(sys => $S);    # check firewall if needed
 
-		$catchall_data->{nodedown} = 'false';    # sort-of, at least one source worked
-		# fixme9: what about the other sources?
-
 		# conditional on model section to ensure backwards compatibility with different Juniper values.
 		$self->handle_configuration_changes(sys => $S)
 				if ( exists( $M->{system}{sys}{nodeConfiguration} )
@@ -2135,12 +2137,7 @@ sub collect_node_info
 	{
 		$exit = 0;
 
-		if ( $self->configuration->{ping} )
-		{
-			# ping was ok but wmi and snmp were not; hence not quite dead
-			$catchall_data->{nodedown} = 'false';
-		}
-		else
+		if (!$self->configuration->{ping} )
 		{
 			# ping was disabled, so sources wmi/snmp are the only thing that tells us about reachability
 			# note: ping disabled != runping failed

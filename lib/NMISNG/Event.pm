@@ -39,7 +39,7 @@ use Data::Dumper;
 use Test::Deep::NoTest;
 use Time::HiRes;
 
-our $VERSION = "1.1.0";
+our $VERSION = "9.0.4a";
 
 # params: all properties desired in the node, minimum is
 #  either _id or  node_name,event,[element] are required to
@@ -91,10 +91,10 @@ sub new
 	delete $args{sys};
 
 	# note: defaults are not set here, they are done on save so that
-	# loading with only_take_missing doesn't get taken by values 
+	# loading with only_take_missing doesn't get taken by values
 	# that were set for you
 	my $self = bless(
-		{ 
+		{
 			_nmisng => $nmisng,
 			data    => \%args
 		},
@@ -495,8 +495,12 @@ sub getLogLevel
 	my ( $self, %args ) = @_;
 	my ( $S, $event, $level ) = @args{'sys', 'event', 'level'};
 	confess "i need a sys" if ( !$S );
+
+	my $node = $S->nmisng_node;
+	my $role = $node->configuration->{roleType} || 'access ';
+	my $type = $node->configuration->{nodeType} || 'router';
+
 	my $M = $S->mdl;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	$event //= $self->event;
 	$level //= $self->level;
@@ -505,9 +509,6 @@ sub getLogLevel
 	my $log    = 'true';
 	my $syslog = 'true';
 	my $pol_event;
-
-	my $role = $catchall_data->{roleType} || 'access';
-	my $type = $catchall_data->{nodeType} || 'router';
 
 	# Get the event policy and the rest is easy.
 	if ( $event !~ /^Proactive|^Alert/i )
@@ -542,7 +543,7 @@ sub getLogLevel
 
 			# not found, use default
 			NMISNG::Util::logMsg(
-				"node=$catchall_data->{name}, event=$event, role=$role not found in class=event of model=$catchall_data->{nodeModel}"
+				"node=".$node->name.", event=$event, role=$role not found in class=event"
 			);
 		}
 	}

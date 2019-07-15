@@ -29,7 +29,7 @@
 package Compat::NMIS;
 use strict;
 
-our $VERSION = "9.0.3";
+our $VERSION = "9.0.4a";
 
 use Time::ParseDate;
 use Time::Local;
@@ -2072,14 +2072,17 @@ sub notify
 {
 	my %args = @_;
 	my $S = $args{sys};
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-	my $M = $S->mdl;
+
 	my $event = $args{event};
 	my $element = $args{element};
 	my $details = $args{details};
 	my $level = $args{level};
-	my $node = $S->{name};
 	my $inventory_id = $args{inventory_id};
+
+	my $M = $S->mdl;
+	my $node = $S->nmisng_node;
+	my $nodename = $node->name;
+
 	my $log;
 	my $syslog;
 	my $saveupdate = undef;
@@ -2116,7 +2119,7 @@ sub notify
 		}
 		else # not an proactive/alert event - no changes are supported
 		{
-			NMISNG::Util::dbg("Event node=$node event=$event element=$element already exists");
+			NMISNG::Util::dbg("Event node=$nodename event=$event element=$element already exists");
 		}
 	}
 	else
@@ -2147,8 +2150,8 @@ sub notify
 				and $C->{node_configuration_events} =~ /$event/
 				and NMISNG::Util::getbool($thisevent_control->{Log}))
 		{
-			logConfigEvent(dir => $C->{config_logs}, node=>$node, event=>$event, level=>$level,
-										 element=>$element, details=>$details, host => $catchall_data->{host},
+			logConfigEvent(dir => $C->{config_logs}, node=>$nodename, event=>$event, level=>$level,
+										 element=>$element, details=>$details, host => $node->configuration->{host},
 										 nmis_server => $C->{nmis_host} );
 		}
 		# want a save, not update
@@ -2185,7 +2188,7 @@ sub notify
 			facility => $C->{syslog_facility},
 			nmis_host => $C->{server_name},
 			time => time(),
-			node => $node,
+			node => $nodename,
 			event => $event,
 			level => $level,
 			element => $element,

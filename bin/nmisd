@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="9.0.3";
+our $VERSION="9.0.4a";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -167,7 +167,7 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 	$nmisng->log->logprefix("$me\[$$\] ");
 	$nmisng->log->info("$me daemon was started (pid $$).");
 
-	
+
 	POSIX::setsid() or die "Can't start new session: $!";
 	chdir('/') or die "Can't chdir to /: $!";
 
@@ -1909,7 +1909,6 @@ sub fping_loop
 																type => $whatevent,
 																up => 0,
 																details => $details);
-						$sys->inventory( concept => 'catchall' )->save; # handle_down may have changed something
 					}
 				}
 			}
@@ -1946,7 +1945,6 @@ sub fping_loop
 																type => $clearme,
 																up => 1,
 																details => $details);
-						$sys->inventory( concept => 'catchall' )->save; # handle_down may have changed something
 					}
 				}
 			}

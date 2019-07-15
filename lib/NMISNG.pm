@@ -31,7 +31,7 @@
 # Two basic ways to grab info, via get*Model functions which return ModelData objects
 # or directly via the object
 package NMISNG;
-our $VERSION = "9.0.2";
+our $VERSION = "9.0.4a";
 
 use strict;
 use Data::Dumper;
@@ -4962,7 +4962,7 @@ sub get_remote
 {
 	my ($self, %args) = @_;
 	my $filter = $args{filter};
-	
+
 	my $fields_hash = $args{fields_hash};
 	my $q = NMISNG::DB::get_query( and_part => $filter );
 
@@ -4990,12 +4990,12 @@ sub get_remote
 			limit       => $args{limit},
 			skip        => $args{skip}
 		);
-	
+
 	while ( my $entry = $cursor->next )
 	{
 		push @$res, $entry;
 	}
-	
+
 	return $res;
 }
 
