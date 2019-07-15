@@ -150,7 +150,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'Location'
+            'title' => 'SNMP Location'
           },
           'sysDescr' => {
             'oid' => 'sysDescr',

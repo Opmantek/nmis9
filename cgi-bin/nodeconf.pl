@@ -243,7 +243,7 @@ sub displayNodeConf
 																-value => $override->{sysContact}||''));
 
 	my $NCT_sysLocation = $catchall_data->{sysLocation};
-	print Tr,td({class=>"header"}),td({class=>"header"},"Location"),
+	print Tr,td({class=>"header"}),td({class=>"header"},"SNMP Location"),
 			td({class=>'header3'}, $NCT_sysLocation),
 	td({class=>"Plain"},textfield(-name=>"location",-override=>1,
 																-style => 'width: 95%',
