@@ -34,7 +34,7 @@
 package NMISNG::Inventory;
 use strict;
 
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use Clone;              # for copying data and other r/o sections
 use Module::Load;       # for getting subclasses in instantiate
@@ -814,7 +814,7 @@ sub path_keys
 #
 # to change data: call first to get, modify the copy, then call with the updated copy to set
 # args: optional data (hashref),
-# returns: clone of data, logs on error
+# returns: clone of data (normal) or ref of live data (in data_live mode); logs on error
 sub data
 {
 	my ( $self, $newvalue ) = @_;
@@ -830,10 +830,14 @@ sub data
 		if ( $self->{_live} )
 		{
 			my $live = $self->data_live;
-			# retain the original ref...
-			map { delete $live->{$_}; } (keys %$live);
-			# ...but replace the values
-			map { $live->{$_} = $newvalue->{$_}; } (keys %$newvalue);
+			if ($newvalue != $live)		# same address means same object
+			{
+				# if newvalue is a different hash than live, then massage that:
+				# must retain the original ref because others hold it...
+				map { delete $live->{$_}; } (keys %$live);
+				# ...but replace the values
+				map { $live->{$_} = $newvalue->{$_}; } (keys %$newvalue);
+			}
 		}
 		else
 		{
@@ -1138,6 +1142,7 @@ sub reload
 		if ($self->{_live})
 		{
 			$self->{_data_orig} = Clone::clone($self->{_data});
+			$self->_dirty(1,"data");	# data_live persists across reload, so we must not assume data remains clean!
 		}
 		else
 		{
@@ -1399,7 +1404,8 @@ sub save
 	if ( $result->{success} )
 	{
 		$self->{_lastupdate} = $lastupdate;
-		$self->_dirty(0);						# all clean at this time
+		$self->_dirty(0);						# all clean at this time...
+		$self->_dirty(1,"data") if ($self->{_live}); # ...except in data_live mode, where we mustn't assume
 		delete $self->{_data_orig};	# and up-to-date
 	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
