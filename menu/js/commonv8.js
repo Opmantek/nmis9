@@ -1030,6 +1030,7 @@ function buildOptions(arrayName) {
 	selObj.options.length = 0;
 	// build the select list
 	for (l=0;l<arrayName.length;l++) {
+		
 		selObj.options[l] = new Option(arrayName[l])
 	}
 	// remember which items were removed
@@ -1040,7 +1041,7 @@ function buildRemvd()	{
 	remvdArray.length = 0;
 	// build the removed items array
 	for (m=namesArray.length-1;m>-1;m--) {
-		if (namesArray[m].match(stregexp) == null) {
+		if (namesArray[m].toString().match(stregexp) == null) {
 			// remember which item was removed
 			remvdArray[remvdArray.length] = namesArray[m];
 		}

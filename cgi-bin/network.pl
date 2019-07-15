@@ -1891,7 +1891,14 @@ sub viewNode
 			. uri_escape($node);
 		my $nodelink = a( {target => "NodeDetails-$node", onclick => "viewwndw(\'$node\',\'$url\',$wd,$ht)"},
 			$node );
-		print "$nodelink is managed by server $remote->{server_name}";
+		if ( defined $remote->{nmis_cgi_url_base} && defined $remote->{nmis_cgi_url_base} )
+		{
+			print "$nodelink is managed by server $remote->{server_name}";
+		} else {
+			print "$node is managed by server $remote->{server_name} <br>";
+			print "<b>$remote->{server_name} url property</b> should be updated in opHA";
+		}
+		
 #		print <<EO_HTML;
 #	<script>
 #		viewwndw('$node','$url',$wd,$ht,'server');
