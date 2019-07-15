@@ -1899,11 +1899,11 @@ sub viewNode
 			print "<b>$remote->{server_name} url property</b> should be updated in opHA";
 		}
 		
-#		print <<EO_HTML;
-#	<script>
-#		viewwndw('$node','$url',$wd,$ht,'server');
-#	</script>
-#EO_HTML
+		print <<EO_HTML;
+	<script>
+		viewwndw('$node','$url',$wd,$ht,'server');
+	</script>
+EO_HTML
 		return;
 	}
 
