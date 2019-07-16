@@ -13,7 +13,7 @@ if $TARGETDIR/admin/node_admin.pl act=export 2>/dev/null | grep -q -P "\Whost\W+
 fi
 
 # desired state?
-if ! input_yn "Should the installer configure NMIS 9 to monitor localhost?"; then
+if ! input_yn "Should the installer configure NMIS 9 to monitor localhost?" "cfbd"; then
 		echolog "Not adding localhost for monitoring, as requested."
 		exit 0;
 fi
@@ -39,7 +39,7 @@ after the installation (using the NMIS 9 GUI or node_admin.pl).
 Answer the following question with 'No' to replace the SNMPD configuration.
 
 EOF
-		if input_yn "Leave SNMPD configuration unchanged?"; then
+		if input_yn "Leave SNMPD configuration unchanged?" "fc15"; then
 				COMMUNITY="Please Fix Me"
 
 				cat <<EOF

@@ -8,8 +8,9 @@ SCRIPTPATH=${0%/*}
 if [ -e $TARGETDIR/admin/setup_mongodb.pl ]; then
 		printBanner "Running MongoDB setup helper"
 
-		if input_yn "Do you want to run the MongoDB setup helper now?"; then
+		if input_yn "Do you want to run the MongoDB setup helper now?" "473b"; then
 				[ -n "$UNATTENDED" ] && EXTRAARGS='auto=true'
+				[ -n "$PRESEED" ] && EXTRAARGS="$EXTRAARGS preseed=$PRESEED"
 				$TARGETDIR/admin/setup_mongodb.pl $EXTRAARGS
 				logmsg "MongoDB setup helper returned $?"
 		else

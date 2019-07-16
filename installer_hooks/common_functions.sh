@@ -33,6 +33,7 @@ printBanner() {
 
 # prints given prompt, reads response, DOES NOT RETURN ANYTHING
 # this is just for waiting for confirmations in interactive mode.
+# in non-interactive mode this function doesn't do anything
 input_ok() {
 		echo "$@"
 		if [ -z "$UNATTENDED" ]; then
@@ -41,15 +42,34 @@ input_ok() {
 		fi
 }
 
-# print prompt, print static blurb, read response (or auto-yes)
+# print prompt, print static blurb, read response,
+# or auto-answer yes in non-interactive mode, or use preseeded answer
 input_yn() {
-		while true; do
-				echo "$@"
-				echo -n "Type 'y' or <Enter> to accept, or 'n' to decline: "
-				if [ -z "$UNATTENDED" ]; then
+		local MSG TAG
+		MSG="$1"
+		TAG="$2"
+		echo "$MSG"
+		if [ -n "$PRESEED" -a -n "$TAG" ]; then
+				local ANSWER
+				ANSWER=`grep -E "^$TAG" $PRESEED|cut -f 2 -d '"'`
+				logmsg "(Preseeded answer \"$ANSWER\" for '$MSG')"
+				echo "(preseeded answer \"$ANSWER\")"
+				if [ "$ANSWER" = "y" -o "$ANSWER" = "Y" ]; then
+						return 0						# ok
+				else									 
+						return 1						# nok
+				fi
+		elif [ -n "$UNATTENDED" ]; then
+				echo "(auto-default YES)"
+				echo
+				return 0
+		else
+				while true; do
+						echo "$MSG"
+						echo -n "Type 'y' or <Enter> to accept, or 'n' to decline: "
 						local X
 						read X
-						logmsg "User input for '$@': '$X'"
+						logmsg "User input for '$MSG': '$X'"
 						X=`echo "$X" | tr -d '[:space:]'| tr '[A-Z]' '[a-z]'`
 
 						if [ "$X" != 'y' -a "$X" != '' -a "$X" != 'n' ]; then
@@ -63,30 +83,33 @@ input_yn() {
 						else
 								return 1								# nok
 						fi
-				else
-						echo "(auto-default YES)"
-						echo
-						return 0
-				fi
-		done
+				done
+		fi
 }
 
 # print prompt, print static blurb, read response string and
 # export it as RESPONSE
 # in unattended mode the response is ''
 input_text() {
+		local MSG TAG
+		MSG="$1"
+		TAG="$2"
 		RESPONSE=''
-		echo -n "$@"
-		if [ -z "$UNATTENDED" ]; then
-				read RESPONSE
-				logmsg "User input for '$@': '$RESPONSE'"
-		else
-				logmsg "Automatic blank input for '$@' in unattended mode"
+		echo "$MSG"
+		if [ -n "$PRESEED" -a -n "$TAG" ]; then
+				RESPONSE=`grep -E "^$TAG" $PRESEED|cut -f 2 -d '"'`
+				logmsg "(Preseeded answer \"$RESPONSE\" for '$MSG')"
+				echo "(preseeded answer \"$RESPONSE\")"
+		elif [ -n "$UNATTENDED" ]; then
+				logmsg "Automatic blank input for '$MSG' in unattended mode"
 				echo "(auto-default empty response)"
+		else
+				echo -n "$MSG"
+				read RESPONSE
+				logmsg "User input for '$MSG': '$RESPONSE'"
 		fi
 		export RESPONSE
 }
-
 
 
 # run cmd, capture output and stderr and append to logfile

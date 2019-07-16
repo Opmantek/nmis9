@@ -20,7 +20,7 @@ will cause the installer to abort.
 
 EOF
 
-input_text "Your choice? "
+input_text "Your choice? " "8671"
 if [ "$RESPONSE" = "CONTINUE" ]; then
 		echolog "User agrees to beta warning.."
 		exit  0;

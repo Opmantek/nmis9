@@ -114,7 +114,7 @@ if ! check_missing_packages $PKGLIST; then
 		echo
 		echo "The installer can use $MGR to download and install these packages.";
 
-		if input_yn "Do you want to install these packages with $MGR now?"; then
+		if input_yn "Do you want to install these packages with $MGR now?" "7ce6"; then
 
 				for pkg in $MISSING; do
 						if [ "$OSFLAVOUR" = "redhat" ]; then

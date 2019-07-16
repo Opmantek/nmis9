@@ -18,7 +18,7 @@ The installer has detected an NMIS 8 installation whose
 nodes could be imported into NMIS 9 at this time.
 
 EOF
-		if input_yn "OK to import NMIS8 nodes now?"; then
+		if input_yn "OK to import NMIS8 nodes now?" "3419"; then
 				execPrint $TARGETDIR/admin/node_admin.pl act=import_bulk nodes=$NMISDIR/conf/Nodes.nmis info=true
 				[ -d "$NMISDIR/conf/nodeconf" ] && execPrint $TARGETDIR/admin/node_admin.pl  act=import_bulk nodeconf=$NMISDIR/conf/nodeconf info=true
 		else

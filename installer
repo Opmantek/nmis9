@@ -45,17 +45,20 @@ my $me = basename($0);
 my $usage = "NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-Usage: $me [-hyd] [-t /some/path] [optX=valX...]
+Usage: $me [-hydP] [-t /some/path] [-p /some/file] [optX=valX...]
 
 -h:  show this help screen
 -d:  produce extra debug output and logs
 -t:  Installation target directory
--y:  non-interactive  mode, all questions are pre-answered
-     with the default choice\n\n";
+-y:  non-interactive  mode, all questions are answered
+     with the default choice
+-p:  pre-seeded non-interactive mode, answers come from
+     the file given as argument
+-P:  generate and print empty preseed file\n\n";
 
 my (%options, %extras);
 die $usage if ( @ARGV == 1 && $ARGV[0] =~ /^-(\?|h|-help)$/i
-								|| !getopts("yldnt:", \%options));
+								|| !getopts("yldnt:p:P", \%options));
 
 for my $maybe (@ARGV)
 {
@@ -68,8 +71,56 @@ my $targetdir = $options{t} || "/usr/local/nmis9";
 my $hookdir = "$sourcedir/installer_hooks";
 my $debug = $options{d}? 1 : 0;
 my $simulate = $options{n}? 1 : 0;
-my $noninteractive = $options{y}? 1 : 0 ;
+my $noninteractive = $options{y} || $options{p}? 1 : 0 ; # preseed is also a noninteractive mode
 my $logfile = undef; # until we have a dir
+my $answers;				 # preseed mode
+
+# preseed generation requested?
+if ($options{P})
+{
+	my @candidates = ("$sourcedir/installer", 
+										"$sourcedir/admin/setup_mongodb.pl", 
+										glob("${sourcedir}/installer_hooks/*"));
+
+	# tag -> question, file, line nr, default
+	my %tags;
+
+	my $perlre = qr/(^|\W)(input_yn|input_text)\s*\(\s*(["'].+?["'])\s*,\s*"([a-f0-9]{4})"\s*\)/;
+	my $shellre = qr/(^|\W)(input_yn|input_text)\s+(["'].+?["'])\s+"([a-f0-9]{4})"/;
+
+	# read file, determine format, look for all input_yn and input_text
+	# calls that carry a unique tag and collect filename, line nr, tag and question
+	#
+	# attention: to find input_yn and input_text instances correctly 
+	# the whole invocation must be given on a single line!
+	for my $onefn (@candidates)
+	{
+		print STDERR "checking file $onefn...\n";
+		open(F, $onefn) or die "cannot open $onefn: $!\n";
+		my @incoming = <F>;
+		close(F);
+
+		my $isperl = $incoming[0] =~ /perl/;
+		my $whichre = $isperl? $perlre : $shellre;
+
+		for my $lineno (0..$#incoming)
+		{
+			chomp(my $line = $incoming[$lineno]);
+			while ($line =~ /$whichre/g)
+			{
+				my ($querytype, $question, $tag) = ($2,$3,$4);
+				$tags{$tag} = {
+					question => $question,
+					file => $onefn,
+					linenr => $lineno,
+					default => $querytype eq "input_text"? "": "y" };
+			}
+		}
+	}
+	print gen_preseed(\%tags);
+	exit 0;
+}
+$answers = load_preseed($options{p}) if ($options{p});
 
 my %modules;										# check_installed_modules et.al.
 
@@ -94,12 +145,12 @@ my $hostname = `hostname --fqdn`; chomp $hostname;
 print "This installer will install NMIS into $targetdir.
 To select a different installation location please rerun the
 installer with the -t option.\n\n";
-my $response = input_yn("Ok to proceed with installation?");
+my $response = input_yn("Ok to proceed with installation?","52cc");
 logdie("User cancelled installation.") if (!$response);
 
 if (!-d $targetdir && !$simulate)
 {
-	safemkdir($targetdir) or die("Cannot mkdir $targetdir!\n");
+	safemkdir($targetdir) or die("Can not mkdir $targetdir!\n");
 }
 $logfile = "$targetdir/install.log";
 
@@ -141,7 +192,7 @@ These modules can be installed with CPAN:
 			if ($testres);
 	my $can_use_web = !$testres;
 
-	if (!$can_use_web or !input_yn("OK to use CPAN to install missing modules?"))
+	if (!$can_use_web or !input_yn("OK to use CPAN to install missing modules?","9849"))
 	{
 		logmsg(0, "Cannot install missing CPAN modules: ".join(" ",@missingones));
 
@@ -149,7 +200,7 @@ These modules can be installed with CPAN:
 				."\n\nWe recommend that you stop the installer now, resolve the dependencies,
 and then restart the installer.\n\n";
 
-		if (input_yn("Stop the installer?"))
+		if (input_yn("Stop the installer?","365b"))
 		{
 			die "\nAborting the installation. Please install the missing Perl packages\nwith cpan, then restart the installer.\n";
 		}
@@ -490,18 +541,32 @@ sub moduleVersion
 }
 
 
-# print question, return true if y (or in unattended mode). default is yes.
+# print question, return true if y (or in unattended mode).
+# default is yes, except in preseed mode where the default
+# is looked up from the preseed data tagged by the seedling argument
 sub input_yn
 {
-	my ($query) = @_;
+	my ($query, $seedling) = @_;
 
 	while (1)
 	{
 		print $query;
 		if ($noninteractive)
 		{
-			print " (auto-default YES)\n\n";
-			return 1;
+			if ($seedling && ref($answers) && defined($answers->{$seedling}))
+			{
+				my $answer = $answers->{$seedling};
+				my $result = ( $answer =~ /^\s*y\s*$/i? 1:0);
+
+				print " (preseeded answer \"$answer\" interpreted as \""
+						.($result? "YES":"NO")."\")\n\n";
+				return $result;
+			}
+			else
+			{
+				print " (auto-default YES)\n\n";
+				return 1;
+			}
 		}
 		else
 		{
@@ -584,7 +649,7 @@ sub safecopy
 		print "Warning: $destination is a symbolic link pointing to $actualtarget!\n";
 
 		# default should be the safe behaviour, i.e. don't clobber the target
-		if (input_yn("OK to leave the symbolic link $destination unchanged?"))
+		if (input_yn("OK to leave the symbolic link $destination unchanged?","0b55"))
 		{
 			print "Not overwriting $destination.\nThis will require manual post-installation adjustments.\n\n";
 			logmsg(0,"NOT overwriting $destination (=> $actualtarget).\n");
@@ -692,10 +757,11 @@ sub run_hooks
 				$ENV{PRODUCT} = "NMIS";
 				$ENV{VERSION} = $prodversion;
 				$ENV{DEBUG} = 1 if ($options{d});
-				$ENV{UNATTENDED} = 1 if ($options{y});
+				$ENV{UNATTENDED} = 1 if ($noninteractive);
 				$ENV{SIMULATE} = 1 if ($simulate);
 				$ENV{LOGFILE} = $logfile if (!$simulate);
 				$ENV{CLEANSLATE} = 1 if ($is_initial_install);
+				$ENV{PRESEED} = $options{p} if ($options{p}); # preseed file
 				for my $extra (keys %extras)
 				{
 					$ENV{"OPT_".uc($extra)} = $extras{$extra};
@@ -744,4 +810,63 @@ sub logmsg
 		print LH "\n" if ($msgs[-1] !~ /\n$/);
 		close(LH);
 	}
+}
+
+# returns preseed text for the given tag hash
+sub gen_preseed
+{
+	my ($tags) = @_;
+
+	my $response = qq|
+# preseed file for the NMIS installer
+
+# to be used as input for the installer in unattended preseed mode
+# ie. ./nmisX.Y.Z.run -- -p <preseedfile>
+
+# format:
+# empty lines and lines starting with # are ignored
+
+# all preseeding lines must start with the question's identifying tag,
+# followed by some whitespace, then the seeded answer in double quotes.
+
+# to specify an answer for a question, look up the question
+# and tag for the relevant installer interaction, and provide an answer
+# on the following tag line.
+
+# for yes-no questions the recognised choices are "Y", "y", "N" and "n".
+
+# the list of seedable questions:\n|;
+
+	for my $tag (sort { $tags->{$a}->{file} cmp $tags->{$b}->{file}
+											or $tags->{$a}->{linenr} <=> $tags->{$b}->{linenr} } keys %$tags)
+	{
+		my $thistag = $tags->{$tag};
+		my $shortname = basename($thistag->{file});
+
+		$response .= qq|
+# $shortname line $thistag->{linenr}
+# question $thistag->{question}
+$tag\t"$thistag->{default}"\n|;
+	}
+	return $response;
+}
+
+
+# returns hash (ref) of seedling tag -> answer
+sub load_preseed
+{
+	my ($fn) = @_;
+	open(F, $fn) or die "cannot read $fn: $!\n";
+
+	my %answers;
+
+	for my $line (<F>)
+	{
+		if ($line =~ /^([a-f0-9]{4})\s+"([^"]*)"/)
+		{
+			$answers{$1} = $2;
+		}
+	}
+	close(F);
+	return \%answers;
 }

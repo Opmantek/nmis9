@@ -41,7 +41,7 @@ Your system has no init scripts for the $PRODUCT daemon,
 or different ones from the scripts shipped with ${PRODUCT}.
 
 EOF
-		if input_yn "Ok to install or update the $PRODUCT daemon init scripts?" ; then
+		if input_yn "Ok to install or update the $PRODUCT daemon init scripts?" "c274" ; then
 				execPrint cp -af $SRCFILE $DESTFILE
 				echolog "Updated init script in $DESTFILE."
 				echo
@@ -85,7 +85,7 @@ DESTFILE=/etc/cron.d/nmis9
 
 # be polite, ask before doing anything harsh
 if [ ! -f $DESTFILE ] || ! diff -q $DESTFILE $SRCFILE; then
-		if input_yn "Ok to install new NMIS cron schedule?" ; then
+		if input_yn "Ok to install new NMIS cron schedule?" "34e8" ; then
 				execPrint cp -af $SRCFILE $DESTFILE
 				echolog "Created schedule in $DESTFILE."
 				echo

@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 # a small helper for priming a mongodb installation with suitable settings for NMIS
-our $VERSION = "9.0.1";
+our $VERSION = "9.0.4";
 
 use strict;
 
@@ -47,15 +47,22 @@ use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 
 if (@ARGV == 1 && $ARGV[0] =~ /^--?(h|help|\?)$/i)
 {
-	die "Usage: ".basename($0). " [auto=0/1] [drop=dbname1,dbname2...]\nauto: non-interactive automatic mode\ndrop: drop listed databases\n\n";
+	die "Usage: ".basename($0). " [auto=0/1] [preseed=/some/file] [drop=dbname1,dbname2...]
+auto: non-interactive automatic mode
+preseed: pre-seeded non-interactive mode, answers come from the given file
+drop: drop listed databases\n\n";
 }
 
 print basename($0). " version $VERSION\n\n";
 
 # conf=cfgfile dir=configdir auto=0/1 debug=0/1
 my $args = NMISNG::Util::get_args_multi(@ARGV);
-my $unattended = NMISNG::Util::getbool($args->{auto});
+# preseed mode is also noninteractive
+my $noninteractive = NMISNG::Util::getbool($args->{auto})
+		|| ($args->{preseed} && -f $args->{preseed});
 my $debug = NMISNG::Util::getbool($args->{debug});
+
+my $answers = load_preseed($args->{preseed}) if ($args->{preseed});
 
 my $cfgdir = ($args->{dir} || "$FindBin::RealBin/../conf");
 my $conf = NMISNG::Util::loadConfTable(dir => $cfgdir, debug => $debug);
@@ -97,7 +104,7 @@ if ($islocal && $isdead)
 	print "\nERROR: No MongoDB daemon active for $dbserver
 This script can start a MongoDB daemon if desired.\n\n";
 
-	if (input_yn("Should we try to start a local MongoDB daemon?"))
+	if (input_yn("Should we try to start a local MongoDB daemon?","993d"))
 	{
 		my $startup = system("service","mongod","start") >> 8;
 		print "ERROR: failed to start MongoDB, exit code $startup\n" if ($startup);
@@ -144,13 +151,27 @@ if (!$isnoauth)
 	print "INFO: Your MongoDB seems to be running with authentication required.\n";
 
 	print "\n";
-	# let's default to our standard user for both admin and operational use...
-	$adminuser = input_str("Enter your MongoDB ADMIN user for $dbserver:$port",
-												 $conf->{db_username},1);
-	print "\n";
-	$adminpwd = input_str("Enter your MongoDB ADMIN password",$conf->{db_password},1);
-	print "\n";
+	my $confirm;
+	do
+	{
+		# let's default to our standard user for both admin and operational use...
+		$adminuser = input_text("Enter your MongoDB ADMIN user for $dbserver:$port [default: $conf->{db_username}]:","d92b");
+		$adminuser = $conf->{db_username} if ($adminuser eq "");
 
+		$confirm = $noninteractive? 1 : input_yn("You entered \"$adminuser\" - is this correct?","9f20");
+		print "\n";
+	}
+	until ($confirm);
+
+	do
+	{
+		$adminpwd = input_text("Enter your MongoDB ADMIN password [default: $conf->{db_password}]:","18ba");
+		$adminpwd = $conf->{db_password} if ($adminpwd eq "");
+
+		$confirm = $noninteractive? 1 : input_yn("You entered \"$adminpwd\" - is this correct?","3937");
+		print "\n";
+	}
+	until ($confirm);
 
 	# old mongo driver: can authenticate at run time
 	# new mongo driver: can ONLY authenticate at connection creation time!
@@ -302,57 +323,83 @@ to your /etc/mongodb.conf or change your init script to include --auth.\n\n
 
 exit 0;
 
-# print question, return true if y (or in unattended mode). default is yes.
+# print question, return true if y (or in unattended mode).
+# default is yes, except in preseed mode where the default
+# is looked up from the preseed data tagged by the seedling argument
 sub input_yn
 {
-	my ($query) = @_;
+	my ($query, $seedling) = @_;
 
-	print "$query";
-	if ($unattended)
+	while (1)
 	{
-		print " (auto-default YES)\n\n";
-		return 1;
-	}
-	else
-	{
-		print "\nType 'y' or hit <Enter> to accept, any other key for 'no': ";
-		my $input = <STDIN>;
-		chomp $input;
-		return ($input =~ /^\s*(y|yes)?\s*$/i)? 1:0;
+		print $query;
+		if ($noninteractive)
+		{
+			if ($seedling && ref($answers) && defined($answers->{$seedling}))
+			{
+				my $answer = $answers->{$seedling};
+				my $result = ( $answer =~ /^\s*y\s*$/i? 1:0);
+
+				print " (preseeded answer \"$answer\" interpreted as \""
+						.($result? "YES":"NO")."\")\n\n";
+				return $result;
+			}
+			else
+			{
+				print " (auto-default YES)\n\n";
+				return 1;
+			}
+		}
+		else
+		{
+			print "\nType 'y' or <Enter> to accept, or 'n' to decline: ";
+			my $input = <STDIN>;
+			chomp $input;
+
+			if ($input !~ /^\s*[yn]?\s*$/i)
+			{
+				print "Invalid input \"$input\"\n\n";
+				next;
+			}
+
+			return ($input =~ /^\s*y?\s*$/i)? 1:0;
+		}
 	}
 }
 
-# question, default answer, whether we want confirmation or not
-# returns string in question
-sub input_str
-{
-	my ($query, $default, $wantconfirmation) = @_;
 
-	print "$query [default: $default]: ";
-	if ($unattended)
+# print prompt, read and return response string if interactive;
+# or return default response in noninteractive mode.
+#
+# default  is "", except in preseed mode where the default
+# is looked up from the preseed data tagged by the seedling argument
+sub input_text
+{
+	my ($query,$seedling) = @_;
+
+	print $query;
+
+	if ($noninteractive)
 	{
-		print " (auto-default)\n\n";
-		return $default;
+		if ($seedling && ref($answers) && defined($answers->{$seedling}))
+		{
+			my $answer = $answers->{$seedling};
+
+			print " (preseeded answer \"$answer\")\n";
+			return $answer;
+		}
+		else
+		{
+			print " (auto-default \"\")\n\n";
+			return "";
+		}
 	}
 	else
 	{
-		while (1)
-		{
-			my $result = $default;
-
-			print "\nEnter new value or hit <Enter> to accept default: ";
-			my $input = <STDIN>;
-			chomp $input;
-			$result = $input if ($input ne '');
-
-			if ($wantconfirmation)
-			{
-				print "You entered '$result' -  Is this correct ? <Enter> to accept, or any other key to go back: ";
-				$input = <STDIN>;
-				chomp $input;
-				return $result if ($input eq '');
-			}
-		}
+		print "\nEnter new value or hit <Enter> to accept default: ";
+		my $input = <STDIN>;
+		chomp $input;
+		return $input;
 	}
 }
 
@@ -361,5 +408,24 @@ sub input_ok
 	my ($msg) = @_;
 	print "$msg\n";
 
-	my $x = <STDIN> if (!$unattended);
+	my $x = <STDIN> if (!$noninteractive);
+}
+
+# returns hash (ref) of seedling tag -> answer
+sub load_preseed
+{
+	my ($fn) = @_;
+	open(F, $fn) or die "cannot read $fn: $!\n";
+
+	my %answers;
+
+	for my $line (<F>)
+	{
+		if ($line =~ /^([a-f0-9]{4})\s+"([^"]*)"/)
+		{
+			$answers{$1} = $2;
+		}
+	}
+	close(F);
+	return \%answers;
 }

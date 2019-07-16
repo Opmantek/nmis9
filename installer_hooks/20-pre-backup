@@ -18,7 +18,7 @@ take a backup of your existing installation
 (note that RRD files are not included).
 
 EOF
-	if input_yn "Do you want to take a backup of your current install?"; then
+	if input_yn "Do you want to take a backup of your current install?" "e70f"; then
 
 			BACKUPTARGET=~/nmis-backup-`date +%Y-%m-%d`.tgz
 			echo "Creating backup, please wait..."
