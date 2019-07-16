@@ -48,8 +48,8 @@ input_yn() {
 		local MSG TAG
 		MSG="$1"
 		TAG="$2"
-		echo "$MSG"
 		if [ -n "$PRESEED" -a -n "$TAG" ]; then
+				echo "$MSG"
 				local ANSWER
 				ANSWER=`grep -E "^$TAG" $PRESEED|cut -f 2 -d '"'`
 				logmsg "(Preseeded answer \"$ANSWER\" for '$MSG')"
@@ -60,6 +60,7 @@ input_yn() {
 						return 1						# nok
 				fi
 		elif [ -n "$UNATTENDED" ]; then
+				echo "$MSG"
 				echo "(auto-default YES)"
 				echo
 				return 0
@@ -95,7 +96,7 @@ input_text() {
 		MSG="$1"
 		TAG="$2"
 		RESPONSE=''
-		echo "$MSG"
+		echo -n "$MSG"
 		if [ -n "$PRESEED" -a -n "$TAG" ]; then
 				RESPONSE=`grep -E "^$TAG" $PRESEED|cut -f 2 -d '"'`
 				logmsg "(Preseeded answer \"$RESPONSE\" for '$MSG')"
@@ -104,7 +105,6 @@ input_text() {
 				logmsg "Automatic blank input for '$MSG' in unattended mode"
 				echo "(auto-default empty response)"
 		else
-				echo -n "$MSG"
 				read RESPONSE
 				logmsg "User input for '$MSG': '$RESPONSE'"
 		fi
