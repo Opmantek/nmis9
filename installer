@@ -136,8 +136,10 @@ die "This installer must be run as root, terminating now.\n" if ($> != 0 && !$si
 # has a super-restrictive umask...
 umask(0022);
 
-# is this an initial installation or upgrade?
-my $is_initial_install = (-d $targetdir)? 0:1;
+# is this an initial installation or an upgrade?
+# this is a bit of guesswork.
+my $is_initial_install = (-d $targetdir
+													&& -f "$targetdir/conf/Config.nmis")? 0:1;
 
 # figure out version - build infra will have saved that in .version
 my $prodversion = eval { do "./.version" };

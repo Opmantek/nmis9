@@ -18,7 +18,7 @@ else
 
 		# copy only missing utterly crucial files
 		# -n/--noclobber vital here, and no recursion
-		execPrint "cp -van $TARGETDIR/conf-default/users.dat $TARGETDIR/conf/"
+		execPrint "cp -van $TARGETDIR/conf-default/users.dat $TARGETDIR/conf-default/Config.nmis  $TARGETDIR/conf/"
 
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis /system/keep_event_history=false /expiration/purge_event_after=604800 /system/network_viewNode_field_list=nodestatus,outage,sysName,host_addr,host_addr_backup,group,customer,location,businessService,serviceStatus,notes,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,last_ping,last_collect,last_update,nodeVendor,sysObjectName,roleType,netType /system/non_stateful_events='Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded'"
 fi

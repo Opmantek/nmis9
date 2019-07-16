@@ -69,6 +69,7 @@ EOF
 fi
 
 # now add localhost with whatever community we have...
+echolog "Adding node record for localhost"
 cat <<EOF | $TARGETDIR/admin/node_admin.pl act=create file=-
 {
    "name" : "localhost",
@@ -90,5 +91,6 @@ cat <<EOF | $TARGETDIR/admin/node_admin.pl act=create file=-
    }
 }
 EOF
+logmsg "node_admin returned exit code $?"
 
 exit 0
