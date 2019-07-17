@@ -249,7 +249,7 @@ $PRODUCT requires MongoDB version $MIN_MAJ.$MIN_MIN.$MIN_PATCH or newer for corr
 However, the installer can perform an upgrade of MongoDB to 3.4.
 
 EOF
-								if ! input_yn "Would you like the installer to upgrade your MongoDB installation directly to 3.4?" "8554"; then
+								if ! input_yn "Would you like the installer to upgrade your (too old) MongoDB installation to 3.4?" "8554"; then
 										echo
 										echolog "NOT upgrading MongoDB, as instructed."
 										return 2
@@ -305,7 +305,7 @@ EOF
 						# again offer upgrade is  possible
 						if [ "$MONGO_MAJOR" -ge 3 -a "$CANUSEWEB" = 1 ]; then
 
-								if ! input_yn "Would you like the installer to upgrade your MongoDB installation stepwise to 3.4?" "5f63"; then
+								if ! input_yn "Would you like the installer to upgrade your (slightly old) MongoDB installation to 3.4?" "5f63"; then
 										echo
 										echolog "NOT upgrading MongoDB, as instructed."
 										return 0		# not ideal but good enough
