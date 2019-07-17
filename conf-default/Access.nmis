@@ -607,7 +607,7 @@
     'level5' => '0',
     'name' => 'rpt_stored'
   },
-  'slave_event_log' => {
+  'poller_event_log' => {
     'descr' => 'Access to Logfile',
     'group' => 'button',
     'level0' => '1',
@@ -616,7 +616,7 @@
     'level3' => '1',
     'level4' => '0',
     'level5' => '0',
-    'name' => 'Slave_Event_Log'
+    'name' => 'Poller_Event_Log'
   },
   'snmp_traps' => {
     'descr' => 'Access to Logfile',

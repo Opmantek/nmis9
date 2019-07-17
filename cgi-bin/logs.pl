@@ -663,10 +663,10 @@ sub outputLine {
 	# ------------------------------------------------------------------------------
 	## event log
 	### 1342256707,localhost,Node Reset,Warning,,Old_sysUpTime=3:09:53 New_sysUpTime=0:04:01
-	## slave event log
+	## poller event log
 	### Feb  6 15:45:22 localhost nmis.pl[31797]: NMIS_Event::nmisdev64.dev.opmantek.com::1360129513,meatball,Proactive Interface Input Utilisation,Major,Dialer1,Value=84.88, Threshold=80
-	elsif ( lc $logName eq "event_log" or lc $logName eq "slave_event_log" ) {
-		if ( lc $logName eq "slave_event_log" and $line =~ /NMIS_Event::([\w\.\-]+)::(.*)/) {
+	elsif ( lc $logName eq "event_log" or lc $logName eq "poller_event_log" ) {
+		if ( lc $logName eq "poller_event_log" and $line =~ /NMIS_Event::([\w\.\-]+)::(.*)/) {
 			$logServer = $1;
 			$line = $2;
 		}
