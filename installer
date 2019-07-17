@@ -548,6 +548,43 @@ sub moduleVersion
 	return $ver;
 }
 
+# print prompt, read and return response string if interactive;
+# or return default response in noninteractive mode.
+#
+# default  is "", except in preseed mode where the default
+# is looked up from the preseed data tagged by the seedling argument
+sub input_text
+{
+	my ($query,$seedling) = @_;
+
+	print $query;
+
+	if ($noninteractive)
+	{
+		if ($seedling && ref($answers) && defined($answers->{$seedling}))
+		{
+			my $answer = $answers->{$seedling};
+
+			print " (preseeded answer \"$answer\")\n";
+			logmsg(0, "preseeded answer \"$answer\" for \"$query\"");
+			return $answer;
+		}
+		else
+		{
+			print " (auto-default \"\")\n\n";
+			logmsg(0,"auto-default answer \"\" for \"$query\"");
+			return "";
+		}
+	}
+	else
+	{
+		print "\nEnter new value or hit <Enter> to accept default: ";
+		my $input = <STDIN>;
+		chomp $input;
+		logmsg(0, "User input for \"$query\": \"$input\"");
+		return $input;
+	}
+}
 
 # print question, return true if y (or in unattended mode).
 # default is yes, except in preseed mode where the default
@@ -568,11 +605,14 @@ sub input_yn
 
 				print " (preseeded answer \"$answer\" interpreted as \""
 						.($result? "YES":"NO")."\")\n\n";
+				logmsg(0,"preseeded answer \"$answer\" for \"$query\" interpreted as \""
+						.($result? "YES":"NO"));
 				return $result;
 			}
 			else
 			{
 				print " (auto-default YES)\n\n";
+				logmsg(0,"auto-default answer YES for \"$query\"");
 				return 1;
 			}
 		}
