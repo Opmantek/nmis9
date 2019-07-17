@@ -2388,7 +2388,7 @@ sub remote_collection
 }
 
 # get or create an NMISNG::Node object from the given arguments (that should make it unique)
-# the first node found matching all arguments is provided (if >1 is found)
+# the local node found matching all arguments is provided (if >1 is found)
 #
 # args: create => 0/1, if 1 and node is not found a new one will be returned, it is
 #   not persisted into the db until the object has it's save method called
@@ -2401,7 +2401,7 @@ sub node
 
 	my $node;
 	# we only need the uuid, and the name only for error handling
-	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1});
+	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
 
 	if ( $modeldata->count() > 1 )
 	{
@@ -2409,25 +2409,23 @@ sub node
 		$self->log->debug( "Node request returned more than one node, args" . Dumper( \%args ) );
 		$self->log->warn( "Node request returned more than one node, names:" . join( ",", @names ) );
 
-		# Try filtering by cluster_id
+		# Try filter by cluster_id
 		if (($args{name} || $args{filter}{name}) && !$args{filter}{cluster_id}  )
 		{
-			$args{filter}{cluster_id} = $self->config->{cluster_id};
-			$modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1});
-			if ( $modeldata->count() == 1 )
-			{
-				my $model = $modeldata->data()->[0];
-				$node = NMISNG::Node->new(
-					_id    => $model->{_id},
-					uuid   => $model->{uuid},
-					nmisng => $self,
-				);
-				$self->log->info( "Getting local node:" . $model->{uuid} );
-				return $node;
-			} else {
-				$self->log->warn( "Returning nothing, names:" . join( ",", @names ) );
-				return;
+			foreach (@{$modeldata->data()}) {
+				if ( $_->{cluster_id} eq $self->config->{cluster_id} ) {
+					$self->log->debug( "Getting local node " . $_->{uuid} );
+					my $model = $_;
+					$node = NMISNG::Node->new(
+						_id    => $model->{_id},
+						uuid   => $model->{uuid},
+						nmisng => $self,
+					);
+					return $node;
+				}
 			}
+			$self->log->warn( "Returning nothing, names: " . join( ",", @names ) );
+			return;
 		} else {
 			$self->log->warn( "Returning nothing, names:" . join( ",", @names ) );
 			return;
