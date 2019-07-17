@@ -13,9 +13,9 @@
   },
   '3' => {
     'logOrder' => '3',
-    'logFileName' => 'slave_event.log',
-    'logName' => 'Slave_Event_Log',
-    'logDescr' => 'Slave Event Log'
+    'logFileName' => 'poller_event.log',
+    'logName' => 'Poller_Event_Log',
+    'logDescr' => 'Poller Event Log'
   },
   '4' => {
     'logOrder' => '4',
