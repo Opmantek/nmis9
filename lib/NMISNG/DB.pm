@@ -32,7 +32,7 @@
 #*****************************************************************************
 package NMISNG::DB;
 use strict;
-our $VERSION = "9.0.1";
+our $VERSION = "9.0.4";
 
 use Data::Dumper;
 use JSON::XS;
@@ -1231,7 +1231,7 @@ sub get_query_part
 	elsif ( $col_value =~ /^(i)?regex:(.*)$/ && !$options->{no_regex} )
 	{
 		my ($wantedcase,$regex) = ($1,$2);
-		$ret_hash->{$col_name} = { '$regex' => $regex };
+		$ret_hash->{$col_name} = { '$regex' => make_string($regex) };
 		$ret_hash->{$col_name}->{'$options'} = 'i' if ($wantedcase eq "i");
 	}
 	elsif ( $col_value =~ /^type:(\d+)$/ && !$options->{no_type})
@@ -1354,6 +1354,17 @@ sub make_binary
 	my (%arg) = @_;
 	return $driver_generation >= 2? bson_bytes($arg{data})
 			: MongoDB::BSON::Binary->new( data => $arg{data} );
+}
+
+# coerces argument into bson string
+sub make_string
+{
+	my ($value) = @_;
+	# 2.x driver: trivial
+	return bson_string($value) if ($driver_generation >= 2);
+	# 1.x is a bit less trivial; see mongodb::datatypes. note that just blessing $value doesn't work.
+	my $wantastring = "$value";
+	return bless(\$wantastring, "MongoDB::BSON::String");
 }
 
 # Trivial wrapper around MongdoDB/BSON::OID, again
