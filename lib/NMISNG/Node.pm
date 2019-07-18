@@ -1440,8 +1440,11 @@ sub pingable
 				# ...if not stale
 				if ((time - $lastping) < $staleafter)
 				{
-					($ping_min, $ping_avg, $ping_max, $ping_loss)
-							= $newestping->{data}->{qw(min_rtt avg_rtt max_rtt loss)};
+					$ping_min = $newestping->{data}->{ping}->{min_rtt};
+					$ping_avg = $newestping->{data}->{ping}->{avg_rtt};
+					$ping_max = $newestping->{data}->{ping}->{max_rtt};
+					$ping_loss = $newestping->{data}->{ping}->{loss};
+
 					$self->nmisng->log->debug2("$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 
 					# ...and use the backup host data if the primary is unreachable
@@ -1449,8 +1452,11 @@ sub pingable
 							&& $self->configuration->{host_backup}
 							&& $ping_loss == 100)
 					{
-						($ping_min, $ping_avg, $ping_max, $ping_loss)
-								= $newestping->{data}->{qw(backup_min_rtt backup_avg_rtt backup_max_rtt backup_loss)};
+						$ping_min = $newestping->{data}->{ping}->{backup_min_rtt};
+						$ping_avg = $newestping->{data}->{ping}->{backup_avg_rtt};
+						$ping_max = $newestping->{data}->{ping}->{backup_max_rtt};
+						$ping_loss = $newestping->{data}->{ping}->{backup_loss};
+						
 						$self->nmisng->log->debug2("$uuid ($nodename = $newestping->{data}->{backup_ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					}
 					$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
@@ -1475,6 +1481,7 @@ sub pingable
 
 			( $ping_min, $ping_avg, $ping_max, $ping_loss )
 					= NMISNG::Ping::ext_ping( $host, $packet, $retries, $timeout );
+						
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
 			$lastping = Time::HiRes::time;
 
@@ -5768,6 +5775,7 @@ sub compute_reachability
 		$reach{reachability} = 100;
 		$reach{availability} = 100;
 		$reach{intfTotal}    = 'U';
+
 		( $reach{responsetime}, $responseWeight ) = _weightResponseTime( $reach{responsetime} );
 		$reach{health} = ( $reach{reachability} * 0.9 ) + ( $responseWeight * 0.1 );
 	}
