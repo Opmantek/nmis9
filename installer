@@ -908,6 +908,11 @@ $tag\t"$thistag->{default}"\n|;
 sub load_preseed
 {
 	my ($fn) = @_;
+
+	my $unhappy = (!-e $fn)? "no such file" :
+			(!-f $fn)? "not a plain file" : undef;
+	die "cannot read $fn: $unhappy\n" if ($unhappy);
+
 	open(F, $fn) or die "cannot read $fn: $!\n";
 
 	my %answers;

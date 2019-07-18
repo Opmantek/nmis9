@@ -48,7 +48,7 @@ input_yn() {
 		local MSG TAG
 		MSG="$1"
 		TAG="$2"
-		if [ -n "$PRESEED" -a -n "$TAG" ]; then
+		if [ -n "$PRESEED" -a -n "$TAG" ] && grep -q -E "^$TAG" $PRESEED 2>/dev/null; then
 				echo "$MSG"
 				local ANSWER
 				ANSWER=`grep -E "^$TAG" $PRESEED|cut -f 2 -d '"'`
@@ -56,7 +56,7 @@ input_yn() {
 				echo "(preseeded answer \"$ANSWER\")"
 				if [ "$ANSWER" = "y" -o "$ANSWER" = "Y" ]; then
 						return 0						# ok
-				else									 
+				else
 						return 1						# nok
 				fi
 		elif [ -n "$UNATTENDED" ]; then
@@ -75,10 +75,10 @@ input_yn() {
 
 						if [ "$X" != 'y' -a "$X" != '' -a "$X" != 'n' ]; then
 								echo "Invalid input \"$X\""
-								echo 
+								echo
 								continue;
 						fi
-						
+
 						if [ -z "$X" -o "$X" = "y" ]; then
 								return 0								# ok
 						else
@@ -97,7 +97,7 @@ input_text() {
 		TAG="$2"
 		RESPONSE=''
 		echo -n "$MSG"
-		if [ -n "$PRESEED" -a -n "$TAG" ]; then
+		if [ -n "$PRESEED" -a -n "$TAG" ] && grep -q -E "^$TAG" $PRESEED 2>/dev/null; then
 				RESPONSE=`grep -E "^$TAG" $PRESEED|cut -f 2 -d '"'`
 				logmsg "(Preseeded answer \"$RESPONSE\" for '$MSG')"
 				echo "(preseeded answer \"$RESPONSE\")"
