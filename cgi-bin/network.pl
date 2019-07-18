@@ -1486,19 +1486,18 @@ sub selectLarge
 			}
 			else
 			{
-				# fixme9: server mode is nonfunctional at this time, links need to be made through opha
-				my $server = $NT->{$node}{server}; 				# fixme9: no longer exists
-				my $ST = {};
-				my $url
-					= "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
+				my $remotes = $nmisng->get_remote(filter => {cluster_id => $NT->{$node}->{cluster_id} });
+				# We are getting only one
+				my $remote = @$remotes[0];
+		
+				# Get node from remote collection
+				my $url = $remote->{url_base}."/".$remote->{nmis_cgi_url_base}."/network.pl?act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
 					. uri_escape($node);
-				$nodelink = a(
-					{   target  => "Graph-$node",
-						onclick => "viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height} * 1.5)"
-					},
+				$nodelink = a( {
+					target => "Graph-$node",
+					onclick => "viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height} * 1.5)"},
 					$NT->{$node}{name},
-					img( {src => "$C->{'nmis_slave'}", alt => "NMIS Server $server"} )
-				);
+					img( {src => "$C->{'nmis_slave'}", alt => "NMIS Server $remote->{server_name}"}) );
 			}
 
 			my $statusClass = $groupSummary->{$node}{event_status};
