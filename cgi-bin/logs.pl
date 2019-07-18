@@ -149,9 +149,12 @@ foreach my $k ( keys %{$NT} ) {
 }
 
 my $logFileName;						# this gets set to the full qualified filename in conf/Logs.xxxx config fiel
+my $logFileNamePoller;
+my $logNamePoller;
 
 # defaults
 my $logName = $Q->{logname} || 'Event_Log';
+my $pollerLog = 'Poller_Event_Log';
 my $logSort = defined $Q->{sort} ? $Q->{sort} : 'descending';
 my $logLines =  defined $Q->{lines} ? $Q->{lines} : '50' ;
 my $logLevel = defined $Q->{level} ? $Q->{level} : 'ALL';
@@ -179,16 +182,31 @@ my $logLevelSummary = {
 ## capture the log name and file to parse here
 
 $LL = NMISNG::Util::loadTable(dir=>'conf',name=>'Logs');
+
 # check each log entry for field 'file', and if no path, add the nmis log dir default path
 foreach ( keys %{$LL} ) {
 	$LL->{$_}{logFileName} = $C->{'<nmis_logs>'} .'/'. $LL->{$_}{logFileName} if $LL->{$_}{logFileName} !~ /\//;
 
+	# find and store the FQ pathnamme of $logName in config hash
+	if ( lc $LL->{$_}{logName} eq lc $pollerLog ) {
+		$logFileNamePoller = $LL->{$_}{logFileName};
+		$logNamePoller = $LL->{$_}{logName};
+	}
+	
 	# find and store the FQ pathnamme of $logName in config hash
 	if ( lc $LL->{$_}{logName} eq lc $logName ) {
 		$logFileName = $LL->{$_}{logFileName};
 		$logName = $LL->{$_}{logName};
 	}
 }
+
+if ( $Q->{logname} eq "") {
+	if ( exists_poller_file(filename => $logFileNamePoller) ) {
+		$logName = $logNamePoller;
+		$logFileName = $logFileNamePoller;
+	}
+}
+
 
 my $urlsafegroup = uri_escape($logGroup);
 
@@ -970,14 +988,29 @@ sub logRFCColor {
 	return NMISNG::Util::colorPercentHi( (100/7)*$RFC{$_[0]} );
 }
 
-
+sub exists_poller_file
+{
+	my (%args) = @_;
+	my $filename = $args{filename};
+	
+	my $filesize = -s $filename;
+	
+	if ($filesize > 0) {
+		my $epoch_timestamp = (stat($filename))[9];
+		my $time = time - $epoch_timestamp;
+		
+		if ($time < 6000) {
+			return 1;
+		}
+	}
+	return 0;
+}
 
 
 sub logSummary {
 
 	my $logRefTable = shift;
 	return if scalar @$logRefTable <= 0;				# handle the zero length file
-
 
 	my %logSum;
 	my $logEvent;

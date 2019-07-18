@@ -208,7 +208,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 
 		createDialog({
 			id		: 'log_file_view',
-			url		: 'logs.pl?act=log_file_view&lines=50&logname=' + logName + '&refresh=' + widget_refresh,
+			url		: 'logs.pl?act=log_file_view&lines=50&' + 'refresh=' + widget_refresh,
 			title	: 'Log of Network Events',
 			width : 950,
 			height: 380,
