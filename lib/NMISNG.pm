@@ -1688,7 +1688,12 @@ sub get_latest_data_model
 # args: id, name, host, group, and filter (=hash) for selection
 #
 # note: if id/name/host/group and filter are given, then
-#the filter properties override id/name/host/group!
+# the filter properties override id/name/host/group!
+#
+# ATTENTION: selection by name MAY require that you convert
+# your arg with NMISNG::DB::make_string() yourself!
+# this function fixes up single name equivalence checks and
+# list of single name equivalences; more complex filters are left as-is.
 #
 # arg sort: mongo sort criteria
 # arg limit: return only N records at the most
@@ -1717,6 +1722,19 @@ sub get_nodes_model
 	{
 		$filter->{"configuration.$confshortie"} = $args{$confshortie}
 		if ( exists( $args{$confshortie} ) and !exists( $filter->{"configuration.$confshortie"} ) );
+	}
+
+	# fix the filter wrt numeric node names, which must be treated as strings
+	# we can automatically handle: single plain name or list of plain names
+	if (ref($filter->{name}) eq "ARRAY")
+	{
+		$filter->{name} = [ map { ref($_)? $_ : /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/? NMISNG::DB::make_string($_) : $_ } (@{$filter->{name}}) ];
+	}
+	elsif (defined($filter->{name})
+				 && !ref($filter->{name})
+				 && $filter->{name} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/)
+	{
+		$filter->{name} = NMISNG::DB::make_string($filter->{name});
 	}
 
 	my $fields_hash = $args{fields_hash};

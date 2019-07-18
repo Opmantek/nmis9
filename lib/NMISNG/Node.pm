@@ -1272,7 +1272,7 @@ sub save
 
 	my ($result, $op);
 	my %entry = ( uuid => $self->{uuid},
-								name => $self->{_name},
+								name => NMISNG::DB::make_string($self->{_name}), # must treat as string even if it looks like a number
 								cluster_id => $self->{_cluster_id},
 								lastupdate => time, # time of last save
 								configuration => $self->{_configuration},
@@ -1456,7 +1456,7 @@ sub pingable
 						$ping_avg = $newestping->{data}->{ping}->{backup_avg_rtt};
 						$ping_max = $newestping->{data}->{ping}->{backup_max_rtt};
 						$ping_loss = $newestping->{data}->{ping}->{backup_loss};
-						
+
 						$self->nmisng->log->debug2("$uuid ($nodename = $newestping->{data}->{backup_ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					}
 					$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
@@ -1481,7 +1481,7 @@ sub pingable
 
 			( $ping_min, $ping_avg, $ping_max, $ping_loss )
 					= NMISNG::Ping::ext_ping( $host, $packet, $retries, $timeout );
-						
+
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
 			$lastping = Time::HiRes::time;
 
