@@ -1948,7 +1948,7 @@ EO_HTML
 group customer location businessService serviceStatus notes
 nodeType nodeModel polling_policy sysUpTime sysLocation
 sysContact sysDescr ifNumber
-last_ping last_collect last_update
+last_ping last_poll last_update
 nodeVendor sysObjectName roleType netType );
 
 	# default or custom list from config?
@@ -2141,9 +2141,10 @@ nodeVendor sysObjectName roleType netType );
 			}
 		}
 		# last_X as in last time for type=X operation, NOT db record updated!
-		elsif ($propname =~ /^last_(update|collect)$/)
+		elsif ($propname =~ /^last_(update|poll)$/)
 		{
 			my $jobtype = $1;
+
 			# returndatestamp(undef) == now, which would be really wrong
 			$sourceval = defined($sourceval)? NMISNG::Util::returnDateStamp( $sourceval ) : "N/A";
 
