@@ -2257,6 +2257,7 @@ sub grouped_node_summary
 			'roleType'    => '$node_config.configuration.roleType',
 			'ping'        => '$node_config.configuration.ping',
 			'sysLocation' => '$data.sysLocation',
+			'last_update' => '$data.last_update',
 			%groupproject_hash
 		}
 	};

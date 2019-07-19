@@ -1275,7 +1275,7 @@ sub selectLarge
 	my $business = $args{business};
 
 	my $NT = $network_status->get_nt();
-	
+
 	getSummaryStatsbyGroup(include_nodes => 1);
 	my @headers = (
 		'Node',   'SNMP Location', 'Type',         'Net',        'Role',   'Status',
@@ -1384,35 +1384,64 @@ sub selectLarge
 				$color = "#aaaaaa";
 			}
 
-			# outage
-			my $outage = td( {class => 'info Plain'}, "" );    # preset
-			if ( $groupSummary->{$node}{outage} eq "current" or $groupSummary->{$node}{outage} eq "pending" )
-			{
-				my $color = ( $groupSummary->{$node}{outage} eq "current" ) ? "#00AA00" : "#FFFF00";
+			my $outage = td( {class => 'info Plain'}, "" );
+			my $S;										# may be needed for the both outage and escalate computation
 
-#	$outage = td({class=>'info Plain',onmouseover=>"Tooltip.show(\"$groupSummary->{$node}{outageText}\",event);",onmouseout=>"Tooltip.hide();",style=>NMISNG::Util::getBGColor($color)},
-				$outage = td(
-					{class => 'info Plain'},
-					a(  {href => "outages.pl?act=outage_table_view&node=$groupSummary->{$node}{name}"},
-						$groupSummary->{$node}{outage}
-					)
-				);
+			my $outagestatus = $groupSummary->{$node}->{outage};
+			# checking outages is expensive, as it needs full node object to evaluate the context
+			# see OMK-6206 for a possible improvement
+			if (!defined($outagestatus) or $outagestatus !~ /^(none|current|pending)$/)
+			{
+				if (!$S)
+				{
+					$S = NMISNG::Sys->new;
+					$S->init(name => $node, snmp => 'false');
+				}
+				($outagestatus, undef) = NMISNG::Outage::outageCheck(node => $S->nmisng_node,
+																														 time => time());
+			}
+			if ($outagestatus eq "current" or $outagestatus eq "pending")
+			{
+				my $color = ( $outagestatus eq "current" ) ? "#00AA00" : "#FFFF00";
+
+				$outage = td( { class => 'info Plain'},
+											a(  {href => "outages.pl?act=outage_table_view&node=$groupSummary->{$node}{name}&widget=$widget"},
+													$outagestatus ));
 			}
 
-			# escalate
-			my $escalate = exists $groupSummary->{$node}{escalate} ? $groupSummary->{$node}{escalate} : '&nbsp;';
+			my $escalate = '&nbsp;';
+			# escalate, in nmis8 the escalate value of the node's 'node down' event if one such exists
+			# see OMK-6207 for the future of this value
+			# again expensive to compute on the fly
+			if (defined($groupSummary->{$node}->{escalate})
+					&& $groupSummary->{$node}->{escalate} ne '')
+			{
+				$escalate = $groupSummary->{$node}->{escalate};
+			}
+			else
+			{
+				if (!$S)
+				{
+					$S = NMISNG::Sys->new;
+					$S->init(name => $node, snmp => 'false');
+				}
+				my $downs = $S->nmisng_node->get_events_model(filter => { event => "Node Down", active => 1});
+				if (!$downs->error && $downs->count)
+				{
+					$escalate = $downs->data->[0]->{escalate};
+				}
+			}
 
 			# check lastupdate
 			my $lastUpdate      = "";
 			my $colorlast       = $color;
 			my $lastUpdateClass = "info Plain nowrap";
-			my $time            = $groupSummary->{$node}{last_poll};
-			if ( $time ne "" )
+			if (defined(my $time = $groupSummary->{$node}->{last_update}))
 			{
 				$lastUpdate = NMISNG::Util::returnDateStamp($time);
-				if ( $time < ( time - 60 * 15 ) )
+				if ( $time < ( time - 86400 ) ) # more than 1 day ago?
 				{
-					$colorlast       = "#ffcc00";                   # to late
+					$colorlast       = "#ffcc00";
 					$lastUpdateClass = "info Plain Error nowrap";
 				}
 			}
@@ -1489,7 +1518,7 @@ sub selectLarge
 				my $remotes = $nmisng->get_remote(filter => {cluster_id => $NT->{$node}->{cluster_id} });
 				# We are getting only one
 				my $remote = @$remotes[0];
-		
+
 				# Get node from remote collection
 				my $url = $remote->{url_base}."/".$remote->{nmis_cgi_url_base}."/network.pl?act=network_node_view&refresh=$Q->{refresh}&widget=false&node="
 					. uri_escape($node);
@@ -1897,7 +1926,7 @@ sub viewNode
 			print "$node is managed by server $remote->{server_name} <br>";
 			print "<b>$remote->{server_name} url property</b> should be updated in opHA";
 		}
-		
+
 		print <<EO_HTML;
 	<script>
 		viewwndw('$node','$url',$wd,$ht,'server');
@@ -2115,6 +2144,9 @@ nodeVendor sysObjectName roleType netType );
 		elsif ($propname =~ /^last_(update|collect)$/)
 		{
 			my $jobtype = $1;
+			# returndatestamp(undef) == now, which would be really wrong
+			$sourceval = defined($sourceval)? NMISNG::Util::returnDateStamp( $sourceval ) : "N/A";
+
 			# check if a job of this type is scheduled 'real soon' or already in progress
 			my $due_or_active = $nmisng->get_queue_model(
 				type => $jobtype,
@@ -2123,7 +2155,7 @@ nodeVendor sysObjectName roleType netType );
 				count => 1, limit => 0); # need a count, no data
 
 			%details = ( title => "Last ".($jobtype eq "update"? "Update" : "Collect"),
-									 value => NMISNG::Util::returnDateStamp($sourceval) );
+									 value => $sourceval );
 
 			if (defined $due_or_active && !$due_or_active->error && $due_or_active->query_count)
 			{
@@ -4505,7 +4537,7 @@ sub viewTop10
 	my $datestamp_end   = NMISNG::Util::returnDateStamp($end);
 
 	my $NT = $network_status->get_nt();
-	
+
 	my $header = "Network Top10 from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
@@ -4886,6 +4918,7 @@ sub nodeAdminSummary
 						= defined $catchall_data->{last_update}
 				? NMISNG::Util::returnDateStamp( $catchall_data->{last_update} )
 						: "N/A";
+
 				my $lastupdateclass = "info Plain";
 
 				my $pingable  = "unknown";
