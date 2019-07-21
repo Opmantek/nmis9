@@ -2122,11 +2122,7 @@ sub get_timed_data_model
 	{
 		my $allconcepts = NMISNG::DB::distinct(
 			db         => $self->get_db(),
-			collection => (
-				  $NMISNG::DB::new_driver
-				? $self->inventory_collection
-				: $self->inventory_collection->name
-			),
+			collection => $self->inventory_collection,
 			key => "concept"
 		);
 
@@ -4133,10 +4129,7 @@ sub save_opstatus
 
 	# to make the db ttl expiration work this must be
 	# an acceptable date type for the driver version
-	$statusrec->{expire_at}
-		= $NMISNG::DB::new_driver
-		? Time::Moment->from_epoch($expire_at)
-		: DateTime->from_epoch( epoch => $expire_at, time_zone => "UTC" );
+	$statusrec->{expire_at} = Time::Moment->from_epoch($expire_at);
 
 	my $result;
 	if ($oldrec)

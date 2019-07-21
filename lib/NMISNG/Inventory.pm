@@ -484,9 +484,7 @@ sub add_timed_data
 
 	# to make the db ttl expiration work this must be
 	# an acceptable date type for the driver version
-	$expire_at = $NMISNG::DB::new_driver?
-			Time::Moment->from_epoch($expire_at)
-			: DateTime->from_epoch(epoch => $expire_at, time_zone => "UTC");
+	$expire_at = Time::Moment->from_epoch($expire_at);
 
 	# if the request is to delay, append to the existing queue (or make an empty hash), otherwise make a new record
 	# cluster_id here is just handy, not necessarily required
@@ -1245,10 +1243,7 @@ sub save
 		# to make the db ttl expiration work this must be
 		# an acceptable date type for the driver version
 		my $pleasegoaway = $lastupdate + ($self->nmisng->config->{purge_inventory_after} || 14*86400);
-		$pleasegoaway = $NMISNG::DB::new_driver?
-				Time::Moment->from_epoch($pleasegoaway)
-				: DateTime->from_epoch(epoch => $pleasegoaway, time_zone => "UTC");
-
+		$pleasegoaway = Time::Moment->from_epoch($pleasegoaway);
 		$record->{expire_at} = $pleasegoaway;
 	}
 

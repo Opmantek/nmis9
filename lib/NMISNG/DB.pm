@@ -83,17 +83,6 @@ else
 
 my $error_string;
 
-# fixme9: new_driver and any remaining 0.x support should go away,
-# and doew
-# in some spots (TTL indices) downstream code must distinguish between driver flavours,
-# so let's expose that as $OMK::DB::new_driver
-our $new_driver = ( version->parse($MongoDB::VERSION) >= version->parse("1.0.0") ) ? 1 : 0;
-
-if ( !$new_driver )
-{
-	die "MongoDB driver version 1.0.0 or greater required\n";
-}
-
 # args:
 # 	- collection
 # 	- count, return a total record count, even if ssl values are set (means pipe is run twice)
@@ -204,50 +193,23 @@ sub batch_insert
 		if ( ref($records) ne "ARRAY" or !@$records );
 
 	my $result = {success => 1, ids => []};    # we hope
-
-	if ($new_driver)
+	try
 	{
-		try
+		my @requests = ( insert_many => $records );
+		my $res = $collection->bulk_write( [@requests] );
+		if ( $res->acknowledged )
 		{
-			my @requests = ( insert_many => $records );
-			my $res = $collection->bulk_write( [@requests] );
-			if ( $res->acknowledged )
-			{
-				my $inserted_ids_hash = $res->inserted_ids;
-				@{$result->{ids}} = values(%$inserted_ids_hash);
-			}
-			$result->{success} = 1;
+			my $inserted_ids_hash = $res->inserted_ids;
+			@{$result->{ids}} = values(%$inserted_ids_hash);
 		}
-		catch
-		{
-			$result->{success}    = 0;
-			$result->{error}      = $_->message;
-			$result->{error_type} = ref($_);
-		}
+		$result->{success} = 1;
 	}
-	else
+	catch
 	{
-		try
-		{
-			@{$result->{ids}} = $collection->batch_insert( $records, {safe => $safe} );
-		}
-		catch
-		{
-			$result->{error}   = $_;
-			$result->{success} = 0;
-		};
-
-		if ($safe)
-		{
-			my $database = $collection->can("database") ? $collection->database() : $collection->_database();
-			my $error = getLastError( db => $database, w => $safe );
-			if ( $error->{err} )
-			{
-				$result->{error}   = $error->{err};
-				$result->{success} = 0;
-			}
-		}
-	}
+		$result->{success}    = 0;
+		$result->{error}      = $_->message;
+		$result->{error_type} = ref($_);
+	};
 
 	return $result;
 }
@@ -290,7 +252,6 @@ sub count
 		$result = $driver_generation >= 2?
 				$collection->count_documents($query) : $collection->count($query);
 	}
-
 	catch
 	{
 		$errmsg = $_;
@@ -463,8 +424,6 @@ sub create_capped_collection
 	# desired wantsize: ensure its a multiple of 256, round up to nearest
 	$wantsize += 256 - ( $wantsize % 256 ) if ( $wantsize % 256 );
 
-	my $new_driver = ( version->parse($MongoDB::VERSION) >= version->parse("1.0.0") ) ? 1 : 0;
-
 	# figure out how much space there is on disk
 	# required because capped collections pre-allocate all the space they need
 	# commandline opts are visible only on the admin database...
@@ -511,20 +470,13 @@ sub create_capped_collection
 	my ( $maxsize, $isempty, $iscapped );
 
 	# setup db timeouts - requires a new database (fixme: and also new connection for socket_timeout)
-	if ($new_driver)
+	if ( $conn->max_time_ms )
 	{
-		if ( $conn->max_time_ms )
-		{
 
-			# new driver doesn't let you set these on existing connections or databases :-(
-			my $blockingdb = eval { $conn->get_database( $db->name, {max_time_ms => 0} ) };
-			return {error => "Failed to get database with suitable timeout!"} if ( !$blockingdb );
-			$db = $blockingdb;
-		}
-	}
-	else
-	{
-		$conn->query_timeout(-1);
+		# new driver doesn't let you set these on existing connections or databases :-(
+		my $blockingdb = eval { $conn->get_database( $db->name, {max_time_ms => 0} ) };
+		return {error => "Failed to get database with suitable timeout!"} if ( !$blockingdb );
+		$db = $blockingdb;
 	}
 
 	if ($alreadypresent)
@@ -681,8 +633,8 @@ sub distinct
 	my %arg = @_;
 	my ( $db, $collname, $key, $query ) = @arg{qw(db collection key query)};
 
-	# with new driver collection MAY be handle
-	if ($new_driver && (ref($collname) eq "MongoDB::Collection"))
+	# with 1.x and 2.x driver collection MAY be handle
+	if (ref($collname) eq "MongoDB::Collection")
 	{
 		return if (!$key);
 		my $result;
@@ -695,11 +647,6 @@ sub distinct
 	}
 	else
 	{
-		# note: could use collection object in old driver, too, but  while that has official name attrib,
-		# database is under _database... new driver has name and database attributes.
-
-		# old driver: collname MUST be a string only, as the perl driver doesn't
-		# have a collection.distinct wrapper yet.
 		return if ( !$collname or ref($collname) or !$db or !$key );
 
 		my $res = $db->run_command(
@@ -740,6 +687,7 @@ sub end_bulk
 		$error      = $_->message;
 		$error_type = ref($_);
 	};
+	
 	return {success => $success, result => $result, error => $error, error_type => $error_type};
 }
 
@@ -1051,18 +999,16 @@ sub get_db_connection
 		return;
 	}
 
-	if ($new_driver)
+	try
 	{
-		try
-		{
-			my $status = $new_conn->db('admin')->run_command( [ismaster => 1] );
-		}
-		catch
-		{
-			$error_string = "Error Connecting to Database $server:$port: $_";
-		};
-		return if ($error_string);
+		my $status = $new_conn->db('admin')->run_command( [ismaster => 1] );
 	}
+	catch
+	{
+		$error_string = "Error Connecting to Database $server:$port: $_";
+	};
+	
+	return if ($error_string);
 
 	# If we can't authenticate we must be using the new driver
 	if ( $username eq '' || !$new_conn->can("authenticate") )
@@ -1086,6 +1032,7 @@ sub get_db_connection
 		{
 			$error_string = "Error attempting to authenticate, parameters incorrect.\nError info:$_";
 		};
+		
 		return if ($error_string);
 	}
 	return $new_conn;
@@ -1284,63 +1231,32 @@ sub insert
 	my $success = undef;
 	my ( $error, $error_type ) = ( undef, undef );
 
-	if ($new_driver)
+	if ($bulk)
 	{
-		if ($bulk)
-		{
-			$bulk->insert_one($new_record);
-			$success = 1;
-			$id      = "bulk";
-		}
-		else
-		{
-			try
-			{
-				my $result = $collection->insert_one($new_record);
-				if ( $result->acknowledged )
-				{
-					$id = $result->inserted_id;
-				}
-				$success = 1;
-			}
-			catch
-			{
-				$success    = 0;
-				$error      = $_->message;
-				$error_type = ref($_);
-
-				# example of errors from doc, possibly this should be passed on to the caller to handle?
-				# if ( $_->$_isa("MongoDB::DuplicateKeyError" ) {
-
-				# }
-				# else {
-				# 		...
-				# }
-			};
-		}
+		$bulk->insert_one($new_record);
+		$success = 1;
+		$id      = "bulk";
 	}
 	else
 	{
 		try
 		{
-			$id = $collection->insert( $new_record, {safe => 0} );
+			my $result = $collection->insert_one($new_record);
+			if ( $result->acknowledged )
+			{
+				$id = $result->inserted_id;
+			}
 			$success = 1;
 		}
 		catch
 		{
-			$success = 0;
-			$error   = $_;
+			$success    = 0;
+			$error      = $_->message;
+			$error_type = ref($_);
+
+			# example of errors from doc, possibly this should be passed on to the caller to handle?
+			# if ( $_->$_isa("MongoDB::DuplicateKeyError" ) {
 		};
-		if ($safe)
-		{
-			my $database = $collection->can("database") ? $collection->database() : $collection->_database();
-			my $error_hash = get_last_error( db => $database, w => $safe );
-			if ( $error_hash->{err} )
-			{
-				$success = 0;
-				$error = $error_hash->{errmsg} // $error_hash->{err};
-			}
-		}
 	}
 
 	return {success => $success, id => $id, error => $error, error_type => $error_type};
@@ -1402,7 +1318,7 @@ sub reget_db_connection
 
 	# Driver 1.X query_timeout is readonly, and it tries to handle reconnect itself
 	# TODO: until more testing can be done just assume it's working
-	if ( ref($maybelive) eq "MongoDB::MongoClient" && $new_driver )
+	if (ref($maybelive) eq "MongoDB::MongoClient")
 	{
 		my $status = undef;
 		try
@@ -1419,38 +1335,21 @@ sub reget_db_connection
 		};
 
 		undef $status
-			if (
-			$status
-			&& ((   defined( $args{connection_timeout} )    # zero is useless but technically ok
-					&& $maybelive->connect_timeout_ms != $args{connect_timeout}
-				)
-				|| (   defined( $args{query_timeout} )
-					&& $args{query_timeout} == -1
-					&& $maybelive->socket_timeout_ms
-					!= $args{query_timeout} )               # fixme unverified: in that case, max_time_ms should be 0
-				|| (   defined( $args{query_timeout} )
-					&& $args{query_timeout} > 0
-					&& $maybelive->max_time_ms != $args{query_timeout} )
-			)
-			);    # fixme unverified: in that case, socket_timeout_ms should be a bit more than max_time_ms
+				if (
+					$status
+					&& ((   defined( $args{connection_timeout} )    # zero is useless but technically ok
+									&& $maybelive->connect_timeout_ms != $args{connect_timeout}
+							)
+							|| (   defined( $args{query_timeout} )
+										 && $args{query_timeout} == -1
+										 && $maybelive->socket_timeout_ms
+										 != $args{query_timeout} )               # fixme unverified: in that case, max_time_ms should be 0
+							|| (   defined( $args{query_timeout} )
+										 && $args{query_timeout} > 0
+										 && $maybelive->max_time_ms != $args{query_timeout} )
+					)
+				);    # fixme unverified: in that case, socket_timeout_ms should be a bit more than max_time_ms
 
-		return $maybelive if ($status);
-	}
-
-	# old driver
-	elsif ( ref($maybelive) eq "MongoDB::MongoClient" )
-	{
-		my $finaltimeout = $args{query_timeout} // $maybelive->query_timeout;
-		my $status = try
-		{
-
-			# optionally: wait less long for ping responses
-			$maybelive->query_timeout($ping_to) if ( $finaltimeout != $ping_to );
-			$maybelive->get_database('admin')->run_command( {ping => 1} );
-		};
-
-		# reset the timeout if required
-		$maybelive->query_timeout($finaltimeout) if ( $finaltimeout != $ping_to );
 		return $maybelive if ($status);
 	}
 
@@ -1474,76 +1373,29 @@ sub remove
 	my $options = {safe => $safe};
 	$options->{just_one} = 1 if ( $arg{just_one} );
 
-	if ($new_driver)
+	try
 	{
-
-		# NOTE: safe does not apply here
-		try
+		my $result;
+		if ( $options->{just_one} )
 		{
-			my $result;
-			if ( $options->{just_one} )
-			{
-				$result = $collection->delete_one($query);
-			}
-			else
-			{
-				$result = $collection->delete_many($query);
-			}
-			if ( $result->acknowledged )
-			{
-				$removed_records = $result->deleted_count;
-			}
-			$success = 1;
+			$result = $collection->delete_one($query);
 		}
-		catch
+		else
 		{
-			$success    = 0;
-			$error      = $_->message;
-			$error_type = ref($_);
+			$result = $collection->delete_many($query);
 		}
-
+		if ( $result->acknowledged )
+		{
+			$removed_records = $result->deleted_count;
+		}
+		$success = 1;
 	}
-	else
+	catch
 	{
-		try
-		{
-			$return_info = $collection->remove( $query, $options );
-
-			# return # of rows removed if safe is 1 (which it could be depending on the write
-			# concern in the connection)
-			if ( ref($return_info) eq "HASH" && defined( $return_info->{n} ) )
-			{
-				$removed_records = $return_info->{n};
-			}
-			else
-			{
-				# if $safe is set the error check below will return the # of records, if not
-				# set something here as we can only assume
-				$removed_records = 1;
-			}
-			$success = 1;
-		}
-		catch
-		{
-			$success = 0;
-			$error   = $_;
-		};
-
-		if ($safe)
-		{
-			my $database = $collection->_database();
-			my $error_hash = get_last_error( db => $database, w => $safe );
-			if ( $error_hash->{err} )
-			{
-				$success = 0;
-				$error = $error_hash->{errmsg} // $error_hash->{err};
-			}
-			else
-			{
-				$removed_records = $error_hash->{n};
-			}
-		}
-	}
+		$success    = 0;
+		$error      = $_->message;
+		$error_type = ref($_);
+	};
 
 	return {success => $success, removed_records => $removed_records, error => $error, error_type => $error_type};
 }
@@ -1617,71 +1469,28 @@ sub update
 
 	my $updates = ( $arg{freeform} ) ? $new_record : {'$set' => $new_record};
 
-	if ($new_driver)
+	# freeform and no update ops? must use replace function, not update - those expect update operators
+	my $methodname = ( $arg{freeform} && !grep(/^\$/, keys %$updates)?
+										 "replace_one" : $multiple? "update_many": "update_one" );
+	# print "calling $methodname, upsert:$upsert with query".Dumper($query)."and updates ".Dumper($updates);
+	try
 	{
-		# freeform and no update ops? must use replace function, not update - those expect update operators
-		my $methodname = ( $arg{freeform} && !grep(/^\$/, keys %$updates)?
-											 "replace_one" : $multiple? "update_many": "update_one" );
-		# print "calling $methodname, upsert:$upsert with query".Dumper($query)."and updates ".Dumper($updates);
-		try
+		my $result = $collection->$methodname($query, $updates, {upsert => $upsert});
+		if ( $result->acknowledged )
 		{
-			my $result = $collection->$methodname($query, $updates, {upsert => $upsert});
-			if ( $result->acknowledged )
-			{
-				$updated_records = $result->modified_count;
-				$matched_records = $result->matched_count;
-				$upserted_id = $result->upserted_id;
-			}
-			$success = 1;
+			$updated_records = $result->modified_count;
+			$matched_records = $result->matched_count;
+			$upserted_id = $result->upserted_id;
 		}
-		catch
-		{
-			my $result = $_;
-			$success    = 0;
-			$error      = $result->message;
-			$error_type = ref($_);
-		}
+		$success = 1;
 	}
-	else
+	catch
 	{
-		try
-		{
-			$return_info
-				= $collection->update( $query, $updates, {upsert => $upsert, multiple => $multiple, safe => 0} );
-
-			# return # of rows updated if safe is 1 (which it could be depending on the write concern in the connection)
-			if ( ref($return_info) eq "HASH" && defined( $return_info->{n} ) )
-			{
-				$updated_records = $return_info->{n};
-			}
-			else
-			{
-   # if $safe is set the error check below will return the # of records, if not set something here as we can only assume
-				$updated_records = 1;
-			}
-			$success = 1;
-		}
-		catch
-		{
-			$success = 0;
-			$error   = $_;
-		};
-
-		if ($safe)
-		{
-			my $database = $collection->can("database") ? $collection->database() : $collection->_database();
-			my $error_hash = get_last_error( db => $database, w => $safe );
-			if ( $error_hash->{err} )
-			{
-				$success = 0;
-				$error = $error_hash->{errmsg} // $error_hash->{err};
-			}
-			else
-			{
-				$updated_records = $error_hash->{n};
-			}
-		}
-	}
+		my $result = $_;
+		$success    = 0;
+		$error      = $result->message;
+		$error_type = ref($_);
+	};
 
 	return {
 		success         => $success,
