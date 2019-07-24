@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.0.4";
+our $VERSION = "9.0.5";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {

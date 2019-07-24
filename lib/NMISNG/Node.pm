@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.0.4";
+our $VERSION = "9.0.5";
 
 use strict;
 

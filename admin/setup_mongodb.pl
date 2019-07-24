@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 # a small helper for priming a mongodb installation with suitable settings for NMIS
-our $VERSION = "9.0.4";
+our $VERSION = "9.0.5";
 
 use strict;
 
