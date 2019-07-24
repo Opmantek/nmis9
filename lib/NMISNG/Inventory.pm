@@ -176,10 +176,6 @@ sub parse_rrd_update_data
 				? $previous_pit->{data}{$subconcept}->{$key_raw}
 				: undef;
 			$target->{$key} = ($prev_value) ? ( $entry->{value} - $prev_value ) : 0;
-			# TODO: handle counter wrapping!!!
-			# $target->{$key} = ???!?!?
-			# NMISNG::Util::logMsg( "ERROR: wrapped counter for $key $target->{$key} < $prev_value ") if( $target->{$key} && ($target->{$key} < $prev_value) );
-
 			# try and force to a number
 			$target->{$key} += 0.0;
 
@@ -699,7 +695,7 @@ sub node_uuid
 
 # returns the storage structure, optionally replaces it (all of it)
 # to modify: call first to get, modify the copy, then call with the updated copy to set
-# args: optional new storage NMISNG::Util::info (hashref)
+# args: optional new storage (hashref)
 # returns: clone of storage info, logs on error
 sub storage
 {
@@ -872,6 +868,7 @@ sub data_live
 	# ..and park a copy of the original data for precise dirtyness detection, if not there yet
 	$self->{_data_orig} //= Clone::clone($self->{_data});
 	$self->_dirty(1,"data");			# assume the caller modifies the data; save() will find out what changed exactly
+
 	return $self->{_data};
 }
 
@@ -1140,7 +1137,7 @@ sub reload
 		if ($self->{_live})
 		{
 			$self->{_data_orig} = Clone::clone($self->{_data});
-			$self->_dirty(1,"data");	# data_live persists across reload, so we must not assume data remains clean!
+			$self->_dirty(1,"data");
 		}
 		else
 		{
@@ -1400,8 +1397,15 @@ sub save
 	{
 		$self->{_lastupdate} = $lastupdate;
 		$self->_dirty(0);						# all clean at this time...
-		$self->_dirty(1,"data") if ($self->{_live}); # ...except in data_live mode, where we mustn't assume
 		delete $self->{_data_orig};	# and up-to-date
+
+		# ...but live mode persists across save, and ref holders will continue to change the data!
+		# therefore data_orig must track what the db now holds
+		if ($self->{_live})
+		{
+			$self->_dirty(1,"data");
+			$self->{_data_orig} = Clone::clone($self->{_data});
+		}
 	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
