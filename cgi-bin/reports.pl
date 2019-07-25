@@ -192,9 +192,9 @@ sub healthReport {
 		my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
 		# get reachable, available, health, response
-		my $h;
-		if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",
-																						start=>$start,end=>$end,index=>$reportnode)))
+		my $h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",
+																					start=>$start,end=>$end,index=>$reportnode);
+		if (ref($h) eq "HASH")
 		{
 			%reportTable = (%reportTable, %{$h});
 			my $thisnoderep = $reportTable{$reportnode} ||= {};
@@ -409,10 +409,11 @@ sub availReport
 			$S->init(uuid => $NT->{$reportnode}->{uuid}, snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
-			my $h;
-			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
-																							type=>"health",
-																							start=>$start,end=>$end,index=>$reportnode))) {
+			my $h = Compat::NMIS::getSummaryStats(sys=>$S,
+																						type=>"health",
+																						start=>$start,end=>$end,index=>$reportnode);
+			if (ref($h) eq "HASH")
+			{
 				%reportTable = (%reportTable,%{$h});
 
 				my $thisnoderep = $reportTable{$reportnode} ||= {};
@@ -686,10 +687,11 @@ sub responseReport
 			$S->init(uuid => $NT->{$reportnode}->{uuid}, snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
-			my $h;
-			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
-																							type=>"health",
-																							start=>$start,end=>$end,index=>$reportnode))) {
+			my $h = Compat::NMIS::getSummaryStats(sys=>$S,
+																						type=>"health",
+																						start=>$start,end=>$end,index=>$reportnode);
+			if (ref($h) eq "HASH")
+			{
 				%reportTable = (%reportTable,%{$h});
 				my $thisnoderep = $reportTable{$reportnode} ||= {};
 
@@ -959,19 +961,20 @@ sub top10Report
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
 			# reachable, available, health, response
-			my $h;
-			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
-																							type=>"health",
-																							start=>$start,end=>$end,index=>$reportnode)))
+			my $h = Compat::NMIS::getSummaryStats(sys=>$S,
+																						type=>"health",
+																						start=>$start,end=>$end,index=>$reportnode);
+			if (ref($h) eq "HASH")
 			{
 				%reportTable = (%reportTable,%{$h});
 				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 				if (NMISNG::Util::getbool($catchall->{collect}))
 				{
 					# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-					if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
-																									type=>"nodehealth",
-																									start=>$start,end=>$end,index=>$reportnode)))
+					$h = Compat::NMIS::getSummaryStats(sys=>$S,
+																						 type=>"nodehealth",
+																						 start=>$start,end=>$end,index=>$reportnode);
+					if (ref($h) eq "HASH")
 					{
 						%cpuTable = (%cpuTable,%{$h});
 
@@ -1037,11 +1040,14 @@ sub top10Report
 			my $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"interface",
 																							 start=>$start,end=>$end,
 																							 index=>$intf);
-			foreach my $k (keys %{$hash->{$intf}})
+			if (ref($hash) eq "HASH")
 			{
-				$linkTable{$int}{$k} = $hash->{$intf}{$k};
-				$linkTable{$int}{$k} =~ s/NaN/0/ ;
-				$linkTable{$int}{$k} ||= 0 ;
+				foreach my $k (keys %{$hash->{$intf}})
+				{
+					$linkTable{$int}{$k} = $hash->{$intf}{$k};
+					$linkTable{$int}{$k} =~ s/NaN/0/ ;
+					$linkTable{$int}{$k} ||= 0 ;
+				}
 			}
 			$linkTable{$int}{node} = $interfaceInfo{$int}{node};
 			$linkTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr};
@@ -1066,7 +1072,7 @@ sub top10Report
 			  $got_pkts = "pkts";
 			}
 
-			if ( $got_pkts ) {
+			if ( $got_pkts && ref($hash) eq "HASH" ) {
 				foreach my $k (keys %{$hash->{$intf}}) {
 					$pktsTable{$int}{$k} = $hash->{$intf}{$k};
 					$pktsTable{$int}{$k} =~ s/NaN/0/ ;
