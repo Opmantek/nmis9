@@ -58,7 +58,7 @@ if (!$C)
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require)
 {
@@ -68,9 +68,6 @@ if ($AU->Require)
 
 # $AU->CheckAccess, will send header and display message denying access if fails.
 $AU->CheckAccess("table_models_view","header");
-
-# check for remote request - fixme9: not supported at this time
-exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 # this table defines the actions add,delete,edit based on location paths
 # this needs to be rewritten to use dotnotation, or arrays are not supportable except at the leaf end
@@ -233,17 +230,21 @@ sub displayModel
 	my $modelstruct;
 	if ($wantedmodel)
 	{
-		my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-		$modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-		bailout "cannot read model $modelfn: $modelstruct"
-				if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+		my $result = NMISNG::Util::getModelFile(model => $wantedmodel);
+		bailout "failed to read model $wantedmodel: $result->{error}" if (!$result->{success});
+		$modelstruct = $result->{data};
 	}
 
 	# find out what model-ish things exist - do NOT use sys, because that resolves inclusions irreversibly!
-	opendir(D, $C->{'<nmis_models>'}) or bailout("cannot read model dir: $!\n");
-	my @modelish = sort { lc($a) cmp lc($b) } map { s/\.nmis$//i; $_; } (grep(/^(Common|Model)(-.+)?\.nmis$/i, readdir(D)));
-	closedir(D);
+	my %knownmodels;
+	for my $dir ($C->{"<nmis_default_models>"},$C->{"<nmis_models>"})
+	{
+		next if !(opendir(MDL, $dir));
+		map { $knownmodels{$_} = 1; } (grep(s/^((Common|Model)-(.+))\.nmis$/$1/, readdir(MDL)));
+		closedir(MDL);
+	}
 
+	my @modelish = sort { lc($a) cmp lc($b) } (keys %knownmodels);
 
 	# the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
@@ -455,9 +456,10 @@ sub editModel
 	bailout("Missing model argument!") if (!$wantedmodel);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $modelstruct"
-			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my $result = NMISNG::Util::getModelFile(model => $wantedmodel);
+	bailout "failed to read model $wantedmodel: $result->{error}" if (!$result->{success});
+	my $modelstruct = $result->{data};
 
 	# start of form, explanation of href-vs-hiddens see previous start_form
 	print start_form(-id=>"nmisModels",
@@ -527,9 +529,10 @@ sub deleteModel
 	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $modelstruct"
-			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my $result = NMISNG::Util::getModelFile(model => $wantedmodel);
+	bailout "failed to read model $wantedmodel: $result->{error}" if (!$result->{success});
+	my $modelstruct = $result->{data};
 
 	# start of form, explanation of href-vs-hiddens see previous start_form
 	print start_form(-id=>"nmisModels",
@@ -594,9 +597,10 @@ sub addModel
 	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection or !$locsteps);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $modelstruct"
-			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my $result = NMISNG::Util::getModelFile(model => $wantedmodel);
+	bailout "failed to read model $wantedmodel: $result->{error}" if (!$result->{success});
+	my $modelstruct = $result->{data};
 
 	# what subfields do we want to allow here?
 	my @field;
@@ -708,9 +712,10 @@ sub doEditModel
 																		or !$locsteps or !defined $value);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $modelstruct"
-			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my $result = NMISNG::Util::getModelFile(model => $wantedmodel);
+	bailout "failed to read model $wantedmodel: $result->{error}" if (!$result->{success});
+	my $modelstruct = $result->{data};
 
 	my @locationsteps = split(/,/, $locsteps);
 	my $target = $modelstruct;
@@ -744,9 +749,10 @@ sub doDeleteModel
 																		or !$locsteps);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $modelstruct"
-			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my $result = NMISNG::Util::getModelFile(model => $wantedmodel);
+	bailout "failed to read model $wantedmodel: $result->{error}" if (!$result->{success});
+	my $modelstruct = $result->{data};
 
 	my @locationsteps = split(/,/, $locsteps);
 	my $target = $modelstruct;
@@ -785,9 +791,10 @@ sub doAddModel
 																		or !$locsteps);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $modelstruct"
-			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my $result = NMISNG::Util::getModelFile(model => $wantedmodel);
+	bailout "failed to read model $wantedmodel: $result->{error}" if (!$result->{success});
+	my $modelstruct = $result->{data};
 
 	my %fields = map { my $oldkey = $_; s/^_field_//; ($_ => $Q->{$oldkey}); } (grep(/^_field_/, keys %$Q));
 	bailout("No data to add!") if (!%fields);
