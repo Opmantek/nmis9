@@ -371,10 +371,10 @@ print dumper_html($NS);
 my $dir = "$FindBin::Bin/../var";
 foreach my $summary ( qw( nmis-summary8h nmis-summary16h ) ) {
 
-	my %summaryHash = NMISNG::Util::readFiletoHash(file=>"$dir/$summary");
+	my $summaryHash = NMISNG::Util::readFiletoHash(file=>"$dir/$summary");
 
 	print "<h2>$summary</h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$summary.$ext\") *24*60) ]} minutes ago</b><br>";
-	print dumper_html(\%summaryHash);
+	print dumper_html($summaryHash);
 }
 
 print "<h1>Vars</h1></br>";

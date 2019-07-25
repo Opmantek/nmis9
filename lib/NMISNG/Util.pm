@@ -124,41 +124,6 @@ sub numify
 	return ( $maybe =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) ? ( $maybe + 0 ) : $maybe;
 }
 
-my $confdebug = 0;
-
-# synchronisation with the main signal handler, to terminate gracefully
-my $_critical_section = 0;
-my $_interrupt_pending = 0;
-
-# returns ref to the interrupt pending counter
-sub interrupt_pending
-{
-	return \$_interrupt_pending;
-}
-
-sub in_critical_section
-{
-	return $_critical_section;
-}
-
-sub enter_critical
-{
-	return ++$_critical_section;
-}
-
-# fixme9: not supported by the signal handler anymore
-# this handles pending interrupts if catch_zap has signalled any.
-sub leave_critical
-{
-	--$_critical_section;
-	if ($_interrupt_pending)
-	{
-		NMISNG::Util::logMsg("INFO Process $$ ($0) received signal, shutting down\n");
-		die "Process $$ ($0) received signal, shutting down\n";
-	}
-	return $_critical_section;
-}
-
 # fixme9 move away
 sub getCGIForm {
 	my $buffer = shift;
@@ -736,7 +701,7 @@ sub alpha
 # attention: this massages in certain values: info, debug  etc!
 # this function must be self-contained, as most stuff in NMISNG::Util:: calls loadconftable
 #
-# args: dir, debug, NMISNG::Util::info (all optional)
+# args: dir, debug (all optional)
 # returns: hash ref, dies (verbosely) on failure
 sub loadConfTable
 {
@@ -832,18 +797,6 @@ sub loadConfTable
 		# ensure hide_groups is present (saves us checking the ref all over the place)
 		$config_cache->{hide_groups} //= [];
 
-		# fixme9: saving this back is likely a bad idea, config vs. command line
-		# fixme: none of this is nmisng::log compatible, where info is only t/f,
-		# and verbosity is from fatal..info..debug..1-9.
-		my $verbosity = NMISNG::Log::parse_debug_level(debug => $args{debug});
-		$config_cache->{debug} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
-		# info is only consulted if debug isn't
-		if (!$config_cache->{debug})
-		{
-			$verbosity = NMISNG::Log::parse_debug_level(debug => $args{info});
-			$config_cache->{info} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
-		}
-
 		$config_cache->{configfile} = $fn; # fixperms also wants that
 		$config_cache->{mtime} = $stat->mtime; # remember modified time for cache logic
 
@@ -883,8 +836,6 @@ sub loadConfTable
 					}
 				}
 				$newvalue .= $value;		# unmatched remainder
-				print STDERR "DEBUG $needsmacro: about to change $config_cache->{$needsmacro} to $newvalue\n"
-						if ($confdebug);
 				$config_cache->{$needsmacro} = $newvalue;
 				push @stilltodo, $needsmacro if (!$isdone or $newvalue =~ /<\w+>/);
 			}
@@ -985,8 +936,6 @@ sub setFileProtDiag
 		# ownership ok or in need of changing?
 		if ($currentstatus->uid != $uid or $currentstatus->gid != $gid)
 		{
-			NMISNG::Util::dbg("setting owner of $filename to $username:$groupname",3);
-
 			return("Could not change ownership of $filename to $username:$groupname, $!")
 					if (!chown($uid,$gid,$filename));
 		}
@@ -1000,7 +949,6 @@ sub setFileProtDiag
 
 		if (defined($gid) && $currentstatus->gid != $gid)
 		{
-			NMISNG::Util::dbg("setting group owner of $filename to $groupname",3);
 			return ("could not set the group of $filename to $groupname: $!")
 					if (!chown($myuid, $gid, $filename));
 		}
@@ -1015,7 +963,6 @@ sub setFileProtDiag
 	# perms need changing?
 	if (($currentstatus->mode & 07777) != oct($permission))
 	{
-		NMISNG::Util::dbg("setting permissions of $filename to $permission",3);
 		return "could not change $filename permissions to $permission, $!"
 				if (!chmod(oct($permission), $filename));
 	}
@@ -1028,7 +975,7 @@ sub setFileProtDiag
 # fix up the file permissions for given directory,
 # and all its parents up to (but excluding) the given top (or nmis_base)
 # args: directory in question, topdir
-# returns nothing
+# returns: undef or error message
 sub setFileProtParents
 {
 	my ($thisdir, $topdir) = @_;
@@ -1044,17 +991,19 @@ sub setFileProtParents
 	# don't make a mess if thisdir is outside of the topdir!
 	if ($thisdir !~ /$topdir/ or $relative =~ m!/\.\./!)
 	{
-		NMISNG::Util::logMsg("ERROR: setFileProtParents called with bad args! thisdir=$thisdir top=$topdir relative=$relative");
-		return;
+		return "setFileProtParents called with bad args: thisdir=$thisdir top=$topdir relative=$relative";
 	}
 
 	for my $component (File::Spec->splitdir($relative))
 	{
 		next if !$component;
 		$curdir.="/$component";
-		NMISNG::Util::setFileProtDiag(file =>$curdir);
+		if (my $error = NMISNG::Util::setFileProtDiag(file =>$curdir))
+		{
+			return $error;
+		}
 	}
-	return;
+	return undef;
 }
 
 # expand directory name if its one of the short names var, models, conf, conf_default, logs, mibs;
@@ -1109,31 +1058,25 @@ sub mtimeFile {
 
 # function for reading hash tables/files
 #
-# args: dir, name (both required, name may be w/o extension)
-#  suppress_errors (optional, default 0, if set loadtable will not log errors but just return),
+# args: dir, name (both required, name may be w/o extension),
 #  lock (optional, default 0, if 0 loadtable returns (data,locked handle), if 0 returns just data
 #
-# returns: (hashref) or (hashref,locked handle), or (0/1)
+# returns: (hashref-or-errormsg) or (hashref-or-errormsg,locked handle)
 #
 # ATTENTION: fixme dir logic is very convoluted! dir is generally NOT a garden-variety real dir path!
-# ATTENTION: no useful error handling, cannot  distinguish between file with empty hash and failure to load
 sub loadTable
 {
 	my %args = @_;
 	my $dir =  $args{dir}; # name of directory
 	my $name = $args{name};	# name of table or short file name
+	my $nmisng = $args{nmisng};
 
 	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching and no fallbacks
 
 	# full path -> { data => ..., mtime => ... }
 	state %cache;
 
-	if (!$name or !$dir)
-	{
-		# fixme9 convert to log
-		NMISNG::Util::logMsg("ERROR: invalid arguments, name or dir missing!");
-		return {};
-	}
+	return "loadTable is missing arguments: name=$name dir=$dir" if (!$name or !$dir);
 
 	my $expandeddir = getDir(dir => $dir); # expands dirs like 'conf' or 'logs' into full location
 	my $file = "$expandeddir/$name";
@@ -1145,23 +1088,14 @@ sub loadTable
 		$file = NMISNG::Util::getFileName(file => getDir(dir => "conf_default")."/$name");
 	}
 
-	# fixme9 convert to log
-	print STDERR "DEBUG loadTable: name=$name dir=$dir expanded to file=$file\n" if $confdebug;
-
 	# no file? nothing to do but bail out
-	if (!-e $file)
-	{
-		# fixme9 convert to log
-		NMISNG::Util::logMsg("ERROR file $file does not exist or has bad permissions (dir=$dir name=$name)")
-				if (!$args{suppress_errors});
-		return {};
-	}
+	return ("loadtable: $file does not exist or has bad permissions (dir=$dir name=$name)") if (!-e $file);
 
 	return NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock)
 			if ($lock);
 
 	# look at the cache, does it have existing non-stale data?
-		my $filetime = stat($file)->mtime;
+	my $filetime = stat($file)->mtime;
 	if (ref($cache{$file}) ne "HASH"
 			|| $filetime != $cache{$file}->{mtime})
 	{
@@ -1173,24 +1107,29 @@ sub loadTable
 	return $cache{$file}->{data};
 }
 
-sub writeTable {
+# writes data to file in question,
+# returns: undef or error message
+sub writeTable
+{
 	my %args = @_;
 	my $dir = $args{dir};			# name of directory, semi-symbolic
 	my $name = $args{name};	# name of table or short file name
 
-	my $C = NMISNG::Util::loadConfTable();
+	return "writeTable failed: no name specified"
+			if (!defined($name) or $name eq "");
 
-	if ($name ne '') {
-		if ($dir =~ /conf|models|var/) {
-			my $file = getDir(dir=>$dir)."/$name";
-			return NMISNG::Util::writeHashtoFile(file=>$file,data=>$args{data},handle=>$args{handle});
-		} else {
-			NMISNG::Util::logMsg("ERROR unknown dir=$dir specified with name=$name");
-		}
-	} else {
-		NMISNG::Util::logMsg("ERROR no name specified");
+	return "writeTable failed: invalid dir=$dir specified with name=$name"
+			if ($dir !~ /conf|models|var/);
+
+	my $file = getDir(dir=>$dir)."/$name";
+
+	if (my $error = NMISNG::Util::writeHashtoFile(file=>$file,
+																								data=>$args{data},
+																								handle=>$args{handle}))
+	{
+		return $error;
 	}
-	return;
+	return undef;
 }
 
 # figures out the appropriate extension for a file, based
@@ -1284,7 +1223,10 @@ sub getModelFile
 }
 
 
-sub writeHashtoFile {
+# write hash data to file in suitable format
+# returns: undef or error message
+sub writeHashtoFile
+{
 	my %args = @_;
 	my $file = $args{file};
 	my $data = $args{data};
@@ -1317,31 +1259,35 @@ sub writeHashtoFile {
 									|| $json );
 	$file = NMISNG::Util::getFileName(file => $file, json => $json);
 
-	if ($handle eq "") {
-		if (open($handle, "+<$file")) {
-			flock($handle, LOCK_EX) or warn "ERROR writeHashtoFile, can't lock $file, $!\n";
-			enter_critical;
-			seek($handle,0,0) or warn "writeHashtoFile, ERROR can't seek file: $!";
-			truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
-		} else {
-			open($handle, ">$file")  or warn "writeHashtoFile: ERROR cannot open $file: $!\n";
-			flock($handle, LOCK_EX) or warn "writeHashtoFile: ERROR can't lock file $file, $!\n";
-			leave_critical;
+	if ($handle eq "")
+	{
+		if (open($handle, "+<$file"))
+		{
+			flock($handle, LOCK_EX) or return("writeHashtoFile: can't lock $file: $!");
+
+			seek($handle,0,0) or return("writeHashtoFile: can't seek in $file: $!");
+			truncate($handle,0) or return("writeHashtoFileL can't truncate $file: $!");
 		}
-	} else {
-		enter_critical;
-		seek($handle,0,0) or warn "writeHashtoFile, ERROR can't seek file: $!";
-		truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
+		else
+		{
+			open($handle, ">$file")  or return("writeHashtoFile: cannot write to $file: $!\n");
+			flock($handle, LOCK_EX) or return("writeHashtoFile: can't lock file $file: $!\n");
+		}
+	}
+	else
+	{
+		seek($handle,0,0) or return("writeHashtoFile: can't seek in $file: $!");
+		truncate($handle,0) or return("writeHashtoFile: can't truncate $file: $!");
 	}
 
+	# write out the data, but defer error reporting until after the lock is released
 	my $errormsg;
-	# write out the data, but defer error logging until after the lock is released!
 	if ( $useJson and $pretty )
 	{
 		# make sure that all json files contain valid utf8-encoded json, as required by rfc7159
 		if ( not print $handle JSON::XS->new->utf8(1)->pretty(1)->encode($data) )
 		{
-			$errormsg = "ERROR cannot write data object to file $file: $!";
+			$errormsg = "cannot write data object to file $file: $!";
 		}
 	}
 	elsif ( $useJson )
@@ -1349,48 +1295,48 @@ sub writeHashtoFile {
 		# encode_json already ensures utf8-encoded json
 		eval { print $handle encode_json($data) } ;
 		if ( $@ ) {
-			$errormsg = "ERROR cannot write data object to $file: $@";
+			$errormsg = "cannot write data object to $file: $@";
 		}
 	}
 	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
-		$errormsg = "ERROR cannot write to file $file: $!";
+		$errormsg = "cannot write to file $file: $!";
 	}
 	close $handle;
-	leave_critical;
 
 	# now it's safe to handle the error
-	if ($errormsg)
+	return("writeHashtoFile: $errormsg")
+			if ($errormsg);
+
+	if (my $error = NMISNG::Util::setFileProtDiag(file =>$file))
 	{
-		NMISNG::Util::logMsg($errormsg);
-		NMISNG::Util::info($errormsg);
+		return $error;
 	}
-
-	NMISNG::Util::setFileProtDiag(file =>$file);
-
-	# store updated filename in table with time stamp
-	if (NMISNG::Util::getbool($C->{server_remote}) and $file !~ /nmis-files-modified/) {
-		my ($F,$handle) = NMISNG::Util::loadTable(dir=>'var',name=>'nmis-files-modified',lock=>'true');
-		$F->{$file} = time();
-		NMISNG::Util::writeTable(dir=>'var',name=>'nmis-files-modified',data=>$F,handle=>$handle);
-	}
+	return undef;
 }
 
 
-### read file with lock containing data generated by Data::Dumper, option = lock
-# this reads both json and nmis files.
+### read file containing data generated by writeFileToHash
+# file structure must be hash, format can be perl or json
+#
+# args: file, lock, json
+#
 # fixme: passing json=false DOES NOT WORK if the config says use_json=true
-# returns: (hashref, handle) if lock is given,
-# returns: hashref is reading worked
-# returns: undef if reading didn't work
+#
+# returns: (hashref-or-errormsg, handle) if lock is given,
+# returns: hashref-or-errormsg if lock wasn't given
+#
+# errors are signalled by returning the error message text,
+# do check ref() on the result.
+#
 sub readFiletoHash
 {
 	my %args = @_;
+
 	my $file = $args{file};
 	my $lock = NMISNG::Util::getbool($args{lock}); # option
 	my $json = NMISNG::Util::getbool($args{json}); # also optional
-	my %hash;
-	my $handle;
-	my $line;
+
+	my (%hash, $handle, $line);
 
 	# gefilename=getextension applies this heuristic:
 	# all files: use json if args say so
@@ -1399,7 +1345,7 @@ sub readFiletoHash
 	$file = NMISNG::Util::getFileName(file => $file, json => $json);
 	my $useJson = NMISNG::Util::getExtension(file => $file, json => $json) eq "json";
 
-	return undef if (!$file); # no or dud args...
+	return "No file argument given!" if (!$file); # no or dud args...
 
 	if ( -r $file )
 	{
@@ -1407,7 +1353,7 @@ sub readFiletoHash
 		my $lck = $lock ? LOCK_EX : LOCK_SH;
 		if (open($handle, "$filerw"))
 		{
-			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
+			flock($handle, $lck) or return("readFiletoHash: can't lock $file: $!");
 			local $/ = undef;
 			my $data = <$handle>;
 
@@ -1418,40 +1364,32 @@ sub readFiletoHash
 				my $hashref = eval { decode_json($data); };
 				my $gotcha = $@;
 
-				#  utf8 failed but latin1 worked?
+				#  utf8 failed but latin1 works?
 				if ($gotcha)
 				{
 					$hashref = eval { JSON::XS->new->latin1(1)->decode($data); };
-					if (!$@)
-					{
-						$gotcha =~ s!at \S+ line \d+,.+$!!;
-						NMISNG::Util::logMsg("WARNING file $file contains json with invalid encoding: $gotcha");
-						NMISNG::Util::info("WARNING file $file contains json with invalid encoding: $gotcha");
-					}
 				}
+				return "readFiletoHash failed: cannot convert $file to hash table: $@" if ($@);
 
-				if ($@)
+				# report invalid data
+				if ((my $whatisit = ref($hashref)) ne "HASH")
 				{
-					NMISNG::Util::logMsg("ERROR convert $file to hash table, $@");
-					NMISNG::Util::info("ERROR convert $file to hash table, $@");
+					return "readFiletoHash failed: resulting structure is a $whatisit";
 				}
-
-				$hashref = undef if (ref($hashref) ne "HASH");
 				return ($hashref,$handle) if ($lock);
 
 				close $handle;
 				return $hashref;
 			}
-			else
+			else											# perl
 			{
-				# convert data to hash. pretty yucky.
+				# convert data to hash. this is really very yucky.
 				%hash = eval $data;
 				if ($@)
 				{
-					NMISNG::Util::logMsg("ERROR convert $file to hash table, $@");
-					return undef;
+					return("readFiletoHash failed to convert $file to hash table: $@");
 				}
-				return (\%hash,$handle) if ($lock);
+				return (\%hash, $handle) if ($lock);
 
 				close $handle;
 				return \%hash;
@@ -1459,164 +1397,23 @@ sub readFiletoHash
 		}
 		else
 		{
-			NMISNG::Util::logMsg("ERROR cannot open file=$file, $!");
-			return undef;
+			return("readFiletoHash: cannot open $file: $!");
 		}
 	}
 	else # nx file
 	{
 		if ($lock)
 		{
-			# create new empty file
-			open ($handle,">", "$file") or warn "ERROR readFiletoHash: can't create $file: $!\n";
-			flock($handle, LOCK_EX) or warn "ERROR readFiletoHash: can't lock file $file, $!\n";
-			return (\%hash,$handle)
+			# create new empty file, otherwise we can't return a lock
+			open ($handle,">", "$file") or return("readFiletoHash: can't create $file: $!");
+			flock($handle, LOCK_EX) or return("readFiletoHash: can't lock file $file: $!");
+			return (\%hash,$handle);
 		}
-		NMISNG::Util::logMsg("ERROR file=$file, $!");
-	}
 
-	return undef;
-}
-
-# prints info message with (class::)method name to stdout
-# args: message, level (optional, default 1)
-# level must be BELOW filter limit level for printouts
-# if loadconftable() was given a debug level, THAT level controls printout and format.
-# if NO debug level is set, the info filter level given to loadconftable() controls printout.
-sub info
-{
-	my ($msg, $level) = @_;
-	$level ||= 1;
-
-	my $C = loadConfTable();
-
-	if ($C->{debug})
-	{
-		my $upCall = (caller(1))[3];
-		$upCall =~ s/main:://;
-		NMISNG::Util::dbg($msg,$level,$upCall);
-	}
-	else
-	{
-		return if ($level > $C->{info});
-		my $prefix = '';
-
-		if (my $subname = (caller(1))[3])
-		{
-			$subname =~ s/\w+:://;
-			$subname .= "," if ($subname ne "");
-			$prefix = $subname;
-		}
-		print returnTime," ",$prefix,$msg,"\n";
+		return "readFiletoHash failed to access $file: $!";
 	}
 }
 
-# print debug info to stdout, with (class::)method names and line number
-# args: message, level (default 1), upcall (only relevant if level is 1)
-# fixme9: get rid of, cannot work that way
-sub dbg
-{
-	my $msg = shift;
-	my $level = shift || 1;
-	my $upCall = shift || undef;
-
-	# fixme9: this is utterly non-efficient, AND can cause infinite recursion!
-	my $nmisng = Compat::NMIS::new_nmisng();
-	return if (!$nmisng || !$nmisng->log->is_level($level));
-
-	my $string;
-	my $caller;
-
-	if ($level == 1)
-	{
-		if ( defined $upCall ) {
-			$string = $upCall;
-		}
-		else {
-			($string = (caller(1))[3]) =~ s/\w+:://;
-		}
-		$string .= ",";
-	}
-	else
-	{
-		if ((my $caller = (caller(1))[3]) =~ s/main:://)
-		{
-			my $ln = (caller(0))[2];
-			$string = "$caller#$ln,";
-		}
-		else
-		{
-			for my $i (1..10)
-			{
-				my ($caller) = (caller($i))[3];
-				my ($ln) = (caller($i-1))[2];
-					$string = "$caller#$ln->".$string;
-				last if $string =~ s/main:://;
-			}
-			$string = "$string\n\t";
-		}
-	}
-	$nmisng->log->debug("$string $msg");
-}
-
-# this function logs to the nmis_log via the nmisng::log buffered logger
-# args: string, required; extended with (class::)method names and line number
-# returns: nothing
-sub logMsg
-{
-	my ($msg) = @_;
-
-	my $C = loadConfTable();
-	my $handle;
-
-	if (ref($C) ne "HASH" or !keys %$C )
-	{
-		die "FATAL NMISNG::Util::logMsg, NO Config Loaded: $msg\n";
-	}
-
-	# fixme9 how about the higher levels??
-	if ($C->{debug} == 1) {
-		my $string;
-		($string = (caller(1))[3]) =~ s/\w+:://;
-		print returnTime." $string, $msg\n";
-	} else {
-		# fixme9 why?
-		NMISNG::Util::dbg($msg);
-	}
-
-	my @frames;
-	my $nodeeperthan = 10;				# fixme9 too generous i think
-
-	# fixme9: maybe print just essentials if not under debug, ie. outermost filename plus innermost stack frame?
-	for my $i (0..$nodeeperthan) # 0 is this function but we need the line nr
-	{
-		my @oneframe = caller($i);
-		last if (!@oneframe);
-
-		my ($filename,$lineno,$subname) = @oneframe[1,2,3];
-
-		$subname =~ s/^main:://;			# not useful
-		$frames[$i]->{subname} = $subname;
-
-		$frames[$i+1]->{lineno} = $lineno; # save in outer frame
-		$frames[$i+1]->{filename} = $filename;
-	}
-	shift @frames;								# ditch empty zeroth frame
-
-	# filename#lineno!outermostfunc#lineno!nextfunc#lineno...
-	my $prefix = join('!', (map { ($_->{subname}|| basename($_->{filename}))."#$_->{lineno}" } (reverse @frames)));
-	$msg =~ s/\n+/ /g;  # replace any embedded newlines
-	my $output = "$prefix<br>$msg";
-
-	# fixme9: this assumes that the caller has loaded Compat::NMIS,
-	# which should be reasonable but...
-	# cached same single object where possible
-	my $nmisng = Compat::NMIS::new_nmisng();
-	# info seems sensible as default level
-	$nmisng->log->info($output);
-
-	return;
-}
 
 #-----------------------------------
 # NMISNG::Util::logAuth2(message,level)
@@ -1636,39 +1433,32 @@ sub logAuth2
 }
 
 # message with (class::)method names and line number
+# returns: undef or error message
 sub logAuth
 {
 	my $msg = shift;
 	my $C = loadConfTable;
 
 	my $handle;
-
-	my ($string,$caller,$ln,$fn);
-	for my $i (1..10) {
-		($caller) = (caller($i))[3];	# name sub
-		($ln) = (caller($i-1))[2];	# linenumber
-		$string = "$caller#$ln".$string;
-		if ($caller =~ /main/ or $caller eq '') {
-			($fn) = (caller($i-1))[1];	# filename
-			$fn =~ s;.*/(.*\.\w+)$;$1; ; # strip directory
-			$string =~ s/main|//;
-			$string = "$fn".$string;
-			last;
-		}
-	}
+	my $string = &NMISNG::Log::trace();
 
 	$string .= "<br>$msg";
 	$string =~ s/\n/ /g;      #remove all embedded newlines
 
-	open($handle,">>$C->{auth_log}") or warn returnTime." logAuth, Couldn't open log file $C->{auth_log}. $!\n";
-	flock($handle, LOCK_EX)  or warn "logAuth, can't lock filename: $!";
-	print $handle NMISNG::Util::returnDateStamp().",$string\n" or warn returnTime." logAuth, can't write file $C->{auth_log}. $!\n";
-	close $handle or warn "logAuth, can't close filename: $!";
-	NMISNG::Util::setFileProtDiag(file =>$C->{auth_log});
+	open($handle,">>$C->{auth_log}") or return " logAuth, Couldn't open log file $C->{auth_log}. $!";
+	flock($handle, LOCK_EX)  or return "logAuth, can't lock filename: $!";
+	print $handle NMISNG::Util::returnDateStamp().",$string\n" or return " logAuth, can't write file $C->{auth_log}. $!";
+	close $handle;
+	if (my $error = NMISNG::Util::setFileProtDiag(file =>$C->{auth_log}))
+	{
+		return $error;
+	}
+	return undef;
 }
 
 # message with (class::)method names and line number
-sub logIpsla {
+sub logIpsla
+{
 	my $msg = shift;
 	my $C = loadConfTable;
 	my $handle;
@@ -1681,14 +1471,6 @@ sub logIpsla {
 		print "ERROR, logIpsla can't do anything but NAG YOU\n";
 		warn "ERROR logIpsla: the message which might have killed me was: $msg\n";
 		return undef;
-	}
-
-	if ($C->{debug} == 1) {
-		my $string;
-		($string = (caller(1))[3]) =~ s/\w+:://;
-		print returnTime." $string, $msg\n";
-	} else {
-		NMISNG::Util::dbg($msg); #
 	}
 
 	my $PID = $$;
@@ -1741,32 +1523,6 @@ sub logPolling {
 	}
 }
 
-### a utility for development, just log whatever I want to the file I want.
-sub logDebug {
-	my $file = shift;
-	my $output = shift;
-	my $C = loadConfTable;
-	my $fileOK = 1;
-	my $handle;
-
-	if ( -f $file and not -w $file ) {
-		NMISNG::Util::logMsg("ERROR, logDebug can not write file $file\n");
-		$fileOK = 0;
-	}
-	elsif ( -d $file ) {
-		NMISNG::Util::logMsg("ERROR, logDebug $file is a directory\n");
-		$fileOK = 0;
-	}
-
-	if ( $fileOK ) {
-		open($handle,">>$file") or warn returnTime." logDebug, Couldn't open log file $file. $!\n";
-		flock($handle, LOCK_EX)  or warn "logDebug, can't lock filename: $!";
-		print $handle NMISNG::Util::returnDateStamp().",$output\n" or warn returnTime." logDebug, can't write file $file. $!\n";
-		close $handle or warn "logDebug, can't close filename: $!";
-		NMISNG::Util::setFileProtDiag(file =>$file);
-	}
-}
-
 # normal op: compares first argument against true or 1 or yes
 # opposite: compares first argument against false or 0 or no
 #
@@ -1794,7 +1550,7 @@ sub getbool
 # trivial wrapper around readfiletohash
 # difference to loadConfTable: loadconftable flattens and adds a few entries
 # args: none
-# returns: hashref, file name
+# returns: hashref-or-errormessage, file name
 sub readConfData
 {
 	my %args = @_;
@@ -1808,7 +1564,7 @@ sub readConfData
 
 # trivial wrapper around writeHashtoFile
 # args: data, required
-# returns: nothing
+# returns: undef or error message
 sub writeConfData
 {
 	my %args = @_;
@@ -1821,7 +1577,7 @@ sub writeConfData
 	File::Copy::cp($configfile, "$configfile.bak") # this overwrites any existing backup file
 			if (-r "$configfile");
 
-	NMISNG::Util::writeHashtoFile(file=>$configfile, data=>$CC);
+	return NMISNG::Util::writeHashtoFile(file=>$configfile, data=>$CC);
 }
 
 # creates the dir in question, and all missing intermediate
@@ -1873,7 +1629,7 @@ sub checkDir
 	my $group_rwx = ($mode & S_IRWXG) >> 3;
 
 	if ( $user_rwx ) {
-		push(@messages,"INFO: $dir has user read-write-execute permissions") if $C->{debug};
+		push(@messages,"INFO: $dir has user read-write-execute permissions");
 	}
 	else {
 		$result = 0;
@@ -1881,7 +1637,7 @@ sub checkDir
 	}
 
 	if ( $group_rwx ) {
-		push(@messages,"INFO: $dir has group read-write-execute permissions") if $C->{debug};
+		push(@messages,"INFO: $dir has group read-write-execute permissions");
 	}
 	else {
 		$result = 0;
@@ -1889,7 +1645,7 @@ sub checkDir
 	}
 
 	if ( $C->{'nmis_user'} eq $username ) {
-		push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};
+		push(@messages,"INFO: $dir has correct owner from config nmis_user=$username");
 	}
 	else {
 		$result = 0;
@@ -1897,7 +1653,7 @@ sub checkDir
 	}
 
 	if ( $C->{'nmis_user'} eq $username ) {
-		push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};
+		push(@messages,"INFO: $dir has correct owner from config nmis_user=$username");
 	}
 	else {
 		$result = 0;
@@ -1905,7 +1661,7 @@ sub checkDir
 	}
 
 	if ( $C->{'nmis_group'} eq $groupname ) {
-		push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname") if $C->{debug};
+		push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname");
 	}
 	else {
 		$result = 0;
@@ -1961,8 +1717,7 @@ sub checkFile
 		# strict: owner and group must be exact matches
 		if ( $C->{'nmis_user'} eq $username )
 		{
-			push(@messages,"INFO: $prettyfile has correct owner $username")
-					if $C->{debug};
+			push(@messages,"INFO: $prettyfile has correct owner $username");
 		}
 		else
 		{
@@ -1971,7 +1726,7 @@ sub checkFile
 		}
 
 		if ( $C->{'nmis_group'} eq $groupname ) {
-			push(@messages,"INFO: $prettyfile has correct group $groupname") if $C->{debug};
+			push(@messages,"INFO: $prettyfile has correct group $groupname");
 		}
 		else
 		{
@@ -1994,7 +1749,7 @@ sub checkFile
 		}
 		else
 		{
-			push @messages, sprintf("INFO: $prettyfile has correct %s perms 0%o", $text, $mode) if ($C->{debug});
+			push @messages, sprintf("INFO: $prettyfile has correct %s perms 0%o", $text, $mode);
 		}
 	}
 	else													# lenient/sufficient mode selected
@@ -2002,7 +1757,7 @@ sub checkFile
 		# the nmis group must match; user isn't critical
 		if ( $C->{'nmis_group'} eq $groupname )
 		{
-			push(@messages,"INFO: $prettyfile has correct group $groupname") if $C->{debug};
+			push(@messages,"INFO: $prettyfile has correct group $groupname");
 		}
 		else
 		{
@@ -2025,7 +1780,7 @@ sub checkFile
 		}
 		else
 		{
-			push @messages, sprintf("INFO: $prettyfile has sufficient group %s perms 0%o", $text, $mode) if ($C->{debug});
+			push @messages, sprintf("INFO: $prettyfile has sufficient group %s perms 0%o", $text, $mode);
 		}
 	}
 
@@ -2086,9 +1841,14 @@ sub checkDirectoryFiles
 # checks and adjusts the ownership and permissions on given dir X
 # and all files directly within it. if recurse is given, then
 # subdirs below X are also checked recursively.
-sub setFileProtDirectory {
+#
+# returns: list of errors, may be empty
+sub setFileProtDirectory
+{
 	my $dir = shift;
 	my $recurse = shift;
+
+	my @problems;
 
 	if ( $recurse eq "" ) {
 		$recurse = 0;
@@ -2097,22 +1857,35 @@ sub setFileProtDirectory {
 		$recurse = NMISNG::Util::getbool($recurse);
 	}
 
-	NMISNG::Util::dbg("setFileProtDirectory $dir, recurse=$recurse",1);
+	# the dir itself must be checked and fixed, too!
+	if (my $error = NMISNG::Util::setFileProtDiag(file =>$dir))
+	{
+		push @problems, $error;
+	}
 
-	NMISNG::Util::setFileProtDiag(file =>$dir);						# the dir itself must be checked and fixed, too!
-	opendir (DIR, "$dir");
+	opendir (DIR, "$dir") or push @problems, "cannot open directory $dir: $!";
 	my @dirlist = readdir DIR;
 	closedir DIR;
 
-	foreach my $file (@dirlist) {
-		if ( -f "$dir/$file" and $file !~ /^\./ ) {
-			NMISNG::Util::setFileProtDiag(file =>"$dir/$file");
+	foreach my $file (@dirlist)
+	{
+		if ( -f "$dir/$file" and $file !~ /^\./ )
+		{
+			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file"))
+			{
+				push @problems, $error;
+			}
 		}
-		elsif ( -d "$dir/$file" and $recurse and $file !~ /^\./ ) {
-			NMISNG::Util::setFileProtDiag(file =>"$dir/$file");
-			NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse);
+		elsif ( -d "$dir/$file" and $recurse and $file !~ /^\./ )
+		{
+			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file"))
+			{
+				push @problems, $error;
+			}
+			push @problems, NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse);
 		}
 	}
+	return @problems;
 }
 
 # 100 = red, 0 = green
@@ -2218,7 +1991,12 @@ sub selftest
 		NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 	}
 	my $statefile = "$varsysdir/selftest.json"; # name also embedded in nmisd and gui
-	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1 ) // { tests => [] };
+	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1 );
+	if (ref($laststate) ne "HASH")
+	{
+		$nmisng->log->warn("failed to read selftest $statefile: $laststate");
+		$laststate = { tests => [] };
+	}
 	my $dbdir_full = "$varsysdir/dbdir_full"; # marker file name also embedded in rrdfunc.pm
 	unlink($dbdir_full);											# assume the database dir passes...until proven otherwise
 
@@ -2229,7 +2007,7 @@ sub selftest
 	my $testname="RRDs Module";
 	my $curversion;
 	eval {
-		NMISNG::rrdfunc::require_RRDs(config => $config);
+		&NMISNG::rrdfunc::require_RRDs;
 		$curversion = version->parse($RRDs::VERSION);
 	};
 	if ($@)
@@ -2375,6 +2153,8 @@ sub selftest
 	}
 	else
 	{
+
+
 		# keep the old permission test result as-is
 		my $prev = List::Util::first { $_->[0] eq $testname } (@{$laststate->{tests}});
 		push @details, $prev // [ $testname, undef ];

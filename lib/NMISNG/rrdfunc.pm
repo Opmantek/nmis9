@@ -35,12 +35,13 @@ use Config;
 
 use File::Basename;
 use Statistics::Lite;
+use Carp;
 use POSIX qw();									# for strftime
 
 use NMISNG::Util;
 
 # This function should be called if using any RRDS:: functionality directly
-# Functions in this file will also call it for you (but you have to give them a config)
+# Functions in this file will also call it for you
 # it can also be called on it's own before using rrdfunc::'s, doing this means calls to
 # rrdfunc's functions to do not need the config as a parameter
 sub require_RRDs
@@ -58,20 +59,12 @@ sub require_RRDs
 
 # rough stats of what the module has done,
 # including last error - fixme: this is module-level, not instance-level!
-my %stats;
+my $_last_error;
 sub getRRDerror
 {
-	return $stats{error};
+	return $_last_error;
 }
 
-sub getUpdateStats
-{
-	my %pruned;
-	# don't include the nodes, just their number
-	map { $pruned{$_} = $stats{$_}; } (grep($_ ne "nodes", keys %stats));
-	$pruned{nodecount} = keys %{$stats{nodes}};
-	return \%pruned;
-}
 
 # returns the rrd data for a given rrd type as a hash
 # args: database (required),
@@ -90,7 +83,7 @@ sub getRRDasHash
 	my $db = $args{database};
 
 	return ({},[], { error => "getRRDasHash requires database argument!"}) if (!$db or !-f $db);
-	require_RRDs(config => $args{config});
+	&require_RRDs;
 
 	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
@@ -297,13 +290,22 @@ sub getRRDResolutions
 # stats also include the ds's values, as an ordered list under the 'values' key,
 # but NOT the original timestamps (relevant if filtered with hour_from/to)!
 #
-# returns: hashref of the stats
+# returns: hashref of the stats, or undef (check getRRDerror in that case!)
 sub getRRDStats
 {
 	my %args = @_;
 	my $db = $args{database};
-	die "getRRDStats requires database argument!\n" if (!$db);
-	require_RRDs(config => $args{config});
+
+	confess("getRRDStats requires database argument!") if (!$db);
+	undef $_last_error;
+
+	if (! -r $db)
+	{
+		$_last_error = "RRD file $db is not readable!";
+		return undef;
+	}
+
+	&require_RRDs;
 
 	my $graphtype = $args{graphtype};
 	my $index = $args{index};
@@ -315,102 +317,85 @@ sub getRRDStats
 
 	my $invertperiod = $minhr > $maxhr;
 
+	if (! defined $args{mode}) { $args{mode} = "AVERAGE"; }
 
-	if ( ! defined $args{mode} ) { $args{mode} = "AVERAGE"; }
-	if ( -r $db ) {
-		my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
-		my %s;
-		my $time = $begin;
-		for(my $a = 0; $a <= $#{$data}; ++$a) {
-			my @timecomponents = localtime($time);
-			my $hour = $timecomponents[2];
-			for(my $b = 0; $b <= $#{$data->[$a]}; ++$b)
-			{
-				if ( defined $data->[$a][$b]
-						 and
-						 (
-							# between from (incl) and to (excl) hour if not inverted
-							( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
-							or
-							# before to (excl) or after from (incl) hour if inverted,
-							( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
-				{
-					push(@{$s{$name->[$b]}{values}},$data->[$a][$b]);
-				}
-			}
-			$time = $time + $step;
-		}
-
-		foreach my $m (sort keys %s)
+	my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
+	my %s;
+	my $time = $begin;
+	for(my $a = 0; $a <= $#{$data}; ++$a) {
+		my @timecomponents = localtime($time);
+		my $hour = $timecomponents[2];
+		for(my $b = 0; $b <= $#{$data->[$a]}; ++$b)
 		{
-			my %statsinfo = Statistics::Lite::statshash(@{$s{$m}{values}});
-			$s{$m}{count} = $statsinfo{count}; # count of records, NOT all data - see hours from/to filtering
-			$s{$m}{step} = $step;
-			for my $key (qw(mean min max median range sum variance stddev))
+			if ( defined $data->[$a][$b]
+					 and
+					 (
+						# between from (incl) and to (excl) hour if not inverted
+						( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
+						or
+						# before to (excl) or after from (incl) hour if inverted,
+						( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
 			{
-				$s{$m}{$key} = $wanttruncate>=0 ? sprintf("%.${wanttruncate}f", $statsinfo{$key}) : $statsinfo{$key};
+				push(@{$s{$name->[$b]}{values}},$data->[$a][$b]);
 			}
 		}
-		return \%s;
+		$time = $time + $step;
 	}
-	else
+
+	foreach my $m (sort keys %s)
 	{
-		$stats{error} = "RRD is not readable rrd=$db";
-		NMISNG::Util::logMsg("ERROR RRD is not readable rrd=$db");
-		return undef;
+		my %statsinfo = Statistics::Lite::statshash(@{$s{$m}{values}});
+		$s{$m}{count} = $statsinfo{count}; # count of records, NOT all data - see hours from/to filtering
+		$s{$m}{step} = $step;
+		for my $key (qw(mean min max median range sum variance stddev))
+		{
+			$s{$m}{$key} = $wanttruncate>=0 ? sprintf("%.${wanttruncate}f", $statsinfo{$key}) : $statsinfo{$key};
+		}
 	}
+	return \%s;
 }
 
-#
 # add a DataSource to an existing RRD
-# Cologne, dec 2004
-# $rrd = filename of RRD, @ds = list of DS:name:type:hearthbeat:min:max
-#
+# args: nmisng object, rrd file path, list of ds elements
+# returns: error message or undef
 sub addDStoRRD
 {
-	my ($rrd, @ds,$config) = @_ ;
-	die "addDStoRRD requires rrd argument!\n" if (!$rrd);
-	require_RRDs(config=>$config);
+	my ($nmisng, $rrd, @ds, ) = @_ ;
+	confess("addDStoRRD requires rrd argument!") if (!$rrd);
+	&require_RRDs;
 
-	NMISNG::Util::dbg("update $rrd with @ds");
-
-	my $rrdtool = "rrdtool";
-	if ($^O =~ /win32/i) {
-		$rrdtool = "rrdtool.exe";
-	}
+	my $rrdtool = ($^O =~ /win32/i)? "rrdtool.exe" : "rrdtool";
 	my $info = `$rrdtool`;
 	if ($info eq "")
 	{
-		# $rrdtool = "/opt/local/bin/rrdtool"; # maybe this
 		$rrdtool = "/usr/local/rrdtool/bin/rrdtool"; # maybe this
 		$info = `$rrdtool`;
-		if ($info eq "")
-		{
-			NMISNG::Util::logMsg("ERROR, rrdtool not found");
-			$stats{error} = "rrdtool not found";
-			return;
-		}
+		return "rrdtool executable not found!"
+				if ($info eq "");
 	}
 
 	# version of rrdtool
 	my $version = "10";
-	if ($info =~ /.*RRDtool\s+(\d+)\.(\d+)\.(\d+).*/) {
-		NMISNG::Util::dbg("RRDtool version is $1.$2.$3");
+	if ($info =~ /.*RRDtool\s+(\d+)\.(\d+)\.(\d+).*/)
+	{
 		$version = "$1$2";
 	}
 
-	my $DSname;
-	my $DSvalue;
-	my $DSprep;
+	my ($DSname, $DSvalue, $DSprep);
 
+	$nmisng->log->debug("Preparing to update RRD file $rrd with DS @ds");
 	# Get XML Output
-	### Adding Mark Nagel's fix for quoting strings.
 	my $qrrd = quotemeta($rrd);
 	my $xml = `$rrdtool dump $qrrd`;
 
-	#prepare inserts
-	foreach my $ds (@ds) {
-		if ( $ds =~ /^DS:([a-zA-Z0-9_]{1,19}):(\w+):(\d+):([\dU]+):([\dU]+)/) {
+	return "could not dump $rrd!" if ($xml !~ /Round Robin Archives/);
+
+	# prepare inserts
+	my $addme;
+	foreach my $ds (@ds)
+	{
+		if ( $ds =~ /^DS:([a-zA-Z0-9_]{1,19}):(\w+):(\d+):([\dU]+):([\dU]+)/)
+		{
 			# Variables
 			my $dsName      = $1;
 			my $dsType      = $2;
@@ -420,16 +405,15 @@ sub addDStoRRD
 
 			if ( $dsType !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE)$/ )
 			{
-				NMISNG::Util::logMsg("ERROR, unknown DS type in $ds");
-				$stats{error} = "unknown DS type in $ds";
-				return undef;
+				return "unknown DS type in $ds";
 			}
 			if ($xml =~ /<name> $dsName </)
 			{
-				NMISNG::Util::logMsg("DS $ds already in database $ds");
+				$nmisng->log->debug("DS $ds already present in database $rrd");
 			}
 			else
 			{
+				++$addme;
 				$DSname .= "	<ds>
 <name> $dsName </name>
 <type> $dsType </type>
@@ -445,101 +429,82 @@ sub addDStoRRD
 
 				$DSvalue = $DSvalue eq "" ? "<v> NaN " : "$DSvalue </v><v> NaN ";
 
-				if ($version > 11) {
+				if ($version > 11)
+				{
 					$DSprep .= "
 <ds>
 <primary_value> 0.0000000000e+00 </primary_value>
 <secondary_value> 0.0000000000e+00 </secondary_value>
 <value> NaN </value>  <unknown_datapoints> 0 </unknown_datapoints></ds>\n";
-				} else {
+				}
+				else {
 					$DSprep .= "<ds><value> NaN </value>  <unknown_datapoints> 0 </unknown_datapoints></ds>\n";
 				}
 			}
 		}
 	}
 
-	if ($DSname ne "" )
+	# nothing to do?
+	if (!defined $DSname)
 	{
-		if ( $xml =~ /Round Robin Archives/ )
+		$nmisng->log->debug("All requested DS already present in RRD file $rrd.");
+		return undef;
+	}
+
+	return "no write permission for $rrd" if (!-w $rrd);
+
+	# Move the old rrdfile
+	unlink("$rrd.bak") if (-e "$rrd.bak");
+	return "cannot rename $rrd to $rrd.ak: $!" if (!rename($rrd, "$rrd.bak"));
+
+	# write output to new xml file
+	if (!open(OUTF, ">$rrd.xml"))
+	{
+		rename("$rrd.bak", $rrd);		# restore backup
+		return "could not write to $rrd.xml: $!";
+	}
+
+	foreach my $line (split(/\n/,$xml))
+	{
+		if ( $line =~ /Round Robin Archives/ )
 		{
-			# check priv.
-			if ( -w $rrd )
-			{
-				# Move the old source
-				if (rename($rrd,$rrd.".bak"))
-				{
-					NMISNG::Util::dbg("$rrd moved to $rrd.bak");
-					if ( -e "$rrd.xml" ) {
-						# from previous action
-						unlink $rrd.".xml";
-						NMISNG::Util::dbg("$rrd.xml deleted (previous action)");
-					}
-					# update xml and rite output
-					if (open(OUTF, ">$rrd.xml")) {
-						foreach my $line (split(/\n/,$xml)) {
-							if ( $line=~ /Round Robin Archives/ ) {
-								print OUTF $DSname.$line;
-							} elsif ($line =~ /^(.+?<row>)(.+?)(<\/row>.*)$/) {
-								my @datasources_in_entry = split(/<\/v>/, $2);
-								splice(@datasources_in_entry, 999, 0, "$DSvalue");
-								my $new_line = join("</v>", @datasources_in_entry);
-								print OUTF "$1$new_line</v>$3\n";
-							} elsif ($line =~ /<\/cdp_prep>/) {
-								print OUTF $DSprep.$line ;
-							} else {
-								print OUTF $line;
-							}
-						}
-						close (OUTF);
-						NMISNG::Util::dbg("xml written to $rrd.xml");
-						# Re-import
-						RRDs::restore($rrd.".xml",$rrd);
-						if (my $ERROR = RRDs::error() )
-						{
-							NMISNG::Util::logMsg("update ERROR database=$rrd: $ERROR");
-							$stats{error} = "update database=$rrd: $ERROR";
-						}
-						else
-						{
-							NMISNG::Util::dbg("$rrd created");
-							NMISNG::Util::setFileProtDiag(file =>$rrd); # set file owner/permission, default: nmis, 0775
-							unlink $rrd.".xml";
-							NMISNG::Util::dbg("$rrd.xml deleted");
-							unlink $rrd.".bak";
-							NMISNG::Util::dbg("$rrd.bak deleted");
-							NMISNG::Util::logMsg("INFO DataSource @ds added to $rrd");
-							return 1;
-						}
-					}
-					else
-					{
-						NMISNG::Util::logMsg("ERROR, could not open $rrd.xml for writing: $!");
-						$stats{error} = "could not open $rrd.xml for writing: $!";
-						rename($rrd.".bak",$rrd); # backup
-					}
-				}
-				else
-				{
-					NMISNG::Util::logMsg("ERROR, cannot rename $rrd: $!");
-					$stats{error} = "cannot rename $rrd: $!";
-				}
-			}
-			else
-			{
-				NMISNG::Util::logMsg("ERROR, no write permission for $rrd: $!") ;
-				$stats{error} = "no write permission for $rrd: $!";
-			}
+			print OUTF $DSname.$line;
+		}
+		elsif ($line =~ /^(.+?<row>)(.+?)(<\/row>.*)$/)
+		{
+			my @datasources_in_entry = split(/<\/v>/, $2);
+			splice(@datasources_in_entry, 999, 0, "$DSvalue"); # fixme dangerous assumption
+			my $new_line = join("</v>", @datasources_in_entry);
+
+			print OUTF "$1$new_line</v>$3\n";
+		}
+		elsif ($line =~ /<\/cdp_prep>/)
+		{
+			print OUTF $DSprep.$line ;
 		}
 		else
 		{
-			NMISNG::Util::logMsg("ERROR, could not dump $rrd (maybe rrdtool missing)");
-			$stats{error} = "could not dump $rrd (maybe rrdtool missing)";
+			print OUTF $line;
 		}
 	}
+	close (OUTF);
+	$nmisng->log->debug("xml written to $rrd.xml");
+	# Re-import
+	RRDs::restore($rrd.".xml", $rrd);
+	if (my $ERROR = RRDs::error() )
+	{
+		rename("$rrd.bak", $rrd);		# restore backup
+		return "import of updated RRD database $rrd failed: $ERROR";
+	}
+
+	NMISNG::Util::setFileProtDiag(file => $rrd);
+	unlink("$rrd.xml","$rrd.bak");
+	$nmisng->log->debug("$addme DS successfullly added to $rrd");
+	return undef;
 }
 
 # this function takes in a set of data items and updates the relevant rrd file
-# arsg: sys, database, data (absolutely required), type/index/item (more or less required), 
+# args: sys, database, data (absolutely required), type/index/item (more or less required),
 # extras (optional), time (optional, unix seconds; if given then that is passed to rrds as the reading's timestamp)
 #
 # the sys object is for the catch-22 issue of optionsRRD requiring knowledge from the model(s),
@@ -549,46 +514,40 @@ sub addDStoRRD
 # data is IGNORED and 'U' is written instead
 # (except for type "health", DS "outage", "polltime" and "updatetime", which are always let through)
 #
-# returns: the database file name or undef; sets the internal error indicator
+# returns: the database file name or undef; sets the error indicator, does NOT log (left to caller)
 sub updateRRD
 {
 	my %args = @_;
-	require_RRDs(config => $args{config});
+	&require_RRDs;
 
 	my ($S,$data,$type,$index,$item,$database,$extras,$time) =
 			@args{"sys","data","type","index","item","database","extras","time"};
 
-	++ $stats{nodes}->{$S->{name}};
-	NMISNG::Util::dbg("Starting RRD Update Process, db=$database, type=$type, index=$index, item=$item");
+	undef $_last_error;
+	$S->nmisng->log->debug3(&NMISNG::Log::trace()
+													. "Starting RRD Update Process, db=$database, type=$type, index=$index, item=$item");
 
 	if (!$database)
 	{
-		$stats{error} = "No RRD file given!";
-		NMISNG::Util::logMsg("ERROR, $stats{error}");
-		return;
+		$_last_error = "No RRD file given!";
+		return undef;
 	}
 
-	# Does the database exist ?
-	if ( -f $database and -r $database and -w $database )
-	{
-		NMISNG::Util::dbg("database $database exists and is R/W");
-	}
 	# Check if the RRD Database Exists but is ReadOnly
 	# Maybe this should check for valid directory or not.
-	elsif ( -f $database and not -w $database )
+	if ( -f $database and not -w $database )
 	{
-		$stats{error} = "($S->{name}) database $database exists but is readonly!";
-		NMISNG::Util::logMsg("ERROR, $stats{error}");
-		return;
+		$_last_error = "($S->{name}) database $database exists but is readonly!";
+		return undef;
 	}
-	else 												# no db file exists
+	elsif (!-f $database) 												# no db file exists
 	{
 		# nope, create new file
-		if (! createRRD(data=>$data, sys=>$S, type=>$type, database=>$database,
-										index=>$index))
+		if (my $error = createRRD(data=>$data, sys=>$S, type=>$type, database=>$database,
+																 index=>$index))
 		{
-			$stats{error} = "Failed to create RRD file $database!";
-			return; # error
+			$_last_error = "Failed to create RRD file $database: $error";
+			return undef;
 		}
 	}
 
@@ -600,13 +559,15 @@ sub updateRRD
 	my $catchall = $S->{name}? $S->inventory( concept => 'catchall' )->data : {};
 
 	# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
-	NMISNG::Util::dbg("node was reset, inserting U values") if ($catchall->{admin}->{node_was_reset});
+	$S->nmisng->log->debug3(&NMISNG::Log::trace()
+													. "node was reset, inserting U values") if ($catchall->{admin}->{node_was_reset});
 
 
 	# if the node has gone through a reset, then insert a U to avoid spikes for all COUNTER-ish DS
 	if ($catchall->{admin}->{node_was_reset})
 	{
-		NMISNG::Util::dbg("node was reset, inserting U values");
+		$S->nmisng->log->debug3(&NMISNG::Log::trace()
+														. "node was reset, inserting U values");
 
 		# get the DS definitions, extract the DS types and mark the counter-ish ones as blankable
 		for (grep(/^DS:/, optionsRRD(data=>$data, sys=>$S, type=>$type, index=>$index)))
@@ -614,13 +575,15 @@ sub updateRRD
 			my (undef, $dsid, $dstype) = split(/:/, $_);
 			if ($dstype ne "GAUGE")         # basically anything non-gauge is counter-ish
 			{
-				NMISNG::Util::dbg("marking DS $dsid in $type as blankable, DS type $dstype");
+				$S->nmisng->log->debug3(&NMISNG::Log::trace()
+																. "marking DS $dsid in $type as blankable, DS type $dstype");
 				$blankme{$dsid} = 1;
 			}
 		}
 	}
 	# similar to the node reset case, but this also blanks GAUGE DS
-	NMISNG::Util::dbg("node has current outage with nostats option, inserting U values")
+	$S->nmisng->log->debug3(&NMISNG::Log::trace()
+													. "node has current outage with nostats option, inserting U values")
 			if ($catchall->{admin}->{outage_nostats});
 
 	for my $var (keys %{$data})
@@ -628,7 +591,8 @@ sub updateRRD
 		# handle the nosave option
 		if (exists($data->{$var}->{option}) && $data->{$var}->{option} eq "nosave")
 		{
-			NMISNG::Util::dbg("DS $var is marked as nosave, not saving to RRD", 3);
+			$S->nmisng->log->debug3(&NMISNG::Log::trace()
+															. "DS $var is marked as nosave, not saving to RRD");
 			next;
 		}
 		push @ds, $var;
@@ -672,63 +636,58 @@ sub updateRRD
 	#64-bits (8 bytes),
 	my $bytes = $points * 8;
 
-	$stats{datapoints} += $points;
-	$stats{databytes} += $bytes;
-
-	NMISNG::Util::dbg("DS $theds, $points");
-	NMISNG::Util::dbg("value $thevalue, $bytes bytes");
+	$S->nmisng->log->debug2("DS $theds, $points");
+	$S->nmisng->log->debug2("value $thevalue, $bytes bytes");
 
 	NMISNG::Util::logPolling("$type,$S->{name},$index,$item,$theds,$thevalue");
 
-	if (@updateargs)
+	if (!@updateargs)
 	{
-		# update RRD
-		RRDs::update($database, @updateargs);
-		++$stats{rrdcount};
+		$_last_error = "($S->{name}) type=$type, no data to create/update database";
+		return undef;
+	}
 
-		if (my $ERROR = RRDs::error())
+	# update RRD
+	RRDs::update($database, @updateargs);
+	if (my $ERROR = RRDs::error())
+	{
+		if ($ERROR !~ /contains more DS|unknown DS name/)
 		{
-			if ($ERROR !~ /contains more DS|unknown DS name/)
+			$_last_error = "($S->{name}) database=$database: $ERROR: options = @updateargs";
+			return undef;
+		}
+
+		$S->nmisng->log->debug3(&NMISNG::Log::trace()
+														."missing DataSource in $database, try to update");
+		# find the DS names in the existing database (format ds[name].* )
+		my $info = RRDs::info($database);
+		my $names = ":";
+		foreach my $key (keys %$info) {
+			if ( $key =~ /^ds\[([a-zA-Z0-9_]{1,19})\].+/) { $names .= "$1:";}
+		}
+		# find the missing DS name (format DS:name:type:hearthbeat:min:max)
+		my @options_db = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
+		foreach my $ds (@options_db)
+		{
+			my @opt = split /:/, $ds;
+			if ( $opt[0] eq "DS" and $names !~ /:$opt[1]:/ )
 			{
-				$stats{error} = "($S->{name}) database=$database: $ERROR: options = @updateargs";
-				NMISNG::Util::logMsg("ERROR $stats{error}");
-			}
-			else
-			{
-				NMISNG::Util::dbg("missing DataSource in $database, try to update");
-				# find the DS names in the existing database (format ds[name].* )
-				my $info = RRDs::info($database);
-				my $names = ":";
-				foreach my $key (keys %$info) {
-					if ( $key =~ /^ds\[([a-zA-Z0-9_]{1,19})\].+/) { $names .= "$1:";}
-				}
-				# find the missing DS name (format DS:name:type:hearthbeat:min:max)
-				my @options_db = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
-				foreach my $ds (@options_db)
+				if (my $error = &addDStoRRD($S->nmisng, $database, $ds))
 				{
-					my @opt = split /:/, $ds;
-					if ( $opt[0] eq "DS" and $names !~ /:$opt[1]:/ )
-					{
-						&addDStoRRD($database,$ds); # sub in rrdfunc
-					}
+					$_last_error = $error;
+					return undef;
 				}
 			}
 		}
 	}
-	else
-	{
-		$stats{error} = "($S->{name}) type=$type, no data to create/update database";
-		NMISNG::Util::logMsg("ERROR $stats{error}");
-	}
 	return $database;
-	NMISNG::Util::dbg("Finished");
-} # end updateRRD
+}
 
 # the optionsRRD function creates the configuration options
 # for creating an rrd file.
 # args: sys, data, type (all pretty much required),
 # index (optional, for string expansion)
-# returns: array of rrdcreate parameters; updates global %stats
+# returns: array of rrdcreate parameters
 sub optionsRRD
 {
 	my %args = @_;
@@ -737,8 +696,9 @@ sub optionsRRD
 	my $type = $args{type};
 	my $index = $args{index}; # optional
 
-	die "optionsRRD cannot work without Sys argument!\n" if (!$S);
-	NMISNG::Util::dbg("type $type, index $index");
+	confess("optionsRRD requires Sys argument!") if (ref($S) ne "NMISNG::Sys");
+
+	$S->nmisng->log->debug2("type $type, index $index");
 
 	my $mdlinfo = $S->mdl;
 	# find out rrd step and heartbeat values, possibly use type-specific values (which the polling policy would supply)
@@ -749,7 +709,7 @@ sub optionsRRD
 	:  undef;
 	$timinginfo //= { heartbeat => 900, poll => 300 };
 	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
-	NMISNG::Util::dbg("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
+	$S->nmisng->log->debug2("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
 
 
 	# align the start time with the step interval, but reduce by one interval so that we can send data immediately
@@ -767,8 +727,7 @@ sub optionsRRD
 	{
 		if (length($id) > 19)
 		{
-			$stats{error} = "DS name=$id greater then 19 characters";
-			NMISNG::Util::logMsg("ERROR, DS name=$id greater then 19 characters") ;
+			$S->nmisng->log->warn("Ignoring RRD DS name=$id: too long, more than 19 characters!") ;
 			next;
 		}
 
@@ -777,7 +736,7 @@ sub optionsRRD
 		{
 			if ($data->{$id}->{option} eq "nosave")
 			{
-				NMISNG::Util::dbg("DS $id marked as nosave, ignoring.", 3);
+				$S->nmisng->log->debug3("DS $id marked as nosave, ignoring.");
 				next;
 			}
 
@@ -792,7 +751,7 @@ sub optionsRRD
 		$range ||= "U:U";
 		$heartbeat ||= $timinginfo->{heartbeat};
 
-		NMISNG::Util::dbg("ID of data is $id, source $source, range $range, heartbeat $heartbeat",2);
+		$S->nmisng->log->debug2("ID of data is $id, source $source, range $range, heartbeat $heartbeat");
 		push @options,"DS:$id:$source:$heartbeat:$range";
 	}
 
@@ -820,7 +779,7 @@ sub optionsRRD
 # (which is created by selftest)
 #
 # args: sys, data, database, type,  index - all required
-# returns: 1 if ok, 0 otherwise.
+# returns: undef or error message
 sub createRRD
 {
 	my %args = @_;
@@ -831,38 +790,32 @@ sub createRRD
 	my $index = $args{index};
 	my $database = $args{database};
 
-	require_RRDs(config => $args{config});
-	my $C = NMISNG::Util::loadConfTable();
+	&require_RRDs;
+	my $C = $S->nmisng->config;
 
 	$S->nmisng->log->debug("check and/or create RRD database $database");
 
 	# are we allowed to create new files, or is the filesystem with the database dir (almost) full already?
 	# marker file name also embedded in util.pm
-	if (-f "$C->{'<nmis_var>'}/nmis_system/dbdir_full")
-	{
-		$stats{error} = "Not creating $database, as database filesystem is (almost) full!";
-		$S->nmisng->log->error("Not creating $database, as database filesystem is (almost) full!");
-		return 0;
-	}
+	return "Not creating $database, as database filesystem is (almost) full!"
+			if (-f "$C->{'<nmis_var>'}/nmis_system/dbdir_full");
 
 	# Does the database exist already?
 	if (-f $database)
 	{
 		# nothing to do!
-		$S->nmisng->log->debug("Database $database already exists");
-		return 1;
+		$S->nmisng->log->debug3("Database $database already exists");
+		return undef;
 	}
 
 	# create new rrd file, maybe dir structure too
 	my $dir = dirname($database);
 	NMISNG::Util::createDir($dir) if (!-d $dir);
 
-	my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
+	my @options = optionsRRD(data=>$data, sys=>$S, type=>$type, index=>$index);
 	if (!@options)
 	{
-		$stats{error} = "($S->{name}) unknown type=$type";
-		$S->nmisng->log->error("($S->{name}) unknown type=$type");
-		return 0;
+		return "($S->{name}) unknown type=$type";
 	}
 
 	$S->nmisng->log->info("Creating new RRD database $database");
@@ -872,19 +825,15 @@ sub createRRD
 	my $ERROR = RRDs::error();
 	if ($ERROR)
 	{
-		$stats{error} = "($S->{name}) unable to create $database: $ERROR";
-		$S->nmisng->log->error("($S->{name}) unable to create $database: $ERROR");
-		return 0;
+		return "($S->{name}) failed to create $database: $ERROR";
 	}
-	# set file owner and permission, default: nmis, 0775.
+	# set file owner and permissions
 	NMISNG::Util::setFileProtDiag(file =>$database);
 
 	# Double check created OK for this user
-	return 1 if ( -f $database and -r $database and -w $database );
+	return undef if ( -f $database and -r $database and -w $database );
 
-	$stats{error} = "($S->{name}) could not create RRD $database - check directory permissions";
-	$S->nmisng->log->error("($S->{name}) could not create RRD $database - check directory permissions");
-	return 0;
+	return "($S->{name}) could not create RRD $database - check directory permissions?";
 }
 
 # produce one graph
@@ -899,13 +848,11 @@ sub draw
 {
 	my %args = @_;
 
-	my ($S,$nodename,$nodeuuid,$mygroup,$graphtype,$intf,$item,
-			$width,$height,$filename,$start,$end,$time,$debug)
+	my ($S, $nodename, $nodeuuid, $mygroup, $graphtype, $intf, $item,
+			$width, $height, $filename, $start, $end, $time, $debug)
 			= @args{qw(sys node uuid group graphtype intf item width height filename start end time debug)};
 
-	my $C = NMISNG::Util::loadConfTable();
-	require_RRDs(config => $C);
-
+	&require_RRDs;
 	if (ref($S) ne "NMISNG::Sys")
 	{
 		$S = NMISNG::Sys->new;
@@ -913,15 +860,11 @@ sub draw
 	}
 	else
 	{
+		# non-node mode is a dirty hack
 		$nodename = $S->nmisng_node->name if (ref($S->nmisng_node));
 	}
 
-	# fixme9: non-node mode is a dirty hack.
-	# fixme9: catchall_data is not used?!
-	if ($nodename)
-	{
-		my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	}
+	my $C = $S->nmisng->config;
 	my $subconcept = $S->loadGraphTypeTable->{$graphtype};
 
 	# default unit is hours!
@@ -985,9 +928,8 @@ sub draw
 		my $title = $graph->{title}{$titlekey};
 		my $label = $graph->{vlabel}{$vlabelkey};
 
-		#  fixme replace with log+debug
-		NMISNG::Util::logMsg("no title->$titlekey found in Graph-$graphtype") if (!$title);
-		NMISNG::Util::logMsg("no vlabel->$vlabelkey found in Graph-$graphtype") if (!$label);
+		$S->nmisng->log->warn("no title->$titlekey found in Graph-$graphtype") if (!$title);
+		$S->nmisng->log->warn("no vlabel->$vlabelkey found in Graph-$graphtype") if (!$label);
 
 		@rrdargs = (
 			"--title", $title,
@@ -1095,7 +1037,7 @@ sub graphCBQoS
 	my ($S,$graphtype,$intf,$item,$start,$end,$width,$height,$debug)
 			= @args{qw(sys graphtype intf item start end width height debug)};
 
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	my $nodename = $S->name;
 
 	# order the names, find colors and bandwidth limits, index and section names
 	my ($CBQosNames, $CBQosValues) = Compat::NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
@@ -1113,14 +1055,14 @@ sub graphCBQoS
 		my $title;
 
 		if ( $width <= 400 ) {
-			$title = "$catchall_data->{name} $ifDescr $direction";
+			$title = "$nodename $ifDescr $direction";
 			$title .= " - $CBQosNames->[0]" if ($CBQosNames->[0] && $CBQosNames->[0] !~ /^(in|out)bound$/i);
 			$title .= ' - $length';
 			$vlabel = "Avg bps";
 		}
 		else
 		{
-			$title = "$catchall_data->{name} $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end'; # fixme: why replace later??
+			$title = "$nodename $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end'; # fixme: why replace later??
 		}
 
 		my @opt = (
@@ -1189,7 +1131,7 @@ sub graphCBQoS
 			if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ )
 			{
 				$parent_name = $1;
-				NMISNG::Util::dbg("parent_name=$parent_name\n") if ($debug);
+				$S->nmisng->log->debug2("parent_name=$parent_name\n");
 			}
 
 			if ( not $parent and not $gcount)

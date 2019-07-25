@@ -55,7 +55,6 @@ if ( ($Q->{conf} eq "" )
 	and -f "$C->{'<nmis_conf>'}/Tenants.nmis"
 		 and -f "$C->{'<nmis_cgi>'}/tenants.pl" )
 {
-	NMISNG::Util::logMsg("TENANT Redirect, conf=$Q->{conf}, $C->{'<cgi_url_base>'}/tenants.pl");
 	print $q->header($q->redirect(
 			-url=>"$C->{'<cgi_url_base>'}/tenants.pl",
 			-nph=>1,
@@ -218,10 +217,6 @@ for my $node ( sort keys %{$NT})
 			if ( not $AU->InGroup($NT->{$node}{group}) ) {
 				$auth = 0;
 			}
-		}
-		else
-		{
-			NMISNG::Util::logMsg("WARNING ($node) not able to find correct group for node!");
 		}
 	}
 

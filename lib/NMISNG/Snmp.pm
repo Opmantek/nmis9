@@ -29,7 +29,7 @@
 #
 # *****************************************************************************
 package NMISNG::Snmp;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 use strict;
 
@@ -44,8 +44,7 @@ use Digest::HMAC;
 use Digest::SHA;
 
 # creates new snmp object, does NOT open connection.
-# args: logging (optional, default 1), debug (optional, default 0),
-# log_regex (optional, should be qr//, default unset, ignored if logging is off),
+# args: nmisng (required),
 # name (optional, for reporting)
 sub new
 {
@@ -63,26 +62,27 @@ sub new
 			# config vars, set and used by open
 			config => {},
 
-			# optionals
-			debug => defined($arg{debug})? $arg{debug} : 0,
-			logging => defined($arg{logging})? NMISNG::Util::getbool($arg{logging}): 1,
-			log_regex => undef,
-		}, $class);
+			# internal linkage
+			_nmisng => $arg{nmisng},
+		},
+		$class);
+
+	Carp::confess("NMISNG object required to create Snmp object!")
+			if (ref($self->{_nmisng}) ne "NMISNG");
+
+	# weaken the reference to nmisx to avoid circular reference problems
+	# not sure if the check for isweak is required
+	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
 
 	return $self;
 }
 
-# sets/gets the current log_regex filter
-# args: filter (should be qr or undef)
-# returns: previous filter
-sub logFilterOut
+# r/o accessor
+sub nmisng
 {
-	my ($self, $filter) = @_;
-
-	my $oldfilter = $self->{log_regex};
-	$self->{log_regex} = $filter;
-	return $oldfilter;
+	return shift->{_nmisng};
 }
+
 
 # sets/gets the current host name
 # args: new host name (only for reporting, does NOT affect actual session!)
@@ -139,11 +139,11 @@ sub name_to_oid
 
 	if ($name =~ /^(\w+)(.*)$/)
 	{
-		$oid = NMISNG::MIB::name2oid($1).$2;
+		$oid = NMISNG::MIB::name2oid($self->nmisng, $1).$2;
 	}
 	else
 	{
-		$oid = NMISNG::MIB::name2oid($name);
+		$oid = NMISNG::MIB::name2oid($self->nmisng, $name);
 	}
 
 	if (defined($oid))
@@ -154,9 +154,7 @@ sub name_to_oid
 	else
 	{
 		$self->{error} = "Mib name $name does not exist!";
-		my $msg = "ERROR ($self->{name}) $self->{error}";
-		NMISNG::Util::logMsg($msg) if $self->{logging};
-		NMISNG::Util::dbg($msg,3);
+		$self->nmisng->log->error("($self->{name}) $self->{error}");
 		return undef;
 	}
 }
@@ -173,17 +171,15 @@ sub keys2name
 	my %rewritten;
 	for my $oid (keys %{$hash})
 	{
-		my $name = NMISNG::MIB::oid2name($oid) || $oid;
+		my $name = NMISNG::MIB::oid2name($self->nmisng, $oid) || $oid;
 		$rewritten{$name} = $hash->{$oid};
 	}
 
-	if ($self->{debug})
-	{
-		for my $k (keys %rewritten)
-		{
-			NMISNG::Util::dbg("result: $k = $rewritten{$k}", 3);
-		}
-	}
+	$self->nmisng->log->debug4(&NMISNG::Log::trace()
+												. "result: "
+												. join(" ",
+															 map { "$_ = $rewritten{$_} " } (keys %rewritten)))
+			if ($self->nmisng->log->is_level(4));
 	return \%rewritten;
 }
 
@@ -206,16 +202,9 @@ sub checkResult
 	my $list = join(", ", @{$inputs});
 	$list = (substr($list,0,40)."...") if (length($list) > 40);
 
-	my $msg = "($self->{name}) ($list) ".$self->{error};
-
-	# dont repeat timeout error msg
-	if ($self->{logging} and $self->{error} !~ /is empty/
-			and (!$self->{log_regex} or $self->{error} !~ $self->{log_regex}))
-	{
-		NMISNG::Util::logMsg("SNMP ERROR $msg")
-	}
-	NMISNG::Util::dbg($msg,3);
-
+	# tag as error but log if debug level 1 or above
+	$self->nmisng->log->error("SNMP ERROR ($self->{name}) ($list) ".$self->{error})
+			if ($self->nmisng->log->is_level(1));
 	return undef;
 }
 
@@ -293,7 +282,8 @@ sub open
 	}
 
 	# now actually open the SNMP session
-	NMISNG::Util::dbg("opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, community $self->{config}->{community}, context $self->{config}->{context}", 3);
+	$self->nmisng->log->debug3(&NMISNG::Log::trace()
+														 . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, community $self->{config}->{community}, context $self->{config}->{context}");
 
 	($self->{session}, $self->{error}) =
 			Net::SNMP->session(
@@ -312,10 +302,7 @@ sub open
 
 	if (!$self->{session})
 	{
-		my $msg = "ERROR $self->{name} $self->{error}";
-		NMISNG::Util::logMsg($msg) if $self->{logging};
-		NMISNG::Util::dbg($msg, 3);
-
+		$self->nmisng->log->error("$self->{name} $self->{error}");
 		return undef;
 	}
 
@@ -381,14 +368,12 @@ sub get
 			my $result = $self->{session}->get_request(@methodargs);
 	return undef if (!$self->checkResult($result, \@vars));
 
-	if ($self->{debug})
-	{
-		for my $oid (oid_lex_sort(keys(%{$result})))
-		{
-			my $name = NMISNG::MIB::oid2name($oid);
-			NMISNG::Util::dbg("result: $name($oid) = $result->{$oid}", 3);
-		}
-	}
+	$self->nmisng->log->debug4(&NMISNG::Log::trace()
+														 . "result: "
+														 . join(" ",
+																		map { NMISNG::MIB::oid2name($self->nmisng, $_)
+																							."($_) = $result->{$_} " } (oid_lex_sort(keys %{$result}))))
+			if ($self->nmisng->log->is_level(4));
 	return $result;
 }
 
@@ -414,7 +399,7 @@ sub testsession
 # or array of return values (same order as inputs)
 sub getarray
 {
-	my($self, @vars) = @_;
+	my ($self, @vars) = @_;
 
 	if (!$self->{session})
 	{
@@ -460,11 +445,11 @@ sub getarray
 		{
 			push @retvals, $result->{$oid};
 
-			if ($self->{debug} >= 4)	# don't waste time translating if not debugging
-			{
-				my $var = NMISNG::MIB::oid2name($oid);
-				NMISNG::Util::dbg("result: var=$var, value=$result->{$oid}",4);
-			}
+			# don't waste time translating if not debugging
+			$self->nmisng->log->debug4(&NMISNG::Log::trace()
+																 . "result: var=" . NMISNG::MIB::oid2name($self->nmisng, $oid)
+																 .", value=$result->{$oid}")
+					if ($self->nmisng->log->is_level(4));
 		}
 	}
 	return @retvals;
@@ -529,14 +514,13 @@ sub gettable
 
 			# and make sure this persists across the session lifetime
 			$self->{config}->{max_repetitions} = $maxrepetitions;
-			NMISNG::Util::dbg("get_table failed with message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
-			NMISNG::Util::logMsg("WARNING ($self->{name}) SNMP message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
+			$self->nmisng->log->warn("($self->{name}) SNMP message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
 			next;
 		}
 		return undef if (!$self->checkResult($result, [$name]));
 
-		my $cnt = scalar keys %{$result};
-		NMISNG::Util::dbg("result: $cnt values for table $name",3);
+		$self->nmisng->log->debug3(&NMISNG::Log::trace()
+															 . "result: ".scalar(keys %$result)." values for table $name");
 
 		if (NMISNG::Util::getbool($rewritekeys))
 		{

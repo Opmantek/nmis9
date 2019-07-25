@@ -101,22 +101,19 @@ my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 # first we need a config object
 my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
 my $config = NMISNG::Util::loadConfTable( dir => $customconfdir,
-																					debug => $cmdline->{debug},
-																					info => $cmdline->{info});
+																					debug => $cmdline->{debug});
 die "no config available!\n" if (ref($config) ne "HASH"
 																 or !keys %$config);
 
-# log to stderr if debug or info are given
+# log to stderr if debug is given
 my $logfile = $config->{'<nmis_logs>'} . "/cli.log"; # shared by nmis-cli and this one
 my $error = NMISNG::Util::setFileProtDiag(file => $logfile) if (-f $logfile);
 warn "failed to set permissions: $error\n" if ($error);
 
-# use debug, or info arg, or configured log_level
+# use debug or configured log_level
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
-																 debug => $cmdline->{debug},
-																 info => $cmdline->{info}) // $config->{log_level},
-															 path  => (defined($cmdline->{debug})
-																				 || defined($cmdline->{info})? undef : $logfile));
+																 debug => $cmdline->{debug}) // $config->{log_level},
+															 path  => (defined $cmdline->{debug})? undef : $logfile);
 
 # now get us an nmisng object, which has a database handle and all the goods
 my $nmisng = NMISNG->new(config => $config, log  => $logger);
@@ -133,8 +130,8 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	# old-style nodes file: hash. export w/o format=nodes: plain array,
 	# readfiletohash doesn't understand arrays.
 	my $node_table = NMISNG::Util::readFiletoHash(file => $nodesfile,
-																								json => ($nodesfile =~ /\.json$/i))
-			// decode_json(Mojo::File->new($nodesfile)->slurp);
+																								json => ($nodesfile =~ /\.json$/i));
+	$node_table = decode_json(Mojo::File->new($nodesfile)->slurp) if (ref($node_table) ne "HASH");
 
 	my %stats = (created => 0, updated => 0);
 

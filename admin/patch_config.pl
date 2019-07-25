@@ -78,8 +78,8 @@ NMISNG::Util::loadConfTable();	# or else writeHashtoFile will fail, as it calls
 print "Operating on config file: $config_file\n\n";
 my ($cfg, $fh) = NMISNG::Util::readFiletoHash(file => $config_file, lock => 1);
 
-die "Config file \"$config_file\" was not parseable or is empty!\n"
-		if (!$cfg);
+die "Config file \"$config_file\" was not parseable or is empty: $cfg\n"
+		if (ref($cfg) ne "HASH");
 
 my @patches;
 for my $token (@ARGV)

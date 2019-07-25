@@ -130,7 +130,10 @@ sub display_setup
 
 	# get the current config, structure unflattened; and the default config too!
 	my $rawconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_conf>'}."/$C->{conf}");
+	$rawconf = {} if (!ref($rawconf)); # it's that or die
 	my $defaultconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_conf_default>'}."/$C->{conf}");
+	$defaultconf = {} if (!ref($defaultconf)); # it's that or die
+
 
 	my $iconok = "<img src='".$C->{'<menu_url_base>'}."/img/v8/icons/icon_accept.gif'>";
 	my $iconbad = "<img src='".$C->{'<menu_url_base>'}."/img/v8/icons/icon_alert.gif'>";
@@ -312,6 +315,7 @@ sub edit_config
 
 	# read the current config in raw, unflattened form
 	my $rawconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_conf>'}."/$C->{conf}");
+	$rawconf = {} if (!ref($rawconf)); # it's that or die
 
 	my $changes;
 	# elements are handed to us as option/<section>/<item>

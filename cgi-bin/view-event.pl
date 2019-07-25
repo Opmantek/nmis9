@@ -87,7 +87,7 @@ if ($Q->{act} eq 'event_database_list') {			displayEventList();
 																				event => $Q->{event},
 																				element => $Q->{element} } ))
 	{
-		NMISNG::Util::logMsg("ERROR: event deletion failed: $err");
+		$nmisng->log->error("view-event: event deletion failed: $err");
 	}
 
 	displayEventList();
@@ -468,7 +468,6 @@ sub displayEventItems {
 					$thisevent->{node_name} =~ /$EST->{$esc}{Event_Node}/i and
 					$thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i ) {
 				$keyhash{$esc} = $klst;
-				NMISNG::Util::dbg("match found for escalation key=$esc");
 			}
 		}
 

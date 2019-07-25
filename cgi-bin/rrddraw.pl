@@ -44,10 +44,10 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars;
 
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
-die "cannot load configuration!\n" if (ref($C) ne "HASH" or !keys %$C);
+my $nmisng = Compat::NMIS::new_nmisng;
+my $C = $nmisng->config;
 
-NMISNG::rrdfunc::require_RRDs(config=>$C);
+&NMISNG::rrdfunc::require_RRDs;
 
 # bypass auth iff called from command line
 $C->{auth_require} = 0 if (@ARGV);
@@ -67,14 +67,15 @@ exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 #======================================================================
 
 # select function
-if ($Q->{act} eq 'draw_graph_view') {	rrdDraw();
-} else { notfound(); }
-
-exit;
-
-sub notfound {
-	NMISNG::Util::logMsg("rrddraw; Command unknown act=$Q->{act}");
+if ($Q->{act} eq 'draw_graph_view')
+{
+	rrdDraw();
 }
+else
+{
+	print header($headeropts), start_html, "ERROR: Command unknown act=$Q->{act}", end_html;
+}
+exit;
 
 #============================================================================
 
@@ -125,6 +126,7 @@ sub rrdDraw
 	if (!$result->{success})
 	{
 		error("rrddraw failed: $result->{error}");
+		$nmisng->log->error("rrddraw failed: $result->{error}");
 		return;
 	}
 	return $result->{graph};

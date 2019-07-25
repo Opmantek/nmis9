@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::Sys;
-our $VERSION = "3.1.0";
+our $VERSION = "3.2.0";
 
 use strict;
 
@@ -76,10 +76,17 @@ sub new
 			cache_models => 1,      # json caching for model files default on
 
 			_nmisng_node => undef,
-			_inventory_cache => {} # inventories that need re-use are kept in here, managed by inventory function
+			_nmisng => $args{nmisng},	# filled by sub init() if not passed in here
+			_inventory_cache => {}, # inventories that need re-use are kept in here, managed by inventory function
+
+			_initialised => undef,		# set and  queried by init()
 		},
 		$class
-	);
+			);
+
+	# weaken the reference to nmisx to avoid circular reference problems
+	# not sure if the check for isweak is required
+	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
 
 	return $self;
 }
@@ -241,14 +248,15 @@ sub init
 	my ( $self, %args ) = @_;
 
 	Carp::confess("Sys objects cannot be reinitialised!")
-			if (defined $self->{_nmisng}); # new doesn't set that
+			if ($self->{_initialised}); # new doesn't set that
+	$self->{_initialised} = 1;
 
 	my $C;
 	if (ref($args{node}) eq "NMISNG::Node")
 	{
 		my $nodeobj  = $args{node};
 
-		$self->{_nmisng} = $nodeobj->nmisng;
+		$self->{_nmisng} //= $nodeobj->nmisng;
 		$C = $self->{_nmisng}->config;
 		$self->{_nmisng_node} = $nodeobj;
 	}
@@ -257,7 +265,7 @@ sub init
 		$self->{name} = $self->{node} = $args{name};
 		$self->{uuid} = $args{uuid};
 
-		$self->{_nmisng} = Compat::NMIS::new_nmisng();
+		$self->{_nmisng} //= Compat::NMIS::new_nmisng();
 
 		# use all data we may have
 		# If cluster_id was given use it
@@ -513,7 +521,7 @@ sub init
 	{
 		# remember name for error message, no relevance for comms
 		$self->{snmp} = NMISNG::Snmp->new(
-			debug => $self->{debug},
+			nmisng => $self->nmisng,
 			name  => $self->{name},
 		);
 	}
@@ -535,7 +543,7 @@ sub init
 		else
 		{
 			$self->{error} = $maybe;    # not terminal
-			NMISNG::Util::logMsg("failed to create wmi accessor for $self->{name}: $maybe");
+			$self->nmisng->log->error("failed to create wmi accessor for $self->{name}: $maybe");
 		}
 	}
 
@@ -864,7 +872,7 @@ sub loadInfo
 	}
 }
 
-# get node NMISNG::Util::info (subset) as defined by Model. Values are stored in catchall
+# get nodeinfo (subset) as defined by Model. Values are stored in catchall
 # args: none
 # returns: 1 if worked (at least somewhat), 0 otherwise - check status() for details
 # NOTE: inventory keeping this around for now because whole node file not completely replaced yet
@@ -1130,8 +1138,8 @@ sub getValues
 					if ( $todos{$itemname}->{oid} ne $thisitem->{oid} . $suffix )
 					{
 						$status{snmp_error}
-							= "ERROR ($self->{name}) model error, $itemname has multiple clashing oids!";
-						NMISNG::Util::logMsg( $status{snmp_error} );
+							= "($self->{name}) model error, $itemname has multiple clashing oids!";
+						$self->nmisng->log->error( $status{snmp_error} );
 						next;
 					}
 					push @{$todos{$itemname}->{section}}, $sectionname;
@@ -1184,8 +1192,8 @@ sub getValues
 						or $todos{$itemname}->{indexed} ne $thissection->{indexed} )
 					{
 						$status{wmi_error}
-							= "ERROR ($self->{name}) model error, $itemname has multiple clashing queries/fields!";
-						NMISNG::Util::logMsg( $status{wmi_error} );
+							= "($self->{name}) model error, $itemname has multiple clashing queries/fields!";
+						$self->nmisng->log->error( $status{wmi_error} );
 						next;
 					}
 
@@ -1315,7 +1323,7 @@ sub getValues
 				if ($error)
 				{
 					$status{error} = $error;
-					NMISNG::Util::logMsg("ERROR ($self->{name}) $error");
+					$self->nmisng->log->error("($self->{name}) getValues failed: $error");
 				}
 				$value = $result;
 			}
@@ -1376,7 +1384,7 @@ sub getValues
 				if ($error)
 				{
 					$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
-					NMISNG::Util::logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
+					$self->nmisng->log->error("($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
 				}
 				$self->nmisng->log->debug3( "test $test, result=$result");
 				push @{$self->{alerts}}, {
@@ -1550,7 +1558,7 @@ sub loadModel
 		$self->{mdl} = NMISNG::Util::readFiletoHash( file => $thiscf, json => 1, lock => 0 );
 		if ( ref( $self->{mdl} ) ne "HASH" or !keys %{$self->{mdl}} )
 		{
-			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache)!";
+			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache): $self->{mdl}";
 			$exit = 0;
 		}
 		else
@@ -1821,7 +1829,7 @@ sub _mergeHash
 		elsif ( ref( $dest->{$k} ) eq "HASH" and ref($v) ne "HASH" )
 		{
 			$self->{error} = "cannot merge inconsistent hash: key=$k, value=$v, value is " . ref($v);
-			NMISNG::Util::logMsg( "ERROR ($self->{name}) " . $self->{error} );
+			$self->nmisng->log->error( "($self->{name}) " . $self->{error} );
 			return undef;
 		}
 		else
@@ -2007,7 +2015,7 @@ sub parseString
 			$rebuilt .= $1;
 			$number = '' if ( !defined $number );    # let's support CVAR, CVAR0 .. CVAR9, all separate
 
-			NMISNG::Util::logMsg("ERROR: $thing not a known property in section $sect!")
+			$self->nmisng->log->error("parseString cannot expand $thing: not a known property in section $sect!")
 				if ( !exists $data->{$thing} );
 
 			# let's set the global CVAR or CVARn to whatever value from the node info section
@@ -2060,12 +2068,12 @@ sub parseString
 	# no luck and no evaluation possible/allowed? give up, and do it loudly!
 	if( !$eval && $str =~ /\$/)
 	{
-		NMISNG::Util::logMsg("FATAL parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
+		$self->nmisng->log->fatal("parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
 	my $product = ($eval) ? eval $str : $str;
-	NMISNG::Util::logMsg("parseString failed for str:$str, error:$@") if($@);
+	$self->nmisng->log->error("parseString failed for str:$str, error:$@") if($@);
 	$self->nmisng->log->debug3( "parseString:: result is str=$product");
 	return $product;
 }
@@ -2266,7 +2274,7 @@ sub makeRRDname
 
 	if (!defined $sectionname)
 	{
-		NMISNG::Util::logMsg("ERROR no rrd section known for graphtype=$graphtype, type=$type");
+		$self->nmisng->log->error("makeRRDname failed: no rrd section known for graphtype=$graphtype, type=$type");
 		return undef;
 	}
 
@@ -2275,7 +2283,7 @@ sub makeRRDname
 									$self->{mdl}->{database}->{type}->{$sectionname} : undef;
 	if (!defined $template)
 	{
-		NMISNG::Util::logMsg("ERROR ($self->{name}) database name not found for graphtype=$graphtype, type=$type, index=$index, item=$item, sect=$sectionname");
+		$self->nmisng->log->error("($self->{name}) database name not found for graphtype=$graphtype, type=$type, index=$index, item=$item, sect=$sectionname");
 		return undef;
 	}
 
@@ -2311,7 +2319,7 @@ sub makeRRDname
 																	'eval' => 0); # only expand, no expression to evaluate
 	if (!$dbpath)
 	{
-		NMISNG::Util::logMsg("ERROR, expansion of $template failed!");
+		$self->nmisng->log->error("makeRRDname: expansion of $template failed!");
 		return undef;
 	}
 	$dbpath = $C->{database_root}."/".$dbpath if (!$wantrelative);
@@ -2349,7 +2357,7 @@ sub create_update_rrd
 
 	if (!$dbname)
 	{
-		NMISNG::Util::logMsg("ERROR cannot find or determine rrd file for type=$type, index=$index, item=$item");
+		$self->nmisng->log->error("create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
 		return undef;
 	}
 	# update the inventory if we can
@@ -2358,7 +2366,7 @@ sub create_update_rrd
 		$inventory->set_subconcept_type_storage(subconcept => $type, type => 'rrd',
 																						data => $dbname);
 	}
-	NMISNG::rrdfunc::require_RRDs(config=>$C);
+	&NMISNG::rrdfunc::require_RRDs;
 	my $result = NMISNG::rrdfunc::updateRRD( database => $C->{database_root} . $dbname,
 																	 data => $data,
 																	 # rest is only needed if the rrd file must be created/ds-extended
@@ -2368,7 +2376,7 @@ sub create_update_rrd
 																	 index => $index,
 																	 extras => $extras );
 
-	NMISNG::Util::logMsg("ERROR updateRRD failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
+	$self->nmisng->log->error("updateRRD for $dbname failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
 	return $result;
 }
 
@@ -2408,7 +2416,7 @@ sub graphHeading
 	# if none of those work, use a boilerplate text
 	if (!$rawheading)
 	{
-		NMISNG::Util::logMsg("heading for graphtype=$graphtype not found in graph file or model=$self->{mdl}{system}{nodeModel}");
+		$self->nmisng->log->warn("heading for graphtype=$graphtype not found in graph file or model=$self->{mdl}{system}{nodeModel}");
 		return "Heading not defined";
 	}
 

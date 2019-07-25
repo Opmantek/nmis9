@@ -1,33 +1,33 @@
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 package NMISNG::Notify;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 use strict;
 
@@ -37,43 +37,42 @@ use Sys::Syslog 0.33;						# older versions have problems with custom ports and 
 use Sys::Hostname;							# for sys::syslog
 use File::Basename;
 use version 0.77;
-# use Compat::NMIS; # this makes circular use loops and causes lots of subroution redefined warnings
 use JSON::XS;
-
+use Carp;
 
 # sendEmail: send input text or mime entity to any number of recipients
-# 
+#
 # args: text or mime (=entity) or body+subject+from+to (old-style compat args)
 # mailserver, sender, recipients (=list), hello (all required)
 #
 # optional serverport (default 25, you may want to use 587)
 # optional ipproto ("ipv4" or "ipv6" or undef for auto-detection)
-# optional usetls (default 1), 
-# optional username and password (default no auth), 
+# optional usetls (default 1),
+# optional username and password (default no auth),
 # optional authmethod (default CRAM-MD5, use LOGIN if you have to)
-# optional ssl_verify_mode (default not defined - set to SSL_VERIFY_NONE 
+# optional ssl_verify_mode (default not defined - set to SSL_VERIFY_NONE
 # when calling in Windows or on a system without workable certificate setup)
-# 
-# text has to be a complete email with headers and body, mime entity must be a toplevel 
+#
+# text has to be a complete email with headers and body, mime entity must be a toplevel
 # entity with appropriate headers
-# 
-# returns list of (status, last server code, last server message), 
+#
+# returns list of (status, last server code, last server message),
 # status 1 is all ok, 0 otherwise
-# 
+#
 # last server code is last SMTP status code (eg. 250, 550 etc) of SMTP DATA
 # on success, or the one that caused sendEmail to give up, or 999 if we didn't
 # get anywhere (eg. dud arguments)
 #
 # last server message is either response of SMTP data (= queue id at target)
 # or the server response that caused sendEmail to give up.
-sub sendEmail 
+sub sendEmail
 {
 	my (%arg)=@_;
 
 	$arg{serverport} ||= 25;
-	$arg{usetls} = 'starttls' 
+	$arg{usetls} = 'starttls'
 			if ($arg{usetls} || !exists($arg{usetls})); # if 1 or not given
-		
+
 	# sanity checking first
 	for my $mand (qw(mailserver serverport sender recipients hello))
 	{
@@ -91,7 +90,7 @@ sub sendEmail
 
 		my $priNum = 3;
 		my $priWord = "Normal";
-		if ( defined $arg{priority} && $arg{priority} =~ /^[a-z]+$/i ) 
+		if ( defined $arg{priority} && $arg{priority} =~ /^[a-z]+$/i )
 		{
 			$priWord = $arg{priority};
 			$priNum = &setSMTPPriority($arg{priority});
@@ -101,7 +100,7 @@ sub sendEmail
 			$priNum = $arg{priority};
 			$priWord = &setSMTPPriority($arg{priority});
 		}
-		
+
 		$mailtext = "X-Mailer: NMIS $Compat::NMIS::VERSION\nX-Priority: $priNum\nX-MSMail-Priority: $priWord\n"
 				."Importance: $priWord\nPriority: $priWord\n";
 		$mailtext .= "Subject: $arg{subject}\nFrom: $arg{from}\nTo: $arg{to}\n\n$arg{body}\n";
@@ -120,7 +119,7 @@ sub sendEmail
 								"Domain" => $ipproto,
 								SSL_verify_mode => $arg{ssl_verify_mode});
 	my $smtp = Net::SMTPS->new( @connargs );
-		
+
 	return (0,999,"connection to $arg{mailserver}, port $arg{serverport}, ipproto $ipproto, failed: $!")
 			if (!$smtp);
 
@@ -130,11 +129,11 @@ sub sendEmail
 		return (0,$smtp->code, "auth failed: ".$smtp->message)
 				if (!$smtp->auth($arg{username}, $arg{password}, $arg{authmethod}));
 	}
-	
-	# send mail from 
+
+	# send mail from
 	return (0, $smtp->code, "server rejected sender: ".$smtp->message)
 			if (!$smtp->mail($arg{sender}));
-	
+
 	# send recipient to and bail out if any of them fail
 	{
 		for my $to (@{$arg{recipients}})
@@ -143,12 +142,12 @@ sub sendEmail
 					if (!$smtp->to($to));
 		}
 	}
-	
+
 	# almost there, now send data and produce the content
 	my $content = defined $arg{text}? $arg{text} : $arg{mime}->as_string;
 	return (0, $smtp->code, "server rejected data: ".$smtp->message)
 			if (!$smtp->data( $content ));
-	
+
 	# message actually returns list if in list context, not that any docs say so...
 	my @ret = (1, $smtp->code, (join("",$smtp->message)));
 	$smtp->quit; 								# no error handling required or useful
@@ -182,7 +181,7 @@ sub setSMTPPriority {
 sub sendSNPP {
 	my %arg = @_;
 	my $debug = $arg{debug};
-	if ( defined $arg{server} and defined $arg{pagerno} and defined $arg{message} ) { 
+	if ( defined $arg{server} and defined $arg{pagerno} and defined $arg{message} ) {
 		my $snpp = Net::SNPP->new($arg{server});
 		$snpp->send( Pager   => $arg{pagerno},
 		             Message => $arg{message},
@@ -193,48 +192,41 @@ sub sendSNPP {
 	}
 }
 
-# args: debug, server_string (comma-sep list of host:proto:port), facility, 
+# args: debug, server_string (comma-sep list of host:proto:port), facility,
 # time, event, level, details, node and nmis_host
 # message (which is IGNORED if arg node and arg nmis_host are set!)
-# 
-sub sendSyslog 
+#
+# returns: undef or error message
+sub sendSyslog
 {
 	my %arg = @_;
 	my $debug = $arg{debug};
 	my $server_string = $arg{server_string};
 	my $facility = $arg{facility};
-	
-	# we can handle a return if this is TCP
-	my $success = 1;
 
-	my $message = "NMIS_Event::$arg{nmis_host}::$arg{time},$arg{node},$arg{event},$arg{level},$arg{element},$arg{details}";
-	if ( $arg{nmis_host} eq "" and $arg{node} eq "" and $arg{message} ne "" ) {
-		$message = $arg{message};
-	}
-	return 0 if (!$message);
+	my @errors;
+
+	my $message = ( $arg{nmis_host} eq "" and $arg{node} eq "" and $arg{message} ne "" )?
+			$arg{message}: "NMIS_Event::$arg{nmis_host}::$arg{time},$arg{node},$arg{event},$arg{level},$arg{element},$arg{details}";
+	return undef if (!$message);
 
 	my $priority = eventToSyslog($arg{level});
 	$priority = 'notice' if $priority eq "";
-	
+
 	my @servers = split(",",$server_string);
-	foreach my $server (@servers) 
+	foreach my $server (@servers)
 	{
-		if ( $server =~ /([\w\.\-]+):(udp|tcp):(\d+)/ ) 
+		if ( $server =~ /([\w\.\-]+):(udp|tcp):(\d+)/ )
 		{
 			#server = localhost:udp:514
 			my $server = $1;
 			my $protocol = $2;
 			my $port = $3;
-			
-			if ( $protocol eq "tcp" ) {
-				$success = 0;
-			}
 
 			# don't bother waiting, especially not with udp
 			# sys::syslog has a silly bug: host option is overwritten by "path" for udp and tcp :-/
 			Sys::Syslog::setlogsock({type => $protocol, host => $server,
-
-															 path => $server, 
+															 path => $server,
 															 port => $port, timeout => 0});
 			# this creates an rfc3156-compliant hostname + command[pid]: header
 			# note that sys::syslog doesn't fully support rfc5424, as it doesn't
@@ -243,14 +235,10 @@ sub sendSyslog
 			eval { openlog(hostname." ".basename($0), "ndelay,pid", $facility); };
 			if (!$@)
 			{
-				NMISNG::Util::dbg("syslog $message to $server:$port");
 				eval { syslog($priority, $message); };
 				if ($@)
 				{
-					NMISNG::Util::logMsg("ERROR: could not send message to syslog server \"$server\", $protocol port $port!");
-				}
-				else {
-					$success = 1;
+					push @errors, "could not send message to syslog server \"$server\", $protocol port $port: $@";
 				}
 				closelog;
 			}
@@ -258,24 +246,26 @@ sub sendSyslog
 			{
 				my $errors = join("",$@);
 				$errors =~ s/\n|\t/ /g;
-				$errors =~ s/  / /g;
-				NMISNG::Util::logMsg("ERROR: could not connect to syslog server \"$server\", $protocol port $port: $errors");
+				$errors =~ s/\s{2,}/ /g;
+
+				push @errors, "could not connect to syslog server \"$server\", $protocol port $port: $errors";
+
 			}
 			# reset to defaults, for future use
-			Sys::Syslog::setlogsock([qw(native tcp udp unix pipe stream console)]); 			
+			Sys::Syslog::setlogsock([qw(native tcp udp unix pipe stream console)]);
 		}
-		else 
+		else
 		{
-			NMISNG::Util::logMsg("ERROR: syslog server \"$server\" not configured correctly, should be in the format 'localhost:udp:514'");
+			push @errors, "syslog server \"$server\" not configured correctly, should be in the format 'localhost:udp:514'";
 		}
 	}
-	return $success;
+	return @errors? join("\n", @errors) : undef;
 }
 
 # convert event level to syslog priority
 sub eventToSyslog {
 	my $level = shift;
-	my $priority;   	
+	my $priority;
 	# sys::syslog insists on the output matching the syslog(3) levels, ie. either be "LOG_ALERT" or "alert" etc.
 	# LOG_EMERG, LOG_ALERT, LOG_CRIT, LOG_ERR, LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG
 
@@ -291,26 +281,31 @@ sub eventToSyslog {
 }
 
 
-sub logJsonEvent {
+# args: event (structure), dir
+# returns: undef or error message
+sub logJsonEvent
+{
 	my %arg = @_;
 	my $event = $arg{event};
 	my $dir = $arg{dir};
+
 	my $fcount = 1;
-	
 	# add the time now to the event data.
 	$event->{time} = time;
-	
+
 	my $file ="$dir/$event->{startdate}-$fcount.json";
-	while ( -f $file ) {
+	while ( -f $file )
+	{
 		++$fcount;
 		$file ="$dir/$event->{startdate}-$fcount.json";
 	}
-	
-	my $json_event = encode_json( $event ); #, { pretty => 1 } );
-	open(JSON,">$file") or NMISNG::Util::logMsg("ERROR, can not write to $file");
+
+	my $json_event = encode_json( $event );
+	open(JSON,">$file") or return("can not write to $file: $!");
 	print JSON $json_event;
 	close JSON;
 	NMISNG::Util::setFileProtDiag(file =>$file);
+	return undef;
 }
 
 

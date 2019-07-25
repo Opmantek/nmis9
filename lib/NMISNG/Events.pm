@@ -298,9 +298,8 @@ sub logEvent
 
 	if ( !$node_name or !$event or !$level )
 	{
-		NMISNG::Util::logMsg(
-			"ERROR logging event, required argument missing: node_name=$node_name, event=$event, level=$level");
-		return "required argument missing: node_name=$node_name, event=$event, level=$level";
+		$self->nmisng->log->error("cannot log event, required argument missing: node_name=$node_name, event=$event, level=$level");
+		return "cannot log event, required argument missing: node_name=$node_name, event=$event, level=$level";
 	}
 
 	my $time = time();
@@ -308,23 +307,20 @@ sub logEvent
 
 	my @problems;
 
-	# MUST NOT NMISNG::Util::logMsg while holding that lock, as logmsg locks, too!
 	sysopen( DATAFILE, "$C->{event_log}", O_WRONLY | O_APPEND | O_CREAT )
 		or push( @problems, "Cannot open $C->{event_log}: $!" );
 	flock( DATAFILE, LOCK_EX )
 		or push( @problems, "Cannot lock $C->{event_log}: $!" );
-	&NMISNG::Util::enter_critical;
 
 	# it's possible we shouldn't write if we can't lock it...
 	print DATAFILE "$time,$node_name,$event,$level,$element,$details\n";
 	close(DATAFILE) or push( @problems, "Cannot close $C->{event_log}: $!" );
-	&NMISNG::Util::leave_critical;
 	NMISNG::Util::setFileProtDiag( file => $C->{event_log} );    # set file owner/permission, default: nmis, 0775
 
 	if (@problems)
 	{
 		my $msg = join( "\n", @problems );
-		NMISNG::Util::logMsg("ERROR $msg");
+		$self->nmisng->log->error($msg);
 		return $msg;
 	}
 	return undef;

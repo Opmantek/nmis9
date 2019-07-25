@@ -235,7 +235,7 @@ sub displayModel
 	{
 		my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
 		$modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-		bailout "cannot read model $modelfn: $!"
+		bailout "cannot read model $modelfn: $modelstruct"
 				if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 	}
 
@@ -456,7 +456,7 @@ sub editModel
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
 	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $!"
+	bailout "cannot read model $modelfn: $modelstruct"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	# start of form, explanation of href-vs-hiddens see previous start_form
@@ -528,7 +528,7 @@ sub deleteModel
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
 	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $!"
+	bailout "cannot read model $modelfn: $modelstruct"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	# start of form, explanation of href-vs-hiddens see previous start_form
@@ -595,7 +595,7 @@ sub addModel
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
 	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $!"
+	bailout "cannot read model $modelfn: $modelstruct"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	# what subfields do we want to allow here?
@@ -709,7 +709,7 @@ sub doEditModel
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
 	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $!"
+	bailout "cannot read model $modelfn: $modelstruct"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	my @locationsteps = split(/,/, $locsteps);
@@ -745,7 +745,7 @@ sub doDeleteModel
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
 	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $!"
+	bailout "cannot read model $modelfn: $modelstruct"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	my @locationsteps = split(/,/, $locsteps);
@@ -786,7 +786,7 @@ sub doAddModel
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
 	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
-	bailout "cannot read model $modelfn: $!"
+	bailout "cannot read model $modelfn: $modelstruct"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	my %fields = map { my $oldkey = $_; s/^_field_//; ($_ => $Q->{$oldkey}); } (grep(/^_field_/, keys %$Q));

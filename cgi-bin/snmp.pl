@@ -40,22 +40,21 @@ use NMISNG::Util;
 use NMISNG::Sys;
 use NMISNG::MIB;
 use NMISNG::Snmp;
+use NMISNG::Auth;
+
 use Net::SNMP qw(oid_lex_sort);
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
 
-# load NMIS configuration table
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+my $nmisng = Compat::NMIS::new_nmisng;
+my $C = $nmisng->config;
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
-# NMIS Authentication module
-use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
@@ -197,7 +196,7 @@ sub viewSNMP {
 			return;
 		}
 
-		$SNMP = NMISNG::Snmp->new(debug => $Q->{debug});
+		$SNMP = NMISNG::Snmp->new(nmisng => $nmisng);
 		if (!$SNMP->open( host => NMISNG::Util::stripSpaces($host),
 											version => NMISNG::Util::stripSpaces($version),
 											community => NMISNG::Util::stripSpaces($community),
@@ -208,7 +207,7 @@ sub viewSNMP {
 			return;
 		}
 	} else {
-		my $S = NMISNG::Sys->new; # get system object
+		my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object
 		if ($S->init(name=>$node)) { # open snmp
 			$SNMP = $S->snmp;
 			if (!$S->open()) {
@@ -226,7 +225,7 @@ sub viewSNMP {
 		print Tr(td({class=>'header',colspan=>'3'},'result of query'.$msg));
 		for my $k (oid_lex_sort(keys %{$result})) {
 			print Tr(
-				td({class=>'header'},escapeHTML(NMISNG::MIB::oid2name($k))),
+				td({class=>'header'},escapeHTML(NMISNG::MIB::oid2name($nmisng, $k))),
 				td({class=>'header'},$k),td({class=>'info'},escapeHTML($result->{$k})));
 		}
 	} else {
@@ -234,7 +233,7 @@ sub viewSNMP {
 		if ((($result) = $SNMP->getarray($oid))) {
 			print Tr(td({class=>'header',colspan=>'3'},'result of query'));
 			print Tr(
-				td({class=>'header'},escapeHTML(NMISNG::MIB::oid2name($oid))),
+				td({class=>'header'},escapeHTML(NMISNG::MIB::oid2name($nmisng, $oid))),
 				td({class=>'header'},$oid),td({class=>'info'},escapeHTML($result)));
 			} else {
 			print Tr(td({class=>'error'},$SNMP->error));

@@ -76,7 +76,7 @@ my $customconfdir = $nvp{dir}? $nvp{dir}."/conf": undef;
 my $C = NMISNG::Util::loadConfTable(dir => $customconfdir,
 																		conf=>$nvp{conf},
 																		debug=>$nvp{debug});
-NMISNG::rrdfunc::require_RRDs(config=>$C);
+&NMISNG::rrdfunc::require_RRDs;
 
 unless ( $vardir ) { $vardir = $C->{'<nmis_var>'} }
 

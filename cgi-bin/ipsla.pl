@@ -52,7 +52,7 @@ my $C;
 
 # load NMIS configuration table
 if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-NMISNG::rrdfunc::require_RRDs(config=>$C);
+&NMISNG::rrdfunc::require_RRDs;
 
 # NMIS Authentication module
 use NMISNG::Auth;

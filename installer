@@ -388,26 +388,26 @@ sub check_installed_modules
 	$modules{"JSON::PP"} = { file => undef, usetype => "use",
 													 usedby => "lib/NMISNG/Auth.pm", priority => 99 };
 	$modules{"Time::Local"} = { file => undef, usetype => "use",
-															usedby => "lib/NMSING/Auth.pm",
+															usedby => "lib/NMISNG/Auth.pm",
 															minversion => "1.2", priority => 99 };
 	# and time::local needs at least this version of test::More
 	$modules{"Test::More"} = { file => undef, usetype => "use",
-														 usedby => "lib/NMSING/Auth.pm",
+														 usedby => "lib/NMISNG/Auth.pm",
 														 minversion => "0.96", priority => 100 };
 
 	# for compiling the mongodb perl driver
 	$modules{"Config::AutoConf"} = { file => undef, usetype => "use",
-														 usedby => "lib/NMSING/DB.pm",
+														 usedby => "lib/NMISNG/DB.pm",
 																	 minversion => "0.3", priority => 100 };
 
 	$modules{"Path::Tiny"} = { file => undef, usetype => "use",
-														 usedby => "lib/NMSING/DB.pm",
+														 usedby => "lib/NMISNG/DB.pm",
 														 # minversion => "0.3",
 														 priority => 100 };
 
 	# must be cpan'd before datetime and mongodb
 	$modules{"DateTime::Locale"} = { file => undef, usetype => "use",
-																	 usedby => "lib/NMSING/DB.pm",
+																	 usedby => "lib/NMISNG/DB.pm",
 																	 # minversion => "0.3",
 																	 priority => 100 };
 

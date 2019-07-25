@@ -59,10 +59,10 @@ $cf2 .= "/".basename($cf1) if (-d $cf2);
 die $usage if (!-f $cf2);
 
 my $c1 = NMISNG::Util::readFiletoHash(file=>$cf1);
-die "Error: could not read $cf1: $!\n" if (!$c1);
+die "Error: could not read $cf1: $c1\n" if (ref($c1) ne "HASH");
 
 my $c2 = NMISNG::Util::readFiletoHash(file=>$cf2);
-die "Error: could not read $cf2: $!\n" if (!$c2);
+die "Error: could not read $cf2: $c2\n" if (ref($c2) ne "HASH");
 
 print "\nComparing $cf1 to $cf2\n";
 print "Output format:\n\n\"Config Key Path:\n-\tStatus in $cf1\n+\tStatus in $cf2\"\n\n" if (!$opts{q});

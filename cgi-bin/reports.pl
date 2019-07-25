@@ -66,7 +66,7 @@ my $Q = $q->Vars; # values in hash
 
 my $C;
 if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-NMISNG::rrdfunc::require_RRDs(config=>$C);
+&NMISNG::rrdfunc::require_RRDs;
 
 my $nmisng = Compat::NMIS::new_nmisng;
 my $NT = Compat::NMIS::loadLocalNodeTable();

@@ -95,12 +95,11 @@ my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 Mojo::File->new($logfile)->spurt("") if (!-f $logfile);
 NMISNG::Util::setFileProtDiag(file =>$logfile) if (-f $logfile);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
-																 debug => $cmdline->{debug},
-																 info => undef) // $config->{log_level}, # fixme9: info cmdline arg not supported
+																 debug => $cmdline->{debug}) // $config->{log_level},
 															 path  =>  (defined($cmdline->{debug})? undef : $logfile));
 # this opens a database connection - which we must not share with any children!
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
-NMISNG::rrdfunc::require_RRDs(config => $config);
+&NMISNG::rrdfunc::require_RRDs;
 
 # make sure that no more than one daemon runs
 my $varsysdir = $config->{'<nmis_var>'} . "/nmis_system";
@@ -116,6 +115,7 @@ chomp($otherdaemon);
 # for act=stop/abort we need to load the previous state to examine any zoo of worker procs
 my $statefile = "$varsysdir/nmisd_state.json";
 my $scheduler_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );
+$scheduler_state = {} if (!ref($scheduler_state)); # i.e. if readFiletoHash reported an error
 $scheduler_state->{last_process_check} = 0; # DO run up worker children on startup
 my @otherprocs = (ref($scheduler_state->{zoo}) eq "HASH"?
 									keys %{$scheduler_state->{zoo}} : ());
@@ -644,7 +644,7 @@ while (!$exit_marker)
 	# collect job performance statistics every N seconds and write them to the nmis-system rrd
 	# try to catch-up while possible
 	my $stats_period = 60; 				# must align with common-database/timing/nmis AND model/database/timing/nmis
-	my $S = NMISNG::Sys->new;
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);
 	$S->init;										# need global/non-node/nmis-system mode
 
 	while (!$scheduler_state->{last_stats_time}
@@ -655,7 +655,7 @@ while (!$exit_marker)
 		$nmisng->log->debug2("updating nmis performance stats, $stats_period seconds from $periodstart");
 
 		# various activity names from get_job_stats_model need shortening as DS names are limited to 19 chars
-		my %xlat = ( 'permissions_test' => 'perms',
+		my %xlat = ( 'permission_test' => 'perms',
 								 'configbackup' => 'backup',
 								 'post-update plugins' =>  'postupdate',
 								 'post-collect plugins' => 'postcollect',
@@ -1196,7 +1196,7 @@ sub worker_loop
 					# on failure raise a stateless event (if possible, ie. if localhost node exists)
 					if (!$allok)
 					{
-						my $S = NMISNG::Sys->new;
+						my $S = NMISNG::Sys->new(nmisng => $nmisng);
 						if ($S->init(name => "localhost", snmp => 'false', wmi => 'false'))
 						{
 							Compat::NMIS::notify(sys => $S, event => "Selftest Failed",
@@ -1307,7 +1307,7 @@ sub worker_loop
 
 							if (!$S)
 							{
-								$S = NMISNG::Sys->new;    # the nmis-system object
+								$S = NMISNG::Sys->new(nmisng => $nmisng);    # the nmis-system object
 								$S->init();
 							}
 
@@ -1902,7 +1902,7 @@ sub fping_loop
 						$nmisng->log->debug("$uuid ($thisstate->{name}) is DOWN, raising event $eventname");
 
 						my $node = $nmisng->node(uuid => $uuid);
-						my $sys = NMISNG::Sys->new;
+						my $sys = NMISNG::Sys->new(nmisng => $nmisng);
 						$sys->init(node => $node, snmp => 0);
 
 						$node->handle_down( sys => $sys,
@@ -1937,7 +1937,7 @@ sub fping_loop
 						if (!ref($node))
 						{
 							$node = $nmisng->node(uuid => $uuid);
-							$sys = NMISNG::Sys->new;
+							$sys = NMISNG::Sys->new(nmisng => $nmisng);
 							$sys->init(node => $node, snmp => 0);
 						}
 

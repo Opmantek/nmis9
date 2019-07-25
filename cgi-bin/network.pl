@@ -46,20 +46,17 @@ use NMISNG::Util;
 use NMISNG::NetworkStatus;
 use Compat::Timing;
 use NMISNG;
-
+use NMISNG::Auth;
 
 my $q = new CGI;     # This processes all parameters passed via GET and POST
 my $Q = $q->Vars;    # values in hash
 
-# load NMIS configuration table
-my $C = NMISNG::Util::loadConfTable(debug => $Q->{debug});
-die "cannot load configuration!\n" if (ref($C) ne "HASH" or !keys %$C);
+my $nmisng = Compat::NMIS::new_nmisng;
+my $C = $nmisng->config;
 
 # bypass auth iff called from command line
 $C->{auth_require} = 0 if (@ARGV);
 
-# NMIS Authentication module
-use NMISNG::Auth;
 
 # variables used for the security mods
 use vars qw($headeropts);
@@ -118,9 +115,8 @@ my $smallGraphWidth  = 400;
 $smallGraphHeight = $C->{'small_graph_height'} if $C->{'small_graph_height'} ne "";
 $smallGraphWidth  = $C->{'small_graph_width'}  if $C->{'small_graph_width'} ne "";
 
-NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Begin act=$Q->{act}" ) if $timing;
+$nmisng->log->debug( "TIMING: " . $t->elapTime() . " Begin act=$Q->{act}" ) if $timing;
 
-my $nmisng = Compat::NMIS::new_nmisng;
 my $network_status = NMISNG::NetworkStatus->new( nmisng => $nmisng );
 
 # these need loading before the yucky if selection below, which is terminal for some acts
@@ -277,7 +273,7 @@ sub notfound
 	print "Request not found\n";
 }
 
-NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Select Subs" ) if $timing;
+$nmisng->log->debug( "TIMING: " . $t->elapTime() . " Select Subs" ) if $timing;
 
 # option to generate html to file
 if ( NMISNG::Util::getbool( $Q->{http} ) )
@@ -330,7 +326,7 @@ my $end   = $metricsFirstPeriod;
 # Call each of the base  network display subs.
 #======================================
 
-NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " typeSummary" ) if $timing;
+$nmisng->log->debug( "TIMING: " . $t->elapTime() . " typeSummary" ) if $timing;
 
 print "<!-- typeSummary select=$select start -->\n";
 
@@ -352,7 +348,7 @@ print "<!-- typeSummary select=$select end-->\n";
 
 Compat::NMIS::pageEnd() if ( !$wantwidget );
 
-NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " END $Q->{act}" ) if $timing;
+$nmisng->log->debug( "TIMING: " . $t->elapTime() . " END $Q->{act}" ) if $timing;
 
 exit();
 
@@ -366,7 +362,7 @@ sub getSummaryStatsbyGroup
 	my $business = $args{business};
 	my $include_nodes = $args{include_nodes};
 
-	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup begin: $group$customer$business" ) if $timing;
+	$nmisng->log->debug( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup begin: $group$customer$business" ) if $timing;
 
 	$groupSummary = Compat::NMIS::getGroupSummary(
 		group    => $group,
@@ -438,7 +434,7 @@ sub getSummaryStatsbyGroup
 	#if ( $groupSummary->{average}{countdown} > 0) { $groupSummary->{average}{countdowncolor} = NMISNG::Util::colorPercentLo(0); }
 	#else { $groupSummary->{average}{countdowncolor} = "$overallColor"; }
 
-	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup end" ) if $timing;
+	$nmisng->log->debug( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup end" ) if $timing;
 
 }    # end sub get SummaryStatsby group
 
@@ -473,7 +469,7 @@ sub selectMetrics
 			}
 
 			my $selfteststatus = NMISNG::Util::readFiletoHash( file => $cachefile, json => 'true' );
-			if ( !$selfteststatus->{status} )
+			if ( ref($selfteststatus) && !$selfteststatus->{status} )
 			{
 				$showmetrics = 0;
 
@@ -621,7 +617,7 @@ sub selectNetworkHealth
 		push( @h, qw(Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime) );
 	}
 
-	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " selectNetworkHealth healthTitle=$healthTitle healthType=$healthType" )
+	$nmisng->log->debug( "TIMING: " . $t->elapTime() . " selectNetworkHealth healthTitle=$healthTitle healthType=$healthType" )
 		if $timing;
 
 	print
@@ -971,7 +967,7 @@ sub selectNetworkView
 	my $healthTitle = "All Groups Status";
 	my $healthType  = "group";
 
-	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " selectNetworkView healthTitle=$healthTitle healthType=$healthType" )
+	$nmisng->log->debug( "TIMING: " . $t->elapTime() . " selectNetworkView healthTitle=$healthTitle healthType=$healthType" )
 		if $timing;
 
 	my $graphGroup = $group || 'network';
@@ -1394,7 +1390,7 @@ sub selectLarge
 			{
 				if (!$S)
 				{
-					$S = NMISNG::Sys->new;
+					$S = NMISNG::Sys->new(nmisng => $nmisng);
 					$S->init(name => $node, snmp => 'false');
 				}
 				($outagestatus, undef) = NMISNG::Outage::outageCheck(node => $S->nmisng_node,
@@ -1422,7 +1418,7 @@ sub selectLarge
 			{
 				if (!$S)
 				{
-					$S = NMISNG::Sys->new;
+					$S = NMISNG::Sys->new(nmisng => $nmisng);
 					$S->init(name => $node, snmp => 'false');
 				}
 				my $downs = $S->nmisng_node->get_events_model(filter => { event => "Node Down", active => 1});
@@ -1609,7 +1605,7 @@ sub viewPollingSummary
 			++$sum->{count}{node};
 			next if (! NMISNG::Util::getbool( $LNT->{$node}{active} ) );
 
-			my $S    = NMISNG::Sys->new;
+			my $S    = NMISNG::Sys->new(nmisng => $nmisng);
 			$S->init( name => $node, snmp => 'false' );
 			my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
@@ -1756,6 +1752,7 @@ sub viewSelfTest
 		if ( -f $cachefile )
 		{
 			my $selfteststatus = NMISNG::Util::readFiletoHash( file => $cachefile, json => 'true' );
+			$selfteststatus = { tests => [] } if (!ref($selfteststatus));
 
 			print header($headeropts);
 			Compat::NMIS::pageStartJscript( title => "NMIS Selftest - $C->{server_name}" ) if ( !$wantwidget );
@@ -1882,7 +1879,7 @@ sub viewNode
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $S = NMISNG::Sys->new;
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);
 	$S->init( name => $node, snmp => 'false' );    # load node data
 	my $nmisng_node = $S->nmisng_node;
 
@@ -2776,7 +2773,7 @@ sub viewInterface
 	my $intf = $Q->{intf};
 	my $node = $Q->{node};
 
-	my $S    = NMISNG::Sys->new;    # get system object
+	my $S    = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 
@@ -3155,7 +3152,7 @@ sub viewAllIntf
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $S = NMISNG::Sys->new;                                                 # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);                                                 # get system object
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 
@@ -3334,7 +3331,7 @@ sub viewActivePort
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $S = NMISNG::Sys->new;                                                 # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);                                                 # get system object
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 
@@ -3526,7 +3523,7 @@ sub viewStorage
 
 	my $node = $Q->{node};
 
-	my $S = NMISNG::Sys->new;    # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
@@ -3634,7 +3631,7 @@ sub viewService
 {
 	my $node = $Q->{node};
 
-	my $S = NMISNG::Sys->new;    # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 
@@ -3765,7 +3762,7 @@ sub viewServiceList
 
 	my $node = $Q->{node};
 
-	my $S = NMISNG::Sys->new;    # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
 	my $nmisng_node = $S->nmisng_node;
@@ -3899,7 +3896,7 @@ sub viewCpuList
 
 	my $node = $Q->{node};
 
-	my $S = NMISNG::Sys->new;    # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 
@@ -4011,7 +4008,7 @@ sub viewStatus
 
 	my $node = $Q->{node};
 
-	my $S = NMISNG::Sys->new;    # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
 	my $nmisng_node = $S->nmisng_node;
@@ -4155,7 +4152,7 @@ sub viewSystemHealth
 	my $section = shift;
 	my $node    = $Q->{node};
 
-	my $S = NMISNG::Sys->new;    # get system object
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
 	my $M  = $S->mdl;
@@ -4551,7 +4548,7 @@ sub viewTop10
 		next if (!$AU->InGroup( $NT->{$reportnode}{group}) or !exists $GT->{$NT->{$reportnode}{group}});
 		if ( NMISNG::Util::getbool( $NT->{$reportnode}{active} ) )
 		{
-			my $S  = NMISNG::Sys->new;
+			my $S  = NMISNG::Sys->new(nmisng => $nmisng);
 			$S->init( name => $reportnode, snmp => 'false' );
 			my $catchall =  $S->inventory( concept => 'catchall' );
 			my $catchall_data = $catchall->data();
@@ -4882,7 +4879,7 @@ sub nodeAdminSummary
 				my $exception = 0;
 				my @issueList;
 
-				my $S          = NMISNG::Sys->new;    # get system object
+				my $S          = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 				$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 				my $nmisng_node = $S->nmisng_node;
 

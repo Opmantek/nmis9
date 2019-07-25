@@ -786,8 +786,6 @@ sub ensure_index
 			next if ( $maybe->{name} eq "_id_" );                   # always indexed and required
 			if ( !$desiredindices{$maybe->{name}} )
 			{
-
-				# print STDERR "removing index $maybe->{name} from collection $coll->{name}\n";
 				if ($mustuseindexview)
 				{
 					eval { $indexview->drop_one( $maybe->{name} ); };
@@ -1329,8 +1327,7 @@ sub reget_db_connection
 		catch
 		{
 			my $exception = $_;
-			print STDERR "ReGetDbConnection: " . $exception->message . "\n";
-			warn "make sure admin is the correct databaes to be trying this on";
+			$error_string =  "ReGetDbConnection failed: " . $exception->message;
 			$status = undef;
 		};
 

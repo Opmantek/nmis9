@@ -190,8 +190,7 @@ my $wantquiet  = NMISNG::Util::getbool($Q->{quiet});
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
-																				 debug => $Q->{debug},
-																				 info => $Q->{info});
+																				 debug => $Q->{debug});
 die "no config available!\n" if (ref($C) ne "HASH" or !keys %$C);
 
 # the db config needs adjusting before dbcleanup is attempted: the aggregations
@@ -201,16 +200,15 @@ if ($Q->{act} eq "dbcleanup")
 	$C->{db_query_timeout} = 1000*300;	# 5 minutes max
 }
 
-# log to stderr if debug or info are given
+# log to stderr if debug is given
 my $logfile = $C->{'<nmis_logs>'} . "/cli.log";
 my $error = NMISNG::Util::setFileProtDiag(file => $logfile) if (-f $logfile);
 warn "failed to set permissions: $error\n" if ($error);
 
 # use debug, or info arg, or configured log_level
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
-																 debug => $Q->{debug},
-																 info => $Q->{info}) // $C->{log_level},
-															 path  => (defined($Q->{debug}) || defined($Q->{info})? undef : $logfile));
+																 debug => $Q->{debug} ) // $C->{log_level},
+															 path  => (defined $Q->{debug})? undef : $logfile);
 
 # this opens a database connection
 my $nmisng = NMISNG->new(
@@ -816,7 +814,8 @@ elsif ($Q->{act} eq "run-reports")
 		my $file = "$reportdir/${thisreport}-${outfile}";
 		my $status = system("$C->{'<nmis_cgi>'}/reports.pl", "report=$thisreport",
 												"start=$start", "end=$end", "outfile=$file") >> 8;
-		NMISNG::Util::logMsg("ERROR (report) generating report=$thisreport file=$file: $!") if ($status);
+		$nmisng->log->error("generating report=$thisreport file=$file failed: $!")
+				if ($status);
 		NMISNG::Util::setFileProtDiag(file =>$file) if (-f $file);
 	}
 }

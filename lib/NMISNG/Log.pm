@@ -40,6 +40,7 @@ our $VERSION = "2.0.0";
 use Mojo::Base 'Mojo::Log';
 use strict;
 use List::MoreUtils;
+use File::Basename;
 use Carp;
 use feature 'state';
 
@@ -187,10 +188,9 @@ sub reopen
 # small package-function helper (replaces nmisng::util::setDebug())
 # which translates given info and/or debug arguments
 # into ONE log_level (== debug, info, warn, error, fatal, or 1..9.
-# debug is the same as 1
-# but fixme9: for compat-purposes we return 1, until everything stops comparing $C->{debug} numerically
+# debug is the same as 1 but for compat-purposes we return 1
 #
-# args: debug (optional), info (optional, ignored if debug is present)
+# args: debug (optional), info (optional, ignored if debug is present, fixme9: no longer supported/passed in)
 # debug can be any of the known log_levels, or t(rue), y(es) - both meaning debug,
 # and verbose - meaning 9.
 # info can be t(rue), y(es), 1/0.
@@ -329,6 +329,53 @@ sub change_level
 			$self->detaillevel(0);
 		}
 	}
+}
+
+# this function produces a simple trace of the stack trace
+# args: none
+# returns: string with trailing whitespace
+#
+# string format: filename#lineno!function#lineno!...
+# filename is basename'd, functions have their main:: removed
+sub trace
+{
+	my (%args) = @_;
+
+	# look at up to 10 frames
+	my @frames;
+	for my $i (0..10) # 0 is this function but we need the line nr for frame 1
+	{
+		my @oneframe = caller($i);
+		last if (!@oneframe);
+
+		my ($filename,$lineno,$subname) = @oneframe[1,2,3];
+
+		$subname =~ s/^main:://;			# not useful
+		# keep the try invocation, but not "try {...}", ditto for catch
+		$subname =~ s/^(try|catch)\s+\{\.{3}\}\s*$/$1/;
+		$frames[$i]->{subname} = $subname;
+
+		$frames[$i+1]->{lineno} = $lineno; # save in outer frame
+		$frames[$i+1]->{filename} = $filename;
+	}
+	shift @frames;								# ditch empty zeroth frame
+
+	for my $i (0..$#frames)
+	{
+		# ditch eval and try::tiny related wrapping frames
+		# also ditch the one frame you get at the end of try/catch
+		$frames[$i]->{skip}=1 if (
+			( $frames[$i]->{subname}
+				&& $frames[$i]->{subname} =~ /^(\(eval\)|Try::Tiny::try|Try::Tiny::catch)/)
+			|| ($i > 0
+					&& $frames[$i-1]->{subname}
+					&& $frames[$i-1]->{subname} =~ "Try::Tiny::(try|catch)"));
+	}
+
+	return join("!", map {
+		$_->{skip}? () :
+				($_->{subname}||basename($_->{filename})).'#'.$_->{lineno} }
+							(reverse @frames)) . " ";
 }
 
 1;

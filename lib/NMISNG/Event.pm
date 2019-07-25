@@ -220,7 +220,7 @@ sub acknowledge
 	# being deleted)!
 	if ( my $error = $self->load() )
 	{
-		NMISNG::Util::logMsg( "ERROR cannot find event id:" . $self->_id );
+		$self->nmisng->log->error( "cannot find event id:" . $self->_id );
 		return "cannot find event id:" . $self->_id;
 	}
 	return if ( !$self->active );
@@ -230,7 +230,7 @@ sub acknowledge
 	{
 		if ( my $error = $self->delete() )
 		{
-			NMISNG::Util::logMsg("ERROR: $error");
+			$self->nmisng->log->error("failed to delete event id ".$self->_id.": $error");
 		}
 		$self->log(
 			event => "deleted event: " . $self->event,
@@ -246,7 +246,7 @@ sub acknowledge
 			$self->user($user);
 			if ( my $error = $self->save( update => 1 ) )
 			{
-				NMISNG::Util::logMsg("ERROR: $error");
+				$self->nmisng->log->error("failed to save event id ".$self->_id.": $error");
 			}
 
 			$self->log(
@@ -342,13 +342,13 @@ sub check
 
 				if ( $value >= $reset && $value <= $cutoff )
 				{
-					NMISNG::Util::info(
+					$S->nmisng->log->debug(
 						"Proactive Event value $value too low for dampening limit $cutoff. Not closing.");
 					return;
 				}
 				elsif ( $value < $reset && $value >= $cutoff )
 				{
-					NMISNG::Util::info(
+					$S->nmisng->log->debug(
 						"Proactive Event value $value too high for dampening limit $cutoff. Not closing.");
 					return;
 				}
@@ -390,13 +390,13 @@ sub check
 		$self->details($details);
 		$self->level($level);
 
-		NMISNG::Util::dbg( "event node_name="
-				. $self->node_name
-				. ", event="
-				. $self->event
-				. ", element="
-				. $self->element
-				. " marked for UP notify and delete" );
+		$self->nmisng->log->debug(&NMISNG::Log::trace() . "event node_name="
+															. $self->node_name
+															. ", event="
+															. $self->event
+															. ", element="
+															. $self->element
+															. " marked for UP notify and delete" );
 		if ( NMISNG::Util::getbool($log) and NMISNG::Util::getbool( $thisevent_control->{Log} ) )
 		{
 			$self->log();
@@ -404,8 +404,8 @@ sub check
 
 		if ( my $error = $self->save() )
 		{
-			NMISNG::Util::logMsg("ERROR $error");
-			confess $error;
+			$self->nmisng->log->fatal("failed to save event id ".$self->_id.": $error");
+			confess "failed to save event id ".$self->_id.": $error";
 		}
 
 		# Syslog must be explicitly enabled in the config and will escalation is not being used.
@@ -414,7 +414,7 @@ sub check
 			and NMISNG::Util::getbool( $thisevent_control->{Log} )
 			and !NMISNG::Util::getbool( $C->{syslog_use_escalation} ) )
 		{
-			NMISNG::Notify::sendSyslog(
+			my $error = NMISNG::Notify::sendSyslog(
 				server_string => $C->{syslog_server},
 				facility      => $C->{syslog_facility},
 				nmis_host     => $C->{server_name},
@@ -424,7 +424,10 @@ sub check
 				level         => $level,
 				element       => $self->element,
 				details       => $details
-			);
+					);
+
+			$self->nmisng->log->error("sendSyslog to $C->{syslog_server} failed: $error") if ($error);
+
 		}
 	}
 }
@@ -542,9 +545,8 @@ sub getLogLevel
 			$mdl_level = 'Major';
 
 			# not found, use default
-			NMISNG::Util::logMsg(
-				"node=".$node->name.", event=$event, role=$role not found in class=event"
-			);
+			$self->nmisng->log->warn("node=". $node->name
+															 .", event=$event, role=$role not found in class=event of model $M->{system}->{nodeModel}, using $mdl_level instead");
 		}
 	}
 	elsif ( $event =~ /^Alert/i )
@@ -776,9 +778,9 @@ sub save
 
 				# $self->context( ||= $args{context});
 				my ( $node_name, $event, $level, $element, $details )
-					= @{$self->{data}}{'node_name', 'event', 'level', 'element', 'details'};
-				NMISNG::Util::dbg(
-					"event stateless, node=$node_name, event=$event, level=$level, element=$element, details=$details");
+						= @{$self->{data}}{'node_name', 'event', 'level', 'element', 'details'};
+				$self->nmisng->log->debug(&NMISNG::Log::trace()
+																	. "event stateless, node=$node_name, event=$event, level=$level, element=$element, details=$details");
 			}
 		}
 
@@ -787,10 +789,8 @@ sub save
 		{
 			my ( $node_name, $event, $level, $element, $details )
 				= @{$self->{data}}{'node_name', 'event', 'level', 'element', 'details'};
-			NMISNG::Util::dbg(
-				"event exists, node=$node_name, event=$event, level=$level, element=$element, details=$details");
-			NMISNG::Util::logMsg(
-				"ERROR cannot add event=$event, node=$node_name: already exists, is current and not stateless!");
+
+			$self->nmisng->log->error("cannot add event=$event, node=$node_name: already exists, is current and not stateless!");
 			return "cannot add event: already exists, is current and not stateless!";
 		}
 		else

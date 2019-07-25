@@ -1,43 +1,42 @@
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 package NMISNG::Notify::critical;
-our $VERSION = "1.1.0";
-
-require 5;
+our $VERSION = "2.0.0";
 
 use strict;
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Data::Dumper;
+use Carp;
 use NMISNG::Notify;
 
-sub sendNotification {
+sub sendNotification
+{
 	my %arg = @_;
 	my $contact = $arg{contact};
 	my $event = $arg{event};
@@ -45,31 +44,33 @@ sub sendNotification {
 	my $subject = "Critical Interface Notification";
 	my $priority = $arg{priority};
 
-	my $C = $arg{C};
+	my $nmisng = $arg{nmisng};
+	confess("NMISNG argument required!") if (ref($nmisng) ne "NMISNG");
+	my $C = $nmisng->config;
 
 	# add the time now to the event data.
 	$event->{time} = time;
 	$event->{email} = $contact->{Email};
 	$event->{mobile} = $contact->{Mobile};
-	
-	print STDERR "Notify::critical checking event....\n" if $C->{debug};
-	if ( $event->{event} =~ /Interface Down|Interface Up/ && $event->{details} =~ /CRITICAL/ ) 
+
+	$nmisng->log->debug2("Notify::critical checking event....");
+	if ( $event->{event} =~ /Interface Down|Interface Up/ && $event->{details} =~ /CRITICAL/ )
 	{
-		print STDERR "Notify::critical Sending critical email to $contact->{Email}\n" if $C->{debug};
+		$nmisng->log->debug("Notify::critical Sending critical email to $contact->{Email}");
 
 		my ($status, $code, $errmsg) = NMISNG::Notify::sendEmail(
-			# params for connection and sending 
+			# params for connection and sending
 			sender => $C->{mail_from},
 			recipients => [$contact->{Email}],
-			
+
 			mailserver => $C->{mail_server},
 			serverport => $C->{mail_server_port},
 			hello => $C->{mail_domain},
 			usetls => $C->{mail_use_tls},
-			
+
 			username => $C->{mail_user},
 			password => $C->{mail_password},
-			
+
 			# and params for making the message on the go
 			to => $contact->{Email},
 			from => $C->{mail_from},
@@ -77,58 +78,16 @@ sub sendNotification {
 			body => $message,
 			priority => $priority,
 				);
-		
+
 		if (!$status)
 		{
-			print STDERR "Notify::critical Sending Sending email to $contact->{Email} failed: $code $errmsg\n" 
-					if $C->{debug};
+			$nmisng->log->error("Notify::critical Sending Sending email to $contact->{Email} failed: $code $errmsg");
 		}
 		else
 		{
-			print STDERR "Notify::critical Notification to $contact->{Email} sent successfully\n" if $C->{debug};
+			$nmisng->log->debug("Notify::critical Notification to $contact->{Email} sent successfully");
 		}
 	}
 }
-
-
-# Sample Contact
-	#$contact = {
-	#  'Contact' => 'keiths',
-	#  'DutyTime' => '06:24:MonTueWedThuFri',
-	#  'Email' => 'keiths@opmantek.com',
-	#  'Location' => 'default',
-	#  'Mobile' => '0433355840',
-	#  'Pager' => '',
-	#  'Phone' => '',
-	#  'TimeZone' => 0
-	#};
-	
-	# Sample Event
-	#$event = {
-	#  'ack' => 'false',
-	#  'businessPriority' => undef,
-	#  'businessService' => undef,
-	#  'cmdbType' => undef,
-	#  'current' => 'true',
-	#  'customer' => 'PACK',
-	#  'details' => 'SNMP error',
-	#  'element' => '',
-	#  'email' => 'keiths@opmantek.com',
-	#  'escalate' => 0,
-	#  'event' => 'SNMP Down',
-	#  'geocode' => 'St Louis Misouri',
-	#  'level' => 'Warning',
-	#  'location' => 'Cloud',
-	#  'mobile' => '0433355840',
-	#  'nmis_server' => 'nmisdev64',
-	#  'node' => 'branch1',
-	#  'notify' => 'syslog:server,json:server,mylog:keiths,mylog:keith2',
-	#  'serviceStatus' => 'Dev-Test',
-	#  'startdate' => 1366603124,
-	#  'statusPriority' => '3',
-	#  'supportGroup' => undef,
-	#  'time' => 1366603126,
-	#  'uuid' => '59A29034-8D41-11E2-A990-F38D7588D2EB'
-	#};
 
 1;

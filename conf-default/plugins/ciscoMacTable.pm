@@ -32,7 +32,7 @@
 # fixme9: half of this plugin duplicates the vtpVlan plugin!
 
 package ciscoMacTable;
-our $VERSION = "2.0.2";
+our $VERSION = "2.0.3";
 
 use strict;
 
@@ -141,7 +141,7 @@ sub update_plugin
 			# nmisng::snmp doesn't fall back to global config
 			my $max_repetitions = $nodeconfig{max_repetitions} || $C->{snmp_max_repetitions};
 
-			my $snmp = NMISNG::Snmp->new(name => $node);
+			my $snmp = NMISNG::Snmp->new(name => $node, nmisng => $NG);
 			# configuration now contains  all snmp needs to know
 			if (!$snmp->open(config => \%nodeconfig))
 			{

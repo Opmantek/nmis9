@@ -37,6 +37,7 @@ use strict;
 use UUID::Tiny (qw(:std));
 use DateTime;
 use List::Util 1.33;
+use Carp;
 
 use NMISNG::Util;
 
@@ -649,11 +650,8 @@ sub outageCheck
 	my $node = $args{node};
 	my $time = $args{time};
 
-	if (ref($node) ne "NMISNG::Node")
-	{
-		NMISNG::Util::logMsg("ERROR invalid node argument!");
-		return;
-	}
+	confess("outageCheck impossible: invalid node argument!")
+			if (ref($node) ne "NMISNG::Node");
 	my $nmisng = $node->nmisng;
 	my $nodename = $node->name;
 

@@ -50,7 +50,7 @@ my $Q = $q->Vars; # values in hash
 
 my $nmisng = Compat::NMIS::new_nmisng;
 my $C = $nmisng->config;
-NMISNG::rrdfunc::require_RRDs(config=>$C);
+&NMISNG::rrdfunc::require_RRDs;
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
@@ -320,9 +320,6 @@ sub typeGraph
 					$auth = 0;
 				}
 			}
-			else {
-				NMISNG::Util::logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.")
-			}
 		}
 
 		# to be included node must be ok to see, active and belonging to a configured group
@@ -574,7 +571,6 @@ sub typeGraph
 																						end => $end,
 																						width => $width,
 																						height => $height );
-		# NMISNG::Util::logMsg("asked for $graphtype, start $start end $end, got $graphLink");
 
 		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ )
 		{

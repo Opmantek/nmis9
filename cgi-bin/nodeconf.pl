@@ -34,6 +34,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use Compat::NMIS;
 use NMISNG::Util;
+use NMISNG::Auth;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -42,12 +43,10 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
 
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-#======================================================================
-
+my $nmisng = Compat::NMIS::new_nmisng;
+my $C = $nmisng->config;
 
 my $widget = NMISNG::Util::getbool($Q->{widget},"invert") ? 'false' : 'true';
 $Q->{expand} = "true" if ($widget eq "true");
@@ -68,8 +67,6 @@ my $formid = 'nodeconf';
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
-# NMIS Authentication module
-use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type => 'text/html', expires => 'now'};
@@ -185,7 +182,7 @@ sub displayNodeConf
 
 	print start_table({width=>'100%'}) ; # first table level
 
-	my $S = NMISNG::Sys->new;
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);
 
 	if (!($S->init(name=>$node,snmp=>'false'))) {
 		print Tr,td({class=>'error',colspan=>'3'},"Error on getting info of node $node");
@@ -507,14 +504,12 @@ sub updateNodeConf {
 	{
 		$nodeobj->overrides($override);
 		my ($success, $errmsg) = $nodeobj->save;
-		NMISNG::Util::logMsg("ERROR $errmsg") if ($success < 0);
+		$nmisng->log->error("nodeconf: $errmsg") if ($success < 0);
 	}
 
 	# signal from button - schedule update job with high priority
 	if ( NMISNG::Util::getbool($Q->{update}) )
 	{
-		my $nmisng = $S->nmisng;
-
 		my ($error,$jobid) = $nmisng->update_queue(
 			jobdata => {
 				type => "update",

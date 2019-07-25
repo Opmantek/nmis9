@@ -28,7 +28,7 @@
 # *****************************************************************************
 
 # Package giving access to functions in Compact but saving the status
-# Allows reuse DB connection and nmisng 
+# Allows reuse DB connection and nmisng
 # Not the same purpose as nmisng
 package NMISNG::NetworkStatus;
 our $VERSION = "9.0.5";
@@ -50,15 +50,19 @@ sub new
 
 	#die "Log required" if ( !$args{log} );
     #die "Nmisng object required" if ( $args{nmisng} ne "NMISNG" );
-    
+
 	my $self = bless(
 		{
 			_log     => $args{log},
 			_nmisng  => $args{nmisng},           # sub plugins populates that on the go
 		},
 		$class
-	);
-  
+			);
+
+	# weaken the reference to nmisx to avoid circular reference problems
+	# not sure if the check for isweak is required
+	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
+
 	return $self;
 }
 
@@ -183,9 +187,9 @@ sub overallNodeStatus
 # Get nodes table
 # Saving this value is used like a cached value
 sub get_nt {
-    
+
     my ( $self, %args ) = @_;
-    
+
     unless (defined($self->{_nt})) {
 		$self->{_nt} = $self->get_load_node_table();
 	}
@@ -196,9 +200,9 @@ sub get_nt {
 # Only locals - Not pollers nodes
 # Saving this value is used like a cached value
 sub get_local_nt {
-    
+
     my ( $self, %args ) = @_;
-    
+
     unless (defined($self->{_local_nt})) {
 		$self->{_local_nt} = $self->get_load_node_table(local => "true");
 	}
@@ -208,9 +212,9 @@ sub get_local_nt {
 # Get nodes summary
 # Saving this value is used like a cached value
 sub get_ns {
-    
+
     my ( $self, %args ) = @_;
-    
+
     unless (defined($self->{_ns})) {
 		$self->{_ns} = $self->get_load_node_summary();
 	}
@@ -221,9 +225,9 @@ sub get_ns {
 # Only locals, so filter by cluster_id
 # Saving this value is used like a cached value
 sub get_local_ns {
-    
+
     my ( $self, %args ) = @_;
-    
+
     unless (defined($self->{_local_ns})) {
 		$self->{_local_ns} = $self->get_load_node_summary(local => "true");
 	}
@@ -234,13 +238,13 @@ sub get_local_ns {
 # get all the nodes using nmisng method
 # This call can be cached, avoid doing twice
 sub get_nodes_model {
-    
+
     my ( $self, %args ) = @_;
-	
+
     unless (defined($self->{_nodes_model})) {
 		# This call it is not really overloading, but it is adding time if it is called many times
 		$self->{_nodes_model} = $self->{_nmisng}->get_nodes_model();
-		
+
 	}
 	return $self->{_nodes_model};
 }
@@ -250,14 +254,14 @@ sub get_nodes_model {
 # get all the nodes using nmisng method
 # This call can be cached, avoid doing twice
 sub get_local_nodes_model {
-    
+
     my ( $self, %args ) = @_;
-	
+
     unless (defined($self->{_local_nodes_model})) {
 		# This call it is not really overloading, but it is adding time if it is called many times
 		$self->{_local_nodes_model} = $self->{_nmisng}->get_nodes_model(
 									filter => { cluster_id => $self->{_nmisng}->config->{cluster_id} } );
-		
+
 	}
 	return $self->{_local_nodes_model};
 }
@@ -270,7 +274,7 @@ sub get_load_node_table
 {
 	my ( $self, %args ) = @_;
 	my $modelData;
-	
+
 	# With local, get only nodes from the master
 	if ($args{local}) {
 		$modelData = $self->get_local_nodes_model();
@@ -317,7 +321,7 @@ sub get_load_node_summary
 
 	my $t      = Compat::Timing->new();
 	my $lotsanodes;
-	
+
 	# With local, only get local nodes (from the master) Filter by cluster_id
 	if ($args{local}) {
 		$lotsanodes = $self->get_local_nodes_model()->objects;
@@ -325,7 +329,7 @@ sub get_load_node_summary
 		# ask the database for all noes, my cluster id and all others
 		$lotsanodes = $self->get_nodes_model()->objects;
 	}
-	
+
 	if (my $err = $lotsanodes->{error})
 	{
 		$self->log->error("failed to retrieve nodes: $err");
@@ -338,7 +342,7 @@ sub get_load_node_summary
 	for my $onenode (@{$lotsanodes->{objects}})
 	{
 		# detour via sys for possibly cached catchall inventory
-		my $S = NMISNG::Sys->new;
+		my $S = NMISNG::Sys->new(nmisng => $self->{_nmisng});
 		$S->init(node => $onenode, snmp => 'false', wmi => 'false');
 		my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 		$summary{$onenode->name} = $catchall_data;

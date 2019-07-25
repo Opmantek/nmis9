@@ -45,6 +45,7 @@ use Digest::MD5;										# for htmlGraph, nothing stronger is needed
 
 use Fcntl qw(:DEFAULT :flock);  # Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Data::Dumper;
+use List::Util '1.33';
 
 use Compat::IP;
 use NMISNG::CSV;
@@ -93,9 +94,7 @@ sub new_nmisng
 			warn "failed to set $logfile permissions: $error\n" if ($error); # fixme bad output channel
 
 			$logger = NMISNG::Log->new(
-				level => ( NMISNG::Log::parse_debug_level( debug => $args{debug},
-																									 info => undef # fixme9, deprecated
-									 ) // $C->{log_level} ),
+				level => ( NMISNG::Log::parse_debug_level( debug => $args{debug}) // $C->{log_level} ),
 				path  =>  ($args{debug}? undef : $logfile ),
 					);
 		}
@@ -245,7 +244,7 @@ sub findCfgEntry
 # args: table name (e.g. Nodes), defaults to "Config",
 # user (optional, if given will be set in %ENV for any dynamic tables that need it)
 #
-# returns: (array or hash)ref or undef on error
+# returns: (array or hash)ref or error message
 sub loadCfgTable
 {
 	my %args = @_;
@@ -259,18 +258,15 @@ sub loadCfgTable
 	{
 		$ENV{"NMIS_USER"} = $usercontext;
 	}
-
 	my $goodies = loadGenericTable("Table-$tablename");
 	$ENV{"NMIS_USER"} = $oldcontext; # let's not leave a mess behind.
 
 	if (ref($goodies) ne "HASH" or !keys %$goodies)
 	{
-		NMISNG::Util::logMsg("ERROR, failed to load Table-$tablename");
-		return undef;
+		return "loadCfgTable failed to load Table-$tablename";
 	}
 	return $goodies->{$tablename};
 }
-
 
 # fixme9: cannot work that way anymore
 sub loadServersTable
@@ -337,17 +333,24 @@ sub loadLocalNodeSummary
 	return \%summary;
 }
 
-sub logConfigEvent {
+# returns undef or error message
+sub logConfigEvent
+{
 	my %args = @_;
 	my $dir = $args{dir};
 	delete $args{dir};
+	my $nmisng = $args{nmisng};
+	delete $args{nmisng};
 
-	NMISNG::Util::dbg("logConfigEvent logging Json event for event $args{event}");
+	$nmisng->log->debug2("logConfigEvent logging Json event for event $args{event}");
 	my $event_hash = \%args;
 	$event_hash->{startdate} = time;
-	logJsonEvent(event => $event_hash, dir => $dir);
+	my $error = NMISNG::Notify::logJsonEvent(event => $event_hash, dir => $dir);
+
+	return $error;								# or undef
 }
 
+# returns hashref or error message
 sub getSummaryStats
 {
 	my %args = @_;
@@ -359,10 +362,9 @@ sub getSummaryStats
 
 	my $S = $args{sys};
 	my $M  = $S->mdl;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = NMISNG::Util::loadConfTable();
-	NMISNG::rrdfunc::require_RRDs(config=>$C);
+	&NMISNG::rrdfunc::require_RRDs;
 
 	my $db;
 	my $ERROR;
@@ -370,7 +372,7 @@ sub getSummaryStats
 	my @option;
 	my %summaryStats;
 
-	NMISNG::Util::dbg("Start type=$type, index=$index, start=$start, end=$end");
+	$S->nmisng->log->debug2(&NMISNG::Log::trace()."Start type=$type, index=$index, start=$start, end=$end");
 
 	# check if type exist in nodeInfo
 	# fixme this cannot work - must CHECK existence, not make path blindly
@@ -378,14 +380,15 @@ sub getSummaryStats
 	{
 		# fixme: should this be logged as error? likely not, as common-bla models set
 		# up all kinds of things that don't work everywhere...
-		#NMISNG::Util::logMsg("ERROR ($S->{name}) no rrd name found for type $type, index $index, item $item");
-		return;
+		#$S->nmisng->log->warn("($S->{name}) no rrd name found for type $type, index $index, item $item");
+		return {};
 	}
 
 	# check if rrd option rules exist in Model for stats
-	if ($M->{stats}{type}{$type} eq "") {
-		NMISNG::Util::logMsg("ERROR ($S->{name}) type=$type not found in section stats of model=$catchall_data->{nodeModel}");
-		return;
+	if ($M->{stats}{type}{$type} eq "")
+	{
+		$S->nmisng->log->warn("($S->{name}) type=$type not found in section stats of model=$M->{system}->{nodeModel}");
+		return {};
 	}
 
 	# check if rrd file exists - note that this is NOT an error if the db belongs to
@@ -397,18 +400,17 @@ sub getSummaryStats
 		# to figure out if the right source is enabled
 		my %status = $S->nmisng_node->precise_status;
 		# fixme unclear how to find the model's rrd section for this thing?
-		my $severity = "INFO";
-		NMISNG::Util::logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
-												 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
-												 .($status{wmi_enabled}?"enabled":"disabled") );
-		return;
+		$S->nmisng->log->warn("($S->{name}) database=$db does not exist, snmp is "
+													.($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+													.($status{wmi_enabled}?"enabled":"disabled") );
+		return {};
 	}
 
 	push @option, ("--start", "$start", "--end", "$end") ;
 
 	if( $index )
 	{
-		no strict;
+		no strict;									# this is extremely bad stuff.
 		$database = $db; # global
 		#inventory keyed by index and ifDescr so we need partial
 		my $intf_inventory = $S->inventory( concept => "interface", index => $index, partial => 1, nolog => 1);
@@ -426,46 +428,44 @@ sub getSummaryStats
 		foreach my $str (@{$M->{stats}{type}{$type}}) {
 			my $s = $str;
 			$s =~ s{\$(\w+)}{if(defined${$1}){postcolonial(${$1});}else{"ERROR, no variable \$$1 ";}}egx;
-			if ($s =~ /ERROR/) {
-				NMISNG::Util::logMsg("ERROR ($S->{name}) model=$catchall_data->{nodeModel} type=$type ($str) in expanding variables, $s");
-				return; # error
+			if ($s =~ /ERROR/)
+			{
+				return ("($S->{name}) failed to expand '$str' model=$M->{system}->{nodeModel} type=$type: $s");
 			}
 			push @option, $s;
 		}
 	}
-	if (NMISNG::Util::getbool($C->{debug})) {
-		foreach (@option) {
-			NMISNG::Util::dbg("option=$_",2);
-		}
-	}
+
+	$S->nmisng->log->debug3("RRD Options: ".join(" ",@option));
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-	if (($ERROR = RRDs::error())) {
-		NMISNG::Util::logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
-	} else {
-		##NMISNG::Util::logMsg("INFO result type=$type, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
-		if ( scalar(@$graphret) ) {
-			# fixme9: this should NOT return nan, but undef - upstreams should check for undef, not string NaN;
-			# fixme9: must also numify the values
-			# fixme9:  see getsubconceptstats for implementation
-			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
-			foreach my $line ( @$graphret ) {
-				my ($name,$value) = split "=", $line;
-				if ($index ne "") {
-					$summaryStats{$index}{$name} = $value; # use $index as primairy key
-				} else {
-					$summaryStats{$name} = $value;
-				}
-				NMISNG::Util::dbg("name=$name, index=$index, value=$value",2);
-				##NMISNG::Util::logMsg("INFO name=$name, index=$index, value=$value");
-			}
-			return \%summaryStats;
-		} else {
-			NMISNG::Util::logMsg("INFO ($S->{name}) no info return from RRD for type=$type index=$index item=$item");
-		}
+	if (($ERROR = RRDs::error()))
+	{
+		return ("getSummaryStats failed: ($S->{name}) RRD graph error database=$db: $ERROR");
 	}
-	return;
+
+	if (!scalar(@$graphret) )
+	{
+		$S->nmisng->log->warn("($S->{name}) no info return from RRD for type=$type index=$index item=$item");
+		return {};
+	}
+
+	# fixme9: this should NOT return nan, but undef - upstreams should check for undef, not string NaN;
+	# fixme9: must also numify the values
+	# fixme9:  see getsubconceptstats for implementation
+	map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
+	foreach my $line ( @$graphret ) {
+		my ($name,$value) = split "=", $line;
+		if ($index ne "") {
+			$summaryStats{$index}{$name} = $value; # use $index as primairy key
+		} else {
+			$summaryStats{$name} = $value;
+		}
+		$S->nmisng->log->debug2("getsummarystats name=$name, index=$index, value=$value");
+	}
+	return \%summaryStats;
 }
+
 
 # whatever it is that goes into rrdgraph arguments, colons are Not Good
 sub postcolonial
@@ -477,7 +477,6 @@ sub postcolonial
 }
 
 # compute stats via rrd for a given subconcept,
-# returns: hashref with numeric values - or undef if infty or nan
 # args: inventory,subconcept,start,end,sys, all required
 #   subconcept is used to find the storage (db) and also the section in the stats
 #   file.
@@ -485,6 +484,7 @@ sub postcolonial
 #   instead of subconcept. this is required for concepts like cbqos where the subconcept
 #   name is variable and based on class names which come from the device
 #
+# returns: hashref with numeric values (may be undef if infty or nan), or error message
 # note: this does NOT return the string NaN, because json::xs utterly misencodes that
 sub getSubconceptStats
 {
@@ -498,10 +498,9 @@ sub getSubconceptStats
 
 	my $S = $args{sys};
 	my $M  = $S->mdl;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = NMISNG::Util::loadConfTable();
-	NMISNG::rrdfunc::require_RRDs(config=>$C);
+	&NMISNG::rrdfunc::require_RRDs;
 
 	my $db = $inventory->find_subconcept_type_storage( subconcept => $subconcept, type => 'rrd' );
 	my $data = $inventory->data;
@@ -512,22 +511,23 @@ sub getSubconceptStats
 	my @option;
 	my %summaryStats; # return value
 
-	NMISNG::Util::dbg("Start subconcept=$subconcept, index=$index, start=$start, end=$end");
+	$S->nmisng->log->debug2(&NMISNG::Log::trace()."Start subconcept=$subconcept, index=$index, start=$start, end=$end");
 
 	# check if storage exists
 	if (!$db)
 	{
 		# fixme: should this be logged as error? likely not, as common-bla models set
 		# up all kinds of things that don't work everywhere...
-		NMISNG::Util::logMsg("ERROR ($S->{name}) no rrd name found for subconcept $subconcept, index $index");
-		return;
+		$S->nmisng->log->warn("($S->{name}) no rrd name found for subconcept $subconcept, index $index");
+		return {};
 	}
 	$db = $C->{database_root}.$db;
 
 	# check if rrd option rules exist in Model for stats
-	if ($M->{stats}{type}{$stats_section} eq "") {
-		NMISNG::Util::dbg("($S->{name}) subconcept=$subconcept not found in section stats of model=$catchall_data->{nodeModel}, this may be expected");
-		return;
+	if ($M->{stats}{type}{$stats_section} eq "")
+	{
+		$S->nmisng->log->debug("($S->{name}) subconcept=$subconcept not found in section stats of model=$M->{system}->{nodeModel}, this may be expected");
+		return {};
 	}
 
 	# check if rrd file exists - note that this is NOT an error if the db belongs to
@@ -540,16 +540,15 @@ sub getSubconceptStats
 		my %status = $S->nmisng_node->precise_status;
 		# fixme unclear how to find the model's rrd section for this thing?
 
-		my $severity = "INFO";
-		NMISNG::Util::logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
+		$S->nmisng->log->warn("($S->{name}) database=$db does not exist, snmp is "
 												 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
 												 .($status{wmi_enabled}?"enabled":"disabled") );
-		return;
+		return {};
 	}
 
 	push @option, ("--start", "$start", "--end", "$end") ;
 
-	# NOTE: is there any reason we don't use parse string or some other generic function here?
+	# fixme9: is there any reason we don't use parse string or some other generic function here?
 	{
 		no strict;
 		$database = $db; # global
@@ -568,56 +567,163 @@ sub getSubconceptStats
 		foreach my $str (@{$M->{stats}{type}{$stats_section}}) {
 			my $s = $str;
 			$s =~ s{\$(\w+)}{if(defined${$1}){postcolonial(${$1});}else{"ERROR, no variable \$$1 ";}}egx;
-			if ($s =~ /ERROR/) {
-				NMISNG::Util::logMsg("ERROR ($S->{name}) model=$catchall_data->{nodeModel} subconcept=$subconcept ($str) in expanding variables, $s");
-				return; # error
+			if ($s =~ /ERROR/)
+			{
+				return ("($S->{name}) getSubconceptStats failed to expand '$str' in model=$M->{system}->{nodeModel} subconcept=$subconcept: $s");
 			}
 			push @option, $s;
 		}
 	}
 
-	if (NMISNG::Util::getbool($C->{debug})) {
-		foreach (@option) {
-			NMISNG::Util::dbg("option=$_",2);
+	# now try to work around OMK-6232, common-stats being NOT common
+	# but instead containing lots of unavailable things for most platforms
+	my $wehavethese = $inventory->dataset_info(subconcept => $subconcept);
+	my (@needs, @finalopts, %have);
+	for my $i (0..$#option)
+	{
+		my $rrdarg = $option[$i];
+		# DEF:avgBusy1=$database:avgBusy1:AVERAGE
+		if ($rrdarg =~ /^DEF:([^=]+)=[^:]+:([a-zA-Z0-9_-]+):/)
+		{
+			my ($varname, $dsname) = ($1, $2);
+			$needs[$i]->{ds} = $dsname;
+			$needs[$i]->{defines} = $varname;
+		}
+		# CDEF:perPUsedMem=MemPUsed,totalPMem,/,100,*
+		elsif ($rrdarg =~ /^CDEF:([^=]+)=(.+)$/)
+		{
+			my ($varname,$expressions) = ($1,$2);
+			for my $rpnexp (split(/,/,$expressions))
+			{
+				next if ($rpnexp !~ /^[a-zA-Z_-][a-zA-Z0-9_-]*$/); # not variables and not pure numbers
+				$needs[$i]->{var}->{$rpnexp} = 1;
+				$needs[$i]->{defines} = $varname;
+			}
+		}
+		# PRINT:hrDiskUsed:AVERAGE:hrDiskUsed
+		elsif ($rrdarg =~ /^PRINT:([^:]+):/)
+		{
+			$needs[$i]->{var}->{$1} = 1;
 		}
 	}
-
-	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-	if (($ERROR = RRDs::error()))
+	# find unsatisfiable DEFs from the list
+	my %nocando;
+	for my $i (0..$#needs)
 	{
-		NMISNG::Util::logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
+		my $needs_ds = $needs[$i];
+
+		next if (!$needs_ds);
+		if ($needs_ds->{ds} && !$wehavethese->{$needs_ds->{ds}})
+		{
+			$nocando{ $needs_ds->{defines}} = 1;
+			$needs[$i]->{skip} = 1;
+			$S->nmisng->log->debug2("skipping variable definition $needs_ds->{defines}: requires DS $needs_ds->{ds} but we
+only have DS ".join(" ",keys(%$wehavethese)));
+
+			# and find all variable definitions that involve this one; they're just as unsatisfiable
+			for my $other (0..$#needs)
+			{
+				my $needs_var = $needs[$other];
+				next if (!$needs_var or !$needs_var->{var} or $needs_var->{skip});
+				if ($needs_var->{var}->{ $needs_ds->{defines} })
+				{
+					if ($needs_var->{defines})
+					{
+						$nocando{$needs_var->{defines}} = 1;
+						$needs[$other]->{skip} = 1;
+						$S->nmisng->log->debug2("skipping variable definition $needs_var->{defines}: requires variable $needs_ds->{defines} which is unsatisfiable");
+					}
+					else
+					{
+						$needs[$other]->{skip} = 1;
+						$S->nmisng->log->debug2("skipping print of unsatisfiable variable $needs_ds->{defines}");
+					}
+				}
+			}
+		}
+	}
+	if (%nocando)
+	{
+		# now remove the CDEFs that depend on unsatisfiable CDEFs
+		# note: this is NOT perfect, it only covers on level of indirectionl; repeated looping would be required to
+		# fully catch any depth CDEF interdependencies
+		for my $i (0..$#needs)
+		{
+			my $needs_var = $needs[$i];
+
+			next if (!$needs_var || $needs_var->{skip});
+			if ($needs_var->{var} && List::Util::any { $nocando{$_} } (keys %{$needs_var->{var}}))
+			{
+				$nocando{ $needs_var->{defines} } = 1;
+				$needs[$i]->{skip} = 1;
+				$S->nmisng->log->debug2("variable definition $needs_var->{defines} is unsatisfiable: requires variables ".join(" ", keys %{$needs_var->{var}}).", some of which are unsatisfiable.");
+			}
+		}
+	}
+	if (%nocando)
+	{
+		for my $line (0..$#option)
+		{
+			if (!$needs[$line] 		# references no vars or ds
+					or !$needs[$line]->{skip}) # or only ones that we know to have
+			{
+				push @finalopts, $option[$line];
+			}
+			# directly or indirectly depends on DS that we DON'T have
+			else
+			{
+				my $whatitneeds = ($needs[$line]->{ds}? "DS $needs[$line]->{ds}"
+													 : $needs[$line]->{var}? ("Variables ".join(" ",keys %{$needs[$line]->{var}}))
+													 : "unclear" );
+				# tag it as warning but log it only if we're at debug 2 or higher
+				$S->nmisng->log->warn("skipping unsatisfiable stats option \"$option[$line]\"")
+						if $S->nmisng->log->is_level(2);
+			}
+		}
 	}
 	else
 	{
-		##NMISNG::Util::logMsg("INFO result subconcept=$subconcept, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
-		if ( scalar(@$graphret) )
+		@finalopts = @option;
+	}
+
+	# no satisfiable rrd accesses left? log and bail out early
+	if (!List::Util::any { $_ =~ /^DEF:/ } (@finalopts))
+	{
+		$S->nmisng->log->warn("No satisfiable stats options for $S->{name}, concept ".$inventory->concept.", subconcept $subconcept!");
+		return {};
+	}
+
+	$S->nmisng->log->debug3("RRD options: ".join(" ",@finalopts));
+
+	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @finalopts);
+	if (($ERROR = RRDs::error()))
+	{
+		return ("($S->{name}) getSubconceptStats: RRD graph error database=$db: $ERROR");
+	}
+
+	if (!scalar(@$graphret) )
+	{
+		$S->nmisng->log->warn("INFO ($S->{name}) no info return from RRD for subconcept=$subconcept index=$index");
+		return {};
+	}
+
+	foreach my $line ( @$graphret )
+	{
+		my ($name,$value) = split "=", $line;
+
+		# set value to undef if this is infty or NaN/nan...
+		if ($value != $value) 	# standard nan test
 		{
-			foreach my $line ( @$graphret )
-			{
-				my ($name,$value) = split "=", $line;
-
-				# set value to undef if this is infty or NaN/nan...
-				if ($value != $value) 	# standard nan test
-				{
-					$value = undef;
-				}
-				else
-				{
-					$value += 0.0;												# force to number
-				}
-
-				$summaryStats{$name} = $value;
-
-				NMISNG::Util::dbg("name=$name, index=$index, value=$value",2);
-			}
-			return \%summaryStats;
+			$value = undef;
 		}
 		else
 		{
-			NMISNG::Util::logMsg("INFO ($S->{name}) no info return from RRD for subconcept=$subconcept index=$index");
+			$value += 0.0;												# force to number
 		}
+
+		$summaryStats{$name} = $value;
 	}
-	return;
+	return \%summaryStats;
 }
 
 
@@ -642,9 +748,9 @@ sub getGroupSummary {
 	my $cache = 0;
 	my $filename;
 
-	NMISNG::Util::dbg("Starting");
 	my %summaryHash = ();
 	my $nmisng = new_nmisng();
+	$nmisng->log->debug2(&NMISNG::Log::trace()."Starting");
 
 	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
 	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
@@ -797,7 +903,7 @@ sub getGroupSummary {
 		}
 	}
 
-	NMISNG::Util::dbg("Finished");
+	$nmisng->log->debug2(&NMISNG::Log::trace()."Finished");
 	return \%summaryHash;
 } # end getGroupSummary
 
@@ -1214,7 +1320,8 @@ sub eventToSMTPPri {
 # test the dutytime of the given contact.
 # return true if OK to notify
 # expect a reference to %contact_table, and a contact name to lookup
-sub dutyTime {
+sub dutyTime
+{
 	my ($table , $contact) = @_;
 	my $today;
 	my $days;
@@ -1224,19 +1331,15 @@ sub dutyTime {
 	if ( $$table{$contact}{DutyTime} ) {
 		# dutytime has some values, so assume TZ offset to localtime has as well
 		my @ltime = localtime( time() + ($$table{$contact}{TimeZone}*60*60));
-		my $out = sprintf("Using corrected time %s for Contact:$contact, localtime:%s, offset:$$table{$contact}{TimeZone}", scalar localtime(time()+($$table{$contact}{TimeZone}*60*60)), scalar localtime());
-		NMISNG::Util::dbg($out);
 
 		( $start_time, $finish_time, $days) = split /:/, $$table{$contact}{DutyTime}, 3;
 		$today = ("Sun","Mon","Tue","Wed","Thu","Fri","Sat")[$ltime[6]];
 		if ( $days =~ /$today/i ) {
 			if ( $ltime[2] >= $start_time && $ltime[2] < $finish_time ) {
-				NMISNG::Util::dbg("returning success on dutytime test for $contact");
 				return 1;
 			}
 			elsif ( $finish_time < $start_time ) {
 				if ( $ltime[2] >= $start_time || $ltime[2] < $finish_time ) {
-					NMISNG::Util::dbg("returning success on dutytime test for $contact");
 					return 1;
 				}
 			}
@@ -1244,10 +1347,8 @@ sub dutyTime {
 	}
 	# dutytime blank or undefined so treat as 24x7 days a week..
 	else {
-		NMISNG::Util::dbg("No dutytime defined - returning success assuming $contact is 24x7");
 		return 1;
 	}
-	NMISNG::Util::dbg("returning fail on dutytime test for $contact");
 	return 0;		# dutytime was valid, but no timezone match, return false.
 }
 
@@ -1331,8 +1432,9 @@ sub htmlGraph
 		if ($deltastart <= $cachefilemaxage && $deltaend <= $cachefilemaxage)
 		{
 			$graphfilename = $maybe;
-			NMISNG::Util::dbg("reusing cached graph $maybe for $graphtype, node $node: requested period off by "
-												.($start-$otherstart)." seconds");
+			$sys->nmisng->log->debug2("reusing cached graph $maybe for $graphtype, node $node: requested period off by "
+																.($start-$otherstart)." seconds")
+					if ($sys);
 
 			last;
 		}
@@ -1342,7 +1444,8 @@ sub htmlGraph
 	if (!$graphfilename)
 	{
 		$graphfilename = $graphfile_prefix."_${start}_${end}.png";
-		NMISNG::Util::dbg("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, cluster_id=$parent, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename");
+		$sys->nmisng->log->debug2("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, cluster_id=$parent, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename")
+				if ($sys);
 
 		my $target = "$cachedir/$graphfilename";
 		my $result = NMISNG::rrdfunc::draw(sys => $sys,
@@ -2087,8 +2190,8 @@ sub notify
 	my $syslog;
 	my $saveupdate = undef;
 
-	my $C = NMISNG::Util::loadConfTable();
-	NMISNG::Util::dbg("Start of Notify");
+	my $C = $S->nmisng->config;
+	$S->nmisng->log->debug2("Start of Notify");
 
 	# events.nmis controls which events are active/logging/notifying
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
@@ -2119,7 +2222,7 @@ sub notify
 		}
 		else # not an proactive/alert event - no changes are supported
 		{
-			NMISNG::Util::dbg("Event node=$nodename event=$event element=$element already exists");
+			$S->nmisng->log->debug2("Event node=$nodename event=$event element=$element already exists");
 		}
 	}
 	else
@@ -2150,9 +2253,10 @@ sub notify
 				and $C->{node_configuration_events} =~ /$event/
 				and NMISNG::Util::getbool($thisevent_control->{Log}))
 		{
-			logConfigEvent(dir => $C->{config_logs}, node=>$nodename, event=>$event, level=>$level,
-										 element=>$element, details=>$details, host => $node->configuration->{host},
-										 nmis_server => $C->{nmis_host} );
+			# fixme9 mut capture and report errors, not ignore them!
+			my $error = logConfigEvent(dir => $C->{config_logs}, node=>$nodename, event=>$event, level=>$level,
+																 element=>$element, details=>$details, host => $node->configuration->{host},
+																 nmis_server => $C->{nmis_host}, nmisng => $S->nmisng );
 		}
 		# want a save, not update
 		$saveupdate = 0;
@@ -2173,7 +2277,7 @@ sub notify
 	$error = $event_obj->save( update => $saveupdate ) if( defined($saveupdate) );
 	if ( $error )
 	{
-		NMISNG::Util::logMsg("ERROR $error");
+		$S->nmisng->log->error("notify failed: $error");
 	}
 
 	# Syslog must be explicitly enabled in the config and
@@ -2183,7 +2287,7 @@ sub notify
 			and NMISNG::Util::getbool($thisevent_control->{Log})
 			and !NMISNG::Util::getbool($C->{syslog_use_escalation}))
 	{
-		NMISNG::Notify::sendSyslog(
+		my $error = NMISNG::Notify::sendSyslog(
 			server_string => $C->{syslog_server},
 			facility => $C->{syslog_facility},
 			nmis_host => $C->{server_name},
@@ -2194,9 +2298,12 @@ sub notify
 			element => $element,
 			details => $details
 				);
+
+		$S->nmisng->log->error("sendSyslog failed: $error") if ($error);
+
 	}
 	return $event_obj;
-	NMISNG::Util::dbg("Finished");
+	$S->nmisng->log->debug2("Notify Finished");
 }
 
 
