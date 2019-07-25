@@ -85,7 +85,7 @@ if ($AU->Require) {
 		$user = $ENV{'REMOTE_USER'} if $ENV{'REMOTE_USER'};
 		$logoutButton = qq|disabled="disabled"|;
 	}
-	exit 0 unless $AU->loginout(conf=>$Q->{conf},type=>$Q->{auth_type},username=>$Q->{auth_username},
+	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 				password=>$Q->{auth_password},headeropts=>$headeropts) ;
 	$privlevel = $AU->{privlevel};
 } else {
@@ -214,7 +214,7 @@ my $urlsafegroup = uri_escape($logGroup);
 ## set a default link href
 # subst node search and level when used.
 my $logLinkStart=qq|<a id="nmislogs" |.
-								 qq|href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&refresh=$logRefresh|.
+								 qq|href="$C->{'<cgi_url_base>'}/logs.pl?act=log_file_view&logname=$logName&refresh=$logRefresh|.
 								 qq|&node=&search=&level=&lines=$logLines&sort=$logSort&widget=$widget&group=$urlsafegroup">|;
 my $logLinkEnd=qq|</a>|;
 
@@ -295,7 +295,7 @@ sub viewLogList {
 			print Tr(
 				td({class=>'info',style=>'text-align:left'},
 								a({
-								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$LL->{$i}{logName}&widget=$widget",
+								-href=>"$C->{'<cgi_url_base>'}/logs.pl?act=log_file_view&logname=$LL->{$i}{logName}&widget=$widget",
 },
 					 			$LL->{$i}{logName}
 								),
@@ -586,7 +586,7 @@ sub outputLine {
 
 			my $id = qq|node_view_$logNode|;
 			my $logNodeButton=qq|<a id="$id" |.
-			qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
+			qq|href="$C->{network}?act=network_node_view|.
 			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 			qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 
@@ -656,7 +656,7 @@ sub outputLine {
 
 			my $id = qq|node_view_$logNode|;
 			my $logNodeButton=qq|<a id="$id" |.
-			qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
+			qq|href="$C->{network}?act=network_node_view|.
 			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 			qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 
@@ -761,7 +761,7 @@ sub outputLine {
 
 			# set up the leading buttons
 			my $logNodeButton=qq|<a id="$id" |.
-												qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
+												qq|href="$C->{network}?act=network_node_view|.
 												qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 												qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 
@@ -925,7 +925,7 @@ sub logMenuBar {
 			 		 (
 						map { my $k = $_;
 							a({
-								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&lines=$k&level=$logLevel&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
+								-href=>"$C->{'<cgi_url_base>'}/logs.pl?act=log_file_view&logname=$logName&lines=$k&level=$logLevel&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
 								},
 					 			$k
 								)
@@ -937,7 +937,7 @@ sub logMenuBar {
 						map { my $k = $_;
 									my $txtColor = logRFCColor($k);
 							a({
-								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&level=$k&lines=$logLines&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
+								-href=>"$C->{'<cgi_url_base>'}/logs.pl?act=log_file_view&logname=$logName&level=$k&lines=$logLines&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
 								-style=>"color:$txtColor;"},
 								$k
 							)
@@ -946,13 +946,13 @@ sub logMenuBar {
 				),
 				th({class=>'header', colspan=>'1', style=>'text-align:left;'},
 				a({
-					-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_summary&widget=$widget&logname=$logName",},
+					-href=>"$C->{'<cgi_url_base>'}/logs.pl?act=log_file_summary&widget=$widget&logname=$logName",},
 					'Summary'),
 				),
 				# for completeness, toss in a link to the log list view.
 				th({class=>'header', colspan=>'2', style=>'text-align:left'},
 				a({
-					-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_list_view&widget=$widget",
+					-href=>"$C->{'<cgi_url_base>'}/logs.pl?act=log_list_view&widget=$widget",
 },
 					'Log List'),
 				),
@@ -1116,11 +1116,11 @@ sub logSummary {
 		next if $index eq "Header"; # kill the header
 ##		next unless $AU->InGroup($NT->{$index}{group});
 		print "<tr>";
-		print qq|<th class="info"><a href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$index">$index</a></th>|;
+		print qq|<th class="info"><a href="$C->{'<cgi_url_base>'}/logs.pl?act=log_file_view&logname=$logName&widget=$widget&search=$index">$index</a></th>|;
 
    	for my $event ( sort keys %{ $logSum{"Header"} } ) {
 			my $urlsafeevent = uri_escape($event);
-			if ( $logSum{$index}{$event} ) { print qq|<th class="info"><a href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$urlsafeevent&lines=$logSum{$index}{$event}">$logSum{$index}{$event}</a></th>|;
+			if ( $logSum{$index}{$event} ) { print qq|<th class="info"><a href="$C->{'<cgi_url_base>'}/logs.pl?act=log_file_view&logname=$logName&widget=$widget&search=$urlsafeevent&lines=$logSum{$index}{$event}">$logSum{$index}{$event}</a></th>|;
 			}
 			else { print "<th class='info'>&nbsp;</th>";}
 		}

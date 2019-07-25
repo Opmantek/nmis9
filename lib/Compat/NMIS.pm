@@ -1480,7 +1480,6 @@ sub createHrButtons
 	my $refresh = $args{refresh};
 	my $widget = $args{widget};
 	my $AU = $args{AU};
-	my $confname = $args{conf};
 
 	return "" if (!$node);
 	$refresh = "false" if (!NMISNG::Util::getbool($refresh));
@@ -1633,10 +1632,7 @@ sub createHrButtons
 
 sub loadPortalCode {
 	my %args = @_;
-	my $conf = $args{conf};
 	my $C =	NMISNG::Util::loadConfTable();
-
-	$conf = $C->{'conf'} if not $conf;
 
 	my $portalCode;
 	if  ( -f NMISNG::Util::getFileName(file => "$C->{'<nmis_conf>'}/Portal") ) {
@@ -1681,10 +1677,7 @@ sub loadPortalCode {
 
 sub loadServerCode {
 	my %args = @_;
-	my $conf = $args{conf};
 	my $C = NMISNG::Util::loadConfTable();
-
-	$conf = $C->{'conf'} if not $conf;
 
 	my $serverCode;
 	if  ( -f NMISNG::Util::getFileName(file => "$C->{'<nmis_conf>'}/Servers") ) {
@@ -1719,10 +1712,7 @@ sub loadServerCode {
 
 sub loadTenantCode {
 	my (%args) = @_;
-	my $conf = $args{conf};
 	my $C = NMISNG::Util::loadConfTable();
-
-	$conf = $C->{'conf'} if not $conf;
 
 	my $tenantCode;
 	if  ( -f NMISNG::Util::getFileName(file => "$C->{'<nmis_conf>'}/Tenants") ) {

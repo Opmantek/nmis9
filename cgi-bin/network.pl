@@ -1732,7 +1732,7 @@ sub clearSelfTest
 	if ($wantwidget)
 	{
 		print header($headeropts),
-			qq|<script type="text/javascript">window.location='$C->{nmis}?conf=$Q->{conf}';</script>|;
+			qq|<script type="text/javascript">window.location='$C->{nmis}?';</script>|;
 	}
 	else
 	{
@@ -1912,7 +1912,7 @@ sub viewNode
 		my $remote = @$remotes[0];
 
 		# Get node from remote collection
-		my $url = $remote->{url_base}."/".$remote->{nmis_cgi_url_base}."/network.pl?conf=$remote->{nmis_config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node="
+		my $url = $remote->{url_base}."/".$remote->{nmis_cgi_url_base}."/network.pl?act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node="
 			. uri_escape($node);
 		my $nodelink = a( {target => "NodeDetails-$node", onclick => "viewwndw(\'$node\',\'$url\',$wd,$ht)"},
 			$node );
@@ -4372,7 +4372,7 @@ sub viewOverviewIntf
 	# start of form
 	print start_form(
 		-id   => "ntw_int_overview",
-		-href => url( -absolute => 1 ) . "?conf=$C->{conf}&act=network_interface_overview"
+		-href => url( -absolute => 1 ) . "?act=network_interface_overview"
 	);
 
 	if ( $ii_cnt > 1000 )
@@ -4826,7 +4826,7 @@ sub nodeAdminSummary
 		my $extra = " for $group" if $group ne "";
 		my $cols = @headers;
 		my $nmisLink
-			= a( {class => "wht", href => $C->{'nmis'} . "?conf=" . $Q->{conf}}, "NMIS $Compat::NMIS::VERSION" ) . "&nbsp;"
+			= a( {class => "wht", href => $C->{'nmis'} . "?"}, "NMIS $Compat::NMIS::VERSION" ) . "&nbsp;"
 			if ( !NMISNG::Util::getbool($widget) );
 
 		my $urlsafegroup = uri_escape($group);

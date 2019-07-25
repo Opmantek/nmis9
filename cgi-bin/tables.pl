@@ -48,7 +48,7 @@ use NMISNG::Auth;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
 # if arguments present, then called from command line

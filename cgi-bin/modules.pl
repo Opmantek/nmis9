@@ -48,7 +48,7 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 
 # this cgi script defaults to widget mode ON
 my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false" : "true";
@@ -62,10 +62,10 @@ sub moduleMenu {
 	my $title = "NMIS Modules by Opmantek";
 	my $header = $title;
 
-	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?conf=$Q->{conf}\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
+	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
 	my $header2 = "$header <a href=\"$ENV{SCRIPT_NAME}\"><img src=\"$C->{'nmis_home'}\"/></a>";
 	
-	my $portalCode = Compat::NMIS::loadPortalCode(conf=>$Q->{conf});
+	my $portalCode = Compat::NMIS::loadPortalCode();
 
 	print header({-type=>"text/html",-expires=>'now'});
 	

@@ -47,7 +47,7 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
@@ -135,7 +135,7 @@ sub viewEvent
 		my $state = !$thisevent->{ack} ? 'active' : 'inactive';
 		print Tr( eval { my $line;
 										 $line .= td({class=>'info Plain'},
-																 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node));
+																 a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($node)},$node));
 										 my $outage = NMISNG::Util::convertSecsHours(time() - $thisevent->{startdate});
 										 $line .= td({class=>'info Plain'},$outage);
 										 $line .= td({class=>'info Plain'}, NMISNG::Util::returnDateStamp($thisevent->{startdate}));
@@ -319,7 +319,7 @@ sub displayEvents
 			td({class=>"info $thisevent->{level}"},
 				eval {
 					return $AU->CheckAccess("src_events","check")
-						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$thisevent->{node_name}&sort=descending&widget=$widget"},$thisevent->{node_name})
+						? a({href=>"logs.pl?&act=log_file_view&logname=Event_Log&search=$thisevent->{node_name}&sort=descending&widget=$widget"},$thisevent->{node_name})
 							: "$thisevent->{node_name}";
 					}),
 			td({class=>"info $thisevent->{level}"},$outage),
@@ -354,7 +354,7 @@ sub active {
 	my $tempnodeack = shift;
 	my $eventnoackcount = shift;
 	print Tr(td({class=>'header'},
-							a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
+							a({href=>"network.pl?act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
 					 td({class=>'info Plain',colspan=>'9'},
 							img({src=>"$C->{'<menu_url_base>'}/img/sumup.gif",id=>"false${tempnode}img",border=>'0'}),
 							"&nbsp;$eventnoackcount->{$tempnode} Event(s)",
@@ -370,7 +370,7 @@ sub inactive {
 	my $tempnodeack = shift;
 	my $eventackcount = shift;
 	print Tr(td({class=>'header'},
-							a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
+							a({href=>"network.pl?act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
 					 td({class=>'info Plain',colspan=>'9'},
 							img({src=>"$C->{'<menu_url_base>'}/img/sumdown.gif",id=>"true${tempnode}img",border=>'0'}),
 							"&nbsp;$eventackcount->{$tempnode} Event(s)",

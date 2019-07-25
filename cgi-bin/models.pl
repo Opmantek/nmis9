@@ -45,7 +45,7 @@ my $Q = $q->Vars;
 
 my $wantwidget = (!NMISNG::Util::getbool($Q->{widget},"invert")); # default is thus 1=widgetted.
 $Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and inputs
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 
 if (!$C)
 {
@@ -405,7 +405,7 @@ sub afunc
 	# note that this heuristic isn't perfect; spots that don't offer add should be explicitely listed in %MT
 	$allowedhere = "add,delete" if (exists $args{ref} && ref($ref) && $allowedhere =~ /edit/);
 
-	my $baseurl = url(-absolute=>1) . "?conf=$Q->{conf}&model=$Q->{model}&section=$Q->{section}&hash=$hash&widget=$Q->{widget}";
+	my $baseurl = url(-absolute=>1) . "?model=$Q->{model}&section=$Q->{section}&hash=$hash&widget=$Q->{widget}";
 
 	return td({class=>'info'}) if (!$AU->CheckAccess("Table_Models_rw","check")
 																 or $allowedhere eq "ablank");

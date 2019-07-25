@@ -51,7 +51,7 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 &NMISNG::rrdfunc::require_RRDs;
 
 # NMIS Authentication module
@@ -291,11 +291,11 @@ exit;
 sub startIPSLApage {
 	my $header = "NMIS IPSLA Monitor";
 	#my $header2 = "$back_url$nmis_url$help_url $header";
-	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?conf=$Q->{conf}\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
+	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
 	my $header2 = "$header <a href=\"$ENV{SCRIPT_NAME}\"><img src=\"$C->{'nmis_home'}\"/></a>";
 
 	#ipsla.pl is NOT parsing this $Q properly!
-	my $portalCode = Compat::NMIS::loadPortalCode(conf=>$Q->{conf});
+	my $portalCode = Compat::NMIS::loadPortalCode();
 
 	# Javascripts
 	my $jscript = getJscript();
@@ -529,7 +529,7 @@ sub displayIPSLAmenu {
 	my @probes = ();
 	my %probes = {};
 	my %attr = {};
-	my $url = url()."?conf=$Q->{conf}&view=true&key=";
+	my $url = url()."?view=true&key=";
 	foreach my $key ( sort keys %RTTcfg ) {
 		if ($RTTcfg{$key}{pnode} ne "") {
 			if ($RTTcfg{$key}{status} eq "error") {
@@ -1019,13 +1019,13 @@ sub displayRTTdata {
 	$item = $RTTcfg{$nno}{items} if $item eq "";
 	$numrows++; # correction
 	print Tr(td({colspan=>"3",rowspan=>"$numrows",align=>"left",valign=>"top",class=>"info Plain", width=>"25%", nowrap=>"nowrap"},
-		image_button(-name=>"graph",-src=>url()."?conf=$Q->{conf}&func=graph&view=true&key=$nno&start=$start&end=$end&item=$item")));
+		image_button(-name=>"graph",-src=>url()."?func=graph&view=true&key=$nno&start=$start&end=$end&item=$item")));
 	foreach my $nm (@items) {
 		if ($nm =~ /^\d+L(\d+)_(.*)/) {
 			$_ = $2;
 			s/_/\./g;
 			my $addr = "$_<br><small>$RTTcfg{$nno}{$_}</small>";
-			print Tr(td({align=>"center",class=>"info Plain", width=>"25%", nowrap=>"nowrap"},a({href=>url()."?conf=$Q->{conf}&view=true&key=$nno&start=$start&end=$end&item=$nm"},$addr)));
+			print Tr(td({align=>"center",class=>"info Plain", width=>"25%", nowrap=>"nowrap"},a({href=>url()."?view=true&key=$nno&start=$start&end=$end&item=$nm"},$addr)));
 		}
 	}
 	print Tr(th({colspan=>"3",align=>"center",class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"),

@@ -44,7 +44,7 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
@@ -173,12 +173,12 @@ sub viewInterfaceFind
 					td({class=>'info Plain',nowrap=>undef},
 						 a({
 							 id => "node_view_".uri_escape($thisintf->{node}),
-							 href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($thisintf->{node})."&widget=$widgetstate"},$thisintf->{node})),
+							 href=>"network.pl?act=network_node_view&node=".uri_escape($thisintf->{node})."&widget=$widgetstate"},$thisintf->{node})),
 					eval {
 						if ( NMISNG::Util::getbool($thisintf->{collect}) ) {
 							return td({class=>'info Plain'},a({
 								id => "node_view_".uri_escape($thisintf->{node}),
-								href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=".uri_escape($thisintf->{node})."&intf=$thisintf->{ifIndex}&widget=$widgetstate"},$thisintf->{ifDescr}));
+								href=>"network.pl?act=network_interface_view&node=".uri_escape($thisintf->{node})."&intf=$thisintf->{ifIndex}&widget=$widgetstate"},$thisintf->{ifDescr}));
 						} else {
 							return td({class=>'info Plain'},$thisintf->{ifDescr});
 						}
@@ -264,7 +264,7 @@ sub viewNodeFind {
 					td({class=>'info',nowrap=>undef},
 						 a({
 							 id => "node_view_".uri_escape($thisnode->{name}),
-							 href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($node)."&widget=$widgetstate"},
+							 href=>"network.pl?act=network_node_view&node=".uri_escape($node)."&widget=$widgetstate"},
 							 $thisnode->{name})),
 					td({class=>'info'},$thisnode->{host}),
 					td({class=>'info'},$thisnode->{group}),

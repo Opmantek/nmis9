@@ -46,19 +46,15 @@ use Compat::Modules;
 my $q = CGI->new; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-# toss in a default conf=Config.nmis
-$Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
-
-if ( ($Q->{conf} eq "" )
-	and -f "$C->{'<nmis_conf>'}/Tenants.nmis"
-		 and -f "$C->{'<nmis_cgi>'}/tenants.pl" )
+if (-f "$C->{'<nmis_conf>'}/Tenants.nmis"
+		and -f "$C->{'<nmis_cgi>'}/tenants.pl" )
 {
 	print $q->header($q->redirect(
-			-url=>"$C->{'<cgi_url_base>'}/tenants.pl",
-			-nph=>1,
-			-status=>303));
+										 -url=>"$C->{'<cgi_url_base>'}/tenants.pl",
+										 -nph=>1,
+										 -status=>303));
 	exit;
 }
 
@@ -79,8 +75,6 @@ my $installedModules = $M->installedModules();
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-# pass in confname ONLY if its not the default
-my $custom_confname = $Q->{conf}; undef $custom_confname if ($custom_confname eq "Config.nmis");
 my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
@@ -129,11 +123,11 @@ if ($AU->Require) {
 print $q->header($headeropts);
 Compat::NMIS::startNmisPage(title => "NMIS by Opmantek - $C->{server_name}");
 
-my $tenantCode = Compat::NMIS::loadTenantCode(conf=>$Q->{conf});
+my $tenantCode = Compat::NMIS::loadTenantCode();
 
-my $serverCode = Compat::NMIS::loadServerCode(conf=>$Q->{conf});
+my $serverCode = Compat::NMIS::loadServerCode();
 
-my $portalCode = Compat::NMIS::loadPortalCode(conf=>$Q->{conf});
+my $portalCode = Compat::NMIS::loadPortalCode();
 
 my $logoCode;
 if ( $C->{company_logo} ) {
@@ -155,10 +149,6 @@ if ($C->{auth_method_1} eq "apache") {
 # Get server time
 ## removing the display of the Portal Links for now.
 my $ptime = &NMISNG::Util::get_localtime();
-my $confString = "";
-if ( $Q->{conf} ne "Config" and $Q->{conf} ne "Config.nmis" ) {
-	$confString = "Conf: $Q->{conf},";
-}
 #-----------------------------------------------
 print qq|
 <div id="body_wrapper">
@@ -173,7 +163,7 @@ NMIS $Compat::NMIS::VERSION - $C->{server_name}</span>
 			$portalCode
 			$logoCode
 			<div class="right">
-				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>$ptime&nbsp;&nbsp;$confString User: $user, Auth: Level$privlevel&nbsp;$logout
+				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>$ptime&nbsp;&nbsp;User: $user, Auth: Level$privlevel&nbsp;$logout
 			</div>
 		</div>
 		<div id="menu_vh_site"></div>
@@ -282,7 +272,7 @@ var rssWidgetHeight = $C->{'rss_widget_height'};
 var logName = '$logName';
 
 \$(document).ready(function() {
-	commonv8Init("$widget_refresh","$Q->{conf}","$installedModules ");
+	commonv8Init("$widget_refresh","Config","$installedModules ");
 });
 var savedWindowState = $savedWindowState;
 var userWindowData = $userWindowData;

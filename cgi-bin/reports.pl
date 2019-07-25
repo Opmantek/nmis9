@@ -65,7 +65,7 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 my $C;
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 &NMISNG::rrdfunc::require_RRDs;
 
 my $nmisng = Compat::NMIS::new_nmisng;
@@ -264,7 +264,7 @@ sub healthReport {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_health&sortdir=$sortdir&"
+	my $url = url(-absolute=>1)."?act=report_dynamic_health&sortdir=$sortdir&"
 			."time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 	# header and data summary
@@ -337,7 +337,7 @@ sub healthReport {
 
 			if ($thisnoderep->{group} eq $group) {
 				print Tr(
-					td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$thisnoderep->{node})),
+					td({class=>'info Plain'},a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$thisnoderep->{node})),
 					td({class=>'info Plain'},$thisnoderep->{devicetype}),
 					td({class=>'info Plain'},$thisnoderep->{role}),
 					td({class=>'info Plain'},$thisnoderep->{net}),
@@ -441,7 +441,7 @@ sub availReport
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_avail&sortdir=$sortdir"
+	my $url = url(-absolute=>1)."?act=report_dynamic_avail&sortdir=$sortdir"
 			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 	print Tr(th({class=>'title',align=>'center',colspan=>'3'},"% Availability ( Reachability) for all Devices"));
@@ -461,7 +461,7 @@ sub availReport
 		my $thisnoderep = $reportTable{$reportnode};
 
 		print Tr(
-			td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+			td({class=>'info Plain'},a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain'},$thisnoderep->{nodeType}),
 			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($thisnoderep->{reachable}))},
 							sprintf($dec_format,$thisnoderep->{reachable}))
@@ -728,7 +728,7 @@ sub responseReport
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir"
+	my $url = url(-absolute=>1)."?act=report_dynamic_response&sortdir=$sortdir"
 			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 
@@ -754,7 +754,7 @@ sub responseReport
 		my $color = NMISNG::Util::colorResponseTime($thisnoderep->{response});
 		print Tr(
 			td({class=>'info Plain'},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$thisnoderep->{node})),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$thisnoderep->{node})),
 			td({class=>'info Plain'},$thisnoderep->{nodeType}),
 			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor($color)},
 						sprintf($dec_format,$thisnoderep->{response}).' msec')
@@ -860,7 +860,7 @@ sub timesReport
 	my $sortcrit = $Q->{sort} || 'node';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
 
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_times&sortdir=$sortdir"
+	my $url = url(-absolute=>1)."?act=report_dynamic_times&sortdir=$sortdir"
 			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 	print Tr(
@@ -872,7 +872,7 @@ sub timesReport
 			 a({href=>"$url&sort=updatetime"},'Update Time (s)')),
 			);
 
-	my $graphlinkbase = "$C->{'<cgi_url_base>'}/node.pl?conf=$Q->{conf}&act=network_graph_view&graphtype=polltime&start=$start&end=$end";
+	my $graphlinkbase = "$C->{'<cgi_url_base>'}/node.pl?act=network_graph_view&graphtype=polltime&start=$start&end=$end";
 	for my $sorted (sort { my ($first,$second) = $sortdir eq 'rev'? ($b,$a): ($a,$b);
 												 $sortcrit eq "node"? $first->{$sortcrit} cmp $second->{$sortcrit}
 												 : $first->{$sortcrit} <=> $second->{$sortcrit}; } @report)
@@ -888,7 +888,7 @@ sub timesReport
 		#	fixme	my $color = NMISNG::Util::colorResponseTime($);
 		print Tr(
 			td({class=>'info Plain', },
-				 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node)),
+				 a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($node)},$node)),
 
 			td({class=>'info Plain', style=> NMISNG::Util::getBGColor($pollcolor)},
 				 a({target => "Graph-$node",
@@ -1113,7 +1113,7 @@ sub top10Report
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir"
+	my $url = url(-absolute=>1)."?act=report_dynamic_response&sortdir=$sortdir"
 			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 	print start_Tr,start_td({colspan=>'2'}),start_table;
@@ -1139,7 +1139,7 @@ sub top10Report
 		my $bar = $1 / 2;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'rht Plain'},$thisnoderep->{response}),
 			td({class=>'lft Plain',colspan=>'6'},img({height=>'12',width=>"$bar",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 		);
@@ -1168,7 +1168,7 @@ sub top10Report
 		$thisnoderep->{loss} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=$reportnode"},$reportnode)),
 			td({class=>'rht Plain'},$thisnoderep->{loss}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -1196,7 +1196,7 @@ sub top10Report
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'rht Plain'},$cpuTable{$reportnode}{avgBusy5min}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -1224,7 +1224,7 @@ sub top10Report
 		$cpuTable{$reportnode}{ProcMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'rht Plain'},$cpuTable{$reportnode}{ProcMemUsed}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -1252,7 +1252,7 @@ sub top10Report
 		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'rht Plain'},$cpuTable{$reportnode}{IOMemUsed}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -1287,7 +1287,7 @@ sub top10Report
 		$linkTable{$reportlink}{Description} = '' if $linkTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},"$linkTable{$reportlink}{ifDescr} $linkTable{$reportlink}{Description}"),
 			td({class=>'rht Plain'},"$linkTable{$reportlink}{inputUtil} %"),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$input",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
@@ -1319,7 +1319,7 @@ sub top10Report
 		$linkTable{$reportlink}{Description} = '' if $linkTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},"$linkTable{$reportlink}{ifDescr} $linkTable{$reportlink}{Description}"),
 			td({class=>'info Plain',colspan=>'2',align=>'right'},NMISNG::Util::getBits($linkTable{$reportlink}{inputBits},'ps')),
 			td({class=>'info Plain',colspan=>'2',align=>'right'},NMISNG::Util::getBits($linkTable{$reportlink}{outputBits},'ps'))
@@ -1352,7 +1352,7 @@ sub top10Report
 		$pktsTable{$reportlink}{Description} = '' if $pktsTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},"$pktsTable{$reportlink}{ifDescr} $pktsTable{$reportlink}{Description}"),
 			td({class=>'info Plain',align=>'right'},$pktsTable{$reportlink}{ifInErrors}),
 			td({class=>'info Plain',align=>'right'},$pktsTable{$reportlink}{ifInDiscards}),
@@ -1381,7 +1381,7 @@ sub top10Report
 		$downTable{$reportlink}{Description} = '' if $downTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+				a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain',colspan=>'3',width=>'50%'},"$downTable{$reportlink}{ifDescr} $downTable{$reportlink}{Description}"),
 			td({class=>'info Plain',colspan=>'4',align=>'center'},$downTable{$reportlink}{ifLastChange})
 		);
@@ -1536,7 +1536,7 @@ sub outageReport
 	print Tr(th({class=>'title',align=>'center',colspan=>'6'},
 			"Outage Report, $datestamp_start to $datestamp_end"));
 
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_outage&level=$Q->{level}"
+	my $url = url(-absolute=>1)."?act=report_dynamic_outage&level=$Q->{level}"
 					."&time_start=$Q->{time_start}&time_end=$Q->{time_end}&widget=$widget"
 					."&sortdir=$Q->{sortdir}&period=$Q->{period}";
 
@@ -1560,7 +1560,7 @@ sub outageReport
 			print Tr(
 				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},NMISNG::Util::returnDateStamp($logreport{$index}{time})),
 				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},
-					a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
+					a({href=>"network.pl?act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},$logreport{$index}{outype}),
 				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},$logreport{$index}{outime}),
 				eval { return $logreport{$index}{element} ? td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},$logreport{$index}{element}) : td({class=>'info Plain'},'&nbsp;');},
@@ -1743,7 +1743,7 @@ sub storedReport {
 		my $index = shift;
 		my $table = shift;
 		print td({class=>'info Plain'},
-			a({href=>"reports.pl?conf=$Q->{conf}&act=report_stored_file&file=$table->{$index}{dir}"},$table->{$index}{link}));
+			a({href=>"reports.pl?act=report_stored_file&file=$table->{$index}{dir}"},$table->{$index}{link}));
 	}
 	sub printe {
 		print td({class=>'info Plain'},'&nbsp;');

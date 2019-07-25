@@ -50,7 +50,7 @@ my $wantwidget = exists $Q->{widget}? !NMISNG::Util::getbool($Q->{widget}, "inve
 my $widget = $wantwidget ? "true" : "false";
 
 my $C;
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
 use NMISNG::Auth;
 
@@ -131,7 +131,7 @@ sub displayFlow{
 	print start_table;
 
 	# show a link home if not in widget mode
-	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?"}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
 
 	# first print header and boxes for event flow analyzing
 	print Tr(td({class=>'header',colspan=>'4'},"${homelink}View Event Flow"));
@@ -186,7 +186,7 @@ sub displayEventList
 	# second print a list of event database entries
 	print start_table;
 	# show a link home if not in widget mode
-	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?"}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
 
 	print Tr(td({class=>'header',colspan=>'3'},"${homelink}View Event Database"));
 	my $flag = 0;
@@ -202,9 +202,9 @@ sub displayEventList
 		my $line = "$date $time $node - $event - $element";
 		$flag++;
 		print Tr(td({class=>'info'},
-								a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_view&node=$node&event=$event&element=$element&widget=$widget"},$line)),
-						 td({class=>'info'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&widget=$widget"},'View Node')),
-						 td({class=>'info'},a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_delete&node=$node&event=$event&element=$element&widget=$widget"},'Delete Event'))
+								a({href=>"view-event.pl?act=event_database_view&node=$node&event=$event&element=$element&widget=$widget"},$line)),
+						 td({class=>'info'},a({href=>"network.pl?act=network_node_view&node=$node&widget=$widget"},'View Node')),
+						 td({class=>'info'},a({href=>"view-event.pl?act=event_database_delete&node=$node&event=$event&element=$element&widget=$widget"},'Delete Event'))
 				);
 	}
 	print Tr(td({class=>'info'},"no event current")) if !$flag;
@@ -223,7 +223,7 @@ sub	displayEvent {
 	print start_table;
 
 	# show a link home if not in widget mode
-	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?"}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
 
 	print Tr(td({class=>'header',colspan=>'6'},"${homelink}View Event Database - $Q->{node}"));
 
@@ -615,7 +615,7 @@ DELETE:
 	if ($Q->{act} =~ /delete$/) {
 		# $event has been mangled for the escalation lookup...
 		print Tr(td({class=>'header'},b('Delete this Event ? ')),
-			td(a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_dodelete&node_uuid=$node_uuid&event="
+			td(a({href=>"view-event.pl?act=event_database_dodelete&node_uuid=$node_uuid&event="
 								.$thisevent->{event}."&element=$element&widget=$widget"},'DELETE')));
 	}
 	#=====================================================

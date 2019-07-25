@@ -49,7 +49,7 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
 if ($Q->{act} eq '' ) {	
 	&printFeed();

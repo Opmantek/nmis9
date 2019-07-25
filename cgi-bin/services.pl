@@ -44,8 +44,8 @@ use NMISNG::Auth;
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
 
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
-		or die "Cannot read Conf table, conf=$Q->{conf}\n";
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug})
+		or die "Cannot read Conf table\n";
 
 # widget mode: default false if not told otherwise, and true if jquery-called
 my $wantwidget = exists $Q->{widget}? NMISNG::Util::getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
@@ -121,12 +121,12 @@ sub display_details
 	}
 
 	my $homelink = $wantwidget? ''
-			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;";
+			: $q->a({class=>"wht", href=>$C->{'nmis'}."?"}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;";
 
 	print $q->start_table({class=>"table"}),
 	"<tr>", $q->th({-class=>"title", -colspan => 2}, $homelink, "Service $wantservice on ",
-								 qq|<a class="wht" title="View node $wantnode" href="$C->{network}?conf=$Q->{conf}&act=network_node_view&refresh=$C->{widget_refresh_time}&widget=$widget&node=$wantnode">$wantnode</a> &nbsp; |,
-								 qq|<a title="View all services on $wantnode" href="$C->{network}?conf=$Q->{conf}&act=network_service_view&refresh=$C->{widget_refresh_time}&widget=$widget&node=$wantnode"><img src="$C->{'<menu_url_base>'}/img/v8/icons/page_up.gif"></img><a>|,
+								 qq|<a class="wht" title="View node $wantnode" href="$C->{network}?act=network_node_view&refresh=$C->{widget_refresh_time}&widget=$widget&node=$wantnode">$wantnode</a> &nbsp; |,
+								 qq|<a title="View all services on $wantnode" href="$C->{network}?act=network_service_view&refresh=$C->{widget_refresh_time}&widget=$widget&node=$wantnode"><img src="$C->{'<menu_url_base>'}/img/v8/icons/page_up.gif"></img><a>|,
 
 ), "</tr>",
 	"<tr>", $q->td({-class=>"header", -colspan => 2}, "Configuration"), "</tr>";
@@ -181,7 +181,7 @@ sub display_details
 	}
 
 	# must add graphtype (service, service-cpu, service-mem, service-response)
-	my $graphlinkbase = "$C->{'<cgi_url_base>'}/node.pl?conf=$Q->{conf}&act=network_graph_view"
+	my $graphlinkbase = "$C->{'<cgi_url_base>'}/node.pl?act=network_graph_view"
 			."&node=".uri_escape($wantnode)
 			."&intf=".uri_escape($wantservice);
 
@@ -332,14 +332,14 @@ sub display_overview
 	my $filter = (defined($Q->{only_show}) &&  $Q->{only_show} =~ /^(ok|notok)$/ ? $Q->{only_show} : undef);
 
 	# url for sorting, ownurl w/o filter, service url for showing the details page
-	my $url = my $ownurl = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=$Q->{act}&widget=$widget";
+	my $url = my $ownurl = $q->url(-absolute=>1)."?act=$Q->{act}&widget=$widget";
 	$url .= "&only_show=$filter" if ($filter);
-	my $serviceurl = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=details&widget=$widget"; # append node and service query params
+	my $serviceurl = $q->url(-absolute=>1)."?act=details&widget=$widget"; # append node and service query params
 
 	my $homelink = $wantwidget? ''
-			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;";
+			: $q->a({class=>"wht", href=>$C->{'nmis'}."?"}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;";
 	# just append the nodename to complete
-	my $nodelink = "$C->{'<cgi_url_base>'}/network.pl?conf=$Q->{conf}&act=network_service_view&refresh=$Q->{refresh}&widget=$widget&cluster_id=$Q->{cluster_id}&node=";
+	my $nodelink = "$C->{'<cgi_url_base>'}/network.pl?act=network_service_view&refresh=$Q->{refresh}&widget=$widget&cluster_id=$Q->{cluster_id}&node=";
 
 
 	print $q->start_table({class=>"table"}),

@@ -55,7 +55,7 @@ drop: drop listed databases\n\n";
 
 print basename($0). " version $VERSION\n\n";
 
-# conf=cfgfile dir=configdir auto=0/1 debug=0/1
+# dir=configdir auto=0/1 debug=0/1
 my $args = NMISNG::Util::get_args_multi(@ARGV);
 # preseed mode is also noninteractive
 my $noninteractive = NMISNG::Util::getbool($args->{auto})

@@ -235,7 +235,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 	{
 		createDialog({
 			id       : 'cfg_setup',
- 			url      : 'setup.pl?amp;act=setup_menu&amp;widget=true',
+ 			url      : 'setup.pl?act=setup_menu&amp;widget=true',
 			title    : 'Basic Setup',
 			position : [ 5, 65 ]
 		});

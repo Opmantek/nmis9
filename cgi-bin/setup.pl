@@ -43,8 +43,8 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
 
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
-		or die "Cannot read Conf table, conf=$Q->{conf}\n";
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug})
+		or die "Cannot read Conf table!\n";
 
 # this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}? !NMISNG::Util::getbool($Q->{widget}, "invert") : 1;
@@ -275,7 +275,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 		 ($havecustomnodes? $iconok : $iconbad). "&nbsp; Nodes"),
 	td({class => "infolft Plain"}, ($havecustomnodes? '': $iconbad) . "&nbsp; "
 		 . button(-name => "add_nodes", -value => "Add Nodes",
-							-onclick => $wantwidget? "createDialog({id: 'cfg_nodes', url: 'tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes&amp;widget=$widget', title: 'Add Nodes'})" : "document.location='tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes&amp;widget=$widget'" )),
+							-onclick => $wantwidget? "createDialog({id: 'cfg_nodes', url: 'tables.pl?act=config_table_add&amp;table=Nodes&amp;widget=$widget', title: 'Add Nodes'})" : "document.location='tables.pl?act=config_table_add&amp;table=Nodes&amp;widget=$widget'" )),
 
 			td({class => "infolft Plain"}, ($havecustomnodes? "You have configured ".(scalar keys %$NT)." nodes": "Your configuration contains only the single default node.")."<br/>Use the button to the left to add nodes."), end_Tr;
 
@@ -292,7 +292,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 	"&nbsp;",
 	button(-name=>"cancelbutton",
 				 # yuck.
-				 onclick => ( $wantwidget? "var id = \$(this).parents('.ui-dialog').attr('id'); \$('div#NMISV8').data('NMISV8'+id).widgetHandle.dialog('close');" : "document.location = '$C->{nmis}?conf=$Q->{conf}';" ),
+				 onclick => ( $wantwidget? "var id = \$(this).parents('.ui-dialog').attr('id'); \$('div#NMISV8').data('NMISV8'+id).widgetHandle.dialog('close');" : "document.location = '$C->{nmis}?';" ),
 
 # $("#cancelinput").val("true");' . ($wantwidget? "get('nmissetup');" : 'submit();'),
 				 -value=>"Done");

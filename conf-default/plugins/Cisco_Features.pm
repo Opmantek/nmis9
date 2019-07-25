@@ -174,7 +174,7 @@ sub update_plugin
 			{
 
 				$nfdata->{ifDescr} = $ifdata{$index}->{ifDescr};
-				$nfdata->{ifDescr_url} = "$C->{network}?conf=$C->{conf}&act=network_interface_view&intf=$index&node=$node";
+				$nfdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$index&node=$node";
 				$nfdata->{ifDescr_id} = "node_view_$node";
 				$nfdata->{Description} = $ifdata{$index}->{Description};
 

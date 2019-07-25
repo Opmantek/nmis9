@@ -43,8 +43,8 @@ use Data::Dumper;
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
 
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
-		or die "Cannot read Conf table, conf=$Q->{conf}\n";
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug})
+		or die "Cannot read Conf table!\n";
 
 # widget mode: default false if not told otherwise, and true if jquery-called
 my $wantwidget = exists $Q->{widget}? NMISNG::Util::getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
@@ -164,7 +164,7 @@ sub display_policy
 	"&nbsp;",
 	# yuck!
 	$q->button(-name=>"cancelbutton",
-						 onclick => ( $wantwidget? "var id = \$(this).parents('.ui-dialog').attr('id'); \$('div#NMISV8').data('NMISV8'+id).widgetHandle.dialog('close');" : "document.location = '$C->{nmis}?conf=$Q->{conf}';" ),
+						 onclick => ( $wantwidget? "var id = \$(this).parents('.ui-dialog').attr('id'); \$('div#NMISV8').data('NMISV8'+id).widgetHandle.dialog('close');" : "document.location = '$C->{nmis}?';" ),
 						 -value=>"Cancel"),
 	$q->end_form;
 	Compat::NMIS::pageEnd if (!$wantwidget);

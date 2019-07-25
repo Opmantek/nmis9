@@ -45,8 +45,7 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
-$Q->{conf} = (exists $Q->{conf} and $Q->{conf} ) ?  $Q->{conf} : $C->{conf};
+my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 
 # set some defaults
 my $widget_refresh = $C->{widget_refresh_time} ? $C->{widget_refresh_time} : 180 ;
@@ -163,21 +162,21 @@ sub menu_bar_site {
 		my @menu_site = [];
 
 		my @netstatus;
-		push @netstatus, qq|<a id='ntw_metrics' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_metrics">Metrics</a>|;
-		push @netstatus, qq|<a id='ntw_graph' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_metrics_graph">Network Metric Graphs</a>|;
-		push @netstatus, qq|<a id='ntw_view' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_view">Network Metrics and Health</a>|;
-		push @netstatus, qq|<a id='ntw_health' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_health">Network Status and Health</a>|;
-		push @netstatus, qq|<a id='ntw_summary' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_large">Network Status and Health by Group</a>|;
+		push @netstatus, qq|<a id='ntw_metrics' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_metrics">Metrics</a>|;
+		push @netstatus, qq|<a id='ntw_graph' href="network.pl?refresh=$widget_refresh&amp;act=network_metrics_graph">Network Metric Graphs</a>|;
+		push @netstatus, qq|<a id='ntw_view' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_view">Network Metrics and Health</a>|;
+		push @netstatus, qq|<a id='ntw_health' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_health">Network Status and Health</a>|;
+		push @netstatus, qq|<a id='ntw_summary' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_large">Network Status and Health by Group</a>|;
 
-		push @netstatus, qq|<a id='ntw_services' href="services.pl?conf=$Q->{conf}">Monitored Services</a>|;
-		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|
+		push @netstatus, qq|<a id='ntw_services' href="services.pl?">Monitored Services</a>|;
+		push @netstatus, qq|<a id='src_events' href="events.pl?act=event_table_list">Current Events</a>|
 				if ($AU->CheckAccess("tls_event_db","check"));
 
-		push @netstatus, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;lines=50">Network Events</a>|
+		push @netstatus, qq|<a id='nmislogs' href="logs.pl?act=log_file_view&amp;lines=50">Network Events</a>|
 						if ($AU->CheckAccess("Event_Log","check"));
 
-		push @netstatus, qq|<a id='ntw_customer' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if Compat::NMIS::tableExists('Customers');
-		push @netstatus, qq|<a id='ntw_business' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if Compat::NMIS::tableExists('BusinessServices');
+		push @netstatus, qq|<a id='ntw_customer' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if Compat::NMIS::tableExists('Customers');
+		push @netstatus, qq|<a id='ntw_business' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if Compat::NMIS::tableExists('BusinessServices');
 		push @netstatus, qq|<a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</a>|;
 		push @netstatus, qq|<a id='ntw_rss' href="community_rss.pl?widget=true">NMIS Community</a>|;
 
@@ -185,13 +184,13 @@ sub menu_bar_site {
 
 
 		my @netperf;
-		push @netperf, qq|<a target='ntw_ipsla' href="$C->{ipsla}?conf=$Q->{conf}">IPSLA Monitor</a>|
+		push @netperf, qq|<a target='ntw_ipsla' href="$C->{ipsla}?">IPSLA Monitor</a>|
 				if ($AU->CheckAccess("ipsla_menu","check"));
-		push @netperf, qq|<a id='ntw_overview' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_allgroups">All Groups</a>|;
-		push @netperf, qq|<a id='ntw_overview' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_interface_overview">OverView</a>|;
-		push @netperf, qq|<a id='ntw_top10' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_top10_view">Top 10</a>|;
+		push @netperf, qq|<a id='ntw_overview' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_allgroups">All Groups</a>|;
+		push @netperf, qq|<a id='ntw_overview' href="network.pl?refresh=$widget_refresh&amp;act=network_interface_overview">OverView</a>|;
+		push @netperf, qq|<a id='ntw_top10' href="network.pl?refresh=$widget_refresh&amp;act=network_top10_view">Top 10</a>|;
 
-		push @netperf, qq|<a id='ntw_links' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Links">Link List</a>|
+		push @netperf, qq|<a id='ntw_links' href="tables.pl?act=config_table_menu&amp;table=Links">Link List</a>|
 								if ($AU->CheckAccess("Table_Links_view","check"));
 
 		push @menu_site,(qq|Network Performance|,[ @netperf ]);
@@ -199,19 +198,19 @@ sub menu_bar_site {
 
 		#Handling optional items in the menu, depending on the config.
 		my @nettools;
-		push @nettools, qq|<a id='tools_ping' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_ping">Ping</a>|;
-		push @nettools, qq|<a id='tools_trace' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_trace">Traceroute</a>|;
-		push @nettools, qq|<a id='tools_lft' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_lft">LFT</a>| if (NMISNG::Util::getbool($C->{view_lft}));
-		push @nettools, qq|<a id='tools_mtr' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_mtr">MTR</a>| if (NMISNG::Util::getbool($C->{view_mtr}));
-		push @nettools, qq|<a id='tls_snmp' href="snmp.pl?conf=$Q->{conf}&amp;act=snmp_var_menu">SNMP Tool</a>|;
+		push @nettools, qq|<a id='tools_ping' href="tools.pl?act=tool_system_ping">Ping</a>|;
+		push @nettools, qq|<a id='tools_trace' href="tools.pl?act=tool_system_trace">Traceroute</a>|;
+		push @nettools, qq|<a id='tools_lft' href="tools.pl?act=tool_system_lft">LFT</a>| if (NMISNG::Util::getbool($C->{view_lft}));
+		push @nettools, qq|<a id='tools_mtr' href="tools.pl?act=tool_system_mtr">MTR</a>| if (NMISNG::Util::getbool($C->{view_mtr}));
+		push @nettools, qq|<a id='tls_snmp' href="snmp.pl?act=snmp_var_menu">SNMP Tool</a>|;
 
 
 		my @netitems;
-		push @netitems, qq|<a id='tls_ip' href="ip.pl?conf=$Q->{conf}&amp;act=tool_ip_menu">IP Calc</a>|,
-		qq|<a id='tls_dns_host' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=host">IP host</a>|,
-		qq|<a id='tls_dns_dns' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=dns">IP dns</a>|,
-		qq|<a id='tls_dns_arpa' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=arpa">IP arpa</a>|,
-		qq|<a id='tls_dns_loc' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=loc">IP loc</a>|
+		push @netitems, qq|<a id='tls_ip' href="ip.pl?act=tool_ip_menu">IP Calc</a>|,
+		qq|<a id='tls_dns_host' href="tools.pl?act=tool_system_dns&amp;dns=host">IP host</a>|,
+		qq|<a id='tls_dns_dns' href="tools.pl?act=tool_system_dns&amp;dns=dns">IP dns</a>|,
+		qq|<a id='tls_dns_arpa' href="tools.pl?act=tool_system_dns&amp;dns=arpa">IP arpa</a>|,
+		qq|<a id='tls_dns_loc' href="tools.pl?act=tool_system_dns&amp;dns=loc">IP loc</a>|
 				if ($AU->CheckAccess("tls_dns","check"));
 
 		push @nettools,	qq|IP Tools|, \@netitems if (@netitems);
@@ -246,7 +245,7 @@ sub menu_bar_site {
 						my $replabel = shift @details;
 						my $accesssub = shift @details;
 
-						push @localrep, qq|<a id='${short}_$repkey' href="reports.pl?conf=$Q->{conf}&amp;act=report_${short}_${repkey}">$replabel</a>|
+						push @localrep, qq|<a id='${short}_$repkey' href="reports.pl?act=report_${short}_${repkey}">$replabel</a>|
 								if ($AU->CheckAccess("${accesskey}_${accesssub}","check"));
 				}
 
@@ -263,32 +262,32 @@ sub menu_bar_site {
 		#									);
 
 		my @stuff;
-		push @stuff, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Events</a>|
+		push @stuff, qq|<a id='src_events' href="events.pl?act=event_table_list">Events</a>|
 				if ($AU->CheckAccess("tls_event_db","check"));
-		push @stuff, qq|<a id='src_outages' href="outages.pl?conf=$Q->{conf}&amp;act=outage_table_view">Outages</a>|;
-		push @stuff, qq|<a id='src_links' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Links">Links</a>|
+		push @stuff, qq|<a id='src_outages' href="outages.pl?act=outage_table_view">Outages</a>|;
+		push @stuff, qq|<a id='src_links' href="tables.pl?act=config_table_menu&amp;table=Links">Links</a>|
 								if ($AU->CheckAccess("Table_Links_view","check"));
 
 		my @logstuff;
-		push @logstuff, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;logname=NMIS_Log">NMIS Log</a>|
+		push @logstuff, qq|<a id='nmislogs' href="logs.pl?act=log_file_view&amp;logname=NMIS_Log">NMIS Log</a>|
 				if ($AU->CheckAccess("NMIS_Log","check"));
-		push @logstuff, qq|<a id='eventlogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view">Event Log</a>|
+		push @logstuff, qq|<a id='eventlogs' href="logs.pl?act=log_file_view">Event Log</a>|
 				if ($AU->CheckAccess("Event_Log","check"));
-		push @logstuff, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_list_view">Log List</a>|
+		push @logstuff, qq|<a id='nmislogs' href="logs.pl?act=log_list_view">Log List</a>|
 				if ($AU->CheckAccess("log_list","check"));
 
 		my @sdeskstuff;
 		push @sdeskstuff, qq|Alerts|, \@stuff if (@stuff);
 		push @sdeskstuff, qq|Find|,
 		[
-				qq|<a id='find_node' href="find.pl?conf=$Q->{conf}&amp;act=find_node_menu">Node</a>|,
-				qq|<a id='find_interface' href="find.pl?conf=$Q->{conf}&amp;act=find_interface_menu">Interface</a>|
+				qq|<a id='find_node' href="find.pl?act=find_node_menu">Node</a>|,
+				qq|<a id='find_interface' href="find.pl?act=find_interface_menu">Interface</a>|
 		];
 		push @sdeskstuff, qq|Logs|, \@logstuff if (@logstuff);
 
-		push @sdeskstuff, qq|Monitored Services|, [ qq|<a id='ntw_services' href="services.pl?conf=$Q->{conf}">All Services</a>|,
-																								qq|<a id='ntw_services_ok' href="services.pl?conf=$Q->{conf}&only_show=ok">Only running Services</a>|,
-																								qq|<a id='ntw_services_notok' href="services.pl?conf=$Q->{conf}&only_show=notok">Only Services with Problems</a>| ];
+		push @sdeskstuff, qq|Monitored Services|, [ qq|<a id='ntw_services' href="services.pl?">All Services</a>|,
+																								qq|<a id='ntw_services_ok' href="services.pl?only_show=ok">Only running Services</a>|,
+																								qq|<a id='ntw_services_notok' href="services.pl?only_show=notok">Only Services with Problems</a>| ];
 
 		push @menu_site, qq|Service Desk|, \@sdeskstuff;
 
@@ -296,29 +295,29 @@ sub menu_bar_site {
 
 		my @tableMenu;
 
-		push @tableMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">NMIS Nodes (devices)</a>|
+		push @tableMenu, qq|<a id='cfg_nodes' href="tables.pl?act=config_table_menu&amp;table=Nodes">NMIS Nodes (devices)</a>|
 				if ($AU->CheckAccess("Table_Nodes_view","check"));
 
-		push @tableMenu, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|
+		push @tableMenu, qq|<a id='cfg_nmis' href="config.pl?act=config_nmis_menu">NMIS Configuration</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
-		push @tableMenu, qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">NMIS Models</a>|
+		push @tableMenu, qq|<a id='cfg_models' href="models.pl?act=config_model_menu">NMIS Models</a>|
 				if ($AU->CheckAccess("table_models_view","check"));
 
-		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|
+		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?act=config_nodeconf_view">Node Configuration</a>|
 				if ($AU->CheckAccess("table_nodeconf_view","check"));
 
-		push @tableMenu, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
+		push @tableMenu, qq|<a id='cfg_modelpolicy' href="model_policy.pl?">Model Policy</a>|
 				if ($AU->CheckAccess("table_models_view","check"));
 
-		push @tableMenu,	qq|<a id='cfg_hidegroups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=hide_groups">Hide Groups</a>|
+		push @tableMenu,	qq|<a id='cfg_hidegroups' href="config.pl?act=config_nmis_edit&amp;section=system&amp;item=hide_groups">Hide Groups</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
 
 		push @tableMenu, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
 
 		foreach my $table (sort {$Tables->{$a}{DisplayName} cmp $Tables->{$b}{DisplayName} } keys %{$Tables}) {
-			push @tableMenu, qq|<a id="cfg_$table" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=$table">$Tables->{$table}{DisplayName}</a>| if ($table ne "Nodes" and $AU->CheckAccess("Table_${table}_view","check"));
+			push @tableMenu, qq|<a id="cfg_$table" href="tables.pl?act=config_table_menu&amp;table=$table">$Tables->{$table}{DisplayName}</a>| if ($table ne "Nodes" and $AU->CheckAccess("Table_${table}_view","check"));
 		}
 
 		my (@systemitems, @setupitems);
@@ -332,10 +331,10 @@ sub menu_bar_site {
 		{
 			my @submenu;
 
-			push @submenu, qq|<a id='cfg_setup' href="network.pl?conf=$Q->{conf}&amp;act=node_admin_summary">Node Admin Summary</a>| if ($AU->CheckAccess("Table_Nodes_view","check"));
+			push @submenu, qq|<a id='cfg_setup' href="network.pl?act=node_admin_summary">Node Admin Summary</a>| if ($AU->CheckAccess("Table_Nodes_view","check"));
 
-			push @submenu, 	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
-			qq|<a id='tls_event_db' href="view-event.pl?conf=$Q->{conf}&amp;act=event_database_list">Check Event DB</a>| if ($AU->CheckAccess("tls_event_flow","check"));
+			push @submenu, 	qq|<a id='tls_event_flow' href="view-event.pl?act=event_flow_view">Check Event Flow</a>|,
+			qq|<a id='tls_event_db' href="view-event.pl?act=event_database_list">Check Event DB</a>| if ($AU->CheckAccess("tls_event_flow","check"));
 
 			push @systemitems, qq|Configuration Check|, \@submenu;
 		}
@@ -343,22 +342,22 @@ sub menu_bar_site {
 		my @hostdiags;
 		if ($AU->CheckAccess("tls_nmis_runtime", "check"))
 		{
-			push @hostdiags, qq|<a id='nmis_selftest' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_selftest_view">NMIS Selftest</a>|,
-			qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
-			qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|;
+			push @hostdiags, qq|<a id='nmis_selftest' href="network.pl?refresh=$widget_refresh&amp;act=nmis_selftest_view">NMIS Selftest</a>|,
+			qq|<a id='nmis_poll' href="network.pl?act=nmis_polling_summary">NMIS Polling Summary</a>|,
+			qq|<a id='nmis_run' href="network.pl?refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|;
 		};
-		push @hostdiags, qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|;
+		push @hostdiags, qq|<a id='tls_host_info' href="tools.pl?act=tool_system_hostinfo">NMIS Host Info</a>|;
 
 		push @hostdiags, qq|<a id="nmis_opstatus" href="opstatus.pl?">NMIS Ops Status</a>|;
 
 		for my $cmd (qw(date df ps iostat vmstat who))
 		{
-				push @hostdiags, qq|<a id='tls_$cmd' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_$cmd">$cmd</a>|
+				push @hostdiags, qq|<a id='tls_$cmd' href="tools.pl?act=tool_system_$cmd">$cmd</a>|
 						if ($AU->CheckAccess("tls_$cmd","check"));
 		}
 		push @systemitems, qq|Host Diagnostics|, \@hostdiags if (@hostdiags);
 
-		push @setupitems, qq|<a id='cfg_setup' href="setup.pl?conf=$Q->{conf}&amp;act=setup_menu">Basic Setup</a>|
+		push @setupitems, qq|<a id='cfg_setup' href="setup.pl?act=setup_menu">Basic Setup</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
 		# no separator if there's nothing to separate...
@@ -366,40 +365,40 @@ sub menu_bar_site {
 
 		push @setupitems, qq|--- Advanced Setup ---| if (@setupitems); # no separator if there's nothing to separate...
 
-		push @setupitems,	qq|<a id='cfg_ntypes' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nodetype_list">Add/Edit Node Types</a>|
+		push @setupitems,	qq|<a id='cfg_ntypes' href="config.pl?act=config_nmis_edit&amp;section=system&amp;item=nodetype_list">Add/Edit Node Types</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
-		push @setupitems,	qq|<a id='cfg_nroles' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=roletype_list">Add/Edit Node Roles</a>|
+		push @setupitems,	qq|<a id='cfg_nroles' href="config.pl?act=config_nmis_edit&amp;section=system&amp;item=roletype_list">Add/Edit Node Roles</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
-		push @setupitems,	qq|<a id='cfg_nettypes' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nettype_list">Add/Edit Network Types</a>|
+		push @setupitems,	qq|<a id='cfg_nettypes' href="config.pl?act=config_nmis_edit&amp;section=system&amp;item=nettype_list">Add/Edit Network Types</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
-		push @setupitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
+		push @setupitems, qq|<a id='cfg_nodes' href="tables.pl?act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
 				if ($AU->CheckAccess("Table_Nodes_view","check"));
 
-		push @setupitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
+		push @setupitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?act=config_nodeconf_view">Node Customisation</a>|
 				if ($AU->CheckAccess("table_nodeconf_view","check"));
 
-		push @setupitems, qq|<a id="cfg_Contacts" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contact Setup</a>|
+		push @setupitems, qq|<a id="cfg_Contacts" href="tables.pl?act=config_table_menu&amp;table=Contacts">Contact Setup</a>|
 				if ($AU->CheckAccess("Table_Escalations_view","check"));
 
-		push @setupitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>|
+		push @setupitems, qq|<a id="cfg_Escalations" href="tables.pl?act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>|
 				if ($AU->CheckAccess("Table_Escalations_view","check"));
 
-		push @setupitems, qq|<a id="cfg_Events" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Events">Event Configuration</a>|
+		push @setupitems, qq|<a id="cfg_Events" href="tables.pl?act=config_table_menu&amp;table=Events">Event Configuration</a>|
 				if ($AU->CheckAccess("Table_Events_view","check"));
 
-		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Common-threshold&amp;section=threshold">Thresholding Alert Tuning</a>|
+		push @setupitems, qq|<a id="cfg_models" href="models.pl?act=config_model_menu&amp;model=Common-threshold&amp;section=threshold">Thresholding Alert Tuning</a>|
 				if ($AU->CheckAccess("table_models_view","check"));
 
-		push @setupitems, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
+		push @setupitems, qq|<a id='cfg_modelpolicy' href="model_policy.pl?">Model Policy</a>|
 				if ($AU->CheckAccess("table_models_view","check"));
 
-		push @setupitems, qq|<a id='cfg_pollingpolicy' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Polling-Policy">Polling Policy</a>|
+		push @setupitems, qq|<a id='cfg_pollingpolicy' href="tables.pl?act=config_table_menu&amp;table=Polling-Policy">Polling Policy</a>|
 				if ($AU->CheckAccess("table_polling-policy_view","check"));
 
-		#push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>|
+		#push @setupitems, qq|<a id="cfg_models" href="models.pl?act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>|
 		#		if ($AU->CheckAccess("table_models_view","check"));
 
 		push @menu_site, qq|Setup|, \@setupitems if (@setupitems);
@@ -422,7 +421,7 @@ sub menu_bar_site {
 		push @menu_site,( qq|Help|,
 												[	qq|<a id='hlp_help' target='_blank' href="http://www.opmantek.com">NMIS</a>|,
 													qq|<a id='hlp_apache' target='_blank' href="http://www.apache.org" id='apache'>Apache</a>|,
-													qq|<a id='hlp_about' href="menu.pl?conf=$Q->{conf}&amp;act=menu_about_view">About</a>|
+													qq|<a id='hlp_about' href="menu.pl?act=menu_about_view">About</a>|
 												]
 										);
 		return \@menu_site;
@@ -445,7 +444,7 @@ sub menu_bar_portal {
 
 	sub menu_portal {
 		my @menu_portal = [];
-				push @menu_portal,	( qq|<a href="nmiscgi.pl?conf=$Q->{conf}" target='_self'>NMIS9 Home</a>|);
+				push @menu_portal,	( qq|<a href="nmiscgi.pl?" target='_self'>NMIS9 Home</a>|);
 				push @menu_portal,	( qq|Client Views|,
 												[
 # fixme9: none of this works with nmis9
