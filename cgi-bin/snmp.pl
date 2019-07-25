@@ -3,37 +3,37 @@
 ## $Id: snmp.pl,v 8.4 2012/01/06 07:09:38 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use Compat::NMIS;
 use NMISNG::Util;
@@ -52,21 +52,17 @@ my $Q = $q->Vars; # values in hash
 my $nmisng = Compat::NMIS::new_nmisng;
 my $C = $nmisng->config;
 
-# Before going any further, check to see if we must handle
-# an authentication login or logout request
-
-
-# variables used for the security mods
-my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $headeropts = {type=>'text/html', expires=>'now'};
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
 
-# check for remote request - fixme9: not supported at this time
-exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
+my $widget = (!defined $ENV{HTTP_X_REQUESTED_WITH})? 'false' :
+		NMISNG::Util::getbool( $Q->{widget}, "invert" ) ? 'false' : 'true';
+my $wantwidget = ($widget eq 'true');
 
 #======================================================================
 
@@ -85,9 +81,11 @@ exit 1;
 
 #===================
 
-sub menuSNMP{
-
+sub menuSNMP
+{
 	print header($headeropts);
+	Compat::NMIS::pageStartJscript( title => "NMIS SNMP Tool", refresh => $Q->{refresh} )
+			if ( !$wantwidget );
 
 	my $node = $Q->{node};
 	my $pnode = $Q->{pnode};
@@ -99,9 +97,13 @@ sub menuSNMP{
 	my $xoid;
 	my $NT = Compat::NMIS::loadLocalNodeTable(); # node table
 
-	my ($OIDS,$NAMES) = Mib::loadoid();
+	my ($OIDS,$NAMES) = NMISNG::MIB::loadoid($nmisng);
 
-	print start_form(-id=>'nmisSnmp',action=>"javascript:get('nmisSnmp');", href=>"snmp.pl?conf=$Q->{conf}&act=snmp_var_menu");
+  # the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>"nmisSnmp", -href=>url(-absolute=>1)."?");
+	print hidden(-override => 1, -name => "act", -value => "snmp_var_menu")
+			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table;
 
@@ -128,7 +130,8 @@ sub menuSNMP{
 					popup_menu(-name=>'node', -override=>'1',
 						-values=>\@nodes,
 						-default=>$node,
-						-onChange=>"if(this.value=='other')get('nmisSnmp'); else return false;"));
+										 -onChange => $wantwidget ? "if(this.value=='other')get('nmisSnmp'); else return false;"
+										 : "if(this.value=='other') submit(); else return false;"));
 	}
 
 	# the calling Models program is using name+numbers
@@ -138,13 +141,13 @@ sub menuSNMP{
 		$xoid = $2;
 	}
 
-	if ($var ne $pvar) { 
-		$oid = $OIDS->{$var}.$xoid; 
+	if ($var ne $pvar) {
+		$oid = $OIDS->{$var}.$xoid;
 	} else {
-		if ($oid ne '' and $oid ne $OIDS->{$var}) { 
+		if ($oid ne '' and $oid ne $OIDS->{$var}) {
 			$var = $NAMES->{$oid};
-		} else { 
-			$oid = $OIDS->{$var}; 
+		} else {
+			$oid = $OIDS->{$var};
 		}
 	}
 	my @vars = sort keys %{$OIDS};
@@ -153,14 +156,18 @@ sub menuSNMP{
 				popup_menu(-name=>'var', -override=>'1',
 					-values=>\@vars,
 					-default=>$var,
-					-onChange=>"get('nmisSnmp');"));
+					-onChange=> $wantwidget? "get('nmisSnmp');" : "return false;"));
 
-	
+
 
 	print td({class=>'header', colspan=>'1'},
 			"oid ",	textfield(-name=>"oid",-size=>'35',-override=>1,-value=>"$oid"));
 
-	print td(button(-name=>'submit',onclick=>"get('nmisSnmp','go');",-value=>"Go"));
+	print hidden(-name=>'go', -default=> 'false', -override=>'1', id => 'goinput')
+			if (!$wantwidget);
+	print td(button(-name=>'button',
+									onclick => ($wantwidget? "get('nmisSnmp','go');" : '$("#goinput").val("true"); submit();'),
+									-value=>"Go"));
 
 	print end_Tr;
 	if ($node ne '' and $oid ne '' and NMISNG::Util::getbool($go)) { viewSNMP(oid=>$oid); }
@@ -171,14 +178,17 @@ sub menuSNMP{
 
 	print end_form;
 
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
+
 }
 
-sub viewSNMP {
+sub viewSNMP
+{
 	my %args = @_;
 	my $oid = $args{oid};
 
 	my $node = $Q->{node};
-	my ($OIDS,$NAMES) = Mib::loadoid();
+	my ($OIDS,$NAMES) = NMISNG::MIB::loadoid($nmisng);
 	my $result;
 	my $SNMP;
 
@@ -218,7 +228,7 @@ sub viewSNMP {
 			print Tr(td({class=>'error'},"Error on initialize node object $node"));
 			return;
 		}
-	} 
+	}
 	# get it
 	if (($result = $SNMP->gettable($oid))) {
 		my $msg = (scalar keys %{$result} > 99) ? ', max entries of 100 reached' : '';
@@ -239,8 +249,7 @@ sub viewSNMP {
 			print Tr(td({class=>'error'},$SNMP->error));
 		}
 	}
-	
+
 	print end_table,end_td,end_Tr;
 	$SNMP->close();
 }
-
