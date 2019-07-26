@@ -1609,7 +1609,7 @@ sub checkDir
 	my ($dir, %opts) = @_;
 
 	my $result = 1;
-	my @messages;
+	my (@messages, @problems);
 
 	my $C = NMISNG::Util::loadConfTable();
 
@@ -1633,7 +1633,7 @@ sub checkDir
 	}
 	else {
 		$result = 0;
-		push(@messages,"ERROR: $dir does not have user read-write-execute permissions");
+		push(@problems,"ERROR: $dir does not have user read-write-execute permissions");
 	}
 
 	if ( $group_rwx ) {
@@ -1641,7 +1641,7 @@ sub checkDir
 	}
 	else {
 		$result = 0;
-		push(@messages,"ERROR: $dir does not have group read-write-execute permissions");
+		push(@problems,"ERROR: $dir does not have group read-write-execute permissions");
 	}
 
 	if ( $C->{'nmis_user'} eq $username ) {
@@ -1649,7 +1649,7 @@ sub checkDir
 	}
 	else {
 		$result = 0;
-		push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
+		push(@problems,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
 	}
 
 	if ( $C->{'nmis_user'} eq $username ) {
@@ -1657,7 +1657,7 @@ sub checkDir
 	}
 	else {
 		$result = 0;
-		push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{nmis_user} dir=$username");
+		push(@problems,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{nmis_user} dir=$username");
 	}
 
 	if ( $C->{'nmis_group'} eq $groupname ) {
@@ -1665,10 +1665,10 @@ sub checkDir
 	}
 	else {
 		$result = 0;
-		push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");
+		push(@problems,"ERROR: $dir DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");
 	}
 
-	return($result,@messages);
+	return ($result, ($result? @messages : @problems));
 }
 
 # checks the characteristics of ONE file
@@ -1684,7 +1684,7 @@ sub checkFile
 	my ($file, %opts) = @_;
 
 	my $result = 1;
-	my @messages;
+	my (@messages, @problems);
 
 	my $C = NMISNG::Util::loadConfTable();
 	my $prettyfile = File::Spec->abs2rel(Cwd::abs_path($file), $C->{'<nmis_base>'});
@@ -1700,7 +1700,7 @@ sub checkFile
 			 && $fstat->size > $C->{'file_size_warning'})
 	{
 		$result = 0;
-		push(@messages,"WARN: $prettyfile is ".$fstat->size." bytes, larger than $C->{'file_size_warning'} bytes");
+		push(@problems,"WARN: $prettyfile is ".$fstat->size." bytes, larger than $C->{'file_size_warning'} bytes");
 	}
 
 	my $groupname = getgrgid($fstat->gid);
@@ -1722,7 +1722,7 @@ sub checkFile
 		else
 		{
 			$result = 0;
-			push(@messages,"ERROR: $prettyfile owned by user $username, not correct owner $C->{nmis_user}");
+			push(@problems,"ERROR: $prettyfile owned by user $username, not correct owner $C->{nmis_user}");
 		}
 
 		if ( $C->{'nmis_group'} eq $groupname ) {
@@ -1731,7 +1731,7 @@ sub checkFile
 		else
 		{
 			$result = 0;
-			push(@messages,"ERROR: $prettyfile owned by group $groupname, not correct group $C->{nmis_group}");
+			push(@problems,"ERROR: $prettyfile owned by group $groupname, not correct group $C->{nmis_group}");
 		}
 
 		my ($text,$wanted) = ($file =~ $should_be_executable)?
@@ -1744,7 +1744,7 @@ sub checkFile
 			my @grants;
 			push @grants, "FEWER" if ($wanted & $mode) != $wanted;
 			push @grants, "MORE" if ($wanted | $mode) != $wanted;
-			push @messages, sprintf("ERROR: $prettyfile has incorrect %s perms 0%o: grants %s rights than correct 0%o",
+			push @problems, sprintf("ERROR: $prettyfile has incorrect %s perms 0%o: grants %s rights than correct 0%o",
 															$text, $mode, join(" and ", @grants), $wanted);
 		}
 		else
@@ -1762,7 +1762,7 @@ sub checkFile
 		else
 		{
 			$result = 0;
-			push(@messages,"ERROR: $prettyfile owned by group $groupname, not correct group $C->{nmis_group}");
+			push(@problems,"ERROR: $prettyfile owned by group $groupname, not correct group $C->{nmis_group}");
 		}
 
 		# check that: the nmis group can rwx, or that the nmis group can rw
@@ -1775,7 +1775,7 @@ sub checkFile
 		if (($reducedmode & $wanted & S_IRWXG) != ($wanted & S_IRWXG))
 		{
 			$result = 0;
-			push @messages, sprintf("ERROR: $prettyfile has insufficient group %s perms 0%o: grants fewer rights than correct 0%o",
+			push @problems, sprintf("ERROR: $prettyfile has insufficient group %s perms 0%o: grants fewer rights than correct 0%o",
 															$text, $mode, $wanted);
 		}
 		else
@@ -1784,7 +1784,7 @@ sub checkFile
 		}
 	}
 
-	return ($result,@messages);
+	return ($result, ($result? @messages : @problems));
 }
 
 # checks the files and dirs under the given directory (optionally recurses)
@@ -1798,7 +1798,7 @@ sub checkDirectoryFiles
 {
 	my ($dir, %opts) = @_;
 	my $result = 1;
-	my @messages;
+	my (@messages, @problems);
 
 	return (0, "ERROR: $dir is not a directory!") if (!-d $dir);
 
@@ -1832,10 +1832,17 @@ sub checkDirectoryFiles
 		}
 
 		my ($newstatus, @newmsgs) = &$func("$dir/$thing", %opts);
-		push @messages, @newmsgs;
+		if ($newstatus)
+		{
+			push @messages, @newmsgs;
+		}
+		else
+		{
+			push @problems, @newmsgs;
+		}
 		$result = 0 if (!$newstatus);
 	}
-	return ($result, @messages);
+	return ($result, ($result? @messages : @problems));
 }
 
 # checks and adjusts the ownership and permissions on given dir X
