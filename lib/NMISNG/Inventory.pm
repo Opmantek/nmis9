@@ -995,6 +995,8 @@ sub relocate_storage
 
 	# full sanity check FIRST - can the path fixup happen? does the current name match?
 	my $safetomangle = Clone::clone($self->{_storage});
+	# keep track of the errors
+	my %error_keys;
 	my %seen;											# certain rrds show up more than once
 	for my $subconcept (keys %{$self->{_storage}})
 	{
@@ -1004,7 +1006,9 @@ sub relocate_storage
 		my $existing = $self->{_storage}->{$subconcept}->{"rrd"}; # a relative path
 		if (! -f "$dbroot/$existing")
 		{
-			return (0, "file \"$existing\" does not exist, cannot relocate!");
+			$self->nmisng->log->info("file \"$existing\" does not exist");
+			$error_keys{$subconcept} = 1;
+			next;
 		}
 
 		# word chars are alphanum plus _, we want to allow _ as delimiter as well
@@ -1013,7 +1017,9 @@ sub relocate_storage
 		my @matches = ($existing =~ /(?:^|\W|_)$curname(?:$|\W|_)/ig);
 		if (!@matches)
 		{
-			return (0, "current name \"$curname\" not detected in \"$existing\" - cannot relocate!");
+			$self->nmisng->log->info("current name \"$curname\" not detected in \"$existing\" ");
+			$error_keys{$subconcept} = 1;
+			next;
 		}
 		# possible ambiguity, so we warn about it
 		elsif (@matches > 1)
@@ -1037,7 +1043,8 @@ sub relocate_storage
 	for my $subconcept (keys %{$self->{_storage}})
 	{
 		next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
-						 or !defined $self->{_storage}->{$subconcept}->{"rrd"});
+						 or !defined $self->{_storage}->{$subconcept}->{"rrd"}
+						 or exists($error_keys{$subconcept}) );
 		my $existing = $self->{_storage}->{$subconcept}->{"rrd"}; # a relative path
 		my $new = $safetomangle->{$subconcept}->{"rrd"};
 
