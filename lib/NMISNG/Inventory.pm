@@ -992,6 +992,10 @@ sub relocate_storage
 																									 or !keys %{$self->{_storage}});
 
 	my $dbroot = $self->nmisng->config->{'database_root'};
+	
+	# Needed to makeRRDname from database, if current path is corrupt
+	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
+	$S->init(node => $self->nmisng->node(name => $curname));
 
 	# full sanity check FIRST - can the path fixup happen? does the current name match?
 	my $safetomangle = Clone::clone($self->{_storage});
@@ -1017,9 +1021,8 @@ sub relocate_storage
 		my @matches = ($existing =~ /(?:^|\W|_)$curname(?:$|\W|_)/ig);
 		if (!@matches)
 		{
+			# Guess this is due to a failed renaming attempt, so try to find the new path - Not aborting
 			$self->nmisng->log->info("current name \"$curname\" not detected in \"$existing\" ");
-			$error_keys{$subconcept} = 1;
-			next;
 		}
 		# possible ambiguity, so we warn about it
 		elsif (@matches > 1)
@@ -1030,6 +1033,15 @@ sub relocate_storage
 		# for backwards compatibility accept both correct (new) and lowercased (legacy) names here
 		$safetomangle->{$subconcept}->{"rrd"} =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 		my $newfile = $safetomangle->{$subconcept}->{"rrd"};
+
+		# Couldnt replace the newname on the old path, make new name from the common-database information
+		if ($existing eq $newfile) {
+			my $name = $S->makeRRDname( type => $subconcept, relative => 1);
+			$name =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
+			$self->nmisng->log->debug("$existing equals to $newfile, make newpath from common-database $name");
+			$newfile = $name;
+			$safetomangle->{$subconcept}->{"rrd"} = $name;
+		}
 
 		return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
 				if (!$seen{$newfile} && -f "$dbroot/$newfile");
