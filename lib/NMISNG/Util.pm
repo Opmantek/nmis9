@@ -786,6 +786,7 @@ sub loadConfTable
 		my $whichfile = $fallbackfn? $fallbackfn : $fn;
 	
 		$config_cache = read_load_cache(whichfile => $whichfile, cachefile => $config_cache, master => "true", fn => $fn );
+		$stat = stat($fn);
 		
 		# certain values get massaged in/to the config
 		$config_cache->{conf} = "Config"; # fixme9: this is no longer very useful, only one config supported
