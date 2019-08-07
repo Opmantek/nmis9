@@ -812,7 +812,7 @@ sub loadConfTable
 				while ( my ($k,$v) = each(%{$local_config_cache}) ) {
 					# Never let the master change this value(s)
 					# TODO: Place this values on a file
-					next if ($k eq 'cluster_id');
+					next if (grep( /^$k$/, properties_never_override()));
 				
 					$config_cache->{$k} = $v;
 				}
@@ -1616,6 +1616,14 @@ sub getbool
 	}
 }
 
+# Send an array with the properties never overrided by the conf master files
+# Hardcoded as we dont want them to be overrided
+# Could be a mess
+sub properties_never_override
+{
+	my @properties = ['cluster_id', 'server_name', 'nmis_host'];
+	return \@properties;
+}
 
 # trivial wrapper around readfiletohash
 # difference to loadConfTable: loadconftable flattens and adds a few entries
@@ -1649,7 +1657,7 @@ sub readConfData
 					{
 						if (ref($rawpartialdata->{$k}->{$kk}) ne "HASH" )
 						{
-							next if ($kk eq 'cluster_id');
+							next if (grep( /^$kk$/, properties_never_override()));
 							$rawdata->{$k}->{$kk} =$rawpartialdata->{$k}->{$kk};
 						}
 						else
