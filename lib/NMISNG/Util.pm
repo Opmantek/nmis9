@@ -720,6 +720,8 @@ sub loadConfTable
 																				&& $config_cache->{configfile}
 																				&& !defined $args{dir});
 	my $fallbackfn;								# only set if falling back
+	# Directory for the partial configuration files (From Master)
+	my $partialconf_dir = Cwd::abs_path("$dir/config.d");	
 	my $stat = stat($fn);
 	# try conf-default if that doesn't work
 	if (!$stat)
@@ -747,23 +749,109 @@ sub loadConfTable
 
 		# lock the file or config writing (which truncates) could cause race conditions
 		my $whichfile = $fallbackfn? $fallbackfn : $fn;
-		open(X, $whichfile) or warn_die("cannot open configuration file $whichfile: $!");
-		flock(X, LOCK_SH) or warn_die("cannot lock configuration file $whichfile: $!");
+	
+		$config_cache = read_load_cache(whichfile => $whichfile, cachefile => $config_cache, master => "true", fn => $fn );
+		$stat = stat($fn);
+						 
+		# certain values get massaged in/to the config
+		$config_cache->{conf} = "Config"; # fixme9: this is no longer very useful, only one config supported
+		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
+		# ensure hide_groups is present (saves us checking the ref all over the place)
+		$config_cache->{hide_groups} //= [];
 
-		my %deepdata = do ($whichfile);
-		# should the file have unwanted gunk after the %hash = ();
-		# it'll most likely be a '1;' and do returns the last statement result...
-		if ($@)
+		# fixme9: saving this back is likely a bad idea, config vs. command line
+		# fixme: none of this is nmisng::log compatible, where info is only t/f,
+		# and verbosity is from fatal..info..debug..1-9.
+		my $verbosity = NMISNG::Log::parse_debug_level(debug => $args{debug});
+		$config_cache->{debug} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+		# info is only consulted if debug isn't
+		if (!$config_cache->{debug})
 		{
-			warn_die("configuration file $fn unparseable: $@");
+			$verbosity = NMISNG::Log::parse_debug_level(debug => $args{info});
+			$config_cache->{info} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
 		}
-		elsif (keys %deepdata < 2)
+
+		$config_cache->{configfile} = $fn; # fixperms also wants that
+		$config_cache->{mtime} = $stat->mtime; # remember modified time for cache logic
+
+		# config is loaded, all plain <xyz> -> "static stuff" macros need to be resolved
+		# walk all things in need of macro expansion and fix them up as much as possible each iteration
+		
+		$config_cache = replace_macros( config_cache => $config_cache );
+		# a little safety net (for init/systemd and other stuff that needs to find pidfiles etc):
+		# if the var directory configuration is non-standard,
+		# then maintain a symlink to the configured directory
+		# note: if var is reconfigured back to normal but symlink is correct, then no action is taken
+		my $confdvar = $config_cache->{'<nmis_var>'};
+		my @confdstat = (CORE::stat($confdvar))[0,1]; # device and inode
+		my $normalvar = "$config_cache->{'<nmis_base>'}/var";
+		my @normalstat = (CORE::stat($normalvar))[0,1]; # device and inode
+
+		if (-d $confdvar and ($confdstat[0] != $normalstat[0]
+													or $confdstat[1] != $normalstat[1]))
 		{
-			warn_die("configuration does not have enough depth, only ". (scalar keys %deepdata). " entries!");
+			rename($normalvar, "$normalvar.deconfigured.$$") if (-e $normalvar);
+			symlink($confdvar, $normalvar)
+					or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
 		}
-		close(X);										# which unlocks
+		
+		# Now that we finish loading all the values, lets load overriding partial files
+		# conf.d directory
+		if (opendir(DIR, $partialconf_dir)) {
+			my $filename;
+			$config_cache->{configpeerfiles} = [];
+			while ($filename = readdir(DIR)) {
+				# Only .nmis files
+				next unless ($filename =~ m/\.nmis$/);
+				my $path = $partialconf_dir . "/" . $filename;
+				my $local_config_cache;
+				push @{$config_cache->{configpeerfiles}}, $path;
+				$local_config_cache = read_load_cache(whichfile => $path, cachefile => $local_config_cache, master => 0, fn => $path );
+				$local_config_cache = replace_macros( config_cache => $local_config_cache );
+				# Merge with local cache
+				while ( my ($k,$v) = each(%{$local_config_cache}) ) {
+					# Never let the master change this value(s)
+					# TODO: Place this values on a file
+					next if ($k eq 'cluster_id');
+				
+					$config_cache->{$k} = $v;
+				}
+			}
+			closedir(DIR);
+		}
+		else
+		{
+			warn("\n WARN: Could not open $partialconf_dir");
+		}		
+	}
+	return $config_cache;
+}
 
+# Read a configuration file, block and load cache
+sub read_load_cache
+{
+	my %args = @_;
+	my $whichfile = $args{whichfile};
+	my $config_cache = $args{cachefile};
+	my $is_master = $args{master};
+	my $fn = $args{fn};
 
+	open(X, $whichfile) or warn_die("cannot open configuration file $whichfile: $!") if $is_master;
+	flock(X, LOCK_SH) or warn_die("cannot lock configuration file $whichfile: $!") if $is_master;
+
+	my %deepdata = do ($whichfile);
+	# should the file have unwanted gunk after the %hash = ();
+	# it'll most likely be a '1;' and do returns the last statement result...
+	if ($@)
+	{
+		warn_die("configuration file $fn unparseable: $@ $is_master") if $is_master;
+		warn(">> configuration file $fn unparseable: $@");
+	}
+	elsif (keys %deepdata < 2)
+	{
+		warn_die("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!") if $is_master;
+		warn("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!");
+	} else {
 		# strip the outer of two levels, does not flatten any deeper structure
 		for my $k (keys %deepdata)
 		{
@@ -774,12 +862,12 @@ sub loadConfTable
 				$config_cache->{$kk} = $deepdata{$k}->{$kk};
 			}
 		}
-
+		
 		# this one is vital for NMIS9 in particular: the cluster_id must be unique AND not change
-		if (!$config_cache->{cluster_id})
+		if (!$config_cache->{cluster_id} && $is_master)
 		{
 			$deepdata{id}->{cluster_id} = $config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
-
+	
 			# and write back the updated config file - cannot use writehashtofile yet!
 			open(F, (-e $fn? "+<": ">"), $fn) or warn_die("cannot write configuration file $fn: $!");
 			seek(F,0,0);							# only relevant when opening existing file
@@ -788,23 +876,24 @@ sub loadConfTable
 			print F Data::Dumper->Dump([\%deepdata], [qw(*hash)]);
 			close F;									# which unlocks
 			# and restat to get the new mtime
-			$stat = stat($fn);
 		}
+	}
+	close(X);										# which unlocks
+	
+	return $config_cache;
+}
 
-		# certain values get massaged in/to the config
-		$config_cache->{conf} = "Config"; # fixme9: this is no longer very useful, only one config supported
-		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
-		# ensure hide_groups is present (saves us checking the ref all over the place)
-		$config_cache->{hide_groups} //= [];
-
-		$config_cache->{configfile} = $fn; # fixperms also wants that
-		$config_cache->{mtime} = $stat->mtime; # remember modified time for cache logic
-
-		# config is loaded, all plain <xyz> -> "static stuff" macros need to be resolved
-		# walk all things in need of macro expansion and fix them up as much as possible each iteration
-		my @todos = grep(!ref($config_cache->{$_})
+# small helper function that is going to replace macros
+# args: error message
+sub replace_macros
+{
+	my (%args) = @_;
+	my $config_cache = $args{config_cache};
+	
+	my @todos = grep(!ref($config_cache->{$_})
 										 && $config_cache->{$_} =~ /<\w+>/, keys %$config_cache);
-		while (@todos)
+	
+	while (@todos)
 		{
 			my $atstart = @todos;
 			my @stilltodo;
@@ -847,26 +936,7 @@ sub loadConfTable
 				last;
 			}
 		}
-
-		# a little safety net (for init/systemd and other stuff that needs to find pidfiles etc):
-		# if the var directory configuration is non-standard,
-		# then maintain a symlink to the configured directory
-		# note: if var is reconfigured back to normal but symlink is correct, then no action is taken
-		my $confdvar = $config_cache->{'<nmis_var>'};
-		my @confdstat = (CORE::stat($confdvar))[0,1]; # device and inode
-		my $normalvar = "$config_cache->{'<nmis_base>'}/var";
-		my @normalstat = (CORE::stat($normalvar))[0,1]; # device and inode
-
-		if (-d $confdvar and ($confdstat[0] != $normalstat[0]
-													or $confdstat[1] != $normalstat[1]))
-		{
-			rename($normalvar, "$normalvar.deconfigured.$$") if (-e $normalvar);
-			symlink($confdvar, $normalvar)
-					or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
-		}
-	}
-
-	return $config_cache;
+		return $config_cache;
 }
 
 # small helper function that syslogs the exception message, then terminates
@@ -1549,7 +1619,7 @@ sub getbool
 
 # trivial wrapper around readfiletohash
 # difference to loadConfTable: loadconftable flattens and adds a few entries
-# args: none
+# args: only_local eq 1 loads only local config (Not by default)
 # returns: hashref-or-errormessage, file name
 sub readConfData
 {
@@ -1557,8 +1627,42 @@ sub readConfData
 
 	my $C = loadConfTable;
 	my $fn = $C->{configfile};
-
+	
 	my $rawdata = NMISNG::Util::readFiletoHash(file => $fn);
+
+	my $fnp = $C->{configpeerfiles};
+	my $nmisng = Compat::NMIS::new_nmisng();
+	
+	if ($args{only_local} ne 1)
+	{
+		$nmisng->log->info("Reading config properties from master. ");
+		eval {
+			foreach ( @{$fnp} ) {
+			
+				my $rawpartialdata = NMISNG::Util::readFiletoHash(file => $_);
+		
+				# strip the outer of two levels, does not flatten any deeper structure
+				# merge
+				for my $k (keys %{$rawpartialdata})
+				{
+					for my $kk (keys %{$rawpartialdata->{$k}})
+					{
+						if (ref($rawpartialdata->{$k}->{$kk}) ne "HASH" )
+						{
+							next if ($kk eq 'cluster_id');
+							$rawdata->{$k}->{$kk} =$rawpartialdata->{$k}->{$kk};
+						}
+						else
+						{
+							# FIXME: Support nested config values
+							$nmisng->log->warn($kk . " is a hash. Not being merged");
+						}
+					}
+				}
+			}
+		}; if ($@) { $nmisng->log->warn("Error reading config peer files. Show local config " . $@); }
+	}
+
 	return ($rawdata, $fn);
 }
 

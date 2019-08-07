@@ -43,6 +43,8 @@ use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::Auth;
 
+use Data::Dumper;
+
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
@@ -127,7 +129,7 @@ sub displayConfig{
 
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	my ($CC,undef) = NMISNG::Util::readConfData();
+	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 
 	# start of form
   # the get() code doesn't work without a query param, nor does it work with all params present
@@ -138,6 +140,11 @@ sub displayConfig{
 
 	print start_table({width=>"400px"}) ; # first table level
 
+	if ($C->{configpeerfiles})
+	{
+		print Tr(td({class=>'Warning',align=>'center'}, "There are files from the poller overriding the configuration"));
+	}
+	
 	if (defined $Q->{error_message} && $Q->{error_message} ne "" )
 	{
 		print Tr(td({class=>'Fatal',align=>'center'}, "Error: $Q->{error_message}"));
@@ -255,7 +262,7 @@ sub editConfig{
 
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	my ($CC,undef) = NMISNG::Util::readConfData();
+	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 
 	# start of form, see comment for first start_form
 	# except that this one also needs the cancel case covered
@@ -397,7 +404,7 @@ sub doEditConfig
 	my $value = $Q->{value};
 
 	# that's the  non-flattened raw hash
-	my ($CC,undef) = NMISNG::Util::readConfData();
+	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
@@ -608,7 +615,7 @@ sub deleteConfig {
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my ($CC,undef) = NMISNG::Util::readConfData();
+	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 
 	my $value = $CC->{$section}{$item};
 
@@ -659,7 +666,7 @@ sub doDeleteConfig {
 	my $item = $Q->{item};
 
 	# that's the  non-flattened raw hash
-	my ($CC,undef) = NMISNG::Util::readConfData;
+	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
@@ -680,7 +687,7 @@ sub doDeleteConfig {
 sub addConfig{
 	my %args = @_;
 
-	my ($CC,undef) = NMISNG::Util::readConfData();
+	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 
 	my $section = $Q->{section};
 
@@ -733,7 +740,7 @@ sub doAddConfig {
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my ($CC,undef) = NMISNG::Util::readConfData();
+	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 
 	my $section = $Q->{section};
 
