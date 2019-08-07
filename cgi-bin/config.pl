@@ -142,7 +142,7 @@ sub displayConfig{
 
 	if ($C->{configpeerfiles})
 	{
-		print Tr(td({class=>'Warning',align=>'center'}, "There are files from the poller overriding the configuration"));
+		print Tr(td({class=>'Warning',align=>'center'}, "There are files from the master overriding the configuration"));
 	}
 	
 	if (defined $Q->{error_message} && $Q->{error_message} ne "" )
