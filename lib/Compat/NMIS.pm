@@ -1655,9 +1655,6 @@ sub loadPortalCode {
 			elsif ( $ENV{SCRIPT_NAME} =~ /maps/ and $P->{$p}{Name} =~ /Map/ ) {
 				$selected = " selected=\"$P->{$p}{Name}\"";
 			}
-			elsif ( $ENV{SCRIPT_NAME} =~ /ipsla/ and $P->{$p}{Name} eq "IPSLA" ) {
-				$selected = " selected=\"$P->{$p}{Name}\"";
-			}
 			$portalOption .= qq|<option value="$P->{$p}{Link}"$selected>$P->{$p}{Name}</option>\n|;
 		}
 

@@ -81,15 +81,6 @@ my %hash = (
 			{ 'fastping_maxage' => { display => 'text', value => [900],
 															 validate => { 'int' => [ 1, undef ] }}},
 
-			{ 'ipsla_collect_time' => { display => 'text', value => ['60']}},
-			{ 'ipsla_bucket_interval' => { display => 'text', value => ['180']}},
-			{ 'ipsla_extra_buckets' => { display => 'text', value => ['5']}},
-			{ 'ipsla_mthread' => { display => 'popup', value => ["true", "false"]}},
-			{ 'ipsla_maxthreads' => { display => 'text', value => ['10']}},
-			{ 'ipsla_mthreaddebug' => { display => 'popup', value => ["false", "true"]}},
-			{ 'ipsla_dnscachetime' => { display => 'text', value => ['3600']}},
-			{ 'ipsla_control_enable_other' => { display => 'popup', value => ["true", "false"]}},
-
 			{ 'default_graphtype' => { display => 'text', value => ['abits']}},
 			{ 'ping_timeout' => { display => 'text', value => ['300']}},
 			{ 'ping_packet' => { display => 'text', value => ['56'],
@@ -237,11 +228,6 @@ my %hash = (
 												 validate => { 'int' => [ 60, undef ] }}},
 			{ 'escalate10' => { display => 'text', value => ['86400'],
 													validate => { 'int' => [ 60, undef ] }}}
-				],
-
-		'daemons' => [
-			{ 'daemon_ipsla_active' => { display => 'popup', value => ['true','false']}},
-			{ 'daemon_ipsla_filename' => { display => 'text', value => ['ipslad.pl']}},
 				],
 
 		'metrics' => [

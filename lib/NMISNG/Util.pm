@@ -1526,49 +1526,6 @@ sub logAuth
 	return undef;
 }
 
-# message with (class::)method names and line number
-sub logIpsla
-{
-	my $msg = shift;
-	my $C = loadConfTable;
-	my $handle;
-
-	if ($C eq '') {
-		# no config loaded
-		die "FATAL logIpsla, NO Config Loaded: $msg";
-	}
-	elsif ( not -f $C->{ipsla_log} and not -d $C->{'<nmis_logs>'} ) {
-		print "ERROR, logIpsla can't do anything but NAG YOU\n";
-		warn "ERROR logIpsla: the message which might have killed me was: $msg\n";
-		return undef;
-	}
-
-	my $PID = $$;
-	my $sep = "::";
-	my ($string,$caller,$ln,$fn);
-	for my $i (1..10) {
-		($caller) = (caller($i))[3];	# name sub
-		($ln) = (caller($i-1))[2];	# linenumber
-		$string = "$sep$PID$sep$caller#$ln".$string;
-		if ($caller =~ /main/ or $caller eq '') {
-			($fn) = (caller($i-1))[1];	# filename
-			$fn =~ s;.*/(.*\.\w+)$;$1; ; # strip directory
-			$string =~ s/main|//;
-			$string = "$fn".$string;
-			last;
-		}
-	}
-
-	$string .= "<br>$msg";
-	$string =~ s/\n/ /g;      #remove all embedded newlines
-
-	open($handle,">>$C->{ipsla_log}") or warn returnTime." logIpsla, Couldn't open log file $C->{ipsla_log}. $!\n";
-	flock($handle, LOCK_EX)  or warn "logIpsla, can't lock filename: $!";
-	print $handle NMISNG::Util::returnDateStamp().",$string\n" or warn returnTime." logIpsla, can't write file $C->{ipsla_log}. $!\n";
-	close $handle or warn "logIpsla, can't close filename: $!";
-	NMISNG::Util::setFileProtDiag(file =>$C->{ipsla_log});
-}
-
 sub logPolling {
 	my $msg = shift;
 	my $C = loadConfTable;

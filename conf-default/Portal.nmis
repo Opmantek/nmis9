@@ -6,20 +6,15 @@
   },
   '2' => {
     'Order' => '2',
-    'Name' => 'IPSLA',
-    'Link' => '/cgi-nmis8/ipsla.pl'
-  },
-  '3' => {
-    'Order' => '2',
     'Name' => 'NMIS Commmunity',
     'Link' => 'http://community.opmantek.com/'
   },
-  '4' => {
+  '3' => {
     'Order' => '3',
     'Name' => 'Google',
     'Link' => 'http://google.com/'
   },
-  '5' => {
+  '4' => {
     'Order' => '4',
     'Name' => 'Your Link Here',
     'Link' => 'http://wolframalpha.com/'

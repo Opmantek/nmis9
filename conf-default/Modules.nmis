@@ -60,16 +60,6 @@
 	    'tagline' => 'Enhanced NMIS reports with engineering and business related reports.'
 	  },
     
-	  'opSLA' => {
-	    'order' => '8',
-	    'name' => 'opSLA',
-	    'base' => 'nmis8',
-	    'file' => '/cgi-bin/opsla.pl',
-	    'link' => '/cgi-nmis8/opsla.pl',
-	    'description' => 'The opSLA module provides significant IPSLA probe scaling over the standard NMIS IPSLA engine.  An important consideration for large IPSLA deployments especially in Service Provider environments.',
-	    'tagline' => 'Access to Cisco IPSLA technology for network latency and jitter.'
-	  },
-
     'Open-AudIT Enterprise' => {
       'order' => '9',
       'name' => 'Open-AudIT Enterprise',

@@ -184,8 +184,6 @@ sub menu_bar_site {
 
 
 		my @netperf;
-		push @netperf, qq|<a target='ntw_ipsla' href="$C->{ipsla}?">IPSLA Monitor</a>|
-				if ($AU->CheckAccess("ipsla_menu","check"));
 		push @netperf, qq|<a id='ntw_overview' href="network.pl?refresh=$widget_refresh&amp;act=network_summary_allgroups">All Groups</a>|;
 		push @netperf, qq|<a id='ntw_overview' href="network.pl?refresh=$widget_refresh&amp;act=network_interface_overview">OverView</a>|;
 		push @netperf, qq|<a id='ntw_top10' href="network.pl?refresh=$widget_refresh&amp;act=network_top10_view">Top 10</a>|;

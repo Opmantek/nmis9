@@ -167,14 +167,6 @@ my %hash = (
     'fastping_interval' => '1',
     'fastping_target_interval' => '1',
 
-    'ipsla_collect_time' => '60',
-    'ipsla_bucket_interval' => '180',
-    'ipsla_extra_buckets' => '5',
-    'ipsla_mthread' => 'true',
-    'ipsla_maxthreads' => '10',
-    'ipsla_mthreaddebug' => 'false',
-    'ipsla_dnscachetime' => '3600',
-    'ipsla_control_enable_other' => 'true',
     'threshold_period-default' => '-15 minutes',
     'threshold_period-health' => '-4 hours',
     'threshold_period-pkts' => '-15 minutes',
@@ -236,14 +228,12 @@ my %hash = (
     'nmis' => '<cgi_url_base>/nmiscgi.pl',
     'network' => '<cgi_url_base>/network.pl',
     'node' => '<cgi_url_base>/node.pl',
-    'ipsla' => '<cgi_url_base>/ipsla.pl',
     'events' => '<cgi_url_base>/events.pl',
     'logs' => '<cgi_url_base>/logs.pl',
     'outage_file' => '<nmis_conf>/outage.dat',
     'nmis_log' => '<nmis_logs>/nmis.log',
     'fping_log' => '<nmis_logs>/fping.log',
     'auth_log' => '<nmis_logs>/auth.log',
-    'ipsla_log' => '<nmis_logs>/ipsla.log',
     'polling_log' => '<nmis_logs>/polling.log',
     'syslog_log' => '<nmis_logs>/cisco.log',
     'event_log' => '<nmis_logs>/event.log',
@@ -290,11 +280,6 @@ my %hash = (
     'syslog_facility' => 'local1',
     'syslog_use_escalation' => 'true',
     'syslog_events' => 'false'
-  },
-
-  'daemons' => {
-    'daemon_ipsla_active' => 'false',
-    'daemon_ipsla_filename' => 'ipslad',
   },
 
   'authentication' => {

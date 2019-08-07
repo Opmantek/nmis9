@@ -376,28 +376,6 @@
     'level5' => '0',
     'name' => 'generic_syslog'
   },
-  'ipsla_menu' => {
-    'descr' => 'Permit Access to IPSLA Menu',
-    'group' => 'access',
-    'level0' => '1',
-    'level1' => '0',
-    'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'ipsla_view'
-  },
-  'ipsla_rw' => {
-    'descr' => 'Permit Access to IPSLA Editing Probes (add, edit, delete)',
-    'group' => 'access',
-    'level0' => '1',
-    'level1' => '0',
-    'level2' => '1',
-    'level3' => '0',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'ipsla_rw'
-  },
   'log_event' => {
     'descr' => 'Enable button Logs Event log',
     'group' => 'button',

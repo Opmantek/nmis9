@@ -28,7 +28,7 @@ information, as well as high level reporting for executive reports.
 
 ##  Additional modules
 Additional modules are available under low cost commercial licenses for:
-NetFlow, Application Flow, Advanced IPSLA, Mapping, Advanced Reporting,
+NetFlow, Application Flow, Mapping, Advanced Reporting,
 Database Integration, Event Management, Configuration Management,
 High Availability and more.
 Contact Opmantek - contact@opmantek.com
