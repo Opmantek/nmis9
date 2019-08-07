@@ -721,7 +721,7 @@ sub loadConfTable
 																				&& !defined $args{dir});
 	my $fallbackfn;								# only set if falling back
 	# Directory for the partial configuration files (From Master)
-	my $partialconf_dir = Cwd::abs_path("$dir/config.d");	
+	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");	
 	my $stat = stat($fn);
 	# try conf-default if that doesn't work
 	if (!$stat)
@@ -821,7 +821,8 @@ sub loadConfTable
 		}
 		else
 		{
-			warn("\n WARN: Could not open $partialconf_dir");
+			# Would be an info 
+			#warn("\n WARN: Could not open $partialconf_dir $!");
 		}		
 	}
 	return $config_cache;
@@ -850,7 +851,6 @@ sub read_load_cache
 	elsif (keys %deepdata < 2)
 	{
 		warn_die("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!") if $is_master;
-		warn("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!");
 	} else {
 		# strip the outer of two levels, does not flatten any deeper structure
 		for my $k (keys %deepdata)
