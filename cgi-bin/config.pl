@@ -129,10 +129,10 @@ sub displayConfig{
 
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+	my ($CC,undef) = NMISNG::Util::readConfData();
 
 	# start of form
-  # the get() code doesn't work without a query param, nor does it work with all params present
+    # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_menu")
@@ -205,7 +205,7 @@ sub typeSect {
 
 	push @out,Tr(td({class=>"header"},$section),td({class=>'info Plain',colspan=>'2'},"&nbsp;"),td({class=>'info Plain'},
 			eval {
-				if ($AU->CheckAccess("Table_Config_rw","check")) {
+				if ($AU->CheckAccess("Table_Config_rw","check") and !$C->{configpeerfiles}) {
 					return a({ href=>"$ref?act=config_nmis_add&section=$section&widget=$widget"},'add&nbsp;');
 				} else { return ""; }
 			}
@@ -230,7 +230,7 @@ sub typeSect {
 				td({class=>"header"},escape($k)),td({class=>'info Plain'},
 																						escape($value)),
 				eval {
-					if ($AU->CheckAccess("Table_Config_rw","check")) {
+					if ($AU->CheckAccess("Table_Config_rw","check") and !$C->{configpeerfiles}) {
 						return td({class=>'info Plain'},
 							a({ href=>"$ref?act=config_nmis_edit&section=$section&item=$k&widget=$widget"},'edit&nbsp;'),
 							eval {
