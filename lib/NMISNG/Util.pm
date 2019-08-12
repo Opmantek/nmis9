@@ -737,6 +737,7 @@ sub loadConfTable
 		warn_die("all configuration files ($fn, $fallbackfn) are unreadable: $!");
 	}
 
+	my $external_files = get_external_files(dir => $partialconf_dir);
 	# read the file if not read yet, or different dir requested
 	if ( !$config_cache
 			 or $config_cache->{configfile} ne $fn
@@ -772,8 +773,7 @@ sub loadConfTable
 		}
 
 		$config_cache->{configfile} = $fn; # fixperms also wants that
-		$config_cache->{mtime} = $stat->mtime; # remember modified time for cache logic
-
+		$config_cache->{mtime} = $stat->mtime;
 		# config is loaded, all plain <xyz> -> "static stuff" macros need to be resolved
 		# walk all things in need of macro expansion and fix them up as much as possible each iteration
 		
@@ -795,37 +795,52 @@ sub loadConfTable
 					or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
 		}
 		
+	} else {
+		#warn("\n>>> Reading cache");
+	}
+	
+	if (scalar @$external_files > 0)
+	{
 		# Now that we finish loading all the values, lets load overriding partial files
 		# conf.d directory
-		if (opendir(DIR, $partialconf_dir)) {
-			my $filename;
-			$config_cache->{configpeerfiles} = [];
-			while ($filename = readdir(DIR)) {
-				# Only .nmis files
-				next unless ($filename =~ m/\.nmis$/);
-				my $path = $partialconf_dir . "/" . $filename;
+		my $properties = properties_never_override();	
+		foreach (@$external_files) {
+			my $stat = stat($_);
+			if ($stat->mtime > $config_cache->{@_}) {
 				my $local_config_cache;
-				push @{$config_cache->{configpeerfiles}}, $path;
-				$local_config_cache = read_load_cache(whichfile => $path, cachefile => $local_config_cache, master => 0, fn => $path );
+				push @{$config_cache->{configpeerfiles}}, $_;
+				$local_config_cache = read_load_cache(whichfile => $_, cachefile => $local_config_cache, master => 0, fn => $_ );	
 				$local_config_cache = replace_macros( config_cache => $local_config_cache );
 				# Merge with local cache
 				while ( my ($k,$v) = each(%{$local_config_cache}) ) {
 					# Never let the master change this value(s)
-					# TODO: Place this values on a file
-					next if (grep( /^$k$/, properties_never_override()));
-				
+					next if ( grep( /^$k$/, @$properties ));
 					$config_cache->{$k} = $v;
 				}
+				$config_cache->{@_} = $stat->mtime; # remember
 			}
-			closedir(DIR);
 		}
-		else
-		{
-			# Would be an info 
-			#warn("\n WARN: Could not open $partialconf_dir $!");
-		}		
 	}
 	return $config_cache;
+}
+
+# Get external configuration files
+sub get_external_files
+{
+	my %args = @_;
+	my $dir = $args{dir};
+	my @files = ();
+	if (opendir(DIR, $dir)) {
+		my $filename;
+		while ($filename = readdir(DIR)) {
+			# Only .nmis files
+			next unless ($filename =~ m/\.nmis$/);
+			my $path = $dir . "/" . $filename;
+			push @files, $path; 
+		}
+		closedir(DIR);
+	}
+	return \@files;
 }
 
 # Read a configuration file, block and load cache
@@ -848,8 +863,8 @@ sub read_load_cache
 		warn_die("configuration file $fn unparseable: $@ $is_master") if $is_master;
 		warn(">> configuration file $fn unparseable: $@");
 	}
-	elsif (keys %deepdata < 2)
-	{
+	elsif (keys %deepdata < 2 and $is_master)
+	{ 
 		warn_die("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!") if $is_master;
 	} else {
 		# strip the outer of two levels, does not flatten any deeper structure
@@ -1578,7 +1593,7 @@ sub getbool
 # Could be a mess
 sub properties_never_override
 {
-	my @properties = ['cluster_id', 'server_name', 'nmis_host'];
+	my @properties = ('cluster_id', 'server_name', 'nmis_host');
 	return \@properties;
 }
 
