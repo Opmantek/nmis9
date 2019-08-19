@@ -1527,6 +1527,7 @@ sub selectLarge
 
 			my $statusClass = $groupSummary->{$node}{event_status};
 			my $statusValue = $groupSummary->{$node}{event_status};
+
 			if (    exists $C->{display_status_summary}
 				and NMISNG::Util::getbool( $C->{display_status_summary} )
 				and exists $groupSummary->{$node}{nodestatus}
@@ -1536,6 +1537,10 @@ sub selectLarge
 				if ( $groupSummary->{$node}{nodestatus} eq "degraded" )
 				{
 					$statusClass = "Error";
+				}
+				if ( $groupSummary->{$node}{nodestatus} eq "unreachable" )
+				{
+					$statusClass = "Critical";
 				}
 			}
 
