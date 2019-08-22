@@ -1039,6 +1039,11 @@ sub relocate_storage
 			my $index = $self->data()->{index};
 			my $name = $S->makeRRDname( type => $subconcept, relative => 1, index => $index);
 			$name =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
+			my $lastpath = $name;
+			my $path2 = $existing;
+			$lastpath =~ s{^.*/}{};
+			$path2 =~ s{^.*/}{};
+			$name =~ s/(^|\W|_)$lastpath/$1$path2/i;
 			$self->nmisng->log->debug("$existing equals to $newfile, make newpath from common-database $name");
 			$newfile = $name;
 			$safetomangle->{$subconcept}->{"rrd"} = $name;
