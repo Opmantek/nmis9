@@ -1036,7 +1036,8 @@ sub relocate_storage
 
 		# Couldnt replace the newname on the old path, make new name from the common-database information
 		if ($existing eq $newfile) {
-			my $name = $S->makeRRDname( type => $subconcept, relative => 1);
+			my $index = $self->data()->{index};
+			my $name = $S->makeRRDname( type => $subconcept, relative => 1, index => $index);
 			$name =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 			$self->nmisng->log->debug("$existing equals to $newfile, make newpath from common-database $name");
 			$newfile = $name;
