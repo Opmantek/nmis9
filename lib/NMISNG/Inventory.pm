@@ -486,7 +486,8 @@ sub add_timed_data
 	# cluster_id here is just handy, not necessarily required
 	my $timedrecord = { time => $time, expire_at => $expire_at, cluster_id => $self->cluster_id };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
-
+    $timedrecord->{node_uuid} = $self->node_uuid();
+	
 	# if datasets was not given (and not flushing) try and figure out what the datasets are
 	if (!$datasets && !$flush)
 	{
