@@ -835,7 +835,12 @@ elsif ($Q->{act} eq 'purge')
 	$res = NMISNG::Outage::purge_outages(nmisng => $nmisng,
 																			 simulate => $Q->{simulate});
 	die "$res->{error}\n" if (!$res->{success});
-	print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or NMISNG::Util::getbool($Q->{simulate}));
+	if ($res->{message} eq 'No outages exist.')
+	{
+		print $res->{message} . "\n";
+	} else {
+		print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or NMISNG::Util::getbool($Q->{simulate}));
+	}	
 }
 elsif ($Q->{act} eq "dbcleanup")
 {

@@ -984,6 +984,8 @@ sub relocate_storage
 {
 	my ($self, %args) = @_;
 	my ($curname,$newname) = @args{"current","new"};
+	my $inventory = $args{inventory};
+	my $seen = $args{seen};
 
 	return (0, "storage relocating requires current name argument") if (!$curname);
 	return (0, "storage relocation requires new name argument")	if (!$newname);
@@ -1002,7 +1004,7 @@ sub relocate_storage
 	my $safetomangle = Clone::clone($self->{_storage});
 	# keep track of the errors
 	my %error_keys;
-	my %seen;											# certain rrds show up more than once
+	my (@oktorm, %done);
 	for my $subconcept (keys %{$self->{_storage}})
 	{
 		next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
@@ -1035,12 +1037,15 @@ sub relocate_storage
 		$safetomangle->{$subconcept}->{"rrd"} =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 		my $newfile = $safetomangle->{$subconcept}->{"rrd"};
 
+		my $name;
+		
 		# Couldnt replace the newname on the old path, make new name from the common-database information
 		if ($existing eq $newfile) {
 			my $index = $self->data()->{index};
-			my $name = $S->makeRRDname( type => $subconcept, relative => 1, index => $index);
+			$name = $S->makeRRDname( type => $subconcept, relative => 1, index => $index, inventory => $inventory);
 			$name =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 			my $lastpath = $name;
+			# Make sure the last name is the same. Could change if is a duplicate, pe
 			my $path2 = $existing;
 			$lastpath =~ s{^.*/}{};
 			$path2 =~ s{^.*/}{};
@@ -1051,20 +1056,42 @@ sub relocate_storage
 		}
 
 		return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
-				if (!$seen{$newfile} && -f "$dbroot/$newfile");
-		$seen{$newfile} = 1;
-
+				if (!$seen->{$newfile} && -f "$dbroot/$newfile");
+		
+		# There is a duplicate		
+		if ($seen->{$newfile}) {
+			$newfile = $safetomangle->{$subconcept}->{"rrd"} . ".duplicate";
+			# File already exist
+			if (-f "$dbroot/$newfile") {
+				my $counter = 10;
+				my $found = 0;
+				while ($counter > 0 or $found eq 0) {
+				  $newfile = $safetomangle->{$subconcept}->{"rrd"} . ".duplicate$counter";
+				  $counter -= 1;
+				  if (not (-f "$dbroot/$newfile")) {
+					$found = 1;
+				  }
+				}
+				return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
+					if (!$seen->{$newfile} && -f "$dbroot/$newfile");
+			}
+			$safetomangle->{$subconcept}->{"rrd"} = $newfile;
+			$self->nmisng->log->debug("seen newfile so renaming ". $safetomangle->{$subconcept}->{"rrd"});
+		}
 		$self->nmisng->log->debug("planning to relocate \"$existing\" to \"$safetomangle->{$subconcept}->{rrd}\"");
+		$seen->{$newfile} = 1;
 	}
 
 	# all checks survived, hardlink the files, update storage and save self
-	my (@oktorm, %done);
+	
 	for my $subconcept (keys %{$self->{_storage}})
 	{
 		next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
 						 or !defined $self->{_storage}->{$subconcept}->{"rrd"}
-						 or exists($error_keys{$subconcept}) );
+						 or exists($error_keys{$subconcept})
+						 or !defined $safetomangle->{$subconcept}->{"rrd"});
 		my $existing = $self->{_storage}->{$subconcept}->{"rrd"}; # a relative path
+
 		my $new = $safetomangle->{$subconcept}->{"rrd"};
 
 		next if ($done{$new});			# some rrds show up more than once...
@@ -1092,7 +1119,7 @@ sub relocate_storage
 	return (0, "failed to save updated inventory: $error")
 			if ($op <= 0);
 
-	return (1, '', @oktorm);
+	return (1, '', @oktorm, $seen);
 }
 
 # get the id (_id), readonly
