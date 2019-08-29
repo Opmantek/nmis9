@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::rrdfunc;
-our $VERSION = "9.0.6";
+our $VERSION = "9.0.6a";
 
 use strict;
 use feature 'state';
