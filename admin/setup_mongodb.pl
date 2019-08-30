@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 # a small helper for priming a mongodb installation with suitable settings for NMIS
-our $VERSION = "9.0.5";
+our $VERSION = "9.0.6a";
 
 use strict;
 
@@ -44,6 +44,7 @@ use Tie::IxHash;
 use NMISNG::DB;
 use NMISNG::Util;
 use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
+use Data::Dumper;
 
 if (@ARGV == 1 && $ARGV[0] =~ /^--?(h|help|\?)$/i)
 {
@@ -57,24 +58,27 @@ print basename($0). " version $VERSION\n\n";
 
 # dir=configdir auto=0/1 debug=0/1
 my $args = NMISNG::Util::get_args_multi(@ARGV);
+print " Args: " . Dumper($args) ."\n\n";
+
 # preseed mode is also noninteractive
 my $noninteractive = NMISNG::Util::getbool($args->{auto})
 		|| ($args->{preseed} && -f $args->{preseed});
 my $debug = NMISNG::Util::getbool($args->{debug});
 
 my $answers = load_preseed($args->{preseed}) if ($args->{preseed});
-
+print " Running with answers: " . Dumper($answers) ."\n\n"; 
 my $cfgdir = ($args->{dir} || "$FindBin::RealBin/../conf");
+print " Read cfd dif $cfgdir \n\n"; 
 my $conf = NMISNG::Util::loadConfTable(dir => $cfgdir, debug => $debug);
 die "cannot read config file $cfgdir/Config.nmis!\n"
 		if (ref($conf) ne "HASH" or not keys %$conf);
-
+print " Read conf table"; 
 # do you want to drop any of the databases?
 my @dropthese = split(/\s*,\s*/, $args->{drop}) if ($args->{drop});
 die "\nNOT dropping any databases:\nPlease rerun this command with the argument confirm='yes' in all uppercase!\n\n"
 		if (@dropthese && (!$args->{confirm} or $args->{confirm} ne "YES"));
 
-
+print " Read conf table"; 
 my $dbserver = $conf->{db_server};
 my $port = $conf->{db_port};
 
