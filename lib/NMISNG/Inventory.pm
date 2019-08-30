@@ -486,7 +486,8 @@ sub add_timed_data
 	# cluster_id here is just handy, not necessarily required
 	my $timedrecord = { time => $time, expire_at => $expire_at, cluster_id => $self->cluster_id };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
-
+    $timedrecord->{node_uuid} = $self->node_uuid();
+	
 	# if datasets was not given (and not flushing) try and figure out what the datasets are
 	if (!$datasets && !$flush)
 	{
@@ -983,6 +984,8 @@ sub relocate_storage
 {
 	my ($self, %args) = @_;
 	my ($curname,$newname) = @args{"current","new"};
+	my $inventory = $args{inventory};
+	my $seen = $args{seen};
 
 	return (0, "storage relocating requires current name argument") if (!$curname);
 	return (0, "storage relocation requires new name argument")	if (!$newname);
@@ -1001,13 +1004,15 @@ sub relocate_storage
 	my $safetomangle = Clone::clone($self->{_storage});
 	# keep track of the errors
 	my %error_keys;
-	my %seen;											# certain rrds show up more than once
+	my (@oktorm, %done);
 	for my $subconcept (keys %{$self->{_storage}})
 	{
 		next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
 						 or !defined $self->{_storage}->{$subconcept}->{"rrd"});
 
 		my $existing = $self->{_storage}->{$subconcept}->{"rrd"}; # a relative path
+		
+		# If the file does not exist, we continue
 		if (! -f "$dbroot/$existing")
 		{
 			$self->nmisng->log->info("file \"$existing\" does not exist");
@@ -1015,55 +1020,67 @@ sub relocate_storage
 			next;
 		}
 
-		# word chars are alphanum plus _, we want to allow _ as delimiter as well
-		# just count the matches, not the delims!
-		# for backwards compatibility accept both correct (new) and lowercased (legacy) names here
-		my @matches = ($existing =~ /(?:^|\W|_)$curname(?:$|\W|_)/ig);
-		if (!@matches)
-		{
-			# Guess this is due to a failed renaming attempt, so try to find the new path - Not aborting
-			$self->nmisng->log->info("current name \"$curname\" not detected in \"$existing\" ");
-		}
-		# possible ambiguity, so we warn about it
-		elsif (@matches > 1)
-		{
-			$self->nmisng->log->warn("storage relocation of \"$existing\" ambiguous, \"$curname\" appeared ".scalar(@matches)." times. relocation will replace first match.");
-		}
+		# makeRRD name using the inventory and the index
+		my $index = $self->data()->{index};
+		my $newfile = $S->makeRRDname( type => $subconcept, relative => 1, index => $index, inventory => $inventory);
+		$newfile =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
+			
+		# Make sure the file name is the same. Could change if is a duplicate, pe
+		my $lastpath = $newfile;
+		my $path2 = $existing;
+		$lastpath =~ s{^.*/}{};
+		$path2 =~ s{^.*/}{};
+		$newfile =~ s/(^|\W|_)$lastpath/$1$path2/i;
+		# Replace new file
+		$safetomangle->{$subconcept}->{"rrd"} = $newfile;
 
-		# for backwards compatibility accept both correct (new) and lowercased (legacy) names here
-		$safetomangle->{$subconcept}->{"rrd"} =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
-		my $newfile = $safetomangle->{$subconcept}->{"rrd"};
-
-		# Couldnt replace the newname on the old path, make new name from the common-database information
-		if ($existing eq $newfile) {
-			my $index = $self->data()->{index};
-			my $name = $S->makeRRDname( type => $subconcept, relative => 1, index => $index);
-			$name =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
-			my $lastpath = $name;
-			my $path2 = $existing;
-			$lastpath =~ s{^.*/}{};
-			$path2 =~ s{^.*/}{};
-			$name =~ s/(^|\W|_)$lastpath/$1$path2/i;
-			$self->nmisng->log->debug("$existing equals to $newfile, make newpath from common-database $name");
-			$newfile = $name;
-			$safetomangle->{$subconcept}->{"rrd"} = $name;
-		}
-
+		# Fail if the file already exists and it is not linked from any other path 
 		return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
-				if (!$seen{$newfile} && -f "$dbroot/$newfile");
-		$seen{$newfile} = 1;
+				if (!$seen->{$newfile} && -f "$dbroot/$newfile" && $existing ne $newfile);
+		
+		# There is a duplicate		
+		if ($seen->{$newfile}) {
+			$self->nmisng->log->info("Duplicate file $newfile");
+			$newfile = $safetomangle->{$subconcept}->{"rrd"} . ".duplicate";
+			# File already exist. Counter is the number of duplicates
+			my $counter = 10;
+			my $found = 0;
+			while ($counter > 0 or $found eq 0) {
+				$newfile = $safetomangle->{$subconcept}->{"rrd"} . ".duplicate$counter";
+				$counter -= 1;
+				if (not (-f "$dbroot/$newfile")) {
+					$found = 1;
+				}
+			}
+			# Fail is we finish the number of duplicates, and all of them existss
+			return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
+					if (!$seen->{$newfile} && -f "$dbroot/$newfile");
 
+			$safetomangle->{$subconcept}->{"rrd"} = $newfile;
+			$self->nmisng->log->debug("seen newfile so renaming ". $safetomangle->{$subconcept}->{"rrd"});
+		}
+		
+		# If the newfile is the same location, no relocation is required
+		if ($existing eq $newfile)
+		{
+			$self->nmisng->log->info("file \"$existing\" equals, no relocation required");
+			$error_keys{$subconcept} = 1;
+			next;
+		}
+		
 		$self->nmisng->log->debug("planning to relocate \"$existing\" to \"$safetomangle->{$subconcept}->{rrd}\"");
+		$seen->{$newfile} = 1;
 	}
 
 	# all checks survived, hardlink the files, update storage and save self
-	my (@oktorm, %done);
 	for my $subconcept (keys %{$self->{_storage}})
 	{
 		next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
 						 or !defined $self->{_storage}->{$subconcept}->{"rrd"}
-						 or exists($error_keys{$subconcept}) );
+						 or exists($error_keys{$subconcept})
+						 or !defined $safetomangle->{$subconcept}->{"rrd"});
 		my $existing = $self->{_storage}->{$subconcept}->{"rrd"}; # a relative path
+
 		my $new = $safetomangle->{$subconcept}->{"rrd"};
 
 		next if ($done{$new});			# some rrds show up more than once...
@@ -1091,7 +1108,7 @@ sub relocate_storage
 	return (0, "failed to save updated inventory: $error")
 			if ($op <= 0);
 
-	return (1, '', @oktorm);
+	return (1, '', @oktorm, $seen);
 }
 
 # get the id (_id), readonly

@@ -31,7 +31,7 @@
 # Two basic ways to grab info, via get*Model functions which return ModelData objects
 # or directly via the object
 package NMISNG;
-our $VERSION = "9.0.6";
+our $VERSION = "9.0.6a";
 
 use strict;
 use Data::Dumper;
@@ -2350,6 +2350,7 @@ sub latest_data_collection
 			indices       => [
 				[{"inventory_id" => 1}, {unique             => 1}],
 				[{expire_at      => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+				[{"node_uuid"    => 1}, {unique => 0}]
 			]
 		);
 		$self->log->error("index setup failed for inventory: $err") if ($err);

@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.0.6";
+our $VERSION = "9.0.6a";
 
 use strict;
 
@@ -1171,7 +1171,9 @@ sub rename
 	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
 	# find the node's var files and  hardlink them - do not delete anything yet!
 	my @todelete;
-
+	# We need this here, to detect duplicates between inventory instances
+	my %seen;
+	
 	# find all the node's inventory instances, tell them to hardlink their rrds
 	# get everything, historic or not - make it instantiatable
 	# concept type is unknown/dynamic, so have it ask nmisng
@@ -1191,8 +1193,7 @@ sub rename
 															.$invinstance->id
 															.", concept ".$invinstance->concept
 															.", description \"".$invinstance->description.'"');
-		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old,
-																															 new => $newname);
+		my ($ok, $error, @oktorm, %seen) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance, seen => \%seen);
 		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
 				if (!$ok);
 		# informational
