@@ -4878,7 +4878,9 @@ sub undump_node
 			$noderec->{cluster_id} = $this_cluster;
 		}
 	}
-
+	# Set last update to now, it is new in the system.
+	$noderec->{lastupdate} = time;
+	
 	return { error => "invalid structure: node uuid doesn't match file names" }
 	if (grep(!m!^$noderec->{uuid}/!, @filenames));
 
@@ -4915,6 +4917,7 @@ sub undump_node
 
 	for my $onething (@insertme)
 	{
+		
 		my $collfunc = "$onething->{where}_collection";
 		my $res = NMISNG::DB::insert(collection => $self->$collfunc,
 																 record => $onething->{what},
