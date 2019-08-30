@@ -70,6 +70,8 @@ print " Running with answers: " . Dumper($answers) ."\n\n";
 my $cfgdir = ($args->{dir} || "$FindBin::RealBin/../conf");
 print " Read cfd dif $cfgdir \n\n"; 
 my $conf = NMISNG::Util::loadConfTable(dir => $cfgdir, debug => $debug);
+print "cannot read config file $cfgdir/Config.nmis!\n"
+		if (ref($conf) ne "HASH" or not keys %$conf);
 die "cannot read config file $cfgdir/Config.nmis!\n"
 		if (ref($conf) ne "HASH" or not keys %$conf);
 print " Read conf table"; 

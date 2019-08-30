@@ -709,20 +709,26 @@ sub loadConfTable
 	state ($config_cache);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
+	print "My dir " . $dir . "\n";
 	# abspath and friends don't work properly if the dirs in question don't exist;
 	mkpath($dir, { verbose  => 0, mode => 0755} ) if (!-d $dir);
 
+	print "mkpath? " . -d $dir . "\n";
 	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
 	# ...but the caller may have given us a dir in a previous call and NONE now
 	# in which case we assume they want the cached goodies, so we look at
 	# the file of the previous call.
+	print "fn  " . $fn . "\n";
 	$fn = $config_cache->{configfile} if (ref($config_cache) eq "HASH"
 																				&& $config_cache->{configfile}
 																				&& !defined $args{dir});
+	print "fn  " . $fn . "\n";
 	my $fallbackfn;								# only set if falling back
 	# Directory for the partial configuration files (From Master)
-	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");	
+	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");
+	print "partialconf_dir " . $partialconf_dir . "\n";
 	my $stat = stat($fn);
+	print "my stat " . Dumper($stat) . "\n";
 	# try conf-default if that doesn't work
 	if (!$stat)
 	{
@@ -736,8 +742,9 @@ sub loadConfTable
 		# no config, no hope, no future
 		warn_die("all configuration files ($fn, $fallbackfn) are unreadable: $!");
 	}
-
+    print "my stat is ok \n";
 	my $external_files = get_external_files(dir => $partialconf_dir);
+	print "my external files " . Dumper($external_files) . "\n";
 	# read the file if not read yet, or different dir requested
 	if ( !$config_cache
 			 or $config_cache->{configfile} ne $fn
