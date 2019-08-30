@@ -709,26 +709,20 @@ sub loadConfTable
 	state ($config_cache);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
-	print "My dir " . $dir . "\n";
 	# abspath and friends don't work properly if the dirs in question don't exist;
 	mkpath($dir, { verbose  => 0, mode => 0755} ) if (!-d $dir);
 
-	print "mkpath? " . -d $dir . "\n";
 	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
 	# ...but the caller may have given us a dir in a previous call and NONE now
 	# in which case we assume they want the cached goodies, so we look at
 	# the file of the previous call.
-	print "fn  " . $fn . "\n";
 	$fn = $config_cache->{configfile} if (ref($config_cache) eq "HASH"
 																				&& $config_cache->{configfile}
 																				&& !defined $args{dir});
-	print "fn  " . $fn . "\n";
 	my $fallbackfn;								# only set if falling back
 	# Directory for the partial configuration files (From Master)
 	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");
-	print "partialconf_dir " . $partialconf_dir . "\n";
 	my $stat = stat($fn);
-	print "my stat " . Dumper($stat) . "\n";
 	# try conf-default if that doesn't work
 	if (!$stat)
 	{
@@ -742,16 +736,15 @@ sub loadConfTable
 		# no config, no hope, no future
 		warn_die("all configuration files ($fn, $fallbackfn) are unreadable: $!");
 	}
-    print "my stat is ok \n";
+
 	my $external_files = get_external_files(dir => $partialconf_dir);
-	print "my external files " . Dumper($external_files) . "\n";
+
 	# read the file if not read yet, or different dir requested
 	if ( !$config_cache
 			 or $config_cache->{configfile} ne $fn
 			 or $stat->mtime > $config_cache->{mtime} )
 	{
 		$config_cache = {};				# clear it
-
 		# note: cannot use readfiletohash here: infinite recursion as
 		# most helper functions (have to) call loadConfTable first!
 
@@ -869,11 +862,13 @@ sub read_load_cache
 	{
 		warn_die("configuration file $fn unparseable: $@ $is_master") if $is_master;
 		warn(">> configuration file $fn unparseable: $@");
+		close(X);	
 	}
 	elsif (keys %deepdata < 2 and $is_master)
 	{ 
 		warn_die("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!") if $is_master;
 	} else {
+		close(X);	
 		# strip the outer of two levels, does not flatten any deeper structure
 		for my $k (keys %deepdata)
 		{
@@ -889,7 +884,6 @@ sub read_load_cache
 		if (!$config_cache->{cluster_id} && $is_master)
 		{
 			$deepdata{id}->{cluster_id} = $config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
-	
 			# and write back the updated config file - cannot use writehashtofile yet!
 			open(F, (-e $fn? "+<": ">"), $fn) or warn_die("cannot write configuration file $fn: $!");
 			seek(F,0,0);							# only relevant when opening existing file
@@ -900,7 +894,6 @@ sub read_load_cache
 			# and restat to get the new mtime
 		}
 	}
-	close(X);										# which unlocks
 	
 	return $config_cache;
 }
