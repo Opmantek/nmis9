@@ -487,6 +487,11 @@ sub add_timed_data
 	my $timedrecord = { time => $time, expire_at => $expire_at, cluster_id => $self->cluster_id };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
     $timedrecord->{node_uuid} = $self->node_uuid();
+	my $node = $self->nmisng->node( filter => {uuid => $self->node_uuid()} );
+	if ($node)
+	{
+		$timedrecord->{configuration}->{group} = $node->configuration()->{'group'};
+	}
 	
 	# if datasets was not given (and not flushing) try and figure out what the datasets are
 	if (!$datasets && !$flush)
