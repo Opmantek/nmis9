@@ -2350,7 +2350,8 @@ sub latest_data_collection
 			indices       => [
 				[{"inventory_id" => 1}, {unique             => 1}],
 				[{expire_at      => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
-				[{"node_uuid"    => 1}, {unique => 0}]
+				[{"node_uuid"    => 1}, {unique => 0}],
+				[{"configuration.group"    => 1}, {unique => 0}]
 			]
 		);
 		$self->log->error("index setup failed for inventory: $err") if ($err);
