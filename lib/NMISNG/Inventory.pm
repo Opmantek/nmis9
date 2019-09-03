@@ -47,6 +47,7 @@ use List::MoreUtils;    # for uniq
 use Carp;
 use File::Basename;							# for relocate_storage
 use Test::Deep::NoTest;
+use File::Copy;
 
 use NMISNG::DB;
 
@@ -990,7 +991,6 @@ sub relocate_storage
 	my ($self, %args) = @_;
 	my ($curname,$newname) = @args{"current","new"};
 	my $inventory = $args{inventory};
-	my $seen = $args{seen};
 
 	return (0, "storage relocating requires current name argument") if (!$curname);
 	return (0, "storage relocation requires new name argument")	if (!$newname);
@@ -1038,43 +1038,27 @@ sub relocate_storage
 		$newfile =~ s/(^|\W|_)$lastpath/$1$path2/i;
 		# Replace new file
 		$safetomangle->{$subconcept}->{"rrd"} = $newfile;
-
-		# Fail if the file already exists and it is not linked from any other path 
-		return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
-				if (!$seen->{$newfile} && -f "$dbroot/$newfile" && $existing ne $newfile);
 		
 		# There is a duplicate		
-		if ($seen->{$newfile}) {
+		if (-f "$dbroot/$newfile" && $existing ne $newfile) {
 			$self->nmisng->log->info("Duplicate file $newfile");
-			$newfile = $safetomangle->{$subconcept}->{"rrd"} . ".duplicate";
-			# File already exist. Counter is the number of duplicates
-			my $counter = 10;
-			my $found = 0;
-			while ($counter > 0 or $found eq 0) {
-				$newfile = $safetomangle->{$subconcept}->{"rrd"} . ".duplicate$counter";
-				$counter -= 1;
-				if (not (-f "$dbroot/$newfile")) {
-					$found = 1;
-				}
+			my $oldfile = "$dbroot/$newfile";
+			my $duplicated = "$dbroot/$newfile.duplicate";
+			if (!move $oldfile, $duplicated) {
+				$self->nmisng->log->error("** File $dbroot/$newfile cannot be moved. Incorrect permissions.\n
+										  Please relocate this file manually");
+				$error_keys{$subconcept} = 1;
+				next;
 			}
-			# Fail is we finish the number of duplicates, and all of them existss
-			return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
-					if (!$seen->{$newfile} && -f "$dbroot/$newfile");
-
-			$safetomangle->{$subconcept}->{"rrd"} = $newfile;
-			$self->nmisng->log->debug("seen newfile so renaming ". $safetomangle->{$subconcept}->{"rrd"});
 		}
-		
-		# If the newfile is the same location, no relocation is required
-		if ($existing eq $newfile)
+		elsif ($existing eq $newfile) # If the newfile is the same location, no relocation is required
 		{
 			$self->nmisng->log->info("file \"$existing\" equals, no relocation required");
 			$error_keys{$subconcept} = 1;
 			next;
-		}
+		} 
 		
 		$self->nmisng->log->debug("planning to relocate \"$existing\" to \"$safetomangle->{$subconcept}->{rrd}\"");
-		$seen->{$newfile} = 1;
 	}
 
 	# all checks survived, hardlink the files, update storage and save self
@@ -1113,7 +1097,7 @@ sub relocate_storage
 	return (0, "failed to save updated inventory: $error")
 			if ($op <= 0);
 
-	return (1, '', @oktorm, $seen);
+	return (1, '', @oktorm);
 }
 
 # get the id (_id), readonly
