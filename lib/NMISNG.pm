@@ -776,7 +776,6 @@ sub dbcleanup
 		count               => undef,
 		allowtempfiles      => 1,
 		post_count_pipeline => [
-
 			# link inventory to parent node
 			{   '$lookup' => {
 					from         => "nodes",
@@ -785,10 +784,8 @@ sub dbcleanup
 					as           => "parent"
 				}
 			},
-
 			# then select the ones without parent
 			{'$match' => {parent => {'$size' => 0}}},
-
 			# then give me just the inventory ids
 			{'$project' => {'_id' => 1}}
 		]
@@ -802,6 +799,45 @@ sub dbcleanup
 		};
 	}
 	my @ditchables = map { $_->{_id} } (@$goners);
+	# Now, find the nodes who are linked to a node but the cluster_id is incorrect
+	( $goners, undef, $error ) = NMISNG::DB::aggregate(
+		collection          => $invcoll,
+		pre_count_pipeline  => undef,
+		count               => undef,
+		allowtempfiles      => 1,
+		post_count_pipeline => [
+			# link inventory to parent node
+			{   '$lookup' => {
+					from         => "nodes",
+					localField   => "node_uuid",
+					foreignField => "uuid",
+					as           => "nodeData"
+				}
+			},
+			{'$unwind' 	=> '$nodeData'},
+			{'$project'	=> {
+				'norfan'	=> {
+					'$cond' => [ { '$eq' => [ '$cluster_id', '$nodeData.cluster_id' ] }, 1, 0 ]
+					}
+				}
+			},
+			# We want the ones than does not match
+			{'$match' => {'norfan' => 0}},
+			# then give me just the inventory ids
+			{'$project' => {'_id' => 1}}
+		]
+	);
+	if ($error)
+	{
+		return {
+			error => "inventory aggregation failed: $error",
+			info  => \@info
+		};
+	} 
+	my %seen;
+	my @orfans = map { $_->{_id} } (@$goners);
+	@ditchables = grep( !$seen{$_}++, @ditchables, @orfans);
+#TODO: Test merge (With inventory records to remove from the first)
 
 	# second, remove those - possibly orphaning stuff that we should pick up
 	if ( !@ditchables )
