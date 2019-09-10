@@ -760,6 +760,10 @@ sub dbcleanup
 
 	# we want to remove:
 	# all inventory entries whose node is gone,
+	# all inventory entries whose node AND cluster is gone,
+	# all events entries whose node AND cluster is gone,
+	# all status entries whose node AND cluster is gone,
+	# all latest_data entries whose node AND cluster is gone,
 	# and all timed data whose inventory is gone.
 	# note that for timed orphans we have no cluster_id;
 
@@ -799,34 +803,10 @@ sub dbcleanup
 		};
 	}
 	my @ditchables = map { $_->{_id} } (@$goners);
+	push @info,
+			"Cleanup would remove " . scalar(@ditchables) . " orphaned inventory records, in first instance.";
 	# Now, find the nodes who are linked to a node but the cluster_id is incorrect
-	( $goners, undef, $error ) = NMISNG::DB::aggregate(
-		collection          => $invcoll,
-		pre_count_pipeline  => undef,
-		count               => undef,
-		allowtempfiles      => 1,
-		post_count_pipeline => [
-			# link inventory to parent node
-			{   '$lookup' => {
-					from         => "nodes",
-					localField   => "node_uuid",
-					foreignField => "uuid",
-					as           => "nodeData"
-				}
-			},
-			{'$unwind' 	=> '$nodeData'},
-			{'$project'	=> {
-				'norfan'	=> {
-					'$cond' => [ { '$eq' => [ '$cluster_id', '$nodeData.cluster_id' ] }, 1, 0 ]
-					}
-				}
-			},
-			# We want the ones than does not match
-			{'$match' => {'norfan' => 0}},
-			# then give me just the inventory ids
-			{'$project' => {'_id' => 1}}
-		]
-	);
+	( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll);
 	if ($error)
 	{
 		return {
@@ -864,7 +844,68 @@ sub dbcleanup
 		}
 		push @info, "Removed $res->{removed_records} orphaned inventory records.";
 	}
-
+	
+	# Made this for Events
+	my $evcoll = $self->events_collection;
+	( $goners, undef, $error ) = $self->get_cluster_orphans($evcoll);
+	
+	@orfans = map { $_->{_id} } (@$goners);
+	if ( !@orfans )
+	{
+		push @info, "No orphaned event records detected.";
+	}
+	elsif ($simulate)
+	{
+		push @info,
+			"Cleanup would remove " . scalar(@orfans) . " orphaned event records, but not in simulation mode.";
+	}
+	else
+	{
+		my $res = NMISNG::DB::remove(
+			collection => $evcoll,
+			query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
+		);
+		if ( !$res->{success} )
+		{
+			return {
+				error => "failed to remove event instances: $res->{error}",
+				info  => \@info
+			};
+		}
+		push @info, "Removed $res->{removed_records} orphaned event records.";
+	}
+	
+	# Made this for status
+	my $statuscoll = $self->status_collection;
+	( $goners, undef, $error ) = $self->get_cluster_orphans($statuscoll);
+	
+	@orfans = map { $_->{_id} } (@$goners);
+	#@ditchables = grep( !$seen{$_}++, @ditchables, @orfans);
+	if ( !@orfans )
+	{
+		push @info, "No orphaned status records detected.";
+	}
+	elsif ($simulate)
+	{
+		push @info,
+			"Cleanup would remove " . scalar(@orfans) . " orphaned status records, but not in simulation mode.";
+	}
+	else
+	{
+		my $res = NMISNG::DB::remove(
+			collection => $statuscoll,
+			query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
+		);
+		if ( !$res->{success} )
+		{
+			return {
+				error => "failed to remove status instances: $res->{error}",
+				info  => \@info
+			};
+		}
+		push @info, "Removed $res->{removed_records} orphaned status records.";
+	}
+	
 	# third, determine what concepts exist, get their timed data collections
 	# and verify those against the inventory - plus the latest_data look-aside-cache
 	my $conceptnames = NMISNG::DB::distinct(
@@ -922,6 +963,18 @@ sub dbcleanup
 		}
 
 		my @ditchables = map { $_->{_id} } (@$goners);
+		# Get cluster_id orphans
+		if ($concept eq "latest_data")
+		{
+			( $goners, undef, $error ) = $self->get_cluster_orphans($timedcoll);
+			push @info,
+				  "cleanup would remove "
+				. scalar(@$goners)
+				. " orphaned timed $concept records in first instance.";
+			@orfans = map { $_->{_id} } (@$goners);
+			my %latest_data_seen;
+			@ditchables = grep( !$latest_data_seen{$_}++, @ditchables, @orfans);
+		}
 		if ( !@ditchables )
 		{
 			push @info, "No orphaned $concept records detected.";
@@ -953,6 +1006,40 @@ sub dbcleanup
 	push @info, "Database cleanup complete";
 
 	return {success => 1, info => \@info};
+}
+
+# Returns orphans that does not match node uuid and cluster id
+sub get_cluster_orphans
+{
+	my ( $self, $collection ) = @_;
+	my ( $goners, undef, $error ) = NMISNG::DB::aggregate(
+		collection          => $collection,
+		pre_count_pipeline  => undef,
+		count               => undef,
+		allowtempfiles      => 1,
+		post_count_pipeline => [
+			# link inventory to parent node
+			{   '$lookup' => {
+					from         => "nodes",
+					localField   => "node_uuid",
+					foreignField => "uuid",
+					as           => "nodeData"
+				}
+			},
+			{'$unwind' 	=> '$nodeData'},
+			{'$project'	=> {
+				'norfan'	=> {
+					'$cond' => [ { '$eq' => [ '$cluster_id', '$nodeData.cluster_id' ] }, 1, 0 ]
+					}
+				}
+			},
+			# We want the ones than does not match
+			{'$match' => {'norfan' => 0}},
+			# then give me just the inventory ids
+			{'$project' => {'_id' => 1}}
+		]
+	);
+	return ( $goners, undef, $error );
 }
 
 # little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)
