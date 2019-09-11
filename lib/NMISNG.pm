@@ -768,57 +768,55 @@ sub dbcleanup
 	# note that for timed orphans we have no cluster_id;
 
 	my @info;
+	my $success = 1;
 	push @info, "Starting Database cleanup";
 
-	# first find ditchable inventories
+	# ************************************
+	# INVENTORY
+	# ************************************
 	push @info, "Looking for orphaned inventory records";
+	my @ditchables;
+	my @orfans;
+	
+	my $node_uuids = $self->get_node_uuids();
 
+	my $q = NMISNG::DB::get_query( and_part => {'node_uuid' => {'$nin' => $node_uuids}} );
 	my $invcoll = $self->inventory_collection;
-	my ( $goners, undef, $error ) = NMISNG::DB::aggregate(
-		collection          => $invcoll,
-		pre_count_pipeline  => undef,
-		count               => undef,
-		allowtempfiles      => 1,
-		post_count_pipeline => [
-			# link inventory to parent node
-			{   '$lookup' => {
-					from         => "nodes",
-					localField   => "node_uuid",
-					foreignField => "uuid",
-					as           => "parent"
-				}
-			},
-			# then select the ones without parent
-			{'$match' => {parent => {'$size' => 0}}},
-			# then give me just the inventory ids
-			{'$project' => {'_id' => 1}}
-		]
+	my $inventory = NMISNG::DB::find(
+		collection  => $invcoll,
+		query       => $q,
+		fields_hash => {'_id' => 1}
 	);
 
-	if ($error)
+	if ( defined $inventory )
 	{
-		return {
-			error => "inventory aggregation failed: $error",
-			info  => \@info
-		};
-	}
-	my @ditchables = map { $_->{_id} } (@$goners);
-	push @info,
+		my $results = $inventory->{result}->{_docs};
+		@ditchables = map { $_->{_id} } (@$results);
+		push @info,
 			"Cleanup would remove " . scalar(@ditchables) . " orphaned inventory records, in first instance.";
-	# Now, find the nodes who are linked to a node but the cluster_id is incorrect
-	( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll);
+	}
+	else 
+	{
+		push @info, "find failed: " . NMISNG::DB::get_error_string;
+		$success = 0;
+	}
+	
+	# Now, find the inventory records which are linked to a node but the cluster_id is incorrect
+	my ( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll);
 	if ($error)
 	{
-		return {
-			error => "inventory aggregation failed: $error",
-			info  => \@info
-		};
-	} 
-	my %seen;
-	my @orfans = map { $_->{_id} } (@$goners);
-	@ditchables = grep( !$seen{$_}++, @ditchables, @orfans);
-#TODO: Test merge (With inventory records to remove from the first)
-
+		push @info, "get_cluster_orphans for inventory failed: " . $error;
+		$success = 0;
+	}
+	else
+	{
+		push @info,
+			"Adding inventory records to remove " . scalar(@$goners);
+		my %seen;
+		my @orfans = map { $_->{_id} } (@$goners);
+		@ditchables = grep( !$seen{$_}++, @ditchables, @orfans);
+	}
+	
 	# second, remove those - possibly orphaning stuff that we should pick up
 	if ( !@ditchables )
 	{
@@ -837,75 +835,91 @@ sub dbcleanup
 		);
 		if ( !$res->{success} )
 		{
-			return {
-				error => "failed to remove inventory instances: $res->{error}",
-				info  => \@info
-			};
+			push @info, "Failed to remove inventory instances: $res->{error}";
+			$success = 0;
 		}
 		push @info, "Removed $res->{removed_records} orphaned inventory records.";
 	}
 	
-	# Made this for Events
+	# ************************************
+	# EVENTS
+	# ************************************
 	my $evcoll = $self->events_collection;
 	( $goners, undef, $error ) = $self->get_cluster_orphans($evcoll);
 	
-	@orfans = map { $_->{_id} } (@$goners);
-	if ( !@orfans )
+	if ($error)
 	{
-		push @info, "No orphaned event records detected.";
-	}
-	elsif ($simulate)
-	{
-		push @info,
-			"Cleanup would remove " . scalar(@orfans) . " orphaned event records, but not in simulation mode.";
+		push @info, "get_cluster_orphans for events failed: " . $error;
+		$success = 0;
 	}
 	else
 	{
-		my $res = NMISNG::DB::remove(
-			collection => $evcoll,
-			query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
-		);
-		if ( !$res->{success} )
+		@orfans = map { $_->{_id} } (@$goners);
+		if ( !@orfans )
 		{
-			return {
-				error => "failed to remove event instances: $res->{error}",
-				info  => \@info
-			};
+			push @info, "No orphaned event records detected.";
 		}
-		push @info, "Removed $res->{removed_records} orphaned event records.";
+		elsif ($simulate)
+		{
+			push @info,
+				"Cleanup would remove " . scalar(@orfans) . " orphaned event records, but not in simulation mode.";
+		}
+		else
+		{
+			my $res = NMISNG::DB::remove(
+				collection => $evcoll,
+				query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
+			);
+			if ( !$res->{success} )
+			{
+				push @info, "Failed to remove event instances: $res->{error}";
+				$success = 0;
+			}
+			push @info, "Removed $res->{removed_records} orphaned event records.";
+		}
 	}
 	
-	# Made this for status
+	# ************************************
+	# STATUS
+	# ************************************
 	my $statuscoll = $self->status_collection;
 	( $goners, undef, $error ) = $self->get_cluster_orphans($statuscoll);
 	
-	@orfans = map { $_->{_id} } (@$goners);
-	#@ditchables = grep( !$seen{$_}++, @ditchables, @orfans);
-	if ( !@orfans )
+	if ($error)
 	{
-		push @info, "No orphaned status records detected.";
-	}
-	elsif ($simulate)
-	{
-		push @info,
-			"Cleanup would remove " . scalar(@orfans) . " orphaned status records, but not in simulation mode.";
+		push @info, "get_cluster_orphans for status failed: " . $error;
+		$success = 0;
 	}
 	else
 	{
-		my $res = NMISNG::DB::remove(
-			collection => $statuscoll,
-			query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
-		);
-		if ( !$res->{success} )
+		@orfans = map { $_->{_id} } (@$goners);
+		if ( !@orfans )
 		{
-			return {
-				error => "failed to remove status instances: $res->{error}",
-				info  => \@info
-			};
+			push @info, "No orphaned status records detected.";
 		}
-		push @info, "Removed $res->{removed_records} orphaned status records.";
+		elsif ($simulate)
+		{
+			push @info,
+				"Cleanup would remove " . scalar(@orfans) . " orphaned status records, but not in simulation mode.";
+		}
+		else
+		{
+			my $res = NMISNG::DB::remove(
+				collection => $statuscoll,
+				query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
+			);
+			if ( !$res->{success} )
+			{
+				push @info, "Failed to remove inventory instances: $res->{error}";
+				$success = 0;
+			}
+			push @info, "Removed $res->{removed_records} orphaned status records.";
+		}
 	}
 	
+	# ************************************
+	# CONCEPTS
+	# ************************************
 	# third, determine what concepts exist, get their timed data collections
 	# and verify those against the inventory - plus the latest_data look-aside-cache
 	my $conceptnames = NMISNG::DB::distinct(
@@ -956,10 +970,8 @@ sub dbcleanup
 		);
 		if ($error)
 		{
-			return {
-				error => "$collname aggregation failed: $error",
-				info  => \@info
-			};
+			push @info, "Failed to remove $concept docs: $error";
+			$success = 0;
 		}
 
 		my @ditchables = map { $_->{_id} } (@$goners);
@@ -967,13 +979,21 @@ sub dbcleanup
 		if ($concept eq "latest_data")
 		{
 			( $goners, undef, $error ) = $self->get_cluster_orphans($timedcoll);
-			push @info,
-				  "cleanup would remove "
-				. scalar(@$goners)
-				. " orphaned timed $concept records in first instance.";
-			@orfans = map { $_->{_id} } (@$goners);
-			my %latest_data_seen;
-			@ditchables = grep( !$latest_data_seen{$_}++, @ditchables, @orfans);
+			if ($error)
+			{
+				push @info, "get_cluster_orphans for latest_data failed: " . $error;
+				$success = 0;
+			}
+			else
+			{
+				push @info,
+					  "cleanup would remove "
+					. scalar(@$goners)
+					. " orphaned timed $concept records in first instance.";
+				@orfans = map { $_->{_id} } (@$goners);
+				my %latest_data_seen;
+				@ditchables = grep( !$latest_data_seen{$_}++, @ditchables, @orfans);
+			}
 		}
 		if ( !@ditchables )
 		{
@@ -994,10 +1014,8 @@ sub dbcleanup
 			);
 			if ( !$res->{success} )
 			{
-				return {
-					error => "failed to remove $collname instances: $res->{error}",
-					info  => \@info
-				};
+				push @info, "Failed to remove inventory instances: $res->{error}";
+				$success = 0;
 			}
 			push @info, "removed $res->{removed_records} orphaned timed records for $concept.";
 		}
@@ -1005,7 +1023,7 @@ sub dbcleanup
 
 	push @info, "Database cleanup complete";
 
-	return {success => 1, info => \@info};
+	return {success => $success, info => \@info};
 }
 
 # Returns orphans that does not match node uuid and cluster id

@@ -845,7 +845,6 @@ elsif ($Q->{act} eq 'purge')
 elsif ($Q->{act} eq "dbcleanup")
 {
 	my $res = $nmisng->dbcleanup(simulate => $Q->{simulate});
-	die "$res->{error}\n" if (!$res->{success});
 
 	print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or NMISNG::Util::getbool($Q->{simulate}));
 }
