@@ -757,7 +757,14 @@ sub dbcleanup
 	my ( $self, %args ) = @_;
 
 	my $simulate = NMISNG::Util::getbool( $args{simulate} );
-
+	my $use_non_lookup_query;
+	if (defined ($args{use_performance_query}))
+	{
+		$use_non_lookup_query = NMISNG::Util::getbool( $args{use_performance_query} );
+	}
+	else {
+		$use_non_lookup_query = NMISNG::Util::getbool( $self->config->{use_performance_query});
+	}
 	# we want to remove:
 	# all inventory entries whose node is gone,
 	# all inventory entries whose node AND cluster is gone,
@@ -804,7 +811,16 @@ sub dbcleanup
 	}
 	
 	# Now, find the inventory records which are linked to a node but the cluster_id is incorrect
-	my ( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll, $nodes);
+	my ( $goners, undef, $error );
+	if ($use_non_lookup_query)
+	{
+		$self->log->debug("NMISNG dbcleanup using non lookup query");
+		( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll, $nodes);
+	} else {
+		$self->log->debug("NMISNG dbcleanup using lookup query");
+		( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($invcoll);
+	}
+	
 	if ($error)
 	{
 		push @info, "get_cluster_orphans for inventory failed: " . $error;
@@ -848,7 +864,12 @@ sub dbcleanup
 	# EVENTS
 	# ************************************
 	my $evcoll = $self->events_collection;
-	( $goners, undef, $error ) = $self->get_cluster_orphans($evcoll, $nodes);
+	if ($use_non_lookup_query)
+	{
+		( $goners, undef, $error ) = $self->get_cluster_orphans($evcoll, $nodes);
+	} else {
+		( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($evcoll);
+	}
 	
 	if ($error)
 	{
@@ -887,7 +908,12 @@ sub dbcleanup
 	# STATUS
 	# ************************************
 	my $statuscoll = $self->status_collection;
-	( $goners, undef, $error ) = $self->get_cluster_orphans($statuscoll, $nodes);
+	if ($use_non_lookup_query)
+	{
+		( $goners, undef, $error ) = $self->get_cluster_orphans($statuscoll, $nodes);
+	} else {
+		( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($statuscoll);
+	}
 	
 	if ($error)
 	{
@@ -983,7 +1009,12 @@ sub dbcleanup
 		# Get cluster_id orphans
 		if ($concept eq "latest_data")
 		{
-			( $goners, undef, $error ) = $self->get_cluster_orphans($timedcoll, $nodes);
+			if ($use_non_lookup_query)
+			{
+				( $goners, undef, $error ) = $self->get_cluster_orphans($timedcoll, $nodes);
+			} else {
+				( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($timedcoll);
+			}
 			if ($error)
 			{
 				push @info, "get_cluster_orphans for latest_data failed: " . $error;
@@ -1150,7 +1181,8 @@ sub get_cluster_orphans_with_lookup
 			{'$project' => {'_id' => 1}}
 		]
 	);
-	return ( $goners, undef, $error );
+	my @ditchables = map { $_->{_id} } (@$goners);
+	return ( \@ditchables, undef, $error );
 }
 
 # little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)

@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.0.5";
+our $VERSION = "9.0.6c";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -72,7 +72,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=abort id=<schedule_id>
 
  act=purge [simulate=t/f] [info=t/f]
- act=dbcleanup [simulate=t/f] [info=t/f]
+ act=dbcleanup [simulate=t/f] [info=t/f] [use_performance_query=t/f]
 
  act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
 
@@ -844,7 +844,13 @@ elsif ($Q->{act} eq 'purge')
 }
 elsif ($Q->{act} eq "dbcleanup")
 {
-	my $res = $nmisng->dbcleanup(simulate => $Q->{simulate});
+	my $res;
+	if ($Q->{use_performance_query}) {
+		$res = $nmisng->dbcleanup(simulate => $Q->{simulate}, use_performance_query => $Q->{use_performance_query});
+	}
+	else {
+		$res = $nmisng->dbcleanup(simulate => $Q->{simulate});
+	}
 
 	print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or NMISNG::Util::getbool($Q->{simulate}));
 }
