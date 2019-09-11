@@ -8147,8 +8147,8 @@ sub ext_ping
 		}
 	else
 	{
-		$self->nmisng->error("ext_ping could not parse ping loss summary for $host!");
-		$self->nmisng->debug3("output of the ping command $ping{$kernel} was: $ping_output");
+		$self->nmisng->log->error("ext_ping could not parse ping loss summary for $host!");
+		$self->nmisng->log->debug3("output of the ping command $ping{$kernel} was: $ping_output");
 	}
 
 	$self->nmisng->log->debug3("result returning min=$pt{min}, avg=$pt{avg}, max=$pt{max}, loss=$pt{loss}");
