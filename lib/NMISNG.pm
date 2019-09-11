@@ -769,6 +769,7 @@ sub dbcleanup
 
 	my @info;
 	my $success = 1;
+	my $nodes = $self->get_nodes_uuid_cluster_id({});
 	push @info, "Starting Database cleanup";
 
 	# ************************************
@@ -802,7 +803,7 @@ sub dbcleanup
 	}
 	
 	# Now, find the inventory records which are linked to a node but the cluster_id is incorrect
-	my ( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll);
+	my ( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll, $nodes);
 	if ($error)
 	{
 		push @info, "get_cluster_orphans for inventory failed: " . $error;
@@ -813,8 +814,7 @@ sub dbcleanup
 		push @info,
 			"Adding inventory records to remove " . scalar(@$goners);
 		my %seen;
-		my @orfans = map { $_->{_id} } (@$goners);
-		@ditchables = grep( !$seen{$_}++, @ditchables, @orfans);
+		@ditchables = grep( !$seen{$_}++, @ditchables, @$goners);
 	}
 	
 	# second, remove those - possibly orphaning stuff that we should pick up
@@ -845,7 +845,7 @@ sub dbcleanup
 	# EVENTS
 	# ************************************
 	my $evcoll = $self->events_collection;
-	( $goners, undef, $error ) = $self->get_cluster_orphans($evcoll);
+	( $goners, undef, $error ) = $self->get_cluster_orphans($evcoll, $nodes);
 	
 	if ($error)
 	{
@@ -854,21 +854,20 @@ sub dbcleanup
 	}
 	else
 	{
-		@orfans = map { $_->{_id} } (@$goners);
-		if ( !@orfans )
+		if ( !@$goners )
 		{
 			push @info, "No orphaned event records detected.";
 		}
 		elsif ($simulate)
 		{
 			push @info,
-				"Cleanup would remove " . scalar(@orfans) . " orphaned event records, but not in simulation mode.";
+				"Cleanup would remove " . scalar(@$goners) . " orphaned event records, but not in simulation mode.";
 		}
 		else
 		{
 			my $res = NMISNG::DB::remove(
 				collection => $evcoll,
-				query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
+				query      => NMISNG::DB::get_query( and_part => {_id => $goners}, no_regex => 1 )
 			);
 			if ( !$res->{success} )
 			{
@@ -883,7 +882,7 @@ sub dbcleanup
 	# STATUS
 	# ************************************
 	my $statuscoll = $self->status_collection;
-	( $goners, undef, $error ) = $self->get_cluster_orphans($statuscoll);
+	( $goners, undef, $error ) = $self->get_cluster_orphans($statuscoll, $nodes);
 	
 	if ($error)
 	{
@@ -892,21 +891,20 @@ sub dbcleanup
 	}
 	else
 	{
-		@orfans = map { $_->{_id} } (@$goners);
-		if ( !@orfans )
+		if ( !@$goners )
 		{
 			push @info, "No orphaned status records detected.";
 		}
 		elsif ($simulate)
 		{
 			push @info,
-				"Cleanup would remove " . scalar(@orfans) . " orphaned status records, but not in simulation mode.";
+				"Cleanup would remove " . scalar(@$goners) . " orphaned status records, but not in simulation mode.";
 		}
 		else
 		{
 			my $res = NMISNG::DB::remove(
 				collection => $statuscoll,
-				query      => NMISNG::DB::get_query( and_part => {_id => \@orfans}, no_regex => 1 )
+				query      => NMISNG::DB::get_query( and_part => {_id => $goners}, no_regex => 1 )
 			);
 			if ( !$res->{success} )
 			{
@@ -978,7 +976,7 @@ sub dbcleanup
 		# Get cluster_id orphans
 		if ($concept eq "latest_data")
 		{
-			( $goners, undef, $error ) = $self->get_cluster_orphans($timedcoll);
+			( $goners, undef, $error ) = $self->get_cluster_orphans($timedcoll, $nodes);
 			if ($error)
 			{
 				push @info, "get_cluster_orphans for latest_data failed: " . $error;
@@ -990,9 +988,8 @@ sub dbcleanup
 					  "cleanup would remove "
 					. scalar(@$goners)
 					. " orphaned timed $concept records in first instance.";
-				@orfans = map { $_->{_id} } (@$goners);
 				my %latest_data_seen;
-				@ditchables = grep( !$latest_data_seen{$_}++, @ditchables, @orfans);
+				@ditchables = grep( !$latest_data_seen{$_}++, @ditchables, @$goners);
 			}
 		}
 		if ( !@ditchables )
@@ -1026,8 +1023,85 @@ sub dbcleanup
 	return {success => $success, info => \@info};
 }
 
+# Return an array of hashes including node_uuid and cluster_id
+sub get_nodes_uuid_cluster_id
+{
+	my ( $self, $filter ) = @_;
+	my $model_data = $self->get_nodes_model( $filter, fields_hash => {uuid => 1, cluster_id => 1} );
+	my $data       = $model_data->data();
+	my @uuids      = map { {uuid => $_->{uuid}, cluster_id => $_->{cluster_id}} } @$data;
+	return \@uuids;
+}
+
 # Returns orphans that does not match node uuid and cluster id
 sub get_cluster_orphans
+{
+	my ( $self, $collection, $nodes ) = @_;
+	
+	my @toRet 	   = ();
+#print "Nodes: " . scalar(@$nodes) . "\n";
+
+# We cannot remove anything if we dont have nodes to compare
+	if (scalar(@$nodes) > 0)
+	{
+		my $results = NMISNG::DB::find(
+			collection  => $collection,
+			query       => {},
+			fields_hash => {'_id' => 1, 'node_uuid' => 1, 'cluster_id' => 1}
+		);
+		my @all;
+		my $exist;
+		while ( my $entry = $results->next )
+		{
+			push @all, $entry;
+		}
+		if ( defined $results )
+		{
+			my $docs = $results->{result}->{_docs};
+#print "Documents: " . scalar(@all) . "\n";		
+			foreach my $doc (@all)
+			{
+				# If this fields are not defined, we cannot add them
+				next if (!defined $doc->{node_uuid} or !defined $doc->{cluster_id});
+				
+				$exist = 0;
+				foreach my $node (@$nodes)
+				{
+					# If some values are not defined, we cannot say, so cannot remove this record
+					next if (!defined $node->{uuid} or !defined $node->{cluster_id});
+
+					if ($doc->{node_uuid} eq $node->{uuid} and $doc->{cluster_id} eq $node->{cluster_id})
+					{
+						$exist = 1;
+						last;
+					}
+				}
+				# Not found, so add it to remove
+				if ($exist eq 0)
+				{
+					push @toRet, $doc->{_id};
+				}
+			}
+#print "toRet: " . scalar(@toRet) . "\n";
+			# Make sure is not an error
+			if (scalar(@toRet) eq scalar(@all))
+			{
+				return ((), undef, "Error in nodes record" );
+			}
+			return ( \@toRet, undef, undef );
+		}
+		else
+		{
+			return ( \@toRet, undef, NMISNG::DB::get_error_string);
+		}
+	}
+	return ( \@toRet, undef, "Error getting nodes");
+}
+
+# Returns orphans that does not match node uuid and cluster id
+# The aggregation fails when there are lots of documents
+# That's why was rewrited above
+sub get_cluster_orphans_with_lookup
 {
 	my ( $self, $collection ) = @_;
 	my ( $goners, undef, $error ) = NMISNG::DB::aggregate(
