@@ -799,6 +799,7 @@ sub dbcleanup
 	else 
 	{
 		push @info, "find failed: " . NMISNG::DB::get_error_string;
+		$self->log->info("NMISNG dbcleanup find failed: ". NMISNG::DB::get_error_string);
 		$success = 0;
 	}
 	
@@ -836,9 +837,11 @@ sub dbcleanup
 		if ( !$res->{success} )
 		{
 			push @info, "Failed to remove inventory instances: $res->{error}";
+			$self->log->info("NMISNG dbcleanup Failed to remove inventory instances: $res->{error}");
 			$success = 0;
 		}
 		push @info, "Removed $res->{removed_records} orphaned inventory records.";
+		$self->log->info("Removed $res->{removed_records} orphaned inventory records.");
 	}
 	
 	# ************************************
@@ -872,9 +875,11 @@ sub dbcleanup
 			if ( !$res->{success} )
 			{
 				push @info, "Failed to remove event instances: $res->{error}";
+				$self->log->info("NMISNG dbcleanup Failed to remove event instances: $res->{error}");
 				$success = 0;
 			}
 			push @info, "Removed $res->{removed_records} orphaned event records.";
+			$self->log->info("Removed $res->{removed_records} orphaned event records.");
 		}
 	}
 	
@@ -909,9 +914,11 @@ sub dbcleanup
 			if ( !$res->{success} )
 			{
 				push @info, "Failed to remove inventory instances: $res->{error}";
+				$self->log->info("Failed to remove inventory instances: $res->{error}");
 				$success = 0;
 			}
 			push @info, "Removed $res->{removed_records} orphaned status records.";
+			$self->log->info("Removed $res->{removed_records} orphaned status records.");
 		}
 	}
 	
@@ -1011,10 +1018,12 @@ sub dbcleanup
 			);
 			if ( !$res->{success} )
 			{
-				push @info, "Failed to remove inventory instances: $res->{error}";
+				push @info, "Failed to remove $concept instances: $res->{error}";
+				$self->log->info("Failed to remove $concept instances: $res->{error}");
 				$success = 0;
 			}
 			push @info, "removed $res->{removed_records} orphaned timed records for $concept.";
+			$self->log->info("removed $res->{removed_records} orphaned timed records for $concept.");
 		}
 	}
 
@@ -1039,7 +1048,7 @@ sub get_cluster_orphans
 	my ( $self, $collection, $nodes ) = @_;
 	
 	my @toRet 	   = ();
-#print "Nodes: " . scalar(@$nodes) . "\n";
+	$self->log->debug("NMISNG get_cluster_orphans: ". scalar(@$nodes) . " nodes");
 
 # We cannot remove anything if we dont have nodes to compare
 	if (scalar(@$nodes) > 0)
@@ -1058,7 +1067,7 @@ sub get_cluster_orphans
 		if ( defined $results )
 		{
 			my $docs = $results->{result}->{_docs};
-#print "Documents: " . scalar(@all) . "\n";		
+			$self->log->debug("NMISNG get_cluster_orphans: ". scalar(@all) . " documents");	
 			foreach my $doc (@all)
 			{
 				# If this fields are not defined, we cannot add them
@@ -1082,19 +1091,22 @@ sub get_cluster_orphans
 					push @toRet, $doc->{_id};
 				}
 			}
-#print "toRet: " . scalar(@toRet) . "\n";
+			$self->log->debug("NMISNG get_cluster_orphans: ". scalar(@toRet) . " documents to delete");
 			# Make sure is not an error
 			if (scalar(@toRet) eq scalar(@all))
 			{
+				$self->log->error("NMISNG get_cluster_orphans: Error in get docs for remove. Docs to remove same as all documents");
 				return ((), undef, "Error in nodes record" );
 			}
 			return ( \@toRet, undef, undef );
 		}
 		else
 		{
+			$self->log->error("NMISNG get_cluster_orphans: Error getting documents " . NMISNG::DB::get_error_string);
 			return ( \@toRet, undef, NMISNG::DB::get_error_string);
 		}
 	}
+	$self->log->error("NMISNG get_cluster_orphans: Error. No nodes provided ");
 	return ( \@toRet, undef, "Error getting nodes");
 }
 
