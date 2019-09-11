@@ -1060,6 +1060,7 @@ sub get_cluster_orphans
 		);
 		my @all;
 		my $exist;
+		my $processed;
 		while ( my $entry = $results->next )
 		{
 			push @all, $entry;
@@ -1074,10 +1075,16 @@ sub get_cluster_orphans
 				next if (!defined $doc->{node_uuid} or !defined $doc->{cluster_id});
 				
 				$exist = 0;
+				$processed = 0;
+				
 				foreach my $node (@$nodes)
 				{
 					# If some values are not defined, we cannot say, so cannot remove this record
-					next if (!defined $node->{uuid} or !defined $node->{cluster_id});
+					if (!defined $node->{uuid} or !defined $node->{cluster_id})
+					{
+						$processed++; # Make sure we compare at least one
+						next;
+					}
 
 					if ($doc->{node_uuid} eq $node->{uuid} and $doc->{cluster_id} eq $node->{cluster_id})
 					{
@@ -1086,7 +1093,7 @@ sub get_cluster_orphans
 					}
 				}
 				# Not found, so add it to remove
-				if ($exist eq 0)
+				if ($exist eq 0 and $processed < scalar(@$nodes))
 				{
 					push @toRet, $doc->{_id};
 				}
