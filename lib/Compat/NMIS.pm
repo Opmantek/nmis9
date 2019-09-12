@@ -42,7 +42,6 @@ use feature 'state';						# for new_nmisng
 use Carp;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 use Digest::MD5;										# for htmlGraph, nothing stronger is needed
-use Array::Utils qw(array_diff);
 
 use Fcntl qw(:DEFAULT :flock);  # Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Data::Dumper;
@@ -2121,24 +2120,6 @@ sub loadServiceStatus
 				);
 
 		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} } = \%goodies;
-		
-		# figure out which graphs to offer as customgraphs:
-		# every service has these so we don't regard them as customgraphs:
-		# see NMISNG::Node::collect_services() where the following '@servicegraphs' line of code is also used:
-		
-		my @servicegraphs = (qw(service service-response));
-		
-		my @customgraphs;
-		if (ref($maybe->{_subconcepts}) eq "ARRAY")
-		{
-			# symmetric difference
-			@customgraphs = array_diff(@servicegraphs, @{ $maybe->{_subconcepts} });
-		}
-		else
-		{
-			@customgraphs = ();
-		}
-		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} }->{customgraphs} = \@customgraphs;
 	}
 
 	return %result;
