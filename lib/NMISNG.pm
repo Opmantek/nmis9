@@ -796,10 +796,15 @@ sub dbcleanup
 		fields_hash => {'_id' => 1}
 	);
 
+	my @all;
+	while ( my $entry = $inventory->next )
+	{
+		push @all, $entry;
+	}
+	
 	if ( defined $inventory )
 	{
-		my $results = $inventory->{result}->{_docs};
-		@ditchables = map { $_->{_id} } (@$results);
+		@ditchables = map { $_->{_id} } (@all);
 		push @info,
 			"Cleanup would remove " . scalar(@ditchables) . " orphaned inventory records, in first instance.";
 	}
@@ -878,7 +883,7 @@ sub dbcleanup
 	}
 	else
 	{
-		if ( !@$goners )
+		if ( !$goners )
 		{
 			push @info, "No orphaned event records detected.";
 		}
@@ -922,7 +927,7 @@ sub dbcleanup
 	}
 	else
 	{
-		if ( !@$goners )
+		if ( !$goners )
 		{
 			push @info, "No orphaned status records detected.";
 		}
