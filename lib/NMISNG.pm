@@ -57,6 +57,7 @@ use NMISNG::ModelData;
 use NMISNG::Node;
 use NMISNG::Sys;
 use NMISNG::Util;
+use NMISNG::NetworkStatus;
 
 use Compat::Timing;
 
