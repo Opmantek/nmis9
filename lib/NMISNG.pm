@@ -391,10 +391,13 @@ sub compute_metrics
 
 	my $pollTimer = Compat::Timing->new;
 	$self->log->debug2(&NMISNG::Log::trace()."Starting");
-
+	
+	my $network_status = NMISNG::NetworkStatus->new( nmisng => $self );
+	my $overallStatus = $network_status->overallNodeStatus( );
+	
 	# Doing the whole network - this defaults to -8 hours span
-	my $groupSummary = Compat::NMIS::getGroupSummary();
-	my $status       = Compat::NMIS::statusNumber( Compat::NMIS::overallNodeStatus() );
+	my $groupSummary = $network_status->getGroupSummary();
+	my $status       = Compat::NMIS::statusNumber( $groupSummary );
 	my $data         = {};
 
 	$data->{status}{value}       = $status;
@@ -424,8 +427,10 @@ sub compute_metrics
 	$S->create_update_rrd( data => $data, type => "metrics", item => 'network' );
 	for my $group (sort $self->get_group_names)
 	{
-		my $groupSummary = Compat::NMIS::getGroupSummary( group => $group );
-		my $status = Compat::NMIS::statusNumber( Compat::NMIS::overallNodeStatus( group => $group ) );
+		my $groupSummary = $network_status->getGroupSummary( group => $group );
+		
+		$overallStatus = $network_status->overallNodeStatus( group => $group  );
+		my $status = Compat::NMIS::statusNumber( $overallStatus );
 
 		my $data = {};
 		$data->{reachability}{value} = $groupSummary->{average}{reachable};

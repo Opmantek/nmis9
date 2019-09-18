@@ -363,14 +363,13 @@ sub getSummaryStatsbyGroup
 	my $include_nodes = $args{include_nodes};
 
 	$nmisng->log->debug( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup begin: $group$customer$business" ) if $timing;
-
-	$groupSummary = Compat::NMIS::getGroupSummary(
+	
+	$groupSummary = $network_status->getGroupSummary(
 		group    => $group,
 		customer => $customer,
 		business => $business,
 		include_nodes => $include_nodes
 	);
-
 	$overallStatus = $network_status->overallNodeStatus( group => $group, customer => $customer, business => $business );
 	$overallColor = NMISNG::Util::eventColor($overallStatus);
 

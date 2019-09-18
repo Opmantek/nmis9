@@ -66,6 +66,29 @@ sub new
 	return $self;
 }
 
+# Return nmisng
+sub nmisng
+{
+	my ( $self, %args ) = @_;
+	return $self->{_nmisng};
+}
+
+# Return log
+sub log
+{
+	my ( $self, %args ) = @_;
+	return $self->{_log};
+}
+
+# Return nmis conf
+sub nmis_conf
+{
+	my ( $self, %args ) = @_;
+	unless (defined($self->{_nmis_conf})) {
+		$self->{_nmis_conf} = NMISNG::Util::loadConfTable();
+	}
+	return $self->{_nmis_conf};
+}
 # this function computes overall metrics for all nodes/groups
 # args: self, group, customer, business
 # returns: hashref, keys success/error - fixme9 error handling incomplete
@@ -349,5 +372,257 @@ sub get_load_node_summary
 	}
 	return \%summary;
 }
+
+# Get group Summary
+# Replace getGroupSummary in NMIS.pm
+# to cache all the possible information
+sub getGroupSummary {
+	my ( $self, %args ) = @_;
+	my $group = $args{group};
+	my $customer = $args{customer};
+	my $business = $args{business};
+	my $start_time = $args{start};
+	my $end_time = $args{end};
+	my $include_nodes = $args{include_nodes} // 0;
+	my $local_nodes = $args{local_nodes};
+
+	my @tmpsplit;
+	my @tmparray;
+
+	my $SUM = undef;
+	my $reportStats;
+	my %nodecount = ();
+	my $node;
+	my $index;
+	my $cache = 0;
+	my $filename;
+
+	my %summaryHash = ();
+
+	#$self->log->debug2(&NMISNG::Log::trace()."Starting");
+
+	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
+	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
+	$group_by = undef if( !$group );
+
+	my ($entries,$count,$error);
+	if ($local_nodes) {
+		#$self->log->debug("getGroupSummary - Getting local nodes");
+		($entries,$count,$error) = $self->nmisng->grouped_node_summary(
+			filters => { 'node_config.configuration.group' => $group, cluster_id => $$self->nmisng->config->{cluster_id}},
+			group_by => $group_by,
+			include_nodes => $include_nodes
+		);
+	}
+	else {
+		#$self->log->debug("getGroupSummary - Getting all nodes");
+		($entries,$count,$error) = $self->nmisng->grouped_node_summary(
+			filters => { 'node_config.configuration.group' => $group },
+			group_by => $group_by,
+			include_nodes => $include_nodes
+		);
+	}
+
+	if( $error || @$entries != 1 )
+	{
+		my $group_by_str = ($group_by)?join(",",@$group_by):"";
+		$error ||= "No data returned for group:$group,group_by:$group_by_str include_nodes:$include_nodes";
+		#$self->log->error("Failed to get grouped_node_summary data, error:$error");
+		return \%summaryHash;
+	}
+	my ($group_summary,$node_data);
+	if( $include_nodes )
+	{
+		$group_summary = $entries->[0]{grouped_data}[0];
+		$node_data = $entries->[0]{node_data}
+	}
+	else
+	{
+		$group_summary = $entries->[0];
+	}
+
+	my $C = $self->nmis_conf();
+
+	my @loopdata = ({key =>"reachable", precision => "3f"},{key =>"available", precision => "3f"},{key =>"health", precision => "3f"},{key =>"response", precision => "3f"});
+	foreach my $entry ( @loopdata )
+	{
+		my ($key,$precision) = @$entry{'key','precision'};
+		$summaryHash{average}{$key} = sprintf("%.${precision}", $group_summary->{"08_${key}_avg"});
+		$summaryHash{average}{"${key}_diff"} = $group_summary->{"16_${key}_avg"} - $group_summary->{"08_${key}_avg"};
+
+		# Now the summaryHash is full, calc some colors and check for empty results.
+		if ( $summaryHash{average}{$key} ne "" )
+		{
+			$summaryHash{average}{$key} = 100 if( $summaryHash{average}{$key} > 100  && $key ne 'response') ;
+			$summaryHash{average}{"${key}_color"} = $self->colorHighGood($summaryHash{average}{$key})
+		}
+		else
+		{
+			$summaryHash{average}{"${key}_color"} = "#aaaaaa";
+			$summaryHash{average}{$key} = "N/A";
+		}
+	}
+
+	if ( $summaryHash{average}{reachable} > 0 and $summaryHash{average}{available} > 0 and $summaryHash{average}{health} > 0 )
+	{
+		# new weighting for metric
+		$summaryHash{average}{metric} = sprintf("%.3f",(
+																							( $summaryHash{average}{reachable} * $C->{metric_reachability} ) +
+																							( $summaryHash{average}{available} * $C->{metric_availability} ) +
+																							( $summaryHash{average}{health} * $C->{metric_health} ))
+				);
+		$summaryHash{average}{"16_metric"} = sprintf("%.3f",(
+																									 ( $group_summary->{"16_reachable_avg"} * $C->{metric_reachability} ) +
+																									 ( $group_summary->{"16_available_avg"} * $C->{metric_availability} ) +
+																									 ( $group_summary->{"16_health_avg"} * $C->{metric_health} ))
+				);
+		$summaryHash{average}{metric_diff} = $summaryHash{average}{"16_metric"} - $summaryHash{average}{metric};
+	}
+
+	$summaryHash{average}{counttotal} = $group_summary->{count} || 0;
+	$summaryHash{average}{countdown} = $group_summary->{countdown} || 0;
+	$summaryHash{average}{countdegraded} = $group_summary->{countdegraded} || 0;
+	$summaryHash{average}{countup} = $group_summary->{count} - $group_summary->{countdegraded} - $group_summary->{countdown};
+
+	### 2012-12-17 keiths, fixed divide by zero error when doing group status summaries
+	if ( $summaryHash{average}{countdown} > 0 ) {
+		$summaryHash{average}{countdowncolor} = ($summaryHash{average}{countdown}/$summaryHash{average}{counttotal})*100;
+	}
+	else {
+		$summaryHash{average}{countdowncolor} = 0;
+	}
+
+	# if the node info is needed then add it.
+	if( $include_nodes )
+	{
+		foreach my $entry (@$node_data)
+		{
+			my $node = $entry->{name};
+			++$nodecount{counttotal};
+			my $outage = '';
+			$summaryHash{$node} = $entry;
+
+			my $nodeobj = $self->nmisng->node(uuid => $entry->{uuid}); # much safer than by node name
+
+			# check nodes
+			# Carefull logic here, if nodedown is false then the node is up
+			#print STDERR "DEBUG: node=$node nodedown=$summaryHash{$node}{nodedown}\n";
+			if (NMISNG::Util::getbool($summaryHash{$node}{nodedown})) {
+				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = $self->eventLevel("Node Down",$entry->{roleType});
+				++$nodecount{countdown};
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
+			}
+			elsif (exists $C->{display_status_summary}
+						 and NMISNG::Util::getbool($C->{display_status_summary})
+						 and exists $summaryHash{$node}{nodestatus}
+						 and $summaryHash{$node}{nodestatus} eq "degraded"
+					) {
+				$summaryHash{$node}{event_status} = "Error";
+				$summaryHash{$node}{event_color} = "#ffff00";
+				++$nodecount{countdegraded};
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
+			}
+			else {
+				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = $self->eventLevel("Node Up",$entry->{roleType});
+				++$nodecount{countup};
+			}
+
+			# dont if outage current with node down
+			if ($outage ne 'current') {
+				if ( $summaryHash{$node}{reachable} !~ /NaN/i	) {
+					++$nodecount{reachable};
+					$summaryHash{$node}{reachable_color} = $self->colorHighGood($summaryHash{$node}{reachable});
+				} else { $summaryHash{$node}{reachable} = "NaN" }
+
+				if ( $summaryHash{$node}{available} !~ /NaN/i ) {
+					++$nodecount{available};
+					$summaryHash{$node}{available_color} = $self->colorHighGood($summaryHash{$node}{available});
+				} else { $summaryHash{$node}{available} = "NaN" }
+
+				if ( $summaryHash{$node}{health} !~ /NaN/i ) {
+					++$nodecount{health};
+					$summaryHash{$node}{health_color} = $self->colorHighGood($summaryHash{$node}{health});
+				} else { $summaryHash{$node}{health} = "NaN" }
+
+				if ( $summaryHash{$node}{response} !~ /NaN/i ) {
+					++$nodecount{response};
+					$summaryHash{$node}{response_color} = NMISNG::Util::colorResponseTime($summaryHash{$node}{response});
+				} else { $summaryHash{$node}{response} = "NaN" }
+			}
+		}
+	}
+
+	#$self->log->debug2(&NMISNG::Log::trace()."Finished");
+	return \%summaryHash;
+} # end getGroupSummary
+
+# small helper that translates event data into a severity level
+# args: event, role.
+# returns: severity level, color
+# fixme: only used for group status summary display! actual event priorities come from the model
+sub eventLevel {
+	my ($self, $event, $role) = @_;
+
+	my ($event_level, $event_color);
+
+	my $C = $self->nmis_conf();			# cached, mostly nop
+
+	# the config now has a structure for xlat between roletype and severities for node down/other events
+	my $rt2sev = $C->{severity_by_roletype};
+	$rt2sev = { default => [ "Major", "Minor" ] } if (ref($rt2sev) ne "HASH" or !keys %$rt2sev);
+
+	if ( $event eq 'Node Down' )
+	{
+		$event_level = ref($rt2sev->{$role}) eq "ARRAY"? $rt2sev->{$role}->[0] :
+				ref($rt2sev->{default}) eq "ARRAY"? $rt2sev->{default}->[0] : "Major";
+	}
+	elsif ( $event =~ /up/i )
+	{
+		$event_level = "Normal";
+	}
+	else
+	{
+		$event_level = ref($rt2sev->{$role}) eq "ARRAY"? $rt2sev->{$role}->[1] :
+				ref($rt2sev->{default}) eq "ARRAY"? $rt2sev->{default}->[1] : "Major";
+	}
+	$event_level = "Major" if ($event_level !~ /^(fatal|critical|major|minor|warning|normal)$/i); 	# last-ditch fallback
+	$event_color = NMISNG::Util::eventColor($event_level);
+
+	return ($event_level,$event_color);
+}
+
+sub colorHighGood {
+	my ($self, $threshold) = @_;
+	my $color = "";
+
+	if ( ( $threshold =~ /^[a-zA-Z]/ ) || ( $threshold eq "") )  { $color = "#FFFFFF"; }
+	elsif ( $threshold eq "N/A" )  { $color = "#FFFFFF"; }
+	elsif ( $threshold >= 100 ) { $color = "#00FF00"; }
+	elsif ( $threshold >= 95 ) { $color = "#00EE00"; }
+	elsif ( $threshold >= 90 ) { $color = "#00DD00"; }
+	elsif ( $threshold >= 85 ) { $color = "#00CC00"; }
+	elsif ( $threshold >= 80 ) { $color = "#00BB00"; }
+	elsif ( $threshold >= 75 ) { $color = "#00AA00"; }
+	elsif ( $threshold >= 70 ) { $color = "#009900"; }
+	elsif ( $threshold >= 65 ) { $color = "#008800"; }
+	elsif ( $threshold >= 60 ) { $color = "#FFFF00"; }
+	elsif ( $threshold >= 55 ) { $color = "#FFEE00"; }
+	elsif ( $threshold >= 50 ) { $color = "#FFDD00"; }
+	elsif ( $threshold >= 45 ) { $color = "#FFCC00"; }
+	elsif ( $threshold >= 40 ) { $color = "#FFBB00"; }
+	elsif ( $threshold >= 35 ) { $color = "#FFAA00"; }
+	elsif ( $threshold >= 30 ) { $color = "#FF9900"; }
+	elsif ( $threshold >= 25 ) { $color = "#FF8800"; }
+	elsif ( $threshold >= 20 ) { $color = "#FF7700"; }
+	elsif ( $threshold >= 15 ) { $color = "#FF6600"; }
+	elsif ( $threshold >= 10 ) { $color = "#FF5500"; }
+	elsif ( $threshold >= 5 )  { $color = "#FF3300"; }
+	elsif ( $threshold > 0 )   { $color = "#FF1100"; }
+	elsif ( $threshold == 0 )  { $color = "#FF0000"; }
+	elsif ( $threshold == 0 )  { $color = "#FF0000"; }
+
+	return $color;
+}
+
 
 1;
