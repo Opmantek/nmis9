@@ -2120,6 +2120,22 @@ sub loadServiceStatus
 				);
 
 		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} } = \%goodies;
+		# figure out which graphs to offer as customgraphs:
+		# every service has these so we don't regard them as customgraphs:
+		# see NMISNG::collect_services() where the following '@servicegraphs' line of code is also used:
+		my @servicegraphs = (qw(service service-response));
+
+		my @customgraphs;
+		if (ref($maybe->{_subconcepts}) eq "ARRAY")
+		{
+			# symmetric difference
+			@customgraphs = NMISNG::Util::array_diff(@servicegraphs, @{ $maybe->{_subconcepts} });
+		}
+		else
+		{
+			@customgraphs = ();
+		}
+		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} }->{customgraphs} = \@customgraphs;
 	}
 
 	return %result;
