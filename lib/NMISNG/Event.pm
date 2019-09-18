@@ -39,7 +39,7 @@ use Data::Dumper;
 use Test::Deep::NoTest;
 use Time::HiRes;
 
-our $VERSION = "9.0.6a";
+our $VERSION = "9.0.6c";
 
 # params: all properties desired in the node, minimum is
 #  either _id or  node_name,event,[element] are required to

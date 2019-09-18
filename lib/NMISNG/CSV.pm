@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::CSV;
-our $VERSION = "9.0.6a";
+our $VERSION = "9.0.6c";
 
 use strict;
 use Text::CSV;

@@ -31,7 +31,7 @@
 # Two basic ways to grab info, via get*Model functions which return ModelData objects
 # or directly via the object
 package NMISNG;
-our $VERSION = "9.0.6a";
+our $VERSION = "9.0.6c";
 
 use strict;
 use Data::Dumper;
@@ -762,52 +762,88 @@ sub dbcleanup
 	my ( $self, %args ) = @_;
 
 	my $simulate = NMISNG::Util::getbool( $args{simulate} );
-
+	my $use_non_lookup_query;
+	if (defined ($args{use_performance_query}))
+	{
+		$use_non_lookup_query = NMISNG::Util::getbool( $args{use_performance_query} );
+	}
+	else {
+		$use_non_lookup_query = NMISNG::Util::getbool( $self->config->{use_performance_query});
+	}
 	# we want to remove:
 	# all inventory entries whose node is gone,
+	# all inventory entries whose node AND cluster is gone,
+	# all events entries whose node AND cluster is gone,
+	# all status entries whose node AND cluster is gone,
+	# all latest_data entries whose node AND cluster is gone,
 	# and all timed data whose inventory is gone.
 	# note that for timed orphans we have no cluster_id;
 
 	my @info;
+	my $success = 1;
+	my $nodes = $self->get_nodes_uuid_cluster_id({});
 	push @info, "Starting Database cleanup";
 
-	# first find ditchable inventories
+	# ************************************
+	# INVENTORY
+	# ************************************
 	push @info, "Looking for orphaned inventory records";
+	my @ditchables;
+	my @orfans;
+	
+	my $node_uuids = $self->get_node_uuids();
 
+	my $q = NMISNG::DB::get_query( and_part => {'node_uuid' => {'$nin' => $node_uuids}} );
 	my $invcoll = $self->inventory_collection;
-	my ( $goners, undef, $error ) = NMISNG::DB::aggregate(
-		collection          => $invcoll,
-		pre_count_pipeline  => undef,
-		count               => undef,
-		allowtempfiles      => 1,
-		post_count_pipeline => [
-
-			# link inventory to parent node
-			{   '$lookup' => {
-					from         => "nodes",
-					localField   => "node_uuid",
-					foreignField => "uuid",
-					as           => "parent"
-				}
-			},
-
-			# then select the ones without parent
-			{'$match' => {parent => {'$size' => 0}}},
-
-			# then give me just the inventory ids
-			{'$project' => {'_id' => 1}}
-		]
+	my $inventory = NMISNG::DB::find(
+		collection  => $invcoll,
+		query       => $q,
+		fields_hash => {'_id' => 1}
 	);
 
+	my @all;
+	while ( my $entry = $inventory->next )
+	{
+		push @all, $entry;
+	}
+	
+	if ( defined $inventory )
+	{
+		@ditchables = map { $_->{_id} } (@all);
+		push @info,
+			"Cleanup would remove " . scalar(@ditchables) . " orphaned inventory records, in first instance.";
+	}
+	else 
+	{
+		push @info, "find failed: " . NMISNG::DB::get_error_string;
+		$self->log->info("NMISNG dbcleanup find failed: ". NMISNG::DB::get_error_string);
+		$success = 0;
+	}
+	
+	# Now, find the inventory records which are linked to a node but the cluster_id is incorrect
+	my ( $goners, undef, $error );
+	if ($use_non_lookup_query)
+	{
+		$self->log->debug("NMISNG dbcleanup using non lookup query");
+		( $goners, undef, $error ) = $self->get_cluster_orphans($invcoll, $nodes);
+	} else {
+		$self->log->debug("NMISNG dbcleanup using lookup query");
+		( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($invcoll);
+	}
+	
 	if ($error)
 	{
-		return {
-			error => "inventory aggregation failed: $error",
-			info  => \@info
-		};
+		push @info, "get_cluster_orphans for inventory failed: " . $error;
+		$success = 0;
 	}
-	my @ditchables = map { $_->{_id} } (@$goners);
-
+	else
+	{
+		push @info,
+			"Adding inventory records to remove " . scalar(@$goners);
+		my %seen;
+		@ditchables = grep( !$seen{$_}++, @ditchables, @$goners);
+	}
+	
 	# second, remove those - possibly orphaning stuff that we should pick up
 	if ( !@ditchables )
 	{
@@ -826,14 +862,105 @@ sub dbcleanup
 		);
 		if ( !$res->{success} )
 		{
-			return {
-				error => "failed to remove inventory instances: $res->{error}",
-				info  => \@info
-			};
+			push @info, "Failed to remove inventory instances: $res->{error}";
+			$self->log->info("NMISNG dbcleanup Failed to remove inventory instances: $res->{error}");
+			$success = 0;
 		}
 		push @info, "Removed $res->{removed_records} orphaned inventory records.";
+		$self->log->info("Removed $res->{removed_records} orphaned inventory records.");
 	}
-
+	
+	# ************************************
+	# EVENTS
+	# ************************************
+	my $evcoll = $self->events_collection;
+	if ($use_non_lookup_query)
+	{
+		( $goners, undef, $error ) = $self->get_cluster_orphans($evcoll, $nodes);
+	} else {
+		( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($evcoll);
+	}
+	
+	if ($error)
+	{
+		push @info, "get_cluster_orphans for events failed: " . $error;
+		$success = 0;
+	}
+	else
+	{
+		if ( !$goners )
+		{
+			push @info, "No orphaned event records detected.";
+		}
+		elsif ($simulate)
+		{
+			push @info,
+				"Cleanup would remove " . scalar(@$goners) . " orphaned event records, but not in simulation mode.";
+		}
+		else
+		{
+			my $res = NMISNG::DB::remove(
+				collection => $evcoll,
+				query      => NMISNG::DB::get_query( and_part => {_id => $goners}, no_regex => 1 )
+			);
+			if ( !$res->{success} )
+			{
+				push @info, "Failed to remove event instances: $res->{error}";
+				$self->log->info("NMISNG dbcleanup Failed to remove event instances: $res->{error}");
+				$success = 0;
+			}
+			push @info, "Removed $res->{removed_records} orphaned event records.";
+			$self->log->info("Removed $res->{removed_records} orphaned event records.");
+		}
+	}
+	
+	# ************************************
+	# STATUS
+	# ************************************
+	my $statuscoll = $self->status_collection;
+	if ($use_non_lookup_query)
+	{
+		( $goners, undef, $error ) = $self->get_cluster_orphans($statuscoll, $nodes);
+	} else {
+		( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($statuscoll);
+	}
+	
+	if ($error)
+	{
+		push @info, "get_cluster_orphans for status failed: " . $error;
+		$success = 0;
+	}
+	else
+	{
+		if ( !$goners )
+		{
+			push @info, "No orphaned status records detected.";
+		}
+		elsif ($simulate)
+		{
+			push @info,
+				"Cleanup would remove " . scalar(@$goners) . " orphaned status records, but not in simulation mode.";
+		}
+		else
+		{
+			my $res = NMISNG::DB::remove(
+				collection => $statuscoll,
+				query      => NMISNG::DB::get_query( and_part => {_id => $goners}, no_regex => 1 )
+			);
+			if ( !$res->{success} )
+			{
+				push @info, "Failed to remove inventory instances: $res->{error}";
+				$self->log->info("Failed to remove inventory instances: $res->{error}");
+				$success = 0;
+			}
+			push @info, "Removed $res->{removed_records} orphaned status records.";
+			$self->log->info("Removed $res->{removed_records} orphaned status records.");
+		}
+	}
+	
+	# ************************************
+	# CONCEPTS
+	# ************************************
 	# third, determine what concepts exist, get their timed data collections
 	# and verify those against the inventory - plus the latest_data look-aside-cache
 	my $conceptnames = NMISNG::DB::distinct(
@@ -884,13 +1011,35 @@ sub dbcleanup
 		);
 		if ($error)
 		{
-			return {
-				error => "$collname aggregation failed: $error",
-				info  => \@info
-			};
+			push @info, "Failed to remove $concept docs: $error";
+			$success = 0;
 		}
 
 		my @ditchables = map { $_->{_id} } (@$goners);
+		# Get cluster_id orphans
+		if ($concept eq "latest_data")
+		{
+			if ($use_non_lookup_query)
+			{
+				( $goners, undef, $error ) = $self->get_cluster_orphans($timedcoll, $nodes);
+			} else {
+				( $goners, undef, $error )  = $self->get_cluster_orphans_with_lookup($timedcoll);
+			}
+			if ($error)
+			{
+				push @info, "get_cluster_orphans for latest_data failed: " . $error;
+				$success = 0;
+			}
+			else
+			{
+				push @info,
+					  "cleanup would remove "
+					. scalar(@$goners)
+					. " orphaned timed $concept records in first instance.";
+				my %latest_data_seen;
+				@ditchables = grep( !$latest_data_seen{$_}++, @ditchables, @$goners);
+			}
+		}
 		if ( !@ditchables )
 		{
 			push @info, "No orphaned $concept records detected.";
@@ -910,18 +1059,140 @@ sub dbcleanup
 			);
 			if ( !$res->{success} )
 			{
-				return {
-					error => "failed to remove $collname instances: $res->{error}",
-					info  => \@info
-				};
+				push @info, "Failed to remove $concept instances: $res->{error}";
+				$self->log->info("Failed to remove $concept instances: $res->{error}");
+				$success = 0;
 			}
 			push @info, "removed $res->{removed_records} orphaned timed records for $concept.";
+			$self->log->info("removed $res->{removed_records} orphaned timed records for $concept.");
 		}
 	}
 
 	push @info, "Database cleanup complete";
 
-	return {success => 1, info => \@info};
+	return {success => $success, info => \@info};
+}
+
+# Return an array of hashes including node_uuid and cluster_id
+sub get_nodes_uuid_cluster_id
+{
+	my ( $self, $filter ) = @_;
+	my $model_data = $self->get_nodes_model( $filter, fields_hash => {uuid => 1, cluster_id => 1} );
+	my $data       = $model_data->data();
+	my @uuids      = map { {uuid => $_->{uuid}, cluster_id => $_->{cluster_id}} } @$data;
+	return \@uuids;
+}
+
+# Returns orphans that does not match node uuid and cluster id
+sub get_cluster_orphans
+{
+	my ( $self, $collection, $nodes ) = @_;
+	
+	my @toRet 	   = ();
+	$self->log->debug("NMISNG get_cluster_orphans: ". scalar(@$nodes) . " nodes");
+
+# We cannot remove anything if we dont have nodes to compare
+	if (scalar(@$nodes) > 0)
+	{
+		my $results = NMISNG::DB::find(
+			collection  => $collection,
+			query       => {},
+			fields_hash => {'_id' => 1, 'node_uuid' => 1, 'cluster_id' => 1}
+		);
+		my @all;
+		my $exist;
+		my $processed;
+		while ( my $entry = $results->next )
+		{
+			push @all, $entry;
+		}
+		if ( defined $results )
+		{
+			my $docs = $results->{result}->{_docs};
+			$self->log->debug("NMISNG get_cluster_orphans: ". scalar(@all) . " documents");	
+			foreach my $doc (@all)
+			{
+				# If this fields are not defined, we cannot add them
+				next if (!defined $doc->{node_uuid} or !defined $doc->{cluster_id});
+				
+				$exist = 0;
+				$processed = 0;
+				
+				foreach my $node (@$nodes)
+				{
+					# If some values are not defined, we cannot say, so cannot remove this record
+					if (!defined $node->{uuid} or !defined $node->{cluster_id})
+					{
+						$processed++; # Make sure we compare at least one
+						next;
+					}
+
+					if ($doc->{node_uuid} eq $node->{uuid} and $doc->{cluster_id} eq $node->{cluster_id})
+					{
+						$exist = 1;
+						last;
+					}
+				}
+				# Not found, so add it to remove
+				if ($exist eq 0 and $processed < scalar(@$nodes))
+				{
+					push @toRet, $doc->{_id};
+				}
+			}
+			$self->log->debug("NMISNG get_cluster_orphans: ". scalar(@toRet) . " documents to delete");
+			# Make sure is not an error
+			if (scalar(@toRet) eq scalar(@all))
+			{
+				$self->log->error("NMISNG get_cluster_orphans: Error in get docs for remove. Docs to remove same as all documents");
+				return ((), undef, "Error in nodes record" );
+			}
+			return ( \@toRet, undef, undef );
+		}
+		else
+		{
+			$self->log->error("NMISNG get_cluster_orphans: Error getting documents " . NMISNG::DB::get_error_string);
+			return ( \@toRet, undef, NMISNG::DB::get_error_string);
+		}
+	}
+	$self->log->error("NMISNG get_cluster_orphans: Error. No nodes provided ");
+	return ( \@toRet, undef, "Error getting nodes");
+}
+
+# Returns orphans that does not match node uuid and cluster id
+# The aggregation fails when there are lots of documents
+# That's why was rewrited above
+sub get_cluster_orphans_with_lookup
+{
+	my ( $self, $collection ) = @_;
+	my ( $goners, undef, $error ) = NMISNG::DB::aggregate(
+		collection          => $collection,
+		pre_count_pipeline  => undef,
+		count               => undef,
+		allowtempfiles      => 1,
+		post_count_pipeline => [
+			# link inventory to parent node
+			{   '$lookup' => {
+					from         => "nodes",
+					localField   => "node_uuid",
+					foreignField => "uuid",
+					as           => "nodeData"
+				}
+			},
+			{'$unwind' 	=> '$nodeData'},
+			{'$project'	=> {
+				'norfan'	=> {
+					'$cond' => [ { '$eq' => [ '$cluster_id', '$nodeData.cluster_id' ] }, 1, 0 ]
+					}
+				}
+			},
+			# We want the ones than does not match
+			{'$match' => {'norfan' => 0}},
+			# then give me just the inventory ids
+			{'$project' => {'_id' => 1}}
+		]
+	);
+	my @ditchables = map { $_->{_id} } (@$goners);
+	return ( \@ditchables, undef, $error );
 }
 
 # little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)
@@ -2355,7 +2626,9 @@ sub latest_data_collection
 			indices       => [
 				[{"inventory_id" => 1}, {unique             => 1}],
 				[{expire_at      => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
-				[{"node_uuid"    => 1}, {unique => 0}]
+				[{"node_uuid"    => 1}, {unique => 0}],
+				[{"configuration.group"    => 1}, {unique => 0}],
+				[{"time"    => -1}, {unique => 0}]
 			]
 		);
 		$self->log->error("index setup failed for inventory: $err") if ($err);
@@ -4883,7 +5156,9 @@ sub undump_node
 			$noderec->{cluster_id} = $this_cluster;
 		}
 	}
-
+	# Set last update to now, it is new in the system.
+	$noderec->{lastupdate} = time;
+	
 	return { error => "invalid structure: node uuid doesn't match file names" }
 	if (grep(!m!^$noderec->{uuid}/!, @filenames));
 
@@ -4920,6 +5195,7 @@ sub undump_node
 
 	for my $onething (@insertme)
 	{
+		
 		my $collfunc = "$onething->{where}_collection";
 		my $res = NMISNG::DB::insert(collection => $self->$collfunc,
 																 record => $onething->{what},
