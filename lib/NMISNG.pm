@@ -397,7 +397,7 @@ sub compute_metrics
 	
 	# Doing the whole network - this defaults to -8 hours span
 	my $groupSummary = $network_status->getGroupSummary();
-	my $status       = Compat::NMIS::statusNumber( $groupSummary );
+	my $status       = Compat::NMIS::statusNumber( $overallStatus );
 	my $data         = {};
 
 	$data->{status}{value}       = $status;

@@ -1150,7 +1150,6 @@ sub overallNodeStatus
 
 			my $nodeobj = $nmisng->node(uuid => $config->{uuid});
 
-
 			### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 			my $down_event = "Node Down";
 			$down_event = "SNMP Down" if NMISNG::Util::getbool($config->{ping},"invert");

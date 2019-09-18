@@ -94,17 +94,12 @@ sub nmis_conf
 # returns: hashref, keys success/error - fixme9 error handling incomplete
 sub overallNodeStatus
 {
-
 	my ( $self, %args ) = @_;
 	my $group = $args{group};
 	my $customer = $args{customer};
 	my $business = $args{business};
 	my $netType = $args{netType};
 	my $roleType = $args{roleType};
-
-	if (scalar(@_) == 1) {
-		$group = shift;
-	}
 
 	my $node_name;
 	my $event_status;
@@ -124,6 +119,7 @@ sub overallNodeStatus
 	foreach $node_name (sort keys %{$NT} )
 	{
 		my $config = $NT->{$node_name};
+
 		next if (!NMISNG::Util::getbool($config->{active}));
 
 		if (
@@ -149,10 +145,10 @@ sub overallNodeStatus
 			($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
 
 			if ( $nodedown and $outage ne 'current' ) {
-				($event_status) = Compat::NMIS::eventLevel("Node Down",$config->{roleType});
+				($event_status) = $self->eventLevel("Node Down",$config->{roleType});
 			}
 			else {
-				($event_status) = Compat::NMIS::eventLevel("Node Up",$config->{roleType});
+				($event_status) = $self->eventLevel("Node Up",$config->{roleType});
 			}
 
 			++$statusHash{$event_status};
