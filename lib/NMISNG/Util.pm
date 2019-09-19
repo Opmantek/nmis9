@@ -2972,4 +2972,10 @@ sub type_which
         return undef;
 }
 
+# package Array::Utils::array_diff() copied from https://metacpan.org/release/Array-Utils/source/Utils.pm
+sub array_diff(\@\@) {
+        my %e = map { $_ => undef } @{$_[1]};
+        return @{[ ( grep { (exists $e{$_}) ? ( delete $e{$_} ) : ( 1 ) } @{ $_[0] } ), keys %e ] };
+}
+
 1;
