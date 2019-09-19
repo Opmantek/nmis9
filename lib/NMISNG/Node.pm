@@ -5223,7 +5223,8 @@ sub handle_custom_alerts
 					$alert->{section} = $sect;
 					$alert->{alert}   = $alrt;                      # the key, good enough
 					$alert->{index}   = $index;
-
+					$alert->{source} = $CA->{$sect}{$alrt}{source};
+					 
 					push( @{$S->{alerts}}, $alert );
 				}
 			}
@@ -5300,16 +5301,19 @@ sub process_alerts
 			type     => $alert->{type},
 			property => $alert->{test},
 			event    => $alert->{event},
-			index    => undef,             #$args{index},
+			index    => $alert->{index},             #$args{index},
 			level    => $tresult,
 			status   => $statusResult,
 			element  => $alert->{ds},
+			section => $alert->{section},
+			source => $alert->{source},
 			# name does not exist for simple alerts, let's synthesize it from ds
-      name => $alert->{alert} || $alert->{ds},
+			name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
 			inventory_id => $alert->{inventory_id}
 		);
 		my $save_error = $status_obj->save();
+
 		if( $save_error )
 		{
 			$self->log->error("Failed to save status alert object, error:".$save_error);

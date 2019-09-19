@@ -144,7 +144,10 @@ sub _query
 				element => $self->{data}{element},
 				property => $self->{data}{property},
 				index => $self->{data}{index},
-				class => $self->{data}{class}
+				class => $self->{data}{class},
+				index => $self->{data}{index},
+				section => $self->{data}->{section},
+				source => $self->{data}->{source}
 			}
 		);
 	}
