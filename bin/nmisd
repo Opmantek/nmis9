@@ -1091,7 +1091,6 @@ sub worker_loop
 		if ($ourjob)
 		{
 			my ($oldverbosity, $normallog);
-
 			# does the job carry a custom output directive?
 			# then TEMPORARILY switch to that
 			if (defined(my $logpathprefix = $ourjob->{output}))
@@ -1132,7 +1131,8 @@ sub worker_loop
 
 
 			my $state = { stats => { time => Time::HiRes::time }};		# for opstatus and exception handling
-
+			$0 = "nmisd " . $ourjob->{type}; # Change worker name
+			
 			# the simpler jobs don't have extra args that need to go into opstatus context
 			if ($ourjob->{type} =~ /^(selftest|permissions_test|configbackup|purge|dbcleanup|escalations|thresholds|metrics)$/)
 			{
