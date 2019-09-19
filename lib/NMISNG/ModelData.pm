@@ -32,7 +32,7 @@
 package NMISNG::ModelData;
 use strict;
 
-our $VERSION = "9.0.6c";
+our $VERSION = "9.0.6cTEST";
 
 use Scalar::Util;       # for weaken
 use Data::Dumper;

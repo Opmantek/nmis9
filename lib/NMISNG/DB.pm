@@ -32,7 +32,7 @@
 #*****************************************************************************
 package NMISNG::DB;
 use strict;
-our $VERSION = "9.0.6c";
+our $VERSION = "9.0.6cTEST";
 
 use Data::Dumper;
 use JSON::XS;
