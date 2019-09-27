@@ -64,6 +64,7 @@ my %known_attrs = (
 	inventory_id   => 1,
 	lastupdate     => 1,
 	level          => 1,
+	level_previous => 1,
 	logged         => 1,
 	node_name      => 1,
 	node_uuid      => 1,
@@ -388,6 +389,7 @@ sub check
 		$self->active(0);
 		$self->event($new_event);
 		$self->details($details);
+		# need to save this event level as the previous
 		$self->level($level);
 
 		$self->nmisng->log->debug(&NMISNG::Log::trace() . "event node_name="
@@ -627,6 +629,19 @@ sub event
 	{
 		$self->{data}{event_previous} = $current if ( $newvalue ne $current );
 		$self->{data}{event} = $newvalue;
+	}
+	return $current;
+}
+
+# set/get the name of the level
+sub level
+{
+	my ( $self, $newvalue ) = @_;
+	my $current = $self->{data}{level};
+	if ( @_ == 2 )
+	{
+		$self->{data}{level_previous} = $current if ( $newvalue ne $current );
+		$self->{data}{level} = $newvalue;
 	}
 	return $current;
 }
