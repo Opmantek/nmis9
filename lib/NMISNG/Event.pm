@@ -665,7 +665,10 @@ sub load
 	# don't add active to filter, we want !historic but don't care about active because if one
 	# exists that is inactive (but not historic) we want to make that active again if threshold
 	# has not run
-	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1) );
+	# NMISNG::Events::get_events_model() returns without finding event and without error by design
+	#		  t_event.pl provides that the intention is to "include_previous"
+	#		  with this comment for a test: "loading event with previous event value still finds the event"
+	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1, include_previous => 1) );
 	my $error = $model_data->error;
 	my $event_in_db;
 
@@ -809,7 +812,8 @@ sub save
 			$self->{data}{stateless} //= 0;
 
 			# set clusterid
-			$self->{data}{cluster_id} //= $self->nmisng->config->{cluster_id};
+			# OMK-6460: Always call NMISNG::Events::get_events_cluster_id() to determine cluster_id for event(s):
+			$self->{data}{cluster_id} //= $self->nmisng->events->get_events_cluster_id( node_uuid => $self->{data}{node_uuid} );
 			$self->{data}{logged} //= 0;
 		}
 	}

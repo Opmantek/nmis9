@@ -691,8 +691,9 @@ sub get_events_model
 	# fixme9: for multipolling, cluster_id becoming an array, this will require more precision
 	$args{filter} //= {};
 	$args{filter}->{node_uuid} = $self->uuid;
-	# We need to send this for getting nodes of the poller
-	$args{filter}->{cluster_id} = $args{filter}->{cluster_id} // $self->cluster_id();
+	# We need to send cluster_id for getting nodes of the poller
+	# OMK-6460: ALWAYS call NMISNG::Events::get_events_cluster_id() to determine cluster_id for event(s):
+	$args{filter}->{cluster_id} //= $self->nmisng->events->get_events_cluster_id(node_uuid => $self->uuid);
 	return $self->nmisng->events->get_events_model( %args );
 }
 
