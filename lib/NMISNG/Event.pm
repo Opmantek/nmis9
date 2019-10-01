@@ -658,6 +658,7 @@ sub load
 	my ( $self, %args ) = @_;
 	my $force             = $args{force};
 	my $only_take_missing = $args{only_take_missing};
+	my $include_previous = $args{include_previous} // 0;
 
 	# undef if we are not new and are not forced to check
 	return if ( $self->loaded && !$force );
@@ -668,7 +669,7 @@ sub load
 	# NMISNG::Events::get_events_model() returns without finding event and without error by design
 	#		  t_event.pl provides that the intention is to "include_previous"
 	#		  with this comment for a test: "loading event with previous event value still finds the event"
-	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1, include_previous => 1) );
+	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1, include_previous => $include_previous) );
 	my $error = $model_data->error;
 	my $event_in_db;
 
