@@ -14,4 +14,5 @@ build
 test
 .vagrant
 Vagrantfile
-.*.swp
+*.swp
+*.swo
