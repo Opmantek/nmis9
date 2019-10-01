@@ -213,24 +213,6 @@ sub eventUpdate
 	return $event->save();
 }
 
-# OMK-6460: Always call NMISNG::Events::get_events_cluster_id() to determine cluster_id for event(s):
-## tightened code for events by ensuring consistent precedence between
-#		NMISNG::config->{cluster_id}
-#		and
-#		NMISNG::Node::cluster_id()
-# currently for events we give precedence to NMISNG::config->{cluster_id} over NMISNG::Node::cluster_id()
-# args: node_uuid
-# returns cluster_id to be used in events
-sub get_events_cluster_id
-{
-	my ( $self, %args ) = @_;
-
-	# Various options for precedence: uncomment desired option:
-	return $self->nmisng->config->{cluster_id};
-	#return $self->nmisng->config->{cluster_id} // ($args{node_uuid}? $self->nmisng->node( uuid => $node_uuid )->cluster_id(): undef);
-	#return $args{node_uuid}? ($self->nmisng->node( uuid => $node_uuid )->cluster_id() // $self->nmisng->config->{cluster_id}): $self->nmisng->config->{cluster_id}
-}
-
 # looks up all events (for one node or all), filtering for active and historic possible
 #
 # args: filter hash, { can have node obj or node_uuid(optional, if not there all are loaded),
@@ -242,27 +224,25 @@ sub get_events_cluster_id
 sub get_events_model
 {
 	my ( $self, %args ) = @_;
-	#my $C      = $self->nmisng->config(); # unused in this function
+	my $C      = $self->nmisng->config();
 	my $filter = $args{filter};
 	my $q      = $args{query};
+
+	my $node = $filter->{node};
+	return NMISNG::ModelData->new(error => "give me a node object for node or use a different argument")
+			if ( $node && ref($node) ne 'NMISNG::Node' );
+
+	my $node_uuid = $filter->{node_uuid};
+	$node_uuid = $node->uuid if ( !$node_uuid && $node );
 
 	my %results = ();
 	if ( !$q )
 	{
-		# $node and $node_uuid are only used within this block so moved from above this block:
-		my $node = $filter->{node};
-		return NMISNG::ModelData->new(error => "give me a node object for node or use a different argument")
-				if ( $node && ref($node) ne 'NMISNG::Node' );
-
-		my $node_uuid = $filter->{node_uuid};
-		$node_uuid = $node->uuid if ( !$node_uuid && $node );
-
 		$q = NMISNG::DB::get_query(
 			and_part => {
 				_id          => $filter->{_id},
 				node_uuid    => $node_uuid,
-				# OMK-6460: Always call NMISNG::Events::get_events_cluster_id() to determine cluster_id for event(s):
-				cluster_id   => $filter->{cluster_id} // $self->get_events_cluster_id(node_uuid => $node_uuid),
+				cluster_id => $filter->{cluster_id} // $self->nmisng->config->{cluster_id},
 				event        => $filter->{event},
 				element      => $filter->{element},
 				inventory_id => $filter->{inventory_id},

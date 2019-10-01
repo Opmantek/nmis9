@@ -812,8 +812,7 @@ sub save
 			$self->{data}{stateless} //= 0;
 
 			# set clusterid
-			# OMK-6460: Always call NMISNG::Events::get_events_cluster_id() to determine cluster_id for event(s):
-			$self->{data}{cluster_id} //= $self->nmisng->events->get_events_cluster_id( node_uuid => $self->{data}{node_uuid} );
+			$self->{data}{cluster_id} //= $self->nmisng->config->{cluster_id};
 			$self->{data}{logged} //= 0;
 		}
 	}
