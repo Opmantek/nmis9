@@ -58,13 +58,13 @@ my %known_attrs = (
 	details        => 1,
 	element        => 1,
 	escalate       => 1,
-	event_previous => 1,
+	event_previous => 1, # 'sub event' sets $self->{data}{event_previous} in same manner 'sub level' sets $self->{data}{level_previous}
 	expire_at      => 1,
 	historic       => 1,
 	inventory_id   => 1,
 	lastupdate     => 1,
-	level          => 1,
-	level_previous => 1,
+	#level          => 1, # 'sub level' now handles $self->{data}{level} in same manner 'sub event' handles $self->{data}{event}
+	level_previous => 1,  # 'sub level' sets $self->{data}{level_previous} in same manner 'sub event' sets $self->{data}{event_previous}
 	logged         => 1,
 	node_name      => 1,
 	node_uuid      => 1,
@@ -389,7 +389,7 @@ sub check
 		$self->active(0);
 		$self->event($new_event);
 		$self->details($details);
-		# need to save this event level as the previous
+		# save current event level as previous in sub $self->level()
 		$self->level($level);
 
 		$self->nmisng->log->debug(&NMISNG::Log::trace() . "event node_name="
@@ -620,7 +620,9 @@ sub is_proactive
 	return ( $self->event =~ /proactive/i );
 }
 
-# set/get the name of the event
+# set/get the name of the event and set event_previous
+# 'sub event' gets and sets $self->{data}{event} which is not a key of '%known_attrs'
+# 'sub event' sets $self->{data}{event_previous} even though it is a key of '%known_attrs'
 sub event
 {
 	my ( $self, $newvalue ) = @_;
@@ -633,15 +635,20 @@ sub event
 	return $current;
 }
 
-# set/get the name of the level
+# set/get the event level and set event level_previous
+# 'sub level' gets and sets $self->{data}{level} which is no longer a key of '%known_attrs'
+# 'sub level' sets $self->{data}{level_previous} even though it is a key of '%known_attrs'
 sub level
 {
 	my ( $self, $newvalue ) = @_;
 	my $current = $self->{data}{level};
 	if ( @_ == 2 )
 	{
-		$self->{data}{level_previous} = $current if ( $newvalue ne $current );
+		# special case: unlike event name, event level can be undef as it is not set in NMISNG::Event::New()
+		#				hence, we must ensure a default value is set when '!defined $current':
+		$self->{data}{level_previous} = $current // 'Normal' if ( $newvalue ne $current );
 		$self->{data}{level} = $newvalue;
+		$self->nmisng->log->info("EVENT LEVEL level=$newvalue level_previous=$current");
 	}
 	return $current;
 }
@@ -673,6 +680,7 @@ sub load
 	my ( $self, %args ) = @_;
 	my $force             = $args{force};
 	my $only_take_missing = $args{only_take_missing};
+	my $include_previous = $args{include_previous} // 0;
 
 	# undef if we are not new and are not forced to check
 	return if ( $self->loaded && !$force );
@@ -680,7 +688,10 @@ sub load
 	# don't add active to filter, we want !historic but don't care about active because if one
 	# exists that is inactive (but not historic) we want to make that active again if threshold
 	# has not run
-	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1) );
+	# NMISNG::Events::get_events_model() returns without finding event and without error by design
+	#		  t_event.pl provides that the intention is to "include_previous"
+	#		  with this comment for a test: "loading event with previous event value still finds the event"
+	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1, include_previous => $include_previous) );
 	my $error = $model_data->error;
 	my $event_in_db;
 
@@ -698,6 +709,10 @@ sub load
 			if ( !$only_take_missing || !defined( $self->$key() ) )
 			{
 				# use setter/getter if it's defined, otherwise it's 'custom_data'
+				#
+				# hence, in this loop '$self->event()' will not be called when $key='event' SO 'event_previous' will not be set
+				# likewise, in this loop '$self->level()' will not be called when $key='level' SO 'level_previous' will not be set
+				# 'event' and 'level' keys are set in $self->custom_data() here:
 				if ( defined( $known_attrs{$key} ) )
 				{
 					$self->$key( $event_in_db->{$key} );

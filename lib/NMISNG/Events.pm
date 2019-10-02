@@ -224,20 +224,22 @@ sub eventUpdate
 sub get_events_model
 {
 	my ( $self, %args ) = @_;
-	my $C      = $self->nmisng->config();
+	#my $C      = $self->nmisng->config(); unused
 	my $filter = $args{filter};
 	my $q      = $args{query};
-
-	my $node = $filter->{node};
-	return NMISNG::ModelData->new(error => "give me a node object for node or use a different argument")
-			if ( $node && ref($node) ne 'NMISNG::Node' );
-
-	my $node_uuid = $filter->{node_uuid};
-	$node_uuid = $node->uuid if ( !$node_uuid && $node );
 
 	my %results = ();
 	if ( !$q )
 	{
+		# only used when !$q:
+		my $node = $filter->{node};
+		return NMISNG::ModelData->new(error => "give me a node object for node or use a different argument")
+				if ( $node && ref($node) ne 'NMISNG::Node' );
+
+		# only used when !$q:
+		my $node_uuid = $filter->{node_uuid};
+		$node_uuid = $node->uuid if ( !$node_uuid && $node );
+
 		$q = NMISNG::DB::get_query(
 			and_part => {
 				_id          => $filter->{_id},
