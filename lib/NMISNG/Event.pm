@@ -688,10 +688,12 @@ sub load
 	# don't add active to filter, we want !historic but don't care about active because if one
 	# exists that is inactive (but not historic) we want to make that active again if threshold
 	# has not run
+	# OMK-6477: fix typo in call to _query(): 'filter_active => 1' becomes 'ignore_active => 1'
+	#
 	# NMISNG::Events::get_events_model() returns without finding event and without error by design
 	#		  t_event.pl provides that the intention is to "include_previous"
 	#		  with this comment for a test: "loading event with previous event value still finds the event"
-	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(filter_active => 1, include_previous => $include_previous) );
+	my $model_data = $self->nmisng->events->get_events_model( query => $self->_query(ignore_active => 1, include_previous => $include_previous) );
 	my $error = $model_data->error;
 	my $event_in_db;
 
