@@ -66,6 +66,12 @@ use Compat::Timing;
 #  log - NMISNG::Log object to log to, required.
 #  db - mongodb database object, optional.
 #  drop_unwanted_indices - optional, default is 0.
+#
+#  allow for instantiating a test collection in our $db for running tests
+#  in a hashkey named 'tests' passed as arg to NMISNG->new()
+#  by appending "_collection" to the subkey representing the NMISNG collection we want to test,
+#    for example:
+#	   NMISNG->new(tests => $args{tests});
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -100,9 +106,17 @@ sub new
 	# park the db handle for future use, note: this is NOT the connection handle!
 	$self->{_db} = $db;
 
+	# allow for instantiating a test collection in our $db for running tests:
+	my $tests = $args{tests};
 	# load and prime the statically defined collections
-	for my $collname (qw(nodes events inventory latest_data queue opstatus status remote))
+	for my $default_collname (qw(nodes events inventory latest_data queue opstatus status remote))
 	{
+		#  allow for instantiating a test collection in our $db for running tests:
+		my $collname = $tests->{"${default_collname}_test_collection"};
+		if (!$collname)
+		{
+			$collname = $default_collname;
+		}
 		my $collhandle = NMISNG::DB::get_collection( db => $db, name => $collname );
 		if ( ref($collhandle) ne "MongoDB::Collection" )
 		{
@@ -121,10 +135,10 @@ sub new
 		$dropunwanted = 0
 			if ($dropunwanted
 			and ref( $self->{_config}->{db_never_remove_indices} ) eq "ARRAY"
-			and grep( $_ eq $collname, @{$self->{_config}->{db_never_remove_indices}} ) );
+			and grep( $_ eq $default_collname, @{$self->{_config}->{db_never_remove_indices}} ) );
 
 		# now prime the indices and park the collection handles in self - the coll accessors do that
-		my $setfunction = "${collname}_collection";
+		my $setfunction = "${default_collname}_collection";
 		$self->$setfunction( $collhandle, $dropunwanted );
 	}
 

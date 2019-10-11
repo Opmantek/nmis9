@@ -65,6 +65,13 @@ use NMISNG::Outage;
 #   if debug is present, it overrules the configuration AND causes
 #   logging to go to stderr, not the logfile)
 #
+# allow for instantiating a test collection in our $db for running tests
+# in a hashkey named 'tests' passed as arg to Compat::NMIS::new_nmisng()
+# by appending "_test_collection" to the subkey representing the NMISNG collection we want to test,
+#   for example:
+#	  my $nmisng_args->{tests}{events_test_collection} = "events_test";
+#	  Compat::NMIS::new_nmisng(%$nmisng_args);
+#
 # returns: ref to one persistent nmisng object
 sub new_nmisng
 {
@@ -98,7 +105,13 @@ sub new_nmisng
 				path  =>  ($args{debug}? undef : $logfile ),
 					);
 		}
-		$_nmisng = NMISNG->new(config => $C, log => $logger);
+		# allow for instantiating a test collection in our $db for running tests
+		# in a hashkey named 'tests' passed as arg to Compat::NMIS::new_nmisng()
+		# by appending "_test_collection" to the subkey representing the NMISNG collection we want to test,
+		#   for example:
+		#	  my $nmisng_args->{tests}{events_test_collection} = "events_test";
+		#	  Compat::NMIS::new_nmisng(%$nmisng_args);
+		$_nmisng = NMISNG->new(config => $C, log => $logger, tests => $args{tests});
 
 		undef $pending;
 	}
