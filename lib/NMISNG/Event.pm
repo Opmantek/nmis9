@@ -41,6 +41,12 @@ use Time::HiRes;
 
 our $VERSION = "9.0.7";
 
+# Allow testing of proposed fix for Event Load():
+# intent of t_event.pl and t_notify.pl tests shows "Node Up" and "Node Down" must include finding in "Event Previous"
+#	event _query() function has this comment:
+#		"optionally find the event name in either event or event_previous (so that Up/Down events can find each other)"
+our $TEST_PROPOSED_LOAD_FIX=0;
+
 # params: all properties desired in the node, minimum is
 #  either _id or  node_name,event,[element] are required to
 #  have a minimal object which can load/look for itself
@@ -214,7 +220,7 @@ sub acknowledge
 	my $wantlog = (
 		       !$events_config
 			or !$events_config->{$self->event}
-			or !getbool( $events_config->{$self->event}->{Log}, "invert" )
+			or !NMISNG::Util::getbool( $events_config->{$self->event}->{Log}, "invert" )
 	) ? 1 : 0;
 
 	# events are only acknowledgeable while they are current (ie. not in the process of
@@ -680,7 +686,11 @@ sub load
 	my ( $self, %args ) = @_;
 	my $force             = $args{force};
 	my $only_take_missing = $args{only_take_missing};
-	my $include_previous = $args{include_previous} // 0;
+	# Allow testing of proposed fix for Event Load():
+	# intent of t_event.pl and t_notify.pl tests shows "Node Up" and "Node Down" must include finding in "Event Previous"
+	#	event _query() function has this comment:
+	#		"optionally find the event name in either event or event_previous (so that Up/Down events can find each other)"
+	my $include_previous = $args{include_previous} // ($TEST_PROPOSED_LOAD_FIX and $self->{data}->{event} =~ /Node (?:Up|Down)/);
 
 	# undef if we are not new and are not forced to check
 	return if ( $self->loaded && !$force );
