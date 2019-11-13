@@ -810,13 +810,13 @@ sub loadConfTable
 				my $local_config_cache;
 				push @{$config_cache->{configpeerfiles}}, $_;
 				$local_config_cache = read_load_cache(whichfile => $_, cachefile => $local_config_cache, master => 0, fn => $_ );	
-				$local_config_cache = replace_macros( config_cache => $local_config_cache );
 				# Merge with local cache
 				while ( my ($k,$v) = each(%{$local_config_cache}) ) {
 					# Never let the master change this value(s)
 					next if ( grep( /^$k$/, @$properties ));
 					$config_cache->{$k} = $v;
 				}
+				$config_cache = replace_macros( config_cache => $config_cache );
 				$config_cache->{@_} = $stat->mtime; # remember
 			}
 		}
