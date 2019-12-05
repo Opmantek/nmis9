@@ -1218,7 +1218,7 @@ sub loadTable
 
 # Returns data if it is 
 # returns: undef or error message
-sub has_external_file
+sub has_external_files
 {
 	my %args = @_;
 	my $dir = $args{dir};			# name of directory, semi-symbolic
