@@ -411,26 +411,39 @@ while (!$exit_marker)
 			# IFF there are any plugins that provide after_xyz_plugin functions...
 			if (grep( $_->can("after_${icanhasplugin}_plugin"), $nmisng->plugins))
 			{
-				$nmisng->log->info("Scheduling post-$icanhasplugin plugin execution for tag $tag and "
-														 .(scalar keys %$thisflock)." nodes");
+				# Check for existance of the same job
+				my $jobs = $nmisng->get_queue_model(type => 'plugins' , # a job for a worker
+									'args.phase' => $icanhasplugin, # post-collect or post-update plugins
+									'args.uuid' => [ keys %$thisflock ] # these were the nodes in the op
+				);
 
-				my ($error, $qid) = $nmisng->update_queue( jobdata =>
-																									 {
-																										 type => "plugins",
-																										 time => Time::HiRes::time,
-																										 priority =>
-																												 $config->{"priority_plugins"} // 0.5,
-																										 in_progress => 0,
-																										 args => {
-																											 phase => $icanhasplugin, # post-collect or post-update plugins
-																											 uuid => [ keys %$thisflock ], # these were the nodes in the op
-																										 },
-																										 tag => $tag });
-				if ($error)
-				{
-					$nmisng->log->error("failed to queue post-$icanhasplugin plugins for tag $tag: $error!");
-					next;
+				if ( scalar(@{$jobs->{_data}}) > 0 ) {
+					$nmisng->log->debug("Already exist " . scalar(@{$jobs->{_data}}) . " jobs for plugins and uuid " . Dumper([ keys %$thisflock ]));
+					$nmisng->log->info("Already exist " . scalar(@{$jobs->{_data}}) . " jobs for plugins and uuid. Skipping job ");
+				} else {
+					$nmisng->log->info("Scheduling post-$icanhasplugin plugin execution for tag $tag and "
+																 .(scalar keys %$thisflock)." nodes");
+		
+						my ($error, $qid) = $nmisng->update_queue( jobdata =>
+																											 {
+																												 type => "plugins",
+																												 time => Time::HiRes::time,
+																												 priority =>
+																														 $config->{"priority_plugins"} // 0.5,
+																												 in_progress => 0,
+																												 args => {
+																													 phase => $icanhasplugin, # post-collect or post-update plugins
+																													 uuid => [ keys %$thisflock ], # these were the nodes in the op
+																												 },
+																												 tag => $tag });
+						if ($error)
+						{
+							$nmisng->log->error("failed to queue post-$icanhasplugin plugins for tag $tag: $error!");
+							next;
+						}
 				}
+		
+				
 			}
 
 			# we're done with this flock
