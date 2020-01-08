@@ -398,7 +398,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 
 				my $printable = $active->{args}?
 					Data::Dumper->new([$active->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
-				$printable = "<skipped, too long>"
+				$printable = "<output truncated, too long>"
 						if (!$wantverbose && length($printable) > 64);
 
 				printf($fmt,
@@ -426,7 +426,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 				$some = 1;
 				my $printable = $sched->{args}?
 						Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
-				$printable = "<skipped, too long>"
+				$printable = "<output truncated, too long>"
 						if (!$wantverbose && length($printable) > 64);
 
 				printf($fmt,

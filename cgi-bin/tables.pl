@@ -83,11 +83,11 @@ my $wantwidget = $widget eq "true";
 
 # select function
 
-if ($Q->{act} eq 'config_table_menu') { 			menuTable();
-} elsif ($Q->{act} eq 'config_table_add') { 		editTable();
+if ($Q->{act} eq 'config_table_menu') { 			menuTable(); 
+} elsif ($Q->{act} eq 'config_table_add') { 		editTable(); 
 } elsif ($Q->{act} eq 'config_table_view') { 		viewTable();
 } elsif ($Q->{act} eq 'config_table_show') { 		showTable();
-} elsif ($Q->{act} eq 'config_table_edit') { 		editTable();
+} elsif ($Q->{act} eq 'config_table_edit') { 		editTable(); 
 } elsif ($Q->{act} eq 'config_table_delete') { 		viewTable();
 } elsif ($Q->{act} eq 'config_table_doadd') { 		if (doeditTable()) { menuTable(); }
 } elsif ($Q->{act} eq 'config_table_doedit') { 		if (doeditTable()) { menuTable(); }
@@ -137,6 +137,7 @@ sub menuTable
 	my $table = $Q->{table};
 	my $msg = $args{message};
 
+	my $iseditable = iseditable();
 	#start of page
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript(title => "View Table $table") if (NMISNG::Util::getbool($widget,"invert"));
@@ -146,7 +147,7 @@ sub menuTable
 	my $LNT;
 	if ( $table eq "Nodes" ) {
 		$LNT = Compat::NMIS::loadLocalNodeTable(); # load from file or db
-	}
+	} 
 
 	print <<EOF;
 <script>
@@ -168,6 +169,7 @@ EOF
 	#print header
 	my $line;
 	my $colspan = 1;
+	
 	for my $ref ( @{$CT}) { # trick for order of header items
 		for my $item (keys %{$ref})
 		{
@@ -179,11 +181,17 @@ EOF
 	}
 	my $link = $AU->CheckAccess("Table_${table}_rw","check")?
 			(' > '.a({href=>"$url&act=config_table_add&widget=$widget"},'add')) : '';
-
+			
+	if (!$iseditable) {
+		$link = '';
+	}
 	$line .= td({class=>'header',align=>'center'},'Action', $link);
 	
 	if ( $msg ) {
 		print Tr(Tr(th({class=>'Warning',colspan=>$colspan}, $msg)));
+	}
+	if (!$iseditable) {
+		print Tr(td({class=>'Warning',align=>'center',colspan=>$colspan}, "There are files from the master overriding the configuration"));
 	}
 	print Tr(Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line);
 
@@ -205,7 +213,7 @@ EOF
 
 		my $safekey = uri_escape($k);
 
-		if ($AU->CheckAccess("Table_${table}_rw","check")) {
+		if ($AU->CheckAccess("Table_${table}_rw","check") and $iseditable) {
 			$bt = '&nbsp;'
 					# polling-policy: not editable, only add and delete
 					. ($table eq "Polling-Policy"? '' :
@@ -605,13 +613,24 @@ sub editTable
 	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
 
+# This function checks is the table is editable based in if it has any external file
+# If is has, it is not editable
+sub iseditable
+{
+	my $table = $Q->{table};
+	
+	if ($table ne "Nodes" and NMISNG::Util::has_external_files(dir=>'conf',name=>$table)) {
+		return 0;
+	}
+	return 1;
+}
 # this function performs the actual modification of the files with values
 # called for both adding and editing
 sub doeditTable
 {
 	my $table = $Q->{table};
 	my $hash = $Q->{hash};
-
+	
 	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
 
 	# no editing for the Polling Policy, only add and delete

@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::rrdfunc;
-our $VERSION = "9.0.7";
+our $VERSION = "9.0.9";
 
 use strict;
 use feature 'state';
@@ -145,7 +145,7 @@ sub getRRDasHash
 			$datapresent ||= 1 if (defined $thisrow->[$dsidx]);
 		}
 
-		# compute date only if at least on ds col has defined data
+		# compute date only if at least one ds col has defined data
 		if ($datapresent)
 		{
 			++$rowswithdata;
@@ -177,16 +177,41 @@ sub getRRDasHash
 	# bucket post-processing needed?
 	if ($bucketsize)
 	{
-		my $bucketstart = $meta{start} = $args{start}; # $begin can be one step interval later
+		# OMK-6567
+		my $bucketstart;
+		my @times = (sort keys %s);
+		if (scalar @times > 0)
+		{
+			$bucketstart = $meta{start} = List::Util::max($args{start}, $times[0]); # $begin can be one step interval later
+		}
+		else
+		{
+			$bucketstart = $meta{start} = $args{start}; # $begin can be one step interval later
+		}
+		#my $last_time = $times[-1]; # for debugging
+		undef @times;
+
 		$meta{step} = $bucketsize * $step;
 
-		my $nrdatapoints = @$data;
-		my $nrbuckets = int($nrdatapoints/$bucketsize + 0.5); # last bucket may end up partially filled
+		# OMK-6567: '$nrbuckets = int($nrdatapoints/$bucketsize + 0.5)' calc is not valid
+		#			as $wantedresolution, used in calculating the step times $targettime is not taken into account
+		#			this causes incorrect number buckets being calculated in certain circumstances
+		my $nrbuckets = int(($meta{end}-$meta{start})/$wantedresolution + 0.5); # last bucket may end up partially filled
+		###my $nrdatapoints = @$data;
+		###my $nrbuckets = int($nrdatapoints/$bucketsize + 0.5); # last bucket may end up partially filled
 		$meta{rows} = $meta{rows_with_data} = $nrbuckets;
 
+		# OMK-6567
+		my ($targettime,$prev_targettime);
 		for my $bucket (1..$nrbuckets)
 		{
-			my $targettime = $bucketstart + $bucket * $wantedresolution;
+			# OMK-6567: bucket targettime's are increasing;
+			#			keep previous bucket's targettime to ensure we don't delete an earlier bucket's targettime
+			#				further below when 'if($slot)'
+			#			on first bucket, $targettime is undef at this point,
+			#				so we set a large negative number (-1 could probably have sufficed, but lets be sure):
+			$prev_targettime = $targettime // -($bucketstart + $bucket * $wantedresolution);
+			$targettime = $bucketstart + $bucket * $wantedresolution;
 			$meta{end} = $targettime;	# so that last bucket is included in meta
 
 			my %acc;
@@ -200,7 +225,15 @@ sub getRRDasHash
 					$acc{$ds} ||= [];
 					push @{$acc{$ds}}, $s{$contribtime}->{$ds};
 				}
-				delete $s{$contribtime} if ($slot); # last timeslot receives all the readings for the whole bucket
+				if ($slot) # last timeslot receives all the readings for the whole bucket
+				{
+					# OMK-6567: ensure we don't delete an earlier bucket's targettime
+					#			this issue is fixed by improved calc for $nrbuckets above, but kept to be safe:
+					if ($contribtime > $prev_targettime)
+					{
+						delete $s{$contribtime}
+					}
+				}
 			}
 
 			if (!keys %acc)	# all gone?

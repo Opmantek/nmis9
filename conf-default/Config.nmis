@@ -489,6 +489,7 @@ my %hash = (
 		'abort_escalations_after' => 300,
 		'abort_metrics_after' => 300,
 		'abort_thresholds_after' => 300,
+    'abort_plugins_after' => 7200, # seconds
 	},
 
 	# relative priorities for automatic job scheduling,

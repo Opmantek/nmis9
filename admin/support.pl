@@ -227,7 +227,7 @@ sub collect_evidence
 		"$targetdir/system_status/init",
 		"$targetdir/system_status/apache",
 		"$targetdir/logs",
-		"$targetdir/conf/scripts", "$targetdir/conf/plugins",
+		"$targetdir/conf/scripts", "$targetdir/conf/plugins", "$targetdir/conf/conf.d",
 		"$targetdir/models-custom",
 		"$targetdir/var/nmis_system/model_cache",
 		"$targetdir/node_dumps",
@@ -363,6 +363,8 @@ sub collect_evidence
 		next if (! -d "$basedir/conf/$oksubdir"); # those dirs may or may not exist
 		map { cp($_, "$targetdir/conf/$oksubdir/"); } (glob("$basedir/conf/$oksubdir/*"));
 	}
+	# External configuration files
+	system("cp -r $basedir/conf/conf.d/* $targetdir/conf/conf.d 2>/dev/null"); 
 
 	# copy generic var files (=var/nmis-*, should be mostly nmis-fping.
 	map { cp($_, "$targetdir/var/"); } (glob("$vardir/nmis[_-]*.*"));

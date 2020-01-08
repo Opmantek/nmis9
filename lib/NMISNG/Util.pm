@@ -29,7 +29,7 @@
 #
 # Utility package for various reusable general-purpose functions
 package NMISNG::Util;
-our $VERSION = "9.0.7";
+our $VERSION = "9.0.9";
 
 use strict;
 use feature 'state';						# loadconftable, uuid functions
@@ -810,13 +810,13 @@ sub loadConfTable
 				my $local_config_cache;
 				push @{$config_cache->{configpeerfiles}}, $_;
 				$local_config_cache = read_load_cache(whichfile => $_, cachefile => $local_config_cache, master => 0, fn => $_ );	
-				$local_config_cache = replace_macros( config_cache => $local_config_cache );
 				# Merge with local cache
 				while ( my ($k,$v) = each(%{$local_config_cache}) ) {
 					# Never let the master change this value(s)
 					next if ( grep( /^$k$/, @$properties ));
 					$config_cache->{$k} = $v;
 				}
+				$config_cache = replace_macros( config_cache => $config_cache );
 				$config_cache->{@_} = $stat->mtime; # remember
 			}
 		}
@@ -1176,20 +1176,62 @@ sub loadTable
 	# no file? nothing to do but bail out
 	return ("loadtable: $file does not exist or has bad permissions (dir=$dir name=$name)") if (!-e $file);
 
-	return NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock)
-			if ($lock);
+	my $externalDir = "$expandeddir/conf.d";
+	if ($name ne "Config") # Config is special, as it is saved in conf.d
+	{
+		$externalDir = "$externalDir/$name";
+	}
+	my $externalFiles = NMISNG::Util::get_external_files(dir=>$externalDir);
+	
+	if ($lock) {
+		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock);
 
+		foreach (@$externalFiles) {
+			# Read and mix
+			my $lock = NMISNG::Util::getbool($args{lock});
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock);
+			$table = {%$table, %$extfile};
+		}		
+		return $table;
+	}
+	
 	# look at the cache, does it have existing non-stale data?
 	my $filetime = stat($file)->mtime;
+
 	if (ref($cache{$file}) ne "HASH"
 			|| $filetime != $cache{$file}->{mtime})
 	{
+		my $table = NMISNG::Util::readFiletoHash(file=>$file);
+
+		foreach (@$externalFiles) {
+			# Read and mix
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_);
+			$table = {%$table, %$extfile};
+		}
 		# nope, reread
-		$cache{$file} = { "data" => NMISNG::Util::readFiletoHash(file=>$file),
+		$cache{$file} = { "data" => $table,
 											"mtime" => $filetime };
 	}
 
 	return $cache{$file}->{data};
+}
+
+# Returns data if it is 
+# returns: undef or error message
+sub has_external_files
+{
+	my %args = @_;
+	my $dir = $args{dir};			# name of directory, semi-symbolic
+	my $name = $args{name};	# name of table or short file name
+	
+	my $expandeddir = getDir(dir => $dir);
+	my $externalDir = "$expandeddir/conf.d";
+	if ($name ne "Config") # Config is special, as it is saved in conf.d
+	{
+		$externalDir = "$externalDir/$name";
+	}
+	my $externalFiles = NMISNG::Util::get_external_files(dir=>$externalDir);
+	return scalar(@$externalFiles);
 }
 
 # writes data to file in question,

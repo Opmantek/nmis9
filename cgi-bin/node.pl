@@ -289,13 +289,13 @@ sub typeGraph
 		$start = $end - $length;
 	}
 
-	# minimal length of 30 minutes
-	if ( $start > ($time - (60*30)) ) {
-		$start = $time - (60*30);
+	# minimal length of 10 minutes
+	if ( $start > ($time - (60*10)) ) {
+		$start = $time - (60*10);
 	}
-	# minimal 30 min.
-	if ($start > ($end - (60*30)) ) {
-		$start = $end - (60*30);
+	# minimal 10 min.
+	if ($start > ($end - (60*10)) ) {
+		$start = $end - (60*10);
 	}
 
 	# to integer

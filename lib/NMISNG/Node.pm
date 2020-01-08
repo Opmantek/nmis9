@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.0.7";
+our $VERSION = "9.0.9";
 
 use strict;
 
@@ -959,10 +959,11 @@ sub is_new
 #
 sub coarse_status
 {
-	my ($self) = @_;
+	my ($self, %args) = @_;
 
 	my ($inventory, $error) =  $self->inventory( concept => "catchall" );
-	my $catchall_data = ($inventory && !$error)? $inventory->data() : {};
+	my $old_data = ($inventory && !$error)? $inventory->data() : {};
+	my $catchall_data = (defined($args{catchall_data}) && %{$args{catchall_data}}) ? $args{catchall_data} : $old_data;
 
 	# 1 for reachable
 	# 0 for unreachable
@@ -8014,7 +8015,7 @@ sub collect
 	$S->close;
 
 	# update the coarse compat 'nodestatus' property, not multiple times
-	my $coarse = $self->coarse_status;
+	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 	$catchall_inventory->save();
