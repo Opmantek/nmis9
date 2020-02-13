@@ -922,20 +922,38 @@ sub inventory_path
 }
 
 # retrieve r/o inventory concept by section
-# args: section(required)
+# NOTE: Consider this function only safe for use by a daemon process with explicit setting use_cache=>0
+#	    UNLESS daemon otherwise accommodates this limitation by deleting the cache as and when needed
+#		as the cache only expires on completed execution of the calling process and this can cause undesired stale cached sections to otherwise be returned:
+#			there is no delete cache entry mechanism yet when cached entries becomes stale.
+# Is this cacheing really necessary? YES: tested with opReports QoS and JCoS reports and mongod behaves FAR better on devbox with 6gb memory.
+#	Cacheing tested for opReports QoS and JCoS reports, using setting use_cache=>1, via webservice opmantek.pl with only 2 workers
+#		and each new report generation (4 consecutive tests of each report type) logged per node initially 'not using cache' which is what is desired. 
+# args: section (required), use_cache (default 1)
 sub retrieve_section
 {
 	my ($self, %args) = @_;
 	my $section = $args{section};
+	my $use_cache = $args{use_cache} // 1;
 
 	if (!$section)
 	{
 		return undef;
 	}
 
-	if( !defined($self->{"_retrieve_section_${section}"}->{$section}) )
+	# we kill this particular cached section if $use_cache=0
+	my $cache_key = "return_this_${section}";
+	if (! $use_cache)
 	{
-		$self->{"_retrieve_section_${section}"}->{$section} = {};
+		$self->{_retrieve_section}->{$cache_key} = {};
+	}
+	# we still cache this particular cached section irrespective of $use_cache setting
+	# this cache entry will be destroyed before use on next call by same executing process if also called then with $use_cache=0
+	if( !defined($self->{_retrieve_section}->{$cache_key}->{$section}) )
+	{
+		$self->nmisng->log->debug9("$self->{_name}: retrieve_section('$section'): not using cache");
+
+		$self->{_retrieve_section}->{$cache_key}->{$section} = {};
 		my $ids = $self->get_inventory_ids( concept => $section,
 											filter => { historic => 0 } );
 		foreach my $id (@$ids)
@@ -943,7 +961,7 @@ sub retrieve_section
 			my ( $inventory, $error ) = $self->inventory( _id => $id );
 			if ( !$inventory )
 			{
-				$self->nmisng->log->error("retrieve_section(): Failed to get inventory with id:$id, error:$error");
+				$self->nmisng->log->error("$self->{_name}: retrieve_section('$section'): Failed to get inventory with id:$id, error:$error");
 				next;
 			}
 			my $D = $inventory->data();
@@ -952,12 +970,16 @@ sub retrieve_section
 			{
 				$index = $id;
 			}
-			$self->{"_retrieve_section_${section}"}->{$section}->{$index} = $D;
-			# is this applicable for saving? - No - always pass clean flag so its never dirty and never saved
-			$self->_dirty( 0, "retrieve_section_${section}" );
+			$self->{_retrieve_section}->{$cache_key}->{$section}->{$index} = $D;
 		}
+		# not applicable to $self->_load() or $%self->save(), so calling $self->dirty() is not necessary
+		#$self->_dirty( 1, "retrieve_section" );
 	}
-	return $self->{"_retrieve_section_${section}"};
+	else
+	{
+		$self->nmisng->log->debug9("$self->{_name}: retrieve_section('$section'): using cache");
+	}
+	return ($self->{_retrieve_section}->{$cache_key}? Clone::clone($self->{_retrieve_section}->{$cache_key}) : {});
 }
 
 # small r/o accessor for node activation status
