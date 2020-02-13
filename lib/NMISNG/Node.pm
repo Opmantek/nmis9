@@ -921,6 +921,45 @@ sub inventory_path
 	return $path;
 }
 
+# retrieve r/o inventory concept by section
+# args: section(required)
+sub retrieve_section
+{
+	my ($self, %args) = @_;
+	my $section = $args{section};
+
+	if (!$section)
+	{
+		return undef;
+	}
+
+	if( !defined($self->{"_retrieve_section_${section}"}->{$section}) )
+	{
+		$self->{"_retrieve_section_${section}"}->{$section} = {};
+		my $ids = $self->get_inventory_ids( concept => $section,
+											filter => { historic => 0 } );
+		foreach my $id (@$ids)
+		{
+			my ( $inventory, $error ) = $self->inventory( _id => $id );
+			if ( !$inventory )
+			{
+				$self->nmisng->log->error("retrieve_section(): Failed to get inventory with id:$id, error:$error");
+				next;
+			}
+			my $D = $inventory->data();
+			my $index = $D->{index} // $id;
+			if (! defined($index) or $index eq "")
+			{
+				$index = $id;
+			}
+			$self->{"_retrieve_section_${section}"}->{$section}->{$index} = $D;
+			# is this applicable for saving? - No - always pass clean flag so its never dirty and never saved
+			$self->_dirty( 0, "retrieve_section_${section}" );
+		}
+	}
+	return $self->{"_retrieve_section_${section}"};
+}
+
 # small r/o accessor for node activation status
 # args: none
 # returns: 1 if node is configured to be active
