@@ -180,9 +180,10 @@ sub update_outage
 	{
 		NMISNG::Util::writeTable(dir => "conf", name => "Outages", data => {});
 	}
-	my ($data, $fh) = NMISNG::Util::loadTable(dir => "conf", name => "Outages", lock => 1);
-
-	return { error => "failed to lock Outages file: $!" } if (!$fh);
+	my $expandeddir = NMISNG::Util::getDir(dir => "conf"); # expands dirs like 'conf' or 'logs' into full location
+	my $file = "$expandeddir/Outages";
+	my ($data, $fh) = NMISNG::Util::readFiletoHash(file => $file, lock => 'true');
+	return { error => "failed to lock Outages file: $! " } if (!$fh);
 	$data //= {};									# empty file is ok
 
 	if ($op_create && ref($data->{$outid}))
@@ -192,7 +193,6 @@ sub update_outage
 	}
 	$data->{$outid} = \%newrec;
 	NMISNG::Util::writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
-
 	NMISNG::Util::audit_log(who => $meta->{user},
 													what => ($op_create? "create_outage" : "update_outage"),
 													where => $outid, how => "ok", details => $meta->{details}, when => undef);
@@ -326,7 +326,10 @@ sub remove_outage
 	# lock and load the outages,
 	# delete the indicated one,
 	# save and unlock
-	my ($data, $fh) = NMISNG::Util::loadTable(dir => "conf", name => "Outages", lock => "true");
+	my $expandeddir = NMISNG::Util::getDir(dir => "conf"); # expands dirs like 'conf' or 'logs' into full location
+	my $file = "$expandeddir/Outages";
+	my ($data, $fh) = NMISNG::Util::readFiletoHash(file => $file, lock => 'true');
+	
 	return { error => "failed to lock Outage file: $!" } if (!$fh);
 	$data //= {};
 
