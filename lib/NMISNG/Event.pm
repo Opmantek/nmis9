@@ -77,7 +77,8 @@ my %known_attrs = (
 	notify         => 1,
 	startdate      => 1,
 	stateless      => 1,
-	user           => 1
+	user           => 1,
+	configuration  => {"group" => 1}
 );
 
 sub new

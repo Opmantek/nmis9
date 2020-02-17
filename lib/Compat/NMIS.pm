@@ -2169,8 +2169,13 @@ sub checkEvent
 	my $upevent = $args{upevent};   # that's the optional name of the up event to log
 
 	$args{node_uuid} = $S->nmisng_node()->uuid;
+
 	# create event with attributes we are looking for
-	my $event = $nmisng->events->event( _id => $args{_id}, node_uuid => $args{node_uuid}, event => $args{event}, element => $args{element} );
+	my $event = $nmisng->events->event( _id => $args{_id},
+									   node_uuid => $args{node_uuid},
+									   event => $args{event},
+									   element => $args{element},
+									   configuration => {group => $S->nmisng_node()->{'_configuration'}->{'group'}} );
 
 	# only take the missing data from the db, that way our new details/level will
 	# be used instead of what is in the db
@@ -2214,7 +2219,7 @@ sub notify
 
 	# create new event object with all properties, when load is called if it is found these will
 	# be overwritten by the existing properties
-	my $event_obj = $S->nmisng_node->event(event => $event, element => $element);
+	my $event_obj = $S->nmisng_node->event(event => $event, element => $element, configuration => {group => $S->nmisng_node()->{'_configuration'}->{'group'}});
 	$event_obj->load();
 	if ($event_obj->exists() && $event_obj->active )
 	{
