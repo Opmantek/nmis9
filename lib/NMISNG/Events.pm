@@ -90,7 +90,7 @@ sub cleanNodeEvents
 		my $dbres = NMISNG::DB::update(
 			collection => $self->nmisng->events_collection(),
 			query      => {node_uuid => $node->uuid},
-			record     => {'$set' => {active => 0, historic => 1, expire_at => $expire_at}},
+			record     => {'$set' => {active => 0, historic => 1, expire_at => $expire_at, lastupdate => time}},
 			freeform   => 1,
 			multiple   => 1
 		);

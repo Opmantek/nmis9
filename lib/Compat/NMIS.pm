@@ -2273,10 +2273,13 @@ sub notify
 				and $C->{node_configuration_events} =~ /$event/
 				and NMISNG::Util::getbool($thisevent_control->{Log}))
 		{
-			# fixme9 mut capture and report errors, not ignore them!
 			my $error = logConfigEvent(dir => $C->{config_logs}, node=>$nodename, event=>$event, level=>$level,
 																 element=>$element, details=>$details, host => $node->configuration->{host},
 																 nmis_server => $C->{nmis_host}, nmisng => $S->nmisng );
+			if ( $error )
+			{
+				$S->nmisng->log->error("log Config event failed: $error");
+			}
 		}
 		# want a save, not update
 		$saveupdate = 0;
