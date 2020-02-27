@@ -165,7 +165,11 @@ sub _load
 		limit => 1,									# there can't be more than one
 	);
 
-	my $entry = $cursor->next;
+	my $entry;
+	if ($cursor)
+	{
+		$entry = $cursor->next;
+	}
 	if ($entry)
 	{
 		# translate from db to our local names where needed,
