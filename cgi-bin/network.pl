@@ -1886,7 +1886,6 @@ sub viewNode
 	my $S = NMISNG::Sys->new(nmisng => $nmisng);
 	$S->init( name => $node, snmp => 'false' );    # load node data
 	my $nmisng_node = $S->nmisng_node;
-
 	# don't print the not authorized msg if somebody has renamed the node
 	if ( !$nmisng_node )
 	{
@@ -1960,7 +1959,6 @@ nodeVendor sysObjectName roleType netType );
 	# for every item we need at least a title and a value;
 	# some values need coloring and preprocessing (e.g. numeric x/lat, url links etc).
 
-
 	# first, collect the dynamic items and add them to the end of the list
 	# cisco pix? failover info
 	if ($catchall_data->{nodeModel} eq "CiscoPIX"
@@ -2018,7 +2016,21 @@ nodeVendor sysObjectName roleType netType );
 												color => $color };
 	}
 
-
+	# Check model specific values if collected
+	my $possibles = $S->{mdl}->{'system'}->{'sys'};
+	foreach my $key (keys %{$possibles}) 
+	{
+		foreach my $key2 (keys %{$possibles->{$key}->{'snmp'}}) {
+			if (defined($catchall_data->{$key2}) and defined($possibles->{$key}->{'snmp'}->{$key2}->{'title'})
+				 and !(grep { $key2 eq $_ } @shouldshow) and ($key2 ne "configLastChanged" and $key2 ne "configLastSaved"
+															  and $key2 ne "bootConfigLastChanged")) {
+				push @shouldshow, {
+					title => $possibles->{$key}->{'snmp'}->{$key2}->{'title'},
+					value => $catchall_data->{$key2}
+				};	
+			}
+		}
+	} 
 	# second, collect values for the normal items and massage the ones in need
 	# for some items the model has no title; configuration items are untitled as well, so hardcoded here
 	my %untitled = ( node_status => "Node Status",
