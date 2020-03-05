@@ -3197,19 +3197,23 @@ sub collect_intf_data
 																 and ref($S->{mdl}->{custom}->{interface} ) eq "HASH"
 																 # and explicitely set to false
 																 and NMISNG::Util::getbool( $S->{mdl}->{custom}->{interface}->{ifAdminStatus}, "invert"));
+	my $isValidTable = 0;
+	my ($ifAdminTable, $ifOperTable);
+	
 	if (!$dontwanna_ifadminstatus)
 	{
 		# fixme: this cannot work for non-snmp nodes
 		$self->nmisng->log->debug("Using ifAdminStatus and ifOperStatus for Interface Change Detection");
-
+	
 		# want both or we don't care
-		my $ifAdminTable = $S->snmp->getindex('ifAdminStatus');
-		my $ifOperTable = $S->snmp->getindex('ifOperStatus');
+		$ifAdminTable = $S->snmp->getindex('ifAdminStatus');
+		$ifOperTable = $S->snmp->getindex('ifOperStatus');
 		if ($ifAdminTable && $ifOperTable)
 		{
 			# index == ifindex
 			for my $index ( keys %{$ifAdminTable} )
 			{
+				$isValidTable = 1;
 				# save the textual info; inventory has the same content, but names without _
 				$if_data_map{$index}->{_ifAdminStatus} = $knownadminstates{ $ifAdminTable->{$index} };
 				$if_data_map{$index}->{_ifOperStatus} =  $knownadminstates{ $ifOperTable->{$index} };
@@ -3251,11 +3255,16 @@ sub collect_intf_data
 		# removed interface? skippy!
 		elsif (!exists $thisif->{_ifAdminStatus})
 		{
-			# we have to track already dead ones (in if_data_map), but we don't work on them
-			$self->nmisng->log->info("Interface $index, $thisif->{ifDescr} was removed!")
-					if (!$thisif->{historic});
-
-			delete $if_data_map{$index}; # nothing to do except mark it as historic at the end
+			$self->nmisng->log->debug("[$nodename]  _ifAdminStatus does not exist ");
+			if ($isValidTable == 1) {
+				# we have to track already dead ones (in if_data_map), but we don't work on them
+				$self->nmisng->log->info("Interface $index, $thisif->{ifDescr} was removed!")
+						if (!$thisif->{historic});
+	
+				delete $if_data_map{$index}; # nothing to do except mark it as historic at the end
+			} else {
+				$self->nmisng->log->debug("[$nodename] Interface table is not valid, cannot say if interface was removed");
+			}
 			next;
 		}
 		# disabled interface? skippy, too, but mark as nonhistoric
