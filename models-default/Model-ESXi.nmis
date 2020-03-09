@@ -381,7 +381,21 @@
         'threshold' => 'hrdisk',
       },
     },
-  },  
+  },
+   'hrmem' => {
+    'rrd' => {
+      'hrmem' => {
+        'graphtype' => 'hrmem',
+      },
+    },
+  },
+  'hrsmpcpu' => {
+    'rrd' => {
+      'hrsmpcpu' => {
+        'graphtype' => 'hrsmpcpu',
+      },
+    },
+  },
   'storage' => {
     'sys' => {
       'storage' => {
@@ -451,6 +465,7 @@
         },
       },      
     },
+   
     'sys' => {
       'VirtMachines' => {        
         'indexed' => 'vmwVmDisplayName',

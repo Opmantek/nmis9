@@ -193,6 +193,7 @@ sub checkResult
 	if (!$self->{session})
 	{
 		$self->{error} = "No session open, cannot check result!";
+		$self->nmisng->log->error("No session open, cannot check result!");
 		return undef;
 	}
 
@@ -337,6 +338,7 @@ sub get
 	if (!$self->{session})
 	{
 		$self->{error} = "No session open, cannot perform get!";
+		$self->nmisng->log->error("No session open, cannot perform get!");
 		return undef;
 	}
 
@@ -356,6 +358,7 @@ sub get
 			}
 			else
 			{
+				$self->nmisng->log->error("Incorrect syntax. Returning undef");
 				return undef;						# error was set by name_to_oid
 			}
 		}
@@ -472,6 +475,7 @@ sub gettable
 	if (!$self->{session})
 	{
 		$self->{error} = "No session open, cannot perform gettable!";
+		$self->nmisng->log->error("No session open, cannot perform gettable!");
 		return undef;
 	}
 
@@ -484,6 +488,7 @@ sub gettable
 		}
 		else
 		{
+			$self->nmisng->log->error("Incorrect syntax");
 			return undef;
 		}
 	}
@@ -537,6 +542,7 @@ sub gettable
 
 		return $result;
 	}
+	$self->nmisng->log->error("SNMP undef. Ran out of tries");
 	return undef;									# ran out of tries
 }
 
