@@ -55,25 +55,26 @@ use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
 
-\t$bn act={list|list_uuid} [node=X] [group=Y]
-\t$bn act=show node=nodeX
+\t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
+\t$bn act=show {node=nodeX|uuid=nodeUUID}
 \t$bn act={create|update} file=someFile.json
-\t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY} [keep_ids=0/1]
+\t$bn act=export [format=nodes] [file=path] {node=nodeX|uuid=nodeUUID|group=groupY} [keep_ids=0/1]
 \t$bn act=import file=somefile.json
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
-\t$bn act=delete {node=nodeX|group=groupY}
-\t$bn act=dump {node=nodeX|uuid=uuidY} file=path [everything=0/1]
+\t$bn act=delete {node=nodeX|group=groupY|uuid=nodeUUID}
+\t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
 \t$bn act=restore file=path [localise_ids=0/1]
 
-\t$bn act=set node=nodeX entry.X=Y...
+\t$bn act=set {node=nodeX|uuid=nodeUUID} entry.X=Y...
 \t$bn act=mktemplate [placeholder=1/0]
-\t$bn act=rename old=nodeX new=nodeY [entry.A=B...]
+\t$bn act=rename {old=nodeX|uuid=nodeUUID} new=nodeY [entry.A=B...]
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
 
 create: requires file=NewNodeDef.json
 update: updates existing node from file=someFile.json
+ If no uuid is present, a new node will be created.
 
 export: exports to file=someFile (or STDOUT if no file given),
  either json or as Nodes.nmis if format=nodes is given
@@ -284,7 +285,7 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	my $wantuuid = $1;
 
 	# returns a modeldata object
-	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1});
+	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1});
 	if (!$nodelist or !$nodelist->count)
 	{
 		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
@@ -303,12 +304,12 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 }
 elsif ($cmdline->{act} eq "export")
 {
-	my ($node,$group,$file,$wantformat,$keep_ids) = @{$cmdline}{"node","group","file","format","keep_ids"};
+	my ($node,$uuid, $group,$file,$wantformat,$keep_ids) = @{$cmdline}{"node","uuid","group","file","format","keep_ids"};
 
 	# no node, no group => export all of them
 	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file);
 
-	my $nodemodel = $nmisng->get_nodes_model(name => $node, group => $group);
+	my $nodemodel = $nmisng->get_nodes_model(name => $node, group => $group, uuid => $uuid);
 	die "No matching nodes exist\n" if (!$nodemodel->count);
 
 	my $fh;
