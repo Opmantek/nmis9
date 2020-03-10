@@ -31,7 +31,7 @@
 # maintenance windows aka 'outages'
 #
 package NMISNG::Outage;
-our $VERSION = "9.0.10";
+our $VERSION = "9.0.11";
 
 use strict;
 use UUID::Tiny (qw(:std));
