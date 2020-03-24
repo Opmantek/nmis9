@@ -137,6 +137,51 @@ my %modules;										# check_installed_modules et.al.
 
 die "This installer must be run as root, terminating now.\n" if ($> != 0 && !$simulate);
 
+delete $ENV{"PERL_CPANM_OPT"};
+
+if ($noninteractive)
+{
+	$ENV{"PERL_MM_USE_DEFAULT"}=1;
+}
+else
+{
+	$ENV{"PERL_MM_USE_DEFAULT"}=0;
+}
+
+# there are some slight but annoying differences
+my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos);
+if (-f "/etc/redhat-release")
+{
+	$osflavour="redhat";
+	logmsg(0, "detected OS flavour RedHat/CentOS");
+
+	open(F, "/etc/redhat-release") or die "cannot read redhat-release: $!\n";
+	my $reldata = join('',<F>);
+	close(F);
+
+	($osmajor,$osminor,$ospatch) = ($1,$2,$4)
+			if ($reldata =~ /(\d+)\.(\d+)(\.(\d+))?/);
+	$osiscentos = 1 if ($reldata =~ /CentOS/);
+}
+elsif (-f "/etc/os-release")
+{
+	open(F,"/etc/os-release") or die "cannot read os-release: $!\n";
+	my $osinfo = join("",<F>);
+	close(F);
+	if ($osinfo =~ /ID=debian/)
+	{
+		$osflavour="debian";
+		logmsg(0, "detected OS flavour Debian");
+	}
+	elsif ($osinfo =~ /ID=ubuntu/)
+	{
+		$osflavour="ubuntu";
+		logmsg(0, "detected OS flavour Ubuntu");
+	}
+	($osmajor,$osminor,$ospatch) = ($1,$3,$5)
+			if ($osinfo =~ /VERSION_ID=\"(\d+)(\.(\d+))?(\.(\d+))?\"/);
+}
+
 # ensure we don't create unworkable dirs and files, if the parent shell
 # has a super-restrictive umask...
 umask(0022);
@@ -220,28 +265,85 @@ and then restart the installer.\n\n";
 	}
 	else
 	{
-		printBanner("Installing modules with CPAN");
+		# installed cpanm for installing cpan modules
+		# as it is far more robust at handling failed tests which hang on cpan installs
+		my $cpanm = "cpanm";
 
-		# prime cpan if necessary: non-interactive, follow prereqs,
-		if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
+		if ($debug)
 		{
-			print "Performing initial CPAN configuration\n";
+			my $type_which_cpanm = type_which($cpanm);
+			logmsg(0,"type_which_cpanm: $type_which_cpanm\n");
+		}
+
+		# fix cpanm path if not set
+		if (system("type $cpanm >/dev/null") != 0)
+		{
+			$cpanm = type_which($cpanm);
+		}
+		if (defined $cpanm)
+		{
+			logmsg(0,"CPANM installation complete, proceeding with module installation using cpanm");
+			logmsg(0,"cpanm: $cpanm");
+
+			# PERL_CPANM_OPT
+			#		If set, adds a set of default options to every cpanm command. These options come first, and so are overridden by command-line options.
+			#		I have deliberately not "unset" PERL_CPANM_OPT to allow one to customize cpanm behaviour other than where we have a hardcoded option
+			#
+			# --prompt option looks really useful to investigate and decide on failed tests, but we must honor $noniteractive
+			#
+			#		Prompts when a test fails so that you can skip, force install, retry or look in the shell to see what's going wrong.
+			#		It also prompts when one of the dependency failed if you want to proceed the installation.
+			#		Defaults to false, and you can say --no-prompt to override if it's set in the default options in PERL_CPANM_OPT.
+			my $prompt;
 			if ($noninteractive)
 			{
-				# no inputs, all defaults
-				execPrint('cpan');
-
-				# adjust options unsuitable for noninteractive work
-				open(X,"|cpan") or die "cannot fork cpan: $!\n";
-				print X "o conf prerequisites_policy follow\no conf commit\n";
-				close X;
+				$prompt = "";
 			}
 			else
 			{
-				# there doesn't seem an easy way to prime the cpan shell with args,
-				# then let interact with the user via stdin/stdout... and not all versions
-				# of cpan seem to start it automatically
-				print "\n
+				$prompt = "--prompt";
+			}
+
+			# if $noninteractive we pre-install HTTP::Daemon with --notest for this module that often hangs on testing on ubuntu, redhat and centos
+			# HTTP::Daemon is a dependency of WWW::Mechanize
+			if ( grep( /^WWW::Mechanize$/, @missingones) or grep( /^HTTP::Daemon$/, @missingones) )
+			{
+				system("cpanm HTTP::Daemon --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
+			}
+			# centos 7 install of MongoDB-v2.2.1 fails at crud_spec.t, but MongoDB-v2.2.0 installs okay
+			if ($osflavour eq "redhat" and $osmajor = 7)
+			{
+				$_ eq 'MongoDB' and $_ = 'MongoDB@2.2.0' for @missingones;
+			}
+			# default test-timeout is 30 mins: install will return exit code 1 on test timeout
+			system("cpanm --sudo $prompt ".join(" ",@missingones));  # can't use execprint as cpan is interactive but is cpanm interactive?
+		}
+		else
+		{
+			logmsg(0,"CPANM installation failed");
+			# we fallback to cpan code used prior to cpanm
+			logmsg(0,"Installing modules with CPAN");
+
+			# prime cpan if necessary: non-interactive, follow prereqs,
+			if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
+			{
+				print "Performing initial CPAN configuration\n";
+				if ($noninteractive)
+				{
+					# no inputs, all defaults
+					execPrint('cpan');
+
+					# adjust options unsuitable for noninteractive work
+					open(X,"|cpan") or die "cannot fork cpan: $!\n";
+					print X "o conf prerequisites_policy follow\no conf commit\n";
+					close X;
+				}
+				else
+				{
+					# there doesn't seem an easy way to prime the cpan shell with args,
+					# then let interact with the user via stdin/stdout... and not all versions
+					# of cpan seem to start it automatically
+					print "\n
 If the CPAN configuration doesn't start automatically, then please
 enter 'o conf init' on the CPAN prompt.
 
@@ -249,13 +351,13 @@ Should you get prompted to choose Perl Library directories, 'local::lib'
 or the like, please choose 'sudo' or 'manual' - NOT 'local::lib'!
 
 To return to the installer when done, please exit the CPAN shell with 'exit'.\n";
-				input_ok();
-				system("cpan");
+					input_ok();
+					system("cpan");
+				}
+				logmsg(0,"CPAN configuration complete, proceeding with module installation");
 			}
-			logmsg(0,"CPAN configuration complete, proceeding with module installation");
+			system("cpan ".join(" ",@missingones));  # can't use execprint as cpan is interactive
 		}
-
-		system("cpan ".join(" ",@missingones));  # can't use execprint as cpan is interactive
 	}
 }
 
@@ -926,4 +1028,17 @@ sub load_preseed
 	}
 	close(F);
 	return \%answers;
+}
+
+# trivial type/which implementation, saves us file::which or forking off a shell
+# args: program name
+# returns: full path or undef
+sub type_which
+{
+	my ($needle) = @_;
+	for my $maybe (split(/:/, $ENV{PATH}))
+	{
+		return "$maybe/$needle" if (-x "$maybe/$needle");
+	}
+	return undef;
 }
