@@ -4099,24 +4099,6 @@ LABEL_ESC:
 			}
 		}
 
-		# now the pagers
-		elsif ( $method eq "pager" )
-		{
-			foreach my $target ( keys %{$msgTable{$method}} )
-			{
-				foreach my $serial ( keys %{$msgTable{$method}{$target}} )
-				{
-					next if $C->{snpp_server} eq '';
-					$self->log->debug2(" SendSNPP to $target");
-					NMISNG::Notify::sendSNPP(
-						server  => $C->{snpp_server},
-						pagerno => $target,
-						message => $msgTable{$method}{$target}{$serial}{message}
-					);
-				}
-			}    # end pager
-		}
-
 		# now the extensible stuff.......
 		else
 		{
