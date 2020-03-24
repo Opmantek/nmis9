@@ -17,11 +17,11 @@ if [ $OSFLAVOUR = "redhat" ]; then
     pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel \
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
     net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay \
-    perl-JSON-XS fping nmap make groff perl-CPAN crontabs dejavu* \
+    perl-JSON-XS fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu* \
     perl-libwww-perl perl-Net-DNS perl-Digest-SHA \
     perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
     perl-Proc-ProcessTable perl-Authen-SASL \
-    perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP \
+    perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP \
     perl-GD perl-SNMP_Session \
     rrdtool-perl perl-Test-Deep dialog \
     perl-Excel-Writer-XLSX perl-Digest-HMAC perl-Crypt-DES perl-Clone \
@@ -49,14 +49,14 @@ perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings"
 else
 		MGR=APT
 		PKGLIST="build-essential apache2 rrdtool apache2-utils ntp logrotate \
-		autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev \
+		autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev cpanminus \
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
     libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl \
     libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl \
     libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl  \
     libdigest-sha-perl libnet-xmpp-perl libsafe-isa-perl libtie-ixhash-perl \
-    libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl \
+    libnet-ldap-perl libdbi-perl libtime-modules-perl \
     libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl \
     libauthen-sasl-perl librrds-perl libtest-deep-perl dialog \
     libcrypt-des-perl libdigest-hmac-perl libclone-perl \
@@ -97,6 +97,16 @@ if [ "$CANUSEWEB" = 1 ]; then
 		[ "$OSFLAVOUR" = "redhat" ] && prime_yum
 		[ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ] && prime_apt
 fi
+
+
+# FIX FOR UBUNTU >= 19.00 WHICH REQUIRES libssl1.0.0 WHEN INSTALLING MONGODB:
+if { [ "${OSFLAVOUR}" = "ubuntu" ] && [ "${OS_MAJOR}" -ge 19 ]; }; then
+	NEEDDISTRO="bionic";
+	# this function calls enable_distro
+	install_package "libssl1.0.0";
+	# clean up as this was temporary
+	disable_distro "${NEEDDISTRO}";
+fi;
 
 
 # check and get mongodb, returns 0 if ok, 1 or 2 otherwise

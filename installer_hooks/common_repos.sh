@@ -121,6 +121,22 @@ EOF
 		prime_apt;
 }
 
+# small helper that disables an enabled debian/ubuntu distro,
+# args: distribution name (the logical name, testing/unstable, NOT the code name!)
+# relies on $OSFLAVOUR to switch between ubuntu and debian
+disable_distro()
+{
+		local DISTRONAME
+		DISTRONAME=$1
+
+		printBanner "Disaabling $DISTRONAME distribution"
+		if [ "$OSFLAVOUR" = "debian" ] || [ "$OSFLAVOUR" = "ubuntu" ]; then
+				execPrint "rm -f /etc/apt/sources.list.d/opmantek-$DISTRONAME.list";
+				execPrint "rm -f /etc/apt/preferences.d/opmantek-$DISTRONAME"
+		fi
+		# reload the package list to finish
+		prime_apt;
+}
 
 # small helper that enables one of the known custom repos
 # args: repo name (epel or rpmforge/repoforge)
