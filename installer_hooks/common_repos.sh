@@ -129,7 +129,7 @@ disable_distro()
 		local DISTRONAME
 		DISTRONAME=$1
 
-		printBanner "Disaabling $DISTRONAME distribution"
+		printBanner "Disabling $DISTRONAME distribution"
 		if [ "$OSFLAVOUR" = "debian" ] || [ "$OSFLAVOUR" = "ubuntu" ]; then
 				execPrint "rm -f /etc/apt/sources.list.d/opmantek-$DISTRONAME.list";
 				execPrint "rm -f /etc/apt/preferences.d/opmantek-$DISTRONAME"
