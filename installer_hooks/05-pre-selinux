@@ -12,8 +12,8 @@ else
 		selinuxenabled >/dev/null 2>&1
 		RES=$?
 		if [ "$RES" = 0 ]; then
-				FLAVOUR=`getenforce 2>/dev/null`
-				if [ "$FLAVOUR" = "Permissive" ]; then
+				SELINUX_FLAVOUR=`getenforce 2>/dev/null`
+				if [ "$SELINUX_FLAVOUR" = "Permissive" ]; then
 						echolog "SELinux is enabled but in permissive mode."
 				else
 						echolog "SELinux is enabled!"
@@ -29,7 +29,13 @@ and we do therefore STRONGLY recommend that you disable SELinux.
 See "man 8 selinux" for details.
 
 EOF
-						input_ok "Hit <Enter> when ready to continue: "
+						input_text "Type CONTINUE to continue regardless of SELinux, or any other key to abort:" "7d5c"
+						if [ "$RESPONSE" != "CONTINUE" ]; then
+							echo;
+							echo;
+							echolog "Aborting installation because of SELinux state.";
+							exit 1;
+						fi;
 				fi
 		else
 				echolog "SELinux is not enabled."
