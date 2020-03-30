@@ -9,7 +9,7 @@ if type perl >/dev/null 2>&1; then
 		fi
 fi
 
-cat >&2 <<EOF
+cat <<EOF
 
 Error: no Perl or Perl core modules installed!
 
@@ -26,7 +26,8 @@ sudo apt-get install perl
 Do you want the installer to install Perl for you? 
 EOF
 
-if read -p "Enter y to continue, anything else to abort: "  X && [ "$X" = 'y' -o "$X" = 'Y' ]; then
+# IMPORTANT: read sends prompt message to stderr, so we must redirect stderr to stdout when using read
+if { read -p "Enter y to continue, anything else to abort: "  X 2>&1; } && [ "$X" = 'y' -o "$X" = 'Y' ]; then
 		if type yum >/dev/null 2>&1; then
 
 				if type subscription-manager >/dev/null 2>&1 && egrep -q 'VERSION_ID="7' /etc/os-release 2>/dev/null; then
