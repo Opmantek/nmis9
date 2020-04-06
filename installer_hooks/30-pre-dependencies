@@ -136,7 +136,6 @@ if ! check_missing_packages $PKGLIST; then
 														-o "$pkg" = "perl-Crypt-Rijndael" \
 														-o "$pkg" = "perl-JSON-XS" \
 														-o "$pkg" = "perl-Net-SMTPS" \
-														-o "$pkg" = "perl-Net-SNPP" \
 														-o "$pkg" = "perl-Proc-ProcessTable" ]; then
 										REPO="--enablerepo=epel"
 										NEEDREPO="epel"
