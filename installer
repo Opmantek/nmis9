@@ -285,10 +285,6 @@ and then restart the installer.\n\n";
 			logmsg(0,"CPANM installation complete, proceeding with module installation using cpanm");
 			logmsg(0,"cpanm: $cpanm");
 
-			# PERL_CPANM_OPT
-			#		If set, adds a set of default options to every cpanm command. These options come first, and so are overridden by command-line options.
-			#		I have deliberately not "unset" PERL_CPANM_OPT to allow one to customize cpanm behaviour other than where we have a hardcoded option
-			#
 			# --prompt option looks really useful to investigate and decide on failed tests, but we must honor $noniteractive
 			#
 			#		Prompts when a test fails so that you can skip, force install, retry or look in the shell to see what's going wrong.
@@ -308,15 +304,16 @@ and then restart the installer.\n\n";
 			# HTTP::Daemon is a dependency of WWW::Mechanize
 			if ( grep( /^WWW::Mechanize$/, @missingones) or grep( /^HTTP::Daemon$/, @missingones) )
 			{
-				system("cpanm HTTP::Daemon --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
+				system("cpanm HTTP::Daemon --sudo $prompt --notest 2>&1");	# can't use execprint as cpanm may be interactive
 			}
 			# centos 7 install of MongoDB-v2.2.1 fails at crud_spec.t, but MongoDB-v2.2.0 installs okay
 			if ($osflavour eq "redhat" and $osmajor = 7)
 			{
 				$_ eq 'MongoDB' and $_ = 'MongoDB@2.2.0' for @missingones;
 			}
+
 			# default test-timeout is 30 mins: install will return exit code 1 on test timeout
-			system("cpanm --sudo $prompt ".join(" ",@missingones));  # can't use execprint as cpan is interactive but is cpanm interactive?
+			system("cpanm --sudo $prompt ".join(" ",@missingones)." 2>&1");  # can't use execprint as cpanm may be interactive
 		}
 		else
 		{
