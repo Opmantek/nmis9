@@ -113,6 +113,40 @@ fi
 # absolute min for nmis 9 is 3.4.0
 mongo_or_bust 3 4 0 || exit 1
 
+
+# I've kept this code here in case it becomes relevant later and for informational purposes.
+# The reason we don't use this method to install MongoDB-v2.2.1 perl driver
+# is that the tests 'cpanm --test-only MongoDB' still fail after yum installs the NMIS9 dependencies.
+#
+#### Centos 7 install of MongoDB-v2.2.1 perl driver fails at crud_spec.t, UNLESS we install it first:
+###if [ "${OSFLAVOUR}" = "redhat" ] && [ "${OS_MAJOR}" -eq 7 ]; then
+###		REPO='';
+###		NEEDREPO='';
+###		printBanner "Some required packages need to be installed first!"
+###		echo "$PRODUCT requires the following packages to be installed first:";
+###		echo
+###		echo "perl-CPAN perl-App-cpanminus using $MGR";
+###		echo "MongoDB using CPANM";
+###		echo
+###		echo "The installer can download and install these packages.";
+###		if input_yn "Do you want to install these packages now?" "3fa2"; then
+###				install_package "perl-CPAN"||:;
+###				install_package "perl-App-cpanminus"||:;
+###				if type cpanm >/dev/null; then
+###						if [ -n "${UNATTENDED}" ]; then
+###								PROMPT="";
+###						else
+###								PROMPT="--prompt";
+###						fi;
+###						cpanm MongoDB --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+###						unset PROMPT;
+###				fi;
+###		fi;
+###		unset REPO;
+###		unset NEEDREPO;
+###fi;
+
+
 # sets MISSING, returns 1 if missing stuff
 printBanner "Checking Installed Packages"
 if ! check_missing_packages $PKGLIST; then
@@ -136,7 +170,6 @@ if ! check_missing_packages $PKGLIST; then
 														-o "$pkg" = "perl-Crypt-Rijndael" \
 														-o "$pkg" = "perl-JSON-XS" \
 														-o "$pkg" = "perl-Net-SMTPS" \
-														-o "$pkg" = "perl-Net-SNPP" \
 														-o "$pkg" = "perl-Proc-ProcessTable" ]; then
 										REPO="--enablerepo=epel"
 										NEEDREPO="epel"

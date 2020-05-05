@@ -140,19 +140,23 @@ sub overallNodeStatus
             ### 2013-08-20 keiths, check for SNMP Down if ping eq false.
             my $down_event = "Node Down";
             $down_event = "SNMP Down" if NMISNG::Util::getbool($config->{ping},"invert");
-            $nodedown = $nodeobj->eventExist($down_event);
-
-			($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
-
-			if ( $nodedown and $outage ne 'current' ) {
-				($event_status) = $self->eventLevel("Node Down",$config->{roleType});
+			
+			if ($nodeobj) {
+				$nodedown = $nodeobj->eventExist($down_event);
+				($outage,undef) = NMISNG::Outage::outageCheck(node=>$nodeobj,time=>time());
+	
+				if ( $nodedown and $outage ne 'current' ) {
+					($event_status) = $self->eventLevel("Node Down",$config->{roleType});
+				}
+				else {
+					($event_status) = $self->eventLevel("Node Up",$config->{roleType});
+				}
+	
+				++$statusHash{$event_status};
+				++$statusHash{count};
+			} else {
+				$self->nmisng()->log->info("NetworkStatus:overallNodeStatus No nodeobj found!");
 			}
-			else {
-				($event_status) = $self->eventLevel("Node Up",$config->{roleType});
-			}
-
-			++$statusHash{$event_status};
-			++$statusHash{count};
 		}
 	}
 
