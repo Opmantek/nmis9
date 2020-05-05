@@ -180,7 +180,7 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 		open(STDOUT, ">", "/dev/null") or die "cannot reopen stdout: $!\n";
 		open(STDERR, ">>", $logfile) or die "cannot open stdout to $logfile: $!\n";
 	}
-	$0 = "nmisd scheduler";
+	$0 = "nmisd.scheduler";
 }
 Mojo::File->new($pidfile)->spurt("$$\n");
 NMISNG::Util::setFileProtDiag(file => $pidfile); # or the selftest complains
@@ -835,7 +835,7 @@ sub manage_processes
 			}
 			$nmisng->log->logprefix("fping\[$$\] ");
 			$nmisng->log->info("started");
-			$0 = "nmisd fping";
+			$0 = "nmisd.fping";
 
 			my $exit_marker;
 			# setup signal handlers: HUP and USR1/USR2, INT, TERM
@@ -903,7 +903,7 @@ sub manage_processes
 				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $cmdline->{debug});
 				$nmisng->log->logprefix("worker\[$$\] ");
 				$nmisng->log->info("started");
-				$0 = "nmisd worker <idle>";
+				$0 = "nmisd.worker.<idle>";
 
 				my $exit_marker;
 				# setup signal handlers: HUP and USR1/USR2, INT, TERM
@@ -1144,7 +1144,7 @@ sub worker_loop
 
 
 			my $state = { stats => { time => Time::HiRes::time }};		# for opstatus and exception handling
-			$0 = "nmisd " . $ourjob->{type}; # Change worker name
+			$0 = "nmisd." . $ourjob->{type}; # Change worker name
 			
 			# the simpler jobs don't have extra args that need to go into opstatus context
 			if ($ourjob->{type} =~ /^(selftest|permissions_test|configbackup|purge|dbcleanup|escalations|thresholds|metrics)$/)
@@ -1409,7 +1409,7 @@ sub worker_loop
 				$state->{exception} = $_;
 			};
 
-			$0 = "nmisd worker <idle>";			# some of the ops rename the process temporarily
+			$0 = "nmisd.worker.<idle>";			# some of the ops rename the process temporarily
 
 			if ($state->{exception})
 			{
