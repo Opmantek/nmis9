@@ -1673,7 +1673,10 @@ sub find_due_nodes
 				# and the 'snmp' policy is applied
 				if ( !$nodeconfig->{collect} )
 				{
-					$lastsnmp = $ninfo->{last_poll} // 0;
+					# We don't care if the last poll was successful or not, so use _attempt. 
+					# there is no last_wmi_attempt. And, for non collect nodes we don't really care
+					$lastsnmp = $ninfo->{last_poll_attempt} // 0;
+					$lastwmi = $ninfo->{last_poll_attempt} // 0;
 					$self->log->debug(
 						"Node $nodename is non-collecting, applying snmp policy to last check at $lastsnmp");
 				}
@@ -1681,6 +1684,7 @@ sub find_due_nodes
 				# accept delta-previous-now interval if it's at least 95% of the configured interval
 				# strict 100% would mean that we might skip a full interval when polling takes longer
 				my $fudgefactor = ($self->config->{polling_interval_factor} || 0.95);
+
 				my $nextsnmp = ( $lastsnmp // 0 ) + $intervals{$polname}->{snmp} * $fudgefactor;
 				my $nextwmi  = ( $lastwmi  // 0 ) + $intervals{$polname}->{wmi} * $fudgefactor;
 
