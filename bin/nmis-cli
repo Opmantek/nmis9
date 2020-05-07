@@ -53,7 +53,7 @@ use Compat::NMIS;
 
 if ( @ARGV == 1 && $ARGV[0] eq "--version" )
 {
-	print "version=$VERSION\n";
+	print "version=$NMISNG::VERSION\n";
 	exit 0;
 }
 
