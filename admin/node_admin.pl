@@ -77,7 +77,8 @@ update: updates existing node from file=someFile.json
  If no uuid is present, a new node will be created.
 
 export: exports to file=someFile (or STDOUT if no file given),
- either json or as Nodes.nmis if format=nodes is given
+ nmis9 format by default or legacy format (nmis8) if format=nodes is given
+ perl hash if format=nodes and file=*.nmis (nmis extension), otherwise json
  uuid and cluster_id are NOT exported unless keep_ids is 1.
 
 delete: only deletes if confirm=yes (in uppercase) is given,
