@@ -2299,11 +2299,11 @@ sub selftest
 	# all nmisd processes are calling themselves 'nmisd something'
 	# opcharts 3's nmisd calls itself 'nmisd',
 	# 'nmisd worker' or 'nmisd collector <something>' - exclude these
-	my @ourprocs = grep($_->cmndline =~ /^nmisd (fping|scheduler|worker .+)\s*$/,
+	my @ourprocs = grep($_->cmndline =~ /^nmisd.(fping|scheduler|worker.+)\s*$/,
 											@{$ptable->table});
 	if (NMISNG::Util::getbool($config->{nmisd_fping_worker}))
 	{
-		my $status = (List::Util::any { $_->cmndline =~ /^nmisd fping\s*$/ } @ourprocs)?
+		my $status = (List::Util::any { $_->cmndline =~ /^nmisd.fping\s*$/ } @ourprocs)?
 				undef : "No fping worker seems to be running!";
 		push @details, ["FastPing worker", $status];
 		$allok = 0 if ($status);
@@ -2327,7 +2327,7 @@ sub selftest
 	push @details, ["NMIS process count",$status];
 
 	# check that there is an nmis scheduler running
-	my $schedstatus = (grep($_->cmndline =~ /^nmisd scheduler\s*$/, @ourprocs))?
+	my $schedstatus = (grep($_->cmndline =~ /^nmisd.scheduler\s*$/, @ourprocs))?
 			undef : "No scheduler process running!";
 	push @details, ["NMIS daemon", $schedstatus];
 
