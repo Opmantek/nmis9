@@ -2091,6 +2091,8 @@ sub collect_node_info
 				$RI->{"${source}result"} = 0;
 			}
 		}
+		# We need to update this time, next attempt will be since this time
+		$catchall_data->{"last_poll_${source}_attempt"} = $time_marker;
 		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
