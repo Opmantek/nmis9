@@ -1515,8 +1515,8 @@ sub find_due_nodes
 				$self->log->debug2("Node $nodename is using polling policy \"$polname\"");
 			}
 
-			my $lastsnmp = $ninfo->{last_poll_snmp};
-			my $lastwmi  = $ninfo->{last_poll_wmi};
+			my $lastsnmp = $ninfo->{last_poll_snmp_attempt};
+			my $lastwmi  = $ninfo->{last_poll_wmi_attempt};
 
 			# handle the case of a changed polling policy: move all rrd files
 			# out of the way, and poll now

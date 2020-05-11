@@ -2091,8 +2091,6 @@ sub collect_node_info
 				$RI->{"${source}result"} = 0;
 			}
 		}
-		# Save the time anyway, to not to attempt to update every 10 seconds
-		$catchall_data->{"last_poll_$source"} = $time_marker;
 		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
@@ -7869,7 +7867,13 @@ sub collect
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
 	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
-
+	if (defined($wantsnmp)) {
+		$catchall_data->{last_poll_snmp_attempt} = $args{starttime} // Time::HiRes::time;
+	}
+	if (defined($wantwmi)) {
+		$catchall_data->{last_poll_wmi_attempt} = $args{starttime} // Time::HiRes::time;
+	}
+	
 	$self->nmisng->log->debug( "node=$name "
 														 . join( " ", map { "$_=" . $catchall_data->{$_} }
 																		 (qw(group nodeType nodedown snmpdown wmidown)) ) );
@@ -8010,6 +8014,8 @@ sub collect
 				. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) );
 			$self->nmisng->log->error($msg);
 		}
+	} else {
+		$self->nmisng->log->debug3("Node $name not pingable or no collect");
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
