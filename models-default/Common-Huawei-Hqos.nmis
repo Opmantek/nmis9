@@ -1,0 +1,101 @@
+#
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'systemHealth' => {
+    'sys' => {
+      'Huawei_ProfUserHQoS' => {
+        'headers' => 'ifDescr,QueueIndex,QueueStatsDirection,QinQPeID,QinQCeID' 
+        
+        'indexed' => 'QueueIndex,QueueStatisticsDirection,QinQPeID,QinQCeID',
+        'index_oid' => '.1.3.6.1.4.1.2011.5.25.132.1.29.1.6',
+        ##  hwhqosProfileUserQueueStatisticsQueueIndex 
+        
+        'snmp' => {
+         'ifDescr' => {
+            'title' => 'Interface'
+            #TODO re-use plugin for ifIndex to Name resolution
+            },
+          
+         'ifIndex' => {
+            #'title' => #Not Displayed
+            'oid' => '.1.3.6.1.4.1.2011.5.25.132.1.29.1.1',
+            'sysObjectName' => 'hwhqosProfileUserQueueStatisticsInterfaceIndex',
+            },
+            
+            
+          'QueueIndex' => {
+            # hwhqosProfileUserQueueStatisticsQueueIndex (is too long a name)
+            'title' => 'DSCP val'
+            'oid' => '.1.3.6.1.4.1.2011.5.25.132.1.29.1.6',
+            'sysObjectName' => 'hwhqosProfileUserQueueStatisticsQueueIndex',
+            #TODO do Calc to convert to DSCP name
+            'replace' => {
+                '1' =>  'be'
+                '2' =>  'af1'
+                '3' =>  'sf2'
+                '4' =>  'af3'
+                '5' =>  'af4'
+                '6' =>  'ef6'
+                '7' =>  'cs6'
+                '8' =>  'sc7'
+                '9' =>  'total'
+                },
+            },
+            
+          'QueueStatsDirection' => {
+            'title' => 'Direction'
+            'oid' => '.1.3.6.1.4.1.2011.5.25.132.1.29.1.2',
+            'sysObjectName' => 'hwhqosProfileUserQueueStatisticsDirection',
+            'replace' => {
+              '1' => 'In',
+              '2' => 'Out',
+              },
+            #DONE do Convert 1=>In 2=>Out
+            },
+            
+          'QinQPeID' => {
+            'title' => 'QinQ-Ptag'
+            'oid' => '.1.3.6.1.4.1.2011.5.25.132.1.29.1.3',
+            'sysObjectName' => 'hwhqosProfileUserQueueStatisticsPevid',
+            },
+            
+          'QinQCeID' => {
+            'title' => 'QinQ-Ctag'
+            'oid' => '.1.3.6.1.4.1.2011.5.25.132.1.29.1.4',
+            'sysObjectName' => 'hwhqosProfileUserQueueStatisticsCevid',
+            },
+         },  #snmp
+         ##TODO add RRD section.
+         
+	  }, #Huawei_ProfUserHQoS
+    },#sys
+  }, #systemHealth
+);
