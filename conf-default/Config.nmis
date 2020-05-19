@@ -182,7 +182,6 @@ my %hash = (
 		'interface_util_label' => 'Util. 6hrs',
     'interface_max_number' => '5000',
 		'interface_availability_value_when_down' => 'U',
-    'snpp_server' => '<server_name>',
     'snmp_timeout' => 5,
     'snmp_retries' => 1,
     'snmp_max_msg_size' => 1472,

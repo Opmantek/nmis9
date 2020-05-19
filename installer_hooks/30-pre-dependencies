@@ -61,8 +61,17 @@ else
     libauthen-sasl-perl librrds-perl libtest-deep-perl dialog \
     libcrypt-des-perl libdigest-hmac-perl libclone-perl \
     libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
-    libmongodb-perl libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl
+    libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl"
+
+		# ubuntu 16.04 needs a mongodb perl driver >= 1.2.3: we load this from cpanm
+		# debian8 can't load a mongodb perl driver >= 1.2.3 from cpanm and is therefore not NMIS9 compatible
+		if [ "$OSFLAVOUR" = "ubuntu" ] && [ "$OS_MAJOR" -lt 17 ]; then
+				# do nothing: we will load the latest mongodb perl driver using cpanm later in the install process
+				:
+		else
+				PKGLIST="$PKGLIST libmongodb-perl"
+		fi;
 
 		# debian: 9/stretch has that in perl, older need the updated package
 		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl"
