@@ -300,11 +300,16 @@ and then restart the installer.\n\n";
 				$prompt = "--prompt";
 			}
 
-			# if $noninteractive we pre-install HTTP::Daemon with --notest for this module that often hangs on testing on ubuntu, redhat and centos
+			# We pre-install HTTP::Daemon with --notest for this module that often hangs on testing on ubuntu, redhat and centos
 			# HTTP::Daemon is a dependency of WWW::Mechanize
 			if ( grep( /^WWW::Mechanize$/, @missingones) or grep( /^HTTP::Daemon$/, @missingones) )
 			{
 				system("cpanm HTTP::Daemon --sudo $prompt --notest 2>&1");	# can't use execprint as cpanm may be interactive
+			}
+			# We pre-install WWW::Mechanize with --notest for this module that often hangs on testing on ubuntu, redhat and centos
+			if ( grep( /^WWW::Mechanize$/, @missingones) )
+			{
+				system("cpanm WWW::Mechanize --sudo $prompt --notest 2>&1");	# can't use execprint as cpan is interactive: but is cpanm interactive?
 			}
 			# centos 7 install of MongoDB-v2.2.1 fails at crud_spec.t, but MongoDB-v2.2.0 installs okay
 			if ($osflavour eq "redhat" and $osmajor = 7)
