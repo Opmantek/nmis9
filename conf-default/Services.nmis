@@ -55,16 +55,16 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => '(httpd|apache2)',
-		'Service_Parameters' => '',
+    'Service_Parameters' => '',
     'Name' => 'HTTP_Server',
-		'Description' => "looks for a live httpd or apache2  daemon",
+    'Description' => "looks for a live httpd or apache2  daemon",
   },
   'mysqld_daemon' => {
     'Service_Type' => 'service',
     'Port' => '',
     'Poll_Interval' => '5m',
-    'Service_Name' => 'mysqld',
-		'Service_Parameters' => '',
+    'Service_Name' => '(mysqld|mysqld_safe|mariadb)',
+    'Service_Parameters' => '',
     'Name' => 'mysqld_daemon'
   },
   'port22' => {
@@ -114,6 +114,32 @@
     'Port' => '',
     'Program' => '',
     'Service_Name' => 'opmantek.pl',
+    'Service_Type' => 'service'
+  },
+  'nmis9 workers' => {
+    'Args' => '',
+    'Collect_Output' => 'true',
+    'Description' => 'NMIS9 worker processes',
+    'Max_Runtime' => '10',
+    'Name' => 'nmis9 workers',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'nmisd.*',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service'
+  },
+  'mongo_daemon' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '',
+    'Name' => 'mongo_daemon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'mongod',
+    'Service_Parameters' => '',
     'Service_Type' => 'service'
   },
 
