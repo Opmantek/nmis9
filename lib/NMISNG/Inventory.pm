@@ -1028,6 +1028,12 @@ sub relocate_storage
 		# makeRRD name using the inventory and the index
 		my $index = $self->data()->{index};
 		my $newfile = $S->makeRRDname( type => $subconcept, relative => 1, index => $index, inventory => $inventory);
+		if (!defined($newfile)) {
+			$self->nmisng->log->error("Skipping $subconcept. Not able to make RRD name.");
+			$error_keys{$subconcept} = 1;
+			next;
+		}
+		
 		$newfile =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 			
 		# Make sure the file name is the same. Could change if is a duplicate, pe
