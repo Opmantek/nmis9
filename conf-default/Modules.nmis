@@ -30,10 +30,10 @@
 	    'tagline' => 'Configuration backup, archving and change detection.',
 	  },
 
-	  'opFlow 3' => {
+	  'opFlow' => {
 	    'order' => '5',
-	    'name' => 'opFlow 3',
-			'base' => 'omk',
+	    'name' => 'opFlow',
+	    'base' => 'omk',
 	    'file' => '/bin/opflow-cli.pl',
 	    'link' => '/omk/opFlow',
 	    'description' => 'The opFlow module is the Opmantek NetFlow module, which will also handle other types of Flow data. This module will provide application level information, which is related back to the network and server infrastructure managed by NMIS.',
@@ -50,9 +50,9 @@
 	    'tagline' => 'Provides enhanced operational capabilities with a geographical context.'
 	  },
 
-	  'opReports 3.0' => {
+	  'opReports' => {
 	    'order' => '7',
-	    'name' => 'opReports 3.0',
+	    'name' => 'opReports',
 	    'base' => 'omk',
 	    'file' => '/bin/opreports-cli.pl',
 	    'link' => '/omk/opReports',
