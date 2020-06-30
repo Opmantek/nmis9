@@ -294,6 +294,10 @@
         '30' => {
           'HuaweiRouter' => 'AR2220|AR1220'
         },
+        '50' => {
+          'HuaweiRouterAR2240-uses-common' => 'AR2240'
+          #'HuaweiRouterAR2240' => 'AR2240'
+        },
         '99' => {
           'Default-HC' => '.'
         }
