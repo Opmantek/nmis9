@@ -67,6 +67,8 @@
       'NetFlowStats' => '/nodes/$node/misc/NetFlowStats.rrd',
       'NetworkInterface' => '/nodes/$node/interface/NetworkInterface-$index.rrd',
       'QualityOfServiceStat' => '/nodes/$node/interface/hwqos-$index.rrd',
+      'TeldatQoSStat' => '/nodes/$node/interface/tdqos-$index.rrd',
+      'TeldatBRSStat' => '/nodes/$node/interface/tdbrs-$index.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Radwin' => '/nodes/$node/health/RadwinTAB-$index.rrd',
       'SONETErrors' => '/nodes/$node/health/soneterrors-$index.rrd',

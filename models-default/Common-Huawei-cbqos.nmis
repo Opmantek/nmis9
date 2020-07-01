@@ -46,7 +46,7 @@
                 'title' => 'Direction'
           },
           'ifIndex' => {
-                'title' => 'Interface Name'
+                'title' => 'Interface Index'
           },
         },
       },
