@@ -30,6 +30,16 @@
 	    'tagline' => 'Configuration backup, archving and change detection.',
 	  },
 
+	  'opHA' => {
+	    'order' => '4',
+	    'name' => 'opHA',
+	    'base' => 'omk',
+	    'file' => '/public/omk/css/opHA_b_internal_packed.css',
+	    'link' => '/omk/opHA',
+	    'description' => 'Manage large and geographically dispersed environments without performance loss with opHA. Delivers high scale and high availability including geographical distribution of the system and handling of overlapping IP address ranges.',
+	    'tagline' => 'Scale your solution horizontally and add high availability to ensure business continuity.'
+	  },
+
 	  'opFlow' => {
 	    'order' => '5',
 	    'name' => 'opFlow',
@@ -38,16 +48,6 @@
 	    'link' => '/omk/opFlow',
 	    'description' => 'The opFlow module is the Opmantek NetFlow module, which will also handle other types of Flow data. This module will provide application level information, which is related back to the network and server infrastructure managed by NMIS.',
 	    'tagline' => 'Traffic analysis with NetFlow, JFlow and others.'
-	  },
-
-	  'opMaps' => {
-	    'order' => '5',
-	    'name' => 'opMaps',
-	    'base' => '/',
-	    'file' => '/usr/local/opmantek/cgi-bin/opMaps.pl',
-	    'link' => '/cgi-omk/opMaps.pl',
-	    'description' => 'The opMaps module, provides enhanced operational capabilities, relating real time data collected by NMIS with a geographical context.  This provides staff and management an common ground for understanding current service and business impact.',
-	    'tagline' => 'Provides enhanced operational capabilities with a geographical context.'
 	  },
 
 	  'opReports' => {
