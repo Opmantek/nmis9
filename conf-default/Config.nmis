@@ -225,6 +225,7 @@ my %hash = (
 
   'files' => {
     'nmis' => '<cgi_url_base>/nmiscgi.pl',
+    'rrddraw' => '<cgi_url_base>/rrddraw.pl',
     'network' => '<cgi_url_base>/network.pl',
     'node' => '<cgi_url_base>/node.pl',
     'events' => '<cgi_url_base>/events.pl',
