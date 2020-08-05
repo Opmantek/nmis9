@@ -245,7 +245,7 @@ These modules can be installed with CPAN:
 	# curl is present in most basic redhat install
 	# wget is present on debian/ubuntu via priority:important
 	# however, ca-certificates may be missing/incomplete at this time
-	my $testres = system("curl --insecure -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
+	my $testres = system("curl --insecure -L -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
 	$testres = system("wget --no-check-certificate -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
 			if ($testres);
 	my $can_use_web = !$testres;

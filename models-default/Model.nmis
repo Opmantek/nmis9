@@ -294,6 +294,10 @@
         '30' => {
           'HuaweiRouter' => 'AR2220|AR1220'
         },
+        '50' => {
+          'HuaweiRouterAR2240-uses-common' => 'AR2240'
+          #'HuaweiRouterAR2240' => 'AR2240'
+        },
         '99' => {
           'Default-HC' => '.'
         }
@@ -534,6 +538,38 @@
       'order' => {
         '10' => {
           'BayStack' => 'BayStack|325-24T|5510-48T'
+        }
+      }
+    },
+    'TELDAT, S.A.' => {
+      'order' => {
+        '11' => {
+          'Teldat150' => 'ATLAS150'
+        },
+        '12' => {
+          'TELDATL1' => 'L1+'
+        },
+        '13' => {
+          'TeldatM1-uses-common' => 'M1',
+          #'TeldatM1' => 'M1'
+        },
+        '14' => {
+          'TELDATC4G' => 'Router model C4G'
+        },
+        '15' => {
+          'Teldati60' => 'ATLAS60'
+        },
+        '16' => {
+          'TELDAT200' => 'T200'
+        },
+        #'17' => {
+        #  'TeldatM1ppp' => 'M1 1GEWAN 4GESW'
+        #},
+        #'18' => {
+        #  'TELDAT' => 'TELDAT|M1 4GESW'
+        #},
+        '99' => {
+          'Default-HC' => '.'
         }
       }
     },

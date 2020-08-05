@@ -1,0 +1,245 @@
+#
+## $Id: TELDAT-MON-FEATURES-QOS-MIB,v 1.2 2019/11/18 dev Exp $
+#       TELDAT-MON-FEATURES-BRS-MIB,v 1.7 2019/11/18 dev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'systemHealth' => {
+    'sys' => {
+      'TeldatQoSStat' => {
+        'indexed' => 'telProdNpMonFeatQosIndexClass',
+        'index_oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3',
+        'index_regex' => '\.1\.1\.3\.([\d\.]+)$',
+        'headers' => 'ClassifierPolicy,ClassifierName,Direction,ifIndex',
+        'snmp' => {
+          'ClassifierName' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3',
+              'title' => 'QoS Index'
+          },
+          'ClassifierPolicy' => {
+                'title' => 'Classifier Policy'
+          },
+          'Direction' => {
+                'title' => 'Direction'
+          },
+          'ifIndex' => {
+                'title' => 'Interface Index'
+          },
+        },
+      },
+      'TeldatBRSStat' => {
+        'indexed' => 'telProdNpMonFeatBrsDevCountIndex',
+        'index_oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2',
+        'index_regex' => '\.1\.1\.2\.([\d\.]+)$',
+        'headers' => 'ClassifierPolicy,ClassifierName,Direction,ifIndex',
+        'snmp' => {
+          'ClassifierName' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2',
+              'title' => 'QoS Index'
+          },
+          'ClassifierPolicy' => {
+                'title' => 'Classifier Policy'
+          },
+          'Direction' => {
+                'title' => 'Direction'
+          },
+          'ifIndex' => {
+                'title' => 'Interface Index'
+          },
+        },
+      },
+	  },
+    'rrd' => {
+
+# +--telProdNpMonFeatQosTable(1)
+# |  |
+# |  +--telProdNpMonFeatQosEntry(1)
+# |     |  telProdNpMonFeatQosIfc, telProdNpMonFeatQosIndexPol, telProdNpMonFeatQosIndexClass
+# |     |
+# |     +-- -R-- Integer   telProdNpMonFeatQosIfc(1)
+# |     +--  R-- Integer   telProdNpMonFeatQosIndexPol(2)
+# |     +--  R-- Integer   telProdNpMonFeatQosIndexClass(3)
+# |     +-- RW-- Integer   telProdNpMonFeatQosClear(4)
+# |     +--  R-- Integer   telProdNpMonFeatQosAccPkt(5)
+# |     +--  R-- Integer   telProdNpMonFeatQosAccByt(6)
+# |     +--  R-- Integer   telProdNpMonFeatQosOfferRate(7)
+# |     +--  R-- Integer   telProdNpMonFeatQosDropRate(8)
+# |     +--  R-- Integer   telProdNpMonFeatQosTime(9)
+# |     +--  R-- Integer   telProdNpMonFeatQosInstantRate(10)
+#
+#"telProdNpMonFeatQosIfc"     "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.1"
+#"telProdNpMonFeatQosIndexPol"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.2"
+#"telProdNpMonFeatQosIndexClass"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3"
+#"telProdNpMonFeatQosClear"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.4"
+#"telProdNpMonFeatQosAccPkt"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.5"
+#"telProdNpMonFeatQosAccByt"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.6"
+#"telProdNpMonFeatQosOfferRate"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.7"
+#"telProdNpMonFeatQosDropRate"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.8"
+#"telProdNpMonFeatQosTime"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.9"
+#"telProdNpMonFeatQosInstantRate"      "1.3.6.1.4.1.2007.4.1.2.4.9.1.1.10"
+
+      'TeldatQoSStat' => {
+        'indexed' => 'true',
+        'graphtype' => 'TeldatQoSStat',
+        'snmp' => {
+          'ClassifierPolicy' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.2',
+              'calculate' => 'my $prependstr="QoS:Policy"; return "${prependstr}$r";',
+          },
+          'ClassifierName' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3',
+              'calculate' => 'my $prependstr="Class"; return "${prependstr}$r";',
+          },
+          'ifIndex' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.1',
+          },
+          'MatchedPackets' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.5',
+              'option' => 'counter,0:U'
+          },
+          'MatchedBytes' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.6',
+              'option' => 'counter,0:U'
+          },
+          'Direction' => {
+            # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance':
+            'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.1001',
+            # only direction "out" supported:
+            'calculate' => 'return "out"'
+          },
+
+        },
+      },
+      
+# +--telProdNpMonFeatBrsDevCountTable(1)
+# |  |
+# |  +--telProdNpMonFeatBrsDevCountEntry(1)
+# |     |  telProdNpMonFeatBrsDevCountIfc, telProdNpMonFeatBrsDevCountIndex
+# |     |
+# |     +-- -R-- Integer   telProdNpMonFeatBrsDevCountIfc(1)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountIndex(2)
+# |     +-- RW-- Integer   telProdNpMonFeatBrsDevCountClear(3)
+# |     +--  R-- String    telProdNpMonFeatBrsDevCountClass(4)
+# |     |        Size: 0..9
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountTxPkt(5)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountTxByt(6)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountDiscByt(7)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountDiscPkt(8)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountInPkt(9)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountInByt(10)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountDiscRLPkt(11)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountDiscRLByt(12)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountRemarkPkt(13)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountRemarkByt(14)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountReassPkt(15)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountReassByt(16)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountLoopPkt(17)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountLoopByt(18)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountQueueOvflPkt(19)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountQueueOvflByt(20)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountWredPkt(21)
+# |     +--  R-- Integer   telProdNpMonFeatBrsDevCountWredByt(22)
+#
+#"telProdNpMonFeatBrsDevCountIfc"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1"
+#"telProdNpMonFeatBrsDevCountIndex"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2"
+#"telProdNpMonFeatBrsDevCountClear"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.3"
+#"telProdNpMonFeatBrsDevCountClass"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.4"
+#"telProdNpMonFeatBrsDevCountTxPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.5"
+#"telProdNpMonFeatBrsDevCountTxByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.6"
+#"telProdNpMonFeatBrsDevCountDiscByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.7"
+#"telProdNpMonFeatBrsDevCountDiscPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.8"
+#"telProdNpMonFeatBrsDevCountInPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.9"
+#"telProdNpMonFeatBrsDevCountInByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.10"
+#"telProdNpMonFeatBrsDevCountDiscRLPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.11"
+#"telProdNpMonFeatBrsDevCountDiscRLByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.12"
+#"telProdNpMonFeatBrsDevCountRemarkPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.13"
+#"telProdNpMonFeatBrsDevCountRemarkByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.14"
+#"telProdNpMonFeatBrsDevCountReassPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.15"
+#"telProdNpMonFeatBrsDevCountReassByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.16"
+#"telProdNpMonFeatBrsDevCountLoopPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.17"
+#"telProdNpMonFeatBrsDevCountLoopByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.18"
+#"telProdNpMonFeatBrsDevCountQueueOvflPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.19"
+#"telProdNpMonFeatBrsDevCountQueueOvflByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.20"
+#"telProdNpMonFeatBrsDevCountWredPkt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.21"
+#"telProdNpMonFeatBrsDevCountWredByt"     "1.3.6.1.4.1.2007.4.1.2.4.1.1.1.22"
+
+      'TeldatBRSStat' => {
+        'indexed' => 'true',
+        'graphtype' => 'TeldatBRSStat',
+        'snmp' => {
+          'ClassifierPolicy' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2',
+              'calculate' => 'my $prependstr="BRS:Policy";return "${prependstr}$r";',
+          },
+          'ClassifierName' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.4',
+          },
+          'ifIndex' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1',
+          },
+          'MatchedPackets' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.5',
+              'option' => 'counter,0:U',
+          },
+          'MatchedBytes' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.6',
+              'option' => 'counter,0:U'
+          },
+           'MatchedDropPackets' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.8',
+              'option' => 'counter,0:U'
+          },
+          'MatchedDropBytes' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.7',
+              'option' => 'counter,0:U'
+          },
+          'MatchedPassPackets' => {
+            # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance': we calculate MatchedPassPackets as MatchedPackets minus MatchedDropPackets
+            'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1001',
+            'calculate' => 'CVAR1=MatchedPackets; CVAR2=MatchedDropPackets; return $CVAR1 - $CVAR2',
+            'option' => 'counter,0:U'
+          },
+          'MatchedPassBytes' => {
+            # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance': we calculate MatchedPassBytes as MatchedBytes minus MatchedDropBytes
+            'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1002',
+            'calculate' => 'CVAR1=MatchedBytes; CVAR2=MatchedDropBytes; return $CVAR1 - $CVAR2',
+            'option' => 'counter,0:U'
+          },
+          'Direction' => {
+            # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance':
+            'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1003',
+            # only direction "out" supported:
+            'calculate' => 'return "out"'
+          },
+        },
+      },      
+    },
+  },
+);

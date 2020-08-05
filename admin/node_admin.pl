@@ -75,6 +75,8 @@ mktemplate: prints blank template for node creation,
 create: requires file=NewNodeDef.json
 update: updates existing node from file=someFile.json
  If no uuid is present, a new node will be created.
+ If a property is not set, it will be removed.
+ Use set to replace only one property.
 
 export: exports to file=someFile (or STDOUT if no file given),
  nmis9 format by default or legacy format (nmis8) if format=nodes is given
