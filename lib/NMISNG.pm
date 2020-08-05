@@ -4926,7 +4926,7 @@ sub dump_node
 	}
 	my $noderec = $md->data->[0];
 	$uuid //= $noderec->{uuid};
-	$nodename //= $nodename->{name};
+	$nodename //= $noderec->{name};
 
 	# create temp dir first, subdirs for each of the involved db collections
 	my $td = eval { File::Temp::tempdir("dump-$noderec->{uuid}-XXXXXXX",
