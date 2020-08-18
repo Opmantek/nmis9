@@ -33,10 +33,6 @@ package QualityOfServiceStattable;
 our $VERSION = "1.0.1";
 
 use strict;
-
-use func;												# for the conf table extras
-use NMIS;
-
 use Data::Dumper;
 
 sub update_plugin
