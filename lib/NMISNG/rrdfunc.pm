@@ -1070,7 +1070,7 @@ sub graphCBQoS
 	my ($S,$graphtype,$intf,$item,$start,$end,$width,$height,$debug)
 			= @args{qw(sys graphtype intf item start end width height debug)};
 
-	my $nodename = $S->name;
+	my $nodename = $S->{name};
 
 	# order the names, find colors and bandwidth limits, index and section names
 	my ($CBQosNames, $CBQosValues) = Compat::NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
