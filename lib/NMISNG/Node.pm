@@ -496,7 +496,7 @@ sub delete
 	for my $jobdata (@{$result->data})
 	{
 		return (0, "Cannot delete node while $jobdata->{type} job (id $jobdata->{_id}) is active!")
-				if ($jobdata->{in_progress});
+				if ($jobdata->{in_progress} and $jobdata->{type} ne "delete_nodes");
 
 		if (my $error = $self->nmisng->remove_queue(id => $jobdata->{_id}))
 		{

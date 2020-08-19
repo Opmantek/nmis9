@@ -4814,7 +4814,7 @@ sub update_queue
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
 		if ( $jobdata->{type}
-		!~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins)$/
+		!~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins|delete_nodes|update_nodes)$/
 		);
 
 	return
@@ -4832,10 +4832,16 @@ sub update_queue
 			if ( ref( $jobdata->{args} ) ne "HASH" or !keys %{$jobdata->{args}} );
 	}
 
-	if ( $jobdata->{type} =~ /^(collect|update|services)$/
+	if ( $jobdata->{type} =~ /^(collect|update|services|delete_nodes|update_nodes)$/
 		and !$jobdata->{args}->{uuid} )
 	{
 		return "Invalid job data, args must contain uuid property!";
+	}
+	
+	if ( $jobdata->{type} =~ /^(update_nodes)$/
+		and !$jobdata->{args}->{data} )
+	{
+		return "Invalid job data, args must contain data property for update_nodes!";
 	}
 	if ($jobdata->{type} eq "collect"
 		and (  !defined( $jobdata->{args}->{wantsnmp} )

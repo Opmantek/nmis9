@@ -677,7 +677,7 @@ while (!$exit_marker)
 
 		my %statsdata;
 		for my $ds (map { ("${_}time", "${_}count") } (qw(collect update services metrics
-selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect
+selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes
 )))
 		{
 			# no occurrences of op X -> count must be zero, not undefined.
@@ -1242,6 +1242,35 @@ sub worker_loop
 					$state->{status} = $result->{success}? "ok":"error";
 					$state->{details} = $result->{success}? "completed successfully" : "failed: $result->{error}";
 				}
+				elsif ($ourjob->{type} eq "delete_nodes")
+				{
+					my $nodeuuid = $ourjob->{args}->{uuid};
+					my $error = 0;
+					my $errormsg = "";
+					my $keeprrds = $ourjob->{args}->{keeprrds} // 0;
+					my $nodemodel = $nmisng->get_nodes_model(uuid => $nodeuuid);
+					if (!$nodemodel->count) {
+						$nmisng->log->error("No matching nodes exist");
+					} else {
+						my $gimmeobj = $nodemodel->objects; # instantiate, please!
+						if (!$gimmeobj->{success}) {
+							$nmisng->log->error("Failed to instantiate node objects: $gimmeobj->{error}");
+						} else {
+							for my $mustdie (@{$gimmeobj->{objects}})
+							{
+								(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds); # === eq false
+								if (!$ok) {
+									$nmisng->log->error("Error deleting node: $errormsg");
+									$error = 1;
+								}
+							}
+						}
+					}
+					
+					$state->{status} = ($error = 1) ? "ok":"error";
+					$state->{details} = ($error = 1) ? "completed successfully" : "Error deleting node $errormsg";
+					$state->{context} = {node_uuid => $nodeuuid};
+				}
 				elsif ($ourjob->{type} eq "plugins")
 				{
 					# run after-collect/after-update plugins once all node jobs are done
@@ -1420,7 +1449,8 @@ sub worker_loop
 															 status => "error",
 															 type => "exception",
 															 details => $state->{exception},
-															 stats => undef );
+															 stats => undef,
+															 context => $state->{context}  );
 			}
 			else
 			{
@@ -1431,7 +1461,8 @@ sub worker_loop
 																										type => "completed",
 																										status => $state->{status},
 																										details => $state->{details},
-																										stats => $state->{stats} );
+																										stats => $state->{stats},
+																										context => $state->{context} );
 				$nmisng->log->error("Failed to save opstatus: $error") if ($error);
 
 				# and convenience-log the time it's taken (for per-node jobs that's already done with more context)

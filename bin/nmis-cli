@@ -108,7 +108,7 @@ at: optional time argument for the job to commence, default is now.
 
 job.type: job type, required, one of: collect update services
   thresholds escalations metrics configbackup purge dbcleanup
-  selftest permission_test or plugins
+  selftest permission_test or plugins delete edit 
 
 job.priority: optional number between 0 (lowest) and 1 (highest) job priority.
  default is 1 for manually scheduled jobs
@@ -265,7 +265,7 @@ elsif ($Q->{act} eq "schedule")
 	my %jobargs;
 	for my $match (grep(/^job\..+$/, keys %$Q))
 	{
-		next if ($match =~ /^job\.(type|priority|verbosity|output|tag)$/); # these don't go into the job args
+		next if ($match =~ /^job\.(type|priority|verbosity|output|tag|data|keeprrds)$/); # these don't go into the job args
 		my $argument = $match;
 		$argument =~ s/^job\.//;
 		$jobargs{$argument} = ( $argument eq "force"? # for force we'd like 1/0
@@ -275,7 +275,7 @@ elsif ($Q->{act} eq "schedule")
 	# perform any necessary arg conversions and expansions
 	# collect/services/update, find the nodes implied and schedule a separate job for each
 	# post-update/collect plugins require a list of node uuids - should normally be left to the daemon to schedule
-	if ($what =~ /^(collect|update|services|plugins)$/)
+	if ($what =~ /^(collect|update|services|plugins|delete_nodes|update_nodes)$/)
 	{
 		my @filters;
 		for my $filterable (qw(node name group uuid)) # job.node === job.name === node name
@@ -300,6 +300,22 @@ elsif ($Q->{act} eq "schedule")
 		if ($what eq "plugins")			# one combined job with the node uuids passed in
 		{
 			$jobargs{uuid} = [ map { $_->{uuid} } (@{$possibles->data}) ];
+
+			my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => $what,
+					time => $when,
+					priority => $priority,
+					verbosity => $verbosity,
+					output => $customlog,
+					in_progress => 0,					# somebody else is to work on this
+					args => \%jobargs });
+			die "Failed to add schedule: $error\n" if ($error);
+			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$wantquiet);
+		} elsif ($what =~ /^(delete_nodes|update_nodes)$/)			# one combined job with the node uuids passed in
+		{
+			$jobargs{uuid} = [ map { $_->{uuid} } (@{$possibles->data}) ];
+			$jobargs{data} = $Q->{"job.data"};
 
 			my ($error,$jobid) = $nmisng->update_queue(
 				jobdata => {
