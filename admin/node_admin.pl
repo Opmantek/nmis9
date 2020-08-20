@@ -89,6 +89,7 @@ delete: only deletes if confirm=yes (in uppercase) is given,
 
 show: prints a node's properties in the same format as set
  with option quoted=true, show adds double-quotes where needed
+ with option interfaces=true show interface basic information
 set: adjust one or more node properties
 
 restore: restores a previously dumped node's data. if 
@@ -419,6 +420,7 @@ elsif ($cmdline->{act} eq "show")
 {
 	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
 	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
+	my $wantinterfaces = NMISNG::Util::getbool($cmdline->{interfaces});
 
 	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
@@ -442,6 +444,18 @@ elsif ($cmdline->{act} eq "show")
 		# any special-ish characters to quote?
 		print "$k=". ($wantquoted && $flatearth{$k} =~ /['"\$\s\(\)\{\}\[\]]/?
 									"\"$flatearth{$k}\"": $flatearth{$k})."\n";
+	}
+	if ($wantinterfaces)
+	{
+		my $md = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => 'interface');
+		if (my $error = $md->error)
+		{
+			print "failed to lookup inventory records: $error \n";
+		}
+		for my $oneinv (@{$md->data})
+		{
+			print "Interface=\"".$oneinv->{'data'}->{'Description'}. "\" ifDescr=\"" . $oneinv->{'data'}->{'ifDescr'} ."\" ifIndex=" . $oneinv->{'data'}->{'ifIndex'} . "\n";
+		}
 	}
 	exit 0;
 }
