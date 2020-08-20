@@ -51,6 +51,7 @@ use Time::HiRes;
 use Statistics::Lite;
 use List::Util 1.33;
 use Clone;
+use JSON::XS;
 
 use NMISNG;
 use NMISNG::Util;
@@ -1245,31 +1246,165 @@ sub worker_loop
 				elsif ($ourjob->{type} eq "delete_nodes")
 				{
 					my $nodeuuid = $ourjob->{args}->{uuid};
+					my $nodes = "";
 					my $error = 0;
 					my $errormsg = "";
 					my $keeprrds = $ourjob->{args}->{keeprrds} // 0;
-					my $nodemodel = $nmisng->get_nodes_model(uuid => $nodeuuid);
-					if (!$nodemodel->count) {
+					if (!$nodeuuid) {
 						$nmisng->log->error("No matching nodes exist");
 					} else {
-						my $gimmeobj = $nodemodel->objects; # instantiate, please!
-						if (!$gimmeobj->{success}) {
-							$nmisng->log->error("Failed to instantiate node objects: $gimmeobj->{error}");
+						my $nodemodel = $nmisng->get_nodes_model(uuid => $nodeuuid);
+						if (!$nodemodel->count) {
+							$nmisng->log->error("No matching nodes exist");
 						} else {
-							for my $mustdie (@{$gimmeobj->{objects}})
-							{
-								(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds); # === eq false
-								if (!$ok) {
-									$nmisng->log->error("Error deleting node: $errormsg");
-									$error = 1;
+							my $gimmeobj = $nodemodel->objects; # instantiate, please!
+							if (!$gimmeobj->{success}) {
+								$nmisng->log->error("Failed to instantiate node objects: $gimmeobj->{error}");
+							} else {
+								for my $mustdie (@{$gimmeobj->{objects}})
+								{
+									$nodes = $nodes . " " . $mustdie->name;
+									(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds); # === eq false
+									$nmisng->log->info("********* $ok deleting node: $errormsg");
+									if (!$ok) {
+										$nmisng->log->error("Error deleting node: $errormsg");
+										$error = 1;
+									} 
 								}
 							}
 						}
+					}	
+					
+					if ($error == 0) {
+						$state->{status} = "ok";
+						$state->{details} = "completed successfully";
+					} else {
+						$state->{status} = "error";
+						$state->{details} = "Error deleting node $errormsg";
 					}
 					
-					$state->{status} = ($error = 1) ? "ok":"error";
-					$state->{details} = ($error = 1) ? "completed successfully" : "Error deleting node $errormsg";
-					$state->{context} = {node_uuid => $nodeuuid};
+					$state->{context} = {node_name => $nodes};
+				}
+				elsif ($ourjob->{type} eq "update_nodes")
+				{
+					my $nodeuuid = $ourjob->{args}->{uuid};
+					my $nodes = "";
+					my $error = 0;
+					my $errormsg = "";
+					my $keeprrds = $ourjob->{args}->{keeprrds} // 0;
+					if (!$nodeuuid) {
+						$nmisng->log->error("update_nodes: No matching nodes exist");
+					} else {
+						my $nodemodel = $nmisng->get_nodes_model(uuid => $nodeuuid);
+						if (!$nodemodel->count) {
+							$nmisng->log->error("update_nodes: No matching nodes exist");
+						} else {
+							my $gimmeobj = $nodemodel->objects; # instantiate, please!
+							if (!$gimmeobj->{success}) {
+								$nmisng->log->error("Failed to instantiate node objects: $gimmeobj->{error}");
+							} else {
+								for my $nodeobj (@{$gimmeobj->{objects}})
+								{
+									$nodes = $nodes . " " . $nodeobj->name;
+									my $curconfig = $nodeobj->configuration;
+									my $curoverrides = $nodeobj->overrides;
+									my $curactivated = $nodeobj->activated;
+									my $curextras = $nodeobj->unknown;
+									my $curarraythings = { aliases => $nodeobj->aliases,
+																				 addresses => $nodeobj->addresses };
+									my $anythingtodo;
+			
+									my @toupd = split(',', $ourjob->{args}->{data});
+									foreach my $entry (@toupd)
+									{
+										my @entry = split(':', $entry);
+										my $name = @entry[0];
+										my $value = @entry[1];						
+										++$anythingtodo;
+								
+										undef $value if ($value eq "undef");
+								
+										# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+										$name = "activated.NMIS" if ($name eq "configuration.active");
+								
+										# where does it go? overrides.X is obvious...
+										if ($name =~ /^overrides\.(.+)$/)
+										{
+											$curoverrides->{$1} = $value;
+										}
+										# ...name, cluster_id a bit less...
+										elsif ($name =~ /^(name|cluster_id)$/)
+										{
+											$nodeobj->$1($value);
+										}
+										# ...and activated.X not at all
+										elsif ($name =~ /^activated\.(.+)$/)
+										{
+											$curactivated->{$1} = $value;
+										}
+										# ...and then there's the unknown unknowns
+										elsif ($name =~ /^unknown\.(.+)$/)
+										{
+											$curextras->{$1} = $value;
+										}
+										# and aliases and addresses, but these are ARRAYS
+										elsif ($name =~ /^((aliases|addresses)\.(.+))$/)
+										{
+											$curarraythings->{$1} = $value;
+										}
+										# configuration.X
+										elsif ($name =~ /^configuration\.(.+)$/)
+										{
+											$curconfig->{$1} = $value;
+										}
+										else
+										{
+											$nmisng->log->error("Unknown property \"$name\"!");
+										}
+									}
+									$nmisng->log->error("No changes for node \"". $nodeobj->name ."\"!") if (!$anythingtodo);
+								
+									for ([$curconfig, "configuration"],
+											 [$curoverrides, "override"],
+											 [$curactivated, "activated"],
+											 [$curarraythings, "addresses/aliases" ],
+											 [$curextras, "unknown/extras" ])
+									{
+										my ($checkwhat, $name) = @$_;
+								
+										my $error = NMISNG::Util::translate_dotfields($checkwhat);
+										$nmisng->log->error("translation of $name arguments failed: $error") if ($error);
+									}
+								
+									$nodeobj->overrides($curoverrides);
+									$nodeobj->configuration($curconfig);
+									$nodeobj->activated($curactivated);
+									$nodeobj->addresses($curarraythings->{addresses});
+									$nodeobj->aliases($curarraythings->{aliases});
+									$nodeobj->unknown($curextras);
+								
+									(my $op, $error) = $nodeobj->save;
+									$nmisng->log->error("Failed to save $nodeobj->name: $error") if ($op <= 0); # zero is no saving needed
+								
+									$nmisng->log->debug("Successfully updated node " . $nodeobj->name);
+									if ($error) {
+										$nmisng->log->error("Error deleting node: $error");
+										$error = 1;
+									} 
+								}
+							}
+						}
+					}	
+					
+					if ($error == 0) {
+						$state->{status} = "ok";
+						$state->{details} = "completed successfully";
+					} else {
+						$state->{status} = "error";
+						$state->{details} = "Error updating node $errormsg";
+					}
+					
+					$state->{context} = {node_name => $nodes};
 				}
 				elsif ($ourjob->{type} eq "plugins")
 				{

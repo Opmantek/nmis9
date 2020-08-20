@@ -1220,17 +1220,33 @@ sub expand_node_selection
 {
 	my ( $self, @selectors ) = @_;
 
+	return $self->expand_node_selection_inactive_too(filter => \@selectors, onlyactive => 1);
+}
+
+# little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)
+# and returns the active nodes that match
+#
+# args: list of selectors, must be hashes
+# returns: modeldata object with the matching nodes
+sub expand_node_selection_inactive_too
+{
+	my ( $self, %args ) = @_;
+
 	my ( $mdata, %lotsanodes );
-	for my $onefilter ( @selectors ? @selectors : {} )
+	my $selectors = $args{filter};
+	my $onlyactive = $args{onlyactive};
+	
+	for my $onefilter ( @$selectors ? @$selectors : {} )
 	{
 		return NMISNG::ModelData->new(
 			nmisng => $self,
 			error  => {"invalid filter structure, not a hash!"}
 		) if ( ref($onefilter) ne "HASH" );
 
-		$onefilter->{"activated.NMIS"} = 1;    # never consider inactive nodes
+		$onefilter->{"activated.NMIS"} = 1 if ($onlyactive);    # never consider inactive nodes
 		# Only locals!
 		$onefilter->{"cluster_id"} = $self->config->{cluster_id};
+	
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return NMISNG::ModelData->new(
 			nmisng => $self,

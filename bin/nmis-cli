@@ -278,15 +278,23 @@ elsif ($Q->{act} eq "schedule")
 	if ($what =~ /^(collect|update|services|plugins|delete_nodes|update_nodes)$/)
 	{
 		my @filters;
+		
 		for my $filterable (qw(node name group uuid)) # job.node === job.name === node name
 		{
-			my @inputs = ref($jobargs{$filterable}) eq "ARRAY"? @{$jobargs{$filterable}}: $jobargs{$filterable} // ();
+			my $thisjob = $jobargs{$filterable};
+			my @arr = split(",", $thisjob);
+			my @inputs = ref(\@arr) eq "ARRAY"? @arr: $jobargs{$filterable} // ();
 			map { push @filters, { ($filterable eq "node"? "name" :
 															$filterable =~ /^(name|uuid)$/?
 															$filterable : "configuration.$filterable") => $_ }; } (@inputs);
 		}
+		my $possibles;
+		if ($what =~ /^(delete_nodes|update_nodes)$/) {
+			$possibles = $nmisng->expand_node_selection_inactive_too(filter => \@filters);
+		} else {
+			$possibles = $nmisng->expand_node_selection(@filters);
+		}
 
-		my $possibles = $nmisng->expand_node_selection(@filters);
 		die "Failed to query nodes: ".$possibles->error."\n" if ($possibles->error);
 		die "No nodes found matching your selectors!\n" if (!$possibles->count);
 
