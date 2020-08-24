@@ -451,93 +451,123 @@ elsif ($cmdline->{act} eq "set")
 
 	die "Cannot set node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
-
-	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
-	die "Node $node does not exist.\n" if (!$nodeobj);
-	$node ||= $nodeobj->name;			# if looked up via uuid
-
-	die "Please use act=rename for node renaming!\n"
-			if (exists($cmdline->{"entry.name"}));
-
-	my $curconfig = $nodeobj->configuration;
-	my $curoverrides = $nodeobj->overrides;
-	my $curactivated = $nodeobj->activated;
-	my $curextras = $nodeobj->unknown;
-	my $curarraythings = { aliases => $nodeobj->aliases,
-												 addresses => $nodeobj->addresses };
-	my $anythingtodo;
-
-	for my $name (keys %$cmdline)
-	{
-		next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
-		++$anythingtodo;
-
-		my $value = $cmdline->{$name};
-		undef $value if ($value eq "undef");
-		$name =~ s/^entry\.//;
-
-		# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
-		$name = "activated.NMIS" if ($name eq "configuration.active");
-
-		# where does it go? overrides.X is obvious...
-		if ($name =~ /^overrides\.(.+)$/)
+			
+	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes
+	my $time = $cmdline->{time} // time;
+	my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
+	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+	my $what = "set_nodes";
+	my %jobargs;
+	
+	my @data = split(",", $node) if ($node);
+	@data = split(",", $uuid) if ($uuid);
+	
+	if ($schedule) {
+		$jobargs{uuid} = \@data;
+		$jobargs{data} = $cmdline;
+		
+		my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => $what,
+					time => $time,
+					priority => $priority,
+					verbosity => $verbosity,
+					in_progress => 0,					# somebody else is to work on this
+					args => \%jobargs });
+		
+		die "Failed to instantiate job! $error\n" if $error;
+		print STDERR "A $what job has sent to the queue for ".@data." nodes. Job ID:  $jobid \n\n"
+				if (-t \*STDERR);	
+		
+	} else {
+	
+		my $nodeobj = $nmisng->node(node => $node, uuid=> $uuid);
+		die "Node $node does not exist.\n" if (!$nodeobj);
+		$node ||= $nodeobj->name;			# if looked up via uuid
+	
+		die "Please use act=rename for node renaming!\n"
+				if (exists($cmdline->{"entry.name"}));
+	
+		my $curconfig = $nodeobj->configuration;
+		my $curoverrides = $nodeobj->overrides;
+		my $curactivated = $nodeobj->activated;
+		my $curextras = $nodeobj->unknown;
+		my $curarraythings = { aliases => $nodeobj->aliases,
+													 addresses => $nodeobj->addresses };
+		my $anythingtodo;
+	
+		for my $name (keys %$cmdline)
 		{
-			$curoverrides->{$1} = $value;
+			next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+			++$anythingtodo;
+	
+			my $value = $cmdline->{$name};
+			undef $value if ($value eq "undef");
+			$name =~ s/^entry\.//;
+	
+			# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+			$name = "activated.NMIS" if ($name eq "configuration.active");
+	
+			# where does it go? overrides.X is obvious...
+			if ($name =~ /^overrides\.(.+)$/)
+			{
+				$curoverrides->{$1} = $value;
+			}
+			# ...name, cluster_id a bit less...
+			elsif ($name =~ /^(name|cluster_id)$/)
+			{
+				$nodeobj->$1($value);
+			}
+			# ...and activated.X not at all
+			elsif ($name =~ /^activated\.(.+)$/)
+			{
+				$curactivated->{$1} = $value;
+			}
+			# ...and then there's the unknown unknowns
+			elsif ($name =~ /^unknown\.(.+)$/)
+			{
+				$curextras->{$1} = $value;
+			}
+			# and aliases and addresses, but these are ARRAYS
+			elsif ($name =~ /^((aliases|addresses)\.(.+))$/)
+			{
+				$curarraythings->{$1} = $value;
+			}
+			# configuration.X
+			elsif ($name =~ /^configuration\.(.+)$/)
+			{
+				$curconfig->{$1} = $value;
+			}
+			else
+			{
+				die "Unknown property \"$name\"!\n";
+			}
 		}
-		# ...name, cluster_id a bit less...
-		elsif ($name =~ /^(name|cluster_id)$/)
+		die "No changes for node \"$node\"!\n" if (!$anythingtodo);
+	
+		for ([$curconfig, "configuration"],
+				 [$curoverrides, "override"],
+				 [$curactivated, "activated"],
+				 [$curarraythings, "addresses/aliases" ],
+				 [$curextras, "unknown/extras" ])
 		{
-			$nodeobj->$1($value);
+			my ($checkwhat, $name) = @$_;
+	
+			my $error = NMISNG::Util::translate_dotfields($checkwhat);
+			die "translation of $name arguments failed: $error\n" if ($error);
 		}
-		# ...and activated.X not at all
-		elsif ($name =~ /^activated\.(.+)$/)
-		{
-			$curactivated->{$1} = $value;
-		}
-		# ...and then there's the unknown unknowns
-		elsif ($name =~ /^unknown\.(.+)$/)
-		{
-			$curextras->{$1} = $value;
-		}
-		# and aliases and addresses, but these are ARRAYS
-		elsif ($name =~ /^((aliases|addresses)\.(.+))$/)
-		{
-			$curarraythings->{$1} = $value;
-		}
-		# configuration.X
-		elsif ($name =~ /^configuration\.(.+)$/)
-		{
-			$curconfig->{$1} = $value;
-		}
-		else
-		{
-			die "Unknown property \"$name\"!\n";
-		}
+	
+		$nodeobj->overrides($curoverrides);
+		$nodeobj->configuration($curconfig);
+		$nodeobj->activated($curactivated);
+		$nodeobj->addresses($curarraythings->{addresses});
+		$nodeobj->aliases($curarraythings->{aliases});
+		$nodeobj->unknown($curextras);
+	
+		(my $op, $error) = $nodeobj->save;
+		die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed
 	}
-	die "No changes for node \"$node\"!\n" if (!$anythingtodo);
-
-	for ([$curconfig, "configuration"],
-			 [$curoverrides, "override"],
-			 [$curactivated, "activated"],
-			 [$curarraythings, "addresses/aliases" ],
-			 [$curextras, "unknown/extras" ])
-	{
-		my ($checkwhat, $name) = @$_;
-
-		my $error = NMISNG::Util::translate_dotfields($checkwhat);
-		die "translation of $name arguments failed: $error\n" if ($error);
-	}
-
-	$nodeobj->overrides($curoverrides);
-	$nodeobj->configuration($curconfig);
-	$nodeobj->activated($curactivated);
-	$nodeobj->addresses($curarraythings->{addresses});
-	$nodeobj->aliases($curarraythings->{aliases});
-	$nodeobj->unknown($curextras);
-
-	(my $op, $error) = $nodeobj->save;
-	die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed
-
+	
 	print STDERR "Successfully updated node $node.\n"
 if (-t \*STDERR);								# if terminal
 
@@ -672,6 +702,11 @@ configuration.community configuration.roleType configuration.netType configurati
 elsif ($cmdline->{act} =~ /^(create|update)$/)
 {
 	my $file = $cmdline->{file};
+	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes
+	my $time = $cmdline->{time} // time;
+	my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
+	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+	my $what = $cmdline->{act} eq "create" ? "create_nodes" : "update_nodes";
 
 	open(F, $file) or die "Cannot read $file: $!\n";
 	my $nodedata = join('', grep( !m!^\s*//\s+!, <F>));
@@ -686,71 +721,115 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	$mayberec = eval { decode_json($nodedata); };
 	$mayberec = eval { JSON::XS->new->latin1(1)->decode($nodedata); } if ($@);
 	die "Invalid node data, JSON parsing failed: $@\n" if ($@);
+	
+	my $number = 0;
+	
+	if (ref($mayberec) eq "ARRAY") {
+		foreach my $node (@$mayberec) {
+			validate_node_data(node => $node);
+			$node->{uuid} ||= NMISNG::Util::getUUID($node->{name}) if ($cmdline->{act} eq "create");
+			$number++;
+		} 
+	} else {
+		validate_node_data(node => $mayberec);
+		$mayberec->{uuid} ||= NMISNG::Util::getUUID($mayberec->{name}) if ($cmdline->{act} eq "create");
+		$number++;
+	}
 
-	my $name = $mayberec->{name};
+	# no uuid and creating a node? then we add one
+	#$mayberec->{uuid} ||= NMISNG::Util::getUUID($name) if ($cmdline->{act} eq "create");
+	my %jobargs;
+	
+	# Send job to the queue
+	if ($schedule) {
+		# $jobargs{uuid} = [ map { $_->{uuid} } (@{$possibles->data}) ];
+		$jobargs{data} = $mayberec;
+		
+		my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => $what,
+					time => $time,
+					priority => $priority,
+					verbosity => $verbosity,
+					in_progress => 0,					# somebody else is to work on this
+					args => \%jobargs });
+		
+		die "Failed to instantiate job! $error\n" if $error;
+		print STDERR "A $what job has sent to the queue for ".$number." nodes. Job ID:  $jobid \n\n"
+				if (-t \*STDERR);	
+		
+	} else {
+		my %query = $mayberec->{uuid}? (uuid => $mayberec->{uuid}) : (name => $mayberec->{name});
+		my $nodeobj = $nmisng->node(%query);
+		$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1);
+		die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
+	
+		my $isnew = $nodeobj->is_new;
+		# must set overrides, activated, name/cluster_id, addresses/aliases, configuration;
+		for my $mustset (qw(cluster_id name activated overrides configuration addresses aliases))
+		{
+			$nodeobj->$mustset($mayberec->{$mustset}) if (exists($mayberec->{$mustset}));
+			delete $mayberec->{$mustset};
+		}
+		# if creating, add missing cluster_id for local operation
+		$nodeobj->cluster_id($config->{cluster_id}) if ($cmdline->{act} eq "create"
+																										&& !$nodeobj->cluster_id);
+		# there should be nothing left at this point, anything that is goes into unknown()
+		my %unknown = map { ($_ => $mayberec->{$_}) } (grep(!/^(configuration|lastupdate|uuid)$/,
+																												keys %$mayberec));
+		$nodeobj->unknown(\%unknown);
+	
+		my ($status,$msg) = $nodeobj->save;
+		# zero is no saving needed, which is not good here
+		die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
+	
+		my $name = $nodeobj->name;
+		print STDERR "Successfully ".($isnew? "created":"updated")
+				." node ".$nodeobj->uuid." ($name)\n\n"
+				if (-t \*STDERR);								# if terminal
+	}
+}
+else
+{
+	# fallback: complain about the arguments
+	die "Could not parse arguments!\n\n$usage\n";
+}
+
+sub validate_node_data
+{
+	my %args = @_;
+	my $node = $args{node};
+
+	my $name = $node->{name};
 	die "Invalid node name \"$name\"\n"
 			if ($name =~ /[^a-zA-Z0-9_-]/);
 
-	die "Invalid node data, not a hash!\n" if (ref($mayberec) ne 'HASH');
+	die "Invalid node data, not a hash!\n" if (ref($node) ne 'HASH');
 	for my $mustbedeep (qw(configuration overrides activated))
 	{
 		die "Invalid node data, invalid structure for $mustbedeep!\n"
-				if (exists($mayberec->{$mustbedeep}) && ref($mayberec->{$mustbedeep}) ne "HASH");
+				if (exists($node->{$mustbedeep}) && ref($node->{$mustbedeep}) ne "HASH");
 	}
 
 	die "Invalid node data, does not have required attributes name, host and group\n"
-			if (!$mayberec->{name} or !$mayberec->{configuration}->{host} or !$mayberec->{configuration}->{group});
+			if (!$node->{name} or !$node->{configuration}->{host} or !$node->{configuration}->{group});
 
-	die "Invalid node data, netType \"$mayberec->{configuration}->{netType}\" is not known!\n"
-			if (!grep($mayberec->{configuration}->{netType} eq $_,
+	die "Invalid node data, netType \"$node->{configuration}->{netType}\" is not known!\n"
+			if (!grep($node->{configuration}->{netType} eq $_,
 								split(/\s*,\s*/, $config->{nettype_list})));
-	die "Invalid node data, roleType \"$mayberec->{configuration}->{roleType}\" is not known!\n"
-			if (!grep($mayberec->{configuration}->{roleType} eq $_,
+	die "Invalid node data, roleType \"$node->{configuration}->{roleType}\" is not known!\n"
+			if (!grep($node->{configuration}->{roleType} eq $_,
 								split(/\s*,\s*/, $config->{roletype_list})));
 
 	# look up the node - ideally by uuid, fall back to name only if necessary
-	my %query = $mayberec->{uuid}? (uuid => $mayberec->{uuid}) : (name => $mayberec->{name});
+	my %query = $node->{uuid}? (uuid => $node->{uuid}) : (name => $node->{name});
 	my $nodeobj = $nmisng->node(%query);
 	die "Node $name does not exist.\n" if (!$nodeobj && $cmdline->{act} eq "update");
 	die "Node $name already exist.\n" if ($nodeobj && $cmdline->{act} eq "create");
 
 	die "Please use act=rename for node renaming.\nUUID "
 			.$nodeobj->uuid." is already associated with name \"".$nodeobj->name."\".\n"
-			if ($nodeobj and $nodeobj->name and $nodeobj->name ne $mayberec->{name});
-
-	# no uuid and creating a node? then we add one
-	$mayberec->{uuid} ||= NMISNG::Util::getUUID($name) if ($cmdline->{act} eq "create");
-	$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1);
-	die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
-
-	my $isnew = $nodeobj->is_new;
-	# must set overrides, activated, name/cluster_id, addresses/aliases, configuration;
-	for my $mustset (qw(cluster_id name activated overrides configuration addresses aliases))
-	{
-		$nodeobj->$mustset($mayberec->{$mustset}) if (exists($mayberec->{$mustset}));
-		delete $mayberec->{$mustset};
-	}
-	# if creating, add missing cluster_id for local operation
-	$nodeobj->cluster_id($config->{cluster_id}) if ($cmdline->{act} eq "create"
-																									&& !$nodeobj->cluster_id);
-	# there should be nothing left at this point, anything that is goes into unknown()
-	my %unknown = map { ($_ => $mayberec->{$_}) } (grep(!/^(configuration|lastupdate|uuid)$/,
-																											keys %$mayberec));
-	$nodeobj->unknown(\%unknown);
-
-	my ($status,$msg) = $nodeobj->save;
-	# zero is no saving needed, which is not good here
-	die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
-
-	$name = $nodeobj->name;
-	print STDERR "Successfully ".($isnew? "created":"updated")
-			." node ".$nodeobj->uuid." ($name)\n\n"
-			if (-t \*STDERR);								# if terminal
-}
-else
-{
-	# fallback: complain about the arguments
-	die "Could not parse arguments!\n\n$usage\n";
+			if ($nodeobj and $nodeobj->name and $nodeobj->name ne $node->{name});
 }
 
 exit 0;
