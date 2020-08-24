@@ -465,7 +465,7 @@ elsif ($cmdline->{act} eq "set")
 	if ($schedule) {
 		$jobargs{uuid} = \@data;
 		$jobargs{data} = $cmdline;
-		
+
 		my ($error,$jobid) = $nmisng->update_queue(
 				jobdata => {
 					type => $what,
@@ -481,7 +481,7 @@ elsif ($cmdline->{act} eq "set")
 		
 	} else {
 	
-		my $nodeobj = $nmisng->node(node => $node, uuid=> $uuid);
+		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
 		die "Node $node does not exist.\n" if (!$nodeobj);
 		$node ||= $nodeobj->name;			# if looked up via uuid
 	
@@ -565,11 +565,11 @@ elsif ($cmdline->{act} eq "set")
 		$nodeobj->unknown($curextras);
 	
 		(my $op, $error) = $nodeobj->save;
-		die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed
+		die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed	
+		
+		print STDERR "Successfully updated node $node.\n"
+			if (-t \*STDERR);								# if terminal
 	}
-	
-	print STDERR "Successfully updated node $node.\n"
-if (-t \*STDERR);								# if terminal
 
 	exit 0;
 }

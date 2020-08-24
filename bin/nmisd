@@ -677,7 +677,7 @@ while (!$exit_marker)
 
 		my %statsdata;
 		for my $ds (map { ("${_}time", "${_}count") } (qw(collect update services metrics
-selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes
+selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes
 )))
 		{
 			# no occurrences of op X -> count must be zero, not undefined.
@@ -1343,10 +1343,143 @@ sub worker_loop
 						$state->{details} = "completed successfully ";
 					} else {
 						$state->{status} = "error";
-						$state->{details} = "Error creating node $errormsg";
+						$state->{details} = "Error $what node $errormsg";
 					}
 					
 					$state->{context} = {node_name => $nodes};	
+				}
+				elsif ($ourjob->{type} eq "set_nodes" ) {
+					my $nodes_list = "";
+					my $error = 0;
+					my $errormsg = "";
+					my $what = $ourjob->{type};
+					
+					my $data = $ourjob->{args}->{data};
+					my $nodes = $ourjob->{args}->{uuid};
+					
+					if (exists($data->{"entry.name"})) {
+							$nmisng->log->error("set_nodes: Please use act=rename for node renaming! ");
+							$error = 1;
+							next;
+					} else {
+						foreach my $n (@$nodes) {
+							$nmisng->log->error("set_nodes: Processing node $n! ");
+							my $nodeobj = $nmisng->node(name => $n) || $nmisng->node(uuid=> $n);
+							if (!$nodeobj) {
+								$error =1;
+								next;
+							}
+							
+							my $node = $nodeobj->name;			# if looked up via uuid
+						
+							my $curconfig = $nodeobj->configuration;
+							my $curoverrides = $nodeobj->overrides;
+							my $curactivated = $nodeobj->activated;
+							my $curextras = $nodeobj->unknown;
+							my $curarraythings = { aliases => $nodeobj->aliases,
+																		 addresses => $nodeobj->addresses };
+							my $anythingtodo;
+				
+							for my $name (keys %$data)
+							{
+								# . are replaced by _ for the queue
+								my $prop = $name;
+								$prop =~ s/_/./g;
+								
+								next if ($prop !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+								++$anythingtodo;
+						
+								my $value = $data->{$name};
+								undef $value if ($value eq "undef");
+								$prop =~ s/^entry\.//;
+						
+								# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+								$prop = "activated.NMIS" if ($prop eq "configuration.active");
+						
+								# where does it go? overrides.X is obvious...
+								if ($prop =~ /^overrides\.(.+)$/)
+								{
+									$curoverrides->{$1} = $value;
+								}
+								# ...name, cluster_id a bit less...
+								elsif ($prop =~ /^(name|cluster_id)$/)
+								{
+									$nodeobj->$1($value);
+								}
+								# ...and activated.X not at all
+								elsif ($prop =~ /^activated\.(.+)$/)
+								{
+									$curactivated->{$1} = $value;
+								}
+								# ...and then there's the unknown unknowns
+								elsif ($prop =~ /^unknown\.(.+)$/)
+								{
+									$curextras->{$1} = $value;
+								}
+								# and aliases and addresses, but these are ARRAYS
+								elsif ($prop =~ /^((aliases|addresses)\.(.+))$/)
+								{
+									$curarraythings->{$1} = $value;
+								}
+								# configuration.X
+								elsif ($prop =~ /^configuration\.(.+)$/)
+								{
+									$curconfig->{$1} = $value;
+								}
+								else
+								{
+									die "Unknown property \"$prop\"!\n";
+								}
+							}
+							if (!$anythingtodo) {
+								$nmisng->log->error("set_nodes: No changes for node \"$node\"!");
+								$error = 1;
+								next;
+							}
+						
+							for ([$curconfig, "configuration"],
+									 [$curoverrides, "override"],
+									 [$curactivated, "activated"],
+									 [$curarraythings, "addresses/aliases" ],
+									 [$curextras, "unknown/extras" ])
+							{
+								my ($checkwhat, $name) = @$_;
+						
+								my $error = NMISNG::Util::translate_dotfields($checkwhat);
+								if ($error) {
+									$nmisng->log->error("set_nodes: translation of $name arguments failed: $error!");
+									$error = 1;
+									next;
+								}
+							}
+						
+							$nodeobj->overrides($curoverrides);
+							$nodeobj->configuration($curconfig);
+							$nodeobj->activated($curactivated);
+							$nodeobj->addresses($curarraythings->{addresses});
+							$nodeobj->aliases($curarraythings->{aliases});
+							$nodeobj->unknown($curextras);
+						
+							(my $op, $error) = $nodeobj->save;
+							if ($op <= 0) {
+									$nmisng->log->error("set_nodes: Failed to save $node: $error");
+									$error = 1;
+									next;
+								}
+							$nodes_list = $nodes_list . " " . $node;
+	
+						}
+					}
+					
+					if ($error == 0) {
+						$state->{status} = "ok";
+						$state->{details} = "completed successfully ";
+					} else {
+						$state->{status} = "error";
+						$state->{details} = "Error setting node $errormsg";
+					}
+					
+					$state->{context} = {node_name => $nodes_list};	
 				}
 				elsif ($ourjob->{type} eq "plugins")
 				{
