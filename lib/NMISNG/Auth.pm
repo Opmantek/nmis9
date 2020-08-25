@@ -386,7 +386,7 @@ sub generate_cookie
 		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
 		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
 
-		logAuth("generated OMK cookie for $authuser: $value--$signature")
+		NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
 				if ($self->{debug});
 
 		return  CGI::cookie( { -name => $self->get_cookie_name,
