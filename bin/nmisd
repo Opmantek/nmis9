@@ -1266,7 +1266,11 @@ sub worker_loop
 							{
 								# First, backup
 								my $backup = $config->{'backup_node_on_delete'} // 1;
-								my $backup_folder = $config->{'<nmis_backups>'};
+								my $backup_folder = $config->{'node_dumps_dir'} // $config->{'<nmis_var>'}."/node_dumps";
+								if ( !-d $backup_folder )
+								{
+									mkdir( $backup_folder, 0700 ) or return {error => "Cannot create $backup_folder: $!"};
+								}
 								my $res;
 								
 								if ($backup) {
@@ -1278,7 +1282,7 @@ sub worker_loop
 								if (!$backup || $res->{success}) {
 									
 									(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds); # === eq false
-									$nmisng->log->info("********* $ok deleting node: $errormsg");
+									$nmisng->log->debug("********* $ok deleting node ". $mustdie->name);
 									if (!$ok) {
 										$nmisng->log->error("Error deleting node: $errormsg");
 										$error = 1;
