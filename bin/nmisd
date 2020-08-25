@@ -1244,36 +1244,54 @@ sub worker_loop
 				}
 				elsif ($ourjob->{type} eq "delete_nodes")
 				{
-					my $nodeuuid = $ourjob->{args}->{uuid};
+					my $uuid = $ourjob->{args}->{uuid};
+					my $name = $ourjob->{args}->{node};
 					my $nodes = "";
 					my $error = 0;
 					my $errormsg = "";
 					my $keeprrds = $ourjob->{args}->{keeprrds} // 0;
-					if (!$nodeuuid) {
+					
+					my $nodemodel = $nmisng->get_nodes_model(filter => {name => $name, uuid => $uuid});
+
+					if (!$nodemodel->count) {
 						$nmisng->log->error("No matching nodes exist");
+						$error = 1;
 					} else {
-						my $nodemodel = $nmisng->get_nodes_model(uuid => $nodeuuid);
-						if (!$nodemodel->count) {
-							$nmisng->log->error("No matching nodes exist");
+						my $gimmeobj = $nodemodel->objects; # instantiate, please!
+						if (!$gimmeobj->{success}) {
+							$nmisng->log->error("Failed to instantiate node objects: $gimmeobj->{error}");
+							$error = 1;
 						} else {
-							my $gimmeobj = $nodemodel->objects; # instantiate, please!
-							if (!$gimmeobj->{success}) {
-								$nmisng->log->error("Failed to instantiate node objects: $gimmeobj->{error}");
-							} else {
-								for my $mustdie (@{$gimmeobj->{objects}})
-								{
-									$nodes = $nodes . " " . $mustdie->name;
+							for my $mustdie (@{$gimmeobj->{objects}})
+							{
+								# First, backup
+								my $backup = $config->{'backup_node_on_delete'} // 1;
+								my $backup_folder = $config->{'<nmis_backups>'};
+								my $res;
+								
+								if ($backup) {
+									$res = $nmisng->dump_node(name => $mustdie->name,
+														 uuid => $mustdie->uuid,
+														 target => $backup_folder . "/".$mustdie->name.".zip");
+														 #options => \%options);
+								}
+								if (!$backup || $res->{success}) {
+									
 									(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds); # === eq false
 									$nmisng->log->info("********* $ok deleting node: $errormsg");
 									if (!$ok) {
 										$nmisng->log->error("Error deleting node: $errormsg");
 										$error = 1;
-									} 
-								}
+									} else {
+										$nodes = $nodes . " " . $mustdie->name;
+									}
+								} else {
+									$nmisng->log->error("Failed to backup node: ". $mustdie->name);
+									$error = 1;
+								}	
 							}
 						}
-					}	
-					
+					}
 					if ($error == 0) {
 						$state->{status} = "ok";
 						$state->{details} = "completed successfully";

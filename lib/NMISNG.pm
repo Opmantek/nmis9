@@ -2042,7 +2042,6 @@ sub get_nodes_model
 	{
 		$filter->{name} = NMISNG::DB::make_string($filter->{name});
 	}
-
 	my $fields_hash = $args{fields_hash};
 	my $q = NMISNG::DB::get_query( and_part => $filter );
 
@@ -4848,10 +4847,16 @@ sub update_queue
 			if ( ref( $jobdata->{args} ) ne "HASH" or !keys %{$jobdata->{args}} );
 	}
 
-	if ( $jobdata->{type} =~ /^(collect|update|services|delete_nodes)$/
+	if ( $jobdata->{type} =~ /^(collect|update|services)$/
 		and !$jobdata->{args}->{uuid} )
 	{
 		return "Invalid job data, args must contain uuid property!";
+	}
+	
+	if ( $jobdata->{type} =~ /^(delete_nodes)$/
+		and !$jobdata->{args}->{uuid} and !$jobdata->{args}->{node})
+	{
+		return "Invalid job data, args must contain uuid or names property!";
 	}
 	
 	if ( $jobdata->{type} =~ /^(update_nodes|create_nodes|set_nodes)$/

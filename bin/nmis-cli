@@ -275,7 +275,7 @@ elsif ($Q->{act} eq "schedule")
 	# perform any necessary arg conversions and expansions
 	# collect/services/update, find the nodes implied and schedule a separate job for each
 	# post-update/collect plugins require a list of node uuids - should normally be left to the daemon to schedule
-	if ($what =~ /^(collect|update|services|plugins|delete_nodes|update_nodes)$/)
+	if ($what =~ /^(collect|update|services|plugins)$/)
 	{
 		my @filters;
 		
@@ -288,12 +288,7 @@ elsif ($Q->{act} eq "schedule")
 															$filterable =~ /^(name|uuid)$/?
 															$filterable : "configuration.$filterable") => $_ }; } (@inputs);
 		}
-		my $possibles;
-		if ($what =~ /^(delete_nodes|update_nodes)$/) {
-			$possibles = $nmisng->expand_node_selection_inactive_too(filter => \@filters);
-		} else {
-			$possibles = $nmisng->expand_node_selection(@filters);
-		}
+		my $possibles = $nmisng->expand_node_selection(@filters);
 
 		die "Failed to query nodes: ".$possibles->error."\n" if ($possibles->error);
 		die "No nodes found matching your selectors!\n" if (!$possibles->count);
@@ -320,23 +315,7 @@ elsif ($Q->{act} eq "schedule")
 					args => \%jobargs });
 			die "Failed to add schedule: $error\n" if ($error);
 			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$wantquiet);
-		} elsif ($what =~ /^(delete_nodes|update_nodes)$/)			# one combined job with the node uuids passed in
-		{
-			$jobargs{uuid} = [ map { $_->{uuid} } (@{$possibles->data}) ];
-			$jobargs{data} = $Q->{"job.data"};
-
-			my ($error,$jobid) = $nmisng->update_queue(
-				jobdata => {
-					type => $what,
-					time => $when,
-					priority => $priority,
-					verbosity => $verbosity,
-					output => $customlog,
-					in_progress => 0,					# somebody else is to work on this
-					args => \%jobargs });
-			die "Failed to add schedule: $error\n" if ($error);
-			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$wantquiet);
-		}
+		} 
 		# collect/update/services need separate scheduling for each node
 		else
 		{

@@ -476,7 +476,7 @@ elsif ($cmdline->{act} eq "set")
 					args => \%jobargs });
 		
 		die "Failed to instantiate job! $error\n" if $error;
-		print STDERR "A $what job has sent to the queue for ".@data." nodes. Job ID:  $jobid \n\n"
+		print STDERR "Job $jobid created for type $what and ".@data." nodes.\n"
 				if (-t \*STDERR);	
 		
 	} else {
@@ -581,19 +581,56 @@ elsif ($cmdline->{act} eq "delete")
 	die "NOT deleting anything:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
 			if (!$confirmation or $confirmation ne "YES");
 
-	my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group);
-	die "No matching nodes exist\n" if (!$nodemodel->count);
-
-	my $gimmeobj = $nodemodel->objects; # instantiate, please!
-	die "Failed to instantiate node objects: $gimmeobj->{error}\n"
-			if (!$gimmeobj->{success});
-
-	for my $mustdie (@{$gimmeobj->{objects}})
-	{
-		my ($ok, $error) = $mustdie->delete(
-			keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
-		die $mustdie->name.": $error\n" if (!$ok);
+	my $file = $cmdline->{file};
+	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes	
+	
+	if ($schedule) {
+		my @nodes = split(",", $node);
+		my @uuid = split(",", $uuid);
+		die "No nodes to be removed" if (scalar(@nodes) == 0 and scalar(@uuid) == 0);
+		
+		# Support for node dump
+		my $time = $cmdline->{time} // time;
+		my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
+		my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+		my $keeprrds = $cmdline->{keeprrds} // $config->{keeprrds_on_delete_node} // 0;
+		my $what = "delete_nodes";
+		my %jobargs;
+	
+		$jobargs{node} = \@nodes if (scalar(@nodes) > 0);
+		$jobargs{uuid} = \@uuid if (scalar(@uuid) > 0);
+		$jobargs{keeprrds} = $keeprrds;
+		
+		my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => $what,
+					time => $time,
+					priority => $priority,
+					verbosity => $verbosity,
+					in_progress => 0,					# somebody else is to work on this
+					args => \%jobargs });
+		
+		die "Failed to instantiate job! $error\n" if $error;
+		print STDERR "Job $jobid created for type $what and ".@nodes." nodes.\n"
+				if (-t \*STDERR);	
+		
+	} else {
+		
+		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group);
+		die "No matching nodes exist\n" if (!$nodemodel->count);
+		
+		my $gimmeobj = $nodemodel->objects; # instantiate, please!
+		die "Failed to instantiate node objects: $gimmeobj->{error}\n"
+				if (!$gimmeobj->{success});
+	
+		for my $mustdie (@{$gimmeobj->{objects}})
+		{
+			my ($ok, $error) = $mustdie->delete(
+				keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
+			die $mustdie->name.": $error\n" if (!$ok);
+		}
 	}
+	
 	exit 0;
 }
 elsif ($cmdline->{act} eq "rename")
@@ -703,10 +740,6 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 {
 	my $file = $cmdline->{file};
 	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes
-	my $time = $cmdline->{time} // time;
-	my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
-	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
-	my $what = $cmdline->{act} eq "create" ? "create_nodes" : "update_nodes";
 
 	open(F, $file) or die "Cannot read $file: $!\n";
 	my $nodedata = join('', grep( !m!^\s*//\s+!, <F>));
@@ -727,22 +760,25 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 	if (ref($mayberec) eq "ARRAY") {
 		foreach my $node (@$mayberec) {
 			validate_node_data(node => $node);
+			# no uuid and creating a node? then we add one
 			$node->{uuid} ||= NMISNG::Util::getUUID($node->{name}) if ($cmdline->{act} eq "create");
 			$number++;
 		} 
 	} else {
 		validate_node_data(node => $mayberec);
+		# no uuid and creating a node? then we add one
 		$mayberec->{uuid} ||= NMISNG::Util::getUUID($mayberec->{name}) if ($cmdline->{act} eq "create");
 		$number++;
 	}
 
-	# no uuid and creating a node? then we add one
-	#$mayberec->{uuid} ||= NMISNG::Util::getUUID($name) if ($cmdline->{act} eq "create");
 	my %jobargs;
 	
 	# Send job to the queue
 	if ($schedule) {
-		# $jobargs{uuid} = [ map { $_->{uuid} } (@{$possibles->data}) ];
+		my $time = $cmdline->{time} // time;
+		my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
+		my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+		my $what = $cmdline->{act} eq "create" ? "create_nodes" : "update_nodes";
 		$jobargs{data} = $mayberec;
 		
 		my ($error,$jobid) = $nmisng->update_queue(
@@ -755,7 +791,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/)
 					args => \%jobargs });
 		
 		die "Failed to instantiate job! $error\n" if $error;
-		print STDERR "A $what job has sent to the queue for ".$number." nodes. Job ID:  $jobid \n\n"
+		print STDERR "Job $jobid created for type $what and ".$number." nodes.\n"
 				if (-t \*STDERR);	
 		
 	} else {
