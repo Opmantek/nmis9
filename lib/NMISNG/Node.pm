@@ -2945,6 +2945,25 @@ sub update_intf_info
 				$path = $inventory->path; # no longer the same - path was partial, now it no longer is
 				$inventory->description( $target->{Description} || $target->{ifDescr} );
 
+				# Regenerate storage: If ifDescr has changed, we need this
+				for ("interface", "pkts", "pkts_hc" )
+				{
+					if ($inventory->find_subconcept_type_storage(type => $_,
+																				 index     => $index,
+																				 item      => $_,
+																				 relative => 1 )) {
+						my $dbname = $S->makeRRDname(type => $_,
+																				 index     => $index,
+																				 item      => $_,
+																				 relative => 1 );
+						$self->nmisng->log->debug2("Storage: ". Dumper($dbname));
+						$inventory->set_subconcept_type_storage(type => "rrd",
+																subconcept => $_,
+																data => $dbname) if ($dbname);
+					}
+					
+				}
+				
 				# historic is only set when the index/_id is in the db but not found in the device, we are looping
 				# through things found on the device so it's not historic
 				$inventory->historic(0);
