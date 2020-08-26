@@ -464,7 +464,7 @@ my %hash = (
 		'purge_outages_after' => 86400,			 # past non-recurring outages
 		'purge_opstatus_after' => 7*86400,	 # opstatus records
 		'purge_graphcache_after' => 3600,				 # cached graph images
-    'purge_node_dumps_after' => 10*86400,	 # node dump files from deleted nodes
+    'purge_node_dumps_after' => 30*86400,	 # node dump files from deleted nodes
 	},
 
 	'schedule' => {

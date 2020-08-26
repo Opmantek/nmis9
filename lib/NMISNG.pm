@@ -4257,7 +4257,7 @@ sub purge_old_files
 			location     => $C->{report_root},
 			description  => "Very old report files",
 		},
-		{   minage => $C->{purge_node_dumps_after} || 10 * 86400,
+		{   minage => $C->{purge_node_dumps_after} || 30 * 86400,
 			also_empties => 0,
 			ext          => qr/\.zip$/,
 			location     => $C->{node_dumps_dir},
