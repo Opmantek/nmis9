@@ -5319,4 +5319,31 @@ sub get_remote
 	return $res;
 }
 
+# Returns the server name
+# args: cluster_id
+# Return server_name
+sub get_server_name
+{
+	my ($self, %args) = @_;
+	my $cluster_id = $args{cluster_id};
+
+	return undef if (!$cluster_id);
+	return $self->config->{server_name} if ($cluster_id eq $self->config->{cluster_id});
+
+	my $model_data = [];
+	my $query_count;
+	my $res;
+
+	# if you want only a count but no data, set count to 1 and limit to 0
+	my $cursor = NMISNG::DB::find(
+			collection  => $self->remote_collection,
+			query       => {cluster_id => $cluster_id},
+			fields_hash => {cluster_id => 1}
+		);
+
+	# Should only return one. 
+	my $entry = $cursor->next;
+	return $entry->{server_name};
+}
+
 1;
