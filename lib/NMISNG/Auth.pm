@@ -320,6 +320,14 @@ sub verify_id
 			return '';
 		}
 		my $user_name = $sessioninfo->{auth_data};
+		
+		# Validate expiration 
+		if ( $sessioninfo->{expires} < time)
+		{
+			NMISNG::Util::logAuth("OMK cookie invalid: Session expired! ". $sessioninfo->{expires});
+			return '';
+		}
+		
 		NMISNG::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
 						.decode_base64($sessiondata)) if $self->{debug};
 		return $user_name;
@@ -386,7 +394,7 @@ sub generate_cookie
 		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
 		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
 
-		logAuth("generated OMK cookie for $authuser: $value--$signature")
+		NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
 				if ($self->{debug});
 
 		return  CGI::cookie( { -name => $self->get_cookie_name,
@@ -396,7 +404,7 @@ sub generate_cookie
 	}
 	else
 	{
-		logAuth("ERROR unrecognisable auth_cookie_flavour configuration!");
+		NMISNG::Util::logAuth("ERROR unrecognisable auth_cookie_flavour configuration!");
 		return '';
 	}
 }
