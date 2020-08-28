@@ -262,7 +262,6 @@ sub bulk_update_inventory_historic
 	{
 		$q->{'data.index'} = {'$nin' => $active_indices};
 	}
-
 	# mark historic where not in list
 	my $result = NMISNG::DB::update(
 		collection => $self->nmisng->inventory_collection,
@@ -849,6 +848,39 @@ sub inventory
 	}
 
 	return ($inventory, undef);
+}
+
+# No args
+# Return an array of concepts for this node
+sub inventory_concepts
+{
+	my ( $self, %args ) = @_;
+	my $filter = $args{filter};
+	$args{cluster_id} = $self->cluster_id();
+	$args{node_uuid}  = $self->uuid();
+
+	my $q = $self->nmisng->get_inventory_model_query( %args );
+	my $retval = ();
+
+	# print "q".Dumper($q);
+	# query parts that don't look at $datasets could run first if we need optimisation
+	my @prepipeline = (
+		{ '$match' => $q },
+		{ '$group' =>
+			{ '_id' => { "concept" => '$concept'}  # group by subconcepts
+		}}
+  );
+  my ($entries,$count,$error) = NMISNG::DB::aggregate(
+		collection => $self->nmisng->inventory_collection,
+		pre_count_pipeline => \@prepipeline, #use either pipe, doesn't matter
+		allowtempfiles => 1
+	);
+	foreach my $entry (@$entries)
+	{
+		push @$retval, $entry->{_id}{concept};
+
+	}
+	return ($error) ? $error : $retval;
 }
 
 # get all subconcepts and any dataset found within that subconcept
@@ -1821,7 +1853,6 @@ sub update_node_info
 
 				# if the vendors product oid file is loaded, this will give product name.
 				$catchall_data->{sysObjectName} = NMISNG::MIB::oid2name($self->nmisng, $catchall_data->{sysObjectID} );
-
 				$self->nmisng->log->debug2("sysObjectId=$catchall_data->{sysObjectID}, sysObjectName=$catchall_data->{sysObjectName}");
 				$self->nmisng->log->debug2("sysDescr=$catchall_data->{sysDescr}");
 
@@ -4368,6 +4399,7 @@ sub collect_systemhealth_info
 			}
 		}
 	}
+		
 	$self->nmisng->log->debug("Finished with collect_systemhealth_info");
 	return 1;
 }
@@ -6161,6 +6193,7 @@ sub update
 
 				# fixme: why no error handling for any of these?
 				$self->collect_systemhealth_info(sys => $S) if defined $S->{mdl}{systemHealth};
+				$self->update_concepts(sys => $S) if defined $S->{mdl}{systemHealth};
 				$self->collect_cbqos(sys => $S, update => 1);
 			}
 			else
@@ -6261,6 +6294,71 @@ sub update
 	$self->nmisng->log->debug("Finished with update");
 
 	return @problems? { error => join(" ",@problems) } : { success => 1 };
+}
+
+# Called by update
+# collect_systemhealth_info iterates over model data
+# And marks as inactive the removed concepts
+# But the concept that are in the inventory
+# And were removed from the model, are not marked as historic
+sub update_concepts
+{
+	my ($self, %args) = @_;
+	my $S    = $args{sys};    # object
+
+	my $name = $self->name;
+	my $C = $self->nmisng->config;
+
+	my $SNMP = $S->snmp;
+	my $M    = $S->mdl;           # node model table
+
+	my $inventory = $self->inventory_concepts();
+	my %concepts;
+	
+	if ( ref( $M->{systemHealth} ) ne "HASH" )
+	{
+		$self->nmisng->log->debug2("No class 'systemHealth' declared in Model.");
+		return 0;
+	}
+	elsif ( !$S->status->{snmp_enabled} && !$S->status->{wmi_enabled} )
+	{
+		$self->nmisng->log->warn("cannot get systemHealth info, neither SNMP nor WMI enabled!");
+		return 0;
+	}
+
+	# get the default (sub)sections from config, model can override
+	my @healthSections = split(
+		",",
+		(   defined( $M->{systemHealth}{sections} )
+			? $M->{systemHealth}{sections}
+				: $C->{model_health_sections}
+		)
+			);
+	for my $section (@healthSections)
+	{
+		$concepts{$section} = 1;
+	}
+	
+	# Never set these to historic
+	# TODO: Should we compare this with other list??
+	$concepts{'interface'} = 1;
+	$concepts{'catchall'} = 1;
+	$concepts{'ping'} = 1;
+	
+	my %inactive;
+	
+	foreach my $i (@$inventory) {
+		if ($concepts{$i}) {
+			$self->nmisng->log->debug8("Concept $i from inventory is defined in model");
+		} else {
+			$self->nmisng->log->info("Concept $i mark historic ");
+			# TODO: Activate this feature
+			#my $result = $self->bulk_update_inventory_historic(active_indices => {}, concept => $i );
+		}
+	}
+	
+	return 1;
+	
 }
 
 # calculate the summary8 and summary16 data like it used to be, this will be stored in the db as
