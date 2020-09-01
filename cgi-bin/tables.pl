@@ -196,8 +196,9 @@ EOF
 		print Tr(Tr(th({class=>'Warning',colspan=>$colspan}, $msg)));
 	}
 	if (!$iseditable) {
-		print Tr(td({class=>'Warning',align=>'center',colspan=>$colspan}, "There are files from the master overriding the configuration"));
+		print Tr(td({class=>'Warning',align=>'center',colspan=>$colspan}, "This peer is a poller. Configuration must be set in the master."));
 	}
+
 	print Tr(Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line);
 
 	# print data
@@ -398,7 +399,7 @@ sub showTable {
 
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
-
+	
 	# try to find a match
 	my $pos = length($key)+1;
 	my $k = lc $key;
@@ -638,6 +639,9 @@ sub iseditable
 	my $table = $Q->{table};
 	
 	if ($table ne "Nodes" and NMISNG::Util::has_external_files(dir=>'conf',name=>$table)) {
+		return 0;
+	}
+	if ($table eq "Nodes" and $C->{server_role} eq "POLLER") {
 		return 0;
 	}
 	return 1;
