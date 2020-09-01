@@ -6344,6 +6344,7 @@ sub update_concepts
 	$concepts{'interface'} = 1;
 	$concepts{'catchall'} = 1;
 	$concepts{'ping'} = 1;
+	$concepts{'device_global'} = 1;
 	
 	my %inactive;
 	
@@ -6351,9 +6352,10 @@ sub update_concepts
 		if ($concepts{$i}) {
 			$self->nmisng->log->debug8("Concept $i from inventory is defined in model");
 		} else {
-			$self->nmisng->log->info("Concept $i mark historic ");
 			# TODO: Activate this feature
-			#my $result = $self->bulk_update_inventory_historic(active_indices => {}, concept => $i );
+			my @index = ();
+			my $result = $self->bulk_update_inventory_historic(active_indices => \@index, concept => $i );
+			$self->nmisng->log->info("Concept $i marked historic: ". Dumper($result));
 		}
 	}
 	
