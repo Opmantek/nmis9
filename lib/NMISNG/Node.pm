@@ -6339,12 +6339,14 @@ sub update_concepts
 		$concepts{$section} = 1;
 	}
 	
-	# Never set these to historic
-	# TODO: Should we compare this with other list??
+	# Never set these to historic, processed separately
 	$concepts{'interface'} = 1;
 	$concepts{'catchall'} = 1;
 	$concepts{'ping'} = 1;
 	$concepts{'device_global'} = 1;
+	$concepts{'device'} = 1;
+	$concepts{'storage'} = 1;
+	$concepts{'service'} = 1;
 	
 	my %inactive;
 	
