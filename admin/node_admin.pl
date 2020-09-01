@@ -53,7 +53,34 @@ use NMISNG::Util;
 use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 
 my $bn = basename($0);
-my $usage = "Usage: $bn act=[action to take] [extras...]
+
+my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
+
+# first we need a config object
+my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
+my $config = NMISNG::Util::loadConfTable( dir => $customconfdir,
+																					debug => $cmdline->{debug});
+die "no config available!\n" if (ref($config) ne "HASH"
+																 or !keys %$config);
+my $server_role = $config->{'server_role'};
+my $usage;
+if ($server_role eq "POLLER") {
+	
+	$usage = "Usage: $bn act=[action to take] [extras...]
+
+\t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
+\t$bn act=show {node=nodeX|uuid=nodeUUID}
+\t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
+\t$bn act=restore file=path [localise_ids=0/1]
+
+restore: restores a previously dumped node's data. if 
+ localise_ids=true (default: false), then the cluster id is rewritten
+ to match the local nmis installation.
+ 
+This server is a $server_role. This is why the number of actions is restricted.
+\n\n";
+} else {
+	$usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
 \t$bn act=show {node=nodeX|uuid=nodeUUID}
@@ -98,16 +125,9 @@ restore: restores a previously dumped node's data. if
 extras: debug={1..9,verbose} sets debugging verbosity
 extras: info=1 sets general verbosity
 \n\n";
-
+}
 die $usage if (!@ARGV or ( @ARGV == 1 and $ARGV[0] =~ /^-(h|\?|-help)$/ ));
-my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
-# first we need a config object
-my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
-my $config = NMISNG::Util::loadConfTable( dir => $customconfdir,
-																					debug => $cmdline->{debug});
-die "no config available!\n" if (ref($config) ne "HASH"
-																 or !keys %$config);
 
 # log to stderr if debug is given
 my $logfile = $config->{'<nmis_logs>'} . "/cli.log"; # shared by nmis-cli and this one
@@ -125,7 +145,7 @@ my $nmisng = NMISNG->new(config => $config, log  => $logger);
 
 # import from nmis8 nodes file, overwriting existing data in the db
 if ($cmdline->{act} =~ /^import[_-]bulk$/
-		&& (my $nodesfile = $cmdline->{nodes}))
+		&& (my $nodesfile = $cmdline->{nodes}) && $server_role ne "POLLER")
 {
 	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
 
@@ -190,7 +210,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 }
 # import nmis9 node configuration export
 elsif ($cmdline->{act} eq "import"
-			&& (my $infile = $cmdline->{file}))
+			&& (my $infile = $cmdline->{file}) && $server_role ne "POLLER")
 {
 	die "invalid file \"$infile\" argument!\n" if (!-f $infile);
 	$logger->info("Starting import of nodes");
@@ -203,6 +223,9 @@ elsif ($cmdline->{act} eq "import"
 
 	foreach my $onenode ( ref($lotsanodes) eq "HASH"? ($lotsanodes) : @$lotsanodes )
 	{
+		my $nodeobj = $nmisng->node(name => $onenode->{name});
+		die "Node ". $onenode->{name}." already exist.\n" if ($nodeobj && !$onenode->{uuid});
+	
 		my $node = $nmisng->node( uuid => $onenode->{uuid}
 															|| NMISNG::Util::getUUID($onenode->{name}),
 															create => 1 );
@@ -235,7 +258,7 @@ elsif ($cmdline->{act} eq "import"
 }
 # import nmis8 nodeconf overrides
 elsif ($cmdline->{act} =~ /^import[_-]bulk$/
-			 && (my $nodeconfdir = $cmdline->{nodeconf}))
+			 && (my $nodeconfdir = $cmdline->{nodeconf}) && $server_role ne "POLLER" )
 {
 	die "invalid nodeconf directory $nodeconfdir!\n" if (!-d $nodeconfdir);
 
@@ -445,7 +468,7 @@ elsif ($cmdline->{act} eq "show")
 	}
 	exit 0;
 }
-elsif ($cmdline->{act} eq "set")
+elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 {
 	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
 
@@ -573,7 +596,7 @@ elsif ($cmdline->{act} eq "set")
 
 	exit 0;
 }
-elsif ($cmdline->{act} eq "delete")
+elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 {
 	my ($node,$uuid,$group,$confirmation,$nukedata) = @{$cmdline}{"node","uuid","group","confirm","deletedata"};
 
@@ -633,7 +656,7 @@ elsif ($cmdline->{act} eq "delete")
 	
 	exit 0;
 }
-elsif ($cmdline->{act} eq "rename")
+elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 {
 	my ($old, $new, $uuid) = @{$cmdline}{"old","new","uuid"}; # uuid is safest for lookup
 
@@ -701,7 +724,7 @@ elsif ($cmdline->{act} eq "rename")
 	exit 0;
 }
 # template is deeply structured, just like output of act=export (EXCEPT for act=export format=nodes)
-elsif ($cmdline->{act} eq "mktemplate")
+elsif ($cmdline->{act} eq "mktemplate" && $server_role ne "POLLER")
 {
 	my $file = $cmdline->{file};
 	die "File \"$file\" already exists, NOT overwriting!\n"
@@ -736,7 +759,7 @@ configuration.community configuration.roleType configuration.netType configurati
 	exit 0;
 }
 # both create and update expect deeply structured inputs
-elsif ($cmdline->{act} =~ /^(create|update)$/)
+elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 {
 	my $file = $cmdline->{file};
 	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes
