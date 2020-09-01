@@ -84,11 +84,11 @@ This server is a $server_role. This is why the number of actions is restricted.
 
 \t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
 \t$bn act=show {node=nodeX|uuid=nodeUUID}
-\t$bn act={create|update} file=someFile.json
+\t$bn act={create|update} file=someFile.json [server={server_name|cluster_id}]
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|uuid=nodeUUID|group=groupY} [keep_ids=0/1]
 \t$bn act=import file=somefile.json
 \t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
-\t$bn act=delete {node=nodeX|group=groupY|uuid=nodeUUID}
+\t$bn act=delete {node=nodeX|group=groupY|uuid=nodeUUID} [server={server_name|cluster_id}]
 \t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
 \t$bn act=restore file=path [localise_ids=0/1]
 
@@ -763,6 +763,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 {
 	my $file = $cmdline->{file};
 	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes
+	my $server = $cmdline->{server} // 1; # Schedule by default? Yes
 
 	open(F, $file) or die "Cannot read $file: $!\n";
 	my $nodedata = join('', grep( !m!^\s*//\s+!, <F>));
@@ -772,6 +773,22 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	die "Invalid node data, __REPLACE_... placeholders are still present!\n"
 			if ($nodedata =~ /__REPLACE_\S+__/);
 
+	# sanity check for server
+	my $server_data;
+	if ($server) {
+		$server_data->{id} = $nmisng->get_cluster_id(server_name => $server);
+		if (!$server_data->{id}) {
+			$server_data->{name} = $nmisng->get_server_name(cluster_id => $server);
+			if (!$server_data->{name}) {
+				die "Invalid server!\n";
+			} else {
+				$server_data->{id} = $server;
+			}
+		} else {
+			$server_data->{name} = $server;
+		}
+	}
+	
 	my $mayberec;
 	# check correct encoding (utf-8) first, fall back to latin-1
 	$mayberec = eval { decode_json($nodedata); };
@@ -782,13 +799,13 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	
 	if (ref($mayberec) eq "ARRAY") {
 		foreach my $node (@$mayberec) {
-			validate_node_data(node => $node);
+			validate_node_data(node => $node, remote => $server_data);
 			# no uuid and creating a node? then we add one
 			$node->{uuid} ||= NMISNG::Util::getUUID($node->{name}) if ($cmdline->{act} eq "create");
 			$number++;
 		} 
 	} else {
-		validate_node_data(node => $mayberec);
+		validate_node_data(node => $mayberec, remote => $server_data);
 		# no uuid and creating a node? then we add one
 		$mayberec->{uuid} ||= NMISNG::Util::getUUID($mayberec->{name}) if ($cmdline->{act} eq "create");
 		$number++;
@@ -803,6 +820,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		my $verbosity = $cmdline->{verbosity} // $config->{log_level};
 		my $what = $cmdline->{act} eq "create" ? "create_nodes" : "update_nodes";
 		$jobargs{data} = $mayberec;
+		$jobargs{server} = $server_data if ($server);
 		
 		my ($error,$jobid) = $nmisng->update_queue(
 				jobdata => {
@@ -820,10 +838,10 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	} else {
 		my %query = $mayberec->{uuid}? (uuid => $mayberec->{uuid}) : (name => $mayberec->{name});
 		my $nodeobj = $nmisng->node(%query);
-		$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1);
+		$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1, remote => $server);
 		die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
 	
-		my $isnew = $nodeobj->is_new;
+		my $isnew = $nodeobj->is_new; 
 		# must set overrides, activated, name/cluster_id, addresses/aliases, configuration;
 		for my $mustset (qw(cluster_id name activated overrides configuration addresses aliases))
 		{
@@ -831,14 +849,22 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 			delete $mayberec->{$mustset};
 		}
 		# if creating, add missing cluster_id for local operation
-		$nodeobj->cluster_id($config->{cluster_id}) if ($cmdline->{act} eq "create"
-																										&& !$nodeobj->cluster_id);
+		if ($server) {
+			$nodeobj->cluster_id($server_data->{id});
+		} else {
+			$nodeobj->cluster_id($config->{cluster_id}) if ($cmdline->{act} eq "create" && !$nodeobj->cluster_id);
+		}
 		# there should be nothing left at this point, anything that is goes into unknown()
 		my %unknown = map { ($_ => $mayberec->{$_}) } (grep(!/^(configuration|lastupdate|uuid)$/,
 																												keys %$mayberec));
 		$nodeobj->unknown(\%unknown);
 	
-		my ($status,$msg) = $nodeobj->save;
+		my ($status,$msg);
+		if ($server) {
+			($status,$msg) = $nodeobj->save(remote => 1);
+		} else {
+			($status,$msg) = $nodeobj->save;
+		}
 		# zero is no saving needed, which is not good here
 		die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
 	
@@ -858,7 +884,8 @@ sub validate_node_data
 {
 	my %args = @_;
 	my $node = $args{node};
-
+	my $remote = $args{remote};
+	
 	my $name = $node->{name};
 	die "Invalid node name \"$name\"\n"
 			if ($name =~ /[^a-zA-Z0-9_-]/);
@@ -882,6 +909,7 @@ sub validate_node_data
 
 	# look up the node - ideally by uuid, fall back to name only if necessary
 	my %query = $node->{uuid}? (uuid => $node->{uuid}) : (name => $node->{name});
+	$query{remote} = 1;
 	my $nodeobj = $nmisng->node(%query);
 	die "Node $name does not exist.\n" if (!$nodeobj && $cmdline->{act} eq "update");
 	die "Node $name already exist.\n" if ($nodeobj && $cmdline->{act} eq "create");

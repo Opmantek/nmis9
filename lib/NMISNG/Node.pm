@@ -1350,7 +1350,8 @@ sub rename
 #   a differnent way of doing this
 sub save
 {
-	my ($self) = @_;
+	my ($self, %args) = @_;
+	my $remote = $args{remote};
 
 	return ( -1, "node is incomplete, not saveable yet" )
 			if ($self->is_new && !$self->_dirty);
@@ -1359,6 +1360,7 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
+	my $collection = $remote ? $self->nmisng->nodes_catalog_collection() : $self->nmisng->nodes_collection();
 	# massage the overrides for db storage,
 	# as they may have keys with dots which mongodb < 3.6 doesn't support
 	# simplest workaround: mark up with ==, then base64-encoded key.
@@ -1377,6 +1379,9 @@ sub save
 								addresses => $self->{_addresses} // [],
 								aliases => $self->{_aliases} // [],
 			);
+	if ($remote) {
+		$entry{status} = "new";
+	}
 	# and, should we have any legacy/unknown extra things around, save them back - where safe!
 	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate)$/, keys %{$self->{_unknown}}));
 
@@ -1384,10 +1389,10 @@ sub save
 	{
 		# could maybe be upsert?
 		$result = NMISNG::DB::insert(
-			collection => $self->nmisng->nodes_collection(),
+			collection => $collection,
 			record     => \%entry,
 		);
-		assert( $result->{success}, "Record inserted successfully" );
+		assert( $result->{success}, "Record inserted successfully " );
 		$self->{_id} = $result->{id} if ( $result->{success} );
 
 		$self->_dirty(0); # all clean now
@@ -1397,7 +1402,7 @@ sub save
 	{
 
 		$result = NMISNG::DB::update(
-			collection => $self->nmisng->nodes_collection(),
+			collection => $collection,
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid}, no_regex => 1 ),
 			freeform   => 1,					# we need to replace the whole record
 			record     => \%entry

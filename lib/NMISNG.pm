@@ -110,7 +110,7 @@ sub new
 	# allow for instantiating a test collection in our $db for running tests:
 	my $tests = $args{tests};
 	# load and prime the statically defined collections
-	for my $default_collname (qw(nodes events inventory latest_data queue opstatus status remote))
+	for my $default_collname (qw(nodes events inventory latest_data queue opstatus status remote nodes_catalog))
 	{
 		#  allow for instantiating a test collection in our $db for running tests:
 		my $collname = $tests->{"${default_collname}_test_collection"};
@@ -2016,7 +2016,10 @@ sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
+	my $remote = $args{remote};
+	my $collection = $remote ? $self->nodes_catalog_collection : $self->nodes_collection;
 
+	print "Getting remote? ". $remote;
 	# copy convenience/shortcut arguments iff the filter
 	# hasn't already set them - the filter wins
 	for my $shortie (qw(uuid name)) # db keeps these at the top level...
@@ -2051,7 +2054,7 @@ sub get_nodes_model
 	if ( $args{count} )
 	{
 		my $res = NMISNG::DB::count(
-			collection => $self->nodes_collection,
+			collection => $collection,
 			query      => $q,
 			verbose    => 1
 		);
@@ -2064,7 +2067,7 @@ sub get_nodes_model
 	if ( !( $args{count} && defined $args{limit} && $args{limit} == 0 ) )
 	{
 		my $cursor = NMISNG::DB::find(
-			collection  => $self->nodes_collection,
+			collection  => $collection,
 			query       => $q,
 			fields_hash => $fields_hash,
 			sort        => $args{sort},
@@ -2710,6 +2713,33 @@ sub remote_collection
 	return $self->{_db_remote};
 }
 
+# helper to get/set servers collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub nodes_catalog_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	$self->log->debug("index setup for remote");
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_nodes_catalog} = $newvalue;
+
+		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_nodes_catalog},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				# needed for joins
+				[{"uuid" => 1}, {unique => 1}],
+				[{"name" => 1}, {unique => 0}]
+			]
+		);
+		$self->log->error("index setup failed for nodes catalog: $err") if ($err);
+	}
+	return $self->{_db_nodes_catalog};
+}
+
 # get or create an NMISNG::Node object from the given arguments (that should make it unique)
 # the local node found matching all arguments is provided (if >1 is found)
 #
@@ -2720,11 +2750,12 @@ sub node
 {
 	my ( $self, %args ) = @_;
 	my $create = $args{create};
+	my $remote = $args{remote};
 	delete $args{create};
 
 	my $node;
 	# we only need the uuid, and the name only for error handling
-	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
+	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1, cluster_id => 1}, remote => $remote);
 
 	if ( $modeldata->count() > 1 )
 	{
@@ -5338,12 +5369,39 @@ sub get_server_name
 	my $cursor = NMISNG::DB::find(
 			collection  => $self->remote_collection,
 			query       => {cluster_id => $cluster_id},
-			fields_hash => {cluster_id => 1}
+			fields_hash => {server_name => 1}
 		);
 
 	# Should only return one. 
 	my $entry = $cursor->next;
 	return $entry->{server_name};
+}
+
+# Returns the cluster_id
+# args: server_name
+# Return cluster_id
+sub get_cluster_id
+{
+	my ($self, %args) = @_;
+	my $server_name = $args{server_name};
+
+	return undef if (!$server_name);
+	return $self->config->{cluster_id} if ($server_name eq $self->config->{server_name});
+
+	my $model_data = [];
+	my $query_count;
+	my $res;
+
+	# if you want only a count but no data, set count to 1 and limit to 0
+	my $cursor = NMISNG::DB::find(
+			collection  => $self->remote_collection,
+			query       => {server_name => $server_name},
+			fields_hash => {cluster_id => 1}
+		);
+
+	# Should only return one. 
+	my $entry = $cursor->next;
+	return $entry->{cluster_id};
 }
 
 1;
