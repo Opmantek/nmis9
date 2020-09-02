@@ -2019,7 +2019,6 @@ sub get_nodes_model
 	my $remote = $args{remote};
 	my $collection = $remote ? $self->nodes_catalog_collection : $self->nodes_collection;
 
-	print "Getting remote? ". $remote;
 	# copy convenience/shortcut arguments iff the filter
 	# hasn't already set them - the filter wins
 	for my $shortie (qw(uuid name)) # db keeps these at the top level...
@@ -2079,19 +2078,19 @@ sub get_nodes_model
 			nmisng => $self,
 			error  => "Find failed: " . NMISNG::DB::get_error_string
 		) if ( !defined $cursor );
-
 		@$model_data = $cursor->all;
 	}
 
 	my $model_data_object = NMISNG::ModelData->new(
-		class_name  => "NMISNG::Node",
-		nmisng      => $self,
-		data        => $model_data,
-		query_count => $query_count,
-		sort        => $args{sort},
-		limit       => $args{limit},
-		skip        => $args{skip}
-	);
+				class_name  => "NMISNG::Node",
+				nmisng      => $self,
+				data        => $model_data,
+				query_count => $query_count,
+				sort        => $args{sort},
+				limit       => $args{limit},
+				skip        => $args{skip}
+			);
+	
 	return $model_data_object;
 }
 
@@ -2790,10 +2789,12 @@ sub node
 	{
 		# fixme9: why not use md->object(0)?
 		my $model = $modeldata->data()->[0];
+		
 		$node = NMISNG::Node->new(
 			_id    => $model->{_id},
 			uuid   => $model->{uuid},
 			nmisng => $self,
+			remote => $remote
 		);
 	}
 	elsif ($create)
@@ -2801,6 +2802,7 @@ sub node
 		$node = NMISNG::Node->new(
 			uuid   => $args{uuid},
 			nmisng => $self,
+			remote => $remote
 		);
 	}
 

@@ -51,6 +51,7 @@ use NMISNG;
 use NMISNG::Log;
 use NMISNG::Util;
 use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
+use NMISNG::NodeCatalog;
 
 my $bn = basename($0);
 
@@ -92,7 +93,7 @@ This server is a $server_role. This is why the number of actions is restricted.
 \t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
 \t$bn act=restore file=path [localise_ids=0/1]
 
-\t$bn act=set {node=nodeX|uuid=nodeUUID} entry.X=Y...
+\t$bn act=set {node=nodeX|uuid=nodeUUID} entry.X=Y... [server={server_name|cluster_id}]
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename {old=nodeX|uuid=nodeUUID} new=nodeY [entry.A=B...]
 
@@ -124,6 +125,10 @@ restore: restores a previously dumped node's data. if
 
 extras: debug={1..9,verbose} sets debugging verbosity
 extras: info=1 sets general verbosity
+
+server: Will update the node in the nodes catalog. This information
+	will be updated in the pollers.
+
 \n\n";
 }
 die $usage if (!@ARGV or ( @ARGV == 1 and $ARGV[0] =~ /^-(h|\?|-help)$/ ));
@@ -598,7 +603,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 }
 elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 {
-	my ($node,$uuid,$group,$confirmation,$nukedata) = @{$cmdline}{"node","uuid","group","confirm","deletedata"};
+	my ($node,$uuid,$group,$confirmation,$nukedata,$server) = @{$cmdline}{"node","uuid","group","confirm","deletedata", "server"};
 
 	die "Cannot delete without node, uuid or group argument!\n\n$usage\n" if (!$node and !$group and !$uuid);
 	die "NOT deleting anything:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
@@ -639,7 +644,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 		
 	} else {
 		
-		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group);
+		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group, remote => $server);
 		die "No matching nodes exist\n" if (!$nodemodel->count);
 		
 		my $gimmeobj = $nodemodel->objects; # instantiate, please!
@@ -648,9 +653,16 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 	
 		for my $mustdie (@{$gimmeobj->{objects}})
 		{
+			if ($server) {
+				$mustdie->collection($nmisng->nodes_catalog_collection);
+				# If we change the collection, we need to reload de object
+				$mustdie->_load();
+			}
 			my ($ok, $error) = $mustdie->delete(
 				keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
 			die $mustdie->name.": $error\n" if (!$ok);
+			print STDERR "Successfully deleted node $node $uuid.\n"
+			if (-t \*STDERR);
 		}
 	}
 	
@@ -664,6 +676,7 @@ elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 			if ((!$old && !$uuid) || !$new);
 
 	my $nodeobj = $nmisng->node(uuid => $uuid, name => $old);
+
 	die "Node $old does not exist.\n" if (!$nodeobj);
 	$old ||= $nodeobj->name;			# if looked up via uuid
 
@@ -840,8 +853,15 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		my $nodeobj = $nmisng->node(%query);
 		$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1, remote => $server);
 		die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
-	
-		my $isnew = $nodeobj->is_new; 
+		
+		# If remote, change the backend for the node
+		# TODO: Update status too??
+		if ($server) {
+			$nodeobj->collection($nmisng->nodes_catalog_collection());
+		}
+		
+		my $isnew = $nodeobj->is_new;
+
 		# must set overrides, activated, name/cluster_id, addresses/aliases, configuration;
 		for my $mustset (qw(cluster_id name activated overrides configuration addresses aliases))
 		{

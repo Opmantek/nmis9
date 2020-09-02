@@ -82,6 +82,7 @@ sub new
 		_nmisng => $args{nmisng},
 		_id     => $args{_id} // $args{id} // undef,
 		uuid    => $args{uuid},
+		collection => $args{remote} ? $args{nmisng}->nodes_catalog_collection() : $args{nmisng}->nodes_collection()
 	};
 	bless( $self, $class );
 
@@ -160,7 +161,7 @@ sub _load
 
 	my $query = NMISNG::DB::get_query( and_part => { uuid => $self->uuid }, no_regex => 1 );
 	my $cursor = NMISNG::DB::find(
-		collection => $self->nmisng->nodes_collection(),
+		collection => $self->collection,
 		query      => $query,
 		limit => 1,									# there can't be more than one
 	);
@@ -468,7 +469,6 @@ sub configuration
 sub delete
 {
 	my ($self,%args) = @_;
-
 	my $keeprrd = NMISNG::Util::getbool($args{keep_rrd});
 
 	# not errors but message doesn't hurt
@@ -602,7 +602,7 @@ sub delete
 
  	# finally delete the node record itself
 	$result = NMISNG::DB::remove(
-		collection => $self->nmisng->nodes_collection,
+		collection => $self->collection,
 		query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} }, no_regex => 1),
 		just_one   => 1 );
 	return (0, "Node config removal failed: $result->{error}") if (!$result->{success});
@@ -1209,6 +1209,17 @@ sub nmisng
 {
 	my ($self) = @_;
 	return $self->{_nmisng};
+}
+
+# return collection object this node is using
+sub collection
+{
+	my ( $self, $newcollection ) = @_;
+
+	$self->{collection} = $newcollection
+		if ( $newcollection );
+		
+	return $self->{collection};
 }
 
 # get/set the overrides for this node
