@@ -51,7 +51,6 @@ use NMISNG;
 use NMISNG::Log;
 use NMISNG::Util;
 use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
-use NMISNG::NodeCatalog;
 
 my $bn = basename($0);
 
@@ -70,7 +69,7 @@ if ($server_role eq "POLLER") {
 	$usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
-\t$bn act=show {node=nodeX|uuid=nodeUUID}
+\t$bn act=show {node=nodeX|uuid=nodeUUID} 
 \t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
 \t$bn act=restore file=path [localise_ids=0/1]
 
@@ -84,7 +83,8 @@ This server is a $server_role. This is why the number of actions is restricted.
 	$usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
-\t$bn act=show {node=nodeX|uuid=nodeUUID}
+\t$bn act=catalog_list {node=nodeX|uuid=nodeUUID} [group=Y]
+\t$bn act=show {node=nodeX|uuid=nodeUUID} remote=1
 \t$bn act={create|update} file=someFile.json [server={server_name|cluster_id}]
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|uuid=nodeUUID|group=groupY} [keep_ids=0/1]
 \t$bn act=import file=somefile.json
@@ -333,6 +333,29 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	}
 	exit 0;
 }
+elsif ($cmdline->{act} =~ /^catalog[_-]list?$/)
+{
+	# list the nodes in existence in the catalog - possibly with uuids.
+	# iff a node or group arg is given, then only matching nodes are included
+
+	# returns a modeldata object
+	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1, cluster_id => 1}, remote => 1);
+	if (!$nodelist or !$nodelist->count)
+	{
+		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
+				if (!$cmdline->{quiet});
+		exit 1;
+	}
+	else
+	{
+		print("Node UUID\t\t\t\tNode Name\t Server\n=========================\n")
+				if (-t \*STDOUT); # if to terminal, not pipe etc.
+
+		print join("\n", map { ($_->{uuid}."\t".$_->{name}) ."\t" .$_->{cluster_id} }
+							 (sort { $a->{name} cmp $b->{name} } (@{$nodelist->data})) ),"\n";
+	}
+	exit 0;
+}
 elsif ($cmdline->{act} eq "export")
 {
 	my ($node,$uuid, $group,$file,$wantformat,$keep_ids) = @{$cmdline}{"node","uuid","group","file","format","keep_ids"};
@@ -445,13 +468,13 @@ elsif  ($cmdline->{act} eq "restore")
 }
 elsif ($cmdline->{act} eq "show")
 {
-	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
+	my ($node, $uuid, $remote) = @{$cmdline}{"node","uuid","remote"}; # uuid is safer
 	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
 
 	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
 
-	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
+	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node, remote => $remote);
 	die "Node $node does not exist.\n" if (!$nodeobj);
 	$node ||= $nodeobj->name;			# if  looked up via uuid
 
