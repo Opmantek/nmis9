@@ -77,12 +77,13 @@ sub new
 	return if ( !$args{nmisng} );    #"collection nmisng"
 	return if ( !$args{uuid} );      #"uuid required"
 
+	my $remote = NMISNG::Util::getbool($args{remote}) // 0;
 	my $self = {
 		_dirty  => {},
 		_nmisng => $args{nmisng},
 		_id     => $args{_id} // $args{id} // undef,
 		uuid    => $args{uuid},
-		collection => $args{remote} ? $args{nmisng}->nodes_catalog_collection() : $args{nmisng}->nodes_collection()
+		collection => $remote ? $args{nmisng}->nodes_catalog_collection() : $args{nmisng}->nodes_collection()
 	};
 	bless( $self, $class );
 
@@ -391,6 +392,21 @@ sub addresses
 		$self->_dirty(1, "addresses");
 	}
 	return Clone::clone($self->{_addresses} // []);
+}
+
+# fill in properties we want and expect
+# args: hash ref (configuration)
+# returns: same hash ref, modified elements
+sub is_remote
+{
+	my ( $self ) = @_;
+
+	if ($self->collection() eq $self->nmisng->nodes_catalog_collection())
+	{
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 # get-set accessor for node activation status
@@ -1371,7 +1387,7 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
-	my $collection = $remote ? $self->nmisng->nodes_catalog_collection() : $self->nmisng->nodes_collection();
+	#my $collection = $remote ? $self->nmisng->nodes_catalog_collection() : $self->nmisng->nodes_collection();
 	# massage the overrides for db storage,
 	# as they may have keys with dots which mongodb < 3.6 doesn't support
 	# simplest workaround: mark up with ==, then base64-encoded key.
@@ -1390,9 +1406,9 @@ sub save
 								addresses => $self->{_addresses} // [],
 								aliases => $self->{_aliases} // [],
 			);
-	if ($remote) {
-		$entry{status} = "new";
-	}
+	#if ($remote) {
+	#	$entry{status} = "new";
+	#}
 	# and, should we have any legacy/unknown extra things around, save them back - where safe!
 	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate)$/, keys %{$self->{_unknown}}));
 
@@ -1400,7 +1416,7 @@ sub save
 	{
 		# could maybe be upsert?
 		$result = NMISNG::DB::insert(
-			collection => $collection,
+			collection => $self->collection,
 			record     => \%entry,
 		);
 		assert( $result->{success}, "Record inserted successfully " );
@@ -1413,7 +1429,7 @@ sub save
 	{
 
 		$result = NMISNG::DB::update(
-			collection => $collection,
+			collection => $self->collection,
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid}, no_regex => 1 ),
 			freeform   => 1,					# we need to replace the whole record
 			record     => \%entry

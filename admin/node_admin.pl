@@ -498,12 +498,12 @@ elsif ($cmdline->{act} eq "show")
 }
 elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 {
-	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
+	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
 
 	die "Cannot set node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
 			
-	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes
+	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes
 	my $time = $cmdline->{time} // time;
 	my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
 	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
@@ -532,7 +532,15 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		
 	} else {
 	
-		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
+		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid, remote => $server);
+		if ($server) {
+			$nodeobj->collection($nmisng->nodes_catalog_collection);
+			## If we change the collection, we need to reload the object
+			$nodeobj->_load();
+			my $props = $nodeobj->unknown();
+			$props->{status} = "update";
+			$nodeobj->unknown($props);
+		}
 		die "Node $node does not exist.\n" if (!$nodeobj);
 		$node ||= $nodeobj->name;			# if looked up via uuid
 	
@@ -633,7 +641,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 			if (!$confirmation or $confirmation ne "YES");
 
 	my $file = $cmdline->{file};
-	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes	
+	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes	
 	
 	if ($schedule) {
 		my @nodes = split(",", $node);
@@ -678,14 +686,24 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 		{
 			if ($server) {
 				$mustdie->collection($nmisng->nodes_catalog_collection);
-				# If we change the collection, we need to reload de object
+				## If we change the collection, we need to reload the object
 				$mustdie->_load();
-			}
-			my ($ok, $error) = $mustdie->delete(
+				my $props = $mustdie->unknown();
+				$props->{status} = "delete";
+
+				(my $op, $error) = $mustdie->save;
+				die "Failed to mark for delete node: $error $op\n" if ($op <= 0); # zero is no saving needed
+
+				print STDERR "Successfully marked for delete node $op.\n"
+						if (-t \*STDERR);			
+				
+			} else {
+				my ($ok, $error) = $mustdie->delete(
 				keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
-			die $mustdie->name.": $error\n" if (!$ok);
-			print STDERR "Successfully deleted node $node $uuid.\n"
-			if (-t \*STDERR);
+				die $mustdie->name.": $error\n" if (!$ok);
+				print STDERR "Successfully deleted node $node $uuid.\n"
+				if (-t \*STDERR);
+			}
 		}
 	}
 	
@@ -798,8 +816,8 @@ configuration.community configuration.roleType configuration.netType configurati
 elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 {
 	my $file = $cmdline->{file};
-	my $schedule = $cmdline->{schedule} // 1; # Schedule by default? Yes
-	my $server = $cmdline->{server} // 1; # Schedule by default? Yes
+	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes
+	my $server = $cmdline->{server}; # Schedule by default? Yes
 
 	open(F, $file) or die "Cannot read $file: $!\n";
 	my $nodedata = join('', grep( !m!^\s*//\s+!, <F>));
@@ -881,6 +899,8 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		# TODO: Update status too??
 		if ($server) {
 			$nodeobj->collection($nmisng->nodes_catalog_collection());
+			## If we change the collection, we need to reload the object
+			$nodeobj->_load();
 		}
 		
 		my $isnew = $nodeobj->is_new;
@@ -900,6 +920,9 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		# there should be nothing left at this point, anything that is goes into unknown()
 		my %unknown = map { ($_ => $mayberec->{$_}) } (grep(!/^(configuration|lastupdate|uuid)$/,
 																												keys %$mayberec));
+		if ($server) {
+			$unknown{status} =  $cmdline->{act} eq "create" ? "new" : "update";
+		}
 		$nodeobj->unknown(\%unknown);
 	
 		my ($status,$msg);
