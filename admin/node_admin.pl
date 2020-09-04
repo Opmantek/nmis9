@@ -468,13 +468,20 @@ elsif  ($cmdline->{act} eq "restore")
 }
 elsif ($cmdline->{act} eq "show")
 {
-	my ($node, $uuid, $remote) = @{$cmdline}{"node","uuid","remote"}; # uuid is safer
+	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
 	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
 
 	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
 
-	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node, remote => $remote);
+	my $remote = 0;
+	my ($filter, $server_data);
+	if ($server) {
+		$remote = 1;
+		my ($error, $server_data) = get_server(server => $server);
+		$filter->{cluster_id} = $server_data->{id};
+	}
+	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node, remote => $remote, filter => $filter);
 	die "Node $node does not exist.\n" if (!$nodeobj);
 	$node ||= $nodeobj->name;			# if  looked up via uuid
 
@@ -536,7 +543,8 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		my $filter;
 		if ($server) {
 			$remote = 1;
-			my $server_data = get_server(server => $server);
+			my ($error, $server_data) = get_server( server => $server );
+				die "Invalid server!\n" if ($error);
 			$filter->{cluster_id} = $server_data->{id};
 		}
 		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid, remote => $remote, filter => $filter);
@@ -753,7 +761,8 @@ elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 	my ($filter, $server_data);
 	if ($server) {
 			$remote = 1;
-			$server_data = get_server(server => $server);
+			(my $error, $server_data) = get_server( server => $server );
+				die "Invalid server!\n" if ($error);
 			$filter->{cluster_id} = $server_data->{id};
 	}
 	my $nodeobj = $nmisng->node(uuid => $uuid, name => $old, remote => $remote, filter => $filter);
