@@ -2016,7 +2016,7 @@ sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
-	my $remote = $args{remote};
+	my $remote = NMISNG::Util::getbool($args{remote}) // 0;
 	my $collection = $remote ? $self->nodes_catalog_collection : $self->nodes_collection;
 
 	# copy convenience/shortcut arguments iff the filter
@@ -2729,9 +2729,7 @@ sub nodes_catalog_collection
 			collection    => $self->{_db_nodes_catalog},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				# needed for joins
-				[{"uuid" => 1}, {unique => 1}],
-				[{"name" => 1}, {unique => 0}]
+				[[cluster_id => 1, uuid => 1], {unique => 1}]
 			]
 		);
 		$self->log->error("index setup failed for nodes catalog: $err") if ($err);

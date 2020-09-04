@@ -532,11 +532,15 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		
 	} else {
 	
-		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid, remote => $server);
+		my $remote = 0;
+		my $filter;
+		if ($server) {
+			$remote = 1;
+			my $server_data = get_server(server => $server);
+			$filter->{cluster_id} = $server_data->{id};
+		}
+		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid, remote => $remote, filter => $filter);
 		if ($server and $nodeobj) {
-			$nodeobj->collection($nmisng->nodes_catalog_collection);
-			## If we change the collection, we need to reload the object
-			$nodeobj->_load();
 			my $props = $nodeobj->unknown();
 			$props->{status} = "update";
 			$nodeobj->unknown($props);
@@ -674,8 +678,16 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				if (-t \*STDERR);	
 		
 	} else {
-		
-		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group, remote => $server);
+		my $remote = 0;
+		my $server_data;
+		my $filter;
+		if ($server) {
+			(my $error, $server_data) = get_server(server => $server);
+			die $error if ($error);
+			$remote = 1;
+			$filter->{cluster_id} = $server_data->{id};
+		}
+		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group, filter => $filter);
 		die "No matching nodes exist\n" if (!$nodemodel->count);
 		
 		my $gimmeobj = $nodemodel->objects; # instantiate, please!
@@ -684,7 +696,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 	
 		for my $mustdie (@{$gimmeobj->{objects}})
 		{
-			if ($server) {
+			if ($server and $mustdie) {
 				$mustdie->collection($nmisng->nodes_catalog_collection);
 				## If we change the collection, we need to reload the object
 				$mustdie->_load();
@@ -712,18 +724,24 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 }
 elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 {
-	my ($old, $new, $uuid) = @{$cmdline}{"old","new","uuid"}; # uuid is safest for lookup
+	my ($old, $new, $uuid, $server) = @{$cmdline}{"old","new","uuid", "server"}; # uuid is safest for lookup
 
 	die "Cannot rename node without old and new arguments!\n\n$usage\n"
 			if ((!$old && !$uuid) || !$new);
 
-	my $nodeobj = $nmisng->node(uuid => $uuid, name => $old);
+	my $remote = 0;
+	my ($filter, $server_data);
+	if ($server) {
+			$remote = 1;
+			$server_data = get_server(server => $server);
+			$filter->{cluster_id} = $server_data->{id};
+	}
+	my $nodeobj = $nmisng->node(uuid => $uuid, name => $old, remote => $remote, filter => $filter);
 
 	die "Node $old does not exist.\n" if (!$nodeobj);
 	$old ||= $nodeobj->name;			# if looked up via uuid
 
-	my ($ok, $msg) = $nodeobj->rename(new_name => $new,
-																								 originator => "node_admin");
+	my ($ok, $msg) = $nodeobj->rename(new_name => $new, originator => "node_admin", server => $server_data->{id});
 	die "$msg\n" if (!$ok);
 
 	print STDERR "Successfully renamed node $cmdline->{old} to $cmdline->{new}.\n"
@@ -831,17 +849,8 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	# sanity check for server
 	my $server_data;
 	if ($server) {
-		$server_data->{id} = $nmisng->get_cluster_id(server_name => $server);
-		if (!$server_data->{id}) {
-			$server_data->{name} = $nmisng->get_server_name(cluster_id => $server);
-			if (!$server_data->{name}) {
-				die "Invalid server!\n";
-			} else {
-				$server_data->{id} = $server;
-			}
-		} else {
-			$server_data->{name} = $server;
-		}
+		(my $error, $server_data) = get_server( server => $server );
+		die "Invalid server!\n" if ($error);
 	}
 	
 	my $mayberec;
@@ -892,17 +901,16 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		
 	} else {
 		my %query = $mayberec->{uuid}? (uuid => $mayberec->{uuid}) : (name => $mayberec->{name});
-		my $nodeobj = $nmisng->node(%query);
-		$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1, remote => $server);
-		die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
-		
-		# If remote, change the backend for the node
-		# TODO: Update status too??
+		my $remote = 0;
 		if ($server) {
-			$nodeobj->collection($nmisng->nodes_catalog_collection());
-			## If we change the collection, we need to reload the object
-			$nodeobj->_load();
-		}
+			$remote = 1;
+			$query{remote} = 1;
+			$query{filter}->{cluster_id} = $server_data->{id}; # Support for same names and different cluster_ids in node_catalog
+		};
+		my $nodeobj = $nmisng->node(%query);
+		
+		$nodeobj ||= $nmisng->node(uuid => $mayberec->{uuid}, create => 1, cluster_id => $server_data->{id}, remote => $remote);
+		die "Failed to instantiate node object!\n" if (ref($nodeobj) ne "NMISNG::Node");
 		
 		my $isnew = $nodeobj->is_new;
 
@@ -976,7 +984,11 @@ sub validate_node_data
 
 	# look up the node - ideally by uuid, fall back to name only if necessary
 	my %query = $node->{uuid}? (uuid => $node->{uuid}) : (name => $node->{name});
-	$query{remote} = 1;
+	if ($remote) {
+		$query{remote} = 1;
+		$query{filter}->{cluster_id} = $remote->{id};
+	}
+	
 	my $nodeobj = $nmisng->node(%query);
 	die "Node $name does not exist.\n" if (!$nodeobj && $cmdline->{act} eq "update");
 	die "Node $name already exist.\n" if ($nodeobj && $cmdline->{act} eq "create");
@@ -984,6 +996,26 @@ sub validate_node_data
 	die "Please use act=rename for node renaming.\nUUID "
 			.$nodeobj->uuid." is already associated with name \"".$nodeobj->name."\".\n"
 			if ($nodeobj and $nodeobj->name and $nodeobj->name ne $node->{name});
+}
+
+# Return the server data
+# So the user can set up
+sub get_server
+{
+	my %args = @_;
+	my $server = $args{server};
+	my $server_data->{id} = $nmisng->get_cluster_id(server_name => $server);
+	if (!$server_data->{id}) {
+		$server_data->{name} = $nmisng->get_server_name(cluster_id => $server);
+		if (!$server_data->{name}) {
+			return ("Invalid server!", undef);
+		} else {
+			$server_data->{id} = $server;
+		}
+	} else {
+		$server_data->{name} = $server;
+	}
+	return (undef, $server_data);
 }
 
 exit 0;

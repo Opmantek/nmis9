@@ -96,7 +96,8 @@ sub new
 		# not loadable? then treat it as a new node
 		undef $self->{_id} if (!$self->_load);
 	}
-
+	
+	#print "NEW NODE: Remote $remote - ". $args{remote} ." Collection: ". $self->collection->{'name'} ."\n";
 	return $self;
 }
 
@@ -1228,6 +1229,8 @@ sub nmisng
 }
 
 # return collection object this node is using
+# It can be a setter
+# WARNING! It should be loaded after (_load)
 sub collection
 {
 	my ( $self, $newcollection ) = @_;
@@ -1273,6 +1276,7 @@ sub rename
 
 	my $newname = $args{new_name};
 	my $old = $self->name;
+	my $server = $args{server};
 
 	return (0, "Invalid new_name argument") if (!$newname);
 
@@ -1289,44 +1293,50 @@ sub rename
 	return (1, "new_name same as current, nothing to do")
 			if ($newname eq $old);
 
-	my $clash = $self->nmisng->get_nodes_model(name => $newname);
+	my $remote = 0;
+	my $filter;
+	if ($server) {
+		$remote = 1;
+		$filter->{cluster_id} = $server;
+	}
+	my $clash = $self->nmisng->get_nodes_model(name => $newname, remote => $remote, filter => $filter);
 	return (0, "A node named \"$newname\" already exists!")
 			if ($clash->count);
 
 	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
 	# find the node's var files and  hardlink them - do not delete anything yet!
 	my @todelete;
+	if (!$remote) {	
+		# find all the node's inventory instances, tell them to hardlink their rrds
+		# get everything, historic or not - make it instantiatable
+		# concept type is unknown/dynamic, so have it ask nmisng
+		my $result = $self->get_inventory_model(
+			class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
+		if (my $error = $result->error)
+		{
+			return (0, "Failed to retrieve inventories: $error");
+		}
 	
-	# find all the node's inventory instances, tell them to hardlink their rrds
-	# get everything, historic or not - make it instantiatable
-	# concept type is unknown/dynamic, so have it ask nmisng
-	my $result = $self->get_inventory_model(
-		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
-	if (my $error = $result->error)
-	{
-		return (0, "Failed to retrieve inventories: $error");
+		my $gimme = $result->objects;
+		return (0, "Failed to instantiate inventory: $gimme->{error}")
+				if (!$gimme->{success});
+		for my $invinstance (@{$gimme->{objects}})
+		{
+			$self->nmisng->log->debug("relocating rrds for inventory instance "
+																.$invinstance->id
+																.", concept ".$invinstance->concept
+																.", description \"".$invinstance->description.'"');
+			my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
+			return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
+					if (!$ok);
+			# informational
+			$self->nmisng->log->debug2("relocation reported $error") if ($error);
+	
+			# relocate storage returns relative names
+			my $dbroot = $self->nmisng->config->{'database_root'};
+			push @todelete, map { "$dbroot/$_" } (@oktorm);
+		}
 	}
-
-	my $gimme = $result->objects;
-	return (0, "Failed to instantiate inventory: $gimme->{error}")
-			if (!$gimme->{success});
-	for my $invinstance (@{$gimme->{objects}})
-	{
-		$self->nmisng->log->debug("relocating rrds for inventory instance "
-															.$invinstance->id
-															.", concept ".$invinstance->concept
-															.", description \"".$invinstance->description.'"');
-		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
-		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
-				if (!$ok);
-		# informational
-		$self->nmisng->log->debug2("relocation reported $error") if ($error);
-
-		# relocate storage returns relative names
-		my $dbroot = $self->nmisng->config->{'database_root'};
-		push @todelete, map { "$dbroot/$_" } (@oktorm);
-	}
-
 	# then update ourself and save
 	$self->{_name} = $newname;
 	$self->_dirty(1, 'name');
@@ -1378,7 +1388,6 @@ sub rename
 sub save
 {
 	my ($self, %args) = @_;
-	my $remote = $args{remote};
 
 	return ( -1, "node is incomplete, not saveable yet" )
 			if ($self->is_new && !$self->_dirty);
@@ -1387,7 +1396,6 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
-	#my $collection = $remote ? $self->nmisng->nodes_catalog_collection() : $self->nmisng->nodes_collection();
 	# massage the overrides for db storage,
 	# as they may have keys with dots which mongodb < 3.6 doesn't support
 	# simplest workaround: mark up with ==, then base64-encoded key.
@@ -1406,10 +1414,7 @@ sub save
 								addresses => $self->{_addresses} // [],
 								aliases => $self->{_aliases} // [],
 			);
-	#if ($remote) {
-	#	$entry{status} = "new";
-	#}
-	# and, should we have any legacy/unknown extra things around, save them back - where safe!
+
 	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate)$/, keys %{$self->{_unknown}}));
 
 	if ($self->is_new())
