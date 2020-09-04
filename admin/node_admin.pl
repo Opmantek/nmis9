@@ -533,7 +533,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 	} else {
 	
 		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid, remote => $server);
-		if ($server) {
+		if ($server and $nodeobj) {
 			$nodeobj->collection($nmisng->nodes_catalog_collection);
 			## If we change the collection, we need to reload the object
 			$nodeobj->_load();
@@ -688,9 +688,10 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				$mustdie->collection($nmisng->nodes_catalog_collection);
 				## If we change the collection, we need to reload the object
 				$mustdie->_load();
+				# Update the node status
 				my $props = $mustdie->unknown();
 				$props->{status} = "delete";
-
+				$mustdie->unknown($props);
 				(my $op, $error) = $mustdie->save;
 				die "Failed to mark for delete node: $error $op\n" if ($op <= 0); # zero is no saving needed
 
