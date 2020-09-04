@@ -696,6 +696,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 	
 		for my $mustdie (@{$gimmeobj->{objects}})
 		{
+			# NODE FROM CATALOG
 			if ($server and $mustdie) {
 				$mustdie->collection($nmisng->nodes_catalog_collection);
 				## If we change the collection, we need to reload the object
@@ -709,13 +710,32 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 
 				print STDERR "Successfully marked for delete node $op.\n"
 						if (-t \*STDERR);			
-				
+			# NODE
 			} else {
-				my ($ok, $error) = $mustdie->delete(
-				keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
-				die $mustdie->name.": $error\n" if (!$ok);
-				print STDERR "Successfully deleted node $node $uuid.\n"
-				if (-t \*STDERR);
+				# First, backup
+				my $backup = $config->{'backup_node_on_delete'} // 1;
+				my $backup_folder = $config->{'node_dumps_dir'} // $config->{'<nmis_var>'}."/node_dumps";
+				if ( !-d $backup_folder )
+				{
+					mkdir( $backup_folder, 0700 ) or return die "Cannot create $backup_folder: $!";
+				}
+				my $res;
+				
+				if ($backup) {
+					$res = $nmisng->dump_node(name => $mustdie->name,
+										 uuid => $mustdie->uuid,
+										 target => $backup_folder . "/".$mustdie->name.".zip");
+										 #options => \%options);
+				}
+				if (!$backup || $res->{success}) {
+					
+					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
+					die $mustdie->name.": $error\n" if (!$ok);
+					print STDERR "Successfully deleted node $node $uuid.\n"
+					if (-t \*STDERR);
+				} else {
+					die "Failed to backup node: ". $mustdie->name . " ". $res->{error};
+				}
 			}
 		}
 	}
