@@ -298,7 +298,6 @@ my %hash = (
     'auth_htpasswd_file' => '<nmis_conf>/users.dat',
     'auth_htpasswd_encrypt' => 'crypt',
     'auth_radius_secret' => '',
-    'auth_user_name_regex' => '[\w \-\.\@\`\']+',
     'auth_web_key' => 'Please Change Me!',
     'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
     'auth_radius_server' => '',
