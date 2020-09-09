@@ -2384,7 +2384,7 @@ sub collect_node_data
 				}
 			}
 		}
-		#$inventory->storage($storage);
+		$inventory->storage($storage);
 	}
 	elsif ($howdiditgo->{skipped}) {}
 	else
