@@ -323,7 +323,7 @@ sub viewTable
 							td(button(-name=>"button",onclick => ('$("#dialog_confirm").dialog({
 															modal: true,
 															open: function() {
-																var markup = " Are you sure? All the data from this node will be deleted. You can create a <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> backup</a> first ";
+																var markup = " Are you sure? A node backup will be created if backup_node_on_delete is true. <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> More info.</a> ";
 																$(this).html(markup);
 															  },
 															buttons: {
