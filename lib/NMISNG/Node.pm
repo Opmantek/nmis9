@@ -2314,10 +2314,15 @@ sub collect_node_data
 	{
 		my $previous_pit = $inventory->get_newest_timed_data();
 
+		# Remove non existing subconcepts from catchall
+		my %subconcepts;
+		
 		$self->process_alerts( sys => $S );
 		foreach my $sect ( keys %{$rrdData} )
 		{
+			$subconcepts{$sect} = 1; # Remove non existing subconcepts from catchall
 			my $D = $rrdData->{$sect};
+			
 			# massage some nodehealth values
 			if ($sect eq "nodehealth")
 			{
@@ -2367,6 +2372,19 @@ sub collect_node_data
 			}
 		}
 		# NO save on inventory because it's the catchall right now
+		
+		# Now, update non existent subconcepts/storage from inventory/catchall
+		my $storage = $inventory->storage();
+		
+		foreach my $sub (@{$inventory->subconcepts()}) {
+			if (!$subconcepts{$sub}) {
+				if ($sub ne "health") {
+					$self->nmisng->log->debug7("Subconcept not existing anymore. Removing: ". Dumper($storage->{$sub}));
+					delete $storage->{$sub};
+				}
+			}
+		}
+		#$inventory->storage($storage);
 	}
 	elsif ($howdiditgo->{skipped}) {}
 	else
