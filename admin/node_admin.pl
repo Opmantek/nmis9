@@ -117,6 +117,7 @@ delete: only deletes if confirm=yes (in uppercase) is given,
 
 show: prints a node's properties in the same format as set
  with option quoted=true, show adds double-quotes where needed
+ with option interfaces=true show interface basic information
 set: adjust one or more node properties
 
 restore: restores a previously dumped node's data. if 
@@ -314,9 +315,10 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	# list the nodes in existence - possibly with uuids.
 	# iff a node or group arg is given, then only matching nodes are included
 	my $wantuuid = $1;
+	my $wantpoller = $cmdline->{wantpoller} // 0;
 
 	# returns a modeldata object
-	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1});
+	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
 	if (!$nodelist or !$nodelist->count)
 	{
 		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
@@ -325,10 +327,18 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	}
 	else
 	{
-		print($wantuuid? "Node UUID\tNode Name\n=========================\n" : "Node Names:\n===========\n")
+		print($wantuuid? "Node UUID\tNode Name\n=========================\n" : $wantpoller? "Node Name\tPoller\n=========================\n":"Node Names:\n===========\n")
 				if (-t \*STDOUT); # if to terminal, not pipe etc.
-
-		print join("\n", map { ($wantuuid? ($_->{uuid}."\t".$_->{name}) : $_->{name}) }
+				
+		my %remotes;
+		
+		if ($wantpoller) {
+			my $remotelist = $nmisng->get_remote();		
+			%remotes = map {$_->{'cluster_id'} => $_->{'server_name'}} @$remotelist;
+			$remotes{$config->{cluster_id}} = "local";
+			print Dumper(%remotes);
+		}
+		print join("\n", map { ($wantuuid? ($_->{uuid}."\t".$_->{name}) : $wantpoller ? ($_->{name}."\t".$remotes{$_->{cluster_id}}) : $_->{name}) }
 							 (sort { $a->{name} cmp $b->{name} } (@{$nodelist->data})) ),"\n";
 	}
 	exit 0;
@@ -470,6 +480,7 @@ elsif ($cmdline->{act} eq "show")
 {
 	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
 	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
+	my $wantinterfaces = NMISNG::Util::getbool($cmdline->{interfaces});
 
 	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
@@ -500,6 +511,18 @@ elsif ($cmdline->{act} eq "show")
 		# any special-ish characters to quote?
 		print "$k=". ($wantquoted && $flatearth{$k} =~ /['"\$\s\(\)\{\}\[\]]/?
 									"\"$flatearth{$k}\"": $flatearth{$k})."\n";
+	}
+	if ($wantinterfaces)
+	{
+		my $md = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => 'interface');
+		if (my $error = $md->error)
+		{
+			print "failed to lookup inventory records: $error \n";
+		}
+		for my $oneinv (@{$md->data})
+		{
+			print "Interface=\"".$oneinv->{'data'}->{'Description'}. "\" ifDescr=\"" . $oneinv->{'data'}->{'ifDescr'} ."\" ifIndex=" . $oneinv->{'data'}->{'ifIndex'} . "\n";
+		}
 	}
 	exit 0;
 }

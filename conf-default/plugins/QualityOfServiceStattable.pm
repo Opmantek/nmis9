@@ -37,11 +37,10 @@ use Data::Dumper;
 
 sub update_plugin
 {
-	my (%args) = @_;
-	my ($node,$S) = @args{qw(node sys)};
-	#my ($node,$S,$C) = @args{qw(node sys config)};
+        my (%args) = @_;
+        my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 	
-	my $NI = $S->ndinfo;
+	my $NI = $S->nmisng_node->configuration;
 	# anything to do?
 
 	#my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
