@@ -3015,6 +3015,7 @@ sub update_intf_info
 			delete $pathdata->{index};
 			my $path = $self->inventory_path( concept => 'interface', data => $pathdata, partial => 1 );
 			my $inventory_id;
+
 			if( ref($path) eq 'ARRAY')
 			{
 				( $inventory, my $error_message ) = $self->inventory(
@@ -3034,9 +3035,8 @@ sub update_intf_info
 				# Regenerate storage: If ifDescr has changed, we need this
 				for ("interface", "pkts", "pkts_hc" )
 				{
-					if ($inventory->find_subconcept_type_storage(type => $_,
-																				 index     => $index,
-																				 item      => $_,
+					if ($inventory->find_subconcept_type_storage(type => "rrd",
+																				 subconcept      => $_,
 																				 relative => 1 )) {
 						my $dbname = $S->makeRRDname(type => $_,
 																				 index     => $index,
