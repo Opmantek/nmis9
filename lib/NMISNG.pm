@@ -110,7 +110,7 @@ sub new
 	# allow for instantiating a test collection in our $db for running tests:
 	my $tests = $args{tests};
 	# load and prime the statically defined collections
-	for my $default_collname (qw(nodes events inventory latest_data queue opstatus status remote nodes_catalog))
+	for my $default_collname (qw(nodes events inventory latest_data queue opstatus status remote ))
 	{
 		#  allow for instantiating a test collection in our $db for running tests:
 		my $collname = $tests->{"${default_collname}_test_collection"};
@@ -2016,8 +2016,7 @@ sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
-	my $remote = NMISNG::Util::getbool($args{remote}) // 0;
-	my $collection = $remote ? $self->nodes_catalog_collection : $self->nodes_collection;
+	my $collection = $self->nodes_collection;
 
 	# copy convenience/shortcut arguments iff the filter
 	# hasn't already set them - the filter wins
@@ -2712,31 +2711,6 @@ sub remote_collection
 	return $self->{_db_remote};
 }
 
-# helper to get/set servers collection, primes the indices on set
-# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
-# returns: current collection handle
-sub nodes_catalog_collection
-{
-	my ( $self, $newvalue, $drop_unwanted ) = @_;
-	$self->log->debug("index setup for remote");
-	if ( ref($newvalue) eq "MongoDB::Collection" )
-	{
-		$self->{_db_nodes_catalog} = $newvalue;
-
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_nodes_catalog},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-				[[cluster_id => 1, uuid => 1], {unique => 1}]
-			]
-		);
-		$self->log->error("index setup failed for nodes catalog: $err") if ($err);
-	}
-	return $self->{_db_nodes_catalog};
-}
-
 # get or create an NMISNG::Node object from the given arguments (that should make it unique)
 # the local node found matching all arguments is provided (if >1 is found)
 #
@@ -2747,12 +2721,11 @@ sub node
 {
 	my ( $self, %args ) = @_;
 	my $create = $args{create};
-	my $remote = $args{remote};
 	delete $args{create};
 
 	my $node;
 	# we only need the uuid, and the name only for error handling
-	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1, cluster_id => 1}, remote => $remote);
+	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
 
 	if ( $modeldata->count() > 1 )
 	{
@@ -2791,16 +2764,14 @@ sub node
 		$node = NMISNG::Node->new(
 			_id    => $model->{_id},
 			uuid   => $model->{uuid},
-			nmisng => $self,
-			remote => $remote
+			nmisng => $self
 		);
 	}
 	elsif ($create)
 	{
 		$node = NMISNG::Node->new(
 			uuid   => $args{uuid},
-			nmisng => $self,
-			remote => $remote
+			nmisng => $self
 		);
 	}
 

@@ -77,13 +77,12 @@ sub new
 	return if ( !$args{nmisng} );    #"collection nmisng"
 	return if ( !$args{uuid} );      #"uuid required"
 
-	my $remote = NMISNG::Util::getbool($args{remote}) // 0;
 	my $self = {
 		_dirty  => {},
 		_nmisng => $args{nmisng},
 		_id     => $args{_id} // $args{id} // undef,
 		uuid    => $args{uuid},
-		collection => $remote ? $args{nmisng}->nodes_catalog_collection() : $args{nmisng}->nodes_collection()
+		collection => $args{nmisng}->nodes_collection()
 	};
 	bless( $self, $class );
 
@@ -97,7 +96,6 @@ sub new
 		undef $self->{_id} if (!$self->_load);
 	}
 	
-	#print "NEW NODE: Remote $remote - ". $args{remote} ." Collection: ". $self->collection->{'name'} ."\n";
 	return $self;
 }
 
@@ -402,7 +400,7 @@ sub is_remote
 {
 	my ( $self ) = @_;
 
-	if ($self->collection() eq $self->nmisng->nodes_catalog_collection())
+	if ($self->nmisng->config->{"cluster_id"} ne $self->cluster_id())
 	{
 		return 1;
 	} else {
@@ -1293,50 +1291,44 @@ sub rename
 	return (1, "new_name same as current, nothing to do")
 			if ($newname eq $old);
 
-	my $remote = 0;
-	my $filter;
-	if ($server) {
-		$remote = 1;
-		$filter->{cluster_id} = $server;
-	}
-	my $clash = $self->nmisng->get_nodes_model(name => $newname, remote => $remote, filter => $filter);
+	my $clash = $self->nmisng->get_nodes_model(name => $newname);
 	return (0, "A node named \"$newname\" already exists!")
 			if ($clash->count);
 
 	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
 	# find the node's var files and  hardlink them - do not delete anything yet!
 	my @todelete;
-	if (!$remote) {	
-		# find all the node's inventory instances, tell them to hardlink their rrds
-		# get everything, historic or not - make it instantiatable
-		# concept type is unknown/dynamic, so have it ask nmisng
-		my $result = $self->get_inventory_model(
-			class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
-		if (my $error = $result->error)
-		{
-			return (0, "Failed to retrieve inventories: $error");
-		}
-	
-		my $gimme = $result->objects;
-		return (0, "Failed to instantiate inventory: $gimme->{error}")
-				if (!$gimme->{success});
-		for my $invinstance (@{$gimme->{objects}})
-		{
-			$self->nmisng->log->debug("relocating rrds for inventory instance "
-																.$invinstance->id
-																.", concept ".$invinstance->concept
-																.", description \"".$invinstance->description.'"');
-			my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
-			return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
-					if (!$ok);
-			# informational
-			$self->nmisng->log->debug2("relocation reported $error") if ($error);
-	
-			# relocate storage returns relative names
-			my $dbroot = $self->nmisng->config->{'database_root'};
-			push @todelete, map { "$dbroot/$_" } (@oktorm);
-		}
+
+	# find all the node's inventory instances, tell them to hardlink their rrds
+	# get everything, historic or not - make it instantiatable
+	# concept type is unknown/dynamic, so have it ask nmisng
+	my $result = $self->get_inventory_model(
+		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
+	if (my $error = $result->error)
+	{
+		return (0, "Failed to retrieve inventories: $error");
 	}
+
+	my $gimme = $result->objects;
+	return (0, "Failed to instantiate inventory: $gimme->{error}")
+			if (!$gimme->{success});
+	for my $invinstance (@{$gimme->{objects}})
+	{
+		$self->nmisng->log->debug("relocating rrds for inventory instance "
+															.$invinstance->id
+															.", concept ".$invinstance->concept
+															.", description \"".$invinstance->description.'"');
+		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
+		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
+				if (!$ok);
+		# informational
+		$self->nmisng->log->debug2("relocation reported $error") if ($error);
+
+		# relocate storage returns relative names
+		my $dbroot = $self->nmisng->config->{'database_root'};
+		push @todelete, map { "$dbroot/$_" } (@oktorm);
+	}
+
 	# then update ourself and save
 	$self->{_name} = $newname;
 	$self->_dirty(1, 'name');
