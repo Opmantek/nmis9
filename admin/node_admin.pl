@@ -68,7 +68,7 @@ if ($server_role eq "POLLER") {
 	
 	$usage = "Usage: $bn act=[action to take] [extras...]
 
-\t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
+\t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} {wantpoller=0/1} [group=Y]
 \t$bn act=show {node=nodeX|uuid=nodeUUID} 
 \t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
 \t$bn act=restore file=path [localise_ids=0/1]
@@ -326,7 +326,7 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	}
 	else
 	{
-		print($wantuuid? "Node UUID\tNode Name\n=========================\n" : $wantpoller? "Node Name\tPoller\n=========================\n":"Node Names:\n===========\n")
+		print($wantuuid? "Node UUID\tNode Name\n=========================\n" : $wantpoller? "Node UUID\tNode Name\tPoller\n=========================\n":"Node Names:\n===========\n")
 				if (-t \*STDOUT); # if to terminal, not pipe etc.
 				
 		my %remotes;
@@ -337,7 +337,7 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 			$remotes{$config->{cluster_id}} = "local";
 			print Dumper(%remotes);
 		}
-		print join("\n", map { ($wantuuid? ($_->{uuid}."\t".$_->{name}) : $wantpoller ? ($_->{name}."\t".$remotes{$_->{cluster_id}}) : $_->{name}) }
+		print join("\n", map { ($wantuuid? ($_->{uuid}."\t".$_->{name}) : $wantpoller ? ($_->{uuid}."\t".$_->{name}."\t".$remotes{$_->{cluster_id}}) : $_->{name}) }
 							 (sort { $a->{name} cmp $b->{name} } (@{$nodelist->data})) ),"\n";
 	}
 	exit 0;
