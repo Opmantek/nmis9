@@ -83,7 +83,7 @@ This server is a $server_role. This is why the number of actions is restricted.
 	$usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
-\t$bn act=show {node=nodeX|uuid=nodeUUID} remote=1
+\t$bn act=show {node=nodeX|uuid=nodeUUID} 
 \t$bn act={create|update} file=someFile.json [server={server_name|cluster_id}]
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|uuid=nodeUUID|group=groupY} [keep_ids=0/1]
 \t$bn act=import file=somefile.json
@@ -126,8 +126,8 @@ restore: restores a previously dumped node's data. if
 extras: debug={1..9,verbose} sets debugging verbosity
 extras: info=1 sets general verbosity
 
-server: Will update the node in the nodes catalog. This information
-	will be updated in the pollers.
+server: Will update the node in the remote pollers.
+  It is important to use this argument for remotes.
 
 \n\n";
 }
@@ -680,7 +680,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 			(my $error, $server_data) = get_server(server => $server);
 			die $error if ($error);
 		}
-		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group,);
+		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group);
 		die "No matching nodes exist\n" if (!$nodemodel->count);
 		
 		my $gimmeobj = $nodemodel->objects; # instantiate, please!
@@ -698,7 +698,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				(my $op, $error) = $mustdie->save;
 				die "Failed to mark for delete node: $error $op\n" if ($op <= 0); # zero is no saving needed
 
-				print STDERR "Successfully marked for delete node $op.\n"
+				print STDERR "Successfully marked for delete node ($op).\n"
 						if (-t \*STDERR);			
 			# NODE
 			} else {
@@ -850,8 +850,8 @@ configuration.community configuration.roleType configuration.netType configurati
 elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 {
 	my $file = $cmdline->{file};
-	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes
-	my $server = $cmdline->{server}; # Schedule by default? Yes
+	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? No
+	my $server = $cmdline->{server}; # Server for remote nodes
 
 	open(F, $file) or die "Cannot read $file: $!\n";
 	my $nodedata = join('', grep( !m!^\s*//\s+!, <F>));
@@ -873,6 +873,13 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	$mayberec = eval { decode_json($nodedata); };
 	$mayberec = eval { JSON::XS->new->latin1(1)->decode($nodedata); } if ($@);
 	die "Invalid node data, JSON parsing failed: $@\n" if ($@);
+	
+	if ($server_data) {
+		if ($server_data->{id} ne $mayberec->{cluster_id}) {
+			die "Cluster and server mismatch!\n"
+		}
+		
+	}
 	
 	my $number = 0;
 	
@@ -937,6 +944,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 																												keys %$mayberec));
 		if ($server) {
 			$unknown{status} =  $cmdline->{act} eq "create" ? "new" : "update";
+			$nodeobj->cluster_id($server_data->{id}) if ($cmdline->{act} eq "create");
 		}
 		$nodeobj->unknown(\%unknown);
 	
@@ -961,8 +969,8 @@ sub validate_node_data
 {
 	my %args = @_;
 	my $node = $args{node};
-	
 	my $name = $node->{name};
+	
 	die "Invalid node name \"$name\"\n"
 			if ($name =~ /[^a-zA-Z0-9_-]/);
 
@@ -982,7 +990,13 @@ sub validate_node_data
 	die "Invalid node data, roleType \"$node->{configuration}->{roleType}\" is not known!\n"
 			if (!grep($node->{configuration}->{roleType} eq $_,
 								split(/\s*,\s*/, $config->{roletype_list})));
-
+	if ($node->{cluster_id}) {
+		my $server_data = get_server(server => $node->{cluster_id});
+		if (!$server_data) {
+			die "Invalid cluster_id, this server does not exist!\n";
+		}
+	}
+	
 	# look up the node - ideally by uuid, fall back to name only if necessary
 	my %query = $node->{uuid}? (uuid => $node->{uuid}) : (name => $node->{name});
 	
