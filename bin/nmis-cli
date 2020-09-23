@@ -105,6 +105,7 @@ act=schedule: inserts a new job record into the database.
 Supported Arguments for Schedule Creation:
 
 at: optional time argument for the job to commence, default is now.
+  Time format is described in "man at"
 
 job.type: job type, required, one of: collect update services
   thresholds escalations metrics configbackup purge dbcleanup
