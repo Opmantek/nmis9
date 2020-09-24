@@ -335,7 +335,7 @@ sub new
 			return undef;
 		}
 	}
-
+    
 	my $data = ($args{data} //= {});	# synthesise data as hash (if empty) for db consistency
 	if ( defined($data) && ref($data) ne "HASH" )
 	{
@@ -407,6 +407,9 @@ sub new
 	{
 		$self->data_info(%$entry);
 	}
+	# Fill the server name
+	$self->{"_server_name"} = $self->{_nmisng}->get_server_name(cluster_id => $self->{_cluster_id});
+	
 	# not dirty at this time
 	$self->_dirty(0);
 
@@ -632,6 +635,13 @@ sub cluster_id
 {
 	my ($self) = @_;
 	return $self->{_cluster_id};
+}
+
+# RO, returns server_name of this Inventory
+sub server_name
+{
+	my ($self) = @_;
+	return $self->{_server_name};
 }
 
 # RO, returns concept of this Inventory
@@ -1028,6 +1038,12 @@ sub relocate_storage
 		# makeRRD name using the inventory and the index
 		my $index = $self->data()->{index};
 		my $newfile = $S->makeRRDname( type => $subconcept, relative => 1, index => $index, inventory => $inventory);
+		if (!defined($newfile)) {
+			$self->nmisng->log->error("Skipping $subconcept. Not able to make RRD name.");
+			$error_keys{$subconcept} = 1;
+			next;
+		}
+		
 		$newfile =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 			
 		# Make sure the file name is the same. Could change if is a duplicate, pe
@@ -1249,6 +1265,7 @@ sub save
 
 	my $record = {
 		cluster_id => $self->cluster_id,
+		server_name => $self->server_name,
 		node_uuid  => $self->node_uuid,
 		concept    => $self->concept(),
 		path       => $self->path(),         # path is calculated but must be stored so it can be queried

@@ -180,7 +180,7 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 		open(STDOUT, ">", "/dev/null") or die "cannot reopen stdout: $!\n";
 		open(STDERR, ">>", $logfile) or die "cannot open stdout to $logfile: $!\n";
 	}
-	$0 = "nmisd scheduler";
+	$0 = "nmisd.scheduler";
 }
 Mojo::File->new($pidfile)->spurt("$$\n");
 NMISNG::Util::setFileProtDiag(file => $pidfile); # or the selftest complains
@@ -677,7 +677,7 @@ while (!$exit_marker)
 
 		my %statsdata;
 		for my $ds (map { ("${_}time", "${_}count") } (qw(collect update services metrics
-selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect
+selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes
 )))
 		{
 			# no occurrences of op X -> count must be zero, not undefined.
@@ -835,7 +835,7 @@ sub manage_processes
 			}
 			$nmisng->log->logprefix("fping\[$$\] ");
 			$nmisng->log->info("started");
-			$0 = "nmisd fping";
+			$0 = "nmisd.fping";
 
 			my $exit_marker;
 			# setup signal handlers: HUP and USR1/USR2, INT, TERM
@@ -903,7 +903,7 @@ sub manage_processes
 				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $cmdline->{debug});
 				$nmisng->log->logprefix("worker\[$$\] ");
 				$nmisng->log->info("started");
-				$0 = "nmisd worker <idle>";
+				$0 = "nmisd.worker.<idle>";
 
 				my $exit_marker;
 				# setup signal handlers: HUP and USR1/USR2, INT, TERM
@@ -1144,7 +1144,7 @@ sub worker_loop
 
 
 			my $state = { stats => { time => Time::HiRes::time }};		# for opstatus and exception handling
-			$0 = "nmisd " . $ourjob->{type}; # Change worker name
+			$0 = "nmisd." . $ourjob->{type}; # Change worker name
 			
 			# the simpler jobs don't have extra args that need to go into opstatus context
 			if ($ourjob->{type} =~ /^(selftest|permissions_test|configbackup|purge|dbcleanup|escalations|thresholds|metrics)$/)
@@ -1241,6 +1241,267 @@ sub worker_loop
 					my $result = $nmisng->compute_metrics;
 					$state->{status} = $result->{success}? "ok":"error";
 					$state->{details} = $result->{success}? "completed successfully" : "failed: $result->{error}";
+				}
+				elsif ($ourjob->{type} eq "delete_nodes")
+				{
+					my $uuid = $ourjob->{args}->{uuid};
+					my $name = $ourjob->{args}->{node};
+					my $nodes = "";
+					my $error = 0;
+					my $errormsg = "";
+					my $keeprrds = $ourjob->{args}->{keeprrds} // 0;
+					
+					my $nodemodel = $nmisng->get_nodes_model(filter => {name => $name, uuid => $uuid});
+
+					if (!$nodemodel->count) {
+						$nmisng->log->error("No matching nodes exist");
+						$error = 1;
+					} else {
+						my $gimmeobj = $nodemodel->objects; # instantiate, please!
+						if (!$gimmeobj->{success}) {
+							$nmisng->log->error("Failed to instantiate node objects: $gimmeobj->{error}");
+							$error = 1;
+						} else {
+							for my $mustdie (@{$gimmeobj->{objects}})
+							{
+								# First, backup
+								my $backup = $config->{'backup_node_on_delete'} // 1;
+								my $backup_folder = $config->{'node_dumps_dir'} // $config->{'<nmis_var>'}."/node_dumps";
+								if ( !-d $backup_folder )
+								{
+									mkdir( $backup_folder, 0700 ) or return {error => "Cannot create $backup_folder: $!"};
+								}
+								my $res;
+								
+								if ($backup) {
+									$res = $nmisng->dump_node(name => $mustdie->name,
+														 uuid => $mustdie->uuid,
+														 target => $backup_folder . "/".$mustdie->name.".zip");
+														 #options => \%options);
+								}
+								if (!$backup || $res->{success}) {
+									
+									(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds); # === eq false
+									$nmisng->log->debug("********* $ok deleting node ". $mustdie->name);
+									if (!$ok) {
+										$nmisng->log->error("Error deleting node: $errormsg");
+										$error = 1;
+									} else {
+										$nodes = $nodes . " " . $mustdie->name;
+									}
+								} else {
+									$nmisng->log->error("Failed to backup node: ". $mustdie->name);
+									$error = 1;
+								}	
+							}
+						}
+					}
+					if ($error == 0) {
+						$state->{status} = "ok";
+						$state->{details} = "completed successfully";
+					} else {
+						$state->{status} = "error";
+						$state->{details} = "Error deleting node $errormsg";
+					}
+					
+					$state->{context} = {node_name => $nodes};
+				}
+				elsif ($ourjob->{type} eq "create_nodes" || $ourjob->{type} eq "update_nodes")
+				{
+					my $nodes = "";
+					my $error = 0;
+					my $errormsg = "";
+					my $what = $ourjob->{type};
+					
+					my $mayberec = $ourjob->{args}->{data};
+					
+					my @nodes;
+					
+					if (ref($mayberec) eq "HASH") {
+						push @nodes, $mayberec;
+					}
+					foreach my $n (@$mayberec)  {
+							push @nodes, $n;
+					}
+					
+					
+					foreach my $n (@nodes) {
+						my %query = $n->{uuid}? (uuid => $n->{uuid}) : (name => $n->{name});
+						my $nodeobj = $nmisng->node(%query);
+						$nodeobj ||= $nmisng->node(uuid => $n->{uuid}, create => 1);
+					
+						$nodes = $nodes . " " . $n->{name};
+						
+						if (ref($nodeobj) ne "NMISNG::Node") {
+							$nmisng->log->error("Failed to instantiate node object!\n");
+							$error = 1;
+						} else {
+							my $isnew = $nodeobj->is_new;
+							# must set overrides, activated, name/cluster_id, addresses/aliases, configuration;
+							for my $mustset (qw(cluster_id name activated overrides configuration addresses aliases))
+							{
+								$nodeobj->$mustset($n->{$mustset}) if (exists($n->{$mustset}));
+								delete $n->{$mustset};
+							}
+							# if creating, add missing cluster_id for local operation
+							$nodeobj->cluster_id($config->{cluster_id}) if (!$nodeobj->cluster_id);
+							# there should be nothing left at this point, anything that is goes into unknown()
+							my %unknown = map { ($_ => $n->{$_}) } (grep(!/^(configuration|lastupdate|uuid)$/, keys %$n));
+							$nodeobj->unknown(\%unknown);
+							
+							my ($status,$msg) = $nodeobj->save;
+							
+							# zero is no saving needed, which is not good here
+							if ($status <= 0) {
+								$nmisng->log->error("failed to ".($isnew? "create":"update")." node $n->{uuid}: $msg\n");
+								$error = 1;
+							}						
+						}
+
+					}
+					
+					if ($error == 0) {
+						$state->{status} = "ok";
+						$state->{details} = "completed successfully ";
+					} else {
+						$state->{status} = "error";
+						$state->{details} = "Error $what node $errormsg";
+					}
+					
+					$state->{context} = {node_name => $nodes};	
+				}
+				elsif ($ourjob->{type} eq "set_nodes" ) {
+					my $nodes_list = "";
+					my $error = 0;
+					my $errormsg = "";
+					my $what = $ourjob->{type};
+					
+					my $data = $ourjob->{args}->{data};
+					my $nodes = $ourjob->{args}->{uuid};
+					
+					if (exists($data->{"entry.name"})) {
+							$nmisng->log->error("set_nodes: Please use act=rename for node renaming! ");
+							$error = 1;
+							next;
+					} else {
+						foreach my $n (@$nodes) {
+							$nmisng->log->error("set_nodes: Processing node $n! ");
+							my $nodeobj = $nmisng->node(name => $n) || $nmisng->node(uuid=> $n);
+							if (!$nodeobj) {
+								$error =1;
+								next;
+							}
+							
+							my $node = $nodeobj->name;			# if looked up via uuid
+						
+							my $curconfig = $nodeobj->configuration;
+							my $curoverrides = $nodeobj->overrides;
+							my $curactivated = $nodeobj->activated;
+							my $curextras = $nodeobj->unknown;
+							my $curarraythings = { aliases => $nodeobj->aliases,
+																		 addresses => $nodeobj->addresses };
+							my $anythingtodo;
+				
+							for my $name (keys %$data)
+							{
+								# . are replaced by _ for the queue
+								my $prop = $name;
+								$prop =~ s/_/./g;
+								
+								next if ($prop !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+								++$anythingtodo;
+						
+								my $value = $data->{$name};
+								undef $value if ($value eq "undef");
+								$prop =~ s/^entry\.//;
+						
+								# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+								$prop = "activated.NMIS" if ($prop eq "configuration.active");
+						
+								# where does it go? overrides.X is obvious...
+								if ($prop =~ /^overrides\.(.+)$/)
+								{
+									$curoverrides->{$1} = $value;
+								}
+								# ...name, cluster_id a bit less...
+								elsif ($prop =~ /^(name|cluster_id)$/)
+								{
+									$nodeobj->$1($value);
+								}
+								# ...and activated.X not at all
+								elsif ($prop =~ /^activated\.(.+)$/)
+								{
+									$curactivated->{$1} = $value;
+								}
+								# ...and then there's the unknown unknowns
+								elsif ($prop =~ /^unknown\.(.+)$/)
+								{
+									$curextras->{$1} = $value;
+								}
+								# and aliases and addresses, but these are ARRAYS
+								elsif ($prop =~ /^((aliases|addresses)\.(.+))$/)
+								{
+									$curarraythings->{$1} = $value;
+								}
+								# configuration.X
+								elsif ($prop =~ /^configuration\.(.+)$/)
+								{
+									$curconfig->{$1} = $value;
+								}
+								else
+								{
+									die "Unknown property \"$prop\"!\n";
+								}
+							}
+							if (!$anythingtodo) {
+								$nmisng->log->error("set_nodes: No changes for node \"$node\"!");
+								$error = 1;
+								next;
+							}
+						
+							for ([$curconfig, "configuration"],
+									 [$curoverrides, "override"],
+									 [$curactivated, "activated"],
+									 [$curarraythings, "addresses/aliases" ],
+									 [$curextras, "unknown/extras" ])
+							{
+								my ($checkwhat, $name) = @$_;
+						
+								my $error = NMISNG::Util::translate_dotfields($checkwhat);
+								if ($error) {
+									$nmisng->log->error("set_nodes: translation of $name arguments failed: $error!");
+									$error = 1;
+									next;
+								}
+							}
+						
+							$nodeobj->overrides($curoverrides);
+							$nodeobj->configuration($curconfig);
+							$nodeobj->activated($curactivated);
+							$nodeobj->addresses($curarraythings->{addresses});
+							$nodeobj->aliases($curarraythings->{aliases});
+							$nodeobj->unknown($curextras);
+						
+							(my $op, $error) = $nodeobj->save;
+							if ($op <= 0) {
+									$nmisng->log->error("set_nodes: Failed to save $node: $error");
+									$error = 1;
+									next;
+								}
+							$nodes_list = $nodes_list . " " . $node;
+	
+						}
+					}
+					
+					if ($error == 0) {
+						$state->{status} = "ok";
+						$state->{details} = "completed successfully ";
+					} else {
+						$state->{status} = "error";
+						$state->{details} = "Error setting node $errormsg";
+					}
+					
+					$state->{context} = {node_name => $nodes_list};	
 				}
 				elsif ($ourjob->{type} eq "plugins")
 				{
@@ -1409,7 +1670,7 @@ sub worker_loop
 				$state->{exception} = $_;
 			};
 
-			$0 = "nmisd worker <idle>";			# some of the ops rename the process temporarily
+			$0 = "nmisd.worker.<idle>";			# some of the ops rename the process temporarily
 
 			if ($state->{exception})
 			{
@@ -1420,7 +1681,8 @@ sub worker_loop
 															 status => "error",
 															 type => "exception",
 															 details => $state->{exception},
-															 stats => undef );
+															 stats => undef,
+															 context => $state->{context}  );
 			}
 			else
 			{
@@ -1431,7 +1693,8 @@ sub worker_loop
 																										type => "completed",
 																										status => $state->{status},
 																										details => $state->{details},
-																										stats => $state->{stats} );
+																										stats => $state->{stats},
+																										context => $state->{context} );
 				$nmisng->log->error("Failed to save opstatus: $error") if ($error);
 
 				# and convenience-log the time it's taken (for per-node jobs that's already done with more context)

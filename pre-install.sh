@@ -26,8 +26,26 @@ sudo apt-get install perl
 Do you want the installer to install Perl for you? 
 EOF
 
+# check for unattended -y mode
+for i in "$@"; do
+		if [ "$i" = "-y" ]; then
+				UNATTENDED=1
+				break;
+		fi
+done
+
+# let's not even ask if -y mode is on
+[ -n "${UNATTENDED:-}" ] && DOIT=1 && EXTRA="-y" && DEBIAN_FRONTEND="noninteractive" && PERL_MM_USE_DEFAULT=1 && echo "Unattended Mode - default answer Y"
+export DEBIAN_FRONTEND
 # IMPORTANT: read sends prompt message to stderr, so we must redirect stderr to stdout when using read
-if { read -p "Enter y to continue, anything else to abort: "  X 2>&1; } && [ "$X" = 'y' -o "$X" = 'Y' ]; then
+# let's accept enter as yes
+if [ -z "${UNATTENDED:-}" ] && { read -p "Enter y to continue, anything else to abort: "  X 2>&1; } && [ -z "$X" -o "$X" = 'y' -o "$X" = 'Y' ]; then
+		DOIT=1;
+		PERL_MM_USE_DEFAULT=0;
+fi
+export PERL_MM_USE_DEFAULT;
+
+if [ "${DOIT:-0}" = 1 ]; then
 		if type yum >/dev/null 2>&1; then
 
 				if type subscription-manager >/dev/null 2>&1 && egrep -q 'VERSION_ID="7' /etc/os-release 2>/dev/null; then
@@ -36,11 +54,11 @@ if { read -p "Enter y to continue, anything else to abort: "  X 2>&1; } && [ "$X
 																 --enable rhel-7-server-supplementary-rpms	
 				fi
 				echo "Starting yum install"
-				yum install perl-core
+				yum ${EXTRA:-} install perl-core
 				
 		elif type apt-get >/dev/null 2>&1; then
 				echo "Starting apt-get install"
-				apt-get install perl
+				apt-get ${EXTRA:-} install perl
 		fi
 
 		# time to try once more

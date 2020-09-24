@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.0.8";
+our $VERSION = "9.0.12";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -53,7 +53,7 @@ use Compat::NMIS;
 
 if ( @ARGV == 1 && $ARGV[0] eq "--version" )
 {
-	print "version=$VERSION\n";
+	print "version=$NMISNG::VERSION\n";
 	exit 0;
 }
 
@@ -105,10 +105,11 @@ act=schedule: inserts a new job record into the database.
 Supported Arguments for Schedule Creation:
 
 at: optional time argument for the job to commence, default is now.
+  Time format is described in "man at"
 
 job.type: job type, required, one of: collect update services
   thresholds escalations metrics configbackup purge dbcleanup
-  selftest permission_test or plugins
+  selftest permission_test or plugins delete edit 
 
 job.priority: optional number between 0 (lowest) and 1 (highest) job priority.
  default is 1 for manually scheduled jobs
@@ -265,7 +266,7 @@ elsif ($Q->{act} eq "schedule")
 	my %jobargs;
 	for my $match (grep(/^job\..+$/, keys %$Q))
 	{
-		next if ($match =~ /^job\.(type|priority|verbosity|output|tag)$/); # these don't go into the job args
+		next if ($match =~ /^job\.(type|priority|verbosity|output|tag|data|keeprrds)$/); # these don't go into the job args
 		my $argument = $match;
 		$argument =~ s/^job\.//;
 		$jobargs{$argument} = ( $argument eq "force"? # for force we'd like 1/0
@@ -278,15 +279,18 @@ elsif ($Q->{act} eq "schedule")
 	if ($what =~ /^(collect|update|services|plugins)$/)
 	{
 		my @filters;
+		
 		for my $filterable (qw(node name group uuid)) # job.node === job.name === node name
 		{
-			my @inputs = ref($jobargs{$filterable}) eq "ARRAY"? @{$jobargs{$filterable}}: $jobargs{$filterable} // ();
+			my $thisjob = $jobargs{$filterable};
+			my @arr = split(",", $thisjob);
+			my @inputs = ref(\@arr) eq "ARRAY"? @arr: $jobargs{$filterable} // ();
 			map { push @filters, { ($filterable eq "node"? "name" :
 															$filterable =~ /^(name|uuid)$/?
 															$filterable : "configuration.$filterable") => $_ }; } (@inputs);
 		}
-
 		my $possibles = $nmisng->expand_node_selection(@filters);
+
 		die "Failed to query nodes: ".$possibles->error."\n" if ($possibles->error);
 		die "No nodes found matching your selectors!\n" if (!$possibles->count);
 
@@ -312,7 +316,7 @@ elsif ($Q->{act} eq "schedule")
 					args => \%jobargs });
 			die "Failed to add schedule: $error\n" if ($error);
 			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$wantquiet);
-		}
+		} 
 		# collect/update/services need separate scheduling for each node
 		else
 		{

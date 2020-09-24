@@ -53,6 +53,7 @@ my %hash = (
 
 		'web_root' => '<nmis_base>/htdocs',
 		'<nmis_backups>' => '<nmis_data>/backups',
+    'node_dumps_dir' => '<nmis_var>/node_dumps'
   },
 
   'globals' => {
@@ -110,7 +111,7 @@ my %hash = (
     'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 
 		'nmisd_max_workers' => 10, # set to zero to disable multiprocessing
-		'nmisd_worker_cycle' => 30,	# workers sleep no longer than X between cycles
+		'nmisd_worker_cycle' => 100,	# workers sleep no longer than X between cycles
 		'nmisd_scheduler_cycle' => 10, # the supervisor daemon sleeps no longer than X between cycles
 
 		'nmisd_fping_worker' => 'true', # if true, at dedicated worker for fping use used
@@ -182,7 +183,6 @@ my %hash = (
 		'interface_util_label' => 'Util. 6hrs',
     'interface_max_number' => '5000',
 		'interface_availability_value_when_down' => 'U',
-    'snpp_server' => '<server_name>',
     'snmp_timeout' => 5,
     'snmp_retries' => 1,
     'snmp_max_msg_size' => 1472,
@@ -215,6 +215,8 @@ my %hash = (
 		'keep_event_history' => 'false',
 		'use_json' => 'true',
 		'use_json_pretty' => 'false',
+    'backup_node_on_delete' => 'true',
+    'keeprrds_on_delete_node' => 'false',
   },
 
   'url' => {
@@ -226,6 +228,7 @@ my %hash = (
 
   'files' => {
     'nmis' => '<cgi_url_base>/nmiscgi.pl',
+    'rrddraw' => '<cgi_url_base>/rrddraw.pl',
     'network' => '<cgi_url_base>/network.pl',
     'node' => '<cgi_url_base>/node.pl',
     'events' => '<cgi_url_base>/events.pl',
@@ -295,7 +298,6 @@ my %hash = (
     'auth_htpasswd_file' => '<nmis_conf>/users.dat',
     'auth_htpasswd_encrypt' => 'crypt',
     'auth_radius_secret' => '',
-    'auth_user_name_regex' => '[\w \-\.\@\`\']+',
     'auth_web_key' => 'Please Change Me!',
     'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
     'auth_radius_server' => '',
@@ -459,8 +461,9 @@ my %hash = (
 		'purge_inventory_after' => 14*86400,		 # unused/historic inventory data (automatic expiration)
 		'purge_reports_after' => 365*86400,			 # html reports
 		'purge_outages_after' => 86400,			 # past non-recurring outages
-		'purge_opstatus_after' => 7*86400,	 # opstatus records
+		'purge_opstatus_after' => 3*86400,	 # opstatus records
 		'purge_graphcache_after' => 3600,				 # cached graph images
+    'purge_node_dumps_after' => 30*86400,	 # node dump files from deleted nodes
 	},
 
 	'schedule' => {

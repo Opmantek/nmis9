@@ -18,7 +18,7 @@ if [ $OSFLAVOUR = "redhat" ]; then
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
     net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay \
     perl-JSON-XS fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu* \
-    perl-libwww-perl perl-Net-DNS perl-Digest-SHA \
+    perl-libwww-perl perl-WWW-Mechanize perl-Net-DNS perl-Digest-SHA \
     perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
     perl-Proc-ProcessTable perl-Authen-SASL \
     perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP \
@@ -53,7 +53,7 @@ else
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
     libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl \
-    libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl \
+    libio-socket-ssl-perl libwww-perl libwww-mechanize-perl libnet-smtp-ssl-perl libnet-smtps-perl \
     libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl  \
     libdigest-sha-perl libnet-xmpp-perl libsafe-isa-perl libtie-ixhash-perl \
     libnet-ldap-perl libdbi-perl libtime-modules-perl \
@@ -61,8 +61,17 @@ else
     libauthen-sasl-perl librrds-perl libtest-deep-perl dialog \
     libcrypt-des-perl libdigest-hmac-perl libclone-perl \
     libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
-    libmongodb-perl libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl
+    libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl"
+
+		# ubuntu 16.04 needs a mongodb perl driver >= 1.2.3: we load this from cpanm
+		# debian8 can't load a mongodb perl driver >= 1.2.3 from cpanm and is therefore not NMIS9 compatible
+		if [ "$OSFLAVOUR" = "ubuntu" ] && [ "$OS_MAJOR" -lt 17 ]; then
+				# do nothing: we will load the latest mongodb perl driver using cpanm later in the install process
+				:
+		else
+				PKGLIST="$PKGLIST libmongodb-perl"
+		fi;
 
 		# debian: 9/stretch has that in perl, older need the updated package
 		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl"
@@ -113,6 +122,40 @@ fi
 # absolute min for nmis 9 is 3.4.0
 mongo_or_bust 3 4 0 || exit 1
 
+
+# I've kept this code here in case it becomes relevant later and for informational purposes.
+# The reason we don't use this method to install MongoDB-v2.2.1 perl driver
+# is that the tests 'cpanm --test-only MongoDB' still fail after yum installs the NMIS9 dependencies.
+#
+#### Centos 7 install of MongoDB-v2.2.1 perl driver fails at crud_spec.t, UNLESS we install it first:
+###if [ "${OSFLAVOUR}" = "redhat" ] && [ "${OS_MAJOR}" -eq 7 ]; then
+###		REPO='';
+###		NEEDREPO='';
+###		printBanner "Some required packages need to be installed first!"
+###		echo "$PRODUCT requires the following packages to be installed first:";
+###		echo
+###		echo "perl-CPAN perl-App-cpanminus using $MGR";
+###		echo "MongoDB using CPANM";
+###		echo
+###		echo "The installer can download and install these packages.";
+###		if input_yn "Do you want to install these packages now?" "3fa2"; then
+###				install_package "perl-CPAN"||:;
+###				install_package "perl-App-cpanminus"||:;
+###				if type cpanm >/dev/null; then
+###						if [ -n "${UNATTENDED}" ]; then
+###								PROMPT="";
+###						else
+###								PROMPT="--prompt";
+###						fi;
+###						cpanm MongoDB --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+###						unset PROMPT;
+###				fi;
+###		fi;
+###		unset REPO;
+###		unset NEEDREPO;
+###fi;
+
+
 # sets MISSING, returns 1 if missing stuff
 printBanner "Checking Installed Packages"
 if ! check_missing_packages $PKGLIST; then
@@ -136,7 +179,7 @@ if ! check_missing_packages $PKGLIST; then
 														-o "$pkg" = "perl-Crypt-Rijndael" \
 														-o "$pkg" = "perl-JSON-XS" \
 														-o "$pkg" = "perl-Net-SMTPS" \
-														-o "$pkg" = "perl-Net-SNPP" \
+														-o "$pkg" = "perl-WWW-Mechanize" \
 														-o "$pkg" = "perl-Proc-ProcessTable" ]; then
 										REPO="--enablerepo=epel"
 										NEEDREPO="epel"

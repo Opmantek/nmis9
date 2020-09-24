@@ -92,8 +92,13 @@ if ($Q->{act} eq 'config_table_menu') { 			menuTable();
 } elsif ($Q->{act} eq 'config_table_doadd') { 		if (doeditTable()) { menuTable(); }
 } elsif ($Q->{act} eq 'config_table_doedit') { 		if (doeditTable()) { menuTable(); }
 } elsif ($Q->{act} eq 'config_table_dodelete') {
-	my $message = dodeleteTable();
-	menuTable(message => $message);
+	if ( $Q->{table} eq "Nodes") {
+		dodeleteTable();
+	} else {
+		my $message = dodeleteTable();
+        menuTable(message => $message);
+	}
+	
 } else { notfound(); }
 
 sub notfound {
@@ -191,8 +196,9 @@ EOF
 		print Tr(Tr(th({class=>'Warning',colspan=>$colspan}, $msg)));
 	}
 	if (!$iseditable) {
-		print Tr(td({class=>'Warning',align=>'center',colspan=>$colspan}, "There are files from the master overriding the configuration"));
+		print Tr(td({class=>'Warning',align=>'center',colspan=>$colspan}, "This peer is a poller. Configuration must be set in the master."));
 	}
+
 	print Tr(Tr(th({class=>'title',colspan=>$colspan},"Table $table")).$line);
 
 	# print data
@@ -311,12 +317,13 @@ sub viewTable
 		}
 		else
 		{
-			my $action = $wantwidget? "get('$formid');" : 'submit();';	
-			print Tr(td('&nbsp;'),
+			my $action = $wantwidget? "get('$formid');" : 'submit();';
+			if ($table eq "Nodes") {
+				print Tr(td('&nbsp;'),
 							td(button(-name=>"button",onclick => ('$("#dialog_confirm").dialog({
 															modal: true,
 															open: function() {
-																var markup = " Are you sure? All the data from this node will be deleted. You can create a <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> backup</a> first ";
+																var markup = " Are you sure? A node backup will be created if backup_node_on_delete is true. <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> More info.</a> ";
 																$(this).html(markup);
 															  },
 															buttons: {
@@ -334,6 +341,18 @@ sub viewTable
 												 onclick=> '$("#cancelinput").val("true");'
 												 . ($wantwidget? "get('$formid');" : 'submit();'),
 												 -value=>"Cancel")));
+			} else {
+				print Tr(td('&nbsp;'),
+						td(button(-name=>"button",onclick => ($wantwidget? "get('$formid');" : 'submit()'),
+								  												 -value=>"Delete"),
+						   "Are you sure",
+							# need to set the cancel parameter
+							button(-name=>'button',
+												 onclick=> '$("#cancelinput").val("true");'
+												 . ($wantwidget? "get('$formid');" : 'submit();'),
+												 -value=>"Cancel")));
+			}
+			
 		}
 	}
 	else
@@ -380,7 +399,7 @@ sub showTable {
 
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
-
+	
 	# try to find a match
 	my $pos = length($key)+1;
 	my $k = lc $key;
@@ -620,6 +639,9 @@ sub iseditable
 	my $table = $Q->{table};
 	
 	if ($table ne "Nodes" and NMISNG::Util::has_external_files(dir=>'conf',name=>$table)) {
+		return 0;
+	}
+	if ($table eq "Nodes" and $C->{server_role} eq "POLLER") {
 		return 0;
 	}
 	return 1;
@@ -983,16 +1005,6 @@ sub dodeleteTable {
 
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
-	my $T = loadReqTable(table=>$table);
-	# remote key
-	my $TT;
-	foreach (keys %{$T})
-	{
-		$TT->{$_} = $T->{$_}
-			if ($_ ne $key);
-		NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$TT);
-	}
-
 	# nodes are special - magic delegated to nmisng::node.
 	# make sure to remove events for deleted nodes
 	if ($table eq "Nodes")
@@ -1001,13 +1013,52 @@ sub dodeleteTable {
 		my $node = $nmisng->node( name => $key );
 		if( $node )
 		{
-			my ($success,$error) = $node->delete();
-			if (!$success)
+			my %jobargs;
+			my @nodes;
+			push @nodes, $key;
+			$jobargs{node} = \@nodes;
+			
+			my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => "delete_nodes",
+					time => time,
+					priority => 1,
+					in_progress => 0,					# somebody else is to work on this
+					args => \%jobargs });
+			
+			print header($headeropts);
+			if (!$wantwidget)
 			{
-				print header($headeropts);
-				print Tr(td({class=>'error'} , escapeHTML("Error removing node: $error")));			
-				return $error;
+				Compat::NMIS::pageStart(title => $node->name." delete");
 			}
+			my $thisurl = url(-absolute => 1)."?";
+			print start_form(-id=>"", -href => $thisurl)
+					. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+					. hidden(-override => 1, -name => "act", -value => "config_table_menu")
+					. hidden(-override => 1, -name => "widget", -value => $widget)
+					. hidden(-override => 1, -name => "table", -value => $Q->{table});
+
+			print table(Tr(td({class=>'header'}, escapeHTML("User-initiated delete of ".$node->name)))),
+
+			$error? "<strong>Failed to schedule delete: $error</strong>" :
+					"A delete operation was scheduled for this node (job id $jobid),
+which should start processing within a minute.<p>Please reload the node's dashboard page
+once that delete operation has completed.<p>";
+
+			print end_form;
+
+			return 0;
+			
+		}
+	} else {
+		my $T = loadReqTable(table=>$table);
+		# remote key
+		my $TT;
+		foreach (keys %{$T})
+		{
+			$TT->{$_} = $T->{$_}
+				if ($_ ne $key);
+			NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$TT);
 		}
 	}
 }
