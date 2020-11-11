@@ -30,7 +30,7 @@
 # *****************************************************************************
 
 %hash = (
-	'heading' => "Interface $ifDescr Max. Bits/Second Utilisation",
+	'heading' => 'Interface $ifDescr Max. Bits/Second Utilisation',
 	'title' => {
 		'standard' => '$node: $ifDescr - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node: $ifDescr - $length'
