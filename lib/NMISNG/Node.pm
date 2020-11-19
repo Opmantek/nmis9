@@ -1480,7 +1480,12 @@ sub validate
 	return (-3, "given roleType is not a known type")
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
-	return( -3, "threshold must be set to something") if( !defined($configuration->{threshold}) );
+	
+	# Threshold not defined, set to true by default
+	if (!defined($configuration->{threshold})) {
+		$configuration->{threshold} = 1;
+		$self->nmisng->log->info("Threshold not defined. Setting to true by default");
+	}
 
 	# if addresses/aliases are present, they must be arrays of hashes, each hash with correct
 	# inner property and expires must make sense
