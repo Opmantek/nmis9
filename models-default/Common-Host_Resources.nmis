@@ -1,0 +1,531 @@
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+    'type' => {
+      'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
+      'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
+      'Host_Memory' => '/nodes/$node/health/hrMemory.rrd',
+      'Host_Health' => '/nodes/$node/health/hrHealth.rrd',
+    }
+  },  
+  'heading' => {
+    'graphtype' => {
+      'Host_Storage' => 'Storage Usage',
+      'Host_Storage_Util' => 'Storage Utilisation',
+      'Host_Memory' => 'Real Memory Usage',
+      'Host_Swap_Memory' => 'Swap Memory Usage',
+    }
+  },
+  'threshold' => {
+    'name' => {
+      'Real_Memory_Utilisation' => {
+        'item' => 'realMemUtil',
+        'event' => 'Proactive Memory Utilisation',
+        'title' => "Memory Utilisation",
+        'unit' => '%',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '93',
+              'major' => '91',
+              'minor' => '88',
+              'warning' => '85',
+            }
+          }
+        }
+      },
+      'Swap_Memory_Utilisation' => {
+        'item' => 'swapMemUtil',
+        'event' => 'Proactive Swap Memory Utilisation',
+        'title' => "Swap Memory Utilisation",
+        'unit' => '%',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '75',
+              'critical' => '50',
+              'major' => '30',
+              'minor' => '20',
+              'warning' => '15',
+            }
+          }
+        }
+      },
+      'Disk_Utilisation' => {
+        'event' => 'Proactive Disk Usage',
+        'title' => "Disk Usage",
+        'unit' => "%",
+        'item' => 'hrStorageUtil',
+        'select' => {
+          '1' => {
+            'control' => 'CVAR1=hrStorageTypeName;CVAR2=hrStorageDescr;$CVAR1 =~ /([Mm]emory)/ or $CVAR2 =~ /(\/rom)/',
+            'comment' => 'Disable things for /run and memory',
+            'value' => {
+              'fatal' => '1004',
+              'critical' => '1003',
+              'major' => '1002',
+              'minor' => '1001',
+              'warning' => '1000',
+            },
+          },
+          '10' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 <= 209715200000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '97',
+              'critical' => '95',
+              'major' => '95',
+              'minor' => '95',
+              'warning' => '95',
+            },
+          },
+          '20' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 209715200000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '97',
+              'major' => '95',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '30' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 1610612736000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '98',
+              'major' => '96',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '40' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 3221225472000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99.5',
+              'critical' => '99',
+              'major' => '98',
+              'minor' => '96',
+              'warning' => '93',
+            },
+          },
+          'default' => {
+            'value' => {
+              'fatal' => '197',
+              'critical' => '195',
+              'major' => '190',
+              'minor' => '180',
+              'warning' => '175',
+              #'fatal' => '97',
+              #'critical' => '95',
+              #'major' => '90',
+              #'minor' => '80',
+              #'warning' => '75',
+            }
+          }
+        }
+      },
+    },
+  },
+  'stats' => {
+    'type' => {
+      'Host_Health' => [
+        'DEF:hrSystemProcesses=$database:hrSystemProcesses:AVERAGE',
+        'DEF:hrSystemNumUsers=$database:hrSystemNumUsers:AVERAGE',
+        'PRINT:hrSystemProcesses:AVERAGE:hrSystemProcesses=%1.2lf',
+        'PRINT:hrSystemNumUsers:AVERAGE:hrSystemNumUsers=%1.2lf',
+      ],
+      'Host_Memory' => [
+        'DEF:physical_total=$database:physical_total:AVERAGE',
+        'DEF:available_used=$database:available_used:AVERAGE',
+        'DEF:physical_units=$database:physical_units:AVERAGE',
+        'DEF:swap_total=$database:swap_total:AVERAGE',
+        'DEF:swap_used=$database:swap_used:AVERAGE',
+
+        'CDEF:total_physical=physical_total,physical_units,*',
+        'CDEF:available=available_used,physical_units,*',
+        'CDEF:realMemUtil=available,total_physical,/,100,*',
+        'CDEF:swapMemUtil=swap_used,swap_total,/,100,*',
+
+        'PRINT:realMemUtil:AVERAGE:realMemUtil=%1.2lf',
+        'PRINT:swapMemUtil:AVERAGE:swapMemUtil=%1.2lf',
+      ],
+      'Host_Storage' => [
+        'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+        'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+        'CDEF:hrStorageUtil=hrStorageUsed,hrStorageSize,/,100,*',
+        'PRINT:hrStorageUtil:AVERAGE:hrStorageUtil=%1.2lf'
+      ],
+    },
+  },
+  # Keeping the critical alerts here for now.
+  'alerts' => {
+    'Host_Storage' => {
+      #'HighDiskUsage' => {
+      #  'type' => 'threshold-rising',
+      #  'threshold' => {
+      #    'Warning' => '75',
+      #    'Minor' => '80',
+      #    'Major' => '90',
+      #    'Critical' => '94',
+      #    'Fatal' => '94.5',
+      #  },
+      #  'test' => '',
+      #  'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+      #  'element' => 'hrStorageDescr',
+      #  'title' => "Disk Usage",
+      #  'unit' => '%',
+      #  'event' => 'High Disk Usage',
+      #  'level' => '',
+      #  'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      #},
+      'CriticalDiskUsage' => {
+        'element' => 'hrStorageDescr',
+        'event' => 'Critical Disk Usage',
+        'level' => 'Critical',
+        'test' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100 > 90',
+        'type' => 'test',
+        'title' => 'Critical Disk Usage',
+        'unit' => '%',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      #'HighMemoryUsage' => {
+      #  'type' => 'threshold-rising',
+      #  # to disable particular levels, set their value to the same as the desired one
+      #  'threshold' => {
+      #    'Warning' => '99.4',
+      #    'Minor' => '99.4',
+      #    'Major' => '99.4',
+      #    'Critical' => '99.6',
+      #    'Fatal' => '100',
+      #  },
+      #  'test' => '',
+      #  'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+      #  'element' => 'hrStorageDescr',
+      #  'unit' => '%',
+      #  'title' => "Memory Usage",
+      #  'event' => 'High Memory Usage',
+      #  'level' => '',
+      #  'control' => 'CVAR=hrStorageDescr;$CVAR =~ /^(Virtual )?Memory/',
+      #},
+      #'HighSwapUsage' => {
+      #  'type' => 'threshold-rising',
+      #  'threshold' => {
+      #    'Warning' => '15',
+      #    'Minor' => '20',
+      #    'Major' => '30',
+      #    'Critical' => '50',
+      #    'Fatal' => '75',
+      #  },
+      #  'test' => '',
+      #  'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+      #  'element' => 'hrStorageDescr',
+      #  'unit' => '%',
+      #  'event' => 'High Swap Usage',
+      #  'title' => "Swap Usage",
+      #  'level' => '',
+      #  'control' => 'CVAR=hrStorageDescr;$CVAR =~ /Swap/',
+      #},
+      'CriticalSwapUsage' => {
+        'type' => 'threshold-rising',
+        # to disable particular levels, set their value to the same as the desired one
+        'threshold' => {
+          'Warning' => '50',
+          'Minor' => '50',
+          'Major' => '50',
+          'Critical' => '50',
+          'Fatal' => '75',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'Critical Swap Usage',
+        'level' => '',
+        'control' => 'CVAR=hrStorageDescr;$CVAR =~ /Swap/',
+      },
+    },
+  },
+  'system' => {
+    'rrd' => {
+      'Host_Memory' => {
+        'graphtype' => 'Host_Memory,Host_Swap_Memory',
+        'threshold' => 'Real_Memory_Utilisation,Swap_Memory_Utilisation',
+      },
+      'Host_Health' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'Host_Processor' => {
+        'graphtype' => 'hrprocload',
+        'indexed' => 'true',
+        #'control' => 'CVAR=hrDeviceDescr;$CVAR =~ /(CPU|cpu)/',        
+        'snmp' => {
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'option' => 'gauge,0:U'
+          }
+        }
+      },
+      'Host_Storage' => {
+        'indexed' => 'true',
+        'graphtype' => 'Host_Storage,Host_Storage_Util',
+        'threshold' => 'Disk_Utilisation',
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          }
+        }
+      },
+    },
+    
+    'sys' => {
+      'Host_Processor' => {
+        'indexed' => 'hrProcessorLoad',
+        'headers' => 'hrDeviceDescr',
+        'snmp' => {
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr',
+            'title' => 'CPU Description',
+          }
+        }
+      },
+      'Host_Device' => {
+        'indexed' => 'hrDeviceIndex',
+        'headers' => 'hrDeviceIndex,hrDeviceDescr',
+        'snmp' => {
+          'hrDeviceIndex' => {
+            'oid' => 'hrDeviceIndex',
+            'title' => 'Device Index',
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr',
+            'title' => 'Device Description',
+          }
+        }
+      },
+      'Host_Storage' => {
+        'indexed' => 'hrStorageDescr',
+        'headers' => 'hrStorageDescr,hrStorageTypeName,hrStorageSummary',
+        #'headers' => 'hrStorageDescr,hrStorageSize,hrStorageUsage,hrStorageUtil,hrStorageSummary',
+        'snmp' => {
+          'hrStorageIndex' => {
+            'oid' => 'hrStorageIndex',
+            'title' => 'Index',
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType',
+            'title' => 'Type',
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr',
+            'title' => 'Description',
+          },
+          'hrStorageAllocationUnits' => {
+            'oid' => 'hrStorageAllocationUnits',
+            'title' => 'Units',
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize',
+            'title' => 'Size',
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed',
+            'title' => 'Used',
+          },
+          'hrStorageTotal' => {
+            'title' => 'Total',
+          },
+          'hrStorageUsage' => {
+            'title' => 'Usage',
+          },
+          'hrStorageUtil' => {
+            'title' => 'Util',
+          },
+          'hrStorageTypeName' => {
+            'title' => 'Type',
+          },
+          'hrStorageSummary' => {
+            'title' => 'Summary',
+          },
+          'hrPartitionLabel' => {
+            'title' => 'Partition',
+          },
+        }
+      },
+      #'Host_Disk_Storage' => {
+      #  'indexed' => 'hrDiskStorageAccess',
+      #  'headers' => 'index,hrDiskStorageAccess,hrDiskStorageMedia,hrDiskStorageRemoveble,hrDiskStorageCapacity',
+      #  'snmp' => {
+      #    'hrDiskStorageAccess' => {
+      #      'oid' => 'hrDiskStorageAccess',
+      #      'replace' => {
+      #        '1' => 'readWrite',
+      #        '2' => 'readOnly',
+      #      },
+      #      'title' => 'Access',
+      #    },
+      #    'hrDiskStorageMedia' => {
+      #      'oid' => 'hrDiskStorageMedia',
+      #      'replace' => {
+      #        '1' => 'other',
+      #        '2' => 'unknown',
+      #        '3' => 'hardDisk',
+      #        '4' => 'floppyDisk',
+      #        '5' => 'opticalDiskROM',
+      #        '6' => 'opticalDiskWORM',
+      #        '7' => 'opticalDiskRW',
+      #        '8' => 'ramDisk',
+      #      },
+      #      'title' => 'Media',
+      #    },
+      #    'hrDiskStorageRemoveble' => {
+      #      'oid' => 'hrDiskStorageRemoveble',
+      #      'replace' => {
+      #        '1' => 'true',
+      #        '2' => 'false',
+      #      },
+      #      'title' => 'Removable',
+      #    },
+      #    'hrDiskStorageCapacity' => {
+      #      'oid' => 'hrDiskStorageCapacity',
+      #      'title' => 'Capacity (KBytes)',
+      #    },
+      #  }
+      #},
+      'Host_Partition' => {
+        'indexed' => 'hrPartitionIndex',
+        'headers' => 'hrStorageDescr,hrPartitionLabel,hrPartitionID,hrPartitionSize',
+        'index_regex' => '\\.(\\d+\\.\\d+)$',
+        'snmp' => {
+          'hrStorageDescr' => {
+            'title' => 'Host Storage',
+          },
+          'hrPartitionIndex' => {
+            'oid' => 'hrPartitionIndex'
+          },
+          'hrPartitionLabel' => {
+            'oid' => 'hrPartitionLabel',
+            'title' => 'Partition Label',
+          },
+          'hrPartitionID' => {
+            'oid' => 'hrPartitionID',
+            'title' => 'Partition ID',
+          },
+          'hrPartitionSize' => {
+            'oid' => 'hrPartitionSize',
+            'title' => 'Partition Size',
+          },
+          'hrPartitionFSIndex' => {
+            'oid' => 'hrPartitionFSIndex'
+          },
+        }
+      },
+      'Host_File_System' => {
+        'indexed' => 'hrFSIndex',
+        'headers' => 'hrStorageDescr,hrFSMountPoint,hrFSRemoteMountPoint,hrFSType,hrFSAccess,hrFSBootable',
+        'snmp' => {
+          'hrStorageDescr' => {
+            'title' => 'Host Storage',
+          },
+          'hrFSIndex' => {
+            'oid' => 'hrFSIndex'
+          },
+          'hrFSMountPoint' => {
+            'oid' => 'hrFSMountPoint',
+            'title' => 'Mount Point',
+          },
+          'hrFSRemoteMountPoint' => {
+            'oid' => 'hrFSRemoteMountPoint',
+            'title' => 'Remote Mount Point',
+          },
+          'hrFSTypeOid' => {
+            'title' => 'Type',
+          },
+          'hrFSType' => {
+            'oid' => 'hrFSType',
+            'title' => 'Type',
+          },
+          'hrFSAccess' => {
+            'oid' => 'hrFSAccess',
+            'replace' => {
+              '1' => 'readWrite',
+              '2' => 'readOnly',
+            },
+            'title' => 'Access',
+          },
+          'hrFSBootable' => {
+            'oid' => 'hrFSBootable',
+            'replace' => {
+              '1' => 'true',
+              '2' => 'false',
+            },
+            'title' => 'Bootable',
+          },
+          'hrFSStorageIndex' => {
+            'oid' => 'hrFSStorageIndex',
+            'title' => 'Storage Index',
+          },
+        }
+      },
+      
+    }
+  }
+);
+
+
+
+
+
+
+
+
+
+
+
