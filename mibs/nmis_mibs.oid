@@ -10016,3 +10016,7 @@
 "mscPassport7480"			"1.3.6.1.4.1.562.36.1.2"
 "mscPassportVirtualRouter"			"1.3.6.1.4.1.562.36.1.3"
 "mscPassport15000"			"1.3.6.1.4.1.562.36.1.4"
+"hrFSOther"      "1.3.6.1.2.1.25.3.9.1"
+"hrFSNFS"       "1.3.6.1.2.1.25.3.9.14"
+"hrStorageFixedDisk"       "1.3.6.1.2.1.25.2.1.4"
+"hrStorageNetworkDisk"  "1.3.6.1.2.1.25.2.1.10"

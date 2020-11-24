@@ -179,6 +179,12 @@ sub collect_plugin
 				push(@summary,"Partition: $data->{hrPartitionLabel}<br/>") if defined $data->{hrPartitionLabel};
 
 				$data->{hrStorageSummary} = join(" ",@summary);
+                
+                # Save the data
+                $host_inventory->data($data); # set changed info
+                (undef,$error) = $host_inventory->save; # and save to the db
+                $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
+                        if ($error);
 			}
         } # Foreach
         if ( ref($Host_Memory) eq "HASH" ) {
@@ -208,9 +214,7 @@ sub collect_plugin
 				#'cached_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_total}},
 			};
 
-			# updateRRD subrutine is called from rrdfunc.pm module
-			my $updatedrrdfileref = NMISNG::rrdfunc::updateRRD(data=>$rrddata, sys=>$S, type=>"Host_Memory", index => undef);
-
+            my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>"Host_Memory");
 			# check for RRD update errors
 			if (!$updatedrrdfileref) { $NG->log->info("Update RRD failed!") };
 
@@ -231,7 +235,7 @@ sub update_plugin
 
 	# anything to do?
 	my $changesweremade = 0;
-    my ($host_storage, $host_file_system, $host_partition);
+    my ($host_storage, $host_storage_id, $host_file_system, $host_partition);
 
 	# if there is EntityMIB data then load map out the entPhysicalVendorType to the vendor type fields
 	# store in the field called Type.
@@ -270,6 +274,7 @@ sub update_plugin
             
             # Save new structure
             $host_storage->{$data->{index}} = $data;
+            $host_storage_id->{$data->{index}} = $host_id;
             
             if ( defined $data->{hrStorageType} and defined $mibs->{$data->{hrStorageType}} and $mibs->{$data->{hrStorageType}} ne "" ) {
 				$data->{hrStorageTypeOid} = $data->{hrStorageType};
@@ -282,7 +287,7 @@ sub update_plugin
                         if ($error);
 			}
 			else {
-				$NG->log->debug("Host_Storage no name found for $data->{hrStorageType}",1) if defined $data->{hrStorageType};
+				$NG->log->debug("Host_Storage no name found for $data->{hrStorageType}") if defined $data->{hrStorageType};
 			}       
         }
     }
@@ -325,7 +330,7 @@ sub update_plugin
             if ( defined $data->{hrFSType} and defined $mibs->{$data->{hrFSType}} and $mibs->{$data->{hrFSType}} ne "" ) {
 				$data->{hrFSTypeOid} = $data->{hrFSType};
 				$data->{hrFSType} = $mibs->{$data->{hrFSType}};
-$NG->log->info("**** Host_File_System hrFSTypeOid ". $data->{index});
+
 				$changesweremade = 1;
                 $changed = 1;
 			}
@@ -338,7 +343,7 @@ $NG->log->info("**** Host_File_System hrFSTypeOid ". $data->{index});
 				$data->{hrStorageDescr} = $host_storage->{$data->{hrFSStorageIndex}}->{hrStorageDescr};
 				$data->{hrStorageDescr_url} = "/cgi-nmis9/network.pl?conf=$C->{conf}&act=network_system_health_view&section=Host_Storage&node=$node";
 				$data->{hrStorageDescr_id} = "node_view_$node";
-$NG->log->info("**** Host_File_System hrStorageDescr_id ". $data->{hrFSStorageIndex});
+
 				$changesweremade = 1;
                 $changed = 1;
 			}
@@ -384,17 +389,27 @@ $NG->log->info("**** Host_File_System hrStorageDescr_id ". $data->{hrFSStorageIn
 				$data->{hrStorageDescr} = $host_storage->{$hrFSStorageIndex}->{hrStorageDescr};
 				$data->{hrStorageDescr_url} = "/cgi-nmis9/network.pl?conf=$C->{conf}&act=network_system_health_view&section=Host_Storage&node=$node";
 				$data->{hrStorageDescr_id} = "node_view_$node";
-$NG->log->info("**** Host_Partition hrStorageDescr_url ". $data->{hrPartitionFSIndex});
+
 				$changesweremade = 1;
 
                 $host_inventory->data($data); # set changed info
                 (undef,$error) = $host_inventory->save; # and save to the db
                 $NG->log->error("Failed to save inventory for ".$data->{index}. " : $error")
                         if ($error);
-                    
-                # TODO: Load inventory record, modify and change    
+  
 				# lets push some data into Host_Storage now
-				$host_storage->{$hrFSStorageIndex}->{hrPartitionLabel} = $data->{hrPartitionLabel};
+                my ($host_inventory_d,$error) = $S->nmisng_node->inventory(_id => $host_storage_id->{$hrFSStorageIndex});
+                if ($error)
+                {
+                    $NG->log->error("Failed to get inventory ".$host_storage_id->{$hrFSStorageIndex}. ": $error");
+                    next;
+                }
+                my $data_hs = $host_inventory_d->data();
+                $data_hs->{hrPartitionLabel} = $data->{hrPartitionLabel};
+                $host_inventory_d->data($data_hs); # set changed info
+                (undef,$error) = $host_inventory_d->save; # and save to the db
+                $NG->log->error("Failed to save inventory for ".$data_hs->{$hrFSStorageIndex}. " : $error")
+                        if ($error);
 			}
 
         }
