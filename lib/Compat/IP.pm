@@ -32,6 +32,73 @@ our $VERSION = "9.0.6c";
 
 use strict;
 
+use Net::IP;
+
+sub oid2ip
+{
+
+	my @octets = split(/\./, $_[0]);
+	my $size = @octets;
+
+	# remove 1.4 and 2.16 prefix
+	if ($size == 6 or $size == 18)
+	{
+	    @octets = @octets[2..$#octets];
+	    $size = @octets;
+	}
+
+	my $ip = join(".", @octets);
+	if ($size == 4 and Net::IP::ip_is_ipv4($ip))
+	{
+	    return $ip;
+	}
+
+	# invalid input, return as is
+	if ($size != 16) {
+	    return $_[0];
+	}
+
+	my ($o1,$o2,$o3,$o4,$o5,$o6,$o7,$o8,$o9,$o10,$o11,$o12,$o13,$o14,$o15,$o16) = @octets;
+	my ($p1,$p2,$p3,$p4,$p5,$p6,$p7,$p8);
+	$p1 = ($o1 << 8) + $o2;
+	$p2 = ($o3 << 8) + $o4;
+	$p3 = ($o5 << 8) + $o6;
+	$p4 = ($o7 << 8) + $o8;
+	$p5 = ($o9 << 8) + $o10;
+	$p6 = ($o11 << 8) + $o12;
+	$p7 = ($o13 << 8) + $o14;
+	$p8 = ($o15 << 8) + $o16;
+
+	my $ipv6 = sprintf("%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8);
+	if (Net::IP::ip_is_ipv6($ipv6))
+	{
+		return Net::IP::ip_compress_address($ipv6, 6);
+	}
+
+	return $ipv6;
+}
+
+# example: netmask2prefix('255.255.255.0') returns 24
+sub netmask2prefix
+{
+	my $mask = $_[0];
+	if (not Net::IP::ip_is_ipv4($mask))
+	{
+		return $mask;
+	}
+
+	my $prefix=0;
+	my @octets = split(/\./, $mask);
+	foreach my $octet ( @octets )
+	{
+		while ($octet) {
+			$prefix += $octet&1;
+			$octet /= 2;
+		}
+	}
+	return $prefix;
+}
+
 # check if host ip address is contained within address space in CIDR notation x.x.x.x/x
 # ipContainsAddr( ipaddr => "x.x.x.x" , cidr => "x.x.x.x/x" )
 
