@@ -94,7 +94,7 @@ my %hash = (
 		# for coloring the group status panel . 'default' applies to unlisted role types
 		'severity_by_roletype' => { core => [ 'Critical', 'Major' ], distribution => [ 'Major', 'Minor' ],
 																access => [ 'Minor', 'Warning' ], default => [ 'Major', 'Minor' ] },
-    'network_viewNode_field_list' => 'nodestatus,outage,sysName,host_addr,host_addr_backup,group,customer,location,businessService,serviceStatus,notes,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,last_ping,last_poll,last_update,nodeVendor,sysObjectName,roleType,netType',
+    'network_viewNode_field_list' => 'nodestatus,outage,sysName,host_addr,host_addr_backup,ip_protocol,group,customer,location,businessService,serviceStatus,notes,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,last_ping,last_poll,last_update,nodeVendor,sysObjectName,roleType,netType',
 
 		# if this option is present use binary logic for node down and set the level to the overall_node_status_level
     'overall_node_status_coarse' => 'false',

@@ -1945,7 +1945,7 @@ EO_HTML
 	# and some things are decided dynamically as well
 
 	my @defaultitems = qw(nodestatus outage sysName host_addr host_addr_backup
-group customer location businessService serviceStatus notes
+ip_protocol group customer location businessService serviceStatus notes
 nodeType nodeModel polling_policy sysUpTime sysLocation
 sysContact sysDescr ifNumber
 last_ping last_poll last_update
@@ -2046,6 +2046,7 @@ nodeVendor sysObjectName roleType netType );
 									 "host_addr" => "IP Address",
 									 "host_addr_backup" => "Backup IP Address",
 									 "polling_policy" => "Polling Policy",
+									 "ip_protocol" => "IP Protocol",
 									 timezone  => 'Time Zone',
 									 nodeModel => 'Model',
 									 nodeType => 'Type',
