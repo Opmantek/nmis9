@@ -1,5 +1,5 @@
-name,host,group,role,community,netType,roleType
-import_test1,127.0.0.1,Branches,core,nmisGig8,lan,default
-import_test2,127.0.0.1,Sales,core,nmisGig8,lan,default
-import_test3,127.0.0.1,DataCenter,core,nmisGig8,lan,default
-newnode,127.0.0.1,DataCenter,core,nmisGig8,lan,default
+name,host,group,role,community,netType
+import_test1,127.0.0.1,Branches,core,nmisGig8,lan
+import_test2,127.0.0.1,Sales,core,nmisGig8,lan
+import_test3,127.0.0.1,DataCenter,core,nmisGig8,lan
+newnode,127.0.0.1,DataCenter,core,nmisGig8,lan
