@@ -636,10 +636,27 @@
           'Checkpoint' => '2.6.18-92cp|2.6.18-92cpx86_64|2.4.21-21cpsmp'
         }
       }
-    }
+    },
+    'Accedian Networks' => {
+      'order' => {
+        '10' => {
+          'Accedian' => 'AMO-10000-LT-S'
+        },
+        '20' => {
+          'Accedian' => '.'
+        },
+      }
+    },
+    'Siklu Communication LTD' => {
+      'order' => {
+        '10' => {
+          'Siklu-EH-600' => 'EH-600TX'
+        }
+      }
+    },
   },
 
-	'stats' => {
+  'stats' => {
     'type' => {
       'health' => [
         'DEF:reach=$database:reachability:AVERAGE',

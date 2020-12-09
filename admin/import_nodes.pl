@@ -67,7 +67,7 @@ nodes to update/create
 
 The sample CSV looks like this:
 --sample--
-name,host,group,role,community,netType,activated.NMIS,activated.opConfig
+name,host,group,roleType,community,netType,activated.NMIS,activated.opConfig
 import_test1,127.0.0.1,Branches,core,nmisGig8,1,1
 import_test2,127.0.0.1,Sales,core,nmisGig8,lan,1,1
 import_test3,127.0.0.1,DataCenter,core,nmisGig8,lan,1,1
@@ -131,7 +131,7 @@ foreach my $node (keys %newNodes)
 
     if ( $newNodes{$node}{name} ne ""
              and $newNodes{$node}{host} ne ""
-             and $newNodes{$node}{role} ne ""
+             and $newNodes{$node}{roleType} ne ""
              and $newNodes{$node}{community} ne ""
     ) {
 
