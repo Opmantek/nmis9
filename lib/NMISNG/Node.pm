@@ -3027,7 +3027,9 @@ sub update_intf_info
 				# for a new object this must happen AFTER data is set
 				$inventory->path( recalculate => 1 );
 				$path = $inventory->path; # no longer the same - path was partial, now it no longer is
-				$inventory->description( $target->{Description} || $target->{ifDescr} );
+
+				# changed to fix element being incorrect in threshold events.
+				$inventory->description( $target->{ifDescr} || $target->{Description} );
 
 				# Regenerate storage: If ifDescr has changed, we need this
 				for ("interface", "pkts", "pkts_hc" )
