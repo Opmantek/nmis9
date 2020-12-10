@@ -169,6 +169,13 @@ foreach my $node (keys %newNodes)
             $newNodes{$node}{cluster_id} ||= $config->{cluster_id};
             $newNodes{$node}{threshold} ||= 'false';
             $nodeobj->name($newNodes{$node}{name});
+
+            # what other defaults should we set
+            if ( not defined $newNodes{$node}{netType} or (defined $newNodes{$node}{netType} and $newNodes{$node}{netType} eq "" ) ) {
+                $newNodes{$node}{netType} = "lan";
+            }
+
+
         } else {
             $nodeobj = $nmisng->node(name => $newNodes{$node}{name});
         }
@@ -296,6 +303,13 @@ foreach my $node (keys %newNodes)
             print STDERR "\t=> Node $node not saved. Simulation mode.\n";  
             print Dumper($nodeobj) if $debug > 1;
         }
+    }
+    else {
+        print STDERR "One of the required node fields is blank\n";
+        print STDERR "$node field 'name' is blank\n" if $newNodes{$node}{name} eq "";
+        print STDERR "$node field 'host' is blank\n" if $newNodes{$node}{host} eq "";
+        print STDERR "$node field 'roleType' is blank\n" if $newNodes{$node}{roleType} eq "";
+        print STDERR "$node field 'community' is blank\n" if $newNodes{$node}{community} eq "";
     }
     print $t->markTime(). " Processing $node end \n" if $time;
 }
