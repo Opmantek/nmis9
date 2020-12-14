@@ -675,6 +675,7 @@ sub doeditTable
 
 	# make room, make room! accessing a nonexistent $T->{$key} does NOT attach it to $T...
 	my $thisentry  = $T->{$key} ||= {};
+	my $isIPv6 = $Q->{ip_protocol} eq "IPv6";
 
 	# store new values in table structure
 	for my $ref ( @{$CT})
@@ -782,7 +783,7 @@ sub doeditTable
 				}
 				elsif ($valtype eq "ip")
 				{
-					my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
+					my @ipversions = $isIPv6 ? (6) : (4);
 
 					my $ipobj = Net::IP->new($value);
 					return validation_abort($item, "'$value' is not a valid IP address!")
@@ -801,7 +802,7 @@ sub doeditTable
 						return validation_abort($item, "'$value' is not a resolvable name or IP address!")
 								if (!$value);
 
-						my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
+						my @ipversions = $isIPv6 ? (6) : (4);
 
 						my $alreadyip = Net::IP->new($value);
 						if ($alreadyip)

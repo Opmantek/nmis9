@@ -67,13 +67,11 @@ my @models = ('automatic', sort keys %knownmodels);
 	 { uuid => { header => 'UUID',display => 'header,readonly',value => ['<created on save>'] }},
 
 	 { host => { mandatory => 'true', header => 'Host Name/IP Address',display => 'header,text',value => [""],
-							 # nmis doesn't support ipv6 yet
 							 validate => { "resolvable" => [ 4, 6 ] } }
 	 },
 
 	 { host_backup => { header => 'Fallback Host Name/IP Address',
 											display => 'header,text',value => [""],
-											# nmis doesn't support ipv6 yet
 											validate => { "resolvable-or-empty" => [ 4, 6 ] } }
 	 },
 

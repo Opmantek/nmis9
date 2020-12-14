@@ -2864,6 +2864,21 @@ sub resolveDNStoAddr
 	return $v4[0];
 }
 
+sub resolveDNStoAddrIPv6
+{
+	my ($name) = @_;
+
+	my @addresses = resolve_dns_name($name);
+
+	return if (!@addresses);
+
+	my @addr_objs = map { Net::IP->new($_) } (@addresses);
+	my $type = 6;
+	my ($ipv6) = grep($_->version == $type, @addr_objs);
+
+	return $ipv6->{ip};
+}
+
 # takes anything that time::parsedate understands, plus an optional timezone argument
 # and returns full seconds (ie. unix epoch seconds in utc)
 #

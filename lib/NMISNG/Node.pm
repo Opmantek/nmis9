@@ -2009,11 +2009,20 @@ sub update_node_info
 		for (["host","host_addr"], ["host_backup", "host_addr_backup"])
 		{
 			my ($sourceprop, $targetprop) = @$_;
-
 			my $sourceval = $self->configuration->{$sourceprop};
-			if ($sourceval && (my $addr = NMISNG::Util::resolveDNStoAddr($sourceval)))
+			my $ip;
+			if ($self->configuration->{ip_protocol} eq 'IPv6')
 			{
-				$catchall_data->{$targetprop} = $addr; # cache and display
+				$ip = NMISNG::Util::resolveDNStoAddrIPv6($sourceval);
+			}
+			else
+			{
+				$ip = NMISNG::Util::resolveDNStoAddr($sourceval);
+			}
+
+			if ($sourceval && ($ip))
+			{
+				$catchall_data->{$targetprop} = $ip; # cache and display
 			}
 			else
 			{
@@ -8158,24 +8167,31 @@ sub ext_ping
 	$count ||= 3;
 	$length ||= 56;
 
+	my $pingcmd = 'ping -4';
+	my $ip_protocol = $self->configuration->{ip_protocol} || 'IPv4';
+	if ($ip_protocol eq "IPv6")
+	{
+		$pingcmd = 'ping -6';
+	}
+
 	# List of known ping programs, key is lc(os)
 	my %ping = (
-		'mswin32' =>	"ping -l $length -n $count -w $timeout $host",
-		'aix'	=>	"/etc/ping $host $length $count",
-		'bsdos'	=>	"/bin/ping -s $length -c $count $host",
-		'darwin' =>	"/sbin/ping -s $length -c $count $host",
-		'freebsd' =>	"/sbin/ping -s $length -c $count $host",
-		'hpux'	=>	"/etc/ping $host $length $count",
-		'irix'	=>	"/usr/etc/ping -c $count -s $length $host",
-		'linux'	=>	"/bin/ping -c $count -s $length $host",
-		'suse'	=>	"/bin/ping -c $count -s $length -w $timeout $host",
-		'netbsd' =>	"/sbin/ping -s $length -c $count $host",
-		'openbsd' =>	"/sbin/ping -s $length -c $count $host",
-		'os2' =>	"ping $host $length $count",
-		'os/2' =>	"ping $host $length $count",
-		'dec_osf'=>	"/sbin/ping -s $length -c $count $host",
-		'solaris' =>	"/usr/sbin/ping -s $host $length $count",
-		'sunos'	=>	"/usr/etc/ping -s $host $length $count",
+		'mswin32' =>	"$pingcmd -l $length -n $count -w $timeout $host",
+		'aix'	=>	"/etc/$pingcmd $host $length $count",
+		'bsdos'	=>	"/bin/$pingcmd -s $length -c $count $host",
+		'darwin' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'freebsd' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'hpux'	=>	"/etc/$pingcmd $host $length $count",
+		'irix'	=>	"/usr/etc/$pingcmd -c $count -s $length $host",
+		'linux'	=>	"/bin/$pingcmd -c $count -s $length $host",
+		'suse'	=>	"/bin/$pingcmd -c $count -s $length -w $timeout $host",
+		'netbsd' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'openbsd' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'os2' =>	"$pingcmd $host $length $count",
+		'os/2' =>	"$pingcmd $host $length $count",
+		'dec_osf'=>	"/sbin/$pingcmd -s $length -c $count $host",
+		'solaris' =>	"/usr/sbin/$pingcmd -s $host $length $count",
+		'sunos'	=>	"/usr/etc/$pingcmd -s $host $length $count",
 			);
 
 	# get kernel name for finding the appropriate ping cmd
