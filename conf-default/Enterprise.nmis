@@ -40703,6 +40703,10 @@
     'Enterprise' => 'BocaTel',
     'OID' => '2559'
   },
+   '25597' => {
+    'Enterprise' => 'FireEye Inc.',
+    'OID' => '25597'
+  },
   '256' => {
     'Enterprise' => 'Scitec Communications Systems Ltd.',
     'OID' => '256'
@@ -73719,5 +73723,17 @@
   '41112' => {
     'Enterprise' => 'Ubiquiti Networks, Inc.',
     'OID' => '41112'
+  },
+  '19547' => {
+    'Enterprise' => 'Oplink Communications, Inc.',
+    'OID' => '19547'
+  },
+  '30803' => {
+    'Enterprise' => 'Vyatta, Inc.',
+    'OID' => '30803'
+  },
+  '31926' => {
+    'Enterprise' => 'Siklu Communication LTD',
+    'OID' => '31926'
   },
 );

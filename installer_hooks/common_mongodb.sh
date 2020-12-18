@@ -63,7 +63,7 @@ EOF
 
 				# get the release key first
 				# however, as of [2018-02-08 Thu 12:18] the 3.4 repository signing is broken: BADSIG
-				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -s -m 20 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
+				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -L -s -m 20 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
 				# apt-key adv doesn't work cleanly with gpg 2.1+
 				$GIMMEKEY | apt-key add -
 

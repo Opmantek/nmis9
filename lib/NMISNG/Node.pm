@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.1.0";
+our $VERSION = "9.1.1";
 
 use strict;
 
@@ -82,6 +82,7 @@ sub new
 		_nmisng => $args{nmisng},
 		_id     => $args{_id} // $args{id} // undef,
 		uuid    => $args{uuid},
+		collection => $args{nmisng}->nodes_collection()
 	};
 	bless( $self, $class );
 
@@ -94,7 +95,7 @@ sub new
 		# not loadable? then treat it as a new node
 		undef $self->{_id} if (!$self->_load);
 	}
-
+	
 	return $self;
 }
 
@@ -160,7 +161,7 @@ sub _load
 
 	my $query = NMISNG::DB::get_query( and_part => { uuid => $self->uuid }, no_regex => 1 );
 	my $cursor = NMISNG::DB::find(
-		collection => $self->nmisng->nodes_collection(),
+		collection => $self->collection,
 		query      => $query,
 		limit => 1,									# there can't be more than one
 	);
@@ -262,7 +263,6 @@ sub bulk_update_inventory_historic
 	{
 		$q->{'data.index'} = {'$nin' => $active_indices};
 	}
-
 	# mark historic where not in list
 	my $result = NMISNG::DB::update(
 		collection => $self->nmisng->inventory_collection,
@@ -393,6 +393,21 @@ sub addresses
 	return Clone::clone($self->{_addresses} // []);
 }
 
+# fill in properties we want and expect
+# args: hash ref (configuration)
+# returns: same hash ref, modified elements
+sub is_remote
+{
+	my ( $self ) = @_;
+
+	if ($self->nmisng->config->{"cluster_id"} ne $self->cluster_id())
+	{
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 # get-set accessor for node activation status
 # args: hashref (=new activation info, productname => 0/1),
 #  if given, node object is marked dirty and needs saving
@@ -469,7 +484,6 @@ sub configuration
 sub delete
 {
 	my ($self,%args) = @_;
-
 	my $keeprrd = NMISNG::Util::getbool($args{keep_rrd});
 
 	# not errors but message doesn't hurt
@@ -496,7 +510,7 @@ sub delete
 	for my $jobdata (@{$result->data})
 	{
 		return (0, "Cannot delete node while $jobdata->{type} job (id $jobdata->{_id}) is active!")
-				if ($jobdata->{in_progress});
+				if ($jobdata->{in_progress} and $jobdata->{type} ne "delete_nodes");
 
 		if (my $error = $self->nmisng->remove_queue(id => $jobdata->{_id}))
 		{
@@ -603,7 +617,7 @@ sub delete
 
  	# finally delete the node record itself
 	$result = NMISNG::DB::remove(
-		collection => $self->nmisng->nodes_collection,
+		collection => $self->collection,
 		query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} }, no_regex => 1),
 		just_one   => 1 );
 	return (0, "Node config removal failed: $result->{error}") if (!$result->{success});
@@ -849,6 +863,39 @@ sub inventory
 	}
 
 	return ($inventory, undef);
+}
+
+# No args
+# Return an array of concepts for this node
+sub inventory_concepts
+{
+	my ( $self, %args ) = @_;
+	my $filter = $args{filter};
+	$args{cluster_id} = $self->cluster_id();
+	$args{node_uuid}  = $self->uuid();
+
+	my $q = $self->nmisng->get_inventory_model_query( %args );
+	my $retval = ();
+
+	# print "q".Dumper($q);
+	# query parts that don't look at $datasets could run first if we need optimisation
+	my @prepipeline = (
+		{ '$match' => $q },
+		{ '$group' =>
+			{ '_id' => { "concept" => '$concept'}  # group by subconcepts
+		}}
+  );
+  my ($entries,$count,$error) = NMISNG::DB::aggregate(
+		collection => $self->nmisng->inventory_collection,
+		pre_count_pipeline => \@prepipeline, #use either pipe, doesn't matter
+		allowtempfiles => 1
+	);
+	foreach my $entry (@$entries)
+	{
+		push @$retval, $entry->{_id}{concept};
+
+	}
+	return ($error) ? $error : $retval;
 }
 
 # get all subconcepts and any dataset found within that subconcept
@@ -1179,6 +1226,19 @@ sub nmisng
 	return $self->{_nmisng};
 }
 
+# return collection object this node is using
+# It can be a setter
+# WARNING! It should be loaded after (_load)
+sub collection
+{
+	my ( $self, $newcollection ) = @_;
+
+	$self->{collection} = $newcollection
+		if ( $newcollection );
+		
+	return $self->{collection};
+}
+
 # get/set the overrides for this node
 # setting data means the overrides is dirty and will
 #  be saved next time save is called, even if it is identical to what
@@ -1214,6 +1274,7 @@ sub rename
 
 	my $newname = $args{new_name};
 	my $old = $self->name;
+	my $server = $args{server};
 
 	return (0, "Invalid new_name argument") if (!$newname);
 
@@ -1237,7 +1298,7 @@ sub rename
 	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
 	# find the node's var files and  hardlink them - do not delete anything yet!
 	my @todelete;
-	
+
 	# find all the node's inventory instances, tell them to hardlink their rrds
 	# get everything, historic or not - make it instantiatable
 	# concept type is unknown/dynamic, so have it ask nmisng
@@ -1318,7 +1379,7 @@ sub rename
 #   a differnent way of doing this
 sub save
 {
-	my ($self) = @_;
+	my ($self, %args) = @_;
 
 	return ( -1, "node is incomplete, not saveable yet" )
 			if ($self->is_new && !$self->_dirty);
@@ -1345,17 +1406,17 @@ sub save
 								addresses => $self->{_addresses} // [],
 								aliases => $self->{_aliases} // [],
 			);
-	# and, should we have any legacy/unknown extra things around, save them back - where safe!
+
 	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate)$/, keys %{$self->{_unknown}}));
 
 	if ($self->is_new())
 	{
 		# could maybe be upsert?
 		$result = NMISNG::DB::insert(
-			collection => $self->nmisng->nodes_collection(),
+			collection => $self->collection,
 			record     => \%entry,
 		);
-		assert( $result->{success}, "Record inserted successfully" );
+		assert( $result->{success}, "Record inserted successfully " );
 		$self->{_id} = $result->{id} if ( $result->{success} );
 
 		$self->_dirty(0); # all clean now
@@ -1365,7 +1426,7 @@ sub save
 	{
 
 		$result = NMISNG::DB::update(
-			collection => $self->nmisng->nodes_collection(),
+			collection => $self->collection,
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid}, no_regex => 1 ),
 			freeform   => 1,					# we need to replace the whole record
 			record     => \%entry
@@ -1419,7 +1480,12 @@ sub validate
 	return (-3, "given roleType is not a known type")
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
-	return( -3, "threshold must be set to something") if( !defined($configuration->{threshold}) );
+	
+	# Threshold not defined, set to true by default
+	if (!defined($configuration->{threshold})) {
+		$configuration->{threshold} = 1;
+		$self->nmisng->log->info("Threshold not defined. Setting to true by default");
+	}
 
 	# if addresses/aliases are present, they must be arrays of hashes, each hash with correct
 	# inner property and expires must make sense
@@ -1821,7 +1887,6 @@ sub update_node_info
 
 				# if the vendors product oid file is loaded, this will give product name.
 				$catchall_data->{sysObjectName} = NMISNG::MIB::oid2name($self->nmisng, $catchall_data->{sysObjectID} );
-
 				$self->nmisng->log->debug2("sysObjectId=$catchall_data->{sysObjectID}, sysObjectName=$catchall_data->{sysObjectName}");
 				$self->nmisng->log->debug2("sysDescr=$catchall_data->{sysDescr}");
 
@@ -2255,10 +2320,15 @@ sub collect_node_data
 	{
 		my $previous_pit = $inventory->get_newest_timed_data();
 
+		# Remove non existing subconcepts from catchall
+		my %subconcepts;
+		
 		$self->process_alerts( sys => $S );
 		foreach my $sect ( keys %{$rrdData} )
 		{
+			$subconcepts{$sect} = 1; # Remove non existing subconcepts from catchall
 			my $D = $rrdData->{$sect};
+			
 			# massage some nodehealth values
 			if ($sect eq "nodehealth")
 			{
@@ -2308,6 +2378,19 @@ sub collect_node_data
 			}
 		}
 		# NO save on inventory because it's the catchall right now
+		
+		# Now, update non existent subconcepts/storage from inventory/catchall
+		my $storage = $inventory->storage();
+		
+		foreach my $sub (@{$inventory->subconcepts()}) {
+			if (!$subconcepts{$sub}) {
+				if ($sub ne "health") {
+					$self->nmisng->log->debug7("Subconcept not existing anymore. Removing: ". Dumper($storage->{$sub}));
+					delete $storage->{$sub};
+				}
+			}
+		}
+		$inventory->storage($storage);
 	}
 	elsif ($howdiditgo->{skipped}) {}
 	else
@@ -2971,6 +3054,7 @@ sub update_intf_info
 			delete $pathdata->{index};
 			my $path = $self->inventory_path( concept => 'interface', data => $pathdata, partial => 1 );
 			my $inventory_id;
+
 			if( ref($path) eq 'ARRAY')
 			{
 				( $inventory, my $error_message ) = $self->inventory(
@@ -2985,8 +3069,28 @@ sub update_intf_info
 				# for a new object this must happen AFTER data is set
 				$inventory->path( recalculate => 1 );
 				$path = $inventory->path; # no longer the same - path was partial, now it no longer is
-				$inventory->description( $target->{Description} || $target->{ifDescr} );
 
+				# changed to fix element being incorrect in threshold events.
+				$inventory->description( $target->{ifDescr} || $target->{Description} );
+
+				# Regenerate storage: If ifDescr has changed, we need this
+				for ("interface", "pkts", "pkts_hc" )
+				{
+					if ($inventory->find_subconcept_type_storage(type => "rrd",
+																				 subconcept      => $_,
+																				 relative => 1 )) {
+						my $dbname = $S->makeRRDname(type => $_,
+																				 index     => $index,
+																				 item      => $_,
+																				 relative => 1 );
+						$self->nmisng->log->debug2("Storage: ". Dumper($dbname));
+						$inventory->set_subconcept_type_storage(type => "rrd",
+																subconcept => $_,
+																data => $dbname) if ($dbname);
+					}
+					
+				}
+				
 				# historic is only set when the index/_id is in the db but not found in the device, we are looping
 				# through things found on the device so it's not historic
 				$inventory->historic(0);
@@ -4410,6 +4514,7 @@ sub collect_systemhealth_info
 			}
 		}
 	}
+		
 	$self->nmisng->log->debug("Finished with collect_systemhealth_info");
 	return 1;
 }
@@ -6203,6 +6308,7 @@ sub update
 
 				# fixme: why no error handling for any of these?
 				$self->collect_systemhealth_info(sys => $S) if defined $S->{mdl}{systemHealth};
+				$self->update_concepts(sys => $S) if defined $S->{mdl}{systemHealth};
 				$self->collect_cbqos(sys => $S, update => 1);
 			}
 			else
@@ -6303,6 +6409,75 @@ sub update
 	$self->nmisng->log->debug("Finished with update");
 
 	return @problems? { error => join(" ",@problems) } : { success => 1 };
+}
+
+# Called by update
+# collect_systemhealth_info iterates over model data
+# And marks as inactive the removed concepts
+# But the concept that are in the inventory
+# And were removed from the model, are not marked as historic
+sub update_concepts
+{
+	my ($self, %args) = @_;
+	my $S    = $args{sys};    # object
+
+	my $name = $self->name;
+	my $C = $self->nmisng->config;
+
+	my $SNMP = $S->snmp;
+	my $M    = $S->mdl;           # node model table
+
+	my $inventory = $self->inventory_concepts();
+	my %concepts;
+	
+	if ( ref( $M->{systemHealth} ) ne "HASH" )
+	{
+		$self->nmisng->log->debug2("No class 'systemHealth' declared in Model.");
+		return 0;
+	}
+	elsif ( !$S->status->{snmp_enabled} && !$S->status->{wmi_enabled} )
+	{
+		$self->nmisng->log->warn("cannot get systemHealth info, neither SNMP nor WMI enabled!");
+		return 0;
+	}
+
+	# get the default (sub)sections from config, model can override
+	my @healthSections = split(
+		",",
+		(   defined( $M->{systemHealth}{sections} )
+			? $M->{systemHealth}{sections}
+				: $C->{model_health_sections}
+		)
+			);
+	for my $section (@healthSections)
+	{
+		$concepts{$section} = 1;
+	}
+	
+	# Never set these to historic, processed separately
+	$concepts{'interface'} = 1;
+	$concepts{'catchall'} = 1;
+	$concepts{'ping'} = 1;
+	$concepts{'device_global'} = 1;
+	$concepts{'device'} = 1;
+	$concepts{'storage'} = 1;
+	$concepts{'service'} = 1;
+	
+	my %inactive;
+	
+	foreach my $i (@$inventory) {
+		if ($concepts{$i}) {
+			$self->nmisng->log->debug8("Concept $i from inventory is defined in model");
+		} else {
+			# TODO: Activate this feature
+			my @index = ();
+			my $result = $self->bulk_update_inventory_historic(active_indices => \@index, concept => $i );
+			$self->nmisng->log->info("Concept $i marked historic: ". Dumper($result));
+		}
+	}
+	
+	return 1;
+	
 }
 
 # calculate the summary8 and summary16 data like it used to be, this will be stored in the db as

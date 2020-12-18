@@ -31,7 +31,7 @@
 # Two basic ways to grab info, via get*Model functions which return ModelData objects
 # or directly via the object
 package NMISNG;
-our $VERSION = "9.1.0";
+our $VERSION = "9.1.1";
 
 use strict;
 use Data::Dumper;
@@ -110,7 +110,7 @@ sub new
 	# allow for instantiating a test collection in our $db for running tests:
 	my $tests = $args{tests};
 	# load and prime the statically defined collections
-	for my $default_collname (qw(nodes events inventory latest_data queue opstatus status remote))
+	for my $default_collname (qw(nodes events inventory latest_data queue opstatus status remote ))
 	{
 		#  allow for instantiating a test collection in our $db for running tests:
 		my $collname = $tests->{"${default_collname}_test_collection"};
@@ -1220,17 +1220,33 @@ sub expand_node_selection
 {
 	my ( $self, @selectors ) = @_;
 
+	return $self->expand_node_selection_inactive_too(filter => \@selectors, onlyactive => 1);
+}
+
+# little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)
+# and returns the active nodes that match
+#
+# args: list of selectors, must be hashes
+# returns: modeldata object with the matching nodes
+sub expand_node_selection_inactive_too
+{
+	my ( $self, %args ) = @_;
+
 	my ( $mdata, %lotsanodes );
-	for my $onefilter ( @selectors ? @selectors : {} )
+	my $selectors = $args{filter};
+	my $onlyactive = $args{onlyactive};
+	
+	for my $onefilter ( @$selectors ? @$selectors : {} )
 	{
 		return NMISNG::ModelData->new(
 			nmisng => $self,
 			error  => {"invalid filter structure, not a hash!"}
 		) if ( ref($onefilter) ne "HASH" );
 
-		$onefilter->{"activated.NMIS"} = 1;    # never consider inactive nodes
+		$onefilter->{"activated.NMIS"} = 1 if ($onlyactive);    # never consider inactive nodes
 		# Only locals!
 		$onefilter->{"cluster_id"} = $self->config->{cluster_id};
+	
 		my $possibles = $self->get_nodes_model( filter => $onefilter );
 		return NMISNG::ModelData->new(
 			nmisng => $self,
@@ -2000,6 +2016,7 @@ sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
+	my $collection = $self->nodes_collection;
 
 	# copy convenience/shortcut arguments iff the filter
 	# hasn't already set them - the filter wins
@@ -2026,7 +2043,6 @@ sub get_nodes_model
 	{
 		$filter->{name} = NMISNG::DB::make_string($filter->{name});
 	}
-
 	my $fields_hash = $args{fields_hash};
 	my $q = NMISNG::DB::get_query( and_part => $filter );
 
@@ -2036,7 +2052,7 @@ sub get_nodes_model
 	if ( $args{count} )
 	{
 		my $res = NMISNG::DB::count(
-			collection => $self->nodes_collection,
+			collection => $collection,
 			query      => $q,
 			verbose    => 1
 		);
@@ -2049,7 +2065,7 @@ sub get_nodes_model
 	if ( !( $args{count} && defined $args{limit} && $args{limit} == 0 ) )
 	{
 		my $cursor = NMISNG::DB::find(
-			collection  => $self->nodes_collection,
+			collection  => $collection,
 			query       => $q,
 			fields_hash => $fields_hash,
 			sort        => $args{sort},
@@ -2061,19 +2077,19 @@ sub get_nodes_model
 			nmisng => $self,
 			error  => "Find failed: " . NMISNG::DB::get_error_string
 		) if ( !defined $cursor );
-
 		@$model_data = $cursor->all;
 	}
 
 	my $model_data_object = NMISNG::ModelData->new(
-		class_name  => "NMISNG::Node",
-		nmisng      => $self,
-		data        => $model_data,
-		query_count => $query_count,
-		sort        => $args{sort},
-		limit       => $args{limit},
-		skip        => $args{skip}
-	);
+				class_name  => "NMISNG::Node",
+				nmisng      => $self,
+				data        => $model_data,
+				query_count => $query_count,
+				sort        => $args{sort},
+				limit       => $args{limit},
+				skip        => $args{skip}
+			);
+	
 	return $model_data_object;
 }
 
@@ -2744,17 +2760,18 @@ sub node
 	{
 		# fixme9: why not use md->object(0)?
 		my $model = $modeldata->data()->[0];
+		
 		$node = NMISNG::Node->new(
 			_id    => $model->{_id},
 			uuid   => $model->{uuid},
-			nmisng => $self,
+			nmisng => $self
 		);
 	}
 	elsif ($create)
 	{
 		$node = NMISNG::Node->new(
 			uuid   => $args{uuid},
-			nmisng => $self,
+			nmisng => $self
 		);
 	}
 
@@ -4242,6 +4259,12 @@ sub purge_old_files
 			location     => $C->{report_root},
 			description  => "Very old report files",
 		},
+		{   minage => $C->{purge_node_dumps_after} || 30 * 86400,
+			also_empties => 0,
+			ext          => qr/\.zip$/,
+			location     => $C->{node_dumps_dir},
+			description  => "Old node dumps from deleted nodes",
+		},
 
 	);
 
@@ -4814,7 +4837,7 @@ sub update_queue
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
 		if ( $jobdata->{type}
-		!~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins)$/
+		!~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins|delete_nodes|update_nodes|create_nodes|set_nodes)$/
 		);
 
 	return
@@ -4836,6 +4859,18 @@ sub update_queue
 		and !$jobdata->{args}->{uuid} )
 	{
 		return "Invalid job data, args must contain uuid property!";
+	}
+	
+	if ( $jobdata->{type} =~ /^(delete_nodes)$/
+		and !$jobdata->{args}->{uuid} and !$jobdata->{args}->{node})
+	{
+		return "Invalid job data, args must contain uuid or names property!";
+	}
+	
+	if ( $jobdata->{type} =~ /^(update_nodes|create_nodes|set_nodes)$/
+		and !$jobdata->{args}->{data} )
+	{
+		return "Invalid job data, args must contain data property for update_nodes and create_nodes!";
 	}
 	if ($jobdata->{type} eq "collect"
 		and (  !defined( $jobdata->{args}->{wantsnmp} )
@@ -4926,7 +4961,7 @@ sub dump_node
 	}
 	my $noderec = $md->data->[0];
 	$uuid //= $noderec->{uuid};
-	$nodename //= $nodename->{name};
+	$nodename //= $noderec->{name};
 
 	# create temp dir first, subdirs for each of the involved db collections
 	my $td = eval { File::Temp::tempdir("dump-$noderec->{uuid}-XXXXXXX",
@@ -5284,6 +5319,60 @@ sub get_remote
 	}
 
 	return $res;
+}
+
+# Returns the server name
+# args: cluster_id
+# Return server_name
+sub get_server_name
+{
+	my ($self, %args) = @_;
+	my $cluster_id = $args{cluster_id};
+
+	return undef if (!$cluster_id);
+	return $self->config->{server_name} if ($cluster_id eq $self->config->{cluster_id});
+
+	my $model_data = [];
+	my $query_count;
+	my $res;
+
+	# if you want only a count but no data, set count to 1 and limit to 0
+	my $cursor = NMISNG::DB::find(
+			collection  => $self->remote_collection,
+			query       => {cluster_id => $cluster_id},
+			fields_hash => {server_name => 1}
+		);
+
+	# Should only return one. 
+	my $entry = $cursor->next;
+	return $entry->{server_name};
+}
+
+# Returns the cluster_id
+# args: server_name
+# Return cluster_id
+sub get_cluster_id
+{
+	my ($self, %args) = @_;
+	my $server_name = $args{server_name};
+
+	return undef if (!$server_name);
+	return $self->config->{cluster_id} if ($server_name eq $self->config->{server_name});
+
+	my $model_data = [];
+	my $query_count;
+	my $res;
+
+	# if you want only a count but no data, set count to 1 and limit to 0
+	my $cursor = NMISNG::DB::find(
+			collection  => $self->remote_collection,
+			query       => {server_name => $server_name},
+			fields_hash => {cluster_id => 1}
+		);
+
+	# Should only return one. 
+	my $entry = $cursor->next;
+	return $entry->{cluster_id};
 }
 
 1;

@@ -294,6 +294,10 @@
         '30' => {
           'HuaweiRouter' => 'AR2220|AR1220'
         },
+        '50' => {
+          'HuaweiRouterAR2240-uses-common' => 'AR2240'
+          #'HuaweiRouterAR2240' => 'AR2240'
+        },
         '99' => {
           'Default-HC' => '.'
         }
@@ -537,6 +541,38 @@
         }
       }
     },
+    'TELDAT, S.A.' => {
+      'order' => {
+        '11' => {
+          'Teldat150' => 'ATLAS150'
+        },
+        '12' => {
+          'TELDATL1' => 'L1+'
+        },
+        '13' => {
+          'TeldatM1-uses-common' => 'M1',
+          #'TeldatM1' => 'M1'
+        },
+        '14' => {
+          'TELDATC4G' => 'Router model C4G'
+        },
+        '15' => {
+          'Teldati60' => 'ATLAS60'
+        },
+        '16' => {
+          'TELDAT200' => 'T200'
+        },
+        #'17' => {
+        #  'TeldatM1ppp' => 'M1 1GEWAN 4GESW'
+        #},
+        #'18' => {
+        #  'TELDAT' => 'TELDAT|M1 4GESW'
+        #},
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
     'Trango Systems, Inc.' => {
       'order' => {
         '10' => {
@@ -600,10 +636,27 @@
           'Checkpoint' => '2.6.18-92cp|2.6.18-92cpx86_64|2.4.21-21cpsmp'
         }
       }
-    }
+    },
+    'Accedian Networks' => {
+      'order' => {
+        '10' => {
+          'Accedian' => 'AMO-10000-LT-S'
+        },
+        '20' => {
+          'Accedian' => '.'
+        },
+      }
+    },
+    'Siklu Communication LTD' => {
+      'order' => {
+        '10' => {
+          'Siklu-EH-600' => 'EH-600TX'
+        }
+      }
+    },
   },
 
-	'stats' => {
+  'stats' => {
     'type' => {
       'health' => [
         'DEF:reach=$database:reachability:AVERAGE',
