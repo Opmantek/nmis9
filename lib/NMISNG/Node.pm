@@ -2655,14 +2655,30 @@ sub update_intf_info
 		}
 		else
 		{
-			my $ifAdEntTable;
 			my $ifMaskTable;
 			my %ifCnt;
 			$self->nmisng->log->debug2("Getting Device IP Address Table");
-			if ( $ifAdEntTable = $SNMP->getindex('ipAddressIfIndex') )
+
+			# IP-MIB v2 (IPv4 + IPv6)
+			my $addrIfIndex = 'ipAddressIfIndex';
+			my $addrPrefix = 'ipAddressPrefix';
+			my $addrType = 'ipAddressType';
+			my $ifAdEntTable = $SNMP->getindex($addrIfIndex);
+			my $ipMibV2Available = (defined $ifAdEntTable);
+			if (!$ipMibV2Available)
 			{
-				$ifMaskTable = $SNMP->getindex('ipAddressPrefix');
-				my $ipAddressTypeTable = $SNMP->getindex('ipAddressType');
+				# CISCO-IETF-IP-MIB (IPv6 only)
+				$addrIfIndex = 'cIpAddressIfIndex';
+				$addrPrefix = 'cIpAddressPrefix';
+				$addrType = 'cIpAddressType';
+				$ifAdEntTable = $SNMP->getindex($addrIfIndex);
+			}
+
+			if ( $ifAdEntTable )
+			{
+				$self->nmisng->log->debug2($ipMibV2Available ? "IP-MIB v2" : "CISCO-IETF-IP-MIB");
+				$ifMaskTable = $SNMP->getindex($addrPrefix);
+				my $ipAddressTypeTable = $SNMP->getindex($addrType);
 				my $UNICAST = 1;
 				foreach my $addr ( keys %{$ifAdEntTable} )
 				{
@@ -2693,8 +2709,11 @@ sub update_intf_info
 					) = Compat::IP::ipSubnet( address => $ip, mask => $mask );
 				}
 			}
-			elsif ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex') )
+
+			# IP-MIB v1 (IPv4 only)
+			if ( !$ipMibV2Available && ($ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) )
 			{
+				$self->nmisng->log->debug2("IP-MIB v1");
 				$ifMaskTable = $SNMP->getindex('ipAdEntNetMask');
 				foreach my $addr ( keys %{$ifAdEntTable} )
 				{
@@ -2717,7 +2736,8 @@ sub update_intf_info
 					) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
 				}
 			}
-			else
+
+			if ( !$ifAdEntTable )
 			{
 				$self->nmisng->log->debug2("ERROR getting Device Ip Address table");
 			}
