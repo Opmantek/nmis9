@@ -2665,9 +2665,37 @@ sub update_intf_info
 			my $addrType = 'ipAddressType';
 			my $ifAdEntTable = $SNMP->getindex($addrIfIndex);
 			my $ipMibV2Available = (defined $ifAdEntTable);
+			
 			if (!$ipMibV2Available)
 			{
-				# CISCO-IETF-IP-MIB (IPv6 only)
+				# IP-MIB v1 (IPv4 only)
+				if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex') )
+				{
+					$self->nmisng->log->debug2("IP-MIB v1");
+					$ifMaskTable = $SNMP->getindex('ipAdEntNetMask');
+					foreach my $addr ( Net::SNMP::oid_lex_sort( keys %{$ifAdEntTable} ) )
+					{
+						my $index = $ifAdEntTable->{$addr};
+						next if ( $singleInterface and $intf_one ne $index );
+						$ifCnt{$index} += 1;
+
+						my $mask = "";
+						$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
+						$mask = Compat::IP::netmask2prefix($mask);
+
+						my $target = $target_table->{$index};
+						$self->nmisng->log->debug2("ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask");
+						$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
+						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
+
+						# NOTE: inventory, breaks index convention here! not a big deal but it happens
+						(   $target->{"ipSubnet$ifCnt{$index}"},
+							$target->{"ipSubnetBits$ifCnt{$index}"}
+						) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
+					}
+				}
+
+				# also try CISCO-IETF-IP-MIB (IPv6 only)
 				$addrIfIndex = 'cIpAddressIfIndex';
 				$addrPrefix = 'cIpAddressPrefix';
 				$addrType = 'cIpAddressType';
@@ -2680,16 +2708,17 @@ sub update_intf_info
 				$ifMaskTable = $SNMP->getindex($addrPrefix);
 				my $ipAddressTypeTable = $SNMP->getindex($addrType);
 				my $UNICAST = 1;
-				foreach my $addr ( keys %{$ifAdEntTable} )
+				foreach my $addr ( Net::SNMP::oid_lex_sort( keys %{$ifAdEntTable} ) )
 				{
 					my $index = $ifAdEntTable->{$addr};
 					next if ( $singleInterface and $intf_one ne $index );
-					$ifCnt{$index} += 1;
 
 					if ($ipAddressTypeTable)
 					{
 						next if $ipAddressTypeTable->{$addr} != $UNICAST;
 					}
+
+					$ifCnt{$index} += 1;
 
 					my $mask = "";
 					$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
@@ -2699,7 +2728,7 @@ sub update_intf_info
 
 					my $target = $target_table->{$index};
 					my $ip = Compat::IP::oid2ip($addr);
-					$self->nmisng->log->debug2("ifIndex=$index, addr=$addr ip=$ip mask=$mask");
+					$self->nmisng->log->debug2("ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask");
 					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
 					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
 
@@ -2707,33 +2736,6 @@ sub update_intf_info
 					(   $target->{"ipSubnet$ifCnt{$index}"},
 						$target->{"ipSubnetBits$ifCnt{$index}"}
 					) = Compat::IP::ipSubnet( address => $ip, mask => $mask );
-				}
-			}
-
-			# IP-MIB v1 (IPv4 only)
-			if ( !$ipMibV2Available && ($ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) )
-			{
-				$self->nmisng->log->debug2("IP-MIB v1");
-				$ifMaskTable = $SNMP->getindex('ipAdEntNetMask');
-				foreach my $addr ( keys %{$ifAdEntTable} )
-				{
-					my $index = $ifAdEntTable->{$addr};
-					next if ( $singleInterface and $intf_one ne $index );
-					$ifCnt{$index} += 1;
-
-					my $mask = "";
-					$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
-					$mask = Compat::IP::netmask2prefix($mask);
-
-					my $target = $target_table->{$index};
-					$self->nmisng->log->debug2("ifIndex=$index, addr=$addr mask=$mask");
-					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
-					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
-
-					# NOTE: inventory, breaks index convention here! not a big deal but it happens
-					(   $target->{"ipSubnet$ifCnt{$index}"},
-						$target->{"ipSubnetBits$ifCnt{$index}"}
-					) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
 				}
 			}
 

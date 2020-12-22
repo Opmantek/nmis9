@@ -2926,7 +2926,7 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 			{
 				if ($thisintf->{"ipAdEntAddr$cnt"} ne "" and $thisintf->{"ipAdEntNetMask$cnt"} ne "")
 				{
-					$content += ", " if ($content ne "");
+					$content += "<br/>" if ($content ne "");
 					$content += "$thisintf->{ipAdEntAddr$cnt}/$thisintf->{ipAdEntNetMask$cnt}";
 				}
 				$cnt++;
@@ -3306,7 +3306,6 @@ escalate ));
 			elsif ( $k eq 'Description' )
 			{
 				$content = "$thisintf->{Description}";
-				$content .= "<br/>" if ($content ne "");
 				my $cnt = 1;
 				while ( defined( $thisintf->{"ipAdEntAddr$cnt"} ) and defined( $thisintf->{"ipAdEntNetMask$cnt"} ) )
 				{
@@ -3314,7 +3313,7 @@ escalate ));
 				    my $mask = $thisintf->{"ipAdEntNetMask$cnt"};
 					if ($addr ne "" and $mask ne "")
 					{
-						$content .= ", " if ($content ne "");
+						$content .= "<br/>" if ($content ne "");
 						$content .= "${addr}/${mask}";
 					}
 					$cnt++;
@@ -3525,7 +3524,6 @@ sub viewActivePort
 			elsif ($k eq 'Description')
 			{
 				$content = "$thisintf->{Description}";
-				$content .= "<br/>" if ($content ne "");
 				my $cnt = 1;
 				while ( defined( $thisintf->{"ipAdEntAddr$cnt"} ) and defined( $thisintf->{"ipAdEntNetMask$cnt"} ) )
 				{
@@ -3533,7 +3531,7 @@ sub viewActivePort
 				    my $mask = $thisintf->{"ipAdEntNetMask$cnt"};
 					if ($addr ne "" and $mask ne "")
 					{
-						$content .= ", " if ($content ne "");
+						$content .= "<br/>" if ($content ne "");
 						$content .= "${addr}/${mask}";
 					}
 					$cnt++;
