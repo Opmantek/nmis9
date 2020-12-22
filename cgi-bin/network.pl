@@ -38,6 +38,7 @@ use URI;
 use URI::QueryParam;
 use Net::SNMP qw(oid_lex_sort);
 use Data::Dumper;
+use Net::IP;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -2075,6 +2076,12 @@ nodeVendor sysObjectName roleType netType );
 			my %confprop = ( "host_addr" => "host", "host_addr_backup" => "host_backup" );
 
 			my $original = $configuration->{$confprop{$propname}};
+
+			if (Net::IP::ip_is_ipv6($original))
+			{
+				$original = lc(Net::IP::ip_compress_address($original, 6));
+			}
+
 			$sourceval .= " ($original)" if ($original
 																			 && $sourceval
 																			 && $original ne $sourceval);

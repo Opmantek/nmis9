@@ -2892,7 +2892,7 @@ sub resolveDNStoAddrIPv6
 	my $type = 6;
 	my ($ipv6) = grep($_->version == $type, @addr_objs);
 
-	return $ipv6->{ip};
+	return Net::IP::ip_compress_address($ipv6->{ip}, 6);
 }
 
 # takes anything that time::parsedate understands, plus an optional timezone argument
