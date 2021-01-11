@@ -328,7 +328,7 @@
     }, #rrd
   },  
   'system' => {
-    'nodegraph' => 'health,response,env-temp,systemvoltage,hrmem,mikrotikCpu',
+    'nodegraph' => 'health,response,hrmem,mikrotikCpu',
     'nodeModel' => 'MikroTik',
     'nodeType' => 'router',
     'rrd' => {
