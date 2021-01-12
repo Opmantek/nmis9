@@ -224,13 +224,16 @@ sub open
 	my $cobj = (ref($args{config}) eq "HASH"
 							&& keys %{$args{config}})? $args{config} : {};
 
+	my $ip_protocol = $cobj->{ip_protocol} || $args{ip_protocol} || 'IPv4';
+	my $domain = $ip_protocol eq "IPv6" ? "udp6" : "udp";
+
 	$self->{config} = {
 		# host heuristics: (more-or-less undocumented) host_addr wins,
 		#then host or name (all checked in confobj and args)
 		host => ( $cobj->{host_addr} || $args{host_addr}
 							|| $cobj->{host} || $args{host}
 							|| $cobj->{name} || $args{name} || 'localhost'),
-		domain => $cobj->{udp} || $args{udp} || 'udp',
+		domain => $domain,
 		port => $cobj->{port} || $args{port} || 161,
 		timeout => $cobj->{timeout} || $args{timeout} || 5,
 		retries => $cobj->{retries} || $args{retries} || 1,

@@ -2074,11 +2074,20 @@ sub update_node_info
 		for (["host","host_addr"], ["host_backup", "host_addr_backup"])
 		{
 			my ($sourceprop, $targetprop) = @$_;
-
 			my $sourceval = $self->configuration->{$sourceprop};
-			if ($sourceval && (my $addr = NMISNG::Util::resolveDNStoAddr($sourceval)))
+			my $ip;
+			if ($self->configuration->{ip_protocol} eq 'IPv6')
 			{
-				$catchall_data->{$targetprop} = $addr; # cache and display
+				$ip = NMISNG::Util::resolveDNStoAddrIPv6($sourceval);
+			}
+			else
+			{
+				$ip = NMISNG::Util::resolveDNStoAddr($sourceval);
+			}
+
+			if ($sourceval && ($ip))
+			{
+				$catchall_data->{$targetprop} = $ip; # cache and display
 			}
 			else
 			{
@@ -2646,36 +2655,91 @@ sub update_intf_info
 		}
 		else
 		{
-			my $ifAdEntTable;
 			my $ifMaskTable;
 			my %ifCnt;
 			$self->nmisng->log->debug2("Getting Device IP Address Table");
-			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex') )
+
+			# IP-MIB v2 (IPv4 + IPv6)
+			my $addrIfIndex = 'ipAddressIfIndex';
+			my $addrPrefix = 'ipAddressPrefix';
+			my $addrType = 'ipAddressType';
+			my $ifAdEntTable = $SNMP->getindex($addrIfIndex);
+			my $ipMibV2Available = (defined $ifAdEntTable);
+			
+			if (!$ipMibV2Available)
 			{
-				if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask') )
+				# IP-MIB v1 (IPv4 only)
+				if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex') )
 				{
-					foreach my $addr ( keys %{$ifAdEntTable} )
+					$self->nmisng->log->debug2("IP-MIB v1");
+					$ifMaskTable = $SNMP->getindex('ipAdEntNetMask');
+					foreach my $addr ( Net::SNMP::oid_lex_sort( keys %{$ifAdEntTable} ) )
 					{
 						my $index = $ifAdEntTable->{$addr};
 						next if ( $singleInterface and $intf_one ne $index );
 						$ifCnt{$index} += 1;
+
+						my $mask = "";
+						$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
+						$mask = Compat::IP::netmask2prefix($mask);
+
 						my $target = $target_table->{$index};
-						$self->nmisng->log->debug2("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
+						$self->nmisng->log->debug2("ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask");
 						$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
-						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
+						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
 
 						# NOTE: inventory, breaks index convention here! not a big deal but it happens
-						(   $target_table->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
-							$target_table->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}
-						) = Compat::IP::ipSubnet( address => $addr, mask => $ifMaskTable->{$addr} );
+						(   $target->{"ipSubnet$ifCnt{$index}"},
+							$target->{"ipSubnetBits$ifCnt{$index}"}
+						) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
 					}
 				}
-				else
+
+				# also try CISCO-IETF-IP-MIB (IPv6 only)
+				$addrIfIndex = 'cIpAddressIfIndex';
+				$addrPrefix = 'cIpAddressPrefix';
+				$addrType = 'cIpAddressType';
+				$ifAdEntTable = $SNMP->getindex($addrIfIndex);
+			}
+
+			if ( $ifAdEntTable )
+			{
+				$self->nmisng->log->debug2($ipMibV2Available ? "IP-MIB v2" : "CISCO-IETF-IP-MIB");
+				$ifMaskTable = $SNMP->getindex($addrPrefix);
+				my $ipAddressTypeTable = $SNMP->getindex($addrType);
+				my $UNICAST = 1;
+				foreach my $addr ( Net::SNMP::oid_lex_sort( keys %{$ifAdEntTable} ) )
 				{
-					$self->nmisng->log->debug2("ERROR getting Device Ip Address table");
+					my $index = $ifAdEntTable->{$addr};
+					next if ( $singleInterface and $intf_one ne $index );
+
+					if ($ipAddressTypeTable)
+					{
+						next if $ipAddressTypeTable->{$addr} != $UNICAST;
+					}
+
+					$ifCnt{$index} += 1;
+
+					my $mask = "";
+					$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
+
+					# the value represents ipAddressPrefixOrigin OID, we extract just 'prefix length' part from it
+					$mask = (split '\.', $mask)[-1];
+
+					my $target = $target_table->{$index};
+					my $ip = Compat::IP::oid2ip($addr);
+					$self->nmisng->log->debug2("ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask");
+					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
+					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
+
+					# TODO: check usages and make it IPv6 compatible if needed
+					(   $target->{"ipSubnet$ifCnt{$index}"},
+						$target->{"ipSubnetBits$ifCnt{$index}"}
+					) = Compat::IP::ipSubnet( address => $ip, mask => $mask );
 				}
 			}
-			else
+
+			if ( !$ifAdEntTable )
 			{
 				$self->nmisng->log->debug2("ERROR getting Device Ip Address table");
 			}
@@ -8300,24 +8364,31 @@ sub ext_ping
 	$count ||= 3;
 	$length ||= 56;
 
+	my $pingcmd = 'ping -4';
+	my $ip_protocol = $self->configuration->{ip_protocol} || 'IPv4';
+	if ($ip_protocol eq "IPv6")
+	{
+		$pingcmd = 'ping -6';
+	}
+
 	# List of known ping programs, key is lc(os)
 	my %ping = (
-		'mswin32' =>	"ping -l $length -n $count -w $timeout $host",
-		'aix'	=>	"/etc/ping $host $length $count",
-		'bsdos'	=>	"/bin/ping -s $length -c $count $host",
-		'darwin' =>	"/sbin/ping -s $length -c $count $host",
-		'freebsd' =>	"/sbin/ping -s $length -c $count $host",
-		'hpux'	=>	"/etc/ping $host $length $count",
-		'irix'	=>	"/usr/etc/ping -c $count -s $length $host",
-		'linux'	=>	"/bin/ping -c $count -s $length $host",
-		'suse'	=>	"/bin/ping -c $count -s $length -w $timeout $host",
-		'netbsd' =>	"/sbin/ping -s $length -c $count $host",
-		'openbsd' =>	"/sbin/ping -s $length -c $count $host",
-		'os2' =>	"ping $host $length $count",
-		'os/2' =>	"ping $host $length $count",
-		'dec_osf'=>	"/sbin/ping -s $length -c $count $host",
-		'solaris' =>	"/usr/sbin/ping -s $host $length $count",
-		'sunos'	=>	"/usr/etc/ping -s $host $length $count",
+		'mswin32' =>	"$pingcmd -l $length -n $count -w $timeout $host",
+		'aix'	=>	"/etc/$pingcmd $host $length $count",
+		'bsdos'	=>	"/bin/$pingcmd -s $length -c $count $host",
+		'darwin' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'freebsd' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'hpux'	=>	"/etc/$pingcmd $host $length $count",
+		'irix'	=>	"/usr/etc/$pingcmd -c $count -s $length $host",
+		'linux'	=>	"/bin/$pingcmd -c $count -s $length $host",
+		'suse'	=>	"/bin/$pingcmd -c $count -s $length -w $timeout $host",
+		'netbsd' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'openbsd' =>	"/sbin/$pingcmd -s $length -c $count $host",
+		'os2' =>	"$pingcmd $host $length $count",
+		'os/2' =>	"$pingcmd $host $length $count",
+		'dec_osf'=>	"/sbin/$pingcmd -s $length -c $count $host",
+		'solaris' =>	"/usr/sbin/$pingcmd -s $host $length $count",
+		'sunos'	=>	"/usr/etc/$pingcmd -s $host $length $count",
 			);
 
 	# get kernel name for finding the appropriate ping cmd

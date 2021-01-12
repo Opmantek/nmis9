@@ -2836,10 +2836,18 @@ sub resolve_dns_name
 	my ($lookup) = @_;
 	my @results;
 
+	my $nmisng = Compat::NMIS::new_nmisng();
+
+	$nmisng->log->debug2("resolve_dns_name($lookup)");
+
 	# full ipv6 support works only with newer socket module
-	my ($err,@possibles) = Socket::getaddrinfo($lookup,'',
-																						 {socktype => SOCK_RAW});
-	return () if ($err);
+	my ($err,@possibles) = Socket::getaddrinfo($lookup, '', {socktype => SOCK_RAW});
+	
+	if ($err)
+	{
+		$nmisng->log->debug2("getaddrinfo error: $err");
+		return ();
+	}
 
 	for my $address (@possibles)
 	{
@@ -2848,6 +2856,14 @@ sub resolve_dns_name
 			Socket::NI_NUMERICHOST(),
 			Socket::NIx_NOSERV());
 		push @results, $ipaddr if (!$err and $ipaddr ne $lookup); # suppress any nop results
+		if ($err)
+		{
+			$nmisng->log->debug2("getnameinfo error: $err");
+		}
+		else
+		{
+			$nmisng->log->debug2("getnameinfo result: $ipaddr");
+		}
 	}
 	return @results;
 }
@@ -2862,6 +2878,21 @@ sub resolveDNStoAddr
 	my @v4 = grep(/^\d+.\d+.\d+\.\d+$/, @addrs);
 
 	return $v4[0];
+}
+
+sub resolveDNStoAddrIPv6
+{
+	my ($name) = @_;
+
+	my @addresses = resolve_dns_name($name);
+
+	return if (!@addresses);
+
+	my @addr_objs = map { Net::IP->new($_) } (@addresses);
+	my $type = 6;
+	my ($ipv6) = grep($_->version == $type, @addr_objs);
+
+	return Net::IP::ip_compress_address($ipv6->{ip}, 6);
 }
 
 # takes anything that time::parsedate understands, plus an optional timezone argument
