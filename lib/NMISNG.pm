@@ -31,7 +31,7 @@
 # Two basic ways to grab info, via get*Model functions which return ModelData objects
 # or directly via the object
 package NMISNG;
-our $VERSION = "9.1.1";
+our $VERSION = "9.1.2a";
 
 use strict;
 use Data::Dumper;
