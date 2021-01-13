@@ -51,6 +51,7 @@ use Time::HiRes;
 use Statistics::Lite;
 use List::Util 1.33;
 use Clone;
+use Net::IP;
 
 use NMISNG;
 use NMISNG::Util;
@@ -1778,19 +1779,25 @@ sub fping_loop
 
 	# we want fping to do the work, no need to avg/min/max ourselves
 	# -c X produces: 'somenode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.73/0.86/0.97'
-	my @fpingargs = ( "-t", ($config->{fastping_timeout} || 300),
-										"-c", ($config->{fastping_count} || 3),
-										"-q",
-										"-r", ($config->{fastping_retries} || 3),
-										# min packet size is 20+4 bytes, default is 56
-										"-b", ($config->{fastping_packet}?
-													 $config->{fastping_packet} >= 24? $config->{fastping_packet} : 24 : 56));
+	my @fpingargs = (
+				"-t", ($config->{fastping_timeout} || 300),
+				"-c", ($config->{fastping_count} || 3),
+				"-q",
+				"-r", ($config->{fastping_retries} || 3),
+				# min packet size is 20+4 bytes, default is 56
+				"-b", ($config->{fastping_packet}?
+							 $config->{fastping_packet} >= 24? $config->{fastping_packet} : 24 : 56));
 
 	push @fpingargs, ($< == 0?
-									 # we may use these options if we run as root
-									 ("-i", $interval, "-p", $target_interval)
-									 : 	# non-root requires i >= 10, p >= 20, r < 20, and t >= 50
-									 ("-i", $non_root_interval, "-p", $non_root_target_interval));
+				 # we may use these options if we run as root
+				 ("-i", $interval, "-p", $target_interval)
+				 : 	# non-root requires i >= 10, p >= 20, r < 20, and t >= 50
+				 ("-i", $non_root_interval, "-p", $non_root_target_interval));
+
+	my @fpingargs4 = ('-4');
+	push @fpingargs4, @fpingargs;
+	my @fpingargs6 = ('-6');
+	push @fpingargs6, @fpingargs;
 
 	my %state;
 	my $parent = getppid;
@@ -1892,8 +1899,7 @@ sub fping_loop
 					$multihomed{$noderec->{uuid}} = 1;
 					push @tocheck, $noderec;
 					$statekey .= ":0";
-					$nmisng->log->debug("Node $noderec->{name} is multi-homed, will ping both $noderec->{configuration}->{host} and $noderec->{configuration}->{host_backup}");
-				}
+					$nmisng->log->debug("Node $noderec->{name} is multi-homed, will ping both $noderec->{configuration}->{host} and $noderec->{configuration}->{host_backup}");				}
 				# second time round, do handle the secondary
 				else
 				{
@@ -1918,9 +1924,10 @@ sub fping_loop
 				$thisstate->{is_primary} = $statekey =~ /:0$/?1:0;
 			}
 
+			$thisstate->{ip_protocol} = $noderec->{configuration}->{ip_protocol};
+			
 			# honor fixed ip address given
-			# fixme: fping doesn't do ipv6, we would have to use fping6 for that.
-			if ($thisstate->{host} =~ /^\d+\.\d+\.\d+\.\d+$/)
+			if (Net::IP::ip_is_ipv4($thisstate->{host}) || Net::IP::ip_is_ipv6($thisstate->{host}))
 			{
 				$thisstate->{ip} = $thisstate->{host};
 			}
@@ -1929,8 +1936,17 @@ sub fping_loop
 			{
 				if (!$thisstate->{ip} or $now >= $thisstate->{nextdns})
 				{
-					# fixme: this returns only v4 addresses, see fping6 comment above
-					$thisstate->{ip} = NMISNG::Util::resolveDNStoAddr($thisstate->{host}) # may be undef
+					my $ip;
+					if ($thisstate->{ip_protocol} eq 'IPv6')
+					{
+						$ip = NMISNG::Util::resolveDNStoAddrIPv6($thisstate->{host});
+					}
+					else
+					{
+						$ip = NMISNG::Util::resolveDNStoAddr($thisstate->{host});
+					}
+
+					$thisstate->{ip} = $ip # may be undef
 							||  $thisstate->{host}; # again falling back to leaving this to fping
 					$nmisng->log->debug2("refreshed dns for $thisstate->{host} to $thisstate->{ip}"
 															 .($thisstate->{nextdns}?
@@ -1959,16 +1975,26 @@ sub fping_loop
 		while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
 		{
 			my %ip2staterec;
-
-			my @cmd = ($fpingpath, @fpingargs);
+			my @cmd4 = ($fpingpath, @fpingargs4);
+			my @cmd6 = ($fpingpath, @fpingargs6);
+			
 			for my $statekey (@chunk)
 			{
 				my $thisip = $state{$statekey}->{ip};
+				if ($state{$statekey}->{ip_protocol} eq 'IPv6')
+				{
+					push @cmd6, $thisip;
+				}
+				else
+				{
+					push @cmd4, $thisip;
+				}
 
-				push @cmd, $thisip;
 				$ip2staterec{$thisip} //= [];
 				push @{$ip2staterec{$thisip}}, $statekey;
 			}
+
+			my @cmd = (("("),@cmd4,(";"),@cmd6,(")"));
 			$nmisng->log->debug("about to run: ".join(" ",@cmd));
 
 			# pity that fping reports on stderr, NOT stdout; so we need

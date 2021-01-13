@@ -1,0 +1,161 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'systemHealth' => {
+    'sys' => {
+      # LLDPv2 uses ifIndex as an index and the local table is not required.
+      #'lldpLocal' => {
+      #  'headers' =>'index,lldpLocPortIdSubtype,lldpLocPortId,lldpLocPortDesc',
+      #  'index_oid' => '1.3.111.2.802.1.1.13.1.3.7.1.4',
+      #  'indexed' => 'lldpLocPortDesc',
+      #  'snmp' => {   
+      #    'index' => {
+      #      'title' => 'Local Port Number'
+      #    },   
+      #    'lldpLocPortIdSubtype' => {
+      #      'oid' => '1.3.111.2.802.1.1.13.1.3.7.1.2',
+      #      'sysObjectName' => 'lldpV2LocPortIdSubtype',
+      #      'title' => 'Local Port Type',
+      #      'replace' => {
+      #        '1' => 'interfaceAlias',
+      #        '2' => 'portComponent',
+      #        '3' => 'macAddress',
+      #        '4' => 'networkAddress',
+      #        '5' => 'interfaceName',
+      #        '6' => 'agentCircuitId',
+      #        '7' => 'local'
+      #      }
+      #    },
+      #    'lldpLocPortId' => {
+      #      'oid' => '1.3.111.2.802.1.1.13.1.3.7.1.3',
+      #      'sysObjectName' => 'lldpV2LocPortId',
+      #      'title' => 'Local Port ID'
+      #    },
+      #    'lldpLocPortDesc' => {
+      #      'oid' => '1.3.111.2.802.1.1.13.1.3.7.1.4',
+      #      'sysObjectName' => 'lldpV2LocPortDesc',
+      #      'title' => 'Local Port Description'
+      #    },
+      #       
+      #  }
+      #},
+
+#"lldpV2RemoteSystemsData"     "1.3.111.2.802.1.1.13.1.4"
+#"lldpV2RemTable"      "1.3.111.2.802.1.1.13.1.4.1"
+#"lldpV2RemEntry"      "1.3.111.2.802.1.1.13.1.4.1.1"
+#"lldpV2RemTimeMark"     "1.3.111.2.802.1.1.13.1.4.1.1.1"
+#"lldpV2RemLocalIfIndex"     "1.3.111.2.802.1.1.13.1.4.1.1.2"
+#"lldpV2RemLocalDestMACAddress"      "1.3.111.2.802.1.1.13.1.4.1.1.3"
+#"lldpV2RemIndex"      "1.3.111.2.802.1.1.13.1.4.1.1.4"
+#"lldpV2RemChassisIdSubtype"     "1.3.111.2.802.1.1.13.1.4.1.1.5"
+#"lldpV2RemChassisId"      "1.3.111.2.802.1.1.13.1.4.1.1.6"
+#"lldpV2RemPortIdSubtype"      "1.3.111.2.802.1.1.13.1.4.1.1.7"
+#"lldpV2RemPortId"     "1.3.111.2.802.1.1.13.1.4.1.1.8"
+#"lldpV2RemPortDesc"     "1.3.111.2.802.1.1.13.1.4.1.1.9"
+#"lldpV2RemSysName"      "1.3.111.2.802.1.1.13.1.4.1.1.10"
+#"lldpV2RemSysDesc"      "1.3.111.2.802.1.1.13.1.4.1.1.11"
+#"lldpV2RemSysCapSupported"      "1.3.111.2.802.1.1.13.1.4.1.1.12"
+#"lldpV2RemSysCapEnabled"      "1.3.111.2.802.1.1.13.1.4.1.1.13"
+#"lldpV2RemRemoteChanges"      "1.3.111.2.802.1.1.13.1.4.1.1.14"
+#"lldpV2RemTooManyNeighbors"     "1.3.111.2.802.1.1.13.1.4.1.1.15"
+
+      'lldp' => {
+        'headers' =>'ifDescr,lldpLocPortNum,lldpRemSysName,lldpRemSysDesc,lldpRemPortIdSubtype,lldpRemPortId,lldpRemChassisIdSubtype,lldpRemChassisId',
+        'index_oid' => '1.3.111.2.802.1.1.13.1.4.1.1.10',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+.\\d+)$',
+        'indexed' => 'lldpRemSysName',
+        'snmp' => {        
+          'ifDescr' => {
+            'title' => 'Local Interface'
+          },
+          'lldpLocPortNum' => {
+            'title' => 'Local Port Num'
+          },
+          'lldpRemChassisIdSubtype' => {
+            'oid' => '1.3.111.2.802.1.1.13.1.4.1.1.5',
+            'sysObjectName' => 'lldpV2RemChassisIdSubtype',
+            'title' => 'Neighbor Chassis ID Type',
+            'replace' => {
+              '1' => 'chassisComponent',
+              '2' => 'interfaceAlias',
+              '3' => 'portComponent',
+              '4' => 'macAddress',
+              '5' => 'networkAddress',
+              '6' => 'interfaceName',
+              '7' => 'local'
+            }
+          },
+          'lldpRemChassisId' => {
+            'oid' => '1.3.111.2.802.1.1.13.1.4.1.1.6',
+            'sysObjectName' => 'lldpV2RemChassisId',
+            'title' => 'Neighbor Chassis ID'
+          },
+          'lldpRemPortIdSubtype' => {
+            'oid' => '1.3.111.2.802.1.1.13.1.4.1.1.7',
+            'sysObjectName' => 'lldpV2RemPortIdSubtype',
+            'title' => 'Neighbor Port ID Type',
+            'replace' => {
+              '1' => 'interfaceAlias',
+              '2' => 'portComponent',
+              '3' => 'macAddress',
+              '4' => 'networkAddress',
+              '5' => 'interfaceName',
+              '6' => 'agentCircuitId',
+              '7' => 'local'
+            }
+          },
+          'lldpRemPortId' => {
+            'oid' => '1.3.111.2.802.1.1.13.1.4.1.1.8',
+            'sysObjectName' => 'lldpV2RemPortId',
+            'title' => 'Neighbor Interface'
+          },
+          'lldpRemPortDesc' => {
+            'oid' => '1.3.111.2.802.1.1.13.1.4.1.1.9',
+            'sysObjectName' => 'lldpV2RemPortDesc',
+            'title' => 'Neighbor Interface Desc.'
+          },
+          'lldpRemSysName' => {
+            'oid' => '1.3.111.2.802.1.1.13.1.4.1.1.10',
+            'sysObjectName' => 'lldpV2RemSysName',
+            'title' => 'Neighbor ID sysName'
+          },
+          'lldpRemSysDesc' => {
+            'oid' => '1.3.111.2.802.1.1.13.1.4.1.1.11',
+            'sysObjectName' => 'lldpV2RemSysDesc',
+            'title' => 'Neighbor Version'
+          },                  
+        }
+      },
+    }
+  }
+);
+

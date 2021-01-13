@@ -38,6 +38,7 @@ use URI;
 use URI::QueryParam;
 use Net::SNMP qw(oid_lex_sort);
 use Data::Dumper;
+use Net::IP;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -1945,7 +1946,7 @@ EO_HTML
 	# and some things are decided dynamically as well
 
 	my @defaultitems = qw(nodestatus outage sysName host_addr host_addr_backup
-group customer location businessService serviceStatus notes
+ip_protocol group customer location businessService serviceStatus notes
 nodeType nodeModel polling_policy sysUpTime sysLocation
 sysContact sysDescr ifNumber
 last_ping last_poll last_update
@@ -2046,6 +2047,7 @@ nodeVendor sysObjectName roleType netType );
 									 "host_addr" => "IP Address",
 									 "host_addr_backup" => "Backup IP Address",
 									 "polling_policy" => "Polling Policy",
+									 "ip_protocol" => "IP Protocol",
 									 timezone  => 'Time Zone',
 									 nodeModel => 'Model',
 									 nodeType => 'Type',
@@ -2074,6 +2076,12 @@ nodeVendor sysObjectName roleType netType );
 			my %confprop = ( "host_addr" => "host", "host_addr_backup" => "host_backup" );
 
 			my $original = $configuration->{$confprop{$propname}};
+
+			if (Net::IP::ip_is_ipv6($original))
+			{
+				$original = lc(Net::IP::ip_compress_address($original, 6));
+			}
+
 			$sourceval .= " ($original)" if ($original
 																			 && $sourceval
 																			 && $original ne $sourceval);
@@ -2919,8 +2927,17 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 		}
 		elsif ($k eq "ipAdEntAddr")
 		{
-			$content = "$thisintf->{ipAdEntAddr1} / $thisintf->{ipAdEntNetMask1}"
-					if ($thisintf->{ipAdEntAddr1} && $thisintf->{ipAdEntNetMask1});
+			$content = "";
+			my $cnt = 1;
+			while ( defined( $thisintf->{"ipAdEntAddr$cnt"} ) and defined( $thisintf->{"ipAdEntNetMask$cnt"} ) )
+			{
+				if ($thisintf->{"ipAdEntAddr$cnt"} ne "" and $thisintf->{"ipAdEntNetMask$cnt"} ne "")
+				{
+					$content += "<br/>" if ($content ne "");
+					$content += "$thisintf->{ipAdEntAddr$cnt}/$thisintf->{ipAdEntNetMask$cnt}";
+				}
+				$cnt++;
+			}
 		}
 
 		print qq|<tr><td class='info Plain'>$title</td><td class='info Plain' style="|
@@ -3293,9 +3310,21 @@ escalate ));
 			{
 				$color = Compat::NMIS::colorLowGood( $thisintf->{$k} ) if (!defined $color);
 			}
-			elsif ( $k eq 'Description' and $thisintf->{ipAdEntAddr1} ne "" )
+			elsif ( $k eq 'Description' )
 			{
-				$content = "$thisintf->{Description}<br/>$thisintf->{ipAdEntAddr1} / $thisintf->{ipAdEntNetMask1} ";
+				$content = "$thisintf->{Description}";
+				my $cnt = 1;
+				while ( defined( $thisintf->{"ipAdEntAddr$cnt"} ) and defined( $thisintf->{"ipAdEntNetMask$cnt"} ) )
+				{
+				    my $addr = $thisintf->{"ipAdEntAddr$cnt"};
+				    my $mask = $thisintf->{"ipAdEntNetMask$cnt"};
+					if ($addr ne "" and $mask ne "")
+					{
+						$content .= "<br/>" if ($content ne "");
+						$content .= "${addr}/${mask}";
+					}
+					$cnt++;
+				}
 			}
 			elsif ( $k eq 'ifSpeed')
 			{
@@ -3499,9 +3528,21 @@ sub viewActivePort
 			{
 				$color = Compat::NMIS::colorLowGood( $thisintf->{$k} ) if (!defined $color);
 			}
-			elsif ( $k eq 'Description' and $thisintf->{ipAdEntAddr1} ne "" )
+			elsif ($k eq 'Description')
 			{
-				$content = "$thisintf->{Description}<br/>$thisintf->{ipAdEntAddr1} / $thisintf->{ipAdEntNetMask1} ";
+				$content = "$thisintf->{Description}";
+				my $cnt = 1;
+				while ( defined( $thisintf->{"ipAdEntAddr$cnt"} ) and defined( $thisintf->{"ipAdEntNetMask$cnt"} ) )
+				{
+				    my $addr = $thisintf->{"ipAdEntAddr$cnt"};
+				    my $mask = $thisintf->{"ipAdEntNetMask$cnt"};
+					if ($addr ne "" and $mask ne "")
+					{
+						$content .= "<br/>" if ($content ne "");
+						$content .= "${addr}/${mask}";
+					}
+					$cnt++;
+				}
 			}
 
 			print qq|<td class="info Plain" style="| . NMISNG::Util::getBGColor($color // "#fff")
