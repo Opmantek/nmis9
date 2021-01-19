@@ -150,7 +150,9 @@
       'ppxCardMEM' => '/nodes/$node/health/ppxCardMEM-$index.rrd',
 
       'psuStatus' => '/nodes/$node/health/psustatus-$index.rrd',
-
+      'Host_Memory' => '/nodes/$node/health/hrMemory.rrd',
+      'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
+      'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
       'radio' => '/nodes/$node/health/radio.rrd',
       'rttMonLatestRtt' => '/nodes/$node/health/rttMonLatestRtt-$index.rrd',
       'service' => '/nodes/$node/health/$item.rrd',

@@ -111,8 +111,8 @@ else
 	to => $target,
 	from => $C->{mail_from},
 
-	subject => "High Priority Test Email from NMIS8\@$C->{server_name}",
-	body => "This is a High Priority Test Email from NMIS8\@$C->{server_name}",
+	subject => "High Priority Test Email from NMIS9\@$C->{server_name}",
+	body => "This is a High Priority Test Email from NMIS9\@$C->{server_name}",
 	priority => "High",
 
 	debug => $C->{debug}
