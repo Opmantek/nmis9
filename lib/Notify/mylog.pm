@@ -45,9 +45,10 @@ sub sendNotification
 	my $message = $arg{message};
 
 	my $nmisng = $arg{nmisng};
+	my $C = $arg{C};
 
-	confess("NMISNG argument required!") if (ref($nmisng) ne "NMISNG");
-	my $C = $nmisng->config;
+	#confess("NMISNG argument required!") if (ref($nmisng) ne "NMISNG");
+	#my $C = $nmisng->config;
 
 	if ( not -d $dir )
 	{
@@ -78,7 +79,9 @@ sub sendNotification
 	$mylog->{message} = $message;
 
 	open(LOG,">$file") or $nmisng->log->error("Notify::mylog can not write to $file: $!");
-	print LOG JSON::XS->new->pretty(1)->utf8(1)->encode($mylog);
+	#print LOG JSON::XS->new->pretty(1)->utf8(1)->encode($mylog);
+	#JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode
+	print LOG JSON::XS->new->pretty(1)->allow_blessed(1)->convert_blessed(1)->utf8->encode($mylog);
 	close LOG;
 	# good to set permissions on file.....
 }

@@ -34,6 +34,7 @@ package lldpTable;
 our $VERSION = "2.0.1";
 
 use strict;
+use NMISNG::Util;
 
 sub update_plugin
 {
@@ -84,6 +85,23 @@ sub update_plugin
 		}
 
 		my $data = $lldpinventory->data; # r/o copy, must be saved back if changed
+
+		# decode the hex strings to nice things.
+		if ( $data->{lldpRemChassisIdSubtype} eq "macAddress" and $data->{lldpRemChassisId} =~ /^0x/ ) {
+			$data->{lldpRemChassisId} = NMISNG::Util::beautify_physaddress($data->{lldpRemChassisId});
+		}
+		elsif ( $data->{lldpRemChassisIdSubtype} eq "networkAddress" and $data->{lldpRemChassisId} =~ /^0x/ ) {
+			$data->{lldpRemChassisId} = join( '.', unpack( 'C4', $data->{lldpRemChassisId} ) );
+		}
+
+		if ( $data->{lldpRemPortIdSubtype} eq "macAddress" and $data->{lldpRemPortId} =~ /^0x/ ) {
+			$data->{lldpRemPortId} = NMISNG::Util::beautify_physaddress($data->{lldpRemPortId});
+		}
+		elsif ( $data->{lldpRemPortIdSubtype} eq "interfaceName" and $data->{lldpRemPortId} =~ /^0x/ ) {
+			$data->{lldpRemPortId} = pack( 'H*', $data->{lldpRemPortId} );
+		}
+
+
 		my $lldpNeighbour = $data->{lldpRemSysName};
 
 		my @possibleNames = ($lldpNeighbour, lc($lldpNeighbour));
@@ -146,8 +164,15 @@ sub update_plugin
 			my $portnum = $data->{lldpLocPortNum} = $parts[1];
 			$data->{lldpDeviceIndex} = $parts[2];
 
+			# is the lldpLocPortNum actually the ifIndex?  easy.
+			if ( defined $ifdata{$data->{lldpLocPortNum}}{ifDescr} ) {
+				$NG->log->debug("Found a ifDescr entry for lldpLocPortNum=$data->{lldpLocPortNum}: $ifdata{$data->{lldpLocPortNum}}{ifDescr}");
+				$data->{ifDescr} = $ifdata{$data->{lldpLocPortNum}}{ifDescr};
+				$data->{ifDescr_url} = "$C->{network}?&act=network_interface_view&intf=$data->{lldpLocPortNum}&node=$node";
+				$data->{ifDescr_id} = "node_view_$node";
+			}
 			# can we find a lldpLocal entry with that portnumber?
-			if (ref($lldplocaldata{$portnum}) eq "HASH")
+			elsif (ref($lldplocaldata{$portnum}) eq "HASH")
 			{
 				# can we find an interface whose description matches
 				# lldpLocPortDesc or lldpLocPortId?

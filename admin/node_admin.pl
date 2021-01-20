@@ -972,7 +972,7 @@ sub validate_node_data
 	my $name = $node->{name};
 	
 	die "Invalid node name \"$name\"\n"
-			if ($name =~ /[^a-zA-Z0-9_-]/);
+			if ($name =~ /[^a-zA-Z0-9_\-\.]/);
 
 	die "Invalid node data, not a hash!\n" if (ref($node) ne 'HASH');
 	for my $mustbedeep (qw(configuration overrides activated))
