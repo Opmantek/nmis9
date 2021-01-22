@@ -50,7 +50,13 @@
         'DEF:hrMemSize=$database:hrMemSize:MAX',
         'CDEF:memoryUtil=hrMemUsed,hrMemSize,/,100,*',
         'PRINT:memoryUtil:AVERAGE:memoryUtil=%1.2lf'        
-      ],      
+      ],
+      'mikrotikCpu' => [
+        'DEF:mikrotikCpu=$database:mikrotikCpu:AVERAGE',
+        'DEF:mikrotikCpu=$database:mikrotikCpu:AVERAGE',
+        'PRINT:mikrotikCpu:AVERAGE:mikrotikCpu=%1.2lf',
+        'PRINT:mikrotikCpu:AVERAGE:cpuLoad=%1.2lf',
+      ], 
       'cpu-cpm' => [
         'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
         'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',

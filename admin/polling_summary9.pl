@@ -73,15 +73,18 @@ else {
     
     # define the output heading and the print format
 	my @heading = ("node", "attempt", "status", "ping", "snmp", "policy", "delta", "snmp", "avgdel", "poll", "update", "pollmessage");
-    
+    	printf "\n\n\n %-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @heading;
+
 	foreach my $node (sort @$nodes) {
 		#oneNode($node);
-        $totalnodeswithremotes++;
-        my $nodeobj = $nmisng->node(name => $node);
-        if ($nodeobj) {
+            $totalnodeswithremotes++;
+            my $nodeobj = $nmisng->node(name => $node);
+            if ($nodeobj) {
             
-            # Only locals!
-            if ($nodeobj->cluster_id eq $config->{cluster_id} ) {
+	    my ($configuration,$error) = $nodeobj->configuration();
+	    my $active = $configuration->{active};
+            # Only locals and active nodes
+            if ($active and $nodeobj->cluster_id eq $config->{cluster_id} ) {
                 
                 ++$totalNodes;
                 ++$totalPoll;
@@ -138,6 +141,8 @@ else {
                         $delta = "---";
                     }
         
+                    my $delta = sprintf("%.2f",$delta);
+
                     my %status;
                     # Default values
                     my $ping_enabled = "no";
@@ -234,8 +239,9 @@ else {
 			
 	}
     my $now = NMISNG::Util::returnTime(time());
-    printf "\n\n\n %-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @heading;
-    print $report;
+    # printing twice for some reason 
+    #print $report;
+    #
 	print "\ntotalNodes=$totalNodes totalPoll=$totalPoll ontime=$goodPoll pingOnly=$pingOnly 1x_late=$latePoll5m 3x_late=$latePoll15m 12x_late=$latePoll1h 144x_late=$latePoll12h\n";
 	print "time=$now pingDown=$pingDown snmpDown=$snmpDown badSnmp=$badSnmp noSnmp=$noSnmp demoted=$demoted\n";
     print "\ntotalNodesIncludingRemotes=$totalnodeswithremotes\n";
@@ -267,5 +273,8 @@ sub oneNode {
 
 		print "$node active=$active poll_ago=$last_poll_ago update_ago=$last_update_ago last_poll=$last_poll last_update=$last_update\n";
 		#print "$node poll_ago=$last_poll_ago update_ago=$last_update_ago last_poll=$catchall_data->{last_poll} last_poll_attempt=$catchall_data->{last_poll_attempt} last_update=$catchall_data->{last_update} last_update_attempt=$catchall_data->{last_update_attempt}\n";
+	}
+	else {
+		print "$node active=$active\n";
 	}
 }

@@ -1,334 +1,110 @@
-#
-#  Copyright Opmantek Limited (www.opmantek.com)
-#  
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (NMIS).
-#  
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#  
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
-#  If not, see <http://www.gnu.org/licenses/>
-#  
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
-#  User group details:
-#  http://support.opmantek.com/users/
-#  
-# *****************************************************************************
-
 %hash = (
   'threshold' => {
     'name' => {
-      'util_out' => {
-        'item' => 'outputUtil',
-        'event' => 'Proactive Interface Output Utilisation',
-				'title' => "Output Utilisation",
-				'unit' => "%",
-				
+      'DiskQueueLength' => {
+        'event' => 'Proactive Disk Queue Length',
+        'item' => 'AvgDiskQLen',
         'select' => {
-          '10' => {
+          'default' => {
             'value' => {
-              'critical' => '90',
+              'critical' => '4',
+              'fatal' => '5',
+              'major' => '2',
+              'minor' => '1',
+              'warning' => '0.1'
+            }
+          }
+        },
+        'title' => 'Disk Queue Length',
+        'unit' => 'transfers'
+      },
+      'WindowsPaging' => {
+        'event' => 'Proactive Page File Usage',
+        'item' => 'percentPageUsage',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '80',
               'fatal' => '95',
-              'minor' => '70',
-              'warning' => '60',
-              'major' => '80'
-            },
-            'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000'
-          },
-          '20' => {
-            'value' => {
-              'critical' => '75',
-              'fatal' => '90',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            },
-            'control' => '$ifSpeed == 10000000'
-          },
-          '30' => {
-            'value' => {
-              'critical' => '65',
-              'fatal' => '80',
-              'minor' => '40',
-              'warning' => '30',
-              'major' => '50'
-            },
-            'control' => '$ifSpeed == 100000000'
-          },
-          '40' => {
-            'value' => {
-              'critical' => '55',
-              'fatal' => '70',
-              'minor' => '30',
-              'warning' => '20',
-              'major' => '40'
-            },
-            'control' => '$ifSpeed == 1000000000'
-          },
-          'default' => {
-            'value' => {
-              'critical' => '93',
-              'warning' => '80',
-              'minor' => '85',
-              'fatal' => '95',
-              'major' => '90'
-            }
-          },
-        }
-      },
-      'pkt_errors_out' => {
-        'item' => 'ifOutErrorsProc',
-        'event' => 'Proactive Interface Error Output Packets',
-				'title' => "Output Error Packets",
-				'unit' => "packets",
-				
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '0.25',
-              'fatal' => '0.5',
-              'minor' => '0.05',
-              'warning' => '0.02',
-              'major' => '0.1'
-            }
-          }
-        }
-      },
-      'pkt_discards_in' => {
-        'item' => 'ifInDiscardsProc',
-        'event' => 'Proactive Interface Discards Input Packets',
-				'title' => "Input Discard Packets",
-				'unit' => "packets",
-				
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '0.25',
-              'fatal' => '0.5',
-              'minor' => '0.05',
-              'warning' => '0.02',
-              'major' => '0.1'
-            }
-          }
-        }
-      },
-      'cpuUtil' => {
-        'item' => 'cpuUtil',
-        'event' => 'Proactive CPU',
-				'title' => "CPU Utilisation",
-				'unit' => "%",
-				
-        'select' => {
-          '10' => {
-            'value' => {
-              'critical' => '60',
-              'fatal' => '70',
-              'minor' => '40',
-              'warning' => '30',
-              'major' => '50'
-            },
-            'control' => '$roleType =~ /core/'
-          },
-          '20' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            },
-            'control' => '$roleType =~ /distribution/'
-          },
-          '30' => {
-            'value' => {
-              'critical' => '80',
-              'fatal' => '90',
+              'major' => '70',
               'minor' => '60',
-              'warning' => '50',
-              'major' => '70'
-            },
-            'control' => '$roleType =~ /access/'
-          },
-          'default' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
+              'warning' => '50'
             }
           }
-        }
+        },
+        'title' => 'Page File Usage',
+        'unit' => '%'
       },
-      'cpu_cpm' => {
-        'item' => 'cpmCPUTotal5min',
+      'WindowsProcessor' => {
         'event' => 'Proactive CPU',
-				'title' => "CPU Utilisation",
-				'unit' => "%",
-				
+        'item' => 'percentProcessor',
         'select' => {
-          '10' => {
-            'value' => {
-              'critical' => '60',
-              'fatal' => '70',
-              'minor' => '40',
-              'warning' => '30',
-              'major' => '50'
-            },
-            'control' => '$roleType =~ /core/'
-          },
-          '20' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            },
-            'control' => '$roleType =~ /distribution/'
-          },
-          '30' => {
-            'value' => {
-              'critical' => '80',
-              'fatal' => '90',
-              'minor' => '60',
-              'warning' => '50',
-              'major' => '70'
-            },
-            'control' => '$roleType =~ /access/'
-          },
           'default' => {
             'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            }
-          }
-        }
-      },
-      'cpu' => {
-        'item' => 'avgBusy5min',
-        'event' => 'Proactive CPU',
-				'title' => "CPU Utilisation",
-				'unit' => "%",
-				
-				'select' => {
-          '10' => {
-            'value' => {
-              'critical' => '60',
-              'fatal' => '70',
-              'minor' => '40',
-              'warning' => '30',
-              'major' => '50'
-            },
-            'control' => '$roleType =~ /core/'
-          },
-          '20' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            },
-            'control' => '$roleType =~ /distribution/'
-          },
-          '30' => {
-            'value' => {
-              'critical' => '80',
-              'fatal' => '90',
-              'minor' => '60',
-              'warning' => '50',
-              'major' => '70'
-            },
-            'control' => '$roleType =~ /access/'
-          },
-          'default' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            }
-          }
-        }
-      },
-      'hrdisk' => {
-        'event' => 'Proactive Disk Usage',
-				'title' => "Disk Usage",
-				'unit' => "%",
-				
-        'item' => 'hrDiskUsedPer',
-				'select' => {
-          '10' => {
-            'control' => '$hrDiskSize <= 209715200000 and $hrStorageType =~ /(Fixed|Network) Disk/',
-            'value' => {
-              'fatal' => '97',
               'critical' => '95',
-              'major' => '95',
-              'minor' => '95',
-              'warning' => '95',
-            },
-          },
-          '20' => {
-            'control' => '$hrDiskSize <= 1610612736000 and $hrDiskSize >= 209715200000 and $hrStorageType =~ /(Fixed|Network) Disk/',
-            'value' => {
-              'fatal' => '99',
-              'critical' => '97',
-              'major' => '95',
-              'minor' => '93',
-              'warning' => '90',
-            },
-          },
-          '30' => {
-            'control' => '$hrDiskSize <= 3221225472000 and $hrDiskSize >= 1610612736000 and $hrStorageType =~ /(Fixed|Network) Disk/',
-            'value' => {
-              'fatal' => '99',
-              'critical' => '98',
-              'major' => '96',
-              'minor' => '93',
-              'warning' => '90',
-            },
-          },
-          '40' => {
-            'control' => '$hrDiskSize >= 3221225472000 and $hrStorageType =~ /(Fixed|Network) Disk/',
-            'value' => {
-              'fatal' => '99.5',
-              'critical' => '99',
-              'major' => '98',
-              'minor' => '96',
-              'warning' => '93',
-            },
-          },
-          'default' => {
-            'value' => {
-              'fatal' => '97',
-              'critical' => '95',
+              'fatal' => '100',
               'major' => '90',
-              'minor' => '80',
-              'warning' => '75',
+              'minor' => '85',
+              'warning' => '80'
             }
           }
-        }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
       },
-      'hrsmpcpu' => {
-        'event' => 'Proactive CPU',
-        'item' => 'hrCpuLoad',
+      'available' => {
+        'event' => 'Proactive Interface Availability',
+        'item' => 'available',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '40',
+              'fatal' => '30',
+              'major' => '50',
+              'minor' => '60',
+              'warning' => '70'
+            }
+          }
+        },
+        'title' => 'Interface Availability'
+      },
+      'bufferMissPct' => {
+        'event' => 'Proactive Buffer Misses',
+        'item' => 'bufferMissPct',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '40',
+              'fatal' => '50',
+              'major' => '30',
+              'minor' => '20',
+              'warning' => '10'
+            }
+          }
+        },
+        'title' => 'Buffer Misses',
+        'unit' => '%'
+      },
+      'bufferUtil' => {
+        'event' => 'Proactive Buffer Utilisation',
+        'item' => 'bufferUtil',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '96',
+              'fatal' => '100',
+              'major' => '94',
+              'minor' => '92',
+              'warning' => '90'
+            }
+          }
+        },
+        'title' => 'Buffer Utilisation',
+        'unit' => '%'
+      },
+      'calls_util' => {
+        'event' => 'Proactive Calls Utilisation',
+        'item' => 'percIdle',
         'select' => {
           'default' => {
             'value' => {
@@ -339,456 +115,451 @@
               'warning' => '40'
             }
           }
-        }
+        },
+        'title' => 'Calls Utilisation',
+        'unit' => '%'
       },
-      'hrsmpcpu' => {
-        'item' => 'hrCpuLoad',
+      'ccpu' => {
         'event' => 'Proactive CPU',
-				'title' => "CPU Utilisation",
-				'unit' => "%",
-				
+        'item' => 'avgBusy5min',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
+      },
+      'cpu' => {
+        'event' => 'Proactive CPU',
+        'item' => 'avgBusy5min',
         'select' => {
           '10' => {
+            'control' => '$roleType =~ /core/',
             'value' => {
               'critical' => '60',
               'fatal' => '70',
+              'major' => '50',
               'minor' => '40',
-              'warning' => '30',
-              'major' => '50'
-            },
-            'control' => '$roleType =~ /core/'
+              'warning' => '30'
+            }
           },
           '20' => {
+            'control' => '$roleType =~ /distribution/',
             'value' => {
               'critical' => '70',
               'fatal' => '80',
+              'major' => '60',
               'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            },
-            'control' => '$roleType =~ /distribution/'
+              'warning' => '40'
+            }
           },
           '30' => {
+            'control' => '$roleType =~ /access/',
             'value' => {
               'critical' => '80',
               'fatal' => '90',
+              'major' => '70',
               'minor' => '60',
-              'warning' => '50',
-              'major' => '70'
-            },
-            'control' => '$roleType =~ /access/'
+              'warning' => '50'
+            }
           },
           'default' => {
             'value' => {
               'critical' => '70',
               'fatal' => '80',
+              'major' => '60',
               'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
+              'warning' => '40'
             }
           }
-        }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
+      },
+      'cpuUtil' => {
+        'event' => 'Proactive CPU',
+        'item' => 'cpuUtil',
+        'select' => {
+          '10' => {
+            'control' => '$roleType =~ /core/',
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'major' => '50',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          },
+          '20' => {
+            'control' => '$roleType =~ /distribution/',
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          },
+          '30' => {
+            'control' => '$roleType =~ /access/',
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'major' => '70',
+              'minor' => '60',
+              'warning' => '50'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
+      },
+      'cpu_cpm' => {
+        'event' => 'Proactive CPU',
+        'item' => 'cpmCPUTotal5min',
+        'select' => {
+          '10' => {
+            'control' => '$roleType =~ /core/',
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'major' => '50',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          },
+          '20' => {
+            'control' => '$roleType =~ /distribution/',
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          },
+          '30' => {
+            'control' => '$roleType =~ /access/',
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'major' => '70',
+              'minor' => '60',
+              'warning' => '50'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
       },
       'env_temp' => {
-        'item' => 'currentTemp',
         'event' => 'Proactive Temp',
-				'title' => "Temperature",
-				'unit' => "°C",
-				
+        'item' => 'currentTemp',
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '90',
               'critical' => '80',
-              'major' => '70',           
+              'fatal' => '90',
+              'major' => '70',
               'minor' => '60',
               'warning' => '50'
             }
           }
-        }
+        },
+        'title' => 'Temperature',
+        'unit' => 'C'
       },
-      'reachable' => {
-        'item' => 'reachable',
-        'event' => 'Proactive Reachability',
-				"title" => "Node Reachability",
-				# unitless kpi metric
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '60',
-              'fatal' => '50',
-              'minor' => '80',
-              'warning' => '85',
-              'major' => '70'
-            }
-          }
-        }
-      },
-      'response' => {
-        'item' => 'response',
-        'event' => 'Proactive Response Time',
-				'title' => "Response Time",
-				'unit' => 'ms',
-				
-        'select' => {
-          '10' => {
-            'value' => {
-              'critical' => '2000',
-              'fatal' => '3000',
-              'minor' => '600',
-              'warning' => '400',
-              'major' => '1000'
-            },
-            'control' => '$location =~ qr/Cloud/'
-          },
-          '20' => {
-            'value' => {
-              'critical' => '2000',
-              'fatal' => '3000',
-              'minor' => '150',
-              'warning' => '100',
-              'major' => '1000'
-            },
-            'control' => '$group =~ /Sales/'
-          },
-          'default' => {
-            'value' => {
-              'critical' => '2000',
-              'fatal' => '3000',
-              'minor' => '300',
-              'warning' => '150',
-              'major' => '1000'
-            }
-          }
-        }
-      },
-      'mem-proc' => {
-        'item' => 'ProcMemFree',
-        'event' => 'Proactive Memory Free',
-				'title' => "Free Memory",
-				'unit' => '%',
-
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '7',
-              'fatal' => '5',
-              'minor' => '12',
-              'warning' => '15',
-              'major' => '9'
-            }
-          }
-        }
-      },
-      'ccpu' => {
-        'item' => 'avgBusy5min',
+      'f5ProacCPU' => {
         'event' => 'Proactive CPU',
-				'title' => "CPU Utilisation",
-				'unit' => '%',
-
+        'item' => 'f5PROC',
         'select' => {
           'default' => {
             'value' => {
               'critical' => '70',
               'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
+              'major' => '70',
+              'minor' => '70',
+              'warning' => '70'
             }
           }
-        }
+        },
+        'title' => 'F5 CPU Usage',
+        'unit' => '%'
       },
-      'util_in' => {
-        'item' => 'inputUtil',
-        'event' => 'Proactive Interface Input Utilisation',
-				'title' => "Input Utilisation",
-				'unit' => '%',
-
+      'f5ProacTemp' => {
+        'event' => 'F5 High Temperature',
+        'item' => 'f5TEMP',
         'select' => {
-          '40' => {
+          '15' => {
+            'control' => '$node =~ /node-name/i and $f5TempName =~ /inlet temperature 1/i',
             'value' => {
-              'critical' => '55',
-              'fatal' => '70',
-              'minor' => '30',
-              'warning' => '20',
-              'major' => '40'
-            },
-            'control' => '$ifSpeed == 1000000000'
+              'critical' => '59',
+              'fatal' => '64',
+              'major' => '44',
+              'minor' => '44',
+              'warning' => '44'
+            }
           },
+          '25' => {
+            'control' => '$node =~ /node-name/i and $f5TempName =~ /outlet temperature 2/i',
+            'value' => {
+              'critical' => '68',
+              'fatal' => '73',
+              'major' => '63',
+              'minor' => '63',
+              'warning' => '63'
+            }
+          },
+          '35' => {
+            'control' => '$node =~ /node-name/i and $f5TempName =~ /inlet temperature 2/i',
+            'value' => {
+              'critical' => '50',
+              'fatal' => '55',
+              'major' => '45',
+              'minor' => '45',
+              'warning' => '45'
+            }
+          },
+          '5' => {
+            'control' => '$node =~ /node-name/i and $f5TempName =~ /outlet temperature 1/i',
+            'value' => {
+              'critical' => '61',
+              'fatal' => '66',
+              'major' => '56',
+              'minor' => '56',
+              'warning' => '56'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '42',
+              'fatal' => '52',
+              'major' => '42',
+              'minor' => '42',
+              'warning' => '42'
+            }
+          }
+        },
+        'title' => 'F5 Temperature',
+        'unit' => 'C'
+      },
+      'f5_connection' => {
+        'event' => 'Proactive F5 Current Conns',
+        'item' => 'ClientCurConns',
+        'select' => {
           '10' => {
+            '$node =~ /node-name/i or $node =~ /node-name/i' => 'value',
+            'HASH(0x5755c20)' => undef,
+            'control' => 'control'
+          },
+          '15' => {
+            'control' => '$node =~ /node-name/i or $node =~ /node-name/i',
+            'value' => {
+              'critical' => '136320000',
+              'fatal' => '155520000',
+              'major' => '136320000',
+              'minor' => '136320000',
+              'warning' => '136320000'
+            }
+          },
+          '20' => {
+            'control' => '$node =~ /node-name/i or $node =~ /node-name/i',
+            'value' => {
+              'critical' => '9940000',
+              'fatal' => '11340000',
+              'major' => '9940000',
+              'minor' => '9940000',
+              'warning' => '9940000'
+            }
+          },
+          '5' => {
+            'control' => '$node =~ /node-name/i or $node =~ /node-name/i',
+            'value' => {
+              'critical' => '34080000',
+              'fatal' => '38880000',
+              'major' => '34080000',
+              'minor' => '34080000',
+              'warning' => '34080000'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '192000001',
+              'fatal' => '192000002',
+              'major' => '192000001',
+              'minor' => '192000001',
+              'warning' => '192000001'
+            }
+          }
+        },
+        'title' => 'Total Current connections',
+        'unit' => 'Conns'
+      },
+      'f5_memory' => {
+        'event' => 'Proactive F5 Memory Utilisation',
+        'item' => 'MemoryUsagePerc',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '71',
+              'fatal' => '81',
+              'major' => '71',
+              'minor' => '71',
+              'warning' => '71'
+            }
+          }
+        },
+        'title' => 'Total Memory Utilisation',
+        'unit' => '%'
+      },
+      'hrdisk' => {
+        'event' => 'Proactive Disk Usage',
+        'item' => 'hrDiskUsedPer',
+        'select' => {
+          '10' => {
+            'control' => '$hrDiskSize <= 209715200000 and $hrStorageType =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'critical' => '95',
+              'fatal' => '97',
+              'major' => '95',
+              'minor' => '95',
+              'warning' => '95'
+            }
+          },
+          '20' => {
+            'control' => '$hrDiskSize <= 1610612736000 and $hrDiskSize >= 209715200000 and $hrStorageType =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'critical' => '97',
+              'fatal' => '99',
+              'major' => '95',
+              'minor' => '93',
+              'warning' => '90'
+            }
+          },
+          '30' => {
+            'control' => '$hrDiskSize <= 3221225472000 and $hrDiskSize >= 1610612736000 and $hrStorageType =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'critical' => '98',
+              'fatal' => '99',
+              'major' => '96',
+              'minor' => '93',
+              'warning' => '90'
+            }
+          },
+          '40' => {
+            'control' => '$hrDiskSize >= 3221225472000 and $hrStorageType =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'critical' => '99',
+              'fatal' => '99.5',
+              'major' => '98',
+              'minor' => '96',
+              'warning' => '93'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '95',
+              'fatal' => '97',
+              'major' => '90',
+              'minor' => '80',
+              'warning' => '75'
+            }
+          }
+        },
+        'title' => 'Disk Usage',
+        'unit' => '%'
+      },
+      'hrsmpcpu' => {
+        'event' => 'Proactive CPU',
+        'item' => 'hrCpuLoad',
+        'select' => {
+          '10' => {
+            'control' => '$roleType =~ /core/',
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'major' => '50',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          },
+          '20' => {
+            'control' => '$roleType =~ /distribution/',
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          },
+          '30' => {
+            'control' => '$roleType =~ /access/',
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'major' => '70',
+              'minor' => '60',
+              'warning' => '50'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
+      },
+      'jnx_buffer' => {
+        'event' => 'Proactive Buffer Utilisation',
+        'item' => 'jnxOperatingBuffer',
+        'select' => {
+          'default' => {
             'value' => {
               'critical' => '90',
               'fatal' => '95',
+              'major' => '80',
               'minor' => '70',
-              'warning' => '60',
-              'major' => '80'
-            },
-            'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000'
-          },
-          '30' => {
-            'value' => {
-              'critical' => '65',
-              'fatal' => '80',
-              'minor' => '40',
-              'warning' => '30',
-              'major' => '50'
-            },
-            'control' => '$ifSpeed == 100000000'
-          },
-          'default' => {
-            'value' => {
-              'critical' => '93',
-              'warning' => '80',
-              'minor' => '85',
-              'fatal' => '95',
-              'major' => '90'
-            }
-          },
-          '20' => {
-            'value' => {
-              'critical' => '75',
-              'fatal' => '90',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            },
-            'control' => '$ifSpeed == 10000000'
-          }
-        }
-      },
-      'pkt_discards_out' => {
-        'item' => 'ifOutDiscardsProc',
-        'event' => 'Proactive Interface Discards Output Packets',
-				'title' => "Output Discard Packets",
-				'unit' => 'packets',
-				
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '0.25',
-              'fatal' => '0.5',
-              'minor' => '0.05',
-              'warning' => '0.02',
-              'major' => '0.1'
+              'warning' => '60'
             }
           }
-        }
-      },
-      'pkt_errors_in' => {
-        'item' => 'ifInErrorsProc',
-        'event' => 'Proactive Interface Error Input Packets',
-				'title' => "Input Error Packets",
-				'unit' => 'packets',
-
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '0.25',
-              'fatal' => '0.5',
-              'minor' => '0.05',
-              'warning' => '0.02',
-              'major' => '0.1'
-            }
-          }
-        }
-      },
-      'available' => {
-        'item' => 'available',
-        'event' => 'Proactive Interface Availability',
-				'title' => "Interface Availability",
-				# unitless kpi metric
-				
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '40',
-              'fatal' => '30',
-              'minor' => '60',
-              'warning' => '70',
-              'major' => '50'
-            }
-          }
-        }
-      },
-      'ssCpuRawIdle' => {
-        'item' => 'ssCpuRawIdle',
-        'event' => 'Proactive CPU Idle',
-				'title' => "Idle CPU",
-				'unit' => '%',
-				
-        'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '10',
-              'critical' => '20',
-              'major' => '30',
-              'minor' => '40',
-              'warning' => '50',
-            }
-          }
-        }
-      },
-      'ssCpuRawUser' => {
-        'item' => 'ssCpuRawUser',
-        'event' => 'Proactive CPU User',
-				'title' => "User CPU",
-				'unit' => '%',
-
-				'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '90',
-              'critical' => '80',
-              'major' => '70',
-              'minor' => '65',
-              'warning' => '60',
-            }
-          }
-        }
-      },
-      'ssCpuRawSystem' => {
-        'item' => 'ssCpuRawSystem',
-        'event' => 'Proactive CPU System',
-				'title' => "System CPU",
-				'unit' => '%',
-
-        'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '35',
-              'critical' => '30',
-              'major' => '28',
-              'minor' => '25',
-              'warning' => '20',
-            }
-          }
-        }
-      },
-      'ssCpuRawWait' => {
-        'item' => 'ssCpuRawWait',
-        'event' => 'Proactive CPU IO Wait',
-				'title' => "IO Wait CPU",
-				'unit' => '%',
-
-        'select' => {
-          '10' => {
-            'value' => {
-              'fatal' => '18',
-              'critical' => '15',
-              'major' => '12',
-              'minor' => '6',
-              'warning' => '3',
-            },
-            'control' => '$roleType =~ /core/'
-          },
-          '20' => {
-            'value' => {
-              'fatal' => '25',
-              'critical' => '20',
-              'major' => '15',
-              'minor' => '10',
-              'warning' => '5',
-            },
-            'control' => '$roleType =~ /distribution/'
-          },
-          '30' => {
-            'value' => {
-              'fatal' => '30',
-              'critical' => '24',
-              'major' => '18',
-              'minor' => '12',
-              'warning' => '6',
-            },
-            'control' => '$roleType =~ /access/'
-          },
-          'default' => {
-            'value' => {
-              'fatal' => '25',
-              'critical' => '20',
-              'major' => '15',
-              'minor' => '10',
-              'warning' => '5',
-            }
-          }
-        }
-      },
-      'memUtil' => {
-        'item' => 'memUtil',
-        'event' => 'Proactive Memory Utilisation',
-				'title' => "Memory Utilisation",
-				'unit' => '%',
-				
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '93',
-              'fatal' => '95',
-              'minor' => '88',
-              'warning' => '85',
-              'major' => '91'
-            }
-          }
-        }
-      },
-      'memPoolUtil' => {
-        'item' => 'memUtil',
-        'event' => 'Proactive Memory Utilisation',
-				'title' => "Memory Utilisation",
-				'unit' => '%',
-
-        'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '99',
-              'critical' => '95',
-              'major' => '90',
-              'minor' => '85',
-              'warning' => '80',
-            }
-          }
-        }
-      },
-      'bufferUtil' => {
-        'item' => 'bufferUtil',
-        'event' => 'Proactive Buffer Utilisation',
-				'title' => "Buffer Utilisation",
-				'unit' => '%',
-
-        'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '100',
-              'critical' => '96',
-              'major' => '94',
-              'minor' => '92',
-              'warning' => '90',
-            }
-          }
-        }
-      },
-      'bufferMissPct' => {
-        'item' => 'bufferMissPct',
-        'event' => 'Proactive Buffer Misses',
-				'title' => "Buffer Misses",
-				'unit' => '%',
-
-        'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '50',
-              'critical' => '40',
-              'major' => '30',
-              'minor' => '20',
-              'warning' => '10',
-            }
-          }
-        }
+        },
+        'title' => 'Buffer Utilisation',
+        'unit' => '%'
       },
       'jnx_cpu' => {
         'event' => 'Proactive CPU',
-				'title' => "CPU Utilisation",
-				'unit' => '%',
-				
         'item' => 'jnxOper5MinLoadAvg',
         'select' => {
           '10' => {
@@ -823,164 +594,526 @@
           },
           'default' => {
             'value' => {
-              'fatal' => '80',
               'critical' => '70',
+              'fatal' => '80',
               'major' => '60',
               'minor' => '50',
               'warning' => '40'
             }
           }
-        }
-      },
-      'jnx_buffer' => {
-        'event' => 'Proactive Buffer Utilisation',
-				'title' => "Buffer Utilisation",
-				'unit' => '%',
-
-        'item' => 'jnxOperatingBuffer',
-        'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '95',
-              'critical' => '90',
-              'major' => '80',
-              'minor' => '70',
-              'warning' => '60'
-            }
-          }
-        }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
       },
       'jnx_heap' => {
         'event' => 'Proactive Heap Utilisation',
-				'title' => "Heap Utilisation",
-				'unit' => '%',
-
         'item' => 'jnxOperatingHeap',
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '95',
               'critical' => '90',
+              'fatal' => '95',
               'major' => '80',
               'minor' => '70',
               'warning' => '60'
             }
           }
-        }
+        },
+        'title' => 'Heap Utilisation',
+        'unit' => '%'
       },
       'jnx_temp' => {
         'event' => 'Proactive Temp',
-				'title' => "Temperature",
-				'unit' => '°C',
-
         'item' => 'jnxOperatingTemp',
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '85',
               'critical' => '80',
+              'fatal' => '85',
               'major' => '75',
               'minor' => '70',
               'warning' => '60'
             }
           }
-        }
+        },
+        'title' => 'Temperature',
+        'unit' => 'C'
+      },
+      'mem-proc' => {
+        'event' => 'Proactive Memory Free',
+        'item' => 'ProcMemFree',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '7',
+              'fatal' => '5',
+              'major' => '9',
+              'minor' => '12',
+              'warning' => '15'
+            }
+          }
+        },
+        'title' => 'Free Memory',
+        'unit' => '%'
+      },
+      'memPoolUtil' => {
+        'event' => 'Proactive Memory Utilisation',
+        'item' => 'memUtil',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '95',
+              'fatal' => '99',
+              'major' => '90',
+              'minor' => '85',
+              'warning' => '80'
+            }
+          }
+        },
+        'title' => 'Memory Utilisation',
+        'unit' => '%'
+      },
+      'memUtil' => {
+        'event' => 'Proactive Memory Utilisation',
+        'item' => 'memUtil',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '93',
+              'fatal' => '95',
+              'major' => '91',
+              'minor' => '88',
+              'warning' => '85'
+            }
+          }
+        },
+        'title' => 'Memory Utilisation',
+        'unit' => '%'
+      },
+      'modem_dead' => {
+        'event' => 'Proactive Dead Modem',
+        'item' => 'ModemsDead',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        },
+        'title' => 'Dead Modems',
+        'unit' => '%'
+      },
+      'modem_unav' => {
+        'event' => 'Proactive Modem Utilisation',
+        'item' => 'ModemsUnavailable',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '40',
+              'fatal' => '50',
+              'major' => '30',
+              'minor' => '20',
+              'warning' => '10'
+            }
+          }
+        },
+        'title' => 'Modem Utilisation',
+        'unit' => '%'
+      },
+      'pkt_discards_in' => {
+        'event' => 'Proactive Interface Discards Input Packets',
+        'item' => 'ifInDiscardsProc',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'major' => '0.1',
+              'minor' => '0.05',
+              'warning' => '0.02'
+            }
+          }
+        },
+        'title' => 'Input Discard Packets',
+        'unit' => 'packets'
+      },
+      'pkt_discards_out' => {
+        'event' => 'Proactive Interface Discards Output Packets',
+        'item' => 'ifOutDiscardsProc',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'major' => '0.1',
+              'minor' => '0.05',
+              'warning' => '0.02'
+            }
+          }
+        },
+        'title' => 'Output Discard Packets',
+        'unit' => 'packets'
+      },
+      'pkt_errors_in' => {
+        'event' => 'Proactive Interface Error Input Packets',
+        'item' => 'ifInErrorsProc',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'major' => '0.1',
+              'minor' => '0.05',
+              'warning' => '0.02'
+            }
+          }
+        },
+        'title' => 'Input Error Packets',
+        'unit' => 'packets'
+      },
+      'pkt_errors_out' => {
+        'event' => 'Proactive Interface Error Output Packets',
+        'item' => 'ifOutErrorsProc',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'major' => '0.1',
+              'minor' => '0.05',
+              'warning' => '0.02'
+            }
+          }
+        },
+        'title' => 'Output Error Packets',
+        'unit' => 'packets'
       },
       'qos_pkt_drop' => {
-        'event' => 'Proactive QoS Packet Drops',
-				'title' => "QoS Packet Drops",
-				'unit' => 'packets',
-
-        'item' => 'DropPkt',
         'control_regex' => 'Critical|Voice|Video',
         'control_regex_comment' => 'Use the control regex field to limit which CBQoS Classes will match.',
         'control_regex_example' => 'class-default$|Voice$',
-        'select_comment' => 'the values below are number of packets',
+        'event' => 'Proactive QoS Packet Drops',
+        'item' => 'DropPkt',
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '240',
               'critical' => '80',
+              'fatal' => '240',
               'major' => '40',
               'minor' => '20',
               'warning' => '10'
             }
           }
-        }
+        },
+        'select_comment' => 'the values below are number of packets',
+        'title' => 'QoS Packet Drops',
+        'unit' => 'packets'
       },
       'qos_pkt_drop_no_buf' => {
-        'event' => 'Proactive QoS no buffer Packet Drops',
-				'title' => "QoS no buffer Packet Drops",
-				'unit' => 'packets',
-
-        'item' => 'NoBufDropPkt',
         'control_regex' => 'Critical|Voice|Video',
+        'event' => 'Proactive QoS no buffer Packet Drops',
+        'item' => 'NoBufDropPkt',
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '240',
               'critical' => '80',
+              'fatal' => '240',
               'major' => '40',
               'minor' => '20',
               'warning' => '10'
             }
           }
-        }
+        },
+        'title' => 'QoS no buffer Packet Drops',
+        'unit' => 'packets'
       },
-      'WindowsProcessor' => {
-        'item' => 'percentProcessor',
-        'event' => 'Proactive CPU',
-				'title' => "CPU Utilisation",
-				'unit' => '%',
-
-				'select' => {
+      'reachable' => {
+        'event' => 'Proactive Reachability',
+        'item' => 'reachable',
+        'select' => {
           'default' => {
             'value' => {
-              'fatal' => '100',
-              'critical' => '95',
+              'critical' => '60',
+              'fatal' => '50',
+              'major' => '70',
+              'minor' => '80',
+              'warning' => '85'
+            }
+          }
+        },
+        'title' => 'Node Reachability'
+      },
+      'response' => {
+        'event' => 'Proactive Response Time',
+        'item' => 'response',
+        'select' => {
+          '10' => {
+            'control' => '$location =~ qr/Cloud/',
+            'value' => {
+              'critical' => '2000',
+              'fatal' => '3000',
+              'major' => '1000',
+              'minor' => '600',
+              'warning' => '400'
+            }
+          },
+          '20' => {
+            'control' => '$group =~ /Sales/',
+            'value' => {
+              'critical' => '2000',
+              'fatal' => '3000',
+              'major' => '1000',
+              'minor' => '150',
+              'warning' => '100'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '2000',
+              'fatal' => '3000',
+              'major' => '1000',
+              'minor' => '300',
+              'warning' => '150'
+            }
+          }
+        },
+        'title' => 'Response Time',
+        'unit' => 'ms'
+      },
+      'mikrotikCpu-th' => {
+        'event' => 'Proactive CPU',
+        'item' => 'mikrotikCpu',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          }
+        },
+        'title' => 'Idle CPU',
+        'unit' => '%'
+      },
+
+      'ssCpuRawIdle' => {
+        'event' => 'Proactive CPU Idle',
+        'item' => 'ssCpuRawIdle',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '20',
+              'fatal' => '10',
+              'major' => '30',
+              'minor' => '40',
+              'warning' => '50'
+            }
+          }
+        },
+        'title' => 'Idle CPU',
+        'unit' => '%'
+      },
+      'ssCpuRawSystem' => {
+        'event' => 'Proactive CPU System',
+        'item' => 'ssCpuRawSystem',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '30',
+              'fatal' => '35',
+              'major' => '28',
+              'minor' => '25',
+              'warning' => '20'
+            }
+          }
+        },
+        'title' => 'System CPU',
+        'unit' => '%'
+      },
+      'ssCpuRawUser' => {
+        'event' => 'Proactive CPU User',
+        'item' => 'ssCpuRawUser',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'major' => '70',
+              'minor' => '65',
+              'warning' => '60'
+            }
+          }
+        },
+        'title' => 'User CPU',
+        'unit' => '%'
+      },
+      'ssCpuRawWait' => {
+        'event' => 'Proactive CPU IO Wait',
+        'item' => 'ssCpuRawWait',
+        'select' => {
+          '10' => {
+            'control' => '$roleType =~ /core/',
+            'value' => {
+              'critical' => '15',
+              'fatal' => '18',
+              'major' => '12',
+              'minor' => '6',
+              'warning' => '3'
+            }
+          },
+          '20' => {
+            'control' => '$roleType =~ /distribution/',
+            'value' => {
+              'critical' => '20',
+              'fatal' => '25',
+              'major' => '15',
+              'minor' => '10',
+              'warning' => '5'
+            }
+          },
+          '30' => {
+            'control' => '$roleType =~ /access/',
+            'value' => {
+              'critical' => '24',
+              'fatal' => '30',
+              'major' => '18',
+              'minor' => '12',
+              'warning' => '6'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '20',
+              'fatal' => '25',
+              'major' => '15',
+              'minor' => '10',
+              'warning' => '5'
+            }
+          }
+        },
+        'title' => 'IO Wait CPU',
+        'unit' => '%'
+      },
+      'util_in' => {
+        'event' => 'Proactive Interface Input Utilisation',
+        'item' => 'inputUtil',
+        'select' => {
+          '10' => {
+            'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000',
+            'value' => {
+              'critical' => '90',
+              'fatal' => '95',
+              'major' => '80',
+              'minor' => '70',
+              'warning' => '60'
+            }
+          },
+          '20' => {
+            'control' => '$ifSpeed == 10000000',
+            'value' => {
+              'critical' => '75',
+              'fatal' => '90',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          },
+          '30' => {
+            'control' => '$ifSpeed >= 100000000 and $ifSpeed < 1000000000',
+            'value' => {
+              'critical' => '65',
+              'fatal' => '80',
+              'major' => '50',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          },
+          '40' => {
+            'control' => '$ifSpeed >= 1000000000',
+            'value' => {
+              'critical' => '55',
+              'fatal' => '70',
+              'major' => '40',
+              'minor' => '30',
+              'warning' => '20'
+            }
+          },
+          'default' => {
+            'value' => {
+              'critical' => '93',
+              'fatal' => '95',
               'major' => '90',
               'minor' => '85',
-              'warning' => '80',
+              'warning' => '80'
             }
           }
-        }
+        },
+        'title' => 'Input Utilisation',
+        'unit' => '%'
       },
-      'WindowsPaging' => {
-        'item' => 'percentPageUsage',
-        'event' => 'Proactive Page File Usage',
-				'title' => "Page File Usage",
-				'unit' => '%',
-
+      'util_out' => {
+        'event' => 'Proactive Interface Output Utilisation',
+        'item' => 'outputUtil',
         'select' => {
-          'default' => {
+          '10' => {
+            'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000',
             'value' => {
+              'critical' => '90',
               'fatal' => '95',
-              'critical' => '80',
-              'major' => '70',
-              'minor' => '60',
-              'warning' => '50',
+              'major' => '80',
+              'minor' => '70',
+              'warning' => '60'
             }
-          }
-        }
-      },
-      'DiskQueueLength' => {
-        'item' => 'AvgDiskQLen',
-        'event' => 'Proactive Disk Queue Length',
-				'title' => "Disk Queue Length",
-				'unit' => 'transfers',
-
-        'select' => {
+          },
+          '20' => {
+            'control' => '$ifSpeed == 10000000',
+            'value' => {
+              'critical' => '75',
+              'fatal' => '90',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          },
+          '30' => {
+            'control' => '$ifSpeed >= 100000000 and $ifSpeed < 1000000000',
+            'value' => {
+              'critical' => '65',
+              'fatal' => '80',
+              'major' => '50',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          },
+          '40' => {
+            'control' => '$ifSpeed >= 1000000000',
+            'value' => {
+              'critical' => '55',
+              'fatal' => '70',
+              'major' => '40',
+              'minor' => '30',
+              'warning' => '20'
+            }
+          },
           'default' => {
             'value' => {
-              'fatal' => '5',
-              'critical' => '4',
-              'major' => '2',
-              'minor' => '1',
-              'warning' => '0.1',
+              'critical' => '93',
+              'fatal' => '95',
+              'major' => '90',
+              'minor' => '85',
+              'warning' => '80'
             }
           }
-        }
-      },
+        },
+        'title' => 'Output Utilisation',
+        'unit' => '%'
+      }
     }
   }
 );
