@@ -3090,9 +3090,9 @@ sub update_intf_info
 				if ($inventory->data->{index} && ($index != $inventory->data->{index})) {
 					$self->nmisng->log->info("Checking inventory error. Index $index not the same ". $inventory->data->{index});
 					
-					# Get rid of the old data
-					my ($suc, $msg) = $inventory->delete(keep_rrd => );
-					$self->nmisng->log->debug("Removed historic inventory was successfull") if ($suc);
+					# Get rid of the old data 
+					my ($successdelete, $msg) = $inventory->delete(keep_rrd => );
+					$self->nmisng->log->debug("Removed historic inventory was successfull") if ($successdelete);
 					
 					# And create new information
 					( $inventory, my $error_message ) = $self->inventory(
