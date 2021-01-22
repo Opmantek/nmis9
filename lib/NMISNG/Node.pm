@@ -3086,6 +3086,24 @@ sub update_intf_info
 				);
 				$self->nmisng->log->error("Failed to create interface inventory, error:$error_message") && next if ( !$inventory );
 
+				# We already have an inventory with that name, but different index
+				if ($inventory->data->{index} && ($index != $inventory->data->{index})) {
+					$self->nmisng->log->info("Checking inventory error. Index $index not the same ". $inventory->data->{index});
+					
+					# Get rid of the old data
+					my ($suc, $msg) = $inventory->delete(keep_rrd => );
+					$self->nmisng->log->debug("Removed historic inventory was successfull") if ($suc);
+					
+					# And create new information
+					( $inventory, my $error_message ) = $self->inventory(
+							concept   => 'interface',
+							path      => $path,
+							create    => 1
+					);
+					$self->nmisng->log->error("Failed to create interface inventory, for duplicated ifDescr with historic index - error:$error_message") && next if ( !$inventory );
+					$self->nmisng->log->debug("Created new inventory for ifIndex $index");
+				}
+				
 				$inventory->data( $target );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				# for a new object this must happen AFTER data is set

@@ -43,8 +43,8 @@ my @groups = sort map { $AU->InGroup($_)? $_ :  () } ($nmisng->get_group_names);
 %hash = (
 			Escalations => [
 				{ Group => { header => 'Group',display => 'key,header,popup', value => ["default",@groups] }},
-				{ Role => { header => 'Role',display => 'key,header,popup', value => [ split(/\s*,\s*/, $C->{roletype_list}) ] }},
-				{ Type => { header => 'Type',display => 'key,header,popup', value => [ split(/\s*,\s*/, $C->{nodetype_list}) ] }},
+				{ Role => { header => 'Role',display => 'key,header,popup', value => [ "default", split(/\s*,\s*/, $C->{roletype_list}) ] }},
+				{ Type => { header => 'Type',display => 'key,header,popup', value => [ "default", split(/\s*,\s*/, $C->{nodetype_list}) ] }},
 				{ Event => { header => 'Event',display => 'key,header,popup', value => [ "default", sort keys %{Compat::NMIS::loadGenericTable('Events')} ] }},
 				{ 'Event_Node' => { header => 'Event Node',display => 'key,header,text', value => [""] }},
 				{ 'Event_Element' => { header => 'Event Element',display => 'key,header,text', value => [""] }},
