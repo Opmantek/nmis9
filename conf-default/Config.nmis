@@ -88,9 +88,9 @@ my %hash = (
   'system' => {
 		'hide_groups' => [],
 
-		"roletype_list" => "core,distribution,access,default",
-		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
-		"nodetype_list" => "generic,switch,router,firewall,server",
+		"roletype_list" => "default,core,distribution,access",
+		"nettype_list" => "default,wan,lan,vpn,man,san,voice",
+		"nodetype_list" => "default,generic,switch,router,firewall,server",
 
 		# for coloring the group status panel . 'default' applies to unlisted role types
 		'severity_by_roletype' => { core => [ 'Critical', 'Major' ], distribution => [ 'Major', 'Minor' ],
