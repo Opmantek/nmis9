@@ -479,9 +479,11 @@ EO_TEXT
 # out again
 sub save_window_state {
 	my $data = $Q->{POSTDATA};
+
 	my $windowData = decode_json($data);
-	my ($allWindowData, $handle) = NMISNG::Util::loadTable(dir => 'var',
-																					 name => "nmis-windowstate",
+
+	my ($allWindowData, $handle) = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_var>'}.'/nmis-windowstate.json',
+																					 json => 'true',
 																					 lock =>  'true');
 	$allWindowData->{$user} = $windowData->{windowData};
 
