@@ -3533,7 +3533,8 @@ sub collect_intf_data
 	# 5. collect modelled data for enabled, nonhistoric, collectable interfaces
 	# and stash it as we don't necessarily know the final inventory target yet
 	$self->nmisng->log->debug2("Collecting Interface Data");
-	for my $index (sort grep($if_data_map{$_}->{enabled} && !$if_data_map{$_}->{historic},
+
+	for my $index (sort grep($if_data_map{$_}->{enabled} && !$if_data_map{$_}->{historic} && ($if_data_map{$_}->{collect} eq "true"),
 													 keys %if_data_map))
 	{
 		my $thisif = $if_data_map{$index};
