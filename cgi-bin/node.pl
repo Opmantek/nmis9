@@ -484,7 +484,7 @@ sub typeGraph
 		# NOTE: this could use the inventory last update time
 		if (($subconcept =~ /cbqos/i and $item ne "") or $subconcept =~ /interface|pkts/i )
 		{
-			$db = $S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item);
+			$db = $S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,type=>$concept);
 			$time = RRDs::last($db);
 			$lastUpdate = NMISNG::Util::returnDateStamp($time);
 		}
@@ -521,9 +521,10 @@ sub typeGraph
 	}
 
 	my @output;
+	my $inventory = $S->inventory( concept => $concept, index => $index );
 	# check if database selectable with this info
 	if ( ($S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,
-												suppress_errors=>'true'))
+												suppress_errors=>'true', inventory=>$inventory))
 			 or $graphtype =~ /cbqos/) {
 
 		my %buttons;
@@ -570,7 +571,8 @@ sub typeGraph
 																						start => $start,
 																						end => $end,
 																						width => $width,
-																						height => $height );
+																						height => $height,
+																						inventory=>$inventory );
 
 		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ )
 		{

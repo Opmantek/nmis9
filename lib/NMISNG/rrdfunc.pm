@@ -882,8 +882,8 @@ sub draw
 	my %args = @_;
 
 	my ($S, $nodename, $nodeuuid, $mygroup, $graphtype, $intf, $item,
-			$width, $height, $filename, $start, $end, $time, $debug)
-			= @args{qw(sys node uuid group graphtype intf item width height filename start end time debug)};
+			$width, $height, $filename, $start, $end, $time, $debug, $inventory)
+			= @args{qw(sys node uuid group graphtype intf item width height filename start end time debug inventory)};
 
 	&require_RRDs;
 	if (ref($S) ne "NMISNG::Sys")
@@ -945,7 +945,7 @@ sub draw
 	}
 	else
 	{
-		$mydatabase = $S->makeRRDname(graphtype=>$graphtype, index=>$intf, item=>$item);
+		$mydatabase = $S->makeRRDname(graphtype=>$graphtype, index=>$intf, item=>$item, inventory => $inventory);
 		return { error => "failed to find database for graphtype $graphtype!" } if (!$mydatabase);
 
 		my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
