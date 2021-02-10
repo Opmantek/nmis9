@@ -4230,7 +4230,6 @@ sub collect_systemhealth_info
 	{
 		next
 				if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
-
 		my $thissection = $M->{systemHealth}->{sys}->{$section};
 
 		# all systemhealth sections must be indexed by something
@@ -4371,6 +4370,7 @@ sub collect_systemhealth_info
 					# my $path_keys = [$index_var];
 					my $path_keys = ['index'];
 					my $path = $self->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+
 					my ( $inventory, $error_message ) = $self->inventory(
 						concept   => $section,
 						path      => $path,
@@ -4397,6 +4397,7 @@ sub collect_systemhealth_info
 						$description = $target->{ $keys[0] };
 						$inventory->description( $description ) if($description);
 					}
+	
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
@@ -4534,7 +4535,23 @@ sub collect_systemhealth_info
 						$description = $target->{ $keys[0] };
 						$inventory->description( $description ) if($description);
 					}
-
+					
+					# Regenerate storage: If db name has changed, we need this
+					$self->nmisng->log->debug("collect_systemhealth_info check storage $section");
+					my $inv = $inventory->find_subconcept_type_storage(type => "rrd",
+																		subconcept => $section );
+					if ($inventory->find_subconcept_type_storage(type => "rrd",
+																subconcept => $section )) {
+							my $dbname = $S->makeRRDname(graphtype => $section,
+														index     => $index,
+														inventory      => $inventory,
+														relative => 1);
+							$self->nmisng->log->debug8("Storage: ". Dumper($dbname));
+							$inventory->set_subconcept_type_storage(type => "rrd",
+																	subconcept => $section,
+																	data => $dbname) if ($dbname);
+					}
+					
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
