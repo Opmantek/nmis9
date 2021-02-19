@@ -159,7 +159,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 	// get and display top menubar
 	$.ajax({
 		url			:	'menu.pl?act=menu_bar_site',
-		async		: false,
+		async		: true,
 		dataType: "html",
 		type 		: 'GET',
 		cache		: false,
@@ -346,7 +346,7 @@ function	createDialog(opt) {
 		{
 			$.ajax({
 				url: opt.url,
-				async: false,
+				async: true,
 				dataType: "html",
 				type : 'GET',
 				cache: false,
@@ -365,7 +365,7 @@ function	createDialog(opt) {
 			$.ajax({
 				url: newurl,
 				data: newdata,
-				async: false,
+				async: true,
 				dataType: "html",
 				type : 'POST',
 				cache: false,

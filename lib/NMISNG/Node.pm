@@ -3097,9 +3097,9 @@ sub update_intf_info
 				if ($inventory->data->{index} && ($index != $inventory->data->{index})) {
 					$self->nmisng->log->info("Checking inventory error. Index $index not the same ". $inventory->data->{index});
 					
-					# Get rid of the old data
-					my ($suc, $msg) = $inventory->delete(keep_rrd => );
-					$self->nmisng->log->debug("Removed historic inventory was successfull") if ($suc);
+					# Get rid of the old data 
+					my ($successdelete, $msg) = $inventory->delete(keep_rrd => );
+					$self->nmisng->log->debug("Removed historic inventory was successfull") if ($successdelete);
 					
 					# And create new information
 					( $inventory, my $error_message ) = $self->inventory(
@@ -3539,7 +3539,8 @@ sub collect_intf_data
 	# 5. collect modelled data for enabled, nonhistoric, collectable interfaces
 	# and stash it as we don't necessarily know the final inventory target yet
 	$self->nmisng->log->debug2("Collecting Interface Data");
-	for my $index (sort grep($if_data_map{$_}->{enabled} && !$if_data_map{$_}->{historic},
+
+	for my $index (sort grep($if_data_map{$_}->{enabled} && !$if_data_map{$_}->{historic} && ($if_data_map{$_}->{collect} eq "true"),
 													 keys %if_data_map))
 	{
 		my $thisif = $if_data_map{$index};
@@ -4235,7 +4236,6 @@ sub collect_systemhealth_info
 	{
 		next
 				if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
-
 		my $thissection = $M->{systemHealth}->{sys}->{$section};
 
 		# all systemhealth sections must be indexed by something
@@ -4376,6 +4376,7 @@ sub collect_systemhealth_info
 					# my $path_keys = [$index_var];
 					my $path_keys = ['index'];
 					my $path = $self->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+
 					my ( $inventory, $error_message ) = $self->inventory(
 						concept   => $section,
 						path      => $path,
@@ -4402,6 +4403,7 @@ sub collect_systemhealth_info
 						$description = $target->{ $keys[0] };
 						$inventory->description( $description ) if($description);
 					}
+	
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
@@ -4539,7 +4541,23 @@ sub collect_systemhealth_info
 						$description = $target->{ $keys[0] };
 						$inventory->description( $description ) if($description);
 					}
-
+					
+					# Regenerate storage: If db name has changed, we need this
+					$self->nmisng->log->debug("collect_systemhealth_info check storage $section");
+					my $inv = $inventory->find_subconcept_type_storage(type => "rrd",
+																		subconcept => $section );
+					if ($inventory->find_subconcept_type_storage(type => "rrd",
+																subconcept => $section )) {
+							my $dbname = $S->makeRRDname(graphtype => $section,
+														index     => $index,
+														inventory      => $inventory,
+														relative => 1);
+							$self->nmisng->log->debug8("Storage: ". Dumper($dbname));
+							$inventory->set_subconcept_type_storage(type => "rrd",
+																	subconcept => $section,
+																	data => $dbname) if ($dbname);
+					}
+					
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");

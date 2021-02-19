@@ -2963,7 +2963,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 						node      => $node,
 						intf      => $intf,
 						width     => $smallGraphWidth,
-						height    => $smallGraphHeight
+						height    => $smallGraphHeight,
+						sys		  => $S
 					)
 			)
 				),
@@ -2975,7 +2976,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 							node      => $node,
 							intf      => $intf,
 							width     => $smallGraphWidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 			);
@@ -2989,7 +2991,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 							node      => $node,
 							intf      => $intf,
 							width     => $smallGraphWidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 					);
@@ -3004,7 +3007,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 							node      => $node,
 							intf      => $intf,
 							width     => $smallGraphWidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 					);
@@ -3020,7 +3024,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 							node      => $node,
 							intf      => $intf,
 							width     => $smallGraphWidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 					);
@@ -3035,7 +3040,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 							node      => $node,
 							intf      => $intf,
 							width     => $smallGraphWidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 					);
@@ -3051,7 +3057,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 							node      => $node,
 							intf      => $intf,
 							width     => $smallGraphWidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 					);
@@ -3067,7 +3074,8 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 							node      => $node,
 							intf      => $intf,
 							width     => $smallGraphWidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 					);
@@ -3564,7 +3572,8 @@ sub viewActivePort
 				node      => $node,
 				intf      => $intf,
 				width     => $smallGraphWidth,
-				height    => $smallGraphHeight
+				height    => $smallGraphHeight,
+				sys		  => $S
 					), qq|</td>|;
 		}
 		else
@@ -4268,7 +4277,8 @@ sub viewSystemHealth
 				string => "($M->{systemHealth}{rrd}{$section}{control}) ? 1:0",
 				index  => $index,
 				sect   => $section,
-				eval => 1
+				eval => 1,
+				inventory => $inventory
 			)
 			)
 		{
@@ -4391,7 +4401,8 @@ sub viewSystemHealth
 						node      => $node,
 						intf      => $index,
 						width     => $thiswidth,
-						height    => $smallGraphHeight
+						height    => $smallGraphHeight,
+						inventory => $inventory
 					)
 				) if $GT;
 			}
