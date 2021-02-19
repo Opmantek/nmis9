@@ -1385,14 +1385,18 @@ sub htmlGraph
 	my $parent = $args{cluster_id} || $C->{cluster_id}; # default: ours
 	my $width = $args{width}; # graph size
 	my $height = $args{height};
+	my $inventory = $args{inventory};
 	my $omit_fluff = NMISNG::Util::getbool($args{only_link}); # return wrapped <a> etc. or just the href?
-
+	
 	my $sys = $args{sys};
 	if (ref($sys) eq "NMISNG::Sys" && ref($sys->nmisng_node))
 	{
 		$node = $sys->nmisng_node->name;
+		if (!$inventory) {
+			$sys->nmisng->log->info($graphtype . " index " . $intf);
+			$inventory = $sys->inventory(concept => $graphtype, index => $intf);
+		}
 	}
-
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
 	my $urlsafeintf = uri_escape($intf);
@@ -1470,7 +1474,8 @@ sub htmlGraph
 																			 end =>  $end,
 																			 width => $width,
 																			 height => $height,
-																			 filename => $target);
+																			 filename => $target,
+																			 inventory => $inventory);
 		return qq|<p>Error: $result->{error}</p>| if (!$result->{success});
 		NMISNG::Util::setFileProtDiag($target);	# to make the selftest happy...
 	}

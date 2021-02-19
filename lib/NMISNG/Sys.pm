@@ -1911,7 +1911,6 @@ sub prep_extras_with_catchalls
 		{
 			$extras->{$key} ||= $data->{$key};
 		}
-
 		# if I am wanting a storage thingy, then lets populate the variables I need.
 		if ( $index ne ''
 				 and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
@@ -1937,8 +1936,8 @@ sub prep_extras_with_catchalls
 				 && $index =~ /\d+/ )
 		{
 			# inventory keyed by index and ifDescr so we need partial; using _the_ passed in
-			# inventory is clearly safer - IFF it's of the right type
-			my $interface_inventory = ($inventory && $inventory->concept eq "interface"?
+			# inventory is clearly safer - IFF it's of the right type		
+			my $interface_inventory = ($inventory && ref($inventory) =~ /Inventory/ && $inventory->concept eq "interface"?
 																 $inventory
 																 : $self->inventory(concept => 'interface',
 																										index => $index, nolog => 1, partial => 1));
@@ -1966,6 +1965,20 @@ sub prep_extras_with_catchalls
 			$extras->{ifDescr} ||= $extras->{ifType} ||= '';
 			$extras->{ifSpeed} ||= $extras->{ifMaxOctets} ||= 'U'; # fixme9 not clear what purpose that served?
 		}
+		# Add inventory data
+		my $storage_inventory = $inventory
+					|| $self->inventory(concept => $section, index => $index, nolog => 1);
+
+		if ($storage_inventory) {
+			my $inv_data = $storage_inventory->data() if( ref($storage_inventory) =~ /Inventory/ );
+			if ($inv_data) {
+				foreach my $key (keys %$inv_data)
+				{
+					$extras->{$key} ||= $inv_data->{$key};
+				}
+			}
+		}
+		
 	}
 
 	$extras->{item} ||= $item;
@@ -1993,7 +2006,6 @@ sub parseString
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory"};
 
 	$self->nmisng->log->debug3( "parseString:: sect:$sect, type:$type, string to parse '$str'");
-
 	# if there is no eval and no variables for substitution are found, just return
 	if( !$eval && $str !~ /\$/ )
 	{
