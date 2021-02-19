@@ -28,19 +28,43 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
+# Common-database.nmis
+# 'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
+# 'Virtual_Domains' => '/nodes/$node/health/VirtualDomains-$index.rrd',
+# 'IP_Pool_Stats' => '/nodes/$node/health/IpPool-$index.rrd',
+#
+# *****************************************************************************
+# Common-heading.nmis
+#      'fortinet-cpu' => 'CPU Usage',
+#      'fortinet-disk' => 'Disk Usage',
+#      'fortinet-mem' => 'Memory Usage',
+#      'fortinet-sessions' => 'Session Count',
+#      'fortinet-vd-cpu' => 'Virtual Domain CPU Usage',
+#      'fortinet-vd-mem' => 'Virtual Domain Memory Usage',
+#      'fortinet-vd-sessions' => 'Virtual Domain Session Count',
+#
+# *****************************************************************************
 # nmis_mibs.oid
 #
 # "fgSysVersion"          "1.3.6.1.4.1.12356.101.4.1.1"
 # "fgSysMgmtVdom"         "1.3.6.1.4.1.12356.101.4.1.2"
 # "fgSysCpuUsage"         "1.3.6.1.4.1.12356.101.4.1.3"
 # "fgSysMemUsage"         "1.3.6.1.4.1.12356.101.4.1.4"
-# "fgSysMemCapacity"              "1.3.6.1.4.1.12356.101.4.1.5"
-# "fgSysDiskUsage"                "1.3.6.1.4.1.12356.101.4.1.6"
-# "fgSysDiskCapacity"             "1.3.6.1.4.1.12356.101.4.1.7"
+# "fgSysMemCapacity"      "1.3.6.1.4.1.12356.101.4.1.5"
+# "fgSysDiskUsage"        "1.3.6.1.4.1.12356.101.4.1.6"
+# "fgSysDiskCapacity"     "1.3.6.1.4.1.12356.101.4.1.7"
 # "fgSysSesCount"         "1.3.6.1.4.1.12356.101.4.1.8"
-# "fgVdNumber"         "1.3.6.1.4.1.12356.101.3.1.1"
-# "fgVdMaxVdoms"         "1.3.6.1.4.1.12356.101.3.1.2"
-# "fgVdEnabled"         "1.3.6.1.4.1.12356.101.3.1.3"
+# "fgVdNumber"            "1.3.6.1.4.1.12356.101.3.1.1"
+# "fgVdMaxVdoms"          "1.3.6.1.4.1.12356.101.3.1.2"
+# "fgVdEnabled"           "1.3.6.1.4.1.12356.101.3.1.3"
+# "fgFwIppStatsName"      "1.3.6.1.4.1.12356.101.5.3.2.1.1.1"
+# "fgFwIppStatsType"      "1.3.6.1.4.1.12356.101.5.3.2.1.1.2"
+# "fgFwIppStatsStartIp"   "1.3.6.1.4.1.12356.101.5.3.2.1.1.3"
+# "fgFwIppStatsEndIp"     "1.3.6.1.4.1.12356.101.5.3.2.1.1.4"
+# "fgFwIppStatsTS"        "1.3.6.1.4.1.12356.101.5.3.2.1.1.5"
+# "fgFwIppStatsTcpS"      "1.3.6.1.4.1.12356.101.5.3.2.1.1.6"
+# "fgFwIppStUdpS"         "1.3.6.1.4.1.12356.101.5.3.2.1.1.7"
+# "fgFwIppStatsOS"        "1.3.6.1.4.1.12356.101.5.3.2.1.1.8"
  
 # *****************************************************************************
 #  Enterprise.nmis
@@ -73,6 +97,9 @@
       'summary' => {
         'common-model' => 'summary'
       },
+      'heading' => {
+        'common-model' => 'heading'
+      },
       'stats' => {
         'common-model' => 'stats'
       },
@@ -81,11 +108,31 @@
       }
     }
   },
+
+ 'database' => {
+    'type' => {
+      'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
+      'Virtual_Domains' => '/nodes/$node/health/VirtualDomains-$index.rrd',
+      'IP_Pool_Stats' => '/nodes/$node/health/IpPool-$index.rrd',
+    }
+  },
+ 
+  'heading' => {
+    'graphtype' => {
+      'fortinet-cpu' => 'CPU Usage',
+      'fortinet-disk' => 'Disk Usage',
+      'fortinet-mem' => 'Memory Usage',
+      'fortinet-sessions' => 'Session Count',
+      'fortinet-vd-cpu' => 'Virtual Domain CPU Usage',
+      'fortinet-vd-mem' => 'Virtual Domain Memory Usage',
+      'fortinet-vd-sessions' => 'Virtual Domain Session Count',
+    }
+  },
   
   'systemHealth' => {
-    'sections' => 'VirtualDomains',
+    'sections' => 'Virtual_Domains,IP_Pool_Stats',
     'sys' => {
-      'VirtualDomains' => {
+      'Virtual_Domains' => {
         'headers' => 'fgVdEntName,fgVdEntOpMode,fgVdEntHaState',
         'index_oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.1',
         'indexed' => 'fgVdEntIndex',
@@ -130,11 +177,39 @@
             'title' => 'VD Session Count'
           },
         }
+      },
+      'IP_Pool_Stats' => {
+        'headers' => 'fgFwIppStatsName,fgFwIppStatsType,fgFwIppSStartIp,fgFwIppStatsEndIp',
+        'index_oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.1',	
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$', 
+        'indexed' => 'fgFwIppStatsName',
+          'snmp' => {
+            'fgFwIppStatsName' => {
+              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.1',
+              'sysObjectName' => 'fgFwIppStatsName',
+              'title' => 'Stats Name'
+            },
+            'fgFwIppStatsType' => {
+              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.2',
+              'sysObjectName' => 'fgFwIppStatsType',
+              'title' => 'Stats Type'
+            },
+            'fgFwIppSStartIp' => {
+              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.3',
+              'sysObjectName' => 'fgFwIppSStartIp',
+              'title' => 'Stats Start Ip'
+            },
+            'fgFwIppStatsEndIp' => {
+              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.4',
+              'sysObjectName' => 'fgFwIppStatsEndIp',
+              'title' => 'Stats End Ip'
+            },        
+        }
       }
     },
     
     'rrd' => {
-      'VirtualDomains' => {
+      'Virtual_Domains' => {
         'graphtype' => 'fortinet-vd-cpu,fortinet-vd-mem,fortinet-vd-sessions',    
         'indexed' => 'true',
         'snmp' => {
@@ -150,8 +225,50 @@
             'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.7',
             'sysObjectName' => 'fgVdEntSesCount',
           },
+          
         },
       },
+      'IP_Pool_Stats' => {
+        'graphtype' => 'fortinet-ip-pool',    
+        'indexed' => 'true',
+        'snmp' => {
+         'fgFwIppStatsType' => {
+            'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.2',
+            'sysObjectName' => 'fgFwIppStatsType',
+            'option' => 'counter,0:U',
+          },
+          'fgFwIppSStartIp' => {
+            'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.3',
+            'sysObjectName' => 'fgFwIppSStartIp',
+            'option' => 'counter,0:U',
+          },
+          'fgFwIppStatsEndIp' => {
+            'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.4',
+            'sysObjectName' => 'fgFwIppStatsEndIp',
+            'option' => 'counter,0:U',
+          },
+          'fgFwIppStatsTS' => {
+            'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.5',
+            'sysObjectName' => 'fgFwIppStatsTS',
+            'option' => 'counter,0:U',
+          },
+          'fgFwIppStatsTcpS' => {
+            'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.6',
+            'sysObjectName' => 'fgFwIppStatsTcpS',
+            'option' => 'counter,0:U',
+          },
+          'fgFwIppStUdpS' => {
+            'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.7',
+            'sysObjectName' => 'fgFwIppStUdpS',
+            'option' => 'counter,0:U',
+          },
+          'fgFwIppStatsOS' => {
+            'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.8',
+            'sysObjectName' => 'fgFwIppStatsOS',
+            'option' => 'counter,0:U',
+          },  
+        },
+      }
     }
   },
 
@@ -168,7 +285,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'sysDescr' => {
             'oid' => 'sysDescr',
@@ -193,8 +310,7 @@
             'title' => 'Contact'
           },
           'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
+            'oid' => 'sysName'
           }
         }
       },
@@ -350,8 +466,9 @@
             'title' => 'Oper Status'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr',
-            'title' => 'Name (ifDescr)'
+            'comment' => 'The Fortinet 80D does not populate the ifDescr object, but ifName is OK',
+            'oid' => 'ifName',
+            'title' => 'Name (ifName)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -416,7 +533,7 @@
             'option' => 'gauge,0:100'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr'
+            'oid' => 'ifName'
           },
           'ifInOctets' => {
             'oid' => 'ifInOctets',
@@ -523,4 +640,3 @@
     }
   },
 );
-
