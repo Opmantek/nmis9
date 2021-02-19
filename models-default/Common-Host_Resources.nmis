@@ -31,7 +31,8 @@
   'database' => {
     'type' => {
       'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
-      'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
+      #'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
+      'Host_Storage' => '/nodes/$node/health/hrStorage-$hrStorageDescr.rrd',
       'Host_Memory' => '/nodes/$node/health/hrMemory.rrd',
       'Host_Health' => '/nodes/$node/health/hrHealth.rrd',
     }

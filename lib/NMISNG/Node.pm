@@ -2660,6 +2660,7 @@ sub update_intf_info
 			$self->nmisng->log->debug2("Getting Device IP Address Table");
 
 			# IP-MIB v2 (IPv4 + IPv6)
+			my $ipv6_source = undef;
 			my $addrIfIndex = 'ipAddressIfIndex';
 			my $addrPrefix = 'ipAddressPrefix';
 			my $addrType = 'ipAddressType';
@@ -2681,17 +2682,19 @@ sub update_intf_info
 
 						my $mask = "";
 						$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
-						$mask = Compat::IP::netmask2prefix($mask);
+						# this is not so good with ipv4 subnet mask
+						#$mask = Compat::IP::netmask2prefix($mask);
 
 						my $target = $target_table->{$index};
-						$self->nmisng->log->debug2("ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask");
 						$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
 						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
+						$target->{"ipAdEntType$ifCnt{$index}"} = "ipv4";
 
 						# NOTE: inventory, breaks index convention here! not a big deal but it happens
 						(   $target->{"ipSubnet$ifCnt{$index}"},
 							$target->{"ipSubnetBits$ifCnt{$index}"}
 						) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
+						$self->nmisng->log->debug2("ipAdEntIfIndex ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
 					}
 				}
 
@@ -2702,9 +2705,11 @@ sub update_intf_info
 				$ifAdEntTable = $SNMP->getindex($addrIfIndex);
 			}
 
+			# this will be IPv4 and IPv6 in the ipAddressIfIndex table, or CISCO-IETF-IP-MIB things.
 			if ( $ifAdEntTable )
 			{
-				$self->nmisng->log->debug2($ipMibV2Available ? "IP-MIB v2" : "CISCO-IETF-IP-MIB");
+				$ipv6_source = $ipMibV2Available ? "IP-MIB v2" : "CISCO-IETF-IP-MIB";
+				$self->nmisng->log->debug2("IPv6 Source: $ipv6_source");
 				$ifMaskTable = $SNMP->getindex($addrPrefix);
 				my $ipAddressTypeTable = $SNMP->getindex($addrType);
 				my $UNICAST = 1;
@@ -2728,14 +2733,16 @@ sub update_intf_info
 
 					my $target = $target_table->{$index};
 					my $ip = Compat::IP::oid2ip($addr);
-					$self->nmisng->log->debug2("ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask");
 					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
 					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
+					$target->{"ipAdEntType$ifCnt{$index}"} = "ipv6";
 
 					# TODO: check usages and make it IPv6 compatible if needed
 					(   $target->{"ipSubnet$ifCnt{$index}"},
 						$target->{"ipSubnetBits$ifCnt{$index}"}
-					) = Compat::IP::ipSubnet( address => $ip, mask => $mask );
+					) = Compat::IP::ipSubnet( address => $ip, mask => $mask, type => "ipv6" );
+
+					$self->nmisng->log->debug2("$ipv6_source ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
 				}
 			}
 
@@ -3103,7 +3110,6 @@ sub update_intf_info
 					$self->nmisng->log->error("Failed to create interface inventory, for duplicated ifDescr with historic index - error:$error_message") && next if ( !$inventory );
 					$self->nmisng->log->debug("Created new inventory for ifIndex $index");
 				}
-				
 				$inventory->data( $target );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				# for a new object this must happen AFTER data is set

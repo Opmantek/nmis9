@@ -2934,7 +2934,9 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 				if ($thisintf->{"ipAdEntAddr$cnt"} ne "" and $thisintf->{"ipAdEntNetMask$cnt"} ne "")
 				{
 					$content += "<br/>" if ($content ne "");
-					$content += "$thisintf->{ipAdEntAddr$cnt}/$thisintf->{ipAdEntNetMask$cnt}";
+					my $int = $thisintf->{"ipAdEntAddr$cnt"};
+					my $mask = $thisintf->{"ipAdEntNetMask$cnt"};
+					$content += "$int/$mask";
 				}
 				$cnt++;
 			}

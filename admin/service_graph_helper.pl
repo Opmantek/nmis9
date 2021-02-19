@@ -50,7 +50,7 @@ use lib "$FindBin::RealBin/../lib";
 use File::Basename;
 use JSON::XS;
 use Data::Dumper;
-use UI::Dialog 1.13;
+use UI::Dialog;
 use version 0.77;
 
 use NMISNG::Util;

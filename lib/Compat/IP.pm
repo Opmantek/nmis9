@@ -138,9 +138,10 @@ sub ipContainsAddr {
 }
 
 sub ipSubnet {
-        my %args = @_;
-        my $address = $args{address};
-        my $mask = $args{mask};
+	my %args = @_;
+	my $address = $args{address};
+	my $mask = $args{mask};
+	my $type = $args{type} ? $args{type} : "ipv4";
 
 	my $subnet = "";
 	my $subnetBits = 0;
@@ -150,37 +151,48 @@ sub ipSubnet {
 	my @addressBits;
 	my @maskBits;
 
-	my @addressOctets = split (/\./,$address);
-	my @maskOctets  = split (/\./,$mask);
+	if ( $type eq "ipv4" ) {
+		my @addressOctets = split (/\./,$address);
+		my @maskOctets  = split (/\./,$mask);
 
-	for ( $i = 0; $i <= $#maskOctets; ++$i ) {
-		#if ( $maskOctets[$i] == 1255 ) {
-		#	$subnet = $subnet.".".$addressOctets[$i];
-		#	$subnetBits = $subnetBits + 8;
-		#}
-		#elsif ( $maskOctets[$i] == 1000 ) {
-		#	$subnet = $subnet.".".$maskOctets[$i];
-		#	$subnetBits = $subnetBits + 0;
-		#}
-		#else {
-			$subnetByte = "";
-			@addressBits = split (//,&dec2bin($addressOctets[$i]));
-			@maskBits = split (//,&dec2bin($maskOctets[$i]));
-			#print "mask ".&dec2bin($maskOctets[$i])." add ".&dec2bin($addressOctets[$i])."\n";
-			#Do a binary addition
-			for ( $b = 23; $b <= $#maskBits; ++$b ) {
-				$subnetBits = $subnetBits + $maskBits[$b];
-				if    ( $maskBits[$b] == 1 and $addressBits[$b] == 1 ) { $subnetByte = $subnetByte."1"; }
-				elsif ( $maskBits[$b] == 0 and $addressBits[$b] == 0 ) { $subnetByte = $subnetByte."0"; }
-				elsif ( $maskBits[$b] == 1 and $addressBits[$b] == 0 ) { $subnetByte = $subnetByte."0"; }
-				elsif ( $maskBits[$b] == 0 and $addressBits[$b] == 1 ) { $subnetByte = $subnetByte."0"; }
-			}
-			$subnetByte = &bin2dec($subnetByte);
-			$subnet = $subnet.".".$subnetByte;
-		#}
+		for ( $i = 0; $i <= $#maskOctets; ++$i ) {
+			#if ( $maskOctets[$i] == 1255 ) {
+			#	$subnet = $subnet.".".$addressOctets[$i];
+			#	$subnetBits = $subnetBits + 8;
+			#}
+			#elsif ( $maskOctets[$i] == 1000 ) {
+			#	$subnet = $subnet.".".$maskOctets[$i];
+			#	$subnetBits = $subnetBits + 0;
+			#}
+			#else {
+				$subnetByte = "";
+				@addressBits = split (//,&dec2bin($addressOctets[$i]));
+				@maskBits = split (//,&dec2bin($maskOctets[$i]));
+				#print "mask ".&dec2bin($maskOctets[$i])." add ".&dec2bin($addressOctets[$i])."\n";
+				#Do a binary addition
+				for ( $b = 23; $b <= $#maskBits; ++$b ) {
+					$subnetBits = $subnetBits + $maskBits[$b];
+					if    ( $maskBits[$b] == 1 and $addressBits[$b] == 1 ) { $subnetByte = $subnetByte."1"; }
+					elsif ( $maskBits[$b] == 0 and $addressBits[$b] == 0 ) { $subnetByte = $subnetByte."0"; }
+					elsif ( $maskBits[$b] == 1 and $addressBits[$b] == 0 ) { $subnetByte = $subnetByte."0"; }
+					elsif ( $maskBits[$b] == 0 and $addressBits[$b] == 1 ) { $subnetByte = $subnetByte."0"; }
+				}
+				$subnetByte = &bin2dec($subnetByte);
+				$subnet = $subnet.".".$subnetByte;
+			#}
+		}
+		$subnet =~ s/^\.//;
 	}
-	$subnet =~ s/^\.//;
+	elsif ( $type eq "ipv6" ) {
+		$subnetBits = $mask;
+		if ( $address =~ /([a-fA-F0-9\:]+)\:\:[a-fA-F0-9]+/ ) {
+			$subnet = $1;
+		}
+		#print "DEBUG: $address $subnet\n"
+	}
+
 	return($subnet,$subnetBits);
+
 }
 
 sub ipBroadcast {

@@ -1429,7 +1429,7 @@ sub htmlGraph
 
 	my $graphfilename;
 	my $cachefilemaxage = $C->{graph_cache_maxage} // 60;
-
+#$sys->nmisng->log->info("html graph ");
 	for my $maybe (sort { $b cmp $a } @recyclables)
 	{
 		next if ($maybe !~ /^\S+_(\d+)_(\d+)\.png$/); # should be impossible
@@ -1456,7 +1456,7 @@ sub htmlGraph
 	if (!$graphfilename)
 	{
 		$graphfilename = $graphfile_prefix."_${start}_${end}.png";
-		$sys->nmisng->log->debug2("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, cluster_id=$parent, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename")
+		$sys->nmisng->log->info("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, cluster_id=$parent, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename")
 				if ($sys);
 
 		my $target = "$cachedir/$graphfilename";

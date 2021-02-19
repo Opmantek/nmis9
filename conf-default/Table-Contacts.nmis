@@ -32,7 +32,7 @@ my $C = loadConfTable();
 
 %hash = (
 			Contacts => [
-				{ Contact => { header => 'Contact',display => 'key,header,text', value => ["Contact1"] }},
+				{ Contact => { header => 'Contact',mandatory => 'true', display => 'key,header,text', value => ["Contact1"] }},
 				{ DutyTime => { header => 'DutyTime',display => 'header,text', value => ["00:24:MonTueWedThuFriSatSun"] }},
 				{ Level => { header => 'Level',display => 'header,text', value => ["(Fatal|Critical|Major|Minor|Warning|Normal)"] }},
 				{ Email => { header => 'Email',display => 'header,text', value => ["contact1\@$C->{domain_name}"] }},

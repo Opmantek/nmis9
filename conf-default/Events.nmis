@@ -395,7 +395,7 @@
     'CancelingEvent' => 'Proactive Interface Error Output Packets Closed',
     'Description' => 'The configured threshold has been exceeded for OUTPUT packets with errors being sent by the interface.',
   },
-  'Alert: FAN Status' => {
+  'Alert: Fan Status' => {
     'CancelingEvent' => 'Alert: FAN Status Closed',
     'Description' => 'A fan has reported a status which is not fully operational.',
     'Event' => 'Alert: Fan Status',
