@@ -229,6 +229,7 @@ sub collect_evidence
 		"$targetdir/logs",
 		"$targetdir/conf/scripts", "$targetdir/conf/plugins", "$targetdir/conf/conf.d",
 		"$targetdir/models-custom",
+		"$targetdir/models-default",
 		"$targetdir/var/nmis_system/model_cache",
 		"$targetdir/node_dumps",
 		"$targetdir/db_dumps",
@@ -350,6 +351,10 @@ sub collect_evidence
 	for my $x (glob("$basedir/models-custom/*"))
 	{
 		cp($x, "$targetdir/models-custom/");
+	}
+	for my $x (glob("$basedir/models-default/*"))
+	{
+		cp($x, "$targetdir/models-default/");
 	}
 	for my $x (glob("$basedir/conf/*"))
 	{
