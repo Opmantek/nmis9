@@ -408,10 +408,19 @@ sub init
 		$thisnodeconfig = $self->{cfg}->{node};
 		my $curmodel       = $catchall_data->{nodeModel};
 
+		$self->nmisng->log->debug("node=$self->{name} collect=$thisnodeconfig->{collect} model=$thisnodeconfig->{model} nodeModel=$curmodel");
+
 		# get the specific model
 		if ( $curmodel and $curmodel ne "Model" and not $self->{update} )
 		{
 			$loadthis = "Model-$curmodel";
+		}
+		# specific model, update yes, ping yes, collect no -> set manual model
+		elsif ( $thisnodeconfig->{model} ne "automatic" 
+			and !NMISNG::Util::getbool( $thisnodeconfig->{collect} )
+			and $self->{update} )
+		{
+			$loadthis = "Model-$thisnodeconfig->{model}";
 		}
 		# no specific model, update yes, ping yes, collect no -> pingonly
 		elsif ( NMISNG::Util::getbool( $thisnodeconfig->{ping} )
