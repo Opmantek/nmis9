@@ -81,7 +81,8 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=update-outage id=<outid> [outage.A=B... outage.X.Y=Z...]
  act={delete-outage|show-outage} id=<outid>
  act=check-outages [node=X|uuid=Y] [time=T]
-  act=outage-help for more detailed help
+ act=outage-help for more detailed help
+ act=collect-performance-data 
 
 \n";
 
