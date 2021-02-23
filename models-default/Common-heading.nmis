@@ -1,0 +1,7 @@
+%hash = (
+  'heading' => {
+    'graphtype' => {
+      'comment' => 'An empty Common Headings for back compat to NMIS8 models'
+    }
+  }
+);
