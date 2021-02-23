@@ -1,0 +1,17 @@
+%hash = (
+  'top' => {
+    'command' => 'top -n 1',
+  },
+ 'iotop' => {
+   'command' => 'iotop',
+  },
+  'ps' => {
+    'command' => 'ps ax'
+  },
+  'df' => {
+    'command' => 'df'
+  },
+  'vmstat' => {
+    'command' => 'vmstat 1 5'
+  }
+);

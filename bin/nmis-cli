@@ -862,6 +862,10 @@ elsif ($Q->{act} eq 'noderefresh')
 {
 	noderefresh();
 }
+elsif ($Q->{act} =~ /collect[-_]performance[-_]data/)
+{
+	collectPerformanceData();
+}
 elsif ($Q->{act} eq "fixperms")
 {
 	if ($wantverbose)
@@ -1034,4 +1038,43 @@ sub noderefresh
 		}
 	}
 	print "total nodes: ".$md->count.", updated: $updated\n";
+}
+
+# Collect performance data
+sub collectPerformanceData
+{
+	my $output_folder = $C->{'system_performance'} // $C->{'<nmis_var>'}.'/system_performance';
+
+	my $expandeddir = NMISNG::Util::getDir(dir => "conf"); # expands dirs like 'conf' or 'logs' into full location
+	my $conf_file = "$expandeddir/performance";
+	my ($data, $fh) = NMISNG::Util::readFiletoHash(file => $conf_file);
+	print "failed to read file $conf_file $! " if (!$data);
+	$data //= {};
+	
+	# Check output directory
+	if (!-e $output_folder) 
+    {
+        mkdir $output_folder;
+		print "Creating output folder $output_folder \n";
+    } else {
+		print "Output folder set up in $output_folder \n";
+	}
+	
+	foreach my $key (keys %$data) {
+		print "Running $key ... \n";
+
+		# Run output
+		my $cmd = $data->{$key}->{'command'};
+		my $output = `$cmd 2>&1`;
+		#print $output;
+		if ($output) {
+			# Create output file
+			my $file = $output_folder . "/$key-". time . ".csv";
+			open(FH, '>', $file) or die $!;
+			print FH $output;
+			close(FH);
+		} else {
+			print "\t No command output for $key \n";
+		}
+	}
 }

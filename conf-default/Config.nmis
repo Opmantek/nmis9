@@ -53,7 +53,8 @@ my %hash = (
 
 		'web_root' => '<nmis_base>/htdocs',
 		'<nmis_backups>' => '<nmis_data>/backups',
-    'node_dumps_dir' => '<nmis_var>/node_dumps'
+    'node_dumps_dir' => '<nmis_var>/node_dumps',
+    'system_performance' => '<nmis_var>/system_performance'
   },
 
   'globals' => {
