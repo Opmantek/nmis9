@@ -4942,11 +4942,12 @@ sub dump_node
 
 	my $uuid = $args{uuid};
 	my $nodename = $args{name};		# much less preferrable
+	my $override = $args{override};
 
 	my $options = ref($args{options}) eq 'HASH'? $args{options} : {};
 
 	return { error => "target argument missing!" } if (!$targetfile);
-	return { error => "target \"$targetfile\" already exists, not overwriting!" } if (-e $targetfile);
+	return { error => "target \"$targetfile\" already exists, not overwriting!" } if (-e $targetfile && !$override);
 	return { error => "uuid and name arguments missing!" }
 	if (!$uuid && !$nodename);
 

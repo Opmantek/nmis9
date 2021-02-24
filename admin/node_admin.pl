@@ -181,12 +181,22 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 
 		# not all attribs go under configuration!
 		for my $copyable (grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides|configuration|aliases|addresses)$/,
-													 keys %$onenode))
+													 keys %{$onenode->{configuration}}))
 		{
-			$curconfig->{$copyable} = $onenode->{$copyable} if (exists $onenode->{$copyable});
+			$curconfig->{$copyable} = $onenode->{configuration}->{$copyable} if (exists $onenode->{configuration}->{$copyable});
 		}
 		$node->configuration($curconfig);
-
+		# Validate node data
+		validate_node_data(node => $onenode);
+		# Validate name
+		if (!$onenode->{uuid}) {
+			my $nodeobj = $nmisng->node(name => $onenode->{name});
+			if ($nodeobj) {
+				$logger->info("Node ". $onenode->{name} . " already exist." );
+				--$stats{ $node->is_new? "created":"updated" };
+				next;
+			}
+		}
 		# the first two top-level keepers are set on new, but nothing else is
 		for my $mustset (qw(cluster_id name))
 		{
@@ -296,6 +306,8 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 
 		++$counter;
 
+		validate_node_data(node => $node);
+		
 		# don't bother saving the name in it
 		delete $data->{name};
 		$node->overrides($data);
@@ -714,7 +726,8 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				if ($backup) {
 					$res = $nmisng->dump_node(name => $mustdie->name,
 										 uuid => $mustdie->uuid,
-										 target => $backup_folder . "/".$mustdie->name.".zip");
+										 target => $backup_folder . "/".$mustdie->name.".zip",
+										 override => 1);
 										 #options => \%options);
 				}
 				if (!$backup || $res->{success}) {
