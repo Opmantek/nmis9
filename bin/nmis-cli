@@ -83,7 +83,8 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=check-outages [node=X|uuid=Y] [time=T]
  act=outage-help for more detailed help
  act=collect-performance-data 
-
+ act=collect-top-data
+ 
 \n";
 
 
@@ -867,6 +868,10 @@ elsif ($Q->{act} =~ /collect[-_]performance[-_]data/)
 {
 	collectPerformanceData();
 }
+elsif ($Q->{act} =~ /collect[-_]top[-_]data/)
+{
+	collectTopData();
+}
 elsif ($Q->{act} eq "fixperms")
 {
 	if ($wantverbose)
@@ -1078,4 +1083,51 @@ sub collectPerformanceData
 			print "\t No command output for $key \n";
 		}
 	}
+}
+
+# Collect performance data
+sub collectTopData
+{
+	my $output_folder = $C->{'system_performance'} // $C->{'<nmis_var>'}.'/system_performance';	
+	my $ymd = sub{sprintf '%04d%02d%02d', $_[5]+1900, $_[4]+1, $_[3]}->(localtime);
+	my $file = "$output_folder/$ymd.csv";
+	
+	# Check output directory
+	if (!-e $output_folder) 
+    {
+        mkdir $output_folder;
+		print "Creating output folder $output_folder \n";
+    } else {
+		print "Output folder set up in $output_folder \n";
+	}
+	
+	my $output = `top -b -n 1 | head -n 5`;
+	
+	# Proccess output
+	open my $OUTPUT, '>', '/tmp/topn.txt' or die "Couldn't open temp file: $!\n";
+	print $OUTPUT $output;
+	close $OUTPUT;
+	unlink '/tmp/topn.txt' or warn "Could not unlink /tmp/topn.txt: $!";
+
+	my $text = "\n";
+	foreach my $line (split /[\r\n]+/, $output) {
+	  ## Regular expression magic to grab what you want
+	  if ($line =~ /B Swap/) {
+		$text = $text . "\n\n" . "total, free, used, buff/cache";
+		my @all_nums    = $line =~ /(\d+)/g;
+		$text = $text . "\n" . join(',', @all_nums), "\n";
+		
+	  } elsif ($line =~ /B Mem/) {
+		$text = $text . "\n\n" . "memTotal, memFree, memUsed, membuff/cache";
+		my @all_nums    = $line =~ /(\d+)/g;
+		$text = $text . "\n" . join(',', @all_nums), "\n";
+	  }else {
+		$text = $text . "\n" . $line;
+	  }
+	}
+
+	# Write file
+	open(FH, '>>', $file) or die $!;
+	print FH $text;
+	close(FH);
 }
