@@ -1277,7 +1277,8 @@ sub worker_loop
 								if ($backup) {
 									$res = $nmisng->dump_node(name => $mustdie->name,
 														 uuid => $mustdie->uuid,
-														 target => $backup_folder . "/".$mustdie->name.".zip");
+														 target => $backup_folder . "/".$mustdie->name.".zip",
+														 setperms => 1, override => 1);
 														 #options => \%options);
 								}
 								if (!$backup || $res->{success}) {

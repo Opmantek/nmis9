@@ -4983,7 +4983,8 @@ sub dump_node
 
 	my $uuid = $args{uuid};
 	my $nodename = $args{name};		# much less preferrable
-	my $override = $args{override};
+	my $override = $args{override}; # Override file if allready exists
+	my $setperms = $args{setperms}; # Update file permissions
 
 	my $options = ref($args{options}) eq 'HASH'? $args{options} : {};
 
@@ -5171,6 +5172,16 @@ sub dump_node
 		return { error => "zip creation failed: $ziperr\n" };
 	}
 
+	if ($setperms) {
+		my $user = $self->config->{nmis_user};
+		my $group = $self->config->{nmis_group};
+		
+		system("chown","-R", "$user:$group",
+						 $targetfile);
+
+		system("chmod","-R","g+rw", $targetfile);
+	}
+	
 	return { success => 1};
 }
 
