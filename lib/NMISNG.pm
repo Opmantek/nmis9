@@ -31,7 +31,7 @@
 # Two basic ways to grab info, via get*Model functions which return ModelData objects
 # or directly via the object
 package NMISNG;
-our $VERSION = "9.1.1";
+our $VERSION = "9.1.2";
 
 use strict;
 use Data::Dumper;
@@ -1262,6 +1262,151 @@ sub expand_node_selection_inactive_too
 	return $mdata;
 }
 
+# ensure all indexes
+sub ensure_indexes
+{
+	my ( $self, $drop_unwanted ) = @_;
+	
+	$self->log->info("NMISNG running ensure_indexes");
+	
+	# Event collection
+	my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_events},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+
+				# needed for joins
+				[[node_uuid  => 1]],
+				[{lastupdate => 1}, {unique => 0}],
+				[[node_uuid  => 1, event => 1, element => 1, historic => 1, startdate => 1], {unique => 1}],
+
+				# [ [node_uuid=>1,event=>1,element=>1,active=>1], {unique => 1}],
+				[{expire_at => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+			]
+	);
+	$self->log->error("index setup failed for events: $err") if ($err);
+	
+	# Inventory collection
+	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+	my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_inventory},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+
+				# replaces path, makes path.0,path.1... lookups work on index
+				[["path.0" => 1, "path.1" => 1, "path.2" => 1, "path.3" => 1], {unique => 0}],
+
+				# needed for joins
+				[[node_uuid => 1]],
+				[[concept   => 1, enabled => 1, historic => 1], {unique => 0}],
+				[{"lastupdate"           => 1}, {unique => 0}],
+				[{"subconcepts"          => 1}, {unique => 0}],
+				[{"data_info.subconcept" => 1}, {unique => 0}],
+
+				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
+				[["data.ip.ipAdEntAddr" => 1], {unique             => 0}],
+				[{expire_at             => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+			]
+	);
+	
+	$self->log->error("index setup failed for inventory: $err") if ($err);
+	
+	# Latest Data collection
+	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+	my $err = NMISNG::DB::ensure_index(
+		collection    => $self->{_db_latest_data},
+		drop_unwanted => $drop_unwanted,
+		indices       => [
+				[{"inventory_id" => 1}, {unique             => 1}],
+				[{expire_at      => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+				[{"node_uuid"    => 1}, {unique => 0}],
+				[{"configuration.group"    => 1}, {unique => 0}],
+				[{"time"    => -1}, {unique => 0}]
+			]
+	);
+	$self->log->error("index setup failed for inventory: $err") if ($err);
+	
+	# Nodes collection 
+	my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_nodes},
+			drop_unwanted => $drop_unwanted,
+			indices       => [[{"uuid" => 1}, {unique => 1}],
+												[{"name" => 1}, {unique => 0}],
+												# make sure activated.NMIS is indexed, as well
+												# as aliases.alias and addresses.address
+												# (for the semi-dynamic dns alias and address info)
+												[ [ "aliases.alias" => 1 ] ],
+												[ [ "addresses.address" => 1 ] ], ],
+				);
+	$self->log->error("index setup failed for nodes: $err") if ($err);	
+	
+	# opstatus collection 
+	my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_opstatus},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+
+				# opstatus: searchable by when, by status (good/bad), by activity,
+				# context (primarily node but also queue_id), and by type
+				# not included: details and stats
+				[{"time"              => -1}],
+				[{"status"            => 1}],
+				[{"activity"          => 1}],
+				[{"context.node_uuid" => 1}],
+				[{"context.queue_id"  => 1}],
+				[{"type"              => 1}],
+				[{"expire_at"         => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+			]
+	);
+	$self->log->error("index setup failed for opstatus: $err") if ($err);
+	
+	# Remote collection	
+	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+	my $err = NMISNG::DB::ensure_index(
+		collection    => $self->{_db_remote},
+		drop_unwanted => $drop_unwanted,
+		indices       => [
+			# needed for joins
+			[[cluster_id => 1], {unique => 1}],
+		]
+	);
+	$self->log->error("index setup failed for remotes: $err") if ($err);
+	
+	# queue collection
+	my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_queue},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+
+				# need to search/sort by time, priority and in_progress, both type and tag,
+				# and also args.uuid
+				[["time"      => 1, "in_progress" => 1, "priority" => 1,]],
+				[["time"      => 1, "in_progress" => 1, "tag"      => 1]],    # fixme: or separate for tag?
+				[["time"      => 1, "in_progress" => 1, "type"     => 1]],    # fixme: or separate?
+				[["args.uuid" => 1]],
+			]
+	);
+	$self->log->error("index setup failed for queue: $err") if ($err);
+	
+	# status collection
+	my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_status},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
+				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
+				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+			]
+	);
+	$self->log->error("index setup failed for nodes: $err") if ($err);
+	
+	$self->log->info("NMISNG end of ensure_indexes");
+	return;
+}
+
 # return the events object
 sub events
 {
@@ -1278,22 +1423,6 @@ sub events_collection
 	if ( ref($newvalue) eq "MongoDB::Collection" )
 	{
 		$self->{_db_events} = $newvalue;
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_events},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-
-				# needed for joins
-				[[node_uuid  => 1]],
-				[{lastupdate => 1}, {unique => 0}],
-				[[node_uuid  => 1, event => 1, element => 1, historic => 1, startdate => 1], {unique => 1}],
-
-				# [ [node_uuid=>1,event=>1,element=>1,active=>1], {unique => 1}],
-				[{expire_at => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
-			]
-		);
-		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
 	return $self->{_db_events};
 }
@@ -2617,29 +2746,6 @@ sub inventory_collection
 	{
 		$self->{_db_inventory} = $newvalue;
 
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_inventory},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-
-				# replaces path, makes path.0,path.1... lookups work on index
-				[["path.0" => 1, "path.1" => 1, "path.2" => 1, "path.3" => 1], {unique => 0}],
-
-				# needed for joins
-				[[node_uuid => 1]],
-				[[concept   => 1, enabled => 1, historic => 1], {unique => 0}],
-				[{"lastupdate"           => 1}, {unique => 0}],
-				[{"subconcepts"          => 1}, {unique => 0}],
-				[{"data_info.subconcept" => 1}, {unique => 0}],
-
-				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
-				[["data.ip.ipAdEntAddr" => 1], {unique             => 0}],
-				[{expire_at             => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
-			]
-		);
-		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
 	return $self->{_db_inventory};
 }
@@ -2653,21 +2759,6 @@ sub latest_data_collection
 	if ( ref($newvalue) eq "MongoDB::Collection" )
 	{
 		$self->{_db_latest_data} = $newvalue;
-
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_latest_data},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-				[{"inventory_id" => 1}, {unique             => 1}],
-				[{expire_at      => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
-				[{"node_uuid"    => 1}, {unique => 0}],
-				[{"configuration.group"    => 1}, {unique => 0}],
-				[{"time"    => -1}, {unique => 0}]
-			]
-		);
-		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
 	return $self->{_db_latest_data};
 }
@@ -2695,18 +2786,6 @@ sub remote_collection
 	if ( ref($newvalue) eq "MongoDB::Collection" )
 	{
 		$self->{_db_remote} = $newvalue;
-
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_remote},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-				# needed for joins
-				[[cluster_id => 1], {unique => 1}],
-			]
-		);
-		$self->log->error("index setup failed for remotes: $err") if ($err);
 	}
 	return $self->{_db_remote};
 }
@@ -2790,18 +2869,6 @@ sub nodes_collection
 	{
 		$self->{_db_nodes} = $newvalue;
 
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_nodes},
-			drop_unwanted => $drop_unwanted,
-			indices       => [[{"uuid" => 1}, {unique => 1}],
-												[{"name" => 1}, {unique => 0}],
-												# make sure activated.NMIS is indexed, as well
-												# as aliases.alias and addresses.address
-												# (for the semi-dynamic dns alias and address info)
-												[ [ "aliases.alias" => 1 ] ],
-												[ [ "addresses.address" => 1 ] ], ],
-				);
-		$self->log->error("index setup failed for nodes: $err") if ($err);
 	}
 	return $self->{_db_nodes};
 }
@@ -2816,24 +2883,6 @@ sub opstatus_collection
 	{
 		$self->{_db_opstatus} = $newvalue;
 
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_opstatus},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-
-				# opstatus: searchable by when, by status (good/bad), by activity,
-				# context (primarily node but also queue_id), and by type
-				# not included: details and stats
-				[{"time"              => -1}],
-				[{"status"            => 1}],
-				[{"activity"          => 1}],
-				[{"context.node_uuid" => 1}],
-				[{"context.queue_id"  => 1}],
-				[{"type"              => 1}],
-				[{"expire_at"         => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
-			]
-		);
-		$self->log->error("index setup failed for opstatus: $err") if ($err);
 	}
 	return $self->{_db_opstatus};
 }
@@ -4338,21 +4387,6 @@ sub queue_collection
 	if ( ref($newvalue) eq "MongoDB::Collection" )
 	{
 		$self->{_db_queue} = $newvalue;
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_queue},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-
-				# need to search/sort by time, priority and in_progress, both type and tag,
-				# and also args.uuid
-				[["time"      => 1, "in_progress" => 1, "priority" => 1,]],
-				[["time"      => 1, "in_progress" => 1, "tag"      => 1]],    # fixme: or separate for tag?
-				[["time"      => 1, "in_progress" => 1, "type"     => 1]],    # fixme: or separate?
-				[["args.uuid" => 1]],
-			]
-		);
-		$self->log->error("index setup failed for queue: $err") if ($err);
 	}
 	return $self->{_db_queue};
 }
@@ -4459,16 +4493,6 @@ sub status_collection
 	{
 		$self->{_db_status} = $newvalue;
 
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_status},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
-				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
-				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
-			]
-		);
-		$self->log->error("index setup failed for nodes: $err") if ($err);
 	}
 	return $self->{_db_status};
 
