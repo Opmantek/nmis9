@@ -1,0 +1,7 @@
+#!/bin/sh
+# run ensure indexes, to make sure all the indexes are correct
+
+printBanner "Running ensure indexes"
+execPrint $TARGETDIR/bin/nmis-cli act=ensure_indexes
+
+exit 0 
