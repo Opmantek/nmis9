@@ -31,6 +31,7 @@
 # maintenance windows aka 'outages'
 #
 package NMISNG::Outage;
+
 our $VERSION = "9.1.2a";
 
 use strict;

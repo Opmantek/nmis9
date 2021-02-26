@@ -62,6 +62,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=fixperms
  act=config-backup
+ act=ensure-indexes
  act=noderefresh
  act=daemon-status (or act=status)
 
@@ -871,6 +872,10 @@ elsif ($Q->{act} =~ /collect[-_]performance[-_]data/)
 elsif ($Q->{act} =~ /collect[-_]top[-_]data/)
 {
 	collectTopData();
+}
+elsif ($Q->{act} =~ /ensure[_-]indexes/)
+{
+	print $nmisng->ensure_indexes();
 }
 elsif ($Q->{act} eq "fixperms")
 {
