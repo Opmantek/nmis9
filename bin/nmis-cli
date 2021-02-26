@@ -1075,7 +1075,7 @@ sub collectPerformanceData
 		#print $output;
 		if ($output) {
 			# Create output file
-			my $file = $output_folder . "/$key-". time . ".csv";
+			my $file = $output_folder . "/$key-". time . ".txt";
 			open(FH, '>', $file) or die $!;
 			print FH $output;
 			close(FH);

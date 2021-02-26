@@ -4240,6 +4240,22 @@ sub purge_old_files
 			only_empties => 1,
 			description  => "Empty JSON state files",
 		},
+		{
+			# cron job collect-performance-data files
+			minage       => $C->{purge_performance_files_after} || 8 * 86400,                  
+			ext          => qr/\.txt$/,
+			location     => $C->{'<nmis_var>'},
+			also_empties => 1,
+			description  => "System performance data files",
+		},
+		{
+			# cron job collect-top-data files
+			minage       => $C->{purge_performance_top_files_after} || 8 * 86400,                  
+			ext          => qr/\.csv$/,
+			location     => $C->{'<nmis_var>'},
+			also_empties => 1,
+			description  => "System performance top data files",
+		},
 		{   minage => $C->{purge_jsonlog_after} || 30 * 86400,
 			also_empties => 1,
 			ext          => qr/\.json/,
