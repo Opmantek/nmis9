@@ -1966,8 +1966,13 @@ sub prep_extras_with_catchalls
 			$extras->{ifSpeed} ||= $extras->{ifMaxOctets} ||= 'U'; # fixme9 not clear what purpose that served?
 		}
 		# Add inventory data
+		my $concept = $section;
+		if ( $item != $index ) {
+			$concept = $item;
+		}
+	
 		my $storage_inventory = $inventory
-					|| $self->inventory(concept => $section, index => $index, nolog => 1);
+					|| $self->inventory(concept => $concept, index => $index, nolog => 1);
 
 		if ($storage_inventory) {
 			my $inv_data = $storage_inventory->data() if( ref($storage_inventory) =~ /Inventory/ );
