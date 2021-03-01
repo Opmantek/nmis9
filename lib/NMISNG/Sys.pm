@@ -1932,7 +1932,7 @@ sub prep_extras_with_catchalls
 
 		# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
 		# fixme9: utterly and irredeemably borked
-		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/ || $type eq "interface")
+		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/ || $str =~ /ifSpeed/ || $type eq "interface")
 				 && $index =~ /\d+/ )
 		{
 			# inventory keyed by index and ifDescr so we need partial; using _the_ passed in
