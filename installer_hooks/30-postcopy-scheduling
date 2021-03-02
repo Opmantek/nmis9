@@ -22,6 +22,10 @@ if type systemctl >/dev/null 2>&1; then
 		DESTFILESD=/etc/systemd/system/nmis9d.service
 		SERVICENAMESD=`basename $DESTFILESD`
 
+		if [ $TARGETDIR != "/usr/local/nmis9"]; then
+			sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILESD
+		fi
+		
 		if [ ! -f $DESTFILESD ] || ! diff -q $DESTFILESD $SRCFILESD ; then
 				WANTUPDATE=1
 		fi
@@ -58,7 +62,7 @@ EOF
 						echolog "Updated init script in $DESTFILESD."
 						
 						if [ $TARGETDIR != "/usr/local/nmis9"]; then
-							sed -i 's/\/usr\/local\/nmis9/$TARGETDIR/' $DESTFILE
+							sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILE
 						fi
 						
 						echo
@@ -92,6 +96,9 @@ DESTFILE=/etc/cron.d/nmis9
 if [ ! -f $DESTFILE ] || ! diff -q $DESTFILE $SRCFILE; then
 		if input_yn "Ok to install new NMIS cron schedule?" "34e8" ; then
 				execPrint cp -af $SRCFILE $DESTFILE
+				if [ $TARGETDIR != "/usr/local/nmis9"]; then
+					sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILE
+				fi
 				echolog "Created schedule in $DESTFILE."
 				echo
 		else
