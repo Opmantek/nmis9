@@ -56,6 +56,11 @@ EOF
 				if [ -n "$HAVESD" ]; then
 						execPrint cp -af $SRCFILESD $DESTFILESD
 						echolog "Updated init script in $DESTFILESD."
+						
+						if [ $TARGETDIR != "/usr/local/nmis9"]; then
+							sed -i 's/\/usr\/local\/nmis9/$TARGETDIR/' $DESTFILE
+						fi
+						
 						echo
 						execPrint systemctl daemon-reload
 						execPrint systemctl enable $SERVICENAMESD
