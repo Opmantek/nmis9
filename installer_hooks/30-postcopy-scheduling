@@ -46,8 +46,8 @@ EOF
 				echolog "Updated init script in $DESTFILE."
 				
 				if [ $TARGETDIR != "/usr/local/nmis9" ]; then
-					echolog "$TARGETDIR not standart. Updating $DESTFILESD"
-					sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILESD
+					echolog "$TARGETDIR not standart. Updating $DESTFILE"
+					sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILE
 				fi
 		
 				echo
@@ -64,8 +64,8 @@ EOF
 						echolog "Updated init script in $DESTFILESD."
 						
 						if [ $TARGETDIR != "/usr/local/nmis9" ]; then
-							echolog "$TARGETDIR not standart. Updating $DESTFILE"
-							sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILE
+							echolog "$TARGETDIR not standart. Updating $DESTFILESD"
+							sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILESD
 						fi
 						
 						echo
