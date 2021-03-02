@@ -25,7 +25,7 @@ else
 				execPrint "cp -fa $SRCFILE $TARGETFILE"
 				execPrint "chmod u=rw,go=r $TARGETFILE"
 				if [ $TARGETDIR != "/usr/local/nmis9" ]; then
-					echolog "$TARGETDIR not standart. Updating $DESTFILE"
+					echolog "$TARGETDIR not standart. Updating $TARGETFILE"
 					sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $TARGETFILE
 				fi
 		else

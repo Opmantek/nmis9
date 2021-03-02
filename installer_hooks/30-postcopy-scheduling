@@ -21,11 +21,6 @@ if type systemctl >/dev/null 2>&1; then
 		SRCFILESD=$TARGETDIR/conf-default/init/nmis9d.service
 		DESTFILESD=/etc/systemd/system/nmis9d.service
 		SERVICENAMESD=`basename $DESTFILESD`
-
-		if [ $TARGETDIR != "/usr/local/nmis9" ]; then
-			echolog "$TARGETDIR not standart. Updating $DESTFILESD"
-			sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILESD
-		fi
 		
 		if [ ! -f $DESTFILESD ] || ! diff -q $DESTFILESD $SRCFILESD ; then
 				WANTUPDATE=1
@@ -49,6 +44,12 @@ EOF
 		if input_yn "Ok to install or update the $PRODUCT daemon init scripts?" "c274" ; then
 				execPrint cp -af $SRCFILE $DESTFILE
 				echolog "Updated init script in $DESTFILE."
+				
+				if [ $TARGETDIR != "/usr/local/nmis9" ]; then
+					echolog "$TARGETDIR not standart. Updating $DESTFILESD"
+					sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILESD
+				fi
+		
 				echo
 
 				if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
