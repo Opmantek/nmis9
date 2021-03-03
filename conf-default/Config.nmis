@@ -53,7 +53,8 @@ my %hash = (
 
 		'web_root' => '<nmis_base>/htdocs',
 		'<nmis_backups>' => '<nmis_data>/backups',
-    'node_dumps_dir' => '<nmis_var>/node_dumps'
+    'node_dumps_dir' => '<nmis_var>/node_dumps',
+    'system_performance' => '<nmis_var>/system_performance'
   },
 
   'globals' => {
@@ -464,6 +465,8 @@ my %hash = (
 		'purge_opstatus_after' => 3*86400,	 # opstatus records
 		'purge_graphcache_after' => 3600,				 # cached graph images
     'purge_node_dumps_after' => 30*86400,	 # node dump files from deleted nodes
+    'purge_performance_files_after' => 8*86400,	 # node dump files from deleted nodes
+    'purge_performance_top_files_after' => 8*86400,	 # node dump files from deleted nodes
 	},
 
 	'schedule' => {

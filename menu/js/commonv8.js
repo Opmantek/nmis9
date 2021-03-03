@@ -346,7 +346,7 @@ function	createDialog(opt) {
 		{
 			$.ajax({
 				url: opt.url,
-				async: true,
+				async: false,
 				dataType: "html",
 				type : 'GET',
 				cache: false,
@@ -365,7 +365,7 @@ function	createDialog(opt) {
 			$.ajax({
 				url: newurl,
 				data: newdata,
-				async: true,
+				async: false,
 				dataType: "html",
 				type : 'POST',
 				cache: false,

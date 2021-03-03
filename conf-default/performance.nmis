@@ -1,0 +1,20 @@
+%hash = (
+  'top' => {
+    'command' => 'timeout 10 top -b -n 1',
+  },
+ 'iotop' => {
+   'command' => 'timeout 10 iotop -b -n 1',
+  },
+ 'iostat' => {
+   'command' => 'timeout 30 iostat -xyz 2 10',
+  },
+  'ps' => {
+    'command' => 'ps ax'
+  },
+  'df' => {
+    'command' => 'df'
+  },
+  'vmstat' => {
+    'command' => 'vmstat 1 5'
+  }
+);

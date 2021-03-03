@@ -68,68 +68,68 @@ else {
 	my $latePoll1h = 0;
 	my $latePoll12h = 0;
     my $report;
+	my @output;
     
     my @polltimes;
     
     # define the output heading and the print format
-	my @heading = ("node", "attempt", "status", "ping", "snmp", "policy", "delta", "snmp", "avgdel", "poll", "update", "pollmessage");
-    	printf "\n\n\n %-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @heading;
-
+	my @heading = ("node", "attempt", "status", "ping", "snmp", "policy", "delta", "snmp", "avgdel", "poll", "update", "pollmessage");	
+  
 	foreach my $node (sort @$nodes) {
 		#oneNode($node);
             $totalnodeswithremotes++;
             my $nodeobj = $nmisng->node(name => $node);
             if ($nodeobj) {
             
-	    my ($configuration,$error) = $nodeobj->configuration();
-	    my $active = $configuration->{active};
-            # Only locals and active nodes
-            if ($active and $nodeobj->cluster_id eq $config->{cluster_id} ) {
+				my ($configuration,$error) = $nodeobj->configuration();
+				my $active = $configuration->{active};
+			
+				# Only locals and active nodes
+				if ($active and $nodeobj->cluster_id eq $config->{cluster_id} ) {
                 
-                ++$totalNodes;
-                ++$totalPoll;
-                my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object
-                eval {
-                    $S->init(name=>$node);
-                }; if ($@) # load node info and Model if name exists
-                {
-                    print "Error init for $node";
-                    next;
-                }
-                my $inv = $S->inventory(concept => 'catchall');
-                my $catchall_inventory = $inv->{_data};
+					++$totalNodes;
+					++$totalPoll;
+					my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object
+					eval {
+						$S->init(name=>$node);
+					}; if ($@) # load node info and Model if name exists
+					{
+						print "Error init for $node";
+						next;
+					}
+					my $inv = $S->inventory(concept => 'catchall');
+					my $catchall_inventory = $inv->{_data};
             
-                my $polling_policy = $nodeobj->configuration->{polling_policy} ? $nodeobj->configuration->{polling_policy} : "default";
-                my $snmp = 300;
-                if ( defined $PP->{$polling_policy}{snmp} ) {
-                    $snmp = $PP->{$polling_policy}{snmp};
-                    if ( $snmp =~ /(\d+)m/ ) {
-                        $snmp = $1 * 60;
-                    }
-                    elsif ( $snmp =~ /(\d+)h/ ) {
-                        $snmp = $1 * 3600;
-                    }
-                    else {
-                        $snmp = "ERROR";
-                        print STDERR "ERROR polling_policy=$polling_policy snmp=$PP->{$polling_policy}{snmp}\n";
-                    }				
-                }
+					my $polling_policy = $nodeobj->configuration->{polling_policy} ? $nodeobj->configuration->{polling_policy} : "default";
+					my $snmp = 300;
+					if ( defined $PP->{$polling_policy}{snmp} ) {
+						$snmp = $PP->{$polling_policy}{snmp};
+						if ( $snmp =~ /(\d+)m/ ) {
+							$snmp = $1 * 60;
+						}
+						elsif ( $snmp =~ /(\d+)h/ ) {
+						     $snmp = $1 * 3600;
+						}
+						else {
+							$snmp = "ERROR";
+							print STDERR "ERROR polling_policy=$polling_policy snmp=$PP->{$polling_policy}{snmp}\n";
+						}				
+					}
     
-                my $polldelta = "NaN";
-                my $polltime = "NaN";
-                my $updatetime = "NaN";
-                if (-f (my $rrdfilename = $S->makeRRDname(type => "health")))
-                {
-                    my $string;
-                    my @results;
-                    my $stats = NMISNG::rrdfunc::getRRDStats(database => $rrdfilename, graphtype => "health", index => undef, item => undef, start => time() - 86400,  end => time() );
+					my $polldelta = "NaN";
+					my $polltime = "NaN";
+					my $updatetime = "NaN";
+					if (-f (my $rrdfilename = $S->makeRRDname(type => "health")))
+					{
+					    my $string;
+					    my @results;
+					    my $stats = NMISNG::rrdfunc::getRRDStats(database => $rrdfilename, graphtype => "health", index => undef, item => undef, start => time() - 86400,  end => time() );
                
-                    $polldelta = sprintf("%.2f",$stats->{polldelta}->{mean});
-                    $polltime = sprintf("%.2f",$stats->{polltime}->{mean});
-                    $updatetime = sprintf("%.2f",$stats->{updatetime}->{mean});
-                }
-    #print Dumper($NI);
-               # if ($NI) {
+						$polldelta = sprintf("%.2f",$stats->{polldelta}->{mean});
+						$polltime = sprintf("%.2f",$stats->{polltime}->{mean});
+						$updatetime = sprintf("%.2f",$stats->{updatetime}->{mean});
+					}
+
                     my $lastAttempt = $catchall_inventory->{last_poll_attempt} ? NMISNG::Util::returnTime($catchall_inventory->{last_poll_attempt}) : "--:--:--";
                     my $lastPollAgo = time() - $catchall_inventory->{last_poll} if $catchall_inventory->{last_poll};
                     my $delta = $catchall_inventory->{clockDelta};
@@ -167,9 +167,10 @@ else {
                     }
 
                     my $collect_snmp = 1;
-                    if ( $nodeobj->configuration->{collect} eq "false" 
-                        or  $nodeobj->configuration->{collect_snmp} eq "false" 
-                    ) {
+
+                    if ( (defined($nodeobj->configuration->{collect}) &&  $nodeobj->configuration->{collect} == 0 )
+                        or (defined($nodeobj->configuration->{collect_snmp}) && $nodeobj->configuration->{collect_snmp} == 0) )
+                    {
                         $collect_snmp = 0;
                     }
         
@@ -232,16 +233,22 @@ else {
                         $message .= "Last poll attempt failed";
                     }
                     $report .= "$node \t $lastAttempt\t $pollstatus\t $ping_status\t $snmp_status\t $polling_policy\t $delta\t $snmp\t $polldelta\t $polltime\t $updatetime\t $message \n";
-                    printf "%-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", $node, $lastAttempt, $pollstatus, $ping_status, $snmp_status, $polling_policy, $delta, $snmp, $polldelta, $polltime, $updatetime, $message;
+					my @nodelist = ($node, $lastAttempt, $pollstatus, $ping_status, $snmp_status, $polling_policy, $delta, $snmp, $polldelta, $polltime, $updatetime, $message);
+					push @output, \@nodelist;
+					#printf "%-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", $node, $lastAttempt, $pollstatus, $ping_status, $snmp_status, $polling_policy, $delta, $snmp, $polldelta, $polltime, $updatetime, $message;
                 
             }
         }
 			
 	}
     my $now = NMISNG::Util::returnTime(time());
-    # printing twice for some reason 
-    #print $report;
-    #
+    my @heading2 = ("----", "----", "----", "----", "----", "----", "----", "----", "----", "----", "----", "----");	
+	printf "\n\n\n %-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @heading;
+	printf "%-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @heading2;
+	foreach my $n (@output) {
+		printf "%-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @$n;
+	}
+	
 	print "\ntotalNodes=$totalNodes totalPoll=$totalPoll ontime=$goodPoll pingOnly=$pingOnly 1x_late=$latePoll5m 3x_late=$latePoll15m 12x_late=$latePoll1h 144x_late=$latePoll12h\n";
 	print "time=$now pingDown=$pingDown snmpDown=$snmpDown badSnmp=$badSnmp noSnmp=$noSnmp demoted=$demoted\n";
     print "\ntotalNodesIncludingRemotes=$totalnodeswithremotes\n";

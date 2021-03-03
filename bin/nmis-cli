@@ -62,6 +62,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=fixperms
  act=config-backup
+ act=ensure-indexes
  act=noderefresh
  act=daemon-status (or act=status)
 
@@ -81,8 +82,10 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=update-outage id=<outid> [outage.A=B... outage.X.Y=Z...]
  act={delete-outage|show-outage} id=<outid>
  act=check-outages [node=X|uuid=Y] [time=T]
-  act=outage-help for more detailed help
-
+ act=outage-help for more detailed help
+ act=collect-performance-data 
+ act=collect-top-data
+ 
 \n";
 
 
@@ -862,6 +865,18 @@ elsif ($Q->{act} eq 'noderefresh')
 {
 	noderefresh();
 }
+elsif ($Q->{act} =~ /collect[-_]performance[-_]data/)
+{
+	collectPerformanceData();
+}
+elsif ($Q->{act} =~ /collect[-_]top[-_]data/)
+{
+	collectTopData();
+}
+elsif ($Q->{act} =~ /ensure[_-]indexes/)
+{
+	print $nmisng->ensure_indexes();
+}
 elsif ($Q->{act} eq "fixperms")
 {
 	if ($wantverbose)
@@ -1034,4 +1049,143 @@ sub noderefresh
 		}
 	}
 	print "total nodes: ".$md->count.", updated: $updated\n";
+}
+
+# Collect performance data
+sub collectPerformanceData
+{
+	my $output_folder = $C->{'system_performance'} // $C->{'<nmis_var>'}.'/system_performance';
+
+	my $expandeddir = NMISNG::Util::getDir(dir => "conf"); # expands dirs like 'conf' or 'logs' into full location
+	my $conf_file = "$expandeddir/performance";
+	my ($data, $fh) = NMISNG::Util::readFiletoHash(file => $conf_file);
+	print "failed to read file $conf_file $! " if (!$data);
+	$data //= {};
+	
+	# Check output directory
+	if (!-e $output_folder) 
+    {
+        mkdir $output_folder;
+		print "Creating output folder $output_folder \n";
+    } else {
+		print "Output folder set up in $output_folder \n";
+	}
+	
+	foreach my $key (keys %$data) {
+		print "Running $key ... \n";
+
+		# Run output
+		my $cmd = $data->{$key}->{'command'};
+		my $output = `$cmd 2>&1`;
+		#print $output;
+		if ($output) {
+			# Create output file
+			my $file = $output_folder . "/$key-". time . ".txt";
+			open(FH, '>', $file) or die $!;
+			print FH $output;
+			close(FH);
+			
+			my $user = $C->{nmis_user};
+			my $group = $C->{nmis_group};
+			
+			system("chown","-R", "$user:$group", $file);
+			system("chmod","-R","g+rw", $file);
+
+		} else {
+			print "\t No command output for $key \n";
+		}
+	}
+}
+
+# Collect performance data
+# top - 17:29:46 up 75 days,  7:12,  5 users,  load average: 0.36, 0.17, 0.11
+# Tasks: 166 total,   1 running, 164 sleeping,   0 stopped,   1 zombie
+# %Cpu(s): 16.1 us,  1.7 sy,  0.0 ni, 81.8 id,  0.2 wa,  0.0 hi,  0.3 si,  0.0 st
+# KiB Mem :  6115260 total,   592752 free,  1343404 used,  4179104 buff/cache
+# KiB Swap:  8388604 total,  8353224 free,    35380 used.  4473640 avail Mem
+# date,cpuUser,cpuSys,cpuNice,cpuIdle,cpuWaitIO,cpuHi,cpuSi,cpuSt,memTotal,memFree,memUsed,membuff/cache,swaptotal,swapfree,swapused,memAvail
+# 20210302T17:45,3.4,0.6,0.0,95.8,0.0,0.0,0.0,0.0,6115260,503084,1419156,4193020,8388604,8353224,35380,4397888
+sub collectTopData
+{
+	my $output_folder = $C->{'system_performance'} // $C->{'<nmis_var>'}.'/system_performance';	
+	my $ymd = sub{sprintf '%04d%02d%02d', $_[5]+1900, $_[4]+1, $_[3]}->(localtime);
+	my $file = "$output_folder/$ymd.csv";
+	my $tmpfile = '/tmp/tmp-topn-'.time.'.txt';
+	
+	# Check output directory
+	if (!-e $output_folder) 
+    {
+        mkdir $output_folder;
+		print "Creating output folder $output_folder \n";
+    } else {
+		print "Output folder set up in $output_folder \n";
+	}
+	
+	my $output = `top -b -n 1 | head -n 5`;
+	
+	# Proccess output
+	open my $OUTPUT, '>', $tmpfile or die "Couldn't open temp file: $!\n";
+	print $OUTPUT $output;
+	close $OUTPUT;
+	unlink $tmpfile or warn "Could not unlink $tmpfile: $!";
+
+	my %data;
+	my @header = qw /date users load cpuUser cpuSys cpuNice cpuIdle cpuWaitIO cpuHi cpuSi cpuSt memTotal memFree memUsed membuff swaptotal swapfree swapused memAvail/;
+	
+	#my $time = localtime($time->epoch);
+	#my($year, $mon, $day, $hour, $min) = $date =~ /^(\d{4}) (\d{2}) (\d{2})\ (\d{2}):(\d{2})$/x;
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$year += 1900;
+	$data{date} = "$year/$mon/$mday";
+	
+	foreach my $line (split /[\r\n]+/, $output) {
+	  
+	  if ( $line =~ /top - (\d+\:\d+\:\d+) up (\d+) days,  (\d+\:\d+),  (\d+) users,  load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/ ) {
+		  $data{load} = $5;
+		  $data{users} = $4;
+	  }
+	  ## Regular expression magic to grab what you want
+	  # 			    %Cpu(s):  0.2 us,  0.0 sy,  0.0 ni, 99.7 id,  0.0 wa,  0.0 hi,  0.2 si,  0.0 st
+	  elsif ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s+(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
+		  $data{cpuUser} = $1;
+		  $data{cpuSys} = $2;
+		  $data{cpuNice} = $3;
+		  $data{cpuIdle} = $4;
+		  $data{cpuWaitIO} = $5;
+		  $data{cpuHi} = $6;
+		  $data{cpuSi} = $7;
+		  $data{cpuSt} = $8;
+	  }
+	  elsif ( $line =~ /KiB Mem :  (\d+) total,   (\d+) free,  (\d+) used,  (\d+) buff\/cache/ ) {
+		  $data{memTotal} = $1;
+		  $data{memFree} = $2;
+		  $data{memUsed} = $3;
+		  $data{membuff} = $4;
+	  }
+	  elsif ( $line =~ /KiB Swap:  (\d+) total,  (\d+) free,    (\d+) used.  (\d+) avail Mem/ ) {
+		  $data{swaptotal} = $1;
+		  $data{swapfree} = $2;
+		  $data{swapused} = $3;
+		  $data{memAvail} = $4;
+	  }
+	}
+
+	
+	# Write file
+	my $exists = 0;
+	$exists = 1 if (-f $file);
+	
+	open(FH, '>>', $file) or die $!;
+	print FH join(',', @header), "\n" if ($exists == 0);
+	foreach my $val (@header) {
+		print FH $data{$val}, ",";
+	}
+	print FH "\n";
+	close(FH);
+	
+	my $user = $C->{nmis_user};
+	my $group = $C->{nmis_group};
+			
+	system("chown","-R", "$user:$group", $file);
+	system("chmod","-R","g+rw", $file);
 }
