@@ -12,6 +12,7 @@ if [ -n "$CLEANSLATE" ]; then
 		for i in Config.nmis users.dat; do
 				execPrint "cp -va $TARGETDIR/conf-default/$i $TARGETDIR/conf/"
 		done
+		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/directories/<nmis_base>'=$TARGETDIR"
 else
 		# upgrade case
 		printBanner "Updating (missing) configuration files"
