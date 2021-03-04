@@ -441,6 +441,9 @@ sub loadMibs {
 		elsif ( $_ =~ /^#|^\s+#/ ) {
 			#all good comment
 		}
+		elsif ( $_ =~ /^\n/ ) {
+			#all good blank line
+		}
 		else {
 			$NG->log->info("ERROR: no match $_");
 		}
