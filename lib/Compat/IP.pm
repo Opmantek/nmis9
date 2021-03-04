@@ -141,7 +141,6 @@ sub ipSubnet {
 	my %args = @_;
 	my $address = $args{address};
 	my $mask = $args{mask};
-	my $type = $args{type} ? $args{type} : "ipv4";
 
 	my $subnet = "";
 	my $subnetBits = 0;
@@ -151,7 +150,21 @@ sub ipSubnet {
 	my @addressBits;
 	my @maskBits;
 
-	if ( $type eq "ipv4" ) {
+	my $ip = new Net::IP($address);
+	my $version = $ip->version();
+
+	if ( $mask eq "0.0" ) {
+		# nothing useful we can do but return the version
+		$subnet = "";
+		$subnetBits = "";
+	}
+	elsif ( $version == 4 ) {
+
+		# this is mask a single digit e.g. 24? convert to dotted notation
+		if ( $mask =~ /^\d+$/ ) {
+			$mask = ipBitsToMask(bits => $mask);
+		}
+
 		my @addressOctets = split (/\./,$address);
 		my @maskOctets  = split (/\./,$mask);
 
@@ -183,15 +196,22 @@ sub ipSubnet {
 		}
 		$subnet =~ s/^\.//;
 	}
-	elsif ( $type eq "ipv6" ) {
+	elsif ( $version == 6 ) {
 		$subnetBits = $mask;
 		if ( $address =~ /([a-fA-F0-9\:]+)\:\:[a-fA-F0-9]+/ ) {
 			$subnet = $1;
 		}
-		#print "DEBUG: $address $subnet\n"
+		elsif ( $mask =~ /^\d+$/ ) {
+			$subnet = "";
+			# TODO get the subnet using the mask, e.g.
+			#print "DEBUG: address=$address mask=$mask\n";
+			#my $ip = new Net::IP("$address/$mask") or warn (Net::IP::Error());
+			#$subnet = $ip->prefix();
+		}
+		#print "DEBUG: address=$address subnet=$subnet\n"
 	}
 
-	return($subnet,$subnetBits);
+	return($subnet,$subnetBits,$version);
 
 }
 

@@ -2686,15 +2686,18 @@ sub update_intf_info
 						#$mask = Compat::IP::netmask2prefix($mask);
 
 						my $target = $target_table->{$index};
+						# NOTE: inventory, breaks index convention here! not a big deal but it happens
+						my $version;
+						(   $target->{"ipSubnet$ifCnt{$index}"},
+							$target->{"ipSubnetBits$ifCnt{$index}"},
+							$version
+						) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
+
 						$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
 						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
 						$target->{"ipAdEntType$ifCnt{$index}"} = "ipv4";
 
-						# NOTE: inventory, breaks index convention here! not a big deal but it happens
-						(   $target->{"ipSubnet$ifCnt{$index}"},
-							$target->{"ipSubnetBits$ifCnt{$index}"}
-						) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
-						$self->nmisng->log->debug2("ipAdEntIfIndex ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
+						$self->nmisng->log->debug2("ipAdEntIfIndex ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
 					}
 				}
 
@@ -2727,22 +2730,29 @@ sub update_intf_info
 
 					my $mask = "";
 					$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
+					$self->nmisng->log->debug2("$ipv6_source mask=$mask");
 
 					# the value represents ipAddressPrefixOrigin OID, we extract just 'prefix length' part from it
-					$mask = (split '\.', $mask)[-1];
+					if ( $mask ne "0.0" ) {
+						$mask = (split '\.', $mask)[-1];
+					}
 
 					my $target = $target_table->{$index};
 					my $ip = Compat::IP::oid2ip($addr);
-					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
-					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
-					$target->{"ipAdEntType$ifCnt{$index}"} = "ipv6";
 
 					# TODO: check usages and make it IPv6 compatible if needed
+					my $version;
 					(   $target->{"ipSubnet$ifCnt{$index}"},
-						$target->{"ipSubnetBits$ifCnt{$index}"}
-					) = Compat::IP::ipSubnet( address => $ip, mask => $mask, type => "ipv6" );
+						$target->{"ipSubnetBits$ifCnt{$index}"},
+						$version
+					) = Compat::IP::ipSubnet( address => $ip, mask => $mask );
 
-					$self->nmisng->log->debug2("$ipv6_source ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
+					my $type = $version == 4 ? "ipv4" : "ipv6";
+					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
+					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
+					$target->{"ipAdEntType$ifCnt{$index}"} = $type;
+
+					$self->nmisng->log->debug2("$ipv6_source ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
 				}
 			}
 
