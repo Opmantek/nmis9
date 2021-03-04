@@ -1777,6 +1777,15 @@ sub fping_loop
 	$non_root_interval = 10 if $non_root_interval < 10;
 	$non_root_target_interval = 20 if $non_root_interval < 20;
 
+	# OLD CODE  #############
+	# min packet size is 20+4 bytes, default is 56
+	# ($config->{fastping_packet} ? $config->{fastping_packet} >= 24 ? $config->{fastping_packet} : 24 : 56)
+	#############
+
+	# ICMP Packet sizes are data + 8 bytes of ICMP + 20 bytes of IP + 14 bytes of ethernet 
+	# todo, should we log a warning if someone configures very large or very small packet sizes for ICMP?
+	my $fastping_packet = $config->{fastping_packet};
+
 	# we want fping to do the work, no need to avg/min/max ourselves
 	# -c X produces: 'somenode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.73/0.86/0.97'
 	my @fpingargs = (
@@ -1784,15 +1793,15 @@ sub fping_loop
 				"-c", ($config->{fastping_count} || 3),
 				"-q",
 				"-r", ($config->{fastping_retries} || 3),
-				# min packet size is 20+4 bytes, default is 56
-				"-b", ($config->{fastping_packet}?
-							 $config->{fastping_packet} >= 24? $config->{fastping_packet} : 24 : 56));
+				"-b", $fastping_packet 
+			);
 
 	push @fpingargs, ($< == 0?
-				 # we may use these options if we run as root
-				 ("-i", $interval, "-p", $target_interval)
-				 : 	# non-root requires i >= 10, p >= 20, r < 20, and t >= 50
-				 ("-i", $non_root_interval, "-p", $non_root_target_interval));
+				# we may use these options if we run as root
+				("-i", $interval, "-p", $target_interval)
+				: # non-root requires i >= 10, p >= 20, r < 20, and t >= 50
+				("-i", $non_root_interval, "-p", $non_root_target_interval)
+			);
 
 	my @fpingargs4 = ('-4');
 	push @fpingargs4, @fpingargs;
@@ -2238,6 +2247,8 @@ sub fping_loop
 		my $naptime = ($nextone && $nextone - $now > 0)? int(0.5 + $nextone - $now) : 10;
 		if ($naptime > 0 and (!defined($ttl) or $ttl > 1))
 		{
+			# cludge to get fping to sleep for less time.
+			$naptime = 3 if $naptime == 5;
 			$nmisng->log->debug("sleeping $naptime seconds");
 			sleep($naptime);
 		}
