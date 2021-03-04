@@ -149,9 +149,13 @@ sub ipSubnet {
 	my $b;
 	my @addressBits;
 	my @maskBits;
+	my $ip;
+	my $version;
 
-	my $ip = new Net::IP($address);
-	my $version = $ip->version();
+	if ( defined $address ) {
+		my $ip = new Net::IP($address);
+		my $version = $ip->version();
+	}
 
 	if ( $mask eq "0.0" ) {
 		# nothing useful we can do but return the version

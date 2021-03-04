@@ -73,8 +73,8 @@
 			'GPRINT:avail:AVERAGE:Avg %6.3lf%%',
 			'LINE2:loss#ff00ff: Ping_loss',
 			'GPRINT:loss:AVERAGE:Avg %6.3lf%%\\n',
-			'AREA:outageShade#bbbbff7f: Planned Outage',
-			'GPRINT:outageShade:AVERAGE:Avg %6.3lf%%\\n'
+			#'AREA:outageShade#bbbbff7f: Planned Outage',
+			#'GPRINT:outageShade:AVERAGE:Avg %6.3lf%%\\n'
 		]
 	}
 );

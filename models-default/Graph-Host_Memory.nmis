@@ -127,8 +127,8 @@
 			'STACK:physical_free#eeeeee: Physical Free',
 			'GPRINT:physicalFreeUtil:AVERAGE:Avg Used %1.3lf %%\\n',
 
-			'LINE1:physical#000000: Physical Used',
-			'GPRINT:physicalUtil:AVERAGE:Avg Used %1.3lf %%',
+			#'LINE1:physical#000000: Physical Used',
+			#'GPRINT:physicalUtil:AVERAGE:Avg Used %1.3lf %%',
 
 			'LINE1:total_physical#FF0000: Total Memory',
 			'GPRINT:total_physical:AVERAGE:%1.3lf %sb\\n',
