@@ -43,6 +43,10 @@ if [ ! -e "$CFGTARGET/$CFGNAME" ] || ! diff -q "$CFGTARGET/$CFGNAME"  "$CFGSRC/$
 
 		execPrint cp -f $CFGSRC/$SRCNAME $CFGTARGET/$CFGNAME
 		
+		if [ $TARGETDIR != "/usr/local/nmis9" ]; then
+			echolog "$TARGETDIR not standart. Updating $CFGTARGET/$CFGNAME"
+			sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $CFGTARGET/$CFGNAME
+		fi
 		if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 				logmsg "Enabling NMIS apache config and cgi module"
 				execPrint a2ensite $CFGNAME

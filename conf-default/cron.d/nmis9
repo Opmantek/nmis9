@@ -15,3 +15,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 9 0 * * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=day type=all
 9 1 * * 0  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=week type=all
 9 2 1 * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=month type=all
+
+# performance data
+*/5 * * * * root /usr/local/nmis9/bin/nmis-cli act=collect-top-data
+0 * * * *  root /usr/local/nmis9/bin/nmis-cli act=collect-performance-data

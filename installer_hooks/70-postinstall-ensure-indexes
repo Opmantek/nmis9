@@ -1,0 +1,11 @@
+#!/bin/sh
+# run ensure indexes, to make sure all the indexes are correct
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+printBanner "Running ensure indexes"
+execPrint $TARGETDIR/bin/nmis-cli act=ensure_indexes
+
+exit 0 

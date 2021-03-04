@@ -1932,7 +1932,7 @@ sub prep_extras_with_catchalls
 
 		# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
 		# fixme9: utterly and irredeemably borked
-		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/ || $type eq "interface")
+		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/ || $str =~ /ifSpeed/ || $type eq "interface")
 				 && $index =~ /\d+/ )
 		{
 			# inventory keyed by index and ifDescr so we need partial; using _the_ passed in
@@ -1966,8 +1966,13 @@ sub prep_extras_with_catchalls
 			$extras->{ifSpeed} ||= $extras->{ifMaxOctets} ||= 'U'; # fixme9 not clear what purpose that served?
 		}
 		# Add inventory data
+		my $concept = $section;
+		if ( $item != $index ) {
+			$concept = $item;
+		}
+	
 		my $storage_inventory = $inventory
-					|| $self->inventory(concept => $section, index => $index, nolog => 1);
+					|| $self->inventory(concept => $concept, index => $index, nolog => 1);
 
 		if ($storage_inventory) {
 			my $inv_data = $storage_inventory->data() if( ref($storage_inventory) =~ /Inventory/ );

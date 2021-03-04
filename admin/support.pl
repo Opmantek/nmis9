@@ -214,7 +214,7 @@ sub collect_evidence
 	close G;
 	print  F "Support Tool Version $VERSION\n";
 	close F;
-
+	
 	# dirs to check in terms of md5sum: the basedir, PLUS the database_root PLUS the nmis_var
 	my $dirstocheck=$basedir;
 	$dirstocheck .= " $vardir" if ($vardir !~ /^$basedir/);
@@ -229,11 +229,16 @@ sub collect_evidence
 		"$targetdir/logs",
 		"$targetdir/conf/scripts", "$targetdir/conf/plugins", "$targetdir/conf/conf.d",
 		"$targetdir/models-custom",
+		"$targetdir/models-default",
 		"$targetdir/var/nmis_system/model_cache",
+		"$targetdir/var/system_performance",
 		"$targetdir/node_dumps",
 		"$targetdir/db_dumps",
 		{ chmod => 0755 });
 
+	# Get polling summary
+	system("$basedir/admin/polling_summary9.pl >> $targetdir/system_status/polling_summary.txt");
+	
 	# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
 	# this needs to cover dbdir and vardir if outside
 	system("find -L $dirstocheck -type d -print0| xargs -0 ls -laH > $targetdir/system_status/filelist.txt") == 0
@@ -351,13 +356,21 @@ sub collect_evidence
 	{
 		cp($x, "$targetdir/models-custom/");
 	}
+	for my $x (glob("$basedir/models-default/*"))
+	{
+		cp($x, "$targetdir/models-default/");
+	}
 	for my $x (glob("$basedir/conf/*"))
 	{
 		# skip copying Nodes.nmis
 		next if($x =~ m/\/conf\/Nodes.nmis/);
 		cp($x, "$targetdir/conf/");
 	}
-
+	for my $x (glob("$basedir/var/system_performance/*"))
+	{
+		cp($x, "$targetdir/var/system_performance/");
+	}
+	
 	for my $oksubdir (qw(scripts plugins))
 	{
 		next if (! -d "$basedir/conf/$oksubdir"); # those dirs may or may not exist
