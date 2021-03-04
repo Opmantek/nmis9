@@ -2730,7 +2730,6 @@ sub update_intf_info
 
 					my $mask = "";
 					$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
-					$self->nmisng->log->debug2("$ipv6_source mask=$mask");
 
 					# the value represents ipAddressPrefixOrigin OID, we extract just 'prefix length' part from it
 					if ( $mask ne "0.0" ) {
