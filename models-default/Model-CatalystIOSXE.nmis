@@ -73,10 +73,10 @@
   },
   'custom' => {
     'interface' => {
-      'ifAdminStatus' => 'false',
+      'ifAdminStatus' => 'true',
       'ifNumber' => 'false',
       'ifLastChange' => 'true',
-      'ifTableLastChange' => 'true',
+      'ifTableLastChange' => 'false',
     }
   },
   'interface' => {
@@ -533,15 +533,12 @@
       }
     }
   },
-  #'systemHealth' => {
-  #  'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
-  #},
   'systemHealth' => {
     'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   'system' => {
     'nodeModel' => 'CatalystIOSXE',
-    'nodeType' => 'router',
+    'nodeType' => 'switch',
     'nodeVendor' => 'Cisco Systems',
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo',
     'rrd' => {
@@ -693,7 +690,7 @@
           },
           'TimeSinceTopologyChange' => {
             'oid' => 'dot1dStpTimeSinceTopologyChange',
-            'Title' => 'Time Since STP Topology Change',
+            'title' => 'Time Since STP Topology Change',
             'replace' => {
               'noSuchObject' => 'N/A',
               'noSuchInstance' => 'N/A',
@@ -728,7 +725,7 @@
           },
           'sysName' => {
             'oid' => 'sysName',
-						'title' => 'System Name',
+            'title' => 'System Name',
           },
           'sysObjectID' => {
             'oid' => 'sysObjectID'
