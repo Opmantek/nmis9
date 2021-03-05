@@ -153,8 +153,8 @@ sub ipSubnet {
 	my $version;
 
 	if ( defined $address ) {
-		my $ip = new Net::IP($address);
-		my $version = $ip->version();
+		$ip = new Net::IP($address);
+		$version = $ip->version();
 	}
 
 	if ( $mask eq "0.0" ) {
