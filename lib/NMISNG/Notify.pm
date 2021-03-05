@@ -278,12 +278,12 @@ sub logJsonEvent
 
 	my $file ="$dir/$event->{startdate}-$fcount.json";
 	while ( -f $file )
-	{
+	{ 
 		++$fcount;
 		$file ="$dir/$event->{startdate}-$fcount.json";
 	}
 
-	my $json_event = encode_json( $event );
+	my $json_event = JSON::XS->new->pretty(1)->allow_blessed()->utf8(1)->encode( $event );
 	open(JSON,">$file") or return("can not write to $file: $!");
 	print JSON $json_event;
 	close JSON;

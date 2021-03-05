@@ -728,7 +728,16 @@ sub doeditTable
 			my $value = $thisitem->{display} =~ /(^|,)savearray(,|$)/?
 					\@unpacked:  join(",", @unpacked);
 			$thisentry->{$item} = $value;
-
+			
+			# Some craziness going on with this value that corrupst the file, filter
+			if ($table =~ /Polling-Policy/ && $item eq 'update')
+			{
+				if ( $value =~ /^([^\d]+)(\d+(\.\d+)?)([smhd])$/ )
+				{
+					$thisentry->{$item} = "$2$4";
+				}
+			}
+			
 			# and if the item is marked as pluscustom and a custom value is present,
 			# then replace the item value with _custom_<item>
 			if ($thisitem->{display} =~ /(^|,)pluscustom(,|$)/ && $Q->{"_custom_$item"} ne '')
