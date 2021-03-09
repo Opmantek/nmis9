@@ -2748,7 +2748,7 @@ sub update_intf_info
 
 					# this is mask a single digit e.g. 24? convert to dotted notation
 					if ( $version == 4 and $mask =~ /^\d+$/ ) {
-						$mask = ipBitsToMask(bits => $mask);
+						$mask = Compat::IP::ipBitsToMask(bits => $mask);
 					}
 
 					my $type = $version == 4 ? "ipv4" : "ipv6";

@@ -85,6 +85,7 @@
         'title' => "Disk Usage",
         'unit' => "%",
         'item' => 'hrStorageUtil',
+        'element' => 'Host_Storage',
         'select' => {
           '1' => {
             'control' => 'CVAR1=hrStorageTypeName;CVAR2=hrStorageDescr;$CVAR1 =~ /([Mm]emory)/ or $CVAR2 =~ /(\/rom)/',

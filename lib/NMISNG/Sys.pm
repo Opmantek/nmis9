@@ -2497,12 +2497,15 @@ sub translate_threshold_level
 
 	# which level selector works for this thing? check in order of the level_select keys
 	my $T = $M->{threshold}{name}{$thrname}{select};
+	$item = $args{item} // $M->{threshold}{name}{$thrname}{element};
+	
 	foreach my $thr (sort {$a <=> $b} keys %{$T})
 	{
 		next if $thr eq 'default'; # skip now the default values
 		if (($self->parseString(string=>"($T->{$thr}{control})?1:0",
 														index=>$index,
 														item=>$item,
+														sect=>$item,
 														eval => 1)))
 		{
 			$val = $T->{$thr}{value};
