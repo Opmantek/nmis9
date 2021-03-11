@@ -199,7 +199,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		
 		$node->configuration($curconfig);
 		# Validate node data
-		validate_node_data(node => $onenode);
+		#validate_node_data(node => $onenode);
 		# Validate name
 		if (!$onenode->{uuid}) {
 			my $nodeobj = $nmisng->node(name => $onenode->{name});
