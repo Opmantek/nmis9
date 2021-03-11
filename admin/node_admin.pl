@@ -87,7 +87,7 @@ This server is a $server_role. This is why the number of actions is restricted.
 \t$bn act={create|update} file=someFile.json [server={server_name|cluster_id}]
 \t$bn act=export [format=nodes] [file=path] {node=nodeX|uuid=nodeUUID|group=groupY} [keep_ids=0/1]
 \t$bn act=import file=somefile.json
-\t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
+\t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath} [nmis9_format=1]
 \t$bn act=delete {node=nodeX|group=groupY|uuid=nodeUUID} [server={server_name|cluster_id}]
 \t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
 \t$bn act=restore file=path [localise_ids=0/1]
@@ -110,6 +110,8 @@ export: exports to file=someFile (or STDOUT if no file given),
  perl hash if format=nodes and file=*.nmis (nmis extension), otherwise json
  uuid and cluster_id are NOT exported unless keep_ids is 1.
 
+import-bulk: By default, will import nmis8 format nodes
+  
 delete: only deletes if confirm=yes (in uppercase) is given,
  if deletedata=true (default) then RRD files for a node are
  also deleted.
@@ -155,7 +157,8 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
 
 	$logger->info("Starting bulk import of nodes");
-
+	my $nmis9_format = $cmdline->{nmis9_format};
+	
 	# old-style nodes file: hash. export w/o format=nodes: plain array,
 	# readfiletohash doesn't understand arrays.
 	my $node_table = NMISNG::Util::readFiletoHash(file => $nodesfile,
@@ -179,12 +182,21 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		# and OVERWRITE the configuration
 		my $curconfig = $node->configuration; # almost entirely empty when new
 
-		# not all attribs go under configuration!
-		for my $copyable (grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides|configuration|aliases|addresses)$/,
+		if ($nmis9_format) {
+			for my $copyable (grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides|configuration|aliases|addresses)$/,
 													 keys %{$onenode->{configuration}}))
-		{
-			$curconfig->{$copyable} = $onenode->{configuration}->{$copyable} if (exists $onenode->{configuration}->{$copyable});
+			{
+				$curconfig->{$copyable} = $onenode->{configuration}->{$copyable} if (exists $onenode->{configuration}->{$copyable});
+			}
+		} else {
+			# not all attribs go under configuration!
+			for my $copyable (grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides|configuration|aliases|addresses)$/,
+													 keys %$onenode))
+			{
+				$curconfig->{$copyable} = $onenode->{$copyable} if (exists $onenode->{$copyable});
+			}
 		}
+		
 		$node->configuration($curconfig);
 		# Validate node data
 		validate_node_data(node => $onenode);
