@@ -261,7 +261,7 @@ sub verify_id
 	my $cookie = CGI::cookie($self->get_cookie_name());
 	if(!defined($cookie) )
 	{
-		NMISNG::Util::logAuth("verify_id: cookie not defined");
+		NMISNG::Util::logAuth("verify_id: cookie not defined") if ($self->{debug});
 		return ''; # not defined
 	}
 
