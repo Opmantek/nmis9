@@ -39,18 +39,26 @@
         'index_regex' => '\.1\.1\.3\.([\d\.]+)$',
         'headers' => 'ClassifierPolicy,ClassifierName,Direction,ifIndex',
         'snmp' => {
+          'ClassifierPolicy' => {
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.2',
+              'calculate' => 'my $prependstr="QoS:Policy"; return "${prependstr}$r";',
+              'title' => 'Classifier Policy'
+          },
           'ClassifierName' => {
               'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3',
+              'calculate' => 'my $prependstr="Class"; return "${prependstr}$r";',
               'title' => 'QoS Index'
           },
-          'ClassifierPolicy' => {
-                'title' => 'Classifier Policy'
-          },
           'Direction' => {
-                'title' => 'Direction'
+              # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance':
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.1001',
+              # only direction "out" supported:
+              'calculate' => 'return "out"',
+              'title' => 'Direction'
           },
           'ifIndex' => {
-                'title' => 'Interface Index'
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.1',
+              'title' => 'Interface Index'
           },
         },
       },
@@ -65,10 +73,16 @@
               'title' => 'QoS Index'
           },
           'ClassifierPolicy' => {
-                'title' => 'Classifier Policy'
+              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2',
+              'calculate' => 'my $prependstr="BRS:Policy";return "${prependstr}$r";',
+              'title' => 'Classifier Policy'
           },
           'Direction' => {
-                'title' => 'Direction'
+            # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance':
+            'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1003',
+            # only direction "out" supported:
+            'calculate' => 'return "out"',
+            'title' => 'Direction'
           },
           'ifIndex' => {
                 'title' => 'Interface Index'
@@ -109,17 +123,6 @@
         'indexed' => 'true',
         'graphtype' => 'TeldatQoSStat',
         'snmp' => {
-          'ClassifierPolicy' => {
-              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.2',
-              'calculate' => 'my $prependstr="QoS:Policy"; return "${prependstr}$r";',
-          },
-          'ClassifierName' => {
-              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3',
-              'calculate' => 'my $prependstr="Class"; return "${prependstr}$r";',
-          },
-          'ifIndex' => {
-              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.1',
-          },
           'MatchedPackets' => {
               'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.5',
               'option' => 'counter,0:U'
@@ -128,13 +131,6 @@
               'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.6',
               'option' => 'counter,0:U'
           },
-          'Direction' => {
-            # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance':
-            'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.1001',
-            # only direction "out" supported:
-            'calculate' => 'return "out"'
-          },
-
         },
       },
       
@@ -194,10 +190,6 @@
         'indexed' => 'true',
         'graphtype' => 'TeldatBRSStat',
         'snmp' => {
-          'ClassifierPolicy' => {
-              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2',
-              'calculate' => 'my $prependstr="BRS:Policy";return "${prependstr}$r";',
-          },
           'ClassifierName' => {
               'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.4',
           },
@@ -231,12 +223,6 @@
             'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1002',
             'calculate' => 'CVAR1=MatchedBytes; CVAR2=MatchedDropBytes; return $CVAR1 - $CVAR2',
             'option' => 'counter,0:U'
-          },
-          'Direction' => {
-            # UNIQUE dummy oid names rrd file and causes '$r=noSuchInstance':
-            'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1003',
-            # only direction "out" supported:
-            'calculate' => 'return "out"'
           },
         },
       },      
