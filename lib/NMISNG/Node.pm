@@ -1453,31 +1453,31 @@ sub validate
 {
 	my ($self) = @_;
 
-	return (-2, "node requires cluster_id") if ( !$self->{_cluster_id} );
+	return (-2, "node '".$self->{_name}."' requires cluster_id") if ( !$self->{_cluster_id} );
 	return (-2, "node requires name") if ( !$self->{_name} );
 
 	my $configuration = $self->configuration;
 	for my $musthave (qw(host group))
 	{
-		return (-1, "node requires $musthave property")
+		return (-1, "node '".$self->{_name}."' requires $musthave property")
 				if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
 
 	# note: this function and sub rename must apply the same restrictions.
 	# '/' is one of the few characters that absolutely cannot work as
 	# node name (b/c of file and dir names)
-	return (-1, "node name contains forbidden character '/'")
+	return (-1, "node name '".$self->{_name}."' contains forbidden character '/'")
 			if ($self->{_name} =~ m!/!);
 
 	my $nodenamerule = $self->nmisng->config->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
-	return (-1, "node name does not match 'node_name_rule' regular expression")
+	return (-1, "node name '".$self->{_name}."' does not match 'node_name_rule' regular expression")
 			if ($self->{_name} !~ $nodenamerule);
 
 
-	return (-3, "given netType is not a known type")
+	return (-3, "given netType '".$configuration->{netType}."' is not a known type: '".$self->nmisng->config->{nettype_list}."'")
 			if (!grep($configuration->{netType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{nettype_list})));
-	return (-3, "given roleType is not a known type")
+	return (-3, "given roleType '".$configuration->{roleType}."' is not a known type: '".$self->nmisng->config->{roletype_list}."'")
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
 	
@@ -1494,24 +1494,24 @@ sub validate
 		my ($outer,$inner) = @$_;
 		next if (!exists $self->{"_$outer"});
 
-		return (-2, "invalid $outer structure - must be array")
+		return (-2, "node ".$self->{_name}.": invalid $outer structure - must be array")
 				if (ref($self->{"_$outer"}) ne "ARRAY");
 		for my $record (@{$self->{"_$outer"}})
 		{
-			return (-3, "invalid $outer structure - entries must be hashes" )
+			return (-3, "node ".$self->{_name}.": invalid $outer structure - entries must be hashes" )
 					if (ref($record) ne "HASH");
 			# record must have an alias/address field, nonblank, and address field must be a legit address
-			return (-4, "invalid $outer structure - entry has no $inner property" )
+			return (-4, "node ".$self->{_name}.": invalid $outer structure - entry has no $inner property" )
 					if (!defined($record->{$inner}) or $record->{$inner} eq "");
-			return (-5, "invalid $outer structure - entry has no $inner property" )
+			return (-5, "node ".$self->{_name}.": invalid $outer structure - entry has no $inner property" )
 					if (!defined($record->{$inner}) or $record->{$inner} eq "");
 
-			return (-6, "invalid $outer structure - address record with invalid address")
+			return (-6, "node ".$self->{_name}.": invalid $outer structure - address record with invalid address")
 					if ($outer eq "addresses" and $record->{$inner} !~ /^([0-9\.]+|[0-9a-fA-F:]+)$/);
 
 			# and expires must be missing altogether or numeric
 			# note that we allow explicit undef for convenience, as attrib deletion doesn't work well - yet
-			return (-7, "invalid $outer structure - invalid expires attribute")
+			return (-7, "node ".$self->{_name}.": invalid $outer structure - invalid expires attribute")
 					if (defined($record->{expires})
 							&& $record->{expires} !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
 		}
