@@ -1064,11 +1064,11 @@ sub collectPerformanceData
 	
 	# Check output directory
 	if (!-e $output_folder) 
-    {
-        mkdir $output_folder;
-		print "Creating output folder $output_folder \n";
-    } else {
-		print "Output folder set up in $output_folder \n";
+	{
+		mkdir $output_folder;
+		$nmisng->log->info("Creating output folder $output_folder")
+	} else {
+		$nmisng->log->debug("Output folder setup in $output_folder")
 	}
 	
 	foreach my $key (keys %$data) {
@@ -1114,11 +1114,11 @@ sub collectTopData
 	
 	# Check output directory
 	if (!-e $output_folder) 
-    {
-        mkdir $output_folder;
-		print "Creating output folder $output_folder \n";
-    } else {
-		print "Output folder set up in $output_folder \n";
+	{
+		mkdir $output_folder;
+		$nmisng->log->info("Creating output folder $output_folder")
+	} else {
+		$nmisng->log->debug("Output folder setup in $output_folder")
 	}
 	
 	my $output = `top -b -n 1 | head -n 5`;
