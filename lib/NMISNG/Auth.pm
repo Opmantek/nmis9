@@ -373,7 +373,7 @@ sub generate_cookie
 		{
 			$expires_ts = time();
 		}
-		elsif ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
+		elsif ($expires =~ /^([+-]?\d+)\s*(s|m|min|h|d|M|y)$/)
 		{
 			my ($offset, $unit) = ($1, $2);
 			# the last two are clearly imprecise
