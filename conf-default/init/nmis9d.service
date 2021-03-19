@@ -3,7 +3,7 @@
 [Unit]
 Description=Opmantek NMIS9 Daemon
 After=network-online.target
-After=mongodb.service
+After=mongod.service
 Requires=mongod.service
 Wants=network-online.target
 
