@@ -1,0 +1,20 @@
+#!/bin/sh
+# create some directories
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if ! get_nmis9_version; then
+                logmsg "No NMIS9 installed, no file paths to update.";
+                exit 0
+fi;
+
+echolog "Updating file paths"
+
+# move debug.pl
+if [ -f "${NMIS9DIR}/cgi-bin/debug.pl" ] || [ -L "${NMIS9DIR}/cgi-bin/debug.pl" ]; then
+	execPrint mv -f "${NMIS9DIR}/cgi-bin/debug.pl" "${NMIS9DIR}/admin/debug.pl";
+fi;
+
+exit 0
