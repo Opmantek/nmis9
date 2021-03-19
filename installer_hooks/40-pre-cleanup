@@ -16,4 +16,13 @@ if [ -d "$GONER" ]; then
 		execPrint "rm -rf $GONER"
 fi
 
+# move debug.pl
+DEBUG_SRC="${TARGETDIR}/cgi-bin/debug.pl";
+DEBUG_TGT="${TARGETDIR}/admin/debug.pl";
+if [ -f "${DEBUG_SRC}" ] || [ -L "${DEBUG_SRC}" ]; then
+	echolog "Moving '${DEBUG_SRC}' to '${DEBUG_TGT}'";
+        execPrint mv -f "${DEBUG_SRC}" "${DEBUG_TGT}";
+fi;
+
+
 exit 0
