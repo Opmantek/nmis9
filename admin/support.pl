@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "2.0.0a";
+our $VERSION = "2.0.0b";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -234,6 +234,7 @@ sub collect_evidence
 		"$targetdir/var/system_performance",
 		"$targetdir/node_dumps",
 		"$targetdir/db_dumps",
+		"$targetdir/system_status/cpanm",
 		{ chmod => 0755 });
 
 	# Get polling summary
@@ -311,6 +312,20 @@ sub collect_evidence
 	# capture the nmisd init script info
 	cp("/etc/init.d/nmis9d", "$targetdir/system_status/init");
 	system("find -L /etc/rc* -name \"*nmis9d\" -ls > $targetdir/system_status/init/nmisd_init_links");
+	# capture the nmisd service info
+	if (-f "/etc/systemd/system/nmis9d.service")
+	{
+		cp("/etc/systemd/system/nmis9d.service", "$targetdir/system_status/init");
+	}
+
+	# capture the cpanm build logs
+	if (-d "/root/.cpanm/work/")
+	{
+		for my $x (glob('/root/.cpanm/work/*/build.log'))
+		{
+			cp($x, "$targetdir/system_status/cpanm/");
+		}
+	}
 
 	# capture the apache configs
 	my $apachehome = -d "/etc/apache2"? "/etc/apache2": -d "/etc/httpd"? "/etc/httpd" : undef;
