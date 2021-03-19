@@ -323,7 +323,9 @@ sub collect_evidence
 	{
 		for my $x (glob('/root/.cpanm/work/*/build.log'))
 		{
-			cp($x, "$targetdir/system_status/cpanm/");
+			my $y = $x;
+			$y =~ s![\\/]!_!g;
+			cp($x, "$targetdir/system_status/cpanm/$y");
 		}
 	}
 
