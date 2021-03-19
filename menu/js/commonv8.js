@@ -346,12 +346,56 @@ function	createDialog(opt) {
 		{
 			$.ajax({
 				url: opt.url,
-				async: false,
+				async: true,
 				dataType: "html",
 				type : 'GET',
 				cache: false,
 				success: function(data) {
 					dialogHandle.html(data);
+					
+					$('a', dialogHandle ).each( function(){
+						if ( ! $(this).attr('target') ) {
+							// do not assign click handler if target is set
+							// make sure we have an id on the 'a' tag, so the content replaces this dialog
+							// if an 'id' already exits, leave as is.
+							if ( !	$(this).attr('id') ) {
+								$(this).attr('id', opt.id);
+							}
+			
+							// nmisdev 24 AUg 2012 - change click function syntax to preferred context.
+							//$(this).attr('onClick', "clickMenu(this);return false");
+							$(this).click(function(){
+								if( $(this).attr("href") === "#") {
+									return false;
+								}
+								clickMenu(this);
+								return false;
+						});
+			
+						};
+					});
+					
+					//==============================================
+					// form handler - find the inline javascript onclick get('nmis') - well, any handler that uses get()
+					// add an hidden input tag, name = 'formID', value= 'opt.id', so we know what dialog we are in.
+					// nmisdev 3Apr2012 use JQ 'after' with html string to avoid IE9 exception on appendTo
+						$(':input[onclick]', dialogHandle ).each( function() {
+						if ( $(this).attr('onclick').match(/get\(|javascript\:get\(/) ) {
+									var newInput = '<input name="formID" type="hidden" value="'+opt.id+'">';
+									$(this).after(newInput);
+							}
+						});
+			
+						// select onchange
+							$('select[onchange]', dialogHandle ).each( function() {
+							if ( $(this).attr('onchange').match(/^get|^javascript\:get/) ) {
+								$(this).attr('id', opt.id);
+							}
+						});
+							
+						// Init menu
+						$('ul.jd_menu').jdMenu();
+				
 					if ( opCharts == true && typeof(loadCharts) != undefined ) {
             loadCharts(dialogHandle);
           }
@@ -365,12 +409,56 @@ function	createDialog(opt) {
 			$.ajax({
 				url: newurl,
 				data: newdata,
-				async: false,
+				async: true,
 				dataType: "html",
 				type : 'POST',
 				cache: false,
 				success: function(data) {
 					dialogHandle.html(data);
+				
+					$('a', dialogHandle ).each( function(){
+						if ( ! $(this).attr('target') ) {
+							// do not assign click handler if target is set
+							// make sure we have an id on the 'a' tag, so the content replaces this dialog
+							// if an 'id' already exits, leave as is.
+							if ( !	$(this).attr('id') ) {
+								$(this).attr('id', opt.id);
+							}
+			
+							// nmisdev 24 AUg 2012 - change click function syntax to preferred context.
+							//$(this).attr('onClick', "clickMenu(this);return false");
+							$(this).click(function(){
+								if( $(this).attr("href") === "#") {
+									return false;
+								}
+								clickMenu(this);
+								return false;
+						});
+			
+						};
+					});
+					
+					//==============================================
+					// form handler - find the inline javascript onclick get('nmis') - well, any handler that uses get()
+					// add an hidden input tag, name = 'formID', value= 'opt.id', so we know what dialog we are in.
+					// nmisdev 3Apr2012 use JQ 'after' with html string to avoid IE9 exception on appendTo
+						$(':input[onclick]', dialogHandle ).each( function() {
+						if ( $(this).attr('onclick').match(/get\(|javascript\:get\(/) ) {
+									var newInput = '<input name="formID" type="hidden" value="'+opt.id+'">';
+									$(this).after(newInput);
+							}
+						});
+			
+						// select onchange
+							$('select[onchange]', dialogHandle ).each( function() {
+							if ( $(this).attr('onchange').match(/^get|^javascript\:get/) ) {
+								$(this).attr('id', opt.id);
+							}
+						});
+							
+						// Init menu
+						$('ul.jd_menu').jdMenu();
+						
 					if ( opCharts == true && typeof(loadCharts) != undefined ) {
             loadCharts(dialogHandle);
           }
