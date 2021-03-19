@@ -18,10 +18,12 @@ fi
 
 # move debug.pl
 DEBUG_SRC="${TARGETDIR}/cgi-bin/debug.pl";
-DEBUG_TGT="${TARGETDIR}/admin/debug.pl";
 if [ -f "${DEBUG_SRC}" ] || [ -L "${DEBUG_SRC}" ]; then
-	echolog "Moving '${DEBUG_SRC}' to '${DEBUG_TGT}'";
-        execPrint mv -f "${DEBUG_SRC}" "${DEBUG_TGT}";
+		DEBUG_TGT="${TARGETDIR}/admin/debug.pl";
+
+		echolog "Moving '${DEBUG_SRC}' to '${DEBUG_TGT}'";
+		execPrint mkdir -p "${TARGETDIR}/admin";
+		execPrint mv -f "${DEBUG_SRC}" "${DEBUG_TGT}";
 fi;
 
 
