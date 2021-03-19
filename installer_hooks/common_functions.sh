@@ -211,8 +211,8 @@ get_nmis_version() {
 # returns 0 if installed/ok, 1 otherwise
 get_nmis9_version()
 {
-		if [ -d "/usr/local/nmis9" ]; then
-				NMIS9DIR=/usr/local/nmis9
+		if [ -f "${TARGETDIR}/conf/Config.nmis" ] || [ -L "${TARGETDIR}/conf/Config.nmis" ]; then
+				NMIS9DIR="${TARGETDIR}"
 		else
 				NMIS9DIR=''
 				return 1
