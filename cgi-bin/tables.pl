@@ -450,7 +450,9 @@ sub editTable
 	my $T;
 	return if (!($T = loadReqTable(table=>$table,msg=>'false'))
 						 and $Q->{act} =~ /edit/); # load requested table
-
+	if ($T =~ /loadtable/) {
+		$T = {};
+	}
 	my $CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table);
 
 	my $func = ($Q->{act} eq 'config_table_add') ? 'doadd' : 'doedit';
@@ -666,6 +668,10 @@ sub doeditTable
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
 	my $T = loadReqTable(table=>$table,msg=>'false');
+	
+	if ($T =~ /loadtable/) {
+		$T = {};
+	}
 
 	my $CT = Compat::NMIS::loadCfgTable(user => $AU->User, table=>$table);
 	my $TAB = Compat::NMIS::loadGenericTable('Tables');
@@ -696,7 +702,10 @@ sub doeditTable
 	}
 
 	# make room, make room! accessing a nonexistent $T->{$key} does NOT attach it to $T...
-	my $thisentry  = $T->{$key} ||= {};
+	my $thisentry = {};
+	if (ref($T) eq "HASH") {
+		$thisentry  = $T->{$key} ||= {};
+	}
 	my $isIPv6 = $Q->{ip_protocol} eq "IPv6";
 
 	# store new values in table structure
