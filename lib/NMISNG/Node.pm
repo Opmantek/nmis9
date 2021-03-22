@@ -836,8 +836,8 @@ sub inventory
 		{
 			# sort above ensures that we return the same 'first' object every time,
 			# even in that clash/duplicate case
-			$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args));
-
+			$self->nmisng->log->warn("Inventory search returned more than one value, using the first!");
+			$self->nmisng->log->debug6("Inventory search returned more than one value, using the first!".Dumper(\%args));
 			# HOWEVER, if we can we'll return the first non-historic object
 			# as the most useful of all bad choices
 			my $rawdata = $model_data->data; # inefficient is fine here
