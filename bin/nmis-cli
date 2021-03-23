@@ -1140,7 +1140,7 @@ sub collectTopData
 	
 	foreach my $line (split /[\r\n]+/, $output) {
 	  
-	  if ( $line =~ /top - (\d+\:\d+\:\d+) up (\d+) days,  (\d+\:\d+),  (\d+) users,  load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/ ) {
+	  if ( $line =~ /top - (\d+\:\d+\:\d+) up (\d+) days,\s+(\d+\:\d+),\s+(\d+) users?,\s+load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/ ) {
 		  $data{load} = $5;
 		  $data{users} = $4;
 	  }
@@ -1156,13 +1156,13 @@ sub collectTopData
 		  $data{cpuSi} = $7;
 		  $data{cpuSt} = $8;
 	  }
-	  elsif ( $line =~ /KiB Mem :  (\d+) total,   (\d+) free,  (\d+) used,  (\d+) buff\/cache/ ) {
+	  elsif ( $line =~ /KiB Mem :\s+(\d+) total,\s+(\d+) free,\s+(\d+) used,\s+(\d+) buff\/cache/ ) {
 		  $data{memTotal} = $1;
 		  $data{memFree} = $2;
 		  $data{memUsed} = $3;
 		  $data{membuff} = $4;
 	  }
-	  elsif ( $line =~ /KiB Swap:  (\d+) total,  (\d+) free,    (\d+) used.  (\d+) avail Mem/ ) {
+	  elsif ( $line =~ /KiB Swap:\s+(\d+) total,\s+(\d+) free,\s+(\d+) used.\s+(\d+) avail Mem/ ) {
 		  $data{swaptotal} = $1;
 		  $data{swapfree} = $2;
 		  $data{swapused} = $3;
