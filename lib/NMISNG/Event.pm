@@ -707,10 +707,12 @@ sub load
 
 		foreach my $key ( keys %$event_in_db )
 		{
-			if ( !$only_take_missing || !defined( $self->$key() ) )
-			{
+			eval {
+				$self->$key();
+			};
+			if ($@ || !$only_take_missing) {
 				# use setter/getter if it's defined, otherwise it's 'custom_data'
-				#
+			 	#
 				# hence, in this loop '$self->event()' will not be called when $key='event' SO 'event_previous' will not be set
 				# likewise, in this loop '$self->level()' will not be called when $key='level' SO 'level_previous' will not be set
 				# 'event' and 'level' keys are set in $self->custom_data() here:
