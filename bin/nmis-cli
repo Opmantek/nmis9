@@ -1144,9 +1144,13 @@ sub collectTopData
 		  $data{load} = $5;
 		  $data{users} = $4;
 	  }
+	  elsif ( $line =~ /top - (\d+\:\d+\:\d+) up\s+(\d+\:\d+),\s+(\d+) users?,\s+load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/ ) {
+		  $data{load} = $5;
+		  $data{users} = $4;
+	  }
 	  ## Regular expression magic to grab what you want
 	  # 			    %Cpu(s):  0.2 us,  0.0 sy,  0.0 ni, 99.7 id,  0.0 wa,  0.0 hi,  0.2 si,  0.0 st
-	  elsif ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s+(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
+	  elsif ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
 		  $data{cpuUser} = $1;
 		  $data{cpuSys} = $2;
 		  $data{cpuNice} = $3;
@@ -1156,13 +1160,13 @@ sub collectTopData
 		  $data{cpuSi} = $7;
 		  $data{cpuSt} = $8;
 	  }
-	  elsif ( $line =~ /KiB Mem :\s+(\d+) total,\s+(\d+) free,\s+(\d+) used,\s+(\d+) buff\/cache/ ) {
+	  elsif ( $line =~ /[MK]iB Mem :\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used,\s+(\d+\.?\d*) buff\/cache/ ) {
 		  $data{memTotal} = $1;
 		  $data{memFree} = $2;
 		  $data{memUsed} = $3;
 		  $data{membuff} = $4;
 	  }
-	  elsif ( $line =~ /KiB Swap:\s+(\d+) total,\s+(\d+) free,\s+(\d+) used.\s+(\d+) avail Mem/ ) {
+	  elsif ( $line =~ /[MK]iB Swap:\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used.\s+(\d+\.?\d*) avail Mem/ ) {
 		  $data{swaptotal} = $1;
 		  $data{swapfree} = $2;
 		  $data{swapused} = $3;
