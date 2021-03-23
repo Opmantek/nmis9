@@ -2764,7 +2764,7 @@ sub update_intf_info
 						}
 
 						# only save the IP if we have a valid IP subnet.
-						if ( defined $subnet and $subnet ne "" ) {
+						if ( $ip =~ /fe80/ or ( defined $subnet and $subnet ne "" ) )   {
 							my $type = $version == 4 ? "ipv4" : "ipv6";
 							$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
 							$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
@@ -2776,9 +2776,7 @@ sub update_intf_info
 						else {
 							$self->nmisng->log->debug2("Skipping IP $ip ifIndex=$index, appears bad, no IP Subnet defined, mask=$mask version=$version");
 						}
-
 					}
-
 				}
 			}
 
