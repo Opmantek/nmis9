@@ -2655,52 +2655,63 @@ sub update_intf_info
 		}
 		else
 		{
+			my $ifAdEntTable;
 			my $ifMaskTable;
 			my %ifCnt;
+
+			# some devices do not have complete address data in one MIB so we have to check them all.....
+			my $ipCrossIndex;
+
 			$self->nmisng->log->debug2("Getting Device IP Address Table");
+
+			# First lets get the IP-MIB v1 (IPv4 only), should work with MANY devices.
+			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex') )
+			{
+				$self->nmisng->log->debug2("Processing IP-MIB v1 IP Address Table");
+				$ifMaskTable = $SNMP->getindex('ipAdEntNetMask');
+				foreach my $addr ( Net::SNMP::oid_lex_sort( keys %{$ifAdEntTable} ) )
+				{
+					my $index = $ifAdEntTable->{$addr};
+					next if ( $singleInterface and $intf_one ne $index );
+					$ifCnt{$index} += 1;
+
+					my $mask = "";
+					$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
+					# this is not so good with ipv4 subnet mask
+					#$mask = Compat::IP::netmask2prefix($mask);
+
+					my $target = $target_table->{$index};
+					# NOTE: inventory, breaks index convention here! not a big deal but it happens
+					my $version;
+					(   $target->{"ipSubnet$ifCnt{$index}"},
+						$target->{"ipSubnetBits$ifCnt{$index}"},
+						$version
+					) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
+
+					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
+					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
+					$target->{"ipAdEntType$ifCnt{$index}"} = "ipv4";
+
+					$ipCrossIndex->{$addr}{ifIndex} = $index;
+					$ipCrossIndex->{$addr}{ip} = $addr;
+					$ipCrossIndex->{$addr}{mask} = $mask;
+					$ipCrossIndex->{$addr}{count} = $ifCnt{$index};
+
+					$self->nmisng->log->debug2("ipAdEntIfIndex ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
+				}
+			}
 
 			# IP-MIB v2 (IPv4 + IPv6)
 			my $ipv6_source = undef;
 			my $addrIfIndex = 'ipAddressIfIndex';
 			my $addrPrefix = 'ipAddressPrefix';
 			my $addrType = 'ipAddressType';
-			my $ifAdEntTable = $SNMP->getindex($addrIfIndex);
+			$ifAdEntTable = $SNMP->getindex($addrIfIndex);
 			my $ipMibV2Available = (defined $ifAdEntTable);
 			
 			if (!$ipMibV2Available)
 			{
-				# IP-MIB v1 (IPv4 only)
-				if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex') )
-				{
-					$self->nmisng->log->debug2("IP-MIB v1");
-					$ifMaskTable = $SNMP->getindex('ipAdEntNetMask');
-					foreach my $addr ( Net::SNMP::oid_lex_sort( keys %{$ifAdEntTable} ) )
-					{
-						my $index = $ifAdEntTable->{$addr};
-						next if ( $singleInterface and $intf_one ne $index );
-						$ifCnt{$index} += 1;
-
-						my $mask = "";
-						$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
-						# this is not so good with ipv4 subnet mask
-						#$mask = Compat::IP::netmask2prefix($mask);
-
-						my $target = $target_table->{$index};
-						# NOTE: inventory, breaks index convention here! not a big deal but it happens
-						my $version;
-						(   $target->{"ipSubnet$ifCnt{$index}"},
-							$target->{"ipSubnetBits$ifCnt{$index}"},
-							$version
-						) = Compat::IP::ipSubnet( address => $addr, mask => $mask );
-
-						$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
-						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
-						$target->{"ipAdEntType$ifCnt{$index}"} = "ipv4";
-
-						$self->nmisng->log->debug2("ipAdEntIfIndex ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
-					}
-				}
-
+				$self->nmisng->log->debug2("Need to Try CISCO-IETF-IP-MIB (IPv6 only)");
 				# also try CISCO-IETF-IP-MIB (IPv6 only)
 				$addrIfIndex = 'cIpAddressIfIndex';
 				$addrPrefix = 'cIpAddressPrefix';
@@ -2712,7 +2723,7 @@ sub update_intf_info
 			if ( $ifAdEntTable )
 			{
 				$ipv6_source = $ipMibV2Available ? "IP-MIB v2" : "CISCO-IETF-IP-MIB";
-				$self->nmisng->log->debug2("IPv6 Source: $ipv6_source");
+				$self->nmisng->log->debug2("IPv6 Source: $ipv6_source, addrPrefix=$addrPrefix");
 				$ifMaskTable = $SNMP->getindex($addrPrefix);
 				my $ipAddressTypeTable = $SNMP->getindex($addrType);
 				my $UNICAST = 1;
@@ -2726,8 +2737,6 @@ sub update_intf_info
 						next if $ipAddressTypeTable->{$addr} != $UNICAST;
 					}
 
-					$ifCnt{$index} += 1;
-
 					my $mask = "";
 					$mask = $ifMaskTable->{$addr} if ($ifMaskTable);
 
@@ -2739,24 +2748,37 @@ sub update_intf_info
 					my $target = $target_table->{$index};
 					my $ip = Compat::IP::oid2ip($addr);
 
-					# TODO: check usages and make it IPv6 compatible if needed
-					my $version;
-					(   $target->{"ipSubnet$ifCnt{$index}"},
-						$target->{"ipSubnetBits$ifCnt{$index}"},
-						$version
-					) = Compat::IP::ipSubnet( address => $ip, mask => $mask );
+					# skip the IP address if we already have it.
+					if ( defined $ipCrossIndex->{$ip} and $ipCrossIndex->{$ip}{ip} eq $ip ) {
+						$self->nmisng->log->debug2("Skipping $ip, already got it, ifIndex=$ipCrossIndex->{$ip}{ifIndex} count=ifIndex=$ipCrossIndex->{$ip}{count}");
+					}
+					else {
+						$ifCnt{$index} += 1;
+						
+						# TODO: check usages and make it IPv6 compatible if needed
+						my ( $subnet, $bits, $version ) = Compat::IP::ipSubnet( address => $ip, mask => $mask );
 
-					# this is mask a single digit e.g. 24? convert to dotted notation
-					if ( $version == 4 and $mask =~ /^\d+$/ ) {
-						$mask = Compat::IP::ipBitsToMask(bits => $mask);
+						# this is mask a single digit e.g. 24? convert to dotted notation
+						if ( $version == 4 and $mask =~ /^\d+$/ ) {
+							$mask = Compat::IP::ipBitsToMask(bits => $mask);
+						}
+
+						# only save the IP if we have a valid IP subnet.
+						if ( defined $subnet and $subnet ne "" ) {
+							my $type = $version == 4 ? "ipv4" : "ipv6";
+							$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
+							$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
+							$target->{"ipAdEntType$ifCnt{$index}"} = $type;
+							$target->{"ipSubnet$ifCnt{$index}"} = $subnet;
+							$target->{"ipSubnetBits$ifCnt{$index}"} = $bits;
+							$self->nmisng->log->debug2("$ipv6_source ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});							
+						}
+						else {
+							$self->nmisng->log->debug2("Skipping IP $ip ifIndex=$index, appears bad, no IP Subnet defined, mask=$mask version=$version");
+						}
+
 					}
 
-					my $type = $version == 4 ? "ipv4" : "ipv6";
-					$target->{"ipAdEntAddr$ifCnt{$index}"}    = $ip;
-					$target->{"ipAdEntNetMask$ifCnt{$index}"} = $mask;
-					$target->{"ipAdEntType$ifCnt{$index}"} = $type;
-
-					$self->nmisng->log->debug2("$ipv6_source ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
 				}
 			}
 
