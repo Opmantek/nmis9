@@ -3132,7 +3132,7 @@ sub update_intf_info
 					$self->nmisng->log->info("Checking inventory error. Index $index not the same ". $inventory->data->{index});
 					
 					# Get rid of the old data 
-					my ($successdelete, $msg) = $inventory->delete(keep_rrd => );
+					my ($successdelete, $msg) = $inventory->delete(keep_rrd => 1);
 					$self->nmisng->log->debug("Removed historic inventory was successfull") if ($successdelete);
 					
 					# And create new information
@@ -4578,8 +4578,6 @@ sub collect_systemhealth_info
 					
 					# Regenerate storage: If db name has changed, we need this
 					$self->nmisng->log->debug("collect_systemhealth_info check storage $section");
-					my $inv = $inventory->find_subconcept_type_storage(type => "rrd",
-																		subconcept => $section );
 					if ($inventory->find_subconcept_type_storage(type => "rrd",
 																subconcept => $section )) {
 							my $dbname = $S->makeRRDname(graphtype => $section,
