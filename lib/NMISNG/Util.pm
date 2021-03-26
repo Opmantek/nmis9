@@ -146,6 +146,14 @@ sub convertIfName {
 	return $ifName
 }
 
+sub filterName {
+	my $name = shift;
+	$name =~ s/\//-/g;
+	$name =~ s/\s+//g;
+
+	return $name;
+}
+
 # remove undesirable characters from ifdescr strings
 sub rmBadChars
 {

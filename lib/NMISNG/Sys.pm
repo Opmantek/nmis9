@@ -1959,6 +1959,7 @@ sub prep_extras_with_catchalls
 					$extras->{$key} ||= $interface_inventory->$key();
 
 				}
+
 				$extras->{ifDescr} ||=  NMISNG::Util::convertIfName($interface_inventory->ifDescr());
 				$extras->{ifMaxOctets} ||= $interface_inventory->max_octets();
 				$extras->{maxBytes}    ||= $interface_inventory->max_bytes();
@@ -2017,7 +2018,7 @@ sub parseString
 {
 	my ( $self, %args ) = @_;
 
-	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory"};
+	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory, $filter ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory", "filter"};
 
 	$self->nmisng->log->debug3( "parseString:: sect:$sect, type:$type, string to parse '$str'");
 	# if there is no eval and no variables for substitution are found, just return
@@ -2086,9 +2087,17 @@ sub parseString
 			# no look-ahead assertion is possible, we don't know what the string is used for...
 			if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g )
 			{
+				if ($filter) {
+					$str = $presubst;
+					my $str2 = NMISNG::Util::filterName($extras->{$maybe});
+					$str =~ s/(\$$maybe|\$\{$maybe\})/$str2/g;
+					$self->nmisng->log->debug3( "substituted '$maybe', str before '$presubst', after '$str'" );
+				}
+			
 				$self->nmisng->log->debug3( "substituted '$maybe', str before '$presubst', after '$str'" );
 				# print "substituted '$maybe', str before '$presubst', after '$str'\n";
 			}
+			
 		}
 	}
 	# no luck and no evaluation possible/allowed? give up, and do it loudly!
@@ -2342,7 +2351,8 @@ sub makeRRDname
 																	item => $safeitem,
 																	extras => \%safeextras,
 																	inventory => $inventory,
-																	'eval' => 0); # only expand, no expression to evaluate
+																	'eval' => 0, # only expand, no expression to evaluate
+																	filter => 1); # Remove blanks and backslash
 	if (!$dbpath)
 	{
 		$self->nmisng->log->error("makeRRDname: expansion of $template failed!");
@@ -2380,7 +2390,7 @@ sub create_update_rrd
 																 index => $index,
 																 item => $item,
 																 relative => 1);
-
+    
 	if (!$dbname)
 	{
 		$self->nmisng->log->error("create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
