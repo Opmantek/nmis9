@@ -1136,7 +1136,7 @@ sub collectTopData
 	#my($year, $mon, $day, $hour, $min) = $date =~ /^(\d{4}) (\d{2}) (\d{2})\ (\d{2}):(\d{2})$/x;
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
 	$year += 1900;
-	$data{date} = "$year/$mon/$mday";
+	$data{date} = "$year/$mon/$mday $hour:$min:$sec";
 	
 	foreach my $line (split /[\r\n]+/, $output) {
 	  
