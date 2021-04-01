@@ -6270,6 +6270,21 @@ sub update
 	{
 		$self->unlock(lock => $lock);
 		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
+		
+		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+		
+		my $old_data = $inventory->data();
+		if ($old_data) {
+			$old_data->{'last_update_attempt'} = Time::HiRes::time;
+		
+			$inventory->data($old_data);
+			my ($save, $error2) = $inventory->save();
+			
+			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		} else {
+			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
+		}
+		
 		return { error => "Sys init failed: ".$S->status->{error} };
 	}
 
