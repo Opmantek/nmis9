@@ -6423,7 +6423,7 @@ sub update
 	}
 	else
 	{
-		push @problems, "Node is unreachable, cannot perform update.";
+		push @problems, "Node $name is unreachable, cannot perform update.";
 	}
 
 	# don't let it make the rrd update, we want to add updatetime!
@@ -8169,7 +8169,23 @@ sub collect
 	{
 		$self->nmisng->log->debug( "Sys init for $name failed: "
 													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
-
+		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+		
+		my $old_data = $inventory->data();
+		if ($old_data) {
+			my $polltime = Time::HiRes::time;
+			$old_data->{'last_poll_snmp_attempt'} = $polltime;
+			$old_data->{'last_poll_wmi_attempt'} = $polltime;
+			$old_data->{'last_poll_attempt'} = $polltime;
+		
+			$inventory->data($old_data);
+			my ($save, $error2) = $inventory->save();
+			
+			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		} else {
+			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
+		}
+		
 		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # 'upgrade' the one lock we currently hold
 		# collect will have to wait until a next run...but do clean the lock up now

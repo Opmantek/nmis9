@@ -1659,7 +1659,7 @@ sub worker_loop
 
 					# locked is not-quite an error, so we report it as informational
 					$state->{status} = $result->{success}? "ok": $result->{locked}? "info" : "error";
-					$state->{details} = $result->{success}? "completed successfully" : "failed: $result->{error}";
+					$state->{details} = $result->{success}? "completed successfully (".$thenode->name.")" : "failed: $result->{error}";
 				}
 				else
 				{
