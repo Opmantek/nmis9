@@ -1804,9 +1804,9 @@ sub fping_loop
 				("-i", $non_root_interval, "-p", $non_root_target_interval)
 			);
 
-	my @fpingargs4 = ('-4');
+	my @fpingargs4 = ('−−ipv4');
 	push @fpingargs4, @fpingargs;
-	my @fpingargs6 = ('-6');
+	my @fpingargs6 = ('−−ipv6');
 	push @fpingargs6, @fpingargs;
 
 	my %state;
