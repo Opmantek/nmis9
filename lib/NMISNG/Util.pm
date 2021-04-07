@@ -146,10 +146,12 @@ sub convertIfName {
 	return $ifName
 }
 
+# Used by makeRRDname to remove blanks 
+# and /
 sub filterName {
 	my $name = shift;
 	$name =~ s/\//-/g;
-	$name =~ s/\s+//g;
+	$name =~ s/\s+/-/g;
 
 	return $name;
 }
@@ -3057,6 +3059,39 @@ sub type_which
 sub array_diff(\@\@) {
         my %e = map { $_ => undef } @{$_[1]};
         return @{[ ( grep { (exists $e{$_}) ? ( delete $e{$_} ) : ( 1 ) } @{ $_[0] } ), keys %e ] };
+}
+
+
+# Replace 
+sub replace_files_recursive {
+	my ($path, $new, $old, $extension) = @_;
+	my $nmisng = Compat::NMIS::new_nmisng();
+	$nmisng->log->info("Replacing $new for $old in $path ");
+
+	if (opendir(DIR, $path)) {
+		my $filename;
+		while ($filename = readdir(DIR)) {
+			my $filepath = $path . "/" . $filename;
+			$nmisng->log->debug("Checking $filepath ");
+			if ( -d $filepath && $filename ne "." && $filename ne "..") {
+				replace_files_recursive($filepath, $new, $old, $extension);
+			} else {
+				# Only .nmis files
+				next unless ($filename =~ m/\.$extension$/);
+				
+				my $replaced = $path;
+				$replaced =~ s/$old/$new/g;
+				$nmisng->log->debug("Replacing $filepath = $replaced");
+				if ($filepath ne $replaced) {
+					my $output = `mv $filepath $replaced`;
+					$nmisng->log->info("mv $filepath into $replaced result: $output ");
+				}
+			}
+			
+		}
+		closedir(DIR);
+	}
+	return 1;
 }
 
 1;

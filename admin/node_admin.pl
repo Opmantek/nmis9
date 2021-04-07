@@ -95,6 +95,7 @@ This server is a $server_role. This is why the number of actions is restricted.
 \t$bn act=set {node=nodeX|uuid=nodeUUID} entry.X=Y... [server={server_name|cluster_id}]
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename {old=nodeX|uuid=nodeUUID} new=nodeY [entry.A=B...]
+\t$bn act=move-nmis8-rrd-files {node=nodeX|uuid=nodeUUID}
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
@@ -834,6 +835,34 @@ elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 				if (-t \*STDERR);								# if terminal
 
 	}
+	exit 0;
+}
+elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "POLLER")
+{
+	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safest for lookup
+
+	die "Cannot move files without node argument!\n\n$usage\n"
+			if (!$node && !$uuid);
+			
+	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
+
+	# TODO: Mark for update with status
+	die "Node $node does not exist.\n" if (!$nodeobj);
+	$node ||= $nodeobj->name;			# if looked up via uuid
+
+	my $old = lc($node); 
+	my $dir = $config->{database_root}. "/nodes/$old";
+	my $newdir = $config->{database_root}. "/nodes/$node";
+	
+	if ( !-d $newdir ) {
+		my $output = `mkdir $newdir`;
+	}
+	
+	NMISNG::Util::replace_files_recursive($dir, $node, $old, "rrd");
+	
+	print STDERR "Successfully moved node rrd files $cmdline->{name}.\n"
+			if (-t \*STDERR);
+
 	exit 0;
 }
 # template is deeply structured, just like output of act=export (EXCEPT for act=export format=nodes)
