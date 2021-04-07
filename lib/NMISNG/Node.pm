@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.2";
+our $VERSION = "9.2a";
 
 use strict;
 
@@ -6421,7 +6421,7 @@ sub update
 	}
 	else
 	{
-		push @problems, "Node is unreachable, cannot perform update.";
+		push @problems, "Node $name is unreachable, cannot perform update.";
 	}
 
 	# don't let it make the rrd update, we want to add updatetime!
