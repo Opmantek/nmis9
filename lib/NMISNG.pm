@@ -1570,7 +1570,7 @@ sub find_due_nodes
 	# dynamic node information, by node uuid
 	my %node_info_ro = map { ( $_->{node_uuid} => $_->{data} ) } ( @{$accessor->data} );
 
-	my $now = time;
+	my $now = Time::HiRes::time;
 	my ( %due, %flavours, %procs, %services, %newnodes );
 	for my $maybe ( keys %cands )    # nodes by uuid
 	{

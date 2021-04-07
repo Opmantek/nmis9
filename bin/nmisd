@@ -1765,7 +1765,8 @@ sub fping_loop
 	my $config = $nmisng->config;
 	my $ttl = $max_cycles;
 
-	my $fpingpath;
+	my $fpingpath4;
+	my $fpingpath6;
 
 	# new fping options for "interval between sending ping packets" and "interval between ping packets to one target"
 	# some crazy firewalls like to have larger gaps, so -i 80 and -p 100 could be used in the config.
@@ -1804,11 +1805,6 @@ sub fping_loop
 				("-i", $non_root_interval, "-p", $non_root_target_interval)
 			);
 
-	my @fpingargs4 = ('-4');
-	push @fpingargs4, @fpingargs;
-	my @fpingargs6 = ('-6');
-	push @fpingargs6, @fpingargs;
-
 	my %state;
 	my $parent = getppid;
 
@@ -1824,19 +1820,37 @@ sub fping_loop
 			next;
 		}
 		# on first startup, find the fping executable
-		if (!defined $fpingpath)
+		if (!defined $fpingpath4)
 		{
 			for my $pathcomp (split(/:/, $ENV{PATH}))
 			{
 				if (-x(my $maybe = "$pathcomp/fping"))
 				{
-					$fpingpath = $maybe;
+					$fpingpath4 = $maybe;
 					last;
 				}
 			}
-			if (!defined $fpingpath)
+			if (!defined $fpingpath4)
 			{
 				$nmisng->log->fatal("no fping executable available! sleeping 60 seconds");
+				sleep(60);
+				next;
+			}
+		}
+		# And fping6 executable
+		if (!defined $fpingpath6)
+		{
+			for my $pathcomp (split(/:/, $ENV{PATH}))
+			{
+				if (-x(my $maybe = "$pathcomp/fping6"))
+				{
+					$fpingpath6 = $maybe;
+					last;
+				}
+			}
+			if (!defined $fpingpath6)
+			{
+				$nmisng->log->fatal("no fping6 executable available! sleeping 60 seconds");
 				sleep(60);
 				next;
 			}
@@ -1985,8 +1999,9 @@ sub fping_loop
 		while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
 		{
 			my %ip2staterec;
-			my @cmd4 = ($fpingpath, @fpingargs4);
-			my @cmd6 = ($fpingpath, @fpingargs6);
+			my @cmd4 = ($fpingpath4, @fpingargs);
+			my @cmd6 = ($fpingpath6, @fpingargs);
+			my ($hasip4, $hasip6);
 			
 			for my $statekey (@chunk)
 			{
@@ -1994,17 +2009,25 @@ sub fping_loop
 				if ($state{$statekey}->{ip_protocol} eq 'IPv6')
 				{
 					push @cmd6, $thisip;
+					$hasip6 = 1;
 				}
 				else
 				{
 					push @cmd4, $thisip;
+					$hasip4 = 1;
 				}
 
 				$ip2staterec{$thisip} //= [];
 				push @{$ip2staterec{$thisip}}, $statekey;
 			}
 
-			my @cmd = (("("),@cmd4,(";"),@cmd6,(")"));
+			my @cmd;
+			push @cmd, ("(");
+			push @cmd, @cmd4 if ($hasip4);
+			push @cmd, (";") if ($hasip4 && $hasip6);
+			push @cmd, @cmd6 if ($hasip6);
+			push @cmd, (")");
+			
 			$nmisng->log->debug("about to run: ".join(" ",@cmd));
 
 			# pity that fping reports on stderr, NOT stdout; so we need

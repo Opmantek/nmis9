@@ -6252,6 +6252,22 @@ sub update
 	{
 		$self->unlock(lock => $lock);
 		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
+		
+		# Update last attempt
+		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+		
+		my $old_data = $inventory->data();
+		if ($old_data) {
+			$old_data->{'last_update_attempt'} = Time::HiRes::time;
+		
+			$inventory->data($old_data);
+			my ($save, $error2) = $inventory->save();
+			
+			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		} else {
+			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
+		}
+
 		return { error => "Sys init failed: ".$S->status->{error} };
 	}
 
@@ -8151,7 +8167,24 @@ sub collect
 	{
 		$self->nmisng->log->debug( "Sys init for $name failed: "
 													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
-
+		# Update last collect attempts
+		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+		
+		my $old_data = $inventory->data();
+		if ($old_data) {
+				my $polltime = Time::HiRes::time;
+				$old_data->{'last_poll_snmp_attempt'} = $polltime;
+				$old_data->{'last_poll_wmi_attempt'} = $polltime;
+				$old_data->{'last_poll_attempt'} = $polltime;
+			
+				$inventory->data($old_data);
+				my ($save, $error2) = $inventory->save();
+				
+				$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		} else {
+				$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
+		}
+		
 		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # 'upgrade' the one lock we currently hold
 		# collect will have to wait until a next run...but do clean the lock up now
