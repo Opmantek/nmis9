@@ -322,6 +322,10 @@ my %hash = (
     'auth_cw_company_id' => '',
     'auth_cw_public_key' => '',
     'auth_cw_private_key' => '',
+    'max_sessions_enabled' => 'false',
+    'max_sessions' => 3,
+    'expire_users' => 'false',
+    'expire_users_after' => 86400 * 90 # 3 months 
   },
 
   'tools' => {

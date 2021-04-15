@@ -48,6 +48,7 @@ use NMISNG;
 use NMISNG::Log;
 use NMISNG::Util;
 use NMISNG::Outage;
+use NMISNG::Auth;
 
 use Compat::NMIS;
 
@@ -85,6 +86,11 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=outage-help for more detailed help
  act=collect-performance-data 
  act=collect-top-data
+ 
+ act=clean-sessions user=<username>
+ act=get-sessions user=<username>
+ act=set-last-login user=<username> last_login=<last_login>
+ act=unlock-user user=<username>
  
 \n";
 
@@ -974,6 +980,27 @@ elsif ($Q->{act} eq 'check_inventory')
 		print "Result: ".Dumper($entries);
 	}
 }
+elsif ($Q->{act} =~ /clean[-_]sessions/)
+{
+	my $user = $Q->{user};
+	clean_sessions(user => $user);
+}
+elsif ($Q->{act} =~ /get[-_]sessions/)
+{
+	my $user = $Q->{user};
+	get_sessions(user => $user);
+}
+elsif ($Q->{act} =~ /set[-_]last[-_]login/)
+{
+	my $user = $Q->{user};
+	my $last_login = $Q->{last_login};
+	set_last_login(user => $user, last_login => $last_login);
+}
+elsif ($Q->{act} =~ /unlock[-_]user/)
+{
+	my $user = $Q->{user};
+	unlock_user(user => $user);
+}
 else
 {
 	die $usage;
@@ -1193,3 +1220,75 @@ sub collectTopData
 	system("chown","-R", "$user:$group", $file);
 	system("chmod","-R","g+rw", $file);
 }
+
+# Clean user sessions
+sub clean_sessions
+{
+	my %args = @_;
+	my $user = $args{user};
+	
+	die "Needs a user to remove the sessions!\n" if (!$user);
+	my $auth = new NMISNG::Auth;
+	my ($error, $count) = $auth->get_live_session_counter(user => $user, remove_all => 1);
+	print "$error \n" if ($error);
+	print "$count sessions left for $user " if ($count);
+}
+
+# Get user sessions
+sub get_sessions
+{
+	my %args = @_;
+
+	my $auth = new NMISNG::Auth;
+	my $all = $auth->get_all_live_session_counter();
+	foreach my $user (keys %{$all}) {
+		print " $user: ". $all->{$user}->{sessions} . "\n"; 
+	}
+}
+
+# Set last login
+sub set_last_login
+{
+	my %args = @_;
+	my $user = $args{user};
+	my $lastlogin = $args{lastlogin};
+	
+	die "Needs a user or last login to set last login!\n" if (!$user or !$lastlogin);
+	
+	my $auth = new NMISNG::Auth;
+	my ($success, $error) = $auth->update_last_login(user => $user, lastlogin => $lastlogin);
+	if ($error) {
+		if ($error =~ /Permission/) {
+			print "Must be run as root \n";
+		} else {
+			print "$error"; 
+		}
+		
+	} else {
+		print "set_last_login. Done \n"; 
+	}
+	
+}
+
+# Set last login
+sub unlock_user
+{
+	my %args = @_;
+	my $user = $args{user};
+	die "Needs a user or last login to set last login!\n" if (!$user);
+	
+	my $auth = new NMISNG::Auth;
+	my ($success, $error) = $auth->update_last_login(user => $user, remove => 1);
+	if ($error) {
+		if ($error =~ /Permission/) {
+			print "Must be run as root \n";
+		} else {
+			print "$error \n"; 
+		}
+		
+	} else {
+		print "unlock_user $user. Done \n"; 
+	}
+	
+}
+
