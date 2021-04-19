@@ -3062,19 +3062,33 @@ sub array_diff(\@\@) {
 }
 
 
-# Replace 
+# Replace directory names
+# Migrate nmis8 node lowercase names
+# Recursive
+# if the file exists, it wont be replaced ( mv -n )
+# @returns the number of moved files
 sub replace_files_recursive {
 	my ($path, $new, $old, $extension) = @_;
 	my $nmisng = Compat::NMIS::new_nmisng();
 	$nmisng->log->info("Replacing $new for $old in $path ");
 
+	my $total = 0;
+	
+	my $replaced = $path;
+	$replaced =~ s/$old/$new/g;
+				
+	if ( !-d $replaced ) {
+		my $output = `mkdir $replaced`;
+		$nmisng->log->info("Replacing $new for $old in $path : $output");
+	}
+	
 	if (opendir(DIR, $path)) {
 		my $filename;
 		while ($filename = readdir(DIR)) {
 			my $filepath = $path . "/" . $filename;
 			$nmisng->log->debug("Checking $filepath ");
 			if ( -d $filepath && $filename ne "." && $filename ne "..") {
-				replace_files_recursive($filepath, $new, $old, $extension);
+				$total = $total + replace_files_recursive($filepath, $new, $old, $extension);
 			} else {
 				# Only .nmis files
 				next unless ($filename =~ m/\.$extension$/);
@@ -3082,16 +3096,17 @@ sub replace_files_recursive {
 				my $replaced = $path;
 				$replaced =~ s/$old/$new/g;
 				$nmisng->log->debug("Replacing $filepath = $replaced");
+				$total++;
 				if ($filepath ne $replaced) {
-					my $output = `mv $filepath $replaced`;
-					$nmisng->log->info("mv $filepath into $replaced result: $output ");
+					my $output = `mv -n $filepath $replaced`;
+					$nmisng->log->info("mv $filepath into $replaced  ");
 				}
 			}
 			
 		}
 		closedir(DIR);
 	}
-	return 1;
+	return $total;
 }
 
 1;

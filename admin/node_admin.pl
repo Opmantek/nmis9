@@ -854,13 +854,9 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 	my $dir = $config->{database_root}. "/nodes/$old";
 	my $newdir = $config->{database_root}. "/nodes/$node";
 	
-	if ( !-d $newdir ) {
-		my $output = `mkdir $newdir`;
-	}
+	my $total = NMISNG::Util::replace_files_recursive($dir, $node, $old, "rrd");
 	
-	NMISNG::Util::replace_files_recursive($dir, $node, $old, "rrd");
-	
-	print STDERR "Successfully moved node rrd files $cmdline->{name}.\n"
+	print STDERR "Successfully moved $total node rrd files $cmdline->{name}.\n"
 			if (-t \*STDERR);
 
 	exit 0;
