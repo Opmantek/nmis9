@@ -254,6 +254,10 @@ function	createDialog(opt) {
 	var dialogContainer;
 	var dialogHandle;
 
+	// Make sure all the requested urls go under the same protocol
+	if (location.protocol === 'https:') {
+		opt.url = opt.url.replace('http://','https://');
+	}
 	// log widget fixup
 	// all log types to go to same widget
 	// update title of widget to reflect log name
@@ -337,7 +341,6 @@ function	createDialog(opt) {
 		objData.options.title = opt.title;
 		dialogHandle.dialog( "option", "title", opt.title );
 	}
-
 
 	// get some additional content
 	// but only if we have an URL !!
