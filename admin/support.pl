@@ -245,6 +245,7 @@ sub collect_evidence
 
 	# Get polling summary
 	system("$basedir/admin/polling_summary9.pl >> $targetdir/system_status/polling_summary.txt");
+	# bot
 	if ($bot) {
 		open(my $fh, "<", "$targetdir/system_status/polling_summary.txt")
 			or die "Can't open < polling_summary: $!";
@@ -293,11 +294,41 @@ sub collect_evidence
 	system("df >> $targetdir/system_status/disk_info");
 	system("mount >> $targetdir/system_status/disk_info");
 
+	# bot
+	if ($bot) {
+		open(my $fh, "<", "$targetdir/system_status/disk_info")
+			or die "Can't open < system_status: $!";
+		
+		# Process every line in input.txt
+		while (my $line = <$fh>) {
+			# udev                     3045820         0   3045820   0% /dev
+			if ( $line =~ /%((.+)\/([^\/])+)\s(\d+)\s(\d+)\s(\d+)\s(\d+%)\s((.+)\/([^\/])+)/ ) {
+				$bot_data->{disk}->{$1}->{used} = $3;
+				$bot_data->{disk}->{$1}->{available} = $4;
+				$bot_data->{disk}->{$1}->{use} = $5;
+			}
+		}
+	}
+		
 	system("uname -av > $targetdir/system_status/uname");
 
 	for my $x (glob('/etc/*release'),glob('/etc/*version'))
 	{
 		cp($x, "$targetdir/system_status/osrelease/");
+		# bot
+		if ($bot) {
+			open(my $fh, "<", "$x")
+				or die "Can't open < osrelease: $!";
+			
+			# Process every line in input.txt
+			while (my $line = <$fh>) {
+				if ($line =~ /PRETTY_NAME/) {
+					$line =~ s/PRETTY_NAME=//g;
+					$bot_data->{os_release} = $line;
+					last;
+				}
+			}
+		}
 	}
 
 	if (!$args->{no_system_stats})
@@ -308,6 +339,37 @@ sub collect_evidence
 		system("vmstat 1 5 > $targetdir/system_status/vmstat");
 		system("top -b -n 2 > $targetdir/system_status/top");
 		system("iostat -kx 1 5 > $targetdir/system_status/iostat");
+		# bot
+		if ($bot) {
+			open(my $fh, "<", "$targetdir/system_status/top")
+				or die "Can't open < polling_summary: $!";
+			
+			# Process every line in input.txt
+			while (my $line = <$fh>) {
+				if ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
+					$bot_data->{stats}->{cpuUser} = $1;
+					$bot_data->{stats}->{cpuSys} = $2;
+					$bot_data->{stats}->{cpuNice} = $3;
+					$bot_data->{stats}->{cpuIdle} = $4;
+					$bot_data->{stats}->{cpuWaitIO} = $5;
+					$bot_data->{stats}->{cpuHi} = $6;
+					$bot_data->{stats}->{cpuSi} = $7;
+					$bot_data->{stats}->{cpuSt} = $8;
+				}
+				elsif ( $line =~ /[MK]iB Mem :\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used,\s+(\d+\.?\d*) buff\/cache/ ) {
+					$bot_data->{stats}->{memTotal} = $1;
+					$bot_data->{stats}->{memFree} = $2;
+					$bot_data->{stats}->{memUsed} = $3;
+					$bot_data->{stats}->{membuff} = $4;
+				}
+				elsif ( $line =~ /[MK]iB Swap:\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used.\s+(\d+\.?\d*) avail Mem/ ) {
+					$bot_data->{stats}->{swaptotal} = $1;
+					$bot_data->{stats}->{swapfree} = $2;
+					$bot_data->{stats}->{swapused} = $3;
+					$bot_data->{stats}->{memAvail} = $4;
+				}
+			}
+		}
 	}
 
 	system("date > $targetdir/system_status/date");
@@ -386,9 +448,15 @@ sub collect_evidence
 	}
 
 	# copy all of conf/ and models-custom/ but NOT any stray stuff beneath
+	my $custommodels = 0;
 	for my $x (glob("$basedir/models-custom/*"))
 	{
 		cp($x, "$targetdir/models-custom/");
+		$custommodels++;
+	}
+	# bot
+	if ($bot and $custommodels > 0) {
+		$bot_data->{custom_models} = $custommodels;
 	}
 	for my $x (glob("$basedir/models-default/*"))
 	{
@@ -399,6 +467,15 @@ sub collect_evidence
 		# skip copying Nodes.nmis
 		next if($x =~ m/\/conf\/Nodes.nmis/);
 		cp($x, "$targetdir/conf/");
+	}
+	# Bot: Configuration
+	if ($bot) {
+		my $C = NMISNG::Util::loadConfTable();
+		my $configs = [qw(cluster_id server_name nmisd_scheduler_cycle nmisd_max_workers nmisd_worker_cycle nmisd_worker_max_cycles node_name_rule)];
+		foreach my $c (@$configs)
+		{
+			$bot_data->{config}->{$c} = "$C->{$c}";
+		}
 	}
 	for my $x (glob("$basedir/var/system_performance/*"))
 	{
