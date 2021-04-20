@@ -612,3 +612,23 @@ nmisbut:active.wht {
 {
 		cursor: not-allowed;
 }
+
+.loader {
+  border: 10px solid #f3f3f3;
+  border-top: 10px solid #aaaaaa; 
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 2s linear infinite;
+  position: relative;
+  margin: auto;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

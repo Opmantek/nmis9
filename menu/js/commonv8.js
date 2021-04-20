@@ -277,10 +277,9 @@ function	createDialog(opt) {
 	// see if we have a data entry in our namespace
 	var namespace = 'NMISV8' + opt.id;
 	var objData = $('div#NMISV8').data(namespace);
-
+	var loader = "<div class='loader'></div>";
 	if ( ! objData  ) {
 		// new dialog
-
 			$('div#NMISV8').data(namespace, {
 				id		:		opt.id,
 				options	: opt,
@@ -318,6 +317,9 @@ function	createDialog(opt) {
 
 		dialogContainer =	$('<div id="' + opt.id + '" style="display:none;"></div>');
 		dialogContainer.appendTo('body');
+		// Add loader
+		dialogContainer.html(loader);
+		
 		dialogHandle = dialogContainer.dialog(opt);
 		// tag this dialog with an ID so we know who it is when debugging
 		dialogHandle.dialog("widget").attr( 'id' , opt.id );
