@@ -64,6 +64,7 @@ my $maxlogsize = $cmdline->{maxlogsize} || 4*1024*1024; # 4 meg for individual l
 my $tail = 1000;		# last 1000 lines
 my $maxopstatus = $cmdline->{maxopstatus} || 500;	# last 500 operational statuses
 my $maxoperrors = $cmdline->{maxoperrors} || 100;
+my $bot = $cmdline->{bot} || 0;
 
 my %options;										# dummy-ish, for input_yn and friends
 
@@ -118,6 +119,7 @@ if (ref($nmisng) eq "NMISNG"  && NMISNG::Util->can("selftest") &&  !$cmdline->{n
 
 # collect evidence
 print "collecting support evidence...\n";
+my $bot_data;
 my $status = collect_evidence($targetdir, $cmdline);
 die "failed to collect evidence: $status\n" if ($status);
 
@@ -134,6 +136,9 @@ opendir(D,"$targetdir/logs")
 my @shrinkables = map { "$targetdir/logs/$_" } (grep(/\.log$/, readdir(D)));
 closedir(D);
 
+if ($bot) {
+	run_bot();
+}
 # test zip, shrink logfiles, repeat until small enough or out of shrinkables
 while (-s $zfn > $maxzip)
 {
@@ -208,6 +213,7 @@ sub collect_evidence
 		if ($line =~ /^\s*our\s+\$VERSION\s*=\s*"(.+)";\s*$/)
 		{
 			print F "NMIS Version $1\n";
+			$bot_data->{nmis_version} = $1;
 			last;
 		}
 	}
@@ -239,7 +245,18 @@ sub collect_evidence
 
 	# Get polling summary
 	system("$basedir/admin/polling_summary9.pl >> $targetdir/system_status/polling_summary.txt");
-	
+	if ($bot) {
+		open(my $fh, "<", "$targetdir/system_status/polling_summary.txt")
+			or die "Can't open < polling_summary: $!";
+		
+		# Process every line in input.txt
+		while (my $line = <$fh>) {
+			if ($line =~ /totalNodes/) {
+				$bot_data->{summary} = $line;
+				last;
+			}
+		}
+	}
 	# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
 	# this needs to cover dbdir and vardir if outside
 	system("find -L $dirstocheck -type d -print0| xargs -0 ls -laH > $targetdir/system_status/filelist.txt") == 0
@@ -473,6 +490,21 @@ sub collect_evidence
 			print F @exportdata;
 			close(F);
 		}
+		# Count data
+		if ($bot) {
+			for (
+				[ 'db.queue.find().count()', 'queue'],
+				[ 'db.nodes.find().count()','nodes'],
+				[ 'db.inventory.find().count()', 'inventory'],
+				[ 'db.opstatus.find().count()', 'opstatus'],
+				[ 'db.events.find().count()', 'events'],
+					)
+			{
+				my ($query, $data) = @$_;
+				my $run = "mongo @mongoargs $dbname --eval \"$query\"";
+				$bot_data->{count}->{$data} = `$run`;
+			}
+		}
 	}
 	else
 	{
@@ -480,7 +512,7 @@ sub collect_evidence
 The support tool won't be able to collect database status information!\n");
 		print STDERR "\n\nHit enter to continue:\n";
 		my $x = <STDIN>;
-
+		$bot_data->{count} = "No \"mongo\" client available!";
 		# can't export directly, so try the admin tool
 		system("$basedir/admin/node_admin.pl","act=export","file=$targetdir/db_dumps/nodes.json");
 	}
@@ -625,4 +657,18 @@ sub translate_extended_json
 		$line =~ s/ObjectId\s*\(\s*"([a-fA-F0-9]+)\s*"\s*\)/{"\$oid":"$1"}/g;
 		$line =~ s/NumberLong\s*\(\s*"(\d+)\s*"\s*\)/{"\$numberLong":"$1"}/g;
 	}
+}
+
+sub run_bot
+{
+	print "Running bot... \n";
+	my $outputfile;
+	
+	# TODO: open(F, ">$targetdir/$outputfile")
+	if ( open(F, ">/tmp/bot_report.json"))
+	{
+		NMISNG::Util::writeHashtoFile(file => "/tmp/bot_report.json", data => $bot_data, json => 1);
+		close F;
+	}
+	
 }

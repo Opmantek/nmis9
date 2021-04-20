@@ -999,11 +999,14 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		$nodeobj->unknown(\%unknown);
 	
 		my ($status,$msg) = $nodeobj->save;
-
+	
 		# zero is no saving needed, which is not good here
 		die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
 	
 		my $name = $nodeobj->name;
+		if (!$isnew) {
+			$nmisng->events->cleanNodeEvents($nodeobj, "node_admin");
+		}
 		print STDERR "Successfully ".($isnew? "created":"updated")
 				." node ".$nodeobj->uuid." ($name)\n\n"
 				if (-t \*STDERR);								# if terminal

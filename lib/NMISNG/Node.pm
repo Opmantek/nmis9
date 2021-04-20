@@ -590,6 +590,8 @@ sub delete
 				if (!$ok);
 	}
 
+	# First we should clear all the events
+	$self->eventsClean();
 	# delete all (ie. historic and active) events for this node, irretrievably and immediately
 	# note that eventsClean() is trying other high-level, non-deletion-related stuff
 	# events_model by default filters for filter historic = 0 :-/
