@@ -46,18 +46,26 @@ print "Opmantek NMIS Support Tool Version $VERSION\n";
 die "The Support Tool must be run with root privileges, terminating now.\n"
 		if ($> != 0);
 
-my $usage = "Usage: ".basename($0)." action=collect [public=t/f] [node=nodeA] [node=nodeB...]\n
+my $usage = "Usage: ".basename($0)." action=collect [public=t/f] [node=nodeA] [node=nodeB...] [bot=1] [report_dir=...]\n
 action=collect: collect general support info in an archive file
  if node argument given: also collect node-specific info
  if node='*' then ALL nodes' info will be collected (DATA MIGHT BE HUGE!)
+ args:
+  maxzipsize
+  maxlogsize
+  maxopstatus
+  maxoperrors
+action=run-bot [dir=]
 public: if set to false, then credentials, community, passwords
  and other sensitive data is removed and not included in the archive.
+bot: Will run the bot the generate a nice report
+report_dir: Move the report outside support support zip 
 \n\n";
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-(h|help|\?)/i);
 
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
-die $usage if ($cmdline->{action} ne "collect");
+#die $usage if ($cmdline->{action} ne "collect" or $cmdline->{action} ne "run-bot");
 
 my $maxzip = $cmdline->{maxzipsize} || 10*1024*1024; # 10meg
 my $maxlogsize = $cmdline->{maxlogsize} || 4*1024*1024; # 4 meg for individual log files
@@ -65,12 +73,21 @@ my $tail = 1000;		# last 1000 lines
 my $maxopstatus = $cmdline->{maxopstatus} || 500;	# last 500 operational statuses
 my $maxoperrors = $cmdline->{maxoperrors} || 100;
 my $bot = $cmdline->{bot} || 0;
+my $report_dir = $cmdline->{report_dir};
 
 my %options;										# dummy-ish, for input_yn and friends
 
 # let's try to live without NMIS modules
 my $globalconf = &NMISNG::Util::loadConfTable()
 		// { '<nmis_base>' => Cwd::abs_path("$FindBin::RealBin/../"), };
+# make tempdir for collecting the goods
+my $td = File::Temp::tempdir("/tmp/nmis-support.XXXXXX", CLEANUP => 1);
+my $timelabel = POSIX::strftime("%Y-%m-%d-%H%M",localtime);
+my $reldir = "nmis-collect.$timelabel";
+my $targetdir = "$td/$reldir";
+mkdir($targetdir);
+my $bot_data;
+my ($error, $zfn);
 
 # can we instantiate an nmisng object?
 my $nmisng = eval { require NMISNG; require Compat::NMIS; Compat::NMIS::new_nmisng() };
@@ -81,93 +98,108 @@ if ($@ or ref($nmisng) ne "NMISNG")
 	my $x = <STDIN>;
 	undef $nmisng;
 }
-
-# make tempdir for collecting the goods
-my $td = File::Temp::tempdir("/tmp/nmis-support.XXXXXX", CLEANUP => 1);
-my $timelabel = POSIX::strftime("%Y-%m-%d-%H%M",localtime);
-my $reldir = "nmis-collect.$timelabel";
-my $targetdir = "$td/$reldir";
-mkdir($targetdir);
-
-# selftest is possible
-if (ref($nmisng) eq "NMISNG"  && NMISNG::Util->can("selftest") &&  !$cmdline->{no_selftest})
-{
-	# run the selftest in interactive mode
-	print "Performing Selftest, please wait...\n";
-	my ($testok, $testdetails) = NMISNG::Util::selftest(nmisng => $nmisng,
-																											delay_is_ok => 'true');
-	if (!$testok)
+	
+if ($cmdline->{action} eq "collect") {
+	
+	# selftest is possible
+	if (ref($nmisng) eq "NMISNG"  && NMISNG::Util->can("selftest") &&  !$cmdline->{no_selftest})
 	{
-		print STDERR "\n\nAttention: NMIS Selftest Failed!
-================================\n\nThe following tests failed:\n\n";
-
-		for my $test (@$testdetails)
+		# run the selftest in interactive mode
+		print "Performing Selftest, please wait...\n";
+		my ($testok, $testdetails) = NMISNG::Util::selftest(nmisng => $nmisng,
+																												delay_is_ok => 'true');
+		if (!$testok)
 		{
-			my ($name, $details) = @$test;
-			next if !defined $details; #  the successful ones
-			print STDERR "$name: $details\n";
+			print STDERR "\n\nAttention: NMIS Selftest Failed!
+	================================\n\nThe following tests failed:\n\n";
+	
+			for my $test (@$testdetails)
+			{
+				my ($name, $details) = @$test;
+				next if !defined $details; #  the successful ones
+				print STDERR "$name: $details\n";
+			}
+	
+			print STDERR "\n\nHit enter to continue:\n";
+			my $x = <STDIN>;
 		}
-
-		print STDERR "\n\nHit enter to continue:\n";
-		my $x = <STDIN>;
+		else
+		{
+			print "Selftest completed successfully.\n";
+		}
 	}
-	else
-	{
-		print "Selftest completed successfully.\n";
+	
+	# collect evidence
+	print "collecting support evidence...\n";
+	
+	my $status = collect_evidence($targetdir, $cmdline);
+	die "failed to collect evidence: $status\n" if ($status);
+	
+	print "\nEvidence collection complete, zipping things up...\n";
+	
+	if ($bot) {
+		# Collect data from unziped zip
+		collect_bot_data(dir => $targetdir);
+		run_bot(zip => 1);
 	}
-}
-
-# collect evidence
-print "collecting support evidence...\n";
-my $bot_data;
-my $status = collect_evidence($targetdir, $cmdline);
-die "failed to collect evidence: $status\n" if ($status);
-
-print "\nEvidence collection complete, zipping things up...\n";
-
-
-my ($error, $zfn) = makearchive("/tmp/nmis-support-$timelabel",
-																$td, $reldir);
-die "Failed to create archive file: $error\n" if ($error);
-
-# zip mustn't become too large, hence we possibly tail/truncate some or all log files
-opendir(D,"$targetdir/logs")
-		or warn "can't read $targetdir/logs dir: $!\n";
-my @shrinkables = map { "$targetdir/logs/$_" } (grep(/\.log$/, readdir(D)));
-closedir(D);
-
-if ($bot) {
-	run_bot();
-}
-# test zip, shrink logfiles, repeat until small enough or out of shrinkables
-while (-s $zfn > $maxzip)
-{
-	# hmm, too big: shrink the log files one by one until the size works out
-	unlink($zfn);
-
-	print "zipfile too big, trying to shrink some logfiles...\n";
-	if (my $nextfile = pop @shrinkables)
-	{
-		$status = shrinkfile($nextfile,$tail);
-		die "shrinking of $nextfile failed: $status\n" if ($status);
-	}
-	else
-	{
-		# nothing left to try :-(
-		die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
-	}
-
-	my ($error, $zfn) = makearchive("/tmp/nmis-support-$timelabel",
+	
+	($error, $zfn) = makearchive("/tmp/nmis-support-$timelabel",
 																	$td, $reldir);
 	die "Failed to create archive file: $error\n" if ($error);
+	
+	# zip mustn't become too large, hence we possibly tail/truncate some or all log files
+	opendir(D,"$targetdir/logs")
+			or warn "can't read $targetdir/logs dir: $!\n";
+	my @shrinkables = map { "$targetdir/logs/$_" } (grep(/\.log$/, readdir(D)));
+	closedir(D);
+	
+	# test zip, shrink logfiles, repeat until small enough or out of shrinkables
+	while (-s $zfn > $maxzip)
+	{
+		# hmm, too big: shrink the log files one by one until the size works out
+		unlink($zfn);
+	
+		print "zipfile too big, trying to shrink some logfiles...\n";
+		if (my $nextfile = pop @shrinkables)
+		{
+			$status = shrinkfile($nextfile,$tail);
+			die "shrinking of $nextfile failed: $status\n" if ($status);
+		}
+		else
+		{
+			# nothing left to try :-(
+			die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
+		}
+	
+		my ($error, $zfn) = makearchive("/tmp/nmis-support-$timelabel",
+																		$td, $reldir);
+		die "Failed to create archive file: $error\n" if ($error);
+	}
+	
+	print "\nAll done.\n\nCollected system information is in $zfn
+	Please include this zip file when you contact
+	the NMIS Community or the Opmantek Team.\n\n";
+	
+	# remove tempdir (done automatically on exit)
+	exit 0;
+} elsif ($cmdline->{action} eq "run-bot") {
+	
+	if ($cmdline->{dir}) {
+		my $dir = $cmdline->{dir};
+		print "Running bot in $dir...\n";
+		
+		# Collect data from unziped zip
+		collect_bot_data(dir => $dir);
+		
+		# Write data into /tmp/report.html
+		run_bot();
+	} else {
+		die $usage;
+	}
+	exit 0;
+} else {
+	die $usage;
 }
-
-print "\nAll done.\n\nCollected system information is in $zfn
-Please include this zip file when you contact
-the NMIS Community or the Opmantek Team.\n\n";
-
-# remove tempdir (done automatically on exit)
-exit 0;
 
 # shrinks given file to the last maxlines lines
 # returns undef if ok, error message otherwise
@@ -213,6 +245,7 @@ sub collect_evidence
 		if ($line =~ /^\s*our\s+\$VERSION\s*=\s*"(.+)";\s*$/)
 		{
 			print F "NMIS Version $1\n";
+			# bot
 			$bot_data->{nmis_version} = $1;
 			last;
 		}
@@ -245,19 +278,7 @@ sub collect_evidence
 
 	# Get polling summary
 	system("$basedir/admin/polling_summary9.pl >> $targetdir/system_status/polling_summary.txt");
-	# bot
-	if ($bot) {
-		open(my $fh, "<", "$targetdir/system_status/polling_summary.txt")
-			or die "Can't open < polling_summary: $!";
-		
-		# Process every line in input.txt
-		while (my $line = <$fh>) {
-			if ($line =~ /totalNodes/) {
-				$bot_data->{summary} = $line;
-				last;
-			}
-		}
-	}
+
 	# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
 	# this needs to cover dbdir and vardir if outside
 	system("find -L $dirstocheck -type d -print0| xargs -0 ls -laH > $targetdir/system_status/filelist.txt") == 0
@@ -293,42 +314,12 @@ sub collect_evidence
 
 	system("df >> $targetdir/system_status/disk_info");
 	system("mount >> $targetdir/system_status/disk_info");
-
-	# bot
-	if ($bot) {
-		open(my $fh, "<", "$targetdir/system_status/disk_info")
-			or die "Can't open < system_status: $!";
-		
-		# Process every line in input.txt
-		while (my $line = <$fh>) {
-			# udev                     3045820         0   3045820   0% /dev
-			if ( $line =~ /%((.+)\/([^\/])+)\s(\d+)\s(\d+)\s(\d+)\s(\d+%)\s((.+)\/([^\/])+)/ ) {
-				$bot_data->{disk}->{$1}->{used} = $3;
-				$bot_data->{disk}->{$1}->{available} = $4;
-				$bot_data->{disk}->{$1}->{use} = $5;
-			}
-		}
-	}
 		
 	system("uname -av > $targetdir/system_status/uname");
 
 	for my $x (glob('/etc/*release'),glob('/etc/*version'))
 	{
 		cp($x, "$targetdir/system_status/osrelease/");
-		# bot
-		if ($bot) {
-			open(my $fh, "<", "$x")
-				or die "Can't open < osrelease: $!";
-			
-			# Process every line in input.txt
-			while (my $line = <$fh>) {
-				if ($line =~ /PRETTY_NAME/) {
-					$line =~ s/PRETTY_NAME=//g;
-					$bot_data->{os_release} = $line;
-					last;
-				}
-			}
-		}
 	}
 
 	if (!$args->{no_system_stats})
@@ -339,37 +330,6 @@ sub collect_evidence
 		system("vmstat 1 5 > $targetdir/system_status/vmstat");
 		system("top -b -n 2 > $targetdir/system_status/top");
 		system("iostat -kx 1 5 > $targetdir/system_status/iostat");
-		# bot
-		if ($bot) {
-			open(my $fh, "<", "$targetdir/system_status/top")
-				or die "Can't open < polling_summary: $!";
-			
-			# Process every line in input.txt
-			while (my $line = <$fh>) {
-				if ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
-					$bot_data->{stats}->{cpuUser} = $1;
-					$bot_data->{stats}->{cpuSys} = $2;
-					$bot_data->{stats}->{cpuNice} = $3;
-					$bot_data->{stats}->{cpuIdle} = $4;
-					$bot_data->{stats}->{cpuWaitIO} = $5;
-					$bot_data->{stats}->{cpuHi} = $6;
-					$bot_data->{stats}->{cpuSi} = $7;
-					$bot_data->{stats}->{cpuSt} = $8;
-				}
-				elsif ( $line =~ /[MK]iB Mem :\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used,\s+(\d+\.?\d*) buff\/cache/ ) {
-					$bot_data->{stats}->{memTotal} = $1;
-					$bot_data->{stats}->{memFree} = $2;
-					$bot_data->{stats}->{memUsed} = $3;
-					$bot_data->{stats}->{membuff} = $4;
-				}
-				elsif ( $line =~ /[MK]iB Swap:\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used.\s+(\d+\.?\d*) avail Mem/ ) {
-					$bot_data->{stats}->{swaptotal} = $1;
-					$bot_data->{stats}->{swapfree} = $2;
-					$bot_data->{stats}->{swapused} = $3;
-					$bot_data->{stats}->{memAvail} = $4;
-				}
-			}
-		}
 	}
 
 	system("date > $targetdir/system_status/date");
@@ -448,15 +408,9 @@ sub collect_evidence
 	}
 
 	# copy all of conf/ and models-custom/ but NOT any stray stuff beneath
-	my $custommodels = 0;
 	for my $x (glob("$basedir/models-custom/*"))
 	{
 		cp($x, "$targetdir/models-custom/");
-		$custommodels++;
-	}
-	# bot
-	if ($bot and $custommodels > 0) {
-		$bot_data->{custom_models} = $custommodels;
 	}
 	for my $x (glob("$basedir/models-default/*"))
 	{
@@ -468,15 +422,7 @@ sub collect_evidence
 		next if($x =~ m/\/conf\/Nodes.nmis/);
 		cp($x, "$targetdir/conf/");
 	}
-	# Bot: Configuration
-	if ($bot) {
-		my $C = NMISNG::Util::loadConfTable();
-		my $configs = [qw(cluster_id server_name nmisd_scheduler_cycle nmisd_max_workers nmisd_worker_cycle nmisd_worker_max_cycles node_name_rule)];
-		foreach my $c (@$configs)
-		{
-			$bot_data->{config}->{$c} = "$C->{$c}";
-		}
-	}
+
 	for my $x (glob("$basedir/var/system_performance/*"))
 	{
 		cp($x, "$targetdir/var/system_performance/");
@@ -566,21 +512,6 @@ sub collect_evidence
 			open(F, ">$targetdir/db_dumps/$outputfile");
 			print F @exportdata;
 			close(F);
-		}
-		# Count data
-		if ($bot) {
-			for (
-				[ 'db.queue.find().count()', 'queue'],
-				[ 'db.nodes.find().count()','nodes'],
-				[ 'db.inventory.find().count()', 'inventory'],
-				[ 'db.opstatus.find().count()', 'opstatus'],
-				[ 'db.events.find().count()', 'events'],
-					)
-			{
-				my ($query, $data) = @$_;
-				my $run = "mongo @mongoargs $dbname --eval \"$query\"";
-				$bot_data->{count}->{$data} = `$run`;
-			}
 		}
 	}
 	else
@@ -736,16 +667,265 @@ sub translate_extended_json
 	}
 }
 
-sub run_bot
+# This bot will collect all the information needed
+# into bot_data hash
+sub collect_bot_data
 {
-	print "Running bot... \n";
-	my $outputfile;
+	my %args = @_;
+	my $dir = $args{dir};
 	
-	# TODO: open(F, ">$targetdir/$outputfile")
-	if ( open(F, ">/tmp/bot_report.json"))
+	my $basedir = $globalconf->{'<nmis_base>'};
+		
+	# NMIS Version
+	open(G, "$basedir/lib/NMISNG.pm");
+	for my $line (<G>)
 	{
-		NMISNG::Util::writeHashtoFile(file => "/tmp/bot_report.json", data => $bot_data, json => 1);
-		close F;
+		if ($line =~ /^\s*our\s+\$VERSION\s*=\s*"(.+)";\s*$/)
+		{
+			# bot
+			$bot_data->{nmis_version} = $1;
+			last;
+		}
+	}
+	close G;
+	
+	# Polling summary
+	open(my $fh, "<", "$dir/system_status/polling_summary.txt")
+		or print "Can't open < $dir/system_status/polling_summary.txt: $! \n";
+	
+	while (my $line = <$fh>) {
+		if ($line =~ /totalNodes/) {
+			$bot_data->{summary} = $line;
+			last;
+		}
 	}
 	
+	# Disk 
+	open(my $fh, "<", "$dir/system_status/disk_info")
+		or print "Can't open < system_status: $! \n";
+	
+	while (my $line = <$fh>) {
+		# udev                     3045820         0   3045820   0% /dev
+		if ( $line =~ /([^\s]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+%)\s+(.+\/*)/ ) {
+			$bot_data->{disk}->{$1}->{used} = $3;
+			$bot_data->{disk}->{$1}->{available} = $4;
+			$bot_data->{disk}->{$1}->{use} = $5;
+		}
+	}
+	
+	# OS 
+	for my $x ("$dir/system_status/osrelease/")
+	{
+		open(my $fh, "<", "$x")
+				or die "Can't open < osrelease: $!";
+
+		while (my $line = <$fh>) {
+			if ($line =~ /PRETTY_NAME/) {
+				$line =~ s/PRETTY_NAME=//g;
+				$bot_data->{os_release} = $line;
+				last;
+			}
+		}
+	}
+	
+	# top
+	open(my $fh, "<", "$dir/system_status/top")
+			or die "Can't open < polling_summary: $!";
+
+	while (my $line = <$fh>) {
+		if ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
+			$bot_data->{stats}->{cpuUser} = $1;
+			$bot_data->{stats}->{cpuSys} = $2;
+			$bot_data->{stats}->{cpuNice} = $3;
+			$bot_data->{stats}->{cpuIdle} = $4;
+			$bot_data->{stats}->{cpuWaitIO} = $5;
+			$bot_data->{stats}->{cpuHi} = $6;
+			$bot_data->{stats}->{cpuSi} = $7;
+			$bot_data->{stats}->{cpuSt} = $8;
+		}
+		elsif ( $line =~ /[MK]iB Mem :\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used,\s+(\d+\.?\d*) buff\/cache/ ) {
+			$bot_data->{stats}->{memTotal} = $1;
+			$bot_data->{stats}->{memFree} = $2;
+			$bot_data->{stats}->{memUsed} = $3;
+			$bot_data->{stats}->{membuff} = $4;
+		}
+		elsif ( $line =~ /[MK]iB Swap:\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used.\s+(\d+\.?\d*) avail Mem/ ) {
+			$bot_data->{stats}->{swaptotal} = $1;
+			$bot_data->{stats}->{swapfree} = $2;
+			$bot_data->{stats}->{swapused} = $3;
+			$bot_data->{stats}->{memAvail} = $4;
+		}
+	}
+	# Custom models
+	my $custommodels = 0;
+	for my $x (glob("$basedir/models-custom/*"))
+	{
+		$custommodels++;
+	}
+	$bot_data->{custom_models} = $custommodels;
+	
+	# Configuration
+	my $C = NMISNG::Util::loadConfTable();
+	my $configs = [qw(cluster_id server_name nmisd_scheduler_cycle nmisd_max_workers nmisd_worker_cycle nmisd_worker_max_cycles node_name_rule)];
+	foreach my $c (@$configs)
+	{
+		$bot_data->{config}->{$c} = "$C->{$c}";
+	}
+	
+	my $dbname= $globalconf->{db_name};
+	# Data count
+	for (
+			[ 'db.queue.find().count()', 'queue'],
+			[ 'db.nodes.find().count()','nodes'],
+			[ 'db.inventory.find().count()', 'inventory'],
+			[ 'db.opstatus.find().count()', 'opstatus'],
+			[ 'db.events.find().count()', 'events'],
+				)
+	{
+		my ($query, $data) = @$_;
+		my @mongoargs = ("--quiet", 	# no heading, just json output please!
+								 "--username", $globalconf->{db_username},
+								 "--password", $globalconf->{db_password},
+								 "--host", $globalconf->{db_server},
+								 "--port", $globalconf->{db_port});
+		my $run = "mongo @mongoargs $dbname --eval \"$query\"";
+		$bot_data->{count}->{$data} = `$run`;
+	}
+	return 1;
+}
+
+# This bot will write all the information collected
+# into different files: bot_report.json and bot_report.html (Formatted)
+sub run_bot
+{
+	my %args = @_;
+	my $zip = $args{zip};
+	print "Running bot... \n";
+	my $outputfile;
+	my $basedir = $globalconf->{'<nmis_base>'};
+	my $report_name = "support_report";
+	
+	if ($zip) {
+		# TODO: open(F, ">$targetdir/$outputfile")
+		if ( open(F, ">/$targetdir/$report_name.json"))
+		{
+			NMISNG::Util::writeHashtoFile(file => "/$targetdir/$report_name.json", data => $bot_data, json => 1);
+			close F;
+		}
+		use File::Slurp;
+		my $template = read_file($basedir.'/admin/support_template.html');
+		my $content = "";
+		$content = show_content(content => $bot_data, where => $content, show_key => 1);
+	
+		$template =~ s/CONTENT/$content/;
+		write_file("/$targetdir/$report_name.html", $template);
+		if ($report_dir) {
+			print "Creating report into $report_dir/$report_name.html \n";
+			system("cp", "/$targetdir/$report_name.html", $report_dir );
+		}
+	} else {
+		my $report_dir = "/tmp";
+		print "Creating report into $report_dir/$report_name.html \n";
+		use File::Slurp;
+		my $template = read_file($basedir.'/admin/support_template.html');
+		my $content = "";
+		$content = show_content(content => $bot_data, where => $content, show_key => 1);
+	
+		$template =~ s/CONTENT/$content/;
+		write_file("$report_dir/$report_name.html", $template);
+	}
+
+}
+
+# Print formatted output in html report
+sub show_content
+{
+	my %args = @_;
+	my $content = $args{content};
+	my $title = $args{title};
+	my $where = $args{where};
+	my $show_key = $args{show_key};
+	
+	$where = $where. "<h2>$title</h2>" if ($title);
+	if (ref($content) eq "HASH") {
+		foreach my $key (keys %$content) {
+			if ($key eq "count" or $key eq "stats") {
+				$where = $where . "<h2>$key</h2>".print_table(content => $content->{$key});
+			} elsif ($key eq "disk") {
+				$where = $where . "<h2>$key</h2>".print_disk(content => $content->{$key});
+			} elsif ($key eq "config") {
+				$where = $where . "<h2>$key</h2>".print_config(content => $content->{$key});
+			} elsif (ref($content->{$key}) eq "HASH") {
+				if ($show_key) {
+					$where = $where . "<h2>$key</h2>".show_content(content => $content->{$key}, where => "");
+				} else {
+					$where = $where . show_content(content => $content->{$key}, where => "");
+				}
+				
+			} else {
+				if ($show_key) {
+					$where = $where . "<h2>$key</h2><p> ".$content->{$key}."</p>";
+				} else {
+					$where = $where . "<b>$key</b><p> ".$content->{$key}."</p>";
+				}
+			}
+		}
+	} else {
+		$where = $where . "<p>".$content."</p>";
+	}
+	
+	return $where;
+}
+
+# Print disk information for html report
+sub print_disk
+{
+	my %args = @_;
+	my $content = $args{content};
+	my $toRet = "<table class='table'><thead><tr><td>Filesystem</td><td>Available</td><td>Used</td><td>Use</td></tr></thead>";
+	
+	foreach my $key (keys %$content) {
+		$toRet = $toRet . "<tr><td>".$key."</td><td>".$content->{$key}->{available}."</td><td>".$content->{$key}->{used}."</td><td>".$content->{$key}->{use}."</td></tr>";
+	}
+	$toRet = $toRet."</table>";
+	return $toRet;
+}
+
+# Print table for html report
+sub print_table
+{
+	my %args = @_;
+	my $content = $args{content};
+	my $toRet = "<table class='table'><thead><tr>";
+	
+	foreach my $key (keys %$content) {
+		$toRet = $toRet . "<td>$key</td>";
+	}
+	$toRet = $toRet."</tr></thead><tr>";
+	
+	foreach my $key (keys %$content) {
+		$toRet = $toRet . "<td>".$content->{$key}."</td>";
+	}
+	
+	$toRet = $toRet."</tr></table>";
+	return $toRet;
+}
+
+# Print config for html report
+sub print_config
+{
+	my %args = @_;
+	my $content = $args{content};
+	my $toRet = "";
+
+	foreach my $key (keys %$content) {
+		if (!defined($content->{$key})) {
+			$toRet = $toRet . "<p><span class='glyphicon glyphicon-remove' style='color:red'></span><b> $key</b> ". $content->{$key}."</p>";
+		} else {
+			$toRet = $toRet . "<p><span class='glyphicon glyphicon-ok' style='color:green'></span><b> $key</b> ". $content->{$key}."</p>";
+		}
+		
+	}
+	
+	return $toRet;
 }
