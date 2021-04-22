@@ -3073,38 +3073,38 @@ sub replace_files_recursive {
 	$nmisng->log->info("Replacing $new for $old in $path ");
 
 	my $total = 0;
+	my @toreview;
 	
 	my $replaced = $path;
 	$replaced =~ s/$old/$new/g;
 				
 	if ( !-d $replaced ) {
 		my $output = `mkdir $replaced`;
-		$nmisng->log->info("Replacing $new for $old in $path : $output");
+		$nmisng->log->debug("Create dir $replaced");
 	}
 	
-	if (opendir(DIR, $path)) {
-		my $filename;
-		while ($filename = readdir(DIR)) {
-			my $filepath = $path . "/" . $filename;
-			$nmisng->log->debug("Checking $filepath ");
-			if ( -d $filepath && $filename ne "." && $filename ne "..") {
-				$total = $total + replace_files_recursive($filepath, $new, $old, $extension);
-			} else {
-				# Only .nmis files
-				next unless ($filename =~ m/\.$extension$/);
-				
-				my $replaced = $path;
-				$replaced =~ s/$old/$new/g;
-				$nmisng->log->debug("Replacing $filepath = $replaced");
-				$total++;
-				if ($filepath ne $replaced) {
-					my $output = `mv -n $filepath $replaced`;
-					$nmisng->log->info("mv $filepath into $replaced  ");
-				}
+	opendir(my $dh, $path) || die "Can't open $path: $!";
+	while (readdir $dh) {
+		my $fh = "$path/$_";
+		print "$fh\n";
+		if ( -d "$fh" && $_ ne "." && $_ ne "..") {
+			push @toreview, $fh;
+		} else {
+			next unless ($_ =~ m/\.$extension$/);				
+			my $replaced = $fh;
+			$replaced =~ s/$old/$new/g;
+			$nmisng->log->debug("Replacing $fh = $replaced if not equals ");
+			$total++;
+			if ($fh ne $replaced) {
+				my $output = `mv -n $fh $replaced`;
+				$nmisng->log->info("mv $fh into $replaced  ");
 			}
-			
 		}
-		closedir(DIR);
+	}
+	closedir $dh;
+	
+	foreach (@toreview) {
+		replace_files_recursive($_, $new, $old, $extension);
 	}
 	return $total;
 }
