@@ -3086,7 +3086,7 @@ sub replace_files_recursive {
 	opendir(my $dh, $path) || die "Can't open $path: $!";
 	while (readdir $dh) {
 		my $fh = "$path/$_";
-		print "$fh\n";
+		$nmisng->log->debug("Listing $fh ");
 		if ( -d "$fh" && $_ ne "." && $_ ne "..") {
 			push @toreview, $fh;
 		} else {
@@ -3094,8 +3094,8 @@ sub replace_files_recursive {
 			my $replaced = $fh;
 			$replaced =~ s/$old/$new/g;
 			$nmisng->log->debug("Replacing $fh = $replaced if not equals ");
-			$total++;
 			if ($fh ne $replaced) {
+				$total++;
 				my $output = `mv -n $fh $replaced`;
 				$nmisng->log->info("mv $fh into $replaced  ");
 			}
@@ -3104,7 +3104,7 @@ sub replace_files_recursive {
 	closedir $dh;
 	
 	foreach (@toreview) {
-		replace_files_recursive($_, $new, $old, $extension);
+		$total = $total + replace_files_recursive($_, $new, $old, $extension);
 	}
 	return $total;
 }
