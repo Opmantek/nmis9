@@ -714,7 +714,7 @@ sub collect_bot_data
 	}
 	
 	# OS 
-	for my $x ("$dir/system_status/osrelease/")
+	for my $x (glob("$dir/system_status/osrelease/*"))
 	{
 		open(my $fh, "<", "$x")
 				or die "Can't open < osrelease: $!";
@@ -885,7 +885,13 @@ sub print_disk
 	my $toRet = "<table class='table'><thead><tr><td>Filesystem</td><td>Available</td><td>Used</td><td>Use</td></tr></thead>";
 	
 	foreach my $key (keys %$content) {
-		$toRet = $toRet . "<tr><td>".$key."</td><td>".$content->{$key}->{available}."</td><td>".$content->{$key}->{used}."</td><td>".$content->{$key}->{use}."</td></tr>";
+		my $use = $content->{$key}->{use};
+		$use =~ s/%//;
+		my $show_use = "<span class='text-success'>".$content->{$key}->{use}."</span>";
+		if ($use > 80) {
+			$show_use = "<span class='text-danger'>".$content->{$key}->{use}."</span>";
+		}
+		$toRet = $toRet . "<tr><td>".$key."</td><td>".$content->{$key}->{available}."</td><td>".$content->{$key}->{used}."</td><td>$show_use</td></tr>";
 	}
 	$toRet = $toRet."</table>";
 	return $toRet;
@@ -919,7 +925,7 @@ sub print_config
 	my $toRet = "";
 
 	foreach my $key (keys %$content) {
-		if (!defined($content->{$key})) {
+		if (!defined($content->{$key}) or $content->{$key} eq "" or ($key eq "server_name" and $content->{$key} = "localhost")) {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-remove' style='color:red'></span><b> $key</b> ". $content->{$key}."</p>";
 		} else {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-ok' style='color:green'></span><b> $key</b> ". $content->{$key}."</p>";
