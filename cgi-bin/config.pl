@@ -449,9 +449,12 @@ sub doEditConfig
 		# ...but deselected ones produce empty strings
 		$value = [ grep(!/^\s*$/, $q->multi_param($item)) ];
 	}
-
+	# regex: Checking this particular value
+	return validation_abort($item, "'$value' should not use qr/ /!")
+						if ($value =~ /qr\/.*\//);
 
 	my $thisrule = Compat::NMIS::findCfgEntry(section => $section, item => $item, table => $configrules);
+
 	if (ref($thisrule) eq "HASH" && ref($thisrule->{validate}) eq "HASH")
 	{
 		# supported validation mechanisms:
