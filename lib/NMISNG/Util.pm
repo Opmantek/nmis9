@@ -3071,7 +3071,8 @@ sub replace_files_recursive {
 	my ($path, $new, $old, $extension) = @_;
 	my $nmisng = Compat::NMIS::new_nmisng();
 	$nmisng->log->info("Replacing $new for $old in $path ");
-
+	my $C = $nmisng->config();
+	
 	my $total = 0;
 	my @toreview;
 	
@@ -3080,6 +3081,7 @@ sub replace_files_recursive {
 				
 	if ( !-d $replaced ) {
 		my $output = `mkdir $replaced`;
+		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $output);
 		$nmisng->log->debug("Create dir $replaced");
 	}
 	
@@ -3097,6 +3099,8 @@ sub replace_files_recursive {
 			if ($fh ne $replaced) {
 				$total++;
 				my $output = `mv -n $fh $replaced`;
+				system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $replaced);
+				system("chmod","-R","g+rw", $replaced);
 				$nmisng->log->info("mv $fh into $replaced  ");
 			}
 		}
