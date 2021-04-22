@@ -72,7 +72,7 @@ my $maxlogsize = $cmdline->{maxlogsize} || 4*1024*1024; # 4 meg for individual l
 my $tail = 1000;		# last 1000 lines
 my $maxopstatus = $cmdline->{maxopstatus} || 500;	# last 500 operational statuses
 my $maxoperrors = $cmdline->{maxoperrors} || 100;
-my $bot = $cmdline->{bot} || 0;
+my $bot = $cmdline->{bot} || 1; # Run by default
 my $report_dir = $cmdline->{report_dir};
 
 my %options;										# dummy-ish, for input_yn and friends
@@ -800,7 +800,7 @@ sub run_bot
 {
 	my %args = @_;
 	my $zip = $args{zip};
-	print "Running bot... \n";
+	print "Running support bot... \n";
 	my $outputfile;
 	my $basedir = $globalconf->{'<nmis_base>'};
 	my $report_name = "support_report";
