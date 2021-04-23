@@ -843,21 +843,51 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 
 	die "Cannot move files without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
-			
-	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
-
-	# TODO: Mark for update with status
-	die "Node $node does not exist.\n" if (!$nodeobj);
-	$node ||= $nodeobj->name;			# if looked up via uuid
-
-	my $old = lc($node); 
-	my $dir = $config->{database_root}. "/nodes/$old";
-	my $newdir = $config->{database_root}. "/nodes/$node";
 	
-	my $total = NMISNG::Util::replace_files_recursive($dir, $node, $old, "rrd");
+	my @nodestocheck;
 	
-	print STDERR "Successfully moved $total node rrd files $cmdline->{name}.\n"
-			if (-t \*STDERR);
+	if ( $node eq "ALL" ) {
+		
+		my $filter->{"cluster_id"} = $config->{cluster_id};
+		my $nodelist = $nmisng->get_nodes_model( filter => $filter, fields_hash => { name => 1, uuid => 1});
+		if (!$nodelist or !$nodelist->count)
+		{
+			print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
+					if (!$cmdline->{quiet});
+			exit 1;
+		}
+		else
+		{
+			my $allofthem = $nodelist->data;
+			foreach my $n (@{$allofthem}) {
+				if ($n->{name} =~ /[A-Z]/) {
+					push @nodestocheck, $n->{name};
+				}
+			}
+		}
+	} else
+	{
+		push @nodestocheck, $node;
+	}
+	
+	foreach my $n (@nodestocheck) {
+		my $nodeobj = $nmisng->node(uuid => $uuid, name => $n);
+		if (!$nodeobj) {
+			print "Node $n does not exist.\n";
+			last;
+		}
+		$node ||= $nodeobj->name;			# if looked up via uuid
+	
+		my $old = lc($n); 
+		my $dir = $config->{database_root}. "/nodes/$old";
+		my $newdir = $config->{database_root}. "/nodes/$n";
+		
+		my $total = NMISNG::Util::replace_files_recursive($dir, $n, $old, "rrd");
+		
+		print STDERR "Successfully moved $total node rrd files $nodeobj->{name}.\n"
+				if (-t \*STDERR and $total != 0);
+	}
+	
 
 	exit 0;
 }

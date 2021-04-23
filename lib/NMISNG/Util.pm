@@ -3077,15 +3077,21 @@ sub replace_files_recursive {
 	my @toreview;
 	
 	my $replaced = $path;
+	my $dh;
+	
 	$replaced =~ s/$old/$new/g;
-				
-	if ( !-d $replaced ) {
+		
+	if (!opendir($dh, $path)) {
+		print "Can't open $path: $! \n";
+		return 0;
+	}
+			
+	if ( !-d $replaced and $replaced ne "" ) {
 		my $output = `mkdir $replaced`;
 		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $output);
 		$nmisng->log->debug("Create dir $replaced");
 	}
-	
-	opendir(my $dh, $path) || die "Can't open $path: $!";
+
 	while (readdir $dh) {
 		my $fh = "$path/$_";
 		$nmisng->log->debug("Listing $fh ");
