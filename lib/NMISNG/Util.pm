@@ -29,7 +29,7 @@
 #
 # Utility package for various reusable general-purpose functions
 package NMISNG::Util;
-our $VERSION = "9.2.1a";
+our $VERSION = "9.2.1";
 
 use strict;
 use feature 'state';						# loadconftable, uuid functions
