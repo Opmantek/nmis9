@@ -55,7 +55,10 @@ action=collect: collect general support info in an archive file
   maxlogsize
   maxopstatus
   maxoperrors
-action=run-bot [dir=]
+action=run-bot [support_file=] [report_dir=...]
+ run bot needs a suuport_file in zip format or a directory
+  with uncompressed support zip.
+  report_dir is optional, by default will be /tmp/support_report.html
 public: if set to false, then credentials, community, passwords
  and other sensitive data is removed and not included in the archive.
 bot: Will run the bot the generate a nice report
@@ -184,15 +187,15 @@ if ($cmdline->{action} eq "collect") {
 	exit 0;
 } elsif ($cmdline->{action} eq "run-bot") {
 	
-	if ($cmdline->{dir}) {
-		my $dir = $cmdline->{dir};
+	if ($cmdline->{support_file}) {
+		my $dir = $cmdline->{support_file};
 		print "Running bot in $dir...\n";
 		
 		# Collect data from unziped zip
 		collect_bot_data(dir => $dir);
 		
 		# Write data into /tmp/report.html
-		run_bot();
+		run_bot(dir => $cmdline->{report_dir});
 	} else {
 		die $usage;
 	}
@@ -673,6 +676,23 @@ sub collect_bot_data
 {
 	my %args = @_;
 	my $dir = $args{dir};
+	my $sourcedir;
+	
+	if ($dir =~ /\.zip/) {
+			# Try to uncompress
+			$sourcedir = "/tmp/tmp-nmis-support-$timelabel";
+			my @cmd = ("unzip", $dir, "-d", $sourcedir);
+			my $status = system(@cmd);
+			
+			opendir ( DIR, $sourcedir ) || die "Error in opening dir $sourcedir\n";
+			while( my $filename = readdir(DIR)) {
+			   if ($filename =~ /nmis-collect/) {
+				$dir = $sourcedir . "/$filename";
+				last;
+			   }
+			}
+			closedir(DIR);
+	}
 	
 	my $basedir = $globalconf->{'<nmis_base>'};
 		
@@ -695,8 +715,9 @@ sub collect_bot_data
 	
 	while (my $line = <$fh>) {
 		if ($line =~ /totalNodes/) {
-			$bot_data->{summary} = $line;
-			last;
+			$bot_data->{summary} = $bot_data->{summary} . "\n" . $line;
+		} elsif ($line =~ /pingDown/) {
+			$bot_data->{summary} = $bot_data->{summary} . "\n" . $line;
 		}
 	}
 	
@@ -791,6 +812,13 @@ sub collect_bot_data
 		my $run = "mongo @mongoargs $dbname --eval \"$query\"";
 		$bot_data->{count}->{$data} = `$run`;
 	}
+	
+	# Remove temp folder
+	if ($sourcedir) {
+		my @cmd = ("rm", "-r", $sourcedir);
+		my $status = system(@cmd);
+	}
+	
 	return 1;
 }
 
@@ -806,7 +834,6 @@ sub run_bot
 	my $report_name = "support_report";
 	
 	if ($zip) {
-		# TODO: open(F, ">$targetdir/$outputfile")
 		if ( open(F, ">/$targetdir/$report_name.json"))
 		{
 			NMISNG::Util::writeHashtoFile(file => "/$targetdir/$report_name.json", data => $bot_data, json => 1);
@@ -824,7 +851,7 @@ sub run_bot
 			system("cp", "/$targetdir/$report_name.html", $report_dir );
 		}
 	} else {
-		my $report_dir = "/tmp";
+		my $report_dir = $args{dir} // "/tmp";
 		print "Creating report into $report_dir/$report_name.html \n";
 		use File::Slurp;
 		my $template = read_file($basedir.'/admin/support_template.html');
