@@ -3068,7 +3068,7 @@ sub array_diff(\@\@) {
 # if the file exists, it wont be replaced ( mv -n )
 # @returns the number of moved files
 sub replace_files_recursive {
-	my ($path, $new, $old, $extension) = @_;
+	my ($path, $new, $old, $extension, $force) = @_;
 	my $nmisng = Compat::NMIS::new_nmisng();
 	$nmisng->log->info("Replacing $new for $old in $path ");
 	my $C = $nmisng->config();
@@ -3104,7 +3104,13 @@ sub replace_files_recursive {
 			$nmisng->log->debug("Replacing $fh = $replaced if not equals ");
 			if ($fh ne $replaced) {
 				$total++;
-				my $output = `mv -n $fh $replaced`;
+				my $output;
+				
+				if ($force) {
+					$output = `mv $fh $replaced`;
+				} else {
+					$output = `mv -n $fh $replaced`;
+				}
 				system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $replaced);
 				system("chmod","-R","g+rw", $replaced);
 				$nmisng->log->info("mv $fh into $replaced  ");
@@ -3114,7 +3120,7 @@ sub replace_files_recursive {
 	closedir $dh;
 	
 	foreach (@toreview) {
-		$total = $total + replace_files_recursive($_, $new, $old, $extension);
+		$total = $total + replace_files_recursive($_, $new, $old, $extension, $force);
 	}
 	return $total;
 }

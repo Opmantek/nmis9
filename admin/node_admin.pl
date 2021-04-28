@@ -95,7 +95,7 @@ This server is a $server_role. This is why the number of actions is restricted.
 \t$bn act=set {node=nodeX|uuid=nodeUUID} entry.X=Y... [server={server_name|cluster_id}]
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename {old=nodeX|uuid=nodeUUID} new=nodeY [entry.A=B...]
-\t$bn act=move-nmis8-rrd-files {node=nodeX|ALL|uuid=nodeUUID}
+\t$bn act=move-nmis8-rrd-files {node=nodeX|ALL|uuid=nodeUUID} [remove_old=1] [force=1]
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
@@ -845,6 +845,8 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 			if (!$node && !$uuid);
 	
 	my @nodestocheck;
+	my $remove_old = $cmdline->{remove_old};
+	my $force = $cmdline->{force};
 	
 	if ( $node eq "ALL" ) {
 		
@@ -882,7 +884,12 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 		my $dir = $config->{database_root}. "/nodes/$old";
 		my $newdir = $config->{database_root}. "/nodes/$n";
 		
-		my $total = NMISNG::Util::replace_files_recursive($dir, $n, $old, "rrd");
+		my $total = NMISNG::Util::replace_files_recursive($dir, $n, $old, "rrd", $force);
+		if ($remove_old and $total > 0)
+		{
+			my $output = `rm -r $dir`;
+			print "Removed $dir: $output \n";
+		}
 		
 		print STDERR "Successfully moved $total node rrd files $nodeobj->{name}.\n"
 				if (-t \*STDERR and $total != 0);
