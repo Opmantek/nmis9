@@ -159,6 +159,9 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 
 	$logger->info("Starting bulk import of nodes");
 	my $nmis9_format = $cmdline->{nmis9_format};
+	my $delay = $cmdline->{delay} // 300;
+	my $bulk_number = $cmdline->{bulk_number};
+	my $total_bulk = 0;
 	
 	# old-style nodes file: hash. export w/o format=nodes: plain array,
 	# readfiletohash doesn't understand arrays.
@@ -170,6 +173,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 
 	foreach my $onenode ( ref($node_table) eq "HASH"? values %$node_table : @$node_table )
 	{
+		$total_bulk++;
 		# note that this looks up the node by uuid, exclusively. if the nodes file has dud uuids,
 		# then existing nodes will NOT be found.
 		my $node = $nmisng->node( uuid => $onenode->{uuid} || NMISNG::Util::getUUID($onenode->{name}),
@@ -231,6 +235,13 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		else
 		{
 			$logger->debug( $node->name." saved to database, op: $op" );
+		}
+		if ($bulk_number) {
+			if ($bulk_number == $total_bulk) {
+				$total_bulk = 0;
+				print "$bulk_number reached. Sleeping $delay seconds. \n";
+				sleep($delay);
+			}
 		}
 	}
 	$logger->info("Bulk import complete, newly created $stats{created}, updated $stats{updated} nodes");
