@@ -254,6 +254,10 @@ function	createDialog(opt) {
 	var dialogContainer;
 	var dialogHandle;
 
+	// Make sure all the requested urls go under the same protocol
+	if (location.protocol === 'https:') {
+		opt.url = opt.url.replace('http://','https://');
+	}
 	// log widget fixup
 	// all log types to go to same widget
 	// update title of widget to reflect log name
@@ -273,10 +277,9 @@ function	createDialog(opt) {
 	// see if we have a data entry in our namespace
 	var namespace = 'NMISV8' + opt.id;
 	var objData = $('div#NMISV8').data(namespace);
-
+	var loader = "<div class='loader'></div>";
 	if ( ! objData  ) {
 		// new dialog
-
 			$('div#NMISV8').data(namespace, {
 				id		:		opt.id,
 				options	: opt,
@@ -314,6 +317,9 @@ function	createDialog(opt) {
 
 		dialogContainer =	$('<div id="' + opt.id + '" style="display:none;"></div>');
 		dialogContainer.appendTo('body');
+		// Add loader
+		dialogContainer.html(loader);
+		
 		dialogHandle = dialogContainer.dialog(opt);
 		// tag this dialog with an ID so we know who it is when debugging
 		dialogHandle.dialog("widget").attr( 'id' , opt.id );
@@ -337,7 +343,6 @@ function	createDialog(opt) {
 		objData.options.title = opt.title;
 		dialogHandle.dialog( "option", "title", opt.title );
 	}
-
 
 	// get some additional content
 	// but only if we have an URL !!

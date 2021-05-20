@@ -95,7 +95,7 @@ This server is a $server_role. This is why the number of actions is restricted.
 \t$bn act=set {node=nodeX|uuid=nodeUUID} entry.X=Y... [server={server_name|cluster_id}]
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename {old=nodeX|uuid=nodeUUID} new=nodeY [entry.A=B...]
-\t$bn act=move-nmis8-rrd-files {node=nodeX|uuid=nodeUUID}
+\t$bn act=move-nmis8-rrd-files {node=nodeX|ALL|uuid=nodeUUID} [remove_old=1] [force=1]
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
@@ -159,6 +159,9 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 
 	$logger->info("Starting bulk import of nodes");
 	my $nmis9_format = $cmdline->{nmis9_format};
+	my $delay = $cmdline->{delay} // 300;
+	my $bulk_number = $cmdline->{bulk_number};
+	my $total_bulk = 0;
 	
 	# old-style nodes file: hash. export w/o format=nodes: plain array,
 	# readfiletohash doesn't understand arrays.
@@ -170,6 +173,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 
 	foreach my $onenode ( ref($node_table) eq "HASH"? values %$node_table : @$node_table )
 	{
+		$total_bulk++;
 		# note that this looks up the node by uuid, exclusively. if the nodes file has dud uuids,
 		# then existing nodes will NOT be found.
 		my $node = $nmisng->node( uuid => $onenode->{uuid} || NMISNG::Util::getUUID($onenode->{name}),
@@ -231,6 +235,13 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		else
 		{
 			$logger->debug( $node->name." saved to database, op: $op" );
+		}
+		if ($bulk_number) {
+			if ($bulk_number == $total_bulk) {
+				$total_bulk = 0;
+				print "$bulk_number reached. Sleeping $delay seconds. \n";
+				sleep($delay);
+			}
 		}
 	}
 	$logger->info("Bulk import complete, newly created $stats{created}, updated $stats{updated} nodes");
@@ -843,25 +854,58 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 
 	die "Cannot move files without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
-			
-	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
-
-	# TODO: Mark for update with status
-	die "Node $node does not exist.\n" if (!$nodeobj);
-	$node ||= $nodeobj->name;			# if looked up via uuid
-
-	my $old = lc($node); 
-	my $dir = $config->{database_root}. "/nodes/$old";
-	my $newdir = $config->{database_root}. "/nodes/$node";
 	
-	if ( !-d $newdir ) {
-		my $output = `mkdir $newdir`;
+	my @nodestocheck;
+	my $remove_old = $cmdline->{remove_old};
+	my $force = $cmdline->{force};
+	
+	if ( $node eq "ALL" ) {
+		
+		my $filter->{"cluster_id"} = $config->{cluster_id};
+		my $nodelist = $nmisng->get_nodes_model( filter => $filter, fields_hash => { name => 1, uuid => 1});
+		if (!$nodelist or !$nodelist->count)
+		{
+			print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
+					if (!$cmdline->{quiet});
+			exit 1;
+		}
+		else
+		{
+			my $allofthem = $nodelist->data;
+			foreach my $n (@{$allofthem}) {
+				if ($n->{name} =~ /[A-Z]/) {
+					push @nodestocheck, $n->{name};
+				}
+			}
+		}
+	} else
+	{
+		push @nodestocheck, $node;
 	}
 	
-	NMISNG::Util::replace_files_recursive($dir, $node, $old, "rrd");
+	foreach my $n (@nodestocheck) {
+		my $nodeobj = $nmisng->node(uuid => $uuid, name => $n);
+		if (!$nodeobj) {
+			print "Node $n does not exist.\n";
+			last;
+		}
+		$node ||= $nodeobj->name;			# if looked up via uuid
 	
-	print STDERR "Successfully moved node rrd files $cmdline->{name}.\n"
-			if (-t \*STDERR);
+		my $old = lc($n); 
+		my $dir = $config->{database_root}. "/nodes/$old";
+		my $newdir = $config->{database_root}. "/nodes/$n";
+		
+		my $total = NMISNG::Util::replace_files_recursive($dir, $n, $old, "rrd", $force);
+		if ($remove_old and $total > 0)
+		{
+			my $output = `rm -r $dir`;
+			print "Removed $dir: $output \n";
+		}
+		
+		print STDERR "Successfully moved $total node rrd files $nodeobj->{name}.\n"
+				if (-t \*STDERR and $total != 0);
+	}
+	
 
 	exit 0;
 }
@@ -1003,11 +1047,14 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		$nodeobj->unknown(\%unknown);
 	
 		my ($status,$msg) = $nodeobj->save;
-
+	
 		# zero is no saving needed, which is not good here
 		die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
 	
 		my $name = $nodeobj->name;
+		if (!$isnew) {
+			$nmisng->events->cleanNodeEvents($nodeobj, "node_admin");
+		}
 		print STDERR "Successfully ".($isnew? "created":"updated")
 				." node ".$nodeobj->uuid." ($name)\n\n"
 				if (-t \*STDERR);								# if terminal

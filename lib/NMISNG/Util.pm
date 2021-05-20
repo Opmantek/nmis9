@@ -29,7 +29,7 @@
 #
 # Utility package for various reusable general-purpose functions
 package NMISNG::Util;
-our $VERSION = "9.2.1a";
+our $VERSION = "9.2.1";
 
 use strict;
 use feature 'state';						# loadconftable, uuid functions
@@ -3062,36 +3062,67 @@ sub array_diff(\@\@) {
 }
 
 
-# Replace 
+# Replace directory names
+# Migrate nmis8 node lowercase names
+# Recursive
+# if the file exists, it wont be replaced ( mv -n )
+# @returns the number of moved files
 sub replace_files_recursive {
-	my ($path, $new, $old, $extension) = @_;
+	my ($path, $new, $old, $extension, $force) = @_;
 	my $nmisng = Compat::NMIS::new_nmisng();
 	$nmisng->log->info("Replacing $new for $old in $path ");
-
-	if (opendir(DIR, $path)) {
-		my $filename;
-		while ($filename = readdir(DIR)) {
-			my $filepath = $path . "/" . $filename;
-			$nmisng->log->debug("Checking $filepath ");
-			if ( -d $filepath && $filename ne "." && $filename ne "..") {
-				replace_files_recursive($filepath, $new, $old, $extension);
-			} else {
-				# Only .nmis files
-				next unless ($filename =~ m/\.$extension$/);
-				
-				my $replaced = $path;
-				$replaced =~ s/$old/$new/g;
-				$nmisng->log->debug("Replacing $filepath = $replaced");
-				if ($filepath ne $replaced) {
-					my $output = `mv $filepath $replaced`;
-					$nmisng->log->info("mv $filepath into $replaced result: $output ");
-				}
-			}
-			
-		}
-		closedir(DIR);
+	my $C = $nmisng->config();
+	
+	my $total = 0;
+	my @toreview;
+	
+	my $replaced = $path;
+	my $dh;
+	
+	$replaced =~ s/$old/$new/g;
+		
+	if (!opendir($dh, $path)) {
+		print "Can't open $path: $! \n";
+		return 0;
 	}
-	return 1;
+			
+	if ( !-d $replaced and $replaced ne "" ) {
+		my $output = `mkdir $replaced`;
+		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $output);
+		$nmisng->log->debug("Create dir $replaced");
+	}
+
+	while (readdir $dh) {
+		my $fh = "$path/$_";
+		$nmisng->log->debug("Listing $fh ");
+		if ( -d "$fh" && $_ ne "." && $_ ne "..") {
+			push @toreview, $fh;
+		} else {
+			next unless ($_ =~ m/\.$extension$/);				
+			my $replaced = $fh;
+			$replaced =~ s/$old/$new/g;
+			$nmisng->log->debug("Replacing $fh = $replaced if not equals ");
+			if ($fh ne $replaced) {
+				$total++;
+				my $output;
+				
+				if ($force) {
+					$output = `mv $fh $replaced`;
+				} else {
+					$output = `mv -n $fh $replaced`;
+				}
+				system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $replaced);
+				system("chmod","-R","g+rw", $replaced);
+				$nmisng->log->info("mv $fh into $replaced  ");
+			}
+		}
+	}
+	closedir $dh;
+	
+	foreach (@toreview) {
+		$total = $total + replace_files_recursive($_, $new, $old, $extension, $force);
+	}
+	return $total;
 }
 
 1;

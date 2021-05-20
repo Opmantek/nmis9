@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.2.1a";
+our $VERSION = "9.2.1";
 
 use strict;
 
@@ -590,6 +590,8 @@ sub delete
 				if (!$ok);
 	}
 
+	# First we should clear all the events
+	$self->eventsClean();
 	# delete all (ie. historic and active) events for this node, irretrievably and immediately
 	# note that eventsClean() is trying other high-level, non-deletion-related stuff
 	# events_model by default filters for filter historic = 0 :-/
