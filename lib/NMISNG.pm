@@ -2783,7 +2783,7 @@ sub log
 sub remote_collection
 {
 	my ( $self, $newvalue, $drop_unwanted ) = @_;
-	$self->log->debug("index setup for remote");
+	#$self->log->debug("index setup for remote");
 	if ( ref($newvalue) eq "MongoDB::Collection" )
 	{
 		$self->{_db_remote} = $newvalue;
