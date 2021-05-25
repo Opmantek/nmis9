@@ -51,7 +51,7 @@ if (@ARGV == 1 && $ARGV[0] eq "--version")
 }
 
 # fixme: maybe add capability for making an empty hash, empty array?
-my $usage = "Usage: ".basename($0)." [-fb] [-n] <configfile.nmis> <key=newvalue ...>
+my $usage = "Usage: ".basename($0)." [-fb] [-n] [-j] <configfile.nmis> <key=newvalue ...>
 
 key is either 'confkeyname' or '/section/sub1/sub2/keyname'
 
@@ -61,12 +61,13 @@ or ,= for adding to comma-separated list (only if missing)
 newvalue is value to set or \"undef\".
 
 -f: forces conversion of config sections to match key path structure.
+-j: use json files
 -b: backup old file as <filename>.prepatch before modification.
 -n: forces ALL changes to produce numeric data (default: string)
 \n\n";
 
 my %opts;
-die $usage if (!getopts("fbn",\%opts) or !@ARGV or !-f $ARGV[0]);
+die $usage if (!getopts("jfbn",\%opts) or !@ARGV or !-f $ARGV[0]);
 
 my $config_file = shift(@ARGV);
 die "Config file \"$config_file\" does not exist or isn't readable!\n"
@@ -74,9 +75,17 @@ die "Config file \"$config_file\" does not exist or isn't readable!\n"
 
 NMISNG::Util::loadConfTable();	# or else writeHashtoFile will fail, as it calls
 # setfileprot which then has no config values for perms and uid/gid.
+my $json = 0;
+if ($opts{j}) {
+	$json = 1;
+}
+
+if ($config_file =~ /\.json$/) {
+	$json = 1;
+}
 
 print "Operating on config file: $config_file\n\n";
-my ($cfg, $fh) = NMISNG::Util::readFiletoHash(file => $config_file, lock => 1);
+my ($cfg, $fh) = NMISNG::Util::readFiletoHash(file => $config_file, lock => 1, json => $json);
 
 die "Config file \"$config_file\" was not parseable or is empty: $cfg\n"
 		if (ref($cfg) ne "HASH");
@@ -124,7 +133,7 @@ if ($opts{b})
 {
 	File::Copy::cp($config_file,"$config_file.prepatch") or die "cannot backup $config_file: $!\n";
 }
-NMISNG::Util::writeHashtoFile(file => $config_file, data => $cfg, handle => $fh);
+NMISNG::Util::writeHashtoFile(file => $config_file, data => $cfg, handle => $fh, json => $json);
 
 # args: current location in cfg tree, path name, elem name (if any)
 # uses global %patches, updates the cfg tree
@@ -139,7 +148,7 @@ sub patch_config
 		for my $subkey (sort keys %$curloc)
 		{
 			my $error = patch_config(ref($curloc->{$subkey})? $curloc->{$subkey}
-															 : \$curloc->{$subkey} ,"$curpath/$subkey",$subkey);
+										 : \$curloc->{$subkey} ,"$curpath/$subkey",$subkey);
 			return $error if $error;
 		}
 	}
@@ -172,7 +181,7 @@ sub patch_config
 		for my $idx (0..$#$curloc)
 		{
 			my $error = patch_config(ref($curloc->[$idx])? $curloc->[$idx] : \$curloc->[$idx],
-															 $curpath."[$idx]","[$idx]");
+										 $curpath."[$idx]","[$idx]");
 			return $error if $error;
 		}
 	}
