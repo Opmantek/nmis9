@@ -64,10 +64,15 @@ newvalue is value to set or \"undef\".
 -j: use json files
 -b: backup old file as <filename>.prepatch before modification.
 -n: forces ALL changes to produce numeric data (default: string)
+-r: just read and print the value of the one given key
+exit codes for -r: 0 ok, 1 key doesn't exist, 2 value is undef,
+3 value is not printable, 4 invalid key
+
+-R: show all existing config entries
 \n\n";
 
 my %opts;
-die $usage if (!getopts("jfbn",\%opts) or !@ARGV or !-f $ARGV[0]);
+die $usage if (!getopts("jfbnrR",\%opts) or !@ARGV or !-f $ARGV[0]);
 
 my $config_file = shift(@ARGV);
 die "Config file \"$config_file\" does not exist or isn't readable!\n"
@@ -90,27 +95,82 @@ my ($cfg, $fh) = NMISNG::Util::readFiletoHash(file => $config_file, lock => 1, j
 die "Config file \"$config_file\" was not parseable or is empty: $cfg\n"
 		if (ref($cfg) ne "HASH");
 
+# show eveRything
+if ($opts{R})
+{
+	# this produces a.b.4.x, not /a/b[4]/x...
+	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($cfg);
+	die "invalid input: $error\n" if $error;
+	for my $k (sort keys %flatearth)
+	{
+		my $displayk = "/".$k;
+		$displayk =~ s!\.(\d+)\.!\[$1\]!g;
+		$displayk =~ s!\.!/!g;
+
+		print "$displayk=". ($flatearth{$k} =~ /\s/?
+									"\"$flatearth{$k}\"": $flatearth{$k})."\n";
+	}
+	exit 0;
+}
+
 my @patches;
 for my $token (@ARGV)
 {
-	if ($token =~ /^\s*([^\+,=]+)(=|\+=|,=)(.*)$/)
+	if ($opts{r})
 	{
-		my ($key,$op,$value) = ($1,$2,$3);
-		if ($value eq "undef")
+		if ($token =~ m!^[a-zA-Z0-9_/\[\]\. -]+$!)
 		{
-			$value = undef;
+			# follow dotted wants a.b.c and x.4.y, not x[4]/y
+			$token =~ s/\[(-?\d+)\]/\.$1/g; $token =~ s!/!.!g; $token=~ s/^\.//;
+			# no error, 1 is nonex, 2 is type mismatch
+			my ($value,$error) = NMISNG::Util::follow_dotted_diag($cfg, $token);
+
+			exit 4 if ($error == 2);	# couldn't reach the leaf at all
+			exit 1 if ($error == 1);	# leaf nonexistent - that's not undef!
+			exit 2 if (!$error && !defined $value); # present but undef
+
+			if (ref($value) eq "ARRAY")
+			{
+				exit 3 if List::Util::any { ref($_) } (@$value);
+				print join("\n", @$value)."\n";
+			}
+			elsif (ref($value) eq "HASH")
+			{
+				exit 3 if List::Util::any { ref($_) } (values %$value);
+				print map { "$_=$value->{$_}\n" } (sort keys %$value);
+			}
+			elsif (defined($value))
+			{
+				print "$value\n";
+			}
+			exit 0;
 		}
-		elsif ($opts{n})
+		else
 		{
-			# force this into numeric form if the value is number-like
-			$value = 0 + $value;
+			die "cannot parse key \"$token\" for read operation!\n";
 		}
-		push @patches, [ $key,  $op, $value ];
 	}
-	else
-	{
-		die "cannot parse patch expression \"$token\"!\n";
+	else {
+		if ($token =~ /^\s*([^\+,=]+)(=|\+=|,=)(.*)$/)
+		{
+			my ($key,$op,$value) = ($1,$2,$3);
+			if ($value eq "undef")
+			{
+				$value = undef;
+			}
+			elsif ($opts{n})
+			{
+				# force this into numeric form if the value is number-like
+				$value = 0 + $value;
+			}
+			push @patches, [ $key,  $op, $value ];
+		}
+		else
+		{
+			die "cannot parse patch expression \"$token\"!\n";
+		}
 	}
+	
 }
 die "No patches given!\n" if (!@patches);
 print "Patching values for keys ".join(", ",map { $_->[0] } (@patches))."\n";

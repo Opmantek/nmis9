@@ -2713,6 +2713,10 @@ sub flatten_dotfields
 				{
 					$flatearth{$prefix.$k} = $deep->{$k}->data;
 				}
+				elsif (ref($deep->{$k}) =~ /^Regexp$/)
+				{
+					$flatearth{$prefix.$k} = $deep->{$k};
+				}
 				else
 				{
 					my ($error, %subfields) = flatten_dotfields($deep->{$k}, $prefix.$k);
@@ -2748,6 +2752,10 @@ sub flatten_dotfields
 				{
 					$flatearth{$prefix.$idx} = $deep->[$idx]->data;
 				}
+				elsif (ref($deep->[$idx]) =~ /^Regexp$/)
+				{
+					$flatearth{$prefix.$idx} = $deep->[$idx];
+				}
 				else
 				{
 					my ($error, %subfields) = flatten_dotfields($deep->[$idx], $prefix.$idx);
@@ -2766,6 +2774,50 @@ sub flatten_dotfields
 		return "invalid input to flatten_dotfields: ".ref($deep);
 	}
 	return (undef, %flatearth);
+}
+
+# small helper to handle X.Y.Z or X.N.M indirection into a deep structure
+# takes anchor of structure, follows X.Y.Z or X.N.M or X.-N.M indirections
+#
+# args: structure (ref), path (string)
+# returns: value (or undef), error: undef/0 for ok, 1 for nonexistent key/index,
+# 2 for type mismatch (eg. hash expected but scalar or array observed)
+sub follow_dotted_diag
+{
+	my ($anchor, $path) = @_;
+	my ($error, $value);
+
+	for my $indirection (split(/\./, $path))
+	{
+		if (ref($anchor) eq "ARRAY" and $indirection =~ /^-?\d+$/)
+		{
+			if (!exists $anchor->[$indirection])
+			{
+				return (undef, 1);
+			}
+			else
+			{
+				$anchor = $anchor->[$indirection];
+			}
+		}
+		elsif (ref($anchor) eq "HASH")
+		{
+			if (!exists $anchor->{$indirection})
+			{
+				return (undef, 1);
+			}
+			else
+			{
+				$anchor = $anchor->{$indirection};
+			}
+		}
+		else
+		{
+			return (undef, 2);			# type mismatch
+		}
+	}
+	$value = $anchor;
+	return ($value, 0);
 }
 
 # append activity audit information to the one textual audit.log
