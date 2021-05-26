@@ -125,6 +125,25 @@ for my $token (@ARGV)
 			# no error, 1 is nonex, 2 is type mismatch
 			my ($value,$error) = NMISNG::Util::follow_dotted_diag($cfg, $token);
 
+			if ($error == 1) {
+				# this produces a.b.4.x, not /a/b[4]/x...
+				my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($cfg);
+				die "invalid input: $error\n" if $error;
+				
+				for my $k (sort keys %flatearth)
+				{
+					my $displayk = "/".$k;
+					$displayk =~ s!\.(\d+)\.!\[$1\]!g;
+					$displayk =~ s!\.!/!g;
+					if ( $displayk =~ /$token/ ) {
+						print ($flatearth{$k} =~ /\s/?
+												"\"$flatearth{$k}\"": $flatearth{$k})."\n";
+					}
+				}
+				print "\n";
+				exit 0;
+			}
+			
 			exit 4 if ($error == 2);	# couldn't reach the leaf at all
 			exit 1 if ($error == 1);	# leaf nonexistent - that's not undef!
 			exit 2 if (!$error && !defined $value); # present but undef
@@ -193,7 +212,7 @@ if ($opts{b})
 {
 	File::Copy::cp($config_file,"$config_file.prepatch") or die "cannot backup $config_file: $!\n";
 }
-NMISNG::Util::writeHashtoFile(file => $config_file, data => $cfg, handle => $fh, json => $json);
+NMISNG::Util::writeHashtoFile(file => $config_file, data => $cfg, handle => $fh, json => $json, pretty => 1);
 
 # args: current location in cfg tree, path name, elem name (if any)
 # uses global %patches, updates the cfg tree
