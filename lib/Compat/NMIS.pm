@@ -421,7 +421,7 @@ sub getSummaryStats
 
 	push @option, ("--start", "$start", "--end", "$end") ;
 
-	if( $index )
+	#if( $index )
 	{
 		no strict;									# this is extremely bad stuff.
 		$database = $db; # global
