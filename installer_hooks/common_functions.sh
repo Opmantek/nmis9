@@ -1,5 +1,57 @@
+#!/bin/sh
 # a set of common functions for convenience
 # use POSIX functionality only, no bashisms!
+
+# 'OMK_STRICT_SH=3'	provides verbose debugging to STDOUT
+#			and each command is printed to STDERR prior to execution (sh option 'set -eux' is in place)
+# 'OMK_STRICT_SH>=4'	provides as per 'OMK_STRICT_SH=3'
+#			and echos current 'set' option to screen before and after set option is set in check_set_strict_sh function
+check_set_strict_sh()
+{
+	if [ "${OPT_OMK_STRICT_SH:-0}" -gt 0 ]; then
+		CHECK_SET_STRICT=1;
+		ABORT_OMK_STRICT_SH="Aborting ... (only aborts when OMK_STRICT_SH > 0)";
+		# ensure these 3 variables are set, but only when not set as 'strict bash' would fail:
+		if [ -z "${UNATTENDED:-}" ]; then
+			UNATTENDED="";
+		fi;
+		if [ -z "${PRESEED:-}" ]; then
+			PRESEED="";
+		fi;
+		if [ -z "${SIMULATE:-}" ]; then
+			SIMULATE="";
+		fi;
+		if [ -z "${LOGFILE:-}" ]; then
+			LOGFILE="";
+		fi;
+		if [ "${OPT_OMK_STRICT_SH}" -gt 1 ]; then
+			CHECK_SET_STRICT_VERBOSE=1;
+		else
+			CHECK_SET_STRICT_VERBOSE=0;
+		fi;
+		if [ "${OPT_OMK_STRICT_SH}" -gt 3 ]; then
+			echo "check_set_strict_bash:IN:\$-=$-";
+		fi;
+		if [ "${OPT_OMK_STRICT_SH}" -ge 3 ]; then
+			# /bin/sh does not support 'set -o pipefail'
+			set -x;
+			###set -eux;
+		else
+			# /bin/sh does not support 'set -o pipefail'
+			:
+			###set -eu;
+		fi;
+		if [ "${OPT_OMK_STRICT_SH}" -gt 3 ]; then
+			echo "check_set_strict_bash:OUT:\$-=$-";
+		fi;
+	else
+		CHECK_SET_STRICT=0;
+		CHECK_SET_STRICT_VERBOSE=0;
+		ABORT_OMK_STRICT_SH="":
+	fi;
+	return 0;
+}
+check_set_strict_sh;
 
 # echo and log-append to logfile
 echolog() {
@@ -277,4 +329,57 @@ version_compare()
 				[ "$ACOMP" -lt "$BCOMP" ] && return 2
 		done
 		return 0
+}
+
+# checks this server has an ntp type service and warns|logs if not detected
+version_check_ntp_type_service (){
+	NTP_DETECTED=0;
+	if type timedatectl >/dev/null 2>&1; then
+		if timedatectl status|grep -q "Network\s\+time\s\+on:\s\+yes"; then
+			NTP_DETECTED=1;
+		fi;
+	fi;
+	if [ "${NTP_DETECTED}" -eq 0 ]; then
+		# ensure systemd-timesyncd|chronyd|ntp|ntpd is enabled and running if installed. Chronyd is preferred
+		#   centos 6 default ntpd
+		#   centos 7 default chronyd
+		#   centos 8 default chronyd
+		#   debian 8 default ntp
+		#   debian 9 default ntp
+		#   debian 10 default ntp
+		#   ubuntu 16.04 default ntp
+		#   ubuntu 18.04 default systemd-timesyncd
+		#   ubuntu 20.04 default systemd-timesyncd
+		NTP_SERVICES="systemd-timesyncd chronyd ntpd ntp openntpd";
+		NTP_SERVICE_ACTIVE=;
+		# if systemd
+		if type systemctl >/dev/null 2>&1; then
+			# first check if any ntp service is running
+			for NTP_SERVICE in ${NTP_SERVICES}; do
+				if systemctl is-active --quiet "${NTP_SERVICE}"; then
+					NTP_SERVICE_ACTIVE="${NTP_SERVICE}";
+					break;
+				fi;
+			done;
+		elif type service >/dev/null 2>&1; then
+			for NTP_SERVICE in ${NTP_SERVICES}; do
+				if service "${NTP_SERVICE}" status >/dev/null 2>&1; then
+					NTP_SERVICE_ACTIVE="${NTP_SERVICE}";
+				fi;
+			done;
+		fi;
+		if [ -z "${NTP_SERVICE_ACTIVE:-}" ]; then
+			echolog "An enabled and running service to synchronize with the Network Time Protocol was not detected."
+			cat <<EOF
+
+$PRODUCT requires an enabled and running service to synchronize with the Network Time Protocol,
+but no such service was detected.
+
+You will have to resolve this manually before $PRODUCT will operate properly.
+
+EOF
+			input_ok "Hit <Enter> when ready to continue: ";
+		fi;
+	fi;
+	return 0;
 }
