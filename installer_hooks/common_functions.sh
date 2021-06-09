@@ -335,7 +335,7 @@ version_compare()
 version_check_ntp_type_service (){
 	NTP_DETECTED=0;
 	if type timedatectl >/dev/null 2>&1; then
-		if timedatectl status|grep -q "Network\s\+time\s\+on:\s\+yes"; then
+		if timedatectl status|grep -q -e "Network\s\+time\s\+on:\s\+yes" -e "NTP\s\+service:\s\+active"; then
 			NTP_DETECTED=1;
 		fi;
 	fi;
