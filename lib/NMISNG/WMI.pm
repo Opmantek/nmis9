@@ -50,6 +50,7 @@ sub new
 			username => $args{username},
 			password => $args{password},
 			host => $args{host},
+			domain => $args{domain},
 			timeout => $args{timeout},
 			program => $args{program} || "wmic",
 		},
@@ -221,14 +222,16 @@ sub _run_query
 		{
 			my ($user,$delim,$domain) = ($1,$2,$3);
 			($user,$domain) = ($domain,$user) if ($delim eq "/");
-
 			print $authfh "username = $user\ndomain = $domain\n";
+		}
+		elsif ($self->{domain})
+		{
+			print $authfh "domain = $self->{domain}\n";
 		}
 		else
 		{
 			print $authfh "username = $self->{username}\n";
 		}
-
 		print $authfh "password = $self->{password}\n" if ($self->{password});
 		close $authfh;
 
@@ -238,6 +241,7 @@ sub _run_query
 									 "//".$self->{host},
 									 $query);
 		push @cmdargs, "--no-pass" if (!$self->{password});
+		push @cmdargs, "| grep -v dcerpc_pipe_connect";
 
 		exec(@cmdargs);
 		die "exec failed: $!\n";
