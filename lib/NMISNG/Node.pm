@@ -2251,6 +2251,7 @@ sub collect_node_info
 		}
 
 		# that's actually critical for other functions down the track
+		$catchall_data->{collectPollDelta} = time() - $catchall_data->{last_poll};
 		$catchall_data->{last_poll}   = $time_marker;
 		delete $catchall_data->{lastCollectPoll}; # replaced by last_poll
 
@@ -8336,6 +8337,7 @@ sub collect
 			}
 			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
+			$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $catchall_data->{last_poll};
 			$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
 			# we polled something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
@@ -8417,6 +8419,7 @@ sub collect
 	my $polltime = $pollTimer->elapTime();
 	$self->nmisng->log->debug("polltime for $name was $polltime");
 	$reachdata->{polltime} = {value => $polltime, option => "gauge,0:U"};
+	$reachdata->{polldelta} = {value => $catchall_data->{collectPollDelta}, option => "gauge,0:U"};
 
 	# parrot the previous reading's update time
 	my $prevval = "U";
