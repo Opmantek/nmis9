@@ -40,6 +40,7 @@
 	'option' => {
 		'standard' => [
 			'DEF:poll=$database:polltime:AVERAGE',
+			'DEF:delta=$database:polldelta:AVERAGE',
 			'DEF:update=$database:updatetime:AVERAGE',
 
 			'LINE2:poll#006400: Collect Time\t',
@@ -51,6 +52,11 @@
 			'GPRINT:update:AVERAGE:\tAvg %1.2lf seconds',
 			'GPRINT:update:LAST:\tLast %1.2lf seconds',
 			'GPRINT:update:MAX:\tMax %1.2lf seconds\l',
+			
+			'LINE2:delta#4daef6:Collect Delta\t',
+			'GPRINT:delta:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:delta:LAST:\tLast %1.2lf seconds',
+			'GPRINT:delta:MAX:\tMax %1.2lf seconds\l'
 		]
 	}
 );

@@ -809,8 +809,10 @@ sub timesReport
 
 			my %entry = ( node => $reportnode,
 										polltime => "N/A",
+										polldelta => "N/A",
 										updatetime => "N/A",
 										polltimecolor => "#000000",
+										polldeltacolor => "#000000",
 										updatetimecolor => "#000000" );
 			# find health rrd
 			if (-f (my $rrdfilename = $S->makeRRDname(type => "health")))
@@ -820,7 +822,7 @@ sub timesReport
 																								 index => undef, item => undef,
 																								 start => $start,  end => $end);
 
-				for my $thing (qw(polltime updatetime))
+				for my $thing (qw(polltime polldelta updatetime))
 				{
 					my $value = $stats->{$thing}->{mean};
 					if (defined $value)
