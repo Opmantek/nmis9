@@ -120,6 +120,8 @@ delete: only deletes if confirm=yes (in uppercase) is given,
 show: prints a node's properties in the same format as set
  with option quoted=true, show adds double-quotes where needed
  with option interfaces=true show interface basic information
+ with option inventory=true dumps all the inventory data
+ 
 set: adjust one or more node properties
 
 restore: restores a previously dumped node's data. if 
@@ -493,6 +495,8 @@ elsif ($cmdline->{act} eq "show")
 	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
 	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
 	my $wantinterfaces = NMISNG::Util::getbool($cmdline->{interfaces});
+	my $wantinventory = NMISNG::Util::getbool($cmdline->{inventory});
+	my $wantcatchall = NMISNG::Util::getbool($cmdline->{catchall});
 
 	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
@@ -517,7 +521,47 @@ elsif ($cmdline->{act} eq "show")
 		print "$k=". ($wantquoted && $flatearth{$k} =~ /['"\$\s\(\)\{\}\[\]]/?
 									"\"$flatearth{$k}\"": $flatearth{$k})."\n";
 	}
-	if ($wantinterfaces)
+	if ($wantinventory) {
+		my $md = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid);
+		if (my $error = $md->error)
+		{
+			print "failed to lookup inventory records: $error \n";
+		}
+	
+		for my $oneinv (@{$md->data})
+		{
+			print $oneinv->{'concept'}.".description: " . $oneinv->{'description'} . "\n";
+			foreach my $key (%{$oneinv->{'data'}}) {
+				if (ref($oneinv->{'data'}->{$key}) ne "ARRAY" and ref($oneinv->{'data'}->{$key}) ne "HASH"
+					and ref($key) ne "ARRAY" and ref($key) ne "HASH" and defined($oneinv->{'data'}->{$key})) {
+						if ($oneinv->{'data'}->{index}) {
+							print $oneinv->{'concept'}.".$key.".$oneinv->{'data'}->{index}.": ".$oneinv->{'data'}->{$key}. "\n";
+						} else {
+							print $oneinv->{'concept'}.".$key: ".$oneinv->{'data'}->{$key}. "\n";
+						}
+						
+				}
+			}
+		}
+	}
+	elsif ($wantcatchall) {
+		my $md = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => 'catchall');
+		if (my $error = $md->error)
+		{
+			print "failed to lookup inventory records: $error \n";
+		}
+		for my $oneinv (@{$md->data})
+		{
+			print "catchall.description: " . $oneinv->{'description'} . "\n";
+			foreach my $key (%{$oneinv->{'data'}}) {
+				if (ref($oneinv->{'data'}->{$key}) ne "ARRAY" and ref($oneinv->{'data'}->{$key}) ne "HASH"
+					and ref($key) ne "ARRAY" and ref($key) ne "HASH" and defined($oneinv->{'data'}->{$key})) {
+						print "catchall.$key: ".$oneinv->{'data'}->{$key}. "\n";
+				}
+			}
+		}
+	}
+	elsif ($wantinterfaces)
 	{
 		my $md = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => 'interface');
 		if (my $error = $md->error)

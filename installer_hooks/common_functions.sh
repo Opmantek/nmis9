@@ -335,7 +335,7 @@ version_compare()
 version_check_ntp_type_service (){
 	NTP_DETECTED=0;
 	if type timedatectl >/dev/null 2>&1; then
-		if timedatectl status|grep -q -e "Network\s\+time\s\+on:\s\+yes" -e "NTP\s\+service:\s\+active"; then
+		if timedatectl status|grep -q -e "[Ss]ynchronized:\s\+yes" -e "Network\s\+time\s\+on:\s\+yes" -e "NTP\s\+service:\s\+active" -e "NTP\s\+enabled:\s\+yes" -e "systemd-timesyncd.service\s\+active:\s\+yes"; then
 			NTP_DETECTED=1;
 		fi;
 	fi;
@@ -344,10 +344,10 @@ version_check_ntp_type_service (){
 		#   centos 6 default ntpd
 		#   centos 7 default chronyd
 		#   centos 8 default chronyd
-		#   debian 8 default ntp
-		#   debian 9 default ntp
-		#   debian 10 default ntp
-		#   ubuntu 16.04 default ntp
+		#   debian 8 default systemd-timesyncd, but disabled
+		#   debian 9 default systemd-timesyncd
+		#   debian 10 default systemd-timesyncd
+		#   ubuntu 16.04 default systemd-timesyncd
 		#   ubuntu 18.04 default systemd-timesyncd
 		#   ubuntu 20.04 default systemd-timesyncd
 		NTP_SERVICES="systemd-timesyncd chronyd ntpd ntp openntpd";

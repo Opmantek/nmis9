@@ -50,6 +50,7 @@ sub new
 			username => $args{username},
 			password => $args{password},
 			host => $args{host},
+			domain => $args{domain},
 			timeout => $args{timeout},
 			program => $args{program} || "wmic",
 		},
@@ -210,26 +211,33 @@ sub _run_query
 	else
 	{
 		# child
-		open(STDIN, "<", "/dev/null");
-		open(STDERR, ">&", $tfh);		# stderr to go there, please
+		open(STDIN, "</dev/null");
+		open(STDERR, '>&'.$tfh);		# stderr to go there, please
 
 		# -A format is badly documented. smbclient manpage has a little bit of info
 		# however, unclear if that password can be quoted or contain spaces or the like...
 
 		# let's accept usernames with domains, as user@domain or domain/user
-		if ($self->{username} =~ m!^([^/@]+)([/@])(.+)$!)
+		my $foundDomain = 0;
+		if ($self->{username})
 		{
-			my ($user,$delim,$domain) = ($1,$2,$3);
-			($user,$domain) = ($domain,$user) if ($delim eq "/");
-
-			print $authfh "username = $user\ndomain = $domain\n";
+		    if ($self->{username} =~ m!^([^/@]+)([/@])(.+)$!)
+		    {
+			    my ($user,$delim,$domain) = ($1,$2,$3);
+			    ($user,$domain) = ($domain,$user) if ($delim eq "/");
+			    print $authfh "username=$user\ndomain=$domain\n";
+			    $foundDomain = 1;
+		    }
+		    else
+		    {
+		        print $authfh "username=$self->{username}\n";
+		    }
 		}
-		else
+		if ($self->{domain} && !$foundDomain)
 		{
-			print $authfh "username = $self->{username}\n";
+			print $authfh "domain=$self->{domain}\n";
 		}
-
-		print $authfh "password = $self->{password}\n" if ($self->{password});
+		print $authfh "password=$self->{password}\n" if ($self->{password});
 		close $authfh;
 
 		my @cmdargs = ($self->{program},
@@ -238,6 +246,7 @@ sub _run_query
 									 "//".$self->{host},
 									 $query);
 		push @cmdargs, "--no-pass" if (!$self->{password});
+		push @cmdargs, "| grep -v dcerpc_pipe_connect";
 
 		exec(@cmdargs);
 		die "exec failed: $!\n";

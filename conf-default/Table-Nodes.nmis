@@ -83,6 +83,7 @@ my @models = ('automatic', sort keys %knownmodels);
 	 { community => { mandatory => 'true', header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
 
 	 { wmi => { special=>'separator', header => "WMI Options", } },
+	 { wmidomain => { header => "WMI Domain", display => 'text', value => [''] }},
 	 { wmiusername => { header => "WMI Username", display => 'text', value => [''] }},
 	 { wmipassword => { header => "WMI Password", display => 'password', value => [''] }},
 
