@@ -1502,6 +1502,7 @@ sub find_due_nodes
 		# collect and update? subject to policies
 		# get the polling policies and translate into seconds (for rrd file options)
 		my $policies = NMISNG::Util::loadTable(
+			conf => $self->config,
 			dir  => 'conf',
 			name => "Polling-Policy"
 		) || {};
@@ -1535,7 +1536,7 @@ sub find_due_nodes
 	}
 	elsif ( $whichop eq "services" )
 	{
-		$servicedefs = NMISNG::Util::loadTable( dir => "conf", name => "Services" ) || {};
+		$servicedefs = NMISNG::Util::loadTable( dir => "conf", name => "Services", conf => $self->config ) || {};
 
 		for my $servicekey ( keys %$servicedefs )
 		{
@@ -3008,19 +3009,19 @@ sub process_escalations
 	my %seen;
 
 	$self->log->debug2(&NMISNG::Log::trace()."Starting");
-	my $CT = NMISNG::Util::loadTable( dir => "conf", name => "Contacts" );
+	my $CT = NMISNG::Util::loadTable( dir => "conf", name => "Contacts", conf => $C );
 
 	# load the escalation policy table
-	my $EST = NMISNG::Util::loadTable( dir => "conf", name => "Escalations" );
+	my $EST = NMISNG::Util::loadTable( dir => "conf", name => "Escalations", conf => $C );
 
-	my $LocationsTable = NMISNG::Util::loadTable( dir => "conf", name => "Locations" );
+	my $LocationsTable = NMISNG::Util::loadTable( dir => "conf", name => "Locations", conf => $C );
 
 	### keiths, work around for extra tables.
 	my $ServiceStatusTable;
 	my $useServiceStatusTable = 0;
 	if ( Compat::NMIS::tableExists('ServiceStatus') )
 	{
-		$ServiceStatusTable = NMISNG::Util::loadTable( dir => "conf", name => 'ServiceStatus' );
+		$ServiceStatusTable = NMISNG::Util::loadTable( dir => "conf", name => 'ServiceStatus', conf => $C );
 		$useServiceStatusTable = 1;
 	}
 
@@ -3028,12 +3029,12 @@ sub process_escalations
 	my $useBusinessServicesTable = 0;
 	if ( Compat::NMIS::tableExists('BusinessServices') )
 	{
-		$BusinessServicesTable = NMISNG::Util::loadTable( dir => "conf", name => 'BusinessServices' );
+		$BusinessServicesTable = NMISNG::Util::loadTable( dir => "conf", name => 'BusinessServices', conf => $C );
 		$useBusinessServicesTable = 1;
 	}
 
 	# the events configuration table, controls active/notify/logging for each known event
-	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
+	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events', conf => $C );
 
 	# add a full format time string for emails and message notifications
 	# pull the system timezone and then the local time

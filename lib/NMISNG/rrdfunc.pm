@@ -673,7 +673,7 @@ sub updateRRD
 	$S->nmisng->log->debug2("DS $theds, $points");
 	$S->nmisng->log->debug2("value $thevalue, $bytes bytes");
 
-	NMISNG::Util::logPolling("$type,$S->{name},$index,$item,$theds,$thevalue");
+	NMISNG::Util::logPolling("$type,$S->{name},$index,$item,$theds,$thevalue", $S->nmisng->config);
 
 	if (!@updateargs)
 	{

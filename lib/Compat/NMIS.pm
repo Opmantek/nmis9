@@ -2206,6 +2206,7 @@ sub notify
 	my $details = $args{details};
 	my $level = $args{level};
 	my $inventory_id = $args{inventory_id};
+	my $conf = $args{conf};
 
 	my $M = $S->mdl;
 	my $node = $S->nmisng_node;
@@ -2219,7 +2220,7 @@ sub notify
 	$S->nmisng->log->debug2("Start of Notify");
 
 	# events.nmis controls which events are active/logging/notifying
-	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
+	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
 	# create new event object with all properties, when load is called if it is found these will

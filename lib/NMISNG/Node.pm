@@ -2484,7 +2484,7 @@ sub update_intf_info
 		$self->nmisng->log->debug2("Get Interface Info of node $nodename, model $catchall_data->{nodeModel}");
 
 		# load interface types (IANA). number => name
-		my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes");
+		my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);
 
 		# get interface Index table
 		my (@ifIndexNum,  $ifIndexTable, %activeones);
@@ -7900,7 +7900,8 @@ sub collect_services
 				element => $name,
 				details => ( $status{status_text} || "" ),
 				context => {type => "service"},
-				inventory_id => $inventory->id
+				inventory_id => $inventory->id,
+				conf    => $C
 			);
 		}
 		else    # Service is down
@@ -7926,7 +7927,8 @@ sub collect_services
 				element => $name,
 				details => ( $status{status_text} || "" ),
 				context => {type => "service"},
-				inventory_id => $inventory->id
+				inventory_id => $inventory->id,
+				conf    => $C
 			);
 		}
 
