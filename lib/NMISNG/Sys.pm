@@ -429,6 +429,14 @@ sub init
 		{
 			$loadthis = "Model-PingOnly";
 		}
+		# no specific model, update yes, ping no, collect no -> serviceonly
+		elsif (!NMISNG::Util::getbool($thisnodeconfig->{ping})
+			and !NMISNG::Util::getbool($thisnodeconfig->{collect})
+			and defined $thisnodeconfig->{services}
+			and $thisnodeconfig->{services} ne "" )
+		{
+			$loadthis = "Model-ServiceOnly";
+		}
 
 		# default model otherwise
 		$self->nmisng->log->debug("loading model $loadthis for node $self->{name}");
@@ -1580,6 +1588,7 @@ sub loadModel
 			map { push @depstocheck, "Common-".$self->{mdl}->{"-common-"}->{class}->{$_}->{"common-model"}; }
 			(keys %{$self->{mdl}{'-common-'}{class}}) if (ref($self->{mdl}->{'-common-'}) eq "HASH"
 																										&& ref($self->{mdl}->{'-common-'}->{class}) eq "HASH");
+
 			for my $other (@depstocheck)
 			{
 				my $othermtime;
@@ -1803,6 +1812,7 @@ sub loadModel
 				$gt2sc->{$onegt} = $fixedsubconcept;
 			}
 		}
+		
 		# and another special case: health section isn't modelled fully/properly
 		$fixedsubconcept = "health";
 		for my $onegt (qw(health kpi response numintf polltime))
@@ -1812,6 +1822,7 @@ sub loadModel
 			$gt2sc->{$onegt} = $fixedsubconcept;
 		}
 	}
+			
 	return $exit;
 }
 
@@ -2263,6 +2274,7 @@ sub getTypeInstances
 			}
 		}
 	}
+	
 	# modeldata is just a container here, no object instantiation expected or possible
 	return ($want_modeldata) ? ($modeldata || NMISNG::ModelData->new()) : @instances;
 }
@@ -2312,10 +2324,10 @@ sub makeRRDname
 		$self->nmisng->log->error("makeRRDname failed: no rrd section known for graphtype=$graphtype, type=$type");
 		return undef;
 	}
-
 	my $template = (ref($self->{mdl}->{database}) eq "HASH"
 									&& ref($self->{mdl}->{database}->{type}) eq "HASH")?
 									$self->{mdl}->{database}->{type}->{$sectionname} : undef;
+
 	if (!defined $template)
 	{
 		$self->nmisng->log->error("($self->{name}) database name not found for graphtype=$graphtype, type=$type, index=$index, item=$item, sect=$sectionname");
@@ -2390,7 +2402,6 @@ sub create_update_rrd
 																 index => $index,
 																 item => $item,
 																 relative => 1);
-    
 	if (!$dbname)
 	{
 		$self->nmisng->log->error("create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");

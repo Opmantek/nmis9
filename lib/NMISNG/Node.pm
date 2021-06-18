@@ -7501,12 +7501,8 @@ sub collect_services
 			}
 		}
 		# now the snmp services - but only if snmp is on and if it did work.
-		elsif ( $servicetype eq "service"
-						and $self->configuration->{collect})
+		elsif ( $servicetype eq "service" )
 		{
-			# snmp not allowed also includes the case of snmp having failed just now
-			# in which case we cannot and must not say anything about this service
-			next if (!$snmp_allowed);
 
 			my $wantedprocname = $servicename;
 			my $parametercheck = $thisservice->{Service_Parameters};
