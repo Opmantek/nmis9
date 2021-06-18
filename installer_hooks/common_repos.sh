@@ -1,3 +1,4 @@
+#!/bin/sh
 # a set of common functions for dealing with yum (and apt) repositories
 # use POSIX functionality only, no bashisms!
 #
@@ -121,6 +122,7 @@ EOF
 		prime_apt;
 }
 
+
 # small helper that disables an enabled debian/ubuntu distro,
 # args: distribution name (the logical name, testing/unstable, NOT the code name!)
 # relies on $OSFLAVOUR to switch between ubuntu and debian
@@ -137,6 +139,7 @@ disable_distro()
 		# reload the package list to finish
 		prime_apt;
 }
+
 
 # small helper that enables one of the known custom repos
 # args: repo name (epel or rpmforge/repoforge)
@@ -159,10 +162,22 @@ enable_custom_repo() {
 						# https://fedoraproject.org/wiki/EPEL
 						# extra rh repos absolutely required for epel to work. grrr.
 						echolog "Enabling RHEL optional RPM repo (required for EPEL)"
-						execPrint subscription-manager repos --enable=rhel-${OS_MAJOR}-server-optional-rpms
+
+						if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-server-optional-rpms" | grep Enabled | grep 0)" ]; then
+							execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-server-optional-rpms 2>&1"||:;
+						fi;
 						if [ "$OS_MAJOR" = 7 ]; then
-								echo "Enabling RHEL extras RPM repo (required for EPEL)"
-								execPrint subscription-manager repos --enable=rhel-${OS_MAJOR}-server-extras-rpms
+								echo "Enabling RHEL ${OS_MAJOR} extras RPM repo (required for EPEL)"
+
+								if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-server-extras-rpms" | grep Enabled | grep 0)" ]; then
+									execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-server-extras-rpms 2>&1"||:;
+								fi;
+						elif [ "$OS_MAJOR" = 8 ]; then
+								echo "Enabling RHEL ${OS_MAJOR} extras RPM repo (required for EPEL)"
+
+								if [ -n "$(subscription-manager repos | grep -A4 "codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms" | grep Enabled | grep 0)" ]; then
+									execPrint "subscription-manager repos --enable=codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms 2>&1"||:;
+								fi;
 						fi
 						# then finally the epel repo itself
 						execPrint yum -y install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${OS_MAJOR}.noarch.rpm"
@@ -271,6 +286,8 @@ EOF
 
 						DEBIAN_FRONTEND=noninteractive
 						export DEBIAN_FRONTEND
+						DEBCONF_NONINTERACTIVE_SEEN=true
+						export DEBCONF_NONINTERACTIVE_SEEN
 
 						echolog "Using apt-get to install $pkg"
 						local PRECISEPACKAGE

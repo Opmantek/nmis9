@@ -41,19 +41,19 @@
       'threshold' => {
         'common-model' => 'threshold'
       },
+     'heading' => {
+        'common-model' => 'heading'
+      },
       'stats' => {
         'common-model' => 'stats'
       },
       'event' => {
         'common-model' => 'event'
-      },
-      'software' => {
-        'common-model' => 'software'
       }
     }
   },
   'system' => {
-    'nodeType' => 'server',
+    'nodeType' => 'generic',
     'nodeModel' => 'ServiceOnly',
     'nodegraph' => ''
     }

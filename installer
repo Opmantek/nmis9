@@ -168,12 +168,12 @@ elsif (-f "/etc/os-release")
 	open(F,"/etc/os-release") or die "cannot read os-release: $!\n";
 	my $osinfo = join("",<F>);
 	close(F);
-	if ($osinfo =~ /ID=debian/)
+	if ($osinfo =~ /ID=debian/ || $osinfo =~ /ID_LIKE=debian/)
 	{
 		$osflavour="debian";
 		logmsg(0, "detected OS flavour Debian");
 	}
-	elsif ($osinfo =~ /ID=ubuntu/)
+	elsif ($osinfo =~ /ID=ubuntu/ || $osinfo =~ /ID_LIKE=ubuntu/)
 	{
 		$osflavour="ubuntu";
 		logmsg(0, "detected OS flavour Ubuntu");
@@ -188,14 +188,11 @@ umask(0022);
 
 # is this an initial installation or an upgrade?
 # this is a bit of guesswork.
-my $is_initial_install = (-d $targetdir
-													&& -f "$targetdir/conf/Config.nmis")? 0:1;
+my $is_initial_install = (-d $targetdir && -f "$targetdir/conf/Config.nmis")? 0:1;
 
 # figure out version - build infra will have saved that in .version
 my $prodversion = eval { do "./.version" };
-logdie("Invalid release - no version!")
-		if ($@ or !$prodversion);
-
+logdie("Invalid release - no version!") if ($@ or !$prodversion);
 
 printBanner("NMIS ($prodversion) Installation script");
 my $hostname = `hostname --fqdn`; chomp $hostname;
