@@ -988,7 +988,9 @@ sub warn_die
 sub setFileProtDiag
 {
 	my (%args) = @_;
-	my $C = $args{conf} // NMISNG::Util::loadConfTable();
+	my $C; # = $args{conf} // NMISNG::Util::loadConfTable();
+	(ref($args{conf}) eq "HASH" ? $C = $args{conf}
+                                : $C = NMISNG::Util::loadConfTable());
 
 	my $filename = $args{file};
 	my $username = $args{username} || $C->{nmis_user} || "nmis";

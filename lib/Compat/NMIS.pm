@@ -214,7 +214,7 @@ sub tableExists
 # returns: hash ref of data
 sub loadGenericTable
 {
-	my ($tablename) = @_;
+	my ($tablename) = shift;
 	my $C = shift;
 	
 	return NMISNG::Util::loadTable(dir => "conf", name => $tablename, conf => $C );
