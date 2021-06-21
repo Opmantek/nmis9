@@ -338,7 +338,8 @@ my %hash = (
     'view_mtr' => 'false',
     'view_lft' => 'false',
     'mtr' => '/usr/sbin/mtr',
-    'lft' => '/usr/local/bin/lft'
+    'lft' => '/usr/local/bin/lft',
+    'view_snmp' => 'true'
   },
 
   'menu' => {

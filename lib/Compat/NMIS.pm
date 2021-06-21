@@ -1632,6 +1632,9 @@ sub createHrButtons
 	push @out, CGI::li(CGI::a({class=>'wht',
 														 href=>"http://$catchall_data->{host}",target=>'_blank'},"http"))
 			if NMISNG::Util::getbool($catchall_data->{webserver});
+	push @out, CGI::li(CGI::a({class=>'wht',
+														 href=>"tools.pl?act=tool_system_snmp&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"SNMP"))
+			if NMISNG::Util::getbool($C->{view_snmp});
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
