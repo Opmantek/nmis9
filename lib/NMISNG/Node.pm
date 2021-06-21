@@ -3270,7 +3270,8 @@ sub update_intf_info
 					# rrd file exists and readable?
 					if ( -r ( my $rrdfile = $S->makeRRDname( graphtype => $datatype,
 																									 index => $index,
-																									 inventory => $inventory ) ) )
+																									 inventory => $inventory,
+																									 conf => $self->nmisng->config ) ) )
 					{
 						my $fileinfo = RRDs::info($rrdfile);
 						for my $matching ( grep /^ds\[.+\]\.max$/, keys %$fileinfo )
@@ -6629,7 +6630,8 @@ sub compute_summary_stats
 		inventory => $inventory,
 		subconcept => $section,
 		start => $standard_period,
-		end => time );
+		end => time,
+		conf => $C );
 
 	if (ref($standardstats) ne "HASH")
 	{
@@ -6643,7 +6645,8 @@ sub compute_summary_stats
 		inventory => $inventory,
 		subconcept => $section,
 		start => $metricsFirstPeriod,
-		end => time );
+		end => time,
+		conf => $C );
 
 	if (ref($stats8) ne "HASH")
 	{
@@ -6657,7 +6660,8 @@ sub compute_summary_stats
 		inventory => $inventory,
 		subconcept => $section,
 		start => $metricsSecondPeriod,
-		end => $metricsFirstPeriod ); # funny one, from -16h to -8h... has been that way for a while
+		end => $metricsFirstPeriod,
+		conf => $C ); # funny one, from -16h to -8h... has been that way for a while
 
 	if (ref($stats16) ne "HASH")
 	{
@@ -6796,7 +6800,8 @@ sub collect_server_data
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S,
 																												 inventory => $inventory,
 																												 subconcept => 'hrsmpcpu',
-																												 start => $period, end => time);
+																												 start => $period, end => time,
+																												 conf => $self->nmisng->config );
 						if (ref($stats) ne "HASH")
 						{
 							$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
@@ -7034,7 +7039,8 @@ sub collect_server_data
 					# get stats
 					my $period = $self->nmisng->_threshold_period(subconcept => $subconcept);
 					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
-																											 subconcept => $subconcept, start => $period, end => time);
+																subconcept => $subconcept, start => $period, end => time,
+																conf => $self->nmisng->config );
 					if (ref($stats) ne "HASH")
 					{
 						$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
@@ -8297,7 +8303,8 @@ sub collect
 														 element => undef,
 														 details => ("SNMP Session switched to backup address \""
 																				 . $self->configuration->{host_backup}.'"'),
-														 context => { type => "node" });
+														 context => { type => "node" },
+														 conf => $C );
 			}
 			# or are we using the primary address?
 			elsif ($candosnmp)
@@ -8446,7 +8453,7 @@ sub collect
 	my $previous_pit = $catchall_inventory->get_newest_timed_data();
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 
-	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
+	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory, conf => $C );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
 																					time => $catchall_data->{last_poll}, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);

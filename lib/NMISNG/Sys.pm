@@ -2308,7 +2308,7 @@ sub makeRRDname
 	my $extras = $args{extras};
 	my $wantrelative = NMISNG::Util::getbool($args{relative});
 	my $inventory = $args{inventory};
-	my $C = $self->{conf} // NMISNG::Util::loadConfTable if (!$wantrelative); # only needed for database_root
+	my $C = $self->{conf} // $args{conf} // NMISNG::Util::loadConfTable if (!$wantrelative); # only needed for database_root
 
 	# if necessary, find the subconcept that belongs to this graphtype  - this
 	# is the same as the rrd section name, and thus the database type name
