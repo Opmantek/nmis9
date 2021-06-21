@@ -564,6 +564,20 @@ The support tool won't be able to collect database status information!\n");
 																									opstatus_limit => $maxopstatus});
 
 				warn "Failed to dump node data for $uuid: $res->{error}\n" if (!$res->{success});
+				# Now, perform an update and a collect
+				my $logfn = "$targetdir/node_dumps/update.log";
+				my $thisjoblog = NMISNG::Log->new(level => NMISNG::Log::parse_debug_level(debug => 7),
+																						path => $logfn);
+				$nmisng->log($thisjoblog);
+				my $nodeobj = $nmisng->node(uuid => $found->{uuid});
+				$nodeobj->update();
+				
+				my $logfn = "$targetdir/node_dumps/collect.log";
+				my $thisjoblog = NMISNG::Log->new(level => NMISNG::Log::parse_debug_level(debug => 7),
+																						path => $logfn);
+				$nmisng->log($thisjoblog);
+				my $nodeobj = $nmisng->node(uuid => $found->{uuid});
+				$nodeobj->collect();
 			}
 		}
 	}
