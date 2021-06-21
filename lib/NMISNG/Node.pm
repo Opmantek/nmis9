@@ -2413,7 +2413,31 @@ sub collect_node_data
 	return 1;
 }
 
+# provides RO access to interface list
+# replaces deprecated _Sys::ifinfo() which it mimics until a better method is found
+# rt todo: fixme: '$self->getInterfaces()' currently only returns interfaces with ip addresses configured so can't be used yet:
+sub ifinfo
+{
+	my ($self) = @_;
 
+	if( !defined($self->{_ifinfo}) )
+	{
+		$self->{_ifinfo} = {};
+		my $result = $self->get_inventory_model(concept => "interface",
+												filter => { historic => 0 });
+		if (my $error = $result->error)
+		{
+			$self->log->error("ifinfo(): \$self->get_inventory_model() failed: $error");
+		}
+		else
+		{
+			my $result_data = $result->data;
+			my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$result_data});
+			$self->{_ifinfo} = \%ifdata;
+		}
+	}
+	return $self->{_ifinfo};
+}
 
 # collect the Interface configuration from SNMP, done during update operation
 # fixme: this function works ONLY if snmp is enabled for the node!
