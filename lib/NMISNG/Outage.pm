@@ -462,7 +462,6 @@ sub check_outages
 	if (ref($node) ne "NMISNG::Node" && ref($nmisng) ne "NMISNG");
 
 	my $C = $nmisng->config if ($nmisng);
-	
 	my $outagedata = NMISNG::Util::loadTable(dir => "conf", name => "Outages", conf => $C)
 			if (NMISNG::Util::existFile(dir => "conf", name => "Outages", conf => $C));
 	$outagedata //= {};

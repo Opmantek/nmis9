@@ -85,7 +85,7 @@ sub nmis_conf
 {
 	my ( $self, %args ) = @_;
 	unless (defined($self->{_nmis_conf})) {
-		$self->{_nmis_conf} = NMISNG::Util::loadConfTable();
+		$self->{_nmis_conf} = $self->nmisng->config // NMISNG::Util::loadConfTable();
 	}
 	return $self->{_nmis_conf};
 }

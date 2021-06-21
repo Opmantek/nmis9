@@ -1133,7 +1133,7 @@ sub existFile
 	return 0 if (!$dir or !$name);
 
 	my $file;
-	$file = getDir(dir=>$dir)."/$name"; # expands dir args like 'conf' or 'logs'
+	$file = getDir(dir=>$dir, conf => $conf)."/$name"; # expands dir args like 'conf' or 'logs'
 	$file = NMISNG::Util::getFileName(file => $file, conf => $conf); # mangles that into path with extension
 	return ( -e $file ) ;
 }
@@ -2003,6 +2003,7 @@ sub setFileProtDirectory
 {
 	my $dir = shift;
 	my $recurse = shift;
+	my $conf = shift;
 
 	my @problems;
 
@@ -2014,7 +2015,7 @@ sub setFileProtDirectory
 	}
 
 	# the dir itself must be checked and fixed, too!
-	if (my $error = NMISNG::Util::setFileProtDiag(file =>$dir))
+	if (my $error = NMISNG::Util::setFileProtDiag(file =>$dir, conf => $conf))
 	{
 		push @problems, $error;
 	}
@@ -2027,18 +2028,18 @@ sub setFileProtDirectory
 	{
 		if ( -f "$dir/$file" and $file !~ /^\./ )
 		{
-			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file"))
+			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file", conf => $conf))
 			{
 				push @problems, $error;
 			}
 		}
 		elsif ( -d "$dir/$file" and $recurse and $file !~ /^\./ )
 		{
-			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file"))
+			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file", conf => $conf))
 			{
 				push @problems, $error;
 			}
-			push @problems, NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse);
+			push @problems, NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse, conf => $conf);
 		}
 	}
 	return @problems;
@@ -2135,19 +2136,19 @@ sub selftest
 
 	# always verify and fix-up the most critical file permissions: config dir,
 	# custom models dir, var dir
-	NMISNG::Util::setFileProtDirectory($config->{'<nmis_conf>'},1);    # do recurse
-	NMISNG::Util::setFileProtDirectory($config->{'<nmis_var>'},0);  # no recursion
-	NMISNG::Util::setFileProtDirectory($config->{'<nmis_models>'},0)
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_conf>'},1, $config );    # do recurse
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_var>'},0, $config );  # no recursion
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_models>'},0, $config )
 			if (-d $config->{'<nmis_models>'});														# dir isn't necessarily present
 
 	my $varsysdir = "$config->{'<nmis_var>'}/nmis_system";
 	if ( !-d $varsysdir )
 	{
 		NMISNG::Util::createDir($varsysdir);
-		NMISNG::Util::setFileProtDiag(file =>$varsysdir);
+		NMISNG::Util::setFileProtDiag(file =>$varsysdir, conf => $config);
 	}
 	my $statefile = "$varsysdir/selftest.json"; # name also embedded in nmisd and gui
-	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1 );
+	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1, conf => $config );
 	if (ref($laststate) ne "HASH")
 	{
 		$nmisng->log->warn("failed to read selftest $statefile: $laststate");
@@ -2626,6 +2627,30 @@ sub getComponentUUID
 	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
 }
 
+sub getComponentUUIDConf
+{
+	my %args = @_;
+	my @components = $args{components};
+	my $conf = $args{conf};
+
+	my $C = $conf // NMISNG::Util::loadConfTable();
+
+	# translate between data::uuid and uuid::tiny namespace constants for config-compat,
+	# as the config file uses namespace_<X> (url,dns,oid,x500) in data::uuid,
+	# corresponds to UUID_NS_<X> in uuid::tiny
+	state $known_namespaces = { map { my $varname = "UUID_NS_$_";
+															("NameSpace_$_" => UUID::Tiny->$varname,
+															 $varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500)) };
+
+	my $uuid_ns = $known_namespaces->{"NameSpace_URL"};
+	my $prefix = '';
+	$prefix = $C->{'uuid_namespace_name'} if ( $known_namespaces->{$C->{'uuid_namespace_type'}}
+																						 and defined($C->{'uuid_namespace_name'})
+																						 and $C->{'uuid_namespace_name'}
+																						 and $C->{'uuid_namespace_name'} ne "www.domain.com" );
+
+	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
+}
 
 # this function translates a toplevel hash with fields in dot-notation
 # into a deep structure. this is primarily needed in deep data objects

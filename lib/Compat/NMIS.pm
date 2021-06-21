@@ -201,11 +201,12 @@ sub loadNodeTable
 sub tableExists
 {
 	my $table = shift;
+	my $C = shift;
 
 	return (NMISNG::Util::existFile(dir=>"conf",
-																	name=>$table)
+																	name=>$table, conf => $C)
 					|| NMISNG::Util::existFile(dir=>"conf_default",
-																		 name=>$table))? 1 : 0;
+																		 name=>$table, conf => $C))? 1 : 0;
 }
 
 # load a table from conf (or conf-default)
@@ -214,7 +215,9 @@ sub tableExists
 sub loadGenericTable
 {
 	my ($tablename) = @_;
-	return NMISNG::Util::loadTable(dir => "conf", name => $tablename );
+	my $C = shift;
+	
+	return NMISNG::Util::loadTable(dir => "conf", name => $tablename, conf => $C );
 }
 
 
@@ -512,7 +515,7 @@ sub getSubconceptStats
 	my $S = $args{sys};
 	my $M  = $S->mdl;
 
-	my $C = NMISNG::Util::loadConfTable();
+	my $C = $args{conf} // NMISNG::Util::loadConfTable();
 	&NMISNG::rrdfunc::require_RRDs;
 
 	my $db = $inventory->find_subconcept_type_storage( subconcept => $subconcept, type => 'rrd' );

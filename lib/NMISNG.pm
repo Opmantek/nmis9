@@ -581,7 +581,7 @@ sub compute_thresholds
 	my $running_independently = $args{running_independently};
 
 	my $pollTimer     = Compat::Timing->new;
-	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
+	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events', conf => $self->config );
 	my $sts           = {};
 
 	my $M                  = $S->mdl;                                  # pointer to Model table
@@ -3019,7 +3019,7 @@ sub process_escalations
 	### keiths, work around for extra tables.
 	my $ServiceStatusTable;
 	my $useServiceStatusTable = 0;
-	if ( Compat::NMIS::tableExists('ServiceStatus') )
+	if ( Compat::NMIS::tableExists('ServiceStatus', $C) )
 	{
 		$ServiceStatusTable = NMISNG::Util::loadTable( dir => "conf", name => 'ServiceStatus', conf => $C );
 		$useServiceStatusTable = 1;
@@ -3027,7 +3027,7 @@ sub process_escalations
 
 	my $BusinessServicesTable;
 	my $useBusinessServicesTable = 0;
-	if ( Compat::NMIS::tableExists('BusinessServices') )
+	if ( Compat::NMIS::tableExists('BusinessServices', $C) )
 	{
 		$BusinessServicesTable = NMISNG::Util::loadTable( dir => "conf", name => 'BusinessServices', conf => $C );
 		$useBusinessServicesTable = 1;
