@@ -1089,7 +1089,9 @@ sub coarse_status
 	my $snmp_down = "SNMP Down";
 	my $wmi_down_event = "WMI Down";
 	my $failover_event = "Node Polling Failover";
-
+	# let NMIS use the status summary calculations
+	my $status_summary_threshold = $self->nmisng->config->{status_summary_threshold} // 99;
+	
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if ( NMISNG::Util::getbool($catchall_data->{ping},"invert")
 			 and ( $self->eventExist($snmp_down) or $self->eventExist( $wmi_down_event)) )
@@ -1110,12 +1112,11 @@ sub coarse_status
 	{
 		$status = -1;
 	}
-	# let NMIS use the status summary calculations
 	elsif (
 		NMISNG::Util::getbool($self->nmisng->config->{node_status_uses_status_summary})
 		and defined $catchall_data->{status_summary}
 		and defined $catchall_data->{status_updated}
-		and $catchall_data->{status_summary} <= 99
+		and $catchall_data->{status_summary} <= $status_summary_threshold
 		and $catchall_data->{status_updated} > time - 500
 			)
 	{
