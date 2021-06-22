@@ -485,6 +485,7 @@ sub delete
 {
 	my ($self,%args) = @_;
 	my $keeprrd = NMISNG::Util::getbool($args{keep_rrd});
+	my $meta = $args{meta};
 
 	# not errors but message doesn't hurt
 	return (1, "Node already deleted") if ($self->{_deleted});
@@ -591,7 +592,7 @@ sub delete
 	}
 
 	# First we should clear all the events
-	$self->eventsClean();
+	$self->eventsClean($meta->{app});
 	# delete all (ie. historic and active) events for this node, irretrievably and immediately
 	# note that eventsClean() is trying other high-level, non-deletion-related stuff
 	# events_model by default filters for filter historic = 0 :-/
