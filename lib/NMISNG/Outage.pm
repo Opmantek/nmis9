@@ -32,7 +32,7 @@
 #
 package NMISNG::Outage;
 
-our $VERSION = "9.2.1";
+our $VERSION = "9.2.2";
 
 use strict;
 use UUID::Tiny (qw(:std));
