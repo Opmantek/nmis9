@@ -297,7 +297,7 @@ sub check
 
 	# events.nmis controls which events are active/logging/notifying
 	# cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
+	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events', conf => $C );
 	my $thisevent_control = $events_config->{$self->event} || {Log => "true", Notify => "true", Status => "true"};
 
 	# set defaults just in case any are blank.

@@ -236,7 +236,7 @@ if ($Q->{act} =~ /^(daemon[-_])?status$/)
 	# opcharts 3 'nmisd' calls itself 'nmisd',
 	# 'nmisd worker' or 'nmisd collector <something>' - exclude these
 	my %ours = ( map { ($_->pid => $_) }
-							 (grep($_->cmndline =~ /^nmisd (fping|scheduler|worker .+)\s*$/,
+							 (grep($_->cmndline =~ /^nmisd\.(fping|scheduler|worker).*$/,
 										 @{$pt->table})));
 	die "No NMIS9 daemons running!\n" if (!keys %ours);
 
@@ -1162,9 +1162,11 @@ sub collectTopData
 	#my $time = localtime($time->epoch);
 	#my($year, $mon, $day, $hour, $min) = $date =~ /^(\d{4}) (\d{2}) (\d{2})\ (\d{2}):(\d{2})$/x;
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
-	$year += 1900;
-	$data{date} = "$year/$mon/$mday $hour:$min:$sec";
 	
+	$year += 1900;
+	#$data{date} = "$year/$mon/$mday $hour:$min:$sec";	
+	my $local_date = sprintf "%d/%02d/%02d %02d:%02d:%02d\n", $year, $mon, $mday, $hour, $min, $sec;
+	$data{date} = $local_date;
 	foreach my $line (split /[\r\n]+/, $output) {
 	  
 	  if ( $line =~ /top - (\d+\:\d+\:\d+) up (\d+) days,\s+(\d+\:\d+),\s+(\d+) users?,\s+load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/ ) {

@@ -272,16 +272,16 @@ elsif ($cmdline->{act} eq "import"
 															create => 1 );
 		++$stats{ $node->is_new? "created":"updated" };
 		$logger->debug(($node->is_new? "creating": "updating")." node $onenode->{name}");
-
+	
 		# any node on this system must have this system's cluster_id.
 		$onenode->{cluster_id} = $config->{cluster_id};
-
+	
 		for my $setme (qw(cluster_id name activated configuration overrides aliases addresses))
 		{
 			next if (!exists $onenode->{$setme});
 			$node->$setme($onenode->{$setme});
 		}
-
+	
 		# and save
 		my ($op,$error) = $node->save();
 		if($op <= 0)									# zero is no saving needed
@@ -295,6 +295,7 @@ elsif ($cmdline->{act} eq "import"
 		}
 	}
 	$logger->info("Import complete, newly created $stats{created}, updated $stats{updated} nodes");
+	print "Import complete, newly created $stats{created}, updated $stats{updated} nodes \n";
 	exit 0;
 }
 # import nmis8 nodeconf overrides

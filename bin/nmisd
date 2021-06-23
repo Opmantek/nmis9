@@ -745,7 +745,7 @@ selftest perms backup purge cleanup esc thresholds metrics postupdate postcollec
 
 	# save the scheduler state, in case the daemon restarts
 	# (local state and file is cheaper than trawling opstatus)
-	NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state);
+	NMISNG::Util::writeHashtoFile(file => $statefile, data => $scheduler_state, conf => $config);
 
 	# trivial SIGURG listener so that the outer supervisor also is wakeable by others
 	$SIG{"URG"} = sub { (my $sig) = @_; $nmisng->log->debug2("received $sig"); };

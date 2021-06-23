@@ -870,12 +870,16 @@ sub read_load_cache
 	# it'll most likely be a '1;' and do returns the last statement result...
 	if ($@)
 	{
+		my $nmisng = Compat::NMIS::new_nmisng();
+		$nmisng->log->info(&NMISNG::Log::trace()." MAKERRDNAME") if ($nmisng);
 		warn_die("configuration file $fn unparseable: $@ $is_master") if $is_master;
 		warn(">> configuration file $fn unparseable: $@");
 		close(X);	
 	}
 	elsif (keys %deepdata < 2 and $is_master)
-	{ 
+	{
+		my $nmisng = Compat::NMIS::new_nmisng();
+		$nmisng->log->info(&NMISNG::Log::trace()." MAKERRDNAME");
 		warn_die("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!") if $is_master;
 	} else {
 		close(X);	
@@ -984,7 +988,9 @@ sub warn_die
 sub setFileProtDiag
 {
 	my (%args) = @_;
-	my $C = NMISNG::Util::loadConfTable();
+	my $C; # = $args{conf} // NMISNG::Util::loadConfTable();
+	(ref($args{conf}) eq "HASH" ? $C = $args{conf}
+                                : $C = NMISNG::Util::loadConfTable());
 
 	my $filename = $args{file};
 	my $username = $args{username} || $C->{nmis_user} || "nmis";
@@ -1108,7 +1114,7 @@ sub getDir
 {
 	my (%args) = @_;
 	my $dir = $args{dir};
-	my $C = NMISNG::Util::loadConfTable(); # cache, in general
+	my $C = $args{conf} // NMISNG::Util::loadConfTable(); # cache, in general
 
 	# known expansions
 	for my $maybe (qw(var models default_models conf conf_default logs mibs))
@@ -1125,11 +1131,12 @@ sub existFile
 	my %args = @_;
 	my $dir = $args{dir};
 	my $name = $args{name};
+	my $conf = $args{conf};
 	return 0 if (!$dir or !$name);
 
 	my $file;
-	$file = getDir(dir=>$dir)."/$name"; # expands dir args like 'conf' or 'logs'
-	$file = NMISNG::Util::getFileName(file => $file); # mangles that into path with extension
+	$file = getDir(dir=>$dir, conf => $conf)."/$name"; # expands dir args like 'conf' or 'logs'
+	$file = NMISNG::Util::getFileName(file => $file, conf => $conf); # mangles that into path with extension
 	return ( -e $file ) ;
 }
 
@@ -1139,10 +1146,12 @@ sub mtimeFile {
 	my %args = @_;
 	my $dir = $args{dir};
 	my $name = $args{name};
+	my $conf = $args{conf};
+	
 	my $file;
 	return if $dir eq '' or $name eq '';
-	$file = getDir(dir=>$dir)."/$name";
-	$file = NMISNG::Util::getFileName(file => $file);
+	$file = getDir(dir=>$dir, conf => $conf)."/$name";
+	$file = NMISNG::Util::getFileName(file => $file, conf => $conf);
 	if ( -r $file ) {
 		return stat($file)->mtime;
 	}
@@ -1165,6 +1174,7 @@ sub loadTable
 	my $dir =  $args{dir}; # name of directory
 	my $name = $args{name};	# name of table or short file name
 	my $nmisng = $args{nmisng};
+	my $conf = $args{conf};
 
 	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching and no fallbacks
 
@@ -1173,14 +1183,14 @@ sub loadTable
 
 	return "loadTable is missing arguments: name=$name dir=$dir" if (!$name or !$dir);
 
-	my $expandeddir = getDir(dir => $dir); # expands dirs like 'conf' or 'logs' into full location
+	my $expandeddir = getDir(dir => $dir, conf => $conf); # expands dirs like 'conf' or 'logs' into full location
 	my $file = "$expandeddir/$name";
-	$file = NMISNG::Util::getFileName(file => $file);		 # mangles file name into extension'd one
+	$file = NMISNG::Util::getFileName(file => $file, conf => $conf);		 # mangles file name into extension'd one
 
 	# special case for files under conf: if lock is not set and conf/file is missing, fall back automatically conf-default/file
-	if ($expandeddir eq getDir(dir => "conf") && !$lock && !-e $file)
+	if ($expandeddir eq getDir(dir => "conf", conf => $conf) && !$lock && !-e $file)
 	{
-		$file = NMISNG::Util::getFileName(file => getDir(dir => "conf_default")."/$name");
+		$file = NMISNG::Util::getFileName(file => getDir(dir => "conf_default", conf => $conf)."/$name", conf => $conf);
 	}
 
 	# no file? nothing to do but bail out
@@ -1194,12 +1204,12 @@ sub loadTable
 	my $externalFiles = NMISNG::Util::get_external_files(dir=>$externalDir);
 	
 	if ($lock) {
-		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock);
+		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, conf => $conf);
 
 		foreach (@$externalFiles) {
 			# Read and mix
 			my $lock = NMISNG::Util::getbool($args{lock});
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock);
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, conf => $conf);
 			$table = {%$table, %$extfile};
 		}		
 		return $table;
@@ -1211,11 +1221,11 @@ sub loadTable
 	if (ref($cache{$file}) ne "HASH"
 			|| $filetime != $cache{$file}->{mtime})
 	{
-		my $table = NMISNG::Util::readFiletoHash(file=>$file);
+		my $table = NMISNG::Util::readFiletoHash(file=>$file, conf => $conf);
 
 		foreach (@$externalFiles) {
 			# Read and mix
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_);
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, conf => $conf);
 			$table = {%$table, %$extfile};
 		}
 		# nope, reread
@@ -1286,8 +1296,9 @@ sub getFileName
 	my $json = NMISNG::Util::getbool($args{json});
 	my $file = $args{file};
 	my $dir = $args{dir};
+	my $conf = $args{conf};
 
-	my $C = loadConfTable();
+	my $C = $conf // loadConfTable();
 
 	# are we in/under var? fixme unsafe and misleading
 	my $fileundervar = ($dir and $dir =~ m!(^|/)var(/|$)!)
@@ -1320,8 +1331,10 @@ sub getFileName
 sub getExtension
 {
 	my (%args) = @_;
+	my $C = $args{conf};
+	
 	return NMISNG::Util::getFileName(dir => $args{dir}, file => $args{file},
-										 json => $args{json}, only_extension => 1);
+										 json => $args{json}, only_extension => 1, conf => $C);
 }
 
 # look up model file in models-custom, falling back to models-default,
@@ -1337,12 +1350,12 @@ sub getModelFile
 	my (%args) = @_;
 	return { error => "Invalid arguments: no model requested!" } if (!$args{model});
 
-	my $C = NMISNG::Util::loadConfTable();			# generally cached
+	my $C = $args{conf} // NMISNG::Util::loadConfTable();			# generally cached
 	my ($iscustom, $modeldata);
 	my $relfn = "$args{model}.nmis"; # the getFile logic is not safe.
 	for my $choices ("models","default_models")
 	{
-		my $fn = getDir(dir => $choices)."/$relfn";
+		my $fn = getDir(dir => $choices, conf => $C)."/$relfn";
 		if (-e $fn)
 		{
 			my $age = stat($fn)->mtime;
@@ -1350,7 +1363,7 @@ sub getModelFile
 			return { success => 1, mtime => $age, is_custom => $iscustom } if ($args{only_mtime});
 
 			# loadtable caches, therefore preferred over readfiletohash
-			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn);
+			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn, conf => $C);
 			return { error => "failed to read file $fn: $!" } if (ref($modeldata) ne "HASH"
 																														or !keys %$modeldata);
 			return { success => 1, data => $modeldata, is_custom => $iscustom, mtime => $age};
@@ -1370,7 +1383,7 @@ sub writeHashtoFile
 	my $handle = $args{handle}; # if handle specified then file is locked EX
 	my $json = NMISNG::Util::getbool($args{json});
 
-	my $C = loadConfTable();
+	my $C = $args{conf} // loadConfTable();
 
 	# pretty printing: if arg given, that overrides config
 	my $pretty = NMISNG::Util::getbool( (exists $args{pretty})? $args{pretty} : $C->{use_json_pretty} );
@@ -1394,7 +1407,7 @@ sub writeHashtoFile
 	# defaults: no json
 	my $useJson = ( ($file =~ m!(^|/)var(/|$)! and $conf_says_json)
 									|| $json );
-	$file = NMISNG::Util::getFileName(file => $file, json => $json);
+	$file = NMISNG::Util::getFileName(file => $file, json => $json, conf => $C);
 
 	if ($handle eq "")
 	{
@@ -1444,7 +1457,7 @@ sub writeHashtoFile
 	return("writeHashtoFile: $errormsg")
 			if ($errormsg);
 
-	if (my $error = NMISNG::Util::setFileProtDiag(file =>$file))
+	if (my $error = NMISNG::Util::setFileProtDiag(file =>$file, conf => $C))
 	{
 		return $error;
 	}
@@ -1472,6 +1485,7 @@ sub readFiletoHash
 	my $file = $args{file};
 	my $lock = NMISNG::Util::getbool($args{lock}); # option
 	my $json = NMISNG::Util::getbool($args{json}); # also optional
+	my $conf = $args{conf};
 
 	my (%hash, $handle, $line);
 
@@ -1479,8 +1493,8 @@ sub readFiletoHash
 	# all files: use json if args say so
 	# files in and under var: also use json if config says so
 	# default: no json
-	$file = NMISNG::Util::getFileName(file => $file, json => $json);
-	my $useJson = NMISNG::Util::getExtension(file => $file, json => $json) eq "json";
+	$file = NMISNG::Util::getFileName(file => $file, json => $json, conf => $conf);
+	my $useJson = NMISNG::Util::getExtension(file => $file, json => $json, conf => $conf) eq "json";
 
 	return "No file argument given!" if (!$file); # no or dud args...
 
@@ -1595,7 +1609,8 @@ sub logAuth
 
 sub logPolling {
 	my $msg = shift;
-	my $C = loadConfTable;
+	my $conf = shift;
+	my $C = $conf // loadConfTable;
 	my $handle;
 
 	#To enable polling log a file must be configured in Config.nmis and the file must exist.
@@ -1990,6 +2005,7 @@ sub setFileProtDirectory
 {
 	my $dir = shift;
 	my $recurse = shift;
+	my $conf = shift;
 
 	my @problems;
 
@@ -2001,7 +2017,7 @@ sub setFileProtDirectory
 	}
 
 	# the dir itself must be checked and fixed, too!
-	if (my $error = NMISNG::Util::setFileProtDiag(file =>$dir))
+	if (my $error = NMISNG::Util::setFileProtDiag(file =>$dir, conf => $conf))
 	{
 		push @problems, $error;
 	}
@@ -2014,18 +2030,18 @@ sub setFileProtDirectory
 	{
 		if ( -f "$dir/$file" and $file !~ /^\./ )
 		{
-			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file"))
+			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file", conf => $conf))
 			{
 				push @problems, $error;
 			}
 		}
 		elsif ( -d "$dir/$file" and $recurse and $file !~ /^\./ )
 		{
-			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file"))
+			if (my $error = NMISNG::Util::setFileProtDiag(file =>"$dir/$file", conf => $conf))
 			{
 				push @problems, $error;
 			}
-			push @problems, NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse);
+			push @problems, NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse, conf => $conf);
 		}
 	}
 	return @problems;
@@ -2122,19 +2138,19 @@ sub selftest
 
 	# always verify and fix-up the most critical file permissions: config dir,
 	# custom models dir, var dir
-	NMISNG::Util::setFileProtDirectory($config->{'<nmis_conf>'},1);    # do recurse
-	NMISNG::Util::setFileProtDirectory($config->{'<nmis_var>'},0);  # no recursion
-	NMISNG::Util::setFileProtDirectory($config->{'<nmis_models>'},0)
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_conf>'},1, $config );    # do recurse
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_var>'},0, $config );  # no recursion
+	NMISNG::Util::setFileProtDirectory($config->{'<nmis_models>'},0, $config )
 			if (-d $config->{'<nmis_models>'});														# dir isn't necessarily present
 
 	my $varsysdir = "$config->{'<nmis_var>'}/nmis_system";
 	if ( !-d $varsysdir )
 	{
 		NMISNG::Util::createDir($varsysdir);
-		NMISNG::Util::setFileProtDiag(file =>$varsysdir);
+		NMISNG::Util::setFileProtDiag(file =>$varsysdir, conf => $config);
 	}
 	my $statefile = "$varsysdir/selftest.json"; # name also embedded in nmisd and gui
-	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1 );
+	my $laststate = NMISNG::Util::readFiletoHash( file => $statefile, json => 1, conf => $config );
 	if (ref($laststate) ne "HASH")
 	{
 		$nmisng->log->warn("failed to read selftest $statefile: $laststate");
@@ -2613,6 +2629,30 @@ sub getComponentUUID
 	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
 }
 
+sub getComponentUUIDConf
+{
+	my %args = @_;
+	my @components = $args{components};
+	my $conf = $args{conf};
+
+	my $C = $conf // NMISNG::Util::loadConfTable();
+
+	# translate between data::uuid and uuid::tiny namespace constants for config-compat,
+	# as the config file uses namespace_<X> (url,dns,oid,x500) in data::uuid,
+	# corresponds to UUID_NS_<X> in uuid::tiny
+	state $known_namespaces = { map { my $varname = "UUID_NS_$_";
+															("NameSpace_$_" => UUID::Tiny->$varname,
+															 $varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500)) };
+
+	my $uuid_ns = $known_namespaces->{"NameSpace_URL"};
+	my $prefix = '';
+	$prefix = $C->{'uuid_namespace_name'} if ( $known_namespaces->{$C->{'uuid_namespace_type'}}
+																						 and defined($C->{'uuid_namespace_name'})
+																						 and $C->{'uuid_namespace_name'}
+																						 and $C->{'uuid_namespace_name'} ne "www.domain.com" );
+
+	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
+}
 
 # this function translates a toplevel hash with fields in dot-notation
 # into a deep structure. this is primarily needed in deep data objects

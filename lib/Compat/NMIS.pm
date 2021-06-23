@@ -201,11 +201,12 @@ sub loadNodeTable
 sub tableExists
 {
 	my $table = shift;
+	my $C = shift;
 
 	return (NMISNG::Util::existFile(dir=>"conf",
-																	name=>$table)
+																	name=>$table, conf => $C)
 					|| NMISNG::Util::existFile(dir=>"conf_default",
-																		 name=>$table))? 1 : 0;
+																		 name=>$table, conf => $C))? 1 : 0;
 }
 
 # load a table from conf (or conf-default)
@@ -213,8 +214,10 @@ sub tableExists
 # returns: hash ref of data
 sub loadGenericTable
 {
-	my ($tablename) = @_;
-	return NMISNG::Util::loadTable(dir => "conf", name => $tablename );
+	my ($tablename) = shift;
+	my $C = shift;
+	
+	return NMISNG::Util::loadTable(dir => "conf", name => $tablename, conf => $C );
 }
 
 
@@ -512,7 +515,7 @@ sub getSubconceptStats
 	my $S = $args{sys};
 	my $M  = $S->mdl;
 
-	my $C = NMISNG::Util::loadConfTable();
+	my $C = $args{conf} // NMISNG::Util::loadConfTable();
 	&NMISNG::rrdfunc::require_RRDs;
 
 	my $db = $inventory->find_subconcept_type_storage( subconcept => $subconcept, type => 'rrd' );
@@ -1629,6 +1632,9 @@ sub createHrButtons
 	push @out, CGI::li(CGI::a({class=>'wht',
 														 href=>"http://$catchall_data->{host}",target=>'_blank'},"http"))
 			if NMISNG::Util::getbool($catchall_data->{webserver});
+	push @out, CGI::li(CGI::a({class=>'wht',
+														 href=>"tools.pl?act=tool_system_snmp&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"SNMP"))
+			if NMISNG::Util::getbool($C->{view_snmp});
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
@@ -2206,6 +2212,7 @@ sub notify
 	my $details = $args{details};
 	my $level = $args{level};
 	my $inventory_id = $args{inventory_id};
+	my $conf = $args{conf};
 
 	my $M = $S->mdl;
 	my $node = $S->nmisng_node;
@@ -2219,7 +2226,7 @@ sub notify
 	$S->nmisng->log->debug2("Start of Notify");
 
 	# events.nmis controls which events are active/logging/notifying
-	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
+	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
 	# create new event object with all properties, when load is called if it is found these will

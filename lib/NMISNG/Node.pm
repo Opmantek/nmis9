@@ -485,6 +485,7 @@ sub delete
 {
 	my ($self,%args) = @_;
 	my $keeprrd = NMISNG::Util::getbool($args{keep_rrd});
+	my $meta = $args{meta};
 
 	# not errors but message doesn't hurt
 	return (1, "Node already deleted") if ($self->{_deleted});
@@ -591,7 +592,7 @@ sub delete
 	}
 
 	# First we should clear all the events
-	$self->eventsClean();
+	$self->eventsClean($meta->{app});
 	# delete all (ie. historic and active) events for this node, irretrievably and immediately
 	# note that eventsClean() is trying other high-level, non-deletion-related stuff
 	# events_model by default filters for filter historic = 0 :-/
@@ -1089,7 +1090,9 @@ sub coarse_status
 	my $snmp_down = "SNMP Down";
 	my $wmi_down_event = "WMI Down";
 	my $failover_event = "Node Polling Failover";
-
+	# let NMIS use the status summary calculations
+	my $status_summary_threshold = $self->nmisng->config->{status_summary_threshold} // 99;
+	
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if ( NMISNG::Util::getbool($catchall_data->{ping},"invert")
 			 and ( $self->eventExist($snmp_down) or $self->eventExist( $wmi_down_event)) )
@@ -1110,12 +1113,11 @@ sub coarse_status
 	{
 		$status = -1;
 	}
-	# let NMIS use the status summary calculations
 	elsif (
 		NMISNG::Util::getbool($self->nmisng->config->{node_status_uses_status_summary})
 		and defined $catchall_data->{status_summary}
 		and defined $catchall_data->{status_updated}
-		and $catchall_data->{status_summary} <= 99
+		and $catchall_data->{status_summary} <= $status_summary_threshold
 		and $catchall_data->{status_updated} > time - 500
 			)
 	{
@@ -1771,6 +1773,7 @@ sub handle_down
 		level   => ( $goingup ? 'Normal' : undef ),
 		context => {type => $typeofdown },
 		inventory_id => $S->inventory( concept => 'catchall' ),
+		conf => $self->nmisng->config
 			);
 
 	# for these three we set a XYZdown marker in the catchall, in the most atomic fashion possible
@@ -2368,7 +2371,8 @@ sub collect_node_data
 				NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $sect );
 				my $period = $self->nmisng->_threshold_period( subconcept => $sect );
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
-																										 subconcept => $sect, start => $period, end => time);
+															subconcept => $sect, start => $period, end => time,
+															conf => $self->nmisng->config);
 				if (ref($stats) ne "HASH")
 				{
 					$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
@@ -2410,7 +2414,31 @@ sub collect_node_data
 	return 1;
 }
 
+# provides RO access to interface list
+# replaces deprecated _Sys::ifinfo() which it mimics until a better method is found
+# rt todo: fixme: '$self->getInterfaces()' currently only returns interfaces with ip addresses configured so can't be used yet:
+sub ifinfo
+{
+	my ($self) = @_;
 
+	if( !defined($self->{_ifinfo}) )
+	{
+		$self->{_ifinfo} = {};
+		my $result = $self->get_inventory_model(concept => "interface",
+												filter => { historic => 0 });
+		if (my $error = $result->error)
+		{
+			$self->log->error("ifinfo(): \$self->get_inventory_model() failed: $error");
+		}
+		else
+		{
+			my $result_data = $result->data;
+			my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$result_data});
+			$self->{_ifinfo} = \%ifdata;
+		}
+	}
+	return $self->{_ifinfo};
+}
 
 # collect the Interface configuration from SNMP, done during update operation
 # fixme: this function works ONLY if snmp is enabled for the node!
@@ -2484,7 +2512,7 @@ sub update_intf_info
 		$self->nmisng->log->debug2("Get Interface Info of node $nodename, model $catchall_data->{nodeModel}");
 
 		# load interface types (IANA). number => name
-		my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes");
+		my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);
 
 		# get interface Index table
 		my (@ifIndexNum,  $ifIndexTable, %activeones);
@@ -3268,7 +3296,8 @@ sub update_intf_info
 					# rrd file exists and readable?
 					if ( -r ( my $rrdfile = $S->makeRRDname( graphtype => $datatype,
 																									 index => $index,
-																									 inventory => $inventory ) ) )
+																									 inventory => $inventory,
+																									 conf => $self->nmisng->config ) ) )
 					{
 						my $fileinfo = RRDs::info($rrdfile);
 						for my $matching ( grep /^ds\[.+\]\.max$/, keys %$fileinfo )
@@ -3894,7 +3923,8 @@ sub collect_intf_data
 				my $period = $self->nmisng->_threshold_period( subconcept => $sectionname );
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																										 subconcept => $sectionname,
-																										 start => $period, end => time);
+																										 start => $period, end => time,
+																										 conf => $self->nmisng->config );
 				if (ref($stats) ne "HASH")
 				{
 					$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
@@ -4725,7 +4755,8 @@ sub collect_systemhealth_data
 						# get stats
 						my $period = $self->nmisng->_threshold_period(subconcept => $sect);
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
-																												 subconcept => $sect, start => $period, end => time);
+																	subconcept => $sect, start => $period, end => time,
+																	conf => $self->nmisng->config);
 						if (ref($stats) ne "HASH")
 						{
 							$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
@@ -5598,7 +5629,8 @@ sub process_alerts
 					section => $alert->{section},
 					name    => $alert->{alert},
 					index   => $alert->{index},
-				}
+				},
+				conf    => $self->nmisng->config
 			);
 		}
 		else
@@ -6624,7 +6656,8 @@ sub compute_summary_stats
 		inventory => $inventory,
 		subconcept => $section,
 		start => $standard_period,
-		end => time );
+		end => time,
+		conf => $C );
 
 	if (ref($standardstats) ne "HASH")
 	{
@@ -6638,7 +6671,8 @@ sub compute_summary_stats
 		inventory => $inventory,
 		subconcept => $section,
 		start => $metricsFirstPeriod,
-		end => time );
+		end => time,
+		conf => $C );
 
 	if (ref($stats8) ne "HASH")
 	{
@@ -6652,7 +6686,8 @@ sub compute_summary_stats
 		inventory => $inventory,
 		subconcept => $section,
 		start => $metricsSecondPeriod,
-		end => $metricsFirstPeriod ); # funny one, from -16h to -8h... has been that way for a while
+		end => $metricsFirstPeriod,
+		conf => $C ); # funny one, from -16h to -8h... has been that way for a while
 
 	if (ref($stats16) ne "HASH")
 	{
@@ -6791,7 +6826,8 @@ sub collect_server_data
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S,
 																												 inventory => $inventory,
 																												 subconcept => 'hrsmpcpu',
-																												 start => $period, end => time);
+																												 start => $period, end => time,
+																												 conf => $self->nmisng->config );
 						if (ref($stats) ne "HASH")
 						{
 							$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
@@ -7029,7 +7065,8 @@ sub collect_server_data
 					# get stats
 					my $period = $self->nmisng->_threshold_period(subconcept => $subconcept);
 					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
-																											 subconcept => $subconcept, start => $period, end => time);
+																subconcept => $subconcept, start => $period, end => time,
+																conf => $self->nmisng->config );
 					if (ref($stats) ne "HASH")
 					{
 						$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
@@ -7116,7 +7153,7 @@ sub services
 
 	# look for any current outages with options.nostats set,
 	# and set a marker in catchall so that updaterrd writes nothing but 'U'
-	my $outageres = NMISNG::Outage::check_outages(node => $self, time => time);
+	my $outageres = NMISNG::Outage::check_outages(node => $self, time => time, nmisng => $self->nmisng);
 	if (!$outageres->{success})
 	{
 		$self->nmisng->log->error("Failed to check outage status for $name: $outageres->{error}");
@@ -7163,7 +7200,7 @@ sub collect_services
 	my ($cpu, $memory, %services);
 	# services holds snmp-gathered service status, process name -> array of instances
 
-	my $ST    = NMISNG::Util::loadTable(dir => "conf", name => "Services");
+	my $ST    = NMISNG::Util::loadTable(dir => "conf", name => "Services", conf => $C);
 	my $timer = Compat::Timing->new;
 
 	# do an snmp service poll first, regardless of whether any specific services being enabled or not
@@ -7900,7 +7937,8 @@ sub collect_services
 				element => $name,
 				details => ( $status{status_text} || "" ),
 				context => {type => "service"},
-				inventory_id => $inventory->id
+				inventory_id => $inventory->id,
+				conf    => $C
 			);
 		}
 		else    # Service is down
@@ -7926,7 +7964,8 @@ sub collect_services
 				element => $name,
 				details => ( $status{status_text} || "" ),
 				context => {type => "service"},
-				inventory_id => $inventory->id
+				inventory_id => $inventory->id,
+				conf    => $C
 			);
 		}
 
@@ -8027,7 +8066,7 @@ sub collect_services
 		# update the inventory data, use what was created above
 		# add in last_run
 		$inventorydata->{last_run} = $thisrun;
-		$inventory->data($inventorydata);
+		$inventory->data($inventorydata, $self->nmisng->config);
 		$inventory->enabled(1);
 		$inventory->historic(0);
 
@@ -8088,7 +8127,8 @@ sub lock
 		NMISNG::Util::setFileProtDiag(file => $fn,
 																	username => $config->{nmis_user},
 																	groupname => $config->{nmis_group},
-																	permission => $config->{os_fileperm});
+																	permission => $config->{os_fileperm},
+																	conf => $config);
 	}
 
 	# open if not already open
@@ -8232,7 +8272,7 @@ sub collect
 
 	# look for any current outages with options.nostats set,
 	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
-	my $outageres = NMISNG::Outage::check_outages(node => $self, time => time);
+	my $outageres = NMISNG::Outage::check_outages(node => $self, time => time, nmisng => $self->nmisng);
 	if (!$outageres->{success})
 	{
 		$self->nmisng->log->error("Failed to check outage status for $name: $outageres->{error}");
@@ -8289,7 +8329,8 @@ sub collect
 														 element => undef,
 														 details => ("SNMP Session switched to backup address \""
 																				 . $self->configuration->{host_backup}.'"'),
-														 context => { type => "node" });
+														 context => { type => "node" },
+														 conf => $C );
 			}
 			# or are we using the primary address?
 			elsif ($candosnmp)
@@ -8423,7 +8464,7 @@ sub collect
 
 	# parrot the previous reading's update time
 	my $prevval = "U";
-	if ( my $rrdfilename = $S->makeRRDname( graphtype => "health" ) )
+	if ( my $rrdfilename = $S->makeRRDname( graphtype => "health", conf => $self->nmisng->config ) )
 	{
 		my $infohash = RRDs::info($rrdfilename);
 		$prevval = $infohash->{'ds[updatetime].last_ds'} if ( defined $infohash->{'ds[updatetime].last_ds'} );
@@ -8438,7 +8479,7 @@ sub collect
 	my $previous_pit = $catchall_inventory->get_newest_timed_data();
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 
-	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
+	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory, conf => $C );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
 																					time => $catchall_data->{last_poll}, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
