@@ -1167,6 +1167,7 @@ sub collectTopData
 	#$data{date} = "$year/$mon/$mday $hour:$min:$sec";	
 	my $local_date = sprintf "%d/%02d/%02d %02d:%02d:%02d\n", $year, $mon, $mday, $hour, $min, $sec;
 	$data{date} = $local_date;
+	$data{date} =~ s/\n//;
 	foreach my $line (split /[\r\n]+/, $output) {
 	  
 	  if ( $line =~ /top - (\d+\:\d+\:\d+) up (\d+) days,\s+(\d+\:\d+),\s+(\d+) users?,\s+load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/ ) {
