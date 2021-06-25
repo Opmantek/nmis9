@@ -1086,7 +1086,14 @@ sub collectPerformanceData
 	my $expandeddir = NMISNG::Util::getDir(dir => "conf"); # expands dirs like 'conf' or 'logs' into full location
 	my $conf_file = "$expandeddir/performance";
 	my ($data, $fh) = NMISNG::Util::readFiletoHash(file => $conf_file);
-	print "failed to read file $conf_file $! " if (!$data);
+	# Try with conf-default
+	
+	if (!$data or $data =~ /No such file/) {
+		print "failed to read file $conf_file $! ";
+		$expandeddir = NMISNG::Util::getDir(dir => "conf-default"); # expands dirs like 'conf' or 'logs' into full location
+		$conf_file = "$expandeddir/performance";
+		($data, $fh) = NMISNG::Util::readFiletoHash(file => $conf_file);
+	}
 	$data //= {};
 	
 	# Check output directory
