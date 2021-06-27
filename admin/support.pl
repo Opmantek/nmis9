@@ -823,7 +823,6 @@ sub collect_bot_data
 								 "--host", $globalconf->{db_server},
 								 "--port", $globalconf->{db_port});
 		my $run = "mongo @mongoargs $dbname --eval \"$query\"";
-		print "Running: " . $run . "\n";
 		$bot_data->{count}->{$data} = `$run`;
 	}
 	
