@@ -1109,28 +1109,30 @@ sub collectPerformanceData
 		$nmisng->log->debug("Output folder setup in $output_folder")
 	}
 	
-	foreach my $key (keys %$data) {
-		print "Running $key ... \n";
-
-		# Run output
-		my $cmd = $data->{$key}->{'command'};
-		my $output = `$cmd 2>&1`;
-		#print $output;
-		if ($output) {
-			# Create output file
-			my $file = $output_folder . "/$key-". time . ".txt";
-			open(FH, '>', $file) or die $!;
-			print FH $output;
-			close(FH);
-			
-			my $user = $C->{nmis_user};
-			my $group = $C->{nmis_group};
-			
-			system("chown","-R", "$user:$group", $file);
-			system("chmod","-R","g+rw", $file);
-
-		} else {
-			print "\t No command output for $key \n";
+	if (ref($data) eq "HASH") {
+		foreach my $key (keys %$data) {
+			print "Running $key ... \n";
+	
+			# Run output
+			my $cmd = $data->{$key}->{'command'};
+			my $output = `$cmd 2>&1`;
+			#print $output;
+			if ($output) {
+				# Create output file
+				my $file = $output_folder . "/$key-". time . ".txt";
+				open(FH, '>', $file) or die $!;
+				print FH $output;
+				close(FH);
+				
+				my $user = $C->{nmis_user};
+				my $group = $C->{nmis_group};
+				
+				system("chown","-R", "$user:$group", $file);
+				system("chmod","-R","g+rw", $file);
+	
+			} else {
+				print "\t No command output for $key \n";
+			}
 		}
 	}
 }
