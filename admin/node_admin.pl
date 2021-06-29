@@ -121,6 +121,7 @@ show: prints a node's properties in the same format as set
  with option quoted=true, show adds double-quotes where needed
  with option interfaces=true show interface basic information
  with option inventory=true dumps all the inventory data
+ with option catchall=true dumps just the inventory catchall data
  
 set: adjust one or more node properties
 

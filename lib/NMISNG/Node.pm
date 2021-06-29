@@ -8252,7 +8252,8 @@ sub collect
 
 	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $catchall_inventory->data_live();
-
+	my $previous_poll = $catchall_data->{last_poll};
+	
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
 	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
@@ -8378,7 +8379,7 @@ sub collect
 			}
 			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
-			$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $catchall_data->{last_poll};
+			$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
 			$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
 			# we polled something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};

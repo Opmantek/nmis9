@@ -51,7 +51,7 @@ if ( defined $cmdline->{node} ) {
 	oneNode($cmdline->{node});
 }
 else {
-	my $nodes = $nmisng->get_node_names();
+	my $nodes = $nmisng->get_node_names(filter => { cluster_id => $config->{cluster_id} });
     my $PP = NMISNG::Util::loadTable(dir=>'conf',name=>"Polling-Policy");
     my $totalNodes = 0;
     my $totalnodeswithremotes = 0;
@@ -69,14 +69,18 @@ else {
 	my $latePoll12h = 0;
     my $report;
 	my @output;
+	my %seen;
     
     my @polltimes;
     
     # define the output heading and the print format
 	my @heading = ("node", "attempt", "status", "ping", "snmp", "policy", "delta", "snmp", "avgdel", "poll", "update", "pollmessage");	
-  
+
 	foreach my $node (sort @$nodes) {
 		#oneNode($node);
+			next if ($seen{$node});
+			$seen{$node} = 1;
+			
             $totalnodeswithremotes++;
             my $nodeobj = $nmisng->node(name => $node);
             if ($nodeobj) {
