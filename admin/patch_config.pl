@@ -58,6 +58,7 @@ key is either 'confkeyname' or '/section/sub1/sub2/keyname'
 operation is = for overwriting scalar,
 or += for adding to array (only if missing)
 or ,= for adding to comma-separated list (only if missing)
+or -a for set to empty array
 newvalue is value to set or \"undef\".
 
 -f: forces conversion of config sections to match key path structure.
@@ -69,10 +70,14 @@ exit codes for -r: 0 ok, 1 key doesn't exist, 2 value is undef,
 3 value is not printable, 4 invalid key
 
 -R: show all existing config entries
+
+E.g. Create empty array: patch_config.pl -a Config.nmis /new/key=
+E.g. Add element to array: patch_config.pl Config.nmis /new/key+=value
+E.g. Set empty existing array: patch_config.pl -af Config.nmis /new/key=
 \n\n";
 
 my %opts;
-die $usage if (!getopts("jfbnrR",\%opts) or !@ARGV or !-f $ARGV[0]);
+die $usage if (!getopts("jfbnrRa",\%opts) or !@ARGV or !-f $ARGV[0]);
 
 my $config_file = shift(@ARGV);
 die "Config file \"$config_file\" does not exist or isn't readable!\n"
@@ -173,17 +178,26 @@ for my $token (@ARGV)
 		if ($token =~ /^\s*([^\+,=]+)(=|\+=|,=)(.*)$/)
 		{
 			my ($key,$op,$value) = ($1,$2,$3);
-			if ($value eq "undef")
+
+			if ($opts{a})
+			{
+				my @value = ();
+				push @patches, [ $key,  $op, \@value ];
+			}
+			elsif ($value eq "undef")
 			{
 				$value = undef;
+				push @patches, [ $key,  $op, $value ];
 			}
 			elsif ($opts{n})
 			{
 				# force this into numeric form if the value is number-like
 				$value = 0 + $value;
+				push @patches, [ $key,  $op, $value ];
+			} else {
+				push @patches, [ $key,  $op, $value ];
 			}
-			push @patches, [ $key,  $op, $value ];
-		}
+		} 
 		else
 		{
 			die "cannot parse patch expression \"$token\"!\n";
@@ -191,6 +205,7 @@ for my $token (@ARGV)
 	}
 	
 }
+
 die "No patches given!\n" if (!@patches);
 print "Patching values for keys ".join(", ",map { $_->[0] } (@patches))."\n";
 
@@ -234,35 +249,40 @@ sub patch_config
 	# append to arrays, and recurse down into arrays
 	elsif (ref($curloc) eq "ARRAY")
 	{
-		# check if a += op defined for here
-		for my $pidx (0..$#patches)
-		{
-			next if (!$patches[$pidx]);
-			my ($patchpath,$op,$value) = @{$patches[$pidx]};
-
-			if ($curpath eq $patchpath
-					or $curelem eq $patchpath)
+		if ($opts{a}) {
+			$curloc = ();
+		} else {
+			# check if a += op defined for here
+			for my $pidx (0..$#patches)
 			{
-				print "Patching array $curpath, patch $patchpath\n";
-				# fixme maybe add capability for changing list to hash or scalar, with -f
-				die "op $op not supported for element $curpath!\n"
-						if ($op ne '+=');
-
-				# ensure that the value isn't in that list already
-				$curloc = add_to_list_unique($curloc, $value);
-
-				# patch applied, no longer needed, delete
-				$patches[$pidx] = undef;
+				next if (!$patches[$pidx]);
+				my ($patchpath,$op,$value) = @{$patches[$pidx]};
+	
+				if ($curpath eq $patchpath
+						or $curelem eq $patchpath)
+				{
+					print "Patching array $curpath, patch $patchpath\n";
+					# fixme maybe add capability for changing list to hash or scalar, with -f
+					die "op $op not supported for element $curpath!\n"
+							if ($op ne '+=');
+	
+					# ensure that the value isn't in that list already
+					$curloc = add_to_list_unique($curloc, $value);
+	
+					# patch applied, no longer needed, delete
+					$patches[$pidx] = undef;
+				}
+			}
+	
+			# now recurse into array
+			for my $idx (0..$#$curloc)
+			{
+				my $error = patch_config(ref($curloc->[$idx])? $curloc->[$idx] : \$curloc->[$idx],
+											 $curpath."[$idx]","[$idx]");
+				return $error if $error;
 			}
 		}
-
-		# now recurse into array
-		for my $idx (0..$#$curloc)
-		{
-			my $error = patch_config(ref($curloc->[$idx])? $curloc->[$idx] : \$curloc->[$idx],
-										 $curpath."[$idx]","[$idx]");
-			return $error if $error;
-		}
+		
 	}
 	# scalar ref, so we check our patch key names and apply
 	elsif (ref($curloc))
