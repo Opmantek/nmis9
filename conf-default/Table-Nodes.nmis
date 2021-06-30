@@ -128,7 +128,7 @@ my @models = ('automatic', sort keys %knownmodels);
 										validate => { "onefromlist" => undef }  }},
 	 { depend =>{ header => 'Depend', display => 'header,scrolling,savearray',value => [ "", @nodes ],
 								validate => { "multifromlist" => undef } }},
-	 { services => { header => 'Services', display => 'header,scrolling,savearray',
+	 { services => { header => 'Service Monitoring', display => 'header,scrolling,savearray',
 									 value => ["", sort keys %{Compat::NMIS::loadGenericTable("Services")}],
 										validate => { "multifromlist" => undef } }},
 	 { timezone => { header => 'Time Zone',display => 'text',value => ["0"],
