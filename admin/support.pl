@@ -189,7 +189,6 @@ if ($cmdline->{action} eq "collect") {
 	
 	if ($cmdline->{support_file}) {
 		my $dir = $cmdline->{support_file};
-		print "Running bot in $dir...\n";
 		
 		# Collect data from unziped zip
 		collect_bot_data(dir => $dir);
@@ -564,6 +563,20 @@ The support tool won't be able to collect database status information!\n");
 																									opstatus_limit => $maxopstatus});
 
 				warn "Failed to dump node data for $uuid: $res->{error}\n" if (!$res->{success});
+				# Now, perform an update and a collect
+				my $logfn = "$targetdir/node_dumps/update.log";
+				my $thisjoblog = NMISNG::Log->new(level => NMISNG::Log::parse_debug_level(debug => 7),
+																						path => $logfn);
+				$nmisng->log($thisjoblog);
+				my $nodeobj = $nmisng->node(uuid => $found->{uuid});
+				$nodeobj->update();
+				
+				my $logfn = "$targetdir/node_dumps/collect.log";
+				my $thisjoblog = NMISNG::Log->new(level => NMISNG::Log::parse_debug_level(debug => 7),
+																						path => $logfn);
+				$nmisng->log($thisjoblog);
+				my $nodeobj = $nmisng->node(uuid => $found->{uuid});
+				$nodeobj->collect();
 			}
 		}
 	}
@@ -751,7 +764,7 @@ sub collect_bot_data
 	
 	# top
 	open(my $fh, "<", "$dir/system_status/top")
-			or die "Can't open < polling_summary: $!";
+			or die "Can't open < top data: $!";
 
 	while (my $line = <$fh>) {
 		if ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
@@ -813,6 +826,15 @@ sub collect_bot_data
 		$bot_data->{count}->{$data} = `$run`;
 	}
 	
+	# Selftest
+	my $selftest = NMISNG::Util::readFiletoHash(file=>$globalconf->{'<nmis_base>'}."/var/nmis_system/selftest.json", json =>1);
+	$bot_data->{selftest} = $selftest;
+	
+	# Grep errors `command`
+	my $log = $globalconf->{'<nmis_base>'}."/logs/nmis.log";
+	my $output = `egrep error $log | tail -20`;
+	$bot_data->{nmis_log} = $output;
+	
 	# Remove temp folder
 	if ($sourcedir) {
 		my @cmd = ("rm", "-r", $sourcedir);
@@ -842,7 +864,7 @@ sub run_bot
 		use File::Slurp;
 		my $template = read_file($basedir.'/admin/support_template.html');
 		my $content = "";
-		$content = show_content(content => $bot_data, where => $content, show_key => 1);
+		$content = create_index(content => $bot_data) . show_content(content => $bot_data, where => $content, show_key => 1);
 	
 		$template =~ s/CONTENT/$content/;
 		write_file("/$targetdir/$report_name.html", $template);
@@ -856,7 +878,7 @@ sub run_bot
 		use File::Slurp;
 		my $template = read_file($basedir.'/admin/support_template.html');
 		my $content = "";
-		$content = show_content(content => $bot_data, where => $content, show_key => 1);
+		$content = create_index(content => $bot_data) . show_content(content => $bot_data, where => $content, show_key => 1);
 	
 		$template =~ s/CONTENT/$content/;
 		write_file("$report_dir/$report_name.html", $template);
@@ -877,21 +899,43 @@ sub show_content
 	if (ref($content) eq "HASH") {
 		foreach my $key (keys %$content) {
 			if ($key eq "count" or $key eq "stats") {
-				$where = $where . "<h2>$key</h2>".print_table(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2>".print_table(content => $content->{$key});
 			} elsif ($key eq "disk") {
-				$where = $where . "<h2>$key</h2>".print_disk(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2>".print_disk(content => $content->{$key});
 			} elsif ($key eq "config") {
-				$where = $where . "<h2>$key</h2>".print_config(content => $content->{$key});
-			} elsif (ref($content->{$key}) eq "HASH") {
+				$where = $where . "<h2 id='$key'>$key</h2>".print_config(content => $content->{$key});
+			} elsif ($key eq "nmis_log") {
+				$where = $where . "<h2 id='$key'>$key</h2>".print_collapse(key => $key, content => $content->{$key});
+			}elsif (ref($content->{$key}) eq "HASH") {
 				if ($show_key) {
-					$where = $where . "<h2>$key</h2>".show_content(content => $content->{$key}, where => "");
+					$where = $where . "<h2 id='$key'>$key</h2>".show_content(content => $content->{$key}, where => "");
 				} else {
 					$where = $where . show_content(content => $content->{$key}, where => "");
 				}
-				
+			} elsif (ref($content->{$key}) eq "ARRAY") {
+				foreach my $element (@{$content->{$key}}) {
+					if (ref($element) eq "HASH") {
+						$where = $where . show_content(content => $element, where => "");
+					} if (ref($element) eq "ARRAY") {
+						if (length(@$element[1]) > 20) {
+							my $content = substr @$element[1], 0, 20;
+							$where = $where . "<b>" . @$element[0] . "</b><br>".print_collapse(content => @$element[1]);
+						} else {
+							$where = $where . "<b>" . @$element[0] . "</b> " . @$element[1] . "<br>";
+						}
+						
+					} else {
+						$where = $where . $element;
+					}
+				}
+				if ($show_key) {
+					$where = $where . "<h2 id='$key'>$key</h2>".show_content(content => $content->{$key}, where => "");
+				} else {
+					$where = $where . show_content(content => $content->{$key}, where => "");
+				}
 			} else {
 				if ($show_key) {
-					$where = $where . "<h2>$key</h2><p> ".$content->{$key}."</p>";
+					$where = $where . "<h2 id='$key'>$key</h2><p> ".$content->{$key}."</p>";
 				} else {
 					$where = $where . "<b>$key</b><p> ".$content->{$key}."</p>";
 				}
@@ -902,6 +946,22 @@ sub show_content
 	}
 	
 	return $where;
+}
+
+# Create index for bot report
+sub create_index
+{
+	my %args = @_;
+	my $content = $args{content};
+	
+	my $toRet = "<ul>";
+	
+	foreach my $key (keys %$content) {
+		$toRet = $toRet . "<li><a href='#$key'>". $key . "</a></li>";
+	}
+	my $toRet = $toRet."</ul>";
+	
+	return $toRet;
 }
 
 # Print disk information for html report
@@ -942,6 +1002,20 @@ sub print_table
 	
 	$toRet = $toRet."</tr></table>";
 	return $toRet;
+}
+
+# Collapse
+sub print_collapse
+{
+	my %args = @_;
+	my $content = $args{content};
+	my $extract = substr $content, 0, 20;
+	my $random_number = rand();
+	my $name = "text$random_number";
+	my $where = "<button type='button' class='btn btn-info' data-toggle='collapse' data-target='#$name'>" . $extract . " ...</button><br>";
+	$where = $where . "<div id='$name' class='collapse out'>" . $content . "</div><br> ";
+	
+	return $where;
 }
 
 # Print config for html report

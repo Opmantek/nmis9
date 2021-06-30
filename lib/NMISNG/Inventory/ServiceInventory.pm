@@ -92,23 +92,25 @@ sub make_path
 # returns: clone of data, logs on error
 sub data
 {
-	my ($self, $newvalue) = @_;
+	my ($self, $newvalue, $conf) = @_;
 
 	# we want a recreatable V5 uuid from config'd namespace+cluster_id+service+node's uuid
 	if (defined($newvalue))
 	{
-		$newvalue->{uuid} //= NMISNG::Util::getComponentUUID( $self->cluster_id,
-																													$newvalue->{service},
-																													$self->node_uuid );
+		$newvalue->{uuid} //= NMISNG::Util::getComponentUUIDConf( components => ($self->cluster_id,
+																				$newvalue->{service},
+																				$self->node_uuid),
+																conf => $conf );
 		return $self->SUPER::data($newvalue);
 	}
 	else
 	{
 		my $clone = $self->SUPER::data();
 		# making that uuid won't work until service property is set
-		$clone->{uuid} //= NMISNG::Util::getComponentUUID( $self->cluster_id,
-																											 $clone->{service},
-																											 $self->node_uuid )
+		$clone->{uuid} //= NMISNG::Util::getComponentUUIDConf( components => ($self->cluster_id,
+																			 $clone->{service},
+																			 $self->node_uuid),
+																conf => $conf )
 				if ($clone->{service});
 		return $clone;
 	}

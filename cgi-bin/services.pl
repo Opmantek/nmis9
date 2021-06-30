@@ -304,12 +304,27 @@ sub display_details
 		print "</td></tr>";
 	}
 
+	my $logfile = $C->{'<nmis_logs>'} . "/nmis.log"; 
+	my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
+											debug => 1),
+                                            path  => $logfile);
+	my $nmisng = NMISNG->new(config => $C, log => $logger);
+	
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);
+	
+	$S->init( name => $wantnode, snmp => 'false' );
+	
+	$S->{mdl}{system}{nodeModel} = "Model-ServiceOnly";
+	$S->loadModel(model => $S->{mdl}{system}{nodeModel});
+
 	print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Status History"), "</tr>",
 	"<tr>", $q->td({colspan => 2},
 											 Compat::NMIS::htmlGraph( graphtype => "service",
 																	node => $wantnode,
-																	intf => $wantservice, width => $width, height => $height) ), "</tr>";
-
+																	intf => $wantservice,
+																	width => $width,
+																	height => $height,
+																	sys	  => $S ) ), "</tr>";
 	print $q->end_table();
 	Compat::NMIS::pageEnd if (!$wantwidget);
 }

@@ -35,11 +35,11 @@
       'database' => {
         'common-model' => 'database'
       },
-      'threshold' => {
-        'common-model' => 'threshold'
-      },
       'summary' => {
         'common-model' => 'summary'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
       },
      'heading' => {
         'common-model' => 'heading'

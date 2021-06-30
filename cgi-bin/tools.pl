@@ -117,7 +117,7 @@ sub typeTool
 	my $title = escapeHTML("Command $tool for node $NT->{$node}{name} ($host)");
 	$title = escapeHTML("Command $tool") if $node eq '';
 
-	if ( $tool =~ /^(ping|trace|nslookup|finger|man|mank|mtr|lft)$/
+	if ( $tool =~ /^(ping|trace|nslookup|finger|man|mank|mtr|lft|snmp)$/
 			 and (!$node or !$host))	# node must be given AND known for these cmds
 	{
 		selectNode();
@@ -155,6 +155,7 @@ sub typeTool
 											 dns => \&viewDNS,
 											 lft => [$C->{lft},"-NASE", $host],
 											 mtr => [$C->{mtr},qw(--report --report-cycles=10),$host],
+											 snmp => [$C->{'<nmis_admin>'}."/tests.pl", "act=snmp", "node=$node"],
 				);
 
 		if (!$knowntools{$tool})

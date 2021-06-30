@@ -106,12 +106,15 @@ sub cleanNodeEvents
 				or ref( $events_config->{$eventname} ) ne "HASH"
 				or !NMISNG::Util::getbool( $events_config->{$eventname}->{Log}, "invert" ) )
 			{
+				my $closeevent = $eventname;
+				$closeevent =~ s/Down/Up/;
+				
 				$self->logEvent(
 					node_name => $node->name,
-					event     => "$caller: deleted event: $eventname",
+					event     => "$closeevent",
 					level     => "Normal",
 					element   => $event->{element} || '',
-					details   => $event->{details} || ''
+					details   => "$caller: deleted event: $eventname"
 				);
 			}
 		}

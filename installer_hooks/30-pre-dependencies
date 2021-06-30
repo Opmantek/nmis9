@@ -28,9 +28,9 @@ if [ $OSFLAVOUR = "redhat" ]; then
     perl-CGI \
 perl-Authen-SASL perl-B-Hooks-EndOfScope perl-boolean perl-Capture-Tiny \
 perl-Class-Inspector perl-Class-Data-Inheritable \
-perl-DateTime  perl-Devel-StackTrace perl-Devel-GlobalDestruction-XS \
+perl-DateTime  perl-Devel-StackTrace \
 perl-List-MoreUtils perl-File-ShareDir perl-Carp-Assert \
-perl-Try-Tiny perl-Text-CSV perl-Text-CSV_XS perl-Proc-Queue perl-Tie-IxHash \
+perl-Try-Tiny perl-Text-CSV perl-Text-CSV_XS perl-Tie-IxHash \
 perl-Safe-Isa perl-Test-Requires \
 perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta \
 perl-Class-XSAccessor perl-JSON-MaybeXS perl-Test-Deep \
@@ -123,14 +123,47 @@ fi
 mongo_or_bust 3 4 0 || exit 1
 
 
+# rhel8 fails to install these using yum, but centos8 is able to install these using yum - restrict to rhel8 nand newer
+if [ "${OSFLAVOUR}" = "redhat" ]; then
+	# we always add the packages to PKGLIST for centos|rhel if [ "$CANUSEWEB" != 1 ]:
+	if [ "$CANUSEWEB" = 1 ] && [ "$OS_ISCENTOS" != 1 ] && [ "${OS_MAJOR}" -ge 8 ]; then
+		printBanner "Some required packages need to be installed first!"
+		echo "$PRODUCT requires the following packages to be installed first:";
+		echo
+		echo "perl-CPAN perl-App-cpanminus using $MGR";
+		echo "Devel::GlobalDestruction::XS and Proc::Queue using CPANM";
+		echo
+		echo "The installer can download and install these packages.";
+		if input_yn "Do you want to install these packages now?" "5af4"; then
+			REPO='';
+			NEEDREPO='';
+			install_package "perl-CPAN"||:;
+			install_package "perl-App-cpanminus"||:;
+			if type cpanm >/dev/null; then
+				if [ -n "${UNATTENDED}" ]; then
+						PROMPT="";
+				else
+						PROMPT="--prompt";
+				fi;
+				cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+				cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+				unset PROMPT;
+			fi;
+			unset REPO;
+			unset NEEDREPO;
+		fi;
+	else
+		PKGLIST="$PKGLIST perl-Devel-GlobalDestruction-XS perl-Proc-Queue";
+	fi;
+fi;
+
+
 # I've kept this code here in case it becomes relevant later and for informational purposes.
 # The reason we don't use this method to install MongoDB-v2.2.1 perl driver
 # is that the tests 'cpanm --test-only MongoDB' still fail after yum installs the NMIS9 dependencies.
 #
 #### Centos 7 install of MongoDB-v2.2.1 perl driver fails at crud_spec.t, UNLESS we install it first:
 ###if [ "${OSFLAVOUR}" = "redhat" ] && [ "${OS_MAJOR}" -eq 7 ]; then
-###		REPO='';
-###		NEEDREPO='';
 ###		printBanner "Some required packages need to be installed first!"
 ###		echo "$PRODUCT requires the following packages to be installed first:";
 ###		echo
@@ -139,6 +172,8 @@ mongo_or_bust 3 4 0 || exit 1
 ###		echo
 ###		echo "The installer can download and install these packages.";
 ###		if input_yn "Do you want to install these packages now?" "3fa2"; then
+###				REPO='';
+###				NEEDREPO='';
 ###				install_package "perl-CPAN"||:;
 ###				install_package "perl-App-cpanminus"||:;
 ###				if type cpanm >/dev/null; then
@@ -150,9 +185,9 @@ mongo_or_bust 3 4 0 || exit 1
 ###						cpanm MongoDB --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
 ###						unset PROMPT;
 ###				fi;
+###				unset REPO;
+###				unset NEEDREPO;
 ###		fi;
-###		unset REPO;
-###		unset NEEDREPO;
 ###fi;
 
 

@@ -32,7 +32,7 @@
 #
 package NMISNG::Outage;
 
-our $VERSION = "9.2.1";
+our $VERSION = "9.2.2";
 
 use strict;
 use UUID::Tiny (qw(:std));
@@ -461,8 +461,9 @@ sub check_outages
 	return { error => "cannot check outages without valid node or nmisng argument!" }
 	if (ref($node) ne "NMISNG::Node" && ref($nmisng) ne "NMISNG");
 
-	my $outagedata = NMISNG::Util::loadTable(dir => "conf", name => "Outages")
-			if (NMISNG::Util::existFile(dir => "conf", name => "Outages"));
+	my $C = $nmisng->config if ($nmisng);
+	my $outagedata = NMISNG::Util::loadTable(dir => "conf", name => "Outages", conf => $C)
+			if (NMISNG::Util::existFile(dir => "conf", name => "Outages", conf => $C));
 	$outagedata //= {};
 	# no outages, no problem
 	return { success => 1, future => [], past => [], current => [] }
@@ -659,7 +660,7 @@ sub outageCheck
 	my $nmisng = $node->nmisng;
 	my $nodename = $node->name;
 
-	my $nodeoutages = check_outages(node => $node, time => $time);
+	my $nodeoutages = check_outages(node => $node, time => $time, nmisng => $nmisng);
 	if (!$nodeoutages->{success})
 	{
 		$nmisng->log->error("failed to check $nodename outages: $nodeoutages->{error}");
@@ -683,7 +684,7 @@ sub outageCheck
 		# ignore nonexistent stuff, defaults and circular self-dependencies
 		next if ($nd =~ m!^(N/A|$nodename)?$!);
 		my $depnode = $nmisng->node(name => $nd);
-		my $depoutages = check_outages(node => $depnode, time => $time);
+		my $depoutages = check_outages(node => $depnode, time => $time, nmisng => $nmisng);
 		if (!$depoutages->{success})
 		{
 			$nmisng->log->error("failed to check $nd outages (dependency of $nodename): $depoutages->{error}");

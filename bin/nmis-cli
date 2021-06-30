@@ -236,7 +236,7 @@ if ($Q->{act} =~ /^(daemon[-_])?status$/)
 	# opcharts 3 'nmisd' calls itself 'nmisd',
 	# 'nmisd worker' or 'nmisd collector <something>' - exclude these
 	my %ours = ( map { ($_->pid => $_) }
-							 (grep($_->cmndline =~ /^nmisd (fping|scheduler|worker .+)\s*$/,
+							 (grep($_->cmndline =~ /^nmisd\.(fping|scheduler|worker).*$/,
 										 @{$pt->table})));
 	die "No NMIS9 daemons running!\n" if (!keys %ours);
 
@@ -1086,7 +1086,18 @@ sub collectPerformanceData
 	my $expandeddir = NMISNG::Util::getDir(dir => "conf"); # expands dirs like 'conf' or 'logs' into full location
 	my $conf_file = "$expandeddir/performance";
 	my ($data, $fh) = NMISNG::Util::readFiletoHash(file => $conf_file);
-	print "failed to read file $conf_file $! " if (!$data);
+	# Try with 'conf-default' directory: in NMISNG::Util::getDir() we use 'dir => "conf_default"' to match '<nmis_conf_default>'
+
+	if ( ref($data) ne "HASH") {
+		print "Failed to read file $conf_file: $!\n";
+		$expandeddir = NMISNG::Util::getDir(dir => "conf_default"); # expands dirs like 'conf' or 'logs' into full location
+		$conf_file = "$expandeddir/performance";
+		print "Reading file $conf_file ...\n";
+		($data, $fh) = NMISNG::Util::readFiletoHash(file => $conf_file);
+		if ( ref($data) ne "HASH") {
+			print "Failed to read file $conf_file: $!\n";
+		}
+	}
 	$data //= {};
 	
 	# Check output directory
@@ -1098,28 +1109,30 @@ sub collectPerformanceData
 		$nmisng->log->debug("Output folder setup in $output_folder")
 	}
 	
-	foreach my $key (keys %$data) {
-		print "Running $key ... \n";
-
-		# Run output
-		my $cmd = $data->{$key}->{'command'};
-		my $output = `$cmd 2>&1`;
-		#print $output;
-		if ($output) {
-			# Create output file
-			my $file = $output_folder . "/$key-". time . ".txt";
-			open(FH, '>', $file) or die $!;
-			print FH $output;
-			close(FH);
-			
-			my $user = $C->{nmis_user};
-			my $group = $C->{nmis_group};
-			
-			system("chown","-R", "$user:$group", $file);
-			system("chmod","-R","g+rw", $file);
-
-		} else {
-			print "\t No command output for $key \n";
+	if (ref($data) eq "HASH") {
+		foreach my $key (keys %$data) {
+			print "Running $key ... \n";
+	
+			# Run output
+			my $cmd = $data->{$key}->{'command'};
+			my $output = `$cmd 2>&1`;
+			#print $output;
+			if ($output) {
+				# Create output file
+				my $file = $output_folder . "/$key-". time . ".txt";
+				open(FH, '>', $file) or die $!;
+				print FH $output;
+				close(FH);
+				
+				my $user = $C->{nmis_user};
+				my $group = $C->{nmis_group};
+				
+				system("chown","-R", "$user:$group", $file);
+				system("chmod","-R","g+rw", $file);
+	
+			} else {
+				print "\t No command output for $key \n";
+			}
 		}
 	}
 }
@@ -1162,9 +1175,12 @@ sub collectTopData
 	#my $time = localtime($time->epoch);
 	#my($year, $mon, $day, $hour, $min) = $date =~ /^(\d{4}) (\d{2}) (\d{2})\ (\d{2}):(\d{2})$/x;
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
-	$year += 1900;
-	$data{date} = "$year/$mon/$mday $hour:$min:$sec";
 	
+	$year += 1900;
+	#$data{date} = "$year/$mon/$mday $hour:$min:$sec";	
+	my $local_date = sprintf "%d/%02d/%02d %02d:%02d:%02d\n", $year, $mon, $mday, $hour, $min, $sec;
+	$data{date} = $local_date;
+	$data{date} =~ s/\n//;
 	foreach my $line (split /[\r\n]+/, $output) {
 	  
 	  if ( $line =~ /top - (\d+\:\d+\:\d+) up (\d+) days,\s+(\d+\:\d+),\s+(\d+) users?,\s+load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/ ) {

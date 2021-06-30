@@ -285,7 +285,10 @@ sub init
 		$self->{name} = $self->{node} = $self->{_nmisng_node}->name;
 	}
 
+	$C ||= $self->{_nmisng}->config if ($self->{_nmisng});
 	$C ||= NMISNG::Util::loadConfTable();           # needed to determine the correct dir; generally cached and a/v anyway
+	$self->{config} = $C;
+	
 	if ( ref($C) ne "HASH" or !keys %$C )
 	{
 		Carp::confess("failed to load configuration table!");
@@ -428,6 +431,14 @@ sub init
 						and $self->{update} )
 		{
 			$loadthis = "Model-PingOnly";
+		}
+		# no specific model, update yes, ping no, collect no -> serviceonly
+		elsif (!NMISNG::Util::getbool($thisnodeconfig->{ping})
+			and !NMISNG::Util::getbool($thisnodeconfig->{collect})
+			and defined $thisnodeconfig->{services}
+			and $thisnodeconfig->{services} ne "" )
+		{
+			$loadthis = "Model-ServiceOnly";
 		}
 
 		# default model otherwise
@@ -1542,11 +1553,10 @@ sub loadModel
 	my ( $name, $mdl );
 	# in non-node mode we don't have any catchall or other database a/v...
 	my $catchall_data = $self->{name}? $self->inventory( concept => 'catchall' )->data_live() : {};
-
-	my $C = NMISNG::Util::loadConfTable();    # needed to determine the correct dir; generally cached and a/v anyway
+	my $C = $self->{config} // NMISNG::Util::loadConfTable();    # needed to determine the correct dir; generally cached and a/v anyway
 
 	# load the policy document (if any)
-	my $modelpol = NMISNG::Util::loadTable( dir => 'conf', name => 'Model-Policy' );
+	my $modelpol = NMISNG::Util::loadTable( dir => 'conf', name => 'Model-Policy', conf => $C );
 	if ( ref($modelpol) ne "HASH" or !keys %$modelpol )
 	{
 		$self->nmisng->log->warn("ignoring invalid or empty model policy");
@@ -1565,7 +1575,7 @@ sub loadModel
 	if ( $self->{cache_models} && -f $thiscf )
 	{
 		# check if the cached data is stale: load the model, check all the mtimes of the common-xyz inputs and a few others
-		$self->{mdl} = NMISNG::Util::readFiletoHash( file => $thiscf, json => 1, lock => 0 );
+		$self->{mdl} = NMISNG::Util::readFiletoHash( file => $thiscf, json => 1, lock => 0, conf => $C );
 		if ( ref( $self->{mdl} ) ne "HASH" or !keys %{$self->{mdl}} )
 		{
 			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache): $self->{mdl}";
@@ -1581,16 +1591,17 @@ sub loadModel
 			map { push @depstocheck, "Common-".$self->{mdl}->{"-common-"}->{class}->{$_}->{"common-model"}; }
 			(keys %{$self->{mdl}{'-common-'}{class}}) if (ref($self->{mdl}->{'-common-'}) eq "HASH"
 																										&& ref($self->{mdl}->{'-common-'}->{class}) eq "HASH");
+
 			for my $other (@depstocheck)
 			{
 				my $othermtime;
 				if ($other eq "Config")	# all other others are models
 				{
-					$othermtime = NMISNG::Util::mtimeFile(dir => "conf", name => $other);
+					$othermtime = NMISNG::Util::mtimeFile(dir => "conf", name => $other, conf => $C );
 				}
 				else
 				{
-					my $meta =  NMISNG::Util::getModelFile(model => $other, only_mtime => 1);
+					my $meta =  NMISNG::Util::getModelFile(model => $other, only_mtime => 1, conf => $C );
 					$othermtime = $meta->{mtime} if ($meta->{success});
 				}
 				if ($othermtime > $cfage)
@@ -1620,7 +1631,7 @@ sub loadModel
 	if ($mustloadfromsource)
 	{
 		# load the model file in question
-		my $res = NMISNG::Util::getModelFile(model => $model);
+		my $res = NMISNG::Util::getModelFile(model => $model, conf => $C );
 		if (!$res->{success})
 		{
 			$self->{error} = "ERROR ($self->{name}) failed to load Model file for $model: $res->{error}!";
@@ -1642,7 +1653,7 @@ sub loadModel
 			foreach my $class ( keys %{$self->{mdl}{'-common-'}{class}} )
 			{
 				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
-				my $commonres = NMISNG::Util::getModelFile(model => $name);
+				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
 				if (!$commonres->{success})
 				{
 					$self->{error} = "ERROR ($self->{name}) failed to read Model file $name: $commonres->{error}!";
@@ -1664,7 +1675,7 @@ sub loadModel
 			# save to cache BEFORE the policy application, if caching is on OR if in update operation
 			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
 			{
-				NMISNG::Util::writeHashtoFile( file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0 );
+				NMISNG::Util::writeHashtoFile( file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0, conf => $C );
 			}
 		}
 	}
@@ -1804,6 +1815,7 @@ sub loadModel
 				$gt2sc->{$onegt} = $fixedsubconcept;
 			}
 		}
+		
 		# and another special case: health section isn't modelled fully/properly
 		$fixedsubconcept = "health";
 		for my $onegt (qw(health kpi response numintf polltime))
@@ -1813,6 +1825,7 @@ sub loadModel
 			$gt2sc->{$onegt} = $fixedsubconcept;
 		}
 	}
+			
 	return $exit;
 }
 
@@ -2264,6 +2277,7 @@ sub getTypeInstances
 			}
 		}
 	}
+	
 	# modeldata is just a container here, no object instantiation expected or possible
 	return ($want_modeldata) ? ($modeldata || NMISNG::ModelData->new()) : @instances;
 }
@@ -2294,7 +2308,7 @@ sub makeRRDname
 	my $extras = $args{extras};
 	my $wantrelative = NMISNG::Util::getbool($args{relative});
 	my $inventory = $args{inventory};
-	my $C = NMISNG::Util::loadConfTable if (!$wantrelative); # only needed for database_root
+	my $C = $self->{conf} // $args{conf} // NMISNG::Util::loadConfTable if (!$wantrelative); # only needed for database_root
 
 	# if necessary, find the subconcept that belongs to this graphtype  - this
 	# is the same as the rrd section name, and thus the database type name
@@ -2313,10 +2327,10 @@ sub makeRRDname
 		$self->nmisng->log->error("makeRRDname failed: no rrd section known for graphtype=$graphtype, type=$type");
 		return undef;
 	}
-
 	my $template = (ref($self->{mdl}->{database}) eq "HASH"
 									&& ref($self->{mdl}->{database}->{type}) eq "HASH")?
 									$self->{mdl}->{database}->{type}->{$sectionname} : undef;
+
 	if (!defined $template)
 	{
 		$self->nmisng->log->error("($self->{name}) database name not found for graphtype=$graphtype, type=$type, index=$index, item=$item, sect=$sectionname");
@@ -2378,7 +2392,7 @@ sub create_update_rrd
 	my ($self, %args) = @_;
 	my ($inventory,$type,$item,$index,$data,$extras) = @args{qw(inventory type item index data extras)};
 
-	my $C = NMISNG::Util::loadConfTable;
+	my $C = $self->{config} // NMISNG::Util::loadConfTable;
 	my $dbname;
 
 	# inventory? then check for a known name
@@ -2391,7 +2405,6 @@ sub create_update_rrd
 																 index => $index,
 																 item => $item,
 																 relative => 1);
-    
 	if (!$dbname)
 	{
 		$self->nmisng->log->error("create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");

@@ -147,6 +147,12 @@ sub typeGraph
 		bailout(message => "Node $node not found");
 	}
 
+	# Special handleling for serviceonly nodes
+	if ($graphtype =~ /service/) {
+		$S->{mdl}{system}{nodeModel} = "Model-ServiceOnly";
+		$S->loadModel( model => $S->{mdl}{system}{nodeModel} );
+	}	
+	
 	my $M = $S->mdl;
 
 	my %graph_button_table = (

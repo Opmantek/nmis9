@@ -2758,6 +2758,9 @@ nodeVendor sysObjectName roleType netType );
 
 			my $statustext = "$servicename";
 			$statustext .= " - " . $thisservice->{status_text} if $thisservice->{status_text} ne "";
+			# Force this. For some reason Model default is loaded. 
+			$S->{mdl}{system}{nodeModel} = "Model-ServiceOnly";
+			$S->loadModel( model => $S->{mdl}{system}{nodeModel} );
 
 			print Tr( td( {class => "info Plain"}, a( {class => "islink", href => $serviceurl}, "$statustext" ) ), );
 			print Tr(
@@ -2767,14 +2770,16 @@ nodeVendor sysObjectName roleType netType );
 							node      => $node,
 							intf      => $servicename,
 							width     => $thiswidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						),
 						Compat::NMIS::htmlGraph(
 							graphtype => "service-response",
 							node      => $node,
 							intf      => $servicename,
 							width     => $thiswidth,
-							height    => $smallGraphHeight
+							height    => $smallGraphHeight,
+							sys		  => $S
 						)
 				)
 					);
@@ -3700,6 +3705,8 @@ sub viewService
 	my $node = $Q->{node};
 
 	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
+	# Force this. For some reason Model default is loaded. 
+	$S->{mdl}{system}{nodeModel} = "Model-ServiceOnly";
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 
@@ -3777,16 +3784,17 @@ sub viewService
 				= $thisservice->{status} == 100 ? 'running' : $thisservice->{status} > 0 ? 'degraded' : 'down';
 
 			my $thiswidth = int( 2 / 3 * $smallGraphWidth );
-
+			
 			# we always the service status graph, and a response time graph iff a/v (ie. non-snmp services)
 			my $serviceGraphs = Compat::NMIS::htmlGraph(
 				graphtype => "service",
 				node      => $node,
 				intf      => $servicename,
 				width     => $thiswidth,
-				height    => $smallGraphHeight
+				height    => $smallGraphHeight,
+				sys		  => $S
 			);
-
+			
 			if ( ref( $ST->{$servicename} ) eq "HASH" and $ST->{$servicename}->{"Service_Type"} ne "service" )
 			{
 				$serviceGraphs .= Compat::NMIS::htmlGraph(
@@ -3794,7 +3802,8 @@ sub viewService
 					node      => $node,
 					intf      => $servicename,
 					width     => $thiswidth,
-					height    => $smallGraphHeight
+					height    => $smallGraphHeight,
+					sys		  => $S
 				);
 			}
 

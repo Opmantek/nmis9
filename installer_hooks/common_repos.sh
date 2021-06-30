@@ -60,7 +60,7 @@ is_repo_enabled() {
 
 		[ -z "$REPONAME" ] && return 2
 
-		if yum -C -v repolist enabled $REPONAME 2>/dev/null | grep -qE '^Repo-status *: *enabled'; then
+		if yum -C -v repolist $REPONAME 2>/dev/null | grep -qE '^Repo-status *: *enabled'; then
 				return 0
 		else
 				return 1
@@ -159,37 +159,51 @@ enable_custom_repo() {
 				if [ "$OS_ISCENTOS" = 1 ]; then
 						execPrint yum -y install epel-release
 				else
-						# https://fedoraproject.org/wiki/EPEL
-						# extra rh repos absolutely required for epel to work. grrr.
-						echolog "Enabling RHEL optional RPM repo (required for EPEL)"
-
-						if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-server-optional-rpms" | grep Enabled | grep 0)" ]; then
-							execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-server-optional-rpms 2>&1"||:;
-						fi;
-						if [ "$OS_MAJOR" = 7 ]; then
-								echo "Enabling RHEL ${OS_MAJOR} extras RPM repo (required for EPEL)"
-
-								if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-server-extras-rpms" | grep Enabled | grep 0)" ]; then
-									execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-server-extras-rpms 2>&1"||:;
-								fi;
-						elif [ "$OS_MAJOR" = 8 ]; then
-								echo "Enabling RHEL ${OS_MAJOR} extras RPM repo (required for EPEL)"
-
-								if [ -n "$(subscription-manager repos | grep -A4 "codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms" | grep Enabled | grep 0)" ]; then
-									execPrint "subscription-manager repos --enable=codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms 2>&1"||:;
-								fi;
+						# default RHEL7 and RHEL8 installs come with EPEL enabled but needed RHEL repos disabled
+						# variable RHEL_EPEL_REPOS_ENABLED gets set here, further below, and also gets checked in calling function install_package() that is further below
+						if [ "${RHEL_EPEL_REPOS_ENABLED:-0}" != 1 ]; then
+							# https://fedoraproject.org/wiki/EPEL
+							# extra rh repos absolutely required for epel to work. grrr.
+							echolog "Enabling RHEL ${OS_MAJOR} Repositories"
+							if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-server-optional-rpms" | grep Enabled | grep 0)" ]; then
+								execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-server-optional-rpms 2>&1"||:;
+							fi;
+							if [ "$OS_MAJOR" = 7 ]; then
+									if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-server-extras-rpms" | grep Enabled | grep 0)" ]; then
+										execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-server-extras-rpms 2>&1"||:;
+									fi;
+							elif [ "$OS_MAJOR" = 8 ]; then
+									if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-for-x86_64-supplementary-rpms" | grep Enabled | grep 0)" ]; then
+										execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-for-x86_64-supplementary-rpms 2>&1"||:;
+									fi;
+									if [ -n "$(subscription-manager repos | grep -A4 "codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms" | grep Enabled | grep 0)" ]; then
+										execPrint "subscription-manager repos --enable=codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms 2>&1"||:;
+									fi;
+							fi
+							# variable RHEL_EPEL_REPOS_ENABLED only gets set here
+							RHEL_EPEL_REPOS_ENABLED=1;
 						fi
-						# then finally the epel repo itself
-						execPrint yum -y install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${OS_MAJOR}.noarch.rpm"
+						# default RHEL7 and RHEL8 installs come with EPEL enabled but needed RHEL repos disabled
+						# variable THIS_REPO_IS_ENABLED gets set in calling function install_package() that is further below
+						if [ "${THIS_REPO_IS_ENABLED:-0}" != 1 ]; then
+							# then finally the epel repo itself
+							execPrint yum -y install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${OS_MAJOR}.noarch.rpm"
+						fi;
 				fi
 
 		elif [ "$REPONAME" = "gf" ]; then
-				printBanner "Enabling Ghettoforge repository";
-				execPrint yum -y install "http://mirror.ghettoforge.org/distributions/gf/gf-release-latest.gf.el${OS_MAJOR}.noarch.rpm"
+				# variable THIS_REPO_IS_ENABLED gets set in calling function install_package() that is further below
+				if [ "${THIS_REPO_IS_ENABLED:-0}" != 1 ]; then
+					printBanner "Enabling Ghettoforge repository";
+					execPrint yum -y install "http://mirror.ghettoforge.org/distributions/gf/gf-release-latest.gf.el${OS_MAJOR}.noarch.rpm"
+				fi
 
 		elif [ "$REPONAME" = "repoforge" -o "$REPONAME" = "rpmforge" ]; then
-				printBanner "Enabling RepoForge repository"
-				execPrint yum -y install "http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el${OS_MAJOR}.rf.x86_64.rpm"
+				# variable THIS_REPO_IS_ENABLED gets set in calling function install_package() that is further below
+				if [ "${THIS_REPO_IS_ENABLED:-0}" != 1 ]; then
+					printBanner "Enabling RepoForge repository"
+					execPrint yum -y install "http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el${OS_MAJOR}.rf.x86_64.rpm"
+				fi
 		else
 				return 1
 		fi
@@ -232,15 +246,35 @@ check_missing_packages() {
 #
 # execprints yum or apt-get, but captures only the last package's installer status
 # returns: 0 if ok, 1 otherwise
+# note: requires that flavour() has been run
 install_package() {
 		local pkg
 		for pkg in "$@"; do
 				if [ "$OSFLAVOUR" = "redhat" ]; then
-						if [ -n "$NEEDREPO" ] && ! is_repo_enabled $NEEDREPO; then
-								if [ "$CANUSEWEB" != 1 ]; then
-										printBanner "Cannot enable repository $REPONAME!"
+						if [ -n "$NEEDREPO" ]; then
+								# default RHEL7 and RHEL8 installs come with EPEL enabled but needed RHEL repos disabled
+								# variable THIS_REPO_IS_ENABLED also gets checked in enable_custom_repo() function which is called within this block
+								local THIS_REPO_IS_ENABLED;
+								if is_repo_enabled $NEEDREPO; then
+									THIS_REPO_IS_ENABLED=1;
+								else
+									THIS_REPO_IS_ENABLED=0;
+								fi;
 
-										cat <<EOF
+								local DO_ENABLE_THIS_REPO;
+								# default RHEL7 and RHEL8 installs come with EPEL enabled but needed RHEL repos disabled
+								# variable RHEL_EPEL_REPOS_ENABLED gets set in enable_custom_repo() function which is called within this block
+								if [ "$OS_ISCENTOS" != 1 ] && [ "$NEEDREPO" = "epel" ] && [ "${RHEL_EPEL_REPOS_ENABLED:-0}" != 1 ]; then
+										DO_ENABLE_THIS_REPO=1;
+								elif [ "${THIS_REPO_IS_ENABLED}" != 1 ]; then
+										DO_ENABLE_THIS_REPO=1;
+								fi;
+								if [ "${DO_ENABLE_THIS_REPO:-0}" = 1 ]; then
+										unset DO_ENABLE_THIS_REPO;
+										if [ "$CANUSEWEB" != 1 ]; then
+											printBanner "Cannot enable repository $REPONAME!"
+
+											cat <<EOF
 
 The $REPONAME repository is required for installing $pkg, but
 your system does not have web access and thus cannot
@@ -250,10 +284,14 @@ You will have install $pkg manually, downloadable
 from $REPOURL.
 
 EOF
-										exit 1
+											exit 1
+										else
+											enable_custom_repo $NEEDREPO
+										fi
 								else
-										enable_custom_repo $NEEDREPO
+										unset DO_ENABLE_THIS_REPO;
 								fi
+								unset THIS_REPO_IS_ENABLED;
 						fi
 
 						local MESSAGE
