@@ -410,6 +410,16 @@ sub doEditConfig
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
+	# Validate section
+	if (!$CC->{$section}) {
+		return validation_abort($section,
+								"non valid '$section'.")
+	}
+	# Validate item
+	if (!$CC->{$section}->{$item}) {
+		return validation_abort($item,
+								"non valid '$item' in '$section'.")
+	}
 	# handle the roletype, nettype and nodetype lists and translate the separate values
 	if ($section eq "system" and ( $item =~ /^(roletype|nettype|nodetype)_list$/))
 	{
@@ -748,7 +758,13 @@ sub doAddConfig {
 	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
 
 	my $section = $Q->{section};
-
+	
+	# Validate section
+	if (!$CC->{$section}) {
+		return validation_abort($section,
+								"non valid '$section'.")
+	}
+	
 	if ($Q->{id} ne '') {
 		$CC->{$section}{$Q->{id}} = $Q->{value};
 	}
