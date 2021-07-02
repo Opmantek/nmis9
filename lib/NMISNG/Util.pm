@@ -3217,4 +3217,15 @@ sub replace_files_recursive {
 	return $total;
 }
 
+# Filter values
+# Used by CGI
+sub filter_params {
+	my ($vars) = @_;
+	
+	foreach my $param (%$vars) {
+		$param =~ s/<script>/&lt;script&gt;/g;
+		$param =~ s/<\/script>/&lt;\/script&gt;/g;
+	}
+	return $vars;
+}
 1;

@@ -43,6 +43,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI;
 my $Q = $q->Vars;
 
+$Q = NMISNG::Util::filter_params($Q);
 my $wantwidget = (!NMISNG::Util::getbool($Q->{widget},"invert")); # default is thus 1=widgetted.
 $Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and inputs
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});

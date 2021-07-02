@@ -43,6 +43,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
 
+$Q = NMISNG::Util::filter_params($Q);
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug})
 		or die "Cannot read Conf table!\n";
 
