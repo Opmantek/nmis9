@@ -46,6 +46,7 @@ use Compat::NMIS;
 my $q = CGI->new;
 my $Q = $q->Vars;
 
+$Q = NMISNG::Util::filter_params($Q);
 # widgetted? only if explicitely requested by caller or implied by jquery header
 my $callerwants = NMISNG::Util::getbool($Q->{widget});
 my $wantwidget = ( $callerwants or defined($ENV{HTTP_X_REQUESTED_WITH}));

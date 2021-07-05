@@ -364,6 +364,7 @@ sub generate_cookie
 		return CGI::cookie( {-name => $name,
 							-domain => $cookiedomain,
 							-expires => $expires,
+							-httponly => 1,
 							-value => (exists($args{value}) ?
 										$args{value}
 										: ("$authuser:" . $self->get_cookie_token($authuser)) )}); # weak checksum
@@ -402,6 +403,7 @@ sub generate_cookie
 
 		return  CGI::cookie( { -name => $name,
  							 -domain => $cookiedomain,
+							 -httponly => 1,
 							 -value => (exists($args{value}) ?
 																	 $args{value}
 																	 :"$value--$signature"),

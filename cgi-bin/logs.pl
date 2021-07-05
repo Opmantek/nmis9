@@ -62,7 +62,7 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 $SIG{PIPE} = sub { };  # Supress broken pipe error messages.
-
+$Q = NMISNG::Util::filter_params($Q);
 if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
 # -------------------------------------------------------
