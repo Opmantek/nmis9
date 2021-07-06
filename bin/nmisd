@@ -217,7 +217,7 @@ while (!$exit_marker)
 	my $ready_jobs;								# marker set if there are worker-jobs ready to start
 
 	# nmis locked? don't do anything at all
-	if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
+	if (-f "$config->{'<nmis_conf>'}/NMIS_IS_LOCKED")
 	{
 		$nmisng->log->info("nmis is locked, sleeping 60 seconds");
 		sleep(60);
@@ -992,7 +992,7 @@ sub worker_loop
 		# should terminate if the parent nmisd dies, for any reason
 		return EXIT_IMMEDIATELY if (getppid != $parent);
 
-		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
+		if (-f "$config->{'<nmis_conf>'}/NMIS_IS_LOCKED")
 		{
 			$nmisng->log->info("nmis is locked, sleeping 60 seconds");
 			sleep(60);
@@ -1813,7 +1813,7 @@ sub fping_loop
 		# should terminate if the parent nmisd dies, for any reason
 		return EXIT_IMMEDIATELY if (getppid != $parent);
 
-		if (-f "$config->{'<nmis_conf>'}./NMIS_IS_LOCKED")
+		if (-f "$config->{'<nmis_conf>'}/NMIS_IS_LOCKED")
 		{
 			$nmisng->log->info("nmis is locked, sleeping 60 seconds");
 			sleep(60);
