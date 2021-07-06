@@ -271,23 +271,67 @@ sub logJsonEvent
 	my %arg = @_;
 	my $event = $arg{event};
 	my $dir = $arg{dir};
+	my $nmisng = $arg{nmisng} // Compat::NMIS::new_nmisng();
 
+	# This is because: Somtimes the event is passed as a hash, sometimes as an event
+	# so this is a way to normalise the data...
+	if (ref($event) eq "NMISNG::Event") {
+		$event = $event->{data};
+	}
 	my $fcount = 1;
 	# add the time now to the event data.
 	$event->{time} = time;
-
-	my $file ="$dir/$event->{startdate}-$fcount.json";
-	while ( -f $file )
-	{ 
-		++$fcount;
-		$file ="$dir/$event->{startdate}-$fcount.json";
+	$event->{type} = "nmis_json_event";
+	
+	if ( $event->{event} =~ /^(\w+) (Up|Down)/ ) {	
+		$event->{stateful} = $1;
+		$event->{state} = lc($2);
+	}
+	elsif ( $event->{event} =~ /(Proactive .+|Alert: .+) Closed/ ) {	
+		$event->{stateful} = $1;
+		$event->{state} = "closed";
+	}
+	elsif ( $event->{event} =~ /(Proactive .+|Alert: .+)/ ) {	
+		$event->{stateful} = $1;
+		$event->{state} = "open";
 	}
 
+	# if this is a down event then set the time to the startdate not the time now.
+	# because if this is a down event it will be delayed by escalation and needs 
+	# to use the origin time.
+	if ( $event->{state} =~ /(down|open)/ ) { 
+		$event->{time} = $event->{startdate};
+	}
+	elsif ( $event->{state} =~ /(up|closed)/ and defined $event->{enddate} ) {
+		$event->{time} = $event->{enddate};
+	}
+
+	# lets get the JSON blob
 	my $json_event = JSON::XS->new->pretty(1)->allow_blessed()->utf8(1)->encode( $event );
+	
+	# includng a UUID in the filename to avoide conflict.
+	my $uuid = $event->{node_uuid};
+	my $node_name = $event->{node_name};
+	# using event->time which will be startdate for open events and enddate for closing events.
+	my $file ="$dir/$event->{time}-$node_name-$uuid-$fcount.json";
+	# arguably the file count is redundant now, but who knows.
+	while ( -f $file ) {
+		++$fcount;
+		$file ="$dir/$event->{time}-$node_name-$uuid-$fcount.json";
+	}
+	
+	# bolster file error handling
+	
 	open(JSON,">$file") or return("can not write to $file: $!");
-	print JSON $json_event;
+	if ( print JSON $json_event ) {
+		$nmisng->log->debug("INFO, $node_name " . $event->{event} . " " . $event->{element} . " saved to $file: $!");
+	}
+	else {
+		$nmisng->log->error("ERROR, did not save $node_name ". $event->{event} ." " .$event->{element} ." to $file: $!");
+	}
 	close JSON;
 	NMISNG::Util::setFileProtDiag(file =>$file);
+	
 	return undef;
 }
 
