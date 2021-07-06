@@ -29,7 +29,7 @@
 #
 # Utility package for various reusable general-purpose functions
 package NMISNG::Util;
-our $VERSION = "9.2.2";
+our $VERSION = "9.2.3";
 
 use strict;
 use feature 'state';						# loadconftable, uuid functions
@@ -3217,4 +3217,15 @@ sub replace_files_recursive {
 	return $total;
 }
 
+# Filter values
+# Used by CGI
+sub filter_params {
+	my ($vars) = @_;
+	
+	foreach my $param (%$vars) {
+		$param =~ s/<script>/&lt;script&gt;/g;
+		$param =~ s/<\/script>/&lt;\/script&gt;/g;
+	}
+	return $vars;
+}
 1;

@@ -46,6 +46,7 @@ $Data::Dumper::Indent = 1;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
+$Q = NMISNG::Util::filter_params($Q);
 
 if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 

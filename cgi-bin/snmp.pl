@@ -49,6 +49,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
+$Q = NMISNG::Util::filter_params($Q);
 my $nmisng = Compat::NMIS::new_nmisng;
 my $C = $nmisng->config;
 

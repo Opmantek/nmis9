@@ -46,6 +46,7 @@ use Compat::Modules;
 my $q = CGI->new; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
+$Q = NMISNG::Util::filter_params($Q);
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 
 if (-f "$C->{'<nmis_conf>'}/Tenants.nmis"

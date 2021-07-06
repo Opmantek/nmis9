@@ -45,6 +45,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
+$Q = NMISNG::Util::filter_params($Q);
 # this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}? !NMISNG::Util::getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
