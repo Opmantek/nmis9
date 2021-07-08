@@ -63,6 +63,7 @@ usage: $bn csv=csv file simulate=t/f
 eg: $bn csv=/usr/local/nmis9/admin/import_nodes_sample.csv
 
 simulate=t [t by default] will show a report with the list of
+verbose=1|0 [1 by default] 0 will suppress verbose output
 nodes to update/create
 
 The sample CSV looks like this:
@@ -107,7 +108,8 @@ my $nmisng = NMISNG->new(config => $config, log  => $logger);
 my $csvfile = $cmdline->{csv};
 my $simulate = $cmdline->{simulate} // "t";
 my $time = $cmdline->{time};
-my $debug = $cmdline->{debug} ? undef : $cmdline->{debug};
+my $debug = $cmdline->{debug} ? undef : NMISNG::Util::getbool($cmdline->{debug});
+my $verbose = $cmdline->{verbose} ? 1 : NMISNG::Util::getbool($cmdline->{verbose});
 
 die "invalid nodes file $csvfile argument!\n" if (!-r $csvfile);
 
@@ -120,7 +122,7 @@ print "  done in ".$t->deltaTime() ."\n" if $time;
 
 my $nodenamerule = $config->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
 
-print "\n";
+print "\n" if $verbose;
 my $sum = initSummary();
 print $t->markTime(). " Processing nodes \n" if $time;
 foreach my $node (keys %newNodes)
@@ -144,20 +146,19 @@ foreach my $node (keys %newNodes)
         my $operation;
 
         if (!$nodemodel->count) {
-            print "ADDING: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n";
+            print "ADDING: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
             ++$sum->{add};
             $isnew = 1;
             $operation = "create";
         } elsif ($nodemodel->count == 1 ) {
-            print "UPDATE: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n";
+            print "UPDATE: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
             ++$sum->{update};
             $operation = "update";
         } else {
-            print "ERROR: node=$newNodes{$node}{name} returning more than one node. Skipping. \n";
+            print "ERROR: node=$newNodes{$node}{name} returning more than one node. Skipping. \n" if $verbose;
             ++$sum->{error};
             last;
         }
-
 
         my $nodeobj;
         
@@ -296,11 +297,11 @@ foreach my $node (keys %newNodes)
                 print "\tFailed to save $node! $error \n";
                 next;
             }
-            print STDERR "\t=> Successfully ${operation}d node $node.\n";              
+            print STDERR "\t=> Successfully ${operation}d node $node.\n" if $verbose;              
             #print Dumper($nodeobj);
             
         } else {
-            print STDERR "\t=> Node $node not saved. Simulation mode.\n";  
+            print STDERR "\t=> Node $node not saved. Simulation mode.\n" if $verbose;  
             print Dumper($nodeobj) if $debug > 1;
         }
     }
@@ -314,6 +315,12 @@ foreach my $node (keys %newNodes)
     print $t->markTime(). " Processing $node end \n" if $time;
 }
 print $t->markTime(). " End processing nodes \n" if $time;
+
+    print qq|$sum->{total} nodes processed
+$sum->{add} nodes added
+$sum->{update} nodes updated
+$sum->{error} nodes with error
+|;
 
 exit 1;
 
