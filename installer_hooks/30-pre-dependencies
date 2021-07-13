@@ -14,7 +14,7 @@ if [ $OSFLAVOUR = "redhat" ]; then
 		MGR=YUM
 		PKGLIST="httpd httpd-tools rrdtool logrotate \
 		perl-core autoconf automake gcc cvs cairo cairo-devel \
-    pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel \
+    pango pango-devel libxml2 libxml2-devel gd gd-devel \
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
     net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay \
     perl-JSON-XS fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu* \
@@ -49,7 +49,7 @@ perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings"
 else
 		MGR=APT
 		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
-		autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev cpanminus \
+		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus \
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
     libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl \
