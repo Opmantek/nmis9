@@ -1019,10 +1019,9 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	die "Invalid node data, JSON parsing failed: $@\n" if ($@);
 	
 	if ($server_data) {
-		if ($server_data->{id} ne $mayberec->{cluster_id}) {
+		if ($mayberec->{cluster_id} && $server_data->{id} ne $mayberec->{cluster_id}) {
 			die "Cluster and server mismatch!\n"
-		}
-		
+		} 
 	}
 	
 	my $number = 0;
