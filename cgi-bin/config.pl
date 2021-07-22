@@ -42,6 +42,7 @@ use Net::IP;
 use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::Auth;
+use HTML::Entities;
 
 use Data::Dumper;
 
@@ -598,8 +599,7 @@ sub doEditConfig
 		}
 	}
 	# no validation or success, so let's update the config
-
-	$CC->{$section}{$item} = $value;
+	$CC->{$section}{$item} = decode_entities($value);
 	NMISNG::Util::writeConfData(data=>$CC);
 	return 1;
 }
@@ -766,7 +766,7 @@ sub doAddConfig {
 	}
 	
 	if ($Q->{id} ne '') {
-		$CC->{$section}{$Q->{id}} = $Q->{value};
+		$CC->{$section}{$Q->{id}} = decode_entities($Q->{value});
 	}
 
 	NMISNG::Util::writeConfData(data=>$CC);

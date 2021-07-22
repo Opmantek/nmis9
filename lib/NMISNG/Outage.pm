@@ -693,7 +693,7 @@ sub outageCheck
 		if (@{$depoutages->{current}})
 		{
 			# check if this node is down
-			my ($catchall_inv, $error) = $depnode->inventory(concept => "catchall");
+			my ($catchall_inv, $error) = $depnode->inventory(concept => "catchall") if ($depnode);
 			if ($error)
 			{
 				$nmisng->log->error("failed to load inventory for $nd: $error");
