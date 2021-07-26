@@ -255,7 +255,7 @@ sub editConfig{
 	my %args = @_;
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 
 	#start of page
 	print header($headeropts);
@@ -403,7 +403,7 @@ sub doEditConfig
 	$AU->CheckAccess("Table_Config_rw");
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 	my $value = $Q->{value};
 
 	# that's the  non-flattened raw hash
@@ -622,7 +622,7 @@ sub deleteConfig {
 	my %args = @_;
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 
 	#start of page
 	print header($headeropts);
@@ -678,7 +678,7 @@ sub doDeleteConfig {
 	$AU->CheckAccess("Table_Config_rw");
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 
 	# that's the  non-flattened raw hash
 	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
@@ -766,7 +766,7 @@ sub doAddConfig {
 	}
 	
 	if ($Q->{id} ne '') {
-		$CC->{$section}{$Q->{id}} = decode_entities($Q->{value});
+		$CC->{$section}{decode_entities($Q->{id})} = decode_entities($Q->{value});
 	}
 
 	NMISNG::Util::writeConfData(data=>$CC);
