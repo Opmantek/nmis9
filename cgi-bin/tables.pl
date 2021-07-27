@@ -39,6 +39,7 @@ use Data::Dumper;
 use URI::Escape;
 use UUID::Tiny;									# for nodes table uuid test
 use CGI qw(:standard *table *Tr *td *form *Select *div);
+use HTML::Entities;
 
 use Compat::NMIS;
 use NMISNG::Sys;
@@ -49,6 +50,7 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 $Q = NMISNG::Util::filter_params($Q);
+
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
@@ -254,7 +256,7 @@ EOF
 sub viewTable
 {
 	my $table = $Q->{table};
-	my $key = $Q->{key};
+	my $key = decode_entities($Q->{key});
 
 	#start of page
 	print header($headeropts);
@@ -435,7 +437,7 @@ sub showTable {
 sub editTable
 {
 	my $table = $Q->{table};
-	my $key = $Q->{key};
+	my $key = decode_entities($Q->{key});
 
 	# polling policy: add and delete, no edit
 	return menuTable() if ($table eq "Polling-Policy" and $Q->{act} eq 'config_table_edit');
@@ -680,7 +682,8 @@ sub doeditTable
 	# combine key from values, values separated by underscrore
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
 	$key = lc($key) if (NMISNG::Util::getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
-
+	$key = decode_entities($key);
+		
 	# key and 'name' property values must match up, and be space-stripped, for both users and nodes
 	if ($table eq "Nodes" or $table eq "Users")
 	{
@@ -714,6 +717,8 @@ sub doeditTable
 	{
 		for my $item (keys %{$ref})
 		{
+			$item = decode_entities($item);
+	
 			my $thisitem = $ref->{$item}; # table config record for this item
 
 			# do not save anything for separator entries, they're just for visual use
@@ -737,8 +742,9 @@ sub doeditTable
 					: unpack("(Z*)*", NMISNG::Util::stripSpaces($Q->{$item}));
 			my $value = $thisitem->{display} =~ /(^|,)savearray(,|$)/?
 					\@unpacked:  join(",", @unpacked);
-			$thisentry->{$item} = $value;
-			
+
+			$thisentry->{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);
+	
 			# Some craziness going on with this value that corrupst the file, filter
 			if ($table =~ /Polling-Policy/ && $item eq 'update')
 			{
@@ -782,7 +788,7 @@ sub doeditTable
 				if ($valtype =~ /^(int|float)(-or-empty)?$/)
 				{
 					my ($actualtype, $emptyisok) = ($1,$2);
-
+					
 					# checks required if not both emptyisok and blank input
 					if (!$emptyisok or (defined($value) and $value ne ""))
 					{
@@ -884,6 +890,7 @@ sub doeditTable
 							ref($value) eq "ARRAY"? @$value : split(/,/, $value) : $value;
 					for my $oneofmany (@mustcheckthese)
 					{
+						$oneofmany = decode_entities($oneofmany);
 						return validation_abort($item, "'$oneofmany' is not in list of acceptable values!")
 								if (!List::Util::any { $oneofmany eq $_ } (@acceptable));
 					}
@@ -922,6 +929,7 @@ sub doeditTable
 
 		# split the data into toplevel bits, activated, and configuration
 		map { $configuration->{$_} = $thisentry->{$_} }
+
 		(grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides)$/, keys %$thisentry ));
 
 		# table-nodes has active (ie. configuration.active) which is r/o shadow of activated.NMIS,
@@ -934,7 +942,7 @@ sub doeditTable
 		{
 			$node->cluster_id($C->{cluster_id});
 		}
-		$node->configuration( $configuration);
+		$node->configuration( $configuration );
 		$node->activated($activated);
 
 		my ($success,  $errmsg) = $node->save();
@@ -1019,7 +1027,7 @@ sub validation_abort
 
 sub dodeleteTable {
 	my $table = $Q->{table};
-	my $key = $Q->{key};
+	my $key = decode_entities($Q->{key});
 
 	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
 

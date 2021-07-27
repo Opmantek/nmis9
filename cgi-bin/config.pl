@@ -49,7 +49,7 @@ use Data::Dumper;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-$Q = NMISNG::Util::filter_params($Q);
+$Q = NMISNG::Util::filter_params($Q) if ($Q->{item} ne "hide_groups");
 
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
@@ -599,7 +599,7 @@ sub doEditConfig
 		}
 	}
 	# no validation or success, so let's update the config
-	$CC->{$section}{$item} = decode_entities($value);
+	$CC->{$section}{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);
 	NMISNG::Util::writeConfData(data=>$CC);
 	return 1;
 }
