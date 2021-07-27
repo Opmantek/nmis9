@@ -928,7 +928,7 @@ sub doeditTable
 		$node->name($thisentry->{name} || $new_name) if $node->is_new;
 
 		# split the data into toplevel bits, activated, and configuration
-		map { $configuration->{$_} = $thisentry->{$_} }
+		map { $configuration->{$_} = ref($thisentry->{$_}) ne "ARRAY" ? decode_entities($thisentry->{$_}) : $thisentry->{$_} }
 
 		(grep($_ !~ /^(_id|uuid|cluster_id|name|activated|lastupdate|overrides)$/, keys %$thisentry ));
 
