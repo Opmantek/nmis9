@@ -39,6 +39,7 @@ use URI::QueryParam;
 use Net::SNMP qw(oid_lex_sort);
 use Data::Dumper;
 use Net::IP;
+use HTML::Entities;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -878,6 +879,8 @@ sub printGroup
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;    # spaces aren't allowed in id attributes!
 
+	my $encoded_group = encode_entities($idsafegroup);
+	$idsafegroup =~ s/[;=()<>']/_/g;
 	my $urlsafegroup = uri_escape($group);
 
 	if ( $AU->InGroup($group) )
@@ -888,12 +891,12 @@ sub printGroup
 					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
 				id => "network_summary_$idsafegroup"
 			},
-			"$group"
+			"$encoded_group"
 		);
 	}
 	else
 	{
-		print "$group";
+		print "$encoded_group";
 	}
 	print end_td;
 
@@ -1092,9 +1095,10 @@ sub printGroupView
 
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;    # spaces aren't allowed in id attributes!
-
+	my $encoded_group = encode_entities($idsafegroup);
+	$idsafegroup =~ s/[;=()<>']/_/g;
 	my $urlsafegroup = uri_escape($group);
-
+	
 	print start_Tr,
 		start_td( {class => "infolft $overallStatus"} );
 
@@ -1103,15 +1107,15 @@ sub printGroupView
 		# force a new window if clicked
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
+					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$encoded_group",
 				id => "network_summary_$idsafegroup"
 			},
-			"$group"
+			"$encoded_group"
 		);
 	}
 	else
 	{
-		print "$group";
+		print "$encoded_group";
 	}
 	print end_td;
 
