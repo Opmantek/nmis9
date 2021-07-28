@@ -1826,11 +1826,13 @@ sub viewMetrics
 	foreach my $g ( sort (@groups) )
 	{
 		my $selected;
+		my $escaped_group = encode_entities($g);
 		if ( $Q->{group} eq $g )
 		{
-			$selected = " selected=\"$g\"";
+			$selected = " selected=\"$escaped_group\"";
 		}
-		$groupOption .= qq|<option value="$g"$selected>$g</option>\n|;
+		
+		$groupOption .= qq|<option value="$g"$selected>$escaped_group</option>\n|;
 	}
 
 	my $startform = start_form(
@@ -1865,12 +1867,12 @@ sub viewMetrics
 	print start_table( {class => 'dash'} );
 	print Tr( td( {class => 'heading'}, $groupCode ) );
 
-
+	my $escaped_group = encode_entities($group);	
 	print Tr(
 		td( {class => 'image'},
 			Compat::NMIS::htmlGraph(
 				graphtype => "metrics",
-				group     => "$group",
+				group     => "$escaped_group",
 				node      => "",
 				intf      => "",
 				width     => "600",
