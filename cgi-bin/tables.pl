@@ -949,7 +949,7 @@ sub doeditTable
 				}
 				
 				if ($notvalid == 1) {
-					$nmisng->log->debug("Property $prop value not allowed " . Dumper($thisentry->{$prop}));
+					$nmisng->log->info("Property $prop value not allowed " . Dumper($thisentry->{$prop}));
 					print header($headeropts),
 					Tr(td({class=>'error'}, escapeHTML("ERROR, validation of node property \'$key\' failed: Non allowed characters in $prop")));
 					return 0;

@@ -421,6 +421,8 @@ sub doEditConfig
 		return validation_abort($item,
 								"non valid '$item' in '$section'.")
 	}
+	
+	
 	# handle the roletype, nettype and nodetype lists and translate the separate values
 	if ($section eq "system" and ( $item =~ /^(roletype|nettype|nodetype)_list$/))
 	{
@@ -433,9 +435,12 @@ sub doEditConfig
 		# add actions ONLY if the add button was used to submit
 		if ($Q->{edittype} eq "Add" and defined $newthing and $newthing ne '')
 		{
+			# Validate
+			my $not_allowed_chars_props = $C->{not_allowed_chars_props} // "[;=()<>%'\/]";
+		
 			return validation_abort($conceptname,
 															"'$newthing' contains invalid characters. Spaces and commas are prohibited.")
-					if ($newthing =~ /[, ]/);
+					if ($newthing =~ /$not_allowed_chars_props/);
 
 			push @existing, $newthing
 					if (!grep($_ eq $newthing, @existing));
