@@ -44,8 +44,22 @@ sub collect_plugin
 	my (%args) = @_;
 	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
 
+	# is the node down or is SNMP down?
+	my ($inventory,$error) = $S->inventory(concept => 'catchall');
+	return ( error => "failed to instantiate catchall inventory: $error") if ($error);
 
-	$NG->log->info("Running Host Resources plugin for node::$node");
+	my $catchall_data = $inventory->data();
+	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
+		$NG->log->info("Skipping Host Resources plugin for node::$node, Node Down");
+		return ( error => "Node Down, skipping Host Resources plugin");
+	}
+	elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ) {
+		$NG->log->info("Skipping Host Resources plugin for node::$node, SNMP Down");
+		return ( error => "SNMP Down, skipping Host Resources plugin");
+	}
+	else {
+		$NG->log->info("Running Host Resources plugin for node::$node");
+	}
 
 	#my $NI = $S->ndinfo;
 	# $NI refers to *-node.json file. eg s2laba1mux1g1-node.json
@@ -73,9 +87,9 @@ sub collect_plugin
 			}
 
 			$changesweremade = 1;
-            my $data = $host_inventory->data();
+			my $data = $host_inventory->data();
             
-            # sanity check the data
+			# sanity check the data
 			if (   ref($data) ne "HASH"
 				or !keys %$data
 				or !exists( $data->{index} ) )
@@ -85,12 +99,12 @@ sub collect_plugin
 				next;
 			}
             
-            my $type = undef;
-            my $typeName = undef;
+			my $type = undef;
+			my $typeName = undef;
         
-            # is this the physical memory?
+			# is this the physical memory?
 			if ( defined $data->{hrStorageDescr} ) {
-                if ( $data->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
+				if ( $data->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
 					$typeName = "Memory";
 					$type = "physical";
 				}
@@ -140,7 +154,7 @@ sub collect_plugin
 				$type = "other";
 			}
             
-            if ( $typeName eq "Memory" ) {
+			if ( $typeName eq "Memory" ) {
 				$NG->log->info("Host Memory Type = $data->{hrStorageDescr} interesting as $type");
 			}
 			else {
@@ -154,7 +168,7 @@ sub collect_plugin
 				$Host_Memory->{$type ."_units"} = $data->{hrStorageAllocationUnits};
 			}
             
-            if ( defined $data->{hrStorageUnits} and defined $data->{hrStorageSize} and defined $data->{hrStorageUsed} ) {
+			if ( defined $data->{hrStorageUnits} and defined $data->{hrStorageSize} and defined $data->{hrStorageUsed} ) {
 				# must guard against 'noSuchInstance', which surivies first check b/c non-empty
 				my $sizeisnumber = ( $data->{hrStorageSize}
 										 # int or float
