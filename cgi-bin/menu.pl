@@ -36,6 +36,7 @@ use Data::Dumper;
 use Compat::NMIS;
 use NMISNG::Util;
 use Compat::Modules;
+use HTML::Entities;
 
 use JSON::XS;
 
@@ -479,7 +480,7 @@ EO_TEXT
 # out again
 sub save_window_state {
 	my $data = $Q->{POSTDATA};
-
+	$data = decode_entities($data);
 	my $windowData = decode_json($data);
 
 	my ($allWindowData, $handle) = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_var>'}.'/nmis-windowstate.json',
