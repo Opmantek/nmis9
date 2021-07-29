@@ -1173,10 +1173,11 @@ sub printHealth
 	my $business = $args{business};
 
 	my $idsafecustomer = $customer;
-	$idsafecustomer =~ s/ /_/g;    # spaces aren't allowed in id attributes!
+	$idsafecustomer =~ s/[;=()<>'\/]/_/g;    # spaces aren't allowed in id attributes!
+	
 	my $idsafebusiness = $business;
-	$idsafebusiness =~ s/ /_/g;    # spaces aren't allowed in id attributes!
-
+	$idsafebusiness =~ s/[;=()<>'\/]/_/g;    # spaces aren't allowed in id attributes!
+	
 	my $icon;
 
 	print start_Tr,
@@ -1188,20 +1189,20 @@ sub printHealth
 	{
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$customer",
+					. "?act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$idsafecustomer",
 				id => "network_summary_$idsafecustomer"
 			},
-			"$customer"
+			"$idsafecustomer"
 		);
 	}
 	elsif ( $business ne "" )
 	{
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$business",
+					. "?act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$idsafebusiness",
 				id => "network_summary_$idsafebusiness"
 			},
-			"$business"
+			"$idsafebusiness"
 		);
 	}
 
