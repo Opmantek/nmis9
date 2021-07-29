@@ -872,7 +872,7 @@ sub printGroup
 
 	my $group = shift;
 	my $icon;
-	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>'\/]";
+	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>%'\/]";
 	
 	print start_Tr,
 		start_td( {class => 'infolft Plain'} );
@@ -1096,7 +1096,7 @@ sub printGroupView
 {
 	my $group = shift;
 	my $icon;
-	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>'\/]";
+	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>'%\/]";
 	
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/$not_allowed_chars_group/_/g;    # spaces aren't allowed in id attributes!
@@ -1174,12 +1174,14 @@ sub printHealth
 	my %args     = @_;
 	my $customer = $args{customer};
 	my $business = $args{business};
-
+	my $not_allowed_chars_customer = $C->{not_allowed_chars_customer} // "[;=()<>%'\/]";
+	my $not_allowed_chars_business = $C->{not_allowed_chars_business} // "[;=()<>%'\/]";
+	
 	my $idsafecustomer = $customer;
-	$idsafecustomer =~ s/[;=()<>'\/]/_/g;    # spaces aren't allowed in id attributes!
+	$idsafecustomer =~ s/$not_allowed_chars_customer/_/g;    # spaces aren't allowed in id attributes!
 	
 	my $idsafebusiness = $business;
-	$idsafebusiness =~ s/[;=()<>'\/]/_/g;    # spaces aren't allowed in id attributes!
+	$idsafebusiness =~ s/$not_allowed_chars_business/_/g;    # spaces aren't allowed in id attributes!
 	
 	my $icon;
 
