@@ -822,7 +822,7 @@ sub selectAllGroups
 	foreach $group ( sort keys %{$GT} )
 	{
 		next unless $AU->InGroup($group);
-
+		next if ($group eq "");
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup( group => $group );
 		printGroup($group);
@@ -872,7 +872,8 @@ sub printGroup
 
 	my $group = shift;
 	my $icon;
-
+	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>'\/]";
+	
 	print start_Tr,
 		start_td( {class => 'infolft Plain'} );
 
@@ -880,7 +881,8 @@ sub printGroup
 	$idsafegroup =~ s/ /_/g;    # spaces aren't allowed in id attributes!
 
 	my $encoded_group = encode_entities($idsafegroup);
-	$idsafegroup =~ s/[;=()<>']/_/g;
+	$idsafegroup =~ s/$not_allowed_chars_group/_/g;
+
 	my $urlsafegroup = uri_escape($group);
 
 	if ( $AU->InGroup($group) )
@@ -891,12 +893,12 @@ sub printGroup
 					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
 				id => "network_summary_$idsafegroup"
 			},
-			"$encoded_group"
+			"$idsafegroup"
 		);
 	}
 	else
 	{
-		print "$encoded_group";
+		print "$idsafegroup";
 	}
 	print end_td;
 
@@ -1065,6 +1067,8 @@ sub selectNetworkView
 	splice( @allowed, $cutoff ) if ( defined($cutoff) && $cutoff < @allowed );
 	foreach $group (@allowed)
 	{
+		next if ($group eq "");
+	
 		# fixme: the walk should be done JUST ONCE, not N times for N groups!
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup( group => $group );
@@ -1092,13 +1096,12 @@ sub printGroupView
 {
 	my $group = shift;
 	my $icon;
-
-	my $idsafegroup = $group;
-	$idsafegroup =~ s/ /_/g;    # spaces aren't allowed in id attributes!
-	my $encoded_group = encode_entities($idsafegroup);
-	$idsafegroup =~ s/[;=()<>']/_/g;
-	my $urlsafegroup = uri_escape($group);
+	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>'\/]";
 	
+	my $idsafegroup = $group;
+	$idsafegroup =~ s/$not_allowed_chars_group/_/g;    # spaces aren't allowed in id attributes!
+	my $encoded_group = encode_entities($idsafegroup);
+
 	print start_Tr,
 		start_td( {class => "infolft $overallStatus"} );
 
@@ -1110,12 +1113,12 @@ sub printGroupView
 					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$encoded_group",
 				id => "network_summary_$idsafegroup"
 			},
-			"$encoded_group"
+			"$idsafegroup"
 		);
 	}
 	else
 	{
-		print "$encoded_group";
+		print "$idsafegroup";
 	}
 	print end_td;
 
