@@ -4641,73 +4641,76 @@ sub viewTop10
 		if ( NMISNG::Util::getbool( $NT->{$reportnode}{active} ) )
 		{
 			my $S  = NMISNG::Sys->new(nmisng => $nmisng);
-			$S->init( name => $reportnode, snmp => 'false' );
-			my $catchall =  $S->inventory( concept => 'catchall' );
-			my $catchall_data = $catchall->data();
-
-			# reachable, available, health, response
-			%reportTable = (
-				%reportTable,
-				%{  Compat::NMIS::getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $reportnode )
-				}
-			);
-
-			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
-			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-			my $result = $S->nmisng_node->get_inventory_model(
-				concept=> "catchall",
-				filter => {
-					historic => 0,
-					subconcepts => "nodehealth",
-					"dataset_info.datasets" => "avgBusy5" } );
-			if (!$result->error
-					&& $result->count
-					&& NMISNG::Util::getbool( $catchall_data->{collect} ))
-			{
-				%cpuTable = (
-					%cpuTable,
-					%{  Compat::NMIS::getSummaryStats(
-							sys   => $S,
-							type  => "nodehealth",
-							start => $start,
-							end   => $end,
-							index => $reportnode
-									) // {}
+			eval {
+				$S->init( name => $reportnode, snmp => 'false' );
+				my $catchall =  $S->inventory( concept => 'catchall' );
+				my $catchall_data = $catchall->data();
+	
+				# reachable, available, health, response
+				%reportTable = (
+					%reportTable,
+					%{  Compat::NMIS::getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $reportnode )
 					}
 				);
-			}
-
-			my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface',
-																												 filter => { historic => 0 });
-			if (!$intfresult->error)
-			{
-				foreach my $entry ( @{$intfresult->data})
+	
+				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
+				# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
+				my $result = $S->nmisng_node->get_inventory_model(
+					concept=> "catchall",
+					filter => {
+						historic => 0,
+						subconcepts => "nodehealth",
+						"dataset_info.datasets" => "avgBusy5" } );
+				if (!$result->error
+						&& $result->count
+						&& NMISNG::Util::getbool( $catchall_data->{collect} ))
 				{
-					my $thisintf = $entry->{data};
-
-					if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
-					{
-						# availability, inputUtil, outputUtil, totalUtil
-						my $intf = $thisintf->{ifIndex}; # === index
-
-						# Availability, inputBits, outputBits
-						my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
-																											index => $intf );
-						foreach my $k ( keys %{$hash->{$intf}} )
-						{
-							$linkTable{$intf}{$k} = $hash->{$intf}{$k};
-							$linkTable{$intf}{$k} =~ s/NaN/0/;
-							$linkTable{$intf}{$k} ||= 0;
+					%cpuTable = (
+						%cpuTable,
+						%{  Compat::NMIS::getSummaryStats(
+								sys   => $S,
+								type  => "nodehealth",
+								start => $start,
+								end   => $end,
+								index => $reportnode
+										) // {}
 						}
-						$linkTable{$intf}{node}        = $reportnode;
-						$linkTable{$intf}{intf}        = $intf;
-						$linkTable{$intf}{ifDescr}     = $thisintf->{ifDescr};
-						$linkTable{$intf}{Description} = $thisintf->{Description};
-
-						$linkTable{$intf}{totalBits} = ( $linkTable{$intf}{inputBits} + $linkTable{$intf}{outputBits} ) / 2;
+					);
+				}
+	
+				my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface',
+																													 filter => { historic => 0 });
+				if (!$intfresult->error)
+				{
+					foreach my $entry ( @{$intfresult->data})
+					{
+						my $thisintf = $entry->{data};
+	
+						if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
+						{
+							# availability, inputUtil, outputUtil, totalUtil
+							my $intf = $thisintf->{ifIndex}; # === index
+	
+							# Availability, inputBits, outputBits
+							my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
+																												index => $intf );
+							foreach my $k ( keys %{$hash->{$intf}} )
+							{
+								$linkTable{$intf}{$k} = $hash->{$intf}{$k};
+								$linkTable{$intf}{$k} =~ s/NaN/0/;
+								$linkTable{$intf}{$k} ||= 0;
+							}
+							$linkTable{$intf}{node}        = $reportnode;
+							$linkTable{$intf}{intf}        = $intf;
+							$linkTable{$intf}{ifDescr}     = $thisintf->{ifDescr};
+							$linkTable{$intf}{Description} = $thisintf->{Description};
+	
+							$linkTable{$intf}{totalBits} = ( $linkTable{$intf}{inputBits} + $linkTable{$intf}{outputBits} ) / 2;
+						}
 					}
 				}
-			}
+			};
+			
 		}
 	}
 
