@@ -171,6 +171,7 @@
       'psuStatus' => '/nodes/$node/health/psustatus-$index.rrd',
       'pvc' => '/nodes/$node/interface/pvc-$item.rrd',
       'radio' => '/nodes/$node/health/radio.rrd',
+      'RouteNumber' => '/nodes/$node/health/routenumber.rrd',
       'rttMonLatestRtt' => '/nodes/$node/health/rttMonLatestRtt-$index.rrd',
       'service' => '/nodes/$node/health/$item.rrd',
       'service-cpu' => '/nodes/$node/health/$item.rrd',
