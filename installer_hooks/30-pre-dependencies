@@ -237,13 +237,12 @@ if ! check_missing_packages $PKGLIST; then
 														-o "$pkg" = "perl-Net-SMTPS" \
 														-o "$pkg" = "perl-WWW-Mechanize" \
 														-o "$pkg" = "perl-Proc-ProcessTable" ] || \
-								   { [ "${OS_MAJOR}" -eq 7 ] && [ "${OS_ISCENTOS:-0}" != 1 ] && [ "$pkg" = "net-snmp-perl" ]; }; then
+								   { [ "${OS_MAJOR}" -eq 7 ] && [ "${OS_ISCENTOS:-0}" != 1 ] && [ "$pkg" = "net-snmp-perl" -o "$pkg" = "gd-devel" ]; }; then
 										REPO="--enablerepo=epel"
 										NEEDREPO="epel"
 										REPONAME="EPEL"
 										REPOURL="https://fedoraproject.org/wiki/EPEL/"
-								elif [ "$OS_MAJOR" = 6 ] \
-												 &&  [ "$pkg" = "rrdtool" -o "$pkg" = "fping" -o "$pkg" = "rrdtool-perl" ]; then
+								elif [ "$OS_MAJOR" = 6 ]  &&  [ "$pkg" = "rrdtool" -o "$pkg" = "fping" -o "$pkg" = "rrdtool-perl" ]; then
 										REPO="--enablerepo=gf-plus"
 										NEEDREPO="gf"
 										REPONAME="Ghettoforge"
