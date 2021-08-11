@@ -42,13 +42,14 @@ use Net::IP;
 use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::Auth;
+use HTML::Entities;
 
 use Data::Dumper;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-$Q = NMISNG::Util::filter_params($Q);
+$Q = NMISNG::Util::filter_params($Q) if ($Q->{item} ne "hide_groups");
 
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
@@ -254,7 +255,7 @@ sub editConfig{
 	my %args = @_;
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 
 	#start of page
 	print header($headeropts);
@@ -402,7 +403,7 @@ sub doEditConfig
 	$AU->CheckAccess("Table_Config_rw");
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 	my $value = $Q->{value};
 
 	# that's the  non-flattened raw hash
@@ -420,6 +421,8 @@ sub doEditConfig
 		return validation_abort($item,
 								"non valid '$item' in '$section'.")
 	}
+	
+	
 	# handle the roletype, nettype and nodetype lists and translate the separate values
 	if ($section eq "system" and ( $item =~ /^(roletype|nettype|nodetype)_list$/))
 	{
@@ -432,9 +435,12 @@ sub doEditConfig
 		# add actions ONLY if the add button was used to submit
 		if ($Q->{edittype} eq "Add" and defined $newthing and $newthing ne '')
 		{
+			# Validate
+			my $not_allowed_chars_props = $C->{not_allowed_chars_props} // "[;=()<>%'\/]";
+		
 			return validation_abort($conceptname,
 															"'$newthing' contains invalid characters. Spaces and commas are prohibited.")
-					if ($newthing =~ /[, ]/);
+					if ($newthing =~ /$not_allowed_chars_props/);
 
 			push @existing, $newthing
 					if (!grep($_ eq $newthing, @existing));
@@ -598,8 +604,7 @@ sub doEditConfig
 		}
 	}
 	# no validation or success, so let's update the config
-
-	$CC->{$section}{$item} = $value;
+	$CC->{$section}{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);
 	NMISNG::Util::writeConfData(data=>$CC);
 	return 1;
 }
@@ -622,7 +627,7 @@ sub deleteConfig {
 	my %args = @_;
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 
 	#start of page
 	print header($headeropts);
@@ -678,7 +683,7 @@ sub doDeleteConfig {
 	$AU->CheckAccess("Table_Config_rw");
 
 	my $section = $Q->{section};
-	my $item = $Q->{item};
+	my $item = decode_entities($Q->{item});
 
 	# that's the  non-flattened raw hash
 	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
@@ -766,7 +771,7 @@ sub doAddConfig {
 	}
 	
 	if ($Q->{id} ne '') {
-		$CC->{$section}{$Q->{id}} = $Q->{value};
+		$CC->{$section}{decode_entities($Q->{id})} = decode_entities($Q->{value});
 	}
 
 	NMISNG::Util::writeConfData(data=>$CC);

@@ -232,6 +232,7 @@ foreach my $node (@valNode) {
 		next unless defined $NSum->{$node}{$nk[$i]};
 		# $nodeInfo->{$node}{$header[$i]} = $NSum->{$node}{$nk[$i]};
 		$NSum->{$node}{$nk[$i]} =~ s/\s+/_/g;
+		$NSum->{$node}{$nk[$i]} =~ s/[<>]/_/g;
 		$nodeValues->{$header[$i]} = $NSum->{$node}{$nk[$i]};
 		# push @{ $NS{ $header[$i] }{ $NSum->{$node}{$nk[$i]} } }	, $NT->{$node}{name};
 	}

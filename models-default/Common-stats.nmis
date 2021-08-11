@@ -320,6 +320,26 @@
         'CDEF:AvgDiskQLen=AvgDiskReadQLen,AvgDiskWriteQLen,+,1000,/',
         'PRINT:AvgDiskQLen:AVERAGE:AvgDiskQLen=%1.2lf',
       ],
+      'RouteNumber' => [
+        'DEF:RouteNumber=$database:RouteNumber:AVERAGE',
+        'PRINT:RouteNumber:AVERAGE:RouteNumber=%1.2lf'
+      ],
+      'tcp' => [
+        'DEF:tcpCurrEstab=$database:tcpCurrEstab:AVERAGE',
+        'DEF:tcpActiveOpens=$database:tcpActiveOpens:AVERAGE',
+        'PRINT:tcpCurrEstab:AVERAGE:tcpCurrEstab=%1.2lf',
+        'PRINT:tcpActiveOpens:AVERAGE:tcpActiveOpens=%1.2lf',
+      ],
+      'mib2ip' => [
+        'DEF:ipInReceives=$database:ipInReceives:AVERAGE',
+        'DEF:ipInDelivers=$database:ipInDelivers:AVERAGE',
+        'DEF:ipForwDatagrams=$database:ipForwDatagrams:AVERAGE',
+        'DEF:ipOutRequests=$database:ipOutRequests:AVERAGE',
+        'PRINT:ipInReceives:AVERAGE:ipInReceives=%1.2lf',
+        'PRINT:ipInDelivers:AVERAGE:ipInDelivers=%1.2lf',
+        'PRINT:ipForwDatagrams:AVERAGE:ipForwDatagrams=%1.2lf',
+        'PRINT:ipOutRequests:AVERAGE:ipOutRequests=%1.2lf',
+      ], 
     }
   }
 );

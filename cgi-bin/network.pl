@@ -39,6 +39,7 @@ use URI::QueryParam;
 use Net::SNMP qw(oid_lex_sort);
 use Data::Dumper;
 use Net::IP;
+use HTML::Entities;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -821,7 +822,7 @@ sub selectAllGroups
 	foreach $group ( sort keys %{$GT} )
 	{
 		next unless $AU->InGroup($group);
-
+		next if ($group eq "");
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup( group => $group );
 		printGroup($group);
@@ -871,12 +872,16 @@ sub printGroup
 
 	my $group = shift;
 	my $icon;
-
+	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>%'\/]";
+	
 	print start_Tr,
 		start_td( {class => 'infolft Plain'} );
 
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;    # spaces aren't allowed in id attributes!
+
+	my $encoded_group = encode_entities($idsafegroup);
+	$idsafegroup =~ s/$not_allowed_chars_group/_/g;
 
 	my $urlsafegroup = uri_escape($group);
 
@@ -888,12 +893,12 @@ sub printGroup
 					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
 				id => "network_summary_$idsafegroup"
 			},
-			"$group"
+			"$idsafegroup"
 		);
 	}
 	else
 	{
-		print "$group";
+		print "$idsafegroup";
 	}
 	print end_td;
 
@@ -1062,6 +1067,8 @@ sub selectNetworkView
 	splice( @allowed, $cutoff ) if ( defined($cutoff) && $cutoff < @allowed );
 	foreach $group (@allowed)
 	{
+		next if ($group eq "");
+	
 		# fixme: the walk should be done JUST ONCE, not N times for N groups!
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup( group => $group );
@@ -1089,11 +1096,11 @@ sub printGroupView
 {
 	my $group = shift;
 	my $icon;
-
+	my $not_allowed_chars_group = $C->{not_allowed_chars_group} // "[;=()<>'%\/]";
+	
 	my $idsafegroup = $group;
-	$idsafegroup =~ s/ /_/g;    # spaces aren't allowed in id attributes!
-
-	my $urlsafegroup = uri_escape($group);
+	$idsafegroup =~ s/$not_allowed_chars_group/_/g;    # spaces aren't allowed in id attributes!
+	my $encoded_group = encode_entities($idsafegroup);
 
 	print start_Tr,
 		start_td( {class => "infolft $overallStatus"} );
@@ -1103,15 +1110,15 @@ sub printGroupView
 		# force a new window if clicked
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup",
+					. "?act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$encoded_group",
 				id => "network_summary_$idsafegroup"
 			},
-			"$group"
+			"$idsafegroup"
 		);
 	}
 	else
 	{
-		print "$group";
+		print "$idsafegroup";
 	}
 	print end_td;
 
@@ -1167,12 +1174,15 @@ sub printHealth
 	my %args     = @_;
 	my $customer = $args{customer};
 	my $business = $args{business};
-
+	my $not_allowed_chars_customer = $C->{not_allowed_chars_customer} // "[;=()<>%'\/]";
+	my $not_allowed_chars_business = $C->{not_allowed_chars_business} // "[;=()<>%'\/]";
+	
 	my $idsafecustomer = $customer;
-	$idsafecustomer =~ s/ /_/g;    # spaces aren't allowed in id attributes!
+	$idsafecustomer =~ s/$not_allowed_chars_customer/_/g;    # spaces aren't allowed in id attributes!
+	
 	my $idsafebusiness = $business;
-	$idsafebusiness =~ s/ /_/g;    # spaces aren't allowed in id attributes!
-
+	$idsafebusiness =~ s/$not_allowed_chars_business/_/g;    # spaces aren't allowed in id attributes!
+	
 	my $icon;
 
 	print start_Tr,
@@ -1184,20 +1194,20 @@ sub printHealth
 	{
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$customer",
+					. "?act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$idsafecustomer",
 				id => "network_summary_$idsafecustomer"
 			},
-			"$customer"
+			"$idsafecustomer"
 		);
 	}
 	elsif ( $business ne "" )
 	{
 		print a(
 			{   href => url( -absolute => 1 )
-					. "?act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$business",
+					. "?act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$idsafebusiness",
 				id => "network_summary_$idsafebusiness"
 			},
-			"$business"
+			"$idsafebusiness"
 		);
 	}
 
@@ -1822,11 +1832,13 @@ sub viewMetrics
 	foreach my $g ( sort (@groups) )
 	{
 		my $selected;
+		my $escaped_group = encode_entities($g);
 		if ( $Q->{group} eq $g )
 		{
-			$selected = " selected=\"$g\"";
+			$selected = " selected=\"$escaped_group\"";
 		}
-		$groupOption .= qq|<option value="$g"$selected>$g</option>\n|;
+		
+		$groupOption .= qq|<option value="$g"$selected>$escaped_group</option>\n|;
 	}
 
 	my $startform = start_form(
@@ -1861,12 +1873,12 @@ sub viewMetrics
 	print start_table( {class => 'dash'} );
 	print Tr( td( {class => 'heading'}, $groupCode ) );
 
-
+	my $escaped_group = encode_entities($group);	
 	print Tr(
 		td( {class => 'image'},
 			Compat::NMIS::htmlGraph(
 				graphtype => "metrics",
-				group     => "$group",
+				group     => "$escaped_group",
 				node      => "",
 				intf      => "",
 				width     => "600",
@@ -4629,73 +4641,76 @@ sub viewTop10
 		if ( NMISNG::Util::getbool( $NT->{$reportnode}{active} ) )
 		{
 			my $S  = NMISNG::Sys->new(nmisng => $nmisng);
-			$S->init( name => $reportnode, snmp => 'false' );
-			my $catchall =  $S->inventory( concept => 'catchall' );
-			my $catchall_data = $catchall->data();
-
-			# reachable, available, health, response
-			%reportTable = (
-				%reportTable,
-				%{  Compat::NMIS::getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $reportnode )
-				}
-			);
-
-			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
-			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-			my $result = $S->nmisng_node->get_inventory_model(
-				concept=> "catchall",
-				filter => {
-					historic => 0,
-					subconcepts => "nodehealth",
-					"dataset_info.datasets" => "avgBusy5" } );
-			if (!$result->error
-					&& $result->count
-					&& NMISNG::Util::getbool( $catchall_data->{collect} ))
-			{
-				%cpuTable = (
-					%cpuTable,
-					%{  Compat::NMIS::getSummaryStats(
-							sys   => $S,
-							type  => "nodehealth",
-							start => $start,
-							end   => $end,
-							index => $reportnode
-									) // {}
+			eval {
+				$S->init( name => $reportnode, snmp => 'false' );
+				my $catchall =  $S->inventory( concept => 'catchall' );
+				my $catchall_data = $catchall->data();
+	
+				# reachable, available, health, response
+				%reportTable = (
+					%reportTable,
+					%{  Compat::NMIS::getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $reportnode )
 					}
 				);
-			}
-
-			my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface',
-																												 filter => { historic => 0 });
-			if (!$intfresult->error)
-			{
-				foreach my $entry ( @{$intfresult->data})
+	
+				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
+				# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
+				my $result = $S->nmisng_node->get_inventory_model(
+					concept=> "catchall",
+					filter => {
+						historic => 0,
+						subconcepts => "nodehealth",
+						"dataset_info.datasets" => "avgBusy5" } );
+				if (!$result->error
+						&& $result->count
+						&& NMISNG::Util::getbool( $catchall_data->{collect} ))
 				{
-					my $thisintf = $entry->{data};
-
-					if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
-					{
-						# availability, inputUtil, outputUtil, totalUtil
-						my $intf = $thisintf->{ifIndex}; # === index
-
-						# Availability, inputBits, outputBits
-						my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
-																											index => $intf );
-						foreach my $k ( keys %{$hash->{$intf}} )
-						{
-							$linkTable{$intf}{$k} = $hash->{$intf}{$k};
-							$linkTable{$intf}{$k} =~ s/NaN/0/;
-							$linkTable{$intf}{$k} ||= 0;
+					%cpuTable = (
+						%cpuTable,
+						%{  Compat::NMIS::getSummaryStats(
+								sys   => $S,
+								type  => "nodehealth",
+								start => $start,
+								end   => $end,
+								index => $reportnode
+										) // {}
 						}
-						$linkTable{$intf}{node}        = $reportnode;
-						$linkTable{$intf}{intf}        = $intf;
-						$linkTable{$intf}{ifDescr}     = $thisintf->{ifDescr};
-						$linkTable{$intf}{Description} = $thisintf->{Description};
-
-						$linkTable{$intf}{totalBits} = ( $linkTable{$intf}{inputBits} + $linkTable{$intf}{outputBits} ) / 2;
+					);
+				}
+	
+				my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface',
+																													 filter => { historic => 0 });
+				if (!$intfresult->error)
+				{
+					foreach my $entry ( @{$intfresult->data})
+					{
+						my $thisintf = $entry->{data};
+	
+						if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
+						{
+							# availability, inputUtil, outputUtil, totalUtil
+							my $intf = $thisintf->{ifIndex}; # === index
+	
+							# Availability, inputBits, outputBits
+							my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
+																												index => $intf );
+							foreach my $k ( keys %{$hash->{$intf}} )
+							{
+								$linkTable{$intf}{$k} = $hash->{$intf}{$k};
+								$linkTable{$intf}{$k} =~ s/NaN/0/;
+								$linkTable{$intf}{$k} ||= 0;
+							}
+							$linkTable{$intf}{node}        = $reportnode;
+							$linkTable{$intf}{intf}        = $intf;
+							$linkTable{$intf}{ifDescr}     = $thisintf->{ifDescr};
+							$linkTable{$intf}{Description} = $thisintf->{Description};
+	
+							$linkTable{$intf}{totalBits} = ( $linkTable{$intf}{inputBits} + $linkTable{$intf}{outputBits} ) / 2;
+						}
 					}
 				}
-			}
+			};
+			
 		}
 	}
 

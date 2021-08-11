@@ -47,6 +47,7 @@ use Time::ParseDate;
 use Time::Local;
 use Time::Moment;
 use DateTime::TimeZone;
+use HTML::Entities;
 
 use POSIX qw();
 use Cwd qw();
@@ -3223,9 +3224,9 @@ sub filter_params {
 	my ($vars) = @_;
 	
 	foreach my $param (%$vars) {
-		$param =~ s/<script>/&lt;script&gt;/g;
-		$param =~ s/<\/script>/&lt;\/script&gt;/g;
+		$param = encode_entities($param);
 	}
+	
 	return $vars;
 }
 1;
