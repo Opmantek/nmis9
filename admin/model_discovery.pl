@@ -73,7 +73,7 @@ my $make_schema = $arg->{make_schema} ? NMISNG::Util::getbool($arg->{make_schema
 my $models_dir = $arg->{models_dir} ? $arg->{models_dir} : "models-default";
 my $newModelName = $arg->{model};
 my $common_exclude = $arg->{common_exclude};
-my $errors = $arg->{errors} ? setDebug($arg->{errors}) : 1;
+my $errors = $arg->{errors} ? NMISNG::Log::parse_debug_level(debug => $arg->{errors}) : 1;
 
 # lets not check the schema while making one.
 $schema = 0 if $make_schema;
@@ -375,12 +375,14 @@ sub processNode {
 	my $IF = $nodeobj->ifinfo;
 	my $NC = $nodeobj->{configuration};
 	my $max_repetitions = $NC->{node}->{max_repetitions} || $C->{snmp_max_repetitions};
+	my ($inventory, $error) =  $nodeobj->inventory( concept => "catchall" );
+	my $catchall = $inventory->data();
 
 	$nodeSummary{node} = $node;
-	$nodeSummary{sysDescr} = $NI->{system}{sysDescr};
-	$nodeSummary{sysObjectID} = $NI->{system}{sysObjectID};
-	$nodeSummary{nodeVendor} = $NI->{system}{nodeVendor};
-	$nodeSummary{nodeModel} = $NI->{system}{nodeModel};
+	$nodeSummary{sysDescr} = $catchall->{sysDescr};
+	$nodeSummary{sysObjectID} = $catchall->{sysObjectID};
+	$nodeSummary{nodeVendor} = $catchall->{nodeVendor};
+	$nodeSummary{nodeModel} = $catchall->{nodeModel};
 
 	my %nodeconfig = %{$NC->{node}}; # copy required because we modify it...
 	$nodeconfig{host_addr} = $NI->{system}{host};
@@ -757,6 +759,7 @@ sub processDir {
 		if (debug2()) { print "\tFound $#dirlist entries\n"; }
 
 		foreach my $file (sort {$a cmp $b} (@dirlist)) {
+			print "Process Model file $file \n" if (debug());
 		#for ( $index = 0; $index <= $#dirlist; ++$index ) {
 			@filename = split(/\./,"$dir/$file");
 			if ( -f "$dir/$file"
@@ -764,6 +767,7 @@ sub processDir {
 				and $bad_file !~ /$file/i
 			) {
 				if (debug2()) { print "\t\t$index file $dir/$file\n"; }
+			
 				&processModelFile(dir => $dir, file => $file)
 			}
 			elsif ( -d "$dir/$file"
@@ -1192,7 +1196,7 @@ sub saveSchema {
 	}
 
 	if ( $make_schema ) {
-		writeHashtoFile( file => $schemaFile, data => $modelSchema );
+		NMISNG::Util::writeHashtoFile( file => $schemaFile, data => $modelSchema );
 	}	
 }
 
@@ -1264,26 +1268,32 @@ sub usage {
 	print <<EO_TEXT;
 $0 will check existing NMIS models and determine which models apply to a node in NMIS.
 
-Discover a node:
-usage: $0 node=<nodename> [model=name for new model] [file=/path/to/file_for_details.txt] [debug=true|false]
-eg: $0 [node=nodename] [debug=(true|false|1|2|3|4)] [errors=(true|false)]
+* Discover a node:
+\t usage: $0 node=<nodename> [model=name for new model]
+\t 	 	  [file=/path/to/file_for_details.txt] [debug=true|false]
+\t eg: $0 [node=nodename] [debug=(true|false|1|2|3|4)]
+\t		  [errors=(true|false)]
 
-[models_dir=models|models-install]
+\t 		  [models_dir=models|models-default]
 
-Check the models:
-usage: $0 check=true [errors=(true|false)] [debug=(true|false|1|2|3|4)]
+* Check the models:
+\t usage: $0 check=true [errors=(true|false)]
+\t        [debug=(true|false|1|2|3|4)]
 
-Create the Model Schema File for checking syntax:
-usage: $0 schema=true [errors=(true|false)] [debug=(true|false|1|2|3|4)]
+* Create the Model Schema File for checking syntax:
+\t usage: $0 schema=true [errors=(true|false)]
+\t        [debug=(true|false|1|2|3|4)]
 
-node: NMIS nodename
-check: (true|false), check the models structure and for errors
-model: Name of new model and the result file to be generated.
-common_exclude: A regular expression for the Common models to exclude in the auto geneated model.
-file: Where to save the results to, TAB delimited CSV.
-errors: Display models errors found or not.
-schema: Check the models structure against the schema.
-make_schema: Make the model schema file.
+* Params: 
+\t node: NMIS nodename
+\t check: (true|false), check the models structure and for errors
+\t model: Name of new model and the result file to be generated.
+\t common_exclude: A regular expression for the Common models
+\t          to exclude in the auto geneated model.
+\t file: Where to save the results to, TAB delimited CSV.
+\t errors: Display models errors found or not.
+\t schema: Check the models structure against the schema.
+\t make_schema: Make the model schema file.
 
 EO_TEXT
 }
