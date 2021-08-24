@@ -1183,6 +1183,7 @@ sub loadTable
 	state %cache;
 
 	return "loadTable is missing arguments: name=$name dir=$dir" if (!$name or !$dir);
+	(my $without_extension = $name) =~ s/\.[^.]+$//;
 
 	my $expandeddir = getDir(dir => $dir, conf => $conf); # expands dirs like 'conf' or 'logs' into full location
 	my $file = "$expandeddir/$name";
@@ -1198,12 +1199,12 @@ sub loadTable
 	return ("loadtable: $file does not exist or has bad permissions (dir=$dir name=$name)") if (!-e $file);
 
 	my $externalDir = "$expandeddir/conf.d";
-	if ($name ne "Config") # Config is special, as it is saved in conf.d
+	if ($without_extension ne "Config") # Config is special, as it is saved in conf.d
 	{
-		$externalDir = "$externalDir/$name";
+		$externalDir = "$externalDir/$without_extension";
 	}
 	my $externalFiles = NMISNG::Util::get_external_files(dir=>$externalDir);
-	
+
 	if ($lock) {
 		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, conf => $conf);
 
