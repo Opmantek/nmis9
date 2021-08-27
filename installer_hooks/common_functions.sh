@@ -211,11 +211,50 @@ flavour () {
 				OSFLAVOUR=ubuntu
 				logmsg "detected OS flavour Ubuntu"
 				OS_VERSION=`grep VERSION_ID /etc/os-release | sed -re 's/^VERSION_ID="([0-9]+\.[0-9]+(\.[0-9]+)?)"$/\1/'`;
-		fi
+		fi;
 
 		if [ -f "/etc/os-release" ]; then
 			OSVERSION=$(grep "VERSION_ID=" /etc/os-release | cut -s -d\" -f2)
 		fi
+
+		# grep 'ID_LIKE' as a catch-all for debian and ubuntu repectively - done last to not affect existing tried and tested code:
+		if [ -z "${OSFLAVOUR:-}" ]; then
+			if grep -q ID_LIKE=debian /etc/os-release ; then
+					OSFLAVOUR=debian
+					logmsg "detected OS derivative of Debian"
+					DEBIAN_CODENAME="$(grep DEBIAN_CODENAME /etc/os-release|sed 's/DEBIAN_CODENAME=\s*//')";
+					# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
+					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
+					if [ -n "${DEBIAN_CODENAME:-}" ]; then
+						if echo "${DEBIAN_CODENAME}"|grep -qi 'bullseye'; then
+							OS_VERSION='11';
+						elif echo "${DEBIAN_CODENAME}"|grep -qi 'buster'; then
+							OS_VERSION='10';
+						elif echo "${DEBIAN_CODENAME}"|grep -qi 'stretch'; then
+							OS_VERSION='9';
+						elif echo "${DEBIAN_CODENAME}"|grep -qi 'jessie'; then
+							OS_VERSION='8';
+						fi;
+					fi;
+			elif grep -q ID_LIKE=ubuntu /etc/os-release ; then
+					OSFLAVOUR=ubuntu
+					logmsg "detected OS derivative of Ubuntu"
+					UBUNTU_CODENAME="$(grep UBUNTU_CODENAME /etc/os-release|sed 's/UBUNTU_CODENAME=\s*//')";
+					# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
+					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
+					if [ -n "${UBUNTU_CODENAME:-}" ]; then
+						if echo "${UBUNTU_CODENAME}"|grep -qi 'hirsute'; then
+							OS_VERSION='21.04';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'focal'; then
+							OS_VERSION='20.04';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'bionic'; then
+							OS_VERSION='18.04';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'xenial'; then
+							OS_VERSION='16.04';
+						fi;
+					fi;
+			fi
+		fi;
 
 		OS_MAJOR=`echo "$OS_VERSION" | cut -s -f 1 -d .`;
 		OS_MINOR=`echo "$OS_VERSION" | cut -s -f 2 -d .`;
