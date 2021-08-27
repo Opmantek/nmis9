@@ -982,8 +982,9 @@ EOHTML
 	my @qs_params = param();
 	foreach my $key (@qs_params) {
 		# NMISNG::Util::logAuth("adding $key ".param($key)."\n";
+		my $parameter = param($key) if param($key); 
 		if( $key !~ /conf|auth_type|auth_username|auth_password/ ) {
-			print hidden(-name=>$key, -default=>param($key),-override=>'1');
+			print hidden(-name=>$key, -default=>$parameter,-override=>'1');
 		}
 	}
 

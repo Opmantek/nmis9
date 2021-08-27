@@ -937,6 +937,28 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'Table_Groups_view'
+  }, 
+  'table_roles_rw' => {
+    'descr' => 'View access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Roles_rw'
+  },
+  'table_roles_view' => {
+    'descr' => 'Read/write access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Roles_view'
   },
   'table_iftypes_rw' => {
     'descr' => 'Write access to table ifTypes',
