@@ -269,7 +269,7 @@ if ! check_missing_packages $PKGLIST; then
 
 						if [ "$OSFLAVOUR" = "redhat" -a "$pkg" = "httpd" ]; then
 								# silly redhat doesn't start services on installation
-								if type systemctl >/dev/null 2>&1 && systemctl-daemon-reload >/dev/null 2>&1; then
+								if type systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1; then
 									execPrint "systemctl is-enabled -q httpd || systemctl enable httpd";
 								else
 									execPrint "chkconfig --add httpd";

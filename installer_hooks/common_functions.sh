@@ -411,7 +411,7 @@ version_check_ntp_type_service (){
 		NTP_SERVICES="systemd-timesyncd chronyd ntpd ntp openntpd";
 		NTP_SERVICE_ACTIVE=;
 		# if systemd
-		if type systemctl >/dev/null 2>&1 && systemctl-daemon-reload >/dev/null 2>&1; then
+		if type systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1; then
 			# first check if any ntp service is running
 			for NTP_SERVICE in ${NTP_SERVICES}; do
 				if systemctl is-active --quiet "${NTP_SERVICE}"; then

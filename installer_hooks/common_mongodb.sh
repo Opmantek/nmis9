@@ -115,7 +115,7 @@ install_mongo () {
 
 				# if this system uses sysv init, then we need to supply our /etc/init.d/mongod
 				# the mongodb.org package only caters for systemd :-(
-				if type systemctl >/dev/null 2>&1 && systemctl-daemon-reload >/dev/null 2>&1; then
+				if type systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1; then
 						:
 				else
 						if [ ! -r /etc/init.d/mongod ]; then
@@ -131,7 +131,7 @@ install_mongo () {
 				# debian: normal, but >/dev/null doesn' hurt
 				service mongod status >/dev/null || service mongod start
 				# and, for some stupid reason, mongod isn't enabled for auto-start, at least not the 3.2 package...
-				type systemctl >/dev/null 2>&1 && systemctl-daemon-reload >/dev/null 2>&1 && systemctl enable mongod
+				type systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1 && systemctl enable mongod
 		else
 				logmsg "Unknown distribution $OSFLAVOUR!"
 				return 1
