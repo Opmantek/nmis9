@@ -217,42 +217,43 @@ flavour () {
 			OSVERSION=$(grep "VERSION_ID=" /etc/os-release | cut -s -d\" -f2)
 		fi
 
+		# This code should mimic that in determining /path/to/nmis9_dev/installer $osflavour variable:
 		# grep 'ID_LIKE' as a catch-all for debian and ubuntu repectively - done last to not affect existing tried and tested code:
 		if [ -z "${OSFLAVOUR:-}" ]; then
 			if grep -q ID_LIKE=debian /etc/os-release ; then
 					OSFLAVOUR=debian
-					logmsg "detected OS derivative of Debian"
 					DEBIAN_CODENAME="$(grep DEBIAN_CODENAME /etc/os-release|sed 's/DEBIAN_CODENAME=\s*//')";
-					# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
+					# we dont need 'else' catch-all blocks here as we fall back to the debian version
 					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
 					if [ -n "${DEBIAN_CODENAME:-}" ]; then
 						if echo "${DEBIAN_CODENAME}"|grep -qi 'bullseye'; then
-							OS_VERSION='11';
+							OS_VERSION='11.0.0';
 						elif echo "${DEBIAN_CODENAME}"|grep -qi 'buster'; then
-							OS_VERSION='10';
+							OS_VERSION='10.0.0';
 						elif echo "${DEBIAN_CODENAME}"|grep -qi 'stretch'; then
-							OS_VERSION='9';
+							OS_VERSION='9.0.0';
 						elif echo "${DEBIAN_CODENAME}"|grep -qi 'jessie'; then
-							OS_VERSION='8';
+							OS_VERSION='8.0.0';
 						fi;
 					fi;
+					logmsg "detected OS derivative of Debian: OS_VERSION='${OS_VERSION}'";
 			elif grep -q ID_LIKE=ubuntu /etc/os-release ; then
 					OSFLAVOUR=ubuntu
-					logmsg "detected OS derivative of Ubuntu"
 					UBUNTU_CODENAME="$(grep UBUNTU_CODENAME /etc/os-release|sed 's/UBUNTU_CODENAME=\s*//')";
 					# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
 					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
 					if [ -n "${UBUNTU_CODENAME:-}" ]; then
 						if echo "${UBUNTU_CODENAME}"|grep -qi 'hirsute'; then
-							OS_VERSION='21.04';
+							OS_VERSION='21.04.0';
 						elif echo "${UBUNTU_CODENAME}"|grep -qi 'focal'; then
-							OS_VERSION='20.04';
+							OS_VERSION='20.04.0';
 						elif echo "${UBUNTU_CODENAME}"|grep -qi 'bionic'; then
-							OS_VERSION='18.04';
+							OS_VERSION='18.04.0';
 						elif echo "${UBUNTU_CODENAME}"|grep -qi 'xenial'; then
-							OS_VERSION='16.04';
+							OS_VERSION='16.04.0';
 						fi;
 					fi;
+					logmsg "detected OS derivative of Ubuntu: OS_VERSION='${OS_VERSION}'"
 			fi
 		fi;
 
