@@ -161,7 +161,44 @@ if (-f "/etc/redhat-release")
 
 	($osmajor,$osminor,$ospatch) = ($1,$2,$4)
 			if ($reldata =~ /(\d+)\.(\d+)(\.(\d+))?/);
-	$osiscentos = 1 if ($reldata =~ /CentOS/);
+	if ($reldata =~ /CentOS/)
+	{
+		$osiscentos = 1;
+	}
+	# This code should mimic that in ./installer_hooks/common_functions.sh flavour () function
+	#### $osiscentos in this installer code is essentially '$osisrhelderivative'
+	###elsif ($reldata =~ /Rocky/)
+	###{
+	###	$osiscentos = 1;
+	###	logmsg(0, "detected Rocky OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'");
+	###}
+	###elsif ($reldata =~ /Fedora/)
+	###{
+	###	$osiscentos = 1;
+	###	if ($reldata =~ /(\d+)/)
+	###	{
+	###        $osmajor = $1;
+	###    }
+	###	if ($osmajor >= 28)
+	###	{
+	###        $osmajor = 8;
+	###		$osminor = 0;
+	###		$ospatch = 0;
+	###    }
+	###	elsif ($osmajor >= 19)
+	###	{
+	###        $osmajor = 7;
+	###		$osminor = 0;
+	###		$ospatch = 0;
+	###    }
+	###	elsif ($osmajor >= 12)
+	###	{
+	###        $osmajor = 6;
+	###		$osminor = 0;
+	###		$ospatch = 0;
+	###    }
+	###	logmsg(0, "detected Fedora OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'");
+	###}
 }
 elsif (-f "/etc/os-release")
 {

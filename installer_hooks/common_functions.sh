@@ -201,7 +201,25 @@ flavour () {
 				logmsg "detected OS flavour RedHat/CentOS"
 				# centos7: ugly triplet and gunk, eg. "CentOS Linux release 7.2.1511 (Core)"
 				OS_VERSION=`sed -re 's/(^|.* )([0-9]+\.[0-9]+(\.[0-9]+)?).*$/\2/' < /etc/redhat-release`;
-				grep -qF CentOS /etc/redhat-release && OS_ISCENTOS=1
+				if grep -qF CentOS /etc/redhat-release; then
+					OS_ISCENTOS=1;
+				# This code should mimic that in determining /path/to/nmis9_dev/installer $osflavour variable:
+				#### OS_ISCENTOS in this installer code is essentially 'OS_IS_RHEL_DERIVATIVE'
+				###elif grep -qF Rocky /etc/redhat-release; then
+				###	OS_ISCENTOS=1;
+				###	logmsg "detected Rocky OS derivative of RHEL: OS_VERSION='${OS_VERSION}'"
+				###elif grep -qF Fedora /etc/redhat-release; then
+				###	OS_ISCENTOS=1;
+				###	OS_VERSION=`sed -re 's/(^|.* )([0-9]+).*$/\2/' < /etc/redhat-release`;
+				###	if [ "${OS_VERSION}" -ge 28 ]; then
+				###		OS_VERSION='8.0.0';
+				###	elif [ "${OS_VERSION}" -ge 19 ]; then
+				###		OS_VERSION='7.0.0';
+				###	elif [ "${OS_VERSION}" -ge 12 ]; then
+				###		OS_VERSION='6.0.0';
+				###	fi;
+				###	logmsg "detected Fedora OS derivative of RHEL: OS_VERSION='${OS_VERSION}'"
+				fi;
 
 		elif grep -q ID=debian /etc/os-release ; then
 				OSFLAVOUR=debian
