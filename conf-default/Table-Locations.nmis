@@ -31,6 +31,8 @@
 			Locations => [
 				{ Location => { mandatory => 'true', header => 'Location',display => 'key,header,text', value => [""] }},
 				{ Geocode => { mandatory => 'true', header => 'Geocodable Location',display => 'header,text', value => [""] }},
+				{ Latitude => { header => 'Latitude',display => 'text', value => ["-36.866233"] }},
+				{ Longitude => { header => 'Longitude',display => 'text', value => ["174.766724"] }},
 				{ Address1 => { header => 'Address1',display => 'header,text', value => [""] }},
 				{ Address2 => { header => 'Address2',display => 'header,text', value => [""] }},
 				{ City => { header => 'City',display => 'header,text', value => [""] }},
@@ -40,7 +42,5 @@
 				{ Room => { header => 'Room Number',display => 'text', value => [""] }},
 				{ State => { header => 'State',display => 'header,text', value => [""] }},
 				{ Suburb => { header => 'Suburb',display => 'text', value => [""] }},
-				{ Latitude => { header => 'Latitude',display => 'text', value => ["-36.866233"] }},
-				{ Longitude => { header => 'Longitude',display => 'text', value => ["174.766724"] }},
 			]
 );
