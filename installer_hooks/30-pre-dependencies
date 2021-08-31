@@ -38,15 +38,25 @@ perl-namespace-clean perl-Dist-CheckConflicts perl-namespace-autoclean \
 perl-ExtUtils-Config perl-ExtUtils-Helpers perl-ExtUtils-InstallPaths \
 perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
 perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
-perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings \
-perl-CGI-Session"
+perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings"
 
 		# time-modules package gone in centos/rh7
-		if [ $OS_MAJOR -ge 7 ]; then
+		if [ "${OS_MAJOR}" -ge 7 ]; then
 				PKGLIST="$PKGLIST perl-Time-ParseDate"
 		else
 				PKGLIST="$PKGLIST perl-Time-modules"
 		fi
+
+		# perl-CGI-Session gone in RHEL8
+		#
+		if [ "${OS_ISCENTOS:-0}" = 1 ]; then # all versions of Centos
+				PKGLIST="$PKGLIST perl-CGI-Session"
+		elif [ "${OS_MAJOR}" -ge 8 ]; then # RHEL8
+				:
+		else # RHEL7 and older
+				PKGLIST="$PKGLIST perl-CGI-Session"
+		fi
+
 else
 		MGR=APT
 		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
