@@ -41,11 +41,22 @@ perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
 perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings"
 
 		# time-modules package gone in centos/rh7
-		if [ $OS_MAJOR -ge 7 ]; then
+		if [ "${OS_MAJOR}" -ge 7 ]; then
 				PKGLIST="$PKGLIST perl-Time-ParseDate"
 		else
 				PKGLIST="$PKGLIST perl-Time-modules"
 		fi
+
+		# perl-CGI-Session gone in RHEL8
+		#
+		if [ "${OS_ISCENTOS:-0}" = 1 ]; then # all versions of Centos
+				PKGLIST="$PKGLIST perl-CGI-Session"
+		elif [ "${OS_MAJOR}" -ge 8 ]; then # RHEL8
+				:
+		else # RHEL7 and older
+				PKGLIST="$PKGLIST perl-CGI-Session"
+		fi
+
 else
 		MGR=APT
 		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
@@ -62,7 +73,8 @@ else
     libcrypt-des-perl libdigest-hmac-perl libclone-perl \
     libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
     libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
-    libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl"
+    libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl \
+    libcgi-session-perl"
 
 		# ubuntu 16.04 needs a mongodb perl driver >= 1.2.3: we load this from cpanm
 		# debian8 can't load a mongodb perl driver >= 1.2.3 from cpanm and is therefore not NMIS9 compatible
@@ -267,7 +279,7 @@ if ! check_missing_packages $PKGLIST; then
 
 						if [ "$OSFLAVOUR" = "redhat" -a "$pkg" = "httpd" ]; then
 								# silly redhat doesn't start services on installation
-								if type systemctl >/dev/null 2>&1; then
+								if type systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1; then
 									execPrint "systemctl is-enabled -q httpd || systemctl enable httpd";
 								else
 									execPrint "chkconfig --add httpd";

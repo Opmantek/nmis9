@@ -201,7 +201,25 @@ flavour () {
 				logmsg "detected OS flavour RedHat/CentOS"
 				# centos7: ugly triplet and gunk, eg. "CentOS Linux release 7.2.1511 (Core)"
 				OS_VERSION=`sed -re 's/(^|.* )([0-9]+\.[0-9]+(\.[0-9]+)?).*$/\2/' < /etc/redhat-release`;
-				grep -qF CentOS /etc/redhat-release && OS_ISCENTOS=1
+				if grep -qF CentOS /etc/redhat-release; then
+					OS_ISCENTOS=1;
+				# This code should mimic that in determining /path/to/nmis9_dev/installer $osflavour variable:
+				#### OS_ISCENTOS in this installer code is essentially 'OS_IS_RHEL_DERIVATIVE'
+				###elif grep -qF Rocky /etc/redhat-release; then
+				###	OS_ISCENTOS=1;
+				###	logmsg "detected Rocky OS derivative of RHEL: OS_VERSION='${OS_VERSION}'"
+				###elif grep -qF Fedora /etc/redhat-release; then
+				###	OS_ISCENTOS=1;
+				###	OS_VERSION=`sed -re 's/(^|.* )([0-9]+).*$/\2/' < /etc/redhat-release`;
+				###	if [ "${OS_VERSION}" -ge 28 ]; then
+				###		OS_VERSION='8.0.0';
+				###	elif [ "${OS_VERSION}" -ge 19 ]; then
+				###		OS_VERSION='7.0.0';
+				###	elif [ "${OS_VERSION}" -ge 12 ]; then
+				###		OS_VERSION='6.0.0';
+				###	fi;
+				###	logmsg "detected Fedora OS derivative of RHEL: OS_VERSION='${OS_VERSION}'"
+				fi;
 
 		elif grep -q ID=debian /etc/os-release ; then
 				OSFLAVOUR=debian
@@ -211,11 +229,51 @@ flavour () {
 				OSFLAVOUR=ubuntu
 				logmsg "detected OS flavour Ubuntu"
 				OS_VERSION=`grep VERSION_ID /etc/os-release | sed -re 's/^VERSION_ID="([0-9]+\.[0-9]+(\.[0-9]+)?)"$/\1/'`;
-		fi
+		fi;
 
 		if [ -f "/etc/os-release" ]; then
 			OSVERSION=$(grep "VERSION_ID=" /etc/os-release | cut -s -d\" -f2)
 		fi
+
+		# This code should mimic that in determining /path/to/nmis9_dev/installer $osflavour variable:
+		# grep 'ID_LIKE' as a catch-all for debian and ubuntu repectively - done last to not affect existing tried and tested code:
+		if [ -z "${OSFLAVOUR:-}" ]; then
+			if grep -q ID_LIKE=debian /etc/os-release ; then
+					OSFLAVOUR=debian
+					DEBIAN_CODENAME="$(grep DEBIAN_CODENAME /etc/os-release|sed 's/DEBIAN_CODENAME=\s*//')";
+					# we dont need 'else' catch-all blocks here as we fall back to the debian version
+					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
+					if [ -n "${DEBIAN_CODENAME:-}" ]; then
+						if echo "${DEBIAN_CODENAME}"|grep -qi 'bullseye'; then
+							OS_VERSION='11.0.0';
+						elif echo "${DEBIAN_CODENAME}"|grep -qi 'buster'; then
+							OS_VERSION='10.0.0';
+						elif echo "${DEBIAN_CODENAME}"|grep -qi 'stretch'; then
+							OS_VERSION='9.0.0';
+						elif echo "${DEBIAN_CODENAME}"|grep -qi 'jessie'; then
+							OS_VERSION='8.0.0';
+						fi;
+					fi;
+					logmsg "detected OS derivative of Debian: OS_VERSION='${OS_VERSION}'";
+			elif grep -q ID_LIKE=ubuntu /etc/os-release ; then
+					OSFLAVOUR=ubuntu
+					UBUNTU_CODENAME="$(grep UBUNTU_CODENAME /etc/os-release|sed 's/UBUNTU_CODENAME=\s*//')";
+					# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
+					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
+					if [ -n "${UBUNTU_CODENAME:-}" ]; then
+						if echo "${UBUNTU_CODENAME}"|grep -qi 'hirsute'; then
+							OS_VERSION='21.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'focal'; then
+							OS_VERSION='20.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'bionic'; then
+							OS_VERSION='18.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'xenial'; then
+							OS_VERSION='16.04.0';
+						fi;
+					fi;
+					logmsg "detected OS derivative of Ubuntu: OS_VERSION='${OS_VERSION}'"
+			fi
+		fi;
 
 		OS_MAJOR=`echo "$OS_VERSION" | cut -s -f 1 -d .`;
 		OS_MINOR=`echo "$OS_VERSION" | cut -s -f 2 -d .`;
@@ -353,7 +411,7 @@ version_check_ntp_type_service (){
 		NTP_SERVICES="systemd-timesyncd chronyd ntpd ntp openntpd";
 		NTP_SERVICE_ACTIVE=;
 		# if systemd
-		if type systemctl >/dev/null 2>&1; then
+		if type systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1; then
 			# first check if any ntp service is running
 			for NTP_SERVICE in ${NTP_SERVICES}; do
 				if systemctl is-active --quiet "${NTP_SERVICE}"; then

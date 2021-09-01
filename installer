@@ -161,25 +161,140 @@ if (-f "/etc/redhat-release")
 
 	($osmajor,$osminor,$ospatch) = ($1,$2,$4)
 			if ($reldata =~ /(\d+)\.(\d+)(\.(\d+))?/);
-	$osiscentos = 1 if ($reldata =~ /CentOS/);
+	if ($reldata =~ /CentOS/)
+	{
+		$osiscentos = 1;
+	}
+	# This code should mimic that in ./installer_hooks/common_functions.sh flavour () function
+	#### $osiscentos in this installer code is essentially '$osisrhelderivative'
+	###elsif ($reldata =~ /Rocky/)
+	###{
+	###	$osiscentos = 1;
+	###	logmsg(0, "detected Rocky OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'");
+	###}
+	###elsif ($reldata =~ /Fedora/)
+	###{
+	###	$osiscentos = 1;
+	###	if ($reldata =~ /(\d+)/)
+	###	{
+	###        $osmajor = $1;
+	###    }
+	###	if ($osmajor >= 28)
+	###	{
+	###        $osmajor = 8;
+	###		$osminor = 0;
+	###		$ospatch = 0;
+	###    }
+	###	elsif ($osmajor >= 19)
+	###	{
+	###        $osmajor = 7;
+	###		$osminor = 0;
+	###		$ospatch = 0;
+	###    }
+	###	elsif ($osmajor >= 12)
+	###	{
+	###        $osmajor = 6;
+	###		$osminor = 0;
+	###		$ospatch = 0;
+	###    }
+	###	logmsg(0, "detected Fedora OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'");
+	###}
 }
 elsif (-f "/etc/os-release")
 {
 	open(F,"/etc/os-release") or die "cannot read os-release: $!\n";
 	my $osinfo = join("",<F>);
 	close(F);
-	if ($osinfo =~ /ID=debian/ || $osinfo =~ /ID_LIKE=debian/)
+	if ($osinfo =~ /ID=debian/)
 	{
 		$osflavour="debian";
 		logmsg(0, "detected OS flavour Debian");
 	}
-	elsif ($osinfo =~ /ID=ubuntu/ || $osinfo =~ /ID_LIKE=ubuntu/)
+	elsif ($osinfo =~ /ID=ubuntu/)
 	{
 		$osflavour="ubuntu";
 		logmsg(0, "detected OS flavour Ubuntu");
 	}
 	($osmajor,$osminor,$ospatch) = ($1,$3,$5)
 			if ($osinfo =~ /VERSION_ID=\"(\d+)(\.(\d+))?(\.(\d+))?\"/);
+
+
+	# This code should mimic that in ./installer_hooks/common_functions.sh flavour () function
+	# grep 'ID_LIKE' as a catch-all for debian and ubuntu repectively - done last to not affect existing tried and tested code:
+	if ( ! defined($osflavour) )
+	{
+		if ($osinfo =~ /ID_LIKE=debian/)
+		{
+			$osflavour="debian";
+			my $debian_codename=$1 if ($osinfo =~ /DEBIAN_CODENAME=\s*(.+)\s*/);
+			# we dont need 'else' catch-all blocks here as we fall back to the debian version
+			# populated in the generic block above:
+			if ( defined($debian_codename) )
+			{
+				if ($debian_codename =~ /bullseye/i)
+				{
+					$osmajor=11;
+					$osminor=0;
+					$ospatch=0;
+				}
+				elsif ($debian_codename =~ /buster/i)
+				{
+					$osmajor=10;
+					$osminor=0;
+					$ospatch=0;
+				}
+				elsif ($debian_codename =~ /stretch/i)
+				{
+					$osmajor=9;
+					$osminor=0;
+					$ospatch=0;
+				}
+				elsif ($debian_codename =~ /jessie/i)
+				{
+					$osmajor=8;
+					$osminor=0;
+					$ospatch=0;
+				}
+			}
+			logmsg(0, "detected OS derivative of Debian: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'");
+		}
+		elsif ($osinfo =~ /ID_LIKE=ubuntu/)
+		{
+			$osflavour="ubuntu";
+			logmsg(0, "detected OS derivative Ubuntu");
+			my $ubuntu_codename=$1 if ($osinfo =~ /UBUNTU_CODENAME=\s*(.+)\s*/);
+			# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
+			# populated in the generic block above:
+			if ( defined($ubuntu_codename) )
+			{
+				if ($ubuntu_codename =~ /hirsute/i)
+				{
+					$osmajor=21;
+					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /focal/i)
+				{
+					$osmajor=20;
+					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /bionic/i)
+				{
+					$osmajor=18;
+					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /xenial/i)
+				{
+					$osmajor=16;
+					$osminor=04;
+					$ospatch=0;
+				}
+			}
+			logmsg(0, "detected OS derivative of Ubuntu: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'");
+		}
+	}
 }
 
 # ensure we don't create unworkable dirs and files, if the parent shell
@@ -191,8 +306,28 @@ umask(0022);
 my $is_initial_install = (-d $targetdir && -f "$targetdir/conf/Config.nmis")? 0:1;
 
 # figure out version - build infra will have saved that in .version
-my $prodversion = eval { do "./.version" };
-logdie("Invalid release - no version!") if ($@ or !$prodversion);
+# but we need to also cater for install from source, in which case we use regex to extract version from NMISNG.pm:
+my $prodversion;
+if ( -e "./.version" )
+{
+	$prodversion = eval { do "./.version" };
+	logdie("Invalid release (1) - no version!") if ($@ or !$prodversion);
+}
+elsif ( -e "./lib/NMISNG.pm" )
+{
+	open(F,"./lib/NMISNG.pm") or die "cannot read NMISNG.pm: $!\n";
+	my $nmisng_source= join("",<F>);
+	close(F);
+	if ($nmisng_source =~ /our\s+\$VERSION\s*=\s*(?:"|')(.+)(?:"|')\s*/)
+	{
+		$prodversion = $1;
+		if ($@ or !$prodversion)
+		{
+			logdie("Invalid release (2) - no version!");
+		}
+	}
+}
+logdie("Invalid release (3) - no version!") if (!$prodversion);
 
 printBanner("NMIS ($prodversion) Installation script");
 my $hostname = `hostname --fqdn`; chomp $hostname;
