@@ -557,7 +557,8 @@
           'TELDATC4G' => 'Router model C4G'
         },
         '15' => {
-          'Teldati60' => 'ATLAS60'
+          'Teldati60-uses-common.nmis' => 'ATLAS60',
+          #'Teldati60' => 'ATLAS60'
         },
         '16' => {
           'TELDAT200' => 'T200'
