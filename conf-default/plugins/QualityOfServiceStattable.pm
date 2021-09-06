@@ -84,7 +84,7 @@ sub update_plugin
 		        $NG->log->error("$plugin:$sub: Failed to get inventory: $error");
 		        return(0,undef);
 		}
-		my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+		my %ifdata =  map { ($_->{data}->{$inventory_data_key} => $_->{data}) } (@{$result->data});
 		$NG->log->debug9("$plugin:$sub: \%ifdata: ".Dumper \%ifdata);
 
 		for my $id (@$ids)
@@ -104,6 +104,7 @@ sub update_plugin
 
 			if ( defined($inventory_data->{$inventory_data_key}) )
 			{
+				# Get ifIndex and Direction by splitting $inventory_data->{index} for QualityOfServiceStat:
 				my ($ifindex,undef,$third) = split(/\./,$inventory_data->{$inventory_data_key});
 				if (! defined($ifindex))
 				{
@@ -130,7 +131,7 @@ sub update_plugin
 				$NG->log->debug("$plugin:$sub: Node $node updating node info $concept $inventory_data_key '$inventory_data->{$inventory_data_key}': ifIndex: new '$inventory_data->{ifIndex}'");
 				$NG->log->debug("$plugin:$sub: Node $node updating node info $concept $inventory_data_key '$inventory_data->{$inventory_data_key}': Direction: new '$inventory_data->{Direction}'");
 
-				# Get the devices ifDescr.
+				# Get the devices ifDescr from $ifdata:
 				if ( defined $ifdata{$ifindex}{ifDescr} )
 				{
 					$inventory_data->{ifDescr} = $ifdata{$ifindex}{ifDescr};

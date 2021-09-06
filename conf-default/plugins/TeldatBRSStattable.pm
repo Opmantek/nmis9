@@ -46,7 +46,7 @@ sub update_plugin
 	my $sub = 'update';
 	my $plugin = 'TeldatBRSStattable.pm';
 	my $concept = 'TeldatBRSStat';
-	my $inventory_data_key = 'ifIndex';
+	my $inventory_data_key = 'index';
 
 	$NG->log->info("$plugin:$sub: Running for node $node");
 
@@ -84,7 +84,7 @@ sub update_plugin
 		        $NG->log->error("$plugin:$sub: Failed to get inventory: $error");
 		        return(0,undef);
 		}
-		my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+		my %ifdata =  map { ($_->{data}->{$inventory_data_key} => $_->{data}) } (@{$result->data});
 		$NG->log->debug9("$plugin:$sub: \%ifdata: ".Dumper \%ifdata);
 
 		for my $id (@$ids)
@@ -104,11 +104,12 @@ sub update_plugin
 
 			if ( defined($inventory_data->{$inventory_data_key}) )
 			{
-				my $ifindex = $inventory_data->{$inventory_data_key};
+				# Get ifIndex which, for TeldatBRSStat, is available at $inventory_data->{ifIndex}:
+				my $ifindex = $inventory_data->{ifIndex};
 
 				$NG->log->debug("defined \$ifindex = '$ifindex'.");
 
-				# Get the devices ifDescr.
+				# Get the devices ifDescr from $ifdata:
 				if ( defined $ifdata{$ifindex}{ifDescr} )
 				{
 					$changed = 1;
