@@ -253,6 +253,10 @@ function	createDialog(opt) {
 
 	var dialogContainer;
 	var dialogHandle;
+	var async = true;
+	if (typeof opt.async !== 'undefined') {
+		async = opt.async;
+	}
 
 	// Make sure all the requested urls go under the same protocol
 	if (location.protocol === 'https:') {
@@ -351,7 +355,7 @@ function	createDialog(opt) {
 		{
 			$.ajax({
 				url: opt.url,
-				async: true,
+				async: async,
 				dataType: "html",
 				type : 'GET',
 				cache: false,
@@ -414,7 +418,7 @@ function	createDialog(opt) {
 			$.ajax({
 				url: newurl,
 				data: newdata,
-				async: true,
+				async: async,
 				dataType: "html",
 				type : 'POST',
 				cache: false,
@@ -868,7 +872,8 @@ function get(Id,optTrue,optFalse,evnt) {
 	// update widget with new content
 	createDialog({
 		id 		: dialogID,
-		url 	: url
+		url 	: url,
+		async   : false
 	});				// update dialog and show it
 return false;
 

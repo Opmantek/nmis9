@@ -4985,7 +4985,7 @@ sub dump_node
 	my $uuid = $args{uuid};
 	my $nodename = $args{name};		# much less preferrable
 	my $override = $args{override}; # Override file if allready exists
-	my $setperms = $args{setperms}; # Update file permissions
+	my $setperms = $args{setperms} // 1; # Update file permissions
 
 	my $options = ref($args{options}) eq 'HASH'? $args{options} : {};
 
