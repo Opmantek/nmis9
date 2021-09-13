@@ -7,6 +7,9 @@
       'event' => {
         'common-model' => 'event'
       },
+      'heading' => {
+        'common-model' => 'heading'
+      },
       'stats' => {
         'common-model' => 'stats'
       },
@@ -290,11 +293,10 @@
             'replace' => {
               '' => 'default'
             },
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
+            'oid' => 'sysName'
           },
           'sysObjectID' => {
             'oid' => 'sysObjectID'
@@ -310,7 +312,7 @@
   'systemHealth' => {
     'rrd' => {
       'HBS' => {
-        'control' => 'CVAR=HbsAirLinkCompressedStatic;$CVAR !~ /No Link/',
+        'control' => 'CVAR=HbsAirLinkCompStat;$CVAR !~ /No Link/',
         'graphtype' => 'RadwinRSSI,RadwinUtil,RadwinChain',
         'indexed' => 'true',
         'snmp' => {
@@ -326,7 +328,7 @@
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
             'option' => 'nosave',
             'sysObjectName' => 'hsuLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'hsuName' => {
             'calculate' => 'my @values = split(/\\,/, $r);$r = $values[2];',
@@ -335,7 +337,7 @@
             'sysObjectName' => 'hsuName',
             'title' => 'Name'
           },
-          'HbsAirLinkCompressedStatic' => {
+          'HbsAirLinkCompStat' => {
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
             'option' => 'nosave',
             'sysObjectName' => 'HbsAirLinkCompressedStatic',
@@ -501,9 +503,9 @@
         'headers' => 'index,hsuID,hsuName,hsuIP,hsuLocation,linkhbsrss,linkhsurss',
         'index_oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
         'index_regex' => '\\.(\\d+)$',
-        'indexed' => 'HbsAirLinkCompressedStatic',
+        'indexed' => 'HbsAirLinkCompStat',
         'snmp' => {
-          'HbsAirLinkCompressedStatic' => {
+          'HbsAirLinkCompStat' => {
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
             'sysObjectName' => 'HbsAirLinkCompressedStatic',
             'title' => 'Air Interface Data'
@@ -523,7 +525,7 @@
             'calculate' => 'my @values = split(/\\,/, $r);$r = $values[3];',
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
             'sysObjectName' => 'hsuLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'hsuName' => {
             'calculate' => 'my @values = split(/\\,/, $r);$r = $values[2];',

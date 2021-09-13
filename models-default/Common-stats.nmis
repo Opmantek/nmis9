@@ -340,6 +340,10 @@
         'PRINT:ipForwDatagrams:AVERAGE:ipForwDatagrams=%1.2lf',
         'PRINT:ipOutRequests:AVERAGE:ipOutRequests=%1.2lf',
       ], 
+      'service' => [
+        'DEF:responsetime=$database:responsetime:AVERAGE',
+        'PRINT:responsetime:AVERAGE:responsetime=%1.2lf',
+      ],
     }
   }
 );

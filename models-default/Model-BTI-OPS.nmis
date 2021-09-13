@@ -41,14 +41,29 @@
       'summary' => {
         'common-model' => 'summary'
       },
-      # 'stats' => {
-      #   'common-model' => 'stats'
-      # },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
       'event' => {
         'common-model' => 'event'
       }
     }
   },
+  'database' => {
+    'type' => {
+      'OPS_Status' => '/nodes/$node/health/OPS_Status-$index.rrd',
+    }
+  },
+  #'heading' => {
+  #  'graphtype' => {
+  #    'hwCpuMem' => 'Board CPU and Memory Usage',
+  #    'hwTempPwr' => 'Board Temperature and Power',
+  #    'hwGponStats' => 'GPON OLT Ethernet Statistics'
+  #  }
+  #},
   'system' => {
     'nodegraph' => 'health,response',
     'nodeType' => 'switch',
@@ -62,7 +77,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'sysObjectID' => {
             'oid' => 'sysObjectID'
@@ -72,8 +87,7 @@
             'title' => 'Description'
           },
           'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
+            'oid' => 'sysName'
           },
           'sysContact' => {
             'replace' => {
@@ -155,7 +169,7 @@
         'indexed' => 'opsmProtectionMode',
         'index_oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.20',        
         'index_regex' => '\.(\d+\.\d+\.\d+)$',
-        'headers' => 'index,opsmProtectionMode,opsmRevertiveSetting,opsmDiffSwitchSetting,opsmDiffAlarmThreshold,opsmDiffSwitchThreshold,opsmInherentDiffOffset,opsmWTRTime,opsmSwitchStatus,opsmSwitchPosition,opsmInputLosAlarmThrPathP,opsmInputLosAlarmThrPathS,opsmInputLosAlarmHys,opsmInputPowerPathP,opsmInputPowerPathS,opsmSwitchCount',
+        'headers' => 'index,opsmProtectionMode,opsmRevertiveSetting,opsmDiffSwitchSetting,opsmDiffAlarmThreshold,opsmDiffSwitchThreshold,opsmInherentDiffOffset,opsmWTRTime,opsmSwitchStatus,opsmSwitchPosition,LosAlarmThrPathP,LosAlarmThrPathS,LosAlarmHys,PowerPathP,PowerPathS,opsmSwitchCount',
         'snmp' => {
           'opsmProtectionMode' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.20',
@@ -184,10 +198,12 @@
           },
           'opsmDiffAlarmThreshold' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.23',
+            'calculate' => 'return $r/10;',
             'title' => 'DiffAlarmThreshold'
           },
           'opsmDiffSwitchThreshold' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.24',
+            'calculate' => 'return $r/10;',
             'title' => 'DiffSwitchThreshold'
           },
           'opsmInherentDiffOffset' => {
@@ -218,24 +234,29 @@
             },
             'title' => 'SwitchPosition'
           },
-          'opsmInputLosAlarmThrPathP' => {
+          'LosAlarmThrPathP' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.40',
+            'calculate' => 'return $r/10;',
             'title' => 'InputLosAlarmThrPathP'
           },
-          'opsmInputLosAlarmThrPathS' => {
+          'LosAlarmThrPathS' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.41',
+            'calculate' => 'return $r/10;',
             'title' => 'InputLosAlarmThrPathS'
           },
-          'opsmInputLosAlarmHys' => {
+          'LosAlarmHys' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.42',
+            'calculate' => 'return $r/10;',
             'title' => 'InputLosAlarmHys'
           },
-          'opsmInputPowerPathP' => {
+          'PowerPathP' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.43',
+            'calculate' => 'return $r/10;',
             'title' => 'InputPowerPathP'
           },
-          'opsmInputPowerPathS' => {
+          'PowerPathS' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.44',
+            'calculate' => 'return $r/10;',
             'title' => 'InputPowerPathS'
           },
           'opsmSwitchCount' => {
@@ -248,7 +269,7 @@
     'rrd' => {
       'OPS_Status' => {
         'indexed' => 'true',
-        'graphtype' => 'ops-status',
+        'graphtype' => 'bti-ops-status',
         'snmp' => {
           'opsmSwitchStatus' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.27',
@@ -261,7 +282,6 @@
               '5' => 'Forced',
             },
             'option' => 'nosave',              
-            'title' => 'SwitchStatus'
           },
           'opsmSwitchPosition' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.28',
@@ -270,39 +290,37 @@
               '1' => 'Primary',
             },              
             'option' => 'nosave',              
-            'title' => 'SwitchPosition'
           },
-          'opsmInputLosAlarmThrPathP' => {
+          'LosAlarmThrPathP' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.40',
+            'calculate' => 'return $r/10;',
             'option' => 'nosave',              
-            'title' => 'InputLosAlarmThrPathP'
           },
-          'opsmInputLosAlarmThrPathS' => {
+          'LosAlarmThrPathS' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.41',
-            'title' => 'InputLosAlarmThrPathS'
+            'calculate' => 'return $r/10;',
           },
-          'opsmInputLosAlarmHys' => {
+          'LosAlarmHys' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.42',
             'option' => 'nosave',              
-            'title' => 'InputLosAlarmHys'
           },
-          'opsmInputPowerPathP' => {
+          'PowerPathP' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.43',
+            'calculate' => 'return $r/10;',
             'option' => 'nosave',              
-            'title' => 'InputPowerPathP'
           },
-          'opsmInputPowerPathS' => {
+          'PowerPathS' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.44',
+            'calculate' => 'return $r/10;',
             'option' => 'nosave',              
-            'title' => 'InputPowerPathS'
           },
           'opsmSwitchCount' => {
             'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.45',
             'option' => 'nosave',              
-            'title' => 'SwitchCount'
           },
         }
       },
     },
   },
 );
+

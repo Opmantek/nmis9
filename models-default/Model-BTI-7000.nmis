@@ -41,14 +41,33 @@
       'summary' => {
         'common-model' => 'summary'
       },
-      # 'stats' => {
-      #   'common-model' => 'stats'
-      # },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
       'event' => {
         'common-model' => 'event'
       }
     }
   },
+  'database' => {
+    'type' => {
+      'BTI_7000_GE_Bytes' => '/nodes/$node/interface/BTI_7000_GE_Bytes-$index.rrd',
+      'BTI_7000_GE_Optical' => '/nodes/$node/interface/BTI_7000_GE_Optical-$index.rrd',
+      'BTI_7000_STM_Optical' => '/nodes/$node/interface/BTI_7000_STM_Optical-$index.rrd',
+      'BTI_7000_FC_Optical' => '/nodes/$node/interface/BTI_7000_FC_Optical-$index.rrd',
+    }
+  },  
+
+  #'heading' => {
+  #  'graphtype' => {
+  #    'hwCpuMem' => 'Board CPU and Memory Usage',
+  #    'hwTempPwr' => 'Board Temperature and Power',
+  #    'hwGponStats' => 'GPON OLT Ethernet Statistics'
+  #  }
+  #},
   'system' => {
     'nodegraph' => 'health,response',
     'nodeType' => 'switch',
@@ -62,7 +81,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'sysObjectID' => {
             'oid' => 'sysObjectID'
@@ -72,8 +91,7 @@
             'title' => 'Description'
           },
           'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
+            'oid' => 'sysName'
           },
           'sysContact' => {
             'replace' => {
@@ -86,4 +104,353 @@
       }
     },
   },
+  
+#BTI-7000-MIB::slotInvPackShortName.1.regular.1 = STRING: MXP10G
+#BTI-7000-MIB::slotInvPackShortName.1.regular.3 = STRING: MXP10G
+#BTI-7000-MIB::slotInvPackShortName.1.regular.5 = STRING: SCP
+#BTI-7000-MIB::slotInvPackShortName.1.shelfInterface.0 = STRING: MSI
+#BTI-7000-MIB::slotInvPackShortName.1.coolingUnit.0 = STRING: CU
+#BTI-7000-MIB::slotInvPackShortName.1.acPowerUnit.1 = STRING: ACPU
+#BTI-7000-MIB::slotInvPackShortName.1.acPowerUnit.2 = STRING: ACPU
+#BTI-7000-MIB::slotInvPackName.1.regular.1 = STRING: 10-PORT 10G MULTIPROTOCOL MUXPONDER - SDH
+#BTI-7000-MIB::slotInvPackName.1.regular.3 = STRING: 10-PORT 10G MULTIPROTOCOL MUXPONDER - SDH
+#BTI-7000-MIB::slotInvPackName.1.regular.5 = STRING: 7060 System Control Processor
+#BTI-7000-MIB::slotInvPackName.1.shelfInterface.0 = STRING: 7060 MAIN SHELF INTERFACE
+#BTI-7000-MIB::slotInvPackName.1.coolingUnit.0 = STRING: 7060 COOLING UNIT
+#BTI-7000-MIB::slotInvPackName.1.acPowerUnit.1 = STRING: 7060 AC POWER UNIT
+#BTI-7000-MIB::slotInvPackName.1.acPowerUnit.2 = STRING: 7060 AC POWER UNIT
+#BTI-7000-MIB::slotInvPackPEC.1.regular.1 = STRING: BT7A48BA-I02
+#BTI-7000-MIB::slotInvPackPEC.1.regular.3 = STRING: BT7A48BA-I02
+#BTI-7000-MIB::slotInvPackPEC.1.regular.5 = STRING: BT7A20CA
+#BTI-7000-MIB::slotInvPackPEC.1.shelfInterface.0 = STRING: BT7A53BB
+#BTI-7000-MIB::slotInvPackPEC.1.coolingUnit.0 = STRING: BT7A52EA
+#BTI-7000-MIB::slotInvPackPEC.1.acPowerUnit.1 = STRING: BT7A58AA
+#BTI-7000-MIB::slotInvPackPEC.1.acPowerUnit.2 = STRING: BT7A58AA
+#BTI-7000-MIB::slotInvPackSerialNum.1.regular.1 = STRING: CX17170144
+#BTI-7000-MIB::slotInvPackSerialNum.1.regular.3 = STRING: CX17150077
+#BTI-7000-MIB::slotInvPackSerialNum.1.regular.5 = STRING: CX17160362
+#BTI-7000-MIB::slotInvPackSerialNum.1.shelfInterface.0 = STRING: CX17160510
+#BTI-7000-MIB::slotInvPackSerialNum.1.coolingUnit.0 = STRING: CX17170039
+#BTI-7000-MIB::slotInvPackSerialNum.1.acPowerUnit.1 = STRING: CX17160477
+#BTI-7000-MIB::slotInvPackSerialNum.1.acPowerUnit.2 = STRING: CX17160413
+
+#"slotInvShelfIdx"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.1"
+#"slotInvSlotTypeIdx"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.2"
+#"slotInvSlotIdx"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.3"
+#"slotInvSWVersion"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.4"
+#"slotInvPackShortName"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.5"
+#"slotInvPackName"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.6"
+#"slotInvPackPEC"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.7"
+#"slotInvPackCLEI"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.8"
+#"slotInvPackSerialNum"			"1.3.6.1.4.1.18070.2.2.1.2.2.1.9"
+  
+  'systemHealth' => {
+    'sections' => 'BTI_7000_Slot_Inventory,BTI_7000_GE_Ports,BTI_7000_GE_Bytes,BTI_7000_GE_Optical,BTI_7000_STM_Optical,BTI_7000_FC_Optical',
+    'sys' => {
+      'BTI_7000_Slot_Inventory' => {
+        'indexed' => 'slotInvPackShortName',
+        'index_regex' => '\.(\d+\.\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.18070.2.2.1.2.2.1.5',
+        'headers' => 'name,slotInvPackShortName,slotInvPackName,slotInvPackPEC,slotInvPackSerialNum',
+        'snmp' => {
+          'name' => {
+            'title' => 'Name'
+          },
+          'slotInvPackShortName' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.2.2.1.5',
+            'title' => 'Short Name'
+          },
+          'slotInvPackName' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.2.2.1.6',
+            'title' => 'Name'
+          },
+          'slotInvPackPEC' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.2.2.1.7',
+            'title' => 'Product Equipment Code'
+          },
+          'slotInvPackSerialNum' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.2.2.1.9',
+            'title' => 'Serial Number'
+          },
+        }
+      },
+      'BTI_7000_GE_Ports' => {
+        'indexed' => 'gePEC',
+        'index_regex' => '\.(\d+\.\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.18070.2.2.1.4.9.1.10',
+        'headers' => 'name,gePEC,geId1,geCustom1,geAdminStatus,geOperStatus',
+        'snmp' => {
+          'name' => {
+            'title' => 'Name'
+          },
+          'gePEC' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.4.9.1.10',
+            'title' => 'gePEC'
+          },
+          'geAdminStatus' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.4.9.1.11',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown',
+              'noSuchInstance' => 'N/A',
+            },
+            'title' => 'Admin Status'
+          },
+          'geOperStatus' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.4.9.1.12',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown',
+              'noSuchInstance' => 'N/A',
+            },
+            'title' => 'Oper Status'
+          },
+          'geId1' => {
+            'snmpObjectName' => 'geId1',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.4.9.1.23',
+            'title' => 'Line Port Desc'
+          },
+          'geCustom1' => {
+            'snmpObjectName' => 'geCustom1',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.4.9.1.25',
+            'title' => 'Cross Connect Desc'
+          },
+        }
+      },
+#BTI-7000-MIB::geCrntPMTFRCRXValue.1.1.3.min15 = Counter64: 24    
+#BTI-7000-MIB::geCrntPMTFRCRXValue.1.1.3.day1 = Counter64: 1854   
+#BTI-7000-MIB::geCrntPMTFRCRXValue.1.1.3.untimed = Counter64: 2845
+#
+#BTI-7000-MIB::geCrntPMTFRCTXValue.1.1.3.min15 = Counter64: 24    
+#BTI-7000-MIB::geCrntPMTFRCTXValue.1.1.3.day1 = Counter64: 1853   
+#BTI-7000-MIB::geCrntPMTFRCTXValue.1.1.3.untimed = Counter64: 2837
+#
+#"geCrntPMTFRCRXValue"			"1.3.6.1.4.1.18070.2.2.1.6.20.1.29"
+#"geCrntPMTFRCTXValue"			"1.3.6.1.4.1.18070.2.2.1.6.20.1.33"
+
+      'BTI_7000_GE_Bytes' => {
+        'indexed' => 'geCrntPMTFRCRXValue',
+        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.29',
+        'headers' => 'name,CrntPMTFRCRXValue,CrntPMTFRCTXValue',
+        'snmp' => {
+          'name' => {
+            'title' => 'Name'
+          },
+          'CrntPMTFRCRXValue' => {
+            'snmpObjectName' => 'geCrntPMTFRCRXValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.29',
+            'title' => 'GE RX Frame Count'
+          },
+          'CrntPMTFRCTXValue' => {
+          	'snmpObjectName' => 'geCrntPMTFRCTXValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.33',
+            'title' => 'GE TX Frame Count'
+          },
+        }
+      },
+
+#BTI-7000-MIB::geCrntPMOPRValue.1.1.3.min15 = INTEGER: -56 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.1.3.day1 = INTEGER: -56 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.1.3.untimed = INTEGER: -56 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.3.3.min15 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.3.3.day1 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.3.3.untimed = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.3.4.min15 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.3.4.day1 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPRValue.1.3.4.untimed = INTEGER: -500 dBm/10
+#
+#BTI-7000-MIB::geCrntPMOPTValue.1.1.3.min15 = INTEGER: -50 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.1.3.day1 = INTEGER: -50 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.1.3.untimed = INTEGER: -50 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.3.3.min15 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.3.3.day1 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.3.3.untimed = INTEGER: -500 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.3.4.min15 = INTEGER: -51 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.3.4.day1 = INTEGER: -51 dBm/10
+#BTI-7000-MIB::geCrntPMOPTValue.1.3.4.untimed = INTEGER: -51 dBm/10
+#"geCrntPMOPRValue"			"1.3.6.1.4.1.18070.2.2.1.6.20.1.5"
+#"geCrntPMOPTValue"			"1.3.6.1.4.1.18070.2.2.1.6.20.1.8"
+
+      'BTI_7000_GE_Optical' => {
+        'indexed' => 'geCrntPMOPRValue',
+        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.5',
+        'headers' => 'name,CrntPMOPRValue,CrntPMOPTValue',
+        'snmp' => {
+          'name' => {
+            'title' => 'Name'
+          },
+          'CrntPMOPRValue' => {
+          	'snmpObjectName' => 'geCrntPMOPRValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.5',
+            'calculate' => 'return $r/10;',
+            'title' => 'GE RX Optical Power'
+          },
+          'CrntPMOPTValue' => {
+          	'snmpObjectName' => 'geCrntPMOPTValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.8',
+            'calculate' => 'return $r/10;',
+            'title' => 'GE TX Optical Power'
+          },
+        }
+      },
+
+#BTI-7000-MIB::stmnCrntPMOPRValue.stm64.1.1.1.min15 = INTEGER: -153 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPRValue.stm64.1.1.1.day1 = INTEGER: -153 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPRValue.stm64.1.1.1.untimed = INTEGER: -153 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPRValue.stm64.1.3.1.min15 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPRValue.stm64.1.3.1.day1 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPRValue.stm64.1.3.1.untimed = INTEGER: -500 dBm/10
+#
+#BTI-7000-MIB::stmnCrntPMOPTValue.stm64.1.1.1.min15 = INTEGER: 7 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPTValue.stm64.1.1.1.day1 = INTEGER: 7 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPTValue.stm64.1.1.1.untimed = INTEGER: 7 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPTValue.stm64.1.3.1.min15 = INTEGER: 6 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPTValue.stm64.1.3.1.day1 = INTEGER: 6 dBm/10
+#BTI-7000-MIB::stmnCrntPMOPTValue.stm64.1.3.1.untimed = INTEGER: 6 dBm/10
+#"stmnCrntPMOPRValue"			"1.3.6.1.4.1.18070.2.2.1.6.14.1.6"
+#"stmnCrntPMOPTValue"			"1.3.6.1.4.1.18070.2.2.1.6.14.1.9"
+
+      'BTI_7000_STM_Optical' => {
+        'indexed' => 'stmnCrntPMOPRValue',
+        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.18070.2.2.1.6.14.1.6',
+        'headers' => 'name,CrntPMOPRValue,CrntPMOPTValue',
+        'snmp' => {
+          'name' => {
+            'title' => 'Name'
+          },
+          'CrntPMOPRValue' => {
+          	'snmpObjectName' => 'stmnCrntPMOPRValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.14.1.6',
+            'calculate' => 'return $r/10;',
+            'title' => 'STM RX Optical Power'
+          },
+          'CrntPMOPTValue' => {
+          	'snmpObjectName' => 'stmnCrntPMOPTValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.14.1.9',
+            'calculate' => 'return $r/10;',
+            'title' => 'STM TX Optical Power'
+          },
+        }
+      },
+
+#BTI-7000-MIB::fcCrntPMOPRValue.1.1.4.min15 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::fcCrntPMOPRValue.1.1.4.day1 = INTEGER: -500 dBm/10
+#BTI-7000-MIB::fcCrntPMOPRValue.1.1.4.untimed = INTEGER: -500 dBm/10
+#
+#BTI-7000-MIB::fcCrntPMOPTValue.1.1.4.min15 = INTEGER: -51 dBm/10
+#BTI-7000-MIB::fcCrntPMOPTValue.1.1.4.day1 = INTEGER: -51 dBm/10
+#BTI-7000-MIB::fcCrntPMOPTValue.1.1.4.untimed = INTEGER: -51 dBm/10
+#"fcCrntPMOPRValue"			"1.3.6.1.4.1.18070.2.2.1.6.23.1.5"
+#"fcCrntPMOPTValue"			"1.3.6.1.4.1.18070.2.2.1.6.23.1.8"
+
+      'BTI_7000_FC_Optical' => {
+        'indexed' => 'fcCrntPMOPRValue',
+        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.18070.2.2.1.6.23.1.5',
+        'headers' => 'name,CrntPMOPRValue,CrntPMOPTValue',
+        'snmp' => {
+          'name' => {
+            'title' => 'Name'
+          },
+          'CrntPMOPRValue' => {
+          	'snmpObjectName' => 'fcCrntPMOPRValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.23.1.5',
+            'calculate' => 'return $r/10;',
+            'title' => 'GE RX Optical Power'
+          },
+          'CrntPMOPTValue' => {
+          	'snmpObjectName' => 'fcCrntPMOPTValue',
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.23.1.8',
+            'calculate' => 'return $r/10;',
+            'title' => 'GE TX Optical Power'
+          },
+        }
+      },
+      
+    },
+
+    'rrd' => {
+      'BTI_7000_GE_Bytes' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.3$/',
+        'indexed' => 'true',
+        'graphtype' => 'bti-ge-bytes',
+        'snmp' => {
+          'CrntPMTFRCRXValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.29',
+            'option' => 'counter,0:U'
+          },
+          'CrntPMTFRCTXValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.33',
+            'option' => 'counter,0:U'
+          },
+        }
+      },
+
+      'BTI_7000_GE_Optical' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.3$/',
+        'indexed' => 'true',
+        'graphtype' => 'bti-ge-optical',
+        'snmp' => {
+          'CrntPMOPRValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.5',
+            'calculate' => 'return $r/10;',
+          },
+          'CrntPMOPTValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.8',
+            'calculate' => 'return $r/10;',
+          },
+        }
+      },
+
+      'BTI_7000_STM_Optical' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.\d+\.3$/',
+        'graphtype' => 'bti-stm-optical',
+        'indexed' => 'true',
+        'snmp' => {
+          'CrntPMOPRValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.14.1.6',
+            'calculate' => 'return $r/10;',
+          },
+          'CrntPMOPTValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.14.1.9',
+            'calculate' => 'return $r/10;',
+          },
+        }
+      },
+
+      'BTI_7000_FC_Optical' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.3$/',
+        'graphtype' => 'bti-fc-optical',      	
+        'indexed' => 'true',
+        'snmp' => {
+          'CrntPMOPRValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.23.1.5',
+            'calculate' => 'return $r/10;',
+          },
+          'CrntPMOPTValue' => {
+            'oid' => '1.3.6.1.4.1.18070.2.2.1.6.23.1.8',
+            'calculate' => 'return $r/10;',
+          },
+        }
+      },
+    },
+  },  
+
+
+
 );
+
+
