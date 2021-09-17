@@ -2125,6 +2125,9 @@ sub update_last_login
 	print F encode_json($userdata);
 	close(F);
 
+	eval {system("chmod","g+rw",$last_login_file);};
+	if ($@){NMISNG::Util::logAuth("Could not chmod g+rw $last_login_file: $@\n");}
+
 	return 1;
 }
 
