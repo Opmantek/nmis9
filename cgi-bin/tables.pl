@@ -935,24 +935,26 @@ sub doeditTable
 		# Validate
 		my $notvalid = 0;
 		foreach my $prop (keys %$thisentry) {
-			
-			if (ref($thisentry->{$prop}) ne "ARRAY" and ref($thisentry->{$prop}) ne "HASH" and $thisentry->{$prop} ne "") {
-				if ($prop eq "customer" and $thisentry->{$prop} =~ $not_allowed_chars_customer) {
-					$notvalid = 1;
-				} elsif ($prop eq "group" and $thisentry->{$prop} =~ $not_allowed_chars_group) {
-					$notvalid = 1;
-				} elsif ($prop eq "business" and $thisentry->{$prop} =~ $not_allowed_chars_business) {
-					$notvalid = 1;
-				} elsif ($thisentry->{$prop} =~ $not_allowed_chars_props) {
-					# Other kind of validation?
-					$notvalid = 1;
-				}
-				
-				if ($notvalid == 1) {
-					$nmisng->log->info("Property $prop value not allowed " . Dumper($thisentry->{$prop}));
-					print header($headeropts),
-					Tr(td({class=>'error'}, escapeHTML("ERROR, validation of node property \'$key\' failed: Non allowed characters in $prop")));
-					return 0;
+			if ($prop !~ /sysDescr/ ) {
+
+				if (ref($thisentry->{$prop}) ne "ARRAY" and ref($thisentry->{$prop}) ne "HASH" and $thisentry->{$prop} ne "") {
+					if ($prop eq "customer" and $thisentry->{$prop} =~ $not_allowed_chars_customer) {
+						$notvalid = 1;
+					} elsif ($prop eq "group" and $thisentry->{$prop} =~ $not_allowed_chars_group) {
+						$notvalid = 1;
+					} elsif ($prop eq "business" and $thisentry->{$prop} =~ $not_allowed_chars_business) {
+						$notvalid = 1;
+					} elsif ($thisentry->{$prop} =~ $not_allowed_chars_props) {
+						# Other kind of validation?
+						$notvalid = 1;
+					}
+					
+					if ($notvalid == 1) {
+						$nmisng->log->info("Property $prop value not allowed " . Dumper($thisentry->{$prop}));
+						print header($headeropts),
+						Tr(td({class=>'error'}, escapeHTML("ERROR, validation of node property \'$key\' failed: Non allowed characters in $prop")));
+						return 0;
+					}
 				}
 			}
 			
