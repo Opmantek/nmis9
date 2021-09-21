@@ -199,7 +199,7 @@ sub testemail
     my $C = NMISNG::Util::loadConfTable(conf=>$args{conf}, debug=>$args{debug});
     my $CT = NMISNG::Util::loadTable(dir=> "conf", name=>"Contacts", debug=>$args{debug});
     
-    my $contactKey = "contact1";
+    my $contactKey = $Q->{key} // "contact1";
     
     my $target = $CT->{$contactKey}{Email};
     
