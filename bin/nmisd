@@ -1165,6 +1165,7 @@ sub worker_loop
 			# we don't want to end up with stuck jobs if anything dies, so bsts
 			try
 			{
+				my $meta = $ourjob->{args}->{meta};
 				if ($ourjob->{type} eq "selftest" or $ourjob->{type} eq "permission_test")
 				{
 					my ($allok, $tests) = NMISNG::Util::selftest(nmisng => $nmisng,
@@ -1283,7 +1284,7 @@ sub worker_loop
 								}
 								if (!$backup || $res->{success}) {
 									
-									(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds); # === eq false
+									(my $ok, $errormsg) = $mustdie->delete(keep_rrd => $keeprrds, meta => $meta); # === eq false
 									$nmisng->log->debug("********* $ok deleting node ". $mustdie->name);
 									if (!$ok) {
 										$nmisng->log->error("Error deleting node: $errormsg");
@@ -1351,7 +1352,7 @@ sub worker_loop
 							my %unknown = map { ($_ => $n->{$_}) } (grep(!/^(configuration|lastupdate|uuid)$/, keys %$n));
 							$nodeobj->unknown(\%unknown);
 							
-							my ($status,$msg) = $nodeobj->save;
+							my ($status,$msg) = $nodeobj->save(meta => $meta);
 							
 							# zero is no saving needed, which is not good here
 							if ($status <= 0) {
@@ -1484,7 +1485,7 @@ sub worker_loop
 							$nodeobj->aliases($curarraythings->{aliases});
 							$nodeobj->unknown($curextras);
 						
-							(my $op, $error) = $nodeobj->save;
+							(my $op, $error) = $nodeobj->save(meta => $meta);
 							if ($op <= 0) {
 									$nmisng->log->error("set_nodes: Failed to save $node: $error");
 									$error = 1;

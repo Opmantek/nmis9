@@ -625,6 +625,14 @@ sub delete
 		just_one   => 1 );
 	return (0, "Node config removal failed: $result->{error}") if (!$result->{success});
 
+	# Audit 
+	NMISNG::Util::audit_log(who => $meta->{who},
+						what => "Node deleted ". $self->uuid,
+						where => $meta->{where},
+						how => $meta->{how},
+						details => $meta->{details},
+						when => time);
+	
 	$self->nmisng->log->debug("deletion of node ".$self->name." complete");
 	$self->{_deleted} = 1;
 	return (1,undef);
@@ -1370,6 +1378,7 @@ sub rename
 	$self->eventsClean( $args{originator} ); # fixme9: we don't have any useful caller
 
 	$self->nmisng->log->debug("Successfully renamed node $old to $newname");
+
 	return (1,undef);
 }
 
@@ -1391,7 +1400,9 @@ sub save
 
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
-
+	
+	my $meta = $args{meta};
+	
 	# massage the overrides for db storage,
 	# as they may have keys with dots which mongodb < 3.6 doesn't support
 	# simplest workaround: mark up with ==, then base64-encoded key.
@@ -1440,6 +1451,18 @@ sub save
 		$self->_dirty(0);
 		$op = 2;
 	}
+	
+	# Audit 
+	if ($result->{success}) {
+		NMISNG::Util::audit_log(who => $meta->{who},
+						what => $meta->{what} // "Node saved ". $self->uuid,
+						where => $meta->{where},
+						how => $meta->{how},
+						details => $meta->{details},
+						when => time);
+
+	}
+	
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
 

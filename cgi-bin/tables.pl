@@ -978,7 +978,16 @@ sub doeditTable
 		$node->configuration( $configuration );
 		$node->activated($activated);
 
-		my ($success,  $errmsg) = $node->save();
+	    my $op = ($Q->{act} eq "config_table_doedit") ? "Update node" : "Create node";
+		my $meta = {
+				what => $op,
+				who => $AU->User,
+				where => $thisentry->{uuid},
+				how => "schedule",
+				details => " [GUI] node: " . $thisentry->{name}
+			};
+			
+		my ($success,  $errmsg) = $node->save(meta => $meta);
 		if ($success <= 0)						# 0 is no saving required, neg is bad
 		{
 			print header($headeropts),
@@ -1013,7 +1022,7 @@ sub doeditTable
 					time => time,
 					priority => 1,
 					in_progress => 0,
-					args => { uuid => $node->uuid }});
+					args => { uuid => $node->uuid, meta => $meta }});
 
 			print header($headeropts);
 			if (!$wantwidget)
@@ -1036,7 +1045,7 @@ which should start processing within a minute.<p>Please reload the node's dashbo
 once that update operation has completed.<p>";
 
 			print end_form;
-
+			
 			return 0;
 		}
 	}
@@ -1079,6 +1088,16 @@ sub dodeleteTable {
 			push @nodes, $key;
 			$jobargs{node} = \@nodes;
 			
+			my $nodes = join( '-', @nodes);
+			my $meta = {
+				what => "Remove node",
+				who => $AU->User,
+				where => $key,
+				how => "schedule",
+				details => "[GUI] Removed node(s) " . $nodes
+			};
+			$jobargs{meta} = $meta;
+			
 			my ($error,$jobid) = $nmisng->update_queue(
 				jobdata => {
 					type => "delete_nodes",
@@ -1107,7 +1126,6 @@ which should start processing within a minute.<p>Please reload the node's dashbo
 once that delete operation has completed.<p>";
 
 			print end_form;
-
 			return 0;
 			
 		}

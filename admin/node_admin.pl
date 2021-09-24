@@ -137,8 +137,11 @@ server: Will update the node in the remote pollers.
 
 \n\n";
 }
+
 die $usage if (!@ARGV or ( @ARGV == 1 and $ARGV[0] =~ /^-(h|\?|-help)$/ ));
 
+# For audit 
+my $me = getpwuid($<);
 
 # log to stderr if debug is given
 my $logfile = $config->{'<nmis_logs>'} . "/cli.log"; # shared by nmis-cli and this one
@@ -228,6 +231,13 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 			$node->$mustset($onenode->{$mustset}) if (ref($onenode->{$mustset}) eq "HASH");
 		}
 
+		my $meta = {
+				what => "Import bulk",
+				who => $me,
+				where => $node->name,
+				how => "node_admin",
+				details => "Import node " . $node->name
+		};
 		# and save
 		my ($op,$error) = $node->save();
 		if($op <= 0)									# zero is no saving needed
@@ -283,6 +293,15 @@ elsif ($cmdline->{act} eq "import"
 			$node->$setme($onenode->{$setme});
 		}
 	
+		my $meta = {
+				what => "Import",
+				who => $me,
+				where => $node->name,
+				how => "node_admin",
+				details => "Import node " . $node->name
+		};
+		my ($op,$error) = $node->save(meta => $meta);
+		
 		# and save
 		my ($op,$error) = $node->save();
 		if($op <= 0)									# zero is no saving needed
@@ -340,7 +359,14 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 		delete $data->{name};
 		$node->overrides($data);
 
-		my ($op,$error) = $node->save();
+		my $meta = {
+				what => "Import bulk",
+				who => $me,
+				where => $node_name,
+				how => "node_admin",
+				details => "Import node " . $node_name
+		};
+		my ($op,$error) = $node->save(meta => $meta);
 		$logger->error("Error saving node: ",$error) if ($op <= 0); # zero is no saving needed
 
 		$logger->debug( "imported nodeconf for $node_name, overrides saved to database, op: $op" );
@@ -485,11 +511,27 @@ elsif  ($cmdline->{act} eq "restore")
 	my $file = $cmdline->{"file"};
 	my $localiseme = NMISNG::Util::getbool($cmdline->{localise_ids});
 	
+	my $meta = {
+			what => "Restore node",
+			who => $me,
+			how => "node_admin",
+			details => "Restore node "
+	};
+	
 	my $res = $nmisng->undump_node(source  => $file, localise_ids => $localiseme );
 	die "Failed to restore node data: $res->{error}\n" if (!$res->{success});
 
 	print STDERR "Successfully restored node $res->{node}->{name} ($res->{node}->{uuid})\n"
 			if (!$cmdline->{quiet});
+	
+	NMISNG::Util::audit_log(who => $me,
+						what => "restored node",
+						where => "restored node $res->{node}->{name}",
+						how => "node_admin",
+						details => "Restore node ". $res->{node}->{name},
+						when => time)
+	if ($res->{success});
+	
 	exit 0;
 }
 elsif ($cmdline->{act} eq "show")
@@ -590,14 +632,24 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
 	my $what = "set_nodes";
 	my %jobargs;
-	
+		
 	my @data = split(",", $node) if ($node);
 	@data = split(",", $uuid) if ($uuid);
+	
+	my $nodes = join( '-', @data);
+	my $meta = {
+			what => "Set node",
+			who => $me,
+			where => $nodes,
+			how => "node_admin",
+			details => "Set node(s) " . $nodes
+	};
 	
 	if ($schedule) {
 		$jobargs{uuid} = \@data;
 		$jobargs{data} = $cmdline;
-
+		$jobargs{meta} = $meta;
+		
 		my ($error,$jobid) = $nmisng->update_queue(
 				jobdata => {
 					type => $what,
@@ -705,8 +757,8 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		$nodeobj->addresses($curarraythings->{addresses});
 		$nodeobj->aliases($curarraythings->{aliases});
 		$nodeobj->unknown($curextras);
-	
-		(my $op, $error) = $nodeobj->save;
+		
+		(my $op, $error) = $nodeobj->save(meta => $meta);
 		die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed	
 		
 		print STDERR "Successfully updated node $node.\n"
@@ -726,9 +778,19 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 	my $file = $cmdline->{file};
 	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes	
 	
+	my @nodes = split(",", $node);
+	my @uuid = split(",", $uuid);
+	my $nodes = (scalar(@nodes) > 0) ? join( '-', @nodes) : join( '-', @uuid);
+	my $meta = {
+			what => "Remove node",
+			who => $me,
+			where => $node . " " . $uuid,
+			how => "node_admin",
+			details => "Removed node(s) " . $node . " " . $uuid
+	};
+		
 	if ($schedule) {
-		my @nodes = split(",", $node);
-		my @uuid = split(",", $uuid);
+		
 		die "No nodes to be removed" if (scalar(@nodes) == 0 and scalar(@uuid) == 0);
 		
 		# Support for node dump
@@ -738,10 +800,12 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 		my $keeprrds = $cmdline->{keeprrds} // $config->{keeprrds_on_delete_node} // 0;
 		my $what = "delete_nodes";
 		my %jobargs;
-	
+		
 		$jobargs{node} = \@nodes if (scalar(@nodes) > 0);
 		$jobargs{uuid} = \@uuid if (scalar(@uuid) > 0);
+		
 		$jobargs{keeprrds} = $keeprrds;
+		$jobargs{meta} = $meta;
 		
 		my ($error,$jobid) = $nmisng->update_queue(
 				jobdata => {
@@ -802,7 +866,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				}
 				if (!$backup || $res->{success}) {
 					
-					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
+					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool($nukedata, "invert"), meta => $meta); # === eq false
 					die $mustdie->name.": $error\n" if (!$ok);
 					print STDERR "Successfully deleted node $node $uuid.\n"
 					if (-t \*STDERR);
@@ -833,6 +897,14 @@ elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 	die "Node $old does not exist.\n" if (!$nodeobj);
 	$old ||= $nodeobj->name;			# if looked up via uuid
 
+	my $meta = {
+			what => "Rename node",
+			who => $me,
+			where => $uuid,
+			how => "node_admin",
+			details => "Rename node $uuid "
+	};
+	
 	my ($ok, $msg) = $nodeobj->rename(new_name => $new, originator => "node_admin", server => $server_data->{id});
 	die "$msg\n" if (!$ok);
 
@@ -885,7 +957,7 @@ elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 		$nodeobj->configuration($curconfig);
 		$nodeobj->activated($curactivated);
 
-		(my $op, $error) = $nodeobj->save;
+		(my $op, $error) = $nodeobj->save(meta => $meta);
 		die "Failed to save $new: $error\n" if ($op <= 0); # zero is no saving needed
 
 		print STDERR "Successfully updated node $new.\n"
@@ -1041,6 +1113,14 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	}
 
 	my %jobargs;
+	my $op = $cmdline->{act} eq "create" ? "create nodes" : "update nodes";
+	my $meta = {
+			what => $op,
+			who => $me,
+			where => $mayberec->{name},
+			how => "node_admin",
+			details => "$op node ". $mayberec->{name}
+	};
 	
 	# Send job to the queue
 	if ($schedule) {
@@ -1050,6 +1130,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		my $what = $cmdline->{act} eq "create" ? "create_nodes" : "update_nodes";
 		$jobargs{data} = $mayberec;
 		$jobargs{server} = $server_data if ($server);
+		$jobargs{meta} = $meta;
 		
 		my ($error,$jobid) = $nmisng->update_queue(
 				jobdata => {
@@ -1091,7 +1172,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 		}
 		$nodeobj->unknown(\%unknown);
 	
-		my ($status,$msg) = $nodeobj->save;
+		my ($status,$msg) = $nodeobj->save(meta => $meta);
 	
 		# zero is no saving needed, which is not good here
 		die "failed to ".($isnew? "create":"update")." node $mayberec->{uuid}: $msg\n" if ($status <= 0);
