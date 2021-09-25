@@ -3248,7 +3248,7 @@ sub decrypt {
 		$config  = $nmisng->config;
 	}
 
-	my $seedfile   = $config->{'<nmis_conf>'} . '/seed.txt';
+	my $seedfile   = $config->{'<nmis_base>'} . '/seed.txt';
 	my $strLen     = "";
 	my $fh;
 
@@ -3303,7 +3303,7 @@ sub encrypt {
 		return $password unless (defined($nmisng));
 		$config  = $nmisng->config;
 	}
-	my $seedfile   = $config->{'<nmis_conf>'} . '/seed.txt';
+	my $seedfile   = $config->{'<nmis_base>'} . '/seed.txt';
 	my $strLen     = 0;
 	my $fh;
 
