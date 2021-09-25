@@ -34,6 +34,8 @@ our $VERSION = "9.2.3";
 use strict;
 use feature 'state';						# loadconftable, uuid functions
 
+use Crypt::CBC;
+use Crypt::Cipher::AES;
 use Fcntl qw(:DEFAULT :flock :mode);
 use FindBin;										# bsts; normally loaded by the caller
 use File::Path;
@@ -3230,4 +3232,131 @@ sub filter_params {
 	
 	return $vars;
 }
+
+########################################################################
+# decrypt - Decrypt the password.                                      #
+########################################################################
+sub decrypt {
+	my $keyword    = shift;
+	my $password   = shift;
+	my $config     = shift;
+	my $nmisng;
+
+	unless (defined($config)) {
+		$nmisng  = Compat::NMIS::new_nmisng();
+		$config  = $nmisng->config;
+	}
+
+	my $seedfile   = $config->{'<nmis_conf>'} . '/seed.txt';
+	my $strLen     = "";
+	my $fh;
+
+	$nmisng->log->error("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
+	$nmisng->log->error("Password is '" . $password . "'.") if (defined ($nmisng));
+
+	if (substr($password, 0, 2) ne "!!") {
+#		if (!-f "$seedfile") {
+#			_make_seed($seedfile);
+#		}
+#		my $C = NMISNG::Util::loadConfTable();
+#		$nmisng->log->info("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
+#		$C->{$keyword} = encrypt($password);
+#		$nmisng->log->info("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
+#		NMISNG::Util::writeConfData(data=>$C);
+		return $password;
+	} else {
+		$password = substr($password, 2);
+	}
+	if (open($fh, '<', $seedfile)) {
+		my $seed = <$fh>;
+		close $fh;
+		my $cipherHandle = Crypt::CBC->new({key => $seed, pbkdf=>'pbkdf2', cipher => 'Cipher::AES'});
+		$password        = eval { $cipherHandle->decrypt_hex($password); };
+		if ($@) {
+			$nmisng->log->error("Password decryption failure.") if (defined ($nmisng));
+			$password = "";
+		} else {
+			$strLen   = substr($password, 0, 3);
+			$password = substr($password, 3, $strLen);
+		}
+	} else {
+		$nmisng->log->error("Password decryption failure.") if (defined ($nmisng));
+		$password = "";
+	}
+
+	$nmisng->log->error("Password is '" . $password . "'.") if (defined ($nmisng));
+	return $password;
+}
+
+########################################################################
+# encrypt - Encrypt the password.                                      #
+########################################################################
+sub encrypt {
+	my $password   = shift;
+	my $config     = shift;
+	my $nmisng;
+
+	unless (defined($config)) {
+		$nmisng  = Compat::NMIS::new_nmisng();
+		return $password unless (defined($nmisng));
+		$config  = $nmisng->config;
+	}
+	my $seedfile   = $config->{'<nmis_conf>'} . '/seed.txt';
+	my $strLen     = 0;
+	my $fh;
+
+	$nmisng->log->debug3("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
+
+	if (!-f "$seedfile") {
+		_make_seed($seedfile);
+	}
+	if (open($fh, '<', $seedfile)) {
+		my $seed = <$fh>;
+		close $fh;
+		$strLen	   = sprintf("%03d", length($password));
+		$password  = $strLen.$password;
+
+		my $cipherHandle = Crypt::CBC->new({key => $seed, pbkdf=>'pbkdf2', cipher => 'Cipher::AES'});
+		$password        = eval { $cipherHandle->encrypt_hex($password); };
+		$password        = "!!" . $password;
+		if ($@) {
+			$nmisng->log->error("Password encryption failure.") if (defined ($nmisng));
+			$password = "";
+		}
+	} else {
+		$nmisng->log->error("Password encryption failure.") if (defined ($nmisng));
+		$password = "";
+	}
+
+	$nmisng->log->error("Password is '" . $password . "'.") if (defined ($nmisng));
+	return $password;
+}
+
+########################################################################
+# _make_seed - Create an encryption seed file.                         #
+########################################################################
+sub _make_seed {
+	my $seedfile  = shift;
+
+	my $nmisng   = Compat::NMIS::new_nmisng();
+	my @charset  = (('A'..'Z'), ('a'..'z'), (0..9));
+	my $range    = $#charset + 1;
+	my $fh;
+	my $seed;
+
+	$nmisng->log->debug3("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
+	for (1..256) {
+		$seed .= $charset[int(rand($range))];
+	}
+	unless(open($fh, '>', $seedfile)) {
+		$nmisng->log->error("Unable to create an encryption seed file.") if (defined ($nmisng));
+		return 2;
+	}
+	print $fh ("$seed");
+	close $fh;
+	chmod(0400, $seedfile);
+
+	return 0;
+}
+
 1;

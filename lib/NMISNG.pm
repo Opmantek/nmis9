@@ -4064,7 +4064,7 @@ LABEL_ESC:
 						ipproto    => $C->{mail_server_ipproto},
 
 						username => $C->{mail_user},
-						password => $C->{mail_password},
+						password => NMISNG::Util::decrypt('mail_password', $C->{mail_password}),
 
 						# and params for making the message on the go
 						to       => $target,
@@ -4108,7 +4108,7 @@ LABEL_ESC:
 						ipproto    => $C->{mail_server_ipproto},
 
 						username => $C->{mail_user},
-						password => $C->{mail_password},
+						password => NMISNG::Util::decrypt('mail_password', $C->{mail_password}),
 
 						# and params for making the message on the go
 						to       => $target,
