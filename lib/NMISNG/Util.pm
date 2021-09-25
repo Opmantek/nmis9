@@ -3237,6 +3237,7 @@ sub filter_params {
 # decrypt - Decrypt the password.                                      #
 ########################################################################
 sub decrypt {
+	my $section    = shift;
 	my $keyword    = shift;
 	my $password   = shift;
 	my $config     = shift;
@@ -3251,18 +3252,19 @@ sub decrypt {
 	my $strLen     = "";
 	my $fh;
 
-	$nmisng->log->error("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
-	$nmisng->log->error("Password is '" . $password . "'.") if (defined ($nmisng));
+	$nmisng->log->debug3("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
+	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
 
 	if (substr($password, 0, 2) ne "!!") {
-#		if (!-f "$seedfile") {
-#			_make_seed($seedfile);
-#		}
-#		my $C = NMISNG::Util::loadConfTable();
-#		$nmisng->log->info("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
-#		$C->{$keyword} = encrypt($password);
-#		$nmisng->log->info("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
-#		NMISNG::Util::writeConfData(data=>$C);
+		if (!-f "$seedfile") {
+			_make_seed($seedfile);
+		}
+		# that's the  non-flattened raw hash
+		my ($C,undef) = NMISNG::Util::readConfData(only_local => 1);
+		$nmisng->log->debug9("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
+		$C->{$section}{$keyword} = encrypt($password);
+		$nmisng->log->debug9("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
+		NMISNG::Util::writeConfData(data=>$C);
 		return $password;
 	} else {
 		$password = substr($password, 2);
@@ -3284,7 +3286,7 @@ sub decrypt {
 		$password = "";
 	}
 
-	$nmisng->log->error("Password is '" . $password . "'.") if (defined ($nmisng));
+	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
 	return $password;
 }
 
@@ -3306,6 +3308,7 @@ sub encrypt {
 	my $fh;
 
 	$nmisng->log->debug3("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
+	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
 
 	if (!-f "$seedfile") {
 		_make_seed($seedfile);
@@ -3328,7 +3331,7 @@ sub encrypt {
 		$password = "";
 	}
 
-	$nmisng->log->error("Password is '" . $password . "'.") if (defined ($nmisng));
+	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
 	return $password;
 }
 

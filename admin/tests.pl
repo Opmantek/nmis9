@@ -218,7 +218,7 @@ sub testemail
         ipproto =>  $C->{mail_server_ipproto},
                             
         username => $C->{mail_user},
-        password => NMISNG::Util::decrypt('mail_password', $C->{mail_password}),
+        password => NMISNG::Util::decrypt('email', 'mail_password', $C->{mail_password}),
     
         # and params for making the message on the go
         to => $target,
@@ -253,7 +253,7 @@ sub testemail
         ipproto =>  $C->{mail_server_ipproto},
                             
         username => $C->{mail_user},
-        password => NMISNG::Util::decrypt('mail_password', $C->{mail_password}),
+        password => NMISNG::Util::decrypt('email', 'mail_password', $C->{mail_password}),
     
         # and params for making the message on the go
         to => $target,

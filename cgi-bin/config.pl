@@ -639,7 +639,7 @@ sub doEditConfig
 	}
 	if (($section eq "database" and $item eq "db_password") or ($section eq "email" and $item eq "mail_password")) {
 		return validation_abort($item, "passwords don't match") if ($value ne $confirm);
-		$value = NMISNG::Util::encrypt($value);
+		$value = NMISNG::Util::encrypt($value) if (substr($value, 0, 2) ne "!!");
 		return validation_abort($item, "passwords update failure") if ($value eq '');
 	}
 	# no validation or success, so let's update the config

@@ -946,7 +946,7 @@ sub get_db_connection
 	my $port    = $CONF->{db_port}   // '27017';
 	my $db_name = $CONF->{db_name}   // 'nmisng';
 	my $username = $CONF->{db_username};
-	my $password = NMISNG::Util::decrypt('db_password', $CONF->{db_password}, $CONF);
+	my $password = NMISNG::Util::decrypt('database', 'db_password', $CONF->{db_password}, $CONF);
 
 	my $timeout       = $CONF->{db_connection_timeout} // 5000;
 	my $query_timeout = $CONF->{db_query_timeout}      // 5000;
