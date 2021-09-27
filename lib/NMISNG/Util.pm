@@ -3240,31 +3240,39 @@ sub decrypt {
 	my $section    = shift;
 	my $keyword    = shift;
 	my $password   = shift;
-	my $config     = shift;
-	my $nmisng;
+	my $config;
+	my $logger;
 
-	unless (defined($config)) {
-		$nmisng  = Compat::NMIS::new_nmisng();
-		$config  = $nmisng->config;
+	{
+		my $nmisng  = Compat::NMIS::new_nmisng();
+		if (defined($nmisng)) {
+			$config  = $nmisng->config;
+			$logger  = $nmisng->log;
+		} else {
+			$config = NMISNG::Util::loadConfTable();
+			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+		}
 	}
 
 	my $seedfile   = $config->{'<nmis_base>'} . '/seed.txt';
 	my $strLen     = "";
 	my $fh;
 
-	$nmisng->log->debug3("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
-	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
+	$logger->debug3("Seedfile name is '" . $seedfile . "'.");
 
+	# If we have an unencrypted password in the configuration file, then we encrypt it.
 	if (substr($password, 0, 2) ne "!!") {
 		if (!-f "$seedfile") {
-			_make_seed($seedfile);
+			_make_seed($seedfile, $logger);
 		}
-		# that's the  non-flattened raw hash
-		my ($C,undef) = NMISNG::Util::readConfData(only_local => 1);
-		$nmisng->log->debug9("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
-		$C->{$section}{$keyword} = encrypt($password);
-		$nmisng->log->debug9("Config '" .  Dumper($C) . "'.") if (defined ($nmisng));
-		NMISNG::Util::writeConfData(data=>$C);
+		$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
+		# Get the non-flattened raw hash
+		my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+		$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+		$fullConfig->{$section}{$keyword} = encrypt($password);
+		$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+		NMISNG::Util::writeConfData(data=>$fullConfig);
 		return $password;
 	} else {
 		$password = substr($password, 2);
@@ -3275,18 +3283,17 @@ sub decrypt {
 		my $cipherHandle = Crypt::CBC->new({key => $seed, pbkdf=>'pbkdf2', cipher => 'Cipher::AES'});
 		$password        = eval { $cipherHandle->decrypt_hex($password); };
 		if ($@) {
-			$nmisng->log->error("Password decryption failure.") if (defined ($nmisng));
+			$logger->error("Password decryption failure.");
 			$password = "";
 		} else {
 			$strLen   = substr($password, 0, 3);
 			$password = substr($password, 3, $strLen);
 		}
 	} else {
-		$nmisng->log->error("Password decryption failure.") if (defined ($nmisng));
+		$logger->error("Password decryption failure.");
 		$password = "";
 	}
 
-	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
 	return $password;
 }
 
@@ -3295,23 +3302,28 @@ sub decrypt {
 ########################################################################
 sub encrypt {
 	my $password   = shift;
-	my $config     = shift;
-	my $nmisng;
+	my $config;
+	my $logger;
 
-	unless (defined($config)) {
-		$nmisng  = Compat::NMIS::new_nmisng();
-		return $password unless (defined($nmisng));
-		$config  = $nmisng->config;
+	{
+		my $nmisng  = Compat::NMIS::new_nmisng();
+		if (defined($nmisng)) {
+			$config  = $nmisng->config;
+			$logger  = $nmisng->log;
+		} else {
+			$config = NMISNG::Util::loadConfTable();
+			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+		}
 	}
 	my $seedfile   = $config->{'<nmis_base>'} . '/seed.txt';
 	my $strLen     = 0;
 	my $fh;
 
-	$nmisng->log->debug3("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
-	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
+	$logger->debug3("Seedfile name is '" . $seedfile . "'.");
 
 	if (!-f "$seedfile") {
-		_make_seed($seedfile);
+		_make_seed($seedfile, $logger);
 	}
 	if (open($fh, '<', $seedfile)) {
 		my $seed = <$fh>;
@@ -3323,15 +3335,14 @@ sub encrypt {
 		$password        = eval { $cipherHandle->encrypt_hex($password); };
 		$password        = "!!" . $password;
 		if ($@) {
-			$nmisng->log->error("Password encryption failure.") if (defined ($nmisng));
+			$logger->error("Password encryption failure.");
 			$password = "";
 		}
 	} else {
-		$nmisng->log->error("Password encryption failure.") if (defined ($nmisng));
+		$logger->error("Password encryption failure.");
 		$password = "";
 	}
 
-	$nmisng->log->debug3("Password is '" . $password . "'.") if (defined ($nmisng));
 	return $password;
 }
 
@@ -3340,19 +3351,18 @@ sub encrypt {
 ########################################################################
 sub _make_seed {
 	my $seedfile  = shift;
+	my $logger    = shift;
 
-	my $nmisng   = Compat::NMIS::new_nmisng();
 	my @charset  = (('A'..'Z'), ('a'..'z'), (0..9));
 	my $range    = $#charset + 1;
 	my $fh;
 	my $seed;
 
-	$nmisng->log->debug3("Seedfile name is '" . $seedfile . "'.") if (defined ($nmisng));
 	for (1..256) {
 		$seed .= $charset[int(rand($range))];
 	}
 	unless(open($fh, '>', $seedfile)) {
-		$nmisng->log->error("Unable to create an encryption seed file.") if (defined ($nmisng));
+		$logger->error("Unable to create an encryption seed file.");
 		return 2;
 	}
 	print $fh ("$seed");
