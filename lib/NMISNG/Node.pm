@@ -626,7 +626,7 @@ sub delete
 	return (0, "Node config removal failed: $result->{error}") if (!$result->{success});
 
 	# Audit
-	my $audit_enabled = $self->nmisng->config->{audit_enabled} // 1;
+	my $audit_enabled = NMISNG::Util::getbool($self->nmisng->config->{audit_enabled}) // 1;
 	NMISNG::Util::audit_log(who => $meta->{who},
 						what => "Node deleted ". $self->uuid,
 						where => $meta->{where},
@@ -1455,7 +1455,7 @@ sub save
 	
 	# Audit 
 	if ($result->{success}) {
-		my $audit_enabled = $self->nmisng->config->{audit_enabled} // 1;
+		my $audit_enabled = NMISNG::Util::getbool($self->nmisng->config->{audit_enabled}) // 1;
 		NMISNG::Util::audit_log(who => $meta->{who},
 						what => $meta->{what} // "Node saved ". $self->uuid,
 						where => $meta->{where},

@@ -1052,6 +1052,16 @@ once that update operation has completed.<p>";
 	else
 	{
 		NMISNG::Util::writeTable(dir=>'conf',name=>$table, data=>$T);
+
+		# Audit
+		my $audit_enabled = NMISNG::Util::getbool($C->{audit_enabled}) // 1;
+		my $op = ($Q->{act} eq "config_table_doedit") ? "Updated" : "Create item";
+		NMISNG::Util::audit_log(who => $AU->User,
+							what => "$op $table",
+							where => $table,
+							how => "GUI",
+							details => "key $key",
+							when => time) if ($audit_enabled);
 	}
 
 	return 1;
@@ -1138,6 +1148,15 @@ once that delete operation has completed.<p>";
 			$TT->{$_} = $T->{$_}
 				if ($_ ne $key);
 			NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$TT);
+			
 		}
+		# Audit
+		my $audit_enabled = NMISNG::Util::getbool($C->{audit_enabled}) // 1;
+		NMISNG::Util::audit_log(who => $AU->User,
+							what => "Delete item in table $table",
+							where => $table,
+							how => "GUI",
+							details => "key $key",
+							when => time) if ($audit_enabled);
 	}
 }
