@@ -2063,7 +2063,7 @@ sub get_last_login
 	# Or get session by user
 	# So we will get all the session files, filter by user and calculate if they are expired
 	opendir(DIR, $last_login_dir) or NMISNG::Util::logAuth("Could not open $last_login_dir\n");
-
+	
 	if (-f $last_login_file)
 	{
 		open(F, $last_login_file) or return "cannot read $last_login_file: $!";
@@ -2097,10 +2097,21 @@ sub update_last_login
 	# So we will get all the session files, filter by user and calculate if they are expired
 	opendir(DIR, $last_login_dir) or NMISNG::Util::logAuth("Could not open $last_login_dir\n");
 	
-	createDir($last_login_dir) if (!-d $last_login_dir);
-
-	if (-f $last_login_file)
+	if (!-d $last_login_dir)
 	{
+		createDir($last_login_dir) 
+	}
+
+	if (!-e $last_login_file) {
+		open(F, ">$last_login_file") or return (0, "cannot read $last_login_file: $!");
+		close F;
+		if (-f $last_login_file) {
+			eval {
+				system("/usr/local/nmis9/bin/nmis-cli", "act=fixperms");
+			};
+		}
+	}
+	elsif (-f $last_login_file) {
 		open(F, $last_login_file) or return (0, "cannot read $last_login_file: $!");
 		$userdata = eval { decode_json(join("", <F>)); };
 		close F;
@@ -2124,8 +2135,7 @@ sub update_last_login
 	open(F,">$last_login_file") or return (0, "cannot write $last_login_file: $!");
 	print F encode_json($userdata);
 	close(F);
-
-	eval {system("chmod","g+rw",$last_login_file);};
+	
 	if ($@){NMISNG::Util::logAuth("Could not chmod g+rw $last_login_file: $@\n");}
 
 	return 1;
