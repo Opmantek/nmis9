@@ -1659,6 +1659,24 @@ sub getbool
 	}
 }
 
+#########################################################################
+# Check boolean for CLI input.  It will not default an assumed value    #
+#  when the user may have not intended the action.  This function       #
+#  expects the key name, variable name, and default value.  It will die #
+#  with an error message if the value is not a valid boolean value.     #
+#                                                                       #
+#  The function will accept the following and i not case sesitive:      #
+#  true, yes, t, y, 1, false, no, f, or n                               #
+#                                                                       #
+#########################################################################
+sub getbool_cli
+{
+	my ($key, $val, $default) = @_;
+	$default = 0 if !defined($default);
+
+	return ((defined($val)) ? (($val =~ /true|yes|t|y|1/i) ? 1 : (($val =~ /false|no|f|n|0/i) ? 0 : die "Invalid boolean value for '$key': '$val'\n" )) : $default);
+}
+
 # Send an array with the properties never overrided by the conf master files
 # Hardcoded as we dont want them to be overrided
 # Could be a mess
@@ -3367,7 +3385,16 @@ sub _make_seed {
 	}
 	print $fh ("$seed");
 	close $fh;
-	chmod(0400, $seedfile);
+ 	my $uid;
+	if (-f "/etc/redhat-release") {
+		$uid = getpwnam("apache");
+	} else {
+		$uid = getpwnam("www-data");
+	}
+	my $gid = getgrnam("nmis");
+	chown($uid, $gid, $seedfile);
+	# PERL sets to -rwS--x--- instead of -r--r-S---   Y?
+	system("chmod 2440 $seedfile");
 
 	return 0;
 }
