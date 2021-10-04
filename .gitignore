@@ -12,6 +12,7 @@ dev
 private
 build
 test
+seed.txt
 .vagrant
 Vagrantfile
 *.swp
