@@ -30,6 +30,7 @@
 use strict;
 our $VERSION = "9.0.12";
 
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -37,6 +38,7 @@ use POSIX qw();
 use File::Basename;
 use File::Spec;
 use Data::Dumper;
+use Term::ReadKey;
 use Time::Local;								# report stuff - fixme needs rework!
 use Time::HiRes;
 
@@ -114,7 +116,7 @@ act=schedule: inserts a new job record into the database.
 Supported Arguments for Schedule Creation:
 
 at: optional time argument for the job to commence, default is now.
-  Time format is described in "man at"
+  Time format is described in man at
 
 job.type: job type, required, one of: collect update services
   thresholds escalations metrics configbackup purge dbcleanup
@@ -192,11 +194,15 @@ outage.frequency=monthly outage.start="1 12:00" outage.end="1 13:30" \\
 outage.selector.node.group.0="busybodies" \\
 outage.selector.node.group.1="alsobad"\n\n|;
 
-die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
+if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ )
+{
+	help();
+   	exit(0);
+}
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
 
-my $wantverbose = (NMISNG::Util::getbool($Q->{verbose}));
-my $wantquiet  = NMISNG::Util::getbool($Q->{quiet});
+my $wantverbose = NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0);
+my $wantquiet = NMISNG::Util::getbool_cli("quiet", $Q->{quiet}, 0);
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
@@ -221,10 +227,13 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 															 path  => (defined $Q->{debug})? undef : $logfile);
 
 # this opens a database connection
-my $nmisng = NMISNG->new(
-	config => $C,
-	log    => $logger,
-		);
+my $nmisng;
+if ($Q->{act} !~ /[-_]help$/) {
+	$nmisng = NMISNG->new(
+		config => $C,
+        log    => $logger,
+	);
+}
 
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
@@ -278,8 +287,9 @@ elsif ($Q->{act} eq "schedule")
 		next if ($match =~ /^job\.(type|priority|verbosity|output|tag|data|keeprrds)$/); # these don't go into the job args
 		my $argument = $match;
 		$argument =~ s/^job\.//;
-		$jobargs{$argument} = ( $argument eq "force"? # for force we'd like 1/0
-														NMISNG::Util::getbool($Q->{$match})?1:0 : $Q->{$match});
+		$jobargs{$argument} = (($argument eq "force") # for force we'd need 1/0
+                                                     ? NMISNG::Util::getbool_cli("force", $Q->{$match}, 1)
+                                                     : $Q->{$match});
 	}
 
 	# perform any necessary arg conversions and expansions
@@ -306,8 +316,8 @@ elsif ($Q->{act} eq "schedule")
 		map { delete $jobargs{$_} } (qw(name node group)); # no longer needed, uuid is what counts
 		if ($what eq "collect")
 		{
-			$jobargs{wantwmi} = $Q->{"job.wantwmi"} // 1;
-			$jobargs{wantsnmp} = $Q->{"job.wantsnmp"} // 1;
+			$jobargs{wantwmi} = NMISNG::Util::getbool_cli("job.wantwmi", $Q->{"job.wantwmi"}, 1);
+			$jobargs{wantsnmp} = NMISNG::Util::getbool_cli("job.wantsnmp", $Q->{"job.wantsnmp"}, 1);
 		}
 
 		if ($what eq "plugins")			# one combined job with the node uuids passed in
@@ -841,31 +851,36 @@ elsif ($Q->{act} eq "config-backup")
 }
 elsif ($Q->{act} eq 'purge')
 {
-	my $res = $nmisng->purge_old_files(simulate => $Q->{simulate});
+	my $simulate = NMISNG::Util::getbool_cli("simulate", $Q->{simulate}, 0);
+	my $info = NMISNG::Util::getbool_cli("info", $Q->{info}, 0);
+	my $res = $nmisng->purge_old_files(simulate => $simulate);
 	die "$res->{error}\n" if (!$res->{success});
-	print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or NMISNG::Util::getbool($Q->{simulate}));
+	print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or $simulate);
 
 	$res = NMISNG::Outage::purge_outages(nmisng => $nmisng,
-																			 simulate => $Q->{simulate});
+																			 simulate => $simulate);
 	die "$res->{error}\n" if (!$res->{success});
 	if ($res->{message} eq 'No outages exist.')
 	{
 		print $res->{message} . "\n";
 	} else {
-		print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or NMISNG::Util::getbool($Q->{simulate}));
+		print join("\n", @{$res->{info}}),"\n" if ($info or $simulate);
 	}	
 }
 elsif ($Q->{act} eq "dbcleanup")
 {
+	my $simulate = NMISNG::Util::getbool_cli("simulate", $Q->{simulate}, 0);
+	my $info = NMISNG::Util::getbool_cli("info", $Q->{info}, 0);
+	my $use_performance_query = NMISNG::Util::getbool_cli("use_performance_query", $Q->{use_performance_query}, 0);
 	my $res;
-	if ($Q->{use_performance_query}) {
-		$res = $nmisng->dbcleanup(simulate => $Q->{simulate}, use_performance_query => $Q->{use_performance_query});
+	if ($use_performance_query) {
+		$res = $nmisng->dbcleanup(simulate => $simulate, use_performance_query => $use_performance_query);
 	}
 	else {
-		$res = $nmisng->dbcleanup(simulate => $Q->{simulate});
+		$res = $nmisng->dbcleanup(simulate => $simulate);
 	}
 
-	print join("\n", @{$res->{info}}),"\n" if ($Q->{info} or NMISNG::Util::getbool($Q->{simulate}));
+	print join("\n", @{$res->{info}}),"\n" if ($info or $simulate);
 }
 elsif ($Q->{act} eq 'noderefresh')
 {
@@ -1306,5 +1321,328 @@ sub unlock_user
 		print "unlock_user $user. Done \n"; 
 	}
 	
+}
+
+
+###########################################################################
+#  Help Function
+###########################################################################
+sub help
+{
+   my(${currRow}) = @_;
+   my @{lines};
+   my ${workLine};
+   my ${line};
+   my ${key};
+   my ${cols};
+   my ${rows};
+   my ${pixW};
+   my ${pixH};
+   my ${i};
+   my $IN;
+   my $OUT;
+
+   if ((-t STDERR) && (-t STDOUT)) {
+      if (${currRow} == "")
+      {
+         ${currRow} = 0;
+      }
+      if ($^O =~ /Win32/i)
+      {
+         sysopen($IN,'CONIN$',O_RDWR);
+         sysopen($OUT,'CONOUT$',O_RDWR);
+      } else
+      {
+         open($IN,"</dev/tty");
+         open($OUT,">/dev/tty");
+      }
+      ($cols, $rows, $pixW, $pixH) = Term::ReadKey::GetTerminalSize $OUT;
+   }
+   STDOUT->autoflush(1);
+   STDERR->autoflush(1);
+
+   push(@lines, "\n\033[1mNAME\033[0m\n");
+   push(@lines, "       $thisprogram -  NMIS Command Line Interface.\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mSYNOPSIS\033[0m\n");
+   push(@lines, "       $thisprogram [options...] act=<command> <command-parameters>...\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mDESCRIPTION\033[0m\n");
+   push(@lines, "       The $thisprogram program provides a command line interface for the NMIS\n");
+   push(@lines, "       application. The program always expects an 'action' parameter specifying\n");
+   push(@lines, "       what action is requested. Each action requires unique parameters\n");
+   push(@lines, "       depending on the requirements of the action. There are also global\n");
+   push(@lines, "       options accepted by all actions.\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mOPTIONS\033[0m\n");
+   push(@lines, " --debug[1-9]             - global option to print detailed messages\n");
+   push(@lines, " --help                   - display command line usage\n");
+   push(@lines, " --version                - print a version message and exit\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mARGUMENTS\033[0m\n");
+   push(@lines, "     act=<command>        - The action command to invoke.  Each is described below.\n");
+   push(@lines, "     <command-parameters> - One of more command parameters depending on the command.\n");
+   push(@lines, "     [verbose=<true|false|yes|no|1|0>]\n");
+   push(@lines, "     [quiet=<true|false|yes|no|1|0>]\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mEXIT STATUS\033[0m\n");
+   push(@lines, "     The following exit values are returned:\n");
+   push(@lines, "     0 Success\n");
+   push(@lines, "     2 Error; invalid arguments etc.\n");
+   push(@lines, "     3 Failure; Command failures etc.\n\n");
+   push(@lines, "\033[1mACTIONS\033[0m\n");
+   push(@lines, "  -- GENERAL ACTIONS --\n");
+   push(@lines, "     act=config-backup\n");
+   push(@lines, "                     This action backs up the NMIS configurations, including\n");
+   push(@lines, "                     The Configuration Models, and CRON directories. It should be\n");
+   push(@lines, "                     be run as root!\n");
+   push(@lines, "     act=daemon-status (or act=status)\n");
+   push(@lines, "                     This action displays the status of the NMIS daemon.\n");
+   push(@lines, "     act=ensure-indexes\n");
+   push(@lines, "                     This action fixes incorrect database indices.\n");
+   push(@lines, "     act=fixperms\n");
+   push(@lines, "                     This action fixes incorrect file permissions in the NMIS\n");
+   push(@lines, "                     installation. It should be run as root!\n");
+   push(@lines, "     act=noderefresh\n");
+   push(@lines, "                     This action Walks the list of nodes causing an internal\n");
+   push(@lines, "                     Node refresh of each.\n");
+   push(@lines, "\n");
+   push(@lines, "  -- SCHEDULING ACTIONS --\n");
+   push(@lines, "     act=schedule [at=time] <job.type=<activity>> [job.priority=0..1]\n");
+   push(@lines, "                            [job.<node|uuid|group>=<instance> ...]\n");
+   push(@lines, "                            [job.wantsnmp=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                            [job.wantwmi=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                            [job.phase=<update|collect>]\n");
+   push(@lines, "                            [job.uuid=<uuid>]\n");
+   push(@lines, "                            [job.force=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                            [job.verbosity=<1..9|debug|info|warn|error|fatal>]\n");
+   push(@lines, "                            [job.output=<path>]\n");
+   push(@lines, "                            [job.tag=<string>]\n");
+   push(@lines, "                     This action inserts a new job record into the database.\n");
+   push(@lines, "                        Supported Arguments for Schedule Creation:\n");
+   push(@lines, "\n");
+   push(@lines, "                        at=<time>: (Optional) time argument for the job to\n");
+   push(@lines, "                           commence. Default is now.\n");
+   push(@lines, "                           Time format is described below. Additional\n");
+   push(@lines, "                           details can be found by running 'man at' on a Linux system.\n");
+   push(@lines, "\n");
+   push(@lines, "                        job.type=<activity>: (Required) One of: 'collect',\n");
+   push(@lines, "                           'update', 'services','thresholds', 'escalations',\n");
+   push(@lines, "                           'metrics', 'configbackup', 'purge', 'dbcleanup'\n");
+   push(@lines, "                           'selftest', 'permission_test', or 'plugins' delete edit\n");
+   push(@lines, "\n");
+   push(@lines, "                        job.priority=<0..1>: (Optional) Number between 0\n");
+   push(@lines, "                           0 (lowest) and 1 (highest) job priority.\n");
+   push(@lines, "                           Default is 1 for manually scheduled jobs\n");
+   push(@lines, "\n");
+   push(@lines, "                        job.<node|uuid|group>=<instance>: (Optional)\n");
+   push(@lines, "                           For 'collect', 'update', or 'services':\n");
+   push(@lines, "                             This argument can be repeated. If none are given,\n");
+   push(@lines, "                             all active nodes are included.\n");
+   push(@lines, "\n");
+   push(@lines, "                        job.wantsnmp=<true|false|yes|no|1|0> (Optional)\n");
+   push(@lines, "                             For 'collection'. Default is true.\n");
+   push(@lines, "                        job.wantwmi=<true|false|yes|no|1|0> (Optional)\n");
+   push(@lines, "                             For 'collection'. Default is true.\n");
+   push(@lines, "\n");
+   push(@lines, "                        job.phase=<update|collect> (Required for 'plugins')\n");
+   push(@lines, "                             Specifies which phase to schedule.\n");
+   push(@lines, "                        job.uuid=<uuid> (Required for 'plugins')\n");
+   push(@lines, "                             Specifies the uuid to act on. This argument can be\n");
+   push(@lines, "                             repeated.\n");
+   push(@lines, "                        job.force=<true|false|yes|no|1|0> (Optional) Causes certain job\n");
+   push(@lines, "                             types to ignore scheduling policies and bypass any\n");
+   push(@lines, "                             cached data. Default is false.\n");
+   push(@lines, "                        job.verbosity=<1..9|debug|info|warn|error|fatal>:\n");
+   push(@lines, "                             (Optional) Specifies verbosity level for just this\n");
+   push(@lines, "                             one job.\n");
+   push(@lines, "                        job.output=<path>: (Optional) If given as name_prefix\n");
+   push(@lines, "                             or /path/name_prefix then all log output for this\n");
+   push(@lines, "                             job is saved in a separate file. The path is\n");
+   push(@lines, "                             relative to the log directory, and actual file is\n");
+   push(@lines, "                             <name_prefix>-<timestamp>.log.\n");
+   push(@lines, "                        job.tag=<string>: (Optional) The name can any random\n");
+   push(@lines, "                             string and is is used for post-operation plugin\n");
+   push(@lines, "                             grouping.\n");
+   push(@lines, "     act=list-schedules [verbose=<true|false|yes|no|1|0>] [only=active|queued]\n");
+   push(@lines, "                            [job.<queued|active>=<schedule_id> ...]\n");
+   push(@lines, "                     This action displays an overview of pending and active jobs;\n");
+   push(@lines, "                        verbose=<true|false|yes|no|1|0> (Optional) Causes job arguments\n");
+   push(@lines, "                              to be displayed fully.\n");
+   push(@lines, "                        only=<queued|active>: (Optional) 'queued' shows pending\n");
+   push(@lines, "                              jobs only. 'active' shows only jobs that are in\n");
+   push(@lines, "                              progress.\n");
+   push(@lines, "                        job.<queued|active>=<schedule_id>: (Optional) Shows a\n");
+   push(@lines, "                              particular job progress. This argument can be\n");
+   push(@lines, "                              repeated.\n");
+   push(@lines, "     act=delete-schedule id=<schedule_id|ALL> [job.X=...]\n");
+   push(@lines, "                     This action removes a schedule record from the database\n");
+   push(@lines, "                        id=<schedule_id|ALL>: (Required) Specifies the specific\n");
+   push(@lines, "                              schedule to delete, or 'ALL' to delete all\n");
+   push(@lines, "                              schedules.\n");
+   push(@lines, "                        job.<queued|active>=<schedule_id>: (Optional) Deletes a\n");
+   push(@lines, "                              particular jobs. This argument can be repeated.\n");
+   push(@lines, "     act=abort id=<schedule_id>\n");
+   push(@lines, "                     This action works like delete-schedule but also terminates\n");
+   push(@lines, "                     any worker process that is processing that job.\n");
+   push(@lines, "                       if id=ALL is given, then additional job.X properties can be used\n");
+   push(@lines, "                       to select particular schedule records.\n");
+   push(@lines, "     \n");
+   push(@lines, "  -- CLEANUP ACTIONS --\n");
+   push(@lines, "     act=purge [simulate=<true|false|yes|no|1|0>] [info=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action removes past none-recurring outages after a\n");
+   push(@lines, "                     configurable timeperiod.\n");
+   push(@lines, "                        simulate=<true|false|yes|no|1|0> (Optional) If this option is\n");
+   push(@lines, "                             selected, the purge only prints out what\n");
+   push(@lines, "                             would have been purged. Default is false.\n");
+   push(@lines, "                        info=<true|false|yes|no|1|0> (Optional) If this option is\n");
+   push(@lines, "                             selected, the purge prints out what\n");
+   push(@lines, "                             is being purged. Default is false.\n");
+   push(@lines, "     act=dbcleanup [simulate=<true|false|yes|no|1|0>] [info=<true|false|1|0>]\n");
+   push(@lines, "                            [use_performance_query=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action runs a thorough database cleanup routine.\n");
+   push(@lines, "                     It will audit and remove:\n");
+   push(@lines, "                      * All inventory entries whose node is gone,\n");
+   push(@lines, "                      * All inventory entries whose node AND cluster is gone,\n");
+   push(@lines, "                      * All events entries whose node AND cluster is gone,\n");
+   push(@lines, "                      * All status entries whose node AND cluster is gone,\n");
+   push(@lines, "                      * All latest_data entries whose node AND cluster is gone,\n");
+   push(@lines, "                        and all timed data whose inventory is gone.\n");
+   push(@lines, "                        simulate=<true|false|yes|no|1|0> (Optional) If this option is\n");
+   push(@lines, "                             selected, the purge only prints out what\n");
+   push(@lines, "                             would have been purged. Default is false.\n");
+   push(@lines, "                        info=<true|false|yes|no|1|0> (Optional) If this option is\n");
+   push(@lines, "                             selected, the purge prints out what\n");
+   push(@lines, "                             is being purged. Default is false.\n");
+   push(@lines, "                        use_performance_query=<true|false|yes|no|1|0> (Optional)\n");
+   push(@lines, "                             If this option is true, the query will work from\n");
+   push(@lines, "                             nodes. if false, the query will corelate all\n");
+   push(@lines, "                             inventory to the parent node.  Default is to use\n");
+   push(@lines, "                             the setting from the configuration filee.\n");
+   push(@lines, "     \n");
+   push(@lines, "  -- REPORTING ACTIONS --\n");
+   push(@lines, "     act=run-reports period=<day|week|month>\n");
+   push(@lines, "                            type=<all|times|health|top10|outage|response|avail|port>\n");
+   push(@lines, "                     This action runs the specified reports.\n");
+   push(@lines, "                        period=<string>: (Required) The period to run.  One of\n");
+   push(@lines, "                              day, week, or month.\n");
+   push(@lines, "                        type=<string>: (Required) The type of reposts to be\n");
+   push(@lines, "                              run.  'All' runs all of the other reports..\n");
+   push(@lines, "     \n");
+   push(@lines, "  -- PERFORMANCE ACTIONS --\n");
+   push(@lines, "     act=create-outage ...\n");
+   push(@lines, "                     This action creates new outage schedule.\n");
+   push(@lines, "                        outage.description=<string>: (Optional) free-form textual\n");
+   push(@lines, "                              description.\n");
+   push(@lines, "                        outage.change_id: (Optional) Change management ticket\n");
+   push(@lines, "                              identifier, used for event tagging.\n");
+   push(@lines, "                        outage.frequency: (Optional) One of 'once', 'daily',\n");
+   push(@lines, "                              'weekly' or 'monthly'.\n");
+   push(@lines, "                        outage.start: (Optional) Date and time of outage start.\n");
+   push(@lines, "                        outage.end: (Optional) Date and time of outage end.\n");
+   push(@lines, "                               Format depends on frequency:\n");
+   push(@lines, "                                 * daily: \"HH:MM\" or \"HH:MM:SS\". 24:00 is\n");
+   push(@lines, "                                   allowed for end.\n");
+   push(@lines, "                                 * weekly: \"MDAY HH:MM\" or \"MDAY HH:MM:SS\",\n");
+   push(@lines, "                                   MDAY one of 'Mon', 'Tue' etc.\n");
+   push(@lines, "                                 * monthly: \"D HH:MM:SS\", \"-D HH:MM:SS\",\n");
+   push(@lines, "                                   \"D HH:MM\", \"-D HH:MM\" D is the numeric day of\n");
+   push(@lines, "                                   the month, 1..31.  -D counts from the end of\n");
+   push(@lines, "                                   the month, -1 is the last day of the month,\n");
+   push(@lines, "                                   -2 the second to last etc.\n");
+   push(@lines, "                                 * once: ISO8601 date time recommended,\n");
+   push(@lines, "                                   e.g. 2017-10-31T03:04:26+0000\n");
+   push(@lines, "                        outage.options: (Optional) key=values to adjust NMIS'\n");
+   push(@lines, "                                 behaviour during an outage.\n");
+   push(@lines, "                        outage.selector: (Optional) Any number of criteria for\n");
+   push(@lines, "                                 selecting devices for this outage\n");
+   push(@lines, "                                 selector keys: node.X or config.Y, node config\n");
+   push(@lines, "                                    or global config properties.\n");
+   push(@lines, "                                 selector values: single string, /regex string/,\n");
+   push(@lines, "                                    array, or single strings.\n");
+   push(@lines, "                                    Note: Arrays must be given as separate\n");
+   push(@lines, "                                           indexed entries.\n");
+   push(@lines, "                                          All selectors must match for a node to\n");
+   push(@lines, "                                           be subject to the outage.\n");
+   push(@lines, "     act=check-outages [node=<name>|uuid=<outage_id>] [time=<time>]\n");
+   push(@lines, "                      This action reports which outages would apply at the given\n");
+   push(@lines, "                      time (or now) and  for one node (if given) or all nodes\n");
+   push(@lines, "     act=collect-performance-data \n");
+   push(@lines, "                      This action collects performance data as specified in\n");
+   push(@lines, "                      the 'performance.nmis' file. This data usually includes\n");
+   push(@lines, "                      output from 'iostat', 'df', etc. The command sholuld be\n");
+   push(@lines, "                      run as the 'nmis' user.\n");
+   push(@lines, "     act=collect-top-data\n");
+   push(@lines, "                      This action runs a 'top' command and collects CPU metrics.\n");
+   push(@lines, "                      The command sholuld be run as the 'nmis' user.\n");
+   push(@lines, "     act=delete-outage id=<outage_id>\n");
+   push(@lines, "                      This action deletes a specified outage record.\n");
+   push(@lines, "     act=list-outages [filter=<filter> ...]\n");
+   push(@lines, "                     This action shows overview of selected outage schedules.\n");
+   push(@lines, "                        filter=<filtername>: (Optional) The name of a filter to\n");
+   push(@lines, "                              include. This argument can be repeated.\n");
+   push(@lines, "     act=show-outage\n");
+   push(@lines, "                     This action displays the details for one outage instance.\n");
+   push(@lines, "     act=update-oudate\n");
+   push(@lines, "                      This action updates an existing outage schedule.\n");
+   push(@lines, "                      only the given outage.A, outage.X.Y properties are changed.\n");
+   push(@lines, "\n");
+   push(@lines, "  -- SESSION ACTIONS --\n");
+   push(@lines, "     act=clean-sessions user=<username>\n");
+   push(@lines, "                      This action deletes all sessions from the specified user.\n");
+   push(@lines, "     act=get-sessions\n");
+   push(@lines, "                      This action lists all sessions from all users\n");
+   push(@lines, "     act=set-last-login user=<username> last_login=<last_login>\n");
+   push(@lines, "                      This action sets the Last login from the specified user.\n");
+   push(@lines, "                      The command sholuld be run as the 'root' user.\n");
+   push(@lines, "     act=unlock-user user=<username>\n");
+   push(@lines, "                      This action unlocks the specified user's account..\n");
+   push(@lines, "                      The command sholuld be run as the 'root' user.\n");
+   push(@lines, "   Notes:\n");
+   push(@lines, "        * Time Format: These include both absolute time and date formats like\n");
+   push(@lines, "          the ISO 8601 type \"2016-05-20T14:40\", as well as very handy relative\n");
+   push(@lines, "          formats like \"now + 45 minutes\" or \"tomorrow midnight\".\n");
+   push(@lines, "          More Information:\n");
+   push(@lines, "          https://community.opmantek.com/display/opCommon/Supported+Time+Formats.\n");
+   push(@lines, "\033[1mEXAMPLES\033[0m\n");
+   push(@lines, "   act=create-outage \\\n");
+   push(@lines, "      outage.description='certain nodes are busy each month start' \\\n");
+   push(@lines, "      outage.change_id='ticket #42' \\\n");
+   push(@lines, "      outage.frequency=monthly outage.start=\"1 12:00\" outage.end=\"1 13:30\" \\\n");
+   push(@lines, "      outage.selector.node.group.0=\"busybodies\" \\\n");
+   push(@lines, "      outage.selector.node.group.1=\"alsobad\"\n");
+   push(@lines, "\n");
+   push(@lines, "\n");
+   print(STDERR "                       $thisprogram - ${VERSION}\n");
+   print(STDERR "\n");
+   ${currRow} += 2;
+   foreach (@lines)
+   {
+      if ((-t STDERR) && (-t STDOUT)) {
+         ${i} = tr/\n//;  # Count the newlines in this string
+         ${currRow} += ${i};
+         if (${currRow} >= ${rows})
+         {
+            print(STDERR "Press any key to continue.");
+            ReadMode 4, $IN;
+            ${key} = ReadKey 0, $IN;
+            ReadMode 0, $IN;
+            print(STDERR "\r                          \r");
+            if (${key} =~ /q/i)
+            {
+               print(STDERR "Exiting per user request. \n");
+               return;
+            }
+            if ((${key} =~ /\r/) || (${key} =~ /\n/))
+            {
+               ${currRow}--;
+            } else
+            {
+               ${currRow} = 1;
+            }
+         }
+      }
+      print(STDERR "$_");
+   }
 }
 
