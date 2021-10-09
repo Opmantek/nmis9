@@ -235,12 +235,6 @@ if ($Q->{act} !~ /[-_]help$/) {
 	);
 }
 
-# this opens a database connection
-my $nmisng = NMISNG->new(
-	config => $C,
-	log    => $logger,
-		);
-
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
@@ -1528,6 +1522,11 @@ sub help
    push(@lines, "  -- REPORTING ACTIONS --\n");
    push(@lines, "     act=run-reports period=<day|week|month>\n");
    push(@lines, "                            type=<all|times|health|top10|outage|response|avail|port>\n");
+   push(@lines, "                     This action runs the specified reports.\n");
+   push(@lines, "                        period=<string>: (Required) The period to run.  One of\n");
+   push(@lines, "                              day, week, or month.\n");
+   push(@lines, "                        type=<string>: (Required) The type of reposts to be\n");
+   push(@lines, "                              run.  'All' runs all of the other reports..\n");
    push(@lines, "     \n");
    push(@lines, "  -- PERFORMANCE ACTIONS --\n");
    push(@lines, "     act=create-outage ...\n");

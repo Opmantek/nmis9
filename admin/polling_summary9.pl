@@ -276,12 +276,12 @@ sub oneNode {
 		print $error if ($error);
 
 		my $catchall_data = $inventory->data(); # r/o copy good enough
-
+		
 		my $last_poll_ago = sprintf("%.0f",time() - $catchall_data->{last_poll});
 		my $last_update_ago = sprintf("%.0f",time() - $catchall_data->{last_update});
-		my $last_poll = sprintf("%.0f",$catchall_data->{last_poll});
-		my $last_update = sprintf("%.0f",$catchall_data->{last_update});
-
+		my $last_poll = scalar localtime $catchall_data->{last_poll};
+		my $last_update = scalar localtime $catchall_data->{last_update};
+		
 		print "$node active=$active poll_ago=$last_poll_ago update_ago=$last_update_ago last_poll=$last_poll last_update=$last_update\n";
 		#print "$node poll_ago=$last_poll_ago update_ago=$last_update_ago last_poll=$catchall_data->{last_poll} last_poll_attempt=$catchall_data->{last_poll_attempt} last_update=$catchall_data->{last_update} last_update_attempt=$catchall_data->{last_update_attempt}\n";
 	}
