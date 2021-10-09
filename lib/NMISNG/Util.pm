@@ -3393,8 +3393,7 @@ sub _make_seed {
 	}
 	my $gid = getgrnam("nmis");
 	chown($uid, $gid, $seedfile);
-	# PERL sets to -rwS--x--- instead of -r--r-S---   Y?
-	system("chmod 2440 $seedfile");
+	chmod(0440, $seedfile);
 
 	return 0;
 }

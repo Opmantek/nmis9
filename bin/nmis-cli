@@ -1394,8 +1394,7 @@ sub help
    push(@lines, "\033[1mEXIT STATUS\033[0m\n");
    push(@lines, "     The following exit values are returned:\n");
    push(@lines, "     0 Success\n");
-   push(@lines, "     2 Error; invalid arguments etc.\n");
-   push(@lines, "     3 Failure; Command failures etc.\n\n");
+   push(@lines, "     215 Failure\n\n");
    push(@lines, "\033[1mACTIONS\033[0m\n");
    push(@lines, "  -- GENERAL ACTIONS --\n");
    push(@lines, "     act=config-backup\n");
