@@ -36,6 +36,7 @@ use lib "$FindBin::Bin/../lib";
 
 use POSIX qw();
 use File::Basename;
+use Getopt::Long;
 use File::Spec;
 use Data::Dumper;
 use Term::ReadKey;
@@ -54,14 +55,30 @@ use NMISNG::Auth;
 
 use Compat::NMIS;
 
-if ( @ARGV == 1 && $ARGV[0] eq "--version" )
-{
-	print "version=$NMISNG::VERSION\n";
-	exit 0;
+my $PROGNAME = basename($0);
+my $debug = 0;
+my $help = 0;
+my $quiet = 0;
+my $verbose = 0;
+my $version = 0;
+
+ die unless (GetOptions('debug:i'    => \$debug,
+                        'help'       => \$help,
+                        'quiet'      => \$quiet,
+                        'verbose'    => \$verbose,
+                        'version'    => \$version));
+
+# For the Version mode, just print it and exit.
+if (${version}) {
+	print "$PROGNAME version=$NMISNG::VERSION\n";
+	exit (0);
+}
+if ($help) {
+   help();
+   exit(0);
 }
 
-my $thisprogram = basename($0);
-my $usage       = "Usage: $thisprogram [option=value...] <act=command>
+my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
 
  act=fixperms
  act=config-backup
@@ -187,26 +204,28 @@ outage.selector: any number of criteria for selecting devices for this outage
   arrays must be given as separate indexed entries.
   all selectors must match for a node to be subject to the outage.
 
-example: $thisprogram act=create-outage \\
+example: $PROGNAME act=create-outage \\
 outage.description='certain nodes are busy each month start' \\
 outage.change_id='ticket #42' \\
 outage.frequency=monthly outage.start="1 12:00" outage.end="1 13:30" \\
 outage.selector.node.group.0="busybodies" \\
 outage.selector.node.group.1="alsobad"\n\n|;
 
-if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ )
-{
-	help();
-   	exit(0);
-}
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
 
-my $wantverbose = NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0);
-my $wantquiet = NMISNG::Util::getbool_cli("quiet", $Q->{quiet}, 0);
+if (!@ARGV || !$Q->{act})
+{
+    help();
+    exit(0);
+}
+
+$debug   = $Q->{debug}                                            if (exists($Q->{debug}));   # Backwards compatibility
+$quiet   = NMISNG::Util::getbool_cli("quiet", $Q->{quiet}, 0)     if (exists($Q->{quiet}));   # Backwards compatibility
+$verbose = NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0) if (exists($Q->{verbose})); # Backwards compatibility
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
-																				 debug => $Q->{debug});
+																				 debug => $debug);
 die "no config available!\n" if (ref($C) ne "HASH" or !keys %$C);
 
 # the db config needs adjusting before dbcleanup is attempted: the aggregations
@@ -223,17 +242,14 @@ warn "failed to set permissions: $error\n" if ($error);
 
 # use debug, or info arg, or configured log_level
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
-																 debug => $Q->{debug} ) // $C->{log_level},
-															 path  => (defined $Q->{debug})? undef : $logfile);
+																 debug => $debug ) // $C->{log_level},
+															 path  => (defined $debug)? undef : $logfile);
 
 # this opens a database connection
-my $nmisng;
-if ($Q->{act} !~ /[-_]help$/) {
-	$nmisng = NMISNG->new(
-		config => $C,
-        log    => $logger,
-	);
-}
+my $nmisng = NMISNG->new(
+	config => $C,
+       log    => $logger,
+);
 
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
@@ -334,7 +350,7 @@ elsif ($Q->{act} eq "schedule")
 					in_progress => 0,					# somebody else is to work on this
 					args => \%jobargs });
 			die "Failed to add schedule: $error\n" if ($error);
-			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$wantquiet);
+			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$quiet);
 		} 
 		# collect/update/services need separate scheduling for each node
 		else
@@ -354,7 +370,7 @@ elsif ($Q->{act} eq "schedule")
 						tag => $sharedtag,
 						args => \%jobargs });
 				die "Failed to add schedule: $error\n" if ($error);
-				print "Job $jobid created for node $onenode->{name} ($onenode->{uuid}) and type $what.\n" if (!$wantquiet);
+				print "Job $jobid created for node $onenode->{name} ($onenode->{uuid}) and type $what.\n" if (!$quiet);
 			}
 		}
 	}
@@ -371,7 +387,7 @@ elsif ($Q->{act} eq "schedule")
 				in_progress => 0,					# somebody else is to work on this
 			});
 		die "Failed to add schedule: $error\n" if ($error);
-		print "Job $jobid created for type $what.\n" if (!$wantquiet);
+		print "Job $jobid created for type $what.\n" if (!$quiet);
 	}
 	else
 	{
@@ -403,7 +419,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 	my $queuedjobs = $queued->data;
 	if (!@$queuedjobs)
 	{
-		print STDERR "No activities scheduled or in-progress.\n" if (!$wantquiet);
+		print STDERR "No activities scheduled or in-progress.\n" if (!$quiet);
 	}
 	else
 	{
@@ -422,14 +438,14 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 				my $printable = $active->{args}?
 					Data::Dumper->new([$active->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
 				$printable = "<output truncated, too long>"
-						if (!$wantverbose && length($printable) > 64);
+						if (!$verbose && length($printable) > 64);
 
 				printf($fmt,
 							 $active->{_id},
 							 scalar(localtime($active->{time})),
 							 ("In Progress since "
 								.localtime($active->{in_progress})
-								. ($wantverbose? " (Worker $active->{status}->{pid}) " : "")),
+								. ($verbose? " (Worker $active->{status}->{pid}) " : "")),
 							 $active->{type},
 							 $printable);
 			}
@@ -450,7 +466,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 				my $printable = $sched->{args}?
 						Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
 				$printable = "<output truncated, too long>"
-						if (!$wantverbose && length($printable) > 64);
+						if (!$verbose && length($printable) > 64);
 
 				printf($fmt,
 							 $sched->{_id},
@@ -604,7 +620,7 @@ elsif ($Q->{act} =~ /^list[_-]outages$/)
 
 	if (!@{$res->{outages}})
 	{
-		print STDERR "No matching outages.\n" if (!$wantquiet);
+		print STDERR "No matching outages.\n" if (!$quiet);
 		exit 0;
 	}
 
@@ -723,7 +739,7 @@ elsif ($Q->{act} =~ /^create[_-]outage$/)
 
 	# print the created id if not quiet, and without fluff if not tty
 	print((-t \*STDOUT? "Created outage \"$res->{id}\"\n" : $res->{id}."\n"))
-			if (!$wantquiet);
+			if (!$quiet);
 	exit 0;
 }
 elsif ($Q->{act} =~ /^check[_-]outages$/)
@@ -785,14 +801,20 @@ elsif ($Q->{act} =~ /^check[_-]outages$/)
 	exit 0;
 }
 
-elsif ($Q->{act} eq "run-reports")
+elsif ($Q->{act} =~ /^run[_-]reports$/)
 {
 	my ($period, $reporttype) = @{$Q}{"period","type"};
 
-	die "Unknown date=$period selected!\n$usage\n"
-			if ($period !~ /^(day|week|month)$/i);
-	die "Unknown report=$reporttype selected!\n$usage\n"
-			if ($reporttype !~ /^(all|times|health|top10|outage|response|avail|port)$/);
+	if ($period !~ /^(day|week|month)$/i) {
+		print "\033[1mUnknown date period selected! ('period=$period')\033[0m\n\n";
+		help(3);
+		exit(255);
+	}
+	if ($reporttype !~ /^(all|times|health|top10|outage|response|avail|port)$/) {
+		print "\033[1mUnknown report type selected! ('type=$reporttype')\033[0m\n\n";
+		help(3);
+		exit(255);
+	}
 
 	my $reportdir = $C->{report_root};
 	NMISNG::Util::createDir($reportdir) if (!-d $reportdir);
@@ -842,7 +864,7 @@ elsif ($Q->{act} eq "run-reports")
 		NMISNG::Util::setFileProtDiag(file =>$file) if (-f $file);
 	}
 }
-elsif ($Q->{act} eq "config-backup")
+elsif ($Q->{act} =~ /^config[_-]backup$/)
 {
 	my $res = $nmisng->config_backup;
 	die "$res->{error}\n" if (!$res->{success});
@@ -900,7 +922,7 @@ elsif ($Q->{act} =~ /ensure[_-]indexes/)
 }
 elsif ($Q->{act} eq "fixperms")
 {
-	if ($wantverbose)
+	if ($verbose)
 	{
 		print "Fixing the permissions for NMIS9 based on the configuration $C->{configfile}\nOperating on base directory: $C->{'<nmis_base>'}\nSetting owner to $C->{nmis_user}, group $C->{nmis_group}\n";
 	}
@@ -944,7 +966,7 @@ elsif ($Q->{act} eq "fixperms")
 
 		if (!-d $location)
 		{
-			print "Creating missing directory $location\n" if ($wantverbose);
+			print "Creating missing directory $location\n" if ($verbose);
 			NMISNG::Util::createDir($location);
 		}
 		NMISNG::Util::setFileProtDirectory($location, "false");
@@ -966,7 +988,7 @@ elsif ($Q->{act} eq "fixperms")
 
 		if (!-d $location)
 		{
-			print "Creating missing directory $location\n" if ($wantverbose);
+			print "Creating missing directory $location\n" if ($verbose);
 			NMISNG::Util::createDir($location);
 		}
 		NMISNG::Util::setFileProtDirectory($location, "true");
@@ -983,7 +1005,7 @@ elsif ($Q->{act} eq "groupsync")
 	die "groupsync is no longer supported or necessary.\n";
 }
 # do sanitary checking on inventory
-elsif ($Q->{act} eq 'check_inventory')
+elsif ($Q->{act} =~ /^check[_-]inventory$/)
 {
 	my ($entries,$error) = NMISNG::Inventory::check_inventory_for_bad_things($nmisng,$Q->{min_size});
 	if( $error )
@@ -1018,7 +1040,9 @@ elsif ($Q->{act} =~ /unlock[-_]user/)
 }
 else
 {
-	die $usage;
+	print "\033[1mUnrecognized action! ('act=$Q->{act}')\033[0m\n\n";
+	help(3);
+	exit(255);
 }
 exit 0;
 
@@ -1362,13 +1386,13 @@ sub help
    STDERR->autoflush(1);
 
    push(@lines, "\n\033[1mNAME\033[0m\n");
-   push(@lines, "       $thisprogram -  NMIS Command Line Interface.\n");
+   push(@lines, "       $PROGNAME -  NMIS Command Line Interface.\n");
    push(@lines, "\n");
    push(@lines, "\033[1mSYNOPSIS\033[0m\n");
-   push(@lines, "       $thisprogram [options...] act=<command> <command-parameters>...\n");
+   push(@lines, "       $PROGNAME [options...] act=<command> <command-parameters>...\n");
    push(@lines, "\n");
    push(@lines, "\033[1mDESCRIPTION\033[0m\n");
-   push(@lines, "       The $thisprogram program provides a command line interface for the NMIS\n");
+   push(@lines, "       The $PROGNAME program provides a command line interface for the NMIS\n");
    push(@lines, "       application. The program always expects an 'action' parameter specifying\n");
    push(@lines, "       what action is requested. Each action requires unique parameters\n");
    push(@lines, "       depending on the requirements of the action. There are also global\n");
@@ -1377,11 +1401,14 @@ sub help
    push(@lines, "\033[1mOPTIONS\033[0m\n");
    push(@lines, " --debug[1-9]             - global option to print detailed messages\n");
    push(@lines, " --help                   - display command line usage\n");
+   push(@lines, " --quiet                  - display no output\n");
+   push(@lines, " --verbose                - display verbose output\n");
    push(@lines, " --version                - print a version message and exit\n");
    push(@lines, "\n");
    push(@lines, "\033[1mARGUMENTS\033[0m\n");
    push(@lines, "     act=<command>        - The action command to invoke.  Each is described below.\n");
    push(@lines, "     <command-parameters> - One of more command parameters depending on the command.\n");
+   push(@lines, "     [debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9>]\n");
    push(@lines, "     [verbose=<true|false|yes|no|1|0>]\n");
    push(@lines, "     [quiet=<true|false|yes|no|1|0>]\n");
    push(@lines, "\n");
@@ -1604,15 +1631,15 @@ sub help
    push(@lines, "          More Information:\n");
    push(@lines, "          https://community.opmantek.com/display/opCommon/Supported+Time+Formats.\n");
    push(@lines, "\033[1mEXAMPLES\033[0m\n");
-   push(@lines, "   act=create-outage \\\n");
-   push(@lines, "      outage.description='certain nodes are busy each month start' \\\n");
-   push(@lines, "      outage.change_id='ticket #42' \\\n");
-   push(@lines, "      outage.frequency=monthly outage.start=\"1 12:00\" outage.end=\"1 13:30\" \\\n");
-   push(@lines, "      outage.selector.node.group.0=\"busybodies\" \\\n");
+   push(@lines, "   act=create-outage \n");
+   push(@lines, "      outage.description='certain nodes are busy each month start' \n");
+   push(@lines, "      outage.change_id='ticket #42' \n");
+   push(@lines, "      outage.frequency=monthly outage.start=\"1 12:00\" outage.end=\"1 13:30\" \n");
+   push(@lines, "      outage.selector.node.group.0=\"busybodies\" \n");
    push(@lines, "      outage.selector.node.group.1=\"alsobad\"\n");
    push(@lines, "\n");
    push(@lines, "\n");
-   print(STDERR "                       $thisprogram - ${VERSION}\n");
+   print(STDERR "                       $PROGNAME - ${VERSION}\n");
    print(STDERR "\n");
    ${currRow} += 2;
    foreach (@lines)
