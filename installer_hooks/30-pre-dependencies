@@ -13,7 +13,7 @@ flavour
 if [ $OSFLAVOUR = "redhat" ]; then
 		MGR=YUM
 		PKGLIST="httpd httpd-tools rrdtool logrotate \
-		perl-core autoconf automake gcc cvs cairo cairo-devel \
+		autoconf automake gcc cvs cairo cairo-devel \
     pango pango-devel libxml2 libxml2-devel gd gd-devel \
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
     net-snmp-utils perl-IO-Socket-SSL perl-Net-SSLeay \
@@ -158,34 +158,35 @@ mongo_or_bust 3 4 0 || exit 1
 
 # rhel8 fails to install these using yum, but centos8 is able to install these using yum - restrict to rhel8 nand newer
 if [ "${OSFLAVOUR}" = "redhat" ]; then
-	# we always add the packages to PKGLIST for centos|rhel if [ "$CANUSEWEB" != 1 ]:
-	if [ "$CANUSEWEB" = 1 ] && [ "$OS_ISCENTOS" != 1 ] && [ "${OS_MAJOR}" -ge 8 ]; then
-		printBanner "Some required packages need to be installed first!"
-		echo "$PRODUCT requires the following packages to be installed first:";
-		echo
-		echo "perl-CPAN perl-App-cpanminus using $MGR";
-		echo "Devel::GlobalDestruction::XS and Proc::Queue using CPANM";
-		echo
-		echo "The installer can download and install these packages.";
-		if input_yn "Do you want to install these packages now?" "5af4"; then
-			REPO='';
-			NEEDREPO='';
-			install_package "perl-CPAN"||:;
-			install_package "perl-App-cpanminus"||:;
-			if type cpanm >/dev/null; then
-				if [ -n "${UNATTENDED}" ]; then
-						PROMPT="";
-				else
-						PROMPT="--prompt";
-				fi;
-				cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-				cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-				unset PROMPT;
-			fi;
-			unset REPO;
-			unset NEEDREPO;
-		fi;
-	else
+	if [ "$OS_ISCENTOS" != 1 ] && [ "${OS_MAJOR}" -ge 8 ]; then
+        if [ "$CANUSEWEB" = 1 ]; then
+            printBanner "Some required packages need to be installed first!"
+            echo "$PRODUCT requires the following packages to be installed first:";
+            echo
+            echo "perl-CPAN perl-App-cpanminus using $MGR";
+            echo "Devel::GlobalDestruction::XS and Proc::Queue using CPANM";
+            echo
+            echo "The installer can download and install these packages.";
+            if input_yn "Do you want to install these packages now?" "5af4"; then
+                REPO='';
+                NEEDREPO='';
+                install_package "perl-CPAN"||:;
+                install_package "perl-App-cpanminus"||:;
+                if type cpanm >/dev/null; then
+                    if [ -n "${UNATTENDED}" ]; then
+                            PROMPT="";
+                    else
+                            PROMPT="--prompt";
+                    fi;
+                    cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+                    unset PROMPT;
+                fi;
+                unset REPO;
+                unset NEEDREPO;
+            fi;
+        fi;
+	else # not RHEL8 - install from Package Manager
 		PKGLIST="$PKGLIST perl-Devel-GlobalDestruction-XS perl-Proc-Queue";
 	fi;
 fi;
