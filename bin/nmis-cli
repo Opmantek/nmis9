@@ -56,24 +56,24 @@ use NMISNG::Auth;
 use Compat::NMIS;
 
 my $PROGNAME = basename($0);
-my $debug = 0;
-my $help = 0;
-my $quiet = 0;
-my $verbose = 0;
-my $version = 0;
+my $debugsw = 0;
+my $helpsw = 0;
+my $quietsw = 0;
+my $verbosesw = 0;
+my $versionsw = 0;
 
- die unless (GetOptions('debug:i'    => \$debug,
-                        'help'       => \$help,
-                        'quiet'      => \$quiet,
-                        'verbose'    => \$verbose,
-                        'version'    => \$version));
+ die unless (GetOptions('debug:i'    => \$debugsw,
+                        'help'       => \$helpsw,
+                        'quiet'      => \$quietsw,
+                        'verbose'    => \$verbosesw,
+                        'version'    => \$versionsw));
 
 # For the Version mode, just print it and exit.
-if (${version}) {
+if (${versionsw}) {
 	print "$PROGNAME version=$NMISNG::VERSION\n";
 	exit (0);
 }
-if ($help) {
+if ($helpsw) {
    help();
    exit(0);
 }
@@ -219,9 +219,12 @@ if (!@ARGV || !$Q->{act})
     exit(0);
 }
 
-$debug   = $Q->{debug}                                            if (exists($Q->{debug}));   # Backwards compatibility
-$quiet   = NMISNG::Util::getbool_cli("quiet", $Q->{quiet}, 0)     if (exists($Q->{quiet}));   # Backwards compatibility
-$verbose = NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0) if (exists($Q->{verbose})); # Backwards compatibility
+my $debug   = $debugsw;
+my $quiet   = $quietsw;
+my $verbose = $verbosesw;
+$debug      = $Q->{debug}                                            if (exists($Q->{debug}));   # Backwards compatibility
+$quiet      = NMISNG::Util::getbool_cli("quiet", $Q->{quiet}, 0)     if (exists($Q->{quiet}));   # Backwards compatibility
+$verbose    = NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0) if (exists($Q->{verbose})); # Backwards compatibility
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
