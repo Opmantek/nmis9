@@ -46,6 +46,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::NetworkStatus;
+use NMISNG::Graphs;
 use Compat::Timing;
 use NMISNG;
 use NMISNG::Auth;
@@ -121,6 +122,7 @@ $smallGraphWidth  = $C->{'small_graph_width'}  if $C->{'small_graph_width'} ne "
 $nmisng->log->debug( "TIMING: " . $t->elapTime() . " Begin act=$Q->{act}" ) if $timing;
 
 my $network_status = NMISNG::NetworkStatus->new( nmisng => $nmisng );
+my $graphs = NMISNG::Graphs->new( nmisng => $nmisng );
 
 # these need loading before the yucky if selection below, which is terminal for some acts
 #my $NT = Compat::NMIS::loadNodeTable();
@@ -2736,7 +2738,7 @@ nodeVendor sysObjectName roleType netType );
 				print Tr( td( {class => 'header'}, $_->[0] ) ),
 					Tr(
 					td( {class => 'image'},
-						Compat::NMIS::htmlGraph(
+					   $graphs->htmlGraph(
 							graphtype => $_->[1],
 							node      => $node,
 							intf      => $_->[2],
@@ -4418,7 +4420,7 @@ sub viewSystemHealth
 			{
 				push(
 					@cells,
-					Compat::NMIS::htmlGraph(
+					$graphs->htmlGraph(
 						graphtype => $GT,
 						node      => $node,
 						intf      => $index,
