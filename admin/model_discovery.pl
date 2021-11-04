@@ -285,7 +285,7 @@ my %nodeSummary;
 my $mibs = loadMibs($C);
 my $modelSchema;
 if ( $schema and -r $schemaFile ) {
-	$modelSchema = readFiletoHash(file => $schemaFile);	
+	$modelSchema = NMISNG::Util::readFiletoHash(file => $schemaFile);	
 }
 else {
 	$schema = 0;

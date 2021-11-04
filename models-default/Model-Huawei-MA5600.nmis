@@ -87,69 +87,140 @@
         #'sections' => 'GPON_Device',
         #'sections' => 'Service_Port',
         'rrd' => {
-            'hwMusaBoard' => {
-                'indexed'   => 'true',
-                'graphtype' => 'hwCpuMem,hwTempPwr',
-                'threshold' => 'cpuUtil,memUtil',
-                'snmp'      => {
-                    'BoardCpuRate' => {
-                        'oid'     => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.5',
+             'hwMusaBoard' => {
+                 'indexed'   => 'true',
+                 'graphtype' => 'hwCpuMem,hwTempPwr',
+                 'threshold' => 'cpuUtil,memUtil',
+                 'snmp'      => {
+                     'BoardCpuRate' => {
+                         'oid'     => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.5',
+                         'replace' => {
+                             '-1' => 'U'
+                         },
+                     },
+                     'BoardRamUseRate' => {
+                         'oid'     => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.6',
+                         'replace' => {
+                             '-1' => 'U'
+                         },
+                     },
+                     'BoardTemperature' => {
+                         'oid'     => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.10',
+                         'replace' => {
+                             '2147483647' => 'U'
+                         },
+                     },
+                     'BoardPower' => {
+                         'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.11',
+                     },
+                 },
+             },
+	
+			 
+                 'GponUserTraffic' => {
+                 'indexed'   => 'true',
+                 'graphtype' => 'GponUserTraffic', 
+                 'snmp'      => {
+                    'FlowFluxUpBytes' => {
+                        'oid'       => '1.3.6.1.4.1.2011.5.14.5.3.1.7',
+                        'option'    => 'counter,0:U',
+                    },
+                    'FlowFluxDownBytes' => {
+                        'oid'       => '1.3.6.1.4.1.2011.5.14.5.3.1.8',
+                        'option'    => 'counter,0:U',
+                    },
+                    'OutbTrafficTableN' => {
+                        'oid'          => '1.3.6.1.4.1.2011.5.14.5.2.1.21',
                         'replace' => {
-                            '-1' => 'U'
+                            '128KB' => '128000',
+                            '256KB' => '256000',
+                            '384KB' => '384000',
+                            '512KB' => '512000',
+                            '768KB' => '768000',
+                            '1MB' => '1000000',
+                            '1.5MB' => '1500000',
+                            '2MB' => '2000000',
+                            '3MB' => '3000000',
+                            '4MB' => '4000000',
+                            '5MB' => '5000000',
+                            '6MB' => '6000000',
+                            '8MB' => '8000000',
+                            '10MB' => '10000000',
+                            '12MB' => '12000000',
+                            '15MB' => '15000000',
+                            '20MB' => '20000000',
+                            '25MB' => '25000000',
+                            '30MB' => '30000000',
+                            '40MB' => '40000000',
+                            '50MB' => '50000000',
+                            '60MB' => '60000000',
+                            '75MB' => '75000000',
+                            '100MB' => '100000000',
+                            '150MB' => '150000000',
+                            '200MB' => '200000000',
+                            '250MB' => '250000000',
+                            '300MB' => '300000000',
+                            '400MB' => '400000000',
+                            'ip-traffic-table_6' => '1000000000',
                         },
                     },
-                    'BoardRamUseRate' => {
-                        'oid'     => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.6',
+                    'InbTrafficTableN' => {
+                        'oid'          => '1.3.6.1.4.1.2011.5.14.5.2.1.22',
                         'replace' => {
-                            '-1' => 'U'
+                            '128KB' => '128000',
+                            '256KB' => '256000',
+                            '384KB' => '384000',
+                            '512KB' => '512000',
+                            '768KB' => '768000',
+                            '1MB' => '1000000',
+                            '1.5MB' => '1500000',
+                            '2MB' => '2000000',
+                            '3MB' => '3000000',
+                            '4MB' => '4000000',
+                            '5MB' => '5000000',
+                            '6MB' => '6000000',
+                            '8MB' => '8000000',
+                            '10MB' => '10000000',
+                            '12MB' => '12000000',
+                            '15MB' => '15000000',
+                            '20MB' => '20000000',
+                            '25MB' => '25000000',
+                            '30MB' => '30000000',
+                            '40MB' => '40000000',
+                            '50MB' => '50000000',
+                            '60MB' => '60000000',
+                            '75MB' => '75000000',
+                            '100MB' => '100000000',
+                            '150MB' => '150000000',
+                            '200MB' => '200000000',
+                            '250MB' => '250000000',
+                            '300MB' => '300000000',
+                            '400MB' => '400000000',
+                            'ip-traffic-table_6' => '1000000000',
                         },
                     },
-                    'BoardTemperature' => {
-                        'oid'     => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.10',
-                        'replace' => {
-                            '2147483647' => 'U'
-                        },
-                    },
-                    'BoardPower' => {
-                        'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.11',
-                    },
-                },
-            },
-            'GponUserTraffic' => {
-                'indexed'   => 'true',
-                'graphtype' => 'GponUserTraffic', 
-                'control' => 'CVAR1=OutbTrafficTableText;$CVAR1 !~ /Unlimted|Unlimited/',
-                'snmp'      => {
-                   'FlowFluxUpBytes' => {
-                       'oid'       => '1.3.6.1.4.1.2011.5.14.5.3.1.7',
-                       'option'    => 'counter,0:U',
-                   },
-                   'FlowFluxDownBytes' => {
-                       'oid'       => '1.3.6.1.4.1.2011.5.14.5.3.1.8',
-                       'option'    => 'counter,0:U',
-                   },
-                },
-            },
-            'hwGponStats' => {
-                'indexed'   => 'true',
-                'graphtype' => 'hwGponStats',
-                #'threshold' => 'cpuUtil,memUtil',
-                'control' => 'CVAR=ifType;$CVAR eq "gpon"',
-                'snmp'    => {
-                    'hwGponRecvBytes' => {
-                        'oid' => '1.3.6.1.4.1.2011.6.128.1.1.4.21.1.15',
-                        'snmpObjectName' =>
-                          'hwGponOltEthernetStatisticReceivedBytes',
-                        'option' => 'counter,0:U'
-                    },
-                    'hwGponSendBytes' => {
-                        'oid' => '1.3.6.1.4.1.2011.6.128.1.1.4.21.1.30',
-                        'snmpObjectName' =>
-                          'hwGponOltEthernetStatisticSendBytes',
-                        'option' => 'counter,0:U'
-                    },
-                },
-            },
+                 },
+             },
+             'hwGponStats' => {
+                 'indexed'   => 'true',
+                 'graphtype' => 'hwGponStats',
+                 #'threshold' => 'cpuUtil,memUtil',
+                 'control' => 'CVAR=ifType;$CVAR eq "gpon"',
+                 'snmp'    => {
+                     'hwGponRecvBytes' => {
+                         'oid' => '1.3.6.1.4.1.2011.6.128.1.1.4.21.1.15',
+                         'snmpObjectName' =>
+                           'hwGponOltEthernetStatisticReceivedBytes',
+                         'option' => 'counter,0:U'
+                     },
+                     'hwGponSendBytes' => {
+                         'oid' => '1.3.6.1.4.1.2011.6.128.1.1.4.21.1.30',
+                         'snmpObjectName' =>
+                           'hwGponOltEthernetStatisticSendBytes',
+                         'option' => 'counter,0:U'
+                     },
+                 },
+             },
         },
         'sys' => {
            #hwMusaSlotConfExtEntry 1.3.6.1.4.1.2011.2.6.7.1.1.2.1
@@ -421,7 +492,7 @@
                     }
                 }
             },
-			'GponUserTraffic' => {
+				'GponUserTraffic' => {
                 'indexed'     => 'ONTBASE',
                 'index_regex' => '\.(\d+)$',
                 'index_oid'   => '1.3.6.1.4.1.2011.5.14.5.3.1.12',
@@ -492,36 +563,7 @@
                         'title'        => 'OutboundTableName',
                         'title_export' => 'OutboundTableName',
                         'replace' => {
-                            #'128KB' => '128000',
-                            #'256KB' => '256000',
-                            #'384KB' => '384000',
-                            #'512KB' => '512000',
-                            #'768KB' => '768000',
-                            #'1MB' => '1000000',
-                            #'1.5MB' => '1500000',
-                            #'2MB' => '2000000',
-                            #'3MB' => '3000000',
-                            #'4MB' => '4000000',
-                            #'5MB' => '5000000',
-                            #'6MB' => '6000000',
-                            #'8MB' => '8000000',
-                            #'10MB' => '10000000',
-                            #'12MB' => '12000000',
-                            #'15MB' => '15000000',
-                            #'20MB' => '20000000',
-                            #'25MB' => '25000000',
-                            #'30MB' => '30000000',
-                            #'40MB' => '40000000',
-                            #'50MB' => '50000000',
-                            #'60MB' => '60000000',
-                            #'75MB' => '75000000',
-                            #'100MB' => '100000000',
-                            #'150MB' => '150000000',
-                            #'200MB' => '200000000',
-                            #'250MB' => '250000000',
-                            #'300MB' => '300000000',
-                            #'400MB' => '400000000',                        
-                            'ip-traffic-table_6' => 'Unlimited',
+                            'ip-traffic-table_6' => 'Unlimted',
                         },
                     },
                     'InbTrafficTableText' => {
@@ -529,39 +571,12 @@
                         'title'        => 'InboundTableName',
                         'title_export' => 'InboundTableName',
                         'replace' => {
-                            #'128KB' => '128000',
-                            #'256KB' => '256000',
-                            #'384KB' => '384000',
-                            #'512KB' => '512000',
-                            #'768KB' => '768000',
-                            #'1MB' => '1000000',
-                            #'1.5MB' => '1500000',
-                            #'2MB' => '2000000',
-                            #'3MB' => '3000000',
-                            #'4MB' => '4000000',
-                            #'5MB' => '5000000',
-                            #'6MB' => '6000000',
-                            #'8MB' => '8000000',
-                            #'10MB' => '10000000',
-                            #'12MB' => '12000000',
-                            #'15MB' => '15000000',
-                            #'20MB' => '20000000',
-                            #'25MB' => '25000000',
-                            #'30MB' => '30000000',
-                            #'40MB' => '40000000',
-                            #'50MB' => '50000000',
-                            #'60MB' => '60000000',
-                            #'75MB' => '75000000',
-                            #'100MB' => '100000000',
-                            #'150MB' => '150000000',
-                            #'200MB' => '200000000',
-                            #'250MB' => '250000000',
-                            #'300MB' => '300000000',
-                            #'400MB' => '400000000',                        
-                            'ip-traffic-table_6' => 'Unlimited',
+                            'ip-traffic-table_6' => 'Unlimted',
                         },
                     },
                 },
+                
+               
             },
 
 			'GPON_Device' => {
