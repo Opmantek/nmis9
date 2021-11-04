@@ -995,6 +995,8 @@ sub get_db_connection
 	if ($@)
 	{
 		$error_string = "Error Connecting to Database $server:$port: $@";
+		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+		undef $password;
 		return;
 	}
 
@@ -1007,11 +1009,15 @@ sub get_db_connection
 		$error_string = "Error Connecting to Database $server:$port: $_";
 	};
 	
+	$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+	undef $password;
 	return if ($error_string);
 
 	# If we can't authenticate we must be using the new driver
 	if ( $username eq '' || !$new_conn->can("authenticate") )
 	{
+		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+		undef $password;
 		return $new_conn;
 	}
 	# authenticate to the dbs
@@ -1024,6 +1030,8 @@ sub get_db_connection
 			if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
 			{
 				$error_string = "Error authenticating to MongoDB db:$db database\n";
+				$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+				undef $password;
 				return;
 			}
 		}
@@ -1032,8 +1040,12 @@ sub get_db_connection
 			$error_string = "Error attempting to authenticate, parameters incorrect.\nError info:$_";
 		};
 		
+		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+		undef $password;
 		return if ($error_string);
 	}
+	$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+	undef $password;
 	return $new_conn;
 }
 
