@@ -2139,6 +2139,7 @@ sub get_latest_data_model
 # arg count:
 # arg filter: any other filters on the list of nodes required, hashref
 # arg fields_hash: hash of fields that should be grabbed for each node record, whole thing for each if not provided
+# arg restrict_groups: optional list of groups which the user is permitted to see
 # return 'complete' result elements without limit! - a dummy element is inserted at the 'complete' end,
 # but only 0..limit are populated
 #
@@ -2175,7 +2176,14 @@ sub get_nodes_model
 		$filter->{name} = NMISNG::DB::make_string($filter->{name});
 	}
 	my $fields_hash = $args{fields_hash};
-	my $q = NMISNG::DB::get_query( and_part => $filter );
+	# We have cases where users are restricted to groups but we still want the user to be able to search via group
+	# Build up a and query to first restrict mongo to a list of groups then allow freeform filter on theose groups
+	my $q = {
+		'$and' => [
+			NMISNG::DB::get_query( and_part => $filter )
+	]};
+	unshift ( @{$q->{'$and'}} , NMISNG::DB::get_query( and_part => {"configuration.group" => $args{restrict_groups}})) if($args{restrict_groups});
+
 
 	my $model_data = [];
 	my $query_count;
