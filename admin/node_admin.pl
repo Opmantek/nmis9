@@ -1028,7 +1028,7 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 
 	exit 0;
 }
-elsif ($cmdline->{act} =~ /clean[-_]node[-_]events/ && $server_role ne "POLLER")
+elsif ($cmdline->{act} =~ /clean[-_]node[-_]events/)
 {
 	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safest for lookup
 
