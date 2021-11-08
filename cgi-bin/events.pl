@@ -181,7 +181,7 @@ sub listEvent
 	print start_table;
 
 	my $nmisng = Compat::NMIS::new_nmisng();
-	my $eventsmodel= $nmisng->events()->get_events_model(filter => {historic => 0, cluster_id => $C->{cluster_id}});
+	my $eventsmodel= $nmisng->events()->get_events_model(filter => {historic => 0, cluster_id => ""});
 	displayEvents($eventsmodel->data, $C->{'server_name'}); #single server
 	print end_table;
 	print end_form;
