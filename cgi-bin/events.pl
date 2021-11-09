@@ -46,7 +46,7 @@ $Data::Dumper::Indent = 1;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
-$Q = NMISNG::Util::filter_params($Q);
+$Q = NMISNG::Util::filter_params($Q) if ($Q->{act} ne 'event_table_update');
 
 if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
@@ -402,7 +402,6 @@ sub updateEvent
 	my @par = $q->param(); # parameter names
 	my @ids = $q->param('event_id'); # node names
 	my @ack = $q->param('ack'); # event ack status
-
 	# the value of the checkbox is equal to the index of arrays
 	my $i = 0;
 	# the value of the checkbox is equal to the index of arrays
@@ -411,6 +410,7 @@ sub updateEvent
 		if ($par =~ /^0|1/)
 		{ 		# false|true is part of the checkbox name
 			my @a = $q->param($par);		# get the values (numbers) of the checkboxes
+
 			foreach my $i (@a)
 			{
 				# check for change of event
