@@ -1,0 +1,77 @@
+#
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+'title' => {
+    'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+    'short' => '$node - $length'
+    },
+    'vlabel' => {
+        'standard' => 'Traffic Up and Down ',
+        'short' => 'Traffic Up and Down'
+    },
+    'option' => {
+        'standard' => [
+            'DEF:FlowFluxUpBytes=$database:FlowFluxUpBytes:AVERAGE',
+            'DEF:FlowFluxDownBytes=$database:FlowFluxDownBytes:AVERAGE',
+			'DEF:OutbTrafficTableN=$database:OutbTrafficTableN:AVERAGE',
+			'DEF:InbTrafficTableN=$database:InbTrafficTableN:AVERAGE',
+            'CDEF:FlowFluxDownB1=FlowFluxDownBytes,-1,*,8,*',
+            'CDEF:FlowFluxDownBits=FlowFluxDownBytes,8,*',
+            'CDEF:FlowFluxUpB1=FlowFluxUpBytes,8,*',
+            'AREA:FlowFluxDownB1#ff0000:Down Bits\\t',
+            'GPRINT:FlowFluxDownBits:MAX:Max %3.4lf %sbits',   
+            'GPRINT:FlowFluxDownBits:AVERAGE:Avg %3.4lf %Sbits',   
+            'GPRINT:FlowFluxDownBits:LAST:Current %3.4lf %Sbits', 
+			'GPRINT:OutbTrafficTableN:LAST:P.Down %2.0lf %sbits\\n',
+            'AREA:FlowFluxUpB1#00FF7F:Up Bits\\t',
+            'GPRINT:FlowFluxUpB1:MAX:Max %3.4lf %sbits',
+            'GPRINT:FlowFluxUpB1:AVERAGE:Avg %3.4lf %Sbits',
+            'GPRINT:FlowFluxUpB1:LAST:Current %3.4lf %Sbits',
+			'GPRINT:InbTrafficTableN:LAST:P.Up %2.0lf %sbits\\n',
+        ],
+        'small' => [
+            'DEF:FlowFluxUpBytes=$database:FlowFluxUpBytes:AVERAGE',
+            'DEF:FlowFluxDownBytes=$database:FlowFluxDownBytes:AVERAGE',
+			'DEF:OutbTrafficTableN=$database:OutbTrafficTableN:AVERAGE',
+			'DEF:InbTrafficTableN=$database:InbTrafficTableN:AVERAGE',
+            'CDEF:FlowFluxDownBits=FlowFluxDownBytes,8,*',
+            'CDEF:FlowFluxDownB1=FlowFluxDownBytes,-1,*,8,*',
+            'CDEF:FlowFluxUpBits=FlowFluxUpBytes,8,*',
+            'AREA:FlowFluxDownB1#ff0000:Down Bits/sec',
+            'GPRINT:FlowFluxDownBits:AVERAGE:Avg %3.4lf %sbits',
+			'GPRINT:OutbTrafficTableN:LAST:P.Down %2.0lf %sbits\\n',
+            'AREA:FlowFluxUpBits#00FF7F:Up Bits/sec',
+            'GPRINT:FlowFluxUpBits:AVERAGE:Avg %3.4lf %sbits',
+			'GPRINT:InbTrafficTableN:LAST:P.Up %2.0lf %sbits\\n',
+			
+        ]
+    }
+    );
+

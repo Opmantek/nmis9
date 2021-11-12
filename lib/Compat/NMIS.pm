@@ -287,8 +287,8 @@ sub loadCfgTable
 # fixme9: cannot work that way anymore
 sub loadServersTable
 {
-	return {};
-#	return NMISNG::Util::loadTable(dir=>'conf',name=>'Servers');
+	#return {};
+	return NMISNG::Util::loadTable(dir=>'conf',name=>'Servers');
 }
 
 # compat function that basically just parrots nodes' catchall information

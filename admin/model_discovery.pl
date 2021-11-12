@@ -59,7 +59,7 @@ print $t->elapTime(). " Begin\n";
 # Variables for command line munging
 my $arg = NMISNG::Util::get_args_multi(@ARGV);
 
-if ( not defined $arg->{node} and not defined $arg->{check} and not defined $arg->{schema} ) {
+if ( not defined $arg->{node} and not defined $arg->{check} and not defined $arg->{schema} and not defined $arg->{nodes} ) {
 	print "ERROR: need a node to discover or check things\n";
 	usage();
 	exit 1;
@@ -68,6 +68,7 @@ if ( not defined $arg->{node} and not defined $arg->{check} and not defined $arg
 my $node = $arg->{node};
 my $file = $arg->{file};
 my $check = $arg->{check};
+my $nodes = $arg->{nodes};
 my $schema = $arg->{schema} ? NMISNG::Util::getbool($arg->{schema}) : 1;
 my $make_schema = $arg->{make_schema} ? NMISNG::Util::getbool($arg->{make_schema}) : 0;
 my $models_dir = $arg->{models_dir} ? $arg->{models_dir} : "models-default";
@@ -284,13 +285,18 @@ my %nodeSummary;
 
 my $mibs = loadMibs($C);
 my $modelSchema;
+
 if ( $schema and -r $schemaFile ) {
-	$modelSchema = readFiletoHash(file => $schemaFile);	
+	$modelSchema = NMISNG::Util::readFiletoHash(file => $schemaFile);	
 }
 else {
 	$schema = 0;
 }
 
+if ($nodes) {
+	checkNodes();
+	exit 0;
+}
 
 print $t->elapTime(). " Load all the NMIS models from $C->{'<nmis_base>'}/$models_dir\n";
 processDir(dir => "$C->{'<nmis_base>'}/$models_dir");
@@ -810,6 +816,7 @@ sub processModelFile {
 			print indent(). "MODEL ERROR: Could not load $file\n";
 		}
 		pop(@path);
+
 	}	
 }
 
@@ -1176,6 +1183,24 @@ sub schemaDataType {
 	}
 }
 
+sub checkNodes {
+	my $LNT = Compat::NMIS::loadLocalNodeTable();
+	
+	my $nmisng = Compat::NMIS::new_nmisng();
+	my $S = NMISNG::Sys->new(nmisng => $nmisng);
+		
+	foreach my $node (sort keys %{$LNT})
+	{
+		print "Processing node $node \n";
+		my $S = NMISNG::Sys->new(nmisng => $nmisng);
+		my $nodeobj = $nmisng->node(name => $node);
+		$S->init(node => $nodeobj, snmp => 0);
+		$S->loadModel(model => $curModel);
+	}
+	
+	return;	
+}
+
 sub saveSchema {
 	my $schemaFile = shift;
 
@@ -1294,6 +1319,10 @@ $0 will check existing NMIS models and determine which models apply to a node in
 \t errors: Display models errors found or not.
 \t schema: Check the models structure against the schema.
 \t make_schema: Make the model schema file.
+
+* Check nodes:
+\t usage: $0 nodes=true 
+\t        Loads all the local nodes and loads their models
 
 EO_TEXT
 }

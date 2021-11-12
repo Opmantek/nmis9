@@ -1796,7 +1796,7 @@ sub loadModel
 				next if (!defined($section->{$concept}->{graphtype}));
 				for my $onegt (split(/\s*,\s*/, $section->{$concept}->{graphtype}))
 				{
-					die "invalid model $model: graphtype $onegt associated with two sections, $concept and $gt2sc->{$onegt}\n"
+					warn "invalid model $model: graphtype $onegt associated with two sections, $concept and $gt2sc->{$onegt}\n"
 							if (defined $gt2sc->{$onegt} && $gt2sc->{$onegt} ne $concept);
 					$gt2sc->{$onegt} = $concept;
 				}
@@ -1810,7 +1810,7 @@ sub loadModel
 		{
 			for my $onegt (grep(/^service/, keys %{$self->{mdl}->{database}->{type}}))
 			{
-				die "invalid model $model: graphtype $onegt associated with two sections, $fixedsubconcept and $gt2sc->{$onegt}\n"
+				warn "invalid model $model: graphtype $onegt associated with two sections, $fixedsubconcept and $gt2sc->{$onegt}\n"
 							if (defined($gt2sc->{$onegt}) && $gt2sc->{$onegt} ne $fixedsubconcept);
 				$gt2sc->{$onegt} = $fixedsubconcept;
 			}
@@ -1820,7 +1820,7 @@ sub loadModel
 		$fixedsubconcept = "health";
 		for my $onegt (qw(health kpi response numintf polltime))
 		{
-			die "invalid model $model: graphtype $onegt associated with two sections, $fixedsubconcept and $gt2sc->{$onegt}\n"
+			warn "invalid model $model: graphtype $onegt associated with two sections, $fixedsubconcept and $gt2sc->{$onegt}\n"
 					if (defined($gt2sc->{$onegt}) && $gt2sc->{$onegt} ne $fixedsubconcept);
 			$gt2sc->{$onegt} = $fixedsubconcept;
 		}
