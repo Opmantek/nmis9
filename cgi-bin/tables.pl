@@ -523,7 +523,6 @@ sub editTable
 				{
 					push @hash,$item;
 				}
-
 				if ($thisitem->{display} =~ /(^|,)bool(,|$)/)
 				{
 					# if not present yet, show the first of the possible choices
@@ -556,18 +555,19 @@ sub editTable
 															 -rows => 3,
 															 -columns => ($wantwidget? 35 : 70)));
 				}
-				elsif ($thisitem->{display} =~ /(?:^|,)(text|password)(?:,|$)/)
+				elsif ($thisitem->{display} =~ /(^|,)password(,|$)/)
 				{
-					my $wantpassword = $1 eq "password";
 					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-
-					$line .= td(
-						$wantpassword? password_field(-name=>$item, -value=>$value,
-																					-style=> 'width: 95%;',
-																					-size=>  ($wantwidget? 35 : 70))
-						: textfield(-name=>$item, -value=>$value,
+					$line .= td(password_field(-name=>$item, -value=>$value,
 												-style=> 'width: 95%;',
 												-size=>  ($wantwidget? 35 : 70)));
+				}
+				elsif ($thisitem->{display} =~ /(^|,)text(,|$)/)
+				{
+					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+					$line .= td(textfield(-name=>$item, -value=>$value,
+														-style=> 'width: 95%;',
+														-size=>  ($wantwidget? 35 : 70)));
 				}
 				elsif ($thisitem->{display} =~ /(^|,)readonly(,|$)/) {
 					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
@@ -745,7 +745,7 @@ sub doeditTable
 
 			$thisentry->{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);
 	
-			# Some craziness going on with this value that corrupst the file, filter
+			# Some craziness going on with this value that corrupts the file, filter
 			if ($table =~ /Polling-Policy/ && $item eq 'update')
 			{
 				if ( $value =~ /^([^\d]+)(\d+(\.\d+)?)([smhd])$/ )
@@ -762,143 +762,155 @@ sub doeditTable
 				delete $Q->{"_custom_$item"};
 			}
 
-			# and validate if told to
-			next if (ref($thisitem->{validate}) ne "HASH");
-
-			# supported validation mechanisms:
-			# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max.
-			# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
-			#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
-			# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
-			# "int-or-empty", "float-or-empty", "resolvable-or-empty,  "regex-or-empty" work like their namesakes,
-			# but accept nothing/blank/undef as well.
-			# "regex" => qr//,
-			# "ip" => [ 4 or 6 or 4, 6],
-			# "onefromlist" => [ list of accepted values ] or undef - if undef, 'value' list is used
-			#   accepts exactly one value
-			# "multifromlist" => [ list of accepted values ] or undef, like fromlist but more than one
-			#   accepts any number of values from the list, including none whatsoever!
-			# more than one rule possible but likely not very useful
-			#
-			# note: validation happens on the VISIBLE values, ie. BEFORE internal conversion for items flagged bool
-			for my $valtype (sort keys %{$thisitem->{validate}})
+			# Unencrypt the password for possible validation.
+			if ($thisitem->{display} =~ /(^|,)password(,|$)/)
 			{
-				my $valprops = $thisitem->{validate}->{$valtype};
+				$value = NMISNG::Util::decrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) eq "!!"));
+			}
 
-				if ($valtype =~ /^(int|float)(-or-empty)?$/)
+			# ... and validate if validation is enabled before encrypting passwords..
+			if (ref($thisitem->{validate}) eq "HASH")
+			{
+				# supported validation mechanisms:
+				# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max.
+				# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
+				#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
+				# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
+				# "int-or-empty", "float-or-empty", "resolvable-or-empty,  "regex-or-empty" work like their namesakes,
+				# but accept nothing/blank/undef as well.
+				# "regex" => qr//,
+				# "ip" => [ 4 or 6 or 4, 6],
+				# "onefromlist" => [ list of accepted values ] or undef - if undef, 'value' list is used
+				#   accepts exactly one value
+				# "multifromlist" => [ list of accepted values ] or undef, like fromlist but more than one
+				#   accepts any number of values from the list, including none whatsoever!
+				# more than one rule possible but likely not very useful
+				#
+				# note: validation happens on the VISIBLE values, ie. BEFORE internal conversion for items flagged bool
+				for my $valtype (sort keys %{$thisitem->{validate}})
 				{
-					my ($actualtype, $emptyisok) = ($1,$2);
-					
-					# checks required if not both emptyisok and blank input
-					if (!$emptyisok or (defined($value) and $value ne ""))
+					my $valprops = $thisitem->{validate}->{$valtype};
+	
+					if ($valtype =~ /^(int|float)(-or-empty)?$/)
 					{
-						return validation_abort($item, "'$value' is not an integer!")
-								if ($actualtype eq "int" and int($value) ne $value);
-						return validation_abort($item, "'$value' is not a floating point number!")
-								# integer or full ieee floating point with optional exponent notation
-								if ($actualtype eq "float"
-										and $value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
-
-						my ($min,$max,$above,$below) = (ref($valprops) eq "ARRAY"? @{$valprops}
-																						: (undef,undef,undef,undef));
-						return validation_abort($item, "$value below minimum $min!")
-								if (defined($min) and $value < $min);
-						return validation_abort($item,"$value above maximum $max!")
-								if (defined($max) and $value > $max);
-
-						# integers don't subdivide infinitely precisely so above and below not needed
-						if ($actualtype eq "float")
+						my ($actualtype, $emptyisok) = ($1,$2);
+						
+						# checks required if not both emptyisok and blank input
+						if (!$emptyisok or (defined($value) and $value ne ""))
 						{
-							return validation_abort($item, "$value is not above $above!")
-									if (defined($above) and $value <= $above);
-
-							return validation_abort($item, "$value is not below $below!")
-									if (defined($below) and $value >= $below);
-						}
-					}
-				}
-				elsif ($valtype =~ /^regex(-or-empty)?$/)
-				{
-					my $emptyisok = $1;
-
-					if (!$emptyisok or (defined($value) and $value ne ""))
-					{
-						my $expected = ref($valprops) eq "Regexp"? $valprops : qr//; # fallback will match anything
-						return validation_abort($item, "'$value' didn't match regular expression!")
-								if ($value !~ $expected);
-					}
-				}
-				elsif ($valtype eq "ip")
-				{
-					my @ipversions = $isIPv6 ? (6) : (4);
-
-					my $ipobj = Net::IP->new($value);
-					return validation_abort($item, "'$value' is not a valid IP address!")
-							if (!$ipobj);
-
-					return validation_abort($item, "'$value' is IP address of the wrong type!")
-							if (($ipobj->version == 6 and !grep($_ == 6, @ipversions))
-									or $ipobj->version == 4 and !grep($_ == 4, @ipversions));
-				}
-				elsif ($valtype =~ /^resolvable(-or-empty)?$/)
-				{
-					my $emptyisok = $1;
-
-					if (!$emptyisok or (defined($value) and $value ne ""))
-					{
-						return validation_abort($item, "'$value' is not a resolvable name or IP address!")
-								if (!$value);
-
-						my @ipversions = $isIPv6 ? (6) : (4);
-
-						my $alreadyip = Net::IP->new($value);
-						if ($alreadyip)
-						{
-							return validation_abort($item, "'$value' is IP address of the wrong type!")
-																if (!grep($_ == $alreadyip->version, @ipversions));
-							# otherwise, we're happy...
-						}
-						else
-						{
-							my @addresses = NMISNG::Util::resolve_dns_name($value);
-							return validation_abort($item, "DNS failed to resolve '$value'!")
-									if (!@addresses);
-
-							my @addr_objs = map { Net::IP->new($_) } (@addresses);
-							my $goodones;
-							for my $type (4,6)
+							return validation_abort($item, "'$value' is not an integer!")
+									if ($actualtype eq "int" and int($value) ne $value);
+							return validation_abort($item, "'$value' is not a floating point number!")
+									# integer or full ieee floating point with optional exponent notation
+									if ($actualtype eq "float"
+											and $value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+	
+							my ($min,$max,$above,$below) = (ref($valprops) eq "ARRAY"? @{$valprops}
+																							: (undef,undef,undef,undef));
+							return validation_abort($item, "$value below minimum $min!")
+									if (defined($min) and $value < $min);
+							return validation_abort($item,"$value above maximum $max!")
+									if (defined($max) and $value > $max);
+	
+							# integers don't subdivide infinitely precisely so above and below not needed
+							if ($actualtype eq "float")
 							{
-								$goodones += grep($_->version == $type, @addr_objs) if (grep($_ == $type, @ipversions));
+								return validation_abort($item, "$value is not above $above!")
+										if (defined($above) and $value <= $above);
+	
+								return validation_abort($item, "$value is not below $below!")
+										if (defined($below) and $value >= $below);
 							}
-							return validation_abort($item,
-																			"'$value' does not resolve to an IP address of the right type!")
-									if (!$goodones);
 						}
 					}
-				}
-				elsif ($valtype eq "onefromlist" or $valtype eq "multifromlist")
-				{
-					# either explicit list of acceptables, or the 'value' config item
-					my @acceptable = ref($valprops) eq "ARRAY"? @$valprops :
-							ref($thisitem->{value}) eq "ARRAY"? @{$thisitem->{value}}: ();
-					return validation_abort($item, "no validation choices configured!")
-							if (!@acceptable);
-
-					# for multifromlist assume that value is now comma-separated. *sigh*
-					# for onefromlist values with colon are utterly unspecial *double sigh*
-					my @mustcheckthese = ($valtype eq "multifromlist")?
-							ref($value) eq "ARRAY"? @$value : split(/,/, $value) : $value;
-					for my $oneofmany (@mustcheckthese)
+					elsif ($valtype =~ /^regex(-or-empty)?$/)
 					{
-						$oneofmany = decode_entities($oneofmany);
-						return validation_abort($item, "'$oneofmany' is not in list of acceptable values!")
-								if (!List::Util::any { $oneofmany eq $_ } (@acceptable));
+						my $emptyisok = $1;
+	
+						if (!$emptyisok or (defined($value) and $value ne ""))
+						{
+							my $expected = ref($valprops) eq "Regexp"? $valprops : qr//; # fallback will match anything
+							return validation_abort($item, "'$value' didn't match regular expression!")
+									if ($value !~ $expected);
+						}
+					}
+					elsif ($valtype eq "ip")
+					{
+						my @ipversions = $isIPv6 ? (6) : (4);
+	
+						my $ipobj = Net::IP->new($value);
+						return validation_abort($item, "'$value' is not a valid IP address!")
+								if (!$ipobj);
+	
+						return validation_abort($item, "'$value' is IP address of the wrong type!")
+								if (($ipobj->version == 6 and !grep($_ == 6, @ipversions))
+										or $ipobj->version == 4 and !grep($_ == 4, @ipversions));
+					}
+					elsif ($valtype =~ /^resolvable(-or-empty)?$/)
+					{
+						my $emptyisok = $1;
+	
+						if (!$emptyisok or (defined($value) and $value ne ""))
+						{
+							return validation_abort($item, "'$value' is not a resolvable name or IP address!")
+									if (!$value);
+	
+							my @ipversions = $isIPv6 ? (6) : (4);
+	
+							my $alreadyip = Net::IP->new($value);
+							if ($alreadyip)
+							{
+								return validation_abort($item, "'$value' is IP address of the wrong type!")
+																	if (!grep($_ == $alreadyip->version, @ipversions));
+								# otherwise, we're happy...
+							}
+							else
+							{
+								my @addresses = NMISNG::Util::resolve_dns_name($value);
+								return validation_abort($item, "DNS failed to resolve '$value'!")
+										if (!@addresses);
+	
+								my @addr_objs = map { Net::IP->new($_) } (@addresses);
+								my $goodones;
+								for my $type (4,6)
+								{
+									$goodones += grep($_->version == $type, @addr_objs) if (grep($_ == $type, @ipversions));
+								}
+								return validation_abort($item,
+																				"'$value' does not resolve to an IP address of the right type!")
+										if (!$goodones);
+							}
+						}
+					}
+					elsif ($valtype eq "onefromlist" or $valtype eq "multifromlist")
+					{
+						# either explicit list of acceptables, or the 'value' config item
+						my @acceptable = ref($valprops) eq "ARRAY"? @$valprops :
+								ref($thisitem->{value}) eq "ARRAY"? @{$thisitem->{value}}: ();
+						return validation_abort($item, "no validation choices configured!")
+								if (!@acceptable);
+	
+						# for multifromlist assume that value is now comma-separated. *sigh*
+						# for onefromlist values with colon are utterly unspecial *double sigh*
+						my @mustcheckthese = ($valtype eq "multifromlist")?
+								ref($value) eq "ARRAY"? @$value : split(/,/, $value) : $value;
+						for my $oneofmany (@mustcheckthese)
+						{
+							$oneofmany = decode_entities($oneofmany);
+							return validation_abort($item, "'$oneofmany' is not in list of acceptable values!")
+									if (!List::Util::any { $oneofmany eq $_ } (@acceptable));
+						}
+					}
+					else
+					{
+						return validation_abort($item, "unknown validation type \"$valtype\"");
 					}
 				}
-				else
-				{
-					return validation_abort($item, "unknown validation type \"$valtype\"");
-				}
+			}
+			if ($thisitem->{display} =~ /(^|,)password(,|$)/)
+			{
+				$value = NMISNG::Util::encrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) ne "!!"));
+				$thisentry->{$item} = $value;
 			}
 		}
 	}

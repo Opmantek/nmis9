@@ -69,7 +69,7 @@ sub sendNotification
 			usetls => $C->{mail_use_tls},
 
 			username => $C->{mail_user},
-			password => NMISNG::Util::decrypt('email', 'mail_password', $C->{mail_password}),
+			password => NMISNG::Util::decrypt($C->{mail_password}, 'email', 'mail_password'),
 
 			# and params for making the message on the go
 			to => $contact->{Email},

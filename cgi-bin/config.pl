@@ -216,6 +216,14 @@ sub typeSect {
 	for my $k (@items_all)
 	{
 		my $value = $CC->{$section}{$k};
+		my $eachRef;
+		for my $rf (@{$CT->{$section}}) {
+			for my $itm (keys %{$rf}) {
+				if ($k eq $itm) {
+					$eachRef = $rf->{$k};
+				}
+			}
+		}
 		# show arrays as space-sep list
 		if (ref($value) eq "ARRAY")
 		{
@@ -229,7 +237,7 @@ sub typeSect {
 		next if ($section eq "authentication" && $k eq "auth_require"); # fixed true
 		next if ($section eq "system" and $k eq "severity_by_roletype"); # not gui-modifyable
 		my $showOut = $value;
-		$showOut = '**************' if (($section eq "database" and $k eq "db_password") or ($section eq "email" and $k eq "mail_password"));
+		$showOut = '**************' if ($eachRef->{display} =~ /password/);
 
 		push @out,Tr(td({class=>"header"},"&nbsp;"),
 				td({class=>"header"},escape($k)),td({class=>'info Plain'}, escape($showOut)),
@@ -267,6 +275,15 @@ sub editConfig {
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
 	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+
+	my $ref;
+	for my $rf (@{$CT->{$section}}) {
+		for my $itm (keys %{$rf}) {
+			if ($item eq $itm) {
+				$ref = $rf->{$item};
+			}
+		}
+	}
 
 	# start of form, see comment for first start_form
 	# except that this one also needs the cancel case covered
@@ -339,21 +356,12 @@ sub editConfig {
 		}
 	}
 	# edit passwords
-	elsif (($section eq "database" and $item eq "db_password") or ($section eq "email" and $item eq "mail_password"))
+	elsif ($ref->{display} =~ /password/)
 	{
 		# the password editing interface
 		print Tr(td({class=>"header",colspan=>'3'},"Edit of NMIS Config"));
 
 		print Tr(td({class=>"header"},$section));
-		# look for item ref
-		my $ref;
-		for my $rf (@{$CT->{$section}}) {
-			for my $itm (keys %{$rf}) {
-				if ($item eq $itm) {
-					$ref = $rf->{$item};
-				}
-			}
-		}
 
 		# display edit field; if text, then show it UNescaped;
 		my $rawvalue = $CC->{$section}{$item};
@@ -377,15 +385,6 @@ sub editConfig {
 		print Tr(td({class=>"header",colspan=>'3'},"Edit of NMIS Config"));
 
 		print Tr(td({class=>"header"},$section));
-		# look for item ref
-		my $ref;
-		for my $rf (@{$CT->{$section}}) {
-			for my $itm (keys %{$rf}) {
-				if ($item eq $itm) {
-					$ref = $rf->{$item};
-				}
-			}
-		}
 
 		# display edit field; if text, then show it UNescaped;
 		my $rawvalue = $CC->{$section}{$item};
@@ -639,7 +638,7 @@ sub doEditConfig
 	}
 	if (($section eq "database" and $item eq "db_password") or ($section eq "email" and $item eq "mail_password")) {
 		return validation_abort($item, "passwords don't match") if ($value ne $confirm);
-		$value = NMISNG::Util::encrypt($value) if (substr($value, 0, 2) ne "!!");
+		$value = NMISNG::Util::encrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) ne "!!"));
 		return validation_abort($item, "passwords update failure") if ($value eq '');
 	}
 	# no validation or success, so let's update the config

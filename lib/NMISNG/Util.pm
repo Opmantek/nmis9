@@ -3255,11 +3255,16 @@ sub filter_params {
 # decrypt - Decrypt the password.                                      #
 ########################################################################
 sub decrypt {
-	my $section    = shift;
-	my $keyword    = shift;
-	my $password   = shift;
+	my $password = shift;
+	my $section;
+	my $keyword;
 	my $config;
 	my $logger;
+
+	if (@ARGV == 2) {
+		$section = shift;
+		$keyword = shift;
+	}
 
 	{
 		my $nmisng  = Compat::NMIS::new_nmisng();
@@ -3277,20 +3282,29 @@ sub decrypt {
 	my $strLen     = "";
 	my $fh;
 
-	$logger->debug3("Seedfile name is '" . $seedfile . "'.");
+	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
 
-	# If we have an unencrypted password in the configuration file, then we encrypt it.
+	# Make sure we have a seed file.
+	if (!-f "$seedfile") {
+		_make_seed($seedfile, $logger);
+	}
+
+	# Passed nothing or an empty string.
+	return $password if (!defined($password) || $password eq '');
+
+	# If The password is not currently encrypted, then we just return what we have.
 	if (substr($password, 0, 2) ne "!!") {
-		if (!-f "$seedfile") {
-			_make_seed($seedfile, $logger);
+		# If we have an unencrypted password in the configuration file, then we encrypt it.
+		# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+		if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
+			$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
+			# Get the non-flattened raw hash
+			my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			$fullConfig->{$section}{$keyword} = encrypt($password);
+			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			NMISNG::Util::writeConfData(data=>$fullConfig);
 		}
-		$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
-		# Get the non-flattened raw hash
-		my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
-		$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-		$fullConfig->{$section}{$keyword} = encrypt($password);
-		$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-		NMISNG::Util::writeConfData(data=>$fullConfig);
 		return $password;
 	} else {
 		$password = substr($password, 2);
@@ -3338,11 +3352,18 @@ sub encrypt {
 	my $strLen     = 0;
 	my $fh;
 
-	$logger->debug3("Seedfile name is '" . $seedfile . "'.");
+	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
 
 	if (!-f "$seedfile") {
 		_make_seed($seedfile, $logger);
 	}
+
+	# Passed nothing or an empty string.
+	return $password if (!defined($password) || $password eq '');
+
+	# Passed Already encrypted string.
+	return substr($password, 2) if (substr($password, 0, 2) eq "!!");
+
 	if (open($fh, '<', $seedfile)) {
 		my $seed = <$fh>;
 		close $fh;

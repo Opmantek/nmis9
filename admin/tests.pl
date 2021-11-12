@@ -218,7 +218,7 @@ sub testemail
         ipproto =>  $C->{mail_server_ipproto},
                             
         username => $C->{mail_user},
-        password => NMISNG::Util::decrypt('email', 'mail_password', $C->{mail_password}),
+        password => NMISNG::Util::decrypt($C->{mail_password}, 'email', 'mail_password'),
     
         # and params for making the message on the go
         to => $target,
@@ -253,7 +253,7 @@ sub testemail
         ipproto =>  $C->{mail_server_ipproto},
                             
         username => $C->{mail_user},
-        password => NMISNG::Util::decrypt('email', 'mail_password', $C->{mail_password}),
+        password => NMISNG::Util::decrypt($C->{mail_password}, 'email', 'mail_password'),
     
         # and params for making the message on the go
         to => $target,
@@ -344,7 +344,7 @@ sub testsnmp
                 # SNMP v3
                 if ($nodeconfig->{version} eq "snmpv3") {
                     print "*** Testing snmp with snmpget ". $nodeconfig->{version} . "\n";
-                    $exe = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authNoPriv -a ".$nodeconfig->{authprotocol}." -A ".$nodeconfig->{authpassword}." ".$nodeconfig->{host}." ". $testoid;
+                    $exe = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authNoPriv -a ".$nodeconfig->{authprotocol}." -A ".NMISNG::Util::decrypt($nodeconfig->{authpassword})." ".$nodeconfig->{host}." ". $testoid;
                     my $exeoutput = $exe;
                     my $pass = $nodeconfig->{authpassword};
                     $exeoutput =~ s/$pass/\*\*\*\*/;
@@ -356,7 +356,7 @@ sub testsnmp
                 # SNMP v2c
                 elsif ($nodeconfig->{version} eq "snmpv2c") {
                     print "*** Testing snmp with snmpget ". $nodeconfig->{version} . "\n";
-                    $exe = "    snmpget -v 2c -c ".$nodeconfig->{community}." ".$nodeconfig->{host}." ". $testoid;
+                    $exe = "    snmpget -v 2c -c ".NMISNG::Util::decrypt($nodeconfig->{community})." ".$nodeconfig->{host}." ". $testoid;
                     my $exeoutput = $exe;
                     my $pass = $nodeconfig->{community};
                     $exeoutput =~ s/$pass/\*\*\*\*/;

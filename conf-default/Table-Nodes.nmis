@@ -80,7 +80,7 @@ my @models = ('automatic', sort keys %knownmodels);
 
 	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup,pluscustom',value => [ @groups],
 								validate => { "onefromlist" => undef } } },
-	 { community => { mandatory => 'true', header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
+	 { community => { mandatory => 'true', header => 'SNMP Community',display => 'password',value => ["$C->{default_communityRO}"] }},
 
 	 { wmi => { special=>'separator', header => "WMI Options", } },
 	 { wmidomain => { header => "WMI Domain", display => 'text', value => [''] }},
