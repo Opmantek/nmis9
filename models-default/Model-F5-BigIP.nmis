@@ -78,7 +78,7 @@
   'alerts' => {
     'VirtualServTable' => {
       'VirtualServTableState' => {
-        'element' => 'index',
+        'element' => 'ltmVirtualServName',
         'event' => 'LTM Server Down',
         'level' => 'Major',
         'test' => 'CVAR1=ltmVsStatusAvailState;$CVAR1 ne 100',
@@ -103,7 +103,7 @@
               'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
               'sysObjectName' => 'ltmVirtualServName',
               'title' => 'Server Name',
-              'calculate' => '$r =~s/[\\\/:"*?<>|]/--/g;return $r;'
+              #'calculate' => '$r =~ s/[\\\/:"*?<>|]/--/g;return $r;'
               },
           'ltmVirtualServAddr' => {
               'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.3',
@@ -221,12 +221,12 @@
         'graphtype' => 'F5-LTM-Connections,F5-LTM-State',
         'indexed' => 'true',
         'snmp' => {
-          'ltmStatClientCurConns' => {
+          'ltmStatClientCurCon' => {
             'oid' => '1.3.6.1.4.1.3375.2.2.10.2.3.1.12',
             'option' => 'counter,0:U',
             'sysObjectName' => 'ltmVirtualServStatClientCurConns'
           },
-          'ltmVsStatusAvailState' => {
+          'ltmVsStatAvailState' => {
             'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
             'replace' => {
               '0' => '10',
@@ -403,7 +403,7 @@
         },
         'graphtype' => 'ip,frag'
       },
-      'f5_Memory' => {
+      'F5_Memory' => {
        'graphtype' => 'F5-Memory',
        'threshold' => 'f5_memory',
        'snmp' => {
@@ -424,7 +424,7 @@
          },
         },
       },
-      'f5_Connection' => {
+      'F5_Connection' => {
        'graphtype' => 'F5-Connection',
        'threshold' => 'f5_connection',
           'snmp' => {

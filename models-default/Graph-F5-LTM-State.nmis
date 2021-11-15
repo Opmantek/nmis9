@@ -41,18 +41,18 @@
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
-			'DEF:ltmVsStatusAvailState=$database:ltmVsStatusAvailState:AVERAGE',
-			'LINE2:ltmVsStatusAvailState#4daef6: LTM Server Status',
-			'GPRINT:ltmVsStatusAvailState:AVERAGE:Avg. %1.2lf%%\\n',
+			'DEF:ltmVsStatAvailState=$database:ltmVsStatAvailState:AVERAGE',
+			'LINE2:ltmVsStatAvailState#4daef6: LTM Server Status',
+			'GPRINT:ltmVsStatAvailState:AVERAGE:Avg. %1.2lf%%\\n',
 			'COMMENT:100%=green,available, 50%=unknown, unlicesed, 10%=none, error, not current , 0%=red, not available\\n'
 		],
 		'small' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
-			'DEF:ltmVsStatusAvailState=$database:ltmVsStatusAvailState:AVERAGE',
-			'LINE2:ltmVsStatusAvailState#4daef6: LTM Server Status',
-			'GPRINT:ltmVsStatusAvailState:AVERAGE:Avg. %1.2lf%%\\n',
+			'DEF:ltmVsStatAvailState=$database:ltmVsStatAvailState:AVERAGE',
+			'LINE2:ltmVsStatAvailState#4daef6: LTM Server Status',
+			'GPRINT:ltmVsStatAvailState:AVERAGE:Avg. %1.2lf%%\\n',
 		]
 	}
 );
