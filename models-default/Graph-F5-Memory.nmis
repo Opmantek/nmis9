@@ -1,0 +1,67 @@
+#
+## $Id: Graph-ap.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+	'heading' => 'F5 Memory Usage',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'F5 Memory Status.'
+	},
+	'vlabel' => {
+		'standard' => 'Used (GB)'
+	},
+	'option' => {
+		'standard' => [
+		#CPU "sysStatMemoryTotal"     ".1.3.6.1.4.1.3375.2.1.1.2.1.44"
+		#CPU "sysStatMemoryUsed"     ".1.3.6.1.4.1.3375.2.1.1.2.1.45"
+			'DEF:MemoryTotal=$database:MemoryTotal:AVERAGE',
+			'CDEF:TotalGB=MemoryTotal,1073741824,/',
+			'GPRINT:TotalGB:AVERAGE:Memory Total %1.2lf GB\\n',
+			'DEF:MemoryUsage=$database:MemoryUsage:AVERAGE',
+			'CDEF:UsedGB=MemoryUsage,1073741824,/',
+			'LINE2:UsedGB#042f40: Memory Usage',
+			'GPRINT:UsedGB:AVERAGE:%1.2lf GB',
+			'CDEF:MemUsedPer=MemoryUsage,100,*,MemoryTotal,/',
+			'GPRINT:MemUsedPer:AVERAGE:%%Used %1.2lf%%\\n',
+		],
+		'small' => [
+			'DEF:MemoryTotal=$database:MemoryTotal:AVERAGE',
+			'CDEF:TotalGB=MemoryTotal,1073741824,/',
+			'GPRINT:TotalGB:AVERAGE:Memory Total %1.2lf GB\\n',
+			'DEF:MemoryUsage=$database:MemoryUsage:AVERAGE',
+			'CDEF:UsedGB=MemoryUsage,1073741824,/',
+			'LINE2:UsedGB#042f40: Memory Usage',
+			'GPRINT:UsedGB:AVERAGE:%1.2lf GB',
+			'CDEF:MemUsedPer=MemoryUsage,100,*,MemoryTotal,/',
+			'GPRINT:MemUsedPer:AVERAGE:%%Used %1.2lf%%\\n',
+		]
+	}
+);
