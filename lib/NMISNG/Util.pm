@@ -3278,7 +3278,7 @@ sub decrypt {
 		}
 	}
 
-	my $seedfile   = $config->{'<nmis_base>'} . '/seed.txt';
+	my $seedfile   = '/usr/local/etc/opmantek/seed.txt';
 	my $strLen     = "";
 	my $fh;
 
@@ -3348,7 +3348,7 @@ sub encrypt {
 			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 		}
 	}
-	my $seedfile   = $config->{'<nmis_base>'} . '/seed.txt';
+	my $seedfile   = '/usr/local/etc/opmantek/seed.txt';
 	my $strLen     = 0;
 	my $fh;
 
@@ -3392,6 +3392,7 @@ sub _make_seed {
 	my $seedfile  = shift;
 	my $logger    = shift;
 
+	my $seeddir  = File::Spec->rel2abs(dirname(${seedfile}));
 	my @charset  = (('A'..'Z'), ('a'..'z'), (0..9));
 	my $range    = $#charset + 1;
 	my $fh;
@@ -3400,12 +3401,6 @@ sub _make_seed {
 	for (1..256) {
 		$seed .= $charset[int(rand($range))];
 	}
-	unless(open($fh, '>', $seedfile)) {
-		$logger->error("Unable to create an encryption seed file.");
-		return 2;
-	}
-	print $fh ("$seed");
-	close $fh;
  	my $uid;
 	if (-f "/etc/redhat-release") {
 		$uid = getpwnam("apache");
@@ -3413,6 +3408,16 @@ sub _make_seed {
 		$uid = getpwnam("www-data");
 	}
 	my $gid = getgrnam("nmis");
+	if (!-f "$seeddir") {
+		mkpath($seeddir, 0770);
+	    chown($uid, $gid, $seeddir);
+	}
+	unless(open($fh, '>', $seedfile)) {
+		$logger->error("Unable to create an encryption seed file.");
+		return 2;
+	}
+	print $fh ("$seed");
+	close $fh;
 	chown($uid, $gid, $seedfile);
 	chmod(0440, $seedfile);
 
