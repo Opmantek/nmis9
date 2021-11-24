@@ -5,7 +5,7 @@ Description=Opmantek NMIS9 Daemon
 After=network-online.target
 After=mongod.service
 Requires=mongod.service
-Wants=mongod.target
+Wants=mongod.service
 Wants=network-online.target
 
 [Install]
