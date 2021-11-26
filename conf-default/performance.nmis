@@ -9,7 +9,7 @@
    'command' => 'timeout 30 iostat -xyz 2 10',
   },
   'ps' => {
-    'command' => 'ps ax'
+    'command' => 'ps aux'
   },
   'df' => {
     'command' => 'df'
