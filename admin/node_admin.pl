@@ -382,6 +382,7 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	# iff a node or group arg is given, then only matching nodes are included
 	my $wantuuid = $1;
 	my $wantpoller = $cmdline->{wantpoller} // 0;
+	my $quiet = $cmdline->{quiet};
 
 	# returns a modeldata object
 	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
@@ -393,19 +394,20 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	}
 	else
 	{
-		print($wantuuid? "Node UUID\tNode Name\n=========================\n" : $wantpoller? "Node UUID\tNode Name\tPoller\n=========================\n":"Node Names:\n===========\n")
+		if ( !$quiet ) {
+			print($wantuuid? "Node UUID\tNode Name\n=========================\n" : $wantpoller? "Node UUID\tNode Name\tPoller\n=========================\n":"Node Names:\n===========\n")
 				if (-t \*STDOUT); # if to terminal, not pipe etc.
-				
+		}		
 		my %remotes;
-		
+			
 		if ($wantpoller) {
-			my $remotelist = $nmisng->get_remote();		
-			%remotes = map {$_->{'cluster_id'} => $_->{'server_name'}} @$remotelist;
-			$remotes{$config->{cluster_id}} = "local";
-			print Dumper(%remotes);
+				my $remotelist = $nmisng->get_remote();		
+				%remotes = map {$_->{'cluster_id'} => $_->{'server_name'}} @$remotelist;
+				$remotes{$config->{cluster_id}} = "local";
+				print Dumper(%remotes);
 		}
 		print join("\n", map { ($wantuuid? ($_->{uuid}."\t".$_->{name}) : $wantpoller ? ($_->{uuid}."\t".$_->{name}."\t".$remotes{$_->{cluster_id}}) : $_->{name}) }
-							 (sort { $a->{name} cmp $b->{name} } (@{$nodelist->data})) ),"\n";
+								 (sort { $a->{name} cmp $b->{name} } (@{$nodelist->data})) ),"\n";
 	}
 	exit 0;
 }
