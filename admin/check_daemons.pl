@@ -98,8 +98,9 @@ if ($Q->{act} =~ /^check[-_]daemons/)
 	for my $service (qw(mongod nmis9d)) {
 		my $status = (`service $service status`);
 		print $status if (!$wantquiet);
-		if ($status !~ '(not running)') {
+		if ($status !~ '(not running|inactive)') {
 		   # All good
+		   print "* $service $status \n" if (!$wantquiet);
 		}
 		else {
             
