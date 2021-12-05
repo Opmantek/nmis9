@@ -1,0 +1,393 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+    'type' => {
+      'IPSLA-Echo-RTT' => '/nodes/$node/health/ipsla-echoRtt-$index.rrd',
+      'IPSLA-Jitter-RTT' => '/nodes/$node/health/ipsla-jitterRtt-$index.rrd',
+      'IPSLA-ICMP-Jitter-RTT' => '/nodes/$node/health/ipsla-icmpJitterRtt-$index.rrd',
+    }
+  },  
+  'heading' => {
+    'graphtype' => {
+      'IPSLA-Jitter-RTT' => 'IPSLA Jitter Round Trip Time',
+      'IPSLA-Echo-RTT' => 'IPSLA Echo Round Trip Time',
+      'IPSLA-ICMP-Jitter-RTT' => 'IPSLA ICMP Jitter Round Trip Time',
+    }
+  },
+  'alerts' => {
+    'IPSLA-Echo-RTT' => {
+      #'CompletionTime' => {
+      #  'type' => 'test',
+      #  'test' => 'CVAR1=OperCompletionTime;$CVAR1 eq 0',
+      #  'value' => 'CVAR1=OperCompletionTime;$CVAR1 * 1',
+      #  'unit' => 'ms',
+      #  'element' => 'index',
+      #  'event' => 'Response time eq 0 Problem with IPSLA',
+      #  'level' => 'Critical'
+      #},
+      'SenseValue' => {
+        'type' => 'test',
+        'test' => 'CVAR1=OperSenseValue;$CVAR1 != 1',
+        'value' => 'CVAR1=OperSenseValue;$CVAR1 * 1',
+        'unit' => 'OperSense',
+        'element' => 'index',
+        'event' => 'Status Not OK Problem with IPSLA',
+        'level' => 'Critical'
+      }
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'IPSLA-Echo-RTT' => {
+        'control' => 'CVAR=CtrlAdminRttType;$CVAR =~ /echo/',
+        'graphtype' => 'IPSLA-Echo-RTT',
+        'indexed' => 'true',
+        'snmp' => {
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime'
+          }
+        }
+      },
+      'IPSLA-ICMP-Jitter-RTT' => {
+        'control' => 'CVAR=CtrlAdminRttType;$CVAR =~ /icmp/',
+        'graphtype' => 'IPSLA-ICMP-Jitter-RTT',
+        'indexed' => 'true',
+        'snmp' => {
+          'IcmpJitterAvg' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.44'
+          },
+          'IcmpPktLoss' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.26'
+          },
+          'JAdminToS' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.2.2.1.9'
+          },
+          'JNumPackets' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.2.2.1.18'
+          },
+          'JitterRTTMax' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.5'
+          },
+          'JitterRTTMin' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.4'
+          },
+          'OperCompletionTime' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.2.10.1.1'
+          }
+        }
+      },
+      'IPSLA-Jitter-RTT' => {
+        'control' => 'CVAR=CtrlAdminRttType;$CVAR eq jitter',
+        'graphtype' => 'IPSLA-Jitter-RTT',
+        'indexed' => 'true',
+        'snmp' => {
+          'JAdminToS' => {
+            'oid' => 'rttMonEchoAdminTOS'
+          },
+          'JNumPackets' => {
+            'oid' => 'rttMonEchoAdminNumPackets'
+          },
+          'JPacketLossDS' => {
+            'oid' => 'rttMonLatestJitterOperPacketLossDS'
+          },
+          'JPacketLossSD' => {
+            'oid' => 'rttMonLatestJitterOperPacketLossSD'
+          },
+          'JitterOperRTTMax' => {
+            'oid' => 'rttMonLatestJitterOperRTTMax'
+          },
+          'JitterOperRTTMin' => {
+            'oid' => 'rttMonLatestJitterOperRTTMin'
+          },
+          'JoperAvg' => {
+            'oid' => 'rttMonLatestJitterOperAvgJitter'
+          },
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime'
+          }
+        }
+      },
+    },
+    'sys' => {
+      'IPSLA-Echo-RTT' => {
+        'headers' => 'index,CtrlAdminRttType,OperSense,JAdminToS,JAdminSourceAddress,JAdminTargetAddress',
+        'indexed' => 'rttMonLatestRttOperCompletionTime',
+        'snmp' => {
+          'CtrlAdminRttType' => {
+            'oid' => 'rttMonCtrlAdminRttType',
+            'replace' => {
+              '1' => 'echo',
+              '10' => 'dlsw',
+              '11' => 'dhcp',
+              '12' => 'ftp',
+              '13' => 'voip',
+              '14' => 'rtp',
+              '15' => 'lspGroup',
+              '16' => 'icmpjitter',
+              '17' => 'lspPing',
+              '18' => 'lspTrace',
+              '19' => 'ethernetPing',
+              '2' => 'pathEcho',
+              '20' => 'ethernetJitter',
+              '21' => 'lspPingPseudowire',
+              '22' => 'video',
+              '3' => 'fileIO',
+              '4' => 'script',
+              '5' => 'udpEcho',
+              '6' => 'tcpConnect',
+              '7' => 'http',
+              '8' => 'dns',
+              '9' => 'jitter'
+            },
+            'title' => 'CtrlAdminRttType'
+          },
+          'JAdminSourceAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminSourceAddress',
+            'title' => 'IP Source'
+          },
+          'JAdminTargetAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminTargetAddress',
+            'title' => 'IP Target'
+          },
+          'JAdminToS' => {
+            'oid' => 'rttMonEchoAdminTOS',
+            'title' => 'Type of Service'
+          },
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime',
+            'title' => 'OperCompletionTime'
+          },
+          'OperSense' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'replace' => {
+              '0' => 'other',
+              '1' => 'ok',
+              '10' => 'applicationSpecific',
+              '11' => 'dnsServerTimeout',
+              '12' => 'tcpConnectTimeout',
+              '13' => 'httpTransactionTimeout',
+              '14' => 'dnsQueryError',
+              '15' => 'httpError',
+              '16' => 'error',
+              '17' => 'mplsLspEchoTxError',
+              '18' => 'mplsLspUnreachable',
+              '19' => 'mplsLspMalformedReq',
+              '2' => 'disconnected',
+              '20' => 'mplsLspReachButNotFEC',
+              '3' => 'overThreshold',
+              '4' => 'timeout',
+              '5' => 'busy',
+              '6' => 'notConnected',
+              '7' => 'dropped',
+              '8' => 'sequenceError',
+              '9' => 'verifyError'
+            },
+            'title' => 'OperSense'
+          },
+          'OperSenseValue' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'title' => 'OperSenseValue'
+          }
+        }
+      },
+      'IPSLA-ICMP-Jitter-RTT' => {
+        'headers' => 'index,CtrlAdminRttType,OperSense',
+        'indexed' => 'rttMonLatestRttOperCompletionTime',
+        'snmp' => {
+          'CtrlAdminRttType' => {
+            'oid' => 'rttMonCtrlAdminRttType',
+            'replace' => {
+              '1' => 'echo',
+              '10' => 'dlsw',
+              '11' => 'dhcp',
+              '12' => 'ftp',
+              '13' => 'voip',
+              '14' => 'rtp',
+              '15' => 'lspGroup',
+              '16' => 'icmpjitter',
+              '17' => 'lspPing',
+              '18' => 'lspTrace',
+              '19' => 'ethernetPing',
+              '2' => 'pathEcho',
+              '20' => 'ethernetJitter',
+              '21' => 'lspPingPseudowire',
+              '22' => 'video',
+              '3' => 'fileIO',
+              '4' => 'script',
+              '5' => 'udpEcho',
+              '6' => 'tcpConnect',
+              '7' => 'http',
+              '8' => 'dns',
+              '9' => 'jitter'
+            },
+            'title' => 'CtrlAdminRttType'
+          },
+          'JAdminSourceAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminSourceAddress',
+            'title' => 'IP Source'
+          },
+          'JAdminTargetAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminTargetAddress',
+            'title' => 'IP Target'
+          },
+          'JAdminToS' => {
+            'oid' => 'rttMonEchoAdminTOS',
+            'title' => 'Type of Service'
+          },
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime',
+            'title' => 'OperCompletionTime'
+          },
+          'OperSense' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'replace' => {
+              '0' => 'other',
+              '1' => 'ok',
+              '10' => 'applicationSpecific',
+              '11' => 'dnsServerTimeout',
+              '12' => 'tcpConnectTimeout',
+              '13' => 'httpTransactionTimeout',
+              '14' => 'dnsQueryError',
+              '15' => 'httpError',
+              '16' => 'error',
+              '17' => 'mplsLspEchoTxError',
+              '18' => 'mplsLspUnreachable',
+              '19' => 'mplsLspMalformedReq',
+              '2' => 'disconnected',
+              '20' => 'mplsLspReachButNotFEC',
+              '3' => 'overThreshold',
+              '4' => 'timeout',
+              '5' => 'busy',
+              '6' => 'notConnected',
+              '7' => 'dropped',
+              '8' => 'sequenceError',
+              '9' => 'verifyError'
+            },
+            'title' => 'OperSense'
+          },
+          'OperSenseValue' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'title' => 'OperSenseValue'
+          }
+        }
+      },
+      'IPSLA-Jitter-RTT' => {
+        'headers' => 'index,CtrlAdminRttType,OperSense,JAdminToS,JAdminSourceAddress,JAdminTargetAddress',
+        'indexed' => 'rttMonLatestRttOperCompletionTime',
+        'snmp' => {
+          'CtrlAdminRttType' => {
+            'oid' => 'rttMonCtrlAdminRttType',
+            'replace' => {
+              '1' => 'echo',
+              '10' => 'dlsw',
+              '11' => 'dhcp',
+              '12' => 'ftp',
+              '13' => 'voip',
+              '14' => 'rtp',
+              '15' => 'lspGroup',
+              '16' => 'icmpjitter',
+              '17' => 'lspPing',
+              '18' => 'lspTrace',
+              '19' => 'ethernetPing',
+              '2' => 'pathEcho',
+              '20' => 'ethernetJitter',
+              '21' => 'lspPingPseudowire',
+              '22' => 'video',
+              '3' => 'fileIO',
+              '4' => 'script',
+              '5' => 'udpEcho',
+              '6' => 'tcpConnect',
+              '7' => 'http',
+              '8' => 'dns',
+              '9' => 'jitter'
+            },
+            'title' => 'CtrlAdminRttType'
+          },
+          'JAdminSourceAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminSourceAddress',
+            'title' => 'IP Source'
+          },
+          'JAdminTargetAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminTargetAddress',
+            'title' => 'IP Target'
+          },
+          'JAdminToS' => {
+            'oid' => 'rttMonEchoAdminTOS',
+            'title' => 'Type of Service'
+          },
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime',
+            'title' => 'OperCompletionTime'
+          },
+          'OperSense' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'replace' => {
+              '0' => 'other',
+              '1' => 'ok',
+              '10' => 'applicationSpecific',
+              '11' => 'dnsServerTimeout',
+              '12' => 'tcpConnectTimeout',
+              '13' => 'httpTransactionTimeout',
+              '14' => 'dnsQueryError',
+              '15' => 'httpError',
+              '16' => 'error',
+              '17' => 'mplsLspEchoTxError',
+              '18' => 'mplsLspUnreachable',
+              '19' => 'mplsLspMalformedReq',
+              '2' => 'disconnected',
+              '20' => 'mplsLspReachButNotFEC',
+              '3' => 'overThreshold',
+              '4' => 'timeout',
+              '5' => 'busy',
+              '6' => 'notConnected',
+              '7' => 'dropped',
+              '8' => 'sequenceError',
+              '9' => 'verifyError'
+            },
+            'title' => 'OperSense'
+          },
+          'OperSenseValue' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'title' => 'OperSenseValue'
+          }
+        }
+      },
+    }
+  }
+);
