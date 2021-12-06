@@ -30,7 +30,7 @@
 # *****************************************************************************
 
 %hash = (
-	'heading' => F5 Current Connections',
+	'heading' => 'F5 Current Connections',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => 'F5 Current Connections.'
