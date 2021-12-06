@@ -82,7 +82,7 @@ my $wantquiet  = NMISNG::Util::getbool($Q->{quiet});
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
-																				 debug => $Q->{debug});
+											 debug => $Q->{debug});
 die "no config available!\n" if (ref($C) ne "HASH" or !keys %$C);
 
 
@@ -96,11 +96,15 @@ if ($Q->{act} =~ /^check[-_]daemons/)
 	my $body = "";
 	
 	for my $service (qw(mongod nmis9d)) {
-		my $status = (`service $service status`);
+		my $status = (`if which systemctl 2>/dev/null; then systemctl status $service;else service $service status;fi;`);
+		my $exitcode = $?;
+		if ($exitcode or $exitcode >> 8)
+		{
+			print "Failed to get service $service status: exit code=$exitcode\n";
+		}
 		print $status if (!$wantquiet);
-		if ($status !~ '(not running|inactive)') {
+		if ($status !~ '(not running|inactive|failed)') {
 		   # All good
-		   print "* $service $status \n" if (!$wantquiet);
 		}
 		else {
             
