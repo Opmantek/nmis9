@@ -59,12 +59,14 @@ my $PROGNAME = basename($0);
 my $debugsw = 0;
 my $helpsw = 0;
 my $quietsw = 0;
+my $usagesw = 0;
 my $verbosesw = 0;
 my $versionsw = 0;
 
  die unless (GetOptions('debug:i'    => \$debugsw,
                         'help'       => \$helpsw,
                         'quiet'      => \$quietsw,
+                        'usage'      => \$usagesw,
                         'verbose'    => \$verbosesw,
                         'version'    => \$versionsw));
 
@@ -87,21 +89,21 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=daemon-status (or act=status)
 
  act=schedule [at=time] <job.type=activity> [job.priority=0..1] [job.X=....]
-  act=schedule-help for more detailed help
- act=list-schedules [verbose=t/f] [only=active|queued] [job.X=...]
+ act=schedule-help for more detailed help
+ act=list-schedules [verbose=t|f] [only=active|queued] [job.X=...]
  act=delete-schedule id=<schedule_id|ALL> [job.X=...]
  act=abort id=<schedule_id>
 
- act=purge [simulate=t/f] [info=t/f]
- act=dbcleanup [simulate=t/f] [info=t/f] [use_performance_query=t/f]
+ act=purge [simulate=t|f] [info=t|f]
+ act=dbcleanup [simulate=t|f] [info=t|f] [use_performance_query=t|f]
 
  act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
 
- act=list-outages [filter=X...]
+ act=list-outages [filter=<filter> ...]
  act=create-outage [outage.A=B... outage.X.Y=Z...]
  act=update-outage id=<outid> [outage.A=B... outage.X.Y=Z...]
  act={delete-outage|show-outage} id=<outid>
- act=check-outages [node=X|uuid=Y] [time=T]
+ act=check-outages [node=<nodename>|uuid=<uuid>] [time=<time>]
  act=outage-help for more detailed help
  act=collect-performance-data 
  act=collect-top-data
@@ -212,6 +214,11 @@ outage.selector.node.group.0="busybodies" \\
 outage.selector.node.group.1="alsobad"\n\n|;
 
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
+
+if ($usagesw) {
+   print($usage);
+   exit(0);
+}
 
 if (!@ARGV || !$Q->{act})
 {
@@ -1405,6 +1412,7 @@ sub help
    push(@lines, " --debug[1-9]             - global option to print detailed messages\n");
    push(@lines, " --help                   - display command line usage\n");
    push(@lines, " --quiet                  - display no output\n");
+   push(@lines, " --usage                  - display a brief overview of command syntax\n");
    push(@lines, " --verbose                - display verbose output\n");
    push(@lines, " --version                - print a version message and exit\n");
    push(@lines, "\n");
