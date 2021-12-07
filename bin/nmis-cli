@@ -175,7 +175,7 @@ list-outages: shows overview of selected outage schedules
 show-outage: displays the details for one outage instance
 
 create-outage: creates new outage schedule
-update-oudate: updates existing outage schedule
+update-oudage: updates existing outage schedule
  only the given outage.A, outage.X.Y properties are changed.
 
 check-outage: reports which outages would apply at the given time
@@ -246,12 +246,12 @@ warn "failed to set permissions: $error\n" if ($error);
 # use debug, or info arg, or configured log_level
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $debug ) // $C->{log_level},
-															 path  => (defined $debug)? undef : $logfile);
+																 path  => ($debug > 0)? undef : $logfile);
 
 # this opens a database connection
 my $nmisng = NMISNG->new(
 	config => $C,
-       log    => $logger,
+       log => $logger,
 );
 
 # for audit logging
@@ -1612,7 +1612,7 @@ sub help
    push(@lines, "                              include. This argument can be repeated.\n");
    push(@lines, "     act=show-outage\n");
    push(@lines, "                     This action displays the details for one outage instance.\n");
-   push(@lines, "     act=update-oudate\n");
+   push(@lines, "     act=update-oudage\n");
    push(@lines, "                      This action updates an existing outage schedule.\n");
    push(@lines, "                      only the given outage.A, outage.X.Y properties are changed.\n");
    push(@lines, "\n");
