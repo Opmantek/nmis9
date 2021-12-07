@@ -2735,18 +2735,22 @@ nodeVendor sysObjectName roleType netType );
 			#### now print it
 			foreach (@pr)
 			{
-				print Tr( td( {class => 'header'}, $_->[0] ) ),
-					Tr(
-					td( {class => 'image'},
-					   $graphs->htmlGraph(
+				my $graph = $graphs->htmlGraph(
 							graphtype => $_->[1],
 							node      => $node,
 							intf      => $_->[2],
 							width     => $smallGraphWidth,
 							height    => $smallGraphHeight
-						)
+						);
+				if ($graph !~ /Error/ ) {
+					print Tr( td( {class => 'header'}, $_->[0] ) ),
+					Tr(
+					td( {class => 'image'},
+					   $graph
 					)
-					);
+					); 
+				}
+				
 			}
 		}    # end for
 	}
