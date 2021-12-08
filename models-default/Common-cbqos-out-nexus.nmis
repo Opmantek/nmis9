@@ -1,0 +1,85 @@
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+#"cbQosQueueingDiscardByte64"			"1.3.6.1.4.1.9.9.166.1.18.1.1.5"
+#"cbQosQueueingDiscardPkt64"			"1.3.6.1.4.1.9.9.166.1.18.1.1.8"
+#"cbQosQueueingTransmitByte64"			"1.3.6.1.4.1.9.9.166.1.18.1.1.11"
+#"cbQosQueueingTransmitPkt64"			"1.3.6.1.4.1.9.9.166.1.18.1.1.12"
+
+%hash = (
+  'cbqos-out' => {
+    'rrd' => {
+      'cbqos-out' => {
+        'indexed' => 'true',
+        'graphtype' => 'cbqos-out',
+        'nexus' => 'true',
+        #'threshold' => 'qos_pkt_drop',
+        'snmp' => {
+          'DropPkt' => {
+            'cbqosMibObject_comment' => 'cbQosCMDropPkt64',
+            'oid' => 'cbQosQueueingDiscardPkt64',
+            'option' => 'counter,U:U'
+          },
+          #'NoBufDropPkt' => {
+          #  'cbqosMibObject_comment' => 'no related Nexus mib exists',
+          #  'oid' => 'cbQosCMNoBufDropPkt64',
+          #  'option' => 'counter,U:U'
+          #},
+          #'PrePolicyPkt' => {
+          #  'cbqosMibObject_comment' => 'no related Nexus mib exists',
+          #  'oid' => 'cbQosCMPrePolicyPkt64',
+          #  'option' => 'counter,U:U'
+          #},
+          'DropByte' => {
+            'cbqosMibObject_comment' => 'cbQosCMDropByte64',
+            'oid' => 'cbQosQueueingDiscardByte64',
+            'option' => 'counter,U:U'
+          },
+          #'PrePolicyByte' => {
+          #  'cbqosMibObject_comment' => 'no related Nexus mib exists',
+          #  'oid' => 'cbQosCMPrePolicyByte64',
+          #  'option' => 'counter,U:U'
+          #},
+          # Placing the data into the PrePolicy objects so it gets graphed
+          'PrePolicyByte' => {
+            'cbqosMibObject_comment' => 'cbQosCMPostPolicyByte64',
+            'oid' => 'cbQosQueueingTransmitByte64',
+            'option' => 'counter,U:U'
+          },
+          'PrePolicyPkt' => {
+            'cbqosMibObject_comment' => 'no related cbQosCMPostPolicy mib exists',
+            'oid' => 'cbQosQueueingTransmitPkt64',
+            'option' => 'counter,U:U'
+          }
+        },
+      }
+    }
+  }
+);
+
