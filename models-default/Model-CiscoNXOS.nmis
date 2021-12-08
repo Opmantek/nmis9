@@ -1,6 +1,6 @@
-## $Id: Model-CiscoNXOS.nmis,v 8.2 2012/11/02 00:37:06 keiths Exp $
+## $Id: Model-CiscoNXOS.nmis,v 9.0 2021/12/07 00:37:06 dougr Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2021 Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
@@ -27,25 +27,30 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
 %hash = (
   '-common-' => {
-  	'class' => {
-  		'database' => {
-  			'common-model' => 'database',
-  		},
-  		'threshold' => {
-  			'common-model' => 'threshold'
-  		},
-  		'cbqos-in' => {
-  			'common-model' => 'cbqos-in'
-  		},
-  		'cbqos-out' => {
-  			'common-model' => 'cbqos-out'
-  		},
-  		'event' => {
-  			'common-model' => 'event'
-  		},
+    'class' => {
+      'database' => {
+        'common-model' => 'database',
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'cbqos-in' => {
+        'common-model' => 'cbqos-in-nexus'
+      },
+      'cbqos-out' => {
+        'common-model' => 'cbqos-out-nexus'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
@@ -55,21 +60,30 @@
       'vlan' => {
         'common-model' => 'Cisco-vlan'
       },
-  	}
+      'routing' => {
+        'common-model' => 'Common-routing'
+      },
+      'cbqos' => {
+        'common-model' => 'Cisco-cbqos'
+      },
+      'Cisco-routing' => {
+        'common-model' => 'Cisco-routing'
+      },
+      'Cisco-cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'Cisco-memory' => {
+        'common-model' => 'Cisco-memory'
+      },
+      'Cisco-topChanges' => {
+        'common-model' => 'Cisco-topChanges'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
+      },
+    }
   },
   'alerts' => {
-    'bgpPeer' => {
-      'bgpPeerStateDown' => {
-        'element' => 'index',
-        'event' => 'BGP Peer Down',
-        'level' => 'Warning',
-        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
-        'type' => 'test',
-				'title' => "BGP Peer Status",
-        'unit' => '',
-        'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
-      }
-    },
     'env-temp' => {
       'tempStatus' => {
         'type' => 'threshold-rising',
@@ -83,7 +97,7 @@
         'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device|Inlet|Crossbar|CPU|DDR)/',
         'element' => 'tempDescr',
         'event' => 'High Temperature',
-				'title' => "Temperature",
+        'title' => "Temperature",
         'test' => '',
         'unit' => '°C',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
@@ -91,37 +105,37 @@
     },
   },
   'system' => {
-  	'nodeType' => 'switch',
-  	'nodeModel' => 'CiscoNXOS',
-  	'rrd' => {
-  		'nodehealth' => {
-  			'snmp' => {
-  				'avgBusy1' => {
-  					'oid' => 'cseSysCPUUtilization.0'
-  				},
-  				'avgBusy5' => {
-  					'oid' => 'cpmCPUTotal5minRev.1'
-  				},
-  				'MemoryUsedPROC' => {
-  					'oid' => 'cpmCPUMemoryUsed.1'
-  				},
-  				'MemoryFreePROC' => {
-  					'oid' => 'cpmCPUMemoryFree.1'
-  				},
+    'nodeType' => 'switch',
+    'nodeModel' => 'CiscoNXOS',
+    'rrd' => {
+      'nodehealth' => {
+        'snmp' => {
+          'avgBusy1' => {
+            'oid' => 'cseSysCPUUtilization.0'
+          },
+          'avgBusy5' => {
+            'oid' => 'cpmCPUTotal5minRev.1'
+          },
+          'MemoryUsedPROC' => {
+            'oid' => 'cpmCPUMemoryUsed.1'
+          },
+          'MemoryFreePROC' => {
+            'oid' => 'cpmCPUMemoryFree.1'
+          },
           'TopChanges' => {
             'oid' => 'dot1dStpTopChanges',
             'option' => 'counter,0:U'
           },
           'RouteNumber' => {
             'oid' => 'inetCidrRouteNumber',
-  					'replace' => {
-  						'335544320' => '0',
-  					},            
+            'replace' => {
+              '335544320' => '0',
+            },
           }
-  			},
-  			'threshold' => 'cpu,mem-proc',
-  			'graphtype' => 'cpu,mem-proc,topo,routenumber'
-  		},
+        },
+        'threshold' => 'cpu,mem-proc',
+        'graphtype' => 'cpu,mem-proc,topo,routenumber'
+      },
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -191,8 +205,8 @@
           }
         },
       }
-  	},
-  	'sys' => {
+    },
+    'sys' => {
       'extra' => {
         'snmp' => {
           'rttMonApplResponder' => {
@@ -227,58 +241,58 @@
           },
           'TimeSinceTopologyChange' => {
             'oid' => 'dot1dStpTimeSinceTopologyChange',
-            'Title' => 'Time Since STP Topology Change',
+            'title' => 'Time Since STP Topology Change',
             'replace' => {
               'noSuchObject' => 'N/A',
-              'noSuchInstance' => 'N/A',
+              'noSuchInstance' => 'N/A'
             }
           },
         }
       },
-  		'standard' => {
-  			'snmp' => {
-  				'sysLocation' => {
-  					'replace' => {
-  						'' => 'default'
-  					},
-  					'oid' => 'sysLocation',
-  					'title' => 'SNMP Location'
-  				},
-  				'sysDescr' => {
-  					'oid' => 'sysDescr',
-  					'title' => 'Description'
-  				},
-  				'sysObjectID' => {
-  					'oid' => 'sysObjectID'
-  				},
-				'sysUpTime' => {
-				  'calculate' => '$r * 100',
-				  'oid' => 'snmpEngineTime',
-				  'title' => 'Uptime'
-				},
-  				'ifNumber' => {
-  					'oid' => 'ifNumber',
-  					'title' => 'Interfaces'
-  				},
-  				'sysContact' => {
-  					'replace' => {
-  						'' => 'default'
-  					},
-  					'oid' => 'sysContact',
-  					'title' => 'Contact'
-  				},
-  				'sysName' => {
-  					'oid' => 'sysName',
-						'title' => 'System Name',
-  				},
-  			}
-  		}
-  	},
-  	'nodeVendor' => 'Cisco Systems',
-  	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'SNMP Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+            'title' => 'System Name'
+          },
+        }
+      }
+    },
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cdp,entityMib,env-temp,vtpVlan',
+    'sections' => 'cpu_cpm,cempMemPool,Cisco_CBQoS,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,Cisco_BGP_Peer,topChanges',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
@@ -289,33 +303,33 @@
             'title' => 'Descr.'
           },
           'tempStatus' => {
-  					'replace' => {
-  						'1' => 'ok',
-  						'2' => 'unavailable',
-  						'3' => 'nonoperational',
-  					},
+            'replace' => {
+              '1' => 'ok',
+              '2' => 'unavailable',
+              '3' => 'nonoperational',
+            },
             'oid' => 'entSensorStatus',
             'title' => 'Status'
           },
           'tempType' => {
-  					'replace' => {
-  						'1' => 'other',
-  						'2' => 'unknown',
-  						'3' => 'voltsAC',
-  						'4' => 'voltsDC',
-  						'5' => 'amperes',
-  						'6' => 'watts',
-  						'7' => 'hertz',
-  						'8' => 'celsius',
-  						'9' => 'percentRH',
-  						'10' => 'rpm',
-  						'11' => 'cmm',
-  						'12' => 'truthvalue',
-  						'13' => 'specialEnum',
-  						'14' => 'dBm',
-  					},
+            'replace' => {
+              '1' => 'other',
+              '2' => 'unknown',
+              '3' => 'voltsAC',
+              '4' => 'voltsDC',
+              '5' => 'amperes',
+              '6' => 'watts',
+              '7' => 'hertz',
+              '8' => 'celsius',
+              '9' => 'percentRH',
+              '10' => 'rpm',
+              '11' => 'cmm',
+              '12' => 'truthvalue',
+              '13' => 'specialEnum',
+              '14' => 'dBm',
+            },
             'oid' => 'entSensorType',
-            'title' => 'Status'
+            'title' => 'Type'
           },
           'currentTemp' => {
             'oid' => 'entSensorValue',
@@ -328,321 +342,321 @@
       'env-temp' => {
         'indexed' => 'true',
         'graphtype' => 'env-temp',
-        #'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
-        'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device|Inlet|Crossbar|CPU|DDR)/',
-        'snmp' => {
-          'currentTemp' => {
-            'oid' => 'entSensorValue',
-          }
-        },
+        # 'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
+          'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device|Inlet|Crossbar|CPU|DDR)/',
+          'snmp' => {
+            'currentTemp' => {
+              'oid' => 'entSensorValue',
+            }
+          },
       },
     }
   },
   'interface' => {
-  	'sys' => {
-  		'standard' => {
-      	'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
-  			'snmp' => {
-  				'ifOperStatus' => {
-  					'replace' => {
-  						'6' => 'notPresent',
-  						'1' => 'up',
-  						'4' => 'unknown',
-  						'3' => 'testing',
-  						'7' => 'lowerLayerDown',
-  						'2' => 'down',
-  						'5' => 'dormant'
-  					},
-  					'oid' => 'ifOperStatus',
-  					'title' => ' Oper Status'
-  				},
-  				'ifDescr' => {
-  					'oid' => 'ifDescr',
-  					'title' => ' Name'
-  				},
-					'ifPhysAddress' => {
+    'sys' => {
+      'standard' => {
+        'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => ' Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => ' Name'
+          },
+          'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
             'title' => 'Physical Address',
           },
 
-  				'ifSpeed' => {
-  					'oid' => 'ifSpeed',
-  					'title' => ' Bandwidth'
-  				},
-  				'ifAdminStatus' => {
-  					'replace' => {
-  						'6' => 'notPresent',
-  						'1' => 'up',
-  						'4' => 'unknown',
-  						'3' => 'testing',
-  						'7' => 'lowerLayerDown',
-  						'2' => 'down',
-  						'5' => 'dormant'
-  					},
-  					'oid' => 'ifAdminStatus',
-  					'title' => ' Admin Status'
-  				},
-  				'ifType' => {
-  					'oid' => 'ifType',
-  					'title' => ' Type'
-  				},
-  				'ifLastChange' => {
-  					'oid' => 'ifLastChange',
-  					'title' => ' Last Change'
-  				}
-  			},
-  			'indexed' => 'true'
-  		},
-  		'extra' => {
-  			'indexed' => 'true',
-  			'snmp' => {
-  				'vlanTrunkPortEncapsulationType' => {
-  					'replace' => {
-  						'1' => 'isl',
-  						'4' => 'dot1q',
-  						'0' => 'null',
-  						'3' => 'lane',
-  						'unknown' => 'unknown',
-  						'2' => 'dot10',
-  						'5' => 'negotiate'
-  					},
-  					'oid' => 'vlanTrunkPortEncapsulationType',
-  					'title' => ' Encapsulation Type'
-  				},
-  				'ifHighSpeed' => {
-  					'oid' => 'ifHighSpeed'
-  				},
-  				'Description' => {
-  					'oid' => 'ifAlias',
-  					'title' => ' Description'
-  				},
-  				'vlanPortVlan' => {
-  					'oid' => 'vlanTrunkPortNativeVlan'
-  				}
-  			}
-  		}
-  	},
-  	'rrd' => {
-  		'interface' => {
-  			'indexed' => 'true',
-  			'snmp' => {
-  				'ifOperStatus' => {
-  					'replace' => {
-  						'6' => 'notPresent',
-  						'1' => 'up',
-  						'4' => 'unknown',
-  						'3' => 'testing',
-  						'7' => 'lowerLayerDown',
-  						'2' => 'down',
-  						'5' => 'dormant'
-  					},
-  					'oid' => 'ifOperStatus',
-  					'option' => 'gauge,0:100'
-  				},
-  				'ifDescr' => {
-  					'oid' => 'ifDescr'
-  				},
-  				'ifInOctets' => {
-  					'oid' => 'ifInOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutOctets' => {
-  					'oid' => 'ifHCOutOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifAdminStatus' => {
-  					'replace' => {
-  						'6' => 'notPresent',
-  						'1' => 'up',
-  						'4' => 'unknown',
-  						'3' => 'testing',
-  						'7' => 'lowerLayerDown',
-  						'2' => 'down',
-  						'5' => 'dormant'
-  					},
-  					'oid' => 'ifAdminStatus'
-  				},
-  				'ifOutOctets' => {
-  					'oid' => 'ifOutOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInOctets' => {
-  					'oid' => 'ifHCInOctets',
-  					'option' => 'counter,0:U'
-  				}
-  			},
-  			'threshold' => 'util_in,util_out',
-  			'graphtype' => 'bits,abits,maxbits,util,autil'
-  		},
-  		#'pkts' => {
-  		#	'indexed' => 'true',
-  		#	'snmp' => {
-  		#		'ifHCOutUcastPkts' => {
-  		#			'oid' => 'ifHCOutUcastPkts',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifHCOutOctets' => {
-  		#			'oid' => 'ifHCOutOctets',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifOutOctets' => {
-  		#			'oid' => 'ifOutOctets',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifInUcastPkts' => {
-  		#			'oid' => 'ifInUcastPkts',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifInDiscards' => {
-  		#			'oid' => 'ifInDiscards',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifHCInUcastPkts' => {
-  		#			'oid' => 'ifHCInUcastPkts',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifOutErrors' => {
-  		#			'oid' => 'ifOutErrors',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifInNUcastPkts' => {
-  		#			'oid' => 'ifInNUcastPkts',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifOutDiscards' => {
-  		#			'oid' => 'ifOutDiscards',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifOutNUcastPkts' => {
-  		#			'oid' => 'ifOutNUcastPkts',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifInErrors' => {
-  		#			'oid' => 'ifInErrors',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifOutUcastPkts' => {
-  		#			'oid' => 'ifOutUcastPkts',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifInOctets' => {
-  		#			'oid' => 'ifInOctets',
-  		#			'option' => 'counter,0:U'
-  		#		},
-  		#		'ifHCInOctets' => {
-  		#			'oid' => 'ifHCInOctets',
-  		#			'option' => 'counter,0:U'
-  		#		}
-  		#	},
-  		#	'threshold' => 'pkt_errors_in,pkt_errors_out',
-  		#	'graphtype' => 'pkts,errpkts'
-  		#},
-  		'pkts_hc' => {
-  			'indexed' => 'true',
-        'threshold' => 'pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'pkts_hc,errpkts_hc',
-  			'snmp' => {
-  				'ifInOctets' => {
-  					'oid' => 'ifInOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifInUcastPkts' => {
-  					'oid' => 'ifInUcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifInMcastPkts' => {
-  					'oid' => 'ifInMulticastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifInBcastPkts' => {
-  					'oid' => 'ifInBroadcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifInDiscards' => {
-  					'oid' => 'ifInDiscards',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifInErrors' => {
-  					'oid' => 'ifInErrors',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutOctets' => {
-  					'oid' => 'ifOutOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutUcastPkts' => {
-  					'oid' => 'ifOutUcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutMcastPkts' => {
-  					'oid' => 'ifOutMulticastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutBcastPkts' => {
-  					'oid' => 'ifOutBroadcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutDiscards' => {
-  					'oid' => 'ifOutDiscards',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutErrors' => {
-  					'oid' => 'ifOutErrors',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInOctets' => {
-  					'oid' => 'ifHCInOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInUcastPkts' => {
-  					'oid' => 'ifHCInUcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInMcastPkts' => {
-  					'oid' => 'ifHCInMulticastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInBcastPkts' => {
-  					'oid' => 'ifHCInBroadcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutOctets' => {
-  					'oid' => 'ifHCOutOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutUcastPkts' => {
-  					'oid' => 'ifHCOutUcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutMcastPkts' => {
-  					'oid' => 'ifHCOutMulticastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutBcastPkts' => {
-  					'oid' => 'ifHCOutBroadcastPkts',
-  					'option' => 'counter,0:U'
-  				}
-  			}
-  		}
-  	},
-  	'noevent' => {
-  		'ifDescr' => 'null',
-  		'Description' => '^!|^0',
-  		'ifType' => 'other'
-  	},
-  	'collect' => {
-  		'Description' => '(CNOC|Collection)',
-  	},
-  	'nocollect' => {
-  		'ifOperStatus' => 'null',
-  		'ifDescr' => 'sublayer|null|controller',
-  		'Description' => '^#',
-  		'noDescription' => 'true',
-  		'ifType' => 'other|softwareloopback|slip'
-  	}
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => ' Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => ' Admin Status'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => ' Type'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => ' Last Change'
+          }
+        },
+        'indexed' => 'true'
+      },
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'vlanTrunkPortEncapsulationType' => {
+            'replace' => {
+              '1' => 'isl',
+              '4' => 'dot1q',
+              '0' => 'null',
+              '3' => 'lane',
+              'unknown' => 'unknown',
+              '2' => 'dot10',
+              '5' => 'negotiate'
+            },
+            'oid' => 'vlanTrunkPortEncapsulationType',
+            'title' => ' Encapsulation Type'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => ' Description'
+          },
+          'vlanPortVlan' => {
+            'oid' => 'vlanTrunkPortNativeVlan'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+#     'pkts' => {
+#         'indexed' => 'true',
+#           'snmp' => {
+#             'ifHCOutUcastPkts' => {
+#                 'oid' => 'ifHCOutUcastPkts',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifHCOutOctets' => {
+#                 'oid' => 'ifHCOutOctets',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifOutOctets' => {
+#                 'oid' => 'ifOutOctets',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifInUcastPkts' => {
+#                 'oid' => 'ifInUcastPkts',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifInDiscards' => {
+#                 'oid' => 'ifInDiscards',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifHCInUcastPkts' => {
+#                 'oid' => 'ifHCInUcastPkts',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifOutErrors' => {
+#                 'oid' => 'ifOutErrors',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifInNUcastPkts' => {
+#                 'oid' => 'ifInNUcastPkts',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifOutDiscards' => {
+#                 'oid' => 'ifOutDiscards',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifOutNUcastPkts' => {
+#                 'oid' => 'ifOutNUcastPkts',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifInErrors' => {
+#                 'oid' => 'ifInErrors',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifOutUcastPkts' => {
+#                 'oid' => 'ifOutUcastPkts',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifInOctets' => {
+#                 'oid' => 'ifInOctets',
+#                   'option' => 'counter,0:U'
+#               },
+#               'ifHCInOctets' => {
+#                 'oid' => 'ifHCInOctets',
+#                   'option' => 'counter,0:U'
+#               }
+#           },
+#           'threshold' => 'pkt_errors_in,pkt_errors_out',
+#           'graphtype' => 'pkts,errpkts'
+#       },
+        'pkts_hc' => {
+          'indexed' => 'true',
+          'threshold' => 'pkt_errors_in,pkt_errors_out',
+          'graphtype' => 'pkts_hc,errpkts_hc',
+          'snmp' => {
+            'ifInOctets' => {
+              'oid' => 'ifInOctets',
+              'option' => 'counter,0:U'
+            },
+            'ifInUcastPkts' => {
+              'oid' => 'ifInUcastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifInMcastPkts' => {
+              'oid' => 'ifInMulticastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifInBcastPkts' => {
+              'oid' => 'ifInBroadcastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifInDiscards' => {
+              'oid' => 'ifInDiscards',
+              'option' => 'counter,0:U'
+            },
+            'ifInErrors' => {
+              'oid' => 'ifInErrors',
+              'option' => 'counter,0:U'
+            },
+            'ifOutOctets' => {
+              'oid' => 'ifOutOctets',
+              'option' => 'counter,0:U'
+            },
+            'ifOutUcastPkts' => {
+              'oid' => 'ifOutUcastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifOutMcastPkts' => {
+              'oid' => 'ifOutMulticastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifOutBcastPkts' => {
+              'oid' => 'ifOutBroadcastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifOutDiscards' => {
+              'oid' => 'ifOutDiscards',
+              'option' => 'counter,0:U'
+            },
+            'ifOutErrors' => {
+              'oid' => 'ifOutErrors',
+              'option' => 'counter,0:U'
+            },
+            'ifHCInOctets' => {
+              'oid' => 'ifHCInOctets',
+              'option' => 'counter,0:U'
+            },
+            'ifHCInUcastPkts' => {
+              'oid' => 'ifHCInUcastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifHCInMcastPkts' => {
+              'oid' => 'ifHCInMulticastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifHCInBcastPkts' => {
+              'oid' => 'ifHCInBroadcastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifHCOutOctets' => {
+              'oid' => 'ifHCOutOctets',
+              'option' => 'counter,0:U'
+            },
+            'ifHCOutUcastPkts' => {
+              'oid' => 'ifHCOutUcastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifHCOutMcastPkts' => {
+              'oid' => 'ifHCOutMulticastPkts',
+              'option' => 'counter,0:U'
+            },
+            'ifHCOutBcastPkts' => {
+              'oid' => 'ifHCOutBroadcastPkts',
+              'option' => 'counter,0:U'
+            }
+          }
+        }
+    },
+    'noevent' => {
+      'ifDescr' => 'null',
+      'Description' => '^!|^0',
+      'ifType' => 'other'
+    },
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'null',
+      'ifDescr' => 'sublayer|null|controller',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'other|softwareloopback|slip'
+    }
   },
   'stats' => {
-  	'type' => {
+    'type' => {
       'health' => [
         'DEF:reach=$database:reachability:AVERAGE',
         'DEF:avail=$database:availability:AVERAGE',
@@ -675,19 +689,19 @@
         'PRINT:diskHealth:AVERAGE:diskHealth=%1.2lf',
         'PRINT:swapHealth:AVERAGE:swapHealth=%1.2lf'
       ],
-  		'nodehealth' => [
-  		  'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
-  		  'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
-  		  'DEF:MemPUsed=$database:MemoryUsedPROC:AVERAGE',
-  		  'DEF:MemPFree=$database:MemoryFreePROC:AVERAGE',
-  		  'CDEF:totalPMem=MemPUsed,MemPFree,+',
-  		  'CDEF:perPUsedMem=MemPUsed,totalPMem,/,100,*',
-  		  'CDEF:perPFreeMem=MemPFree,totalPMem,/,100,*',
-  		  'PRINT:avgBusy1:AVERAGE:avgBusy1min=%1.2lf',
-  		  'PRINT:avgBusy5:AVERAGE:avgBusy5min=%1.2lf',
-  		  'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
-  		  'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf'
-  		],
+      'nodehealth' => [
+        'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
+        'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
+        'DEF:MemPUsed=$database:MemoryUsedPROC:AVERAGE',
+        'DEF:MemPFree=$database:MemoryFreePROC:AVERAGE',
+        'CDEF:totalPMem=MemPUsed,MemPFree,+',
+        'CDEF:perPUsedMem=MemPUsed,totalPMem,/,100,*',
+        'CDEF:perPFreeMem=MemPFree,totalPMem,/,100,*',
+        'PRINT:avgBusy1:AVERAGE:avgBusy1min=%1.2lf',
+        'PRINT:avgBusy5:AVERAGE:avgBusy5min=%1.2lf',
+        'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
+        'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf'
+      ],
       'env_temp' => [
         'DEF:currentTemp=$database:currentTemp:AVERAGE',
         'PRINT:currentTemp:AVERAGE:currentTemp=%1.2lf',
@@ -741,8 +755,20 @@
         'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
         'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
         'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
-      ]  		
-  	}
+      ],
+      'cbqos-in' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
+      'cbqos-out' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
+    }
   },
   'summary' => {
     'statstype' => {
@@ -761,7 +787,7 @@
           'buffer' => {
             'stsname' => [
               'bufferElFree'
-           ]
+            ]
           }
         }
       },
@@ -783,9 +809,7 @@
             ]
           }
         }
-     }
+      }
     }
- }
- );
-
-
+  }
+);
