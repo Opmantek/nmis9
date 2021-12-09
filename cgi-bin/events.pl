@@ -259,7 +259,6 @@ sub displayEvents
 		next unless ($AU->InGroup($NT->{$thisevent->{node_name}}{group})
 								 and List::Util::none { $_ eq $NT->{$thisevent->{node_name}}->{group} } (@{$C->{hide_groups}}));
 		# print all events
-
 		# print header if ack changed
 		if ($tempnodeack ne $thisevent->{ack}) {
 			$tempnodeack = $thisevent->{ack};
@@ -272,6 +271,7 @@ sub displayEvents
 			print Tr(td({class=>'heading3',colspan=>'10'},"Active Events. (Set All Events Inactive",
 						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'0$server')",-checked=>'',override=>'1'),
 					")"));
+			submitChangesButton();
 		}
 
 		if (!NMISNG::Util::getbool($tmpack) and $thisevent->{ack})
@@ -282,6 +282,7 @@ sub displayEvents
 			print Tr(td({class=>'heading3',colspan=>'10'},"Inactive Events. (Set All Events Active ",
 						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'1$server')",-checked=>'',override=>'1'),
 					")"));
+			submitChangesButton();
 		}
 
 		if ( $tempnode ne $thisevent->{node_name} ) {
@@ -341,11 +342,7 @@ sub displayEvents
 		$event_cnt++;
 		$node_cnt++;
 	} # foreach $event_hash
-
-	print Tr(td({class=>'info Plain',colspan=>'8',align=>'right'},
-				button(-name=>'button',onclick=> ($wantwidget? "get('src_events_form');" : "submit()"),
-							 -value=>"Submit Changes")),
-					td({class=>'info Plain',colspan=>'2'}, '&nbsp'));
+	submitChangesButton();
 } # sub displayEvents
 
 # java - ack=false event=active
@@ -393,6 +390,14 @@ sub typeHeader {
 		td({class=>'header',align=>'center'},'Esc.'),
 		td({class=>'header',align=>'center'},'User')
 			);
+}
+
+#submit Changes
+sub submitChangesButton{
+	print Tr(
+		td({class=>'info Plain',colspan=>'8',align=>'right'},
+			button(-name=>'button',onclick=> ($wantwidget? "get('src_events_form');" : "submit()"),-value=>"Submit Changes")),
+		td({class=>'info Plain',colspan=>'2'}, '&nbsp'));
 }
 
 # change ack for the matching events
