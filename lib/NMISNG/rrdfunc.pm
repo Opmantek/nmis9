@@ -743,7 +743,7 @@ sub optionsRRD
 	:  undef;
 	$timinginfo //= { heartbeat => 900, poll => 300 };
 	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
-	$S->nmisng->log->debug2("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
+	$S->nmisng->log->debug("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
 
 
 	# align the start time with the step interval, but reduce by one interval so that we can send data immediately
@@ -847,6 +847,7 @@ sub createRRD
 	NMISNG::Util::createDir($dir) if (!-d $dir);
 
 	my @options = optionsRRD(data=>$data, sys=>$S, type=>$type, index=>$index);
+
 	if (!@options)
 	{
 		return "($S->{name}) unknown type=$type";
