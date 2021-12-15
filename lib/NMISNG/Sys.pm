@@ -301,7 +301,7 @@ sub init
 	# Policy cames as a name
 	# But then, we are using with the policy hash
 	my $policy_name = $args{policy};		# optional
-	my $table_policies = NMISNG::Util::loadTable(dir => "conf", name => "Polling-Policy", conf => $C);
+	my $table_policies = NMISNG::Util::loadTable(dir => "conf", name => "Polling-Policy", conf => $C) // NMISNG::Util::loadTable(dir => "conf-default", name => "Polling-Policy", conf => $C);
 	my $policy;
 	my $intervals;
 	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, update => 86400};
