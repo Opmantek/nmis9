@@ -1338,13 +1338,13 @@ function toTitleCase(toTransform) {
 }
 
 $(function($) {
-	$("#window_save").live( "click", function() {
+	$("body").on( "click", "#window_save", function() {
 		saveWindowState();
 		return false;
 	});
 });
 $(function($) {
-	$("#window_clear").live( "click", function() {
+	$("body").on( "click", "#window_clear", function() {
 		clearWindowState();
 		return false;
 	});
