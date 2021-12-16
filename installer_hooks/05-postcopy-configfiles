@@ -22,6 +22,25 @@ else
 		execPrint "cp -van $TARGETDIR/conf-default/users.dat $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf-default/performance.nmis $TARGETDIR/conf/"
 
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis /system/keep_event_history=false /expiration/purge_event_after=604800 /system/network_viewNode_field_list=nodestatus,outage,sysName,host_addr,host_addr_backup,group,customer,location,businessService,serviceStatus,notes,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,last_ping,last_collect,last_update,nodeVendor,sysObjectName,roleType,netType /system/non_stateful_events='Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded' '/directories/<nmis_base>'=$TARGETDIR"
+
+		# jQuery upgrade
+		printBanner "Upgrading jquery configuration"
+
+		cat <<EOF
+jQuery and jQuery UI have been upgraded. Custom changes could be lost 
+overriding these values.
+Please note: GUI may not work omitting this step.
+
+EOF
+		if input_yn "OK to upgrade jQuery configuration items?" "3310"; then
+				execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/javascript/jquery_bgiframe'='<menu_url_base>/js/jquery.bgiframe-3.0.1.js'"
+				execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/javascript/jquery_jdmenu'='<menu_url_base>/js/jquery.jdMenu.patch.js'"
+				execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/javascript/jquery_ui'='<menu_url_base>/js/jquery-ui-1.13.custom.js'"
+				execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/javascript/jquery'='<menu_url_base>/js/jquery-3.6.0.js'"
+				execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/css/jquery_ui_css'='<menu_url_base>/css/smoothness/jquery-ui-1.13.custom.css'"
+		else
+				echolog "Not updating jQuery as directed."
+		fi
 fi
 
 exit 0
