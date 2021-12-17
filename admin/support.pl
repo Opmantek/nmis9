@@ -691,6 +691,7 @@ sub collect_bot_data
 	my $dir = $args{dir};
 	my $sourcedir;
 	
+	# Open zip
 	if ($dir =~ /\.zip/) {
 			# Try to uncompress
 			$sourcedir = "/tmp/tmp-nmis-support-$timelabel";
@@ -969,13 +970,20 @@ sub print_disk
 {
 	my %args = @_;
 	my $content = $args{content};
-	my $toRet = "<table class='table'><thead><tr><td>Filesystem</td><td>Available</td><td>Used</td><td>Use</td></tr></thead>";
+	my $toRet = "<table class='table'><thead><tr>";
+	my $headers = [qw(Filesystem Available Used Use)];
+	foreach my $c (@$headers)
+	{
+		$toRet = $toRet . "<td>$c</td>";
+	}
+	$toRet = $toRet . "</tr></thead>";
 	
 	foreach my $key (keys %$content) {
 		my $use = $content->{$key}->{use};
 		$use =~ s/%//;
 		my $show_use = "<span class='text-success'>".$content->{$key}->{use}."</span>";
 		if ($use > 80) {
+			print "** High use of disk: ". $content->{$key}->{use}." \n";
 			$show_use = "<span class='text-danger'>".$content->{$key}->{use}."</span>";
 		}
 		$toRet = $toRet . "<tr><td>".$key."</td><td>".$content->{$key}->{available}."</td><td>".$content->{$key}->{used}."</td><td>$show_use</td></tr>";
@@ -1010,9 +1018,9 @@ sub print_collapse
 	my %args = @_;
 	my $content = $args{content};
 	my $extract = substr $content, 0, 20;
-	my $random_number = rand();
+	my $random_number = int rand(200);
 	my $name = "text$random_number";
-	my $where = "<button type='button' class='btn btn-info' data-toggle='collapse' data-target='#$name'>" . $extract . " ...</button><br>";
+	my $where = "<a type='button' class='btn btn-info' data-toggle='collapse' href='$name' data-target='#$name'>" . $extract . " ...</a><br>";
 	$where = $where . "<div id='$name' class='collapse out'>" . $content . "</div><br> ";
 	
 	return $where;
@@ -1028,6 +1036,7 @@ sub print_config
 	foreach my $key (keys %$content) {
 		if (!defined($content->{$key}) or $content->{$key} eq "" or ($key eq "server_name" and $content->{$key} = "localhost")) {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-remove' style='color:red'></span><b> $key</b> ". $content->{$key}."</p>";
+			print "** Error in config detected for $key: ". $content->{$key}." \n";
 		} else {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-ok' style='color:green'></span><b> $key</b> ". $content->{$key}."</p>";
 		}

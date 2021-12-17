@@ -305,34 +305,35 @@ sub init
 	my $policy;
 	my $intervals;
 	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, update => 86400};
-	
-	for my $polname ( keys %$table_policies )
-	{
-		next if ( ref( $table_policies->{$polname} ) ne "HASH" );
-		for my $subtype (qw(snmp wmi ping update))
+	if ($policy_name) {
+		for my $polname ( keys %$table_policies )
 		{
-				my $interval = $table_policies->{$polname}->{$subtype};
-				if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
-				{
-					my ( $rawvalue, $unit ) = ( $1, $3 );
-					$interval = $rawvalue * (
-						  $unit eq 'm' ? 60
-						: $unit eq 'h' ? 3600
-						: $unit eq 'd' ? 86400
-						:                1
-					);
-				}
-				else
-				{
-					$self->nmisng->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
-					$interval = $intervals->{devault}->{$subtype};
-				}
-				$intervals->{$polname}->{$subtype} = $interval;    # now in seconds
+			next if ( ref( $table_policies->{$polname} ) ne "HASH" );
+			for my $subtype (qw(snmp wmi ping update))
+			{
+					my $interval = $table_policies->{$polname}->{$subtype};
+					if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
+					{
+						my ( $rawvalue, $unit ) = ( $1, $3 );
+						$interval = $rawvalue * (
+							  $unit eq 'm' ? 60
+							: $unit eq 'h' ? 3600
+							: $unit eq 'd' ? 86400
+							:                1
+						);
+					}
+					else
+					{
+						$self->nmisng->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
+						$interval = $intervals->{devault}->{$subtype};
+						$self->nmisng->log->info(&NMISNG::Log::trace()." nmisng");
+					}
+					$intervals->{$polname}->{$subtype} = $interval;    # now in seconds
+			}
 		}
+		$policy = $intervals->{$policy_name};
+		$self->nmisng->log->debug2("Using policy $policy_name: ". Dumper($policy));
 	}
-	$policy = $intervals->{$policy_name};
-    $self->nmisng->log->debug("Using policy $policy_name: ". Dumper($policy));
-	
 	# flag for init snmp accessor, default is yes
 	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
 	# ditto for wmi, but default from snmp
