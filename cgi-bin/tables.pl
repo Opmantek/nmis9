@@ -718,7 +718,6 @@ sub doeditTable
 		for my $item (keys %{$ref})
 		{
 			$item = decode_entities($item);
-	
 			my $thisitem = $ref->{$item}; # table config record for this item
 
 			# do not save anything for separator entries, they're just for visual use
@@ -744,12 +743,12 @@ sub doeditTable
 					\@unpacked:  join(",", @unpacked);
 
 			$thisentry->{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);
-	
+
 			# Some craziness going on with this value that corrupst the file, filter
 			if ($table =~ /Polling-Policy/ && $item eq 'update')
 			{
-				if ( $value =~ /^([^\d]+)(\d+(\.\d+)?)([smhd])$/ )
-				{
+				if ( $value =~ /^(&#0;)(\d+(\.\d+)?)([smhd])$/ )
+				{	
 					$thisentry->{$item} = "$2$4";
 				}
 			}
