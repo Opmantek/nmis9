@@ -114,7 +114,8 @@ my %hash = (
 		'nmisd_max_workers' => 10, # set to zero to disable multiprocessing
 		'nmisd_worker_cycle' => 100,	# workers sleep no longer than X between cycles
 		'nmisd_scheduler_cycle' => 10, # the supervisor daemon sleeps no longer than X between cycles
-
+    'nmisd_worker_max_cycles' => 50, # workers processes will be restarted after these cycles
+    
 		'nmisd_fping_worker' => 'true', # if true, at dedicated worker for fping use used
 		'postpone_clashing_schedule' => 30, # if positive, clashing jobs are retried N seconds later, otherwise clashing jobs are discarded
 
