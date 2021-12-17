@@ -2699,6 +2699,7 @@ sub grouped_node_summary
 			'ping'        => '$node_config.configuration.ping',
 			'sysLocation' => '$data.sysLocation',
 			'last_update' => '$data.last_update',
+			'last_poll' => '$data.last_poll',
 			%groupproject_hash
 		}
 	};
