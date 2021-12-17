@@ -276,6 +276,7 @@ sub collect_evidence
 		"$targetdir/node_dumps",
 		"$targetdir/db_dumps",
 		"$targetdir/system_status/cpanm",
+		"$targetdir/img", 
 		{ chmod => 0755 });
 
 	# Get polling summary
@@ -824,6 +825,7 @@ sub collect_bot_data
 								 "--host", $globalconf->{db_server},
 								 "--port", $globalconf->{db_port});
 		my $run = "mongo @mongoargs $dbname --eval \"$query\"";
+
 		$bot_data->{count}->{$data} = `$run`;
 	}
 	
@@ -842,6 +844,37 @@ sub collect_bot_data
 		my $status = system(@cmd);
 	}
 	
+	# runtimegrpah
+	my $res = get_graph(type => "nmis");
+	if ($res->{success}) {
+		$bot_data->{runtime_graph} = "img/nmis.png";
+	}
+	
+	# Try to find local monitoring node
+	my $nodesmodel = $nmisng->get_nodes_model(filter => {"configuration.host" => "127.0.0.1",
+														 "cluster_id" => $C->{cluster_id},
+														 "activated.NMIS" => 1,
+														 "configuration.collect" => 1});
+	my $allnodes = $nodesmodel->data;
+	if (scalar @$allnodes == 0) {
+		$nodesmodel = $nmisng->get_nodes_model(filter => {"configuration.host" => "localhost",
+														  "cluster_id" => $C->{cluster_id},
+														  "activated.NMIS" => 1,
+														 "configuration.collect" => 1});
+		$allnodes = $nodesmodel->data;
+	}
+	if (scalar @$allnodes > 0) {
+		my $justone = @$allnodes[0];
+		# Now get graphs for this node
+		my $res = get_graph(type => "ss-cpu", node => $justone->{name});
+		if ($res->{success}) {
+			$bot_data->{cpu_graph} = "img/ss-cpu.png";
+		}
+	}
+	
+	
+	
+	#fdie "Finnish";
 	return 1;
 }
 
@@ -896,20 +929,22 @@ sub show_content
 	my $where = $args{where};
 	my $show_key = $args{show_key};
 	
-	$where = $where. "<h2>$title</h2>" if ($title);
+	$where = $where. "<h2>$title</h2><hr>" if ($title);
 	if (ref($content) eq "HASH") {
 		foreach my $key (keys %$content) {
 			if ($key eq "count" or $key eq "stats") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_table(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_table(content => $content->{$key});
 			} elsif ($key eq "disk") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_disk(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_disk(content => $content->{$key});
 			} elsif ($key eq "config") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_config(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_config(content => $content->{$key});
 			} elsif ($key eq "nmis_log") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_collapse(key => $key, content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_collapse(key => $key, content => $content->{$key});
+			}elsif ($key =~ /graph/) {
+				$where = $where . "<h2 id='$key'>$key</h2><hr><img id='$key' src='".$content->{$key}."' alt=''>";
 			}elsif (ref($content->{$key}) eq "HASH") {
 				if ($show_key) {
-					$where = $where . "<h2 id='$key'>$key</h2>".show_content(content => $content->{$key}, where => "");
+					$where = $where . "<h2 id='$key'>$key</h2><hr>".show_content(content => $content->{$key}, where => "");
 				} else {
 					$where = $where . show_content(content => $content->{$key}, where => "");
 				}
@@ -930,18 +965,19 @@ sub show_content
 					}
 				}
 				if ($show_key) {
-					$where = $where . "<h2 id='$key'>$key</h2>".show_content(content => $content->{$key}, where => "");
+					$where = $where . "<h2 id='$key'>$key</h2><hr>".show_content(content => $content->{$key}, where => "");
 				} else {
 					$where = $where . show_content(content => $content->{$key}, where => "");
 				}
 			} else {
 				if ($show_key) {
-					$where = $where . "<h2 id='$key'>$key</h2><p> ".$content->{$key}."</p>";
+					$where = $where . "<h2 id='$key'>$key</h2><hr><p> ".$content->{$key}."</p>";
 				} else {
 					$where = $where . "<b>$key</b><p> ".$content->{$key}."</p>";
 				}
 			}
 		}
+
 	} else {
 		$where = $where . "<p>".$content."</p>";
 	}
@@ -1044,4 +1080,40 @@ sub print_config
 	}
 	
 	return $toRet;
+}
+
+# Copy graph
+sub get_graph
+{
+	my %args = @_;
+	
+	my $C = NMISNG::Util::loadConfTable();
+
+	my $graphtype = $args{type};
+	my $group = $args{group};
+	my $node = $args{node};
+	my $intf = $args{intf};
+	my $item  = $args{item};
+	my $parent = $args{cluster_id} || $C->{cluster_id}; # default: ours
+	my $width = $args{width} // "600"; # graph size
+	my $height = $args{height} // "150";
+	my $start = $args{start} // time - 604800; # By default, 7 days ago
+	my $end = $args{end};
+	my $inventory = $args{inventory};
+	my $omit_fluff = NMISNG::Util::getbool($args{only_link}); # return wrapped <a> etc. or just the href?
+	
+	my $result = NMISNG::rrdfunc::draw(
+							node => $node,
+							group => $group,
+							graphtype => $graphtype,
+							intf => $intf,
+							item => $item,
+							start => $start,
+							#end =>  $end,
+							width => $width,
+							height => $height,
+							filename => "$targetdir/img/$graphtype.png",
+							inventory => $inventory);
+	return $result;
+	
 }
