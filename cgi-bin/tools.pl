@@ -157,6 +157,7 @@ sub typeTool
 											 lft => [$C->{lft},"-NASE", $host],
 											 mtr => [$C->{mtr},qw(--report --report-cycles=10),$host],
 											 snmp => [$C->{'<nmis_admin>'}."/tests.pl", "act=snmp", "node=$node"],
+											 collect => [$C->{'<nmis_admin>'}."/support.pl", "action=collect", "gui=1"]
 				);
 
 		if (!$knowntools{$tool})

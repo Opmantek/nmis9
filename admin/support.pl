@@ -43,8 +43,10 @@ use NMISNG::Util;
 
 print "Opmantek NMIS Support Tool Version $VERSION\n";
 
+my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
+
 die "The Support Tool must be run with root privileges, terminating now.\n"
-		if ($> != 0);
+		if ($> != 0 and $cmdline->{gui} != 1);
 
 my $usage = "Usage: ".basename($0)." action=collect [public=t/f] [node=nodeA] [node=nodeB...] [bot=1] [report_dir=...]\n
 action=collect: collect general support info in an archive file
@@ -67,7 +69,6 @@ report_dir: Move the report outside support support zip
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-(h|help|\?)/i);
 
-my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 #die $usage if ($cmdline->{action} ne "collect" or $cmdline->{action} ne "run-bot");
 
 my $maxzip = $cmdline->{maxzipsize} || 10*1024*1024; # 10meg
@@ -883,7 +884,12 @@ sub run_bot
 {
 	my %args = @_;
 	my $zip = $args{zip};
+	
 	print "Running support bot... \n";
+	print "\n ======================================= \n";
+	print "\n ================  ERRORS ============== \n";
+	print "\n ======================================= \n";
+	
 	my $outputfile;
 	my $basedir = $globalconf->{'<nmis_base>'};
 	my $report_name = "support_report";
@@ -916,6 +922,7 @@ sub run_bot
 		$template =~ s/CONTENT/$content/;
 		write_file("$report_dir/$report_name.html", $template);
 	}
+	print "\n ================= DONE ================ \n";
 
 }
 
@@ -1018,7 +1025,7 @@ sub print_disk
 		$use =~ s/%//;
 		my $show_use = "<span class='text-success'>".$content->{$key}->{use}."</span>";
 		if ($use > 80) {
-			print "** High use of disk: ". $content->{$key}->{use}." \n";
+			print "** High use of disk $key: ". $content->{$key}->{use}." \n";
 			$show_use = "<span class='text-danger'>".$content->{$key}->{use}."</span>";
 		}
 		$toRet = $toRet . "<tr><td>".$key."</td><td>".$content->{$key}->{available}."</td><td>".$content->{$key}->{used}."</td><td>$show_use</td></tr>";
