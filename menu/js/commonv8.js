@@ -1385,9 +1385,13 @@ function saveWindowState() {
 		objData = value;
 		if ( objData.status === true ) {
 			dialogHandle = objData.widgetHandle;
+			var pos = {my: "", at: ""};
+			pos.my = dialogHandle.dialog( "option", "position" ).my;
+			pos.at = dialogHandle.dialog( "option", "position" ).at;
+			
 			thisWindow = { height: dialogHandle.dialog( "option", "height" ),
 										 width: dialogHandle.dialog( "option", "width" ),
-										 position: objData.options.position,
+										 position: pos,
 										 title: objData.options.title,
 										 url: objData.options.url,
 										 id: objData.options.id };
