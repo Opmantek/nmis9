@@ -872,9 +872,8 @@ sub collect_bot_data
 		}
 	}
 	
-	
-	
-	#fdie "Finnish";
+	# Duplicate noes
+	$bot_data->{duplicates} = check_duplicates();
 	return 1;
 }
 
@@ -1116,4 +1115,34 @@ sub get_graph
 							inventory => $inventory);
 	return $result;
 	
+}
+
+# Duplicate nodes
+sub check_duplicates
+{
+	my %args = @_;
+	
+	my $nodes_list = $nmisng->get_node_uuids();
+	my %names;
+	my $duplicates = 0;
+	my $res;
+	my $duplicates_list;
+	
+	foreach my $node (@$nodes_list) {
+		#print "Node $node \n";
+		my $nodeobj = $nmisng->node(uuid => $node);
+		#print $nodeobj->name . "\n" if ($nodeobj);
+		if ($names{$nodeobj->name}) {
+			print "[ ".$nodeobj->name." ] duplicated. $node and ". $names{$nodeobj->name} . "\n";
+			$duplicates_list->{$node} = $nodeobj->name;
+			$duplicates++;
+		} else
+		{
+			$names{$nodeobj->name} = $node;
+		}
+	}
+	$res->{msg} = "Total nodes: ". scalar(@$nodes_list) . " and duplicates $duplicates \n";
+	$res->{list} = $duplicates_list;
+	
+	return $res;
 }
