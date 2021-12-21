@@ -1150,8 +1150,8 @@ sub check_duplicates
 			$names{$nodeobj->name} = $node;
 		}
 	}
-	$res->{msg} = "Total nodes: ". scalar(@$nodes_list) . " and duplicates $duplicates \n";
-	$res->{list} = $duplicates_list;
+	$res->{total} = "Total nodes: ". scalar(@$nodes_list) . " and duplicates $duplicates \n";
+	$res->{list} = $duplicates_list if ($duplicates_list);
 	
 	return $res;
 }
