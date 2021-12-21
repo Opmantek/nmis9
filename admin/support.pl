@@ -811,6 +811,7 @@ sub collect_bot_data
 	
 	my $dbname= $globalconf->{db_name};
 	# Data count
+	print "\n Trying to get data from mongo... \n";
 	for (
 			[ 'db.queue.find().count()', 'queue'],
 			[ 'db.nodes.find().count()','nodes'],
@@ -874,6 +875,7 @@ sub collect_bot_data
 	}
 	
 	# Duplicate noes
+	print "\n Trying to get duplicate nodes... \n";
 	$bot_data->{duplicates} = check_duplicates();
 	return 1;
 }
@@ -885,7 +887,7 @@ sub run_bot
 	my %args = @_;
 	my $zip = $args{zip};
 	
-	print "Running support bot... \n";
+	print "\n Running support bot... \n";
 	print "\n ======================================= \n";
 	print "\n ================  ERRORS ============== \n";
 	print "\n ======================================= \n";

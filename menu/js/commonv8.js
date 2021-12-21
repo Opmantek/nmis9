@@ -321,8 +321,15 @@ function	createDialog(opt) {
 
 		dialogContainer =	$('<div id="' + opt.id + '" style="display:none;"></div>');
 		dialogContainer.appendTo('body');
-		// Add loader
-		dialogContainer.html(loader);
+		// Special handler for support tls_collect
+		if (objData.id == "tls_collect") {
+			// Add loader
+			dialogContainer.html("Generating support zip <br> This may take a while... <br><br>" + loader);
+		} else {
+			// Add loader
+			dialogContainer.html(loader);
+		}
+		
 		
 		dialogHandle = dialogContainer.dialog(opt);
 		// tag this dialog with an ID so we know who it is when debugging
