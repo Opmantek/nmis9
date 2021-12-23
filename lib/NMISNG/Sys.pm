@@ -326,7 +326,7 @@ sub init
 					{
 						$self->nmisng->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
 						$interval = $intervals->{devault}->{$subtype};
-						$self->nmisng->log->info(&NMISNG::Log::trace()." nmisng");
+						#$self->nmisng->log->info(&NMISNG::Log::trace()." nmisng");
 					}
 					$intervals->{$polname}->{$subtype} = $interval;    # now in seconds
 			}
