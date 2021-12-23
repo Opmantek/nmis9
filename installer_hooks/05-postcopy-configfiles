@@ -41,6 +41,20 @@ EOF
 		else
 				echolog "Not updating jQuery as directed."
 		fi
+		
+		# patch Access upgrade
+		printBanner "Upgrading Access configuration"
+
+		cat <<EOF
+A new entry has been added to Access.nmis to
+provide a new menu entry to collect support data
+
+EOF
+		if input_yn "OK to patch Access.nmis?" "5263"; then
+				execPrint "$TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Access.nmis $TARGETDIR/conf/Access.nmis"
+		else
+				echolog "Not updating Access.nmis as directed."
+		fi
 fi
 
 exit 0
