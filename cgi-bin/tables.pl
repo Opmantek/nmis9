@@ -329,13 +329,16 @@ sub viewTable
 																var markup = " Are you sure? A node backup will be created if backup_node_on_delete is true. <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> More info.</a> ";
 																$(this).html(markup);
 															  },
-															buttons: {
-															"Delete anyway":function(){
+															buttons: [
+															{text: "Delete anyway",
+															id: "confirm-delete",
+															click:function(){
 																'. $action . ' $(this).dialog("close");
-															},
-															"Dont do it now":function(){
+															}},
+															{text:"Dont do it now",
+															click:function(){
 																$(this).dialog("close");
-															} } });
+															}}] });
 															'),
 												 -value=>"Delete"),
 									"Are you sure",

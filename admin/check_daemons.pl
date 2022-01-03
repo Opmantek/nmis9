@@ -103,15 +103,16 @@ if ($Q->{act} =~ /^check[-_]daemons/)
 			print "Failed to get service $service status: exit code=$exitcode\n";
 		}
 		print $status if (!$wantquiet);
-		if ($status !~ '(not running|inactive|failed)') {
+		if ($status and $status !~ '(not running|inactive|failed)') {
 		   # All good
+		   print "Status $service looks ok \n" if (!$wantquiet);
 		}
 		else {
-            
+            print "Failed service status $service: exit code=$exitcode\n";
             $result = 0;
             $body = $body . "\n +++++++++++++++++++++++++++++++++++++++ \n";
 		    $body = $body . "Service $service was stopped \n";
-             $body = $body . " +++++++++++++++++++++++++++++++++++++++ \n\n";
+            $body = $body . " +++++++++++++++++++++++++++++++++++++++ \n\n";
            
             if ($wantverbose) {
                 $body = $body . "$status \n";
@@ -125,7 +126,10 @@ if ($Q->{act} =~ /^check[-_]daemons/)
            }
             
 		   if ($start) {
+			
+				print "Trying to start service $service \n";
 				my $status = (`service $service start`);
+				
 				print $status if (!$wantquiet);
 		   }
            
