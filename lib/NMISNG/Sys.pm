@@ -587,6 +587,7 @@ sub init
 	{
 		my $maybe = NMISNG::WMI->new(
 			host     => $thisnodeconfig->{host},
+			version  => $thisnodeconfig->{wmiversion},
 			domain   => $thisnodeconfig->{wmidomain},
 			username => $thisnodeconfig->{wmiusername},
 			password => $thisnodeconfig->{wmipassword},

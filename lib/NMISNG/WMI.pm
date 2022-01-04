@@ -49,10 +49,11 @@ sub new
 		{
 			username => $args{username},
 			password => $args{password},
-			host => $args{host},
-			domain => $args{domain},
-			timeout => $args{timeout},
-			program => $args{program} || "wmic",
+			host     => $args{host},
+			version  => $args{version},
+			domain   => $args{domain},
+			timeout  => $args{timeout},
+			program  => $args{program} || "wmic",
 		},
 		$class);
 
@@ -172,7 +173,8 @@ sub _run_query
 
 	# random column delimiter, 10 letters should do
 	my $delim = join('', map { ('a'..'z')[rand 26] } (0..9));
-	my (@rawdata, $exitcode, %result);
+	my (@rawdata, $exitcode, %result, $version);
+	my $v2option = "";
 
 	# fork and pipe
 	my $pid = open(WMIC, "-|");
@@ -219,6 +221,10 @@ sub _run_query
 
 		# let's accept usernames with domains, as user@domain or domain/user
 		my $foundDomain = 0;
+		if (!$self->{version})
+		{
+			$version = "Version 1";
+		}
 		if ($self->{username})
 		{
 		    if ($self->{username} =~ m!^([^/@]+)([/@])(.+)$!)
@@ -245,6 +251,7 @@ sub _run_query
 									 "-A", $authfn,
 									 "//".$self->{host},
 									 $query);
+		push @cmdargs, '--option="client ntlmv2 auth"=Yes' if ($self->{version} eq 'Version 2');
 		push @cmdargs, "--no-pass" if (!$self->{password});
 		push @cmdargs, "| grep -v dcerpc_pipe_connect";
 

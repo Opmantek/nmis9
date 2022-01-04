@@ -153,6 +153,18 @@ sub loadLocalNodeTable
 			}
 		}
 	}
+	foreach (keys %map)
+	{
+    	if ($map{$_}{wmiusername} ne '' && !$map{$_}{wmiversion})
+    	{
+        	$map{$_}{wmiversion} = 'Version 1';
+#       	print "Node: '$_'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; WMI User '$map{$_}{wmiusername}'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; WMI Version '$map{$_}{wmiversion}'<BR>";
+    	}
+    	elsif (!$map{$_}{wmiversion})
+    	{
+        	$map{$_}{wmiversion} = 'Version 2';
+    	}
+	}
 
 	return \%map;
 }
