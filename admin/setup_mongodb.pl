@@ -166,7 +166,7 @@ if (!$isnoauth)
 
 	do
 	{
-		$adminpwd = input_text("Enter your MongoDB ADMIN password [default: " . NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') . "]:","18ba")
+		$adminpwd = input_text("Enter your MongoDB ADMIN password [default: " . NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') . "]:","18ba");
 		$adminpwd = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') if ($adminpwd eq "");
 
 		$confirm = $noninteractive? 1 : input_yn("You entered \"$adminpwd\" - is this correct?","3937");
