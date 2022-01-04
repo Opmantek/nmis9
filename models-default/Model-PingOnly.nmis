@@ -49,9 +49,43 @@
       }
     }
   },
+  'database' => {
+    'type' => {
+      'health-ping' => '/nodes/$node/health/reach.rrd'
+    }
+  },
   'system' => {
     'nodeType' => 'generic',
     'nodeModel' => 'PingOnly',
-    'nodegraph' => 'health-ping,response'
+    'nodegraph' => 'health-ping,response',
+    'sys' => {
+      'health-ping' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'rrd' => 
+		{
+      'health-ping' => {    
+        'indexed' => 'true',       
+        'graphtype' => 'health-ping',            
+      }
     }
+  }
 );

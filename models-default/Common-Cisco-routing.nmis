@@ -1,0 +1,122 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+    'type' => {
+      'Cisco_BGP_Peer' => '/nodes/$node/health/Cisco_BGP_Peer-$index.rrd',
+    }
+  },
+  'heading' => {
+    'graphtype' => {
+      'Cisco_BGP_Peer' => 'Cisco BGP Peer Statistics',
+    }
+  },
+
+#CISCO-BGP4-MIB::cbgpPeerAddrFamilyName.192.168.1.249.ipv4.unicast = STRING: IPv4 Unicast
+#CISCO-BGP4-MIB::cbgpPeerAddrFamilyName.192.168.90.18.ipv4.unicast = STRING: IPv4 Unicast
+#CISCO-BGP4-MIB::cbgpPeerAcceptedPrefixes.192.168.1.249.ipv4.unicast = Counter32: 1
+#CISCO-BGP4-MIB::cbgpPeerAcceptedPrefixes.192.168.90.18.ipv4.unicast = Counter32: 2
+#CISCO-BGP4-MIB::cbgpPeerDeniedPrefixes.192.168.1.249.ipv4.unicast = Gauge32: 0
+#CISCO-BGP4-MIB::cbgpPeerDeniedPrefixes.192.168.90.18.ipv4.unicast = Gauge32: 0
+#CISCO-BGP4-MIB::cbgpPeerAdvertisedPrefixes.192.168.1.249.ipv4.unicast = Gauge32: 39
+#CISCO-BGP4-MIB::cbgpPeerAdvertisedPrefixes.192.168.90.18.ipv4.unicast = Gauge32: 1
+#CISCO-BGP4-MIB::cbgpPeerSuppressedPrefixes.192.168.1.249.ipv4.unicast = Gauge32: 0
+#CISCO-BGP4-MIB::cbgpPeerSuppressedPrefixes.192.168.90.18.ipv4.unicast = Gauge32: 0
+#CISCO-BGP4-MIB::cbgpPeerWithdrawnPrefixes.192.168.1.249.ipv4.unicast = Gauge32: 36
+#CISCO-BGP4-MIB::cbgpPeerWithdrawnPrefixes.192.168.90.18.ipv4.unicast = Gauge32: 0
+#"cbgpPeerAddrFamilyTable"     "1.3.6.1.4.1.9.9.187.1.2.3"
+#"cbgpPeerAddrFamilyEntry"     "1.3.6.1.4.1.9.9.187.1.2.3.1"
+#"cbgpPeerAddrFamilyAfi"     "1.3.6.1.4.1.9.9.187.1.2.3.1.1"
+#"cbgpPeerAddrFamilySafi"      "1.3.6.1.4.1.9.9.187.1.2.3.1.2"
+#"cbgpPeerAddrFamilyName"      "1.3.6.1.4.1.9.9.187.1.2.3.1.3"
+#"cbgpPeerAddrFamilyPrefixTable"     "1.3.6.1.4.1.9.9.187.1.2.4"
+#"cbgpPeerAddrFamilyPrefixEntry"     "1.3.6.1.4.1.9.9.187.1.2.4.1"
+#"cbgpPeerAcceptedPrefixes"      "1.3.6.1.4.1.9.9.187.1.2.4.1.1"
+#"cbgpPeerDeniedPrefixes"      "1.3.6.1.4.1.9.9.187.1.2.4.1.2"
+#"cbgpPeerPrefixAdminLimit"      "1.3.6.1.4.1.9.9.187.1.2.4.1.3"
+#"cbgpPeerPrefixThreshold"     "1.3.6.1.4.1.9.9.187.1.2.4.1.4"
+#"cbgpPeerPrefixClearThreshold"      "1.3.6.1.4.1.9.9.187.1.2.4.1.5"
+#"cbgpPeerAdvertisedPrefixes"      "1.3.6.1.4.1.9.9.187.1.2.4.1.6"
+#"cbgpPeerSuppressedPrefixes"      "1.3.6.1.4.1.9.9.187.1.2.4.1.7"
+#"cbgpPeerWithdrawnPrefixes"     "1.3.6.1.4.1.9.9.187.1.2.4.1.8"
+
+  'systemHealth' => {
+    'sys' => {
+      'Cisco_BGP_Peer' => {
+        'headers' => 'index,cbgpPeerAddrFamilyName',
+        'index_oid' => '1.3.6.1.4.1.9.9.187.1.2.3.1.3',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\d+\\.\d+)$',
+        'indexed' => 'cbgpPeerAddrFamilyName',
+        'snmp' => {
+          'index' => {
+            'title' => 'BGP Peer'
+          },
+          'cbgpPeerAddrFamilyName' => {
+            'oid' => '1.3.6.1.4.1.9.9.187.1.2.3.1.3',
+            'title' => 'Address Family Name'
+          },
+        }
+      },
+    },
+    'rrd' => {
+      'Cisco_BGP_Peer' => {
+        'graphtype' => 'Cisco_BGP_Peer',
+        'indexed' => 'true',
+        'snmp' => {
+          'cbgpPeerAcceptPrefs' => {
+            'oid' => '1.3.6.1.4.1.9.9.187.1.2.4.1.1',
+            # despite the advertised type, this is a GUAGE
+            'option' => 'gauge,0:U',
+            'sysObjectName' => 'cbgpPeerAcceptedPrefixes'
+          },
+          'cbgpPeerDeniedPrefs' => {
+            'oid' => '1.3.6.1.4.1.9.9.187.1.2.4.1.2',
+            'sysObjectName' => 'cbgpPeerDeniedPrefixes'
+          },
+          'cbgpPeerAdverPrefs' => {
+            'oid' => '1.3.6.1.4.1.9.9.187.1.2.4.1.6',
+            'sysObjectName' => 'cbgpPeerAdvertisedPrefixes'
+          },
+          'cbgpPeerSupprPrefs' => {
+            'oid' => '1.3.6.1.4.1.9.9.187.1.2.4.1.7',
+            'sysObjectName' => 'cbgpPeerSuppressedPrefixes'
+          },
+          'cbgpPeerWithdrPrefs' => {
+            'oid' => '1.3.6.1.4.1.9.9.187.1.2.4.1.8',
+            'sysObjectName' => 'cbgpPeerWithdrawnPrefixes'
+          },
+
+        }
+      },
+    },
+  }
+);

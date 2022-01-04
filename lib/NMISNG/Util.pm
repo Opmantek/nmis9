@@ -29,7 +29,7 @@
 #
 # Utility package for various reusable general-purpose functions
 package NMISNG::Util;
-our $VERSION = "9.2.3";
+our $VERSION = "9.3.0a";
 
 use strict;
 use feature 'state';						# loadconftable, uuid functions
@@ -3249,6 +3249,43 @@ sub filter_params {
 	}
 	
 	return $vars;
+}
+
+# Get policy for a node based on policy name
+# args pollicy_name
+sub get_policy {
+
+	my ($policy_name, $C) = @_;	
+	my $table_policies = NMISNG::Util::loadTable(dir => "conf", name => "Polling-Policy", conf => $C) // NMISNG::Util::loadTable(dir => "conf-default", name => "Polling-Policy", conf => $C);
+	my $policy;
+	my $intervals;
+	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, update => 86400};
+	
+	for my $polname ( keys %$table_policies )
+	{
+		next if ( ref( $table_policies->{$polname} ) ne "HASH" );
+		for my $subtype (qw(snmp wmi ping update))
+		{
+				my $interval = $table_policies->{$polname}->{$subtype};
+				if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
+				{
+					my ( $rawvalue, $unit ) = ( $1, $3 );
+					$interval = $rawvalue * (
+						  $unit eq 'm' ? 60
+						: $unit eq 'h' ? 3600
+						: $unit eq 'd' ? 86400
+						:                1
+					);
+				}
+				else
+				{
+					#$self->nmisng->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
+					$interval = $intervals->{devault}->{$subtype};
+				}
+				$intervals->{$polname}->{$subtype} = $interval;    # now in seconds
+		}
+	}
+	return $intervals->{$policy_name};
 }
 
 ########################################################################

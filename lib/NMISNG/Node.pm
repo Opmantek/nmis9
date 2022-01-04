@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.2.3";
+our $VERSION = "9.3.0a";
 
 use strict;
 
@@ -8244,12 +8244,11 @@ sub collect
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
 
 	# if the init fails attempt an update operation instead
-	# Thats initialised to node polling policy
-	my $policy = $self->configuration->{polling_policy} // $self->configuration->{polling_policy};
+	# Thats initialised to node polling policy	
 	if (!$S->init( node => $self,
 									snmp => $wantsnmp,
 									wmi => $wantwmi,
-									policy => $policy,
+									policy => $self->configuration->{polling_policy},
 			))
 	{
 		$self->nmisng->log->debug( "Sys init for $name failed: "

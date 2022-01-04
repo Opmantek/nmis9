@@ -354,6 +354,10 @@ sub menu_bar_site {
 				push @hostdiags, qq|<a id='tls_$cmd' href="tools.pl?act=tool_system_$cmd">$cmd</a>|
 						if ($AU->CheckAccess("tls_$cmd","check"));
 		}
+		if ($AU->CheckAccess("tls_collect", "check"))
+		{
+			push @hostdiags,  qq|<a id='tls_collect' href="tools.pl?act=tool_system_collect">Collect Support Data</a>|
+		};
 		push @systemitems, qq|Host Diagnostics|, \@hostdiags if (@hostdiags);
 
 		push @setupitems, qq|<a id='cfg_setup' href="setup.pl?act=setup_menu">Basic Setup</a>|

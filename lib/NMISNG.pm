@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.2.3";
+our $VERSION = "9.3.0a";
 
 use strict;
 use Data::Dumper;
@@ -2699,6 +2699,7 @@ sub grouped_node_summary
 			'ping'        => '$node_config.configuration.ping',
 			'sysLocation' => '$data.sysLocation',
 			'last_update' => '$data.last_update',
+			'last_poll' => '$data.last_poll',
 			%groupproject_hash
 		}
 	};

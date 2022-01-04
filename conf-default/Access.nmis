@@ -1566,5 +1566,16 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'tls_who'
+  },
+  'tls_collect' => {
+    'descr' => 'Enable button Tools System collect',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '0',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'tls_collect'
   }
 );

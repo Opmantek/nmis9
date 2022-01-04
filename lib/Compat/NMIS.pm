@@ -29,7 +29,7 @@
 package Compat::NMIS;
 use strict;
 
-our $VERSION = "9.2.3";
+our $VERSION = "9.3.0a";
 
 use Time::ParseDate;
 use Time::Local;
@@ -152,6 +152,18 @@ sub loadLocalNodeTable
 				delete $flattenme->{overrides}->{$uglykey};
 			}
 		}
+	}
+	foreach (keys %map)
+	{
+    	if ($map{$_}{wmiusername} ne '' && !$map{$_}{wmiversion})
+    	{
+        	$map{$_}{wmiversion} = 'Version 1';
+#       	print "Node: '$_'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; WMI User '$map{$_}{wmiusername}'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; WMI Version '$map{$_}{wmiversion}'<BR>";
+    	}
+    	elsif (!$map{$_}{wmiversion})
+    	{
+        	$map{$_}{wmiversion} = 'Version 2';
+    	}
 	}
 
 	return \%map;
@@ -1795,7 +1807,7 @@ sub startNmisPage {
 			<script src="$C->{'calendar'}" type="text/javascript"></script>
 			<script src="$C->{'calendar_setup'}" type="text/javascript"></script>
 			<script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
-			<script src="$C->{'nmis_common'}" type="text/javascript"></script>
+			<script src="$C->{'nmis_common'}?v=$Compat::NMIS::VERSION" type="text/javascript"></script>
 			</head>
 			<body>
 			|;

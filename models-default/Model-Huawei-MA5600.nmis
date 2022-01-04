@@ -117,9 +117,10 @@
              },
 	
 			 
-                 'GponUserTraffic' => {
+             'GponUserTraffic' => {
                  'indexed'   => 'true',
-                 'graphtype' => 'GponUserTraffic', 
+                 'graphtype' => 'GponUserTraffic',
+                 'control' => 'CVAR1=OutbTrafficTableText;$CVAR1 !~ /Unlimted|Unlimited/', 
                  'snmp'      => {
                     'FlowFluxUpBytes' => {
                         'oid'       => '1.3.6.1.4.1.2011.5.14.5.3.1.7',
@@ -161,7 +162,7 @@
                             '250MB' => '250000000',
                             '300MB' => '300000000',
                             '400MB' => '400000000',
-                            'ip-traffic-table_6' => '1000000000',
+                            'ip-traffic-table_6' => '9999999999',
                         },
                     },
                     'InbTrafficTableN' => {
@@ -196,7 +197,7 @@
                             '250MB' => '250000000',
                             '300MB' => '300000000',
                             '400MB' => '400000000',
-                            'ip-traffic-table_6' => '1000000000',
+                            'ip-traffic-table_6' => '9999999999',
                         },
                     },
                  },
@@ -492,7 +493,7 @@
                     }
                 }
             },
-				'GponUserTraffic' => {
+			'GponUserTraffic' => {
                 'indexed'     => 'ONTBASE',
                 'index_regex' => '\.(\d+)$',
                 'index_oid'   => '1.3.6.1.4.1.2011.5.14.5.3.1.12',
@@ -563,7 +564,7 @@
                         'title'        => 'OutboundTableName',
                         'title_export' => 'OutboundTableName',
                         'replace' => {
-                            'ip-traffic-table_6' => 'Unlimted',
+                            'ip-traffic-table_6' => 'Unlimited',
                         },
                     },
                     'InbTrafficTableText' => {
@@ -571,12 +572,10 @@
                         'title'        => 'InboundTableName',
                         'title_export' => 'InboundTableName',
                         'replace' => {
-                            'ip-traffic-table_6' => 'Unlimted',
+                            'ip-traffic-table_6' => 'Unlimited',
                         },
                     },
                 },
-                
-               
             },
 
 			'GPON_Device' => {

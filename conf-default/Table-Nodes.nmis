@@ -86,6 +86,8 @@ my @models = ('automatic', sort keys %knownmodels);
 	 { wmidomain => { header => "WMI Domain", display => 'text', value => [''] }},
 	 { wmiusername => { header => "WMI Username", display => 'text', value => [''] }},
 	 { wmipassword => { header => "WMI Password", display => 'password', value => [''] }},
+	 { wmiversion => { header => 'WMI Version', display => 'popup', value => ["Version 2", "Version 1"],
+								validate => { "onefromlist" => undef }  }},
 
 	 { service_management => { special => 'separator', header => 'Service Management Options',display => 'readonly',value => [""] }},
 	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Customers')}] }},

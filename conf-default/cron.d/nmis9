@@ -19,3 +19,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # performance data
 */5 * * * * root /usr/local/nmis9/bin/nmis-cli act=collect-top-data > /dev/null
 0 * * * *  root /usr/local/nmis9/bin/nmis-cli act=collect-performance-data > /dev/null
+
+# Monitor daemon
+*/5 * * * * root /usr/local/nmis9/admin/check_daemons.pl act=check-daemons start=1 quiet=1 verbose=1

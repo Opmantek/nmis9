@@ -28,7 +28,7 @@
 # *****************************************************************************
 package NMISNG::rrdfunc;
 
-our $VERSION = "9.2.3";
+our $VERSION = "9.3.0a";
 
 use strict;
 use feature 'state';
@@ -729,6 +729,7 @@ sub optionsRRD
 	my $data = $args{data};
 	my $type = $args{type};
 	my $index = $args{index}; # optional
+	my $create = $args{create};
 
 	confess("optionsRRD requires Sys argument!") if (ref($S) ne "NMISNG::Sys");
 
@@ -741,10 +742,17 @@ sub optionsRRD
 										&& ref($mdlinfo->{database}->{db}->{timing}) eq "HASH")?
 										$mdlinfo->{database}->{db}->{timing}->{$type} // $mdlinfo->{database}->{db}->{timing}->{"default"}
 	:  undef;
+
+	if (!$S->{_policy} && $create && $type eq "health") { # Special handeling
+		$S->nmisng->log->debug("reach.rrd special handling for initialisation");
+		my $policy = NMISNG::Util::get_policy($S->nmisng_node->configuration->{polling_policy}, $S->nmisng->config);
+		$timinginfo->{heartbeat} = ($policy->{snmp} // $policy->{wmi}) * 3;
+		$timinginfo->{poll} = $policy->{snmp} // $policy->{wmi};
+	} 
+	
 	$timinginfo //= { heartbeat => 900, poll => 300 };
 	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
-	$S->nmisng->log->debug2("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
-
+	$S->nmisng->log->debug("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
 
 	# align the start time with the step interval, but reduce by one interval so that we can send data immediately
 	my $starttime = time - (time % $timinginfo->{poll}) - $timinginfo->{poll};
@@ -846,7 +854,8 @@ sub createRRD
 	my $dir = dirname($database);
 	NMISNG::Util::createDir($dir) if (!-d $dir);
 
-	my @options = optionsRRD(data=>$data, sys=>$S, type=>$type, index=>$index);
+	my @options = optionsRRD(data=>$data, sys=>$S, type=>$type, index=>$index, create=>1);
+
 	if (!@options)
 	{
 		return "($S->{name}) unknown type=$type";

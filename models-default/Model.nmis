@@ -208,6 +208,9 @@
         '65' => {
           'CiscoASR' => 'Cisco ASR'
         },
+        '66' => {
+          'CiscoASR1000' => 'ASR1000 Software'
+        },
         '70' => {
           'CiscoPIX' => 'PIX|FWSM'
         },

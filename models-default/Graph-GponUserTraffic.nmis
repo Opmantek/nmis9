@@ -28,9 +28,10 @@
 # *****************************************************************************
 
 %hash = (
-'title' => {
-    'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-    'short' => '$node - $length'
+    'heading'  => 'GPON User Traffic',
+    'title' => {
+      'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+      'short' => '$node - $length'
     },
     'vlabel' => {
         'standard' => 'Traffic Up and Down ',

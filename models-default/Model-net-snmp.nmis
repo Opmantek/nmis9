@@ -715,6 +715,28 @@
     },
     'nocollect' => {
       'Description' => '^(/mnt/cdrom$|/media|/run|/dev/shm|/sys)',
+    },
+    'rrd' => {      
+      'hrmem' => {    
+        'indexed' => 'true',       
+        'graphtype' => 'hrmem',            
+      },
+      'hrcachemem' => {    
+        'indexed' => 'true',       
+        'graphtype' => 'hrcachemem',    
+      },
+      'hrbufmem' => {    
+        'indexed' => 'true',       
+        'graphtype' => 'hrbufmem',    
+      },
+      'hrswapmem' => {    
+        'indexed' => 'true',       
+        'graphtype' => 'hrswapmem',    
+      },
+      'hrvmem' => {    
+        'indexed' => 'true',       
+        'graphtype' => 'hrvmem',    
+      },
     }
   },
 );

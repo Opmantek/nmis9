@@ -98,11 +98,11 @@ sub new
 	# to guess what vintage super is. we also must do that guesswork
 	# before modifying the format callback, as it relies on checking
 	# if super uses the yyyy-mm-dd time format
-	$self->bottomsup(&{$self->SUPER::format()}(0,"debug","message")
-									 =~ /^\[1970-/? 1 : 0);
-
-	# now overload the standard format function to avoid the undesirable
-	# mojo 8.x format. basically a clone of _default from 7.61.
+	#$self->bottomsup(&{$self->SUPER::format()}(0,"debug","message")
+	#								 =~ /^\[1970-/? 1 : 0);
+	
+	## now overload the standard format function to avoid the undesirable
+	## mojo 8.x format. basically a clone of _default from 7.61.
 	$self->format(sub {
 		'[' . localtime(shift) . '] [' . shift() . '] ' . join "\n", @_, '';
 								});
@@ -127,10 +127,12 @@ sub _log
 	{
 		$lines[0] = $prefix.$lines[0];
 	}
+
+	push @lines, $level;
 	# at some point mojo::log moved from log() to _log()
 	return Mojo::Log->can("log")?
-			$self->SUPER::log($level => @lines) # definitely pre-7.61
-			: $self->SUPER::_log($self->bottomsup? (@lines => $level) : ($level => @lines)); # confuse a cat!
+			$self->SUPER::log(@lines) # definitely pre-7.61
+			: $self->SUPER::_log($self->bottomsup? (@lines) : (@lines)); # confuse a cat!
 }
 
 # overloaded standard accessors

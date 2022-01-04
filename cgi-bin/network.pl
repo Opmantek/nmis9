@@ -1289,7 +1289,7 @@ sub selectLarge
 	my @headers = (
 		'Node',   'SNMP Location', 'Type',         'Net',        'Role',   'Status',
 		'Health', 'Reach',    'Intf. Avail.', 'Resp. Time', 'Outage', 'Esc.',
-		'Last Update'
+		'Last Collect'
 	);
 
 	my $CT;
@@ -1441,20 +1441,20 @@ sub selectLarge
 				}
 			}
 
-			# check lastupdate
-			my $lastUpdate      = "";
+			# check lastcollect
+			my $lastCollect      = "";
 			my $colorlast       = $color;
-			my $lastUpdateClass = "info Plain nowrap";
-			if (defined(my $time = $groupSummary->{$node}->{last_update}))
+			my $lastCollectClass = "info Plain nowrap";
+			if (defined(my $time = $groupSummary->{$node}->{last_poll}))
 			{
-				$lastUpdate = NMISNG::Util::returnDateStamp($time);
+				$lastCollect = NMISNG::Util::returnDateStamp($time);
 				if ( $time < ( time - 86400 ) ) # more than 1 day ago?
 				{
 					$colorlast       = "#ffcc00";
-					$lastUpdateClass = "info Plain Error nowrap";
+					$lastCollectClass = "info Plain Error nowrap";
 				}
 			}
-
+			
 			#Figure out the icons for each nodes metrics.
 			my @h = qw/metric reachable available health response/;
 			foreach my $t (@h)
@@ -1581,7 +1581,7 @@ sub selectLarge
 				$responsetime,
 				$outage,
 				td( {class => 'info Plain'},     $escalate ),
-				td( {class => $lastUpdateClass}, "$lastUpdate" )
+				td( {class => $lastCollectClass}, "$lastCollect" )
 			);
 		}    # end foreach node
 	}    # end foreach group
@@ -2735,18 +2735,22 @@ nodeVendor sysObjectName roleType netType );
 			#### now print it
 			foreach (@pr)
 			{
-				print Tr( td( {class => 'header'}, $_->[0] ) ),
-					Tr(
-					td( {class => 'image'},
-					   $graphs->htmlGraph(
+				my $graph = $graphs->htmlGraph(
 							graphtype => $_->[1],
 							node      => $node,
 							intf      => $_->[2],
 							width     => $smallGraphWidth,
 							height    => $smallGraphHeight
-						)
+						);
+				if ($graph !~ /Error/ ) {
+					print Tr( td( {class => 'header'}, $_->[0] ) ),
+					Tr(
+					td( {class => 'image'},
+					   $graph
 					)
-					);
+					); 
+				}
+				
 			}
 		}    # end for
 	}

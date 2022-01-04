@@ -144,7 +144,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 						minHeight	: 40,
 						autoOpen	: false,
 						stack			: true,					// come to top when focused
-						position	: [40,100]
+						position	: { my: 'left top', at: 'left+40 top+100'}
 			},
 			widgetHandle	: '',
 			status	: false
@@ -184,7 +184,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 				title	: 'Network Metrics and Health',
 				width : 720,
 				height: 320,
-				position : [ 230, 70 ]
+				position : { my: 'left top', at: 'left+230 top+70'}
 				});
 		}
 		else {
@@ -194,7 +194,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 				title	: 'Network Status and Health',
 				width : 850,
 				height: 300,
-				position : [ 230, 70 ]
+				position : { my: 'left top', at: 'left+230 top+70'}
 				});
 		}
 
@@ -203,7 +203,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 			url		: 'network.pl?act=network_summary_metrics&refresh=' + widget_refresh,
 			title	: 'Metrics',
 			width	:	210,
-			position : [ 10 , 70 ]
+			position : { my: 'left top', at: 'left+10 top+70'}
 			});
 
 		createDialog({
@@ -212,7 +212,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 			title	: 'Log of Network Events',
 			width : 950,
 			height: 380,
-			position : [ 230, logStart ]
+			position : { my: 'left top', at: 'left+230 top+'+logStart}
 			});
 
 		if ( displayCommunityWidget ) {
@@ -221,7 +221,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
  				url      : 'community_rss.pl?widget=true',
 				title    : 'NMIS Community',
 				width    : rssWidgetWidth,
-				position : [ 10, 725 ]
+				position : { my: 'left top', at: 'left+10 top+725'}
 				});
 		}
 
@@ -237,7 +237,7 @@ function commonv8Init(widget_refresh,configinit,modules) {
 			id       : 'cfg_setup',
  			url      : 'setup.pl?act=setup_menu&amp;widget=true',
 			title    : 'Basic Setup',
-			position : [ 5, 65 ]
+			position : { my: 'left top', at: 'left+5 top+65'}
 		});
 	}
 
@@ -321,8 +321,15 @@ function	createDialog(opt) {
 
 		dialogContainer =	$('<div id="' + opt.id + '" style="display:none;"></div>');
 		dialogContainer.appendTo('body');
-		// Add loader
-		dialogContainer.html(loader);
+		// Special handler for support tls_collect
+		if (objData.id == "tls_collect") {
+			// Add loader
+			dialogContainer.html("Generating support zip <br> This may take a while... <br><br>" + loader);
+		} else {
+			// Add loader
+			dialogContainer.html(loader);
+		}
+		
 		
 		dialogHandle = dialogContainer.dialog(opt);
 		// tag this dialog with an ID so we know who it is when debugging
@@ -605,7 +612,7 @@ function	createDialog(opt) {
 			var pl = $(this).offset().left;
 			var pt = $(this).offset().top;
 
-			objData.options.position = [ pl,pt ]  ;
+			objData.options.position = { my: 'left top', at: 'left+'+pl+' top+'+pt}  ;
 
 			// drop refresh timer
 			$.doTimeout( id );
@@ -925,7 +932,7 @@ function selectNodeOpen(savedpos)
 		title	:	'Quick Search',
 		url		:	'',
 		width	:	(savedpos != null? savedpos.width : 210),
-		position : (savedpos != null? savedpos.position : [ 10, 355 ])
+		position : (savedpos != null? savedpos.position : { my: 'left top', at: 'left+'+10+' top+'+355})
 	});
 
 	// define some additional content
@@ -1338,13 +1345,13 @@ function toTitleCase(toTransform) {
 }
 
 $(function($) {
-	$("#window_save").live( "click", function() {
+	$("body").on( "click", "#window_save", function() {
 		saveWindowState();
 		return false;
 	});
 });
 $(function($) {
-	$("#window_clear").live( "click", function() {
+	$("body").on( "click", "#window_clear", function() {
 		clearWindowState();
 		return false;
 	});
@@ -1385,9 +1392,13 @@ function saveWindowState() {
 		objData = value;
 		if ( objData.status === true ) {
 			dialogHandle = objData.widgetHandle;
+			var pos = {my: "", at: ""};
+			pos.my = dialogHandle.dialog( "option", "position" ).my;
+			pos.at = dialogHandle.dialog( "option", "position" ).at;
+			
 			thisWindow = { height: dialogHandle.dialog( "option", "height" ),
 										 width: dialogHandle.dialog( "option", "width" ),
-										 position: dialogHandle.dialog( "option", "position" ),
+										 position: pos,
 										 title: objData.options.title,
 										 url: objData.options.url,
 										 id: objData.options.id };

@@ -329,13 +329,16 @@ sub viewTable
 																var markup = " Are you sure? A node backup will be created if backup_node_on_delete is true. <a href=\'https://community.opmantek.com/display/NMIS/Node+Administration+Tools\' target=\'_blank\'> More info.</a> ";
 																$(this).html(markup);
 															  },
-															buttons: {
-															"Delete anyway":function(){
+															buttons: [
+															{text: "Delete anyway",
+															id: "confirm-delete",
+															click:function(){
 																'. $action . ' $(this).dialog("close");
-															},
-															"Dont do it now":function(){
+															}},
+															{text:"Dont do it now",
+															click:function(){
 																$(this).dialog("close");
-															} } });
+															}}] });
 															'),
 												 -value=>"Delete"),
 									"Are you sure",
@@ -718,7 +721,6 @@ sub doeditTable
 		for my $item (keys %{$ref})
 		{
 			$item = decode_entities($item);
-	
 			my $thisitem = $ref->{$item}; # table config record for this item
 
 			# do not save anything for separator entries, they're just for visual use
@@ -748,8 +750,8 @@ sub doeditTable
 			# Some craziness going on with this value that corrupts the file, filter
 			if ($table =~ /Polling-Policy/ && $item eq 'update')
 			{
-				if ( $value =~ /^([^\d]+)(\d+(\.\d+)?)([smhd])$/ )
-				{
+				if ( $value =~ /^(&#0;)(\d+(\.\d+)?)([smhd])$/ )
+				{	
 					$thisentry->{$item} = "$2$4";
 				}
 			}

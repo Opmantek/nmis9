@@ -297,8 +297,43 @@ sub init
 
 	$self->{debug}  = $args{debug};
 	$self->{update} = NMISNG::Util::getbool($args{update});
-	my $policy = $args{policy};		# optional
 
+	# Policy cames as a name
+	# But then, we are using with the policy hash
+	my $policy_name = $args{policy};		# optional
+	my $table_policies = NMISNG::Util::loadTable(dir => "conf", name => "Polling-Policy", conf => $C) // NMISNG::Util::loadTable(dir => "conf-default", name => "Polling-Policy", conf => $C);
+	my $policy;
+	my $intervals;
+	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, update => 86400};
+	if ($policy_name) {
+		for my $polname ( keys %$table_policies )
+		{
+			next if ( ref( $table_policies->{$polname} ) ne "HASH" );
+			for my $subtype (qw(snmp wmi ping update))
+			{
+					my $interval = $table_policies->{$polname}->{$subtype};
+					if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
+					{
+						my ( $rawvalue, $unit ) = ( $1, $3 );
+						$interval = $rawvalue * (
+							  $unit eq 'm' ? 60
+							: $unit eq 'h' ? 3600
+							: $unit eq 'd' ? 86400
+							:                1
+						);
+					}
+					else
+					{
+						$self->nmisng->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
+						$interval = $intervals->{devault}->{$subtype};
+						#$self->nmisng->log->info(&NMISNG::Log::trace()." nmisng");
+					}
+					$intervals->{$polname}->{$subtype} = $interval;    # now in seconds
+			}
+		}
+		$policy = $intervals->{$policy_name};
+		$self->nmisng->log->debug2("Using policy $policy_name: ". Dumper($policy));
+	}
 	# flag for init snmp accessor, default is yes
 	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
 	# ditto for wmi, but default from snmp
@@ -492,7 +527,7 @@ sub init
 					my $which = $hassnmp? "snmp" : "wmi";
 					if (defined $policy->{$which})
 					{
-						$self->nmisng->log->debug2("section \"$subsect\" subject to $which polling policy override: poll $policy->{$which}");
+						$self->nmisng->log->debug("section \"$subsect\" subject to $which polling policy override: poll $policy->{$which}");
 
 						my $thistiming = $self->{mdl}->{database}->{db}->{timing}->{$subsect} ||= {};
 						$thistiming->{poll} = $policy->{$which} || 300;
@@ -552,6 +587,7 @@ sub init
 	{
 		my $maybe = NMISNG::WMI->new(
 			host     => $thisnodeconfig->{host},
+			version  => $thisnodeconfig->{wmiversion},
 			domain   => $thisnodeconfig->{wmidomain},
 			username => $thisnodeconfig->{wmiusername},
 			password => $thisnodeconfig->{wmipassword},

@@ -1,8 +1,7 @@
+## $Id: Model-CiscoNXOS.nmis,v 9.0 2021/12/07 00:37:06 dougr Exp $
 #
-## $Id: Common-event.nmis,v 8.3 2012/10/02 05:45:49 keiths Exp $
+#  Copyright 1999-2021 Opmantek Limited (www.opmantek.com)
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
 #  This file is part of Network Management Information System (“NMIS”).
@@ -151,6 +150,23 @@
           'level' => 'Major'
         }
       },
+      'node polling failover' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Critical'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Major'
+        }
+      },
       'default' => {
         'core' => {
           'logging' => 'true',
@@ -207,6 +223,23 @@
           'logging' => 'true',
           'syslog' => 'true',
           'level' => 'Warning'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Normal'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        }
+      },
+      'interface ifadminstatus changed' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Minor'
         },
         'access' => {
           'logging' => 'true',

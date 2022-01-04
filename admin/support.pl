@@ -43,8 +43,10 @@ use NMISNG::Util;
 
 print "Opmantek NMIS Support Tool Version $VERSION\n";
 
+my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
+
 die "The Support Tool must be run with root privileges, terminating now.\n"
-		if ($> != 0);
+		if ($> != 0 and $cmdline->{gui} != 1);
 
 my $usage = "Usage: ".basename($0)." action=collect [public=t/f] [node=nodeA] [node=nodeB...] [bot=1] [report_dir=...]\n
 action=collect: collect general support info in an archive file
@@ -67,7 +69,6 @@ report_dir: Move the report outside support support zip
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-(h|help|\?)/i);
 
-my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 #die $usage if ($cmdline->{action} ne "collect" or $cmdline->{action} ne "run-bot");
 
 my $maxzip = $cmdline->{maxzipsize} || 10*1024*1024; # 10meg
@@ -276,6 +277,7 @@ sub collect_evidence
 		"$targetdir/node_dumps",
 		"$targetdir/db_dumps",
 		"$targetdir/system_status/cpanm",
+		"$targetdir/img", 
 		{ chmod => 0755 });
 
 	# Get polling summary
@@ -691,6 +693,7 @@ sub collect_bot_data
 	my $dir = $args{dir};
 	my $sourcedir;
 	
+	# Open zip
 	if ($dir =~ /\.zip/) {
 			# Try to uncompress
 			$sourcedir = "/tmp/tmp-nmis-support-$timelabel";
@@ -808,6 +811,7 @@ sub collect_bot_data
 	
 	my $dbname= $globalconf->{db_name};
 	# Data count
+	print "\n Trying to get data from mongo... \n";
 	for (
 			[ 'db.queue.find().count()', 'queue'],
 			[ 'db.nodes.find().count()','nodes'],
@@ -823,6 +827,7 @@ sub collect_bot_data
 								 "--host", $globalconf->{db_server},
 								 "--port", $globalconf->{db_port});
 		my $run = "mongo @mongoargs $dbname --eval \"$query\"";
+
 		$bot_data->{count}->{$data} = `$run`;
 	}
 	
@@ -841,6 +846,37 @@ sub collect_bot_data
 		my $status = system(@cmd);
 	}
 	
+	# runtimegrpah
+	my $res = get_graph(type => "nmis");
+	if ($res->{success}) {
+		$bot_data->{runtime_graph} = "img/nmis.png";
+	}
+	
+	# Try to find local monitoring node
+	my $nodesmodel = $nmisng->get_nodes_model(filter => {"configuration.host" => "127.0.0.1",
+														 "cluster_id" => $C->{cluster_id},
+														 "activated.NMIS" => 1,
+														 "configuration.collect" => 1});
+	my $allnodes = $nodesmodel->data;
+	if (scalar @$allnodes == 0) {
+		$nodesmodel = $nmisng->get_nodes_model(filter => {"configuration.host" => "localhost",
+														  "cluster_id" => $C->{cluster_id},
+														  "activated.NMIS" => 1,
+														 "configuration.collect" => 1});
+		$allnodes = $nodesmodel->data;
+	}
+	if (scalar @$allnodes > 0) {
+		my $justone = @$allnodes[0];
+		# Now get graphs for this node
+		my $res = get_graph(type => "ss-cpu", node => $justone->{name});
+		if ($res->{success}) {
+			$bot_data->{cpu_graph} = "img/ss-cpu.png";
+		}
+	}
+	
+	# Duplicate noes
+	print "\n Trying to get duplicate nodes... \n";
+	$bot_data->{duplicates} = check_duplicates();
 	return 1;
 }
 
@@ -850,7 +886,12 @@ sub run_bot
 {
 	my %args = @_;
 	my $zip = $args{zip};
-	print "Running support bot... \n";
+	
+	print "\n Running support bot... \n";
+	print "\n ======================================= \n";
+	print "\n ================  ERRORS ============== \n";
+	print "\n ======================================= \n";
+	
 	my $outputfile;
 	my $basedir = $globalconf->{'<nmis_base>'};
 	my $report_name = "support_report";
@@ -883,6 +924,7 @@ sub run_bot
 		$template =~ s/CONTENT/$content/;
 		write_file("$report_dir/$report_name.html", $template);
 	}
+	print "\n ================= DONE ================ \n";
 
 }
 
@@ -895,20 +937,22 @@ sub show_content
 	my $where = $args{where};
 	my $show_key = $args{show_key};
 	
-	$where = $where. "<h2>$title</h2>" if ($title);
+	$where = $where. "<h2>$title</h2><hr>" if ($title);
 	if (ref($content) eq "HASH") {
 		foreach my $key (keys %$content) {
 			if ($key eq "count" or $key eq "stats") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_table(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_table(content => $content->{$key});
 			} elsif ($key eq "disk") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_disk(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_disk(content => $content->{$key});
 			} elsif ($key eq "config") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_config(content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_config(content => $content->{$key});
 			} elsif ($key eq "nmis_log") {
-				$where = $where . "<h2 id='$key'>$key</h2>".print_collapse(key => $key, content => $content->{$key});
+				$where = $where . "<h2 id='$key'>$key</h2><hr>".print_collapse(key => $key, content => $content->{$key});
+			}elsif ($key =~ /graph/) {
+				$where = $where . "<h2 id='$key'>$key</h2><hr><img id='$key' src='".$content->{$key}."' alt=''>";
 			}elsif (ref($content->{$key}) eq "HASH") {
 				if ($show_key) {
-					$where = $where . "<h2 id='$key'>$key</h2>".show_content(content => $content->{$key}, where => "");
+					$where = $where . "<h2 id='$key'>$key</h2><hr>".show_content(content => $content->{$key}, where => "");
 				} else {
 					$where = $where . show_content(content => $content->{$key}, where => "");
 				}
@@ -929,18 +973,19 @@ sub show_content
 					}
 				}
 				if ($show_key) {
-					$where = $where . "<h2 id='$key'>$key</h2>".show_content(content => $content->{$key}, where => "");
+					$where = $where . "<h2 id='$key'>$key</h2><hr>".show_content(content => $content->{$key}, where => "");
 				} else {
 					$where = $where . show_content(content => $content->{$key}, where => "");
 				}
 			} else {
 				if ($show_key) {
-					$where = $where . "<h2 id='$key'>$key</h2><p> ".$content->{$key}."</p>";
+					$where = $where . "<h2 id='$key'>$key</h2><hr><p> ".$content->{$key}."</p>";
 				} else {
 					$where = $where . "<b>$key</b><p> ".$content->{$key}."</p>";
 				}
 			}
 		}
+
 	} else {
 		$where = $where . "<p>".$content."</p>";
 	}
@@ -969,13 +1014,20 @@ sub print_disk
 {
 	my %args = @_;
 	my $content = $args{content};
-	my $toRet = "<table class='table'><thead><tr><td>Filesystem</td><td>Available</td><td>Used</td><td>Use</td></tr></thead>";
+	my $toRet = "<table class='table'><thead><tr>";
+	my $headers = [qw(Filesystem Available Used Use)];
+	foreach my $c (@$headers)
+	{
+		$toRet = $toRet . "<td>$c</td>";
+	}
+	$toRet = $toRet . "</tr></thead>";
 	
 	foreach my $key (keys %$content) {
 		my $use = $content->{$key}->{use};
 		$use =~ s/%//;
 		my $show_use = "<span class='text-success'>".$content->{$key}->{use}."</span>";
 		if ($use > 80) {
+			print "** High use of disk $key: ". $content->{$key}->{use}." \n";
 			$show_use = "<span class='text-danger'>".$content->{$key}->{use}."</span>";
 		}
 		$toRet = $toRet . "<tr><td>".$key."</td><td>".$content->{$key}->{available}."</td><td>".$content->{$key}->{used}."</td><td>$show_use</td></tr>";
@@ -1010,9 +1062,9 @@ sub print_collapse
 	my %args = @_;
 	my $content = $args{content};
 	my $extract = substr $content, 0, 20;
-	my $random_number = rand();
+	my $random_number = int rand(200);
 	my $name = "text$random_number";
-	my $where = "<button type='button' class='btn btn-info' data-toggle='collapse' data-target='#$name'>" . $extract . " ...</button><br>";
+	my $where = "<a type='button' class='btn btn-info' data-toggle='collapse' href='$name' data-target='#$name'>" . $extract . " ...</a><br>";
 	$where = $where . "<div id='$name' class='collapse out'>" . $content . "</div><br> ";
 	
 	return $where;
@@ -1028,6 +1080,7 @@ sub print_config
 	foreach my $key (keys %$content) {
 		if (!defined($content->{$key}) or $content->{$key} eq "" or ($key eq "server_name" and $content->{$key} = "localhost")) {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-remove' style='color:red'></span><b> $key</b> ". $content->{$key}."</p>";
+			print "** Error in config detected for $key: ". $content->{$key}." \n";
 		} else {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-ok' style='color:green'></span><b> $key</b> ". $content->{$key}."</p>";
 		}
@@ -1035,4 +1088,70 @@ sub print_config
 	}
 	
 	return $toRet;
+}
+
+# Copy graph
+sub get_graph
+{
+	my %args = @_;
+	
+	my $C = NMISNG::Util::loadConfTable();
+
+	my $graphtype = $args{type};
+	my $group = $args{group};
+	my $node = $args{node};
+	my $intf = $args{intf};
+	my $item  = $args{item};
+	my $parent = $args{cluster_id} || $C->{cluster_id}; # default: ours
+	my $width = $args{width} // "600"; # graph size
+	my $height = $args{height} // "150";
+	my $start = $args{start} // time - 604800; # By default, 7 days ago
+	my $end = $args{end};
+	my $inventory = $args{inventory};
+	my $omit_fluff = NMISNG::Util::getbool($args{only_link}); # return wrapped <a> etc. or just the href?
+	
+	my $result = NMISNG::rrdfunc::draw(
+							node => $node,
+							group => $group,
+							graphtype => $graphtype,
+							intf => $intf,
+							item => $item,
+							start => $start,
+							#end =>  $end,
+							width => $width,
+							height => $height,
+							filename => "$targetdir/img/$graphtype.png",
+							inventory => $inventory);
+	return $result;
+	
+}
+
+# Duplicate nodes
+sub check_duplicates
+{
+	my %args = @_;
+	
+	my $nodes_list = $nmisng->get_node_uuids();
+	my %names;
+	my $duplicates = 0;
+	my $res;
+	my $duplicates_list;
+	
+	foreach my $node (@$nodes_list) {
+		#print "Node $node \n";
+		my $nodeobj = $nmisng->node(uuid => $node);
+		#print $nodeobj->name . "\n" if ($nodeobj);
+		if ($names{$nodeobj->name}) {
+			print "[ ".$nodeobj->name." ] duplicated. $node and ". $names{$nodeobj->name} . "\n";
+			$duplicates_list->{$node} = $nodeobj->name;
+			$duplicates++;
+		} else
+		{
+			$names{$nodeobj->name} = $node;
+		}
+	}
+	$res->{total} = "Total nodes: ". scalar(@$nodes_list) . " and duplicates $duplicates \n";
+	$res->{list} = $duplicates_list if ($duplicates_list);
+	
+	return $res;
 }
