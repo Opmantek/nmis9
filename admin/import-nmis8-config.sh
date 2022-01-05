@@ -20,7 +20,7 @@ Help()
 	echo "		-8 <NMIS8_directory>      - Specify an NMIS8 directory if other than '/usr/local/nmis8'."
 	echo "		--nmis8=<NMIS8_directory> - Specify an NMIS8 directory if other than '/usr/local/nmis8'."
 	echo "		-9 <NMIS9_directory>      - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
-	echo "		--nmis9 <NMIS9_directory> - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
+	echo "		--nmis9=<NMIS9_directory> - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
 	echo "		-h | --help               - Invoke Help."
 	echo "		-v                        - Print version and exit.."
 }
