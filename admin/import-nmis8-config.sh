@@ -17,10 +17,12 @@ Help()
 	echo "	This program imports settings and configuration information from an existing NMIS8 installtion to a newly"
 	echo "	installed NMIS9 installation."
 	echo ""
-	echo "		-8 <NMIS8_directory> - Specify an NMIS8 directory if other than '/usr/local/nmis8'."
-	echo "		-9 <NMIS9_directory> - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
-	echo "		-h                   - Invoke Help."
-	echo "		-v                   - Print version and exit.."
+	echo "		-8 <NMIS8_directory>      - Specify an NMIS8 directory if other than '/usr/local/nmis8'."
+	echo "		--nmis8=<NMIS8_directory> - Specify an NMIS8 directory if other than '/usr/local/nmis8'."
+	echo "		-9 <NMIS9_directory>      - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
+	echo "		--nmis9 <NMIS9_directory> - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
+	echo "		-h | --help               - Invoke Help."
+	echo "		-v                        - Print version and exit.."
 }
 
 yes_or_no() {
@@ -38,19 +40,42 @@ VERSION="Version 1.00"
 NMIS8_HOME="/usr/local/nmis8"
 NMIS9_HOME="/usr/local/nmis9"
 
-    while getopts 8:9:hv opt
+    while getopts 8:9:hv-: opt
     do
        case ${opt} in
-          8 )       NMIS8_HOME="${OPTARG}"
-                    ;;
-          9 )       NMIS9_HOME="${OPTARG}"
-                    ;;
-          v )       echo "$VERSION" >&2
-                    exit 2
-                    ;;
-          \? | h)   Help
-                    exit 2
-                    ;;
+		-) case "${OPTARG}" in
+				nmis8=* )
+					NMIS8_HOME=${OPTARG#*=}
+					;;
+				nmis9=* )
+					NMIS9_HOME=${OPTARG#*=}
+					;;
+				help )	Help
+					exit 2
+					;;
+				*)
+					if [ "$OPTERR" = 1 ] && [ "${optspec:0:1}" != ":" ]; then
+						echo "Unknown Option --${OPTARG}" >&2
+						Help
+						exit 2
+					fi
+					;;
+					esac
+				;;
+		8 )	NMIS8_HOME="${OPTARG}"
+			;;
+		9 )	NMIS9_HOME="${OPTARG}"
+			;;
+		v )	echo "$VERSION" >&2
+			exit 2
+			;;
+		h )	Help
+			exit 2
+			;;
+		\? )	echo "Unknown option ${OPTARG}" >&2
+			Help
+			exit 2
+			;;
        esac
     done
     shift `expr ${OPTIND} - 1`
