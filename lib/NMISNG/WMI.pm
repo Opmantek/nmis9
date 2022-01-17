@@ -165,15 +165,17 @@ sub _run_query
 	return ( error => "query missing" ) if (!$query);
 	my $timeout = $args{timeout};
 
-	# prep tempfile for wmic's stderr
+	# prep tempfile for wmic's stderr.
 	my ($tfh, $tfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
-	# and another for its auth data
+	# and another for its auth data.
 	my ($authfh, $authfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
+	# and yet another for the command line entered.
+	my ($cmdfh, $cmdfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
 	chmod(0600,$authfn);
 
 	# random column delimiter, 10 letters should do
 	my $delim = join('', map { ('a'..'z')[rand 26] } (0..9));
-	my (@rawdata, $exitcode, %result, $version);
+	my (@rawdata, $exitcode, %result, $version, $cmdLine);
 	my $v2option = "";
 
 	# fork and pipe
@@ -246,23 +248,27 @@ sub _run_query
 		print $authfh "password=$self->{password}\n" if ($self->{password});
 		close $authfh;
 
-		my @cmdargs = ($self->{program},
-									 "--delimiter=$delim",
-									 "-A", $authfn,
-									 "//".$self->{host},
-									 $query);
-		push @cmdargs, '--option="client ntlmv2 auth"=Yes' if ($self->{version} eq 'Version 2');
-		push @cmdargs, "--no-pass" if (!$self->{password});
-		push @cmdargs, "| grep -v dcerpc_pipe_connect";
+		$cmdLine  = "$self->{program} --delimiter=$delim -A $authfn";
+		$cmdLine .= " --option='client ntlmv2 auth'=Yes" if ($self->{version} eq 'Version 2');
+		$cmdLine .= " --no-pass" if (!$self->{password});
+		$cmdLine .= " //".$self->{host};
+		$cmdLine .= " '$query' | grep -v dcerpc_pipe_connect";
 
-		exec(@cmdargs);
-		die "exec failed: $!\n";
+		print $cmdfh "$cmdLine";
+		close($cmdfh);
+		exec($cmdLine);
+		die "exec failed: Command: '$cmdLine' Code $!\n";
 	}
 
 	# failed? read tempfile for error msgs
 	if ($exitcode)
 	{
 		$result{error} = "wmic failed: ";
+		if (-s $cmdfn && open(F, $cmdfn)) # has data
+		{
+			$result{error} .= "Command: '" . <F> . "' ";
+			close(F);
+		}
 		if (-s $tfn && open(F, $tfn)) # has data
 		{
 			$result{error} .= join(" ", <F>);
@@ -274,7 +280,7 @@ sub _run_query
 		}
 		# remove new lines in the error message
 		$result{error} =~ s/\n/\\n/;
-		unlink($tfn,$authfn);								# not needed anymore
+		unlink($tfn,$authfn,$cmdfn);								# not needed anymore
 	}
 	else
 	{
