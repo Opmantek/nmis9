@@ -3321,22 +3321,25 @@ sub decrypt {
 	}
 
 	# Passed nothing or an empty string.
-	return $password if (!defined($password) || $password eq '');
+	return "" if (!defined($password) || $password eq '');
 
 	# If The password is not currently encrypted, then we just return what we have.
 	if (substr($password, 0, 2) ne "!!") {
-		# Encryption is disabled.
+		# Encryption is enabled.
 		if ($encryption_enabled) {
 			# If we have an unencrypted password in the configuration file, then we encrypt it.
 			# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-				$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
 				# Get the non-flattened raw hash
 				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
 				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-				$fullConfig->{$section}{$keyword} = encrypt($password);
-				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-				NMISNG::Util::writeConfData(data=>$fullConfig);
+				my $encrypted_pw = encrypt($password);
+				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
+					$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
+					$fullConfig->{$section}{$keyword} = $encrypted_pw;
+					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+					NMISNG::Util::writeConfData(data=>$fullConfig);
+				}
 			}
 		} else {
 			$logger->debug9("Encryption is disabled.");
@@ -3356,6 +3359,22 @@ sub decrypt {
 		} else {
 			$strLen   = substr($password, 0, 3);
 			$password = substr($password, 3, $strLen);
+			# Encryption is disabled, unencrypt whatever we encounter.
+			if (!$encryption_enabled) {
+				# If we have an encrypted password in the configuration file, then we unencrypt it.
+				# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+				if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
+					# Get the non-flattened raw hash
+					my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+					if ($fullConfig->{$section}{$keyword} ne $password) {
+						$logger->debug("Decrypting the password for Section: '$section' Field: '$keyword'");
+						$fullConfig->{$section}{$keyword} = $password;
+						$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+						NMISNG::Util::writeConfData(data=>$fullConfig);
+					}
+				}
+			}
 		}
 	} else {
 		$logger->error("Password decryption failure.");
@@ -3369,7 +3388,7 @@ sub decrypt {
 # encrypt - Encrypt the password.                                      #
 ########################################################################
 sub encrypt {
-	my $password   = shift;
+	my ($password, $section, $keyword) = @_;
 	my $config;
 	my $logger;
 
@@ -3395,17 +3414,33 @@ sub encrypt {
 		_make_seed($seedfile, $logger);
 	}
 
-	# Encryption is disabled.
-	if (!$encryption_enabled) {
-		$logger->debug9("Encryption is disabled.");
+	# Passed nothing or an empty string.
+	return "" if (!defined($password) || $password eq '');
+
+	# Passed already encrypted string.
+	if (substr($password, 0, 2) eq "!!") {
+		# Encryption is disabled, unencrypt whatever we encounter.
+		if (!$encryption_enabled) {
+			my $decrypted_pw = decrypt($password);
+			# If we have an encrypted password in the configuration file, then we unencrypt it.
+			# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
+				# Get the non-flattened raw hash
+				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
+					$logger->debug("Decrypting the password for Section: '$section' Field: '$keyword'");
+					$fullConfig->{$section}{$keyword} = $decrypted_pw;
+					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+					NMISNG::Util::writeConfData(data=>$fullConfig);
+				}
+			}
+			return $decrypted_pw;
+		} else {
+			$logger->debug9("Encryption is enabled.");
+		}
 		return $password;
 	}
-
-	# Passed nothing or an empty string.
-	return $password if (!defined($password) || $password eq '');
-
-	# Passed Already encrypted string.
-	return substr($password, 2) if (substr($password, 0, 2) eq "!!");
 
 	if (open($fh, '<', $seedfile)) {
 		my $seed = <$fh>;
