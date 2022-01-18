@@ -3292,16 +3292,9 @@ sub get_policy {
 # decrypt - Decrypt the password.                                      #
 ########################################################################
 sub decrypt {
-	my $password = shift;
-	my $section;
-	my $keyword;
+	my ($password, $section, $keyword) = @_;
 	my $config;
 	my $logger;
-
-	if (@ARGV == 2) {
-		$section = shift;
-		$keyword = shift;
-	}
 
 	{
 		my $nmisng  = Compat::NMIS::new_nmisng();
@@ -3315,8 +3308,9 @@ sub decrypt {
 		}
 	}
 
-	my $seedfile   = '/usr/local/etc/opmantek/seed.txt';
-	my $strLen     = "";
+	my $encryption_enabled = NMISNG::Util::getbool($config->{'global_enable_password_encryption'});
+	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
+	my $strLen             = "";
 	my $fh;
 
 	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
@@ -3331,16 +3325,21 @@ sub decrypt {
 
 	# If The password is not currently encrypted, then we just return what we have.
 	if (substr($password, 0, 2) ne "!!") {
-		# If we have an unencrypted password in the configuration file, then we encrypt it.
-		# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
-		if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-			$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
-			# Get the non-flattened raw hash
-			my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
-			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-			$fullConfig->{$section}{$keyword} = encrypt($password);
-			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-			NMISNG::Util::writeConfData(data=>$fullConfig);
+		# Encryption is disabled.
+		if ($encryption_enabled) {
+			# If we have an unencrypted password in the configuration file, then we encrypt it.
+			# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
+				$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
+				# Get the non-flattened raw hash
+				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+				$fullConfig->{$section}{$keyword} = encrypt($password);
+				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+				NMISNG::Util::writeConfData(data=>$fullConfig);
+			}
+		} else {
+			$logger->debug9("Encryption is disabled.");
 		}
 		return $password;
 	} else {
@@ -3385,14 +3384,21 @@ sub encrypt {
 			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 		}
 	}
-	my $seedfile   = '/usr/local/etc/opmantek/seed.txt';
-	my $strLen     = 0;
+	my $encryption_enabled = NMISNG::Util::getbool($config->{'global_enable_password_encryption'});
+	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
+	my $strLen             = 0;
 	my $fh;
 
 	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
 
 	if (!-f "$seedfile") {
 		_make_seed($seedfile, $logger);
+	}
+
+	# Encryption is disabled.
+	if (!$encryption_enabled) {
+		$logger->debug9("Encryption is disabled.");
+		return $password;
 	}
 
 	# Passed nothing or an empty string.
