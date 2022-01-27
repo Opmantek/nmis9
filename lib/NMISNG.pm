@@ -4481,7 +4481,7 @@ sub save_opstatus
 
 	$statusrec->{status}  = $status;
 	$statusrec->{type}    = $type;
-	$statusrec->{context} = $args{context} if ( exists $args{context} );    # undef is ok for deletion
+	$statusrec->{context} = $args{context} if ( exists $args{context} && defined($args{context}));    # undef is ok for deletion
 	$statusrec->{details} = $args{details} if ( exists $args{details} );    # undef is ok for deletion
 	$statusrec->{stats}   = $args{stats} if ( exists $args{stats} );      	# undef is ok for deletion
 	delete $statusrec->{_id};                                               # must not be present for update
