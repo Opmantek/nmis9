@@ -78,11 +78,12 @@ sub new
 	return if ( !$args{uuid} );      #"uuid required"
 
 	my $self = {
-		_dirty  => {},
-		_nmisng => $args{nmisng},
-		_id     => $args{_id} // $args{id} // undef,
-		uuid    => $args{uuid},
-		collection => $args{nmisng}->nodes_collection()
+		_dirty             => {},
+		_nmisng            => $args{nmisng},
+		_id                => $args{_id} // $args{id} // undef,
+		uuid               => $args{uuid},
+		collection         => $args{nmisng}->nodes_collection(),
+		encryption_enabled => NMISNG::Util::getbool($args{nmisng}->config->{'global_enable_password_encryption'})
 	};
 	bless( $self, $class );
 
@@ -95,7 +96,92 @@ sub new
 		# not loadable? then treat it as a new node
 		undef $self->{_id} if (!$self->_load);
 	}
-	
+
+	#$self->nmisng->log->debug("Config '" .  Dumper($self) . "'.");
+    if ($self->{encryption_enabled})
+    {
+        my $changed = 0;
+        if (defined($self->{_configuration}->{community}) && $self->{_configuration}->{community} ne '' && substr($self->{_configuration}->{community}, 0, 2) ne "!!")
+        {
+            $self->{_configuration}->{community} = NMISNG::Util::encrypt($self->{_configuration}->{community});
+			$self->_dirty(1, 'community');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{authpassword}) && $self->{_configuration}->{authpassword} ne '' && substr($self->{_configuration}->{authpassword}, 0, 2) ne "!!")
+        {
+            $self->{_configuration}->{authpassword} = NMISNG::Util::encrypt($self->{_configuration}->{authpassword});
+			$self->_dirty(1, 'authpassword');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{privpassword}) && $self->{_configuration}->{privpassword} ne '' && substr($self->{_configuration}->{privpassword}, 0, 2) ne "!!")
+        {
+            $self->{_configuration}->{privpassword} = NMISNG::Util::encrypt($self->{_configuration}->{privpassword});
+			$self->_dirty(1, 'privpassword');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{authkey}) && $self->{_configuration}->{authkey} ne '' && substr($self->{_configuration}->{authkey}, 0, 2) ne "!!")
+        {
+            $self->{_configuration}->{authkey} = NMISNG::Util::encrypt($self->{_configuration}->{authkey});
+			$self->_dirty(1, 'authkey');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{privkey}) && $self->{_configuration}->{privkey} ne '' && substr($self->{_configuration}->{privkey}, 0, 2) ne "!!")
+        {
+            $self->{_configuration}->{privkey} = NMISNG::Util::encrypt($self->{_configuration}->{privkey});
+			$self->_dirty(1, 'privkey');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{wmipassword}) && $self->{_configuration}->{wmipassword} ne '' && substr($self->{_configuration}->{wmipassword}, 0, 2) ne "!!")
+        {
+            $self->{_configuration}->{wmipassword} = NMISNG::Util::encrypt($self->{_configuration}->{wmipassword});
+			$self->_dirty(1, 'wmipassword');
+			$changed = 1;
+        }
+		$self->save if ($changed);
+    }
+    else
+    {
+		$self->nmisng->log->debug("Got Here 2");
+        my $changed = 0;
+        if (defined($self->{_configuration}->{community}) && $self->{_configuration}->{community} ne '' && substr($self->{_configuration}->{community}, 0, 2) eq "!!")
+        {
+            $self->{_configuration}->{community} = NMISNG::Util::decrypt($self->{_configuration}->{community});
+			$self->_dirty(1, 'community');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{authpassword}) && $self->{_configuration}->{authpassword} ne '' && substr($self->{_configuration}->{authpassword}, 0, 2) eq "!!")
+        {
+            $self->{_configuration}->{authpassword} = NMISNG::Util::decrypt($self->{_configuration}->{authpassword});
+			$self->_dirty(1, 'authpassword');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{privpassword}) && $self->{_configuration}->{privpassword} ne '' && substr($self->{_configuration}->{privpassword}, 0, 2) eq "!!")
+        {
+            $self->{_configuration}->{privpassword} = NMISNG::Util::decrypt($self->{_configuration}->{privpassword});
+			$self->_dirty(1, 'privpassword');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{authkey}) && $self->{_configuration}->{authkey} ne '' && substr($self->{_configuration}->{authkey}, 0, 2) eq "!!")
+        {
+            $self->{_configuration}->{authkey} = NMISNG::Util::decrypt($self->{_configuration}->{authkey});
+			$self->_dirty(1, 'authkey');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{privkey}) && $self->{_configuration}->{privkey} ne '' && substr($self->{_configuration}->{privkey}, 0, 2) eq "!!")
+        {
+            $self->{_configuration}->{privkey} = NMISNG::Util::decrypt($self->{_configuration}->{privkey});
+			$self->_dirty(1, 'privkey');
+			$changed = 1;
+        }
+        if (defined($self->{_configuration}->{wmipassword}) && $self->{_configuration}->{wmipassword} ne '' && substr($self->{_configuration}->{wmipassword}, 0, 2) eq "!!")
+        {
+            $self->{_configuration}->{wmipassword} = NMISNG::Util::decrypt($self->{_configuration}->{wmipassword});
+			$self->_dirty(1, 'wmipassword');
+			$changed = 1;
+        }
+		$self->save if ($changed);
+    }
+
 	return $self;
 }
 

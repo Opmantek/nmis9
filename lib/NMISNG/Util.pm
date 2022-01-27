@@ -3293,11 +3293,11 @@ sub get_policy {
 ########################################################################
 sub decrypt {
 	my ($password, $section, $keyword) = @_;
+	my $nmisng  = Compat::NMIS::new_nmisng();
 	my $config;
 	my $logger;
 
 	{
-		my $nmisng  = Compat::NMIS::new_nmisng();
 		if (defined($nmisng)) {
 			$config  = $nmisng->config;
 			$logger  = $nmisng->log;
@@ -3335,7 +3335,7 @@ sub decrypt {
 				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 				my $encrypted_pw = encrypt($password);
 				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
-					$logger->debug("Encrypting the password for Section: '$section' Field: '$keyword'");
+					$logger->debug3("Encrypting the password for Section: '$section' Field: '$keyword'");
 					$fullConfig->{$section}{$keyword} = $encrypted_pw;
 					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 					NMISNG::Util::writeConfData(data=>$fullConfig);
@@ -3368,7 +3368,7 @@ sub decrypt {
 					my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
 					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 					if ($fullConfig->{$section}{$keyword} ne $password) {
-						$logger->debug("Decrypting the password for Section: '$section' Field: '$keyword'");
+						$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
 						$fullConfig->{$section}{$keyword} = $password;
 						$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 						NMISNG::Util::writeConfData(data=>$fullConfig);
@@ -3419,7 +3419,7 @@ sub encrypt {
 
 	# Passed already encrypted string.
 	if (substr($password, 0, 2) eq "!!") {
-		# Encryption is disabled, unencrypt whatever we encounter.
+		# Encryption is disabled, unencrypt whatever we encounter and return that.
 		if (!$encryption_enabled) {
 			my $decrypted_pw = decrypt($password);
 			# If we have an encrypted password in the configuration file, then we unencrypt it.
@@ -3429,7 +3429,7 @@ sub encrypt {
 				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
 				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
-					$logger->debug("Decrypting the password for Section: '$section' Field: '$keyword'");
+					$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
 					$fullConfig->{$section}{$keyword} = $decrypted_pw;
 					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 					NMISNG::Util::writeConfData(data=>$fullConfig);
