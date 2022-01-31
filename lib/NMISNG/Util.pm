@@ -3323,12 +3323,12 @@ sub decrypt {
 	# Passed nothing or an empty string.
 	return "" if (!defined($password) || $password eq '');
 
-	# If The password is not currently encrypted, then we just return what we have.
+	# If the password is not currently encrypted, then we just return what we have.
 	if (substr($password, 0, 2) ne "!!") {
 		# Encryption is enabled.
 		if ($encryption_enabled) {
-			# If we have an unencrypted password in the configuration file, then we encrypt it.
-			# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+			# If the 'section and 'keyword' arguments are passed, it means we are
+			# dealing with the configuration file, so we we encrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
 				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
@@ -3419,11 +3419,12 @@ sub encrypt {
 
 	# Passed already encrypted string.
 	if (substr($password, 0, 2) eq "!!") {
-		# Encryption is disabled, unencrypt whatever we encounter and return that.
+		# Encryption is disabled, decrypt whatever we encounter and return that.
 		if (!$encryption_enabled) {
+			# If we have an encrypted password in the configuration file, then we decrypt it.
 			my $decrypted_pw = decrypt($password);
-			# If we have an encrypted password in the configuration file, then we unencrypt it.
-			# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+			# If the 'section and 'keyword' arguments are passed, it means we are
+			# dealing with the configuration file, so we we decrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
 				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
