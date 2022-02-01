@@ -141,7 +141,6 @@ sub new
     }
     else
     {
-		$self->nmisng->log->debug("Got Here 2");
         my $changed = 0;
         if (defined($self->{_configuration}->{community}) && $self->{_configuration}->{community} ne '' && substr($self->{_configuration}->{community}, 0, 2) eq "!!")
         {
