@@ -280,11 +280,11 @@ sub _run_query
 		}
 		# remove new lines in the error message
 		$result{error} =~ s/\n/\\n/;
-		unlink($tfn,$authfn,$cmdfn);								# not needed anymore
+		unlink($tfn,$authfn,$cmdfn);
 	}
 	else
 	{
-		unlink($tfn, $authfn);								# not needed here
+		unlink($tfn,$authfn,$cmdfn);
 		# worked? extract class, fieldnames
 		# produce hash for each class, array of subhashes for the rows
 		my ($classname, @fieldnames, %nicedata);
