@@ -30,6 +30,7 @@
 # this module queries WMI services via the standalone wmic executable
 package NMISNG::WMI;
 our $VERSION = "2.3.0";
+our $tmp     = "$ENV{NMISTMPDIR}";
 
 use strict;
 use File::Temp;
@@ -54,8 +55,10 @@ sub new
 			domain   => $args{domain},
 			timeout  => $args{timeout},
 			program  => $args{program} || "wmic",
+			tmp      => $args{tmp} || "/tmp"
 		},
 		$class);
+	$tmp = $self->{tmp};
 
 	# sanity check - password is optional
 	for my $missing (qw(host username))
@@ -166,11 +169,11 @@ sub _run_query
 	my $timeout = $args{timeout};
 
 	# prep tempfile for wmic's stderr.
-	my ($tfh, $tfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
+	my ($tfh, $tfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
 	# and another for its auth data.
-	my ($authfh, $authfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
+	my ($authfh, $authfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
 	# and yet another for the command line entered.
-	my ($cmdfh, $cmdfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
+	my ($cmdfh, $cmdfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
 	chmod(0600,$authfn);
 
 	# random column delimiter, 10 letters should do
@@ -280,11 +283,11 @@ sub _run_query
 		}
 		# remove new lines in the error message
 		$result{error} =~ s/\n/\\n/;
-		unlink($tfn,$authfn,$cmdfn);
+		unlink($tfn,$authfn,$cmdfn);								# not needed anymore
 	}
 	else
 	{
-		unlink($tfn,$authfn,$cmdfn);
+		unlink($tfn, $authfn);								# not needed here
 		# worked? extract class, fieldnames
 		# produce hash for each class, array of subhashes for the rows
 		my ($classname, @fieldnames, %nicedata);

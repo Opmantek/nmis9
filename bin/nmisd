@@ -102,6 +102,10 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
 &NMISNG::rrdfunc::require_RRDs;
 
+# Temporary directory
+my $tmpdir = $C->{"<nmis_tmp>"} || $C->{"<nmis_var>"} . "/tmp" || "/tmp";
+$ENV{NMISTMPDIR} = "$tmpdir";
+
 # make sure that no more than one daemon runs
 my $varsysdir = $config->{'<nmis_var>'} . "/nmis_system";
 if ( !-d $varsysdir )
@@ -211,6 +215,11 @@ $SIG{"TERM"} = $SIG{"INT"} = sub {
 
 # signal handler for USR1/USR2 is just for this process
 $SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
+
+if ( !-d $tmpdir )
+{
+	NMISNG::Util::createDir($tmpdir);
+}
 
 while (!$exit_marker)
 {
