@@ -103,7 +103,7 @@ my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
 &NMISNG::rrdfunc::require_RRDs;
 
 # Temporary directory
-my $tmpdir = $C->{"<nmis_tmp>"} || $C->{"<nmis_var>"} . "/tmp" || "/tmp";
+my $tmpdir = $config->{"<nmis_tmp>"} || $config->{"<nmis_var>"} . "/tmp" || "/tmp";
 $ENV{NMISTMPDIR} = "$tmpdir";
 
 # make sure that no more than one daemon runs
