@@ -733,7 +733,13 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			# configuration.X
 			elsif ($name =~ /^configuration\.(.+)$/)
 			{
-				$curconfig->{$1} = $value;
+				my $prop = $1;
+				if ($name =~ /connect_options/) {
+					my @value = split(',', $value);
+					$curconfig->{$prop} = \@value;
+				} else {
+					$curconfig->{$prop} = $value;
+				}
 			}
 			else
 			{
