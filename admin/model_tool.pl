@@ -46,6 +46,7 @@ use Data::Dumper;
 
 my $modelTemplate = "$FindBin::Bin/../models-default/Model-Default-HC.nmis";
 my $schemaFile = "$FindBin::Bin/../conf/Model-Schema.nmis";
+my $schemaFileDefault = "$FindBin::Bin/../conf-default/Model-Schema.nmis";
 
 if ( $ARGV[0] eq "" ) {
 	usage();
@@ -286,8 +287,13 @@ my %nodeSummary;
 my $mibs = loadMibs($C);
 my $modelSchema;
 
+# get the local conf by default
 if ( $schema and -r $schemaFile ) {
 	$modelSchema = NMISNG::Util::readFiletoHash(file => $schemaFile);	
+}
+# if it didn't exist load the one from conf-default.
+elsif ( $schema and -r $schemaFileDefault ) {
+	$modelSchema = NMISNG::Util::readFiletoHash(file => $schemaFileDefault);	
 }
 else {
 	$schema = 0;

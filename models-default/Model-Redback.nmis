@@ -41,6 +41,9 @@
       'summary' => {
         'common-model' => 'summary'
       },
+      'heading' => {
+        'common-model' => 'heading'
+      },
       'stats' => {
         'common-model' => 'stats'
       },
@@ -132,49 +135,8 @@
           }
         },
         'graphtype' => 'ip,frag'
-      }
-    },
-    'sys' => {
-      'standard' => {
-        'snmp' => {
-          'ifNumber' => {
-            'oid' => 'ifNumber',
-            'title' => 'Interfaces'
-          },
-          'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
-          },
-          'sysLocation' => {
-            'replace' => {
-              '' => 'default'
-            },
-            'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
-          },
-          'sysDescr' => {
-            'oid' => 'sysDescr',
-            'title' => 'Description'
-          },
-          'sysObjectID' => {
-            'oid' => 'sysObjectID'
-          },
-          'sysUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'Uptime'
-          },
-          'sysContact' => {
-            'replace' => {
-              '' => 'default'
-            },
-            'oid' => 'sysContact',
-            'title' => 'Contact'
-          }
-        }
-      }
-    },
-    'power' => {
-      'pwr' => {
+      },
+      'power' => {
         'snmp' => {
           'SupplyState1' => {
             'replace' => {
@@ -200,6 +162,51 @@
           }
         },
         'control' => '$sysObjectName =~ /^rbn/i'
+      }
+    },
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'InstalledModems' => {
+            'replace' => {
+              '' => '0',
+              'noSuchObject' => '0'
+            },
+            'oid' => 'cmSystemInstalledModem'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          }
+        }
       }
     },
     'nodeVendor' => 'RedBack Networks',
