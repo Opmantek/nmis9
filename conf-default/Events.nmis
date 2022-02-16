@@ -231,7 +231,7 @@
     'Log' => 'true',
     'Stateful' => 'true',
     'CancelingEvent' => 'Proactive Reachability Closed',
-    'Description' => 'The overall reachability of the node has has fallen below the threshold.',
+    'Description' => 'The overall reachability of the node has fallen below the threshold.',
   },
   'Proactive CPU' => {
     'Event' => 'Proactive CPU',
