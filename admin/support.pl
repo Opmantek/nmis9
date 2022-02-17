@@ -1078,7 +1078,7 @@ sub print_config
 	my $toRet = "";
 
 	foreach my $key (keys %$content) {
-		if (!defined($content->{$key}) or $content->{$key} eq "" or ($key eq "server_name" and $content->{$key} = "localhost")) {
+		if (!defined($content->{$key}) or $content->{$key} eq "" or ($key eq "server_name" and $content->{$key} eq "localhost")) {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-remove' style='color:red'></span><b> $key</b> ". $content->{$key}."</p>";
 			print "** Error in config detected for $key: ". $content->{$key}." \n";
 		} else {
