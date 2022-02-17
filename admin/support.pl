@@ -588,32 +588,59 @@ The support tool won't be able to collect database status information!\n");
 	if ($nosensitive)
 	{
 	    print STDERR "removing sensitive data from ";
-		open(F, "$targetdir/conf/Config.nmis") or die "can't read config file: $!\n";
-		my @lines = <F>;
-		close (F);
-		for my $tbc (@lines)
-		{
-			$tbc =~ s/(auth_radius_secret|auth_web_key|auth_cw_private_key|auth_cw_public_key|default_(?:auth|priv)(?:password|key)|(?:mail|db)_password|db_rootpassword|auth_ms_ldap_dn_psw|auth_tacacs_secret|(?:server|slave)_community)\b(['"]\s*=>)(.*)$/$1$2'_removed_',/g;
+		
+		my @files = ();
+		if (opendir(DIR, "$targetdir/conf/")) {
+			my $filename;
+			while ($filename = readdir(DIR)) {
+				# Only Config.nmis files
+				next unless ($filename =~ m/Config\.nmis/);
+				push @files, $filename; 
+			}
+			closedir(DIR);
 		}
-		open(F, ">$targetdir/conf/Config.nmis") or die "can't write config file: $!\n";
-		print F @lines;
-		print STDERR "Config.nmis - complete ";
-		close F;
+		foreach my $f (@files) {
+			open(F, "$targetdir/conf/$f") or die "can't read config file: $!\n";
+			my @lines = <F>;
+			close (F);
+			for my $tbc (@lines)
+			{
+				$tbc =~ s/(auth_radius_secret|auth_web_key|auth_cw_private_key|auth_cw_public_key|default_(?:auth|priv)(?:password|key)|(?:mail|db)_password|db_rootpassword|auth_ms_ldap_dn_psw|auth_tacacs_secret|(?:server|slave)_community)\b(['"]\s*=>)(.*)$/$1$2'_removed_',/g;
+			}
+			open(F, ">$targetdir/conf/$f") or die "can't write config file: $!\n";
+			print F @lines;
+			print STDERR "$f - complete \n";
+			close F;			
+		}
 
-		if (open(F, "$targetdir/db_dumps/nodes.json"))
+		# Nodes
+		if (open(N, "$targetdir/db_dumps/nodes.json"))
 		{
-			@lines = <F>;
+			my @lines = <N>;
 			for my $tbc (@lines)
 			{
 				$tbc =~ s/((?:auth|priv|wmi)(?:password|key)|community|wmiusername|username)\b(['"]\s*:\s*)(.*)/$1$2'_removed_',/g;
 			}
-			open(F, ">$targetdir/node_dumps/nodes.json") or die "can't write node export file: $!\n";
-			print F @lines;
-			close F;
+			open(N, ">$targetdir/node_dumps/nodes.json") or die "can't write node export file: $!\n";
+			print N @lines;
+			close N;
 			#delete $targetdir/db_dumps/nodes.json
-			#unlink("$targetdir/db_dumps/nodes.json") or die "can't delete the file:$!\n";
-			#print STDERR "nodes.json - complete\n";
+			unlink("$targetdir/db_dumps/nodes.json") or die "can't delete the file:$!\n";
+			print STDERR "nodes.json - complete\n";
 		}
+		
+		# Users
+		open(F, "$targetdir/conf/users.dat") or die "can't read config file: $!\n";
+		my @lines = <F>;
+		close (F);
+		for my $tbc (@lines)
+		{
+			$tbc =~ s/(\w:)(.*)$/$1'_removed_',/g;
+		}
+		open(F, ">$targetdir/conf/users.dat") or die "can't write config file: $!\n";
+		print F @lines;
+		print STDERR "users.dat - complete ";
+		close F;
 	}
 	return undef;
 }
