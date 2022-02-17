@@ -233,7 +233,7 @@ sub collect_evidence
 	my ($targetdir,$args) = @_;
 
 	# default is public=false, dont show private info
-	my $nosensitive = defined($args->{public}) ? getBool($args->{public}) : 1;
+	my $nosensitive = defined($args->{public}) ? NMISNG::Util::getbool($args->{public}) : 1;
 
 	my $basedir = $globalconf->{'<nmis_base>'};
 	# these three are relevant and often outside of basedir, occasionally without symlink...
