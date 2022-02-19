@@ -3292,8 +3292,199 @@ sub get_policy {
 # getTmpDir - Get the proper temporary directory.                      #
 ########################################################################
 sub getTmpDir {
-	my $C = NMISNG::Util::loadConfTable();
+	my $C = loadConfTable();
 	return $C->{"<nmis_tmp>"} || $C->{"<nmis_var>"} . "/tmp" || "/tmp";
+}
+
+########################################################################
+# verifyNMISEncryption - Verify Password encrypred strings.
+########################################################################
+sub verifyNMISEncryption {
+	my $config;
+	my $logger;
+	my $fh;
+	my $changed = 0;
+
+	{
+		my $nmisng  = Compat::NMIS::new_nmisng();
+		if (defined($nmisng)) {
+			$config  = $nmisng->config;
+			$logger  = $nmisng->log;
+		} else {
+			$config = loadConfTable();
+			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+		}
+	}
+	my $nmis_encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	if ($nmis_encryption_enabled)
+	{
+		my ($fullConfig,undef) = readConfData(only_local => 1);
+		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
+		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
+		{
+			my @passwordFieldRows = <$fh>;
+			close $fh;
+			foreach my $eachRow (@passwordFieldRows)
+			{
+				chomp($eachRow);
+				next if ($eachRow eq '');
+				my @fieldsArray = split(/:/, $eachRow);
+				my $count       = scalar @fieldsArray;
+				if ($count == 2)
+				{
+					if (ref($fullConfig->{$fieldsArray[0]}) eq "HASH")
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
+						{
+							my $encrypted_pw = encrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $encrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				elsif ($count == 3)
+				{
+					if ((ref($fullConfig->{$fieldsArray[0]}) eq "HASH") && (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}) eq "HASH"))
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
+						{
+							my $encrypted_pw = encrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $encrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				elsif ($count == 4)
+				{
+					if ((ref($fullConfig->{$fieldsArray[0]}) eq "HASH") && (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}) eq "HASH") &&
+					   (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}) eq "HASH"))
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
+						{
+							my $encrypted_pw = encrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $encrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				elsif ($count == 5)
+				{
+					if ((ref($fullConfig->{$fieldsArray[0]}) eq "HASH") && (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}) eq "HASH") &&
+					   (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}) eq "HASH") &&
+					   (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}) eq "HASH"))
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
+						{
+							my $encrypted_pw = encrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $encrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				else
+				{
+					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.nmis'.");
+				}
+			}
+		}
+		else
+		{
+			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encyption settings between NMIS and OMK.");
+		}
+		if ($changed)
+		{
+			writeConfData(data=>$fullConfig);
+		}
+	}
+	else
+	{
+		my ($fullConfig,undef) = readConfData(only_local => 1);
+		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
+		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
+	   	{
+			my @passwordFieldRows = <$fh>;
+			close $fh;
+			foreach my $eachRow (@passwordFieldRows)
+			{
+				chomp($eachRow);
+				next if ($eachRow eq '');
+				my @fieldsArray = split(/:/, $eachRow);
+				my $count       = scalar @fieldsArray;
+				if ($count == 2)
+				{
+					if (ref($fullConfig->{$fieldsArray[0]}) eq "HASH")
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
+						{
+							my $decrypted_pw = decrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $decrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				elsif ($count == 3)
+				{
+					if ((ref($fullConfig->{$fieldsArray[0]}) eq "HASH") && (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}) eq "HASH"))
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
+						{
+							my $decrypted_pw = decrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $decrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				elsif ($count == 4)
+				{
+					if ((ref($fullConfig->{$fieldsArray[0]}) eq "HASH") && (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}) eq "HASH") &&
+					   (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}) eq "HASH"))
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
+						{
+							my $decrypted_pw = decrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $decrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				elsif ($count == 5)
+				{
+					if ((ref($fullConfig->{$fieldsArray[0]}) eq "HASH") && (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}) eq "HASH") &&
+					   (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}) eq "HASH") &&
+					   (ref($fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}) eq "HASH"))
+					{
+						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]};
+						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
+						{
+							my $decrypted_pw = decrypt($password);
+							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $decrypted_pw;
+							$changed = 1;
+						}
+					}
+				}
+				else
+				{
+					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.nmis'.");
+				}
+			}
+		}
+		else
+		{
+			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encyption settings between NMIS and OMK.");
+		}
+		if ($changed)
+		{
+			writeConfData(data=>$fullConfig);
+		}
+	}
 }
 
 ########################################################################
@@ -3310,13 +3501,13 @@ sub decrypt {
 			$config  = $nmisng->config;
 			$logger  = $nmisng->log;
 		} else {
-			$config = NMISNG::Util::loadConfTable();
+			$config = loadConfTable();
 			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 		}
 	}
 
-	my $encryption_enabled = NMISNG::Util::getbool($config->{'global_enable_password_encryption'});
+	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
 	my $strLen             = "";
 	my $fh;
@@ -3339,14 +3530,14 @@ sub decrypt {
 			# dealing with the configuration file, so we we encrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+				my ($fullConfig,undef) = readConfData(only_local => 1);
 				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 				my $encrypted_pw = encrypt($password);
 				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
 					$logger->debug3("Encrypting the password for Section: '$section' Field: '$keyword'");
 					$fullConfig->{$section}{$keyword} = $encrypted_pw;
 					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-					NMISNG::Util::writeConfData(data=>$fullConfig);
+					writeConfData(data=>$fullConfig);
 				}
 			}
 		} else {
@@ -3373,13 +3564,13 @@ sub decrypt {
 				# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
 				if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 					# Get the non-flattened raw hash
-					my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+					my ($fullConfig,undef) = readConfData(only_local => 1);
 					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 					if ($fullConfig->{$section}{$keyword} ne $password) {
 						$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
 						$fullConfig->{$section}{$keyword} = $password;
 						$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-						NMISNG::Util::writeConfData(data=>$fullConfig);
+						writeConfData(data=>$fullConfig);
 					}
 				}
 			}
@@ -3406,12 +3597,12 @@ sub encrypt {
 			$config  = $nmisng->config;
 			$logger  = $nmisng->log;
 		} else {
-			$config = NMISNG::Util::loadConfTable();
+			$config = loadConfTable();
 			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 		}
 	}
-	my $encryption_enabled = NMISNG::Util::getbool($config->{'global_enable_password_encryption'});
+	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
 	my $strLen             = 0;
 	my $fh;
@@ -3435,13 +3626,13 @@ sub encrypt {
 			# dealing with the configuration file, so we we decrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = NMISNG::Util::readConfData(only_local => 1);
+				my ($fullConfig,undef) = readConfData(only_local => 1);
 				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
 					$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
 					$fullConfig->{$section}{$keyword} = $decrypted_pw;
 					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-					NMISNG::Util::writeConfData(data=>$fullConfig);
+					writeConfData(data=>$fullConfig);
 				}
 			}
 			return $decrypted_pw;
@@ -3512,3 +3703,4 @@ sub _make_seed {
 }
 
 1;
+
