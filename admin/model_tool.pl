@@ -762,37 +762,79 @@ sub processDir {
 	}
 
 	#sleep 1;
-	if ( $dirpass >= 1 and $dirpass < $maxrecurse and $dirlevel <= $maxlevel ) {
-		++$dirpass;
+	if ( $arg->{models_dir} ) {
+		if ( $dirpass >= 1 and $dirpass < $maxrecurse and $dirlevel <= $maxlevel ) {
+			++$dirpass;
+			opendir (DIR, "$dir");
+			@dirlist = readdir DIR;
+			closedir DIR;
+	
+			if (debug2()) { print "\tFound $#dirlist entries\n"; }
+	
+			foreach my $file (sort {$a cmp $b} (@dirlist)) {
+				print "Process Model file $file \n" if (debug());
+			#for ( $index = 0; $index <= $#dirlist; ++$index ) {
+				@filename = split(/\./,"$dir/$file");
+				if ( -f "$dir/$file"
+					and $extension =~ /$filename[$#filename]/i
+					and $bad_file !~ /$file/i
+				) {
+					if (debug2()) { print "\t\t$index file $dir/$file\n"; }
+				
+					&processModelFile(dir => $dir, file => $file)
+				}
+				elsif ( -d "$dir/$file"
+					and $file !~ /^\.|CVS/
+					and $bad_dir !~ /$file/i
+				) {
+					# directory recursion disabled.
+					#if (!$debug) { print "."; }
+					#&processDir(dir => "$dir/$file");
+					#--$dirlevel;
+				}
+			}
+		}
+	} else {
 		opendir (DIR, "$dir");
 		@dirlist = readdir DIR;
 		closedir DIR;
-
-		if (debug2()) { print "\tFound $#dirlist entries\n"; }
-
+		
+		my $custom = "$C->{'<nmis_base>'}/models-custom";
+		my $readdir;
+		
 		foreach my $file (sort {$a cmp $b} (@dirlist)) {
+			next if $file != /\.nmis/;
 			print "Process Model file $file \n" if (debug());
-		#for ( $index = 0; $index <= $#dirlist; ++$index ) {
-			@filename = split(/\./,"$dir/$file");
-			if ( -f "$dir/$file"
-				and $extension =~ /$filename[$#filename]/i
-				and $bad_file !~ /$file/i
-			) {
-				if (debug2()) { print "\t\t$index file $dir/$file\n"; }
+			@filename = split(/\./,"$custom/$file");
+
+			if ( -f "$custom/$file") {
+				$readdir = $custom;
+			} elsif ( -f "$dir/$file") {
+				$readdir = $dir;
+			}
 			
-				&processModelFile(dir => $dir, file => $file)
+			if ( -f "$readdir/$file"
+					and $extension =~ /$filename[$#filename]/i
+					and $bad_file !~ /$file/i
+				)
+			{
+				if (debug2()) { print "\t\t$index file $readdir/$file\n"; }
+			
+				&processModelFile(dir => $readdir, file => $file);
 			}
-			elsif ( -d "$dir/$file"
-				and $file !~ /^\.|CVS/
-				and $bad_dir !~ /$file/i
-			) {
-				# directory recursion disabled.
-				#if (!$debug) { print "."; }
-				#&processDir(dir => "$dir/$file");
-				#--$dirlevel;
-			}
+			elsif ( -d "$readdir/$file"
+					and $file !~ /^\.|CVS/
+					and $bad_dir !~ /$file/i
+				) {
+					# directory recursion disabled.
+					#if (!$debug) { print "."; }
+					#&processDir(dir => "$dir/$file");
+					#--$dirlevel;
+				}
 		}
+			
 	}
+	
 } # processDir
 
 sub processModelFile {
