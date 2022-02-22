@@ -209,6 +209,8 @@ my %hash = (
 		'selftest_max_system_cpu' => 60, # utilization in percent
 		'selftest_max_system_iowait' => 20, # in percent
 		'selftest_max_swap' => 50, # in percent
+    'selftest_max_collect_jobs' => 200,
+    'selftest_max_update_jobs' => 400,
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
 		'plugins_enabled' => 'true',
 
