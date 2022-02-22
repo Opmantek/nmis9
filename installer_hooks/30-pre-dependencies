@@ -71,7 +71,7 @@ else
     libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl \
     libauthen-sasl-perl librrds-perl libtest-deep-perl dialog \
     libcrypt-des-perl libdigest-hmac-perl libclone-perl \
-    libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
+    libexcel-writer-xlsx-perl libsnmp-session-perl libcgi-pm-perl \
     libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl \
     libcgi-session-perl"

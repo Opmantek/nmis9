@@ -1290,7 +1290,7 @@ sub ensure_indexes
 	# Inventory collection
 	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
 
-	my $err = NMISNG::DB::ensure_index(
+	$err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_inventory},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
@@ -1316,7 +1316,7 @@ sub ensure_indexes
 	# Latest Data collection
 	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
 
-	my $err = NMISNG::DB::ensure_index(
+	$err = NMISNG::DB::ensure_index(
 		collection    => $self->{_db_latest_data},
 		drop_unwanted => $drop_unwanted,
 		indices       => [
@@ -1330,7 +1330,7 @@ sub ensure_indexes
 	$self->log->error("index setup failed for inventory: $err") if ($err);
 	
 	# Nodes collection 
-	my $err = NMISNG::DB::ensure_index(
+	$err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_nodes},
 			drop_unwanted => $drop_unwanted,
 			indices       => [[{"uuid" => 1}, {unique => 1}],
@@ -1344,7 +1344,7 @@ sub ensure_indexes
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
 	
 	# opstatus collection 
-	my $err = NMISNG::DB::ensure_index(
+	$err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_opstatus},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
@@ -1366,7 +1366,7 @@ sub ensure_indexes
 	# Remote collection	
 	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
 
-	my $err = NMISNG::DB::ensure_index(
+	$err = NMISNG::DB::ensure_index(
 		collection    => $self->{_db_remote},
 		drop_unwanted => $drop_unwanted,
 		indices       => [
@@ -1377,7 +1377,7 @@ sub ensure_indexes
 	$self->log->error("index setup failed for remotes: $err") if ($err);
 	
 	# queue collection
-	my $err = NMISNG::DB::ensure_index(
+	$err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_queue},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
@@ -1393,7 +1393,7 @@ sub ensure_indexes
 	$self->log->error("index setup failed for queue: $err") if ($err);
 	
 	# status collection
-	my $err = NMISNG::DB::ensure_index(
+	$err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_status},
 			drop_unwanted => $drop_unwanted,
 			indices       => [

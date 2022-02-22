@@ -2229,6 +2229,7 @@ sub notify
 	my $M = $S->mdl;
 	my $node = $S->nmisng_node;
 	my $nodename = $node->name;
+	my $nodeuuid = $node->uuid;
 
 	my $log;
 	my $syslog;
@@ -2297,7 +2298,7 @@ sub notify
 				and $C->{node_configuration_events} =~ /$event/
 				and NMISNG::Util::getbool($thisevent_control->{Log}))
 		{
-			my $error = logConfigEvent(dir => $C->{config_logs}, node=>$nodename, event=>$event, level=>$level,
+			my $error = logConfigEvent(dir => $C->{config_logs}, node_name=>$nodename, node_uuid=>$nodeuuid, event=>$event, level=>$level,
 																 element=>$element, details=>$details, host => $node->configuration->{host},
 																 nmis_server => $C->{nmis_host}, nmisng => $S->nmisng );
 			if ( $error )
