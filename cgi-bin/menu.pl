@@ -422,7 +422,7 @@ sub menu_bar_site {
 										);
 
 		push @menu_site,( qq|Help|,
-												[	qq|<a id='hlp_help' target='_blank' href="http://www.opmantek.com">NMIS</a>|,
+												[	qq|<a id='hlp_help' target='_blank' href="https://community.opmantek.com/display/NMIS">NMIS</a>|,
 													qq|<a id='hlp_apache' target='_blank' href="http://www.apache.org" id='apache'>Apache</a>|,
 													qq|<a id='hlp_about' href="menu.pl?act=menu_about_view">About</a>|
 												]
@@ -470,11 +470,11 @@ sub menu_about_view {
 <br/>
 Network Management Information System<br/>
 NMIS Version $Compat::NMIS::VERSION<br/>
-Copyright (C) <a href="https://opmantek.com">Opmantek Limited (www.opmantek.com)</a><br/>
+Copyright (C) <a href="https://opmantek.com" target="_blank">Opmantek Limited (opmantek.com)</a><br/>
 This program comes with ABSOLUTELY NO WARRANTY;<br/>
 This is free software licensed under GNU GPL, and you are welcome to<br/>
-redistribute it under certain conditions; see <a href="https://opmantek.com">opmantek.com</a> or email<br/>
- <a href="mailto:contact\@opmantek.com">contact\@opmantek.com<br/>
+redistribute it under certain conditions; see <a href="https://opmantek.com" target="_blank">opmantek.com</a> or email<br/>
+ <a href="mailto:contact\@opmantek.com" target="_blank" >contact\@opmantek.com<br/>
 
 EO_TEXT
 
