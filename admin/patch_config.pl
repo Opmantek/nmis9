@@ -219,6 +219,7 @@ for my $token (@ARGV)
 	
 }
 
+exit "No patches given!\n" if (!@patches && $opts{o});
 die "No patches given!\n" if (!@patches);
 print "Patching values for keys ".join(", ",map { $_->[0] } (@patches))."\n";
 
