@@ -77,7 +77,7 @@ E.g. Set empty existing array: patch_config.pl -af Config.nmis /new/key=
 \n\n";
 
 my %opts;
-die $usage if (!getopts("jfbnrRa",\%opts) or !@ARGV or !-f $ARGV[0]);
+die $usage if (!getopts("jfbnrRao",\%opts) or !@ARGV or !-f $ARGV[0]);
 
 my $config_file = shift(@ARGV);
 die "Config file \"$config_file\" does not exist or isn't readable!\n"
@@ -194,6 +194,19 @@ for my $token (@ARGV)
 				# force this into numeric form if the value is number-like
 				$value = 0 + $value;
 				push @patches, [ $key,  $op, $value ];
+			}
+			elsif ($opts{o})
+			{
+				# Override just if this is not set
+				my @dotted = split('/', $key);
+				my $val = $cfg->{$dotted[1]}->{$dotted[2]} ? $cfg->{$dotted[1]}->{$dotted[2]} : $cfg->{$key};
+				if (!$val) {
+					print "Set $key because it is not set \n";
+					push @patches, [ $key,  $op, $value ];
+				} else {
+					print "Not overriding $val for $key \n";
+				}
+				
 			} else {
 				push @patches, [ $key,  $op, $value ];
 			}
