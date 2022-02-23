@@ -27,7 +27,6 @@ else
 
 		cat <<EOF
 Some configuration items will be patched - if not set.
-If you have set up them manually, please omit this step.
 nmis_base, purge_event_after, network_viewNode_field_list,
 non_stateful_events, purge_event_after
 EOF
