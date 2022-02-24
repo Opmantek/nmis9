@@ -22,7 +22,7 @@ Help()
 	echo "		-9 <NMIS9_directory>      - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
 	echo "		--nmis9=<NMIS9_directory> - Specify an NMIS9 directory if other than '/usr/local/nmis9'."
 	echo "		-h | --help               - Invoke Help."
-	echo "		-v                        - Print version and exit.."
+	echo "		-v | --version            - Print version and exit."
 }
 
 yes_or_no() {
@@ -51,6 +51,9 @@ NMIS9_HOME="/usr/local/nmis9"
 					NMIS9_HOME=${OPTARG#*=}
 					;;
 				help )	Help
+					exit 2
+					;;
+				version )	echo "$VERSION" >&2
 					exit 2
 					;;
 				*)

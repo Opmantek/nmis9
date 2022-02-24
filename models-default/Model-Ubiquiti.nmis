@@ -39,6 +39,9 @@
       'summary' => {
         'common-model' => 'summary'
       },
+      'heading' => {
+        'common-model' => 'heading'
+      },
       'stats' => {
         'common-model' => 'stats'
       },
@@ -59,7 +62,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'sysDescr' => {
             'oid' => 'sysDescr',
@@ -84,8 +87,7 @@
             'title' => 'Contact'
           },
           'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
+            'oid' => 'sysName'
           }
         }
       }
@@ -437,7 +439,7 @@
           'remoteMAC' => {
             'oid' => '1.3.6.1.4.1.41112.1.3.2.1.45',
             'sysObjectName' => 'remoteMAC',
-            'calculate' => '$r = NMISNG::Util::beautify_physaddress($r)',
+            'calculate' => '$r = func::beautify_physaddress($r)',
             'title' => 'Remote MAC',
           },
           'remoteIP' => {
@@ -463,7 +465,7 @@
           'remoteMAC' => {
             'oid' => '1.3.6.1.4.1.41112.1.3.2.1.45',
             'sysObjectName' => 'remoteMAC',
-            'calculate' => '$r = NMISNG::Util::beautify_physaddress($r)',
+            'calculate' => '$r = func::beautify_physaddress($r)',
             'title' => 'Remote MAC',
           },
           'remoteIP' => {
@@ -538,7 +540,7 @@
           'remoteMAC' => {
             'oid' => '1.3.6.1.4.1.41112.1.3.2.1.45',
             'sysObjectName' => 'remoteMAC',
-            'calculate' => '$r = NMISNG::Util::beautify_physaddress($r)',
+            'calculate' => '$r = func::beautify_physaddress($r)',
             'title' => 'Remote MAC',
           },
           'remoteIP' => {
@@ -647,7 +649,7 @@
           'ubntStaMac' => {
             'oid' => '1.3.6.1.4.1.41112.1.4.7.1.1',
             'sysObjectName' => 'ubntStaMac',
-            'calculate' => '$r = NMISNG::Util::beautify_physaddress($r)',
+            'calculate' => '$r = func::beautify_physaddress($r)',
             'title' => 'Station MAC',
           },
           'ubntStaName' => {
@@ -755,27 +757,27 @@
         'snmp' => {
           'linkRateTx' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.2',
-            'sysObjectID' => 'mtxrWlStatTxRate',
+            'snmpObjectName' => 'mtxrWlStatTxRate',
             'title' => 'Wireless Link Rate Tx',
           },
           'linkRateRx' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.3',
-            'sysObjectID' => 'mtxrWlStatRxRate',
+            'snmpObjectName' => 'mtxrWlStatRxRate',
             'title' => 'Wireless Link Rate Rx',
           },
           'SSID' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.5',
-            'sysObjectID' => 'mtxrWlStatSsid',
+            'snmpObjectName' => 'mtxrWlStatSsid',
             'title' => 'SSID',
           },
           #'BSSID' => {
           #  'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.6',
-          #  'sysObjectID' => 'mtxrWlStatBssid',
+          #  'snmpObjectName' => 'mtxrWlStatBssid',
           #  'title' => 'BSSID',
           #},
           'Frequency' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.7',
-            'sysObjectID' => 'mtxrWlStatFreq',
+            'snmpObjectName' => 'mtxrWlStatFreq',
             'title' => 'Frequency',
           },
         },

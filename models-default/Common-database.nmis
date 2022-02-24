@@ -81,6 +81,9 @@
       'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
 
+'WirelessConfig' => '/nodes/$node/health/WirelessConfig-$index.rrd',
+'WirelessLinkQuality' => '/nodes/$node/health/WirelessLinkQuality-$index.rrd',
+
 
       'mtxrWlRtab' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
       'mtxrWlAp' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
@@ -189,6 +192,9 @@
       'upscur' => '/nodes/$node/misc/apc-ups-cur.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
       'upspwr' => '/nodes/$node/misc/apc-ups-pwr.rrd',
+     
+      
+
       'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd'
     }
   }

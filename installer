@@ -377,8 +377,8 @@ These modules can be installed with CPAN:
 	# curl is present in most basic redhat install
 	# wget is present on debian/ubuntu via priority:important
 	# however, ca-certificates may be missing/incomplete at this time
-	my $testres = system("curl --insecure -L -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
-	$testres = system("wget --no-check-certificate -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
+	my $testres = system("curl --insecure -L -s -m 10 --retry 2 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
+	$testres = system("wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
 			if ($testres);
 	my $can_use_web = !$testres;
 
@@ -412,6 +412,10 @@ and then restart the installer.\n\n";
 		{
 			$cpanm = type_which($cpanm);
 		}
+
+		# centos + rhel 7 install of MongoDB-v2.2.1 fails at crud_spec.t, but MongoDB-v2.2.0 installs okay
+		my $rhel7_mongodb_module='MongoDB@2.2.0';
+
 		if (defined $cpanm)
 		{
 			logmsg(0,"CPANM installation complete, proceeding with module installation using cpanm");
@@ -443,14 +447,29 @@ and then restart the installer.\n\n";
 			{
 				system("cpanm WWW::Mechanize --sudo $prompt --notest 2>&1");	# can't use execprint as cpan is interactive: but is cpanm interactive?
 			}
-			# centos 7 install of MongoDB-v2.2.1 fails at crud_spec.t, but MongoDB-v2.2.0 installs okay
+			# centos + rhel 7 install of MongoDB-v2.2.1 fails at crud_spec.t, but MongoDB-v2.2.0 installs okay
 			if ($osflavour eq "redhat" and $osmajor = 7)
 			{
-				$_ eq 'MongoDB' and $_ = 'MongoDB@2.2.0' for @missingones;
+				$_ eq 'MongoDB' and $_ = $rhel7_mongodb_module for @missingones;
+			}
+			# force install Mojolicious where not being installed to fix the upgrade from apt installed earlier version than 8.11
+			# we no longer apt install Mojolicious for this reason:
+			if (! grep( /^Mojolicious$/, @missingones) )
+			{
+				push @missingones, "Mojolicious";
 			}
 
+
 			# default test-timeout is 30 mins: install will return exit code 1 on test timeout
-			system("cpanm --sudo $prompt ".join(" ",@missingones)." 2>&1");  # can't use execprint as cpanm may be interactive
+			# retry 3 times
+			# can't use execprint as cpanm may be interactive
+			system("cpanm --sudo $prompt ".join(" ",@missingones)." 2>&1||cpanm --sudo $prompt ".join(" ",@missingones)." 2>&1||cpanm --sudo $prompt ".join(" ",@missingones)." 2>&1");
+			# special case: always retry centos + rhel 7 MongoDB module
+			# as the cpanm install fails to install this module randomly (not often)
+			if ($osflavour eq "redhat" and $osmajor = 7)
+			{
+				system("cpanm --sudo $prompt $rhel7_mongodb_module 2>&1");
+			}
 		}
 		else
 		{
@@ -696,7 +715,7 @@ sub check_installed_modules
   my (@missing, @critmissing);
   my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1,
 										 "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1,
-										 "SOAP::Lite" => 1, "UI::Dialog" => 1, );
+										 "SOAP::Lite" => 1, );
 
   logmsg(0, "Detected Module Status:\nName - Minimum Version - Current Version - Current Path\n");
 	# sort by install prio (highest first), or file

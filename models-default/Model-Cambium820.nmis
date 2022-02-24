@@ -1,0 +1,560 @@
+# Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response', #,ip
+    'nodeModel' => 'Cambium820',
+    'nodeType' => 'generic',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => '1.3.6.1.2.1.1.3.0',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'serialNumber' => {
+            'oid' => '1.3.6.1.4.1.2281.10.1.2.10.1.1.6.127',
+            'title' => 'SerialNumber'
+          },
+        }
+      }
+    },
+    'rrd' => {
+      'health' => {
+        'no_graphs' => '1',
+        'threshold' => 'Proactive loss',
+        'skip_collect' => '1'
+      },
+    },
+  },
+  'systemHealth' => {
+    'sections' => 'LicenseStatus,Firmware,WirelessConfig,WirelessLinkQuality',
+    'sys' => {
+      'LicenseStatus' => {
+        'headers' => 'LicenseMode,LicenseCode,DemoAdminStatus,DemoTimer',
+        #'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2281.10.1.3.1',
+        'indexed' => 'License Status',
+          'snmp' => {
+            'LicenseMode' => {
+              'replace' => {
+               '0' => 'Default',
+                '1' => 'Normal',
+                '2' => 'Demo Mode Active'
+              },
+              'oid' => '1.3.6.1.4.1.2281.10.1.3.1',
+              'title' => 'License Mode'
+            },
+            'LicenseCode' => {
+              'oid' => '1.3.6.1.4.1.2281.10.1.3.2',
+              'title' => 'License Code'
+            },
+            'DemoAdminStatus' => {
+              'replace' => {
+                '1' => 'Disabled',
+                '2' => 'Enabled'
+              },
+              'oid' => '1.3.6.1.4.1.2281.10.1.3.6',
+              'title' => 'Demo Admin Status'
+            },
+            'DemoTimer' => {
+              'oid' => '1.3.6.1.4.1.2281.10.1.3.7',
+              'title' => 'Demo Mode Timer'
+            },
+          }
+      },
+      'Firmware' => {
+        'headers' => 'packageName,runningVersion,installedVersion,downgradePackage,resetType',
+        'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2281.10.4.1.13.1.1',
+        'indexed' => 'Firmware',
+        'snmp' => {
+          'packageName' => {
+           'oid' => '1.3.6.1.4.1.2281.10.4.1.13.1.1.2',
+           'title' => 'Package Name'
+          },
+          'runningVersion' => {
+           'oid' => '1.3.6.1.4.1.2281.10.4.1.13.1.1.4',
+           'title' => 'Running Version'
+          },
+          'installedVersion' => {
+           'oid' => '1.3.6.1.4.1.2281.10.4.1.13.1.1.5',
+           'title' => 'Installed Version'
+          },
+          'downgradePackage' => {
+           'oid' => '1.3.6.1.4.1.2281.10.4.1.13.1.1.7',
+           'title' => 'Downgrade Package'
+          },
+          'resetType' => {
+            'replace' => {
+              '0' => 'No Reset',
+              '1' => 'Main Board Warm Reset',
+              '2' => 'Tcc Cold Reset',
+              '3' => 'Main Board Cold Reset',
+              '4' => 'Card Warm Reset',
+              '5' => 'Card Cold Reset',
+              '6' => 'Not Applicable Reset'
+            },
+            'oid' => '1.3.6.1.4.1.2281.10.4.1.13.1.1.8',
+            'title' => 'Reset type'
+          }
+        }
+      },
+      'WirelessConfig' => {
+        'headers' => 'radioID,txPower,txFreq,rxFreq,RSL,genEquipRfuCfgAdaptivePowerAdmin',
+        'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2281.10.5.2.1',
+        #'indexed' => 'Wireless Config',
+        'snmp' => {
+          'radioID' => {
+            'oid' => '1.3.6.1.4.1.2281.10.5.2.1.1',
+            'title' => 'Radio ID'
+          },
+          'txPower' => {
+           'oid' => '1.3.6.1.4.1.2281.10.5.2.1.2',
+           'title' => 'Max TX Power'
+          },
+          'txFreq' => {
+           'oid' => '1.3.6.1.4.1.2281.10.5.2.1.3',
+           'title' => 'TX Frequency'
+          },
+          'rxFreq' => {
+           'oid' => '1.3.6.1.4.1.2281.10.5.2.1.4',
+           'title' => 'RX Frequency'
+          },
+          'RSL' => {
+           'oid' => '1.3.6.1.4.1.2281.10.5.1.1.2',
+           'title' => 'Receive Signal Level',
+          },
+          'genEquipRfuCfgAdaptivePowerAdmin' => {
+           'oid' => '1.3.6.1.4.1.2281.10.5.2.1.23',
+           'title' => 'ACM Adaptive TX power admin',
+            'replace' => {
+              '2' => 'Enabled',
+              '3' => 'Disabled',
+            },
+          },
+        }
+      },
+      'WirelessLinkQuality' => {
+        'headers' => 'QradioID,txProfile,txQam,txBitRate,rxProfile,rxQam,rxBitRate',
+        'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2281.10.7.4.1.1', #RadioID
+        #'indexed' => 'Wireless Link Quality',
+        'snmp' => {
+          'QradioID' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.1',
+            'title' => 'Radio ID'
+          },
+          'txProfile' => {
+           'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.5',
+           'title' => 'TX Profile'
+          },
+          'txQam' => {
+           'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.6',
+           'title' => 'TX Modulatioon'
+          },
+          'txBitRate' => {
+           'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.7',
+           'title' => 'TX Capacity'
+          },
+          'rxProfile' => {
+           'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.9',
+           'title' => 'RX Profile'
+          },
+          'rxQam' => {
+           'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.10',
+           'title' => 'RX Modulation'
+          },
+          'rxBitRate' => {
+           'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.11',
+           'title' => 'RX Capacity'
+          },
+        },
+      }
+    },
+    'rrd' => {
+      'WirelessConfig' => {
+        'graphtype' => '820RSL',
+        'indexed' => 'true',
+        'snmp' => {
+          'RSL' => {
+            'oid' => '1.3.6.1.4.1.2281.10.5.1.1.2',
+            'option' => 'gauge,U:U'
+          },
+          'genEquipRfuCfgAdaptivePowerAdmin' => {
+           'oid' => '1.3.6.1.4.1.2281.10.5.2.1.23',
+           'title' => 'ACM Adaptive TX power admin',
+            'replace' => {
+              '2' => 'Enabled',
+              '3' => 'Disabled',
+            },
+            'option' => 'nosave',
+          },
+        }
+      },
+      'WirelessLinkQuality' => {
+        'graphtype' => '820modulation,820capacity',
+        'indexed' => 'true',
+        'snmp' => {
+          'QradioID' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.1',
+            'option' => 'gauge,U:U'
+          },
+          'txProfile' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.5',
+            'option' => 'gauge,U:U'
+          },
+          'txQam' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.6',
+            'option' => 'gauge,U:U'
+          },
+          'txBitRate' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.7',
+            'option' => 'gauge,U:U'
+          },
+          'rxProfile' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.9',
+            'option' => 'gauge,U:U'
+          },
+          'rxQam' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.10',
+            'option' => 'gauge,U:U'
+          },
+          'rxBitRate' => {
+            'oid' => '1.3.6.1.4.1.2281.10.7.4.1.1.11',
+            'option' => 'gauge,U:U'
+          }
+        }
+      },
+    }
+  },
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)',
+          },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        }
+      },
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+          },
+          # 'ifInOctets' => {
+          #   'oid' => 'ifInOctets',
+          #   'option' => 'counter,0:U'
+          # },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          # 'ifOutOctets' => {
+          #   'oid' => 'ifOutOctets',
+          #   'option' => 'counter,0:U'
+          # },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out,dropped_util_in,dropped_util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+      'pkts_hc' => {
+        'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'snmp' => {
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          # 'ifHCInUcastPkts' => {
+          #   'oid' => 'ifHCInUcastPkts',
+          #   'option' => 'counter,0:U'
+          # },
+          # 'ifHCInMcastPkts' => {
+          #   'oid' => 'ifHCInMulticastPkts',
+          #   'option' => 'counter,0:U'
+          # },
+          # 'ifHCInBcastPkts' => {
+          #   'oid' => 'ifHCInBroadcastPkts',
+          #   'option' => 'counter,0:U'
+          # },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          # 'ifHCOutUcastPkts' => {
+          #   'oid' => 'ifHCOutUcastPkts',
+          #   'option' => 'counter,0:U'
+          # },
+          # 'ifHCOutMcastPkts' => {
+          #   'oid' => 'ifHCOutMulticastPkts',
+          #   'option' => 'counter,0:U'
+          # },
+          # 'ifHCOutBcastPkts' => {
+          #   'oid' => 'ifHCOutBroadcastPkts',
+          #   'option' => 'counter,0:U'
+          # },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+        }
+      }
+    },
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'null',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|Management|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'noDescription' => 'false',
+      'ifType' => 'lapd|ds0|ds1|softwareloopback|isdn'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+  }
+  },
+'alerts' => {
+  'WirelessLinkQuality' => {
+      'txProfile' => {
+        'type' => 'test',
+        'test' => 'CVAR1=txProfile; "$CVAR1" < "7"',
+        'value' => 'CVAR1=txProfile; $CVAR1',
+        'level' => 'Minor',
+        'element' => 'QradioID',
+        'event' => 'TX Modulation Drop'
+      },
+      'rxProfile' => {
+        'type' => 'test',
+        'test' => 'CVAR1=rxProfile; "$CVAR1" < "7"',
+        'value' => 'CVAR1=rxProfile; $CVAR1',
+        'level' => 'Minor',
+        'element' => 'QradioID',
+        'event' => 'RX Modulation Drop'
+      },
+  },
+  'WirelessConfig' => {
+     'RSL' => {
+      'type' => 'threshold-falling',
+       'threshold' => {
+        #'Normal' => '-40',
+        'Warning' => '-50',
+        'Minor' => '-53',
+        'Major' => '-55',
+        'Critical' => '-60',
+        'Fatal' => '-65',
+       },
+      'test' => '',
+      'value' => 'CVAR1=RSL; $CVAR1 * 1',
+      'element' => 'radioID',
+      'unit' => 'dBm',
+      'event' => 'Signal Level Degraded',
+      'level' => '',
+      'control' => '',
+     },
+    'genEquipRfuCfgAdaptivePowerAdmin' => {
+      'type' => 'test',
+      'test' => 'CVAR1=genEquipRfuCfgAdaptivePowerAdmin; "$CVAR1" eq "Disabled"',
+      'value' => 'CVAR1=genEquipRfuCfgAdaptivePowerAdmin; "$CVAR1"',
+      'level' => 'Warning',
+      'element' => 'radioID',
+      'event' => 'ACM Adaptive Power Admin is Disabled',
+    },
+  },  
+  'LicenseStatus' => {
+    'LicenseMode' => {
+      'type' => 'test',
+      'test' => 'CVAR1=LicenseMode; "$CVAR1" eq "Demo Mode Active"',
+      'value' => 'CVAR1=LicenseMode; $CVAR1',
+      'level' => 'Warning',
+      'element' => 'LicenseMode',
+      'event' => 'Demo Mode Active',
+      'details' => 'serialNumber'
+    }
+  }
+  }
+);

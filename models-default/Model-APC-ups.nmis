@@ -39,6 +39,9 @@
       'summary' => {
         'common-model' => 'summary'
       },
+      'heading' => {
+        'common-model' => 'heading'
+      },
       'stats' => {
         'common-model' => 'stats'
       },
@@ -61,7 +64,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'sysDescr' => {
             'oid' => 'sysDescr',
@@ -86,8 +89,7 @@
             'title' => 'Contact'
           },
           'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
+            'oid' => 'sysName'
           }
         }
       }, # standard
@@ -220,28 +222,28 @@
 						'oid' => "1.3.6.1.4.1.318.1.1.1.2.3.1.0", # upsHighPrecBatteryCapacity, in %/10
 						'title' => 'Remaining Battery Capacity',
 						'calculate' => '$r / 10',
-						'options' => "gauge,0:100",
+						'option' => "gauge,0:100",
 					},
 					
 					'RunTimeRem' => {
 						'oid' => '1.3.6.1.4.1.318.1.1.1.2.2.3.0',
 						'title' => 'Remaining Run Time',
 						'calculate' => '$r / 100',
-						'options' => "gauge,0:U",
+						'option' => "gauge,0:U",
 					},
 
 					'BatTime' => {
 						'title' => "Time On Battery",
 						'oid' => '1.3.6.1.4.1.318.1.1.1.2.1.2.0', # upsBasicBatteryTimeOnBattery, in timeticks = sec/100
 						'calculate' => '$r / 100', 
-						'options' => "gauge,0:U",
+						'option' => "gauge,0:U",
 					},
 
 					'BatTemp' => {
 						'title' => "Battery Temperature",
 						'oid' => '1.3.6.1.4.1.318.1.1.1.2.3.2.0', # upsHighPrecBatteryTemperature, in deg/10
 						'calculate' => '$r / 10',
-						'options' => "gauge,0:U",
+						'option' => "gauge,0:U",
 					},
 					
 					'OutputCurrent' => 
@@ -249,7 +251,7 @@
 						'title' => 'Output Current',
 						'oid' => '1.3.6.1.4.1.318.1.1.1.4.3.4.0', # upsHighPrecOutputCurrent, in A/10
 						'calculate' => '$r / 10',
-						'options' => "gauge,0:U",
+						'option' => "gauge,0:U",
 					},
 					
 					'OutputLoad' => 
@@ -257,14 +259,14 @@
 						'title' => 'Output Load',
 						'oid' => '1.3.6.1.4.1.318.1.1.1.4.3.3.0', # upsHighPrecOutputLoad, in %/10
 						'calculate' => '$r / 10',
-						'options' => "gauge,0:200", # in percent of rated output, so let's add a safety factor
+						'option' => "gauge,0:200", # in percent of rated output, so let's add a safety factor
 					},
 
 					'InputVoltage' => {
 						'title' => 'Input Line Voltage',
 						'oid' => '1.3.6.1.4.1.318.1.1.1.3.3.1.0', # upsHighPrecInputLineVoltage, in V/10
 						'calculate' => '$r / 10',
-						'options' => "gauge,0:U",
+						'option' => "gauge,0:U",
 					},
 				},
 

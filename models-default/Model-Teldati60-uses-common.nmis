@@ -629,7 +629,7 @@
 			}
 		  },
 		  'jitterRttMon' => {
-			'control' => 'CVAR=CtrlAdminRttType;$CVAR eq jitter',
+			'control' => 'CVAR=CtrlAdminRttType;$CVAR eq "jitter"',
 			'graphtype' => 'jitterRttMon',
 			'indexed' => 'true',
 			'snmp' => {

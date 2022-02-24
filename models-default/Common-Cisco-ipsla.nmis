@@ -107,7 +107,7 @@
         }
       },
       'IPSLA-Jitter-RTT' => {
-        'control' => 'CVAR=CtrlAdminRttType;$CVAR eq jitter',
+        'control' => 'CVAR=CtrlAdminRttType;$CVAR eq "jitter"',
         'graphtype' => 'IPSLA-Jitter-RTT',
         'indexed' => 'true',
         'snmp' => {

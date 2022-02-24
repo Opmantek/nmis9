@@ -58,12 +58,13 @@ my %hash = (
   },
 
   'globals' => {
+	'global_enable_password_encryption' => 'false',
     'global_threshold' => 'true', # advanced thresholds enabled or not
-		'threshold_poll_node' => 'true', # perform threshold computation with each node
+	'threshold_poll_node' => 'true', # perform threshold computation with each node
     'threshold_rising_reset_dampening' => '0.95',
     'threshold_falling_reset_dampening' => '1.05',
     'global_collect_Description' => '(CNOC|Collection)',
-		'global_collect_ifDescr' => '',
+	'global_collect_ifDescr' => '',
     'global_nocollect_ifOperStatus' => '',
     'global_nocollect_ifDescr' => '',
     'global_nocollect_Description' => '',
@@ -73,12 +74,10 @@ my %hash = (
     'global_noevent_ifDescr' => '',
     'global_noevent_Description' => '',
     'global_noevent_ifType' => '',
-		'global_events_bandwidth' => 'true',
-
+	'global_events_bandwidth' => 'true',
     'uuid_namespace_type' => 'NameSpace_URL',
     'uuid_namespace_name' => 'www.domain.com',
-
-		'node_name_rule' => qr/^[a-zA-Z0-9_. -]+$/, # note: rule MUST exclude '/'
+	'node_name_rule' => qr/^[a-zA-Z0-9_. -]+$/, # note: rule MUST exclude '/'
   },
 
 	'logging' => {
@@ -210,6 +209,8 @@ my %hash = (
 		'selftest_max_system_cpu' => 60, # utilization in percent
 		'selftest_max_system_iowait' => 20, # in percent
 		'selftest_max_swap' => 50, # in percent
+    'selftest_max_collect_jobs' => 200,
+    'selftest_max_update_jobs' => 400,
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
 		'plugins_enabled' => 'true',
 
