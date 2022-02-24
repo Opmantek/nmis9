@@ -1357,8 +1357,9 @@ sub ensure_indexes
 				# context (primarily node but also queue_id), and by type
 				# not included: details and stats
 				[{"time"              => -1}],
+				#Keep an index of activity and compound that with time for sorting
+				[["activity"          => 1, "time"          => -1]],
 				[{"status"            => 1}],
-				[{"activity"          => 1}],
 				[{"context.node_uuid" => 1}],
 				[{"context.queue_id"  => 1}],
 				[{"type"              => 1}],
