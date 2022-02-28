@@ -1295,8 +1295,12 @@ sub ensure_indexes
 			drop_unwanted => $drop_unwanted,
 			indices       => [
 
-				# replaces path, makes path.0,path.1... lookups work on index
-				[["path.0" => 1, "path.1" => 1, "path.2" => 1, "path.3" => 1], {unique => 0}],
+				# This did not scale, we had paths like .0 and .2 also .1 and .2 which would ommit the prefis .0
+				# [["path.0" => 1, "path.1" => 1, "path.2" => 1, "path.3" => 1], {unique => 0}],
+				# Via the MongoDB docs order matters!
+				[["path.0" => 1]],
+				[["path.1" => 1, "path.2" => 1, "path.3" => 1]],
+				[["path.2" => 1, "path.3" => 1]],
 
 				# needed for joins
 				[[node_uuid => 1]],
@@ -1353,8 +1357,9 @@ sub ensure_indexes
 				# context (primarily node but also queue_id), and by type
 				# not included: details and stats
 				[{"time"              => -1}],
+				#Keep an index of activity and compound that with time for sorting
+				[["activity"          => 1, "time"          => -1]],
 				[{"status"            => 1}],
-				[{"activity"          => 1}],
 				[{"context.node_uuid" => 1}],
 				[{"context.queue_id"  => 1}],
 				[{"type"              => 1}],
