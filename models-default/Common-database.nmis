@@ -62,8 +62,6 @@
       'AirFiberStatus' => '/nodes/$node/health/ubnt-afstatus-$index.rrd',
       'AirMax' => '/nodes/$node/health/ubnt-airmax-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
-      'F5_CPU' => '/nodes/$node/health/F5_CPU.rrd',
-      'F5_Temperature' => '/nodes/$node/health/F5_Temperature-$index.rrd',
       'HBS' => '/nodes/$node/health/utilization-$index.rrd',
       'HBS-Util' => '/nodes/$node/health/hbs.rrd',
       'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',

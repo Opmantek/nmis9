@@ -1,5 +1,5 @@
 #
-## $Id: Graph-ap.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
+## $Id: Graph-F5-Memory.nmis,v0.1 2022/02/10 13:00 simonm Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -40,28 +40,46 @@
 	},
 	'option' => {
 		'standard' => [
-		#CPU "sysStatMemoryTotal"     ".1.3.6.1.4.1.3375.2.1.1.2.1.44"
-		#CPU "sysStatMemoryUsed"     ".1.3.6.1.4.1.3375.2.1.1.2.1.45"
-			'DEF:MemoryTotal=$database:MemoryTotal:AVERAGE',
-			'CDEF:TotalGB=MemoryTotal,1073741824,/',
-			'GPRINT:TotalGB:AVERAGE:Memory Total %1.2lf GB\\n',
-			'DEF:MemoryUsage=$database:MemoryUsage:AVERAGE',
-			'CDEF:UsedGB=MemoryUsage,1073741824,/',
-			'LINE2:UsedGB#042f40: Memory Usage',
-			'GPRINT:UsedGB:AVERAGE:%1.2lf GB',
-			'CDEF:MemUsedPer=MemoryUsage,100,*,MemoryTotal,/',
-			'GPRINT:MemUsedPer:AVERAGE:%%Used %1.2lf%%\\n',
+			'DEF:tmmMemTotal=$database:tmmMemTotal:AVERAGE',
+			'CDEF:tmmMemTotalGB=tmmMemTotal,1073741824,/',
+			'DEF:tmmMemUsed=$database:tmmMemUsed:AVERAGE',
+			'CDEF:tmmMemUsedGB=tmmMemUsed,1073741824,/',
+			'LINE2:tmmMemUsedGB#042f40:tmm Memory Usage',
+		    	'GPRINT:tmmMemUsedGB:AVERAGE:Avg %1.2lf GB\\n',
+			'GPRINT:tmmMemTotalGB:AVERAGE:Total tmm Memory %1.2lf GB',
+			'CDEF:tmmMemPerc=tmmMemUsed,100,*,tmmMemTotal,/',
+			'GPRINT:tmmMemPerc:AVERAGE:Avg tmm %%Used %1.2lf%%\\n',
+
+			'DEF:otherMemTotal=$database:otherMemTotal:AVERAGE',
+			'CDEF:otherMemTotalGB=otherMemTotal,1073741824,/',
+			'DEF:otherMemUsed=$database:otherMemUsed:AVERAGE',
+			'CDEF:otherMemUsedGB=otherMemUsed,1073741824,/',
+			'LINE2:otherMemUsedGB#088f0d:other Memory Usage',
+		    	'GPRINT:otherMemUsedGB:AVERAGE:Avg %1.2lf GB\\n',
+			'GPRINT:otherMemTotalGB:AVERAGE:Total other Memory %1.2lf GB',
+			'CDEF:otherMemPerc=otherMemUsed,100,*,otherMemTotal,/',
+			'GPRINT:otherMemPerc:AVERAGE:Avg other%%Used %1.2lf%%\\n',
 		],
 		'small' => [
-			'DEF:MemoryTotal=$database:MemoryTotal:AVERAGE',
-			'CDEF:TotalGB=MemoryTotal,1073741824,/',
-			'GPRINT:TotalGB:AVERAGE:Memory Total %1.2lf GB\\n',
-			'DEF:MemoryUsage=$database:MemoryUsage:AVERAGE',
-			'CDEF:UsedGB=MemoryUsage,1073741824,/',
-			'LINE2:UsedGB#042f40: Memory Usage',
-			'GPRINT:UsedGB:AVERAGE:%1.2lf GB',
-			'CDEF:MemUsedPer=MemoryUsage,100,*,MemoryTotal,/',
-			'GPRINT:MemUsedPer:AVERAGE:%%Used %1.2lf%%\\n',
+			'DEF:tmmMemTotal=$database:tmmMemTotal:AVERAGE',
+			'CDEF:tmmMemTotalGB=tmmMemTotal,1073741824,/',
+			'DEF:tmmMemUsed=$database:tmmMemUsed:AVERAGE',
+			'CDEF:tmmMemUsedGB=tmmMemUsed,1073741824,/',
+			'LINE2:tmmMemUsedGB#042f40:tmm Memory Usage',
+		    	'GPRINT:tmmMemUsedGB:AVERAGE:Avg %1.2lf GB\\n',
+			'GPRINT:tmmMemTotalGB:AVERAGE:Total tmm Memory %1.2lf GB',
+			'CDEF:tmmMemPerc=tmmMemUsed,100,*,tmmMemTotal,/',
+			'GPRINT:tmmMemPerc:AVERAGE:Avg tmm %%Used %1.2lf%%\\n',
+
+			'DEF:otherMemTotal=$database:otherMemTotal:AVERAGE',
+			'CDEF:otherMemTotalGB=otherMemTotal,1073741824,/',
+			'DEF:otherMemUsed=$database:otherMemUsed:AVERAGE',
+			'CDEF:otherMemUsedGB=otherMemUsed,1073741824,/',
+			'LINE2:otherMemUsedGB#088f0d:other Memory Usage',
+		    	'GPRINT:otherMemUsedGB:AVERAGE:Avg %1.2lf GB\\n',
+			'GPRINT:otherMemTotalGB:AVERAGE:Total other Memory %1.2lf GB',
+			'CDEF:otherMemPerc=otherMemUsed,100,*,otherMemTotal,/',
+			'GPRINT:otherMemPerc:AVERAGE:Avg other%%Used %1.2lf%%\\n',
 		]
 	}
 );
