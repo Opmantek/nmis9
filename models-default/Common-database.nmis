@@ -190,10 +190,14 @@
       'upscur' => '/nodes/$node/misc/apc-ups-cur.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
       'upspwr' => '/nodes/$node/misc/apc-ups-pwr.rrd',
-     
-      
-
-      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd'
+      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd',
+      'mikrotikHealth' => '/nodes/$node/misc/mikrotikHealth.rrd',
+      'mikrotikSFP' => '/nodes/$node/misc/mikrotikSFP.rrd',
+      'SensorName' => '/nodes/$node/misc/SensorName.rrd',
+      'SensorValue' => '/nodes/$node/misc/SensorValue.rrd',
+      'Dell_TX' => '/nodes/$node/misc/Dell_TX.rrd',
+      'Dell_RX' => '/nodes/$node/misc/Dell_RX.rrd',
+      'ICTStatus' => '/nodes/$node/misc/ICTStatus.rrd'
     }
   }
 );

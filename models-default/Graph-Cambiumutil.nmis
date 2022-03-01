@@ -1,0 +1,42 @@
+## Graph-Cambiumutil.nmis
+# 
+# Graph Created for Nextlink Internet
+# Author: Jacob Dickerson
+#    
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - Wlan - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - Wlan - $length'
+	},
+	'vlabel' => {
+		'standard' => '% Avg Util'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:input=$database:ulWLanKbitCount:AVERAGE',
+			'DEF:output=$database:dlWLanKbitCounts:AVERAGE',
+			'DEF:status=$database:CambiumWlanStatus:AVERAGE',
+			'CDEF:inputUtil=input,1000,/,220,/,100,*',
+			'CDEF:outputUtil=output,1000,/,220,/,100,*',
+			'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+			'LINE1:inputUtil#0033FF: In % Util',
+			'GPRINT:inputUtil:AVERAGE:Avg In %1.2lf\\n',
+			'LINE1:outputUtil#00AA00: Out % Util',
+			'GPRINT:outputUtil:AVERAGE:Avg Out %1.2lf\\n',
+			'COMMENT:Interface Speed 220 Mbps'
+		],
+		'small' => [
+			'DEF:input=$database:ulWLanKbitCount:AVERAGE',
+			'DEF:output=$database:dlWLanKbitCounts:AVERAGE',
+			'DEF:status=$database:CambiumWlanStatus:AVERAGE',
+			'CDEF:inputUtil=input,1000,/,220,/,100,*',
+			'CDEF:outputUtil=output,1000,/,220,/,100,*',
+			'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+			'LINE1:inputUtil#0033FF: In % Util',
+			'LINE1:outputUtil#00AA00: Out % Util',
+			'COMMENT:Interface Speed 220 Mbps'
+		]
+	}
+);
