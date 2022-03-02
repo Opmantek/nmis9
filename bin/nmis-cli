@@ -62,6 +62,7 @@ my $thisprogram = basename($0);
 my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=fixperms
+ act=gettmp
  act=config-backup
  act=ensure-indexes
  act=noderefresh
@@ -219,6 +220,9 @@ warn "failed to set permissions: $error\n" if ($error);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $Q->{debug} ) // $C->{log_level},
 															 path  => (defined $Q->{debug})? undef : $logfile);
+
+# Get temporary directory
+my $tmp = NMISNG::Util::getTmpDir();
 
 # this opens a database connection
 my $nmisng = NMISNG->new(
@@ -885,6 +889,10 @@ elsif ($Q->{act} =~ /ensure[_-]indexes/)
 {
 	print $nmisng->ensure_indexes();
 }
+elsif ($Q->{act} eq "gettmp")
+{
+	print "$tmp";
+}
 elsif ($Q->{act} eq "fixperms")
 {
 	if ($wantverbose)
@@ -1152,7 +1160,7 @@ sub collectTopData
 	my $output_folder = $C->{'system_performance'} // $C->{'<nmis_var>'}.'/system_performance';	
 	my $ymd = sub{sprintf '%04d%02d%02d', $_[5]+1900, $_[4]+1, $_[3]}->(localtime);
 	my $file = "$output_folder/$ymd.csv";
-	my $tmpfile = '/tmp/tmp-topn-'.time.'.txt';
+	my $tmpfile = "$tmp/tmp-topn-".time.".txt";
 	
 	# Check output directory
 	if (!-e $output_folder) 

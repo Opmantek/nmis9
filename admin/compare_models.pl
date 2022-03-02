@@ -5,6 +5,7 @@
 use strict;
 use File::Basename;
 use POSIX;
+use NMISNG::Util;
 
 my $script = basename($0);
 
@@ -17,9 +18,12 @@ Exit code: 0 if no differences, 1 if differences were found,
 my ($olddir,$newdir) = @ARGV;
 die $usage if (!$olddir or !-d $olddir or !$newdir or !-d $newdir);
 
+# Get temporary directory
+my $tmp = NMISNG::Util::getTmpDir();
+
 print("Performing model difference check, please wait...\n");
 
-my $difflogfile = strftime("/tmp/model-diffs-%Y-%m-%d", localtime);
+my $difflogfile = strftime("$tmp/model-diffs-%Y-%m-%d", localtime);
 unlink($difflogfile) if (-f $difflogfile);
 
 # try for the difftool in the same admin dir as this wrapper

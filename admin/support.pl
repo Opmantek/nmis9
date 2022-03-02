@@ -79,13 +79,16 @@ my $maxoperrors = $cmdline->{maxoperrors} || 100;
 my $bot = $cmdline->{bot} || 1; # Run by default
 my $report_dir = $cmdline->{report_dir};
 
+# Get temporary directory
+my $tmp = NMISNG::Util::getTmpDir();
+
 my %options;										# dummy-ish, for input_yn and friends
 
 # let's try to live without NMIS modules
 my $globalconf = &NMISNG::Util::loadConfTable()
 		// { '<nmis_base>' => Cwd::abs_path("$FindBin::RealBin/../"), };
 # make tempdir for collecting the goods
-my $td = File::Temp::tempdir("/tmp/nmis-support.XXXXXX", CLEANUP => 1);
+my $td = File::Temp::tempdir("$tmp/nmis-support.XXXXXX", CLEANUP => 1);
 my $timelabel = POSIX::strftime("%Y-%m-%d-%H%M",localtime);
 my $reldir = "nmis-collect.$timelabel";
 my $targetdir = "$td/$reldir";
@@ -148,7 +151,7 @@ if ($cmdline->{action} eq "collect") {
 		run_bot(zip => 1);
 	}
 	
-	($error, $zfn) = makearchive("/tmp/nmis-support-$timelabel",
+	($error, $zfn) = makearchive("$tmp/nmis-support-$timelabel",
 																	$td, $reldir);
 	die "Failed to create archive file: $error\n" if ($error);
 	
@@ -176,7 +179,7 @@ if ($cmdline->{action} eq "collect") {
 			die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
 		}
 	
-		my ($error, $zfn) = makearchive("/tmp/nmis-support-$timelabel",
+		my ($error, $zfn) = makearchive("$tmp/nmis-support-$timelabel",
 																		$td, $reldir);
 		die "Failed to create archive file: $error\n" if ($error);
 	}
@@ -723,7 +726,7 @@ sub collect_bot_data
 	# Open zip
 	if ($dir =~ /\.zip/) {
 			# Try to uncompress
-			$sourcedir = "/tmp/tmp-nmis-support-$timelabel";
+			$sourcedir = "$tmp/tmp-nmis-support-$timelabel";
 			my @cmd = ("unzip", $dir, "-d", $sourcedir);
 			my $status = system(@cmd);
 			
@@ -937,7 +940,7 @@ sub run_bot
 			system("cp", "/$targetdir/$report_name.html", $report_dir );
 		}
 	} else {
-		my $report_dir = $args{dir} // "/tmp";
+		my $report_dir = $args{dir} // "$tmp";
 		print "Creating report into $report_dir/$report_name.html \n";
 		use File::Slurp;
 		my $template = read_file($basedir.'/admin/support_template.html');
