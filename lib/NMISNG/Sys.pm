@@ -28,6 +28,7 @@
 # *****************************************************************************
 package NMISNG::Sys;
 our $VERSION = "3.2.0";
+our $tmp     = "$ENV{NMISTMPDIR}";
 
 use strict;
 
@@ -293,6 +294,8 @@ sub init
 	{
 		Carp::confess("failed to load configuration table!");
 	}
+	$tmp = $C->{"<nmis_tmp>"} || $C->{"<nmis_var>"} . "/tmp" || "/tmp";
+
 	$self->{_nmisng} ||= Compat::NMIS::new_nmisng();
 
 	$self->{debug}  = $args{debug};
@@ -591,7 +594,8 @@ sub init
 			domain   => $thisnodeconfig->{wmidomain},
 			username => $thisnodeconfig->{wmiusername},
 			password => $thisnodeconfig->{wmipassword},
-			program  => $C->{"<nmis_bin>"} . "/wmic"
+			program  => $C->{"<nmis_bin>"} . "/wmic",
+			tmp      => "$tmp"
 		);
 		if ( ref($maybe) )
 		{

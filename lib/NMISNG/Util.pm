@@ -3303,4 +3303,12 @@ sub get_policy {
 	return $intervals->{$policy_name};
 }
 
+########################################################################
+# getTmpDir - Get the proper temporary directory.                      #
+########################################################################
+sub getTmpDir {
+	my $C = NMISNG::Util::loadConfTable();
+	return $C->{"<nmis_tmp>"} || $C->{"<nmis_var>"} . "/tmp" || "/tmp";
+}
+
 1;
