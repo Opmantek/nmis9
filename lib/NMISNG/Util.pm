@@ -3527,11 +3527,11 @@ sub verifyNMISEncryption {
 ########################################################################
 sub decrypt {
 	my ($password, $section, $keyword) = @_;
-	my $nmisng  = Compat::NMIS::new_nmisng();
 	my $config;
 	my $logger;
 
 	{
+		my $nmisng  = Compat::NMIS::new_nmisng();
 		if (defined($nmisng)) {
 			$config  = $nmisng->config;
 			$logger  = $nmisng->log;
