@@ -91,6 +91,9 @@ NMIS9_HOME="/usr/local/nmis9"
 		echo "'$NMIS9_HOME' is not a valid NMIS 9 directory!"
 		exit 4;
 	fi
+
+TMP=`$NMIS9_HOME/bin/nmis-cli act=gettmp`
+
 	echo "NMIS8 Home is '$NMIS8_HOME'"
 	echo "NMIS9 Home is '$NMIS9_HOME'"
 	yes_or_no "Migrate setting from NMISA8 at '$NMIS8_HOME' to NMIS9 at '$NMIS9_HOME'?" || exit 2;
@@ -156,29 +159,29 @@ removeItems=(
 )
 
 
-grep loc_sysLoc_format /usr/local/nmis8/install/Config.nmis | awk {'print $3'} >/tmp/loc_sysLoc_default.txt
-grep loc_sysLoc_format /usr/local/nmis8/conf/Config.nmis | awk {'print $3'} >/tmp/loc_sysLoc_live.txt
-diff /tmp/loc_sysLoc_default.txt /tmp/loc_sysLoc_live.txt >/dev/null
+grep loc_sysLoc_format $NMIS8_HOME/install/Config.nmis | awk {'print $3'} >$TMP/loc_sysLoc_default.txt
+grep loc_sysLoc_format $NMIS8_HOME/conf/Config.nmis | awk {'print $3'} >$TMP/loc_sysLoc_live.txt
+diff $TMP/loc_sysLoc_default.txt $TMP/loc_sysLoc_live.txt >/dev/null
 if [ $? -eq 0 ]; then
    loc_sysLoc_default=1
    echo "loc_sysLoc_format is defaulted."
 fi
-rm -f /tmp/loc_sysLoc_default.txt
-rm -f /tmp/loc_sysLoc_live.txt
+rm -f $TMP/loc_sysLoc_default.txt
+rm -f $TMP/loc_sysLoc_live.txt
 
 ## Copy all the old config to the new conf folder
 #first backup the installer generated Config.nmis
-cp /usr/local/nmis9/conf/Config.nmis{,.installer}
-cp -f `find /usr/local/nmis8/conf/*.nmis | grep -v Table-` /usr/local/nmis9/conf/
-cp -f /usr/local/nmis8/conf/users.dat /usr/local/nmis9/conf/
+cp $NMIS9_HOME9/conf/Config.nmis{,.installer}
+cp -f `find $NMIS8_HOME/conf/*.nmis | grep -v Table-` $NMIS9_HOME9/conf/
+cp -f $NMIS8_HOME/conf/users.dat $NMIS9_HOME9/conf/
 #Now get rid of the NMIS9 installer generated Config.nmis so we can replace it with a working copy.
-rm /usr/local/nmis9/conf/Config.nmis
+rm $NMIS9_HOME9/conf/Config.nmis
 
 # Create a staging copy of the NMIS8 Config.nmis
-cp -f /usr/local/nmis8/conf/Config.nmis /tmp/Config.nmis.upgradepatch
-sed -i "s/'node_name_rule' *=> *qr/'node_name_rule' => m/" /tmp/Config.nmis.upgradepatch
-sed -i "s/nmis8/nmis9/" /tmp/Config.nmis.upgradepatch
-sed -i "s/NMIS8/NMIS9/" /tmp/Config.nmis.upgradepatch
+cp -f $NMIS8_HOME/conf/Config.nmis $TMP/Config.nmis.upgradepatch
+sed -i "s/'node_name_rule' *=> *qr/'node_name_rule' => m/" $TMP/Config.nmis.upgradepatch
+sed -i "s/nmis8/nmis9/" $TMP/Config.nmis.upgradepatch
+sed -i "s/NMIS8/NMIS9/" $TMP/Config.nmis.upgradepatch
 
 
 #numberKeys=0   ## Used for testing which Config items broke NMIS
@@ -190,7 +193,7 @@ do
     #     break
     # fi
     echo "removing $key"
-    /usr/local/nmis9/admin/patch_config.pl -f /tmp/Config.nmis.upgradepatch $key=undef
+    $NMIS9_HOME9/admin/patch_config.pl -f $TMP/Config.nmis.upgradepatch $key=undef
     #((numberKeys++))
 
 done
@@ -201,29 +204,29 @@ done
 # as they might be nested
 
 echo "Removing undef Lines\n\n"
-sed -i '/undef,/d' /tmp/Config.nmis.upgradepatch
+sed -i '/undef,/d' $TMP/Config.nmis.upgradepatch
 
 # now create a patched copy of the Config.nmis file.
 #this adds items from nmis9/conf-default/Config.nmis not found in this Config.nmis - so adds items we deleted if needs be.
-/usr/local/nmis9/admin/updateconfig.pl /usr/local/nmis9/conf-default/Config.nmis /tmp/Config.nmis.upgradepatch debug=9
+$NMIS9_HOME9/admin/updateconfig.pl $NMIS9_HOME9/conf-default/Config.nmis $TMP/Config.nmis.upgradepatch debug=9
 
 # reset the cluster_id to the one created at install as the nodes were imported with that cluster_id.
 # it's currently blank and when NMIS runs it will create a new one.
-cluster=`grep cluster_id /usr/local/nmis9/conf/Config.nmis.installer | awk '{print $3}' | sed "s/'//g"`
-/usr/local/nmis9/admin/patch_config.pl -f /tmp/Config.nmis.upgradepatch /id/cluster_id=$cluster
+cluster=`grep cluster_id $NMIS9_HOME9/conf/Config.nmis.installer | awk '{print $3}' | sed "s/'//g"`
+$NMIS9_HOME9/admin/patch_config.pl -f $TMP/Config.nmis.upgradepatch /id/cluster_id=$cluster
 
 # Migrate the Node Configuration.
-/usr/local/nmis9/admin/migrate_node_config.pl act='migrate_nodeconf'
+$NMIS9_HOME9/admin/migrate_node_config.pl act='migrate_nodeconf'
 
 
-sed -i "s#'node_name_rule' *=> *'\(.*\)'#'node_name_rule' => 'qr/\1/'#" /tmp/Config.nmis.upgradepatch
+sed -i "s#'node_name_rule' *=> *'\(.*\)'#'node_name_rule' => 'qr/\1/'#" $TMP/Config.nmis.upgradepatch
 if [ $loc_sysLoc_default -eq 1 ]; then
-   grep loc_sysLoc_format /usr/local/nmis9/conf-default/Config.nmis | awk {'print $3'} | sed "s#\\\#\\\\\\\#g" >/tmp/loc_sysLoc_nmis9.txt
-   sed -i "s#'loc_sysLoc_format' *=> *.*\$#'loc_sysLoc_format' => `cat /tmp/loc_sysLoc_nmis9.txt`#" /tmp/Config.nmis.upgradepatch
-   rm -f /tmp/loc_sysLoc_nmis9.txt
+   grep loc_sysLoc_format $NMIS9_HOME9/conf-default/Config.nmis | awk {'print $3'} | sed "s#\\\#\\\\\\\#g" >$TMP/loc_sysLoc_nmis9.txt
+   sed -i "s#'loc_sysLoc_format' *=> *.*\$#'loc_sysLoc_format' => `cat $TMP/loc_sysLoc_nmis9.txt`#" $TMP/Config.nmis.upgradepatch
+   rm -f $TMP/loc_sysLoc_nmis9.txt
 fi
 # Finally copy the new Config.nmis into place and start the services.
-mv /tmp/Config.nmis.upgradepatch /usr/local/nmis9/conf/Config.nmis
+mv $TMP/Config.nmis.upgradepatch $NMIS9_HOME9/conf/Config.nmis
 
 ## doesn't always work as it sometimes can't kill the nmis9 daemons.
 systemctl restart nmis9d

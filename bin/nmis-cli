@@ -83,6 +83,7 @@ if ($helpsw) {
 my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
 
  act=fixperms
+ act=gettmp
  act=config-backup
  act=ensure-indexes
  act=noderefresh
@@ -254,6 +255,9 @@ warn "failed to set permissions: $error\n" if ($error);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $debug ) // $C->{log_level},
 																 path  => ($debug > 0)? undef : $logfile);
+
+# Get temporary directory
+my $tmp = NMISNG::Util::getTmpDir();
 
 # this opens a database connection
 my $nmisng = NMISNG->new(
@@ -930,6 +934,10 @@ elsif ($Q->{act} =~ /ensure[_-]indexes/)
 {
 	print $nmisng->ensure_indexes();
 }
+elsif ($Q->{act} eq "gettmp")
+{
+	print "$tmp";
+}
 elsif ($Q->{act} eq "fixperms")
 {
 	if ($verbose)
@@ -1199,7 +1207,7 @@ sub collectTopData
 	my $output_folder = $C->{'system_performance'} // $C->{'<nmis_var>'}.'/system_performance';	
 	my $ymd = sub{sprintf '%04d%02d%02d', $_[5]+1900, $_[4]+1, $_[3]}->(localtime);
 	my $file = "$output_folder/$ymd.csv";
-	my $tmpfile = '/tmp/tmp-topn-'.time.'.txt';
+	my $tmpfile = "$tmp/tmp-topn-".time.".txt";
 	
 	# Check output directory
 	if (!-e $output_folder) 
@@ -1440,6 +1448,9 @@ sub help
    push(@lines, "     act=fixperms\n");
    push(@lines, "                     This action fixes incorrect file permissions in the NMIS\n");
    push(@lines, "                     installation. It should be run as root!\n");
+   push(@lines, "     act=gettmp\n");
+   push(@lines, "                     This action simply returns the configured temporary directory\n");
+   push(@lines, "                     for this installation.\n");
    push(@lines, "     act=noderefresh\n");
    push(@lines, "                     This action Walks the list of nodes causing an internal\n");
    push(@lines, "                     Node refresh of each.\n");

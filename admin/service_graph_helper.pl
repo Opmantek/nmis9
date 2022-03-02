@@ -69,6 +69,9 @@ my $config = NMISNG::Util::loadConfTable(dir=>"$FindBin::RealBin/../conf",
 die "could not load configuration!\n"
 		if (!$config or !keys %$config);
 
+# Get temporary directory
+my $tmp = NMISNG::Util::getTmpDir();
+
 my $dia = UI::Dialog->new('title' => "Service Graph Helper",
 													height => 20,
 													width =>  70,
@@ -327,7 +330,7 @@ if (-f $savefilename)
 	}
 	else
 	{
-		$savefilename = "/tmp/Graph-$graphname.nmis";
+		$savefilename = "$tmp/Graph-$graphname.nmis";
 		$tempfilewarning = 1;
 	}
 }
