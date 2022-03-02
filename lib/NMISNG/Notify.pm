@@ -322,14 +322,14 @@ sub logJsonEvent
 	
 	# bolster file error handling
 	
-	open(JSON,">$file") or return("can not write to $file: $!");
-	if ( print JSON $json_event ) {
+	open(my $fh,'>',$file) or return("can not write to $file: $!");
+	if ( print $fh $json_event ) {
 		$nmisng->log->debug("INFO, $node_name " . $event->{event} . " " . $event->{element} . " saved to $file: $!");
 	}
 	else {
 		$nmisng->log->error("ERROR, did not save $node_name ". $event->{event} ." " .$event->{element} ." to $file: $!");
 	}
-	close JSON;
+	close $fh;
 	NMISNG::Util::setFileProtDiag(file =>$file);
 	
 	return undef;

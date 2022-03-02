@@ -57,7 +57,19 @@ sub update_plugin
 	{ 
 
 		my $ifName_data = $snmp->getindex("1.3.6.1.2.1.31.1.1.1.1",$max_repetitions);
+		# this data is collected GPON_Device
+		#		  'hwGponDeviceOntDespt' => {
+		#			'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9',
+		#			'title' => 'ONTDescription',
+		#			'title_export' => 'ONTDescription',
+		#		  },
 		my $ONTDescr_data = $snmp->getindex("1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9",$max_repetitions);
+		# already collected in GPON_Device
+		#		  'hwGponDeviceOntSn' => {
+		#			'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3',
+		#			'title' => 'ONTSerialNumber',
+		#			'title_export' => 'ONTSerialNumber',
+		#		  },
         my $ONT_SerialNumber = $snmp->getindex("1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3",$max_repetitions);
 
 		my $interfaces = {};
@@ -128,6 +140,40 @@ sub update_plugin
                 
             }
         }
+		
+		# Fix hwGponDeviceOntPassword
+		my $sectionIds = $S->nmisng_node->get_inventory_ids(
+					concept => {'$in' => ["GPON_Device"]});
+		
+		if (@$sectionIds)
+		{	
+			my %gponDeviceIndex;
+					
+			for my $sectionId (@$sectionIds)
+			{
+				my ($section, $error) = $S->nmisng_node->inventory(_id => $sectionId);
+				if ($error)
+				{
+					$NG->log->error("Failed to get inventory $sectionId: $error");
+					next;
+				}
+				my $data = $section->data();
+				if ( $data->{hwGponDeviceOntPassword} ) {
+					my $d = $data->{hwGponDeviceOntPassword};
+					$d =~ s/[^\d]//g;
+					# Save if we have made changes
+					if ($d ne $data->{hwGponDeviceOntPassword})
+					{
+						$data->{hwGponDeviceOntPassword} = $d;
+						$section->data($data); # set changed info
+						(undef,$error) = $section->save; # and save to the db
+						$NG->log->error("Failed to save inventory for ".$section->id. " : $error")
+								if ($error);
+					}
+				}
+			}
+		}
+				
 	}
 	return (1,undef); 
 }

@@ -594,8 +594,10 @@ elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 			}
 		}
 
-		my $error = $nmisng->remove_queue(id => $id);
-		die "$error\n" if ($error);
+		my $error = $nmisng->remove_queue(id => $id) if ($id);
+		# Don't die, continue the loop
+		print "$error\n" if ($error);
+		print "Removed job with id $id \n" if (!$error);
 	}
 	exit 0;
 }

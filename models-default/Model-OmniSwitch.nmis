@@ -35,8 +35,14 @@
       'database' => {
         'common-model' => 'database'
       },
+      'calls' => {
+        'common-model' => 'calls'
+      },
       'threshold' => {
         'common-model' => 'threshold'
+      },
+      'heading' => {
+        'common-model' => 'heading'
       },
       'event' => {
         'common-model' => 'event'
@@ -54,7 +60,7 @@
               '' => 'default'
             },
             'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
+            'title' => 'Location'
           },
           'sysDescr' => {
             'oid' => 'sysDescr',
@@ -79,8 +85,7 @@
             'title' => 'Contact'
           },
           'sysName' => {
-            'oid' => 'sysName',
-						'title' => 'System Name',
+            'oid' => 'sysName'
           }
         }
       },
@@ -214,53 +219,6 @@
           }
         },
         'graphtype' => 'ip,frag'
-      }
-    },
-    'power' => {
-      'pwr' => {
-        'snmp' => {
-          'SupplyState1' => {
-            'replace' => {
-              '6' => 'notFunctioning',
-              '1' => 'normal',
-              '4' => 'shutdown',
-              '3' => 'critical',
-              '2' => 'warning',
-              '5' => 'notPresent'
-            },
-            'oid' => 'ciscoEnvMonSupplyState.1'
-          },
-          'SupplyDescr1' => {
-            'replace' => {
-              '4' => 'externalPowerSupply',
-              '3' => 'dc',
-              '2' => 'ac',
-              '5' => 'internalRedundant'
-            },
-            'oid' => 'ciscoEnvMonSupplySource.1'
-          },
-          'SupplyDescr2' => {
-            'replace' => {
-              '4' => 'externalPowerSupply',
-              '3' => 'dc',
-              '2' => 'ac',
-              '5' => 'internalRedundant'
-            },
-            'oid' => 'ciscoEnvMonSupplySource.2'
-          },
-          'SupplyState2' => {
-            'replace' => {
-              '6' => 'notFunctioning',
-              '1' => 'normal',
-              '4' => 'shutdown',
-              '3' => 'critical',
-              '2' => 'warning',
-              '5' => 'notPresent'
-            },
-            'oid' => 'ciscoEnvMonSupplyState.2'
-          }
-        },
-        'control' => '$sysObjectName =~ /7206|6509/'
       }
     },
     'nodegraph' => 'health,response,cpu,buffer,mem-router,mem-proc,mem-io'

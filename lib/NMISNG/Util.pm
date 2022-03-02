@@ -2499,6 +2499,41 @@ sub selftest
 		unshift @details, ["Last $name", $status];
 	}
 
+	# Get number of queue jobs
+	# check that there is some sort of cron running
+	for my $op (qw(collect update))
+	{
+		$status = undef;
+		$allok = 1;
+		
+		my $max_jobs;
+		if ($op =~ /collect/) {
+			$max_jobs = $config->{selftest_max_collect_jobs}? $config->{selftest_max_collect_jobs} : 200;
+		}
+		else {
+			$max_jobs = $config->{selftest_max_update_jobs}? $config->{selftest_max_update_jobs} : 400;
+		}
+
+		my $queued = $nmisng->get_queue_model(type => $op);
+		if (my $fault = $queued->error)
+		{
+			$status = "Failed to get the queue: $fault";
+			$allok = 0;
+		}
+	
+		my $queuedjobs = $queued->data;
+
+		if (@$queuedjobs > $max_jobs)
+		{
+			$status = "Number of $op jobs ".@$queuedjobs." exceeded. Max allowed $max_jobs";
+			$allok = 0;
+		}
+		
+		push @details, ["QUEUE $op", $status];
+	}
+	
+	
+	
 	# update the status
 	NMISNG::Util::writeHashtoFile(
 		file => $statefile,
