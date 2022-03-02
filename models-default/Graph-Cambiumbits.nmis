@@ -1,0 +1,62 @@
+
+## Graph-Cambiumbits.nmis
+# 
+# Graph Created for Nextlink Internet
+# Author: Jacob Dickerson
+#    
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - Wlan - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - Wlan - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Avg Mbps',
+		'split' => 'In(-) Out(+) Avg Mbps'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:input=$database:ulWLanKbitCount:AVERAGE',
+			'DEF:output=$database:dlWLanKbitCounts:AVERAGE',
+			'DEF:status=$database:CambiumWlanStatus:AVERAGE',
+			'CDEF:inputBits=input,1000,/',
+			'CDEF:inputSplitBits=input,1000,/,$split,*',
+			'CDEF:outputBits=output,1000,/',
+			'VDEF:totalInBytes=input,TOTAL',
+			'VDEF:totalOutBytes=output,TOTAL',
+			'$GLINE:inputSplitBits#00BFFF: Input\\t',
+			'GPRINT:inputBits:LAST:Current %6.2lf Mbits/sec\\t',
+			'GPRINT:inputBits:AVERAGE:Average %6.2lf Mbits/sec\\t',
+			'GPRINT:inputBits:MAX:Maximum %6.2lf Mbits/sec\\n',
+			'$GLINE:outputBits#00FF7F: Output\\t',
+			'GPRINT:outputBits:LAST:Current %6.2lf Mbits/sec\\t',
+			'GPRINT:outputBits:AVERAGE:Average %6.2lf Mbits/sec\\t',
+			'GPRINT:outputBits:MAX:Maximum %6.2lf Mbits/sec\\n',
+			'GPRINT:totalInBytes:Total Input KBits %6.0lf Kbits\\t',
+			'GPRINT:totalOutBytes:Total Output KBits %6.0lf Kbits\\n',
+			'COMMENT:Interface Speed 220 Mbps\\n'
+		],
+		'small' => [
+			'DEF:input=$database:ulWLanKbitCount:AVERAGE',
+			'DEF:output=$database:dlWLanKbitCounts:AVERAGE',
+			'DEF:status=$database:CambiumWlanStatus:AVERAGE',
+			'CDEF:inputBits=input,1000,/',
+			'CDEF:inputSplitBits=input,1000,/,$split,*',
+			'CDEF:outputBits=output,1000,/',
+			'VDEF:totalInBytes=input,TOTAL',
+			'VDEF:totalOutBytes=output,TOTAL',
+			'$GLINE:inputSplitBits#00BFFF: Input',
+			'GPRINT:inputBits:LAST:Current %6.2lf Mbits/sec',
+			'GPRINT:inputBits:AVERAGE:Avg. %6.2lf Mbits/sec',
+			'GPRINT:inputBits:MAX:Max %6.2lf Mbits/sec\\n',
+			'$GLINE:outputBits#00FF7F: Output',
+			'GPRINT:outputBits:LAST:Current %6.2lf Mbits/sec',
+			'GPRINT:outputBits:AVERAGE:Avg. %6.2lf Mbits/sec',
+			'GPRINT:outputBits:MAX:Max %6.2lf Mbits/sec\\n',
+			'GPRINT:totalInBytes:Total Input KBits %6.0lf Kbits\\t',
+			'GPRINT:totalOutBytes:Total Output KBits %6.0lf Kbits\\n',
+			'COMMENT:Interface Speed 220 Mbps'
+		]
+	}
+);

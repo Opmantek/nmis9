@@ -1,5 +1,5 @@
 #
-## $Id: Graph-F5-LTM-Connections,v 0.1 2022/02/16 simonm nmisdev Exp $
+# $Id: Graph-F5-Swap-Memory.nmis,v1.0 2022/02/10 10:30 simonm Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -30,26 +30,38 @@
 # *****************************************************************************
 
 %hash = (
-	'heading' => 'Local Traffic Manager (LTM) Connections',
+	'heading' => 'F5 Swap Memory Usage',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'F5 Current Connections.'
+		'short' => 'F5 Swap Memory Status'
 	},
 	'vlabel' => {
-		'standard' => 'Curr Conns'
+		'standard' => 'Used (GB)'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:ltmStatClientCurConns=$database:ltmStatClientCurCon:AVERAGE',
-			'LINE2:ltmStatClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ltmStatClientCurConns:AVERAGE: %1.0lf\\n',
-			'GPRINT:ltmStatClientCurConns:MAX:Max %1.2lf\\n',
+			'DEF:MemorySwapTotal=$database:MemorySwapTotal:AVERAGE',
+			'CDEF:TotalGB=MemoryTotal,1048572,/',
+			'LINE2:TotalGB#088f0d:Total Swap Memory',
+			'GPRINT:TotalGB:AVERAGE:Avg %1.2lf GB\\n',
+			'DEF:MemorySwapUsed=$database:MemorySwapUsed:AVERAGE',
+			'CDEF:UsedGB=MemorySwapUsed,1048572,/',
+			'LINE2:UsedGB#042f40:Swap Memory Used',
+			'GPRINT:UsedGB:AVERAGE:Avg %1.2lf GB\\n',
+			'CDEF:MemUsedPerc=UsedGB,TotalGB,/,100,*',
+			'GPRINT:MemUsedPerc:AVERAGE:Avg Swap %%Used %1.2lf%%\\n',
 		],
 		'small' => [
-			'DEF:ltmStatClientCurConns=$database:ltmStatClientCurCon:AVERAGE',
-			'LINE2:ltmStatClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ltmStatClientCurConns:AVERAGE: %1.0lf\\n',
-			'GPRINT:ltmStatClientCurConns:MAX:Max %1.2lf\\n',
+			'DEF:MemorySwapTotal=$database:MemorySwapTotal:AVERAGE',
+			'CDEF:TotalGB=MemorySwapTotal,1048572,/',
+			'LINE2:TotalGB#088f0d:Total Swap Memory',
+			'GPRINT:TotalGB:AVERAGE:Avg %1.2lf GB\\n',
+			'DEF:MemorySwapUsed=$database:MemorySwapUsed:AVERAGE',
+			'CDEF:UsedGB=MemorySwapUsed,1048572,/',
+			'LINE2:UsedGB#042f40:Swap Memory Used',
+			'GPRINT:UsedGB:AVERAGE:Avg %1.2lf GB\\n',
+			'CDEF:MemUsedPerc=UsedGB,TotalGB,/,100,*',
+			'GPRINT:MemUsedPerc:AVERAGE:Avg Swap %%Used %1.2lf%%\\n',
 		]
 	}
 );

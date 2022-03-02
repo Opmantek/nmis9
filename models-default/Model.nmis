@@ -279,12 +279,32 @@
     'Frogfoot Networks' => {
       'order' => {
         '10' => {
-          'Ubiquiti' => 'Linux 2.6.3.'
+          'UbiquitiBH' => 'Linux 2.6.'
         },
         '20' => {
-          'FrogFoot' => 'Linux'
+          'Ubiquiti' => 'Linux'
         }
       }
+    },
+    'Giganet Ltd' => {
+      'order' => {
+        '10' => {
+          'Cambium820' => 'High capacity'
+        },
+	'20' => {
+	  'Default-HC' => '.'
+      		}
+	}
+    },    
+    'cambium' => {
+      'order' => {
+        '10' => {
+          'Cambium820' => 'High capacity'
+        },
+        '20' => {
+          'Default-HC' => '.'
+      		}
+	}
     },
     'HUAWEI Technology Co.,Ltd' => {
       'order' => {
@@ -601,6 +621,9 @@
     'Ubiquiti Networks, Inc.' => {
       'order' => {
         '10' => {
+          'UbiquitiBH' => 'Linux 2.6.'
+        },
+        '20' => {
           'Ubiquiti' => 'Linux'
         }
       }
@@ -655,6 +678,13 @@
       'order' => {
         '10' => {
           'Siklu-EH-600' => 'EH-600TX'
+        }
+      }
+    },
+    'F5 Labs, Inc.' => {
+      'order' => {
+        '10' => {
+          'F5-BigIP' => 'BIG-IP'
         }
       }
     },

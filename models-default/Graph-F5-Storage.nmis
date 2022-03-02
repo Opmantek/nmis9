@@ -1,5 +1,5 @@
 #
-## $Id: Graph-F5-LTM-Connections,v 0.1 2022/02/16 simonm nmisdev Exp $
+## $Id: Graph-Storage.nmis,v 0.1 2022/14/02 simonm Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -30,26 +30,28 @@
 # *****************************************************************************
 
 %hash = (
-	'heading' => 'Local Traffic Manager (LTM) Connections',
+	'heading' => 'F5 Storage',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'F5 Current Connections.'
+		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Curr Conns'
+		'standard' => '% Disk Used'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:ltmStatClientCurConns=$database:ltmStatClientCurCon:AVERAGE',
-			'LINE2:ltmStatClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ltmStatClientCurConns:AVERAGE: %1.0lf\\n',
-			'GPRINT:ltmStatClientCurConns:MAX:Max %1.2lf\\n',
+			'DEF:perUsed=$database:DiskUsedPerc:AVERAGE',
+			'AREA:perUsed#00FFFF: % Disk Used',
+			'GPRINT:perUsed:LAST:Current %1.1lf%%',
+			'GPRINT:perUsed:AVERAGE:Average %1.1lf%%\\n',
+			'GPPINT:perUsed:MAX:Maximum %1.1lf%%\\n'
 		],
 		'small' => [
-			'DEF:ltmStatClientCurConns=$database:ltmStatClientCurCon:AVERAGE',
-			'LINE2:ltmStatClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ltmStatClientCurConns:AVERAGE: %1.0lf\\n',
-			'GPRINT:ltmStatClientCurConns:MAX:Max %1.2lf\\n',
+			'DEF:perUsed=$database:DiskUsedPerc:AVERAGE',
+			'AREA:perUsed#00FFFF: % Disk Used',
+			'GPRINT:perUsed:LAST:Current %1.1lf%%',
+			'GPRINT:perUsed:AVERAGE:Average %1.1lf%%\\n',
+			'GPRINT:perUsed:MAX:Maximum %1.1lf%%\\n'
 		]
 	}
 );

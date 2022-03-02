@@ -95,6 +95,7 @@ my $targetdir = "$td/$reldir";
 mkdir($targetdir);
 my $bot_data;
 my ($error, $zfn);
+my %globalerrors;
 
 # can we instantiate an nmisng object?
 my $nmisng = eval { require NMISNG; require Compat::NMIS; Compat::NMIS::new_nmisng() };
@@ -234,8 +235,8 @@ sub collect_evidence
 {
 	my ($targetdir,$args) = @_;
 
-	# default is public=true, include config as-is
-	my $nosensitive = defined($args->{public}) && $args->{public} =~ /^(false|f|0|off)$/i;
+	# default is public=false, dont show private info
+	my $nosensitive = defined($args->{public}) ? NMISNG::Util::getbool($args->{public}) : 1;
 
 	my $basedir = $globalconf->{'<nmis_base>'};
 	# these three are relevant and often outside of basedir, occasionally without symlink...
@@ -566,7 +567,6 @@ The support tool won't be able to collect database status information!\n");
 				my $res = $nmisng->dump_node(uuid => $uuid, target => $nodedumpf,
 																		 options => { historic_events => 0,
 																									opstatus_limit => $maxopstatus});
-
 				warn "Failed to dump node data for $uuid: $res->{error}\n" if (!$res->{success});
 				# Now, perform an update and a collect
 				my $logfn = "$targetdir/node_dumps/update.log";
@@ -591,32 +591,59 @@ The support tool won't be able to collect database status information!\n");
 	if ($nosensitive)
 	{
 	    print STDERR "removing sensitive data from ";
-		open(F, "$targetdir/conf/Config.nmis") or die "can't read config file: $!\n";
-		my @lines = <F>;
-		close (F);
-		for my $tbc (@lines)
-		{
-			$tbc =~ s/(auth_radius_secret|auth_web_key|default_(?:auth|priv)(?:password|key)|(?:mail|db)_password|db_rootpassword|auth_ms_ldap_dn_psw|auth_tacacs_secret|(?:server|slave)_community)\b(['"]\s*=>)(.*)$/$1$2'_removed_',/g;
+		
+		my @files = ();
+		if (opendir(DIR, "$targetdir/conf/")) {
+			my $filename;
+			while ($filename = readdir(DIR)) {
+				# Only Config.nmis files
+				next unless ($filename =~ m/Config\.nmis/);
+				push @files, $filename; 
+			}
+			closedir(DIR);
 		}
-		open(F, ">$targetdir/conf/Config.nmis") or die "can't write config file: $!\n";
-		print F @lines;
-		print STDERR "Config.nmis - complete ";
-		close F;
+		foreach my $f (@files) {
+			open(F, "$targetdir/conf/$f") or die "can't read config file: $!\n";
+			my @lines = <F>;
+			close (F);
+			for my $tbc (@lines)
+			{
+				$tbc =~ s/(auth_radius_secret|auth_web_key|auth_cw_private_key|auth_cw_public_key|default_(?:auth|priv)(?:password|key)|(?:mail|db)_password|db_rootpassword|auth_ms_ldap_dn_psw|auth_tacacs_secret|(?:server|slave)_community)\b(['"]\s*=>)(.*)$/$1$2'_removed_',/g;
+			}
+			open(F, ">$targetdir/conf/$f") or die "can't write config file: $!\n";
+			print F @lines;
+			print STDERR "$f - complete \n";
+			close F;			
+		}
 
-		if (open(F, "$targetdir/db_dumps/nodes.json"))
+		# Nodes
+		if (open(N, "$targetdir/db_dumps/nodes.json"))
 		{
-			@lines = <F>;
+			my @lines = <N>;
 			for my $tbc (@lines)
 			{
 				$tbc =~ s/((?:auth|priv|wmi)(?:password|key)|community|wmiusername|username)\b(['"]\s*:\s*)(.*)/$1$2'_removed_',/g;
 			}
-			open(F, ">$targetdir/node_dumps/nodes.json") or die "can't write node export file: $!\n";
-			print F @lines;
-			close F;
+			open(N, ">$targetdir/node_dumps/nodes.json") or die "can't write node export file: $!\n";
+			print N @lines;
+			close N;
 			#delete $targetdir/db_dumps/nodes.json
 			unlink("$targetdir/db_dumps/nodes.json") or die "can't delete the file:$!\n";
 			print STDERR "nodes.json - complete\n";
 		}
+		
+		# Users
+		open(F, "$targetdir/conf/users.dat") or die "can't read config file: $!\n";
+		my @lines = <F>;
+		close (F);
+		for my $tbc (@lines)
+		{
+			$tbc =~ s/(\w:)(.*)$/$1'_removed_',/g;
+		}
+		open(F, ">$targetdir/conf/users.dat") or die "can't write config file: $!\n";
+		print F @lines;
+		print STDERR "users.dat - complete ";
+		close F;
 	}
 	return undef;
 }
@@ -891,9 +918,6 @@ sub run_bot
 	my $zip = $args{zip};
 	
 	print "\n Running support bot... \n";
-	print "\n ======================================= \n";
-	print "\n ================  ERRORS ============== \n";
-	print "\n ======================================= \n";
 	
 	my $outputfile;
 	my $basedir = $globalconf->{'<nmis_base>'};
@@ -909,7 +933,6 @@ sub run_bot
 		my $template = read_file($basedir.'/admin/support_template.html');
 		my $content = "";
 		$content = create_index(content => $bot_data) . show_content(content => $bot_data, where => $content, show_key => 1);
-	
 		$template =~ s/CONTENT/$content/;
 		write_file("/$targetdir/$report_name.html", $template);
 		if ($report_dir) {
@@ -927,10 +950,25 @@ sub run_bot
 		$template =~ s/CONTENT/$content/;
 		write_file("$report_dir/$report_name.html", $template);
 	}
+	print_errors();
 	print "\n ================= DONE ================ \n";
 
 }
 
+sub print_errors
+{
+	my %args = @_;
+	
+	if (%globalerrors) {
+		print "\n ======================================= \n";
+		print "\n ================  ERRORS ============== \n";
+		print "\n ======================================= \n";
+
+		foreach my $e (keys %globalerrors) {
+			print "* " . $globalerrors{$e}->{message} . "\n";
+		}
+	}
+}
 # Print formatted output in html report
 sub show_content
 {
@@ -1030,7 +1068,8 @@ sub print_disk
 		$use =~ s/%//;
 		my $show_use = "<span class='text-success'>".$content->{$key}->{use}."</span>";
 		if ($use > 80) {
-			print "** High use of disk $key: ". $content->{$key}->{use}." \n";
+			$globalerrors{disk}->{message} = "High use of disk $key: ". $content->{$key}->{use};
+			#print "** High use of disk $key: ". $content->{$key}->{use}." \n";
 			$show_use = "<span class='text-danger'>".$content->{$key}->{use}."</span>";
 		}
 		$toRet = $toRet . "<tr><td>".$key."</td><td>".$content->{$key}->{available}."</td><td>".$content->{$key}->{used}."</td><td>$show_use</td></tr>";
@@ -1081,9 +1120,10 @@ sub print_config
 	my $toRet = "";
 
 	foreach my $key (keys %$content) {
-		if (!defined($content->{$key}) or $content->{$key} eq "" or ($key eq "server_name" and $content->{$key} = "localhost")) {
+		if (!defined($content->{$key}) or $content->{$key} eq "" or ($key eq "server_name" and $content->{$key} eq "localhost")) {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-remove' style='color:red'></span><b> $key</b> ". $content->{$key}."</p>";
-			print "** Error in config detected for $key: ". $content->{$key}." \n";
+			$globalerrors{$key}->{message} = "Error in config detected for $key: ". $content->{$key};
+			#print "** Error in config detected for $key: ". $content->{$key}." \n";
 		} else {
 			$toRet = $toRet . "<p><span class='glyphicon glyphicon-ok' style='color:green'></span><b> $key</b> ". $content->{$key}."</p>";
 		}

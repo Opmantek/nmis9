@@ -62,8 +62,6 @@
       'AirFiberStatus' => '/nodes/$node/health/ubnt-afstatus-$index.rrd',
       'AirMax' => '/nodes/$node/health/ubnt-airmax-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
-      'F5_CPU' => '/nodes/$node/health/F5_CPU.rrd',
-      'F5_Temperature' => '/nodes/$node/health/F5_Temperature-$index.rrd',
       'HBS' => '/nodes/$node/health/utilization-$index.rrd',
       'HBS-Util' => '/nodes/$node/health/hbs.rrd',
       'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
@@ -80,6 +78,9 @@
       'Sat-Demodulate' => '/nodes/$node/health/Sat-Demodulate-$index.rrd',
       'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
+
+'WirelessConfig' => '/nodes/$node/health/WirelessConfig-$index.rrd',
+'WirelessLinkQuality' => '/nodes/$node/health/WirelessLinkQuality-$index.rrd',
 
 
       'mtxrWlRtab' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
@@ -189,7 +190,14 @@
       'upscur' => '/nodes/$node/misc/apc-ups-cur.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
       'upspwr' => '/nodes/$node/misc/apc-ups-pwr.rrd',
-      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd'
+      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd',
+      'mikrotikHealth' => '/nodes/$node/misc/mikrotikHealth.rrd',
+      'mikrotikSFP' => '/nodes/$node/misc/mikrotikSFP.rrd',
+      'SensorName' => '/nodes/$node/misc/SensorName.rrd',
+      'SensorValue' => '/nodes/$node/misc/SensorValue.rrd',
+      'Dell_TX' => '/nodes/$node/misc/Dell_TX.rrd',
+      'Dell_RX' => '/nodes/$node/misc/Dell_RX.rrd',
+      'ICTStatus' => '/nodes/$node/misc/ICTStatus.rrd'
     }
   }
 );
