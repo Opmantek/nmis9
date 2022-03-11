@@ -259,6 +259,9 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 # Get temporary directory
 my $tmp = NMISNG::Util::getTmpDir();
 
+# Get temporary directory
+my $tmp = NMISNG::Util::getTmpDir();
+
 # this opens a database connection
 my $nmisng = NMISNG->new(
 	config => $C,

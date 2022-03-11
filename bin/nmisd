@@ -222,7 +222,6 @@ if ( !-d $tmpdir )
 }
 NMISNG::Util::verifyNMISEncryption();
 
-
 while (!$exit_marker)
 {
 	my $ready_jobs;								# marker set if there are worker-jobs ready to start
