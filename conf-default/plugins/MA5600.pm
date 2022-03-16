@@ -21,7 +21,7 @@ sub update_plugin
 	my (%args) = @_;
 	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
-    $NG->log->info("Running collect_plugin MA5600 for node $node");
+    $NG->log->info("Running update_plugin MA5600 for node $node");
     
 	#my $S = NMISNG::Sys->new(nmisng => $NG);
 	my $nodeobj = $NG->node(name => $node);
@@ -56,21 +56,49 @@ sub update_plugin
 	else
 	{ 
 
-		my $ifName_data = $snmp->getindex("1.3.6.1.2.1.31.1.1.1.1",$max_repetitions);
-		# this data is collected GPON_Device
-		#		  'hwGponDeviceOntDespt' => {
-		#			'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9',
-		#			'title' => 'ONTDescription',
-		#			'title_export' => 'ONTDescription',
-		#		  },
-		my $ONTDescr_data = $snmp->getindex("1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9",$max_repetitions);
-		# already collected in GPON_Device
-		#		  'hwGponDeviceOntSn' => {
-		#			'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3',
-		#			'title' => 'ONTSerialNumber',
-		#			'title_export' => 'ONTSerialNumber',
-		#		  },
-        my $ONT_SerialNumber = $snmp->getindex("1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3",$max_repetitions);
+		my $ifTableData = $S->nmisng_node->get_inventory_ids(
+            concept => "ifTable",
+            filter => { historic => 0 });
+		 
+		my $ifName_data;
+		if (@$ifTableData)
+        {
+			for my $ifTableId (@$ifTableData) {
+				my ($gpon_traffic, $error) = $S->nmisng_node->inventory(_id => $ifTableId);
+				if ($error)
+				{
+					$NG->log->error("Failed to get inventory $ifTableId: $error");
+					next;
+				}
+				my $data = $gpon_traffic->data();
+				
+				$ifName_data->{$data->{index}} = $data->{ifName};
+			}
+			
+		}
+		
+		my $GponUserTrafficIds = $S->nmisng_node->get_inventory_ids(
+            concept => "GponUserTraffic",
+            filter => { historic => 0 });
+		 
+		my $ONTDescr_data;
+		my $ONT_SerialNumber;
+		if (@$GponUserTrafficIds)
+        {
+			for my $GponUserTrafficId (@$GponUserTrafficIds)
+            {			
+				my ($gpon_traffic, $error) = $S->nmisng_node->inventory(_id => $GponUserTrafficId);
+				if ($error)
+				{
+					$NG->log->error("Failed to get inventory $GponUserTrafficId: $error");
+					next;
+				}
+				my $data = $gpon_traffic->data();
+				
+				$ONTDescr_data->{$data->{element}} = $data->{ONTDescription};
+				$ONT_SerialNumber->{$data->{element}} = $data->{ONTSerialNumber};
+			}
+		}
 
 		my $interfaces = {};
 
@@ -81,10 +109,6 @@ sub update_plugin
 				$interfaces->{@j[1]}{@j[2]} = $keys;
 			}
 		}
-
-        my $GponUserTrafficIds = $S->nmisng_node->get_inventory_ids(
-            concept => "GponUserTraffic",
-            filter => { historic => 0 });
 
         if (@$GponUserTrafficIds)
         {
