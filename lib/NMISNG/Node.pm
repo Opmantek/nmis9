@@ -8517,7 +8517,7 @@ sub collect
 	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-	$catchall_inventory->save(force => 1); 
+	$catchall_inventory->save(force => $force); 
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);
