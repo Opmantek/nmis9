@@ -76,29 +76,15 @@ sub update_plugin
 			}
 			
 		}
-		
-		my $GponUserTrafficIds = $S->nmisng_node->get_inventory_ids(
-            concept => "GponUserTraffic",
-            filter => { historic => 0 });
-		 
-		my $ONTDescr_data;
-		my $ONT_SerialNumber;
-		if (@$GponUserTrafficIds)
-        {
-			for my $GponUserTrafficId (@$GponUserTrafficIds)
-            {			
-				my ($gpon_traffic, $error) = $S->nmisng_node->inventory(_id => $GponUserTrafficId);
-				if ($error)
-				{
-					$NG->log->error("Failed to get inventory $GponUserTrafficId: $error");
-					next;
-				}
-				my $data = $gpon_traffic->data();
-				
-				$ONTDescr_data->{$data->{element}} = $data->{ONTDescription};
-				$ONT_SerialNumber->{$data->{element}} = $data->{ONTSerialNumber};
-			}
-		}
+
+		my $ONTDescr_data = $snmp->getindex("1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9",$max_repetitions);
+		# already collected in GPON_Device
+		#		  'hwGponDeviceOntSn' => {
+		#			'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3',
+		#			'title' => 'ONTSerialNumber',
+		#			'title_export' => 'ONTSerialNumber',
+		#		  },
+        my $ONT_SerialNumber = $snmp->getindex("1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3",$max_repetitions);
 
 		my $interfaces = {};
 
@@ -110,6 +96,10 @@ sub update_plugin
 			}
 		}
 
+		my $GponUserTrafficIds = $S->nmisng_node->get_inventory_ids(
+            concept => "GponUserTraffic",
+            filter => { historic => 0 });
+			
         if (@$GponUserTrafficIds)
         {
             for my $GponUserTrafficId (@$GponUserTrafficIds)
