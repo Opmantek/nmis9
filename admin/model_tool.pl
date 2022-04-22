@@ -383,9 +383,9 @@ sub processNode {
 	# initialise the node.
 	my $S = NMISNG::Sys->new; # get system object
 	$S->init(name=>$node,snmp=>'true'); # load node info and Model if name exists
-	my $NI = $nodeobj->{configuration};
+	my $NI = $nodeobj->configuration;
 	my $IF = $nodeobj->ifinfo;
-	my $NC = $nodeobj->{configuration};
+	my $NC = $nodeobj->configuration;
 	my $max_repetitions = $NC->{node}->{max_repetitions} || $C->{snmp_max_repetitions};
 	my ($inventory, $error) =  $nodeobj->inventory( concept => "catchall" );
 	my $catchall = $inventory->data();
@@ -397,13 +397,14 @@ sub processNode {
 	$nodeSummary{nodeModel} = $catchall->{nodeModel};
 
 	my %nodeconfig = %{$NC->{node}}; # copy required because we modify it...
-	$nodeconfig{host_addr} = $NI->{system}{host};
+	$nodeconfig{host_addr} = $NI->{host};
 
 	#my $snmp = snmp->new(name => $node);
-    my $snmp = NMISNG::Snmp->new(name => $node, nmisng => $nmisng);
+	my $snmp = NMISNG::Snmp->new(name => $node, nmisng => $nmisng);
 	print Dumper $snmp if debug2();
+	print Dumper $catchall if debug2();
 
-	if (!$snmp->open(config => \%nodeconfig ))
+	if (!$snmp->open(config => $NC ))
 	{
 		print "ERROR: Could not open SNMP session to node $node: ".$snmp->error;
 	}
@@ -427,19 +428,20 @@ sub processNode {
 					$doneIt{$thing->{index_oid}} = 1;
 					if ( defined $result ) {
 						$works = "YES";
-						print $t->elapTime(). " MIB SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if debug();
+						print "  ". $t->elapTime(). " MIB SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if debug();
 						print Dumper $thing if debug2();
 						print Dumper $result if debug2();
 					}
 					else {
 						$works = "NO";
-						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if debug();
+						print "  ". $t->elapTime(). " MIB NOT SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if debug();
 					}
 					print "\n" if debug();
 					
 					$discoveryResults->{$thing->{index_oid}}{node} = $node;
 					#$discoveryResults->{$thing->{index_oid}}{sysDescr} = $NI->{system}{sysDescr};
-					$discoveryResults->{$thing->{index_oid}}{nodeModel} = $NI->{system}{nodeModel};
+					# should tihs be NI or catchall
+					$discoveryResults->{$thing->{index_oid}}{nodeModel} = $NI->{nodeModel};
 					$discoveryResults->{$thing->{index_oid}}{Type} = $thing->{type};
 					$discoveryResults->{$thing->{index_oid}}{File} = $thing->{file};
 					$discoveryResults->{$thing->{index_oid}}{Path} = $thing->{path};
@@ -449,11 +451,10 @@ sub processNode {
 					$discoveryResults->{$thing->{index_oid}}{SNMP_OID} = $thing->{index_oid};
 					$discoveryResults->{$thing->{index_oid}}{OID_Used} = $thing->{index_oid};
 					$discoveryResults->{$thing->{index_oid}}{result} = Dumper $result;
-					$discoveryResults->{$thing->{index_oid}}{result}
 				}
 				elsif ( $thing->{type} eq "system" and not defined $doneIt{$thing->{snmpoid}} ) {
 					++$count;
-					print "  $count System Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if debug();
+					print $t->elapTime(). "  $count System Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if debug();
 					my $getoid = $thing->{snmpoid};
 					# does the oid in the model finish in a number?
 					if ( $thing->{oid} !~ /\.\d+/ ) {
@@ -469,18 +470,18 @@ sub processNode {
 
 					if ( defined $result and $result->{$getoid} !~ /(noSuchObject|noSuchInstance)/ ) {
 						$works = "YES";
-						print $t->elapTime(). " MIB SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if debug();
+						print "  ". $t->elapTime(). " MIB SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if debug();
 						print Dumper $thing if debug2();
 						print Dumper $result if debug2();
 					}
 					else {
 						$works = "NO";
-						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if debug();
+						print "  ". $t->elapTime(). " MIB NOT SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if debug();
 					}
 					print "\n" if debug();
 					$discoveryResults->{$thing->{snmpoid}}{node} = $node;
 					#$discoveryResults->{$thing->{snmpoid}}{sysDescr} = $NI->{system}{sysDescr};
-					$discoveryResults->{$thing->{snmpoid}}{nodeModel} = $NI->{system}{nodeModel};
+					$discoveryResults->{$thing->{snmpoid}}{nodeModel} = $NI->{nodeModel};
 					$discoveryResults->{$thing->{snmpoid}}{Type} = $thing->{type};
 					$discoveryResults->{$thing->{snmpoid}}{File} = $thing->{file};
 					$discoveryResults->{$thing->{snmpoid}}{Path} = $thing->{path};
