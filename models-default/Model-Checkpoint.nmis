@@ -606,6 +606,9 @@
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
           },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
             'title' => 'Physical Address',
