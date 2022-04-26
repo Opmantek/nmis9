@@ -119,27 +119,27 @@ sub update_plugin
 
 		for my $memid (@$memids)
 		{
-			my ($cpuinventory,$error) = $S->nmisng_node->inventory(_id => $memid);
+			my ($meminventory,$error) = $S->nmisng_node->inventory(_id => $memid);
 			if ($error)
 			{
 				$NG->log->error("Failed to get inventory $memid: $error");
 				next;
 			}
 
-			my $cpudata = $cpuinventory->data; # r/o copy, must be saved back if changed
-			my $entityIndex = $cpudata->{cpmCPUTotalPhysicalIndex};
+			my $memdata = $meminventory->data; # r/o copy, must be saved back if changed
+			my $entityIndex = $memdata->{cpmCPUTotalPhysicalIndex};
 
 			if (ref($emibdata{$entityIndex}) eq "HASH")
 			{
-				$cpudata->{entPhysicalName} =
+				$memdata->{entPhysicalName} =
 						$emibdata{$entityIndex}->{entPhysicalName};
-				$cpudata->{entPhysicalDescr} =
+				$memdata->{entPhysicalDescr} =
 						$emibdata{$entityIndex}->{entPhysicalDescr};
 
 				$changesweremade = 1;
 
-				$cpuinventory->data($cpudata); # set changed info
-				(undef,$error) = $cpuinventory->save; # and save to the db
+				$meminventory->data($memdata); # set changed info
+				(undef,$error) = $meminventory->save; # and save to the db
 				$NG->log->error("Failed to save inventory for $memid: $error")
 						if ($error);
 			}
