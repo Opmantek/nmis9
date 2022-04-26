@@ -1,0 +1,279 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+##### FIXME incomplete modelling for Cisco Catalyst Power Usage
+
+
+
+#"cefcFRUPowerSupplyValueTable"      "1.3.6.1.4.1.9.9.117.1.1.4"
+#"cefcFRUPowerSupplyValueEntry"      "1.3.6.1.4.1.9.9.117.1.1.4.1"
+#"cefcFRUPowerRealTimeStatusGroup"     "1.3.6.1.4.1.9.9.117.3.2.25"
+#"cefcFRUPowerCapabilityGroup"     "1.3.6.1.4.1.9.9.117.3.2.26"
+
+#"cefcFRUPowerSupplyGroupEntry"      "1.3.6.1.4.1.9.9.117.1.1.1.1"
+#"cefcPowerRedundancyMode"     "1.3.6.1.4.1.9.9.117.1.1.1.1.1"
+#"cefcPowerUnits"      "1.3.6.1.4.1.9.9.117.1.1.1.1.2"
+#"cefcTotalAvailableCurrent"     "1.3.6.1.4.1.9.9.117.1.1.1.1.3"
+#"cefcTotalDrawnCurrent"     "1.3.6.1.4.1.9.9.117.1.1.1.1.4"
+#"cefcPowerRedundancyOperMode"     "1.3.6.1.4.1.9.9.117.1.1.1.1.5"
+#"cefcPowerNonRedundantReason"     "1.3.6.1.4.1.9.9.117.1.1.1.1.6"
+#"cefcTotalDrawnInlineCurrent"     "1.3.6.1.4.1.9.9.117.1.1.1.1.7"
+#CISCO-ENTITY-FRU-CONTROL-MIB::cefcFRUPowerAdminStatus.3 = INTEGER: on(1)
+#CISCO-ENTITY-FRU-CONTROL-MIB::cefcFRUPowerAdminStatus.23 = INTEGER: on(1)
+#CISCO-ENTITY-FRU-CONTROL-MIB::cefcFRUPowerOperStatus.3 = INTEGER: on(2)
+#CISCO-ENTITY-FRU-CONTROL-MIB::cefcFRUPowerOperStatus.23 = INTEGER: on(2)
+#CISCO-ENTITY-FRU-CONTROL-MIB::cefcFRUCurrent.3 = INTEGER: 4
+#CISCO-ENTITY-FRU-CONTROL-MIB::cefcFRUCurrent.23 = INTEGER: 5
+
+          #'cefcTotalDrawnCurrent' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.117.1.1.1.1.3',
+          #  'snmpObjectName' => 'cefcTotalDrawnCurrent',
+          #},
+          #'cefcTotalAvailableCurrent' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.117.1.1.1.1.4',
+          #  'snmpObjectName' => 'cefcTotalAvailableCurrent',
+          #},
+
+#"cefcFRUPower"      "1.3.6.1.4.1.9.9.117.1.1"
+#"cefcFRUPowerSupplyGroupTable"      "1.3.6.1.4.1.9.9.117.1.1.1"
+#"cefcFRUPowerSupplyGroupEntry"      "1.3.6.1.4.1.9.9.117.1.1.1.1"
+#"cefcFRUPowerStatusTable"     "1.3.6.1.4.1.9.9.117.1.1.2"
+#"cefcFRUPowerStatusEntry"     "1.3.6.1.4.1.9.9.117.1.1.2.1"
+#"cefcFRUPowerAdminStatus"     "1.3.6.1.4.1.9.9.117.1.1.2.1.1"
+#"cefcFRUPowerOperStatus"      "1.3.6.1.4.1.9.9.117.1.1.2.1.2"
+#"cefcFRUCurrent"      "1.3.6.1.4.1.9.9.117.1.1.2.1.3"
+#"cefcFRUPowerCapability"      "1.3.6.1.4.1.9.9.117.1.1.2.1.4"
+#"cefcFRURealTimeCurrent"      "1.3.6.1.4.1.9.9.117.1.1.2.1.5"
+
+#cefcFRUCurrent OBJECT-TYPE
+#    SYNTAX          FRUCurrentType
+#    MAX-ACCESS      read-only
+#    STATUS          current
+#    DESCRIPTION
+#        "Current supplied by the FRU (positive values)
+#        or current required to operate the FRU (negative values)." 
+#    ::= { cefcFRUPowerStatusEntry 3 }
+
+%hash = (
+  #'threshold' => {
+  #  'name' => {
+  #    'power_status' => {
+  #      'item' => 'powerUsed',
+  #      'event' => 'Proactive Percent Power Used',
+  #      'select' => {
+  #        'default' => {
+  #          'value' => {
+  #            'fatal' => '95',
+  #            'critical' => '90',
+  #            'major' => '85',
+  #            'minor' => '80',
+  #            'warning' => '75'
+  #          },
+  #        },
+  #      },
+  #    },
+  #  },
+  #},
+  'database' => {
+    'type' => {
+      'powerSupply' => '/nodes/$node/health/powerSupply-$index.rrd',
+    }
+  },  
+  'heading' => {
+    'graphtype' => {
+      'Power_Supply_Status' => 'Power Supply Status',
+    }
+  },
+  'alerts' => {
+    'powerSupply' => {
+      'powerSupply' => {
+        'element' => 'index',
+        'event' => 'Power Supply Status',
+        'level' => 'Major',
+        'test' => 'CVAR1=PowerOperStatus;$CVAR1 < 80',
+        'type' => 'test',
+        'title' => "Power Supply Status",
+        'unit' => '',
+        'value' => 'CVAR1=PowerOperStatus;int($CVAR1)'
+      }
+    },
+  }, 
+  'systemHealth' => {
+    'sys' => {
+      'powerSupply' => {
+        'headers' => 'entPhysicalDescr,PowerAdminStatusNam,PowerOperStatusNam,FRUCurrent',
+        'indexed' => 'cefcFRUPowerOperStatus',
+        'index_oid' => '1.3.6.1.4.1.9.9.117.1.1.2.1.2',
+        'snmp' => {
+          'entPhysicalDescr' => {
+            'oid' => 'entPhysicalDescr',
+            'title' => 'Physical Description',
+          },
+          'PowerAdminStatusNam' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.1.2.1.1',
+            'snmpObjectName' => 'cefcFRUPowerAdminStatus',
+            'title' => 'Admin Status',
+            'replace' => {
+              '1' => 'on',
+              '2' => 'off',
+              '3' => 'inlineAuto',
+              '4' => 'inlineOn',
+              '5' => 'powerCycle',
+            },
+          },
+          'PowerOperStatusName' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.1.2.1.2',
+            'snmpObjectName' => 'cefcFRUPowerOperStatus',
+            'title' => 'Oper Status',
+            'replace' => {
+              '1' => 'offEnvOther',
+              '2' => 'on',
+              '3' => 'offAdmin',
+              '4' => 'offDenied',
+              '5' => 'offEnvPower',
+              '6' => 'offEnvTemp',
+              '7' => 'offEnvFan',
+              '8' => 'failed',
+              '9' => 'onButFanFail',
+              '10' => 'offCooling',
+              '11' => 'offConnectorRating',
+              '12' => 'onButInlinePowerFail'
+            },
+          },
+          'FRUCurrent' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.1.2.1.3',
+            'snmpObjectName' => 'cefcFRUCurrent',
+            'title' => 'Current +Supplied/-Required',
+          },
+        }
+      }
+    },
+
+#PowerOperType ::= TEXTUAL-CONVENTION
+#    STATUS          current
+#    DESCRIPTION
+#        "Operational FRU Status types.  valid values are:
+#
+#        offEnvOther(1)   FRU is powered off because of a problem not
+#                         listed below.
+#
+#        on(2):           FRU is powered on.
+#
+#        offAdmin(3):     Administratively off.
+#
+#        offDenied(4):    FRU is powered off because available
+#                         system power is insufficient.
+#
+#        offEnvPower(5):  FRU is powered off because of power problem in
+#                         the FRU.  for example, the FRU's power
+#                         translation (DC-DC converter) or distribution
+#                         failed.
+#
+#        offEnvTemp(6):   FRU is powered off because of temperature
+#                         problem.
+#
+#        offEnvFan(7):    FRU is powered off because of fan problems.
+#
+#        failed(8):       FRU is in failed state. 
+#
+#        onButFanFail(9): FRU is on, but fan has failed.
+#
+#        offCooling(10):  FRU is powered off because of the system's 
+#                         insufficient cooling capacity.
+#
+#        offConnectorRating(11): FRU is powered off because of the 
+#                                system's connector rating exceeded.
+#
+#        onButInlinePowerFail(12): The FRU on, but no inline power
+#                                  is being delivered as the
+#                                  data/inline power component of the
+#                                  FRU has failed."
+    'rrd' => {
+      'powerSupply' => {
+        'graphtype' => 'Power_Supply_Status',
+        'indexed' => 'true',
+        'snmp' => {
+          'PowerOperStatus' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.1.2.1.2',
+            'snmpObjectName' => 'cefcFRUPowerOperStatus',
+            'title' => 'Oper Status',
+            'replace' => {
+              '1' => '0', #'offEnvOther',
+              '2' => '100', #'on',
+              '3' => '75', #'offAdmin',
+              '4' => '25', #'offDenied',
+              '5' => '25', #'offEnvPower',
+              '6' => '25', #'offEnvTemp',
+              '7' => '25', #'offEnvFan',
+              '8' => '0', #'failed',
+              '9' => '25', #'onButFanFail',
+              '10' => '25', #'offCooling',
+              '11' => '25', #'offConnectorRating',
+              '12' => '25', #'onButInlinePowerFail'
+            },
+          },
+          'PowerAdminStatusNam' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.1.2.1.1',
+            'snmpObjectName' => 'cefcFRUPowerAdminStatus',
+            'option' => 'nosave',
+            'replace' => {
+              '1' => 'on',
+              '2' => 'off',
+              '3' => 'inlineAuto',
+              '4' => 'inlineOn',
+              '5' => 'powerCycle',
+            },
+          },
+          'PowerOperStatusNam' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.1.2.1.2',
+            'snmpObjectName' => 'cefcFRUPowerOperStatus',
+            'option' => 'nosave',
+            'replace' => {
+              '1' => 'offEnvOther',
+              '2' => 'on',
+              '3' => 'offAdmin',
+              '4' => 'offDenied',
+              '5' => 'offEnvPower',
+              '6' => 'offEnvTemp',
+              '7' => 'offEnvFan',
+              '8' => 'failed',
+              '9' => 'onButFanFail',
+              '10' => 'offCooling',
+              '11' => 'offConnectorRating',
+              '12' => 'onButInlinePowerFail'
+            },
+          },
+        }
+      }
+    },
+
+  }
+);
