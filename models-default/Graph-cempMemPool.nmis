@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Memory Utilisation using cempMemoryPool MIB',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
@@ -64,11 +65,11 @@
 			'CDEF:totalMem=MemUsed,MemFree,+',
 			'CDEF:perUsedMem=MemUsed,totalMem,/,100,*',
 			'CDEF:perFreeMem=MemFree,totalMem,/,100,*',
-			'AREA:perUsedMem#00BFFF: Mem Used',
-			'GPRINT:perUsedMem:AVERAGE:Avg Mem Used %1.1lf%%',
-			'GPRINT:perFreeMem:AVERAGE:Avg Mem Free %1.1lf%%\\n',
+			'AREA:perUsedMem#00BFFF: Mem Util',
+			'GPRINT:perUsedMem:AVERAGE:Avg Used %1.1lf%%',
+			'GPRINT:perFreeMem:AVERAGE:Avg Free %1.1lf%%\\n',
 			'GPRINT:MemUsed:AVERAGE:Mem Used %1.2lf %sbytes',
-			'GPRINT:MemFree:AVERAGE:Mem Free %1.2lf %sbytes',
+			'GPRINT:MemFree:AVERAGE:Mem Free %1.2lf %sbytes\\n',
 			'GPRINT:totalMem:AVERAGE:Total Mem %1.2lf %sbytes\\n',
 		]
 	}
