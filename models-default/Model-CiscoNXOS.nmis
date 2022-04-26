@@ -81,6 +81,9 @@
       'lldp' => {
         'common-model' => 'lldp'
       },
+      'routing' => {
+        'common-model' => 'routing'
+      },
     }
   },
   'alerts' => {
@@ -292,7 +295,7 @@
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,Cisco_CBQoS,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,Cisco_BGP_Peer,topChanges',
+    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
