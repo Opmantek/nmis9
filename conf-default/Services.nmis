@@ -1,133 +1,92 @@
 %hash = (
-  'SNMP_Service' => {
-    'Service_Type' => 'service',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'snmp.exe',
-		'Service_Parameters' => '',
-    'Name' => 'SNMP_Service'
-  },
   'SNMP_Daemon' => {
-    'Service_Type' => 'service',
-    'Port' => '',
+    'Name' => 'SNMP_Daemon',
     'Poll_Interval' => '5m',
+    'Port' => '',
     'Service_Name' => 'snmpd',
-		'Service_Parameters' => '',
-    'Name' => 'SNMP_Daemon'
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'SNMP_Daemon'
+  },
+  'SNMP_Service' => {
+    'Name' => 'SNMP_Service',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'snmp.exe',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'SNMP_Service'
+  },
+  'crowd-auth' => {
+    'Args' => '-U nmis -P "Ukee~x5To5FaiweiNahv" -u test-support -p WashingLine https://crowd.opmantek.com',
+    'Collect_Output' => 'true',
+    'Description' => 'checks user existence and tests user credentials in Atlassian Crowd',
+    'Max_Runtime' => '10',
+    'Name' => 'crowd-auth',
+    'Poll_Interval' => '1m',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf-default/scripts/crowd-check',
+    'Service_Name' => 'crowd-auth',
+    'Service_Type' => 'program',
+    '_id' => 'crowd-auth'
   },
   'dns' => {
-    'Service_Type' => 'dns',
-    'Port' => '',
+    'Name' => 'dns',
     'Poll_Interval' => '1m',
+    'Port' => '',
     'Service_Name' => '',
-    'Name' => 'dns'
+    'Service_Type' => 'dns',
+    '_id' => 'dns'
+  },
+  'extping' => {
+    'Args' => '-c3 node.host',
+    'Collect_Output' => 'true',
+    'Max_Runtime' => '18',
+    'Name' => 'extping',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '/tmp/extpingwrapper',
+    'Service_Name' => 'extping',
+    'Service_Type' => 'program',
+    '_id' => 'extping'
   },
   'http' => {
-    'Service_Type' => 'script',
-    'Port' => '80',
+    'Name' => 'http',
     'Poll_Interval' => '1m',
+    'Port' => '80',
     'Service_Name' => 'http',
-    'Name' => 'http'
-  },
-  'http-redir' => {
     'Service_Type' => 'script',
-    'Port' => '80',
-    'Poll_Interval' => '1m',
-    'Service_Name' => 'http-redir',
-    'Name' => 'http-redir'
+    '_id' => 'http'
   },
   'http-moved' => {
-    'Service_Type' => 'script',
+    'Name' => 'http-moved',
+    'Poll_Interval' => '1m',
     'Port' => '80',
-    'Poll_Interval' => '1m',
     'Service_Name' => 'http-moved',
-    'Name' => 'http-moved'
-  },
-  'pop3' => {
     'Service_Type' => 'script',
-    'Port' => '110',
+    '_id' => 'http-moved'
+  },
+  'http-redir' => {
+    'Name' => 'http-redir',
     'Poll_Interval' => '1m',
-    'Service_Name' => 'pop3',
-    'Name' => 'pop3'
+    'Port' => '80',
+    'Service_Name' => 'http-redir',
+    'Service_Type' => 'script',
+    '_id' => 'http-redir'
   },
   'http_server' => {
-    'Service_Type' => 'service',
-    'Port' => '',
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => 'looks for a live httpd or apache2  daemon',
+    'Max_Runtime' => '',
+    'Name' => 'HTTP_Server',
     'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
     'Service_Name' => '(httpd|apache2)',
     'Service_Parameters' => '',
-    'Name' => 'HTTP_Server',
-    'Description' => "looks for a live httpd or apache2  daemon",
-  },
-  'mysqld_daemon' => {
     'Service_Type' => 'service',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => '(mysqld|mysqld_safe|mariadb)',
-    'Service_Parameters' => '',
-    'Name' => 'mysqld_daemon'
-  },
-  'port22' => {
-    'Service_Type' => 'port',
-    'Port' => 'tcp:22',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'SSH',
-    'Name' => 'port22'
-  },
-  'port25' => {
-    'Service_Type' => 'port',
-    'Port' => 'tcp:25',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'SMTP',
-    'Name' => 'port25'
-  },
-  'port80' => {
-    'Service_Type' => 'port',
-    'Port' => 'tcp:80',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'HTTP',
-    'Name' => 'port80'
-  },
-  'port53' => {
-    'Service_Type' => 'port',
-    'Port' => 'udp:53',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'DNS',
-    'Name' => 'port53'
-  },
-  'nmis cgi' => {
-    'Collect_Output' => 'false',
-    'Description' => 'NMIS9 Web Interface',
-    'Max_Runtime' => '10',
-    'Name' => 'nmis cgi',
-    'Poll_Interval' => '5m',
-    'Port' => '80',
-    'Service_Name' => 'nmis9_service',
-    'Service_Type' => 'script'
-  },
-  'opmantek.pl' => {
-    'Args' => '',
-    'Collect_Output' => 'true',
-    'Max_Runtime' => '10',
-    'Name' => 'omkd opmantek.pl',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Program' => '',
-    'Service_Name' => 'opmantek.*',
-    'Service_Type' => 'service'
-  },
-  'nmis9 workers' => {
-    'Args' => '',
-    'Collect_Output' => 'true',
-    'Description' => 'NMIS9 worker processes',
-    'Max_Runtime' => '10',
-    'Name' => 'nmis9 workers',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Program' => '',
-    'Service_Name' => 'nmisd.*',
-    'Service_Parameters' => '',
-    'Service_Type' => 'service'
+    '_id' => 'http_server'
   },
   'mongo_daemon' => {
     'Args' => '',
@@ -139,8 +98,262 @@
     'Port' => '',
     'Program' => '',
     'Service_Name' => 'mongod',
-    'Service_Parameters' => '',
-    'Service_Type' => 'service'
+    'Service_Parameters' => 'mongod.conf',
+    'Service_Type' => 'service',
+    '_id' => 'mongo_daemon'
   },
-
+  'mysqld_daemon' => {
+    'Name' => 'mysqld_daemon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'mysqld',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'mysqld_daemon'
+  },
+  'nagiosdisk' => {
+    'Args' => '-H node.host -c CheckDriveSize',
+    'Collect_Output' => 'true',
+    'Description' => 'pull disk info via check_nrpe',
+    'Max_Runtime' => '10',
+    'Name' => 'nagiosdisk',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '/usr/lib/nagios/plugins/check_nrpe',
+    'Service_Name' => '',
+    'Service_Parameters' => '',
+    'Service_Type' => 'nagios-plugin',
+    '_id' => 'nagiosdisk'
+  },
+  'nagiosntp' => {
+    'Args' => '-H node.host',
+    'Collect_Output' => 'true',
+    'Description' => 'uses a nagios plugin to test ntp status and offset',
+    'Max_Runtime' => '12',
+    'Name' => 'nagiosntp',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '/usr/lib/nagios/plugins/check_ntp_peer',
+    'Service_Name' => 'nagiostntp',
+    'Service_Parameters' => '',
+    'Service_Type' => 'nagios-plugin',
+    '_id' => 'nagiosntp'
+  },
+  'nmis cgi' => {
+    'Collect_Output' => 'false',
+    'Description' => 'NMIS9 Web Interface',
+    'Max_Runtime' => '10',
+    'Name' => 'nmis cgi',
+    'Poll_Interval' => '5m',
+    'Port' => '80',
+    'Service_Name' => 'nmis9_service',
+    'Service_Type' => 'script',
+    '_id' => 'nmis cgi'
+  },
+  'nmis9 daemon' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '10',
+    'Name' => 'nmis9 daemon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'nmisd.*',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'nmis9 daemon'
+  },
+  'ntpport' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '10',
+    'Name' => 'ntpport',
+    'Poll_Interval' => '1m',
+    'Port' => 'udp:123',
+    'Program' => '',
+    'Service_Name' => '',
+    'Service_Parameters' => '',
+    'Service_Type' => 'port',
+    '_id' => 'ntpport'
+  },
+  'omkdns' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '10',
+    'Name' => 'omkdns',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'opmantek.com',
+    'Service_Parameters' => '',
+    'Service_Type' => 'dns',
+    '_id' => 'omkdns'
+  },
+  'opchartsd' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '10',
+    'Name' => 'opchartsd',
+    'Poll_Interval' => '1m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'opchartsd.pl',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'opchartsd'
+  },
+  'plain_web' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => 'check a basic http response',
+    'Max_Runtime' => '10',
+    'Name' => 'plain_web',
+    'Poll_Interval' => '5m',
+    'Port' => '80',
+    'Program' => '',
+    'Service_Name' => 'http',
+    'Service_Parameters' => '',
+    'Service_Type' => 'script',
+    '_id' => 'plain_web'
+  },
+  'pop3' => {
+    'Name' => 'pop3',
+    'Poll_Interval' => '1m',
+    'Port' => '110',
+    'Service_Name' => 'pop3',
+    'Service_Type' => 'script',
+    '_id' => 'pop3'
+  },
+  'port22' => {
+    'Name' => 'port22',
+    'Poll_Interval' => '5m',
+    'Port' => 'tcp:22',
+    'Service_Name' => 'SSH',
+    'Service_Type' => 'port',
+    '_id' => 'port22'
+  },
+  'port25' => {
+    'Name' => 'port25',
+    'Poll_Interval' => '5m',
+    'Port' => 'tcp:25',
+    'Service_Name' => 'SMTP',
+    'Service_Type' => 'port',
+    '_id' => 'port25'
+  },
+  'port53' => {
+    'Name' => 'port53',
+    'Poll_Interval' => '5m',
+    'Port' => 'udp:53',
+    'Service_Name' => 'DNS',
+    'Service_Type' => 'port',
+    '_id' => 'port53'
+  },
+  'port80' => {
+    'Name' => 'port80',
+    'Poll_Interval' => '5m',
+    'Port' => 'tcp:80',
+    'Service_Name' => 'HTTP',
+    'Service_Type' => 'port',
+    '_id' => 'port80'
+  },
+  'slash / dotty . service' => {
+    'Args' => '-p http://magni.opmantek.com:3128/ https://demo.opmantek.com/omk',
+    'Collect_Output' => 'false',
+    'Description' => 'craptacular names can break things',
+    'Max_Runtime' => '10',
+    'Name' => 'slash / dotty . service',
+    'Poll_Interval' => '2m',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
+    'Service_Name' => 'slash / dotty . service',
+    'Service_Parameters' => '',
+    'Service_Type' => 'program',
+    '_id' => 'slash / dotty . service'
+  },
+  'snmp port' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '10',
+    'Name' => 'snmp port',
+    'Poll_Interval' => '5m',
+    'Port' => 'udp:161',
+    'Program' => '',
+    'Service_Name' => '',
+    'Service_Parameters' => '',
+    'Service_Type' => 'port',
+    '_id' => 'snmp port'
+  },
+  'spaceoddity' => {
+    'Args' => '-p http://magni.opmantek.com:3128/ https://demo.opmantek.com/omk',
+    'Collect_Output' => 'true',
+    'Description' => 'why do some people have trouble with webtest and timeouts? because az misread the docs on env_proxy method (nor constructor arg)',
+    'Max_Runtime' => '10',
+    'Name' => 'spaceoddity',
+    'Poll_Interval' => '2m',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
+    'Service_Name' => '',
+    'Service_Parameters' => '',
+    'Service_Type' => 'program',
+    '_id' => 'spaceoddity'
+  },
+  'syntactic/\'sugar`:%cau$es? cancer! +of the semi;colon' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => 'SUPPORT-3319',
+    'Max_Runtime' => '10',
+    'Name' => 'syntactic/\'sugar`:%cau$es? cancer! +of the semi;colon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf/scripts/testservice.pl',
+    'Service_Name' => 'want more?',
+    'Service_Parameters' => '',
+    'Service_Type' => 'program',
+    '_id' => 'syntactic/\'sugar`:%cau$es? cancer! +of the semi;colon'
+  },
+  'test' => {
+    'Args' => '',
+    'Collect_Output' => undef,
+    'Description' => '',
+    'Max_Runtime' => '',
+    'Name' => 'test',
+    'Poll_Interval' => '1m',
+    'Port' => 't',
+    'Program' => '',
+    'Service_Name' => 'test',
+    'Service_Parameters' => 'test',
+    'Service_Type' => 'port'
+  },
+  'testargs' => {
+    'Args' => 'node.host node.configuration.host',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '10',
+    'Name' => 'testargs',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
+    'Service_Name' => '',
+    'Service_Parameters' => '',
+    'Service_Type' => 'program',
+    '_id' => 'testargs'
+  },
+  'testing (maybe)' => {
+    'Args' => '',
+    'Collect_Output' => 'true',
+    'Description' => 'a test service that yoyos a lot.',
+    'Max_Runtime' => '10',
+    'Name' => 'testing (maybe)',
+    'Poll_Interval' => '1h',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf/scripts/testservice.pl',
+    'Service_Name' => 'testing',
+    'Service_Type' => 'program',
+    '_id' => 'testing (maybe)'
+  }
 );
