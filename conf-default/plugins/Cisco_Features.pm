@@ -96,6 +96,59 @@ sub update_plugin
 		}
 	}
 
+	# Memory-cpm needs to be checked and linked to entitymib items
+	my $memids = $S->nmisng_node->get_inventory_ids(
+		concept => "Memory-cpm",
+		filter => { historic => 0 });
+	if (@$memids)
+	{
+		$NG->log->info("Working on $node Memory-cpm");
+
+		# for linkage lookup this needs the entitymib inventory as well, but
+		# a non-object r/o copy of just the data (no meta) is enough
+		my $result = $S->nmisng_node->get_inventory_model(
+			concept => "entityMib",
+			filter => { historic => 0 });
+		if (my $error = $result->error)
+		{
+			$NG->log->error("Failed to get inventory: $error");
+			return(0,undef);
+		}
+
+		my %emibdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+
+		for my $memid (@$memids)
+		{
+			my ($meminventory,$error) = $S->nmisng_node->inventory(_id => $memid);
+			if ($error)
+			{
+				$NG->log->error("Failed to get inventory $memid: $error");
+				next;
+			}
+
+			my $memdata = $meminventory->data; # r/o copy, must be saved back if changed
+			my $entityIndex = $memdata->{cpmCPUTotalPhysicalIndex};
+
+			if (ref($emibdata{$entityIndex}) eq "HASH")
+			{
+				$memdata->{entPhysicalName} =
+						$emibdata{$entityIndex}->{entPhysicalName};
+				$memdata->{entPhysicalDescr} =
+						$emibdata{$entityIndex}->{entPhysicalDescr};
+
+				$changesweremade = 1;
+
+				$meminventory->data($memdata); # set changed info
+				(undef,$error) = $meminventory->save; # and save to the db
+				$NG->log->error("Failed to save inventory for $memid: $error")
+						if ($error);
+			}
+			else
+			{
+				$NG->log->info("entityMib data not available for index $entityIndex");
+			}
+		}
+	}
 	# both qos and netflow magic needs this
 	# for the interface linkage lookup this needs the interfaces inventory
 	# as well, but a non-object r/o copy of just the data (no meta) is enough

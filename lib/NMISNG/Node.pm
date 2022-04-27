@@ -1170,7 +1170,7 @@ sub coarse_status
 {
 	my ($self, %args) = @_;
 
-	my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+    my ($inventory, $error) =  $self->inventory( concept => "catchall" );
 	my $old_data = ($inventory && !$error)? $inventory->data() : {};
 	my $catchall_data = (defined($args{catchall_data}) && %{$args{catchall_data}}) ? $args{catchall_data} : $old_data;
 
@@ -2492,13 +2492,13 @@ sub collect_node_data
 				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
 																								time => $catchall_data->{last_poll}, delay_insert => 1 );
 				$self->nmisng->log->error("timed data adding for ". $inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
-			}
+			}		
 		}
 		# NO save on inventory because it's the catchall right now
-		
+
 		# Now, update non existent subconcepts/storage from inventory/catchall
 		my $storage = $inventory->storage();
-		
+			
 		foreach my $sub (@{$inventory->subconcepts()}) {
 			if (!$subconcepts{$sub}) {
 				if ($sub ne "health") {
@@ -2507,6 +2507,7 @@ sub collect_node_data
 				}
 			}
 		}
+	
 		$inventory->storage($storage);
 	}
 	elsif ($howdiditgo->{skipped}) {}
@@ -2519,7 +2520,6 @@ sub collect_node_data
 				if ( $howdiditgo->{wmi_error} );
 		return 0;
 	}
-
 	$self->nmisng->log->debug("Finished with collect_node_data");
 	return 1;
 }
@@ -8602,7 +8602,7 @@ sub collect
 	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-	$catchall_inventory->save();
+	$catchall_inventory->save(force => $force); 
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);

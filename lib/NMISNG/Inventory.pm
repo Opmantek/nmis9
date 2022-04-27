@@ -390,6 +390,7 @@ sub new
 	# in the db they are stored optimally for querying/aggregating (array of arrays)
 	my $dataset_info = $args{dataset_info} // [];
 	die "dataset_info must be an array" . Carp::longmess() if ( ref($dataset_info) ne 'ARRAY' );
+
 	foreach my $entry (@$dataset_info)
 	{
 		my $subconcept          = $entry->{subconcept};
@@ -475,6 +476,7 @@ sub add_timed_data
 	# automatically take care of datasets
 	# one of these two must be defined
 	my ( $subconcept, $datasets ) = @args{'subconcept', 'datasets'};
+
 	return "subconcept is required stack:" . Carp::longmess() if ( !$subconcept && !$flush);
 	return "datasets must be hash if defined" . Carp::longmess()
 			if ( $datasets && ref($datasets) ne 'HASH' && !$flush );
@@ -1318,7 +1320,7 @@ sub save
 	}
 
 	# if it's new upsert to try and make sure we're not making a duplicate
-	if ( $self->is_new() )
+	if ( $self->is_new() || $args{force})
 	{
 		my ($q,$path) = (undef,$self->path());
 		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) } ( 0 .. $#$path );
@@ -1385,7 +1387,6 @@ sub save
 			$op = 2;	# something 'real' to update
 			$setthese{lastupdate} //= $lastupdate;
 
-
 			if ($saveme eq "data")
 			{
 				# add new props, update changed props
@@ -1413,6 +1414,7 @@ sub save
 						NMISNG::DB::constrain_record(record => $record->{$saveme}) : $record->{$saveme};
 			}
 		}
+
 		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);
 		$updateargs{record}->{'$unset'} = \%unsetthese if (keys %unsetthese);
 

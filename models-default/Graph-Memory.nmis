@@ -1,5 +1,5 @@
 #
-## $Id: Graph-mem-proc.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -30,22 +30,21 @@
 # *****************************************************************************
 
 %hash = (
-	'heading' => 'Memory Utilisation using cempMemoryPool MIB',
+	'heading' => 'Memory Utilisation',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'short' => '$node $length'
 	},
 	'vlabel' => {
-		'standard' => '% Memory Utilisation',
-		'short' => '% Memory Util.'
+		'standard' => '% Mem Util.'
 	},
 	'option' => {
 		'standard' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
-			'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
-			'DEF:MemFree=$database:MemPoolFree:AVERAGE',
+			'DEF:MemUsed=$database:MemoryUsed:AVERAGE',
+			'DEF:MemFree=$database:MemoryFree:AVERAGE',
 			'CDEF:totalMem=MemUsed,MemFree,+',
 			'CDEF:perUsedMem=MemUsed,totalMem,/,100,*',
 			'CDEF:perFreeMem=MemFree,totalMem,/,100,*',
@@ -60,8 +59,8 @@
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
-			'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
-			'DEF:MemFree=$database:MemPoolFree:AVERAGE',
+			'DEF:MemUsed=$database:MemoryUsed:AVERAGE',
+			'DEF:MemFree=$database:MemoryFree:AVERAGE',
 			'CDEF:totalMem=MemUsed,MemFree,+',
 			'CDEF:perUsedMem=MemUsed,totalMem,/,100,*',
 			'CDEF:perFreeMem=MemFree,totalMem,/,100,*',
@@ -71,6 +70,7 @@
 			'GPRINT:MemUsed:AVERAGE:Mem Used %1.2lf %sbytes',
 			'GPRINT:MemFree:AVERAGE:Mem Free %1.2lf %sbytes\\n',
 			'GPRINT:totalMem:AVERAGE:Total Mem %1.2lf %sbytes\\n',
-		]
+		],
 	}
 );
+

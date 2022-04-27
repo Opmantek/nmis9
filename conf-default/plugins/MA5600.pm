@@ -21,7 +21,7 @@ sub update_plugin
 	my (%args) = @_;
 	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
-    $NG->log->info("Running collect_plugin MA5600 for node $node");
+    $NG->log->info("Running update_plugin MA5600 for node $node");
     
 	#my $S = NMISNG::Sys->new(nmisng => $NG);
 	my $nodeobj = $NG->node(name => $node);
@@ -56,13 +56,27 @@ sub update_plugin
 	else
 	{ 
 
-		my $ifName_data = $snmp->getindex("1.3.6.1.2.1.31.1.1.1.1",$max_repetitions);
-		# this data is collected GPON_Device
-		#		  'hwGponDeviceOntDespt' => {
-		#			'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9',
-		#			'title' => 'ONTDescription',
-		#			'title_export' => 'ONTDescription',
-		#		  },
+		my $ifTableData = $S->nmisng_node->get_inventory_ids(
+            concept => "ifTable",
+            filter => { historic => 0 });
+		 
+		my $ifName_data;
+		if (@$ifTableData)
+        {
+			for my $ifTableId (@$ifTableData) {
+				my ($gpon_traffic, $error) = $S->nmisng_node->inventory(_id => $ifTableId);
+				if ($error)
+				{
+					$NG->log->error("Failed to get inventory $ifTableId: $error");
+					next;
+				}
+				my $data = $gpon_traffic->data();
+				
+				$ifName_data->{$data->{index}} = $data->{ifName};
+			}
+			
+		}
+
 		my $ONTDescr_data = $snmp->getindex("1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9",$max_repetitions);
 		# already collected in GPON_Device
 		#		  'hwGponDeviceOntSn' => {
@@ -82,10 +96,10 @@ sub update_plugin
 			}
 		}
 
-        my $GponUserTrafficIds = $S->nmisng_node->get_inventory_ids(
+		my $GponUserTrafficIds = $S->nmisng_node->get_inventory_ids(
             concept => "GponUserTraffic",
             filter => { historic => 0 });
-
+			
         if (@$GponUserTrafficIds)
         {
             for my $GponUserTrafficId (@$GponUserTrafficIds)

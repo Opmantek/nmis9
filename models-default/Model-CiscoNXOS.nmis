@@ -78,8 +78,17 @@
       'Cisco-topChanges' => {
         'common-model' => 'Cisco-topChanges'
       },
+      'Cisco-power' => {
+        'common-model' => 'Cisco-power'
+      },
       'lldp' => {
         'common-model' => 'lldp'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'macTable' => {
+        'common-model' => 'macTable'
       },
     }
   },
@@ -292,7 +301,7 @@
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,Cisco_CBQoS,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,Cisco_BGP_Peer,topChanges',
+    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',

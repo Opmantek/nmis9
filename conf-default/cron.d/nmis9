@@ -22,3 +22,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Monitor daemon
 */5 * * * * root /usr/local/nmis9/admin/check_daemons.pl act=check-daemons start=1 quiet=1 verbose=1
+
