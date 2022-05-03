@@ -147,14 +147,14 @@
         'level' => '',
       }
     }
- },
+ }, 
  'systemHealth' => {
     'sections' => 'F5_Temperature,F5_CPU,VirtualServTable,F5_Pools,F5_Storage',
     'sys' => {
       # this will use the API for this information not SNMP
       'VirtualServTable' => {
         'headers' => 'ltmVirtualServName,ltmVirtualServAddr,ltmVirtualServIpProto,ltmVirtualServPort,ltmVirtualServConnLimit,ltmVsStatusAvailStateText',
-        'indexed' => 'ltmVirtualServName',
+        #'indexed' => 'ltmVirtualServName',
         #'index_oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
         #'index_regex' => '3375\.2\.2\.10\.1\.2\.1\.1\.([\d\.]+)$',
         #control 'VirtualServEnabled -> true' ##TODO - only display Enabled virtual servers

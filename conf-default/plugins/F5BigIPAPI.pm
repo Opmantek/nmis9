@@ -81,6 +81,8 @@ sub collect_plugin
 	}
 	$changesweremade = 1;
 
+	my $section = "VirtualServTable";
+
 	# Process what we got.
 	for my $name (keys(%$f5Data))
 	{
@@ -111,7 +113,7 @@ sub collect_plugin
 			'ltmVsStatAvailState' => { "option" => "counter,0:U", "value" => $statusAvailabilityState }
 		};
 
-		my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>"VirtualServTable");
+		my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>$section);
 		# check for RRD update errors
 		if (!$updatedrrdfileref) { $NG->log->info("Update RRD failed!") };
 
@@ -147,7 +149,7 @@ sub update_plugin
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP-API");
 
 	$NG->log->info("Working on '$node'");
-	my ($errmsg, $f5Data) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);
+	my ($errmsg, $f5Data, $f5Info) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);
 	if (defined $errmsg) {
 		$NG->log->error("ERROR with $node: $errmsg");
 		return (1,undef);
@@ -159,71 +161,116 @@ sub update_plugin
 	}
 	$changesweremade = 1;
 
+	my $section = "VirtualServTable";
+
+	# get the ids of each thing from the API data.
+	my @virtids = sort(keys %{$f5Data});
+
+	# Archive historic records (I think?)
+	#my $virtids = $S->nmisng_node->get_inventory_ids(
+	#	concept => "VirtualServTable",
+	#	filter => { historic => 0 });
+	if (@virtids)
+	{
+		my $result = $nodeobj->bulk_update_inventory_historic(active_indices => \@virtids, concept => $section );
+		$NG->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
+	}
+
 	# Process what we got.
 	for my $name (keys(%$f5Data))
 	{
-		$NG->log->debug("Name: '$name'");
+		$NG->log->debug("Processing $section Index: '$name'");
 		my $f5SubData   = %$f5Data{$name};
-		$NG->log->debug(Dumper($f5SubData));
-		for my $key (keys(%$f5SubData))
-		{
-			$NG->log->debug("$key: '" . (defined($f5SubData->{$key}) ? $f5SubData->{$key} : "") . "'");
-		}
-	}
-	# cpu_cpm needs to be checked and linked to entitymib items
-	my $cpuids = $S->nmisng_node->get_inventory_ids(
-		concept => "cpu_cpm",
-		filter => { historic => 0 });
-	if (@$cpuids)
-	{
-		$NG->log->info("Working on $node cpu_cpm");
+		$NG->log->debug3(Dumper($f5SubData));
 
-		# for linkage lookup this needs the entitymib inventory as well, but
-		# a non-object r/o copy of just the data (no meta) is enough
-		my $result = $S->nmisng_node->get_inventory_model(
-			concept => "entityMib",
-			filter => { historic => 0 });
-		if (my $error = $result->error)
-		{
-			$NG->log->error("Failed to get inventory: $error");
-			return(0,undef);
-		}
+		#for my $target (keys(%$f5SubData))
+		#{
+		#	$NG->log->debug2("$target: '" . (defined($f5SubData->{$target}) ? $f5SubData->{$target} : "") . "'");
+		#	next if (!defined($f5SubData->{$target}));
+		#}
 
-		my %emibdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+		# setup a target which is the index variable name and the index value.
+		my $target = {"ltmVirtualServName" => $name};
 
-		for my $cpuid (@$cpuids)
-		{
-			my ($cpuinventory,$error) = $S->nmisng_node->inventory(_id => $cpuid);
-			if ($error)
-			{
-				$NG->log->error("Failed to get inventory $cpuid: $error");
-				next;
+			$NG->log->debug2("section=$section index=$name read and stored");
+			#my $path_keys = ;
+			my $path = $nodeobj->inventory_path( concept => $section, path_keys => ['index'], data => $f5SubData );
+			$NG->log->debug2( "$section path ".join(',', @$path));
+
+
+			# now get-or-create an inventory object for this new concept
+			my ( $inventory, $error_message ) = $nodeobj->inventory(
+				create    => 1,
+				concept   => $section,
+				data      => $f5SubData,
+				path_keys => ['index'],
+				path      => $path
+			);
+
+			$NG->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+			# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+			$inventory->path( recalculate => 1 );
+			$inventory->data($f5SubData);
+			$inventory->historic(0);
+			$inventory->enabled(1);
+
+			# set which columns should be displayed
+			$inventory->data_info(
+				subconcept => $section,
+				enabled => 1,
+				display_keys => $f5Info
+			);
+
+			# Regenerate storage: If db name has changed, we need this
+			$NG->log->debug("Collect F5 API data info check storage $section");
+			if ($inventory->find_subconcept_type_storage(type => "rrd", subconcept => $section )) {
+					my $dbname = $S->makeRRDname(graphtype => $section,
+												index      => $name,
+												inventory  => $inventory,
+												relative   => 1);
+					$NG->log->debug8("Storage: ". Dumper($dbname));
+					$inventory->set_subconcept_type_storage(type => "rrd",
+															subconcept => $section,
+															data => $dbname) if ($dbname);
 			}
 
-			my $cpudata = $cpuinventory->data; # r/o copy, must be saved back if changed
-			my $entityIndex = $cpudata->{cpmCPUTotalPhysicalIndex};
-
-			if (ref($emibdata{$entityIndex}) eq "HASH")
+			# the above will put data into inventory, so save
+			my ( $op, $error ) = $inventory->save();
+			$NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+			if ($error)
 			{
-				$cpudata->{entPhysicalName} =
-						$emibdata{$entityIndex}->{entPhysicalName};
-				$cpudata->{entPhysicalDescr} =
-						$emibdata{$entityIndex}->{entPhysicalDescr};
-
-				$changesweremade = 1;
-
-				$cpuinventory->data($cpudata); # set changed info
-				(undef,$error) = $cpuinventory->save; # and save to the db
-				$NG->log->error("Failed to save inventory for $cpuid: $error")
-						if ($error);
+				$NG->log->error("Failed to save inventory for Virtual Server '$name': $error") if ($error);
 			}
 			else
 			{
-				$NG->log->info("entityMib data not available for index $entityIndex");
+				$changesweremade = 1;
 			}
-		}
-	}
 
+
+		# we pass loadInfo a hash to fill in, then put that into the inventory data
+		#if( $S->loadInfo(
+		#		class   => 'systemHealth',
+		#		section => $section,
+		#		index   => $name,
+		#		table   => $section,
+		#		target  => $target
+		#))
+		#{
+#
+		#}
+		#else
+		#{
+		#	my $error = $S->status->{api_error};
+		#	$NG->log->error("($S->{name}) on get systemHealth $section index $name of model $catchall_data->{nodeModel}: $error");
+		#	# no need to generate API Down events yet.
+		#	#$nodeobj->handle_down(
+		#	#	sys     => $S,
+		#	#	type    => "F5-API",
+		#	#	details => "get systemHealth $section index $name $error"
+		#	#);
+		#}
+		
+	}
 	return ($changesweremade,undef); # report if we changed anything
 }
 
@@ -243,6 +290,7 @@ sub getF5Data {
 	my $databaseDir    = "";
 	my $historySeconds = "";
 	my $f5Data         = undef;
+	my $f5Info         = undef;
 	my $errMsg         = undef;
 	my $name;
 	
@@ -267,6 +315,26 @@ sub getF5Data {
 			$errmsg = "ERROR Historic value is not defined, or is not an integer.";
 		}
 		unless (defined($errmsg)) {
+			$f5Info->{index}                   = "Index";
+			$f5Info->{ltmVirtualServName}      = "Server Name";
+			#$f5Info->{ResourceID}              = "Resource ID";
+			#$f5Info->{Status}                  = "Status";
+			$f5Info->{ltmVirtualServAddr}      = "IP Address";
+			$f5Info->{ltmVirtualServPort}      = "Port";
+			$f5Info->{ltmVirtualServIpProto}   = "IP Proto";
+			$f5Info->{ltmVirtualServConnLimit} = "ConnLimit";
+			#$f5Info->{Pool}                    = "Pool";
+			$f5Info->{ltmVsStatusAvailState}   = "VS Status";
+			$f5Info->{ltmVsStatusAvailStateText} = "Virtual Server State";
+			#$f5Info->{statusEnabledState}      = "Status Enabled State";
+			#$f5Info->{statusStatusReason}      = "Status Status Reason";
+			#$f5Info->{clientsideBitsIn}        = "Clientside Bits In";
+			#$f5Info->{clientsideBitsOut}       = "Clientside Bits Out";
+			#$f5Info->{clientsideCurConns}      = "Clientside Current Connections";
+			#$f5Info->{clientsideMaxConns}      = "Clientside Max Connections";
+			#$f5Info->{clientsidePktsIn}        = "Clientside Pkts In";
+			#$f5Info->{clientsidePktsOut}       = "Clientside Pkts Out";
+			#$f5Info->{clientsideTotConns}      = "Clientside Total Connections";
 			$NG->log->debug("apiUser        = $apiUser");
 			$NG->log->debug("apiPass        = $apiPass");
 			$NG->log->debug("apiPort        = $apiPort");
@@ -302,24 +370,27 @@ sub getF5Data {
 				my $ipProtocol      = $_->{ipProtocol};
 				my $connectionLimit = $_->{connectionLimit};
 				my $pool            = $_->{pool};
-				$NG->log->debug("Name                      = $name");
+				$NG->log->debug("ltmVirtualServName        = $name");
 				$NG->log->debug("ResourceID                = $resourceId");
 #				$NG->log->debug("Status                    = $status");
-				$NG->log->debug("Address                   = $address");
-				$NG->log->debug("Port                      = $port");
-				$NG->log->debug("IPProtocol                = $ipProtocol");
-				$NG->log->debug("ConnectionLimit           = $connectionLimit");
+				$NG->log->debug("ltmVirtualServAddr        = $address");
+				$NG->log->debug("ltmVirtualServPort        = $port");
+				$NG->log->debug("ltmVirtualServIpProto     = $ipProtocol");
+				$NG->log->debug("ltmVirtualServConnLimit   = $connectionLimit");
 				$NG->log->debug("Pool                      = $pool");
-				$f5Data->{$name}->{ResourceID}      = $resourceId;
-#				$f5Data->{$name}->{Status}          = $status;
-				$f5Data->{$name}->{Address}         = $address;
-				$f5Data->{$name}->{Port}            = $port;
-				$f5Data->{$name}->{IPProtocol}      = $ipProtocol;
-				$f5Data->{$name}->{ConnectionLimit} = $connectionLimit;
-				$f5Data->{$name}->{Pool}            = $pool;
-			    $url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/'.$resourceId.'/stats');
-			    $res     = $client->get($url => $headers)->result;
-			    $body    = decode_json($res->body);
+				# make the index as a named thing as normal
+				$f5Data->{$name}->{index}                  = $name;
+				$f5Data->{$name}->{ltmVirtualServName}     = $name;
+				$f5Data->{$name}->{ResourceID}             = $resourceId;
+#				$f5Data->{$name}->{Status}                 = $status;
+				$f5Data->{$name}->{ltmVirtualServAddr}     = $address;
+				$f5Data->{$name}->{ltmVirtualServPort}     = $port;
+				$f5Data->{$name}->{ltmVirtualServIpProto}  = $ipProtocol;
+				$f5Data->{$name}->{ltmVirtualServConnLimit} = $connectionLimit;
+				$f5Data->{$name}->{Pool}                   = $pool;
+				$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/'.$resourceId.'/stats');
+				$res     = $client->get($url => $headers)->result;
+				$body    = decode_json($res->body);
 				#$NG->log->debug( Dumper($body). "\n\n\n");
 				my $entries = $body->{entries};
 				foreach my $entry (keys %$entries) {
@@ -346,16 +417,16 @@ sub getF5Data {
 					$NG->log->debug("Clientside Pkts In        = $clientsidePktsIn");
 					$NG->log->debug("Clientside Pkts Out       = $clientsidePktsOut");
 					$NG->log->debug("Clientside Total Conns    = $clientsideTotConns");
-				    $f5Data->{$name}->{statusAvailabilityState} = $statusAvailabilityState;
-				    $f5Data->{$name}->{statusEnabledState}      = $statusEnabledState;
-				    $f5Data->{$name}->{statusStatusReason}      = $statusStatusReason;
-				    $f5Data->{$name}->{clientsideBitsIn}        = $clientsideBitsIn;
-				    $f5Data->{$name}->{clientsideBitsOut}       = $clientsideBitsOut;
-				    $f5Data->{$name}->{clientsideCurConns}      = $clientsideCurConns;
-				    $f5Data->{$name}->{clientsideMaxConns}      = $clientsideMaxConns;
-				    $f5Data->{$name}->{clientsidePktsIn}        = $clientsidePktsIn;
-				    $f5Data->{$name}->{clientsidePktsOut}       = $clientsidePktsOut;
-				    $f5Data->{$name}->{clientsideTotConns}      = $clientsideTotConns;
+					$f5Data->{$name}->{statusAvailabilityState} = $statusAvailabilityState;
+					$f5Data->{$name}->{statusEnabledState}      = $statusEnabledState;
+					$f5Data->{$name}->{statusStatusReason}      = $statusStatusReason;
+					$f5Data->{$name}->{clientsideBitsIn}        = $clientsideBitsIn;
+					$f5Data->{$name}->{clientsideBitsOut}       = $clientsideBitsOut;
+					$f5Data->{$name}->{clientsideCurConns}      = $clientsideCurConns;
+					$f5Data->{$name}->{clientsideMaxConns}      = $clientsideMaxConns;
+					$f5Data->{$name}->{clientsidePktsIn}        = $clientsidePktsIn;
+					$f5Data->{$name}->{clientsidePktsOut}       = $clientsidePktsOut;
+					$f5Data->{$name}->{clientsideTotConns}      = $clientsideTotConns;
 				}
 			}
 		}
