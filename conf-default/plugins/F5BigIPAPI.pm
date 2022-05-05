@@ -163,6 +163,9 @@ sub collect_plugin
 			$data->{ltmStatClientCurCon} = $f5SubData->{clientsideCurConns};
 			$data->{ltmVsStatAvailState} = $statusAvailabilityState;
 
+			# alerts in NMIS model won't fire after this has run.
+			# TODO Raise an alert if the Virtual Server is down.
+
             # Save the data so it appears in the GUI
             $serv_inventory->data($data); # set changed info
             (undef,$error) = $serv_inventory->save; # and save to the db
