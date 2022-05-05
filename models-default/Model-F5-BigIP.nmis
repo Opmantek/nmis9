@@ -80,8 +80,8 @@
       'F5_Memory' => '/nodes/$node/health/F5_Memory.rrd',
       'F5_Connection' => '/nodes/$node/health/F5_Connection.rrd',
       'F5_Pools' => '/nodes/$node/health/F5_Pools-$index.rrd',
-      'F5_Swap_Memory' => '/nodes/$node/health_F5_Swap_Memory.rrd',
-      'F5_Storage' => '/nodes/$node/health_F5_Storage-$index.rrd',
+      'F5_Swap_Memory' => '/nodes/$node/health/F5_Swap_Memory.rrd',
+      'F5_Storage' => '/nodes/$node/health/F5_Storage-$index.rrd',
     }
   },
   'heading' => {

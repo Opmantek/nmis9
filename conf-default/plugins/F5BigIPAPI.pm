@@ -26,7 +26,21 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+# This plugin is intended to use with the Model-F5-BigIP-API.nmis model, this 
+# is to replace the use of SNMP for collecting LARGE numbers of Virtual Services.
 #
+# To use the plugin, get the F5BigIP.json file and copy to /usr/local/nmis9/conf
+# Update the details, sample:
+#{
+#	"apiUser":"YYYY",
+#	"apiPass":"XXXXXXX",
+#	"apiPort":8443,
+#	"databaseDir":"/usr/local/nmis9/var/f5",
+#	"historySeconds":300
+#}
+
+# TODO, do we need the databaseDir?
+
 package F5BigIPAPI;
 our $VERSION = "1.0.0";
 
@@ -68,8 +82,8 @@ sub collect_plugin
 	
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP-API" or !NMISNG::Util::getbool($catchall->{collect}));
 
-	$NG->log->info("Working on '$node'");
-	my ($errmsg, $f5Data) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);
+	$NG->log->info("Working on '$node' getting API data now");
+	my ($errmsg, $f5Data, $f5Info) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);
 	if (defined $errmsg) {
 		$NG->log->error("ERROR with $node: $errmsg");
 		return (1,undef);
@@ -79,47 +93,86 @@ sub collect_plugin
 		$NG->log->error("ERROR with $node: Got no data!");
 		return (1,undef);
 	}
-	$changesweremade = 1;
 
+	# this is the concept/section we are working on
 	my $section = "VirtualServTable";
 
-	# Process what we got.
-	for my $name (keys(%$f5Data))
+	# get a list of virtual servers, which are indexed the same as the API data
+	my $VirtualServs = $S->nmisng_node->get_inventory_ids(
+		concept => $section,
+		filter => { historic => 0 });
+	
+	# do we have some inventory?
+	if (@$VirtualServs)
 	{
-		$NG->log->debug("Name: '$name'");
-		my $f5SubData = %$f5Data{$name};
-		$NG->log->debug(Dumper($f5SubData));
-		for my $key (keys(%$f5SubData))
+		$NG->log->debug("Virtual Serv: ". Dumper($VirtualServs));
+		# process each inventory thing, matching it to the API data using the index/name
+		foreach my $serv_id (@$VirtualServs)
 		{
-			$NG->log->debug("$key: '" . (defined($f5SubData->{$key}) ? $f5SubData->{$key} : "") . "'");
-		}
+			$NG->log->debug("Virtual Serv: serv_id=$serv_id ". Dumper($serv_id));
+			# get the inventory object for this specific item.
+			my ($serv_inventory,$error) = $S->nmisng_node->inventory(_id => $serv_id);
+			if ($error)
+			{
+				$NG->log->error("Failed to get inventory $serv_id: $error");
+				next;
+			}
+			# tell the plugin to save stuff.
+			$changesweremade = 1;
 
-		# TODO what possible values are they 100 is good, less than 100 is bad.
-		#default value is assumed to be "available"
-		my $statusAvailabilityState = 100;
-		if ( $f5SubData->{statusAvailabilityState} eq "available" ) {
-			$statusAvailabilityState = 100 
-		}
-		elsif ( $f5SubData->{statusAvailabilityState} eq "offline" ) {
-			$statusAvailabilityState = 50 
-		}
-		else {
-			$statusAvailabilityState = 10 	
-		}
-		
-		#save to integers to RRD
-		my $rrddata = {
-			'ltmStatClientCurCon' => { "option" => "gauge,0:U", "value" => $f5SubData->{clientsideCurConns} },
-			'ltmVsStatAvailState' => { "option" => "counter,0:U", "value" => $statusAvailabilityState }
-		};
+			# get a handy pointer to the data
+			my $data = $serv_inventory->data();
 
-		my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>$section);
-		# check for RRD update errors
-		if (!$updatedrrdfileref) { $NG->log->info("Update RRD failed!") };
+			# get the name of the thing to use.
+			my $name = $data->{index};
 
-		#save to Inventory
+			$NG->log->debug("Virtual Serv Name: $name, $serv_id");
 
+			# get the F5 data out.
+			my $f5SubData = %$f5Data{$name};
+			$NG->log->debug2(Dumper($f5SubData));
+
+			# TODO what possible values are they 100 is good, less than 100 is bad.
+			#default value is assumed to be "available"
+			my $statusAvailabilityState = 100;
+			if ( $f5SubData->{statusAvailabilityState} eq "available" ) {
+				$statusAvailabilityState = 100 
+			}
+			elsif ( $f5SubData->{statusAvailabilityState} eq "offline" ) {
+				$statusAvailabilityState = 50 
+			}
+			else {
+				$statusAvailabilityState = 10 	
+			}
+
+			#save to integers to RRD
+			my $rrddata = {
+				'ltmStatClientCurCon' => { "option" => "gauge,0:U", "value" => $f5SubData->{clientsideCurConns} },
+				'ltmVsStatAvailState' => { "option" => "gauge,0:100", "value" => $statusAvailabilityState }
+			};
+
+			# ensure the RRD file is using the inventory record so it will use the correct RRD file.
+			my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>$section, index=>$name, inventory=>$serv_inventory);
+
+			# check for RRD update errors
+			if (!$updatedrrdfileref) { $NG->log->info("Update RRD failed!") };
+
+			# update the data for the GUI
+			$data->{statusAvailabilityState} = $f5SubData->{statusAvailabilityState};
+			$data->{ltmVsStatusAvailStateText} = $f5SubData->{statusAvailabilityState};
+			$data->{ltmStatClientCurCon} = $f5SubData->{clientsideCurConns};
+			$data->{ltmVsStatAvailState} = $statusAvailabilityState;
+
+            # Save the data so it appears in the GUI
+            $serv_inventory->data($data); # set changed info
+            (undef,$error) = $serv_inventory->save; # and save to the db
+            $NG->log->error("Failed to save inventory for ".$name. " : $error") if ($error);
+		}
 	}
+	else {
+		return ( error => "no inventory for $section")
+	}
+
 
 	return ($changesweremade,undef); # report if we changed anything
 }
@@ -163,112 +216,76 @@ sub update_plugin
 
 	my $section = "VirtualServTable";
 
-	# get the ids of each thing from the API data.
-	my @virtids = sort(keys %{$f5Data});
-
 	# Archive historic records (I think?)
-	#my $virtids = $S->nmisng_node->get_inventory_ids(
-	#	concept => "VirtualServTable",
-	#	filter => { historic => 0 });
-	if (@virtids)
+	my $VirtualServs = $S->nmisng_node->get_inventory_ids(
+		concept => $section,
+		filter => { historic => 0 });
+	if (@$VirtualServs)
 	{
-		my $result = $nodeobj->bulk_update_inventory_historic(active_indices => \@virtids, concept => $section );
+		my $result = $nodeobj->bulk_update_inventory_historic(active_indices => $VirtualServs, concept => $section );
 		$NG->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
 	}
 
 	# Process what we got.
-	for my $name (keys(%$f5Data))
+	foreach my $name (keys(%$f5Data))
 	{
 		$NG->log->debug("Processing $section Index: '$name'");
 		my $f5SubData   = %$f5Data{$name};
-		$NG->log->debug3(Dumper($f5SubData));
+		$NG->log->debug4(Dumper($f5SubData));
 
-		#for my $target (keys(%$f5SubData))
-		#{
-		#	$NG->log->debug2("$target: '" . (defined($f5SubData->{$target}) ? $f5SubData->{$target} : "") . "'");
-		#	next if (!defined($f5SubData->{$target}));
-		#}
+		$NG->log->debug2("section=$section index=$name read and stored");
+		my $path_keys =  ['index'];
+		my $path = $nodeobj->inventory_path( concept => $section, path_keys => $path_keys, data => $f5SubData );
+		$NG->log->debug4( "$section path ".join(',', @$path));
 
-		# setup a target which is the index variable name and the index value.
-		my $target = {"ltmVirtualServName" => $name};
+		# now get-or-create an inventory object for this new concept
+		my ( $inventory, $error_message ) = $nodeobj->inventory(
+			create    => 1,
+			concept   => $section,
+			data      => $f5SubData,
+			path_keys => $path_keys,
+			path      => $path
+		);
+		$NG->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+		
+		# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+		$inventory->path( recalculate => 1 );
+		$inventory->data($f5SubData);
+		$inventory->historic(0);
+		$inventory->enabled(1);
 
-			$NG->log->debug2("section=$section index=$name read and stored");
-			#my $path_keys = ;
-			my $path = $nodeobj->inventory_path( concept => $section, path_keys => ['index'], data => $f5SubData );
-			$NG->log->debug2( "$section path ".join(',', @$path));
+		# set which columns should be displayed
+		$inventory->data_info(
+			subconcept => $section,
+			enabled => 1,
+			display_keys => $f5Info
+		);
 
+		$inventory->description( $name );
 
-			# now get-or-create an inventory object for this new concept
-			my ( $inventory, $error_message ) = $nodeobj->inventory(
-				create    => 1,
-				concept   => $section,
-				data      => $f5SubData,
-				path_keys => ['index'],
-				path      => $path
-			);
+		# get the RRD file name to use for storage.
+		my $dbname = $S->makeRRDname(graphtype => $section,
+									index      => $name,
+									inventory  => $inventory,
+									relative   => 1);
+		$NG->log->debug("Collect F5 API data info check storage $section, dbname $dbname");
 
-			$NG->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
-			# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-			$inventory->path( recalculate => 1 );
-			$inventory->data($f5SubData);
-			$inventory->historic(0);
-			$inventory->enabled(1);
+		# set the storage name into the inventory model
+		$inventory->set_subconcept_type_storage(type => "rrd",
+														subconcept => $section,
+														data => $dbname) if ($dbname);
 
-			# set which columns should be displayed
-			$inventory->data_info(
-				subconcept => $section,
-				enabled => 1,
-				display_keys => $f5Info
-			);
-
-			# Regenerate storage: If db name has changed, we need this
-			$NG->log->debug("Collect F5 API data info check storage $section");
-			if ($inventory->find_subconcept_type_storage(type => "rrd", subconcept => $section )) {
-					my $dbname = $S->makeRRDname(graphtype => $section,
-												index      => $name,
-												inventory  => $inventory,
-												relative   => 1);
-					$NG->log->debug8("Storage: ". Dumper($dbname));
-					$inventory->set_subconcept_type_storage(type => "rrd",
-															subconcept => $section,
-															data => $dbname) if ($dbname);
-			}
-
-			# the above will put data into inventory, so save
-			my ( $op, $error ) = $inventory->save();
-			$NG->log->debug2( "saved ".join(',', @$path)." op: $op");
-			if ($error)
-			{
-				$NG->log->error("Failed to save inventory for Virtual Server '$name': $error") if ($error);
-			}
-			else
-			{
-				$changesweremade = 1;
-			}
-
-
-		# we pass loadInfo a hash to fill in, then put that into the inventory data
-		#if( $S->loadInfo(
-		#		class   => 'systemHealth',
-		#		section => $section,
-		#		index   => $name,
-		#		table   => $section,
-		#		target  => $target
-		#))
-		#{
-#
-		#}
-		#else
-		#{
-		#	my $error = $S->status->{api_error};
-		#	$NG->log->error("($S->{name}) on get systemHealth $section index $name of model $catchall_data->{nodeModel}: $error");
-		#	# no need to generate API Down events yet.
-		#	#$nodeobj->handle_down(
-		#	#	sys     => $S,
-		#	#	type    => "F5-API",
-		#	#	details => "get systemHealth $section index $name $error"
-		#	#);
-		#}
+		# the above will put data into inventory, so save
+		my ( $op, $error ) = $inventory->save();
+		$NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+		if ($error)
+		{
+			$NG->log->error("Failed to save inventory for Virtual Server '$name': $error") if ($error);
+		}
+		else
+		{
+			$changesweremade = 1;
+		}
 		
 	}
 	return ($changesweremade,undef); # report if we changed anything
@@ -317,15 +334,15 @@ sub getF5Data {
 		unless (defined($errmsg)) {
 			$f5Info->{index}                   = "Index";
 			$f5Info->{ltmVirtualServName}      = "Server Name";
-			#$f5Info->{ResourceID}              = "Resource ID";
-			#$f5Info->{Status}                  = "Status";
 			$f5Info->{ltmVirtualServAddr}      = "IP Address";
 			$f5Info->{ltmVirtualServPort}      = "Port";
 			$f5Info->{ltmVirtualServIpProto}   = "IP Proto";
 			$f5Info->{ltmVirtualServConnLimit} = "ConnLimit";
-			#$f5Info->{Pool}                    = "Pool";
 			$f5Info->{ltmVsStatusAvailState}   = "VS Status";
 			$f5Info->{ltmVsStatusAvailStateText} = "Virtual Server State";
+			#$f5Info->{Pool}                    = "Pool";
+			#$f5Info->{ResourceID}              = "Resource ID";
+			#$f5Info->{Status}                  = "Status";
 			#$f5Info->{statusEnabledState}      = "Status Enabled State";
 			#$f5Info->{statusStatusReason}      = "Status Status Reason";
 			#$f5Info->{clientsideBitsIn}        = "Clientside Bits In";
@@ -356,42 +373,42 @@ sub getF5Data {
 			$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/');
 			$res     = $client->get($url => $headers)->result;
 			$body    = decode_json($res->body);
-	# 		$NG->log->debug( Dumper($body). "\n\n\n");
+	 		$NG->log->debug("Main Query: ". Dumper($body). "\n\n\n");
 			my $items = $body->{items};
 			foreach (@$items) {
 				#$NG->log->debug( Dumper($_) . "\n");
 				my $resourceId      = $_->{fullPath};
 				$resourceId         =~ s!/!~!g;
 				my @destination     = split('[/:]', $_->{destination});
-				my $name            = $_->{name};
-#				my $status          = $_->{status};
+				my $name            = $_->{fullPath};
 				my $address         = $destination[2];
 				my $port            = $destination[3];
 				my $ipProtocol      = $_->{ipProtocol};
 				my $connectionLimit = $_->{connectionLimit};
 				my $pool            = $_->{pool};
+
 				$NG->log->debug("ltmVirtualServName        = $name");
 				$NG->log->debug("ResourceID                = $resourceId");
-#				$NG->log->debug("Status                    = $status");
 				$NG->log->debug("ltmVirtualServAddr        = $address");
 				$NG->log->debug("ltmVirtualServPort        = $port");
 				$NG->log->debug("ltmVirtualServIpProto     = $ipProtocol");
 				$NG->log->debug("ltmVirtualServConnLimit   = $connectionLimit");
 				$NG->log->debug("Pool                      = $pool");
+
 				# make the index as a named thing as normal
 				$f5Data->{$name}->{index}                  = $name;
 				$f5Data->{$name}->{ltmVirtualServName}     = $name;
-				$f5Data->{$name}->{ResourceID}             = $resourceId;
-#				$f5Data->{$name}->{Status}                 = $status;
 				$f5Data->{$name}->{ltmVirtualServAddr}     = $address;
 				$f5Data->{$name}->{ltmVirtualServPort}     = $port;
 				$f5Data->{$name}->{ltmVirtualServIpProto}  = $ipProtocol;
 				$f5Data->{$name}->{ltmVirtualServConnLimit} = $connectionLimit;
+				$f5Data->{$name}->{ResourceID}             = $resourceId;
 				$f5Data->{$name}->{Pool}                   = $pool;
+
 				$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/'.$resourceId.'/stats');
 				$res     = $client->get($url => $headers)->result;
 				$body    = decode_json($res->body);
-				#$NG->log->debug( Dumper($body). "\n\n\n");
+				$NG->log->debug("Resource Query: ". Dumper($body). "\n\n\n");
 				my $entries = $body->{entries};
 				foreach my $entry (keys %$entries) {
 					my $urlEntry                     = $$entries{$entry};
@@ -433,7 +450,7 @@ sub getF5Data {
 	}
 
 	# send back the results.
-	return ($errMsg,$f5Data);
+	return ($errMsg,$f5Data,$f5Info);
 }
 
 sub loadJsonFile {
