@@ -37,7 +37,7 @@ is_mongo_installed() {
 
 
 # adds the official mongodb.org rpm/apt repository,
-# either the given version or 4.2 as fallback
+# either the given version or 3.4 as fallback
 # args: mongodb major.minor version string
 add_mongo_repository () {
 		# do mongo?
@@ -53,9 +53,9 @@ add_mongo_repository () {
 		local RELEASENAME
 
 		local DESIREDVER
-		DESIREDVER=${1:-4.2}
+		DESIREDVER=${1:-3.4}
 
-		# redhat/centos: mongodb supplies rpms for 4.2 for all platforms and versions we care about
+		# redhat/centos: mongodb supplies rpms for 3.2 and 3.4 for all platforms and versions we care about
 		if [ "$OSFLAVOUR" = "redhat" ]; then
 				REPOFILE=/etc/yum.repos.d/mongodb-org-$DESIREDVER.repo
 				if [ -f $REPOFILE ]; then
@@ -71,7 +71,8 @@ enabled=1
 gpgkey=https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc
 
 EOF
-				# we install the mongodb-supplied version for debian derivative OS
+				# ubuntu, debian: only newest distros have 3.2, none have 3.4
+				# so we install the mongodb-supplied version
 		elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 				local RES;
 				local OUTPUT;
@@ -79,6 +80,7 @@ EOF
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
 
 				# get the release key first
+				# however, as of [2018-02-08 Thu 12:18] the 3.4 repository signing is broken: BADSIG
 				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 --tries=3 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -L -s -m 20 --retry 2 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
 
 				RES=0;
@@ -98,13 +100,21 @@ EOF
 						    "${RES}" \
 						    "${RELEASENAME:-}";
 
+				# debian 7, 8: 3.4 is a/v - upstream doesn't have newer version-specific packages
+				# debian 9: 3.2 is in debian proper but we normally need 3.4.
 				if [ "$OSFLAVOUR" = "debian" ]; then
-						[ "$OS_MAJOR" = 9 ] && MONGORELNAME=stretch || MONGORELNAME=buster
+						[ "$OS_MAJOR" = 7 ] && MONGORELNAME=wheezy || MONGORELNAME=jessie
+						# BADSIG on repository as of [2018-02-08 Thu 12:22]
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/debian $MONGORELNAME/mongodb-org/$DESIREDVER main" >$SOURCESFILE
 						# debian 9: mongo package for jessie requires older libssl, only a/v in jessie
-						###[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
+						[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
 				else
-						MONGORELNAME="bionic";
+						# ubuntu 12, 14, 16: 3.2 is /av
+						MONGORELNAME="xenial"; # aka 16.xx
+						[ "$OS_MAJOR" = "14" ] && MONGORELNAME="trusty" # 14.04
+						[ "$OS_MAJOR" = "12" ] && MONGORELNAME="precise" # aka 12.04
+
+						# BADSIG on repository as of [2018-02-08 Thu 12:22]
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >$SOURCESFILE
 				fi
 
@@ -194,10 +204,11 @@ mongo_or_bust ()
 
 		local MIN_MAJ MIN_MIN MIN_PATCH WARN_MAJ WARN_MIN WARN_PATCH
 
-		# Default to 4.2 as we do in add_mongo_repository() function
+		# Default to 3.4 to tie in with add_mongo_repository() function variable DESIREDVER defaulting to 3.4
+		# Previously defaulted to '0.0'
 		# Simplifies things for Dependency Check Mode
-		MIN_MAJ=${1:-4}
-		MIN_MIN=${2:-2}
+		MIN_MAJ=${1:-3}
+		MIN_MIN=${2:-4}
 
 		MIN_PATCH=${3:-0}
 
@@ -224,64 +235,12 @@ EOF
 
 		# not present yet? then offer to install
 		if ! is_mongo_installed; then
-				echo
-				printBanner "No local MongoDB installation detected."
-				if [ "${DEPENDENCY_CHECK_ONLY}" = 1 ]; then
-					# shellcheck disable=SC2129
-					echo "# mongodb-org install notes:" >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "#		pre-install newest available version ${MIN_MAJ}.${MIN_MIN} before installing NMIS9 or ${PRODUCT}." >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "# mongodb-org additional notes:" >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "#		Please note that $PRODUCT requires MongoDB to be either installed" >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "#		locally on this server, OR accessible via the network. MongoDB also" >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "#		MUST be configured for authentication, and needs to be primed" >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "#		specifically for Opmantek use as documented on this page:" >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "#		https://community.opmantek.com/x/h4Aj" >> "${DEPENDENCY_CHECK_FILE}";
-					# shellcheck disable=SC2129
-					echo "mongodb-org" >> "${DEPENDENCY_CHECK_FILE}";
-					return 0;
-				else
-					cat <<EOF
 
-Please note that $PRODUCT requires MongoDB to be either installed
-locally on this server, OR accessible via the network. MongoDB also
-MUST be configured for authentication, and needs to be primed
-specifically for Opmantek use as documented on this page:
-
-https://community.opmantek.com/x/h4Aj
-
-EOF
-
-				fi
-				if [ "$CANUSEWEB" != 1 ]; then
-						printBanner "Cannot install MongoDB without Web access!"
-						cat <<EOF
-
-Web access is required for installing MongoDB, but your system
-does not have that.
-
-You will have to install MongoDB manually (downloadable
-from http://mongodb.org/).
-
-EOF
-						return 1
-				fi
-
-				if ! input_yn "Would you like to install MongoDB locally?" "ef5b"; then
-						echo
-						echolog "NOT installing MongoDB, as instructed."
-						return 2
-				fi
-
-				echolog "Installing MongoDB repository and software"
-				add_mongo_repository||:;
-				install_mongo||:;
+				# find out where we are, and get additional common function to install mongo 4.2
+				SCRIPTPATH=${0%/*}
+				. $SCRIPTPATH/common_mongodb_4.sh
+				# check and get mongodb 4.2, returns 0 if ok, 1 or 2 otherwise
+				new_mongo_4_or_bust 4 2 0|| exit 1
 
 		# mongo is installed, but is the version sufficient?
 		else
@@ -317,10 +276,10 @@ EOF
 Your installed version of MongoDB ($MONGO_VERSION) is too old for $PRODUCT.
 $PRODUCT requires MongoDB version $MIN_MAJ.$MIN_MIN.$MIN_PATCH or newer for correct operation.
 
-However, the installer can perform an upgrade of MongoDB to 4.2.
+However, the installer can perform an upgrade of MongoDB to 3.4.
 
 EOF
-								if ! input_yn "Would you like the installer to upgrade your (too old) MongoDB installation to 4.2?" "d85b"; then
+								if ! input_yn "Would you like the installer to upgrade your (too old) MongoDB installation to 3.4?" "d85b"; then
 										echo
 										echolog "NOT upgrading MongoDB, as instructed."
 										return 2
@@ -333,8 +292,8 @@ EOF
 										add_mongo_repository 3.2||:;
 										install_mongo||:;
 								fi
-								echolog "Performing upgrade to 4.2"
-								add_mongo_repository 4.2||:;
+								echolog "Performing upgrade to 3.4"
+								add_mongo_repository 3.4||:;
 								install_mongo||:;
 						else
 								# too old, cannot upgrade, give up
@@ -343,7 +302,7 @@ EOF
 Your installed version of MongoDB ($MONGO_VERSION) is too old for $PRODUCT.
 $PRODUCT requires MongoDB version $MIN_MAJ.$MIN_MIN.$MIN_PATCH or newer for correct operation.
 
-Please upgrade your installation to MongoDB 4.2, then restart
+Please upgrade your installation to MongoDB 3.4, then restart
 the $PRODUCT installer. MongoDB can be downloaded
 from http://mongodb.org/ and our wiki has further information about
 MongoDB upgrades here: https://community.opmantek.com/x/h4Aj
@@ -367,7 +326,7 @@ $PRODUCT works best with MongoDB $WARN_MAJ.$WARN_MIN.$WARN_PATCH.
 You may continue the $PRODUCT installation, but please note that some
 features of $PRODUCT might not work efficiently with this version of MongoDB.
 
-It is highly recommended that you upgrade to MongoDB 4.2,
+It is highly recommended that you upgrade to MongoDB 3.4,
 which can be downloaded from http://mongodb.org/. Our wiki has
 further information about MongoDB upgrades here:
 https://community.opmantek.com/x/h4Aj
@@ -376,7 +335,7 @@ EOF
 						# again offer upgrade is  possible
 						if [ "$MONGO_MAJOR" -ge 3 -a "$CANUSEWEB" = 1 ]; then
 
-								if ! input_yn "Would you like the installer to upgrade your (slightly old) MongoDB installation to 4.2?" "24f8"; then
+								if ! input_yn "Would you like the installer to upgrade your (slightly old) MongoDB installation to 3.4?" "24f8"; then
 										echo
 										echolog "NOT upgrading MongoDB, as instructed."
 										return 0		# not ideal but good enough
@@ -389,8 +348,8 @@ EOF
 										add_mongo_repository 3.2||:;
 										install_mongo||:;
 								fi
-								echolog "Performing upgrade to 4.2"
-								add_mongo_repository 4.2||:;
+								echolog "Performing upgrade to 3.4"
+								add_mongo_repository 3.4||:;
 								install_mongo||:;
 						else
 								input_ok "Hit <Enter> when ready to continue: "

@@ -152,8 +152,8 @@ if [ "$CANUSEWEB" = 1 ]; then
 fi
 
 # check and get mongodb, returns 0 if ok, 1 or 2 otherwise
-# absolute min for nmis 9 is 4.2.0
-mongo_or_bust 4 2 0 || exit 1
+# absolute min for nmis 9 is 3.4.0
+mongo_or_bust 3 4 0 || exit 1
 
 
 # rhel8 fails to install these using yum, but centos8 is able to install these using yum - restrict to rhel8 nand newer
