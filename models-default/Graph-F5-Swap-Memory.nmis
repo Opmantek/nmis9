@@ -1,5 +1,5 @@
 #
-# $Id: Graph-F5-Swap-Memory.nmis,v1.0 2022/02/10 10:30 simonm Exp $
+# $Id: Graph-F5-Swap-Memory.nmis,v1.1 2022/03/10 10:30 simonm Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -41,7 +41,7 @@
 	'option' => {
 		'standard' => [
 			'DEF:MemorySwapTotal=$database:MemorySwapTotal:AVERAGE',
-			'CDEF:TotalGB=MemoryTotal,1048572,/',
+			'CDEF:TotalGB=MemorySwapTotal,1048572,/',
 			'LINE2:TotalGB#088f0d:Total Swap Memory',
 			'GPRINT:TotalGB:AVERAGE:Avg %1.2lf GB\\n',
 			'DEF:MemorySwapUsed=$database:MemorySwapUsed:AVERAGE',
