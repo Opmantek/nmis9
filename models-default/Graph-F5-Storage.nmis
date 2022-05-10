@@ -44,7 +44,7 @@
 			'AREA:perUsed#00FFFF: % Disk Used',
 			'GPRINT:perUsed:LAST:Current %1.1lf%%',
 			'GPRINT:perUsed:AVERAGE:Average %1.1lf%%\\n',
-			'GPPINT:perUsed:MAX:Maximum %1.1lf%%\\n'
+			'GPRINT:perUsed:MAX:Maximum %1.1lf%%\\n'
 		],
 		'small' => [
 			'DEF:perUsed=$database:DiskUsedPerc:AVERAGE',

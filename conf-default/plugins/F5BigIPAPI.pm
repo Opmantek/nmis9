@@ -42,7 +42,7 @@
 # TODO, do we need the databaseDir?
 
 package F5BigIPAPI;
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use strict;
 use warnings;
@@ -101,11 +101,12 @@ sub collect_plugin
 	my $VirtualServs = $S->nmisng_node->get_inventory_ids(
 		concept => $section,
 		filter => { historic => 0 });
-	
+
+	$NG->log->debug2("Virtual Serv: ". Dumper($VirtualServs));
+
 	# do we have some inventory?
 	if (@$VirtualServs)
 	{
-		$NG->log->debug("Virtual Serv: ". Dumper($VirtualServs));
 		# process each inventory thing, matching it to the API data using the index/name
 		foreach my $serv_id (@$VirtualServs)
 		{
