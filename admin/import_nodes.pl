@@ -168,7 +168,7 @@ foreach my $node (keys %newNodes)
             $nodeobj = $nmisng->node(uuid => $newNodes{$node}{uuid}, create => 1);
             # It will be a local node
             $newNodes{$node}{cluster_id} ||= $config->{cluster_id};
-            $newNodes{$node}{threshold} ||= 'false';
+            $newNodes{$node}{threshold} ||= 'true';
             $nodeobj->name($newNodes{$node}{name});
 
             # what other defaults should we set
