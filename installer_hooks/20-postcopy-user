@@ -40,6 +40,25 @@ fi
 
 
 # encryption of secrets
+#
+# TO PROTECT OUR seed WE NEED TO TURN OFF xtrace IN THIS SCRIPT IF ON
+# BUT ONLY AFTER ANY '. $SCRIPTPATH/common_functions.sh' CALL
+# AS THOSE CALLS SET xtrace THEMSELVES UNDOING THIS SETTING
+#	- REINSTATE xtrace ON EXIT WHERE IT WAS SET ON ENTRY TO THIS SCRIPT:
+if set -o|grep xtrace|grep -q on; then
+	SETUP_REDIS_XTRACE_ON=1;
+else
+	SETUP_REDIS_XTRACE_ON=0;
+fi;
+
+	# REINSTATE xtrace ON EXIT WHERE IT WAS SET ON ENTRY TO THIS SCRIPT
+	reset_xtrace_state_on (){
+		if [ "${SETUP_REDIS_XTRACE_ON}" -eq 1 ]; then
+			set -x;
+		fi;
+		return 0;
+	}
+
 SEED_DIR='/usr/local/etc/opmantek';
 SEED_FILE="$SEED_DIR/seed.txt";
 
@@ -60,8 +79,16 @@ if [ ! -e "${SEED_FILE}" ]; then
 		echo "seed length ${#SEED} incorrect. Aborting ...";
 		exit 1;
 	fi;
+
+	# TO PROTECT OUR seed WE NEED TO TURN OFF xtrace IN THIS SCRIPT IF ON:
+	set +x;
+
 	# Write seed and set owner, group and permissions:
 	execPrint "echo ${SEED} > ${SEED_FILE}";
+
+	# REINSTATE xtrace WHERE APPLICABLE:
+	reset_xtrace_state_on;
+
 	execPrint "chown ${WEBGRP}:nmis ${SEED_FILE}";
 	execPrint "chmod 0440 ${SEED_FILE}";
 fi;
