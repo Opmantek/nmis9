@@ -284,7 +284,7 @@ execPrint()
 		OUTPUT=""
 		RES=0
 		# robust: retry on failure
-		for N in "1 2 3 4 5 6"; do
+		for N in 1 2 3 4 5 6; do
 			# shellcheck disable=SC2068
 			OUTPUT=$(eval $@ 2>&1)||RES=$?
 			# pre-initialised RES=0 before loop so we don't need a default value here
@@ -348,7 +348,7 @@ execPrintSecure()
 		OUTPUT=""
 		RES=0
 		# robust: retry on failure
-		for N in "1 2 3 4 5 6"; do
+		for N in 1 2 3 4 5 6; do
 			# shellcheck disable=SC2068
 			OUTPUT=$(eval $@ 2>&1)||RES=$?
 			# pre-initialised RES=0 before loop so we don't need a default value here
@@ -428,7 +428,7 @@ execPrint418()
 		OUTPUT=""
 		RES=0
 		# robust: retry on failure
-		for N in "1 2 3 4 5 6"; do
+		for N in 1 2 3 4 5 6; do
 			# shellcheck disable=SC2068
 			OUTPUT=$(eval $@ 2>&1)||RES=$?
 			# pre-initialised RES=0 before loop so we don't need a default value here
