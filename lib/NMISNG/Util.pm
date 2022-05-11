@@ -3543,7 +3543,10 @@ sub decrypt {
 	}
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+
+	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
+
 	my $strLen             = "";
 	my $fh;
 
@@ -3638,7 +3641,10 @@ sub encrypt {
 		}
 	}
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+
+	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
+
 	my $strLen             = 0;
 	my $fh;
 
@@ -3705,6 +3711,7 @@ sub _make_seed {
 	my $seedfile  = shift;
 	my $logger    = shift;
 
+	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seeddir  = File::Spec->rel2abs(dirname(${seedfile}));
 	my @charset  = (('A'..'Z'), ('a'..'z'), (0..9));
 	my $range    = $#charset + 1;
