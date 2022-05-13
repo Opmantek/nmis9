@@ -117,7 +117,7 @@ install_mongo_4 () {
 				# remove debian's mongo-tools, undeclared conflict with
 				# mongodb-org-tools, not co-installable
 				# filter out unwanted "418 I'm a teapot" errors
-				if execPrint418 "dpkg -l mongo-tools >/dev/null 2>&1"; then
+				if execPrintNoRetry418 "dpkg -l mongo-tools >/dev/null 2>&1"; then
 					execPrint "apt-get -yq remove mongo-tools 2>&1"||:;
 				fi;
 

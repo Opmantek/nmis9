@@ -16,10 +16,10 @@ is_mongo_installed() {
 				# check the packages
 				if [ "$OSFLAVOUR" = "redhat" ]; then
 						# filter out unwanted "418 I'm a teapot" errors
-						execPrint418 "rpm -qa|fgrep -q mongodb-org-server 2>&1"||return 1
+						execPrintNoRetry418 "rpm -qa|fgrep -q mongodb-org-server 2>&1"||return 1
 				elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 						# filter out unwanted "418 I'm a teapot" errors
-						execPrint418 "dpkg -l mongodb-server mongodb-org-server 2>/dev/null|grep -q ^[hi]i 2>&1"||return 1
+						execPrintNoRetry418 "dpkg -l mongodb-server mongodb-org-server 2>/dev/null|grep -q ^[hi]i 2>&1"||return 1
 				fi
 		fi
 
@@ -154,7 +154,7 @@ install_mongo () {
 				# remove debian's mongo-tools, undeclared conflict with
 				# mongodb-org-tools, not co-installable
 				# filter out unwanted "418 I'm a teapot" errors
-				if execPrint418 "dpkg -l mongo-tools >/dev/null 2>&1"; then
+				if execPrintNoRetry418 "dpkg -l mongo-tools >/dev/null 2>&1"; then
 					execPrint "apt-get -yq remove mongo-tools 2>&1"||:;
 				fi;
 

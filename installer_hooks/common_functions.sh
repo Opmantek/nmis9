@@ -312,6 +312,48 @@ execPrint()
 		return $RES
 }
 
+# run cmd, capture output and stderr and append to logfile
+#	and not retrying on failure
+# if in simulate mode, only print what WOULD be done but
+#	DON'T EXECUTE anything
+execPrintNoRetry()
+{
+		if [ -n "$SIMULATE" ]; then
+				echo
+				echo "SIMULATION MODE, NOT executing command '$*'"
+				return 0
+		fi
+
+		logmsg "###+++"
+		logmsg "EXEC: $*"
+
+		OUTPUT=""
+		RES=0
+
+		# shellcheck disable=SC2068
+		OUTPUT=$(eval $@ 2>&1)||RES=$?
+		# pre-initialised RES=0 before loop so we don't need a default value here
+		if [ "${RES}" = 0 ]; then
+			if [ "${CHECK_SET_STRICT_VERBOSE:-0}" -eq 1 ]; then
+				echolog "execPrint '$*' succeeded"
+			fi
+		elif [ "${CHECK_SET_STRICT_VERBOSE:-0}" -eq 1 ]; then
+			printBanner "execPrint '$*' failed. Retrying..."
+		else
+			:
+			#echo
+			#echolog "execPrint '$*' failed. Retrying..."
+			#echo
+		fi
+
+		# initialising before loop with 'OUTPUT=""' means OUTPUT is always set at this point
+		# echologVerboseError expects parameters: COMMAND (as a string '$*' or '...', not an array '$@'), EXITCODE then COMMANDOUTPUT
+		# pre-initialised RES=0 before loop so we don't need a default value here
+		echologVerboseError "$*" "${RES}" "${OUTPUT}";
+		logmsg "###+++"
+		return $RES
+}
+
 # run cmd, DON'T "capture output and stderr and append to logfile"
 # if in simulate mode, print what WOULD be done BUT DON'T append to logfile and
 #	DON'T EXECUTE anything
@@ -449,6 +491,67 @@ execPrint418()
 			fi
 			sleep 10
 		done
+
+		# we don't print these 418 I'm a teapot errors to stdout or log for customer
+		#	as they are just attempts to get status and fail often - create bad impression:
+		if [ "${RES}" != 0 ] && [ "${CHECK_SET_STRICT}" -eq 1 ]; then
+			echolog "- - - -COMMAND RETURNED EXIT CODE ${RES}- - - - -"
+			echolog "$*" "${OUTPUT}"
+			echolog "418 I'm a teapot (this message block prints to STDOUT and LOG only when OMK_STRICT_SH > 0)"
+			echolog "- - - - - - - - - - - - - - - - - - - - -"
+		elif [ "${CHECK_SET_STRICT_VERBOSE:-0}" -eq 1 ]; then
+			# initialising before loop with 'OUTPUT=""' means OUTPUT is always set at this point
+			# echologVerboseError expects parameters: COMMAND (as a string '$*' or '...', not an array '$@'), EXITCODE then COMMANDOUTPUT
+			# pre-initialised RES=0 before loop so we don't need a default value here
+			echologVerboseError "$*" "${RES}" "${OUTPUT}";
+			logmsg "###+++"
+			#else
+				#echolog "$*" "${OUTPUT}"
+				#logmsg "###+++"
+		fi;
+		return $RES
+}
+
+# run cmd, capture output and stderr and append to logfile
+#	but not using standard error header and footer in echologVerboseError
+#		when in test mode 'CHECK_SET_STRICT=1'
+#			designed to filter out unwanted "418 I'm a teapot" errors
+#	and not retrying on failure
+# if in simulate mode, only print what WOULD be done but
+#	DON'T EXECUTE anything
+execPrintNoRetry418()
+{
+		if [ -n "$SIMULATE" ]; then
+				echo
+				echo "SIMULATION MODE, NOT executing command '$*'"
+				return 0
+		fi
+
+		if [ "${CHECK_SET_STRICT}" -eq 1 ]; then
+			logmsg "###+++"
+			logmsg "EXEC: $*"
+		fi;
+
+		OUTPUT=""
+		RES=0
+
+		# shellcheck disable=SC2068
+		OUTPUT=$(eval $@ 2>&1)||RES=$?
+		# pre-initialised RES=0 before loop so we don't need a default value here
+		if [ "${RES}" = 0 ]; then
+			if [ "${CHECK_SET_STRICT_VERBOSE:-0}" -eq 1 ]; then
+				echolog "execPrint '$*' succeeded"
+			fi
+		elif [ "${CHECK_SET_STRICT_VERBOSE:-0}" -eq 1 ]; then
+			printBanner "execPrint '$*' failed. Retrying..."
+		else
+			:
+			# we don't print these 418 I'm a teapot errors to stdout or log for customer
+			#	as they are just attempts to get status and fail often - create bad impression:
+			#echo
+			#echolog "execPrint '$*' failed. Retrying..."
+			#echo
+		fi
 
 		# we don't print these 418 I'm a teapot errors to stdout or log for customer
 		#	as they are just attempts to get status and fail often - create bad impression:
