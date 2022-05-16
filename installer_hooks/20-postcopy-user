@@ -62,7 +62,6 @@ if [ ! -e "${SEED_FILE}" ]; then
 	fi;
 
 	# TO PROTECT OUR secret WE NEED TO TURN OFF xtrace IN THIS SCRIPT IF ON - REINSTATE xtrace ON EXIT WHERE IT WAS SET ON ENTRY TO THIS SCRIPT:
-	local SETUP_EXECPRINTSECURE_XTRACE_ON;
 	if set -o|grep xtrace|grep -q on; then
 		SETUP_EXECPRINTSECURE_XTRACE_ON=1;
 	else
