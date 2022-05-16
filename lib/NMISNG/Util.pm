@@ -3526,27 +3526,31 @@ sub verifyNMISEncryption {
 # decrypt - Decrypt the password.                                      #
 ########################################################################
 sub decrypt {
-	my ($password, $section, $keyword) = @_;
+	my ($password, $section, $keyword, $use_nmisng) = @_;
 	my $config;
 	my $logger;
 
 	{
-		# We cannot call Compat::NMIS::new_nmisng() here.
+		# We cannot call Compat::NMIS::new_nmisng() here without $use_nmisng==0 (defaults to 1) from /usr/local/nmis9/admin/setup_mongodb.pl.
 		# This decrypt() function is called by /usr/local/nmis9/admin/setup_mongodb.pl during first install
 		# before our mongo setup has completed to get the potentially decrypted password.
 		# Compat::NMIS::new_nmisng() then attempts to make a mongo connection (but we are still setting up mongo at this point).
 		# This attempted connection causes Authentication failed error and causes MongoDB to always fail thereafter:
 		#	"Cannot connect to MongoDB: Error Connecting to Database localhost:27017: MongoDB::AuthError:
 		#	 Authentication to localhost:27017 failed: SCRAM-SHA-1 error: Authentication failed."
-		#my $nmisng  = Compat::NMIS::new_nmisng();
-		#if (defined($nmisng)) {
-		#	$config  = $nmisng->config;
-		#	$logger  = $nmisng->log;
-		#} else {
+		my $nmisng;
+		if ($use_nmisng // 1)
+		{
+			$nmisng  = Compat::NMIS::new_nmisng();
+		}
+		if (defined($nmisng)) {
+			$config  = $nmisng->config;
+			$logger  = $nmisng->log;
+		} else {
 			$config = loadConfTable();
 			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-		#}
+		}
 	}
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
