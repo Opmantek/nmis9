@@ -30,9 +30,10 @@
 # small update plugin to provide vtpVlan linkage for the nmis gui
 
 package vtpVlan;
-our $VERSION = "2.0.1";
+our $VERSION = "2.0.2";
 
 use strict;
+use Data::Dumper;
 
 sub update_plugin
 {
@@ -75,12 +76,18 @@ sub update_plugin
 		my $vtpdata = $vtpinventory->data; # r/o copy, must be saved back if changed
 
 		# get the VLAN ID Number from the index
-		if (my @parts = split(/\./, $vtpdata->{index}))
+		my @parts = split(/\./, $vtpdata->{index});
+		if (@parts)
 		{
 			# first component is irrelevant, second we keep
-			$vtpdata->{vtpVlanIndex} = $parts[1];
+			$vtpdata->{vtpVlanIndex} = $parts[1]; # note vtpvlanindex, not vtpvlanifindex
 			$changesweremade = $mustsave = 1;
 		}
+		else {
+			$NG->log->error("Failed to get vlan id from vtp index: $vtpdata->{index} @parts");
+		}
+
+		$NG->log->debug4("vtpVlan Data: ". Dumper $vtpdata);
 
 		# get the interface's ifDescr and add linkage
 		my $ifIndex = $vtpdata->{vtpVlanIfIndex};
@@ -92,6 +99,10 @@ sub update_plugin
 			$vtpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifIndex&node=$node";
 			$vtpdata->{ifDescr_id} = "node_view_$node";
 
+			$changesweremade = $mustsave = 1;
+		}
+		else {
+			$vtpdata->{ifDescr} = "N/A";
 			$changesweremade = $mustsave = 1;
 		}
 

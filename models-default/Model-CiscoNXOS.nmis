@@ -60,9 +60,6 @@
       'vlan' => {
         'common-model' => 'Cisco-vlan'
       },
-      'routing' => {
-        'common-model' => 'Common-routing'
-      },
       'cbqos' => {
         'common-model' => 'Cisco-cbqos'
       },
@@ -218,24 +215,25 @@
     'sys' => {
       'extra' => {
         'snmp' => {
-          'rttMonApplResponder' => {
-            'oid' => '1.3.6.1.4.1.9.9.42.1.1.13.0',
-            'replace' => {
-              'noSuchObject' => 'N/A',
-              '1' => 'enabled',
-              '2' => 'disabled'
-            },
-            'snmpObjectName' => 'rttMonApplResponder',
-            'title' => 'IPSLA Responder'
-          },
-          'rttMonApplVersion' => {
-            'oid' => '1.3.6.1.4.1.9.9.42.1.1.1.0',
-            'replace' => {
-              'noSuchObject' => 'N/A',
-            },
-            'snmpObjectName' => 'rttMonApplVersion',
-            'title' => 'IPSLA Version'
-          },
+          # Not supported in Cisco N9K 7.0
+          #'rttMonApplResponder' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.42.1.1.13.0',
+          #  'replace' => {
+          #    'noSuchObject' => 'N/A',
+          #    '1' => 'enabled',
+          #    '2' => 'disabled'
+          #  },
+          #  'snmpObjectName' => 'rttMonApplResponder',
+          #  'title' => 'IPSLA Responder'
+          #},
+          #'rttMonApplVersion' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.42.1.1.1.0',
+          #  'replace' => {
+          #    'noSuchObject' => 'N/A',
+          #  },
+          #  'snmpObjectName' => 'rttMonApplVersion',
+          #  'title' => 'IPSLA Version'
+          #},
           'softwareImage' => {
             'calculate' => '$r =~ /CW_IMAGE\\$(.+)\\$/; $r = $1',
             'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.2',
@@ -301,7 +299,7 @@
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply',
+    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,dot1dBasePort,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
@@ -437,10 +435,11 @@
           },
           'Description' => {
             'oid' => 'ifAlias',
-            'title' => ' Description'
+            'title' => 'Description'
           },
           'vlanPortVlan' => {
-            'oid' => 'vlanTrunkPortNativeVlan'
+            'oid' => 'vlanTrunkPortNativeVlan',
+            'title' => 'VLAN'
           }
         }
       }
