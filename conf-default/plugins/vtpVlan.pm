@@ -102,7 +102,7 @@ sub update_plugin
 			$changesweremade = $mustsave = 1;
 		}
 		else {
-			$vtpdata->{ifDescr} = "N/A";
+			$vtpdata->{ifDescr} = "Not supported by SNMP agent";
 			$changesweremade = $mustsave = 1;
 		}
 

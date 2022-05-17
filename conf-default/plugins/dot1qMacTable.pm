@@ -71,70 +71,6 @@ sub update_plugin
 
 	$NG->log->debug4("ifdata: ". Dumper \%ifdata);
 
-	# if this is a Cisco Nexus this will need to get updated so it is more useful.
-	my $vtpids = $S->nmisng_node->get_inventory_ids(
-		concept => "vtpVlan",
-		filter => { historic => 0 });
-
-	if (@$vtpids) {
-		$NG->log->info("Working on $node vtpVlan");
-
-		# also done in the vtpVlan.pm plugin, but we need to make sure this is available here.
-		for my $vtpid (@$vtpids)
-		{
-			my $mustsave = 0;
-
-			my ($vtpinventory,$error) = $S->nmisng_node->inventory(_id => $vtpid);
-			if ($error)
-			{
-				$NG->log->error("Failed to get inventory $vtpid: $error");
-				next;
-			}
-
-			my $vtpdata = $vtpinventory->data; # r/o copy, must be saved back if changed
-
-			# get the VLAN ID Number from the index
-			my @parts = split(/\./, $vtpdata->{index});
-			if (@parts)
-			{
-				# first component is irrelevant, second we keep
-				$vtpdata->{vtpVlanIndex} = $parts[1]; # note vtpvlanindex, not vtpvlanifindex
-				$changesweremade = $mustsave = 1;
-			}
-			else {
-				$NG->log->error("Failed to get vlan id from vtp index: $vtpdata->{index} @parts");
-			}
-
-			$NG->log->debug4("vtpVlan Data: ". Dumper $vtpdata);
-
-			# get the interface's ifDescr and add linkage
-			my $ifIndex = $vtpdata->{vtpVlanIfIndex};
-
-			if (ref($ifdata{$ifIndex}) eq "HASH"
-					&& defined $ifdata{$ifIndex}->{ifDescr})
-			{
-				$vtpdata->{ifDescr} = $ifdata{$ifIndex}->{ifDescr};
-				$vtpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifIndex&node=$node";
-				$vtpdata->{ifDescr_id} = "node_view_$node";
-
-				$changesweremade = $mustsave = 1;
-			}
-			else {
-				$vtpdata->{ifDescr} = "N/A";
-				$changesweremade = $mustsave = 1;
-			}
-
-			# done with the vtp data - save it back
-			if ($mustsave)
-			{
-				$vtpinventory->data($vtpdata); # set changed info
-				(undef,$error) = $vtpinventory->save; # and save to the db
-				$NG->log->error("Failed to save inventory for $vtpid: $error")
-						if ($error);
-			}
-		}	
-	}
-
 	# get a lookup of base mapping port to ifIndex
 	my $dot1dBasePortIndex;
 	my $baseids = $S->nmisng_node->get_inventory_ids(
@@ -238,7 +174,7 @@ sub update_plugin
 			$changesweremade = $mustsave = 1;
 		}
 
-		$NG->log->debug("macDaddy: ". Dumper $macdata);
+		$NG->log->debug4("macDaddy: ". Dumper $macdata);
 
 		if ($mustsave)
 		{
