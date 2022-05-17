@@ -145,7 +145,7 @@ export PERL_MM_USE_DEFAULT;
 
 if [ "${DOIT:-0}" = 1 ]; then
 		if type yum >/dev/null 2>&1; then
-				if [ "$OSFLAVOUR" = "redhat" ]; then
+				if [ "$OS_ISCENTOS" != 1 ] && [ "$OSFLAVOUR" = "redhat" ]; then
 						echo "Enabling RHEL ${OS_MAJOR} Repositories"
 						if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-server-optional-rpms" | grep Enabled | grep 0)" ]; then
 							subscription-manager repos --enable="rhel-${OS_MAJOR}-server-optional-rpms"

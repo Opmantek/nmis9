@@ -18,7 +18,7 @@ if [ -e $TARGETDIR/admin/setup_mongodb.pl ]; then
 				cat <<EOF
 
 You can perform the MongoDB setup at any time by running
-$TARGETDIR/bin/setup_mongodb.pl as the root user.
+$TARGETDIR/admin/setup_mongodb.pl as the root user.
 
 EOF
 		fi
