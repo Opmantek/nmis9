@@ -49,6 +49,7 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug =>
 my $nmisng = NMISNG->new(config => $config, log  => $logger);
 
 my $debug = 0;
+$debug = $cmdline->{debug} if defined $cmdline->{debug};
 
 if ( defined $cmdline->{node} ) {
 	oneNode($cmdline->{node});
@@ -59,7 +60,7 @@ else {
 	my $totalNodes;
     
     # define the output heading and the print format
-	my @heading = ("node", "ifIndex", "ifIndex", "ifDescr", "Description", "ifInDiscardsProc", "ifInErrorsProc", "ifOutDiscardsProc", "ifOutErrorsProc");
+	my @heading = ("node", "ifIndex", "ifIndex", "ifDescr", "Description", "ifInDiscards", "ifInErrors", "ifOutDiscards", "ifOutErrors", "ifInDiscardsPer", "ifInErrorsPer", "ifOutDiscardsPer", "ifOutErrorsPer");
 	printRow(\@heading);
 
 	foreach my $node (sort @$nodes) {
@@ -87,10 +88,17 @@ else {
 				}
 
 				my ($inventory,$error) = $S->inventory(concept => 'catchall');
-				return ( error => "failed to instantiate catchall inventory: $error") if ($error);
+				if ($error) {
+					print STDERR "failed to instantiate catchall inventory: $error\n";
+					next;
+				}
 
 				my $catchall_data = $inventory->data();
-				#if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
+
+				if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
+					print "node $node is down\n" if $debug;
+					next;
+				}
 
 				my $result = $S->nmisng_node->get_inventory_model(concept => "interface", filter => { historic => 0 });
 				if (my $error = $result->error)
@@ -106,7 +114,9 @@ else {
 						print "Processing $node $ifIndex $interfaces{$ifIndex}->{ifDescr} $interfaces{$ifIndex}->{Description} $rrdfilename\n" if $debug;
 						# do I need $item?
 						#my $rrd = $S->getDBName(graphtype => "pkts_hc", index => $ifIndex);
-						my $use_threshold_period = $config->{"threshold_period-default"} || "-15 minutes";
+						#my $use_threshold_period = $config->{"threshold_period-default"} || "-15 minutes";
+						# last 24 hours!
+						my $use_threshold_period = "-24 hours";
 						my $now = time();
 						my $endHuman = NMISNG::Util::returnDateStamp($now);
 						my $currentStats = Compat::NMIS::getSummaryStats(sys=>$S,type=>$type,start=>$use_threshold_period,end=>$now,index=>$ifIndex);
@@ -118,8 +128,13 @@ else {
 						my $ifInDiscardsProc = $currentStats->{$ifIndex}{ifInDiscardsProc};
 						my $ifInErrorsProc = $currentStats->{$ifIndex}{ifInErrorsProc};
 
+						my $ifOutDiscards = $currentStats->{$ifIndex}{ifOutDiscards};
+						my $ifOutErrors = $currentStats->{$ifIndex}{ifOutErrors};
+						my $ifInDiscards = $currentStats->{$ifIndex}{ifInDiscards};
+						my $ifInErrors = $currentStats->{$ifIndex}{ifInErrors};
+
 						if ( $ifOutDiscardsProc > 0 or $ifOutErrorsProc > 0 or $ifInDiscardsProc > 0 or $ifInErrorsProc > 0 ) {
-							my @row = ($node,$ifIndex,$interfaces{$ifIndex}->{ifDescr},$interfaces{$ifIndex}->{Description},$ifInDiscardsProc,$ifInErrorsProc,$ifOutDiscardsProc,$ifOutErrorsProc);
+							my @row = ($node,$ifIndex,$interfaces{$ifIndex}->{ifDescr},$interfaces{$ifIndex}->{Description},$ifInDiscards,$ifInErrors,$ifOutDiscards,$ifOutErrors,$ifInDiscardsProc,$ifInErrorsProc,$ifOutDiscardsProc,$ifOutErrorsProc);
 							printRow(\@row);							
 						}
 					}

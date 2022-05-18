@@ -58,6 +58,10 @@ sub update_plugin
 
 	return (0,undef) if (!@$vtpids);
 
+	# not all Cisco models support this method, 
+	my $catchalldata = $S->inventory( concept => 'catchall' )->data();
+	return (0,undef) if ($catchalldata->{nodeModel} =~ /CiscoNXOS/);
+
 	my $status = {
 		'1' => 'other',
 		'2' => 'invalid',

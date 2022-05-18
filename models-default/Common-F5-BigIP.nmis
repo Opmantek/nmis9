@@ -1,5 +1,5 @@
 #
-# $Id: Model-F5-BigIP.nmis,v1.2 2022/04/20 simonm Exp $
+# $Id: Model-F5-BigIP.nmis,v1.3 2022/04/20 simonm Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -33,6 +33,7 @@
 # v1.0 - 9 Mar 22 - released for use
 # v1.1 - 14 Mar 22 - minor updates
 # v1.2 - Minor graphing updates
+# v1.3
 #
 #
 #OIDs 
@@ -53,6 +54,7 @@
       'F5_Pools' => '/nodes/$node/health/F5_Pools-$index.rrd',
       'F5_Swap_Memory' => '/nodes/$node/health/F5_Swap_Memory.rrd',
       'F5_Storage' => '/nodes/$node/health/F5_Storage-$index.rrd',
+      'F5_APM_ActiveSess' => '/nodes/$node/health/F5_APM_ActiveSess.rrd',
     }
   },
   'heading' => {
@@ -63,6 +65,7 @@
       'F5-TempGraph' => 'F5 Temperature',
       'F5-Swap-Memory' => 'F5 Swap Memory Usage',
       'F5-Storage' => 'F5 Physical Memory',
+      'F5-APM_ActiveSess' => 'F5 APM Active Sessions', 
     }
   },  
   'threshold' => {
@@ -373,10 +376,7 @@
   },
 
   'system' => {
-    'nodegraph' => 'health,F5-Memory,F5-Connection,response,F5-Swap-Memory',
-    'nodeModel' => 'F5-BigIP',
-    'nodeType' => 'Server',
-    'nodeVendor' => 'F5 Labs, Inc.',
+    'nodegraph' => 'health,F5-Memory,F5-Connection,response,F5-Swap-Memory,F5-APM_ActiveSess',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -536,6 +536,16 @@
             'oid' => '1.3.6.1.4.1.3375.2.1.1.2.1.8.0',
             'title' => 'The current connections from client',
             'option' => 'gauge,0:U'
+          },
+        },
+      },
+      'F5_APM_ActiveSess' => {
+       'graphtype' => 'F5-APM_ActiveSess',
+          'snmp' => {
+            'apmCurActiveSess' => {
+            'oid' => '1.3.6.1.4.1.3375.2.6.1.4.3.0',
+            'title' => 'Active Sessions',
+            'option' => 'gauge,U:U'
           },
         },
       },

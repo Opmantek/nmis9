@@ -96,6 +96,16 @@ then
 	DEBUG="job.verbosity=2"
 fi
 
+if [ "$3" = "debug3" ]
+then
+	DEBUG="job.verbosity=3"
+fi
+
+if [ "$3" = "debug5" ]
+then
+	DEBUG="job.verbosity=5"
+fi
+
 if [ "$2" = "debug" ]
 then
 	DEBUG="debug=true"

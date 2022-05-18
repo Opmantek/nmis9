@@ -100,6 +100,11 @@
       }
     },
   }, 
+  'system' => {
+    'nodeModel' => 'F5-BigIP',
+    'nodeType' => 'Server',
+    'nodeVendor' => 'F5 Labs, Inc.',
+  }, 
   'systemHealth' => {
     'sections' => 'F5_CPU,F5_Pools,F5_Storage,F5_Temperature,VirtualServTable',
     'sys' => {

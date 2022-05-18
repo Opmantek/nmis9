@@ -1,5 +1,5 @@
 #
-## $Id: Graph-Storage.nmis,v 0.1 2022/14/02 simonm Exp $
+## $Id: Graph-F5-APM_ActiveSess.nmis,v 0.1 06/05/2022 simonm Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -30,28 +30,25 @@
 # *****************************************************************************
 
 %hash = (
-	'heading' => 'F5 Storage',
+	'heading' => 'F5 APM Active Sessions',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'short' => 'F5 APM Active Sessions.'
 	},
 	'vlabel' => {
-		'standard' => '% Disk Used'
+		'standard' => 'Active Sessions'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:perUsed=$database:DiskUsedPerc:AVERAGE',
-			'AREA:perUsed#00FFFF: % Disk Used',
-			'GPRINT:perUsed:LAST:Current %1.1lf%%',
-			'GPRINT:perUsed:AVERAGE:Average %1.1lf%%\\n',
-			'GPRINT:perUsed:MAX:Maximum %1.1lf%%\\n'
+			'DEF:apmCurActiveSess=$database:apmCurActiveSess:AVERAGE',
+			'LINE2:apmCurActiveSess#ffbf00: Active Sessions',
+			'GPRINT:apmCurActiveSess:AVERAGE: %1.0lf\\n',
 		],
 		'small' => [
-			'DEF:perUsed=$database:DiskUsedPerc:AVERAGE',
-			'AREA:perUsed#00FFFF: % Disk Used',
-			'GPRINT:perUsed:LAST:Current %1.1lf%%',
-			'GPRINT:perUsed:AVERAGE:Average %1.1lf%%\\n',
-			'GPRINT:perUsed:MAX:Maximum %1.1lf%%\\n'
+			'DEF:apmCurActiveSess=$database:apmCurActiveSess:AVERAGE',
+			'LINE2:apmCurActiveSess#ffbf00: Active Sessions',
+			'GPRINT:apmCurActiveSess:AVERAGE: %1.0lf\\n',
+		
 		]
 	}
 );
