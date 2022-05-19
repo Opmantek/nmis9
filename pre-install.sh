@@ -53,6 +53,17 @@ check_set_strict_sh()
 }
 check_set_strict_sh;
 
+
+# lets be environment aware
+if [ -f /etc/environment ]; then
+        # shellcheck disable=SC1091
+        . /etc/environment;
+fi;
+if [ -n "${PAR_GLOBAL_TMPDIR:-}" ]; then
+        export PAR_GLOBAL_TMPDIR;
+fi;
+
+
 # COPIED FROM bin/installer_hooks/common_functions.sh
 # guesses os and sets $OSFLAVOUR to debian, ubuntu, redhat or '',
 # also sets OS_VERSION, OS_MAJOR, OS_MINOR (and OS_PATCH if it exists),
