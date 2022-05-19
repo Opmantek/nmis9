@@ -96,6 +96,8 @@ sub update_plugin
 			$atdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$atindex&node=$node";
 			$atdata->{ifDescr_id} = "node_view_$node";
 			$changesweremade = $mustsave = 1;
+
+			$atdata->{Description} = $ifdata{$atindex}->{Description};
 		}
 
 		if ($mustsave)

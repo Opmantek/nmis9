@@ -32,12 +32,15 @@
   'systemHealth' => {
     'sys' => {
       'addressTable' => {
-        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
+        'headers' => 'ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ifDescr,Description,ipNetToMediaIfIndex,ipNetToMediaType',
         'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'ipNetToMediaIfIndex',
         'snmp' => {
           'ifDescr' => {
             'title' => 'Interface'
+          },
+          'Description' => {
+            'title' => 'Intf. Description'
           },
           'ipNetToMediaIfIndex' => {
             'oid' => 'ipNetToMediaIfIndex',
