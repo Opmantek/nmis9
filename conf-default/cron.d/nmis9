@@ -12,14 +12,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # m h dom month dow user command
 
 # create reports, Daily Monthly Weekly
-9 0 * * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=day type=all
-9 1 * * 0  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=week type=all
-9 2 1 * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=month type=all
+9 0 * * *	root	export $(/usr/bin/xargs < /etc/environment)||:;	/usr/local/nmis9/bin/nmis-cli act=run-reports period=day type=all
+9 1 * * 0	root	export $(/usr/bin/xargs < /etc/environment)||:;	/usr/local/nmis9/bin/nmis-cli act=run-reports period=week type=all
+9 2 1 * *	root	export $(/usr/bin/xargs < /etc/environment)||:;	/usr/local/nmis9/bin/nmis-cli act=run-reports period=month type=all
 
 # performance data
-*/5 * * * * root /usr/local/nmis9/bin/nmis-cli act=collect-top-data > /dev/null
-0 * * * *  root /usr/local/nmis9/bin/nmis-cli act=collect-performance-data > /dev/null
+*/5 * * * *	root	export $(/usr/bin/xargs < /etc/environment)||:;	/usr/local/nmis9/bin/nmis-cli act=collect-top-data > /dev/null
+0 * * * *	root	export $(/usr/bin/xargs < /etc/environment)||:;	/usr/local/nmis9/bin/nmis-cli act=collect-performance-data > /dev/null
 
 # Monitor daemon
-*/5 * * * * root /usr/local/nmis9/admin/check_daemons.pl act=check-daemons start=1 quiet=1 verbose=1
+*/5 * * * *	root	export $(/usr/bin/xargs < /etc/environment)||:;	/usr/local/nmis9/admin/check_daemons.pl act=check-daemons start=1 quiet=1 verbose=1
 
