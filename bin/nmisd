@@ -220,6 +220,7 @@ if ( !-d $tmpdir )
 {
 	NMISNG::Util::createDir($tmpdir);
 }
+NMISNG::Util::verifyNMISEncryption();
 
 while (!$exit_marker)
 {

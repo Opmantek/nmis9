@@ -454,7 +454,7 @@ sub collect_evidence
 	# what's the mongo access configuration?
 	my @mongoargs = ("--quiet", 	# no heading, just json output please!
 									 "--username", $globalconf->{db_username},
-									 "--password", $globalconf->{db_password},
+									 "--password", NMISNG::Util::decrypt($globalconf->{db_password}, 'database', 'db_password'),
 									 "--host", $globalconf->{db_server},
 									 "--port", $globalconf->{db_port});
 	my $status = system("type mongo >/dev/null 2>&1");
@@ -853,7 +853,7 @@ sub collect_bot_data
 		my ($query, $data) = @$_;
 		my @mongoargs = ("--quiet", 	# no heading, just json output please!
 								 "--username", $globalconf->{db_username},
-								 "--password", $globalconf->{db_password},
+								 "--password", NMISNG::Util::decrypt($globalconf->{db_password}, 'database', 'db_password'),
 								 "--host", $globalconf->{db_server},
 								 "--port", $globalconf->{db_port});
 		my $run = "mongo @mongoargs $dbname --eval \"$query\"";

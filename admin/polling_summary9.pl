@@ -37,6 +37,7 @@ use Data::Dumper;
 use NMISNG;
 use NMISNG::Util;
 use NMISNG::rrdfunc;
+use Compat::NMIS;
 
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 my $config = NMISNG::Util::loadConfTable( dir => undef, debug => undef, info => undef);

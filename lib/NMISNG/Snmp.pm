@@ -257,7 +257,8 @@ sub open
 	my @authopts = ();
 	if ($self->{config}->{version} =~ /^snmpv(1|2c)$/)
 	{
-		push(@authopts, "-community"	=> $self->{config}->{community}, );
+		push(@authopts, "-community"	=> NMISNG::Util::decrypt($self->{config}->{community}),);
+		$self->nmisng->log->debug3(&NMISNG::Log::trace() . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, community *********, context $self->{config}->{context}");
 	}
 	elsif ($self->{config}->{version} eq 'snmpv3')
 	{
@@ -268,27 +269,30 @@ sub open
 
 		if ($self->{config}->{authkey})
 		{
-			push(@authopts, "-authkey" => $self->{config}->{authkey} );
+			push(@authopts, "-authkey" => NMISNG::Util::decrypt($self->{config}->{authkey}));
 		}
 		elsif ($self->{config}->{authpassword})
 		{
-				push(@authopts, "-authpassword" => $self->{config}->{authpassword});
+				push(@authopts, "-authpassword" => NMISNG::Util::decrypt($self->{config}->{authpassword}));
 		}
 
 		if ($self->{config}->{privkey})
 		{
-			push(@authopts, "-privkey" => $self->{config}->{privkey});
+			push(@authopts, "-privkey" => NMISNG::Util::decrypt($self->{config}->{privkey}));
 		}
 		elsif ($self->{config}->{privpassword})
 		{
-			push(@authopts, "-privpassword" => $self->{config}->{privpassword});
+			push(@authopts, "-privpassword" => NMISNG::Util::decrypt($self->{config}->{privpassword}));
 		}
+		$self->nmisng->log->debug3(&NMISNG::Log::trace() . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, username $self->{config}->{username}, context $self->{config}->{context}, authprotocol $self->{config}->{authprotocol}, authkey ********, authpassword ********, privprotocol $self->{config}->{privprotocol}, privkey ********, privpassword ********");
+	}
+	else
+	{
+		$self->nmisng->log->error("Unrecognized or missing SNMP version: '$self->{config}->{version}'");
+		return undef;
 	}
 
 	# now actually open the SNMP session
-	$self->nmisng->log->debug3(&NMISNG::Log::trace()
-														 . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, community $self->{config}->{community}, context $self->{config}->{context}");
-
 	($self->{session}, $self->{error}) =
 			Net::SNMP->session(
 				-domain		=> $self->{config}->{domain},

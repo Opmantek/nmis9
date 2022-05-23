@@ -136,7 +136,7 @@ my %hash = (
 																validate => { 'int' => [ 1, 65535] }}},
 			{ 'mail_server_ipproto' => { display => "popup", value => ['','ipv4','ipv6']}},
 			{ 'mail_user' => { display => "text", value => ['your mail username']}},
-			{ 'mail_password' => { display => "text", value => ['']}}
+			{ 'mail_password' => { display => "password", value => ['']}}
 				],
 
 		'menu' => [
@@ -277,7 +277,7 @@ my %hash = (
 			{ db_name =>  { display => "text", value => [ "nmisng" ] ,
 											validate => { 'regex' => qr/^[a-zA-Z0-9_-]{1,63}$/ }}},
 
-			{ db_password => { display => "text", value => ["op42flow42"],
+			{ db_password => { display => "password", value => ["op42flow42"],
 												 validate => { 'regex' => qr/^.+$/}}},
 
 			{ db_port => { display => "text", value => ["27017"],
