@@ -1693,6 +1693,7 @@ sub properties_never_override
 sub readConfData
 {
 	my %args = @_;
+	my $logger;
 
 	my $C = loadConfTable;
 	my $fn = $C->{configfile};
@@ -1700,11 +1701,19 @@ sub readConfData
 	my $rawdata = NMISNG::Util::readFiletoHash(file => $fn);
 
 	my $fnp = $C->{configpeerfiles};
-	my $nmisng = Compat::NMIS::new_nmisng();
+	if (defined($args{log})) 
+	{
+		$logger = $args{log};
+	}
+	else
+	{
+		my $nmisng = Compat::NMIS::new_nmisng();
+		$logger  = $nmisng->log;
+	}
 	
 	if ($args{only_local} ne 1)
 	{
-		$nmisng->log->info("Reading config properties from master. ");
+		$logger->info("Reading config properties from master. ");
 		eval {
 			foreach ( @{$fnp} ) {
 			
@@ -1724,12 +1733,12 @@ sub readConfData
 						else
 						{
 							# FIXME: Support nested config values
-							$nmisng->log->warn($kk . " is a hash. Not being merged");
+							$logger->warn($kk . " is a hash. Not being merged");
 						}
 					}
 				}
 			}
-		}; if ($@) { $nmisng->log->warn("Error reading config peer files. Show local config " . $@); }
+		}; if ($@) { $logger->warn("Error reading config peer files. Show local config " . $@); }
 	}
 
 	return ($rawdata, $fn);
@@ -3331,30 +3340,23 @@ sub getTmpDir {
 	return $C->{"<nmis_tmp>"} || $C->{"<nmis_var>"} . "/tmp" || "/tmp";
 }
 
+
 ########################################################################
 # verifyNMISEncryption - Verify Password encrypred strings.
 ########################################################################
 sub verifyNMISEncryption {
+	my (%args) = @_;
 	my $config;
-	my $logger;
 	my $fh;
+	my $logger  = $args{log};
 	my $changed = 0;
 
-	{
-		my $nmisng  = Compat::NMIS::new_nmisng();
-		if (defined($nmisng)) {
-			$config  = $nmisng->config;
-			$logger  = $nmisng->log;
-		} else {
-			$config = loadConfTable();
-			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
-			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-		}
-	}
+	$config = loadConfTable();
+
 	my $nmis_encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	if ($nmis_encryption_enabled)
 	{
-		my ($fullConfig,undef) = readConfData(only_local => 1);
+		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
 		{
@@ -3438,7 +3440,7 @@ sub verifyNMISEncryption {
 	}
 	else
 	{
-		my ($fullConfig,undef) = readConfData(only_local => 1);
+		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
 	   	{
@@ -3526,34 +3528,18 @@ sub verifyNMISEncryption {
 # decrypt - Decrypt the password.                                      #
 ########################################################################
 sub decrypt {
-	my ($password, $section, $keyword, $use_nmisng) = @_;
+	my ($password, $section, $keyword) = @_;
 	my $config;
 	my $logger;
 
 	{
-		# We cannot call Compat::NMIS::new_nmisng() here without $use_nmisng==0 (defaults to 1) from /usr/local/nmis9/admin/setup_mongodb.pl.
-		# This decrypt() function is called by /usr/local/nmis9/admin/setup_mongodb.pl during first install
-		# before our mongo setup has completed to get the potentially decrypted password.
-		# Compat::NMIS::new_nmisng() then attempts to make a mongo connection (but we are still setting up mongo at this point).
-		# This attempted connection causes Authentication failed error and causes MongoDB to always fail thereafter:
-		#	"Cannot connect to MongoDB: Error Connecting to Database localhost:27017: MongoDB::AuthError:
-		#	 Authentication to localhost:27017 failed: SCRAM-SHA-1 error: Authentication failed."
-		my $nmisng;
-		if ($use_nmisng // 1)
-		{
-			$nmisng  = Compat::NMIS::new_nmisng();
-		}
-		if (defined($nmisng)) {
-			$config  = $nmisng->config;
-			$logger  = $nmisng->log;
-		} else {
-			$config = loadConfTable();
-			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
-			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-		}
+		$config = loadConfTable();
+		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+		$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	}
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	$logger->info("Encryption is '" . $encryption_enabled . "'.");
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
@@ -3579,7 +3565,7 @@ sub decrypt {
 			# dealing with the configuration file, so we we encrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = readConfData(only_local => 1);
+				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 				my $encrypted_pw = encrypt($password);
 				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
@@ -3599,8 +3585,14 @@ sub decrypt {
 	if (open($fh, '<', $seedfile)) {
 		my $seed = <$fh>;
 		close $fh;
-		my $cipherHandle = Crypt::CBC->new({key => $seed, pbkdf=>'pbkdf2', cipher => 'Cipher::AES'});
+		chomp($seed);
+		my $cipherHandle = Crypt::CBC->new( -pass   => "$seed",
+											-cipher => 'Cipher::AES',
+											-pbkdf  => 'pbkdf2',
+											-salt   => 'Opmantek'
+											);
 		$password        = eval { $cipherHandle->decrypt_hex($password); };
+		$password        = $cipherHandle->decrypt_hex($password);
 		if ($@) {
 			$logger->error("Password decryption failure.");
 			$password = "";
@@ -3613,7 +3605,7 @@ sub decrypt {
 				# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
 				if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 					# Get the non-flattened raw hash
-					my ($fullConfig,undef) = readConfData(only_local => 1);
+					my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 					if ($fullConfig->{$section}{$keyword} ne $password) {
 						$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
@@ -3641,17 +3633,12 @@ sub encrypt {
 	my $logger;
 
 	{
-		my $nmisng  = Compat::NMIS::new_nmisng();
-		if (defined($nmisng)) {
-			$config  = $nmisng->config;
-			$logger  = $nmisng->log;
-		} else {
-			$config = loadConfTable();
-			my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
-			$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-		}
+		$config = loadConfTable();
+		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+		$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	}
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	$logger->info("Encryption is '" . $encryption_enabled . "'.");
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
@@ -3678,7 +3665,7 @@ sub encrypt {
 			# dealing with the configuration file, so we we decrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = readConfData(only_local => 1);
+				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
 					$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
@@ -3697,10 +3684,15 @@ sub encrypt {
 	if (open($fh, '<', $seedfile)) {
 		my $seed = <$fh>;
 		close $fh;
+		chomp($seed);
 		$strLen	   = sprintf("%03d", length($password));
 		$password  = $strLen.$password;
 
-		my $cipherHandle = Crypt::CBC->new({key => $seed, pbkdf=>'pbkdf2', cipher => 'Cipher::AES'});
+		my $cipherHandle = Crypt::CBC->new( -pass   => "$seed",
+											-cipher => 'Cipher::AES',
+											-pbkdf  => 'pbkdf2',
+											-salt   => 'Opmantek'
+											);
 		$password        = eval { $cipherHandle->encrypt_hex($password); };
 		$password        = "!!" . $password;
 		if ($@) {
@@ -3756,4 +3748,3 @@ sub _make_seed {
 }
 
 1;
-

@@ -83,7 +83,7 @@ if ($helpsw) {
 my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
 
  act=fixperms
- act=gettmp
+ act=gettmp (or act=gettemp)
  act=config-backup
  act=ensure-indexes
  act=noderefresh
@@ -255,9 +255,6 @@ warn "failed to set permissions: $error\n" if ($error);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 																 debug => $debug ) // $C->{log_level},
 																 path  => ($debug > 0)? undef : $logfile);
-
-# Get temporary directory
-my $tmp = NMISNG::Util::getTmpDir();
 
 # Get temporary directory
 my $tmp = NMISNG::Util::getTmpDir();
@@ -939,9 +936,9 @@ elsif ($Q->{act} =~ /ensure[_-]indexes/)
 {
 	print $nmisng->ensure_indexes();
 }
-elsif ($Q->{act} eq "gettmp")
+elsif ($Q->{act} eq "gettmp" || $Q->{act} eq "gettemp")
 {
-	print "$tmp";
+	print "$tmp\n";
 }
 elsif ($Q->{act} eq "fixperms")
 {
@@ -1453,7 +1450,7 @@ sub help
    push(@lines, "     act=fixperms\n");
    push(@lines, "                     This action fixes incorrect file permissions in the NMIS\n");
    push(@lines, "                     installation. It should be run as root!\n");
-   push(@lines, "     act=gettmp\n");
+   push(@lines, "     act=gettmp (or act=gettemp)\n");
    push(@lines, "                     This action simply returns the configured temporary directory\n");
    push(@lines, "                     for this installation.\n");
    push(@lines, "     act=noderefresh\n");
