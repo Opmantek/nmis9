@@ -3340,7 +3340,6 @@ sub getTmpDir {
 	return $C->{"<nmis_tmp>"} || $C->{"<nmis_var>"} . "/tmp" || "/tmp";
 }
 
-
 ########################################################################
 # verifyNMISEncryption - Verify Password encrypred strings.
 ########################################################################
@@ -3539,7 +3538,7 @@ sub decrypt {
 	}
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
-	$logger->info("Encryption is '" . $encryption_enabled . "'.");
+	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
@@ -3586,15 +3585,20 @@ sub decrypt {
 		my $seed = <$fh>;
 		close $fh;
 		chomp($seed);
-		my $cipherHandle = Crypt::CBC->new( -pass   => "$seed",
+		my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
 											-cipher => 'Cipher::AES',
 											-pbkdf  => 'pbkdf2',
 											-salt   => 'Opmantek'
 											);
-		$password        = eval { $cipherHandle->decrypt_hex($password); };
-		$password        = $cipherHandle->decrypt_hex($password);
-		if ($@) {
-			$logger->error("Password decryption failure.");
+		my $error = 0;
+		eval {  $password = $cipherHandle->decrypt_hex($password);
+				1;  # always return true to indicate success
+			 }
+			 or do {
+				$error = $@ || 'Unknown failure';
+			 };
+		if ($error) {
+			$logger->error("Password decryption failure.; Error $error");
 			$password = "";
 		} else {
 			$strLen   = substr($password, 0, 3);
@@ -3638,7 +3642,7 @@ sub encrypt {
 		$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	}
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
-	$logger->info("Encryption is '" . $encryption_enabled . "'.");
+	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
@@ -3688,16 +3692,23 @@ sub encrypt {
 		$strLen	   = sprintf("%03d", length($password));
 		$password  = $strLen.$password;
 
-		my $cipherHandle = Crypt::CBC->new( -pass   => "$seed",
+		my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
 											-cipher => 'Cipher::AES',
 											-pbkdf  => 'pbkdf2',
 											-salt   => 'Opmantek'
 											);
-		$password        = eval { $cipherHandle->encrypt_hex($password); };
-		$password        = "!!" . $password;
-		if ($@) {
-			$logger->error("Password encryption failure.");
+		my $error = 0;
+		eval {  $password = $cipherHandle->encrypt_hex($password);
+				1;  # always return true to indicate success
+			 }
+			 or do {
+				$error = $@ || 'Unknown failure';
+			 };
+		if ($error) {
+			$logger->error("Password encryption failure.; Error $error");
 			$password = "";
+		} else {
+			$password = "!!" . $password;
 		}
 	} else {
 		$logger->error("Password encryption failure.");
