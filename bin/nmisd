@@ -96,15 +96,21 @@ my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 Mojo::File->new($logfile)->spurt("") if (!-f $logfile);
 NMISNG::Util::setFileProtDiag(file =>$logfile) if (-f $logfile);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
-																 debug => $cmdline->{debug}) // $config->{log_level},
-															 path  =>  (defined($cmdline->{debug})? undef : $logfile));
-# this opens a database connection - which we must not share with any children!
-my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
-&NMISNG::rrdfunc::require_RRDs;
+							   debug => $cmdline->{debug}) // $config->{log_level},
+							   path  =>  (defined($cmdline->{debug})? undef : $logfile));
 
 # Temporary directory
 my $tmpdir = $config->{"<nmis_tmp>"} || $config->{"<nmis_var>"} . "/tmp" || "/tmp";
 $ENV{NMISTMPDIR} = "$tmpdir";
+if ( !-d $tmpdir )
+{
+	NMISNG::Util::createDir($tmpdir);
+}
+NMISNG::Util::verifyNMISEncryption(log => $logger);
+
+# this opens a database connection - which we must not share with any children!
+my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
+&NMISNG::rrdfunc::require_RRDs;
 
 # make sure that no more than one daemon runs
 my $varsysdir = $config->{'<nmis_var>'} . "/nmis_system";
@@ -215,12 +221,6 @@ $SIG{"TERM"} = $SIG{"INT"} = sub {
 
 # signal handler for USR1/USR2 is just for this process
 $SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
-
-if ( !-d $tmpdir )
-{
-	NMISNG::Util::createDir($tmpdir);
-}
-NMISNG::Util::verifyNMISEncryption();
 
 while (!$exit_marker)
 {
