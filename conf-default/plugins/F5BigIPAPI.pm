@@ -42,7 +42,7 @@
 # TODO, do we need the databaseDir?
 
 package F5BigIPAPI;
-our $VERSION = "1.1.0";
+our $VERSION = "1.0.0";
 
 use strict;
 use warnings;
@@ -89,10 +89,11 @@ sub collect_plugin
 		return (1,undef);
 	}
 
-	if (!defined $f5Data) {
+	if (!defined $f5Data || ref($f5Data) ne "HASH") {
 		$NG->log->error("ERROR with $node: Got no data!");
 		return (1,undef);
 	}
+	my %f5DataHash = $f5Data;
 
 	# this is the concept/section we are working on
 	my $section = "VirtualServTable";
@@ -101,12 +102,11 @@ sub collect_plugin
 	my $VirtualServs = $S->nmisng_node->get_inventory_ids(
 		concept => $section,
 		filter => { historic => 0 });
-
-	$NG->log->debug2("Virtual Serv: ". Dumper($VirtualServs));
-
+	
 	# do we have some inventory?
 	if (@$VirtualServs)
 	{
+		$NG->log->debug("Virtual Serv: ". Dumper($VirtualServs));
 		# process each inventory thing, matching it to the API data using the index/name
 		foreach my $serv_id (@$VirtualServs)
 		{
@@ -130,7 +130,12 @@ sub collect_plugin
 			$NG->log->debug("Virtual Serv Name: $name, $serv_id");
 
 			# get the F5 data out.
-			my $f5SubData = %$f5Data{$name};
+			if (!defined($f5DataHash{$name}) || ref($f5DataHash{$name}) ne "HASH")
+			{
+				$NG->log->error("Failed to get inventory for $serv_id");
+				next;
+			}
+			my $f5SubData = $f5DataHash{$name};
 			$NG->log->debug2(Dumper($f5SubData));
 
 			# TODO what possible values are they 100 is good, less than 100 is bad.
@@ -212,10 +217,12 @@ sub update_plugin
 		return (1,undef);
 	}
 
-	if (!defined $f5Data) {
+	if (!defined $f5Data || ref($f5Data) ne "HASH") {
 		$NG->log->error("ERROR with $node: Got no data!");
 		return (1,undef);
 	}
+	my %f5DataHash = $f5Data;
+
 	$changesweremade = 1;
 
 	my $section = "VirtualServTable";
@@ -234,7 +241,13 @@ sub update_plugin
 	foreach my $name (keys(%$f5Data))
 	{
 		$NG->log->debug("Processing $section Index: '$name'");
-		my $f5SubData   = %$f5Data{$name};
+		# get the F5 data out.
+		if (!defined($f5DataHash{$name}) || ref($f5DataHash{$name}) ne "HASH")
+		{
+			$NG->log->error("Failed to get inventory for $name");
+			next;
+		}
+		my $f5SubData = $f5DataHash{$name};
 		$NG->log->debug4(Dumper($f5SubData));
 
 		$NG->log->debug2("section=$section index=$name read and stored");
@@ -243,48 +256,48 @@ sub update_plugin
 		$NG->log->debug4( "$section path ".join(',', @$path));
 
 		# now get-or-create an inventory object for this new concept
-		my ( $inventory, $error_message ) = $nodeobj->inventory(
+		my ( $subInventory, $error_message ) = $nodeobj->inventory(
 			create    => 1,
 			concept   => $section,
 			data      => $f5SubData,
 			path_keys => $path_keys,
 			path      => $path
 		);
-		$NG->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+		$NG->log->error("Failed to create inventory, error:$error_message") && next if ( !$subInventory );
 		
 		# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-		$inventory->path( recalculate => 1 );
-		$inventory->data($f5SubData);
-		$inventory->historic(0);
-		$inventory->enabled(1);
+		$subInventory->path( recalculate => 1 );
+		$subInventory->data($f5SubData);
+		$subInventory->historic(0);
+		$subInventory->enabled(1);
 
 		# set which columns should be displayed
-		$inventory->data_info(
+		$subInventory->data_info(
 			subconcept => $section,
 			enabled => 1,
 			display_keys => $f5Info
 		);
 
-		$inventory->description( $name );
+		$subInventory->description( $name );
 
 		# get the RRD file name to use for storage.
 		my $dbname = $S->makeRRDname(graphtype => $section,
 									index      => $name,
-									inventory  => $inventory,
+									inventory  => $subInventory,
 									relative   => 1);
 		$NG->log->debug("Collect F5 API data info check storage $section, dbname $dbname");
 
 		# set the storage name into the inventory model
-		$inventory->set_subconcept_type_storage(type => "rrd",
+		$subInventory->set_subconcept_type_storage(type => "rrd",
 														subconcept => $section,
 														data => $dbname) if ($dbname);
 
 		# the above will put data into inventory, so save
-		my ( $op, $error ) = $inventory->save();
+		my ( $op, $subError ) = $subInventory->save();
 		$NG->log->debug2( "saved ".join(',', @$path)." op: $op");
-		if ($error)
+		if ($subError)
 		{
-			$NG->log->error("Failed to save inventory for Virtual Server '$name': $error") if ($error);
+			$NG->log->error("Failed to save inventory for Virtual Server '$name': $subError");
 		}
 		else
 		{
