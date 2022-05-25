@@ -1,0 +1,24 @@
+%hash = (
+	'title' => {
+		'heading' => 'Battery Temperature',
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Battery Temperature'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:vpwrBatteryTemp=$database:vpwrBatteryTemp:AVERAGE',
+			'LINE1:vpwrBatteryTemp#00BFFF:Battery Temperature',					   
+			'GPRINT:vpwrBatteryTemp:MIN:Minimum %1.2lf',
+			'GPRINT:vpwrBatteryTemp:AVERAGE:Avg %1.2lf',
+			'GPRINT:vpwrBatteryTemp:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:vpwrBatteryTemp=$database:vpwrBatteryTemp:AVERAGE',
+			'LINE1:vpwrBatteryTemp#00BFFF:Battery Temperature',					   
+			'GPRINT:vpwrBatteryTemp:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

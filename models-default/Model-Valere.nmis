@@ -1,0 +1,493 @@
+
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database' => {
+				'common-model' => 'database'
+			},
+			'threshold' => {
+				'common-model' => 'threshold'
+			},
+			'summary' => {
+				'common-model' => 'summary'
+			},
+			'stats' => {
+				'common-model' => 'stats'
+			},
+			'event' => {
+				'common-model' => 'event'
+			}
+		}
+	},
+	'database' => {
+		'type' => {
+			'ModuleIdent' => '/nodes/$node/health/ModuleIdent-$index.rrd',
+			'BatteryTemp' => '/nodes/$node/health/BatteryTemp-$index.rrd',
+			'PowerSystem' => '/nodes/$node/health/PowerSystem-$index.rrd'
+		},
+	},
+	#'heading' => {
+	#	'graphtype' => {
+	#		'EltekCurrents'  => 'Current',
+	#		#'comment'        => 'An empty Common Headings for back compat to NMIS8 models'
+	#	},
+	#},
+	'systemHealth' => {
+		'sections' => 'ModuleIdent,PowerSystem,BatteryTemp',
+		'sys' => {
+			'ModuleIdent' => {
+				'indexed'     => 'vpwrModuleIdentBayIndex',
+				'index_regex' => '1\.3\.6\.1\.4\.1\.13858\.6\.1\.1\.1\.(\d+\.\d+)$',
+				'index_oid' => '1.3.6.1.4.1.13858.6.1.1.1',
+				'headers' => 'vpwrModuleSerialNumber,vpwrModuleModelNumber,vpwrModuleFwVersion,vpwrModuleTestDate,vpwrModuleOperHours',
+				#'headers' => 'vpwrModuleIdentBayIndex,vpwrModuleIdentModuleIndex,vpwrModuleSerialNumber,vpwrModuleModelNumber,vpwrModuleFwVersion,vpwrModuleTestDate,vpwrModuleOperHours',
+				'snmp' => {
+					'vpwrModuleIdentBayIndex' => {
+						'oid' => '1.3.6.1.4.1.13858.6.1.1.1',
+						'title' => 'Bay Index',
+						'comment' => 'The possible values are 1 through 16 limited by vpwrSystemShelfCapacity. The shelf that contains the controller is identified as shelf number 1.'
+					},
+					'vpwrModuleIdentModuleIndex' => {
+						'oid' => '1.3.6.1.4.1.13858.6.1.1.2',
+						'title' => 'Module Index'
+					},
+					'vpwrModuleSerialNumber' => {
+						'oid' => '1.3.6.1.4.1.13858.6.1.1.3',
+						'title' => 'Serial Number',
+						'comment' => 'Serial Number of the module.'
+					},
+					'vpwrModuleModelNumber' => {
+						'oid' => '1.3.6.1.4.1.13858.6.1.1.4',
+						'title' => 'Model Number',
+						'comment' => 'Date when the module was last tested.'
+					},
+					'vpwrModuleFwVersion' => {
+						'oid' => '1.3.6.1.4.1.13858.6.1.1.5',
+						'title' => 'Module Firmware',
+						'comment' => 'Firmware version of the module.',
+						'replace' => {
+							'noSuchObject' => 'Unknown'
+						}
+					},
+
+				}
+			},	#section
+			'PowerSystem' => {
+				'indexed'	 => 'vpwrBayIndex',
+				'index_regex' => '1\.3\.6\.1\.4\.1\.13858\.2\.1\.6\.1\.1\.(\d+\.\d+)$',
+				'index_oid' => '1.3.6.1.4.1.13858.2.1.6.1.1',
+				'headers' => 'vpwrModuleOID,vpwrMdulOperStatus,vpwrModuleCurrent',
+				#'headers' => 'vpwrBayIndex,vpwrModuleIndex,vpwrModuleOID,vpwrMdulOperStatus,vpwrModuleCurrent',
+				'snmp' => {
+					'vpwrBayIndex' => {
+						'oid' => '1.3.6.1.4.1.13858.2.1.6.1.1',
+						'title' => 'Bay Index.',
+						'comment' => 'The possible values are 1 through 16 limited by vpwrSystemShelfCapacity. The shelf that contains the controller is identified as shelf number 1.',
+					},
+					'vpwrModuleIndex' => {
+						'oid' => '1.3.6.1.4.1.13858.2.1.6.1.2',
+						'title' => 'Module Index.',
+						'comment' => 'Module numbering starts from the controller/expansion controller end of the shelf. So, the module in the first slot has an index of 1, the next module is 2 and so on. Under the current scheme - Rectifier module can have a number between 1 and 5. - LVD module starts with an index of 6.',
+					},
+					'vpwrModuleOID' => {
+						'oid' => '1.3.6.1.4.1.13858.2.1.6.1.3',
+						'title' => 'Module Type.',
+						'replace' => {
+							'SNMPv2-SMI::enterprises.13858.3' => 'Rectifier',
+							'.1.3.6.1.4.1.13858.3' => 'Rectifier',
+							'1.3.6.1.4.1.13858.3' => 'Rectifier',
+							'SNMPv2-SMI::enterprises.13858.4' => 'LVD',
+							'.1.3.6.1.4.1.13858.4' => 'LVD',
+							'1.3.6.1.4.1.13858.4' => 'LVD'
+						},
+					},
+				},
+			},	#section			
+			'BatteryTemp' => {
+				'indexed' => 'vpwrBatteryTempIndex',
+				'index_regex' => '13858\.7\.1\.1\.1\.1\.(\d+)$',
+				'index_oid' => '1.3.6.1.4.1.13858.7.1.1.1.1',
+				#'headers' => 'vpwrBatteryTempIndex,vpwrBatteryTempName,vpwrBatteryTemp,vpwrBatryTmpLTrshld,vpwrBatryTmpUTrshld',
+				'headers' => 'vpwrBatteryTemp,vpwrBatryTmpLTrshld,vpwrBatryTmpUTrshld',
+				'snmp' => {
+		   			'vpwrBatteryTempIndex' => {
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.1.1.1',
+		   				'title' => 'Index into temperature table',
+		   			},
+		   			'vpwrBatteryTempName' => {
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.1.1.2',
+		   				'title' => 'A string identifying probe location.',
+		   			},
+		   			'vpwrBatteryTemp' => {
+						'graphtype' => 'ValereBattery',
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.1.1.3',
+		   				'title' => 'Current temperature as recorded by the probe.',
+						'replace' => {
+							'-127' => 'notPresent',
+						},
+						'option' => 'gauge,0:U'
+		   			},
+		   			'vpwrBatryTmpLTrshld' => {
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.2',
+		   				'title' => 'Temperature value at which a clear trap would be sent.',
+		   				'comment' => 'All three battery temperature must be at or below this value to trigger this trap.',
+		   			},
+		   			'vpwrBatryTmpUTrshld' => {
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.3',
+		   				'title' => 'Temperature value at which a set trap would be sent.',
+		   				'comment' => 'Any one of the three battery temperatures at or exceeding this limit would trigger the trap.',
+					},
+				},	
+			},	#section
+		},
+		'rrd' => {
+			'ModuleIdent' => {
+				#'graphtype' => 'Graph-EltekCurrents',
+				'indexed'   => 'true',
+				#'threshold' => 'cpuUtil,memUtil',
+				'snmp'      => {
+					'vpwrModuleTestDate' => {
+						'oid' => '1.3.6.1.4.1.13858.6.1.1.6',
+						'title' => 'Module Test Date',
+						'comment' => 'Date when the module was last tested.',
+						'replace' => {
+							'noSuchObject' => 'Unknown'
+						}
+					},
+					'vpwrModuleOperHours' => {
+						'oid' => '1.3.6.1.4.1.13858.6.1.1.7',
+						'title' => 'Module Operating Hrs',
+						'comment' => 'Date when the module was last tested.',
+						'replace' => {
+							'noSuchObject' => 'Unknown'
+						},
+						#'option' => 'gauge,U:U'
+					}
+				} #snmp
+			},  #section	
+			'PowerSystem' => {
+				'indexed'	 => 'vpwrModuleIndex',
+				'index_regex' => '13858\.2\.1\.6\.1\.1\.(\d+\.\d+)$',
+				'snmp' => {
+					'vpwrModuleCurrent' => {
+						'oid' => '1.3.6.1.4.1.13858.2.1.6.1.4',
+						'title' => 'The meaning of this object depends upon the module type which is indicated by vpwrModuleOID as follows - Current for Rectifier module. - Not Applicable for LVD module',
+					},
+					'vpwrMdulOperStatus' => {
+						'oid' => '1.3.6.1.4.1.13858.2.1.6.1.5',
+						'title' => 'This object indicates current over all status of the module.',
+						'replace' => {
+							'0' => 'OK',
+							'1' => 'Alarm',
+							'2' => 'Disabled',
+							'3' => 'Ringer \'A\' On',
+							'4' => 'Ringer \'B\' On',
+							'5' => 'Unknown'
+						},
+					}
+				},
+			},	#section			
+			'BatteryTemp' => {
+				'indexed' => 'true',
+				'graphtype' => 'ValereBattery',
+				'snmp' => {
+		   			'vpwrBatteryTemp' => {
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.1.1.3',
+		   				'title' => 'Current temperature as recorded by the probe.',
+						'replace' => {
+							'-127' => 'notPresent',
+						},
+						'option' => 'gauge,0:U'
+		   			},
+		   			'vpwrBatryTmpLTrshld' => {
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.2',
+		   				'title' => 'Temperature value at which a clear trap would be sent.',
+		   				'comment' => 'All three battery temperature must be at or below this value to trigger this trap.',
+						'replace' => {
+							'noSuchObject' => 'N/A'
+						}
+		   			},
+		   			'vpwrBatryTmpUTrshld' => {
+		   				'oid' => '1.3.6.1.4.1.13858.7.1.3',
+		   				'title' => 'Temperature value at which a set trap would be sent.',
+		   				'comment' => 'Any one of the three battery temperatures at or exceeding this limit would trigger the trap.',
+						'replace' => {
+							'noSuchObject' => 'N/A'
+						}
+					},
+				},	
+				'nocollect' => {
+					'vpwrBatteryTemp' => '-127',
+					'vpwrBatteryTemp' => 'notPresent',
+				}
+			},	#section
+		}  #rrd
+	},
+	'system'	=>	{
+		'nodegraph'	=>	'health,response,ip,ValereBattery',
+		'nodeModel'	=>	'Valere',
+		'nodeType'	=>	'generic',
+		'sys'	=>	{
+			'standard'	=>	{
+				'snmp'	=>	{
+					'sysLocation'	=>	{
+						'replace'	=>	{
+							''	=>	'default'
+						},
+						'oid'	=>	'sysLocation',
+						'title'	=>	'SNMP	Location'
+					},
+					'sysDescr'	=>	{
+						'oid'	=>	'sysDescr',
+						'title'	=>	'Description'
+					},
+					'sysObjectID'	=>	{
+						'oid'	=>	'sysObjectID'
+					},
+					'sysUpTime'	=>	{
+						'oid'	=>	'sysUpTime',
+						'title'	=>	'Uptime'
+					},
+					'ifNumber'	=>	{
+						'oid'	=>	'ifNumber',
+						'title'	=>	'Interfaces'
+					},
+					'sysContact'	=>	{
+						'replace'	=>	{
+							''	=>	'default'
+						},
+						'oid'	=>	'sysContact',
+						'title'	=>	'Contact'
+					},
+					'sysName'	=>	{
+						'oid'	=>	'sysName',
+						'title'	=>	'System	Name',
+					}
+				}
+			}
+		},  #sys	
+		'rrd'	=>	{
+			'mib2ip'	=>	{
+				'snmp'	=>	{
+					'ipInAddrErrors'	=>	{
+						'oid'	=>	'ipInAddrErrors',
+						'option'	=>	'counter,0:U'
+					},
+					'ipFragCreates'	=>	{
+						'oid'	=>	'ipFragCreates',
+						'option'	=>	'counter,0:U'
+					},
+					'ipInDiscards'	=>	{
+						'oid'	=>	'ipInDiscards',
+						'option'	=>	'counter,0:U'
+					},
+					'ipInReceives'	=>	{
+						'oid'	=>	'ipInReceives',
+						'option'	=>	'counter,0:U'
+					},
+					'ipFragOKs'	=>	{
+						'oid'	=>	'ipFragOKs',
+						'option'	=>	'counter,0:U'
+					},
+					'ipInDelivers'	=>	{
+						'oid'	=>	'ipInDelivers',
+						'option'	=>	'counter,0:U'
+					},
+					'ipReasmFails'	=>	{
+						'oid'	=>	'ipReasmFails',
+						'option'	=>	'counter,0:U'
+					},
+					'ipReasmReqds'	=>	{
+						'oid'	=>	'ipReasmReqds',
+						'option'	=>	'counter,0:U'
+					},
+					'ipFragFails'	=>	{
+						'oid'	=>	'ipFragFails',
+						'option'	=>	'counter,0:U'
+					},
+					'ipOutRequests'	=>	{
+						'oid'	=>	'ipOutRequests',
+						'option'	=>	'counter,0:U'
+					},
+					'ipOutNoRoutes'	=>	{
+						'oid'	=>	'ipOutNoRoutes'
+					},
+					'ipInHdrErrors'	=>	{
+						'oid'	=>	'ipInHdrErrors',
+						'option'	=>	'counter,0:U'
+					},
+					'ipForwDatagrams'	=>	{
+						'oid'	=>	'ipForwDatagrams',
+						'option'	=>	'counter,0:U'
+					},
+					'ipOutDiscards'	=>	{
+						'oid'	=>	'ipOutDiscards',
+						'option'	=>	'counter,0:U'
+					},
+					'ipReasmOKs'	=>	{
+						'oid'	=>	'ipReasmOKs',
+						'option'	=>	'counter,0:U'
+					},
+					'ipInUnknownProtos'	=>	{
+						'oid'	=>	'ipInUnknownProtos',
+						'option'	=>	'counter,0:U'
+					}
+				},
+				'graphtype'	=>	'ip,frag'
+			}
+		}
+	},
+	'interface' => {
+		'rrd' => {
+			'pkts' => {
+				'snmp' => {
+					'ifInDiscards' => {
+						'oid' => 'ifInDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ifInUcastPkts' => {
+						'oid' => 'ifInUcastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifOutErrors' => {
+						'oid' => 'ifOutErrors',
+						'option' => 'counter,0:U'
+					},
+					'ifOutDiscards' => {
+						'oid' => 'ifOutDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ifInNUcastPkts' => {
+						'oid' => 'ifInNUcastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifInErrors' => {
+						'oid' => 'ifInErrors',
+						'option' => 'counter,0:U'
+					},
+					'ifOutNUcastPkts' => {
+						'oid' => 'ifOutNUcastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifOutUcastPkts' => {
+						'oid' => 'ifOutUcastPkts',
+						'option' => 'counter,0:U'
+					}
+				},
+				'indexed' => 'true',
+				'graphtype' => 'pkts,errpkts',
+				'control' => '$sysObjectName =~ /0000/'
+			},
+			'interface' => {
+				'snmp' => {
+					'ifOperStatus' => {
+						'replace' => {
+						  '6' => 'notPresent',
+						  '4' => 'unknown',
+						  '1' => 'up',
+						  '3' => 'testing',
+						  '7' => 'lowerLayerDown',
+						  '2' => 'down',
+						  '5' => 'dormant'
+						},
+						'oid' => 'ifOperStatus',
+						'option' => 'gauge,0:100'
+					},
+					'ifDescr' => {
+						'oid' => 'ifName'
+					},
+					'ifInOctets' => {
+						'oid' => 'ifInOctets',
+						'option' => 'counter,0:U'
+					},
+					'ifOutOctets' => {
+						'oid' => 'ifOutOctets',
+						'option' => 'counter,0:U'
+					},
+					'ifAdminStatus' => {
+						'replace' => {
+						  '6' => 'notPresent',
+						  '4' => 'unknown',
+						  '1' => 'up',
+						  '3' => 'testing',
+						  '7' => 'lowerLayerDown',
+						  '2' => 'down',
+						  '5' => 'dormant'
+						},
+						'oid' => 'ifAdminStatus'
+					}
+				},
+				'indexed' => 'true',
+				'threshold' => 'util_in,util_out',
+				'graphtype' => 'bits,abits,maxbits,util,autil'
+			}
+		},
+		'sys' => {
+			'standard' => {
+				'snmp' => {
+					'ifOperStatus' => {
+						'replace' => {
+						  '6' => 'notPresent',
+						  '4' => 'unknown',
+						  '1' => 'up',
+						  '3' => 'testing',
+						  '7' => 'lowerLayerDown',
+						  '2' => 'down',
+						  '5' => 'dormant'
+						},
+						'oid' => 'ifOperStatus',
+						'title' => 'Oper Status'
+					},
+					'ifDescr' => {
+						'oid' => 'ifName',
+						'title' => 'Name (ifName)'
+					},
+					'ifPhysAddress' => {
+						'oid' => 'ifPhysAddress',
+						'title' => 'Physical Address',
+					},
+
+					'ifAdminStatus' => {
+						'replace' => {
+						  '6' => 'notPresent',
+						  '4' => 'unknown',
+						  '1' => 'up',
+						  '3' => 'testing',
+						  '7' => 'lowerLayerDown',
+						  '2' => 'down',
+						  '5' => 'dormant'
+						},
+						'oid' => 'ifAdminStatus',
+						'title' => 'Admin Status'
+					},
+					'ifSpeed' => {
+						'oid' => 'ifSpeed',
+						'title' => 'Bandwidth'
+					},
+					'ifLastChange' => {
+						'oid' => 'ifLastChange',
+						'title' => 'Last Change'
+					},
+					'ifType' => {
+						'oid' => 'ifType',
+						'title' => 'Type (ifType)'
+					}
+				},
+				'indexed' => 'true'
+			}
+		},
+		'noevent' => {
+			'ifDescr' => 'null',
+			'Description' => '^!',
+			'ifType' => 'other'
+		},
+		'nocollect' => {
+			'ifOperStatus' => 'null',
+			'ifDescr' => 'sublayer|null|controller',
+			'noDescription' => 'true',
+			'Description' => '^#',
+			'ifType' => 'other|softwareloopback|propVirtual|slip'
+		}
+	}
+);
+
