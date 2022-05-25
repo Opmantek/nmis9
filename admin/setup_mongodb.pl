@@ -28,9 +28,11 @@
 #
 # *****************************************************************************
 # a small helper for priming a mongodb installation with suitable settings for NMIS
-our $VERSION = "9.0.6a";
+our $VERSION = "9.0.7a";
 
 use strict;
+use warnings;
+#use diagnostics;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -45,6 +47,10 @@ use NMISNG::DB;
 use NMISNG::Util;
 use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 use Data::Dumper;
+
+# for editing YAML config file
+use YAML::XS qw(DumpFile LoadFile);
+use JSON::PP;
 
 if (@ARGV == 1 && $ARGV[0] =~ /^--?(h|help|\?)$/i)
 {
@@ -100,22 +106,49 @@ https://community.opmantek.com/x/h4Aj\n\n";
 
 # if it's local and not running, offer to start it
 my $isdead = system("pidof mongod >/dev/null") >> 8;
-if ($islocal && $isdead)
+if ($islocal)
 {
-	print "\nERROR: No MongoDB daemon active for $dbserver
+	if($isdead)
+	{
+		# only root privileges can start a service
+		if ($< != 0)
+		{
+			die "ERROR: No daemon active but must be running with root privileges to start one!\n";
+		}
+		else
+		{
+			print "\nERROR: No MongoDB daemon active for $dbserver
 This script can start a MongoDB daemon if desired.\n\n";
 
-	if (input_yn("Should we try to start a local MongoDB daemon?","993d"))
-	{
-		my $startup = system("service","mongod","start") >> 8;
-		print "ERROR: failed to start MongoDB, exit code $startup\n" if ($startup);
-		sleep 3;
+			if (input_yn("Should we try to start a local MongoDB daemon?","993d"))
+			{
+				my $startup = system("service","mongod","start") >> 8;
+				print "ERROR: failed to start MongoDB, exit code $startup\n" if ($startup);
+				sleep 3;
+			}
+			else
+			{
+				die "ERROR: No daemon active but not allowed to start one!\n";
+			}
+		}
 	}
-	else
+	# only root privileges can restart a service
+	elsif ($< == 0)
 	{
-		die "ERROR: No daemon active but not allowed to start one!\n";
+		if (input_yn("Should we restart the local MongoDB daemon to refresh settings before we continue?","575c"))
+		{
+			my $startup = system("service","mongod","restart") >> 8;
+			print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
+			sleep 3;
+		}
+	}
+	else # ($< != 0)
+	{
+		print "INFO: Could not offer to restart your local MongoDB daemon as this process is not running with root privileges\n";
 	}
 }
+
+
 
 # now connect, check if auth is enabled; if so, ask for admin user and auth
 
@@ -137,6 +170,10 @@ if (ref($result) && $result->{ok})
 	{
 		print "MongoDB on $dbserver:$port is running in non-authenticated mode.\n";
 		$isnoauth=1;
+	}
+	else
+	{
+		print "MongoDB on $dbserver:$port is running in authenticated mode.\n";
 	}
 }
 else
@@ -206,9 +243,11 @@ if (!$isnoauth)
 my $admindb = $conn->get_database("admin");
 
 # first, check the server version
-my $serverinfo = NMISNG::DB::run_command(command => { "buildInfo" => 1 },
-																				 db => $admindb);
-if (ref($serverinfo) ne "HASH" or !$serverinfo->{ok} or !$serverinfo->{version})
+my $serverinfo = NMISNG::DB::run_command(command => { "buildInfo" => 1 },db => $admindb);
+
+my $mongod_version = $serverinfo->{version};
+
+if (ref($serverinfo) ne "HASH" or !$serverinfo->{ok} or !$mongod_version)
 {
 	die("Error: could not determine server version for $dbserver:$port\n");
 }
@@ -222,7 +261,7 @@ for my $dbname (@dropthese)
 	print "Warning: failed to drop database: $res->{error}\n" if (!$res->{ok});
 }
 
-print "INFO: server version is $serverinfo->{version}.\n";
+print "INFO: server version is $mongod_version.\n";
 
 # check whether the user exists already, if so grant full privileges for all dbs and ensure the password is set
 my $userlist = NMISNG::DB::run_command(db => $admindb,
@@ -309,18 +348,307 @@ else
 
 }
 
+my $mongod_conf = '/etc/mongod.conf';
+if ( ($islocal) and (! -f $mongod_conf) )
+{
+	die("Error: could not find local mongod configuration file '$mongod_conf' for your local MongoDB server at $dbserver:$port\n");
+}
+my $islocal_and_mongod_3_4_or_newer = ( ($islocal) and (version->parse($mongod_version) >= version->parse("3.4.0")) );
+
 # warn about auth being very much recommended!
 if ($isnoauth)
 {
-	print qq|\n\nWARNING: Authentication should be enabled for production use!
+	# only root privileges can edit $mongod_conf
+	if ( ($islocal_and_mongod_3_4_or_newer) and ($< != 0) )
+	{
+		print "INFO: Could not offer to set authentication for your local MongoDB daemon as this process is not running with root privileges\n";
+	}
+
+	# offer to set authentication enabled for mongod version 3.4 or newer, but only root privileges can edit $mongod_conf
+	if ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) )
+	{
+		print "\nWARNING: Authentication should be enabled for production use!
+Currently your local MongoDB server at $dbserver:$port operates without
+authentication. This is MongoDB's default, but is not recommended for
+production use.\n\n";
+
+		if (input_yn("Should we add the setting 'authorization: enabled' to your ${mongod_conf}?","116b"))
+		{
+			# backup $mongod_conf first - we use timestamp to keep multiple copies:
+			print "\n" . `cp -arf "$mongod_conf" "$mongod_conf.\$(date +%s)"` ||
+				die ("Error: making backup (1) of $mongod_conf failed with status code: $?\n");
+
+			local $YAML::XS::Boolean="JSON::PP";
+			my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
+			$yaml->{security}{authorization}="enabled";
+			DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
+
+			my $startup = system("service","mongod","restart") >> 8;
+			print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
+			sleep 3;
+		}
+		else
+		{
+			print qq|\n\nWARNING: You should add the setting authorization: enabled
+to your $mongod_conf or change your init script to include --auth.\n\n
+|;
+			input_ok("Hit enter to continue:");
+		}
+	}
+	else
+	{
+		print qq|\n\nWARNING: Authentication should be enabled for production use!
 Currently your MongoDB server at $dbserver:$port operates without
 authentication. This is MongoDB's default, but is not recommended for
 production use. You should add the setting auth=true (for 2.4-style config)
 or authorization: enabled (for YAML config format)
-to your /etc/mongodb.conf or change your init script to include --auth.\n\n
+to your $mongod_conf or change your init script to include --auth.\n\n
 |;
 		input_ok("Hit enter to continue:");
+	}
 }
+
+
+# set up mongod logrotate if definitely not set:
+# https://www.percona.com/blog/2018/09/27/automating-mongodb-log-rotation/
+my $mongod_logrotate_conf_not_found = ((! -e "/etc/logrotate.d/mongod.conf") and
+									   (! -e "/etc/logrotate.d/mongo.conf") and
+									   (! -e "/etc/logrotate.d/mongodb.conf")
+									  );
+if ($mongod_logrotate_conf_not_found)
+{
+	# only root privileges can edit $mongod_conf
+	if ( ($islocal_and_mongod_3_4_or_newer) and ($< != 0) )
+	{
+		print "INFO: Could not offer to add a logrotate script for your local MongoDB daemon as this process is not running with root privileges\n";
+	}
+
+	# offer to set logrotate for mongod version 3.4 or newer
+	if ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) )
+	{
+		print "\nWARNING: local MongoDB server at $dbserver:$port
+operates without a logrotate script!
+This is MongoDB's default, but is not recommended for production use.\n\n";
+
+		if (input_yn("Should we add a logrotate script for your local MongoDB server at $dbserver:$port?","399a"))
+		{
+			# we need $osflavour for logrotate file config:
+			#
+			# this $osaflavour code copied from installer
+			my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos);
+			if (-f "/etc/redhat-release")
+			{
+				$osflavour="redhat";
+				print "\nINFO: detected OS flavour RedHat/CentOS\n";
+
+				open(F, "/etc/redhat-release") or die "cannot read redhat-release: $!\n";
+				my $reldata = join('',<F>);
+				close(F);
+
+				($osmajor,$osminor,$ospatch) = ($1,$2,$4)
+						if ($reldata =~ /(\d+)\.(\d+)(\.(\d+))?/);
+				if ($reldata =~ /CentOS/)
+				{
+					$osiscentos = 1;
+				}
+				# This code should mimic that in ./installer_hooks/common_functions.sh flavour () function
+				#### $osiscentos in this installer code is essentially '$osisrhelderivative'
+				###elsif ($reldata =~ /Rocky/)
+				###{
+				###	$osiscentos = 1;
+				###	print "detected Rocky OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n";
+				###}
+				###elsif ($reldata =~ /Fedora/)
+				###{
+				###	$osiscentos = 1;
+				###	if ($reldata =~ /(\d+)/)
+				###	{
+				###        $osmajor = $1;
+				###    }
+				###	if ($osmajor >= 28)
+				###	{
+				###        $osmajor = 8;
+				###		$osminor = 0;
+				###		$ospatch = 0;
+				###    }
+				###	elsif ($osmajor >= 19)
+				###	{
+				###        $osmajor = 7;
+				###		$osminor = 0;
+				###		$ospatch = 0;
+				###    }
+				###	elsif ($osmajor >= 12)
+				###	{
+				###        $osmajor = 6;
+				###		$osminor = 0;
+				###		$ospatch = 0;
+				###    }
+				###	print "detected Fedora OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n";
+				###}
+			}
+			elsif (-f "/etc/os-release")
+			{
+				open(F,"/etc/os-release") or die "cannot read os-release: $!\n";
+				my $osinfo = join("",<F>);
+				close(F);
+				if ($osinfo =~ /ID=debian/)
+				{
+					$osflavour="debian";
+					print "\nINFO: detected OS flavour Debian\n";
+				}
+				elsif ($osinfo =~ /ID=ubuntu/)
+				{
+					$osflavour="ubuntu";
+					print "\nINFO: detected OS flavour Ubuntu\n";
+				}
+				($osmajor,$osminor,$ospatch) = ($1,$3,$5)
+						if ($osinfo =~ /VERSION_ID=\"(\d+)(\.(\d+))?(\.(\d+))?\"/);
+
+				# This code should mimic that in ./installer_hooks/common_functions.sh flavour () function
+				# grep 'ID_LIKE' as a catch-all for debian and ubuntu repectively - done last to not affect existing tried and tested code:
+				if ( ! defined($osflavour) )
+				{
+					if ($osinfo =~ /ID_LIKE=debian/)
+					{
+						$osflavour="debian";
+						my $debian_codename=$1 if ($osinfo =~ /DEBIAN_CODENAME=\s*(.+)\s*/);
+						# we dont need 'else' catch-all blocks here as we fall back to the debian version
+						# populated in the generic block above:
+						if ( defined($debian_codename) )
+						{
+							if ($debian_codename =~ /bullseye/i)
+							{
+								$osmajor=11;
+								$osminor=0;
+								$ospatch=0;
+							}
+							elsif ($debian_codename =~ /buster/i)
+							{
+								$osmajor=10;
+								$osminor=0;
+								$ospatch=0;
+							}
+							elsif ($debian_codename =~ /stretch/i)
+							{
+								$osmajor=9;
+								$osminor=0;
+								$ospatch=0;
+							}
+							elsif ($debian_codename =~ /jessie/i)
+							{
+								$osmajor=8;
+								$osminor=0;
+								$ospatch=0;
+							}
+						}
+						print "\nINFO: detected OS derivative of Debian: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n";
+					}
+					elsif ($osinfo =~ /ID_LIKE=ubuntu/)
+					{
+						$osflavour="ubuntu";
+						print "\nINFO: detected OS derivative Ubuntu\n";
+						my $ubuntu_codename=$1 if ($osinfo =~ /UBUNTU_CODENAME=\s*(.+)\s*/);
+						# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
+						# populated in the generic block above:
+						if ( defined($ubuntu_codename) )
+						{
+							if ($ubuntu_codename =~ /hirsute/i)
+							{
+								$osmajor=21;
+								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /focal/i)
+							{
+								$osmajor=20;
+								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /bionic/i)
+							{
+								$osmajor=18;
+								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /xenial/i)
+							{
+								$osmajor=16;
+								$osminor=04;
+								$ospatch=0;
+							}
+						}
+						print "\nINFO: detected OS derivative of Ubuntu: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n"
+					}
+				}
+			}
+			# rhel|centos have user 'mongod' while debian|ubuntu have users 'mongodb'
+			my $mongod_user;
+			if ( ($osflavour eq "debian") or ($osflavour eq "ubuntu") )
+			{
+				$mongod_user = "mongodb";
+			}
+			else # ("$osflavour" == "rhel") # which includes "centos"
+			{
+				$mongod_user = "mongod";
+			}
+
+			# backup $mongod_conf first - we use timestamp to keep multiple copies:
+			print "\n" . `cp -arf "$mongod_conf" "$mongod_conf.\$(date +%s)"` ||
+				die ("Error: making backup (2) of $mongod_conf failed with status code: $?\n");
+
+			local $YAML::XS::Boolean="JSON::PP";
+			my $yaml=LoadFile($mongod_conf);
+			$yaml->{systemLog}{destination}="file";
+			$yaml->{systemLog}{logAppend}=JSON::PP::true;
+			$yaml->{systemLog}{logRotate}="reopen";
+			DumpFile($mongod_conf,$yaml);
+
+			my $mongod_systemlog_path = $yaml->{systemLog}{path}||"null";
+			if ( (! defined $mongod_systemlog_path) or ($mongod_systemlog_path eq "null") )
+			{
+				die "Read $mongod_conf systemLog.path not found. Exiting\n";
+			}
+
+			my $mongod_logrotate_conf = "/etc/logrotate.d/mongod.conf";
+
+			print "\nwriting logrotate configuration file $mongod_logrotate_conf'\n";
+			print "\n" . `cat > "$mongod_logrotate_conf" <<EOF
+$mongod_systemlog_path {
+  weekly
+  maxsize 500M
+  rotate 50
+  missingok
+  compress
+  delaycompress
+  notifempty
+  create 640 $mongod_user $mongod_user
+  sharedscripts
+  postrotate
+    kill -SIGUSR1 \\\$(pidof mongod) >/dev/null 2>&1||:
+  endscript
+}
+EOF`||die ("Error: could not writing logrotate configuration file $mongod_logrotate_conf with status code: $?\n");
+
+			print "\nchmod 0644 $mongod_logrotate_conf\n";
+			print "\n" . `chmod 0644 "$mongod_logrotate_conf" 2>&1;` ||
+				die ("Error: chmod 0644 $mongod_logrotate_conf failed with status code: $?\n");
+
+			# restart mongod to implement settings for logrotate test
+			print "\nrestarting mongod to implement settings for logrotate ...\n\n";
+			my $startup = system("service","mongod","restart") >> 8;
+			print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
+			sleep 3;
+
+			# test logrotate:
+			print "\ntesting logrotate ...\n\n";
+			print "\n" . `logrotate -vf "$mongod_logrotate_conf"` ||
+				die ("Error: testing logrotate failed with status code: $?\n");
+		}
+	}
+}
+
+
+print "\nMongoDB server at $dbserver:$port setup completed\n\n";
 
 exit 0;
 
