@@ -1506,7 +1506,7 @@ sub loginout {
 							ipproto => $self->{config}->{mail_server_ipproto},
 
 							username => $self->{config}->{mail_user},
-							password => $self->{config}->{mail_password},
+							password => NMISNG::Util::decrypt($self->{config}->{mail_password}, 'email', 'mail_password'),
 
 							# and params for making the message on the go
 							to => $self->{config}->{server_admin},

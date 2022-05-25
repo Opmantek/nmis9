@@ -10,6 +10,7 @@ use Compat::NMIS;
 use NMISNG::rrdfunc;
 use NMISNG::Sys;
 use NMISNG::Snmp;
+use NMISNG::DB;
 
 #use snmp 1.1.0;
 use Net::SNMP qw(oid_lex_sort);
@@ -123,7 +124,9 @@ sub update_plugin
                     $data->{element} = $ind;
     
                     if ($ONTDescr_data->{$ind} ne undef) {
-                        $data->{ONTDescription} = $ONTDescr_data->{$ind};
+                    	# ensuring the data is cast as a string.
+                        #$data->{ONTDescription} = $ONTDescr_data->{$ind};
+                        $data->{ONTDescription} = NMISNG::DB::make_string($ONTDescr_data->{$ind});
                     }
                     else {
                         $data->{ONTDescription} = "Not Found";
@@ -134,7 +137,9 @@ sub update_plugin
                             # pack the hex into text
                             $serial_number = "0x". unpack('H*', $serial_number);
                         }
-                        $data->{ONTSerialNumber} = $serial_number;
+                    	# ensuring the data is cast as a string.
+                        #$data->{ONTSerialNumber} = $serial_number;
+                        $data->{ONTSerialNumber} = NMISNG::DB::make_string($serial_number);
                     }
                     else {
                         $data->{ONTSerialNumber} = "Not Found";

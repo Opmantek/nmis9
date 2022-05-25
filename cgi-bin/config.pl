@@ -162,7 +162,7 @@ sub displayConfig{
 				popup_menu(-name=>'section', -override=>'1',
 					-values=>\@sections,
 					-default=>$section,
-									 -onChange=> ($wantwidget? "get('nmisconfig');" : "submit()" )));
+					-onChange=> ($wantwidget? "get('nmisconfig');" : "submit()" )));
 	print end_Tr;
 	print end_table;
 
@@ -216,6 +216,14 @@ sub typeSect {
 	for my $k (@items_all)
 	{
 		my $value = $CC->{$section}{$k};
+		my $eachRef;
+		for my $rf (@{$CT->{$section}}) {
+			for my $itm (keys %{$rf}) {
+				if ($k eq $itm) {
+					$eachRef = $rf->{$k};
+				}
+			}
+		}
 		# show arrays as space-sep list
 		if (ref($value) eq "ARRAY")
 		{
@@ -228,10 +236,11 @@ sub typeSect {
 		}
 		next if ($section eq "authentication" && $k eq "auth_require"); # fixed true
 		next if ($section eq "system" and $k eq "severity_by_roletype"); # not gui-modifyable
+		my $showOut = $value;
+		$showOut = '**************' if ($eachRef->{display} =~ /password/);
 
 		push @out,Tr(td({class=>"header"},"&nbsp;"),
-				td({class=>"header"},escape($k)),td({class=>'info Plain'},
-																						escape($value)),
+				td({class=>"header"},escape($k)),td({class=>'info Plain'}, escape($showOut)),
 				eval {
 					if ($AU->CheckAccess("Table_Config_rw","check") and !$C->{configpeerfiles}) {
 						return td({class=>'info Plain'},
@@ -251,7 +260,7 @@ sub typeSect {
 }
 
 
-sub editConfig{
+sub editConfig {
 	my %args = @_;
 
 	my $section = $Q->{section};
@@ -266,6 +275,15 @@ sub editConfig{
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
 	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+
+	my $ref;
+	for my $rf (@{$CT->{$section}}) {
+		for my $itm (keys %{$rf}) {
+			if ($item eq $itm) {
+				$ref = $rf->{$item};
+			}
+		}
+	}
 
 	# start of form, see comment for first start_form
 	# except that this one also needs the cancel case covered
@@ -337,21 +355,36 @@ sub editConfig{
 							 td(checkbox(-name => "delete_${shortname}_$escapedtype", -label => "Delete $friendly", -value => "nuke")) );
 		}
 	}
+	# edit passwords
+	elsif ($ref->{display} =~ /password/)
+	{
+		# the password editing interface
+		print Tr(td({class=>"header",colspan=>'3'},"Edit of NMIS Config"));
+
+		print Tr(td({class=>"header"},$section));
+
+		# display edit field; if text, then show it UNescaped;
+		my $rawvalue = $CC->{$section}{$item};
+		my $value = escape($rawvalue);
+		$item = escape($item);
+
+			print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
+				password_field(-name=>'value',
+                             -value=>$value,
+                             -size=>50,
+                             -maxlength=>80)));
+			print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},"Confirm"),td({class=>'info Plain'},
+				password_field(-name=>'confirm',
+                             -value=>$value,
+                             -size=>50,
+                             -maxlength=>80)));
+	}
 	else
 	{
 		# the generic editing interface
 		print Tr(td({class=>"header",colspan=>'3'},"Edit of NMIS Config"));
 
 		print Tr(td({class=>"header"},$section));
-		# look for item ref
-		my $ref;
-		for my $rf (@{$CT->{$section}}) {
-			for my $itm (keys %{$rf}) {
-				if ($item eq $itm) {
-					$ref = $rf->{$item};
-				}
-			}
-		}
 
 		# display edit field; if text, then show it UNescaped;
 		my $rawvalue = $CC->{$section}{$item};
@@ -360,13 +393,13 @@ sub editConfig{
 
 		if ($ref->{display} =~ /popup/) {
 			print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
-																																						 popup_menu(-name=>"value", -style=>'width:100%;font-size:12px;',
-																																												-values=>$ref->{value},
-																																												-default=>$value)));
+				popup_menu(-name=>"value", -style=>'width:100%;font-size:12px;',
+						-values=>$ref->{value},
+						-default=>$value)));
 		}
 		else {
 			print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
-																																						 textfield(-name=>"value",-size=>((length $rawvalue) * 1.3), -value=>$rawvalue, -style=>'font-size:14px;')));
+				textfield(-name=>"value",-size=>((length $rawvalue) * 1.3), -value=>$rawvalue, -style=>'font-size:14px;')));
 		}
 	}
 
@@ -405,6 +438,7 @@ sub doEditConfig
 	my $section = $Q->{section};
 	my $item = decode_entities($Q->{item});
 	my $value = $Q->{value};
+	my $confirm = $Q->{confirm};
 
 	# that's the  non-flattened raw hash
 	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
@@ -438,8 +472,7 @@ sub doEditConfig
 			# Validate
 			my $not_allowed_chars_props = $C->{not_allowed_chars_props} // "[;=()<>%'\/]";
 		
-			return validation_abort($conceptname,
-															"'$newthing' contains invalid characters. Spaces and commas are prohibited.")
+			return validation_abort($conceptname, "'$newthing' contains invalid characters. Spaces and commas are prohibited.")
 					if ($newthing =~ /$not_allowed_chars_props/);
 
 			push @existing, $newthing
@@ -602,6 +635,11 @@ sub doEditConfig
 				return validation_abort($item, "unknown validation type \"$valtype\"");
 			}
 		}
+	}
+	if (($section eq "database" and $item eq "db_password") or ($section eq "email" and $item eq "mail_password")) {
+		return validation_abort($item, "passwords don't match") if ($value ne $confirm);
+		$value = NMISNG::Util::encrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) ne "!!"));
+		return validation_abort($item, "passwords update failure") if ($value eq '');
 	}
 	# no validation or success, so let's update the config
 	$CC->{$section}{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);

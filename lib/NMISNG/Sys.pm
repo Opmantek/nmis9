@@ -28,7 +28,7 @@
 # *****************************************************************************
 package NMISNG::Sys;
 our $VERSION = "3.2.0";
-our $tmp     = "$ENV{NMISTMPDIR}";
+our $tmp     = "$ENV{NMISTMPDIR}" || "/tmp";
 
 use strict;
 

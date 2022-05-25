@@ -256,6 +256,13 @@ Leave this blank if you don't need to authenticate at your mail server."],
 							 textfield(-name => "option/$section/$item", -value => $curval,
 												 -override => 1 ));
 		}
+		elsif ($displayinfo->{display} eq "password")
+		{
+			print td({class=>"infolft Plain"},
+							 ($entryisok? '' : $iconbad." &nbsp; "),
+							 password_field(-name => "option/$section/$item", -value => $curval,
+												 -override => 1 ));
+		}
 		elsif ($displayinfo->{display} eq "popup")
 		{
 			print td({class=>'infolft Plain'},

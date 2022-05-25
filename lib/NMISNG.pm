@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.3.1";
+our $VERSION = "9.4.0";
 
 use strict;
 use Data::Dumper;
@@ -4078,7 +4078,7 @@ LABEL_ESC:
 						ipproto    => $C->{mail_server_ipproto},
 
 						username => $C->{mail_user},
-						password => $C->{mail_password},
+						password => NMISNG::Util::decrypt($C->{mail_password}, 'email', 'mail_password'),
 
 						# and params for making the message on the go
 						to       => $target,
@@ -4122,7 +4122,7 @@ LABEL_ESC:
 						ipproto    => $C->{mail_server_ipproto},
 
 						username => $C->{mail_user},
-						password => $C->{mail_password},
+						password => NMISNG::Util::decrypt($C->{mail_password}, 'email', 'mail_password'),
 
 						# and params for making the message on the go
 						to       => $target,

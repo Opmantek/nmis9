@@ -33,7 +33,7 @@
 package NMISNG::DB;
 use strict;
 
-our $VERSION = "9.3.1";
+our $VERSION = "9.4.0";
 
 use Data::Dumper;
 use JSON::XS;
@@ -946,7 +946,7 @@ sub get_db_connection
 	my $port    = $CONF->{db_port}   // '27017';
 	my $db_name = $CONF->{db_name}   // 'nmisng';
 	my $username = $CONF->{db_username};
-	my $password = $CONF->{db_password};
+	my $password = NMISNG::Util::decrypt($CONF->{db_password}, 'database', 'db_password');
 
 	my $timeout       = $CONF->{db_connection_timeout} // 5000;
 	my $query_timeout = $CONF->{db_query_timeout}      // 5000;
@@ -995,6 +995,8 @@ sub get_db_connection
 	if ($@)
 	{
 		$error_string = "Error Connecting to Database $server:$port: $@";
+		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+		undef $password;
 		return;
 	}
 
@@ -1007,11 +1009,15 @@ sub get_db_connection
 		$error_string = "Error Connecting to Database $server:$port: $_";
 	};
 	
+	$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+	undef $password;
 	return if ($error_string);
 
 	# If we can't authenticate we must be using the new driver
 	if ( $username eq '' || !$new_conn->can("authenticate") )
 	{
+		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+		undef $password;
 		return $new_conn;
 	}
 	# authenticate to the dbs
@@ -1024,6 +1030,8 @@ sub get_db_connection
 			if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
 			{
 				$error_string = "Error authenticating to MongoDB db:$db database\n";
+				$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+				undef $password;
 				return;
 			}
 		}
@@ -1032,8 +1040,12 @@ sub get_db_connection
 			$error_string = "Error attempting to authenticate, parameters incorrect.\nError info:$_";
 		};
 		
+		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+		undef $password;
 		return if ($error_string);
 	}
+	$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
+	undef $password;
 	return $new_conn;
 }
 
