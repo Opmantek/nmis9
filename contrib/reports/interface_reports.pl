@@ -154,7 +154,7 @@ sub runDiscardsErrors {
     
     # define the output heading and the print format
 	my @heading = ("node", "ifIndex", "ifIndex", "ifDescr", "Description", "ifInDiscards", "ifInErrors", "ifOutDiscards", "ifOutErrors", "ifInDiscardsPer", "ifInErrorsPer", "ifOutDiscardsPer", "ifOutErrorsPer");
-	$csvData .= getOutput(\@heading);
+	$csvData .= makeLineFromRow(\@heading);
 
 	foreach my $node (sort @$nodes) {
 		next if ($seen{$node});
@@ -230,7 +230,7 @@ sub runDiscardsErrors {
 							print "    Exception: $ifIndex $interfaces{$ifIndex}->{ifDescr} $interfaces{$ifIndex}->{Description}\n" if $debug;
 							my @row = ($node,$ifIndex,$interfaces{$ifIndex}->{ifDescr},$interfaces{$ifIndex}->{Description},$ifInDiscards,$ifInErrors,$ifOutDiscards,$ifOutErrors,$ifInDiscardsProc,$ifInErrorsProc,$ifOutDiscardsProc,$ifOutErrorsProc);
 							push(@exceptions,"$node interface $interfaces{$ifIndex}->{ifDescr} with description \"$interfaces{$ifIndex}->{Description}\" has exceptions with interface discards and errors");
-							$csvData .= getOutput(\@row) . "\n";
+							$csvData .= makeLineFromRow(\@row);
 						}
 					}
 				}
@@ -322,8 +322,10 @@ sub notifyByEmail {
 	}
 } 
 
-sub getOutput {
+sub makeLineFromRow {
 	my $data = shift;
+	# join with CSV delimiters
 	my $output = join("\",\"",@$data);
-	return "\"$output\"";
+	# pad text with " and a new line
+	return "\"$output\"\n";
 }
