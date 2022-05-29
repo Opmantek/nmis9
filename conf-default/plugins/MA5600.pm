@@ -146,6 +146,10 @@ sub update_plugin
                     }
                     
                     $gpon_traffic->data($data); # set changed info
+
+					# set the inventory things description, as this was made up from other data
+					$gpon_traffic->description( $data->{ONTBASE} );
+
                     (undef,$error) = $gpon_traffic->save; # and save to the db
                     $NG->log->error("Failed to save inventory for ".$gpon_traffic->id. " : $error")
                             if ($error);
