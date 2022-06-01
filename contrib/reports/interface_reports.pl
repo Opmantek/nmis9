@@ -153,7 +153,7 @@ sub runDiscardsErrors {
 	my $csvData;
     
     # define the output heading and the print format
-	my @heading = ("node", "ifIndex", "ifIndex", "ifDescr", "Description", "ifInDiscards", "ifInErrors", "ifOutDiscards", "ifOutErrors", "ifInDiscardsPer", "ifInErrorsPer", "ifOutDiscardsPer", "ifOutErrorsPer");
+	my @heading = ("node", "ifIndex", "ifDescr", "Description", "ifInDiscards", "ifInErrors", "ifOutDiscards", "ifOutErrors", "ifInDiscardsPer", "ifInErrorsPer", "ifOutDiscardsPer", "ifOutErrorsPer");
 	$csvData .= makeLineFromRow(\@heading);
 
 	foreach my $node (sort @$nodes) {
