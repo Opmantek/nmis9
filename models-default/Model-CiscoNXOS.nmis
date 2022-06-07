@@ -78,6 +78,9 @@
       'Cisco-power' => {
         'common-model' => 'Cisco-power'
       },
+      'Cisco-fan' => {
+        'common-model' => 'Cisco-fan'
+      },
       'lldp' => {
         'common-model' => 'lldp'
       },
@@ -299,7 +302,7 @@
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,dot1dBasePort,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply',
+    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,dot1dBasePort,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply,fanStatus',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
