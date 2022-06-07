@@ -350,6 +350,18 @@
     'Service_Parameters' => '',
     'Service_Type' => 'program'
   },
+  'Opmantek Web Daemon' => {
+    'Args' => '',
+    'Collect_Output' => 'true',
+    'Description' => 'Check the Opmantek Web Daemon is running',
+    'Max_Runtime' => '10',
+    'Name' => 'Opmantek Web Daemon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'opmantek.*',
+    'Service_Type' => 'service'
+  },  
   'opEvents Daemon' => {
     'Args' => '',
     'Collect_Output' => 'false',
