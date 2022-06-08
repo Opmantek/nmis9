@@ -1,0 +1,724 @@
+#####################################################################################
+#                                                                                   #
+#                                                                                   #
+#         MODEL : CISCO IRONPORT EMAIL SECURITY APPLIANCE (ASYNCOS)                 #
+#                                                                                   #
+#                                                                                   #
+#####################################################################################
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'Host_Resources' => {
+        'common-model' => 'Host_Resources'
+      },
+      'power' => {
+        'common-model' => 'Cisco-status'
+      },
+      'Host_Resource' => {
+        'common-model' => 'Host_Resource'
+      }      
+    }
+  },
+
+  'interface' => {
+   'collect' => {
+
+    },
+    'nocollect' => {
+      'ifDescr' => 'sublayer|controller|^e0|^e1|^t0|^t1|^t3|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'ifOperStatus' => 'other',
+      'ifType' => 'lapd|ds0|ds1|other|isdn',
+    },
+    'noevent' => {
+
+    },
+
+
+
+    'rrd' => {
+      'interface' => {
+        'graphtype' => 'bits,abits,maxbits,util,autil',
+        'indexed' => 'ifDescr',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out'
+      },
+      'pkts_hc' => {
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'pkt_errors_in,pkt_errors_out'
+      }
+    },
+    'sys' => {
+      'extra' => {
+       'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifName',
+            'title' => 'Description'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          }
+        }
+      },
+      'standard' => {
+        'indexed' => 'ifDescr',
+        'headers' => 'ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
+	'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Admin Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Oper Status'
+          },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          }
+        }
+      }
+    }
+  },
+  'system' => {
+    'nodeType' => 'appliance',
+    'nodeModel' => 'CiscoESA',
+    'nodeVendor' => 'Cisco Systems, Inc.',
+    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,queueUtil,workQueueMsg,queueAvail',
+    'rrd' => {
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          }
+        }
+      },
+
+      'nodehealth' => {
+        'threshold' => 'memUtil,cpu',
+        'graphtype' => 'memUtil,cpu',
+        'snmp' => {
+
+         'avgBusy1' => {
+#          'snmpObject' => 'perCentCPUUtilization',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
+          'option' => 'gauge,0:U'
+          },
+
+         'avgBusy5' => {
+#          'snmpObject' => 'perCentCPUUtilization',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
+          'option' => 'gauge,0:U'
+          },
+
+          'memUtil' => {
+#            'snmpObject' => 'perCentMemoryUtilization',        
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.1.0',
+            'option' => 'gauge,0:U'
+          }
+
+        }
+      },
+
+      'asyncoshealth' => {
+        'graphtype' => 'esaStats,queueUtil,workQueueMsg',
+        'snmp' => {
+
+         'perCentQueueUtil' => {
+#          'snmpObject' => 'perCentQueueUtilization',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
+          'option' => 'gauge,0:U'
+          },
+
+         'queueAvailStatus' => {
+#          'snmpObject' => 'queueAvailabilityStatus',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
+          'option' => 'gauge,0:U'
+          },
+
+         'resConsReason' => {
+#          'snmpObject' => 'resourceConservationReason',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
+          'option' => 'gauge,0:U'
+          },
+
+         'memAvail' => {
+#          'snmpObject' => 'memoryAvailabilityStatus',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.7.0',
+          'option' => 'gauge,0:U'
+          },,
+
+         'asyncOSPwrSupply' => {
+#          'snmpObject' => 'powerSupplyStatus',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+          'option' => 'gauge,0:U'
+          },
+
+         'asyncOSPwrRedund' => {
+#          'snmpObject' => 'powerSupplyRedundancy',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
+          'option' => 'gauge,0:U'
+          },
+
+         'workQueueMessgs' => {
+#          'snmpObject' => 'workQueueMessages',
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
+          'option' => 'gauge,0:U'
+          }
+
+        }
+      }
+    },
+
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'oid' => 'sysContact',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Contact'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysLocation' => {
+            'oid' => 'sysLocation',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'SNMP Location'
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+            'title' => 'System Name'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          }
+        }
+      }
+    }
+  },
+
+'alerts' => {
+      'services' => {
+      # ALERTS FOR PHYSICAL ASYNCOS
+      # IRONPORT MEMORY AVAIL
+        'memoryUsage' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.7',
+          'title' => 'Memory Availability Status',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '1',
+                'Warning' => '2',
+                'Minor' => '2',
+                'Major' => '3',
+                'Critical' => '3',
+                'Fatal' => '3'
+              },
+          'event' => 'High Memory Usage',
+          'test' => '',
+          'unit' => '%',
+          'level' => '',
+        },
+
+        # IRONPORT KEYS / CERTS
+        'keySecondsUntilExpire' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.12.1.2',
+          'title' => 'Time Until Key Expiry',
+          'type' => 'threshold-falling',
+          'threshold' => {
+                'Normal' => '30',
+                'Warning' => '28',
+                'Minor' => '21',
+                'Major' => '14',
+                'Critical' => '7',
+                'Fatal' => '2'
+              },
+          'event' => 'Ironport Key Expiry',
+          'test' => '',
+          'value' => 'CVAR1=1.3.6.1.4.1.15497.1.1.1.12.1.2;$CVAR1 / 86400',
+          'element' => '1.3.6.1.4.1.15497.1.1.1.12.1.3',
+          'unit' => 'Days',
+          'level' => '',
+        },
+
+        # IRONPORT QUEUE AVAIL STATUS
+        'queueStatus' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.5',
+          'title' => 'Queue Availability',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '1',
+                'Warning' => '2',
+                'Minor' => '2',
+                'Major' => '3',
+                'Critical' => '3',
+                'Fatal' => '3'
+              },
+          'event' => 'High Queue Availability',
+          'test' => '',
+          'unit' => '%',
+          'level' => '',
+        },
+
+        # IRONPORT RESOURCE CONSERVATION STATUS
+        'resourceConStatus' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.6',
+          'title' => 'Resource Conservation Status',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '1',
+                'Warning' => '2',
+                'Minor' => '2',
+                'Major' => '3',
+                'Critical' => '3',
+                'Fatal' => '4'
+              },
+          'event' => 'High Queue Status',
+          'test' => '',
+          'unit' => '%',
+          'level' => '',
+        },
+
+        # IRONPORT QUEUE UTILIZATION
+        'queueUtilStatus' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.4',
+          'title' => 'Queue Utilization',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '30',
+                'Warning' => '45',
+                'Minor' => '50',
+                'Major' => '75',
+                'Critical' => '90',
+                'Fatal' => '100'
+              },
+          'event' => 'High Queue Utilization',
+          'test' => '',
+          'unit' => '%',
+          'level' => '',
+        },
+
+        # IRONPORT CPU USAGE
+        'cpuStatus' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.2',
+          'title' => 'CPU Utilization',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '30',
+                'Warning' => '45',
+                'Minor' => '50',
+                'Major' => '75',
+                'Critical' => '90',
+                'Fatal' => '100'
+              },
+          'event' => 'High CPU Utilization',
+          'test' => '',
+          'unit' => '%',
+          'level' => '',
+        },
+
+        # IRONPORT MEMORY UTILIZATION
+        'memUtilStatus' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.1',
+          'title' => 'Memory Utilization',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '30',
+                'Warning' => '45',
+                'Minor' => '50',
+                'Major' => '75',
+                'Critical' => '90',
+                'Fatal' => '100'
+              },
+          'event' => 'High Memory Utilization',
+          'test' => '',
+          'unit' => '%',
+          'level' => '',
+        },
+
+	# IRONPORT PSU REDUNDANCY
+        'pwrRedundancy' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
+          'title' => 'Power Supply Redundancy',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '1',
+                'Fatal' => '2'
+              },
+          'event' => 'Loss of Power Supply Redundancy',
+          'test' => '',
+          'unit' => '',
+          'level' => '',
+        },
+
+	# IRONPORT PSU STATUS
+        'pwrStatus' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+          'title' => 'Power Supply Status',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '2',
+		'Critical' => '3',
+                'Fatal' => '4'
+              },
+          'event' => ' Power Supply Status',
+          'test' => '',
+          'unit' => '',
+          'level' => '',
+        },
+
+	# IRONPORT RAID STATUS
+        'raidStatus' => {
+          'oid' => '1.3.6.1.4.1.15497.1.1.1.18.1.2',
+          'title' => 'RAID Status',
+          'type' => 'threshold-rising',
+          'threshold' => {
+                'Normal' => '1',
+                'Fatal' => '2'
+              },
+          'event' => 'Drive Failure',
+          'test' => '',
+          'unit' => '',
+          'level' => '',
+        },
+
+    }
+  },
+
+  'systemHealth' => {
+    'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor,Host_Device',
+    'sys' => {
+      'diskIOTable' => {        
+        'indexed' => 'diskIODevice',
+        'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.2',
+        'headers' => 'DiskIODevice',        
+        'snmp' => {
+          'diskIOIndex' => {
+            'oid' => 'diskIOIndex',
+            'title' => 'IO Device Index'
+          },
+          'diskIODevice' => {
+            'oid' => 'diskIODevice',
+            'title' => 'IO Device Name'
+          }
+        }
+      }, 
+
+      'InterfaceTable' => {
+        'indexed' => 'ifDescr',
+        'headers' => 'ifDescr,Description,ifType,ifAdminStatus,ifOperStatus,ifLastChange,ifSpeed,ifHighSpeed',
+        'snmp' => {
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'ifDescr'
+          },
+          'ifName' => {
+            'oid' => 'ifName',
+            'title' => 'ifName'
+          },
+          'ifAlias' => {
+            'oid' => 'ifAlias',
+            'title' => 'ifAlias'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)',
+            'replace' => {
+              '6' => 'ethernetCsmacd',
+              '37' => 'atm',
+              '135' => 'l2vlan',
+              '188' => 'radioMAC',
+              '194' => 'atmVciEndPt',
+              '209' => 'bridge',
+              '244' => 'wwanPP2',
+              '249' => 'aluELP',
+              '250' => 'gpon',
+            },              
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'ifSpeed'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed',
+            'title' => 'ifHighSpeed'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        }
+      },
+    },
+
+    'rrd' => {
+      'diskIOTable' => {
+#        'control' => 'CVAR=diskIODevice;$CVAR =~ /^(da|sg|pass)/',
+        'indexed' => 'true',
+        'graphtype' => 'diskio-rw,diskio-rwbytes',
+        'snmp' => {
+          'diskIONReadX' => {
+            'oid' => 'diskIONReadX',
+            'option' => 'counter,0:U'
+          },
+          'diskIONWrittenX' => {
+            'oid' => 'diskIONWrittenX',
+            'option' => 'counter,0:U'
+          },
+          'diskIOReads' => {
+            'oid' => 'diskIOReads',
+            'option' => 'counter,0:U'
+          },
+          'diskIOWrites' => {
+            'oid' => 'diskIOWrites',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
+    },
+	   
+  },
+);

@@ -124,6 +124,39 @@
           }
         }
       },
+      'ESA_Power_Supply' => {
+        'graphtype' => 'psu-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'psuValue' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+            'replace' => {
+              '1' => '75', #'powerSupplyNotInstalled',
+              '2' => '100', #'powerSupplyHealthy',
+              '3' => '50', #'powerSupplyNoAC',
+              '4' => '0', #'powerSupplyFaulty'
+            }
+          },
+          'powerSupplyStatus' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+            'replace' => {
+              '1' => 'powerSupplyNotInstalled',
+              '2' => 'powerSupplyHealthy',
+              '3' => 'powerSupplyNoAC',
+              '4' => 'powerSupplyFaulty'
+            },
+            'option' => 'nosave'
+          },
+          'powerSupplyRedundancy' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
+            'replace' => {
+              '1' => 'powerSupplyRedundancyOK',
+              '2' => 'powerSupplyRedundancyLost'
+            },
+            'option' => 'nosave'
+          }
+        }
+      },
     },
     'sys' => {
       'fanStatus' => {
@@ -203,6 +236,34 @@
           'TemperatureStatusDescr' => {
             'oid' => 'ciscoEnvMonTemperatureStatusDescr',
             'title' => 'Temperature Status Descr'
+          }
+        }
+      },
+      'ESA_Power_Supply' => {
+        'headers' => 'powerSupplyName,powerSupplyStatus,powerSupplyRedundancy',
+        'index_oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+        'snmp' => {
+          'powerSupplyName' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.4',
+            'title' => 'PSU Name'
+          },
+          'powerSupplyStatus' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+            'replace' => {
+              '1' => 'powerSupplyNotInstalled',
+              '2' => 'powerSupplyHealthy',
+              '3' => 'powerSupplyNoAC',
+              '4' => 'powerSupplyFaulty'
+            },
+            'title' => 'PSU Status'
+          },
+          'powerSupplyRedundancy' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
+            'replace' => {
+              '1' => 'powerSupplyRedundancyOK',
+              '2' => 'powerSupplyRedundancyLost'
+            },
+            'title' => 'PSU Redundancy'
           }
         }
       },

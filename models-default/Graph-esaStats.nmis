@@ -1,0 +1,56 @@
+
+%hash = (
+	'heading' => 'ESA System Statistics',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Stats.'
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit','4',
+			'--lower-limit','0',
+			'--rigid',
+
+			'DEF:queueAvailStatus=$database:queueAvailStatus:AVERAGE',
+                        'DEF:perCentQueueUtil=$database:perCentQueueUtil:AVERAGE',
+                        'DEF:resConsReason=$database:resConsReason:AVERAGE',
+                        'DEF:memAvail=$database:memAvail:AVERAGE',
+
+
+			'AREA:queueAvailStatus#6a73d9:Queue Avail',
+			'GPRINT:queueAvailStatus:LAST:Status %1.0lf\\n',
+
+                        'STACK:resConsReason#356e8f:Resource Conservation',
+                        'GPRINT:resConsReason:LAST:Status %1.0lf\\n',
+
+                        'STACK:memAvail#e39d2d:Memory Avail',
+                        'GPRINT:memAvail:LAST:Status %1.0lf\\n'
+
+		],
+		'small' => [
+			'--upper-limit','4',
+			'--lower-limit','0',
+			'--rigid',
+
+                        'DEF:queueAvailStatus=$database:queueAvailStatus:AVERAGE',
+                        'DEF:perCentQueueUtil=$database:perCentQueueUtil:AVERAGE',
+                        'DEF:resConsReason=$database:resConsReason:AVERAGE',
+                        'DEF:memAvail=$database:memAvail:AVERAGE',
+
+
+                        'AREA:queueAvailStatus#6a73d9:Queue Avail',
+                        'GPRINT:queueAvailStatus:LAST:Status %1.0lf\\n',
+
+       	       	       	'STACK:resConsReason#356e8f:Resource Conservation',
+                        'GPRINT:resConsReason:LAST:Status %1.0lf\\n',
+
+                        'STACK:memAvail#e39d2d:Memory Avail',
+                        'GPRINT:memAvail:LAST:Status %1.0lf\\n'
+
+		]
+	}
+);
+
