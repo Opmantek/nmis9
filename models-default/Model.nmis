@@ -688,8 +688,14 @@
         }
       }
     },
+    'IronPort Systems, Inc.' => {
+      'order' => {
+        '10' => {
+          'CiscoESA' => 'Cisco IronPort Model C\d{3}'
+        }
+      }
+    },      
   },
-
   'stats' => {
     'type' => {
       'health' => [

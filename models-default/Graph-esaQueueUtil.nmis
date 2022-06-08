@@ -1,0 +1,32 @@
+
+%hash = (
+	'heading' => 'Queue Utilisation',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => '% Queue Util.'
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
+			'DEF:perCentQueueUtil=$database:perCentQueueUtil:AVERAGE',
+			'AREA:perCentQueueUtil#0000ff:Queue Utilization',
+			'GPRINT:perCentQueueUtil:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:perCentQueueUtil:MAX:Max %1.2lf%%\\n'
+		],
+		'small' => [
+			'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
+			'DEF:perCentQueueUtil=$database:perCentQueueUtil:AVERAGE',
+			'AREA:perCentQueueUtil#0000ff:Queue Utilization',
+			'GPRINT:perCentQueueUtil:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:perCentQueueUtil:MAX:Max %1.2lf%%\\n'
+		]
+	}
+);
+

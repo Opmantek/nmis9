@@ -1,0 +1,20 @@
+To install:
+
+If installing on the local server:
+
+cd /usr/local/nmis9/contrib/html
+sudo mv /var/www/html/index.html /var/www/html/index.html.original
+sudo cp index-redirect.html /var/www/html/index.html
+
+
+If installing to a remote server:
+
+Copy the file to the target server and then run the following.
+
+cd /usr/local/nmis9/contrib/html
+scp index-redirect.html REMOTESERVER:
+ssh REMOTESERVER
+sudo mv /var/www/html/index.html /var/www/html/index.html.original
+sudo mv index-redirect.html /var/www/html/index.html
+
+

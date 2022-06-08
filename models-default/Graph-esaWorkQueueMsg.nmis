@@ -1,0 +1,24 @@
+
+%hash = (
+	'heading' => 'Work Queue Messages',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Count'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:workQueueMessgs=$database:workQueueMessgs:AVERAGE',
+			'AREA:workQueueMessgs#53199e:Message Queue',
+			'GPRINT:workQueueMessgs:LAST:Amount %6.0lf %S\\n'
+		],
+		'small' => [
+			'DEF:workQueueMessgs=$database:workQueueMessgs:AVERAGE',
+			'AREA:workQueueMessgs#53199e:Message Queue',
+			'GPRINT:workQueueMessgs:LAST:Amount  %6.0lf %S\\n'
+		]
+	}
+);
+
