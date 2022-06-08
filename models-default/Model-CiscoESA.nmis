@@ -30,9 +30,9 @@
       'power' => {
         'common-model' => 'Cisco-status'
       },
-      'Host_Resource' => {
-        'common-model' => 'Host_Resource'
-      }      
+      'diskIOTable' => {
+        'common-model' => 'diskIOTable'
+      },
     }
   },
 
@@ -603,27 +603,11 @@
   },
 
   'systemHealth' => {
-    'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor,Host_Device',
+    'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor',
     'sys' => {
-      'diskIOTable' => {        
-        'indexed' => 'diskIODevice',
-        'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.2',
-        'headers' => 'DiskIODevice',        
-        'snmp' => {
-          'diskIOIndex' => {
-            'oid' => 'diskIOIndex',
-            'title' => 'IO Device Index'
-          },
-          'diskIODevice' => {
-            'oid' => 'diskIODevice',
-            'title' => 'IO Device Name'
-          }
-        }
-      }, 
-
       'InterfaceTable' => {
         'indexed' => 'ifDescr',
-        'headers' => 'ifDescr,Description,ifType,ifAdminStatus,ifOperStatus,ifLastChange,ifSpeed,ifHighSpeed',
+        'headers' => 'ifDescr,ifName,ifAlias,ifType,ifAdminStatus,ifOperStatus,ifLastChange,ifSpeed,ifHighSpeed',
         'snmp' => {
           'ifDescr' => {
             'oid' => 'ifDescr',
@@ -693,32 +677,5 @@
         }
       },
     },
-
-    'rrd' => {
-      'diskIOTable' => {
-#        'control' => 'CVAR=diskIODevice;$CVAR =~ /^(da|sg|pass)/',
-        'indexed' => 'true',
-        'graphtype' => 'diskio-rw,diskio-rwbytes',
-        'snmp' => {
-          'diskIONReadX' => {
-            'oid' => 'diskIONReadX',
-            'option' => 'counter,0:U'
-          },
-          'diskIONWrittenX' => {
-            'oid' => 'diskIONWrittenX',
-            'option' => 'counter,0:U'
-          },
-          'diskIOReads' => {
-            'oid' => 'diskIOReads',
-            'option' => 'counter,0:U'
-          },
-          'diskIOWrites' => {
-            'oid' => 'diskIOWrites',
-            'option' => 'counter,0:U'
-          }
-        }
-      }
-    },
-	   
   },
 );

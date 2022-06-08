@@ -334,6 +334,9 @@
           'hrDeviceDescr' => {
             'oid' => 'hrDeviceDescr',
             'title' => 'CPU Description',
+            'replace' => {
+              'noSuchInstance' => 'Processor',
+            },
           }
         }
       },

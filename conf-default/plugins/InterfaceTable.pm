@@ -125,7 +125,10 @@ sub update_plugin
                     $inventory->enabled(1);
                     # disable for now
                     $inventory->data_info( subconcept => 'interface', enabled => 0 );
+
                     my ($op,$error) = $inventory->save();
+                    $inventory->description( $data->{ifDescr} );
+
                     $NG->log->debug2( "saved ".join(',', @$path)." op: $op");
                     $NG->log->info( "saved ".join(',', @$path)." op: $op");
                 } else {
