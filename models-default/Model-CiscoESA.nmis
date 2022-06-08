@@ -230,7 +230,7 @@
     'nodeType' => 'appliance',
     'nodeModel' => 'CiscoESA',
     'nodeVendor' => 'Cisco Systems, Inc.',
-    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,queueUtil,workQueueMsg,queueAvail',
+    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,esaQueueUtil,esaWorkQueueMsg',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',
@@ -325,7 +325,7 @@
       },
 
       'asyncoshealth' => {
-        'graphtype' => 'esaStats,queueUtil,workQueueMsg',
+        'graphtype' => 'esaStats,esaQueueUtil,esaWorkQueueMsg',
         'snmp' => {
 
          'perCentQueueUtil' => {
