@@ -167,7 +167,7 @@ fi
 
 if [ "$1" = "fixperms" ]
 then
-	$nmis_base/admin/fixperms.pl
+	$nmis_base/bin/nmis-cli act=fixperms
 	exit 0
 fi
 
