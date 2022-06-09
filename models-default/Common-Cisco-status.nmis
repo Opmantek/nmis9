@@ -29,6 +29,16 @@
 # *****************************************************************************
 
 %hash = (
+  'database' => {
+    'type' => {
+      'fanStatusCefc' => '/nodes/$node/health/fanstatus-$index.rrd'
+    }
+  },
+  'heading' => {
+    'graphtype' => {
+      'fan-status-cefc' => 'Fan Status'
+    }
+  },
   'alerts' => {
     'fanStatus' => {
       'fanValue' => {
@@ -66,6 +76,18 @@
         'value' => 'CVAR1=tempValue;int($CVAR1)'
       }
     },
+    'fanStatusCefc' => {
+      'fan' => {
+        'element' => 'entPhysicalDescr',
+        'event' => 'Fan Supply Status',
+        'level' => 'Major',
+        'test' => 'CVAR1=FanOperStatus;$CVAR1 < 80',
+        'title' => 'Fan Supply Status',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=FanOperStatus;int($CVAR1)'
+      }
+    }
   },
   'systemHealth' => {
     'rrd' => {
@@ -157,6 +179,50 @@
           }
         }
       },
+      'fanStatusCefc' => {
+        'graphtype' => 'fan-status-cefc',
+        'indexed' => 'true',
+        'snmp' => {
+          #'FanSpeed' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.117.1.4.2.1.1',
+          #  'snmpObjectName' => 'cefcFanSpeed',
+          #  'title' => 'Fan Speed',
+          #  'replace' => {
+          #    'noSuchInstance' => 'Unavailable'
+          #  },
+          #},
+          #'FanSpeedPercent' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.117.1.4.2.1.2',
+          #  'snmpObjectName' => 'cefcFanSpeedPercent',
+          #  'title' => 'Fan Speed Percentage',
+          #  'replace' => {
+          #    'noSuchInstance' => 'Unavailable'
+          #  },
+          #},
+          'FanOperStatus' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.4.1.1.1',
+            'replace' => {
+              '1' => '15',
+              '2' => '100',
+              '3' => '0',
+              '4' => '25'
+            },
+            'snmpObjectName' => 'cefcFanTrayOperStatus',
+            'title' => 'Oper Status'
+          },
+          'FanOperStatusName' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.4.1.1.1',
+            'option' => 'nosave',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'up',
+              '3' => 'down',
+              '4' => 'warning'
+            },
+            'snmpObjectName' => 'cefcFanTrayOperStatus'
+          }
+        }
+      }
     },
     'sys' => {
       'fanStatus' => {
@@ -267,6 +333,42 @@
           }
         }
       },
+      'fanStatusCefc' => {
+        'headers' => 'entPhysicalDescr,entPhysicalModelName,FanOperStatusName',
+        'index_oid' => '1.3.6.1.4.1.9.9.117.1.4.1.1.1',
+        'indexed' => 'cefcFanTrayOperStatus',
+        'snmp' => {
+          #'FanSpeed' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.117.1.4.2.1.1',
+          #  'snmpObjectName' => 'cefcFanSpeed',
+          #  'title' => 'Fan Speed'
+          #},
+          #'FanSpeedPercent' => {
+          #  'oid' => '1.3.6.1.4.1.9.9.117.1.4.2.1.2',
+          #  'snmpObjectName' => 'cefcFanSpeedPercent',
+          #  'title' => 'Fan Speed Percentage'
+          #},
+          'FanOperStatusName' => {
+            'oid' => '1.3.6.1.4.1.9.9.117.1.4.1.1.1',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'up',
+              '3' => 'down',
+              '4' => 'warning'
+            },
+            'snmpObjectName' => 'cefcFanTrayOperStatus',
+            'title' => 'Oper Status'
+          },
+          'entPhysicalDescr' => {
+            'oid' => 'entPhysicalDescr',
+            'title' => 'Physical Description'
+          },
+          'entPhysicalModelName' => {
+            'oid' => 'entPhysicalModelName',
+            'title' => 'Model Name'
+          }
+        }
+      }
     }
   }
 );
