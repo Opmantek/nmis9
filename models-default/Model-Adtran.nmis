@@ -54,7 +54,7 @@
   },
   'system' => {
     'nodegraph' => 'health,response,ip',
-    'nodeModel' => 'Default-HC',
+    'nodeModel' => 'Adtran',
     'nodeType' => 'generic',
     'sys' => {
       'standard' => {
