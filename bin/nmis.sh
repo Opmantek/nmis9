@@ -38,7 +38,6 @@ event_log=$nmis_base/logs/event.log
 error_log=/var/log/httpd/error_log
 editor=`which vi`
 DEBUG="debug=false"
-MODEL="model=false"
 OUTPUT="/tmp/nmis-debug"
 
 taillines=50
@@ -86,29 +85,34 @@ then
 	MODEL="model=true"
 fi
 
-if [ "$3" = "9" ]
+if [ "$3" = "debug" ]
 then
-	DEBUG="job.verbosity=9"
+	DEBUG="job.verbosity=1"
 fi
 
-if [ "$3" = "debug" ]
+if [ "$3" = "debug2" ]
 then
 	DEBUG="job.verbosity=2"
 fi
 
-if [ "$3" = "debug3" ]
+if [ "$3" = "debug3" ] 
 then
 	DEBUG="job.verbosity=3"
 fi
 
-if [ "$3" = "debug5" ]
+if [ "$3" = "debug4" ]
+then
+	DEBUG="job.verbosity=4"
+fi
+
+if [ "$3" = "debug5" ] 
 then
 	DEBUG="job.verbosity=5"
 fi
 
-if [ "$2" = "debug" ]
+if [ "$3" = "debug9" ]
 then
-	DEBUG="debug=true"
+	DEBUG="job.verbosity=9"
 fi
 
 if [ "$1" = "log" ]
@@ -167,7 +171,7 @@ fi
 
 if [ "$1" = "fixperms" ]
 then
-	$nmis_base/bin/nmis-cli act=fixperms
+	$nmis_base/admin/fixperms.pl
 	exit 0
 fi
 
