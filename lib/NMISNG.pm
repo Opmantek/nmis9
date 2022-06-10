@@ -297,6 +297,7 @@ sub applyThresholdToInventory
 
 		# fixme errors are ignored
 		my $levelinfo = $S->translate_threshold_level(
+			type => $type,
 			thrname => $nm,
 			stats   => $stats,
 			index   => $index,
@@ -676,6 +677,8 @@ sub compute_thresholds
 			{
 				my $data = $inventory->data;
 				my $index = $data->{index} // undef;
+
+				$self->log->debug4("threshold of type:$type, index:$index ".Dumper $inventory);
 
 				if ($control
 					&& !$S->parseString(

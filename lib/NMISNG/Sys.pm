@@ -2074,7 +2074,12 @@ sub parseString
 
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory, $filter ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory", "filter"};
 
-	$self->nmisng->log->debug3( "parseString:: sect:$sect, type:$type, string to parse '$str'");
+	$self->nmisng->log->debug3( "parseString:: sect:$sect, type:$type, indx:$indx, string to parse '$str'");
+
+	# needing some verbosity
+	$self->nmisng->log->debug4( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+	$self->nmisng->log->debug4( "inventory:".Data::Dumper->new([$inventory])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+
 	# if there is no eval and no variables for substitution are found, just return
 	if( !$eval && $str !~ /\$/ )
 	{
@@ -2537,6 +2542,7 @@ sub translate_threshold_level
 
 	my $M  = $self->mdl;
 
+	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $stats = $args{stats}; # value of items
 	my $index = $args{index};
@@ -2565,11 +2571,12 @@ sub translate_threshold_level
 	
 	foreach my $thr (sort {$a <=> $b} keys %{$T})
 	{
+		$self->nmisng->log->debug3("translate_threshold_level threshold:$thrname, thr:$thr, sect:$type, index:$index, item:$item");
 		next if $thr eq 'default'; # skip now the default values
 		if (($self->parseString(string=>"($T->{$thr}{control})?1:0",
 														index=>$index,
 														item=>$item,
-														sect=>$item,
+														sect=>$type,
 														eval => 1)))
 		{
 			$val = $T->{$thr}{value};
