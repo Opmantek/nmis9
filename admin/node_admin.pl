@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.1.1";
+our $VERSION = "9.4.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -1213,6 +1213,80 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 				if (-t \*STDERR);								# if terminal
 	}
 }
+elsif ( $cmdline->{act} =~ /validate[-_]node[-_]inventory/ ) {
+
+    my $concept       = $cmdline->{concept};
+    my $make_historic = NMISNG::Util::getbool( $cmdline->{make_historic} );
+    my $dryrun        = NMISNG::Util::getbool( $cmdline->{dryrun} );
+    die "concept not defined or not yet supported"
+      if ( $concept !~ /^(catchall)$/ );
+    my ( $entries, undef, $error ) = NMISNG::DB::aggregate(
+        collection         => $nmisng->inventory_collection,
+        count              => 0,
+        pre_count_pipeline => [
+            { '$match' => { "concept" => "catchall", "enabled" => 1} },
+            {
+                '$group' => {
+                    '_id'    => '$node_uuid',
+                    'count'  => { '$sum'      => 1 },
+                    'broken' => { '$addToSet' => '$_id' }
+                }
+            },
+            { '$sort'  => { 'lastupdate' => -1 } },
+            { '$match' => { "count"      => { '$gt' => 1 } } },
+        ]
+    );
+
+    die "Cannot aggregate on inventory collection: $error" if ($error);
+
+    my $count = scalar( @{$entries} );
+    if ( $count > 0 ) {
+        if ( $make_historic == 1 ) {
+            print("Making $count nodes $concept documents historic\n")
+              if ( !$dryrun );
+            print("Dryrun of making $count nodes $concept documents historic\n")
+              if ($dryrun);
+            foreach my $record ( @{$entries} ) {
+                print("Working on $record->{_id}\n");
+                my $broken = $record->{broken};
+                #keep the first value
+                shift(@{$broken});
+                my $record = { historic => 1, enabled => 0, _made_historic_by => "node_admin" };
+                $record = {} if ($dryrun);
+                my $result = NMISNG::DB::update(
+                    collection => $nmisng->inventory_collection,
+                    query      => NMISNG::DB::get_query(
+                        and_part => { _id => $broken },
+                        no_regex => 1
+                    ),
+                    record   => { '$set' => $record },
+                    freeform => 1,
+                    multiple => 1
+                );
+                print(
+"Success Matched: $result->{matched_records}, Updated: $result->{updated_records} \n"
+                ) if ( $result->{success} );
+                print(
+"Error updating extra catchall records, error type: $result->{error_type}, $result->{error} \n"
+                ) if ( $result->{error} );
+            }
+        }
+        else {
+            print(
+"You have $count nodes with more than one catchall document, pass make_historic=true to fix\n"
+            );
+            foreach my $record ( @{$entries} ) {
+                print("UUID: $record->{_id} Count: $record->{count}\n");
+            }
+        }
+
+    }
+    else {
+        print("$concept looks normal\n");
+    }
+}
+
+
 else
 {
 	# fallback: complain about the arguments
