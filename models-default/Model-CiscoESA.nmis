@@ -27,15 +27,16 @@
       'Host_Resources' => {
         'common-model' => 'Host_Resources'
       },
-      'power' => {
-        'common-model' => 'Cisco-status'
-      },
       'diskIOTable' => {
         'common-model' => 'diskIOTable'
       },
     }
   },
-
+  'database' => {
+    'type' => {
+      'ESA_Power_Supply' => '/nodes/$node/health/esa_power_supply-$index.rrd'
+    }
+  },
   'interface' => {
    'collect' => {
 
@@ -304,19 +305,19 @@
         'snmp' => {
 
          'avgBusy1' => {
-#          'snmpObject' => 'perCentCPUUtilization',
+          'snmpObjectName' => 'perCentCPUUtilization',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
           'option' => 'gauge,0:U'
           },
 
          'avgBusy5' => {
-#          'snmpObject' => 'perCentCPUUtilization',
+          'snmpObjectName' => 'perCentCPUUtilization',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
           'option' => 'gauge,0:U'
           },
 
           'memUtil' => {
-#            'snmpObject' => 'perCentMemoryUtilization',        
+            'snmpObjectName' => 'perCentMemoryUtilization',        
             'oid' => '1.3.6.1.4.1.15497.1.1.1.1.0',
             'option' => 'gauge,0:U'
           }
@@ -329,43 +330,43 @@
         'snmp' => {
 
          'perCentQueueUtil' => {
-#          'snmpObject' => 'perCentQueueUtilization',
+          'snmpObjectName' => 'perCentQueueUtilization',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
           'option' => 'gauge,0:U'
           },
 
          'queueAvailStatus' => {
-#          'snmpObject' => 'queueAvailabilityStatus',
+          'snmpObjectName' => 'queueAvailabilityStatus',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
           'option' => 'gauge,0:U'
           },
 
          'resConsReason' => {
-#          'snmpObject' => 'resourceConservationReason',
+          'snmpObjectName' => 'resourceConservationReason',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
           'option' => 'gauge,0:U'
           },
 
          'memAvail' => {
-#          'snmpObject' => 'memoryAvailabilityStatus',
+          'snmpObjectName' => 'memoryAvailabilityStatus',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.7.0',
           'option' => 'gauge,0:U'
           },,
 
          'asyncOSPwrSupply' => {
-#          'snmpObject' => 'powerSupplyStatus',
+          'snmpObjectName' => 'powerSupplyStatus',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
           'option' => 'gauge,0:U'
           },
 
          'asyncOSPwrRedund' => {
-#          'snmpObject' => 'powerSupplyRedundancy',
+          'snmpObjectName' => 'powerSupplyRedundancy',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
           'option' => 'gauge,0:U'
           },
 
          'workQueueMessgs' => {
-#          'snmpObject' => 'workQueueMessages',
+          'snmpObjectName' => 'workQueueMessages',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
           'option' => 'gauge,0:U'
           }
@@ -415,7 +416,7 @@
     }
   },
 
-'alerts' => {
+  'alerts' => {
       'services' => {
       # ALERTS FOR PHYSICAL ASYNCOS
       # IRONPORT MEMORY AVAIL
@@ -605,6 +606,35 @@
   'systemHealth' => {
     'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor',
     'sys' => {
+      'ESA_Power_Supply' => {
+        'headers' => 'powerSupplyName,powerSupplyStatus,powerSupplyRedundancy',
+        'index_oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+        'indexed' => 'powerSupplyStatus',
+        'snmp' => {
+          'powerSupplyName' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.4',
+            'title' => 'PSU Name'
+          },
+          'powerSupplyStatus' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+            'replace' => {
+              '1' => 'powerSupplyNotInstalled',
+              '2' => 'powerSupplyHealthy',
+              '3' => 'powerSupplyNoAC',
+              '4' => 'powerSupplyFaulty'
+            },
+            'title' => 'PSU Status'
+          },
+          'powerSupplyRedundancy' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
+            'replace' => {
+              '1' => 'powerSupplyRedundancyOK',
+              '2' => 'powerSupplyRedundancyLost'
+            },
+            'title' => 'PSU Redundancy'
+          }
+        }
+      },      
       'InterfaceTable' => {
         'indexed' => 'ifDescr',
         'headers' => 'ifDescr,ifName,ifAlias,ifType,ifAdminStatus,ifOperStatus,ifLastChange,ifSpeed,ifHighSpeed',
@@ -677,5 +707,40 @@
         }
       },
     },
+    'rrd' => {
+      'ESA_Power_Supply' => {
+        'graphtype' => 'psu-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'psuValue' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+            'replace' => {
+              '1' => '75', #'powerSupplyNotInstalled',
+              '2' => '100', #'powerSupplyHealthy',
+              '3' => '50', #'powerSupplyNoAC',
+              '4' => '0', #'powerSupplyFaulty'
+            }
+          },
+          'powerSupplyStatus' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+            'replace' => {
+              '1' => 'powerSupplyNotInstalled',
+              '2' => 'powerSupplyHealthy',
+              '3' => 'powerSupplyNoAC',
+              '4' => 'powerSupplyFaulty'
+            },
+            'option' => 'nosave'
+          },
+          'powerSupplyRedundancy' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
+            'replace' => {
+              '1' => 'powerSupplyRedundancyOK',
+              '2' => 'powerSupplyRedundancyLost'
+            },
+            'option' => 'nosave'
+          }
+        }
+      },      
+    },          
   },
 );
