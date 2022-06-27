@@ -34,7 +34,8 @@
   },
   'database' => {
     'type' => {
-      'ESA_Power_Supply' => '/nodes/$node/health/esa_power_supply-$index.rrd'
+      'ESA_Power_Supply' => '/nodes/$node/health/esa_power_supply-$index.rrd',
+      'asyncoshealth' => '/nodes/$node/health/esa_health.rrd',
     }
   },
   'interface' => {
