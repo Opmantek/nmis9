@@ -2139,6 +2139,9 @@ sub parseString
 		for my $maybe ( sort { length($b) <=> length($a) } keys %$extras )
 		{
 			$extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+			# possible solution for SUPPORT-9607
+			#$extras->{$maybe} = "'".$extras->{$maybe}."'"	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+
 			my $presubst = $str;
 
 			# this substitutes $varname and ${varname},
