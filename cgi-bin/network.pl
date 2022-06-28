@@ -57,6 +57,7 @@ my $Q = $q->Vars;    # values in hash
 $Q = NMISNG::Util::filter_params($Q);
 my $nmisng = Compat::NMIS::new_nmisng;
 my $C = $nmisng->config;
+my $interface_max_number = $C->{interface_max_number} || 5000;
 
 # bypass auth iff called from command line
 $C->{auth_require} = 0 if (@ARGV);
@@ -3302,13 +3303,20 @@ escalate ));
 
 	# print header row
 	print "<tr>";
-	for my $col (@wantedcols)
+	if (@wantedcols > 0)
 	{
-		my $headertitle = $titles{$col};
-		$headertitle =~ s/\s*\(.*//; 		# ditch any parenthesised title parts
-		print qq|<td class="header" align="center"><a href="|
-				. url(-absolute => 1)."?act=network_interface_view_all&refresh=$Q->{refresh}&widget=$widget&sort=$col&dir=$dir&active=$Q->{active}&node=". uri_escape($node).  qq|">$headertitle</a></td>|;
-	}
+		for my $col (@wantedcols)
+		{
+			my $headertitle = $titles{$col};
+			$headertitle =~ s/\s*\(.*//; 		# ditch any parenthesised title parts
+			print qq|<td class="header" align="center"><a href="|
+					. url(-absolute => 1)."?act=network_interface_view_all&refresh=$Q->{refresh}&widget=$widget&sort=$col&dir=$dir&active=$Q->{active}&node=". uri_escape($node).  qq|">$headertitle</a></td>|;
+		}
+    }
+    elsif ($catchall_data->{ifNumber} > $interface_max_number)
+    {
+            print qq|<td class="header" align="center">Interface count ($catchall_data->{ifNumber}) exceeds configured 'interface_max_number' value, no interfaces will be discovered.</td>|;
+    }
 	print "</tr>";
 
 
