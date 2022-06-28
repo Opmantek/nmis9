@@ -915,9 +915,29 @@ sub execPrint
 	}
 
 	logmsg(0,"\n###+++\nEXEC: $cmd");
-	my $out = `$cmd 2>&1 </dev/null`;
-	my $rawstatus = $?;
-	my $res = POSIX::WIFEXITED($rawstatus)? POSIX::WEXITSTATUS($rawstatus): -1;
+	# robust: retry on failure
+	my $out;
+	my $res;
+	foreach ( 1, 2, 3, 4, 5, 6) {
+		$out = `$cmd 2>&1`;
+		my $rawstatus = $?;
+		$res = POSIX::WIFEXITED($rawstatus)? POSIX::WEXITSTATUS($rawstatus): -1;
+		if ($res == 0)
+		{
+			logmsg($debug,"\n###+++\nexecPrint '$cmd' succeeded\n\n");
+			last;
+		}
+		if ($debug)
+		{
+			printBanner("execPrint '$cmd' failed. Retrying...");
+		}
+		#else
+		#{
+		#	print "\n###+++\nexecPrint '$cmd' failed. Retrying...\n\n";
+		#	logmsg(0,"\n###+++\nexecPrint '$cmd' failed. Retrying...\n\n");
+		#}
+		sleep 10;
+	}
 
 	if ( $res != 0 )
 	{

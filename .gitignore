@@ -17,3 +17,4 @@ seed.txt
 Vagrantfile
 *.swp
 *.swo
+install.log

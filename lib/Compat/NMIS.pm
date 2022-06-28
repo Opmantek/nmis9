@@ -29,7 +29,7 @@
 package Compat::NMIS;
 use strict;
 
-our $VERSION = "9.3.2";
+our $VERSION = "9.4.0";
 
 use Time::ParseDate;
 use Time::Local;
@@ -129,12 +129,14 @@ sub loadLocalNodeTable
 	# ask the database for all of my nodes, ie. with my cluster id
 	my $modelData = $nmisng->get_nodes_model( filter => { cluster_id => $nmisng->config->{cluster_id} } );
 	my $data = $modelData->data();
-
+	my %dontflatten = ('uuid', 1, 'name', 1);
 	my %map = map { ($_->{name} => $_) } @$data;
 	for my $flattenme (values %map)
-	{
+	{	
 		for my $confprop (keys %{$flattenme->{configuration}})
 		{
+			#Fix issue where a broken node would have uuid or name in the configuration
+			next if($dontflatten{$confprop} and defined $flattenme->{$confprop});
 			$flattenme->{$confprop} = $flattenme->{configuration}->{$confprop};
 		}
 		delete $flattenme->{configuration};
