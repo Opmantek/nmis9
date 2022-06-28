@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "2.0.0b";
+our $VERSION = "2.1.0";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -94,7 +94,6 @@ my $reldir = "nmis-collect.$timelabel";
 my $targetdir = "$td/$reldir";
 mkdir($targetdir);
 my $bot_data;
-my ($error, $zfn);
 my %globalerrors;
 
 # can we instantiate an nmisng object?
@@ -151,42 +150,7 @@ if ($cmdline->{action} eq "collect") {
 		run_bot(zip => 1);
 	}
 	
-	($error, $zfn) = makearchive("$tmp/nmis-support-$timelabel",
-																	$td, $reldir);
-	die "Failed to create archive file: $error\n" if ($error);
-	
-	# zip mustn't become too large, hence we possibly tail/truncate some or all log files
-	opendir(D,"$targetdir/logs")
-			or warn "can't read $targetdir/logs dir: $!\n";
-	my @shrinkables = map { "$targetdir/logs/$_" } (grep(/\.log$/, readdir(D)));
-	closedir(D);
-	
-	# test zip, shrink logfiles, repeat until small enough or out of shrinkables
-	while (-s $zfn > $maxzip)
-	{
-		# hmm, too big: shrink the log files one by one until the size works out
-		unlink($zfn);
-	
-		print "zipfile too big, trying to shrink some logfiles...\n";
-		if (my $nextfile = pop @shrinkables)
-		{
-			$status = shrinkfile($nextfile,$tail);
-			die "shrinking of $nextfile failed: $status\n" if ($status);
-		}
-		else
-		{
-			# nothing left to try :-(
-			die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
-		}
-	
-		my ($error, $zfn) = makearchive("$tmp/nmis-support-$timelabel",
-																		$td, $reldir);
-		die "Failed to create archive file: $error\n" if ($error);
-	}
-	
-	print "\nAll done.\n\nCollected system information is in $zfn
-	Please include this zip file when you contact
-	the NMIS Community or the Opmantek Team.\n\n";
+	makesupportarchive("$tmp/nmis-support-$timelabel", $td, $reldir);
 	
 	# remove tempdir (done automatically on exit)
 	exit 0;
@@ -576,11 +540,11 @@ The support tool won't be able to collect database status information!\n");
 				my $nodeobj = $nmisng->node(uuid => $found->{uuid});
 				$nodeobj->update();
 				
-				my $logfn = "$targetdir/node_dumps/collect.log";
-				my $thisjoblog = NMISNG::Log->new(level => NMISNG::Log::parse_debug_level(debug => 7),
+				$logfn = "$targetdir/node_dumps/collect.log";
+				$thisjoblog = NMISNG::Log->new(level => NMISNG::Log::parse_debug_level(debug => 7),
 																						path => $logfn);
 				$nmisng->log($thisjoblog);
-				my $nodeobj = $nmisng->node(uuid => $found->{uuid});
+				$nodeobj = $nmisng->node(uuid => $found->{uuid});
 				$nodeobj->collect();
 			}
 		}
@@ -674,7 +638,27 @@ sub input_yn
 # returns: (undef, final full file path) or (errormessage)
 sub makearchive
 {
+	my ($targetfile, $startdir, $sourcedir, $whattool) = @_;
+
+	my $archivefn = $targetfile.($whattool eq "tar"? ".tgz":".zip");
+
+	my $origdir = getcwd;
+	chdir($startdir) or return "failed to chdir to $startdir: $!";
+
+	my @cmd = (($whattool eq "zip")? ("zip","-q","-x \cgisock.*","-r") : ("tar","-czf"), $archivefn, $sourcedir);
+	my $status = system(@cmd);
+	chdir($origdir);
+
+	return "failed to create support $whattool file $targetfile: $!\n" if (POSIX::WEXITSTATUS($status));
+
+	return (undef, $archivefn);
+}
+
+sub makesupportarchive
+{
 	my ($targetfile, $startdir, $sourcedir) = @_;
+
+	my ($error, $zfn);
 
 	my $whattool = "tar";
 	my $status = system("zip --version >/dev/null 2>&1");
@@ -683,18 +667,83 @@ sub makearchive
 		$whattool="zip";
 	}
 
-	my $archivefn = $targetfile.($whattool eq "tar"? ".tgz":".zip");
+	eval {
+		($error, $zfn) = makearchive($targetfile, $startdir, $sourcedir, $whattool);
+		die "Failed to create archive file: $error\n" if ($error);
+		
+		# zip mustn't become too large, hence we possibly tail/truncate some or all log files
+		opendir(D,"$targetdir/logs")
+				or warn "can't read $targetdir/logs dir: $!\n";
+		my @shrinkables = map { "$targetdir/logs/$_" } (grep(/\.log$/, readdir(D)));
+		closedir(D);
+		
+		# test zip, shrink logfiles, repeat until small enough or out of shrinkables
+		while (-s $zfn > $maxzip)
+		{
+			# hmm, too big: shrink the log files one by one until the size works out
+			unlink($zfn);
+		
+			print "$whattool file too big, trying to shrink some logfiles...\n";
+			if (my $nextfile = pop @shrinkables)
+			{
+				$status = shrinkfile($nextfile,$tail);
+				die "shrinking of $nextfile failed: $status\n" if ($status);
+			}
+			else
+			{
+				# nothing left to try :-(
+				die "\nPROBLEM: cannot reduce $whattool file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
+			}
+		
+			($error, $zfn) = makearchive($targetfile, $startdir, $sourcedir, $whattool);
+			die "Failed to create archive file: $error\n" if ($error);
+		}
+	};
+	if ($@)
+	{
+		print $@;
+		if ($whattool eq "zip")
+		{
+			$whattool = "tar";
+			print "Retrying uysing tar";
 
-	my $origdir = getcwd;
-	chdir($startdir) or return "failed to chdir to $startdir: $!";
-
-	my @cmd = (($whattool eq "zip")? ("zip","-q","-r") : ("tar","-czf"), $archivefn, $sourcedir);
-	$status = system(@cmd);
-	chdir($origdir);
-
-	return "failed to create support zip file $zfn: $!\n" if (POSIX::WEXITSTATUS($status));
-
-	return (undef, $archivefn);
+			($error, $zfn) = makearchive($targetfile, $startdir, $sourcedir, $whattool);
+			die "Failed to create archive file: $error\n" if ($error);
+			
+			# zip mustn't become too large, hence we possibly tail/truncate some or all log files
+			opendir(D,"$targetdir/logs")
+					or warn "can't read $targetdir/logs dir: $!\n";
+			my @shrinkables = map { "$targetdir/logs/$_" } (grep(/\.log$/, readdir(D)));
+			closedir(D);
+			
+			# test zip, shrink logfiles, repeat until small enough or out of shrinkables
+			while (-s $zfn > $maxzip)
+			{
+				# hmm, too big: shrink the log files one by one until the size works out
+				unlink($zfn);
+			
+				print "$whattool file too big, trying to shrink some logfiles...\n";
+				if (my $nextfile = pop @shrinkables)
+				{
+					$status = shrinkfile($nextfile,$tail);
+					die "shrinking of $nextfile failed: $status\n" if ($status);
+				}
+				else
+				{
+					# nothing left to try :-(
+					die "\nPROBLEM: cannot reduce ${whattool} file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
+				}
+			
+				($error, $zfn) = makearchive($targetfile, $startdir, $sourcedir, $whattool);
+				die "Failed to create archive file: $error\n" if ($error);
+			}		
+		}
+	}
+	
+	
+	print "\nAll done.\n\nCollected system information is in $zfn
+	Please include this $whattool file when you contact
+	the NMIS Community or the Opmantek Team.\n\n";	
 }
 
 # mongo 'shell mode' extended json, which isn't digestible to json_xs etc.
@@ -766,9 +815,10 @@ sub collect_bot_data
 			$bot_data->{summary} = $bot_data->{summary} . "\n" . $line;
 		}
 	}
+	close ($fh);
 	
 	# Disk 
-	open(my $fh, "<", "$dir/system_status/disk_info")
+	open($fh, "<", "$dir/system_status/disk_info")
 		or print "Can't open < system_status: $! \n";
 	
 	while (my $line = <$fh>) {
@@ -779,11 +829,12 @@ sub collect_bot_data
 			$bot_data->{disk}->{$1}->{use} = $5;
 		}
 	}
+	close ($fh);
 	
 	# OS 
 	for my $x (glob("$dir/system_status/osrelease/*"))
 	{
-		open(my $fh, "<", "$x")
+		open($fh, "<", "$x")
 				or die "Can't open < osrelease: $!";
 
 		while (my $line = <$fh>) {
@@ -794,9 +845,10 @@ sub collect_bot_data
 			}
 		}
 	}
+	close ($fh);
 	
 	# top
-	open(my $fh, "<", "$dir/system_status/top")
+	open($fh, "<", "$dir/system_status/top")
 			or die "Can't open < top data: $!";
 
 	while (my $line = <$fh>) {
@@ -823,6 +875,8 @@ sub collect_bot_data
 			$bot_data->{stats}->{memAvail} = $4;
 		}
 	}
+	close ($fh);
+
 	# Custom models
 	my $custommodels = 0;
 	for my $x (glob("$basedir/models-custom/*"))
@@ -1045,7 +1099,7 @@ sub create_index
 	foreach my $key (keys %$content) {
 		$toRet = $toRet . "<li><a href='#$key'>". $key . "</a></li>";
 	}
-	my $toRet = $toRet."</ul>";
+	$toRet = $toRet."</ul>";
 	
 	return $toRet;
 }
@@ -1067,7 +1121,8 @@ sub print_disk
 		my $use = $content->{$key}->{use};
 		$use =~ s/%//;
 		my $show_use = "<span class='text-success'>".$content->{$key}->{use}."</span>";
-		if ($use > 80) {
+		# excluding loop filesystems
+		if ($use > 80 and $key !~ /loop/ ) {
 			$globalerrors{disk}->{message} = "High use of disk $key: ". $content->{$key}->{use};
 			#print "** High use of disk $key: ". $content->{$key}->{use}." \n";
 			$show_use = "<span class='text-danger'>".$content->{$key}->{use}."</span>";
