@@ -172,7 +172,7 @@
       }
     },
     'F5_CPU' => {
-      'F5ProacCPU' => {
+      'F5ProacCPUData' => {
 	'threshold' => {
 	   'Critical' => '70',
 	   'Fatal' => '80',
@@ -187,7 +187,7 @@
 	'element' => 'sysPlaneStatPlaneName',
 	'value' => 'CVAR1=CpuRatio5min; $CVAR1',
 	'event' => 'High CPU',
-#	'level' => 'Warning',
+        'control' => 'CVAR=sysPlaneStatPlaneName;$CVAR =~ /data/',
       }
     }
  },
