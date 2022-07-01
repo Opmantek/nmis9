@@ -1,0 +1,486 @@
+#
+## $Id: Model-net-snmp.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (NMIS).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database' => {
+				'common-model' => 'database'
+			},
+			'summary' => {
+				'common-model' => 'summary'
+			},
+			'threshold' => {
+				'common-model' => 'threshold'
+			},
+			'stats' => {
+				'common-model' => 'stats'
+			},
+			'event' => {
+				'common-model' => 'event'
+			}
+		}
+	},
+	'stats' => {
+		'type' => {
+		},
+	},
+	'system' => {
+		'nodeModel' => 'NetSure',
+		'nodeVendor' => 'NetSure',
+		'nodeType' => 'power',
+		'nodegraph' => 'health,cards,response,ip,tcp-conn,tcp-segs',
+		'sys' => {
+			'standard' => {
+				'snmp' => {
+					'sysLocation' => {
+						'replace' => {
+							'' => 'default',
+						},
+						'oid' => 'sysLocation',
+						'title' => 'Location',
+					},
+					'sysDescr' => {
+						'oid' => 'sysDescr',
+						'title' => 'Description',
+					},
+					'sysObjectID' => {
+						'oid' => 'sysObjectID',
+					},
+					'ifNumber' => {
+						'oid' => 'ifNumber',
+						'title' => 'Interfaces',
+					},
+					'sysContact' => {
+						'replace' => {
+							'' => 'default',
+						},
+						'oid' => 'sysContact',
+						'title' => 'Contact',
+					},
+					'sysName' => {
+						'oid' => 'sysName',
+					},
+					# SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+					#			  has been running for, not the uptime of the box.  hrSystemUpTime
+					#			  is the same as 'uptime' on the bash command line.
+					#'sysUpTime' => {
+					#	'oid' => 'hrSystemUptime',
+					#	'title' => 'Uptime',
+					#},
+					'snmpUpTime' => {
+						'oid' => 'sysUpTime',
+						'title' => 'SNMP_Uptime',
+					},
+					'hrSystemDateSec' => {
+						'oid' => 'hrSystemDate',
+						# have: the 0xhexstring equivalent of local 2016-9-9,5:53:28.0,+10:0
+						# we want fractional seconds in gmt.
+						'calculate' => 'return NMISNG::Util::parse_dateandtime($r);',
+					},
+					'clockDelta' => {
+						'oid' => 'hrSystemDate',
+						'calculate' => 'my $delta = Time::HiRes::time - NMISNG::Util::parse_dateandtime($r); return ($delta > 0)? $delta: -$delta;',
+					},
+				}
+			},
+			'alerts' => {
+				'snmp' => {
+					'tcpCurrEstab' => {
+						'oid' => 'tcpCurrEstab',
+						'title' => 'TCP Established Sessions',
+						'alert' => {
+							'test' => '$r > 150',
+							'event' => 'High TCP Connection Count',
+							'unit' => 'connections',
+							'level' => 'Warning'
+						}
+					}
+				}
+			},
+		},
+		'rrd' => {
+			'tcp' => {
+				'graphtype' => 'tcp-conn,tcp-segs',
+				'snmp' => {
+					'tcpActiveOpens' => {
+						'oid' => 'tcpActiveOpens',
+						'option' => 'counter,0:U'
+					},
+					'tcpPassiveOpens' => {
+						'oid' => 'tcpPassiveOpens',
+						'option' => 'counter,0:U'
+					},
+					'tcpAttemptFails' => {
+						'oid' => 'tcpAttemptFails',
+						'option' => 'counter,0:U'
+					},
+					'tcpEstabResets' => {
+						'oid' => 'tcpEstabResets',
+						'option' => 'counter,0:U'
+					},
+					'tcpCurrEstab' => {
+						'oid' => 'tcpCurrEstab',
+						'option' => 'gauge,0:U'
+					},
+					'tcpInSegs' => {
+						'oid' => 'tcpInSegs',
+						'option' => 'counter,0:U'
+					},
+					'tcpOutSegs' => {
+						'oid' => 'tcpOutSegs',
+						'option' => 'counter,0:U'
+					},
+					'tcpRetransSegs' => {
+						'oid' => 'tcpRetransSegs',
+						'option' => 'counter,0:U'
+					},
+					'tcpInErrs' => {
+						'oid' => 'tcpInErrs',
+						'option' => 'counter,0:U'
+					},
+					'tcpOutRsts' => {
+						'oid' => 'tcpOutRsts',
+						'option' => 'counter,0:U'
+					}
+				},
+			},
+			'mib2ip' => {
+				'graphtype' => 'ip,frag',
+				'snmp' => {
+					'ipFragFails' => {
+						'oid' => 'ipFragFails',
+						'option' => 'counter,0:U'
+					},
+					'ipInAddrErrors' => {
+						'oid' => 'ipInAddrErrors',
+						'option' => 'counter,0:U'
+					},
+					'ipOutRequests' => {
+						'oid' => 'ipOutRequests',
+						'option' => 'counter,0:U'
+					},
+					'ipFragCreates' => {
+						'oid' => 'ipFragCreates',
+						'option' => 'counter,0:U'
+					},
+					'ipInDiscards' => {
+						'oid' => 'ipInDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ipInHdrErrors' => {
+						'oid' => 'ipInHdrErrors',
+						'option' => 'counter,0:U'
+					},
+					'ipInReceives' => {
+						'oid' => 'ipInReceives',
+						'option' => 'counter,0:U'
+					},
+					'ipFragOKs' => {
+						'oid' => 'ipFragOKs',
+						'option' => 'counter,0:U'
+					},
+					'ipForwDatagrams' => {
+						'oid' => 'ipForwDatagrams',
+						'option' => 'counter,0:U'
+					},
+					'ipOutDiscards' => {
+						'oid' => 'ipOutDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ipInDelivers' => {
+						'oid' => 'ipInDelivers',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmFails' => {
+						'oid' => 'ipReasmFails',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmOKs' => {
+						'oid' => 'ipReasmOKs',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmReqds' => {
+						'oid' => 'ipReasmReqds',
+						'option' => 'counter,0:U'
+					},
+					'ipInUnknownProtos' => {
+						'oid' => 'ipInUnknownProtos',
+						'option' => 'counter,0:U'
+					}
+				}
+			}
+		}
+	},
+
+	'systemHealth' => {
+		'sections' => 'PowerOverview,Battery,Rectifier,Temperture',
+		'sys' => {
+			'PowerOverview' => {
+				'indexed' => 'false',
+				'index_regex' => '1\.3\.6\.1\.4\.1\.6302\.2\.1\.1\.1\.(\d+)$', # this is bogus as there is no index on the system stuff  ... it's just 0
+				'index_oid' => '1.3.6.1.4.1.6302.2.1.1.1',
+				'headers' => 'systemStatus,systemVoltage,systemCurrent,systemUsedCapacity,psTotalLoadCurrent,psTemperature1,psTemperature2',
+				'snmp' => {
+					'systemStatus' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.1',
+						'title' => 'System Status',
+						'replace' => {
+							'0' => 'unset',
+							'1' => 'unknown',
+							'2' => 'normal',
+							'3' => 'warning',
+							'4' => 'minor',
+							'5' => 'major',
+							'6' => 'critical',
+							'7' => 'unmanaged',
+							'8' => 'restricted',
+							'9' => 'testing',
+							'10' => 'disabled'
+						}
+					},
+					'systemVoltage' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.2',
+						'title' => 'System Voltage'
+					},
+					'systemCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.3',
+						'title' => 'System Current'
+					},
+					'systemUsedCapacity' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.4',
+						'title' => 'System Used Capacity',
+						'calculate' => 'CVAR1=systemUsedCapacity; $r = "$CVAR1%";'
+					},
+					'psTotalLoadCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.12.1',
+						'title' => 'Total Load Current'
+					},
+					'psTemperature1' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.1',
+						'title' => 'First Route Temperature',
+						'calculate' => '$r = $r*0.001."c";'
+					},
+					'psTemperature2' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.2',
+						'title' => 'Second Route Temperature',
+						'calculate' => '$r = $r*0.001."c";'
+					}
+				}
+			},
+			'Battery' => {
+				'indexed' => 'true',
+				'index_oid' => '1.3.6.1.4.1.6302.2.1.2.5.5.1.1',
+				'headers' => 'index,psBatteryName,psBatteryCurrent,psBatteryCapacity,psBatteryCapacityPercent,psBatteryRatedCapacity',
+				'snmp' => {
+					'psBatteryName' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.3',
+						'title' => 'Name'
+					},
+					'psBatteryCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.2',
+						'title' => 'Battery Current'
+					},
+					'psBatteryCapacity' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.4',
+						'title' => 'Battery Capacity',
+					},
+					'psBatteryCapacityPercent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.5',
+						'title' => 'Battery Capacity Percent',
+						'calculate' => 'CVAR1=psBatteryCapacityPercent; $r = "$CVAR1%";'
+					},
+					'psBatteryRatedCapacity' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.6',
+						'title' => 'Battery Rated Capacity',
+					}
+				}
+			},
+			'Rectifier' => {
+				'indexed' => 'true',
+				'index_oid' => '1.3.6.1.4.1.6302.2.1.2.11.4.1.1',
+				'headers' => 'index,psRectifierIdent,psRectifierCurrent,psRectifierFail',
+				'snmp' => {
+					'psRectifierIdent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.11.4.1.7',
+						'title' => 'Rectifier Name'
+					},
+					'psRectifierCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.11.4.1.6',
+						'title' => 'Rectifier Current'
+					},
+					'psRectifierFail' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.11.4.1.8',
+						'title' => 'Rectifier Failure',
+						'replace' => {
+							'0' => 'unset',
+							'1' => 'activated',
+							'2' => 'deactivated'
+						}
+					}
+				}
+			},
+			'Temperture' => {
+				'indexed' => 'true',
+				'index_oid' => '1.3.6.1.4.1.6302.2.1.2.7.3.1.1',
+				'headers' => 'index,psTemperatureName,psTemperatureType,psTemperatureMeasurement,psTemperatureAlarmStatus',
+				'snmp' => {
+					'psTemperatureName' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.3.1.3',
+						'title' => 'Rectifier Name'
+					},
+					'psTemperatureType' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.3.1.4',
+						'title' => 'Rectifier Type'
+					},
+					'psTemperatureMeasurement' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.3.1.2',
+						'title' => 'Current Temperture',
+						'calculate' => '$r = $r."c";'
+					},
+					'psTemperatureAlarmStatus' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.3.1.5',
+						'title' => 'Rectifier Failure',
+						'replace' => {
+							'0' => 'high',
+							'1' => 'low',
+							'2' => 'fail',
+							'3' => 'none'
+						}
+					}
+				}
+			}
+		},
+		'rrd' => {
+			'PowerOverview' => {
+				'snmp' => {
+					'systemStatus' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.1',
+						'title' => 'System Status',
+						'replace' => {
+							'0' => 'unset',
+							'1' => 'unknown',
+							'2' => 'normal',
+							'3' => 'warning',
+							'4' => 'minor',
+							'5' => 'major',
+							'6' => 'critical',
+							'7' => 'unmanaged',
+							'8' => 'restricted',
+							'9' => 'testing',
+							'10' => 'disabled'
+						}
+					},
+					'systemVoltage' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.2',
+						'title' => 'System Voltage'
+					},
+					'systemCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.3',
+						'title' => 'System Current',
+					},
+					'systemUsedCapacity' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.4',
+						'title' => 'System Used Capacity',
+						'calculate' => 'CVAR1=systemUsedCapacity; $r = "$CVAR1%";'
+					},
+					'psTotalLoadCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.12.1',
+						'title' => 'Total Load Current'
+					},
+					'psTemperature1' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.1',
+						'title' => 'First Route Temperature',
+						'calculate' => '$r = $r*0.001."c";'
+					},
+					'psTemperature2' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.2',
+						'title' => 'Second Route Temperature',
+						'calculate' => '$r = $r*0.001."c";'
+					}
+				}
+			},
+			'Battery' => {
+				'snmp' => {
+					'psBatteryCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.2',
+						'title' => 'Battery Current'
+					},
+					'psBatteryCapacity' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.4',
+						'title' => 'Battery Capacity',
+					},
+					'psBatteryCapacityPercent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.5.5.1.5',
+						'title' => 'Battery Capacity Percent',
+						'calculate' => 'CVAR1=psBatteryCapacityPercent; $r = "$CVAR1%";'
+					}
+				}
+			},
+			'Rectifier' => {
+				'snmp' => {
+					'psRectifierCurrent' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.11.4.1.6',
+						'title' => 'Rectifier Current'
+					},
+					'psRectifierFail' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.11.4.1.8',
+						'title' => 'Rectifier Failure',
+						'replace' => {
+							'0' => 'unset',
+							'1' => 'activated',
+							'2' => 'deactivated'
+						}
+					}
+				}
+			},
+			'Temperture' => {
+				'snmp' => {
+					'psTemperatureMeasurement' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.3.1.2',
+						'title' => 'Current Temperture',
+						'calculate' => '$r = $r."c";'
+					},
+					'psTemperatureAlarmStatus' => {
+						'oid' => '.1.3.6.1.4.1.6302.2.1.2.7.3.1.5',
+						'title' => 'Rectifier Failure',
+						'replace' => {
+							'0' => 'high',
+							'1' => 'low',
+							'2' => 'fail',
+							'3' => 'none'
+						}
+					}
+				}
+			}
+		}
+	}
+);
