@@ -3358,7 +3358,7 @@ sub verifyNMISEncryption {
 		if($@)
 		{
 			$logger->error("ERROR, Both 'Crypt::CBC' and 'Crypt::Cipher::AES' must be installed in order to enable password encryption!");
-			$logger->error("ERROR, PAssword encryption will be disabled!");
+			$logger->error("ERROR, Password encryption will be disabled!");
 			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 			$fullConfig->{globals}{global_enable_password_encryption} = "false";
 			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
