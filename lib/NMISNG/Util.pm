@@ -34,8 +34,6 @@ our $VERSION = "9.4.0";
 use strict;
 use feature 'state';						# loadconftable, uuid functions
 
-use Crypt::CBC;
-use Crypt::Cipher::AES;
 use Fcntl qw(:DEFAULT :flock :mode);
 use FindBin;										# bsts; normally loaded by the caller
 use File::Path;
@@ -3356,6 +3354,17 @@ sub verifyNMISEncryption {
 	if ($nmis_encryption_enabled)
 	{
 		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+		eval {require  Crypt::CBC; require Crypt::Cipher::AES; };
+		if($@)
+		{
+			$logger->error("ERROR, Both 'Crypt::CBC' and 'Crypt::Cipher::AES' must be installed in order to enable password encryption!");
+			$logger->error("ERROR, PAssword encryption will be disabled!");
+			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			$fullConfig->{globals}{global_enable_password_encryption} = "false";
+			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			writeConfData(data=>$fullConfig);
+			return;
+		}
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
 		{
