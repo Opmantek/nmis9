@@ -2653,13 +2653,14 @@ nodeVendor sysObjectName roleType netType );
 
 
 
-
+        # are their any node graphs to display?  this covers serviceonly nodes and API only nodes better
+        my @graphs = split /,/, $M->{system}{nodegraph};
 	if (   NMISNG::Util::getbool( $catchall_data->{collect} )
-		or NMISNG::Util::getbool( $catchall_data->{ping} ) )
-	{
+		or NMISNG::Util::getbool( $catchall_data->{ping} ) 
+		or @graphs
+	) {
 		my $GTT    = $S->loadGraphTypeTable();             # translate graphtype to type
 		my $cnt    = 0;
-		my @graphs = split /,/, $M->{system}{nodegraph};
 
 		### 2014-08-27 keiths, insert the kpi graphtype if missing.
 		if ( not grep { "kpi" eq $_ } (@graphs) )
