@@ -516,7 +516,7 @@
   	 },
 	 'tmmMemUsedKB' => {
 	   'oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.38.0',
-	   'options' => 'gauge,U:U'
+	   'option' => 'gauge,U:U'
 	 },
 	 'otherMemTotalKB' => {
 	   'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.48.0',
