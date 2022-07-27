@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average System Voltage',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Voltage'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:systemVoltage=$database:systemVoltage:AVERAGE',
+			'LINE1:systemVoltage#00BFFF:System Voltage',					   
+			'GPRINT:systemVoltage:MIN:Minimum %1.2lf',
+			'GPRINT:systemVoltage:AVERAGE:Avg %1.2lf',
+			'GPRINT:systemVoltage:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:systemVoltage=$database:systemVoltage:AVERAGE',
+			'LINE1:systemVoltage#00BFFF:System Voltage',					   
+			'GPRINT:systemVoltage:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

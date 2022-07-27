@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average Rectifier Current',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Rectifier Current'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psRectifierCurrent=$database:psRectifierCurrent:AVERAGE',
+			'LINE1:psRectifierCurrent#00BFFF:Rectifier Current',					   
+			'GPRINT:psRectifierCurrent:MIN:Minimum %1.2lf',
+			'GPRINT:psRectifierCurrent:AVERAGE:Avg %1.2lf',
+			'GPRINT:psRectifierCurrent:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psRectifierCurrent=$database:psRectifierCurrent:AVERAGE',
+			'LINE1:psRectifierCurrent#00BFFF:Rectifier Current',					   
+			'GPRINT:psRectifierCurrent:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

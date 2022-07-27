@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average Battery Capacity',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Battery Capacity'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psBatteryCapacity=$database:psBatteryCapacity:AVERAGE',
+			'LINE1:psBatteryCapacity#00BFFF:Battery Temperature',					   
+			'GPRINT:psBatteryCapacity:MIN:Minimum %1.2lf',
+			'GPRINT:psBatteryCapacity:AVERAGE:Avg %1.2lf',
+			'GPRINT:psBatteryCapacity:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psBatteryCapacity=$database:psBatteryCapacity:AVERAGE',
+			'LINE1:psBatteryCapacity#00BFFF:Battery Temperature',					   
+			'GPRINT:psBatteryCapacity:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

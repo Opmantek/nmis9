@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average System Secondary Route Temperature',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Secondary Route Temperature'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psTemperature2=$database:psTemperature2:AVERAGE',
+			'LINE1:psTemperature2#00BFFF:System Secondary Route Temperature',					   
+			'GPRINT:psTemperature2:MIN:Minimum %1.2lf',
+			'GPRINT:psTemperature2:AVERAGE:Avg %1.2lf',
+			'GPRINT:psTemperature2:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psTemperature2=$database:psTemperature2:AVERAGE',
+			'LINE1:psTemperature2#00BFFF:System Secondary Route Temperature',					   
+			'GPRINT:psTemperature2:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);
