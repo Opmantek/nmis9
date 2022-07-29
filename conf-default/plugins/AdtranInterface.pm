@@ -61,7 +61,7 @@ sub update_plugin
 	# This plugin deals only with this specific device type, and only ones with snmp enabled and working
 	# and finally only if the number of interfaces is greater than the limit, otherwise the normal
 	# discovery will populate all interfaces normally.
-	if ( $catchall->{nodeModel} !~ /Adtran/ or !NMISNG::Util::getbool($catchall->{collect}) or $catchall->{ifNumber} <= $interface_max_number)
+	if ( $catchall->{nodeModel} !~ /Adtran/ or !NMISNG::Util::getbool($catchall->{collect}))
 	{
 		$NG->log->info("Max Interfaces are: '$interface_max_number'");
 		$NG->log->info("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
@@ -139,12 +139,11 @@ sub update_plugin
 	my $ifSpeedOid = "1.3.6.1.2.1.2.2.1.5";
 	my $ifAdminStatusOid = "1.3.6.1.2.1.2.2.1.7";
 	my $ifOperStatusOid = "1.3.6.1.2.1.2.2.1.8";
-#	my $ifLastChangeOid = "1.3.6.1.2.1.2.2.1.9";
 
 	$intfTotal = 0;
 	$intfInfo->{index}         = "Index";
 	$intfInfo->{interface}     = "Interface Name";
-#	$intfInfo->{ifIndex}       = "Interface Index";
+	$intfInfo->{ifIndex}       = "Interface Index";
 	$intfInfo->{ifName}        = "Interface Internal Name";
 	$intfInfo->{Description}   = "Interface Description";
 	$intfInfo->{ifDesc}        = "Interface Internal Description";
@@ -154,10 +153,10 @@ sub update_plugin
 	$intfInfo->{ifSpeedOut}    = "Interface Speed Out";
 	$intfInfo->{ifAdminStatus} = "Interface Administrative State";
 	$intfInfo->{ifOperStatus}  = "Interface Operational State";
-#	$intfInfo->{setlimits}     = "Interface Set Limnits";
-#	$intfInfo->{collect}       = "Interface Collection Status";
-#	$intfInfo->{event}         = "Interface Event Status";
-#	$intfInfo->{threshold}     = "Interface Threshold Status";
+	$intfInfo->{setlimits}     = "Interface Set Limnits";
+	$intfInfo->{collect}       = "Interface Collection Status";
+	$intfInfo->{event}         = "Interface Event Status";
+	$intfInfo->{threshold}     = "Interface Threshold Status";
 
 	# We build the data first to capture duplicate names and other issues
 	# we need to compensate for along the way.
@@ -169,60 +168,61 @@ sub update_plugin
 			"$ifSpeedOid.$index",
 			"$ifAdminStatusOid.$index",
 			"$ifOperStatusOid.$index",
-			#"$ifLastChangeOid.$index",
 		);
 		
 		# Store them straight into the results
 		my $snmpData = $snmp->get(@oids);
-		return ( error => "Failed to retrieve SNMP variables: ".$snmp->error) 
-				if (ref($snmpData) ne "HASH");
-
-		my $ifDescr       = $names->{$index};		
-		my $ifName        = NMISNG::Util::convertIfName($ifDescr);
-		my $ifType        = $IFT->{$snmpData->{"$ifTypeOid.$index"}}{ifType};
-		my $ifSpeed       = $snmpData->{"$ifSpeedOid.$index"};
-		my $ifAdminStatus = ifStatus($snmpData->{"$ifAdminStatusOid.$index"});
-		my $ifOperStatus  = ifStatus($snmpData->{"$ifOperStatusOid.$index"});
-		my $setlimits     = $NI->{interface}->{$index}->{setlimits} // "normal";
-		# ifDescr must always be filled
-		$ifDescr = $index if ($ifDescr eq "");
 		if ($snmp->error)
 		{
 			$NG->log->warn("Got an empty Interface, skipping.");
 			next;
 		}
+		if (ref($snmpData) ne "HASH")
+		{
+			$NG->log->warn("Failed to retrieve SNMP variables for index $index.");
+			next;
+		}
 
-		#my $ifLastChange = $snmpData->{"$ifLastChangeOid.$index"};
+		my $ifDescr           = $names->{$index};		
+		my $ifName            = NMISNG::Util::convertIfName($ifDescr);
+		my $ifType            = $IFT->{$snmpData->{"$ifTypeOid.$index"}}{ifType};
+		my $ifSpeed           = $snmpData->{"$ifSpeedOid.$index"};
+		my $ifAdminStatus     = ifStatus($snmpData->{"$ifAdminStatusOid.$index"});
+		my $ifOperStatus      = ifStatus($snmpData->{"$ifOperStatusOid.$index"});
+		my $setlimits         = $NI->{interface}->{$index}->{setlimits} // "normal";
+
+		# ifDescr must always be filled
+		$ifDescr = $index if ($ifDescr eq "");
 
 		$ifSpeed = 10000000000 if ( $ifDescr =~ /ten-gigabit-ethernet/ );
 		$ifSpeed = 10000000000 if ( $ifSpeed == 4294967295 );
 				
 		$NG->log->debug("SNMP processing '$node' Description: '$ifDescr' Interface Speed=$ifSpeed.");
 				
-		$NG->log->debug("Interface Name         = $ifName");
-		$NG->log->debug("Interface Index        = $index");
-		$NG->log->debug("Interface Description  = $ifDescr");
-		$NG->log->debug("Interface Type         = $ifType");
-		$NG->log->debug("Interface Speed        = $ifSpeed");
-		$NG->log->debug("Interface Admin Status = $ifAdminStatus");
-		$NG->log->debug("Interface Oper Status  = $ifOperStatus");
-		$NG->log->debug("Interface Limits       = $setlimits");
-		$intfData->{$index}->{index}            = $index;
-		$intfData->{$index}->{ifIndex}          = $index;
-		$intfData->{$index}->{interface}        = NMISNG::Util::convertIfName($ifDescr);
-		$intfData->{$index}->{ifName}           = $ifName;
-		$intfData->{$index}->{Description}      = '';
-		$intfData->{$index}->{ifDescr}          = $ifDescr;
-		$intfData->{$index}->{ifType}           = $ifType;
-		$intfData->{$index}->{ifSpeed}          = $ifSpeed;
-		$intfData->{$index}->{ifSpeedIn}        = $ifSpeed;
-		$intfData->{$index}->{ifSpeedOut}       = $ifSpeed;
-		$intfData->{$index}->{ifAdminStatus}    = $ifAdminStatus;
-		$intfData->{$index}->{ifOperStatus}     = $ifOperStatus;
-		$intfData->{$index}->{setlimits}        = $setlimits;
-		$intfData->{$index}->{collect}          = $ifAdminStatus eq "up" ? "true": "false";
-		$intfData->{$index}->{event}            = $ifAdminStatus eq "up" ? "true": "false";
-		$intfData->{$index}->{threshold}        = $ifAdminStatus eq "up" ? "true": "false";
+		$NG->log->debug("Interface Name          = $ifName");
+		$NG->log->debug("Interface Index         = $index");
+		$NG->log->debug("Interface Description   = $ifDescr");
+		$NG->log->debug("Interface Type          = $ifType");
+		$NG->log->debug("Interface Speed         = $ifSpeed");
+		$NG->log->debug("Interface Admin Status  = $ifAdminStatus");
+		$NG->log->debug("Interface Oper Status   = $ifOperStatus");
+		$NG->log->debug("Interface Limits        = $setlimits");
+		$intfData->{$index}->{index}             = $index;
+		$intfData->{$index}->{ifIndex}           = $index;
+		$intfData->{$index}->{interface}         = NMISNG::Util::convertIfName($ifDescr);
+		$intfData->{$index}->{ifName}            = $ifName;
+		$intfData->{$index}->{Description}       = '';
+		$intfData->{$index}->{ifDescr}           = $ifDescr;
+		$intfData->{$index}->{ifType}            = $ifType;
+		$intfData->{$index}->{ifSpeed}           = $ifSpeed;
+		$intfData->{$index}->{ifSpeedIn}         = $ifSpeed;
+		$intfData->{$index}->{ifSpeedOut}        = $ifSpeed;
+		$intfData->{$index}->{ifAdminStatus}     = $ifAdminStatus;
+		$intfData->{$index}->{ifOperStatus}      = $ifOperStatus;
+		$intfData->{$index}->{setlimits}         = $setlimits;
+		$intfData->{$index}->{collect}           = $ifAdminStatus eq "up" ? "true": "false";
+		$intfData->{$index}->{event}             = $ifAdminStatus eq "up" ? "true": "false";
+		$intfData->{$index}->{threshold}         = $ifAdminStatus eq "up" ? "true": "false";
 
 		# check for duplicated ifDescr
 		foreach my $i (keys %{$intfData}) {
@@ -298,7 +298,7 @@ sub update_plugin
 				 and $intfData->{$index}{ifOperStatus} !~ /up|ok|dormant/ 
 				) {
 			if ($intfData->{$index}{event} eq 'true') {
-				notify(sys=>$S,event=>"Interface Down",element=>$intfData->{$index}{ifDescr},details=>$intfData->{$index}{Description});
+				Compat::NMIS::notify(sys=>$S,event=>"Interface Down",element=>$intfData->{$index}{ifDescr},details=>$intfData->{$index}{Description});
 			}
 		} 
 		else 
@@ -357,10 +357,12 @@ sub update_plugin
 			display_keys => $intfInfo
 		);
 
+		$NG->log->info("Interface description is '$intfSubData->{ifDescr}'");
 		# Get the RRD file name to use for storage.
 		my $dbname = $S->makeRRDname(graphtype => "interface",
 									index      => $index,
 									inventory  => $intfSubData,
+									extras     => $intfSubData,
 									relative   => 1);
 		$NG->log->debug("Collect Adtran data info check storage interface, dbname '$dbname'.");
 		
