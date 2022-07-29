@@ -89,6 +89,7 @@ my $error_string;
 # 	- count, return a total record count, even if ssl values are set (means pipe is run twice)
 # 	- pre_count_pipeline (part of pipe to run before count if asked for)
 # 	- post_count_pipeline (part of pipe to run after count if asked for)
+#	- redact_pipeline (part of the pipe to run if values need to be unset for redaction)
 # 	- sort/skip/limit
 #   - allowtempfiles (0/1, default 0) - NOT passed if it's set to undef (for mongo < 2.6)
 #   - batch_size, implies cursor=>1, INITIAL batch size of cursor
@@ -100,6 +101,7 @@ sub aggregate
 	my $collection          = $arg{collection};
 	my $pre_count_pipeline  = $arg{pre_count_pipeline} // [];
 	my $post_count_pipeline = $arg{post_count_pipeline} // [];
+	my $redact_pipeline 	= $arg{redact_pipeline} // [];
 
 
 	# this one option MUST be a boolean, 1/0 isn't good enough :-/
@@ -132,6 +134,7 @@ sub aggregate
 		push( @$post_count_pipeline, {'$limit' => $arg{limit} + 0} );
 	}
 
+	push @$post_count_pipeline, @$redact_pipeline if ( ref($redact_pipeline) eq "ARRAY" && @$redact_pipeline );
 	# count means splitting the pipeline after the pre-count and running sum
 	# as well as gathering the main pipe data
 	# run modified pipeline to get the count, which is a single document
