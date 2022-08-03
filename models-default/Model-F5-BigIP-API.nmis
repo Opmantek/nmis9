@@ -179,7 +179,7 @@
         },
       },
       'F5_Pools' => {
-		'headers' => 'poolName,poolMemberName,poolMemberAddress,poolMemberPort,poolMemberAvail,bitsIn,bitsOut,pktsIn,pktsOut',
+		'headers' => 'poolName,poolMemberName,poolMemberAddress,poolMemberPort,poolMemberAvail,curConns,bitsIn,bitsOut,pktsIn,pktsOut',
 #		'indexed' => 'ltmPoolMbrStatusPoolName',
 #		'index_oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.1',
 #		'index_regex' => '3375\.2\.2\.5\.6\.2\.1\.1\.([\d\.]+)$',
@@ -216,6 +216,9 @@
 					'5' => 'gray - unlicensed',
 			  },
 			  'title' => 'Pool Member State',
+			},
+			'curConns' => {
+				  'title' => 'Current Connections',
 			},
 			'bitsIn' => {
 				  'title' => 'Bits In',
@@ -289,6 +292,9 @@
 					'5' => 'gray - unlicensed',
 			  },
 			  'title' => 'Pool Member State',
+			},
+			'curConns' => {
+				  'title' => 'Current Connections',
 			},
 			'bitsIn' => {
 				  'title' => 'Bits In',

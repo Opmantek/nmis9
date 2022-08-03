@@ -231,6 +231,7 @@ sub collect_plugin
 						$NG->log->debug("Processing Concept '$poolConcept'; Pool '$poolName'; Name '$memberName'.");
 						#Save to integers to RRD
 						my $rrddata = {
+							'curConns' => { "option" => "gauge,0:U", "value" => $f5SubData->{curConns} },
 							'bitsIn' => { "option" => "gauge,0:U", "value" => $f5SubData->{bitsIn} },
 							'bitsOut' => { "option" => "gauge,0:U", "value" => $f5SubData->{bitsOut} },
 							'pktsIn' => { "option" => "gauge,0:U", "value" => $f5SubData->{pktsIn} },
@@ -247,6 +248,10 @@ sub collect_plugin
 						$data->{statusReason}               = $f5SubData->{statusReason};
 						$data->{state}                      = $f5SubData->{state};
 						$data->{Enabled}                    = $f5SubData->{Enabled};
+						$data->{connLimit}                  = $f5SubData->{connLimit};
+						$data->{totConns}                   = $f5SubData->{totConns};
+						$data->{maxConns}                   = $f5SubData->{maxConns};
+						$data->{curConns}                   = $f5SubData->{curConns};
 						$data->{bitsIn}                     = $f5SubData->{bitsIn};
 						$data->{bitsOut}                    = $f5SubData->{bitsOut};
 						$data->{pktsIn}                     = $f5SubData->{pktsIn};
@@ -547,24 +552,34 @@ sub getF5Data {
 			$f5Info->{Server}->{virtServConnLimit}          = "ConnLimit";
 			$f5Info->{Server}->{vsStatusAvailState}         = "VS Status";
 			$f5Info->{Server}->{vsStatusAvlTxt}             = "Virtual Server State";
-			#$f5Info->{Server}->{Pool}                      = "Pool Name";
-			#$f5Info->{Server}->{ResourceID}                = "Resource ID";
-			#$f5Info->{Server}->{Status}                    = "Status";
-			#$f5Info->{Server}->{statusEnabledState}        = "Status Enabled State";
-			#$f5Info->{Server}->{statusStatusReason}        = "Status Status Reason";
-			#$f5Info->{Server}->{clientsideBitsIn}          = "Clientside Bits In";
-			#$f5Info->{Server}->{clientsideBitsOut}         = "Clientside Bits Out";
-			#$f5Info->{Server}->{clientsideCurConns}        = "Clientside Current Connections";
-			#$f5Info->{Server}->{clientsideMaxConns}        = "Clientside Max Connections";
-			#$f5Info->{Server}->{clientsidePktsIn}          = "Clientside Pkts In";
-			#$f5Info->{Server}->{clientsidePktsOut}         = "Clientside Pkts Out";
-			#$f5Info->{Server}->{clientsideTotConns}        = "Clientside Total Connections";
+			$f5Info->{Server}->{Pool}                       = "Pool Name";
+			$f5Info->{Server}->{ResourceID}                 = "Resource ID";
+			$f5Info->{Server}->{Status}                     = "Status";
+			$f5Info->{Server}->{statusEnabledState}         = "Status Enabled State";
+			$f5Info->{Server}->{statusStatusReason}         = "Status Status Reason";
+			$f5Info->{Server}->{clientsideBitsIn}           = "Clientside Bits In";
+			$f5Info->{Server}->{clientsideBitsOut}          = "Clientside Bits Out";
+			$f5Info->{Server}->{clientsideCurConns}         = "Clientside Current Connections";
+			$f5Info->{Server}->{clientsideMaxConns}         = "Clientside Max Connections";
+			$f5Info->{Server}->{clientsidePktsIn}           = "Clientside Pkts In";
+			$f5Info->{Server}->{clientsidePktsOut}          = "Clientside Pkts Out";
+			$f5Info->{Server}->{clientsideTotConns}         = "Clientside Total Connections";
 			$f5Info->{Pool}->{index}                        = "Index";
 			$f5Info->{Pool}->{poolName}                     = "Pool Name";
 			$f5Info->{Pool}->{poolMemberName}               = "Pool Member Name";
 			$f5Info->{Pool}->{poolMemberAddress}            = "IP Address";
 			$f5Info->{Pool}->{poolMemberPort}               = "Port";
 			$f5Info->{Pool}->{poolMemberAvail}              = "Member Status";
+			$f5Info->{Pool}->{Enabled}                      = "Member Enabled Flag";
+			$f5Info->{Pool}->{statusReason}                 = "Status Reason Text";
+			$f5Info->{Pool}->{bitsIn}                       = "Bits Inbound";
+			$f5Info->{Pool}->{bitsOut}                      = "Bits Outbound";
+			$f5Info->{Pool}->{curConns}                     = "Current Conections";
+			$f5Info->{Pool}->{maxConns}                     = "Maximum Connections";
+			$f5Info->{Pool}->{pktsIn}                       = "Packets Inbound";
+			$f5Info->{Pool}->{pktsOut}                      = "Packets Outbound";
+			$f5Info->{Pool}->{totConns}                     = "Total Conections";
+			$f5Info->{Pool}->{connLimit}                    = "Connection Limit";
 
 			$NG->log->debug9("apiUser        = $apiUser");
 			$NG->log->debug9("apiPass        = $apiPass");
