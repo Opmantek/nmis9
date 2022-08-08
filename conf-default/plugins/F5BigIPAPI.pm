@@ -64,7 +64,7 @@ sub collect_plugin
 
 	# is the node down or is SNMP down?
 	my ($inventory,$error) = $S->inventory(concept => 'catchall');
-	return ( error => "failed to instantiate catchall inventory: $error") if ($error);
+	return (2, "failed to instantiate catchall inventory: $error") if ($error);
 
 	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
 	
@@ -73,7 +73,7 @@ sub collect_plugin
 	my $catchall_data = $inventory->data();
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
 		$NG->log->info("Skipping F5BigIP plugin for node::$node, Node Down");
-		return ( error => "Node Down, skipping F5BigIP plugin");
+		return (2, "Node Down, skipping F5BigIP plugin");
 	}
 	else {
 		$NG->log->info("Running F5BigIP Collect plugin for node::$node");
@@ -86,13 +86,13 @@ sub collect_plugin
 	$NG->log->info("Working on '$node' getting API data now");
 	my ($errmsg, $f5Data, $f5Info) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);
 	if (defined $errmsg) {
-		$NG->log->error("ERROR with $node: $errmsg");
-		return (1,undef);
+		$NG->log->error("ERROR getting data for node '$node'; Error: $errmsg");
+		return (2,$errmsg);
 	}
 
 	if (!defined $f5Data || ref($f5Data) ne "HASH") {
-		$NG->log->error("ERROR with $node: Got no data!");
-		return (1,undef);
+		$NG->log->error("ERROR collecting for node '$node': Got no data!");
+		return (2, "ERROR collecting for node '$node': Got no data!");
 	}
 
 
@@ -275,7 +275,7 @@ sub collect_plugin
 		}
 	}
 	else {
-		return ( error => "no inventory for $virtSvrConcept")
+		return (2, "There is no inventory for concept '$virtSvrConcept'")
 	}
 
 
@@ -289,7 +289,7 @@ sub update_plugin
 
 	# is the node down or is SNMP down?
 	my ($inventory,$error) = $S->inventory(concept => 'catchall');
-	return ( error => "failed to instantiate catchall inventory: $error") if ($error);
+	return (2, "failed to instantiate catchall inventory: $error") if ($error);
 
 	my $catchall        = $S->inventory( concept => 'catchall' )->{_data};
 
@@ -298,7 +298,7 @@ sub update_plugin
 	my $catchall_data = $inventory->data();
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
 		$NG->log->info("Skipping F5BigIP plugin for node::$node, Node Down");
-		return ( error => "Node Down, skipping F5BigIP plugin");
+		return (2, "Node Down, skipping F5BigIP plugin");
 	}
 	else {
 		$NG->log->info("Running F5BigIP Update plugin for node::$node");
@@ -310,13 +310,13 @@ sub update_plugin
 	$NG->log->info("Working on '$node'");
 	my ($errmsg, $f5Data, $f5Info) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);
 	if (defined $errmsg) {
-		$NG->log->error("ERROR with $node: $errmsg");
-		return (1,undef);
+		$NG->log->error("ERROR getting data for node '$node'; Error: $errmsg");
+		return (2,$errmsg);
 	}
 
 	if (!defined $f5Data || ref($f5Data) ne "HASH") {
-		$NG->log->error("ERROR with $node: Got no data!");
-		return (1,undef);
+		$NG->log->error("ERROR collecting for node '$node': Got no data!");
+		return (2, "ERROR collecting for node '$node': Got no data!");
 	}
 
 	my $f5ServerInfo     = $f5Info->{Server};
@@ -592,15 +592,15 @@ sub getF5Data {
 			my $url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/shared/authn/login')->userinfo("'".$apiUser.":".$apiPass."'");
 			$client->insecure(1);
 			$res = $client->post($url => $headers => "{'username': '$apiUser', 'password':'$apiPass', 'loginProviderName':'tmos'}")->result;
-			return ( error => "failed to get a result from login attempt.") if (!$res);
+			return ("failed to get a result from login attempt.") if (!$res);
 			my $body     = decode_json($res->body);
-			return ( error => "failed to get a result from login attempt.") if (!$body);
+			return ("failed to get a result from login attempt.") if (!$body);
 			$NG->log->debug( "\nBody: $body");
 			my $token    = $body->{token};
-			return ( error => "failed to get a token from login attempt.") if (!$token);
+			return ("failed to get a token from login attempt, likely login failure.") if (!$token);
 			$NG->log->debug( "\nToken: $token");
 			my $tokenKey = $token->{token};
-			return ( error => "failed to extract the token key from login attempt.") if (!$tokenKey);
+			return ("failed to extract the token key from login attempt.") if (!$tokenKey);
 			$NG->log->debug( "\nTokenKey: $tokenKey");
 			$headers = {"Content-type" => 'application/json', Accept => 'application/json', "X-F5-Auth-Token" => $tokenKey};
 			$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/');
