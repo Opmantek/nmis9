@@ -417,7 +417,8 @@ sub typeGraph
 																														-values=>['', @values],
 																														-default=>"$index",
 																														-labels=> \%labels,
-																														-onChange=>'this.form.submit()');
+																														-onChange=>'this.form.submit()'),
+																			hidden(-name=>'act', -value=>'network_graph_view');
 												}
 												elsif ( $graphtype eq "metrics") {
 													return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
