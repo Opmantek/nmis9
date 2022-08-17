@@ -123,6 +123,8 @@ sub processNode {
 				next;
 			}
 
+			print "Configuration Data for $node:\n" . Dumper $configuration;
+
 			my $catchall_data = $inventory->data();
 			print "Catch All Data for $node:\n" . Dumper $catchall_data;
 
