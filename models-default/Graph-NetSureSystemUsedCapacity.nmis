@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average System Used Capacity',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Used Capacity'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:systemUsedCapacity=$database:systemUsedCapacity:AVERAGE',
+			'LINE1:systemUsedCapacity#00BFFF:System Used Capacity',					   
+			'GPRINT:systemUsedCapacity:MIN:Minimum %1.2lf',
+			'GPRINT:systemUsedCapacity:AVERAGE:Avg %1.2lf',
+			'GPRINT:systemUsedCapacity:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:systemUsedCapacity=$database:systemUsedCapacity:AVERAGE',
+			'LINE1:systemUsedCapacity#00BFFF:System Used Capacity',					   
+			'GPRINT:systemUsedCapacity:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

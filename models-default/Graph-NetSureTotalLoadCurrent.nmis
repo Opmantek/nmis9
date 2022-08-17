@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average System Total Current Load',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Total Current Load'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psTotalLoadCurrent=$database:psTotalLoadCurrent:AVERAGE',
+			'LINE1:psTotalLoadCurrent#00BFFF:System Total Current Load',					   
+			'GPRINT:psTotalLoadCurrent:MIN:Minimum %1.2lf',
+			'GPRINT:psTotalLoadCurrent:AVERAGE:Avg %1.2lf',
+			'GPRINT:psTotalLoadCurrent:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psTotalLoadCurrent=$database:psTotalLoadCurrent:AVERAGE',
+			'LINE1:psTotalLoadCurrent#00BFFF:System Total Current Load',					   
+			'GPRINT:psTotalLoadCurrent:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

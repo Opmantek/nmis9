@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.4.0";
+our $VERSION = "9.4.1";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -554,7 +554,7 @@ elsif ($cmdline->{act} eq "show")
 
 	# we want the true structure, unflattened
 	my $dumpables = { };
-	for my $alsodump (qw(configuration overrides name cluster_id uuid activated unknown aliases addresses))
+	for my $alsodump (qw(configuration overrides name cluster_id uuid activated unknown aliases addresses enterprise_service_tags))
 	{
 		$dumpables->{$alsodump} = $nodeobj->$alsodump;
 	}
@@ -726,7 +726,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 				$curextras->{$1} = $value;
 			}
 			# and aliases and addresses, but these are ARRAYS
-			elsif ($name =~ /^((aliases|addresses)\.(.+))$/)
+			elsif ($name =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
 			{
 				$curarraythings->{$1} = $value;
 			}
@@ -751,7 +751,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		for ([$curconfig, "configuration"],
 				 [$curoverrides, "override"],
 				 [$curactivated, "activated"],
-				 [$curarraythings, "addresses/aliases" ],
+				 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
 				 [$curextras, "unknown/extras" ])
 		{
 			my ($checkwhat, $name) = @$_;
@@ -765,6 +765,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		$nodeobj->activated($curactivated);
 		$nodeobj->addresses($curarraythings->{addresses});
 		$nodeobj->aliases($curarraythings->{aliases});
+		$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags});
 		$nodeobj->unknown($curextras);
 		
 		(my $op, $error) = $nodeobj->save(meta => $meta);

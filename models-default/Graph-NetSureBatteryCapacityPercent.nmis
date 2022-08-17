@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average Battery Capacity Percentage',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Battery Capacity Percentage'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psBatteryCpcityPct=$database:psBatteryCpcityPct:AVERAGE',
+			'LINE1:psBatteryCpcityPct#00BFFF:Battery Capacity Percent',					   
+			'GPRINT:psBatteryCpcityPct:MIN:Minimum %1.2lf',
+			'GPRINT:psBatteryCpcityPct:AVERAGE:Avg %1.2lf',
+			'GPRINT:psBatteryCpcityPct:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psBatteryCpcityPct=$database:psBatteryCpcityPct:AVERAGE',
+			'LINE1:psBatteryCpcityPct#00BFFF:Battery Capacity Percent',					   
+			'GPRINT:psBatteryCpcityPct:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average Battery Temperature',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Battery Temperature'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psTempMeasurement=$database:psTempMeasurement:AVERAGE',
+			'LINE1:psTempMeasurement#00BFFF:Battery Temperature',					   
+			'GPRINT:psTempMeasurement:MIN:Minimum %1.2lf',
+			'GPRINT:psTempMeasurement:AVERAGE:Avg %1.2lf',
+			'GPRINT:psTempMeasurement:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psTempMeasurement=$database:psTempMeasurement:AVERAGE',
+			'LINE1:psTempMeasurement#00BFFF:Battery Temperature',					   
+			'GPRINT:psTempMeasurement:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

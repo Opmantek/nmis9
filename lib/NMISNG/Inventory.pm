@@ -55,6 +55,7 @@ use NMISNG::DB;
 # Class/Package methods:
 ###########
 
+our $nmisng = undef;
 # based on the concept, decide which class to create - or return the fallback/default class
 # args: concept
 # returns: class name
@@ -88,11 +89,17 @@ sub make_path_from_keys
 	my (%args) = @_;
 
 	my $keys = $args{"path_keys"};
-	return "make_path_from_keys cannot work without path_keys!"
-			if ( ref($keys) ne "ARRAY" );
+	if ( ref($keys) ne "ARRAY" )
+	{
+		$nmisng->log->fatal("make_path_from_keys cannot work without path_keys!");
+		return "make_path_from_keys cannot work without path_keys!"
+	}
 	# this could be passed in as undef instead of being omitted, so don't use exists
-	return "make_path_from_keys has invalid data argument: " . ref( $args{data} )
-		if ( defined($args{data}) && ref( $args{data} ) ne "HASH" );
+	if ( defined($args{data}) && ref( $args{data} ) ne "HASH" )
+	{
+		$nmisng->log->fatal( "make_path_from_keys has invalid data argument: " . ref( $args{data} ));
+		return "make_path_from_keys has invalid data argument: " . ref( $args{data} )
+	}
 
 	my @path;
 
@@ -101,6 +108,7 @@ sub make_path_from_keys
 	{
 		if ( !$args{partial} && !defined( $args{$prefixelem} ) )
 		{
+			$nmisng->log->fatal("make_path_from_keys is missing $prefixelem argument!");
 			return "make_path_from_keys is missing $prefixelem argument!";
 		}
 		push @path, $args{$prefixelem};
@@ -111,6 +119,7 @@ sub make_path_from_keys
 	{
 		if ( !$args{partial} && !defined( $args{data}->{$pathelem} ) )
 		{
+			$nmisng->log->fatal("make_path_from_keys is missing $pathelem data!");
 			return ("make_path_from_keys is missing $pathelem data!");
 		}
 		push @path, $args{data}->{$pathelem};
@@ -324,7 +333,7 @@ sub new
 {
 	my ( $class, %args ) = @_;
 
-	my $nmisng = $args{nmisng};
+	$nmisng = $args{nmisng};
 	return undef if ( !$nmisng );    # check this early so we can use it to log
 
 	for my $musthave (qw(concept cluster_id node_uuid))
@@ -1473,7 +1482,7 @@ sub validate
 	return ( -1, "invalid cluster_id" )        if ( !$self->cluster_id );
 	return ( -2, "invalid concept" )           if ( !$self->concept );
 	return ( -3, "invalid data" )              if ( ref($self->data()) ne 'HASH' );
-	return ( -4, "invalid path" )              if ( !$path || @$path < 1 );
+	return ( -4, "invalid path" )              if ( !$path || ref($path) ne 'ARRAY' || @$path < 1 );
 	return ( -5, "invalid node_uuid" )         if ( !$self->node_uuid );
 	return ( -6, "invalid storage structure" ) if ( defined($storage) && ref($storage) ne "HASH" );
 

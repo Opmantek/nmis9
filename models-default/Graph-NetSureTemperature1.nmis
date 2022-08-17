@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average System Primary Route Temperature',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Primary Route Temperature'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psTemperature1=$database:psTemperature1:AVERAGE',
+			'LINE1:psTemperature1#00BFFF:System Primary Route Temperature',					   
+			'GPRINT:psTemperature1:MIN:Minimum %1.2lf',
+			'GPRINT:psTemperature1:AVERAGE:Avg %1.2lf',
+			'GPRINT:psTemperature1:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psTemperature1=$database:psTemperature1:AVERAGE',
+			'LINE1:psTemperature1#00BFFF:System Primary Route Temperature',					   
+			'GPRINT:psTemperature1:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

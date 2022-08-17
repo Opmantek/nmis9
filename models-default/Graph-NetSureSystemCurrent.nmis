@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average System Current',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Current'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:systemCurrent=$database:systemCurrent:AVERAGE',
+			'LINE1:systemCurrent#00BFFF:System Current',					   
+			'GPRINT:systemCurrent:MIN:Minimum %1.2lf',
+			'GPRINT:systemCurrent:AVERAGE:Avg %1.2lf',
+			'GPRINT:systemCurrent:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:systemCurrent=$database:systemCurrent:AVERAGE',
+			'LINE1:systemCurrent#00BFFF:System Current',					   
+			'GPRINT:systemCurrent:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

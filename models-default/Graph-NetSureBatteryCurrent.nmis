@@ -1,0 +1,24 @@
+%hash = (
+	'heading' => 'Average Battery Current',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Battery Current'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:psBatteryCurrent=$database:psBatteryCurrent:AVERAGE',
+			'LINE1:psBatteryCurrent#00BFFF:Battery Current',					   
+			'GPRINT:psBatteryCurrent:MIN:Minimum %1.2lf',
+			'GPRINT:psBatteryCurrent:AVERAGE:Avg %1.2lf',
+			'GPRINT:psBatteryCurrent:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:psBatteryCurrent=$database:psBatteryCurrent:AVERAGE',
+			'LINE1:psBatteryCurrent#00BFFF:Battery Current',					   
+			'GPRINT:psBatteryCurrent:AVERAGE:Avg %1.2lf\\n',
+		]
+	}
+);

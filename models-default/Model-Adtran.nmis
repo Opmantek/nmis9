@@ -41,6 +41,9 @@
       'summary' => {
         'common-model' => 'summary'
       },
+      'mib2ip' => {
+        'common-model' => 'mib2ip'
+      },
       'heading' => {
         'common-model' => 'heading'
       },
@@ -50,6 +53,14 @@
       'event' => {
         'common-model' => 'event'
       }
+    }
+  },
+  'custom' => {
+    'interface' => {
+      'ifAdminStatus' => 'false', # default = true
+      'ifNumber' => 'false', # default = true
+      'ifLastChange' => 'false', # default = false
+      'ifTableLastChange' => 'false', # default = false
     }
   },
   'system' => {
@@ -188,10 +199,11 @@
             'oid' => 'ifDescr',
             'title' => 'Name (ifDescr)'
           },
-          'ifPhysAddress' => {
-            'oid' => 'ifPhysAddress',
-            'title' => 'Physical Address',
-          },
+#         'ifPhysAddress' => {
+#           'oid' => 'ifPhysAddress',
+#           'title' => 'Physical Address',
+#           'calculate' => '(($r eq "noSuchName") ? "" : $r)',
+#         },
           'ifSpeed' => {
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
@@ -214,10 +226,10 @@
             'oid' => 'ifType',
             'title' => 'Type (ifType)'
           },
-          'ifLastChange' => {
-            'oid' => 'ifLastChange',
-            'title' => 'Last Change'
-          }
+#         'ifLastChange' => {
+#           'oid' => 'ifLastChange',
+#           'title' => 'Last Change'
+#         }
         }
       },
       'extra' => {
@@ -285,7 +297,7 @@
           }
         },
         'threshold' => 'util_in,util_out',
-        'graphtype' => 'bits,abits,maxbits,util,autil'
+#       'graphtype' => 'bits,abits,maxbits,util,autil'
       },
       'pkts_hc' => {
         'indexed' => 'true',
