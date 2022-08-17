@@ -1,0 +1,7 @@
+{
+	"apiUser":"oper",
+	"apiPass":"apiadmin1",
+	"apiPort":8443,
+	"databaseDir":"/usr/local/nmis9/var/f5",
+	"historySeconds":300
+}
