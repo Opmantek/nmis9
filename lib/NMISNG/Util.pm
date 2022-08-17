@@ -3540,6 +3540,9 @@ sub decrypt {
 	my $config;
 	my $logger;
 
+	# Passed nothing or an empty string.
+	return "" if (!defined($password) || $password eq '');
+
 	{
 		$config = loadConfTable();
 		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
@@ -3548,6 +3551,11 @@ sub decrypt {
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
+
+	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled))
+	{
+		return $password;
+	}
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
@@ -3561,9 +3569,6 @@ sub decrypt {
 	if (!-f "$seedfile") {
 		_make_seed($seedfile, $logger);
 	}
-
-	# Passed nothing or an empty string.
-	return "" if (!defined($password) || $password eq '');
 
 	# If the password is not currently encrypted, then we just return what we have.
 	if (substr($password, 0, 2) ne "!!") {
@@ -3645,6 +3650,9 @@ sub encrypt {
 	my $config;
 	my $logger;
 
+	# Passed nothing or an empty string.
+	return "" if (!defined($password) || $password eq '');
+
 	{
 		$config = loadConfTable();
 		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
@@ -3652,6 +3660,11 @@ sub encrypt {
 	}
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
+
+	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled))
+	{
+		return $password;
+	}
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
@@ -3664,9 +3677,6 @@ sub encrypt {
 	if (!-f "$seedfile") {
 		_make_seed($seedfile, $logger);
 	}
-
-	# Passed nothing or an empty string.
-	return "" if (!defined($password) || $password eq '');
 
 	# Passed already encrypted string.
 	if (substr($password, 0, 2) eq "!!") {
@@ -3694,34 +3704,36 @@ sub encrypt {
 		return $password;
 	}
 
-	if (open($fh, '<', $seedfile)) {
-		my $seed = <$fh>;
-		close $fh;
-		chomp($seed);
-		$strLen	   = sprintf("%03d", length($password));
-		$password  = $strLen.$password;
-
-		my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
-											-cipher => 'Cipher::AES',
-											-pbkdf  => 'pbkdf2',
-											-salt   => 'Opmantek'
-											);
-		my $error = 0;
-		eval {  $password = $cipherHandle->encrypt_hex($password);
-				1;  # always return true to indicate success
-			 }
-			 or do {
-				$error = $@ || 'Unknown failure';
-			 };
-		if ($error) {
-			$logger->error("Password encryption failure.; Error $error");
-			$password = "";
+	if ($encryption_enabled) {
+		if (open($fh, '<', $seedfile)) {
+			my $seed = <$fh>;
+			close $fh;
+			chomp($seed);
+			$strLen	   = sprintf("%03d", length($password));
+			$password  = $strLen.$password;
+	
+			my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
+												-cipher => 'Cipher::AES',
+												-pbkdf  => 'pbkdf2',
+												-salt   => 'Opmantek'
+												);
+			my $error = 0;
+			eval {  $password = $cipherHandle->encrypt_hex($password);
+					1;  # always return true to indicate success
+				 }
+				 or do {
+					$error = $@ || 'Unknown failure';
+				 };
+			if ($error) {
+				$logger->error("Password encryption failure.; Error $error");
+				$password = "";
+			} else {
+				$password = "!!" . $password;
+			}
 		} else {
-			$password = "!!" . $password;
+			$logger->error("Password encryption failure.");
+			$password = "";
 		}
-	} else {
-		$logger->error("Password encryption failure.");
-		$password = "";
 	}
 
 	return $password;
