@@ -74,12 +74,20 @@ Usage: $0 run=(true|false) node=NODENAME debug=(1|2|3|4)
   node=NODENAME, to only process a single node.
   debug, if you don't know what it means don't use it.
 
+  This will set the overrides (Node Configuration) for the selected node to:
+  * interfaces starting with the word tunnel will be set to 1.25 Gbps
+  * HundredGigabit Sub-Interfaces containing the keywork CSM will be set to 1.00 Gbps
+
+  Run an update on the node at the end.
+
 };
 	exit 1;
 }
 
 if ( defined $cmdline->{node} ) {
 	processNode($nmisng,$cmdline->{node});
+	print "Run an update on the nodes for the speeds to change e.g. to schedule for all nodes:\n";
+	print "/usr/local/nmis9/bin/nmis-cli act=schedule job.type=update job.node=$cmdline->{node}\n";
 }
 else {
 	my $nodes = $nmisng->get_node_names(filter => { cluster_id => $config->{cluster_id} });
@@ -90,8 +98,8 @@ else {
 		$seen{$node} = 1;
 		processNode($nmisng,$node);
 	}	
-	print "Run an update on the nodes for the speeds to change e.g. to schedule for all nodes:\n"
-	print "/usr/local/nmis9/bin/nmis-cli act=schedule job.type=update\n"
+	print "Run an update on the nodes for the speeds to change e.g. to schedule for all nodes:\n";
+	print "/usr/local/nmis9/bin/nmis-cli act=schedule job.type=update\n";
 }
 
 sub processNode {
@@ -107,7 +115,7 @@ sub processNode {
 
 		my ($overrides,$error) = $nodeobj->overrides();
 		
-		print Dumper $configuration if $debug;
+		#print Dumper $configuration if $debug;
 
 		# Only locals and active nodes
 		if ($active and $nodeobj->cluster_id eq $config->{cluster_id} ) {
@@ -130,11 +138,8 @@ sub processNode {
 			}
 
 			my $catchall_data = $inventory->data();
-			print "Catch All Data for $node:\n" . Dumper $catchall_data if $debug;
+			#print "Catch All Data for $node:\n" . Dumper $catchall_data if $debug;
 			#print "$node sysLocation: $catchall_data->{sysLocation}\n";
-
-			my $GTT = $S->loadGraphTypeTable(index=>undef);
-			print "Graph Type Table $node:\n" . Dumper $GTT if $debug;
 
 			# lets look at interfaces
 			my $ids = $S->nmisng_node->get_inventory_ids(
@@ -153,11 +158,28 @@ sub processNode {
 						}
 						my $data = $interface->data();
 
-						#set speeds here
 						my $ifDescr = $data->{ifDescr};
-						$overrides->{$ifDescr}{ifSpeed} = 1250000000;
-						$overrides->{$ifDescr}{ifSpeedIn} = 1250000000;
-						$overrides->{$ifDescr}{ifSpeedOut} = 1250000000;
+						my $Description = $data->{Description};
+
+						print "Processing $node ifDescr=$ifDescr Description=$Description\n";
+						
+						#set speeds here
+						if ( $node eq "asgard_AT_OPTESTS" and $ifDescr =~ /^Tunnel1$/ ) {
+							$overrides->{$ifDescr}{ifSpeed} = 1250000;
+							$overrides->{$ifDescr}{ifSpeedIn} = 1250000;
+							$overrides->{$ifDescr}{ifSpeedOut} = 1250000;
+						}
+						elsif ( $ifDescr =~ /^tunnel/ ) {
+							$overrides->{$ifDescr}{ifSpeed} = 1250000000;
+							$overrides->{$ifDescr}{ifSpeedIn} = 1250000000;
+							$overrides->{$ifDescr}{ifSpeedOut} = 1250000000;
+						}
+						# is this a HundredGig sub-interface and does it have the keyword in the name.
+						elsif ( $ifDescr =~ /Hundred.+\.\d+/ and $Description =~ /CSM/ ) {
+							$overrides->{$ifDescr}{ifSpeed} = 1000000000;
+							$overrides->{$ifDescr}{ifSpeedIn} = 1000000000;
+							$overrides->{$ifDescr}{ifSpeedOut} = 1000000000;
+						}
 
 						print Dumper $data if $debug;
 				}
