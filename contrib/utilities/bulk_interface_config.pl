@@ -89,7 +89,9 @@ else {
 		next if ($seen{$node});
 		$seen{$node} = 1;
 		processNode($nmisng,$node);
-	}
+	}	
+	print "Run an update on the nodes for the speeds to change e.g. to schedule for all nodes:\n"
+	print "/usr/local/nmis9/bin/nmis-cli act=schedule job.type=update\n"
 }
 
 sub processNode {
@@ -102,7 +104,11 @@ sub processNode {
         # is the node active?
 		my ($configuration,$error) = $nodeobj->configuration();
 		my $active = $configuration->{active};
+
+		my ($overrides,$error) = $nodeobj->overrides();
 		
+		print Dumper $configuration if $debug;
+
 		# Only locals and active nodes
 		if ($active and $nodeobj->cluster_id eq $config->{cluster_id} ) {
 
@@ -123,17 +129,64 @@ sub processNode {
 				next;
 			}
 
-			print "Configuration Data for $node:\n" . Dumper $configuration;
-
 			my $catchall_data = $inventory->data();
-			print "Catch All Data for $node:\n" . Dumper $catchall_data;
+			print "Catch All Data for $node:\n" . Dumper $catchall_data if $debug;
+			#print "$node sysLocation: $catchall_data->{sysLocation}\n";
 
 			my $GTT = $S->loadGraphTypeTable(index=>undef);
-			print "Graph Type Table $node:\n" . Dumper $GTT;
+			print "Graph Type Table $node:\n" . Dumper $GTT if $debug;
 
-        }
-    }
+			# lets look at interfaces
+			my $ids = $S->nmisng_node->get_inventory_ids(
+				concept => "interface",
+				filter => { historic => 0 });
+
+			if (@$ids)
+			{				
+				for my $interfaceId (@$ids)
+				{
+						my ($interface, $error) = $S->nmisng_node->inventory(_id => $interfaceId);
+						if ($error)
+						{
+							print "Failed to get inventory $interfaceId: $error\n";
+							next;
+						}
+						my $data = $interface->data();
+
+						#set speeds here
+						my $ifDescr = $data->{ifDescr};
+						$overrides->{$ifDescr}{ifSpeed} = 1250000000;
+						$overrides->{$ifDescr}{ifSpeedIn} = 1250000000;
+						$overrides->{$ifDescr}{ifSpeedOut} = 1250000000;
+
+						print Dumper $data if $debug;
+				}
+			}
+
+			print Dumper $overrides if $debug;
+			$nodeobj->overrides($overrides);
+
+			#my $meta = {
+			#		what => "Set node",
+			#		who => $me,
+			#		where => $nodes,
+			#		how => "node_admin",
+			#		details => "Set node(s) " . $nodes
+			#};
+			#(my $op, $error) = $nodeobj->save(meta => $meta);
+
+			(my $op, $error) = $nodeobj->save();
+			die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed	
+			
+			print STDERR "Successfully updated node $node.\n"
+				if (-t \*STDERR);								# if terminal
+
+        } # if active
+
+    } # if nodeobj
 }
+		
+		
 
 
 

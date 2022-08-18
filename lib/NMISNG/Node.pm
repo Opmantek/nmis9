@@ -282,9 +282,10 @@ sub _load
 				 });
 		$self->{_addresses} = $entry->{addresses} if (ref($entry->{addresses}) eq "ARRAY");
 		$self->{_aliases} = $entry->{aliases} if (ref($entry->{aliases}) eq "ARRAY");
+		$self->{_enterprise_service_tags} = $entry->{enterprise_service_tags} if (ref($entry->{enterprise_service_tags}) eq "ARRAY");
 
 		# ...but, for extensibility's sake, also load unknown extra stuff and drag it along
-		my %unknown = map { ($_ => $entry->{$_}) } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate|aliases|addresses)$/, keys %$entry));
+		my %unknown = map { ($_ => $entry->{$_}) } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate|aliases|addresses|enterprise_service_tags)$/, keys %$entry));
 		$self->{_unknown} = \%unknown;
 
 		$self->_dirty(0);						# nothing is dirty at this point
@@ -561,6 +562,23 @@ sub configuration
 
 	return $self->{_configuration}? Clone::clone( $self->{_configuration} ) : {};  # cover the new node case
 }
+
+# getter-setter for enterprise services tags,
+# which must be array of strings
+#
+# args: new tag array ref, optional
+# returns: arrayref of current tag structure
+sub enterprise_service_tags
+{
+	my ($self, $newaliases) = @_;
+	if (ref($newaliases) eq "ARRAY")
+	{
+		$self->{_enterprise_service_tags}  = $newaliases;
+		$self->_dirty(1, "enterprise_service_tags");
+	}
+	return Clone::clone($self->{_enterprise_service_tags} // []);
+}
+
 
 # remove this node from the db and clean up all leftovers:
 # queued jobs, node configuration, inventories, timed data, events, opstatus entries
@@ -1506,9 +1524,10 @@ sub save
 								activated => $self->{_activated},
 								addresses => $self->{_addresses} // [],
 								aliases => $self->{_aliases} // [],
+								enterprise_service_tags => $self->{_enterprise_service_tags},
 			);
 
-	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate)$/, keys %{$self->{_unknown}}));
+	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate|enterprise_service_tags)$/, keys %{$self->{_unknown}}));
 
 	if ($self->is_new())
 	{
