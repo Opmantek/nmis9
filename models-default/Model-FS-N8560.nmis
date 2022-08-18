@@ -332,7 +332,7 @@
       }
     }
   },
-  'systemHealth' => {
-    'sections' => 'addressTable,ifTable,mplsL3VpnIfConf,standard'
-  }
+# 'systemHealth' => {
+#   'sections' => 'addressTable,ifTable,mplsL3VpnIfConf,standard'
+# }
 );

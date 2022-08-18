@@ -329,7 +329,7 @@
       }
     }
   },
-  'systemHealth' => {
-    'sections' => 'addressTable,ifTable,standard'
-  }
+# 'systemHealth' => {
+#   'sections' => 'addressTable,ifTable,standard'
+# }
 );
