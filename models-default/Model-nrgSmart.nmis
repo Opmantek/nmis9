@@ -210,7 +210,7 @@
   },
   'system' => {
     'nodeModel' => 'nrgSmart',
-    'nodeModelComment' => 'Auto Generated Model by model_discovery.pl',
+    'nodeModelComment' => 'Amphenol nrgSmart device',
     'nodeType' => 'generic',
     'nodegraph' => 'health,response,ip',
     'rrd' => {
