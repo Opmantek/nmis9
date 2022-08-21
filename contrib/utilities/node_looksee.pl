@@ -132,6 +132,8 @@ sub processNode {
 			print "Graph Type Table $node:\n" . Dumper $GTT;
 
         }
+
+		#print Dumper $nodeobj;
     }
 }
 
