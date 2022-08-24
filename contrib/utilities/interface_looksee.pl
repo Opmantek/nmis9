@@ -105,6 +105,8 @@ sub processNode {
 
 		my ($overrides,$error) = $nodeobj->overrides();
 		
+		my $ifTable;
+
 		print Dumper $configuration if $debug;
 
 		# Only locals and active nodes
@@ -151,8 +153,26 @@ sub processNode {
 						}
 						my $data = $interface->data();
 
-						print Dumper $data;
+						print Dumper $data if $debug;
+
+						# lets get the data into a useful structure
+						my $ifIndex = $data->{ifIndex};
+						$ifTable->{$ifIndex} = $data;
+
+						### get some additional performance related data, PIT = point in time.
++                       my $previous_pit = $interface->get_newest_timed_data();
+
+						print Dumper $previous_pit if $debug;
+						if ( exists $previous_pit->{derived_data} ) { 
+							$ifTable->{$ifIndex}{inputUtil} = $previous_pit->{derived_data}{interface}{inputUtil};
+							$ifTable->{$ifIndex}{outputUtil} = $previous_pit->{derived_data}{interface}{outputUtil};
+						}
+						else {
+							$ifTable->{$ifIndex}{inputUtil} = undef;
+							$ifTable->{$ifIndex}{outputUtil} = undef;
+						}
 				}
+				print Dumper $ifTable;
 			}
 
         } # if active
