@@ -28,15 +28,25 @@
 #
 # *****************************************************************************
 
+################
+# INSTALLATION #
+################
+# A good option to install is to create a util folder e.g. /usr/local/nmis9/util and then create a symbolic link so the file will run with the correct paths.
+
 # This program should be run from Cron for the required alerting period, e.g. 5 minutes
-#4-59/5 * * * * /usr/local/admin/interface_util_alerts.pl
+#4-59/5 * * * * /usr/local/nmis9/util/interface_util_alerts.pl
+
+# check all the needed files are in place, if not, yell loudly and stop.
 
 # The average utilisation will be calculated for each interface for the last X minutes
+
+our $VERSION="2.0.0";
 use strict;
-use warnings;
+#use warnings;
 
 # *****************************************************************************
-
+# add the following to /etc/rsyslog.conf for testing
+# local3.*                /usr/local/nmis9/logs/noc.log
 my $syslog_facility = 'local3';
 my $syslog_server = 'localhost:udp:514';
 
@@ -72,7 +82,7 @@ my $eventName = "Proactive Interface Utilisation";
 my $includeGroup = 1;
 
 # the seperator for the details field.
-my $detailSep = "-- ";
+my $detailSep = " -- ";
 
 my $extraLogging = 0;
 
@@ -80,191 +90,256 @@ my $extraLogging = 0;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
- 
-use func;
-use NMIS;
+						
+use NMISNG;
+use NMISNG::Log;
+use NMISNG::Util;
+use NMISNG::Notify;
+use NMISNG::rrdfunc;
+use Compat::NMIS;
 use Data::Dumper;
-use rrdfunc;
-use notify;
 
-my %arg = getArguements(@ARGV);
+### setup the NMIS9 API and environment and handy utils
+my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
-if ( defined $arg{clean} and $arg{clean} eq "true" ) {
-	print "Cleaning Events\n";
-	cleanEvents();
-	exit;
-}
+my $debug = 0;
+$debug = $cmdline->{debug} if defined $cmdline->{debug};
 
-# Set debugging level.
-my $debug = setDebug($arg{debug});
+# Set info level.
+my $info = NMISNG::Util::getbool( $cmdline->{info} ) if defined $cmdline->{info};
 
-# Set debugging level.
-my $info = setDebug($arg{info});
+my $nmisConfig = NMISNG::Util::loadConfTable( dir => "$FindBin::Bin/../conf", debug => $debug, info => undef);
 
-my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
+# use debug, or info arg, or configured log_level
+# not wanting this level of debug for debug = 1.
+my $nmisDebug = $debug > 1 ? $debug : 0;
+my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $nmisDebug, info => $cmdline->{info}), path  => undef );
 
-# get syslog config from config file.
-if (existFile(dir=>'conf',name=>'nocSyslog')) {
-	my $syslogConfig = loadTable(dir=>'conf',name=>'nocSyslog');
+my $nmisng = NMISNG->new(config => $nmisConfig, log => $logger);
+
+# get syslog config from config file, trivial format
+#%hash = (
+#  'syslog' => {
+#    'syslog_facility' => 'local3',
+#    'syslog_server' => 'IP_ADDRESS_OR_FQDN:tcp:514',
+#    'extra_logging' => 1,
+#  }
+#);
+
+if (NMISNG::Util::existFile(dir=>'conf',name=>'nocSyslog')) {
+	my $syslogConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'nocSyslog');
 	$syslog_facility = $syslogConfig->{syslog}{syslog_facility};
 	$syslog_server = $syslogConfig->{syslog}{syslog_server};
-	$extraLogging = getbool($syslogConfig->{syslog}{extra_logging});
+	$extraLogging = NMISNG::Util::getbool($syslogConfig->{syslog}{extra_logging});
 }
 
-my $LNT = loadLocalNodeTable();
+if ( defined $cmdline->{clean} and NMISNG::Util::getbool($cmdline->{clean}) ) {
+	print "Cleaning Events\n";
+	#cleanEvents();
+	exit;
+}
+elsif ( defined $cmdline->{node} and $cmdline->{node} ne "" ) {
+	processNode($nmisng,$cmdline->{node});
+}
+else {
+	processAllNodes();
+}
 
-foreach my $node (sort keys %{$LNT}) {
-	
-	# Is the node active and are we doing stats on it.
-	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
-		print "Processing $node\n" if $info;
-		my $S = Sys::->new; # get system object
-		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+sub processAllNodes {
+	my $nodes = $nmisng->get_node_names(filter => { cluster_id => $nmisConfig->{cluster_id} });
+	my %seen;
+    
+	foreach my $node (sort @$nodes) {
+		next if ($seen{$node});
+		$seen{$node} = 1;
+		processNode($nmisng,$node);
+	}
+}
 
-		my $NI = $S->ndinfo;
-		my $IF = $S->ifinfo;
+sub processNode {
+	my $nmisng = shift;
+	my $node = shift;
 
-		for my $ifIndex (sort keys %{$IF}) {
-			if ( exists $IF->{$ifIndex}{collect} and $IF->{$ifIndex}{collect} eq "true") {
-				
-				my $event = $eventName;
-				
-				# get the summary stats
-				my $stats = getSummaryStats(sys=>$S,type=>"interface",start=>$threshold_period,end=>'now',index=>$ifIndex);
-				
-				# skip if bad data
-				next if not defined $stats->{$ifIndex}{inputUtil};
-				next if not defined $stats->{$ifIndex}{outputUtil};
+	print "Processing $node\n" if $info;
 
-				next if $stats->{$ifIndex}{inputUtil} =~ /NaN/;
-				next if $stats->{$ifIndex}{outputUtil} =~ /NaN/;
+	my $nodeobj = $nmisng->node(name => $node);
+	if ($nodeobj) {
 
-				# get the max if in/out utilisation
-				my $util = 0;
-				$util = $stats->{$ifIndex}{inputUtil} if $stats->{$ifIndex}{inputUtil} > $util;
-				$util = $stats->{$ifIndex}{outputUtil} if $stats->{$ifIndex}{outputUtil} > $util;
-			
-				
-				my $level = undef;
-				my $reset = undef;
-				my $thrvalue = undef;
-				
-				my $element = $IF->{$ifIndex}{ifDescr};
+        # is the node active?
+		my ($nmisConfiguration,$error) = $nodeobj->configuration();
+		my $active = $nmisConfiguration->{active};
+		my $collect = $nmisConfiguration->{collect};
+		my $group = $nmisConfiguration->{group};
+		my $cluster_id = $nodeobj->cluster_id;
 
-				# apply the thresholds
-				if ( $util < $thresholds->{normal} ) { $level = "Normal"; $reset = $thresholds->{normal}; $thrvalue = $thresholds->{normal}; }
-				elsif ( $thresholds->{warning} > 0 and $util >= $thresholds->{warning} and $util < $thresholds->{minor} ) { $level = "Warning"; $thrvalue = $thresholds->{warning}; }
-				elsif ( $thresholds->{minor} > 0 and $util >= $thresholds->{minor} and $util < $thresholds->{major} ) { $level = "Minor"; $thrvalue = $thresholds->{minor}; }
-				elsif ( $thresholds->{major} > 0 and $util >= $thresholds->{major} and $util < $thresholds->{critical} ) { $level = "Major"; $thrvalue = $thresholds->{major}; }
-				elsif ( $thresholds->{critical} > 0 and $util >= $thresholds->{critical} and $util < $thresholds->{fatal} ) { $level = "Critical"; $thrvalue = $thresholds->{critical}; }
-				elsif ( $util >= $thresholds->{fatal} ) { $level = "Fatal"; $thrvalue = $thresholds->{fatal}; }
-												
-				# if the level is normal, make sure there isn't an existing event open
-				my $eventExists = eventExist($NI->{system}{name}, $event, $element);
-				my $sendSyslog = 0;
-				my $condition = 0;
+		# Only locals and active nodes
+		if ($active and $nodeobj->cluster_id eq $nmisConfig->{cluster_id} ) {
+			print " $node is active and local\n" if $info;
 
-				my @detailBits;
-									
-				if ( $includeGroup ) {
-					push(@detailBits,"$LNT->{$node}{group}");
-				}
-				
-				if ( defined $IF->{$ifIndex}{Description} and $IF->{$ifIndex}{Description} ne "" ) {
-					push(@detailBits,"$IF->{$ifIndex}{Description}");
-				}
-
-				if ($C->{global_events_bandwidth} eq 'true')
-				{
-						push(@detailBits,"Bandwidth=".$IF->{$ifIndex}->{ifSpeed});
-				}
-
-				push(@detailBits,"Value=$util Threshold=$thrvalue");
-
-				my $details = join($detailSep,@detailBits);
-
-				#remove dodgy quotes
-				$details =~ s/[\"|\']//g;
-
-
-				if ( $eventExists and $level =~ /Normal/i) {
-					# Proactive Closed.
-					$condition = 1;
-
-					if ( getbool($nmisEventProcessing) ) {
-						checkEvent(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$util,reset=>$reset);
-					}
-					else {						
-						eventDelete(event => { node => $node, 
-																	 event => $event, 
-																	 element => $element });
-					}
-					$event = "$event Closed" if $event !~ /Closed/;
-					$sendSyslog = 1;
-				}
-				elsif ( not $eventExists and $level =~ /Normal/i) {
-					$condition = 2;
-					# Life is good, nothing to see here.
-				}
-				elsif ( not $eventExists and $level !~ /Normal/i) {
-					$condition = 3;
-					$event =~ s/ Closed//g;
-					# new event send the syslog.
-					$sendSyslog = 1;
-
-					if ( getbool($nmisEventProcessing) ) {
-						notify(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details);
-					}
-					else {
-						eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);	
-					}
-				}
-				elsif ( $eventExists and $level !~ /Normal/i) {
-					$condition = 4;
-					# existing condition
-				}
-
-				if ( $sendSyslog ) {
-					my $success = sendSyslog(
-						server_string => $syslog_server,
-						facility => $syslog_facility,
-						nmis_host => $C->{server_name},
-						time => time(),
-						node => $node,
-						event => $event,
-						level => $level,
-						element => $element,
-						details => $details
-					);
-					if ( $success ) {
-						logMsg("INFO: syslog sent: $node $event $element $details") if $extraLogging;
-					}
-					else {
-						logMsg("ERROR: syslog failed to $syslog_server:  $node $event $element $details");
-					}
-				}
-				
-				#\t$IF->{$ifIndex}{collect}\t$IF->{$ifIndex}{Description}
-				print "  $element: $event condition=$condition ifIndex=$IF->{$ifIndex}{ifIndex} util=$util level=$level thrvalue=$thrvalue\n" if $info;
-
+			my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object
+			eval {
+				$S->init(name=>$node);
+			}; if ($@) # load node info and Model if name exists
+			{
+				print "Error init for $node";
+				next;
 			}
+
+			# lets look at interfaces
+			my $ids = $S->nmisng_node->get_inventory_ids(
+				concept => "interface",
+				filter => { historic => 0 }
+			);
+
+			for my $interfaceId (@$ids)
+			{
+				my ($interface, $error) = $S->nmisng_node->inventory(_id => $interfaceId);
+				if ($error)
+				{
+					print "Failed to get inventory $interfaceId: $error\n";
+					next;
+				}
+				my $thisIntf = $interface->data();
+				processInterface($nodeobj,$S,$thisIntf,$group);
+			}
+		}
+		else {
+			print " $node active=$active $cluster_id $nmisConfig->{cluster_id}\n" if $info;
 		}
 	}
 }
-		
 
-# globally removes all events called "something Closed"
-sub cleanEvents 
-{
-	my %allevents = loadAllEvents;
+sub processInterface {
+	my $nodeobj = shift;
+	my $S = shift;
+	my $thisIntf = shift;
+	my $group = shift;
+
+	my $node = $nodeobj->name();
+
+	my $ifIndex = $thisIntf->{ifIndex};
+	my $ifDescr = $thisIntf->{ifDescr};
+
+	if ( exists $thisIntf->{collect} and NMISNG::Util::getbool($thisIntf->{collect}) ) {
+		
+		my $event = $eventName;
+		
+		# get the summary stats
+		my $stats = Compat::NMIS::getSummaryStats(sys=>$S,type=>"interface",start=>$threshold_period,end=>'now',index=>$ifIndex, item=>$ifDescr);
+		
+		# skip if bad data
+		next if not defined $stats->{$ifIndex}{inputUtil};
+		next if not defined $stats->{$ifIndex}{outputUtil};
+
+		next if $stats->{$ifIndex}{inputUtil} =~ /NaN/;
+		next if $stats->{$ifIndex}{outputUtil} =~ /NaN/;
+
+		# get the max if in/out utilisation
+		my $util = 0;
+		$util = $stats->{$ifIndex}{inputUtil} if $stats->{$ifIndex}{inputUtil} > $util;
+		$util = $stats->{$ifIndex}{outputUtil} if $stats->{$ifIndex}{outputUtil} > $util;
 	
-	foreach my $key (keys %allevents)
-	{
-		my $thisevent = $allevents{$key};
-		if ( $thisevent->{event} =~ /Closed/ ) 
-		{
-			print "Cleaning event $thisevent->{node} $thisevent->{event}\n";
-			eventDelete(event => $thisevent);
+		my $level = undef;
+		my $reset = undef;
+		my $thrvalue = undef;
+		
+		my $element = $thisIntf->{ifDescr};
+
+		# apply the thresholds
+		if ( $util < $thresholds->{normal} ) { $level = "Normal"; $reset = $thresholds->{normal}; $thrvalue = $thresholds->{normal}; }
+		elsif ( $thresholds->{warning} > 0 and $util >= $thresholds->{warning} and $util < $thresholds->{minor} ) { $level = "Warning"; $thrvalue = $thresholds->{warning}; }
+		elsif ( $thresholds->{minor} > 0 and $util >= $thresholds->{minor} and $util < $thresholds->{major} ) { $level = "Minor"; $thrvalue = $thresholds->{minor}; }
+		elsif ( $thresholds->{major} > 0 and $util >= $thresholds->{major} and $util < $thresholds->{critical} ) { $level = "Major"; $thrvalue = $thresholds->{major}; }
+		elsif ( $thresholds->{critical} > 0 and $util >= $thresholds->{critical} and $util < $thresholds->{fatal} ) { $level = "Critical"; $thrvalue = $thresholds->{critical}; }
+		elsif ( $util >= $thresholds->{fatal} ) { $level = "Fatal"; $thrvalue = $thresholds->{fatal}; }
+										
+		# if the level is normal, make sure there isn't an existing event open
+		my $eventExists = $nodeobj->eventExist($event, $element);
+		my $sendSyslog = 0;
+		my $condition = 0;
+
+		my @detailBits;
+							
+		if ( $includeGroup ) {
+			push(@detailBits,"$group");
 		}
+		
+		if ( defined $thisIntf->{Description} and $thisIntf->{Description} ne "" ) {
+			push(@detailBits,"$thisIntf->{Description}");
+		}
+
+		if ($nmisConfig->{global_events_bandwidth} eq 'true')
+		{
+			push(@detailBits,"Bandwidth=".$thisIntf->{ifSpeed});
+		}
+
+		push(@detailBits,"Value=$util Threshold=$thrvalue");
+
+		my $details = join($detailSep,@detailBits);
+
+		#remove dodgy quotes
+		$details =~ s/[\"|\']//g;
+
+		if ( $eventExists and $level =~ /Normal/i) {
+			# Proactive Closed.
+			$condition = 1;
+
+			if ( NMISNG::Util::getbool($nmisEventProcessing) ) {
+				Compat::NMIS::checkEvent(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$util,reset=>$reset);
+			}
+			else {						
+				$nodeobj->eventDelete(
+					event => {
+						event => $event, 
+						element => $element 
+					});
+			}
+			$event = "$event Closed" if $event !~ /Closed/;
+			$sendSyslog = 1;
+		}
+		elsif ( not $eventExists and $level =~ /Normal/i) {
+			$condition = 2;
+			# Life is good, nothing to see here.
+		}
+		elsif ( not $eventExists and $level !~ /Normal/i) {
+			$condition = 3;
+			$event =~ s/ Closed//g;
+			# new event send the syslog.
+			$sendSyslog = 1;
+
+			if ( NMISNG::Util::getbool($nmisEventProcessing) ) {
+				Compat::NMIS::notify(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details);
+			}
+			else {
+				$nodeobj->eventAdd(event=>$event,level=>$level,element=>$element,details=>$details);	
+			}
+		}
+		elsif ( $eventExists and $level !~ /Normal/i) {
+			$condition = 4;
+			# existing condition
+		}
+
+		if ( $sendSyslog ) {
+			my $error = NMISNG::Notify::sendSyslog(
+				server_string => $syslog_server,
+				facility => $syslog_facility,
+				nmis_host => $nmisConfig->{server_name},
+				time => time(),
+				node => $node,
+				event => $event,
+				level => $level,
+				element => $element,
+				details => $details
+			);
+			if ( $error ) {
+				$logger->error("ERROR: syslog failed to $syslog_server: $node $event $element $details: $error");
+			}
+			else {
+				$logger->info("INFO: syslog sent to $syslog_server: $node $event $element $details") if $extraLogging;
+			}
+		}
+		
+		#\t$thisIntf->{collect}\t$thisIntf->{Description}
+		print "  $element: $event condition=$condition ifIndex=$thisIntf->{ifIndex} util=$util level=$level thrvalue=$thrvalue\n" if $info;
 	}
 }
