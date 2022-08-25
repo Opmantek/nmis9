@@ -1,0 +1,5 @@
+# this cron schedule runs the interface util alerts utility every 5 minutes
+#
+# m h dom month dow user command
+4-59/5 * * * * root /usr/local/nmis9/util/interface_util_alerts.pl
+
