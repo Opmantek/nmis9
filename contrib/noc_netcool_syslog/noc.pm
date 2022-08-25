@@ -62,12 +62,11 @@ sub sendNotification
 		$extraLogging = NMISNG::Util::getbool($syslogConfig->{syslog}{extra_logging});
 	}
 
-	# get the blacklist from conf/ or conf-default/
-	my $blackListFile = "$C->{'<nmis_conf>'}/nocBlackList.txt";
-	$blackListFile = $C->{'<nmis_conf_default>'}."/nocBlackList.txt"
-			if (!-r $blackListFile);
+	# get the ignorelist from conf/ or conf-default/
+	my $ignoreListFile = "$C->{'<nmis_conf>'}/nocIgnoreList.txt";
+	$ignoreListFile = $C->{'<nmis_conf_default>'}."/nocIgnoreList.txt" if (!-r $ignoreListFile);
 
-	my ($errors,@blackList) = loadBlackList($blackListFile);
+	my ($errors,@ignoreList) = loadIgnoreList($ignoreListFile);
 	$nmisng->log->error($errors) if ($errors);
 
 	# is there a valid event coming in?
@@ -75,8 +74,8 @@ sub sendNotification
 	{
 		my $node_name = $event->{node_name};
 
-		# is the node in the black list?
-		if (not grep { $event->{event} =~ /$_/ } @blackList)
+		# is the node in the ignore list?
+		if (not grep { $event->{event} =~ /$_/ } @ignoreList)
 		{
 			my $info = 1;
 
@@ -140,12 +139,12 @@ sub sendNotification
 
 # args: path
 # returns (undef,blacklist items) or (error message)
-sub loadBlackList
+sub loadIngoreList
 {
 	my $file = shift;
 	my @lines;
 
-	open(IN,$file) or return("cannot open blacklist file $file: $!");
+	open(IN,$file) or return("cannot open ignore list file $file: $!");
 	while (<IN>) {
 		chomp();
 		push(@lines,$_);
