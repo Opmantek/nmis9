@@ -45,7 +45,7 @@ use strict;
 #use warnings;
 
 # *****************************************************************************
-# add the following to /etc/rsyslog.conf for testing
+# add the following to /etc/rsyslog.conf for testing and restart syslogd
 # local3.*                /usr/local/nmis9/logs/noc.log
 my $syslog_facility = 'local3';
 my $syslog_server = 'localhost:udp:514';
@@ -113,7 +113,8 @@ my $nmisConfig = NMISNG::Util::loadConfTable( dir => "$FindBin::Bin/../conf", de
 # use debug, or info arg, or configured log_level
 # not wanting this level of debug for debug = 1.
 my $nmisDebug = $debug > 1 ? $debug : 0;
-my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $nmisDebug, info => $cmdline->{info}), path  => undef );
+my $logfile = $nmisConfig->{'<nmis_logs>'} . "/nmis.log";
+my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $nmisDebug, info => $cmdline->{info}), path  => $logfile );
 
 my $nmisng = NMISNG->new(config => $nmisConfig, log => $logger);
 
@@ -132,6 +133,8 @@ if (NMISNG::Util::existFile(dir=>'conf',name=>'nocSyslog')) {
 	$syslog_server = $syslogConfig->{syslog}{syslog_server};
 	$extraLogging = NMISNG::Util::getbool($syslogConfig->{syslog}{extra_logging});
 }
+
+print "interface_util_alert.pl: syslog_server=$syslog_server syslog_facility=$syslog_facility extraLogging=$extraLogging\n" if $info;
 
 if ( defined $cmdline->{clean} and NMISNG::Util::getbool($cmdline->{clean}) ) {
 	print "Cleaning Events\n";
@@ -335,7 +338,9 @@ sub processInterface {
 				$logger->error("ERROR: syslog failed to $syslog_server: $node $event $element $details: $error");
 			}
 			else {
-				$logger->info("INFO: syslog sent to $syslog_server: $node $event $element $details") if $extraLogging;
+				my $message = "INFO: syslog sent to $syslog_server: $node $event $element $details";
+				print "$message\n" if $info;
+				$logger->info($message) if $extraLogging;
 			}
 		}
 		
