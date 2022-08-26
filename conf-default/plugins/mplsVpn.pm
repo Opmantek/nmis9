@@ -97,9 +97,11 @@ sub update_plugin
 			if ( $entry->{index} =~ /(\d+)\.(.+)$/ ) {
 				my $indexThing = $1;
 				my $name       = $2;
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrf' entry $i Index: '$indexThing'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnVrf' entry $i Name:  '$name'.");
+				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrf' entry $i Index: .....  '$indexThing'.");
+				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrf' entry $i mplsVpnVrfId  '$mplsVpnVrfId'.");
+				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrf' entry $i Name: ......  '$name'.");
 				$entry->{mplsVpnVrfName} = join("", map { chr($_) } split(/\./,$name));
+				$entry->{mplsVpnVrfId}   = $mplsVpnVrfId;
 				$NG->log->debug5("Node '$node' 'mplsVpnVrf' entry $i After " . Dumper($entry));
 				# Save the results in the database.
 				$mplsVpnVrf->data($entry);

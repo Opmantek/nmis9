@@ -50,6 +50,7 @@ use Test::Deep::NoTest;
 use File::Copy;
 
 use NMISNG::DB;
+use NMISNG::Log;
 
 ###########
 # Class/Package methods:
@@ -119,7 +120,7 @@ sub make_path_from_keys
 	{
 		if ( !$args{partial} && !defined( $args{data}->{$pathelem} ) )
 		{
-			$nmisng->log->fatal("make_path_from_keys is missing $pathelem data!");
+			$nmisng->log->fatal(NMISNG::Log::trace() ."make_path_from_keys is missing $pathelem data!");
 			return ("make_path_from_keys is missing $pathelem data!");
 		}
 		push @path, $args{data}->{$pathelem};

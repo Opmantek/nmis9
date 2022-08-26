@@ -2089,7 +2089,7 @@ sub parseString
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
-		$inventory ||= $self->inventory( concept => $sect, index => $indx, nolog => 1 );
+		$inventory ||= $self->inventory( concept => $sect, index => $indx, item => $itm, nolog => 1 );
 		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
 		my $rebuilt;
