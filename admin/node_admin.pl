@@ -1125,29 +1125,33 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 	}
 	
 	my $number = 0;
-	
+
+	my @node_names;	
 	if (ref($mayberec) eq "ARRAY") {
 		foreach my $node (@$mayberec) {
 			validate_node_data(node => $node);
 			# no uuid and creating a node? then we add one
 			$node->{uuid} ||= NMISNG::Util::getUUID($node->{name}) if ($cmdline->{act} eq "create");
+			push(@node_names,$node->{name});
 			$number++;
 		} 
 	} else {
 		validate_node_data(node => $mayberec);
 		# no uuid and creating a node? then we add one
 		$mayberec->{uuid} ||= NMISNG::Util::getUUID($mayberec->{name}) if ($cmdline->{act} eq "create");
+		push(@node_names,$mayberec->{name});
 		$number++;
 	}
 
 	my %jobargs;
 	my $op = $cmdline->{act} eq "create" ? "create nodes" : "update nodes";
+	my $names = join(",",@node_names);
 	my $meta = {
 			what => $op,
 			who => $me,
-			where => $mayberec->{name},
+			where => $names,
 			how => "node_admin",
-			details => "$op node ". $mayberec->{name}
+			details => "$op node ". $names
 	};
 	
 	# Send job to the queue
