@@ -77,6 +77,11 @@ my $NT = Compat::NMIS::loadLocalNodeTable();
 my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
 my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
 
+# When called from the Node and changed to an interface type within the dialog, the action is lost.
+if ($Q->{forceAct}) {
+	$Q->{act} = $Q->{forceAct};
+}
+
 # cancel? go to graph view
 if ($Q->{cancel} || $Q->{act} eq 'network_graph_view')
 {
@@ -418,7 +423,7 @@ sub typeGraph
 																														-default=>"$index",
 																														-labels=> \%labels,
 																														-onChange=>'this.form.submit()'),
-																			hidden(-name=>'act', -value=>'network_graph_view');
+																									hidden(-name=>'forceAct', -value=>'network_graph_view', -override=>1);
 												}
 												elsif ( $graphtype eq "metrics") {
 													return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
