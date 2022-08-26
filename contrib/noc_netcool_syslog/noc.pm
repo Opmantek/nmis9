@@ -34,7 +34,7 @@ my $extraLogging = 0;
 
 # *****************************************************************************
 package Notify::noc;
-our $VERSION="1.0.1";
+our $VERSION="1.0.0";
 
 use strict;
 
@@ -104,7 +104,7 @@ sub sendNotification
 			#remove dodgy quotes
 			$details =~ s/[\"|\']//g;
 
-			my $error = sendSyslog(
+			my $error = NMISNG::Notify::sendSyslog(
 				server_string => $syslog_server,
 				facility => $syslog_facility,
 				nmis_host => $C->{server_name},
@@ -139,7 +139,7 @@ sub sendNotification
 
 # args: path
 # returns (undef,blacklist items) or (error message)
-sub loadIngoreList
+sub loadIgnoreList
 {
 	my $file = shift;
 	my @lines;
