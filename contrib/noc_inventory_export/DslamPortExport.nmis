@@ -1,0 +1,9 @@
+%hash = (
+  'exportBaseDir' => '/path/for/source/files',
+  'exportFtpServer' => '172.x.y.z',
+  #'exportFtpServer' => '127.0.0.1',
+  'exportFtpUser' => 'YourUserNameHere',
+  'exportFtpPassword' => 'YourPasswordHere',
+  'exportFtpDirectory' => '/path/to/send/files',
+);
+
