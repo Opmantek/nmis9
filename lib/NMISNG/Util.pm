@@ -1663,8 +1663,8 @@ sub getbool
 #  expects the key name, variable name, and default value.  It will die #
 #  with an error message if the value is not a valid boolean value.     #
 #                                                                       #
-#  The function will accept the following and i not case sesitive:      #
-#  true, yes, t, y, 1, false, no, f, or n                               #
+#  The function will accept the following and is not case sesitive:     #
+#  true, yes, t, y, 1, false, no, f, n, or 0                            #
 #                                                                       #
 #########################################################################
 sub getbool_cli
@@ -1673,6 +1673,24 @@ sub getbool_cli
 	$default = 0 if !defined($default);
 
 	return ((defined($val)) ? (($val =~ /true|yes|t|y|1/i) ? 1 : (($val =~ /false|no|f|n|0/i) ? 0 : die "Invalid boolean value for '$key': '$val'\n" )) : $default);
+}
+
+#########################################################################
+# Check debug argument for CLI input.  It will not default an assumed   #
+#  value when the user may have not intended the action.  This function #
+#  expects the current debug value.  It will convert 'true' to 1, false #
+#  to 0, and 'verbose' to 9. It will die with an error message if the   #
+#  value is not understood.                                             #
+#                                                                       #
+#  The function will accept the following and is not case sesitive:     #
+#  true, yes, t, y, false, no, f, n, verbose, or 0-9.                   #
+#                                                                       #
+#########################################################################
+sub getdebug_cli
+{
+	my ($val) = shift;
+
+	return ((defined($val)) ? (($val =~ /true|yes|t|y|1/i) ? 1 : (($val =~ /false|no|f|n|0/i) ? 0 : (($val =~ /verbose/i) ? 9 : (($val =~ /[0-9]/) ? $val : die "Invalid debug value: '$val'\n" )))) : 0);
 }
 
 # Send an array with the properties never overrided by the conf master files
