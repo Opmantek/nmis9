@@ -29,60 +29,190 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+use strict;
+our $VERSION = "2.0.0";
 
 use FindBin;
-use lib "$FindBin::Bin/../lib";
+use Cwd 'abs_path';
+use lib abs_path("$FindBin::Bin/../../lib");
 
-use strict;
+use POSIX qw();
+use File::Basename;
+use File::Path;
 use NMISNG::Util;
+use Getopt::Long;
 use Compat::NMIS;
 use NMISNG::Sys;
-use NMIS::UUID;
 use Compat::Timing;
 use Data::Dumper;
 use Excel::Writer::XLSX;
+use Term::ReadKey;
 
-if ( $ARGV[0] eq "" ) {
-	usage();
-	exit 1;
+# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
+use Fcntl qw(:DEFAULT :flock :mode);
+use Errno qw(EAGAIN ESRCH EPERM);
+
+my $PROGNAME    = basename($0);
+my $debugsw     = 0;
+my $helpsw      = 0;
+my $interfacesw = 0;
+my $usagesw     = 0;
+my $versionsw   = 0;
+my $defaultConf = abs_path("$FindBin::Bin/../../conf");
+my $xlsFile     = "oss_export.xlsx";
+
+ die unless (GetOptions('debug:i'    => \$debugsw,
+                        'help'       => \$helpsw,
+                        'interfaces' => \$interfacesw,
+                        'usage'      => \$usagesw,
+                        'version'    => \$versionsw));
+
+# For the Version mode, just print it and exit.
+if (${versionsw}) {
+	print "$PROGNAME version=$NMISNG::VERSION\n";
+	exit (0);
 }
+if ($helpsw) {
+   help();
+   exit(0);
+}
+
+my $arg = NMISNG::Util::get_args_multi(@ARGV);
+
+if ($usagesw) {
+   usage();
+   exit(0);
+}
+
+my $debug   = $debugsw;
+$debug      = NMISNG::Util::getdebug_cli($arg->{debug}) if (exists($arg->{debug}));   # Backwards compatibility
 
 my $t = Compat::Timing->new();
 
+# Variables for command line munging
+my $arg = NMISNG::Util::get_args_multi(@ARGV);
+
+# Set Directory level.
+if ( not defined $arg->{dir} ) {
+	print "ERROR: The directory argument is required!\n";
+	help();
+	exit 255;
+}
+my $dir = abs_path($arg->{dir});
+
+if (! -d $dir) {
+	if (-f $dir) {
+		print "ERROR: The directory argument '$dir' points to a file, it must refer to a writable directory!\n";
+		help();
+		exit 255;
+	}
+	else {
+		my ${key};
+		my $IN;
+		my $OUT;
+		if ($^O =~ /Win32/i)
+		{
+			sysopen($IN,'CONIN$',O_RDWR);
+			sysopen($OUT,'CONOUT$',O_RDWR);
+		} else
+		{
+			open($IN,"</dev/tty");
+			open($OUT,">/dev/tty");
+		}
+		print "Directory '$dir' does not exist!\n\n";
+		print "Would you like me to create it? (y/n)  ";
+		ReadMode 4, $IN;
+		${key} = ReadKey 0, $IN;
+		ReadMode 0, $IN;
+		print("\r                                \r");
+		if (${key} =~ /y/i)
+		{
+			eval {
+				local $SIG{'__DIE__'};  # ignore user-defined die handlers
+				mkpath($dir);
+			};
+			if ($@) {
+			    print "FATAL: Error creating dir: $@\n";
+				exit 255;
+			}
+			if (!-d $dir) {
+				print "FATAL: Unable to create directory '$dir'.\n";
+				exit 255;
+			}
+			if (-d $dir) {
+				print "Directory '$dir' created successfully.\n";
+			}
+		}
+		else {
+			print "FATAL: Specify an existing directory with write permission.\n";
+			exit 0;
+		}
+	}
+}
+if (! -w $dir) {
+	print "FATAL: Unable to write to directory '$dir'.\n";
+	exit 255;
+}
+
 print $t->elapTime(). " Begin\n";
 
-# Variables for command line munging
-my %arg = getArguements(@ARGV);
-
 # Set Directory level.
-if ( not defined $arg{dir} ) {
-	print "ERROR: tell me where to put the files please\n";
-	usage();
-	exit 1;
+if ( defined $arg->{xls} ) {
+	$xlsFile = $arg->{xls};
 }
-my $dir = $arg{dir};
+$xlsFile = "$dir/$xlsFile";
 
-# Set Directory level.
-my $xlsFile = "oss_export.xlsx";
-if ( defined $arg{xls} ) {
-	$xlsFile = $arg{xls};
+if (-f $xlsFile) {
+	my ${key};
+	my $IN;
+	my $OUT;
+	if ($^O =~ /Win32/i)
+	{
+		sysopen($IN,'CONIN$',O_RDWR);
+		sysopen($OUT,'CONOUT$',O_RDWR);
+	} else
+	{
+		open($IN,"</dev/tty");
+		open($OUT,">/dev/tty");
+	}
+	print "The Excel file '$xlsFile' already exists!\n\n";
+	print "Would you like me to overwrite it and all corresponding CSV files? (y/n)  y\b";
+	ReadMode 4, $IN;
+	${key} = ReadKey 0, $IN;
+	ReadMode 0, $IN;
+	print("\r                                                                            \r");
+	if ((${key} !~ /y/i) && (${key} !~ /\r/) && (${key} !~ /\n/))
+	{
+		print "FATAL: Not overwriting files.\n";
+		exit 255;
+	}
 }
-$xlsFile = "$arg{dir}/$xlsFile";
 
 # Set debugging level.
-my $debug = setDebug($arg{debug});
-$debug = 1;
+my $debug = NMISNG::Util::getdebug_cli($arg->{debug});
+print "Debug = '$debug'\n" if ($debug);
+if ( not defined $arg->{conf}) {
+	$arg->{conf} = $defaultConf;
+}
+else {
+	$arg->{conf} = abs_path($arg->{conf});
+}
 
+print "Configuration Directory = '$arg->{conf}'\n" if ($debug);
 # load configuration table
-my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
+our $C = NMISNG::Util::loadConfTable(dir=>$arg->{conf}, debug=>$debug);
+our $nmisng = Compat::NMIS::new_nmisng();
 
-# Step 1: define you prefered seperator
+# Step 1: define your prefered seperator
 my $sep = "\t";
-if ( $arg{separator} eq "tab" ) {
+if ( $arg->{separator} eq "tab" ) {
 	$sep = "\t";
 }
-elsif ( $arg{separator} eq "comma" ) {
+elsif ( $arg->{separator} eq "comma" ) {
 	$sep = ",";
+}
+elsif (exists($arg->{separator})) {
+	$sep = $arg->{separator};
 }
 
 # A cache of Card Indexes.
@@ -93,79 +223,80 @@ my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVers
 
 # Step 4: Define any CSV header aliases you want
 my %nodeAlias = (
-	name              		=> 'Dslam Name',
-	uuid									=> 'Equipment ID',
-	ossType								=> 'Type',
-	nodeVendor            => 'Name of the Vendor',
-	ossModel							=> 'Model',
-	sysDescr							=> 'Description of the equipmet',
-	softwareVersion				=> 'SW Version',
-	ossStatus							=> 'Status',
-	serialNum      		    => 'SerialNumber',
-	name2              		=> 'Name of the node in the Network',
-	name3              		=> 'Name in NMS',
-	relayRack							=> 'Relay Rack name',
-	location           		=> 'Location',
-	uplink								=> 'UpLink',	
-	comment								=> 'Comment',	
+	name				=> 'Dslam Name',
+	uuid				=> 'Equipment ID',
+	ossType				=> 'Type',
+	nodeVendor			=> 'Name of the Vendor',
+	ossModel			=> 'Model',
+	sysDescr			=> 'Description of the equipment',
+	softwareVersion		=> 'SW Version',
+	ossStatus			=> 'Status',
+	serialNum			=> 'SerialNumber',
+	name2				=> 'Name of the node in the Network',
+	name3				=> 'Name in NMS',
+	relayRack			=> 'Relay Rack name',
+	location			=> 'Location',
+	uplink				=> 'UpLink',
+	comment				=> 'Comment',
 );
 
 my @slotHeaders = qw(slotId nodeId position slotName slotNetName name1 name2 ossType);
 
 my %slotAlias = (
-	slotId								=> 'Slot ID',
-	nodeId								=> 'Equipment ID',
-	position							=> 'Position in the equipment',
-	slotName            	=> 'Slot Name',
-	slotNetName						=> 'Slot name in the network',
-	name1									=> 'name of the parent equipment',
-	name2									=> 'name of the parent eq in the network',
-	ossType								=> 'Type of equipment',
+	slotId				=> 'Slot ID',
+	nodeId				=> 'Equipment ID',
+	position			=> 'Position in the equipment',
+	slotName			=> 'Slot Name',
+	slotNetName			=> 'Slot name in the network',
+	name1				=> 'Name of the parent equipment',
+	name2				=> 'Name of the parent in the network',
+	ossType				=> 'Type of equipment',
 );
 
-#										
+#
 my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardSerial cardStatus cardVendor cardModel cardType name1 name2 slotId);
 
 my %cardAlias = (
-	cardName							=> 'Card name',
-	cardId								=> 'Card ID',
-	cardNetName						=> 'name of the card in the network',
-	cardDescr        			=> 'Card Description',
-	cardSerial       			=> 'Card Serial',
-	cardStatus						=> 'Status',
-	cardVendor						=> 'Vendor',
-	cardModel							=> 'model',
-	cardType							=> 'Type',
-	name1									=> 'name of the network where the card is installed',
-	name2									=> 'name of the equipment where the card is installed',
-	slotId								=> 'Parent ID/Slot ID where the card is installed',
+	cardName			=> 'Card name',
+	cardId				=> 'Card ID',
+	cardNetName			=> 'Name of the card in the network',
+	cardDescr			=> 'Card Description',
+	cardSerial			=> 'Card Serial',
+	cardStatus			=> 'Status',
+	cardVendor			=> 'Vendor',
+	cardModel			=> 'model',
+	cardType			=> 'Type',
+	name1				=> 'Name of the network where the card is installed',
+	name2				=> 'Name of the equipment where the card is installed',
+	slotId				=> 'Parent ID/Slot ID where the card is installed',
 );
 
 my @portHeaders = qw(portName portId portType portStatus parent duplex);
 
 my %portAlias = (
-	portName         			=> 'Name of the port in the network',
-	portId								=> 'Port ID',
-	portType							=> 'Type of port',
-	portStatus						=> 'Status',
-	parent								=> 'parent ID /Card ID',
-	duplex								=> 'Duplex full/half',
+	portName			=> 'Name of the port in the network',
+	portId				=> 'Port ID',
+	portType			=> 'Type of port',
+	portStatus			=> 'Status',
+	parent				=> 'Parent ID/Card ID',
+	duplex				=> 'Duplex full/half',
 );
 
 my @intHeaders = qw(name ifDescr ifType ifOperStatus parent);
 
 my %intAlias = (
-	name            			=> 'Name of the port in the network',
-	ifDescr								=> 'Port ID',
-	ifType								=> 'Type of port',
-	ifOperStatus					=> 'Status',
-	parent								=> 'parent ID /Card ID',
+	name				=> 'Name of the port in the network',
+	ifDescr				=> 'Port ID',
+	ifType				=> 'Type of port',
+	ifOperStatus		=> 'Status',
+	parent				=> 'Parent ID/Card ID',
 );
 
 ##### SYSTEM INTENTIONALLY NOT SHOWING TRANSCEIVER DETAILS!
 
 # Step 5: For loading only the local nodes on a Master or a Slave
 my $NODES = Compat::NMIS::loadLocalNodeTable();
+#print "Nodes: " . Dumper($NODES) . "\n\n\n";
 
 #What vendors are we going to process
 my $goodVendors = qr/Cisco/;
@@ -193,53 +324,51 @@ my $fixMaxMsgSize = qr/cat650.|ciscoWSC65..|cisco61|cisco62|cisco60|cisco76/;
 
 my $SLOT_INDEX;
 
-if ( not -f $arg{nodes} ) {
-	createNodeUUID();
-	
-	nodeCheck();
+nodeCheck();
 
-	my $xls;
-	if ($xlsFile) {
-		$xls = start_xlsx(file => $xlsFile);
-	}
-	
-	exportNodes($xls,"$dir/oss-nodes.csv");
-	exportInventory(xls => $xls, title => "EntityData", section => "entityMib");
-	exportSlots($xls,"$dir/oss-slots.csv");
-	exportCards($xls,"$dir/oss-cards.csv");
-	exportPorts($xls,"$dir/oss-ports.csv");
-	#exportInterfaces($xls,"$dir/oss-interfaces.csv");
+my $xls;
+if ($xlsFile) {
+	$xls = start_xlsx(file => $xlsFile);
+}
+unless ($xls) {
+		die "ERROR: Excel file creation error..\n";
+}
 
-	end_xlsx(xls => $xls);
-	print "XLS saved to $xlsFile\n";
-}
-else {
-	print "ERROR: $arg{nodes} already exists, exiting\n";
-	exit 1;
-}
+exportNodes($xls,"$dir/oss-nodes.csv");
+exportInventory(xls => $xls, file => "$dir/oss-entity-data.csv", title => "EntityData", section => "entityMib");
+exportSlots($xls,"$dir/oss-slots.csv");
+exportCards($xls,"$dir/oss-cards.csv");
+exportPorts($xls,"$dir/oss-ports.csv");
+exportInterfaces($xls,"$dir/oss-interfaces.csv") if ($interfacesw);
+
+end_xlsx(xls => $xls);
+print "XLS saved to $xlsFile\n";
 
 print $t->elapTime(). " End\n";
 
 
 sub exportNodes {
-	my $xls = shift;
-	my $file = shift;
+	my $xls   = shift;
+	my $file  = shift;
 	my $title = "Nodes";
 	my $sheet;
 	my $currow;
+	my @colsize;
 
 	print "Creating $file\n";
 
-	my $C = loadConfTable();
-		
 	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
-	
+
 	# print a CSV header
 	my @aliases;
+	my $currcol=0;
 	foreach my $header (@nodeHeaders) {
-		my $alias = $header;
+		my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($nodeAlias{$header}));
+		my $alias  = $header;
 		$alias = $nodeAlias{$header} if $nodeAlias{$header};
+		$colsize[$currcol] = $colLen;
 		push(@aliases,$alias);
+		$currcol++;
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
@@ -249,228 +378,271 @@ sub exportNodes {
 		$currow = 1;								# header is row 0
 	}
 	else {
-		die "ERROR need an xls to work on.\n";	
+		die "ERROR: Internal error, xls is no longer defined.\n";
 	}
-	
+
 	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true") {
-	  	my @comments;
-	  	my $comment;
+		print "DEBUG: '$NODES->{$node}{name}' Active Status is $NODES->{$node}{active}.\n" if ($debug > 1);
+		if ( $NODES->{$node}{active} ) {
+			my @comments;
+			my $comment;
 			my $S = NMISNG::Sys->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
+			my $nodeobj       = $nmisng->node(name => $node);
+			my $IF            = $nodeobj->ifinfo;
+			my $inv           = $S->inventory( concept => 'catchall' );
+			my $catchall_data = $inv->data;
+			my $MDL           = $S->mdl;
 
-	    my $nodestatus = $NI->{system}{nodestatus};
-	    $nodestatus = "unreachable" if $NI->{system}{nodedown} eq "true";
-			
+			print "DEBUG: System Object: " . Dumper($S) . "\n\n\n" if ($debug > 8);
+			print "DEBUG: '$NODES->{$node}{name}' Node Down Status is $catchall_data->{nodedown}.\n" if ($debug);
+
+			my $nodestatus = $catchall_data->{nodestatus};
+			$nodestatus = "unreachable" if $catchall_data->{nodedown} eq "true";
+
+			if ($debug > 1) {
+				print "DEBUG: '$NODES->{$node}{name}' vendor is '$catchall_data->{nodeVendor}'.\n";
+				my $hasEntityMib = ((defined $MDL->{systemHealth}{sys}{entityMib}) ? "has" : "does not have");
+				print "DEBUG: '$NODES->{$node}{name}' $hasEntityMib an entityMib.\n";
+			}
+
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeVendor} !~ /$goodVendors/;
-			
+			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+				print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+				next;
+			}
+
 			# check for data prerequisites
-			if ( $NI->{system}{nodeVendor} =~ /Cisco/ and not defined $S->{info}{entityMib} and $nodestatus eq "reachable" ) {
+			if ( $catchall_data->{nodeVendor} =~ /Cisco/ and not defined $MDL->{systemHealth}{sys}{entityMib} and $nodestatus eq "reachable" ) {
 				$comment = "ERROR: $node is Cisco and entityMib data missing";
 				print "$comment\n";
 				push(@comments,$comment);
 			}
 
 			# is there a decent serial number!
-			if ( not defined $NI->{system}{serialNum} or $NI->{system}{serialNum} eq "" or $NI->{system}{serialNum} eq "noSuchObject" ) {
-				my $SLOTS = undef;					
-				my $ASSET = undef;
+			if ( not defined $catchall_data->{serialNum} or $catchall_data->{serialNum} eq "" or $catchall_data->{serialNum} eq "noSuchObject" ) {
+				my %slots  =  undef;
+				my %assets =  undef;
 
-				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
-					$SLOTS = $S->{info}{entityMib};
+				if ( defined $MDL->{systemHealth}{sys}{entityMib} and ref($MDL->{systemHealth}{sys}{entityMib}) eq "HASH") {
+					my $result = $S->nmisng_node->get_inventory_model( concept => "entityMib", filter => { historic => 0 });
+					if (!$result->error)
+					{
+						%slots = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+					}
 				}
 
-				if ( defined $S->{info}{ciscoAsset} and ref($S->{info}{ciscoAsset}) eq "HASH") {
-					$ASSET = $S->{info}{ciscoAsset};
+				if ( defined $MDL->{systemHealth}{sys}{ciscoAsset} and ref($MDL->{systemHealth}{sys}{ciscoAsset}) eq "HASH") {
+					my $result = $S->nmisng_node->get_inventory_model( concept => "ciscoAsset", filter => { historic => 0 });
+					if (!$result->error)
+					{
+						%assets = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+					}
 				}
-				
+
 				# lets just see if we can find one!
 				# this logic works well for Nexus devices which are 149
-				foreach my $slotIndex (sort keys %{$SLOTS}) {
-					if ( defined $SLOTS->{$slotIndex}{entPhysicalClass} 
-						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /chassis/
-						and $SLOTS->{$slotIndex}{entPhysicalSerialNum} ne ""
+				foreach my $slotIndex (sort keys %{slots}) {
+					if ( defined $slots{$slotIndex}{entPhysicalClass} 
+						and $slots{$slotIndex}{entPhysicalClass} =~ /chassis/
+						and $slots{$slotIndex}{entPhysicalSerialNum} ne ""
 					) {
-						$NI->{system}{serialNum} = $SLOTS->{$slotIndex}{entPhysicalSerialNum};
-						print "INFO: Found a Serial Number at EntityMIB index $slotIndex: $NODES->{$node}{name}\n" if $debug;
+						$catchall_data->{serialNum} = $slots{$slotIndex}{entPhysicalSerialNum};
+						print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at EntityMIB index $slotIndex.\n" if ($debug);
 					}
-				}				
-				
+				}
+
 				# just use the specific index thing for serial number.
-				if ( defined $SLOTS->{1} and $SLOTS->{1}{entPhysicalSerialNum} ne "" ) {
-					$NI->{system}{serialNum} = $SLOTS->{1}{entPhysicalSerialNum};
+				if ( defined $slots{1} and $slots{1}{entPhysicalSerialNum} ne "" ) {
+					$catchall_data->{serialNum} = $slots{1}{entPhysicalSerialNum};
+					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at entPhysicalSerialNum index 1.\n" if ($debug);
 				}
 				# this works for ME3800
-				elsif ( defined $SLOTS->{1001} and $SLOTS->{1001}{entPhysicalSerialNum} ne "" ) {
-					$NI->{system}{serialNum} = $SLOTS->{1001}{entPhysicalSerialNum};
+				elsif ( defined $slots{1001} and $slots{1001}{entPhysicalSerialNum} ne "" ) {
+					$catchall_data->{serialNum} = $slots{1001}{entPhysicalSerialNum};
+					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at entPhysicalSerialNum index 1001.\n" if ($debug);
 				}
 				# this works for IOSXR, CRS, ASR9K
-				elsif ( defined $SLOTS->{24555730} and $SLOTS->{24555730}{entPhysicalSerialNum} ne "" ) {
-					$NI->{system}{serialNum} = $SLOTS->{24555730}{entPhysicalSerialNum};
+				elsif ( defined $slots{24555730} and $slots{24555730}{entPhysicalSerialNum} ne "" ) {
+					$catchall_data->{serialNum} = $slots{24555730}{entPhysicalSerialNum};
+					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at entPhysicalSerialNum index 24555730.\n" if ($debug);
 				}
 				# Cisco 61xx DSLAM's
-				elsif ( defined $ASSET->{1} and $ASSET->{1}{ceAssetSerialNumber} ne "" ) {
-					$NI->{system}{serialNum} = $ASSET->{1}{ceAssetSerialNumber};
+				elsif ( defined $assets{1} and $assets{1}{ceAssetSerialNumber} ne "" ) {
+					$catchall_data->{serialNum} = $assets{1}{ceAssetSerialNumber};
+					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at ceAssetSerialNumber index 1.\n" if ($debug);
 				}
-				
-				if ( $NI->{system}{serialNum} eq "" ) {
-					$NI->{system}{serialNum} = "TBD";
+
+				if ( $catchall_data->{serialNum} eq "" ) {
+					$catchall_data->{serialNum} = "TBD";
 					$comment = "ERROR: $node no serial number not in chassisId entityMib or ciscoAsset";
 					print "$comment\n";
 					push(@comments,$comment);
 				}
-				
+
 				## quadruple enrichment!
 
 				# is this a CRS with two rack chassis stuff.
-				if ( defined $SLOTS->{24555730} and $SLOTS->{24555730}{entPhysicalSerialNum} ne "" 
-					and defined $SLOTS->{141995845} and $SLOTS->{141995845}{entPhysicalSerialNum} ne "" 
+				if ( defined $slots{24555730} and $slots{24555730}{entPhysicalSerialNum} ne "" 
+					and defined $slots{141995845} and $slots{141995845}{entPhysicalSerialNum} ne "" 
 				) {
-					my $chassis1Name = $SLOTS->{24555730}{entPhysicalName};
-					my $chassis1Serial = $SLOTS->{24555730}{entPhysicalSerialNum};
-					my $chassis2Name = $SLOTS->{141995845}{entPhysicalName};
-					my $chassis2Serial = $SLOTS->{141995845}{entPhysicalSerialNum};
-					
-					$NI->{system}{serialNum} = "$chassis1Name $chassis1Serial; $chassis2Name $chassis2Serial";
-				}	
-					# is this a CRS with ONE rack chassis stuff.
-				elsif ( defined $SLOTS->{24555730} 
-					and $SLOTS->{24555730}{entPhysicalSerialNum} ne "" 
-					and $SLOTS->{24555730}{entPhysicalName} =~ /Rack/
+					my $chassis1Name   = $slots{24555730}{entPhysicalName};
+					my $chassis1Serial = $slots{24555730}{entPhysicalSerialNum};
+					my $chassis2Name   = $slots{141995845}{entPhysicalName};
+					my $chassis2Serial = $slots{141995845}{entPhysicalSerialNum};
+	
+					$catchall_data->{serialNum} = "$chassis1Name $chassis1Serial; $chassis2Name $chassis2Serial";
+				}
+				# is this a CRS with ONE rack chassis stuff.
+				elsif ( defined $slots{24555730} 
+					and $slots{24555730}{entPhysicalSerialNum} ne "" 
+					and $slots{24555730}{entPhysicalName} =~ /Rack/
 				) {
-					my $chassis1Name = $SLOTS->{24555730}{entPhysicalName};
-					my $chassis1Serial = $SLOTS->{24555730}{entPhysicalSerialNum};
-					
-					$NI->{system}{serialNum} = "$chassis1Name $chassis1Serial";
-				}	
+					my $chassis1Name = $slots{24555730}{entPhysicalName};
+					my $chassis1Serial = $slots{24555730}{entPhysicalSerialNum};
+
+					$catchall_data->{serialNum} = "$chassis1Name $chassis1Serial";
+				}
 			}
 
 			# get software version for Alcatel ASAM      
-      if ( defined $NI->{system}{asamActiveSoftware1} and $NI->{system}{asamActiveSoftware1} eq "active" ) {
-      	$NI->{system}{softwareVersion} = $NI->{system}{asamSoftwareVersion1};
+			if ( defined $catchall_data->{asamActiveSoftware1} and $catchall_data->{asamActiveSoftware1} eq "active" ) {
+				$catchall_data->{softwareVersion} = $catchall_data->{asamSoftwareVersion1};
 			}
-      elsif ( defined $NI->{system}{asamActiveSoftware2} and $NI->{system}{asamActiveSoftware2} eq "active" ) {
-      	$NI->{system}{softwareVersion} = $NI->{system}{asamSoftwareVersion2};
+			elsif ( defined $catchall_data->{asamActiveSoftware2} and $catchall_data->{asamActiveSoftware2} eq "active" ) {
+				$catchall_data->{softwareVersion} = $catchall_data->{asamSoftwareVersion2};
 			}
 
 			# not got anything useful, try and parse it out of the sysDescr.
-			if ( not defined $NI->{system}{softwareVersion} or $NI->{system}{softwareVersion} eq "" ) {
-				$NI->{system}{softwareVersion} = getVersion($NI->{system}{sysDescr});
+			if ( not defined $catchall_data->{softwareVersion} or $catchall_data->{softwareVersion} eq "" ) {
+				$catchall_data->{softwareVersion} = getVersion($catchall_data->{sysDescr});
 			}
-						
+
 			# Get an uplink address, find any address and put it in a string
-			my $IF = $S->ifinfo;
 			my @ipAddresses;
 			foreach my $ifIndex (sort keys %{$IF}) {
 				my @addresses;
 				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ipAdEntAddr1} ) {
 					push(@ipAddresses,$IF->{$ifIndex}{ipAdEntAddr1});
-				}			
+				}
 				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ipAdEntAddr2} ) {
 					push(@ipAddresses,$IF->{$ifIndex}{ipAdEntAddr2});
-				}	
+				}
 			}
 			my $joinChar = $sep eq "," ? " " : ",";
 			$NODES->{$node}{uplink} = join($joinChar,@ipAddresses);
 
 			#my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 tbd4 group tbd5);
 		    
-		  # clone the name!
-	    $NODES->{$node}{name2} = $NODES->{$node}{name};
-	    $NODES->{$node}{name3} = $NODES->{$node}{name};
+			# clone the name!
+			$NODES->{$node}{name2} = $NODES->{$node}{name};
+			$NODES->{$node}{name3} = $NODES->{$node}{name};
 	    
-	    # handling OSS values for these fields.
-	    $NODES->{$node}{ossStatus} = $nodestatus;
-	    $NODES->{$node}{ossModel} = getModel($NI->{system}{sysObjectName});
-	    $NODES->{$node}{ossType} = getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
+			# handling OSS values for these fields.
+			$NODES->{$node}{ossStatus} = $nodestatus;
+			$NODES->{$node}{ossModel}  = getModel($catchall_data->{sysObjectName});
+			$NODES->{$node}{ossType}   = getType($catchall_data->{sysObjectName},$catchall_data->{nodeType});
 
-	    $NODES->{$node}{comment} = join($joinChar,@comments);
+			$NODES->{$node}{comment} = join($joinChar,@comments);
 
-	    if ( not defined $NODES->{$node}{relayRack} or $NODES->{$node}{relayRack} eq "" ) {
-	    	$NODES->{$node}{relayRack} = "No Relay Rack Configured";
-	    }
+			if ( not defined $NODES->{$node}{relayRack} or $NODES->{$node}{relayRack} eq "" ) {
+				$NODES->{$node}{relayRack} = "No Relay Rack Configured";
+			}
 
-	    if ( not defined $NODES->{$node}{location} or $NODES->{$node}{location} eq "" ) {
-	    	$NODES->{$node}{location} = "No Location Configured";
-	    }
+			if ( not defined $NODES->{$node}{location} or $NODES->{$node}{location} eq "" ) {
+				$NODES->{$node}{location} = "No Location Configured";
+			}
 	    		    
-	    my @columns;
-	    foreach my $header (@nodeHeaders) {
-	    	my $data = undef;
-	    	if ( defined $NODES->{$node}{$header} ) {
-	    		$data = $NODES->{$node}{$header};
-	    	}
-	    	elsif ( defined $NI->{system}{$header} ) {
-	    		$data = $NI->{system}{$header};	    		
-	    	}
-	    	else {
-	    		$data = "TBD";
-	    	}
-	    	$data = changeCellSep($data);
-	    	push(@columns,$data);
-	    }
+			my @columns;
+			my $currcol=0;
+			foreach my $header (@nodeHeaders) {
+				my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($nodeAlias{$header}));
+				my $data   = undef;
+				if ( defined $NODES->{$node}{$header} ) {
+					$data = $NODES->{$node}{$header};
+				}
+				elsif ( defined $catchall_data->{$header} ) {
+					$data = $catchall_data->{$header};	    
+				}
+				else {
+					$data = "TBD";
+				}
+				$colLen = ((length($data) > 253 || length($nodeAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+				$data   = changeCellSep($data);
+				$colsize[$currcol] = $colLen;
+				push(@columns,$data);
+				$currcol++;
+			}
 			my $row = join($sep,@columns);
-	    print CSV "$row\n";
+			print CSV "$row\n";
 
 			if ($sheet) {
 				$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
 				++$currow;
 			}
-	  }
+		}
 	}
-	
+	my $i=0;
+	foreach my $header (@nodeHeaders) {
+		$sheet->set_column( $i, $i, $colsize[$i]+2);
+		$i++;
+	}
+
 	close CSV;
 }
 
 
 sub exportInventory {
-	my (%args) = @_;
-
-	my $xls = $args{xls};
-
-	my $title = "SETME";
-	$title = $args{title} if defined $args{title};
-	
+	my (%args)  = @_;
+	my $xls     = $args{xls};
+	my $file    = $args{file};
+	my $title   = $args{section};
 	my $section = $args{section};
-	die "I must know which section!" if not defined $args{section};
+	my $sheet;
+	my $currow;
+	my @colsize;
+
+	$title = $args{title} if defined $args{title};
+
+	die "Required argument 'section' not supplied!" if not defined $args{section};
 
 	my $model_section_top = "systemHealth";
 	$model_section_top = $args{model_section_top} if defined $args{model_section_top};
 
 	my $model_section = $section;
 	$model_section = $args{model_section} if defined $args{model_section};
-	
-	print "Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n";
-	
-	my $sheet;
-	my $currow;
-	
-	print "Creating $title sheet with section $section\n";
-	
 
-	my $C = loadConfTable();
-				
+	print "Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n";
+
+	print "Creating '$title' sheet with section $section\n";
+
+
 	# declare some vars for filling in later.
 	my @invHeaders;
 	my %invAlias;
-		
+
 	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true" ) {
+	  if ( $NODES->{$node}{active}) {
 			my $S = NMISNG::Sys->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
-			my $MDL = $S->mdl;
+			my $nodeobj       = $nmisng->node(name => $node);
+			my $inv           = $S->inventory( concept => 'catchall' );
+			my $catchall_data = $inv->data;
+			my $MDL           = $S->mdl;
 
 			# handling for this is device/model specific.
-			my $INV;
-						
-			if ( defined $S->{info}{$section} and ref($S->{info}{$section}) eq "HASH") {
-				$INV = $S->{info}{$section};
+			my %concept = undef;;
+
+			if ( defined $MDL->{systemHealth}{sys}{$section} and ref($MDL->{systemHealth}{sys}{$section}) eq "HASH") {
+				my $result = $S->nmisng_node->get_inventory_model( concept => "$section", filter => { historic => 0 });
+				if (!$result->error)
+				{
+					%concept = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+					print "DEBUG: '$section' Object: " . Dumper(%concept) . "\n\n\n" if ($debug > 8);
+				}
 			}
 			else {
-				print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if $debug;
+				print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if ($debug);
 				next;
 			}
 
@@ -480,19 +652,19 @@ sub exportInventory {
 				#print "DEBUG: $model_section_top $model_section $MDL->{$model_section_top}{sys}{$model_section}{headers}\n";
 				#print Dumper $MDL;
 				@invHeaders = ('node','parent','location', split(",",$MDL->{$model_section_top}{sys}{$model_section}{headers}));
-				
+
 				if ( not exists $MDL->{$model_section_top}{sys}{$model_section}{headers} or $MDL->{$model_section_top}{sys}{$model_section}{headers} eq "" ) {
-					print "ERROR: $node no header defined in the model data for $section\n";				
+					print "ERROR: $node no header defined in the model data for $section\n";
 				}
-				
+
 				# set the aliases for the static items
 				%invAlias = (
-					node       						=> 'NODE_NAME',
-					parent       					=> 'NODE_ID',
-					location							=> 'LOCALIDAD',
+					node			=> 'Node Name',
+					parent			=> 'Parent',
+					location		=> 'Location'
 				);
-				
-				# fill in the aliases for each of the items from the model	
+
+				# fill in the aliases for each of the items from the model
 				foreach my $heading (@invHeaders) {
 					if ( defined $MDL->{$model_section_top}{sys}{$model_section}{snmp}{$heading}{title} ) {
 						$invAlias{$heading} = $MDL->{$model_section_top}{sys}{$model_section}{snmp}{$heading}{title};
@@ -504,10 +676,21 @@ sub exportInventory {
 
 				# create a header
 				my @aliases;
+				my $currcol=0;
 				foreach my $header (@invHeaders) {
-					my $alias = $header;
+					my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
+					my $alias  = $header;
 					$alias = $invAlias{$header} if $invAlias{$header};
-					push(@aliases,$alias);
+					$colsize[$currcol] = $colLen;
+					push(@aliases,ucfirst($alias));
+					$currcol++;
+				}
+				if ($file) {
+					print "Creating $file\n";
+					open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+					# print a CSV header
+					my $header = join($sep,@aliases);
+					print CSV "$header\n";
 				}
 
 				if ($xls) {
@@ -515,521 +698,640 @@ sub exportInventory {
 					$currow = 1;								# header is row 0
 				}
 				else {
-					die "ERROR need an xls to work on.\n";	
+					die "ERROR: Internal error, xls is no longer defined.\n";
 				}
-			}				
-			
-			
-			foreach my $idx (sort keys %{$INV}) {
-				if ( defined $INV->{$idx} ) {						
-					$INV->{$idx}{node} = $node;
-					$INV->{$idx}{parent} = $NODES->{$node}{uuid};
-					$INV->{$idx}{location} = $NODES->{$node}{location};
-					
-					if ( $section eq "entityMib" and $INV->{$idx}{entPhysicalClass} eq "sensor" ) {
+			}
+
+
+			foreach my $idx (sort keys %{concept}) {
+				if ( defined $concept{$idx} ) {
+					$concept{$idx}{node} = $node;
+					$concept{$idx}{parent} = $NODES->{$node}{uuid};
+					$concept{$idx}{location} = $NODES->{$node}{location};
+
+					if ( $section eq "entityMib" and $concept{$idx}{entPhysicalClass} eq "sensor" ) {
 						next;
 					}
 
-			    my @columns;
-			    foreach my $header (@invHeaders) {
-			    	my $data = undef;
-			    	if ( defined $INV->{$idx}{$header} ) {
-			    		$data = $INV->{$idx}{$header};
-			    	}
-			    	else {
-			    		$data = "TBD";
-			    	}
-
-						$data = "N/A" if $data eq "noSuchInstance";
-						
-			    	$data = changeCellSep($data);
-			    	push(@columns,$data);
-			    }
+					my @columns;
+					my $currcol=0;
+					foreach my $header (@invHeaders) {
+						my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
+						my $data   = undef;
+						if ( defined $concept{$idx}{$header} ) {
+							$data = $concept{$idx}{$header};
+						}
+						else {
+							$data = "TBD";
+						}
+						$data   = "N/A" if $data eq "noSuchInstance";
+						$colLen = ((length($data) > 253 || length($invAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+						$data   = changeCellSep($data);
+						$colsize[$currcol] = $colLen;
+						push(@columns,$data);
+						$currcol++;
+					}
 					my $row = join($sep,@columns);
+					print CSV "$row\n";
+					
+					if ($sheet) {
+						$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+						++$currow;
+					}
+				}
+			}
+		}
+	}
+	my $i=0;
+	foreach my $header (@invHeaders) {
+		$sheet->set_column( $i, $i, $colsize[$i]+2);
+		$i++;
+	}
+
+	close CSV;
+}
+
+
+sub exportSlots {
+	my $xls   = shift;
+	my $file  = shift;
+	my $title = "Slots";
+	my $sheet;
+	my $currow;
+	my @colsize;
+
+	print "Creating $file\n";
+
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+
+	# print a CSV header
+	my @aliases;
+	my $currcol=0;
+	foreach my $header (@slotHeaders) {
+		my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($slotAlias{$header}));
+		my $alias  = $header;
+		$alias = $slotAlias{$header} if $slotAlias{$header};
+		$colsize[$currcol] = $colLen;
+		push(@aliases,$alias);
+		$currcol++;
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR: Internal error, xls is no longer defined.\n";
+	}
+
+	foreach my $node (sort keys %{$NODES}) {
+		if ( $NODES->{$node}{active} ) {
+			my $S = NMISNG::Sys->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $nodeobj       = $nmisng->node(name => $node);
+			my $inv           = $S->inventory( concept => 'catchall' );
+			my $catchall_data = $inv->data;
+			my $MDL           = $S->mdl;
+
+			# move on if this isn't a good one.
+			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+				print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+				next;
+			}
+
+			# handling for this is device/model specific.
+			my %slots = undef;
+			my $counter = 0;
+			if ( $catchall_data->{nodeModel} =~ /$goodModels/ or $catchall_data->{nodeVendor} =~ /$goodVendors/ ) {
+				if ( defined $MDL->{systemHealth}{sys}{entityMib} and ref($MDL->{systemHealth}{sys}{entityMib}) eq "HASH") {
+					my $result = $S->nmisng_node->get_inventory_model( concept => "entityMib", filter => { historic => 0 });
+					if (!$result->error)
+					{
+						%slots = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+					}
+				}
+				else {
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+					next;
+				}
+
+				foreach my $slotIndex (sort keys %{slots}) {
+
+					my $thisIsASlot = 0;
+					if ( defined $slots{$slotIndex} 
+						and defined $slots{$slotIndex}{entPhysicalClass} 
+						and $slots{$slotIndex}{entPhysicalClass} =~ /container/
+						and $slots{$slotIndex}{entPhysicalDescr} !~ /$badSlotDescr/i
+					) {
+						$thisIsASlot = 1;
+					}
+					# special case for 7200VXR Chassis which is also a slot......
+					elsif ( defined $slots{$slotIndex} 
+						and defined $slots{$slotIndex}{entPhysicalClass} 
+						and $slots{$slotIndex}{entPhysicalClass} =~ /chassis/
+						and $slots{$slotIndex}{entPhysicalDescr} =~ /7204VXR chassis|7206VXR chassis/i
+					) {
+						$thisIsASlot = 1;
+					}
+
+					if ( $thisIsASlot ) {
+						# create a name
+						++$counter;
+
+						# Slot ID's are a pain............
+						# Option 1: the slot id is the parent relative position, not the index of the MIB
+						# con: some chassis this creates duplicate slot id's
+
+						# Option 2: the slot id is the entityMib Index, which creates completely Unique id's
+						my $slotId = $slots{$slotIndex}{index};
+
+
+						$slots{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
+						$slots{$slotIndex}{nodeId} = $NODES->{$node}{uuid};
+						$slots{$slotIndex}{position} = $slots{$slotIndex}{entPhysicalParentRelPos};
+
+						# create an entry in the SLOT_INDEX
+						if ( not defined $SLOT_INDEX->{$slots{$slotIndex}{slotId}} ) {
+							$SLOT_INDEX->{$slots{$slotIndex}{slotId}} = $NODES->{$node}{name};
+						}
+						else {
+							print "ERROR: Duplicate SLOT ID: $slots{$slotIndex}{slotId}\n";
+						}
+
+						# assign the default values here.
+						my $slotName = $slots{$slotIndex}{entPhysicalName};
+						my $slotNetName = $slots{$slotIndex}{entPhysicalDescr};
+
+						# different models of Cisco use different methods.........
+						# so if the slot name is empty or just a number make one up, 
+						if ( $slots{$slotIndex}{entPhysicalName} eq "" or $slots{$slotIndex}{entPhysicalName} =~ /^\d+$/ ) {
+							$slotName = "$slots{$slotIndex}{entPhysicalDescr} $slotId";
+						}
+
+						$slots{$slotIndex}{slotName} = $slotName;
+						$slots{$slotIndex}{slotNetName} = $slotNetName;
+										    
+						# name for the parent node.
+						$slots{$slotIndex}{name1} = $NODES->{$node}{name};
+						$slots{$slotIndex}{name2} = $NODES->{$node}{name};
+						$slots{$slotIndex}{ossType} = getType($catchall_data->{sysObjectName},$catchall_data->{nodeType});
+
+						my @columns;
+						my $currcol=0;
+						foreach my $header (@slotHeaders) {
+							my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($slotAlias{$header}));
+							my $data   = undef;
+							if ( defined $slots{$slotIndex}{$header} ) {
+								$data = $slots{$slotIndex}{$header};
+							}
+							else {
+								$data = "TBD";
+							}
+							$colLen = ((length($data) > 253 || length($slotAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+							$data   = changeCellSep($data);
+							$colsize[$currcol] = $colLen;
+							push(@columns,$data);
+							$currcol++;
+						}
+						my $row = join($sep,@columns);
+						print CSV "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}
+					}
+				}
+			}
+		}
+	}
+	my $i=0;
+	foreach my $header (@slotHeaders) {
+		$sheet->set_column( $i, $i, $colsize[$i]+2);
+		$i++;
+	}
+
+	close CSV;
+}
+
+sub exportCards {
+	my $xls   = shift;
+	my $file  = shift;
+	my $title = "Cards";
+	my $sheet;
+	my $currow;
+	my @colsize;
+
+	print "Creating $file\n";
+
+	my $vendorOids = loadVendorOids();
+
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+
+	# print a CSV header
+	my @aliases;
+	my $currcol=0;
+	foreach my $header (@cardHeaders) {
+		my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($cardAlias{$header}));
+		my $alias  = $header;
+		$alias = $cardAlias{$header} if $cardAlias{$header};
+		$colsize[$currcol] = $colLen;
+		push(@aliases,$alias);
+		$currcol++;
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR: Internal error, xls is no longer defined.\n";
+	}
+
+	foreach my $node (sort keys %{$NODES}) {
+		if ( $NODES->{$node}{active} ) {
+			my $S = NMISNG::Sys->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $nodeobj       = $nmisng->node(name => $node);
+			my $inv           = $S->inventory( concept => 'catchall' );
+			my $catchall_data = $inv->data;
+			my $MDL           = $S->mdl;
+
+			# move on if this isn't a good one.
+			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+				print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+				next;
+			}
+
+			# handling for this is device/model specific.
+			my %cards  = undef;
+			my %assets = undef;
+			my $cardCount = 0;
+			if ( $catchall_data->{nodeModel} =~ /$goodModels/ or $catchall_data->{nodeVendor} =~ /$goodVendors/ ) {
+				if ( defined $MDL->{systemHealth}{sys}{entityMib} and ref($MDL->{systemHealth}{sys}{entityMib}) eq "HASH") {
+					my $result = $S->nmisng_node->get_inventory_model( concept => "entityMib", filter => { historic => 0 });
+					if (!$result->error)
+					{
+						%cards = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+					}
+				}
+				else {
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+					next;
+				}
+
+				if ( defined $MDL->{systemHealth}{sys}{ciscoAsset} and ref($MDL->{systemHealth}{sys}{ciscoAsset}) eq "HASH") {
+					my $result = $S->nmisng_node->get_inventory_model( concept => "ciscoAsset", filter => { historic => 0 });
+					if (!$result->error)
+					{
+						%assets = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+					}
+				}
+
+				foreach my $cardIndex (sort keys %{cards}) {
+					# what is the parent ID?
+					# $parentId is the id of the slot the module is inserted into.
+					my $parentId = $cards{$cardIndex}{entPhysicalContainedIn};
+
+					if ( $cards{$parentId}{entPhysicalClass} =~ /module/ ) {
+						print "INFO: Card Parent is Module: $NODES->{$node}{name} $cardIndex $cards{$cardIndex}{entPhysicalDescr} parent $parentId\n" if $debug > 2;
+					}
+
+					if ( defined $cards{$cardIndex} 
+						and defined $cards{$cardIndex}{entPhysicalClass} 
+						and $cards{$cardIndex}{entPhysicalClass} =~ /module/
+						and $cards{$cardIndex}{entPhysicalDescr} !~ /$badCardDescr/
+						and $cards{$cardIndex}{entPhysicalModelName} !~ /$badCardModel/
+						and $cards{$cardIndex}{entPhysicalName} !~ /$badCardPhysName/
+						and $cards{$cardIndex}{entPhysicalDescr} ne ""
+						# the module must be a sub module not an actuall card
+						and $cards{$parentId}{entPhysicalClass} !~ /module/
+					) {
+
+						# create a name
+						++$cardCount;
+						#my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardSerial cardStatus cardVendor cardModel       cardType name1 name2 slotId);
+
+						# is the modules parent another module, then we probably don't want it
+						my $cardId = "$NODES->{$node}{uuid}_C_$cardIndex";
+
+						if ( defined $cards{$cardIndex} and $cards{$cardIndex}{entPhysicalSerialNum} ne "" ) {
+							$cards{$cardIndex}{cardSerial} = $cards{$cardIndex}{entPhysicalSerialNum};
+						}
+						elsif ( defined $assets{$cardIndex} and $assets{$cardIndex}{ceAssetSerialNumber} ne "" ) {
+							$cards{$cardIndex}{cardSerial} = $assets{$cardIndex}{ceAssetSerialNumber};
+						}
+						else {
+							my $comment = "ERROR: $node no CARD serial number for id $cardIndex $cards{$cardIndex}{entPhysicalDescr}";
+							print "$comment\n";
+						}
+
+						$cards{$cardIndex}{cardId} = $cardId;
+						$cards{$cardIndex}{cardNetName} = "CARD $cardIndex";
+						$cards{$cardIndex}{cardDescr} = $cards{$cardIndex}{entPhysicalDescr};
+						$cards{$cardIndex}{cardStatus} = getStatus();
+						$cards{$cardIndex}{cardVendor} = $catchall_data->{nodeVendor};
+
+						if ( defined $assets{$cardIndex} and $assets{$cardIndex}{ceAssetOrderablePartNumber} ne "" ) {
+							$cards{$cardIndex}{cardModel} = $assets{$cardIndex}{ceAssetOrderablePartNumber};
+						}
+						elsif ( defined $cards{$cardIndex} and $cards{$cardIndex}{entPhysicalModelName} ne "" ) {
+							$cards{$cardIndex}{cardModel} = $cards{$cardIndex}{entPhysicalModelName};
+						}
+						else {
+							$cards{$cardIndex}{cardModel} = $cards{$cardIndex}{entPhysicalDescr};
+						}
+										    
+						if ( defined $cards{$cardIndex}{entPhysicalVendorType} and $vendorOids->{$cards{$cardIndex}{entPhysicalVendorType}} ne "" ) {
+							$cards{$cardIndex}{cardType} = $vendorOids->{$cards{$cardIndex}{entPhysicalVendorType}};
+							$cards{$cardIndex}{cardType} =~ s/^cev//;
+						}
+						else {
+							$cards{$cardIndex}{cardType} = "CARD - ". getType($catchall_data->{sysObjectName},$catchall_data->{nodeType});
+						}
+				    
+						# clean up trailing spaces from cardModel.
+						$cards{$cardIndex}{cardModel} =~ s/\s+$//;
+						$cards{$cardIndex}{cardSerial} =~ s/\s+$//;
+
+						# name for the parent node.				    
+						$cards{$cardIndex}{name1} = $NODES->{$node}{name};
+						$cards{$cardIndex}{name2} = $NODES->{$node}{name};
+
+						# now we want the relative slot number the slot uses
+
+						# Option 1: the slot id is the parent relative position, not the index of the MIB
+						# con: some chassis this creates duplicate slot id's
+
+						# Option 2: the slot id is the entityMib Index, which creates completely Unique id's
+						my $slotId = $cards{$parentId}{index};
+
+						# Cisco is using position -1 for the chassis???????
+						if ( $slotId < 0 ) {
+							$slotId = 0;
+						}
+
+						$cards{$cardIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
+
+						if ( not defined $SLOT_INDEX->{$cards{$cardIndex}{slotId}} ) {
+							print "ERROR: NO SLOT FOR CARD: $NODES->{$node}{name} $cardIndex $cards{$cardIndex}{cardId}\n";
+						}
+
+						#As card name we need model number, serial number and its parent slot ID for all other devices.
+						$cards{$cardIndex}{cardName} = "$cards{$cardIndex}{cardModel} $cards{$cardIndex}{cardSerial} $cards{$cardIndex}{slotId}";
+				    
+						my @columns;
+						my $currcol=0;
+						foreach my $header (@cardHeaders) {
+							my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($cardAlias{$header}));
+							my $data   = undef;
+							if ( defined $cards{$cardIndex}{$header} ) {
+								$data = $cards{$cardIndex}{$header};
+							}
+							else {
+								$data = "TBD";
+							}
+							$colLen = ((length($data) > 253 || length($cardAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+							$data   = changeCellSep($data);
+							$colsize[$currcol] = $colLen;
+							push(@columns,$data);
+							$currcol++;
+						}
+						my $row = join($sep,@columns);
+						print CSV "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}
+					}
+				}
+			}
+		}
+	}
+	my $i=0;
+	foreach my $header (@cardHeaders) {
+		$sheet->set_column( $i, $i, $colsize[$i]+2);
+		$i++;
+	}
+
+	close CSV;
+}
+
+sub exportPorts {
+	my $xls   = shift;
+	my $file  = shift;
+	my $title = "Ports";
+	my $sheet;
+	my $currow;
+	my @colsize;
+
+	print "Creating $file\n";
+
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+
+	# print a CSV header
+	my @aliases;
+	my $currcol=0;
+	foreach my $header (@portHeaders) {
+		my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($portAlias{$header}));
+		my $alias  = $header;
+		$alias = $portAlias{$header} if $portAlias{$header};
+		$colsize[$currcol] = $colLen;
+		push(@aliases,$alias);
+		$currcol++;
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR: Internal error, xls is no longer defined.\n";
+	}
+
+	foreach my $node (sort keys %{$NODES}) {
+	  if ( $NODES->{$node}{active}  ) {
+			my $S = NMISNG::Sys->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $nodeobj       = $nmisng->node(name => $node);
+			my $inv           = $S->inventory( concept => 'catchall' );
+			my $catchall_data = $inv->data;
+			my $MDL           = $S->mdl;
+
+			# move on if this isn't a good one.
+			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+				print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+				next;
+			}
+
+			# handling for this is device/model specific.
+			my %slots = undef;
+			if ( $catchall_data->{nodeModel} =~ /$goodModels/ or $catchall_data->{nodeVendor} =~ /$goodVendors/ ) {
+				if ( defined $MDL->{systemHealth}{sys}{entityMib} and ref($MDL->{systemHealth}{sys}{entityMib}) eq "HASH") {
+					my $result = $S->nmisng_node->get_inventory_model( concept => "entityMib", filter => { historic => 0 });
+					if (!$result->error)
+					{
+						%slots = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+					}
+				}
+				else {
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+					next;
+				}
+
+				foreach my $slotIndex (sort keys %{slots}) {
+					if ( defined $slots{$slotIndex} 
+						and defined $slots{$slotIndex}{entPhysicalClass} 
+						and $slots{$slotIndex}{entPhysicalClass} =~ /port/
+					) {
+						# what is the parent ID?
+						my $parentId = $slots{$slotIndex}{entPhysicalContainedIn};
+						my $cardId = "$NODES->{$node}{uuid}_C_$parentId";
+
+						#my @portHeaders = qw(portName portId portType portStatus parent duplex);
+
+						# Port ID is the Card ID and an index, relative position.
+						$slots{$slotIndex}{portName} = $slots{$slotIndex}{entPhysicalName};
+						$slots{$slotIndex}{portId} = "$NODES->{$node}{uuid}_P_$slotIndex";
+						$slots{$slotIndex}{portType} = $slots{$slotIndex}{entPhysicalDescr};
+						$slots{$slotIndex}{portStatus} = getStatus();
+						$slots{$slotIndex}{parent} = $cardId;
+						$slots{$slotIndex}{duplex} = getPortDuplex($slots{$slotIndex}{entPhysicalDescr});
+
+						my @columns;
+						my $currcol=0;
+						foreach my $header (@portHeaders) {
+							my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($portAlias{$header}));
+							my $data   = undef;
+							if ( defined $slots{$slotIndex}{$header} ) {
+								$data = $slots{$slotIndex}{$header};
+							}
+							else {
+								$data = "TBD";
+							}
+							$colLen = ((length($data) > 253 || length($portAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+							$data   = changeCellSep($data);
+							$colsize[$currcol] = $colLen;
+							push(@columns,$data);
+							$currcol++;
+						}
+						my $row = join($sep,@columns);
+						print CSV "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}
+					}
+				}
+			}
+		}
+	}
+	my $i=0;
+	foreach my $header (@portHeaders) {
+		$sheet->set_column( $i, $i, $colsize[$i]+2);
+		$i++;
+	}
+
+	close CSV;
+}
+
+sub exportInterfaces {
+	my $xls   = shift;
+	my $file  = shift;
+	my $title = "Interfaces";
+	my $sheet;
+	my $currow;
+	my @colsize;
+
+	print "Creating $file\n";
+
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+
+	# print a CSV header
+	my @aliases;
+	my $currcol=0;
+	foreach my $header (@intHeaders) {
+		my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($intAlias{$header}));
+		my $alias = $header;
+		$alias = $intAlias{$header} if $intAlias{$header};
+		$colsize[$currcol] = $colLen;
+		push(@aliases,$alias);
+		$currcol++;
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR: Internal error, xls is no longer defined.\n";
+	}
+
+	foreach my $node (sort keys %{$NODES}) {
+		if ( $NODES->{$node}{active} ) {
+			my $S = NMISNG::Sys->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $nodeobj       = $nmisng->node(name => $node);
+			my $IF            = $nodeobj->ifinfo;
+			my $inv           = $S->inventory( concept => 'catchall' );
+			my $catchall_data = $inv->data;
+
+			# move on if this isn't a good one.
+			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+				print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+				next;
+			}
+
+			foreach my $ifIndex (sort keys %{$IF}) {
+				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ifDescr} ) {
+					# create a name
+				    $IF->{$ifIndex}{name} = "$node--$IF->{$ifIndex}{ifDescr}";
+				    $IF->{$ifIndex}{parent} = $NODES->{$node}{uuid};
+
+				    my @columns;
+					my $currcol=0;
+				    foreach my $header (@intHeaders) {
+						my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($intAlias{$header}));
+				    	my $data   = undef;
+				    	if ( defined $IF->{$ifIndex}{$header} ) {
+				    		$data = $IF->{$ifIndex}{$header};
+				    	}
+				    	else {
+				    		$data = "TBD";
+				    	}
+						$colLen = ((length($data) > 253 || length($intAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+				    	$data   = changeCellSep($data);
+						$colsize[$currcol] = $colLen;
+				    	push(@columns,$data);
+						$currcol++;
+				    }
+					my $row = join($sep,@columns);
+				    print CSV "$row\n";
 
 					if ($sheet) {
 						$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
 						++$currow;
 					}
-		  	}
-			}
-	  }
-	}	
-}
-
-
-sub exportSlots {
-	my $xls = shift;
-	my $file = shift;
-	my $title = "Slots";
-	my $sheet;
-	my $currow;
-	
-	print "Creating $file\n";
-
-	my $C = loadConfTable();
-		
-	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
-	
-	# print a CSV header
-	my @aliases;
-	foreach my $header (@slotHeaders) {
-		my $alias = $header;
-		$alias = $slotAlias{$header} if $slotAlias{$header};
-		push(@aliases,$alias);
-	}
-	my $header = join($sep,@aliases);
-	print CSV "$header\n";
-
-	if ($xls) {
-		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
-		$currow = 1;								# header is row 0
-	}
-	else {
-		die "ERROR need an xls to work on.\n";	
-	}
-		
-	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true" ) {
-			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
-
-			# move on if this isn't a good one.
-			next if $NI->{system}{nodeVendor} !~ /$goodVendors/;
-
-			# handling for this is device/model specific.
-			my $SLOTS;
-			my $counter = 0;
-			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
-				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
-					$SLOTS = $S->{info}{entityMib};
-				}
-				else {
-					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
-					next;
-				}
-
-				foreach my $slotIndex (sort keys %{$SLOTS}) {
-					
-					my $thisIsASlot = 0;
-					if ( defined $SLOTS->{$slotIndex} 
-						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
-						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /container/
-						and $SLOTS->{$slotIndex}{entPhysicalDescr} !~ /$badSlotDescr/i
-					) {
-						$thisIsASlot = 1;
-					}
-					# special case for 7200VXR Chassis which is also a slot......
-					elsif ( defined $SLOTS->{$slotIndex} 
-						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
-						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /chassis/
-						and $SLOTS->{$slotIndex}{entPhysicalDescr} =~ /7204VXR chassis|7206VXR chassis/i
-					) {
-						$thisIsASlot = 1;
-					}
-					
-					if ( $thisIsASlot ) {
-						# create a name
-						++$counter;
-						
-						# Slot ID's are a pain............
-						# Option 1: the slot id is the parent relative position, not the index of the MIB
-						# con: some chassis this creates duplicate slot id's
-						#my $slotId = $SLOTS->{$slotIndex}{entPhysicalParentRelPos};
-						
-						# Option 2: the slot id is the entityMib Index, which creates completely Unique id's
-						my $slotId = $SLOTS->{$slotIndex}{index};
-						
-						
-						$SLOTS->{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
-						$SLOTS->{$slotIndex}{nodeId} = $NODES->{$node}{uuid};
-						$SLOTS->{$slotIndex}{position} = $SLOTS->{$slotIndex}{entPhysicalParentRelPos};
-						
-						# create an entry in the SLOT_INDEX
-						if ( not defined $SLOT_INDEX->{$SLOTS->{$slotIndex}{slotId}} ) {
-							$SLOT_INDEX->{$SLOTS->{$slotIndex}{slotId}} = $NODES->{$node}{name};
-						}
-						else {
-							print "ERROR: Duplicate SLOT ID: $SLOTS->{$slotIndex}{slotId}\n";
-						}
-						
-						# assign the default values here.
-						my $slotName = $SLOTS->{$slotIndex}{entPhysicalName};
-						my $slotNetName = $SLOTS->{$slotIndex}{entPhysicalDescr};
-						
-						# different models of Cisco use different methods.........
-						# so if the slot name is empty or just a number make one up, 
-						if ( $SLOTS->{$slotIndex}{entPhysicalName} eq "" or $SLOTS->{$slotIndex}{entPhysicalName} =~ /^\d+$/ ) {
-							$slotName = "$SLOTS->{$slotIndex}{entPhysicalDescr} $slotId";
-						}
-						
-						$SLOTS->{$slotIndex}{slotName} = $slotName;
-						$SLOTS->{$slotIndex}{slotNetName} = $slotNetName;
-										    
-				    # name for the parent node.
-				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};
-				    $SLOTS->{$slotIndex}{name2} = $NODES->{$node}{name};
-				    $SLOTS->{$slotIndex}{ossType} = getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
-						
-				    my @columns;
-				    foreach my $header (@slotHeaders) {
-				    	my $data = undef;
-				    	if ( defined $SLOTS->{$slotIndex}{$header} ) {
-				    		$data = $SLOTS->{$slotIndex}{$header};
-				    	}
-				    	else {
-				    		$data = "TBD";
-				    	}
-				    	$data = changeCellSep($data);
-				    	push(@columns,$data);
-				    }
-						my $row = join($sep,@columns);
-				    print CSV "$row\n";
-
-						if ($sheet) {
-							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
-							++$currow;
-						}
 			  	}
-				}
 			}
-	  }
-	}	
-}
-
-sub exportCards {
-	my $xls = shift;
-	my $file = shift;
-	my $title = "Cards";
-	my $sheet;
-	my $currow;
-	
-	print "Creating $file\n";
-
-	my $C = loadConfTable();
-
-	my $vendorOids = loadVendorOids();
-		
-	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
-	
-	# print a CSV header
-	my @aliases;
-	foreach my $header (@cardHeaders) {
-		my $alias = $header;
-		$alias = $cardAlias{$header} if $cardAlias{$header};
-		push(@aliases,$alias);
+		}
 	}
-	my $header = join($sep,@aliases);
-	print CSV "$header\n";
-	
-	if ($xls) {
-		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
-		$currow = 1;								# header is row 0
-	}
-	else {
-		die "ERROR need an xls to work on.\n";	
-	}
-		
-	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true" ) {
-			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
-			# move on if this isn't a good one.
-			next if $NI->{system}{nodeVendor} !~ /$goodVendors/;
-
-			# handling for this is device/model specific.
-			my $CARDS;
-			my $ASSET;
-			my $cardCount = 0;
-			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
-				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
-					$CARDS = $S->{info}{entityMib};
-				}
-				else {
-					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
-					next;
-				}
-				
-				if ( defined $S->{info}{ciscoAsset} and ref($S->{info}{ciscoAsset}) eq "HASH") {
-					$ASSET = $S->{info}{ciscoAsset};
-				}
-
-				foreach my $cardIndex (sort keys %{$CARDS}) {
-					# what is the parent ID?
-					# $parentId is the id of the slot the module is inserted into.
-					my $parentId = $CARDS->{$cardIndex}{entPhysicalContainedIn};
-
-					if ( $CARDS->{$parentId}{entPhysicalClass} =~ /module/ ) {
-						print "INFO: Card Parent is Module: $NODES->{$node}{name} $cardIndex $CARDS->{$cardIndex}{entPhysicalDescr} parent $parentId\n" if $debug > 2;
-					}
-						
-					if ( defined $CARDS->{$cardIndex} 
-						and defined $CARDS->{$cardIndex}{entPhysicalClass} 
-						and $CARDS->{$cardIndex}{entPhysicalClass} =~ /module/
-						and $CARDS->{$cardIndex}{entPhysicalDescr} !~ /$badCardDescr/
-						and $CARDS->{$cardIndex}{entPhysicalModelName} !~ /$badCardModel/
-						and $CARDS->{$cardIndex}{entPhysicalName} !~ /$badCardPhysName/
-						and $CARDS->{$cardIndex}{entPhysicalDescr} ne ""
-						# the module must be a sub module not an actuall card
-						and $CARDS->{$parentId}{entPhysicalClass} !~ /module/						
-					) {
-						
-						# create a name
-						++$cardCount;
-						#my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardSerial cardStatus cardVendor cardModel       cardType name1 name2 slotId);
-						
-						# is the modules parent another module, then we probably don't want it
-						my $cardId = "$NODES->{$node}{uuid}_C_$cardIndex";
-
-						if ( defined $CARDS->{$cardIndex} and $CARDS->{$cardIndex}{entPhysicalSerialNum} ne "" ) {
-							$CARDS->{$cardIndex}{cardSerial} = $CARDS->{$cardIndex}{entPhysicalSerialNum};
-						}
-						elsif ( defined $ASSET->{$cardIndex} and $ASSET->{$cardIndex}{ceAssetSerialNumber} ne "" ) {
-							$CARDS->{$cardIndex}{cardSerial} = $ASSET->{$cardIndex}{ceAssetSerialNumber};
-						}
-						else {
-							my $comment = "ERROR: $node no CARD serial number for id $cardIndex $CARDS->{$cardIndex}{entPhysicalDescr}";
-							print "$comment\n";
-						}				
-						
-						$CARDS->{$cardIndex}{cardId} = $cardId;
-						
-				    $CARDS->{$cardIndex}{cardNetName} = "CARD $cardIndex";
-
-				    $CARDS->{$cardIndex}{cardDescr} = $CARDS->{$cardIndex}{entPhysicalDescr};
-				    
-				    $CARDS->{$cardIndex}{cardStatus} = getStatus();
-						$CARDS->{$cardIndex}{cardVendor} = $NI->{system}{nodeVendor};
-
-						if ( defined $ASSET->{$cardIndex} and $ASSET->{$cardIndex}{ceAssetOrderablePartNumber} ne "" ) {
-							$CARDS->{$cardIndex}{cardModel} = $ASSET->{$cardIndex}{ceAssetOrderablePartNumber};
-						}
-						elsif ( defined $CARDS->{$cardIndex} and $CARDS->{$cardIndex}{entPhysicalModelName} ne "" ) {
-							$CARDS->{$cardIndex}{cardModel} = $CARDS->{$cardIndex}{entPhysicalModelName};
-						}
-						else {
-							$CARDS->{$cardIndex}{cardModel} = $CARDS->{$cardIndex}{entPhysicalDescr};
-						}
-										    
-						if ( defined $CARDS->{$cardIndex}{entPhysicalVendorType} and $vendorOids->{$CARDS->{$cardIndex}{entPhysicalVendorType}} ne "" ) {
-							$CARDS->{$cardIndex}{cardType} = $vendorOids->{$CARDS->{$cardIndex}{entPhysicalVendorType}};
-							$CARDS->{$cardIndex}{cardType} =~ s/^cev//;
-						}
-						else {
-				    	$CARDS->{$cardIndex}{cardType} = "CARD - ". getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
-				    }
-				    
-				    # clean up trailing spaces from cardModel.
-				    $CARDS->{$cardIndex}{cardModel} =~ s/\s+$//;
-				    $CARDS->{$cardIndex}{cardSerial} =~ s/\s+$//;
-						
-				    # name for the parent node.				    
-				    $CARDS->{$cardIndex}{name1} = $NODES->{$node}{name};
-				    $CARDS->{$cardIndex}{name2} = $NODES->{$node}{name};
-						
-						# now we want the relative slot number the slot uses
-
-						# Option 1: the slot id is the parent relative position, not the index of the MIB
-						# con: some chassis this creates duplicate slot id's
-						#my $slotId = $CARDS->{$parentId}{entPhysicalParentRelPos};
-						
-						# Option 2: the slot id is the entityMib Index, which creates completely Unique id's
-						my $slotId = $CARDS->{$parentId}{index};
-						
-						# Cisco is using position -1 for the chassis???????
-						if ( $slotId < 0 ) {
-							$slotId = 0;
-						}
-												
-						$CARDS->{$cardIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
-						
-						if ( not defined $SLOT_INDEX->{$CARDS->{$cardIndex}{slotId}} ) {
-							print "ERROR NO SLOT FOR CARD: $NODES->{$node}{name} $cardIndex $CARDS->{$cardIndex}{cardId}\n";
-						}
-
-				    #As card name we need model number, serial number and its parent slot ID for all other devices.						
-						$CARDS->{$cardIndex}{cardName} = "$CARDS->{$cardIndex}{cardModel} $CARDS->{$cardIndex}{cardSerial} $CARDS->{$cardIndex}{slotId}";
-				    						
-				    my @columns;
-				    foreach my $header (@cardHeaders) {
-				    	my $data = undef;
-				    	if ( defined $CARDS->{$cardIndex}{$header} ) {
-				    		$data = $CARDS->{$cardIndex}{$header};
-				    	}
-				    	else {
-				    		$data = "TBD";
-				    	}
-				    	$data = changeCellSep($data);
-				    	push(@columns,$data);
-				    }
-						my $row = join($sep,@columns);
-				    print CSV "$row\n";
-
-						if ($sheet) {
-							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
-							++$currow;
-						}
-
-			  	}
-				}
-			}
-	  }
-	}	
-}
-
-sub exportPorts {
-	my $xls = shift;
-	my $file = shift;
-	my $title = "Ports";
-	my $sheet;
-	my $currow;
-	
-	print "Creating $file\n";
-
-	my $C = loadConfTable();
-		
-	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
-	
-	# print a CSV header
-	my @aliases;
-	foreach my $header (@portHeaders) {
-		my $alias = $header;
-		$alias = $portAlias{$header} if $portAlias{$header};
-		push(@aliases,$alias);
-	}
-	my $header = join($sep,@aliases);
-	print CSV "$header\n";
-
-	if ($xls) {
-		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
-		$currow = 1;								# header is row 0
-	}
-	else {
-		die "ERROR need an xls to work on.\n";	
-	}
-		
-	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true" ) {
-			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
-			# move on if this isn't a good one.
-			
-			next if $NI->{system}{nodeVendor} !~ /$goodVendors/;
-
-			# handling for this is device/model specific.
-			my $SLOTS;
-			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
-				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
-					$SLOTS = $S->{info}{entityMib};
-				}
-				else {
-					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
-					next;
-				}
-
-				foreach my $slotIndex (sort keys %{$SLOTS}) {
-					if ( defined $SLOTS->{$slotIndex} 
-						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
-						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /port/
-					) {
-						# what is the parent ID?
-						my $parentId = $SLOTS->{$slotIndex}{entPhysicalContainedIn};
-						my $cardId = "$NODES->{$node}{uuid}_C_$parentId";
-
-						#my @portHeaders = qw(portName portId portType portStatus parent duplex);
-						
-						# Port ID is the Card ID and an index, relative position.
-						$SLOTS->{$slotIndex}{portName} = $SLOTS->{$slotIndex}{entPhysicalName};
-						$SLOTS->{$slotIndex}{portId} = "$NODES->{$node}{uuid}_P_$slotIndex";
-						$SLOTS->{$slotIndex}{portType} = $SLOTS->{$slotIndex}{entPhysicalDescr};
-						$SLOTS->{$slotIndex}{portStatus} = getStatus();
-						$SLOTS->{$slotIndex}{parent} = $cardId;
-						$SLOTS->{$slotIndex}{duplex} = getPortDuplex($SLOTS->{$slotIndex}{entPhysicalDescr});
-						
-				    my @columns;
-				    foreach my $header (@portHeaders) {
-				    	my $data = undef;
-				    	if ( defined $SLOTS->{$slotIndex}{$header} ) {
-				    		$data = $SLOTS->{$slotIndex}{$header};
-				    	}
-				    	else {
-				    		$data = "TBD";
-				    	}
-				    	$data = changeCellSep($data);
-				    	push(@columns,$data);
-				    }
-						my $row = join($sep,@columns);
-				    print CSV "$row\n";
-
-						if ($sheet) {
-							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
-							++$currow;
-						}
-			  	}
-				}
-			}
-	  }
-	}	
-}
-
-sub exportInterfaces {
-	my $xls = shift;
-	my $file = shift;
-	
-	print "Creating $file\n";
-
-	my $C = loadConfTable();
-		
-	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
-	
-	# print a CSV header
-	my @aliases;
+	my $i=0;
 	foreach my $header (@intHeaders) {
-		my $alias = $header;
-		$alias = $intAlias{$header} if $intAlias{$header};
-		push(@aliases,$alias);
+		$sheet->set_column( $i, $i, $colsize[$i]+2);
+		$i++;
 	}
-	my $header = join($sep,@aliases);
-	print CSV "$header\n";
-	
-	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true" ) {
-			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
-			my $IF = $S->ifinfo;
 
-			# move on if this isn't a good one.
-			next if $NI->{system}{nodeVendor} !~ /$goodVendors/;
-
-			foreach my $ifIndex (sort keys %{$IF}) {
-				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ifDescr} ) {
-					# create a name
-			    $IF->{$ifIndex}{name} = "$node--$IF->{$ifIndex}{ifDescr}";
-			    $IF->{$ifIndex}{parent} = $NODES->{$node}{uuid};
-					
-			    my @columns;
-			    foreach my $header (@intHeaders) {
-			    	my $data = undef;
-			    	if ( defined $IF->{$ifIndex}{$header} ) {
-			    		$data = $IF->{$ifIndex}{$header};
-			    	}
-			    	else {
-			    		$data = "TBD";
-			    	}
-			    	$data = changeCellSep($data);
-			    	push(@columns,$data);
-			    }
-					my $row = join($sep,@columns);
-			    print CSV "$row\n";
-		  	}
-			}
-	  }
-	}
-	
 	close CSV;
 }
 
@@ -1043,55 +1345,55 @@ sub changeCellSep {
 
 sub getStatus {
 	# no definitions found?
-	return "Installed";		
+	return "Installed";
 }
 
 sub getModel {
 	my $sysObjectName = shift;
-	
+
 	$sysObjectName =~ s/cisco/Cisco /g;
 	if ( $sysObjectName =~ /cat(\d+)/ ) {
-		$sysObjectName = "Cisco Catalyst $1";	
+		$sysObjectName = "Cisco Catalyst $1";
 	}
-	
-	return $sysObjectName;		
+
+	return $sysObjectName;
 }
 
 sub getType {
 	my $sysObjectName = shift;
 	my $nodeType = shift;
 	my $type = "TBD";
-	
+
 	if ( $sysObjectName =~ /cisco61|cisco62|cisco60|asam/ ) {
-		$type = "DSLAM";	
+		$type = "DSLAM";
 	}
 	elsif ( $nodeType =~ /router/ ) {
-		$type = "Router";	
+		$type = "Router";
 	}
 	elsif ( $nodeType =~ /switch/ ) {
-		$type = "Switch";	
+		$type = "Switch";
 	}
-	
-	return $type;		
+
+	return $type;
 }
 
 sub getPortDuplex {
 	my $thing = shift;
 	my $duplex = "TBD";
-	
+
 	if ( $thing =~ /SHDSL|ADSL/ ) {
-		$duplex = "N/A";	
+		$duplex = "N/A";
 	}
-	
-	return $duplex;		
+
+	return $duplex;
 }
 
 sub getCardName {
 	my $model = shift;
 	my $name;
-	
+
 	if ( $model =~ /^.TUC/ ) {
-		$name = "xDSL Card";	
+		$name = "xDSL Card";
 	}
 	elsif ( $model =~ /^NI\-|C6... Network/ ) {
 		$name = "Network Intfc  (WRK)";
@@ -1099,30 +1401,39 @@ sub getCardName {
 	elsif ( $model ne "" ) {
 		$name = $model;
 	}
-	
-	return $name;		
+
+	return $name;
 }
 
 sub usage {
 	print <<EO_TEXT;
-$0 will export nodes and ports from NMIS.
-ERROR: need some files to work with
-usage: $0 dir=<directory>
-eg: $0 dir=/data debug=true separator=(comma|tab)
+Usage: $PROGNAME -d[=[0-9]] -h -i -u -v dir=<directory> [option=value...]
 
+$PROGNAME will export nodes and ports from NMIS.
+
+Arguments:
+ conf=<Configuration file> (default: '$defaultConf');
+ dir=<Drectory where files should be saved>
+ separator=<Comma separated  value (CSV) separator character (default: tab)
+ xls=<Excel filename> (default: '$xlsFile')
+
+Enter $PROGNAME -h for compleate details.
+
+eg: $PROGNAME dir=/data separator=(comma|tab)
+\n
 EO_TEXT
 }
 
 sub loadVendorOids {
 	my $oids = "$C->{mib_root}/CISCO-ENTITY-VENDORTYPE-OID-MIB.oid";
 	my $vendorOids;
-	
+
 	print "Loading Vendor OIDs from $oids\n";
-	
-	open(OIDS,$oids) or warn "ERROR could not load $oids: $!\n";
-	
+
+	open(OIDS,$oids) or warn "ERROR: could not load $oids: $!\n";
+
 	my $match = qr/\"(\w+)\"\s+\"([\d+\.]+)\"/;
-	
+
 	while (<OIDS>) {
 		if ( $_ =~ /$match/ ) {
 			$vendorOids->{$2} = $1;
@@ -1135,19 +1446,19 @@ sub loadVendorOids {
 		}
 	}
 	close(OIDS);
-	
+
 	return ($vendorOids);
 }
 
-#Cisco IOS XR Software (Cisco CRS-8/S) Version 5.1.3[Default] Copyright (c) 2014 by Cisco Systems Inc.	
+#Cisco IOS XR Software (Cisco CRS-8/S) Version 5.1.3[Default] Copyright (c) 2014 by Cisco Systems Inc.
 sub getVersion {
 	my $sysDescr = shift;
 	my $version;
-	
+
 	if ( $sysDescr =~ /Version ([\d\.\[\]\w]+)/ ) {
 		$version = $1;
 	}
-	
+
 	return $version;
 }
 
@@ -1163,7 +1474,7 @@ sub start_xlsx
 		die "Cannot create XLSX file ".$args{file}.": $!\n" if (!$xls);
 	}
 	else {
-		die "ERROR need a file to work on.\n";	
+		die "ERROR: need a file to work on.\n";
 	}
 	return ($xls);
 }
@@ -1171,7 +1482,7 @@ sub start_xlsx
 sub add_worksheet
 {
 	my (%args) = @_;
-	
+
 	my $xls = $args{xls};
 
 	my $sheet;
@@ -1208,49 +1519,164 @@ sub end_xlsx
 		return $xls->close;
 	}
 	else {
-		die "ERROR need an xls to work on.\n";	
+		die "ERROR: Internal error, xls is no longer defined.\n";
 	}
 	return 1;
 }
 
 sub nodeCheck {
-	
+
 	my $LNT = Compat::NMIS::loadLocalNodeTable();
 	print "Running nodeCheck for nodes, model use, snmp max_msg_size and update\n";
 	my %updateList;
 
 	foreach my $node (sort keys %{$LNT}) {
-		#print "Processing $node\n";
-		if ( $LNT->{$node}{active} eq "true" ) {			
+		print "DEBUG: Checking update status for  $node\n" if ($debug > 2);
+		if ( $LNT->{$node}{active} eq "true" ) {
 			my $S = NMISNG::Sys->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
-			
-			if ( $NI->{system}{lastUpdatePoll} < time() - 86400 ) {
-				$updateList{$node} = $NI->{system}{lastUpdatePoll};
+			my $nodeobj       = $nmisng->node(name => $node);
+			my $inv           = $S->inventory( concept => 'catchall' );
+			my $catchall_data = $inv->data;
+
+			if ( $catchall_data->{lastUpdatePoll} < time() - 86400 ) {
+				$updateList{$node} = $catchall_data->{lastUpdatePoll};
 			}
-			
-			
 			if ( $LNT->{$node}{model} ne "automatic" ) {
-				print "WARNING: $node model not automatic; $LNT->{$node}{model} $NI->{system}{sysDescr}\n";
+				print "WARNING: $node model not automatic; $LNT->{$node}{model} $catchall_data->{sysDescr}\n";
 			}
 
-			#print "updateMaxSnmpMsgSize $node $NI->{system}{sysObjectName}\n";
+			#print "updateMaxSnmpMsgSize $node $catchall_data->{sysObjectName}\n";
 
-			
-			if ( $NI->{system}{sysObjectName} =~ /$fixMaxMsgSize/ and $LNT->{$node}{max_msg_size} != 2800) {
+
+			if ( $catchall_data->{sysObjectName} =~ /$fixMaxMsgSize/ and $LNT->{$node}{max_msg_size} != 2800) {
 				print "$node Updating Max SNMP Message Size\n";
 				$LNT->{$node}{max_msg_size} = 2800;
 			}
 		}
 	}
-	
+
 	print "Nodes requiring update:\n";
 	foreach my $node (sort keys %updateList) {
-		print "$node ". returnDateStamp($updateList{$node}) ."\n";
+		print "$node ". NMISNG::Util::returnDateStamp($updateList{$node}) ."\n";
 	}
 
-	writeTable(dir => 'conf', name => "Nodes", data => $LNT);
+	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $LNT);
 }
 
 
+###########################################################################
+#  Help Function
+###########################################################################
+sub help
+{
+   my(${currRow}) = @_;
+   my @{lines};
+   my ${workLine};
+   my ${line};
+   my ${key};
+   my ${cols};
+   my ${rows};
+   my ${pixW};
+   my ${pixH};
+   my ${i};
+   my $IN;
+   my $OUT;
+
+   if ((-t STDERR) && (-t STDOUT)) {
+      if (${currRow} == "")
+      {
+         ${currRow} = 0;
+      }
+      if ($^O =~ /Win32/i)
+      {
+         sysopen($IN,'CONIN$',O_RDWR);
+         sysopen($OUT,'CONOUT$',O_RDWR);
+      } else
+      {
+         open($IN,"</dev/tty");
+         open($OUT,">/dev/tty");
+      }
+      ($cols, $rows, $pixW, $pixH) = Term::ReadKey::GetTerminalSize $OUT;
+   }
+   STDOUT->autoflush(1);
+   STDERR->autoflush(1);
+
+   push(@lines, "\n\033[1mNAME\033[0m\n");
+   push(@lines, "       $PROGNAME -  Exports nodes and ports from NMIS into an Excel spredsheet.\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mSYNOPSIS\033[0m\n");
+   push(@lines, "       $PROGNAME [options...] dir=<directory> [option=value] ...\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mDESCRIPTION\033[0m\n");
+   push(@lines, "       The $PROGNAME program Exports NMIS nodes into an Excel spreadsheet in\n");
+   push(@lines, "       the specified directory with the required 'dir' parameter. The command\n" );
+   push(@lines, "       also creates Comma Separated Value (CSV) files in the same directory.\n");
+   push(@lines, "       If the '--interfaces' option is specified, Interfaces will be\n");
+   push(@lines, "       exported as well.  They are not included by default because there may\n");
+   push(@lines, "       thousands of them on some devices.\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mOPTIONS\033[0m\n");
+   push(@lines, " --debug=[1-9]            - global option to print detailed messages\n");
+   push(@lines, " --help                   - display command line usage\n");
+   push(@lines, " --interfaces             - include interfaces in the export\n");
+   push(@lines, " --usage                  - display a brief overview of command syntax\n");
+   push(@lines, " --version                - print a version message and exit\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mARGUMENTS\033[0m\n");
+   push(@lines, "     dir=<directory>         - The directory where the files should be stored.\n");
+   push(@lines, "                                Both the Excel spreadsheet and the CSV files\n");
+   push(@lines, "                                will be stored in this directory. The\n");
+   push(@lines, "                                directory should exist and be writable.\n");
+   push(@lines, "     [conf=<filename>]       - The location of an alternate configuration file.\n");
+   push(@lines, "                                (default: '$defaultConf')\n");
+   push(@lines, "     [debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9>]\n");
+   push(@lines, "                             - Set the debug level.\n");
+   push(@lines, "     [separator=<character>] - A character to be used as the separator in the\n");
+   push(@lines, "                                 CSV files. The words 'comma' and 'tab' are\n");
+   push(@lines, "                                 understood. Other characters will be taken\n");
+   push(@lines, "                                 literally. (default: 'tab')\n");
+   push(@lines, "     [xls=<filename>]        - The name of the XLS file to be created in the\n");
+   push(@lines, "                                 directory specified using the 'dir' parameter'.\n");
+   push(@lines, "                                 (default: '$xlsFile')\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mEXIT STATUS\033[0m\n");
+   push(@lines, "     The following exit values are returned:\n");
+   push(@lines, "     0 Success\n");
+   push(@lines, "     215 Failure\n\n");
+   push(@lines, "\033[1mEXAMPLE\033[0m\n");
+   push(@lines, "   $PROGNAME dir=/tmp separator=comma\n");
+   push(@lines, "\n");
+   push(@lines, "\n");
+   print(STDERR "                       $PROGNAME - ${VERSION}\n");
+   print(STDERR "\n");
+   ${currRow} += 2;
+   foreach (@lines)
+   {
+      if ((-t STDERR) && (-t STDOUT)) {
+         ${i} = tr/\n//;  # Count the newlines in this string
+         ${currRow} += ${i};
+         if (${currRow} >= ${rows})
+         {
+            print(STDERR "Press any key to continue.");
+            ReadMode 4, $IN;
+            ${key} = ReadKey 0, $IN;
+            ReadMode 0, $IN;
+            print(STDERR "\r                          \r");
+            if (${key} =~ /q/i)
+            {
+               print(STDERR "Exiting per user request. \n");
+               return;
+            }
+            if ((${key} =~ /\r/) || (${key} =~ /\n/))
+            {
+               ${currRow}--;
+            } else
+            {
+               ${currRow} = 1;
+            }
+         }
+      }
+      print(STDERR "$_");
+   }
+}
