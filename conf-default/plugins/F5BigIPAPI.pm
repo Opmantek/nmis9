@@ -49,6 +49,7 @@ use Data::Dumper;
 use JSON::XS;
 use Mojo::Base;
 use Mojo::UserAgent;
+#use URI::Escape;
 
 use NMISNG;
 use NMISNG::rrdfunc;
@@ -589,15 +590,18 @@ sub getF5Data {
 			my $res;
 			my $headers = {"Content-type" => 'application/json', Accept => 'application/json'};
 			my $client  = Mojo::UserAgent->new();
+			#my $encPass = uri_escape("$apiPass");
 			my $url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/shared/authn/login')->userinfo("'".$apiUser.":".$apiPass."'");
 			$client->insecure(1);
 			$res = $client->post($url => $headers => "{'username': '$apiUser', 'password':'$apiPass', 'loginProviderName':'tmos'}")->result;
 			return ("failed to get a result from login attempt.") if (!$res);
 			my $body     = decode_json($res->body);
 			return ("failed to get a result from login attempt.") if (!$body);
-			$NG->log->debug( "\nBody: $body");
+			$NG->log->debug3( "\nBody: " . Dumper($body) . "\n");
 			my $token    = $body->{token};
-			return ("failed to get a token from login attempt, likely login failure.") if (!$token);
+			if (!$token) {
+				return ("failed to get a token from login attempt; Error: $body->{message}");
+			}
 			$NG->log->debug( "\nToken: $token");
 			my $tokenKey = $token->{token};
 			return ("failed to extract the token key from login attempt.") if (!$tokenKey);
@@ -606,10 +610,10 @@ sub getF5Data {
 			$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/');
 			$res     = $client->get($url => $headers)->result;
 			$body    = decode_json($res->body);
-	 		$NG->log->debug("Main Query: ". Dumper($body). "\n\n\n");
+	 		$NG->log->debug3("Main Query: ". Dumper($body). "\n\n\n");
 			my $items = $body->{items};
 			foreach my $item (@$items) {
-				#$NG->log->debug( Dumper($item) . "\n");
+				$NG->log->debug8( Dumper($item) . "\n");
 				my $resourceId      = $item->{fullPath};
 				my @destination     = split('[/:]', $item->{destination});
 				my $name            = $item->{fullPath};
@@ -646,7 +650,7 @@ sub getF5Data {
 				$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/'.$resourceId.'/stats');
 				$res     = $client->get($url => $headers)->result;
 				$body    = decode_json($res->body);
-				$NG->log->debug("Resource Query: ". Dumper($body). "\n\n\n");
+				$NG->log->debug3("Resource Query: ". Dumper($body). "\n\n\n");
 				my $entries = $body->{entries};
 				foreach my $entry (keys %$entries) {
 					my $urlEntry                                   = $$entries{$entry};
@@ -686,10 +690,10 @@ sub getF5Data {
 				$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/pool/'.$poolId.'/members');
 				$res     = $client->get($url => $headers)->result;
 				$body    = decode_json($res->body);
-				$NG->log->debug("Member Query: ". Dumper($body). "\n\n\n");
+				$NG->log->debug3("Member Query: ". Dumper($body). "\n\n\n");
 				my $members = $body->{items};
 				foreach my $member (@$members) {
-					#$NG->log->debug( Dumper($member) . "\n");
+					$NG->log->debug8("Member: " .  Dumper($member) . "\n");
 					my $memberId        = $member->{fullPath};
 					$memberId           =~ s!/!~!g;
 					my $memberName      = $member->{fullPath};
@@ -714,7 +718,7 @@ sub getF5Data {
 					$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/pool/'.$poolId.'/members/'.$memberId.'/stats/');
 					$res     = $client->get($url => $headers)->result;
 					$body    = decode_json($res->body);
-					$NG->log->debug("Member Stats Query: ". Dumper($body). "\n\n\n");
+					$NG->log->debug3("Member Stats Query: ". Dumper($body). "\n\n\n");
 					my $entries = $body->{entries};
 					foreach my $entry (keys %$entries) {
 						my $urlEntry                                = $$entries{$entry};
