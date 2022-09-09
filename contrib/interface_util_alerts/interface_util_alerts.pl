@@ -82,7 +82,7 @@ my $eventName = "Proactive Interface Utilisation";
 my $includeGroup = 1;
 
 # the seperator for the details field.
-my $detailSep = " -- ";
+my $detailSep = "-- ";
 
 my $extraLogging = 0;
 
