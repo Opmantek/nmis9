@@ -284,10 +284,13 @@ if ($xlsFile) {
 
 exportNodes($xls,"$dir/oss-nodes.csv");
 exportInventory(xls => $xls, file => "$dir/oss-interfaces-data.csv", title => "Interfaces", section => "interface", model_section => "standard", model_section_top => "interface");
-exportInventory(xls => $xls, file => "$dir/oss-virtual-server-table-data.csv", title => "Virtual Server Table", section => "VirtualServTable");
 exportInventory(xls => $xls, file => "$dir/oss-f5-pools-data.csv", title => "F5 Pools", section => "F5_Pools");
-exportInventory(xls => $xls, file => "$dir/oss-f5-temperature-data.csv", title => "F5_Temperature", section => "F5_Temperature");
-exportInventory(xls => $xls, file => "$dir/oss-f5_cpu-data.csv", title => "F5_CPU", section => "F5_CPU");
+exportInventory(xls => $xls, file => "$dir/oss-virtual-server-table-data.csv", title => "Virtual Server Table", section => "VirtualServTable");
+exportInventory(xls => $xls, file => "$dir/oss-f5-temperature-data.csv", title => "F5 Temperature", section => "F5_Temperature");
+exportInventory(xls => $xls, file => "$dir/oss-f5_cpu-data.csv", title => "F5 CPU", section => "F5_CPU");
+exportInventory(xls => $xls, file => "$dir/oss-f5_core-data.csv", title => "F5 Cores", section => "F5_Cores");
+exportInventory(xls => $xls, file => "$dir/oss-f5_memory-data.csv", title => "F5 Memory", section => "F5_Memory");
+exportInventory(xls => $xls, file => "$dir/oss-f5_swap_memory-data.csv", title => "F5 Swap Memory", section => "F5_Swap_Memory");
 exportInventory(xls => $xls, file => "$dir/oss-f5-storage-data.csv", title => "F5_Storage", section => "F5_Storage");
 
 end_xlsx(xls => $xls);
