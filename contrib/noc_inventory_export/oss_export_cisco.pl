@@ -46,6 +46,7 @@ use Compat::Timing;
 use Data::Dumper;
 use Excel::Writer::XLSX;
 use Term::ReadKey;
+use Cwd 'abs_path';
 
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Fcntl qw(:DEFAULT :flock :mode);
