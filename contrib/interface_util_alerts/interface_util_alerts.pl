@@ -88,7 +88,7 @@ my $eventName = "Proactive Interface Utilisation";
 my $includeGroup = 1;
 
 # the seperator for the details field.
-my $detailSep = " -- ";
+my $detailSep = "-- ";
 
 my $extraLogging = 0;
 
@@ -283,6 +283,9 @@ sub processInterface {
 		}
 
 		push(@detailBits,"Value=$util Threshold=$thrvalue");
+
+		# adding missing change to include IP address of the node in the event
+		push(@detailBits,"$LNT->{$node}{host}");
 
 		my $details = join($detailSep,@detailBits);
 
