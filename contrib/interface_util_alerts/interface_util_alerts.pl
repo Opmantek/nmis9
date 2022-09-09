@@ -29,6 +29,12 @@
 # *****************************************************************************
 
 ################
+# Solution guide here:
+# https://community.opmantek.com/display/NMIS/Interface+Utilisation+Alerting+to+IBM+Tivoli+NetCool+using+syslog
+#
+################
+
+################
 # INSTALLATION #
 ################
 # A good option to install is to create a util folder e.g. /usr/local/nmis9/util and then create a symbolic link so the file will run with the correct paths.
