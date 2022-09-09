@@ -34,8 +34,7 @@ use strict;
 our $VERSION = "2.0.0";
 
 use FindBin;
-use Cwd 'abs_path';
-use lib abs_path("$FindBin::Bin/../../lib");
+use lib "$FindBin::Bin/../lib";
 
 use POSIX qw();
 use File::Basename;
@@ -59,7 +58,7 @@ my $helpsw      = 0;
 my $interfacesw = 0;
 my $usagesw     = 0;
 my $versionsw   = 0;
-my $defaultConf = abs_path("$FindBin::Bin/../../conf");
+my $defaultConf = "$FindBin::Bin/../conf";
 my $xlsFile     = "oss_export.xlsx";
 
  die unless (GetOptions('debug:i'    => \$debugsw,
