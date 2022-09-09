@@ -110,103 +110,97 @@
   'systemHealth' => {
     'sections' => 'F5_CPU,F5_Pools,F5_Storage,F5_Temperature,VirtualServTable',
     'sys' => {
-      # this will use the API for this information not SNMP
       'VirtualServTable' => {
         'headers' => 'ltmVirtualServName,ltmVirtualServAddr,virtualServIpProto,ltmVirtualServPort,virtServConnLimit,vsStatusAvlTxt',
-        #'indexed' => 'ltmVirtualServName',
-        #'index_oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
-        #'index_regex' => '3375\.2\.2\.10\.1\.2\.1\.1\.([\d\.]+)$',
-        #control 'VirtualServEnabled -> true' ##TODO - only display Enabled virtual servers
         'snmp' => {
           'ltmVirtualServName' => {
             'title' => 'Server Name',
-              #'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
-              #'sysObjectName' => 'ltmVirtualServName',
-              #'calculate' => '$r =~ s/[\\\/:"*?<>|]/--/g;return $r;'
           },
           'ltmVirtualServAddr' => {
             'title' => 'IP Address',
-              #'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.3',
-              #'sysObjectName' => 'ltmVirtualServAddr',
-              #'calculate' => '$r =~ s/^0x/ /; $r = join ".", map { hex } $r =~ /[a-f\d]{2}/g; $r =~ s/(?:\.0){3,}/::/g;return $r;',
           },
           'ltmVirtualServPort' => {
             'title' => 'Port',
-              #'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.6',
-              #'sysObjectName' => 'ltmVirtualServPort',
           },            
           'virtualServIpProto' => {
             'title' => 'IP Proto',
-              #'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.7',
-              #'sysObjectName' => 'virtualServIpProto',
-              #'replace' => {
-              #      '6' => 'TCP',
-              #      '1' => 'ICMP',
-              #      '4' => 'IP',
-              #      '0' => 'IPv6',
-              #      '17' => 'UDP',
-              #        },
           },
           'virtServConnLimit' => {
             'title' => 'ConnLimit',
-              #  'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.10',
-              #  'sysObjectName' => 'virtServConnLimit',
           },
           'vsStatusAvailState' => {
             'title' => 'VS Status'
-              #  'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
-              #	'sysObjectName' => 'ltmVsStateAvailState',
           },
           'vsStatusAvlTxt' => {
             'title' => 'Virtual Server State'
-            #	'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
-            		# SYNTAX INTEGER {none(0),green(1), yellow(2),red(3), blue(4), gray(5) }
-			         # none - error;
-  	           # green - available in some capacity;
-			         # yellow - not currently available;
-			         # red - not available;
-			         # blue - availability is unknown;
-			         # gray - unlicensed
-            #  	'replace' => {
-            #      '0' => 'none - error',
-            #      '1' => 'green - available',
-            #      '2' => 'yellow - not currently available',
-            #      '3' => 'red - not available',
-            #      '4' => 'blue - unknown availability',
-            #      '5' => 'gray - unlicensed'
-            #      },
           }
         },
       },
       'F5_Pools' => {
-		'headers' => 'poolName,poolMemberName,poolMemberAddress,poolMemberPort,poolMemberAvail,curConns,bitsIn,bitsOut,pktsIn,pktsOut',
-#		'indexed' => 'ltmPoolMbrStatusPoolName',
-#		'index_oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.1',
-#		'index_regex' => '3375\.2\.2\.5\.6\.2\.1\.1\.([\d\.]+)$',
+		'headers' => 'poolMbrPoolName,poolMbrNodeName,poolMbrAddr,poolMbrPort,poolMbrAvailState,curConns,bitsIn,bitsOut,pktsIn,pktsOut',
 		'snmp' => {
-			'poolName' => {
-#			  'oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.1',
-#			  'sysObjectName' => 'ltmPoolMbrStatusPoolName',
-			  'title' => 'Pool Name',
+			'poolMbrPoolName' => {
+				'title' => 'Pool Name',
 			},
-			'poolMemberName' => {
-#			  'oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.1',
-#			  'sysObjectName' => 'ltmPoolMbrStatusPoolName',
-			  'title' => 'Member Name',
+			'poolMbrNodeName' => {
+				'title' => 'Member Name',
 			},
-			'poolMemberAddress' => {
-#				  'oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.3',
-#				  'sysObjectName' => 'ltmPoolMbrStatusAddr',
-				  'title' => 'Pool Member Address',
-                  'calculate' => '$r =~ s/^0x/ /; $r = join ".", map { hex } $r =~ /[a-f\d]{2}/g; $r =~ s/(?:\.0){3,}/::/g;return $r;',
+			'poolMbrAddr' => {
+				'title' => 'Pool Member Address',
+				'calculate' => '$r =~ s/^0x/ /; $r = join ".", map { hex } $r =~ /[a-f\d]{2}/g; $r =~ s/(?:\.0){3,}/::/g;return $r;',
 			},
-			'poolMemberPort' => {
-#		       	  'oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.4',
-#				  'sysObjectName' => 'ltmPoolMbrStatusPort',
-				  'title' => 'Port number',
+			'poolMbrPort' => {
+				'title' => 'Port number',
 			},
-			'poolMemberAvail' => {
-#				  'oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.5',
+			'poolMbrAvailState' => {
+				'replace' => {
+					'0' => 'none - error',
+					'1' => 'green - available',
+					'2' => 'yellow - not currently available',
+					'3' => 'red - not available',
+					'4' => 'blue - unknown availability',
+					'5' => 'gray - unlicensed',
+				},
+				'title' => 'Pool Member State',
+			},
+			'curConns' => {
+				  'title' => 'Current Connections',
+			},
+			'bitsIn' => {
+				  'title' => 'Bits In',
+			},
+			'bitsOut' => {
+				  'title' => 'Bits Out',
+			},
+			'pktsIn' => {
+				  'title' => 'Packets In',
+			},
+			'pktsOut' => {
+				  'title' => 'Packets Out',
+			},
+		},
+      },
+    },
+    'rrd' => {
+      'VirtualServTable' => {
+        'graphtype' => 'F5-LTM-Connections,F5-LTM-State',
+        'indexed' => 'true',
+        'snmp' => {
+          'statClientCurCon' => {
+            'option' => 'counter,0:U',
+          },
+          'vsStatAvailState' => {
+            'title' => 'Virtual Server State'
+          },
+          'vsStatusAvlTxt' => {
+            'option' => 'nosave'
+          }
+        }
+      },
+      'F5_Pools' => {
+		'graphtype' => 'F5-Pools',
+		'snmp' => {
+			'poolMbrAvailState' => {
 				  'replace' => {
 					'0' => 'none - error',
 					'1' => 'green - available',
@@ -235,81 +229,5 @@
 		},
       },
     },
-    'rrd' => {
-      'VirtualServTable' => {
-        'graphtype' => 'F5-LTM-Connections,F5-LTM-State',
-        'indexed' => 'true',
-        'snmp' => {
-          'statClientCurCon' => {
-           # 'oid' => '1.3.6.1.4.1.3375.2.2.10.2.3.1.12',
-            'option' => 'counter,0:U',
-           # 'sysObjectName' => 'ltmVirtualServStatClientCurConns'
-          },
-          'vsStatAvailState' => {
-           # 'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
-           # 'replace' => {
-           #   '0' => '10',
-           #   '1' => '100',
-           #   '2' => '10',
-           #   '3' => '0',
-           #   '4' => '50',
-           #   '5' => '50'
-           # },
-            'title' => 'Virtual Server State'
-          },
-          'vsStatusAvlTxt' => {
-           # 'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
-            	# SYNTAX INTEGER {none(0),green(1), yellow(2),red(3), blue(4), gray(5) }
-		# none - error;
-    		# green - available in some capacity;
-		# yellow - not currently available;
-		# red - not available;
-		# blue - availability is unknown;
-		# gray - unlicensed;
-           # 'replace' => {
-           #   '0' => 'none - error',
-           #   '1' => 'green - available',
-           #   '2' => 'yellow - not currently available',
-           #   '3' => 'red - not available',
-           #   '4' => 'blue - unknown availability',
-           #   '5' => 'gray - unlicensed'
-           # },
-            'option' => 'nosave'
-          }
-        }
-      },
-      'F5_Pools' => {
-		'graphtype' => 'F5-Pools',
-		'snmp' => {
-			'poolMemberAvail' => {
-#				  'oid' => '1.3.6.1.4.1.3375.2.2.5.6.2.1.5',
-				  'replace' => {
-					'0' => 'none - error',
-					'1' => 'green - available',
-					'2' => 'yellow - not currently available',
-					'3' => 'red - not available',
-					'4' => 'blue - unknown availability',
-					'5' => 'gray - unlicensed',
-			  },
-			  'title' => 'Pool Member State',
-			},
-			'curConns' => {
-				  'title' => 'Current Connections',
-			},
-			'bitsIn' => {
-				  'title' => 'Bits In',
-			},
-			'bitsOut' => {
-				  'title' => 'Bits Out',
-			},
-			'pktsIn' => {
-				  'title' => 'Packets In',
-			},
-			'pktsOut' => {
-				  'title' => 'Packets Out',
-			},
-		},
-      },
-    }
   },
 );

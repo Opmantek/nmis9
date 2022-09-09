@@ -84,8 +84,10 @@ if ($usagesw) {
    exit(0);
 }
 
+# Set debugging level.
 my $debug   = $debugsw;
 $debug      = NMISNG::Util::getdebug_cli($arg->{debug}) if (exists($arg->{debug}));   # Backwards compatibility
+print "Debug = '$debug'\n" if ($debug);
 
 my $t = Compat::Timing->new();
 
@@ -187,9 +189,6 @@ if (-f $xlsFile) {
 	}
 }
 
-# Set debugging level.
-my $debug = NMISNG::Util::getdebug_cli($arg->{debug});
-print "Debug = '$debug'\n" if ($debug);
 if ( not defined $arg->{conf}) {
 	$arg->{conf} = $defaultConf;
 }

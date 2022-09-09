@@ -84,8 +84,10 @@ if ($usagesw) {
    exit(0);
 }
 
+# Set debugging level.
 my $debug   = $debugsw;
 $debug      = NMISNG::Util::getdebug_cli($arg->{debug}) if (exists($arg->{debug}));   # Backwards compatibility
+print "Debug = '$debug'\n" if ($debug);
 
 my $t = Compat::Timing->new();
 
@@ -413,8 +415,8 @@ sub exportNodes {
 			}
 
 			# check for data prerequisites
-			if ( $catchall_data->{nodeVendor} =~ /Cisco/ and not defined $MDL->{systemHealth}{sys}{entityMib} and $nodestatus eq "reachable" ) {
-				$comment = "ERROR: $node is Cisco and entityMib data missing";
+			if ( $catchall_data->{nodeVendor} =~ /$goodVendors/ and not defined $MDL->{systemHealth}{sys}{entityMib} and $nodestatus eq "reachable" ) {
+				$comment = "ERROR: $node vendor is $catchall_data->{nodeVendor} and entityMib data missing";
 				print "$comment\n";
 				push(@comments,$comment);
 			}
@@ -629,6 +631,12 @@ sub exportInventory {
 			my $inv           = $S->inventory( concept => 'catchall' );
 			my $catchall_data = $inv->data;
 			my $MDL           = $S->mdl;
+
+			# move on if this isn't a good one.
+			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+				print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+				next;
+			}
 
 			# handling for this is device/model specific.
 			my %concept = undef;;

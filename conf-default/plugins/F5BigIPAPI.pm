@@ -134,13 +134,13 @@ sub collect_plugin
 			my $f5PoolData    = ();
 			my $processPool   = 0;
 			my $f5SubData     = $f5Data->{$name};
-			$NG->log->debug3("HashMap for Virtual Server '$name':" . Dumper($f5SubData) . "\n\n\n");
+			$NG->log->debug3("HashMap for Virtual Server '$name': " . Dumper($f5SubData) . "\n\n\n");
 			# Pull this Virtual Server's Pool data into a variable.
 			if (defined($f5SubData->{Pool}) && ref($f5SubData->{Pool}) eq "HASH")
 			{
 				$f5PoolData = $f5SubData->{Pool}; # Pull this out to a separate HashMap.
 				$f5SubData->{Pool} = undef;       # ...and don't store it in with the VirtualServer Concept
-				$NG->log->debug3("HashMap for Virtual Server Pool '$name':" . Dumper($f5PoolData));
+				$NG->log->debug3("HashMap for Virtual Server Pool '$name': " . Dumper($f5PoolData));
 				$processPool = 1;
 			}
 
@@ -210,14 +210,13 @@ sub collect_plugin
 							$NG->log->error("Failed to get inventory for Concept '$poolConcept'; Pool '$pool_id'; Error: $error");
 							next;
 						}
-
 						# get a handy pointer to the pool data
 						$data = $pool_inventory->data();
-					    $NG->log->debug3("Inventory Data " . Dumper($data) . "\n\n\n");
+					    $NG->log->debug3("Inventory Data: " . Dumper($data) . "\n\n\n");
 
 						# get the name of the thing to use.
-						my $poolName   = $data->{poolName};
-						my $memberName = $data->{poolMemberName};
+						my $poolName   = $data->{poolMbrPoolName};
+						my $memberName = $data->{poolMbrNodeName};
 						$NG->log->debug("Pool ID: '$pool_id',  Name: '$memberName'.");
 
 						# Verify that this Virtual Server has Pool data.
@@ -228,7 +227,7 @@ sub collect_plugin
 						}
 						# Pull this Virtual Server's Pool data into a variable.
 						$f5SubData       = $f5PoolData->{"${poolName}_Pool"}->{Member}->{$memberName};
-						$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName':" . Dumper($f5SubData));
+						$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName': " . Dumper($f5SubData));
 						$NG->log->debug("Processing Concept '$poolConcept'; Pool '$poolName'; Name '$memberName'.");
 						#Save to integers to RRD
 						my $rrddata = {
@@ -245,7 +244,7 @@ sub collect_plugin
 						# check for RRD update errors
 						if (!$updatedrrdfileref) { $NG->log->info("Update RRD failed for Pool '$memberName'!") };
 
-						$data->{poolMemberAvail}            = $f5SubData->{poolMemberAvail};
+						$data->{poolMbrAvailState}          = $f5SubData->{poolMbrAvailState};
 						$data->{statusReason}               = $f5SubData->{statusReason};
 						$data->{state}                      = $f5SubData->{state};
 						$data->{Enabled}                    = $f5SubData->{Enabled};
@@ -355,14 +354,14 @@ sub update_plugin
 		my $processPool   = 0;
 		# Pull this Virtual Server data into a variable.
 		my $f5SubData     = $f5Data->{$name};
-		$NG->log->debug3("HashMap for Virtual Server '$name':" . Dumper($f5SubData) . "\n\n\n");
+		$NG->log->debug3("HashMap for Virtual Server '$name': " . Dumper($f5SubData) . "\n\n\n");
 
 		# Pull this Virtual Server's Pool data into a variable.
 		if (defined($f5SubData->{Pool}) && ref($f5SubData->{Pool}) eq "HASH")
 		{
 			$f5PoolData = $f5SubData->{Pool}; # Pull this out to a separate HashMap.
 			$f5SubData->{Pool} = undef;       # ...and don't store it in with the VirtualServer Concept
-			$NG->log->debug3("HashMap for Virtual Server Pool '$name':" . Dumper($f5PoolData));
+			$NG->log->debug3("HashMap for Virtual Server Pool '$name': " . Dumper($f5PoolData));
 			$processPool = 1;
 		}
 		my $path_keys = ['index'];
@@ -434,7 +433,7 @@ sub update_plugin
 				my $f5MemberData = ();
 				# Pull this Virtual Server's Pool data into a variable.
 				$f5SubData       = $f5PoolData->{$poolName};
-				$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName':" . Dumper($f5SubData));
+				$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName': " . Dumper($f5SubData));
 				if (defined($f5SubData->{Member}) && ref($f5SubData->{Member}) eq "HASH")
 				{
 					$f5MemberData = $f5SubData->{Member};
@@ -451,7 +450,7 @@ sub update_plugin
 					}
 					# Pull this Virtual Server Pool Member data into a variable.
 					my $f5MemberSubData     = $f5MemberData->{$memberName};
-					$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName':" . Dumper($f5MemberSubData));
+					$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName': " . Dumper($f5MemberSubData));
 					$path_keys = ['index'];
 					$path      = $nodeobj->inventory_path( concept => $poolConcept, path_keys => $path_keys, data => $f5MemberSubData );
 					$NG->log->debug3( "$poolConcept path ".join(',', @$path));
@@ -566,11 +565,11 @@ sub getF5Data {
 			$f5Info->{Server}->{clientsidePktsOut}          = "Clientside Pkts Out";
 			$f5Info->{Server}->{clientsideTotConns}         = "Clientside Total Connections";
 			$f5Info->{Pool}->{index}                        = "Index";
-			$f5Info->{Pool}->{poolName}                     = "Pool Name";
-			$f5Info->{Pool}->{poolMemberName}               = "Pool Member Name";
-			$f5Info->{Pool}->{poolMemberAddress}            = "IP Address";
-			$f5Info->{Pool}->{poolMemberPort}               = "Port";
-			$f5Info->{Pool}->{poolMemberAvail}              = "Member Status";
+			$f5Info->{Pool}->{poolMbrPoolName}              = "Pool Name";
+			$f5Info->{Pool}->{poolMbrNodeName}              = "Pool Member Name";
+			$f5Info->{Pool}->{poolMbrAddr}                  = "IP Address";
+			$f5Info->{Pool}->{poolMbrPort}                  = "Port";
+			$f5Info->{Pool}->{poolMbrAvailState}            = "Member Status";
 			$f5Info->{Pool}->{Enabled}                      = "Member Enabled Flag";
 			$f5Info->{Pool}->{statusReason}                 = "Status Reason Text";
 			$f5Info->{Pool}->{bitsIn}                       = "Bits Inbound";
@@ -642,7 +641,7 @@ sub getF5Data {
 				$f5Data->{$name}->{ltmVirtualServAddr}             = $address;
 				$f5Data->{$name}->{ltmVirtualServPort}             = $port;
 				$f5Data->{$name}->{virtualServIpProto}             = $ipProtocol;
-				$f5Data->{$name}->{poolName}                       = $pool;
+				$f5Data->{$name}->{poolMbrPoolName}                = $pool;
 				$f5Data->{$name}->{ResourceID}                     = $resourceId;
 				$f5Data->{$name}->{Pool}->{$pool}->{name}          = $pool;
 				$f5Data->{$name}->{Pool}->{$pool}->{poolID}        = $poolId;
@@ -710,8 +709,8 @@ sub getF5Data {
 					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{ifIndex}                  = "${name}${memberName}";
 					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{name}                     = $memberName;
 					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{ifDesc}                   = $memberName;
-					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolName}                 = $name;
-					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMemberName}           = $memberName;
+					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMbrPoolName}          = $name;
+					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMbrNodeName}          = $memberName;
 					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{connLimit}                = $connectionLimit;
 					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{memberID}                 = $memberId;
 					$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{state}                    = $state;
@@ -748,9 +747,9 @@ sub getF5Data {
 						$NG->log->debug("Member Pkts In             = $serversidePktsIn");
 						$NG->log->debug("Member Pkts Out            = $serversidePktsOut");
 						$NG->log->debug("Member Total Connections   = $serversideTotConns");
-						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMemberAddress}           = $address;
-						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMemberPort}              = $port;
-						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMemberAvail}             = $statusAvailState;
+						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMbrAddr}                 = $address;
+						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMbrPort}                 = $port;
+						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{poolMbrAvailState}           = $statusAvailState;
 						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{Enabled}                     = $statusEnabledState;
 						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{statusReason}                = $statusStatusReason;
 						$f5Data->{$name}->{Pool}->{$pool}->{Member}->{$memberName}->{bitsIn}                      = $serversideBitsIn;
