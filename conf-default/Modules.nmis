@@ -27,7 +27,7 @@
 	    'file' => '/bin/opconfigd.pl',
 	    'link' => '/omk/opConfig',
 	    'description' => 'opConfig is an easy-to-use, web based network configuration management tool. opConfig allows organisations to simply manage configuration files in multi-vendor environments assisting in disaster recovery, troubleshooting and change management.',
-	    'tagline' => 'Configuration backup, archving and change detection.',
+	    'tagline' => 'Configuration backup, archiving and change detection.',
 	  },
 
 	  'opHA' => {
