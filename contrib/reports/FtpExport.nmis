@@ -1,0 +1,7 @@
+%hash = (
+  "ftp_server" => "your.ftp.server.domain.com",
+  "ftp_user" => "ftp_user",
+  "ftp_password" => "dapasswordsecretthing",
+  "ftp_directory" => "/tmp",
+  "ftp_log_directory" => "/tmp"
+);
