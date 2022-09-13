@@ -179,6 +179,7 @@ sub processNode {
 		my $active = $nmisConfiguration->{active};
 		my $collect = $nmisConfiguration->{collect};
 		my $group = $nmisConfiguration->{group};
+		my $host = $nmisConfiguration->{host};
 		my $cluster_id = $nodeobj->cluster_id;
 
 		# Only locals and active nodes
@@ -209,7 +210,7 @@ sub processNode {
 					next;
 				}
 				my $thisIntf = $interface->data();
-				processInterface($nodeobj,$S,$thisIntf,$group);
+				processInterface($nodeobj,$S,$thisIntf,$group,$host);
 			}
 		}
 		else {
@@ -223,6 +224,7 @@ sub processInterface {
 	my $S = shift;
 	my $thisIntf = shift;
 	my $group = shift;
+	my $host = shift;
 
 	my $node = $nodeobj->name();
 
@@ -285,7 +287,7 @@ sub processInterface {
 		push(@detailBits,"Value=$util Threshold=$thrvalue");
 
 		# adding missing change to include IP address of the node in the event
-		push(@detailBits,"$LNT->{$node}{host}");
+		push(@detailBits,$host);
 
 		my $details = join($detailSep,@detailBits);
 
