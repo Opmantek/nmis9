@@ -67,37 +67,36 @@ sub update_plugin
 		$NG->log->info("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
 		$NG->log->info("Node '$node', has $catchall->{ifNumber} interfaces.");
 		$NG->log->info("Node '$node', Model '$catchall->{nodeModel}' does not qualify for this plugin.");
-		return (0,undef);
+		return (1,undef);
 	}
 	else
 	{
 		$NG->log->info("Running AdtranInterface plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 	}
 
-	# Load any nodeconf overrides for this node
+	# load any nodeconf overrides for this node
 	my $overrides = $nodeobj->overrides;
 
-	# NMISNG::Snmp doesn't fall back to global config
 	my $max_repetitions = $NC->{node}->{max_repetitions} || $C->{snmp_max_repetitions};
 
 	# Get the SNMP Session going.
 	my %nodeconfig = %{$S->nmisng_node->configuration};
 
+	# nmisng::snmp doesn't fall back to global config
+	my $max_repetitions = $nodeconfig{max_repetitions} || $C->{snmp_max_repetitions};
+
 	my $snmp = NMISNG::Snmp->new(name => $node, nmisng => $NG);
 	# configuration now contains  all snmp needs to know
 	if (!$snmp->open(config => \%nodeconfig))
 	{
-		my $error = $snmp->error;
+		$NG->log->error("Could not open SNMP session to node $node: ".$snmp->error);
 		undef $snmp;
-		$NG->log->error("Could not open SNMP session to node $node: ".$error);
-		return (2, "Could not open SNMP session to node $node: ".$error);
+		return ( error => "Could not open SNMP session to node $node: ".$snmp->error);
 	}
 	if (!$snmp->testsession)
 	{
-		my $error = $snmp->error;
-		$snmp->close;
-		$NG->log->warn("Could not retrieve SNMP vars from node $node: ".$error);
-		return (2, "Could not retrieve SNMP vars from node $node: ".$error);
+		$NG->log->warn("Could not retrieve SNMP vars from node $node: ".$snmp->error);
+		return ( error => "Could not retrieve SNMP vars from node $node: ".$snmp->error);
 	}
 	
 	my @ifIndexNum = ();
@@ -107,10 +106,6 @@ sub update_plugin
 	# do a walk to get the indexes which we know are OK.
 	#ifName 1.3.6.1.2.1.31.1.1.1.1
 	my $ifDescr = "1.3.6.1.2.1.2.2.1.2";
-	my $ifTypeOid = "1.3.6.1.2.1.2.2.1.3";
-	my $ifSpeedOid = "1.3.6.1.2.1.2.2.1.5";
-	my $ifAdminStatusOid = "1.3.6.1.2.1.2.2.1.7";
-	my $ifOperStatusOid = "1.3.6.1.2.1.2.2.1.8";
 
 	$NG->log->info("getting a list of names using ifDescr: $ifDescr");
 
@@ -133,14 +128,17 @@ sub update_plugin
 
 	if ($snmp->error)
 	{
-		my $error = $snmp->error;
-		$snmp->close;
-		$NG->log->error("Could not retrieve SNMP indices from node '$node': ".$error);
-		return (2, "Could not retrieve SNMP indices from node '$node': ".$error);
+		$NG->log->error("Could not retrieve SNMP indices from node '$node': ".$snmp->error);
+		return ( error => "Could not retrieve SNMP indices from node '$node': ".$snmp->error);
 	}
 
 	my $nameDump = Dumper $names;
 	$NG->log->debug($nameDump);
+
+	my $ifTypeOid = "1.3.6.1.2.1.2.2.1.3";
+	my $ifSpeedOid = "1.3.6.1.2.1.2.2.1.5";
+	my $ifAdminStatusOid = "1.3.6.1.2.1.2.2.1.7";
+	my $ifOperStatusOid = "1.3.6.1.2.1.2.2.1.8";
 
 	$intfTotal = 0;
 	$intfInfo->{index}         = "Index";
@@ -319,10 +317,7 @@ sub update_plugin
 		
 		if ($intfData->{$index}{collect} eq "true") {
 			$NG->log->debug("ifIndex $index, collect=true");
-		} else {
-			$NG->log->debug("ifIndex $index, collect=false, $intfData->{$index}->{nocollect}");
 		}
-	
 	}
 
 	# Now we save eachInterface in our node. We do this as a separate 
@@ -454,7 +449,6 @@ sub update_plugin
 	{
 		$NG->log->info("No Interfaces were added.");
 	}
-	$snmp->close;
 
 	return ($changesweremade,undef);							# happy, and changes were made so save view and nodes file
 }

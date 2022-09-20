@@ -98,17 +98,15 @@ sub update_plugin
 	# configuration now contains  all snmp needs to know
 	if (!$snmp->open(config => \%nodeconfig))
 	{
-		my $error = $snmp->error;
+		$NG->log->error("Could not open SNMP session to node $node: ".$snmp->error);
 		undef $snmp;
-		$NG->log->error("Could not open SNMP session to node $node: ".$error);
-		return (2, "Could not open SNMP session to node $node: ".$error);
+		return (2, "Could not open SNMP session to node $node: ".$snmp->error);
 	}
 	if (!$snmp->testsession)
 	{
-		my $error = $snmp->error;
 		$snmp->close;
-		$NG->log->warn("Could not retrieve SNMP vars from node $node: ".$error);
-		return (2, "Could not retrieve SNMP vars from node $node: ".$error);
+		$NG->log->warn("Could not retrieve SNMP vars from node $node: ".$snmp->error);
+		return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error);
 	}
 	
 	my @ifIndexNum       = ();
@@ -172,9 +170,8 @@ sub update_plugin
 	my $intftable = $snmp->getindex($ifIndexOid,$max_repetitions);
 	if ($snmp->error or ref($intftable) ne "HASH" or !keys %$intftable)
 	{
-		my $error = $snmp->error;
 		$snmp->close;
-		return (2, "ERROR: Failed to retrieve SNMP ifindexes: ".$error);
+		return (2, "ERROR: Failed to retrieve SNMP ifindexes: ".$snmp->error);
 	}
 	my @ifIndexNum = sort { $a <=> $b } keys %$intftable;
 	$indexTotal = @ifIndexNum;
@@ -184,17 +181,15 @@ sub update_plugin
 	my $subrPortName = $snmp->getindex($subrPortNameOid,$max_repetitions);
 	if ($snmp->error or ref($subrPortName) ne "HASH")
 	{
-		my $error = $snmp->error;
 		$snmp->close;
-		return  (2, "ERROR: Failed to retrieve subrPortName: ".$error);
+		return  (2, "ERROR: Failed to retrieve subrPortName: ".$snmp->error);
 	}
 	
 	my $subrPortTel = $snmp->getindex($subrPortTelOid,$max_repetitions);
 	if ($snmp->error or ref($subrPortName) ne "HASH")
 	{
-		my $error = $snmp->error;
 		$snmp->close;
-		return  (2, "ERROR: Failed to retrieve subrPortTel: ".$error);
+		return  (2, "ERROR: Failed to retrieve subrPortTel: ".$snmp->error);
 	}
 		
 	# We build the data first to capture duplicate names and other issues
