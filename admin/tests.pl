@@ -340,14 +340,23 @@ sub testsnmp
             if ($nodeobj) {
                 my $nodeconfig = $nodeobj->configuration;
                 my $exe;
+                my $exeoutput;
                 my $testoid = "1.3.6.1.2.1.1.1.0"; # This is the sysDescr
                 # SNMP v3
                 if ($nodeconfig->{version} eq "snmpv3") {
                     print "*** Testing snmp with snmpget ". $nodeconfig->{version} . "\n";
-                    $exe = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authNoPriv -a ".$nodeconfig->{authprotocol}." -A ".NMISNG::Util::decrypt($nodeconfig->{authpassword})." ".$nodeconfig->{host}." ". $testoid;
-                    my $exeoutput = $exe;
-                    my $pass = $nodeconfig->{authpassword};
-                    $exeoutput =~ s/$pass/\*\*\*\*/;
+                    my $authPassword = $nodeconfig->{authpassword};
+                    my $privPassword = $nodeconfig->{privpassword};
+                    if ($authPassword eq "" and $privPassword eq "") {
+                       $exe       = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l noAuthNoPriv ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                       $exeoutput = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l noAuthNoPriv ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                    } elsif ($authPassword ne "" and $privPassword eq "") {
+                       $exe       = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authNoPriv -a ".$nodeconfig->{authprotocol}." -A ".NMISNG::Util::decrypt($nodeconfig->{authpassword})." ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                       $exeoutput = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authNoPriv -a ".$nodeconfig->{authprotocol}." -A ************************ ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                    } else {
+                       $exe       = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authPriv -a ".$nodeconfig->{authprotocol}." -A ".NMISNG::Util::decrypt($nodeconfig->{authpassword})." -x ".$nodeconfig->{privprotocol}." -X ".NMISNG::Util::decrypt($nodeconfig->{privpassword})." ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                       $exeoutput = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authPriv -a ".$nodeconfig->{authprotocol}." -A ************************ -x ".$nodeconfig->{privprotocol}." -X ************************ ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                    }
                     print " Running... $exeoutput \n";
                     my $output = `$exe`;
                     print " Result: ". $output . "\n";
@@ -356,10 +365,8 @@ sub testsnmp
                 # SNMP v2c
                 elsif ($nodeconfig->{version} eq "snmpv2c") {
                     print "*** Testing snmp with snmpget ". $nodeconfig->{version} . "\n";
-                    $exe = "    snmpget -v 2c -c ".NMISNG::Util::decrypt($nodeconfig->{community})." ".$nodeconfig->{host}." ". $testoid;
-                    my $exeoutput = $exe;
-                    my $pass = $nodeconfig->{community};
-                    $exeoutput =~ s/$pass/\*\*\*\*/;
+                    $exe       = "    snmpget -v 2c -c ".NMISNG::Util::decrypt($nodeconfig->{community})." ".$nodeconfig->{host}.":".$nodeconfig->{port}." ". $testoid;
+                    $exeoutput = "    snmpget -v 2c -c ************************ ".$nodeconfig->{host}.":".$nodeconfig->{port}." ". $testoid;
                     print " Running... $exeoutput \n";
                     my $output = `$exe`;
                     print " Result: ". $output . "\n";                
