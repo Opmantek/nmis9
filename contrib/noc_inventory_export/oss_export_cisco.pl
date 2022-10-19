@@ -46,6 +46,7 @@ use Compat::Timing;
 use Data::Dumper;
 use Excel::Writer::XLSX;
 use Term::ReadKey;
+use MIME::Entity;
 use Cwd 'abs_path';
 
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
@@ -58,14 +59,18 @@ my $helpsw      = 0;
 my $interfacesw = 0;
 my $usagesw     = 0;
 my $versionsw   = 0;
-my $defaultConf = "$FindBin::Bin/../conf";
+my $defaultConf = "$FindBin::Bin/../../conf";
 my $xlsFile     = "oss_export.xlsx";
 
- die unless (GetOptions('debug:i'    => \$debugsw,
-                        'help'       => \$helpsw,
-                        'interfaces' => \$interfacesw,
-                        'usage'      => \$usagesw,
-                        'version'    => \$versionsw));
+$defaultConf = "$FindBin::Bin/../conf" if (! -d $defaultConf);
+$defaultConf = abs_path($defaultConf);
+print "Default Configuration directory is '$defaultConf'\n";
+
+die unless (GetOptions('debug:i'    => \$debugsw,
+                       'help'       => \$helpsw,
+                       'interfaces' => \$interfacesw,
+                       'usage'      => \$usagesw,
+                       'version'    => \$versionsw));
 
 # For the Version mode, just print it and exit.
 if (${versionsw}) {
@@ -101,6 +106,19 @@ if ( not defined $arg->{dir} ) {
 	exit 255;
 }
 my $dir = abs_path($arg->{dir});
+
+# set a default value and if there is a CLI argument, then use it to set the option
+my $email = 0;
+if (defined $arg->{email}) {
+	if ($arg->{email} =~ /\@/) {
+		$email = $arg->{email};
+	}
+	else {
+		print "FATAL: invalid email address '$arg->{email}'.\n";
+		exit 255;
+	}
+}
+
 
 if (! -d $dir) {
 	if (-f $dir) {
@@ -355,6 +373,7 @@ sub exportNodes {
 	my $title = "Nodes";
 	my $sheet;
 	my $currow;
+	my $csvData;
 	my @colsize;
 
 	print "Creating $file\n";
@@ -374,6 +393,7 @@ sub exportNodes {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
+	$csvData .= "$header\n";
 
 	if ($xls) {
 		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
@@ -577,6 +597,7 @@ sub exportNodes {
 			}
 			my $row = join($sep,@columns);
 			print CSV "$row\n";
+			$csvData .= "$row\n";
 
 			if ($sheet) {
 				$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
@@ -591,6 +612,8 @@ sub exportNodes {
 	}
 
 	close CSV;
+	my $content = "Report for '$title' attached.\n";
+	notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$file", csvData => $csvData) if ($email);
 }
 
 
@@ -600,8 +623,10 @@ sub exportInventory {
 	my $file    = $args{file};
 	my $title   = $args{section};
 	my $section = $args{section};
+	my $found   = 0;
 	my $sheet;
 	my $currow;
+	my $csvData;
 	my @colsize;
 
 	$title = $args{title} if defined $args{title};
@@ -653,6 +678,7 @@ sub exportInventory {
 				print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if ($debug);
 				next;
 			}
+			$found = 1;
 
 			# we know the device supports this inventory section, so on the first run of a node, setup the headers based on the model.
 			if ( not @invHeaders ) {
@@ -699,6 +725,7 @@ sub exportInventory {
 					# print a CSV header
 					my $header = join($sep,@aliases);
 					print CSV "$header\n";
+					$csvData .= "$header\n";
 				}
 
 				if ($xls) {
@@ -741,6 +768,7 @@ sub exportInventory {
 					}
 					my $row = join($sep,@columns);
 					print CSV "$row\n";
+					$csvData .= "$row\n";
 					
 					if ($sheet) {
 						$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
@@ -757,6 +785,10 @@ sub exportInventory {
 	}
 
 	close CSV;
+	if ($found && $email) {
+		my $content = "Report for '$title' attached.\n";
+		notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$file", csvData => $csvData);
+	}
 }
 
 
@@ -766,6 +798,7 @@ sub exportSlots {
 	my $title = "Slots";
 	my $sheet;
 	my $currow;
+	my $csvData;
 	my @colsize;
 
 	print "Creating $file\n";
@@ -785,6 +818,7 @@ sub exportSlots {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
+	$csvData .= "$header\n";
 
 	if ($xls) {
 		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
@@ -905,6 +939,7 @@ sub exportSlots {
 						}
 						my $row = join($sep,@columns);
 						print CSV "$row\n";
+						$csvData .= "$row\n";
 
 						if ($sheet) {
 							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
@@ -922,6 +957,8 @@ sub exportSlots {
 	}
 
 	close CSV;
+	my $content = "Report for '$title' attached.\n";
+	notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$file", csvData => $csvData) if ($email);
 }
 
 sub exportCards {
@@ -930,6 +967,7 @@ sub exportCards {
 	my $title = "Cards";
 	my $sheet;
 	my $currow;
+	my $csvData;
 	my @colsize;
 
 	print "Creating $file\n";
@@ -951,6 +989,7 @@ sub exportCards {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
+	$csvData .= "$header\n";
 
 	if ($xls) {
 		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
@@ -1111,6 +1150,7 @@ sub exportCards {
 						}
 						my $row = join($sep,@columns);
 						print CSV "$row\n";
+						$csvData .= "$row\n";
 
 						if ($sheet) {
 							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
@@ -1128,6 +1168,8 @@ sub exportCards {
 	}
 
 	close CSV;
+	my $content = "Report for '$title' attached.\n";
+	notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$file", csvData => $csvData) if ($email);
 }
 
 sub exportPorts {
@@ -1136,6 +1178,7 @@ sub exportPorts {
 	my $title = "Ports";
 	my $sheet;
 	my $currow;
+	my $csvData;
 	my @colsize;
 
 	print "Creating $file\n";
@@ -1155,6 +1198,7 @@ sub exportPorts {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
+	$csvData .= "$header\n";
 
 	if ($xls) {
 		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
@@ -1232,6 +1276,7 @@ sub exportPorts {
 						}
 						my $row = join($sep,@columns);
 						print CSV "$row\n";
+						$csvData .= "$row\n";
 
 						if ($sheet) {
 							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
@@ -1249,6 +1294,8 @@ sub exportPorts {
 	}
 
 	close CSV;
+	my $content = "Report for '$title' attached.\n";
+	notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$file", csvData => $csvData) if ($email);
 }
 
 sub exportInterfaces {
@@ -1257,6 +1304,7 @@ sub exportInterfaces {
 	my $title = "Interfaces";
 	my $sheet;
 	my $currow;
+	my $csvData;
 	my @colsize;
 
 	print "Creating $file\n";
@@ -1276,6 +1324,7 @@ sub exportInterfaces {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
+	$csvData .= "$header\n";
 
 	if ($xls) {
 		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
@@ -1325,6 +1374,7 @@ sub exportInterfaces {
 				    }
 					my $row = join($sep,@columns);
 				    print CSV "$row\n";
+					$csvData .= "$row\n";
 
 					if ($sheet) {
 						$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
@@ -1341,6 +1391,8 @@ sub exportInterfaces {
 	}
 
 	close CSV;
+	my $content = "Report for '$title' attached.\n";
+	notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$file", csvData => $csvData) if ($email);
 }
 
 sub changeCellSep {
@@ -1422,6 +1474,7 @@ $PROGNAME will export nodes and ports from NMIS.
 Arguments:
  conf=<Configuration file> (default: '$defaultConf');
  dir=<Drectory where files should be saved>
+ email=<Email Address>
  separator=<Comma separated  value (CSV) separator character (default: tab)
  xls=<Excel filename> (default: '$xlsFile')
 
@@ -1572,6 +1625,80 @@ sub nodeCheck {
 	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $LNT);
 }
 
+sub notifyByEmail {
+	my %args = @_;
+
+	my $email = $args{email};
+	my $subject = $args{subject};
+	my $content = $args{content};
+	my $csvName = $args{csvName};
+	my $csvData = $args{csvData};
+
+	if ($content && $email) {
+
+		print "Sending email with '$csvName' to '$email'\n" if $debug;
+
+		my $entity = MIME::Entity->build(
+			From=>$C->{mail_from}, 
+			To=>$email,
+			Subject=> $subject,
+			Type=>"multipart/mixed"
+		);
+
+		# pad with a couple of blank lines
+		$content .= "\n\n";
+
+		$entity->attach(
+			Data => $content,
+			Disposition => "inline",
+			Type  => "text/plain"
+		);
+										
+		if ( $csvData ) {
+			$entity->attach(
+				Data => $csvData,
+				Disposition => "attachment",
+				Filename => $csvName,
+				Type => "text/csv"
+			);
+		}
+
+		my ($status, $code, $errmsg) = NMISNG::Notify::sendEmail(
+			# params for connection and sending 
+			sender => $C->{mail_from},
+			recipients => [$email],
+		
+			mailserver => $C->{mail_server},
+			serverport => $C->{mail_server_port},
+			hello => $C->{mail_domain},
+			usetls => $C->{mail_use_tls},
+			ipproto =>  $C->{mail_server_ipproto},
+								
+			username => $C->{mail_user},
+			password => $C->{mail_password},
+		
+			# and params for making the message on the go
+			to => $email,
+			from => $C->{mail_from},
+		
+			subject => $subject,
+			mime => $entity,
+			priority => "Normal",
+		
+			debug => $C->{debug}
+		);
+		
+		if (!$status)
+		{
+			print "Error: Sending email to '$email' failed: $code $errmsg\n";
+		}
+		else
+		{
+			print "Email to '$email' sent successfully\n";
+		}
+	}
+} 
+
 
 ###########################################################################
 #  Help Function
@@ -1640,6 +1767,8 @@ sub help
    push(@lines, "                                (default: '$defaultConf')\n");
    push(@lines, "     [debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9>]\n");
    push(@lines, "                             - Set the debug level.\n");
+   push(@lines, "     [email=<email_address>] - Send all generated CSV files to the specified.\n");
+   push(@lines, "                                 email address.\n");
    push(@lines, "     [separator=<character>] - A character to be used as the separator in the\n");
    push(@lines, "                                 CSV files. The words 'comma' and 'tab' are\n");
    push(@lines, "                                 understood. Other characters will be taken\n");
