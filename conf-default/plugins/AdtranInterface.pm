@@ -352,8 +352,16 @@ sub update_plugin
 			next;								# not much we can do in this case...
 		}
 		$inventory->historic(0);
-		$inventory->enabled(1);
+		if ($intfSubData->{collect} eq 'true')
+		{
+			$inventory->enabled(1);
+		}
+		else
+		{
+			$inventory->enabled(0);
+		}
 		$inventory->description( $intfSubData->{ifDescr} );
+		$inventory->data( $intfSubData );
 
 		# set which columns should be displayed
 		$inventory->data_info(

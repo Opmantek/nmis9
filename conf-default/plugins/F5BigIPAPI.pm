@@ -386,6 +386,7 @@ sub update_plugin
 		$subInventory->path( recalculate => 1 );
 		$subInventory->historic(0);
 		$subInventory->enabled(1);
+		$subInventory->data( $f5SubData );
 
 		# set which columns should be displayed
 		$subInventory->data_info(
