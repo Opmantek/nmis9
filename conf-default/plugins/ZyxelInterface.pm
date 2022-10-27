@@ -286,6 +286,7 @@ sub update_plugin
 		$intfData->{$index}->{setlimits}         = $setlimits;
 		$intfData->{$index}->{ifLastChange}      = NMISNG::Util::convUpTime($ifLastChange = int($ifLastChange/100));
 		$intfData->{$index}->{ifLastChangeSec}   = $ifLastChange;
+		$intfData->{$index}->{real}              = 'true';
 
 		# collect the uplinks!
 		if ( $ifType =~ "ethernetCsmacd" and $ifDescr !~ /virtual/ and $ifAdminStatus eq "up")
@@ -312,6 +313,7 @@ sub update_plugin
 			}
 		}
 		my $thisintfover = $overrides->{$ifDescr} || {};
+		$NG->log->debug("Overrides = ". Dumper($thisintfover) . "\n\n\n");
 
 		### Add in anything we find from nodeConf - allows manual updating of interface variables
 		### warning - will overwrite what we got from the device - be warned !!!
@@ -395,16 +397,14 @@ sub update_plugin
 
 	# Now we save eachInterface in our node. We do this as a separate 
 	# step because the above might alter names because of duplication.
-	my $intDump = Dumper $intfData;
-	$NG->log->debug("intfData = ".$intDump);
+	$NG->log->debug2("intfData = ". Dumper($intfData) . "\n\n\n");
 	foreach my $index (keys(%$intfData))
 	{
 		$NG->log->debug("Index = ".$index);
 		# Now get-or-create an inventory object for this new concept
 		#
 		my $intfSubData = $intfData->{$index};
-		$intDump = Dumper $intfSubData;
-		$NG->log->debug("intfSubData = ".$intDump);
+		$NG->log->debug3("intfSubData = ". Dumper($intfSubData) . "\n\n\n");
 		my $path_keys =  ['index'];
 		my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => $path_keys, data => $intfSubData );
 		my ($inventory, $error) =  $nodeobj->inventory(
@@ -420,8 +420,16 @@ sub update_plugin
 			next;								# not much we can do in this case...
 		}
 		$inventory->historic(0);
-		$inventory->enabled(1);
+		if ($intfSubData->{collect} eq 'true')
+		{
+			$inventory->enabled(1);
+		}
+		else
+		{
+			$inventory->enabled(0);
+		}
 		$inventory->description( $intfSubData->{ifDescr} );
+		$inventory->data( $intfSubData );
 
 		# set which columns should be displayed
 		$inventory->data_info(
@@ -429,6 +437,7 @@ sub update_plugin
 			enabled => 1,
 			display_keys => $intfInfo
 		);
+		$NG->log->debug9("Inventory = ". Dumper($inventory) . "\n\n\n");
 
 		$NG->log->info("Interface description is '$intfSubData->{ifDescr}'");
 		# Get the RRD file name to use for storage.
@@ -437,7 +446,7 @@ sub update_plugin
 									inventory  => $intfSubData,
 									extras     => $intfSubData,
 									relative   => 1);
-		$NG->log->debug("Collect Adtran data info check storage interface, dbname '$dbname'.");
+		$NG->log->debug("Collect Zyxel data info check storage interface, dbname '$dbname'.");
 		
 		# Set the storage name into the inventory model
 		$inventory->set_subconcept_type_storage(type => "rrd",
