@@ -226,7 +226,7 @@
   },
   'custom' => {
 		'interface' => {
-			'ifAdminStatus' => 'false',
+			'ifAdminStatus' => 'true',
 		}
 	},
   'interface' => {
