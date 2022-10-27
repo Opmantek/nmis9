@@ -31,9 +31,11 @@
 # and to add accesors for things that should be defined
 package NMISNG::Inventory::InterfaceInventory;
 use parent 'NMISNG::Inventory::DefaultInventory';
+use Data::Dumper;
 use strict;
 
 our $VERSION = "1.0.0";
+our $nmisng = undef;
 
 # make a path suitable for interfaces, ifDescr has been added as it's handy to also key off if it
 #  this means than many lookups for this path will need partial => 1 as the caller probably won't have 
@@ -49,11 +51,17 @@ sub make_path
 	shift if ( !( $#_ % 2 ) );
 
 	my (%args) = @_;
+	my $path_keys = $args{path_keys};
+    if ( $args{partial} )
+    {
+		$path_keys = ['index','ifDescr'];	# override
+    }
+
 	my $path = NMISNG::Inventory::make_path_from_keys(
 		cluster_id => $args{cluster_id},
 		node_uuid => $args{node_uuid},
 		concept => $args{concept},
-		path_keys => ['index','ifDescr'],		# override
+		path_keys => $path_keys,
 		data => $args{data},
 		partial => $args{partial});
 	return $path;
@@ -64,6 +72,9 @@ sub new
 {
 	my ( $class, %args ) = @_;
 	
+    $nmisng = $args{nmisng};
+    return undef if ( !$nmisng );    # check this early so we can use it to log
+
 	# see make_path
 	$args{path_keys} = ['index','ifDescr'];
 
