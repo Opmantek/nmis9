@@ -46,11 +46,17 @@ use lib "$FindBin::Bin/../lib";
 use File::Basename;
 use Data::Dumper;
 use MIME::Entity;
+use Cwd 'abs_path';
 
 use Compat::NMIS;
 use NMISNG;
 use NMISNG::Util;
 use NMISNG::rrdfunc;
+
+my $defaultConf = "$FindBin::Bin/../../conf";
+$defaultConf = "$FindBin::Bin/../conf" if (! -d $defaultConf);
+$defaultConf = abs_path($defaultConf);
+print "Default Configuration directory is '$defaultConf'\n";
 
 # print out a nice version response if someone asks
 if ( @ARGV == 1 && $ARGV[0] eq "--version" )
@@ -125,7 +131,16 @@ my $nmisDebug = $debug > 1 ? $debug : 0;
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $nmisDebug, info => $cmdline->{info}), path  => undef );
 
 # get an NMIS config and create an NMISNG object ready for use.
-my $C = NMISNG::Util::loadConfTable( dir => "$FindBin::Bin/../conf", debug => undef, info => undef);
+if ( not defined $cmdline->{conf}) {
+    $cmdline->{conf} = $defaultConf;
+}
+else {
+    $cmdline->{conf} = abs_path($cmdline->{conf});
+}
+
+print "Configuration Directory = '$cmdline->{conf}'\n" if ($debug);
+# load configuration table
+our $C = NMISNG::Util::loadConfTable(dir=>$cmdline->{conf}, debug=>$debug);
 my $nmisng = NMISNG->new(config => $C, log  => $logger);
 
 # every report runs and generates a CSV and an email body
@@ -204,7 +219,7 @@ sub runDiscardsErrors {
 				foreach my $ifIndex (keys %interfaces) {
 					my $type = "pkts_hc";
 					if (-f (my $rrdfilename = $S->makeRRDname(type => $type, index => $ifIndex))) {
-						print "Processing $node $ifIndex $interfaces{$ifIndex}->{ifDescr} $interfaces{$ifIndex}->{Description} $rrdfilename\n" if $debug;
+						print "Processing Node: '$node' Index: '$ifIndex' ifDesc: '$interfaces{$ifIndex}->{ifDescr}' Description: '$interfaces{$ifIndex}->{Description}' File: '$rrdfilename'\n" if $debug;
 						# do I need $item?
 						#my $rrd = $S->getDBName(graphtype => "pkts_hc", index => $ifIndex);
 						#my $use_threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
@@ -213,24 +228,30 @@ sub runDiscardsErrors {
 						my $now = time();
 						my $endHuman = NMISNG::Util::returnDateStamp($now);
 						my $currentStats = Compat::NMIS::getSummaryStats(sys=>$S,type=>$type,start=>$use_threshold_period,end=>$now,index=>$ifIndex);
-						print Dumper $currentStats if $debug > 2;
 
-						my $ifOutDiscardsProc = $currentStats->{$ifIndex}{ifOutDiscardsProc};
-						my $ifOutErrorsProc = $currentStats->{$ifIndex}{ifOutErrorsProc};
-						my $ifInDiscardsProc = $currentStats->{$ifIndex}{ifInDiscardsProc};
-						my $ifInErrorsProc = $currentStats->{$ifIndex}{ifInErrorsProc};
+						if ( ref($currentStats) eq "HASH" ) {
+							print Dumper $currentStats if $debug > 2;
 
-						my $ifOutDiscards = $currentStats->{$ifIndex}{ifOutDiscards};
-						my $ifOutErrors = $currentStats->{$ifIndex}{ifOutErrors};
-						my $ifInDiscards = $currentStats->{$ifIndex}{ifInDiscards};
-						my $ifInErrors = $currentStats->{$ifIndex}{ifInErrors};
+							my $ifOutDiscardsProc = $currentStats->{$ifIndex}{ifOutDiscardsProc};
+							my $ifOutErrorsProc = $currentStats->{$ifIndex}{ifOutErrorsProc};
+							my $ifInDiscardsProc = $currentStats->{$ifIndex}{ifInDiscardsProc};
+							my $ifInErrorsProc = $currentStats->{$ifIndex}{ifInErrorsProc};
 
-						# we are interested if there are any errors or discards.
-						if ( $ifInDiscards > 0 or $ifInErrors > 0 or $ifOutDiscards > 0 or $ifOutErrors > 0 ) {
-							print "    Exception: $ifIndex $interfaces{$ifIndex}->{ifDescr} $interfaces{$ifIndex}->{Description}\n" if $debug;
-							my @row = ($node,$ifIndex,$interfaces{$ifIndex}->{ifDescr},$interfaces{$ifIndex}->{Description},$ifInDiscards,$ifInErrors,$ifOutDiscards,$ifOutErrors,$ifInDiscardsProc,$ifInErrorsProc,$ifOutDiscardsProc,$ifOutErrorsProc);
-							push(@exceptions,"$node interface $interfaces{$ifIndex}->{ifDescr} with description \"$interfaces{$ifIndex}->{Description}\" has exceptions with interface discards and errors");
-							$csvData .= makeLineFromRow(\@row);
+							my $ifOutDiscards = $currentStats->{$ifIndex}{ifOutDiscards};
+							my $ifOutErrors = $currentStats->{$ifIndex}{ifOutErrors};
+							my $ifInDiscards = $currentStats->{$ifIndex}{ifInDiscards};
+							my $ifInErrors = $currentStats->{$ifIndex}{ifInErrors};
+
+							# we are interested if there are any errors or discards.
+							if ( $ifInDiscards > 0 or $ifInErrors > 0 or $ifOutDiscards > 0 or $ifOutErrors > 0 ) {
+								print "    Exception: $ifIndex $interfaces{$ifIndex}->{ifDescr} $interfaces{$ifIndex}->{Description}\n" if $debug;
+								my @row = ($node,$ifIndex,$interfaces{$ifIndex}->{ifDescr},$interfaces{$ifIndex}->{Description},$ifInDiscards,$ifInErrors,$ifOutDiscards,$ifOutErrors,$ifInDiscardsProc,$ifInErrorsProc,$ifOutDiscardsProc,$ifOutErrorsProc);
+								push(@exceptions,"$node interface $interfaces{$ifIndex}->{ifDescr} with description \"$interfaces{$ifIndex}->{Description}\" has exceptions with interface discards and errors");
+								$csvData .= makeLineFromRow(\@row);
+							}
+						}
+						else {
+							print "ERROR: problem with interface on $node ifIndex=$ifIndex\n";
 						}
 					}
 				}
