@@ -59,6 +59,7 @@ sub new
 		$class
 			);
 
+    $self->{_log} = $self->{_nmisng}->log unless (defined($self->{_log}));
 	# weaken the reference to nmisx to avoid circular reference problems
 	# not sure if the check for isweak is required
 	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
@@ -413,6 +414,7 @@ sub getGroupSummary {
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);
+		$self->log->debug5("getGroupSummary - Got local nodes: " . Dumper($entries) . "\n\n");
 	}
 	else {
 		#$self->log->debug("getGroupSummary - Getting all nodes");
@@ -421,6 +423,7 @@ sub getGroupSummary {
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);
+		$self->log->debug5("getGroupSummary - Got all nodes: " . Dumper($entries) . "\n\n");
 	}
 
 	if( $error || @$entries != 1 )
@@ -440,7 +443,14 @@ sub getGroupSummary {
 	{
 		$group_summary = $entries->[0];
 	}
-
+	$self->log->debug5("getGroupSummary - Group Summary: " . Dumper($group_summary) . "\n\n");
+	$self->log->debug5("getGroupSummary - Node Data: " . Dumper($node_data) . "\n\n");
+#	my $count = $group_summary->{count} || 0;
+#	if ($count == 0)
+#	{
+#		return \%summaryHash;
+#	}
+	#
 	my $C = $self->nmis_conf();
 
 	my @loopdata = ({key =>"reachable", precision => "3f"},{key =>"available", precision => "3f"},{key =>"health", precision => "3f"},{key =>"response", precision => "3f"});

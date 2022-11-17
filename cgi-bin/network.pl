@@ -376,6 +376,7 @@ sub getSummaryStatsbyGroup
 		business => $business,
 		include_nodes => $include_nodes
 	);
+	$nmisng->log->info("getSummaryStatsbyGroup - Group Summary for Group '$group': " . Dumper($groupSummary) . "\n\n");
 	$overallStatus = $network_status->overallNodeStatus( group => $group, customer => $customer, business => $business );
 	$overallColor = NMISNG::Util::eventColor($overallStatus);
 
@@ -1075,6 +1076,7 @@ sub selectNetworkView
 		# fixme: the walk should be done JUST ONCE, not N times for N groups!
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup( group => $group );
+		next if ($groupSummary->{average}{counttotal} == 0 );
 		printGroupView($group);
 	}
 	if ($havetoomany)
