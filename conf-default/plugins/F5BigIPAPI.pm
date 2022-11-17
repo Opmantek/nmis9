@@ -159,8 +159,8 @@ sub collect_plugin
 
 			#save to integers to RRD
 			my $rrddata = {
-				'statClientCurCon' => { "option" => "gauge,0:U", "value" => $f5SubData->{clientsideCurConns} },
-				'vsStatAvailState' => { "option" => "gauge,0:100", "value" => $statusAvailibilityState }
+				'ltmStatClientCurCon' => { "option" => "gauge,0:U", "value" => $f5SubData->{clientsideCurConns} },
+				'ltmVsStatAvailState' => { "option" => "gauge,0:100", "value" => $statusAvailibilityState }
 			};
 
 			# ensure the RRD file is using the inventory record so it will use the correct RRD file.

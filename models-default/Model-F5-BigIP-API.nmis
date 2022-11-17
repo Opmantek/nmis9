@@ -75,19 +75,35 @@
 			}
 		}
 	},
-	'database' => {
-		'type' => {
-			'VirtualServTable' => '/nodes/$node/health/virtservtable-$index.rrd',
-			'F5_Pools' => '/nodes/$node/health/F5_Pools-$index.rrd',
-		}
-	},
-	'heading' => {
-		'graphtype' => {
-			'F5-Pools' => 'F5 Pool Status',
-			'F5-LTM-State' => 'Local Traffic Manager (LTM) State',
-			'F5-LTM-Connections' => 'Local Traffic Manager (LTM) Connections',
-		}
-	},
+#	'database' => {
+#		'type' => {
+#			'VirtualServTable' => '/nodes/$node/health/virtservtable-$index.rrd',
+#			'F5_Pools' => '/nodes/$node/health/F5_Pools-$index.rrd',
+#		}
+#	},
+#	'heading' => {
+#		'graphtype' => {
+#			'F5-Pools' => 'F5 Pool Status',
+#			'F5-LTM-State' => 'Local Traffic Manager (LTM) State',
+#			'F5-LTM-Connections' => 'Local Traffic Manager (LTM) Connections',
+#		}
+#	},
+#	'stats' => {
+#		'type' => {
+#			'F5_Pools' => [
+#				'DEF:curConns=$database:curConns:AVERAGE',
+#				'PRINT:curConns:AVERAGE:curConns=%1.0lf',
+#				'DEF:bitsIn=$database:bitsIn:AVERAGE',
+#				'PRINT:bitsIn:AVERAGE:bitsIn=%1.0lf',
+#				'DEF:bitsOut=$database:bitsOut:AVERAGE',
+#				'PRINT:bitsOut:AVERAGE:bitsOut=%1.0lf',
+#				'DEF:pktsIn=$database:pktsIn:AVERAGE',
+#				'PRINT:pktsIn:AVERAGE:pktsIn=%1.0lf',
+#				'DEF:pktsOut=$database:pktsOut:AVERAGE',
+#				'PRINT:pktsOut:AVERAGE:pktsOut=%1.0lf'
+#			],
+#		},
+#	},
 	'alerts' => {
 		'VirtualServTable' => {
 			'VirtualServTableState' => {
@@ -108,10 +124,10 @@
 		'nodeVendor' => 'F5 Labs, Inc.',
 	},
 	'systemHealth' => {
-		#'sections' => 'F5_Temperature,F5_Memory,F5_Swap_Memory,F5_CPU,F5_Cores,F5_Storage,F5_Connection,F5_APM_ActiveSess,VirtualServTable,F5_Pools',
+#		'sections' => 'F5_Temperature,F5_CPU,F5_Cores,F5_Storage,F5_Connection,VirtualServTable,F5_Pools',
 		'sys' => {
 			'VirtualServTable' => {
-				'headers' => 'ltmVirtualServName,ltmVirtualServAddr,virtualServIpProto,ltmVirtualServPort,virtServConnLimit,vsStatusAvlTxt',
+				'headers' => 'ltmVirtualServName,ltmVirtualServAddr,virtualServIpProto,ltmVirtualServPort,virtServConnLimit,ltmStatClientCurCon,ltmVsStatAvailState',
 				'snmp' => {
 					'ltmVirtualServName' => {
 						'title' => 'Server Name',
@@ -133,7 +149,21 @@
 					},
 					'vsStatusAvlTxt' => {
 						'title' => 'Virtual Server State'
-					}
+					},
+					'ltmStatClientCurCon' => {
+						'title' => 'Current Connections'
+					},
+					'ltmVsStatAvailState' => {
+						'replace' => {
+							'0' => '10',
+							'1' => '100',
+							'2' => '10',
+							'3' => '0',
+							'4' => '50',
+							'5' => '50'
+						},
+						'title' => 'Virtual Server State'
+					},
 				},
 			},
 			'F5_Pools' => {
@@ -194,7 +224,22 @@
 					},
 					'vsStatusAvlTxt' => {
 						'option' => 'nosave'
-					}
+					},
+					'ltmStatClientCurCon' => {
+						'option' => 'counter,0:U',
+						'title' => 'Current Connections'
+					},
+					'ltmVsStatAvailState' => {
+						'replace' => {
+							'0' => '10',
+							'1' => '100',
+							'2' => '10',
+							'3' => '0',
+							'4' => '50',
+							'5' => '50'
+						},
+						'title' => 'Virtual Server State'
+					},
 				}
 			},
 			'F5_Pools' => {

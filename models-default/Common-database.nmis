@@ -103,6 +103,7 @@
       'capacity' => '/nodes/$node/health/ubnt-capacity-$index.rrd',
       'cbqos-in' => '/nodes/$node/interface/$ifDescr-in-$item.rrd',
       'cbqos-out' => '/nodes/$node/interface/$ifDescr-out-$item.rrd',
+      'Cisco_CBQoS' => '/nodes/$node/interface/$ifDescr-Cisco_CBQoS-$item.rrd',
       'ccpu' => '/nodes/$node/health/health.rrd',
       'cempMemBuffer' => '/nodes/$node/health/cempMemBuffer-$index.rrd',
       'cempMemPool' => '/nodes/$node/health/cempMemPool-$index.rrd',
@@ -197,7 +198,16 @@
       'SensorValue' => '/nodes/$node/misc/SensorValue.rrd',
       'Dell_TX' => '/nodes/$node/misc/Dell_TX.rrd',
       'Dell_RX' => '/nodes/$node/misc/Dell_RX.rrd',
-      'ICTStatus' => '/nodes/$node/misc/ICTStatus.rrd'
+      'ICTStatus' => '/nodes/$node/misc/ICTStatus.rrd',
+      'F5_CPU' => '/nodes/$node/health/F5_CPU-$sysPlaneStatPlaneName.rrd',
+      'F5_Temperature' => '/nodes/$node/health/F5_Temperature-$index.rrd',
+      'F5_Memory' => '/nodes/$node/health/F5_Memory.rrd',
+      'F5_Connection' => '/nodes/$node/health/F5_Connection.rrd',
+      'F5_Swap_Memory' => '/nodes/$node/health/F5_Swap_Memory.rrd',
+      'F5_Storage' => '/nodes/$node/health/F5_Storage-$index.rrd',
+      'F5_APM_ActiveSess' => '/nodes/$node/health/F5_APM_ActiveSess.rrd',
+      'F5_Cores' => '/nodes/$node/health/F5_Cores-$index.rrd'
+
     }
   }
 );

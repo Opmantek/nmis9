@@ -46,26 +46,29 @@
 %hash = (
 	'database' => {
 		'type' => {
-			'F5_CPU' => '/nodes/$node/health/F5_CPU-$index.rrd',
-			'F5_Temperature' => '/nodes/$node/health/F5_Temperature-$index.rrd',
-			'F5_Memory' => '/nodes/$node/health/F5_Memory.rrd',
-			'F5_Connection' => '/nodes/$node/health/F5_Connection.rrd',
-			'F5_Swap_Memory' => '/nodes/$node/health/F5_Swap_Memory.rrd',
-			'F5_Storage' => '/nodes/$node/health/F5_Storage-$index.rrd',
 			'F5_APM_ActiveSess' => '/nodes/$node/health/F5_APM_ActiveSess.rrd',
-			'F5_Cores' => '/nodes/$node/health/F5_Cores-$index.rrd'
+			'F5_Connection' => '/nodes/$node/health/F5_Connection.rrd',
+			'F5_CPU' => '/nodes/$node/health/F5_CPU-$index.rrd',
+			'F5_Memory' => '/nodes/$node/health/F5_Memory.rrd',
+			'F5_Pools' => '/nodes/$node/health/F5_Pools-$index.rrd',
+			'F5_Storage' => '/nodes/$node/health/F5_Storage-$index.rrd',
+			'F5_Swap_Memory' => '/nodes/$node/health/F5_Swap_Memory.rrd',
+			'F5_Temperature' => '/nodes/$node/health/F5_Temperature-$index.rrd',
+			'VirtualServTable' => '/nodes/$node/health/virtservtable-$index.rrd',
 		}
 	},
 	'heading' => {
 		'graphtype' => {
-			'F5-CPU' => 'F5 CPU Usage',
-			'F5-Connection' => 'F5 Current Connections',
-			'F5-Memory' => 'F5 Memory Usage',
-			'F5-TempGraph' => 'F5 Temperature',
-			'F5-Swap-Memory' => 'F5 Swap Memory Usage',
-			'F5-Storage' => 'F5 Physical Memory',
 			'F5-APM_ActiveSess' => 'F5 APM Active Sessions',
-			'F5-Cores' => 'F5 Core Usage'
+			'F5-Connection' => 'F5 Current Connections',
+			'F5-CPU' => 'F5 CPU Usage',
+			'F5-LTM-Connections' => 'Local Traffic Manager (LTM) Connections',
+			'F5-LTM-State' => 'Local Traffic Manager (LTM) State',
+			'F5-Memory' => 'F5 Memory Usage',
+			'F5-Pools' => 'F5 Pool Status',
+			'F5-Storage' => 'F5 Physical Memory',
+			'F5-Swap-Memory' => 'F5 Swap Memory Usage',
+			'F5-TempGraph' => 'F5 Temperature',
 		}
 	},
 	'threshold' => {
@@ -131,7 +134,9 @@
 			'F5_Swap_Memory' => [
 				'DEF:swap_total=$database:MemorySwapTotal:AVERAGE',
 				'DEF:swap_used=$database:MemorySwapUsed:AVERAGE',
+
 				'CDEF:swapMemUtil=swap_used,swap_total,/,100,*',
+
 				'PRINT:swapMemUtil:AVERAGE:swapMemUtil=%1.2lf',
 			],
 			'F5_Memory' => [
@@ -139,10 +144,32 @@
 				'DEF:tmm_used=$database:tmmMemUsedKB:AVERAGE',
 				'DEF:other_total=$database:otherMemTotalKB:AVERAGE',
 				'DEF:other_used=$database:otherMemUsedKB:AVERAGE',
+
 				'CDEF:tmmMemUtil=tmm_used,tmm_total,/,100,*',
 				'CDEF:otherMemUtil=other_used,other_total,/,100,*',
+
 				'PRINT:tmmMemUtil:AVERAGE:tmmMemUtil=%1.2lf',
 				'PRINT:otherMemUtil:AVERAGE:otherMemUtil=%1.2lf',
+			],
+			'F5_CPU' => [
+				'DEF:f5PROC=$database:CpuRatio5min:AVERAGE',
+				'PRINT:f5PROC:AVERAGE:processorAverage=%1.2lf',
+			],
+			'F5_Core' => [
+				'DEF:sysMHCpuUsage5m=$database:sysMHCpuUsage5m:AVERAGE',
+				'PRINT:sysMHCpuUsage5m:AVERAGE:sysMHCpuUsage5mAverage=%1.2lf',
+			],
+			'F5_Pools' => [
+				'DEF:curConns=$database:curConns:AVERAGE',
+				'PRINT:curConns:AVERAGE:curConns=%1.0lf',
+				'DEF:bitsIn=$database:bitsIn:AVERAGE',
+				'PRINT:bitsIn:AVERAGE:bitsIn=%1.0lf',
+				'DEF:bitsOut=$database:bitsOut:AVERAGE',
+				'PRINT:bitsOut:AVERAGE:bitsOut=%1.0lf',
+				'DEF:pktsIn=$database:pktsIn:AVERAGE',
+				'PRINT:pktsIn:AVERAGE:pktsIn=%1.0lf',
+				'DEF:pktsOut=$database:pktsOut:AVERAGE',
+				'PRINT:pktsOut:AVERAGE:pktsOut=%1.0lf'
 			],
 		},
 	},
@@ -174,7 +201,7 @@
 					'Major' => '60',
 					'Minor' => '50',
 					'Warning' => '40',
-				 },
+				},
 				'test' => '',
 				'title' => 'F5 CPU Usage',
 				'unit' => '%',
@@ -187,8 +214,65 @@
 		}
 	},
 	'systemHealth' => {
-		'sections' => 'F5_Temperature,F5_Memory,F5_Swap_Memory,F5_CPU,F5_Cores,F5_Storage,F5_Connection,F5_APM_ActiveSess,VirtualServTable,F5_Pools',
+		'sections' => 'F5_Temperature,F5_CPU,F5_Cores,F5_Memory,F5_Swap_Memory,F5_Storage,F5_Connection,VirtualServTable,F5_Pools',
 		'sys' => {
+			'F5_Memory' => {
+				'headers' => 'tmmMemTotalKB,tmmMemUsedKB,otherMemTotalKB,otherMemUsedKB',
+				'indexed' => 'true',
+				'index_oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.1',
+				'index_regex' => '3375\.2\.1\.1\.2\.21\.1\.([\d\.]+)$',
+				'graphtype' => 'F5-Memory',
+				'threshold' => 'tmm_Memory_Utilisation,other_Memory_Utilisation',
+				'snmp' => {
+					'tmmMemTotalKB' => {
+						'title' => 'Total TMM Memory in KB',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.37'
+					},
+					'tmmMemUsedKB' => {
+						'title' => 'Used TMM Memory in KB',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.38'
+					},
+					'otherMemTotalKB' => {
+						'title' => 'Total Other Memory in KB',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.48'
+					},
+					'otherMemUsedKB' => {
+						'title' => 'Used Other Memory in KB',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.49'
+					},
+				},
+			},
+			'F5_Swap_Memory' => {
+				'headers' => 'MemorySwapTotal,MemorySwapUsed,MemSwapTotalBytes,MemSwapUsedBytes,MemSwapUsagePerc',
+				'indexed' => 'true',
+				'index_oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.1',
+				'index_regex' => '3375\.2\.1\.1\.2\.21\.1\.([\d\.]+)$',
+				'graphtype' => 'F5-Swap-Memory',
+				'threshold' => 'Swap_Memory_Utilisation',
+				'snmp' => {
+					'MemorySwapTotal' => {
+						'title' => 'Total Sawp Memory in KB',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.50'
+					},
+					'MemorySwapUsed' => {
+						'title' => 'Used Swap Memory in KB',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.51'
+					},
+					'MemSwapTotalBytes' => {
+						'title' => 'Used Other Memory in Bytes',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.46'
+					},
+					'MemSwapUsedBytes' => {
+						'title' => 'Used Swap Memory in Bytes',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.47'
+					},
+					'MemSwapUsagePerc' => {
+						'title' => 'Used Swap Memory Percentage',
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.51',
+						'calculate' => 'CVAR1=MemorySwapUsed; CVAR2=MemorySwapTotal; return (($CVAR1/$CVAR2) * 100);'
+					},
+				},
+			},
 			'F5_Temperature' => {
 				'headers' => 'f5TempName,f5Temperature,sysBladeTempSlot',
 				'indexed' => 'f5TempName',
@@ -215,72 +299,6 @@
 						'oid' => '1.3.6.1.4.1.3375.2.1.3.2.4.2.1.4',
 						'sysObjectName' => 'sysBladeTempSlot',
 						'title' => 'Temp Slot',
-					},
-				},
-			},
-			'F5_Memory' => {
-				'headers' => 'tmmMemTotalKB,tmmMemUsedKB,otherMemTotalKB,otherMemUsedKB',
-				'indexed' => 'true',
-				'index_oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.1',
-				'index_regex' => '3375\.2\.1\.1\.2\.21\.1\.([\d\.]+)$',
-				'graphtype' => 'F5-Memory',
-				'threshold' => 'tmm_Memory_Utilisation,other_Memory_Utilisation',
-				'snmp' => {
-					'tmmMemTotalKB' => {
-						'title' => 'Total TMM Memory in KB',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.37',
-						'option' => 'gauge,U:U'
-					},
-					'tmmMemUsedKB' => {
-						'title' => 'Used TMM Memory in KB',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.38',
-						'option' => 'gauge,U:U'
-					},
-					'otherMemTotalKB' => {
-						'title' => 'Total Other Memory in KB',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.48',
-						'option' => 'gauge,U:U'
-					},
-					'otherMemUsedKB' => {
-						'title' => 'Used Other Memory in KB',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.49',
-						'option' => 'gauge,U:U'
-					},
-				},
-			},
-			'F5_Swap_Memory' => {
-				'headers' => 'MemorySwapTotal,MemorySwapUsed,MemSwapTotalBytes,MemSwapUsedBytes,MemSwapUsagePerc',
-				'indexed' => 'true',
-				'index_oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.1',
-				'index_regex' => '3375\.2\.1\.1\.2\.21\.1\.([\d\.]+)$',
-				'graphtype' => 'F5-Swap-Memory',
-				'threshold' => 'Swap_Memory_Utilisation',
-				'snmp' => {
-					'MemorySwapTotal' => {
-						'title' => 'Total Sawp Memory in KB',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.50',
-						'option' => 'gauge,U:U',
-					},
-					'MemorySwapUsed' => {
-						'title' => 'Used Swap Memory in KB',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.51',
-						'option' => 'gauge,U:U',
-					},
-					'MemSwapTotalBytes' => {
-						'title' => 'Used Other Memory in Bytes',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.46',
-						'option' => 'counter,U:U',
-					},
-					'MemSwapUsedBytes' => {
-						'title' => 'Used Swap Memory in Bytes',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.47',
-						'option' => 'counter,U:U',
-					},
-					'MemSwapUsagePerc' => {
-						'title' => 'Used Swap Memory Percentage',
-						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.51',
-						'calculate' => 'CVAR1=MemorySwapUsed; CVAR2=MemorySwapTotal; return (($CVAR1/$CVAR2) * 100);',
-						'option' => 'gauge,U:U',
 					},
 				},
 			},
@@ -385,36 +403,8 @@
 					},
 				},
 			},
-			'F5_APM_ActiveSess' => {
-				'headers' => 'apmCurActiveSess',
-				'graphtype' => 'F5-APM_ActiveSess',
-				'indexed' => 'true',
-				'index_oid' => '1.3.6.1.4.1.3375.2.6.1.4.1',
-				'index_regex' => '3375\.2\.6\.1\.4\.1\.([\d\.]+)$',
-				'snmp' => {
-					'apmCurActiveSess' => {
-					'oid' => '1.3.6.1.4.1.3375.2.6.1.4.3',
-					'title' => 'Active Sessions',
-					'option' => 'gauge,U:U'
-					},
-				},
-			},
 		},
 		'rrd' => {
-			'F5_Temperature' => {
-				'control' => 'CVAR=f5TempName;$CVAR =~ /Blade air/',
-				'indexed' => 'true',
-				'graphtype' => 'F5-TempGraph',
-				'threshold' => 'f5ProacTemp',
-				'snmp' => {
-					'f5Temp' => {
-						'oid' => '1.3.6.1.4.1.3375.2.1.3.2.4.2.1.2',
-						'title' => 'Current Temp (C)',
-						'sysObjectName' => 'f5TempName',
-						'option' => 'gauge,0:U',
-					},
-				},
-			},
 			'F5_Memory' => {
 				'graphtype' => 'F5-Memory',
 				'threshold' => 'tmm_Memory_Utilisation,other_Memory_Utilisation',
@@ -461,6 +451,20 @@
 						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.51.0',
 						'calculate' => 'CVAR1=MemorySwapUsed; CVAR2=MemorySwapTotal; return (($CVAR1/$CVAR2) * 100);',
 						'option' => 'gauge,U:U',
+					},
+				},
+			},
+			'F5_Temperature' => {
+				'control' => 'CVAR=f5TempName;$CVAR =~ /Blade air/',
+				'indexed' => 'true',
+				'graphtype' => 'F5-TempGraph',
+				'threshold' => 'f5ProacTemp',
+				'snmp' => {
+					'f5Temp' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.3.2.4.2.1.2',
+						'title' => 'Current Temp (C)',
+						'sysObjectName' => 'f5TempName',
+						'option' => 'gauge,0:U',
 					},
 				},
 			},
@@ -521,19 +525,6 @@
 						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.1.8',
 						'title' => 'The current connections from client',
 						'option' => 'gauge,0:U'
-					},
-				},
-			},
-			'F5_APM_ActiveSess' => {
-				'graphtype' => 'F5-APM_ActiveSess',
-				'indexed' => 'true',
-				'index_oid' => '1.3.6.1.4.1.3375.2.6.1.4.1',
-				'index_regex' => '3375\.2\.6\.1\.4\.1\.([\d\.]+)$',
-				'snmp' => {
-					'apmCurActiveSess' => {
-					'oid' => '1.3.6.1.4.1.3375.2.6.1.4.3',
-					'title' => 'Active Sessions',
-					'option' => 'gauge,U:U'
 					},
 				},
 			},
@@ -670,30 +661,100 @@
 				},
 				'graphtype' => 'ip,frag'
 			},
+			'F5_Memory' => {
+				'graphtype' => 'F5-Memory',
+				'threshold' => 'tmm_Memory_Utilisation,other_Memory_Utilisation',
+				'snmp' => {
+					'tmmMemTotalKB' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.37.0',
+						'option' => 'gauge,U:U'
+					},
+					'tmmMemUsedKB' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.21.38.0',
+						'option' => 'gauge,U:U'
+					},
+					'otherMemTotalKB' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.48.0',
+						'option' => 'gauge,U:U'
+					},
+					'otherMemUsedKB' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.49.0',
+						'option' => 'gauge,U:U'
+					},
+				},
+			},
+			'F5_Connection' => {
+				'graphtype' => 'F5-Connection',
+				'threshold' => 'f5_connection',
+				'snmp' => {
+					'ClientCurConns' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.1.8.0',
+						'title' => 'The current connections from client',
+						'option' => 'gauge,0:U'
+					},
+				},
+			},
+			'F5_APM_ActiveSess' => {
+				'graphtype' => 'F5-APM_ActiveSess',
+					'snmp' => {
+						'apmCurActiveSess' => {
+						'oid' => '1.3.6.1.4.1.3375.2.6.1.4.3.0',
+						'title' => 'Active Sessions',
+						'option' => 'gauge,U:U'
+					},
+				},
+			},
+			'F5_Swap_Memory' => {
+				'graphtype' => 'F5-Swap-Memory',
+				'threshold' => 'Swap_Memory_Utilisation',
+				'snmp' => {
+					'MemorySwapTotal' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.50.0',		
+						'option' => 'gauge,U:U',
+					},
+					'MemorySwapUsed' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.51.0',	
+						'option' => 'gauge,U:U',
+					},
+					'MemSwapUsedBytes' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.47.0',
+						'option' => 'counter,U:U',
+					},
+					'MemSwapTotalBytes' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.46.0',
+							'option' => 'counter,U:U',
+					},
+					'MemSwapUsagePerc' => {
+						'oid' => '1.3.6.1.4.1.3375.2.1.1.2.20.51.0',
+						'calculate' => 'CVAR1=MemorySwapUsed; CVAR2=MemorySwapTotal; return (($CVAR1/$CVAR2) * 100);',
+						'option' => 'gauge,U:U',
+					},
+				},
+			},
 		},
 	},
 	'interface' => {
 		'sys' => {
 			'standard' => {
-			'indexed' => 'true',
-			'snmp' => {
-				'ifOperStatus' => {
-					'replace' => {
-						'6' => 'notPresent',
-						'1' => 'up',
-						'4' => 'unknown',
-						'3' => 'testing',
-						'7' => 'lowerLayerDown',
-						'2' => 'down',
-						'5' => 'dormant'
+				'indexed' => 'true',
+				'snmp' => {
+					'ifOperStatus' => {
+						'replace' => {
+							'6' => 'notPresent',
+							'1' => 'up',
+							'4' => 'unknown',
+							'3' => 'testing',
+							'7' => 'lowerLayerDown',
+							'2' => 'down',
+							'5' => 'dormant'
+						},
+						'oid' => 'ifOperStatus',
+						'title' => 'Oper Status'
 					},
-					'oid' => 'ifOperStatus',
-					'title' => 'Oper Status'
-				},
-				'ifDescr' => {
-					#need to check it does ifDescr
-					'oid' => 'ifDescr',
-					'title' => 'Name'
+					'ifDescr' => {
+						#need to check it does ifDescr
+						'oid' => 'ifDescr',
+						'title' => 'Name'
 					},
 					'ifPhysAddress' => {
 						'oid' => 'ifPhysAddress',

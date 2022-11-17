@@ -40,16 +40,16 @@
 	},
 	'option' => {
 		'standard' => [
-			'DEF:ltmStatClientCurConns=$database:ltmStatClientCurCon:AVERAGE',
-			'LINE2:ltmStatClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ltmStatClientCurConns:AVERAGE: %1.0lf\\n',
-			'GPRINT:ltmStatClientCurConns:MAX:Max %1.2lf\\n',
+			'DEF:ltmStatClientCurCon=$database:ltmStatClientCurCon:AVERAGE',
+			'LINE2:ltmStatClientCurCon#ffbf00: Current Connections',
+			'GPRINT:ltmStatClientCurCon:AVERAGE: %1.0lf\\n',
+			'GPRINT:ltmStatClientCurCon:MAX:Max %1.2lf\\n',
 		],
 		'small' => [
-			'DEF:ltmStatClientCurConns=$database:ltmStatClientCurCon:AVERAGE',
-			'LINE2:ltmStatClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ltmStatClientCurConns:AVERAGE: %1.0lf\\n',
-			'GPRINT:ltmStatClientCurConns:MAX:Max %1.2lf\\n',
+			'DEF:ltmStatClientCurCon=$database:ltmStatClientCurCon:AVERAGE',
+			'LINE2:ltmStatClientCurCon#ffbf00: Current Connections',
+			'GPRINT:ltmStatClientCurCon:AVERAGE: %1.0lf\\n',
+			'GPRINT:ltmStatClientCurCon:MAX:Max %1.2lf\\n',
 		]
 	}
 );
