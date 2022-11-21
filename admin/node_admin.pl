@@ -353,8 +353,6 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 		}
 
 		++$counter;
-
-		validate_node_data(node => $node);
 		
 		# don't bother saving the name in it
 		delete $data->{name};
