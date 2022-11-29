@@ -230,7 +230,7 @@ sub runDiscardsErrors {
 						my $currentStats = Compat::NMIS::getSummaryStats(sys=>$S,type=>$type,start=>$use_threshold_period,end=>$now,index=>$ifIndex);
 
 						if ( ref($currentStats) eq "HASH" ) {
-							print Dumper $currentStats if $debug > 2;
+							print "Current Statistics: " . Dumper($currentStats) . "\n\n" if $debug > 2;
 
 							my $ifOutDiscardsProc = $currentStats->{$ifIndex}{ifOutDiscardsProc};
 							my $ifOutErrorsProc = $currentStats->{$ifIndex}{ifOutErrorsProc};
