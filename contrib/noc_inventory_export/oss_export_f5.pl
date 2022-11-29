@@ -38,36 +38,46 @@ use Cwd 'abs_path';
 use lib abs_path("$FindBin::Bin/../../lib");
 
 use POSIX qw();
-use File::Basename;
-use File::Path;
-use NMISNG::Util;
-use Getopt::Long;
 use Compat::NMIS;
-use NMISNG::Sys;
 use Compat::Timing;
 use Data::Dumper;
+use DateTime;
 use Excel::Writer::XLSX;
-use Term::ReadKey;
+use File::Basename;
+use File::Path;
+use Getopt::Long;
 use MIME::Entity;
+use NMISNG::Sys;
+use NMISNG::Util;
+use Term::ReadKey;
+use Text::Abbrev;
 
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
 
-my $PROGNAME    = basename($0);
-my $debugsw     = 0;
-my $helpsw      = 0;
-my $interfacesw = 0;
-my $usagesw     = 0;
-my $versionsw   = 0;
-my $defaultConf = abs_path("$FindBin::Bin/../../conf");
-my $xlsFile     = "oss_export.xlsx";
+my $PROGNAME      = basename($0);
+my $averagesw     = 0;
+my $debugsw       = 0;
+my $helpsw        = 0;
+my $interfacesw   = 0;
+my $tsEnd         = 0;
+my $tsStart       = 0;
+my $usagesw       = 0;
+my $versionsw     = 0;
+my $defaultConf   = abs_path("$FindBin::Bin/../../conf");
+my $dfltPeriod    = 'day';
+my $dfltTimespan  = '24hours';
+my $xlsFile       = "oss_export.xlsx";
+my @tsEndArray    = ();
+my @tsStartArray  = ();
 
 $defaultConf = "$FindBin::Bin/../conf" if (! -d $defaultConf);
 $defaultConf = abs_path($defaultConf);
 print "Default Configuration directory is '$defaultConf'\n";
 
-die unless (GetOptions('debug:i'    => \$debugsw,
+die unless (GetOptions('averages'   => \$averagesw,
+                       'debug:i'    => \$debugsw,
                        'help'       => \$helpsw,
                        'interfaces' => \$interfacesw,
                        'usage'      => \$usagesw,
@@ -108,7 +118,111 @@ if ( not defined $arg->{dir} ) {
 }
 my $dir = abs_path($arg->{dir});
 
-# set a default value and if there is a CLI argument, then use it to set the option
+# [period=<day|week|month>] (default: 'day')
+my $period   = $dfltPeriod;
+my $lcPeriod = lc($period);
+$lcPeriod    = lc($arg->{period}) if (defined $arg->{period});
+my %pHash = abbrev qw(day week month);
+if (exists($pHash{$lcPeriod})) {
+	$period = $pHash{$lcPeriod};
+	if ($period eq 'day') {
+		my $dt = DateTime->now();
+		$dt->set( hour => 0, minute => 0, second => 0 );
+		$dt->subtract( days => 1 );
+		push(@tsStartArray, $dt->epoch());
+		print "Date Runs: " . Dumper(@tsStartArray) . "\n\n\n" if ($debug > 2);
+	}
+	elsif ($period eq 'month') {
+		my $dt    = DateTime->now();
+		my $month = $dt->month();
+		$dt->set( month => $month, day => 1, hour => 0, minute => 0, second => 0 );
+		$dt->subtract( months => 1 );
+		$month = $dt->month();
+		while($month == $dt->month()) {
+			push(@tsStartArray, $dt->epoch());
+			print "Time: $dt\n";
+			$dt->add( days => 1 );
+		}
+		print "Date Runs: " . Dumper(@tsStartArray) . "\n\n\n" if ($debug > 2);
+	}
+	elsif ($period eq 'week') {
+		my $dt    = DateTime->now();
+		my $month = $dt->month();
+		my $day   = $dt->day() - $dt->day_of_week();
+		$dt->set( month => $month, day => $day, hour => 0, minute => 0, second => 0 );
+		$dt->subtract( weeks => 1 );
+		for(my $i=0; $i < 7; $i++) {
+			push(@tsStartArray, $dt->epoch());
+			print "Time: $dt\n";
+			$dt->add( days => 1 );
+		}
+		print "Date Runs: " . Dumper(@tsStartArray) . "\n\n\n" if ($debug > 2);
+	}
+}
+else {
+	print "FATAL: invalid period value '$period'.\n";
+	exit 255;
+}
+
+# [timespan=<24[hours]|HH:HH>] (default: '24hours')
+my $timespan   = $dfltTimespan;
+my $lcTimespan = lc($timespan);
+$lcTimespan    = lc($arg->{timespan}) if (defined $arg->{timespan});
+my @testStartArray = @tsStartArray;
+@tsStartArray = ();
+if ((substr($lcTimespan,0,3) eq '24h') or (substr($lcTimespan,0,4) eq '24 h')) {
+	foreach my $eachEpoch (@testStartArray) {
+		my $dt = DateTime->from_epoch( epoch => $eachEpoch );
+		print "Timespan End:   $dt\n" if ($debug > 1);
+		$tsEnd = $dt->epoch();
+		$dt->subtract( hours => 24 );
+		$tsStart = $dt->epoch();
+		print "Timespan Start: $dt\n" if ($debug > 1);
+		push(@tsStartArray, $tsStart);
+		push(@tsEndArray, $tsEnd);
+	}
+}
+elsif ($lcTimespan =~ /^(.*):(.*)$/) {
+	my $beginTimespan = $1;
+	my $endTimespan   = $2;
+	if (($beginTimespan > $endTimespan)) {
+		print "FATAL: Timespan must be in 24 hour format, Begin time is greater than end timespan!\n";
+		print "FATAL: invalid timespan value '$timespan'.\n";
+		exit 255;
+	}
+	elsif (($beginTimespan =~ /^\d{1}$|^[0-1]{1}\d{1}$|^[2]{1}[0-4]{1}$/g) && ($endTimespan =~ /^\d{1}$|^[0-1]{1}\d{1}$|^[2]{1}[0-4]{1}$/g)) {
+		$timespan = $lcTimespan;
+		foreach my $eachEpoch (@testStartArray) {
+			my $dt = DateTime->from_epoch( epoch => $eachEpoch );
+			$dt->set( hour => $beginTimespan, minute => 0, second => 0 );
+			$tsStart = $dt->epoch();
+			print "Timespan Start: $dt\n" if ($debug > 1);
+			$dt->set( hour => $endTimespan, minute => 0, second => 0 );
+			$tsEnd = $dt->epoch();
+			print "Timespan End:   $dt\n" if ($debug > 1);
+			push(@tsStartArray, $tsStart);
+			push(@tsEndArray, $tsEnd);
+		}
+	}
+	else {
+		print "FATAL: invalid timespan value '$timespan'.\n";
+		exit 255;
+	}
+}
+else {
+	print "FATAL: invalid timespan value '$timespan'.\n";
+	exit 255;
+}
+print "Date Runs Start: " . Dumper(@tsStartArray) . "\n\n\n" if ($debug > 2);
+print "Date Runs End    " . Dumper(@tsEndArray) . "\n\n\n" if ($debug > 2);
+
+if ($averagesw) {
+	print "Running Averages collection.\n";
+	print "Period   = '$period'.\n";
+	print "Timespan = '$timespan'.\n";
+}
+
+# Set a default value and if there is a CLI argument, then use it to set the option
 my $email = 0;
 if (defined $arg->{email}) {
 	if ($arg->{email} =~ /\@/) {
@@ -300,15 +414,15 @@ if ($xlsFile) {
 }
 
 exportNodes($xls,"$dir/oss-nodes.csv");
-exportInventory(xls => $xls, file => "$dir/oss-interfaces-data.csv", title => "Interfaces", section => "interface", model_section => "standard", model_section_top => "interface");
-exportInventory(xls => $xls, file => "$dir/oss-f5-pools-data.csv", title => "F5 Pools", section => "F5_Pools");
-exportInventory(xls => $xls, file => "$dir/oss-virtual-server-table-data.csv", title => "Virtual Server Table", section => "VirtualServTable");
-exportInventory(xls => $xls, file => "$dir/oss-f5-temperature-data.csv", title => "F5 Temperature", section => "F5_Temperature");
-exportInventory(xls => $xls, file => "$dir/oss-f5_cpu-data.csv", title => "F5 CPU", section => "F5_CPU");
-exportInventory(xls => $xls, file => "$dir/oss-f5_core-data.csv", title => "F5 Cores", section => "F5_Cores");
-exportInventory(xls => $xls, file => "$dir/oss-f5_memory-data.csv", title => "F5 Memory", section => "F5_Memory");
-exportInventory(xls => $xls, file => "$dir/oss-f5_swap_memory-data.csv", title => "F5 Swap Memory", section => "F5_Swap_Memory");
-exportInventory(xls => $xls, file => "$dir/oss-f5-storage-data.csv", title => "F5_Storage", section => "F5_Storage");
+exportInventory(xls => $xls, file => "$dir/oss-interfaces-data.csv", title => "Interfaces", section => "interface", model_section => "standard", model_section_top => "interface", averages => 0);
+exportInventory(xls => $xls, file => "$dir/oss-f5-pools-data.csv", title => "F5 Pools", section => "F5_Pools", averages => 0);
+exportInventory(xls => $xls, file => "$dir/oss-virtual-server-table-data.csv", title => "Virtual Server Table", section => "VirtualServTable", averages => 0);
+exportInventory(xls => $xls, file => "$dir/oss-f5-temperature-data.csv", title => "F5 Temperature", section => "F5_Temperature", averages => 0);
+exportInventory(xls => $xls, file => "$dir/oss-f5_cpu-data.csv", title => "F5 CPU", section => "F5_CPU", averages => $averagesw);
+exportInventory(xls => $xls, file => "$dir/oss-f5_core-data.csv", title => "F5 Cores", section => "F5_Cores", averages => $averagesw);
+exportInventory(xls => $xls, file => "$dir/oss-f5_memory-data.csv", title => "F5 Memory", section => "F5_Memory", averages => $averagesw);
+exportInventory(xls => $xls, file => "$dir/oss-f5_swap_memory-data.csv", title => "F5 Swap Memory", section => "F5_Swap_Memory", averages => $averagesw);
+exportInventory(xls => $xls, file => "$dir/oss-f5-storage-data.csv", title => "F5_Storage", section => "F5_Storage", averages => 0);
 
 end_xlsx(xls => $xls);
 print "XLS saved to $xlsFile\n";
@@ -472,18 +586,29 @@ sub exportNodes {
 
 
 sub exportInventory {
-	my (%args)  = @_;
-	my $xls     = $args{xls};
-	my $file    = $args{file};
-	my $title   = $args{section};
-	my $section = $args{section};
-	my $found   = 0;
-	my $sheet;
-	my $currow;
-	my $csvData;
-	my @colsize;
+	my (%args)   = @_;
+	my $xls      = $args{xls};
+	my $avgFile  = $args{file};
+	my $invFile  = $args{file};
+	my $avgTitle = $args{section};
+	my $invTitle = $args{section};
+	my $section  = $args{section};
+	my $averages = $args{averages};
+	my $found    = 0;
+	my $avgPage  = 0;
+	my $avgSheet;
+	my $invSheet;
+	my $avgCurRow;
+	my $invCurRow;
+	my $avgCSVData;
+	my $invCSVData;
+	my @exceptions;
+	my @avgColSize;
+	my @invColSize;
 
-	$title = $args{title} if defined $args{title};
+	$invTitle =  $args{title} if defined $args{title};
+	$avgTitle =  "$invTitle Averages ($timespan)";
+	$avgFile  =~ s/\.csv/_avg.csv/;
 
 	die "I must know which section!" if not defined $args{section};
 
@@ -495,11 +620,13 @@ sub exportInventory {
 
 	print "Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n";
 
-	print "Creating '$title' sheet with section $section\n";
+	print "Creating '$invTitle' sheet with section $section\n";
 
 
-	# declare some vars for filling in later.
+	# Declare some vars for filling in later.
+	my @avgHeaders;
 	my @invHeaders;
+	my %avgAlias;
 	my %invAlias;
 
 	foreach my $node (sort keys %{$NODES}) {
@@ -510,6 +637,7 @@ sub exportInventory {
 			my $inv           = $S->inventory( concept => 'catchall' );
 			my $catchall_data = $inv->data;
 			my $MDL           = $S->mdl;
+			print "DEBUG: Model " . Dumper($MDL) . "\n\n\n" if ($debug > 8);
 
 			# move on if this isn't a good one.
 			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
@@ -518,36 +646,78 @@ sub exportInventory {
 			}
 
 			# handling for this is device/model specific.
-			my %concept = undef;
+			my %invConcept = undef;
+			my %avgConcept = undef;
 
 			if ( $catchall_data->{nodeModel} =~ /$goodModels/ or $catchall_data->{nodeVendor} =~ /$goodVendors/ ) {
-				if ( defined $MDL->{systemHealth}{sys}{$section} and ref($MDL->{systemHealth}{sys}{$section}) eq "HASH") {
+				if (( defined $MDL->{system}{rrd}{$section} and ref($MDL->{system}{rrd}{$section}) eq "HASH")
+						or ( defined $MDL->{interface}{sys}{$section} and ref($MDL->{interface}{sys}{$section}) eq "HASH")
+						or ( defined $MDL->{systemHealth}{sys}{$section} and ref($MDL->{systemHealth}{sys}{$section}) eq "HASH")) {
 					my $result = $S->nmisng_node->get_inventory_model( concept => "$section", filter => { historic => 0 });
+					print "DEBUG: Concept '$section' Result " . Dumper($result) . "\n\n\n" if ($debug > 8);
 					if (!$result->error)
 					{
-						%concept = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
-						print "DEBUG: Concept '$section' Object: " . Dumper(%concept) . "\n\n\n" if ($debug > 8);
+						%invConcept = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+						print "DEBUG: Concept '$section' Object: " . Dumper(%invConcept) . "\n\n\n" if ($debug > 3);
+					}
+					else {
+						print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+						next;
 					}
 				}
 				else {
 					print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
 					next;
 				}
+
+				####################################################################################
+				#
+				# Averages for one day is just added to the normal files as an additional column.
+				#
+				####################################################################################
+				if ($averages && $period eq 'day') {
+					my %avgTestHash;
+					foreach my $idx (sort keys %invConcept) {
+						if ( defined $invConcept{$idx} ) {
+							if (-f (my $rrdfilename = $S->makeRRDname(type => $section, index => $idx))) {
+								my $begin    = @tsStartArray[0];
+								my $end      = @tsEndArray[0];
+								print "Compat::NMIS::getSummaryStats(sys=>$S,type=>$section,start=>$begin,end=>$end,index=>$idx)\n" if ($debug > 2);
+								my $currentStats = Compat::NMIS::getSummaryStats(sys=>$S,type=>$section,start=>$begin,end=>$end,index=>$idx);
+									print "Current Statistics: " . Dumper($currentStats) . "\n\n\n" if ($debug > 2);
+								if ( ref($currentStats) eq "HASH" ) {
+									next if (0 == keys %$currentStats);
+									print "Current Statistics: " . Dumper($currentStats) . "\n\n\n" if ($debug > 2);
+									foreach my $avgIndex (keys %$currentStats) {
+										my $eachIndex = $$currentStats{$avgIndex};
+										foreach my $avgMetric (keys %$eachIndex) {
+											my $eachMetric = $$eachIndex{$avgMetric};
+											print "Index: $avgIndex:$avgMetric = '$eachMetric'\n" if ($debug > 2);
+											if (!exists($avgTestHash{$avgMetric})) {
+												$avgTestHash{$avgMetric} = 1;
+												push(@avgHeaders, $avgMetric);
+											}
+											$invConcept{$avgIndex}{$avgMetric}    = $eachMetric;
+										}
+									}
+								}
+							}
+							else {
+								print "Unable to capture RRD data for '$section', index '$idx'.\n";
+							}
+						}
+					}
+				}
+				####################################################################################
 				$found = 1;
 
-				# we know the device supports this inventory section, so on the first run of a node, setup the headers based on the model.
+				# We know the device supports this inventory section, so on the first run of a node, setup the headers based on the model.
 				if ( not @invHeaders ) {
 					# create the aliases from the model data, a few static items are primed
 					#print "DEBUG: $model_section_top $model_section $MDL->{$model_section_top}{sys}{$model_section}{headers}\n";
 					#print Dumper $MDL;
 					@invHeaders = ('node','parent','location', split(",",$MDL->{$model_section_top}{sys}{$model_section}{headers}));
-
-					# set the aliases for the static items
-					%invAlias = (
-						node			=> 'Node Name',
-						parent			=> 'Parent',
-						location		=> 'Location'
-					);
+					push(@invHeaders, @avgHeaders) if (@avgHeaders > 0);
 
 					# fill in the aliases for each of the items from the model
 					foreach my $heading (@invHeaders) {
@@ -558,86 +728,230 @@ sub exportInventory {
 							$invAlias{$heading} = $heading;
 						}
 					}
-					print "DEBUG: Inventory Headers for Concept '$section': " . Dumper(@invHeaders) . "\n\n\n" if ($debug > 8);
-					print "DEBUG: Inventory Alias for Concept '$section': " . Dumper(%invAlias) . "\n\n\n" if ($debug > 8);
+					# Set the aliases for the static items
+					$invAlias{node}     = 'Node Name';
+					$invAlias{parent}   = 'Parent';
+					$invAlias{location} = 'Location';
+
+					print "DEBUG: Inventory Headers for Concept '$section': " . Dumper(@invHeaders) . "\n\n\n" if ($debug > 2);
+					print "DEBUG: Inventory Alias for Concept '$section': " . Dumper(%invAlias) . "\n\n\n" if ($debug > 2);
 
 					# create a header
 					my @aliases;
 					my $currcol=0;
 					foreach my $header (@invHeaders) {
-						my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
+						my $colLen = (($invColSize[$currcol] ne '' ) ? $invColSize[$currcol] : length($invAlias{$header}));
 						my $alias = $header;
 						$alias = $invAlias{$header} if $invAlias{$header};
-						$colsize[$currcol] = $colLen;
-						push(@aliases,ucfirst($alias));
+						$invColSize[$currcol] = $colLen;
+						push(@aliases, $alias);
 						$currcol++;
 					}
 
-					if ($file) {
-						print "Creating $file\n";
-						open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+					if ($invFile) {
+						print "Creating $invFile\n";
+						open(INVCSV,">$invFile") or die "Error with CSV File $invFile: $!\n";
 						# print a CSV header
 						my $header = join($sep,@aliases);
-						print CSV "$header\n";
-						$csvData .= "$header\n";
+						print INVCSV "$header\n";
+						$invCSVData .= "$header\n";
 					}
 					if ($xls) {
-						$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
-						$currow = 1;								# header is row 0
+						$invSheet = add_worksheet(xls => $xls, title => $invTitle, columns => \@aliases);
+						$invCurRow = 1;								# header is row 0
 					}
 					else {
 						die "ERROR: Internal error, xls is no longer defined.\n";
 					}
 				}
 
+				foreach my $idx (sort keys %invConcept) {
+					$invConcept{$idx}{node}     = $node;
+					$invConcept{$idx}{parent}   = $NODES->{$node}{uuid};
+					$invConcept{$idx}{location} = $NODES->{$node}{location};
 
-				foreach my $idx (sort keys %concept) {
-					if ( defined $concept{$idx} ) {
-						$concept{$idx}{node}     = $node;
-						$concept{$idx}{parent}   = $NODES->{$node}{uuid};
-						$concept{$idx}{location} = $NODES->{$node}{location};
+					my @columns;
+					my $currcol=0;
+					foreach my $header (@invHeaders) {
+						my $colLen = (($invColSize[$currcol] ne '' ) ? $invColSize[$currcol] : length($invAlias{$header}));
+						my $data   = undef;
+						if ( defined $invConcept{$idx}{$header} ) {
+							$data = $invConcept{$idx}{$header};
+						}
+						else {
+							$data = "TBD";
+						}
+						$data = "N/A" if $data eq "noSuchInstance";
+						$colLen = ((length($data) > 253 || length($invAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+						$data   = changeCellSep($data);
+						$invColSize[$currcol] = $colLen;
+						push(@columns,$data);
+						$currcol++;
+					}
+					my $row = join($sep,@columns);
+					print INVCSV "$row\n";
+					$invCSVData .= "$row\n";
 
-						my @columns;
+					if ($invSheet) {
+						$invSheet->write($invCurRow, 0, [ @columns[0..$#columns] ]);
+						++$invCurRow;
+					}
+				}
+
+				####################################################################################
+				#
+				# Averages for a week, or a month is separated into a new sheet/file.
+				#
+				####################################################################################
+				if ($averages && $period ne 'day') {
+					$avgPage = 1;
+					print "Creating '$avgTitle' sheet with section $section\n";
+					my %avgTestHash;
+					my @avgBuildHeaders;
+					foreach my $idx (sort keys %invConcept) {
+						if (-f (my $rrdfilename = $S->makeRRDname(type => $section, index => $idx))) {
+							my $now      = time();
+							my $endHuman = NMISNG::Util::returnDateStamp($now);
+							my $size     = scalar(@tsStartArray);
+							$avgConcept{$idx}{NumberOfMetrics} = $size;
+							print "There are $size days to capture\n";
+							for(my $i=0; $i < $size; $i++) {
+								print "Processing day $i\n";
+								my $begin    = @tsStartArray[$i];
+								my $end      = @tsEndArray[$i];
+								my $prtBegin = NMISNG::Util::returnDateStamp($begin);
+								my $prtEnd   = NMISNG::Util::returnDateStamp($end);
+								print "Processing Timespan: ${prtBegin} -> ${prtEnd} \n";
+								$avgConcept{$idx}{date}{$i}     = "${prtBegin} -> ${prtEnd}";
+								$avgConcept{$idx}{node}{$i}     = $node;
+								$avgConcept{$idx}{parent}{$i}   = $NODES->{$node}{uuid};
+								$avgConcept{$idx}{location}{$i} = $NODES->{$node}{location};
+								print "Compat::NMIS::getSummaryStats(sys=>$S,type=>$section,start=>$begin,end=>$end,index=>$idx)\n" if ($debug > 2);
+								my $currentStats = Compat::NMIS::getSummaryStats(sys=>$S,type=>$section,start=>$begin,end=>$end,index=>$idx);
+								if ( ref($currentStats) eq "HASH" ) {
+									next if (0 == keys %$currentStats);
+									push(@avgBuildHeaders, 'date', 'node','parent','location') if (!@avgBuildHeaders);
+									print "Current Statistics: " . Dumper($currentStats) . "\n\n\n" if ($debug > 2);
+									foreach my $avgIndex (keys %$currentStats) {
+										my $eachIndex = $$currentStats{$avgIndex};
+										foreach my $avgMetric (keys %$eachIndex) {
+											my $eachMetric = $$eachIndex{$avgMetric};
+											print "Index: $avgIndex:$avgMetric = '$eachMetric'\n" if ($debug > 2);
+											if (!exists($avgTestHash{$avgMetric})) {
+												$avgTestHash{$avgMetric} = 1;
+												push(@avgBuildHeaders, $avgMetric);
+											}
+											$avgConcept{$avgIndex}{$avgMetric}{$i} = $eachMetric;
+										}
+									}
+								}
+							}
+						}
+						else {
+							print "Unable to capture RRD data for '$section', index '$idx'.\n";
+						}
+					}
+					if ( @avgBuildHeaders && !@avgHeaders ) {
+						@avgHeaders = @avgBuildHeaders;
+						# fill in the aliases for each of the items from the model
+						foreach my $heading (@avgHeaders) {
+							$avgAlias{$heading} = $heading;
+						}
+						# Set the aliases for the static items
+						$avgAlias{date}     = 'Date';
+						$avgAlias{node}     = 'Node Name';
+						$avgAlias{parent}   = 'Parent';
+						$avgAlias{location} = 'Location';
+	
+						print "DEBUG: Averages Headers for Concept '$section': " . Dumper(@avgHeaders) . "\n\n\n" if ($debug > 2);
+						print "DEBUG: Averages Alias for Concept '$section': " . Dumper(%avgAlias) . "\n\n\n" if ($debug > 2);
+	
+						# Create a header
+						my @aliases;
 						my $currcol=0;
-						foreach my $header (@invHeaders) {
-							my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
-							my $data   = undef;
-							if ( defined $concept{$idx}{$header} ) {
-								$data = $concept{$idx}{$header};
-							}
-							else {
-								$data = "TBD";
-							}
-							$data = "N/A" if $data eq "noSuchInstance";
-							$colLen = ((length($data) > 253 || length($invAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
-							$data   = changeCellSep($data);
-							$colsize[$currcol] = $colLen;
-							push(@columns,$data);
+						foreach my $header (@avgHeaders) {
+							my $colLen = (($avgColSize[$currcol] ne '' ) ? $avgColSize[$currcol] : length($avgAlias{$header}));
+							my $alias = $header;
+							$alias = $avgAlias{$header} if $avgAlias{$header};
+							$avgColSize[$currcol] = $colLen;
+							push(@aliases, $alias);
 							$currcol++;
 						}
-						my $row = join($sep,@columns);
-						print CSV "$row\n";
-						$csvData .= "$row\n";
-
-						if ($sheet) {
-							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
-							++$currow;
+	
+						if ($avgFile) {
+							print "Creating $avgFile\n";
+							open(AVGCSV,">$avgFile") or die "Error with CSV File $avgFile: $!\n";
+							# print a CSV header
+							my $header = join($sep,@aliases);
+							print AVGCSV "$header\n";
+							$avgCSVData .= "$header\n";
+						}
+						if ($xls) {
+							$avgSheet = add_worksheet(xls => $xls, title => $avgTitle, columns => \@aliases);
+							$avgCurRow = 1;								# header is row 0
+						}
+						else {
+							die "ERROR: Internal error, xls is no longer defined.\n";
+						}
+					}
+					foreach my $idx (sort keys %avgConcept) {
+						my $size = $avgConcept{$idx}{NumberOfMetrics};
+						for(my $i=0; $i < $size; $i++) {
+							my @columns;
+							my $currcol=0;
+							print "Saving day $i\n";
+							foreach my $header (@avgHeaders) {
+								my $colLen = (($avgColSize[$currcol] ne '' ) ? $avgColSize[$currcol] : length($avgAlias{$header}));
+								my $data   = undef;
+								if ( defined $avgConcept{$idx}{$header}{$i} ) {
+									$data = $avgConcept{$idx}{$header}{$i};
+								}
+								else {
+									$data = "TBD";
+								}
+								$data = "N/A" if $data eq "noSuchInstance";
+								$colLen = ((length($data) > 253 || length($avgAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+								$data   = changeCellSep($data);
+								$avgColSize[$currcol] = $colLen;
+								push(@columns,$data);
+								$currcol++;
+							}
+							my $row = join($sep,@columns);
+							print AVGCSV "$row\n";
+							$avgCSVData .= "$row\n";
+		
+							if ($avgSheet) {
+								$avgSheet->write($avgCurRow, 0, [ @columns[0..$#columns] ]);
+								++$avgCurRow;
+							}
 						}
 					}
 				}
+				####################################################################################
 			}
 		}
 	}
 	my $i=0;
 	foreach my $header (@invHeaders) {
-		$sheet->set_column( $i, $i, $colsize[$i]+2);
+		$invSheet->set_column( $i, $i, $invColSize[$i]+2);
 		$i++;
 	}
-	close CSV;
-
+	close INVCSV;
 	if ($found && $email) {
-		my $content = "Report for '$title' attached.\n";
-		notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$file", csvData => $csvData);
+		my $content = "Report for '$invTitle' attached.\n";
+		notifyByEmail(email => $email, subject => $invTitle, content => $content, csvName => "$invFile", csvData => $invCSVData);
+	}
+	if ($avgPage) {
+		my $i=0;
+		foreach my $header (@avgHeaders) {
+			$avgSheet->set_column( $i, $i, $avgColSize[$i]+2);
+			$i++;
+		}
+		close INVCSV;
+		if ($found && $email) {
+			my $content = "Report for '$avgTitle' attached.\n";
+			notifyByEmail(email => $email, subject => $avgTitle, content => $content, csvName => "$avgFile", csvData => $avgCSVData);
+		}
 	}
 }
 
@@ -713,16 +1027,18 @@ sub getCardName {
 
 sub usage {
 	print <<EO_TEXT;
-Usage: $PROGNAME -d[=[0-9]] -h -u -v dir=<directory> [option=value...]
+Usage: $PROGNAME -a -d[=[0-9]] -h -u -v dir=<directory> [option=value...]
 
 $PROGNAME will export nodes and ports from NMIS.
 
 Arguments:
- conf=<Configuration file> (default: '$defaultConf');
  dir=<Drectory where files should be saved>
- email=<Email Address>
- separator=<Comma separated  value (CSV) separator character (default: tab)
- xls=<Excel filename> (default: '$xlsFile')
+ [conf=<Configuration file>] (default: '$defaultConf');
+ [email=<Email Address>]
+ [period=<day|week|month>] (default: '$dfltPeriod')
+ [timespan=<24[hours]|HH:HH>] (default: '$dfltTimespan')
+ [separator=<Comma separated  value (CSV) separator character>] (default: tab)
+ [xls=<Excel filename>] (default: '$xlsFile')
 
 Enter $PROGNAME -h for compleate details.
 
@@ -972,6 +1288,7 @@ sub help
    push(@lines, "       also creates Comma Separated Value (CSV) files in the same directory.\n");
    push(@lines, "\n");
    push(@lines, "\033[1mOPTIONS\033[0m\n");
+   push(@lines, " --averages               - Collect usage averages over a period of time.\n");
    push(@lines, " --debug=[1-9|true|false] - global option to print detailed messages\n");
    push(@lines, " --help                   - display command line usage\n");
    push(@lines, " --usage                  - display a brief overview of command syntax\n");
@@ -988,10 +1305,22 @@ sub help
    push(@lines, "                             - Set the debug level.\n");
    push(@lines, "     [email=<email_address>] - Send all generated CSV files to the specified.\n");
    push(@lines, "                                 email address.\n");
+   push(@lines, "     [period=<day|week|month>]\n");
+   push(@lines, "                             - An optional date range to collect when the\n");
+   push(@lines, "                                  'averages' option is specified.\n");
+   push(@lines, "                                   One of 'day', 'week', or 'month'.\n");
+   push(@lines, "                                (default: '$dfltPeriod')\n");
    push(@lines, "     [separator=<character>] - A character to be used as the separator in the\n");
    push(@lines, "                                 CSV files. The words 'comma' and 'tab' are\n");
    push(@lines, "                                 understood. Other characters will be taken\n");
    push(@lines, "                                 literally. (default: 'tab')\n");
+   push(@lines, "     [timespan=<24[hours]|HH:HH>]\n");
+   push(@lines, "                             - An optional timespan for collection when the\n");
+   push(@lines, "                                  'averages' option is specified.\n");
+   push(@lines, "                                   Either '24hours', or a start hour and a\n");
+   push(@lines, "                                   stop hour in 24 hour format separated by a\n");
+   push(@lines, "                                   colon.\n");
+   push(@lines, "                                (default: '$dfltTimespan')\n");
    push(@lines, "     [xls=<filename>]        - The name of the XLS file to be created in the\n");
    push(@lines, "                                 directory specified using the 'dir' parameter'.\n");
    push(@lines, "                                 (default: '$xlsFile')\n");
