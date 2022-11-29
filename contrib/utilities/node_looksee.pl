@@ -32,6 +32,7 @@ use strict;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Cwd 'abs_path';
 
 use Data::Dumper;
 use Compat::NMIS;
@@ -40,12 +41,27 @@ use NMISNG::Util;
 use NMISNG::rrdfunc;
 use RRDs 1.000.490; # from Tobias
 
+my $defaultConf = "$FindBin::Bin/../../conf";
+$defaultConf = "$FindBin::Bin/../conf" if (! -d $defaultConf);
+$defaultConf = abs_path($defaultConf);
+print "Default Configuration directory is '$defaultConf'\n";
+
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
 my $debug = 0;
 $debug = $cmdline->{debug} if defined $cmdline->{debug};
 
-my $config = NMISNG::Util::loadConfTable( dir => "$FindBin::Bin/../conf", debug => $debug, info => undef);
+# get an NMIS config and create an NMISNG object ready for use.
+if ( not defined $cmdline->{conf}) {
+    $cmdline->{conf} = $defaultConf;
+}
+else {
+    $cmdline->{conf} = abs_path($cmdline->{conf});
+}
+
+print "Configuration Directory = '$cmdline->{conf}'\n" if ($debug);
+# load configuration table
+our $config = NMISNG::Util::loadConfTable(dir=>$cmdline->{conf}, debug=>$debug);
 
 # use debug, or info arg, or configured log_level
 # not wanting this level of debug for debug = 1.
