@@ -2270,12 +2270,12 @@ sub get_group_names
 	my $includehidden = NMISNG::Util::getbool($args{include_hidden});
 
 	# default: active nodes, and ours only
-	my $filter = exists($args{filter})? $args{filter} # undef is ok
-	: 	{ "activated.NMIS" => 1,
-				};
+	my $filter = exists($args{filter})
+		? $args{filter} # undef is ok
+		: { "activated.NMIS" => 1, "configuration.active" => 1};
 
-	my $model_data = $self->get_nodes_model( filter => $filter,
-																					 fields_hash => {"configuration.group" => 1} );
+	my $model_data = $self->get_nodes_model( filter => $filter, fields_hash => {"configuration.group" => 1} );
+	$self->log->debug7("Model Data " . Dumper($model_data) . "\n\n\n");
 	return () if ($model_data->error);
 
 	my @groupnames  = List::Util::uniq(map { $_->{configuration}->{group} } @{$model_data->data});
@@ -2752,6 +2752,9 @@ sub grouped_node_summary
 		pre_count_pipeline => \@pipe,
 		count              => 0,
 	);
+	$self->log->debug7("Entries: " . Dumper($entries) . "\n\n\n");
+	$self->log->debug7("Count:   " . Dumper($count) . "\n\n\n");
+	$self->log->debug7("Error:   " . Dumper($error) . "\n\n\n");
 	return ( $entries, $count, $error );
 }
 
