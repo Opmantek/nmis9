@@ -376,7 +376,7 @@ sub getSummaryStatsbyGroup
 		business => $business,
 		include_nodes => $include_nodes
 	);
-	$nmisng->log->info("getSummaryStatsbyGroup - Group Summary for Group '$group': " . Dumper($groupSummary) . "\n\n");
+	$nmisng->log->debug5("getSummaryStatsbyGroup - Group Summary for Group '$group': " . Dumper($groupSummary) . "\n\n");
 	$overallStatus = $network_status->overallNodeStatus( group => $group, customer => $customer, business => $business );
 	$overallColor = NMISNG::Util::eventColor($overallStatus);
 
