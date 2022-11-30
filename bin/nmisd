@@ -107,6 +107,61 @@ if ( !-d $tmpdir )
 	NMISNG::Util::createDir($tmpdir);
 }
 NMISNG::Util::verifyNMISEncryption(log => $logger);
+my $wantfpingworker = NMISNG::Util::getbool($config->{nmisd_fping_worker});
+my $fpingpath4;
+my $fpingpath6;
+
+# If we are configured as a ping poller, then make sure we have
+# the 'fping' (and/or) the 'fping6' executable before we start.
+if ($wantfpingworker)
+{
+	if (!defined $fpingpath4)
+	{
+		$logger->debug("Searching for the 'fping' executable.");
+		for my $pathcomp (split(/:/, $ENV{PATH}))
+		{
+			if (-x(my $maybe = "$pathcomp/fping"))
+			{
+				$fpingpath4 = $maybe;
+			    $logger->debug("Found 'fping' executable at '$fpingpath4'.");
+				last;
+			}
+		}
+		if (!defined $fpingpath4)
+		{
+			$logger->fatal("No 'fping' executable available! aborting.");
+            exit 0;
+		}
+	}
+	if (!defined $fpingpath6)
+	{
+		$logger->debug("Searching for the 'fping6' executable.");
+		for my $pathcomp (split(/:/, $ENV{PATH}))
+		{
+			if (-x(my $maybe = "$pathcomp/fping6"))
+			{
+				$fpingpath6 = $maybe;
+			    $logger->debug("Found 'fping6' executable at '$fpingpath6'.");
+				last;
+			}
+		}
+		if (!defined $fpingpath6)
+		{
+			my @words = split(' ', `$fpingpath4 -v`);
+			my $fpingversion = $words[2];
+			if ($fpingversion >= 4.0)
+			{
+				$logger->info("No 'fping6' executable available but 'fping' is version '$fpingversion', which is greater than 4.0. It includes INET6 support");
+				$fpingpath6 = $fpingpath4;
+			}
+			else
+			{
+				$logger->fatal("No 'fping6' executable available and 'fping' is version '$fpingversion', which is less than 4.0, aborting!");
+				exit 0;
+			}
+		}
+	}
+}
 
 # this opens a database connection - which we must not share with any children!
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
@@ -175,8 +230,8 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 
 	# child continues with the actual work
 	srand();
-	$nmisng->log->logprefix("$me\[$$\] ");
-	$nmisng->log->info("$me daemon was started (pid $$).");
+	$logger->logprefix("$me\[$$\] ");
+	$logger->info("$me daemon was started (pid $$).");
 
 
 	POSIX::setsid() or die "Can't start new session: $!";
@@ -805,7 +860,6 @@ sub manage_processes
 
 	# start exactly one worker dedicated to fping if configured to
 	my @fpingworkers = grep($zoo->{$_}->{processtype} eq "fping", keys %$zoo);
-	my $wantfpingworker = NMISNG::Util::getbool($config->{nmisd_fping_worker});
 
 	if (@fpingworkers && !$wantfpingworker)
 	{
@@ -1786,9 +1840,6 @@ sub fping_loop
 	my $config = $nmisng->config;
 	my $ttl = $max_cycles;
 
-	my $fpingpath4;
-	my $fpingpath6;
-
 	# new fping options for "interval between sending ping packets" and "interval between ping packets to one target"
 	# some crazy firewalls like to have larger gaps, so -i 80 and -p 100 could be used in the config.
 	my $interval = $config->{fastping_interval} || 1;
@@ -1839,41 +1890,6 @@ sub fping_loop
 			$nmisng->log->info("nmis is locked, sleeping 60 seconds");
 			sleep(60);
 			next;
-		}
-		# on first startup, find the fping executable
-		if (!defined $fpingpath4)
-		{
-			for my $pathcomp (split(/:/, $ENV{PATH}))
-			{
-				if (-x(my $maybe = "$pathcomp/fping"))
-				{
-					$fpingpath4 = $maybe;
-					last;
-				}
-			}
-			if (!defined $fpingpath4)
-			{
-				$nmisng->log->fatal("no fping executable available! sleeping 60 seconds");
-				sleep(60);
-				next;
-			}
-		}
-		if (!defined $fpingpath6)
-		{
-			for my $pathcomp (split(/:/, $ENV{PATH}))
-			{
-				if (-x(my $maybe = "$pathcomp/fping6"))
-				{
-					$fpingpath6 = $maybe;
-					last;
-				}
-			}
-			if (!defined $fpingpath6)
-			{
-				$nmisng->log->fatal("no fping executable available! sleeping 60 seconds");
-				sleep(60);
-				next;
-			}
 		}
 
 		# who needs pinging?
