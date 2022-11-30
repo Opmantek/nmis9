@@ -1356,7 +1356,7 @@ sub getValues
 	for my $thing ( values %todos )
 	{
 		next if ( !$thing->{done} );    # we should not end up with unresolved stuff but bsts
-
+			
 		my $value = $thing->{rawvalue};
 
 		# where does it go? remember, multiple target sections possible - potentially with DIFFERENT calculate,
@@ -1883,7 +1883,7 @@ sub _mergeHash
 
 	while ( my ( $k, $v ) = each %{$source} )
 	{
-		$self->nmisng->log->debug4( "$lvl key=$k, val=$v" );
+		$self->nmisng->log->debug9( "$lvl key=$k, val=$v" );
 
 		if ( ref( $dest->{$k} ) eq "HASH" and ref($v) eq "HASH" )
 		{
@@ -1898,7 +1898,7 @@ sub _mergeHash
 		else
 		{
 			$dest->{$k} = $v;
-			$self->nmisng->log->debug4( "$lvl > load key=$k, val=$v");
+			$self->nmisng->log->debug9( "$lvl > load key=$k, val=$v");
 		}
 	}
 	return $dest;
