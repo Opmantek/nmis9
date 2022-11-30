@@ -1307,10 +1307,13 @@ sub ensure_indexes
 
 				# needed for joins
 				[[node_uuid => 1]],
+				#used for sorting in opCharts
+				[[node_name => 1]],
 				[[concept   => 1, enabled => 1, historic => 1], {unique => 0}],
 				[{"lastupdate"           => 1}, {unique => 0}],
 				[{"subconcepts"          => 1}, {unique => 0}],
 				[{"data_info.subconcept" => 1}, {unique => 0}],
+				
 
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
 				[["data.ip.ipAdEntAddr" => 1], {unique             => 0}],

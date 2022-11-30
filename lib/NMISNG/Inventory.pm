@@ -365,7 +365,7 @@ sub new
 
 	# compat issue, we *may* get _id
 	$args{id} //= $args{_id};
-
+	
 	# description? we don't want any logic to abuse that, but having some human-friendly bits are desirable
 	if ( !defined $args{description} )
 	{
@@ -1273,12 +1273,24 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
+	#node_name and group name are cached on the record for faster inventory sorting in the other products,
+	#maybe we should append with cached? as this data could be stale?
+	my $node = $self->nmisng->node( filter => { uuid => $self->node_uuid } );
+	my ($name, $group);
+	if (ref($node) eq "NMISNG::Node")
+	{
+		$name = $node->name;
+		$group = $node->configuration()->{'group'};
+	}
+
 	my ( $result, $op );
 
 	my $record = {
 		cluster_id => $self->cluster_id,
 		server_name => $self->server_name,
 		node_uuid  => $self->node_uuid,
+		node_name  => $name,
+		configuration => { group => $group },
 		concept    => $self->concept(),
 		path       => $self->path(),         # path is calculated but must be stored so it can be queried
 		path_keys  => $self->path_keys(),    # could be empty, kept in db for selfcontainment and convenience
