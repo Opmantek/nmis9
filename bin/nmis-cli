@@ -138,9 +138,9 @@ Supported Arguments for Schedule Creation:
 at: optional time argument for the job to commence, default is now.
   Time format is described in man at
 
-job.type: job type, required, one of: collect update services
-  thresholds escalations metrics configbackup purge dbcleanup
-  selftest permission_test or plugins delete edit 
+job.type: job type, required, one of: collect update update_links
+  services thresholds escalations metrics configbackup purge
+  dbcleanup selftest permission_test or plugins delete edit 
 
 job.priority: optional number between 0 (lowest) and 1 (highest) job priority.
  default is 1 for manually scheduled jobs
@@ -366,7 +366,7 @@ elsif ($Q->{act} eq "schedule")
 			die "Failed to add schedule: $error\n" if ($error);
 			print "Job $jobid created for type $what and ".$possibles->count." nodes.\n" if (!$quiet);
 		} 
-		# collect/update/services need separate scheduling for each node
+		# collect/update/update_links/services need separate scheduling for each node
 		else
 		{
 			for my $onenode (@{$possibles->data})
@@ -389,7 +389,7 @@ elsif ($Q->{act} eq "schedule")
 		}
 	}
 	# none of these take any job arguments
-	elsif ($what =~ /^(selftest|permission_test|configbackup|purge|dbcleanup|escalations|metrics|thresholds)$/)
+	elsif ($what =~ /^(update_links|selftest|permission_test|configbackup|purge|dbcleanup|escalations|metrics|thresholds)$/)
 	{
 		my ($error,$jobid) = $nmisng->update_queue(
 			jobdata => {
@@ -1478,9 +1478,10 @@ sub help
    push(@lines, "                           details can be found by running 'man at' on a Linux system.\n");
    push(@lines, "\n");
    push(@lines, "                        job.type=<activity>: (Required) One of: 'collect',\n");
-   push(@lines, "                           'update', 'services','thresholds', 'escalations',\n");
-   push(@lines, "                           'metrics', 'configbackup', 'purge', 'dbcleanup'\n");
-   push(@lines, "                           'selftest', 'permission_test', or 'plugins' delete edit\n");
+   push(@lines, "                           'update', 'update_links', 'services','thresholds',\n");
+   push(@lines, "                           'escalations', 'metrics', 'configbackup', 'purge',\n");
+   push(@lines, "                           'dbcleanup' 'selftest', 'permission_test', or\n");
+   push(@lines, "                           'plugins'\n");
    push(@lines, "\n");
    push(@lines, "                        job.priority=<0..1>: (Optional) Number between 0\n");
    push(@lines, "                           0 (lowest) and 1 (highest) job priority.\n");

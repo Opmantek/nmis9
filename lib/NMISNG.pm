@@ -4699,10 +4699,10 @@ sub update_links
 
 	my ( %subnets, $II, %catchall );
 
-	$self->log->debug2(&NMISNG::Log::trace()."Start");
+	$self->log->debug("update_links: Start");
 	if ( !( $II = Compat::NMIS::loadInterfaceInfo() ) )
 	{
-		$self->log->fatal("update_links failed to load any interface info!");
+		$self->log->fatal("update_links: Failed to load any interface info!");
 		return;
 	}
 
@@ -4711,7 +4711,7 @@ sub update_links
 	my $link_ifTypes = $C->{link_ifTypes} || '.';
 	my $qr_link_ifTypes = qr/$link_ifTypes/i;
 
-	$self->log->debug2("Collecting Interface Linkage Information");
+	$self->log->debug2("update_links: Collecting Interface Linkage Information");
 	foreach my $intHash ( sort keys %{$II} )
 	{
 		my $cnt      = 1;
@@ -4768,14 +4768,12 @@ sub update_links
 					$subnets{$subnet}{ifIndex2} = $thisintf->{ifIndex};
 				}
 			}
-			$self->log->debug2(
-				"found subnet: " . Data::Dumper->new( [$subnets{$subnet}] )->Terse(1)->Indent(0)->Pair("=")->Dump )
-					if ($self->log->is_level(3));
+			$self->log->debug3( "update_links: found subnet: " . Data::Dumper->new( [$subnets{$subnet}] )->Terse(1)->Indent(0)->Pair("=")->Dump );
 			$cnt++;
 		}
 	}
 
-	$self->log->debug2("Generating Links datastructure");
+	$self->log->debug2("update_links: Generating Links datastructure");
 	foreach my $subnet ( sort keys %subnets )
 	{
 		my $thisnet = $subnets{$subnet};
@@ -4850,13 +4848,13 @@ sub update_links
 		# dont overwrite any manually configured dependancies.
 		if ( !exists $thislink->{depend} ) { $thislink->{depend} = "N/A" }
 
-		$self->log->debug2("Adding link $thislink->{link} for $subnet to links");
+		$self->log->debug3("update_links: Adding link $thislink->{link} for $subnet to links");
 	}
 
 	NMISNG::Util::writeTable( dir => 'conf', name => 'Links', data => $links );
-	$self->log->warn("update_links finished; check table Links and update link names and other entries");
+	$self->log->warn("update_links: Finished; check table Links and update link names and other entries");
 
-	$self->log->debug2(&NMISNG::Log::trace()."Finished");
+	$self->log->debug("update_links: Finished");
 }
 
 # job queue handling functions follow
@@ -4900,7 +4898,7 @@ sub update_queue
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
 		if ( $jobdata->{type}
-		!~ /^(collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins|delete_nodes|update_nodes|create_nodes|set_nodes)$/
+		!~ /^(update_links|collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins|delete_nodes|update_nodes|create_nodes|set_nodes)$/
 		);
 
 	return

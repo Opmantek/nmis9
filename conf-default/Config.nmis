@@ -219,6 +219,7 @@ my %hash = (
 		'use_json_pretty' => 'false',
     'backup_node_on_delete' => 'true',
     'keeprrds_on_delete_node' => 'false',
+	'disable_interfaces_summary' => 'false',
     'audit_enabled' => 'false'
   },
 

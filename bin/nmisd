@@ -687,7 +687,7 @@ while (!$exit_marker)
 								 'dbcleanup' =>  'cleanup', );
 
 		my %statsdata;
-		for my $ds (map { ("${_}time", "${_}count") } (qw(collect update services metrics
+		for my $ds (map { ("${_}time", "${_}count") } (qw(collect update update_links services metrics
 selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes
 )))
 		{
@@ -1158,7 +1158,7 @@ sub worker_loop
 			$0 = "nmisd." . $ourjob->{type}; # Change worker name
 			
 			# the simpler jobs don't have extra args that need to go into opstatus context
-			if ($ourjob->{type} =~ /^(selftest|permissions_test|configbackup|purge|dbcleanup|escalations|thresholds|metrics)$/)
+			if ($ourjob->{type} =~ /^(update_links|selftest|permissions_test|configbackup|purge|dbcleanup|escalations|thresholds|metrics)$/)
 			{
 				(my $error, $state->{statusid}) =
 						$nmisng->save_opstatus(activity => $ourjob->{type},
@@ -1199,13 +1199,20 @@ sub worker_loop
 						}
 					}
 				}
+				elsif ($ourjob->{type} eq "update_links")
+				{
+					# fixme: does not return anything
+					$nmisng->update_links;
+					$state->{status} = "ok";
+					$state->{details} = undef;
+				}
 				elsif ($ourjob->{type} eq "configbackup")
 				{
 					my $result = $nmisng->config_backup;
 					$state->{status} = ($result->{success}? "ok":"error");
 					$state->{details} = "completed"
 							.($result->{success}? " successfully, backup saved as $result->{file}"
-								: "failed: $result->{error}"),
+								: "failed: $result->{error}");
 				}
 				elsif ($ourjob->{type} eq "purge")
 				{
@@ -1383,7 +1390,8 @@ sub worker_loop
 					
 					$state->{context} = {node_name => $nodes};	
 				}
-				elsif ($ourjob->{type} eq "set_nodes" ) {
+				elsif ($ourjob->{type} eq "set_nodes" )
+				{
 					my $nodes_list = "";
 					my $error = 0;
 					my $errormsg = "";
