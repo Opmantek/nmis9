@@ -58,6 +58,7 @@ $Q = NMISNG::Util::filter_params($Q);
 my $nmisng = Compat::NMIS::new_nmisng;
 my $C = $nmisng->config;
 my $interface_max_number = $C->{interface_max_number} || 5000;
+my $iseditable = iseditable();
 
 # bypass auth iff called from command line
 $C->{auth_require} = 0 if (@ARGV);
@@ -2374,20 +2375,29 @@ nodeVendor sysObjectName roleType netType );
 			start_table( {class => 'dash'} );
 
 	my $nodeDetails = ("Node Details - $node");
-	if ( $AU->CheckAccessCmd("Table_Nodes_rw") )
+
+	if ( $iseditable )
 	{
-		my $url
-			= "$C->{'<cgi_url_base>'}/tables.pl?act=config_table_edit&table=Nodes&widget=$widget&key="
-			. uri_escape($node);
-		$nodeDetails .= qq| - <a href="$url" id="cfg_nodes" style="color:white;">Edit Node</a>|;
+		if ( $AU->CheckAccessCmd("Table_Nodes_rw") )
+		{
+			my $url
+				= "$C->{'<cgi_url_base>'}/tables.pl?act=config_table_edit&table=Nodes&widget=$widget&key="
+				. uri_escape($node);
+			$nodeDetails .= qq| - <a href="$url" id="cfg_nodes" style="color:white;">Edit Node</a>|;
+		}
+	
+		if ( $AU->CheckAccessCmd("table_nodeconf_view") )
+		{
+			my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?act=config_nodeconf_view&widget=$widget&node="
+				. uri_escape($node);
+			$nodeDetails .= qq| - <a href="$url" id="cfg_nodecGfg" style="color:white;">Node Configuration</a>|;
+		}
+	}
+	else
+	{
+		$nodeDetails .= qq| - <i> This peer is a poller, editing is disabled.</i>|;
 	}
 
-	if ( $AU->CheckAccessCmd("table_nodeconf_view") )
-	{
-		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?act=config_nodeconf_view&widget=$widget&node="
-			. uri_escape($node);
-		$nodeDetails .= qq| - <a href="$url" id="cfg_nodecGfg" style="color:white;">Node Configuration</a>|;
-	}
 
 	# this will handle the Name and URL for additional node information
 	if ( defined $configuration->{node_context_name}
@@ -5246,6 +5256,19 @@ sub nodeAdminSummary
 	}
 	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }    # end sub nodeAdminSummary
+
+
+
+# This function checks is the table is editable based on whether, or not this server is a poller.
+# If it is, then tables are not editable.
+sub iseditable
+{
+    if ($C->{server_role} eq "POLLER") {
+        return 0;
+    }
+    return 1;
+}
+
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
