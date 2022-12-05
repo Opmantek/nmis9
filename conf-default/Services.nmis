@@ -1,175 +1,13 @@
 %hash = (
-  'SSL Expiry Check' => {
-    'Args' => 'node.host:443',
-    'Collect_Output' => 'true',
-    'Description' => 'Check the SSL cert and if days is >30,pass. <30 >7,warning. <7,fail.',
-    'Max_Runtime' => '10',
-    'Name' => 'SSL Expiry Check',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Program' => '/usr/local/nmis9/conf-default/scripts/ssl_expiry_check.sh',
-    'Service_Type' => 'program'
-  },
-  'SNMP' => {
-    'Service_Type' => 'service',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => '(snmpd|snmp.exe)',
-    'Service_Parameters' => '',
-    'Name' => 'SNMP'
-  },
-  'dns' => {
-    'Service_Type' => 'dns',
-    'Port' => '',
-    'Poll_Interval' => '1m',
-    'Service_Name' => '',
-    'Name' => 'dns'
-  },
-  'http' => {
-    'Service_Type' => 'script',
-    'Port' => '80',
-    'Poll_Interval' => '1m',
-    'Service_Name' => 'http',
-    'Name' => 'http'
-  },
-  'http-redir' => {
-    'Service_Type' => 'script',
-    'Port' => '80',
-    'Poll_Interval' => '1m',
-    'Service_Name' => 'http-redir',
-    'Name' => 'http-redir'
-  },
-  'http-moved' => {
-    'Service_Type' => 'script',
-    'Port' => '80',
-    'Poll_Interval' => '1m',
-    'Service_Name' => 'http-moved',
-    'Name' => 'http-moved'
-  },
-  'pop3' => {
-    'Service_Type' => 'script',
-    'Port' => '110',
-    'Poll_Interval' => '1m',
-    'Service_Name' => 'pop3',
-    'Name' => 'pop3'
-  },
-  'http_server' => {
-    'Service_Type' => 'service',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => '(httpd|apache2|httpd.exe)',
-    'Service_Parameters' => '',
-    'Name' => 'HTTP_Server',
-    'Description' => "looks for a live httpd or apache2  daemon",
-  },
-  'mysqld_daemon' => {
-    'Service_Type' => 'service',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => '(mysqld|mysqld_safe|mariadb)',
-    'Service_Parameters' => '',
-    'Name' => 'mysqld_daemon'
-  },
-  'mysql' => {
-    'Service_Type' => 'service',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => '(mysqld|mysqld_safe|mariadb|mysqld.exe|mysqld-nt.exe)',
-    'Service_Parameters' => '',
-    'Name' => 'mysql'
-  },
-  'port22' => {
-    'Service_Type' => 'port',
-    'Port' => 'tcp:22',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'SSH',
-    'Name' => 'port22'
-  },
-  'port25' => {
-    'Service_Type' => 'port',
-    'Port' => 'tcp:25',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'SMTP',
-    'Name' => 'port25'
-  },
-  'port80' => {
-    'Service_Type' => 'port',
-    'Port' => 'tcp:80',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'HTTP',
-    'Name' => 'port80'
-  },
-  'port53' => {
-    'Service_Type' => 'port',
-    'Port' => 'udp:53',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'DNS',
-    'Name' => 'port53'
-  },
-  'nmis cgi' => {
-    'Collect_Output' => 'false',
-    'Description' => 'NMIS9 Web Interface',
-    'Max_Runtime' => '10',
-    'Name' => 'nmis cgi',
-    'Poll_Interval' => '5m',
-    'Port' => '80',
-    'Service_Name' => 'nmis9_service',
-    'Service_Type' => 'script'
-  },
-  'opmantek.pl' => {
-    'Args' => '',
-    'Collect_Output' => 'true',
-    'Max_Runtime' => '10',
-    'Name' => 'omkd opmantek.pl',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Program' => '',
-    'Service_Name' => 'opmantek.*',
-    'Service_Type' => 'service'
-  },
-  'MongoDB' => {
-    'Args' => '',
-    'Collect_Output' => 'false',
-    'Description' => 'Check MongoDB Daemon or Service is running',
-    'Max_Runtime' => '',
-    'Name' => 'MongoDB',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Program' => '',
-    'Service_Name' => 'mongod',
-    'Service_Parameters' => '',
-    'Service_Type' => 'service'
-  },
   'Docker_Daemon' => {
-    'Service_Type' => 'service',
     'Description' => 'Check Docker Daemon is running',
-    'Port' => '',
+    'Name' => 'Docker_Daemon',
     'Poll_Interval' => '5m',
+    'Port' => '',
     'Service_Name' => 'dockerd',
     'Service_Parameters' => '',
-    'Name' => 'Docker_Daemon'
-  },
-  'PhotoPrism_Daemon' => {
     'Service_Type' => 'service',
-    'Description' => 'Check PhotoPrism Daemon is running',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'photoprism',
-    'Service_Parameters' => '',
-    'Name' => 'PhotoPrism_Daemon'
-  },
-  'PhotoPrism_App' => {
-    'Args' => '-c PhotoPrism http://node.host:2342/login',
-    'Collect_Output' => 'true',
-    'Description' => 'Check PhotoPrism Application Login page and expect a 200',
-    'Max_Runtime' => '2',
-    'Name' => 'PhotoPrism_App',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
-    'Service_Name' => '',
-    'Service_Parameters' => '',
-    'Service_Type' => 'program'
+    '_id' => 'Docker_Daemon'
   },
   'HTTPS_Page_Check' => {
     'Args' => 'https://node.host',
@@ -182,7 +20,8 @@
     'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
     'Service_Name' => '',
     'Service_Parameters' => '',
-    'Service_Type' => 'program'
+    'Service_Type' => 'program',
+    '_id' => 'HTTPS_Page_Check'
   },
   'HTTP_Page_Check' => {
     'Args' => 'http://node.host',
@@ -195,107 +34,36 @@
     'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
     'Service_Name' => '',
     'Service_Parameters' => '',
-    'Service_Type' => 'program'
+    'Service_Type' => 'program',
+    '_id' => 'HTTP_Page_Check'
   },
-  'crond' => {
-    'Name' => 'crond',
-    'Description' => 'Check the CRON Daemon is running',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'crond',
-    'Service_Type' => 'service'
-  },
-  'SSH' => {
-    'Name' => 'ssh',
-    'Description' => 'Check the SSH Daemon is running',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'sshd',
-    'Service_Type' => 'service'
-  },
-  'Syslog' => {
-    'Name' => 'Syslog',
-    'Description' => 'Check a Syslog Daemon, rsyslog, syslog or syslog-ng is running',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => '(rsyslogd|syslogd|syslog-ng)',
-    'Service_Type' => 'service'
-  },
-  'Tomcat' => {
-    'Name' => 'Tomcat',
-    'Description' => 'Check that Tomcat is running',
-    'Service_Type' => 'service',
-    'Port' => '',
-    'Poll_Interval' => '5m',
-    'Service_Name' => 'java',
-    'Service_Parameters' => 'tomcat',
-  },
-  'iis' => {
-    'Name' => 'iis',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'miiserver.exe',
-    'Service_Type' => 'service'
-  },
-  'lsass' => {
-    'Name' => 'lsass',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'lsass.exe',
-    'Service_Type' => 'service',
-    'Description' => 'Isass.exe Local Security Authority Process'
-  },
-  'mssql' => {
-    'Name' => 'mssql',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'sqlservr.exe',
-    'Service_Type' => 'service'
-  },
-  'csrss' => {
-    'Name' => 'csrss',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'csrss.exe',
-    'Service_Type' => 'service',
-    'Description' => 'Csrss.exe Client Server Runtime Process'
-  },
-  'svchost' => {
-    'Name' => 'svchost',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'svchost.exe',
-    'Service_Type' => 'service',
-    'Description' => 'Svcost.exe(netsvcs) Host Process for Windows Services most instances'
-  },
-  'wininit' => {
-    'Name' => 'wininit',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'wininit.exe',
-    'Service_Type' => 'service',
-    'Description' => 'Wininit.exe Windows Start-Up Application critical'
-  },
-  'winlogon' => {
-    'Name' => 'winlogon',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Service_Name' => 'winlogon.exe',
-    'Service_Type' => 'service',
-    'Description' => 'Winlogon.exe Windows Logon Application critical to maintain user sessions'
-  },
-  'upsd' => {
+  'MongoDB' => {
     'Args' => '',
     'Collect_Output' => 'false',
-    'Description' => 'Check the UPS daemon is running',
-    'Max_Runtime' => '10',
-    'Name' => 'upsd',
+    'Description' => 'Check MongoDB Daemon or Service is running',
+    'Max_Runtime' => '',
+    'Name' => 'MongoDB',
     'Poll_Interval' => '5m',
     'Port' => '',
     'Program' => '',
-    'Service_Name' => 'upsd',
+    'Service_Name' => 'mongod',
     'Service_Parameters' => '',
-    'Service_Type' => 'service'
+    'Service_Type' => 'service',
+    '_id' => 'MongoDB'
+  },
+  'NMIS9 Scheduler' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => '',
+    'Max_Runtime' => '10',
+    'Name' => 'NMIS9 Scheduler',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'nmisd.scheduler',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'NMIS9 Scheduler'
   },
   'NMIS9 Workers' => {
     'Args' => '',
@@ -308,21 +76,8 @@
     'Program' => '',
     'Service_Name' => 'nmisd.worker',
     'Service_Parameters' => '',
-    'Service_Type' => 'service'
-  },
-  'NMIS9 Scheduler' => {
-    'Args' => '',
-    'Description' => 'NMIS9 Scheduler monitor',
-    'Collect_Output' => 'false',
-    'Description' => '',
-    'Max_Runtime' => '10',
-    'Name' => 'NMIS9 Scheduler',
-    'Poll_Interval' => '5m',
-    'Port' => '',
-    'Program' => '',
-    'Service_Name' => 'nmisd.scheduler',
-    'Service_Parameters' => '',
-    'Service_Type' => 'service'
+    'Service_Type' => 'service',
+    '_id' => 'NMIS9 Workers'
   },
   'OMK Stack HTTP' => {
     'Args' => '-c "all configured databases are ok" http://node.host/omk/',
@@ -335,7 +90,8 @@
     'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
     'Service_Name' => '',
     'Service_Parameters' => '',
-    'Service_Type' => 'program'
+    'Service_Type' => 'program',
+    '_id' => 'OMK Stack HTTP'
   },
   'OMK Stack HTTPS' => {
     'Args' => '-c "all configured databases are ok" https://node.host/omk/',
@@ -348,7 +104,8 @@
     'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
     'Service_Name' => '',
     'Service_Parameters' => '',
-    'Service_Type' => 'program'
+    'Service_Type' => 'program',
+    '_id' => 'OMK Stack HTTPS'
   },
   'Opmantek Web Daemon' => {
     'Args' => '',
@@ -360,20 +117,209 @@
     'Port' => '',
     'Program' => '',
     'Service_Name' => 'opmantek.*',
-    'Service_Type' => 'service'
-  },  
-  'opEvents Daemon' => {
+    'Service_Type' => 'service',
+    '_id' => 'Opmantek Web Daemon'
+  },
+  'PhotoPrism_App' => {
+    'Args' => '-c PhotoPrism http://node.host:2342/login',
+    'Collect_Output' => 'true',
+    'Description' => 'Check PhotoPrism Application Login page and expect a 200',
+    'Max_Runtime' => '2',
+    'Name' => 'PhotoPrism_App',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf-default/scripts/webtest',
+    'Service_Name' => '',
+    'Service_Parameters' => '',
+    'Service_Type' => 'program',
+    '_id' => 'PhotoPrism_App'
+  },
+  'PhotoPrism_Daemon' => {
+    'Description' => 'Check PhotoPrism Daemon is running',
+    'Name' => 'PhotoPrism_Daemon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'photoprism',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'PhotoPrism_Daemon'
+  },
+  'SNMP' => {
+    'Name' => 'SNMP',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => '(snmpd|snmp.exe)',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'SNMP'
+  },
+  'SSH' => {
+    'Description' => 'Check the SSH Daemon is running',
+    'Name' => 'ssh',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'sshd',
+    'Service_Type' => 'service',
+    '_id' => 'SSH'
+  },
+  'SSL Expiry Check' => {
+    'Args' => 'node.host:443',
+    'Collect_Output' => 'true',
+    'Description' => 'Check the SSL cert and if days is >30,pass. <30 >7,warning. <7,fail.',
+    'Max_Runtime' => '10',
+    'Name' => 'SSL Expiry Check',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '/usr/local/nmis9/conf-default/scripts/ssl_expiry_check.sh',
+    'Service_Type' => 'program',
+    '_id' => 'SSL Expiry Check'
+  },
+  'Syslog' => {
+    'Description' => 'Check a Syslog Daemon, rsyslog, syslog or syslog-ng is running',
+    'Name' => 'Syslog',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => '(rsyslogd|syslogd|syslog-ng)',
+    'Service_Type' => 'service',
+    '_id' => 'Syslog'
+  },
+  'Tomcat' => {
+    'Description' => 'Check that Tomcat is running',
+    'Name' => 'Tomcat',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'java',
+    'Service_Parameters' => 'tomcat',
+    'Service_Type' => 'service',
+    '_id' => 'Tomcat'
+  },
+  'crond' => {
+    'Description' => 'Check the CRON Daemon is running',
+    'Name' => 'crond',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'crond',
+    'Service_Type' => 'service',
+    '_id' => 'crond'
+  },
+  'csrss' => {
+    'Description' => 'Csrss.exe Client Server Runtime Process',
+    'Name' => 'csrss',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'csrss.exe',
+    'Service_Type' => 'service',
+    '_id' => 'csrss'
+  },
+  'dns' => {
+    'Name' => 'dns',
+    'Poll_Interval' => '1m',
+    'Port' => '',
+    'Service_Name' => '',
+    'Service_Type' => 'dns',
+    '_id' => 'dns'
+  },
+  'http' => {
+    'Name' => 'http',
+    'Poll_Interval' => '1m',
+    'Port' => '80',
+    'Service_Name' => 'http',
+    'Service_Type' => 'script',
+    '_id' => 'http'
+  },
+  'http-moved' => {
+    'Name' => 'http-moved',
+    'Poll_Interval' => '1m',
+    'Port' => '80',
+    'Service_Name' => 'http-moved',
+    'Service_Type' => 'script',
+    '_id' => 'http-moved'
+  },
+  'http-redir' => {
+    'Name' => 'http-redir',
+    'Poll_Interval' => '1m',
+    'Port' => '80',
+    'Service_Name' => 'http-redir',
+    'Service_Type' => 'script',
+    '_id' => 'http-redir'
+  },
+  'http_server' => {
+    'Description' => 'looks for a live httpd or apache2  daemon',
+    'Name' => 'HTTP_Server',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => '(httpd|apache2|httpd.exe)',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'http_server'
+  },
+  'iis' => {
+    'Name' => 'iis',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'miiserver.exe',
+    'Service_Type' => 'service',
+    '_id' => 'iis'
+  },
+  'lsass' => {
+    'Description' => 'Isass.exe Local Security Authority Process',
+    'Name' => 'lsass',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'lsass.exe',
+    'Service_Type' => 'service',
+    '_id' => 'lsass'
+  },
+  'mssql' => {
+    'Name' => 'mssql',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'sqlservr.exe',
+    'Service_Type' => 'service',
+    '_id' => 'mssql'
+  },
+  'mysql' => {
+    'Name' => 'mysql',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => '(mysqld|mysqld_safe|mariadb|mysqld.exe|mysqld-nt.exe)',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'mysql'
+  },
+  'mysqld_daemon' => {
+    'Name' => 'mysqld_daemon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => '(mysqld|mysqld_safe|mariadb)',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'mysqld_daemon'
+  },
+  'nmis cgi' => {
+    'Collect_Output' => 'false',
+    'Description' => 'NMIS9 Web Interface',
+    'Max_Runtime' => '10',
+    'Name' => 'nmis cgi',
+    'Poll_Interval' => '5m',
+    'Port' => '80',
+    'Service_Name' => 'nmis9_service',
+    'Service_Type' => 'script',
+    '_id' => 'nmis cgi'
+  },
+  'opCharts Daemon' => {
     'Args' => '',
     'Collect_Output' => 'false',
     'Description' => 'Check the Opmantek opCharts Daemon is running',
     'Max_Runtime' => '10',
-    'Name' => 'opEvents Daemon',
+    'Name' => 'opCharts Daemon',
     'Poll_Interval' => '5m',
     'Port' => '',
     'Program' => '',
-    'Service_Name' => 'opeventsd',
+    'Service_Name' => 'opchartsd',
     'Service_Parameters' => '',
-    'Service_Type' => 'service'
+    'Service_Type' => 'service',
+    '_id' => 'opCharts Daemon'
   },
   'opConfig Daemon' => {
     'Args' => '',
@@ -386,19 +332,114 @@
     'Program' => '',
     'Service_Name' => 'opconfigd',
     'Service_Parameters' => '',
-    'Service_Type' => 'service'
-  },  
-  'opCharts Daemon' => {
+    'Service_Type' => 'service',
+    '_id' => 'opConfig Daemon'
+  },
+  'opEvents Daemon' => {
     'Args' => '',
     'Collect_Output' => 'false',
     'Description' => 'Check the Opmantek opCharts Daemon is running',
     'Max_Runtime' => '10',
-    'Name' => 'opCharts Daemon',
+    'Name' => 'opEvents Daemon',
     'Poll_Interval' => '5m',
     'Port' => '',
     'Program' => '',
-    'Service_Name' => 'opchartsd',
+    'Service_Name' => 'opeventsd',
     'Service_Parameters' => '',
-    'Service_Type' => 'service'
+    'Service_Type' => 'service',
+    '_id' => 'opEvents Daemon'
   },
+  'opmantek.pl' => {
+    'Args' => '',
+    'Collect_Output' => 'true',
+    'Max_Runtime' => '10',
+    'Name' => 'omkd opmantek.pl',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'opmantek.*',
+    'Service_Type' => 'service',
+    '_id' => 'opmantek.pl'
+  },
+  'pop3' => {
+    'Name' => 'pop3',
+    'Poll_Interval' => '1m',
+    'Port' => '110',
+    'Service_Name' => 'pop3',
+    'Service_Type' => 'script',
+    '_id' => 'pop3'
+  },
+  'port22' => {
+    'Name' => 'port22',
+    'Poll_Interval' => '5m',
+    'Port' => 'tcp:22',
+    'Service_Name' => 'SSH',
+    'Service_Type' => 'port',
+    '_id' => 'port22'
+  },
+  'port25' => {
+    'Name' => 'port25',
+    'Poll_Interval' => '5m',
+    'Port' => 'tcp:25',
+    'Service_Name' => 'SMTP',
+    'Service_Type' => 'port',
+    '_id' => 'port25'
+  },
+  'port53' => {
+    'Name' => 'port53',
+    'Poll_Interval' => '5m',
+    'Port' => 'udp:53',
+    'Service_Name' => 'DNS',
+    'Service_Type' => 'port',
+    '_id' => 'port53'
+  },
+  'port80' => {
+    'Name' => 'port80',
+    'Poll_Interval' => '5m',
+    'Port' => 'tcp:80',
+    'Service_Name' => 'HTTP',
+    'Service_Type' => 'port',
+    '_id' => 'port80'
+  },
+  'svchost' => {
+    'Description' => 'Svcost.exe(netsvcs) Host Process for Windows Services most instances',
+    'Name' => 'svchost',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'svchost.exe',
+    'Service_Type' => 'service',
+    '_id' => 'svchost'
+  },
+  'upsd' => {
+    'Args' => '',
+    'Collect_Output' => 'false',
+    'Description' => 'Check the UPS daemon is running',
+    'Max_Runtime' => '10',
+    'Name' => 'upsd',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Program' => '',
+    'Service_Name' => 'upsd',
+    'Service_Parameters' => '',
+    'Service_Type' => 'service',
+    '_id' => 'upsd'
+  },
+  'wininit' => {
+    'Description' => 'Wininit.exe Windows Start-Up Application critical',
+    'Name' => 'wininit',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'wininit.exe',
+    'Service_Type' => 'service',
+    '_id' => 'wininit'
+  },
+  'winlogon' => {
+    'Description' => 'Winlogon.exe Windows Logon Application critical to maintain user sessions',
+    'Name' => 'winlogon',
+    'Poll_Interval' => '5m',
+    'Port' => '',
+    'Service_Name' => 'winlogon.exe',
+    'Service_Type' => 'service',
+    '_id' => 'winlogon'
+  }
 );
