@@ -183,6 +183,24 @@
       'Description' => ''
     }
   },
+  'hrvmem' => {
+    'rrd' => {
+      'hrvmem' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrvmem',
+        'threshold' => 'hrvmem',
+      }
+    }
+  },
+  'hrmem' => {
+    'rrd' => {
+      'hrmem' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrmem',
+        'threshold' => 'hrmem',
+      }
+    }
+  },
   'hrsmpcpu' => {
     'rrd' => {
       'hrsmpcpu' => {

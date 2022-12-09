@@ -44,6 +44,9 @@
       'stats' => {
         'common-model' => 'stats'
       },
+      'combinedCPUload' => {
+        'common-model' => 'combinedCPUload'
+      },
       'event' => {
         'common-model' => 'event'
       }
@@ -92,7 +95,7 @@
   'system' => {
     'nodeModel' => 'Windows2000',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,hrwincpu,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
+    'nodegraph' => 'health,response,combinedCPUload,ip,hrwincpu,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
     'sys' => {
       'standard' => {
         'snmp' => {

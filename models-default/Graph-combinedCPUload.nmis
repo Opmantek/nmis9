@@ -1,0 +1,34 @@
+
+%hash = (
+	'heading' => 'Combined CPU Average Load',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => '% CPU Load'
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit','100',
+		 	'--lower-limit','0',
+			'--rigid',
+			'DEF:CPU_Average=$database:cpu_average:AVERAGE',
+			'DEF:CPU_Max=$database:cpu_max:MAX',
+			'LINE2:CPU_Average#018cdd:Average Combined CPU Load',
+			'GPRINT:CPU_Average:AVERAGE:Avg %1.2lf%%\n',
+			'LINE1:CPU_Max#d50000:Max Combined CPU Load',  
+			'GPRINT:CPU_Max:MAX:Max %1.2lf%%\n',
+			'COMMENT:The "Max Combined CPU Load" represents the highest CPU load reached by any CPU at collection time.'
+		],
+		'small' => [
+		 	'--upper-limit','100',
+		 	'--lower-limit','0',
+			'--rigid',
+			'DEF:CPU_Average=$database:cpu_average:AVERAGE',
+			'LINE2:CPU_Average#018cdd:Average Combined CPU Load',
+			'GPRINT:CPU_Average:AVERAGE:Avg %1.2lf%%\n',
+		]
+	}
+);
+

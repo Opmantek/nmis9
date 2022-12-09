@@ -59,6 +59,9 @@
       'alerts' => {
         'common-model' => 'Windows-alerts'
       },
+      'combinedCPUload' => {
+        'common-model' => 'combinedCPUload'
+      },
       'wmi' => {
         'common-model' => 'Windows-wmi'
       }
@@ -69,7 +72,7 @@
 	},
 
   'system' => {
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodegraph' => 'health,response,combinedCPUload,ip,tcp-conn,tcp-segs,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008-wmi',
     'nodeVendor' => 'Microsoft',
