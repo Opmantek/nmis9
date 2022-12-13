@@ -389,13 +389,6 @@ my $NODES = Compat::NMIS::loadLocalNodeTable();
 #What vendors are we going to process
 my $goodVendors = qr/F5 Labs, Inc./;
 
-
-# Step 5: For loading only the local nodes on a Master or a Slave
-my $NODES = Compat::NMIS::loadLocalNodeTable();
-
-#What vendors are we going to process
-my $goodVendors = qr/F5 Labs, Inc./;
-
 #What models are we going to process
 my $goodModels = qr/F5-BigIP/;
 
