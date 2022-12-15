@@ -1072,7 +1072,7 @@ Arguments:
  [separator=<Comma separated  value (CSV) separator character>] (default: tab)
  [xls=<Excel filename>] (default: '$xlsFile')
 
-Enter $PROGNAME -h for compleate details.
+Enter $PROGNAME -h for complete details.
 
 eg: $PROGNAME dir=/data separator=(comma|tab)
 \n
@@ -1307,26 +1307,26 @@ sub help
    push(@lines, "     [debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9>]\n");
    push(@lines, "                             - Set the debug level.\n");
    push(@lines, "     [email=<email_address>] - Send all generated CSV files to the specified.\n");
-   push(@lines, "                                 email address.\n");
+   push(@lines, "                                email address.\n");
    push(@lines, "     [exceptions=<true|false|yes|no|1|0>]\n");
-   push(@lines, "                                 Only include exceptions if true.\n");
+   push(@lines, "                                Only include exceptions if true.\n");
 #  push(@lines, "     [period=<day|week|month>]\n");
 #  push(@lines, "                             - An optional date range to collect.\n");
-#  push(@lines, "                                   One of 'day', 'week', or 'month'.\n");
+#  push(@lines, "                                One of 'day', 'week', or 'month'.\n");
 #  push(@lines, "                                (default: '$dfltPeriod')\n");
    push(@lines, "     [separator=<character>] - A character to be used as the separator in the\n");
-   push(@lines, "                                 CSV files. The words 'comma' and 'tab' are\n");
-   push(@lines, "                                 understood. Other characters will be taken\n");
-   push(@lines, "                                 literally. (default: 'tab')\n");
+   push(@lines, "                                CSV files. The words 'comma' and 'tab' are\n");
+   push(@lines, "                                understood. Other characters will be taken\n");
+   push(@lines, "                                literally. (default: 'tab')\n");
    push(@lines, "     [timespan=<24[hours]|HH:HH>]\n");
    push(@lines, "                             - An optional timespan for collection.\n");
-   push(@lines, "                                   Either '24hours', or a start hour and a\n");
-   push(@lines, "                                   stop hour in 24 hour format separated by a\n");
-   push(@lines, "                                   colon.\n");
+   push(@lines, "                                Either '24hours', or a start hour and a\n");
+   push(@lines, "                                stop hour in 24 hour format separated by a\n");
+   push(@lines, "                                colon.\n");
    push(@lines, "                                (default: '$dfltTimespan')\n");
    push(@lines, "     [xls=<filename>]        - The name of the XLS file to be created in the\n");
-   push(@lines, "                                 directory specified using the 'dir' parameter'.\n");
-   push(@lines, "                                 (default: '$xlsFile')\n");
+   push(@lines, "                                directory specified using the 'dir' parameter'.\n");
+   push(@lines, "                                (default: '$xlsFile')\n");
    push(@lines, "\n");
    push(@lines, "\033[1mEXIT STATUS\033[0m\n");
    push(@lines, "     The following exit values are returned:\n");
