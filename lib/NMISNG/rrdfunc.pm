@@ -1089,6 +1089,9 @@ sub graphCBQoS
 	my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0, partial => 1 );
 	my $if_data = ($inventory) ? $inventory->data : {};
 
+	# OMK-5182, customer wants / as delimiter for the cbqos names, not our default --
+	my $delimiter = $C->{cbqos_classmap_name_delimiter} // "--";
+
 	# display all class-maps in one graph...
 	if ($item eq "")
 	{
@@ -1147,6 +1150,19 @@ sub graphCBQoS
 		my $HQOS = 0;
 		foreach my $i (1..$#$CBQosNames)
 		{
+			# \w is [a-zA-Z0-9_]
+			if ( $CBQosNames->[$i] =~ /^[\w-]+$delimiter[\w\.]+$delimiter/ )
+			{
+				$HQOS = 1;
+				$S->nmisng->log->debug("DEBUG: this is HQOS: '" . $CBQosNames->[$i] . "'");
+				last;
+			}
+			else {
+				$S->nmisng->log->debug("DEBUG: this is NOT HQOS: '" . $CBQosNames->[$i] . "'");
+			}
+		} 
+		foreach my $i (1..$#$CBQosNames)
+		{
 			if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ )
 			{
 				$HQOS = 1;
@@ -1165,13 +1181,13 @@ sub graphCBQoS
 																index => $thisinfo->{CfgIndex},
 																item => $CBQosNames->[$i]	);
 			my $parent = 0;
-			if ( $CBQosNames->[$i] !~ /\w+\-\-\w+/ and $HQOS )
+			if ( $CBQosNames->[$i] !~ /\w+$delimiter\w+/ and $HQOS )
 			{
 				$parent = 1;
 				$gtype = "LINE1";
 			}
 
-			if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ )
+			if ( $CBQosNames->[$i] =~ /^([\w-]+)$delimiter\w+$delimiter/ )
 			{
 				$parent_name = $1;
 				$S->nmisng->log->debug2("parent_name=$parent_name\n");
@@ -1188,8 +1204,8 @@ sub graphCBQoS
 				++$gcount;
 			}
 			my $alias = $CBQosNames->[$i];
-			$alias =~ s/$parent_name\-\-//g;
-			$alias =~ s/\-\-/\//g;
+			$alias =~ s/${parent_name}$delimiter//g;
+			$alias =~ s!$delimiter!/!g;
 
 			# rough alignment for the columns, necessarily imperfect
 			# as X-char strings aren't equally wide...
