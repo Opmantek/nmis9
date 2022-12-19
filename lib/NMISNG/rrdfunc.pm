@@ -1163,7 +1163,7 @@ sub graphCBQoS
 		} 
 		foreach my $i (1..$#$CBQosNames)
 		{
-			if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ )
+			if ( $CBQosNames->[$i] =~ /^([\w\-]+)$delimiter\w+$delimiter/ )
 			{
 				$HQOS = 1;
 				last;
