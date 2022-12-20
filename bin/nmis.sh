@@ -33,6 +33,7 @@
 
 nmis_base=/usr/local/nmis9
 nmis=$nmis_base/bin/nmis-cli
+node_admin=$nmis_base/admin/node_admin.pl
 nmis_log=$nmis_base/logs/nmis.log
 event_log=$nmis_base/logs/event.log
 error_log=/var/log/httpd/error_log
@@ -236,6 +237,12 @@ fi
 if [ "$2" = "update" ]
 then
 	$nmis act=schedule job.type=update $DEBUG $OUTPUT job.force=true "$node"
+	exit 0
+fi
+
+if [ "$2" = "dump" ]
+then
+	$node_admin act=dump node=$node file=/tmp/$node.zip
 	exit 0
 fi
 
