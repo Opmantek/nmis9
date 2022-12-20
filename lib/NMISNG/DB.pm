@@ -93,6 +93,7 @@ my $error_string;
 # 	- sort/skip/limit
 #   - allowtempfiles (0/1, default 0) - NOT passed if it's set to undef (for mongo < 2.6)
 #   - batch_size, implies cursor=>1, INITIAL batch size of cursor
+#	- count_limit, max amount of items to count before returning -1, can be used to speed up pageing
 # returns:
 #   - list of ( array of records, count, error ), count is = 0 if not asked for
 sub aggregate
@@ -135,38 +136,58 @@ sub aggregate
 	}
 
 	push @$post_count_pipeline, @$redact_pipeline if ( ref($redact_pipeline) eq "ARRAY" && @$redact_pipeline );
-	# count means splitting the pipeline after the pre-count and running sum
-	# as well as gathering the main pipe data
-	# run modified pipeline to get the count, which is a single document
-	if ( $arg{count} )
-	{
-		# if post count is empty add what is hopefully a nop, this needs testing!
-		push @$post_count_pipeline, { '$skip' => 0 } if( @$post_count_pipeline == 0 );
-		my @count_pipeline = ( {'$group' => {'_id' => undef, count => {'$sum' => 1}}} );
-		push @pipeline, { '$facet' => {
-			count_data => \@count_pipeline,
-			primary_data => $post_count_pipeline
-		}};
-	}
-	else
-	{
-		push @pipeline, @$post_count_pipeline if ( ref($post_count_pipeline) eq "ARRAY" && @$post_count_pipeline );
-	}
 
 	# see note above: both aggregate and cursor throw timeout exceptions, separately...
 	my ( $out, $err );
+
+	# count means splitting the pipeline after the pre-count and running sum
+	# as well as gathering the main pipe data
+	# run modified pipeline to get the count, which is a single document
+	if ( $arg{count} ) {
+
+		# if post count is empty add what is hopefully a nop, this needs testing!
+		push @$post_count_pipeline, { '$skip' => 0 } if ( @$post_count_pipeline == 0 );
+		my $simple_count_pipeline = @{$pre_count_pipeline}[0];
+		try {
+			
+			#if we have a simple match passed in we can do a quick count documented
+			#if the pipeline is greater than one we have other ops which cannnot be done in a simple count_documentes
+			if ( exists( $simple_count_pipeline->{'$match'} ) and scalar(@$pre_count_pipeline) == 1 ) {
+				my $countq     = get_query( and_part => $simple_count_pipeline->{'$match'} );
+				my $count_args = {};
+				$count_args->{limit} = $arg{count_limit} if ( $arg{count_limit} );
+				$count = $driver_generation >= 2 ? $collection->count_documents( $countq, $count_args ) : $collection->count( $countq, $count_args );
+
+				#it can be slow to count documents in mongo allow the use of limit in the count to break a large count operation
+				#return -1 so we know the count has reached the limit
+				$count = -1 if ( $arg{count_limit} and $count == $arg{count_limit} );
+
+			}
+			else {
+				#else we run the pipeline in its own aggregate, doing this in a facet would not use indexes
+				my @count_pipeline = ();
+				push @count_pipeline, @{$pre_count_pipeline}[0];
+				push @count_pipeline, ( { '$group' => { '_id' => undef, count => { '$sum' => 1 } } } );
+				my $result = $collection->aggregate( \@count_pipeline, $aggoptions );
+				my @res    = $result->all();
+				$count = $res[0]->{count};
+			}
+		}
+		catch {
+			$err = $_;
+		};
+
+	}
+
+
+	push @pipeline, @$post_count_pipeline if ( ref($post_count_pipeline) eq "ARRAY" && @$post_count_pipeline );
+
 	try
 	{
-		# print "trying pipeline:".Dumper(\@pipeline);
+		#print "trying pipeline:".Dumper(\@pipeline);
 		my $result = $collection->aggregate( \@pipeline, $aggoptions );
 		my @all = $result->all();
 		$out = \@all;
-		# print "got out:".Dumper($out);
-		if ( $arg{count} )
-		{
-			$count = $out->[0]{count_data}[0]{count};
-			$out = $out->[0]{primary_data};
-		}
 	}
 	catch
 	{
