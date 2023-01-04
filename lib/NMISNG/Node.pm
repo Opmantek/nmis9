@@ -263,7 +263,6 @@ sub _load
 		$self->{_id} = $entry->{_id};
 		$self->{_name} = $entry->{name};
 		$self->{_cluster_id} = $entry->{cluster_id};
-		$self->{_lastupdate} = $entry->{lastupdate};
 
 		$self->{_overrides} = {};
 		# translate the overrides keys back; note that some other get_nodes_model callers
@@ -429,13 +428,6 @@ sub name
 		$self->_dirty(1, "name");
 	}
 	return $self->{_name};
-}
-
-# Return The lastupdate timestamp.
-sub lastupdate
-{
-	my ($self) = @_;
-	return $self->{_lastupdate};
 }
 
 # getter-setter for unknown/extra data
@@ -1514,7 +1506,6 @@ sub save
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 	
 	my $meta = $args{meta};
-	my $saveTime = time;
 	
 	# massage the overrides for db storage,
 	# as they may have keys with dots which mongodb < 3.6 doesn't support
@@ -1527,7 +1518,7 @@ sub save
 	my %entry = ( uuid => $self->{uuid},
 								name => NMISNG::DB::make_string($self->{_name}), # must treat as string even if it looks like a number
 								cluster_id => $self->{_cluster_id},
-								lastupdate => $saveTime, # time of last save
+								lastupdate => time, # time of last save
 								configuration => $self->{_configuration},
 								overrides => \%dbsafeovers,
 								activated => $self->{_activated},
@@ -1549,7 +1540,6 @@ sub save
 		$self->{_id} = $result->{id} if ( $result->{success} );
 
 		$self->_dirty(0); # all clean now
-		$self->{_lastupdate} = $saveTime;
 		$op = 1;
 	}
 	else
@@ -1564,7 +1554,6 @@ sub save
 		assert( $result->{success}, "Record updated successfully" );
 
 		$self->_dirty(0);
-		$self->{_lastupdate} = $saveTime;
 		$op = 2;
 	}
 	
@@ -1576,89 +1565,11 @@ sub save
 						where => $meta->{where},
 						how => $meta->{how},
 						details => $meta->{details},
-						when => $saveTime) if ($audit_enabled);
+						when => time) if ($audit_enabled);
 
 	}
 	
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
-}
-
-# Update the catchall concept with the current shared Node configuration data.
-# Returns 0 on success and -1 on failure.
-sub sync_catchall
-{
-	my ($self, %args)      = @_;
-	my $S                  = $args{sys};
-	my $catchall_inventory;
-
-	my $return = -1;
-	if ($args{cache})
-	{
-		$catchall_inventory = $args{cache};
-	}
-	else
-	{
-		$catchall_inventory = $S->inventory(concept => 'catchall');
-	}
-	if($catchall_inventory)
-	{
-		$self->nmisng->log->debug3("Synchronizong 'catchall");
-		my $catchall_data = $catchall_inventory->data_live();
-		$catchall_data->{last_node_config_update} = $self->{_lastupdate};
-		$catchall_data->{active} = $self->configuration->{active};
-		$catchall_data->{addresses} = $self->configuration->{addresses};
-		$catchall_data->{aliases} = $self->configuration->{aliases};
-		$catchall_data->{businessService} = $self->configuration->{businessService};
-		$catchall_data->{cbqos} = $self->configuration->{cbqos};
-		$catchall_data->{collect} = $self->configuration->{collect};
-		$catchall_data->{context} = $self->configuration->{context};
-		$catchall_data->{customer} = $self->configuration->{customer};
-		$catchall_data->{depend} = $self->configuration->{depend};
-		$catchall_data->{display_name} = $self->configuration->{display_name};
-		$catchall_data->{group} = $self->configuration->{group};
-		$catchall_data->{host} = $self->configuration->{host};
-		$catchall_data->{host_backup} = $self->configuration->{host_backup};
-		$catchall_data->{ip_protocol} = $self->configuration->{ip_protocol};
-		$catchall_data->{location} = $self->configuration->{location};
-		$catchall_data->{max_msg_size} = $self->configuration->{max_msg_size};
-		$catchall_data->{max_repetitions} = $self->configuration->{max_repetitions};
-		$catchall_data->{model} = $self->configuration->{model};
-		$catchall_data->{netType} = $self->configuration->{netType};
-		$catchall_data->{node_context_name} = $self->configuration->{node_context_name};
-		$catchall_data->{node_context_url} = $self->configuration->{node_context_url};
-		$catchall_data->{notes} = $self->configuration->{notes};
-		$catchall_data->{ping} = $self->configuration->{ping};
-		$catchall_data->{pollers} = $self->configuration->{pollers};
-		$catchall_data->{polling_policy} = $self->configuration->{polling_policy};
-		$catchall_data->{port} = $self->configuration->{port};
-		$catchall_data->{remote_connection_name} = $self->configuration->{remote_connection_name};
-		$catchall_data->{remote_connection_url} = $self->configuration->{remote_connection_url};
-		$catchall_data->{roleType} = $self->configuration->{roleType};
-		$catchall_data->{serviceStatus} = $self->configuration->{serviceStatus};
-		$catchall_data->{services} = $self->configuration->{services};
-		$catchall_data->{sysDescr} = $self->configuration->{sysDescr};
-		$catchall_data->{threshold} = $self->configuration->{threshold};
-		$catchall_data->{timezone} = $self->configuration->{timezone};
-		$catchall_data->{username} = $self->configuration->{username};
-		$catchall_data->{version} = $self->configuration->{version};
-		$catchall_data->{webserver} = $self->configuration->{webserver};
-		$catchall_data->{wmidomain} = $self->configuration->{wmidomain};
-		$catchall_data->{wmiversion} = $self->configuration->{wmiversion};
-		my ( $op, $error ) = $catchall_inventory->save;
-		if ($error)
-		{
-			$self->nmisng->log->error("Failed to update catchall inventory for node '$self->{_name}' during save: $error") if ($error);
-		}
-		else
-		{
-			$return = 0;
-		}
-	}
-	else
-	{
-		$self->nmisng->nmisng->log->error("Failed to update catchall inventory for node '$self->{_name}' during save.");
-	}
-	return  $return;
 }
 
 # get the node's id, ie. its UUID,

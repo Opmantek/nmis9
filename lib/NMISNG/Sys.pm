@@ -54,10 +54,9 @@ sub new
 
 	my $self = bless(
 		{
-			name       => undef,    # name of node
-			node       => undef,    # legacy copy of name (was lowercased but no longer)
-			mdl        => undef,    # ref Model modified
-			lastupdate => undef,    # Last time Node was updated.
+			name => undef,    # name of node
+			node => undef,    # legacy copy of name (was lowercased but no longer)
+			mdl  => undef,    # ref Model modified
 
 			snmp => undef,    # snmp accessor object
 			wmi  => undef,    # wmi accessor object
@@ -152,22 +151,9 @@ sub inventory
 	return if(!$node);
 	return if(!$concept);
 
-	$self->nmisng->log->debug3("Node '".$node->name."' last update is ".$node->lastupdate().".");
-	# Re-use cached object for catchall if it is still valid, and re-synchronize it if it is stale.
-	if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} )
-	{
-		$self->nmisng->log->debug3("Node '".$node->name."', catchall last update is ".$self->{_inventory_cache}{$concept}->data()->{last_node_config_update}.".");
-		if ($self->{_inventory_cache}{$concept}->data()->{last_node_config_update} == $node->lastupdate())
-		{
-			$self->nmisng->log->debug3("Node '".$node->name."' has not been updated, using cached 'catchall'.");
-			return $self->{_inventory_cache}{$concept};
-		}
-		else
-		{
-			$self->nmisng->log->debug("Node '".$node->name."' has been updated, re-synchronizing 'catchall'.");
-			$node->sync_catchall(sys => $self, cache => $self->{_inventory_cache}{$concept});
-		}
-	}
+	# re-use cached object for catchall
+	return $self->{_inventory_cache}{$concept}
+		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );
 
 	# for now map pkts into interface
 	$concept = 'interface' if( $concept =~ /pkts/ );
