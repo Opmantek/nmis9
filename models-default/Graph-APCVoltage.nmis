@@ -34,7 +34,7 @@
 		'short' => '$node Input Voltage'
 	},
 	'vlabel' => {
-		'standard' => 'V'
+		'standard' => 'Volts (V)'
 	},
 	'option' => {
 		'standard' => [
