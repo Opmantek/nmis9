@@ -122,7 +122,7 @@ if ($AU->Require) {
 
 ### 2012-12-06 keiths, added a HTML5 compliant header.
 print $q->header($headeropts);
-Compat::NMIS::startNmisPage(title => "NMIS by Opmantek - $C->{server_name}");
+Compat::NMIS::startNmisPage(title => "NMIS by FirstWave - $C->{server_name}");
 
 my $tenantCode = Compat::NMIS::loadTenantCode();
 

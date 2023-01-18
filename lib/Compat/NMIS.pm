@@ -1781,7 +1781,7 @@ sub startNmisPage {
 	my %args = @_;
 	my $title = $args{title};
 	my $refresh = $args{refresh};
-	$title = "NMIS by Opmantek" if ($title eq "");
+	$title = "NMIS by FirstWave" if ($title eq "");
 	$refresh = 86400 if ($refresh eq "");
 
 	my $C = NMISNG::Util::loadConfTable();
@@ -1822,7 +1822,7 @@ sub pageStart {
 	my $title = $args{title};
 	my $jscript = $args{jscript};
 	$jscript = getJavaScript() if ($jscript eq "");
-	$title = "NMIS by Opmantek" if ($title eq "");
+	$title = "NMIS by FirstWave" if ($title eq "");
 	$refresh = 300 if ($refresh eq "");
 
 	my $C = NMISNG::Util::loadConfTable();
@@ -1860,7 +1860,7 @@ sub pageStartJscript {
 	my %args = @_;
 	my $title = $args{title};
 	my $refresh = $args{refresh};
-	$title = "NMIS by Opmantek" if ($title eq "");
+	$title = "NMIS by FirstWave" if ($title eq "");
 	$refresh = 86400 if ($refresh eq "");
 
 	my $C = NMISNG::Util::loadConfTable();

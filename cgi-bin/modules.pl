@@ -60,7 +60,7 @@ moduleMenu();
 exit;
 
 sub moduleMenu {
-	my $title = "NMIS Modules by Opmantek";
+	my $title = "NMIS Modules by FirstWave";
 	my $header = $title;
 
 	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
