@@ -2053,7 +2053,7 @@ nodeVendor sysObjectName roleType netType );
 	} 
 	# second, collect values for the normal items and massage the ones in need
 	# for some items the model has no title; configuration items are untitled as well, so hardcoded here
-	my %untitled = ( node_status => "Node Status",
+	my %untitled = ( nodestatus => "Node Status",
 									 sysObjectName => 'Object Name',
 									 nodeVendor => 'Vendor',
 									 group => 'Group',

@@ -165,8 +165,7 @@ sub aggregate
 			}
 			else {
 				#else we run the pipeline in its own aggregate, doing this in a facet would not use indexes
-				my @count_pipeline = ();
-				push @count_pipeline, @{$pre_count_pipeline}[0];
+				my @count_pipeline = @$pre_count_pipeline;
 				push @count_pipeline, ( { '$group' => { '_id' => undef, count => { '$sum' => 1 } } } );
 				my $result = $collection->aggregate( \@count_pipeline, $aggoptions );
 				my @res    = $result->all();
