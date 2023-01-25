@@ -106,13 +106,13 @@ sub collect_plugin
 	my $replace  = 0;
 	my $details  = "";
 
-	$NG->log->info("Battery Replace Indicator         = $batteryReplaceIndicator");
-	$NG->log->info("Timed Battery Replacement enabled = $enableTimeedReplacement");
-	$NG->log->info("Battery Last Replaced             = $batteryLastReplaceDate");
-	$NG->log->info("Battery Last Epoch                = $lastrepaced");
-	$NG->log->info("Today Epoch                       = $today");
-	$NG->log->info("Months since replacement          = $monthsSinceReplaced");
-	$NG->log->info("Replacement Time in Months        = $replacementTimeMonths");
+	$NG->log->debug("Battery Replace Indicator         = $batteryReplaceIndicator");
+	$NG->log->debug("Timed Battery Replacement enabled = $enableTimeedReplacement");
+	$NG->log->debug("Battery Last Replaced             = $batteryLastReplaceDate");
+	$NG->log->debug("Battery Last Epoch                = $lastrepaced");
+	$NG->log->debug("Today Epoch                       = $today");
+	$NG->log->debug("Months since replacement          = $monthsSinceReplaced");
+	$NG->log->debug("Replacement Time in Months        = $replacementTimeMonths");
 	if ($enableTimeedReplacement && ($monthsSinceReplaced > $replacementTimeMonths))
 	{
 		$NG->log->info("Battery needs to be replaced (too old)");
@@ -122,7 +122,7 @@ sub collect_plugin
 
 	if ($batteryReplaceIndicator == 1)
 	{
-		$NG->log->info("Battery is ok");
+		$NG->log->debug("Battery is ok");
 	}
 	elsif ($batteryReplaceIndicator == 0)
 	{
