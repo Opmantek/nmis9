@@ -71,7 +71,7 @@ sub collect_plugin
 
 	# NMISNG::Snmp doesn't fall back to global config
 	my $max_repetitions         = $NC->{node}->{max_repetitions} || $C->{snmp_max_repetitions};
-	my $enableTimeedReplacement = $C->{ups_enable_timed_battery_replacement} // 0;
+	my $enableTimeedReplacement = NMISNG::Util::getbool($C->{ups_enable_timed_battery_replacement}) // 0;
 	my $replacementTimeMonths   = $C->{ups_battery_replace_months} // 48;
 
 	# Get the SNMP Session going.
