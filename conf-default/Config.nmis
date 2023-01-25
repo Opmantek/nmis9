@@ -1,529 +1,514 @@
 my %hash = (
   'database' => {
-    'db_name' => 'nmisng',
-    'db_password' => 'op42flow42',
-    'db_port' => '27017',
-    'db_query_timeout' => 5000,
-    'db_server' => 'localhost',
-    'db_username' => 'opUserRW',
-    'db_never_remove_indices' => [ 'nodes' ],
+	'db_name' => 'nmisng',
+	'db_never_remove_indices' => [ 'nodes' ],
+	'db_password' => 'op42flow42',
+	'db_port' => '27017',
+	'db_query_timeout' => 5000,
+	'db_server' => 'localhost',
+	'db_username' => 'opUserRW'
   },
 
   'modules' => {
-    'display_community_rss_widget' => 'true',
-    'display_module_list' => 'true',
-    'display_network_view' => 'true',
-    'rss_widget_width' => '210',
-    'rss_widget_height' => '460'
+	'display_community_rss_widget' => 'true',
+	'display_module_list' => 'true',
+	'display_network_view' => 'true',
+	'rss_widget_height' => '460',
+	'rss_widget_width' => '210'
   },
 
   'online' => {
-    'nmis_docs_online' => 'https://community.opmantek.com/',
-    'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
+	'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
+	'nmis_docs_online' => 'https://community.opmantek.com/'
   },
 
   'directories' => {
-    '<nmis_base>' => '/usr/local/nmis9',
-    '<nmis_admin>' => '<nmis_base>/admin',
-    '<nmis_bin>' => '<nmis_base>/bin',
-    '<nmis_cgi>' => '<nmis_base>/cgi-bin',
-    '<nmis_conf>' => '<nmis_base>/conf',
+	'<nmis_base>' => '/usr/local/nmis9',
+	'<nmis_data>' => '<nmis_base>',
+	'<nmis_conf>' => '<nmis_base>/conf',
 	'<nmis_conf_default>' => '<nmis_base>/conf-default',
-    '<nmis_data>' => '<nmis_base>',
-    '<nmis_logs>' => '<nmis_base>/logs',
-    '<nmis_menu>' => '<nmis_base>/menu',
-	'<nmis_models>' => '<nmis_base>/models-custom',
+	'<nmis_logs>' => '<nmis_base>/logs',
+	'<nmis_var>' => '<nmis_data>/var',
+
+	'<menu_base>' => '<nmis_base>/menu',
+	'<nmis_admin>' => '<nmis_base>/admin',
+	'<nmis_backups>' => '<nmis_data>/backups',
+	'<nmis_bin>' => '<nmis_base>/bin',
+	'<nmis_cgi>' => '<nmis_base>/cgi-bin',
 	'<nmis_default_models>' => '<nmis_base>/models-default',
-    '<nmis_var>' => '<nmis_data>/var',
-    '<nmis_tmp>' => '<nmis_var>/tmp',
-    '<menu_base>' => '<nmis_base>/menu',
-    'database_root' => '<nmis_data>/database',
-    'log_root' => '<nmis_logs>',
-    'json_logs' => '<nmis_logs>/json',
-    'config_logs' => '<nmis_logs>/config',
-    'mib_root' => '<nmis_base>/mibs',
-    'report_root' => '<nmis_base>/htdocs/reports',
-
-    'script_root' => '<nmis_conf>/scripts',
-		'plugin_root' => '<nmis_conf>/plugins',
-
-		'script_root_default' => '<nmis_conf_default>/scripts',
-		'plugin_root_default' => '<nmis_conf_default>/plugins',
-
-		'web_root' => '<nmis_base>/htdocs',
-		'<nmis_backups>' => '<nmis_data>/backups',
-    'node_dumps_dir' => '<nmis_var>/node_dumps',
-    'system_performance' => '<nmis_var>/system_performance'
+	'<nmis_menu>' => '<nmis_base>/menu',
+	'<nmis_models>' => '<nmis_base>/models-custom',
+	'<nmis_tmp>' => '<nmis_var>/tmp',
+	'config_logs' => '<nmis_logs>/config',
+	'database_root' => '<nmis_data>/database',
+	'json_logs' => '<nmis_logs>/json',
+	'log_root' => '<nmis_logs>',
+	'mib_root' => '<nmis_base>/mibs',
+	'node_dumps_dir' => '<nmis_var>/node_dumps',
+	'plugin_root' => '<nmis_conf>/plugins',
+	'plugin_root_default' => '<nmis_conf_default>/plugins',
+	'report_root' => '<nmis_base>/htdocs/reports',
+	'script_root' => '<nmis_conf>/scripts',
+	'script_root_default' => '<nmis_conf_default>/scripts',
+	'system_performance' => '<nmis_var>/system_performance',
+	'web_root' => '<nmis_base>/htdocs'
   },
 
   'globals' => {
-	'global_enable_password_encryption' => 'false',
-    'global_threshold' => 'true', # advanced thresholds enabled or not
-	'threshold_poll_node' => 'true', # perform threshold computation with each node
-    'threshold_rising_reset_dampening' => '0.95',
-    'threshold_falling_reset_dampening' => '1.05',
-    'global_collect_Description' => '(CNOC|Collection)',
+	'global_collect_Description' => '(CNOC|Collection)',
 	'global_collect_ifDescr' => '',
-    'global_nocollect_ifOperStatus' => '',
-    'global_nocollect_ifDescr' => '',
-    'global_nocollect_Description' => '',
-    'global_nocollect_noDescription' => '',
-    'global_nocollect_ifType' => '',
-    'global_nocollect_interface_down_days' => 30,
-    'global_noevent_ifDescr' => '',
-    'global_noevent_Description' => '',
-    'global_noevent_ifType' => '',
+	'global_enable_password_encryption' => 'false',
 	'global_events_bandwidth' => 'true',
-    'uuid_namespace_type' => 'NameSpace_URL',
-    'uuid_namespace_name' => 'www.domain.com',
+	'global_nocollect_Description' => '',
+	'global_nocollect_ifDescr' => '',
+	'global_nocollect_ifOperStatus' => '',
+	'global_nocollect_ifType' => '',
+	'global_nocollect_interface_down_days' => 30,
+	'global_nocollect_noDescription' => '',
+	'global_noevent_Description' => '',
+	'global_noevent_ifDescr' => '',
+	'global_noevent_ifType' => '',
+	'global_threshold' => 'true', # advanced thresholds enabled or not
 	'node_name_rule' => qr/^[a-zA-Z0-9_. -]+$/, # note: rule MUST exclude '/'
+	'threshold_falling_reset_dampening' => '1.05',
+	'threshold_poll_node' => 'true', # perform threshold computation with each node
+	'threshold_rising_reset_dampening' => '0.95',
+	'uuid_namespace_name' => 'www.domain.com',
+	'uuid_namespace_type' => 'NameSpace_URL'
   },
 
-	'logging' => {
+  'logging' => {
 		# can be set to info (default), debug, warn, error, fatal, or 1..9 for debug with extra verbosity 1..9
 		'log_level' => 'info',
-	},
+  },
 
   'system' => {
-		'hide_groups' => [],
-
-		"roletype_list" => "default,core,distribution,access",
-		"nettype_list" => "default,wan,lan,vpn,man,san,voice",
-		"nodetype_list" => "default,generic,switch,router,firewall,server",
-
-		# for coloring the group status panel . 'default' applies to unlisted role types
-		'severity_by_roletype' => { core => [ 'Critical', 'Major' ], distribution => [ 'Major', 'Minor' ],
-																access => [ 'Minor', 'Warning' ], default => [ 'Major', 'Minor' ] },
-    'network_viewNode_field_list' => 'nodestatus,outage,sysName,host_addr,host_addr_backup,ip_protocol,group,customer,location,businessService,serviceStatus,notes,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,last_ping,last_poll,last_update,nodeVendor,sysObjectName,roleType,netType',
-
-		# if this option is present use binary logic for node down and set the level to the overall_node_status_level
-    'overall_node_status_coarse' => 'false',
-    'overall_node_status_level' => 'Critical',
-
-		# if this option is present and enabled, a nodes health impacts its reported summary, providing VERY granular status.
-    'node_status_uses_status_summary' => 'true',
-    'display_status_summary' => 'true',
-
-		'demote_faulty_nodes' => 'true', # try totally unpollable nodes just once a day?
-
-		# to have additional fields in the node summary data.
-    'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
-
-		'nmisd_max_workers' => 10, # set to zero to disable multiprocessing
-		'nmisd_worker_cycle' => 100,	# workers sleep no longer than X between cycles
-		'nmisd_scheduler_cycle' => 10, # the supervisor daemon sleeps no longer than X between cycles
-    'nmisd_worker_max_cycles' => 100, # workers processes will be restarted after these cycles
-    
-		'nmisd_fping_worker' => 'true', # if true, at dedicated worker for fping use used
-		'postpone_clashing_schedule' => 30, # if positive, clashing jobs are retried N seconds later, otherwise clashing jobs are discarded
-
-		'polling_interval_factor' => 0.95, # fraction of the polling interval after which node is considered for next poll
-		'update_interval_factor' => 0.95,	 # ditto but for update operations
-
-    'nmis_host' => 'localhost',
-    'nmis_host_protocol' => 'http',
-    'domain_name' => '',
-    'cache_summary_tables' => 'true',
-    'cache_var_tables' => 'true',
-    'page_refresh_time' => '300',
-    'widget_refresh_time' => '180',
-    'os_posix' => 'false',
-    'os_cmd_read_file_reverse' => 'tac',
-    'os_cmd_file_decompress' => 'gzip -d -c',
-    'os_kernelname' => '',
-    'os_execperm' => '0770',
-    'os_fileperm' => '0660',
-    'report_files_max' => '60',
-    'page_bg_color_full' => 'true',
-    'loc_from_sysLoc' => 'false',
-    'loc_from_DNSloc' => 'false',
-    'loc_sysLoc_format' => '^-?\\d{1,3}(\\.\\d+)?,-?\\d{1,3}(\\.\\d+)?,-?\\d+,.+$',
-    'cbqos_cm_collect_all' => 'true',
-    'buttons_in_logs' => 'false',
-    'node_button_in_logs' => 'true',
-    'log_max_table_lines' => 25000,
-    'http_req_timeout' => '60',
-    'server_name' => 'localhost',
-		'server_admin' => 'root@localhost',
-    'response_time_threshold' => '500',
-    'nmis_user' => 'nmis',
-    'nmis_group' => 'nmis',
-		'nmis_executable' => '(/(bin|admin|installer_hooks|conf-default/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh|/installer)$',
-    'file_size_warning' => '100000000',
-    'default_communityRO' => 'public',
-    'default_username' => '',
-    'default_authpassword' => '',
-    'default_authkey' => '',
-    'default_privpassword' => '',
-    'default_privkey' => '',
-
-		'fastping_timeout' => 5000,
-    'fastping_packet' => 56,
-    'fastping_retries' => 3,
-    'fastping_count' => 3,
-    'fastping_node_poll' => 200,
-		'fastping_cache_dns' => 'true',
-		'fastping_maxage' => 900,
-    # some crazy firewalls like to have larger gaps between pings, so -i 80 and -p 100 could be used here.
-    'fastping_interval' => '1',
-    'fastping_target_interval' => '1',
-
-    'threshold_period-default' => '-15 minutes',
-    'threshold_period-health' => '-4 hours',
-    'threshold_period-pkts' => '-15 minutes',
-    'threshold_period-pkts_hc' => '-15 minutes',
-    'threshold_period-interface' => '-15 minutes',
-    'default_graphtype' => 'abits',
-    'ping_timeout' => '5000',
-    'ping_packet' => '56',
-    'ping_retries' => '3',
-    'ping_count' => '3',
-    'wrap_node_names' => 'true',
-		'interface_util_period' => '-6 hours',
-		'interface_util_label' => 'Util. 6hrs',
-    'interface_max_number' => '5000',
-		'interface_availability_value_when_down' => 'U',
-    'snmp_timeout' => 5,
-    'snmp_retries' => 1,
-    'snmp_max_msg_size' => 1472,
-    'snmp_stop_polling_on_error' => 'true',
-    'log_node_configuration_events' => 'false',
-    'node_configuration_events' => 'Node Configuration Change, Node Reset',
-    'non_stateful_events' => 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded',
-    'stateless_event_dampening' => 900,
-    'upnotify_stateful_events' => 'down|proactive|alert|failover',
-    'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
-    'network_health_view' => 'Group',
-		'network_summary_maxgroups' => 30,
-    'json_node_fields' => 'uuid,supportGroup,cmdbType',
-    'auto_expand_more_graphs' => 'true',
-
-		'max_child_runtime' => undef, 		# maximum runtime of per-node operations (ie. collect, update, services). unlimited if set to zero or undef
-		# to enable the logging of polling time to the NMIS log, will log every node every 5 minutes, set this to 1 or true
-		# various selftest limits
-		'selftest_min_diskfree_percent' => 10,
-		'selftest_min_diskfree_mb' => 25,
-		'selftest_max_collect_age' => 900, # seconds, 15 min
-		'selftest_max_update_age' => 604800, # seconds, one week
-		'selftest_max_system_cpu' => 60, # utilization in percent
-		'selftest_max_system_iowait' => 20, # in percent
-		'selftest_max_swap' => 50, # in percent
-    'selftest_max_collect_jobs' => 200,
-    'selftest_max_update_jobs' => 400,
-		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
-		'plugins_enabled' => 'true',
-
-		# set to true to enable keeping of closed events in history section
-		'keep_event_history' => 'false',
-		'use_json' => 'true',
-		'use_json_pretty' => 'false',
-    'backup_node_on_delete' => 'true',
-    'keeprrds_on_delete_node' => 'false',
+	"nettype_list" => "default,wan,lan,vpn,man,san,voice",
+	"nodetype_list" => "default,generic,switch,router,firewall,server",
+	"roletype_list" => "default,core,distribution,access",
+	'audit_enabled' => 'false',
+	'auto_expand_more_graphs' => 'true',
+	'backup_node_on_delete' => 'true',
+	'buttons_in_logs' => 'false',
+	'cache_summary_tables' => 'true',
+	'cache_var_tables' => 'true',
+	'cbqos_cm_collect_all' => 'true',
+	'default_authkey' => '',
+	'default_authpassword' => '',
+	'default_communityRO' => 'public',
+	'default_graphtype' => 'abits',
+	'default_privkey' => '',
+	'default_privpassword' => '',
+	'default_username' => '',
+	'demote_faulty_nodes' => 'true', # try totally unpollable nodes just once a day?
 	'disable_interfaces_summary' => 'false',
-    'audit_enabled' => 'false'
+	'display_status_summary' => 'true',
+	'domain_name' => '',
+	'fastping_cache_dns' => 'true',
+	'fastping_count' => 3,
+	# Some crazy firewalls like to have larger gaps between pings, so -i 80 and -p 100 could be used here.
+	'fastping_interval' => '1',
+	'fastping_maxage' => 900,
+	'fastping_node_poll' => 200,
+	'fastping_packet' => 56,
+	'fastping_retries' => 3,
+	'fastping_target_interval' => '1',
+	'fastping_timeout' => 5000,
+	'file_size_warning' => '100000000',
+	'hide_groups' => [],
+	'http_req_timeout' => '60',
+	'interface_availability_value_when_down' => 'U',
+	'interface_max_number' => '5000',
+	'interface_util_label' => 'Util. 6hrs',
+	'interface_util_period' => '-6 hours',
+	'json_node_fields' => 'uuid,supportGroup,cmdbType',
+	# Set to true to enable keeping of closed events in history section
+	'keep_event_history' => 'false',
+	'keeprrds_on_delete_node' => 'false',
+	'loc_from_DNSloc' => 'false',
+	'loc_from_sysLoc' => 'false',
+	'loc_sysLoc_format' => '^-?\\d{1,3}(\\.\\d+)?,-?\\d{1,3}(\\.\\d+)?,-?\\d+,.+$',
+	'log_max_table_lines' => 25000,
+	'log_node_configuration_events' => 'false',
+	'max_child_runtime' => undef, 		# maximum runtime of per-node operations (ie. collect, update, services). unlimited if set to zero or undef
+	'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
+	'network_health_view' => 'Group',
+	'network_summary_maxgroups' => 30,
+	'network_viewNode_field_list' => 'nodestatus,outage,sysName,host_addr,host_addr_backup,ip_protocol,group,customer,location,businessService,serviceStatus,notes,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,last_ping,last_poll,last_update,nodeVendor,sysObjectName,roleType,netType',
+	'nmis_executable' => '(/(bin|admin|installer_hooks|conf-default/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh|/installer)$',
+	'nmis_group' => 'nmis',
+	'nmis_host' => 'localhost',
+	'nmis_host_protocol' => 'http',
+	'nmis_user' => 'nmis',
+	'nmisd_fping_worker' => 'true', # if true, at dedicated worker for fping use used
+	'nmisd_max_workers' => 10, # set to zero to disable multiprocessing
+	'nmisd_scheduler_cycle' => 10, # the supervisor daemon sleeps no longer than X between cycles
+	'nmisd_worker_cycle' => 100,	# workers sleep no longer than X between cycles
+	'nmisd_worker_max_cycles' => 100, # workers processes will be restarted after these cycles
+	'node_button_in_logs' => 'true',
+	'node_configuration_events' => 'Node Configuration Change, Node Reset',
+	# If this option is present and enabled, a nodes health impacts its reported summary, providing VERY granular status.
+	'node_status_uses_status_summary' => 'true',
+	# To have additional fields in the node summary data.
+	'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
+	'non_stateful_events' => 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded',
+	'os_cmd_file_decompress' => 'gzip -d -c',
+	'os_cmd_read_file_reverse' => 'tac',
+	'os_execperm' => '0770',
+	'os_fileperm' => '0660',
+	'os_kernelname' => '',
+	'os_posix' => 'false',
+	# If this option is present use binary logic for node down and set the level to the overall_node_status_level
+	'overall_node_status_coarse' => 'false',
+	'overall_node_status_level' => 'Critical',
+	'page_bg_color_full' => 'true',
+	'page_refresh_time' => '300',
+	'ping_count' => '3',
+	'ping_packet' => '56',
+	'ping_retries' => '3',
+	'ping_timeout' => '5000',
+	'plugins_enabled' => 'true',
+	'polling_interval_factor' => 0.95, # fraction of the polling interval after which node is considered for next poll
+	'postpone_clashing_schedule' => 30, # if positive, clashing jobs are retried N seconds later, otherwise clashing jobs are discarded
+	'report_files_max' => '60',
+	'response_time_threshold' => '500',
+	# To enable the logging of polling time to the NMIS log, will log every node every 5 minutes, set this to 1 or true
+	# Various selftest limits
+	'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
+	'selftest_max_collect_age' => 900, # seconds, 15 min
+	'selftest_max_collect_jobs' => 200,
+	'selftest_max_swap' => 50, # in percent
+	'selftest_max_system_cpu' => 60, # utilization in percent
+	'selftest_max_system_iowait' => 20, # in percent
+	'selftest_max_update_age' => 604800, # seconds, one week
+	'selftest_max_update_jobs' => 400,
+	'selftest_min_diskfree_mb' => 25,
+	'selftest_min_diskfree_percent' => 10,
+	'server_admin' => 'root@localhost',
+	'server_name' => 'localhost',
+	# For coloring the group status panel . 'default' applies to unlisted role types
+	'severity_by_roletype' => { core => [ 'Critical', 'Major' ], distribution => [ 'Major', 'Minor' ], access => [ 'Minor', 'Warning' ], default => [ 'Major', 'Minor' ] },
+	'snmp_max_msg_size' => 1472,
+	'snmp_retries' => 1,
+	'snmp_stop_polling_on_error' => 'true',
+	'snmp_timeout' => 5,
+	'stateless_event_dampening' => 900,
+	'threshold_period-default' => '-15 minutes',
+	'threshold_period-health' => '-4 hours',
+	'threshold_period-interface' => '-15 minutes',
+	'threshold_period-pkts' => '-15 minutes',
+	'threshold_period-pkts_hc' => '-15 minutes',
+	'update_interval_factor' => 0.95,	 # ditto but for update operations
+	'upnotify_stateful_events' => 'down|proactive|alert|failover',
+	'ups_battery_replace_months' => 48,
+	'ups_enable_timed_battery_replacement' => 0,
+	'use_json' => 'true',
+	'use_json_pretty' => 'false',
+	'widget_refresh_time' => '180',
+	'wrap_node_names' => 'true'
   },
 
   'url' => {
-    '<url_base>' => '/nmis9',
-    '<cgi_url_base>' => '/cgi-nmis9',
-    '<menu_url_base>' => '/menu9',
-    'web_report_root' => '<url_base>/reports'
+	'<url_base>' => '/nmis9',
+	'<cgi_url_base>' => '/cgi-nmis9',
+	'<menu_url_base>' => '/menu9',
+	'web_report_root' => '<url_base>/reports'
   },
 
   'files' => {
-    'nmis' => '<cgi_url_base>/nmiscgi.pl',
-    'rrddraw' => '<cgi_url_base>/rrddraw.pl',
-    'network' => '<cgi_url_base>/network.pl',
-    'node' => '<cgi_url_base>/node.pl',
-    'events' => '<cgi_url_base>/events.pl',
-    'logs' => '<cgi_url_base>/logs.pl',
-    'outage_file' => '<nmis_conf>/outage.dat',
-    'nmis_log' => '<nmis_logs>/nmis.log',
-    'fping_log' => '<nmis_logs>/fping.log',
-    'auth_log' => '<nmis_logs>/auth.log',
-    'polling_log' => '<nmis_logs>/polling.log',
-    'syslog_log' => '<nmis_logs>/cisco.log',
-    'event_log' => '<nmis_logs>/event.log',
-    'nmis_favicon' => '<menu_url_base>/img/nmis_favicon.png',
-    'nmis_home' => '<menu_url_base>/img/home.png',
-    'nmis_help' => '<menu_url_base>/img/question.png',
-    'nmis_slave' => '<menu_url_base>/img/slave.png',
-    'company_logo' => ''
+	'auth_log' => '<nmis_logs>/auth.log',
+	'company_logo' => '',
+	'event_log' => '<nmis_logs>/event.log',
+	'events' => '<cgi_url_base>/events.pl',
+	'fping_log' => '<nmis_logs>/fping.log',
+	'logs' => '<cgi_url_base>/logs.pl',
+	'network' => '<cgi_url_base>/network.pl',
+	'nmis' => '<cgi_url_base>/nmiscgi.pl',
+	'nmis_favicon' => '<menu_url_base>/img/nmis_favicon.png',
+	'nmis_help' => '<menu_url_base>/img/question.png',
+	'nmis_home' => '<menu_url_base>/img/home.png',
+	'nmis_log' => '<nmis_logs>/nmis.log',
+	'nmis_slave' => '<menu_url_base>/img/slave.png',
+	'node' => '<cgi_url_base>/node.pl',
+	'outage_file' => '<nmis_conf>/outage.dat',
+	'polling_log' => '<nmis_logs>/polling.log',
+	'rrddraw' => '<cgi_url_base>/rrddraw.pl',
+	'syslog_log' => '<nmis_logs>/cisco.log'
   },
 
   'css' => {
-    'jquery_jdmenu_css' => '<menu_url_base>/css/jquery.jdMenu.css',
-    'jquery_ui_css' => '<menu_url_base>/css/smoothness/jquery-ui-1.13.custom.css',
-    'styles' => '<menu_url_base>/css/dash8.css'
+	'jquery_jdmenu_css' => '<menu_url_base>/css/jquery.jdMenu.css',
+	'jquery_ui_css' => '<menu_url_base>/css/smoothness/jquery-ui-1.13.custom.css',
+	'styles' => '<menu_url_base>/css/dash8.css'
   },
 
   'javascript' => {
-    'jquery' => '<menu_url_base>/js/jquery-3.6.0.js',
-    'jquery_ba_dotimeout' => '<menu_url_base>/js/jquery.ba-dotimeout.min.js',
-    'jquery_bgiframe' => '<menu_url_base>/js/jquery.bgiframe-3.0.1.js',
-    'jquery_jdmenu' => '<menu_url_base>/js/jquery.jdMenu.patch.js',
-    'jquery_positionby' => '<menu_url_base>/js/jquery.positionBy.js',
-    'jquery_ui' => '<menu_url_base>/js/jquery-ui-1.13.custom.js',
-    'calendar' => '<menu_url_base>/js/calendar.js',
-    'calendar_setup' => '<menu_url_base>/js/calendar-setup.js',
-    'nmis_common' => '<menu_url_base>/js/commonv8.js',
+	'calendar' => '<menu_url_base>/js/calendar.js',
+	'calendar_setup' => '<menu_url_base>/js/calendar-setup.js',
+	'jquery' => '<menu_url_base>/js/jquery-3.6.0.js',
+	'jquery_ba_dotimeout' => '<menu_url_base>/js/jquery.ba-dotimeout.min.js',
+	'jquery_bgiframe' => '<menu_url_base>/js/jquery.bgiframe-3.0.1.js',
+	'jquery_jdmenu' => '<menu_url_base>/js/jquery.jdMenu.patch.js',
+	'jquery_positionby' => '<menu_url_base>/js/jquery.positionBy.js',
+	'jquery_ui' => '<menu_url_base>/js/jquery-ui-1.13.custom.js',
+	'nmis_common' => '<menu_url_base>/js/commonv8.js'
   },
 
   'email' => {
-    'mail_server' => '127.0.0.1',
-    'mail_server_ipproto' => undef,
-    'mail_combine' => 'true',
-    'mail_domain' => 'yourdomain.com',
-    'mail_from' => 'nmis@yourdomain.com',
-    'mail_from_reports' => 'nmis-reports@yourdomain.com',
-		'mail_use_tls' => 'false',
-    'mail_server_port' => '25',
-    'mail_user' => 'your mail username',
-    'mail_password' => ''
+	'mail_combine' => 'true',
+	'mail_domain' => 'yourdomain.com',
+	'mail_from' => 'nmis@yourdomain.com',
+	'mail_from_reports' => 'nmis-reports@yourdomain.com',
+	'mail_password' => '',
+	'mail_server' => '127.0.0.1',
+	'mail_server_ipproto' => undef,
+	'mail_server_port' => '25',
+	'mail_use_tls' => 'false',
+	'mail_user' => 'your mail username'
   },
 
   'syslog' => {
-    'syslog_server' => 'localhost:udp:514',
-    'syslog_facility' => 'local1',
-    'syslog_use_escalation' => 'true',
-    'syslog_events' => 'false'
+	'syslog_events' => 'false',
+	'syslog_facility' => 'local1',
+	'syslog_server' => 'localhost:udp:514',
+	'syslog_use_escalation' => 'true'
   },
 
   'authentication' => {
-		'auth_lockout_after' => 0,
-    'auth_debug' => '',
-    'auth_debug_remote_addr' => '',
-    'auth_method_1' => 'htpasswd',
-    'auth_method_2' => '',
-    'auth_method_3' => '',
-		'auth_cookie_flavour' => 'omk', # "nmis" or "omk"
-    'auth_default_privilege' => '',
-    'auth_default_groups' => '',
-    'auth_htpasswd_file' => '<nmis_conf>/users.dat',
-    'auth_htpasswd_encrypt' => 'crypt',
-    'auth_radius_secret' => '',
-    'auth_web_key' => 'Please Change Me!',
-    'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
-    'auth_radius_server' => '',
-    'auth_expire' => '+30min',
-    'auth_login_title' => 'NMIS9 login',
-    'auth_login_motd' => 'Authentication required: Please log in with your appropriate username and password in order to gain access to this system',
-    'auth_banner_title' => 'NMIS9',
-    'auth_buttons_visible' => 'true',
-    'auth_ldaps_server' => '',
-    'auth_ldap_server' => '192.168.1.5',
-    'auth_ldap_context' => 'ou=people,dc=opmantek,dc=com',
-    'auth_ldap_attr' => '',
-    'auth_ms_ldaps_server' => '',
-    'auth_ms_ldap_server' => '192.168.1.5',
-    'auth_ms_ldap_dn_acc' => 'nmis',
-    'auth_ms_ldap_dn_psw' => 'XXXXXXXXX',
-    'auth_ms_ldap_base' => 'dc=corp,dc=opmantek,dc=com',
-    'auth_ms_ldap_attr' => 'sAMAccountName',
-    'auth_ms_ldap_debug' => 'false',
-    'auth_cw_server' => '',
-    'auth_cw_company_id' => '',
-    'auth_cw_public_key' => '',
-    'auth_cw_private_key' => '',
-    'max_sessions_enabled' => 'false',
-    'max_sessions' => 3,
-    'expire_users' => 'false',
-    'expire_users_after' => 86400 * 90 # 3 months 
+	'auth_banner_title' => 'NMIS9',
+	'auth_buttons_visible' => 'true',
+	'auth_cookie_flavour' => 'omk', # "nmis" or "omk"
+	'auth_cw_company_id' => '',
+	'auth_cw_private_key' => '',
+	'auth_cw_public_key' => '',
+	'auth_cw_server' => '',
+	'auth_debug' => '',
+	'auth_debug_remote_addr' => '',
+	'auth_default_groups' => '',
+	'auth_default_privilege' => '',
+	'auth_expire' => '+30min',
+	'auth_htpasswd_encrypt' => 'crypt',
+	'auth_htpasswd_file' => '<nmis_conf>/users.dat',
+	'auth_ldap_attr' => '',
+	'auth_ldap_context' => 'ou=people,dc=opmantek,dc=com',
+	'auth_ldap_server' => '192.168.1.5',
+	'auth_ldaps_server' => '',
+	'auth_lockout_after' => 0,
+	'auth_login_motd' => 'Authentication required: Please log in with your appropriate username and password in order to gain access to this system',
+	'auth_login_title' => 'NMIS9 login',
+	'auth_method_1' => 'htpasswd',
+	'auth_method_2' => '',
+	'auth_method_3' => '',
+	'auth_ms_ldap_attr' => 'sAMAccountName',
+	'auth_ms_ldap_base' => 'dc=corp,dc=opmantek,dc=com',
+	'auth_ms_ldap_debug' => 'false',
+	'auth_ms_ldap_dn_acc' => 'nmis',
+	'auth_ms_ldap_dn_psw' => 'XXXXXXXXX',
+	'auth_ms_ldap_server' => '192.168.1.5',
+	'auth_ms_ldaps_server' => '',
+	'auth_radius_secret' => '',
+	'auth_radius_server' => '',
+	'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
+	'auth_web_key' => 'Please Change Me!',
+	'expire_users' => 'false',
+	'expire_users_after' => 86400 * 90, # 3 months 
+	'max_sessions' => 3,
+	'max_sessions_enabled' => 'false'
   },
 
   'tools' => {
-    'view_ssh' => 'true',
-    'ssh_port' => '',
-    'ssh_url' => 'ssh://',
-    'view_ping' => 'true',
-    'view_trace' => 'true',
-    'view_telnet' => 'true',
-    'view_mtr' => 'false',
-    'view_lft' => 'false',
-    'mtr' => '/usr/sbin/mtr',
-    'lft' => '/usr/local/bin/lft',
-    'view_snmp' => 'true'
+	'lft' => '/usr/local/bin/lft',
+	'mtr' => '/usr/sbin/mtr',
+	'ssh_port' => '',
+	'ssh_url' => 'ssh://',
+	'view_lft' => 'false',
+	'view_mtr' => 'false',
+	'view_ping' => 'true',
+	'view_snmp' => 'true',
+	'view_ssh' => 'true',
+	'view_telnet' => 'true',
+	'view_trace' => 'true'
   },
 
   'menu' => {
-    'menu_vendors_active' => 'false',
-    'menu_groups_defer_load' => 'false',
-    'menu_groups_active' => 'true',
-    'menu_types_active' => 'true',
-    'menu_groups_foldout' => 'true',
-    'menu_types_full' => 'true',
-    'menu_groups_full' => 'true',
-    'menu_types_foldout' => 'true',
-    'menu_title' => 'NMIS9',
-    'menu_vendors_defer_load' => 'false',
-    'menu_types_defer_load' => 'false',
-    'menu_maxitems' => '30',
-    'menu_start_page_id' => '',
-    'menu_vendors_foldout' => 'false',
-    'menu_vendors_full' => 'false',
-    'menu_suspend_link' => 'true'
+	'menu_groups_active' => 'true',
+	'menu_groups_defer_load' => 'false',
+	'menu_groups_foldout' => 'true',
+	'menu_groups_full' => 'true',
+	'menu_maxitems' => '30',
+	'menu_start_page_id' => '',
+	'menu_suspend_link' => 'true',
+	'menu_title' => 'NMIS9',
+	'menu_types_active' => 'true',
+	'menu_types_defer_load' => 'false',
+	'menu_types_foldout' => 'true',
+	'menu_types_full' => 'true',
+	'menu_vendors_active' => 'false',
+	'menu_vendors_defer_load' => 'false',
+	'menu_vendors_foldout' => 'false',
+	'menu_vendors_full' => 'false'
   },
 
   'metrics' => {
-    # The start time of each of the periods for metrics
-    'metric_comparison_first_period' => '-8 hours',
-    'metric_comparison_second_period' => '-16 hours',
-    'metric_int_utilisation_above' => '-1',
-
-    'weight_availability' => '0.1',
-    'weight_cpu' => '0.2',
-    'weight_int' => '0.3',
-    'weight_mem' => '0.1',
-    'weight_reachability' => '0.1',
-    'weight_response' => '0.2',
-    'metric_reachability' => '0.4',
-    'metric_availability' => '0.2',
-    'metric_health' => '0.4',
-    'average_diff' => '0.1',
-    'average_decimals' => '2',
+	'average_decimals' => '2',
+	'average_diff' => '0.1',
+	'metric_availability' => '0.2',
+	# The start time of each of the periods for metrics
+	'metric_comparison_first_period' => '-8 hours',
+	'metric_comparison_second_period' => '-16 hours',
+	'metric_health' => '0.4',
+	'metric_int_utilisation_above' => '-1',
+	'metric_reachability' => '0.4',
+	'weight_availability' => '0.1',
+	'weight_cpu' => '0.2',
+	'weight_int' => '0.3',
+	'weight_mem' => '0.1',
+	'weight_reachability' => '0.1',
+	'weight_response' => '0.2'
   },
 
   'escalation' => {
-    'escalate0' => '0',
-    'escalate1' => '300',
-    'escalate2' => '900',
-    'escalate3' => '1800',
-    'escalate4' => '2400',
-    'escalate5' => '3600',
-    'escalate6' => '7200',
-    'escalate7' => '10800',
-    'escalate8' => '21600',
-    'escalate9' => '43200',
-    'escalate10' => '86400'
+	'escalate0' => '0',
+	'escalate1' => '300',
+	'escalate2' => '900',
+	'escalate3' => '1800',
+	'escalate4' => '2400',
+	'escalate5' => '3600',
+	'escalate6' => '7200',
+	'escalate7' => '10800',
+	'escalate8' => '21600',
+	'escalate9' => '43200',
+	'escalate10' => '86400'
   },
 
   'graph' => {
-    'graph_unit' => 'hours',
-    'graph_amount' => '48',
-    'win_height' => '570',
-    'graph_height' => '250',
-    'graph_factor' => '2',
-    'graph_width' => '700',
-    'graph_split' => 'true',
-    'win_width' => '835',
-    'small_graph_height' => '50', # 'small_graph_height' => '200',
-    'small_graph_width' => '400', # 'small_graph_width' => '400',
-    'graph_default_font_standard' => 'DEFAULT:8:Sans-Serif',
-    'graph_default_font_small' => 'DEFAULT:8:Sans-Serif',
+	'graph_unit' => 'hours',
+	'graph_amount' => '48',
+	'win_height' => '570',
+	'graph_height' => '250',
+	'graph_factor' => '2',
+	'graph_width' => '700',
+	'graph_split' => 'true',
+	'win_width' => '835',
+	'small_graph_height' => '50',     # 'small_graph_height' => '200',
+	'small_graph_width' => '400',     # 'small_graph_width' => '400',
+	'graph_default_font_standard' => 'DEFAULT:8:Sans-Serif',
+	'graph_default_font_small' => 'DEFAULT:8:Sans-Serif',
   },
 
   'mibs' => {
-    'full_mib' =>'nmis_mibs.oid,a3com.oid,dell.oid,ups.oid,akcp.oid'
+	'full_mib' =>'nmis_mibs.oid,a3com.oid,dell.oid,ups.oid,akcp.oid'
   },
 
   'sound' => {
-# to enable audio feedback, set the severity levels that you want sound for,
-# and point the sound_X to a suitable url
-#    'sound_levels' => 'fatal,critical,major,minor,warning,normal',
-		'sound_levels' => '',
-    'sound_type' => 'audio/wav',
-    'sound_fatal' => '/nmis9/events/critical.wav',
-    'sound_critical' => '/nmis9/events/critical.wav',
-    'sound_major' => '/nmis9/events/major.wav',
-    'sound_minor' => undef,
-    'sound_warning' => undef,
-    'sound_normal' => undef,
+	# to enable audio feedback, set the severity levels that you want sound for,
+	# and point the sound_X to a suitable url
+	#'sound_levels' => 'fatal,critical,major,minor,warning,normal',
+	'sound_levels' => '',
+
+	'sound_critical' => '/nmis9/events/critical.wav',
+	'sound_fatal' => '/nmis9/events/critical.wav',
+	'sound_major' => '/nmis9/events/major.wav',
+	'sound_minor' => undef,
+	'sound_normal' => undef,
+	'sound_type' => 'audio/wav',
+	'sound_warning' => undef
   },
 
   'icons' => {
-    'normal_net_icon' => '<menu_url_base>/img/network-green.gif',
-    'mtr_icon' => '<menu_url_base>/img/mtr.jpg',
-    'logs_icon' => '<menu_url_base>/img/logs.jpg',
-    'arrow_up_big' => '<menu_url_base>/img/bigup.gif',
-    'arrow_down_green' => '<menu_url_base>/img/arrow_down_green.gif',
-    'arrow_up' => '<menu_url_base>/img/arrow_up.gif',
-    'help_icon' => '<menu_url_base>/img/help.jpg',
-    'lft_icon' => '<menu_url_base>/img/lft.jpg',
-    'fatal_net_icon' => '<menu_url_base>/img/network-red.gif',
-    'telnet_icon' => '<menu_url_base>/img/telnet.jpg',
-    'back_icon' => '<menu_url_base>/img/back.jpg',
-    'banner_image' => '<menu_url_base>/img/NMIS_Logo.gif',
-    'summary_icon' => '<menu_url_base>/img/summary.jpg',
-    'nmis_icon' => '<menu_url_base>/img/nmis.png',
-    'trace_icon' => '<menu_url_base>/img/trace.jpg',
-    'minor_net_icon' => '<menu_url_base>/img/network-yellow.gif',
-    'map_icon' => '<menu_url_base>/img/australia-line.gif',
-    'arrow_down_big' => '<menu_url_base>/img/bigdown.gif',
-    'unknown_net_icon' => '<menu_url_base>/img/network-white.gif',
-    'ping_icon' => '<menu_url_base>/img/ping.jpg',
-    'doc_icon' => '<menu_url_base>/img/doc.jpg',
-    'arrow_down' => '<menu_url_base>/img/arrow_down.gif',
-    'major_net_icon' => '<menu_url_base>/img/network-amber.gif',
-    'arrow_up_red' => '<menu_url_base>/img/arrow_up_red.gif',
-    'critical_net_icon' => '<menu_url_base>/img/network-red.gif',
-    'arrow_down_black' => '<menu_url_base>/img/arrow_down_black.gif'
+	'arrow_down' => '<menu_url_base>/img/arrow_down.gif',
+	'arrow_down_big' => '<menu_url_base>/img/bigdown.gif',
+	'arrow_down_black' => '<menu_url_base>/img/arrow_down_black.gif',
+	'arrow_down_green' => '<menu_url_base>/img/arrow_down_green.gif',
+	'arrow_up' => '<menu_url_base>/img/arrow_up.gif',
+	'arrow_up_big' => '<menu_url_base>/img/bigup.gif',
+	'arrow_up_red' => '<menu_url_base>/img/arrow_up_red.gif',
+	'back_icon' => '<menu_url_base>/img/back.jpg',
+	'banner_image' => '<menu_url_base>/img/NMIS_Logo.gif',
+	'critical_net_icon' => '<menu_url_base>/img/network-red.gif',
+	'doc_icon' => '<menu_url_base>/img/doc.jpg',
+	'fatal_net_icon' => '<menu_url_base>/img/network-red.gif',
+	'help_icon' => '<menu_url_base>/img/help.jpg',
+	'lft_icon' => '<menu_url_base>/img/lft.jpg',
+	'logs_icon' => '<menu_url_base>/img/logs.jpg',
+	'major_net_icon' => '<menu_url_base>/img/network-amber.gif',
+	'map_icon' => '<menu_url_base>/img/australia-line.gif',
+	'minor_net_icon' => '<menu_url_base>/img/network-yellow.gif',
+	'mtr_icon' => '<menu_url_base>/img/mtr.jpg',
+	'nmis_icon' => '<menu_url_base>/img/nmis.png',
+	'normal_net_icon' => '<menu_url_base>/img/network-green.gif',
+	'ping_icon' => '<menu_url_base>/img/ping.jpg',
+	'summary_icon' => '<menu_url_base>/img/summary.jpg',
+	'telnet_icon' => '<menu_url_base>/img/telnet.jpg',
+	'trace_icon' => '<menu_url_base>/img/trace.jpg',
+	'unknown_net_icon' => '<menu_url_base>/img/network-white.gif'
   },
 
-	'expiration' => {
-		# non-automatic ones: set to -1 to disable expiration
-		'purge_rrd_after' => 30*86400,		# unused rrd files older than 30 days
-		'purge_backup_after' => 30*86400, # backup files
-		'purge_state_after' => 30*86400,	 # unused nmis state files
-		'purge_event_after' => 7*86400,	 # historic, closed events
-		'purge_jsonlog_after' => 30*86400, # json log files
-		'purge_timeddata_after' => 86400,		 # timed data (automatic expiration)
-		'purge_inventory_after' => 14*86400,		 # unused/historic inventory data (automatic expiration)
-		'purge_reports_after' => 365*86400,			 # html reports
-		'purge_outages_after' => 86400,			 # past non-recurring outages
-		'purge_opstatus_after' => 3*86400,	 # opstatus records
-		'purge_graphcache_after' => 3600,				 # cached graph images
-    'purge_node_dumps_after' => 30*86400,	 # node dump files from deleted nodes
-    'purge_performance_files_after' => 8*86400,	 # node dump files from deleted nodes
-    'purge_performance_top_files_after' => 8*86400,	 # node dump files from deleted nodes
-	},
+  'expiration' => {
+	# non-automatic ones: set to -1 to disable expiration
+	'purge_backup_after' => 30*86400,                # backup files
+	'purge_event_after' => 7*86400,                  # historic, closed events
+	'purge_graphcache_after' => 3600,                # cached graph images
+	'purge_inventory_after' => 14*86400,             # unused/historic inventory data (automatic expiration)
+	'purge_jsonlog_after' => 30*86400,               # json log files
+	'purge_node_dumps_after' => 30*86400,            # node dump files from deleted nodes
+	'purge_opstatus_after' => 3*86400,               # opstatus records
+	'purge_outages_after' => 86400,                  # past non-recurring outages
+	'purge_performance_files_after' => 8*86400,      # node dump files from deleted nodes
+	'purge_performance_top_files_after' => 8*86400,  # node dump files from deleted nodes
+	'purge_reports_after' => 365*86400,              # html reports
+	'purge_rrd_after' => 30*86400,                   # unused rrd files older than 30 days
+	'purge_state_after' => 30*86400,                 # unused nmis state files
+	'purge_timeddata_after' => 86400,                # timed data (automatic expiration)
+  },
 
-	'schedule' => {
-		# empty, 0 or negative to disable automatic scheduling
-		'schedule_configbackup' => 86400,
-#		'schedule_reports' => 86400, # fixme not good
-		'schedule_purge' => 3600,
-		'schedule_dbcleanup' => 86400,
-		'schedule_selftest' => 15*60,
-		'schedule_permission_test' => 2*3600,
-		'schedule_escalations' => 90,
-		'schedule_metrics' => 120,
-		'schedule_thresholds' => 120, # ignored if global_threshold is false or threshold_poll_node is true
-	},
+  'schedule' => {
+	# empty, 0 or negative to disable automatic scheduling
+	'schedule_configbackup' => 86400,
+	'schedule_dbcleanup' => 86400,
+	'schedule_escalations' => 90,
+	'schedule_metrics' => 120,
+	'schedule_permission_test' => 2*3600,
+	'schedule_purge' => 3600,
+#	'schedule_reports' => 86400, # fixme not good
+	'schedule_selftest' => 15*60,
+	'schedule_thresholds' => 120     # ignored if global_threshold is false or threshold_poll_node is true
+  },
 
-	"overtime_schedule" => {
-		# empty, 0 or negative to not abort stuck overtime jobs
-		"abort_collect_after" => 900, # seconds
-		"abort_update_after" => 7200,
-		"abort_services_after" => 900,
-		"abort_configbackup_after" => 900, # seconds
-		'abort_purge_after' => 600,
-		'abort_dbcleanup_after' => 600,
-		'abort_selftest_after' => 120,
-		'abort_permission_test_after' => 240,
-		'abort_escalations_after' => 300,
-		'abort_metrics_after' => 300,
-		'abort_thresholds_after' => 300,
-    'abort_plugins_after' => 7200, # seconds
-	},
+  "overtime_schedule" => {
+	# In seconds;  empty, 0 or negative to not abort stuck overtime jobs
+	"abort_collect_after" => 900,
+	"abort_configbackup_after" => 900,
+	"abort_services_after" => 900,
+	"abort_update_after" => 7200,
+	'abort_dbcleanup_after' => 600,
+	'abort_escalations_after' => 300,
+	'abort_metrics_after' => 300,
+	'abort_permission_test_after' => 240,
+	'abort_plugins_after' => 7200,
+	'abort_purge_after' => 600,
+	'abort_selftest_after' => 120,
+	'abort_thresholds_after' => 300
+  },
 
-	# relative priorities for automatic job scheduling,
-	"priority_schedule" => {
-		 "priority_escalations" => 0.9,
-		 "priority_collect" => 0.85,
-		 "priority_update" => 0.8,
-		 "priority_plugins" => 0.85, # post-update and post-collect plugins
-		 "priority_services" => 0.75,
-		 "priority_thresholds" => 0.7,
-		 "priority_metrics" => 0.7,
-		 "priority_configbackup" => 0.3,
-		 "priority_purge" => 0.3,
-		 "priority_dbcleanup" => 0.3,
-		 "priority_selftest" => 0.2,
-		 "priority_permission_test" => 0.1,
-	},
+# relative priorities for automatic job scheduling,
+  "priority_schedule" => {
+	"priority_collect" => 0.85,
+	"priority_configbackup" => 0.3,
+	"priority_dbcleanup" => 0.3,
+	"priority_escalations" => 0.9,
+	"priority_metrics" => 0.7,
+	"priority_permission_test" => 0.1,
+	"priority_plugins" => 0.85, # post-update and post-collect plugins
+	"priority_purge" => 0.3,
+	"priority_selftest" => 0.2,
+	"priority_services" => 0.75,
+	"priority_thresholds" => 0.7,
+	"priority_update" => 0.8
+  },
 
-	'gui' => {
-		'export_summarisation_periods' => [ 300, 900, 1800, 3600, 4*3600 ],
-	},
+  'gui' => {
+	'export_summarisation_periods' => [ 300, 900, 1800, 3600, 4*3600 ],
+  },
 
 );
