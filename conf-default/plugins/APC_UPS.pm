@@ -27,7 +27,23 @@
 #
 # *****************************************************************************
 #
-# a small update plugin for manipulating QualityOfServiceStat
+# A small update plugin for manipulating APC Ups Battery change indication.
+#
+# This plugin is controlled by two configuration flags.
+#   *  'ups_battery_replace_months' => 48,
+#   *  'ups_enable_timed_battery_replacement' => 'false',
+#
+# Change these as desired. 
+
+# If 'ups_enable_timed_battery_replacement' is defaulted to 'false', alerts will
+# only be generated if the 'upsAdvBatteryReplaceIndicator' OID returns '0',
+# indicating that APC recommends replacing the battery.
+#
+# If 'ups_enable_timed_battery_replacement' is set to 'true', an alert will be
+# generated if EITHER the 'upsAdvBatteryReplaceIndicator' OID returns '0', or
+# the 'upsBasicBatteryLastReplaceDate' OID date is older than the value of
+# 'ups_battery_replace_months'.
+# 
 
 package APC_UPS;
 our $VERSION = "1.0.0";
