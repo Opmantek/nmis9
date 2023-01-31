@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.4.1";
+our $VERSION = "9.4.1.1";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -687,8 +687,13 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		my $curoverrides = $nodeobj->overrides;
 		my $curactivated = $nodeobj->activated;
 		my $curextras = $nodeobj->unknown;
-		my $curarraythings = { aliases => $nodeobj->aliases,
-													 addresses => $nodeobj->addresses };
+		my $curarraythings = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses };
+		my $updateOverrides     = 0;
+		my $updateConfiguration = 0;
+		my $updateActivated     = 0;
+		my $updateAddresses     = 0;
+		my $updateArrayThings   = 0;
+		my $updateUnknown       = 0;
 		my $anythingtodo;
 	
 		for my $name (keys %$cmdline)
@@ -707,6 +712,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			if ($name =~ /^overrides\.(.+)$/)
 			{
 				$curoverrides->{$1} = $value;
+				$updateOverrides    = 1;
 			}
 			# ...name, cluster_id a bit less...
 			elsif ($name =~ /^(name|cluster_id)$/)
@@ -717,16 +723,19 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			elsif ($name =~ /^activated\.(.+)$/)
 			{
 				$curactivated->{$1} = $value;
+				$updateActivated    = 1;
 			}
 			# ...and then there's the unknown unknowns
 			elsif ($name =~ /^unknown\.(.+)$/)
 			{
 				$curextras->{$1} = $value;
+				$updateUnknown   = 1;
 			}
 			# and aliases and addresses, but these are ARRAYS
 			elsif ($name =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
 			{
 				$curarraythings->{$1} = $value;
+				$updateArrayThings    = 1;
 			}
 			# configuration.X
 			elsif ($name =~ /^configuration\.(.+)$/)
@@ -738,6 +747,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 				} else {
 					$curconfig->{$prop} = $value;
 				}
+				$updateConfiguration = 1;
 			}
 			else
 			{
@@ -754,17 +764,24 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		{
 			my ($checkwhat, $name) = @$_;
 	
+			# Don't waste overhead if nothing was changed.
+			next if ($name eq "configuration"     && !$updateConfiguration);
+			next if ($name eq "override"          && !$updateOverrides);
+			next if ($name eq "activated"         && !$updateActivated);
+			next if ($name eq "addresses/aliases" && !$updateArrayThings);
+			next if ($name eq "unknown/extras"    && !$updateUnknown);
+
 			my $error = NMISNG::Util::translate_dotfields($checkwhat);
 			die "translation of $name arguments failed: $error\n" if ($error);
 		}
 	
-		$nodeobj->overrides($curoverrides);
-		$nodeobj->configuration($curconfig);
-		$nodeobj->activated($curactivated);
-		$nodeobj->addresses($curarraythings->{addresses});
-		$nodeobj->aliases($curarraythings->{aliases});
-		$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags});
-		$nodeobj->unknown($curextras);
+		$nodeobj->overrides($curoverrides) if ($updateOverrides);
+		$nodeobj->configuration($curconfig) if ($updateConfiguration);
+		$nodeobj->activated($curactivated) if ($updateActivated);
+		$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
+		$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
+		$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
+		$nodeobj->unknown($curextras) if ($updateUnknown);
 		
 		(my $op, $error) = $nodeobj->save(meta => $meta);
 		die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed	
