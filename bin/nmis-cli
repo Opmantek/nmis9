@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.4.1";
+our $VERSION = "9.4.1.1";
 
 
 use FindBin;
@@ -439,7 +439,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 	{
 		if (!defined($Q->{only}) or $Q->{only} eq "active")
 		{
-			my $fmt = "%-26s%-26s%-48s%-20s%s\n";
+			my $fmt = "%-26s%-26s%-58s%-45s%s\n";
 			printf("Active Jobs:\n$fmt",
 						 "Id","When","Status","What",
 						 "Parameters");
@@ -449,6 +449,8 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 			{
 				$some = 1;
 
+				my $nodenames = $nmisng->get_node_names( uuid => $active->{args}->{uuid} );
+				my $nodename  = $nodenames->[0] // "UNKNOWN";    # can that happen?
 				my $printable = $active->{args}?
 					Data::Dumper->new([$active->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
 				$printable = "<output truncated, too long>"
@@ -460,7 +462,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 							 ("In Progress since "
 								.localtime($active->{in_progress})
 								. ($verbose? " (Worker $active->{status}->{pid}) " : "")),
-							 $active->{type},
+							 "$active->{type} for $nodename",
 							 $printable);
 			}
 			print "No active jobs at this time.\n" if (!$some);
@@ -469,7 +471,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 
 		if (!defined($Q->{only}) or $Q->{only} eq "queued")
 		{
-			my $fmt = "%-26s%-26s%-12s%-20s%s\n";
+			my $fmt = "%-26s%-26s%-12s%-45s%s\n";
 			printf("Queued Jobs:\n$fmt",
 						 "Id","When","Priority","What","Parameters");
 
@@ -477,6 +479,9 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 			for my $sched (grep(!$_->{in_progress}, @$queuedjobs))
 			{
 				$some = 1;
+
+				my $nodenames = $nmisng->get_node_names( uuid => $sched->{args}->{uuid} );
+				my $nodename  = $nodenames->[0] // "UNKNOWN";    # can that happen?
 				my $printable = $sched->{args}?
 						Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
 				$printable = "<output truncated, too long>"
@@ -486,7 +491,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 							 $sched->{_id},
 							 scalar(localtime($sched->{time})),
 							 $sched->{priority},
-							 $sched->{type},
+							 "$sched->{type} for $nodename",
 							 $printable);
 			}
 
