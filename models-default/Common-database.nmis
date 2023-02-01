@@ -82,12 +82,14 @@
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
       'NetFlowStats' => '/nodes/$node/misc/NetFlowStats.rrd',
       'NetworkInterface' => '/nodes/$node/interface/NetworkInterface-$index.rrd',
+	  'Nokia_Hardware' => '/nodes/$node/health/Nokia_Hardware-$index.rrd',
       'QualityOfServiceStat' => '/nodes/$node/interface/hwqos-$index.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Radwin' => '/nodes/$node/health/RadwinTAB-$index.rrd',
       'RouteNumber' => '/nodes/$node/health/routenumber.rrd',
       'SONETErrors' => '/nodes/$node/health/soneterrors-$index.rrd',
       'Sat-Demodulate' => '/nodes/$node/health/Sat-Demodulate-$index.rrd',
+	  'SDPBindstatus' => '/nodes/$node/health/status-$index.rrd',
       'SensorName' => '/nodes/$node/misc/SensorName.rrd',
       'SensorValue' => '/nodes/$node/misc/SensorValue.rrd',
       'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
@@ -200,7 +202,8 @@
       'upscur' => '/nodes/$node/misc/apc-ups-cur.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
       'upspwr' => '/nodes/$node/misc/apc-ups-pwr.rrd',
-      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd'
+      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd',
+      'vRtr_Router_Interface_TxStats' => '/nodes/$node/health/vRtr_TxStats-$index.rrd',
     }
   }
 );

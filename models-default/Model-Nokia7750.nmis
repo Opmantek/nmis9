@@ -1,0 +1,851 @@
+#
+## $Id: Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'database' => {
+    'type' => {
+    'Nokia_Hardware' => '/nodes/$node/health/Nokia_Hardware-$index.rrd',
+    'vRtr_Router_Interface_TxStats' => '/nodes/$node/health/vRtr_Router_Interface_TxStats-$index.rrd',
+  }
+},
+  'heading' => {
+    'type' => {
+    'Hardware_Temperature' => 'Hardware Temperature',
+    'vRtr_Interface_Packets_Sent' => 'Virtual Interface Packets Sent',
+  }
+},
+  'system' => {
+    'nodegraph' => 'health,response,ip',
+    'nodeModel' => 'Nokia7750',
+    'nodeType' => 'router',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'health' => {
+        'no_graphs' => '1',
+        'threshold' => 'loss',
+        'skip_collect' => '1'
+      },
+      'mib2ip' => {
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'Nokia_Hardware,Power_Supply,Virtual_Router_Interface,vRtr_Router_Interface_TxStats,vRtr_Router_Interface_RxStats,SAPstatus,SDPBindstatus,SDPstatus',
+    'sys' => {
+      'Nokia_Hardware' => {
+        'indexed' => 'tmnxHwName',
+         # TODO: Review the index.
+        'index_regex' => '\.(\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.8.1.8',
+        'headers' => 'tmnxHwName,tmnxHwMacAdd,tmnxHwOperState',
+        'snmp' => {
+          'tmnxHwName' => {
+            'oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.8.1.8',
+            'title' => 'Hardware Name',
+         },
+          'tmnxHwMacAdd' => {
+            'oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.8.1.29',
+            'title' => 'Chassis MAC Address',
+         },
+          'tmnxHwOperState' => {
+            'oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.8.1.16',
+            'title' => 'Hw Oper State',
+            'replace' => {
+              '1' => 'Unknown',
+              '2' => 'Online',
+              '3' => 'Ready',
+              '4' => 'Not implemented',
+              '5' => 'Failed',
+              '6' => 'Booting',
+              '7' => 'Empty',
+              '8' => 'Provisioned',
+              '9' => 'Unprovisioned',
+              '10' => 'Upgrade',
+              '11' => 'Downgrade',
+              '12' => 'inService Upgrade',
+              '13' => 'inService Downgrade',
+              '14' => 'Reset Pending'
+            },
+          }
+        },
+      },
+         'Power_Supply' => {
+           'headers' => 'tmnxPowerSup1,tmnxPowerSup2',
+          # 'index_regex' => '\.(\d+\.\d+)$',
+           'index_regex' => '\.(\d+\.\d+\.\d+)$',
+          # 'index_oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.24.2.1.2',
+           'index_oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.24.2.1.6',
+           'indexed' => 'tmnxPowerSup1',
+           'snmp' => {
+         # 'tmnxHwName' => {
+         #   'oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.24.2.1',
+         #   'title' => 'Hardware Name',
+         #   },
+             'tmnxPowerSup1' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.24.2.1.6',
+              'title' => 'Power Supply 1 status',
+              'replace' => {
+               '1' => 'Unknown',
+               '2' => 'Online',
+               '3' => 'Ok',
+               '4' => 'Failed'
+              }
+            },
+           'tmnxPowerSup2' => {
+               'oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.24.2.1.7',
+               'title' => 'Power Supply 2 status',
+               'replace' => {
+               '1' => 'Unknown',
+               '2' => 'Online',
+               '3' => 'Ok',
+               '4' => 'Failed'
+              }
+            }
+          }
+        },
+         'Virtual_Router_Interface' => {
+         'indexed' => 'vRtrIfName',
+          # TODO: Review the index.
+         'index_regex' => '\.(\d+\.\d+)$',
+         'index_oid' => '1.3.6.1.4.1.6527.3.1.2.3.4.1.4',
+         'headers' => 'vRtrIfName,vRtrIfType,vRtrIfPortID',
+         'snmp' => {
+           'vRtrIfName' => {
+             'oid' => '1.3.6.1.4.1.6527.3.1.2.3.4.1.4',
+             'title' => 'Interface Name',
+          },
+          'vRtrIfType' => {
+             'oid' => '1.3.6.1.4.1.6527.3.1.2.3.4.1.3',
+             'title' => 'Interface Type',
+             'replace' => {
+               '1' => 'Network',
+               '2' => 'Service',
+               '3' => 'ServiceIes',
+               '4' => 'ServiceRtdVpls',
+               '5' => 'ServiceVprn',
+               '6' => 'serviceIesSubscriber',
+               '7' => 'serviceIesGroup',
+               '8' => 'serviceVprnSubscriber',
+               '9' => 'serviceVprnGroup',
+               '10' => 'serviceIesRedundant',
+               '11' => 'serviceVprnRedundant',
+               '12' => 'serviceVpls',
+               '13' => 'serviceIesCem',
+               '14' => 'serviceVprnCem',
+               '15' => 'serviceVprnIPsec',
+               '16' => 'serviceVprnIPMirror'
+             },
+            },
+           'vRtrIfPortID' => {
+             'oid' => '1.3.6.1.4.1.6527.3.1.2.3.4.1.5',
+             'title' => 'Port ID',
+           },
+          },
+          },
+          'vRtr_Router_Interface_TxStats' => {
+            'headers' => 'vRtrIfTxPkts,IfTxPktsLow32,IfTxPktsHigh32,vRtrIfTxBytes,IfTxBytesLow32,IfTxBytesHigh32',
+            'index_regex' => '\.(\d+\.\d+)$',
+           # 'index_regex' => '\.(\d+\.\d+\.\d+)$',
+            'index_oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.1',
+            'indexed' => 'vRtrIfTxPkts',
+            'snmp' => {
+              'vRtrIfTxPkts' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.1',
+               'title' => 'Total Packets Sent',
+               },
+              'IfTxPktsLow32' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.2',
+               'title' => 'Lower 32bit value vRtrIfTxPkts',
+               },
+              'IfTxPktsHigh32' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.3',
+               'title' => 'High 32bit value vRtrIfTxPkts',
+               },
+              'vRtrIfTxBytes' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.4',
+               'title' => 'Total Bytes Sent',
+               },
+              'IfTxBytesLow32' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.5',
+              'title' => 'Lower 32bit value vRtrIfTxBytes',
+               },
+              'IfTxBytesHigh32' => {
+              'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.6',
+               'title' => 'High 32bit value vRtrIfTxBytes',
+               },
+             },
+           },
+          'vRtr_Router_Interface_RxStats' => {
+            'headers' => 'vRtrIfSpeed,vRtrIfRxPkts,vRtrIfRxPktsLow32,vRtrIfRxPktsHigh32',
+            'index_regex' => '\.(\d+\.\d+)$',
+           # 'index_regex' => '\.(\d+\.\d+\.\d+)$',
+            'index_oid' => '.1.3.6.1.4.1.6527.3.1.2.3.54.1',
+            'indexed' => 'vRtrIfSpeed',
+            'snmp' => {
+             'vRtrIfSpeed' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.54.1.103',
+               'title' => 'Current Bandwidth',
+             },
+              'vRtrIfRxPkts' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.54.1.40',
+               'title' => 'Total Packets Recieved',
+               },
+              'vRtrIfRxPktsLow32' => {
+              'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.54.1.41',
+               'title' => 'Lower 32bit value vRtrIfRxPkts',
+               },
+              'vRtrIfRxPktsHigh32' => {
+               'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.54.1.42',
+               'title' => 'High 32bit value vRtrIfRxPkts',
+              },
+             },
+           },
+         'SAPstatus' => {
+           'headers' => 'sapPortId,sapAdminStatus,sapOperStatus',
+          # 'index_regex' => '\.(\d+\.\d+)$',
+           'index_regex' => '\.(\d+\.\d+\.\d+)$',
+           'index_oid' => '1.3.6.1.4.1.6527.3.1.2.4.3.2.1.1',
+           'indexed' => 'sapPortId',
+           'snmp' => {
+             'sapPortId' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.3.2.1.1',
+              'title' => 'SAP Port ID',
+            },      
+             'sapAdminStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.3.2.1.6',
+              'title' => 'SAP Admin State',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'Down',
+              },
+             },
+             'sapOperStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.3.2.1.7',
+              'title' => 'SAP Operating state',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'Down',
+               '3' => 'ingressQosMismatch',
+               '4' => 'egressQosMismatch',
+               '5' => 'portMtuTooSmall',
+               '6' => 'svcAdminDown',
+               '7' => 'iesIfAdminDown'
+              }
+            },       
+         }       
+      },
+         'SDPstatus' => {
+           'headers' => 'sdpId,sdpAdminStatus,sdpOperStatus',
+          # 'index_regex' => '\.(\d+\.\d+)$',
+          # 'index_regex' => '\.(\d+\.\d+\.\d+)$',
+           'index_oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.3.1.1',
+           'indexed' => 'sdpId',
+           'snmp' => {
+             'sdpId' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.3.1.1',
+              'title' => 'SDP ID',
+            },
+             'sdpAdminStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.3.1.8',
+              'title' => 'SDP Admin State',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'Down',
+              },
+              },
+             'sdpOperStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.3.1.9',
+              'title' => 'SDP Operating state',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'notAlive',
+               '3' => 'notReady',
+               '4' => 'invalidEgressInterface',
+               '5' => 'transportTunnelDown',
+               '6' => 'Down'
+              },
+            },
+        }
+      },
+         'SDPBindstatus' => {
+           'headers' => 'sdpIdp,sdpChk,sdpBindType,sdpBindAdminStatus,sdpBindOperStatus,sdpBindMtuSize,sdpBindOperFlags,sdpBindLastStatusChange',
+           'index_regex' => '\.(\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+)$',
+           'index_oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.1',
+           'indexed' => 'true',
+           'snmp' => {
+             'sdpBindMtuSize' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.82',
+              'title' => 'SDP Bind MTU Size',
+              },
+             'sdpBindType' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.10',
+              'title' => 'SDP Bind Type',
+               'replace' => {
+               '1' => 'Spoke',
+               '2' => 'Mesh',
+                },
+              },
+             'sdpBindLastStatusChange' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.21',
+              'title' => 'SDP Bind Status Last Change',
+              'calculate' => '$r = $r/100;my $dayz = int($r/86400); my $leftover = $r % 86400; my $hourz = int($leftover/3600); $leftover = $leftover % 3600; my $minz = int($leftover/60); my $secz = int($leftover % 60); return sprintf ("%d Days %02d Hours %02d Minutes %02d Seconds into system uptime", $dayz,$hourz,$minz,$secz);',
+              },
+             'sdpBindOperFlags' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.20',
+              'title' => 'SDP Bind Operating Flags',
+              'calculate' => 'my $ORO = 1;my $FV = 0;my $BP = sprintf("%b", hex(substr("$r", 0, 4)));my  $BL = 8 - length($BP);while($BL > 0){$BP = sprintf("0%s", $BP);$BL--;} my $BP2 = sprintf("%b", hex(substr("$r", 4, 2)));my  $BL2 = 8 - length($BP2);while($BL2 > 0){$BP2 = sprintf("0%s", $BP2);$BL2--;} my $BP3 = sprintf("%b", hex(substr("$r", 6, 2)));my  $BL3 = 8 - length($BP3);while($BL3 > 0){$BP3 = sprintf("0%s", $BP3);$BL3--;} my $BP4 = sprintf("%b", hex(substr("$r", 6, 2)));my  $BL4 = 8 - length($BP4);while($BL4 > 0){$BP4 = sprintf("0%s", $BP4);$BL4--;}my $FBP = join("","$BP","$BP2","$BP3","$BP4"); my $FBL = length($FBP); my @x; my %triggers=(1,"sdpBindAdminDown",2,"svcAdminDown",3,"sapOperDown",4,"sdpOperDown",5,"sdpPathMtuTooSmall",6,"noIngressVcLabel",7,"noEgressVcLabel",8,"svcMtuMismatch",9,"vcTypeMismatch",10,"relearnLimitExceeded",11,"iesIfAdminDown",12,"releasedIngressVcLabel",13,"labelsExhausted",14,"svcParamMismatch",15,"insufficientBandwidth",16,"pwPeerFaultStatusBits",17,"meshSdpDown",18,"notManagedByMcRing",19,"outOfResource",20,"mhStandby",21,"oamDownMepFault",22,"oamUpMepFault",23,"standbySigSlaveTxDown",24,"operGrpDown",25,"withdrawnIngressVcLabel",26,"vplsPmsiDown",27,"recProtSrcMac",28,"peerFaultStatusTxDown"); while ($FBL > 0) {$FBL--;if(substr("$FBP", 0, 1)==1) {$FV = $ORO; $ORO++; $FBP = substr("$FBP", 1);while (my ($num,$txt)=each(%triggers)) {if (int($FV) == int($num)) {push (@x,$txt);}}} else {$ORO++; $FBP = substr("$FBP", 1);}} return join(", ",@x);',
+              },
+             'sdpIdp' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.1',
+              'title' => 'SDP Bind ID',
+              'calculate' => 'my $sdp="$r"; my $vl="$r"; if(length("$sdp") == 8) {$sdp=ord(substr($sdp,3,1));} else {$sdp = hex(substr("$sdp", 0, 10));} if(length("$vl") == 8) {$vl=ord(substr($vl,7,1));} else {$vl = hex(sprintf("0x%s",substr("$vl", 10, 8)));} $r = join( ":", "$sdp", "$vl" );',
+              },
+             'sdpChk' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.1',
+              'title' => 'SDP Bind Port Check Command',
+              'calculate' => 'my $vl="$r"; if(length("$vl") == 8) {$vl=ord(substr($vl,7,1));} else {$vl = hex(sprintf("0x%s",substr("$vl", 10, 8)));} $r = join( " ", "show", "service", "id", "$vl", "sdp", "detail" );',
+              },
+             'sdpBindAdminStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.7',
+              'title' => 'SDP Bind Admin State',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'Down',
+                },
+              },
+             'sdpBindOperStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.8',
+              'title' => 'SDP Bind Operating state',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'noEgressLabel',
+               '3' => 'noIngressLabel',
+               '4' => 'noLabels',
+               '5' => 'down',
+               '6' => 'svcMtuMismatch',
+               '7' => 'sdpPathMtuTooSmall',
+               '8' => 'sdpNotReady',
+               '9' => 'sdpDown',
+               '10' => 'sapDown',
+                  },
+                },
+              }
+          },
+     },
+    'rrd' => {
+      'Nokia_Hardware' => {
+        'indexed' => 'true',
+        'graphtype' => 'Hardware_Temperature',
+        'snmp' => {
+          'tmnxHwTemp' => {
+            'oid' => '1.3.6.1.4.1.6527.3.1.2.2.1.8.1.18',
+            'option' => 'gauge,0:U',
+          },
+        },
+      },
+       'vRtr_Router_Interface_TxStats' => {
+         'indexed' => 'true',
+         'graphtype' => 'vRtr_Interface_Packets_Sent',
+         'snmp' => {
+           'vRtrIfTxPkts' => {
+             'oid' => '.1.3.6.1.4.1.6527.3.1.2.3.74.1.1',
+             'option' => 'counter,0:U',
+           },
+         },
+       },
+      'SDPBindstatus' => {
+        'indexed' => 'true',
+        'no_graphs' => '1',
+        'snmp' => {
+             'sdpBindMtuSize' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.82',
+              'title' => 'SDP Bind MTU Size',
+              'option' => 'gauge,U:U',
+              },
+             'sdpBindType' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.10',
+              'title' => 'SDP Bind Type',
+               'replace' => {
+               '1' => 'Spoke',
+               '2' => 'Mesh',
+                },
+              'option' => 'gauge,U:U',
+              },
+             'sdpBindLastStatusChange' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.21',
+              'title' => 'SDP Bind Status Last Change',
+              'calculate' => '$r = $r/100;my $dayz = int($r/86400); my $leftover = $r % 86400; my $hourz = int($leftover/3600); $leftover = $leftover % 3600; my $minz = int($leftover/60); my $secz = int($leftover % 60); return sprintf ("%d Days %02d Hours %02d Minutes %02d Seconds into system uptime", $dayz,$hourz,$minz,$secz);',
+              'option' => 'gauge,U:U',
+              },
+             'sdpBindOperFlags' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.20',
+              'title' => 'SDP Bind Operating Flags',
+              'calculate' => 'my $ORO = 1;my $FV = 0;my $BP = sprintf("%b", hex(substr("$r", 0, 4)));my  $BL = 8 - length($BP);while($BL > 0){$BP = sprintf("0%s", $BP);$BL--;} my $BP2 = sprintf("%b", hex(substr("$r", 4, 2)));my  $BL2 = 8 - length($BP2);while($BL2 > 0){$BP2 = sprintf("0%s", $BP2);$BL2--;} my $BP3 = sprintf("%b", hex(substr("$r", 6, 2)));my  $BL3 = 8 - length($BP3);while($BL3 > 0){$BP3 = sprintf("0%s", $BP3);$BL3--;} my $BP4 = sprintf("%b", hex(substr("$r", 6, 2)));my  $BL4 = 8 - length($BP4);while($BL4 > 0){$BP4 = sprintf("0%s", $BP4);$BL4--;}my $FBP = join("","$BP","$BP2","$BP3","$BP4"); my $FBL = length($FBP); my @x; my %triggers=(1,"sdpBindAdminDown",2,"svcAdminDown",3,"sapOperDown",4,"sdpOperDown",5,"sdpPathMtuTooSmall",6,"noIngressVcLabel",7,"noEgressVcLabel",8,"svcMtuMismatch",9,"vcTypeMismatch",10,"relearnLimitExceeded",11,"iesIfAdminDown",12,"releasedIngressVcLabel",13,"labelsExhausted",14,"svcParamMismatch",15,"insufficientBandwidth",16,"pwPeerFaultStatusBits",17,"meshSdpDown",18,"notManagedByMcRing",19,"outOfResource",20,"mhStandby",21,"oamDownMepFault",22,"oamUpMepFault",23,"standbySigSlaveTxDown",24,"operGrpDown",25,"withdrawnIngressVcLabel",26,"vplsPmsiDown",27,"recProtSrcMac",28,"peerFaultStatusTxDown"); while ($FBL > 0) {$FBL--;if(substr("$FBP", 0, 1)==1) {$FV = $ORO; $ORO++; $FBP = substr("$FBP", 1);while (my ($num,$txt)=each(%triggers)) {if (int($FV) == int($num)) {push (@x,$txt);}}} else {$ORO++; $FBP = substr("$FBP", 1);}} return join(", ",@x);',
+              'option' => 'gauge,U:U',
+              },
+             'sdpIdp' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.1',
+              'title' => 'SDP Bind ID',
+              'calculate' => 'my $sdp="$r"; my $vl="$r"; if(length("$sdp") == 8) {$sdp=ord(substr($sdp,3,1));} else {$sdp = hex(substr("$sdp", 0, 10));} if(length("$vl") == 8) {$vl=ord(substr($vl,7,1));} else {$vl = hex(sprintf("0x%s",substr("$vl", 10, 8)));} $r = join( ":", "$sdp", "$vl" );',
+              'option' => 'gauge,U:U',
+              },
+             'sdpBindAdminStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.7',
+              'title' => 'SDP Bind Admin State',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'Down',
+                },
+              'option' => 'gauge,U:U',
+              },
+             'sdpBindOperStatus' => {
+              'oid' => '1.3.6.1.4.1.6527.3.1.2.4.4.4.1.8',
+              'title' => 'SDP Bind Operating state',
+               'replace' => {
+               '1' => 'Up',
+               '2' => 'noEgressLabel',
+               '3' => 'noIngressLabel',
+               '4' => 'noLabels',
+               '5' => 'down',
+               '6' => 'svcMtuMismatch',
+               '7' => 'sdpPathMtuTooSmall',
+               '8' => 'sdpNotReady',
+               '9' => 'sdpDown',
+               '10' => 'sapDown',
+                },
+              'option' => 'gauge,U:U',
+              },
+            }
+        },
+      },
+  },
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        }
+      },
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+  				'ifHighSpeed' => {
+  					'oid' => 'ifHighSpeed'
+  				},
+  				'Description' => {
+            'oid' => 'ifDescr',
+            'title' => 'Description (ifAlias)'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out,dropped_util_in,dropped_util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+  		'pkts_hc' => {
+  			'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+  			'snmp' => {
+  				'ifHCInOctets' => {
+  					'oid' => 'ifHCInOctets',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInUcastPkts' => {
+  					'oid' => 'ifHCInUcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInMcastPkts' => {
+  					'oid' => 'ifHCInMulticastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInBcastPkts' => {
+  					'oid' => 'ifHCInBroadcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifInDiscards' => {
+  					'oid' => 'ifInDiscards',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifInErrors' => {
+  					'oid' => 'ifInErrors',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutOctets' => {
+  					'oid' => 'ifHCOutOctets',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutUcastPkts' => {
+  					'oid' => 'ifHCOutUcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutMcastPkts' => {
+  					'oid' => 'ifHCOutMulticastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutBcastPkts' => {
+  					'oid' => 'ifHCOutBroadcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifOutDiscards' => {
+  					'oid' => 'ifOutDiscards',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifOutErrors' => {
+  					'oid' => 'ifOutErrors',
+  					'option' => 'counter,0:U'
+  				},
+  			}
+  		}
+    },
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'sublayer|null|^A|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+    },
+  },
+  'alerts' => {
+    'SDPBindstatus' => {
+      'sdpBindOperStatusnoEgressLabel' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "noEgressLabel"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind No Egress Label',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatusnoIngressLabel' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "noIngressLabel"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind No Ingress Label',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatusnoLabels' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "noLabels"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind No Labels',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatusdown' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "down"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind Down',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatussvcMtuMismatch' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "svcMtuMismatch"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind SVC Mtu Mismatch',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatussdpPathMtuTooSmall' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "sdpPathMtuTooSmall"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind SDP Path Mtu Too Small',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatussdpNotReady' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "sdpNotReady"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind SDP Not Ready',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatussdpDown' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "sdpDown"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind SDP Down',
+        'level' => 'Critical'
+      },
+      'sdpBindOperStatussapDown' => {
+        'type' => 'test',
+        'test' => 'CVAR1=sdpBindOperStatus;"$CVAR1" eq "sapDown"',
+        'value' => 'CVAR1=sdpBindOperStatus;"$CVAR1"',
+        'unit' => ' ',
+        'element' => 'sdpIdp',
+        'event' => 'SDP Bind SAP Down',
+        'level' => 'Critical'
+      },
+    },
+  },
+);
