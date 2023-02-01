@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "2.1.0";
+our $VERSION = "2.1.1";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -237,6 +237,7 @@ sub collect_evidence
 		"$targetdir/system_status/init",
 		"$targetdir/system_status/apache",
 		"$targetdir/logs",
+		"$targetdir/conf-default",
 		"$targetdir/conf/scripts", "$targetdir/conf/plugins", "$targetdir/conf/conf.d",
 		"$targetdir/models-custom",
 		"$targetdir/models-default",
@@ -405,6 +406,9 @@ sub collect_evidence
 		next if (! -d "$basedir/conf/$oksubdir"); # those dirs may or may not exist
 		map { cp($_, "$targetdir/conf/$oksubdir/"); } (glob("$basedir/conf/$oksubdir/*"));
 	}
+	# Default configuration directory
+	system("cp -r $basedir/conf-default/* $targetdir/conf-default 2>/dev/null");
+
 	# External configuration files
 	system("cp -r $basedir/conf/conf.d/* $targetdir/conf/conf.d 2>/dev/null"); 
 
