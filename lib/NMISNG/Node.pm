@@ -5574,14 +5574,19 @@ sub collect_cbqos_data
 					$self->nmisng->log->debug2("packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
 					$self->nmisng->log->debug2("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
 
-
 					# update RRD, rrd file info comes from inventory,
 					# storage/subconcept: class name == subconcept
+					# inventory method not working for CBQoS with "." in classnames, this is failing as other methods are parsing "." to "_" because "." is reserved in MongoDB.
+					# so parse out the "." here so that this is handled well, also used in subsequent calls which use find_subconcept_type_storage
+					my $parsedCMName = $CMName;
+					$parsedCMName =~ s/\./\_/g;
+
 					my $db = $S->create_update_rrd( data  => $D,
-																					type  => $CMName, # subconcept
-#																					index => $intf,		# not needed
-#																					item  => $CMName, # not needed
-																					inventory => $inventory );
+							type  => $parsedCMName, # subconcept
+							#index => $intf,		# not needed
+							#item  => $CMName, # not needed
+							inventory => $inventory );
+
 					if ( $db )
 					{
 						my $target = {};
@@ -5590,7 +5595,7 @@ sub collect_cbqos_data
 						#  stats expects anyway
 						my $period = $self->nmisng->_threshold_period( subconcept => $concept );
 						# subconcept is completely variable, so we must tell the system where to find the stats
-						my $stats = Compat::NMIS::getSubconceptStats( sys => $S, inventory => $inventory, subconcept => $CMName,
+						my $stats = Compat::NMIS::getSubconceptStats( sys => $S, inventory => $inventory, subconcept => $parsedCMName,
 																													stats_section => $concept, start => $period, end => time );
 						if (ref($stats) ne "HASH")
 						{

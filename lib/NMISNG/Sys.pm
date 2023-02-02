@@ -2461,6 +2461,7 @@ sub create_update_rrd
 	if (ref($inventory))
 	{
 		$dbname = $inventory->find_subconcept_type_storage(subconcept => $type, type => "rrd");
+		$self->nmisng->log->debug("create_update_rrd using find_subconcept_type_storage for RRD, type=$type dbname=$dbname");
 	}
 	# no success, then generate the name the oldfashioned way from common-database
 	$dbname ||= $self->makeRRDname(type => $type,
