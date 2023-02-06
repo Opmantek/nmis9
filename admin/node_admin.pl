@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.4.1.1";
+our $VERSION = "9.4.2.1";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -39,64 +39,100 @@ if (@ARGV == 1 && $ARGV[0] eq "--version")
 }
 
 use FindBin;
-use lib "$FindBin::RealBin/../lib";
+use lib "$FindBin::Bin/../lib";
 
+use POSIX qw();
 use File::Basename;
+use Getopt::Long;
 use File::Spec;
 use Data::Dumper;
 use JSON::XS;
 use Mojo::File;
+use Term::ReadKey;
+use Time::Local;								# report stuff - fixme needs rework!
+use Time::HiRes;
+
+# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
+use Fcntl qw(:DEFAULT :flock :mode);
+use Errno qw(EAGAIN ESRCH EPERM);
 
 use NMISNG;
 use NMISNG::Log;
 use NMISNG::Util;
-use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
+use NMISNG::Outage;
+use NMISNG::Auth;
+use Compat::NMIS;
 
-my $bn = basename($0);
+my $PROGNAME = basename($0);
+my $debugsw = 0;
+my $helpsw = 0;
+my $quietsw = 0;
+my $usagesw = 0;
+my $versionsw = 0;
+
+ die unless (GetOptions('debug:i'    => \$debugsw,
+                        'help'       => \$helpsw,
+                        'quiet'      => \$quietsw,
+                        'usage'      => \$usagesw,
+                        'version'    => \$versionsw));
+
+# For the Version mode, just print it and exit.
+if (${versionsw}) {
+	print "$PROGNAME version=$VERSION; NMIS Version=$NMISNG::VERSION\n";
+	exit (0);
+}
+if ($helpsw) {
+   help();
+   exit(0);
+}
 
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
 # first we need a config object
 my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
-my $config = NMISNG::Util::loadConfTable( dir => $customconfdir,
-																					debug => $cmdline->{debug});
-die "no config available!\n" if (ref($config) ne "HASH"
-																 or !keys %$config);
+my $config = NMISNG::Util::loadConfTable( dir => $customconfdir, debug => $cmdline->{debug});
+die "no config available!\n" if (ref($config) ne "HASH" or !keys %$config);
 my $server_role = $config->{'server_role'};
 my $usage;
 if ($server_role eq "POLLER") {
 	
-	$usage = "Usage: $bn act=[action to take] [extras...]
+	$usage = "Usage: $PROGNAME act=<action to take> [options...]
 
-\t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} {wantpoller=0/1} [group=Y]
-\t$bn act=show {node=nodeX|uuid=nodeUUID} 
-\t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
-\t$bn act=restore file=path [localise_ids=0/1]
+\t$PROGNAME act=dump {node=<node_name>|uuid=<nodeUUID>} file=<path> [everything=<[0|t]/[1|f]>]
+\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [wantpoller=<[0|t]/[1|f]>]
+\t$PROGNAME act=restore file=<path> [localise_ids=<[0|t]/[1|f]>]
+\t$PROGNAME act=show {node=<node_name>|uuid=<nodeUUID>} 
 
 restore: restores a previously dumped node's data. if 
  localise_ids=true (default: false), then the cluster id is rewritten
  to match the local nmis installation.
  
 This server is a $server_role. This is why the number of actions is restricted.
+
+OPTIONS:
+debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
+quiet=<true|false|yes|no> avoids printing unnecessary data.
+
+Run $PROGNAME -h for detailed help.
 \n\n";
 } else {
-	$usage = "Usage: $bn act=[action to take] [extras...]
+	$usage = "Usage: $PROGNAME act=<action to take> [options...]
 
-\t$bn act={list|list_uuid} {node=nodeX|uuid=nodeUUID} [group=Y]
-\t$bn act=show {node=nodeX|uuid=nodeUUID} 
-\t$bn act={create|update} file=someFile.json [server={server_name|cluster_id}]
-\t$bn act=export [format=nodes] [file=path] {node=nodeX|uuid=nodeUUID|group=groupY} [keep_ids=0/1]
-\t$bn act=import file=somefile.json
-\t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath} [nmis9_format=1]
-\t$bn act=delete {node=nodeX|group=groupY|uuid=nodeUUID} [server={server_name|cluster_id}]
-\t$bn act=dump {node=nodeX|uuid=nodeUUID} file=path [everything=0/1]
-\t$bn act=restore file=path [localise_ids=0/1]
-
-\t$bn act=set {node=nodeX|uuid=nodeUUID} entry.X=Y... [server={server_name|cluster_id}]
-\t$bn act=mktemplate [placeholder=1/0]
-\t$bn act=rename {old=nodeX|uuid=nodeUUID} new=nodeY [entry.A=B...]
-\t$bn act=move-nmis8-rrd-files {node=nodeX|ALL|uuid=nodeUUID} [remove_old=1] [force=1]
-\t$bn act=clean-node-events {node=nodeX|uuid=nodeUUID} 
+\t$PROGNAME act=clean-node-events {node=<node_name>|uuid=<nodeUUID>} 
+\t$PROGNAME act=create file=<someFile.json> [server={<server_name>|<cluster_id>}]
+\t$PROGNAME act=delete {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [server={<server_name>|<cluster_id>}] [deletedata=<[0|t]/[1|f]>] confirm=YES
+\t$PROGNAME act=dump {node=<node_name>|uuid=<nodeUUID>} file=<path> [everything=<[0|t]/[1|f]>]
+\t$PROGNAME act=export [format=<nodes>] [file=<path>] {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [keep_ids=<[0|t]/[1|f]>]
+\t$PROGNAME act=import file=<somefile.json>
+\t$PROGNAME act=import_bulk {nodes=<filepath>|nodeconf=<dirpath>} [nmis9_format=<[0|t]/[1|f]>]
+\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>}
+\t$PROGNAME act=mktemplate [placeholder=<[0|t]/[1|f]>]
+\t$PROGNAME act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<nodeUUID>} [remove_old=<[0|t]/[1|f]>] [force=<[0|t]/[1|f]>]
+\t$PROGNAME act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name> [entry.<key>=<value>...]
+\t$PROGNAME act=restore file=<path> [localise_ids=<[0|t]/[1|f]>]
+\t$PROGNAME act=set {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
+\t$PROGNAME act=show {node=<node_name>|uuid=<nodeUUID>} 
+\t$PROGNAME act=update file=<someFile.json> [server={<server_name>|<cluster_id>}]
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
@@ -110,7 +146,7 @@ update: updates existing node from file=someFile.json
 export: exports to file=someFile (or STDOUT if no file given),
  nmis9 format by default or legacy format (nmis8) if format=nodes is given
  perl hash if format=nodes and file=*.nmis (nmis extension), otherwise json
- uuid and cluster_id are NOT exported unless keep_ids is 1.
+ uuid and cluster_id are NOT exported unless keep_ids is true.
 
 import-bulk: By default, will import nmis8 format nodes
   
@@ -130,16 +166,33 @@ restore: restores a previously dumped node's data. if
  localise_ids=true (default: false), then the cluster id is rewritten
  to match the local nmis installation.
 
-extras: debug={1..9,verbose} sets debugging verbosity
-extras: info=1 sets general verbosity
+OPTIONS:
+debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
+quiet=<true|false|yes|no> avoids printing unnecessary data.
 
 server: Will update the node in the remote pollers.
   It is important to use this argument for remotes.
 
+Run $PROGNAME -h for detailed help.
+
 \n\n";
 }
 
-die $usage if (!@ARGV or ( @ARGV == 1 and $ARGV[0] =~ /^-(h|\?|-help)$/ ));
+if ($usagesw) {
+   print($usage);
+   exit(0);
+}
+
+if (!@ARGV || !$cmdline->{act})
+{
+    help();
+    exit(0);
+}
+
+my $debug   = $debugsw;
+my $quiet   = $quietsw;
+$debug      = $cmdline->{debug}                                            if (exists($cmdline->{debug}));   # Backwards compatibility
+$quiet      = NMISNG::Util::getbool_cli("quiet", $cmdline->{quiet}, 0)     if (exists($cmdline->{quiet}));   # Backwards compatibility
 
 # For audit 
 my $me = getpwuid($<);
@@ -151,8 +204,8 @@ warn "failed to set permissions: $error\n" if ($error);
 
 # use debug or configured log_level
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
-																 debug => $cmdline->{debug}) // $config->{log_level},
-															 path  => (defined $cmdline->{debug})? undef : $logfile);
+							 debug => $cmdline->{debug}) // $config->{log_level},
+							 path  => (defined $cmdline->{debug})? undef : $logfile);
 
 # now get us an nmisng object, which has a database handle and all the goods
 my $nmisng = NMISNG->new(config => $config, log  => $logger);
@@ -165,7 +218,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
 
 	$logger->info("Starting bulk import of nodes");
-	my $nmis9_format = $cmdline->{nmis9_format};
+	my $nmis9_format = NMISNG::Util::getbool_cli($cmdline->{nmis9_format});
 	my $delay = $cmdline->{delay} // 300;
 	my $bulk_number = $cmdline->{bulk_number};
 	my $total_bulk = 0;
@@ -378,34 +431,69 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 {
 	# list the nodes in existence - possibly with uuids.
 	# iff a node or group arg is given, then only matching nodes are included
-	my $wantuuid = $1;
+	my $wantuuid   = $1 // $cmdline->{wantuuid} // 0;;
 	my $wantpoller = $cmdline->{wantpoller} // 0;
-	my $quiet = $cmdline->{quiet};
+	my $quiet      = $cmdline->{quiet};
 
 	# returns a modeldata object
 	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
 	if (!$nodelist or !$nodelist->count)
 	{
 		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
-				if (!$cmdline->{quiet});
+				if (!$quiet);
 		exit 1;
 	}
 	else
 	{
-		if ( !$quiet ) {
-			print($wantuuid? "Node UUID\tNode Name\n=========================\n" : $wantpoller? "Node UUID\tNode Name\tPoller\n=========================\n":"Node Names:\n===========\n")
-				if (-t \*STDOUT); # if to terminal, not pipe etc.
+		if ( !$quiet && -t \*STDOUT) {
+			if ($wantuuid && $wantpoller)
+			{
+				print("Node UUID                               Node Name                                      Poller\n===================================================================================================================\n");
+			}
+			elsif ($wantuuid && !$wantpoller)
+			{
+				print("Node UUID                               Node Name\n=================================================================\n");
+			}
+			elsif (!$wantuuid && $wantpoller)
+			{
+				print("Node Name                                      Poller\n===================================================================================================================\n");
+			}
+			else
+			{
+				print("Node Names:\n===================================================\n");
+			}
 		}		
 		my %remotes;
-			
+
 		if ($wantpoller) {
-				my $remotelist = $nmisng->get_remote();		
-				%remotes = map {$_->{'cluster_id'} => $_->{'server_name'}} @$remotelist;
-				$remotes{$config->{cluster_id}} = "local";
-				print Dumper(%remotes);
+			my $remotelist = $nmisng->get_remote();
+			%remotes = map {$_->{'cluster_id'} => $_->{'server_name'}} @$remotelist;
+			$remotes{$config->{cluster_id}} = "local";
+			print("Remotes: " . Dumper(%remotes) . "\n") if ($cmdline->{debug} >1);;
 		}
-		print join("\n", map { ($wantuuid? ($_->{uuid}."\t".$_->{name}) : $wantpoller ? ($_->{uuid}."\t".$_->{name}."\t".$remotes{$_->{cluster_id}}) : $_->{name}) }
-								 (sort { $a->{name} cmp $b->{name} } (@{$nodelist->data})) ),"\n";
+
+		my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+		print("Node Data: " .  Dumper(@nodeDataList) . "\n") if ($cmdline->{debug} >1);
+		foreach my $nodeData (@nodeDataList)
+		{
+			print("Node: " . Dumper($nodeData) . "\n") if ($cmdline->{debug} >1);;
+			if ($wantuuid && $wantpoller)
+			{
+				printf("%s    %s  %s\n", $nodeData->{uuid}, substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+			}
+			elsif ($wantuuid && !$wantpoller)
+			{
+				printf("%s    %s\n", $nodeData->{uuid}, $nodeData->{name});
+			}
+			elsif (!$wantuuid && $wantpoller)
+			{
+				printf("%s  %s\n", substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+			}
+			else
+			{
+				printf("%s\n", $nodeData->{name});
+			}
+		}
 	}
 	exit 0;
 }
@@ -434,7 +522,7 @@ elsif ($cmdline->{act} eq "export")
 	map { delete $_->{_id}; } (@$allofthem);
 	# by default remove cluster_id and uuid because multi-polling is not yet supported, this helps
 	# prevent users from creating a scenario that is not-yet-supported
-	if( !$keep_ids )
+	if(!NMISNG::Util::getbool_cli($keep_ids))
 	{
 		map { delete $_->{cluster_id}; delete $_->{uuid} } (@$allofthem);
 	}
@@ -496,21 +584,22 @@ elsif  ($cmdline->{act} eq "dump")
 {
 	my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
 	die "Cannot dump node data without node/uuid and file arguments!\n" if (!$file || (!$nodename && !$uuid));
-	my %options = ($cmdline->{everything}? (historic_events => 1, opstatus_limit => undef, rrd => 1 )
-								 : ( historic_events => 0, opstatus_limit => 1000, rrd => 0));
+	my %options = (NMISNG::Util::getbool_cli($cmdline->{everything})
+								? (historic_events => 1, opstatus_limit => undef, rrd => 1 )
+								: ( historic_events => 0, opstatus_limit => 1000, rrd => 0));
 	my $res = $nmisng->dump_node(name => $nodename,
 															 uuid => $uuid,
 															 target => $file,
 															 options => \%options);
 	die "Failed to dump node data: $res->{error}\n" if (!$res->{success});
 
-	print STDERR "Successfully dumped node data to file $file\n" if (!$cmdline->{quiet});
+	print STDERR "Successfully dumped node data to file $file\n" if (!$quiet);
 	exit 0;
 }
 elsif  ($cmdline->{act} eq "restore")
 {
 	my $file = $cmdline->{"file"};
-	my $localiseme = NMISNG::Util::getbool($cmdline->{localise_ids});
+	my $localiseme = NMISNG::Util::getbool_cli($cmdline->{localise_ids});
 	
 	my $meta = {
 			what => "Restore node",
@@ -523,7 +612,7 @@ elsif  ($cmdline->{act} eq "restore")
 	die "Failed to restore node data: $res->{error}\n" if (!$res->{success});
 
 	print STDERR "Successfully restored node $res->{node}->{name} ($res->{node}->{uuid})\n"
-			if (!$cmdline->{quiet});
+			if (!$quiet);
 	
 	NMISNG::Util::audit_log(who => $me,
 						what => "restored node",
@@ -538,10 +627,10 @@ elsif  ($cmdline->{act} eq "restore")
 elsif ($cmdline->{act} eq "show")
 {
 	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
-	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
-	my $wantinterfaces = NMISNG::Util::getbool($cmdline->{interfaces});
-	my $wantinventory = NMISNG::Util::getbool($cmdline->{inventory});
-	my $wantcatchall = NMISNG::Util::getbool($cmdline->{catchall});
+	my $wantquoted = NMISNG::Util::getbool_cli($cmdline->{quoted});
+	my $wantinterfaces = NMISNG::Util::getbool_cli($cmdline->{interfaces});
+	my $wantinventory = NMISNG::Util::getbool_cli($cmdline->{inventory});
+	my $wantcatchall = NMISNG::Util::getbool_cli($cmdline->{catchall});
 
 	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
@@ -683,11 +772,11 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		die "Please use act=rename for node renaming!\n"
 				if (exists($cmdline->{"entry.name"}));
 	
-		my $curconfig = $nodeobj->configuration;
-		my $curoverrides = $nodeobj->overrides;
-		my $curactivated = $nodeobj->activated;
-		my $curextras = $nodeobj->unknown;
-		my $curarraythings = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses };
+		my $curconfig           = $nodeobj->configuration;
+		my $curoverrides        = $nodeobj->overrides;
+		my $curactivated        = $nodeobj->activated;
+		my $curextras           = $nodeobj->unknown;
+		my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses };
 		my $updateOverrides     = 0;
 		my $updateConfiguration = 0;
 		my $updateActivated     = 0;
@@ -771,6 +860,35 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			next if ($name eq "addresses/aliases" && !$updateArrayThings);
 			next if ($name eq "unknown/extras"    && !$updateUnknown);
 
+			#######################################
+			# Ethernet Interfce with a Subinterface
+			#######################################
+			# If we have an Ethernet Interfce with a Subinterface, it will look like
+			# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
+			# the first dot because if there are sub-properties being set, we want
+			# those to be interpreted properly.
+			### FIXME Do all Interfaces with dot delemited subinterfaces contain
+			### FIXME the string 'Ethernet'? if not, the comparison in the loop
+			### FIXME below will need to be expanded as we encounter them!
+
+			my $new_hash = {};
+			for my $key (keys %$checkwhat)
+			{
+				# substitution in key
+				my $new_key = $key;
+				if ($key =~ /.*Ethernet.*\.\d+.*/)
+				{
+					$new_key =~ s/\Q.\E/\Q\.\E/;
+				}
+				$new_hash->{$new_key} = $checkwhat->{$key};
+			}
+			print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
+			$checkwhat = $new_hash;
+
+			#######################################
+			# Ethernet Interfce with a Subinterface
+			#######################################
+
 			my $error = NMISNG::Util::translate_dotfields($checkwhat);
 			die "translation of $name arguments failed: $error\n" if ($error);
 		}
@@ -797,7 +915,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 	my ($node,$uuid,$group,$confirmation,$nukedata,$server) = @{$cmdline}{"node","uuid","group","confirm","deletedata", "server"};
 
 	die "Cannot delete without node, uuid or group argument!\n\n$usage\n" if (!$node and !$group and !$uuid);
-	die "NOT deleting anything:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
+	die "NOT deleting anything:\nplease rerun with the argument confirm='YES' in all uppercase\n\n"
 			if (!$confirmation or $confirmation ne "YES");
 
 	my $file = $cmdline->{file};
@@ -891,7 +1009,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				}
 				if (!$backup || $res->{success}) {
 					
-					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool($nukedata, "invert"), meta => $meta); # === eq false
+					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool_cli($nukedata, "invert"), meta => $meta); # === eq false
 					die $mustdie->name.": $error\n" if (!$ok);
 					print STDERR "Successfully deleted node $node $uuid.\n"
 					if (-t \*STDERR);
@@ -1009,7 +1127,7 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 		if (!$nodelist or !$nodelist->count)
 		{
 			print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
-					if (!$cmdline->{quiet});
+					if (!$quiet);
 			exit 1;
 		}
 		else
@@ -1077,7 +1195,7 @@ elsif ($cmdline->{act} eq "mktemplate" && $server_role ne "POLLER")
 	die "File \"$file\" already exists, NOT overwriting!\n"
 			if (defined $file && $file ne "-" && -f $file);
 
-	my $withplaceholder = NMISNG::Util::getbool($cmdline->{placeholder});
+	my $withplaceholder = NMISNG::Util::getbool_cli($cmdline->{placeholder});
 
 	my %mininode = ( map { my $key = $_; $key => ($withplaceholder?
 																								"__REPLACE_".uc($key)."__" : "") }
@@ -1236,8 +1354,8 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 elsif ( $cmdline->{act} =~ /validate[-_]node[-_]inventory/ ) {
 
     my $concept       = $cmdline->{concept};
-    my $make_historic = NMISNG::Util::getbool( $cmdline->{make_historic} );
-    my $dryrun        = NMISNG::Util::getbool( $cmdline->{dryrun} );
+    my $make_historic = NMISNG::Util::getbool_cli( $cmdline->{make_historic} );
+    my $dryrun        = NMISNG::Util::getbool_cli( $cmdline->{dryrun} );
     die "concept not defined or not yet supported"
       if ( $concept !~ /^(catchall)$/ );
     my ( $entries, undef, $error ) = NMISNG::DB::aggregate(
@@ -1377,4 +1495,223 @@ sub get_server
 	return (undef, $server_data);
 }
 
+
+###########################################################################
+#  Help Function
+###########################################################################
+sub help
+{
+   my(${currRow}) = @_;
+   my @{lines};
+   my ${workLine};
+   my ${line};
+   my ${key};
+   my ${cols};
+   my ${rows};
+   my ${pixW};
+   my ${pixH};
+   my ${i};
+   my $IN;
+   my $OUT;
+
+   if ((-t STDERR) && (-t STDOUT)) {
+      if (${currRow} == "")
+      {
+         ${currRow} = 0;
+      }
+      if ($^O =~ /Win32/i)
+      {
+         sysopen($IN,'CONIN$',O_RDWR);
+         sysopen($OUT,'CONOUT$',O_RDWR);
+      } else
+      {
+         open($IN,"</dev/tty");
+         open($OUT,">/dev/tty");
+      }
+      ($cols, $rows, $pixW, $pixH) = Term::ReadKey::GetTerminalSize $OUT;
+   }
+   STDOUT->autoflush(1);
+   STDERR->autoflush(1);
+
+   push(@lines, "\n\033[1mNAME\033[0m\n");
+   push(@lines, "       $PROGNAME -  Node Administration Command Line Interface.\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mSYNOPSIS\033[0m\n");
+   push(@lines, "       $PROGNAME [options...] act=<command> <command-parameters>...\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mDESCRIPTION\033[0m\n");
+   push(@lines, "       The $PROGNAME program provides a command line interface for the NMIS\n");
+   push(@lines, "       application. The program always expects an 'action' parameter specifying\n");
+   push(@lines, "       what action is requested. Each action requires unique parameters\n");
+   push(@lines, "       depending on the requirements of the action. There are also global\n");
+   push(@lines, "       options accepted by all actions.\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mOPTIONS\033[0m\n");
+   push(@lines, " --debug[1-9]             - global option to print detailed messages\n");
+   push(@lines, " --help                   - display command line usage\n");
+   push(@lines, " --quiet                  - display no output\n");
+   push(@lines, " --usage                  - display a brief overview of command syntax\n");
+   push(@lines, " --version                - print a version message and exit\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mARGUMENTS\033[0m\n");
+   push(@lines, "     act=<command>        - The action command to invoke.  Each is described below.\n");
+   push(@lines, "     <command-parameters> - One of more command parameters depending on the command.\n");
+   push(@lines, "     [debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9>]\n");
+   push(@lines, "     [quiet=<true|false|yes|no|1|0>]\n");
+   push(@lines, "\n");
+   push(@lines, "\033[1mEXIT STATUS\033[0m\n");
+   push(@lines, "     The following exit values are returned:\n");
+   push(@lines, "     0 Success\n");
+   push(@lines, "     215 Failure\n\n");
+   push(@lines, "\033[1mACTIONS\033[0m\n");
+   push(@lines, "     act=create file=<someFile.json>\n");
+   push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                     This action creates an NMIS Node from an NMIS\n");
+   push(@lines, "                     template file.  Use 'mktemplate' to create a\n");
+   push(@lines, "                     blank template.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=clean-node-events node=<name>|uuid=<node_uuid>\n");
+   push(@lines, "                     This action clears all events associated with\n");
+   push(@lines, "                     the specified node.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=delete node=<name>|uuid=<node_uuid>|group=<group_name>\n");
+   push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                             [deletedata=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             confirm=YES\n");
+   push(@lines, "                     This action deletes an existing NMIS node.\n");
+   push(@lines, "                     It only deletes if confirm=YES (in uppercase)\n");
+   push(@lines, "                     is given. if deletedata=true (default) then RRD\n");
+   push(@lines, "                     files for a node are also deleted.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=dump node=<name>|uuid=<node_uuid> file=<path>\n");
+   push(@lines, "                             [everything=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action dumps To a specified file but does\n");
+   push(@lines, "                     not delete the node from the system.\n");
+   push(@lines, "     act=export node=<name>|uuid=<node_uuid>|group=<group_name>\n");
+   push(@lines, "                             [file=<path>]\n");
+   push(@lines, "                             [format=<nodes|json>]\n");
+   push(@lines, "                             [keep_ids=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action exports a node into the specified\n");
+   push(@lines, "                     file (or STDOUT if no file given). It will\n");
+   push(@lines, "                     export to nmis9 (json) format by default or\n");
+   push(@lines, "                     legacy (nmis8 perl hash with an '.nmis'\n");
+   push(@lines, "                     extension) if format='nodes' is specified The\n");
+   push(@lines, "                     uuid and cluster_id are NOT exported unless\n");
+   push(@lines, "                     'keep_ids' is true. Unlike 'dump', the node\n");
+   push(@lines, "                     will be deleted from the system.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=import file=<somefile.json>\n");
+   push(@lines, "                     This imports a file into the NMIS system.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=import_bulk {nodes=<filepath>|nodeconf=<dirpath>}\n");
+   push(@lines, "                             [nmis9_format=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [delay=<n>] [bulk_number=<n>]\n");
+   push(@lines, "                     This imports a file into the NMIS system. By\n");
+   push(@lines, "                     By default, will import nmis8 format nodes\n");
+   push(@lines, "                     unless 'nmis9_format' is true. If 'bulk_number'\n");
+   push(@lines, "                     is set to an integer, then the import will sleep\n");
+   push(@lines, "                     'delay' seconds (default 300) before continuing\n");
+   push(@lines, "                     the import. This option is to avoid excessive\n");
+   push(@lines, "                     overhead on the system.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=list (or list_uuid) [node=<name>|uuid=<node_uuid>|group=<group_name>]\n");
+   push(@lines, "                             [wantpoller=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [wantuuid=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action lists the nodes in the system. If called\n");
+   push(@lines, "                     with 'list', only the node names will be listed. If\n");
+   push(@lines, "                     'wantpoller' is true the poller is listed as well. If\n");
+   push(@lines, "                     'wantuuid' is true the UUID is listed as well. If the\n");
+   push(@lines, "                     'node', 'uuid', or 'group' argument is passed, the list\n");
+   push(@lines, "                     will be limited to the matching nodes. If called as\n");
+   push(@lines, "                     'list_uuid' the uuid flag is automatically set.\n");
+   push(@lines, "     act=mktemplate file=<someFile.json> [placeholder=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This prints blank template for node creation,\n");
+   push(@lines, "                     optionally with '__REPLACE_XX__' placeholder.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<nodeUUID>}\n");
+   push(@lines, "                             [remove_old=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [force=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This moves old NMIS8 RRD files out of the active\n");
+   push(@lines, "                     RRD Database directory.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name>\n");
+   push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                             [entry.<key>=<value>...]\n");
+   push(@lines, "                     This action renames a node. The 'server' argument\n");
+   push(@lines, "                     performs the action on the specified server.\n");
+   push(@lines, "                     The optional 'entry' keywords perform 'set'\n");
+   push(@lines, "                     functions.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=restore file=<path> [localise_ids=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action restores a previously 'dump'ed node\n");
+   push(@lines, "                     from the specified file. If localise_ids=true\n");
+   push(@lines, "                     (default: false), then the cluster id is\n");
+   push(@lines, "                     rewritten to match the local nmis installation.\n");
+   push(@lines, "     act=set {node=<node_name>|uuid=<nodeUUID>\n");
+   push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                             [entry.<key>=<value>...]\n");
+   push(@lines, "                     This action sets parameters within the specified\n");
+   push(@lines, "                     nodes. The 'server' argument performs the action\n");
+   push(@lines, "                     on the specified server.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=show {node=<node_name>|uuid=<nodeUUID>}\n");
+   push(@lines, "                             [catchall=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [interfaces=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [inventory=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [quoted=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action displays the attributes of the\n");
+   push(@lines, "                     specified node.\n");
+   push(@lines, "                     'catchall' dumps just the inventory catchall data.\n");
+   push(@lines, "                     'interfaces' show interface basic information.\n");
+   push(@lines, "                     'inventory' dumps all the inventory data.\n");
+   push(@lines, "                     'quoted' adds double-quotes where needed.\n");
+   push(@lines, "     act=update file=<someFile.json> [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                     This action updates an existing NMIS Node from an NMIS\n");
+   push(@lines, "                     template file. If no uuid is present, a new node will\n");
+   push(@lines, "                     be created. If a property is not set, it will be removed.\n");
+   push(@lines, "                     Use 'set' to set or replace only one property.\n");
+   push(@lines, "                     file.  Use 'mktemplate' to create a blank template.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     \n");
+   push(@lines, "\033[1mEXAMPLES\033[0m\n");
+   push(@lines, "   node_admin.pl act=list wantuuid=true wantpoller=yes\n");
+   push(@lines, "   node_admin.pl act=list_uuid node=router1\n");
+   push(@lines, "   node_admin.pl act=set node=router1 entry.configuration.collect=1 \n");
+   push(@lines, "\n");
+   push(@lines, "\n");
+   print(STDERR "                       $PROGNAME - ${VERSION}\n");
+   print(STDERR "\n");
+   ${currRow} += 2;
+   foreach (@lines)
+   {
+      if ((-t STDERR) && (-t STDOUT)) {
+         ${i} = tr/\n//;  # Count the newlines in this string
+         ${currRow} += ${i};
+         if (${currRow} >= ${rows})
+         {
+            print(STDERR "Press any key to continue.");
+            ReadMode 4, $IN;
+            ${key} = ReadKey 0, $IN;
+            ReadMode 0, $IN;
+            print(STDERR "\r                          \r");
+            if (${key} =~ /q/i)
+            {
+               print(STDERR "Exiting per user request. \n");
+               return;
+            }
+            if ((${key} =~ /\r/) || (${key} =~ /\n/))
+            {
+               ${currRow}--;
+            } else
+            {
+               ${currRow} = 1;
+            }
+         }
+      }
+      print(STDERR "$_");
+   }
+}
+
+
 exit 0;
+
