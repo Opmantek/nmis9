@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.4.1";
+our $VERSION = "9.4.2.1";
 
 
 use FindBin;
@@ -439,7 +439,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 	{
 		if (!defined($Q->{only}) or $Q->{only} eq "active")
 		{
-			my $fmt = "%-26s%-26s%-48s%-20s%s\n";
+			my $fmt = "%-26s%-26s%-58s%-45s%s\n";
 			printf("Active Jobs:\n$fmt",
 						 "Id","When","Status","What",
 						 "Parameters");
@@ -449,6 +449,8 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 			{
 				$some = 1;
 
+				my $nodenames = $nmisng->get_node_names( uuid => $active->{args}->{uuid} );
+				my $nodename  = $nodenames->[0] // "UNKNOWN";    # can that happen?
 				my $printable = $active->{args}?
 					Data::Dumper->new([$active->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
 				$printable = "<output truncated, too long>"
@@ -460,7 +462,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 							 ("In Progress since "
 								.localtime($active->{in_progress})
 								. ($verbose? " (Worker $active->{status}->{pid}) " : "")),
-							 $active->{type},
+							 "$active->{type} for $nodename",
 							 $printable);
 			}
 			print "No active jobs at this time.\n" if (!$some);
@@ -469,7 +471,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 
 		if (!defined($Q->{only}) or $Q->{only} eq "queued")
 		{
-			my $fmt = "%-26s%-26s%-12s%-20s%s\n";
+			my $fmt = "%-26s%-26s%-12s%-45s%s\n";
 			printf("Queued Jobs:\n$fmt",
 						 "Id","When","Priority","What","Parameters");
 
@@ -477,6 +479,9 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 			for my $sched (grep(!$_->{in_progress}, @$queuedjobs))
 			{
 				$some = 1;
+
+				my $nodenames = $nmisng->get_node_names( uuid => $sched->{args}->{uuid} );
+				my $nodename  = $nodenames->[0] // "UNKNOWN";    # can that happen?
 				my $printable = $sched->{args}?
 						Data::Dumper->new([$sched->{args}])->Terse(1)->Indent(0)->Pair("=")->Dump :  "";
 				$printable = "<output truncated, too long>"
@@ -486,7 +491,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 							 $sched->{_id},
 							 scalar(localtime($sched->{time})),
 							 $sched->{priority},
-							 $sched->{type},
+							 "$sched->{type} for $nodename",
 							 $printable);
 			}
 
@@ -1439,6 +1444,11 @@ sub help
    push(@lines, "     0 Success\n");
    push(@lines, "     215 Failure\n\n");
    push(@lines, "\033[1mACTIONS\033[0m\n");
+   push(@lines, "  -- TUTORIAL ACTIONS --\n");
+   push(@lines, "     act=outage-help\n");
+   push(@lines, "                     This provides a tutorial on outage actions.\n");
+   push(@lines, "     act=schedule-help\n");
+   push(@lines, "                     This provides a tutorial on schelule actions.\n");
    push(@lines, "  -- GENERAL ACTIONS --\n");
    push(@lines, "     act=config-backup\n");
    push(@lines, "                     This action backs up the NMIS configurations, including\n");
@@ -1582,6 +1592,15 @@ sub help
    push(@lines, "                              run.  'All' runs all of the other reports..\n");
    push(@lines, "     \n");
    push(@lines, "  -- PERFORMANCE ACTIONS --\n");
+   push(@lines, "     act=collect-performance-data \n");
+   push(@lines, "                      This action collects performance data as specified in\n");
+   push(@lines, "                      the 'performance.nmis' file. This data usually includes\n");
+   push(@lines, "                      output from 'iostat', 'df', etc. The command sholuld be\n");
+   push(@lines, "                      run as the 'nmis' user.\n");
+   push(@lines, "     act=collect-top-data\n");
+   push(@lines, "                      This action runs a 'top' command and collects CPU metrics.\n");
+   push(@lines, "                      The command sholuld be run as the 'nmis' user.\n");
+   push(@lines, "  -- OUTAGE ACTIONS --\n");
    push(@lines, "     act=create-outage ...\n");
    push(@lines, "                     This action creates new outage schedule.\n");
    push(@lines, "                        outage.description=<string>: (Optional) free-form textual\n");
@@ -1619,14 +1638,6 @@ sub help
    push(@lines, "     act=check-outages [node=<name>|uuid=<outage_id>] [time=<time>]\n");
    push(@lines, "                      This action reports which outages would apply at the given\n");
    push(@lines, "                      time (or now) and  for one node (if given) or all nodes\n");
-   push(@lines, "     act=collect-performance-data \n");
-   push(@lines, "                      This action collects performance data as specified in\n");
-   push(@lines, "                      the 'performance.nmis' file. This data usually includes\n");
-   push(@lines, "                      output from 'iostat', 'df', etc. The command sholuld be\n");
-   push(@lines, "                      run as the 'nmis' user.\n");
-   push(@lines, "     act=collect-top-data\n");
-   push(@lines, "                      This action runs a 'top' command and collects CPU metrics.\n");
-   push(@lines, "                      The command sholuld be run as the 'nmis' user.\n");
    push(@lines, "     act=delete-outage id=<outage_id>\n");
    push(@lines, "                      This action deletes a specified outage record.\n");
    push(@lines, "     act=list-outages [filter=<filter> ...]\n");

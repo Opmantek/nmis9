@@ -658,6 +658,7 @@ sub exists
 {
 	my ($self) = @_;
 	my $exists = 0;
+	### FIXME ERROR NOT HANDLED
 	$self->load();
 	$exists = 1 if ( !$self->is_new );
 	return $exists;
@@ -696,6 +697,7 @@ sub load
 	my $error = $model_data->error;
 	my $event_in_db;
 
+	### FIXME, should we delete one of the events if we detect more than 1?  we could delete the oldest and log a message.
 	if ( !$error && $model_data->count == 1 )
 	{
 		$event_in_db = $model_data->data->[0];
@@ -789,6 +791,7 @@ sub save
 	# is happening this late we assume that the caller does not want to clobber all the
 	# attributes that are now set so only take on the missing ones, this seems like the
 	# least
+	### FIXME ERROR NOT HANDLED
 	$self->load( only_take_missing => 1 );
 	my $exists = $self->exists();
 
