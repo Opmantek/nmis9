@@ -215,6 +215,10 @@ elsif (@otherprocs && $cmdline->{act} =~ /^(stop|abort)$/)
 	exit(0);
 }
 
+#For docker, easier if we ensure the index on start
+#TODO look into better logging and check if there is a perf cost
+print $nmisng->ensure_indexes();
+
 # allowed to become a daemon? foreground mode is mostly just for debugging
 if (!NMISNG::Util::getbool($cmdline->{foreground}))
 {
