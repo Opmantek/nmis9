@@ -111,6 +111,7 @@ exit 1;
 
 sub notfound {
 	print header($headeropts);
+	$Q = NMISNG::Util::filter_params($Q);
 	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	print "Config: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
