@@ -1353,7 +1353,7 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 }
 elsif ( $cmdline->{act} =~ /validate[-_]node[-_]inventory/ ) {
 
-    my $concept       = $cmdline->{concept};
+    my $concept       = $cmdline->{concept} // "catchall";
     my $make_historic = NMISNG::Util::getbool_cli( $cmdline->{make_historic} );
     my $dryrun        = NMISNG::Util::getbool_cli( $cmdline->{dryrun} );
     die "concept not defined or not yet supported"
@@ -1564,15 +1564,15 @@ sub help
    push(@lines, "     0 Success\n");
    push(@lines, "     215 Failure\n\n");
    push(@lines, "\033[1mACTIONS\033[0m\n");
+   push(@lines, "     act=clean-node-events node=<name>|uuid=<node_uuid>\n");
+   push(@lines, "                     This action clears all events associated with\n");
+   push(@lines, "                     the specified node.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=create file=<someFile.json>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                     This action creates an NMIS Node from an NMIS\n");
    push(@lines, "                     template file.  Use 'mktemplate' to create a\n");
    push(@lines, "                     blank template.\n");
-   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=clean-node-events node=<name>|uuid=<node_uuid>\n");
-   push(@lines, "                     This action clears all events associated with\n");
-   push(@lines, "                     the specified node.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=delete node=<name>|uuid=<node_uuid>|group=<group_name>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
@@ -1672,6 +1672,15 @@ sub help
    push(@lines, "                     Use 'set' to set or replace only one property.\n");
    push(@lines, "                     file.  Use 'mktemplate' to create a blank template.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=validate-node-inventory [concept=<concept_name>]\n");
+   push(@lines, "                             [dryrun=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [make_historic=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action validates a node's inventory for errors.\n");
+   push(@lines, "                     If not specified, 'concept' defaults to 'catchall', which\n");
+   push(@lines, "                     is currenty the only supported concept. 'dryrun' does the\n");
+   push(@lines, "                     validation and simply reports what was found, but does\n");
+   push(@lines, "                     not make any changes. 'make_historic' will move all.\n");
+   push(@lines, "                     broken records to a historic status.\n");
    push(@lines, "     \n");
    push(@lines, "\033[1mEXAMPLES\033[0m\n");
    push(@lines, "   node_admin.pl act=list wantuuid=true wantpoller=yes\n");
