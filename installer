@@ -715,7 +715,7 @@ sub check_installed_modules
   my (@missing, @critmissing);
   my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1,
 										 "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1,
-										 "SOAP::Lite" => 1, );
+										 "SOAP::Lite" => 1, "Net::SFTP::Foreign" => 1, "CiscoMerakiCloud" => 1);
 
   logmsg(0, "Detected Module Status:\nName - Minimum Version - Current Version - Current Path\n");
 	# sort by install prio (highest first), or file
