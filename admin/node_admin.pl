@@ -133,6 +133,7 @@ Run $PROGNAME -h for detailed help.
 \t$PROGNAME act=set {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
 \t$PROGNAME act=show {node=<node_name>|uuid=<nodeUUID>} 
 \t$PROGNAME act=update file=<someFile.json> [server={<server_name>|<cluster_id>}]
+\t$PROGNAME act=validate-node-inventory [concept=<concept_name>] [dryrun=<[0|t]/[1|f]>] [make_historic=<[0|t]/[1|f]>]
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
