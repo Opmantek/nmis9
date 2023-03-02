@@ -12198,7 +12198,7 @@ $.widget( "ui.dialog", {
 			} ).get(),
 			zIndexMax = Math.max.apply( null, zIndices );
 
-		if ( zIndexMax >= +this.uiDialog.css( "z-index" ) ) {
+		if ( zIndexMax >= +this.uiDialog.css( "z-index" ) && !silent) {
 			this.uiDialog.css( "z-index", zIndexMax + 1 );
 			moved = true;
 		}
@@ -12211,8 +12211,8 @@ $.widget( "ui.dialog", {
 
 	open: function() {
 		var that = this;
-		if ( this._isOpen ) {
-			if ( this._moveToTop() ) {
+		if ( this._isOpen) {
+			if ( this._moveToTop(null, this.options.silent) ) {
 				this._focusTabbable();
 			}
 			return;
