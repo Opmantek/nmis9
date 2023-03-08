@@ -125,7 +125,7 @@ Run $PROGNAME -h for detailed help.
 \t$PROGNAME act=export [format=<nodes>] [file=<path>] {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [keep_ids=<[0|t]/[1|f]>]
 \t$PROGNAME act=import file=<somefile.json>
 \t$PROGNAME act=import_bulk {nodes=<filepath>|nodeconf=<dirpath>} [nmis9_format=<[0|t]/[1|f]>]
-\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>}
+\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [file=<someFile.json>] [format=json]
 \t$PROGNAME act=mktemplate [placeholder=<[0|t]/[1|f]>]
 \t$PROGNAME act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<nodeUUID>} [remove_old=<[0|t]/[1|f]>] [force=<[0|t]/[1|f]>]
 \t$PROGNAME act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name> [entry.<key>=<value>...]
@@ -435,6 +435,21 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	my $wantuuid   = $1 // $cmdline->{wantuuid} // 0;;
 	my $wantpoller = $cmdline->{wantpoller} // 0;
 	my $quiet      = $cmdline->{quiet};
+	my $format      = $cmdline->{format};
+	my $file      = $cmdline->{file};
+
+	# no node, no group => export all of them
+	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file);
+
+	my $fh;
+	if (!$file or $file eq "-")
+	{
+		$fh = \*STDOUT;
+	}
+	else
+	{
+		open($fh,">$file") or die "cannot write to $file: $!\n";
+	}
 
 	# returns a modeldata object
 	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
@@ -446,22 +461,22 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	}
 	else
 	{
-		if ( !$quiet && -t \*STDOUT) {
+		if ( !$quiet && -t \*STDOUT && !$format) {
 			if ($wantuuid && $wantpoller)
 			{
-				print("Node UUID                               Node Name                                      Poller\n===================================================================================================================\n");
+				print $fh("Node UUID                               Node Name                                      Poller\n===================================================================================================================\n");
 			}
 			elsif ($wantuuid && !$wantpoller)
 			{
-				print("Node UUID                               Node Name\n=================================================================\n");
+				print $fh("Node UUID                               Node Name\n=================================================================\n");
 			}
 			elsif (!$wantuuid && $wantpoller)
 			{
-				print("Node Name                                      Poller\n===================================================================================================================\n");
+				print $fh("Node Name                                      Poller\n===================================================================================================================\n");
 			}
 			else
 			{
-				print("Node Names:\n===================================================\n");
+				print $fh("Node Names:\n===================================================\n");
 			}
 		}		
 		my %remotes;
@@ -475,24 +490,41 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 
 		my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
 		print("Node Data: " .  Dumper(@nodeDataList) . "\n") if ($cmdline->{debug} >1);
-		foreach my $nodeData (@nodeDataList)
+		if($format eq "json")
 		{
-			print("Node: " . Dumper($nodeData) . "\n") if ($cmdline->{debug} >1);;
-			if ($wantuuid && $wantpoller)
+			my $output = ();
+			foreach my $nodeData (@nodeDataList)
 			{
-				printf("%s    %s  %s\n", $nodeData->{uuid}, substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+				my $node = {
+					name =>  $nodeData->{name}
+				};
+				$node->{uuid} = $nodeData->{uuid} if($wantuuid);
+				$node->{cluster_id} = $nodeData->{cluster_id} if($wantpoller);
+				push @$output, $node;
 			}
-			elsif ($wantuuid && !$wantpoller)
+			print $fh JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $output);
+		}
+		else 
+		{
+			foreach my $nodeData (@nodeDataList)
 			{
-				printf("%s    %s\n", $nodeData->{uuid}, $nodeData->{name});
-			}
-			elsif (!$wantuuid && $wantpoller)
-			{
-				printf("%s  %s\n", substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
-			}
-			else
-			{
-				printf("%s\n", $nodeData->{name});
+				print("Node: " . Dumper($nodeData) . "\n") if ($cmdline->{debug} >1);;
+				if ($wantuuid && $wantpoller)
+				{
+					print $fh ("%s    %s  %s\n", $nodeData->{uuid}, substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+				}
+				elsif ($wantuuid && !$wantpoller)
+				{
+					printf $fh ("%s    %s\n", $nodeData->{uuid}, $nodeData->{name});
+				}
+				elsif (!$wantuuid && $wantpoller)
+				{
+					printf $fh ("%s  %s\n", substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+				}
+				else
+				{
+					printf $fh ("%s\n", $nodeData->{name});
+				}
 			}
 		}
 	}
