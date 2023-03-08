@@ -511,7 +511,7 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 				print("Node: " . Dumper($nodeData) . "\n") if ($cmdline->{debug} >1);;
 				if ($wantuuid && $wantpoller)
 				{
-					print $fh ("%s    %s  %s\n", $nodeData->{uuid}, substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+					printf $fh ("%s    %s  %s\n", $nodeData->{uuid}, substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
 				}
 				elsif ($wantuuid && !$wantpoller)
 				{
@@ -1650,6 +1650,7 @@ sub help
    push(@lines, "     act=list (or list_uuid) [node=<name>|uuid=<node_uuid>|group=<group_name>]\n");
    push(@lines, "                             [wantpoller=<true|false|yes|no|1|0>]\n");
    push(@lines, "                             [wantuuid=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [file=<someFile.json>] [format=json]\n");
    push(@lines, "                     This action lists the nodes in the system. If called\n");
    push(@lines, "                     with 'list', only the node names will be listed. If\n");
    push(@lines, "                     'wantpoller' is true the poller is listed as well. If\n");
@@ -1657,6 +1658,9 @@ sub help
    push(@lines, "                     'node', 'uuid', or 'group' argument is passed, the list\n");
    push(@lines, "                     will be limited to the matching nodes. If called as\n");
    push(@lines, "                     'list_uuid' the uuid flag is automatically set.\n");
+   push(@lines, "                     If 'file' is specified, the output will be sent\n");
+   push(@lines, "                     to a file. If 'format=json' is specified, the output\n");
+   push(@lines, "                     will be formatted as a json document.\n");
    push(@lines, "     act=mktemplate file=<someFile.json> [placeholder=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This prints blank template for node creation,\n");
    push(@lines, "                     optionally with '__REPLACE_XX__' placeholder.\n");
