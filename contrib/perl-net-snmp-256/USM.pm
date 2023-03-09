@@ -27,6 +27,7 @@ use Net::SNMP::Message qw(
 
 use Crypt::DES();
 use Digest::MD5();
+use Digest::HMAC();
 use Digest::SHA();
 
 use Digest::SHA qw( hmac_sha1 hmac_sha224 hmac_sha256 hmac_sha384 hmac_sha512);
@@ -1185,7 +1186,7 @@ sub _auth_hmac
    return q{} if (!defined($this->{_auth_data}) || !defined $msg);
 
    return substr
-      $this->{_auth_data}(${$msg->reference()}, $this->{_auth_key}), 0, $this->{_auth_maclen};
+      $this->{_auth_data}->reset()->add(${$msg->reference()})->digest(), 0, $this->{_auth_maclen};
 }
 
 sub _auth_data_init
