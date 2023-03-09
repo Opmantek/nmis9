@@ -51,6 +51,8 @@ helptext() {
 	echo "    $0 event"
 	echo "    $0 log"
 	echo "    $0 nmis9d restart"
+	echo "    $0 fixperms"
+	echo "    $0 schedules"
 
 	echo "    $0 escalate"
 	echo "    $0 summary"
@@ -64,7 +66,6 @@ helptext() {
 	echo "    $0 Nodes"
 	echo "    $0 Services"
 	echo "    $0 Users"
-	echo "    $0 fixperms"
 	echo "    $0 mib \"<search string>\""
 	echo "    $0 grep|grepcode \"<search string>\""
 	echo "    $0 grepfile \"<search string>\""
@@ -172,7 +173,13 @@ fi
 
 if [ "$1" = "fixperms" ]
 then
-	$nmis_base/admin/fixperms.pl
+	$nmis act=fixperms
+	exit 0
+fi
+
+if [ "$1" = "schedules" ]
+then
+	$nmis act=list-schedules verbose=1
 	exit 0
 fi
 
