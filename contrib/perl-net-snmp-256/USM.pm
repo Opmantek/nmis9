@@ -803,7 +803,7 @@ sub _auth_password
       my ($this, $proto) = @_;
 
       # workaround for some agents who don't have sha and sha1 definitions
-      if ( $proto eq "sha" ) {
+      if ( $proto =~ /^sha$/i ) {
          $proto = "sha1"
       }
 

@@ -118,7 +118,7 @@ sub processNode {
 
         print "  Open SNMP session to $node\n";
         if ( $NC->{version} eq "snmpv3" ) {
-            print "    Auth Protocol: $NC->{authprotocol}, Priv Protocol: $NC->{privprotocol}\n";
+            print "    Username: $NC->{username}, Auth Protocol: $NC->{authprotocol}, Priv Protocol: $NC->{privprotocol}\n";
         }
 
         if (!$snmp->open(config => $NC))
