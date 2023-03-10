@@ -173,7 +173,7 @@ fi
 
 if [ "$1" = "fixperms" ]
 then
-	$nmis act=fixperms
+	sudo $nmis act=fixperms
 	exit 0
 fi
 
