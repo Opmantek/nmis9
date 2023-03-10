@@ -28,9 +28,11 @@ use Net::SNMP::Message qw(
 use Crypt::DES();
 use Digest::MD5();
 use Digest::SHA();
-use Digest::HMAC();
 use Digest::SHA qw( hmac_sha1 hmac_sha224 hmac_sha256 hmac_sha384 hmac_sha512);
 use Digest::HMAC_MD5 qw ( hmac_md5 );
+
+# Lacking evidence that this is required.  Posibbly required for legacy SNMPv3 support, so leaving in.
+use Digest::HMAC();
 
 ## Version of the Net::SNMP::Security::USM module
 
@@ -1184,10 +1186,7 @@ sub _auth_hmac
    return q{} if (!defined($this->{_auth_data}) || !defined $msg);
 
    return substr
-      # which option is better?
       $this->{_auth_data}(${$msg->reference()}, $this->{_auth_key}), 0, $this->{_auth_maclen};
-      # SHA2 code uses this one: (THIS DID NOT WORK!)
-      #$this->{_auth_data}->reset()->add(${$msg->reference()})->digest(), 0, $this->{_auth_maclen};
 }
 
 sub _auth_data_init
