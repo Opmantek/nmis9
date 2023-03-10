@@ -1,0 +1,159 @@
+#
+#  Copyright Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+use Compat::NMIS;
+use NMISNG::Auth;
+use NMISNG::Util;
+
+my $C = NMISNG::Util::loadConfTable();
+# variables used for the security mods
+my $AU = NMISNG::Auth->new(conf => $C);
+
+# Calling program needs to do auth, then set the ENVIRONMENT before this is called.
+$AU->SetUser($ENV{'NMIS_USER'});
+
+my $nmisng = Compat::NMIS::new_nmisng;
+my @groups = sort map { $AU->InGroup($_)? $_ :  () } ($nmisng->get_group_names);
+my @pollingpolicies = ("default", sort keys %{ Compat::NMIS::loadGenericTable("Polling-Policy") || {}});
+
+my @nodes = ();
+my $LNT = Compat::NMIS::loadLocalNodeTable(); # load from file or db
+foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
+
+my %knownmodels;
+for my $dir ($C->{"<nmis_default_models>"},$C->{"<nmis_models>"})
+{
+	next if !(opendir(MDL, $dir));
+	map { $knownmodels{$_} = 1; } (grep(s/^Model-(.+)\.nmis$/$1/, readdir(MDL)));
+	closedir(MDL);
+}
+my @models = ('automatic', sort keys %knownmodels);
+
+%hash = (
+	Nodes =>
+	[
+	 { name => { mandatory => 'true', header => 'Name',display => 'key,header,text',value => [""],
+							 validate => { 'regex' => $C->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/ } }},
+	 { new_name => { header => 'New Name', display => 'text,editonly', value => [""],
+									 validate => { 'regex-or-empty' => $C->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/ } }},
+
+	 # this will be filled in on save
+	 { uuid => { header => 'UUID',display => 'header,readonly',value => ['<created on save>'] }},
+
+	 { host => { mandatory => 'true', header => 'Host Name/IP Address',display => 'header,text',value => [""],
+							 validate => { "resolvable" => [ 4, 6 ] } }
+	 },
+
+	 { host_backup => { header => 'Fallback Host Name/IP Address',
+											display => 'header,text',value => [""],
+											validate => { "resolvable-or-empty" => [ 4, 6 ] } }
+	 },
+
+	 { ip_protocol => { header => 'IP Protocol',display => 'popup',value => ["IPv4", "IPv6"],
+								validate => { "onefromlist" => undef }  }},
+
+	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup,pluscustom',value => [ @groups],
+								validate => { "onefromlist" => undef } } },
+	 { community => { mandatory => 'true', header => 'SNMP Community',display => 'password',value => ["$C->{default_communityRO}"] }},
+
+	 { wmi => { special=>'separator', header => "WMI Options", } },
+	 { wmidomain => { header => "WMI Domain", display => 'text', value => [''] }},
+	 { wmiusername => { header => "WMI Username", display => 'text', value => [''] }},
+	 { wmipassword => { header => "WMI Password", display => 'password', value => [''] }},
+	 { wmiversion => { header => 'WMI Version', display => 'popup', value => ["Version 2", "Version 1"],
+								validate => { "onefromlist" => undef }  }},
+
+	 { service_management => { special => 'separator', header => 'Service Management Options',display => 'readonly',value => [""] }},
+	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Customers')}] }},
+	 { businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{Compat::NMIS::loadGenericTable('BusinessServices')} ] }},
+	 { serviceStatus => { header => 'Service Status',display => 'popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('ServiceStatus')} ] }},
+
+	 { extra_options => { special => 'separator', header => 'Name and URL for additional node information'}},
+	 { node_context_name => { header => 'Node Context Name',display => 'text',value => ["Node Context"] }},
+	 { node_context_url => { header => 'Node Context URL',display => 'text',value => ["https://somelink.com/map/thing/"] }},
+
+	 { extra_options => { special => 'separator', header => 'Name and URL for remote management connection'}},
+	 { remote_connection_name => { header => 'Remote Connection Name',display => 'text',value => ["SSH to Node"] }},
+	 { remote_connection_url => { header => 'Remote Connection URL',display => 'text',value => ["ssh://\$host"] }},
+
+	 { extra_options => { special => 'separator', header => 'Extra Options'}},
+	 { display_name => { header => "Display Name", display => "header,text", value => [""] }},
+	 { notes => { header => 'Notes',display => 'header,textbox',value => [""] }},
+	 { roleType => { header => 'Role Type', display => 'popup', value => [ split(/\s*,\s*/, $C->{roletype_list}) ],
+									 validate => { "onefromlist" => undef }  }},
+	 { netType => { header => 'Net Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{nettype_list}) ],
+									validate => { "onefromlist" => undef }  }},
+	 { location => { header => 'Location',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Locations')}],
+									 validate => { "onefromlist" => undef }  }},
+	 { advanced_options => { special => 'separator', header => 'Advanced Options'}},
+	 { polling_policy => { header => "Polling Policy", display => 'header,popup', value => [@pollingpolicies]}},
+
+	 { model => { header => 'Model',display => 'popup',value => [@models],
+								validate => { "onefromlist" => undef }  }},
+	 { active => { header => 'Active',display => 'header,popup,bool',value => ["true", "false"],
+								 validate => { "onefromlist" => undef }  }},
+	 { ping => { header => 'Ping', display => 'header,popup,bool',value => ["true", "false"],
+							 validate => { "onefromlist" => undef }  }},
+	 { collect => { header => 'Collect',display => 'header,popup,bool',value => ["true", "false"],
+									validate => { "onefromlist" => undef }  }},
+	 { cbqos => { header => 'CBQoS',display => 'popup',value => ["none", "input", "output", "both"],
+								validate => { "onefromlist" => undef }  }},
+	 { threshold => { header => 'Threshold', display => 'popup,bool',value => ["true", "false"],
+										validate => { "onefromlist" => undef }  }},
+	 { webserver => { header => 'Web Server', display => 'popup,bool',value => ["false", "true"],
+										validate => { "onefromlist" => undef }  }},
+	 { depend =>{ header => 'Depend', display => 'header,scrolling,savearray',value => [ "", @nodes ],
+								validate => { "multifromlist" => undef } }},
+	 { services => { header => 'Service Monitoring', display => 'header,scrolling,savearray',
+									 value => ["", sort keys %{Compat::NMIS::loadGenericTable("Services")}],
+										validate => { "multifromlist" => undef } }},
+	 { timezone => { header => 'Time Zone',display => 'text',value => ["0"],
+									 validate => { regex => qr/^([+-]?\d{1,2}(:\d{1,2})?)?$/ } } },
+
+	 { extra_options => { special => 'separator', header => 'SNMP Settings'}},
+	 { version => { header => 'SNMP Version',display => 'popup',value => ["snmpv2c","snmpv1","snmpv3"],
+									validate => { "onefromlist" => undef } }},
+	 { max_msg_size => { header => "SNMP Max Message Size", display => 'text', value => ["$C->{snmp_max_msg_size}"],
+											 validate => { 'int-or-empty' => [ 484, 65535 ] } } },
+	 { max_repetitions => { header => "SNMP Max Repetitions", display => "text", value => ["0"],
+													validate => { 'int-or-empty' => [ 0, 1000 ] } } },
+	 { port => { header => 'SNMP Port', display => 'text',value => ["161"],
+							 validate => { 'int' => [ 1, 65535 ] } }},
+	 { username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
+	 { context => { header => 'SNMP Context',display => 'text',value => [""] }},
+	 { authpassword => { header => 'SNMP Auth Password',display => 'password',value => ["$C->{default_authpassword}"] }},
+	 { authkey => { header => 'SNMP Auth Key',display => 'password',value => ["$C->{default_authkey}"] }},
+	 { authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha','sha1','sha224','sha256','sha384','sha512'],
+											 validate => { "onefromlist" => undef } }},
+	 { privpassword => { header => 'SNMP Priv Password',display => 'password',value => ["$C->{default_privpassword}"] }},
+	 { privkey => { header => 'SNMP Priv Key',display => 'password',value => ["$C->{default_privkey}"] }},
+	 { privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','3des','aes','aes128','aes192','aes192c','aes192c2','aes256','aes256c','aes256c2'],
+											 validate => { "onefromlist" => undef }  }},
+	]
+		);
