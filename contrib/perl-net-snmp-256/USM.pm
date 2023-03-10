@@ -802,6 +802,11 @@ sub _auth_password
    {
       my ($this, $proto) = @_;
 
+      # workaround for some agents who don't have sha and sha1 definitions
+      if ( $proto eq "sha" ) {
+         $proto = "sha1"
+      }
+
       if (@_ < 2) {
          return $this->{_auth_protocol};
       }

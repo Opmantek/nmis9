@@ -48,15 +48,15 @@ use NMISNG::Util;
 use NMISNG::rrdfunc;
 use RRDs 1.000.490; # from Tobias
 
-my $defaultConf = "$FindBin::Bin/../../conf";
-$defaultConf = "$FindBin::Bin/../conf" if (! -d $defaultConf);
-$defaultConf = abs_path($defaultConf);
-print "Default Configuration directory is '$defaultConf'\n";
-
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
 my $debug = 0;
 $debug = $cmdline->{debug} if defined $cmdline->{debug};
+
+my $defaultConf = "$FindBin::Bin/../../conf";
+$defaultConf = "$FindBin::Bin/../conf" if (! -d $defaultConf);
+$defaultConf = abs_path($defaultConf);
+print "Default Configuration directory is '$defaultConf'\n" if $debug;
 
 # get an NMIS config and create an NMISNG object ready for use.
 if ( not defined $cmdline->{conf}) {
@@ -116,29 +116,29 @@ sub processNode {
         my $snmp = NMISNG::Snmp->new(name => $node, nmisng => $nmisng);
         # configuration now contains  all snmp needs to know
 
-        print "Open SNMP session to $node\n";
+        print "  Open SNMP session to $node\n";
         if ( $NC->{version} eq "snmpv3" ) {
-            print "Auth Protocol: $NC->{authprotocol}, Priv Protocol: $NC->{privprotocol}\n";
+            print "    Auth Protocol: $NC->{authprotocol}, Priv Protocol: $NC->{privprotocol}\n";
         }
-        
+
         if (!$snmp->open(config => $NC))
         {
             my $error = $snmp->error;
             undef $snmp;
-            print STDERR "Could not open SNMP session to node $node: ".$error ."\n";
+            print STDERR "ERROR: Could not open SNMP session to node $node: ".$error ."\n";
             exit 1;
         }
 
-        print "Testing SNMP session\n";
+        print "  Testing SNMP session\n";
         if (!$snmp->testsession)
         {
             my $error = $snmp->error;
             $snmp->close;
-            print STDERR "Could not retrieve SNMP vars from node $node: ".$error ."\n";
+            print STDERR "ERROR: Could not retrieve SNMP vars from node $node: ".$error ."\n";
             exit 1;
         }
 
-        print "Performing SNMP get of $sysDescr and $sysObjectID\n";
+        print "  Performing SNMP get of $sysDescr and $sysObjectID\n";
         my @oids = (
             "$sysDescr",
             "$sysObjectID"
@@ -149,7 +149,7 @@ sub processNode {
         if ($snmp->error)
         {
             $snmp->close;
-            print STDERR "Got an empty Interface, skipping.\n";
+            print STDERR "ERROR: Failed to retrieve SNMP variables for OIDs $sysDescr and $sysObjectID.\n";
             exit 1;
 
         }
@@ -157,12 +157,12 @@ sub processNode {
         if (ref($snmpData) ne "HASH")
         {
             $snmp->close;
-            print STDERR "Failed to retrieve SNMP variables for OIDs $sysDescr and $sysObjectID.\n";
+            print STDERR "ERROR: Failed to retrieve SNMP variables for OIDs $sysDescr and $sysObjectID.\n";
             exit 1;
         }
 
-        print qq{  sysDescr: $snmpData->{$sysDescr}
-  sysObjectID: $snmpData->{$sysObjectID}
+        print qq{    sysDescr: $snmpData->{$sysDescr}
+    sysObjectID: $snmpData->{$sysObjectID}
 
 SNMP PASSED
 };
