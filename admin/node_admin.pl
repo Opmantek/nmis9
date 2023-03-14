@@ -128,6 +128,7 @@ Run $PROGNAME -h for detailed help.
 \t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [file=<someFile.json>] [format=json]
 \t$PROGNAME act=mktemplate [placeholder=<[0|t]/[1|f]>]
 \t$PROGNAME act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<nodeUUID>} [remove_old=<[0|t]/[1|f]>] [force=<[0|t]/[1|f]>]
+\t$PROGNAME act=remove-duplicate-events [dryrun=<[0|t]/[1|f]>]
 \t$PROGNAME act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name> [entry.<key>=<value>...]
 \t$PROGNAME act=restore file=<path> [localise_ids=<[0|t]/[1|f]>]
 \t$PROGNAME act=set {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
@@ -219,7 +220,7 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
 
 	$logger->info("Starting bulk import of nodes");
-	my $nmis9_format = NMISNG::Util::getbool_cli($cmdline->{nmis9_format});
+	my $nmis9_format = NMISNG::Util::getbool_cli("nmis9_format", $cmdline->{nmis9_format}, 0);
 	my $delay = $cmdline->{delay} // 300;
 	my $bulk_number = $cmdline->{bulk_number};
 	my $total_bulk = 0;
@@ -555,7 +556,7 @@ elsif ($cmdline->{act} eq "export")
 	map { delete $_->{_id}; } (@$allofthem);
 	# by default remove cluster_id and uuid because multi-polling is not yet supported, this helps
 	# prevent users from creating a scenario that is not-yet-supported
-	if(!NMISNG::Util::getbool_cli($keep_ids))
+	if(!NMISNG::Util::getbool_cli("keep_ids", $keep_ids, 0))
 	{
 		map { delete $_->{cluster_id}; delete $_->{uuid} } (@$allofthem);
 	}
@@ -617,7 +618,7 @@ elsif  ($cmdline->{act} eq "dump")
 {
 	my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
 	die "Cannot dump node data without node/uuid and file arguments!\n" if (!$file || (!$nodename && !$uuid));
-	my %options = (NMISNG::Util::getbool_cli($cmdline->{everything})
+	my %options = (NMISNG::Util::getbool_cli("everything", $cmdline->{everything}, 0)
 								? (historic_events => 1, opstatus_limit => undef, rrd => 1 )
 								: ( historic_events => 0, opstatus_limit => 1000, rrd => 0));
 	my $res = $nmisng->dump_node(name => $nodename,
@@ -632,7 +633,7 @@ elsif  ($cmdline->{act} eq "dump")
 elsif  ($cmdline->{act} eq "restore")
 {
 	my $file = $cmdline->{"file"};
-	my $localiseme = NMISNG::Util::getbool_cli($cmdline->{localise_ids});
+	my $localiseme = NMISNG::Util::getbool_cli("localise_ids", $cmdline->{localise_ids}, 0);
 	
 	my $meta = {
 			what => "Restore node",
@@ -660,10 +661,10 @@ elsif  ($cmdline->{act} eq "restore")
 elsif ($cmdline->{act} eq "show")
 {
 	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
-	my $wantquoted = NMISNG::Util::getbool_cli($cmdline->{quoted});
-	my $wantinterfaces = NMISNG::Util::getbool_cli($cmdline->{interfaces});
-	my $wantinventory = NMISNG::Util::getbool_cli($cmdline->{inventory});
-	my $wantcatchall = NMISNG::Util::getbool_cli($cmdline->{catchall});
+	my $wantquoted = NMISNG::Util::getbool_cli("quoted", $cmdline->{quoted}, 0);
+	my $wantinterfaces = NMISNG::Util::getbool_cli("interfaces", $cmdline->{interfaces}, 0);
+	my $wantinventory = NMISNG::Util::getbool_cli("inventory", $cmdline->{inventory}, 0);
+	my $wantcatchall = NMISNG::Util::getbool_cli("catchall", $cmdline->{catchall}, 0);
 
 	die "Cannot show node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
@@ -1042,7 +1043,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				}
 				if (!$backup || $res->{success}) {
 					
-					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool_cli($nukedata, "invert"), meta => $meta); # === eq false
+					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool($nukedata, "invert"), meta => $meta); # === eq false
 					die $mustdie->name.": $error\n" if (!$ok);
 					print STDERR "Successfully deleted node $node $uuid.\n"
 					if (-t \*STDERR);
@@ -1054,6 +1055,68 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 	}
 	
 	exit 0;
+}
+elsif ( $cmdline->{act} =~ /remove[-_]duplicate[-_]events/ ) {
+
+    my $dryrun = NMISNG::Util::getbool_cli("dryrun", $cmdline->{dryrun}, 0 );
+    my ($entries, undef, $error) = NMISNG::DB::aggregate(
+                collection => $nmisng->events_collection,
+                pre_count_pipeline => [
+                        { '$group' => { '_id' => { 'node_uuid' => '$node_uuid', 'event' => '$event',
+									'element' => '$element', 'active' => '$active' },
+								'full_events' => { '$push' => '$$ROOT' }, 'count' => { '$sum' => 1 }}},
+                        { '$match' => { 'count' => {'$gt' =>1 }, 'full_events.historic' => 0 }},
+                        { '$sort' =>  { 'full_events.startdate' => -1 }}]);
+    die "Cannot aggregate on event collection: $error" if ($error);
+
+    my $totalCount   = scalar( @{$entries} );
+    my $foundCount   = 0;
+    my $updatedCount = 0;
+    if ( $totalCount > 0 ) {
+        foreach my $record ( @{$entries} ) {
+            my $count   = $record->{count};
+            my @events  = @{$record->{full_events}};
+            for (my $i=1; $i<$count; $i++) {
+			    my $eachEvent = $events[$i];
+                my $historic = $eachEvent->{historic};
+			    next if ($historic);
+			    if ($cmdline->{debug} >1) {
+			        if ($dryrun) {
+			            print("Record would have been archived: " . Dumper($eachEvent) . "\n");
+                        $foundCount++;
+					} else {
+			            print("Archiving Record: " . Dumper($eachEvent) . "\n");
+				    }
+				}
+			    next if ($dryrun);
+                my $id = $eachEvent->{_id};
+                my $record = { historic => 1, enabled => 0, _made_historic_by => "node_admin" };
+                my $result = NMISNG::DB::update(
+                    collection => $nmisng->events_collection,
+                    query      => NMISNG::DB::get_query(
+                        and_part => { _id => $id },
+                        no_regex => 1
+                    ),
+                    record   => $record,
+                    freeform => 1
+                );
+                if ($result->{success}) {
+                    print("Duplicate event '$id' was archived successfully.\n") if ($cmdline->{debug} >1);
+                    $updatedCount++;
+			    } else {
+                    print("Error updating duplicate event record '$id', error type: $result->{error_type}, $result->{error} \n") if ($result->{error} );
+                }
+		    }
+        }
+        if ($dryrun) {
+            print("'$foundCount' duplicate events would have been archived.\n");
+        } else {
+            print("'$updatedCount' duplicate events were archived successfully.\n");
+        }
+    }
+    else {
+        print("No duplicate events were found.\n");
+    }
 }
 elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 {
@@ -1228,7 +1291,7 @@ elsif ($cmdline->{act} eq "mktemplate" && $server_role ne "POLLER")
 	die "File \"$file\" already exists, NOT overwriting!\n"
 			if (defined $file && $file ne "-" && -f $file);
 
-	my $withplaceholder = NMISNG::Util::getbool_cli($cmdline->{placeholder});
+	my $withplaceholder = NMISNG::Util::getbool_cli("placeholder", $cmdline->{placeholder}, 0);
 
 	my %mininode = ( map { my $key = $_; $key => ($withplaceholder?
 																								"__REPLACE_".uc($key)."__" : "") }
@@ -1387,8 +1450,8 @@ elsif ($cmdline->{act} =~ /^(create|update)$/ && $server_role ne "POLLER")
 elsif ( $cmdline->{act} =~ /validate[-_]node[-_]inventory/ ) {
 
     my $concept       = $cmdline->{concept} // "catchall";
-    my $make_historic = NMISNG::Util::getbool_cli( $cmdline->{make_historic} );
-    my $dryrun        = NMISNG::Util::getbool_cli( $cmdline->{dryrun} );
+    my $make_historic = NMISNG::Util::getbool_cli("make_historic", $cmdline->{make_historic}, 0);
+    my $dryrun        = NMISNG::Util::getbool_cli("dryrun", $cmdline->{dryrun}, 0);
     die "concept not defined or not yet supported"
       if ( $concept !~ /^(catchall)$/ );
     my ( $entries, undef, $error ) = NMISNG::DB::aggregate(
@@ -1671,6 +1734,13 @@ sub help
    push(@lines, "                     This moves old NMIS8 RRD files out of the active\n");
    push(@lines, "                     RRD Database directory.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=remove-duplicate-events [dryrun=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action finds and removes duplicate events.\n");
+   push(@lines, "                     This is something that should not occur, but running\n");
+   push(@lines, "                     multiple occurrances of the NMIS daemon has been known\n");
+   push(@lines, "                     to create the condition. 'dryrun' reviews the events and\n");
+   push(@lines, "                     simply reports what was found, but does not make any\n");
+   push(@lines, "                     changes.\n");
    push(@lines, "     act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [entry.<key>=<value>...]\n");
