@@ -39,7 +39,7 @@ use Data::Dumper;
 use Test::Deep::NoTest;
 use Time::HiRes;
 
-our $VERSION = "9.4.3";
+our $VERSION = "9.4.2";
 
 # Allow testing of proposed fix for Event Load():
 # intent of t_event.pl and t_notify.pl tests shows "Node Up" and "Node Down" must include finding in "Event Previous"
@@ -658,8 +658,12 @@ sub exists
 {
 	my ($self) = @_;
 	my $exists = 0;
-	### FIXME ERROR NOT HANDLED
-	$self->load();
+	my $loadError = $self->load();
+	# Log any error we might get.
+	if ($loadError)
+	{
+		$self->nmisng->log->error("Error on call to 'load': $loadError");
+	}
 	$exists = 1 if ( !$self->is_new );
 	return $exists;
 }
@@ -697,7 +701,6 @@ sub load
 	my $error = $model_data->error;
 	my $event_in_db;
 
-	### FIXME, should we delete one of the events if we detect more than 1?  we could delete the oldest and log a message.
 	if ( !$error && $model_data->count == 1 )
 	{
 		$event_in_db = $model_data->data->[0];
@@ -730,6 +733,7 @@ sub load
 		}
 		$self->loaded(1);
 	}
+	# The following should be impossible after updated Unique Constraint.
 	elsif ( !$error && $model_data->count > 1 )
 	{
 		# error, this function is for a single event, finding >1 is an issue
@@ -791,9 +795,13 @@ sub save
 	# is happening this late we assume that the caller does not want to clobber all the
 	# attributes that are now set so only take on the missing ones, this seems like the
 	# least
-	### FIXME ERROR NOT HANDLED
-	$self->load( only_take_missing => 1 );
-	my $exists = $self->exists();
+	my $loadError = $self->load( only_take_missing => 1 );
+	# Log any error we might get.
+	if ($loadError)
+	{
+		$self->nmisng->log->error("Error on call to 'load': $loadError");
+	}
+	my $exists    = $self->exists();
 
 	# is this an already EXISTING stateless event?
 	# they will reset after the dampening time, default dampen of 15 minutes.
