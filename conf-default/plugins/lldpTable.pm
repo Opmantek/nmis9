@@ -160,16 +160,23 @@ sub update_plugin
 		{
 			$changesweremade = $mustsave = 1;
 
-			# ignore first, keep second and third
+			# Ignore first, keep second and ...
 			my $portnum = $data->{lldpLocPortNum} = $parts[1];
-			$data->{lldpDeviceIndex} = $parts[2];
+			# ... third.
+			if ( @parts == 3 ) { # ... third.
+				$data->{lldpDeviceIndex} = $parts[2];
+			}
+			# ... fourth.
+			elsif ( @parts == 4 ) {
+				$data->{lldpDeviceIndex} = $parts[3];
+			}
 
 			# is the lldpLocPortNum actually the ifIndex?  easy.
 			if ( defined $ifdata{$data->{lldpLocPortNum}}{ifDescr} ) {
-				$NG->log->debug("Found a ifDescr entry for lldpLocPortNum=$data->{lldpLocPortNum}: $ifdata{$data->{lldpLocPortNum}}{ifDescr}");
-				$data->{ifDescr} = $ifdata{$data->{lldpLocPortNum}}{ifDescr};
-				$data->{ifDescr_url} = "$C->{network}?&act=network_interface_view&intf=$data->{lldpLocPortNum}&node=$node";
+				$data->{ifDescr} = $ifdata{$portnum}{ifDescr};
+				$data->{ifDescr_url} = "$C->{network}?&act=network_interface_view&intf=$portnum&node=$node";
 				$data->{ifDescr_id} = "node_view_$node";
+				$NG->log->debug("Found an ifDescr entry for $portnum: $data->{ifDescr}");
 			}
 			# can we find a lldpLocal entry with that portnumber?
 			elsif (ref($lldplocaldata{$portnum}) eq "HASH")
@@ -180,16 +187,14 @@ sub update_plugin
 				{
 					my $ifDescr = $lldplocaldata{$portnum}->{$lldpLocalInt};
 					# do we have an interface with that ifdescr?
-					if (my @matches = grep($ifdata{$_}->{ifDescr} eq $ifDescr,
-																 keys %ifdata))
+					if (my @matches = grep($ifdata{$_}->{ifDescr} eq $ifDescr, keys %ifdata))
 					{
 						my $ifindex  = $matches[0]; # there should be at most one match
 						$data->{lldpIfIndex} = $ifindex;
-
 						$data->{ifDescr} = $ifdata{$ifindex}->{ifDescr};
 						$data->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifindex&node=$node";
 						$data->{ifDescr_id} = "node_view_$node";
-
+						$NG->log->debug("Found an ifDescr entry for $portnum: $data->{ifDescr}");
 						last;
 					}
 				}
