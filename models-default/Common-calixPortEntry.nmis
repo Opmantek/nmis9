@@ -1,0 +1,78 @@
+#
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+%hash = (
+  'systemHealth' => {
+   'rrd' => {
+      'portEntry' => {
+         'graphtype' => 'portEntry',
+         'indexed' => 'true',
+         'snmp' => {
+           'PortTempEn' => {
+             'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.2.1.5',
+              'title' => 'Port Temperature',
+              #'option' => 'gauge,0:U'
+              },
+          }
+      },
+   },
+    'sys' => {
+      'portEntry' => {
+        'headers' => 'PortTemp,PortTXBias,PortTXPower,PortRXPower,PortVolt',
+        'index_oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.2.1.5',
+        'index_regex' => '1\.6\.2\.1\.5\.(.+)$',
+        'indexed' => 'PortTemp',
+        'snmp' => {
+          'PortTemp' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.2.1.5',
+            'title' => 'ODN-I laser temperature Degrees C',
+          },
+          'PortTXBias' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.2.1.6',
+            'title' => 'ODN-I laser bias current muA',
+          },
+          'PortTXPower' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.2.1.7',
+            'title' => 'ODN-I Tx signal level mW',
+            'calculate' => '$r/10000'
+          },
+          'PortRXPower' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.2.1.8',
+            'title' => 'ODN-I Rx signal level mW',
+            'calculate' => '$r/10000'
+          },
+           'PortVolt' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.2.1.9',
+            'title' => 'ODN-I voltage in mV',
+          },
+        },
+      },
+    }
+  }
+);
