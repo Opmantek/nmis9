@@ -50,6 +50,9 @@
       'software' => {
         'common-model' => 'software'
       },
+	  'temp' => {
+         'common-model' => 'lmTempSensors'
+      },
       'Host_Resources' => {
         'common-model' => 'Host_Resources'
       },
@@ -163,6 +166,24 @@
               'event' => 'High Number of System Processes',
               'unit' => 'processes',
               'level' => 'Warning'
+            }
+          },
+          'env-temp' => {
+            'tempStatus' => {
+              'type' => 'threshold-rising',
+              'threshold' => {
+                'Warning' => '80',
+                'Minor' => '85',
+                'Major' => '80',
+                'Critical' => '95',
+                'Fatal' => '100',
+              },
+              'element' => 'tempDescr',
+              'event' => 'High Temperature',
+              'title' => "Temperature",
+              'test' => '',
+              'unit' => '°C',
+              'value' => 'CVAR1=currentTemp;int($CVAR1)'
             }
           },
         }
@@ -391,7 +412,7 @@
 
   'systemHealth' => {
     #Server_Connections
-    'sections' => 'diskIOTable,software,Host_Device,Host_Processor,Host_Storage,Host_Disk_Storage,Host_Partition,Host_File_System',
+    'sections' => 'diskIOTable,software,Host_Device,Host_Processor,env-temp,Host_Storage,Host_Disk_Storage,Host_Partition,Host_File_System',
     'sys' => {
       'diskIOTable' => {        
         'indexed' => 'diskIOIndex',        
