@@ -167,25 +167,7 @@
               'unit' => 'processes',
               'level' => 'Warning'
             }
-          },
-          'env-temp' => {
-            'tempStatus' => {
-              'type' => 'threshold-rising',
-              'threshold' => {
-                'Warning' => '80',
-                'Minor' => '85',
-                'Major' => '80',
-                'Critical' => '95',
-                'Fatal' => '100',
-              },
-              'element' => 'tempDescr',
-              'event' => 'High Temperature',
-              'title' => "Temperature",
-              'test' => '',
-              'unit' => '°C',
-              'value' => 'CVAR1=currentTemp;int($CVAR1)'
-            }
-          },
+          }
         }
       },
     },
