@@ -1,0 +1,249 @@
+#
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+%hash = (
+  'systemHealth' => {
+    'rrd' => {
+       'cardEntry' => {
+         'graphtype' => 'cardEntry',
+         'indexed' => 'true',
+         'snmp' => {
+           'CardStatusA' => {
+             'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.4',
+             'replace' => {
+               '0' => '0',
+              '1' => '100',
+              '2' => '50',
+              '3' => '10',
+              },
+              'title' => 'Card Status'
+              },
+          }
+      },
+   },
+    'sys' => {
+      'cardEntry' => {
+        'headers' => 'CardRowStatus,CardAStatus,CardProvType,CardActType,CardSoftVer,CardSerialNum,CardPowerLevel,CardCleiCode,CardPnumber,CardSRMac,CardERMac',
+        'index_oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.3',
+        'index_regex' => '1\.6\.1\.1\.3\.(.+)$',
+        'indexed' => 'CardRowStatus',
+        'snmp' => {
+          'CardRowStatus' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.3',
+            'title' => 'Card Row Status',
+            'replace' => {
+              '1' => 'active',
+              '2' => 'notInService',
+              '3' => 'notReady',
+              '4' => 'createAndGo',
+              '5' => 'createAndWait',
+              '6' => 'destroy',
+            },
+          },
+          'CardAStatus' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.4',
+            'title' => 'Card Admin Status',
+            'replace' => {
+              '0' => 'unknown',
+              '1' => 'enabled',
+              '2' => 'alarmsuppress',
+              '3' => 'disabled',
+            },
+          },
+          'CardProvType' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.5',
+            'title' => 'Provisioned Card Type',
+            'replace' => {
+              '0' => 'none',
+              '1' => 'unknown',
+              '1012' => 'agg',
+              '1013' => 'backplaneE5400',
+              '1014' => 'backplaneE7x2SlotChassis1RU',
+              '1015' => 'fantrayE5400',
+              '1016' => 'fantrayE7x2SlotChassis1RU',
+              '1017' => 'gpon4',
+              '1018' => 'activeEthernet',
+              '1019' => 'backplaneE5312',
+              '1020' => 'tenge4',
+              '1021' => 'backplaneE7x2S0lotChassis',
+              '1022' => 'fantrayE7x20SlotChassis',
+              '1023' => 'ge12',
+              '1026' => 'scp',
+              '1027' => 'ge24',
+              '1028' => 'ge32',
+              '1029' => 'gpon4x',
+              '1030' => 'ge24x',
+              '1031' => 'vdsl48c',
+              '1032' => 'vdsl48',
+              '1033' => 'e5Voip',
+              '1036' => 'gpon4r2',
+              '1037' => 'gpon8',
+              '1038' => 'gpon8x',
+              '1039' => 'vdsl48Db',
+              '1040' => 'e348c',
+              '1041' => 'backplaneE348C',
+              '1042' => 'ex10gTestLc',
+              '1043' => 'e3Voip',
+              '1044' => 'scpPlus',
+              '1045' => 'fantrayE7x2SlotChassis1RU2',
+              '1046' => 'vdsl48d',
+              '1047' => 'e38g',
+              '1048' => 'e38gIntf',
+              '1049' => 'backplaneE38G',
+              '1500' => 'scp240g',
+              '1501' => 'ge4x',
+              '1502' => 'gpon16x',
+              '1503' => 'scp210g',
+              '1504' => 'ngpon4',
+              '1510' => 'fantrayExLFta2',
+              '1515' => 'vdsl48cr2',
+              '1516' => 'vdsl48r2',
+              '1517' => 'vdsl48dr2',
+              '1518' => 'vcp192',
+              '1519' => 'vcp384',
+              '2000' => 'fantrayE5Fta2',
+              '2001' => 'e548c',
+              '2003' => 'e548',
+              '2004' => 'e548Db',
+              '2005' => 'backplaneE5',
+              '2006' => 'e348cr2Fiber',
+              '2007' => 'e348cr2Hybrid',
+              '2008' => 'e348or2Fiber',
+              '2009' => 'e348or2Hybrid',
+              '2010' => 'e3vcp192',
+              '2011' => 'e3vdsl48r2Voip',
+              '2012' => 'e3vdsl48r2Db',
+            },
+          },
+          'CardActType' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.6',
+            'title' => 'Actual Card Type',
+            'replace' => {
+              '0' => 'none',
+              '1' => 'unknown',
+              '1012' => 'agg',
+              '1013' => 'backplaneE5400',
+              '1014' => 'backplaneE7x2SlotChassis1RU',
+              '1015' => 'fantrayE5400',
+              '1016' => 'fantrayE7x2SlotChassis1RU',
+              '1017' => 'gpon4',
+              '1018' => 'activeEthernet',
+              '1019' => 'backplaneE5312',
+              '1020' => 'tenge4',
+              '1021' => 'backplaneE7x2S0lotChassis',
+              '1022' => 'fantrayE7x20SlotChassis',
+              '1023' => 'ge12',
+              '1026' => 'scp',
+              '1027' => 'ge24',
+              '1028' => 'ge32',
+              '1029' => 'gpon4x',
+              '1030' => 'ge24x',
+              '1031' => 'vdsl48c',
+              '1032' => 'vdsl48',
+              '1033' => 'e5Voip',
+              '1036' => 'gpon4r2',
+              '1037' => 'gpon8',
+              '1038' => 'gpon8x',
+              '1039' => 'vdsl48Db',
+              '1040' => 'e348c',
+              '1041' => 'backplaneE348C',
+              '1042' => 'ex10gTestLc',
+              '1043' => 'e3Voip',
+              '1044' => 'scpPlus',
+              '1045' => 'fantrayE7x2SlotChassis1RU2',
+              '1046' => 'vdsl48d',
+              '1047' => 'e38g',
+              '1048' => 'e38gIntf',
+              '1049' => 'backplaneE38G',
+              '1500' => 'scp240g',
+              '1501' => 'ge4x',
+              '1502' => 'gpon16x',
+              '1503' => 'scp210g',
+              '1504' => 'ngpon4',
+              '1510' => 'fantrayExLFta2',
+              '1515' => 'vdsl48cr2',
+              '1516' => 'vdsl48r2',
+              '1517' => 'vdsl48dr2',
+              '1518' => 'vcp192',
+              '1519' => 'vcp384',
+              '2000' => 'fantrayE5Fta2',
+              '2001' => 'e548c',
+              '2003' => 'e548',
+              '2004' => 'e548Db',
+              '2005' => 'backplaneE5',
+              '2006' => 'e348cr2Fiber',
+              '2007' => 'e348cr2Hybrid',
+              '2008' => 'e348or2Fiber',
+              '2009' => 'e348or2Hybrid',
+              '2010' => 'e3vcp192',
+              '2011' => 'e3vdsl48r2Voip',
+              '2012' => 'e3vdsl48r2Db',
+            },
+          },
+          'CardSoftVer' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.7',
+            'title' => 'Running Software Version',
+          },
+          'CardSerialNum' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.8',
+            'title' => 'Serial Number for Card',
+          },
+           'CardPowerLevel' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.9',
+            'title' => 'Current Power Level for Card',
+            'replace' => {
+              '0' => 'notSet',
+              '1' => 'powerLevelLow',
+              '2' => 'powerLevel2',
+              '3' => 'powerLevel3',
+              '4' => 'powerLevel4',
+              '5' => 'powerLevelFull',
+            }
+          },
+          'CardCleiCode' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.10',
+            'title' => 'CLEI Code for Card',
+          },
+          'CardPnumber' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.11',
+            'title' => 'Part Number',
+          },
+          'CardSRMac' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.12',
+            'title' => 'Start of MAC Range',
+          },
+          'CardERMac' => {
+            'oid' => '1.3.6.1.4.1.6321.1.2.2.2.1.6.1.1.13',
+            'title' => 'End of MAC Range',
+          },
+        },
+      },
+    }
+  }
+);

@@ -143,7 +143,8 @@ function commonv8Init(widget_refresh,configinit,modules) {
 						minWidth	:	100,
 						minHeight	: 40,
 						autoOpen	: false,
-						stack			: true,					// come to top when focused
+						silent	: true,
+						stack		: true,					// come to top when focused
 						position	: { my: 'left top', at: 'left+40 top+100'}
 			},
 			widgetHandle	: '',
@@ -314,7 +315,6 @@ function	createDialog(opt) {
 	};
 	// read updated list of options back to current opt, so we have a full set in opt
 	opt = objData.options;
-
 	// -----------------------------------------------------
 	// test for window already open , otherwise recreate widget
 	if ( objData.status != true ) {
@@ -662,6 +662,7 @@ function	createDialog(opt) {
 	var refreshTime = gup( 'refresh', opt.url );
 
 	if ( (typeof refreshTime !== 'undefined') && ( refreshTime > 10 )) {
+		
 		refreshTime *= 1000;
 		$.doTimeout( opt.id );
 		$.doTimeout( opt.id, refreshTime, function(){
@@ -672,11 +673,14 @@ function	createDialog(opt) {
 			 	if ( opCharts == true && typeof(loadCharts) != undefined ) {
 					unLoadCharts(objData.widgetHandle);
 				}
+				objData.options.silent = true;
+				console.log('Create Dialog: ', objData.options);
 	 			createDialog(objData.options);
 	 		};
 	 	});
 	}
 	else {
+		console.log('No refresh');
 		dialogHandle.dialog( 'moveToTop' );
 	};
 
