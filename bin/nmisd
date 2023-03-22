@@ -2190,6 +2190,24 @@ sub fping_loop
 			# note that multi-homed nodes are down IFF all ips are unreachable
 			if (!exists($thisstate->{loss}) or $thisstate->{loss} == 100)
 			{
+				# Update the 'status_updated' timestamp in Catchall.
+				my ($catchall_inventory,$invError) = $node->inventory(concept => 'catchall');
+				if($catchall_inventory)
+				{
+					$nmisng->log->debug3("Updating status timestamp in 'catchall");
+					my $catchall_data = $catchall_inventory->data_live();
+					$catchall_data->{status_updated} = time();
+					my ( $op, $error ) = $catchall_inventory->save;
+					if ($error)
+					{
+						$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $error") if ($error);
+					}
+				}
+				else
+				{
+					$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $invError");
+				}
+				# End: Update the 'status_updated' timestamp in Catchall.
 				my ($whatevent, $details);
 				my $fpingmsg = $thisstate->{loss}? "fping reported loss=$thisstate->{loss}%"
 						: "fping could not resolve host";
@@ -2255,6 +2273,25 @@ sub fping_loop
 			}
 			else # node somewhat pingable, not 100% loss
 			{
+				# Update the 'status_updated' and 'ping_successful' timestamps in Catchall.
+				my ($catchall_inventory,$invError) = $node->inventory(concept => 'catchall');
+				if($catchall_inventory)
+				{
+					$nmisng->log->debug3("Updating status timestamp in 'catchall");
+					my $catchall_data = $catchall_inventory->data_live();
+					$catchall_data->{status_updated}  = time();
+					$catchall_data->{ping_successful} = $catchall_data->{status_updated};
+					my ( $op, $error ) = $catchall_inventory->save;
+					if ($error)
+					{
+						$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $error") if ($error);
+					}
+				}
+				else
+				{
+					$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $invError");
+				}
+				# End: Update the 'status_updated' and 'ping_successful' timestamps in Catchall.
 				$nmisng->log->debug("$uuid ($thisstate->{name}) ($thisstate->{ip}) is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
 				my $details = "Ping ok: fping reported $thisstate->{loss}% loss";
 
