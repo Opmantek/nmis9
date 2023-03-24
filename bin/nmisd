@@ -2197,6 +2197,11 @@ sub fping_loop
 					$nmisng->log->debug3("Updating status timestamp in 'catchall");
 					my $catchall_data = $catchall_inventory->data_live();
 					$catchall_data->{status_updated} = time();
+
+					# the nodestatus needs to be kept up to date
+					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
+					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
+
 					my ( $op, $error ) = $catchall_inventory->save;
 					if ($error)
 					{
@@ -2281,6 +2286,11 @@ sub fping_loop
 					my $catchall_data = $catchall_inventory->data_live();
 					$catchall_data->{status_updated}  = time();
 					$catchall_data->{ping_successful} = $catchall_data->{status_updated};
+
+					# the nodestatus needs to be kept up to date
+					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
+					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
+
 					my ( $op, $error ) = $catchall_inventory->save;
 					if ($error)
 					{
