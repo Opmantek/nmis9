@@ -27,12 +27,15 @@ die "Usage: $0 [options] <url>
 -d: append debug output to the given file
 -H headername=value [-H otherheader=othervalue...]
 -p http://proxy:port/ sets up access via web proxy
+-t timeout for webtest, default is 300
+
 \n\n"
-		if (!GetOptions(\%opts, "c=s","s=s","f=i","D","N","d=s","H=s%","p=s") or @ARGV != 1);
+		if (!GetOptions(\%opts, "c=s","s=s","f=i","D","N","d=s","H=s%","p=s","t=i") or @ARGV != 1);
 
 my $okcode = $opts{s}? qr/$opts{s}/ : qr/200/;
 my $okbody = $opts{c} &&  qr/$opts{c}/i;
 my $redirs = defined $opts{f}? $opts{f} : 0;
+my $timeout = defined $opts{t}? $opts{t} : 300;
 my $url = $ARGV[0];
 
 my $dfh;
@@ -78,6 +81,10 @@ $url = "http://$url" if ($url !~ m!^([a-z]+)://!);
 my @starttime = Time::HiRes::gettimeofday;
 print $dfh Time::HiRes::time." issuing GET".($opts{D}? " with no-cache headers":"")."\n"  if ($dfh);
 
+# adding alarm handling to prevent crazy things
+local $SIG{ALRM} = sub { die "$0 request timed out after $timeout seconds\n" };
+alarm ($timeout);
+
 my @getargs = ($url);
 push @getargs, %{$opts{H}} if (ref($opts{H}) eq "HASH"); # custom headers
 push @getargs, ( "Pragma" => "no-cache", "Cache-Control" => "no-cache") if ($opts{D}); # no-cache headers
@@ -85,6 +92,9 @@ push @getargs, ( "Pragma" => "no-cache", "Cache-Control" => "no-cache") if ($opt
 my $res = $ua->get(@getargs);
 my $responsetime = Time::HiRes::tv_interval(\@starttime);
 my $contentlength = length($res->decoded_content);
+
+# done now, return alarm to normal
+alarm 0;
 
 print $dfh Time::HiRes::time." done with GET, response status ".$res->status_line
 		.", content length $contentlength\n" if ($dfh);
@@ -100,6 +110,11 @@ if ($res->code =~ $okcode)
 		$exitcode = 50;
 		$statusmsg = "Page downloaded OK but content invalid!";
 	}
+}
+elsif ($res->status_line =~ /request timed out/ )
+{
+	$exitcode = 0;
+	$statusmsg = "Page Timed Out";
 }
 else
 {
