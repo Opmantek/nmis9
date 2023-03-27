@@ -480,6 +480,23 @@
         }
       }
     },
+    'Neoteris, Inc.' => {
+      'order' => {
+        '10' => {
+          'PulseSecure' => 'Pulse Secure'
+        }
+      }
+    },
+    'Adtran' => {
+      'order' => {
+        '10' => {
+          'NetVanta' => 'NetVanta'
+        },
+        '20' => {
+          'Adtran-TA5000' => 'TA5000'
+        }
+      }   
+    }, 
     'Palo Alto Networks' => {
       'order' => {
         '10' => {
@@ -487,7 +504,7 @@
         }
       }
     },
-	'Panthera Networks, Inc.' => {
+    'Panthera Networks, Inc.' => {
       'order' => {
         '10' => {
 			'Nokia7750' => '7750'
@@ -518,6 +535,13 @@
       }
     },
     'QNAP SYSTEMS, INC' => {
+      'order' => {
+        '10' => {
+          'QNAP' => 'Linux TS'
+        }
+      }
+    },
+    'storage' => {
       'order' => {
         '10' => {
           'QNAP' => 'Linux TS'
