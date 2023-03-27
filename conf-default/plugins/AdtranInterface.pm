@@ -371,18 +371,7 @@ sub update_plugin
 		);
 
 		$NG->log->info("Interface description is '$intfSubData->{ifDescr}'");
-		# Get the RRD file name to use for storage.
-		my $dbname = $S->makeRRDname(graphtype => "interface",
-									index      => $index,
-									inventory  => $intfSubData,
-									extras     => $intfSubData,
-									relative   => 1);
-		$NG->log->debug("Collect Adtran data info check storage interface, dbname '$dbname'.");
-		
-		# Set the storage name into the inventory model
-		$inventory->set_subconcept_type_storage(type => "rrd",
-												subconcept => "interface",
-												data => $dbname) if ($dbname);
+
 		my $desiredlimit = $intfData->{$index}{setlimits};
 		# $NG->log->info("Desiredlimit: $desiredlimit" );
 		# $NG->log->info("ifSpeed: " . $intfData->{$index}{ifSpeed});
