@@ -297,7 +297,7 @@
           }
         },
         'threshold' => 'util_in,util_out',
-#       'graphtype' => 'bits,abits,maxbits,util,autil'
+        'graphtype' => 'bits,abits,maxbits,util,autil'
       },
       'pkts_hc' => {
         'indexed' => 'true',
