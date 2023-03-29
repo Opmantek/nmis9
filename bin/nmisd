@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="9.4.0";
+our $VERSION="9.4.5";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -41,6 +41,7 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use feature 'state';
+use Fcntl qw(:flock);
 use File::Basename;
 use File::Spec;
 use Proc::ProcessTable 0.53;
@@ -52,6 +53,7 @@ use Statistics::Lite;
 use List::Util 1.33;
 use Clone;
 use Net::IP;
+use POSIX;
 
 use NMISNG;
 use NMISNG::Util;
@@ -61,34 +63,72 @@ use Compat::NMIS;
 # for worker_loop
 use constant { EXIT_POLITE => 0, EXIT_TTL => 1, EXIT_IMMEDIATELY => 2, EXIT_ERROR => 3, EXIT_IDLE => 4 };
 
-my $me = basename($0);
-my $usage = "Usage: $me [option=value...] [act=command]
+my $PID       = ${$};
+my $PROGNAME  = basename($0);
+my $iAmDaemon = 0;
+my $pidFile = "";
+my $progPID   = "";
+my $usage     = "Usage: $PROGNAME [option=value...] [act=command]
 
- act=version: print version of this daemon and exit
- act=stop: shut down running daemon and workers
- act=abort: terminate all workers and kill running daemon
+ act=abort:   Terminate all workers and kill the running daemon.
+ act=status:  Indicates whether, or not the scheduler is running.
+ act=stop:    Shut down the running daemon and workers.
+ act=version: Print the version of this daemon and exit.
 
-if no act argument is present: daemon starts
+If no 'act' argument is present: the daemon is started.
 
-option foreground=1: stay in the foreground, don't daemonize
-option max_workers=N: overrides the configuration
-option debug=0/1: print extra debug information
+option confdir=<path>:      Path to configuration files.
+option debug=<[0|t]/[1|f]>: Print extra debug information.
+option foreground=<t|1>:    Stay in the foreground, don't daemonize.
+option max_workers=<N>:     Overrides the configuration.
+\n\n";
 
-option confdir=path: path to configuration files\n\n";
-
-die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-(h|\?|-help)$/);
-my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
-die $usage if ($cmdline->{act} && $cmdline->{act} !~ /^(stop|abort|version)$/);
-
-if ( $cmdline->{act} eq "version")
+die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-(h|\?||u|-usage|-help)$/);
+if (@ARGV == 1 && $ARGV[0] =~ /^-{1,2}version/)
 {
-	print "$me version=$VERSION\n";
+	print "$PROGNAME version=$VERSION\n";
 	exit 0;
 }
+my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
+$cmdline->{act} = lc($cmdline->{act}) if ($cmdline->{act});
+
+if ($cmdline->{act} eq "version")
+{
+	print "$PROGNAME version=$VERSION\n";
+	exit 0;
+}
+
+die $usage if ($cmdline->{act} && $cmdline->{act} !~ /^(status|stop|abort)$/);
 
 # get the config from a potentially custom directory
 my $config  = NMISNG::Util::loadConfTable(dir => $cmdline->{confdir});
 die "no config available!\n" if (ref($config) ne "HASH" or !keys %$config);
+
+my $abort      = ($cmdline->{act} =~ /abort/) ? 1 : 0;
+my $debug      = NMISNG::Util::getdebug_cli($cmdline->{debug});
+my $foreground = NMISNG::Util::getbool_cli("foreground", $cmdline->{foreground}, 0);
+my $maxWorkers = $cmdline->{max_workers} // $config->{nmisd_max_workers};
+my $status     = ($cmdline->{act} =~ /status/) ? 1 : 0;
+my $stop       = ($cmdline->{act} =~ /stop/) ? 1 : 0;
+my $daemon     = (!$abort && !$debug && !$foreground && !$stop) ? 1 : 0;
+
+# Make sure the user has the necessary priveleges to run the NMIS demon.
+# User must either be root, or a menber of the 'nmis' group.
+if ($< != 0)
+{
+	my @groups = getgroups();
+	my $nmisgid = getgrnam("nmis");
+	my $ok = 0;
+	foreach (@groups)
+	{
+		if ($_ eq $nmisgid)
+		{
+			print "User is a member of the 'nmis' group\n" if ($debug);
+			$ok = 1;
+		}
+	}
+	die "You are not a member of the 'nmis' group, permission denied!\n" if (!$ok);
+}
 
 # use debug, or info arg, or configured log_level
 my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
@@ -163,93 +203,197 @@ if ($wantfpingworker)
 	}
 }
 
-# this opens a database connection - which we must not share with any children!
-my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
-&NMISNG::rrdfunc::require_RRDs;
 
-# make sure that no more than one daemon runs
+
 my $varsysdir = $config->{'<nmis_var>'} . "/nmis_system";
 if ( !-d $varsysdir )
 {
 	NMISNG::Util::createDir($varsysdir);
 	NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 }
-my $pidfile = "$varsysdir/nmisd.pid";
-my $otherdaemon = Mojo::File->new($pidfile)->slurp() if (-f $pidfile);
-chomp($otherdaemon);
-
-# for act=stop/abort we need to load the previous state to examine any zoo of worker procs
+$pidFile      = "$varsysdir/nmisd.pid";
 my $statefile = "$varsysdir/nmisd_state.json";
 my $scheduler_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );
 $scheduler_state = {} if (!ref($scheduler_state)); # i.e. if readFiletoHash reported an error
 $scheduler_state->{last_process_check} = 0; # DO run up worker children on startup
-my @otherprocs = (ref($scheduler_state->{zoo}) eq "HASH"?
-									keys %{$scheduler_state->{zoo}} : ());
 
-if ( int($otherdaemon)				# it's a number
-		 and $otherdaemon != $$	# and it's not me (should be impossible)
-		 and kill(0, $otherdaemon)) # and it's really alive
+# Wrap all this stuff in brackets to avoid creating a bunch of variables we never need again.
 {
-	die "Another instance of $me is running (pid $otherdaemon)!\n"
-			if  ($cmdline->{act} !~ /^(stop|abort)$/);
-
-	# int: please shut down when you're ready. term: shut down now
-	# note: signalling that scheduling daemon will take care of its workers as well
-	my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
-	kill($whichsignal, $otherdaemon);		# polite
-	sleep(1);
-	kill('KILL', $otherdaemon);					# then  firm
-	unlink($pidfile);
-	$logger->info("Killed process $otherdaemon as instructed.");
-	exit (0);
-}
-# if stop/abort, get rid of these; if starting up
-# they'll get 'adopted' by this scheduler daemon
-elsif (@otherprocs && $cmdline->{act} =~ /^(stop|abort)$/)
-{
-	my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
-	kill($whichsignal, @otherprocs);
-	sleep(1);
-	kill("KILL", @otherprocs);
-	$logger->info("Killed worker processes ".join(" ",@otherprocs). " as instructed");
-	exit(0);
-}
-
-# allowed to become a daemon? foreground mode is mostly just for debugging
-if (!NMISNG::Util::getbool($cmdline->{foreground}))
-{
-	if (!defined(my $pid = fork))
+	# So why do we set our PID twice???
+	# We want to first verify we are not already running, and if we are in debug mode we will not become a daemon.
+	# After we become a daemon, we will not be able to write to the console because we will close our STDOUT
+	# so we will not be able to tell the person that started us we failed.  So we get our lock while we have
+	# a terminal, and then simply replace it with the daemon's PID once we are running in the background.
+	# Set my pid lock.
+	my $isRunning = 0;
+	my $otherDaemon = Mojo::File->new($pidFile)->slurp() if (-f $pidFile);
+	chomp($otherDaemon);
+	if ($debug)
 	{
-		die "cannot fork: $!\n";
-	}
-	elsif ($pid)
-	{
-		# parent: exits
-		exit (0);
+		print "PID file '$pidFile' " . ((-f $pidFile) ? "exists." : "does not exist.") . "\n";
+		print "Running PID is $otherDaemon\n" if (int($otherDaemon));
 	}
 
-	# child continues with the actual work
-	srand();
-	$logger->logprefix("$me\[$$\] ");
-	$logger->info("$me daemon was started (pid $$).");
-
-
-	POSIX::setsid() or die "Can't start new session: $!";
-	chdir('/') or die "Can't chdir to /: $!";
-
-	# Reopen stdout, stdin with /dev/null; stderr to the main logfile
-	# if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang
-	open(STDIN, "<", "/dev/null") or die "cannot reopen stdin: $!\n";
-	# leave those open if debug mode enabled
-	if (!defined($cmdline->{debug}))
+	# For act=stop/abort we need to load the previous state to examine any zoo of worker procs
+	my @otherProcs;
+	my $otherProcCnt = 0;
+	my $runningUID = -1;
+	if (int($otherDaemon))
 	{
-		open(STDOUT, ">", "/dev/null") or die "cannot reopen stdout: $!\n";
-		open(STDERR, ">>", $logfile) or die "cannot open stdout to $logfile: $!\n";
+		$runningUID = NMISNG::Util::getProcessOwner($otherDaemon);
+		print "Running UserID Owner is $runningUID\n" if ($debug);
+		if ($runningUID >= 0)
+		{
+			$isRunning = 1;
+			if (($runningUID != $< && $< != 0) && ($abort || $stop))
+			{
+				die "The process is not running under your user ID, you cannot stop it!\n";
+			}
+		}
 	}
-	$0 = "nmisd.scheduler";
+	if ($status)
+	{
+		if ($isRunning)
+		{
+			print("The Scheduler $otherDaemon is running as user '" . getpwuid($runningUID) ."'.\n");
+		}
+		else
+		{
+			print("The Scheduler is not running.\n");
+		}
+		exit(0);
+	}
+	if ($abort || $stop)
+	{
+		my @testProcs = ((ref($scheduler_state->{zoo}) eq "HASH")
+						?  keys %{$scheduler_state->{zoo}}
+						: ());
+		foreach (@testProcs)
+		{
+			push(@otherProcs, $_ ) if (scalar(kill 0, $_));
+		}
+		$otherProcCnt = scalar(@otherProcs);;
+		print "Number of children processes is $otherProcCnt\n" if ($debug);
+	}
+	my $oldMask = umask(0);
+	if ( int($otherDaemon)			# it's a number
+		and $otherDaemon != $$		# and it's not me (should be impossible)
+		and $isRunning)				# and it's really alive
+	{
+		print("Scheduler $otherDaemon is running.\n") if ($debug);
+		if (!$abort && !$stop)
+		{
+			die "Another instance of $PROGNAME is running (pid $otherDaemon)!\n";
+		}
+		else
+		{
+			if (int($otherDaemon))
+			{
+				# Kill the parent gracefully, and it will kill the children as well.
+				# INT: please shut down when you're ready. TERM: shut down now
+				# note: signalling that scheduling daemon will take care of its workers as well
+				my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
+				kill($whichsignal, $otherDaemon);	# polite
+				sleep(3);
+				kill('KILL', $otherDaemon);			# then firm
+				print("Killed process $otherDaemon.\n") if (!$debug);
+				$logger->info("Killed process $otherDaemon.");
+			}
+			else
+			{
+				print("Scheduler process was not running.\n");
+			}
+			unlink($pidFile) if (-f $pidFile);
+			exit (0);
+		}
+	}
+	else	# Scheduler is not running.
+	{
+		print("Scheduler is not running.\n") if ($debug);
+		if ((open(PIDLOCK, ">$pidFile")) && (flock(PIDLOCK, LOCK_EX)))	# We will not be able to get an exclusive lock if the process is alive.
+		{
+			if ($abort || $stop) # Parent process has died leaving children running; kill them.
+			{
+				if ($otherProcCnt > 0) # Parent process has died leaving children running; kill them.
+				{
+					my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
+					kill($whichsignal, @otherProcs);
+					sleep(1);
+					kill("KILL", @otherProcs);
+					print("Killed worker processes " . join(" ",@otherProcs) . ".\n") if (!$debug);
+					$logger->info("Killed worker processes " . join(" ",@otherProcs) . ".");
+				}
+				else
+				{
+					print "No processes running, nothing to kill\n";
+				}
+				unlink($pidFile) if (-f $pidFile);
+				exit(0);
+			}
+			# We are starting up; 
+			PIDLOCK->autoflush(1);
+			print PIDLOCK "$PID\n";
+			chmod (0644,"$pidFile");
+			umask($oldMask);
+			# Now become a daemon
+			if ((!$debug) && ($daemon)) {
+				print("$PROGNAME: Starting daemon.\n");
+				$logger->info("$PROGNAME: Starting daemon.");
+				my $uid = getpwnam("nmis");
+				my $gid = getgrnam("nmis");
+				if (!defined(my $pid = fork))
+				{
+					die "cannot fork: $!\n";
+				}
+				elsif ($pid)
+				{
+					# parent: exits
+					exit (0);
+				}
+	
+				$PID = $$;
+				print "Running PID is $PID\n" if ($debug);
+				# Update my daemon pid lock.
+				close(PIDLOCK);
+				unlink($pidFile) if (-f $pidFile);
+				if ((!open(PIDLOCK, ">$pidFile")) || (!flock(PIDLOCK, LOCK_EX)))	# We will not be able to get an exclusive lock if the process is alive.
+				{
+					die "Cannot get PID lock!\n";
+				}
+				print PIDLOCK "$PID\n";
+				$iAmDaemon = 1;
+				STDOUT->autoflush(1);
+				STDERR->autoflush(1);
+				# child continues with the actual work
+				srand();
+				setsid() or die "Can't start new session: $!";
+				chdir('/') or die "Can't chdir to /: $!";
+	
+				# Reopen stdout, stdin with /dev/null; stderr to the main logfile
+				# if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang
+				open(STDIN, "<", "/dev/null") or die "cannot reopen stdin: $!\n";
+				# leave those open if debug mode enabled
+				if (!$debug)
+				{
+					open(STDOUT, ">", "/dev/null") or die "cannot reopen stdout: $!\n";
+					open(STDERR, ">>", $logfile) or die "cannot open stdout to $logfile: $!\n";
+				}
+				$0 = "nmisd.scheduler";
+				$PROGNAME  = basename($0);
+				$logger->logprefix("$PROGNAME\[$PID\] ");
+				$logger->info("$PROGNAME daemon was started (pid $PID).");
+			}
+		}
+		else
+		{
+			die "Unable to get a pid lock!\n";
+		}
+	}
 }
-Mojo::File->new($pidfile)->spurt("$$\n");
-NMISNG::Util::setFileProtDiag(file => $pidfile); # or the selftest complains
+
+# this opens a database connection - which we must not share with any children!
+my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
+&NMISNG::rrdfunc::require_RRDs;
 
 my $zoo = ($scheduler_state->{zoo} //= {}); # process state structure for manage_processes
 my $exit_marker;							# signal handler scribbles here
@@ -663,7 +807,7 @@ while (!$exit_marker)
 			$nmisng->log->debug2("running a worker process check");
 			# manage_processes logs by itself - fixme: res not useful at this time
 			my $res = manage_processes(nmisng => $nmisng,
-																 max_workers => $cmdline->{max_workers},
+																 max_workers => $maxWorkers,
 																 zoo => $zoo);
 			$scheduler_state->{last_process_check} = time;
 		}
@@ -701,7 +845,7 @@ while (!$exit_marker)
 
 	# warn if there are more overdue jobs than 2 times the allowed workers,
 	$nmisng->log->warn("Performance warning: ".$overdue->query_count." overdue queued jobs!")
-			if ($overdue->query_count > 2 * $config->{nmisd_max_workers});
+			if ($overdue->query_count > 2 * $maxWorkers);
 
 	# warn if there are more queued jobs than 4 times the active nodes,
 	# or 10 times the allowed workers, whichever is higher.
@@ -711,7 +855,7 @@ while (!$exit_marker)
 																				 count => 1, limit => 0)->query_count; # ignores any errors
 
 	$nmisng->log->warn("Performance warning: $lotsaqueued queued jobs!")
-			if ($lotsaqueued > Statistics::Lite::max(4 * $nrnodes, 10 * $config->{nmisd_max_workers}));
+			if ($lotsaqueued > Statistics::Lite::max(4 * $nrnodes, 10 * $maxWorkers));
 
 	# reap any finished processes
 	my %goners = &NMISNG::Util::reaper;
@@ -817,7 +961,7 @@ selftest perms backup purge cleanup esc thresholds metrics postupdate postcollec
 	sleep($config->{nmisd_scheduler_cycle} // 10);
 	$SIG{"URG"} = "IGNORE";
 }
-$nmisng->log->info("$me terminating");
+$nmisng->log->info("$PROGNAME terminating");
 exit(0);
 
 # ensure that the right number of worker and fping processes (and opslad)
@@ -887,7 +1031,7 @@ sub manage_processes
 			srand();
 			# make sure this gets a NEW nmisng object, with NEW database handles!
 			$nmisng = Compat::NMIS::new_nmisng(nocache => 1,
-																				 debug => $cmdline->{debug});
+																				 debug => $debug);
 			if (!defined $cmdline->{debug})
 			{
 				# fping worker logs to its own logfile
@@ -934,13 +1078,12 @@ sub manage_processes
 	}
 
 	# workers: how many are we allowed to have?
-	my $allowed = $args{max_workers} // $config->{nmisd_max_workers};
 	my $current = grep($_->{processtype} eq "worker", values %$zoo);
 
-	my $delta = $allowed - $current;
+	my $delta = $maxWorkers - $current;
 	if ($delta < 0)
 	{
-		$nmisng->log->info("too many active workers, allowed $allowed but have $current");
+		$nmisng->log->info("too many active workers, allowed $maxWorkers but have $current");
 		for my $moriturus ((keys %$zoo)[0..(-$delta)]) # keys is random enough
 		{
 			$nmisng->log->debug("instructing worker $moriturus to terminate");
@@ -950,7 +1093,7 @@ sub manage_processes
 	}
 	elsif ($delta > 0)
 	{
-		$nmisng->log->info("not enough active workers, allowed $allowed but only have $current");
+		$nmisng->log->info("not enough active workers, allowed $maxWorkers but only have $current");
 		# start N new ones
 		while ($delta--)
 		{
@@ -965,7 +1108,7 @@ sub manage_processes
 				# worker process:
 				srand();
 				# make sure this gets a NEW nmisng object, with NEW database handles!
-				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $cmdline->{debug});
+				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $debug);
 				$nmisng->log->logprefix("worker\[$$\] ");
 				$nmisng->log->info("started");
 				$0 = "nmisd.worker.<idle>";
@@ -1564,7 +1707,7 @@ sub worker_loop
 									next;
 								}
 							$nodes_list = $nodes_list . " " . $node;
-	
+
 						}
 					}
 					
@@ -2197,7 +2340,6 @@ sub fping_loop
 					$nmisng->log->debug3("Updating status timestamp in 'catchall");
 					my $catchall_data = $catchall_inventory->data_live();
 					$catchall_data->{status_updated} = time();
-
 					# the nodestatus needs to be kept up to date
 					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
 					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
@@ -2286,7 +2428,6 @@ sub fping_loop
 					my $catchall_data = $catchall_inventory->data_live();
 					$catchall_data->{status_updated}  = time();
 					$catchall_data->{ping_successful} = $catchall_data->{status_updated};
-
 					# the nodestatus needs to be kept up to date
 					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
 					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
