@@ -87,6 +87,7 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=config-backup
  act=ensure-indexes
  act=noderefresh
+ act=remove-duplicate-events [dryrun=<[0|t]/[1|f]>]
  act=daemon-status (or act=status)
 
  act=schedule [at=time] <job.type=activity> [job.priority=0..1] [job.X=....]
@@ -1053,6 +1054,68 @@ elsif ($Q->{act} =~ /get[-_]sessions/)
 	my $user = $Q->{user};
 	get_sessions(user => $user);
 }
+elsif ( $Q->{act} =~ /remove[-_]duplicate[-_]events/ ) {
+
+    my $dryrun = NMISNG::Util::getbool_cli("dryrun", $Q->{dryrun}, 0 );
+    my ($entries, undef, $error) = NMISNG::DB::aggregate(
+                collection => $nmisng->events_collection,
+                pre_count_pipeline => [
+                        { '$group' => { '_id' => { 'node_uuid' => '$node_uuid', 'event' => '$event',
+									'element' => '$element', 'active' => '$active' },
+								'full_events' => { '$push' => '$$ROOT' }, 'count' => { '$sum' => 1 }}},
+                        { '$match' => { 'count' => {'$gt' =>1 }, 'full_events.historic' => 0 }},
+                        { '$sort' =>  { 'full_events.startdate' => -1 }}]);
+    die "Cannot aggregate on event collection: $error" if ($error);
+
+    my $totalCount   = scalar( @{$entries} );
+    my $foundCount   = 0;
+    my $updatedCount = 0;
+    if ( $totalCount > 0 ) {
+        foreach my $record ( @{$entries} ) {
+            my $count   = $record->{count};
+            my @events  = @{$record->{full_events}};
+            for (my $i=1; $i<$count; $i++) {
+			    my $eachEvent = $events[$i];
+                my $historic = $eachEvent->{historic};
+			    next if ($historic);
+			    if ($Q->{debug} >1) {
+			        if ($dryrun) {
+			            print("Record would have been archived: " . Dumper($eachEvent) . "\n");
+                        $foundCount++;
+					} else {
+			            print("Archiving Record: " . Dumper($eachEvent) . "\n");
+				    }
+				}
+			    next if ($dryrun);
+                my $id = $eachEvent->{_id};
+                my $record = { historic => 1, enabled => 0, _made_historic_by => "node_admin" };
+                my $result = NMISNG::DB::update(
+                    collection => $nmisng->events_collection,
+                    query      => NMISNG::DB::get_query(
+                        and_part => { _id => $id },
+                        no_regex => 1
+                    ),
+                    record   => $record,
+                    freeform => 1
+                );
+                if ($result->{success}) {
+                    print("Duplicate event '$id' was archived successfully.\n") if ($Q->{debug} >1);
+                    $updatedCount++;
+			    } else {
+                    print("Error updating duplicate event record '$id', error type: $result->{error_type}, $result->{error} \n") if ($result->{error} );
+                }
+		    }
+        }
+        if ($dryrun) {
+            print("'$foundCount' duplicate events would have been archived.\n");
+        } else {
+            print("'$updatedCount' duplicate events were archived successfully.\n");
+        }
+    }
+    else {
+        print("No duplicate events were found.\n");
+    }
+}
 elsif ($Q->{act} =~ /set[-_]last[-_]login/)
 {
 	my $user = $Q->{user};
@@ -1467,6 +1530,13 @@ sub help
    push(@lines, "     act=noderefresh\n");
    push(@lines, "                     This action Walks the list of nodes causing an internal\n");
    push(@lines, "                     Node refresh of each.\n");
+   push(@lines, "     act=remove-duplicate-events [dryrun=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action finds and removes duplicate events.\n");
+   push(@lines, "                     This is something that should not occur, but running\n");
+   push(@lines, "                     multiple occurrances of the NMIS daemon has been known\n");
+   push(@lines, "                     to create the condition. 'dryrun' reviews the events and\n");
+   push(@lines, "                     simply reports what was found, but does not make any\n");
+   push(@lines, "                     changes.\n");
    push(@lines, "\n");
    push(@lines, "  -- SCHEDULING ACTIONS --\n");
    push(@lines, "     act=schedule [at=time] <job.type=<activity>> [job.priority=0..1]\n");
