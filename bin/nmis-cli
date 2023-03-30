@@ -85,7 +85,7 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=fixperms
  act=gettmp (or act=gettemp)
  act=config-backup
- act=ensure-indexes
+ act=ensure-indexes [drop_unwanted=<[0|t]/[1|f]>]
  act=noderefresh
  act=remove-duplicate-events [dryrun=<[0|t]/[1|f]>]
  act=daemon-status (or act=status)
@@ -941,7 +941,8 @@ elsif ($Q->{act} =~ /collect[-_]top[-_]data/)
 }
 elsif ($Q->{act} =~ /ensure[_-]indexes/)
 {
-	print $nmisng->ensure_indexes();
+    my $drop_unwanted = NMISNG::Util::getbool_cli("drop_unwanted", $Q->{drop_unwanted}, 0 );
+	print $nmisng->ensure_indexes($drop_unwanted);
 }
 elsif ($Q->{act} eq "gettmp" || $Q->{act} eq "gettemp")
 {
@@ -1519,8 +1520,10 @@ sub help
    push(@lines, "                     be run as root!\n");
    push(@lines, "     act=daemon-status (or act=status)\n");
    push(@lines, "                     This action displays the status of the NMIS daemon.\n");
-   push(@lines, "     act=ensure-indexes\n");
+   push(@lines, "     act=ensure-indexes [drop_unwanted=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This action fixes incorrect database indices.\n");
+   push(@lines, "                     'drop_unwanted' drops any index not included\n");
+   push(@lines, "                     in the standard install. (Default False)\n");
    push(@lines, "     act=fixperms\n");
    push(@lines, "                     This action fixes incorrect file permissions in the NMIS\n");
    push(@lines, "                     installation. It should be run as root!\n");
