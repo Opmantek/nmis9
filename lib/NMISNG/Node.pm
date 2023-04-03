@@ -872,7 +872,7 @@ sub get_inventory_model
 	my ( $self, %args ) = @_;
 	$args{cluster_id} = $self->cluster_id;
 	$args{node_uuid}  = $self->uuid();
-
+	
 	my $result = $self->nmisng->get_inventory_model(%args);
 	return $result;
 }
@@ -8514,8 +8514,13 @@ sub collect
 																									@{$outageres->{current}} ) ? 1 : 0;
 	}
 
+	# can I ping the node, is it reachable?
+	my $pingable = $self->pingable(sys => $S);
+
+	$self->nmisng->log->debug("node=$catchall_data->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType} vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber} pingable=$pingable");
+
 	# run an update INSTEAD if no update poll time is known
-	if ( !exists( $catchall_data->{last_update} ) or !$catchall_data->{last_update} )
+	if ( $pingable and ( !exists( $catchall_data->{last_update} ) or !$catchall_data->{last_update} ) )
 	{
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
@@ -8524,10 +8529,8 @@ sub collect
 		return $res;
 	}
 
-	$self->nmisng->log->debug("node=$catchall_data->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType} vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
-
 	# are we meant to and able to talk to the node?
-	if ($self->pingable(sys => $S) && $self->configuration->{collect})
+	if ($pingable && $self->configuration->{collect})
 	{
 		# snmp-enabled node? then try to open a session (and test it)
 		if ($S->status->{snmp_enabled})
