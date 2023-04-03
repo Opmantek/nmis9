@@ -2399,10 +2399,18 @@ sub selftest
 	}
 	push @details, ["NMIS process count",$status];
 
-	# check that there is an nmis scheduler running
-	my $schedstatus = (grep($_->cmndline =~ /^nmisd.scheduler\s*$/, @ourprocs))?
-			undef : "No scheduler process running!";
-	push @details, ["NMIS daemon", $schedstatus];
+	# check that there is one and only one nmis scheduler running
+	my $schedstatus = (grep($_->cmndline =~ /^nmisd.scheduler\s*$/, @ourprocs));
+	if ($schedstatus == 0)
+	{
+		push @details, ["NMIS daemon", "No scheduler process running!"];
+		$allok=0;
+	}
+	elsif ($schedstatus > 1)
+	{
+		push @details, ["NMIS daemon", "Multiple scheduler processes are running!"];
+		$allok=0;
+	}
 
 	# check that there is some sort of cron running
 	my $cron_name = $config->{selftest_cron_name}?
