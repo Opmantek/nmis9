@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.4.3";
+our $VERSION = "9.4.2";
 
 use strict;
 use Data::Dumper;
@@ -1282,8 +1282,8 @@ sub ensure_indexes
 				# needed for joins
 				[[node_uuid  => 1]],
 				[{lastupdate => 1}, {unique => 0}],
-				[[node_uuid  => 1, event => 1, element => 1, historic => 1, startdate => 1], {unique => 1}],
-
+				[[node_uuid  => 1, event => 1, element => 1, active => 1], {unique => 1, partialFilterExpression => {historic => { '$lte' => 0}}}],
+				#[[node_uuid  => 1, event => 1, element => 1, historic => 1, startdate => 1], {unique => 1}],
 				# [ [node_uuid=>1,event=>1,element=>1,active=>1], {unique => 1}],
 				[{expire_at => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 			]

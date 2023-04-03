@@ -6,6 +6,6 @@ SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
 printBanner "Running ensure indexes"
-execPrint $TARGETDIR/bin/nmis-cli act=ensure_indexes
+execPrint $TARGETDIR/bin/nmis-cli act=ensure_indexes drop_unwanted=true
 
 exit 0 

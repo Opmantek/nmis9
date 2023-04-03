@@ -128,7 +128,6 @@ Run $PROGNAME -h for detailed help.
 \t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [file=<someFile.json>] [format=json]
 \t$PROGNAME act=mktemplate [placeholder=<[0|t]/[1|f]>]
 \t$PROGNAME act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<nodeUUID>} [remove_old=<[0|t]/[1|f]>] [force=<[0|t]/[1|f]>]
-\t$PROGNAME act=remove-duplicate-events [dryrun=<[0|t]/[1|f]>]
 \t$PROGNAME act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name> [entry.<key>=<value>...]
 \t$PROGNAME act=restore file=<path> [localise_ids=<[0|t]/[1|f]>]
 \t$PROGNAME act=set {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
@@ -1056,68 +1055,6 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 	
 	exit 0;
 }
-elsif ( $cmdline->{act} =~ /remove[-_]duplicate[-_]events/ ) {
-
-    my $dryrun = NMISNG::Util::getbool_cli("dryrun", $cmdline->{dryrun}, 0 );
-    my ($entries, undef, $error) = NMISNG::DB::aggregate(
-                collection => $nmisng->events_collection,
-                pre_count_pipeline => [
-                        { '$group' => { '_id' => { 'node_uuid' => '$node_uuid', 'event' => '$event',
-									'element' => '$element', 'active' => '$active' },
-								'full_events' => { '$push' => '$$ROOT' }, 'count' => { '$sum' => 1 }}},
-                        { '$match' => { 'count' => {'$gt' =>1 }, 'full_events.historic' => 0 }},
-                        { '$sort' =>  { 'full_events.startdate' => -1 }}]);
-    die "Cannot aggregate on event collection: $error" if ($error);
-
-    my $totalCount   = scalar( @{$entries} );
-    my $foundCount   = 0;
-    my $updatedCount = 0;
-    if ( $totalCount > 0 ) {
-        foreach my $record ( @{$entries} ) {
-            my $count   = $record->{count};
-            my @events  = @{$record->{full_events}};
-            for (my $i=1; $i<$count; $i++) {
-			    my $eachEvent = $events[$i];
-                my $historic = $eachEvent->{historic};
-			    next if ($historic);
-			    if ($cmdline->{debug} >1) {
-			        if ($dryrun) {
-			            print("Record would have been archived: " . Dumper($eachEvent) . "\n");
-                        $foundCount++;
-					} else {
-			            print("Archiving Record: " . Dumper($eachEvent) . "\n");
-				    }
-				}
-			    next if ($dryrun);
-                my $id = $eachEvent->{_id};
-                my $record = { historic => 1, enabled => 0, _made_historic_by => "node_admin" };
-                my $result = NMISNG::DB::update(
-                    collection => $nmisng->events_collection,
-                    query      => NMISNG::DB::get_query(
-                        and_part => { _id => $id },
-                        no_regex => 1
-                    ),
-                    record   => $record,
-                    freeform => 1
-                );
-                if ($result->{success}) {
-                    print("Duplicate event '$id' was archived successfully.\n") if ($cmdline->{debug} >1);
-                    $updatedCount++;
-			    } else {
-                    print("Error updating duplicate event record '$id', error type: $result->{error_type}, $result->{error} \n") if ($result->{error} );
-                }
-		    }
-        }
-        if ($dryrun) {
-            print("'$foundCount' duplicate events would have been archived.\n");
-        } else {
-            print("'$updatedCount' duplicate events were archived successfully.\n");
-        }
-    }
-    else {
-        print("No duplicate events were found.\n");
-    }
-}
 elsif ($cmdline->{act} eq "rename" && $server_role ne "POLLER")
 {
 	my ($old, $new, $uuid, $server) = @{$cmdline}{"old","new","uuid", "server"}; # uuid is safest for lookup
@@ -1734,13 +1671,6 @@ sub help
    push(@lines, "                     This moves old NMIS8 RRD files out of the active\n");
    push(@lines, "                     RRD Database directory.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=remove-duplicate-events [dryrun=<true|false|yes|no|1|0>]\n");
-   push(@lines, "                     This action finds and removes duplicate events.\n");
-   push(@lines, "                     This is something that should not occur, but running\n");
-   push(@lines, "                     multiple occurrances of the NMIS daemon has been known\n");
-   push(@lines, "                     to create the condition. 'dryrun' reviews the events and\n");
-   push(@lines, "                     simply reports what was found, but does not make any\n");
-   push(@lines, "                     changes.\n");
    push(@lines, "     act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [entry.<key>=<value>...]\n");
