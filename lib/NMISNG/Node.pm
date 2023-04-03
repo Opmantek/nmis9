@@ -8640,6 +8640,9 @@ sub collect
 		}
 	} else {
 		$self->nmisng->log->debug3("Node $name not pingable or no collect");
+		# updating time stamps for last poll, the collect was run even if the node was down.
+		$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
+		$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
