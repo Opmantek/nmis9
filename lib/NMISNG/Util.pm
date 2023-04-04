@@ -3365,6 +3365,26 @@ sub getTmpDir {
 }
 
 ########################################################################
+# getProcessOwner - Get Process owner for a given Process ID           #
+#                   Returns the UID of the process owner, or           #
+#                   -1 if the process is not found.                    #
+########################################################################
+sub getProcessOwner {
+	my $processID    = shift;
+	my $processOwner = -1;
+	chomp($processID);
+
+	if (int($processID) && -f "/proc/$processID/status")
+	{
+		my $processInfo = Mojo::File->new("/proc/$processID/status")->slurp();
+		$_ = $processInfo =~ /.*Uid:\t*([0-9]*)\t*.*/;
+		$processOwner = $1;
+	}
+
+	return $processOwner;
+}
+
+########################################################################
 # verifyNMISEncryption - Verify Password encrypred strings.
 ########################################################################
 sub verifyNMISEncryption {
