@@ -2001,6 +2001,11 @@ sub handle_down
 		my $catchall = $S->inventory(concept => 'catchall');
 		my $quicklynow = $catchall->data;
 		$quicklynow->{"${typeofdown}down"} = ($goingup ? 'false' : 'true');
+
+		# ensuring that nodestatus stays up to date with XXXXdown status
+		my $coarse = $self->coarse_status(catchall_data => $quicklynow);
+		$quicklynow->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
+
 		$catchall->data($quicklynow);
 		$catchall->save;
 
