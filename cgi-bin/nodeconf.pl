@@ -191,6 +191,7 @@ sub displayNodeConf
 
 	my $nodeobj = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	my $comments = $nodeobj->comments;
 	my $result = $nodeobj->get_inventory_model(
 		concept => 'interface', filter => { historic => 0 });
 
@@ -262,6 +263,30 @@ sub displayNodeConf
 								-style => 'width: 95%',
 								-title=>"new Node Type" ));
 
+	if ( scalar(@{$comments}) > 0) {
+		print Tr,td({class=>'header'},'<b>Comments</b>');
+		my $cmtCnt = 0;
+		my $innerCmtCnt = 0;
+		foreach my $comment (@{$comments})
+		{
+			if (ref($comment) eq "ARRAY")
+			{
+				foreach my $innerComment (@{$comment})
+				{
+					print Tr,
+					td({class=>'header'}, ""),
+					td({class=>'header'},"Comment [${cmtCnt}] [${innerCmtCnt}]"),td({class=>'header3'},$innerComment),
+					td({class=>"Plain"},textfield(-name=>"comment_${cmtCnt}_${innerCmtCnt}",
+																		-style => 'width: 95%',
+																		-override=>1,
+																		-value=>"$innerComment"));
+					$innerCmtCnt++;
+				}
+			}
+			$innerCmtCnt = 0;
+			$cmtCnt++;
+		}
+	}
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
@@ -430,6 +455,7 @@ sub updateNodeConf {
 
 	my $nodeobj = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	my $comments = $nodeobj->comments;
 	my %ifinfo;
 	my $result = $nodeobj->get_inventory_model(
 		concept => 'interface',
@@ -456,6 +482,44 @@ sub updateNodeConf {
 		delete $override->{nodeType};
 	} else {
 		$override->{nodeType} = $Q->{nodetype};
+	}
+
+	my @newComments = [];
+	if ( scalar(@{$comments}) > 0) {
+		foreach my $commentKey (keys %{$Q})
+		{
+			next if ($commentKey !~ /comment_/);
+			my @commentLevel = split('_', $commentKey);
+			my $commentValue = $Q->{$commentKey};
+			next if ($commentValue eq "");
+			if (defined($commentLevel[1]) && defined($commentLevel[2]) && defined($commentLevel[3]) && defined($commentLevel[4]) && defined($commentLevel[5]))
+			{
+				$newComments[$commentLevel[1]][$commentLevel[2]][$commentLevel[3]][$commentLevel[4]][$commentLevel[5]] = $commentValue;
+			}
+			elsif (defined($commentLevel[1]) && defined($commentLevel[2]) && defined($commentLevel[3]) && defined($commentLevel[4]))
+			{
+				$newComments[$commentLevel[1]][$commentLevel[2]][$commentLevel[3]][$commentLevel[4]] = $commentValue;
+			}
+			elsif (defined($commentLevel[1]) && defined($commentLevel[2]) && defined($commentLevel[3]))
+			{
+				$newComments[$commentLevel[1]][$commentLevel[2]][$commentLevel[3]] = $commentValue;
+			}
+			elsif (defined($commentLevel[1]) && defined($commentLevel[2]))
+			{
+				$newComments[$commentLevel[1]][$commentLevel[2]] = $commentValue;
+			}
+			else
+			{
+				$newComments[$commentLevel[1]] = $commentValue;
+			}
+		}
+	}
+	@newComments     = grep defined, @newComments;
+	my $commentsSize = scalar(@newComments);
+	for(my $i=0; $i < $commentsSize; $i++)
+	{
+		my $eachComment = $newComments[$i];
+		@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
 	}
 
 	# $intf is the ifIndex
@@ -500,8 +564,9 @@ sub updateNodeConf {
 	# longterm fixme: instead this should report an 'update done' and show the same node again
 	delete $Q->{node};
 
-	if (keys %$override)
+	if (keys %$override || scalar(@{$comments}) > 0)
 	{
+		$nodeobj->comments(\@newComments);
 		$nodeobj->overrides($override);
 		my ($success, $errmsg) = $nodeobj->save;
 		$nmisng->log->error("nodeconf: $errmsg") if ($success < 0);

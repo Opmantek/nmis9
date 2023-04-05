@@ -281,12 +281,13 @@ sub _load
 				 $entry->{activated} : { NMIS => (exists($self->{_configuration}->{active})?
 																					$self->{_configuration}->{active} : 0)
 				 });
+		$self->{_comments} = $entry->{comments} if (ref($entry->{comments}) eq "ARRAY");
 		$self->{_addresses} = $entry->{addresses} if (ref($entry->{addresses}) eq "ARRAY");
 		$self->{_aliases} = $entry->{aliases} if (ref($entry->{aliases}) eq "ARRAY");
 		$self->{_enterprise_service_tags} = $entry->{enterprise_service_tags} if (ref($entry->{enterprise_service_tags}) eq "ARRAY");
 
 		# ...but, for extensibility's sake, also load unknown extra stuff and drag it along
-		my %unknown = map { ($_ => $entry->{$_}) } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate|aliases|addresses|enterprise_service_tags)$/, keys %$entry));
+		my %unknown = map { ($_ => $entry->{$_}) } (grep(!/^(_id|uuid|name|cluster_id|overrides|comments|configuration|activated|lastupdate|aliases|addresses|enterprise_service_tags)$/, keys %$entry));
 		$self->{_unknown} = \%unknown;
 
 		$self->_dirty(0);						# nothing is dirty at this point
@@ -517,6 +518,22 @@ sub activated
 		$self->{_configuration}->{active} = $newstate->{NMIS}? 1:0;
 	}
 	return Clone::clone($self->{_activated});
+}
+
+# getter-setter for comments data,
+# which must be array of arrays
+#
+# args: new comments array ref, optional
+# returns: arrayref of current comments structure
+sub comments
+{
+	my ($self, $newcomments) = @_;
+	if (ref($newcomments) eq "ARRAY")
+	{
+		$self->{_comments}  = $newcomments;
+		$self->_dirty(1, "comments");
+	}
+	return Clone::clone($self->{_comments} // []);
 }
 
 # get/set the configuration for this node
@@ -1532,14 +1549,16 @@ sub save
 								overrides => \%dbsafeovers,
 								activated => $self->{_activated},
 								addresses => $self->{_addresses} // [],
+								comments => $self->{_comments} // [],
 								aliases => $self->{_aliases} // [],
 								enterprise_service_tags => $self->{_enterprise_service_tags},
 			);
 
-	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|configuration|activated|lastupdate|enterprise_service_tags)$/, keys %{$self->{_unknown}}));
+	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|comments|configuration|activated|lastupdate|enterprise_service_tags)$/, keys %{$self->{_unknown}}));
 
 	if ($self->is_new())
 	{
+		$self->nmisng->log->debug2("Calling Insert");
 		# could maybe be upsert?
 		$result = NMISNG::DB::insert(
 			collection => $self->collection,
@@ -1551,10 +1570,11 @@ sub save
 		$self->_dirty(0); # all clean now
 		$self->{_lastupdate} = $saveTime;
 		$op = 1;
+		$self->nmisng->log->debug7("Insert return: ". Dumper($result) . "\n");
 	}
 	else
 	{
-
+		$self->nmisng->log->debug2("Calling Update");
 		$result = NMISNG::DB::update(
 			collection => $self->collection,
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid}, no_regex => 1 ),
@@ -1566,6 +1586,7 @@ sub save
 		$self->_dirty(0);
 		$self->{_lastupdate} = $saveTime;
 		$op = 2;
+		$self->nmisng->log->debug7("Update return: ". Dumper($result) . "\n");
 	}
 	
 	# Audit 
@@ -1580,6 +1601,7 @@ sub save
 
 	}
 	
+	$self->nmisng->log->debug2("Return code: $op");
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
 

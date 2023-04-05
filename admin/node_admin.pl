@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.4.2.1";
+our $VERSION = "9.4.2.2";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -325,6 +325,7 @@ elsif ($cmdline->{act} eq "import"
 	# file can contain: one node hash, or array of X node hashes
 	my $lotsanodes = decode_json(Mojo::File->new($infile)->slurp);
 	die "invalid structure\n" if (ref($lotsanodes) !~ /^(HASH|ARRAY)$/);
+	print("Nodes to import: " . Dumper($lotsanodes) . "\n") if ($cmdline->{debug} >5);;
 
 	my %stats = (created => 0, updated => 0);
 
@@ -342,7 +343,7 @@ elsif ($cmdline->{act} eq "import"
 		# any node on this system must have this system's cluster_id.
 		$onenode->{cluster_id} = $config->{cluster_id};
 	
-		for my $setme (qw(cluster_id name activated configuration overrides aliases addresses))
+		for my $setme (qw(cluster_id name activated configuration comments overrides aliases addresses))
 		{
 			next if (!exists $onenode->{$setme});
 			$node->$setme($onenode->{$setme});
@@ -361,8 +362,8 @@ elsif ($cmdline->{act} eq "import"
 		my ($op,$error) = $node->save();
 		if($op <= 0)									# zero is no saving needed
 		{
-			$logger->error("Error saving node ".$node->name.": $error");
-			warn("Error saving node ".$node->name.": $error\n");
+			$logger->error("Error saving node '".$node->name."': Code; $op, Error; $error");
+			warn("Error saving node '".$node->name."': Code; $op, Error; $error\n");
 		}
 		else
 		{
@@ -532,10 +533,11 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 }
 elsif ($cmdline->{act} eq "export")
 {
+    my $overwrite = NMISNG::Util::getbool_cli("overwrite", $cmdline->{overwrite}, 0);
 	my ($node,$uuid, $group,$file,$wantformat,$keep_ids) = @{$cmdline}{"node","uuid","group","file","format","keep_ids"};
 
 	# no node, no group => export all of them
-	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file);
+	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file && !$overwrite);
 
 	my $nodemodel = $nmisng->get_nodes_model(name => $node, group => $group, uuid => $uuid);
 	die "No matching nodes exist\n" if (!$nodemodel->count);
@@ -674,7 +676,7 @@ elsif ($cmdline->{act} eq "show")
 
 	# we want the true structure, unflattened
 	my $dumpables = { };
-	for my $alsodump (qw(configuration overrides name cluster_id uuid activated unknown aliases addresses enterprise_service_tags))
+	for my $alsodump (qw(configuration overrides name cluster_id uuid activated comments unknown aliases addresses enterprise_service_tags))
 	{
 		$dumpables->{$alsodump} = $nodeobj->$alsodump;
 	}
@@ -700,13 +702,13 @@ elsif ($cmdline->{act} eq "show")
 			print $oneinv->{'concept'}.".description: " . $oneinv->{'description'} . "\n";
 			foreach my $key (%{$oneinv->{'data'}}) {
 				if (ref($oneinv->{'data'}->{$key}) ne "ARRAY" and ref($oneinv->{'data'}->{$key}) ne "HASH"
-					and ref($key) ne "ARRAY" and ref($key) ne "HASH" and defined($oneinv->{'data'}->{$key})) {
-						if ($oneinv->{'data'}->{index}) {
-							print $oneinv->{'concept'}.".$key.".$oneinv->{'data'}->{index}.": ".$oneinv->{'data'}->{$key}. "\n";
-						} else {
-							print $oneinv->{'concept'}.".$key: ".$oneinv->{'data'}->{$key}. "\n";
-						}
-						
+					and ref($key) ne "ARRAY" and ref($key) ne "HASH" and defined($oneinv->{'data'}->{$key}))
+				{
+					if ($oneinv->{'data'}->{index}) {
+						print $oneinv->{'concept'}.".$key.".$oneinv->{'data'}->{index}.": ".$oneinv->{'data'}->{$key}. "\n";
+					} else {
+						print $oneinv->{'concept'}.".$key: ".$oneinv->{'data'}->{$key}. "\n";
+					}
 				}
 			}
 		}
@@ -808,6 +810,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		my $curconfig           = $nodeobj->configuration;
 		my $curoverrides        = $nodeobj->overrides;
 		my $curactivated        = $nodeobj->activated;
+		my $curcomments         = $nodeobj->comments;
 		my $curextras           = $nodeobj->unknown;
 		my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses };
 		my $updateOverrides     = 0;
@@ -815,6 +818,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		my $updateActivated     = 0;
 		my $updateAddresses     = 0;
 		my $updateArrayThings   = 0;
+		my $updateComments      = 0;
 		my $updateUnknown       = 0;
 		my $anythingtodo;
 	
@@ -846,6 +850,31 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			{
 				$curactivated->{$1} = $value;
 				$updateActivated    = 1;
+			}
+			# ...and comments
+			elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]*))?(?:\.([0-9]*))?(?:\.([0-9]*))?(?:\.([0-9]*))?$/)
+			{
+				if (defined($1) && defined($2) && defined($3) && defined($4) && defined($5))
+				{
+					$$curcomments[$1][$2][$3][$4][$5] = $value;
+				}
+				elsif (defined($1) && defined($2) && defined($3) && defined($4))
+				{
+					$$curcomments[$1][$2][$3][$4] = $value;
+				}
+				elsif (defined($1) && defined($2) && defined($3))
+				{
+					$$curcomments[$1][$2][$3] = $value;
+				}
+				elsif (defined($1) && defined($2))
+				{
+					$$curcomments[$1][$2] = $value;
+				}
+				else
+				{
+					$$curcomments[$1] = $value;
+				}
+				$updateComments   = 1;
 			}
 			# ...and then there's the unknown unknowns
 			elsif ($name =~ /^unknown\.(.+)$/)
@@ -882,48 +911,56 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 				 [$curoverrides, "override"],
 				 [$curactivated, "activated"],
 				 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
+				 [$curcomments, "comments" ],
 				 [$curextras, "unknown/extras" ])
 		{
 			my ($checkwhat, $name) = @$_;
 	
 			# Don't waste overhead if nothing was changed.
-			next if ($name eq "configuration"     && !$updateConfiguration);
-			next if ($name eq "override"          && !$updateOverrides);
-			next if ($name eq "activated"         && !$updateActivated);
-			next if ($name eq "addresses/aliases" && !$updateArrayThings);
-			next if ($name eq "unknown/extras"    && !$updateUnknown);
+			next if ($name eq "configuration"                             && !$updateConfiguration);
+			next if ($name eq "override"                                  && !$updateOverrides);
+			next if ($name eq "activated"                                 && !$updateActivated);
+			next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
+			next if ($name eq "comments"                                  && !$updateComments);
+			next if ($name eq "unknown/extras"                            && !$updateUnknown);
 
-			#######################################
-			# Ethernet Interfce with a Subinterface
-			#######################################
-			# If we have an Ethernet Interfce with a Subinterface, it will look like
-			# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
-			# the first dot because if there are sub-properties being set, we want
-			# those to be interpreted properly.
-			### FIXME Do all Interfaces with dot delemited subinterfaces contain
-			### FIXME the string 'Ethernet'? if not, the comparison in the loop
-			### FIXME below will need to be expanded as we encounter them!
-
-			my $new_hash = {};
-			for my $key (keys %$checkwhat)
+			if ($name eq "addresses/aliases/enterprise_service_tags")
 			{
-				# substitution in key
-				my $new_key = $key;
-				if ($key =~ /.*Ethernet.*\.\d+.*/)
+				################################################
+				# Start: Ethernet Interfce with a Subinterface #
+				################################################
+				# If we have an Ethernet Interfce with a Subinterface, it will look like
+				# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
+				# the first dot because if there are sub-properties being set, we want
+				# those to be interpreted properly.
+				### FIXME Do all Interfaces with dot delemited subinterfaces contain
+				### FIXME the string 'Ethernet'? if not, the comparison in the loop
+				### FIXME below will need to be expanded as we encounter them!
+
+				my $new_hash = {};
+				for my $key (keys %$checkwhat)
 				{
-					$new_key =~ s/\Q.\E/\Q\.\E/;
+					# substitution in key
+					my $new_key = $key;
+					if ($key =~ /.*Ethernet.*\.\d+.*/)
+					{
+						$new_key =~ s/\Q.\E/\Q\.\E/;
+					}
+					$new_hash->{$new_key} = $checkwhat->{$key};
 				}
-				$new_hash->{$new_key} = $checkwhat->{$key};
+				print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
+				$checkwhat = $new_hash;
+
+				##############################################
+				# End: Ethernet Interfce with a Subinterface #
+				##############################################
 			}
-			print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
-			$checkwhat = $new_hash;
 
-			#######################################
-			# Ethernet Interfce with a Subinterface
-			#######################################
-
+			unless ($name eq "comments")
+			{
 			my $error = NMISNG::Util::translate_dotfields($checkwhat);
 			die "translation of $name arguments failed: $error\n" if ($error);
+			}
 		}
 	
 		$nodeobj->overrides($curoverrides) if ($updateOverrides);
@@ -932,6 +969,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
 		$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
 		$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
+		$nodeobj->comments($curcomments) if ($updateComments);
 		$nodeobj->unknown($curextras) if ($updateUnknown);
 		
 		(my $op, $error) = $nodeobj->save(meta => $meta);
@@ -1624,6 +1662,7 @@ sub help
    push(@lines, "                             [file=<path>]\n");
    push(@lines, "                             [format=<nodes|json>]\n");
    push(@lines, "                             [keep_ids=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [overwrite=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This action exports a node into the specified\n");
    push(@lines, "                     file (or STDOUT if no file given). It will\n");
    push(@lines, "                     export to nmis9 (json) format by default or\n");
@@ -1631,7 +1670,9 @@ sub help
    push(@lines, "                     extension) if format='nodes' is specified The\n");
    push(@lines, "                     uuid and cluster_id are NOT exported unless\n");
    push(@lines, "                     'keep_ids' is true. Unlike 'dump', the node\n");
-   push(@lines, "                     will be deleted from the system.\n");
+   push(@lines, "                     will be deleted from the system. if 'overwrite;\n");
+   push(@lines, "                     is specified, the output file will be\n");
+   push(@lines, "                     overwritten if it exists.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=import file=<somefile.json>\n");
    push(@lines, "                     This imports a file into the NMIS system.\n");
