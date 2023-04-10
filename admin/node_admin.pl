@@ -852,27 +852,29 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 				$updateActivated    = 1;
 			}
 			# ...and comments
-			elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]*))?(?:\.([0-9]*))?(?:\.([0-9]*))?(?:\.([0-9]*))?$/)
+			elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
 			{
-				if (defined($1) && defined($2) && defined($3) && defined($4) && defined($5))
+				if (defined($1) && defined($2))
 				{
-					$$curcomments[$1][$2][$3][$4][$5] = $value;
-				}
-				elsif (defined($1) && defined($2) && defined($3) && defined($4))
-				{
-					$$curcomments[$1][$2][$3][$4] = $value;
-				}
-				elsif (defined($1) && defined($2) && defined($3))
-				{
-					$$curcomments[$1][$2][$3] = $value;
-				}
-				elsif (defined($1) && defined($2))
-				{
-					$$curcomments[$1][$2] = $value;
+					if (defined($value) && $value ne "")
+					{
+						$$curcomments[$1][$2] = $value;
+					}
+					else
+					{
+						undef($$curcomments[$1][$2]);
+					}
 				}
 				else
 				{
-					$$curcomments[$1] = $value;
+					if (defined($value) && $value ne "")
+					{
+						$$curcomments[$1] = $value;
+					}
+					else
+					{
+						undef($$curcomments[$1]);
+					}
 				}
 				$updateComments   = 1;
 			}
@@ -905,6 +907,16 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 				die "Unknown property \"$name\"!\n";
 			}
 		}
+
+		# Fix deleted comments.
+		@{$curcomments}     = grep defined, @{$curcomments};
+		my $commentsSize = scalar(@{$curcomments});
+		for(my $i=0; $i < $commentsSize; $i++)
+		{
+			my $eachComment = ${$curcomments}[$i];
+			@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
+		}
+
 		die "No changes for node \"$node\"!\n" if (!$anythingtodo);
 	
 		for ([$curconfig, "configuration"],
@@ -958,8 +970,8 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 
 			unless ($name eq "comments")
 			{
-			my $error = NMISNG::Util::translate_dotfields($checkwhat);
-			die "translation of $name arguments failed: $error\n" if ($error);
+				my $error = NMISNG::Util::translate_dotfields($checkwhat);
+				die "translation of $name arguments failed: $error\n" if ($error);
 			}
 		}
 	
@@ -1801,4 +1813,3 @@ sub help
 
 
 exit 0;
-

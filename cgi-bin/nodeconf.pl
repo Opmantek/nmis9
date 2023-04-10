@@ -265,6 +265,15 @@ sub displayNodeConf
 
 	if ( scalar(@{$comments}) > 0) {
 		print Tr,td({class=>'header'},'<b>Comments</b>');
+		print Tr,
+		td({class=>'header'}, ""),
+		td({class=>'header'},"New Comment [" .  textfield(-name=>"commentIndex0",  -size=>1, -maxlength=>1, -value=>0)  . 
+			"] [" .  textfield(-name=>"commentIndex1", -size=>1, -maxlength=>1, -value=>0)  . "]"),
+		td({class=>'header3'},''),
+		td({class=>"Plain"},textfield(-name=>"commentNew",
+															-style => 'width: 95%',
+															-override=>1,
+															-value=>""));
 		my $cmtCnt = 0;
 		my $innerCmtCnt = 0;
 		foreach my $comment (@{$comments})
@@ -282,6 +291,16 @@ sub displayNodeConf
 																		-value=>"$innerComment"));
 					$innerCmtCnt++;
 				}
+			}
+			else
+			{
+				print Tr,
+				td({class=>'header'}, ""),
+				td({class=>'header'},"Comment [${cmtCnt}]"),td({class=>'header3'},$comment),
+				td({class=>"Plain"},textfield(-name=>"comment_${cmtCnt}",
+																	-style => 'width: 95%',
+																	-override=>1,
+																	-value=>"$comment"));
 			}
 			$innerCmtCnt = 0;
 			$cmtCnt++;
@@ -484,7 +503,7 @@ sub updateNodeConf {
 		$override->{nodeType} = $Q->{nodetype};
 	}
 
-	my @newComments = [];
+	my @newComments     = [];
 	if ( scalar(@{$comments}) > 0) {
 		foreach my $commentKey (keys %{$Q})
 		{
@@ -492,19 +511,7 @@ sub updateNodeConf {
 			my @commentLevel = split('_', $commentKey);
 			my $commentValue = $Q->{$commentKey};
 			next if ($commentValue eq "");
-			if (defined($commentLevel[1]) && defined($commentLevel[2]) && defined($commentLevel[3]) && defined($commentLevel[4]) && defined($commentLevel[5]))
-			{
-				$newComments[$commentLevel[1]][$commentLevel[2]][$commentLevel[3]][$commentLevel[4]][$commentLevel[5]] = $commentValue;
-			}
-			elsif (defined($commentLevel[1]) && defined($commentLevel[2]) && defined($commentLevel[3]) && defined($commentLevel[4]))
-			{
-				$newComments[$commentLevel[1]][$commentLevel[2]][$commentLevel[3]][$commentLevel[4]] = $commentValue;
-			}
-			elsif (defined($commentLevel[1]) && defined($commentLevel[2]) && defined($commentLevel[3]))
-			{
-				$newComments[$commentLevel[1]][$commentLevel[2]][$commentLevel[3]] = $commentValue;
-			}
-			elsif (defined($commentLevel[1]) && defined($commentLevel[2]))
+			if (defined($commentLevel[1]) && defined($commentLevel[2]))
 			{
 				$newComments[$commentLevel[1]][$commentLevel[2]] = $commentValue;
 			}
@@ -514,6 +521,28 @@ sub updateNodeConf {
 			}
 		}
 	}
+	my $commentValue = $Q->{"commentNew"};
+	$nmisng->log->info("Comment Value = '$commentValue'");
+	if ($commentValue && $commentValue ne "")
+	{
+		my $commentIndex0 = $Q->{"commentIndex0"};
+	$nmisng->log->info("Comment Index 0 = '$commentIndex0'");
+		my $commentIndex1 = $Q->{"commentIndex1"};
+	$nmisng->log->info("Comment Index 1 = '$commentIndex1'");
+		undef($commentIndex0) if ($commentIndex0 !~ /[0-9]+/ || $commentIndex0 < 0);
+		undef($commentIndex1) if ($commentIndex1 !~ /[0-9]+/ || $commentIndex1 < 0);
+	$nmisng->log->info("Comment Index 0 = '$commentIndex0'");
+	$nmisng->log->info("Comment Index 1 = '$commentIndex1'");
+		if (defined($commentIndex0) && defined($commentIndex1))
+		{
+			$newComments[$commentIndex0][$commentIndex1] = $commentValue;
+		}
+		elsif (defined($commentIndex0))
+		{
+			$newComments[$commentIndex0] = $commentValue;
+		}
+	}
+
 	@newComments     = grep defined, @newComments;
 	my $commentsSize = scalar(@newComments);
 	for(my $i=0; $i < $commentsSize; $i++)
