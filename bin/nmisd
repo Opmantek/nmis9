@@ -89,7 +89,15 @@ if (@ARGV == 1 && $ARGV[0] =~ /^-{1,2}version/)
 	print "$PROGNAME version=$VERSION\n";
 	exit 0;
 }
-my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
+my $cmdline = NMISNG::Util::get_args_multi_quiet(@ARGV);
+if ($cmdline->{__parse_error__})
+{
+	foreach (@{$cmdline->{__parse_error__}})
+	{
+		print STDERR "$_";
+	}
+	die "Command failed!\n";
+}
 $cmdline->{act} = lc($cmdline->{act}) if ($cmdline->{act});
 
 if ($cmdline->{act} eq "version")
