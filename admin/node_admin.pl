@@ -86,8 +86,28 @@ if ($helpsw) {
    exit(0);
 }
 
-my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
+my $cmdline = NMISNG::Util::get_args_multi_quiet(@ARGV);
 
+if ($cmdline->{__parse_error__})
+{
+	my $ok     = 0;
+	foreach (@{$cmdline->{__parse_error__}})
+	{
+		if ($cmdline->{act} eq 'unset' && $_ =~ /'(entry.*)'/)
+		{
+			$cmdline->{$1} = undef;;
+			$ok            = 1;
+			next;
+		}
+		else
+		{
+			$ok = 0;
+		}
+
+		print STDERR "$_";
+	}
+	die "Command failed!\n" unless ($ok);
+}
 # first we need a config object
 my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
 my $config = NMISNG::Util::loadConfTable( dir => $customconfdir, debug => $cmdline->{debug});
@@ -131,6 +151,7 @@ Run $PROGNAME -h for detailed help.
 \t$PROGNAME act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name> [entry.<key>=<value>...]
 \t$PROGNAME act=restore file=<path> [localise_ids=<[0|t]/[1|f]>]
 \t$PROGNAME act=set {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
+\t$PROGNAME act=unset {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
 \t$PROGNAME act=show {node=<node_name>|uuid=<nodeUUID>} 
 \t$PROGNAME act=update file=<someFile.json> [server={<server_name>|<cluster_id>}]
 \t$PROGNAME act=validate-node-inventory [concept=<concept_name>] [dryrun=<[0|t]/[1|f]>] [make_historic=<[0|t]/[1|f]>]
@@ -162,6 +183,7 @@ show: prints a node's properties in the same format as set
  with option catchall=true dumps just the inventory catchall data
  
 set: adjust one or more node properties
+unset: removes one or more node properties from the node
 
 restore: restores a previously dumped node's data. if 
  localise_ids=true (default: false), then the cluster id is rewritten
@@ -184,9 +206,16 @@ if ($usagesw) {
    exit(0);
 }
 
-if (!@ARGV || !$cmdline->{act})
+if (!@ARGV)
 {
     help();
+    exit(0);
+}
+
+if (!$cmdline->{act})
+{
+	print STDERR "\033[1mAn Action must be specified!\033[0m\n";
+    help(2);
     exit(0);
 }
 
@@ -789,11 +818,9 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 				if (-t \*STDERR);	
 		
 	} else {
-	
-		my $filter;
 		if ($server) {
 			my ($error, $server_data) = get_server( server => $server );
-				die "Invalid server!\n" if ($error);
+			die "Invalid server '$server'; Error: $error!\n" if ($error);
 		}
 		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
 		if ($server and $nodeobj) {
@@ -812,11 +839,10 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		my $curactivated        = $nodeobj->activated;
 		my $curcomments         = $nodeobj->comments;
 		my $curextras           = $nodeobj->unknown;
-		my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses };
+		my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
 		my $updateOverrides     = 0;
 		my $updateConfiguration = 0;
 		my $updateActivated     = 0;
-		my $updateAddresses     = 0;
 		my $updateArrayThings   = 0;
 		my $updateComments      = 0;
 		my $updateUnknown       = 0;
@@ -856,24 +882,16 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			{
 				if (defined($1) && defined($2))
 				{
-					if (defined($value) && $value ne "")
+					if (defined($value))
 					{
 						$$curcomments[$1][$2] = $value;
-					}
-					else
-					{
-						undef($$curcomments[$1][$2]);
 					}
 				}
 				else
 				{
-					if (defined($value) && $value ne "")
+					if (defined($value))
 					{
 						$$curcomments[$1] = $value;
-					}
-					else
-					{
-						undef($$curcomments[$1]);
 					}
 				}
 				$updateComments   = 1;
@@ -904,12 +922,12 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			}
 			else
 			{
-				die "Unknown property \"$name\"!\n";
+				die "Unknown or unsupported property '$name'!\n";
 			}
 		}
 
 		# Fix deleted comments.
-		@{$curcomments}     = grep defined, @{$curcomments};
+		@{$curcomments}  = grep defined, @{$curcomments};
 		my $commentsSize = scalar(@{$curcomments});
 		for(my $i=0; $i < $commentsSize; $i++)
 		{
@@ -917,7 +935,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
 		}
 
-		die "No changes for node \"$node\"!\n" if (!$anythingtodo);
+		die "No changes for node '$node'!\n" if (!$anythingtodo);
 	
 		for ([$curconfig, "configuration"],
 				 [$curoverrides, "override"],
@@ -971,7 +989,7 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 			unless ($name eq "comments")
 			{
 				my $error = NMISNG::Util::translate_dotfields($checkwhat);
-				die "translation of $name arguments failed: $error\n" if ($error);
+				die "translation of '$name' arguments failed: $error\n" if ($error);
 			}
 		}
 	
@@ -985,9 +1003,264 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 		$nodeobj->unknown($curextras) if ($updateUnknown);
 		
 		(my $op, $error) = $nodeobj->save(meta => $meta);
-		die "Failed to save $node: $error\n" if ($op <= 0); # zero is no saving needed	
+		die "Failed to save '$node': $error\n" if ($op <= 0); # zero is no saving needed	
 		
-		print STDERR "Successfully updated node $node.\n"
+		print STDERR "Successfully updated node '$node'.\n"
+			if (-t \*STDERR);								# if terminal
+	}
+
+	exit 0;
+}
+elsif ($cmdline->{act} eq "unset" && $server_role ne "POLLER")
+{
+	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
+
+	die "Cannot set node without node argument!\n\n$usage\n"
+			if (!$node && !$uuid);
+			
+	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes
+	my $time = $cmdline->{time} // time;
+	my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
+	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+	my $what = "unset_nodes";
+	my %jobargs;
+		
+	my @data = split(",", $node) if ($node);
+	@data = split(",", $uuid) if ($uuid);
+	
+	my $nodes = join( '-', @data);
+	my $meta = {
+			what => "Unset node",
+			who => $me,
+			where => $nodes,
+			how => "node_admin",
+			details => "Unset node(s) " . $nodes
+	};
+	
+	if ($schedule) {
+		$jobargs{uuid} = \@data;
+		$jobargs{data} = $cmdline;
+		$jobargs{meta} = $meta;
+		
+		my ($error,$jobid) = $nmisng->update_queue(
+				jobdata => {
+					type => $what,
+					time => $time,
+					priority => $priority,
+					verbosity => $verbosity,
+					in_progress => 0,					# somebody else is to work on this
+					args => \%jobargs });
+		
+		die "Failed to instantiate job! $error\n" if $error;
+		print STDERR "Job $jobid created for type $what and ".@data." nodes.\n"
+				if (-t \*STDERR);	
+		
+	} else {
+		if ($server) {
+			my ($error, $server_data) = get_server( server => $server );
+			die "Invalid server '$server'; Error: $error!\n" if ($error);
+		}
+		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
+		if ($server and $nodeobj) {
+			my $props = $nodeobj->unknown();
+			$props->{status} = "update";
+			$nodeobj->unknown($props);
+		}
+		die "Node $node does not exist.\n" if (!$nodeobj);
+		$node ||= $nodeobj->name;			# if looked up via uuid
+	
+		die "Can not unset the Name, or Cluster ID!\n"
+				if (exists($cmdline->{"entry.name"}) || exists($cmdline->{"entry.cluster_id"}));
+	
+		my $curconfig           = $nodeobj->configuration;
+		my $curoverrides        = $nodeobj->overrides;
+		my $curactivated        = $nodeobj->activated;
+		my $curcomments         = $nodeobj->comments;
+		my $curextras           = $nodeobj->unknown;
+		my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
+		my $updateOverrides     = 0;
+		my $updateConfiguration = 0;
+		my $updateActivated     = 0;
+		my $updateArrayThings   = 0;
+		my $updateComments      = 0;
+		my $updateUnknown       = 0;
+		my $anythingtodo;
+	
+		for my $name (keys %$cmdline)
+		{
+			next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+			++$anythingtodo;
+	
+			$name =~ s/^entry\.//;
+	
+			# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+			$name = "activated.NMIS" if ($name eq "configuration.active");
+	
+			# where does it go? overrides.X is obvious...
+			if ($name =~ /^overrides\.(.+)$/)
+			{
+				if (defined($curoverrides->{$1}) && ref(\$curoverrides->{$1}) eq 'SCALAR')
+				{
+					delete($curoverrides->{$1});
+				}
+				else
+				{
+					undef($curoverrides->{$1})
+				}
+				$updateOverrides    = 1;
+			}
+			# ...and activated.X not at all
+			elsif ($name =~ /^activated\.(.+)$/)
+			{
+				if (defined($curactivated->{$1}) && ref(\$curactivated->{$1}) eq 'SCALAR')
+				{
+					delete($curactivated->{$1});
+				}
+				else
+				{
+					undef($curactivated->{$1})
+				}
+				$updateActivated    = 1;
+			}
+			# ...and comments
+			elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
+			{
+				if (defined($1) && defined($2))
+				{
+					undef($$curcomments[$1][$2]);
+				}
+				else
+				{
+					undef($$curcomments[$1]);
+				}
+				$updateComments   = 1;
+			}
+			# ...and then there's the unknown unknowns
+			elsif ($name =~ /^unknown\.(.+)$/)
+			{
+				if (defined($curextras->{$1}) && ref(\$curextras->{$1}) eq 'SCALAR')
+				{
+					delete($curextras->{$1});
+				}
+				else
+				{
+					undef($curextras->{$1})
+				}
+				$updateUnknown   = 1;
+			}
+			# and aliases and addresses, but these are ARRAYS
+			elsif ($name =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
+			{
+				if (defined() && ref(\$curarraythings->{$1}) eq 'SCALAR')
+				{
+					delete($curarraythings->{$1});
+				}
+				else
+				{
+					undef($curarraythings->{$1})
+				}
+				$updateArrayThings    = 1;
+			}
+			# configuration.X
+			elsif ($name =~ /^configuration\.(.+)$/)
+			{
+				my $prop = $1;
+				if (defined($curconfig->{$prop}) && ref(\$curconfig->{$prop}) eq 'SCALAR')
+				{
+					delete($curconfig->{$prop});
+				}
+				else
+				{
+					undef($curconfig->{$prop})
+				}
+				$updateConfiguration = 1;
+			}
+			else
+			{
+				die "Unknown or unsupported property '$name'!\n";
+			}
+		}
+
+		# Fix deleted comments.
+		@{$curcomments}     = grep defined, @{$curcomments};
+		my $commentsSize = scalar(@{$curcomments});
+		for(my $i=0; $i < $commentsSize; $i++)
+		{
+			my $eachComment = ${$curcomments}[$i];
+			@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
+		}
+
+		die "No changes for node '$node'!\n" if (!$anythingtodo);
+	
+		for ([$curconfig, "configuration"],
+				 [$curoverrides, "override"],
+				 [$curactivated, "activated"],
+				 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
+				 [$curcomments, "comments" ],
+				 [$curextras, "unknown/extras" ])
+		{
+			my ($checkwhat, $name) = @$_;
+	
+			# Don't waste overhead if nothing was changed.
+			next if ($name eq "configuration"                             && !$updateConfiguration);
+			next if ($name eq "override"                                  && !$updateOverrides);
+			next if ($name eq "activated"                                 && !$updateActivated);
+			next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
+			next if ($name eq "comments"                                  && !$updateComments);
+			next if ($name eq "unknown/extras"                            && !$updateUnknown);
+
+			if ($name eq "addresses/aliases/enterprise_service_tags")
+			{
+				################################################
+				# Start: Ethernet Interfce with a Subinterface #
+				################################################
+				# If we have an Ethernet Interfce with a Subinterface, it will look like
+				# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
+				# the first dot because if there are sub-properties being set, we want
+				# those to be interpreted properly.
+				### FIXME Do all Interfaces with dot delemited subinterfaces contain
+				### FIXME the string 'Ethernet'? if not, the comparison in the loop
+				### FIXME below will need to be expanded as we encounter them!
+
+				my $new_hash = {};
+				for my $key (keys %$checkwhat)
+				{
+					# substitution in key
+					my $new_key = $key;
+					if ($key =~ /.*Ethernet.*\.\d+.*/)
+					{
+						$new_key =~ s/\Q.\E/\Q\.\E/;
+					}
+					$new_hash->{$new_key} = $checkwhat->{$key};
+				}
+				print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
+				$checkwhat = $new_hash;
+
+				##############################################
+				# End: Ethernet Interfce with a Subinterface #
+				##############################################
+			}
+
+			unless ($name eq "comments")
+			{
+				my $error = NMISNG::Util::translate_dotfields_delete($checkwhat);
+				die "translation of '$name' arguments failed: $error\n" if ($error);
+			}
+		}
+	
+		$nodeobj->overrides($curoverrides) if ($updateOverrides);
+		$nodeobj->configuration($curconfig) if ($updateConfiguration);
+		$nodeobj->activated($curactivated) if ($updateActivated);
+		$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
+		$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
+		$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
+		$nodeobj->comments($curcomments) if ($updateComments);
+		$nodeobj->unknown($curextras) if ($updateUnknown);
+		
+		(my $op, $error) = $nodeobj->save(meta => $meta);
+		die "Failed to save '$node': $error\n" if ($op <= 0); # zero is no saving needed	
+		
+		print STDERR "Successfully updated node '$node'.\n"
 			if (-t \*STDERR);								# if terminal
 	}
 
@@ -1742,6 +2015,15 @@ sub help
    push(@lines, "                             [entry.<key>=<value>...]\n");
    push(@lines, "                     This action sets parameters within the specified\n");
    push(@lines, "                     nodes. The 'server' argument performs the action\n");
+   push(@lines, "                     on the specified server.\n");
+   push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
+   push(@lines, "     act=unset {node=<node_name>|uuid=<nodeUUID>\n");
+   push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                             [entry.<key>=<value>...]\n");
+   push(@lines, "                     This action unsets parameters within the specified\n");
+   push(@lines, "                     nodes. Care should be taken in removing keys from\n");
+   push(@lines, "                     a node configuration, as unpredictable results are\n");
+   push(@lines, "                     posible. The 'server' argument performs the action\n");
    push(@lines, "                     on the specified server.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=show {node=<node_name>|uuid=<nodeUUID>}\n");

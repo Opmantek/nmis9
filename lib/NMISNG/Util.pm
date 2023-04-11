@@ -109,6 +109,47 @@ sub get_args_multi
 	return \%hash;
 }
 
+# like getargs, but arrayify multiple occurrences of a parameter
+#
+# Unlike 'get_args_multi', this subroutine does not print the 
+# 'Invalid command argument' to STDERR, but returns a Hashmap
+# Key named '__parse_error__' containing an array of errors.
+# It is the responsibility of the caller to handle the errors,
+# or ignore them.
+#
+# args: list of key=values to parse,
+# returns: hashref
+sub get_args_multi_quiet
+{
+	my @argue = @_;
+	my %hash;
+
+	for my $item (@argue)
+	{
+		if ( $item !~ /^.+=/ )
+		{
+			push @{$hash{'__parse_error__'}}, "Invalid command argument '$item'\n";
+			next;
+		}
+
+		my ( $name, $value ) = split( /\s*=\s*/, $item, 2 );
+		if ( ref( $hash{$name} ) eq "ARRAY" )
+		{
+			push @{$hash{$name}}, $value;
+		}
+		elsif ( exists $hash{$name} )
+		{
+			my @list = ( $hash{$name}, $value );
+			$hash{$name} = \@list;
+		}
+		else
+		{
+			$hash{$name} = $value;
+		}
+	}
+	return \%hash;
+}
+
 # this small helper forces anything that looks like a number
 # into a number. json::xs needs that distinction, ditto mongodb.
 # args: a single input, should be a string or a number.
@@ -2744,15 +2785,20 @@ sub getComponentUUIDConf
 	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
 }
 
-# this function translates a toplevel hash with fields in dot-notation
-# into a deep structure. this is primarily needed in deep data objects
-# handled by the crudcontroller but not necessarily just there.
+# This function translates a toplevel hash with fields in dot-notation
+# into a deep structure.
 #
-# notations supported: fieldname.number for array,
-# fieldname.subfield for hash and nested combos thereof
+# This is primarily needed in deep data objects handled by the
+# crudcontroller but not necessarily just there.
 #
-# args: resource record ref to fix up, which will be changed inplace!
-# returns: undef if ok, error message if problems were encountered
+# Notations supported:
+#    fieldname.number for array,
+#    fieldname.subfield for hash and nested combos thereof
+#
+# args:
+#    resource record ref to fix up, which will be changed inplace!
+# returns:
+#    undef if ok, error message if problems were encountered
 sub translate_dotfields
 {
 	my ($resource) = @_;
@@ -2783,7 +2829,7 @@ sub translate_dotfields
 					$target = $target->[$thisstep] ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
 				}
 			}
-			else											# hash
+			else # hash
 			{
 				# check that structure is ok.
 				return "data conflict with $dotkey at step $idx: need hash but found ". (ref($target) || "leaf value")
@@ -2792,6 +2838,74 @@ sub translate_dotfields
 				if ($idx == $#indir)
 				{
 					$target->{$thisstep} = $resource->{$dotkey};
+				}
+				else
+				{
+					# check what the next one is and prime the obj
+					$target = $target->{$thisstep} ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
+				}
+			}
+		}
+		delete $resource->{$dotkey};
+	}
+	return undef;
+}
+
+# This function translates a toplevel hash with fields in dot-notation
+# into a deep structure and deletes the referenced key.
+#
+# This is primarily needed in deep data objects handled by the
+# crudcontroller but not necessarily just there.
+#
+# Notations supported:
+#    fieldname.number for array,
+#    fieldname.subfield for hash and nested combos thereof
+#
+# args:
+#    resource record ref to fix up, which will be changed inplace!
+# returns:
+#    undef if ok, error message if problems were encountered
+sub translate_dotfields_delete
+{
+	my ($resource) = @_;
+	return "toplevel structure must be hash, not ".ref($resource) if (ref($resource) ne "HASH");
+
+	# we support hashkey1.hashkey2.hashkey3, and hashkey1.NN.hashkey2.MM
+	for my $dotkey (grep(/\./, keys %{$resource}))
+	{
+		my $target = $resource;
+		my @indir = split(/\./, $dotkey);
+		for my $idx (0..$#indir) # span the intermediate structure
+		{
+			my $thisstep = $indir[$idx];
+			# numeric? make array, textual? make hash
+			if ($thisstep =~ /^\d+$/)
+			{
+				# check that structure is ok.
+				return "data conflict with $dotkey at step $idx: need array but found ".(ref($target) || "leaf value")
+						if (ref($target) ne "ARRAY");
+				# last one? park value
+				if ($idx == $#indir)
+				{
+					undef($target->[$thisstep])  if (ref(\$target->[$thisstep]) eq "ARRAY");
+					delete($target->[$thisstep]) if (ref(\$target->[$thisstep]) eq "SCALAR");
+				}
+				else
+				{
+					# check what the next one is and prime the obj
+					$target = $target->[$thisstep] ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
+				}
+			}
+			else # hash
+			{
+				# check that structure is ok.
+				return "data conflict with $dotkey at step $idx: need hash but found ". (ref($target) || "leaf value")
+						if (ref($target) ne "HASH");
+				# last one? park value
+				if ($idx == $#indir)
+				{
+					undef($target->{$thisstep})  if (ref(\$target->{$thisstep}) eq "ARRAY");
+					delete($target->{$thisstep}) if (ref(\$target->{$thisstep}) eq "SCALAR");
 				}
 				else
 				{

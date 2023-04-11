@@ -887,7 +887,7 @@ while (!$exit_marker)
 
 		my %statsdata;
 		for my $ds (map { ("${_}time", "${_}count") } (qw(collect update update_links services metrics
-selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes
+selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes unset_nodes
 )))
 		{
 			# no occurrences of op X -> count must be zero, not undefined.
@@ -1603,7 +1603,7 @@ sub worker_loop
 							next;
 					} else {
 						foreach my $n (@$nodes) {
-							$nmisng->log->error("set_nodes: Processing node $n! ");
+							$nmisng->log->error("set_nodes: Processing node '$n'.");
 							my $nodeobj = $nmisng->node(name => $n) || $nmisng->node(uuid=> $n);
 							if (!$nodeobj) {
 								$error =1;
@@ -1612,14 +1612,20 @@ sub worker_loop
 							
 							my $node = $nodeobj->name;			# if looked up via uuid
 						
-							my $curconfig = $nodeobj->configuration;
-							my $curoverrides = $nodeobj->overrides;
-							my $curactivated = $nodeobj->activated;
-							my $curextras = $nodeobj->unknown;
-							my $curarraythings = { aliases => $nodeobj->aliases,
-																		 addresses => $nodeobj->addresses };
+							my $curconfig           = $nodeobj->configuration;
+							my $curoverrides        = $nodeobj->overrides;
+							my $curactivated        = $nodeobj->activated;
+							my $curcomments         = $nodeobj->comments;
+							my $curextras           = $nodeobj->unknown;
+							my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
+							my $updateOverrides     = 0;
+							my $updateConfiguration = 0;
+							my $updateActivated     = 0;
+							my $updateArrayThings   = 0;
+							my $updateComments      = 0;
+							my $updateUnknown       = 0;
 							my $anythingtodo;
-				
+
 							for my $name (keys %$data)
 							{
 								# . are replaced by _ for the queue
@@ -1640,6 +1646,7 @@ sub worker_loop
 								if ($prop =~ /^overrides\.(.+)$/)
 								{
 									$curoverrides->{$1} = $value;
+									$updateOverrides    = 1;
 								}
 								# ...name, cluster_id a bit less...
 								elsif ($prop =~ /^(name|cluster_id)$/)
@@ -1650,29 +1657,70 @@ sub worker_loop
 								elsif ($prop =~ /^activated\.(.+)$/)
 								{
 									$curactivated->{$1} = $value;
+									$updateActivated    = 1;
+								}
+								# ...and comments
+								elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
+								{
+									if (defined($1) && defined($2))
+									{
+										if (defined($value))
+										{
+											$$curcomments[$1][$2] = $value;
+										}
+									}
+									else
+									{
+										if (defined($value))
+										{
+											$$curcomments[$1] = $value;
+										}
+									}
+									$updateComments   = 1;
 								}
 								# ...and then there's the unknown unknowns
 								elsif ($prop =~ /^unknown\.(.+)$/)
 								{
 									$curextras->{$1} = $value;
+									$updateUnknown   = 1;
 								}
 								# and aliases and addresses, but these are ARRAYS
-								elsif ($prop =~ /^((aliases|addresses)\.(.+))$/)
+								elsif ($prop =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
 								{
 									$curarraythings->{$1} = $value;
+									$updateArrayThings    = 1;
 								}
 								# configuration.X
 								elsif ($prop =~ /^configuration\.(.+)$/)
 								{
-									$curconfig->{$1} = $value;
+									my $subprop = $1;
+									if ($name =~ /connect_options/) {
+										my @value = split(',', $value);
+										$curconfig->{$subprop} = \@value;
+									} else {
+										$curconfig->{$subprop} = $value;
+									}
+									$updateConfiguration = 1;
 								}
 								else
 								{
-									die "Unknown property \"$prop\"!\n";
+									$nmisng->log->error("Unknown or unsupported property '$prop'!");
+									$error = 1;
+									next;
 								}
 							}
+
+							# Fix deleted comments.
+							@{$curcomments}  = grep defined, @{$curcomments};
+							my $commentsSize = scalar(@{$curcomments});
+							for(my $i=0; $i < $commentsSize; $i++)
+							{
+								my $eachComment = ${$curcomments}[$i];
+								@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
+							}
+
 							if (!$anythingtodo) {
-								$nmisng->log->error("set_nodes: No changes for node \"$node\"!");
+								$nmisng->log->error("set_nodes: No changes for node '$node'!");
 								$error = 1;
 								next;
 							}
@@ -1680,34 +1728,312 @@ sub worker_loop
 							for ([$curconfig, "configuration"],
 									 [$curoverrides, "override"],
 									 [$curactivated, "activated"],
-									 [$curarraythings, "addresses/aliases" ],
+									 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
+									 [$curcomments, "comments" ],
 									 [$curextras, "unknown/extras" ])
 							{
 								my ($checkwhat, $name) = @$_;
 						
-								my $error = NMISNG::Util::translate_dotfields($checkwhat);
-								if ($error) {
-									$nmisng->log->error("set_nodes: translation of $name arguments failed: $error!");
-									$error = 1;
-									next;
+								# Don't waste overhead if nothing was changed.
+								next if ($name eq "configuration"                             && !$updateConfiguration);
+								next if ($name eq "override"                                  && !$updateOverrides);
+								next if ($name eq "activated"                                 && !$updateActivated);
+								next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
+								next if ($name eq "comments"                                  && !$updateComments);
+								next if ($name eq "unknown/extras"                            && !$updateUnknown);
+					
+								if ($name eq "addresses/aliases/enterprise_service_tags")
+								{
+									################################################
+									# Start: Ethernet Interfce with a Subinterface #
+									################################################
+									# If we have an Ethernet Interfce with a Subinterface, it will look like
+									# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
+									# the first dot because if there are sub-properties being set, we want
+									# those to be interpreted properly.
+									### FIXME Do all Interfaces with dot delemited subinterfaces contain
+									### FIXME the string 'Ethernet'? if not, the comparison in the loop
+									### FIXME below will need to be expanded as we encounter them!
+					
+									my $new_hash = {};
+									for my $key (keys %$checkwhat)
+									{
+										# substitution in key
+										my $new_key = $key;
+										if ($key =~ /.*Ethernet.*\.\d+.*/)
+										{
+											$new_key =~ s/\Q.\E/\Q\.\E/;
+										}
+										$new_hash->{$new_key} = $checkwhat->{$key};
+									}
+									$checkwhat = $new_hash;
+					
+									##############################################
+									# End: Ethernet Interfce with a Subinterface #
+									##############################################
+								}
+					
+								unless ($name eq "comments")
+								{
+									my $error = NMISNG::Util::translate_dotfields($checkwhat);
+									if ($error) {
+										$nmisng->log->error("set_nodes: translation of '$name' arguments failed: $error!");
+										$error = 1;
+										next;
+									}
 								}
 							}
 						
-							$nodeobj->overrides($curoverrides);
-							$nodeobj->configuration($curconfig);
-							$nodeobj->activated($curactivated);
-							$nodeobj->addresses($curarraythings->{addresses});
-							$nodeobj->aliases($curarraythings->{aliases});
-							$nodeobj->unknown($curextras);
-						
+							$nodeobj->overrides($curoverrides) if ($updateOverrides);
+							$nodeobj->configuration($curconfig) if ($updateConfiguration);
+							$nodeobj->activated($curactivated) if ($updateActivated);
+							$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
+							$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
+							$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
+							$nodeobj->comments($curcomments) if ($updateComments);
+							$nodeobj->unknown($curextras) if ($updateUnknown);
+		
 							(my $op, $error) = $nodeobj->save(meta => $meta);
 							if ($op <= 0) {
-									$nmisng->log->error("set_nodes: Failed to save $node: $error");
+									$nmisng->log->error("set_nodes: Failed to save '$node': $error");
 									$error = 1;
 									next;
 								}
 							$nodes_list = $nodes_list . " " . $node;
-
+						}
+					}
+					
+					if ($error == 0) {
+						$state->{status} = "ok";
+						$state->{details} = "completed successfully ";
+					} else {
+						$state->{status} = "error";
+						$state->{details} = "Error setting node $errormsg";
+					}
+					
+					$state->{context} = {node_name => $nodes_list};	
+				}
+				elsif ($ourjob->{type} eq "unset_nodes" )
+				{
+					my $nodes_list = "";
+					my $error = 0;
+					my $errormsg = "";
+					my $what = $ourjob->{type};
+					
+					my $data = $ourjob->{args}->{data};
+					my $nodes = $ourjob->{args}->{uuid};
+					
+					if (exists($cmdline->{"entry.name"}) || exists($cmdline->{"entry.cluster_id"})) {
+							$nmisng->log->error("unset_nodes: Please use act=rename for node renaming! ");
+							$error = 1;
+							next;
+					} else {
+						foreach my $n (@$nodes) {
+							$nmisng->log->error("unset_nodes: Processing node '$n'.");
+							my $nodeobj = $nmisng->node(name => $n) || $nmisng->node(uuid=> $n);
+							if (!$nodeobj) {
+								$error =1;
+								next;
+							}
+							
+							my $node = $nodeobj->name;			# if looked up via uuid
+						
+							my $curconfig           = $nodeobj->configuration;
+							my $curoverrides        = $nodeobj->overrides;
+							my $curactivated        = $nodeobj->activated;
+							my $curcomments         = $nodeobj->comments;
+							my $curextras           = $nodeobj->unknown;
+							my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
+							my $updateOverrides     = 0;
+							my $updateConfiguration = 0;
+							my $updateActivated     = 0;
+							my $updateArrayThings   = 0;
+							my $updateComments      = 0;
+							my $updateUnknown       = 0;
+							my $anythingtodo;
+				
+							for my $name (keys %$data)
+							{
+								# . are replaced by _ for the queue
+								my $prop = $name;
+								$prop =~ s/_/./g;
+								
+								next if ($prop !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+								++$anythingtodo;
+						
+								$prop =~ s/^entry\.//;
+						
+								# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+								$prop = "activated.NMIS" if ($prop eq "configuration.active");
+						
+								# where does it go? overrides.X is obvious...
+								if ($prop =~ /^overrides\.(.+)$/)
+								{
+									if (defined($curoverrides->{$1}) && ref(\$curoverrides->{$1}) eq 'SCALAR')
+									{
+										delete($curoverrides->{$1});
+									}
+									else
+									{
+										undef($curoverrides->{$1})
+									}
+									$updateOverrides    = 1;
+								}
+								# ...and activated.X not at all
+								elsif ($prop =~ /^activated\.(.+)$/)
+								{
+									if (defined($curactivated->{$1}) && ref(\$curactivated->{$1}) eq 'SCALAR')
+									{
+										delete($curactivated->{$1});
+									}
+									else
+									{
+										undef($curactivated->{$1})
+									}
+									$updateActivated    = 1;
+								}
+								# ...and then there's the unknown unknowns
+								elsif ($prop =~ /^unknown\.(.+)$/)
+								{
+									if (defined($curextras->{$1}) && ref(\$curextras->{$1}) eq 'SCALAR')
+									{
+										delete($curextras->{$1});
+									}
+									else
+									{
+										undef($curextras->{$1})
+									}
+									$updateUnknown   = 1;
+								}
+								# ...and comments
+								elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
+								{
+									if (defined($1) && defined($2))
+									{
+										undef($$curcomments[$1][$2]);
+									}
+									else
+									{
+										undef($$curcomments[$1]);
+									}
+									$updateComments   = 1;
+								}
+								# and aliases and addresses, but these are ARRAYS
+								elsif ($prop =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
+								{
+									if (defined() && ref(\$curarraythings->{$1}) eq 'SCALAR')
+									{
+										delete($curarraythings->{$1});
+									}
+									else
+									{
+										undef($curarraythings->{$1})
+									}
+									$updateArrayThings    = 1;
+								}
+								# configuration.X
+								elsif ($prop =~ /^configuration\.(.+)$/)
+								{
+									my $subprop = $1;
+									if (defined($curconfig->{$subprop}) && ref(\$curconfig->{$subprop}) eq 'SCALAR')
+									{
+										delete($curconfig->{$subprop});
+									}
+									else
+									{
+										undef($curconfig->{$subprop})
+									}
+									$updateConfiguration = 1;
+								}
+								else
+								{
+									$nmisng->log->error("Unknown or unsupported property '$prop'!");
+									$error = 1;
+									next;
+								}
+							}
+							if (!$anythingtodo) {
+								$nmisng->log->error("unset_nodes: No changes for node '$node'!");
+								$error = 1;
+								next;
+							}
+						
+							for ([$curconfig, "configuration"],
+									 [$curoverrides, "override"],
+									 [$curactivated, "activated"],
+									 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
+									 [$curcomments, "comments" ],
+									 [$curextras, "unknown/extras" ])
+							{
+								my ($checkwhat, $name) = @$_;
+						
+								# Don't waste overhead if nothing was changed.
+								next if ($name eq "configuration"                             && !$updateConfiguration);
+								next if ($name eq "override"                                  && !$updateOverrides);
+								next if ($name eq "activated"                                 && !$updateActivated);
+								next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
+								next if ($name eq "comments"                                  && !$updateComments);
+								next if ($name eq "unknown/extras"                            && !$updateUnknown);
+					
+								if ($name eq "addresses/aliases/enterprise_service_tags")
+								{
+									################################################
+									# Start: Ethernet Interfce with a Subinterface #
+									################################################
+									# If we have an Ethernet Interfce with a Subinterface, it will look like
+									# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
+									# the first dot because if there are sub-properties being set, we want
+									# those to be interpreted properly.
+									### FIXME Do all Interfaces with dot delemited subinterfaces contain
+									### FIXME the string 'Ethernet'? if not, the comparison in the loop
+									### FIXME below will need to be expanded as we encounter them!
+					
+									my $new_hash = {};
+									for my $key (keys %$checkwhat)
+									{
+										# substitution in key
+										my $new_key = $key;
+										if ($key =~ /.*Ethernet.*\.\d+.*/)
+										{
+											$new_key =~ s/\Q.\E/\Q\.\E/;
+										}
+										$new_hash->{$new_key} = $checkwhat->{$key};
+									}
+									print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
+									$checkwhat = $new_hash;
+					
+									##############################################
+									# End: Ethernet Interfce with a Subinterface #
+									##############################################
+								}
+					
+								unless ($name eq "comments")
+								{
+									my $error = NMISNG::Util::translate_dotfields_delete($checkwhat);
+									if ($error) {
+										$nmisng->log->error("unset_nodes: translation of '$name' arguments failed: $error!");
+										$error = 1;
+										next;
+									}
+								}
+							}
+						
+							$nodeobj->overrides($curoverrides) if ($updateOverrides);
+							$nodeobj->configuration($curconfig) if ($updateConfiguration);
+							$nodeobj->activated($curactivated) if ($updateActivated);
+							$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
+							$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
+							$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
+							$nodeobj->comments($curcomments) if ($updateComments);
+							$nodeobj->unknown($curextras) if ($updateUnknown);
+		
+							(my $op, $error) = $nodeobj->save(meta => $meta);
+							if ($op <= 0) {
+									$nmisng->log->error("unset_nodes: Failed to save '$node': $error");
+									$error = 1;
+									next;
+								}
+							$nodes_list = $nodes_list . " " . $node;
 						}
 					}
 					
@@ -2534,3 +2860,4 @@ args: hashref of stuff for the op
  services: also want list of services
  schedule: fixme9 tbd - for telling the scheduler to do X at time Y; node,group,operation etc etc
  plugins: require phase = collect or update, and uuid => array of 'handled nodes' uuids
+

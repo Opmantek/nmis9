@@ -263,12 +263,12 @@ sub displayNodeConf
 								-style => 'width: 95%',
 								-title=>"new Node Type" ));
 
-	if ( scalar(@{$comments}) > 0) {
+#	if ( scalar(@{$comments}) > 0) {
 		print Tr,td({class=>'header'},'<b>Comments</b>');
 		print Tr,
 		td({class=>'header'}, ""),
-		td({class=>'header'},"New Comment [" .  textfield(-name=>"commentIndex0",  -size=>1, -maxlength=>1, -value=>0)  . 
-			"] [" .  textfield(-name=>"commentIndex1", -size=>1, -maxlength=>1, -value=>0)  . "]"),
+		td({class=>'header', -style=>"white-space:nowrap"},"New Comment [" .  textfield(-name=>"commentIndex0", -style=>'width:15px;height:10px', -size=>1, -maxlength=>1, -value=>0)  . 
+			"] [" .  textfield(-name=>"commentIndex1", -style=>'width:15px;height:10px', -size=>1, -maxlength=>1, -value=>0)  . "]"),
 		td({class=>'header3'},''),
 		td({class=>"Plain"},textfield(-name=>"commentNew",
 															-style => 'width: 95%',
@@ -305,7 +305,7 @@ sub displayNodeConf
 			$innerCmtCnt = 0;
 			$cmtCnt++;
 		}
-	}
+#	}
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 

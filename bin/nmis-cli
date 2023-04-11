@@ -215,16 +215,31 @@ outage.frequency=monthly outage.start="1 12:00" outage.end="1 13:30" \\
 outage.selector.node.group.0="busybodies" \\
 outage.selector.node.group.1="alsobad"\n\n|;
 
-my $Q = NMISNG::Util::get_args_multi(@ARGV);
+my $Q = NMISNG::Util::get_args_multi_quiet(@ARGV);
+if ($Q->{__parse_error__})
+{
+	foreach (@{$Q->{__parse_error__}})
+	{
+		print STDERR "$_";
+	}
+	die "Command failed!\n";
+}
 
 if ($usagesw) {
    print($usage);
    exit(0);
 }
 
-if (!@ARGV || !$Q->{act})
+if (!@ARGV)
 {
     help();
+    exit(0);
+}
+
+if (!$Q->{act})
+{
+	print STDERR "\033[1mAn Action must be specified!\033[0m\n";
+    help(2);
     exit(0);
 }
 
