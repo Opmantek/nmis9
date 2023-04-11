@@ -4900,7 +4900,7 @@ sub update_queue
 	# verify that the type of activity is one of the schedulable ones
 	return "Unrecognised job type \"$jobdata->{type}\"!"
 		if ( $jobdata->{type}
-		!~ /^(update_links|collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins|delete_nodes|update_nodes|create_nodes|set_nodes)$/
+		!~ /^(update_links|collect|update|services|thresholds|escalations|metrics|configbackup|purge|dbcleanup|selftest|permission_test|plugins|delete_nodes|update_nodes|create_nodes|set_nodes|unset_nodes)$/
 		);
 
 	return
@@ -4930,7 +4930,7 @@ sub update_queue
 		return "Invalid job data, args must contain uuid or names property!";
 	}
 	
-	if ( $jobdata->{type} =~ /^(update_nodes|create_nodes|set_nodes)$/
+	if ( $jobdata->{type} =~ /^(update_nodes|create_nodes|set_nodes|unset_nodes)$/
 		and !$jobdata->{args}->{data} )
 	{
 		return "Invalid job data, args must contain data property for update_nodes and create_nodes!";

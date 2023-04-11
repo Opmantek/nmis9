@@ -780,10 +780,10 @@ elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 	die "Cannot set node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
 			
-	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes
-	my $time = $cmdline->{time} // time;
-	my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
-	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+	my $schedule  = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, 0);
+	my $time      = $cmdline->{time} // time;
+	my $priority  = $cmdline->{priority} // $config->{priority_node_create} // 0; # Default for this job?
+	my $verbosity = NMISNG::Util::getdebug_cli($cmdline->{verbosity}) // $config->{log_level};
 	my $what = "set_nodes";
 	my %jobargs;
 		
@@ -1018,10 +1018,11 @@ elsif ($cmdline->{act} eq "unset" && $server_role ne "POLLER")
 	die "Cannot set node without node argument!\n\n$usage\n"
 			if (!$node && !$uuid);
 			
-	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes
-	my $time = $cmdline->{time} // time;
-	my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
-	my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+	my $schedule  = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, 0);
+	my $schedule  = $cmdline->{schedule} // 0; # Schedule by default? Yes
+	my $time      = $cmdline->{time} // time;
+	my $priority  = $cmdline->{priority} // $config->{priority_node_create} // 0; # Default for this job?
+	my $verbosity = NMISNG::Util::getdebug_cli($cmdline->{verbosity}) // $config->{log_level};
 	my $what = "unset_nodes";
 	my %jobargs;
 		
@@ -2013,18 +2014,34 @@ sub help
    push(@lines, "     act=set {node=<node_name>|uuid=<nodeUUID>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [entry.<key>=<value>...]\n");
+   push(@lines, "                             [priority=0..1]\n");
+   push(@lines, "                             [schedule=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [time=<time>]\n");
+   push(@lines, "                             [verbosity=<1..9|debug|info|warn|error|fatal>]\n");
    push(@lines, "                     This action sets parameters within the specified\n");
    push(@lines, "                     nodes. The 'server' argument performs the action\n");
-   push(@lines, "                     on the specified server.\n");
+   push(@lines, "                     on the specified server. if 'schedule' is set to\n");
+   push(@lines, "                     'true', the set will be run as a scheduled job\n");
+   push(@lines, "                     instead of being run interactivly. 'priority'\n");
+   push(@lines, "                     'time', and 'verbosity' are all related to\n");
+   push(@lines, "                     scheduled mode.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=unset {node=<node_name>|uuid=<nodeUUID>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [entry.<key>=<value>...]\n");
+   push(@lines, "                             [priority=0..1]\n");
+   push(@lines, "                             [schedule=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [time=<time>]\n");
+   push(@lines, "                             [verbosity=<1..9|debug|info|warn|error|fatal>]\n");
    push(@lines, "                     This action unsets parameters within the specified\n");
    push(@lines, "                     nodes. Care should be taken in removing keys from\n");
    push(@lines, "                     a node configuration, as unpredictable results are\n");
    push(@lines, "                     posible. The 'server' argument performs the action\n");
-   push(@lines, "                     on the specified server.\n");
+   push(@lines, "                     on the specified server. if 'schedule' is set to\n");
+   push(@lines, "                     'true', the unset will be run as a scheduled job\n");
+   push(@lines, "                     instead of being run interactivly. 'priority'\n");
+   push(@lines, "                     'time', and 'verbosity' are all related to\n");
+   push(@lines, "                     scheduled mode.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=show {node=<node_name>|uuid=<nodeUUID>}\n");
    push(@lines, "                             [catchall=<true|false|yes|no|1|0>]\n");
