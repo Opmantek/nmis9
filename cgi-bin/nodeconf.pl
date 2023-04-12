@@ -267,8 +267,8 @@ sub displayNodeConf
 		print Tr,td({class=>'header'},'<b>Comments</b>');
 		print Tr,
 		td({class=>'header'}, ""),
-		td({class=>'header', -style=>"white-space:nowrap"},"New Comment [" .  textfield(-name=>"commentIndex0", -style=>'width:15px;height:10px', -size=>1, -maxlength=>1, -value=>0)  . 
-			"] [" .  textfield(-name=>"commentIndex1", -style=>'width:15px;height:10px', -size=>1, -maxlength=>1, -value=>0)  . "]"),
+		td({class=>'header', -style=>"white-space:nowrap"},"New Comment [" .  textfield(-name=>"commentIndex0", -style=>'width:10px;height:10px', -size=>1, -maxlength=>1, -value=>0)  . 
+			"] [" .  textfield(-name=>"commentIndex1", -style=>'width:10px;height:10px', -size=>1, -maxlength=>1, -value=>0)  . "]"),
 		td({class=>'header3'},''),
 		td({class=>"Plain"},textfield(-name=>"commentNew",
 															-style => 'width: 95%',
