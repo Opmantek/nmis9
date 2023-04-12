@@ -166,19 +166,23 @@ sub collect_plugin
 	if (@$IFitems)
 	{
 		for my $ifTableId (@$IFitems)
-    {
-       my ($ifTable, $error) = $S->nmisng_node->inventory(_id => $ifTableId);
-       if ($error)
-       {
-           $NG->log->error("Failed to get inventory $ifTableId: $error");
-           next;
-       }
-       my $data = $ifTable->data();
+		{
+			my ($ifTable, $ierror) = $S->nmisng_node->inventory(_id => $ifTableId);
+			if ($ierror)
+			{
+				$NG->log->error("Failed to get inventory $ifTableId: $ierror");
+				next;
+			}
+			my $data = $ifTable->data();
 			$ifTable->historic(0);
 			$ifTable->data($data);
-			my ($op, $error) = $ifTable->save();
-			#$NG->log->debug2("Inventory update: $op ");
-			
+			my ($op, $serror) = $ifTable->save();
+			$NG->log->debug2("Inventory update: $op ");
+			if ($serror)
+			{
+				$NG->log->error("Failed to save inventory $ifTableId: $serror");
+				next;
+			}
 		}
 	}
 	$changesweremade = 1;
