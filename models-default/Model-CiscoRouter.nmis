@@ -77,6 +77,12 @@
       'ipsla' => {
         'common-model' => 'Cisco-ipsla'
       },
+      'cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'memory' => {
+        'common-model' => 'Cisco-memory'
+      },
     }
   },
   'system' => {
@@ -605,6 +611,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,NetFlowInterfaces,IPSLA-Echo-RTT,IPSLA-ICMP-Jitter-RTT,IPSLA-Jitter-RTT,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'Cisco_CBQoS,NetFlowInterfaces,IPSLA-Echo-RTT,IPSLA-ICMP-Jitter-RTT,IPSLA-Jitter-RTT,cpu_cpm,cempMemPool,ciscoMemoryPool,Memory-cpm,cempMemBuffer,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   }
 );
