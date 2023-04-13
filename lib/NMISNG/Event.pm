@@ -164,14 +164,15 @@ sub _generic_getset
 sub _query
 {
 	my ($self, %options) = @_;
+	my $q;
 
 	if ( $self->{data}{_id} )
 	{
-		return NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}}, no_regex => 1 );
+		$q = NMISNG::DB::get_query( and_part => {_id => $self->{data}{_id}}, no_regex => 1 );
 	}
 	else
 	{
-		my $q = NMISNG::DB::get_query(
+		$q = NMISNG::DB::get_query(
 			and_part => {
 				node_uuid => $self->{data}{node_uuid},
 				element   => $self->{data}{element},
@@ -196,8 +197,10 @@ sub _query
 																		{event_previous => $self->{data}{event}},]}]};
 		}
 
-		return $q;
 	}
+	$self->nmisng->log->debug("query: " . Dumper($q)) if ($options{_log});
+
+	return $q;
 }
 
 ## this function (un)acknowledges an existing event
@@ -252,9 +255,19 @@ sub acknowledge
 		{
 			$self->ack($ack);
 			$self->user($user);
-			if ( my $error = $self->save( update => 1 ) )
+			my $error = $self->save( update => 1 );
+			if ($error)
 			{
-				$self->nmisng->log->error("failed to save event id ".$self->_id.": $error");
+				if ($error =~ /duplicate key error/)
+				{
+					# TODO How do we handle this?
+					$self->nmisng->log->error("Duplicate event id: ".$self->_id.": $error");
+				}
+				else
+				{
+					$self->nmisng->log->error("failed to save event id ".$self->_id.": $error");
+					confess "failed to save event id ".$self->_id.": $error";
+				}
 			}
 
 			$self->log(
@@ -411,10 +424,19 @@ sub check
 			$self->log();
 		}
 
-		if ( my $error = $self->save() )
+		my $error = $self->save();
+		if ($error)
 		{
-			$self->nmisng->log->fatal("failed to save event id ".$self->_id.": $error");
-			confess "failed to save event id ".$self->_id.": $error";
+			if ($error =~ /duplicate key error/)
+			{
+				# TODO How do we handle this?
+				$self->nmisng->log->fatal("Duplicate event id: ".$self->_id.": $error");
+			}
+			else
+			{
+				$self->nmisng->log->fatal("failed to save event id ".$self->_id.": $error");
+				confess "failed to save event id ".$self->_id.": $error";
+			}
 		}
 
 		# Syslog must be explicitly enabled in the config and will escalation is not being used.
@@ -733,12 +755,61 @@ sub load
 		}
 		$self->loaded(1);
 	}
-	# The following should be impossible after updated Unique Constraint.
+	# If a field is null, the query will ignore it, so we need to look through
+	# the list to find the match.
 	elsif ( !$error && $model_data->count > 1 )
 	{
-		# error, this function is for a single event, finding >1 is an issue
-		$error = "more than one event found when a single event was expected, ids:"
-			. join( ",", map { $_->{_id} } @{$model_data->data} );
+		my $ok = 0;
+		$self->nmisng->log->debug5("Recieved multiple events, parsing them");
+		foreach my $modelData (@{$model_data->data})
+		{
+			$self->nmisng->log->debug5("Model Data");
+			$self->nmisng->log->debug5("   Node UUID: $modelData->{node_uuid}");
+			$self->nmisng->log->debug5("   Element:   $modelData->{element}");
+			$self->nmisng->log->debug5("   Event:     $modelData->{event}");
+			$self->nmisng->log->debug5("   Active:    $modelData->{active}");
+			$self->nmisng->log->debug5("Self Data");
+			$self->nmisng->log->debug5("   Node UUID: $self->{data}{node_uuid}");
+			$self->nmisng->log->debug5("   Element:   $self->{data}{element}");
+			$self->nmisng->log->debug5("   Event:     $self->{data}->{event}");
+			$self->nmisng->log->debug5("   Active:    $self->{data}{active}");
+			if ($modelData->{node_uuid} eq $self->{data}{node_uuid}
+				&& $modelData->{element} eq $self->{data}{element}
+				&& $modelData->{event} eq $self->{data}->{event}
+				&& $modelData->{active} eq $self->{data}{active})
+			{
+				$self->nmisng->log->debug5("Found matching event");
+				$ok = 1;
+				foreach my $key ( keys %{$modelData})
+				{
+					eval {
+						$self->$key();
+					};
+					if ($@ || !$only_take_missing) {
+						# use setter/getter if it's defined, otherwise it's 'custom_data'
+						#
+						# hence, in this loop '$self->event()' will not be called when $key='event' SO 'event_previous' will not be set
+						# likewise, in this loop '$self->level()' will not be called when $key='level' SO 'level_previous' will not be set
+						# 'event' and 'level' keys are set in $self->custom_data() here:
+						if ( defined( $known_attrs{$key} ) )
+						{
+							$self->$key( $modelData->{$key} );
+						}
+						else
+						{
+							$self->custom_data( $key, $modelData->{$key} );
+						}
+					}
+				}
+				last;
+			}
+		}
+		if (!$ok)
+		{
+			# We were not able to find a match!
+			$error = "More than one event found when a single event was expected, unable to find a match; IDs: "
+				. join( ",", map { $_->{_id} } @{$model_data->data} );
+		}
 	}
 
 	return $error;
