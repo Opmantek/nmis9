@@ -85,6 +85,8 @@ sub update_plugin
 				$changesweremade = 1;
 
 				$cpuinventory->data($cpudata); # set changed info
+				# set the inventory description to a nice string.
+				$cpuinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} $entityIndex" );
 				(undef,$error) = $cpuinventory->save; # and save to the db
 				$NG->log->error("Failed to save inventory for $cpuid: $error")
 						if ($error);
@@ -139,6 +141,9 @@ sub update_plugin
 				$changesweremade = 1;
 
 				$meminventory->data($memdata); # set changed info
+				# set the inventory description to a nice string.
+				$meminventory->description( "$emibdata{$entityIndex}->{entPhysicalName} $entityIndex" );
+
 				(undef,$error) = $meminventory->save; # and save to the db
 				$NG->log->error("Failed to save inventory for $memid: $error")
 						if ($error);
