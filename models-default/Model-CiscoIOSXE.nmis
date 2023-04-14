@@ -72,6 +72,9 @@
       'status' => {
         'common-model' => 'Cisco-status'
       },
+      'Cisco-power' => {
+        'common-model' => 'Cisco-power'
+      },
     }
   },
   'interface' => {
@@ -415,7 +418,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,Memory-cpm,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,Memory-cpm,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,powerSupply,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   'system' => {
     'nodeModel' => 'CiscoIOSXE',

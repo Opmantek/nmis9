@@ -1,9 +1,6 @@
 %hash = (
   '-common-' => {
     'class' => {
-      'Catalyst-power' => {
-        'common-model' => 'Catalyst-power'
-      },
       'Cisco-cbqos' => {
         'common-model' => 'Cisco-cbqos'
       },
@@ -31,6 +28,9 @@
       'Cisco-temp' => {
         'common-model' => 'Cisco-temp'
       },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
       'database' => {
         'common-model' => 'database'
       },
@@ -51,9 +51,6 @@
       },
       'mpls' => {
         'common-model' => 'mpls'
-      },
-      'net-snmp' => {
-        'common-model' => 'net-snmp'
       },
       'routing' => {
         'common-model' => 'routing'
@@ -260,11 +257,31 @@
     }
   },
   'system' => {
-    'nodeModel' => 'CiscoASR-auto',
-    'nodeModelComment' => 'Auto Generated Model by model_discovery.pl',
+    'nodeModel' => 'CiscoASR1000',
     'nodeType' => 'generic',
-    'nodegraph' => 'health,response,ip',
-    'rrd' => {
+    'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber',
+  	'rrd' => {
+  		'nodehealth' => {
+  			'snmp' => {
+  				'avgBusy1' => {
+  					'oid' => 'cpmCPUTotal1minRev.2'
+  				},
+  				'avgBusy5' => {
+  					'oid' => 'cpmCPUTotal5minRev.2'
+  				},
+  				'MemoryUsedPROC' => {
+  					'oid' => 'ciscoMemoryPoolUsed.1'
+  				},
+  				'MemoryFreePROC' => {
+  					'oid' => 'ciscoMemoryPoolFree.1'
+  				},
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          }			
+        },
+  			'threshold' => 'cpu,mem-proc',
+  			'graphtype' => 'cpu,mem-proc,routenumber'
+  		},
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -370,10 +387,86 @@
             'title' => 'Uptime'
           }
         }
-      }
+      },
+      'extra' => {
+        'snmp' => {
+          'softwareVersion' => {
+            'calculate' => '$r =~ /Version ([\d\.\[\]\w]+)/; $r = $1',
+            'oid' => 'sysDescr',
+            'snmpObjectName' => 'sysDescr',
+            'title' => 'Software Version'
+          },
+          'mplsLdpLsrId' => {
+            'oid' => '1.3.6.1.2.1.10.166.4.1.1.1',
+            'snmpObjectName' => 'mplsLdpLsrId',
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'title' => 'MPLS LSR',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
+          },
+          'mplsLdpLsrIdCisco' => {
+            'oid' => '1.3.6.1.4.1.9.10.65.1.1.1',
+            'snmpObjectName' => 'mplsLdpLsrId',
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'title' => 'MPLS LSR Cisco',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
+          },
+          'mplsL3VpnConfiguredVrfs' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.1',
+            'snmpObjectName' => 'mplsL3VpnConfiguredVrfs',
+            'title' => 'MPLS VRFs Configured',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
+          },
+          'mplsL3VpnActiveVrfs' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.2',
+            'snmpObjectName' => 'mplsL3VpnActiveVrfs',
+            'title' => 'MPLS VRFs Active',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
+          },
+          'mplsL3VpnConnectedInterfaces' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.3',
+            'snmpObjectName' => 'mplsL3VpnConnectedInterfaces',
+            'title' => 'MPLS Connected Interfaces',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
+          },
+        }
+      },
+      'nodeConfiguration' => {
+        'snmp' => {
+          'configLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.1.0',
+            'snmpObject' => 'ccmHistoryRunningLastChanged',
+            'title' => 'Configuration Last Changed'
+          },
+          'configLastSaved' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.2.0',
+            'snmpObject' => 'ccmHistoryRunningLastSaved',
+            'title' => 'Configuration Last Viewed'
+          },
+          'bootConfigLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.3.0',
+            'snmpObject' => 'ccmHistoryStartupLastChanged',
+            'title' => 'Boot Configuration Last Changed'
+          },
+        }
+      },      
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_BGP_Peer,Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,cdp,cempMemBuffer,cempMemPool,cpu_cpm,entPhySensor,env-temp,ifStack,ifTable,mplsL3VpnIfConf,mplsL3VpnVrf,mplsVpnInterface,mplsVpnVrf,ospfNbr,powerStatus,powerSupply'
+    'sections' => 'Cisco_BGP_Peer,Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,cdp,cpu_cpm,cempMemBuffer,cempMemPool,Memory-cpm,ciscoMemoryPool,entityMib,entPhySensor,env-temp,ifStack,ifTable,mplsL3VpnIfConf,mplsL3VpnVrf,mplsVpnInterface,mplsVpnVrf,ospfNbr,powerStatus,powerSupply'
   }
 );

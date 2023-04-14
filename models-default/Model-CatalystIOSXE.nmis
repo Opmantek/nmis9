@@ -54,11 +54,20 @@
       'cpu' => {
         'common-model' => 'Cisco-cpu'
       },
+      'memory' => {
+        'common-model' => 'Cisco-memory'
+      },
+      'macTable' => {
+        'common-model' => 'Cisco-macTable'
+      },
       'mpls' => {
         'common-model' => 'mpls'
       },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
       },
       'routing' => {
         'common-model' => 'routing'
@@ -68,6 +77,9 @@
       },
       'vlan' => {
         'common-model' => 'Cisco-vlan'
+      },
+      'Cisco-power' => {
+        'common-model' => 'Cisco-power'
       },
     }
   },
@@ -534,7 +546,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,ciscoMemoryPool,addressTable,cdp,lldp,lldpLocal,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   'system' => {
     'nodeModel' => 'CatalystIOSXE',

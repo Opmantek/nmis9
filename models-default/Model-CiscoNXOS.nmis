@@ -90,6 +90,9 @@
       'macTable' => {
         'common-model' => 'macTable'
       },
+      'Cisco-power' => {
+        'common-model' => 'Cisco-power'
+      },
     }
   },
   'alerts' => {

@@ -56,6 +56,12 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'memory' => {
+        'common-model' => 'Cisco-memory'
+      },
       'cbqos' => {
         'common-model' => 'Cisco-cbqos'
       },
@@ -79,6 +85,9 @@
       },
       'lldp' => {
         'common-model' => 'lldp'
+      },
+      'Cisco-power' => {
+        'common-model' => 'Cisco-power'
       },
     }
   },
@@ -622,6 +631,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,addressTable,cdp,lldp,lldpLocal,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'Cisco_CBQoS,addressTable,cdp,lldp,lldpLocal,macTable,cpu_cpm,cempMemPool,Memory-cpm,ciscoMemoryPool,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
 );

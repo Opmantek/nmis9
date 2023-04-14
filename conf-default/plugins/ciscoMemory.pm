@@ -87,7 +87,7 @@ sub update_plugin
 
 			$cempinventory->data($cempdata); # set changed info
 			# set the inventory description to a nice string.
-			$cempinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} $entityIndex");
+			$cempinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} - $cempdata->{MemPoolName}");
 
 			(undef,$error) = $cempinventory->save; # and save to the db
 			$NG->log->error("Failed to save inventory for $cempid: $error")

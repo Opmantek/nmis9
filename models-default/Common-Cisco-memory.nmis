@@ -67,9 +67,6 @@
           'MemPoolFree' => {
             'oid' => 'ciscoMemoryPoolFree',
           },
-          'MemPoolUtil5M' => {
-            'oid' => 'ciscoMemoryPoolUtilization5Min',
-          },
         },
       },
       'cempMemPool' => {
@@ -130,8 +127,8 @@
     },
     'sys' => {
       'ciscoMemoryPool' => {
-        'indexed' => 'MemPoolName',        
-        'headers' => 'MemPoolName,MemPoolUsed,MemPoolFree,MemPoolUtil5M',
+        'indexed' => 'ciscoMemoryPoolName',        
+        'headers' => 'MemPoolName,MemPoolUsed,MemPoolFree',
         'snmp' => {
           'MemPoolName' => {
             'oid' => 'ciscoMemoryPoolName',
@@ -144,10 +141,6 @@
           'MemPoolFree' => {
             'oid' => 'ciscoMemoryPoolFree',
             'title' => 'Memory Pool Free'
-          },
-          'MemPoolUtil5M' => {
-            'oid' => 'ciscoMemoryPoolUtilization5Min',
-            'title' => 'Memory Pool Util 5min'
           },
         },
       },

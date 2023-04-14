@@ -75,8 +75,14 @@ sub update_plugin
 			my $cpudata = $cpuinventory->data; # r/o copy, must be saved back if changed
 			my $entityIndex = $cpudata->{cpmCPUTotalPhysicalIndex};
 
+			#workaround for devices with bad Entity MIB indexing, e.g. need to adjust by 1
+			if ( not defined $emibdata{$entityIndex}->{entPhysicalName} or $emibdata{$entityIndex}->{entPhysicalName} eq "" ) {
+				++$entityIndex;
+			}
+
 			if (ref($emibdata{$entityIndex}) eq "HASH")
 			{
+
 				$cpudata->{entPhysicalName} =
 						$emibdata{$entityIndex}->{entPhysicalName};
 				$cpudata->{entPhysicalDescr} =
@@ -86,7 +92,7 @@ sub update_plugin
 
 				$cpuinventory->data($cpudata); # set changed info
 				# set the inventory description to a nice string.
-				$cpuinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} $entityIndex" );
+				$cpuinventory->description( "$emibdata{$entityIndex}->{entPhysicalName}" );
 				(undef,$error) = $cpuinventory->save; # and save to the db
 				$NG->log->error("Failed to save inventory for $cpuid: $error")
 						if ($error);
@@ -130,6 +136,11 @@ sub update_plugin
 
 			my $memdata = $meminventory->data; # r/o copy, must be saved back if changed
 			my $entityIndex = $memdata->{cpmCPUTotalPhysicalIndex};
+
+			#workaround for devices with bad Entity MIB indexing, e.g. need to adjust by 1
+			if ( not defined $emibdata{$entityIndex}->{entPhysicalName} or $emibdata{$entityIndex}->{entPhysicalName} eq "" ) {
+				++$entityIndex;
+			}
 
 			if (ref($emibdata{$entityIndex}) eq "HASH")
 			{

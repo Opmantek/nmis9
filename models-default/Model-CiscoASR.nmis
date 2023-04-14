@@ -49,6 +49,12 @@
       'event' => {
         'common-model' => 'event'
       },
+      'Cisco-cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'Cisco-memory' => {
+        'common-model' => 'Cisco-memory'
+      },
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
@@ -64,10 +70,13 @@
       'status' => {
         'common-model' => 'Cisco-status'
       },
+      'Cisco-power' => {
+        'common-model' => 'Cisco-power'
+      },
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+    'sections' => 'Cisco_CBQoS,cdp,cpu_cpm,cempMemBuffer,cempMemPool,Memory-cpm,ciscoMemoryPool,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,powerSupply',
   },
 'system' => {
 	'nodeType' => 'router',
