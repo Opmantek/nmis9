@@ -30,7 +30,7 @@
 %hash = (
 			Locations => [
 				{ Location => { mandatory => 'true', header => 'Location',display => 'key,header,text', value => [""] }},
-				{ Geocode => { mandatory => 'true', header => 'Geocodable Location',display => 'header,text', value => [""] }},
+				{ Geocode => { mandatory => 'true', header => 'Geocodable Location',display => 'header,text', value => ["Enter a location"] }},
 				{ Latitude => { header => 'Latitude',display => 'text', value => ["-36.866233"] }},
 				{ Longitude => { header => 'Longitude',display => 'text', value => ["174.766724"] }},
 				{ Address1 => { header => 'Address1',display => 'header,text', value => [""] }},
