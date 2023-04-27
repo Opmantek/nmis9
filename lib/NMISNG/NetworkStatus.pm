@@ -31,7 +31,7 @@
 # Allows reuse DB connection and nmisng
 # Not the same purpose as nmisng
 package NMISNG::NetworkStatus;
-our $VERSION = "9.4.3";
+our $VERSION = "9.4.4";
 
 use strict;
 use Data::Dumper;
