@@ -1,0 +1,223 @@
+#
+## $Id: Common-Juniper-jnxCoS.nmis,v 8.6 2016-11-24  nickd Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+
+
+
+%hash = (
+  'systemHealth' => {
+    'sys' => {
+        
+      'Juniper_CoS' => {
+        'index_oid' => '1.3.6.1.4.1.2636.3.15.1.1.9',
+        'index_regex' => '9\.(.+)$',
+        'indexed' => 'true',
+        'headers' => 'cosDescription,IntName,jnxCosFcName',
+        'snmp' => {
+          'jnxCosIfqTxedBytes' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.9',
+            'option' => 'counter,U:U'
+                },
+          'jnxCosIfqQedBytes' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.5',
+            'option' => 'counter,U:U'
+                },
+                
+          'jnxCosIfqQedPkts' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.3',
+            'option' => 'counter,U:U'
+                },
+          
+          'jnxCosIfqTailDropPkts' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.11',
+            'option' => 'counter,U:U'
+                },
+                
+          'jnxCosIfqTotalRedDropPkts' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.13',
+            'option' => 'counter,U:U'
+                },
+                
+           'jnxCosIfqTotalRedDropBytes' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.23',
+            'option' => 'counter,U:U'
+                },
+
+          
+          'cosDescription' => {
+                'title' => 'Reference Name'
+              }, 
+          
+          'IntName' => {
+                'title' => 'Interface Name'
+              }, 
+                
+          'jnxCosFcName' => {
+                'title' => 'CoS Queue Name'
+              },         
+
+        },
+      },
+      
+    'jnxDestinationClassUsage' => {
+	###  This section is OFF by default as controlled by model_policy.nmis
+            'headers' =>'jnxDcuStatsClName,ifDescr,jnxXcuStatsBytes',
+            'index_oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+            'index_regex' => '\.2636\.3\.6\.2\.1\.6\.(.+)$',
+            'indexed' => 'jnxDcuStatsClName',
+            'snmp' => {               
+              'jnxDcuStatsClName' => {
+                'oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+                'sysObjectName' => 'jnxDcuStatsClName',
+                'title' => 'Class Name'
+              },
+              'jnxXcuStatsBytes' => {
+                'oid' => '1.3.6.1.4.1.2636.3.6.2.1.5',
+                'sysObjectName' => 'jnxDcuStatsBytes',
+                'title' => 'Total Bytes',
+              },
+              'ifDescr' => {
+                'title' => 'Local Interface'
+              }, 
+            },
+        },
+
+    'jnxSourceClassUsage' => {
+    ###  This section is OFF by default as controlled by model_policy.nmis
+        'headers' =>'jnxScuStatsClName,ifDescr,jnxXcuStatsBytes',
+        'index_oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.6',
+        'index_regex' => '\.2636\.3\.16\.1\.1\.1\.6\.(.+)$',
+        'indexed' => 'jnxScuStatsClName',
+        'snmp' => {
+            'ifDescr' => {
+            'title' => 'Local Interface'
+          },              
+          'jnxScuStatsClName' => {
+            'oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.6',
+            'sysObjectName' => 'jnxScuStatsClName',
+            'title' => 'Class Name'
+          },
+          'jnxXcuStatsBytes' => {
+            'oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.5',
+            'sysObjectName' => 'jnxScuStatsBytes',
+            'title' => 'Total Bytes',
+          },
+        },
+    },
+      
+    },
+    'rrd' => {
+      'Juniper_CoS' => {
+        'graphtype' => 'jnxCoS-oneway',  
+        'index_oid' => '1.3.6.1.4.1.2636.3.15.1.1.9',
+        'index_regex' => '9\.(.+)$',
+        'indexed' => 'true',
+        'snmp' => {
+          'Txed' => {
+            #labled as throuput in graph
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.9',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxCosIfqTxedBytes'
+             },
+          'Queued' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.5',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxCosIfqQedBytes',
+             },
+          'QedPkts' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.3',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxCosIfqQedPkts',
+             },
+          'TailDropPkts' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.11',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxCosIfqTailDropPkts',
+             },
+             
+          'RedDropPkts' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.13',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxCosIfqTotalRedDropPkts',
+             },
+          
+          'RedDropBytes' => {
+            'oid' => '1.3.6.1.4.1.2636.3.15.1.1.23',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxCosIfqTotalRedDropBytes',
+             },
+           
+          
+        },
+     },
+     
+    ###  This section is OFF by default as controlled by model_policy.nmis
+      'jnxDestinationClassUsage' => {
+        'graphtype' => 'abits-oneway-dcu',
+        'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+        'index_regex' => '\.2636\.3\.6\.2\.1\.6\.(.+)$',
+        'snmp' => {
+          'Octets' => {
+            'oid' => '1.3.6.1.4.1.2636.3.6.2.1.5',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxDcuStatsBytes'
+             },
+        },
+     },
+     
+     'jnxSourceClassUsage' => {
+     ###  This section is OFF by default as controlled by model_policy.nmis
+        'graphtype' => 'abits-oneway-scu',
+        'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+        'index_regex' => '\.2636\.3\.6\.2\.1\.6\.(.+)$',
+        'snmp' => {
+          'Octets' => {
+            'oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.5',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxScuStatsBytes'
+          },
+        },
+     },
+  },
+}
+);
+
+
+
+# snmpwalk -v 2c 41.189.86.197 1.3.6.1.4.1.2636.3.15.1.1.9 
+## Confirmed to give TxBytes "Number of bytes transmitted on the queue." Counter64
+##  Tabular indexed by ifIndex and Queue Name converted to Hex
+
+# MIB View http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&n=JUNIPER-COS-MIB&r=juniper&f=mib-jnx-cos_2&t=tree&v=v2&i=0
+
+
