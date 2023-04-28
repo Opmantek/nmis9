@@ -633,7 +633,9 @@ flavour () {
 					# we dont need 'else' catch-all blocks here as we fall back to the debian version
 					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
 					if [ -n "${DEBIAN_CODENAME:-}" ]; then
-						if echo "${DEBIAN_CODENAME}"|grep -qi 'bullseye'; then
+						if echo "${DEBIAN_CODENAME}"|grep -qi 'bookworm'; then
+							OS_VERSION='12.0.0';
+						elif echo "${DEBIAN_CODENAME}"|grep -qi 'bullseye'; then
 							OS_VERSION='11.0.0';
 						elif echo "${DEBIAN_CODENAME}"|grep -qi 'buster'; then
 							OS_VERSION='10.0.0';

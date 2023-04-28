@@ -231,6 +231,12 @@ elsif (-f "/etc/os-release")
 			# populated in the generic block above:
 			if ( defined($debian_codename) )
 			{
+				if ($debian_codename =~ /bookworm/i)
+				{
+					$osmajor=12;
+					$osminor=0;
+					$ospatch=0;
+				}
 				if ($debian_codename =~ /bullseye/i)
 				{
 					$osmajor=11;
@@ -267,10 +273,28 @@ elsif (-f "/etc/os-release")
 			# populated in the generic block above:
 			if ( defined($ubuntu_codename) )
 			{
-				if ($ubuntu_codename =~ /jammy/i)
+				if ($ubuntu_codename =~ /lunar/i)
+				{
+					$osmajor=23;
+					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /kinetic/i)
+				{
+					$osmajor=22;
+					$osminor=10;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /jammy/i)
 				{
 					$osmajor=22;
 					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /impish/i)
+				{
+					$osmajor=21;
+					$osminor=10;
 					$ospatch=0;
 				}
 				elsif ($ubuntu_codename =~ /hirsute/i)
@@ -279,10 +303,34 @@ elsif (-f "/etc/os-release")
 					$osminor=04;
 					$ospatch=0;
 				}
+				elsif ($ubuntu_codename =~ /groovy/i)
+				{
+					$osmajor=20;
+					$osminor=10;
+					$ospatch=0;
+				}
 				elsif ($ubuntu_codename =~ /focal/i)
 				{
 					$osmajor=20;
 					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /eoan/i)
+				{
+					$osmajor=19;
+					$osminor=10;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /disco/i)
+				{
+					$osmajor=19;
+					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /cosmic/i)
+				{
+					$osmajor=18;
+					$osminor=10;
 					$ospatch=0;
 				}
 				elsif ($ubuntu_codename =~ /bionic/i)

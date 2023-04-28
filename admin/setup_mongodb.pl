@@ -523,7 +523,13 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 						# populated in the generic block above:
 						if ( defined($debian_codename) )
 						{
-							if ($debian_codename =~ /bullseye/i)
+							if ($debian_codename =~ /bookworm/i)
+							{
+								$osmajor=12;
+								$osminor=0;
+								$ospatch=0;
+							}
+							elsif ($debian_codename =~ /bullseye/i)
 							{
 								$osmajor=11;
 								$osminor=0;
