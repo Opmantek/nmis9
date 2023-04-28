@@ -237,7 +237,7 @@ elsif (-f "/etc/os-release")
 					$osminor=0;
 					$ospatch=0;
 				}
-				if ($debian_codename =~ /bullseye/i)
+				elsif ($debian_codename =~ /bullseye/i)
 				{
 					$osmajor=11;
 					$osminor=0;
