@@ -1,0 +1,881 @@
+#
+#  Copyright 1999-2018 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+    'db' => {
+			'timing' => {
+				'default' => {
+					"heartbeat" => 900,
+					"poll" => 300,
+				},
+				'nmis' => {
+					"heartbeat" => 7200,
+					"poll" => 60,
+				},
+			},
+      'size' => {
+        'default' => {
+          'step_year' => '288',
+          'rows_year' => '1890',
+          'rows_month' => '2268',
+          'step_day' => '1',
+          'step_month' => '24',
+          'step_week' => '6',
+          'rows_week' => '1536',
+          'rows_day' => '2304'
+        }
+      }
+    },
+    'type' => {
+      'nmis' => '/metrics/nmis-system.rrd',
+      'nodehealth' => '/nodes/$node/health/health.rrd',
+      'metrics' => '/metrics/$item.rrd',
+      'health' => '/nodes/$node/health/reach.rrd',
+    }
+  },
+  'models' => {
+    'Microsoft' => {
+      'order' => {
+        '10' => {
+          'Windows2003' => 'Windows Version 5\.2'
+        },
+        '15' => {
+          'Windows2008' => 'Windows Version 6\.0'
+        },
+        '20' => {
+          'Windows2008R2' => 'Windows Version 6\.1'
+        },
+        '25' => {
+          'Windows2012' => 'Windows Version 6\.2'
+        },
+        '30' => {
+          'Windows2012' => 'Windows Version 6\.3'
+        },
+        '40' => {
+          'Windows2000' => 'Windows (2000 )?Version 5\.0',
+		    }
+      }
+    },
+    '3COM Enterprise' => {
+      'order' => {
+        '10' => {
+          'SSII-3Com' => 'SuperStackII Switch|3Com SuperStack'
+        }
+      }
+    },
+    
+    'Dell Computer Corporation' => {
+         'order' => {
+        '10' => {
+          'DellSwitch' => 'Ethernet Switch',
+        },
+        '20' => {
+          'sdeDell' => '.',
+        },
+        '21' => {
+          'sdeDell' => '',
+        },
+       }
+     },
+      
+    'Sun Microsystems' => {
+      'order' => {
+        '10' => {
+          'SunSolaris' => 'sol|Sun SNMP|SunOS'
+        }
+      }
+    },
+    'Foundry Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'Ruckus-ICX7150' => 'ICX7150'
+        },
+        '20' => {
+          'FoundrySwitch' => 'IronWare|ServerIron'
+        },
+      }
+    },
+    'Juniper Networks/Unisphere' => {
+      'order' => {
+        '10' => {
+          'Juniper-ERX' => 'Juniper Networks Inc. E\d+ Edge Routing Switch'
+        },
+        '99' => {
+          'Juniper-ERX' => '.'
+        },
+      }
+    },
+    'Juniper Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'Juniper-ERX' => 'Juniper Networks Inc. E\d+ Edge Routing Switch'
+        },
+        '20' => {
+          'JuniperRouter' => 'Juniper Networks, Inc. .+ internet router'
+        },
+        '30' => {
+          'JuniperSwitch' => 'Juniper Networks, Inc. .+ Switch'
+        },
+        '99' => {
+          'JuniperRouter' => '.'
+        }
+      }
+    },
+    'KCP, Inc.' => {
+      'order' => {
+        '10' => {
+          'AKCP-sensor' => 'sensorProbe2'
+        }
+      }
+    },
+    'Cisco Systems' => {
+      'order' => {
+        '2' => {
+          'Cisco10000' => 'Cisco IOS Software, 10000 Software'
+        },
+        '10' => {
+          'Catalyst6000' => 'WS-C6'
+        },
+        '15' => {
+          'Catalyst5000Sup3' => 'WS-C*5.5*|WS-C5.*6.1|WS-C*6.3*'
+        },
+        '20' => {
+          'Catalyst5000' => 'WS-C5|WS-C2980|WS-C2948|WS-C2926|FastHub'
+        },
+        '25' => {
+          'Catalyst4000' => 'WS-C4'
+        },
+        '28' => {
+          'CiscoDSL' => 'IOS \(tm\) \w+ Software \(\w+-DSL'
+        },
+        '30' => {
+          'CiscoRouter' => 'C1900-UNIVERSAL|C2900-UNIVERSAL'
+        },
+        '31' => {
+          'CatalystIOSXE' => 'IOS-XE Software, Catalyst|IOS-XE Software Catalyst'
+        },
+        '32' => {
+          'CiscoIOSXE' => 'IOS-XE Software'
+        },
+        '34' => {
+          'CiscoIOSXR' => 'IOS XR Software'
+        },
+        '35' => {
+          'CatalystIOSXE' => 'Catalyst L3 Switch Software \(CAT9K_IOSXE\)|Catalyst L3 Switch Software \(CAT3K'
+        },
+        '40' => {
+          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G|IOS Software, ME380x|IOS Software ME380x|IOS \(tm\) CIGESM Software'
+        },
+        '41' => {
+          'CatalystIOS' => 'Cisco IOS Software, IE'
+        },
+        '45' => {
+          'CatalystIOS' => 'IOS Software, s2t54|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|IOS \(tm\) s3223_rp|IOS \(tm\) s222_rp Software|IOS \(tm\) c6sup2_rp|Cisco IOS Software, Catalyst 4500|Cisco IOS Software, Catalyst 4000|Cisco IOS Software, Catalyst L3 Switch'
+        },
+        '46' => {
+          'Cisco7600' => 'IOS Software, c7600|Cisco IOS Software c7600'
+        },
+        '50' => {
+          'CiscoNXOS' => 'Cisco NX-OS'
+        },
+        '55' => {
+          'CiscoAP' => 'C1240 Software|C1240 Software'
+        },
+        '60' => {
+          'CiscoATM' => 'LS1010'
+        },
+        '65' => {
+          'CiscoASR' => 'Cisco ASR'
+        },
+        '70' => {
+          'CiscoPIX' => 'PIX|FWSM'
+        },
+        '75' => {
+          'CiscoASA' => 'Cisco Adaptive Security Appliance'
+        },
+        '80' => {
+          'CiscoVG' => 'Cisco IOS.+vg\d+'
+        },
+        '90' => {
+          'CiscoRouter' => 'IOS'
+        },
+        '95' => {
+          'CiscoCSS' => 'Content'
+        },
+        '99' => {
+          'CiscoDefault' => '.'
+        }
+      }
+    },
+    'Default' => {
+      'order' => {
+        '10' => {
+          'Default' => 'Default'
+        }
+      }
+    },
+    'Riverstone Networks' => {
+      'order' => {
+        '10' => {
+          'Riverstone' => 'Riverstone Networks'
+        }
+      }
+    },
+    'Synoptics' => {
+      'order' => {
+        '10' => {
+          'BayStack' => 'BayStack|325-24T|5510-48T'
+        }
+      }
+    },
+    'Cerent Corporation' => {
+      'order' => {
+        '10' => {
+          'ONS15454' => 'ONS 15454'
+        }
+      }
+    },
+    'PingOnly' => {
+      'order' => {
+        '10' => {
+          'PingOnly' => 'PingOnly'
+        }
+      }
+    },
+    'UC Davis ECE Dept' => {
+      'order' => {
+        '10' => {
+          'FreeBSD' => 'FreeBSD *'
+        }
+      }
+    },
+    'Merlin Gerin' => {
+      'order' => {
+        '10' => {
+          'MGE-ups' => 'GALAXY'
+        }
+      }
+    },
+    'RedBack Networks' => {
+      'order' => {
+        '10' => {
+          'Redback' => 'Redback Networks'
+        }
+      }
+    },
+
+    'Extreme Networks' => {
+      'order' => {
+        '10' => {
+          'ExtremeXOS' => 'ExtremeXOS'
+        }
+      }
+    },
+    'Fujitsu Limited' => {
+      'order' => {
+        '10' => {
+          'S100' => 'S100'
+        }
+      }
+    },
+    'NBT Technology, Inc,' => {
+      'order' => {
+        '10' => {
+          'Riverbed' => 'rbt'
+        },
+        '20' => {
+          'Riverbed' => 'Linux'
+        }
+      }
+    },
+    'Frogfoot Networks' => {
+      'order' => {
+        '10' => {
+          'Ubiquiti' => 'Linux 2.6.3.'
+        },
+        '20' => {
+          'FrogFoot' => 'Linux'
+        }
+      }
+    },
+    'net-snmp' => {
+      'order' => {
+        '5' => {
+          'Checkpoint' => '2.6.18-92cp|2.6.18-92cpx86_64|2.4.21-21cpsmp'
+        },
+        '10' => {
+          'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
+        },
+        '20' => {
+          'net-snmp' => '.'
+        }
+      }
+    },
+    'Prime Computer' => {
+      'order' => {
+        '10' => {
+          'net-snmp' => 'Cisco Secure Access Control System'
+        }
+      }
+    },
+    'VMware Inc.' => {
+      'order' => {
+        '10' => {
+          'ESXi' => 'VMware ESX'
+        }
+      }
+    },
+    'Ascend Communications Inc.' => {
+      'order' => {
+        '10' => {
+          'LucentStinger' => 'Lucent Stinger'
+        }
+      }
+    },
+    'Alcatel Data Network' => {
+      'order' => {
+        '10' => {
+          'AlcatelASAM' => 'ASAM'
+        }
+      }
+    },
+    'Alcatel' => {
+      'order' => {
+        '10' => {
+          'OmniSwitch' => 'Alcatel-Lucent OS6400'
+        }
+      }
+    },
+    'Palo Alto Networks' => {
+      'order' => {
+        '10' => {
+          'PaloAltoNetworks' => 'Palo Alto Networks'
+        }
+      }
+    },
+    'ZyXEL Communications Corp.' => {
+      'order' => {
+        '10' => {
+          'ZyXEL-MGS' => 'MGS-3712F'
+        },
+        '20' => {
+          'ZyXEL-GS' => 'GS2200-24'
+        },
+        '30' => {
+          'ZyXEL-IES' => 'IES'
+        },
+        '40' => {
+          'Default-HC' => 'ES-2108-G'
+        }
+      }
+    },
+    'Rapid City Communication' => {
+      'order' => {
+        '10' => {
+          'Accelar' => 'Passport-8606'
+        }
+      }
+    },
+    'Nortel Networks' => {
+      'order' => {
+        '10' => {
+          'Accelar' => 'Accelar-1[12]00|Passport-8610'
+        }
+      }
+    },
+    'Hewlett Packard' => {
+      'order' => {
+        '10' => {
+          'CGESM' => 'CGESM'
+        },
+        '15' => {
+          'HP-Procurve' => 'ProCurve'
+        },
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
+    'Netgear' => {
+      'order' => {
+        '10' => {
+          'Netgear-GS108T' => 'GS108T'
+        },
+        '20' => {
+          'Netgear-GS724T' => 'GS724Tv3'
+        }
+      }
+    },
+    'MikroTik' => {
+      'order' => {
+        '10' => {
+          'MikroTikRouter' => 'RouterOS (CHR|CCR)'
+        },
+        '99' => {
+          'MikroTik' => 'RouterOS'
+        }
+      }
+    },
+    'Emerson Energy Systems' => {
+      'order' => {
+        '10' => {
+          'EES' => 'AP7C70AA'
+        }
+      }
+    },
+    'Microchip Technology Inc.' => {
+      'order' => {
+        '10' => {
+          'ServersCheck' => 'Temperature \& Sensor Gateway'
+        }
+      }
+    },
+    'Rad Data Communications Ltd.' => {
+      'order' => {
+        '10' => {
+          'RadOptimux' => 'OP-155[13]',
+        },
+      },
+    },
+    'ELTEK Energy AS' => {
+      'order' => {
+        '10' => {
+          'Eltek' => 'WebPower',
+        },
+      },
+    },
+    'QNAP SYSTEMS, INC' => {
+      'order' => {
+        '10' => {
+          'QNAP' => 'Linux TS'
+        }
+      }
+    },
+    'Tyco Electronics Power Systems' => {
+      'order' => {
+        '10' => {
+          'GE-QS941' => 'QS941A'
+        }
+      }
+    },
+		'Scientific-Atlanta, Inc.' => {
+			'order' => {
+				'10' => {
+					'SciAtl' => "D98xx",
+				},
+			},
+		},
+    'Northern Telecom, Ltd.' => {
+      'order' => {
+        '10' => {
+          'Ericsson-PPX' => 'Ericsson PPX'
+        },
+				'20' => {
+					'EricssonRouter' => 'Ericsson Router'
+				}
+      }
+    },
+    'Acme Packet' => {
+      'order' => {
+        '10' => {
+          'ACME-Packet' => 'Acme Packet'
+        }
+      }
+    },
+    'American Power Conversion Corp.' => {
+      'order' => {
+        '10' => {
+          'APC-ups' => 'PowerNet',
+        },
+				'20' => {
+					'APC-pdu' => 'AP8641',
+				},
+				'25' => {
+					'APC-pdu-ap7932' => 'AP7932',
+				},
+				'30' => {
+					'APC-pdu-ap7900' => 'AP7900',
+				},
+      },
+    },
+		'Check Point Software Technologies Ltd' => {
+			'order' => {
+				'10' => {
+					'Checkpoint' => 'Linux',
+				},
+			},
+		},
+    'Arista Networks' => {
+      'order' => {
+        '10' => {
+          'AristaSwitch' => 'Arista Networks EOS'
+        }
+      }
+    },
+    'Fortinet, Inc.' => {
+      'order' => {
+        '10' => {
+          'Fortinet-FG' => 'fort|Fort'
+        },
+        '20' => {
+          'Fortinet-FG' => '.'
+        }
+      }
+    },
+   'NetScreen Technologies, Inc.' => {
+      'order' => {
+        '10' => {
+          'Netscreen-ScreenOS' => '.'
+        },
+      }
+    },
+    'NovelSat' => {
+      'order' => {
+        '10' => {
+          'NovelSat' => '.'
+        },
+      },
+    },
+     'TELDAT, S.A.' => {
+      'order' => {
+        '11' => {
+          'Teldat150' => 'ATLAS150'
+        },
+        '12' => {
+          'TELDATL1' => 'L1+'
+        },
+        '13' => {
+          'TeldatM1-uses-common' => 'M1',
+          #'TeldatM1' => 'M1'
+        },
+        '14' => {
+          'TELDATC4G' => 'Router model C4G'
+        },
+        '15' => {
+          'Teldati60-uses-common.nmis' => 'ATLAS60',
+          #'Teldati60' => 'ATLAS60'
+        },
+        '16' => {
+          'TELDAT200' => 'T200'
+        },
+        #'17' => {
+        #  'TeldatM1ppp' => 'M1 1GEWAN 4GESW'
+        #},
+        #'18' => {
+        #  'TELDAT' => 'TELDAT|M1 4GESW'
+        #},
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
+    'HUAWEI Technology Co.,Ltd' => {
+      'order' => {
+        '10' => {
+          'Huawei-MA5600' => 'Huawei Integrated Access Software'
+        },
+        '20' => {
+          'Huawei-NetEngine' => 'Huawei Versatile Routing Platform'
+        },
+        '30' => {
+          'HuaweiRouter' => 'AR2220|AR1220'
+        },
+        #'40' => {
+        #  'HuaweiSwitches' => 'S5700|S7700'
+        #},
+        '50' => {
+          'HuaweiRouterAR2240-uses-common' => 'AR2240'
+          #'HuaweiRouterAR2240' => 'AR2240'
+        },
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
+    'Radwin Ltd.' => {
+      'order' => {
+        '10' => {
+          'RadwinWireless' => 'Wireless Link'
+        }
+      }
+    },
+    'ALCOMA, Ltd' => {
+      'order' => {
+        '10' => {
+          'Alcoma' => 'ALCOMA IP-Stack'
+        }
+      }
+    },
+    'Trango Systems, Inc.' => {
+      'order' => {
+        '10' => {
+          'Trango' => 'Apex Lynx-2.0.1'
+        }
+      }
+    },
+    'Mimosa' => {
+      'order' => {
+        '10' => {
+          'Mimosa' => '.'
+        }
+      }
+    },
+    'Ubiquiti Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'Ubiquiti' => 'Linux'
+        },
+      }
+    },
+
+    'BTI Photonic Systems' => {
+      'order' => {
+        '10' => {
+          'BTI-7800' => 'BTI 7800'
+        },
+        '20' => {
+          'BTI-7000' => 'BTI 7000'
+        },
+      }
+    },
+    'Oplink Communications, Inc.' => {
+      'order' => {
+        '10' => {
+          'BTI-OPS' => 'oplink snmp-agent'
+        },
+      }
+    },
+    'Neoteris, Inc.' => {
+      'order' => {
+        '10' => {
+          'PulseSecure' => 'Pulse Secure'
+        }
+      }
+    },
+    'Adtran' => {
+      'order' => {
+        '10' => {
+          'NetVanta' => 'NetVanta'
+        },
+        '20' => {
+          'Adtran-TA5000' => 'TA5000'
+        }
+      }
+    },
+    'Meraki Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'CiscoMerakiController' => 'Cisco Meraki Cloud Controller'
+        }
+      }
+    },
+    'Opengear Inc.' => {
+      'order' => {
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
+    'CacheFlow Inc.' => {
+      'order' => {
+        '10' => {
+          'BlueCoat' => 'Blue Coat SG-VA Series'
+        },
+        '99' => {
+          'BlueCoat' => '.'
+        }
+      }
+    },
+    'Vyatta, Inc.' => {
+      'order' => {
+        '10' => {
+          'VyOS' => '.'
+        }
+      }
+    },
+    'FireEye Inc.' => {
+      'order' => {
+        '10' => {
+          'FireEye' => '.'
+        }
+      }
+    },
+    'F5 Labs, Inc.' => {
+      'order' => {
+        '10' => {
+          'F5-BigIP' => '.'
+        }
+      }
+    },
+    'Accedian Networks' => {
+      'order' => {
+        '10' => {
+          'Accedian' => 'AMO-10000-LT-S'
+        },
+        '20' => {
+          'Accedian' => '.'
+        },
+      }
+    },
+    'Siklu Communication LTD' => {
+      'order' => {
+          '10' => {
+          'Siklu-EH-600' => 'EH-600TX'
+        }
+      }
+    },
+    'Calix Networks' => {
+      'order' => {
+        '10' => {
+          'Calix' => '(E3|E5|E7)'
+        }
+      }
+    }, 
+    'Mitel, Corp.' =>  {
+      'order' => {
+        '10' => {
+          'Mitel3000' => 'VerSw:1'
+        }
+      }
+    },   
+  },
+  'system' => {
+    'nodeModel' => 'Default',
+    'nodeType' => 'generic',
+    'nodegraph' => 'health,response',
+    'sys' => {
+			# contents of this section are required for automatic model determination
+      'standard' =>
+			{
+        'snmp' =>
+				{
+          'sysLocation' => {
+            'oid' => 'sysLocation',
+          },
+					'sysObjectID' => {
+            'oid' => 'sysObjectID',
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+          },
+          'sysContact' => {
+            'oid' => 'sysContact',
+          }
+        },
+
+				'wmi' =>
+				{
+					'winbuild' => {
+						query => "select * from win32_operatingsystem",
+						field => "BuildNumber",
+					},
+					'winosname' => {
+						query => "select * from win32_operatingsystem",
+						field => "Caption",	# note: field Name is similar but gunk-infested
+					},
+					'winversion' => {
+						query => "select * from win32_operatingsystem",
+						field => "Version",	# = major.minor.buildnumber, ie. 6.1.7601
+					},
+					'winsysname' => {
+						query => "select * from win32_operatingsystem",
+						field => "CSName",
+					},
+					'wintime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+					},
+					'winboottime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LastBootUpTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+					}
+				},
+      },
+    },
+  },
+
+  'heading' => {
+    'graphtype' => {
+      'nmis' => 'NMIS collect runtime',
+      'metrics' => 'Metrics',
+      'health' => 'Overall Reachability, Availability and Health',
+      'response' => 'Response Time in milliseconds',
+    }
+  },
+
+  'stats' => {
+    'type' => {
+      'health' => [
+        'DEF:reach=$database:reachability:AVERAGE',
+        'DEF:avail=$database:availability:AVERAGE',
+        'DEF:health=$database:health:AVERAGE',
+        'DEF:response=$database:responsetime:AVERAGE',
+        'DEF:loss=$database:loss:AVERAGE',
+        'DEF:intfCollect=$database:intfCollect:AVERAGE',
+        'DEF:intfColUp=$database:intfColUp:AVERAGE',
+        'DEF:reachabilityHealth=$database:reachabilityHealth:AVERAGE',
+        'DEF:availabilityHealth=$database:availabilityHealth:AVERAGE',
+        'DEF:responseHealth=$database:responseHealth:AVERAGE',
+        'DEF:cpuHealth=$database:cpuHealth:AVERAGE',
+        'DEF:memHealth=$database:memHealth:AVERAGE',
+        'DEF:intHealth=$database:intHealth:AVERAGE',
+        'DEF:diskHealth=$database:diskHealth:AVERAGE',
+        'DEF:swapHealth=$database:swapHealth:AVERAGE',
+        'PRINT:intfCollect:AVERAGE:intfCollect=%1.3lf',
+        'PRINT:intfColUp:AVERAGE:intfColUp=%1.3lf',
+        'PRINT:reach:AVERAGE:reachable=%1.3lf',
+        'PRINT:avail:AVERAGE:available=%1.3lf',
+        'PRINT:health:AVERAGE:health=%1.3lf',
+        'PRINT:response:AVERAGE:response=%1.2lf',
+        'PRINT:loss:AVERAGE:loss=%1.2lf',
+        'PRINT:reachabilityHealth:AVERAGE:reachabilityHealth=%1.2lf',
+        'PRINT:availabilityHealth:AVERAGE:availabilityHealth=%1.2lf',
+        'PRINT:responseHealth:AVERAGE:responseHealth=%1.2lf',
+        'PRINT:cpuHealth:AVERAGE:cpuHealth=%1.2lf',
+        'PRINT:memHealth:AVERAGE:memHealth=%1.2lf',
+        'PRINT:intHealth:AVERAGE:intHealth=%1.2lf',
+        'PRINT:diskHealth:AVERAGE:diskHealth=%1.2lf',
+        'PRINT:swapHealth:AVERAGE:swapHealth=%1.2lf'
+      ],
+    }
+  }
+
+);

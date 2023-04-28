@@ -742,6 +742,13 @@
         }
       }
     },
+    'Mitel, Corp.' =>  {
+      'order' => {
+        '10' => {
+          'Mitel3000' => 'VerSw:1'
+        }
+      }
+    },  
   },
   'stats' => {
     'type' => {
