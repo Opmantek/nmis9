@@ -186,14 +186,14 @@ input_yn() {
 						###if [ "${CHECK_SET_STRICT}" -eq 1 ]; then
 						###	X="${X:-}";
 						###fi;
-
-						if [ "$X" != 'y' -a "$X" != '' -a "$X" != 'n' ]; then
+ 
+						if [ "$X" != 'y' -a "$X" != 'yes' -a "$X" != '' -a "$X" != 'n' -a "$X" != 'no' ]; then
 								echo "Invalid input \"$X\""
 								echo
 								continue;
 						fi
 
-						if [ -z "$X" -o "$X" = "y" ]; then
+						if [ -z "$X" -o "$X" = "y" -o "$X" = "yes" ]; then
 								return 0								# ok
 						else
 								return 1								# nok
@@ -650,10 +650,26 @@ flavour () {
 					# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
 					# populated in the generic block above 'if [ -f "/etc/os-release" ]; then ...':
 					if [ -n "${UBUNTU_CODENAME:-}" ]; then
-						if echo "${UBUNTU_CODENAME}"|grep -qi 'hirsute'; then
+						if echo "${UBUNTU_CODENAME}"|grep -qi 'lunar'; then
+							OS_VERSION='23.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'kinetic'; then
+							OS_VERSION='22.10.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'jammy'; then
+							OS_VERSION='22.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'impish'; then
+							OS_VERSION='21.10.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'hirsute'; then
 							OS_VERSION='21.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'groovy'; then
+							OS_VERSION='20.10.0';
 						elif echo "${UBUNTU_CODENAME}"|grep -qi 'focal'; then
 							OS_VERSION='20.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'eoan'; then
+							OS_VERSION='19.10.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'disco'; then
+							OS_VERSION='19.04.0';
+						elif echo "${UBUNTU_CODENAME}"|grep -qi 'cosmic'; then
+							OS_VERSION='18.10.0';
 						elif echo "${UBUNTU_CODENAME}"|grep -qi 'bionic'; then
 							OS_VERSION='18.04.0';
 						elif echo "${UBUNTU_CODENAME}"|grep -qi 'xenial'; then

@@ -491,6 +491,10 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			}
 			elsif (-f "/etc/os-release")
 			{
+				# First try to find the exact ID like debian, or ubuntu.
+				# If unsuccessful, then look at the ID_LIKE field.
+				# We search for Debian last as even Ubuntu is 'ID_LIKE=debian'.
+				# This should catch Mint ans similar Ubuntu derivatives.
 				open(F,"/etc/os-release") or die "cannot read os-release: $!\n";
 				my $osinfo = join("",<F>);
 				close(F);
@@ -555,16 +559,64 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 						# populated in the generic block above:
 						if ( defined($ubuntu_codename) )
 						{
-							if ($ubuntu_codename =~ /hirsute/i)
+							if ($ubuntu_codename =~ /lunar/i)
+							{
+								$osmajor=23;
+								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /kinetic/i)
+							{
+								$osmajor=22;
+								$osminor=10;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /jammy/i)
+							{
+								$osmajor=22;
+								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /impish/i)
+							{
+								$osmajor=21;
+								$osminor=10;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /hirsute/i)
 							{
 								$osmajor=21;
 								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /groovy/i)
+							{
+								$osmajor=20;
+								$osminor=10;
 								$ospatch=0;
 							}
 							elsif ($ubuntu_codename =~ /focal/i)
 							{
 								$osmajor=20;
 								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /eoan/i)
+							{
+								$osmajor=19;
+								$osminor=10;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /disco/i)
+							{
+								$osmajor=19;
+								$osminor=04;
+								$ospatch=0;
+							}
+							elsif ($ubuntu_codename =~ /cosmic/i)
+							{
+								$osmajor=18;
+								$osminor=10;
 								$ospatch=0;
 							}
 							elsif ($ubuntu_codename =~ /bionic/i)
@@ -670,7 +722,7 @@ sub input_yn
 			if ($seedling && ref($answers) && defined($answers->{$seedling}))
 			{
 				my $answer = $answers->{$seedling};
-				my $result = ( $answer =~ /^\s*y\s*$/i? 1:0);
+				my $result = ( $answer =~ /^\s*y(?:es)?\s*$/i? 1:0);
 
 				print " (preseeded answer \"$answer\" interpreted as \""
 						.($result? "YES":"NO")."\")\n\n";
@@ -688,17 +740,16 @@ sub input_yn
 			my $input = <STDIN>;
 			chomp $input;
 
-			if ($input !~ /^\s*[yn]?\s*$/i)
+			if ($input !~ /^\s*(y(?:es)?|n(?:o)?)?\s*$/i)
 			{
 				print "Invalid input \"$input\"\n\n";
 				next;
 			}
 
-			return ($input =~ /^\s*y?\s*$/i)? 1:0;
+			return ($input =~ /^\s*(y(?:es)?)?\s*$/i)? 1:0;
 		}
 	}
 }
-
 
 # print prompt, read and return response string if interactive;
 # or return default response in noninteractive mode.

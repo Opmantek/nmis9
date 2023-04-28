@@ -267,7 +267,13 @@ elsif (-f "/etc/os-release")
 			# populated in the generic block above:
 			if ( defined($ubuntu_codename) )
 			{
-				if ($ubuntu_codename =~ /hirsute/i)
+				if ($ubuntu_codename =~ /jammy/i)
+				{
+					$osmajor=22;
+					$osminor=04;
+					$ospatch=0;
+				}
+				elsif ($ubuntu_codename =~ /hirsute/i)
 				{
 					$osmajor=21;
 					$osminor=04;
@@ -861,7 +867,7 @@ sub input_yn
 			if ($seedling && ref($answers) && defined($answers->{$seedling}))
 			{
 				my $answer = $answers->{$seedling};
-				my $result = ( $answer =~ /^\s*y\s*$/i? 1:0);
+				my $result = ( $answer =~ /^\s*(y(?:es)?)\s*$/i? 1:0);
 
 				print " (preseeded answer \"$answer\" interpreted as \""
 						.($result? "YES":"NO")."\")\n\n";
@@ -883,13 +889,13 @@ sub input_yn
 			chomp $input;
 			logmsg(0, "User input for \"$query\": \"$input\"");
 
-			if ($input !~ /^\s*[yn]?\s*$/i)
+			if ($input !~ /^\s*(y(?:es)?|n(?:o)?)?\s*$/i)
 			{
 				print "Invalid input \"$input\"\n\n";
 				next;
 			}
 
-			return ($input =~ /^\s*y?\s*$/i)? 1:0;
+			return ($input =~ /^\s*(y(?:es)?)?\s*$/i)? 1:0;
 		}
 	}
 }
