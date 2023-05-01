@@ -438,7 +438,7 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			# we need $osflavour for logrotate file config:
 			#
 			# this $osaflavour code copied from installer
-			my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos);
+			my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos,$osisrocky);
 			if (-f "/etc/redhat-release")
 			{
 				$osflavour="redhat";
@@ -454,40 +454,10 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 				{
 					$osiscentos = 1;
 				}
-				# This code should mimic that in ./installer_hooks/common_functions.sh flavour () function
-				#### $osiscentos in this installer code is essentially '$osisrhelderivative'
-				###elsif ($reldata =~ /Rocky/)
-				###{
-				###	$osiscentos = 1;
-				###	print "detected Rocky OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n";
-				###}
-				###elsif ($reldata =~ /Fedora/)
-				###{
-				###	$osiscentos = 1;
-				###	if ($reldata =~ /(\d+)/)
-				###	{
-				###        $osmajor = $1;
-				###    }
-				###	if ($osmajor >= 28)
-				###	{
-				###        $osmajor = 8;
-				###		$osminor = 0;
-				###		$ospatch = 0;
-				###    }
-				###	elsif ($osmajor >= 19)
-				###	{
-				###        $osmajor = 7;
-				###		$osminor = 0;
-				###		$ospatch = 0;
-				###    }
-				###	elsif ($osmajor >= 12)
-				###	{
-				###        $osmajor = 6;
-				###		$osminor = 0;
-				###		$ospatch = 0;
-				###    }
-				###	print "detected Fedora OS derivative of RHEL: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n";
-				###}
+				if ($reldata =~ /Rocky/)
+				{
+					$osisrocky = 1;
+				}
 			}
 			elsif (-f "/etc/os-release")
 			{
@@ -498,12 +468,12 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 				open(F,"/etc/os-release") or die "cannot read os-release: $!\n";
 				my $osinfo = join("",<F>);
 				close(F);
-				if ($osinfo =~ /ID=debian/)
+				if ($osinfo =~ /ID=[\"\']?debian/)
 				{
 					$osflavour="debian";
 					print "\nINFO: detected OS flavour Debian\n";
 				}
-				elsif ($osinfo =~ /ID=ubuntu/)
+				elsif ($osinfo =~ /ID=[\"\']?ubuntu/)
 				{
 					$osflavour="ubuntu";
 					print "\nINFO: detected OS flavour Ubuntu\n";
@@ -515,10 +485,10 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 				# grep 'ID_LIKE' as a catch-all for debian and ubuntu repectively - done last to not affect existing tried and tested code:
 				if ( ! defined($osflavour) )
 				{
-					if ($osinfo =~ /ID_LIKE=debian/)
+					if ($osinfo =~ /ID_LIKE=[\"\']?debian/)
 					{
 						$osflavour="debian";
-						my $debian_codename=$1 if ($osinfo =~ /DEBIAN_CODENAME=\s*(.+)\s*/);
+						my $debian_codename=$1 if ($osinfo =~ /DEBIAN_CODENAME=\s*[\"\']?(.+)[\"\']?\s*/);
 						# we dont need 'else' catch-all blocks here as we fall back to the debian version
 						# populated in the generic block above:
 						if ( defined($debian_codename) )
@@ -556,11 +526,11 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 						}
 						print "\nINFO: detected OS derivative of Debian: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n";
 					}
-					elsif ($osinfo =~ /ID_LIKE=ubuntu/)
+					elsif ($osinfo =~ /ID_LIKE=[\"\']?ubuntu/)
 					{
 						$osflavour="ubuntu";
 						print "\nINFO: detected OS derivative Ubuntu\n";
-						my $ubuntu_codename=$1 if ($osinfo =~ /UBUNTU_CODENAME=\s*(.+)\s*/);
+						my $ubuntu_codename=$1 if ($osinfo =~ /UBUNTU_CODENAME=\s*[\"\']?(.+)[\"\']?\s*/);
 						# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
 						# populated in the generic block above:
 						if ( defined($ubuntu_codename) )
@@ -641,6 +611,11 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 						print "\nINFO: detected OS derivative of Ubuntu: \$osmajor='$osmajor'; \$osminor='$osminor'; \$ospatch='$ospatch'\n"
 					}
 				}
+			    if ( ! defined($osflavour) )
+				{
+					logdie("Unsupported or unknown distribution!\n");
+				}
+
 			}
 			# rhel|centos have user 'mongod' while debian|ubuntu have users 'mongodb'
 			my $mongod_user;

@@ -1,4 +1,5 @@
 #!/bin/sh
+
 # check the stated dependencies, offer to yum/apt install them
 
 # find out where we are, and get common functions
@@ -10,7 +11,8 @@ SCRIPTPATH=${0%/*}
 printBanner "Checking the required dependencies..."
 
 flavour
-if [ $OSFLAVOUR = "redhat" ]; then
+
+if [ "$OSFLAVOUR" = "redhat" ]; then
 		MGR=YUM
 		PKGLIST="httpd httpd-tools rrdtool logrotate \
 		autoconf automake gcc cvs cairo cairo-devel \
@@ -26,27 +28,27 @@ if [ $OSFLAVOUR = "redhat" ]; then
     rrdtool-perl perl-Test-Deep dialog \
     perl-Excel-Writer-XLSX perl-Digest-HMAC perl-Crypt-DES perl-Clone \
     perl-CGI \
-perl-Authen-SASL perl-B-Hooks-EndOfScope perl-boolean perl-Capture-Tiny \
-perl-Class-Inspector perl-Class-Data-Inheritable \
-perl-DateTime  perl-Devel-StackTrace \
-perl-List-MoreUtils perl-File-ShareDir perl-Carp-Assert \
-perl-Try-Tiny perl-Text-CSV perl-Text-CSV_XS perl-Tie-IxHash \
-perl-Safe-Isa perl-Test-Requires \
-perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta \
-perl-Class-XSAccessor perl-JSON-MaybeXS perl-Test-Deep \
-perl-namespace-clean perl-Dist-CheckConflicts perl-namespace-autoclean \
-perl-ExtUtils-Config perl-ExtUtils-Helpers perl-ExtUtils-InstallPaths \
-perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
-perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
-perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings \
-perl-YAML-LibYAML"
+	perl-Authen-SASL perl-B-Hooks-EndOfScope perl-boolean perl-Capture-Tiny \
+	perl-Class-Inspector perl-Class-Data-Inheritable \
+	perl-DateTime  perl-Devel-StackTrace \
+	perl-List-MoreUtils perl-File-ShareDir perl-Carp-Assert \
+	perl-Try-Tiny perl-Text-CSV perl-Text-CSV_XS perl-Tie-IxHash \
+	perl-Safe-Isa perl-Test-Requires \
+	perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta \
+	perl-Class-XSAccessor perl-JSON-MaybeXS perl-Test-Deep \
+	perl-namespace-clean perl-Dist-CheckConflicts perl-namespace-autoclean \
+	perl-ExtUtils-Config perl-ExtUtils-Helpers perl-ExtUtils-InstallPaths \
+	perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
+	perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
+	perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings \
+	perl-YAML-LibYAML"
 
 		# time-modules package gone in centos/rh7
 		if [ "${OS_MAJOR}" -ge 7 ]; then
 				PKGLIST="$PKGLIST perl-Time-ParseDate"
 		else
 				PKGLIST="$PKGLIST perl-Time-modules"
-		fi
+		fi;
 
 		# perl-CGI-Session gone in RHEL8
 		#
@@ -56,9 +58,9 @@ perl-YAML-LibYAML"
 				:
 		else # RHEL7 and older
 				PKGLIST="$PKGLIST perl-CGI-Session"
-		fi
+		fi;
 
-else
+elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 		MGR=APT
 		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
 		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus \
@@ -87,23 +89,23 @@ else
 		fi;
 
 		# debian: 9/stretch has that in perl, older need the updated package
-		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl"
+		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl";
 		# only 9/stretch doesn't have that packaged
-		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" != 9 ] && PKGLIST="$PKGLIST libui-dialog-perl"
+		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" != 9 ] && PKGLIST="$PKGLIST libui-dialog-perl";
 
 		# ubuntu: not packaged for 17 to 19
 		[ "$OSFLAVOUR" = "ubuntu" ] && [ "$OS_MAJOR" -le 16 -o "$OS_MAJOR" -ge 20 ] \
-				&& PKGLIST="$PKGLIST libui-dialog-perl"
+				&& PKGLIST="$PKGLIST libui-dialog-perl";
 
 		# libtime-modules-perl not packaged for Ubuntu 20.04 and newer, and Debian10 and newer
-		# libtime-parsedate-perl is a drop-in replacement on ubuntu (and probably debian too)
+		# libtime-parsedate-perl is a drop-in replacement on ubuntu and probably debian
 		# but we will only apply this fix as needed atm.
-		if { [ "$OSFLAVOUR" = "ubuntu" ] && [ "$OS_MAJOR" -ge 20 ]; } || { [ "$OSFLAVOUR" = "debian" ] && [ "$OS_MAJOR" -ge 10 ]; }; then
+		if [ "$OSFLAVOUR" = "ubuntu" -a "$OS_MAJOR" -ge 20 ] || [ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -ge 10 ]; then
 			PKGLIST="$PKGLIST libtime-parsedate-perl";
 		else
 			PKGLIST="$PKGLIST libtime-modules-perl libtime-parsedate-perl";
 		fi;
-fi
+fi;
 
 is_web_available && CANUSEWEB=1
 if [ "$CANUSEWEB" != 1 ]; then
@@ -131,7 +133,7 @@ if [ "$CANUSEWEB" = 1 ]; then
 		# prime_apt is called during  install_package() and after disable_distro() functions:
 #		NEEDDISTRO="bionic";
 #		# this function calls enable_distro
-		haveit=`apt -qq list --installed libssl1.1 2>/dev/null`
+		haveit=`dpkg -l | grep libssl1.1 2>/dev/null`
 		if [ -z "$haveit" ]; then
 			echolog "Installing 'libssl1.1'"
 			execPrint dpkg -i installer_hooks/libraries/libssl1.1_1.1.1f-1ubuntu2_amd64.deb

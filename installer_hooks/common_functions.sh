@@ -627,7 +627,7 @@ flavour () {
 		# This code should mimic that in determining /path/to/nmis9_dev/installer $osflavour variable:
 		# grep 'ID_LIKE' as a catch-all for debian and ubuntu repectively - done last to not affect existing tried and tested code:
 		if [ -z "${OSFLAVOUR:-}" ]; then
-			if grep -q ID_LIKE=debian /etc/os-release ; then
+			if egrep -q ID_LIKE=[\'\"]?debian /etc/os-release ; then
 					OSFLAVOUR=debian
 					DEBIAN_CODENAME="$(grep DEBIAN_CODENAME /etc/os-release|sed 's/DEBIAN_CODENAME=\s*//')";
 					# we dont need 'else' catch-all blocks here as we fall back to the debian version
@@ -646,7 +646,7 @@ flavour () {
 						fi;
 					fi;
 					logmsg "detected OS derivative of Debian: OS_VERSION='${OS_VERSION}'";
-			elif grep -q ID_LIKE=ubuntu /etc/os-release ; then
+			elif egrep -q ID_LIKE=[\'\"]?ubuntu /etc/os-release ; then
 					OSFLAVOUR=ubuntu
 					UBUNTU_CODENAME="$(grep UBUNTU_CODENAME /etc/os-release|sed 's/UBUNTU_CODENAME=\s*//')";
 					# we dont need 'else' catch-all blocks here as we fall back to the ubuntu version
@@ -691,6 +691,10 @@ flavour () {
 
 		if [ "${CHECK_SET_STRICT_VERBOSE:-0}" -eq 1 ]; then
 				printBanner "flavour: OS_VERSION=${OS_VERSION}; OS_MAJOR=${OS_MAJOR}; OS_MINOR=${OS_MINOR}; OS_PATCH=${OS_PATCH}; /etc/os-release OSVERSION='${OSVERSION:-}'";
+		fi;
+
+		if [ -z "${OSFLAVOUR:-}" ]; then
+			logdie "Unsupported or unknown distribution!";
 		fi;
 
 		return 0;
