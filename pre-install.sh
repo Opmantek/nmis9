@@ -86,7 +86,7 @@ flavour () {
 				echo "detected OS flavour Ubuntu"
 				OS_VERSION=`grep VERSION_ID /etc/os-release | sed -re 's/^VERSION_ID="([0-9]+\.[0-9]+(\.[0-9]+)?)"$/\1/'`||:;
 		elif grep -q ID=linuxmint /etc/os-release ; then
-				OSFLAVOUR=mint`
+				OSFLAVOUR=mint
 				echo "detected OS flavour Mint"
 				OS_VERSION=`grep VERSION_ID /etc/os-release | sed -re 's/^VERSION_ID="([0-9]+\.[0-9]+(\.[0-9]+)?)"$/\1/'`||:;
 		fi
