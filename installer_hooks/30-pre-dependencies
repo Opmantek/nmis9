@@ -15,7 +15,7 @@ flavour
 if [ "$OSFLAVOUR" = "redhat" ]; then
 		MGR=YUM
 		PKGLIST="httpd httpd-tools rrdtool logrotate \
-		autoconf automake gcc cvs cairo cairo-devel \
+		autoconf automake gcc cairo cairo-devel \
     pango pango-devel libxml2 libxml2-devel gd gd-devel \
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
     net-snmp-utils perl-IO-Socket-SSL perl-Net-SSLeay \
