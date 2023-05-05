@@ -146,7 +146,7 @@ sub update_outage
 	$newrec{selector} = {};
 	if (ref($args{selector}) eq "HASH")
 	{
-		for my $cat (qw(node config))
+		for my $cat (qw(node config element))
 		{
 			my $catsel = $args{selector}->{$cat};
 			next if (ref($catsel) ne "HASH");
@@ -453,7 +453,7 @@ sub purge_outages
 sub check_outages
 {
 	my (%args) = @_;
-	my ($when,$node,$nmisng) = @args{"time","node","nmisng"};
+	my ($when,$node,$nmisng,$element) = @args{"time","node","nmisng","element"};
 
 	return { error => "cannot check outages without valid time argument!" }
 	if (!$when or $when !~ /^\d+(\.d+)?$/);
@@ -478,6 +478,13 @@ sub check_outages
 	{
 		$nodeconfig = $node->configuration;
 		my ($catchall,$error) = $node->inventory(concept => "catchall");
+		## Add all the catch-all data elements to node-config.
+		$nodeconfig->{'catchall.data.nodeType'} =  $catchall->data->{nodeType};
+		$nodeconfig->{'catchall.data.nodeVendor'} = $catchall->data->{nodeVendor};
+		$nodeconfig->{'catchall.data.nodestatus'} = $catchall->data->{nodestatus};
+		$nodeconfig->{'configuration.group'} =  $catchall->data->{group};
+		$nodeconfig->{'configuration.roleType'} =  $catchall->data->{roleType};
+		
 		$nodemodel = $catchall->data->{nodeModel} if (!$error
 																									&& ref($catchall) =~ /^NMISNG::Inventory::/
 																									&& ref($catchall->data) eq "HASH");
@@ -491,9 +498,49 @@ sub check_outages
 		# let's check all selectors for this node - if there is a context node
 		if ($node)
 		{
-			my $rulematches = 1;
-			for my $selcat (qw(config node))
+			my $rulematches = 0;
+			for my $selcat (qw(config node element))
 			{
+				## check if we have an element or not in outage 
+
+				if (ref($maybeout->{selector}->{$selcat}) eq 'ARRAY' && $selcat eq 'element'){
+
+					my @allelements = @{$maybeout->{selector}->{$selcat}}; ## all data for element selector.
+					my $expected;
+
+					my $actual = $element; ## actual data is passed on as $element 
+					
+					foreach my $sel (@allelements){
+						# skip the elements for which nodes does not match
+						if ($node->name eq $sel->{'node_name'}){
+							
+							$expected = $sel->{'element_name'};
+							
+							if ($expected =~/^iregex:/){
+							
+								my @all_patterns = split("regex:",$expected);
+								my $re = $all_patterns[1];
+								my $regex = qr{$re}i;
+
+								$rulematches = 1 if ($actual =~ $regex);
+							}
+							elsif($expected =~/^regex:/)
+							{
+								
+								my @all_patterns = split("regex:",$expected);
+								my $re = $all_patterns[1];
+								my $regex = qr{$re};
+
+								$rulematches = 1 if ($actual =~ $regex);
+
+							}
+							else{
+								$rulematches = 1 if ($actual eq $expected);	
+							}
+						}
+					}
+				}
+
 				next if (ref($maybeout->{selector}->{$selcat}) ne "HASH");
 
 				for my $propname (keys %{$maybeout->{selector}->{$selcat}})
@@ -502,7 +549,7 @@ sub check_outages
 												$globalconfig->{$propname} :
 												$propname eq "nodeModel"? $nodemodel
 												# uuid, cluster_id, name, activated.NMIS, overrides live OUTSIDE of configuration!
-												: $propname =~ /^(uuid|cluster_id|name)$/?
+												: $propname =~ /^(uuid|cluster_id|name)$/ ?
 												$node->$propname
 												: $nodeconfig->{$propname});
 					# choices can be: regex, or fixed string, or array of fixed strings
@@ -511,19 +558,19 @@ sub check_outages
 					# list of precise matches
 					if (ref($expected) eq "ARRAY")
 					{
-						$rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
+						$rulematches = 1 if ( List::Util::any { $actual eq $_ } @$expected);
 					}
 					# or a regex-like string
 					elsif ($expected =~ m!^/(.*)/(i)?$!)
 					{
 						my ($re,$options) = ($1,$2);
 						my $regex = ($options? qr{$re}i : qr{$re});
-						$rulematches = 0 if ($actual !~ $regex);
+						$rulematches = 1 if ($actual =~ $regex);
 					}
 					# or a single precise match
 					else
 					{
-						$rulematches = 0 if ($actual ne $expected);
+						$rulematches = 1 if ($actual eq $expected);
 					}
 					last if (!$rulematches);
 				}
@@ -532,7 +579,6 @@ sub check_outages
 			# didn't survive all selector rules? note that no selectors === match
 			next if (!$rulematches);
 		}
-
 		# how about the time?
 		my $intime;
 		if ($maybeout->{frequency} eq "once")
@@ -654,13 +700,14 @@ sub outageCheck
 
 	my $node = $args{node};
 	my $time = $args{time};
+	my $element = $args{element};
 
 	confess("outageCheck impossible: invalid node argument!")
 			if (ref($node) ne "NMISNG::Node");
 	my $nmisng = $node->nmisng;
 	my $nodename = $node->name;
 
-	my $nodeoutages = check_outages(node => $node, time => $time, nmisng => $nmisng);
+	my $nodeoutages = check_outages(node => $node, time => $time, nmisng => $nmisng,element => $element );
 	if (!$nodeoutages->{success})
 	{
 		$nmisng->log->error("failed to check $nodename outages: $nodeoutages->{error}");
@@ -684,7 +731,7 @@ sub outageCheck
 		# ignore nonexistent stuff, defaults and circular self-dependencies
 		next if ($nd =~ m!^(N/A|$nodename)?$!);
 		my $depnode = $nmisng->node(name => $nd);
-		my $depoutages = check_outages(node => $depnode, time => $time, nmisng => $nmisng);
+		my $depoutages = check_outages(node => $depnode, time => $time, nmisng => $nmisng ,element => $element);
 		if (!$depoutages->{success})
 		{
 			$nmisng->log->error("failed to check $nd outages (dependency of $nodename): $depoutages->{error}");
