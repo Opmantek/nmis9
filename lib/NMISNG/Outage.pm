@@ -149,6 +149,10 @@ sub update_outage
 		for my $cat (qw(node config element))
 		{
 			my $catsel = $args{selector}->{$cat};
+			if ($cat eq 'element' && ref($catsel) eq 'ARRAY'){
+			
+				$newrec{selector}->{$cat} = $catsel;
+			}
 			next if (ref($catsel) ne "HASH");
 
 			for my $onesel (keys %$catsel)
@@ -333,8 +337,11 @@ sub remove_outage
 	
 	return { error => "failed to lock Outage file: $!" } if (!$fh);
 	$data //= {};
+	if (!$data->{$id}){
+		return { error => "$id does not exist, Please enter a valid Outage id."};
 
-	delete $data->{$id};
+	}
+		delete $data->{$id};
 	NMISNG::Util::writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
 
 	NMISNG::Util::audit_log(who => $meta->{user},
@@ -498,7 +505,10 @@ sub check_outages
 		# let's check all selectors for this node - if there is a context node
 		if ($node)
 		{
-			my $rulematches = 0;
+		my $rulematches = 1;
+			# for my $selcat (qw(config node))
+			# {
+			my $rulesmatchesElements = 0;
 			for my $selcat (qw(config node element))
 			{
 				## check if we have an element or not in outage 
@@ -522,7 +532,7 @@ sub check_outages
 								my $re = $all_patterns[1];
 								my $regex = qr{$re}i;
 
-								$rulematches = 1 if ($actual =~ $regex);
+								$rulesmatchesElements = 1 if ($actual =~ $regex);
 							}
 							elsif($expected =~/^regex:/)
 							{
@@ -531,11 +541,11 @@ sub check_outages
 								my $re = $all_patterns[1];
 								my $regex = qr{$re};
 
-								$rulematches = 1 if ($actual =~ $regex);
+								$rulesmatchesElements = 1 if ($actual =~ $regex);
 
 							}
 							else{
-								$rulematches = 1 if ($actual eq $expected);	
+								$rulesmatchesElements = 1 if ($actual eq $expected);	
 							}
 						}
 					}
@@ -558,19 +568,49 @@ sub check_outages
 					# list of precise matches
 					if (ref($expected) eq "ARRAY")
 					{
-						$rulematches = 1 if ( List::Util::any { $actual eq $_ } @$expected);
+						# $rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
+						if (! List::Util::any { $actual eq $_ } @$expected){
+							if ($element){
+								if ($rulesmatchesElements == 0){
+									$rulematches = 0;
+								}
+							}
+							else{
+								$rulematches = 0;
+							}
+						}
 					}
 					# or a regex-like string
 					elsif ($expected =~ m!^/(.*)/(i)?$!)
 					{
 						my ($re,$options) = ($1,$2);
 						my $regex = ($options? qr{$re}i : qr{$re});
-						$rulematches = 1 if ($actual =~ $regex);
+						# $rulematches = 0 if ($actual !~ $regex);
+						if ($actual !~ $regex){
+							if ($element){
+								if ($rulesmatchesElements == 0){
+									$rulematches = 0;
+								}
+							}
+							else{
+								$rulematches = 0;
+							}
+						}
 					}
 					# or a single precise match
 					else
 					{
-						$rulematches = 1 if ($actual eq $expected);
+						 if ($actual ne $expected){
+							if ($element){
+								if ($rulesmatchesElements == 0){
+									$rulematches = 0;
+								}
+							}
+							else{
+								$rulematches = 0 ;
+							}
+						 }
+						# $rulematches = 0 if ($actual ne $expected);
 					}
 					last if (!$rulematches);
 				}
