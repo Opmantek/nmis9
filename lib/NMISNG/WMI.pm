@@ -185,7 +185,9 @@ sub _run_query
 	my $pid = open(WMIC, "-|");
 	if (!defined $pid)
 	{
-		unlink($tfn, $authfn);
+		unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
+		unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
+		unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 		return (error => "cannot fork to run wmic: $!");
 	}
 	elsif ($pid)
@@ -211,7 +213,9 @@ sub _run_query
 			# don't want the wmic process to hang around, we stopped consuming its output
 			# and it can't do anything useful anymore
 			kill("KILL",$pid);
-			unlink($tfn, $authfn);
+			unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
+			unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
+			unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 			return (error => "timeout after $timeout seconds");
 		}
 	}
@@ -283,11 +287,15 @@ sub _run_query
 		}
 		# remove new lines in the error message
 		$result{error} =~ s/\n/\\n/;
-		unlink($tfn,$authfn,$cmdfn);								# not needed anymore
+		unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
+		unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
+		unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 	}
 	else
 	{
-		unlink($tfn, $authfn);								# not needed here
+		unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
+		unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
+		unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 		# worked? extract class, fieldnames
 		# produce hash for each class, array of subhashes for the rows
 		my ($classname, @fieldnames, %nicedata);
