@@ -55,7 +55,7 @@ use NMISNG::Util;
 #  nostats (default undef, if set to 1 only 'U' values are written
 #  to rrds during the outage)
 # selector (hash substructure that defines what devices this outage covers)
-#  two category keys, 'node' and 'config'
+#  two category keys, 'node','config' and element.
 #  under these there can be any number of key => value filter expressions
 #  all filter expressions must match for the selector to match
 #
@@ -150,7 +150,6 @@ sub update_outage
 		{
 			my $catsel = $args{selector}->{$cat};
 			if ($cat eq 'element' && ref($catsel) eq 'ARRAY'){
-			
 				$newrec{selector}->{$cat} = $catsel;
 			}
 			next if (ref($catsel) ne "HASH");
@@ -505,9 +504,7 @@ sub check_outages
 		# let's check all selectors for this node - if there is a context node
 		if ($node)
 		{
-		my $rulematches = 1;
-			# for my $selcat (qw(config node))
-			# {
+			my $rulematches = 1;
 			my $rulesmatchesElements = 0;
 			for my $selcat (qw(config node element))
 			{
@@ -523,7 +520,7 @@ sub check_outages
 					foreach my $sel (@allelements){
 						# skip the elements for which nodes does not match
 						if ($node->name eq $sel->{'node_name'}){
-							
+					
 							$expected = $sel->{'element_name'};
 							
 							if ($expected =~/^iregex:/){
@@ -531,18 +528,14 @@ sub check_outages
 								my @all_patterns = split("regex:",$expected);
 								my $re = $all_patterns[1];
 								my $regex = qr{$re}i;
-
 								$rulesmatchesElements = 1 if ($actual =~ $regex);
 							}
 							elsif($expected =~/^regex:/)
 							{
-								
 								my @all_patterns = split("regex:",$expected);
 								my $re = $all_patterns[1];
 								my $regex = qr{$re};
-
 								$rulesmatchesElements = 1 if ($actual =~ $regex);
-
 							}
 							else{
 								$rulesmatchesElements = 1 if ($actual eq $expected);	
