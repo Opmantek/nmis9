@@ -235,6 +235,11 @@ sub _abs_time
 			# truncate to week begin, then add X-1 days (monday is day 1!, but DT-weekstart is monday too...)
 			$dt = $dt->truncate(to => "week")->add("days" => $wdlist{$wd}-1);
 		}
+		else
+		{
+			## return error if the frequency type does not match the regex time format
+			return undef;
+		}
 	}
 	elsif ($frequency eq "monthly")
 	{
@@ -252,6 +257,11 @@ sub _abs_time
 				eval { $dt->set(day => $monthday); };
 				return undef if $@;
 			}
+		}
+		else
+		{
+			## return error if the frequency type does not match the regex time format
+			return undef;
 		}
 	}
 
