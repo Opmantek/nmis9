@@ -609,7 +609,7 @@ sub checkNodes {
 			# Get the summary stats
 			my $begin    = @tsStartArray[0];
 			my $end      = @tsEndArray[0];
-			print "Compat::NMIS::getSummaryStats(sys=>\$S,type=>'NetFlowStats',start=>$begin,end=>$end,index=>)\n"; # if ($debug > 2);
+			print "Compat::NMIS::getSummaryStats(sys=>\$S,type=>'NetFlowStats',start=>$begin,end=>$end,index=>)\n" if ($debug > 2);
 			my $stats = Compat::NMIS::getSummaryStats(sys=>$S,type=>"NetFlowStats",start=>$begin,end=>$end,index=>);
 			if ( defined $stats->{RecordsExported} ) {
 				$catchall_data->{RecordsExported}    = $stats->{RecordsExported};
