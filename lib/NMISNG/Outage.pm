@@ -514,46 +514,48 @@ sub check_outages
 		# let's check all selectors for this node - if there is a context node
 		if ($node)
 		{
-			my $rulematches = 1;
-			my $rulesmatchesElements = 0;
-			for my $selcat (qw(config node element))
+			my $rulematches = 1;  ### outage is true for nodes
+			my $rulesmatchesElements = 1;  ## outage is true for elements
+			
+			for my $selcat (qw(element config node))
 			{
 				## check if we have an element or not in outage 
-
 				if (ref($maybeout->{selector}->{$selcat}) eq 'ARRAY' && $selcat eq 'element'){
 
 					my @allelements = @{$maybeout->{selector}->{$selcat}}; ## all data for element selector.
 					my $expected;
 
-					my $actual = $element; ## actual data is passed on as $element 
-					
+					my $actual = $element; ## actual data is passed on as $element  
+
 					foreach my $sel (@allelements){
 						# skip the elements for which nodes does not match
 						if ($node->name eq $sel->{'node_name'}){
 					
 							$expected = $sel->{'element_name'};
-							
 							if ($expected =~/^iregex:/){
 							
 								my @all_patterns = split("regex:",$expected);
 								my $re = $all_patterns[1];
 								my $regex = qr{$re}i;
-								$rulesmatchesElements = 1 if ($actual =~ $regex);
+								$rulesmatchesElements = 0 if (!($actual =~ $regex));
 							}
 							elsif($expected =~/^regex:/)
 							{
+
 								my @all_patterns = split("regex:",$expected);
 								my $re = $all_patterns[1];
 								my $regex = qr{$re};
-								$rulesmatchesElements = 1 if ($actual =~ $regex);
+								$rulesmatchesElements = 0 if (!($actual =~ $regex));
+
 							}
 							else{
-								$rulesmatchesElements = 1 if ($actual eq $expected);	
+
+								$rulesmatchesElements = 0 if ( $actual ne $expected);	
 							}
 						}
 					}
 				}
-
+				
 				next if (ref($maybeout->{selector}->{$selcat}) ne "HASH");
 
 				for my $propname (keys %{$maybeout->{selector}->{$selcat}})
@@ -572,16 +574,17 @@ sub check_outages
 					if (ref($expected) eq "ARRAY")
 					{
 						# $rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
+
 						if (! List::Util::any { $actual eq $_ } @$expected){
-							if ($element){
+							$rulematches = 0;
+						}
+						else{
+							## node matched now check if you have mentioned element in event or not.
 								if ($rulesmatchesElements == 0){
-									$rulematches = 0;
+										$rulematches = 0;
 								}
 							}
-							else{
-								$rulematches = 0;
-							}
-						}
+					
 					}
 					# or a regex-like string
 					elsif ($expected =~ m!^/(.*)/(i)?$!)
@@ -590,28 +593,24 @@ sub check_outages
 						my $regex = ($options? qr{$re}i : qr{$re});
 						# $rulematches = 0 if ($actual !~ $regex);
 						if ($actual !~ $regex){
-							if ($element){
-								if ($rulesmatchesElements == 0){
+							$rulematches = 0;
+						}
+						else{
+							if ($rulesmatchesElements == 0){
 									$rulematches = 0;
 								}
-							}
-							else{
-								$rulematches = 0;
-							}
 						}
 					}
 					# or a single precise match
 					else
 					{
 						 if ($actual ne $expected){
-							if ($element){
-								if ($rulesmatchesElements == 0){
+								$rulematches = 0;
+						 }
+						 else{
+							if ($rulesmatchesElements == 0){
 									$rulematches = 0;
 								}
-							}
-							else{
-								$rulematches = 0 ;
-							}
 						 }
 						# $rulematches = 0 if ($actual ne $expected);
 					}
