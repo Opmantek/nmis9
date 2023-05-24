@@ -3315,10 +3315,7 @@ sub update_intf_info
 			{
 				my $thisintfover = $overrides->{$ifDescr};
 
-				if ( $thisintfover->{collect}
-						 # fixme9: this is stupid. the override is already keyed by this ifdescr...why copy and check AGAIN?
-						 and $thisintfover->{ifDescr} eq $target->{ifDescr} )
-
+				if ( $thisintfover->{collect} )
 				{
 					$target->{nc_collect} = $target->{collect};
 					$target->{collect}    = $thisintfover->{collect};
