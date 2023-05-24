@@ -495,12 +495,13 @@ sub check_outages
 		$nodeconfig = $node->configuration;
 		my ($catchall,$error) = $node->inventory(concept => "catchall");
 		## Add all the catch-all data elements to node-config.
-		$nodeconfig->{'catchall.data.nodeType'} =  $catchall->data->{nodeType};
-		$nodeconfig->{'catchall.data.nodeVendor'} = $catchall->data->{nodeVendor};
-		$nodeconfig->{'catchall.data.nodestatus'} = $catchall->data->{nodestatus};
-		$nodeconfig->{'configuration.group'} =  $catchall->data->{group};
-		$nodeconfig->{'configuration.roleType'} =  $catchall->data->{roleType};
-		
+		if ($catchall) {
+			$nodeconfig->{'catchall.data.nodeType'} =  $catchall->data->{nodeType};
+			$nodeconfig->{'catchall.data.nodeVendor'} = $catchall->data->{nodeVendor};
+			$nodeconfig->{'catchall.data.nodestatus'} = $catchall->data->{nodestatus};
+			$nodeconfig->{'configuration.group'} =  $catchall->data->{group};
+			$nodeconfig->{'configuration.roleType'} =  $catchall->data->{roleType};
+		}
 		$nodemodel = $catchall->data->{nodeModel} if (!$error
 																									&& ref($catchall) =~ /^NMISNG::Inventory::/
 																									&& ref($catchall->data) eq "HASH");
