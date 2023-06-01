@@ -3401,7 +3401,7 @@ LABEL_ESC:
 		my $node_name = $event_obj->node_name;
 
 		# lets start with checking that we have a valid node - the node may have been deleted.
-		if ( !$nmisng_node or !$nmisng_node->configuration->{active} )
+		if ( !$nmisng_node or !$nmisng_node->is_active() )
 		{
 			if (    NMISNG::Util::getbool( $thisevent_control->{Log} )
 				and NMISNG::Util::getbool( $thisevent_control->{Notify} )
@@ -3504,7 +3504,7 @@ LABEL_ESC:
 							event     => "Node Down",
 							active    => 1
 						);
-						if ( !$error && ref($erec) eq "HASH" )
+						if ( !$error ) # don't need to check the type, error should tell us all we need
 						{
 							$self->log->debug2(
 								"NOT escalating $event_data->{node_name} $event_data->{event} as depending on $node_depend, which is reported as down"
