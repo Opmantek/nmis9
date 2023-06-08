@@ -122,7 +122,118 @@
 		'nodeModel' => 'F5-BigIP-API',
 		'nodeType' => 'Server',
 		'nodeVendor' => 'F5 Labs, Inc.',
+		'nodegraph' => 'health,F5-Memory,F5-Connection,response,F5-Swap-Memory,F5-APM_ActiveSess',
+		'sys' => {
+			'standard' => {
+				'snmp' => {
+					'sysLocation' => {
+						'replace' => {
+							'' => 'default'
+						},
+						'oid' => 'sysLocation',
+						'title' => 'Location'
+					},
+					'sysDescr' => {
+						'oid' => 'sysDescr',
+						'title' => 'Description'
+					},
+					'sysObjectID' => {
+						'oid' => 'sysObjectID'
+					},
+					'sysUpTime' => {
+						'oid' => 'sysUpTime',
+						'title' => 'Uptime'
+					},
+					'ifNumber' => {
+						'oid' => 'ifNumber',
+						'title' => 'Interfaces'
+					},
+					'sysContact' => {
+						'replace' => {
+							'' => 'default'
+						},
+						'oid' => 'sysContact',
+						'title' => 'Contact'
+					},
+					'sysName' => {
+						'oid' => 'sysName'
+					}
+				}
+			},
+		},
+		'rrd' => {
+			'mib2ip' => {
+				'snmp' => {
+					'ipInAddrErrors' => {
+						'oid' => 'ipInAddrErrors',
+						'option' => 'counter,0:U'
+					},
+					'ipFragCreates' => {
+						'oid' => 'ipFragCreates',
+						'option' => 'counter,0:U'
+					},
+					'ipInDiscards' => {
+						'oid' => 'ipInDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ipInReceives' => {
+						'oid' => 'ipInReceives',
+						'option' => 'counter,0:U'
+					},
+					'ipFragOKs' => {
+						'oid' => 'ipFragOKs',
+						'option' => 'counter,0:U'
+					},
+					'ipInDelivers' => {
+						'oid' => 'ipInDelivers',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmFails' => {
+						'oid' => 'ipReasmFails',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmReqds' => {
+						'oid' => 'ipReasmReqds',
+						'option' => 'counter,0:U'
+					},
+					'ipFragFails' => {
+						'oid' => 'ipFragFails',
+						'option' => 'counter,0:U'
+					},
+					'ipOutRequests' => {
+						'oid' => 'ipOutRequests',
+						'option' => 'counter,0:U'
+					},
+					'ipOutNoRoutes' => {
+						'oid' => 'ipOutNoRoutes'
+					},
+					'ipInHdrErrors' => {
+						'oid' => 'ipInHdrErrors',
+						'option' => 'counter,0:U'
+					},
+					'ipForwDatagrams' => {
+						'oid' => 'ipForwDatagrams',
+						'option' => 'counter,0:U'
+					},
+					'ipOutDiscards' => {
+						'oid' => 'ipOutDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmOKs' => {
+						'oid' => 'ipReasmOKs',
+						'option' => 'counter,0:U'
+					},
+					'ipInUnknownProtos' => {
+						'oid' => 'ipInUnknownProtos',
+						'option' => 'counter,0:U'
+					}
+				},
+				'graphtype' => 'ip,frag'
+			},
+		},
 	},
+
+
 	'systemHealth' => {
 #		'sections' => 'F5_Temperature,F5_CPU,F5_Cores,F5_Storage,F5_Connection,VirtualServTable,F5_Pools',
 		'sys' => {
