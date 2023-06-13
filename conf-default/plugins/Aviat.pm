@@ -50,8 +50,6 @@ sub update_plugin
 	my $concept = 'ifTable';
 	my $inventory_data_key = 'index';
 
-	$NG->log->info("$plugin:$sub: Running for node $node");
-
     my $nodeobj = $NG->node(name => $node);
     my $inv = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $inv->data;
@@ -61,15 +59,17 @@ sub update_plugin
             
 	my $NC = $nodeobj->configuration;
 
+	my $max_repetitions = $NC->{max_repetitions} || $C->{snmp_max_repetitions};
+	my %nodeconfig = %{$NC};
+
+	return (0,undef) if ( $catchall_data->{nodeModel} ne "NL-Aviat" or !NMISNG::Util::getbool($catchall_data->{collect}));
+
+	$NG->log->info("$plugin:$sub: Running for node $node");
+
 	$NG->log->debug9("\$node: ".Dumper \$nodeobj);
 	$NG->log->debug9("\$S: ".Dumper \$S);
 	$NG->log->debug9("\$C: ".Dumper \$C);
 	$NG->log->debug9("\$NG: ".Dumper \$NG);
-
-	my $max_repetitions = $NC->{max_repetitions} || $C->{snmp_max_repetitions};
-	my %nodeconfig = %{$NC};
-
-	return (1,undef) if ( $catchall_data->{nodeModel} ne "NL-Aviat" or !NMISNG::Util::getbool($catchall_data->{collect}));
 
 	my $changesweremade = 0;
 
