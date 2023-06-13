@@ -3315,7 +3315,10 @@ sub update_intf_info
 			{
 				my $thisintfover = $overrides->{$ifDescr};
 
-				if ( $thisintfover->{collect} )
+				if ( $thisintfover->{collect}
+						 # fixme9: this is stupid. the override is already keyed by this ifdescr...why copy and check AGAIN?
+						 and $thisintfover->{ifDescr} eq $target->{ifDescr} )
+
 				{
 					$target->{nc_collect} = $target->{collect};
 					$target->{collect}    = $thisintfover->{collect};
@@ -3643,6 +3646,7 @@ sub collect_intf_data
 	# 9. mark any leftover present-but-unwanted inventories as historic (by inventory id!)
 
 	# 1. get the interface inventories for this node, but only the bits we need (so far)
+	$self->nmisng->log->debug5("collect_intf_data phase 1");
 	my $result = $self->get_inventory_model(
 		'concept' => 'interface',
 		fields_hash => {
@@ -3691,8 +3695,10 @@ sub collect_intf_data
 
 	# 2a. get the ifadminstatus, ifoperstatus and iflastchange tables
 	# and add them to our knowledge
+	$self->nmisng->log->debug5("collect_intf_data phase 2a");
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
+	# when ifAdminStatus is disabled, interfaces will be managed by a plugin for discovery
 	my $dontwanna_ifadminstatus = (ref($S->{mdl}->{custom}) eq "HASH"    # don't autovivify
 																 and ref($S->{mdl}->{custom}->{interface} ) eq "HASH"
 																 # and explicitely set to false
@@ -3739,6 +3745,7 @@ sub collect_intf_data
 	}
 
 	# 3. who needs updating based on what we know so far?
+	$self->nmisng->log->debug5("collect_intf_data phase 3");
 	for my $index (sort keys %if_data_map)
 	{
 		my $thisif = $if_data_map{$index};
@@ -3753,7 +3760,8 @@ sub collect_intf_data
 			next;
 		}
 		# removed interface? skippy!
-		elsif (!exists $thisif->{_ifAdminStatus})
+		# needs to check if the ifAdminStatus is enabled in this model or not too
+		elsif (!exists $thisif->{_ifAdminStatus} and !$dontwanna_ifadminstatus)
 		{
 			$self->nmisng->log->debug("[$nodename]  _ifAdminStatus does not exist ");
 			if ($isValidTable == 1) {
@@ -3781,13 +3789,17 @@ sub collect_intf_data
 		$self->nmisng->log->debug("($S->{name}) no ifAdminStatus for index=$index present")
 				if (!defined $curstatus);
 
-		# relevant transition === entering or leaving up state
-		if ((defined $newstate and $newstate eq "up")
-				xor (defined $curstatus and $curstatus eq "up"))
+		# needs to check if the ifAdminStatus is enabled in this model or not too
+		if (!$dontwanna_ifadminstatus)
 		{
-			$self->nmisng->log->info("Interface $index, admin status changed from $curstatus to $newstate, needs update");
-			$thisif->{_needs_update} = 1;
-			next;
+			# relevant transition === entering or leaving up state		
+			if ((defined $newstate and $newstate eq "up")
+					xor (defined $curstatus and $curstatus eq "up"))
+			{
+				$self->nmisng->log->info("Interface $index, admin status changed from $curstatus to $newstate, needs update");
+				$thisif->{_needs_update} = 1;
+				next;
+			}
 		}
 
 		# or has ifLastChange changed? not enabled by default, must check if it's been loaded
@@ -3804,6 +3816,7 @@ sub collect_intf_data
 	}
 
 	# 4. perform update_intf_info for the interfaces that need it
+	$self->nmisng->log->debug5("collect_intf_data phase 4");
 	for my $needsmust (grep($if_data_map{$_}->{_needs_update}, keys %if_data_map))
 	{
 		# all done by index, so far
@@ -3847,6 +3860,7 @@ sub collect_intf_data
 	# 5. collect modelled data for enabled, nonhistoric, collectable interfaces
 	# and stash it as we don't necessarily know the final inventory target yet
 	$self->nmisng->log->debug2("Collecting Interface Data");
+	$self->nmisng->log->debug5("collect_intf_data phase 5");
 
 	for my $index (sort grep($if_data_map{$_}->{enabled} && !$if_data_map{$_}->{historic} && ($if_data_map{$_}->{collect} eq "true"),
 													 keys %if_data_map))
@@ -3933,6 +3947,7 @@ sub collect_intf_data
 	# 6. figure out if any other interfaces need an update, based on the snmp information now available
 	# this covers reordered interfaces (interface index is not invariant, ifdescr is treated as invariant)
 	# new interfaces should have been handled in 4.
+	$self->nmisng->log->debug5("collect_intf_data phase 6");
 	for my $index (keys %if_data_map)
 	{
 		my $thisif = $if_data_map{$index};
@@ -3946,7 +3961,8 @@ sub collect_intf_data
 		my $intfsection = $thisif->{_rrd_data}->{interface}->{$index};
 
 		my $newifdescr = NMISNG::Util::rmBadChars( $intfsection->{ifDescr}->{value} );
-		if ($newifdescr ne $thisif->{ifDescr})
+		# only perform interface decription change detection if we are using ifAdminStatus for status and change detection as well
+		if ($newifdescr ne $thisif->{ifDescr} and !$dontwanna_ifadminstatus)
 		{
 			$self->nmisng->log->info("Interface $index, ifDescr changed from $thisif->{ifDescr} to $newifdescr, needs update");
 			$thisif->{_needs_update} = 1;
@@ -3974,6 +3990,7 @@ sub collect_intf_data
 
 	# 7. redo the update_intf_info exercise from 4. for these other interfaces in need of help
 	# these 'other' interfaces should not be totally new ones, those should have been covered in 4.
+	$self->nmisng->log->debug5("collect_intf_data phase 7");
 	for my $needsmust (grep($if_data_map{$_}->{_needs_update}, keys %if_data_map))
 	{
 		# all done by index, so far
@@ -4020,6 +4037,7 @@ sub collect_intf_data
 
 	# 8. do something with the stashed rrd data; now if_data_map should have
 	# the correct inventory id attached for every single interface
+	$self->nmisng->log->debug5("collect_intf_data phase 8");
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live(); # live, no saving needed
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;

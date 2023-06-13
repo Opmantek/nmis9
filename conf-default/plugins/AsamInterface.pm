@@ -477,6 +477,7 @@ sub update_plugin
 
 	# Now we save eachInterface in our node. We do this as a separate 
 	# step because the above might alter names because of duplication.
+	my %activeones;
 	my $intDump = Dumper $intfData;
 	$NG->log->debug5("intfData = ".$intDump);
 	foreach my $index (keys %{$intfData}) 
@@ -515,11 +516,16 @@ sub update_plugin
 		$inventory->data( $intfSubData );
 
 		# set which columns should be displayed
-		$inventory->data_info(
-			subconcept => "interface",
-			enabled => 1,
-			display_keys => $intfInfo
-		);
+		#$inventory->data_info(
+		#	subconcept => "interface",
+		#	enabled => 1,
+		#	display_keys => $intfInfo
+		#);
+		# enable interfaces for viewing, no columns, someoneelse can define that
+		# disable pkts, for now, no idea
+		$inventory->data_info( subconcept => 'interface', enabled => 1 );
+		$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
+		$inventory->data_info( subconcept => 'pkts', enabled => 0 );
 
 		$NG->log->info("Interface description is '$intfSubData->{ifDescr}'");
 
@@ -594,6 +600,9 @@ sub update_plugin
 			$NG->log->debug( "Saved Interface '$intfSubData->{ifDescr}' (ID '$index'); op: $op");
 			$changesweremade = 1;
 		}
+
+		# mark as nonhistoric so that we can ditch the actually historic ones...
+		$activeones{$inventory->id} = 1;
 	}
 	if ($changesweremade)
 	{
@@ -604,6 +613,11 @@ sub update_plugin
 		$NG->log->info("No Interfaces were added.");
 	}
 	$snmp->close;
+
+	my $result = $S->nmisng_node->bulk_update_inventory_historic( active_ids => [keys %activeones],
+																											concept => 'interface' );
+	$NG->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
+	$NG->log->debug("$node, found intfs alive: $result->{matched_nothistoric}, already historic: $result->{matched_historic}, marked alive: $result->{marked_nothistoric}, marked historic: $result->{marked_historic}");
 
 	return ($changesweremade,undef);			# happy
 }
