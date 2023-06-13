@@ -122,7 +122,118 @@
 		'nodeModel' => 'F5-BigIP-API',
 		'nodeType' => 'Server',
 		'nodeVendor' => 'F5 Labs, Inc.',
+		'nodegraph' => 'health,F5-Memory,F5-Connection,response,F5-Swap-Memory,F5-APM_ActiveSess',
+		'sys' => {
+			'standard' => {
+				'snmp' => {
+					'sysLocation' => {
+						'replace' => {
+							'' => 'default'
+						},
+						'oid' => 'sysLocation',
+						'title' => 'Location'
+					},
+					'sysDescr' => {
+						'oid' => 'sysDescr',
+						'title' => 'Description'
+					},
+					'sysObjectID' => {
+						'oid' => 'sysObjectID'
+					},
+					'sysUpTime' => {
+						'oid' => 'sysUpTime',
+						'title' => 'Uptime'
+					},
+					'ifNumber' => {
+						'oid' => 'ifNumber',
+						'title' => 'Interfaces'
+					},
+					'sysContact' => {
+						'replace' => {
+							'' => 'default'
+						},
+						'oid' => 'sysContact',
+						'title' => 'Contact'
+					},
+					'sysName' => {
+						'oid' => 'sysName'
+					}
+				}
+			},
+		},
+		'rrd' => {
+			'mib2ip' => {
+				'snmp' => {
+					'ipInAddrErrors' => {
+						'oid' => 'ipInAddrErrors',
+						'option' => 'counter,0:U'
+					},
+					'ipFragCreates' => {
+						'oid' => 'ipFragCreates',
+						'option' => 'counter,0:U'
+					},
+					'ipInDiscards' => {
+						'oid' => 'ipInDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ipInReceives' => {
+						'oid' => 'ipInReceives',
+						'option' => 'counter,0:U'
+					},
+					'ipFragOKs' => {
+						'oid' => 'ipFragOKs',
+						'option' => 'counter,0:U'
+					},
+					'ipInDelivers' => {
+						'oid' => 'ipInDelivers',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmFails' => {
+						'oid' => 'ipReasmFails',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmReqds' => {
+						'oid' => 'ipReasmReqds',
+						'option' => 'counter,0:U'
+					},
+					'ipFragFails' => {
+						'oid' => 'ipFragFails',
+						'option' => 'counter,0:U'
+					},
+					'ipOutRequests' => {
+						'oid' => 'ipOutRequests',
+						'option' => 'counter,0:U'
+					},
+					'ipOutNoRoutes' => {
+						'oid' => 'ipOutNoRoutes'
+					},
+					'ipInHdrErrors' => {
+						'oid' => 'ipInHdrErrors',
+						'option' => 'counter,0:U'
+					},
+					'ipForwDatagrams' => {
+						'oid' => 'ipForwDatagrams',
+						'option' => 'counter,0:U'
+					},
+					'ipOutDiscards' => {
+						'oid' => 'ipOutDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ipReasmOKs' => {
+						'oid' => 'ipReasmOKs',
+						'option' => 'counter,0:U'
+					},
+					'ipInUnknownProtos' => {
+						'oid' => 'ipInUnknownProtos',
+						'option' => 'counter,0:U'
+					}
+				},
+				'graphtype' => 'ip,frag'
+			},
+		},
 	},
+
+
 	'systemHealth' => {
 #		'sections' => 'F5_Temperature,F5_CPU,F5_Cores,F5_Storage,F5_Connection,VirtualServTable,F5_Pools',
 		'sys' => {
@@ -275,4 +386,195 @@
 			},
 		},
 	},
+	'interface' => {
+		'sys' => {
+			'standard' => {
+				'indexed' => 'true',
+				'snmp' => {
+					'ifOperStatus' => {
+						'replace' => {
+							'6' => 'notPresent',
+							'1' => 'up',
+							'4' => 'unknown',
+							'3' => 'testing',
+							'7' => 'lowerLayerDown',
+							'2' => 'down',
+							'5' => 'dormant'
+						},
+						'oid' => 'ifOperStatus',
+						'title' => 'Oper Status'
+					},
+					'ifDescr' => {
+						#need to check it does ifDescr
+						'oid' => 'ifDescr',
+						'title' => 'Name'
+					},
+					'ifPhysAddress' => {
+						'oid' => 'ifPhysAddress',
+						'title' => 'Physical Address',
+					},
+					'ifSpeed' => {
+						'oid' => 'ifSpeed',
+						'title' => 'Bandwidth'
+					},
+					'ifAdminStatus' => {
+						'replace' => {
+							'6' => 'notPresent',
+							'1' => 'up',
+							'4' => 'unknown',
+							'3' => 'testing',
+							'7' => 'lowerLayerDown',
+							'2' => 'down',
+							'5' => 'dormant'
+						},
+						'oid' => 'ifAdminStatus',
+						'title' => 'Admin Status'
+					},
+					'ifType' => {
+						'oid' => 'ifType',
+						'title' => 'Type (ifType)'
+					},
+					'ifLastChange' => {
+						'oid' => 'ifLastChange',
+						'title' => 'Last Change'
+					}
+				}
+			},
+			'extra' => {
+				'indexed' => 'true',
+				'snmp' => {
+					'ifHighSpeed' => {
+						'oid' => 'ifHighSpeed'
+					},
+					'Description' => {
+						'oid' => 'ifAlias',
+						'title' => 'Description (ifAlias)'
+					}
+				}
+			}
+		},
+		'rrd' => {
+			'interface' => {
+				'indexed' => 'true',
+				'snmp' => {
+					'ifOperStatus' => {
+						'replace' => {
+							'6' => 'notPresent',
+							'1' => 'up',
+							'4' => 'unknown',
+							'3' => 'testing',
+							'7' => 'lowerLayerDown',
+							'2' => 'down',
+							'5' => 'dormant'
+						},
+						'oid' => 'ifOperStatus',
+						'option' => 'gauge,0:100'
+					},
+					'ifDescr' => {
+						'oid' => 'ifName'
+					},
+					'ifInOctets' => {
+						'oid' => 'ifInOctets',
+						'option' => 'counter,0:U'
+					},
+					'ifHCOutOctets' => {
+						'oid' => 'ifHCOutOctets',
+						'option' => 'counter,0:U'
+					},
+					'ifAdminStatus' => {
+						'replace' => {
+							'6' => 'notPresent',
+							'1' => 'up',
+							'4' => 'unknown',
+							'3' => 'testing',
+							'7' => 'lowerLayerDown',
+							'2' => 'down',
+							'5' => 'dormant'
+						},
+						'oid' => 'ifAdminStatus'
+					},
+					'ifOutOctets' => {
+						'oid' => 'ifOutOctets',
+						'option' => 'counter,0:U'
+					},
+					'ifHCInOctets' => {
+						'oid' => 'ifHCInOctets',
+						'option' => 'counter,0:U'
+					}
+				},
+				'threshold' => 'util_in,util_out',
+				'graphtype' => 'bits,abits,maxbits,util,autil'
+			},
+			'pkts_hc' => {
+				'indexed' => 'true',
+				'threshold' => 'pkt_errors_in,pkt_errors_out',
+				'graphtype' => 'pkts_hc,errpkts_hc',
+				'snmp' => {
+					'ifHCInOctets' => {
+						'oid' => 'ifHCInOctets',
+						'option' => 'counter,0:U'
+					},
+					'ifHCInUcastPkts' => {
+						'oid' => 'ifHCInUcastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifHCInMcastPkts' => {
+						'oid' => 'ifHCInMulticastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifHCInBcastPkts' => {
+						'oid' => 'ifHCInBroadcastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifInDiscards' => {
+						'oid' => 'ifInDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ifInErrors' => {
+						'oid' => 'ifInErrors',
+						'option' => 'counter,0:U'
+					},
+					'ifHCOutOctets' => {
+						'oid' => 'ifHCOutOctets',
+						'option' => 'counter,0:U'
+					},
+					'ifHCOutUcastPkts' => {
+						'oid' => 'ifHCOutUcastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifHCOutMcastPkts' => {
+						'oid' => 'ifHCOutMulticastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifHCOutBcastPkts' => {
+						'oid' => 'ifHCOutBroadcastPkts',
+						'option' => 'counter,0:U'
+					},
+					'ifOutDiscards' => {
+						'oid' => 'ifOutDiscards',
+						'option' => 'counter,0:U'
+					},
+					'ifOutErrors' => {
+						'oid' => 'ifOutErrors',
+						'option' => 'counter,0:U'
+					},
+				}
+			}
+		},
+		'collect' => {
+			'Description' => '(CNOC|Collection)',
+		},
+		'nocollect' => {
+			'ifOperStatus' => 'other',
+			'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+			'Description' => '^#',
+			'noDescription' => 'true',
+			'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
+		},
+		'noevent' => {
+			'Description' => '^!',
+			'ifDescr' => 'null',
+			'ifType' => 'other'
+		}
+	},	
 );
