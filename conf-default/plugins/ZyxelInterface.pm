@@ -52,6 +52,8 @@ sub update_plugin
 	my $intfData = undef;
 	my $intfInfo = undef;
 	my $interface_max_number = $C->{interface_max_number} || 5000;
+	$NG->log->debug("Max Interfaces are: '$interface_max_number'");
+
 
 	my $NI = $S->nmisng_node;
 	my $nodeobj = $NG->node(name => $node);
@@ -69,12 +71,12 @@ sub update_plugin
 	if ( $catchall->{sysDescr} !~ /IES/ or $catchall->{nodeVendor} ne "ZyXEL Communications Corp."
 		   	or !NMISNG::Util::getbool($catchall->{collect}))
 	{
-		$NG->log->debug("Max Interfaces are: '$interface_max_number'");
-		$NG->log->debug("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
-		$NG->log->debug("Node '$node', has $catchall->{ifNumber} interfaces.");
-		$NG->log->debug("Node '$node', System Description '$catchall->{sysDescr}'.");
-		$NG->log->debug("Node '$node', Vendor '$catchall->{nodeVendor}'.");
-		$NG->log->debug("Node '$node', does not qualify for this plugin.");
+		$NG->log->info("Max Interfaces are: '$interface_max_number'");
+		$NG->log->info("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
+		$NG->log->info("Node '$node', has $catchall->{ifNumber} interfaces.");
+		$NG->log->info("Node '$node', System Description '$catchall->{sysDescr}'.");
+		$NG->log->info("Node '$node', Vendor '$catchall->{nodeVendor}'.");
+		$NG->log->info("Node '$node', does not qualify for this plugin.");
 		return (0,undef);
 	}
 	else
@@ -113,6 +115,7 @@ sub update_plugin
 	my $indexTotal       = 0;
 	my $intfTotal        = 0;
 	my $intfCollect      = 0; # reset counters
+	my $Description      = "N/A";
 	my $ifDescr          = undef;
 	my $ifName           = undef;
 	my $ifType           = undef;
@@ -136,7 +139,7 @@ sub update_plugin
 
 	# Get the special ZyXEL names and such.
 	my $subrPortNameOid = "1.3.6.1.4.1.890.1.5.13.5.8.1.1.1";
-	my $subrPortTelOid = "1.3.6.1.4.1.890.1.5.13.5.8.1.1.2";
+	my $subrPortTelOid  = "1.3.6.1.4.1.890.1.5.13.5.8.1.1.2";
 	
 	# The IES 1248 Appears to use the next MIB ID along.
 	if ( $catchall->{sysDescr} =~ /1248/ )
@@ -209,7 +212,7 @@ sub update_plugin
 			"$ifOperStatusOid.$index",
 			"$ifLastChangeOid.$index",
 			# These do not appear to be implemented consistently
-			#"$ifAliasOid.$index",
+			"$ifAliasOid.$index",
 			#"$ifHighSpeedOid.$index",
 				);
 		
@@ -226,6 +229,7 @@ sub update_plugin
 			next;
 		}
 
+		$Description   = $subrPortTel->{$index};
 		$ifDescr       = $snmpData->{"$ifDescrOid.$index"};
 		$ifName        = NMISNG::Util::convertIfName($ifDescr);
 		$ifType        = $IFT->{$snmpData->{"$ifTypeOid.$index"}}{ifType};
@@ -240,19 +244,27 @@ sub update_plugin
 		# ifDescr must always be filled
 		$ifDescr = $index if ($ifDescr eq "");
 
-		my $Description   = $ifAlias;
-		if ( $subrPortTel->{$index} ne "" and $subrPortName->{$index} ne "")
+		if ($ifAlias ne "" && $ifAlias ne "0")
 	   	{
-			$Description  = "$subrPortName->{$index}: $subrPortTel->{$index}";
+			$Description   = "Alias: '$ifAlias'";
 		}
-		elsif ( $subrPortName->{$index} ne "" )
+		$NG->log->debug("Description             = '$Description'");
+		if ( $subrPortTel->{$index} ne "" and $subrPortName->{$index} ne "" && $subrPortName->{$index} ne "0")
 	   	{
-			$Description  = "$subrPortName->{$index}";
+			$NG->log->debug("Found both 'subrPortTel' and 'subrPortName'");
+			$Description  = "Name: '$subrPortName->{$index}'; Telephone: '$subrPortTel->{$index}'";
+		}
+		elsif ( $subrPortName->{$index} ne "" && $subrPortName->{$index} ne "0" )
+	   	{
+			$NG->log->debug("Found 'subrPortName'");
+			$Description  = "Name: '$subrPortName->{$index}'";
 		}
 		elsif ( $subrPortTel->{$index} ne "" )
 	   	{
-			$Description  = "$subrPortTel->{$index}";
+			$NG->log->debug("Found 'subrPortTel'");
+			$Description  = "Telephone: '$subrPortTel->{$index}'";
 		}
+		$NG->log->debug("Description             = '$Description'");
 		
 		$NG->log->debug("SNMP $node $ifDescr $Description, index=$index, ifType=$ifType, ifSpeed=$ifSpeed, ifAdminStatus=$ifAdminStatus, ifOperStatus=$ifOperStatus, subrPortName=$subrPortName->{$index}, subrPortTel=$subrPortTel->{$index}");
 		
@@ -261,19 +273,21 @@ sub update_plugin
 				
 		$NG->log->debug("SNMP processing '$node' Description: '$ifDescr' Interface Speed=$ifSpeed.");
 				
-		$NG->log->debug("Interface Name          = $ifName");
-		$NG->log->debug("Interface Index         = $index");
-		$NG->log->debug("Interface Description   = $ifDescr");
-		$NG->log->debug("Interface Type          = $ifType");
-		$NG->log->debug("Interface Speed         = $ifSpeed");
-		$NG->log->debug("Interface Admin Status  = $ifAdminStatus");
-		$NG->log->debug("Interface Oper Status   = $ifOperStatus");
-		$NG->log->debug("Interface Limits        = $setlimits");
+		$NG->log->debug("Interface Name          = '$ifName'");
+		$NG->log->debug("Interface Alias         = '$ifAlias'");
+		$NG->log->debug("Interface Index         = '$index'");
+		$NG->log->debug("Interface Description   = '$ifDescr'");
+		$NG->log->debug("Description             = '$Description'");
+		$NG->log->debug("Interface Type          = '$ifType'");
+		$NG->log->debug("Interface Speed         = '$ifSpeed'");
+		$NG->log->debug("Interface Admin Status  = '$ifAdminStatus'");
+		$NG->log->debug("Interface Oper Status   = '$ifOperStatus'");
+		$NG->log->debug("Interface Limits        = '$setlimits'");
 		$intfData->{$index}->{index}             = $index;
 		$intfData->{$index}->{ifIndex}           = $index;
 		$intfData->{$index}->{interface}         = NMISNG::Util::convertIfName($ifDescr);
 		$intfData->{$index}->{ifName}            = $ifName;
-		$intfData->{$index}->{Description}       = '';
+		$intfData->{$index}->{Description}       = $Description // "N/A";
 		$intfData->{$index}->{ifDescr}           = $ifDescr;
 		$intfData->{$index}->{ifType}            = $ifType;
 		$intfData->{$index}->{ifSpeed}           = $ifSpeed;
@@ -306,7 +320,7 @@ sub update_plugin
 			if ($index ne $i and $intfData->{$index}->{ifDescr} eq $intfData->{$i}->{ifDescr})
 		   	{
 				$intfData->{$index}->{ifDescr} = "$ifDescr-$index"; # add index to this description.
-				$intfData->{$i}->{ifDescr} = "$ifDescr-$i";         # and the duplicte one.
+				$intfData->{$i}->{ifDescr}     = "$ifDescr-$i";         # and the duplicte one.
 				$NG->log->debug("Index added to duplicate Interface Description '$ifDescr'");
 			}
 		}
@@ -318,8 +332,8 @@ sub update_plugin
 		if ($thisintfover->{Description} ne '')
 		{
 			$intfData->{$index}->{nc_Description} = $intfData->{$index}->{Description}; # save
-			$intfData->{$index}->{Description} = $thisintfover->{Description};
-			$NG->log->debug("Manual update of Description by nodeConf");
+			$intfData->{$index}->{Description}    = $thisintfover->{Description};
+			$NG->log->debug("Manual update of Description by nodeConf; New Description = '$Description'");
 		}
 		
 		if ($thisintfover->{ifSpeed} ne '')
@@ -437,7 +451,7 @@ sub update_plugin
 		);
 		$NG->log->debug9("Inventory = ". Dumper($inventory) . "\n\n\n");
 
-		$NG->log->info("Interface description is '$intfSubData->{ifDescr}'");
+		$NG->log->debug("Interface description is '$intfSubData->{ifDescr}'");
 		# Get the RRD file name to use for storage.
 		my $dbname = $S->makeRRDname(graphtype => "interface",
 									index      => $index,
