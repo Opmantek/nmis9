@@ -186,6 +186,12 @@
               '2' => 'standby',
             },
           },
+          'asamModel' => {
+            'title' => 'ASAM Model',
+          },
+          'asamVersion' => {
+            'title' => 'ASAM Version',
+          },
           'asamSoftwareVersion1' => {
             'oid' => '1.3.6.1.4.1.637.61.1.24.1.1.1.2.1',
             'title' => 'asamSoftwareVersion1',
