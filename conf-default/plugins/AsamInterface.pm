@@ -374,6 +374,8 @@ sub update_plugin
 	
 				$intfData->{$eachIfIndex}->{ifSpeed} = ($ifSpeedIn > $ifSpeedOut ? $ifSpeedIn : $ifSpeedOut) if ($ifSpeedIn > 0 && $ifSpeedOut > 0);
 			}
+			$intfData->{$eachIfIndex}->{ifSpeedIn} = $ifSpeedIn;
+			$intfData->{$eachIfIndex}->{ifSpeedOut} = $ifSpeedOut;
 	
 			my $thisintfover = $overrides->{$ifDescr} || {};
 	
