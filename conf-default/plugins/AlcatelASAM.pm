@@ -672,15 +672,15 @@ sub update_plugin
 				$NG->log->debug5("Interface Description:                   '$ifDslamData->{ifDescr}'");
 				$NG->log->debug("DSLAM SNMP Results: ifIndex=$eachIfIndex ifDescr=$ifDslamData->{ifDescr} asamIfExtCustomerId=$ifDslamData->{asamIfExtCustomerId}");
 
-				if ( $intfData->{ifLastChange} ) { 
-					$ifDslamData->{ifLastChange} = convUpTime(int($intfData->{ifLastChange}/100));
+				if ( $intfData->{$eachIfIndex}{ifLastChange} ) { 
+					$ifDslamData->{ifLastChange} = convUpTime(int($intfData->{$eachIfIndex}{ifLastChange}/100));
 				}
 				else {
 					$ifDslamData->{ifLastChange} = '0:00:00',
 				}
 				$NG->log->debug5("Interface Last Change:                   '$ifDslamData->{ifLastChange}'");
-				$ifDslamData->{ifOperStatus} = $intfData->{ifOperStatus} ? $intfData->{ifOperStatus} : "N/A";
-				$ifDslamData->{ifAdminStatus} = $intfData->{ifAdminStatus} ? $intfData->{ifAdminStatus} : "N/A";
+				$ifDslamData->{ifOperStatus} = $intfData->{$eachIfIndex}{ifOperStatus} ? $intfData->{$eachIfIndex}{ifOperStatus} : "N/A";
+				$ifDslamData->{ifAdminStatus} = $intfData->{$eachIfIndex}{ifAdminStatus} ? $intfData->{$eachIfIndex}{ifAdminStatus} : "N/A";
 				$NG->log->debug5("Interface Admin Status:                  '$ifDslamData->{ifAdminStatus}'");
 				$NG->log->debug5("Interface Oper Status:                   '$ifDslamData->{ifOperStatus}'");
 
