@@ -232,6 +232,7 @@ sub update_plugin
 	$intfInfo->{ifSpeedOut}    = "Interface Speed Out";
 	$intfInfo->{ifAdminStatus} = "Interface Administrative State";
 	$intfInfo->{ifOperStatus}  = "Interface Operational State";
+	$intfInfo->{ifLastChange}  = "Interface Last Change";
 	$intfInfo->{setlimits}     = "Interface Set Limnits";
 	$intfInfo->{collect}       = "Interface Collection Status";
 	$intfInfo->{event}         = "Interface Event Status";
@@ -263,6 +264,7 @@ sub update_plugin
 			$intfData->{$eachIfIndex}->{ifType}            = $ifData->{ifType};
 			$intfData->{$eachIfIndex}->{ifAdminStatus}     = $ifData->{ifAdminStatus};
 			$intfData->{$eachIfIndex}->{ifOperStatus}      = $ifData->{ifOperStatus};
+			$intfData->{$eachIfIndex}->{ifLastChange}      = $ifData->{ifLastChange};
 			$intfData->{$eachIfIndex}->{setlimits}         = $NI->{interface}->{$eachIfIndex}->{setlimits} // "normal";
 			$intfData->{$eachIfIndex}->{collect}           = $eachIfAdminStatus eq "up" ? "true": "false";
 			$intfData->{$eachIfIndex}->{event}             = $eachIfAdminStatus eq "up" ? "true": "false";
