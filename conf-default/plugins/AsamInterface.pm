@@ -265,7 +265,6 @@ sub update_plugin
 	$intfInfo->{ifSpeedOut}    = "Interface Speed Out";
 	$intfInfo->{ifAdminStatus} = "Interface Administrative State";
 	$intfInfo->{ifOperStatus}  = "Interface Operational State";
-	$intfInfo->{ifLastChange}  = "Interface Last Change";
 	$intfInfo->{setlimits}     = "Interface Set Limnits";
 	$intfInfo->{collect}       = "Interface Collection Status";
 	$intfInfo->{event}         = "Interface Event Status";
@@ -300,7 +299,6 @@ sub update_plugin
 			$intfData->{$eachIfIndex}->{ifIndex}           = $eachIfIndex;
 			$intfData->{$eachIfIndex}->{ifName}            = $ifName;
 			$intfData->{$eachIfIndex}->{ifOperStatus}      = $ifData->{ifOperStatus};
-			$intfData->{$eachIfIndex}->{ifLastChange}      = $ifData->{ifLastChange};
 			$intfData->{$eachIfIndex}->{ifType}            = $ifData->{ifType};
 			$intfData->{$eachIfIndex}->{index}             = $eachIfIndex;
 			$intfData->{$eachIfIndex}->{interface}         = NMISNG::Util::convertIfName($ifDescr);
