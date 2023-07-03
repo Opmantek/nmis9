@@ -675,7 +675,7 @@ sub update_plugin
 				$NG->log->debug("DSLAM SNMP Results: ifIndex=$eachIfIndex ifDescr=$ifDslamData->{ifDescr} asamIfExtCustomerId=$ifDslamData->{asamIfExtCustomerId}");
 
 				if ( $intfData->{$eachIfIndex}{ifLastChange} ) { 
-					$ifDslamData->{ifLastChange} = convUpTime(int($intfData->{$eachIfIndex}{ifLastChange}/100));
+					$ifDslamData->{ifLastChange} = NMISNG::Util::convUpTime(int($intfData->{$eachIfIndex}{ifLastChange}/100));
 				}
 				else {
 					$ifDslamData->{ifLastChange} = '0:00:00',
