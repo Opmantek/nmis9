@@ -90,7 +90,7 @@ sub update_plugin
 	my $memUsedMax   = 0;
 
 
-	 # This plugin deals only with ZyXEL devices, and only ones with snmp enabled and working.
+	 # This plugin deals only with Cisco devices, and only ones with snmp enabled and working.
     if ( $catchall->{nodeModel} !~ /Cisco/i or $catchall->{nodeVendor} !~ /Cisco/i
             or !NMISNG::Util::getbool($catchall->{collect}))
     {
@@ -442,7 +442,7 @@ sub collect_plugin
 	my $memFreeTotal = 0;
 	my $memUsedTotal = 0;
 
-	 # This plugin deals only with ZyXEL devices, and only ones with snmp enabled and working.
+	 # This plugin deals only with Cisco devices, and only ones with snmp enabled and working.
     if ( $catchall->{nodeModel} !~ /Cisco/i or $catchall->{nodeVendor} !~ /Cisco/i
             or !NMISNG::Util::getbool($catchall->{collect}))
     {
