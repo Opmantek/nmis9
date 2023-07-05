@@ -147,6 +147,28 @@ sub processNode {
 			my $GTT = $S->loadGraphTypeTable(index=>undef);
 			print "Graph Type Table $node:\n" . Dumper $GTT;
 
+
+			my $last_poll = $catchall_data->{last_poll};
+
+			my $beginTimespan = "00";
+			my $endTimespan   = "24";
+			my $now = time();
+			my $start = $now - 5 * 86400;
+			my $end = $now;
+			#my $beginTimespan = $last_poll;
+			#my $endTimespan   = $last_poll;
+			#my $now = time();
+			#my $start = $last_poll;
+			#my $end = $last_poll;
+			my $graphtype = "nodehealth";
+			my $db = $S->makeRRDname(graphtype => $graphtype, index=>undef, item=>undef);
+			#my $nodehealth  = NMISNG::rrdfunc::getRRDasHash(database => $db, add_minmax => 1, mode => "LAST");
+			my $nodehealth  = NMISNG::rrdfunc::getRRDStats(database => $db, sys=>$S, graphtype=>$graphtype, mode=>"LAST", start => $start, end => $end,
+											hour_from => $beginTimespan, hour_to => $endTimespan, index=>undef, item=> undef, truncate => -1);
+			print "nodehealth Output:\n";
+			print "\$last_poll = $last_poll\n";
+			print Dumper $nodehealth;
+
         }
 
 		#print Dumper $nodeobj;
