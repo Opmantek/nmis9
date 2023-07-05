@@ -356,39 +356,22 @@ elsif (exists($arg->{separator})) {
 	$sep = $arg->{separator};
 }
 
-#      "serialNum" : "FHK1445735Q",
-#      "chassisVer" : "1.0",
-#      "configLastSaved" : "508612969",
-#      "last_node_config_update" : "508499202",
-#      "bootConfigLastChanged" : "423056140",
-#      "softwareImage" : "C880DATA-UNIVERSALK9-M",
-#      "softwareVersion" : "15.1(1)T1",
-
 # Step 2: Define the overall order of all the fields.
-my @nodeHeaders = qw(name host group location nodeVendor nodeModel sysUpTime serialNum softwareVersion softwareImage cbqosInput cbqosOutput RecordsExported RecordsExportedMax ifNumber intfCollect chassisVer last_node_config_update);
+my @nodeHeaders = qw(name host nodeVendor nodeModel cpuTotal cpuFree cpuUsed cpuAverage percentUsed avgBusy1 avgBusy5);
 
 # Step 4: Define any CSV header aliases you want
 my %nodeAlias = (
 	name					=> 'Node',
 	host					=> 'Host',
-	group					=> 'Group',
 	nodeVendor				=> 'Node Vendor',
 	nodeModel				=> 'Node Model',
-	sysUpTime				=> 'System Up Time',
-	serialNum				=> 'Serial Number',
-	chassisVer				=> 'Chassis Version',
-	softwareVersion			=> 'SoftwareVersion',
-	softwareImage			=> 'Software Image',
-	rttMonApplVersion		=> 'Ipsla Version',
-	rttMonApplResponder		=> 'Ipsla Responder',
-	last_node_config_update	=> 'Last Node Configuration Update',
-	cbqosInput				=> 'Cbqos Input',
-	cbqosOutput				=> 'Cbqos Output',
-	location				=> 'Location',
-	ifNumber				=> 'Interface Number',
-	intfCollect				=> 'Interface Collect',
-	RecordsExported			=> 'Netflow Records Per Second',
-	RecordsExportedMax		=> 'Netflow MaxRecords Per Second'
+	cpuTotal				=> 'Total CPU Memory',
+	cpuFree					=> 'Free CPU Memory',
+	cpuUsed					=> 'Used CPU Memory',
+	cpuAverage				=> 'Average CPU Memory Utilization',
+	percentUsed				=> 'Percentage CPU Memory Utilization',
+	avgBusy1   				=> 'Average CPU Busy over 1 minute',
+	avgBusy5				=> 'Average CPU Busy over 5 minutes'
 );
 
 
@@ -459,7 +442,7 @@ sub checkNodes {
 			my @comments;
 			my $comment;
 			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			$S->init(name=>$node,snmp=>'false',wmi=>'false'); # load node info and Model if name exists
 			my $nodeobj       = $nmisng->node(name => $node);
 			my $IF            = $nodeobj->ifinfo;
 			my $inv           = $S->inventory( concept => 'catchall' );
@@ -469,157 +452,32 @@ sub checkNodes {
 			# move on if this isn't a good one.
 			next if $catchall_data->{nodeVendor} !~ /Cisco/;
 			
-			# is there a decent serial number!
-			if ( not defined $catchall_data->{serialNum} or $catchall_data->{serialNum} eq "" or $catchall_data->{serialNum} eq "noSuchObject" ) {
-				my %slots  =  undef;
-				my %assets =  undef;
+			my $beginTimespan = "00";
+			my $endTimespan   = "24";
+			my $now = time();
+			my $start = $now - 5 * 86400;
+			my $end = $now;
+			my $graphtype = "nodehealth";
+			my $db = $S->makeRRDname(graphtype => $graphtype, index=>undef, item=>undef);
+			my $nodehealth  = NMISNG::rrdfunc::getRRDStats(database => $db, sys=>$S, graphtype=>$graphtype, mode=>"LAST", start => $start, end => $end,
+			hour_from => $beginTimespan, hour_to => $endTimespan, index=>undef, item=> undef, truncate => -1);
+			my $averageBusy1   = $nodehealth->{avgBusy1}{values}[-1];
+			my $averageBusy5   = $nodehealth->{avgBusy5}{values}[-1];
+			my $memoryFree     = $nodehealth->{MemoryFreePROC}{values}[-1];
+			my $memoryUsed     = $nodehealth->{MemoryUsedPROC}{values}[-1];
+			my $memoryFreeMean = $nodehealth->{MemoryFreePROC}{mean};
+			my $memoryUsedMean = $nodehealth->{MemoryUsedPROC}{mean};
+			my $memoryTotal    = $memoryFree + $memoryUsed;
+			my $memoryPercent  = ($memoryTotal>0) ? sprintf('%.0d', $memoryUsed/$memoryTotal*100 ).'%' : 'N/A';
+			$NODES->{$node}{cpuTotal}     = $memoryTotal;
+			$NODES->{$node}{cpuFree}      = $memoryFree;
+			$NODES->{$node}{cpuUsed}      = $memoryUsed;
+			$NODES->{$node}{cpuAverage}   = $memoryUsedMean;
+			$NODES->{$node}{percentUsed}  = $memoryPercent;
+			$NODES->{$node}{percentUsed}  = $memoryPercent;
+			$NODES->{$node}{avgBusy1}     = $averageBusy1;
+			$NODES->{$node}{avgBusy5}     = $averageBusy5;
 
-				if ( defined $MDL->{systemHealth}{sys}{entityMib} and ref($MDL->{systemHealth}{sys}{entityMib}) eq "HASH") {
-					my $result = $S->nmisng_node->get_inventory_model( concept => "entityMib", filter => { historic => 0 });
-					if (!$result->error)
-					{
-						%slots = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
-					}
-				}
-
-				if ( defined $MDL->{systemHealth}{sys}{ciscoAsset} and ref($MDL->{systemHealth}{sys}{ciscoAsset}) eq "HASH") {
-					my $result = $S->nmisng_node->get_inventory_model( concept => "ciscoAsset", filter => { historic => 0 });
-					if (!$result->error)
-					{
-						%assets = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
-					}
-				}
-
-				# lets just see if we can find one!
-				# this logic works well for Nexus devices which are 149
-				foreach my $slotIndex (sort keys %{slots}) {
-					if ( defined $slots{$slotIndex}{entPhysicalClass} 
-						and $slots{$slotIndex}{entPhysicalClass} =~ /chassis/
-						and $slots{$slotIndex}{entPhysicalSerialNum} ne ""
-					) {
-						$catchall_data->{serialNum} = $slots{$slotIndex}{entPhysicalSerialNum};
-						print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at EntityMIB index $slotIndex.\n" if ($debug);
-					}
-				}
-
-				# just use the specific index thing for serial number.
-				if ( defined $slots{1} and $slots{1}{entPhysicalSerialNum} ne "" ) {
-					$catchall_data->{serialNum} = $slots{1}{entPhysicalSerialNum};
-					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at entPhysicalSerialNum index 1.\n" if ($debug);
-				}
-				# this works for ME3800
-				elsif ( defined $slots{1001} and $slots{1001}{entPhysicalSerialNum} ne "" ) {
-					$catchall_data->{serialNum} = $slots{1001}{entPhysicalSerialNum};
-					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at entPhysicalSerialNum index 1001.\n" if ($debug);
-				}
-				# this works for IOSXR, CRS, ASR9K
-				elsif ( defined $slots{24555730} and $slots{24555730}{entPhysicalSerialNum} ne "" ) {
-					$catchall_data->{serialNum} = $slots{24555730}{entPhysicalSerialNum};
-					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at entPhysicalSerialNum index 24555730.\n" if ($debug);
-				}
-				# Cisco 61xx DSLAM's
-				elsif ( defined $assets{1} and $assets{1}{ceAssetSerialNumber} ne "" ) {
-					$catchall_data->{serialNum} = $assets{1}{ceAssetSerialNumber};
-					print "INFO: '$NODES->{$node}{name}' Found Serial Number '$catchall_data->{serialNum}' at ceAssetSerialNumber index 1.\n" if ($debug);
-				}
-
-				if ( $catchall_data->{serialNum} eq "" ) {
-					$catchall_data->{serialNum} = "TBD";
-					$comment = "ERROR: $node no serial number not in chassisId entityMib or ciscoAsset";
-					print "$comment\n";
-					push(@comments,$comment);
-				}
-
-				## quadruple enrichment!
-
-				# is this a CRS with two rack chassis stuff.
-				if ( defined $slots{24555730} and $slots{24555730}{entPhysicalSerialNum} ne "" 
-					and defined $slots{141995845} and $slots{141995845}{entPhysicalSerialNum} ne "" 
-				) {
-					my $chassis1Name   = $slots{24555730}{entPhysicalName};
-					my $chassis1Serial = $slots{24555730}{entPhysicalSerialNum};
-					my $chassis2Name   = $slots{141995845}{entPhysicalName};
-					my $chassis2Serial = $slots{141995845}{entPhysicalSerialNum};
-	
-					$catchall_data->{serialNum} = "$chassis1Name $chassis1Serial; $chassis2Name $chassis2Serial";
-				}
-				# is this a CRS with ONE rack chassis stuff.
-				elsif ( defined $slots{24555730} 
-					and $slots{24555730}{entPhysicalSerialNum} ne "" 
-					and $slots{24555730}{entPhysicalName} =~ /Rack/
-				) {
-					my $chassis1Name = $slots{24555730}{entPhysicalName};
-					my $chassis1Serial = $slots{24555730}{entPhysicalSerialNum};
-
-					$catchall_data->{serialNum} = "$chassis1Name $chassis1Serial";
-				}
-			}
-
-		    if ( not defined $NODES->{$node}{location} or $NODES->{$node}{location} eq "" ) {
-		    	$NODES->{$node}{location} = "No Location Configured";
-		    }
-		    
-		    my $last_node_config_update = $catchall_data->{last_node_config_update};
-		    my $bootConfigLastChanged = $catchall_data->{bootConfigLastChanged};
-		    if ($last_node_config_update =~ /^\d+$/) {
-				$last_node_config_update = NMISNG::Util::returnDateStamp($last_node_config_update);
-				$catchall_data->{"last_node_config_update"} = "$last_node_config_update";
-				$NODES->{$node}{"last_node_config_update"} = "$last_node_config_update";
-		    }
-		    	    
-			### Cisco Node Configuration Change Only
-			if( defined $last_node_config_update && defined $bootConfigLastChanged ) {
-				
-				### when the router reboots bootConfigLastChanged = 0 and last_node_config_update is about 2 seconds, which are the changes made by booting.
-				if( $last_node_config_update > $bootConfigLastChanged and $last_node_config_update > 5000 ) {
-					$catchall_data->{"configurationState"} = "Config Not Saved in NVRAM";
-				} 
-				elsif( $bootConfigLastChanged == 0 and $last_node_config_update <= 5000 ) {
-					$catchall_data->{"configurationState"} = "Config Not Changed Since Boot";
-				} 
-				else {
-					$catchall_data->{"configurationState"} = "Config Saved in NVRAM";
-				}
-			}
-
-			if ( defined $MDL->{systemHealth}{sys}{Cisco_CBQoS} and ref($MDL->{systemHealth}{sys}{Cisco_CBQoS}) eq "HASH") {
-				my $result = $S->nmisng_node->get_inventory_model( concept => "Cisco_CBQoS", filter => { historic => 0 });
-				if (!$result->error)
-				{
-					my %qosMap = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
-					my @input;
-					my @output;
-					foreach my $cbqos (keys %qosMap) {
-						my $qDesc = $qosMap{$cbqos}{ifDescr};
-						$qDesc = "Unnamed" if (!$qDesc || $qDesc eq "");
-						push(@input,$qDesc)  if $qosMap{$cbqos}{cbQosPolicyDirection} eq "input";
-						push(@output,$qDesc) if $qosMap{$cbqos}{cbQosPolicyDirection} eq "output";	
-					}
-					push(@input,"None found")  if not @input;
-					push(@output,"None found") if not @output;	    	
-					
-					$NODES->{$node}{cbqosInput}  = join(";",@input);
-					$NODES->{$node}{cbqosOutput} = join(";",@output);
-				}
-			}
-			else {
-				print "ERROR: $node no Cisco_CBQoS MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
-			}
-
-			# Get the summary stats
-			my $begin    = @tsStartArray[0];
-			my $end      = @tsEndArray[0];
-			print "Compat::NMIS::getSummaryStats(sys=>\$S,type=>'NetFlowStats',start=>$begin,end=>$end,index=>)\n" if ($debug > 2);
-			my $stats = Compat::NMIS::getSummaryStats(sys=>$S,type=>"NetFlowStats",start=>$begin,end=>$end,index=>);
-			if ( defined $stats->{RecordsExported} ) {
-				$catchall_data->{RecordsExported}    = $stats->{RecordsExported};
-				$catchall_data->{RecordsExportedMax} = $stats->{RecordsExportedMax};
-			}
-			else {
-				$catchall_data->{RecordsExported}    = "N/A";
-				$catchall_data->{RecordsExportedMax} = "N/A";
-			}
-		    
 		    my @columns;
 			$currcol=0;
 		    foreach my $header (@nodeHeaders) {
