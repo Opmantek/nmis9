@@ -39,6 +39,8 @@ use NMISNG::Util;				# for the conf table extras
 use NMISNG::rrdfunc;
 use Data::Dumper;
 use NMISNG::Snmp;						# for snmp-related access
+use File::Copy qw(move);
+
 
 my $interestingInterfaces = qr/ten-gigabit-ethernet|^muxponder-highspeed/;
 
@@ -371,6 +373,78 @@ sub update_plugin
 		);
 
 		$NG->log->info("Interface description is '$intfSubData->{ifDescr}'");
+
+		# an earlier version of the plugin caused malformed RRD names through some kind of race condition.
+		# the solution was to remove the inventory storage creation the plugin and let NMIS do it later
+		# when collecting interface data. e.g. ten-gigabit-ethernet-1_B_1.rrd instead of ten-gigabit-ethernet-1-b-1.rrd
+
+		## Get the RRD file name to use for storage.
+ 		#my $dbname = $S->makeRRDname(graphtype => "interface",
+ 		#							index      => $index,
+ 		#							inventory  => $intfSubData,
+ 		#							extras     => $intfSubData,
+ 		#							relative   => 1);
+ 		#$NG->log->debug("Collect Adtran data info check storage interface, dbname '$dbname'.");
+		#
+ 		## Set the storage name into the inventory model
+ 		#$inventory->set_subconcept_type_storage(type => "rrd",
+ 		#										subconcept => "interface",
+ 		#										data => $dbname) if ($dbname);
+
+		# for devices running the old version of the plugin they will have files called ten-gigabit-ethernet-1_B_1.rrd
+		# NMIS collect will be using find_subconcept_type_storage and saving into these RRD's
+		# to fix the names, we need to redo the RRD name AND update the storage.  We only need to do this for the interface concept.
+
+		# use this for more concepts for ("interface", "pkts", "pkts_hc" )
+
+
+		for ("interface")
+		{
+			# has storage been defined?  if so check it, if first time, none will be defined.
+			if (my $storage = $inventory->find_subconcept_type_storage(type => "rrd",
+						subconcept      => $_,
+						relative => 1 )) 
+			{
+				# get the regular DB name the simple way.
+				my $dbname = $S->makeRRDname(type => $_,
+						index     => $index,
+						#item      => $_,
+						relative => 1 );
+				
+				# compare the storage and the db name and if they are different, fix them.
+				if ( $dbname ne $storage and defined $dbname and defined $storage) {
+					$NG->log->info("The RRD names do not match for $_ dbname=$dbname storage=$storage");
+					# rename the file and update RRD storage.
+					# only only if the file is readable and exists.
+					if ( -r "$C->{database_root}/$storage" ) {
+						# move (rename) the files RRD files
+						if ( move("$C->{database_root}/$storage","$C->{database_root}/$dbname") ) {
+							# if move went well update the storage.
+							$inventory->set_subconcept_type_storage(type => "rrd",
+										subconcept => $_,
+										data => $dbname) if ($dbname);
+							# The above has added data to the inventory, that we now save.
+							#my ( $op, $subError ) = $inventory->save();
+							#if ($subError)
+							#{
+							#	$NG->log->error("Failed to save storage details for Interface '$index': $subError");
+							#}
+						}
+						else {
+							$NG->log->error("Unable to rename file for interface $index $C->{database_root}/$storage");
+						}
+					}
+					else {
+						$NG->log->error("File not found for $C->{database_root}/$storage");
+					}
+				}
+				else {
+					$NG->log->info("The RRD names match and are $storage");
+				}
+			}
+		}
+
+
 
 		my $desiredlimit = $intfData->{$index}{setlimits};
 		# $NG->log->info("Desiredlimit: $desiredlimit" );
