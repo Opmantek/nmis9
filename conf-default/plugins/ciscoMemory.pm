@@ -416,8 +416,7 @@ sub collect_plugin
 	$NG->log->debug2( "saved op: $op");
 	if ($error)
 	{
-		$NG->log->error("Failed to save inventory for Node '$node'; Error::w
-			   	$error");
+		$NG->log->error("Failed to save inventory for Node '$node'; Error: $error");
 	}
 	else
 	{
