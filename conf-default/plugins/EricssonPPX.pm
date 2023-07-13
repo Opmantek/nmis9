@@ -40,6 +40,12 @@ use NMISNG::rrdfunc;
 use Data::Dumper;
 use NMISNG::Snmp;				# for snmp-related access
 
+# *****************************************************************************
+# Set ths to delete the empty Cards instead of suppressing their display!
+# *****************************************************************************
+my $deleteEmptyCards = 0;
+# *****************************************************************************
+
 my $changesweremade = 0;
 
 sub collect_plugin
@@ -134,9 +140,10 @@ sub collect_plugin
 		}
 
 		my $ppxCardMemData = $inventory->data; # r/o copy, must be saved back if changed
+        my $name           = $ppxCardMemData->{mscShelfCardComponentName};
         my $index          = $ppxCardMemData->{index};
 
-		$NG->log->info("inventory for Node '$node', Card '$index'");
+		$NG->log->info("inventory for Node '$node', Card '$index'; Name: '$name'.");
 
 		# Declare the required VARS
 		my @oids = (
@@ -165,20 +172,25 @@ sub collect_plugin
 
 		if ( $snmpData ) {
 			$NG->log->debug("SNMP data: ". $snmpData);
-			#print Dumper $snmpData;
 
-			$snmpData->{"$memCapacityOid.$index.$fastRam"}   == 'N/A' if ( $snmpData->{"$memCapacityOid.$index.$fastRam"} eq "noSuchInstance");
-			$snmpData->{"$memCapacityOid.$index.$normalRam"} == 'N/A' if ( $snmpData->{"$memCapacityOid.$index.$normalRam"} eq "noSuchInstance");
-			$snmpData->{"$memCapacityOid.$index.$sharedRam"} == 'N/A' if ( $snmpData->{"$memCapacityOid.$index.$sharedRam"} eq "noSuchInstance");
-
-			if ( $snmpData->{"$memCapacityOid.$index.$fastRam"} == 0
-				and $snmpData->{"$memCapacityOid.$index.$normalRam"} == 0
-				and $snmpData->{"$memCapacityOid.$index.$sharedRam"} == 0
+			if ( ($snmpData->{"$memCapacityOid.$index.$fastRam"} == 0 or $snmpData->{"$memCapacityOid.$index.$fastRam"} eq "noSuchInstance")
+				and ($snmpData->{"$memCapacityOid.$index.$normalRam"} == 0 or $snmpData->{"$memCapacityOid.$index.$normalRam"} eq "noSuchInstance")
+				and ($snmpData->{"$memCapacityOid.$index.$sharedRam"} == 0 or $snmpData->{"$memCapacityOid.$index.$sharedRam"} eq "noSuchInstance")
 			) {
-				$NG->log->info("Card '$index' has no memory information.");
-#				$NG->log->info("Card '$index' has no memory information, removing from display.");
-#				delete $NI->{ppxCardMEM}{$index};
-				next;
+                if ($deleteEmptyCards) {
+					$NG->log->info("Card '$index'; Name: '$name' has no memory information, deleting the card.");
+					my ($ok, $deleteError) = $inventory->delete();
+					if ($deleteError)
+					{
+						$NG->log->error("Failed to delete inventory for Card '$index'; Name: '$name': $deleteError");
+					}
+				} else {
+					$NG->log->info("Card '$index'; Name: '$name' has no memory information, removing from display.");
+					$inventory->data_info(
+						subconcept => "ppxCardMEM",
+						enabled => 0
+					);
+				}
 			}
 
 			my $data = { 
@@ -212,7 +224,7 @@ sub collect_plugin
 			my $filename = $S->create_update_rrd(data=>$data, sys=>$S, type=>"ppxCardMEM", index => $index);
 			if (!$filename)
 			{
-				$NG->log->error("Failed to Update RRD inventory for Card '$index'");
+				$NG->log->error("Failed to Update RRD inventory for Card '$index'; Name: '$name'.");
 			}		
 
 			# The above has added data to the inventory, that we now save.
@@ -220,7 +232,7 @@ sub collect_plugin
 			$NG->log->debug2( "saved op: $op");
 			if ($saveError)
 			{
-				$NG->log->error("Failed to save inventory for Card '$index': $saveError");
+				$NG->log->error("Failed to save inventory for Card '$index'; Name: '$name': $saveError");
 			}
 			else
 			{
