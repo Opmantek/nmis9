@@ -32,6 +32,7 @@
   'database' => {
     'type' => {
       'Memory-cpm' => '/nodes/$node/health/Memory-cpm-$index.rrd',
+      'ciscoNormalizedCPUMem' => '/nodes/$node/health/ciscoNormalizedCPUMem.rrd',
     }
   },  
   'alerts' => {
@@ -123,6 +124,9 @@
             'oid' => 'cpmCPUMemoryFree',
           },
         },
+      },
+      'ciscoNormalizedCPUMem' => {
+        'graphtype' => 'ciscoNormalizedCPUMem',
       },
     },
     'sys' => {
@@ -236,6 +240,28 @@
           'cpmCPUTotalPhysicalIndex' => {
             'oid' => 'cpmCPUTotalPhysicalIndex',
             'title' => 'Entity Physical Index'
+          },
+        },
+      },
+      'ciscoNormalizedCPUMem' => {
+		'headers' => 'TotalCPUs,MemoryUsedMax,MemoryUsed,MemoryFreeMax,MemoryFree',
+        'indexed' => 'true',
+        'graphtype' => 'health',
+        'snmp' => {
+          'TotalCPUs' => {
+            'title' => 'Number of CPUs'
+          },
+          'MemoryUsedMax' => {
+            'title' => 'Maximum Memory Used'
+          },
+          'MemoryUsed' => {
+            'title' => 'Current Memory Used'
+          },
+          'MemoryFreeMax' => {
+            'title' => 'Maximum Memory Free'
+          },
+          'MemoryFree' => {
+            'title' => 'Current Memory Free'
           },
         },
       },

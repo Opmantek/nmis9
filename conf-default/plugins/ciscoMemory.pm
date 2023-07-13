@@ -401,19 +401,65 @@ sub collect_plugin
 	$NG->log->debug("CPU Max CPU $cpuUsedMax");
 	$NG->log->debug("CPU Average CPU $cpuUsedAvg");
 
-	my $inventory = $S->inventory( concept => 'catchall' );
+	my $dataInfo;
+	$dataInfo->{TotalCPUs}     = "Total Number of CPUs";
+	$dataInfo->{MemoryUsedMax} = "Maximum Memory Utilization";
+	$dataInfo->{MemoryFreeMax} = "Maximum Free memory";
+	$dataInfo->{MemoryFree}    = "Current Free Memory";
+	$dataInfo->{MemoryUsed}    = "Current Memory Utilization";
 	my $data;
-	$data->{MemoryFreePROC}{value} = $cpuFreeAvg;
-	$data->{MemoryUsedPROC}{value} = $cpuUsedAvg;
+	$data->{index}         = 0;
+	$data->{TotalCPUs}     = $cpuUsedCount;
+	$data->{MemoryUsedMax} = $cpuUsedMax;
+	$data->{MemoryFreeMax} = $cpuFreeMax;
+	$data->{MemoryFree}    = $cpuFreeAvg;
+	$data->{MemoryUsed}    = $cpuUsedAvg;
+	my $path_keys =  ['index'];
+	my $path = $nodeobj->inventory_path( concept => 'ciscoNormalizedCPUMem', path_keys => $path_keys, data => $data );
+	my ($inventory, $error) =  $nodeobj->inventory( create => 1,                # if not present yet
+													concept => "ciscoNormalizedCPUMem",
+													data => $data,
+													path_keys => $path_keys,
+													path => $path );
+
+	if(!$inventory or $error)
+	{
+		$NG->log->error("Failed to get inventory for 'ciscoNormalizedCPUMem'; Error: $error");
+		next;                               # not much we can do in this case...
+	}
+	$inventory->data_info(
+							subconcept => "ciscoNormalizedCPUMem",
+							enabled => 1,
+							display_keys => $dataInfo
+							);
+	my $rrdData;
+	$rrdData->{MemoryFreePROC}{value} = $cpuFreeAvg;
+	$rrdData->{MemoryUsedPROC}{value} = $cpuUsedAvg;
 	# Update the RRD file.
 	my $dbname = $S->create_update_rrd(graphtype => "nodehealth",
 					inventory  => $inventory,
 					type       => "nodehealth",
 					index      => undef,
-					data       => $data,
+					data       => $rrdData,
 					item       => undef);
 	my ( $op, $error ) = $inventory->save();
 	$NG->log->debug2( "saved op: $op");
+	if ($error)
+	{
+		$NG->log->error("Failed to save inventory for Node '$node'; Error: $error");
+	}
+	else
+	{
+		$changesweremade = 1;
+	}
+	my $dbname = $S->create_update_rrd(graphtype => "ciscoNormalizedCPUMem",
+					inventory  => $inventory,
+					type       => "ciscoNormalizedCPUMem",
+					index      => undef,
+					data       => $rrdData,
+					item       => undef);
+	my ( $op, $error ) = $inventory->save();
+	$NG->log->info( "saved op: $op");
 	if ($error)
 	{
 		$NG->log->error("Failed to save inventory for Node '$node'; Error: $error");

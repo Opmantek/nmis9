@@ -86,16 +86,20 @@
   		'nodehealth' => {
   			'snmp' => {
   				'avgBusy1' => {
-  					'oid' => 'cpmCPUTotal1minRev.2'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+  					#'oid' => 'cpmCPUTotal1minRev.2'
   				},
   				'avgBusy5' => {
-  					'oid' => 'cpmCPUTotal5minRev.2'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'cpmCPUTotal5minRev.2'
   				},
   				'MemoryUsedPROC' => {
-  					'oid' => 'ciscoMemoryPoolUsed.1'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'ciscoMemoryPoolUsed.1'
   				},
   				'MemoryFreePROC' => {
-  					'oid' => 'ciscoMemoryPoolFree.1'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'ciscoMemoryPoolFree.1'
   				},
           'RouteNumber' => {
             'oid' => 'ipCidrRouteNumber'
@@ -291,7 +295,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,Memory-cpm,ciscoMemoryPool,env-temp,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,powerSupply,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,env-temp,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,powerSupply,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   'interface' => {
   	'sys' => {
