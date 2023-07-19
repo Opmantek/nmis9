@@ -83,10 +83,10 @@ sub update_plugin
 	# discovery will populate all interfaces normally.
 	if ( $catchall->{nodeModel} !~ /AlcatelASAM/ or !NMISNG::Util::getbool($catchall->{collect}))
 	{
-		$NG->log->info("Max Interfaces are: '$interface_max_number'");
-		$NG->log->info("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
-		$NG->log->info("Node '$node', has $catchall->{ifNumber} interfaces.");
-		$NG->log->info("Node '$node', Model '$catchall->{nodeModel}' does not qualify for this plugin.");
+		$NG->log->debug("Max Interfaces are: '$interface_max_number'");
+		$NG->log->debug("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
+		$NG->log->debug("Node '$node', has $catchall->{ifNumber} interfaces.");
+		$NG->log->debug("Node '$node', Model '$catchall->{nodeModel}' does not qualify for this plugin.");
 		return (0,undef);
 	}
 	else

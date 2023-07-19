@@ -71,12 +71,12 @@ sub update_plugin
 	if ( $catchall->{sysDescr} !~ /IES/ or $catchall->{nodeVendor} ne "ZyXEL Communications Corp."
 		   	or !NMISNG::Util::getbool($catchall->{collect}))
 	{
-		$NG->log->info("Max Interfaces are: '$interface_max_number'");
-		$NG->log->info("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
-		$NG->log->info("Node '$node', has $catchall->{ifNumber} interfaces.");
-		$NG->log->info("Node '$node', System Description '$catchall->{sysDescr}'.");
-		$NG->log->info("Node '$node', Vendor '$catchall->{nodeVendor}'.");
-		$NG->log->info("Node '$node', does not qualify for this plugin.");
+		$NG->log->debug("Max Interfaces are: '$interface_max_number'");
+		$NG->log->debug("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
+		$NG->log->debug("Node '$node', has $catchall->{ifNumber} interfaces.");
+		$NG->log->debug("Node '$node', System Description '$catchall->{sysDescr}'.");
+		$NG->log->debug("Node '$node', Vendor '$catchall->{nodeVendor}'.");
+		$NG->log->debug("Node '$node', does not qualify for this plugin.");
 		return (0,undef);
 	}
 	else

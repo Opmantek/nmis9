@@ -54,7 +54,7 @@ sub update_plugin
 		filter => { historic => 0 });
 	if (!@$cempids)
 	{
-		$NG->log->info("Node '$node', does not qualify for this plugin.");
+		$NG->log->debug("Node '$node', does not qualify for this plugin.");
 		return (0,undef);
 	}
 
@@ -166,10 +166,10 @@ sub collect_plugin
 	if ( $catchall->{nodeModel} !~ /Cisco/i or $catchall->{nodeVendor} !~ /Cisco/i
 			or !NMISNG::Util::getbool($catchall->{collect}))
 	{
-		$NG->log->info("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
-		$NG->log->info("Node '$node', Node Model '$catchall->{nodeModel}'.");
-		$NG->log->info("Node '$node', Vendor '$catchall->{nodeVendor}'.");
-		$NG->log->info("Node '$node', does not qualify for this plugin.");
+		$NG->log->debug("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
+		$NG->log->debug("Node '$node', Node Model '$catchall->{nodeModel}'.");
+		$NG->log->debug("Node '$node', Vendor '$catchall->{nodeVendor}'.");
+		$NG->log->debug("Node '$node', does not qualify for this plugin.");
 		return (0,undef);
 	}
 	else

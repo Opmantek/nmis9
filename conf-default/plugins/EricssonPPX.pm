@@ -74,8 +74,8 @@ sub collect_plugin
 		filter => { historic => 0 });
 	if (!@$ppxCardMemIds)
 	{
-		$NG->log->info("Prerequisite ppxCardMEM not found in node '$node'");
-		$NG->log->info("Node '$node', does not qualify for this plugin.");
+		$NG->log->debug("Prerequisite ppxCardMEM not found in node '$node'");
+		$NG->log->debug("Node '$node', does not qualify for this plugin.");
 		return (0,undef);
 	}
 
