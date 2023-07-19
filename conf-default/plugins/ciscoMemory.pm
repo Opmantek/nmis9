@@ -383,7 +383,10 @@ sub collect_plugin
 		$NG->log->debug("CPU Free Index $key = $thisFree");
 	}
 	$cpuFreeCount = int(keys(%cpuFree));;
-	$cpuFreeAvg   = $cpuFreeTotal/$cpuFreeCount;
+	if ($cpuFreeTotal > 0 && $cpuFreeCount > 0)
+	{
+		$cpuFreeAvg   = $cpuFreeTotal/$cpuFreeCount;
+	}
 	$NG->log->debug("CPU Total CPUs $cpuFreeCount");
 	$NG->log->debug("CPU Max CPU $cpuFreeMax");
 	$NG->log->debug("CPU Average CPU $cpuFreeAvg");
@@ -396,7 +399,10 @@ sub collect_plugin
 		$NG->log->debug("CPU Used Index $key = $thisUsed");
 	}
 	$cpuUsedCount = int(keys(%cpuUsed));;
-	$cpuUsedAvg   = $cpuUsedTotal/$cpuUsedCount;
+	if ($cpuUsedTotal > 0 && $cpuUsedCount > 0)
+	{
+		$cpuUsedAvg   = $cpuUsedTotal/$cpuUsedCount;
+	}
 	$NG->log->debug("CPU Total CPUs $cpuUsedCount");
 	$NG->log->debug("CPU Max CPU $cpuUsedMax");
 	$NG->log->debug("CPU Average CPU $cpuUsedAvg");
