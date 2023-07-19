@@ -35,26 +35,26 @@
       'ciscoNormalizedCPUMem' => '/nodes/$node/health/ciscoNormalizedCPUMem.rrd',
     }
   },  
-  'alerts' => {
-    'ciscoMemoryPool' => {
-      'memoryUtilisation' => {
-        'control' => 'CVAR=MemPoolName;$CVAR =~ /(processor|reserved)/',
-        'type' => 'threshold-rising',
-        'threshold' => {
-          'Warning' => '80',
-          'Minor' => '85',
-          'Major' => '90',
-          'Critical' => '95',
-          'Fatal' => '99',
-        },
-        'element' => 'MemPoolName',
-        'event' => 'High Memory Utilisation',
-				'title' => "Memory Utilisation",
-        'unit' => '%',
-        'value' => 'CVAR1=MemPoolUtil5M;int($CVAR1)'
-      }
-    },
-  },
+#  'alerts' => {
+#    'ciscoMemoryPool' => {
+#      'memoryUtilisation' => {
+#        'control' => 'CVAR=MemPoolName;$CVAR =~ /(processor|reserved)/',
+#        'type' => 'threshold-rising',
+#        'threshold' => {
+#          'Warning' => '80',
+#          'Minor' => '85',
+#          'Major' => '90',
+#          'Critical' => '95',
+#          'Fatal' => '99',
+#        },
+#        'element' => 'MemPoolName',
+#        'event' => 'High Memory Utilisation',
+#				'title' => "Memory Utilisation",
+#        'unit' => '%',
+#        'value' => 'CVAR1=MemPoolUtil5M;int($CVAR1)'
+#      }
+#    },
+#  },
   'systemHealth' => {
     'rrd' => {
       'ciscoMemoryPool' => {
