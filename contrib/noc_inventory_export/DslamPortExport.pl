@@ -1417,7 +1417,7 @@ sub ftpExportFile {
 	my $file      = $args{file};
 	my $server    = $args{server};
 	my $user      = $args{user};
-	my $password  = $args{password};
+	my $password  = NMISNG::Util::decrypt($args{password});
 	my $directory = $args{directory};
 	my $nmisng    = $args{nmisng};
 
@@ -1654,7 +1654,7 @@ sub createConfigFile
 	$exportConfig->{exportBaseDir}      = $exportBaseDir if ($answer =~ /y/i);
 	$exportConfig->{exportFtpServer}    = $exportFtpServer;
 	$exportConfig->{exportFtpUser}      = $exportFtpUser;
-	$exportConfig->{exportFtpPassword}  = $exportFtpPassword;
+	$exportConfig->{exportFtpPassword}  = NMISNG::Util::encrypt($exportFtpPassword);
 	$exportConfig->{exportFtpDirectory} = $exportFtpDirectory;
 	NMISNG::Util::writeHashtoFile(file=>"$C->{'<nmis_conf>'}/DslamPortExportTest", data=>$exportConfig)
 }
