@@ -140,9 +140,9 @@ if ($configsw) {
 	exit(0);
 }
 
-if (NMISNG::Util::existFile(dir=>'conf', name=>"DslamPortExportTest"))
+if (NMISNG::Util::existFile(dir=>'conf', name=>"DslamPortExport"))
 {
-	$exportConfig = NMISNG::Util::loadTable(dir=>'conf', name=>'DslamPortExportTest');
+	$exportConfig = NMISNG::Util::loadTable(dir=>'conf', name=>'DslamPortExport');
 	if ($debug)
 	{
 		print "Export Base Directory            = '$exportConfig->{exportBaseDir}'\n"      if (defined $exportConfig->{exportBaseDir});
@@ -168,7 +168,7 @@ if ( not defined $arg->{dir} ) {
 	help(2);
 	exit 255;
 }
-my $dir = abs_path($arg->{dir});
+my $dir = abs_path($arg->{dir}) // $arg->{dir};
 
 # set a default value and if there is a CLI argument, then use it to set the option
 my $email = 0;
@@ -281,7 +281,7 @@ elsif (exists($arg->{separator})) {
 }
 
 if ( $ftp ) {
-	if (!NMISNG::Util::existFile(dir=>'conf', name=>"DslamPortExportTest"))
+	if (!NMISNG::Util::existFile(dir=>'conf', name=>"DslamPortExport"))
 	{
 		print "Configuration file for DslamPortExport does not exist, which is required for FTP. \n";
 		createConfigFile();
@@ -1656,7 +1656,7 @@ sub createConfigFile
 	$exportConfig->{exportFtpUser}      = $exportFtpUser;
 	$exportConfig->{exportFtpPassword}  = NMISNG::Util::encrypt($exportFtpPassword);
 	$exportConfig->{exportFtpDirectory} = $exportFtpDirectory;
-	NMISNG::Util::writeHashtoFile(file=>"$C->{'<nmis_conf>'}/DslamPortExportTest", data=>$exportConfig)
+	NMISNG::Util::writeHashtoFile(file=>"$C->{'<nmis_conf>'}/DslamPortExport", data=>$exportConfig)
 }
 
 ###########################################################################
