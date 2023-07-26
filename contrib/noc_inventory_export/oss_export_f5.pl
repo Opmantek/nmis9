@@ -126,7 +126,7 @@ if ( not defined $arg->{dir} ) {
 	help();
 	exit 255;
 }
-my $dir = abs_path($arg->{dir});
+my $dir = abs_path($arg->{dir}) // $arg->{dir};
 
 # [period=<day|week|month>] (default: 'day')
 my $period   = $dfltPeriod;

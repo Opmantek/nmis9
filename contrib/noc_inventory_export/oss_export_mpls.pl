@@ -116,7 +116,7 @@ if ( not defined $arg->{dir} ) {
 	help();
 	exit 255;
 }
-my $dir = abs_path($arg->{dir});
+my $dir = abs_path($arg->{dir}) // $arg->{dir};
 
 # set a default value and if there is a CLI argument, then use it to set the option
 my $email = 0;
