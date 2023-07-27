@@ -3979,6 +3979,8 @@ sub collect_intf_data
 			my $newstatus = $thisif->{_ifOperStatus}; # that's snmp-sourced
 
 			# relevant transition === entering or leaving up state
+			# breaks when seeing lowerLayerDown
+			# worker[4031185] Interface 563, oper status changed from lowerLayerDown to lowerLayerDown, needs update
 			if (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
 					or ($newstatus !~ /^(up|ok|dormant)$/))
 			{
@@ -4565,6 +4567,13 @@ sub collect_systemhealth_info
 				if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
 		my $thissection = $M->{systemHealth}->{sys}->{$section};
 
+		# if we set the placeholder value we expect a plugin or something to create the values
+		if( $thissection->{placeholder} != "" ) {
+			$self->nmisng->log->debug3("Skipping rrd section:$section for node:$name beause it is placeholder: $thissection->{placeholder}");
+			# NOTE: you'll still want graphtype and header values in the section
+			next;
+		}
+
 		# all systemhealth sections must be indexed by something
 		# this holds the name, snmp or wmi
 		my $index_var;
@@ -4753,6 +4762,11 @@ sub collect_systemhealth_info
 		}
 		else
 		{
+			if( !$index_snmp ) {
+				$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
+				next;
+			}
+			
 			$self->nmisng->log->debug2("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
 			my ( %healthIndexNum, $healthIndexTable );
@@ -4797,6 +4811,12 @@ sub collect_systemhealth_info
 				if ( $SNMP->error =~ /is empty or does not exist/ )
 				{
 					$self->nmisng->log->debug2( "SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: "
+							. $SNMP->error );
+				}
+				elsif( $SNMP->error =~ /incorrect syntax/ )
+				{
+					# error converting the name to an OID shouldn't trigger SNMP Down
+					$self->nmisng->log->error( "Model Error, $S->{name}) on get systemHealth $section index table: "
 							. $SNMP->error );
 				}
 				else

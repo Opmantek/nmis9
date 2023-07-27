@@ -496,6 +496,7 @@ sub gettable
 		else
 		{
 			$self->nmisng->log->error("Incorrect syntax");
+			$self->{error} = "Incorrect mib name, incorrect syntax, could not translate name:$name to oid";
 			return undef;
 		}
 	}
