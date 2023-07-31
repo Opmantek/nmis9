@@ -49,7 +49,7 @@
 #        },
 #        'element' => 'MemPoolName',
 #        'event' => 'High Memory Utilisation',
-#				'title' => "Memory Utilisation",
+#        'title' => "Memory Utilisation",
 #        'unit' => '%',
 #        'value' => 'CVAR1=MemPoolUtil5M;int($CVAR1)'
 #      }
@@ -244,9 +244,10 @@
         },
       },
       'ciscoNormalizedCPUMem' => {
-		'headers' => 'TotalCPUs,MemoryUsedMax,MemoryUsed,MemoryFreeMax,MemoryFree',
-        'indexed' => 'true',
+        'headers' => 'TotalCPUs,MemoryUsedMax,MemoryUsed,MemoryFreeMax,MemoryFree',
+        'placeholder' => 'plugin',
         'graphtype' => 'health',
+        'indexed' => 'true',
         'snmp' => {
           'TotalCPUs' => {
             'title' => 'Number of CPUs'

@@ -4568,8 +4568,10 @@ sub collect_systemhealth_info
 		my $thissection = $M->{systemHealth}->{sys}->{$section};
 
 		# if we set the placeholder value we expect a plugin or something to create the values
-		if( $thissection->{placeholder} != "" ) {
-			$self->nmisng->log->debug3("Skipping rrd section:$section for node:$name beause it is placeholder: $thissection->{placeholder}");
+		$self->nmisng->log->debug3("section:$section for node:$name; placeholder: $thissection->{placeholder}");
+		if (defined($thissection->{placeholder}))
+		{
+			$self->nmisng->log->info("Skipping rrd section:$section for node:$name beause it is placeholder: $thissection->{placeholder}");
 			# NOTE: you'll still want graphtype and header values in the section
 			next;
 		}
