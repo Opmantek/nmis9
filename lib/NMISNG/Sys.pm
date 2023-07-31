@@ -2152,9 +2152,13 @@ sub parseString
 		# must be done longest-first or we'll wreck $ifSpeedIn by replacing it with <value of ifSpeed>In...
 		for my $maybe ( sort { length($b) <=> length($a) } keys %$extras )
 		{
-			$extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
-			# possible solution for SUPPORT-9607
-			#$extras->{$maybe} = "'".$extras->{$maybe}."'"	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+			# used to quote with double quotes, changed to single quotes and remove any single quotes to make sure our quoting is not interrupted
+			# NOTE: Is there any reason not to quote every time?
+			$extras->{$maybe} =~ s/'//g; # remove any single quotes because we will be quoting with them
+			if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) {
+				$extras->{$maybe} = "'".$extras->{$maybe}."'";
+			}
+			# $extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
 
 			my $presubst = $str;
 
