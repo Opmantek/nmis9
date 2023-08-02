@@ -444,7 +444,7 @@ sub collect_plugin
 					data       => $rrdData,
 					item       => undef);
 	my ( $op, $error ) = $inventory->save();
-	$NG->log->debug2( "saved op: $op");
+	$NG->log->debug2("saved inventory for Node '$node'; op: $op");
 	if ($error)
 	{
 		$NG->log->error("Failed to save inventory for Node '$node'; Error: $error");
