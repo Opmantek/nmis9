@@ -41,7 +41,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 	perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
 	perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
 	perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings \
-	perl-YAML-LibYAML"
+	perl-YAML-LibYAML perl-Crypt-CBC perl-CryptX"
 
 		# time-modules package gone in centos/rh7
 		if [ "${OS_MAJOR}" -ge 7 ]; then
@@ -77,7 +77,7 @@ elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
     libexcel-writer-xlsx-perl libsnmp-session-perl libcgi-pm-perl \
     libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl \
-    libcgi-session-perl libyaml-libyaml-perl"
+    libcgi-session-perl libcrypt-cbc-perl libcryptx-perl libyaml-libyaml-perl"
 
 		# ubuntu 16.04 needs a mongodb perl driver >= 1.2.3: we load this from cpanm
 		# debian8 can't load a mongodb perl driver >= 1.2.3 from cpanm and is therefore not NMIS9 compatible
