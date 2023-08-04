@@ -28,6 +28,10 @@
       'jnxOperations' => {
         'common-model' => 'Juniper-jnxOperations'
       },
+      'jnxCoS' => {
+        ### This section is off by default as controlled by model_policy.nmis
+        'common-model' => 'Juniper-jnxCoS'
+      },
     }
   },
   'interface' => {
