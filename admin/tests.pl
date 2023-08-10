@@ -70,6 +70,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=rrdname [datatype= index= node=] - Will return an rrd based on the parameters
  * act=snmp node=nodename - Will test snmp connection for a node
  * act=syslog - Will send a syslog message based on the configuration
+ * act=encryption - Will Verify that encryption works properly.
  
 \n";
 
@@ -109,6 +110,18 @@ if ($Q->{act} =~ /^connectwise/)
 	my $result = testconnectwise($Q);
 	exit 0;
 }
+elsif ($Q->{act} =~ /^encryption/)
+{
+	if (NMISNG::Util::testEncryption())
+	{
+		print("Encryption worked\n");
+	}
+	else
+	{
+		print("Encryption failed\n");
+	}
+	exit 0;
+}
 elsif ($Q->{act} =~ /^email/)
 {
 	my $result = testemail($Q);
@@ -133,6 +146,10 @@ elsif ($Q->{act} =~ /^syslog/)
 {
 	my $result = testsyslog(args => $Q);
 	exit 0;
+}
+else
+{
+    die "Unrecognized action '$Q->{act}'";
 }
 
 # Test connectwise

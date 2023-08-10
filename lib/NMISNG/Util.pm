@@ -53,18 +53,22 @@ use POSIX qw();
 use Cwd qw();
 use version 0.77;
 use Carp;
-use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
+use UUID::Tiny qw(:std);			# for loadconftable, cluster_id, uuid functions
 use IO::Handle;
-use Socket 2.001;								# for getnameinfo() used by resolve_dns_name
+use Socket 2.001;					# for getnameinfo() used by resolve_dns_name
 use JSON::XS;
 use Proc::ProcessTable 0.53;		# older versions are not totally reliable
 use List::Util 1.33;
+use Math::Random::Secure qw(rand);  # Replace rand().
+use Crypt::CBC;						# for token / externally delegated auth
+use Crypt::Cipher::AES;
+use Syntax::Keyword::Try;
 
 use Data::Dumper;
-$Data::Dumper::Indent=1;				# fixme9: do we really need these globally on?
+$Data::Dumper::Indent=1;			# fixme9: do we really need these globally on?
 $Data::Dumper::Sortkeys=1;
 
-use NMISNG::Log;								# for parse_debug_level
+use NMISNG::Log;					# for parse_debug_level
 
 sub TODO
 {
@@ -3499,6 +3503,25 @@ sub getProcessOwner {
 }
 
 ########################################################################
+# testEncryption - Test that encryption works.
+#                  Returns 1 if successful and 0 if not.
+########################################################################
+sub testEncryption {
+    my $secretWord    = "ThisIsASecretWord";
+    my $encryptedPass = encrypt($secretWord, '', '', 1);
+#	print STDERR "Encrypted Password is '$encryptedPass'\n";
+    my $password      = decrypt($encryptedPass);
+    if ($password eq $secretWord)
+    {
+        return(1);
+    }
+    else
+    {
+        return(0);
+    }
+}
+
+########################################################################
 # verifyNMISEncryption - Verify Password encrypred strings.
 ########################################################################
 sub verifyNMISEncryption {
@@ -3518,6 +3541,16 @@ sub verifyNMISEncryption {
 		if($@)
 		{
 			$logger->error("ERROR, Both 'Crypt::CBC' and 'Crypt::Cipher::AES' must be installed in order to enable password encryption!");
+			$logger->error("ERROR, Password encryption will be disabled!");
+			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			$fullConfig->{globals}{global_enable_password_encryption} = "false";
+			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			writeConfData(data=>$fullConfig);
+			return;
+		}
+		if (!testEncryption())
+		{
+			$logger->error("ERROR, Encryption is not working!");
 			$logger->error("ERROR, Password encryption will be disabled!");
 			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 			$fullConfig->{globals}{global_enable_password_encryption} = "false";
@@ -3718,8 +3751,7 @@ sub decrypt {
 	}
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
-	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
-
+	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = "";
 	my $fh;
 
@@ -3761,35 +3793,44 @@ sub decrypt {
 		chomp($seed);
 		my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
 											-cipher => 'Cipher::AES',
-											-pbkdf  => 'pbkdf2',
-											-salt   => 'Opmantek'
+											-pbkdf  => 'pbkdf2'
 											);
 		my $error = 0;
-		eval {  $password = $cipherHandle->decrypt_hex($password);
-				1;  # always return true to indicate success
-			 }
-			 or do {
-				$error = $@ || 'Unknown failure';
-			 };
-		if ($error) {
-			$logger->error("Password decryption failure.; Error $error");
+		try {
+		   $password = $cipherHandle->decrypt_hex($password);
+#			print STDERR  ("Password '$password.\n");
+		}
+   		catch ($e) {
+			$error = $e || 'Unknown failure!';
+		}
+		if ($error || $password eq "") {
+#			print STDERR  ("Password decryption failure, Error: $error\n");
+			$logger->error("Password decryption failure, Error: $error");
 			$password = "";
 		} else {
 			$strLen   = substr($password, 0, 3);
-			$password = substr($password, 3, $strLen);
-			# Encryption is disabled, unencrypt whatever we encounter.
-			if (!$encryption_enabled) {
-				# If we have an encrypted password in the configuration file, then we unencrypt it.
-				# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
-				if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-					# Get the non-flattened raw hash
-					my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-					if ($fullConfig->{$section}{$keyword} ne $password) {
-						$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
-						$fullConfig->{$section}{$keyword} = $password;
+			if ($strLen !~ /^\d+$/)
+			{
+#				print STDERR  ("Password decryption failure, Error: Received corrupted String, possible seed file modification.\n");
+				$password = "";
+			} else {
+#				print STDERR  ("Password Length '$strLen'.\n");
+				$password = substr($password, 3, $strLen);
+#				print STDERR  ("Password '$password.\n");
+				# Encryption is disabled, unencrypt whatever we encounter.
+				if (!$encryption_enabled) {
+					# If we have an encrypted password in the configuration file, then we unencrypt it.
+					# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+					if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
+						# Get the non-flattened raw hash
+						my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 						$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-						writeConfData(data=>$fullConfig);
+						if ($fullConfig->{$section}{$keyword} ne $password) {
+							$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
+							$fullConfig->{$section}{$keyword} = $password;
+							$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+							writeConfData(data=>$fullConfig);
+						}
 					}
 				}
 			}
@@ -3806,7 +3847,7 @@ sub decrypt {
 # encrypt - Encrypt the password.                                      #
 ########################################################################
 sub encrypt {
-	my ($password, $section, $keyword) = @_;
+	my ($password, $section, $keyword, $force) = @_;
 	my $config;
 	my $logger;
 
@@ -3821,14 +3862,13 @@ sub encrypt {
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
 
-	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled))
+	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled && !$force))
 	{
 		return $password;
 	}
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
-	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
-
+	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = 0;
 	my $fh;
 
@@ -3841,7 +3881,7 @@ sub encrypt {
 	# Passed already encrypted string.
 	if (substr($password, 0, 2) eq "!!") {
 		# Encryption is disabled, decrypt whatever we encounter and return that.
-		if (!$encryption_enabled) {
+		if (!$encryption_enabled && !$force) {
 			# If we have an encrypted password in the configuration file, then we decrypt it.
 			my $decrypted_pw = decrypt($password);
 			# If the 'section and 'keyword' arguments are passed, it means we are
@@ -3864,7 +3904,7 @@ sub encrypt {
 		return $password;
 	}
 
-	if ($encryption_enabled) {
+	if ($encryption_enabled || $force) {
 		if (open($fh, '<', $seedfile)) {
 			my $seed = <$fh>;
 			close $fh;
@@ -3874,16 +3914,15 @@ sub encrypt {
 	
 			my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
 												-cipher => 'Cipher::AES',
-												-pbkdf  => 'pbkdf2',
-												-salt   => 'Opmantek'
+												-pbkdf  => 'pbkdf2'
 												);
 			my $error = 0;
-			eval {  $password = $cipherHandle->encrypt_hex($password);
-					1;  # always return true to indicate success
-				 }
-				 or do {
-					$error = $@ || 'Unknown failure';
-				 };
+			try {
+				$password = $cipherHandle->encrypt_hex($password);
+			}
+			catch ($e) {
+				$error = $e || 'Unknown failure!';
+			}
 			if ($error) {
 				$logger->error("Password encryption failure.; Error $error");
 				$password = "";
@@ -3912,6 +3951,11 @@ sub _make_seed {
 	my $range    = $#charset + 1;
 	my $fh;
 	my $seed;
+
+	if ($< != 0)
+	{
+		die "Security is not configured.  Security configuration requires root permission!\n";
+	}
 
 	for (1..256) {
 		$seed .= $charset[int(rand($range))];
