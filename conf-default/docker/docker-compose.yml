@@ -1,0 +1,41 @@
+version: '3.4'
+
+services:
+
+  mongo:
+    image: mongo:4.4
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo mongo:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    
+  nmis:
+    image: nmis9
+    environment:
+      NMIS_DB_USERNAME: root
+      NMIS_DB_PASSWORD: example
+      NMIS_DB_SERVER: mongo
+      NMIS_SERVER_NAME: example-host-1
+      NMIS_CLUSTER_ID: 660f29ae-f150-4119-bf04-cd9296852449
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - log_data:/usr/local/nmis9/logs
+      - var_data:/usr/local/nmis9/var
+      - conf_data:/usr/local/nmis9/conf
+      - database_data:/usr/local/nmis9/database
+    ports:
+      - "8080:8080"
+
+volumes:
+  log_data:
+  var_data:
+  conf_data:
+  database_data:
