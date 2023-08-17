@@ -74,7 +74,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  
 \n";
 
-die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
+die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|u|\?|-help)$/ );
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
 
 my $wantverbose = (NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0));
