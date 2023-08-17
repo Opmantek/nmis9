@@ -77,8 +77,8 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
 
-my $wantverbose = (NMISNG::Util::getbool($Q->{verbose}));
-my $wantquiet  = NMISNG::Util::getbool($Q->{quiet});
+my $wantverbose = (NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0));
+my $wantquiet  = NMISNG::Util::getbool_cli("quiet", $Q->{quiet}, 0);
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
