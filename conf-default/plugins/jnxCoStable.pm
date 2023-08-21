@@ -82,7 +82,24 @@ sub update_plugin
 
 	$NG->log->info("Running Juniper Class of Service plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 
-	# Based on each of the cards we know about from CPU, we are going to look for each of the memory value.
+	# Set the Header data.
+	my $juniperCoSInfo;
+	$juniperCoSInfo->{index}                      = "Index";
+	$juniperCoSInfo->{jnxCosIfqQedPkts}           = "Total packets queued at the output";
+	$juniperCoSInfo->{jnxCosIfqTxedBytes}         = "Total bytes transmitted";
+	$juniperCoSInfo->{jnxCosIfqTotalRedDropBytes} = "Total bytes RED-dropped at the output";
+	$juniperCoSInfo->{jnxCosIfqTotalRedDropPkts}  = "Total packets RED-dropped at the output";
+	$juniperCoSInfo->{jnxCosFcName}               = "Name of the forwarding class";
+	$juniperCoSInfo->{jnxCosIfqQedBytes}          = "Number of bytes queued at the output";
+	$juniperCoSInfo->{jnxCosIfqTailDropPkts}      = "Total packets dropped due to tail dropping at the output";
+	$juniperCoSInfo->{QedPkts}                    = "Total packets queued at the output";
+	$juniperCoSInfo->{Queued}                     = "Number of bytes queued at the output";
+	$juniperCoSInfo->{RedDropBytes}               = "Total bytes dropped due to RED (Random Early Detection) at the output";
+	$juniperCoSInfo->{RedDropPkts}                = "Total packets dropped due to RED (Random Early Detection) at the output";
+	$juniperCoSInfo->{TailDropPkts}               = "Total packets dropped due to tail dropping";
+	$juniperCoSInfo->{Txed}                       = "Total bytes transmitted";
+
+	# Based on each of the Juniper Class of Service entries, we supliment the data.
 	for my $juniperCoSId (@$juniperCoSIds)
 	{
 		my ($inventory,$error) = $S->nmisng_node->inventory(_id => $juniperCoSId);
@@ -135,7 +152,15 @@ sub update_plugin
 				next;
 			}
 
-			my $FCname                   = join("", map { chr($_) } split(/\./,$FCcodename));
+			# Set which columns should be displayed
+			$inventory->data_info(
+				subconcept => "Juniper_CoS",
+				enabled => 1,
+				display_keys => $juniperCoSInfo
+			);
+
+			# Set the data
+			my $FCname                        = join("", map { chr($_) } split(/\./,$FCcodename));
 			$juniperCoSData->{jnxCosFcName}   = $FCname . ' Class' ;
 			$juniperCoSData->{ifIndex}        = $intIndex;
 			$juniperCoSData->{IntName}        = $ifdata{$intIndex}{ifDescr};
