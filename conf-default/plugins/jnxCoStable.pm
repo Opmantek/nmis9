@@ -124,12 +124,10 @@ sub update_plugin
 		my $juniperCoSData = $inventory->data; # r/o copy, must be saved back if changed
         my $index          = $juniperCoSData->{index};
 
-		$NG->log->info("jnxCoStable: Index $index");
 		if ($index =~ /(\d+)\.\d+\.(.+)$/ )
 		{
 			my $intIndex   = $1;
 			my $FCcodename = $2;
-			$NG->log->info("jnxCoStable: FC Code Name: $FCcodename");
 			$NG->log->debug("jnxCoStable: update_plugin: intIndex=$intIndex");
 
 			# only display active interfaces - delete the keys of inactive interfaces:
