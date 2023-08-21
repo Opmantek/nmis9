@@ -124,10 +124,12 @@ sub update_plugin
 		my $juniperCoSData = $inventory->data; # r/o copy, must be saved back if changed
         my $index          = $juniperCoSData->{index};
 
+		$NG->log->info("jnxCoStable: Index $index");
 		if ($index =~ /(\d+)\.\d+\.(.+)$/ )
 		{
 			my $intIndex   = $1;
 			my $FCcodename = $2;
+			$NG->log->info("jnxCoStable: FC Code Name: $FCcodename");
 			$NG->log->debug("jnxCoStable: update_plugin: intIndex=$intIndex");
 
 			# only display active interfaces - delete the keys of inactive interfaces:
@@ -146,6 +148,11 @@ sub update_plugin
 						subconcept => "Juniper_CoS",
 						enabled => 0
 					);
+					my ( $op, $subError ) = $inventory->save();
+					if ($subError)
+					{
+						$NG->log->error("Failed to unmanage inventory for Class of Service Index '$index': $subError");
+					}
 				}
 				$unmanagedMsg->{$intIndex} = 1;
 				$changesweremade = 1;
@@ -164,7 +171,7 @@ sub update_plugin
 			$juniperCoSData->{jnxCosFcName}   = $FCname . ' Class' ;
 			$juniperCoSData->{ifIndex}        = $intIndex;
 			$juniperCoSData->{IntName}        = $ifdata{$intIndex}{ifDescr};
-		    $juniperCoSData->{cosDescription} = $inventory->{IntName} . '-' . $FCname . '-Class';
+		    $juniperCoSData->{cosDescription} = $juniperCoSData->{IntName} . '-' . $FCname . '-Class';
 			$inventory->data($juniperCoSData);
 			$NG->log->debug2("jnxCoStable: FCcodename     = '$FCcodename'");
 			$NG->log->debug2("jnxCoStable: jnxCosFcName   = '$juniperCoSData->{jnxCosFcName}'");
