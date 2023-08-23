@@ -3525,10 +3525,16 @@ sub testEncryption {
 # verifyNMISEncryption - Verify Password encrypred strings.
 ########################################################################
 sub verifyNMISEncryption {
-	my (%args) = @_;
+	my (%args)   = @_;
+	my $logger   = $args{log};
+	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	my $seeddir  = '/usr/local/etc/firstwave/';
+	my $seedfile = '/usr/local/etc/firstwave/master.key';
+	my $epochNow = time;
+	my $timeNow  = localtime;
+	my %protected;
 	my $config;
 	my $fh;
-	my $logger  = $args{log};
 	my $changed = 0;
 
 	$config = loadConfTable();
@@ -3547,6 +3553,10 @@ sub verifyNMISEncryption {
 			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 			writeConfData(data=>$fullConfig);
 			return;
+		}
+		# Make sure we have a seed file.
+		if (!-f "$seedfile") {
+			_make_seed($seedfile, $logger);
 		}
 		if (!testEncryption())
 		{
@@ -3576,6 +3586,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $encrypted_pw;
 							$changed = 1;
@@ -3589,6 +3600,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $encrypted_pw;
 							$changed = 1;
@@ -3603,6 +3615,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $encrypted_pw;
 							$changed = 1;
@@ -3618,6 +3631,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $encrypted_pw;
 							$changed = 1;
@@ -3637,6 +3651,21 @@ sub verifyNMISEncryption {
 		if ($changed)
 		{
 			writeConfData(data=>$fullConfig);
+			my $protectedFile = "$seeddir/$epochNow";
+			unless(open($fh, '>', $protectedFile)) {
+				$logger->error("Unable to backup Passwords.");
+			}
+			else
+			{
+				print $fh ("Created on $timeNow.\n");
+				foreach my $eachRow (keys %protected)
+				{
+					print $fh ("$eachRow = $protected{$eachRow}\n");
+				}
+				close $fh;
+				chown(0, 0, $protectedFile);
+				chmod(0440, $protectedFile);
+			}
 		}
 	}
 	else
@@ -3979,6 +4008,7 @@ sub _make_seed {
 	close $fh;
 	chown($uid, $gid, $seedfile);
 	chmod(0440, $seedfile);
+	$logger->info("Encryption seed file created.");
 
 	return 0;
 }
