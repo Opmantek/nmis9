@@ -3985,6 +3985,7 @@ sub _make_seed {
 	{
 		die "Security is not configured.  Security configuration requires root permission!\n";
 	}
+	$logger->info("Creating Encryption seed file.");
 
 	for (1..256) {
 		$seed .= $charset[int(rand($range))];
