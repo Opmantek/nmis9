@@ -3651,7 +3651,7 @@ sub verifyNMISEncryption {
 		if ($changed)
 		{
 			writeConfData(data=>$fullConfig);
-			my $protectedFile = "$seeddir/$epochNow";
+			my $protectedFile = "$seeddir/NMIS-$epochNow";
 			unless(open($fh, '>', $protectedFile)) {
 				$logger->error("Unable to backup Passwords.");
 			}
@@ -3664,7 +3664,7 @@ sub verifyNMISEncryption {
 				}
 				close $fh;
 				chown(0, 0, $protectedFile);
-				chmod(0440, $protectedFile);
+				chmod(0400, $protectedFile);
 			}
 		}
 	}
