@@ -42,7 +42,8 @@ use Getopt::Std;
 use File::Copy;
 
 use NMISNG::Util;
-use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
+## commenting this to make patch-config run 3 times faster.
+#use Compat::NMIS; 								# for nmisng::util::dbg, fixme9
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
