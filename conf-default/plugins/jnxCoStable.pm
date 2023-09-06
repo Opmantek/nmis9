@@ -30,7 +30,7 @@
 # An update plugin for Juniper Class of Service Support.
 
 package jnxCoStable;
-our $VERSION = "2.1.0";
+our $VERSION = "2.1.1";
 
 use strict;
 use Compat::NMIS;
@@ -82,23 +82,23 @@ sub update_plugin
 
 	$NG->log->info("Running Juniper Class of Service plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 
-	# Set the Header data.
-	my $juniperCoSInfo = [
-		{ index                      => "Index"},
-		{ jnxCosIfqQedPkts           => "Total packets queued at the output"},
-		{ jnxCosIfqTxedBytes         => "Total bytes transmitted"},
-		{ jnxCosIfqTotalRedDropBytes => "Total bytes RED-dropped at the output"},
-		{ jnxCosIfqTotalRedDropPkts  => "Total packets RED-dropped at the output"},
-		{ jnxCosFcName               => "Name of the forwarding class"},
-		{ jnxCosIfqQedBytes          => "Number of bytes queued at the output"},
-		{ jnxCosIfqTailDropPkts      => "Total packets dropped due to tail dropping at the output"},
-		{ QedPkts                    => "Total packets queued at the output"},
-		{ Queued                     => "Number of bytes queued at the output"},
-		{ RedDropBytes               => "Total bytes dropped due to RED (Random Early Detection) at the output"},
-		{ RedDropPkts                => "Total packets dropped due to RED (Random Early Detection) at the output"},
-		{ TailDropPkts               => "Total packets dropped due to tail dropping"},
-		{ Txed                       => "Total bytes transmitted"}
-	];
+	# Do not Set the Header data. , let NMIS work it out using the model
+	# my $juniperCoSInfo = [
+	# 	{ index                      => "Index"},
+	# 	{ jnxCosIfqQedPkts           => "Total packets queued at the output"},
+	# 	{ jnxCosIfqTxedBytes         => "Total bytes transmitted"},
+	# 	{ jnxCosIfqTotalRedDropBytes => "Total bytes RED-dropped at the output"},
+	# 	{ jnxCosIfqTotalRedDropPkts  => "Total packets RED-dropped at the output"},
+	# 	{ jnxCosFcName               => "Name of the forwarding class"},
+	# 	{ jnxCosIfqQedBytes          => "Number of bytes queued at the output"},
+	# 	{ jnxCosIfqTailDropPkts      => "Total packets dropped due to tail dropping at the output"},
+	# 	{ QedPkts                    => "Total packets queued at the output"},
+	# 	{ Queued                     => "Number of bytes queued at the output"},
+	# 	{ RedDropBytes               => "Total bytes dropped due to RED (Random Early Detection) at the output"},
+	# 	{ RedDropPkts                => "Total packets dropped due to RED (Random Early Detection) at the output"},
+	# 	{ TailDropPkts               => "Total packets dropped due to tail dropping"},
+	# 	{ Txed                       => "Total bytes transmitted"}
+	# ];
 
 	# Based on each of the Juniper Class of Service entries, we supliment the data.
 	for my $juniperCoSId (@$juniperCoSIds)
@@ -158,12 +158,13 @@ sub update_plugin
 				next;
 			}
 
-			# Set which columns should be displayed
-			$inventory->data_info(
-				subconcept => "Juniper_CoS",
-				enabled => 1,
-				display_keys => $juniperCoSInfo
-			);
+			# Do not Set which columns should be displayed
+			# Do not Set the Header data. , let NMIS work it out using the model
+			# $inventory->data_info(
+			# 	subconcept => "Juniper_CoS",
+			# 	enabled => 1,
+			# 	display_keys => $juniperCoSInfo
+			# );
 
 			# Set the data
 			my $FCname                        = join("", map { chr($_) } split(/\./,$FCcodename));
