@@ -171,7 +171,10 @@ sub update_plugin
 			$juniperCoSData->{jnxCosFcName}   = $FCname . ' Class' ;
 			$juniperCoSData->{ifIndex}        = $intIndex;
 			$juniperCoSData->{IntName}        = $ifdata{$intIndex}{ifDescr};
-		    $juniperCoSData->{cosDescription} = $juniperCoSData->{IntName} . '-' . $FCname . '-Class';
+			$juniperCoSData->{cosDescription} = $juniperCoSData->{IntName} . '-' . $FCname . '-Class';
+			# description is pulled from first entry in headers section, that is cosDescription for this model
+			# we are updating cosDescription so we need to update the description as well
+			$inventory->description($juniperCoSData->{cosDescription});
 			$inventory->data($juniperCoSData);
 			$NG->log->debug2("jnxCoStable: FCcodename     = '$FCcodename'");
 			$NG->log->debug2("jnxCoStable: jnxCosFcName   = '$juniperCoSData->{jnxCosFcName}'");
