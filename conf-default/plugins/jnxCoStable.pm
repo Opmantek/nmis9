@@ -30,7 +30,7 @@
 # An update plugin for Juniper Class of Service Support.
 
 package jnxCoStable;
-our $VERSION = "2.1.1";
+our $VERSION = "2.1.2";
 
 use strict;
 use Compat::NMIS;
