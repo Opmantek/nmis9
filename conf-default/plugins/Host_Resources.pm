@@ -58,7 +58,7 @@ sub collect_plugin
 		return ( error => "SNMP Down, skipping Host Resources plugin");
 	}
 	else {
-		$NG->log->info("Running Host Resources plugin for node::$node");
+		$NG->log->debug("Running Host Resources plugin for node::$node");
 	}
 
 	#my $NI = $S->ndinfo;
@@ -72,7 +72,7 @@ sub collect_plugin
 	
 	if (@$host_ids)
 	{
-		$NG->log->info("Working on $node Host Memory Calculations");
+		$NG->log->debug("Working on $node Host Memory Calculations");
 		# for saving all the types of memory we want to use
 		my $Host_Memory;
         
@@ -155,10 +155,10 @@ sub collect_plugin
 			}
             
 			if ( $typeName eq "Memory" ) {
-				$NG->log->info("Host Memory Type = $data->{hrStorageDescr} interesting as $type");
+				$NG->log->debug("Host Memory Type = $data->{hrStorageDescr} interesting as $type");
 			}
 			else {
-				$NG->log->info("Host Storage Type = $data->{hrStorageDescr} less interesting") if defined $data->{hrStorageDescr};
+				$NG->log->debug2("Host Storage Type = $data->{hrStorageDescr} less interesting") if defined $data->{hrStorageDescr};
 			}
 
 			# do we have a type of memory to process?
@@ -230,10 +230,10 @@ sub collect_plugin
 
             my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>"Host_Memory");
 			# check for RRD update errors
-			if (!$updatedrrdfileref) { $NG->log->info("Update RRD failed!") };
+			if (!$updatedrrdfileref) { $NG->log->debug("Update RRD failed!") };
 
-			$NG->log->info("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref") if ($updatedrrdfileref);
-			$NG->log->debug("Host_Memory Object: ". Dumper($Host_Memory),1);
+			$NG->log->debug("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref") if ($updatedrrdfileref);
+			$NG->log->debug2("Host_Memory Object: ". Dumper($Host_Memory),1);
 		}
         
     }
@@ -313,7 +313,7 @@ sub update_plugin
 	
 	if (@$host_ids)
 	{
-		$NG->log->info("Working on $node Host_File_System");
+		$NG->log->debug("Working on $node Host_File_System");
 		# for saving all the types of memory we want to use
 		$mibs = loadMibs(config => $C, nmisng => $NG) if not defined $mibs;
         
@@ -378,7 +378,7 @@ sub update_plugin
 	
 	if (@$host_ids)
 	{
-		$NG->log->info("Working on $node Host_Partition");
+		$NG->log->debug("Working on $node Host_Partition");
 		# for saving all the types of memory we want to use
         $mibs = loadMibs(config => $C, nmisng=> $NG) if not defined $mibs;
         
@@ -442,7 +442,7 @@ sub loadMibs {
 	my $oids = "$C->{mib_root}/nmis_mibs.oid";
 	my $mibs;
 
-    $NG->log->info("Loading Vendor OIDs from $oids");
+    $NG->log->debug("Loading Vendor OIDs from $oids");
 
 	open(OIDS,$oids) or $NG->log->warn("ERROR could not load $oids: $!\n");
 
