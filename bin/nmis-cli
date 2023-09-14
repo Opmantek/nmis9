@@ -125,6 +125,8 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=set-last-login user=<username> last_login=<last_login>
  act=unlock-user user=<username>
  
+ act=notify event_msg=<msg> [element=<element> details=<details>]
+
 \n";
 
 
@@ -1153,6 +1155,40 @@ elsif ($Q->{act} =~ /unlock[-_]user/)
 	my $user = $Q->{user};
 	unlock_user(user => $user);
 }
+elsif ($Q->{act} =~ /notify/)
+{
+	my $nodeobj;
+	my $nodename = $Q->{node};
+	my $uuid = $Q->{uuid};
+	my $event_msg = $Q->{event_msg};
+
+	my %nodesel;
+	$nodesel{name} = $nodename if ($nodename);
+	$nodesel{uuid} = $uuid if ($uuid);
+
+	$nodeobj = $nmisng->node(%nodesel);
+	die "Invalid node/uuid arguments, no matching node exists!\n"
+			if (!$nodeobj);
+
+	die "event_msg must be set\n"
+			if (!$event_msg);
+
+	my $S = NMISNG::Sys->new;
+	$S->init(node=>$nodeobj,snmp=>'false');
+
+	my %eventargs;
+	$eventargs{sys} = $S;
+	$eventargs{event} = $event_msg;
+	$eventargs{element} = $Q->{element} if( $Q->{element} );
+	$eventargs{details} = $Q->{details} if( $Q->{details} );
+	$eventargs{level} = $Q->{level} if( $Q->{level} );
+
+	my $event = Compat::NMIS::notify(%eventargs);
+	if( my $error = $event->load() )
+	{
+		die "event error: $error\n";
+	}
+}
 else
 {
 	print "\033[1mUnrecognized action! ('act=$Q->{act}')\033[0m\n\n";
@@ -1565,6 +1601,8 @@ sub help
    push(@lines, "                     to create the condition. 'dryrun' reviews the events and\n");
    push(@lines, "                     simply reports what was found, but does not make any\n");
    push(@lines, "                     changes.\n");
+   push(@lines, "     act=notify event_msg=<msg> [element=<element> details=<details>]\n");
+   push(@lines, "                     This action submits a new event.\n");
    push(@lines, "\n");
    push(@lines, "  -- SCHEDULING ACTIONS --\n");
    push(@lines, "     act=schedule [at=time] <job.type=<activity>> [job.priority=0..1]\n");
