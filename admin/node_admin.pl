@@ -282,8 +282,15 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 		$logger->debug(($node->is_new? "creating": "updating")." node $onenode->{name}");
 
 		# any node on this system must have this system's cluster_id.
-		$onenode->{cluster_id} = $config->{cluster_id};
-
+		### change to support distribution to remote pollers.
+		 if ( defined $onenode->{configuration}{pollers} and $onenode->{configuration}{pollers} ne "" ) {
+			$logger->info("Setting node to be managed by remote poller $onenode->{configuration}{pollers}");
+			$onenode->{cluster_id} = $onenode->{configuration}{pollers};
+		    }
+		 else {
+			$onenode->{cluster_id} = $config->{cluster_id};
+		   }
+	
 		# and OVERWRITE the configuration
 		my $curconfig = $node->configuration; # almost entirely empty when new
 
