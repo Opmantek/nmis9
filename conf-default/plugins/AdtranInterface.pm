@@ -50,7 +50,6 @@ sub update_plugin
 	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
 	my $intfData = undef;
-	my $intfInfo = undef;
 	my $interface_max_number = $C->{interface_max_number} || 5000;
 	$NG->log->debug("Max Interfaces are: '$interface_max_number'");
 
@@ -145,22 +144,24 @@ sub update_plugin
 	$NG->log->debug($nameDump);
 
 	$intfTotal = 0;
-	$intfInfo->{index}         = "Index";
-	$intfInfo->{interface}     = "Interface Name";
-	$intfInfo->{ifIndex}       = "Interface Index";
-	$intfInfo->{ifName}        = "Interface Internal Name";
-	$intfInfo->{Description}   = "Interface Description";
-	$intfInfo->{ifDesc}        = "Interface Internal Description";
-	$intfInfo->{ifType}        = "Interface Type";
-	$intfInfo->{ifSpeed}       = "Interface Speed";
-	$intfInfo->{ifSpeedIn}     = "Interface Speed In";
-	$intfInfo->{ifSpeedOut}    = "Interface Speed Out";
-	$intfInfo->{ifAdminStatus} = "Interface Administrative State";
-	$intfInfo->{ifOperStatus}  = "Interface Operational State";
-	$intfInfo->{setlimits}     = "Interface Set Limnits";
-	$intfInfo->{collect}       = "Interface Collection Status";
-	$intfInfo->{event}         = "Interface Event Status";
-	$intfInfo->{threshold}     = "Interface Threshold Status";
+	my $intfInfo = [
+		{ index         => "Index" },
+		{ interface     => "Interface Name" },
+		{ ifIndex       => "Interface Index" },
+		{ ifName        => "Interface Internal Name" },
+		{ Description   => "Interface Description" },
+		{ ifDesc        => "Interface Internal Description" },
+		{ ifType        => "Interface Type" },
+		{ ifSpeed       => "Interface Speed" },
+		{ ifSpeedIn     => "Interface Speed In" },
+		{ ifSpeedOut    => "Interface Speed Out" },
+		{ ifAdminStatus => "Interface Administrative State" },
+		{ ifOperStatus  => "Interface Operational State" },
+		{ setlimits     => "Interface Set Limnits" },
+		{ collect       => "Interface Collection Status" },
+		{ event         => "Interface Event Status" },
+		{ threshold     => "Interface Threshold Status" }
+	];
 
 	# We build the data first to capture duplicate names and other issues
 	# we need to compensate for along the way.
