@@ -563,7 +563,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'CancelingEvent' => 'opHAMB Peer Failback',
+    'CancelingEvent' => 'opHAMB Peer Failover Closed',
     'Description' => 'An opHA Message Bus consumer peer fail over event occurred.',
   },
 
@@ -573,7 +573,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'CancelingEvent' => 'opHAMB Peer Detach',
+    'CancelingEvent' => 'opHAMB Peer Attach Closed',
     'Description' => 'An opHA Message Bus consumer peer attach event occurred.',
   },
 
@@ -583,7 +583,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'CancelingEvent' => 'opHAMB Peer Unpause',
+    'CancelingEvent' => 'opHAMB Peer Pause Closed',
     'Description' => 'An opHA Message Bus producer peer pause event occurred.',
   },
 
