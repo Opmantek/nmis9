@@ -92,6 +92,11 @@ if ($helpsw) {
 
 my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
 
+ act=check-eos
+ act=disable-eos
+ act=enable-eos
+ act=is-eos-available
+
  act=fixperms
  act=gettmp (or act=gettemp)
  act=config-backup
@@ -125,6 +130,7 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=set-last-login user=<username> last_login=<last_login>
  act=unlock-user user=<username>
  
+ \033[1m For additional information run '$PROGNAME -h' \033[0m
 \n";
 
 
@@ -242,7 +248,7 @@ if ($usagesw) {
 
 if (!@ARGV)
 {
-    help();
+    print($usage);
     exit(0);
 }
 
@@ -285,6 +291,49 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 # Get temporary directory
 my $tmp = NMISNG::Util::getTmpDir();
 
+############################################
+# Run BEFORE getting a database connection #
+############################################
+# Disable Encryption of Secrets
+# returns 1 if successful, and 0 if failed!
+if ($Q->{act} =~ /^disable[-_]eos$/)
+{
+	if ( $< != 0)
+	{
+		die "This action requires root privilege.\n";
+	}
+	else
+	{
+		my $rc = NMISNG::Util::disableEOS();
+		exit($rc);
+	}
+}
+# Enable Encryption of Secrets
+# returns 1 if successful, and 0 if failed!
+elsif ($Q->{act} =~ /^enable[-_]eos$/)
+{
+	if ( $< != 0)
+	{
+		die "This action requires root privilege.\n";
+	}
+	else
+	{
+		if (NMISNG::Util::testEncryption())
+		{
+			my $rc = NMISNG::Util::enableEOS();
+			exit($rc);
+		}
+		else
+		{
+			print("Encryption is not working, EOS cannot be enabled.\n");
+			exit(0);
+		}
+	}
+}
+##################################################################
+# Run the above two actions BEFORE getting a database connection #
+##################################################################
+
 # this opens a database connection
 my $nmisng = NMISNG->new(
 	config => $C,
@@ -294,8 +343,29 @@ my $nmisng = NMISNG->new(
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
+# Check if EOS is available.
+# returns 1 if EOS is available 0 if not.
+if ($Q->{act} =~ /^is[-_]eos[-_]available$/)
+{
+    exit(NMISNG::Util::isEOSAvailable());
+}
+# Check Encryption of Secrets
+# returns 1 if eos is eenabled, and 0 if not.
+elsif ($Q->{act} =~ /^check[-_]eos$/)
+{
+	if (NMISNG::Util::checkEOS())
+	{
+		print("Encryption is enabled.\n");
+		exit 1;
+	}
+	else
+	{
+		print("Encryption is disabled.\n");
+		exit 0;
+	}
+}
 # show the daemon status
-if ($Q->{act} =~ /^(daemon[-_])?status$/)
+elsif ($Q->{act} =~ /^(daemon[-_])?status$/)
 {
 	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
 	# opcharts 3 'nmisd' calls itself 'nmisd',
@@ -1565,6 +1635,29 @@ sub help
    push(@lines, "                     to create the condition. 'dryrun' reviews the events and\n");
    push(@lines, "                     simply reports what was found, but does not make any\n");
    push(@lines, "                     changes.\n");
+   push(@lines, "\n");
+   push(@lines, "  -- ENCRYPTION OF SECRETS ACTIONS --\n");
+   push(@lines, "     act=check-eos\n");
+   push(@lines, "                     This action reports whether Encryption of Secrets.\n");
+   push(@lines, "                     is enabled or disabled. It returns 1 if EOS is\n");
+   push(@lines, "                     enabled, and 0 if not.\n");
+   push(@lines, "     act=disable-eos\n");
+   push(@lines, "                     This action disables Encryption of Secrets.\n");
+   push(@lines, "                     This must be run as root, and it will stop all\n");
+   push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
+   push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
+   push(@lines, "                     successfully disabled, and 0 if not.\n");
+   push(@lines, "     act=enable-eos\n");
+   push(@lines, "                     This action enables Encryption of Secrets.\n");
+   push(@lines, "                     This must be run as root, and it will stop all\n");
+   push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
+   push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
+   push(@lines, "                     successfully enabled, and 0 if not.\n");
+   push(@lines, "     act=is-eos-available\n");
+   push(@lines, "                     This action checks Encryption of Secrets to determine\n");
+   push(@lines, "                     if it meets all of the requirements for support.\n");
+   push(@lines, "                     It will report any issues, and return 1 if EOS can be\n");
+   push(@lines, "                     enabled and 0 if not.\n");
    push(@lines, "\n");
    push(@lines, "  -- SCHEDULING ACTIONS --\n");
    push(@lines, "     act=schedule [at=time] <job.type=<activity>> [job.priority=0..1]\n");
