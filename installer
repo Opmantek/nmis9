@@ -86,11 +86,15 @@ if (-e "$omkdir/manifest")
 my @omkVersions;
 foreach my $eachProduct (keys  (%{ $omksystemstate->{products} }))
 {
-	print ("Product = '$eachProduct'\n");
 	my $omkVersion = $omksystemstate->{products}{$eachProduct}{version};
-	print ("Version = '$omkVersion'\n");
 	push @omkVersions, "$eachProduct:$omkVersion";
 }
+if ( -d "$targetdir")
+{
+	my $installed_version=qx{$targetdir/bin/nmis-cli  --version | cut -f2 -d=};
+	push @versions, "NMIS:$installed_version";
+}
+
 
 # preseed generation requested?
 if (my $newseed = $options{P})
