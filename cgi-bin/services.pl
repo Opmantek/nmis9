@@ -136,7 +136,7 @@ sub display_details
 #	print Dumper($thisservice);
 
 	# service config info: name (likely different from service id/key), description, type.
-	for my $row (["Service Name", $thisservice->{name}],
+	for my $row (["Service Name", $thisservice->{display_name}],
 							 ["Type", $ST->{$wantservice}->{Service_Type}],
 							 ["Description", $thisservice->{description}])
 	{

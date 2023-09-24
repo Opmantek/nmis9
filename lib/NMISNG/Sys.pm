@@ -1160,6 +1160,12 @@ sub getValues
 			next;
 		}
 
+		if ( !defined( $thissection->{snmp} ) || ref $thissection->{snmp} ne "HASH" )
+		{
+			$self->nmisng->log->debug2("collection of section $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect");
+			$status{skipped} = "skipped $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect";
+			next;
+		}
 		NMISNG::Util::TODO("GRAPHTYPE: Does full removal of this code make sense?");
 		# # should we add graphtype to given (info) table?
 		# if ( ref($tbl) eq "HASH" )
