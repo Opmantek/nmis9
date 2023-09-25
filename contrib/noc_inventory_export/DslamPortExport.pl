@@ -119,8 +119,7 @@ if ($usagesw) {
 my $debug   = $debugsw;
 my $ftp     = $ftpsw;
 $debug      = NMISNG::Util::getdebug_cli($arg->{debug}) if (exists($arg->{debug}));   # Backwards compatibility
-$ftp        = NMISNG::Util::getbool_cli($arg->{ftp})    if (exists($arg->{ftp}));     # Backwards compatibility
-($arg->{ftp}) if (exists($arg->{ftp}));   # Backwards compatibility
+$ftp        = NMISNG::Util::getbool_cli("ftp", $arg->{ftp}, 0)    if (exists($arg->{ftp}));     # Backwards compatibility
 print "Debug = '$debug'\n" if ($debug);
 
 if ( not defined $arg->{conf}) {
