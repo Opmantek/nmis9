@@ -905,6 +905,7 @@ sub data_live
 }
 
 # set columns available for data by subconcept, enable/disable the visiblity of the subconcept
+# returns a hash containing the data_info on success, string with an error on failure
 sub data_info
 {
 	my ( $self, %args ) = @_;
@@ -915,6 +916,10 @@ sub data_info
 	if (defined($enabled) || defined($display_keys))
 	{
 		my $newinfo = { enabled => $enabled, display_keys => Clone::clone($display_keys) // [] };
+		my $display_keys_type = ref($newinfo->{display_keys});
+		if( $display_keys_type ne 'ARRAY' ) {
+			return "display_keys must be an array, $display_keys_type is not valid";
+		}
 		$self->_dirty(1,"data_info") if (!eq_deeply($self->{_data_info}->{$subconcept}, $newinfo));
 		$self->{_data_info}->{$subconcept} = $newinfo;
 	}

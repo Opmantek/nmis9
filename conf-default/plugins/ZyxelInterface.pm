@@ -151,23 +151,24 @@ sub update_plugin
 		$subrPortNameOid = "1.3.6.1.4.1.890.1.5.13.6.8.1.1.1";
 		$subrPortTelOid  = "1.3.6.1.4.1.890.1.5.13.6.8.1.1.2";
 	}
-	
-	$intfInfo->{index}         = "Index";
-	$intfInfo->{interface}     = "Interface Name";
-	$intfInfo->{ifIndex}       = "Interface Index";
-	$intfInfo->{ifName}        = "Interface Internal Name";
-	$intfInfo->{Description}   = "Interface Description";
-	$intfInfo->{ifDesc}        = "Interface Internal Description";
-	$intfInfo->{ifType}        = "Interface Type";
-	$intfInfo->{ifSpeed}       = "Interface Speed";
-	$intfInfo->{ifSpeedIn}     = "Interface Speed In";
-	$intfInfo->{ifSpeedOut}    = "Interface Speed Out";
-	$intfInfo->{ifAdminStatus} = "Interface Administrative State";
-	$intfInfo->{ifOperStatus}  = "Interface Operational State";
-	$intfInfo->{setlimits}     = "Interface Set Limnits";
-	$intfInfo->{collect}       = "Interface Collection Status";
-	$intfInfo->{event}         = "Interface Event Status";
-	$intfInfo->{threshold}     = "Interface Threshold Status";
+	$intfInfo = {
+		{index         => "Index"},
+		{interface     => "Interface Name"},
+		{ifIndex       => "Interface Index"},
+		{ifName        => "Interface Internal Name"},
+		{Description   => "Interface Description"},
+		{ifDesc        => "Interface Internal Description"},
+		{ifType        => "Interface Type"},
+		{ifSpeed       => "Interface Speed"},
+		{ifSpeedIn     => "Interface Speed In"},
+		{ifSpeedOut    => "Interface Speed Out"},
+		{ifAdminStatus => "Interface Administrative State"},
+		{ifOperStatus  => "Interface Operational State"},
+		{setlimits     => "Interface Set Limnits"},
+		{collect       => "Interface Collection Status"},
+		{event         => "Interface Event Status"},
+		{threshold     => "Interface Threshold Status"}
+	};
 
 	# get the ifIndexes
 	my $intftable = $snmp->getindex($ifIndexOid,$max_repetitions);

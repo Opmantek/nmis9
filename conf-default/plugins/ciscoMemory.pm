@@ -31,7 +31,7 @@
 # and a collection that chases down the utilization from Cisco's myriad of different mibs.
 #
 package ciscoMemory;
-our $VERSION = "2.0.1";
+our $VERSION = "2.0.2";
 use strict;
 
 use Compat::NMIS;
@@ -401,12 +401,14 @@ sub collect_plugin
 	$NG->log->debug("CPU Max CPU $cpuUsedMax");
 	$NG->log->debug("CPU Average CPU $cpuUsedAvg");
 
-	my $dataInfo;
-	$dataInfo->{TotalCPUs}     = "Total Number of CPUs";
-	$dataInfo->{MemoryUsedMax} = "Maximum Memory Utilization";
-	$dataInfo->{MemoryFreeMax} = "Maximum Free memory";
-	$dataInfo->{MemoryFree}    = "Current Free Memory";
-	$dataInfo->{MemoryUsed}    = "Current Memory Utilization";
+	my $dataInfo = [
+		{ TotalCPUs     => "Total Number of CPUs"},
+		{ MemoryUsedMax => "Maximum Memory Utilization"},
+		{ MemoryFreeMax => "Maximum Free memory"},
+		{ MemoryFree    => "Current Free Memory"},
+		{ MemoryUsed    => "Current Memory Utilization"}
+	];
+	
 	my $data;
 	$data->{index}         = 0;
 	$data->{TotalCPUs}     = $cpuUsedCount;
