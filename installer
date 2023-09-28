@@ -92,7 +92,7 @@ foreach my $eachProduct (keys  (%{ $omksystemstate->{products} }))
 if ( -d "$targetdir")
 {
 	my $installed_version=qx{$targetdir/bin/nmis-cli  --version | cut -f2 -d=};
-	push @versions, "NMIS:$installed_version";
+	push @omkVersions, "NMIS:$installed_version";
 }
 
 
