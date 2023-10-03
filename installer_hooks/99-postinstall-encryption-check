@@ -15,8 +15,7 @@ printBanner "Checking EOS (encryption-of-secrets) product compatibility..."
 
 # /bin/sh can't do arrays, so use a string instead
 # TODO update versions to match actual eos capable versions
-eos_min_versions="opCharts=2.500.0 opEvents=6.500.0 opAddress=2.500.0 opHA=3.500.0 opConfig=3.500.0 opReports=6.500.0 oae=2.500.0 NMIS=9.5.0"
-#eos_min_versions="opCharts=2.500.0 opEvents=2.500.0 opAddress=2.000.0 opHA=2.500.0 opConfig=2.500.0 opReports=2.500.0 oae=2.500.0 NMIS=2.5.0"
+eos_min_versions="opCharts=4.7.0 opEvents=4.4.0 opAddress=3.0.0 opHA=4.0.0 opConfig=4.6.0 opReports=4.6.0 oae=4.4.2 NMIS=9.5.0"
 
 product_count=0
 yes_product_count=0
