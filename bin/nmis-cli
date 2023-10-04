@@ -318,14 +318,14 @@ elsif ($Q->{act} =~ /^enable[-_]eos$/)
 	}
 	else
 	{
-		if (NMISNG::Util::testEncryption())
+		if (NMISNG::Util::isEOSAvailable() && NMISNG::Util::testEncryption())
 		{
 			my $rc = NMISNG::Util::enableEOS();
 			exit($rc);
 		}
 		else
 		{
-			print("Encryption is not working, EOS cannot be enabled.\n");
+			print("Encryption is not supported or not working, EOS cannot be enabled.\n");
 			exit(0);
 		}
 	}

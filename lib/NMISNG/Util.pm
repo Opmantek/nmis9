@@ -3648,11 +3648,12 @@ sub askYesNo
 ########################################################################
 sub isEOSAvailable
 {
-	my $ok               = 1;
-	my $config           = loadConfTable();
+	my $ok                 = 1;
+	my $config             = loadConfTable();
+	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	my %eosCurrentVers;
 	my %eosEOSVersion;
-	my %eosMinVersions   = (
+	my %eosMinVersions     = (
 								'opCharts'   => "4.7.0",
 								'opEvents'   => "4.4.0",
 								'opAddress'  => "3.0.0",
@@ -3692,21 +3693,26 @@ sub isEOSAvailable
 		my $nmisVersion = qx{$config->{'<nmis_bin>'}/nmis-cli --version | cut -f2 -d=};
 		chomp($nmisVersion);
 		$eosCurrentVers{"NMIS"} = $nmisVersion;
-		my $answer = CPAN::Version->vgt("$nmisVersion","$eosMinVersions{NMIS}") ? "YES" : "NO";
+		my $answer = CPAN::Version->vge("$nmisVersion","$eosMinVersions{NMIS}") ? "YES" : "NO";
+		$ok = 0 if ($answer eq 'NO');
 		$eosEOSVersion{NMIS} = $answer;
 		$output = sprintf("${output}   %10s%20s%20s%10s\n", "NMIS", $eosCurrentVers{NMIS}, $eosMinVersions{NMIS},$eosEOSVersion{NMIS});
 		if ( -f "/etc/systemd/system/omkd.service" )
 		{
-			$omkDir  = qx{systemctl status omkd | grep ExecStart= | awk '{ print \$3 }' | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
+			$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
 		}
 		elsif ( -f "/etc/init.d/omkd" )
 		{
 			$omkDir  = qx{grep 'DAEMON=' /etc/init.d/omkd | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
 		}
 		chomp($omkDir);
+		if ( "$omkDir" eq "" && -f "/usr/local/omk" )
+		{
+			$omkDir  = '/usr/local/omk';
+		}
 		if ( "$omkDir" eq "" )
 		{
-			print ("Unable to determine if OMK supports EOS.\n");
+			print ("Unable to find OMK installation; cannot determine if OMK supports EOS.\n");
 		}
 		else
 		{
@@ -3719,7 +3725,7 @@ sub isEOSAvailable
 				my $versionOutput = $omkSystemState->{products}{$eachProduct}{version};
 				chomp($versionOutput);
 				$eosCurrentVers{"$eachProduct"} = $versionOutput;
-				$answer = CPAN::Version->vgt("$versionOutput","$eosMinVersions{$eachProduct}") ? "YES" : "NO";
+				$answer = CPAN::Version->vge("$versionOutput","$eosMinVersions{$eachProduct}") ? "YES" : "NO";
 				$ok = 0 if ($answer eq 'NO');
 				$eosEOSVersion{"$eachProduct"} = $answer;
 				$output = sprintf("${output}   %10s%20s%20s%10s\n", $eachProduct, $eosCurrentVers{$eachProduct}, $eosMinVersions{$eachProduct},$eosEOSVersion{$eachProduct});
@@ -3736,13 +3742,27 @@ sub isEOSAvailable
 		}
 		else
 		{
-			print ("Encryption of Secrets can be enabled.\n");
+			if ($encryption_enabled)
+			{
+				print ("Encryption of Secrets can be enabled, and already is.\n");
+			}
+			else
+			{
+				print ("Encryption of Secrets can be enabled.\n");
+			}
 			return(1);
 		}
     }
     else
     {
-		print ("Encryption of Secrets can not be enabled.\n");
+		if ($encryption_enabled)
+		{
+			print ("Encryption of Secrets should not be enabled, but already is.\n");
+		}
+		else
+		{
+			print ("Encryption of Secrets can not be enabled.\n");
+		}
         return(0);
     }
 }
