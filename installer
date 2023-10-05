@@ -45,11 +45,10 @@ my $me = basename($0);
 my $usage = "NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-Usage: $me [-hyd] [-t /some/nmis/path] [-o /some/omk/path] [[-p|-P] /some/file] [optX=valX...]
+Usage: $me [-hyd] [-t /some/path] [[-p|-P] /some/file] [optX=valX...]
 
 -h:  show this help screen
 -d:  produce extra debug output and logs
--o:  OMK Installation directory
 -t:  Installation target directory
 -y:  non-interactive  mode, all questions are answered
      with the default choice
@@ -68,7 +67,6 @@ for my $maybe (@ARGV)
 	$extras{$k} = $v;
 }
 my $sourcedir = getcwd;
-my $omkdir = $options{o} || "/usr/local/opmojo";
 my $targetdir = $options{t} || "/usr/local/nmis9";
 my $hookdir = "$sourcedir/installer_hooks";
 my $debug = $options{d}? 1 : 0;
@@ -76,25 +74,6 @@ my $simulate = $options{n}? 1 : 0;
 my $noninteractive = $options{y} || $options{p}? 1 : 0 ; # preseed is also a noninteractive mode
 my $logfile = undef; # until we have a dir
 my $answers;				 # preseed mode
-
-my $omksystemstate;
-# then, read the current system status manifest if there is one
-if (-e "$omkdir/manifest")
-{
-	$omksystemstate = do "$omkdir/manifest" or logdie("Can't read $omkdir/manifest: $!\n");
-}
-my @omkVersions;
-foreach my $eachProduct (keys  (%{ $omksystemstate->{products} }))
-{
-	my $omkVersion = $omksystemstate->{products}{$eachProduct}{version};
-	push @omkVersions, "$eachProduct:$omkVersion";
-}
-if ( -d "$targetdir")
-{
-	my $installed_version=qx{$targetdir/bin/nmis-cli  --version | cut -f2 -d=};
-	push @omkVersions, "NMIS:$installed_version";
-}
-
 
 # preseed generation requested?
 if (my $newseed = $options{P})
@@ -1131,8 +1110,6 @@ sub run_hooks
 			else
 			{
 				$ENV{TARGETDIR}=$targetdir;
-				$ENV{OMK_INSTALLED_PRODUCTS} = join(" ",@omkVersions);
-				$ENV{OMKDIR} = $omkdir;
 				$ENV{PRODUCT} = "NMIS";
 				$ENV{VERSION} = $prodversion;
 				$ENV{DEBUG} = 1 if ($options{d});
@@ -1266,3 +1243,4 @@ sub type_which
 	}
 	return undef;
 }
+

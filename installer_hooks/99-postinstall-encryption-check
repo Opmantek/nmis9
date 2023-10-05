@@ -13,75 +13,41 @@ SCRIPTPATH=${0%/*}
 
 printBanner "Checking EOS (encryption-of-secrets) product compatibility..."
 
-# /bin/sh can't do arrays, so use a string instead
-# TODO update versions to match actual eos capable versions
-eos_min_versions="opCharts=4.7.0 opEvents=4.4.0 opAddress=3.0.0 opHA=4.0.0 opConfig=4.6.0 opReports=4.6.0 oae=4.4.2 NMIS=9.5.0"
-
-product_count=0
-yes_product_count=0
-yes_products=""
-
-status_msg=$(printf "%10s%25s%20s%20s" "Product" "Current Version" "Required Version" "EOS supported?")
-status_msg=$(printf "%s\n%s\n" "$status_msg" "$(echoLine 80)")
-
-for item in $eos_min_versions; do
-		product=$(echo "$item" | cut -d '=' -f1)
-		min_version=$(echo "$item" | cut -d '=' -f2)
-		installed_version=""
-		FLAG=0
-		for omk_product in $OMK_INSTALLED_PRODUCTS; do
-			test_installed_version=$(echo "$omk_product" | cut -d ':' -f2)
-			omk_product=$(echo "$omk_product" | cut -d ':' -f1)
-			if [ "$omk_product" = "$product" ]; then
-			   installed_version=$test_installed_version
-			   product_count=$((product_count+1))
-			   FLAG=1
-			fi
-		done
-		if [ "$product" = "NMIS" ]; then
-			product_count=$((product_count+1))
-			FLAG=1
-			# sets NMIS9_VERSION
-			get_nmis9_version && installed_version=$NMIS9_VERSION
-			if [ "$installed_version" = "" ]; then
-				logmsg "Failed to extract version for NMIS9'\n";
-				continue
-			fi
-		fi
-		if [ "$FLAG" -eq 1 ]; then
-		    friendly_product=$product
-		    [ "$product" = "oae" ] && friendly_product="Open-Audit"
-		    status_msg=$(printf "%s\n%10s%20s%20s" "$status_msg" "$friendly_product" "$installed_version" "$min_version")
-		fi
-		COMP=0;
-		version_compare "$installed_version" "$min_version" || COMP=$?
-		# 0 same, 1 installed newer, 2 installed older
-		if [ $COMP -eq 0 ] || [ $COMP -eq 1 ]; then
-			if [ $FLAG -eq 1 ]; then
-			  status_msg=$(printf "%s%18s\n" "$status_msg" "YES")
-			  yes_products=$(printf "%s %s " "$yes_products" "$product")
-			  yes_product_count=$((yes_product_count+1))
-			fi
-		else
-			if [ $FLAG -eq 1 ]; then
-		         status_msg=$(printf "%s%18s\n" "$status_msg" "NO")
-			fi
-		fi
-done
+status_msg=`$TARGETDIR/bin/nmis-cli act=is-eos-available | grep -v 'Checking'`
+EOSOK=$?
+if [ ! -z "$OMK_INSTALLED_PRODUCTS" ]; then
+	$TARGETDIR/bin/nmis-cli act=check-eos >/dev/null 2>&1
+	EOSENABLED=$?
+fi
 
 # Give notice if this is the last product to be upgraded
 # Give warning if this is NOT the last product to be upgraded
-if [ $((product_count)) -eq $yes_product_count ] && [ -n "$PRODUCT" ] &&  echo "$yes_products" | grep "$PRODUCT" >> /dev/null; then
+if [ 0$EOSOK -eq 1 ];then
 	echolog "*** Notice ***"
 	echolog ""
-	echolog "  You have now upgraded all installed FirstWave products to allow encryption of secrets."
+	if [ -z "$OMK_INSTALLED_PRODUCTS" ]; then
+		echolog "  This appears to be a fresh install of your first FirstWave product."
+	else
+		echolog "  You have now upgraded all installed FirstWave products to allow encryption of secrets."
+	fi
 	echolog "  You can now enable encryption of secrets to make your products more secure."
 	echolog ""
 	echolog "$status_msg"
+	echolog ""
+	echolog ""
 	echolog "  For more information see wiki https://community.opmantek.com/display/opCommon/Encryption+of+Secrets"
 	echolog ""
-	if input_yn "Would you like to enable encryption of secrets in NMIS now?" "3419"; then
-		execPrint $TARGETDIR/bin/nmis-cli act=enable-eos
+	if [ -z "$OMK_INSTALLED_PRODUCTS" ]; then
+		input_yn "Would you like to enable encryption of secrets in NMIS now?" "3419";
+	elif [ -z "$OMK_INSTALLED_PRODUCTS" -o 0$EOSENABLED -eq 1 ]; then
+		input_yn "Encryption is already enabled on you system, would you like to keep it enabled?" "3419";
+	else
+		input_ny "Would you like to enable encryption of secrets in NMIS now?" "3419";
+	fi
+	answer=$?
+	if [ 0$answer -eq 0 ]; then
+		echolog "Enabling encryption of secrets in NMIS, please wait..."
+		#execPrint $TARGETDIR/bin/nmis-cli act=enable-eos
 	else
 		echolog "Not enabling encryption of secrets in NMIS as directed."
 	fi
@@ -92,6 +58,7 @@ else
 	echolog "  encryption of secrets until all installed FirstWave products are upgraded to allow encryption of secrets."
 	echolog ""
 	echolog "$status_msg"
+	echolog ""
 	echolog ""
 	echolog "  For more information see wiki https://community.opmantek.com/display/opCommon/Encryption+of+Secrets"
 	echolog ""

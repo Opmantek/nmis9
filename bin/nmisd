@@ -158,10 +158,38 @@ if ( !-d $tmpdir )
 my $encryption_enabled = NMISNG::Util::getbool($config->{'global_enable_password_encryption'});
 if ($encryption_enabled)
 {
-	if (!NMISNG::Util::testEncryption())
+	if (NMISNG::Util::isEOSAvailable())
 	{
-		print("Encryption of Secrets is enabled, and encryption is not supported!\n");
-		NMISNG::Util::isEOSAvailable();
+		if (!NMISNG::Util::testEncryption())
+		{
+			print("Encryption of Secrets is enabled, and encryption is broken or not supported!\n");
+			if (-t *STDIN)
+			{
+				my $answer = NMISNG::Util::askYesNo("Do you want to disable EOS and continue?", "no");
+				unless($answer)
+				{
+					print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
+					exit(255);
+				}
+				else
+				{
+					print "Disabling Encryption of Secrets...\n";
+					unless (NMISNG::Util::disableEOS())
+					{
+						print "Disabling Encryption of Secrets Rfailed, unable to continue!\n";
+						exit(255);
+					}
+				}
+			}
+			else
+			{
+				print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
+				exit(255);
+			}
+		}
+	}
+	else
+	{
 		if (-t *STDIN)
 		{
 			my $answer = NMISNG::Util::askYesNo("Do you want to disable EOS and continue?", "no");
@@ -170,11 +198,20 @@ if ($encryption_enabled)
 				print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
 				exit(255);
 			}
+			else
+			{
+				print "Disabling Encryption of Secrets...\n";
+				unless (NMISNG::Util::disableEOS())
+				{
+					print "Disabling Encryption of Secrets Rfailed, unable to continue!\n";
+					exit(255);
+				}
+			}
 		}
 		else
 		{
-				print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
-				exit(255);
+			print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
+			exit(255);
 		}
 	}
 }
