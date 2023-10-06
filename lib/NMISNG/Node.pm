@@ -2648,12 +2648,12 @@ sub collect_node_data
 	elsif ($howdiditgo->{skipped}) {}
 	else
 	{
-		$self->nmisng->log->error("($catchall_data->{name}), collect_node_data encountered error $anyerror");
+		$self->nmisng->log->error("($catchall_data->{name}), Ignoring entry: collect_node_data encountered error $anyerror");
 		$self->handle_down( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
 			if ( $howdiditgo->{snmp_error} );
 		$self->handle_down( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
 				if ( $howdiditgo->{wmi_error} );
-		return 0;
+		next;  # OMK-10384 - Node.pm simply returns if any OID is not found. It should simply generate an error message and skip to the next OID.
 	}
 	$self->nmisng->log->debug("Finished with collect_node_data");
 	return 1;
