@@ -176,7 +176,7 @@ if ($encryption_enabled)
 					print "Disabling Encryption of Secrets...\n";
 					unless (NMISNG::Util::disableEOS())
 					{
-						print "Disabling Encryption of Secrets Rfailed, unable to continue!\n";
+						print "Disabling Encryption of Secrets failed, unable to continue!\n";
 						exit(255);
 					}
 				}
@@ -203,7 +203,7 @@ if ($encryption_enabled)
 				print "Disabling Encryption of Secrets...\n";
 				unless (NMISNG::Util::disableEOS())
 				{
-					print "Disabling Encryption of Secrets Rfailed, unable to continue!\n";
+					print "Disabling Encryption of Secrets failed, unable to continue!\n";
 					exit(255);
 				}
 			}
