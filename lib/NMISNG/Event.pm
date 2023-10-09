@@ -39,7 +39,7 @@ use Data::Dumper;
 use Test::Deep::NoTest;
 use Time::HiRes;
 
-our $VERSION = "9.4.4";
+our $VERSION = "9.5.0";
 
 # Allow testing of proposed fix for Event Load():
 # intent of t_event.pl and t_notify.pl tests shows "Node Up" and "Node Down" must include finding in "Event Previous"
