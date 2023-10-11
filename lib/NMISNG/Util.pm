@@ -3639,16 +3639,16 @@ sub askYesNo
 	return($answer);
 }
 
-########################################################################
-# isEOSAvailable - Test whether EOS can be enabled                     #
-#                                                                      #
-# Returns:                                                             #
-#    1 - If Encryption of secrets can be enabled.                      #
-#    0 - If Encryption of secrets is missing required libraries.       #
-########################################################################
+############################################################################
+# isEOSAvailable - Test whether EOS can be enabled                         #
+#                                                                          #
+# Returns:    #
+#    1 - If Encryption of secrets is Available and can be enabled.         #
+#    0 - If Encryption of secrets is NOT Available and cannot be enabled   #
+############################################################################
 sub isEOSAvailable
 {
-	my $ok                 = 1;
+	my $available          = 1;
 	my $config             = loadConfTable();
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	my %eosCurrentVers;
@@ -3664,39 +3664,42 @@ sub isEOSAvailable
 								'NMIS'       => "9.5.0"
 							);
 
-	print ("Checking ...\n");
 	eval {require Crypt::CBC;};
 	if($@)
 	{
-		$ok = 0;
-		print ("Module: 'Crypt::CBC' is missing.\n");
+		$available = 0;
+		print ("Encryption of secrets is not available - Module: 'Crypt::CBC' is missing.\n");
 	}
 	eval {require Crypt::Cipher::AES;};
 	if($@)
 	{
-		$ok = 0;
-		print ("Module: 'Crypt::Cipher::AES' is missing.\n");
+		$available = 0;
+		print ("Encryption of secrets is not available - Module: 'Crypt::Cipher::AES' is missing.\n");
 	}
 	eval {require Math::Random::Secure;};
 	if($@)
 	{
-		$ok = 0;
-		print ("Module: 'Math::Random::Secure' is missing.\n");
+		$available = 0;
+		print ("Encryption of secrets is not available - Module: 'Math::Random::Secure' is missing.\n");
 	}
-    if ($ok)
+    if ($available)
 	{
 		my $output;
 		my $omkDir;
 		my $omkSystemState;
 		$output = sprintf("   Product          Current Version    Required Version      EOS supported?\n");
 		$output = sprintf("${output}================================================================================\n");
+
+		# check NMIS product version
 		my $nmisVersion = qx{$config->{'<nmis_bin>'}/nmis-cli --version | cut -f2 -d=};
 		chomp($nmisVersion);
 		$eosCurrentVers{"NMIS"} = $nmisVersion;
 		my $answer = CPAN::Version->vge("$nmisVersion","$eosMinVersions{NMIS}") ? "YES" : "NO";
-		$ok = 0 if ($answer eq 'NO');
+		$available = 0 if ($answer eq 'NO');
 		$eosEOSVersion{NMIS} = $answer;
 		$output = sprintf("${output}   %10s%20s%20s%10s\n", "NMIS", $eosCurrentVers{NMIS}, $eosMinVersions{NMIS},$eosEOSVersion{NMIS});
+
+		# check OMK product versions
 		if ( -f "/etc/systemd/system/omkd.service" )
 		{
 			$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
@@ -3710,60 +3713,59 @@ sub isEOSAvailable
 		{
 			$omkDir  = '/usr/local/omk';
 		}
-		if ( "$omkDir" eq "" )
-		{
-			print ("Unable to find OMK installation; cannot determine if OMK supports EOS.\n");
-		}
-		else
+		if ( "$omkDir" ne "" )
 		{
 			if (-e "$omkDir/manifest")
 			{
-				$omkSystemState = do "$omkDir/manifest" or print ("Unable to determine if OMK supports EOS.\n");
+				$omkSystemState = do "$omkDir/manifest" or print ("Unable to read the $omkDir/manifest file.\n") && $available = 0;
 			}
-			foreach my $eachProduct (keys  (%{ $omkSystemState->{products} }))
+			if ($available)
 			{
-				my $versionOutput = $omkSystemState->{products}{$eachProduct}{version};
-				chomp($versionOutput);
-				$eosCurrentVers{"$eachProduct"} = $versionOutput;
-				$answer = CPAN::Version->vge("$versionOutput","$eosMinVersions{$eachProduct}") ? "YES" : "NO";
-				$ok = 0 if ($answer eq 'NO');
-				$eosEOSVersion{"$eachProduct"} = $answer;
-				$output = sprintf("${output}   %10s%20s%20s%10s\n", $eachProduct, $eosCurrentVers{$eachProduct}, $eosMinVersions{$eachProduct},$eosEOSVersion{$eachProduct});
+				foreach my $eachProduct (keys  (%{ $omkSystemState->{products} }))
+				{
+					my $versionOutput = $omkSystemState->{products}{$eachProduct}{version};
+					chomp($versionOutput);
+					$eosCurrentVers{"$eachProduct"} = $versionOutput;
+					$answer = CPAN::Version->vge("$versionOutput","$eosMinVersions{$eachProduct}") ? "YES" : "NO";
+					$available = 0 if ($answer eq 'NO');
+					$eosEOSVersion{"$eachProduct"} = $answer;
+					$output = sprintf("${output}   %10s%20s%20s%10s\n", $eachProduct, $eosCurrentVers{$eachProduct}, $eosMinVersions{$eachProduct},$eosEOSVersion{$eachProduct});
+				}
 			}
 		}
 		print("\r$output");
 	}
-    if ($ok)
+    if ($available)
 	{
 		if (!testEncryption())
 		{
-			print ("Encryption key seem to be corrupt.\n");
-			return(0);
+			print ("Encryption of Secrets is not available, encryption test failed.\n");
+			return(0);    // is NOT available
 		}
 		else
 		{
 			if ($encryption_enabled)
 			{
-				print ("Encryption of Secrets can be enabled, and already is.\n");
+				print ("Encryption of Secrets is available, and is already enabled.\n");
 			}
 			else
 			{
-				print ("Encryption of Secrets can be enabled.\n");
+				print ("Encryption of Secrets is available and can be enabled.\n");
 			}
-			return(1);
+			return(1);    // is available
 		}
     }
     else
     {
 		if ($encryption_enabled)
 		{
-			print ("Encryption of Secrets should not be enabled, but already is.\n");
+			print ("Encryption of Secrets is not available and should not be enabled, but already is.\n");
 		}
 		else
 		{
-			print ("Encryption of Secrets can not be enabled.\n");
+			print ("Encryption of Secrets is not available.\n");
 		}
-        return(0);
+        return(0);    // is NOT available
     }
 }
 

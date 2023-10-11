@@ -16,7 +16,7 @@ your environment you will need to make certain configuration adjustments.
 
 We highly recommend that you visit the documentation site for $PRODUCT at
 
-https://community.opmantek.com/display/$PRODUCT/Home
+    https://community.opmantek.com/display/$PRODUCT/Home
 
 The next step is to determine what configuration changes
 will be required for your environment.
@@ -41,7 +41,7 @@ the new defaults in $TARGETDIR/conf-default and your active configuration.
 
 You will find more information in the release notes at
 
-https://community.opmantek.com/display/$PRODUCT/${PRODUCT}+Release+Notes
+    https://community.opmantek.com/display/$PRODUCT/${PRODUCT}+Release+Notes
 
 EOF
 fi
@@ -50,12 +50,12 @@ cat <<EOF
 
 You should now be able to access $PRODUCT at
 
-http://<HOSTNAME_OR_IP>/nmis9/
+    http://<HOSTNAME_OR_IP>/nmis9/
 
 If your browser is running on the same machine as $PRODUCT was 
 installed onto, this would be
 
-http://localhost/nmis9/
+    http://localhost/nmis9/
 
 EOF
 
