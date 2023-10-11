@@ -39,7 +39,6 @@ no warnings;										# noisy module checking
 
 use version 0.77;
 use Getopt::Std;
-use DateTime;
 
 my $me = basename($0);
 
@@ -1134,8 +1133,9 @@ sub run_hooks
 sub printBanner
 {
 	my ($string) = @_;
-	my $now = DateTime->now( qw[ time_zone local ] );
-	my $banner = "\n\n++++++++++++++++++++++++++++++++++++++++++++++++++++++ $now
+	my $now = localtime;
+	my $banner = "\n
+++++++++++++++++++++++++++++++++++++++++++++++++++++++ $now
 +  $string
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n";
 	print $banner;

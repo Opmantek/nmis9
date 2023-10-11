@@ -3717,7 +3717,7 @@ sub isEOSAvailable
 		{
 			if (-e "$omkDir/manifest")
 			{
-				$omkSystemState = do "$omkDir/manifest" or print ("Unable to read the $omkDir/manifest file.\n") && $available = 0;
+				$omkSystemState = do "$omkDir/manifest" or print ("Unable to read the $omkDir/manifest file.\n");
 			}
 			if ($available)
 			{
@@ -3740,7 +3740,7 @@ sub isEOSAvailable
 		if (!testEncryption())
 		{
 			print ("Encryption of Secrets is not available, encryption test failed.\n");
-			return(0);    // is NOT available
+			return(0);    # is NOT available
 		}
 		else
 		{
@@ -3752,7 +3752,7 @@ sub isEOSAvailable
 			{
 				print ("Encryption of Secrets is available and can be enabled.\n");
 			}
-			return(1);    // is available
+			return(1);    # is available
 		}
     }
     else
@@ -3765,7 +3765,7 @@ sub isEOSAvailable
 		{
 			print ("Encryption of Secrets is not available.\n");
 		}
-        return(0);    // is NOT available
+        return(0);    # is NOT available
     }
 }
 
@@ -3773,8 +3773,8 @@ sub isEOSAvailable
 # testEncryption - Test that encryption works.                         #
 #                                                                      #
 # Returns:                                                             #
-#    1 - If round trip encription succeeds.                            #
-#    0 - If round trip encription fails.                               #
+#    1 - If round trip encryption succeeds.                            #
+#    0 - If round trip encryption fails.                               #
 ########################################################################
 sub testEncryption {
 	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure;};
@@ -3884,7 +3884,7 @@ sub disableEOS {
 
 ########################################################################
 # enableEOS - Enable Encryption of Secrets.                            #
-#              NOTE:  THIS WILL STOP ALL DEAMONS TO PERFORM THIS       #
+#              NOTE:  THIS WILL STOP ALL DAEMONS TO PERFORM THIS       #
 #                     FUNCTION!                                        #
 #                                                                      #
 # Returns:                                                             #
@@ -3895,6 +3895,7 @@ sub enableEOS {
 	my $config  = loadConfTable();
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	$logger->info("enableEOS called");
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	if ($encryption_enabled)
 	{
@@ -3956,7 +3957,7 @@ sub enableEOS {
 }
 
 ########################################################################
-# verifyNMISEncryption - Verify Password encrypred strings.            #
+# verifyNMISEncryption - Verify Password encrypted strings.            #
 #                                                                      #
 # Returns:                                                             #
 #    0 - If nothing was changed.                                       #
