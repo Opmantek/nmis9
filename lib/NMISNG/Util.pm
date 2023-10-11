@@ -3717,7 +3717,7 @@ sub isEOSAvailable
 		{
 			if (-e "$omkDir/manifest")
 			{
-				$omkSystemState = do "$omkDir/manifest" or print ("Unable to read the $omkDir/manifest file.\n") && $available = 0;
+				$omkSystemState = do "$omkDir/manifest" or ($available = 0 && print ("Unable to read the $omkDir/manifest file.\n"));
 			}
 			if ($available)
 			{
@@ -3740,7 +3740,7 @@ sub isEOSAvailable
 		if (!testEncryption())
 		{
 			print ("Encryption of Secrets is not available, encryption test failed.\n");
-			return(0);    // is NOT available
+			return(0);    # is NOT available
 		}
 		else
 		{
@@ -3752,7 +3752,7 @@ sub isEOSAvailable
 			{
 				print ("Encryption of Secrets is available and can be enabled.\n");
 			}
-			return(1);    // is available
+			return(1);    # is available
 		}
     }
     else
@@ -3765,7 +3765,7 @@ sub isEOSAvailable
 		{
 			print ("Encryption of Secrets is not available.\n");
 		}
-        return(0);    // is NOT available
+        return(0);    # is NOT available
     }
 }
 
