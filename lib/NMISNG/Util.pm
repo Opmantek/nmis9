@@ -3717,7 +3717,7 @@ sub isEOSAvailable
 		{
 			if (-e "$omkDir/manifest")
 			{
-				$omkSystemState = do "$omkDir/manifest" or print ("Unable to read the $omkDir/manifest file.\n");
+				$omkSystemState = do "$omkDir/manifest" or ($available = 0 && print ("Unable to read the $omkDir/manifest file.\n"));
 			}
 			if ($available)
 			{
