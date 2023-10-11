@@ -1183,10 +1183,23 @@ elsif ($Q->{act} =~ /notify/)
 	$eventargs{details} = $Q->{details} if( $Q->{details} );
 	$eventargs{level} = $Q->{level} // "Normal";
 
-	my $event = Compat::NMIS::notify(%eventargs);
-	if( my $error = $event->load() )
+	#if level is normal we assume we are back up so we checkEvent which really clears the event
+	#otherwise we we assume there is an issue and we notify
+	#the notify system was built around polling a node and is not really meant for general stateful events
+	#but at this point we dont have a better system for, "there is a problem" let the operator know.
+	if ($eventargs{level} eq "Normal")
 	{
-		die "event error: $error\n";
+
+		#check event doesnt return anything useful unlike notify
+		Compat::NMIS::checkEvent(%eventargs);
+	}
+	else
+	{
+		my $maybe = Compat::NMIS::notify(%eventargs);
+		if( my $error = $maybe->load() )
+		{
+			die "event error: $error\n";
+		}
 	}
 }
 else
