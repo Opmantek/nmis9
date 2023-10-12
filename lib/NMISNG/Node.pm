@@ -7764,9 +7764,11 @@ sub collect_services
 				{
 					$ret = 0;
 					$self->nmisng->log->error("Unable to lookup $lookfor on DNS server $catchall_data->{host}");
+					$status{status_text} = "Unable to lookup $lookfor on DNS server $catchall_data->{host}";
 				}
 				else
 				{
+					$status{status_text} = "DNS data for $lookfor from $catchall_data->{host} was " . $packet->string;
 					$ret = 1;
 					$self->nmisng->log->debug3("DNS data for $lookfor from $catchall_data->{host} was " . $packet->string );
 				}
@@ -7820,10 +7822,12 @@ sub collect_services
 				if ( $msg =~ /Ports: $port\/open/ )
 				{
 					$ret = 1;
+					$status{status_text} = "NMAP reported success for port $port";
 					$self->nmisng->log->debug("NMAP reported success for port $port: $msg");
 				}
 				else
 				{
+					$status{status_text} = "NMAP reported failure for port $port";
 					$ret = 0;
 					$self->nmisng->log->debug("NMAP reported failure for port $port: $msg");
 				}
@@ -7881,7 +7885,7 @@ sub collect_services
 					$cpu       = 0;
 					$memory    = 0;
 					$gotMemCpu = 1;
-
+					$status{status_text} = "Service $name is down,". ( @matchingprocs? "only non-running processes" : "no matching processes" );					
 					$self->nmisng->log->info("service $name is down, "
 																	 . ( @matchingprocs? "only non-running processes" : "no matching processes" ));
 				}
@@ -7895,7 +7899,7 @@ sub collect_services
 					# memory is in kb, and a gauge.
 					$cpu = int( Statistics::Lite::mean( map { $_->{hrSWRunPerfCPU} } (@livingprocs) ) );
 					$memory = Statistics::Lite::mean( map { $_->{hrSWRunPerfMem} } (@livingprocs) );
-
+					$status{status_text} = "Service $name is up, " . scalar(@livingprocs) . " running process(es)";					
 					$self->nmisng->log->info("service $name is up, " . scalar(@livingprocs) . " running process(es)");
 				}
 			}
@@ -7924,6 +7928,7 @@ sub collect_services
 				my $timeout = ( $thisservice->{Max_Runtime} > 0 ) ? $thisservice->{Max_Runtime} : 3;
 
 				( $ret, $msg ) = NMISNG::Sapi::sapi( $catchall_data->{host}, $thisservice->{Port}, $scripttext, $timeout );
+				$status{status_text} = "Results of $service is $ret";
 				$self->nmisng->log->debug("Results of $service is $ret, msg is $msg");
 			}
 		}
@@ -7983,6 +7988,7 @@ sub collect_services
 					if ( !$pid )
 					{
 						alarm(0) if ($svcruntime);       # cancel any timeout
+						$status{status_text} = "cannot start service program $svc->{Program}: $!";
 						$self->nmisng->log->error("cannot start service program $svc->{Program}: $!");
 					}
 					else
@@ -8000,6 +8006,7 @@ sub collect_services
 							open( UNWANTED, $stderrsink );
 							my $badstuff = join( "", <UNWANTED> );
 							chomp($badstuff);
+							$status{status_text} = "Service program $svc->{Program} returned unexpected error output";
 							$self->nmisng->log->warn("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
 							close(UNWANTED);
 						}
