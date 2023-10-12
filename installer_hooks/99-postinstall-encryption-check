@@ -9,8 +9,17 @@ SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_repos.sh
 
 # return 0 if eos enabled successfully, 1 if not
-enable-eos() {
-		return ! $TARGETDIR/bin/nmis-cli act=enable-eos ;
+enableEos() {
+	echolog "starting enableEos"
+	if $TARGETDIR/bin/nmis-cli act=enable-eos ;then
+		# act=enable-eos returned 0 failure
+		echolog "enableEos returning 1 failure"
+		return 1;
+	else
+		# act=enable-eos returned 1 success
+		echolog "enableEos returning 0 success"
+		return 0;
+	fi
 }
 
 
@@ -56,7 +65,8 @@ else
 	if [ -z "$OMK_INSTALLED_PRODUCTS" ]; then
 		# This is a fresh install of NMIS and EOS is available
 		echolog "Enabling encryption of secrets for FirstWave products, please wait..."
-		execPrint enable-eos
+		# execPrint enableEos
+		enableEos
 	elif [ 0$EOSENABLED -eq 1 ]; then
 		echolog "Encryption of secrets is already enabled on your system."
 	else
