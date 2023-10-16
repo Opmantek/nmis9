@@ -3656,8 +3656,8 @@ sub isEOSAvailable
 	my %eosMinVersions     = (
 								'opCharts'   => "4.7.0",
 								'opEvents'   => "4.4.0",
-								'opAddress'  => "3.0.0",
-								'opHA'       => "4.0.0",
+								'opAddress'  => "2.4.0",
+								'opHA'       => "3.7.0",
 								'opConfig'   => "4.6.0",
 								'opReports'  => "4.6.0",
 								'Open-AudIT' => "4.4.0",
@@ -3830,6 +3830,7 @@ sub disableEOS {
 	my $config  = loadConfTable();
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	$logger->info("disableEOS called");
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	if (!$encryption_enabled)
@@ -3847,9 +3848,11 @@ sub disableEOS {
 	{
 		$logger->info("Disabling Encryption of secrets.");
 		print("Disabling Encryption of secrets.\n");
+
 		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 		$fullConfig->{globals}{global_enable_password_encryption} = "false";
 		writeConfData(data=>$fullConfig);
+
 		# We changed encryption, so the test below is backwards.
 		# If it indicates changes, then we failed!
 		my $success = verifyNMISEncryption(log => $logger);
@@ -3896,6 +3899,7 @@ sub enableEOS {
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	$logger->info("enableEOS called");
+
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	if ($encryption_enabled)
 	{
@@ -3912,11 +3916,13 @@ sub enableEOS {
 		my $rc = shutdownAllDaemons();
 		if ($rc)
 		{
-			$logger->info("Enabling encryption of secrets.");
+			$logger->info("Enabling encryption of secrets.");			
 			print("Enabling encryption of secrets.\n");
+
 			my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 			$fullConfig->{globals}{global_enable_password_encryption} = "true";
 			writeConfData(data=>$fullConfig);
+
 			# We changed encryption, so the test below is backwards.
 			# If it indicates changes, then we failed!
 			my $success = verifyNMISEncryption(log => $logger);
@@ -3950,8 +3956,8 @@ sub enableEOS {
 	}
 	else
 	{
-		$logger->error("ERROR: Encryption of secrets encryption test failed, EOS cannpt be enabled!");
-		print("Encryption of secrets encryption test failed, EOS cannpt be enabled!");
+		$logger->error("ERROR: Encryption of secrets encryption test failed, EOS cannot be enabled!");
+		print("Encryption of secrets encryption test failed, EOS cannot be enabled!");
 		return(0);
 	}
 }
@@ -4094,7 +4100,7 @@ sub verifyNMISEncryption {
 		}
 		else
 		{
-			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encyption settings between NMIS and OMK.");
+			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encryption settings between NMIS and OMK.");
 		}
 		if ($changed)
 		{
@@ -4194,7 +4200,7 @@ sub verifyNMISEncryption {
 		}
 		else
 		{
-			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encyption settings between NMIS and OMK.");
+			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encryption settings between NMIS and OMK.");
 		}
 		if ($changed)
 		{
