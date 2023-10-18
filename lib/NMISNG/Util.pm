@@ -3640,9 +3640,36 @@ sub askYesNo
 }
 
 ############################################################################
+# findOMKDir - Search for the OMK Installation directory                   #
+#                                                                          #
+# Returns:                                                                 #
+#    the OMK directory if found, or an empty string if not.                #
+############################################################################
+sub findOMKDir
+{
+	my $omkDir = "";
+	# Find the OMK Installtion directory.
+	if ( -f "/etc/systemd/system/omkd.service" )
+	{
+		$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
+	}
+	elsif ( -f "/etc/init.d/omkd" )
+	{
+		$omkDir  = qx{grep 'DAEMON=' /etc/init.d/omkd | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
+	}
+	chomp($omkDir);
+	if ( "$omkDir" eq "" && -f "/usr/local/omk" )
+	{
+		$omkDir  = '/usr/local/omk';
+	}
+
+	return $omkDir;
+}
+
+############################################################################
 # isEOSAvailable - Test whether EOS can be enabled                         #
 #                                                                          #
-# Returns:    #
+# Returns:                                                                 #
 #    1 - If Encryption of secrets is Available and can be enabled.         #
 #    0 - If Encryption of secrets is NOT Available and cannot be enabled   #
 ############################################################################
@@ -3685,7 +3712,6 @@ sub isEOSAvailable
     if ($available)
 	{
 		my $output;
-		my $omkDir;
 		my $omkSystemState;
 		$output = sprintf("   Product          Current Version    Required Version      EOS supported?\n");
 		$output = sprintf("${output}================================================================================\n");
@@ -3700,24 +3726,12 @@ sub isEOSAvailable
 		$output = sprintf("${output}   %10s%20s%20s%10s\n", "NMIS", $eosCurrentVers{NMIS}, $eosMinVersions{NMIS},$eosEOSVersion{NMIS});
 
 		# check OMK product versions
-		if ( -f "/etc/systemd/system/omkd.service" )
-		{
-			$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
-		}
-		elsif ( -f "/etc/init.d/omkd" )
-		{
-			$omkDir  = qx{grep 'DAEMON=' /etc/init.d/omkd | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
-		}
-		chomp($omkDir);
-		if ( "$omkDir" eq "" && -f "/usr/local/omk" )
-		{
-			$omkDir  = '/usr/local/omk';
-		}
+		my $omkDir  = findOMKDir();
 		if ( "$omkDir" ne "" )
 		{
 			if (-e "$omkDir/manifest")
 			{
-				$omkSystemState = do "$omkDir/manifest" or ($available = 0 && print ("Unable to read the $omkDir/manifest file.\n"));
+				$omkSystemState = do "$omkDir/manifest" or (print ("ERROR: Unable to enable EOS; cannot read the $omkDir/manifest file.\n") and $available = 0);
 			}
 			if ($available)
 			{
@@ -3856,6 +3870,24 @@ sub disableEOS {
 		# We changed encryption, so the test below is backwards.
 		# If it indicates changes, then we failed!
 		my $success = verifyNMISEncryption(log => $logger);
+		if (!$success)
+		{
+			my $omkDir  = findOMKDir();
+			if ( "$omkDir" ne "" )
+			{
+				if (-x "$omkDir/bin/opcommon-cli.exe")
+				{
+					opcommon-cli.exe
+					qx{$omkDir/bin/opcommon-cli.exe act-disable-eos};
+					$omkSuccess = $?;
+					print ("OMK Success = '$omkSuccess'\n");
+				}
+			}
+			else
+			{
+				print ("ERROR: Unable to disable EOS in OMK. OMK may not work correctly.\n");
+			}
+		}
 		my $startMsg;
 		if (!$success)
 		{
@@ -3927,6 +3959,24 @@ sub enableEOS {
 			# If it indicates changes, then we failed!
 			my $success = verifyNMISEncryption(log => $logger);
 			my $startMsg;
+			if (!$success)
+			{
+				my $omkDir  = findOMKDir();
+				if ( "$omkDir" ne "" )
+				{
+					if (-x "$omkDir/bin/opcommon-cli.exe")
+					{
+						opcommon-cli.exe
+						qx{$omkDir/bin/opcommon-cli.exe act-enable-eos};
+						$omkSuccess = $?;
+						print ("OMK Success = '$omkSuccess'\n");
+					}
+				}
+				else
+				{
+					print ("ERROR: Unable to enable EOS in OMK. OMK may not work correctly.\n");
+				}
+			}
 			if (!$success)
 			{
 				$startMsg = "Encryption was successfully enabled.";
