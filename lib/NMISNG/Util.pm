@@ -4023,7 +4023,7 @@ sub verifyNMISEncryption {
 			_make_seed($seedfile, $logger);
 		}
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
-		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
+		if (open($fh, '<', $installDir . '/PasswordFields.conf'))
 		{
 			my @passwordFieldRows = <$fh>;
 			close $fh;
@@ -4094,13 +4094,13 @@ sub verifyNMISEncryption {
 				}
 				else
 				{
-					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.nmis'.");
+					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.conf'.");
 				}
 			}
 		}
 		else
 		{
-			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encryption settings between NMIS and OMK.");
+			$logger->error("File '$installDir/PasswordFields.conf' was not found, unable to synchronize encryption settings between NMIS and OMK.");
 		}
 		if ($changed)
 		{
@@ -4127,7 +4127,7 @@ sub verifyNMISEncryption {
 	{
 		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
-		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
+		if (open($fh, '<', $installDir . '/PasswordFields.conf'))
 	   	{
 			my @passwordFieldRows = <$fh>;
 			close $fh;
@@ -4194,13 +4194,13 @@ sub verifyNMISEncryption {
 				}
 				else
 				{
-					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.nmis'.");
+					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.conf'.");
 				}
 			}
 		}
 		else
 		{
-			$logger->error("File '$installDir/PasswordFields.nmis' was not found, unable to synchronize encryption settings between NMIS and OMK.");
+			$logger->error("File '$installDir/PasswordFields.conf' was not found, unable to synchronize encryption settings between NMIS and OMK.");
 		}
 		if ($changed)
 		{
