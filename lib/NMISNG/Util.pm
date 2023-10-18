@@ -3844,6 +3844,7 @@ sub disableEOS {
 	my $config  = loadConfTable();
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	my $startMsg;
 	$logger->info("disableEOS called");
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
@@ -3869,27 +3870,29 @@ sub disableEOS {
 
 		# We changed encryption, so the test below is backwards.
 		# If it indicates changes, then we failed!
-		my $success = verifyNMISEncryption(log => $logger);
-		if (!$success)
+		my $success = !verifyNMISEncryption(log => $logger);
+		if ($success)
 		{
 			my $omkDir  = findOMKDir();
 			if ( "$omkDir" ne "" )
 			{
 				if (-x "$omkDir/bin/opcommon-cli.exe")
 				{
-					opcommon-cli.exe
-					qx{$omkDir/bin/opcommon-cli.exe act-disable-eos};
-					$omkSuccess = $?;
-					print ("OMK Success = '$omkSuccess'\n");
+					qx{$omkDir/bin/opcommon-cli.exe act=disable-eos};
+					my $omkSuccess = $? >> 8;
+					if ($omkSuccess != 1)
+					{
+						$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+						$success = 0;
+					}
 				}
 			}
 			else
 			{
-				print ("ERROR: Unable to disable EOS in OMK. OMK may not work correctly.\n");
+				$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
 			}
 		}
-		my $startMsg;
-		if (!$success)
+		if ($success)
 		{
 			$startMsg = "Encryption was successfully disabled.";
 			$logger->info("$startMsg");
@@ -3897,7 +3900,7 @@ sub disableEOS {
 		}
 		else
 		{
-			$startMsg = "Encryption could not be disabled.";
+			$startMsg = "Encryption could not be disabled." if (!defined($startMsg));
 			$logger->error("ERROR: $startMsg");
 			print("$startMsg\n");
 		}
@@ -3907,7 +3910,7 @@ sub disableEOS {
 			$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
 			print("$startMsg, but restarting the processes did not succeed.\n");
 		}
-		return(!$success);
+		return($success);
 	}
 	else
 	{
@@ -3930,6 +3933,7 @@ sub enableEOS {
 	my $config  = loadConfTable();
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	my $startMsg;
 	$logger->info("enableEOS called");
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
@@ -3957,27 +3961,29 @@ sub enableEOS {
 
 			# We changed encryption, so the test below is backwards.
 			# If it indicates changes, then we failed!
-			my $success = verifyNMISEncryption(log => $logger);
-			my $startMsg;
-			if (!$success)
+			my $success = !verifyNMISEncryption(log => $logger);
+			if ($success)
 			{
 				my $omkDir  = findOMKDir();
 				if ( "$omkDir" ne "" )
 				{
 					if (-x "$omkDir/bin/opcommon-cli.exe")
 					{
-						opcommon-cli.exe
-						qx{$omkDir/bin/opcommon-cli.exe act-enable-eos};
-						$omkSuccess = $?;
-						print ("OMK Success = '$omkSuccess'\n");
+						qx{$omkDir/bin/opcommon-cli.exe act=enable-eos};
+						my $omkSuccess = $? >> 8;
+						if ($omkSuccess != 1)
+						{
+							$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+							$success = 0;
+						}
 					}
 				}
 				else
 				{
-					print ("ERROR: Unable to enable EOS in OMK. OMK may not work correctly.\n");
+					$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
 				}
 			}
-			if (!$success)
+			if ($success)
 			{
 				$startMsg = "Encryption was successfully enabled.";
 				$logger->info("$startMsg");
@@ -3985,7 +3991,7 @@ sub enableEOS {
 			}
 			else
 			{
-				$startMsg = "Encryption could not be enabled.";
+				$startMsg = "Encryption could not be enabled." if (!defined($startMsg));
 				$logger->error("ERROR: $startMsg");
 				print("$startMsg\n");
 			}
@@ -3995,7 +4001,7 @@ sub enableEOS {
 				$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
 				print("$startMsg, but restarting the processes did not succeed.\n");
 			}
-			return(!$success);
+			return($success);
 		}
 		else
 		{
