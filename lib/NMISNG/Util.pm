@@ -3648,7 +3648,7 @@ sub askYesNo
 sub findOMKDir
 {
 	my $omkDir = "";
-	# Find the OMK Installtion directory.
+	# Find the OMK Installation directory.
 	if ( -f "/etc/systemd/system/omkd.service" )
 	{
 		$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
@@ -3845,6 +3845,7 @@ sub disableEOS {
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	my $startMsg;
+
 	$logger->info("disableEOS called");
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
@@ -3882,14 +3883,14 @@ sub disableEOS {
 					my $omkSuccess = $? >> 8;
 					if ($omkSuccess != 1)
 					{
-						$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+						$startMsg =  "Unable to disable EOS in OMK. OMK may not work correctly.";
 						$success = 0;
 					}
 				}
 			}
 			else
 			{
-				$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+				$startMsg =  "Unable to disable EOS in OMK. OMK may not work correctly.";
 			}
 		}
 		if ($success)
@@ -3934,6 +3935,7 @@ sub enableEOS {
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	my $startMsg;
+
 	$logger->info("enableEOS called");
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
