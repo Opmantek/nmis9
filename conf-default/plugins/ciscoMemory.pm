@@ -31,7 +31,7 @@
 # and a collection that chases down the utilization from Cisco's myriad of different mibs.
 #
 package ciscoMemory;
-our $VERSION = "2.0.2";
+our $VERSION = "2.0.3";
 use strict;
 
 use Compat::NMIS;
