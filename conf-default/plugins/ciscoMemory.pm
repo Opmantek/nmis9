@@ -405,10 +405,13 @@ sub collect_plugin
 	my $data;
 	$data->{index}         = 0;
 	$data->{TotalCPUs}     = $cpuUsedCount;
-	$data->{MemoryUsedMax} = $cpuUsedMax;
-	$data->{MemoryFreeMax} = $cpuFreeMax;
+#	$data->{MemoryUsedMax} = $cpuUsedMax;
+	$data->{MemoryUsedMax} = $cpuUsedTotal;
+#	$data->{MemoryFreeMax} = $cpuFreeMax;
+	$data->{MemoryFreeMax} = $cpuFreeTotal;
 	$data->{MemoryFree}    = $cpuFreeAvg;
 	$data->{MemoryUsed}    = $cpuUsedAvg;
+
 	my $path_keys =  ['index'];
 	my $path = $nodeobj->inventory_path( concept => 'ciscoNormalizedCPUMem', path_keys => $path_keys, data => $data );
 	my ($inventory, $error) =  $nodeobj->inventory( create => 1,                # if not present yet
