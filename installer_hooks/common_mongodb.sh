@@ -225,7 +225,7 @@ MongoDB instance. Please note that $PRODUCT will not work unless
 you deploy and configure a network-accessible MongoDB instance
 as documented on this page:
 
-https://community.opmantek.com/x/h4Aj
+    https://community.opmantek.com/x/h4Aj
 
 EOF
 				input_ok "Hit <Enter> when ready to continue: "
@@ -305,7 +305,8 @@ $PRODUCT requires MongoDB version $MIN_MAJ.$MIN_MIN.$MIN_PATCH or newer for corr
 Please upgrade your installation to MongoDB 3.4, then restart
 the $PRODUCT installer. MongoDB can be downloaded
 from http://mongodb.org/ and our wiki has further information about
-MongoDB upgrades here: https://community.opmantek.com/x/h4Aj
+MongoDB upgrades here:
+    https://community.opmantek.com/x/h4Aj
 
 EOF
  								logmsg "MongoDB Version $MONGO_VERSION is too old to continue."
@@ -329,7 +330,7 @@ features of $PRODUCT might not work efficiently with this version of MongoDB.
 It is highly recommended that you upgrade to MongoDB 3.4,
 which can be downloaded from http://mongodb.org/. Our wiki has
 further information about MongoDB upgrades here:
-https://community.opmantek.com/x/h4Aj
+    https://community.opmantek.com/x/h4Aj
 
 EOF
 						# again offer upgrade is  possible

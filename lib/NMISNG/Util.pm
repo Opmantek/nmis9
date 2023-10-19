@@ -3648,7 +3648,7 @@ sub askYesNo
 sub findOMKDir
 {
 	my $omkDir = "";
-	# Find the OMK Installtion directory.
+	# Find the OMK Installation directory.
 	if ( -f "/etc/systemd/system/omkd.service" )
 	{
 		$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
@@ -3845,6 +3845,7 @@ sub disableEOS {
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	my $startMsg;
+
 	$logger->info("disableEOS called");
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
@@ -3882,14 +3883,14 @@ sub disableEOS {
 					my $omkSuccess = $? >> 8;
 					if ($omkSuccess != 1)
 					{
-						$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+						$startMsg =  "Unable to disable EOS in OMK. OMK may not work correctly.";
 						$success = 0;
 					}
 				}
 			}
 			else
 			{
-				$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+				$startMsg =  "Unable to disable EOS in OMK. OMK may not work correctly.";
 			}
 		}
 		if ($success)
@@ -3934,6 +3935,7 @@ sub enableEOS {
 	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
 	my $startMsg;
+
 	$logger->info("enableEOS called");
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
@@ -4079,7 +4081,7 @@ sub verifyNMISEncryption {
 			_make_seed($seedfile, $logger);
 		}
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
-		if (open($fh, '<', $installDir . '/PasswordFields.conf'))
+		if (open($fh, '<', $installDir . '/nmisPasswordFields.conf'))
 		{
 			my @passwordFieldRows = <$fh>;
 			close $fh;
@@ -4150,13 +4152,13 @@ sub verifyNMISEncryption {
 				}
 				else
 				{
-					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.conf'.");
+					$logger->error("Unable to parse entry in '$eachRow' 'nmisPasswordFields.conf'.");
 				}
 			}
 		}
 		else
 		{
-			$logger->error("File '$installDir/PasswordFields.conf' was not found, unable to synchronize encryption settings between NMIS and OMK.");
+			$logger->error("File '$installDir/nmisPasswordFields.conf' was not found, unable to synchronize encryption settings between NMIS and OMK.");
 		}
 		if ($changed)
 		{
@@ -4183,7 +4185,7 @@ sub verifyNMISEncryption {
 	{
 		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
-		if (open($fh, '<', $installDir . '/PasswordFields.conf'))
+		if (open($fh, '<', $installDir . '/nmisPasswordFields.conf'))
 	   	{
 			my @passwordFieldRows = <$fh>;
 			close $fh;
@@ -4250,13 +4252,13 @@ sub verifyNMISEncryption {
 				}
 				else
 				{
-					$logger->error("Unable to parse entry in '$eachRow' 'PasswordFields.conf'.");
+					$logger->error("Unable to parse entry in '$eachRow' 'nmisPasswordFields.conf'.");
 				}
 			}
 		}
 		else
 		{
-			$logger->error("File '$installDir/PasswordFields.conf' was not found, unable to synchronize encryption settings between NMIS and OMK.");
+			$logger->error("File '$installDir/nmisPasswordFields.conf' was not found, unable to synchronize encryption settings between NMIS and OMK.");
 		}
 		if ($changed)
 		{

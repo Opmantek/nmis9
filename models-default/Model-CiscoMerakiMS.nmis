@@ -1,5 +1,5 @@
 #
-## $Id: Model-CiscoMerakiMS.nmis,v 1.1 2022/04/21 14:09:18 mitchells $
+## $Id: Model-CiscoMerakiMS.nmis,v 1.1 2023/08/15 11:09:18 mitchells $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -50,6 +50,18 @@
         'common-model' => 'threshold'
       }
     }
+  },
+  'alerts' => {
+   'MerakiPoe' => {
+    'PoeDevWatts' => {
+     'type' => 'test',
+     'test' => 'CVAR1=PoeDevWatts;$CVAR1 eq 0',
+     'value' => 'CVAR1=PoeDevWatts;int($CVAR1)',
+     'element' => 'PoeDevName',
+     'event' => 'PoE Connected Device Wattage',
+     'level' => 'Critical'
+    }
+   }
   },
   'interface' => {
     'collect' => {
@@ -223,6 +235,7 @@
           },
           'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
+       	    'calculate'	=> '$r = NMISNG::Util::beautify_physaddress($r)',
             'title' => 'Physical Address'
           },
           'ifSpeed' => {
