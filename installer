@@ -763,10 +763,32 @@ sub check_installed_modules
 															 < version->parse($thisentry->{minversion})));
 	}
 
-	if (@missing)
+	# We don't need to install our own stuff.
+	my @ourStuffArr = qx{find lib -type f -print | sed 's#lib/##' | sed 's#/#::#g'};
+	my %ourStuffMap;
+	# Bogus stuff we find ???
+	$ourStuffMap{"NMIS::IPSLA"} = 1;
+	$ourStuffMap{"NMIS::UUID"} = 1;
+	$ourStuffMap{"rrdfunc"} = 1;
+	$ourStuffMap{"t"} = 1;
+	$ourStuffMap{"NMIS::Connect"} = 1;
+	$ourStuffMap{"Compat::Connect"} = 1;
+	foreach my $modname (@ourStuffArr)
 	{
-		@critmissing = grep( !$noncritical{$_}, @missing);
-		my @optionals = grep ($noncritical{$_}, @missing);
+		chomp($modname);
+		print ("Our Stuff Includes '$modname'\n");
+		$ourStuffMap{$modname} = 1;
+	}
+	my @editMissing;
+	foreach my $modname (@missing)
+	{
+		push(@editMissing, $modname) if (!exists($ourStuffMap{$modname}));
+	}
+
+	if (@editMissing)
+	{
+		@critmissing = grep( !$noncritical{$_}, @editMissing);
+		my @optionals = grep ($noncritical{$_}, @editMissing);
 
 		if (@optionals)
 		{
