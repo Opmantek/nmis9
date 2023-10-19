@@ -1454,7 +1454,6 @@ sub save
 		# index values should be treated as strings so 1.0 is not shortened to 1
 		# $self->{_index_is_string} = 1;
 		if( defined($setthese{'data.index'}) ) { # && $self->{_index_is_string} ) {
-			print "setting data.index to string in update\n";
 			$setthese{'data.index'} = NMISNG::DB::make_string( $setthese{'data.index'} );
 		}
 
