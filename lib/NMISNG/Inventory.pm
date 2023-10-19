@@ -1354,6 +1354,13 @@ sub save
 	{
 		my ($q,$path) = (undef,$self->path());
 		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) } ( 0 .. $#$path );
+		
+		# index values should be treated as strings so 1.0 is not shortened to 1
+		# $self->{_index_is_string} = 1;
+		if( defined($record->{data}{index}) ) { # && $self->{_index_is_string} ) {
+			$record->{data}{index} = NMISNG::DB::make_string( $record->{data}{index} );
+		}
+
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
 			query      => $q,
@@ -1443,6 +1450,12 @@ sub save
 				$setthese{$saveme} = exists($updateargs{constraints})?
 						NMISNG::DB::constrain_record(record => $record->{$saveme}) : $record->{$saveme};
 			}
+		}
+		# index values should be treated as strings so 1.0 is not shortened to 1
+		# $self->{_index_is_string} = 1;
+		if( defined($setthese{'data.index'}) ) { # && $self->{_index_is_string} ) {
+			print "setting data.index to string in update\n";
+			$setthese{'data.index'} = NMISNG::DB::make_string( $setthese{'data.index'} );
 		}
 
 		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);
