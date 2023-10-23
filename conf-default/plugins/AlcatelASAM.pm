@@ -54,6 +54,13 @@ my $S;
 my $C;
 my $NG;
 
+# *****************************************************************************
+# Set this to disable collection on Interfaces set to 'available'.
+# *****************************************************************************
+my $ignoreAvaibleInterfaces = 1;
+# *****************************************************************************
+
+
 sub update_plugin
 {
 	my (%args) = @_;
@@ -266,9 +273,16 @@ sub update_plugin
 			$intfData->{$eachIfIndex}->{ifOperStatus}      = $ifData->{ifOperStatus};
 			$intfData->{$eachIfIndex}->{ifLastChange}      = $ifData->{ifLastChange};
 			$intfData->{$eachIfIndex}->{setlimits}         = $NI->{interface}->{$eachIfIndex}->{setlimits} // "normal";
-			$intfData->{$eachIfIndex}->{collect}           = $eachIfAdminStatus eq "up" ? "true": "false";
-			$intfData->{$eachIfIndex}->{event}             = $eachIfAdminStatus eq "up" ? "true": "false";
-			$intfData->{$eachIfIndex}->{threshold}         = $eachIfAdminStatus eq "up" ? "true": "false";
+			if ($ignoreAvaibleInterfaces)
+			{
+				$intfData->{$eachIfIndex}->{collect}       = ($eachIfAdminStatus eq "up" && $eachIfDescription ne "available") ? "true" : "false";
+			}
+			else
+			{
+				$intfData->{$eachIfIndex}->{collect}       = $eachIfAdminStatus eq "up" ? "true" : "false";
+			}
+			$intfData->{$eachIfIndex}->{event}             = $eachIfAdminStatus eq "up" ? "true" : "false";
+			$intfData->{$eachIfIndex}->{threshold}         = $eachIfAdminStatus eq "up" ? "true" : "false";
 			# check for duplicated ifDescr
 			foreach my $i (@$ifTableData) {
 				if ($eachIfIndex ne $i and $intfData->{$eachIfIndex}->{ifDescr} eq $intfData->{$i}->{ifDescr}) {
