@@ -49,6 +49,12 @@ my $NG;
 my $NI;
 my $interestingInterfaces = qr/atm Interface/;
 
+# *****************************************************************************
+# Set this to disable collection on Interfaces set to 'available'.
+# *****************************************************************************
+my $ignoreAvaibleInterfaces = 1;
+# *****************************************************************************
+
 
 sub update_plugin
 {
@@ -306,9 +312,16 @@ sub update_plugin
 			$intfData->{$eachIfIndex}->{interface}         = NMISNG::Util::convertIfName($ifDescr);
 			$intfData->{$eachIfIndex}->{setlimits}         = $setlimits;
 			$intfData->{$eachIfIndex}->{ifSpeed}           = "Unknown";
-			$intfData->{$eachIfIndex}->{collect}           = $eachIfAdminStatus eq "up" ? "true": "false";
-			$intfData->{$eachIfIndex}->{event}             = $eachIfAdminStatus eq "up" ? "true": "false";
-			$intfData->{$eachIfIndex}->{threshold}         = $eachIfAdminStatus eq "up" ? "true": "false";
+			if ($ignoreAvaibleInterfaces)
+			{
+				$intfData->{$eachIfIndex}->{collect}       = ($eachIfAdminStatus eq "up" && $eachIfDescription ne "available") ? "true" : "false";
+			}
+			else
+			{
+				$intfData->{$eachIfIndex}->{collect}       = $eachIfAdminStatus eq "up" ? "true" : "false";
+			}
+			$intfData->{$eachIfIndex}->{event}             = $eachIfAdminStatus eq "up" ? "true" : "false";
+			$intfData->{$eachIfIndex}->{threshold}         = $eachIfAdminStatus eq "up" ? "true" : "false";
 			# check for duplicated ifDescr
 			foreach my $i (@$ifTableData) {
 				if ($eachIfIndex ne $i and $intfData->{$eachIfIndex}->{ifDescr} eq $intfData->{$i}->{ifDescr}) {
