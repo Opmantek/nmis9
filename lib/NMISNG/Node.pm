@@ -3753,8 +3753,8 @@ sub collect_intf_data
 
 		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
 
-		# new interface, no inventory yet?
-		if (!$thisif->{_id})
+		# new interface, or existing interface which is historic, no current inventory yet?
+		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
 			$self->nmisng->log->info("Interface $index is new, needs update");
 			$thisif->{_needs_update} = 1;
@@ -3833,7 +3833,7 @@ sub collect_intf_data
 			next;
 		}
 		# ...which MAY be different from the one we've got in the if_data_map
-		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id})
+		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
 			$self->nmisng->log->debug2("Interface index $needsmust "
 																 .(defined($thisif->{_id})? "has changed substantially" : "is new")
@@ -3852,6 +3852,7 @@ sub collect_intf_data
 		}
 		else
 		{
+			$self->nmisng->log->debug2("Interface index $needsmust was updated");
 			# just mark this interface as updated
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
