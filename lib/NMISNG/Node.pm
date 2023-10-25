@@ -3420,6 +3420,7 @@ sub update_intf_info
 					$self->nmisng->log->error("Failed to create interface inventory, for duplicated ifDescr with historic index - error:$error_message") && next if ( !$inventory );
 					$self->nmisng->log->debug("Created new inventory for ifIndex $index");
 				}
+				# set data before recalculate
 				$inventory->data( $target );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				# for a new object this must happen AFTER data is set
@@ -4722,9 +4723,10 @@ sub collect_systemhealth_info
 						create    => 1
 					);
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+					# set data before recalculate
+					$inventory->data($target);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
-					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -4871,9 +4873,10 @@ sub collect_systemhealth_info
 						create    => 1
 					);
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+					# set data before recalculate
+					$inventory->data($target);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
-					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -5483,10 +5486,11 @@ sub collect_cbqos_info
 
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 
+					# set data before recalculate
+					$inventory->data($data);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
 					$inventory->description("$if_data->{ifDescr} - CBQoS $direction");
-					$inventory->data($data);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
