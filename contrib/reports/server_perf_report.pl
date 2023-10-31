@@ -123,7 +123,7 @@ my $debug   = $debugsw;
 $debug      = NMISNG::Util::getdebug_cli($arg->{debug}) if (exists($arg->{debug}));   # Backwards compatibility
 print "Debug = '$debug'\n" if ($debug);
 my $exceptions   = $exceptionssw;
-$exceptions = NMISNG::Util::getbool_cli($arg->{exceptions}) if (exists($arg->{exceptions}));   # Backwards compatibility
+$exceptions = NMISNG::Util::getbool_cli("exceptions", $arg->{exceptions}, 0) if (exists($arg->{exceptions}));   # Backwards compatibility
 
 # For group filtering
 my $group  = $arg->{group} || "";

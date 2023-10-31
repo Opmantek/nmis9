@@ -2648,12 +2648,12 @@ sub collect_node_data
 	elsif ($howdiditgo->{skipped}) {}
 	else
 	{
-		$self->nmisng->log->error("($catchall_data->{name}), collect_node_data encountered error $anyerror");
+		$self->nmisng->log->error("($catchall_data->{name}), Ignoring entry: collect_node_data encountered error $anyerror");
 		$self->handle_down( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
 			if ( $howdiditgo->{snmp_error} );
 		$self->handle_down( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
 				if ( $howdiditgo->{wmi_error} );
-		return 0;
+		next;  # OMK-10384 - Node.pm simply returns if any OID is not found. It should simply generate an error message and skip to the next OID.
 	}
 	$self->nmisng->log->debug("Finished with collect_node_data");
 	return 1;
@@ -3420,6 +3420,7 @@ sub update_intf_info
 					$self->nmisng->log->error("Failed to create interface inventory, for duplicated ifDescr with historic index - error:$error_message") && next if ( !$inventory );
 					$self->nmisng->log->debug("Created new inventory for ifIndex $index");
 				}
+				# set data before recalculate
 				$inventory->data( $target );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				# for a new object this must happen AFTER data is set
@@ -3752,8 +3753,8 @@ sub collect_intf_data
 
 		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
 
-		# new interface, no inventory yet?
-		if (!$thisif->{_id})
+		# new interface, or existing interface which is historic, no current inventory yet?
+		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
 			$self->nmisng->log->info("Interface $index is new, needs update");
 			$thisif->{_needs_update} = 1;
@@ -3832,7 +3833,7 @@ sub collect_intf_data
 			next;
 		}
 		# ...which MAY be different from the one we've got in the if_data_map
-		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id})
+		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
 			$self->nmisng->log->debug2("Interface index $needsmust "
 																 .(defined($thisif->{_id})? "has changed substantially" : "is new")
@@ -3851,6 +3852,7 @@ sub collect_intf_data
 		}
 		else
 		{
+			$self->nmisng->log->debug2("Interface index $needsmust was updated");
 			# just mark this interface as updated
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
@@ -4722,9 +4724,10 @@ sub collect_systemhealth_info
 						create    => 1
 					);
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+					# set data before recalculate
+					$inventory->data($target);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
-					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -4871,9 +4874,10 @@ sub collect_systemhealth_info
 						create    => 1
 					);
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+					# set data before recalculate
+					$inventory->data($target);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
-					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -5483,10 +5487,11 @@ sub collect_cbqos_info
 
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 
+					# set data before recalculate
+					$inventory->data($data);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
 					$inventory->description("$if_data->{ifDescr} - CBQoS $direction");
-					$inventory->data($data);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -7764,9 +7769,11 @@ sub collect_services
 				{
 					$ret = 0;
 					$self->nmisng->log->error("Unable to lookup $lookfor on DNS server $catchall_data->{host}");
+					$status{status_text} = "Unable to lookup $lookfor on DNS server $catchall_data->{host}";
 				}
 				else
 				{
+					$status{status_text} = "DNS data for $lookfor from $catchall_data->{host} was " . $packet->string;
 					$ret = 1;
 					$self->nmisng->log->debug3("DNS data for $lookfor from $catchall_data->{host} was " . $packet->string );
 				}
@@ -7820,10 +7827,12 @@ sub collect_services
 				if ( $msg =~ /Ports: $port\/open/ )
 				{
 					$ret = 1;
+					$status{status_text} = "NMAP reported success for port $port";
 					$self->nmisng->log->debug("NMAP reported success for port $port: $msg");
 				}
 				else
 				{
+					$status{status_text} = "NMAP reported failure for port $port";
 					$ret = 0;
 					$self->nmisng->log->debug("NMAP reported failure for port $port: $msg");
 				}
@@ -7881,7 +7890,7 @@ sub collect_services
 					$cpu       = 0;
 					$memory    = 0;
 					$gotMemCpu = 1;
-
+					$status{status_text} = "Service $name is down,". ( @matchingprocs? "only non-running processes" : "no matching processes" );					
 					$self->nmisng->log->info("service $name is down, "
 																	 . ( @matchingprocs? "only non-running processes" : "no matching processes" ));
 				}
@@ -7895,7 +7904,7 @@ sub collect_services
 					# memory is in kb, and a gauge.
 					$cpu = int( Statistics::Lite::mean( map { $_->{hrSWRunPerfCPU} } (@livingprocs) ) );
 					$memory = Statistics::Lite::mean( map { $_->{hrSWRunPerfMem} } (@livingprocs) );
-
+					$status{status_text} = "Service $name is up, " . scalar(@livingprocs) . " running process(es)";					
 					$self->nmisng->log->info("service $name is up, " . scalar(@livingprocs) . " running process(es)");
 				}
 			}
@@ -7924,6 +7933,7 @@ sub collect_services
 				my $timeout = ( $thisservice->{Max_Runtime} > 0 ) ? $thisservice->{Max_Runtime} : 3;
 
 				( $ret, $msg ) = NMISNG::Sapi::sapi( $catchall_data->{host}, $thisservice->{Port}, $scripttext, $timeout );
+				$status{status_text} = "Results of $service is $ret";
 				$self->nmisng->log->debug("Results of $service is $ret, msg is $msg");
 			}
 		}
@@ -7983,6 +7993,7 @@ sub collect_services
 					if ( !$pid )
 					{
 						alarm(0) if ($svcruntime);       # cancel any timeout
+						$status{status_text} = "cannot start service program $svc->{Program}: $!";
 						$self->nmisng->log->error("cannot start service program $svc->{Program}: $!");
 					}
 					else
@@ -8000,6 +8011,7 @@ sub collect_services
 							open( UNWANTED, $stderrsink );
 							my $badstuff = join( "", <UNWANTED> );
 							chomp($badstuff);
+							$status{status_text} = "Service program $svc->{Program} returned unexpected error output";
 							$self->nmisng->log->warn("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
 							close(UNWANTED);
 						}

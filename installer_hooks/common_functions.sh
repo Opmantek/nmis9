@@ -74,6 +74,16 @@ check_set_strict_sh;
 #	echo 'general setting: IFS="\\n\\t\"';
 #fi;
 
+# generate a line using repeating character
+# $1 is the number of times to repeat
+# $2 is the character to repeat (default to =)
+echoLine() {
+	char="="
+	[ "$2" != "" ] && [ "$2" != "-" ] && char=$2
+	printf "$char%.0s" $(seq $1)
+	echo
+}
+
 
 # echo and log-append to logfile
 echolog() {
@@ -197,6 +207,82 @@ input_yn() {
 								return 0								# ok
 						else
 								return 1								# nok
+						fi
+				done
+		fi
+}
+
+# print prompt, print static blurb, read response,
+# or auto-answer no in non-interactive mode, or use preseeded answer
+input_ny() {
+		local MSG TAG
+		MSG="$1"
+		TAG="${2:-}"
+
+		if [ -z "${TAG}" ]; then
+			if [ "${CHECK_SET_STRICT}" -eq 1 ]; then
+				# ensure we wrap this log entry within the error header and footer with 1 (any value > 0)
+				echologVerboseError "input_ny: MSG=${MSG}: TAG='': No preseed question should be fixed. ${ABORT_OMK_STRICT_SH}" 1;
+				exit 1;
+			else
+				# ensure we wrap this log entry within the error header and footer with 1 (any value > 0)
+				echologVerboseError "input_ny: MSG=${MSG}: TAG='': No preseed question. Continuing..." 1;
+			fi;
+		fi;
+
+		if [ -n "$PRESEED" -a -n "$TAG" ] && grep -q -E "^$TAG" $PRESEED 2>/dev/null; then
+				echo "$MSG"
+				local ANSWER
+				ANSWER=`grep -E "^$TAG" $PRESEED|cut -f 2 -d '"'`||:;
+				ANSWER="${ANSWER:-}";
+
+				if [ -z "${ANSWER}" ]; then
+					if [ "${CHECK_SET_STRICT}" -eq 1 ]; then
+						# ensure we wrap this log entry within the error header and footer with 1 (any value > 0)
+						echologVerboseError "input_ny: MSG=${MSG}: TAG=${TAG}: ANSWER='': Preseed question not in preseed file. Should be fixed. ${ABORT_OMK_STRICT_SH}" 1;
+						exit 1;
+					else
+						# ensure we wrap this log entry within the error header and footer with 1 (any value > 0)
+						echologVerboseError "input_ny: MSG=${MSG}: TAG=${TAG}: ANSWER='': Preseed question not in preseed file. Should be fixed. Continuing..." 1;
+					fi;
+				fi;
+
+				logmsg "(Preseeded answer \"$ANSWER\" for '$MSG')"
+				echo "(preseeded answer \"$ANSWER\")"
+				if [ "$ANSWER" = "y" -o "$ANSWER" = "Y" ]; then
+						return 0						# ok
+				else
+						return 1						# nok
+				fi
+		elif [ -n "$UNATTENDED" ]; then
+				echo "$MSG"
+				echo "(auto-default NO)"
+				echo
+				return 1
+		else
+				while true; do
+						echo "$MSG"
+						echo -n "Type 'y' to accept, or 'n' or <Enter> to decline: "
+						local X
+						read X
+						logmsg "User input for '$MSG': '$X'"
+						X=`echo "$X" | tr -d '[:space:]'| tr '[A-Z]' '[a-z]'`||:;
+
+						# consider setting a default if strict sh fails here
+						###if [ "${CHECK_SET_STRICT}" -eq 1 ]; then
+						###	X="${X:-}";
+						###fi;
+
+						if [ "$X" != 'y' -a "$X" != '' -a "$X" != 'n' ]; then
+								echo "Invalid input \"$X\""
+								echo
+								continue;
+						fi
+
+						if [ -z "$X" -o "$X" = "n" ]; then
+								return 1								# nok
+						else
+								return 0								# ok
 						fi
 				done
 		fi

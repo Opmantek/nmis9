@@ -31,7 +31,7 @@
 # and a collection that chases down the utilization from Cisco's myriad of different mibs.
 #
 package ciscoMemory;
-our $VERSION = "2.0.2";
+our $VERSION = "2.0.3";
 use strict;
 
 use Compat::NMIS;
@@ -163,7 +163,7 @@ sub collect_plugin
 	my $memUsedTotal    = 0;
 
 	 # This plugin deals only with Cisco devices, and only ones with snmp enabled and working.
-	if ( $catchall->{nodeModel} !~ /Cisco/i or $catchall->{nodeVendor} !~ /Cisco/i
+	if ( ($catchall->{nodeModel} !~ /Cisco/i and $catchall->{nodeModel} !~ /Catalyst/i) or $catchall->{nodeVendor} !~ /Cisco/i
 			or !NMISNG::Util::getbool($catchall->{collect}))
 	{
 		$NG->log->debug("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
@@ -270,23 +270,16 @@ sub collect_plugin
 				my $ciscoMemData = $ciscoMemInventory->data; # r/o copy, must be saved back if changed
 	
 				# note that split returns everything if no . is present...
-				my ($entityIndex,undef) = split(/\./, $ciscoMemData->{index});
-	
-				if (ref($emibData{$entityIndex}) eq "HASH")
+				my $memIndex = split(/\./, $ciscoMemData->{index});
+
+				# Cisco Memory Pool does not link to the Entity MIB data.
+				if ($ciscoMemData->{MemPoolName} =~ /processor|cpu/i)
 				{
-					$NG->log->debug9("Entity MIB Index:       $emibData{$entityIndex}->{index}");
-					$NG->log->debug9("Entity MIB Class:       $emibData{$entityIndex}->{entPhysicalClass}");
-					$NG->log->debug9("Entity MIB Name:        $emibData{$entityIndex}->{entPhysicalName}");
-					$NG->log->debug9("Entity MIB Description: $emibData{$entityIndex}->{entPhysicalDescr}");
-					$NG->log->debug9("Entity MIB Model:       $emibData{$entityIndex}->{entPhysicalModelName}");
-					if ($ciscoMemData->{MemPoolName} =~ /processor|cpu/i && $emibData{$entityIndex}->{entPhysicalClass} =~ /module|cpu/)
-					{
-						$NG->log->debug("MemoryFree: $ciscoMemData->{MemPoolFree}");
-						$NG->log->debug("MemoryUsed: $ciscoMemData->{MemPoolUsed}");
-						$cpuFree{$entityIndex}  = $ciscoMemData->{MemPoolFree} if (!exists($cpuFree{$entityIndex}) && exists($ciscoMemData->{MemPoolFree}) && $ciscoMemData->{MemPoolFree} !~ /^\s*$/ && $ciscoMemData->{MemoryFree} ne "noSuchInstance");
-						$cpuUsed{$entityIndex}  = $ciscoMemData->{MemPoolUsed} if (!exists($cpuUsed{$entityIndex}) && exists($ciscoMemData->{MemPoolUsed}) && $ciscoMemData->{MemPoolUsed} !~ /^\s*$/ && $ciscoMemData->{MemoryUsed} ne "noSuchInstance");
-						$foundTheOIDs = 1;
-					}
+					$NG->log->debug("MemoryFree $memIndex: $ciscoMemData->{MemPoolFree}");
+					$NG->log->debug("MemoryUsed $memIndex: $ciscoMemData->{MemPoolUsed}");
+					$cpuFree{$memIndex}  = $ciscoMemData->{MemPoolFree} if (!exists($cpuFree{$memIndex}) && exists($ciscoMemData->{MemPoolFree}) && $ciscoMemData->{MemPoolFree} !~ /^\s*$/ && $ciscoMemData->{MemoryFree} ne "noSuchInstance");
+					$cpuUsed{$memIndex}  = $ciscoMemData->{MemPoolUsed} if (!exists($cpuUsed{$memIndex}) && exists($ciscoMemData->{MemPoolUsed}) && $ciscoMemData->{MemPoolUsed} !~ /^\s*$/ && $ciscoMemData->{MemoryUsed} ne "noSuchInstance");
+					$foundTheOIDs = 1;
 				}
 			}
 		}
