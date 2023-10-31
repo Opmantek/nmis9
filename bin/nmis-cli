@@ -130,8 +130,11 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=set-last-login user=<username> last_login=<last_login>
  act=unlock-user user=<username>
  
+ act=notify event=<event> <node|uuid>=<instance> [element=<element> details=<details> level=<level>]
+ 
  \033[1m For additional information run '$PROGNAME -h' \033[0m
-\n";
+ 
+ \n";
 
 
 my $scheduleusage = qq|Job Scheduling:
@@ -1223,6 +1226,53 @@ elsif ($Q->{act} =~ /unlock[-_]user/)
 	my $user = $Q->{user};
 	unlock_user(user => $user);
 }
+elsif ($Q->{act} =~ /notify/)
+{
+	my $nodeobj;
+	my $nodename = $Q->{node};
+	my $uuid = $Q->{uuid};
+	my $event = $Q->{event};
+
+	my %nodesel;
+	$nodesel{name} = $nodename if ($nodename);
+	$nodesel{uuid} = $uuid if ($uuid);
+
+	$nodeobj = $nmisng->node(%nodesel);
+	die "Invalid node/uuid arguments, no matching node exists!\n"
+			if (!$nodeobj);
+
+	die "event must be set\n"
+			if (!$event);
+
+	my $S = NMISNG::Sys->new;
+	$S->init(node=>$nodeobj,snmp=>'false');
+
+	my %eventargs;
+	$eventargs{sys} = $S;
+	$eventargs{event} = $event;
+	$eventargs{element} = $Q->{element} if( $Q->{element} );
+	$eventargs{details} = $Q->{details} if( $Q->{details} );
+	$eventargs{level} = $Q->{level} // "Normal";
+
+	#if level is normal we assume we are back up so we checkEvent which really clears the event
+	#otherwise we we assume there is an issue and we notify
+	#the notify system was built around polling a node and is not really meant for general stateful events
+	#but at this point we dont have a better system for, "there is a problem" let the operator know.
+	if ($eventargs{level} eq "Normal")
+	{
+
+		#check event doesnt return anything useful unlike notify
+		Compat::NMIS::checkEvent(%eventargs);
+	}
+	else
+	{
+		my $maybe = Compat::NMIS::notify(%eventargs);
+		if( my $error = $maybe->load() )
+		{
+			die "event error: $error\n";
+		}
+	}
+}
 else
 {
 	print "\033[1mUnrecognized action! ('act=$Q->{act}')\033[0m\n\n";
@@ -1635,6 +1685,8 @@ sub help
    push(@lines, "                     to create the condition. 'dryrun' reviews the events and\n");
    push(@lines, "                     simply reports what was found, but does not make any\n");
    push(@lines, "                     changes.\n");
+   push(@lines, "     act=notify event=<event> <node|uuid>=<instance> [element=<element> details=<details> level=<level>]\n");
+   push(@lines, "                     This action submits a new event.\n");
    push(@lines, "\n");
    push(@lines, "  -- ENCRYPTION OF SECRETS ACTIONS --\n");
    push(@lines, "     act=check-eos\n");

@@ -533,7 +533,6 @@
     'Description' => 'The collect process for a node has been killed to ensure that polling continues for other nodes.',
   },
 
-
   'Selftest Failed' => {
     'Event' => 'Selftest Failed',
     'Notify' => 'true',
@@ -544,14 +543,48 @@
     'Description' => 'One or more subtests of the NMIS selftest failed.',
   },
 
-
   "Planned Outage Open" => {
-               "Event" => "Planned Outage Open",
-               "Notify" => "true",
-               "Status" => "false",                            # does not contribute to status summary calculations
-               "Log" => "true",                                                # needs to be logged for opEvents and others
-               "Stateful" => "true",
-               "CancelingEvent" => "Planned Outage Closed",
-               "Description" => "A scheduled outage window for a node has become active.",
-       },
+    "Event" => "Planned Outage Open",
+    "Notify" => "true",
+    "Status" => "false",                # does not contribute to status summary calculations
+    "Log" => "true",                    # needs to be logged for opEvents and others
+    "Stateful" => "true",
+    "CancelingEvent" => "Planned Outage Closed",
+    "Description" => "A scheduled outage window for a node has become active.",
+  },
+
+  ############################
+  # opHA Message Bus events
+  ############################
+
+  'opHAMB Peer Failover' => {
+    'Event' => 'opHAMB Peer Failover',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'opHAMB Peer Failover Closed',
+    'Description' => 'An opHA Message Bus consumer peer fail over event occurred.',
+  },
+
+  'opHAMB Peer Attach' => {
+    'Event' => 'opHAMB Peer Attach',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'opHAMB Peer Attach Closed',
+    'Description' => 'An opHA Message Bus consumer peer attach event occurred.',
+  },
+
+  'opHAMB Peer Pause' => {
+    'Event' => 'opHAMB Peer Pause',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'opHAMB Peer Pause Closed',
+    'Description' => 'An opHA Message Bus producer peer pause event occurred.',
+  },
+
 );
