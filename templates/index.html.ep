@@ -1,0 +1,6 @@
+% layout('default');
+% title('Index');
+<div class="content">
+    <h1>Welcome to NMIS UX Upgrade</h1>
+    <p>Content goes here!</p>
+</div>

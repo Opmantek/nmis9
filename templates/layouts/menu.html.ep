@@ -1,0 +1,25 @@
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <div class="collapse navbar-collapse" id="navbarNavDropdown">
+    <ul class="navbar-nav">
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          Network Status
+        </a>
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li><%= link_to 'Metrics' => '/cgi-nmis9/network.pl?refresh=180&act=network_summary_metrics', class => 'dropdown-item', id => 'ntw_metrics'%></li>
+          <!-- Repeat for each menu item, converting links into Mojolicious link_to helpers -->
+        </ul>
+      </li>
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          Network Performance
+        </a>
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li><%= link_to 'All Groups' => 'network.pl?refresh=180&act=network_summary_allgroups', class => 'dropdown-item', id => 'ntw_overview' %></li>
+          <!-- Repeat for each menu item -->
+        </ul>
+      </li>
+      <!-- Add more nav items as needed -->
+    </ul>
+  </div>
+</nav>

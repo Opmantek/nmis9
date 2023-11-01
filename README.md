@@ -40,3 +40,8 @@ All documentation can be found @ https://community.opmantek.com/
 Commercial support available from Opmantek - https://www.opmantek.com/
 or contact@opmantek.com
 Community support available @ https://community.opmantek.com/
+
+
+## Getting Started With UX Upgrade Mojo
+
+To start the server in debug run ./script/nmisx daemon -l http://*:8080
