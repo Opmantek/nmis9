@@ -22,7 +22,7 @@ sub valid_user_check{
   my $self = shift;
 
     # Hardcoding users for now
-    my %validUsers = ( "nmis" => "********");
+    my %validUsers = ( "nmis" => "##########");
 
     # Get the user name and password from the page
     my $user = $self->param('username');
@@ -45,14 +45,25 @@ sub valid_user_check{
 }
 
 
-sub node_view {
+sub nodes_view {
   my $self = shift;
 
   # send the default list of all nodes
   my $NT = Compat::NMIS::loadNodeTable(); # load node table 
   my @keys = keys %$NT;
   $self->stash ( 'keys' => \@keys );
-  $self->render(template => 'node');
+  $self->render(template => 'nodes');
+}
+
+sub node_view {
+  my $self = shift;
+ my $node_uuid   = $self->param('node_uuid');
+  # send the default list of all nodes
+  
+  $self->render(template => 'node', UUID => $node_uuid);
+#   my @keys = keys %$NT;
+#   $self->stash ( 'keys' => \@keys );
+#   $self->render(template => 'node');
 }
 
 1;

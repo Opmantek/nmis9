@@ -1,6 +1,5 @@
-package NMISMojo;
+package NMISx;
 use Mojo::Base 'Mojolicious';
-use Data::Dumper;
 
 # This method will run once at server start
 sub startup {
@@ -38,53 +37,7 @@ sub startup {
   $self->plugin(CGI => [ "$url_base/tools.pl" => "/usr/local/nmis9/cgi-bin/tools.pl" ]);
   $self->plugin(CGI => [ "$url_base/view-event.pl" => "/usr/local/nmis9/cgi-bin/view-event.pl" ]);
 
-  #serve cgi nmis9 assets
-  $r->any('/menu9/:type/*whatever' => sub {
-    my $c = shift;
-    my $whatever = $c->param('whatever');
-    my $type = $c->param('type');
-    my $file = $c->app->home->child('menu',$type, $whatever );
-
-    # Serve file if it exists, otherwise render a 404 not found
-    #TODO use mojo static and not full paths!
-    if (-f $file && -r _) {
-      $c->reply->file($file);
-    } else {
-      $c->reply->not_found;
-    }
-  });
-
-  #serve our cached images
-  #Should have Auth
-  $r->any('/nmis9/cache/#image' => sub {
-    my $c = shift;
-    my $image = $c->param('image');
-    my $file = $c->app->home->child('htdocs','cache', $image );
-    if (-f $file && -r _) {
-      $c->reply->file($file);
-    } else {
-      $c->reply->not_found;
-    }
-  });
-
-  #serve our reports
-  #TODO needs AUTH
-  $r->any('/nmis9/reports/#report' => sub {
-    my $c = shift;
-    my $report = $c->param('report');
-    my $file = $c->app->home->child('htdocs','reports', $report );
-    if (-f $file && -r _) {
-      $c->reply->file($file);
-    } else {
-      $c->reply->not_found;
-    }
-  });
-
-  # migrated routes
-  $r->get('/')->to(controller => 'MainController', action => 'login_view');
-  $r->get('/login')->to(controller => 'MainController', action => 'login_view');
-  $r->post('/login')->to(controller => 'MainController', action => 'valid_user_check');
-  $r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
-  $r->get('/nodes/:node_uuid')->to(controller => 'MainController', action => 'node_view');
+  push @{$self->static->paths},  "/usr/local/nmis9/assets";
+  push @{$self->static->paths},  "/usr/local/nmis9/htdocs";
 }
 1;

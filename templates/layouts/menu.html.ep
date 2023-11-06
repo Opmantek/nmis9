@@ -5,7 +5,7 @@
         <a class="nav-link"  href="cgi-nmis9/nmiscgi.pl" target="_blank" title="nmis">NMIS9</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link"  href="/node" target="_blank" title="nmis">Node</a>
+        <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes</a>
       </li>
       <li class="nav-item dropdown">
         <!-- http://artemis.opmantek.net:8080/cgi-nmis9/nmiscgi.pl -->
@@ -15,6 +15,17 @@
         <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
           <li><%= link_to 'Metrics' => '/cgi-nmis9/network.pl?refresh=180&act=network_summary_metrics', class => 'dropdown-item', id => 'ntw_metrics'%></li>
           <!-- Repeat for each menu item, converting links into Mojolicious link_to helpers -->
+          <li><%= link_to 'Metric Graphs' => '/cgi-nmis9/network.pl?refresh=180&act=network_metrics_graph', class => 'dropdown-item', id => 'ntw_graph'%></li>
+            <li><%= link_to 'Network Metrics and Health' => '/cgi-nmis9/network.pl?refresh=180&act=network_summary_view', class => 'dropdown-item', id =>'ntw_view'%></li>
+            <li><%= link_to 'Network Status and Health' => '/cgi-nmis9/network.pl?refresh=180&act=network_summary_health', class => 'dropdown-item', id =>'ntw_health'%></li>
+            <li></li>
+            <li><%= link_to 'Monitored Services' => '/cgi-nmis9/services.pl', class => 'dropdown-item', id =>'ntw_services'%></li>
+            <li><%= link_to 'Current Events' => '/cgi-nmis9/events.pl?act=event_table_list', class => 'dropdown-item', id =>'src_events'%></li>
+            <li><%= link_to 'Network Events' => '/cgi-nmis9/logs.pl?act=log_file_view&lines=50', class => 'dropdown-item', id =>'nmislogs'%></li>
+            <li><%= link_to 'Customer Status and Health' => '/cgi-nmis9/network.pl?refresh=180&act=network_summary_customer', class => 'dropdown-item', id =>'ntw_customer'%></li>
+            <li><%= link_to 'Monitored Business Services Status and Health' => '/cgi-nmis9/network.pl?refresh=180&act=network_summary_business', class => 'dropdown-item', id =>'ntw_business'%></li>
+            <!-- <li><a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</li>
+            <li><a onclick="clickMenu(this);return false" id='ntw_rss' href="community_rss.pl?widget=true">NMIS Community</li> -->
         </ul>
       </li>
       <li class="nav-item dropdown">

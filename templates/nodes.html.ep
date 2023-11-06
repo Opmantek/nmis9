@@ -1,0 +1,11 @@
+% layout('default');
+% title('Nodes');
+<BODY>
+    
+    <TABLE BORDER=1>
+        % foreach my $value ( @{ stash('keys') } ) {
+        <TR><TD> <%= $value %></TR></TD>
+        % }
+    </TABLE>
+  </BODY> 
+
