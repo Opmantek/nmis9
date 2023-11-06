@@ -28,6 +28,7 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
+## KS notes 2023-11-06: Move RouteNumber and TopChanges out of Node health stop collecting MemIO concepts and move buffers out.
 
 %hash = (
   '-common-' => {
@@ -253,32 +254,75 @@
             #'oid' => 'avgBusy5'
           },
           'bufferFail' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'bufferFail',
             'option' => 'counter,0:U'
           },
           'bufferElHit' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'bufferElHit',
             'option' => 'counter,0:U'
           },
-          'MemoryUsedIO' => {
-            'oid' => 'ciscoMemoryPoolUsed.2'
-          },
           'bufferElFree' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'bufferElFree'
           },
+          'MemoryUsedIO' => {
+            'comment' => 'this is redundant and will be deprecated from nodehealth',
+            'oid' => 'ciscoMemoryPoolUsed.2'
+          },
           'MemoryFreeIO' => {
+            'comment' => 'this is redundant and will be deprecated from nodehealth',
             'oid' => 'ciscoMemoryPoolFree.2'
           },
           'TopChanges' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'dot1dStpTopChanges',
             'option' => 'counter,0:U'
           },
 	        'RouteNumber' => {
+            'comment' => 'this will be deprecated from nodehealth',
 	          'oid' => 'ipCidrRouteNumber'
 	        }
         },
         'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,topo,routenumber'
       },
+      #'Buffers' => {
+      #  'graphtype' => 'buffer',
+      #  'snmp' => {
+      #    'bufferFail' => {
+      #      'comment' => 'this will be deprecated from nodehealth',
+      #      'oid' => 'bufferFail',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'bufferElHit' => {
+      #      'comment' => 'this will be deprecated from nodehealth',
+      #      'oid' => 'bufferElHit',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'bufferElFree' => {
+      #      'comment' => 'this will be deprecated from nodehealth',
+      #      'oid' => 'bufferElFree'
+      #    },
+      #  },
+      #},
+      #'RouteNumber' => {
+      #  'graphtype' => 'routenumber',
+      #  'snmp' => {
+      #    'RouteNumber' => {
+      #      'oid' => 'ipCidrRouteNumber'
+      #    },
+      #  },
+      #},
+      #'TopologyChanges' => {
+      #  'graphtype' => 'topo',
+      #  'snmp' => {
+      #    'TopChanges' => {
+      #      'oid' => 'dot1dStpTopChanges',
+      #      'option' => 'counter,0:U'
+      #    },
+      #  },
+      #},
       'mib2ip' => {
         'snmp' => {
           'ipInAddrErrors' => {

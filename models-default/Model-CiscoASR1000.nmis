@@ -1,3 +1,34 @@
+## $Id: Model-CiscoASR.nmis,v 8.1 2012/12/03 04:13:26 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+## KS notes 2023-11-06: Move RouteNumber out of Node health.
+
 %hash = (
   '-common-' => {
     'class' => {
@@ -280,12 +311,21 @@
             #'oid' => 'ciscoMemoryPoolFree.1'
   				},
           'RouteNumber' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'ipCidrRouteNumber'
           }			
         },
   			'threshold' => 'cpu,mem-proc',
   			'graphtype' => 'cpu,mem-proc,routenumber'
   		},
+      #'RouteNumber' => {
+      #  'graphtype' => 'routenumber',
+      #  'snmp' => {
+      #    'RouteNumber' => {
+      #      'oid' => 'ipCidrRouteNumber'
+      #    },
+      #  },
+      #},
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {

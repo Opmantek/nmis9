@@ -87,6 +87,8 @@
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Radwin' => '/nodes/$node/health/RadwinTAB-$index.rrd',
       'RouteNumber' => '/nodes/$node/health/routenumber.rrd',
+      'TopologyChanges' => '/nodes/$node/health/topologychanges.rrd',
+      'Buffers' => '/nodes/$node/health/buffers.rrd',
       'SONETErrors' => '/nodes/$node/health/soneterrors-$index.rrd',
       'Sat-Demodulate' => '/nodes/$node/health/Sat-Demodulate-$index.rrd',
 	  'SDPBindstatus' => '/nodes/$node/health/status-$index.rrd',
