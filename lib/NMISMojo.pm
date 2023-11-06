@@ -81,8 +81,9 @@ sub startup {
   });
 
   # migrated routes
-  $r->get('/')->to(controller => 'MainController', action => 'index');
+  $r->get('/')->to(controller => 'MainController', action => 'login_view');
   $r->get('/login')->to(controller => 'MainController', action => 'login_view');
-
+  $r->post('/login')->to(controller => 'MainController', action => 'valid_user_check');
+  $r->get('/node')->to(controller => 'MainController', action => 'node_view');
 }
 1;
