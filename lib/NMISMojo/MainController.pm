@@ -22,7 +22,7 @@ sub valid_user_check{
   my $self = shift;
 
     # Hardcoding users for now
-    my %validUsers = ( "nmis" => "Monkey42Dalek");
+    my %validUsers = ( "nmis" => "********");
 
     # Get the user name and password from the page
     my $user = $self->param('username');
