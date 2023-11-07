@@ -57,13 +57,18 @@ sub nodes_view {
 
 sub node_view {
   my $self = shift;
- my $node_uuid   = $self->param('node_uuid');
+  my $node_name   = $self->param('node_name');
+  
   # send the default list of all nodes
   
-  $self->render(template => 'node', UUID => $node_uuid);
-#   my @keys = keys %$NT;
-#   $self->stash ( 'keys' => \@keys );
-#   $self->render(template => 'node');
+  #$self->cgi("cgi-nmis9/network.pl?act=network_node_view&node=$node_name");
+  #$self->render(template => 'node', node_name => $node_name);
+  #   my @keys = keys %$NT;
+  #   $self->stash ( 'keys' => \@keys );
+  #   $self->render(template => 'node');
 }
 
+sub render_not_found {
+  $self->render(template => 'not_found');
+}
 1;
