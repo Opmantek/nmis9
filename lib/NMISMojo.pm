@@ -85,7 +85,7 @@ sub startup {
   # This route is public
   $r->get('/')->to(controller => 'MainController', action => 'login_view');
   $r->get('/login')->to(controller => 'MainController', action => 'login_view');
-  $r->post('/login')->to(controller => 'MainController', action => 'user_login');
+  $r->post('/login')->to(controller => 'MainController', action => 'authenticate_user');
   
   # $r->get('/nodes/:node_uuid')->to(controller => 'MainController', action => 'node_view');
   
