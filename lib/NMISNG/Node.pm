@@ -2649,7 +2649,7 @@ sub collect_node_data
 	else
 	{
 		my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_node_data", 
-			section => $section, index => "catchall", catchall_data => $catchall_data);
+			section => "system", index => "catchall", catchall_data => $catchall_data);
 		# return if there is no snmp session
 		return 0 if ( $error_result == 10 );
 	}
@@ -4812,7 +4812,7 @@ sub collect_systemhealth_info
 			else
 			{
 				my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_systemhealth_data", 
-					section => $section, index => $index, catchall_data => $catchall_data);
+					section => $section, index => $index_snmp, catchall_data => $catchall_data);
 				# return if there is no snmp session
 				return 0 if ( $error_result == 10 );
 				next;
@@ -5089,7 +5089,7 @@ sub collect_systemhealth_data
 #  10 if there is no session
 sub handle_sys_get_data_error 
 {
-	my ($self) = @_;
+	my ($self,%args) = @_;
 	my ($S,$caller,$section,$index,$catchall_data) = @args{'sys','caller','section','index','catchall_data'};
 	
 	my $name = $self->name;
