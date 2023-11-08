@@ -5,7 +5,7 @@ use Mojo::Base 'Mojolicious::Controller';
 use Data::Dumper;
 use Compat::NMIS;
 use base 'Mojolicious::Plugin';
-
+use NMISNG::Auth;
   
 #our index route
 sub index {
@@ -25,34 +25,23 @@ sub login_view {
   
 }
 
-
+# authnticate user using nmis auth
 sub user_login {
   my $self = shift;
-  
-  # Hardcoding users for now
-  my %validUsers = ( "nmis" => "************");
 
-  # Get the user name and password from the page
-  my $user = $self->param('username');
-  my $password = $self->param('password');
- 
- 
-  if($validUsers{$user}){
-    if($validUsers{$user} eq $password){
-      $self->session(is_auth => 1);
-      $self->session(username => $user);
-      &index($self);
-    }
-    else{
-      $self->render(template => 'login', error =>'Invalid username or password' ); 
-    }
+  # Get the user name and password from the login page
+  my $usrname = $self->param('username');
+  my $psswd = $self->param('password');
+  
+  
+  my $auth = NMISNG::Auth->new();
+  my $auth_user = $auth->user_verify($usrname, $psswd);
+  if ($auth_user){
+    &index($self);
   }
   else{
        $self->render(template => 'login', error =>'User not found' );
   }
-
-
-  
 }
 
 sub nodes_view {
@@ -77,6 +66,7 @@ sub nodes_view {
 # }
 
 sub render_not_found {
+  my $self = shift;
   $self->render(template => 'not_found');
 }
 1;
