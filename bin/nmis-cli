@@ -343,9 +343,24 @@ my $nmisng = NMISNG->new(
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
+if ($Q->{act} =~ /^decrypt[-_]password$/)
+{
+	my $password = $Q->{"password"};
+	die "Passsord argument not supplied!" if(!$password);
+	my $decryptedPass = NMISNG::Util::decrypt($password);
+	print("$decryptedPass\n");
+}
+elsif ($Q->{act} =~ /^encrypt[-_]password$/)
+{
+	my $password = $Q->{"password"};
+	die "Passsord argument not supplied!" if(!$password);
+	my $encryptedPass = NMISNG::Util::encrypt($password, '', '', 1);;
+	print("$encryptedPass\n");
+}
+# Enable Encryption of Secrets
 # Check if EOS is available.
 # returns 1 if EOS is available 0 if not.
-if ($Q->{act} =~ /^is[-_]eos[-_]available$/)
+elsif ($Q->{act} =~ /^is[-_]eos[-_]available$/)
 {
     exit(NMISNG::Util::isEOSAvailable());
 }
