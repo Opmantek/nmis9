@@ -1,0 +1,219 @@
+/*VERSION=1.121.0*/
+/*Remove the conatiner max-width after we replace the container classes with container-fluid*/
+.container {
+    max-width: 100%;
+  }
+  
+  .login-logo {
+      max-width: 4em;
+      display: block;
+      margin: 0 auto;
+      padding-bottom: 0.5em;
+    }
+  
+  #login-form {
+     font-size: 14px;
+  }
+  
+  .btn-login {
+    color: #FFF;
+    background: #1F284F;
+    border-color: #1F284F;
+  }
+  
+  body {
+    background-color: #f9f9f9;
+    color: #16325c;
+  }
+  
+  .app_block{
+    height: 100%;
+  }
+  
+  .appname-header{
+    margin-bottom:10px;
+    /* background-color: #DDD;
+    color: #16325c; */
+  }
+  
+  .appname-header h4{
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  
+  .appname-header .logo{
+    width:28px;
+    height: 100%;
+    max-height: 28px;
+    margin-right: 10px;
+  }
+  
+  .version-message > div{
+    font-size: 13px;
+  }
+  
+  .version-message {
+    border-top: 1px solid rgba(221, 221, 221,0.5);
+    padding-top: 15px;
+  }
+  
+  .green {
+    background-color: #59cf59;
+    color: black;
+  }
+  
+  .second-nav {
+    /* Base: */
+      /* background: #FFFFFF; */
+      box-shadow: 0px 1px 4px 0px #ddd;
+      margin-bottom:15px;
+      /* color: #354052; */
+      padding-left:15px;
+      size: 14px;
+    }
+    
+    /* .second-nav h4{
+      color: #354052;
+    } */
+  /*This class was dropped in Bootstrap 5 and hence added here*/
+    .pre-scrollable {
+      max-height: 340px;
+      overflow-y: scroll;
+      padding: 9.5px;
+    }
+  
+    .op-footer{
+      bottom: 0;
+      width: 100%;
+      margin-top: 25px;
+      background-color: transparent;
+      border-top: 1px solid #ddd;
+      color: #b1aeae;
+      margin-bottom: 0px !important;
+      border-bottom: none;
+      border-left: none;
+      border-right: none;
+      border-radius: 0px;
+      margin-top: auto !important;
+    }
+  
+    .icon-cell > img{
+      max-height: 25px;
+      padding-right: 15px;
+    }
+  
+    .opmantek-grid-topper{
+      padding: 10px 10px 10px 0px;
+      background-color: white;
+      display: flex;
+    }
+    
+    .opmantek-grid-topper > .left-col{
+      flex:1 1 auto;
+    }
+    .opmantek-grid-topper > .right-col{
+      flex:1 1 auto;
+    }
+  
+    .label,
+    .backgrid td.uri-cell,
+    .backgrid td.string-cell {
+      white-space: normal;
+      word-break: break-word; 
+    }
+  
+    .degraded, .Error, .Minor, .Warning,
+    table.dataTable tbody tr.Error,
+    table.dataTable tbody tr.Minor,
+    table.dataTable tbody tr.Warning {
+      background-color: #ffd700;
+      color: black; 
+    }
+  
+    .reachable, .Normal, .up, .ok,
+    table.dataTable tbody tr.Normal {
+      background-color: #59cf59;
+      color: black;
+    }
+  
+    .btn-group-xs > .btn, .btn-xs {
+      padding: .25rem .4rem;
+      font-size: .875rem;
+      line-height: .5;
+      border-radius: .2rem;
+    }
+  
+    /* .select2-container--bootstrap {
+      width: auto;
+      flex: 1 1 auto;
+    } */
+    
+    /* .select2-container--bootstrap .select2-selection--single {
+      height: 100%;
+      line-height: inherit;
+      padding: 0.5rem 1rem;
+    }  */
+  
+    .input-group .select2-container--bootstrap {
+      /* width:initial !important; */
+      width: auto !important;
+      flex: 1 1 auto;
+    }
+  
+    /* Fix me: when opened in modal, the select2 conatiner opens behind the modal-body. Possibly because its parent is html body and not modal. For quick fix the z-index is set to 10000 */
+    .select2-container--bootstrap.select2-container--open {
+      z-index: 2000;
+    }
+  
+    .panel-success > .panel-heading {
+      color: #3c763d;
+      background-color: #dff0d8;
+      border-color: #d6e9c6;
+    }
+  
+    .panel-warning > .panel-heading {
+      color: #8a6d3b;
+      background-color: #fcf8e3;
+      border-color: #faebcc;
+    }
+  
+    .panel-danger > .panel-heading {
+      color: #a94442;
+      background-color: #f2dede;
+      border-color: #ebccd1;
+    }
+  
+    .dropdown-li #opEvent-filter-item {
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .v-select {
+      min-width: 95%;
+    }
+  
+    .popover {
+      color: #aca9a9; 
+    }
+  
+    .uri-button-group {
+      color: #222;
+    }
+    .edit-text-truncate {
+      white-space: nowrap; 
+      width: 150px; 
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  
+    #cell-filter-btn {
+      cursor: pointer;
+    }
+  /* 
+    .select2-selection {
+      border-color: #515151 !important;
+    } */
+  
+  
+  
+  
