@@ -4,9 +4,11 @@
       <li class="nav-item">
         <a class="nav-link"  href="cgi-nmis9/nmiscgi.pl" target="_blank" title="nmis">NMIS9</a>
       </li>
-      <li class="nav-item">
-        <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes</a>
-      </li>
+     
+        <li class="nav-item">
+          <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes</a>
+        </li>
+     
       <li class="nav-item dropdown">
         <!-- http://artemis.opmantek.net:8080/cgi-nmis9/nmiscgi.pl -->
         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">

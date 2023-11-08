@@ -4,7 +4,9 @@ use Mojo::Base 'Mojolicious::Controller';
 
 use Data::Dumper;
 use Compat::NMIS;
+use base 'Mojolicious::Plugin';
 
+  
 #our index route
 sub index {
   my $self = shift;
@@ -14,36 +16,44 @@ sub index {
 
 sub login_view {
   my $self = shift;
-  $self->render(template => 'login');
+  if($self->session('is_auth')){
+    &index($self);
+  }
+  else{
+    $self->render(template => 'login');
+  }
+  
 }
 
 
-sub valid_user_check{
+sub user_login {
   my $self = shift;
+  
+  # Hardcoding users for now
+  my %validUsers = ( "nmis" => "************");
 
-    # Hardcoding users for now
-    my %validUsers = ( "nmis" => "##########");
-
-    # Get the user name and password from the page
-    my $user = $self->param('username');
-    my $password = $self->param('password');
-
-    if($validUsers{$user}){
-      if($validUsers{$user} eq $password){
-        $self->session(is_auth => 1);
-        $self->session(username => $user);
-        &index($self);
-      }
-      else{
-        $self->render(template => 'login', error =>'Invalid username or password' ); 
-      }
+  # Get the user name and password from the page
+  my $user = $self->param('username');
+  my $password = $self->param('password');
+ 
+ 
+  if($validUsers{$user}){
+    if($validUsers{$user} eq $password){
+      $self->session(is_auth => 1);
+      $self->session(username => $user);
+      &index($self);
     }
     else{
-        $self->render(template => 'login', error =>'User not found' );
+      $self->render(template => 'login', error =>'Invalid username or password' ); 
     }
+  }
+  else{
+       $self->render(template => 'login', error =>'User not found' );
+  }
 
+
+  
 }
-
 
 sub nodes_view {
   my $self = shift;
@@ -55,18 +65,16 @@ sub nodes_view {
   $self->render(template => 'nodes');
 }
 
-sub node_view {
-  my $self = shift;
-  my $node_name   = $self->param('node_name');
+# sub node_view {
+#   my $self = shift;
+#  my $node_uuid   = $self->param('node_uuid');
+#   # send the default list of all nodes
   
-  # send the default list of all nodes
-  
-  #$self->cgi("cgi-nmis9/network.pl?act=network_node_view&node=$node_name");
-  #$self->render(template => 'node', node_name => $node_name);
-  #   my @keys = keys %$NT;
-  #   $self->stash ( 'keys' => \@keys );
-  #   $self->render(template => 'node');
-}
+#   $self->render(template => 'node', UUID => $node_uuid);
+# #   my @keys = keys %$NT;
+# #   $self->stash ( 'keys' => \@keys );
+# #   $self->render(template => 'node');
+# }
 
 sub render_not_found {
   $self->render(template => 'not_found');

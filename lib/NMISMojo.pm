@@ -37,9 +37,8 @@ sub startup {
   $self->plugin(CGI => [ "$url_base/tables.pl" => "/usr/local/nmis9/cgi-bin/tables.pl" ]);
   $self->plugin(CGI => [ "$url_base/tools.pl" => "/usr/local/nmis9/cgi-bin/tools.pl" ]);
   $self->plugin(CGI => [ "$url_base/view-event.pl" => "/usr/local/nmis9/cgi-bin/view-event.pl" ]);
-  
 
-  # $self->plugin('RenderCGI');
+
   #serve cgi nmis9 assets
   $r->any('/menu9/:type/*whatever' => sub {
     my $c = shift;
@@ -83,10 +82,15 @@ sub startup {
   });
 
   # migrated routes
+  # This route is public
   $r->get('/')->to(controller => 'MainController', action => 'login_view');
   $r->get('/login')->to(controller => 'MainController', action => 'login_view');
-  $r->post('/login')->to(controller => 'MainController', action => 'valid_user_check');
+  $r->post('/login')->to(controller => 'MainController', action => 'user_login');
+  
+  # $r->get('/nodes/:node_uuid')->to(controller => 'MainController', action => 'node_view');
+  
   $r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
-  # $r->get('/nodes/:node_name')->to(controller => 'MainController', action => 'node_view');
+
+  
 }
 1;

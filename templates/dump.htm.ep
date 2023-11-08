@@ -1,0 +1,9 @@
+<%
+  my $candosso = stash ('candosso');
+%>
+
+%if ($error) {
+    <div style = "color: red">
+      <%= $error%>
+    </div>
+  %}
