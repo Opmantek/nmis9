@@ -8,6 +8,9 @@
         <li class="nav-item">
           <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes</a>
         </li>
+                <li class="nav-item">
+          <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes Test</a>
+        </li>
      
       <li class="nav-item dropdown">
         <!-- http://artemis.opmantek.net:8080/cgi-nmis9/nmiscgi.pl -->

@@ -25,8 +25,8 @@ sub login_view {
   
 }
 
-# authnticate user using nmis auth
-sub user_login {
+# authenticate user using nmis auth
+sub authenticate_user {
   my $self = shift;
 
   # Get the user name and password from the login page
@@ -40,7 +40,7 @@ sub user_login {
     &index($self);
   }
   else{
-       $self->render(template => 'login', error =>'User not found' );
+      $self->render(template => 'login', error =>'Invalid username/password combination' );
   }
 }
 
