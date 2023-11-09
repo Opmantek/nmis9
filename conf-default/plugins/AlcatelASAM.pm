@@ -227,23 +227,25 @@ sub update_plugin
 	}
 
 	$intfTotal = 0;
-	$intfInfo->{index}         = "Index";
-	$intfInfo->{interface}     = "Interface Name";
-	$intfInfo->{ifIndex}       = "Interface Index";
-	$intfInfo->{ifName}        = "Interface Internal Name";
-	$intfInfo->{Description}   = "Interface Description";
-	$intfInfo->{ifDesc}        = "Interface Internal Description";
-	$intfInfo->{ifType}        = "Interface Type";
-	$intfInfo->{ifSpeed}       = "Interface Speed";
-	$intfInfo->{ifSpeedIn}     = "Interface Speed In";
-	$intfInfo->{ifSpeedOut}    = "Interface Speed Out";
-	$intfInfo->{ifAdminStatus} = "Interface Administrative State";
-	$intfInfo->{ifOperStatus}  = "Interface Operational State";
-	$intfInfo->{ifLastChange}  = "Interface Last Change";
-	$intfInfo->{setlimits}     = "Interface Set Limnits";
-	$intfInfo->{collect}       = "Interface Collection Status";
-	$intfInfo->{event}         = "Interface Event Status";
-	$intfInfo->{threshold}     = "Interface Threshold Status";
+	$intfInfo = [
+		{ index         => "Index" },
+		{ interface     => "Interface Name" },
+		{ ifIndex       => "Interface Index" },
+		{ ifName        => "Interface Internal Name" },
+		{ Description   => "Interface Description" },
+		{ ifDesc        => "Interface Internal Description" },
+		{ ifType        => "Interface Type" },
+		{ ifSpeed       => "Interface Speed" },
+		{ ifSpeedIn     => "Interface Speed In" },
+		{ ifSpeedOut    => "Interface Speed Out" },
+		{ ifAdminStatus => "Interface Administrative State" },
+		{ ifOperStatus  => "Interface Operational State" },
+		{ ifLastChange  => "Interface Last Change" },
+		{ setlimits     => "Interface Set Limnits" },
+		{ collect       => "Interface Collection Status" },
+		{ event         => "Interface Event Status" },
+		{ threshold     => "Interface Threshold Status" }
+	];
 
 	my $ifTableData = $S->nmisng_node->get_inventory_ids(
 		concept => "ifTable",
@@ -273,14 +275,7 @@ sub update_plugin
 			$intfData->{$eachIfIndex}->{ifOperStatus}      = $ifData->{ifOperStatus};
 			$intfData->{$eachIfIndex}->{ifLastChange}      = $ifData->{ifLastChange};
 			$intfData->{$eachIfIndex}->{setlimits}         = $NI->{interface}->{$eachIfIndex}->{setlimits} // "normal";
-			if ($ignoreAvaibleInterfaces)
-			{
-				$intfData->{$eachIfIndex}->{collect}       = ($eachIfAdminStatus eq "up" && $eachIfDescription ne "available") ? "true" : "false";
-			}
-			else
-			{
-				$intfData->{$eachIfIndex}->{collect}       = $eachIfAdminStatus eq "up" ? "true" : "false";
-			}
+			$intfData->{$eachIfIndex}->{collect}           = $eachIfAdminStatus eq "up" ? "true" : "false";
 			$intfData->{$eachIfIndex}->{event}             = $eachIfAdminStatus eq "up" ? "true" : "false";
 			$intfData->{$eachIfIndex}->{threshold}         = $eachIfAdminStatus eq "up" ? "true" : "false";
 			# check for duplicated ifDescr
@@ -291,6 +286,7 @@ sub update_plugin
 					$NG->log->debug2("Index added to duplicate Interface Description '$eachIfDescription'");
 				}
 			}
+			$NG->log->debug5("Interface Index:        '$eachIfIndex'");
 			$NG->log->debug5("Interface Name:         '$ifData->{ifName}'");
 			$NG->log->debug5("Interface Description:  '$ifData->{ifDescr}'");
 			$NG->log->debug5("Interface Type:         '$ifData->{ifType}'");
@@ -321,6 +317,10 @@ sub update_plugin
 			$NG->log->debug5("Interface Index:        '$eachIfIndex'");
 			$NG->log->debug5("Customer ID:            '$eachCustomerId'");
 			if ( defined $intfData->{$eachIfIndex} ) {
+				if ($ignoreAvaibleInterfaces)
+				{
+					$intfData->{$eachIfIndex}->{collect}       = ($intfData->{$eachIfIndex}->{ifAdminStatus} eq "up" && $eachCustomerId ne "available") ? "true" : "false";
+				}
 				$customerData->{ifDescr}       = $intfData->{$eachIfIndex}->{ifDescr};
 				$customerData->{ifAdminStatus} = $intfData->{$eachIfIndex}->{ifAdminStatus};
 				$customerData->{ifOperStatus}  = $intfData->{$eachIfIndex}->{ifOperStatus};
