@@ -26,6 +26,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+## KS notes 2023-11-06: Move RouteNumber and TopChanges out of Node health
 
 %hash = (
   '-common-' => {
@@ -566,10 +567,12 @@
             #'oid' => 'ciscoMemoryPoolUsed.1'
           },
           'TopChanges' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'dot1dStpTopChanges',
             'option' => 'counter,0:U'
           },
           'RouteNumber' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'inetCidrRouteNumber'
           },
           'avgBusy1' => {
@@ -583,6 +586,23 @@
         },
         'threshold' => 'cpu,mem-proc'
       },
+      #'RouteNumber' => {
+      #  'graphtype' => 'routenumber',
+      #  'snmp' => {
+      #    'RouteNumber' => {
+      #      'oid' => 'ipCidrRouteNumber'
+      #    },
+      #  },
+      #},
+      #'TopologyChanges' => {
+      #  'graphtype' => 'topo',
+      #  'snmp' => {
+      #    'TopChanges' => {
+      #      'oid' => 'dot1dStpTopChanges',
+      #      'option' => 'counter,0:U'
+      #    },
+      #  },
+      #},
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {

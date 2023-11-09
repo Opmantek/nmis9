@@ -27,6 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+## KS notes 2023-11-06: Original Cisco ASR model, replaced with ASR1000 and IOSXR, model should be deprecated soon.
 
 %hash = (
   '-common-' => {

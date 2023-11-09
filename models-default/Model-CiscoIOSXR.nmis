@@ -26,6 +26,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+## KS notes 2023-11-06: Move RouteNumber out of Node health.
 
 %hash = (
   '-common-' => {
@@ -102,12 +103,21 @@
             #'oid' => 'ciscoMemoryPoolFree.1'
   				},
           'RouteNumber' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'ipCidrRouteNumber'
           }			
         },
   			'threshold' => 'cpu,mem-proc',
   			'graphtype' => 'cpu,mem-proc,routenumber'
   		},
+      #'RouteNumber' => {
+      #  'graphtype' => 'routenumber',
+      #  'snmp' => {
+      #    'RouteNumber' => {
+      #      'oid' => 'ipCidrRouteNumber'
+      #    },
+      #  },
+      #},
       'mib2ip' => {
         'snmp' => {
           'ipInAddrErrors' => {

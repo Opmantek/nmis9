@@ -2575,13 +2575,13 @@ sub collect_node_data
 		my %subconcepts;
 		
 		$self->process_alerts( sys => $S );
-		foreach my $sect ( keys %{$rrdData} )
+		foreach my $section ( keys %{$rrdData} )
 		{
-			$subconcepts{$sect} = 1; # Remove non existing subconcepts from catchall
-			my $D = $rrdData->{$sect};
+			$subconcepts{$section} = 1; # Remove non existing subconcepts from catchall
+			my $D = $rrdData->{$section};
 			
 			# massage some nodehealth values
-			if ($sect eq "nodehealth")
+			if ($section eq "nodehealth")
 			{
 				# take care of negative values from 6509 MSCF
 				if ( exists $D->{bufferElHit} and $D->{bufferElHit}{value} < 0 )
@@ -2607,24 +2607,24 @@ sub collect_node_data
 
 			foreach my $ds ( keys %{$D} )
 			{
-				$self->nmisng->log->debug2("rrdData, section=$sect, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}");
+				$self->nmisng->log->debug2("rrdData, section=$section, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}");
 			}
-			my $db = $S->create_update_rrd( inventory => $inventory, data => $D, type => $sect );
+			my $db = $S->create_update_rrd( inventory => $inventory, data => $D, type => $section );
 			if ($db)
 			{
 				my $target = {};
-				NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $sect );
-				my $period = $self->nmisng->_threshold_period( subconcept => $sect );
+				NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $section );
+				my $period = $self->nmisng->_threshold_period( subconcept => $section );
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
-															subconcept => $sect, start => $period, end => time,
+															subconcept => $section, start => $period, end => time,
 															conf => $self->nmisng->config);
 				if (ref($stats) ne "HASH")
 				{
 					$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
-																	 .", subconcept $sect failed: $stats");
+																	 .", subconcept $section failed: $stats");
 					$stats = {};
 				}
-				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section,
 																								time => $catchall_data->{last_poll}, delay_insert => 1 );
 				$self->nmisng->log->error("timed data adding for ". $inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
 			}		
@@ -2648,12 +2648,10 @@ sub collect_node_data
 	elsif ($howdiditgo->{skipped}) {}
 	else
 	{
-		$self->nmisng->log->error("($catchall_data->{name}), Ignoring entry: collect_node_data encountered error $anyerror");
-		$self->handle_down( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
-			if ( $howdiditgo->{snmp_error} );
-		$self->handle_down( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
-				if ( $howdiditgo->{wmi_error} );
-		next;  # OMK-10384 - Node.pm simply returns if any OID is not found. It should simply generate an error message and skip to the next OID.
+		my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_node_data", 
+			section => $section, index => "catchall", catchall_data => $catchall_data);
+		# return if there is no snmp session
+		return 0 if ( $error_result == 10 );
 	}
 	$self->nmisng->log->debug("Finished with collect_node_data");
 	return 1;
@@ -3420,6 +3418,7 @@ sub update_intf_info
 					$self->nmisng->log->error("Failed to create interface inventory, for duplicated ifDescr with historic index - error:$error_message") && next if ( !$inventory );
 					$self->nmisng->log->debug("Created new inventory for ifIndex $index");
 				}
+				# set data before recalculate
 				$inventory->data( $target );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				# for a new object this must happen AFTER data is set
@@ -3752,8 +3751,8 @@ sub collect_intf_data
 
 		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
 
-		# new interface, no inventory yet?
-		if (!$thisif->{_id})
+		# new interface, or existing interface which is historic, no current inventory yet?
+		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
 			$self->nmisng->log->info("Interface $index is new, needs update");
 			$thisif->{_needs_update} = 1;
@@ -3832,7 +3831,7 @@ sub collect_intf_data
 			next;
 		}
 		# ...which MAY be different from the one we've got in the if_data_map
-		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id})
+		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
 			$self->nmisng->log->debug2("Interface index $needsmust "
 																 .(defined($thisif->{_id})? "has changed substantially" : "is new")
@@ -3851,6 +3850,7 @@ sub collect_intf_data
 		}
 		else
 		{
+			$self->nmisng->log->debug2("Interface index $needsmust was updated");
 			# just mark this interface as updated
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
@@ -4722,9 +4722,10 @@ sub collect_systemhealth_info
 						create    => 1
 					);
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+					# set data before recalculate
+					$inventory->data($target);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
-					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -4810,6 +4811,12 @@ sub collect_systemhealth_info
 			}
 			else
 			{
+				my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_systemhealth_data", 
+					section => $section, index => $index, catchall_data => $catchall_data);
+				# return if there is no snmp session
+				return 0 if ( $error_result == 10 );
+				next;
+
 				if ( $SNMP->error =~ /is empty or does not exist/ )
 				{
 					$self->nmisng->log->debug2( "SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: "
@@ -4871,9 +4878,10 @@ sub collect_systemhealth_info
 						create    => 1
 					);
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+					# set data before recalculate
+					$inventory->data($target);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
-					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -5060,18 +5068,68 @@ sub collect_systemhealth_data
 			elsif( $howdiditgo->{skipped} ) {}
 			else
 			{
-				$self->nmisng->log->error("($name) collect_systemhealth_data for section $section and index $index encountered $anyerror");
-				$self->handle_down( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
-					if ( $howdiditgo->{snmp_error} );
-				$self->handle_down( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
-					if ( $howdiditgo->{wmi_error} );
-
-				return 0;
+				my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_systemhealth_data", 
+					section => $section, index => $index, catchall_data => $catchall_data);
+				# return if there is no snmp session
+				return 0 if ( $error_result == 10 );
+				next;
 			}
 		}
 	}
 	$self->nmisng->log->debug("Finished with collect_systemhealth_data");
 	return 1;
+}
+
+# handle all the different errors/issues that can come from calling $sys->getData
+# returns 
+#  1 for requested thing doesn't exist
+#  2 for model error / incorrect syntax
+# These call snmp/wmi down which degrades the node status
+#  4 
+#  10 if there is no session
+sub handle_sys_get_data_error 
+{
+	my ($self) = @_;
+	my ($S,$caller,$section,$index,$catchall_data) = @args{'sys','caller','section','index','catchall_data'};
+	
+	my $name = $self->name;
+	my $SNMP = $S->snmp;
+	my $howdiditgo = $S->status;
+	my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+
+	my $message = "$($name) $caller for section:$section ";
+	$message .= "index: $index " if($index);
+
+	# handle some errors without making node down
+	if ( $SNMP->error =~ /is empty or does not exist/ )
+	{
+		$self->nmisng->log->warn( "$message SNMP Object Not Present, error: ". $SNMP->error );
+		return 1;
+	}
+	elsif( $SNMP->error =~ /incorrect syntax/ )
+	{
+		# error converting the name to an OID shouldn't trigger SNMP Down
+		$self->nmisng->log->error( "$message Model Error, error: " . $SNMP->error );
+		return 2;
+	}
+	else
+	{
+		$self->nmisng->log->error("$message model: $catchall_data->{nodeModel}, error: $anyerror");
+		$self->handle_down( sys => $S, type => "snmp", details => "$caller, $section, error: $howdiditgo->{snmp_error}" )
+			if ( $howdiditgo->{snmp_error} );
+		$self->handle_down( sys => $S, type => "wmi", details => "$caller, $section error: $howdiditgo->{wmi_error}" )
+			if ( $howdiditgo->{wmi_error} );
+
+		# if there is no session do not try and continue
+		if ( $SNMP->error =~ /No session open/ ) {
+			$self->nmisng->log->info("$message No session, stopping attempts to collect more");
+			return 10;
+		} else {
+			return 4;
+		}
+	}
+	# never gets here
+	return 0;
 }
 
 ### Class Based Qos handling
@@ -5483,10 +5541,11 @@ sub collect_cbqos_info
 
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 
+					# set data before recalculate
+					$inventory->data($data);
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
 					$inventory->description("$if_data->{ifDescr} - CBQoS $direction");
-					$inventory->data($data);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -5674,13 +5733,11 @@ sub collect_cbqos_data
 				}
 				else
 				{
-					$self->nmisng->log->error("($S->{name}) getCBQoSdata encountered $anyerror");
-					$self->handle_down( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
-						if ( $howdiditgo->{snmp_error} );
-					$self->handle_down( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
-							if ( $howdiditgo->{wmi_error} );
-
-					return 0;
+					my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "getCBQoSdata", 
+					section => "ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex", index => $intf, catchall_data => $catchall_data);
+					# return if there is no snmp session
+					return 0 if ( $error_result == 10 );
+					next;
 				}
 			}
 			# saving is required bacause create_update_rrd can change inventory, setting data not done because
@@ -7764,9 +7821,11 @@ sub collect_services
 				{
 					$ret = 0;
 					$self->nmisng->log->error("Unable to lookup $lookfor on DNS server $catchall_data->{host}");
+					$status{status_text} = "Unable to lookup $lookfor on DNS server $catchall_data->{host}";
 				}
 				else
 				{
+					$status{status_text} = "DNS data for $lookfor from $catchall_data->{host} was " . $packet->string;
 					$ret = 1;
 					$self->nmisng->log->debug3("DNS data for $lookfor from $catchall_data->{host} was " . $packet->string );
 				}
@@ -7820,10 +7879,12 @@ sub collect_services
 				if ( $msg =~ /Ports: $port\/open/ )
 				{
 					$ret = 1;
+					$status{status_text} = "NMAP reported success for port $port";
 					$self->nmisng->log->debug("NMAP reported success for port $port: $msg");
 				}
 				else
 				{
+					$status{status_text} = "NMAP reported failure for port $port";
 					$ret = 0;
 					$self->nmisng->log->debug("NMAP reported failure for port $port: $msg");
 				}
@@ -7881,7 +7942,7 @@ sub collect_services
 					$cpu       = 0;
 					$memory    = 0;
 					$gotMemCpu = 1;
-
+					$status{status_text} = "Service $name is down,". ( @matchingprocs? "only non-running processes" : "no matching processes" );					
 					$self->nmisng->log->info("service $name is down, "
 																	 . ( @matchingprocs? "only non-running processes" : "no matching processes" ));
 				}
@@ -7895,7 +7956,7 @@ sub collect_services
 					# memory is in kb, and a gauge.
 					$cpu = int( Statistics::Lite::mean( map { $_->{hrSWRunPerfCPU} } (@livingprocs) ) );
 					$memory = Statistics::Lite::mean( map { $_->{hrSWRunPerfMem} } (@livingprocs) );
-
+					$status{status_text} = "Service $name is up, " . scalar(@livingprocs) . " running process(es)";					
 					$self->nmisng->log->info("service $name is up, " . scalar(@livingprocs) . " running process(es)");
 				}
 			}
@@ -7924,6 +7985,7 @@ sub collect_services
 				my $timeout = ( $thisservice->{Max_Runtime} > 0 ) ? $thisservice->{Max_Runtime} : 3;
 
 				( $ret, $msg ) = NMISNG::Sapi::sapi( $catchall_data->{host}, $thisservice->{Port}, $scripttext, $timeout );
+				$status{status_text} = "Results of $service is $ret";
 				$self->nmisng->log->debug("Results of $service is $ret, msg is $msg");
 			}
 		}
@@ -7983,6 +8045,7 @@ sub collect_services
 					if ( !$pid )
 					{
 						alarm(0) if ($svcruntime);       # cancel any timeout
+						$status{status_text} = "cannot start service program $svc->{Program}: $!";
 						$self->nmisng->log->error("cannot start service program $svc->{Program}: $!");
 					}
 					else
@@ -8000,6 +8063,7 @@ sub collect_services
 							open( UNWANTED, $stderrsink );
 							my $badstuff = join( "", <UNWANTED> );
 							chomp($badstuff);
+							$status{status_text} = "Service program $svc->{Program} returned unexpected error output";
 							$self->nmisng->log->warn("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
 							close(UNWANTED);
 						}
