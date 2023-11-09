@@ -62,7 +62,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 
 elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 		MGR=APT
-		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
+		PKGLIST="build-essential traceroute apache2 rrdtool apache2-utils logrotate \
 		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus \
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
