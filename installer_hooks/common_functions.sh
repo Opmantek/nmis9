@@ -74,6 +74,22 @@ check_set_strict_sh;
 #	echo 'general setting: IFS="\\n\\t\"';
 #fi;
 
+# Decrypt a password.
+decrypt_password()
+{
+    PWD="$1"
+    DECR_PWD=`$NMIS9DIR/bin/nmis-cli act=decrypt-password password="$PWD";`
+    echo "$DECR_PWD"
+}
+
+# Encrypt a password.
+encrypt_password()
+{
+    PWD="$1"
+    ENCR_PWD=`$NMIS9DIR/bin/nmis-cli act=encrypt-password password="$PWD";`
+    echo "$ENCR_PWD"
+}
+
 # generate a line using repeating character
 # $1 is the number of times to repeat
 # $2 is the character to repeat (default to =)
