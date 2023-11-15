@@ -310,22 +310,18 @@
             # plugin ciscoMemory.pm normalises relevant object and updates this metric
             #'oid' => 'ciscoMemoryPoolFree.1'
   				},
-          'RouteNumber' => {
-            'comment' => 'this will be deprecated from nodehealth',
-            'oid' => 'ipCidrRouteNumber'
-          }			
         },
   			'threshold' => 'cpu,mem-proc',
-  			'graphtype' => 'cpu,mem-proc,routenumber'
+  			'graphtype' => 'cpu,mem-proc'
   		},
-      #'RouteNumber' => {
-      #  'graphtype' => 'routenumber',
-      #  'snmp' => {
-      #    'RouteNumber' => {
-      #      'oid' => 'ipCidrRouteNumber'
-      #    },
-      #  },
-      #},
+      'RouteNumber' => {
+        'graphtype' => 'routenumber',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
+        },
+      },
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
