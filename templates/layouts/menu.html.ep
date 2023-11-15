@@ -8,9 +8,7 @@
         <li class="nav-item">
           <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes</a>
         </li>
-                <li class="nav-item">
-          <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes Test</a>
-        </li>
+        
      
       <li class="nav-item dropdown">
         <!-- http://artemis.opmantek.net:8080/cgi-nmis9/nmiscgi.pl -->
@@ -41,6 +39,9 @@
           <li><%= link_to 'All Groups' => 'network.pl?refresh=180&act=network_summary_allgroups', class => 'dropdown-item', id => 'ntw_overview' %></li>
           <!-- Repeat for each menu item -->
         </ul>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link"  href="/logout" target="_blank" title="logout">logout</a>
       </li>
       <!-- Add more nav items as needed -->
     </ul>

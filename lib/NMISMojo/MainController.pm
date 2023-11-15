@@ -6,7 +6,11 @@ use Data::Dumper;
 use Compat::NMIS;
 use base 'Mojolicious::Plugin';
 use NMISNG::Auth;
-  
+use NMISNG::Util;
+use NMISNG;
+use NMISNG::Log;
+
+
 #our index route
 sub index {
   my $self = shift;
@@ -16,32 +20,49 @@ sub index {
 
 sub login_view {
   my $self = shift;
-  if($self->session('is_auth')){
-    &index($self);
-  }
-  else{
-    $self->render(template => 'login');
-  }
-  
+  $self->render(template => 'login');
 }
 
 # authenticate user using nmis auth
 sub authenticate_user {
   my $self = shift;
-
+  #print "self are ".Dumper($self);
   # Get the user name and password from the login page
   my $usrname = $self->param('username');
   my $psswd = $self->param('password');
   
+
+  my $C     = NMISNG::Util::loadConfTable();
+  my $logfile = $C->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
+  my $logger  = NMISNG::Log->new(
+    path => $logfile,
+  );
+  my $this_function = (caller(0))[3];
+  $logger->info("$this_function");
+
+  my $auth_user = $self->authenticate($usrname, $psswd);
   
-  my $auth = NMISNG::Auth->new();
-  my $auth_user = $auth->user_verify($usrname, $psswd);
   if ($auth_user){
-    &index($self);
+    $self->render(template => 'index',);
   }
   else{
       $self->render(template => 'login', error =>'Invalid username/password combination' );
-  }
+  } 
+
+
+
+
+
+  #$self->render(template => 'login', error =>$auth_key );
+  #&index($self);
+  # my $auth = NMISNG::Auth->new();
+  # my $auth_user = $auth->user_verify($usrname, $psswd);
+  # if ($auth_user){
+  #   &index($self);
+  # }
+  # else{
+  #     $self->render(template => 'login', error =>'Invalid username/password combination' );
+  # }
 }
 
 sub nodes_view {
@@ -69,4 +90,11 @@ sub render_not_found {
   my $self = shift;
   $self->render(template => 'not_found');
 }
+
+
+sub logout {
+  my $self = shift;
+  $self->session(expires => 1);
+  $self->redirect_to('/');
+};
 1;
