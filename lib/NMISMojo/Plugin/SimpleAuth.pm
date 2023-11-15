@@ -1,36 +1,32 @@
 #
-# THIS SOFTWARE IS NOT PART OF NMIS AND IS COPYRIGHTED, PROTECTED AND LICENSED
-# BY OPMANTEK.
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
-# YOU MUST NOT MODIFY OR DISTRIBUTE THIS CODE
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
-# This code is NOT Open Source
+#  This file is part of Network Management Information System (“NMIS”).
 #
-# IT IS IMPORTANT THAT YOU HAVE READ CAREFULLY AND UNDERSTOOD THE END USER
-# LICENSE AGREEMENT THAT WAS SUPPLIED WITH THIS SOFTWARE.   BY USING THE
-# SOFTWARE  YOU ACKNOWLEDGE THAT (1) YOU HAVE READ AND REVIEWED THE LICENSE
-# AGREEMENT IN ITS ENTIRETY, (2) YOU AGREE TO BE BOUND BY THE AGREEMENT, (3)
-# THE INDIVIDUAL USING THE SOFTWARE HAS THE POWER, AUTHORITY AND LEGAL RIGHT
-# TO ENTER INTO THIS AGREEMENT ON BEHALF OF YOU (AS AN INDIVIDUAL IF ON YOUR
-# OWN BEHALF OR FOR THE ENTITY THAT EMPLOYS YOU )) AND, (4) BY SUCH USE, THIS
-# AGREEMENT CONSTITUTES BINDING AND ENFORCEABLE OBLIGATION BETWEEN YOU AND
-# OPMANTEK LTD.
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
 #
-# Opmantek is a passionate, committed open source software company - we really
-# are.  This particular piece of code was taken from a commercial module and
-# thus we can't legally supply under GPL. It is supplied in good faith as
-# source code so you can get more out of NMIS.  According to the license
-# agreement you can not modify or distribute this code, but please let us know
-# if you want to and we will certainly help -  in most cases just by emailing
-# you a different agreement that better suits what you want to do but covers
-# Opmantek legally too.
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
 #
-# contact opmantek by emailing code@opmantek.com
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
 #
-# All licenses for all software obtained from Opmantek (GPL and commercial)
-# are viewable at http://opmantek.com/licensing
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+
 package NMISMojo::Plugin::SimpleAuth;
 
 # BEGIN {
@@ -64,13 +60,6 @@ sub register
     );
 	my $this_function = (caller(0))[3];
 	$logger->info("$this_function");
-	open OFILEDUMP,">/tmp/SimpleAuth.txt";
-	# print OFILEDUMP Dumper("plugin\n");
-	# print OFILEDUMP Dumper($plugin);
-	#print OFILEDUMP Dumper("app\n");
-	#print OFILEDUMP Dumper($app);
-	#print OFILEDUMP Dumper("config\n");
-	#print OFILEDUMP Dumper($config);
 	
 	my $session_key = 'auth_data'; # for Mojolicious::Plugin::Authentication
 
@@ -94,13 +83,7 @@ sub register
 
 	my $user_extras = 'omkd_extras';
 	$plugin->{AU} = NMISNG::Auth->new();
-    
-	#$plugin->{AU}->{log} = $logger;
-    #$plugin->{AU} = NMISNG::Log->new(path => $logfile);
-	# print OFILEDUMP Dumper("logger 100\n");
-	# print OFILEDUMP Dumper($logger);
-	# print OFILEDUMP Dumper("plugin 102\n");
-	# print OFILEDUMP Dumper($plugin);
+	
 	$logger->info("SimpleAuth::register, cookie name was set to \"$cookiename\", cookie domain to \""
 												.$app->sessions->cookie_domain().'"')
 			if ($plugin->{_cookie_debug});
@@ -142,22 +125,7 @@ sub register
 		}
 	});
 
-	# my $expire_seconds = $app->config->{'auth_expire_seconds'} // 3600;
-	# $app->sessions->default_expiration($expire_seconds);
 	
-	# #httponly, secure and same site:
-    # my $samesite_cookie_value = ucfirst($app->config->{'auth_samesite_cookie'}) || "Strict";
-    # my $secure_cookie = getBool($app->config->{'auth_secure_cookie'} || "false");
-    # $app->sessions->samesite($samesite_cookie_value);
-    # if ($samesite_cookie_value ne "Strict")
-    # {
-    #     #SameSite=None or Lax then the Secure attribute must also be set-OMK-9310
-    #     $secure_cookie = 1;
-    #     $logger->debug("SimpleAuth setting secure cookie to $secure_cookie as samesite value is not Strict");
-    # }
-    
-    #$app->sessions->secure(1) if ($secure_cookie);
-
 
 	# take the UID requested and load it into the auth system and this plugin instance
 	# also ensure that the sso cookie domain is ok for the type of request, ie. tunnelled/localhost vs. fqdn
@@ -200,8 +168,6 @@ sub register
 		else
 		{
 			$user = $plugin->{_loaded_user};
-			print OFILEDUMP Dumper("user 203\n");
-			print OFILEDUMP Dumper($user);
 			$logger->info("SimpleAuth::context_switch_worker_uid, already in cache")
 					if($plugin->{_cookie_debug});
 		}
@@ -210,202 +176,7 @@ sub register
 		return $uid;
 	});
 
-	# $app->helper( current_user_object => sub {
-	# 	return $plugin->{_loaded_user} // {};
-	# });
-
-	#Returns the current access priv, this is used by the front end to stop some actions being shown for msp users
-	# $app->helper(user_display_notifications => sub {
-	# 	my ($self) = @_;
-	# 	#default to show notifcations
-	# 	my $show_notif = 1;
-		
-	# 	if(exists $plugin->{_loaded_user})
-	# 	{
-	# 		my $user_priv = $plugin->{_loaded_user}->{priv} // undef;
-	# 		my $show_notif_pref = getBool($self->config->{omk_gui_show_user_errors} || 'true');
-	# 		$show_notif = 0 if($user_priv ne "administrator" and $show_notif_pref eq 0);
-	# 	}
-	# 	return $show_notif;
-	# });
-
-
-	# $app->helper( set_user => sub {
-	# 	my ($c,%args) = @_;
-	# 	# check both args as the name was changed but need backwards compat
-	# 	my $uid = $args{uid} // $args{user};
-
-	# 	$plugin->{AU}->SetUser(undef);
-	# 	if( $plugin->{AU}->SetUser( $uid ) )
-	# 	{
-	# 		# found in old auth model
-	# 		return $plugin->{AU}->GetUserInfo();
-	# 	}
-	# 	elsif( $app->{rbac_enabled} )
-	# 	{
-	# 		# search in new auth model
-	# 		my ($error_text,$resobj) = Opmantek::RBACData->load_resources(type => "user", controller => $c);
-	# 		die $error_text if($error_text);
-	# 		my $user = $resobj->find_resource(type => "user", name => $uid);
-
-	# 		# load the users privs, tell the system this is an rbac user
-	# 		$user->{auth_mode_rbac} = 1;
-	# 		$resobj->{rbac}->set_default_user(user => $uid);
-
-	# 		# load the users groups, if they have any, which are held under a specific path
-	# 		# NOTE: uses RBACData's rbac object so we don't have to create our own, not fully nice
-	# 		my ($group_error,@paths) = $resobj->rbac_object->where_can_user_do(user => $uid, action => 'read', path => ['root','opcharts','group'], directonly=>1 );
-	# 		my @groups = ();
-	# 		for my $path (@paths)
-	# 		{
-	# 			push @groups, $path->[3] if( $path->[2] eq 'group' && @$path > 3 );
-	# 		}
-
-	# 		if( @groups > 0 )
-	# 		{
-	# 			$logger->debug("SimpleAuth::set_user, setting users groups:".join(',', @groups));
-	# 			$plugin->{AU}->SetGroups( grouplist => \@groups );
-	# 		}
-
-	# 		return $user;
-	# 	}
-	# 	else
-	# 	{
-	# 		return;
-	# 	}
-	# });
-
-	# returns info hash from auth module, has things like privs, groups, etc. mostly nmis specific info
-	# $app->helper( get_current_user_info => sub {
-	# 	my ($c,%args) = @_;
-	# 	return $plugin->{AU}->GetUserInfo();
-	# });	
-
-	# set up all authentication-related routes for this particular application
-	# requires args router, application key, name and version;
-	# $app->helper( register_simple_auth_routes => sub {
-	# 	my $self = shift;
-	# 	my %args = @_;
-	# 	my $r = $args{router};
-	# 	my $application_key = $args{application_key};
-	# 	my $application_name = $args{application_name};
-	# 	my $application_version = $args{application_version};
-
-	# 	# just render the login form - also sets up redirect_url for subsequent post
-	# 	$r->get('/login')->to(cb => sub {
-	# 		my $self = shift;
-	# 		#$self->module_code();
-	# 		my $redirect_url = $self->url_for("login_page");
-	# 		$redirect_url = $self->req->param("redirect_url") if $self->req->param("redirect_url");
-
-    #         $self->render(template => 'login');
-
-	# 		# $self->render('login', title => $self->msp_title(),
-	# 		# 							redirect_url => $redirect_url,
-	# 		# 							login_action => $application_key."_login",
-	# 		# 							application_key => $application_key,
-	# 		# 							application_name => $application_name,
-	# 		# 							application_version => $application_version);
-	# 		# 																		 })->name($application_key."_login");
-    #     });
-	# 	# receives a posted login form, performs the username-password verification
-	# 	# reacts to json/api request with json and 200 if auth ok, or 403 if not.
-	# 	# for a browser request: if ok, redirects to the given redirect_url with 302;
-	# 	# otherwise sends 403 and rerenders the login form (with extra error text)
-	# 	$r->post('/login')->to(cb => sub {
-	# 		my $self = shift;
-    #         print Dumper ($self);
-	# 		my $redirect_url = $self->url_for("login_page");
-	# 		# $redirect_url = $self->req->param("redirect_url") if $self->req->param("redirect_url");
-	# 		# # make sure the redirect_url is relative
-	# 		# # first don't allow //
-	# 		# if( $redirect_url =~ /\/\/(.*)$/)
-	# 		# {
-	# 		# 	$redirect_url = $1;
-	# 		# }
-	# 		# # then take everything after the first slash
-	# 		# my ($before_slash,$after_slash) = split( /\//, $redirect_url, 2);
-	# 		# $redirect_url = '/'.$after_slash;
-	# 		# $redirect_url =~ s/^\/+//;
-	# 		# $redirect_url = '/' . $redirect_url;
-
-	# 		if( $self->authenticate($self->req->param('username'), $self->req->param('password')) )
-	# 		{
-	# 			#$self->respond_to( html => sub { $self->redirect_to($redirect_url); });
-    #            $self->render(template => 'index');
-	# 		}
-	# 		else
-	# 		{
-	# 			$self->respond_to ( html => sub {
-    #                                         # $self->module_code();
-
-    #                                         my $errortext = $plugin->{AU}->can("error_text")? $plugin->{AU}->error_text : undef;
-    #                                         $errortext ||= "There was an error authenticating, please try again.";
-
-    #                                         $self->stash(error => $errortext);
-    #                                         $self->render('login',
-    #                                                                     status => 403,
-    #                                                                     # title => $self->msp_title(),
-    #                                                                     redirect_url => $redirect_url,
-    #                                                                     # login_action => $application_key."_login",
-    #                                                                     # application_key => $application_key,
-    #                                                                     # application_name => $application_name,
-    #                                                                     # application_version => $application_version
-    #                                                                     );
-    #                                     } );
-    #         }
-    #     });
-    # });
-
-	# 	# this endpoint is for delegated token auth verification - which uses get
-	# 	# and token in url because no forms involved or desired
-	# 	# if successful, redirects to the application home page
-	# 	# (or redirect_url url param) if not successful, render the
-	# 	# normal username-password authentication form
-	# 	$r->get("$application_key/login/:token")->to(cb => sub {
-	# 		my ($self) = @_;
-
-	# 		my $redirect_url = $self->url_for("index_".$application_key);
-	# 		$redirect_url = $self->req->param("redirect_url") if $self->req->param("redirect_url");
-
-	# 		if ($self->authenticate(undef, undef, { token => $self->param("token") }))
-	# 		{
-	# 			$self->redirect_to($redirect_url);
-	# 		}
-	# 		else
-	# 		{
-	# 			$self->module_code();
-
-	# 			my $errortext = $plugin->{AU}->can("error_text")? $plugin->{AU}->error_text : undef;
-	# 			$errortext ||= "There was an error authenticating, please try again";
-
-	# 			$self->stash(error => $errortext);
-	# 			$self->render('authentication/login',
-	# 										title => $self->msp_title(),
-	# 										redirect_url => $redirect_url,
-	# 										login_action => $application_key."_login",
-	# 										application_key => $application_key,
-	# 										application_name => $application_name,
-	# 										application_version => $application_version);
-	# 		}
-	# 																							 });
-
-	# 	# this endpoint logs the user out - a bit unclean as method get is used,
-	# 	# which shouldn't have side effects
-	# 	$r->get($application_key.'/logout')->to(cb => sub {
-	# 		my $self = shift;
-	# 		$self->logout();
-
-	# 		# clear cache so next time this user accesses the system they are fully re-loaded
-	# 		$plugin->{_loaded_uid} = undef;
-	# 		$plugin->{_loaded_user} = undef;
-
-	# 		$self->flash(success => "Successfully logged out");
-	# 		$self->redirect_to( $application_key."_login" );
-	# 																					})->name($application_key."_logout");
-
-	# });
-	close (OFILEDUMP);
+	
 }
 
 
