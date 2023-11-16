@@ -53,8 +53,8 @@ sub register
 	#print "Dvars are ".Dumper(\@_);
     my ($plugin, $app, $config) = @_;
 
-	my $C     = NMISNG::Util::loadConfTable();
-    my $logfile = $C->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
+	my $config     = NMISNG::Util::loadConfTable();
+    my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
 	my $logger  = NMISNG::Log->new(
         path => $logfile,
     );
@@ -82,7 +82,7 @@ sub register
 	$app->sessions->cookie_name($cookiename);
 
 	my $user_extras = 'omkd_extras';
-	$plugin->{AU} = NMISNG::Auth->new();
+	$plugin->{AU} = NMISNG::Auth->new(conf => $config);
 	
 	$logger->info("SimpleAuth::register, cookie name was set to \"$cookiename\", cookie domain to \""
 												.$app->sessions->cookie_domain().'"')
@@ -150,20 +150,20 @@ sub register
 														.$c->app->sessions->cookie_domain()//'')
 					if($plugin->{_cookie_debug});
 
-			#$user = $c->set_user( uid => $uid );
-			# if( $user )
-			# {
-			# 	$plugin->{_loaded_uid} = $uid;
-			# 	# loaded_user currently is not really used, should be in the future
-			# 	$plugin->{_loaded_user} = $user;
-			# 	$logger->debug("SimpleAuth::context_switch_worker_uid, setting user:".$plugin->{_loaded_uid});
-			# }
-			# else
-			# {
-			# 	$logger->debug("SimpleAuth::context_switch_worker_uid, clearing cache, uid:".$uid);
-			# 	$plugin->{_loaded_uid} = undef;
-			# 	$plugin->{_loaded_user} = undef;
-			# }
+			$user = $c->set_user( uid => $uid );
+			if( $user )
+			{
+				$plugin->{_loaded_uid} = $uid;
+				# loaded_user currently is not really used, should be in the future
+				$plugin->{_loaded_user} = $user;
+				$logger->info("SimpleAuth::context_switch_worker_uid, setting user:".$plugin->{_loaded_uid});
+			}
+			else
+			{
+				$logger->info("SimpleAuth::context_switch_worker_uid, clearing cache, uid:".$uid);
+				$plugin->{_loaded_uid} = undef;
+				$plugin->{_loaded_user} = undef;
+			}
 		}
 		else
 		{
@@ -175,6 +175,51 @@ sub register
 		$logger->info("SimpleAuth::context_switch_worker_uid, end, cookie_domain:", $c->app->sessions->cookie_domain()//'') if($plugin->{_cookie_debug});
 		return $uid;
 	});
+
+	$app->helper( set_user => sub {
+	my ($c,%args) = @_;
+	# check both args as the name was changed but need backwards compat
+	my $uid = $args{uid} // $args{user};
+
+	$plugin->{AU}->SetUser(undef);
+	if( $plugin->{AU}->SetUser( $uid ) )
+	{
+		$logger->info("SimpleAuth::SetUser, setting $uid");
+		return $plugin->{AU}->User();
+	}
+	# elsif( $app->{rbac_enabled} )
+	# {
+	# 	# search in new auth model
+	# 	my ($error_text,$resobj) = Opmantek::RBACData->load_resources(type => "user", controller => $c);
+	# 	die $error_text if($error_text);
+	# 	my $user = $resobj->find_resource(type => "user", name => $uid);
+
+	# 	# load the users privs, tell the system this is an rbac user
+	# 	$user->{auth_mode_rbac} = 1;
+	# 	$resobj->{rbac}->set_default_user(user => $uid);
+
+	# 	# load the users groups, if they have any, which are held under a specific path
+	# 	# NOTE: uses RBACData's rbac object so we don't have to create our own, not fully nice
+	# 	my ($group_error,@paths) = $resobj->rbac_object->where_can_user_do(user => $uid, action => 'read', path => ['root','opcharts','group'], directonly=>1 );
+	# 	my @groups = ();
+	# 	for my $path (@paths)
+	# 	{
+	# 		push @groups, $path->[3] if( $path->[2] eq 'group' && @$path > 3 );
+	# 	}
+
+	# 	if( @groups > 0 )
+	# 	{
+	# 		$app->auth_log->debug("SimpleAuth::set_user, setting users groups:".join(',', @groups));
+	# 		$plugin->{AU}->SetGroups( grouplist => \@groups );
+	# 	}
+
+	# 	return $user;
+	# }
+	else
+	{
+		return;
+	}
+});
 
 	
 }
@@ -191,8 +236,8 @@ sub _manage_sso_cookie_domain
 {
 	my ($self, $app_ctrl) = @_;
 
-    my $C     = NMISNG::Util::loadConfTable();
-    my $logfile = $C->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
+    my $config     = NMISNG::Util::loadConfTable();
+    my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
     my $logger  = NMISNG::Log->new(
         path => $logfile,
     );

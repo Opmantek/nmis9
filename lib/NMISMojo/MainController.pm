@@ -32,8 +32,8 @@ sub authenticate_user {
   my $psswd = $self->param('password');
   
 
-  my $C     = NMISNG::Util::loadConfTable();
-  my $logfile = $C->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
+  my $config     = NMISNG::Util::loadConfTable();
+  my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
   my $logger  = NMISNG::Log->new(
     path => $logfile,
   );
@@ -41,16 +41,13 @@ sub authenticate_user {
   $logger->info("$this_function");
 
   my $auth_user = $self->authenticate($usrname, $psswd);
-  
+  #print "self are ".Dumper($auth_user);
   if ($auth_user){
-    $self->render(template => 'index',);
+    $self->render(template => 'index', user =>$usrname);
   }
   else{
-      $self->render(template => 'login', error =>'Invalid username/password combination' );
+    $self->render(template => 'login', error =>'Invalid username/password combination' );
   } 
-
-
-
 
 
   #$self->render(template => 'login', error =>$auth_key );
@@ -74,17 +71,6 @@ sub nodes_view {
   $self->stash ( 'keys' => \@keys );
   $self->render(template => 'nodes');
 }
-
-# sub node_view {
-#   my $self = shift;
-#  my $node_uuid   = $self->param('node_uuid');
-#   # send the default list of all nodes
-  
-#   $self->render(template => 'node', UUID => $node_uuid);
-# #   my @keys = keys %$NT;
-# #   $self->stash ( 'keys' => \@keys );
-# #   $self->render(template => 'node');
-# }
 
 sub render_not_found {
   my $self = shift;

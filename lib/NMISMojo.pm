@@ -43,44 +43,13 @@ sub startup {
   $self->plugin("NMISMojo::Plugin::SimpleAuth");
 
   ## create cookie for nmis
-  my $C = NMISNG::Util::loadConfTable();
-  if(my $secrets = [$C->{'auth_web_key'}]) {
+  my $config = NMISNG::Util::loadConfTable();
+  if(my $secrets = [$config->{'auth_web_key'}]) {
     $self->secrets($secrets);
   }
 
-  # $self->plugin("NMISMojo::Plugin::Helpers");
-  # bridge to url base
-	# if( defined($self->config->{"<omk_url_base>"})
-	# 		&& $self->config->{"<omk_url_base>"} !~ m!^/?$!) # not blank and not just /
-	# {
-		# that route covers /
-		$r->route('/')->to( controller => "MainController", action => "login_view" )->name("login_page");
-		#$r = $router->under($self->config->{"<omk_url_base>"});
-	# }
-	# those routes cover /omk
-	#$r->route('/')->to( controller => "OpmantekController", action => "welcome" )->name("welcome");
-
-  # register Global Configuration "app"
-	# $self->registeredApplications( application_key => "nmis_ux", application_name => "NMISUX Application Config",
-	# 															 app_config_schema => "app-config.json", internal_application => 1 );
-
-
-  # Router
-	# my $router = $r;
-	# # register here so the logs are setup
-	# $self->plugin("NMISMojo::Plugin::RouteConditionHelpers");
-
-  # my $redirect_url = $self->url_for("login_page");
-  # $self->registeredApplications( application_key => "nmis_mojo",
-	# 														application_name => "FirstWave",
-	# 														application_version => "1::1",
-	# 														app_config_schema => undef,
-	# 														internal_application => 1,
-	# 														per_node_activation => undef,
-	# 														#css_section_keys => ['opmantek'],
-	# 														#js_section_keys => ['opmantek']
-	#);
-
+	$r->route('/')->to( controller => "MainController", action => "login_view" )->name("login_page");
+	
   #serve cgi nmis9 assets
   $r->any('/menu9/:type/*whatever' => sub {
     my $c = shift;
@@ -143,8 +112,10 @@ sub startup {
         return 1;
     } else {
         # Redirect to the login page if not authenticated
+        #$c->stash('error' => 'Please login.');
         $c->redirect_to('/login');
-        return 0; # Halt further processing
+        #$c->render(template => 'login', error =>'Please login.' );
+        return 0;
     }
   });
 
@@ -152,7 +123,5 @@ sub startup {
 
   #$r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
   $r->any('/logout')->to(controller => 'MainController', action => 'logout');
-
- 
 }
 1;

@@ -64,6 +64,8 @@ use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
 use JSON::XS;
 use CGI::Session;
 
+use Compat::NMIS;  ## Added for OMK-10493
+
 # You MUST set config's auth_web_key so that cookies are unique for your site. this fallback key is NOT safe for internet-facing sites!
 my $CHOCOLATE_CHIP = '5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv';
 
