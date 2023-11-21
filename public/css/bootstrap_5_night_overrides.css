@@ -1,0 +1,164 @@
+/* VERSION=1.075.0 */
+@media (prefers-color-scheme: dark) {
+    body {
+      background-color: #05090B;
+      /* color: #2980B9; */
+      /* color: #2968b9 */
+      /* color: #CDCDCD; */
+      color: #aca9a9;
+    }
+  
+    .second-nav {
+      background-color: #05090B;
+      box-shadow: 0px 1px 1px 0px #3e3e3e;
+    }
+  
+    .opmantek-grid-topper {
+      background-color: #222;
+    }
+  
+    .select2-selection {
+      background-color: #222 !important;
+    }
+  
+    .select2-dropdown {
+      background-color: #05090B !important;
+    }
+  
+    .select2-container--bootstrap .select2-selection--single {
+      color: #999;
+    }
+  
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+      background-color: transparent;
+    }
+  
+    .select2-container--bootstrap .select2-selection--single .select2-selection__rendered {
+      color: #999;
+    }
+  
+    .select2-container--bootstrap .select2-selection  {
+      border-color: #515151;
+    }
+  
+    .vr {
+      background-color: #FFF;
+      width: 2px;
+    }
+  
+    .opmantek-component-header {
+      background-color: #222 !important;
+      /* background-color: #323131 */
+    }
+  
+    .config-quick-action {
+      background-color: #222;
+      border-color: #515151;
+    }
+  
+    .config-quick-action-header {
+      background-color: #222;
+      /* color: #2974b9; */
+      color: #5080b3;
+    }
+  
+  
+    a {
+      color: #5facff;
+    }
+  
+    .nav-link {
+      color: #5facff;
+    }
+  
+    .omk-dashboard-comp {
+      background-color: #222;
+    }
+  
+    .appname-header .logo {
+      filter: invert(100%) saturate(0%);
+    }
+  
+    .login-logo {
+      filter: invert(100%) saturate(0%);
+    }
+  
+    .app-logo {
+      filter: invert(100%) saturate(0%);
+    }
+  
+   .view-in-nmis-btn {
+    filter: invert(100%) saturate(0%);
+   }
+  
+    .opmantek-component {
+      box-shadow: none;
+      border: 1px solid rgba(250, 250, 250, 0.125);
+    }
+  
+    .opmantek-component-header {
+      border-bottom: 1px solid rgba(250, 250, 250, 0.125);
+    }
+  
+    .opmantek-component-content {
+      background-color: #222;
+    }
+  
+    .backgrid-paginator ul>li>a:hover,
+    .backgrid-paginator ul>.active>a,
+    .backgrid-paginator ul>.active>span {
+      background-color: #05090b;
+    }
+  
+    .backgrid .descending .sort-caret {
+      border-top-color: #FFF;
+    }
+  
+    .backgrid .ascending .sort-caret {
+      border-bottom-color: #FFF;
+    }
+  
+    .op-footer {
+      border-top: 1px solid rgba(250, 250, 250, 0.125);
+    }
+  
+    .ace-tomorrow {
+      background-color: #000;
+    }
+  
+    .ace-tomorrow .ace_gutter{
+      background-color: #908a8a;
+    }
+  
+    table.dataTable.no-footer {
+      border-collapse: collapse;
+      border-color: #a5a5a5;
+    }
+  
+    .v-select .vs__dropdown-toggle,
+    .v-select .vs__dropdown-menu{
+      border: 1px solid #515151
+    }
+  
+    .v-select .vs__search::placeholder,
+    .v-select .vs__dropdown-toggle,
+    .v-select .vs__dropdown-menu {
+      background: #222;
+    }
+    .vs--single .vs__selected {
+      color: #aca9a9;
+    }
+  
+    .mx-datepicker, .mx-datepicker-range {
+      width: 60%;
+    }
+    .mx-input, .mx-datepicker-main {
+      background-color: #222 !important;
+      color: #aca9a9 !important;
+    }
+  
+    .mx-icon-calendar, .mx-icon-clear {
+      filter: invert(100%) saturate(0%);
+    }
+  }
+  

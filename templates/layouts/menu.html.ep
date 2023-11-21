@@ -1,7 +1,6 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
+<nav class="navbar navbar-default navbar-expand-sm navbar-dark">
   <div class="collapse navbar-collapse" id="navbarNavDropdown">
-    <ul class="navbar-nav">
-      <!-- % if($self->session('is_auth')){   -->
+    <ul class="nav navbar-nav">
       <li class="nav-item">
         <a class="nav-link"  href="cgi-nmis9/nmiscgi.pl" target="_blank" title="nmis">NMIS9</a>
       </li>

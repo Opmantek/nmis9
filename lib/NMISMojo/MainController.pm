@@ -6,11 +6,7 @@ use Data::Dumper;
 use Compat::NMIS;
 use base 'Mojolicious::Plugin';
 use NMISNG::Auth;
-use NMISNG::Util;
-use NMISNG;
-use NMISNG::Log;
-
-
+  
 #our index route
 sub index {
   my $self = shift;
