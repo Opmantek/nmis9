@@ -104,6 +104,10 @@ sub startup {
   $r->post('/login')->to(controller => 'MainController', action => 'authenticate_user');
   
   # # $r->get('/nodes/:node_uuid')->to(controller => 'MainController', action => 'node_view');
+
+# this sub does the auth-stuff
+# to check user/pw and return true if all okay
+
   my $logged_in = $r->under (sub {
     my $c = shift;
     # Check if the user is authenticated
@@ -123,5 +127,25 @@ sub startup {
 
   #$r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
   $r->any('/logout')->to(controller => 'MainController', action => 'logout');
+
+  # Public REST API V1
+	#my $api_v1_bridge = $api_bridge->under("/api/v1");
+  my $api_bridge = $logged_in->under('/api/v1');
+  $api_bridge->get('/welcome' => sub {
+    my $c = shift;
+    # Your API logic here
+    my $data = { api => 'Hello Welcome to version 1 API!' };
+    # Render a JSON response
+    $c->render(json => $data);
+  });
+
+  $api_bridge->get('/nodes')->to(
+			controller => "CRUDController",
+			data_class => "NMISMojo::NodeData",
+			action     => "index_resource"
+	)->name("api_node_data");
 }
+
+
+
 1;
