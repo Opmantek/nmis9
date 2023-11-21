@@ -58,10 +58,10 @@ sub update_plugin
 				or ref($S->{mdl}->{systemHealth}->{sys}) ne "HASH"
 				or ref($S->{mdl}{systemHealth}{sys}{$concept}) ne "HASH");
 
-	$NG->log->debug9("\$node: ".Dumper \$node);
-	$NG->log->debug9("\$S: ".Dumper \$S);
-	$NG->log->debug9("\$C: ".Dumper \$C);
-	$NG->log->debug9("\$NG: ".Dumper \$NG);
+	$NG->log->debug9(sub {"\$node: ".Dumper \$node});
+	$NG->log->debug9(sub {"\$S: ".Dumper \$S});
+	$NG->log->debug9(sub {"\$C: ".Dumper \$C});
+	$NG->log->debug9(sub {"\$NG: ".Dumper \$NG});
 
 	my $changesweremade = 0;
 
@@ -71,8 +71,8 @@ sub update_plugin
 
 	if (@$ids)
 	{
-		$NG->log->debug9("$plugin:$sub: \$ids: ".Dumper $ids);
-		$NG->log->debug9("$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}});
+		$NG->log->debug9(sub {"$plugin:$sub: \$ids: ".Dumper $ids});
+		$NG->log->debug9(sub {"$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}}});
 
 		# for linkage lookup this needs the interfaces inventory as well, but
 		# a non-object r/o copy of just the data (no meta) is enough
@@ -85,7 +85,7 @@ sub update_plugin
 		        return(0,undef);
 		}
 		my %ifdata =  map { ($_->{data}->{$inventory_data_key} => $_->{data}) } (@{$result->data});
-		$NG->log->debug9("$plugin:$sub: \%ifdata: ".Dumper \%ifdata);
+		$NG->log->debug9(sub {"$plugin:$sub: \%ifdata: ".Dumper \%ifdata});
 
 		for my $id (@$ids)
 		{

@@ -176,11 +176,11 @@ sub update_plugin
 			# we are updating cosDescription so we need to update the description as well
 			$inventory->description($juniperCoSData->{cosDescription});
 			$inventory->data($juniperCoSData);
-			$NG->log->debug2("jnxCoStable: FCcodename     = '$FCcodename'");
-			$NG->log->debug2("jnxCoStable: jnxCosFcName   = '$juniperCoSData->{jnxCosFcName}'");
-			$NG->log->debug2("jnxCoStable: ifIndex        = '$juniperCoSData->{ifIndex}'");
-			$NG->log->debug2("jnxCoStable: IntName        = '$juniperCoSData->{IntName}'");
-			$NG->log->debug2("jnxCoStable: cosDescription = '$juniperCoSData->{cosDescription}'");
+			$NG->log->debug2(sub {"jnxCoStable: FCcodename     = '$FCcodename'"});
+			$NG->log->debug2(sub {"jnxCoStable: jnxCosFcName   = '$juniperCoSData->{jnxCosFcName}'"});
+			$NG->log->debug2(sub {"jnxCoStable: ifIndex        = '$juniperCoSData->{ifIndex}'"});
+			$NG->log->debug2(sub {"jnxCoStable: IntName        = '$juniperCoSData->{IntName}'"});
+			$NG->log->debug2(sub {"jnxCoStable: cosDescription = '$juniperCoSData->{cosDescription}'"});
 			$NG->log->debug("jnxCoStable: update_plugin: Found COS Entry with interface '$juniperCoSData->{IntName}' and '$juniperCoSData->{jnxCosFcName}'.");
 			# The above has added data to the inventory, that we now save.
 			my ( $op, $subError ) = $inventory->save();

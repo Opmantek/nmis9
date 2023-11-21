@@ -151,14 +151,14 @@ sub getNetatmoData {
 	else {
 		print "HTTP POST error code: ", $resp->code, "\n";
 		print "HTTP POST error message: ", $resp->message, "\n";
-		$NG->log->debug3(Dumper $resp);
+		$NG->log->debug3(sub {Dumper $resp});
 	}
 	
 	my $status = 0;
 
 	if ( defined $message ) {
 		my $na_message = decode_json $message;
-		$NG->log->debug3("access_token=$na_message->{access_token}");
+		$NG->log->debug3(sub {"access_token=$na_message->{access_token}"});
 		$access_token = $na_message->{access_token};
 		$refresh_token = $na_message->{refresh_token};
 		$expires_in = $na_message->{expires_in};
@@ -197,7 +197,7 @@ sub getNetatmoData {
 					# save the device ID to find its matching outdoor module
 					$indoor_id = $device->{_id};
 					$NG->log->debug("Found Station $device->{station_name}, module_name: $device->{module_name} $indoor_id: Temperature=$device->{dashboard_data}{Temperature} Humidity=$device->{dashboard_data}{Humidity} Pressure=$device->{dashboard_data}{Pressure} Noise=$device->{dashboard_data}{Noise}");
-					$NG->log->debug2(Dumper $device);
+					$NG->log->debug2(sub {Dumper $device});
 
 					$weather->{indoor}{Temperature} = $device->{dashboard_data}{Temperature};
 					$weather->{indoor}{Humidity} = $device->{dashboard_data}{Humidity};
@@ -211,7 +211,7 @@ sub getNetatmoData {
 				if ( $module->{main_device} eq $indoor_id ) {
 					$outdoor_id = $module->{_id};
 					$NG->log->debug("Station $indoor_id, module_name: $module->{module_name}, $outdoor_id: Temperature=$module->{dashboard_data}{Temperature} Humidity=$module->{dashboard_data}{Humidity}");
-					$NG->log->debug2(Dumper $module);
+					$NG->log->debug2(sub {Dumper $module});
 
 					$weather->{outdoor}{Temperature} = $module->{dashboard_data}{Temperature};
 					$weather->{outdoor}{Humidity} = $module->{dashboard_data}{Humidity};

@@ -107,12 +107,12 @@ sub update_plugin
 		$NG->log->info("Running Alcatel ASAM plugin for Node '$node', Model '$catchall_data->{nodeModel}'.");
 	}
 
-	$NG->log->debug9("\$node:        " . Dumper($node) . "\n\n\n");
-	$NG->log->debug9("\$S:           " . Dumper($S) . "\n\n\n");
-	$NG->log->debug9("\$C:           " . Dumper($C) . "\n\n\n");
-	$NG->log->debug9("\$NG:          " . Dumper($NG) . "\n\n\n");
-	$NG->log->debug9("\$NI:          " . Dumper($NI) . "\n\n\n");
-	$NG->log->debug9("\$nodeconfig:  " . Dumper(%nodeconfig) . "\n\n\n");
+	$NG->log->debug9(sub {"\$node:        " . Dumper($node) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$S:           " . Dumper($S) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$C:           " . Dumper($C) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$NG:          " . Dumper($NG) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$NI:          " . Dumper($NI) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$nodeconfig:  " . Dumper(%nodeconfig) . "\n\n\n"});
 
 	# we have been told index 17 of the eqptHolder is the ASAM Model	
 	my $path_keys = ['index'];
@@ -129,7 +129,7 @@ sub update_plugin
 	{
 		$NG->log->error("Failed to get inventory for interface index 17; Error: $error");
 	}
-	$NG->log->debug9("\$eqptHolderList: " . Dumper($eqptHolderList) . "\n\n\n");
+	$NG->log->debug9(sub {"\$eqptHolderList: " . Dumper($eqptHolderList) . "\n\n\n"});
 	$asamModel = $eqptHolderList->{_data}->{eqptHolderPlannedType} || $catchall_data->{nodeModel};
 	$NG->log->info("ASAM Model: '$asamModel'");
 
@@ -283,15 +283,15 @@ sub update_plugin
 				if ($eachIfIndex ne $i and $intfData->{$eachIfIndex}->{ifDescr} eq $intfData->{$i}->{ifDescr}) {
 					$intfData->{$eachIfIndex}->{ifDescr} = "$eachIfDescription-$eachIfIndex"; # add index to this description.
 					$intfData->{$i}->{ifDescr}           = "$eachIfDescription-$i";           # and the duplicte one.
-					$NG->log->debug2("Index added to duplicate Interface Description '$eachIfDescription'");
+					$NG->log->debug2(sub {"Index added to duplicate Interface Description '$eachIfDescription'"});
 				}
 			}
-			$NG->log->debug5("Interface Index:        '$eachIfIndex'");
-			$NG->log->debug5("Interface Name:         '$ifData->{ifName}'");
-			$NG->log->debug5("Interface Description:  '$ifData->{ifDescr}'");
-			$NG->log->debug5("Interface Type:         '$ifData->{ifType}'");
-			$NG->log->debug5("Admin Status:           '$ifData->{ifAdminStatus}'");
-			$NG->log->debug5("Operator Status:        '$ifData->{ifOperStatus}'");
+			$NG->log->debug5(sub {"Interface Index:        '$eachIfIndex'"});
+			$NG->log->debug5(sub {"Interface Name:         '$ifData->{ifName}'"});
+			$NG->log->debug5(sub {"Interface Description:  '$ifData->{ifDescr}'"});
+			$NG->log->debug5(sub {"Interface Type:         '$ifData->{ifType}'"});
+			$NG->log->debug5(sub {"Admin Status:           '$ifData->{ifAdminStatus}'"});
+			$NG->log->debug5(sub {"Operator Status:        '$ifData->{ifOperStatus}'"});
 		}
 	}
 
@@ -314,8 +314,8 @@ sub update_plugin
 			$customerData      = $customerEntry->data();
 			my $eachIfIndex    = $customerData->{index};
 			my $eachCustomerId = $customerData->{asamIfExtCustomerId};
-			$NG->log->debug5("Interface Index:        '$eachIfIndex'");
-			$NG->log->debug5("Customer ID:            '$eachCustomerId'");
+			$NG->log->debug5(sub {"Interface Index:        '$eachIfIndex'"});
+			$NG->log->debug5(sub {"Customer ID:            '$eachCustomerId'"});
 			if ( defined $intfData->{$eachIfIndex} ) {
 				if ($ignoreAvaibleInterfaces)
 				{
@@ -325,10 +325,10 @@ sub update_plugin
 				$customerData->{ifAdminStatus} = $intfData->{$eachIfIndex}->{ifAdminStatus};
 				$customerData->{ifOperStatus}  = $intfData->{$eachIfIndex}->{ifOperStatus};
 				$customerData->{ifType}        = $intfData->{$eachIfIndex}->{ifType};
-				$NG->log->debug5("Interface Description:  '$customerData->{ifDescr}'");
-				$NG->log->debug5("Admin Status:           '$customerData->{ifAdminStatus}'");
-				$NG->log->debug5("Operator Status:        '$customerData->{ifOperStatus}'");
-				$NG->log->debug5("Interface Type:         '$customerData->{ifType}'");
+				$NG->log->debug5(sub {"Interface Description:  '$customerData->{ifDescr}'"});
+				$NG->log->debug5(sub {"Admin Status:           '$customerData->{ifAdminStatus}'"});
+				$NG->log->debug5(sub {"Operator Status:        '$customerData->{ifOperStatus}'"});
+				$NG->log->debug5(sub {"Interface Type:         '$customerData->{ifType}'"});
 				# The above has added data to the inventory, that we now save.
 				my $path_keys =  ['index'];
 				my $path = $nodeobj->inventory_path( concept => 'Customer_ID', path_keys => $path_keys, data => $customerData );
@@ -347,7 +347,7 @@ sub update_plugin
 				# The above has added data to the inventory, that we now save.
 				$inventory->data( $customerData );
 				my ( $op, $subError ) = $inventory->save();
-				$NG->log->debug2( "Saved ".join(',', @$path)."; op: $op");
+				$NG->log->debug2(sub { "Saved ".join(',', @$path)."; op: $op"});
 				if ($subError)
 				{
 					$NG->log->error("Failed to save inventory for Customer ID: '$customerId'; Error: $subError");
@@ -470,24 +470,24 @@ sub update_plugin
 				$atmVclData->{ifOperStatus}  = "Unknown";
 				$atmVclData->{ifType}        = "N/A";
 			}
-			$NG->log->debug5("Interface Index:         '$eachIfIndex'");
-			$NG->log->debug5("Interface Description:   '$atmVclData->{ifDescr}'");
-			$NG->log->debug5("Interface Admin Status:  '$atmVclData->{ifAdminStatus}'");
-			$NG->log->debug5("Interface Oper Status :  '$atmVclData->{ifOperStatus}'");
-			$NG->log->debug5("Interface Type:          '$atmVclData->{ifType}'");
-			$NG->log->debug5("Customer ID:             '$atmVclData->{asamIfExtCustomerId}'");
-			$NG->log->debug5("Connection Kind:         '$atmVclData->{atmVclConnKind}'");
-			$NG->log->debug5("VCL Interface Index:     '$atmVclData->{atmVclIfIndex}'");
-			$NG->log->debug5("VCL Path Index:          '$atmVclData->{atmVclVpi}'");
-			$NG->log->debug5("VCL Channel Index:       '$atmVclData->{atmVclVci}'");
-			$NG->log->debug5("VCL AAL Type:            '$atmVclData->{atmVccAalType}'");
-			$NG->log->debug5("VCL Cast Type:           '$atmVclData->{atmVclCastType}'");
-			$NG->log->debug5("VCL Row Status:          '$atmVclData->{atmVclRowStatus}'");
-			$NG->log->debug5("VCL Admin Status:        '$atmVclData->{atmVclAdminStatus}'");
-			$NG->log->debug5("VCL Oper Status:         '$atmVclData->{atmVclOperStatus}'");
-			$NG->log->debug5("VCL Interface Index:     '$atmVclData->{ifIndex}'");
-			$NG->log->debug5("Service Profile Number:  '$atmVclData->{xdslLineServiceProfileNbr}'");
-			$NG->log->debug5("Spectrum Profile Number: '$atmVclData->{xdslLineSpectrumProfileNbr}'");
+			$NG->log->debug5(sub {"Interface Index:         '$eachIfIndex'"});
+			$NG->log->debug5(sub {"Interface Description:   '$atmVclData->{ifDescr}'"});
+			$NG->log->debug5(sub {"Interface Admin Status:  '$atmVclData->{ifAdminStatus}'"});
+			$NG->log->debug5(sub {"Interface Oper Status :  '$atmVclData->{ifOperStatus}'"});
+			$NG->log->debug5(sub {"Interface Type:          '$atmVclData->{ifType}'"});
+			$NG->log->debug5(sub {"Customer ID:             '$atmVclData->{asamIfExtCustomerId}'"});
+			$NG->log->debug5(sub {"Connection Kind:         '$atmVclData->{atmVclConnKind}'"});
+			$NG->log->debug5(sub {"VCL Interface Index:     '$atmVclData->{atmVclIfIndex}'"});
+			$NG->log->debug5(sub {"VCL Path Index:          '$atmVclData->{atmVclVpi}'"});
+			$NG->log->debug5(sub {"VCL Channel Index:       '$atmVclData->{atmVclVci}'"});
+			$NG->log->debug5(sub {"VCL AAL Type:            '$atmVclData->{atmVccAalType}'"});
+			$NG->log->debug5(sub {"VCL Cast Type:           '$atmVclData->{atmVclCastType}'"});
+			$NG->log->debug5(sub {"VCL Row Status:          '$atmVclData->{atmVclRowStatus}'"});
+			$NG->log->debug5(sub {"VCL Admin Status:        '$atmVclData->{atmVclAdminStatus}'"});
+			$NG->log->debug5(sub {"VCL Oper Status:         '$atmVclData->{atmVclOperStatus}'"});
+			$NG->log->debug5(sub {"VCL Interface Index:     '$atmVclData->{ifIndex}'"});
+			$NG->log->debug5(sub {"Service Profile Number:  '$atmVclData->{xdslLineServiceProfileNbr}'"});
+			$NG->log->debug5(sub {"Spectrum Profile Number: '$atmVclData->{xdslLineSpectrumProfileNbr}'"});
 			# The above has added data to the inventory, that we now save.
 			my $path_keys =  ['index'];
 			my $path = $nodeobj->inventory_path( concept => 'atmVcl', path_keys => $path_keys, data => $atmVclData );
@@ -506,7 +506,7 @@ sub update_plugin
 			# The above has added data to the inventory, that we now save.
 			$inventory->data( $atmVclData );
 			my ( $op, $subError ) = $inventory->save();
-			$NG->log->debug2( "Saved ".join(',', @$path)."; op: $op");
+			$NG->log->debug2(sub { "Saved ".join(',', @$path)."; op: $op"});
 			if ($subError)
 			{
 				$NG->log->error("Failed to save inventory for ATM Virtual Channel Link ID: '$atmVclId'; Error: $subError");
@@ -600,8 +600,8 @@ sub update_plugin
 			my $eachIfIndex    = $ifDslamData->{index};
 			my $eachCustomerId = $customerData->{$eachIfIndex};;
 			$ifDslamData->{asamIfExtCustomerId} = $customerData->{$eachIfIndex};
-			$NG->log->debug5("Interface Index:        '$eachIfIndex'");
-			$NG->log->debug5("Customer ID:            '$eachCustomerId'");
+			$NG->log->debug5(sub {"Interface Index:        '$eachIfIndex'"});
+			$NG->log->debug5(sub {"Customer ID:            '$eachCustomerId'"});
 			if ( defined $intfData->{$eachIfIndex} ) {
 				$ifDslamData->{ifDescr}       = $intfData->{$eachIfIndex}->{ifDescr};
 				$ifDslamData->{ifAdminStatus} = $intfData->{$eachIfIndex}->{ifAdminStatus};
@@ -615,12 +615,12 @@ sub update_plugin
 				$ifDslamData->{ifOperStatus}  = "Unknown";
 				$ifDslamData->{ifType}        = "N/A";
 			}
-			$NG->log->debug5("Interface Index:         '$eachIfIndex'");
-			$NG->log->debug5("Interface Description:   '$ifDslamData->{ifDescr}'");
-			$NG->log->debug5("Interface Admin Status:  '$ifDslamData->{ifAdminStatus}'");
-			$NG->log->debug5("Interface Oper Status:   '$ifDslamData->{ifOperStatus}'");
-			$NG->log->debug5("Interface Type:          '$ifDslamData->{ifType}'");
-			$NG->log->debug5("Customer ID:             '$ifDslamData->{asamIfExtCustomerId}'");
+			$NG->log->debug5(sub {"Interface Index:         '$eachIfIndex'"});
+			$NG->log->debug5(sub {"Interface Description:   '$ifDslamData->{ifDescr}'"});
+			$NG->log->debug5(sub {"Interface Admin Status:  '$ifDslamData->{ifAdminStatus}'"});
+			$NG->log->debug5(sub {"Interface Oper Status:   '$ifDslamData->{ifOperStatus}'"});
+			$NG->log->debug5(sub {"Interface Type:          '$ifDslamData->{ifType}'"});
+			$NG->log->debug5(sub {"Customer ID:             '$ifDslamData->{asamIfExtCustomerId}'"});
 		}
 	}
 
@@ -681,11 +681,11 @@ sub update_plugin
 						$NG->log->debug("ERROR with SNMP on '$node var='$var': ".$snmpData->{$dataKey}) if ($snmpData->{$dataKey} =~ /SNMP ERROR/);
 						$ifDslamData->{$var} = "N/A";
 					}
-					$NG->log->debug5(substr("$var:                                          ",1,41) . "'$ifDslamData->{$var}'");
+					$NG->log->debug5(sub {substr("$var:                                          ",1,41) . "'$ifDslamData->{$var}'"});
 				}
 
 				$ifDslamData->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $atmOffsetIndex, asamModel => $asamModel);
-				$NG->log->debug5("Interface Description:                   '$ifDslamData->{ifDescr}'");
+				$NG->log->debug5(sub {"Interface Description:                   '$ifDslamData->{ifDescr}'"});
 				$NG->log->debug("DSLAM SNMP Results: ifIndex=$eachIfIndex ifDescr=$ifDslamData->{ifDescr} asamIfExtCustomerId=$ifDslamData->{asamIfExtCustomerId}");
 
 				if ( $intfData->{$eachIfIndex}{ifLastChange} ) { 
@@ -694,11 +694,11 @@ sub update_plugin
 				else {
 					$ifDslamData->{ifLastChange} = '0:00:00',
 				}
-				$NG->log->debug5("Interface Last Change:                   '$ifDslamData->{ifLastChange}'");
+				$NG->log->debug5(sub {"Interface Last Change:                   '$ifDslamData->{ifLastChange}'"});
 				$ifDslamData->{ifOperStatus} = $intfData->{$eachIfIndex}{ifOperStatus} ? $intfData->{$eachIfIndex}{ifOperStatus} : "N/A";
 				$ifDslamData->{ifAdminStatus} = $intfData->{$eachIfIndex}{ifAdminStatus} ? $intfData->{$eachIfIndex}{ifAdminStatus} : "N/A";
-				$NG->log->debug5("Interface Admin Status:                  '$ifDslamData->{ifAdminStatus}'");
-				$NG->log->debug5("Interface Oper Status:                   '$ifDslamData->{ifOperStatus}'");
+				$NG->log->debug5(sub {"Interface Admin Status:                  '$ifDslamData->{ifAdminStatus}'"});
+				$NG->log->debug5(sub {"Interface Oper Status:                   '$ifDslamData->{ifOperStatus}'"});
 
 
 				# get the Service Profile Name based on the xdslLineServiceProfileNbr
@@ -723,7 +723,7 @@ sub update_plugin
 				# The above has added data to the inventory, that we now save.
 				$inventory->data( $ifDslamData );
 				my ( $op, $subError ) = $inventory->save();
-				$NG->log->debug2( "Saved ".join(',', @$path)."; op: $op");
+				$NG->log->debug2(sub { "Saved ".join(',', @$path)."; op: $op"});
 				if ($subError)
 				{
 					$NG->log->error("Failed to save inventory for DSLAM Port ID: '$eachIfIndex'; Error: $subError");
@@ -823,7 +823,7 @@ sub update_plugin
 #			# The above has added data to the inventory, that we now save.
 #			$inventory->data( $ifStackData );
 #			my ( $op, $subError ) = $inventory->save();
-#			$NG->log->debug2( "Saved ".join(',', @$path)."; op: $op");
+#			$NG->log->debug2(sub { "Saved ".join(',', @$path)."; op: $op"});
 #			if ($subError)
 #			{
 #				$NG->log->error("Failed to save inventory for Interface Stack ID: '$eachIfIndex'; Error: $subError");

@@ -219,7 +219,7 @@ sub applyThresholdToInventory
 		if ( $latest_data_ret->{success} )
 		{
 			$stats = $latest_data_ret->{derived_data}{$type};
-			$self->log->debug2("Using stats from newest timed data for subconcept=$type");
+			$self->log->debug2(sub {"Using stats from newest timed data for subconcept=$type"});
 		}
 		else
 		{
@@ -277,7 +277,7 @@ sub applyThresholdToInventory
 	# walk through threshold names
 	foreach my $nm (@$thrname)
 	{
-		$self->log->debug2("processing threshold $nm");
+		$self->log->debug2(sub {"processing threshold $nm"});
 
 		# check for control_regex
 		if (    defined $M->{threshold}{name}{$nm}
@@ -286,11 +286,11 @@ sub applyThresholdToInventory
 		{
 			if ( $item =~ /$M->{threshold}{name}{$nm}{control_regex}/ )
 			{
-				$self->log->debug2("MATCHED threshold $nm control_regex MATCHED $item");
+				$self->log->debug2(sub {"MATCHED threshold $nm control_regex MATCHED $item"});
 			}
 			else
 			{
-				$self->log->debug2("SKIPPING threshold $nm: $item did not match control_regex");
+				$self->log->debug2(sub {"SKIPPING threshold $nm: $item did not match control_regex"});
 				next();
 			}
 		}
@@ -408,7 +408,7 @@ sub compute_metrics
 	$S->init;
 
 	my $pollTimer = Compat::Timing->new;
-	$self->log->debug2(&NMISNG::Log::trace()."Starting");
+	$self->log->debug2(sub {&NMISNG::Log::trace()."Starting"});
 	
 	my $network_status = NMISNG::NetworkStatus->new( nmisng => $self );
 	my $overallStatus = $network_status->overallNodeStatus( );
@@ -467,7 +467,7 @@ sub compute_metrics
 		# logs any errors
 		$S->create_update_rrd( data => $data, type => "metrics", item => $group);
 	}
-	$self->log->debug2(&NMISNG::Log::trace()."Finished");
+	$self->log->debug2(sub {&NMISNG::Log::trace()."Finished"});
 	return {success => 1};
 }
 
@@ -592,12 +592,12 @@ sub compute_thresholds
 	# skip if node down
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
 	{
-		$self->log->debug2("Node down, skipping thresholding for $S->{name}");
+		$self->log->debug2(sub {"Node down, skipping thresholding for $S->{name}"});
 		return;
 	}
 	if ( !$S->nmisng_node->configuration->{threshold} )
 	{
-		$self->log->debug2("Node $S->{name} not enabled for thresholding, skipping.");
+		$self->log->debug2(sub {"Node $S->{name} not enabled for thresholding, skipping."});
 		return;
 	}
 
@@ -624,10 +624,10 @@ sub compute_thresholds
 
 			if ( !$thissection->{threshold} )
 			{
-				$self->log->debug2("section $s, type $type has no threshold");
+				$self->log->debug2(sub {"section $s, type $type has no threshold"});
 				next;                                 # nothing to do
 			}
-			$self->log->debug2("section $s, type $type has a threshold");
+			$self->log->debug2(sub {"section $s, type $type has a threshold"});
 
 			# get commasep string of threshold name(s), turn it into an array, unless it's already an array
 			$thrname
@@ -638,7 +638,7 @@ sub compute_thresholds
 			# attention: control expressions for indexed section must be run per instance,
 			# and no more getbool possible (see below for reason)
 			my $control = $thissection->{control};
-			$self->log->debug2("control found:$control for section=$s type=$type") if ($control);
+			$self->log->debug2(sub {"control found:$control for section=$s type=$type"}) if ($control);
 
 			# find all instances of this subconcept and try and run thresholding for them, doesn't matter if indexed
 			# or not, this will run them all
@@ -678,7 +678,7 @@ sub compute_thresholds
 				my $data = $inventory->data;
 				my $index = $data->{index} // undef;
 
-				$self->log->debug4("threshold of type:$type, index:$index ".Dumper $inventory);
+				$self->log->debug4(sub {"threshold of type:$type, index:$index ".Dumper $inventory});
 
 				if ($control
 					&& !$S->parseString(
@@ -690,12 +690,12 @@ sub compute_thresholds
 					)
 					)
 				{
-					$self->log->debug2("threshold of type:$type, index:$index skipped by control=$control");
+					$self->log->debug2(sub {"threshold of type:$type, index:$index skipped by control=$control"});
 					next;
 				}
 				if ( $data->{threshold} && !NMISNG::Util::getbool( $data->{threshold} ) )
 				{
-					$self->log->debug2("skipping disabled threshold type:$type for index:$index");
+					$self->log->debug2(sub {"skipping disabled threshold type:$type for index:$index"});
 					next;
 				}
 				$self->applyThresholdToInventory(
@@ -758,7 +758,7 @@ sub compute_thresholds
 	if ( $count and $countOk )
 	{
 		my $perOk = sprintf( "%.2f", $countOk / $count * 100 );
-		$self->log->debug2("Status Summary = $perOk, $count, $countOk\n");
+		$self->log->debug2(sub {"Status Summary = $perOk, $count, $countOk\n"});
 		$catchall_data->{status_summary} = $perOk;
 		$catchall_data->{status_updated} = time();
 	}
@@ -1669,7 +1669,7 @@ sub find_due_nodes
 			}
 			else
 			{
-				$self->log->debug2("Node $nodename is using polling policy \"$polname\"");
+				$self->log->debug2(sub {"Node $nodename is using polling policy \"$polname\""});
 			}
 
 			my $lastsnmp = $ninfo->{last_poll_snmp_attempt};
@@ -2277,7 +2277,7 @@ sub get_group_names
 		: { "activated.NMIS" => 1, "configuration.active" => 1};
 
 	my $model_data = $self->get_nodes_model( filter => $filter, fields_hash => {"configuration.group" => 1} );
-	$self->log->debug7("Model Data " . Dumper($model_data) . "\n\n\n");
+	$self->log->debug7(sub {"Model Data " . Dumper($model_data) . "\n\n\n"});
 	return () if ($model_data->error);
 
 	my @groupnames  = List::Util::uniq(map { $_->{configuration}->{group} } @{$model_data->data});
@@ -2754,9 +2754,9 @@ sub grouped_node_summary
 		pre_count_pipeline => \@pipe,
 		count              => 0,
 	);
-	$self->log->debug7("Entries: " . Dumper($entries) . "\n\n\n");
-	$self->log->debug7("Count:   " . Dumper($count) . "\n\n\n");
-	$self->log->debug7("Error:   " . Dumper($error) . "\n\n\n");
+	$self->log->debug7(sub {"Entries: " . Dumper($entries) . "\n\n\n"});
+	$self->log->debug7(sub {"Count:   " . Dumper($count) . "\n\n\n"});
+	$self->log->debug7(sub {"Error:   " . Dumper($error) . "\n\n\n"});
 	return ( $entries, $count, $error );
 }
 
@@ -3030,7 +3030,7 @@ sub process_escalations
 	my $serial_ns = 0;
 	my %seen;
 
-	$self->log->debug2(&NMISNG::Log::trace()."Starting");
+	$self->log->debug2(sub {&NMISNG::Log::trace()."Starting"});
 	my $CT = NMISNG::Util::loadTable( dir => "conf", name => "Contacts", conf => $C );
 
 	# load the escalation policy table
@@ -3098,7 +3098,7 @@ sub process_escalations
 				$target = "";
 				my @x    = split /:/, $field;
 				my $type = shift @x;                                  # netsend, email, or pager ?
-				$self->log->debug2("Escalation type=$type contact=$contact");
+				$self->log->debug2(sub {"Escalation type=$type contact=$contact"});
 
 				if ( $type =~ /email|ccopy|pager/ )
 				{
@@ -3120,7 +3120,7 @@ sub process_escalations
 						}
 						else
 						{
-							$self->log->debug2("Contact $contact not found in Contacts table");
+							$self->log->debug2(sub {"Contact $contact not found in Contacts table"});
 						}
 					}
 
@@ -3215,7 +3215,7 @@ sub process_escalations
 					{
 						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
 						$serial_ns++;
-						$self->log->debug2("NetSend $message to $trgt");
+						$self->log->debug2(sub {"NetSend $message to $trgt"});
 
 						# log the meta event, ONLY if both Log (and Notify) are enabled
 						$self->events->logEvent(
@@ -3241,7 +3241,7 @@ sub process_escalations
 							$msgTable{$type}{$trgt}{$serial_ns}{message}  = $message;
 							$msgTable{$type}{$trgt}{$serial_ns}{priority} = $priority;
 							$serial_ns++;
-							$self->log->debug2("syslog $message");
+							$self->log->debug2(sub {"syslog $message"});
 						}
 					}
 				}
@@ -3306,7 +3306,7 @@ sub process_escalations
 				{
 					if ( NMISNG::Util::checkPerlLib("Notify::$type") )
 					{
-						$self->log->debug2("Notify::$type $contact");
+						$self->log->debug2(sub {"Notify::$type $contact"});
 
 						my $timenow = time();
 						my $datenow = NMISNG::Util::returnDateStamp();
@@ -3342,7 +3342,7 @@ sub process_escalations
 							}
 							else
 							{
-								$self->log->debug2("Contact $contact not found in Contacts table");
+								$self->log->debug2(sub {"Contact $contact not found in Contacts table"});
 							}
 						}
 					}
@@ -3382,7 +3382,7 @@ LABEL_ESC:
 
 		my $mustupdate = undef;    # live changes to thisevent are ok, but saved back ONLY if this is set
 
-		$self->log->debug2("processing event $event_data->{event}");
+		$self->log->debug2(sub {"processing event $event_data->{event}"});
 
 		# checking if event is stateless and dampen time has passed.
 		if ( $event_obj->stateless and time() > $event_obj->startdate + $stateless_event_dampening )
@@ -3467,7 +3467,7 @@ LABEL_ESC:
 		# if a planned outage is in force, keep writing the start time of any unack event to the current start time
 		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
 		my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $nmisng_node, time => time() );
-		$self->log->debug2( "Outage status for $event_data->{node_name} is " . ( $outage || "<none>" ) );
+		$self->log->debug2(sub { "Outage status for $event_data->{node_name} is " . ( $outage || "<none>" ) });
 		if ( $outage eq "current" and !$event_obj->ack )
 		{
 			$event_obj->startdate( time() );
@@ -3545,7 +3545,7 @@ LABEL_ESC:
 			$self->log->debug2(
 				"looking for Event to Escalation Table match for Event[ Node:$event_data->{node_name} Event:$event Element:$event_data->{element} ]"
 			);
-			$self->log->debug2("and node values node=$event_data->{node_name} group=$group role=$role type=$type");
+			$self->log->debug2(sub {"and node values node=$event_data->{node_name} group=$group role=$role type=$type"});
 
 			# Escalation_Key=Group:Role:Type:Event
 			my @keylist = (
@@ -3590,13 +3590,13 @@ LABEL_ESC:
 						and $event_obj->element =~ /$EST->{$esc}{Event_Element}/i )
 					{
 						$keyhash{$esc} = $klst;
-						$self->log->debug2("match found for escalation key=$esc");
+						$self->log->debug2(sub {"match found for escalation key=$esc"});
 					}
 				}
 			}
 
 			my $cnt_hash = keys %keyhash;
-			$self->log->debug2("$cnt_hash match(es) found for $event_data->{node_name}");
+			$self->log->debug2(sub {"$cnt_hash match(es) found for $event_data->{node_name}"});
 
 			foreach $esc_key ( keys %keyhash )
 			{
@@ -3625,7 +3625,7 @@ LABEL_ESC:
 				if ($escalate == $event_obj->escalate )
 				{
 					my $level = "Level" . ( $event_obj->escalate + 1 );
-					$self->log->debug2("Next Notification Target would be $level, Contact: " . $EST->{$esc_key}{$level} );
+					$self->log->debug2(sub {"Next Notification Target would be $level, Contact: " . $EST->{$esc_key}{$level} });
 				}
 
 				# send a new email message as the escalation again.
@@ -3648,7 +3648,7 @@ LABEL_ESC:
 							@x      = split /:/, lc $field;
 							$type   = shift @x;               # first entry is email, ccopy, netsend or pager
 
-							$self->log->debug2("Escalation type=$type");
+							$self->log->debug2(sub {"Escalation type=$type"});
 
 							if ( $type =~ /email|ccopy|pager/ )
 							{
@@ -3764,7 +3764,7 @@ LABEL_ESC:
 									}
 									else
 									{
-										$self->log->debug2("Contact $contact not found in Contacts table");
+										$self->log->debug2(sub {"Contact $contact not found in Contacts table"});
 									}
 								}    #foreach
 
@@ -3887,7 +3887,7 @@ LABEL_ESC:
 									{
 										$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
 										$serial_ns++;
-										$self->log->debug2("NetSend $message to $trgt");
+										$self->log->debug2(sub {"NetSend $message to $trgt"});
 
 										# meta-events are subject to both
 										$self->events->logEvent(
@@ -3931,7 +3931,7 @@ LABEL_ESC:
 											$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
 											$msgTable{$type}{$trgt}{$serial}{priority}   = $priority;
 											$serial_ns++;
-											$self->log->debug2("syslog $message");
+											$self->log->debug2(sub {"syslog $message"});
 										}    #foreach
 									}
 								}
@@ -3997,7 +3997,7 @@ LABEL_ESC:
 							{
 								if ( NMISNG::Util::checkPerlLib("Notify::$type") )
 								{
-									$self->log->debug2("Notify::$type $contact");
+									$self->log->debug2(sub {"Notify::$type $contact"});
 									my $timenow = time();
 									my $datenow = NMISNG::Util::returnDateStamp();
 									my $message
@@ -4032,7 +4032,7 @@ LABEL_ESC:
 										}
 										else
 										{
-											$self->log->debug2("Contact $contact not found in Contacts table");
+											$self->log->debug2(sub {"Contact $contact not found in Contacts table"});
 										}
 									}
 								}
@@ -4060,10 +4060,10 @@ LABEL_ESC:
 	}
 
 	# now send the messages that have accumulated in msgTable
-	$self->log->debug2("Starting Message Sending");
+	$self->log->debug2(sub {"Starting Message Sending"});
 	foreach my $method ( keys %msgTable )
 	{
-		$self->log->debug2("Method $method");
+		$self->log->debug2(sub {"Method $method"});
 		if ( $method eq "email" )
 		{
 			# fixme: this is slightly inefficient as the new sendEmail can send to multiple targets in one go
@@ -4102,7 +4102,7 @@ LABEL_ESC:
 					}
 					else
 					{
-						$self->log->debug2("Escalation Email Notification sent to $target");
+						$self->log->debug2(sub {"Escalation Email Notification sent to $target"});
 					}
 				}
 			}
@@ -4146,7 +4146,7 @@ LABEL_ESC:
 					}
 					else
 					{
-						$self->log->debug2("Escalation CC Email Notification sent to $target");
+						$self->log->debug2(sub {"Escalation CC Email Notification sent to $target"});
 					}
 				}
 			}
@@ -4157,7 +4157,7 @@ LABEL_ESC:
 			{
 				foreach my $serial ( keys %{$msgTable{$method}{$target}} )
 				{
-					$self->log->debug2("netsend $msgTable{$method}{$target}{$serial}{message} to $target");
+					$self->log->debug2(sub {"netsend $msgTable{$method}{$target}{$serial}{message} to $target"});
 
 					# read any stdout messages and throw them away
 					if ( $^O =~ /win32/i )
@@ -4231,7 +4231,7 @@ LABEL_ESC:
 			}
 			else
 			{
-				$self->log->debug2("ERROR unknown device $method");
+				$self->log->debug2(sub {"ERROR unknown device $method"});
 			}
 		}
 	}
@@ -4617,7 +4617,7 @@ sub thresholdProcess
 	# fixme why no error checking? what about negative or floating point values like 1.3e5?
 	if ( $args{value} =~ /^\d+$|^\d+\.\d+$/ )
 	{
-		$self->log->debug2("thresholdProcess $args{event}, $args{level}, $args{element}, value=$args{value} reset=$args{reset}");
+		$self->log->debug2(sub {"thresholdProcess $args{event}, $args{level}, $args{element}, value=$args{value} reset=$args{reset}"});
 
 		my $details = "Value=$args{value} Threshold=$args{thrvalue}";
 		if ( defined $args{details} and $args{details} ne "" )
@@ -4713,7 +4713,7 @@ sub update_links
 	my $link_ifTypes = $C->{link_ifTypes} || '.';
 	my $qr_link_ifTypes = qr/$link_ifTypes/i;
 
-	$self->log->debug2("update_links: Collecting Interface Linkage Information");
+	$self->log->debug2(sub {"update_links: Collecting Interface Linkage Information"});
 	foreach my $intHash ( sort keys %{$II} )
 	{
 		my $cnt      = 1;
@@ -4770,12 +4770,12 @@ sub update_links
 					$subnets{$subnet}{ifIndex2} = $thisintf->{ifIndex};
 				}
 			}
-			$self->log->debug3( "update_links: found subnet: " . Data::Dumper->new( [$subnets{$subnet}] )->Terse(1)->Indent(0)->Pair("=")->Dump );
+			$self->log->debug3(sub { "update_links: found subnet: " . Data::Dumper->new( [$subnets{$subnet}] )->Terse(1)->Indent(0)->Pair("=")->Dump });
 			$cnt++;
 		}
 	}
 
-	$self->log->debug2("update_links: Generating Links datastructure");
+	$self->log->debug2(sub {"update_links: Generating Links datastructure"});
 	foreach my $subnet ( sort keys %subnets )
 	{
 		my $thisnet = $subnets{$subnet};
@@ -4850,7 +4850,7 @@ sub update_links
 		# dont overwrite any manually configured dependancies.
 		if ( !exists $thislink->{depend} ) { $thislink->{depend} = "N/A" }
 
-		$self->log->debug3("update_links: Adding link $thislink->{link} for $subnet to links");
+		$self->log->debug3(sub {"update_links: Adding link $thislink->{link} for $subnet to links"});
 	}
 
 	NMISNG::Util::writeTable( dir => 'conf', name => 'Links', data => $links );

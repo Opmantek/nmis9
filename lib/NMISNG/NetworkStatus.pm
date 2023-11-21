@@ -400,7 +400,7 @@ sub getGroupSummary {
 
 	my %summaryHash = ();
 
-	#$self->log->debug2(&NMISNG::Log::trace()."Starting");
+	#$self->log->debug2(sub {&NMISNG::Log::trace()."Starting"});
 
 	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
 	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
@@ -414,7 +414,7 @@ sub getGroupSummary {
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);
-		$self->log->debug5("getGroupSummary - Got local nodes: " . Dumper($entries) . "\n\n");
+		$self->log->debug5(sub {"getGroupSummary - Got local nodes: " . Dumper($entries) . "\n\n"});
 	}
 	else {
 		#$self->log->debug("getGroupSummary - Getting all nodes");
@@ -423,7 +423,7 @@ sub getGroupSummary {
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);
-		$self->log->debug5("getGroupSummary - Got all nodes: " . Dumper($entries) . "\n\n");
+		$self->log->debug5(sub {"getGroupSummary - Got all nodes: " . Dumper($entries) . "\n\n"});
 	}
 
 	if( $error || @$entries != 1 )
@@ -443,8 +443,8 @@ sub getGroupSummary {
 	{
 		$group_summary = $entries->[0];
 	}
-	$self->log->debug5("getGroupSummary - Group Summary: " . Dumper($group_summary) . "\n\n");
-	$self->log->debug5("getGroupSummary - Node Data: " . Dumper($node_data) . "\n\n");
+	$self->log->debug5(sub {"getGroupSummary - Group Summary: " . Dumper($group_summary) . "\n\n"});
+	$self->log->debug5(sub {"getGroupSummary - Node Data: " . Dumper($node_data) . "\n\n"});
 #	my $count = $group_summary->{count} || 0;
 #	if ($count == 0)
 #	{
@@ -562,7 +562,7 @@ sub getGroupSummary {
 		}
 	}
 
-	#$self->log->debug2(&NMISNG::Log::trace()."Finished");
+	#$self->log->debug2(sub {&NMISNG::Log::trace()."Finished"});
 	return \%summaryHash;
 } # end getGroupSummary
 

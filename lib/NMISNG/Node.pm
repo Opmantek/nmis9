@@ -977,7 +977,7 @@ sub inventory
 			# sort above ensures that we return the same 'first' object every time,
 			# even in that clash/duplicate case
 			$self->nmisng->log->warn("Inventory search returned more than one value, using the first!");
-			$self->nmisng->log->debug6("Inventory search returned more than one value, using the first!".Dumper(\%args));
+			$self->nmisng->log->debug6(sub {"Inventory search returned more than one value, using the first!".Dumper(\%args)});
 			# HOWEVER, if we can we'll return the first non-historic object
 			# as the most useful of all bad choices
 			my $rawdata = $model_data->data; # inefficient is fine here
@@ -1142,7 +1142,7 @@ sub retrieve_section
 	# this cache entry will be destroyed before use on next call by same executing process if also called then with $use_cache=0
 	if( !defined($self->{_retrieve_section}->{$cache_key}->{$section}) )
 	{
-		$self->nmisng->log->debug9("$self->{_name}: retrieve_section('$section'): not using cache");
+		$self->nmisng->log->debug9(sub {"$self->{_name}: retrieve_section('$section'): not using cache"});
 
 		$self->{_retrieve_section}->{$cache_key}->{$section} = {};
 		my $ids = $self->get_inventory_ids( concept => $section,
@@ -1168,7 +1168,7 @@ sub retrieve_section
 	}
 	else
 	{
-		$self->nmisng->log->debug9("$self->{_name}: retrieve_section('$section'): using cache");
+		$self->nmisng->log->debug9(sub {"$self->{_name}: retrieve_section('$section'): using cache"});
 	}
 	return ($self->{_retrieve_section}->{$cache_key}? Clone::clone($self->{_retrieve_section}->{$cache_key}) : {});
 }
@@ -1463,7 +1463,7 @@ sub rename
 		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
 				if (!$ok);
 		# informational
-		$self->nmisng->log->debug2("relocation reported $error") if ($error);
+		$self->nmisng->log->debug2(sub {"relocation reported $error"}) if ($error);
 
 		# relocate storage returns relative names
 		my $dbroot = $self->nmisng->config->{'database_root'};
@@ -1558,7 +1558,7 @@ sub save
 
 	if ($self->is_new())
 	{
-		$self->nmisng->log->debug2("Calling Insert");
+		$self->nmisng->log->debug2(sub {"Calling Insert"});
 		# could maybe be upsert?
 		$result = NMISNG::DB::insert(
 			collection => $self->collection,
@@ -1570,11 +1570,11 @@ sub save
 		$self->_dirty(0); # all clean now
 		$self->{_lastupdate} = $saveTime;
 		$op = 1;
-		$self->nmisng->log->debug7("Insert return: ". Dumper($result) . "\n");
+		$self->nmisng->log->debug7(sub {"Insert return: ". Dumper($result) . "\n"});
 	}
 	else
 	{
-		$self->nmisng->log->debug2("Calling Update");
+		$self->nmisng->log->debug2(sub {"Calling Update"});
 		$result = NMISNG::DB::update(
 			collection => $self->collection,
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid}, no_regex => 1 ),
@@ -1586,7 +1586,7 @@ sub save
 		$self->_dirty(0);
 		$self->{_lastupdate} = $saveTime;
 		$op = 2;
-		$self->nmisng->log->debug7("Update return: ". Dumper($result) . "\n");
+		$self->nmisng->log->debug7(sub {"Update return: ". Dumper($result) . "\n"});
 	}
 	
 	# Audit 
@@ -1601,7 +1601,7 @@ sub save
 
 	}
 	
-	$self->nmisng->log->debug2("Return code: $op");
+	$self->nmisng->log->debug2(sub {"Return code: $op"});
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
 
@@ -1624,7 +1624,7 @@ sub sync_catchall
 	}
 	if($catchall_inventory)
 	{
-		$self->nmisng->log->debug3("Synchronizong 'catchall");
+		$self->nmisng->log->debug3(sub {"Synchronizong 'catchall"});
 		my $catchall_data = $catchall_inventory->data_live();
 		$catchall_data->{last_node_config_update} = $self->{_lastupdate};
 		$catchall_data->{active} = $self->configuration->{active};
@@ -1819,7 +1819,7 @@ sub pingable
 					$ping_max = $newestping->{data}->{ping}->{max_rtt};
 					$ping_loss = $newestping->{data}->{ping}->{loss};
 
-					$self->nmisng->log->debug2("$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 
 					# ...and use the backup host data if the primary is unreachable
 					if (defined($self->configuration->{host_backup})
@@ -1831,7 +1831,7 @@ sub pingable
 						$ping_max = $newestping->{data}->{ping}->{backup_max_rtt};
 						$ping_loss = $newestping->{data}->{ping}->{backup_loss};
 
-						$self->nmisng->log->debug2("$uuid ($nodename = $newestping->{data}->{backup_ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+						$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{backup_ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 					}
 					$pingresult = ( $ping_loss < 100 ) ? 100 : 0;
 				}
@@ -2137,8 +2137,8 @@ sub update_node_info
 
 				# if the vendors product oid file is loaded, this will give product name.
 				$catchall_data->{sysObjectName} = NMISNG::MIB::oid2name($self->nmisng, $catchall_data->{sysObjectID} );
-				$self->nmisng->log->debug2("sysObjectId=$catchall_data->{sysObjectID}, sysObjectName=$catchall_data->{sysObjectName}");
-				$self->nmisng->log->debug2("sysDescr=$catchall_data->{sysDescr}");
+				$self->nmisng->log->debug2(sub {"sysObjectId=$catchall_data->{sysObjectID}, sysObjectName=$catchall_data->{sysObjectName}"});
+				$self->nmisng->log->debug2(sub {"sysDescr=$catchall_data->{sysDescr}"});
 
 				# Decide on vendor name.
 				my @x = split( /\./, $catchall_data->{sysObjectID} );
@@ -2158,13 +2158,13 @@ sub update_node_info
 				{
 					$catchall_data->{nodeVendor} = "Universal";
 				}
-				$self->nmisng->log->debug2("oid index $i, Vendor is $catchall_data->{nodeVendor}");
+				$self->nmisng->log->debug2(sub {"oid index $i, Vendor is $catchall_data->{nodeVendor}"});
 			}
 
 			# iff snmp is a dud, look at some wmi properties
 			elsif ( $catchall_data->{winbuild} && $catchall_data->{winosname} && $catchall_data->{winversion} )
 			{
-				$self->nmisng->log->debug2("winosname=$catchall_data->{winosname} winversion=$catchall_data->{winversion}");
+				$self->nmisng->log->debug2(sub {"winosname=$catchall_data->{winosname} winversion=$catchall_data->{winversion}"});
 
 				# synthesize something compatible with what win boxes spit out via snmp:
 				# i'm too lazy to also wmi-poll Manufacturer and strip off the 'corporation'
@@ -2185,17 +2185,17 @@ sub update_node_info
 				{
 					# get nodeModel based on nodeVendor and sysDescr (real or synthetic)
 					$catchall_data->{nodeModel} = $S->selectNodeModel();    # select and save name in node info table
-					$self->nmisng->log->debug2("selectNodeModel returned model=$catchall_data->{nodeModel}");
+					$self->nmisng->log->debug2(sub {"selectNodeModel returned model=$catchall_data->{nodeModel}"});
 
 					$catchall_data->{nodeModel} ||= 'Default';              # fixme why default and not generic?
 				}
 				else
 				{
 					$catchall_data->{nodeModel} = $self->configuration->{model};
-					$self->nmisng->log->debug2("node model=$catchall_data->{nodeModel} set by node config");
+					$self->nmisng->log->debug2(sub {"node model=$catchall_data->{nodeModel} set by node config"});
 				}
 
-				$self->nmisng->log->debug2("about to loadModel model=$catchall_data->{nodeModel}");
+				$self->nmisng->log->debug2(sub {"about to loadModel model=$catchall_data->{nodeModel}"});
 				$S->loadModel( model => "Model-$catchall_data->{nodeModel}" );
 
 				# now we know more about the host, nodetype and model have been positively determined,
@@ -2259,7 +2259,7 @@ sub update_node_info
 	}
 	else
 	{
-		$self->nmisng->log->debug2("node $S->{name} is marked collect is 'false'");
+		$self->nmisng->log->debug2(sub {"node $S->{name} is marked collect is 'false'"});
 		$success = 1;                # done
 	}
 
@@ -2268,13 +2268,13 @@ sub update_node_info
 	if ( $overrides->{sysLocation} )
 	{
 		$catchall_data->{sysLocation} = $overrides->{sysLocation};
-		$self->nmisng->log->debug2("Manual update of sysLocation by nodeConf");
+		$self->nmisng->log->debug2(sub {"Manual update of sysLocation by nodeConf"});
 	}
 
 	if ( $overrides->{sysContact} )
 	{
 		$catchall_data->{sysContact} = $overrides->{sysContact};
-		$self->nmisng->log->debug2("Manual update of sysContact by nodeConf");
+		$self->nmisng->log->debug2(sub {"Manual update of sysContact by nodeConf"});
 	}
 
 	if ( $overrides->{nodeType} )
@@ -2470,7 +2470,7 @@ sub collect_node_info
 			$catchall_data->{snmpUpTime}      = NMISNG::Util::convUpTime( $catchall_data->{snmpUpTimeSec} );
 		}
 
-		$self->nmisng->log->debug2("sysUpTime: Old=$sysUpTime New=$catchall_data->{sysUpTime}");
+		$self->nmisng->log->debug2(sub {"sysUpTime: Old=$sysUpTime New=$catchall_data->{sysUpTime}"});
 
 
 		# has that node really been reset or has the uptime counter wrapped at 497 days and change?
@@ -2484,7 +2484,7 @@ sub collect_node_info
 			}
 			else
 			{
-				$self->nmisng->log->debug2("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$newuptime");
+				$self->nmisng->log->debug2(sub {"NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$newuptime"});
 				Compat::NMIS::notify(
 					sys     => $S,
 					event   => "Node Reset",
@@ -2510,12 +2510,12 @@ sub collect_node_info
 		if ( $overrides->{sysLocation} )
 		{
 			$catchall_data->{sysLocation} = $overrides->{sysLocation};
-			$self->nmisng->log->debug2("Manual update of sysLocation by nodeConf");
+			$self->nmisng->log->debug2(sub {"Manual update of sysLocation by nodeConf"});
 		}
 		if ( $overrides->{sysContact} )
 		{
 			$catchall_data->{sysContact} = $overrides->{sysContact};
-			$self->nmisng->log->debug2("Manual update of sysContact by nodeConf");
+			$self->nmisng->log->debug2(sub {"Manual update of sysContact by nodeConf"});
 		}
 
 		if ( exists($overrides->{nodeType}) )
@@ -2607,7 +2607,7 @@ sub collect_node_data
 
 			foreach my $ds ( keys %{$D} )
 			{
-				$self->nmisng->log->debug2("rrdData, section=$section, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}");
+				$self->nmisng->log->debug2(sub {"rrdData, section=$section, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}"});
 			}
 			my $db = $S->create_update_rrd( inventory => $inventory, data => $D, type => $section );
 			if ($db)
@@ -2637,7 +2637,7 @@ sub collect_node_data
 		foreach my $sub (@{$inventory->subconcepts()}) {
 			if (!$subconcepts{$sub}) {
 				if ($sub ne "health") {
-					$self->nmisng->log->debug7("Subconcept not existing anymore. Removing: ". Dumper($storage->{$sub}));
+					$self->nmisng->log->debug7(sub {"Subconcept not existing anymore. Removing: ". Dumper($storage->{$sub})});
 					delete $storage->{$sub};
 				}
 			}
@@ -2731,7 +2731,7 @@ sub update_intf_info
 			$result = $result->{"1.3.6.1.2.1.31.1.5.0"};
 			if ( defined $result and not defined $catchall_data->{ifTableLastChange} )
 			{
-				$self->nmisng->log->debug2("$nodename using ifTableLastChange for interface updates");
+				$self->nmisng->log->debug2(sub {"$nodename using ifTableLastChange for interface updates"});
 				$catchall_data->{ifTableLastChange} = $result;
 			}
 			elsif ( $catchall_data->{ifTableLastChange} != $result )
@@ -2743,7 +2743,7 @@ sub update_intf_info
 			}
 			else
 			{
-				$self->nmisng->log->debug2("$nodename ifTableLastChange NO change, skipping ");
+				$self->nmisng->log->debug2(sub {"$nodename ifTableLastChange NO change, skipping "});
 
 				# returning 1 as we can do the rest of the updates.
 				return 1;
@@ -2752,7 +2752,7 @@ sub update_intf_info
 
 		# else node may not have this variable so keep on doing in the hard way.
 
-		$self->nmisng->log->debug2("Get Interface Info of node $nodename, model $catchall_data->{nodeModel}");
+		$self->nmisng->log->debug2(sub {"Get Interface Info of node $nodename, model $catchall_data->{nodeModel}"});
 
 		# load interface types (IANA). number => name
 		my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);
@@ -2783,7 +2783,7 @@ sub update_intf_info
 				if ( $SNMP->error =~ /is empty or does not exist/ )
 				{
 					# fixme9 unclear if terminal
-					$self->nmisng->log->debug2( "SNMP Object Not Present ($nodename) on get interface index table: " . $SNMP->error );
+					$self->nmisng->log->debug2(sub { "SNMP Object Not Present ($nodename) on get interface index table: " . $SNMP->error });
 				}
 
 				# snmp failed
@@ -2793,7 +2793,7 @@ sub update_intf_info
 					$self->handle_down( sys => $S, type => "snmp", details => $SNMP->error );
 				}
 
-				$self->nmisng->log->debug2("Finished (snmp failure)");
+				$self->nmisng->log->debug2(sub {"Finished (snmp failure)"});
 				return 0;
 			}
 		}
@@ -2869,7 +2869,7 @@ sub update_intf_info
 
 				if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
 				{
-					$self->nmisng->log->debug2("Finished (stop polling on error)");
+					$self->nmisng->log->debug2(sub {"Finished (stop polling on error)"});
 					return 0;
 				}
 			}
@@ -2925,7 +2925,7 @@ sub update_intf_info
 			and defined $S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle}
 			and NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle} ) )
 		{
-			$self->nmisng->log->debug2("Skipping Device IP Address Table because skipIpAddressTableOnSingle is false");
+			$self->nmisng->log->debug2(sub {"Skipping Device IP Address Table because skipIpAddressTableOnSingle is false"});
 		}
 		else
 		{
@@ -2936,12 +2936,12 @@ sub update_intf_info
 			# some devices do not have complete address data in one MIB so we have to check them all.....
 			my $ipCrossIndex;
 
-			$self->nmisng->log->debug2("Getting Device IP Address Table");
+			$self->nmisng->log->debug2(sub {"Getting Device IP Address Table"});
 
 			# First lets get the IP-MIB v1 (IPv4 only), should work with MANY devices.
 			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex') )
 			{
-				$self->nmisng->log->debug2("Processing IP-MIB v1 IP Address Table");
+				$self->nmisng->log->debug2(sub {"Processing IP-MIB v1 IP Address Table"});
 				$ifMaskTable = $SNMP->getindex('ipAdEntNetMask');
 				foreach my $addr ( Net::SNMP::oid_lex_sort( keys %{$ifAdEntTable} ) )
 				{
@@ -2971,7 +2971,7 @@ sub update_intf_info
 					$ipCrossIndex->{$addr}{mask} = $mask;
 					$ipCrossIndex->{$addr}{count} = $ifCnt{$index};
 
-					$self->nmisng->log->debug2("ipAdEntIfIndex ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});
+					$self->nmisng->log->debug2(sub {"ipAdEntIfIndex ifIndex=$index, count=$ifCnt{$index} addr=$addr mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"}});
 				}
 			}
 
@@ -2985,7 +2985,7 @@ sub update_intf_info
 			
 			if (!$ipMibV2Available)
 			{
-				$self->nmisng->log->debug2("Need to Try CISCO-IETF-IP-MIB (IPv6 only)");
+				$self->nmisng->log->debug2(sub {"Need to Try CISCO-IETF-IP-MIB (IPv6 only)"});
 				# also try CISCO-IETF-IP-MIB (IPv6 only)
 				$addrIfIndex = 'cIpAddressIfIndex';
 				$addrPrefix = 'cIpAddressPrefix';
@@ -2997,7 +2997,7 @@ sub update_intf_info
 			if ( $ifAdEntTable )
 			{
 				$ipv6_source = $ipMibV2Available ? "IP-MIB v2" : "CISCO-IETF-IP-MIB";
-				$self->nmisng->log->debug2("IPv6 Source: $ipv6_source, addrPrefix=$addrPrefix");
+				$self->nmisng->log->debug2(sub {"IPv6 Source: $ipv6_source, addrPrefix=$addrPrefix"});
 				$ifMaskTable = $SNMP->getindex($addrPrefix);
 				my $ipAddressTypeTable = $SNMP->getindex($addrType);
 				my $UNICAST = 1;
@@ -3024,7 +3024,7 @@ sub update_intf_info
 
 					# skip the IP address if we already have it.
 					if ( defined $ipCrossIndex->{$ip} and $ipCrossIndex->{$ip}{ip} eq $ip ) {
-						$self->nmisng->log->debug2("Skipping $ip, already got it, ifIndex=$ipCrossIndex->{$ip}{ifIndex} count=ifIndex=$ipCrossIndex->{$ip}{count}");
+						$self->nmisng->log->debug2(sub {"Skipping $ip, already got it, ifIndex=$ipCrossIndex->{$ip}{ifIndex} count=ifIndex=$ipCrossIndex->{$ip}{count}"});
 					}
 					else {
 						$ifCnt{$index} += 1;
@@ -3045,10 +3045,10 @@ sub update_intf_info
 							$target->{"ipAdEntType$ifCnt{$index}"} = $type;
 							$target->{"ipSubnet$ifCnt{$index}"} = $subnet;
 							$target->{"ipSubnetBits$ifCnt{$index}"} = $bits;
-							$self->nmisng->log->debug2("$ipv6_source ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"});							
+							$self->nmisng->log->debug2(sub {"$ipv6_source ifIndex=$index, count=$ifCnt{$index} addr=$addr ip=$ip mask=$mask version=$version ipSubnet=".$target->{"ipSubnet$ifCnt{$index}"}});							
 						}
 						else {
-							$self->nmisng->log->debug2("Skipping IP $ip ifIndex=$index, appears bad, no IP Subnet defined, mask=$mask version=$version");
+							$self->nmisng->log->debug2(sub {"Skipping IP $ip ifIndex=$index, appears bad, no IP Subnet defined, mask=$mask version=$version"});
 						}
 					}
 				}
@@ -3056,7 +3056,7 @@ sub update_intf_info
 
 			if ( !$ifAdEntTable )
 			{
-				$self->nmisng->log->debug2("ERROR getting Device Ip Address table");
+				$self->nmisng->log->debug2(sub {"ERROR getting Device Ip Address table"});
 			}
 		}
 
@@ -3084,67 +3084,67 @@ sub update_intf_info
 		if ( defined $C->{global_nocollect_noDescription} and $C->{global_nocollect_noDescription} ne "" )
 		{
 			$noDescription = $C->{global_nocollect_noDescription};
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_nocollect_noDescription");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_nocollect_noDescription"});
 		}
 
 		if ( defined $C->{global_collect_Description} and $C->{global_collect_Description} ne "" )
 		{
 			$qr_collect_ifAlias_gen = qr/($C->{global_collect_Description})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_collect_Description");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_collect_Description"});
 		}
 
 		# is collection overridden globally, on or off? (on wins if both are set)
 		if ( defined $C->{global_collect_ifDescr} and $C->{global_collect_ifDescr} ne '' )
 		{
 			$qr_collect_ifDescr_gen = qr/($C->{global_collect_ifDescr})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_collect_ifDescr");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_collect_ifDescr"});
 		}
 		elsif ( defined $C->{global_nocollect_ifDescr} and $C->{global_nocollect_ifDescr} ne "" )
 		{
 			$qr_no_collect_ifDescr_gen = qr/($C->{global_nocollect_ifDescr})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_nocollect_ifDescr");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_nocollect_ifDescr"});
 		}
 
 		if ( defined $C->{global_nocollect_Description} and $C->{global_nocollect_Description} ne "" )
 		{
 			$qr_no_collect_ifAlias_gen = qr/($C->{global_nocollect_Description})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_nocollect_Description");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_nocollect_Description"});
 		}
 
 		if ( defined $C->{global_nocollect_ifType} and $C->{global_nocollect_ifType} ne "" )
 		{
 			$qr_no_collect_ifType_gen = qr/($C->{global_nocollect_ifType})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_nocollect_ifType");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_nocollect_ifType"});
 		}
 
 		if ( defined $C->{global_nocollect_ifOperStatus} and $C->{global_nocollect_ifOperStatus} ne "" )
 		{
 			$qr_no_collect_ifOperStatus_gen = qr/($C->{global_nocollect_ifOperStatus})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_nocollect_ifOperStatus");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_nocollect_ifOperStatus"});
 		}
 
 		if ( defined $C->{global_noevent_ifDescr} and $C->{global_noevent_ifDescr} ne "" )
 		{
 			$qr_no_event_ifDescr_gen = qr/($C->{global_noevent_ifDescr})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_noevent_ifDescr");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_noevent_ifDescr"});
 		}
 
 		if ( defined $C->{global_noevent_Description} and $C->{global_noevent_Description} ne "" )
 		{
 			$qr_no_event_ifAlias_gen = qr/($C->{global_noevent_Description})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_noevent_Description");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_noevent_Description"});
 		}
 
 		if ( defined $C->{global_noevent_ifType} and $C->{global_noevent_ifType} ne "" )
 		{
 			$qr_no_event_ifType_gen = qr/($C->{global_noevent_ifType})/i;
-			$self->nmisng->log->debug2("INFO Model overriden by Global Config for global_noevent_ifType");
+			$self->nmisng->log->debug2(sub {"INFO Model overriden by Global Config for global_noevent_ifType"});
 		}
 
 		my $intfTotal   = 0;
 		my $intfCollect = 0;    # reset counters
 
-		$self->nmisng->log->debug2("Checking interfaces for duplicate ifDescr");
+		$self->nmisng->log->debug2(sub {"Checking interfaces for duplicate ifDescr"});
 		my $ifDescrIndx;
 		foreach my $i (@ifIndexNum)
 		{
@@ -3161,14 +3161,14 @@ sub update_intf_info
 			if ( exists $ifDescrIndx->{$target->{ifDescr}} and $ifDescrIndx->{$target->{ifDescr}} ne "" )
 			{
 				$target->{ifDescr} .= "-$i";                  # add index to string
-				$self->nmisng->log->debug2("Interface ifDescr changed to $target->{ifDescr}");
+				$self->nmisng->log->debug2(sub {"Interface ifDescr changed to $target->{ifDescr}"});
 			}
 			else
 			{
 				$ifDescrIndx->{$target->{ifDescr}} = $i;
 			}
 		}
-		$self->nmisng->log->debug2("Completed duplicate ifDescr processing");
+		$self->nmisng->log->debug2(sub {"Completed duplicate ifDescr processing"});
 
 		foreach my $index (@ifIndexNum)
 		{
@@ -3195,7 +3195,7 @@ sub update_intf_info
 				{
 					$target->{nc_Description} = $target->{Description};                         # save
 					$target->{Description} = $thisintfover->{Description};
-					$self->nmisng->log->debug2("Manual update of Description by nodeConf");
+					$self->nmisng->log->debug2(sub {"Manual update of Description by nodeConf"});
 				}
 				if ( $thisintfover->{display_name} )
 				{
@@ -3209,7 +3209,7 @@ sub update_intf_info
 					{
 						$target->{"nc_$speedname"} = $target->{$speedname};    # save
 						$target->{$speedname} = $thisintfover->{$speedname};
-						$self->nmisng->log->debug2("Manual update of $speedname by nodeConf");
+						$self->nmisng->log->debug2(sub {"Manual update of $speedname by nodeConf"});
 					}
 				}
 
@@ -3320,7 +3320,7 @@ sub update_intf_info
 				{
 					$target->{nc_collect} = $target->{collect};
 					$target->{collect}    = $thisintfover->{collect};
-					$self->nmisng->log->debug2("Manual update of Collect by nodeConf");
+					$self->nmisng->log->debug2(sub {"Manual update of Collect by nodeConf"});
 
 					### 2014-04-28 keiths, fixing info for GUI
 					if ( NMISNG::Util::getbool( $target->{collect}, "invert" ) )
@@ -3339,7 +3339,7 @@ sub update_intf_info
 					$target->{event}    = $thisintfover->{event};
 					$target->{noevent}  = "Manual update by nodeConf"
 						if ( NMISNG::Util::getbool( $target->{event}, "invert" ) );    # reason
-					$self->nmisng->log->debug2("Manual update of Event by nodeConf");
+					$self->nmisng->log->debug2(sub {"Manual update of Event by nodeConf"});
 				}
 
 				if ( $thisintfover->{threshold} and $thisintfover->{ifDescr} eq $target->{ifDescr} )
@@ -3348,7 +3348,7 @@ sub update_intf_info
 					$target->{threshold}    = $thisintfover->{threshold};
 					$target->{nothreshold}  = "Manual update by nodeConf"
 						if ( NMISNG::Util::getbool( $target->{threshold}, "invert" ) );    # reason
-					$self->nmisng->log->debug2("Manual update of Threshold by nodeConf");
+					$self->nmisng->log->debug2(sub {"Manual update of Threshold by nodeConf"});
 				}
 			}
 
@@ -3367,11 +3367,11 @@ sub update_intf_info
 			# collect status
 			if ( NMISNG::Util::getbool( $target->{collect} ) )
 			{
-				$self->nmisng->log->debug2("$target->{ifDescr} ifIndex $index, collect=true");
+				$self->nmisng->log->debug2(sub {"$target->{ifDescr} ifIndex $index, collect=true"});
 			}
 			else
 			{
-				$self->nmisng->log->debug2("$target->{ifDescr} ifIndex $index, collect=false, $target->{nocollect}");
+				$self->nmisng->log->debug2(sub {"$target->{ifDescr} ifIndex $index, collect=false, $target->{nocollect}"});
 
 				# if collect is of then disable event and threshold (clearly not applicable)
 				$target->{threshold} = 'false';
@@ -3438,7 +3438,7 @@ sub update_intf_info
 																				 index     => $index,
 																				 item      => $_,
 																				 relative => 1 );
-						$self->nmisng->log->debug2("Storage: ". Dumper($dbname));
+						$self->nmisng->log->debug2(sub {"Storage: ". Dumper($dbname)});
 						$inventory->set_subconcept_type_storage(type => "rrd",
 																subconcept => $_,
 																data => $dbname) if ($dbname);
@@ -3462,7 +3462,7 @@ sub update_intf_info
 				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
 				my ( $op, $error ) = $inventory->save();
-				$self->nmisng->log->debug2( "saved ".join(',', @{$inventory->path})." op: $op");
+				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error( "Failed to save inventory:"
 																	 . join( ",", @{$inventory->path} ) . " error:$error" )
 						if ($error);
@@ -3565,7 +3565,7 @@ sub update_intf_info
 							}
 							else
 							{
-								$self->nmisng->log->debug2("rrd section $datatype, ds $dsname, current limit $curval is correct");
+								$self->nmisng->log->debug2(sub {"rrd section $datatype, ds $dsname, current limit $curval is correct"});
 							}
 						}
 					}
@@ -3583,15 +3583,15 @@ sub update_intf_info
 			$self->nmisng->log->debug("$nodename, found intfs alive: $result->{matched_nothistoric}, already historic: $result->{matched_historic}, marked alive: $result->{marked_nothistoric}, marked historic: $result->{marked_historic}");
 		}
 
-		$self->nmisng->log->debug2("Finished");
+		$self->nmisng->log->debug2(sub {"Finished"});
 	}
 	elsif ( $catchall_data->{ifNumber} > $interface_max_number )
 	{
-		$self->nmisng->log->debug2("Skipping, interface count $catchall_data->{ifNumber} exceeds configured maximum $interface_max_number");
+		$self->nmisng->log->debug2(sub {"Skipping, interface count $catchall_data->{ifNumber} exceeds configured maximum $interface_max_number"});
 	}
 	else
 	{
-		$self->nmisng->log->debug2("Skipping, interfaces not defined in Model");
+		$self->nmisng->log->debug2(sub {"Skipping, interfaces not defined in Model"});
 	}
 
 	return ($singleInterface? $inventory: 1);
@@ -3614,11 +3614,11 @@ sub collect_intf_data
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		$self->nmisng->log->debug2("Not performing getIntfData for $nodename: SNMP not enabled for this node");
+		$self->nmisng->log->debug2(sub {"Not performing getIntfData for $nodename: SNMP not enabled for this node"});
 		return 1;
 	}
 
-	$self->nmisng->log->debug2("Starting Interface get data for node $nodename");
+	$self->nmisng->log->debug2(sub {"Starting Interface get data for node $nodename"});
 
 	# adminstatus only uses 1..3 , operstatus can have all 1..7.
 	my %knownadminstates = ( 1 => 'up',
@@ -3645,7 +3645,7 @@ sub collect_intf_data
 	# 9. mark any leftover present-but-unwanted inventories as historic (by inventory id!)
 
 	# 1. get the interface inventories for this node, but only the bits we need (so far)
-	$self->nmisng->log->debug5("collect_intf_data phase 1");
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 1"});
 	my $result = $self->get_inventory_model(
 		'concept' => 'interface',
 		fields_hash => {
@@ -3694,7 +3694,7 @@ sub collect_intf_data
 
 	# 2a. get the ifadminstatus, ifoperstatus and iflastchange tables
 	# and add them to our knowledge
-	$self->nmisng->log->debug5("collect_intf_data phase 2a");
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 2a"});
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
 	# when ifAdminStatus is disabled, interfaces will be managed by a plugin for discovery
@@ -3731,7 +3731,7 @@ sub collect_intf_data
 			and NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{ifLastChange} ) ))
 	{
 		# fixme: this cannot work for non-snmp node
-		$self->nmisng->log->debug2("Using ifLastChange for Interface Change Detection");
+		$self->nmisng->log->debug2(sub {"Using ifLastChange for Interface Change Detection"});
 
 		# iflastchange is in 1/100s ticks
 		if ( my $ifLastChangeTable = $S->snmp->getindex('ifLastChange') )
@@ -3744,7 +3744,7 @@ sub collect_intf_data
 	}
 
 	# 3. who needs updating based on what we know so far?
-	$self->nmisng->log->debug5("collect_intf_data phase 3");
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 3"});
 	for my $index (sort keys %if_data_map)
 	{
 		my $thisif = $if_data_map{$index};
@@ -3815,7 +3815,7 @@ sub collect_intf_data
 	}
 
 	# 4. perform update_intf_info for the interfaces that need it
-	$self->nmisng->log->debug5("collect_intf_data phase 4");
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 4"});
 	for my $needsmust (grep($if_data_map{$_}->{_needs_update}, keys %if_data_map))
 	{
 		# all done by index, so far
@@ -3850,7 +3850,7 @@ sub collect_intf_data
 		}
 		else
 		{
-			$self->nmisng->log->debug2("Interface index $needsmust was updated");
+			$self->nmisng->log->debug2(sub {"Interface index $needsmust was updated"});
 			# just mark this interface as updated
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
@@ -3859,8 +3859,8 @@ sub collect_intf_data
 
 	# 5. collect modelled data for enabled, nonhistoric, collectable interfaces
 	# and stash it as we don't necessarily know the final inventory target yet
-	$self->nmisng->log->debug2("Collecting Interface Data");
-	$self->nmisng->log->debug5("collect_intf_data phase 5");
+	$self->nmisng->log->debug2(sub {"Collecting Interface Data"});
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 5"});
 
 	for my $index (sort grep($if_data_map{$_}->{enabled} && !$if_data_map{$_}->{historic} && ($if_data_map{$_}->{collect} eq "true"),
 													 keys %if_data_map))
@@ -3947,7 +3947,7 @@ sub collect_intf_data
 	# 6. figure out if any other interfaces need an update, based on the snmp information now available
 	# this covers reordered interfaces (interface index is not invariant, ifdescr is treated as invariant)
 	# new interfaces should have been handled in 4.
-	$self->nmisng->log->debug5("collect_intf_data phase 6");
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 6"});
 	for my $index (keys %if_data_map)
 	{
 		my $thisif = $if_data_map{$index};
@@ -3992,7 +3992,7 @@ sub collect_intf_data
 
 	# 7. redo the update_intf_info exercise from 4. for these other interfaces in need of help
 	# these 'other' interfaces should not be totally new ones, those should have been covered in 4.
-	$self->nmisng->log->debug5("collect_intf_data phase 7");
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 7"});
 	for my $needsmust (grep($if_data_map{$_}->{_needs_update}, keys %if_data_map))
 	{
 		# all done by index, so far
@@ -4012,7 +4012,7 @@ sub collect_intf_data
 		# ...which MAY be different from the one we've got in the if_data_map
 		if ($maybenew->id ne $thisif->{_id})
 		{
-			$self->nmisng->log->debug2("Interface index $needsmust has changed substantially and has a new inventory");
+			$self->nmisng->log->debug2(sub {"Interface index $needsmust has changed substantially and has a new inventory"});
 
 			# update the if_data_map. index is the same, contents may differ
 			# we must keep the relevant already collected stuff, especially the rrd data!
@@ -4039,7 +4039,7 @@ sub collect_intf_data
 
 	# 8. do something with the stashed rrd data; now if_data_map should have
 	# the correct inventory id attached for every single interface
-	$self->nmisng->log->debug5("collect_intf_data phase 8");
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 8"});
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live(); # live, no saving needed
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
@@ -4084,7 +4084,7 @@ sub collect_intf_data
 			if ($dontwanna_ifadminstatus)
 			{
 				# ifAdminStatus is from inventory, _ifAdminStatus is from snmp, model etc.
-				$self->nmisng->log->debug2("handling up/down, now admin=$thisif->{_ifAdminStatus}, oper=$thisif->{_ifOperStatus} was admin=$thisif->{ifAdminStatus}, oper=$thisif->{ifOperStatus}");
+				$self->nmisng->log->debug2(sub {"handling up/down, now admin=$thisif->{_ifAdminStatus}, oper=$thisif->{_ifOperStatus} was admin=$thisif->{ifAdminStatus}, oper=$thisif->{ifOperStatus}"});
 
 				# interface now up or down, check and set or clear outstanding event.
 				# fixme not quite correct logic, checkevent happens if ifadminstatus is not up/ok...
@@ -4134,7 +4134,7 @@ sub collect_intf_data
 				$inventory_data->{ifLastChange} = NMISNG::Util::convUpTime(
 					$inventory_data->{ifLastChangeSec}
 					= int( $ifsection->{ifLastChange}{value} / 100 ) );
-				$self->nmisng->log->debug2("last change for index $index time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}");
+				$self->nmisng->log->debug2(sub {"last change for index $index time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}"});
 			}
 			delete $ifsection->{ifLastChange};
 
@@ -4166,12 +4166,12 @@ sub collect_intf_data
 			{
 				for my $ds (keys %{$thissection})
 				{
-					$self->nmisng->log->debug2( "rrdData section $sectionname, ds $ds, value=$thissection->{$ds}->{value}, option=$thissection->{$ds}->{option}");
+					$self->nmisng->log->debug2(sub { "rrdData section $sectionname, ds $ds, value=$thissection->{$ds}->{value}, option=$thissection->{$ds}->{option}"});
 				}
 			}
 
 			# RRD Database update and remember filename
-			$self->nmisng->log->debug2( "updateRRD type=$sectionname index=$index", 2 );
+			$self->nmisng->log->debug2(sub { "updateRRD type=$sectionname index=$index", 2 });
 			my $db = $S->create_update_rrd( data => $thissection,
 																			type => $sectionname,
 																			index => $index,
@@ -4241,7 +4241,7 @@ sub collect_intf_data
 		if ($leftovers{$invid})
 		{
 			# note that leftovers contain already marked historic ones, so that debug isn't super-useful
-			$self->nmisng->log->debug3("$nodename, (re)marking inventory $invid as historic");
+			$self->nmisng->log->debug3(sub {"$nodename, (re)marking inventory $invid as historic"});
 		}
 		else
 		{
@@ -4255,7 +4255,7 @@ sub collect_intf_data
 
 	$self->nmisng->log->debug("$nodename, collect_intf_data found intfs alive: $nuked->{matched_nothistoric}, already historic: $nuked->{matched_historic}, marked alive: $nuked->{marked_nothistoric}, marked historic: $nuked->{marked_historic}");
 
-	$self->nmisng->log->debug2("Finished");
+	$self->nmisng->log->debug2(sub {"Finished"});
 	return 1;
 }
 
@@ -4323,14 +4323,14 @@ sub checkPIX
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		$self->nmisng->log->debug2("Not performing PIX Failover check for $S->{name}: SNMP not enabled for this node");
+		$self->nmisng->log->debug2(sub {"Not performing PIX Failover check for $S->{name}: SNMP not enabled for this node"});
 		return 1;
 	}
 
 	my $SNMP = $S->snmp;
 	my $result;
 
-	$self->nmisng->log->debug2(&NMISNG::Log::trace() ."Starting");
+	$self->nmisng->log->debug2(sub {&NMISNG::Log::trace() ."Starting"});
 
 	# PIX failover test
 	# table has six values
@@ -4342,7 +4342,7 @@ sub checkPIX
 
 	return if ( $catchall_data->{nodeModel} ne "CiscoPIX" );
 
-	$self->nmisng->log->debug2("checkPIX, Getting Cisco PIX Failover Status");
+	$self->nmisng->log->debug2(sub {"checkPIX, Getting Cisco PIX Failover Status"});
 	if ($result = $SNMP->get(
 				'cfwHardwareStatusValue.6',  'cfwHardwareStatusValue.7',
 				'cfwHardwareStatusDetail.6', 'cfwHardwareStatusDetail.7'
@@ -4366,7 +4366,7 @@ sub checkPIX
 			if (   $result->{'cfwHardwareStatusValue.6'} ne $catchall_data->{pixPrimary}
 						 or $result->{'cfwHardwareStatusValue.7'} ne $catchall_data->{pixSecondary} )
 			{
-				$self->nmisng->log->debug2("PIX failover occurred");
+				$self->nmisng->log->debug2(sub {"PIX failover occurred"});
 
 				# As this is not stateful, alarm not sent to state table in sub eventAdd
 				Compat::NMIS::notify(
@@ -4381,7 +4381,7 @@ sub checkPIX
 		$catchall_data->{pixPrimary}   = $result->{'cfwHardwareStatusValue.6'};    # remember
 		$catchall_data->{pixSecondary} = $result->{'cfwHardwareStatusValue.7'};
 	}
-	$self->nmisng->log->debug2(&NMIS::Log::trace() ."Finished");
+	$self->nmisng->log->debug2(sub {&NMIS::Log::trace() ."Finished"});
 	return 1;
 }
 
@@ -4400,7 +4400,7 @@ sub handle_configuration_changes
 	my $S    = $args{sys};
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
-	$self->nmisng->log->debug2("Starting handle_configuration_changes");
+	$self->nmisng->log->debug2(sub {"Starting handle_configuration_changes"});
 
 	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
 
@@ -4460,7 +4460,7 @@ sub handle_configuration_changes
 		}
 	}
 
-	$self->nmisng->log->debug2("Finished");
+	$self->nmisng->log->debug2(sub {"Finished"});
 	return;
 }
 
@@ -4475,7 +4475,7 @@ sub get_dns_location
 	my ($self, $catchall_data) = @_;
 
 	my $C = $self->nmisng->config;
-	$self->nmisng->log->debug2(&NMISNG::Log::trace() ."Starting");
+	$self->nmisng->log->debug2(sub {&NMISNG::Log::trace() ."Starting"});
 
 	# collect DNS location info. Update this info every update pass.
 	$catchall_data->{loc_DNSloc} = "unknown";
@@ -4496,7 +4496,7 @@ sub get_dns_location
 
 				my ($lat,$lon) = $rr->latlon;
 				$catchall_data->{loc_DNSloc} = $lat . "," . $lon . "," . $rr->altitude;
-				$self->nmisng->log->debug2("Location set from DNS LOC, to $catchall_data->{loc_DNSloc}");
+				$self->nmisng->log->debug2(sub {"Location set from DNS LOC, to $catchall_data->{loc_DNSloc}"});
 				return 1;
 			}
 		}
@@ -4515,11 +4515,11 @@ sub get_dns_location
 		if ( $catchall_data->{sysLocation} =~ /$C->{loc_sysLoc_format}/ )
 		{
 			$catchall_data->{loc_DNSloc} = $catchall_data->{sysLocation};
-			$self->nmisng->log->debug2("Location set from device sysLocation, to $catchall_data->{loc_DNSloc}");
+			$self->nmisng->log->debug2(sub {"Location set from device sysLocation, to $catchall_data->{loc_DNSloc}"});
 			return 1;
 		}
 	}
-	$self->nmisng->log->debug2(&NMISNG::Log::trace() . "Finished");
+	$self->nmisng->log->debug2(sub {&NMISNG::Log::trace() . "Finished"});
 	return 0;
 }
 
@@ -4544,7 +4544,7 @@ sub collect_systemhealth_info
 
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
-		$self->nmisng->log->debug2("No class 'systemHealth' declared in Model.");
+		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
 		return 0;
 	}
 	elsif ( !$S->status->{snmp_enabled} && !$S->status->{wmi_enabled} )
@@ -4594,7 +4594,7 @@ sub collect_systemhealth_info
 
 		if ( !defined($index_var) or $index_var eq '' )
 		{
-			$self->nmisng->log->debug2("No index var found for $section, skipping");
+			$self->nmisng->log->debug2(sub {"No index var found for $section, skipping"});
 			next;
 		}
 
@@ -4608,13 +4608,13 @@ sub collect_systemhealth_info
 
 		if ( exists( $thissection->{wmi} ) )
 		{
-			$self->nmisng->log->debug2("systemhealth: section=$section, source WMI, index_var=$index_var");
+			$self->nmisng->log->debug2(sub {"systemhealth: section=$section, source WMI, index_var=$index_var"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );
 
 			my $wmiaccessor = $S->wmi;
 			if ( !$wmiaccessor )
 			{
-				$self->nmisng->log->debug2("skipping section $section: source WMI but node $S->{name} not configured for WMI");
+				$self->nmisng->log->debug2(sub {"skipping section $section: source WMI but node $S->{name} not configured for WMI"});
 				next;
 			}
 
@@ -4671,7 +4671,7 @@ sub collect_systemhealth_info
 			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
 			for my $indexvalue ( @active_indices )
 			{
-				$self->nmisng->log->debug2("section=$section index=$index_var, found value=$indexvalue");
+				$self->nmisng->log->debug2(sub {"section=$section index=$index_var, found value=$indexvalue"});
 
 				# allow disabling of collection for this instance,
 				# based on regex match against the index value
@@ -4684,7 +4684,7 @@ sub collect_systemhealth_info
 
 					if ($indexvalue =~ $rex)
 					{
-						$self->nmisng->log->debug2("nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping");
+						$self->nmisng->log->debug2(sub {"nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping"});
 						next;
 					}
 				}
@@ -4705,7 +4705,7 @@ sub collect_systemhealth_info
 					)
 					)
 				{
-					$self->nmisng->log->debug2("section=$section index=$indexvalue read and stored");
+					$self->nmisng->log->debug2(sub {"section=$section index=$indexvalue read and stored"});
 
 					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
 					# so use 'index' for now.
@@ -4744,7 +4744,7 @@ sub collect_systemhealth_info
 	
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
-					$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
+					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 						if ($error);
@@ -4769,7 +4769,7 @@ sub collect_systemhealth_info
 				next;
 			}
 			
-			$self->nmisng->log->debug2("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
+			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
 			my ( %healthIndexNum, $healthIndexTable );
 
@@ -4787,7 +4787,7 @@ sub collect_systemhealth_info
 						$index = $1;
 					}
 					my $indexvalue = $healthIndexNum{$index} = $index;
-					$self->nmisng->log->debug2("section=$section index=$index is found, value=$indexvalue");
+					$self->nmisng->log->debug2(sub {"section=$section index=$index is found, value=$indexvalue"});
 
 					# allow disabling of collection for this instance,
 					# based on regex match against the index value
@@ -4800,7 +4800,7 @@ sub collect_systemhealth_info
 
 						if ($indexvalue =~ $rex)
 						{
-							$self->nmisng->log->debug2("nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping");
+							$self->nmisng->log->debug2(sub {"nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping"});
 							next;
 						}
 					}
@@ -4857,7 +4857,7 @@ sub collect_systemhealth_info
 						target  => $target
 				))
 				{
-					$self->nmisng->log->debug2("section=$section index=$index read and stored");
+					$self->nmisng->log->debug2(sub {"section=$section index=$index read and stored"});
 
 					# get the inventory object for this, path_keys required as we don't know what type it will be
 					NMISNG::Util::TODO("Do we use index or the healthIndextTable value that the loop above grabbed?");
@@ -4906,7 +4906,7 @@ sub collect_systemhealth_info
 														index     => $index,
 														inventory      => $inventory,
 														relative => 1);
-							$self->nmisng->log->debug8("Storage: ". Dumper($dbname));
+							$self->nmisng->log->debug8(sub {"Storage: ". Dumper($dbname)});
 							$inventory->set_subconcept_type_storage(type => "rrd",
 																	subconcept => $section,
 																	data => $dbname) if ($dbname);
@@ -4914,7 +4914,7 @@ sub collect_systemhealth_info
 					
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
-					$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
+					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 						if ($error);
@@ -4954,7 +4954,7 @@ sub collect_systemhealth_data
 
 	if ( !exists( $M->{systemHealth} ) )
 	{
-		$self->nmisng->log->debug2("No class 'systemHealth' declared in Model");
+		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model"});
 		return 1;    # nothing there means all ok
 	}
 
@@ -5065,7 +5065,7 @@ sub collect_systemhealth_data
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
-				$self->nmisng->log->debug2("section=$section index=$index read and stored $count values");
+				$self->nmisng->log->debug2(sub {"section=$section index=$index read and stored $count values"});
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
@@ -5151,7 +5151,7 @@ sub collect_cbqos
 	my $name = $self->name;
 	if ( $self->configuration->{cbqos} !~ /^(true|input|output|both)$/ )
 	{
-		$self->nmisng->log->debug2("no CBQoS collecting for node $name");
+		$self->nmisng->log->debug2(sub {"no CBQoS collecting for node $name"});
 		return 1;
 	}
 
@@ -5183,14 +5183,14 @@ sub collect_cbqos_info
 	my $name = $self->name;
 	if ( !$S->status->{snmp_enabled} )
 	{
-		$self->nmisng->log->debug2("Not performing getCBQoSwalk for $name: SNMP not enabled for this node");
+		$self->nmisng->log->debug2(sub {"Not performing getCBQoSwalk for $name: SNMP not enabled for this node"});
 		return 1;
 	}
 
 	my $SNMP = $S->snmp;
 	my $C = $self->nmisng->config;
 
-	$self->nmisng->log->debug2("start table scanning");
+	$self->nmisng->log->debug2(sub {"start table scanning"});
 
 	# get the qos interface indexes and objects from the snmp table
 	if ( my $ifIndexTable = $SNMP->getindex('cbQosIfIndex') )
@@ -5233,7 +5233,7 @@ sub collect_cbqos_info
 		foreach my $PIndex ( keys %{$ifIndexTable} )
 		{
 			my $intf = $ifIndexTable->{$PIndex};    # the interface number from the snmp qos table
-			$self->nmisng->log->debug2("CBQoS, scan interface $intf");
+			$self->nmisng->log->debug2(sub {"CBQoS, scan interface $intf"});
 			$self->nmisng->log->warn("CBQoS ifIndex $intf found which is not in inventory") && next
 				if( !defined($if_data_map{$intf}) );
 			my $if_data = $if_data_map{$intf};
@@ -5241,7 +5241,7 @@ sub collect_cbqos_info
 			# skip CBQoS if interface has collection disabled
 			if ( $if_data->{historic} || !$if_data->{enabled} )
 			{
-				$self->nmisng->log->debug2("Skipping CBQoS, No collect on interface $if_data->{ifDescr} ifIndex=$intf");
+				$self->nmisng->log->debug2(sub {"Skipping CBQoS, No collect on interface $if_data->{ifDescr} ifIndex=$intf"});
 				next;
 			}
 
@@ -5251,7 +5251,7 @@ sub collect_cbqos_info
 			# check direction of qos with node table
 			( $answer->{'cbQosPolicyDirection'} ) = $SNMP->getarray("cbQosPolicyDirection.$PIndex");
 			my $wanteddir = $self->configuration->{cbqos};
-			$self->nmisng->log->debug2("direction in policy is $answer->{'cbQosPolicyDirection'}, node wants $wanteddir");
+			$self->nmisng->log->debug2(sub {"direction in policy is $answer->{'cbQosPolicyDirection'}, node wants $wanteddir"});
 
 			if (( $answer->{'cbQosPolicyDirection'} == 1 and $wanteddir =~ /^(input|both)$/ )
 				or ( $answer->{'cbQosPolicyDirection'} == 2 and $wanteddir =~ /^(output|true|both)$/ ) )
@@ -5259,7 +5259,7 @@ sub collect_cbqos_info
 				# interface found with QoS input or output configured
 
 				my $direction = ( $answer->{'cbQosPolicyDirection'} == 1 ) ? "in" : "out";
-				$self->nmisng->log->debug2("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+				$self->nmisng->log->debug2(sub {"Interface $intf found, direction $direction, PolicyIndex $PIndex"});
 
 				my $ifSpeedIn    = $if_data->{ifSpeedIn}  ? $if_data->{ifSpeedIn}  : $if_data->{ifSpeed};
 				my $ifSpeedOut   = $if_data->{ifSpeedOut} ? $if_data->{ifSpeedOut} : $if_data->{ifSpeed};
@@ -5267,7 +5267,7 @@ sub collect_cbqos_info
 
 				# get the policy config table for this interface
 				my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
-				$self->nmisng->log->debug5("qos index table $PIndex: ".Dumper ($qosIndexTable));
+				$self->nmisng->log->debug5(sub {"qos index table $PIndex: ".Dumper ($qosIndexTable)});
 
 				# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
 			BLOCK2:
@@ -5275,7 +5275,7 @@ sub collect_cbqos_info
 				{
 					# look for the Object type for each
 					( $answer->{'cbQosObjectsType'} ) = $SNMP->getarray("cbQosObjectsType.$PIndex.$OIndex");
-					$self->nmisng->log->debug2("look for object at $PIndex.$OIndex, type $answer->{'cbQosObjectsType'}");
+					$self->nmisng->log->debug2(sub {"look for object at $PIndex.$OIndex, type $answer->{'cbQosObjectsType'}"});
 					if ( $answer->{'cbQosObjectsType'} eq 1 )
 					{
 						# it's a policy-map object, is it the primairy
@@ -5316,9 +5316,9 @@ sub collect_cbqos_info
 							# it is not the first level, get the parent names
 							( $answer->{'cbQosObjectsType2'} )
 									= $SNMP->getarray("cbQosObjectsType.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
-							$self->nmisng->log->debug6("cbQosObjectsType2: ".Dumper($answer->{'cbQosObjectsType2'}));
+							$self->nmisng->log->debug6(sub {"cbQosObjectsType2: ".Dumper($answer->{'cbQosObjectsType2'})});
 
-							$self->nmisng->log->debug2("look for parent of ObjectsType $answer->{'cbQosObjectsType2'}");
+							$self->nmisng->log->debug2(sub {"look for parent of ObjectsType $answer->{'cbQosObjectsType2'}"});
 							if ( $answer->{'cbQosObjectsType2'} eq 1 )
 							{
 								# it is a policymap name
@@ -5330,7 +5330,7 @@ sub collect_cbqos_info
 
 								if ($self->nmisng->log->is_level(6))
 								{
-									$self->nmisng->log->debug6("cbQosName: ".Dumper($answer->{'cbQosName'}));
+									$self->nmisng->log->debug6(sub {"cbQosName: ".Dumper($answer->{'cbQosName'})});
 									$self->nmisng->log->debug6("cbQosParentObjectsIndex2: "
 																						 .Dumper($answer->{'cbQosParentObjectsIndex2'}));
 								}
@@ -5348,14 +5348,14 @@ sub collect_cbqos_info
 
 								if ($self->nmisng->log->is_level(6))
 								{
-									$self->nmisng->log->debug6("cbQosName: ".Dumper($answer->{'cbQosName'}));
+									$self->nmisng->log->debug6(sub {"cbQosName: ".Dumper($answer->{'cbQosName'})});
 									$self->nmisng->log->debug6("cbQosParentObjectsIndex2: "
 																						 .Dumper($answer->{'cbQosParentObjectsIndex2'}));
 								}
 							}
 							elsif ( $answer->{'cbQosObjectsType2'} eq 3 )
 							{
-								$self->nmisng->log->debug2("skip - this class-map is part of a match statement");
+								$self->nmisng->log->debug2(sub {"skip - this class-map is part of a match statement"});
 								next BLOCK2;    # skip this class-map, is part of a match statement
 							}
 
@@ -5429,13 +5429,13 @@ sub collect_cbqos_info
 							= $answer->{'cbQosPoliceCfgRate'};
 					}
 
-					$self->nmisng->log->debug6(Dumper($answer)) if ($self->nmisng->log->is_level(6));
+					$self->nmisng->log->debug6(sub {Dumper($answer)});
 				}
 
 				if ( $answer->{'cbQosPolicyMapName'} eq "" )
 				{
 					$answer->{'cbQosPolicyMapName'} = 'default';
-					$self->nmisng->log->debug2("policymap - name is blank, so setting to default");
+					$self->nmisng->log->debug2(sub {"policymap - name is blank, so setting to default"});
 				}
 				# putting this also in ifDescr so it's easier to programatically find in nodes.pl
 				$cbQosTable{$intf}{$direction}{'ifDescr'} = $if_data->{'ifDescr'};
@@ -5487,7 +5487,7 @@ sub collect_cbqos_info
 			}
 			else
 			{
-				$self->nmisng->log->debug2("No collect requested in Node table");
+				$self->nmisng->log->debug2(sub {"No collect requested in Node table"});
 			}
 		}
 
@@ -5604,7 +5604,7 @@ sub collect_cbqos_info
 								}
 								else
 								{
-									$self->nmisng->log->debug2("rrd cbqos-$direction-$classname, ds $dsname, current limit $curval is correct");
+									$self->nmisng->log->debug2(sub {"rrd cbqos-$direction-$classname, ds $dsname, current limit $curval is correct"});
 								}
 							}
 						}
@@ -5612,7 +5612,7 @@ sub collect_cbqos_info
 					}
 
 					my ( $op, $error ) = $inventory->save();
-					$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
+					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 							if ($error);
 				}
@@ -5621,7 +5621,7 @@ sub collect_cbqos_info
 	}
 	else
 	{
-		$self->nmisng->log->debug2("no entries found in QoS table of node $name");
+		$self->nmisng->log->debug2(sub {"no entries found in QoS table of node $name"});
 	}
 	return 1;
 }
@@ -5674,7 +5674,7 @@ sub collect_cbqos_data
 			{
 				my $CMName = $CB->{'ClassMap'}{$key}{'Name'};
 				my $OIndex = $CB->{'ClassMap'}{$key}{'Index'};
-				$self->nmisng->log->debug2("Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex");
+				$self->nmisng->log->debug2(sub {"Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex"});
 				my $subconcept = $CMName;
 
 				# get the number of bytes/packets transfered and dropped
@@ -5700,9 +5700,9 @@ sub collect_cbqos_data
 					}
 
 					# oke, store the data
-					$self->nmisng->log->debug2("bytes transfered $D->{'PrePolicyByte'}{value}, bytes dropped $D->{'DropByte'}{value}");
-					$self->nmisng->log->debug2("packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
-					$self->nmisng->log->debug2("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
+					$self->nmisng->log->debug2(sub {"bytes transfered $D->{'PrePolicyByte'}{value}, bytes dropped $D->{'DropByte'}{value}"});
+					$self->nmisng->log->debug2(sub {"packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}"});
+					$self->nmisng->log->debug2(sub {"packets dropped no buffer $D->{'NoBufDropPkt'}{value}"});
 
 					# update RRD, rrd file info comes from inventory,
 					# storage/subconcept: class name == subconcept
@@ -5782,7 +5782,7 @@ sub handle_custom_alerts
 		# get the inventory instances that are relevant for this section,
 		# ie. only enabled and nonhistoric ones
 		my $ids = $self->get_inventory_ids( concept => $sect, filter => { enabled => 1, historic => 0 } );
-		$self->nmisng->log->debug2("Custom Alerts for $sect");
+		$self->nmisng->log->debug2(sub {"Custom Alerts for $sect"});
 		foreach my $id ( @$ids )
 		{
 			my ($inventory,$error_message) = $self->inventory( _id => $id );
@@ -5802,7 +5802,7 @@ sub handle_custom_alerts
 						extras => $data, # <- this isn't really needed, it's going to look this up for cvars anyway
 						eval => 1
 					);
-					$self->nmisng->log->debug2("control_result sect=$sect index=$index control_result=$control_result");
+					$self->nmisng->log->debug2(sub {"control_result sect=$sect index=$index control_result=$control_result"});
 					next if not $control_result;
 				}
 
@@ -5908,7 +5908,7 @@ sub handle_custom_alerts
 							$level = $matches[-1]; # we want the highest severity/worst matching one
 							$test_result = 1;
 						}
-						$self->nmisng->log->debug2("alert result: test_value=$test_value test_result=$test_result level=$level");
+						$self->nmisng->log->debug2(sub {"alert result: test_value=$test_value test_result=$test_result level=$level"});
 					}
 
 					# and now save the result, for both tests and thresholds (source of level is the only difference)
@@ -5959,7 +5959,7 @@ sub process_alerts
 			"Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}"
 		) if $alert->{test_result};
 
-		$self->nmisng->log->debug4("Processing alert " . Dumper($alert));
+		$self->nmisng->log->debug4(sub {"Processing alert " . Dumper($alert)});
 
 		my $tresult      = $alert->{test_result} ? $alert->{level} : "Normal";
 		my $statusResult = $tresult eq "Normal"  ? "ok"            : "error";
@@ -6122,7 +6122,7 @@ sub compute_reachability
 
 	my %reach;
 
-	$self->nmisng->log->debug2("Starting compute_reachability for node $name, type=$catchall_data->{nodeType}");
+	$self->nmisng->log->debug2(sub {"Starting compute_reachability for node $name, type=$catchall_data->{nodeType}"});
 
 	# Math hackery to convert Foundry CPU memory usage into appropriate values
 	$RI->{memused} = ( $RI->{memused} - $RI->{memfree} ) if $catchall_data->{nodeModel} =~ /FoundrySwitch/;
@@ -6210,7 +6210,7 @@ sub compute_reachability
 	elsif ( $reach{availability} eq "" ) { $reach{availability} = $intAvailValueWhenDown; }
 
 	my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $self, time => time() );
-	$self->nmisng->log->debug2("Outage for $name is ". ($outage || "<none>"));
+	$self->nmisng->log->debug2(sub {"Outage for $name is ". ($outage || "<none>")});
 
 	$reach{outage} = $outage eq "current"? 1 : 0;
 	# raise a planned outage event, or close it
@@ -6274,7 +6274,7 @@ sub compute_reachability
 				elsif ( $reach{disk} <= 90 )  { $diskWeight = 10; }
 				elsif ( $reach{disk} <= 100 ) { $diskWeight = 1; }
 
-				$self->nmisng->log->debug2("Reach for Disk disk=$reach{disk} diskWeight=$diskWeight");
+				$self->nmisng->log->debug2(sub {"Reach for Disk disk=$reach{disk} diskWeight=$diskWeight"});
 			}
 
 			# Very aggressive swap weighting, 11% swap is pretty healthy.
@@ -6288,7 +6288,7 @@ sub compute_reachability
 				elsif ( $reach{swap} >= 10 ) { $swapWeight = 30; }
 				elsif ( $reach{swap} >= 0 )  { $swapWeight = 1; }
 
-				$self->nmisng->log->debug2("Reach for Swap swap=$reach{swap} swapWeight=$swapWeight");
+				$self->nmisng->log->debug2(sub {"Reach for Swap swap=$reach{swap} swapWeight=$swapWeight"});
 			}
 
 			if    ( $reach{mem} >= 40 ) { $memWeight = 100; }
@@ -6341,11 +6341,11 @@ sub compute_reachability
 		$self->nmisng->log->debug2(
 			"REACH Values: reachability=$reach{reachability} availability=$reach{availability} responsetime=$reach{responsetime}"
 		);
-		$self->nmisng->log->debug2("REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight");
+		$self->nmisng->log->debug2(sub {"REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight"});
 
 		if ( NMISNG::Util::getbool( $catchall_data->{collect} ) and defined $S->{mdl}{interface}{nocollect}{ifDescr} )
 		{
-			$self->nmisng->log->debug2("Getting Interface Utilisation Health");
+			$self->nmisng->log->debug2(sub {"Getting Interface Utilisation Health"});
 			$intcount   = 0;
 			$intsummary = 0;
 			my $ids = $self->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
@@ -6358,14 +6358,14 @@ sub compute_reachability
 				my $latest_ret = $intf_inventory->get_newest_timed_data();
 				if( !$latest_ret->{success} )
 				{
-					$self->nmisng->log->debug2("Faild to get_newest_timed_data for interface");
+					$self->nmisng->log->debug2(sub {"Faild to get_newest_timed_data for interface"});
 					next;
 				}
 				# stats data is derived, stored by subconcept
 				my $util = $latest_ret->{derived_data}{interface};
 				if ( $util->{inputUtil} eq 'NaN' or $util->{outputUtil} eq 'NaN' )
 				{
-					$self->nmisng->log->debug2("SummaryStats for interface=$index of node $name skipped because value is NaN");
+					$self->nmisng->log->debug2(sub {"SummaryStats for interface=$index of node $name skipped because value is NaN"});
 					next;
 				}
 
@@ -6463,14 +6463,14 @@ sub compute_reachability
 
 		if ( lc $reach{health} eq 'nan' )
 		{
-			$self->nmisng->log->debug2("Calculation of health=$reach{health}");
-			$self->nmisng->log->debug2("Values Calc. reachability=$reach{reachability} * $C->{weight_reachability}");
-			$self->nmisng->log->debug2("Values Calc. intWeight=$intWeight * $C->{weight_int}");
-			$self->nmisng->log->debug2("Values Calc. responseWeight=$responseWeight * $C->{weight_response}");
-			$self->nmisng->log->debug2("Values Calc. availability=$reach{availability} * $C->{weight_availability}");
-			$self->nmisng->log->debug2("Values Calc. cpuWeight=$cpuWeight * $C->{weight_cpu}");
-			$self->nmisng->log->debug2("Values Calc. memWeight=$memWeight * $C->{weight_mem}");
-			$self->nmisng->log->debug2("Values Calc. swapWeight=$swapWeight * $C->{weight_mem}");
+			$self->nmisng->log->debug2(sub {"Calculation of health=$reach{health}"});
+			$self->nmisng->log->debug2(sub {"Values Calc. reachability=$reach{reachability} * $C->{weight_reachability}"});
+			$self->nmisng->log->debug2(sub {"Values Calc. intWeight=$intWeight * $C->{weight_int}"});
+			$self->nmisng->log->debug2(sub {"Values Calc. responseWeight=$responseWeight * $C->{weight_response}"});
+			$self->nmisng->log->debug2(sub {"Values Calc. availability=$reach{availability} * $C->{weight_availability}"});
+			$self->nmisng->log->debug2(sub {"Values Calc. cpuWeight=$cpuWeight * $C->{weight_cpu}"});
+			$self->nmisng->log->debug2(sub {"Values Calc. memWeight=$memWeight * $C->{weight_mem}"});
+			$self->nmisng->log->debug2(sub {"Values Calc. swapWeight=$swapWeight * $C->{weight_mem}"});
 		}
 	}
 
@@ -6508,7 +6508,7 @@ sub compute_reachability
 	# node is Down
 	else
 	{
-		$self->nmisng->log->debug2("Node is Down using availability=$intAvailValueWhenDown");
+		$self->nmisng->log->debug2(sub {"Node is Down using availability=$intAvailValueWhenDown"});
 		$reach{reachability} = 0;
 		$reach{availability} = $intAvailValueWhenDown;
 		$reach{responsetime} = "U";
@@ -6516,33 +6516,33 @@ sub compute_reachability
 		$reach{health}       = 0;
 	}
 
-	$self->nmisng->log->debug2("Reachability and Metric Stats Summary");
-	$self->nmisng->log->debug2("collect=$catchall_data->{collect} (Node table)");
-	$self->nmisng->log->debug2("ping=$pingresult (normalised)");
-	$self->nmisng->log->debug2("cpuWeight=$cpuWeight (normalised)");
-	$self->nmisng->log->debug2("memWeight=$memWeight (normalised)");
+	$self->nmisng->log->debug2(sub {"Reachability and Metric Stats Summary"});
+	$self->nmisng->log->debug2(sub {"collect=$catchall_data->{collect} (Node table)"});
+	$self->nmisng->log->debug2(sub {"ping=$pingresult (normalised)"});
+	$self->nmisng->log->debug2(sub {"cpuWeight=$cpuWeight (normalised)"});
+	$self->nmisng->log->debug2(sub {"memWeight=$memWeight (normalised)"});
 	$self->nmisng->log->debug2("swapWeight=$swapWeight (normalised)") if $swapWeight;
-	$self->nmisng->log->debug2("intWeight=$intWeight (100 less the actual total interface utilisation)");
-	$self->nmisng->log->debug2("diskWeight=$diskWeight");
-	$self->nmisng->log->debug2("responseWeight=$responseWeight (normalised)");
+	$self->nmisng->log->debug2(sub {"intWeight=$intWeight (100 less the actual total interface utilisation)"});
+	$self->nmisng->log->debug2(sub {"diskWeight=$diskWeight"});
+	$self->nmisng->log->debug2(sub {"responseWeight=$responseWeight (normalised)"});
 
-$self->nmisng->log->debug2("Reachability KPI=$reachabilityHealth/$reachabilityMax");
-$self->nmisng->log->debug2("Availability KPI=$availabilityHealth/$availabilityMax");
-$self->nmisng->log->debug2("Response KPI=$responseHealth/$responseMax");
-$self->nmisng->log->debug2("CPU KPI=$cpuHealth/$cpuMax");
-$self->nmisng->log->debug2("MEM KPI=$memHealth/$memMax");
-$self->nmisng->log->debug2("Int KPI=$intHealth/$intMax");
+$self->nmisng->log->debug2(sub {"Reachability KPI=$reachabilityHealth/$reachabilityMax"});
+$self->nmisng->log->debug2(sub {"Availability KPI=$availabilityHealth/$availabilityMax"});
+$self->nmisng->log->debug2(sub {"Response KPI=$responseHealth/$responseMax"});
+$self->nmisng->log->debug2(sub {"CPU KPI=$cpuHealth/$cpuMax"});
+$self->nmisng->log->debug2(sub {"MEM KPI=$memHealth/$memMax"});
+$self->nmisng->log->debug2(sub {"Int KPI=$intHealth/$intMax"});
 $self->nmisng->log->debug2("Disk KPI=$diskHealth/$diskMax") if $diskHealth;
 $self->nmisng->log->debug2("SWAP KPI=$swapHealth/$swapMax") if $swapHealth;
 
-$self->nmisng->log->debug2("total number of interfaces=$reach{intfTotal}");
-$self->nmisng->log->debug2("total number of interfaces up=$reach{intfUp}");
-$self->nmisng->log->debug2("total number of interfaces collected=$reach{intfCollect}");
-$self->nmisng->log->debug2("total number of interfaces coll. up=$reach{intfColUp}");
+$self->nmisng->log->debug2(sub {"total number of interfaces=$reach{intfTotal}"});
+$self->nmisng->log->debug2(sub {"total number of interfaces up=$reach{intfUp}"});
+$self->nmisng->log->debug2(sub {"total number of interfaces collected=$reach{intfCollect}"});
+$self->nmisng->log->debug2(sub {"total number of interfaces coll. up=$reach{intfColUp}"});
 
 	for $index ( sort keys %reach )
 	{
-		$self->nmisng->log->debug2("$index=$reach{$index}");
+		$self->nmisng->log->debug2(sub {"$index=$reach{$index}"});
 	}
 
 	$reach{health} = ( $reach{health} > 100 ) ? 100 : $reach{health};
@@ -6609,7 +6609,7 @@ $self->nmisng->log->debug2("total number of interfaces coll. up=$reach{intfColUp
 			$catchall_data->save();
 		}
 	}
-	$self->nmisng->log->debug2("Finished");
+	$self->nmisng->log->debug2(sub {"Finished"});
 
 	return \%reachVal;
 }
@@ -6634,7 +6634,7 @@ sub update
 
 	# continue with the held lock, regardless of type announcement (but update it)
 	# or try to lock the node (announcing what for)
-	$self->nmisng->log->debug2("Getting lock for node $name");
+	$self->nmisng->log->debug2(sub {"Getting lock for node $name"});
 	my $lock = $self->lock(type => 'update', lock => $args{lock});
 
 	return { error => "failed to lock node: $lock->{error}" } if ($lock->{error}); # a fault, not a lock held
@@ -6873,7 +6873,7 @@ sub update
 	}
 
 	my $updatetime = $updatetimer->elapTime();
-	$self->nmisng->log->debug2("updatetime for $name was $updatetime");
+	$self->nmisng->log->debug2(sub {"updatetime for $name was $updatetime"});
 	$reachdata->{updatetime} = {value => $updatetime, option => "gauge,0:U," . ( 86400 * 3 )};
 
 	# parrot the previous reading's poll time
@@ -6934,7 +6934,7 @@ sub update_concepts
 	
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
-		$self->nmisng->log->debug2("No class 'systemHealth' declared in Model.");
+		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
 		return 0;
 	}
 	elsif ( !$S->status->{snmp_enabled} && !$S->status->{wmi_enabled} )
@@ -6969,7 +6969,7 @@ sub update_concepts
 	
 	foreach my $i (@$inventory) {
 		if ($concepts{$i}) {
-			$self->nmisng->log->debug8("Concept $i from inventory is defined in model");
+			$self->nmisng->log->debug8(sub {"Concept $i from inventory is defined in model"});
 		} else {
 			# TODO: Activate this feature
 			my @index = ();
@@ -7075,7 +7075,7 @@ sub collect_server_data
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		$self->nmisng->log->debug2("Not performing server collection for $name: SNMP not enabled for this node");
+		$self->nmisng->log->debug2(sub {"Not performing server collection for $name: SNMP not enabled for this node"});
 		return 1;
 	}
 
@@ -7120,7 +7120,7 @@ sub collect_server_data
 			# disable for now
 			$inventory->data_info( subconcept => 'device_global', enabled => 0 );
 			($op,$error) = $inventory->save();
-			$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
+			$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		}
 
 		$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
@@ -7133,19 +7133,19 @@ sub collect_server_data
 												 target => $device_target ) )
 			{
 				my $D = $device_target;
-				$self->nmisng->log->debug2("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
+				$self->nmisng->log->debug2(sub {"device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}"});
 				if ( $D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3' )
 				{# hrDeviceProcessor
 					( $hrCpuLoad, $D->{hrDeviceDescr} )
 						= $SNMP->getarray( "hrProcessorLoad.${index}", "hrDeviceDescr.${index}" );
-					$self->nmisng->log->debug2("CPU $index hrProcessorLoad=$hrCpuLoad hrDeviceDescr=$D->{hrDeviceDescr}");
+					$self->nmisng->log->debug2(sub {"CPU $index hrProcessorLoad=$hrCpuLoad hrDeviceDescr=$D->{hrDeviceDescr}"});
 
 					### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
 					push( @{$S->{reach}{cpuList}}, $hrCpuLoad );
 
 					$device_target->{hrCpuLoad}
 						= ( $hrCpuLoad =~ /noSuch/i ) ? $overall_target->{hrCpuLoad} : $hrCpuLoad;
-					$self->nmisng->log->debug2("cpu Load=$overall_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
+					$self->nmisng->log->debug2(sub {"cpu Load=$overall_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}"});
 					my $D = {};
 					$D->{hrCpuLoad}{value} = $device_target->{hrCpuLoad} || 0;
 
@@ -7196,7 +7196,7 @@ sub collect_server_data
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 
 						($op,$error) = $inventory->save();
-						$self->nmisng->log->debug2( "saved ".join(',', @$path)." op: $op");
+						$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					}
 					$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
 				}
@@ -7218,7 +7218,7 @@ sub collect_server_data
 	}
 	else
 	{
-		$self->nmisng->log->debug2("Class=device not defined in model=$catchall_data->{nodeModel}");
+		$self->nmisng->log->debug2(sub {"Class=device not defined in model=$catchall_data->{nodeModel}"});
 	}
 
 	### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
@@ -7441,7 +7441,7 @@ sub collect_server_data
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
 				($op,$error) = $inventory->save();
-				$self->nmisng->log->debug2( "saved ".join(',', @{$inventory->path})." op: $op");
+				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
 			elsif( $oldstorage )
@@ -7459,7 +7459,7 @@ sub collect_server_data
 	}
 	else
 	{
-		$self->nmisng->log->debug2("Class=storage not defined in Model=$catchall_data->{nodeModel}");
+		$self->nmisng->log->debug2(sub {"Class=storage not defined in Model=$catchall_data->{nodeModel}"});
 	}
 
 	### 2012-12-20 keiths, adding Server Disk Usage to Health Calculations.
@@ -7572,7 +7572,7 @@ sub collect_services
 								 @{$self->configuration->{services}} )
 			)
 	{
-		$self->nmisng->log->debug2("node $node has SNMP services to check");
+		$self->nmisng->log->debug2(sub {"node $node has SNMP services to check"});
 		my $SNMP = $S->snmp;
 
 		# get the process parameters by column, allowing efficient bulk requests
@@ -7592,7 +7592,7 @@ sub collect_services
 					$value = snmp2date($value) if ( $textoid =~ /date\./i );
 					( $textoid, $inst ) = split /\./, $textoid, 2;
 					$snmpTable{$textoid}{$inst} = $value;
-					$self->nmisng->log->debug3( "Indextable=$inst textoid=$textoid value=$value");
+					$self->nmisng->log->debug3(sub { "Indextable=$inst textoid=$textoid value=$value"});
 				}
 			}
 
@@ -7631,7 +7631,7 @@ sub collect_services
 				# key by process name, keep array of instances
 				$services{ $instance{hrSWRunName} } //= [];
 				push @{$services{ $instance{hrSWRunName} }}, \%instance;
-				$self->nmisng->log->debug4("Found process: ".Data::Dumper->new([\%instance])->Terse(1)->Indent(0)->Pair("=")->Dump);
+				$self->nmisng->log->debug4(sub {"Found process: ".Data::Dumper->new([\%instance])->Terse(1)->Indent(0)->Pair("=")->Dump});
 			}
 
 			# keep all processes for display, not rrd - park this as timed-data
@@ -7703,7 +7703,7 @@ sub collect_services
 		for my $maybedead (keys %oldservice)
 		{
 			next if ($desiredservices{$maybedead});
-			$self->nmisng->log->debug2("marking as historic inventory record for service $maybedead");
+			$self->nmisng->log->debug2(sub {"marking as historic inventory record for service $maybedead"});
 			my ( $invobj, $error) = $self->inventory(_id => $oldservice{$maybedead});
 
 			die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
@@ -7834,7 +7834,7 @@ sub collect_services
 				{
 					$status{status_text} = "DNS data for $lookfor from $catchall_data->{host} was " . $packet->string;
 					$ret = 1;
-					$self->nmisng->log->debug3("DNS data for $lookfor from $catchall_data->{host} was " . $packet->string );
+					$self->nmisng->log->debug3(sub {"DNS data for $lookfor from $catchall_data->{host} was " . $packet->string });
 				}
 			}
 		}
@@ -8022,7 +8022,7 @@ sub collect_services
 					# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
 					# or if there's a nonword char before node.xyz.
 					$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$catchall_data->{$3}/g;
-					$self->nmisng->log->debug3("external program args were $svc->{Args}, now $finalargs");
+					$self->nmisng->log->debug3(sub {"external program args were $svc->{Args}, now $finalargs"});
 				}
 
 				my $programexit = 0;
@@ -8030,7 +8030,7 @@ sub collect_services
 				# save and restore any previously running alarm,
 				# but don't bother subtracting the time spent here
 				my $remaining = alarm(0);
-				$self->nmisng->log->debug3("saving running alarm, $remaining seconds remaining");
+				$self->nmisng->log->debug3(sub {"saving running alarm, $remaining seconds remaining"});
 				my $pid;
 
 				# good enough, no atomic open required, removed after eval
@@ -8144,7 +8144,7 @@ sub collect_services
 									if ( $value_with_unit =~ /^([0-9\.]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/ )
 									{
 										my ( $numericval, $unit ) = ( $1, $2 );
-										$self->nmisng->log->debug2("performance data for label '$k': raw value '$value_with_unit'");
+										$self->nmisng->log->debug2(sub {"performance data for label '$k': raw value '$value_with_unit'"});
 
 										# imperfect storage location, pit vs inventory
 										$status{units}->{$k} = $unit;    # keep track of the input unit
@@ -8234,7 +8234,7 @@ sub collect_services
 					}
 				}
 				alarm($remaining) if ($remaining);    # restore previously running alarm
-				$self->nmisng->log->debug3("restored alarm, $remaining seconds remaining");
+				$self->nmisng->log->debug3(sub {"restored alarm, $remaining seconds remaining"});
 			}
 		}    # end of program/nagios-plugin service type
 		else
@@ -8392,7 +8392,7 @@ sub collect_services
 			closedir(D);
 
 			map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
-			$self->nmisng->log->debug2( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
+			$self->nmisng->log->debug2(sub { "found custom graphs for service $service: " . join( " ", @cands ) }) if (@cands);
 
 			push @servicegraphs, @cands;
 		}
@@ -8565,7 +8565,7 @@ sub collect
 	$0 = "nmisd worker collect $name";
 
 	# try to lock the node (announcing what for)
-	$self->nmisng->log->debug2("Getting lock for node $name");
+	$self->nmisng->log->debug2(sub {"Getting lock for node $name"});
 	my $lock = $self->lock(type => 'collect');
 	return { error => "failed to lock node: $lock->{error}" } if ($lock->{error}); # a fault, not a lock
 
@@ -8774,7 +8774,7 @@ sub collect
 			$self->nmisng->log->error($msg);
 		}
 	} else {
-		$self->nmisng->log->debug3("Node $name not pingable or no collect");
+		$self->nmisng->log->debug3(sub {"Node $name not pingable or no collect"});
 		# updating time stamps for last poll, the collect was run even if the node was down.
 		$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
 		$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
@@ -8929,7 +8929,7 @@ sub ext_ping
 	# initialize return values
 	$pt{loss} = 100;
 	$pt{min} = $pt{avg} = $pt{max} = undef;
-	$self->nmisng->log->debug4("ext_ping: $ping{$kernel}");
+	$self->nmisng->log->debug4(sub {"ext_ping: $ping{$kernel}"});
 
 	# save and restore any previously set alarm,
 	# but don't bother subtracting the time spent here
@@ -8980,7 +8980,7 @@ sub ext_ping
 	else
 	{
 		$self->nmisng->log->error("ext_ping could not parse ping rtt summary for $host!");
-		$self->nmisng->log->debug3("output of the ping command $ping{$kernel} was: $ping_output");
+		$self->nmisng->log->debug3(sub {"output of the ping command $ping{$kernel} was: $ping_output"});
 	}
 
 	# try to find packet loss
@@ -9003,10 +9003,10 @@ sub ext_ping
 	else
 	{
 		$self->nmisng->log->error("ext_ping could not parse ping loss summary for $host!");
-		$self->nmisng->log->debug3("output of the ping command $ping{$kernel} was: $ping_output");
+		$self->nmisng->log->debug3(sub {"output of the ping command $ping{$kernel} was: $ping_output"});
 	}
 
-	$self->nmisng->log->debug3("result returning min=$pt{min}, avg=$pt{avg}, max=$pt{max}, loss=$pt{loss}");
+	$self->nmisng->log->debug3(sub {"result returning min=$pt{min}, avg=$pt{avg}, max=$pt{max}, loss=$pt{loss}"});
 
 	return($pt{min}, $pt{avg}, $pt{max}, $pt{loss});
 }

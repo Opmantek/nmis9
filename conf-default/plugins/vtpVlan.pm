@@ -87,7 +87,7 @@ sub update_plugin
 			$NG->log->error("Failed to get vlan id from vtp index: $vtpdata->{index} @parts");
 		}
 
-		$NG->log->debug4("vtpVlan Data: ". Dumper $vtpdata);
+		$NG->log->debug4(sub {"vtpVlan Data: ". Dumper $vtpdata});
 
 		# get the interface's ifDescr and add linkage
 		my $ifIndex = $vtpdata->{vtpVlanIfIndex};

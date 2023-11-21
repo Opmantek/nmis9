@@ -100,12 +100,12 @@ sub update_plugin
 		$NG->log->info("Running Alcatel Asam Interface plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 	}
 
-	$NG->log->debug9("\$node:        " . Dumper($node) . "\n\n\n");
-	$NG->log->debug9("\$S:           " . Dumper($S) . "\n\n\n");
-	$NG->log->debug9("\$C:           " . Dumper($C) . "\n\n\n");
-	$NG->log->debug9("\$NG:          " . Dumper($NG) . "\n\n\n");
-	$NG->log->debug9("\$NI:          " . Dumper($NI) . "\n\n\n");
-	$NG->log->debug9("\$nodeconfig:  " . Dumper(%nodeconfig) . "\n\n\n");
+	$NG->log->debug9(sub {"\$node:        " . Dumper($node) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$S:           " . Dumper($S) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$C:           " . Dumper($C) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$NG:          " . Dumper($NG) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$NI:          " . Dumper($NI) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$nodeconfig:  " . Dumper(%nodeconfig) . "\n\n\n"});
 
 	# we have been told index 17 of the eqptHolder is the ASAM Model	
 	my $path_keys = ['index'];
@@ -122,7 +122,7 @@ sub update_plugin
 	{
 		$NG->log->error("Failed to get inventory for interface index 17; Error: $error");
 	}
-	$NG->log->debug9("\$eqptHolderList: " . Dumper($eqptHolderList) . "\n\n\n");
+	$NG->log->debug9(sub {"\$eqptHolderList: " . Dumper($eqptHolderList) . "\n\n\n"});
 	$asamModel = $eqptHolderList->{_data}->{eqptHolderPlannedType} || $catchall->{nodeModel};
 
 	$NG->log->info("ASAM Model: '$asamModel'");
@@ -252,8 +252,8 @@ sub update_plugin
 			my $customerData   = $customerEntry->data();
 			my $eachIfIndex    = $customerData->{index};
 			my $eachCustomerId = $customerData->{asamIfExtCustomerId};
-			$NG->log->debug5("Interface Index:        '$eachIfIndex'");
-			$NG->log->debug5("Customer ID:            '$eachCustomerId'");
+			$NG->log->debug5(sub {"Interface Index:        '$eachIfIndex'"});
+			$NG->log->debug5(sub {"Customer ID:            '$eachCustomerId'"});
 			$customerIdTable->{$eachIfIndex} = $eachCustomerId;
 		}
 	}
@@ -322,7 +322,7 @@ sub update_plugin
 				if ($eachIfIndex ne $i and $intfData->{$eachIfIndex}->{ifDescr} eq $intfData->{$i}->{ifDescr}) {
 					$intfData->{$eachIfIndex}->{ifDescr} = "$eachIfDescription-$eachIfIndex"; # add index to this description.
 					$intfData->{$i}->{ifDescr}           = "$eachIfDescription-$i";           # and the duplicte one.
-					$NG->log->debug2("Index added to duplicate Interface Description '$eachIfDescription'");
+					$NG->log->debug2(sub {"Index added to duplicate Interface Description '$eachIfDescription'"});
 				}
 			}
 
@@ -368,8 +368,8 @@ sub update_plugin
 					if ($ignoreAvaibleInterfaces)
 					{
 						$intfData->{$eachIfIndex}->{collect}       = ($eachIfAdminStatus eq "up" && $snmpdata->{$oid} ne "available") ? "true" : "false";
-						$NG->log->debug5("Customer Identifier:    '$intfData->{$eachIfIndex}->{Description}'");
-						$NG->log->debug5("Interface Collection:   '$intfData->{$eachIfIndex}->{collect}'");
+						$NG->log->debug5(sub {"Customer Identifier:    '$intfData->{$eachIfIndex}->{Description}'"});
+						$NG->log->debug5(sub {"Interface Collection:   '$intfData->{$eachIfIndex}->{collect}'"});
 					}
 				}
 				# get the speed out
@@ -464,16 +464,16 @@ sub update_plugin
 				$NG->log->debug("ifIndex $eachIfIndex, collect=false, $intfData->{$eachIfIndex}->{nocollect}");
 			}
 		
-			$NG->log->debug5("Customer Identifier:    '$intfData->{$eachIfIndex}->{Description}'");
-			$NG->log->debug5("Interface Index:        '$intfData->{$eachIfIndex}->{index}'");
-			$NG->log->debug5("Interface Name:         '$intfData->{$eachIfIndex}->{ifName}'");
-			$NG->log->debug5("Interface Description:  '$intfData->{$eachIfIndex}->{ifDescr}'");
-			$NG->log->debug5("Interface Speed:        '$intfData->{$eachIfIndex}->{ifSpeed}'");
-			$NG->log->debug5("Interface Type:         '$intfData->{$eachIfIndex}->{ifType}'");
-			$NG->log->debug5("Interface Admin Status: '$intfData->{$eachIfIndex}->{ifAdminStatus}'");
-			$NG->log->debug5("Interface Oper Status:  '$intfData->{$eachIfIndex}->{ifOperStatus}'");
-			$NG->log->debug5("Interface Limits:       '$intfData->{$eachIfIndex}->{setlimits}'");
-			$NG->log->debug5("Interface Collection:   '$intfData->{$eachIfIndex}->{collect}'");
+			$NG->log->debug5(sub {"Customer Identifier:    '$intfData->{$eachIfIndex}->{Description}'"});
+			$NG->log->debug5(sub {"Interface Index:        '$intfData->{$eachIfIndex}->{index}'"});
+			$NG->log->debug5(sub {"Interface Name:         '$intfData->{$eachIfIndex}->{ifName}'"});
+			$NG->log->debug5(sub {"Interface Description:  '$intfData->{$eachIfIndex}->{ifDescr}'"});
+			$NG->log->debug5(sub {"Interface Speed:        '$intfData->{$eachIfIndex}->{ifSpeed}'"});
+			$NG->log->debug5(sub {"Interface Type:         '$intfData->{$eachIfIndex}->{ifType}'"});
+			$NG->log->debug5(sub {"Interface Admin Status: '$intfData->{$eachIfIndex}->{ifAdminStatus}'"});
+			$NG->log->debug5(sub {"Interface Oper Status:  '$intfData->{$eachIfIndex}->{ifOperStatus}'"});
+			$NG->log->debug5(sub {"Interface Limits:       '$intfData->{$eachIfIndex}->{setlimits}'"});
+			$NG->log->debug5(sub {"Interface Collection:   '$intfData->{$eachIfIndex}->{collect}'"});
 
 			# interface now up or down, check and set or clear outstanding event.
 			if ( $intfData->{$eachIfIndex}{collect} eq 'true'
@@ -499,16 +499,16 @@ sub update_plugin
 	# step because the above might alter names because of duplication.
 	my %activeones;
 	my $intDump = Dumper $intfData;
-	$NG->log->debug5("intfData = ".$intDump);
+	$NG->log->debug5(sub {"intfData = ".$intDump});
 	foreach my $index (keys %{$intfData}) 
 	{
-		$NG->log->debug5("Saving Index: $index");
+		$NG->log->debug5(sub {"Saving Index: $index"});
 		# Now get-or-create an inventory object for this new concept
 		#
 		my $intfSubData = $intfData->{$index};
 		next if (!keys %{$intfSubData});
 		my $ifDescr     = $intfSubData->{ifDescr};
-		$NG->log->debug5("intfSubData = " . Dumper($intfSubData) . "\n\n\n");
+		$NG->log->debug5(sub {"intfSubData = " . Dumper($intfSubData) . "\n\n\n"});
 		my $path_keys =  ['index'];
 		my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => $path_keys, data => $intfSubData );
 		my ($inventory, $error) =  $nodeobj->inventory(
@@ -558,7 +558,7 @@ sub update_plugin
 				&& $intfData->{$index}{ifSpeed}
 				&& NMISNG::Util::getbool($intfData->{$index}{collect}))
 		{
-			$NG->log->debug2("performing rrd speed limit tuning for $ifDescr, limit enforcement: $desiredlimit, interface speed is ".NMISNG::Util::convertIfSpeed($intfData->{$index}{ifSpeed})." ($intfData->{$index}{ifSpeed})");
+			$NG->log->debug2(sub {"performing rrd speed limit tuning for $ifDescr, limit enforcement: $desiredlimit, interface speed is ".NMISNG::Util::convertIfSpeed($intfData->{$index}{ifSpeed})." ($intfData->{$index}{ifSpeed})"});
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
 			my $maxbytes = 	$desiredlimit eq "off"? "U": $desiredlimit eq "normal"
@@ -596,12 +596,12 @@ sub update_plugin
 	
 						if ( $curval ne $desiredval )
 						{
-							$NG->log->debug2( "rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit");
+							$NG->log->debug2(sub { "rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit"});
 							RRDs::tune( $rrdfile, "--maximum", "$dsname:$desiredval" );
 						}
 						else
 						{
-							$NG->log->debug2("rrd section $datatype, ds $dsname, current limit $curval is correct");
+							$NG->log->debug2(sub {"rrd section $datatype, ds $dsname, current limit $curval is correct"});
 						}
 					}
 				}
@@ -610,7 +610,7 @@ sub update_plugin
 
 		# The above has added data to the inventory, that we now save.
 		my ( $op, $subError ) = $inventory->save();
-		$NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+		$NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		if ($subError)
 		{
 			$NG->log->error("Failed to save inventory for Interface '$intfSubData->{ifDescr}' (ID '$index'): $subError");
@@ -668,7 +668,7 @@ sub getIfDescr {
 		
 		my $slotCor = asamSlotCorrection($slot,$asamModel);
 
-		$NG->log->debug2("ASAM getIfDescr: ifIndex='$args{ifIndex}'; Slot='$slot'; Slot Correction='$slotCor'; ASAMVersion='$args{version}'; ASAMModel='$asamModel'");
+		$NG->log->debug2(sub {"ASAM getIfDescr: ifIndex='$args{ifIndex}'; Slot='$slot'; Slot Correction='$slotCor'; ASAMVersion='$args{version}'; ASAMModel='$asamModel'"});
 
 		return "$prefix-1-1-$slotCor-$circuit";	
 	}
@@ -691,7 +691,7 @@ sub getIfDescr {
 		
 		my $slotCor = asamSlotCorrection($slot,$asamModel);
 
-		$NG->log->debug2("ASAM getIfDescr: ifIndex='$args{ifIndex}'; Slot='$slot'; Slot Correction='$slotCor'; ASAMVersion='$args{version}'; ASAMModel='$asamModel'");
+		$NG->log->debug2(sub {"ASAM getIfDescr: ifIndex='$args{ifIndex}'; Slot='$slot'; Slot Correction='$slotCor'; ASAMVersion='$args{version}'; ASAMModel='$asamModel'"});
 
 		return "$prefix-$rack-$shelf-$slotCor-$circuit";
 	}
@@ -714,7 +714,7 @@ sub getIfDescr {
 		
 		my $slotCor = asamSlotCorrection($slot,$asamModel);
 
-		$NG->log->debug2("ASAM getIfDescr: ifIndex='$args{ifIndex}'; Slot='$slot'; Slot Correction='$slotCor'; ASAMVersion='$args{version}'; ASAMModel='$asamModel'");
+		$NG->log->debug2(sub {"ASAM getIfDescr: ifIndex='$args{ifIndex}'; Slot='$slot'; Slot Correction='$slotCor'; ASAMVersion='$args{version}'; ASAMModel='$asamModel'"});
 
 		return "$prefix-1-1-$slotCor-$circuit";		
 	}
@@ -780,7 +780,7 @@ sub getDescription {
 		$slot = $slot - 2;
 		++$circuit;	
 
-		$NG->log->debug2("ASAM getDescription: Rack='$rack'; Shelf='$shelf'; Slot='$slot'; Circuit='$circuit'");
+		$NG->log->debug2(sub {"ASAM getDescription: Rack='$rack'; Shelf='$shelf'; Slot='$slot'; Circuit='$circuit'"});
 		return "Rack=$rack, Shelf=$shelf, Slot=$slot, Circuit=$circuit";
 	}
 	else {
@@ -797,7 +797,7 @@ sub getDescription {
 		}
 		++$circuit;	
 
-		$NG->log->debug2("ASAM getDescription: Rack='N/A'; Shelf='N/A'; Slot='$slot'; Circuit='$circuit'");
+		$NG->log->debug2(sub {"ASAM getDescription: Rack='N/A'; Shelf='N/A'; Slot='$slot'; Circuit='$circuit'"});
 		return "Slot=$slot, Level=$level, Circuit=$circuit";		
 	}
 }

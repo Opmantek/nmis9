@@ -66,10 +66,10 @@ sub update_plugin
 
 	$NG->log->info("$plugin:$sub: Running for node $node");
 
-	$NG->log->debug9("\$node: ".Dumper \$nodeobj);
-	$NG->log->debug9("\$S: ".Dumper \$S);
-	$NG->log->debug9("\$C: ".Dumper \$C);
-	$NG->log->debug9("\$NG: ".Dumper \$NG);
+	$NG->log->debug9(sub {"\$node: ".Dumper \$nodeobj});
+	$NG->log->debug9(sub {"\$S: ".Dumper \$S});
+	$NG->log->debug9(sub {"\$C: ".Dumper \$C});
+	$NG->log->debug9(sub {"\$NG: ".Dumper \$NG});
 
 	my $changesweremade = 0;
 
@@ -79,8 +79,8 @@ sub update_plugin
 
 	if (@$ids)
 	{
-		$NG->log->debug9("$plugin:$sub: \$ids: ".Dumper $ids);
-		$NG->log->debug9("$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}});
+		$NG->log->debug9(sub {"$plugin:$sub: \$ids: ".Dumper $ids});
+		$NG->log->debug9(sub {"$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}}});
 
         my $active = 0;
         
@@ -127,7 +127,7 @@ sub update_plugin
                     # disable for now
                     $inventory->data_info( subconcept => 'interface', enabled => 0 );
                     my ($op,$error) = $inventory->save();
-                    $NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+                    $NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
                     $NG->log->info( "saved ".join(',', @$path)." op: $op");
                 } else {
                     $NG->log->error("No inventory");
@@ -177,7 +177,7 @@ sub collect_plugin
 			$ifTable->historic(0);
 			$ifTable->data($data);
 			my ($op, $serror) = $ifTable->save();
-			$NG->log->debug2("Inventory update: $op ");
+			$NG->log->debug2(sub {"Inventory update: $op "});
 			if ($serror)
 			{
 				$NG->log->error("Failed to save inventory $ifTableId: $serror");

@@ -111,7 +111,7 @@ sub add_mapping
 		$OIDS{$name} = $oid;
 		$NAMES{$oid} = $name;
 
-		$nmisng->log->debug4("NMISNG::MIB added mapping $name -> $oid");
+		$nmisng->log->debug4(sub {"NMISNG::MIB added mapping $name -> $oid"});
 	}
 }
 

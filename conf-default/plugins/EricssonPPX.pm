@@ -63,11 +63,11 @@ sub collect_plugin
 	my $cardTotal  = 0;
 	my $snmpData;
 
-	$NG->log->debug9("\$node:        " . Dumper($node) . "\n\n\n");
-	$NG->log->debug9("\$S:           " . Dumper($S) . "\n\n\n");
-	$NG->log->debug9("\$C:           " . Dumper($C) . "\n\n\n");
-	$NG->log->debug9("\$NG:          " . Dumper($NG) . "\n\n\n");
-	$NG->log->debug9("\$nodeconfig:  " . Dumper(%nodeconfig) . "\n\n\n");
+	$NG->log->debug9(sub {"\$node:        " . Dumper($node) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$S:           " . Dumper($S) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$C:           " . Dumper($C) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$NG:          " . Dumper($NG) . "\n\n\n"});
+	$NG->log->debug9(sub {"\$nodeconfig:  " . Dumper(%nodeconfig) . "\n\n\n"});
 
 	my $ppxCardMemIds = $S->nmisng_node->get_inventory_ids(
 		concept => "ppxCardMEM",
@@ -229,7 +229,7 @@ sub collect_plugin
 
 			# The above has added data to the inventory, that we now save.
 			my ( $op, $saveError ) = $inventory->save();
-			$NG->log->debug2( "saved op: $op");
+			$NG->log->debug2(sub { "saved op: $op"});
 			if ($saveError)
 			{
 				$NG->log->error("Failed to save inventory for Card '$index'; Name: '$name': $saveError");
