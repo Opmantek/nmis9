@@ -196,7 +196,7 @@ sub _run_query
 
 		my $url     = Mojo::URL->new( $self->{wmic_server_location} );
 		my $id = $self->{username};
-		my $token = 'MYSECRETUSERACCESSTOKEN1'; # // $self->{password};
+		my $token = $self->{password};
 		my $host = $self->{host};
 		my $namespace = "root/cimv2";
 		my $post_json = { id => $id, token => $token, host => $host, query => $query, namespace => $namespace };
