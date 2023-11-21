@@ -15,7 +15,7 @@
     </head>
     <body>
     %= include 'layouts/menu'
-    <div id="content" style = "border:1px solid silver;">
+    <div id="content">
       <%= content %>
     </div>  
     </body> 
