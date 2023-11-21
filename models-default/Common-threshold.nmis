@@ -372,11 +372,12 @@
         'event' => 'Proactive F5 Current Conns',
         'item' => 'ClientCurConns',
         'select' => {
-          '10' => {
-            '$node =~ /node-name/i or $node =~ /node-name/i' => 'value',
-            'HASH(0x5755c20)' => undef,
-            'control' => 'control'
-          },
+# select entry corrupted by something.
+#          '10' => {
+#            '$node =~ /node-name/i or $node =~ /node-name/i' => 'value',
+#            'HASH(0x5755c20)' => undef,
+#            'control' => 'control'
+#          },
           '15' => {
             'control' => '$node =~ /node-name/i or $node =~ /node-name/i',
             'value' => {
