@@ -2186,15 +2186,16 @@ sub parseString
 			
 		}
 	}
+	$self->nmisng->log->error("(".$self->nmisng_node->name.") parseString failed for str:$str, error:$@") if($@);
 	# no luck and no evaluation possible/allowed? give up, and do it loudly!
 	if( !$eval && $str =~ /\$/)
 	{
-		$self->nmisng->log->fatal("parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
+		$self->nmisng->log->fatal("(".$self->nmisng_node->name.") parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
 	my $product = ($eval) ? eval $str : $str;
-	$self->nmisng->log->error("parseString failed for str:$str, error:$@") if($@);
+	$self->nmisng->log->error("(".$self->nmisng_node->name.") parseString failed for str:$str, error:$@") if($@);
 	$self->nmisng->log->debug3( "parseString:: result is str=$product");
 	return $product;
 }

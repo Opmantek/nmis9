@@ -34,6 +34,8 @@ our $tmp     = "$ENV{NMISTMPDIR}" || "/tmp";
 
 use strict;
 use File::Temp;
+use Try::Tiny;
+
 use Encode 2.23;								# core module, version is what came with 5.10.0 which we can make do with
 # the constructor is not doing much at this time, merely checks that the arguments are sufficient
 #
@@ -54,7 +56,8 @@ sub new
 			domain   => $args{domain},
 			timeout  => $args{timeout},
 			program  => $args{program} || "wmic",
-			tmp      => $args{tmp} || "/tmp"
+			tmp      => $args{tmp} || "/tmp",
+			wmic_server_location => $args{wmic_server_location} || "http://127.0.0.1:2313/wmic"
 		},
 		$class);
 	$tmp = $self->{tmp};
@@ -190,37 +193,47 @@ sub _run_query
 		require Mojo::UserAgent;
 		my $headers = {"Content-type" => 'application/json', Accept => 'application/json'};
 		my $client  = Mojo::UserAgent->new();
-		my $url     = Mojo::URL->new('http://192.168.88.150:2313/wmic');
+
+		my $url     = Mojo::URL->new( $self->{wmic_server_location} );
 		my $id = $self->{username};
 		my $token = 'MYSECRETUSERACCESSTOKEN1'; # // $self->{password};
 		my $host = $self->{host};
 		my $namespace = "root/cimv2";
 		my $post_json = { id => $id, token => $token, host => $host, query => $query, namespace => $namespace };
 
-		my $res = $client->post($url => $headers => json => $post_json )->result;
-		if ($res->is_success) 
-		{
-			my $json = $res->json;
-			if( $json ) 
+		my $res;
+		# connection errors die so the request needs to be wrapped in a try
+		try {
+			$res = $client->post($url => $headers => json => $post_json )->result;
+		} catch {
+			$result{error} = $_ || 'Unknown failure!';
+		};
+
+		if( $res ) {
+			if( $res->is_success )
 			{
-				my ($classname, @fieldnames, %nicedata);
-				# we need to get the classname, wmic returns it, wmic_server does not so use the last word/token in the query 
-				# assuming it will be the 'table' which seems to be the classname				
-				my @words = split(' ', $query);
-				$classname = $words[-1];
-				
-				foreach my $entry (@$json) 
+				my $json = $res->json;
+				if( $json ) 
 				{
-					$nicedata{$classname} ||= [];
-					push @{$nicedata{$classname}}, $entry;
-				}
-				$result{ok} = 1;
-				$result{data} = \%nicedata;
-			} else { $result{error} = "Error no json found, found body ".$res->body."  getting wmic_server url $url"; }
+					my ($classname, @fieldnames, %nicedata);
+					# we need to get the classname, wmic returns it, wmic_server does not so use the last word/token in the query 
+					# assuming it will be the 'table' which seems to be the classname				
+					my @words = split(' ', $query);
+					$classname = $words[-1];
+					
+					foreach my $entry (@$json) 
+					{
+						$nicedata{$classname} ||= [];
+						push @{$nicedata{$classname}}, $entry;
+					}
+					$result{ok} = 1;
+					$result{data} = \%nicedata;
+				} else { $result{error} = "Error no json found, found body ".$res->body."  getting wmic_server url $url"; }
+	 		}
+			elsif ($res->is_error) { $result{error} = "Error message ".$res->message." occurred getting wmic_server url $url"; }
+			elsif ($res->code != 200) { $result{error} = "Error code ".$res->code." occurred getting wmic_server url $url"; }
+			else { $result{error} = "Unknown error occurred getting wmic_server url $url"; }
 		}
-		elsif ($res->is_error) { $result{error} = "Error message ".$res->message." occurred getting wmic_server url $url"; }
-		elsif ($res->code != 200) { $result{error} = "Error code ".$res->code." occurred getting wmic_server url $url"; }
-		else { $result{error} = "Unknown error occurred getting wmic_server url $url"; }		
 	}
 	else {
 		# Handle Version 1 and Version 2 which are wmic executable
