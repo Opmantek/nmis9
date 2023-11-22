@@ -1,11 +1,11 @@
 % layout('default');
 % title('Nodes');
-<body>
+<BODY>
     <!-- <%= link_to 'Metrics' => '/cgi-nmis9/network.pl?refresh=180&act=network_summary_metrics', class => 'dropdown-item', id => 'ntw_metrics'%></li> -->
-    <table border="1" style="margin-left: 10px;">
+    <TABLE BORDER=1>
         % foreach my $value ( @{ stash('keys') } ) {
-        <tr><td  style="padding:5px;"><a href='cgi-nmis9/network.pl?act=network_node_view&node=<%= $value %>'><%= $value %></a></tr></td>
+        <TR><TD><a href='cgi-nmis9/network.pl?act=network_node_view&node=<%= $value %>'><%= $value %></a></TR></TD>
         % }
-    </table>
-  </body> 
+    </TABLE>
+  </BODY> 
 

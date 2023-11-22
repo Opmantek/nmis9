@@ -1,7 +1,3 @@
-
-<%
-  my $user = stash ('user');
-%>
 <nav class="navbar navbar-default navbar-expand-sm navbar-dark">
   <div class="collapse navbar-collapse" id="navbarNavDropdown">
     <ul class="nav navbar-nav">
@@ -10,7 +6,7 @@
       </li>
      
         <li class="nav-item">
-          <a class="nav-link"  href="/nodes" title="nmis">Nodes</a>
+          <a class="nav-link"  href="/nodes" target="_blank" title="nmis">Nodes</a>
         </li>
         
       
@@ -44,18 +40,9 @@
           <!-- Repeat for each menu item -->
         </ul>
       </li>
-
-      <!-- <li class="nav-item">
-        <a href="#" class="dropdown-toggle nav-link active show" id="opreports-user-menu" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="true">User: <%= $user%><b class="caret"></b></a>
-      </li>
-      <li class="nav-item"><a class="dropdown-item" href="/logout">Logout</a></li> -->
       <li class="nav-item">
-        <a class="nav-link"  title="loggedin_user">User: <%= $user%></a>
+        <a class="nav-link"  href="/logout" target="_blank" title="logout">logout</a>
       </li>
-      <li class="nav-item">
-        <a class="nav-link"  href="/logout"  title="logout">logout</a>
-      </li>
-      
       <!-- %} -->
       <!-- Add more nav items as needed -->
     </ul>
