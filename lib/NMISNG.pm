@@ -95,7 +95,7 @@ sub new
 	{
 		# get the db setup ready, indices and all
 		# nodes uses the SHARED COMMON database, NOT a module-specific one!
-		my $conn = NMISNG::DB::get_db_connection( conf => $self->config );
+		my $conn = NMISNG::DB::get_db_connection( conf => $self->config, version => $VERSION );
 		if ( !$conn )
 		{
 			my $errmsg = NMISNG::DB::get_error_string;
@@ -1304,6 +1304,8 @@ sub ensure_indexes
 				[["path.0" => 1]],
 				[["path.1" => 1, "path.2" => 1, "path.3" => 1]],
 				[["path.2" => 1, "path.3" => 1]],
+				#Fix a bug when looking up nodes on clusterid then concept, used by the scheduler, should be removed once we fix the query.
+				[["path.0" => 1, "path.2" => 1]],
 
 				# needed for joins
 				[[node_uuid => 1]],
@@ -2008,7 +2010,12 @@ sub get_inventory_model
 		$query_count = $res->{count};
 	}
 
-	# print "query:".Dumper($q);
+	#bodge to see if we can use the index hint, this helps to fix an issue whitch the schedular
+	if($q->{'path.2'} and $q->{'path.2'} eq "catchall" and !defined($q->{'path.1'}) )
+	{
+		$args{index_hint} = 'path.0_1_path.2_1';
+	}
+
 	my $entries = NMISNG::DB::find(
 		collection  => $self->inventory_collection,
 		query       => $q,
@@ -2016,6 +2023,7 @@ sub get_inventory_model
 		limit       => $args{limit},
 		skip        => $args{skip},
 		fields_hash => $args{fields_hash},
+		index_hint 	=> $args{index_hint},
 	);
 
 	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
