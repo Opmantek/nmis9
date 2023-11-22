@@ -48,6 +48,15 @@ sub startup {
     $self->secrets($secrets);
   }
 
+  $self->hook(
+    before_render => sub {
+      my $c = shift;
+      my $user = $c->is_user_authenticated ? $c->current_user : undef;
+      $c->stash(user => $user);
+      return $c;
+    }
+  );
+
 	$r->route('/')->to( controller => "MainController", action => "login_view" )->name("login_page");
 	
   #serve cgi nmis9 assets
