@@ -1,9 +1,5 @@
 % layout('default');
 % title('Index');
-<%
-  my $user = stash ('user');
-%>
 <div class="content">
     <h1>Welcome to NMIS UX Upgrade</h1>
-    <p>Logged in User is  <%= $user%> !</p>
 </div>
