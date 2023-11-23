@@ -3150,14 +3150,14 @@ sub resolve_dns_name
 
 	my $nmisng = Compat::NMIS::new_nmisng();
 
-	$nmisng->log->debug2("resolve_dns_name($lookup)");
+	$nmisng->log->debug2(sub {"resolve_dns_name($lookup)"});
 
 	# full ipv6 support works only with newer socket module
 	my ($err,@possibles) = Socket::getaddrinfo($lookup, '', {socktype => SOCK_RAW});
 	
 	if ($err)
 	{
-		$nmisng->log->debug2("getaddrinfo error: $err");
+		$nmisng->log->debug2(sub {"getaddrinfo error: $err"});
 		return ();
 	}
 
@@ -3170,11 +3170,11 @@ sub resolve_dns_name
 		push @results, $ipaddr if (!$err and $ipaddr ne $lookup); # suppress any nop results
 		if ($err)
 		{
-			$nmisng->log->debug2("getnameinfo error: $err");
+			$nmisng->log->debug2(sub {"getnameinfo error: $err"});
 		}
 		else
 		{
-			$nmisng->log->debug2("getnameinfo result: $ipaddr");
+			$nmisng->log->debug2(sub {"getnameinfo result: $ipaddr"});
 		}
 	}
 	return @results;
@@ -4050,13 +4050,13 @@ sub verifyNMISEncryption {
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
 		$logger->error("ERROR: Password encryption cannot be enabled!");
-		$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+		$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 		if ($nmis_encryption_enabled)
 		{
 			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
 			$logger->error("Disabling Encryption of secrets.");
 			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 			writeConfData(data=>$fullConfig);
 			return(1);
 		}
@@ -4071,7 +4071,7 @@ sub verifyNMISEncryption {
 		{
 			$logger->error("ERROR: Encryption is not working!");
 			$logger->error("ERROR: Password encryption will be disabled!");
-			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 			$fullConfig->{globals}{global_enable_password_encryption} = "false";
 			writeConfData(data=>$fullConfig);
 			return(1);
@@ -4315,7 +4315,7 @@ sub decrypt {
 	my $strLen             = "";
 	my $fh;
 
-	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
+	$logger->debug9(sub {"Seedfile name is '" . $seedfile . "'."});
 
 	# Make sure we have a seed file.
 	if (!-f "$seedfile") {
@@ -4331,17 +4331,17 @@ sub decrypt {
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
 				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 				my $encrypted_pw = encrypt($password);
 				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
-					$logger->debug3("Encrypting the password for Section: '$section' Field: '$keyword'");
+					$logger->debug3(sub {"Encrypting the password for Section: '$section' Field: '$keyword'"});
 					$fullConfig->{$section}{$keyword} = $encrypted_pw;
-					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 					writeConfData(data=>$fullConfig);
 				}
 			}
 		} else {
-			$logger->debug9("Encryption is disabled.");
+			$logger->debug9(sub {"Encryption is disabled."});
 		}
 		return $password;
 	} else {
@@ -4384,11 +4384,11 @@ sub decrypt {
 					if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 						# Get the non-flattened raw hash
 						my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-						$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+						$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 						if ($fullConfig->{$section}{$keyword} ne $password) {
-							$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
+							$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
 							$fullConfig->{$section}{$keyword} = $password;
-							$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+							$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 							writeConfData(data=>$fullConfig);
 						}
 					}
@@ -4449,7 +4449,7 @@ sub encrypt {
 	my $strLen             = 0;
 	my $fh;
 
-	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
+	$logger->debug9(sub {"Seedfile name is '" . $seedfile . "'."});
 
 	if (!-f "$seedfile") {
 		_make_seed($seedfile, $logger);
@@ -4466,17 +4466,17 @@ sub encrypt {
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
 				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
-					$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
+					$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
 					$fullConfig->{$section}{$keyword} = $decrypted_pw;
-					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 					writeConfData(data=>$fullConfig);
 				}
 			}
 			return $decrypted_pw;
 		} else {
-			$logger->debug9("Encryption is enabled.");
+			$logger->debug9(sub {"Encryption is enabled."});
 		}
 		return $password;
 	}

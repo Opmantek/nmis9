@@ -830,7 +830,7 @@ sub ensure_index
 # combines arguments into a query pipeline for mongodb, and fires that
 #
 # args: collection and query are required,
-# sort, skip and limit are optional.
+# sort, skip and limit index_hint are optional.
 # fields_hash takes a hash of { field1 => 1, field2 => 1, ... }
 #
 # note: perl driver 2.x does NOT support cursor->count anymore,
@@ -876,6 +876,11 @@ sub find
 		if ( defined $arg{limit} )
 		{
 			$retval = $retval->limit( $arg{limit} );
+		}
+
+		if ( defined $arg{index_hint} )
+		{
+			$retval = $retval->hint( $arg{index_hint} );
 		}
 
 		# tickle the cursor with has_next so that any late exceptions
@@ -941,6 +946,7 @@ sub connection_of_db
 # args: app_key, conf; optional: connection_timeout, query_timeout
 #  conf must have a db_server entry, dealing with errors because of no conf down the road
 #   us much harder than finding out earlyu
+# version is takes a string which represents the current app version, eg 9.4.4
 #
 # if app_key is given, it's used to select application-specific db settings where available
 # fall back is always to the global db_XXX settings.
@@ -958,6 +964,8 @@ sub get_db_connection
 	my %args    = @_;
 	my $app_key = $args{app_key} // '';
 	my $CONF    = $args{conf};
+	#give mongo logs more meaning with application access
+	my $version   = $args{version} // '';
 
 	if( ref($CONF) ne 'HASH' || $CONF->{db_server} eq '' )
 	{
@@ -994,6 +1002,8 @@ sub get_db_connection
 		username           => $username,
 		password           => $password,
 		connect_timeout_ms => $timeout,
+
+		app_name => "nmis-$version",
 
 		# for socket_timeout_ms -1 means no timeout, but for max_time_ms it MUST be zero!
 		max_time_ms => ( $query_timeout > 0 ) ? $query_timeout : 0,

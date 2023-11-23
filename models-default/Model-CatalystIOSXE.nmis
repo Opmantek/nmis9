@@ -556,7 +556,7 @@
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo',
     'rrd' => {
       'nodehealth' => {
-        'graphtype' => 'cpu,mem-proc,routenumber,topo',
+        'graphtype' => 'cpu,mem-proc',
         'snmp' => {
           'MemoryFreePROC' => {
             # plugin ciscoMemory.pm normalises relevant object and updates this metric
@@ -565,15 +565,6 @@
           'MemoryUsedPROC' => {
             # plugin ciscoMemory.pm normalises relevant object and updates this metric
             #'oid' => 'ciscoMemoryPoolUsed.1'
-          },
-          'TopChanges' => {
-            'comment' => 'this will be deprecated from nodehealth',
-            'oid' => 'dot1dStpTopChanges',
-            'option' => 'counter,0:U'
-          },
-          'RouteNumber' => {
-            'comment' => 'this will be deprecated from nodehealth',
-            'oid' => 'inetCidrRouteNumber'
           },
           'avgBusy1' => {
             # plugin ciscoMemory.pm normalises relevant object and updates this metric
@@ -586,23 +577,23 @@
         },
         'threshold' => 'cpu,mem-proc'
       },
-      #'RouteNumber' => {
-      #  'graphtype' => 'routenumber',
-      #  'snmp' => {
-      #    'RouteNumber' => {
-      #      'oid' => 'ipCidrRouteNumber'
-      #    },
-      #  },
-      #},
-      #'TopologyChanges' => {
-      #  'graphtype' => 'topo',
-      #  'snmp' => {
-      #    'TopChanges' => {
-      #      'oid' => 'dot1dStpTopChanges',
-      #      'option' => 'counter,0:U'
-      #    },
-      #  },
-      #},
+      'RouteNumber' => {
+        'graphtype' => 'routenumber',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
+        },
+      },
+      'TopologyChanges' => {
+        'graphtype' => 'topo',
+        'snmp' => {
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
+          },
+        },
+      },
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {

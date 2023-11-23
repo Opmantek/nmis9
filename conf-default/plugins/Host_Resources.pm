@@ -233,7 +233,7 @@ sub collect_plugin
 			if (!$updatedrrdfileref) { $NG->log->debug("Update RRD failed!") };
 
 			$NG->log->debug("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref") if ($updatedrrdfileref);
-			$NG->log->debug2("Host_Memory Object: ". Dumper($Host_Memory),1);
+			$NG->log->debug2(sub {"Host_Memory Object: ". Dumper($Host_Memory),1});
 		}
         
     }

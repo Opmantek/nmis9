@@ -770,7 +770,7 @@ sub find_subconcept_type_storage
 	my $type = $args{type} || 'rrd';
 	my $subconcept = $args{subconcept};
 
-	$self->nmisng->log->debug3("DEBUG find_subconcept_type_storage type=$type subconcept=$subconcept _storage: ". Dumper $self->{_storage});
+	$self->nmisng->log->debug3(sub {"DEBUG find_subconcept_type_storage type=$type subconcept=$subconcept _storage: ". Dumper $self->{_storage}});
 
 	return undef
 		if (

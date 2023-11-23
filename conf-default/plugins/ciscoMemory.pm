@@ -101,7 +101,7 @@ sub update_plugin
 			$cempinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} - $cempdata->{MemPoolName}");
 
 			my ( $op, $error ) = $cempinventory->save();
-			$NG->log->debug2( "saved op: $op");
+			$NG->log->debug2(sub { "saved op: $op"});
 			if ($error)
 			{
 				$NG->log->error("Failed to save inventory for Node '$node'; Index; $cempid; Error: $error");
@@ -228,11 +228,11 @@ sub collect_plugin
 			if (ref($emibData{$entityIndex}) eq "HASH"
 					&& defined($emibData{$entityIndex}->{entPhysicalDescr}))
 			{
-				$NG->log->debug9("Entity MIB Index:       $emibData{$entityIndex}->{index}");
-				$NG->log->debug9("Entity MIB Class:       $emibData{$entityIndex}->{entPhysicalClass}");
-				$NG->log->debug9("Entity MIB Name:        $emibData{$entityIndex}->{entPhysicalName}");
-				$NG->log->debug9("Entity MIB Description: $emibData{$entityIndex}->{entPhysicalDescr}");
-				$NG->log->debug9("Entity MIB Model:       $emibData{$entityIndex}->{entPhysicalModelName}");
+				$NG->log->debug9(sub {"Entity MIB Index:       $emibData{$entityIndex}->{index}"});
+				$NG->log->debug9(sub {"Entity MIB Class:       $emibData{$entityIndex}->{entPhysicalClass}"});
+				$NG->log->debug9(sub {"Entity MIB Name:        $emibData{$entityIndex}->{entPhysicalName}"});
+				$NG->log->debug9(sub {"Entity MIB Description: $emibData{$entityIndex}->{entPhysicalDescr}"});
+				$NG->log->debug9(sub {"Entity MIB Model:       $emibData{$entityIndex}->{entPhysicalModelName}"});
 				if ($cempData->{MemPoolName} =~ /processor|cpu/i && $emibData{$entityIndex}->{entPhysicalClass} =~ /module|cpu/)
 				{
 					$NG->log->debug("MemoryFree: $cempData->{MemPoolFree}");
@@ -313,11 +313,11 @@ sub collect_plugin
 	
 				if (ref($emibData{$entityIndex}) eq "HASH")
 				{
-					$NG->log->debug9("Entity MIB Index:       $emibData{$entityIndex}->{index}");
-					$NG->log->debug9("Entity MIB Class:       $emibData{$entityIndex}->{entPhysicalClass}");
-					$NG->log->debug9("Entity MIB Name:        $emibData{$entityIndex}->{entPhysicalName}");
-					$NG->log->debug9("Entity MIB Description: $emibData{$entityIndex}->{entPhysicalDescr}");
-					$NG->log->debug9("Entity MIB Model:       $emibData{$entityIndex}->{entPhysicalModelName}");
+					$NG->log->debug9(sub {"Entity MIB Index:       $emibData{$entityIndex}->{index}"});
+					$NG->log->debug9(sub {"Entity MIB Class:       $emibData{$entityIndex}->{entPhysicalClass}"});
+					$NG->log->debug9(sub {"Entity MIB Name:        $emibData{$entityIndex}->{entPhysicalName}"});
+					$NG->log->debug9(sub {"Entity MIB Description: $emibData{$entityIndex}->{entPhysicalDescr}"});
+					$NG->log->debug9(sub {"Entity MIB Model:       $emibData{$entityIndex}->{entPhysicalModelName}"});
 					if ($cpmMemData->{MemPoolName} =~ /processor|cpu/i && $emibData{$entityIndex}->{entPhysicalClass} =~ /module|cpu/)
 					{
 						$NG->log->debug("MemoryFree: $cpmMemData->{MemoryFree}");
@@ -442,7 +442,7 @@ sub collect_plugin
 					data       => $rrdData,
 					item       => undef);
 	my ( $op, $error ) = $inventory->save();
-	$NG->log->debug2("saved inventory for Node '$node'; op: $op");
+	$NG->log->debug2(sub {"saved inventory for Node '$node'; op: $op"});
 	if ($error)
 	{
 		$NG->log->error("Failed to save inventory for Node '$node'; Error: $error");

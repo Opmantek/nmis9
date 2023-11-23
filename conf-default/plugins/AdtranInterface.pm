@@ -494,12 +494,12 @@ sub update_plugin
 	
 						if ( $curval ne $desiredval )
 						{
-							$NG->log->debug2( "rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit");
+							$NG->log->debug2(sub { "rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit"});
 							RRDs::tune( $rrdfile, "--maximum", "$dsname:$desiredval" );
 						}
 						else
 						{
-							$NG->log->debug2("rrd section $datatype, ds $dsname, current limit $curval is correct");
+							$NG->log->debug2(sub {"rrd section $datatype, ds $dsname, current limit $curval is correct"});
 						}
 					}
 				}
@@ -508,7 +508,7 @@ sub update_plugin
 
 		# The above has added data to the inventory, that we now save.
 		my ( $op, $subError ) = $inventory->save();
-		$NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+		$NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		if ($subError)
 		{
 			$NG->log->error("Failed to save inventory for Interface '$index': $subError");

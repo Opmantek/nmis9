@@ -18,3 +18,4 @@ Vagrantfile
 *.swp
 *.swo
 install.log
+.vscode

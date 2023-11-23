@@ -372,7 +372,7 @@ sub logConfigEvent
 	my $nmisng = $args{nmisng};
 	delete $args{nmisng};
 
-	$nmisng->log->debug2("logConfigEvent logging Json event for event $args{event}");
+	$nmisng->log->debug2(sub {"logConfigEvent logging Json event for event $args{event}"});
 	my $event_hash = \%args;
 	$event_hash->{startdate} = time;
 	my $error = NMISNG::Notify::logJsonEvent(event => $event_hash, dir => $dir);
@@ -402,7 +402,7 @@ sub getSummaryStats
 	my @option;
 	my %summaryStats;
 
-	$S->nmisng->log->debug2(&NMISNG::Log::trace()."Start type=$type, index=$index, start=$start, end=$end");
+	$S->nmisng->log->debug2(sub {&NMISNG::Log::trace()."Start type=$type, index=$index, start=$start, end=$end"});
 
 	# check if type exist in nodeInfo
 	# fixme this cannot work - must CHECK existence, not make path blindly
@@ -466,7 +466,7 @@ sub getSummaryStats
 		}
 	}
 
-	$S->nmisng->log->debug3("RRD Options: ".join(" ",@option));
+	$S->nmisng->log->debug3(sub {"RRD Options: ".join(" ",@option)});
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
 	if (($ERROR = RRDs::error()))
@@ -491,7 +491,7 @@ sub getSummaryStats
 		} else {
 			$summaryStats{$name} = $value;
 		}
-		$S->nmisng->log->debug2("getsummarystats name=$name, index=$index, value=$value");
+		$S->nmisng->log->debug2(sub {"getsummarystats name=$name, index=$index, value=$value"});
 	}
 	return \%summaryStats;
 }
@@ -541,7 +541,7 @@ sub getSubconceptStats
 	my @option;
 	my %summaryStats; # return value
 
-	$S->nmisng->log->debug2(&NMISNG::Log::trace()."Start subconcept=$subconcept, index=$index, start=$start, end=$end");
+	$S->nmisng->log->debug2(sub {&NMISNG::Log::trace()."Start subconcept=$subconcept, index=$index, start=$start, end=$end"});
 
 	# check if storage exists
 	if (!$db)
@@ -661,12 +661,12 @@ only have DS ".join(" ",keys(%$wehavethese)));
 					{
 						$nocando{$needs_var->{defines}} = 1;
 						$needs[$other]->{skip} = 1;
-						$S->nmisng->log->debug2("skipping variable definition $needs_var->{defines}: requires variable $needs_ds->{defines} which is unsatisfiable");
+						$S->nmisng->log->debug2(sub {"skipping variable definition $needs_var->{defines}: requires variable $needs_ds->{defines} which is unsatisfiable"});
 					}
 					else
 					{
 						$needs[$other]->{skip} = 1;
-						$S->nmisng->log->debug2("skipping print of unsatisfiable variable $needs_ds->{defines}");
+						$S->nmisng->log->debug2(sub {"skipping print of unsatisfiable variable $needs_ds->{defines}"});
 					}
 				}
 			}
@@ -686,7 +686,7 @@ only have DS ".join(" ",keys(%$wehavethese)));
 			{
 				$nocando{ $needs_var->{defines} } = 1;
 				$needs[$i]->{skip} = 1;
-				$S->nmisng->log->debug2("variable definition $needs_var->{defines} is unsatisfiable: requires variables ".join(" ", keys %{$needs_var->{var}}).", some of which are unsatisfiable.");
+				$S->nmisng->log->debug2(sub {"variable definition $needs_var->{defines} is unsatisfiable: requires variables ".join(" ", keys %{$needs_var->{var}}).", some of which are unsatisfiable."});
 			}
 		}
 	}
@@ -723,7 +723,7 @@ only have DS ".join(" ",keys(%$wehavethese)));
 		return {};
 	}
 
-	$S->nmisng->log->debug3("RRD options: ".join(" ",@finalopts));
+	$S->nmisng->log->debug3(sub {"RRD options: ".join(" ",@finalopts)});
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @finalopts);
 	if (($ERROR = RRDs::error()))
@@ -780,7 +780,7 @@ sub getGroupSummary {
 
 	my %summaryHash = ();
 	my $nmisng = new_nmisng();
-	$nmisng->log->debug2(&NMISNG::Log::trace()."Starting");
+	$nmisng->log->debug2(sub {&NMISNG::Log::trace()."Starting"});
 
 	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
 	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
@@ -933,7 +933,7 @@ sub getGroupSummary {
 		}
 	}
 
-	$nmisng->log->debug2(&NMISNG::Log::trace()."Finished");
+	$nmisng->log->debug2(sub {&NMISNG::Log::trace()."Finished"});
 	return \%summaryHash;
 } # end getGroupSummary
 
@@ -2238,7 +2238,7 @@ sub notify
 	my $saveupdate = undef;
 
 	my $C = $S->nmisng->config;
-	$S->nmisng->log->debug2("Start of Notify");
+	$S->nmisng->log->debug2(sub {"Start of Notify"});
 
 	# events.nmis controls which events are active/logging/notifying
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
@@ -2269,7 +2269,7 @@ sub notify
 		}
 		else # not an proactive/alert event - no changes are supported
 		{
-			$S->nmisng->log->debug2("Event node=$nodename event=$event element=$element already exists");
+			$S->nmisng->log->debug2(sub {"Event node=$nodename event=$event element=$element already exists"});
 		}
 	}
 	else
@@ -2353,7 +2353,7 @@ sub notify
 
 	}
 	return $event_obj;
-	$S->nmisng->log->debug2("Notify Finished");
+	$S->nmisng->log->debug2(sub {"Notify Finished"});
 }
 
 

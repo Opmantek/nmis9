@@ -105,11 +105,11 @@ sub collect_plugin
 	# do we have some inventory?
 	if (@$VirtualServs)
 	{
-		$NG->log->debug3("Virtual Servers: " . Dumper($VirtualServs) . "\n\n\n");
+		$NG->log->debug3(sub {"Virtual Servers: " . Dumper($VirtualServs) . "\n\n\n"});
 		# process each inventory thing, matching it to the API data using the index/name
 		foreach my $serv_id (@$VirtualServs)
 		{
-			$NG->log->debug2("Processing Virtual Server: serv_id='$serv_id'.");
+			$NG->log->debug2(sub {"Processing Virtual Server: serv_id='$serv_id'."});
 			# get the inventory object for this specific item.
 			my ($serv_inventory,$error) = $S->nmisng_node->inventory(_id => $serv_id);
 			if ($error)
@@ -134,13 +134,13 @@ sub collect_plugin
 			my $f5PoolData    = ();
 			my $processPool   = 0;
 			my $f5SubData     = $f5Data->{$name};
-			$NG->log->debug3("HashMap for Virtual Server '$name': " . Dumper($f5SubData) . "\n\n\n");
+			$NG->log->debug3(sub {"HashMap for Virtual Server '$name': " . Dumper($f5SubData) . "\n\n\n"});
 			# Pull this Virtual Server's Pool data into a variable.
 			if (defined($f5SubData->{Pool}) && ref($f5SubData->{Pool}) eq "HASH")
 			{
 				$f5PoolData = $f5SubData->{Pool}; # Pull this out to a separate HashMap.
 				$f5SubData->{Pool} = undef;       # ...and don't store it in with the VirtualServer Concept
-				$NG->log->debug3("HashMap for Virtual Server Pool '$name': " . Dumper($f5PoolData));
+				$NG->log->debug3(sub {"HashMap for Virtual Server Pool '$name': " . Dumper($f5PoolData)});
 				$processPool = 1;
 			}
 
@@ -198,11 +198,11 @@ sub collect_plugin
 				# do we have some inventory?
 				if (@$Pools)
 				{
-					$NG->log->debug3("Pools: " . Dumper($Pools) . "\n\n\n");
+					$NG->log->debug3(sub {"Pools: " . Dumper($Pools) . "\n\n\n"});
 					# process each inventory thing, matching it to the API data using the index/name
 					foreach my $pool_id (@$Pools)
 					{
-						$NG->log->debug2("Processing Pool pool_id='$pool_id'.");
+						$NG->log->debug2(sub {"Processing Pool pool_id='$pool_id'."});
 						# get the inventory object for this specific item.
 						my ($pool_inventory,$error) = $S->nmisng_node->inventory(_id => $pool_id);
 						if ($error)
@@ -212,7 +212,7 @@ sub collect_plugin
 						}
 						# get a handy pointer to the pool data
 						$data = $pool_inventory->data();
-					    $NG->log->debug3("Inventory Data: " . Dumper($data) . "\n\n\n");
+					    $NG->log->debug3(sub {"Inventory Data: " . Dumper($data) . "\n\n\n"});
 
 						# get the name of the thing to use.
 						my $poolName   = $data->{poolMbrPoolName};
@@ -227,7 +227,7 @@ sub collect_plugin
 						}
 						# Pull this Virtual Server's Pool data into a variable.
 						$f5SubData       = $f5PoolData->{"${poolName}_Pool"}->{Member}->{$memberName};
-						$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName': " . Dumper($f5SubData));
+						$NG->log->debug3(sub {"HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName': " . Dumper($f5SubData)});
 						$NG->log->debug("Processing Concept '$poolConcept'; Pool '$poolName'; Name '$memberName'.");
 						#Save to integers to RRD
 						my $rrddata = {
@@ -354,19 +354,19 @@ sub update_plugin
 		my $processPool   = 0;
 		# Pull this Virtual Server data into a variable.
 		my $f5SubData     = $f5Data->{$name};
-		$NG->log->debug3("HashMap for Virtual Server '$name': " . Dumper($f5SubData) . "\n\n\n");
+		$NG->log->debug3(sub {"HashMap for Virtual Server '$name': " . Dumper($f5SubData) . "\n\n\n"});
 
 		# Pull this Virtual Server's Pool data into a variable.
 		if (defined($f5SubData->{Pool}) && ref($f5SubData->{Pool}) eq "HASH")
 		{
 			$f5PoolData = $f5SubData->{Pool}; # Pull this out to a separate HashMap.
 			$f5SubData->{Pool} = undef;       # ...and don't store it in with the VirtualServer Concept
-			$NG->log->debug3("HashMap for Virtual Server Pool '$name': " . Dumper($f5PoolData));
+			$NG->log->debug3(sub {"HashMap for Virtual Server Pool '$name': " . Dumper($f5PoolData)});
 			$processPool = 1;
 		}
 		my $path_keys = ['index'];
 		my $path      = $nodeobj->inventory_path( concept => $virtSvrConcept, path_keys => $path_keys, data => $f5SubData );
-		$NG->log->debug3( "$virtSvrConcept path ".join(',', @$path));
+		$NG->log->debug3(sub { "$virtSvrConcept path ".join(',', @$path)});
 
 		# now get-or-create an inventory object for this new concept
 		my ( $subInventory, $error_message ) = $nodeobj->inventory(
@@ -434,11 +434,11 @@ sub update_plugin
 				my $f5MemberData = ();
 				# Pull this Virtual Server's Pool data into a variable.
 				$f5SubData       = $f5PoolData->{$poolName};
-				$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName': " . Dumper($f5SubData));
+				$NG->log->debug3(sub {"HashMap for Virtual Server '$name' Pool '$poolName': " . Dumper($f5SubData)});
 				if (defined($f5SubData->{Member}) && ref($f5SubData->{Member}) eq "HASH")
 				{
 					$f5MemberData = $f5SubData->{Member};
-					$NG->log->debug3("HashMap for Virtual Server '$name'; Pool '$poolName'; Members: " . Dumper($f5MemberData) . "\n\n\n");
+					$NG->log->debug3(sub {"HashMap for Virtual Server '$name'; Pool '$poolName'; Members: " . Dumper($f5MemberData) . "\n\n\n"});
 				}
 				foreach my $memberName (keys(%$f5MemberData))
 				{
@@ -451,10 +451,10 @@ sub update_plugin
 					}
 					# Pull this Virtual Server Pool Member data into a variable.
 					my $f5MemberSubData     = $f5MemberData->{$memberName};
-					$NG->log->debug3("HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName': " . Dumper($f5MemberSubData));
+					$NG->log->debug3(sub {"HashMap for Virtual Server '$name' Pool '$poolName'; Member '$memberName': " . Dumper($f5MemberSubData)});
 					$path_keys = ['index'];
 					$path      = $nodeobj->inventory_path( concept => $poolConcept, path_keys => $path_keys, data => $f5MemberSubData );
-					$NG->log->debug3( "$poolConcept path ".join(',', @$path));
+					$NG->log->debug3(sub { "$poolConcept path ".join(',', @$path)});
 			
 					# now get-or-create an inventory object for this new concept
 					my ( $subMemberInventory, $error_message ) = $nodeobj->inventory(
@@ -587,9 +587,9 @@ sub getF5Data {
 				{connLimit                    => "Connection Limit"}
 			};
 
-			$NG->log->debug9("apiUser        = $apiUser");
-			$NG->log->debug9("apiPass        = $apiPass");
-			$NG->log->debug9("apiPort        = $apiPort");
+			$NG->log->debug9(sub {"apiUser        = $apiUser"});
+			$NG->log->debug9(sub {"apiPass        = $apiPass"});
+			$NG->log->debug9(sub {"apiPort        = $apiPort"});
 			my $type;
 			my $request_body;
 			my $res;
@@ -602,7 +602,7 @@ sub getF5Data {
 			return ("failed to get a result from login attempt.") if (!$res);
 			my $body     = decode_json($res->body);
 			return ("failed to get a result from login attempt.") if (!$body);
-			$NG->log->debug3( "\nBody: " . Dumper($body) . "\n");
+			$NG->log->debug3(sub { "\nBody: " . Dumper($body) . "\n"});
 			my $token    = $body->{token};
 			if (!$token) {
 				return ("failed to get a token from login attempt; Error: $body->{message}");
@@ -615,10 +615,10 @@ sub getF5Data {
 			$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/');
 			$res     = $client->get($url => $headers)->result;
 			$body    = decode_json($res->body);
-	 		$NG->log->debug3("Main Query: ". Dumper($body). "\n\n\n");
+	 		$NG->log->debug3(sub {"Main Query: ". Dumper($body). "\n\n\n"});
 			my $items = $body->{items};
 			foreach my $item (@$items) {
-				$NG->log->debug8( Dumper($item) . "\n");
+				$NG->log->debug8(sub { Dumper($item) . "\n"});
 				my $resourceId      = $item->{fullPath};
 				my @destination     = split('[/:]', $item->{destination});
 				my $name            = $item->{fullPath};
@@ -655,7 +655,7 @@ sub getF5Data {
 				$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/virtual/'.$resourceId.'/stats');
 				$res     = $client->get($url => $headers)->result;
 				$body    = decode_json($res->body);
-				$NG->log->debug3("Resource Query: ". Dumper($body). "\n\n\n");
+				$NG->log->debug3(sub {"Resource Query: ". Dumper($body). "\n\n\n"});
 				my $entries = $body->{entries};
 				foreach my $entry (keys %$entries) {
 					my $urlEntry                                   = $$entries{$entry};
@@ -695,10 +695,10 @@ sub getF5Data {
 				$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/pool/'.$poolId.'/members');
 				$res     = $client->get($url => $headers)->result;
 				$body    = decode_json($res->body);
-				$NG->log->debug3("Member Query: ". Dumper($body). "\n\n\n");
+				$NG->log->debug3(sub {"Member Query: ". Dumper($body). "\n\n\n"});
 				my $members = $body->{items};
 				foreach my $member (@$members) {
-					$NG->log->debug8("Member: " .  Dumper($member) . "\n");
+					$NG->log->debug8(sub {"Member: " .  Dumper($member) . "\n"});
 					my $memberId        = $member->{fullPath};
 					$memberId           =~ s!/!~!g;
 					my $memberName      = $member->{fullPath};
@@ -723,7 +723,7 @@ sub getF5Data {
 					$url     = Mojo::URL->new('https://'.$host.':'.$apiPort.'/mgmt/tm/ltm/pool/'.$poolId.'/members/'.$memberId.'/stats/');
 					$res     = $client->get($url => $headers)->result;
 					$body    = decode_json($res->body);
-					$NG->log->debug3("Member Stats Query: ". Dumper($body). "\n\n\n");
+					$NG->log->debug3(sub {"Member Stats Query: ". Dumper($body). "\n\n\n"});
 					my $entries = $body->{entries};
 					foreach my $entry (keys %$entries) {
 						my $urlEntry                                = $$entries{$entry};

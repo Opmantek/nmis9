@@ -69,7 +69,7 @@ sub update_plugin
 	}
 	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
-	$NG->log->debug6("ifdata: ". Dumper \%ifdata);
+	$NG->log->debug6(sub {"ifdata: ". Dumper \%ifdata});
 
 	# get a lookup of base mapping port to ifIndex
 	my $dot1dBasePortIndex;
@@ -174,7 +174,7 @@ sub update_plugin
 			$changesweremade = $mustsave = 1;
 		}
 
-		$NG->log->debug4("macDaddy: ". Dumper $macdata);
+		$NG->log->debug4(sub {"macDaddy: ". Dumper $macdata});
 
 		if ($mustsave)
 		{
