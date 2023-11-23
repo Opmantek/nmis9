@@ -1,3 +1,6 @@
+<%
+  my $user = stash ('user');
+%>
 <html>
     <head>
         <title><%= $title %></title>

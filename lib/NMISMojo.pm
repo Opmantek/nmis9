@@ -1,3 +1,32 @@
+#
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+#
 package NMISMojo;
 use Mojo::Base 'Mojolicious';
 
@@ -40,19 +69,26 @@ sub startup {
   $self->plugin(CGI => [ "$url_base/tools.pl" => "/usr/local/nmis9/cgi-bin/tools.pl" ]);
   $self->plugin(CGI => [ "$url_base/view-event.pl" => "/usr/local/nmis9/cgi-bin/view-event.pl" ]);
 
-  $self->plugin("NMISMojo::Plugin::SimpleAuth");
+  ## Load plugins that are needed for app
 
+  $self->plugin("NMISMojo::Plugin::SimpleAuth");
+  $self->plugin("NMISMojo::Plugin::Helpers");
+  
   ## create cookie for nmis
   my $config = NMISNG::Util::loadConfTable();
   if(my $secrets = [$config->{'auth_web_key'}]) {
     $self->secrets($secrets);
   }
+  # load modules, this won't make it into stash so values are stored in app, this could be a bad thing to do...
+	my $module_code = $self->module_code();
+  # print Dumper $module_code;
 
   $self->hook(
-    before_render => sub {
+    before_dispatch => sub {
       my $c = shift;
       my $user = $c->is_user_authenticated ? $c->current_user : undef;
       $c->stash(user => $user);
+      $c->stash( moduleCode => $self->{moduleCode} );
       return $c;
     }
   );
@@ -108,7 +144,7 @@ sub startup {
 		# )->name("show_opCharts_node_selector");
   # migrated routes
   # This route is public
-  #$r->get('/')->to(controller => 'MainController', action => 'login_view');
+  $r->get('/')->to(controller => 'MainController', action => 'login_view');
   $r->get('/login')->to(controller => 'MainController', action => 'login_view');
   $r->post('/login')->to(controller => 'MainController', action => 'authenticate_user');
   
@@ -142,7 +178,7 @@ sub startup {
   my $api_bridge = $logged_in->under('/api/v1');
   $api_bridge->get('/welcome' => sub {
     my $c = shift;
-    # Your API logic here
+    # API logic here
     my $data = { api => 'Hello Welcome to version 1 API!' };
     # Render a JSON response
     $c->render(json => $data);
