@@ -169,19 +169,7 @@ sub _run_query
 	my $query = $args{query};
 	return ( error => "query missing" ) if (!$query);
 	my $timeout = $args{timeout};
-
-	# prep tempfile for wmic's stderr.
-	my ($tfh, $tfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
-	# and another for its auth data.
-	my ($authfh, $authfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
-	# and yet another for the command line entered.
-	my ($cmdfh, $cmdfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
-	chmod(0600,$authfn);
-
-	# random column delimiter, 10 letters should do
-	my $delim = join('', map { ('a'..'z')[rand 26] } (0..9));
 	my (@rawdata, $exitcode, %result, $version, $cmdLine);
-	my $v2option = "";
 
 	if (!$self->{version})
 	{
@@ -236,6 +224,17 @@ sub _run_query
 		}
 	}
 	else {
+		# prep tempfile for wmic's stderr.
+		my ($tfh, $tfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
+		# and another for its auth data.
+		my ($authfh, $authfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
+		# and yet another for the command line entered.
+		my ($cmdfh, $cmdfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
+		chmod(0600,$authfn);
+
+		# random column delimiter, 10 letters should do
+		my $delim = join('', map { ('a'..'z')[rand 26] } (0..9));
+		
 		# Handle Version 1 and Version 2 which are wmic executable
 		# fork and pipe
 		my $pid = open(WMIC, "-|");
