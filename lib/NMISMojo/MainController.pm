@@ -39,7 +39,13 @@ use NMISNG::Auth;
 #our index route
 sub index {
   my $self = shift;
-  $self->render(template => 'index');
+  
+  if ($self->is_user_authenticated) {
+    $self->render(template => 'index');
+  }
+  else{
+    $self->render(template => 'login', error =>'Please login!' );
+  }
 }
 
 
@@ -68,23 +74,12 @@ sub authenticate_user {
   my $auth_user = $self->authenticate($usrname, $psswd);
   #print "self are ".Dumper($auth_user);
   if ($auth_user){
-    $self->render(template => 'index', user =>$usrname);
+     $self->redirect_to('index');
+    #$self->render(template => 'index', user =>$usrname);
   }
   else{
     $self->render(template => 'login', error =>'Invalid username/password combination!' );
   } 
-
-
-  #$self->render(template => 'login', error =>$auth_key );
-  #&index($self);
-  # my $auth = NMISNG::Auth->new();
-  # my $auth_user = $auth->user_verify($usrname, $psswd);
-  # if ($auth_user){
-  #   &index($self);
-  # }
-  # else{
-  #     $self->render(template => 'login', error =>'Invalid username/password combination' );
-  # }
 }
 
 sub nodes_view {

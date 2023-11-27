@@ -80,7 +80,8 @@ sub startup {
     $self->secrets($secrets);
   }
   # load modules, this won't make it into stash so values are stored in app, this could be a bad thing to do...
-	my $module_code = $self->module_code();
+	$self->module_code();
+  #$self->module_code_mojo();
   # print Dumper $module_code;
 
   $self->hook(
@@ -89,6 +90,7 @@ sub startup {
       my $user = $c->is_user_authenticated ? $c->current_user : undef;
       $c->stash(user => $user);
       $c->stash( moduleCode => $self->{moduleCode} );
+      #$c->stash( moduleCodeMojo => $self->{moduleCodeMojo} );
       return $c;
     }
   );
@@ -157,7 +159,8 @@ sub startup {
     my $c = shift;
     # Check if the user is authenticated
     if ($c->is_user_authenticated) {
-        # Continue to the routes within this group
+        # Continue to the routes
+        $c->render(template => 'index');
         return 1;
     } else {
         # Redirect to the login page if not authenticated
@@ -168,8 +171,9 @@ sub startup {
     }
   });
 
+  $r->get('/index')->to(controller => 'MainController', action => 'index');
   $logged_in->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
-
+ 
   #$r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
   $r->any('/logout')->to(controller => 'MainController', action => 'logout');
 
