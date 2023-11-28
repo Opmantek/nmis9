@@ -156,7 +156,7 @@ sub overallNodeStatus
 				++$statusHash{$event_status};
 				++$statusHash{count};
 			} else {
-				$self->nmisng()->log->info("NetworkStatus:overallNodeStatus No nodeobj found!");
+				$self->nmisng()->log->info("($node_name) NetworkStatus:overallNodeStatus No nodeobj found!");
 			}
 		}
 	}
