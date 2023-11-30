@@ -4279,14 +4279,18 @@ sub decrypt {
 	# Passed nothing or an empty string.
 	return "" if (!defined($password) || $password eq '');
 
-	{
-		$config = loadConfTable();
-		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
-		$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-	}
+	$config = loadConfTable();
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
-
+	# the password does not look encrypted and encryption is disabled so don't try
+	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled))
+	{
+		return $password;
+	}
+	
+	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+	$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	
 	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure;};
 	if($@)
 	{
@@ -4304,12 +4308,7 @@ sub decrypt {
 	}
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
-
-	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled))
-	{
-		return $password;
-	}
-
+	
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = "";
@@ -4414,13 +4413,18 @@ sub encrypt {
 	# Passed nothing or an empty string.
 	return "" if (!defined($password) || $password eq '');
 
-	{
-		$config = loadConfTable();
-		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
-		$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-	}
+	$config = loadConfTable();
+	
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	# the password does not look encrypted and encryption is disabled so don't try
+	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled && !$force))
+	{
+		return $password;
+	}
 
+	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+	$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	
 	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure;};
 	if($@)
 	{
@@ -4438,11 +4442,6 @@ sub encrypt {
 	}
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
-
-	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled && !$force))
-	{
-		return $password;
-	}
 
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/firstwave/master.key';
