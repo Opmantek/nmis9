@@ -131,7 +131,7 @@
 						'oid' => 'sysObjectID'
 					},
 					'sysUpTime' => {
-						'oid' => 'sysUpTime',
+						'oid' => 'hrSystemUptime',
 						'title' => 'Uptime'
 					},
 					'ifNumber' => {
