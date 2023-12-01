@@ -56,11 +56,6 @@ my $log_level = $ARG->{debug} // $C->{log_level};
 my $log_file = $ARG->{log_file};
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $log_level), path => $log_file );
 
-# BEFORE TESTED MAKE SURE USER SAYS THEY KNOW IT IS STILL NEEDING TESTS
-if( $ARG->{untested} != 1 ) {
-	die "this script is not yet tested, to run anyway add untested=1";
-}
-
 my $pass = 0;
 my $dirpass = 1;
 my $dirlevel = 0;
