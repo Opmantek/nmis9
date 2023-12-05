@@ -80,8 +80,8 @@ sub startup {
     $self->secrets($secrets);
   }
   # load modules, this won't make it into stash so values are stored in app, this could be a bad thing to do...
-	$self->module_code();
-  #$self->module_code_mojo();
+	#$self->module_code();
+  $self->module_code_mojo();
   # print Dumper $module_code;
 
   $self->hook(
@@ -89,8 +89,8 @@ sub startup {
       my $c = shift;
       my $user = $c->is_user_authenticated ? $c->current_user : undef;
       $c->stash(user => $user);
-      $c->stash( moduleCode => $self->{moduleCode} );
-      #$c->stash( moduleCodeMojo => $self->{moduleCodeMojo} );
+      #$c->stash( moduleCode => $self->{moduleCode} );
+      $c->stash( moduleCodeMojo => $self->{moduleCodeMojo} );
       return $c;
     }
   );
@@ -138,13 +138,7 @@ sub startup {
       $c->reply->not_found;
     }
   });
-
-
-	# node selector endpoint
-		# $charts_bridge->get('/node_selector')->over(authenticated_with_login_redirect => 1)->to(
-		# 	controller => "ChartsController", action => "show_node_selector",sort_by => 'nodes.name',order => 'asc'
-		# )->name("show_opCharts_node_selector");
-  # migrated routes
+  
   # This route is public
   $r->get('/')->to(controller => 'MainController', action => 'login_view');
   $r->get('/login')->to(controller => 'MainController', action => 'login_view');
@@ -188,13 +182,28 @@ sub startup {
     $c->render(json => $data);
   });
 
+  # Modules api for vue
+  $api_bridge->get('/modules' => sub {
+		my $c = shift;
+    # API logic here
+    my $data = $self->{moduleCodeMojo};
+    # Render a JSON response
+    $c->render(json => $data);
+  });
+
   $api_bridge->get('/nodes')->to(
 			controller => "CRUDController",
 			data_class => "NMISMojo::NodeData",
 			action     => "index_resource"
 	)->name("api_node_data");
+
+
+  $api_bridge->get("/nodes/:name")->to(
+			controller => "CRUDController",
+			data_class => "NMISMojo::NodeData",
+      type       => "nodeip",
+			action     => "show_resource"
+		)->name("view_opAdmin_api_nodeip");
 }
-
-
 
 1;

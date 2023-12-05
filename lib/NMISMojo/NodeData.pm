@@ -59,33 +59,52 @@ sub load_resources
 	my $current_route = $controller->current_route();
 
 	my $self = bless({
+        type  => $args{type},
 		controller => $controller,
 	}, $class);
 	
 	return (undef,$self);
 }
 
-sub find_resources
+sub get_nmisng_obj
 {
-	my ($self, %args) = @_;
+    my ($self, %args) = @_;
     my $config = NMISNG::Util::loadConfTable();
     my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_api.log";
     my $logger  = NMISNG::Log->new(
         path => $logfile,
     );
+
     my @node_names; 
     my $nmisng = NMISNG->new(
 	    config => $config,
         log => $logger,
     );
-    my $noderec = $nmisng->get_nodes_model();
-    map { push @node_names, $_->{name}} (@{$noderec->data});
 
+    return $nmisng;
+}
+
+sub find_resources
+{
+	my ($self, %args) = @_;
+
+    my @node_names;
+    my $nmisng = $self->get_nmisng_obj();
+
+    my $noderec = $nmisng->get_nodes_model();
+    if (!$noderec)
+	{
+		$nmisng->log->error("No matching nodes exist.");
+		return undef;		
+	}
+   
+    map { push @node_names, $_->{name}} (@{$noderec->data});
+    # my $nodeobj = $nmisng->node(name => "clone_localhost_1");
+    # my $uuid = $nodeobj->uuid;
+    # $nmisng->log->info("UUID:$uuid!");
     # print Dumper @node_names;
     return \@node_names;
-  
-	# my $time = scalar(localtime);
-    # return $time;
+	
 }
 
 sub all_resources
@@ -93,6 +112,79 @@ sub all_resources
 	return shift->find_resources(@_);
 }
 
+# finds a SINGLE resource by its id_attr
+#
+# in type 'node' visual mode, return inventory plus other stuff
+# in type 'nodeip' configuration mode, return just nmisx node config and other props
+#
+# args: name (=crudcontroller-scope)
+# returns: undef if not found, resource ref otherwise
+sub find_resource
+{
+	my ($self,%args) = @_;
 
+    my $lookup = $args{name};
+
+	return undef if ($self->{type} !~ /^(node|nodeip)$/);
+
+	#this should come from args but o well
+   
+	#my $redact = getBool($self->{controller}->check_access( access_requirement => 'access_redacted_values'),1);
+
+    my $nmisng = $self->get_nmisng_obj();
+    
+    if ($self->{type} eq "node")	# opcharts visual mode
+	{
+		my ($data,$count,$error) = $nmisng->get_inventory_detail_model( $self->id_attr() => $lookup, want_config => 1);
+		my $this = ($data && @$data == 1 ) ? $data->[0] : undef;
+        return (!$this or !$this->{_id})? undef: $this;
+	}
+	else		# configuration mode
+	{
+		if (my $nodeobj = $nmisng->node(name => $lookup)) # function takes node uuid preferrably, and node name as fallback
+	    {
+			if ($nodeobj) {
+
+                print Dumper $nodeobj;
+                # do necessary processing
+                $nmisng->log->info("UUID: $lookup found!");
+            }
+            else {
+                $nmisng->log->error("Error: $lookup found!");
+		        return undef;
+            }
+            # we want the true structure, unflattened
+	        my $dumpables = { };
+            for my $alsodump (qw(configuration overrides name cluster_id uuid activated comments unknown aliases addresses enterprise_service_tags))
+            {
+                $dumpables->{$alsodump} = $nodeobj->$alsodump;
+            }
+
+            my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables,"entry");
+            $nmisng->log->error("Error: failed to transform output: $error") if ($error);
+            #my $nodedata = $nodeobj->export(flat => 0);
+            # print "flatearth\n";
+            # print Dumper \%flatearth;
+			# $self->_massage_add_compat($nodedata); # and add in helpful compat bits
+	
+			return \%flatearth;
+		}
+		else
+		{
+			return undef;
+		}
+	}
+}
+
+
+sub name_of
+{
+	my ($self,%args) = @_;
+
+	my $thisres = $args{thisresource};
+
+	return undef if (!$thisres or !defined $thisres->{ $self->id_attr });
+	return $thisres->{ $self->id_attr };
+}
 
 1;
