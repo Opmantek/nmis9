@@ -17,9 +17,6 @@
     </style>
     </head>
     <body>
-    % if (defined $user) {
-    %= include 'layouts/menu'
-    %}
     <div id="content">
       <%= content %>
     </div>  
