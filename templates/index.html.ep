@@ -3,6 +3,5 @@
 <script type="module" src="http://localhost:5173/@vite/client"></script>
 <script type="module" src="http://localhost:5173/src/main.js"></script>
 <div class="content" id="vue-div">
-    <h1>Welcome to NMIS UX Upgrade</h1>
     <div id="app"></div>
 </div>
