@@ -55,6 +55,22 @@ sub register {
 		$self->stash( moduleCode => $moduleCode);
 		$self->render("layouts/menu", moduleCode => $moduleCode);
 	});
+
+	# ugly helper that loads conf/opModules.nmis into the stash
+	$app->helper( module_code_mojo => sub {
+		my $self = shift;
+		
+		my $config = NMISNG::Util::loadConfTable();
+		# the modules dd in menubar needs to know what modules are available
+		my $M = Compat::Modules->new(nmis_base => $config->{'<nmis_base>'},
+																nmis_cgi_url_base => $config->{'<cgi_url_base>'});
+		my $moduleCode = $M->getModuleCodeMojo();
+		#my $moduleCode = $M->getModules();
+		#print "moduleCode is ".__LINE__."\n".Dumper($moduleCode);
+		$self->app->{moduleCodeMojo} = $moduleCode;
+		$self->stash( moduleCodeMojo => $moduleCode);
+		$self->render("layouts/menu", moduleCodeMojo => $moduleCode);
+	});
 }
 
 

@@ -19,3 +19,10 @@ Vagrantfile
 *.swo
 install.log
 .vscode
+
+
+### Vuejs ###
+node_modules/
+dist/
+npm-debug.log
+yarn-error.log

@@ -144,6 +144,31 @@ sub getModuleCode
 			</div>|;
 }
 
+# returns html for a menu in omk style
+sub getModuleCodeMojo 
+{
+	my $self = shift;
+	my $modCode;
+	my $modOption;
+
+	my $modules = $self->getModules();
+	foreach my $mod (sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) {
+
+		my $module = $modules->{$mod};
+		
+		#my $link = $module->{link};
+		my $base = $modules->{$mod}->{base};
+		# use the first match, there should be at most one
+		my ($basetag) = (sort grep($base =~ $_, keys %{$self->{searchbases}})); 
+		my $link = ((!$base and !$modules->{$mod}->{file})
+								or ($base && -f (($self->{searchbases}->{$basetag} || "")."/".$modules->{$mod}->{file})))?
+								$modules->{$mod}->{link} : $self->{nmis_cgi_url_base}."/modules.pl?module=$mod";
+		push(@{$modCode}, { name => $module->{name}, value => "",
+												url => $link, target => $link } );
+	}
+	return $modCode;
+}
+
 # returns an array ref of [module title, link, tagline]
 # for every known module (installed or not)
 sub getModuleLinks
