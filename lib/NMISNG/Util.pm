@@ -3514,38 +3514,57 @@ sub getProcessOwner {
 #    0 - If the deamons were not able to be stopped.                   #
 ########################################################################
 sub shutdownAllDaemons {
+	my $logger    = shift;
 	if ($< != 0)
 	{
 		return(0);
 	}
-	print("Stopping all FirstWave Processes.\n");
+	print("Stopping all FirstWave Processes (This may take a few maintes).\n");
 	try {
 		if (-d "/etc/systemd")
 		{
+			$logger->info("Stopping NMIS daemon.");
 	    	print(`systemctl stop nmis9d.service`);
+			$logger->info("Stopping OMK daemon.");
 			print(`systemctl stop omkd.service`)      if (-f "/etc/systemd/system/omkd.service");
+			$logger->info("Stopping opCharts daemon.");
 			print(`systemctl stop opchartsd.service`) if (-f "/etc/systemd/system/opchartsd.service");
+			$logger->info("Stopping opConfig daemon.");
 			print(`systemctl stop opconfigd.service`) if (-f "/etc/systemd/system/opconfigd.service");
+			$logger->info("Stopping opEvents daemon.");
 			print(`systemctl stop opeventsd.service`) if (-f "/etc/systemd/system/opeventsd.service");
+			$logger->info("Stopping opTrend daemon.");
 			print(`systemctl stop optrend.service`)   if (-f "/etc/systemd/system/optrend.service");
+			$logger->info("Stopping opFlow daemon.");
 			print(`systemctl stop opflowd.service`)   if (-f "/etc/systemd/system/opflowd.service");
 		}
 		else
 		{
+			$logger->info("Stopping NMIS daemon.");
 	    	print(`service nmis9d stop `);
+			$logger->info("Stopping OMK daemon.");
 			print(`service omkd stop `)      if (-f "/etc/init.d/system/omkd");
+			$logger->info("Stopping opCharts daemon.");
 			print(`service opchartsd stop `) if (-f "/etc/init.d/system/opchartsd");
+			$logger->info("Stopping opConfig daemon.");
 			print(`service opconfigd stop `) if (-f "/etc/init.d/system/opconfigd");
+			$logger->info("Stopping opEvents daemon.");
 			print(`service opeventsd stop `) if (-f "/etc/init.d/system/opeventsd");
+			$logger->info("Stopping opTrend daemon.");
 			print(`service optrend stop `)   if (-f "/etc/init.d/system/optrend");
+			$logger->info("Stopping opFlow daemon.");
 			print(`service opflowd stop `)   if (-f "/etc/init.d/system/opflowd");
 		}
 	}
 	catch
 	{
+		$logger->info("All FirstWave Processes may not have stopped successfully.");
+		print("All FirstWave Processes may not have stopped successfully.\n");
 		return(0);
 	}
 
+	$logger->info("All FirstWave Processes should be down.");
+	print("All FirstWave Processes should be down.\n");
 	return(1);
 }
 
@@ -3559,11 +3578,12 @@ sub shutdownAllDaemons {
 #    0 - If the deamons were not able to be startped.                  #
 ########################################################################
 sub startAllDaemons {
+	my $logger    = shift;
 	if ($< != 0)
 	{
 		return(0);
 	}
-	print("Starting all FirstWave Processes.\n");
+	print("Starting all FirstWave Processes. (This may take a few maintes)\n");
 	try {
 		if (-d "/etc/systemd")
 		{
@@ -3588,9 +3608,13 @@ sub startAllDaemons {
 	}
 	catch
 	{
+		$logger->info("All FirstWave Processes may not have started successfully.");
+		print("All FirstWave Processes may not have started successfully.\n");
 		return(0);
 	}
 
+	$logger->info("All FirstWave Processes should be running.");
+	print("All FirstWave Processes should be running.\n");
 	return(1);
 }
 
@@ -3861,7 +3885,7 @@ sub disableEOS {
 		print("Disabling encryption of secrets requires root permission!\n");
 		return(0);
 	}
-	my $rc = shutdownAllDaemons();
+	my $rc = shutdownAllDaemons($logger);
 	if ($rc)
 	{
 		$logger->info("Disabling Encryption of secrets.");
@@ -3907,7 +3931,7 @@ sub disableEOS {
 			$logger->error("ERROR: $startMsg");
 			print("$startMsg\n");
 		}
-		$rc = startAllDaemons();
+		$rc = startAllDaemons($logger);
 		if (!$rc)
 		{
 			$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
@@ -3955,7 +3979,7 @@ sub enableEOS {
 	}
 	if (testEncryption())
 	{
-		my $rc = shutdownAllDaemons();
+		my $rc = shutdownAllDaemons($logger);
 		if ($rc)
 		{
 			$logger->info("Enabling encryption of secrets.");			
@@ -4005,7 +4029,7 @@ sub enableEOS {
 				$logger->error("ERROR: $startMsg");
 				print("$startMsg\n");
 			}
-			$rc = startAllDaemons();
+			$rc = startAllDaemons($logger);
 			if (!$rc)
 			{
 				$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
