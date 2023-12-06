@@ -81,7 +81,7 @@ sub startup {
   }
   # load modules, this won't make it into stash so values are stored in app, this could be a bad thing to do...
 	$self->module_code();
-  #$self->module_code_mojo();
+  $self->module_code_mojo();
   # print Dumper $module_code;
 
   $self->hook(
@@ -90,7 +90,7 @@ sub startup {
       my $user = $c->is_user_authenticated ? $c->current_user : undef;
       $c->stash(user => $user);
       $c->stash( moduleCode => $self->{moduleCode} );
-      #$c->stash( moduleCodeMojo => $self->{moduleCodeMojo} );
+      $c->stash( moduleCodeMojo => $self->{moduleCodeMojo} );
       return $c;
     }
   );
@@ -172,7 +172,7 @@ sub startup {
   });
 
   $r->get('/index')->to(controller => 'MainController', action => 'index');
-  $logged_in->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
+  #$logged_in->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
  
   #$r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
   $r->any('/logout')->to(controller => 'MainController', action => 'logout');
@@ -193,6 +193,14 @@ sub startup {
 			data_class => "NMISMojo::NodeData",
 			action     => "index_resource"
 	)->name("api_node_data");
+
+  $api_bridge->get('/modules' => sub {
+    my $c = shift;
+    # API logic here
+    my $data = $self->{moduleCodeMojo};
+    # Render a JSON response
+    $c->render(json => $data);
+  });
 }
 
 

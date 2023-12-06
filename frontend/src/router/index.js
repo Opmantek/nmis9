@@ -4,6 +4,7 @@ import AboutView from '../views/AboutView.vue'
 import NetworkMetricHealthView from '../views/NetworkMetricHealthView.vue'
 import MonitoredServicesView from '../views/MonitoredServicesView.vue'
 import NodesView from '../views/NodesView.vue'
+import NodeDetailsView from '../views/NodeDetailsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -36,6 +37,11 @@ const router = createRouter({
       path: '/nodes',
       name: 'nodes',
       component: NodesView
+    },
+    {
+      path: '/nodes/:uuid',
+      name: 'nodeDetails',
+      component: NodeDetailsView
     },
   ]
 })

@@ -7,13 +7,16 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarNavDropdown">
         <ul class="navbar-nav">
+            <li class="nav-item">
+              <RouterLink class="nav-link" to="/nodes">Nodes</RouterLink>
+            </li>
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="/" id="network-status" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 Network Status
                 </a>
                 <ul class="dropdown-menu" aria-labelledby="network-status">
                     <li><RouterLink class="dropdown-item" to="/network-metrics0and-health">Network Metrics & Health</RouterLink></li>
-                    <li><RouterLink class="dropdown-item" to="/nodes">Nodes</RouterLink></li>
+                    <li><RouterLink class="dropdown-item" to="/nodes">Current Events</RouterLink></li>
                     <li><RouterLink class="dropdown-item" to="/monitored-services">Monitored Services</RouterLink></li>
                 </ul>
             </li>
@@ -26,6 +29,15 @@
           </a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink" v-if="apps_available.length">
             <li v-for="app in apps_available"><a class="dropdown-item" :href="app.url">{{app.name}}</a></li>
+          </ul>
+        </li>
+
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownUserLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            User
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbarDropdownUserLink" v-if="apps_available.length">
+            <li><a class="dropdown-item" href="/logout">Logout</a></li>
           </ul>
         </li>
       </ul>
