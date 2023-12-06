@@ -166,7 +166,7 @@ sub startup {
   });
 
   $r->get('/index')->to(controller => 'MainController', action => 'index');
-  $logged_in->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
+  #$logged_in->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
  
   #$r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
   $r->any('/logout')->to(controller => 'MainController', action => 'logout');
