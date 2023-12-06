@@ -3852,7 +3852,9 @@ sub disableEOS {
 	if (!$encryption_enabled)
 	{
 		print("Encryption of secrets is already disabled.\n");
-		return(1);
+		# The test below is backwards. If it indicates changes, then we failed!
+		my $success = !verifyNMISEncryption(log => $logger);
+		return($success);
 	}
 	if ($< != 0)
 	{
@@ -3942,7 +3944,9 @@ sub enableEOS {
 	if ($encryption_enabled)
 	{
 		print("Encryption of secrets is already enabled.\n");
-		return(1);
+		# The test below is backwards. If it indicates changes, then we failed!
+		my $success = !verifyNMISEncryption(log => $logger);
+		return($success);
 	}
 	if ($< != 0)
 	{
@@ -3975,14 +3979,18 @@ sub enableEOS {
 						my $omkSuccess = $? >> 8;
 						if ($omkSuccess != 1)
 						{
-							$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+							$startMsg =  "Unable to enable EOS in OMK ('enable-eos' action failed). OMK may not work correctly.";
 							$success = 0;
 						}
+					}
+					else
+					{
+						$startMsg =  "Unable to enable EOS in OMK (could not locate 'opcommon-cli.exe'). OMK may not work correctly.";
 					}
 				}
 				else
 				{
-					$startMsg =  "Unable to enable EOS in OMK. OMK may not work correctly.";
+					$startMsg =  "Unable to enable EOS in OMK (could not locate OMK directory). OMK may not work correctly.";
 				}
 			}
 			if ($success)
