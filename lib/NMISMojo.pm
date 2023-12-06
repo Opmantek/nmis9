@@ -203,7 +203,7 @@ sub startup {
 			data_class => "NMISMojo::NodeData",
       type       => "nodeip",
 			action     => "show_resource"
-		)->name("view_opAdmin_api_nodeip");
+		)->name("api_nodeip_data");
 }
 
 1;
