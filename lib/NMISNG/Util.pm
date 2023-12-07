@@ -3519,7 +3519,7 @@ sub shutdownAllDaemons {
 	{
 		return(0);
 	}
-	print("Stopping all FirstWave Processes (This may take a few maintes).\n");
+	print("Stopping all FirstWave processes (This may take a few minutes).\n");
 	try {
 		if (-d "/etc/systemd")
 		{
@@ -3541,30 +3541,30 @@ sub shutdownAllDaemons {
 		else
 		{
 			$logger->info("Stopping NMIS daemon.");
-	    	print(`service nmis9d stop `);
+	    	print(`service nmis9d stop`);
 			$logger->info("Stopping OMK daemon.");
-			print(`service omkd stop `)      if (-f "/etc/init.d/system/omkd");
+			print(`service omkd stop`)      if (-f "/etc/init.d/system/omkd");
 			$logger->info("Stopping opCharts daemon.");
-			print(`service opchartsd stop `) if (-f "/etc/init.d/system/opchartsd");
+			print(`service opchartsd stop`) if (-f "/etc/init.d/system/opchartsd");
 			$logger->info("Stopping opConfig daemon.");
-			print(`service opconfigd stop `) if (-f "/etc/init.d/system/opconfigd");
+			print(`service opconfigd stop`) if (-f "/etc/init.d/system/opconfigd");
 			$logger->info("Stopping opEvents daemon.");
-			print(`service opeventsd stop `) if (-f "/etc/init.d/system/opeventsd");
+			print(`service opeventsd stop`) if (-f "/etc/init.d/system/opeventsd");
 			$logger->info("Stopping opTrend daemon.");
-			print(`service optrend stop `)   if (-f "/etc/init.d/system/optrend");
+			print(`service optrend stop`)   if (-f "/etc/init.d/system/optrend");
 			$logger->info("Stopping opFlow daemon.");
-			print(`service opflowd stop `)   if (-f "/etc/init.d/system/opflowd");
+			print(`service opflowd stop`)   if (-f "/etc/init.d/system/opflowd");
 		}
 	}
 	catch
 	{
-		$logger->info("All FirstWave Processes may not have stopped successfully.");
-		print("All FirstWave Processes may not have stopped successfully.\n");
+		$logger->info("All FirstWave processes may not have stopped successfully.");
+		print("All FirstWave processes may not have stopped successfully.\n");
 		return(0);
 	}
 
-	$logger->info("All FirstWave Processes should be down.");
-	print("All FirstWave Processes should be down.\n");
+	$logger->info("All FirstWave processes should be down.");
+	print("All FirstWave processes should be down.\n");
 	return(1);
 }
 
@@ -3583,38 +3583,52 @@ sub startAllDaemons {
 	{
 		return(0);
 	}
-	print("Starting all FirstWave Processes. (This may take a few maintes)\n");
+	print("Starting all FirstWave processes. (This may take a few minutes)\n");
 	try {
 		if (-d "/etc/systemd")
 		{
+			$logger->info("Starting NMIS daemon.");
 	    	print(`systemctl start nmis9d.service`);
+			$logger->info("Starting OMK daemon.");
 			print(`systemctl start omkd.service`)      if (-f "/etc/systemd/system/omkd.service");
+			$logger->info("Starting opCharts daemon.");
 			print(`systemctl start opchartsd.service`) if (-f "/etc/systemd/system/opchartsd.service");
+			$logger->info("Starting opConfig daemon.");
 			print(`systemctl start opconfigd.service`) if (-f "/etc/systemd/system/opconfigd.service");
+			$logger->info("Starting opEvents daemon.");
 			print(`systemctl start opeventsd.service`) if (-f "/etc/systemd/system/opeventsd.service");
+			$logger->info("Starting opTrend daemon.");
 			print(`systemctl start optrend.service`)   if (-f "/etc/systemd/system/optrend.service");
+			$logger->info("Starting opFlow daemon.");
 			print(`systemctl start opflowd.service`)   if (-f "/etc/systemd/system/opflowd.service");
 		}
 		else
 		{
-	    	print(`service nmis9d start `);
-			print(`service omkd start `)      if (-f "/etc/init.d/system/omkd");
-			print(`service opchartsd start `) if (-f "/etc/init.d/system/opchartsd");
-			print(`service opconfigd start `) if (-f "/etc/init.d/system/opconfigd");
-			print(`service opeventsd start `) if (-f "/etc/init.d/system/opeventsd");
-			print(`service optrend start `)   if (-f "/etc/init.d/system/optrend");
-			print(`service opflowd start `)   if (-f "/etc/init.d/system/opflowd");
+			$logger->info("Starting NMIS daemon.");
+	    	print(`service nmis9d start`);
+			$logger->info("Starting OMK daemon.");
+			print(`service omkd start`)      if (-f "/etc/init.d/system/omkd");
+			$logger->info("Starting opCharts daemon.");
+			print(`service opchartsd start`) if (-f "/etc/init.d/system/opchartsd");
+			$logger->info("Starting opConfig daemon.");
+			print(`service opconfigd start`) if (-f "/etc/init.d/system/opconfigd");
+			$logger->info("Starting opEvents daemon.");
+			print(`service opeventsd start`) if (-f "/etc/init.d/system/opeventsd");
+			$logger->info("Starting opTrend daemon.");
+			print(`service optrend start`)   if (-f "/etc/init.d/system/optrend");
+			$logger->info("Starting opFlow daemon.");
+			print(`service opflowd start`)   if (-f "/etc/init.d/system/opflowd");
 		}
 	}
 	catch
 	{
-		$logger->info("All FirstWave Processes may not have started successfully.");
-		print("All FirstWave Processes may not have started successfully.\n");
+		$logger->info("All FirstWave processes may not have started successfully.");
+		print("All FirstWave processes may not have started successfully.\n");
 		return(0);
 	}
 
-	$logger->info("All FirstWave Processes should be running.");
-	print("All FirstWave Processes should be running.\n");
+	$logger->info("All FirstWave processes should be running.");
+	print("All FirstWave processes should be running.\n");
 	return(1);
 }
 
