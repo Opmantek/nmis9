@@ -3561,7 +3561,7 @@ sub shutdownAllDaemons {
 		$logger->info("All FirstWave Processes may not have stopped successfully.");
 		print("All FirstWave Processes may not have stopped successfully.\n");
 		return(0);
-	}
+	};
 
 	$logger->info("All FirstWave Processes should be down.");
 	print("All FirstWave Processes should be down.\n");
@@ -3611,7 +3611,7 @@ sub startAllDaemons {
 		$logger->info("All FirstWave Processes may not have started successfully.");
 		print("All FirstWave Processes may not have started successfully.\n");
 		return(0);
-	}
+	};
 
 	$logger->info("All FirstWave Processes should be running.");
 	print("All FirstWave Processes should be running.\n");
