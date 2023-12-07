@@ -3519,7 +3519,7 @@ sub shutdownAllDaemons {
 	{
 		return(0);
 	}
-	print("Stopping all FirstWave Processes (This may take a few maintes).\n");
+	print("Stopping all FirstWave Processes (This may take a few minutes).\n");
 	try {
 		if (-d "/etc/systemd")
 		{
@@ -3583,7 +3583,7 @@ sub startAllDaemons {
 	{
 		return(0);
 	}
-	print("Starting all FirstWave Processes. (This may take a few maintes)\n");
+	print("Starting all FirstWave Processes. (This may take a few minutes)\n");
 	try {
 		if (-d "/etc/systemd")
 		{
