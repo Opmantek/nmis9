@@ -65,6 +65,7 @@
       'Cisco_CBQoS' => '/nodes/$node/interface/$ifDescr-Cisco_CBQoS-$item.rrd',
       'Dell_RX' => '/nodes/$node/misc/Dell_RX.rrd',
       'Dell_TX' => '/nodes/$node/misc/Dell_TX.rrd',
+      'ESA_Power_Supply' => '/nodes/$node/health/esa_power_supply-$index.rrd',
       'F5_APM_ActiveSess' => '/nodes/$node/health/F5_APM_ActiveSess.rrd',
       'F5_CPU' => '/nodes/$node/health/F5_CPU-$sysPlaneStatPlaneName.rrd',
       'F5_Connection' => '/nodes/$node/health/F5_Connection.rrd',
@@ -108,6 +109,7 @@
       'akcp_temp' => '/nodes/$node/misc/akcp-temp-$index.rrd',
       'alcomarf' => '/nodes/$node/health/alcoma-rf-linkrate-$index.rrd',
       'apSys' => '/nodes/$node/health/apSys.rrd',
+      'asyncoshealth' => '/nodes/$node/health/esa_health.rrd',
       'bgpPeer' => '/nodes/$node/health/bgpPeer-$index.rrd',
       'calls' => '/nodes/$node/interface/$ifDescr-calls.rrd',
       'capacity' => '/nodes/$node/health/ubnt-capacity-$index.rrd',
@@ -205,7 +207,7 @@
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
       'upspwr' => '/nodes/$node/misc/apc-ups-pwr.rrd',
       'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd',
-      'vRtr_Router_Interface_TxStats' => '/nodes/$node/health/vRtr_TxStats-$index.rrd',
+      'vRtr_Router_Interface_TxStats' => '/nodes/$node/health/vRtr_TxStats-$index.rrd'
     }
   }
 );
