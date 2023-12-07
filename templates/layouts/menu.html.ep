@@ -50,14 +50,14 @@
         </ul>
       </li>
       <!-- The Modules menu NMIS-->
-      <li class="dropdown nav-item">
+      <!--<li class="dropdown nav-item">
         <!-- <a class="dropdown-toggle nav-link" id="dLabel" role="button" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">Modules<b class="caret"></b></a> -->
-        <!-- for the select string code when called using getModuleCode -->
+        <!-- for the select string code when called using getModuleCode
         <%== $moduleCode%> 
-      </li> 
+      </li>  -->
 
       <!-- The Modules menu OMK-->
-      <!-- <li class="nav-item dropdown">
+      <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle" href="#" id="navbarModules" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Modules</a>
         <ul class="dropdown-menu">
             % foreach my $module_info ( @{$moduleCodeMojo} ) {
@@ -65,7 +65,7 @@
             % }
             <li><a class="dropdown-item" href="<%= url_for('open-audit_modules') %>" target="_blank">Other Opmantek Modules</a></li>
         </ul>
-      </li> -->
+      </li>
       <!-- <li class="nav-item">
         <a href="#" class="dropdown-toggle nav-link active show" id="opreports-user-menu" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="true">User: <%= $user%><b class="caret"></b></a>
       </li>

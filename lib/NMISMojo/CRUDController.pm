@@ -75,4 +75,89 @@ sub index_resource
     $self->render( json => $crud_data );
 }
 
+# this renders the show template to display a single resource
+# if json requested, renders a json dump
+# requires: parameter type,
+# optional param data_class (if no subclass or if it doesn't glue up load_resources)
+# parameter thisresource (ref of given resource)
+# or parameter name (handed to find_resource)
+# optional param $type, used for auto-generated charts/maps so they can be shown full-screen,
+#    is the resource definition, which is used instead of loading
+sub show_resource
+{
+	my ($self) = @_;
+	my $type = $self->param("type");
+	my $dataclass = $self->param("data_class");
+	my $show_resource = $self->param($type) if ($type);
+	my $api_type = $self->param("api_type");
+	eval "require $dataclass" if ($dataclass);
+	$self->app->log->error("Error loading $dataclass: $@") if $@;
+	my ($error_text,$resobj) = ($dataclass||$self)->load_resources(type => $type, controller => $self);
+
+	if ($error_text)
+	{
+		# fixme: do we need to return html, and if so, what?
+		$self->render ( json => { error => $error_text },
+										status => 418 );
+		return;
+	}
+
+	my $lookup = $self->param("name");
+	my $thisres = $self->param("thisresource");
+	if( defined($show_resource) ) {
+		# expects show_resource to be valid unicode, which at this point it is.
+		$thisres = JSON::XS->new->decode($show_resource);
+		$thisres->{name} = $lookup;
+	}
+	elsif (!$thisres)
+	{
+
+		my $result = $resobj->find_resource(name => $lookup);
+		if (defined($api_type)) {
+			if(!$result)
+			{
+				$self->render ( json => { error => "No matching resources found" },
+										status => 404 );
+				return;
+			}
+			else
+			{
+				$thisres = $result;
+			}
+			#remove unneeded props and make the id not mongo style
+			if (exists ($thisres->{_id}))
+			{
+				$thisres->{id} = $thisres->{_id};
+				delete $thisres->{_id};
+			}
+			# foreach my $key (qw(current_user_privileges rbac_path))
+			# {
+			# 	delete $thisres->{$key} if(exists $thisres->{$key});
+			# }
+		}
+		else
+		{
+			$thisres = $result;
+		}
+	}
+	else
+	{
+		$lookup = $resobj->name_of(thisresource => $thisres);
+	}
+
+	# NOTE: backwards compat break here, 3.0.0 -> 3.0.4 will not work with this !!!! !#@!#!@!@#$
+	#$self->stash( context_list =>  $self->calculate_context_list() );
+
+	$self->respond_to(
+		json => sub {
+			$self->render( json => $thisres ),
+		},
+		# html => sub {
+		# 	$self->render("resources/$type/show",
+		# 								crud_data => $thisres,
+		# 								name => $lookup);
+		# }
+		);
+}
+
 1;
