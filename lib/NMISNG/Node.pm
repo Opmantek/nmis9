@@ -3079,9 +3079,10 @@ sub update_intf_info
 		$qr_collect_ifDescr_gen = qr/($S->{mdl}->{interface}->{collect}->{ifDescr})/i
 			if ( $S->{mdl}->{interface}->{collect}->{ifDescr} );
 
-		my $qr_no_event_ifAlias_gen = qr/($S->{mdl}{interface}{noevent}{Description})/i;
-		my $qr_no_event_ifDescr_gen = qr/($S->{mdl}{interface}{noevent}{ifDescr})/i;
-		my $qr_no_event_ifType_gen  = qr/($S->{mdl}{interface}{noevent}{ifType})/i;
+		# same treatment as no_collect here, if '' then make it not match anything
+		my $qr_no_event_ifAlias_gen = ($S->{mdl}{interface}{noevent}{Description} eq '') ? qr/(*F)/ : qr/($S->{mdl}{interface}{noevent}{Description})/i;
+		my $qr_no_event_ifDescr_gen = ($S->{mdl}{interface}{noevent}{ifDescr} eq '') ? qr/(*F)/ : qr/($S->{mdl}{interface}{noevent}{ifDescr})/i;
+		my $qr_no_event_ifType_gen  = ($S->{mdl}{interface}{noevent}{ifType} eq '') ? qr/(*F)/ : qr/($S->{mdl}{interface}{noevent}{ifType})/i;
 
 		my $noDescription = $M->{interface}{nocollect}{noDescription};
 
@@ -3267,7 +3268,6 @@ sub update_intf_info
 			}
 			elsif ( $target->{Description} =~ /$qr_no_collect_ifAlias_gen/i )
 			{
-				$DB::single = 1;
 				$target->{collect}   = "false";
 				$target->{nocollect} = "Not Collecting: found '$1' in Description";    # reason
 			}
