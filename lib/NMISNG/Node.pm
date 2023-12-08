@@ -2812,39 +2812,42 @@ sub update_intf_info
 			if ($S->loadInfo(
 					class  => 'interface',
 					index  => $index,
-					target => $target
-				)
-				)
+					target => $target ))
 			{
-				# we were given a removed interface's index -> complain about it and return 0
+				my $keepInterface = 1;
+				# we were given a removed interface's index -> complain about it, don't return
+				# we have run into instances (CiscoESA) where ifDescr for loopback is noSuchInstance 
+				# (and ifType is 24), we want to continue going in this case
 				if ($target->{ifDescr} eq "noSuchInstance"
 						or $target->{ifType} eq "noSuchInstance")
 				{
 					$self->nmisng->log->error("Cannot retrieve interface $index: snmp reports nonexistent");
-					return undef;
+					$keepInterface = 0;
 				}
 
-				# note: nodeconf overrides are NOT applied at this point!
-				$self->checkIntfInfo( sys => $S, index => $index, iftype => $IFT, target => $target );
+				if ( $keepInterface )
+				{
+					# note: nodeconf overrides are NOT applied at this point!
+					$self->checkIntfInfo( sys => $S, index => $index, iftype => $IFT, target => $target );
 
-				my $keepInterface = 1;
-				if (    defined $S->{mdl}{custom}{interface}{skipIfType}
-					and $S->{mdl}{custom}{interface}{skipIfType} ne ""
-					and $target->{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/ )
-				{
-					$keepInterface = 0;
-					$self->nmisng->log->debug2(
-						"SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$target->{ifDescr} ifType=$target->{ifType}"
-					);
-				}
-				elsif ( defined $S->{mdl}{custom}{interface}{skipIfDescr}
-					and $S->{mdl}{custom}{interface}{skipIfDescr} ne ""
-					and $target->{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/ )
-				{
-					$keepInterface = 0;
-					$self->nmisng->log->debug2(
-						"SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$target->{ifDescr} ifType=$target->{ifType}"
-					);
+					if (    defined $S->{mdl}{custom}{interface}{skipIfType}
+						and $S->{mdl}{custom}{interface}{skipIfType} ne ""
+						and $target->{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/ )
+					{
+						$keepInterface = 0;
+						$self->nmisng->log->debug2(
+							"SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$target->{ifDescr} ifType=$target->{ifType}"
+						);
+					}
+					elsif ( defined $S->{mdl}{custom}{interface}{skipIfDescr}
+						and $S->{mdl}{custom}{interface}{skipIfDescr} ne ""
+						and $target->{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/ )
+					{
+						$keepInterface = 0;
+						$self->nmisng->log->debug2(
+							"SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$target->{ifDescr} ifType=$target->{ifType}"
+						);
+					}
 				}
 
 				if ( not $keepInterface )
@@ -3060,11 +3063,13 @@ sub update_intf_info
 			}
 		}
 
-		# pre compile regex
-		my $qr_no_collect_ifDescr_gen      = qr/($S->{mdl}{interface}{nocollect}{ifDescr})/i;
-		my $qr_no_collect_ifType_gen       = qr/($S->{mdl}{interface}{nocollect}{ifType})/i;
-		my $qr_no_collect_ifAlias_gen      = qr/($S->{mdl}{interface}{nocollect}{Description})/i;
-		my $qr_no_collect_ifOperStatus_gen = qr/($S->{mdl}{interface}{nocollect}{ifOperStatus})/i;
+		# pre compile regex, if not defined use (*F) as it always fails to match
+		# Some models did not properly define all of these, leading to qr// which matches everything
+		# which means no collect everything
+		my $qr_no_collect_ifDescr_gen      = ($S->{mdl}{interface}{nocollect}{ifDescr} eq '') ? qr/(*F)/ : qr/($S->{mdl}{interface}{nocollect}{ifDescr})/i;
+		my $qr_no_collect_ifType_gen       = ($S->{mdl}{interface}{nocollect}{ifType} eq '') ? qr/(*F)/ : qr/($S->{mdl}{interface}{nocollect}{ifType})/i;
+		my $qr_no_collect_ifAlias_gen      = ($S->{mdl}{interface}{nocollect}{Description} eq '') ? qr/(*F)/ : qr/($S->{mdl}{interface}{nocollect}{Description})/i;
+		my $qr_no_collect_ifOperStatus_gen = ($S->{mdl}{interface}{nocollect}{ifOperStatus} eq '') ? qr/(*F)/ : qr/($S->{mdl}{interface}{nocollect}{ifOperStatus})/i;
 
 		### 2012-03-14 keiths, collecting override based on interface description.
 		my $qr_collect_ifAlias_gen = 0;
@@ -3235,13 +3240,13 @@ sub update_intf_info
 				and $target->{Description} =~ /$qr_collect_ifAlias_gen/i )
 			{
 				$target->{collect}   = "true";
-				$target->{nocollect} = "Collecting: found $1 in Description";    # reason
+				$target->{nocollect} = "Collecting: found '$1' in Description";    # reason
 			}
 			elsif ( $qr_collect_ifDescr_gen
 				and $target->{ifDescr} =~ /$qr_collect_ifDescr_gen/i )
 			{
 				$target->{collect}   = "true";
-				$target->{nocollect} = "Collecting: found $1 in ifDescr";
+				$target->{nocollect} = "Collecting: found '$1' in ifDescr";
 			}
 			elsif ( $target->{ifAdminStatus} =~ /down|testing|null/ )
 			{
@@ -3253,17 +3258,18 @@ sub update_intf_info
 			elsif ( $target->{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i )
 			{
 				$target->{collect}   = "false";
-				$target->{nocollect} = "Not Collecting: found $1 in ifDescr";    # reason
+				$target->{nocollect} = "Not Collecting: found '$1' in ifDescr";    # reason
 			}
 			elsif ( $target->{ifType} =~ /$qr_no_collect_ifType_gen/i )
 			{
 				$target->{collect}   = "false";
-				$target->{nocollect} = "Not Collecting: found $1 in ifType";     # reason
+				$target->{nocollect} = "Not Collecting: found '$1' in ifType";     # reason
 			}
 			elsif ( $target->{Description} =~ /$qr_no_collect_ifAlias_gen/i )
 			{
+				$DB::single = 1;
 				$target->{collect}   = "false";
-				$target->{nocollect} = "Not Collecting: found $1 in Description";    # reason
+				$target->{nocollect} = "Not Collecting: found '$1' in Description";    # reason
 			}
 			elsif ( $target->{Description} eq "" and $noDescription eq 'true' )
 			{
@@ -3273,7 +3279,7 @@ sub update_intf_info
 			elsif ( $target->{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i )
 			{
 				$target->{collect}   = "false";
-				$target->{nocollect} = "Not Collecting: found $1 in ifOperStatus";    # reason
+				$target->{nocollect} = "Not Collecting: found '$1' in ifOperStatus";    # reason
 			}
 
 			# if the interface has been down for too many days to be in use now.
@@ -3291,17 +3297,17 @@ sub update_intf_info
 			if ( $target->{Description} =~ /$qr_no_event_ifAlias_gen/i )
 			{
 				$target->{event}   = "false";
-				$target->{noevent} = "found $1 in ifAlias";                                                  # reason
+				$target->{noevent} = "found '$1' in ifAlias";                                                  # reason
 			}
 			elsif ( $target->{ifType} =~ /$qr_no_event_ifType_gen/i )
 			{
 				$target->{event}   = "false";
-				$target->{noevent} = "found $1 in ifType";                                                   # reason
+				$target->{noevent} = "found '$1' in ifType";                                                   # reason
 			}
 			elsif ( $target->{ifDescr} =~ /$qr_no_event_ifDescr_gen/i )
 			{
 				$target->{event}   = "false";
-				$target->{noevent} = "found $1 in ifDescr";                                                  # reason
+				$target->{noevent} = "found '$1' in ifDescr";                                                  # reason
 			}
 
 			# convert interface name

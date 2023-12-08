@@ -119,8 +119,14 @@ sub update_plugin
                 # create is set so we should have an inventory here
                 if($inventory)
                 {
+					# we do not want to completely overwrite the existing data, so take what we have and
+					# put it overtop of what exists:
+					my $existing_data = $interface->data();
+					foreach my $key (keys %$interface_data) {
+						$existing_data->{$key} = $interface_data->{$key};
+					}
                     # not sure why supplying the data above does not work, needs a test!
-                    $inventory->data( $interface_data );
+                    $inventory->data( $existing_data );
                     $inventory->historic(0);
                     $inventory->enabled(1);
                     # disable for now
