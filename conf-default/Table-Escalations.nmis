@@ -47,7 +47,7 @@ unshift(@nodeTypes,"default") if ( not grep($_ eq "default",@nodeTypes) );
 
 %hash = (
 			Escalations => [
-				{ Name => { mandatory => 'true', header => 'Escalation Name',display => 'header',  value => [""]}},
+				{ Name => { mandatory => 'true', header => 'Escalation Name',display => 'header,text',  value => [""]}},
 				{ Group => { header => 'Group',display => 'key,header,popup', value => ["default",@groups] }},
 				{ Role => { header => 'Role',display => 'key,header,popup', value => [ @roleTypes ] }},
 				{ Type => { header => 'Type',display => 'key,header,popup', value => [ @nodeTypes ] }},
