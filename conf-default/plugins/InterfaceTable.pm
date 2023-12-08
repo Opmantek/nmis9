@@ -121,7 +121,7 @@ sub update_plugin
                 {
 					# we do not want to completely overwrite the existing data, so take what we have and
 					# put it overtop of what exists:
-					my $existing_data = $interface->data();
+					my $existing_data = $inventory->data();
 					foreach my $key (keys %$interface_data) {
 						$existing_data->{$key} = $interface_data->{$key};
 					}
