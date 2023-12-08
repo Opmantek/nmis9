@@ -80,6 +80,7 @@ sub update_plugin
 	{
 		$NG->log->debug9(sub {"$plugin:$sub: \$ids: ".Dumper $ids});
 		$NG->log->debug9(sub {"$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}}});
+		# my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);
 
         my $active = 0;
         
@@ -97,6 +98,7 @@ sub update_plugin
                 foreach my $w (qw(index Description ifAdminStatus ifDescr ifHighSpeed ifLastChange ifOperStatus ifSpeed ifType)) {
                     $interface_data->{$w} = $data->{$w};
                 }
+                
                 $interface_data->{ifIndex} = $data->{index};
                 $interface_data->{collect} = "true";
                 $interface_data->{interface} = $data->{ifDescr};
@@ -105,8 +107,15 @@ sub update_plugin
                 if ($data->{ifAdminStatus} eq "up") {
                    $active++;
                 }
+                # fix up speed calculations, it needs speed to be 0 to use ifHighSpeed
+                # $interface_data->{ifSpeed} = 0 if( $interface_data->{ifHighSpeed} > 0 );
+                # $nodeobj->checkIntfInfo( sys => $S, index => $interface_data->{index}, iftype => $IFT, target => $interface_data );
                 
-                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => [], data => $interface_data );
+            	# we matched InterfaceTable index to ifIndex, so make sure we are matching them up 
+            	# here, skip ifDescr because we've copied it, perhaps the above changed it, so do
+            	# not use it in the search 
+                my $path_keys = ['index'];
+                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => $path_keys, data => $interface_data );
 
                 my ($inventory,$error_message) = $nodeobj->inventory(
                     concept => 'interface',
