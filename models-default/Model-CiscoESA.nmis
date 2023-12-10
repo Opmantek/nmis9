@@ -53,6 +53,9 @@
       'diskIOTable' => {
         'common-model' => 'diskIOTable'
       },
+      'Cisco-neighbor' => {
+        'common-model' => 'Cisco-neighbor'
+      },
     }
   },
   'database' => {
@@ -265,7 +268,7 @@
   'system' => {
     'nodeType' => 'appliance',
     'nodeModel' => 'CiscoESA',
-    'nodeVendor' => 'Cisco Systems, Inc.',
+    'nodeVendor' => 'Cisco Systems',
     'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon',
     'rrd' => {
       'mib2ip' => {
