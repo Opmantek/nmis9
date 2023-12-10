@@ -40,8 +40,13 @@ fi
 
 
 # encryption of secrets
-SEED_DIR='/usr/local/etc/firstwave';
-SEED_FILE="${SEED_DIR}/master.key";
+
+# commenting out the masterk key for NMIS 9.4.5
+# SEED_DIR='/usr/local/etc/firstwave';
+# SEED_FILE="${SEED_DIR}/master.key";
+
+SEED_DIR='/usr/local/etc/opmantek';
+SEED_FILE="${SEED_DIR}/seed.txt";
 
 # Only if seed file does not yet exist:
 if [ ! -e "${SEED_FILE}" ]; then
@@ -54,7 +59,10 @@ if [ ! -e "${SEED_FILE}" ]; then
 	# OMK-8690: OMK::Common::_make_seed() function is the basis of this perl code:
 	SEEDLENGTH=256;
 
-	SEED="$(perl -e 'use strict;use warnings;use diagnostics;use Math::Random::Secure qw(rand);my $seedlength='"${SEEDLENGTH}"';my @charset=(("A".."Z"),("a".."z"),(0..9));my $range=$#charset+1;my $seed;for(1..$seedlength){$seed .= $charset[int(rand($range))];};if(length($seed)!=$seedlength){die "seed length of ".length($seed)." not equal to $seedlength characters. Aborting ...\n";$seed="";exit 1;};print "$seed\n";' 2>&1)";
+	# commenting out master.key for NMIS-9.4.5
+	# SEED="$(perl -e 'use strict;use warnings;use diagnostics;use Math::Random::Secure qw(rand);my $seedlength='"${SEEDLENGTH}"';my @charset=(("A".."Z"),("a".."z"),(0..9));my $range=$#charset+1;my $seed;for(1..$seedlength){$seed .= $charset[int(rand($range))];};if(length($seed)!=$seedlength){die "seed length of ".length($seed)." not equal to $seedlength characters. Aborting ...\n";$seed="";exit 1;};print "$seed\n";' 2>&1)";
+
+	SEED="$(perl -e 'use strict;use warnings;use diagnostics;my $seedlength='"${SEEDLENGTH}"';my @charset=(("A".."Z"),("a".."z"),(0..9));my $range=$#charset+1;my $seed;for(1..$seedlength){$seed .= $charset[int(rand($range))];};if(length($seed)!=$seedlength){die "seed length of ".length($seed)." not equal to $seedlength characters. Aborting ...\n";$seed="";exit 1;};print "$seed\n";' 2>&1)";
 	# Make sure we have the correct length seed before writing it:
 	if [ "${#SEED}" != "${SEEDLENGTH}" ]; then
 		echo "seed length ${#SEED} incorrect. Aborting ...";
