@@ -1,7 +1,7 @@
 % layout('default');
 % title('Index');
-<script type="module" src="http://localhost:5173/@vite/client"></script>
-<script type="module" src="http://localhost:5173/src/main.js"></script>
+<script type="module" src="http://10.160.192.43:5173/@vite/client"></script>
+<script type="module" src="http://10.160.192.43:5173/src/main.js"></script>
 <div class="content" id="vue-div">
     <div id="app"></div>
 </div>

@@ -1,0 +1,235 @@
+{
+    "_id": "649b83fdad7949354f6da601",
+    "catchall": {
+        "data": {
+            "last_poll": 1702269205.86669,
+            "nodeType": "server",
+            "nodeVendor": "net-snmp",
+            "node_context_name": "Take me to opConfig",
+            "node_context_url": "https:\/\/apollo.opmantek.net\/en\/omk\/opConfig\/node_info?o_node=$node_name",
+            "nodestatus": "degraded",
+            "remote_connection_name": "",
+            "remote_connection_url": ""
+        }
+    },
+    "context_url": "http:\/\/apollo1.opmantek.net\/cgi-nmis9\/network.pl?&act=network_node_view&refresh=300&widget=false&node=A.TEST1",
+    "latest_data": {
+        "subconcepts": {
+            "Host_Health": {
+                "data": {
+                    "hrSystemNumUsers": 3,
+                    "hrSystemProcesses": 365
+                },
+                "derived_data": {
+                    "hrSystemNumUsers": 3.9,
+                    "hrSystemProcesses": 333.99
+                },
+                "subconcept": "Host_Health"
+            },
+            "health": {
+                "data": {
+                    "availability": 100,
+                    "availabilityHealth": 10,
+                    "cpuHealth": 20,
+                    "diskHealth": 0,
+                    "health": 100,
+                    "intHealth": 30,
+                    "intfColUp": 0,
+                    "intfCollect": 0,
+                    "intfTotal": 0,
+                    "intfUp": 0,
+                    "loss": 0,
+                    "memHealth": 10,
+                    "outage": 0,
+                    "polldelta": 294.771129131317,
+                    "polltime": 0.96,
+                    "reachability": 100,
+                    "reachabilityHealth": 10,
+                    "responseHealth": 20,
+                    "responsetime": 0.01,
+                    "swapHealth": 0,
+                    "updatetime": 5.99
+                },
+                "derived_data": {
+                    "08_availabilityHealth": 10,
+                    "08_available": 100,
+                    "08_cpuHealth": 20,
+                    "08_diskHealth": 0,
+                    "08_health": 100,
+                    "08_intHealth": 30,
+                    "08_intfColUp": 0,
+                    "08_intfCollect": 0,
+                    "08_loss": 0,
+                    "08_memHealth": 10,
+                    "08_reachabilityHealth": 10,
+                    "08_reachable": 100,
+                    "08_response": 0.5,
+                    "08_responseHealth": 20,
+                    "08_swapHealth": 0,
+                    "16_availabilityHealth": 10,
+                    "16_available": 100,
+                    "16_cpuHealth": 20,
+                    "16_diskHealth": 0,
+                    "16_health": 100,
+                    "16_intHealth": 30,
+                    "16_intfColUp": 0,
+                    "16_intfCollect": 0,
+                    "16_loss": 0,
+                    "16_memHealth": 10,
+                    "16_reachabilityHealth": 10,
+                    "16_reachable": 100,
+                    "16_response": 0.5,
+                    "16_responseHealth": 20,
+                    "16_swapHealth": 0,
+                    "availabilityHealth": 10,
+                    "available": 100,
+                    "cpuHealth": 20,
+                    "diskHealth": 0,
+                    "health": 100,
+                    "intHealth": 30,
+                    "intfColUp": 0,
+                    "intfCollect": 0,
+                    "loss": 0,
+                    "memHealth": 10,
+                    "reachabilityHealth": 10,
+                    "reachable": 100,
+                    "response": 0.47,
+                    "responseHealth": 20,
+                    "swapHealth": 0
+                },
+                "subconcept": "health"
+            },
+            "laload": {
+                "data": {
+                    "laLoad1": 0,
+                    "laLoad5": 0
+                },
+                "derived_data": {},
+                "subconcept": "laload"
+            },
+            "mib2ip": {
+                "data": {
+                    "ipForwDatagrams": 0,
+                    "ipForwDatagrams_raw": 0,
+                    "ipFragCreates": 0,
+                    "ipFragCreates_raw": 0,
+                    "ipFragFails": 0,
+                    "ipFragFails_raw": 0,
+                    "ipFragOKs": 0,
+                    "ipFragOKs_raw": 0,
+                    "ipInAddrErrors": 0,
+                    "ipInAddrErrors_raw": 0,
+                    "ipInDelivers": 0,
+                    "ipInDelivers_raw": 0,
+                    "ipInDiscards": 0,
+                    "ipInDiscards_raw": 0,
+                    "ipInHdrErrors": 0,
+                    "ipInHdrErrors_raw": 0,
+                    "ipInReceives": 0,
+                    "ipInReceives_raw": 0,
+                    "ipInUnknownProtos": 0,
+                    "ipInUnknownProtos_raw": 0,
+                    "ipOutDiscards": 0,
+                    "ipOutDiscards_raw": 0,
+                    "ipOutRequests": 0,
+                    "ipOutRequests_raw": 0,
+                    "ipReasmFails": 0,
+                    "ipReasmFails_raw": 0,
+                    "ipReasmOKs": 0,
+                    "ipReasmOKs_raw": 0,
+                    "ipReasmReqds": 0,
+                    "ipReasmReqds_raw": 0
+                },
+                "derived_data": {
+                    "ipForwDatagrams": 0,
+                    "ipInDelivers": 0,
+                    "ipInReceives": 0,
+                    "ipOutRequests": 0
+                },
+                "subconcept": "mib2ip"
+            },
+            "systemStats": {
+                "data": {
+                    "ssCpuRawIdle": 0,
+                    "ssCpuRawIdle_raw": 0,
+                    "ssCpuRawInterrupt": 0,
+                    "ssCpuRawInterrupt_raw": 0,
+                    "ssCpuRawKernel": 0,
+                    "ssCpuRawKernel_raw": 0,
+                    "ssCpuRawNice": 0,
+                    "ssCpuRawNice_raw": 0,
+                    "ssCpuRawSoftIRQ": 0,
+                    "ssCpuRawSoftIRQ_raw": 0,
+                    "ssCpuRawSystem": 0,
+                    "ssCpuRawSystem_raw": 0,
+                    "ssCpuRawUser": 0,
+                    "ssCpuRawUser_raw": 0,
+                    "ssCpuRawWait": 0,
+                    "ssCpuRawWait_raw": 0,
+                    "ssIORawReceived": 0,
+                    "ssIORawReceived_raw": 0,
+                    "ssIORawSent": 0,
+                    "ssIORawSent_raw": 0,
+                    "ssRawContexts": 0,
+                    "ssRawContexts_raw": 0,
+                    "ssRawInterrupts": 0,
+                    "ssRawInterrupts_raw": 0,
+                    "ssRawSwapIn": 0,
+                    "ssRawSwapIn_raw": 0,
+                    "ssRawSwapOut": 0,
+                    "ssRawSwapOut_raw": 0
+                },
+                "derived_data": {
+                    "cpuLoad": null,
+                    "ssCpuRawIdle": null,
+                    "ssCpuRawInterrupt": null,
+                    "ssCpuRawKernel": null,
+                    "ssCpuRawNice": null,
+                    "ssCpuRawSoftIRQ": null,
+                    "ssCpuRawSystem": null,
+                    "ssCpuRawUser": null,
+                    "ssCpuRawWait": null
+                },
+                "subconcept": "systemStats"
+            },
+            "tcp": {
+                "data": {
+                    "tcpActiveOpens": 0,
+                    "tcpActiveOpens_raw": 0,
+                    "tcpAttemptFails": 0,
+                    "tcpAttemptFails_raw": 0,
+                    "tcpCurrEstab": 0,
+                    "tcpEstabResets": 0,
+                    "tcpEstabResets_raw": 0,
+                    "tcpInErrs": 0,
+                    "tcpInErrs_raw": 0,
+                    "tcpInSegs": 0,
+                    "tcpInSegs_raw": 0,
+                    "tcpOutRsts": 0,
+                    "tcpOutRsts_raw": 0,
+                    "tcpOutSegs": 0,
+                    "tcpOutSegs_raw": 0,
+                    "tcpPassiveOpens": 0,
+                    "tcpPassiveOpens_raw": 0,
+                    "tcpRetransSegs": 0,
+                    "tcpRetransSegs_raw": 0
+                },
+                "derived_data": {
+                    "tcpActiveOpens": 0,
+                    "tcpCurrEstab": 0
+                },
+                "subconcept": "tcp"
+            }
+        }
+    },
+    "nodes": {
+        "configuration": {
+            "group": "NMIS9",
+            "host": "localhost",
+            "location": "Amsterdam",
+            "roleType": "default"
+        },
+        "name": "A.TEST1",
+        "uuid": "8fdc3a03-2329-4b43-bad8-9f01d024c134"
+    }
+}

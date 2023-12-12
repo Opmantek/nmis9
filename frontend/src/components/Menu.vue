@@ -1,22 +1,22 @@
 <template>
-    <nav class="navbar navbar-default navbar-expand-lg navbar-darkt">
+    <nav class="navbar navbar-default navbar-expand-lg navbar-dark mb-3">
   <div class="container-fluid">
-    <a class="navbar-brand" href="#">NMIS</a>
+    <a class="navbar-brand" href="/">NMIS</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNavDropdown">
         <ul class="navbar-nav">
-            <li class="nav-item">
+            <!-- <li class="nav-item">
               <RouterLink class="nav-link" to="/nodes">Nodes</RouterLink>
-            </li>
+            </li> -->
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="/" id="network-status" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 Network Status
                 </a>
                 <ul class="dropdown-menu" aria-labelledby="network-status">
-                    <li><RouterLink class="dropdown-item" to="/network-metrics0and-health">Network Metrics & Health</RouterLink></li>
-                    <li><RouterLink class="dropdown-item" to="/nodes">Current Events</RouterLink></li>
+                    <li><RouterLink class="dropdown-item" to="/network-metrics-and-health">Network Metrics & Health</RouterLink></li>
+                    <li><RouterLink class="dropdown-item" to="/">Current Events</RouterLink></li>
                     <li><RouterLink class="dropdown-item" to="/monitored-services">Monitored Services</RouterLink></li>
                 </ul>
             </li>
