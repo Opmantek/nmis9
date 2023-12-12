@@ -198,12 +198,15 @@ sub startup {
 	)->name("api_node_data");
 
 
+## Route for Node details api
+## :name actually takes uuid
+
   $api_bridge->get("/nodes/:name")->to(
 			controller => "CRUDController",
 			data_class => "NMISMojo::NodeData",
-      type       => "nodeip",
+      type       => "node",
 			action     => "show_resource"
-		)->name("api_nodeip_data");
+	)->name("api_node_data");
 }
 
 1;

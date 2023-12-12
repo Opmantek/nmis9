@@ -124,6 +124,7 @@ sub find_resource
 	my ($self,%args) = @_;
 
     my $lookup = $args{name};
+    #print Dumper "Lookup = $lookup";
 
 	return undef if ($self->{type} !~ /^(node|nodeip)$/);
 
@@ -135,60 +136,24 @@ sub find_resource
     
     if ($self->{type} eq "node")	# opcharts visual mode
 	{
-		my ($data,$count,$error) = $nmisng->get_inventory_detail_model( $self->id_attr() => $lookup, want_config => 1);
-		my $this = ($data && @$data == 1 ) ? $data->[0] : undef;
-        return (!$this or !$this->{_id})? undef: $this;
-	}
-	else		# configuration mode
-	{
-		if (my $nodeobj = $nmisng->node(name => $lookup)) # function takes node uuid preferrably, and node name as fallback
-	    {
-			# do necessary processing
-            #$nmisng->log->info("UUID: $lookup found!");
-            # we want the true structure, unflattened
-            my $dumpables = { };
-            for my $alsodump (qw(configuration overrides name cluster_id uuid activated comments unknown aliases addresses enterprise_service_tags))
-            {
-                $dumpables->{$alsodump} = $nodeobj->$alsodump;
-            }
-
-            my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables,"entry");
-            if ($error) {
-                $nmisng->log->error("Error: failed to transform output: $error") if ($error);
-                return undef;
-            }
-            
-            #my $nodedata = $nodeobj->export(flat => 0);
-            # print "flatearth\n";
-            # print Dumper \%flatearth;
-            # $self->_massage_add_compat($nodedata); # and add in helpful compat bits
-    
-            return \%flatearth;
-		}
-		else
-		{
-			return "Error: $lookup not found!";
-		}
+		
+        # node data for node api
+        # my $node = $nmisng->get_nodes_model();
+        # print Dumper "Node\n";
+        # print Dumper %{$node};
+        my $nodeobj = $nmisng->node(uuid =>  $lookup);
+        if ($nodeobj){
+            my ($inventory, $error) =  $nodeobj->inventory( concept => "catchall" );
+            my $catchall = $inventory->data();
+            return $catchall;
+        }
+        else {
+            $nmisng->log->error("Error: $lookup not found!");
+		    return undef;
+        }
 	}
 }
 
-# return the attribute name that is used for the id of this type
-# defaults to "name" if not found  - fixed to 'uuid' for this type of object
-# fixme az: unclear what that is supposed to be good for?
-sub id_attr
-{
-	my ($self) = @_;
-	return 'uuid';
-}
 
-sub name_of
-{
-	my ($self,%args) = @_;
-
-	my $thisres = $args{thisresource};
-
-	return undef if (!$thisres or !defined $thisres->{ $self->id_attr });
-	return $thisres->{ $self->id_attr };
-}
 
 1;
