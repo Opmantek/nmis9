@@ -2752,7 +2752,7 @@ sub grouped_node_summary
 	}
 
 	# print "pipe:".Dumper(\@pipe);
-	$self->log->info("pipe: \n".JSON::XS->new->convert_blessed(1)->utf8->pretty->encode(\@pipe));
+	# $self->log->info("pipe: \n".JSON::XS->new->convert_blessed(1)->utf8->pretty->encode(\@pipe));
 	my ( $entries, $count, $error ) = NMISNG::DB::aggregate(
 		collection         => $self->inventory_collection(),
 		pre_count_pipeline => \@pipe,
