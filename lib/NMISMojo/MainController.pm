@@ -63,13 +63,15 @@ sub authenticate_user {
   my $psswd = $self->param('password');
   
 
-  my $config     = NMISNG::Util::loadConfTable();
-  my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
-  my $logger  = NMISNG::Log->new(
-    path => $logfile,
-  );
+  # my $config     = NMISNG::Util::loadConfTable();
+  # my $logfile = $config->{'<nmis_logs>'} . "/main_controller.log";
+  # my $logger  = NMISNG::Log->new(
+  #   path => $logfile,
+  # );
+
+  my $nmisng = $self->get_nmisng_obj();
   my $this_function = (caller(0))[3];
-  $logger->info("$this_function");
+  $nmisng->log->info("$this_function");
 
   my $auth_user = $self->authenticate($usrname, $psswd);
   #print "self are ".Dumper($auth_user);
@@ -103,4 +105,64 @@ sub logout {
   $self->session(expires => 1); #kill the session
   $self->redirect_to('/');
 };
+
+sub get_nmisng_obj
+{
+  my $self = shift;
+  my $config = NMISNG::Util::loadConfTable();
+  my $logfile = $config->{'<nmis_logs>'} . "/main_controller.log";
+  my $logger  = NMISNG::Log->new(
+      path => $logfile,
+  );
+
+  my $nmisng = NMISNG->new(
+    config => $config,
+      log => $logger,
+  );
+  
+  return $nmisng;
+}
+
+sub node_search {
+  my $self = shift;
+	# the query param
+	my $q = $self->param("q");
+  # print Dumper "q = $q";
+  if ($self->is_user_authenticated) {
+
+    # node_quick_search
+    my $nmisng = $self->get_nmisng_obj();
+
+    #Get model data for nodes
+    my $md = $nmisng->get_nodes_model(); 
+    if (my $error = $md->error)
+    {
+      $nmisng->log->error("Failed to lookup nodes: $error");
+    }
+
+    my $data = $md->data();
+    
+    # get uuid and name for nodes
+    my %nodes_data = map {($_->{name} => $_->{uuid}) } @$data;
+    
+    #filter data based on query parameter
+    delete $nodes_data{$_} for grep !/$q/, keys %nodes_data;
+   
+    # get the format which frontend requires
+    my @filtered_nodes;
+    while(my($name, $uuid) = each %nodes_data) { 
+      my $rec = {};
+      $rec->{name} = $name;
+      $rec->{uuid} = $uuid;
+      push @filtered_nodes, $rec;
+    }
+    #$nmisng->log->info("filtered_nodes".Dumper(@filtered_nodes));
+    #print Dumper \@filtered_nodes;
+    $self->render(json => \@filtered_nodes);
+  }
+  else{
+    $self->render(template => 'login', error =>'Please login!' );
+  }
+  
+}
 1;

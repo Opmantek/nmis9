@@ -70,12 +70,11 @@ sub get_nmisng_obj
 {
     my ($self, %args) = @_;
     my $config = NMISNG::Util::loadConfTable();
-    my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_api.log";
+    my $logfile = $config->{'<nmis_logs>'} . "/node_data.log";
     my $logger  = NMISNG::Log->new(
         path => $logfile,
     );
 
-    my @node_names; 
     my $nmisng = NMISNG->new(
 	    config => $config,
         log => $logger,
