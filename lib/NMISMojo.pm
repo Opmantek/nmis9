@@ -171,6 +171,9 @@ sub startup {
   #$r->get('/nodes')->to(controller => 'MainController', action => 'nodes_view');
   $r->any('/logout')->to(controller => 'MainController', action => 'logout');
 
+  # Route for node search
+  $r->any('/node_search')->to(controller => 'MainController', action => 'node_search');
+
   # Public REST API V1
 	#my $api_v1_bridge = $api_bridge->under("/api/v1");
   my $api_bridge = $logged_in->under('/api/v1');
@@ -207,6 +210,13 @@ sub startup {
       type       => "node",
 			action     => "show_resource"
 	)->name("api_node_data");
+
+  # $api_bridge->get("/nodes/node_search")->to(
+	# 		controller => "CRUDController",
+	# 		data_class => "NMISMojo::NodeData",
+  #     action     => "node_search"
+	# )->name("api_node_search");
+
 }
 
 1;

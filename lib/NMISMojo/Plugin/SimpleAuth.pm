@@ -54,7 +54,7 @@ sub register
     my ($plugin, $app, $config) = @_;
 
 	my $config     = NMISNG::Util::loadConfTable();
-    my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
+    my $logfile = $config->{'<nmis_logs>'} . "/main_controller.log";
 	my $logger  = NMISNG::Log->new(
         path => $logfile,
     );
@@ -63,7 +63,7 @@ sub register
 	
 	my $session_key = 'auth_data'; # for Mojolicious::Plugin::Authentication
 
-	#$app->new_application_log("nmis_mojo_auth");
+	#$app->new_application_log("main_controller");
 
 	$plugin->{_loaded_uid_and_domain} = undef; # fixme: not used anywhere?
 	$plugin->{_loaded_user} = undef;
@@ -237,7 +237,7 @@ sub _manage_sso_cookie_domain
 	my ($self, $app_ctrl) = @_;
 
     my $config     = NMISNG::Util::loadConfTable();
-    my $logfile = $config->{'<nmis_logs>'} . "/nmis_mojo_auth.log";
+    my $logfile = $config->{'<nmis_logs>'} . "/main_controller.log";
     my $logger  = NMISNG::Log->new(
         path => $logfile,
     );
