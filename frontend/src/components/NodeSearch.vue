@@ -8,10 +8,13 @@
                 v-model="selected"
                 @select="showNodeDetails"
                 :options="nodes"
+                :showLabels="false"
                 :multiple="false"
                 :searchable="true"
                 @search-change="nodesQuery"
                 placeholder="Type to search"
+                label="name"
+                track-by="uuid"
                 >
             <template #noResult>
                 No results found. Consider changing the search query
@@ -34,14 +37,13 @@ export default {
   },
   methods: {
     nodesQuery(query) {
-        console.log('search');
-        axios.get('api/v1/nodes')
+        axios.get('/node_search?q='+query)
         .then(response => {
             this.nodes = response.data;
         })
     },
-    showNodeDetails() {
-        this.$router.push({name: 'nodeDetails', params: { uuid: this.selected}});
+    showNodeDetails(selectedOption, id) {
+        this.$router.push({name: 'nodeDetails', params: { uuid: selectedOption.uuid}});
     }
   }
 }
@@ -52,31 +54,31 @@ export default {
     .multiselect__option--highlight, .multiselect__option--highlight::after {
         background: #16325c
     }
-@media (prefers-color-scheme: dark) {
-    .multiselect__spinner::before,
-  .multiselect__spinner::after {
-    border-color: #41b883 transparent transparent;
-  }
-    .multiselect__tags, .multiselect__tag{
-        background-color: #05090B;
-    }
-    .multiselect, .multiselect__single {
-        background-color: #05090B;
-        color: #FFF;
-    }
-    .multiselect__content-wrapper {
-        background-color: #05090B;
-    }
-    .multiselect__element {
-        background-color: #05090B;
-        color: #FFF;
-    }
-    .multiselect__input {
-        background: #05090B;
-        color: #FFF;
-    }
+    @media (prefers-color-scheme: dark) {
+        .multiselect__spinner::before,
+        .multiselect__spinner::after {
+            border-color: #41b883 transparent transparent;
+        }
+        .multiselect__tags, .multiselect__tag{
+            background-color: #05090B;
+        }
+        .multiselect, .multiselect__single {
+            background-color: #05090B;
+            color: #FFF;
+        }
+        .multiselect__content-wrapper {
+            background-color: #05090B;
+        }
+        .multiselect__element {
+            background-color: #05090B;
+            color: #FFF;
+        }
+        .multiselect__input {
+            background: #05090B;
+            color: #FFF;
+        }
 
-}
+    }
    
 
 
