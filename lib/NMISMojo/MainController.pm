@@ -134,31 +134,45 @@ sub node_search {
     my $nmisng = $self->get_nmisng_obj();
 
     #Get model data for nodes
-    my $md = $nmisng->get_nodes_model(); 
+    my $md = $nmisng->get_nodes_model();
+    
     if (my $error = $md->error)
     {
       $nmisng->log->error("Failed to lookup nodes: $error");
+      $self->render(json => { error => "Failed to lookup nodes: $error" });
+      return;
     }
 
     my $data = $md->data();
     
     # get uuid and name for nodes
     my %nodes_data = map {($_->{name} => $_->{uuid}) } @$data;
+    # regex partial hash key match
+    my @matching_keys = grep { /$q/ } keys %nodes_data;
     
-    #filter data based on query parameter
-    delete $nodes_data{$_} for grep !/$q/, keys %nodes_data;
-   
-    # get the format which frontend requires
-    my @filtered_nodes;
-    while(my($name, $uuid) = each %nodes_data) { 
-      my $rec = {};
-      $rec->{name} = $name;
-      $rec->{uuid} = $uuid;
-      push @filtered_nodes, $rec;
+    if (scalar(@matching_keys) == 0 ) {
+      $self->render(json => { error =>"No node data found for node $q"});
+      return;
     }
-    #$nmisng->log->info("filtered_nodes".Dumper(@filtered_nodes));
-    #print Dumper \@filtered_nodes;
-    $self->render(json => \@filtered_nodes);
+    else
+    {
+      #filter data based on query parameter
+      delete $nodes_data{$_} for grep !/$q/, keys %nodes_data;
+
+      # get the format which frontend requires
+      my @filtered_nodes;
+      while(my($name, $uuid) = each %nodes_data) { 
+        my $rec = {};
+        $rec->{name} = $name;
+        $rec->{uuid} = $uuid;
+        push @filtered_nodes, $rec;
+      }
+      #$nmisng->log->info("filtered_nodes".Dumper(@filtered_nodes));
+      #print Dumper \@filtered_nodes;
+      $self->render(json => \@filtered_nodes);
+    }
+
+    
   }
   else{
     $self->render(template => 'login', error =>'Please login!' );
