@@ -2671,12 +2671,7 @@ sub grouped_node_summary
 
 	my $q = NMISNG::DB::get_query( and_part => $filters );
 	my @pipe = (
-		{'$match' => {'concept' => 'catchall'}},
-		{   '$lookup' =>
-				{'from' => 'nodes', 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'node_config'}
-		},
-		{'$unwind' => {'path'               => '$node_config', 'preserveNullAndEmptyArrays' => boolean::false}},
-		{'$match'  => {'node_config.activated.NMIS' => 1}},
+		{'$match' => { 'concept' => 'catchall', 'data.activated.NMIS' => 1}},
 		{   '$lookup' => {
 				'from'         => 'latest_data',
 				'localField'   => '_id',
@@ -2691,8 +2686,8 @@ sub grouped_node_summary
 	my $node_project = {
 		'$project' => {
 			'_id'       => 1,
-			'name'      => '$node_config.name',
-			'uuid'      => '$node_config.uuid',
+			'name'      => '$data.name',
+			'uuid'      => '$data.uuid',
 			'down'      => {'$cond' => {'if' => {'$eq' => ['$data.nodedown', 'true']}, 'then' => 1, 'else' => 0}},
 			'degraded'  => {'$cond' => {'if' => {'$eq' => ['$data.nodestatus', 'degraded']}, 'then' => 1, 'else' => 0}},
 			'reachable' => '$latest_data.subconcepts.data.reachability',
@@ -2710,11 +2705,11 @@ sub grouped_node_summary
 			# add in all the things network.pl is expecting: half are CONFIGURATION half are dynamic catchall/latest
 			'nodedown'    => '$data.nodedown',
 			'nodestatus'  => '$data.nodestatus',
-			'netType'     => '$node_config.configuration.netType',
+			'netType'     => '$data.netType',
 			'nodeType'    => '$data.nodeType',
 			'response'    => '$latest_data.subconcepts.data.responsetime',
-			'roleType'    => '$node_config.configuration.roleType',
-			'ping'        => '$node_config.configuration.ping',
+			'roleType'    => '$data.roleType',
+			'ping'        => '$data.ping',
 			'sysLocation' => '$data.sysLocation',
 			'last_update' => '$data.last_update',
 			'last_poll' => '$data.last_poll',
@@ -2757,6 +2752,7 @@ sub grouped_node_summary
 	}
 
 	# print "pipe:".Dumper(\@pipe);
+	$self->log->info("pipe: \n".JSON::XS->new->convert_blessed(1)->utf8->pretty->encode(\@pipe));
 	my ( $entries, $count, $error ) = NMISNG::DB::aggregate(
 		collection         => $self->inventory_collection(),
 		pre_count_pipeline => \@pipe,
