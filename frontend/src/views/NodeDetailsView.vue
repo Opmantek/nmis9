@@ -9,11 +9,11 @@
                 </div>
               </div>
               <div class="card-body">
-                <table class="table">
+                <table class="table" v-if="!isLoading">
                 <tbody>
                   <tr v-for="dataColumn in nodeDataColumns" :key="dataColumn.name">
                     <td> {{ dataColumn.label }} -- {{ dataColumn.name }}</td>
-                    <td> {{  data[dataColumn.name] ? data[dataColumn.name] : 'Not found'}}</td>
+                    <td> {{  GetPropertyValue(dataColumn.name)}}</td>
 
                   </tr>
                 </tbody>
@@ -34,6 +34,7 @@ export default {
 
     data() {
       return {
+        isLoading: false,
         testData,
         data : JSON.stringify(testData),
         nodeDataColumns: [
@@ -43,7 +44,7 @@ export default {
             "renderable": 0,
             "editable": false
           },
-          { "name": "nodes.name",
+          { "name": "name",
             "label": "Name",
             "cell": "NodeLink",
             "renderable": 1,
@@ -85,7 +86,7 @@ export default {
             "cell": "String",
             "editable": false
           },
-          { "name": "nodes.configuration.location",
+          { "name": "location",
             "label": "Location",
             "cell": "FilterString",
             "search" : "iregex",
@@ -136,7 +137,23 @@ export default {
       },
     },
     created() {
-      console.log("response", this.testData);
+      this.isLoading = true;
+      axios.get('/api/v1/nodes/291a3d0e-289b-4027-903a-5b5f6d6ed002')
+      .then(response => {
+        console.log('response: ', response);
+        this.data = response.data;
+        this.isLoading = false;
+      })
+      //console.log("response", this.testData);
+    },
+    methods: {
+      GetPropertyValue(dataToRetrieve) {
+        return dataToRetrieve
+          .split('.') // split string based on `.`
+          .reduce(function(o, k) {
+            return o && o[k]; // get inner property if `o` is defined else get `o` and return
+          }, this.data) // set initial value as object
+      }
     }
 }
 </script>
