@@ -98,7 +98,8 @@ sub update_plugin
                 foreach my $w (qw(index Description ifAdminStatus ifDescr ifHighSpeed ifLastChange ifOperStatus ifSpeed ifType)) {
                     $interface_data->{$w} = $data->{$w};
                 }
-                
+				# to keep path keys similar to other interfaces
+                $interface_data->{index} = $data->{index};
                 $interface_data->{ifIndex} = $data->{index};
                 $interface_data->{collect} = "true";
                 $interface_data->{interface} = $data->{ifDescr};
@@ -107,7 +108,8 @@ sub update_plugin
                 if ($data->{ifAdminStatus} eq "up") {
                    $active++;
                 }
-                # fix up speed calculations, it needs speed to be 0 to use ifHighSpeed
+                # fix up speed calculations, it needs speed to be 0 to use ifHighSpeed, 
+				# unfortunately this is not enough to get the values changed in the gui
                 # $interface_data->{ifSpeed} = 0 if( $interface_data->{ifHighSpeed} > 0 );
                 # $nodeobj->checkIntfInfo( sys => $S, index => $interface_data->{index}, iftype => $IFT, target => $interface_data );
                 
@@ -120,7 +122,7 @@ sub update_plugin
                 my ($inventory,$error_message) = $nodeobj->inventory(
                     concept => 'interface',
                     path => $path,
-                    path_keys => [],
+                    path_keys => $path_keys,
                     create => 1
                 );
                 $NG->log->error("Failed to get inventory for device_global, error_message:$error_message")
