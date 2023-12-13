@@ -4,20 +4,37 @@
           <div class="col">
             <div class="card">
               <div class="card-header">
-                <div class="card-title">
-                  {{  uuid }}
+                <div class="card-title" v-if="!isLoading">
+                  {{  nodeData.name }}
+                </div>
+                <div v-else>
+                    Loading...
                 </div>
               </div>
               <div class="card-body">
-                <table class="table" v-if="!isLoading">
-                <tbody>
-                  <tr v-for="dataColumn in nodeDataColumns" :key="dataColumn.name">
-                    <td> {{ dataColumn.label }} -- {{ dataColumn.name }}</td>
-                    <td> {{  GetPropertyValue(dataColumn.name)}}</td>
+                <div class="row g-0">
+                  <div class="col-8">
+                    <table class="table table-bordered" v-if="!isLoading">
+                      <tbody>
+                        <tr v-for="dataColumn in nodeDataColumns" :key="dataColumn">
+                          <td> {{ dataColumn.label }} </td>
+                          <td v-if="dataColumn.type == 'timeCell'"> {{ new Date(GetPropertyValue(dataColumn.name) * 1000) }} </td>
+                          <td v-else> {{  GetPropertyValue(dataColumn.name) }}</td>
 
-                  </tr>
-                </tbody>
-              </table>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="col-4">
+                    <table class="table table-bordered" v-if="!isLoading">
+                      <tbody>
+                        <td>
+                          graph cell
+                        </td>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
   
             </div>
@@ -29,103 +46,107 @@
 
 <script>
 import axios from 'axios';
-import testData from './test.json';
 export default {
 
     data() {
       return {
         isLoading: false,
-        testData,
-        data : JSON.stringify(testData),
+        nodeData : {},
         nodeDataColumns: [
-          { "name": "nodes.uuid",
-            "label": "Node UUID",
-            "cell": "String",
-            "renderable": 0,
-            "editable": false
-          },
-          { "name": "name",
-            "label": "Name",
-            "cell": "NodeLink",
-            "renderable": 1,
-            "comment": "must be present for NodeLinkCell to work on any column, use 'renderable': 0 to hide",
-            "search" : "iregex",
-            "editable": false
-          },
-          { "name": "nodes.configuration.host",
-            "label": "Host",
-            "cell": "FilterString",
-            "search" : "iregex",
-            "editable": false,
-            "headerCell": "filter"
-          },
-          { "name": "catchall.data.nodestatus",
+          { "name": "nodestatus",
             "label": "Node Status",
-            "cell": "NodeStatus",
-            "editable": false
           },
-          { "name": "nodes.configuration.group",
+          {
+            "name": "sysName",
+            "label": "sysName"
+          },
+          {
+            "name": "host",
+            "label": "IP Address"
+          },
+          {
+            "name": "host_backup",
+            "label": "Backup IP Address"
+          },
+          { "name": "ip_protocol",
+            "label": "IP Protocol",
+          },
+
+          { "name": "group",
             "label": "Group",
-            "cell": "FilterString",
-            "search" : "iregex",
-            "editable": false,
-            "headerCell": "filter"
           },
-          { "name": "catchall.data.nodeType",
-            "label": "Node Type",
-            "cell": "String",
-            "editable": false
-          },
-          { "name": "nodes.configuration.roleType",
-            "label": "Role",
-            "cell": "String",
-            "editable": false
-          },
-          { "name": "catchall.data.nodeVendor",
-            "label": "Vendor",
-            "cell": "String",
-            "editable": false
+          { "name": "customer",
+            "label": "Customer",
+
           },
           { "name": "location",
             "label": "Location",
-            "cell": "FilterString",
-            "search" : "iregex",
-            "editable": false,
-            "headerCell": "filter"
           },
-          { "name": "latest_data.subconcepts.health.derived_data.08_health",
-            "label": "Health",
-            "cell": "ColouredByLevel",
-            "levels": [ "green", 100, "yellow", 99, "orange", 80, "red", 0 ],
-            "sortable": false,
-            "editable": false
+          { "name": "businessService",
+            "label": "Business Service",
           },
-          { "name": "catchall.data.last_poll",
-            "label": "Last Poll",
-            "cell": "String",
-            "formatter": "UnixTime",
-            "editable": false
+          { "name": "serviceStatus",
+            "label":  "Service Status",
           },
-          { "name": "catchall.data.remote_connection_url",
-            "renderable": 0,
-            "cell": "String",
-            "editable": false
+          { "name": "notes",
+            "label":  "Notes",
           },
-          { "name": "catchall.data.remote_connection_name",
-            "renderable": 0,
-            "cell": "String",
-            "editable": false
+          { "name": "nodeType",
+            "label": "Type",
           },
-          { "name": "catchall.data.node_context_url",
-            "renderable": 0,
-            "cell": "String",
-            "editable": false
+          { "name": "model",
+            "label": "Model",
           },
-          { "name": "catchall.data.node_context_name",
-            "renderable": 0,
-            "cell": "String",
-            "editable": false
-          }
+          { "name": "polling_policy",
+            "label": "Polling Policy",
+          },
+          { "name": "sysUpTime",
+            "label": "Sys Up Time",
+          },
+          { "name": "sysLocation",
+            "label": "Location",
+          },
+          { "name": "sysContact",
+            "label": "Contact",
+          },
+          { "name": "sysDescr",
+            "label": "Description",
+          },
+          { "name": "ifNumber",
+            "label": "Interfaces",
+          },
+          { "name": "ping_successful",
+            "label": "Last Ping",
+            "type": "timeCell"
+          },
+          { "name": "catchall.data.nodeType",
+            "label": "Last Collect",
+          },
+          { "name": "last_update",
+            "label": "Last Update",
+            "type": "timeCell"
+          },
+          { "name": "nodeVendor",
+            "label": "Vendor"
+          },
+          { "name": "sysObjectName",
+            "label": "Object Name"
+          },
+          { "name": "roleType",
+            "label": "Role"
+          },
+          { "name": "netType",
+            "label": "Net"
+          },
+          { "name": "hrSystemProcesses",
+            "label": "System Processes"
+          },
+          { "name": "snmpUpTime",
+            "label": "SNMP Uptime"
+          },
+          { "name": "tcpCurrEstab",
+            "label": "TCP Established Sessions"
+          },
         ]
 
 
@@ -138,13 +159,12 @@ export default {
     },
     created() {
       this.isLoading = true;
-      axios.get('/api/v1/nodes/291a3d0e-289b-4027-903a-5b5f6d6ed002')
+      axios.get('/api/v1/nodes/'+this.uuid)
       .then(response => {
         console.log('response: ', response);
-        this.data = response.data;
+        this.nodeData = response.data;
         this.isLoading = false;
       })
-      //console.log("response", this.testData);
     },
     methods: {
       GetPropertyValue(dataToRetrieve) {
@@ -152,7 +172,7 @@ export default {
           .split('.') // split string based on `.`
           .reduce(function(o, k) {
             return o && o[k]; // get inner property if `o` is defined else get `o` and return
-          }, this.data) // set initial value as object
+          }, this.nodeData) // set initial value as object
       }
     }
 }
