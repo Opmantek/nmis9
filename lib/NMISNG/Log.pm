@@ -125,6 +125,11 @@ sub _log
 	my $prefix = $self->logprefix;
 	if ($prefix)
 	{
+		# can be coderef, at this point we know that we're going to be logging
+		# so we can execute the coderef 
+		if( ref($lines[0]) eq 'CODE' ) {
+			$lines[0] = $lines[0]();
+		}
 		$lines[0] = $prefix.$lines[0];
 	}
 
