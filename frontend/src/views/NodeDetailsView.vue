@@ -5,10 +5,16 @@
             <div class="card">
               <div class="card-header">
                 <div class="card-title" v-if="!isLoading">
-                  {{  nodeData.name }}
+                  <h3>{{  nodeData.name }}</h3>
+                  <span>
+                    <a :href="'/cgi-nmis9/tables.pl?act=config_table_edit&amp;table=Nodes&amp;widget=true&amp;key='+nodeData.name" id="cfg_nodes">Edit Node</a>
+                  </span>
+                  <span class="ps-3">
+                    <a :href="'/cgi-nmis9/nodeconf.pl?act=config_nodeconf_view&amp;widget=true&amp;node='+nodeData.name" id="cfg_nodecGfg">Node Configuration</a>
+                  </span>
                 </div>
                 <div v-else>
-                    Loading...
+                  <div class="spinner-border" role="status"></div><span class="ps-3">Loading...</span>
                 </div>
               </div>
               <div class="card-body">
@@ -19,6 +25,7 @@
                         <tr v-for="dataColumn in nodeDataColumns" :key="dataColumn">
                           <td> {{ dataColumn.label }} </td>
                           <td v-if="dataColumn.type == 'timeCell'"> {{ new Date(GetPropertyValue(dataColumn.name) * 1000) }} </td>
+                          <td v-else-if="dataColumn.name == 'nodestatus'"> <div class="badge rounded-pill" :class="GetPropertyValue(dataColumn.name)">{{  GetPropertyValue(dataColumn.name) }} </div></td>
                           <td v-else> {{  GetPropertyValue(dataColumn.name) }}</td>
 
                         </tr>
@@ -177,3 +184,16 @@ export default {
     }
 }
 </script>
+
+<style>
+  /* .degraded {
+    background-color: yellow;
+    color: black;
+  }
+
+  .reachable {
+    background-color: green;
+    color: black;
+  } */
+
+</style>
