@@ -34,7 +34,6 @@ our $VERSION = "9.4.4";
 use strict;
 use feature 'state';						# loadconftable, uuid functions
 
-use CPAN::Version;
 use Fcntl qw(:DEFAULT :flock :mode);
 use FindBin;										# bsts; normally loaded by the caller
 use File::Path;
@@ -3648,7 +3647,10 @@ sub askYesNo
 ########################################################################
 sub isEOSAvailable
 {
-	my $ok                 = 1;
+	#Is EOS available?
+	my $available          = 1;
+	#Errors we have found during the check
+	my @errors;
 	my $config             = loadConfTable();
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 	my %eosCurrentVers;
@@ -3664,107 +3666,124 @@ sub isEOSAvailable
 								'NMIS'       => "9.5.0"
 							);
 
-	print ("Checking ...\n");
-	eval {require Crypt::CBC;};
-	if($@)
+	#add an error that config item is not enabled
+	if (!getbool($encryption_enabled))
 	{
-		$ok = 0;
-		print ("Module: 'Crypt::CBC' is missing.\n");
+		$available = 0;
+		push(@errors, "global_enable_password_encryption is not enabled");
 	}
-	eval {require Crypt::Cipher::AES;};
-	if($@)
+
+	my @modules = ('Crypt::CBC', 'Crypt::Cipher::AES', 'Math::Random::Secure');
+	#now lets check we have the required modules
+	foreach my $module (@modules) 
 	{
-		$ok = 0;
-		print ("Module: 'Crypt::Cipher::AES' is missing.\n");
+		eval "require $module";
+		if ($@) 
+		{
+			$available = 0;
+			push(@errors, "Perl module $module is not installed");
+		}
 	}
-	eval {require Math::Random::Secure;};
-	if($@)
+
+	#We have the required modules now lets check OMK and our current NMIS version
+	if ($available)
 	{
-		$ok = 0;
-		print ("Module: 'Math::Random::Secure' is missing.\n");
-	}
-    if ($ok)
-	{
-		my $output;
-		my $omkDir;
+		# my $output;
 		my $omkSystemState;
-		$output = sprintf("   Product          Current Version    Required Version      EOS supported?\n");
-		$output = sprintf("${output}================================================================================\n");
-		my $nmisVersion = qx{$config->{'<nmis_bin>'}/nmis-cli --version | cut -f2 -d=};
-		chomp($nmisVersion);
-		$eosCurrentVers{"NMIS"} = $nmisVersion;
-		my $answer = CPAN::Version->vge("$nmisVersion","$eosMinVersions{NMIS}") ? "YES" : "NO";
-		$ok = 0 if ($answer eq 'NO');
-		$eosEOSVersion{NMIS} = $answer;
-		$output = sprintf("${output}   %10s%20s%20s%10s\n", "NMIS", $eosCurrentVers{NMIS}, $eosMinVersions{NMIS},$eosEOSVersion{NMIS});
-		if ( -f "/etc/systemd/system/omkd.service" )
+		# $output = sprintf("   Product          Current Version    Required Version      EOS supported?\n");
+		# $output = sprintf("${output}================================================================================\n");
+
+		# figure out version - build infra will have saved that in .version
+		# but we need to also cater for install from source, in which case we use regex to extract version from NMISNG.pm:
+		#This code is copied from the installer
+		
+		my $nmisversion;
+		if ( -e "./.version" )
 		{
-			$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
+			$nmisversion = eval { do "./.version" };
+			die("Invalid release (1) - no version!") if ($@ or !$nmisversion);
 		}
-		elsif ( -f "/etc/init.d/omkd" )
+		elsif ( -e "./lib/NMISNG.pm" )
 		{
-			$omkDir  = qx{grep 'DAEMON=' /etc/init.d/omkd | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
-		}
-		chomp($omkDir);
-		if ( "$omkDir" eq "" && -f "/usr/local/omk" )
-		{
-			$omkDir  = '/usr/local/omk';
-		}
-		if ( "$omkDir" eq "" )
-		{
-			print ("Unable to find OMK installation; cannot determine if OMK supports EOS.\n");
-		}
-		else
-		{
-			if (-e "$omkDir/manifest")
+			open(F,"./NMISNG.pm") or die "cannot read NMISNG.pm: $!\n";
+			my $nmisng_source= join("",<F>);
+			close(F);
+			if ($nmisng_source =~ /our\s+\$VERSION\s*=\s*(?:"|')(.+)(?:"|')\s*/)
 			{
-				$omkSystemState = do "$omkDir/manifest" or print ("Unable to determine if OMK supports EOS.\n");
-			}
-			foreach my $eachProduct (keys  (%{ $omkSystemState->{products} }))
-			{
-				my $versionOutput = $omkSystemState->{products}{$eachProduct}{version};
-				chomp($versionOutput);
-				$eosCurrentVers{"$eachProduct"} = $versionOutput;
-				$answer = CPAN::Version->vge("$versionOutput","$eosMinVersions{$eachProduct}") ? "YES" : "NO";
-				$ok = 0 if ($answer eq 'NO');
-				$eosEOSVersion{"$eachProduct"} = $answer;
-				$output = sprintf("${output}   %10s%20s%20s%10s\n", $eachProduct, $eosCurrentVers{$eachProduct}, $eosMinVersions{$eachProduct},$eosEOSVersion{$eachProduct});
+				$nmisversion = $1;
+				if ($@ or !$nmisversion)
+				{
+					die("Invalid release (2) - no version!");
+				}
 			}
 		}
-		print("\r$output");
+		die("Invalid release (3) - no version!") if (!$nmisversion);
+
+		#parse the versions and check if NMIS is supported
+		my $parsedversion = version->parse($nmisversion);
+		my $requriedversion = version->parse($nmisversion);
+
+		if ($parsedversion < $requriedversion)
+		{
+			$available = 0;
+			push(@errors, "NMIS version $nmisversion is not supported for EOS");
+		}
+		
+		# Where is OMK installed?
+		#TODO this should all happen from Opmantek.pm as it knows where it lives and compiled versions,
+		#this will need to work in dev which may not have services enabled
+		my $omkDir  = findOMKDir();
+		if(!defined($omkDir))
+		{
+			$available = 0;
+			push(@errors, "OMK is not installed");
+		}
+		if ( $omkDir )
+		{
+			$available = 0;
+			push(@errors, "cannot test omk manifest, implementation requried");
+		}
 	}
-    if ($ok)
+
+	#Ok its marked as available, but is it really?
+	#Lets peform a test encryption
+    if ($available && !testEncryption())
 	{
-		if (!testEncryption())
-		{
-			print ("Encryption key seem to be corrupt.\n");
-			return(0);
-		}
-		else
-		{
-			if ($encryption_enabled)
-			{
-				print ("Encryption of Secrets can be enabled, and already is.\n");
-			}
-			else
-			{
-				print ("Encryption of Secrets can be enabled.\n");
-			}
-			return(1);
-		}
+		push(@errors, "Encryption of Secrets is not available, encryption test failed.");
+		$available = 0;
     }
-    else
-    {
-		if ($encryption_enabled)
-		{
-			print ("Encryption of Secrets should not be enabled, but already is.\n");
-		}
-		else
-		{
-			print ("Encryption of Secrets can not be enabled.\n");
-		}
-        return(0);
-    }
+
+	return ($available, @errors);
+}
+
+
+############################################################################
+# findOMKDir - Search for the OMK Installation directory                   #
+#                                                                          #
+# Returns:                                                                 #
+#    the OMK directory if found, or an empty string if not.                #
+############################################################################
+sub findOMKDir
+{
+
+	my $omkDir;
+	#TODO convert this to use perl code instead of running qx
+	# Find the OMK Installation directory.
+	if ( -f "/etc/systemd/system/omkd.service" )
+	{
+		$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
+	}
+	elsif ( -f "/etc/init.d/omkd" )
+	{
+		$omkDir  = qx{grep 'DAEMON=' /etc/init.d/omkd | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
+	}
+	chomp($omkDir);
+	if ( !$omkDir && -f "/usr/local/omk" )
+	{
+		$omkDir  = '/usr/local/omk';
+	}
+
+	return $omkDir;
 }
 
 ########################################################################

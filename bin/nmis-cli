@@ -321,17 +321,38 @@ elsif ($Q->{act} =~ /^enable[-_]eos$/)
 	}
 	else
 	{
-		if (NMISNG::Util::isEOSAvailable() && NMISNG::Util::testEncryption())
+		my ($test, @errors) = NMISNG::Util::isEOSAvailable();
+		if ( $test && NMISNG::Util::testEncryption())
 		{
 			my $rc = NMISNG::Util::enableEOS();
 			exit($rc);
 		}
 		else
 		{
-			print("Encryption is not supported or not working, EOS cannot be enabled.\n");
-			exit(0);
+			print("Encryption is not supported or not working, EOS cannot be enabled, following errors were encountered:\n");
+			foreach my $error (@errors)
+			{
+				print("\t$error\n");
+			}
+			exit($test);
 		}
 	}
+}
+# Enable Encryption of Secrets
+# returns 1 if successful, and 0 if failed!
+elsif ($Q->{act} =~ /^test[-_]eos$/)
+{
+	my ($test, @errors) = NMISNG::Util::isEOSAvailable();
+	print("Encryption is ".($test? "enabled" : "disabled").".\n");
+	if (!$test)
+	{
+		print("The following errors were encountered:\n");
+		foreach my $error (@errors)
+		{
+			print("\t$error\n");
+		}
+	}
+	exit($test);
 }
 ##################################################################
 # Run the above two actions BEFORE getting a database connection #
