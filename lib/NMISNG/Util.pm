@@ -34,7 +34,6 @@ our $VERSION = "9.4.4";
 use strict;
 use feature 'state';						# loadconftable, uuid functions
 
-use CPAN::Version;
 use Fcntl qw(:DEFAULT :flock :mode);
 use FindBin;										# bsts; normally loaded by the caller
 use File::Path;
@@ -3693,7 +3692,11 @@ sub isEOSAvailable
 		my $nmisVersion = qx{$config->{'<nmis_bin>'}/nmis-cli --version | cut -f2 -d=};
 		chomp($nmisVersion);
 		$eosCurrentVers{"NMIS"} = $nmisVersion;
-		my $answer = CPAN::Version->vge("$nmisVersion","$eosMinVersions{NMIS}") ? "YES" : "NO";
+
+		my $nmisMinVersion = version->parse($eosMinVersions{NMIS});
+		my $nmisCurVersion = version->parse($nmisVersion);
+
+		my $answer = ($nmisCurVersion >= $nmisMinVersion) ? "YES" : "NO";
 		$ok = 0 if ($answer eq 'NO');
 		$eosEOSVersion{NMIS} = $answer;
 		$output = sprintf("${output}   %10s%20s%20s%10s\n", "NMIS", $eosCurrentVers{NMIS}, $eosMinVersions{NMIS},$eosEOSVersion{NMIS});
@@ -3722,10 +3725,13 @@ sub isEOSAvailable
 			}
 			foreach my $eachProduct (keys  (%{ $omkSystemState->{products} }))
 			{
+				#our current version from the manifest
 				my $versionOutput = $omkSystemState->{products}{$eachProduct}{version};
 				chomp($versionOutput);
 				$eosCurrentVers{"$eachProduct"} = $versionOutput;
-				$answer = CPAN::Version->vge("$versionOutput","$eosMinVersions{$eachProduct}") ? "YES" : "NO";
+				my $omkMinVersion = version->parse($eosMinVersions{$eachProduct});
+				my $omkCurVersion = version->parse($versionOutput);
+				$answer = ($omkCurVersion >= $omkMinVersion) ? "YES" : "NO";
 				$ok = 0 if ($answer eq 'NO');
 				$eosEOSVersion{"$eachProduct"} = $answer;
 				$output = sprintf("${output}   %10s%20s%20s%10s\n", $eachProduct, $eosCurrentVers{$eachProduct}, $eosMinVersions{$eachProduct},$eosEOSVersion{$eachProduct});
