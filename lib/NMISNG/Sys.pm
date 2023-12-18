@@ -2481,7 +2481,7 @@ sub create_update_rrd
 																 relative => 1);
 	if (!$dbname)
 	{
-		$self->nmisng->log->error("create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
+		$self->nmisng->log->error("($self->{name})create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
 		return undef;
 	}
 	# update the inventory if we can
@@ -2500,7 +2500,7 @@ sub create_update_rrd
 																	 index => $index,
 																	 extras => $extras );
 
-	$self->nmisng->log->error("updateRRD for $dbname failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
+	$self->nmisng->log->error("($self->{name}) updateRRD for $dbname failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
 	return $result;
 }
 
