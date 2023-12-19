@@ -90,12 +90,12 @@ if ($helpsw) {
    exit(0);
 }
 
-my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
+## act=check-eos
+## act=disable-eos
+## act=enable-eos
+## act=is-eos-available
 
- act=check-eos
- act=disable-eos
- act=enable-eos
- act=is-eos-available
+my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
 
  act=fixperms
  act=gettmp (or act=gettemp)
@@ -299,40 +299,40 @@ my $tmp = NMISNG::Util::getTmpDir();
 ############################################
 # Disable Encryption of Secrets
 # returns 1 if successful, and 0 if failed!
-if ($Q->{act} =~ /^disable[-_]eos$/)
-{
-	if ( $< != 0)
-	{
-		die "This action requires root privilege.\n";
-	}
-	else
-	{
-		my $rc = NMISNG::Util::disableEOS();
-		exit($rc);
-	}
-}
+##if ($Q->{act} =~ /^disable[-_]eos$/)
+##{
+##	if ( $< != 0)
+##	{
+##		die "This action requires root privilege.\n";
+##	}
+##	else
+##	{
+##		my $rc = NMISNG::Util::disableEOS();
+##		exit($rc);
+##	}
+##}
 # Enable Encryption of Secrets
 # returns 1 if successful, and 0 if failed!
-elsif ($Q->{act} =~ /^enable[-_]eos$/)
-{
-	if ( $< != 0)
-	{
-		die "This action requires root privilege.\n";
-	}
-	else
-	{
-		if (NMISNG::Util::isEOSAvailable() && NMISNG::Util::testEncryption())
-		{
-			my $rc = NMISNG::Util::enableEOS();
-			exit($rc);
-		}
-		else
-		{
-			print("Encryption is not supported or not working, EOS cannot be enabled.\n");
-			exit(0);
-		}
-	}
-}
+##elsif ($Q->{act} =~ /^enable[-_]eos$/)
+##{
+##	if ( $< != 0)
+##	{
+##		die "This action requires root privilege.\n";
+##	}
+##	else
+##	{
+##		if (NMISNG::Util::isEOSAvailable() && NMISNG::Util::testEncryption())
+##		{
+##			my $rc = NMISNG::Util::enableEOS();
+##			exit($rc);
+##		}
+##		else
+##		{
+##			print("Encryption is not supported or not working, EOS cannot be enabled.\n");
+##			exit(0);
+##		}
+##	}
+##}
 ##################################################################
 # Run the above two actions BEFORE getting a database connection #
 ##################################################################
@@ -346,44 +346,45 @@ my $nmisng = NMISNG->new(
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
-if ($Q->{act} =~ /^decrypt[-_]password$/)
-{
-	my $password = $Q->{"password"};
-	die "Passsord argument not supplied!" if(!$password);
-	my $decryptedPass = NMISNG::Util::decrypt($password);
-	print("$decryptedPass\n");
-}
-elsif ($Q->{act} =~ /^encrypt[-_]password$/)
-{
-	my $password = $Q->{"password"};
-	die "Passsord argument not supplied!" if(!$password);
-	my $encryptedPass = NMISNG::Util::encrypt($password, '', '', 1);;
-	print("$encryptedPass\n");
-}
-# Enable Encryption of Secrets
-# Check if EOS is available.
+##if ($Q->{act} =~ /^decrypt[-_]password$/)
+##{
+##	my $password = $Q->{"password"};
+##	die "Password argument not supplied!" if(!$password);
+##	my $decryptedPass = NMISNG::Util::decrypt($password);
+##	print("$decryptedPass\n");
+##}
+##elsif ($Q->{act} =~ /^encrypt[-_]password$/)
+##{
+##	my $password = $Q->{"password"};
+##	die "Password argument not supplied!" if(!$password);
+##	my $encryptedPass = NMISNG::Util::encrypt($password, '', '', 1);;
+##	print("$encryptedPass\n");
+##}
+# Check if Encryption of Secrets is available
+# Check if EOS is can be enabled.
 # returns 1 if EOS is available 0 if not.
-elsif ($Q->{act} =~ /^is[-_]eos[-_]available$/)
-{
-    exit(NMISNG::Util::isEOSAvailable());
-}
+##elsif ($Q->{act} =~ /^is[-_]eos[-_]available$/)
+##{
+##    exit(NMISNG::Util::isEOSAvailable());
+##}
 # Check Encryption of Secrets
 # returns 1 if eos is eenabled, and 0 if not.
-elsif ($Q->{act} =~ /^check[-_]eos$/)
-{
-	if (NMISNG::Util::checkEOS())
-	{
-		print("Encryption is enabled.\n");
-		exit 1;
-	}
-	else
-	{
-		print("Encryption is disabled.\n");
-		exit 0;
-	}
-}
-# show the daemon status
-elsif ($Q->{act} =~ /^(daemon[-_])?status$/)
+##elsif ($Q->{act} =~ /^check[-_]eos$/)
+##{
+##	if (NMISNG::Util::checkEOS())
+##	{
+##		print("Encryption is enabled.\n");
+##		exit 1;
+##	}
+##	else
+##	{
+##		print("Encryption is disabled.\n");
+##		exit 0;
+##	}
+##}
+### show the daemon status
+##elsif
+if ($Q->{act} =~ /^(daemon[-_])?status$/)
 {
 	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
 	# opcharts 3 'nmisd' calls itself 'nmisd',
@@ -1703,29 +1704,29 @@ sub help
    push(@lines, "     act=notify event=<event> <node|uuid>=<instance> [element=<element> details=<details> level=<level>]\n");
    push(@lines, "                     This action submits a new event.\n");
    push(@lines, "\n");
-   push(@lines, "  -- ENCRYPTION OF SECRETS ACTIONS --\n");
-   push(@lines, "     act=check-eos\n");
-   push(@lines, "                     This action reports whether Encryption of Secrets.\n");
-   push(@lines, "                     is enabled or disabled. It returns 1 if EOS is\n");
-   push(@lines, "                     enabled, and 0 if not.\n");
-   push(@lines, "     act=disable-eos\n");
-   push(@lines, "                     This action disables Encryption of Secrets.\n");
-   push(@lines, "                     This must be run as root, and it will stop all\n");
-   push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
-   push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
-   push(@lines, "                     successfully disabled, and 0 if not.\n");
-   push(@lines, "     act=enable-eos\n");
-   push(@lines, "                     This action enables Encryption of Secrets.\n");
-   push(@lines, "                     This must be run as root, and it will stop all\n");
-   push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
-   push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
-   push(@lines, "                     successfully enabled, and 0 if not.\n");
-   push(@lines, "     act=is-eos-available\n");
-   push(@lines, "                     This action checks Encryption of Secrets to determine\n");
-   push(@lines, "                     if it meets all of the requirements for support.\n");
-   push(@lines, "                     It will report any issues, and return 1 if EOS can be\n");
-   push(@lines, "                     enabled and 0 if not.\n");
-   push(@lines, "\n");
+##    push(@lines, "  -- ENCRYPTION OF SECRETS ACTIONS --\n");
+##    push(@lines, "     act=check-eos\n");
+##    push(@lines, "                     This action reports whether Encryption of Secrets.\n");
+##    push(@lines, "                     is enabled or disabled. It returns 1 if EOS is\n");
+##    push(@lines, "                     enabled, and 0 if not.\n");
+##    push(@lines, "     act=disable-eos\n");
+##    push(@lines, "                     This action disables Encryption of Secrets.\n");
+##    push(@lines, "                     This must be run as root, and it will stop all\n");
+##    push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
+##    push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
+##    push(@lines, "                     successfully disabled, and 0 if not.\n");
+##    push(@lines, "     act=enable-eos\n");
+##    push(@lines, "                     This action enables Encryption of Secrets.\n");
+##    push(@lines, "                     This must be run as root, and it will stop all\n");
+##    push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
+##    push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
+##    push(@lines, "                     successfully enabled, and 0 if not.\n");
+##    push(@lines, "     act=is-eos-available\n");
+##    push(@lines, "                     This action checks Encryption of Secrets to determine\n");
+##    push(@lines, "                     if it meets all of the requirements for support.\n");
+##    push(@lines, "                     It will report any issues, and return 1 if EOS can be\n");
+##    push(@lines, "                     enabled and 0 if not.\n");
+##    push(@lines, "\n");
    push(@lines, "  -- SCHEDULING ACTIONS --\n");
    push(@lines, "     act=schedule [at=time] <job.type=<activity>> [job.priority=0..1]\n");
    push(@lines, "                            [job.<node|uuid|group>=<instance> ...]\n");
