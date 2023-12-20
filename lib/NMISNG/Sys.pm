@@ -2094,6 +2094,7 @@ sub parseString
 
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory, $filter ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory", "filter"};
 
+	my $node_name = ($self->nmisng_node) ? $self->nmisng_node->name : "nonode";
 	$self->nmisng->log->debug3(sub { "parseString:: sect:$sect, type:$type, indx:$indx, string to parse '$str'"});
 
 	# needing some verbosity
@@ -2186,16 +2187,16 @@ sub parseString
 			
 		}
 	}
-	$self->nmisng->log->error("(".$self->nmisng_node->name.") parseString failed for str:$str, error:$@") if($@);
+	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	# no luck and no evaluation possible/allowed? give up, and do it loudly!
 	if( !$eval && $str =~ /\$/)
 	{
-		$self->nmisng->log->fatal("(".$self->nmisng_node->name.") parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
+		$self->nmisng->log->fatal("($node_name) parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
 	my $product = ($eval) ? eval $str : $str;
-	$self->nmisng->log->error("(".$self->nmisng_node->name.") parseString failed for str:$str, error:$@") if($@);
+	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	$self->nmisng->log->debug3(sub { "parseString:: result is str=$product"});
 	return $product;
 }
