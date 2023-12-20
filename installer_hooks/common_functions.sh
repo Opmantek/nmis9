@@ -44,7 +44,7 @@ check_set_strict_sh()
 		if [ "${OPT_OMK_STRICT_SH}" -gt 3 ]; then
 			echo "check_set_strict_bash:IN:\$-=$-";
 		fi;
-		if [ "${OPT_OMK_STRICT_SH}" -ge 3 ]; then
+		if [ "${k}" -ge 3 ]; then
 			# /bin/sh does not support 'set -o pipefail'
 			set -x;
 			###set -eux;

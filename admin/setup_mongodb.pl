@@ -97,7 +97,7 @@ server is running without authentication (which is unlikely) or has already
 been setup with a database user that has full administrative credentials.
 
 To configure MongoDB on a remote server please see the documentation at
-https://community.opmantek.com/x/h4Aj\n\n";
+    https://community.opmantek.com/x/h4Aj\n\n";
 
 	input_ok("Hit enter to continue, Ctrl-C to abort: ");
 	print "\n";
