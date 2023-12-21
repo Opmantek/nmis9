@@ -236,7 +236,7 @@
       },
       'systemStats' => {        
         'graphtype' => 'ss-cpu,ss-blocks,ss-intcon',
-        'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait,ssCpuRawIdle',
+        'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait,ssCpuRawIdle,ssCpuRawSteal',
         'snmp' => {
           'ssCpuRawUser' => {
             'oid' => 'ssCpuRawUser',
@@ -321,6 +321,12 @@
             'title' => 'ssRawSwapOut',
             'option' => 'counter,0:U',
             'info' => 'UCD-SNMP-MIB::ssRawSwapOut.0 = Counter32: 10695'
+          },
+          'ssCpuRawSteal' => {
+            'oid' => 'ssCpuRawSteal',
+            'title' => 'ssCpuRawSteal',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawSteal.0 = Counter32: 36002863'
           },
         },
       },      

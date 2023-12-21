@@ -954,6 +954,24 @@
         'title' => 'User CPU',
         'unit' => '%'
       },
+      'ssCpuRawSteal' => {
+        'event' => 'Proactive CPU Steal',
+        'item' => 'ssCpuRawSteal',
+        'description' => 'The number of ticks (typically 1/100s) spent by the hypervisor code to run other VMs even though the CPU in the current VM had something runnable.',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '30',
+              'fatal' => '50',
+              'major' => '20',
+              'minor' => '15',
+              'warning' => '10'
+            }
+          }
+        },
+        'title' => 'Steal CPU',
+        'unit' => '%'
+      },
       'ssCpuRawWait' => {
         'event' => 'Proactive CPU IO Wait',
         'item' => 'ssCpuRawWait',
