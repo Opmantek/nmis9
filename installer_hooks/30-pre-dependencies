@@ -120,7 +120,7 @@ installation won't complete successfully.
 We recommend that you check our Wiki article on working around
 package installation without Internet access in that case:
 
-https://community.opmantek.com/x/boSG
+    https://community.opmantek.com/x/boSG
 
 EOF
 		input_ok "Hit <Enter> when ready to continue: "
