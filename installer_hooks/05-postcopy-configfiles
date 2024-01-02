@@ -15,8 +15,8 @@ if [ -n "$CLEANSLATE" ]; then
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/directories/<nmis_base>'=$TARGETDIR"
 		
 		## add mtr and lft to Config.nmis.
-		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/mtr'=$(which mtr)"
-		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/lft'=$(which lft)"
+		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/mtr'=mtr"
+		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/lft'=lft"
 
 else
 		# upgrade case
