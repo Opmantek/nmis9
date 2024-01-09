@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [
     vue(),
   ],
+  server: {
+    host: true
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -16,9 +19,6 @@ export default defineConfig({
   build: {
     // generate manifest.json in outDir
     manifest: true,
-    rollupOptions: {
-      // overwrite default .html entry
-      input: '/src/main.js'
-    }
+
   }
 })
