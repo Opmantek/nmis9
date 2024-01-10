@@ -102,6 +102,7 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=config-backup
  act=ensure-indexes [drop_unwanted=<[0|t]/[1|f]>]
  act=noderefresh
+ act=inventoryrefresh
  act=remove-duplicate-events [dryrun=<[0|t]/[1|f]>]
  act=daemon-status (or act=status)
 
@@ -1045,6 +1046,10 @@ elsif ($Q->{act} eq 'noderefresh')
 {
 	noderefresh();
 }
+elsif ($Q->{act} eq 'inventoryrefresh')
+{
+	inventoryrefresh();
+}
 elsif ($Q->{act} =~ /collect[-_]performance[-_]data/)
 {
 	collectPerformanceData();
@@ -1366,6 +1371,25 @@ sub noderefresh
 		}
 	}
 	print "total nodes: ".$md->count.", updated: $updated\n";
+}
+
+sub inventoryrefresh {
+	# go by nodes
+	my $uuids = $nmisng->get_node_uuids();
+	foreach my $uuid (@$uuids) {
+		my $nodeobj = $nmisng->node( uuid => $uuid );
+		my $nodename = $nodeobj->name;
+		$logger->info("inventoryrefresh working on $nodename");
+		my $md = $nodeobj->get_inventory_model( );
+		my $count = $md->count;
+		for( my $i = 0; $i < $count; $i++ ) {
+			my $inventory = $md->object($i);
+			$logger->debug("inventoryrefresh ($nodename) working on inventory ".$inventory->concept());
+			my ($op,$err) = $inventory->save();
+			$logger->error("inventoryrefresh error saving inventory: $err") if($err);
+			$logger->debug("inventoryrefresh saved inventory, id:".$inventory->id().", op:$op") if(!$err);
+		}
+	}
 }
 
 # Collect performance data
@@ -1694,6 +1718,9 @@ sub help
    push(@lines, "     act=noderefresh\n");
    push(@lines, "                     This action Walks the list of nodes causing an internal\n");
    push(@lines, "                     Node refresh of each.\n");
+   push(@lines, "     act=inventoryrefresh\n");
+   push(@lines, "                     This action Walks the list of inventory causing an internal\n");
+   push(@lines, "                     refresh of each.\n");
    push(@lines, "     act=remove-duplicate-events [dryrun=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This action finds and removes duplicate events.\n");
    push(@lines, "                     This is something that should not occur, but running\n");

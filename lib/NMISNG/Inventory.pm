@@ -423,6 +423,7 @@ sub new
 
 	# Set configuration if it's there (new inventory won't have it until it's saved)
 	$self->{_configuration} = $args{configuration} // {};
+	$self->{_node_name} = $args{node_name};
 	
 	# not dirty at this time
 	$self->_dirty(0);
@@ -1293,7 +1294,13 @@ sub save
 	my $configuration = $self->{_configuration};
 	if (ref($node) eq "NMISNG::Node")
 	{
-		$name = $node->name;
+		$name = $node->name;		
+		# make sure node name is changed if it doesn't match
+		if( $self->{_node_name} ne $name ) {
+			$self->{_node_name} = $name;
+			$self->_dirty(1,"node_name");
+		}
+
 		$group = $node->configuration()->{'group'};
 		if( $configuration->{group} ne $group ) {
 			$configuration->{group} = $group;
