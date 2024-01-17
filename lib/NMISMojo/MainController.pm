@@ -44,7 +44,7 @@ sub index {
     $self->render(template => 'index');
   }
   else{
-    $self->render(template => 'login', error =>'Please login!' );
+    $self->render(template => 'login', error =>'Please login!', status => '401');
   }
 }
 
@@ -80,7 +80,7 @@ sub authenticate_user {
     #$self->render(template => 'index', user =>$usrname);
   }
   else{
-    $self->render(template => 'login', error =>'Invalid username/password combination!' );
+    $self->render(template => 'login', error =>'Invalid username/password combination!', status => '401' );
   } 
 }
 
