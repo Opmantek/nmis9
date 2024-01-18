@@ -284,6 +284,7 @@ my $inventory_invariant = Clone::clone($inventory);
 $inventory_invariant->{_subconcepts} = bag(@{$inventory->{_subconcepts}});
 $inventory_invariant->{_nmisng} = ignore();
 $inventory_invariant->{_dirty} = ignore();
+$inventory_invariant->{_node_name} = $node_name;
 
 cmp_deeply( $instantiated, $inventory_invariant, "whole structure of instantiated object matches original");
 
@@ -660,6 +661,12 @@ is( $configuration->{group}, "inventorygroupy", "node group changed");
 $inventory->save();
 # there is no accessor for configuration
 is( $inventory->{_configuration}{group}, $configuration->{group}, "groups match");
+
+$newnode->name("newnodename");
+$newnode->save();
+$inventory->save();
+is( $inventory->{_node_name}, $newnode->name(), "node_names match");
+
 
 if (-t \*STDIN)
 {
