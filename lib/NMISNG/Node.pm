@@ -9017,6 +9017,28 @@ sub ext_ping
 	return($pt{min}, $pt{avg}, $pt{max}, $pt{loss});
 }
 
+# get an interface inventory model (single) for node
+# by ifDescr
+sub interface_by_ifDescr 
+{
+	my ($self,$ifDescr) = @_;
+	# ifDescr is in the interface inventory path so use path to find it, unfortunately index it isn't 100% hit
+	# because it can't do 0,1,2,4
+	my $path = $self->inventory_path( concept => "interface", data => { ifDescr => $ifDescr }, partial => 1 );
+	# my ( $interface_inventory, $error_message ) = $self->inventory( concept => 'interface', path => $path, create => 1 );
+	# $self->nmisng->log->warn("Node::interface_by_ifDescr error getting interface from ifDescr:$ifDescr, error_message:$error_message ") if( $error_message );
+
+	# we don't need a whole object so just do the search her einstead of using self->inventory
+	my $result = $self->get_inventory_model( concept => "interface", path => $path );
+	my $interface_inventory;
+	if (!$result->error) 
+	{
+		$self->nmisng->log->warn("Node::interface_by_ifDescr found more than one interface for ifDescr:$ifDescr") if( $result->count > 1 );
+		my $data = $result->data();
+		$interface_inventory = $data->[0] if( @$data > 0 );
+	}
+	return $interface_inventory;
+}
 
 1;
 

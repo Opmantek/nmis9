@@ -3444,12 +3444,12 @@ LABEL_ESC:
 		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
 		if ( $event_obj->event =~ /interface/i && !$event_obj->is_proactive )
 		{
-			### load the interface information and check the collect status.
-			my $S = NMISNG::Sys->new(nmisng => $self);    # node object
-			if ( $S->init( node => $nmisng_node, snmp => 'false' ) )
+			my $ifIndex = undef;
+			my $ifDescr = $event_obj->element;
+			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );			
+			if( $interface_inventory )
 			{
-				my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
-				if ( !NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
+				if ( !NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )
 				{
 					# meta events are subject to both Log and Notify controls
 					if (    NMISNG::Util::getbool( $thisevent_control->{Log} )
@@ -3823,13 +3823,14 @@ LABEL_ESC:
 											if ( $event_obj->event =~ /Interface/ )
 											{
 												my $ifIndex = undef;
-												my $S       = NMISNG::Sys->new(nmisng => $self);    # sys accessor object
-												if ( ( $S->init( name => $event_obj->node_name, snmp => 'false' ) ) )
-												{                                  # get cached info of node only
-													my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
-													if ( NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
+												my $ifDescr = $event_obj->element;
+												my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );
+												
+												if( $interface_inventory )
+												{
+													if ( NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )
 													{
-														$ifIndex = $IFD->{$event_obj->element}{ifIndex};
+														$ifIndex = $interface_inventory->{data}{ifIndex};
 														$message
 															.= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$event_data->{node_name}&intf=$ifIndex\n";
 													}

@@ -71,6 +71,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=collect - Collect node
  * act=update - Update node
  * act=model - Show model 
+ * act=escalations - Run escalations
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -168,6 +169,11 @@ elsif ($Q->{act} =~ /^update/)
 	} else {
 		 print " Error init for $node\n";
 	}
+	exit 0;
+}
+elsif ($Q->{act} =~ /^escalations/)
+{
+	$nmisng->process_escalations;
 	exit 0;
 }
 elsif ($Q->{act} =~ /^plugin/)
