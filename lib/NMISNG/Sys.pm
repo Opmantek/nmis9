@@ -725,6 +725,63 @@ sub disable_source
 	delete $self->{$moriturus};
 }
 
+# DO NOT USE THIS FUNCTION, here for backwards compat!
+# it is not efficent, especially for nodes with high
+# interface counts!!!
+# helper that returns interface info,
+# but indexed by ifdescr instead of internal indexing by ifindex
+#
+# args: none
+# returns: hashref
+# note: does NOT return live data, the info is shallowly cloned on conversion!
+# also note: inventory conversion could use model load to get the data a bit faster
+sub ifDescrInfo
+{
+	my ($self) = @_;
+
+	my %ifDescrInfo;
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data();
+
+	# if we have many interfaces then fetch them on-by-one so we don't load a mountain of data at one time
+	# a smart iterator here in the ModelData would make more sense as it could fetch as we work in lots that
+	# we determine
+	# this code is basically here as an example of why we might want an iterator
+	if( $catchall_data->{intfCollect} < 100 )
+	{
+		my $ids = $self->nmisng_node->get_inventory_ids( concept => 'interface' );
+		foreach my $id ( @$ids )
+		{
+			my ($inventory,$error_message) = $self->nmisng_node->inventory( _id => $id, debug=>1 );
+			my $thisentry = ($inventory) ? $inventory->data : {};
+			if( !$inventory || $error_message)
+			{
+				print "no inventory for node:$self->{name}, id:$id, error_message:$error_message".Carp::longmess();
+			}
+			my $ifDescr   = $thisentry->{ifDescr};
+
+			$ifDescrInfo{$ifDescr} = {%$thisentry};
+		}
+	}
+	else
+	{
+		my $result = $self->nmisng_node->get_inventory_model( concept => 'interface' );
+		if (my $error = $result->error)
+		{
+			$self->nmisng->log->error("get inventory model failed: $error");
+			return {};
+		}
+		foreach my $model (@{$result->data})
+		{
+			my $thisentry = $model->{data};
+			my $ifDescr   = $thisentry->{ifDescr};
+
+			$ifDescrInfo{$ifDescr} = {%$thisentry};
+		}
+	}
+	return \%ifDescrInfo;
+}
+
+
 #===================================================================
 
 # copy config and model info into node info table
