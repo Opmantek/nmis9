@@ -100,7 +100,7 @@ sub update_plugin
 			# set the inventory description to a nice string.
 			$cempinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} - $cempdata->{MemPoolName}");
 
-			my ( $op, $error ) = $cempinventory->save();
+			my ( $op, $error ) = $cempinventory->save( node => $node );
 			$NG->log->debug2(sub { "saved op: $op"});
 			if ($error)
 			{
@@ -438,7 +438,7 @@ sub collect_plugin
 					index      => undef,
 					data       => $rrdData,
 					item       => undef);
-	my ( $op, $error ) = $inventory->save();
+	my ( $op, $error ) = $inventory->save( node => $node );
 	$NG->log->debug2(sub {"saved inventory for Node '$node'; op: $op"});
 	if ($error)
 	{
@@ -454,7 +454,7 @@ sub collect_plugin
 					index      => undef,
 					data       => $rrdData,
 					item       => undef);
-	my ( $op, $error ) = $inventory->save();
+	my ( $op, $error ) = $inventory->save( node => $node );
 	$NG->log->info( "saved op: $op");
 	if ($error)
 	{

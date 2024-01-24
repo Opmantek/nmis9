@@ -721,8 +721,6 @@ while (!$exit_marker)
 							next;
 						}
 				}
-		
-				
 			}
 
 			# we're done with this flock
@@ -2711,7 +2709,7 @@ sub fping_loop
 				}
 				else
 				{
-					$pinginv->save if ($pinginv->is_new); # timed data only possible once inventory is in the db
+					$pinginv->save( node => $node) if ($pinginv->is_new); # timed data only possible once inventory is in the db
 
 					# this saves both timed data and the inventory
 					my $error = $pinginv->add_timed_data(
@@ -2719,6 +2717,7 @@ sub fping_loop
 						data => $timeddata,
 						derived_data => {},
 						subconcept => "ping",
+						node => $node
 							);
 					$nmisng->log->error("Failed to add ping timed data: $error") if ($error);
 				}
@@ -2739,7 +2738,7 @@ sub fping_loop
 					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
 					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-					my ( $op, $error ) = $catchall_inventory->save;
+					my ( $op, $error ) = $catchall_inventory->save( node => $node);
 					if ($error)
 					{
 						$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $error") if ($error);
@@ -2827,7 +2826,7 @@ sub fping_loop
 					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
 					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-					my ( $op, $error ) = $catchall_inventory->save;
+					my ( $op, $error ) = $catchall_inventory->save( node => $node );
 					if ($error)
 					{
 						$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $error") if ($error);

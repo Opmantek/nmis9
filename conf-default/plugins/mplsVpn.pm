@@ -105,7 +105,7 @@ sub update_plugin
 				$NG->log->debug5(sub {"Node '$node' 'mplsVpnVrf' entry $i After " . Dumper($entry)});
 				# Save the results in the database.
 				$mplsVpnVrf->data($entry);
-				my ( $op, $saveError ) = $mplsVpnVrf->save();
+				my ( $op, $saveError ) = $mplsVpnVrf->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsVpnVrf' inventory for ID '$mplsVpnVrfId' in Node '$node'; Error: $saveError");
@@ -157,7 +157,7 @@ sub update_plugin
 				$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnVrf' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsL3VpnVrf->data($entry);
-				my ( $op, $saveError ) = $mplsL3VpnVrf->save();
+				my ( $op, $saveError ) = $mplsL3VpnVrf->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsL3VpnVrf' inventory for ID '$mplsL3VpnVrfId' in Node '$node'; Error: $saveError");
@@ -215,7 +215,7 @@ sub update_plugin
 				}
 				# Save the results back to the database.
 				$mplsL3VpnIfConf->data($entry);
-				my ( $op, $saveError ) = $mplsL3VpnIfConf->save();
+				my ( $op, $saveError ) = $mplsL3VpnIfConf->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsL3VpnIfConf' inventory for ID '$mplsL3VpnIfConfId' in Node '$node'; Error: $saveError");
@@ -273,7 +273,7 @@ sub update_plugin
 				$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnInterface' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsVpnInterface->data($entry);
-				my ( $op, $saveError ) = $mplsVpnInterface->save();
+				my ( $op, $saveError ) = $mplsVpnInterface->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsVpnInterface' inventory for ID '$mplsVpnInterfaceId' in Node '$node'; Error: $saveError");
@@ -350,7 +350,7 @@ sub update_plugin
 				$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnVrfRT' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsL3VpnVrfRT->data($entry);
-				my ( $op, $saveError ) = $mplsL3VpnVrfRT->save();
+				my ( $op, $saveError ) = $mplsL3VpnVrfRT->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsL3VpnVrfRT' inventory for ID '$mplsL3VpnVrfRTId' in Node '$node'; Error: $saveError");
@@ -413,7 +413,7 @@ sub update_plugin
 				$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsVpnVrfRouteTarget->data($entry);
-				my ( $op, $saveError ) = $mplsVpnVrfRouteTarget->save();
+				my ( $op, $saveError ) = $mplsVpnVrfRouteTarget->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsVpnVrfRouteTarget' inventory for ID '$mplsVpnVrfRouteTargetId' in Node '$node'; Error: $saveError");
@@ -464,7 +464,7 @@ sub update_plugin
 				$NG->log->debug5(sub {"Node '$node' Concept 'mplsLdpEntity' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsLdpEntity->data($entry);
-				my ( $op, $saveError ) = $mplsLdpEntity->save();
+				my ( $op, $saveError ) = $mplsLdpEntity->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsLdpEntity' inventory for ID '$mplsLdpEntityId' in Node '$node'; Error: $saveError");
@@ -515,7 +515,7 @@ sub update_plugin
 				$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnLdpCisco' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsVpnLdpCisco->data($entry);
-				my ( $op, $saveError ) = $mplsVpnLdpCisco->save();
+				my ( $op, $saveError ) = $mplsVpnLdpCisco->save( node => $node );
 				if ($saveError)
 				{
 					$NG->log->error("Failed to save Concept 'mplsVpnLdpCisco' inventory for ID '$mplsVpnLdpCiscoId' in Node '$node'; Error: $saveError");
