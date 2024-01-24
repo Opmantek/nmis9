@@ -591,6 +591,7 @@ while (!$exit_marker)
 
 		my $tag = int(rand(1<<31));
 		$nmisng->log->info("Jobs for this $operation operation share tag \"$tag\"");
+		my ($bulk,$runbulk) = (NMISNG::DB::begin_bulk( collection => $nmisng->queue_collection ),0);
 		for my $nodeuuid (keys %{$duenodes->{nodes}})
 		{
 			# let's hand the work to somebody!
@@ -631,11 +632,13 @@ while (!$exit_marker)
 																											 ($operation eq "update" && $duenodes->{newnodes}->{$nodeuuid}?
 																												1 : $config->{"priority_$operation"} // 0.5),
 																									 in_progress => 0,
-																									 args => \%jobargs,
-																									 tag => $tag });
+																									 args => \%jobargs,																									 
+																									 tag => $tag },
+																									 bulk => $bulk);
+			$runbulk = 1;
 			if ($error)
 			{
-				$nmisng->log->error("failed to queue job $operation on $nodeuuid: $error!");
+				$nmisng->log->error("failed to queue job op: $operation on $nodeuuid: $error!");
 				next;
 			}
 			$nmisng->log->debug2("Queued job $operation for $nodeuuid ($duenodes->{nodes}->{$nodeuuid}->{name})");
@@ -650,6 +653,12 @@ while (!$exit_marker)
 						 $jobdueat ];
 			}
 		}
+		if( $runbulk ) {
+			my $result = NMISNG::DB::end_bulk( bulk => $bulk );
+			if( $result->{success} != 1 ) {
+				$nmisng->log->error("failed to queue job, errory_type: $result->{error_type}, error: $result->{error}!");
+			}
+		}
 	}
 
 	# then look at completed related jobs, ie. same op and same tag
@@ -658,6 +667,8 @@ while (!$exit_marker)
 	# in_flight carries operation, tag, uuid and queue id plus desired start time
 	# check op+tag, any jobs left in queue? wait longer. none left? schedule plugin
 	# fixme: should we add logic to give up on plugins for stuck/overdue jobs? or leave that to nmis-cli act=abort
+	
+	my ($bulk,$runbulk) = (NMISNG::DB::begin_bulk( collection => $nmisng->queue_collection ),0);
 	for my $icanhasplugin (qw(update collect))
 	{
 		$nmisng->log->debug2("Checking (un)finished $icanhasplugin jobs");
@@ -713,8 +724,10 @@ while (!$exit_marker)
 																												 args => {
 																													 phase => $icanhasplugin, # post-collect or post-update plugins
 																													 uuid => [ keys %$thisflock ], # these were the nodes in the op
-																												 },
-																												 tag => $tag });
+																												 },																												 
+																												 tag => $tag },
+																												 bulk => $bulk);
+						$runbulk = 1;
 						if ($error)
 						{
 							$nmisng->log->error("failed to queue post-$icanhasplugin plugins for tag $tag: $error!");
@@ -730,7 +743,12 @@ while (!$exit_marker)
 			++$ready_jobs;
 		}
 	}
-
+	if( $runbulk ) {
+		my $result = NMISNG::DB::end_bulk( bulk => $bulk );
+		if( $result->{success} != 1 ) {
+			$nmisng->log->error("failed to queue job, errory_type: $result->{error_type}, error: $result->{error}!");
+		}
+	}
 
 	# fixme9! how about reports? schedulable or not?
 
@@ -741,6 +759,7 @@ while (!$exit_marker)
 	push @schedulables, "thresholds"
 			if (NMISNG::Util::getbool($config->{global_threshold})
 					and !NMISNG::Util::getbool($config->{threshold_poll_node}));
+	my ($bulk,$runbulk) = (NMISNG::DB::begin_bulk( collection => $nmisng->queue_collection ),0);
 	for my $automagic (@schedulables)
 	{
 		my $period = $config->{"schedule_$automagic"};
@@ -802,9 +821,11 @@ while (!$exit_marker)
 				type => $jobtype,
 				time => Time::HiRes::time,
 				# some ops are mostly nice-to-have, others are much more critical
-				priority => $config->{"priority_$jobtype"} // 0.5,
-				in_progress => 0, } );
+				priority => $config->{"priority_$jobtype"} // 0.5,				
+				in_progress => 0, },
+				bulk => $bulk );
 
+			$runbulk = 1;
 			if ($error)
 			{
 				$nmisng->log->error("failed to queue job: $error!");
@@ -814,6 +835,12 @@ while (!$exit_marker)
 		else
 		{
 			$nmisng->log->debug3("skipping $automagic, not due: last performed at $previous");
+		}
+	}
+	if( $runbulk ) {
+		my $result = NMISNG::DB::end_bulk( bulk => $bulk );
+		if( $result->{success} != 1 ) {
+			$nmisng->log->error("failed to queue job, errory_type: $result->{error_type}, error: $result->{error}!");
 		}
 	}
 
