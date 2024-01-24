@@ -405,8 +405,8 @@ These modules can be installed with CPAN:
 	# curl is present in most basic redhat install
 	# wget is present on debian/ubuntu via priority:important
 	# however, ca-certificates may be missing/incomplete at this time
-	my $testres = system("curl --insecure -L -s -m 10 --retry 2 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
-	$testres = system("wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
+	my $testres = system("curl --insecure -L -s -m 10 --retry 2 -o /dev/null https://firstwave.com/ 2>/dev/null") >> 8;
+	$testres = system("wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://firstwave.com/ 2>/dev/null") >> 8
 			if ($testres);
 	my $can_use_web = !$testres;
 
@@ -414,7 +414,8 @@ These modules can be installed with CPAN:
 	{
 		logmsg(0, "Cannot install missing CPAN modules: ".join(" ",@missingones));
 
-		print "Cannot Cannot install missing CPAN modules!\nNMIS will not work properly until the following Perl modules are installed (from CPAN):\n\n".join(" ",@missingones)
+		print "Cannot install missing CPAN modules!\nNMIS will not work properly until the following Perl modules are installed (from CPAN):\n\n"
+				.join(" ",@missingones)
 				."\n\nWe recommend that you stop the installer now, resolve the dependencies,
 and then restart the installer.\n\n";
 
@@ -588,7 +589,7 @@ run_hooks("postinstall"); # unlock
 # fixme  move chmod(0644, $logfile) if (-f $logfile);
 
 
-printBanner("installation complete.");
+printBanner("Installation complete.");
 exit 0;
 
 
@@ -694,7 +695,7 @@ sub check_installed_modules
 																	 # minversion => "0.3",
 																	 priority => 100 };
 
-	# we strictly requre mojolicious 8.11 or newer,
+	# we strictly require mojolicious 8.11 or newer,
 	# as the older mojo::log api is too different
 	$modules{"Mojolicious"} = { file => undef, usetype => "use",
 															usedby => "lib/NMISNG/Log.pm",
@@ -776,7 +777,7 @@ sub check_installed_modules
 	foreach my $modname (@ourStuffArr)
 	{
 		chomp($modname);
-		print ("Our Stuff Includes '$modname'\n");
+		## for debugging: print ("Our Stuff Includes '$modname'\n");
 		$ourStuffMap{$modname} = 1;
 	}
 	my @editMissing;
@@ -803,7 +804,7 @@ NMIS AAA system.\n\n|;
 		{
 			printBanner("Some Required Perl Modules are missing (or too old)!");
 			print qq|The following Perl modules are missing or too old and must
-to be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @critmissing)."\n\n";
+be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @critmissing)."\n\n";
 
 			logmsg(0, "Missing Required modules: ".join(" ", @critmissing));
 		}
