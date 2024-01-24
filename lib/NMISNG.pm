@@ -4886,7 +4886,7 @@ sub update_links
 sub update_queue
 {
 	my ( $self, %args ) = @_;
-	my ( $jobdata, $atomic ) = @args{"jobdata", "atomic"};
+	my ( $jobdata, $atomic, $bulk ) = @args{"jobdata", "atomic","bulk"};
 
 	return "Cannot update queue entry without valid jobdata argument!"
 		if (
@@ -4962,7 +4962,8 @@ sub update_queue
 	{
 		my $res = NMISNG::DB::insert(
 			collection => $self->queue_collection,
-			record     => $jobdata
+			record     => $jobdata,
+			bulk => $bulk
 		);
 		return "Insertion of queue entry failed: $res->{error}" if ( !$res->{success} );
 		$jobdata->{_id} = $jobid = $res->{id};
@@ -4979,7 +4980,8 @@ sub update_queue
 		my $res = NMISNG::DB::update(
 			collection => $self->queue_collection,
 			query      => NMISNG::DB::get_query( and_part => \%qargs ),
-			record     => $jobdata
+			record     => $jobdata,
+			bulk => $bulk
 		);
 		$jobdata->{_id} = $jobid;    # put it back!
 		return "Update of queue entry failed: $res->{error}" if ( !$res->{success} );
