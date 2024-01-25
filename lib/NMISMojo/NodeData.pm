@@ -43,6 +43,8 @@ use Data::Dumper;
 use UUID::Tiny qw(:std);
 use NMISNG::Util;
 use NMISNG::Log;
+use NMISNG::Graphs;
+use NMISNG::Sys;
 # use NMISx;
 # use Clone;
 # use Carp;
@@ -127,32 +129,98 @@ sub find_resource
 
 	return undef if ($self->{type} !~ /^(node|nodeip)$/);
 
-	#this should come from args but o well
-   
 	#my $redact = getBool($self->{controller}->check_access( access_requirement => 'access_redacted_values'),1);
 
     my $nmisng = $self->get_nmisng_obj();
-    
+    $nmisng->log->info("Getting the data for node $lookup");
+
     if ($self->{type} eq "node")	# opcharts visual mode
 	{
-		
-        # node data for node api
-        # my $node = $nmisng->get_nodes_model();
-        # print Dumper "Node\n";
-        # print Dumper %{$node};
+		# node data for node api
         my $nodeobj = $nmisng->node(uuid =>  $lookup);
+        #return undef if (!$nodeobj);
+
+        # if (!$nodeobj){
+        #     $nmisng->log->error("Invalid node/uuid arguments, no matching node exists!");
+        #     return undef;
+        # }		
+
         if ($nodeobj){
             my ($inventory, $error) =  $nodeobj->inventory( concept => "catchall" );
             my $catchall = $inventory->data();
-            return $catchall;
-        }
+            my $graphs = $catchall->{nodegraph};
+
+            if ($graphs){
+                my $smallGraphHeight = 50;
+                my $smallGraphWidth  = 400;
+
+                my $graphsObj = NMISNG::Graphs->new( nmisng => $nmisng );
+                my $node = $nodeobj->name;
+                my $Sys = NMISNG::Sys->new(nmisng => $nmisng);
+                $Sys->init( name => $node, snmp => 'false' );
+                my $GTT  = $Sys->loadGraphTypeTable();             # translate graphtype to type
+
+                my $cnt    = 0;
+		        my $gotAltCpu = 0;
+
+                foreach my $graph (@$graphs)
+                {
+                    my @pr;
+                    next unless $GTT->{$graph} ne '';
+                    next if $graph eq 'response' and NMISNG::Util::getbool( $catchall->{ping}, "invert" );
+                    $cnt++;
+                    # process multi graphs
+                    if ($graph eq 'hrsmpcpu' and not $gotAltCpu)
+                    {
+                        foreach my $index ( $Sys->getTypeInstances(graphtype =>"hrsmpcpu")) {
+                            my $inventory = $Sys->inventory( concept => 'device', index => $index);
+                            if ($inventory)
+                            {
+                                my $data = ($inventory) ? $inventory->data() : {};
+                                push @pr, ["Server CPU $index ($data->{hrDeviceDescr})", "hrsmpcpu", "$index"];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        push @pr, [ $Sys->graphHeading(graphtype => $graph), $graph] if $graph ne "hrsmpcpu";
+                        if ( $graph =~ /(ss-cpu|WindowsProcessor)/ )
+                        {
+                            $gotAltCpu = 1;
+                        }
+                    }
+                    
+                    # now print it
+                    for my $graphdata (@pr )
+                    {
+                        my $graphLink = $graphsObj->htmlGraph(
+							graphtype => $graphdata->[1],
+							node      => $node,
+							intf      => $graphdata->[2],
+							width     => $smallGraphWidth,
+							height    => $smallGraphHeight
+						);
+                        if ($graphLink !~ /Error/ ) {
+                            $catchall->{graphLink}->{$graphdata->[1]} = $graphLink;
+                        }
+                        else {
+                            $nmisng->log->error("Error: Failed to the graph url for graphtype $graph for $node");
+                        }
+                    }
+                }
+            }else
+            {
+                $nmisng->log->error("Error: No graph(s) found for $node");
+            }
+            #print OFILEDUMP Dumper $catchall;
+            return $catchall; 
+        }          
         else {
-            $nmisng->log->error("Error: $lookup not found!");
+            $nmisng->log->error("Error: Invalid node/uuid arguments, no matching node exists!");
 		    return undef;
         }
 	}
+
 }
-
-
 
 1;
