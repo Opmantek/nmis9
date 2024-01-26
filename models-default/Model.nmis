@@ -749,6 +749,19 @@
         }
       }
     },  
+    'Dell Computer Corporation' => {
+      'order' => { 
+        '10' => {
+          'DellSwitch' => 'Ethernet Switch',
+        },
+        '20' => {
+          'sdeDell' => '.',
+        },
+        '21' => {
+          'sdeDell' => '',
+        },
+      }
+    },
   },
   'stats' => {
     'type' => {

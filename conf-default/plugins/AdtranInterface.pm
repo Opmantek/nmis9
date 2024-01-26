@@ -39,6 +39,8 @@ use NMISNG::Util;				# for the conf table extras
 use NMISNG::rrdfunc;
 use Data::Dumper;
 use NMISNG::Snmp;						# for snmp-related access
+use File::Copy qw(move);
+
 
 my $interestingInterfaces = qr/ten-gigabit-ethernet|^muxponder-highspeed/;
 
@@ -48,7 +50,6 @@ sub update_plugin
 	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
 	my $intfData = undef;
-	my $intfInfo = undef;
 	my $interface_max_number = $C->{interface_max_number} || 5000;
 	$NG->log->debug("Max Interfaces are: '$interface_max_number'");
 
@@ -63,10 +64,10 @@ sub update_plugin
 	# discovery will populate all interfaces normally.
 	if ( $catchall->{nodeModel} !~ /Adtran/ or !NMISNG::Util::getbool($catchall->{collect}))
 	{
-		$NG->log->info("Max Interfaces are: '$interface_max_number'");
-		$NG->log->info("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
-		$NG->log->info("Node '$node', has $catchall->{ifNumber} interfaces.");
-		$NG->log->info("Node '$node', Model '$catchall->{nodeModel}' does not qualify for this plugin.");
+		$NG->log->debug("Max Interfaces are: '$interface_max_number'");
+		$NG->log->debug("Collection status is ".NMISNG::Util::getbool($catchall->{collect}));
+		$NG->log->debug("Node '$node', has $catchall->{ifNumber} interfaces.");
+		$NG->log->debug("Node '$node', Model '$catchall->{nodeModel}' does not qualify for this plugin.");
 		return (0,undef);
 	}
 	else
@@ -143,22 +144,24 @@ sub update_plugin
 	$NG->log->debug($nameDump);
 
 	$intfTotal = 0;
-	$intfInfo->{index}         = "Index";
-	$intfInfo->{interface}     = "Interface Name";
-	$intfInfo->{ifIndex}       = "Interface Index";
-	$intfInfo->{ifName}        = "Interface Internal Name";
-	$intfInfo->{Description}   = "Interface Description";
-	$intfInfo->{ifDesc}        = "Interface Internal Description";
-	$intfInfo->{ifType}        = "Interface Type";
-	$intfInfo->{ifSpeed}       = "Interface Speed";
-	$intfInfo->{ifSpeedIn}     = "Interface Speed In";
-	$intfInfo->{ifSpeedOut}    = "Interface Speed Out";
-	$intfInfo->{ifAdminStatus} = "Interface Administrative State";
-	$intfInfo->{ifOperStatus}  = "Interface Operational State";
-	$intfInfo->{setlimits}     = "Interface Set Limnits";
-	$intfInfo->{collect}       = "Interface Collection Status";
-	$intfInfo->{event}         = "Interface Event Status";
-	$intfInfo->{threshold}     = "Interface Threshold Status";
+	my $intfInfo = [
+		{ index         => "Index" },
+		{ interface     => "Interface Name" },
+		{ ifIndex       => "Interface Index" },
+		{ ifName        => "Interface Internal Name" },
+		{ Description   => "Interface Description" },
+		{ ifDesc        => "Interface Internal Description" },
+		{ ifType        => "Interface Type" },
+		{ ifSpeed       => "Interface Speed" },
+		{ ifSpeedIn     => "Interface Speed In" },
+		{ ifSpeedOut    => "Interface Speed Out" },
+		{ ifAdminStatus => "Interface Administrative State" },
+		{ ifOperStatus  => "Interface Operational State" },
+		{ setlimits     => "Interface Set Limnits" },
+		{ collect       => "Interface Collection Status" },
+		{ event         => "Interface Event Status" },
+		{ threshold     => "Interface Threshold Status" }
+	];
 
 	# We build the data first to capture duplicate names and other issues
 	# we need to compensate for along the way.
@@ -372,6 +375,78 @@ sub update_plugin
 
 		$NG->log->info("Interface description is '$intfSubData->{ifDescr}'");
 
+		# an earlier version of the plugin caused malformed RRD names through some kind of race condition.
+		# the solution was to remove the inventory storage creation the plugin and let NMIS do it later
+		# when collecting interface data. e.g. ten-gigabit-ethernet-1_B_1.rrd instead of ten-gigabit-ethernet-1-b-1.rrd
+
+		## Get the RRD file name to use for storage.
+ 		#my $dbname = $S->makeRRDname(graphtype => "interface",
+ 		#							index      => $index,
+ 		#							inventory  => $intfSubData,
+ 		#							extras     => $intfSubData,
+ 		#							relative   => 1);
+ 		#$NG->log->debug("Collect Adtran data info check storage interface, dbname '$dbname'.");
+		#
+ 		## Set the storage name into the inventory model
+ 		#$inventory->set_subconcept_type_storage(type => "rrd",
+ 		#										subconcept => "interface",
+ 		#										data => $dbname) if ($dbname);
+
+		# for devices running the old version of the plugin they will have files called ten-gigabit-ethernet-1_B_1.rrd
+		# NMIS collect will be using find_subconcept_type_storage and saving into these RRD's
+		# to fix the names, we need to redo the RRD name AND update the storage.  We only need to do this for the interface concept.
+
+		# use this for more concepts for ("interface", "pkts", "pkts_hc" )
+
+
+		for ("interface")
+		{
+			# has storage been defined?  if so check it, if first time, none will be defined.
+			if (my $storage = $inventory->find_subconcept_type_storage(type => "rrd",
+						subconcept      => $_,
+						relative => 1 )) 
+			{
+				# get the regular DB name the simple way.
+				my $dbname = $S->makeRRDname(type => $_,
+						index     => $index,
+						#item      => $_,
+						relative => 1 );
+				
+				# compare the storage and the db name and if they are different, fix them.
+				if ( $dbname ne $storage and defined $dbname and defined $storage) {
+					$NG->log->info("The RRD names do not match for $_ dbname=$dbname storage=$storage");
+					# rename the file and update RRD storage.
+					# only only if the file is readable and exists.
+					if ( -r "$C->{database_root}/$storage" ) {
+						# move (rename) the files RRD files
+						if ( move("$C->{database_root}/$storage","$C->{database_root}/$dbname") ) {
+							# if move went well update the storage.
+							$inventory->set_subconcept_type_storage(type => "rrd",
+										subconcept => $_,
+										data => $dbname) if ($dbname);
+							# The above has added data to the inventory, that we now save.
+							#my ( $op, $subError ) = $inventory->save();
+							#if ($subError)
+							#{
+							#	$NG->log->error("Failed to save storage details for Interface '$index': $subError");
+							#}
+						}
+						else {
+							$NG->log->error("Unable to rename file for interface $index $C->{database_root}/$storage");
+						}
+					}
+					else {
+						$NG->log->error("File not found for $C->{database_root}/$storage");
+					}
+				}
+				else {
+					$NG->log->info("The RRD names match and are $storage");
+				}
+			}
+		}
+
+
+
 		my $desiredlimit = $intfData->{$index}{setlimits};
 		# $NG->log->info("Desiredlimit: $desiredlimit" );
 		# $NG->log->info("ifSpeed: " . $intfData->{$index}{ifSpeed});
@@ -419,12 +494,12 @@ sub update_plugin
 	
 						if ( $curval ne $desiredval )
 						{
-							$NG->log->debug2( "rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit");
+							$NG->log->debug2(sub { "rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit"});
 							RRDs::tune( $rrdfile, "--maximum", "$dsname:$desiredval" );
 						}
 						else
 						{
-							$NG->log->debug2("rrd section $datatype, ds $dsname, current limit $curval is correct");
+							$NG->log->debug2(sub {"rrd section $datatype, ds $dsname, current limit $curval is correct"});
 						}
 					}
 				}
@@ -433,7 +508,7 @@ sub update_plugin
 
 		# The above has added data to the inventory, that we now save.
 		my ( $op, $subError ) = $inventory->save();
-		$NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+		$NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		if ($subError)
 		{
 			$NG->log->error("Failed to save inventory for Interface '$index': $subError");

@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="9.4.5";
+our $VERSION="9.4.6";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -154,7 +154,68 @@ if ( !-d $tmpdir )
 {
 	NMISNG::Util::createDir($tmpdir);
 }
-NMISNG::Util::verifyNMISEncryption(log => $logger);
+
+my $encryption_enabled = NMISNG::Util::getbool($config->{'global_enable_password_encryption'});
+if ($encryption_enabled)
+{
+	if (NMISNG::Util::isEOSAvailable())
+	{
+		if (!NMISNG::Util::testEncryption())
+		{
+			print("Encryption of Secrets is enabled, and encryption is broken or not supported!\n");
+			if (-t *STDIN)
+			{
+				my $answer = NMISNG::Util::askYesNo("Do you want to disable EOS and continue?", "no");
+				unless($answer)
+				{
+					print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
+					exit(255);
+				}
+				else
+				{
+					print "Disabling Encryption of Secrets...\n";
+					unless (NMISNG::Util::disableEOS())
+					{
+						print "Disabling Encryption of Secrets failed, unable to continue!\n";
+						exit(255);
+					}
+				}
+			}
+			else
+			{
+				print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
+				exit(255);
+			}
+		}
+	}
+	else
+	{
+		if (-t *STDIN)
+		{
+			my $answer = NMISNG::Util::askYesNo("Do you want to disable EOS and continue?", "no");
+			unless($answer)
+			{
+				print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
+				exit(255);
+			}
+			else
+			{
+				print "Disabling Encryption of Secrets...\n";
+				unless (NMISNG::Util::disableEOS())
+				{
+					print "Disabling Encryption of Secrets failed, unable to continue!\n";
+					exit(255);
+				}
+			}
+		}
+		else
+		{
+			print "Encryption of Secrets is enabled and does not work, unable to continue!\n";
+			exit(255);
+		}
+	}
+}
+
 my $wantfpingworker = NMISNG::Util::getbool($config->{nmisd_fping_worker});
 my $fpingpath4;
 my $fpingpath6;

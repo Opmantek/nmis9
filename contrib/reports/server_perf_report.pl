@@ -57,7 +57,7 @@ use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
 
 my $PROGNAME      = basename($0);
-my $debugsw       = 0;
+my $debugsw       = -1;
 my $exceptionssw  = 0;
 my $helpsw        = 0;
 my $tsEnd         = 0;
@@ -84,6 +84,16 @@ die unless (GetOptions('debug:i'    => \$debugsw,
                        'help'       => \$helpsw,
                        'usage'      => \$usagesw,
                        'version'    => \$versionsw));
+
+# --debug or -d returns 0, so we have to fix the handling.
+if ($debugsw == 0)
+{
+	$debugsw = 1;
+}
+elsif ($debugsw == -1)
+{
+	$debugsw = 0;
+}
 
 # For the Version mode, just print it and exit.
 printSum("$PROGNAME Server Performance Reports, version $VERSION");
@@ -113,7 +123,7 @@ my $debug   = $debugsw;
 $debug      = NMISNG::Util::getdebug_cli($arg->{debug}) if (exists($arg->{debug}));   # Backwards compatibility
 print "Debug = '$debug'\n" if ($debug);
 my $exceptions   = $exceptionssw;
-$exceptions = NMISNG::Util::getbool_cli($arg->{exceptions}) if (exists($arg->{exceptions}));   # Backwards compatibility
+$exceptions = NMISNG::Util::getbool_cli("exceptions", $arg->{exceptions}, 0) if (exists($arg->{exceptions}));   # Backwards compatibility
 
 # For group filtering
 my $group  = $arg->{group} || "";

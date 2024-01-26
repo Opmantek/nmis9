@@ -92,17 +92,17 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsVpnVrf->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsVpnVrf' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnVrf' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			if ( $entry->{index} =~ /(\d+)\.(.+)$/ ) {
 				my $indexThing = $1;
 				my $name       = $2;
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrf' entry $i Index: .....  '$indexThing'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrf' entry $i mplsVpnVrfId  '$mplsVpnVrfId'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrf' entry $i Name: ......  '$name'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnVrf' entry $i Index: .....  '$indexThing'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnVrf' entry $i mplsVpnVrfId  '$mplsVpnVrfId'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnVrf' entry $i Name: ......  '$name'."});
 				$entry->{mplsVpnVrfName} = join("", map { chr($_) } split(/\./,$name));
 				$entry->{mplsVpnVrfId}   = $mplsVpnVrfId;
-				$NG->log->debug5("Node '$node' 'mplsVpnVrf' entry $i After " . Dumper($entry));
+				$NG->log->debug5(sub {"Node '$node' 'mplsVpnVrf' entry $i After " . Dumper($entry)});
 				# Save the results in the database.
 				$mplsVpnVrf->data($entry);
 				my ( $op, $saveError ) = $mplsVpnVrf->save();
@@ -144,17 +144,17 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsL3VpnVrf->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsL3VpnVrf' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnVrf' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			if ( $entry->{index} =~ /(\d+)\.(.+)$/ ) {
 				my $indexThing = $1;
 				my $name       = $2;
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnVrf' entry $i Index: .......  '$indexThing'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnVrf' entry $i mplsL3VpnVrfId  '$mplsL3VpnVrfId'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnVrf' entry $i Name: ........  '$name'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnVrf' entry $i Index: .......  '$indexThing'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnVrf' entry $i mplsL3VpnVrfId  '$mplsL3VpnVrfId'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnVrf' entry $i Name: ........  '$name'."});
 				$entry->{mplsL3VpnVrfName}  = join("", map { chr($_) } split(/\./,$name));
 				$entry->{mplsL3VpnVrfVpnId} = $mplsL3VpnVrfId;
-				$NG->log->debug5("Node '$node' Concept 'mplsL3VpnVrf' entry $i After " . Dumper($entry));
+				$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnVrf' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsL3VpnVrf->data($entry);
 				my ( $op, $saveError ) = $mplsL3VpnVrf->save();
@@ -196,22 +196,22 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsL3VpnIfConf->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsL3VpnIfConf' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnIfConf' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			if ( $entry->{index} =~ /(\d+)\.(.+)\.(\d+)$/ ) {
 				my $indexThing           = $1;
 				my $mplsL3VpnVrfName     = $2;
 				my $mplsL3VpnIfConfIndex = $3;
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnIfConf' entry $i Index: .............. '$indexThing'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnIfConf' entry $i mplsL3VpnVrfName: ... '$mplsL3VpnVrfName'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnIfConf' entry $i mplsL3VpnIfConfIndex: '$mplsL3VpnIfConfIndex'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnIfConf' entry $i Index: .............. '$indexThing'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnIfConf' entry $i mplsL3VpnVrfName: ... '$mplsL3VpnVrfName'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnIfConf' entry $i mplsL3VpnIfConfIndex: '$mplsL3VpnIfConfIndex'."});
 				$entry->{mplsL3VpnVrfName} = join("", map { chr($_) } split(/\./,$mplsL3VpnVrfName));
 				$entry->{mplsL3VpnIfConfIndex} = $mplsL3VpnIfConfIndex;
 				if ( defined $IF->{$entry->{mplsL3VpnIfConfIndex}}{ifDescr} ) {
 					$entry->{ifDescr} = $IF->{$entry->{mplsL3VpnIfConfIndex}}{ifDescr};
 					$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{mplsL3VpnIfConfIndex}&node=$node";
 					$entry->{ifDescr_id} = "node_view_$node";
-					$NG->log->debug5("Node '$node' Concept 'mplsL3VpnIfConf' entry $i After " . Dumper($entry));
+					$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnIfConf' entry $i After " . Dumper($entry)});
 				}
 				# Save the results back to the database.
 				$mplsL3VpnIfConf->data($entry);
@@ -254,15 +254,15 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsVpnInterface->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsVpnInterface' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnInterface' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			if ( $entry->{index} =~ /(\d+)\.(.+)\.(\d+)$/ ) {
 				my $indexThing = $1;
 				my $name       = $2;
 				my $ifIndex    = $3;
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnInterface' entry $i Index: . '$indexThing'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnInterface' entry $i Name: .. '$name'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnInterface' entry $i ifIndex: '$ifIndex'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnInterface' entry $i Index: . '$indexThing'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnInterface' entry $i Name: .. '$name'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnInterface' entry $i ifIndex: '$ifIndex'."});
 				$entry->{mplsVpnVrfName} = join("", map { chr($_) } split(/\./,$name));
 				$entry->{ifIndex} = $ifIndex;
 				if ( defined $IF->{$entry->{ifIndex}}{ifDescr} ) {
@@ -270,7 +270,7 @@ sub update_plugin
 					$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{ifIndex}&node=$node";
 					$entry->{ifDescr_id} = "node_view_$node";
 				}
-				$NG->log->debug5("Node '$node' Concept 'mplsVpnInterface' entry $i After " . Dumper($entry));
+				$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnInterface' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsVpnInterface->data($entry);
 				my ( $op, $saveError ) = $mplsVpnInterface->save();
@@ -325,16 +325,16 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsL3VpnVrfRT->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsL3VpnVrfRT' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnVrfRT' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			# There seems to be a crazy character in this MIB!
 			if ( $entry->{index} =~ /\d+\.(.+)\.(\d+)\.(\d+)$/ ) {
 				my $mplsL3VpnVrfName    = $1;
 				my $mplsL3VpnVrfRTIndex = $2;
 				my $mplsL3VpnVrfRTType  = $3;
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnVrfRT' entry $i mplsL3VpnVrfName: .. '$mplsL3VpnVrfName'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnVrfRT' entry $i mplsL3VpnVrfRTIndex: '$mplsL3VpnVrfRTIndex'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsL3VpnVrfRT' entry $i mplsL3VpnVrfRTType:  '$mplsL3VpnVrfRTType'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnVrfRT' entry $i mplsL3VpnVrfName: .. '$mplsL3VpnVrfName'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnVrfRT' entry $i mplsL3VpnVrfRTIndex: '$mplsL3VpnVrfRTIndex'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsL3VpnVrfRT' entry $i mplsL3VpnVrfRTType:  '$mplsL3VpnVrfRTType'."});
 				$entry->{mplsL3VpnVrfName} = join("", map { chr($_) } split(/\./,$mplsL3VpnVrfName));
 					$entry->{mplsL3VpnVrfRTIndex} = $mplsL3VpnVrfRTIndex;
 				$entry->{mplsL3VpnVrfRTType} = $mplsL3VpnVrfRTType;
@@ -347,7 +347,7 @@ sub update_plugin
 				elsif ( $mplsL3VpnVrfRTType == 3 ) {
 					$entry->{mplsL3VpnVrfRTType} = "both";
 				}
-				$NG->log->debug5("Node '$node' Concept 'mplsL3VpnVrfRT' entry $i After " . Dumper($entry));
+				$NG->log->debug5(sub {"Node '$node' Concept 'mplsL3VpnVrfRT' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsL3VpnVrfRT->data($entry);
 				my ( $op, $saveError ) = $mplsL3VpnVrfRT->save();
@@ -389,15 +389,15 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsVpnVrfRouteTarget->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			if ( $entry->{index} =~ /(.+)\.(\d+)\.(\d+)$/ ) {
 				my $mplsVpnVrfName             = $1;
 				my $mplsVpnVrfRouteTargetIndex = $2;
 				my $mplsVpnVrfRouteTargetType  = $3;
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i mplsVpnVrfName: ........... '$mplsVpnVrfName'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i mplsVpnVrfRouteTargetIndex: '$mplsVpnVrfRouteTargetIndex'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i mplsVpnVrfRouteTargetType:  '$mplsVpnVrfRouteTargetType'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i mplsVpnVrfName: ........... '$mplsVpnVrfName'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i mplsVpnVrfRouteTargetIndex: '$mplsVpnVrfRouteTargetIndex'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i mplsVpnVrfRouteTargetType:  '$mplsVpnVrfRouteTargetType'."});
 				$entry->{mplsVpnVrfName} = join("", map { chr($_) } split(/\./,$mplsVpnVrfName));
 				$entry->{mplsVpnVrfRouteTargetIndex} = $mplsVpnVrfRouteTargetIndex;
 				$entry->{mplsVpnVrfRouteTargetType} = $mplsVpnVrfRouteTargetType;
@@ -410,7 +410,7 @@ sub update_plugin
 				elsif ( $mplsVpnVrfRouteTargetType == 3 ) {
 					$entry->{mplsVpnVrfRouteTargetType} = "both";
 				}
-				$NG->log->debug5("Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i After " . Dumper($entry));
+				$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnVrfRouteTarget' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsVpnVrfRouteTarget->data($entry);
 				my ( $op, $saveError ) = $mplsVpnVrfRouteTarget->save();
@@ -452,16 +452,16 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsLdpEntity->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsLdpEntity' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsLdpEntity' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			if ( $entry->{index} =~ /(\d+\.\d+\.\d+\.\d+\.\d+\.\d+)\.(\d+)$/ ) {
 				my $mplsLdpEntityLdpId = $1;
 				my $mplsLdpEntityIndex = $2;
-				$NG->log->debug2(" Node '$node' Concept 'mplsLdpEntity' entry $i mplsLdpEntityLdpId: '$mplsLdpEntityLdpId'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsLdpEntity' entry $i mplsLdpEntityIndex: '$mplsLdpEntityIndex'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsLdpEntity' entry $i mplsLdpEntityLdpId: '$mplsLdpEntityLdpId'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsLdpEntity' entry $i mplsLdpEntityIndex: '$mplsLdpEntityIndex'."});
 				$entry->{mplsLdpEntityLdpId} = $mplsLdpEntityLdpId;
 				$entry->{mplsLdpEntityIndex} = $mplsLdpEntityIndex;
-				$NG->log->debug5("Node '$node' Concept 'mplsLdpEntity' entry $i After " . Dumper($entry));
+				$NG->log->debug5(sub {"Node '$node' Concept 'mplsLdpEntity' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsLdpEntity->data($entry);
 				my ( $op, $saveError ) = $mplsLdpEntity->save();
@@ -503,16 +503,16 @@ sub update_plugin
 			}
 			# Get the data you want to play with.
 			my $entry = $mplsVpnLdpCisco->data();
-			$NG->log->debug5("Node '$node' Concept 'mplsVpnLdpCisco' entry $i Before: " . Dumper($entry));
+			$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnLdpCisco' entry $i Before: " . Dumper($entry)});
 			# Transform, etc.
 			if ( $entry->{index} =~ /(\d+\.\d+\.\d+\.\d+\.\d+\.\d+)\.(\d+)$/ ) {
 				my $mplsLdpEntityLdpId = $1;
 				my $mplsLdpEntityIndex = $2;
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnLdpCisco' entry $i mplsLdpEntityLdpId: '$mplsLdpEntityLdpId'.");
-				$NG->log->debug2(" Node '$node' Concept 'mplsVpnLdpCisco' entry $i mplsLdpEntityIndex: '$mplsLdpEntityIndex'.");
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnLdpCisco' entry $i mplsLdpEntityLdpId: '$mplsLdpEntityLdpId'."});
+				$NG->log->debug2(sub {" Node '$node' Concept 'mplsVpnLdpCisco' entry $i mplsLdpEntityIndex: '$mplsLdpEntityIndex'."});
 				$entry->{mplsLdpEntityLdpId} = $mplsLdpEntityLdpId;
 				$entry->{mplsLdpEntityIndex} = $mplsLdpEntityIndex;
-				$NG->log->debug5("Node '$node' Concept 'mplsVpnLdpCisco' entry $i After " . Dumper($entry));
+				$NG->log->debug5(sub {"Node '$node' Concept 'mplsVpnLdpCisco' entry $i After " . Dumper($entry)});
 				# Save the results back to the database.
 				$mplsVpnLdpCisco->data($entry);
 				my ( $op, $saveError ) = $mplsVpnLdpCisco->save();

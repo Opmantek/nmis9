@@ -670,8 +670,8 @@ sub updateRRD
 	#64-bits (8 bytes),
 	my $bytes = $points * 8;
 
-	$S->nmisng->log->debug2("DS $theds, $points");
-	$S->nmisng->log->debug2("value $thevalue, $bytes bytes");
+	$S->nmisng->log->debug2(sub {"DS $theds, $points"});
+	$S->nmisng->log->debug2(sub {"value $thevalue, $bytes bytes"});
 
 	NMISNG::Util::logPolling("$type,$S->{name},$index,$item,$theds,$thevalue", $S->nmisng->config);
 
@@ -733,7 +733,7 @@ sub optionsRRD
 
 	confess("optionsRRD requires Sys argument!") if (ref($S) ne "NMISNG::Sys");
 
-	$S->nmisng->log->debug2("type $type, index $index");
+	$S->nmisng->log->debug2(sub {"type $type, index $index"});
 
 	my $mdlinfo = $S->mdl;
 	# find out rrd step and heartbeat values, possibly use type-specific values (which the polling policy would supply)
@@ -778,7 +778,7 @@ sub optionsRRD
 		{
 			if ($data->{$id}->{option} eq "nosave")
 			{
-				$S->nmisng->log->debug3("DS $id marked as nosave, ignoring.");
+				$S->nmisng->log->debug3(sub {"DS $id marked as nosave, ignoring."});
 				next;
 			}
 
@@ -793,7 +793,7 @@ sub optionsRRD
 		$range ||= "U:U";
 		$heartbeat ||= $timinginfo->{heartbeat};
 
-		$S->nmisng->log->debug2("ID of data is $id, source $source, range $range, heartbeat $heartbeat");
+		$S->nmisng->log->debug2(sub {"ID of data is $id, source $source, range $range, heartbeat $heartbeat"});
 		push @options,"DS:$id:$source:$heartbeat:$range";
 	}
 
@@ -846,7 +846,7 @@ sub createRRD
 	if (-f $database)
 	{
 		# nothing to do!
-		$S->nmisng->log->debug3("Database $database already exists");
+		$S->nmisng->log->debug3(sub {"Database $database already exists"});
 		return undef;
 	}
 
@@ -1190,7 +1190,7 @@ sub graphCBQoS
 			if ( $CBQosNames->[$i] =~ /^([\w-]+)$delimiter\w+$delimiter/ )
 			{
 				$parent_name = $1;
-				$S->nmisng->log->debug2("parent_name=$parent_name\n");
+				$S->nmisng->log->debug2(sub {"parent_name=$parent_name\n"});
 			}
 
 			if ( not $parent and not $gcount)

@@ -28,6 +28,10 @@
       'jnxOperations' => {
         'common-model' => 'Juniper-jnxOperations'
       },
+      'jnxCoS' => {
+        ### This section is off by default as controlled by model_policy.nmis
+        'common-model' => 'Juniper-jnxCoS'
+      },
     }
   },
   'interface' => {
@@ -454,7 +458,8 @@
   },
 
   'systemHealth' => {
-    'sections' => 'bgpPeer,ospfNbr,jnxOperations,macTable,lldp,lldpLocal,entityMib',
+	###  Note:  the following sections are turned off by model_policy.nmis by default Juniper_CoS, jnxDestinationClassUsage, jnxSourceClassUsage
+    'sections' => 'bgpPeer,ospfNbr,jnxOperations,lldp,lldpLocal,entityMib,Juniper_CoS,jnxDestinationClassUsage,jnxSourceClassUsage',
     'sys' => {
       'macTable' => {
         'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',

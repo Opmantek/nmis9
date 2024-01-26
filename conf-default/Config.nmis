@@ -292,6 +292,7 @@ my %hash = (
 	'auth_ldap_attr' => '',
 	'auth_ldap_context' => 'ou=people,dc=opmantek,dc=com',
 	'auth_ldap_server' => '192.168.1.5',
+	'auth_ldap_psw' => 'XXXXXXXXX',
 	'auth_ldaps_server' => '',
 	'auth_lockout_after' => 0,
 	'auth_login_motd' => 'Authentication required: Please log in with your appropriate username and password in order to gain access to this system',

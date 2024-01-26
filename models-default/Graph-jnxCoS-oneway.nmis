@@ -28,6 +28,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Juniper Class of Service',
 	'title' => {
 		'standard' => '$node from $datestamp_start to $datestamp_end',
 		'short' => '$node'

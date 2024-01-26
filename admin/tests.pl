@@ -70,14 +70,15 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=rrdname [datatype= index= node=] - Will return an rrd based on the parameters
  * act=snmp node=nodename - Will test snmp connection for a node
  * act=syslog - Will send a syslog message based on the configuration
+ * act=encryption - Will Verify that encryption works properly.
  
 \n";
 
-die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
+die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|u|\?|-help)$/ );
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
 
-my $wantverbose = (NMISNG::Util::getbool($Q->{verbose}));
-my $wantquiet  = NMISNG::Util::getbool($Q->{quiet});
+my $wantverbose = (NMISNG::Util::getbool_cli("verbose", $Q->{verbose}, 0));
+my $wantquiet  = NMISNG::Util::getbool_cli("quiet", $Q->{quiet}, 0);
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
@@ -109,6 +110,18 @@ if ($Q->{act} =~ /^connectwise/)
 	my $result = testconnectwise($Q);
 	exit 0;
 }
+elsif ($Q->{act} =~ /^encryption/)
+{
+	if (NMISNG::Util::testEncryption())
+	{
+		print("Encryption worked\n");
+	}
+	else
+	{
+		print("Encryption failed\n");
+	}
+	exit 0;
+}
 elsif ($Q->{act} =~ /^email/)
 {
 	my $result = testemail($Q);
@@ -133,6 +146,10 @@ elsif ($Q->{act} =~ /^syslog/)
 {
 	my $result = testsyslog(args => $Q);
 	exit 0;
+}
+else
+{
+    die "Unrecognized action '$Q->{act}'";
 }
 
 # Test connectwise

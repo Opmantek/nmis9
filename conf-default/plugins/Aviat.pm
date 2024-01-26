@@ -50,8 +50,6 @@ sub update_plugin
 	my $concept = 'ifTable';
 	my $inventory_data_key = 'index';
 
-	$NG->log->info("$plugin:$sub: Running for node $node");
-
     my $nodeobj = $NG->node(name => $node);
     my $inv = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $inv->data;
@@ -61,15 +59,17 @@ sub update_plugin
             
 	my $NC = $nodeobj->configuration;
 
-	$NG->log->debug9("\$node: ".Dumper \$nodeobj);
-	$NG->log->debug9("\$S: ".Dumper \$S);
-	$NG->log->debug9("\$C: ".Dumper \$C);
-	$NG->log->debug9("\$NG: ".Dumper \$NG);
-
 	my $max_repetitions = $NC->{max_repetitions} || $C->{snmp_max_repetitions};
 	my %nodeconfig = %{$NC};
 
-	return (1,undef) if ( $catchall_data->{nodeModel} ne "NL-Aviat" or !NMISNG::Util::getbool($catchall_data->{collect}));
+	return (0,undef) if ( $catchall_data->{nodeModel} ne "NL-Aviat" or !NMISNG::Util::getbool($catchall_data->{collect}));
+
+	$NG->log->info("$plugin:$sub: Running for node $node");
+
+	$NG->log->debug9(sub {"\$node: ".Dumper \$nodeobj});
+	$NG->log->debug9(sub {"\$S: ".Dumper \$S});
+	$NG->log->debug9(sub {"\$C: ".Dumper \$C});
+	$NG->log->debug9(sub {"\$NG: ".Dumper \$NG});
 
 	my $changesweremade = 0;
 
@@ -79,8 +79,8 @@ sub update_plugin
 
 	if (@$ids)
 	{
-		$NG->log->debug9("$plugin:$sub: \$ids: ".Dumper $ids);
-		$NG->log->debug9("$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}});
+		$NG->log->debug9(sub {"$plugin:$sub: \$ids: ".Dumper $ids});
+		$NG->log->debug9(sub {"$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}}});
 
         my $active = 0;
         
@@ -98,6 +98,8 @@ sub update_plugin
                 foreach my $w (qw(index Description ifAdminStatus ifDescr ifHighSpeed ifLastChange ifOperStatus ifSpeed ifType)) {
                     $interface_data->{$w} = $data->{$w};
                 }
+				# to keep path keys similar to other interfaces
+                $interface_data->{index} = $data->{index};
                 $interface_data->{ifIndex} = $data->{index};
                 $interface_data->{collect} = "true";
                 $interface_data->{interface} = $data->{ifDescr};
@@ -106,13 +108,14 @@ sub update_plugin
                 if ($data->{ifAdminStatus} eq "up") {
                    $active++;
                 }
-                
-                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => [], data => $interface_data );
+				# must use path keys
+                my $path_keys = ['index'];
+                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => $path_keys, data => $interface_data );
 
                 my ($inventory,$error_message) = $nodeobj->inventory(
                     concept => 'interface',
                     path => $path,
-                    path_keys => [],
+                    path_keys => $path_keys,
                     create => 1
                 );
                 $NG->log->error("Failed to get inventory for device_global, error_message:$error_message")
@@ -127,7 +130,7 @@ sub update_plugin
                     # disable for now
                     $inventory->data_info( subconcept => 'interface', enabled => 0 );
                     my ($op,$error) = $inventory->save();
-                    $NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+                    $NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
                     $NG->log->info( "saved ".join(',', @$path)." op: $op");
                 } else {
                     $NG->log->error("No inventory");
@@ -177,7 +180,7 @@ sub collect_plugin
 			$ifTable->historic(0);
 			$ifTable->data($data);
 			my ($op, $serror) = $ifTable->save();
-			$NG->log->debug2("Inventory update: $op ");
+			$NG->log->debug2(sub {"Inventory update: $op "});
 			if ($serror)
 			{
 				$NG->log->error("Failed to save inventory $ifTableId: $serror");

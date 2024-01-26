@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.4.2.1";
+our $VERSION = "9.4.6";
 
 
 use FindBin;
@@ -56,7 +56,7 @@ use NMISNG::Auth;
 use Compat::NMIS;
 
 my $PROGNAME = basename($0);
-my $debugsw = 0;
+my $debugsw = -1;
 my $helpsw = 0;
 my $quietsw = 0;
 my $usagesw = 0;
@@ -70,6 +70,16 @@ my $versionsw = 0;
                         'verbose'    => \$verbosesw,
                         'version'    => \$versionsw));
 
+# --debug or -d returns 0, so we have to fix the handling.
+if ($debugsw == 0)
+{
+	$debugsw = 1;
+}
+elsif ($debugsw == -1)
+{
+	$debugsw = 0;
+}
+
 # For the Version mode, just print it and exit.
 if (${versionsw}) {
 	print "$PROGNAME version=$NMISNG::VERSION\n";
@@ -80,6 +90,11 @@ if ($helpsw) {
    exit(0);
 }
 
+## act=check-eos
+## act=disable-eos
+## act=enable-eos
+## act=is-eos-available
+
 my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
 
  act=fixperms
@@ -87,6 +102,7 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=config-backup
  act=ensure-indexes [drop_unwanted=<[0|t]/[1|f]>]
  act=noderefresh
+ act=inventoryrefresh
  act=remove-duplicate-events [dryrun=<[0|t]/[1|f]>]
  act=daemon-status (or act=status)
 
@@ -115,7 +131,11 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=set-last-login user=<username> last_login=<last_login>
  act=unlock-user user=<username>
  
-\n";
+ act=notify event=<event> <node|uuid>=<instance> [element=<element> details=<details> level=<level>]
+ 
+ \033[1m For additional information run '$PROGNAME -h' \033[0m
+ 
+ \n";
 
 
 my $scheduleusage = qq|Job Scheduling:
@@ -232,7 +252,7 @@ if ($usagesw) {
 
 if (!@ARGV)
 {
-    help();
+    print($usage);
     exit(0);
 }
 
@@ -275,6 +295,49 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 # Get temporary directory
 my $tmp = NMISNG::Util::getTmpDir();
 
+############################################
+# Run BEFORE getting a database connection #
+############################################
+# Disable Encryption of Secrets
+# returns 1 if successful, and 0 if failed!
+##if ($Q->{act} =~ /^disable[-_]eos$/)
+##{
+##	if ( $< != 0)
+##	{
+##		die "This action requires root privilege.\n";
+##	}
+##	else
+##	{
+##		my $rc = NMISNG::Util::disableEOS();
+##		exit($rc);
+##	}
+##}
+# Enable Encryption of Secrets
+# returns 1 if successful, and 0 if failed!
+##elsif ($Q->{act} =~ /^enable[-_]eos$/)
+##{
+##	if ( $< != 0)
+##	{
+##		die "This action requires root privilege.\n";
+##	}
+##	else
+##	{
+##		if (NMISNG::Util::isEOSAvailable() && NMISNG::Util::testEncryption())
+##		{
+##			my $rc = NMISNG::Util::enableEOS();
+##			exit($rc);
+##		}
+##		else
+##		{
+##			print("Encryption is not supported or not working, EOS cannot be enabled.\n");
+##			exit(0);
+##		}
+##	}
+##}
+##################################################################
+# Run the above two actions BEFORE getting a database connection #
+##################################################################
+
 # this opens a database connection
 my $nmisng = NMISNG->new(
 	config => $C,
@@ -284,7 +347,44 @@ my $nmisng = NMISNG->new(
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
-# show the daemon status
+##if ($Q->{act} =~ /^decrypt[-_]password$/)
+##{
+##	my $password = $Q->{"password"};
+##	die "Password argument not supplied!" if(!$password);
+##	my $decryptedPass = NMISNG::Util::decrypt($password);
+##	print("$decryptedPass\n");
+##}
+##elsif ($Q->{act} =~ /^encrypt[-_]password$/)
+##{
+##	my $password = $Q->{"password"};
+##	die "Password argument not supplied!" if(!$password);
+##	my $encryptedPass = NMISNG::Util::encrypt($password, '', '', 1);;
+##	print("$encryptedPass\n");
+##}
+# Check if Encryption of Secrets is available
+# Check if EOS is can be enabled.
+# returns 1 if EOS is available 0 if not.
+##elsif ($Q->{act} =~ /^is[-_]eos[-_]available$/)
+##{
+##    exit(NMISNG::Util::isEOSAvailable());
+##}
+# Check Encryption of Secrets
+# returns 1 if eos is eenabled, and 0 if not.
+##elsif ($Q->{act} =~ /^check[-_]eos$/)
+##{
+##	if (NMISNG::Util::checkEOS())
+##	{
+##		print("Encryption is enabled.\n");
+##		exit 1;
+##	}
+##	else
+##	{
+##		print("Encryption is disabled.\n");
+##		exit 0;
+##	}
+##}
+### show the daemon status
+##elsif
 if ($Q->{act} =~ /^(daemon[-_])?status$/)
 {
 	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
@@ -946,6 +1046,10 @@ elsif ($Q->{act} eq 'noderefresh')
 {
 	noderefresh();
 }
+elsif ($Q->{act} eq 'inventoryrefresh')
+{
+	inventoryrefresh();
+}
 elsif ($Q->{act} =~ /collect[-_]performance[-_]data/)
 {
 	collectPerformanceData();
@@ -1143,6 +1247,53 @@ elsif ($Q->{act} =~ /unlock[-_]user/)
 	my $user = $Q->{user};
 	unlock_user(user => $user);
 }
+elsif ($Q->{act} =~ /notify/)
+{
+	my $nodeobj;
+	my $nodename = $Q->{node};
+	my $uuid = $Q->{uuid};
+	my $event = $Q->{event};
+
+	my %nodesel;
+	$nodesel{name} = $nodename if ($nodename);
+	$nodesel{uuid} = $uuid if ($uuid);
+
+	$nodeobj = $nmisng->node(%nodesel);
+	die "Invalid node/uuid arguments, no matching node exists!\n"
+			if (!$nodeobj);
+
+	die "event must be set\n"
+			if (!$event);
+
+	my $S = NMISNG::Sys->new;
+	$S->init(node=>$nodeobj,snmp=>'false');
+
+	my %eventargs;
+	$eventargs{sys} = $S;
+	$eventargs{event} = $event;
+	$eventargs{element} = $Q->{element} if( $Q->{element} );
+	$eventargs{details} = $Q->{details} if( $Q->{details} );
+	$eventargs{level} = $Q->{level} // "Normal";
+
+	#if level is normal we assume we are back up so we checkEvent which really clears the event
+	#otherwise we we assume there is an issue and we notify
+	#the notify system was built around polling a node and is not really meant for general stateful events
+	#but at this point we dont have a better system for, "there is a problem" let the operator know.
+	if ($eventargs{level} eq "Normal")
+	{
+
+		#check event doesnt return anything useful unlike notify
+		Compat::NMIS::checkEvent(%eventargs);
+	}
+	else
+	{
+		my $maybe = Compat::NMIS::notify(%eventargs);
+		if( my $error = $maybe->load() )
+		{
+			die "event error: $error\n";
+		}
+	}
+}
 else
 {
 	print "\033[1mUnrecognized action! ('act=$Q->{act}')\033[0m\n\n";
@@ -1220,6 +1371,25 @@ sub noderefresh
 		}
 	}
 	print "total nodes: ".$md->count.", updated: $updated\n";
+}
+
+sub inventoryrefresh {
+	# go by nodes
+	my $uuids = $nmisng->get_node_uuids();
+	foreach my $uuid (@$uuids) {
+		my $nodeobj = $nmisng->node( uuid => $uuid );
+		my $nodename = $nodeobj->name;
+		$logger->info("inventoryrefresh working on $nodename");
+		my $md = $nodeobj->get_inventory_model( );
+		my $count = $md->count;
+		for( my $i = 0; $i < $count; $i++ ) {
+			my $inventory = $md->object($i);
+			$logger->debug("inventoryrefresh ($nodename) working on inventory ".$inventory->concept());
+			my ($op,$err) = $inventory->save();
+			$logger->error("inventoryrefresh error saving inventory: $err") if($err);
+			$logger->debug("inventoryrefresh saved inventory, id:".$inventory->id().", op:$op") if(!$err);
+		}
+	}
 }
 
 # Collect performance data
@@ -1548,6 +1718,9 @@ sub help
    push(@lines, "     act=noderefresh\n");
    push(@lines, "                     This action Walks the list of nodes causing an internal\n");
    push(@lines, "                     Node refresh of each.\n");
+   push(@lines, "     act=inventoryrefresh\n");
+   push(@lines, "                     This action Walks the list of inventory causing an internal\n");
+   push(@lines, "                     refresh of each.\n");
    push(@lines, "     act=remove-duplicate-events [dryrun=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This action finds and removes duplicate events.\n");
    push(@lines, "                     This is something that should not occur, but running\n");
@@ -1555,7 +1728,32 @@ sub help
    push(@lines, "                     to create the condition. 'dryrun' reviews the events and\n");
    push(@lines, "                     simply reports what was found, but does not make any\n");
    push(@lines, "                     changes.\n");
+   push(@lines, "     act=notify event=<event> <node|uuid>=<instance> [element=<element> details=<details> level=<level>]\n");
+   push(@lines, "                     This action submits a new event.\n");
    push(@lines, "\n");
+##    push(@lines, "  -- ENCRYPTION OF SECRETS ACTIONS --\n");
+##    push(@lines, "     act=check-eos\n");
+##    push(@lines, "                     This action reports whether Encryption of Secrets.\n");
+##    push(@lines, "                     is enabled or disabled. It returns 1 if EOS is\n");
+##    push(@lines, "                     enabled, and 0 if not.\n");
+##    push(@lines, "     act=disable-eos\n");
+##    push(@lines, "                     This action disables Encryption of Secrets.\n");
+##    push(@lines, "                     This must be run as root, and it will stop all\n");
+##    push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
+##    push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
+##    push(@lines, "                     successfully disabled, and 0 if not.\n");
+##    push(@lines, "     act=enable-eos\n");
+##    push(@lines, "                     This action enables Encryption of Secrets.\n");
+##    push(@lines, "                     This must be run as root, and it will stop all\n");
+##    push(@lines, "                     processes for both NMIS and OMK, enable EOS and\n");
+##    push(@lines, "                     then start the processes. It returns 1 if EOS is\n");
+##    push(@lines, "                     successfully enabled, and 0 if not.\n");
+##    push(@lines, "     act=is-eos-available\n");
+##    push(@lines, "                     This action checks Encryption of Secrets to determine\n");
+##    push(@lines, "                     if it meets all of the requirements for support.\n");
+##    push(@lines, "                     It will report any issues, and return 1 if EOS can be\n");
+##    push(@lines, "                     enabled and 0 if not.\n");
+##    push(@lines, "\n");
    push(@lines, "  -- SCHEDULING ACTIONS --\n");
    push(@lines, "     act=schedule [at=time] <job.type=<activity>> [job.priority=0..1]\n");
    push(@lines, "                            [job.<node|uuid|group>=<instance> ...]\n");

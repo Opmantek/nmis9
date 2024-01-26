@@ -28,6 +28,7 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
+## KS notes 2023-11-06: This model should be left alone for backwards compatability and devices told to use new models in Model.nmis
 
 %hash = (
   '-common-' => {

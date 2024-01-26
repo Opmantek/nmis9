@@ -53,18 +53,23 @@ use POSIX qw();
 use Cwd qw();
 use version 0.77;
 use Carp;
-use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
+use UUID::Tiny qw(:std);			# for loadconftable, cluster_id, uuid functions
 use IO::Handle;
-use Socket 2.001;								# for getnameinfo() used by resolve_dns_name
+use Socket 2.001;					# for getnameinfo() used by resolve_dns_name
 use JSON::XS;
 use Proc::ProcessTable 0.53;		# older versions are not totally reliable
 use List::Util 1.33;
+#use Math::Random::Secure qw(rand);  # Replace rand().
+#use Crypt::CBC;						# for token / externally delegated auth
+#use Crypt::Cipher::AES;
+#use Syntax::Keyword::Try;
+use Try::Tiny;
 
 use Data::Dumper;
-$Data::Dumper::Indent=1;				# fixme9: do we really need these globally on?
+$Data::Dumper::Indent=1;			# fixme9: do we really need these globally on?
 $Data::Dumper::Sortkeys=1;
 
-use NMISNG::Log;								# for parse_debug_level
+use NMISNG::Log;					# for parse_debug_level
 
 sub TODO
 {
@@ -1713,7 +1718,7 @@ sub getbool_cli
 	my ($key, $val, $default) = @_;
 	$default = 0 if !defined($default);
 
-	return ((defined($val)) ? (($val =~ /true|yes|t|y|1/i) ? 1 : (($val =~ /false|no|f|n|0/i) ? 0 : die "Invalid boolean value for '$key': '$val'\n" )) : $default);
+	return ((defined($val)) ? (($val =~ /(^true$)|(^yes$)|(^t$)|(^y$)|(^1$)/i) ? 1 : (($val =~ /(^false$)|(^no$)|(^f$)|(^n$)|(^0$)/i) ? 0 : die "Invalid boolean value for '$key': '$val'\n" )) : $default);
 }
 
 #########################################################################
@@ -1731,7 +1736,7 @@ sub getdebug_cli
 {
 	my ($val) = shift;
 
-	return ((defined($val)) ? (($val =~ /true|yes|t|y|1/i) ? 1 : (($val =~ /false|no|f|n|0/i) ? 0 : (($val =~ /verbose/i) ? 9 : (($val =~ /[0-9]/) ? $val : die "Invalid debug value: '$val'\n" )))) : 0);
+	return ((defined($val)) ? (($val =~ /(^true$)|(^yes$)|(^t$)|(^y$)|(^1$)/i) ? 1 : (($val =~ /(^false$)|(^no$)|(^f$)|(^n$)|(^0$)/i) ? 0 : (($val =~ /^verbose$/i) ? 9 : (($val =~ /^[0-9]$/) ? $val : die "Invalid debug value: '$val'\n" )))) : 0);
 }
 
 # Send an array with the properties never overrided by the conf master files
@@ -3144,14 +3149,14 @@ sub resolve_dns_name
 
 	my $nmisng = Compat::NMIS::new_nmisng();
 
-	$nmisng->log->debug2("resolve_dns_name($lookup)");
+	$nmisng->log->debug2(sub {"resolve_dns_name($lookup)"});
 
 	# full ipv6 support works only with newer socket module
 	my ($err,@possibles) = Socket::getaddrinfo($lookup, '', {socktype => SOCK_RAW});
 	
 	if ($err)
 	{
-		$nmisng->log->debug2("getaddrinfo error: $err");
+		$nmisng->log->debug2(sub {"getaddrinfo error: $err"});
 		return ();
 	}
 
@@ -3164,11 +3169,11 @@ sub resolve_dns_name
 		push @results, $ipaddr if (!$err and $ipaddr ne $lookup); # suppress any nop results
 		if ($err)
 		{
-			$nmisng->log->debug2("getnameinfo error: $err");
+			$nmisng->log->debug2(sub {"getnameinfo error: $err"});
 		}
 		else
 		{
-			$nmisng->log->debug2("getnameinfo result: $ipaddr");
+			$nmisng->log->debug2(sub {"getnameinfo result: $ipaddr"});
 		}
 	}
 	return @results;
@@ -3499,31 +3504,520 @@ sub getProcessOwner {
 }
 
 ########################################################################
-# verifyNMISEncryption - Verify Password encrypred strings.
+# shutdownAllDaemons - This function stops ALL FirstWave daemons       #
+#                      for both NMIS and OMK.  This is primarily       #
+#                      used by EOS to enable or disable it.            #
+#                                                                      #
+# Returns:                                                             #
+#    1 - If the deamons were successfully stopped.                     #
+#    0 - If the deamons were not able to be stopped.                   #
+########################################################################
+sub shutdownAllDaemons {
+	if ($< != 0)
+	{
+		return(0);
+	}
+	print("Stopping all FirstWave Processes.\n");
+	try {
+		if (-d "/etc/systemd")
+		{
+	    	print(`systemctl stop nmis9d.service`);
+			print(`systemctl stop omkd.service`)      if (-f "/etc/systemd/system/omkd.service");
+			print(`systemctl stop opchartsd.service`) if (-f "/etc/systemd/system/opchartsd.service");
+			print(`systemctl stop opconfigd.service`) if (-f "/etc/systemd/system/opconfigd.service");
+			print(`systemctl stop opeventsd.service`) if (-f "/etc/systemd/system/opeventsd.service");
+			print(`systemctl stop optrend.service`)   if (-f "/etc/systemd/system/optrend.service");
+			print(`systemctl stop opflowd.service`)   if (-f "/etc/systemd/system/opflowd.service");
+		}
+		else
+		{
+	    	print(`service nmis9d stop `);
+			print(`service omkd stop `)      if (-f "/etc/init.d/system/omkd");
+			print(`service opchartsd stop `) if (-f "/etc/init.d/system/opchartsd");
+			print(`service opconfigd stop `) if (-f "/etc/init.d/system/opconfigd");
+			print(`service opeventsd stop `) if (-f "/etc/init.d/system/opeventsd");
+			print(`service optrend stop `)   if (-f "/etc/init.d/system/optrend");
+			print(`service opflowd stop `)   if (-f "/etc/init.d/system/opflowd");
+		}
+	}
+	catch
+	{
+		return(0);
+	}
+
+	return(1);
+}
+
+########################################################################
+# startAllDaemons - This function starts ALL FirstWave daemons         #
+#                      for both NMIS and OMK.  This is primarily       #
+#                      used by EOS to enable or disable it.            #
+#                                                                      #
+# Returns:                                                             #
+#    1 - If the deamons were successfully startped.                    #
+#    0 - If the deamons were not able to be startped.                  #
+########################################################################
+sub startAllDaemons {
+	if ($< != 0)
+	{
+		return(0);
+	}
+	print("Starting all FirstWave Processes.\n");
+	try {
+		if (-d "/etc/systemd")
+		{
+	    	print(`systemctl start nmis9d.service`);
+			print(`systemctl start omkd.service`)      if (-f "/etc/systemd/system/omkd.service");
+			print(`systemctl start opchartsd.service`) if (-f "/etc/systemd/system/opchartsd.service");
+			print(`systemctl start opconfigd.service`) if (-f "/etc/systemd/system/opconfigd.service");
+			print(`systemctl start opeventsd.service`) if (-f "/etc/systemd/system/opeventsd.service");
+			print(`systemctl start optrend.service`)   if (-f "/etc/systemd/system/optrend.service");
+			print(`systemctl start opflowd.service`)   if (-f "/etc/systemd/system/opflowd.service");
+		}
+		else
+		{
+	    	print(`service nmis9d start `);
+			print(`service omkd start `)      if (-f "/etc/init.d/system/omkd");
+			print(`service opchartsd start `) if (-f "/etc/init.d/system/opchartsd");
+			print(`service opconfigd start `) if (-f "/etc/init.d/system/opconfigd");
+			print(`service opeventsd start `) if (-f "/etc/init.d/system/opeventsd");
+			print(`service optrend start `)   if (-f "/etc/init.d/system/optrend");
+			print(`service opflowd start `)   if (-f "/etc/init.d/system/opflowd");
+		}
+	}
+	catch
+	{
+		return(0);
+	}
+
+	return(1);
+}
+
+########################################################################
+# askYesNo - Ask a yes/no question to the terminal.                   #
+########################################################################
+sub askYesNo
+{
+	my ($prompt, $default) = @_;
+	my $answer             = "";
+	my $quit               = 0;
+
+	until ($quit)
+	{
+		print("$prompt ");
+		chomp(my $input = <STDIN>);
+		if ($input =~ /(^true$)|(^yes$)|(^t$)|(^y$)|(^1$)/i)
+		{
+			$answer = 1;
+			$quit = 1;
+		}
+		elsif ($input =~ /(^false$)|(^no$)|(^f$)|(^n$)|(^0$)/i)
+		{
+			$answer = 0;
+			$quit = 1;
+		}
+		elsif ($input eq "" && defined($default))
+		{
+			if ($default =~ /(^true$)|(^yes$)|(^t$)|(^y$)|(^1$)/i)
+			{
+				$answer = 1;
+				$quit = 1;
+			}
+			elsif ($default =~ /(^false$)|(^no$)|(^f$)|(^n$)|(^0$)/i)
+			{
+				$answer = 0;
+				$quit = 1;
+			}
+		}
+		if (!$quit)
+		{
+			print("Invalid Response: '$input'!\n");
+		}
+	}
+
+	return($answer);
+}
+
+########################################################################
+# isEOSAvailable - Test whether EOS can be enabled                     #
+#                                                                      #
+# Returns:                                                             #
+#    1 - If Encryption of secrets can be enabled.                      #
+#    0 - If Encryption of secrets is missing required libraries.       #
+########################################################################
+sub isEOSAvailable
+{
+	my $ok                 = 1;
+	my $config             = loadConfTable();
+	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	my %eosCurrentVers;
+	my %eosEOSVersion;
+	my %eosMinVersions     = (
+								'opCharts'   => "4.7.0",
+								'opEvents'   => "4.4.0",
+								'opAddress'  => "3.0.0",
+								'opHA'       => "4.0.0",
+								'opConfig'   => "4.6.0",
+								'opReports'  => "4.6.0",
+								'Open-AudIT' => "4.4.0",
+								'NMIS'       => "9.5.0"
+							);
+
+	print ("Checking ...\n");
+	eval {require Crypt::CBC;};
+	if($@)
+	{
+		$ok = 0;
+		print ("Module: 'Crypt::CBC' is missing.\n");
+	}
+	eval {require Crypt::Cipher::AES;};
+	if($@)
+	{
+		$ok = 0;
+		print ("Module: 'Crypt::Cipher::AES' is missing.\n");
+	}
+	eval {require Math::Random::Secure;};
+	if($@)
+	{
+		$ok = 0;
+		print ("Module: 'Math::Random::Secure' is missing.\n");
+	}
+    if ($ok)
+	{
+		my $output;
+		my $omkDir;
+		my $omkSystemState;
+		$output = sprintf("   Product          Current Version    Required Version      EOS supported?\n");
+		$output = sprintf("${output}================================================================================\n");
+		my $nmisVersion = qx{$config->{'<nmis_bin>'}/nmis-cli --version | cut -f2 -d=};
+		chomp($nmisVersion);
+		$eosCurrentVers{"NMIS"} = $nmisVersion;
+
+		my $nmisMinVersion = version->parse($eosMinVersions{NMIS});
+		my $nmisCurVersion = version->parse($nmisVersion);
+
+		my $answer = ($nmisCurVersion >= $nmisMinVersion) ? "YES" : "NO";
+		$ok = 0 if ($answer eq 'NO');
+		$eosEOSVersion{NMIS} = $answer;
+		$output = sprintf("${output}   %10s%20s%20s%10s\n", "NMIS", $eosCurrentVers{NMIS}, $eosMinVersions{NMIS},$eosEOSVersion{NMIS});
+		if ( -f "/etc/systemd/system/omkd.service" )
+		{
+			$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
+		}
+		elsif ( -f "/etc/init.d/omkd" )
+		{
+			$omkDir  = qx{grep 'DAEMON=' /etc/init.d/omkd | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
+		}
+		chomp($omkDir);
+		if ( "$omkDir" eq "" && -f "/usr/local/omk" )
+		{
+			$omkDir  = '/usr/local/omk';
+		}
+		if ( "$omkDir" eq "" )
+		{
+			print ("Unable to find OMK installation; cannot determine if OMK supports EOS.\n");
+		}
+		else
+		{
+			if (-e "$omkDir/manifest")
+			{
+				$omkSystemState = do "$omkDir/manifest" or print ("Unable to determine if OMK supports EOS.\n");
+			}
+			foreach my $eachProduct (keys  (%{ $omkSystemState->{products} }))
+			{
+				#our current version from the manifest
+				my $versionOutput = $omkSystemState->{products}{$eachProduct}{version};
+				chomp($versionOutput);
+				$eosCurrentVers{"$eachProduct"} = $versionOutput;
+				my $omkMinVersion = version->parse($eosMinVersions{$eachProduct});
+				my $omkCurVersion = version->parse($versionOutput);
+				$answer = ($omkCurVersion >= $omkMinVersion) ? "YES" : "NO";
+				$ok = 0 if ($answer eq 'NO');
+				$eosEOSVersion{"$eachProduct"} = $answer;
+				$output = sprintf("${output}   %10s%20s%20s%10s\n", $eachProduct, $eosCurrentVers{$eachProduct}, $eosMinVersions{$eachProduct},$eosEOSVersion{$eachProduct});
+			}
+		}
+		print("\r$output");
+	}
+    if ($ok)
+	{
+		if (!testEncryption())
+		{
+			print ("Encryption key seem to be corrupt.\n");
+			return(0);
+		}
+		else
+		{
+			if ($encryption_enabled)
+			{
+				print ("Encryption of Secrets can be enabled, and already is.\n");
+			}
+			else
+			{
+				print ("Encryption of Secrets can be enabled.\n");
+			}
+			return(1);
+		}
+    }
+    else
+    {
+		if ($encryption_enabled)
+		{
+			print ("Encryption of Secrets should not be enabled, but already is.\n");
+		}
+		else
+		{
+			print ("Encryption of Secrets can not be enabled.\n");
+		}
+        return(0);
+    }
+}
+
+########################################################################
+# testEncryption - Test that encryption works.                         #
+#                                                                      #
+# Returns:                                                             #
+#    1 - If round trip encription succeeds.                            #
+#    0 - If round trip encription fails.                               #
+########################################################################
+sub testEncryption {
+	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure;};
+	if($@)
+	{
+		return(0);
+	}
+    my $secretWord    = "ThisIsASecretWord";
+    my $encryptedPass = encrypt($secretWord, '', '', 1);
+#	print STDERR "Encrypted Password is '$encryptedPass'\n";
+	return 0 if (substr($encryptedPass, 0, 2) ne "!!");
+    my $password      = decrypt($encryptedPass);
+    if ($password eq $secretWord)
+    {
+        return(1);
+    }
+    else
+    {
+        return(0);
+    }
+}
+
+########################################################################
+# checkEOS - Check if EOS is enabled or not.                           #
+#                                                                      #
+# Returns:                                                             #
+#    1 - If Encryption of Secrets is enabled.                          #
+#    0 - If Encryption of Secrets is disabled.                         #
+########################################################################
+sub checkEOS {
+	my $config             = loadConfTable();
+	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	if ($encryption_enabled)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+########################################################################
+# disableEOS - Disable Encryption of Secrets.                          #
+#              NOTE:  THIS WILL STOP ALL DEAMONS TO PERFORM THIS       #
+#                     FUNCTION!                                        #
+#                                                                      #
+# Returns:                                                             #
+#    1 - If the request was successful. (encryption is disabled)       #
+#    0 - If the request failed.                                        #
+########################################################################
+sub disableEOS {
+	my $config  = loadConfTable();
+	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+
+	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	if (!$encryption_enabled)
+	{
+		print("Encryption of secrets is already disabled.\n");
+		return(1);
+	}
+	if ($< != 0)
+	{
+		print("Disabling encryption of secrets requires root permission!\n");
+		return(0);
+	}
+	my $rc = shutdownAllDaemons();
+	if ($rc)
+	{
+		$logger->info("Disabling Encryption of secrets.");
+		print("Disabling Encryption of secrets.\n");
+		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+		$fullConfig->{globals}{global_enable_password_encryption} = "false";
+		writeConfData(data=>$fullConfig);
+		# We changed encryption, so the test below is backwards.
+		# If it indicates changes, then we failed!
+		my $success = verifyNMISEncryption(log => $logger);
+		my $startMsg;
+		if (!$success)
+		{
+			$startMsg = "Encryption was successfully disabled.";
+			$logger->info("$startMsg");
+			print("$startMsg\n");
+		}
+		else
+		{
+			$startMsg = "Encryption could not be disabled.";
+			$logger->error("ERROR: $startMsg");
+			print("$startMsg\n");
+		}
+		$rc = startAllDaemons();
+		if (!$rc)
+		{
+			$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
+			print("$startMsg, but restarting the processes did not succeed.\n");
+		}
+		return(!$success);
+	}
+	else
+	{
+		$logger->error("ERROR: Encryption could not be disabled (daemons could not be stopped).");
+		print("Encryption could not be disabled (daemons could not be stopped).\n");
+		return(0);
+	}
+}
+
+########################################################################
+# enableEOS - Enable Encryption of Secrets.                            #
+#              NOTE:  THIS WILL STOP ALL DEAMONS TO PERFORM THIS       #
+#                     FUNCTION!                                        #
+#                                                                      #
+# Returns:                                                             #
+#    1 - If the request was successful. (encryption is enabled)        #
+#    0 - If the request failed.                                        #
+########################################################################
+sub enableEOS {
+	my $config  = loadConfTable();
+	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+	my $logger  = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+	if ($encryption_enabled)
+	{
+		print("Encryption of secrets is already enabled.\n");
+		return(1);
+	}
+	if ($< != 0)
+	{
+		print("Enabling encryption of secrets requires root permission!\n");
+		return(0);
+	}
+	if (testEncryption())
+	{
+		my $rc = shutdownAllDaemons();
+		if ($rc)
+		{
+			$logger->info("Enabling encryption of secrets.");
+			print("Enabling encryption of secrets.\n");
+			my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+			$fullConfig->{globals}{global_enable_password_encryption} = "true";
+			writeConfData(data=>$fullConfig);
+			# We changed encryption, so the test below is backwards.
+			# If it indicates changes, then we failed!
+			my $success = verifyNMISEncryption(log => $logger);
+			my $startMsg;
+			if (!$success)
+			{
+				$startMsg = "Encryption was successfully enabled.";
+				$logger->info("$startMsg");
+				print("$startMsg\n");
+			}
+			else
+			{
+				$startMsg = "Encryption could not be enabled.";
+				$logger->error("ERROR: $startMsg");
+				print("$startMsg\n");
+			}
+			$rc = startAllDaemons();
+			if (!$rc)
+			{
+				$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
+				print("$startMsg, but restarting the processes did not succeed.\n");
+			}
+			return(!$success);
+		}
+		else
+		{
+			$logger->error("ERROR: Encryption could not be disabled (daemons could not be stopped).");
+			print("Encryption could not be disabled (daemons could not be stopped).\n");
+			return(0);
+		}
+	}
+	else
+	{
+		$logger->error("ERROR: Encryption of secrets encryption test failed, EOS cannpt be enabled!");
+		print("Encryption of secrets encryption test failed, EOS cannpt be enabled!");
+		return(0);
+	}
+}
+
+########################################################################
+# verifyNMISEncryption - Verify Password encrypred strings.            #
+#                                                                      #
+# Returns:                                                             #
+#    0 - If nothing was changed.                                       #
+#    1 - If Encryption of secrets was reversed.                        #
 ########################################################################
 sub verifyNMISEncryption {
-	my (%args) = @_;
+	my (%args)   = @_;
+	my $logger   = $args{log};
+	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	my $seeddir  = '/usr/local/etc/firstwave/';
+	my $seedfile = '/usr/local/etc/firstwave/master.key';
+	my $epochNow = time;
+	my $timeNow  = localtime;
+	my %protected;
 	my $config;
 	my $fh;
-	my $logger  = $args{log};
 	my $changed = 0;
 
 	$config = loadConfTable();
 
 	my $nmis_encryption_enabled = getbool($config->{'global_enable_password_encryption'});
+
+	my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure; };
+	if($@)
+	{
+		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
+		$logger->error("ERROR: Password encryption cannot be enabled!");
+		$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+		if ($nmis_encryption_enabled)
+		{
+			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
+			$logger->error("Disabling Encryption of secrets.");
+			$fullConfig->{globals}{global_enable_password_encryption} = "false";
+			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+			writeConfData(data=>$fullConfig);
+			return(1);
+		}
+		else
+		{
+			return(0);
+		}
+	}
 	if ($nmis_encryption_enabled)
 	{
-		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-		eval {require  Crypt::CBC; require Crypt::Cipher::AES; };
-		if($@)
+		if (!testEncryption())
 		{
-			$logger->error("ERROR, Both 'Crypt::CBC' and 'Crypt::Cipher::AES' must be installed in order to enable password encryption!");
-			$logger->error("ERROR, Password encryption will be disabled!");
-			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+			$logger->error("ERROR: Encryption is not working!");
+			$logger->error("ERROR: Password encryption will be disabled!");
+			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
 			writeConfData(data=>$fullConfig);
-			return;
+			return(1);
+		}
+		# Make sure we have a seed file.
+		if (!-f "$seedfile") {
+			_make_seed($seedfile, $logger);
 		}
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
@@ -3543,6 +4037,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $encrypted_pw;
 							$changed = 1;
@@ -3556,6 +4051,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $encrypted_pw;
 							$changed = 1;
@@ -3570,6 +4066,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $encrypted_pw;
 							$changed = 1;
@@ -3585,6 +4082,7 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
+							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
 							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $encrypted_pw;
 							$changed = 1;
@@ -3604,7 +4102,23 @@ sub verifyNMISEncryption {
 		if ($changed)
 		{
 			writeConfData(data=>$fullConfig);
+			my $protectedFile = "$seeddir/NMIS-$epochNow";
+			unless(open($fh, '>', $protectedFile)) {
+				$logger->error("Unable to backup Passwords.");
+			}
+			else
+			{
+				print $fh ("Created on $timeNow.\n");
+				foreach my $eachRow (keys %protected)
+				{
+					print $fh ("$eachRow = $protected{$eachRow}\n");
+				}
+				close $fh;
+				chown(0, 0, $protectedFile);
+				chmod(0400, $protectedFile);
+			}
 		}
+		return(0);
 	}
 	else
 	{
@@ -3689,6 +4203,7 @@ sub verifyNMISEncryption {
 		{
 			writeConfData(data=>$fullConfig);
 		}
+		return(0);
 	}
 }
 
@@ -3703,27 +4218,42 @@ sub decrypt {
 	# Passed nothing or an empty string.
 	return "" if (!defined($password) || $password eq '');
 
-	{
-		$config = loadConfTable();
-		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
-		$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-	}
+	$config = loadConfTable();
 
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
-	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
-
+	# the password does not look encrypted and encryption is disabled so don't try
 	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled))
 	{
 		return $password;
 	}
+	
+	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+	$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	
+	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure;};
+	if($@)
+	{
+		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
+		$logger->error("ERROR: Password encryption cannot be enabled!");
+		if ($encryption_enabled)
+		{
+			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
+			$logger->error("Disabling Encryption of secrets.");
+			my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+			$fullConfig->{globals}{global_enable_password_encryption} = "false";
+			writeConfData(data=>$fullConfig);
+			return $password;
+		}
+	}
 
+	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
+	
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
-	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
-
+	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = "";
 	my $fh;
 
-	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
+	$logger->debug9(sub {"Seedfile name is '" . $seedfile . "'."});
 
 	# Make sure we have a seed file.
 	if (!-f "$seedfile") {
@@ -3739,17 +4269,17 @@ sub decrypt {
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
 				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 				my $encrypted_pw = encrypt($password);
 				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
-					$logger->debug3("Encrypting the password for Section: '$section' Field: '$keyword'");
+					$logger->debug3(sub {"Encrypting the password for Section: '$section' Field: '$keyword'"});
 					$fullConfig->{$section}{$keyword} = $encrypted_pw;
-					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 					writeConfData(data=>$fullConfig);
 				}
 			}
 		} else {
-			$logger->debug9("Encryption is disabled.");
+			$logger->debug9(sub {"Encryption is disabled."});
 		}
 		return $password;
 	} else {
@@ -3761,35 +4291,44 @@ sub decrypt {
 		chomp($seed);
 		my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
 											-cipher => 'Cipher::AES',
-											-pbkdf  => 'pbkdf2',
-											-salt   => 'Opmantek'
+											-pbkdf  => 'pbkdf2'
 											);
 		my $error = 0;
-		eval {  $password = $cipherHandle->decrypt_hex($password);
-				1;  # always return true to indicate success
-			 }
-			 or do {
-				$error = $@ || 'Unknown failure';
-			 };
-		if ($error) {
-			$logger->error("Password decryption failure.; Error $error");
+		try {
+		   $password = $cipherHandle->decrypt_hex($password);
+#			print STDERR  ("Password '$password.\n");
+		}
+   		catch {
+			$error = $_ || 'Unknown failure!';
+		};
+		if ($error || $password eq "") {
+#			print STDERR  ("Password decryption failure, Error: $error\n");
+			$logger->error("Password decryption failure, Error: $error");
 			$password = "";
 		} else {
 			$strLen   = substr($password, 0, 3);
-			$password = substr($password, 3, $strLen);
-			# Encryption is disabled, unencrypt whatever we encounter.
-			if (!$encryption_enabled) {
-				# If we have an encrypted password in the configuration file, then we unencrypt it.
-				# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
-				if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-					# Get the non-flattened raw hash
-					my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-					if ($fullConfig->{$section}{$keyword} ne $password) {
-						$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
-						$fullConfig->{$section}{$keyword} = $password;
-						$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
-						writeConfData(data=>$fullConfig);
+			if ($strLen !~ /^\d+$/)
+			{
+#				print STDERR  ("Password decryption failure, Error: Received corrupted String, possible seed file modification.\n");
+				$password = "";
+			} else {
+#				print STDERR  ("Password Length '$strLen'.\n");
+				$password = substr($password, 3, $strLen);
+#				print STDERR  ("Password '$password.\n");
+				# Encryption is disabled, unencrypt whatever we encounter.
+				if (!$encryption_enabled) {
+					# If we have an encrypted password in the configuration file, then we unencrypt it.
+					# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+					if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
+						# Get the non-flattened raw hash
+						my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+						$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+						if ($fullConfig->{$section}{$keyword} ne $password) {
+							$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
+							$fullConfig->{$section}{$keyword} = $password;
+							$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+							writeConfData(data=>$fullConfig);
+						}
 					}
 				}
 			}
@@ -3806,33 +4345,49 @@ sub decrypt {
 # encrypt - Encrypt the password.                                      #
 ########################################################################
 sub encrypt {
-	my ($password, $section, $keyword) = @_;
+	my ($password, $section, $keyword, $force) = @_;
 	my $config;
 	my $logger;
 
 	# Passed nothing or an empty string.
 	return "" if (!defined($password) || $password eq '');
 
-	{
-		$config = loadConfTable();
-		my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
-		$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
-	}
+	$config = loadConfTable();
+	
 	my $encryption_enabled = getbool($config->{'global_enable_password_encryption'});
-	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
-
-	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled))
+	# the password does not look encrypted and encryption is disabled so don't try
+	if ((substr($password, 0, 2) ne "!!") && (!$encryption_enabled && !$force))
 	{
 		return $password;
 	}
 
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
-	my $seedfile           = '/usr/local/etc/opmantek/seed.txt';
+	my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
+	$logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $config->{log_level}), path  => $logfile);
+	
+	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure;};
+	if($@)
+	{
+		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
+		$logger->error("ERROR: Password encryption cannot be enabled!");
+		if ($encryption_enabled && !$force)
+		{
+			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
+			$logger->error("Disabling Encryption of secrets.");
+			my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+			$fullConfig->{globals}{global_enable_password_encryption} = "false";
+			writeConfData(data=>$fullConfig);
+		}
+		return $password;
+	}
 
+	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
+
+	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = 0;
 	my $fh;
 
-	$logger->debug9("Seedfile name is '" . $seedfile . "'.");
+	$logger->debug9(sub {"Seedfile name is '" . $seedfile . "'."});
 
 	if (!-f "$seedfile") {
 		_make_seed($seedfile, $logger);
@@ -3841,7 +4396,7 @@ sub encrypt {
 	# Passed already encrypted string.
 	if (substr($password, 0, 2) eq "!!") {
 		# Encryption is disabled, decrypt whatever we encounter and return that.
-		if (!$encryption_enabled) {
+		if (!$encryption_enabled && !$force) {
 			# If we have an encrypted password in the configuration file, then we decrypt it.
 			my $decrypted_pw = decrypt($password);
 			# If the 'section and 'keyword' arguments are passed, it means we are
@@ -3849,22 +4404,22 @@ sub encrypt {
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
 				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
-				$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
-					$logger->debug3("Decrypting the password for Section: '$section' Field: '$keyword'");
+					$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
 					$fullConfig->{$section}{$keyword} = $decrypted_pw;
-					$logger->debug9("Config '" .  Dumper($fullConfig) . "'.");
+					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 					writeConfData(data=>$fullConfig);
 				}
 			}
 			return $decrypted_pw;
 		} else {
-			$logger->debug9("Encryption is enabled.");
+			$logger->debug9(sub {"Encryption is enabled."});
 		}
 		return $password;
 	}
 
-	if ($encryption_enabled) {
+	if ($encryption_enabled || $force) {
 		if (open($fh, '<', $seedfile)) {
 			my $seed = <$fh>;
 			close $fh;
@@ -3874,16 +4429,15 @@ sub encrypt {
 	
 			my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
 												-cipher => 'Cipher::AES',
-												-pbkdf  => 'pbkdf2',
-												-salt   => 'Opmantek'
+												-pbkdf  => 'pbkdf2'
 												);
 			my $error = 0;
-			eval {  $password = $cipherHandle->encrypt_hex($password);
-					1;  # always return true to indicate success
-				 }
-				 or do {
-					$error = $@ || 'Unknown failure';
-				 };
+			try {
+				$password = $cipherHandle->encrypt_hex($password);
+			}
+			catch {
+				$error = $_ || 'Unknown failure!';
+			};
 			if ($error) {
 				$logger->error("Password encryption failure.; Error $error");
 				$password = "";
@@ -3913,8 +4467,14 @@ sub _make_seed {
 	my $fh;
 	my $seed;
 
+	if ($< != 0)
+	{
+		die "Security is not configured.  Security configuration requires root permission!\n";
+	}
+	$logger->info("Creating Encryption seed file.");
+
 	for (1..256) {
-		$seed .= $charset[int(rand($range))];
+		$seed .= $charset[int(Math::Random::Secure::rand($range))];
 	}
  	my $uid;
 	if (-f "/etc/redhat-release") {
@@ -3935,6 +4495,7 @@ sub _make_seed {
 	close $fh;
 	chown($uid, $gid, $seedfile);
 	chmod(0440, $seedfile);
+	$logger->info("Encryption seed file created.");
 
 	return 0;
 }

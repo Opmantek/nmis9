@@ -28,6 +28,7 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
+## KS notes 2023-11-06: Move RouteNumber and TopChanges out of Node health stop collecting MemIO concepts and move buffers out.
 
 %hash = (
   '-common-' => {
@@ -237,43 +238,59 @@
       'nodehealth' => {
         'snmp' => {
           'MemoryUsedPROC' => {
-            'oid' => 'ciscoMemoryPoolUsed.1'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'ciscoMemoryPoolUsed.1'
           },
           'MemoryFreePROC' => {
-            'oid' => 'ciscoMemoryPoolFree.1'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'ciscoMemoryPoolFree.1'
           },
           'avgBusy1' => {
-            'oid' => 'avgBusy1'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'avgBusy1'
           },
           'avgBusy5' => {
-            'oid' => 'avgBusy5'
-          },
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'avgBusy5'
+          }
+        },
+        'graphtype' => 'cpu,mem-io,mem-proc,mem-router'
+      },
+      'Buffers' => {
+        'graphtype' => 'buffer',
+        'snmp' => {
           'bufferFail' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'bufferFail',
             'option' => 'counter,0:U'
           },
           'bufferElHit' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'bufferElHit',
             'option' => 'counter,0:U'
           },
-          'MemoryUsedIO' => {
-            'oid' => 'ciscoMemoryPoolUsed.2'
-          },
           'bufferElFree' => {
+            'comment' => 'this will be deprecated from nodehealth',
             'oid' => 'bufferElFree'
           },
-          'MemoryFreeIO' => {
-            'oid' => 'ciscoMemoryPoolFree.2'
+        },
+      },
+      'RouteNumber' => {
+        'graphtype' => 'routenumber',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
           },
+        },
+      },
+      'TopologyChanges' => {
+        'graphtype' => 'topo',
+        'snmp' => {
           'TopChanges' => {
             'oid' => 'dot1dStpTopChanges',
             'option' => 'counter,0:U'
           },
-	        'RouteNumber' => {
-	          'oid' => 'ipCidrRouteNumber'
-	        }
         },
-        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,topo,routenumber'
       },
       'mib2ip' => {
         'snmp' => {
@@ -631,6 +648,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,addressTable,cdp,lldp,lldpLocal,macTable,cpu_cpm,cempMemPool,Memory-cpm,ciscoMemoryPool,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'Cisco_CBQoS,addressTable,cdp,lldp,lldpLocal,macTable,cpu_cpm,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
 );

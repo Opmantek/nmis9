@@ -772,7 +772,7 @@ sub _ms_ldap_verify
 		}
 
 		if (($entry = $results->entry(0))) {
-			$dn = $entry->get_value('distinguishedName');
+			$dn = $entry->dn();
 		} else {
 			NMISNG::Util::logAuth("DEBUG LDAP search failed") if $extra_ldap_debug;
 		}

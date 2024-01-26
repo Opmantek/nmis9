@@ -420,6 +420,10 @@ sub new
 	}
 	# Fill the server name
 	$self->{"_server_name"} = $self->{_nmisng}->get_server_name(cluster_id => $self->{_cluster_id});
+
+	# Set configuration if it's there (new inventory won't have it until it's saved)
+	$self->{_configuration} = $args{configuration} // {};
+	$self->{_node_name} = $args{node_name};
 	
 	# not dirty at this time
 	$self->_dirty(0);
@@ -770,7 +774,7 @@ sub find_subconcept_type_storage
 	my $type = $args{type} || 'rrd';
 	my $subconcept = $args{subconcept};
 
-	$self->nmisng->log->debug3("DEBUG find_subconcept_type_storage type=$type subconcept=$subconcept _storage: ". Dumper $self->{_storage});
+	$self->nmisng->log->debug3(sub {"DEBUG find_subconcept_type_storage type=$type subconcept=$subconcept _storage: ". Dumper $self->{_storage}});
 
 	return undef
 		if (
@@ -905,6 +909,7 @@ sub data_live
 }
 
 # set columns available for data by subconcept, enable/disable the visiblity of the subconcept
+# returns a hash containing the data_info on success, string with an error on failure
 sub data_info
 {
 	my ( $self, %args ) = @_;
@@ -915,6 +920,10 @@ sub data_info
 	if (defined($enabled) || defined($display_keys))
 	{
 		my $newinfo = { enabled => $enabled, display_keys => Clone::clone($display_keys) // [] };
+		my $display_keys_type = ref($newinfo->{display_keys});
+		if( $display_keys_type ne 'ARRAY' ) {
+			return "display_keys must be an array, $display_keys_type is not valid";
+		}
 		$self->_dirty(1,"data_info") if (!eq_deeply($self->{_data_info}->{$subconcept}, $newinfo));
 		$self->{_data_info}->{$subconcept} = $newinfo;
 	}
@@ -1280,10 +1289,24 @@ sub save
 	#maybe we should append with cached? as this data could be stale?
 	my $node = $self->nmisng->node( filter => { uuid => $self->node_uuid } );
 	my ($name, $group);
+	
+	# for now configuration is special, it's not accessible outside the class
+	my $configuration = $self->{_configuration};
 	if (ref($node) eq "NMISNG::Node")
 	{
-		$name = $node->name;
+		$name = $node->name;		
+		# make sure node name is changed if it doesn't match
+		if( $self->{_node_name} ne $name ) {
+			$self->{_node_name} = $name;
+			$self->_dirty(1,"node_name");
+		}
+
 		$group = $node->configuration()->{'group'};
+		if( $configuration->{group} ne $group ) {
+			$configuration->{group} = $group;
+			# tell the object the configuration has changed so updates happen
+			$self->_dirty(1,"configuration");
+		}
 	}
 
 	my ( $result, $op );
@@ -1293,7 +1316,7 @@ sub save
 		server_name => $self->server_name,
 		node_uuid  => $self->node_uuid,
 		node_name  => $name,
-		configuration => { group => $group },
+		configuration => $configuration,
 		concept    => $self->concept(),
 		path       => $self->path(),         # path is calculated but must be stored so it can be queried
 		path_keys  => $self->path_keys(),    # could be empty, kept in db for selfcontainment and convenience
@@ -1349,6 +1372,13 @@ sub save
 	{
 		my ($q,$path) = (undef,$self->path());
 		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) } ( 0 .. $#$path );
+		
+		# index values should be treated as strings so 1.0 is not shortened to 1
+		# $self->{_index_is_string} = 1;
+		if( defined($record->{data}{index}) ) { # && $self->{_index_is_string} ) {
+			$record->{data}{index} = NMISNG::DB::make_string( $record->{data}{index} );
+		}
+
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
 			query      => $q,
@@ -1438,6 +1468,11 @@ sub save
 				$setthese{$saveme} = exists($updateargs{constraints})?
 						NMISNG::DB::constrain_record(record => $record->{$saveme}) : $record->{$saveme};
 			}
+		}
+		# index values should be treated as strings so 1.0 is not shortened to 1
+		# $self->{_index_is_string} = 1;
+		if( defined($setthese{'data.index'}) ) { # && $self->{_index_is_string} ) {
+			$setthese{'data.index'} = NMISNG::DB::make_string( $setthese{'data.index'} );
 		}
 
 		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);

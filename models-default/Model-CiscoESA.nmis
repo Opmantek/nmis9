@@ -1,10 +1,33 @@
-#####################################################################################
-#                                                                                   #
-#                                                                                   #
-#         MODEL : CISCO IRONPORT EMAIL SECURITY APPLIANCE (ASYNCOS)                 #
-#                                                                                   #
-#                                                                                   #
-#####################################################################################
+#
+# $Id: Model-CiscoESA.nmis,2023/03/20 mitchells Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
 
 %hash = (
   '-common-' => {
@@ -30,6 +53,9 @@
       'diskIOTable' => {
         'common-model' => 'diskIOTable'
       },
+      'Cisco-neighbor' => {
+        'common-model' => 'Cisco-neighbor'
+      },
     }
   },
   'database' => {
@@ -37,6 +63,20 @@
       'ESA_Power_Supply' => '/nodes/$node/health/esa_power_supply-$index.rrd',
       'asyncoshealth' => '/nodes/$node/health/esa_health.rrd',
     }
+  },
+  'alerts' => {
+    'ESA_Power_Supply' => {
+      'powerSupplyStatus' => {
+	'element' => 'powerSupplyName',
+	'event' => 'Power Supply Status',
+	'level' => 'Major',
+	'test' => 'CVAR1=psuValue;$CVAR1 < 100',
+	'type' => 'test',
+	'title' => 'Power Supply Status',
+	'unit' => '',
+	'value' => 'CVAR1=psuValue;$CVAR1'
+      }
+   }
   },
   'interface' => {
    'collect' => {
@@ -50,9 +90,6 @@
     'noevent' => {
 
     },
-
-
-
     'rrd' => {
       'interface' => {
         'graphtype' => 'bits,abits,maxbits,util,autil',
@@ -231,8 +268,8 @@
   'system' => {
     'nodeType' => 'appliance',
     'nodeModel' => 'CiscoESA',
-    'nodeVendor' => 'Cisco Systems, Inc.',
-    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,esaQueueUtil,esaWorkQueueMsg',
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',
@@ -299,12 +336,10 @@
           }
         }
       },
-
       'nodehealth' => {
         'threshold' => 'memUtil,cpu',
         'graphtype' => 'memUtil,cpu',
         'snmp' => {
-
          'avgBusy1' => {
           'snmpObjectName' => 'perCentCPUUtilization',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
@@ -325,53 +360,102 @@
 
         }
       },
-
       'asyncoshealth' => {
-        'graphtype' => 'esaStats,esaQueueUtil,esaWorkQueueMsg',
+        'graphtype' => 'esaStats,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon',
+        'threshold' => 'quarantineMsg,connsIn,deliveryQueue',
         'snmp' => {
-
          'perCentQueueUtil' => {
-          'snmpObjectName' => 'perCentQueueUtilization',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
           'option' => 'gauge,0:U'
           },
-
          'queueAvailStatus' => {
-          'snmpObjectName' => 'queueAvailabilityStatus',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
           'option' => 'gauge,0:U'
           },
-
          'resConsReason' => {
-          'snmpObjectName' => 'resourceConservationReason',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
           'option' => 'gauge,0:U'
           },
-
          'memAvail' => {
-          'snmpObjectName' => 'memoryAvailabilityStatus',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.7.0',
           'option' => 'gauge,0:U'
-          },,
-
+          },
          'asyncOSPwrSupply' => {
-          'snmpObjectName' => 'powerSupplyStatus',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
           'option' => 'gauge,0:U'
           },
-
          'asyncOSPwrRedund' => {
-          'snmpObjectName' => 'powerSupplyRedundancy',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
           'option' => 'gauge,0:U'
           },
-
          'workQueueMessgs' => {
-          'snmpObjectName' => 'workQueueMessages',
           'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
           'option' => 'gauge,0:U'
+          },
+          'MsgRecOneMin' => {
+           'oid' => '1.3.6.1.4.1.15497.1.1.3.1.1.1.0',
+           'option' => 'gauge,0:U'
+          },
+          'RcpRecOneMin' => {
+           'oid' => '1.3.6.1.4.1.15497.1.1.3.1.2.1.0',
+           'option' => 'gauge,0:U'
+          },
+          'ActiveRecips' => {
+           'oid' => '1.3.6.1.4.1.15497.1.1.3.2.12.0',
+           'option' => 'gauge,0:U'
+          },
+          'quarantinedMsg' => {
+           'oid' => '1.3.6.1.4.1.15497.1.1.3.2.19.0',
+           'option' => 'gauge,0:U'
+          },
+          'connectionsIn' => {
+           'oid' => '1.3.6.1.4.1.15497.1.1.3.2.10.0',
+           'option' => 'gauge,0:U'
           }
-
+       }
+      },
+    'alerts' => {
+        'snmp' => {
+          'workQueueMessgs' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
+            'title' => 'Work Queue Messages',
+            'alert' => {
+              'test' => '$r > 100',
+              'event' => 'Work Queue Messages',
+              'unit' => '',
+              'level' => 'Warning'
+            }
+         },
+          'resConsReason' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
+            'title' => 'Resource Conservation Reason',
+            'alert' => {
+              'test' => '$r != 1',
+              'event' => 'Resource Conservation Reason',
+              'unit' => '',
+              'level' => 'Warning'
+            }
+         },
+          'perCentQueueUtil' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
+            'title' => 'Queue Utilization',
+            'alert' => {
+              'test' => '$r > 70',
+              'event' => 'Queue Utilization',
+              'unit' => '',
+              'level' => 'Warning'
+            }
+         },
+          'queueAvailStatus' => {
+            'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
+            'title' => 'Queue Availability',
+            'alert' => {
+              'test' => '$r != 1',
+              'event' => 'Queue Availability',
+              'unit' => '',
+              'level' => 'Warning'
+            }
+          }
         }
       }
     },
@@ -417,198 +501,12 @@
     }
   },
 
-  'alerts' => {
-      'services' => {
-      # ALERTS FOR PHYSICAL ASYNCOS
-      # IRONPORT MEMORY AVAIL
-        'memoryUsage' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.7',
-          'title' => 'Memory Availability Status',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '1',
-                'Warning' => '2',
-                'Minor' => '2',
-                'Major' => '3',
-                'Critical' => '3',
-                'Fatal' => '3'
-              },
-          'event' => 'High Memory Usage',
-          'test' => '',
-          'unit' => '%',
-          'level' => '',
-        },
-
-        # IRONPORT KEYS / CERTS
-        'keySecondsUntilExpire' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.12.1.2',
-          'title' => 'Time Until Key Expiry',
-          'type' => 'threshold-falling',
-          'threshold' => {
-                'Normal' => '30',
-                'Warning' => '28',
-                'Minor' => '21',
-                'Major' => '14',
-                'Critical' => '7',
-                'Fatal' => '2'
-              },
-          'event' => 'Ironport Key Expiry',
-          'test' => '',
-          'value' => 'CVAR1=1.3.6.1.4.1.15497.1.1.1.12.1.2;$CVAR1 / 86400',
-          'element' => '1.3.6.1.4.1.15497.1.1.1.12.1.3',
-          'unit' => 'Days',
-          'level' => '',
-        },
-
-        # IRONPORT QUEUE AVAIL STATUS
-        'queueStatus' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.5',
-          'title' => 'Queue Availability',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '1',
-                'Warning' => '2',
-                'Minor' => '2',
-                'Major' => '3',
-                'Critical' => '3',
-                'Fatal' => '3'
-              },
-          'event' => 'High Queue Availability',
-          'test' => '',
-          'unit' => '%',
-          'level' => '',
-        },
-
-        # IRONPORT RESOURCE CONSERVATION STATUS
-        'resourceConStatus' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.6',
-          'title' => 'Resource Conservation Status',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '1',
-                'Warning' => '2',
-                'Minor' => '2',
-                'Major' => '3',
-                'Critical' => '3',
-                'Fatal' => '4'
-              },
-          'event' => 'High Queue Status',
-          'test' => '',
-          'unit' => '%',
-          'level' => '',
-        },
-
-        # IRONPORT QUEUE UTILIZATION
-        'queueUtilStatus' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.4',
-          'title' => 'Queue Utilization',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '30',
-                'Warning' => '45',
-                'Minor' => '50',
-                'Major' => '75',
-                'Critical' => '90',
-                'Fatal' => '100'
-              },
-          'event' => 'High Queue Utilization',
-          'test' => '',
-          'unit' => '%',
-          'level' => '',
-        },
-
-        # IRONPORT CPU USAGE
-        'cpuStatus' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.2',
-          'title' => 'CPU Utilization',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '30',
-                'Warning' => '45',
-                'Minor' => '50',
-                'Major' => '75',
-                'Critical' => '90',
-                'Fatal' => '100'
-              },
-          'event' => 'High CPU Utilization',
-          'test' => '',
-          'unit' => '%',
-          'level' => '',
-        },
-
-        # IRONPORT MEMORY UTILIZATION
-        'memUtilStatus' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.1',
-          'title' => 'Memory Utilization',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '30',
-                'Warning' => '45',
-                'Minor' => '50',
-                'Major' => '75',
-                'Critical' => '90',
-                'Fatal' => '100'
-              },
-          'event' => 'High Memory Utilization',
-          'test' => '',
-          'unit' => '%',
-          'level' => '',
-        },
-
-	# IRONPORT PSU REDUNDANCY
-        'pwrRedundancy' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
-          'title' => 'Power Supply Redundancy',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '1',
-                'Fatal' => '2'
-              },
-          'event' => 'Loss of Power Supply Redundancy',
-          'test' => '',
-          'unit' => '',
-          'level' => '',
-        },
-
-	# IRONPORT PSU STATUS
-        'pwrStatus' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
-          'title' => 'Power Supply Status',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '2',
-		'Critical' => '3',
-                'Fatal' => '4'
-              },
-          'event' => ' Power Supply Status',
-          'test' => '',
-          'unit' => '',
-          'level' => '',
-        },
-
-	# IRONPORT RAID STATUS
-        'raidStatus' => {
-          'oid' => '1.3.6.1.4.1.15497.1.1.1.18.1.2',
-          'title' => 'RAID Status',
-          'type' => 'threshold-rising',
-          'threshold' => {
-                'Normal' => '1',
-                'Fatal' => '2'
-              },
-          'event' => 'Drive Failure',
-          'test' => '',
-          'unit' => '',
-          'level' => '',
-        },
-
-    }
-  },
 
   'systemHealth' => {
     'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor',
     'sys' => {
       'ESA_Power_Supply' => {
-        'headers' => 'powerSupplyName,powerSupplyStatus,powerSupplyRedundancy',
+        'headers' => 'powerSupplyName,powerSupplyStatus,powerSupplyRedundancy,psuValue',
         'index_oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
         'indexed' => 'powerSupplyStatus',
         'snmp' => {
@@ -616,6 +514,10 @@
             'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.4',
             'title' => 'PSU Name'
           },
+	  'psuValue' => {
+	    'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
+	    'title' => 'PSU Value'
+	  },
           'powerSupplyStatus' => {
             'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
             'replace' => {

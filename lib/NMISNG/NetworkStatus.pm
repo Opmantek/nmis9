@@ -156,7 +156,7 @@ sub overallNodeStatus
 				++$statusHash{$event_status};
 				++$statusHash{count};
 			} else {
-				$self->nmisng()->log->info("NetworkStatus:overallNodeStatus No nodeobj found!");
+				$self->nmisng()->log->info("($node_name) NetworkStatus:overallNodeStatus No nodeobj found!");
 			}
 		}
 	}
@@ -400,30 +400,30 @@ sub getGroupSummary {
 
 	my %summaryHash = ();
 
-	#$self->log->debug2(&NMISNG::Log::trace()."Starting");
+	#$self->log->debug2(sub {&NMISNG::Log::trace()."Starting"});
 
 	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
-	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
+	my $group_by = ['configuration.group']; # which is deeply structured!
 	$group_by = undef if( !$group );
 
 	my ($entries,$count,$error);
 	if ($local_nodes) {
 		#$self->log->debug("getGroupSummary - Getting local nodes");
 		($entries,$count,$error) = $self->nmisng->grouped_node_summary(
-			filters => { 'node_config.configuration.group' => $group, cluster_id => $$self->nmisng->config->{cluster_id}},
+			filters => { 'configuration.group' => $group, cluster_id => $self->nmisng->config->{cluster_id}},
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);
-		$self->log->debug5("getGroupSummary - Got local nodes: " . Dumper($entries) . "\n\n");
+		$self->log->debug5(sub {"getGroupSummary - Got local nodes: " . Dumper($entries) . "\n\n"});
 	}
 	else {
 		#$self->log->debug("getGroupSummary - Getting all nodes");
 		($entries,$count,$error) = $self->nmisng->grouped_node_summary(
-			filters => { 'node_config.configuration.group' => $group },
+			filters => { 'configuration.group' => $group },
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);
-		$self->log->debug5("getGroupSummary - Got all nodes: " . Dumper($entries) . "\n\n");
+		$self->log->debug5(sub {"getGroupSummary - Got all nodes: " . Dumper($entries) . "\n\n"});
 	}
 
 	if( $error || @$entries != 1 )
@@ -443,8 +443,8 @@ sub getGroupSummary {
 	{
 		$group_summary = $entries->[0];
 	}
-	$self->log->debug5("getGroupSummary - Group Summary: " . Dumper($group_summary) . "\n\n");
-	$self->log->debug5("getGroupSummary - Node Data: " . Dumper($node_data) . "\n\n");
+	$self->log->debug5(sub {"getGroupSummary - Group Summary: " . Dumper($group_summary) . "\n\n"});
+	$self->log->debug5(sub {"getGroupSummary - Node Data: " . Dumper($node_data) . "\n\n"});
 #	my $count = $group_summary->{count} || 0;
 #	if ($count == 0)
 #	{
@@ -562,7 +562,7 @@ sub getGroupSummary {
 		}
 	}
 
-	#$self->log->debug2(&NMISNG::Log::trace()."Finished");
+	#$self->log->debug2(sub {&NMISNG::Log::trace()."Finished"});
 	return \%summaryHash;
 } # end getGroupSummary
 

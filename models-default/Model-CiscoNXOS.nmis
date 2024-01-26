@@ -123,16 +123,19 @@
       'nodehealth' => {
         'snmp' => {
           'avgBusy1' => {
-            'oid' => 'cseSysCPUUtilization.0'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'cseSysCPUUtilization.0'
           },
           'avgBusy5' => {
-            'oid' => 'cpmCPUTotal5minRev.1'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'cpmCPUTotal5minRev.1'
           },
           'MemoryUsedPROC' => {
-            'oid' => 'cpmCPUMemoryUsed.1'
+            #'oid' => 'cpmCPUMemoryUsed.1'
           },
           'MemoryFreePROC' => {
-            'oid' => 'cpmCPUMemoryFree.1'
+            # plugin ciscoMemory.pm normalises relevant object and updates this metric
+            #'oid' => 'cpmCPUMemoryFree.1'
           },
           'TopChanges' => {
             'oid' => 'dot1dStpTopChanges',
@@ -305,7 +308,7 @@
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,dot1dBasePort,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply,fanStatusCefc',
+    'sections' => 'cpu_cpm,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,dot1dBasePort,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply,fanStatusCefc',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',

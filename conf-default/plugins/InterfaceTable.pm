@@ -61,10 +61,10 @@ sub update_plugin
             
 	my $NC = $nodeobj->configuration;
 
-	$NG->log->debug9("\$node: ".Dumper \$nodeobj);
-	$NG->log->debug9("\$S: ".Dumper \$S);
-	$NG->log->debug9("\$C: ".Dumper \$C);
-	$NG->log->debug9("\$NG: ".Dumper \$NG);
+	$NG->log->debug9(sub {"\$node: ".Dumper \$nodeobj});
+	$NG->log->debug9(sub {"\$S: ".Dumper \$S});
+	$NG->log->debug9(sub {"\$C: ".Dumper \$C});
+	$NG->log->debug9(sub {"\$NG: ".Dumper \$NG});
 
 	my %nodeconfig = %{$NC};
 
@@ -78,8 +78,9 @@ sub update_plugin
 
 	if (@$ids)
 	{
-		$NG->log->debug9("$plugin:$sub: \$ids: ".Dumper $ids);
-		$NG->log->debug9("$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}});
+		$NG->log->debug9(sub {"$plugin:$sub: \$ids: ".Dumper $ids});
+		$NG->log->debug9(sub {"$plugin:$sub: \$S->{mdl}{systemHealth}{sys}{$concept}: ".Dumper \%{$S->{mdl}{systemHealth}{sys}{$concept}}});
+		# my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);
 
         my $active = 0;
         
@@ -97,6 +98,8 @@ sub update_plugin
                 foreach my $w (qw(index Description ifAdminStatus ifDescr ifHighSpeed ifLastChange ifOperStatus ifSpeed ifType)) {
                     $interface_data->{$w} = $data->{$w};
                 }
+				# to keep path keys similar to other interfaces
+                $interface_data->{index} = $data->{index};
                 $interface_data->{ifIndex} = $data->{index};
                 $interface_data->{collect} = "true";
                 $interface_data->{interface} = $data->{ifDescr};
@@ -105,13 +108,21 @@ sub update_plugin
                 if ($data->{ifAdminStatus} eq "up") {
                    $active++;
                 }
+                # fix up speed calculations, it needs speed to be 0 to use ifHighSpeed, 
+				# unfortunately this is not enough to get the values changed in the gui
+                # $interface_data->{ifSpeed} = 0 if( $interface_data->{ifHighSpeed} > 0 );
+                # $nodeobj->checkIntfInfo( sys => $S, index => $interface_data->{index}, iftype => $IFT, target => $interface_data );
                 
-                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => [], data => $interface_data );
+            	# we matched InterfaceTable index to ifIndex, so make sure we are matching them up 
+            	# here, skip ifDescr because we've copied it, perhaps the above changed it, so do
+            	# not use it in the search 
+                my $path_keys = ['index'];
+                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => $path_keys, data => $interface_data );
 
                 my ($inventory,$error_message) = $nodeobj->inventory(
                     concept => 'interface',
                     path => $path,
-                    path_keys => [],
+                    path_keys => $path_keys,
                     create => 1
                 );
                 $NG->log->error("Failed to get inventory for device_global, error_message:$error_message")
@@ -119,8 +130,14 @@ sub update_plugin
                 # create is set so we should have an inventory here
                 if($inventory)
                 {
+					# we do not want to completely overwrite the existing data, so take what we have and
+					# put it overtop of what exists:
+					my $existing_data = $inventory->data();
+					foreach my $key (keys %$interface_data) {
+						$existing_data->{$key} = $interface_data->{$key};
+					}
                     # not sure why supplying the data above does not work, needs a test!
-                    $inventory->data( $interface_data );
+                    $inventory->data( $existing_data );
                     $inventory->historic(0);
                     $inventory->enabled(1);
                     # disable for now
@@ -129,7 +146,7 @@ sub update_plugin
                     my ($op,$error) = $inventory->save();
                     $inventory->description( $data->{ifDescr} );
 
-                    $NG->log->debug2( "saved ".join(',', @$path)." op: $op");
+                    $NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
                     $NG->log->info( "saved ".join(',', @$path)." op: $op");
                 } else {
                     $NG->log->error("No inventory");
@@ -179,7 +196,7 @@ sub collect_plugin
 			$ifTable->historic(0);
 			$ifTable->data($data);
 			my ($op, $serror) = $ifTable->save();
-			$NG->log->debug2("Inventory update: $op ");
+			$NG->log->debug2(sub {"Inventory update: $op "});
 			if ($serror)
 			{
 				$NG->log->error("Failed to save inventory $ifTableId: $serror");

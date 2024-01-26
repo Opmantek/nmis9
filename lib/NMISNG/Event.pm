@@ -760,25 +760,25 @@ sub load
 	elsif ( !$error && $model_data->count > 1 )
 	{
 		my $ok = 0;
-		$self->nmisng->log->debug5("Recieved multiple events, parsing them");
+		$self->nmisng->log->debug5(sub {"Recieved multiple events, parsing them"});
 		foreach my $modelData (@{$model_data->data})
 		{
-			$self->nmisng->log->debug5("Model Data");
-			$self->nmisng->log->debug5("   Node UUID: $modelData->{node_uuid}");
-			$self->nmisng->log->debug5("   Element:   $modelData->{element}");
-			$self->nmisng->log->debug5("   Event:     $modelData->{event}");
-			$self->nmisng->log->debug5("   Active:    $modelData->{active}");
-			$self->nmisng->log->debug5("Self Data");
-			$self->nmisng->log->debug5("   Node UUID: $self->{data}{node_uuid}");
-			$self->nmisng->log->debug5("   Element:   $self->{data}{element}");
-			$self->nmisng->log->debug5("   Event:     $self->{data}->{event}");
-			$self->nmisng->log->debug5("   Active:    $self->{data}{active}");
+			$self->nmisng->log->debug5(sub {"Model Data"});
+			$self->nmisng->log->debug5(sub {"   Node UUID: $modelData->{node_uuid}"});
+			$self->nmisng->log->debug5(sub {"   Element:   $modelData->{element}"});
+			$self->nmisng->log->debug5(sub {"   Event:     $modelData->{event}"});
+			$self->nmisng->log->debug5(sub {"   Active:    $modelData->{active}"});
+			$self->nmisng->log->debug5(sub {"Self Data"});
+			$self->nmisng->log->debug5(sub {"   Node UUID: $self->{data}{node_uuid}"});
+			$self->nmisng->log->debug5(sub {"   Element:   $self->{data}{element}"});
+			$self->nmisng->log->debug5(sub {"   Event:     $self->{data}->{event}"});
+			$self->nmisng->log->debug5(sub {"   Active:    $self->{data}{active}"});
 			if ($modelData->{node_uuid} eq $self->{data}{node_uuid}
 				&& $modelData->{element} eq $self->{data}{element}
 				&& $modelData->{event} eq $self->{data}->{event}
 				&& $modelData->{active} eq $self->{data}{active})
 			{
-				$self->nmisng->log->debug5("Found matching event");
+				$self->nmisng->log->debug5(sub {"Found matching event"});
 				$ok = 1;
 				foreach my $key ( keys %{$modelData})
 				{

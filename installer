@@ -405,8 +405,9 @@ These modules can be installed with CPAN:
 	# curl is present in most basic redhat install
 	# wget is present on debian/ubuntu via priority:important
 	# however, ca-certificates may be missing/incomplete at this time
-	my $testres = system("curl --insecure -L -s -m 10 --retry 2 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
-	$testres = system("wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
+	# logic is duplicated in is_web_available in common_repos.sh
+	my $testres = system("curl --connect-timeout 3 --insecure -L -s --retry 2 -o /dev/null https://services.opmantek.com/ping 2>/dev/null") >> 8;
+	$testres = system("wget --timeout=3 --no-check-certificate -q --tries=3 -O /dev/null https://services.opmantek.com/ping 2>/dev/null") >> 8
 			if ($testres);
 	my $can_use_web = !$testres;
 
@@ -414,7 +415,8 @@ These modules can be installed with CPAN:
 	{
 		logmsg(0, "Cannot install missing CPAN modules: ".join(" ",@missingones));
 
-		print "Cannot Cannot install missing CPAN modules!\nNMIS will not work properly until the following Perl modules are installed (from CPAN):\n\n".join(" ",@missingones)
+		print "Cannot install missing CPAN modules!\nNMIS will not work properly until the following Perl modules are installed (from CPAN):\n\n"
+				.join(" ",@missingones)
 				."\n\nWe recommend that you stop the installer now, resolve the dependencies,
 and then restart the installer.\n\n";
 
@@ -588,7 +590,7 @@ run_hooks("postinstall"); # unlock
 # fixme  move chmod(0644, $logfile) if (-f $logfile);
 
 
-printBanner("installation complete.");
+printBanner("Installation complete.");
 exit 0;
 
 
@@ -694,7 +696,7 @@ sub check_installed_modules
 																	 # minversion => "0.3",
 																	 priority => 100 };
 
-	# we strictly requre mojolicious 8.11 or newer,
+	# we strictly require mojolicious 8.11 or newer,
 	# as the older mojo::log api is too different
 	$modules{"Mojolicious"} = { file => undef, usetype => "use",
 															usedby => "lib/NMISNG/Log.pm",
@@ -763,10 +765,32 @@ sub check_installed_modules
 															 < version->parse($thisentry->{minversion})));
 	}
 
-	if (@missing)
+	# We don't need to install our own stuff.
+	my @ourStuffArr = qx{find lib -type f -print | sed 's#lib/##' | sed 's#/#::#g'};
+	my %ourStuffMap;
+	# Bogus stuff we find ???
+	$ourStuffMap{"NMIS::IPSLA"} = 1;
+	$ourStuffMap{"NMIS::UUID"} = 1;
+	$ourStuffMap{"rrdfunc"} = 1;
+	$ourStuffMap{"t"} = 1;
+	$ourStuffMap{"NMIS::Connect"} = 1;
+	$ourStuffMap{"Compat::Connect"} = 1;
+	foreach my $modname (@ourStuffArr)
 	{
-		@critmissing = grep( !$noncritical{$_}, @missing);
-		my @optionals = grep ($noncritical{$_}, @missing);
+		chomp($modname);
+		## for debugging: print ("Our Stuff Includes '$modname'\n");
+		$ourStuffMap{$modname} = 1;
+	}
+	my @editMissing;
+	foreach my $modname (@missing)
+	{
+		push(@editMissing, $modname) if (!exists($ourStuffMap{$modname}));
+	}
+
+	if (@editMissing)
+	{
+		@critmissing = grep( !$noncritical{$_}, @editMissing);
+		my @optionals = grep ($noncritical{$_}, @editMissing);
 
 		if (@optionals)
 		{
@@ -781,7 +805,7 @@ NMIS AAA system.\n\n|;
 		{
 			printBanner("Some Required Perl Modules are missing (or too old)!");
 			print qq|The following Perl modules are missing or too old and must
-to be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @critmissing)."\n\n";
+be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @critmissing)."\n\n";
 
 			logmsg(0, "Missing Required modules: ".join(" ", @critmissing));
 		}
@@ -1133,10 +1157,13 @@ sub run_hooks
 sub printBanner
 {
 	my ($string) = @_;
-	print "\n\n++++++++++++++++++++++++++++++++++++++++++++++++++++++
-$string
-++++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n";
-	logmsg(0,"\n###+++\n$string\n###+++\n\n") if (!$simulate);
+	my $now = localtime;
+	my $banner = "\n
+++++++++++++++++++++++++++++++++++++++++++++++++++++++ $now
++  $string
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n";
+	print $banner;
+	logmsg(0,$banner) if (!$simulate);
 }
 
 sub logdie
@@ -1243,3 +1270,4 @@ sub type_which
 	}
 	return undef;
 }
+

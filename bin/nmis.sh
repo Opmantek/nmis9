@@ -32,11 +32,14 @@
 # *****************************************************************************
 
 nmis_base=/usr/local/nmis9
+omk_base=/usr/local/omk
 nmis=$nmis_base/bin/nmis-cli
 node_admin=$nmis_base/admin/node_admin.pl
 nmis_log=$nmis_base/logs/nmis.log
 event_log=$nmis_base/logs/event.log
-error_log=/var/log/httpd/error_log
+# fixme, needs OS check to get file right
+#error_log=/var/log/httpd/error_log
+error_log=/var/log/apache2/error.log
 editor=`which vi`
 DEBUG="debug=false"
 OUTPUT="/tmp/nmis-debug"
@@ -62,6 +65,7 @@ helptext() {
 	echo "    $0 config"
 	echo "    $0 audit"
 	echo "    $0 Config"
+	echo "    $0 opCommon"
 	echo "    $0 Locations"
 	echo "    $0 Nodes"
 	echo "    $0 Services"
@@ -152,6 +156,13 @@ then
 	$editor $nmis_base/conf/Config.nmis
 	exit 0
 fi
+
+if [ "$1" = "opCommon" ]
+then
+	sudo $editor $omk_base/conf/opCommon.json
+	exit 0
+fi
+
 
 if [ "$1" = "Users" ]
 then

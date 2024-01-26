@@ -958,6 +958,8 @@ sub doeditTable
 						$notvalid = 1;
 					} elsif ($prop eq "business" and $thisentry->{$prop} =~ $not_allowed_chars_business) {
 						$notvalid = 1;
+					} elsif ($prop =~ /url/i) {
+						$thisentry->{$prop} = escapeHTML($thisentry->{$prop});
 					} elsif ($thisentry->{$prop} =~ $not_allowed_chars_props) {
 						# Other kind of validation?
 						$notvalid = 1;

@@ -4,9 +4,6 @@
       'Cisco-neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
-      'F5-BigIP' => {
-        'common-model' => 'F5-BigIP'
-      },
       'database' => {
         'common-model' => 'database'
       },

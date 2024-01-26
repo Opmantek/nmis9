@@ -34,10 +34,10 @@ sub update_plugin
             
 	my $NC = $nodeobj->configuration;
 
-	$NG->log->debug9("\$node: ".Dumper \$nodeobj);
-	$NG->log->debug9("\$S: ".Dumper \$S);
-	$NG->log->debug9("\$C: ".Dumper \$C);
-	$NG->log->debug9("\$NG: ".Dumper \$NG);
+	$NG->log->debug9(sub {"\$node: ".Dumper \$nodeobj});
+	$NG->log->debug9(sub {"\$S: ".Dumper \$S});
+	$NG->log->debug9(sub {"\$C: ".Dumper \$C});
+	$NG->log->debug9(sub {"\$NG: ".Dumper \$NG});
 
 	my $max_repetitions = $NC->{max_repetitions} || $C->{snmp_max_repetitions};
 	my %nodeconfig = %{$NC};

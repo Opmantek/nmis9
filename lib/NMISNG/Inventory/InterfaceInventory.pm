@@ -81,6 +81,32 @@ sub new
 	# modify data section, put IP into a format we can search/use (array of hashes with consistent keys)
 	# for now leave the original attributes as well
 	my $data = $args{data};
+	set_ip_into_from_data($data);
+	
+	my $self = $class->SUPER::new(%args);
+}
+
+# Override base class to take IP information in data
+# and convert it into ip array
+# after that let the normal data function do the rest
+# of it's magic
+sub data
+{
+	my ( $self, $newvalue ) = @_;
+
+	if ( defined($newvalue) && ref($newvalue) eq "HASH") 
+	{
+		set_ip_into_from_data($newvalue);
+	}
+	return $self->SUPER::data($newvalue);
+}
+
+# take ip info using $cnt at the end and create
+# an array out of it and place it back into the
+# data hash provided
+sub set_ip_into_from_data
+{
+	my ($data) = @_;
 	if( $data )
 	{
 		my $cnt = 1;
@@ -96,8 +122,6 @@ sub new
 			$cnt++;
 		}
 	}
-
-	my $self = $class->SUPER::new(%args);
 }
 
 # quick get/setters for plain attributes

@@ -175,11 +175,10 @@ sub keys2name
 		$rewritten{$name} = $hash->{$oid};
 	}
 
-	$self->nmisng->log->debug4(&NMISNG::Log::trace()
+	$self->nmisng->log->debug4(sub {&NMISNG::Log::trace()
 												. "result: "
 												. join(" ",
-															 map { "$_ = $rewritten{$_} " } (keys %rewritten)))
-			if ($self->nmisng->log->is_level(4));
+															 map { "$_ = $rewritten{$_} " } (keys %rewritten))});			
 	return \%rewritten;
 }
 
@@ -258,7 +257,7 @@ sub open
 	if ($self->{config}->{version} =~ /^snmpv(1|2c)$/)
 	{
 		push(@authopts, "-community"	=> NMISNG::Util::decrypt($self->{config}->{community}),);
-		$self->nmisng->log->debug3(&NMISNG::Log::trace() . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, community *********, context $self->{config}->{context}");
+		$self->nmisng->log->debug3(sub {&NMISNG::Log::trace() . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, community *********, context $self->{config}->{context}"});
 	}
 	elsif ($self->{config}->{version} eq 'snmpv3')
 	{
@@ -284,7 +283,7 @@ sub open
 		{
 			push(@authopts, "-privpassword" => NMISNG::Util::decrypt($self->{config}->{privpassword}));
 		}
-		$self->nmisng->log->debug3(&NMISNG::Log::trace() . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, username $self->{config}->{username}, context $self->{config}->{context}, authprotocol $self->{config}->{authprotocol}, authkey ********, authpassword ********, privprotocol $self->{config}->{privprotocol}, privkey ********, privpassword ********");
+		$self->nmisng->log->debug3(sub {&NMISNG::Log::trace() . "opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, username $self->{config}->{username}, context $self->{config}->{context}, authprotocol $self->{config}->{authprotocol}, authkey ********, authpassword ********, privprotocol $self->{config}->{privprotocol}, privkey ********, privpassword ********"});
 	}
 	else
 	{
@@ -378,12 +377,11 @@ sub get
 			my $result = $self->{session}->get_request(@methodargs);
 	return undef if (!$self->checkResult($result, \@vars));
 
-	$self->nmisng->log->debug4(&NMISNG::Log::trace()
+	$self->nmisng->log->debug4(sub {&NMISNG::Log::trace()
 														 . "result: "
 														 . join(" ",
 																		map { NMISNG::MIB::oid2name($self->nmisng, $_)
-																							."($_) = $result->{$_} " } (oid_lex_sort(keys %{$result}))))
-			if ($self->nmisng->log->is_level(4));
+																							."($_) = $result->{$_} " } (oid_lex_sort(keys %{$result}))) });			
 	return $result;
 }
 
@@ -456,10 +454,9 @@ sub getarray
 			push @retvals, $result->{$oid};
 
 			# don't waste time translating if not debugging
-			$self->nmisng->log->debug4(&NMISNG::Log::trace()
+			$self->nmisng->log->debug4(sub {&NMISNG::Log::trace()
 																 . "result: var=" . NMISNG::MIB::oid2name($self->nmisng, $oid)
-																 .", value=$result->{$oid}")
-					if ($self->nmisng->log->is_level(4));
+																 .", value=$result->{$oid}"});
 		}
 	}
 	return @retvals;
@@ -496,6 +493,7 @@ sub gettable
 		else
 		{
 			$self->nmisng->log->error("Incorrect syntax");
+			$self->{error} = "Incorrect mib name, incorrect syntax, could not translate name:$name to oid";
 			return undef;
 		}
 	}
@@ -531,8 +529,8 @@ sub gettable
 		}
 		return undef if (!$self->checkResult($result, [$name]));
 
-		$self->nmisng->log->debug3(&NMISNG::Log::trace()
-															 . "result: ".scalar(keys %$result)." values for table $name");
+		$self->nmisng->log->debug3(sub {&NMISNG::Log::trace()
+															 . "result: ".scalar(keys %$result)." values for table $name"});
 
 		if (NMISNG::Util::getbool($rewritekeys))
 		{

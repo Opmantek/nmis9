@@ -46,6 +46,9 @@
       },
       'event' => {
         'common-model' => 'event'
+      },
+      'asset' => {
+        'common-model' => 'asset'
       }
     }
   },
@@ -138,7 +141,8 @@
             'title' => 'Description'
           },
           'ifNumber' => {
-            'oid' => 'ifNumber'
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
           },
           'sysName' => {
             'oid' => 'sysName',
@@ -203,7 +207,7 @@
           'vmwMemSize' => {
             'oid' => 'vmwMemSize',
             'title' => 'VMware Memory Size'
-          },
+          }
         }
       },    
     },
@@ -410,7 +414,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'VirtMachines',
+    'sections' => 'VirtMachines,entityMib',
     'rrd' => {
       'VirtMachines' => {        
         'indexed' => 'true',
@@ -457,7 +461,7 @@
         'indexed' => 'vmwVmDisplayName',
         'index_oid' => '1.3.6.1.4.1.6876.2.1.1.2',        
         'index_regex' => '\.(\d+)$',        
-        'headers' => 'vmwVmDisplayName,vmwVmConfigFile,vmwVmUUID,vmwVmState,vmwVmMemSize,vmwVmCpus',
+        'headers' => 'vmwVmDisplayName,vmwVmGuestOS,vmwVmConfigFile,vmwVmUUID,vmwVmState,vmwVmMemSize,vmwVmCpus',
         'index_headers' => 'vmwVmDisplayName',
         'snmp' => {
           'vmwVmDisplayName' => {
@@ -468,11 +472,14 @@
             'oid' => '1.3.6.1.4.1.6876.2.1.1.3',
             'title' => 'Config File'
           },
-          # This does not produce reliable results
-          #'vmwVmGuestOS' => {
-          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.4',
-          #  'title' => 'Guest OS'
-          #},
+          'vmwVmGuestOS' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.4',
+            'title' => 'Guest OS',
+            'replace' => {
+              'E: tools not running' => 'Unknown OS',
+              'E: tools not installed' => 'Unknown OS'
+            }
+          },
           'vmwVmMemSize' => {
             'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
             'title' => 'Memory Size'
@@ -485,11 +492,6 @@
             'oid' => '1.3.6.1.4.1.6876.2.1.1.10',
             'title' => 'VMID'
           },
-          # This does not produce reliable results
-          #'vmwVmGuestState' => {
-          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
-          #  'title' => 'Guest State'
-          #},
           'vmwVmCpus' => {
             'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
             'title' => 'CPUs'

@@ -152,14 +152,14 @@ sub inventory
 	return if(!$node);
 	return if(!$concept);
 
-	$self->nmisng->log->debug3("Node '".$node->name."' last update is ".$node->lastupdate().".");
+	$self->nmisng->log->debug3(sub {"Node '".$node->name."' last update is ".$node->lastupdate()."."});
 	# Re-use cached object for catchall if it is still valid, and re-synchronize it if it is stale.
 	if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} )
 	{
-		$self->nmisng->log->debug3("Node '".$node->name."', catchall last update is ".$self->{_inventory_cache}{$concept}->data()->{last_node_config_update}.".");
+		$self->nmisng->log->debug3(sub {"Node '".$node->name."', catchall last update is ".$self->{_inventory_cache}{$concept}->data()->{last_node_config_update}."."});
 		if ($self->{_inventory_cache}{$concept}->data()->{last_node_config_update} == $node->lastupdate())
 		{
-			$self->nmisng->log->debug3("Node '".$node->name."' has not been updated, using cached 'catchall'.");
+			$self->nmisng->log->debug3(sub {"Node '".$node->name."' has not been updated, using cached 'catchall'."});
 			return $self->{_inventory_cache}{$concept};
 		}
 		else
@@ -349,7 +349,7 @@ sub init
 			}
 		}
 		$policy = $intervals->{$policy_name};
-		$self->nmisng->log->debug2("Using policy $policy_name: ". Dumper($policy));
+		$self->nmisng->log->debug2(sub {"Using policy $policy_name: ". Dumper($policy)});
 	}
 	# flag for init snmp accessor, default is yes
 	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
@@ -409,7 +409,7 @@ sub init
 					NMISNG::Util::TODO("Recreate this debug output, possibly need a way to ask a node for it's concepts/sections?");
 					foreach my $value ( @$values )
 					{
-						$self->nmisng->log->debug3( "Node=$self->{name} info $value" );
+						$self->nmisng->log->debug3(sub { "Node=$self->{name} info $value" });
 					}
 				}
 			}
@@ -725,6 +725,9 @@ sub disable_source
 	delete $self->{$moriturus};
 }
 
+# DO NOT USE THIS FUNCTION, here for backwards compat!
+# it is not efficent, especially for nodes with high
+# interface counts!!!
 # helper that returns interface info,
 # but indexed by ifdescr instead of internal indexing by ifindex
 #
@@ -777,6 +780,7 @@ sub ifDescrInfo
 	}
 	return \%ifDescrInfo;
 }
+
 
 #===================================================================
 
@@ -913,14 +917,14 @@ sub loadInfo
 					# complain about nosuchxyz
 					if ( $wantdebug && $thisval =~ /^no(SuchObject|SuchInstance)$/ )
 					{
-						$self->nmisng->log->debug3( ( $1 eq "SuchObject" ? "ERROR" : "WARNING" ) . ": name=$ds index=$index value=$thisval" );
+						$self->nmisng->log->debug3(sub { ( $1 eq "SuchObject" ? "ERROR" : "WARNING" ) . ": name=$ds index=$index value=$thisval" });
 						$modext = ( $1 eq "SuchObject" ? "ERROR" : "WARNING" );
 					}
 					print
 						"  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds index=$index value=$result->{$sect}{$index}{$ds}{value}\n"
 						if $dmodel;
 
-					$self->nmisng->log->debug3( "store: class=$class, type=$sect, DS=$ds, index=$index, value=$thisval" );
+					$self->nmisng->log->debug3(sub { "store: class=$class, type=$sect, DS=$ds, index=$index, value=$thisval" });
 				}
 
 			}
@@ -938,7 +942,7 @@ sub loadInfo
 						$self->nmisng->log->$level("name=$ds  value=$thisval" );
 						$modext = ( $1 eq "SuchObject" ? "ERROR" : "WARNING" );
 					}
-					$self->nmisng->log->debug3( "store: class=$class, type=$sect, DS=$ds, value=$thisval");
+					$self->nmisng->log->debug3(sub { "store: class=$class, type=$sect, DS=$ds, value=$thisval"});
 				}
 			}
 		}
@@ -1021,7 +1025,7 @@ sub getData
 	# data? we're happy-ish
 	if ( keys %$result )
 	{
-		$self->nmisng->log->debug3( "MODEL getData $self->{name} class=$class:" . Dumper($result) ) if ($wantdebug);
+		$self->nmisng->log->debug3(sub { "MODEL getData $self->{name} class=$class:" . Dumper($result) }) if ($wantdebug);
 		if ($dmodel)
 		{
 			print "MODEL getData $self->{name} class=$class:\n";
@@ -1133,7 +1137,7 @@ sub getValues
 		# check control expression next
 		if ( $thissection->{control} )
 		{
-			$self->nmisng->log->debug2( "control $thissection->{control} found for section=$sectionname");
+			$self->nmisng->log->debug2(sub { "control $thissection->{control} found for section=$sectionname"});
 
 			if (!$self->parseString(
 						 string => "($thissection->{control}) ? 1:0",
@@ -1145,7 +1149,7 @@ sub getValues
 				)
 				)
 			{
-				$self->nmisng->log->debug2( "collect of section $sectionname with index=$index skipped: control $thissection->{control}");
+				$self->nmisng->log->debug2(sub { "collect of section $sectionname with index=$index skipped: control $thissection->{control}"});
 				$status{skipped} = "skipped $sectionname because of control expression";
 				next;
 			}
@@ -1155,11 +1159,17 @@ sub getValues
 		# we need to have an rrd section so we can define the graphtypes.
 		if ($thissection->{skip_collect} and NMISNG::Util::getbool($thissection->{skip_collect}))
 		{
-			$self->nmisng->log->debug2("skip_collect $thissection->{skip_collect} found for section=$sectionname");
+			$self->nmisng->log->debug2(sub {"skip_collect $thissection->{skip_collect} found for section=$sectionname"});
 			$status{skipped} = "skipped $sectionname because skip_collect set to true";
 			next;
 		}
 
+		if ( (!defined( $thissection->{snmp} ) || ref $thissection->{snmp} ne "HASH") && (!defined( $thissection->{wmi} ) || ref $thissection->{wmi} ne "HASH")  )
+		{
+			$self->nmisng->log->debug2(sub {"collection of section $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect"});
+			$status{skipped} = "skipped $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect";
+			next;
+		}
 		NMISNG::Util::TODO("GRAPHTYPE: Does full removal of this code make sense?");
 		# # should we add graphtype to given (info) table?
 		# if ( ref($tbl) eq "HASH" )
@@ -1204,7 +1214,7 @@ sub getValues
 				my $thisitem = $thissection->{snmp}->{$itemname};
 				next if ( !exists $thisitem->{oid} );
 
-				$self->nmisng->log->debug3( "oid for section $sectionname, item $itemname primed for loading");
+				$self->nmisng->log->debug3(sub { "oid for section $sectionname, item $itemname primed for loading"});
 
 				# for snmp each oid belongs to one reportable thingy, and we want to get all oids in one go
 				# HOWEVER, the same thing is often saved in multiple sections!
@@ -1220,7 +1230,7 @@ sub getValues
 					push @{$todos{$itemname}->{section}}, $sectionname;
 					push @{$todos{$itemname}->{details}}, $thisitem;
 
-					$self->nmisng->log->debug3("item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} ));
+					$self->nmisng->log->debug3(sub {"item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} )});
 				}
 				else
 				{
@@ -1242,7 +1252,7 @@ sub getValues
 				next if ( $itemname eq "-common-" );    # that's not a collectable item
 				my $thisitem = $thissection->{wmi}->{$itemname};
 
-				$self->nmisng->log->debug3( "wmi query for section $sectionname, item $itemname primed for loading");
+				$self->nmisng->log->debug3(sub { "wmi query for section $sectionname, item $itemname primed for loading"});
 
 				# check if there's a -common- section with a query for multiple items?
 				my $query = (
@@ -1275,7 +1285,7 @@ sub getValues
 					push @{$todos{$itemname}->{section}}, $sectionname;
 					push @{$todos{$itemname}->{details}}, $thisitem;
 
-					$self->nmisng->log->debug3("item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} ));
+					$self->nmisng->log->debug3(sub {"item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} )});
 				}
 				else
 				{
@@ -1446,7 +1456,7 @@ sub getValues
 				&& $sectiondetails->{alert}->{test} )
 			{
 				my $test = $sectiondetails->{alert}->{test};
-				$self->nmisng->log->debug3( "checking test $test for basic alert \"$target->{title}\"" );
+				$self->nmisng->log->debug3(sub { "checking test $test for basic alert \"$target->{title}\"" });
 
 				# setup known var value list so that eval_string can handle CVARx substitutions
 				my ( $error, $result ) = $self->eval_string(
@@ -1461,7 +1471,7 @@ sub getValues
 					$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
 					$self->nmisng->log->error("($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
 				}
-				$self->nmisng->log->debug3( "test $test, result=$result");
+				$self->nmisng->log->debug3(sub { "test $test, result=$result"});
 				push @{$self->{alerts}}, {
 					name    => $self->{name},
 					type    => "test",
@@ -1638,7 +1648,7 @@ sub loadModel
 		else
 		{
 			my $cfage = (stat($thiscf))[9];
-			$self->nmisng->log->debug2("Verifying freshness of cached model \"$model\"");
+			$self->nmisng->log->debug2(sub {"Verifying freshness of cached model \"$model\""});
 
 			my $isstale;
 			my @depstocheck = ( "Config", "Model", $model );
@@ -1660,13 +1670,13 @@ sub loadModel
 				}
 				if ($othermtime > $cfage)
 				{
-					$self->nmisng->log->debug2("Cached model \"$model\" stale: mtime $cfage, older than \"$other\" ($othermtime).");
+					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: mtime $cfage, older than \"$other\" ($othermtime)."});
 					$isstale = 1;
 					last;
 				}
 				else
 				{
-					$self->nmisng->log->debug2("Cached model \"$model\" mtime $cfage compares ok to \"$other\" ($othermtime).");
+					$self->nmisng->log->debug2(sub {"Cached model \"$model\" mtime $cfage compares ok to \"$other\" ($othermtime)."});
 				}
 			}
 			if ($isstale)
@@ -1793,7 +1803,7 @@ sub loadModel
 				}
 				next NEXTRULE if ( !$rulematches );    # all IF clauses must match
 			}
-			$self->nmisng->log->debug2("policy rule $polnr matched");
+			$self->nmisng->log->debug2(sub {"policy rule $polnr matched"});
 
 			# policy rule has matched, let's apply the settings
 			# systemHealth is the only supported setting so far
@@ -1812,12 +1822,12 @@ sub loadModel
 
 					if ( NMISNG::Util::getbool( $thisrule->{$sectionname}->{$conceptname} ) )
 					{
-						$self->nmisng->log->debug2("adding $conceptname to $sectionname" );
+						$self->nmisng->log->debug2(sub {"adding $conceptname to $sectionname" });
 						push @current, $conceptname if ( !defined $ispresent );
 					}
 					else
 					{
-						$self->nmisng->log->debug2( "removing $conceptname from $sectionname");
+						$self->nmisng->log->debug2(sub { "removing $conceptname from $sectionname"});
 						splice( @current, $ispresent, 1 ) if ( defined $ispresent );
 					}
 				}
@@ -1897,7 +1907,7 @@ sub _mergeHash
 
 	while ( my ( $k, $v ) = each %{$source} )
 	{
-		$self->nmisng->log->debug9( "$lvl key=$k, val=$v" );
+		$self->nmisng->log->debug9(sub { "$lvl key=$k, val=$v" });
 
 		if ( ref( $dest->{$k} ) eq "HASH" and ref($v) eq "HASH" )
 		{
@@ -1912,7 +1922,7 @@ sub _mergeHash
 		else
 		{
 			$dest->{$k} = $v;
-			$self->nmisng->log->debug9( "$lvl > load key=$k, val=$v");
+			$self->nmisng->log->debug9(sub { "$lvl > load key=$k, val=$v"});
 		}
 	}
 	return $dest;
@@ -2088,11 +2098,12 @@ sub parseString
 
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory, $filter ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory", "filter"};
 
-	$self->nmisng->log->debug3( "parseString:: sect:$sect, type:$type, indx:$indx, string to parse '$str'");
+	my $node_name = ($self->nmisng_node) ? $self->nmisng_node->name : "nonode";
+	$self->nmisng->log->debug3(sub { "parseString:: sect:$sect, type:$type, indx:$indx, string to parse '$str'"});
 
 	# needing some verbosity
-	$self->nmisng->log->debug4( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump);
-	$self->nmisng->log->debug4( "inventory:".Data::Dumper->new([$inventory])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+	$self->nmisng->log->debug4(sub { "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump});
+	$self->nmisng->log->debug4(sub { "inventory:".Data::Dumper->new([$inventory])->Terse(1)->Indent(0)->Pair(": ")->Dump});
 
 	# if there is no eval and no variables for substitution are found, just return
 	if( !$eval && $str !~ /\$/ )
@@ -2121,7 +2132,7 @@ sub parseString
 			# let's set the global CVAR or CVARn to whatever value from the node info section
 			$extras->{"CVAR$number"} = $data->{$thing};
 
-			$self->nmisng->log->debug3( "found assignment for CVAR$number, $thing, value " . $extras->{"CVAR$number"});
+			$self->nmisng->log->debug3(sub { "found assignment for CVAR$number, $thing, value " . $extras->{"CVAR$number"}});
 		}
 		$rebuilt .= $consumeme;    # what's left after looking for CVAR assignments
 
@@ -2140,7 +2151,7 @@ sub parseString
 																		 str => $str,
 																		 type => $type,
 																		 inventory => $inventory);
-	$self->nmisng->log->debug3( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+	$self->nmisng->log->debug3(sub { "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump});
 
 	# massage the string and replace any available variables from extras,
 	# but ONLY WHERE no compatibility hardcoded variable is present.
@@ -2152,9 +2163,13 @@ sub parseString
 		# must be done longest-first or we'll wreck $ifSpeedIn by replacing it with <value of ifSpeed>In...
 		for my $maybe ( sort { length($b) <=> length($a) } keys %$extras )
 		{
-			$extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
-			# possible solution for SUPPORT-9607
-			#$extras->{$maybe} = "'".$extras->{$maybe}."'"	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+			# used to quote with double quotes, changed to single quotes and remove any single quotes to make sure our quoting is not interrupted
+			# NOTE: Is there any reason not to quote every time?
+			$extras->{$maybe} =~ s/'//g; # remove any single quotes because we will be quoting with them
+			if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) {
+				$extras->{$maybe} = "'".$extras->{$maybe}."'";
+			}
+			# $extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
 
 			my $presubst = $str;
 
@@ -2167,25 +2182,26 @@ sub parseString
 					$str = $presubst;
 					my $str2 = NMISNG::Util::filterName($extras->{$maybe});
 					$str =~ s/(\$$maybe|\$\{$maybe\})/$str2/g;
-					$self->nmisng->log->debug3( "substituted '$maybe', str before '$presubst', after '$str'" );
+					$self->nmisng->log->debug3(sub { "substituted '$maybe', str before '$presubst', after '$str'" });
 				}
 			
-				$self->nmisng->log->debug3( "substituted '$maybe', str before '$presubst', after '$str'" );
+				$self->nmisng->log->debug3(sub { "substituted '$maybe', str before '$presubst', after '$str'" });
 				# print "substituted '$maybe', str before '$presubst', after '$str'\n";
 			}
 			
 		}
 	}
+	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	# no luck and no evaluation possible/allowed? give up, and do it loudly!
 	if( !$eval && $str =~ /\$/)
 	{
-		$self->nmisng->log->fatal("parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
+		$self->nmisng->log->fatal("($node_name) parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
 	my $product = ($eval) ? eval $str : $str;
-	$self->nmisng->log->error("parseString failed for str:$str, error:$@") if($@);
-	$self->nmisng->log->debug3( "parseString:: result is str=$product");
+	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
+	$self->nmisng->log->debug3(sub { "parseString:: result is str=$product"});
 	return $product;
 }
 
@@ -2299,7 +2315,7 @@ sub getTypeInstances
 				&& defined($section)
 				&& (($section eq $concept) || ($section eq $graphtype)))
 		{
-			$self->nmisng->log->debug2("covered section $section, not looking up graphtype $graphtype");
+			$self->nmisng->log->debug2(sub {"covered section $section, not looking up graphtype $graphtype"});
 			# modeldata is just a container here, no object instantiation expected or possible
 			return $want_modeldata? ($modeldata || NMISNG::ModelData->new(data => \@instances)) : @instances;
 		}
@@ -2403,12 +2419,12 @@ sub makeRRDname
 	# if we have no index but item: fall back to that, and vice versa
 	if ( defined $item && $item ne '' && ( !defined $index || $index eq '' ) )
 	{
-		$self->nmisng->log->debug2( "synthetic index from item for type=$type, item=$item");
+		$self->nmisng->log->debug2(sub { "synthetic index from item for type=$type, item=$item"});
 		$index = $item;
 	}
 	elsif ( defined $index && $index ne '' && ( !defined $item || $item eq '' ) )
 	{
-		$self->nmisng->log->debug2( "synthetic item from index for type=$type, index=$index" );
+		$self->nmisng->log->debug2(sub { "synthetic item from index for type=$type, index=$index" });
 		$item = $index;
 	}
 
@@ -2470,7 +2486,7 @@ sub create_update_rrd
 																 relative => 1);
 	if (!$dbname)
 	{
-		$self->nmisng->log->error("create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
+		$self->nmisng->log->error("($self->{name})create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
 		return undef;
 	}
 	# update the inventory if we can
@@ -2489,7 +2505,7 @@ sub create_update_rrd
 																	 index => $index,
 																	 extras => $extras );
 
-	$self->nmisng->log->error("updateRRD for $dbname failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
+	$self->nmisng->log->error("($self->{name}) updateRRD for $dbname failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
 	return $result;
 }
 
@@ -2589,7 +2605,7 @@ sub translate_threshold_level
 	
 	foreach my $thr (sort {$a <=> $b} keys %{$T})
 	{
-		$self->nmisng->log->debug3("translate_threshold_level threshold:$thrname, thr:$thr, sect:$type, index:$index, item:$item");
+		$self->nmisng->log->debug3(sub {"translate_threshold_level threshold:$thrname, thr:$thr, sect:$type, index:$index, item:$item"});
 		next if $thr eq 'default'; # skip now the default values
 		if (($self->parseString(string=>"($T->{$thr}{control})?1:0",
 														index=>$index,

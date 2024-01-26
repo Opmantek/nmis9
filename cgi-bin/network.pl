@@ -3266,7 +3266,9 @@ escalate ));
 	my %titles = _interface_property_titles($S->nmisng);
 	for my $wanted (@wantedcols)
 	{
-		$titles{$wanted} ||= $S->getTitle(attr => $wanted, section => "interface");
+		# show the field name when modelling returns nothing.
+		my $title = $S->getTitle(attr => $wanted, section => "interface");
+		$titles{$wanted} = $title ? $title : $wanted;
 	}
 
 	my $result = _load_interfaces(node => $nmisng_node, sys => $S, activeonly => $activeonly);
@@ -4318,6 +4320,9 @@ sub viewSystemHealth
 		my ( $inventory, $error ) = $nmisng_node->inventory( _id => $id );
 		$nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next
 			if ( !$inventory );
+        # Don't display this item if display is disabled.
+		next if (!$inventory->data_info( subconcept => $section)->{"enabled"});
+
 		$D = $inventory->data();
 		my $index = $D->{index};
 

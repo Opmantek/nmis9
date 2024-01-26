@@ -12,10 +12,10 @@ htdocs/cache
 dev
 private
 build
-test
 seed.txt
 .vagrant
 Vagrantfile
 *.swp
 *.swo
 install.log
+.vscode

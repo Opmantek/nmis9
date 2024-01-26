@@ -2,23 +2,28 @@
 # a set of common functions for dealing with yum (and apt) repositories
 # use POSIX functionality only, no bashisms!
 #
-# note: common_funtions.sh must be loaded
+# note: common_functions.sh must be loaded
 
 # small helper function that determines whether the installer
 # can access the internet (actually just web).
+#
+# 2024-01-17 changed from testing against https://opmantek.com/robots.txt to https://firstwave.com/ because it failed today, 
+# I assume because Pagely.com which hosts opmantek.com and firstwave.com has changed the behaviour for security/performance reasons.
+# 2024-01-24 change to https://services.opmantek.com/ping because easier to modify than firstwave.com and sends smaller faster response.
+#
 # returns 0 if access works, 1 otherwise
 is_web_available()
 {
 		printBanner "Checking if Web is accessible..."
 		# curl is available even on minimal centos install
-		if type curl >/dev/null 2>&1 && execPrint "curl --insecure -L -s -m 10 --retry 2 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null";
+		if type curl >/dev/null 2>&1 && execPrint "curl --connect-timeout 3 --insecure -L -s --retry 2 -o /dev/null https://services.opmantek.com/ping 2>/dev/null";
 		then
 				echolog "Web access is OK."
 				return 0
 		fi
 
 		# hmm, maybe we have wget?
-		if type wget >/dev/null 2>&1 && execPrint "wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null"; then
+		if type wget >/dev/null 2>&1 && execPrint "wget --timeout=3 --no-check-certificate -q --tries=3 -O /dev/null https://services.opmantek.com/ping 2>/dev/null"; then
 				echolog "Web access is OK."
 				return 0
 		fi

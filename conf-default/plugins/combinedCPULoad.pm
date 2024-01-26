@@ -54,11 +54,11 @@ sub collect_plugin
 
 	my $catchall_data = $inventory->data();
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
-		$NG->log->info("combinedCPULoad: Skipping Host Resources plugin for node::$node, Node Down");
+		$NG->log->debug("combinedCPULoad: Skipping Host Resources plugin for node::$node, Node Down");
 		return (0, "combinedCPULoad: Node Down, skipping Host Resources plugin");
 	}
 	elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ) {
-		$NG->log->info("combinedCPULoad: Skipping Host Resources plugin for node::$node, SNMP Down");
+		$NG->log->debug("combinedCPULoad: Skipping Host Resources plugin for node::$node, SNMP Down");
 		return (0, "combinedCPULoad: SNMP Down, skipping Host Resources plugin");
 	}
 	else {
