@@ -1411,6 +1411,7 @@ sub ensure_indexes
 			indices       => [
 				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
 				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
+    				[[cluster_id => 1, lastupdate => 1], {unique => 0}],
 				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 			]
 	);
