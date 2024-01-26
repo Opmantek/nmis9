@@ -63,6 +63,7 @@ use File::Basename;
 use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
 use JSON::XS;
 use CGI::Session;
+use HTML::Entities;
 
 # You MUST set config's auth_web_key so that cookies are unique for your site. this fallback key is NOT safe for internet-facing sites!
 my $CHOCOLATE_CHIP = '5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv';
@@ -701,6 +702,9 @@ sub _ms_ldap_verify
 	my $entry;
 	my $dn;
 
+	$u = decode_entities($u);
+	$p = decode_entities($p);
+
 	my $extra_ldap_debug  = NMISNG::Util::getbool($self->{config}->{auth_ms_ldap_debug});
 
 	if($sec)
@@ -737,10 +741,19 @@ sub _ms_ldap_verify
 	if ($status->code() ne 0) {
 
 		NMISNG::Util::logAuth("ERROR LDAP validation of $self->{config}->{'auth_ms_ldap_dn_acc'}, error msg ".$status->error()." ");
-		return 0;
-	}
 
-	NMISNG::Util::logAuth("DEBUG LDAP Base user=$self->{config}->{'auth_ms_ldap_dn_acc'} authorized") if $extra_ldap_debug;
+		# If failed try contextless login useing user@ldap_server
+		$status = $ldap->bind( "$u\@$self->{config}->{'auth_ms_ldap_server'}", password=> $p);
+
+		if ($status->code() ne 0) {
+			NMISNG::Util::logAuth("ERROR Contextless LDAP validation of $u\@$self->{config}->{'auth_ms_ldap_server'}, error msg ".$status->error()." ");
+			return 0;
+		} else {
+			NMISNG::Util::logAuth("DEBUG Contextless LDAP Base user=$u\@$self->{config}->{'auth_ms_ldap_server'} authorized") if $extra_ldap_debug;	
+		}
+	} else {
+		NMISNG::Util::logAuth("DEBUG LDAP Base user=$self->{config}->{'auth_ms_ldap_dn_acc'} authorized") if $extra_ldap_debug;
+	}
 
 
 	for my $attr ( split ',',$self->{config}->{'auth_ms_ldap_attr'}) {
