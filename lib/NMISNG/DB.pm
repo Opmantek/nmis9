@@ -921,6 +921,31 @@ sub get_collection
 	return $coll;
 }
 
+
+
+# a thin wrapper around list_collections
+# mainly for future-proofing at this point - but might get additional functionality, eg. index making
+# args: db, name (both required)
+# returns: collection handle or undef on failure (consult getErrorString in that case)
+sub list_collections
+{
+	my (%args) = @_;
+	my ( $db, $filter, $options ) = @args{"db", "filter", "options" };
+
+	if ( ref($db) ne "MongoDB::Database" )
+	{
+		$error_string = "Invalid args passed to list_collections!";
+		return;
+	}
+	my $cursor = eval { $db->list_collections($filter,$options); };
+	if ($@)
+	{
+		$error_string = $@;
+		return;
+	}
+	return $cursor;
+}
+
 sub get_db
 {
 	my %args = @_;
