@@ -4634,6 +4634,7 @@ sub timed_concept_collection
 	if ($mustcheckindex)
 	{
 		# sole index is by time and inventory_id, compound
+		$self->log->info("NMISNG::timed_concept_collection creating indexes for collection: $collname");
 		my $err = NMISNG::DB::ensure_index(
 			collection    => $self->{$stashname},
 			drop_unwanted => $drop_unwanted,
