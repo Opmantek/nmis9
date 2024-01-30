@@ -37,7 +37,7 @@
                       <tbody v-for="graph in Object.keys(nodeData.graphLink)">
                         <td >
                           {{graph}}
-                          <img :src="nodeData.graphLink[graph]">
+                          <div v-html="nodeData.graphLink[graph]"></div>
                         </td>
                       </tbody>
                     </table>
