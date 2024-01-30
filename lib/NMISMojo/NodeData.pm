@@ -149,13 +149,14 @@ sub find_resource
             my ($inventory, $error) =  $nodeobj->inventory( concept => "catchall" );
             my $catchall = $inventory->data();
             my $graphs = $catchall->{nodegraph};
+            my $node;
 
             if ($graphs){
                 my $smallGraphHeight = 50;
                 my $smallGraphWidth  = 400;
 
                 my $graphsObj = NMISNG::Graphs->new( nmisng => $nmisng );
-                my $node = $nodeobj->name;
+                $node = $nodeobj->name;
                 my $Sys = NMISNG::Sys->new(nmisng => $nmisng);
                 $Sys->init( name => $node, snmp => 'false' );
                 my $GTT  = $Sys->loadGraphTypeTable();             # translate graphtype to type
