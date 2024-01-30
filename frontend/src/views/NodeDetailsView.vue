@@ -36,8 +36,12 @@
                     <table class="table table-bordered" v-if="!isLoading">
                       <tbody v-for="graph in Object.keys(nodeData.graphLink)">
                         <td >
-                          {{graph}}
-                          <div v-html="nodeData.graphLink[graph]"></div>
+                          <div class="card">
+                            <div class="card-header"> {{graph}}</div>
+                            <div class="card-body">
+                              <div v-html="nodeData.graphLink[graph]"></div>
+                            </div>
+                          </div>
                         </td>
                       </tbody>
                     </table>
@@ -185,16 +189,3 @@ export default {
     }
 }
 </script>
-
-<style>
-  /* .degraded {
-    background-color: yellow;
-    color: black;
-  }
-
-  .reachable {
-    background-color: green;
-    color: black;
-  } */
-
-</style>

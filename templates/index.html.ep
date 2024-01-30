@@ -2,6 +2,14 @@
 % title('Index');
 <script type="module" src="http://10.160.192.43:5173/@vite/client"></script>
 <script type="module" src="http://10.160.192.43:5173/src/main.js"></script>
+<script>
+    function viewwndw(wndw,url,width,height)
+	{
+		var attrib = "scrollbars=yes,resizable=yes,width=" + width + ",height=" + height;
+		ViewWindow = window.open(url,wndw,attrib);
+		ViewWindow.focus();
+	};
+</script>
 <div class="content" id="vue-div">
     <div id="app"></div>
 </div>
