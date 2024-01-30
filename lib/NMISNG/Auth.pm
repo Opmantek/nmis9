@@ -79,19 +79,19 @@ sub new
 
 	my $self = bless({
 		_require => (defined $config->{auth_require})? $config->{auth_require} : 1,
+		all_groups_allowed => undef,
 		auth => undef,
-		dir => $arg{dir},
-		user => undef,
+		banner => $arg{banner},
 		config => $config, # a live config, loaded or passed in by the caller
 		confname => $arg{confname},	# optional
-		banner => $arg{banner},
-		priv => undef,
-		dn => undef,
-		privlevel => 0, # default all
 		cookie_flavour => $config->{auth_cookie_flavour} || 'nmis',
-		groups => undef,
-		all_groups_allowed => undef,
 		debug => NMISNG::Util::getbool($config->{auth_debug}),
+		dir => $arg{dir},
+		dn => undef,
+		groups => undef,
+		priv => undef,
+		privlevel => 0, # default all
+		user => undef,
 	}, $class);
 
 	return $self;
@@ -548,9 +548,7 @@ sub _ldap_verify
 	my $self = shift;
 	my($u, $p, $auth) = @_;
 	my $ldap;
-	my $ldap2;
 	my $status;
-	my $status2;
 	my $entry;
 	my $dn;
 	my $sec = 0;
@@ -560,23 +558,23 @@ sub _ldap_verify
 	my $auth_ldap_attr    = $self->{config}->{'auth_ldap_attr'};
 	my $auth_ldap_base    = $self->{config}->{'auth_ldap_base'};
 	my $auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ldap_debug'});
-	my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
-	my $auth_ldap_privs   = $self->{config}->{'auth_ldap_privs'};
 	my $auth_ldap_psw     = NMISNG::Util::decrypt($self->{config}->{auth_ldap_psw}, 'authentication', 'auth_ldap_psw');
 	my $auth_ldap_server  = $self->{config}->{'auth_ldap_server'};
+	my $auth_ldaps_capath = $self->{config}->{'auth_ldaps_capath'};
 	my $auth_ldaps_server = $self->{config}->{'auth_ldaps_server'};
+	my $auth_ldaps_verify = $self->{config}->{'auth_ldaps_verify'} // "optional";
 	if ( $auth eq "ms-ldap" or $auth eq "ms-ldaps") {
-		NMISNG::Util::logAuth("INFO Honoring legacy ActiveDirectory settings.") if ($self->{debug});
+		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Honoring legacy ActiveDirectory settings.") if ($self->{debug});
 		$auth_ldap_base    = $self->{config}->{'auth_ms_ldap_context'}                                                        if ($self->{config}->{'auth_ms_ldap_context'}); # retired value
 		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_acc'}                                                            if ($self->{config}->{'auth_ms_ldap_acc'});
 		$auth_ldap_attr    = $self->{config}->{'auth_ms_ldap_attr'}                                                           if ($self->{config}->{'auth_ms_ldap_attr'});
 		$auth_ldap_base    = $self->{config}->{'auth_ms_ldap_base'}                                                           if ($self->{config}->{'auth_ms_ldap_base'});
 		$auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ms_ldap_debug'})                                   if ($self->{config}->{'auth_ms_ldap_debug'});
-		$auth_ldap_group   = $self->{config}->{'auth_ms_ldap_group'}                                                          if ($self->{config}->{'auth_ms_ldap_group'});
-		$auth_ldap_privs   = $self->{config}->{'auth_ms_ldap_privs'}                                                          if ($self->{config}->{'auth_ms_ldap_privs'});
 		$auth_ldap_psw     = NMISNG::Util::decrypt($self->{config}->{auth_ms_ldap_psw}, 'authentication', 'auth_ms_ldap_psw') if ($self->{config}->{'auth_ms_ldap_psw'});
 		$auth_ldap_server  = $self->{config}->{'auth_ms_ldap_server'}                                                         if ($self->{config}->{'auth_ms_ldap_server'});
+		$auth_ldaps_capath = $self->{config}->{'auth_ms_ldaps_capath'}                                                        if ($self->{config}->{'auth_ms_ldap_capath'});
 		$auth_ldaps_server = $self->{config}->{'auth_ms_ldaps_server'}                                                        if ($self->{config}->{'auth_ms_ldaps_server'});
+		$auth_ldaps_verify = $self->{config}->{'auth_ms_ldaps_verify'}                                                        if ($self->{config}->{'auth_ms_ldap_verify'});
 		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_dn_acc'}                                                         if ($self->{config}->{'auth_ms_ldap_dn_acc'});  # retired value
 		$auth_ldap_psw     = $self->{config}->{'auth_ms_ldap_dn_psw'}                                                         if ($self->{config}->{'auth_ms_ldap_dn_psw'});  # retired value
 	}
@@ -586,35 +584,51 @@ sub _ldap_verify
 		# load the LDAPS module
 		eval { require IO::Socket::SSL; require Net::LDAPS; };
 		if($@) {
-			NMISNG::Util::logAuth("ERROR no IO::Socket::SSL; Net::LDAPS installed");
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: No IO::Socket::SSL; Net::LDAPS installe.");
 			return 0;
 		} # no Net::LDAPS installed
+		unless ($auth_ldaps_server) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP secure server address ('auth_ldaps_server' key) missing in configuration of NMIS");
+			return 0;
+		} # Configuration Error.
 	} else {
 		# load the LDAP module
 		eval { require Net::LDAP; };
 		if($@) {
-			NMISNG::Util::logAuth("ERROR no Net::LDAP installed from CPAN");
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: No Net::LDAP installed.");
 			return 0;
 		} # no Net::LDAP installed
+		unless ($auth_ldap_server) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP server address ('auth_ldap_server' key) missing in configuration of NMIS");
+			return 0;
+		} # Configuration Error.
 	}
+	unless ($auth_ldap_base) {
+		NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP base or context address ('auth_ldap_base' key) missing in configuration of NMIS");
+		return 0;
+	} # Configuration Error.
 
-	# Connect to LDAP by know (readonly) account
+	# Connect to LDAP (readonly) account
 	if($sec) {
-		$ldap = new Net::LDAPS($auth_ldaps_server);
+		$ldap = Net::LDAPS->new($auth_ldaps_server,
+			verify =>  $auth_ldaps_verify,
+			capath =>  $auth_ldaps_capath
+		);
+
 	} else {
-		$ldap = new Net::LDAP($auth_ldap_server);
+		$ldap = Net::LDAP->new($auth_ldap_server);
 	}
-	if(!$ldap) {
-		NMISNG::Util::logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing in configuration of NMIS");
+	if($@ || !$ldap) {
+		NMISNG::Util::logAuth("Auth::_ldap_verify, Could not create LDAP session; ERROR: $@");
 		return 0;
 	}
 
-	my @attrlist = ( 'uid','cn' );
+	my @attrlist = ( 'uid','cn','sAMAccountName' );
 	@attrlist = split( "[ ,]", $auth_ldap_attr ) if( $auth_ldap_attr );
 
-	# Old OpenLDAP implermentation with no authorization.
+	# Old OpenLDAP implementation with no authorization.
 	unless ($auth_ldap_acc) {
-		NMISNG::Util::logAuth("INFO Verifying LDAP credentials without access credentials.") if ($self->{debug});
+		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Verifying LDAP credentials without access credentials.") if ($self->{debug});
 		foreach my $context ( split ":", $auth_ldap_base  ) {
 			foreach my $attr ( @attrlist ) {
 				my $dn = "$attr=$u,".$context;
@@ -636,8 +650,12 @@ sub _ldap_verify
 		}
 		return 0; # not found
 	}
-	else {   # New LDAP implermentation for both ActiveDirectory and OpenLDAP with authorization.
-		NMISNG::Util::logAuth("INFO Verifying LDAP credentials using access credentials.") if ($self->{debug});
+	else {   # New LDAP implementation for both ActiveDirectory and OpenLDAP with authorization.
+		unless ($auth_ldap_psw) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP Admin Access password ('auth_ldap_psw' key) missing in configuration of NMIS");
+			return 0;
+		} # Configuration Error.
+		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO Verifying LDAP: credentials using access credentials.") if ($self->{debug});
 		# bind LDAP for request DN of user
 		$status = $ldap->bind( $auth_ldap_acc, password => $auth_ldap_psw);
 		# if full debugging dumps are requested, put it in a separate log file
@@ -649,13 +667,13 @@ sub _ldap_verify
 			close(F);
 		}
 		if ($status->code() ne 0) {
-			NMISNG::Util::logAuth("ERROR LDAP validation of $auth_ldap_acc, error msg ".$status->error()." ");
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP validation of $auth_ldap_acc, error msg ".$status->error()." ");
 			return 0;
 		}
-		NMISNG::Util::logAuth("DEBUG LDAP Base user '$auth_ldap_acc' is authorized") if ($self->{debug});
+		NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP Base user '$auth_ldap_acc' is authorized") if ($self->{debug});
 	
 		foreach my $attr ( @attrlist ) {
-			NMISNG::Util::logAuth("DEBUG LDAP search, base=$auth_ldap_base,".  "filter=${attr}=$u, attr=distinguishedName") if ($self->{debug});
+			NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP search, base=$auth_ldap_base,".  "filter=${attr}=$u, attr=distinguishedName") if ($self->{debug});
 			my $results = $ldap->search(scope=>'sub',base=>"$auth_ldap_base",filter=>"($attr=$u)",attrs=>['distinguishedName']);
 			# if full debugging dumps are requested, put it in a separate log file
 			if ($auth_ldap_debug)
@@ -671,44 +689,48 @@ sub _ldap_verify
 				$self->{dn} = $dn;
 				last;
 			} else {
-				NMISNG::Util::logAuth("DEBUG LDAP search failed") if ($self->{debug});
+				NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP search failed") if ($self->{debug});
 			}
 		}
 	
 		if ($dn eq '') {
-			NMISNG::Util::logAuth("DEBUG user '$u' not found in Active Directory") if ($self->{debug});
+			NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: user '$u' not found in Active Directory") if ($self->{debug});
 			$ldap->unbind();
 			return 0;
 		}
 	
 		my $d = $dn;
 		$d =~ s/\\//g;
-		NMISNG::Util::logAuth("DEBUG LDAP found distinguishedName=$d") if ($self->{debug});
+		NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP found distinguishedName='$d'.") if ($self->{debug});
 	
-		# check user
-	
-		# Connect to LDAP and verify username and password
+		#Now we unbind and now try to login with the current user
+		$ldap->unbind;
+
 		if($sec) {
-			$ldap2 = new Net::LDAPS($auth_ldaps_server);
+			$ldap = Net::LDAPS->new($auth_ldaps_server,
+				verify =>  $auth_ldaps_verify,
+				capath =>  $auth_ldaps_capath
+			);
+
 		} else {
-			$ldap2 = new Net::LDAP($auth_ldap_server);
+			$ldap = Net::LDAP->new($auth_ldap_server);
 		}
-		if(!$ldap2) {
-			NMISNG::Util::logAuth("ERROR no LDAP object created, maybe ldap server address missing");
+		if($@ || !$ldap) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: Could not create LDAP session; ERROR: $@");
 			return 0;
 		}
+
+		# check user
 	
-		$status2 = $ldap2->bind("$dn",password=>"$p");
-		NMISNG::Util::logAuth("DEBUG LDAP bind dn $d status ".$status->code()) if ($self->{debug});
-		if ($status2->code eq 0) {
+		$status = $ldap->bind("$dn",password=>"$p");
+		NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP bind dn '$d' status ".$status->code()) if ($self->{debug});
+		if ($status->code eq 0) {
 			# permitted
 			$ldap->unbind();
-			$ldap2->unbind();
 			return 1;
 		}
 	
 		$ldap->unbind();
-		$ldap2->unbind();
 	}
 
 	return 0; # not found
