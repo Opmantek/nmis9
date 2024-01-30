@@ -783,14 +783,14 @@ sub getGroupSummary {
 	$nmisng->log->debug2(sub {&NMISNG::Log::trace()."Starting"});
 
 	# grouped_node_summary joins collections, node_config is the prefix for the nodes config
-	my $group_by = ['node_config.configuration.group']; # which is deeply structured!
+	my $group_by = ['configuration.group']; # which is deeply structured!
 	$group_by = undef if( !$group );
 
 	my ($entries,$count,$error);
 	if ($local_nodes) {
 		$nmisng->log->debug("getGroupSummary - Getting local nodes");
 		($entries,$count,$error) = $nmisng->grouped_node_summary(
-			filters => { 'node_config.configuration.group' => $group, cluster_id => $nmisng->config->{cluster_id}},
+			filters => { 'configuration.group' => $group, cluster_id => $nmisng->config->{cluster_id}},
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);
@@ -798,7 +798,7 @@ sub getGroupSummary {
 	else {
 		$nmisng->log->debug("getGroupSummary - Getting all nodes");
 		($entries,$count,$error) = $nmisng->grouped_node_summary(
-			filters => { 'node_config.configuration.group' => $group },
+			filters => { 'configuration.group' => $group },
 			group_by => $group_by,
 			include_nodes => $include_nodes
 		);

@@ -725,6 +725,9 @@ sub disable_source
 	delete $self->{$moriturus};
 }
 
+# DO NOT USE THIS FUNCTION, here for backwards compat!
+# it is not efficent, especially for nodes with high
+# interface counts!!!
 # helper that returns interface info,
 # but indexed by ifdescr instead of internal indexing by ifindex
 #
@@ -777,6 +780,7 @@ sub ifDescrInfo
 	}
 	return \%ifDescrInfo;
 }
+
 
 #===================================================================
 
@@ -2094,6 +2098,7 @@ sub parseString
 
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory, $filter ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory", "filter"};
 
+	my $node_name = ($self->nmisng_node) ? $self->nmisng_node->name : "nonode";
 	$self->nmisng->log->debug3(sub { "parseString:: sect:$sect, type:$type, indx:$indx, string to parse '$str'"});
 
 	# needing some verbosity
@@ -2186,16 +2191,16 @@ sub parseString
 			
 		}
 	}
-	$self->nmisng->log->error("(".$self->nmisng_node->name.") parseString failed for str:$str, error:$@") if($@);
+	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	# no luck and no evaluation possible/allowed? give up, and do it loudly!
 	if( !$eval && $str =~ /\$/)
 	{
-		$self->nmisng->log->fatal("(".$self->nmisng_node->name.") parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
+		$self->nmisng->log->fatal("($node_name) parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
 	my $product = ($eval) ? eval $str : $str;
-	$self->nmisng->log->error("(".$self->nmisng_node->name.") parseString failed for str:$str, error:$@") if($@);
+	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	$self->nmisng->log->debug3(sub { "parseString:: result is str=$product"});
 	return $product;
 }
@@ -2481,7 +2486,7 @@ sub create_update_rrd
 																 relative => 1);
 	if (!$dbname)
 	{
-		$self->nmisng->log->error("create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
+		$self->nmisng->log->error("($self->{name})create_update_rrd cannot find or determine rrd file for type=$type, index=$index, item=$item");
 		return undef;
 	}
 	# update the inventory if we can
@@ -2500,7 +2505,7 @@ sub create_update_rrd
 																	 index => $index,
 																	 extras => $extras );
 
-	$self->nmisng->log->error("updateRRD for $dbname failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
+	$self->nmisng->log->error("($self->{name}) updateRRD for $dbname failed: ".NMISNG::rrdfunc::getRRDerror) if (!$result);
 	return $result;
 }
 

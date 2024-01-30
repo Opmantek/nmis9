@@ -15,7 +15,7 @@ flavour
 if [ "$OSFLAVOUR" = "redhat" ]; then
 		MGR=YUM
 		PKGLIST="httpd httpd-tools rrdtool logrotate \
-		autoconf automake gcc cairo cairo-devel \
+		autoconf automake gcc cairo cairo-devel traceroute mtr \
     pango pango-devel libxml2 libxml2-devel gd gd-devel \
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
     net-snmp-utils perl-IO-Socket-SSL perl-Net-SSLeay \
@@ -62,8 +62,8 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 
 elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 		MGR=APT
-		PKGLIST="build-essential traceroute apache2 rrdtool apache2-utils logrotate \
-		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus \
+		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
+    autoconf automake gcc make libcairo2 libcairo2-dev cpanminus traceroute mtr \
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
     libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl \
@@ -120,7 +120,7 @@ installation won't complete successfully.
 We recommend that you check our Wiki article on working around
 package installation without Internet access in that case:
 
-https://community.opmantek.com/x/boSG
+    https://community.opmantek.com/x/boSG
 
 EOF
 		input_ok "Hit <Enter> when ready to continue: "
@@ -142,18 +142,6 @@ if [ "$CANUSEWEB" = 1 ]; then
 		fi;
 		unset haveit
 		# clean up as this was temporary
-#		disable_distro "${NEEDDISTRO}";
-#	elif [ "${OSFLAVOUR}" = "debian" ] && [ "${OS_MAJOR}" -ge 10 ]; then
-#		# FIX FOR DEBIAN >= 10 WHICH REQUIRES libssl1.0.0 AND jessie GPG PUBKEY WHEN INSTALLING MONGODB:
-#		# prime_apt is called during  install_package() and after disable_distro() functions:
-#		NEEDDISTRO="jessie";
-#		# get the release key first
-#		type wget >/dev/null 2>&1 && GIMMEKEY="wget --tries=5 -q -T 20 -O - https://ftp-master.debian.org/keys/archive-key-8.asc" || GIMMEKEY="curl --retry 4 -L -s -m 20 https://ftp-master.debian.org/keys/archive-key-8.asc";
-#		# apt-key adv doesn't work cleanly with gpg 2.1+
-#		execPrint "$GIMMEKEY | apt-key add -"||:;
-#		# this function calls enable_distro
-#		install_package "libssl1.0.0";
-#		# clean up as this was temporary
 #		disable_distro "${NEEDDISTRO}";
 	else
 		# default action where above fix not needed
@@ -275,16 +263,8 @@ if ! check_missing_packages $PKGLIST; then
 								fi
 						elif [ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -ge "9" ]; then
 								NEEDDISTRO=''
-#								# librrd4 and libpng12-0 are only present up to jessie/8
-#								if [ "$pkg" = "librrd4" -o "$pkg" = "libpng12-0" ]; then
-#										NEEDDISTRO="jessie"
-#								fi
 						elif [ "$OSFLAVOUR" = "ubuntu" -a \( "$OS_MAJOR" -gt "16" -o \( "$OS_MAJOR" = "16" -a "$OS_MINOR" -gt "4" \) \) ] ; then
 								NEEDDISTRO=''
-#								# librrd4 and libpng12-0 are only present up to xenial/16.04, NOT 16.10...
-#								if [ "$pkg" = "librrd4" -o "$pkg" = "libpng12-0" ]; then
-#										NEEDDISTRO="xenial"
-#								fi
 						fi
 
 						install_package $pkg

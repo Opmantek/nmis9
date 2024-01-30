@@ -183,7 +183,7 @@ MongoDB instance. Please note that $PRODUCT will not work unless
 you deploy and configure a network-accessible MongoDB instance
 as documented on this page:
 
-https://community.opmantek.com/x/h4Aj
+    https://community.opmantek.com/x/h4Aj
 
 EOF
 				input_ok "Hit <Enter> when ready to continue: "
@@ -223,7 +223,7 @@ locally on this server, OR accessible via the network. MongoDB also
 MUST be configured for authentication, and needs to be primed
 specifically for Opmantek use as documented on this page:
 
-https://community.opmantek.com/x/h4Aj
+    https://community.opmantek.com/x/h4Aj
 
 EOF
 

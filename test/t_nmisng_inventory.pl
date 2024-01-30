@@ -264,7 +264,10 @@ cmp_deeply($dbrec, { _id => ignore(),
 										 subconcepts => bag(@{$inventory->subconcepts}),
 										 dataset_info =>  [ { subconcept => $concept, datasets => [ 'key1' ] } ], #modified by inventory to be array
 										 data_info => [ { subconcept => $concept, enabled => 1, display_keys => ['keyedby']} ],
-										 (map { $_ => $inventory->$_ } (qw(cluster_id node_uuid concept data storage path path_keys enabled historic description))) },
+										 configuration => { group => $newnode->configuration->{group} },
+										 'node_name' => $node_name,
+										 # 'server_name' => undef
+										 (map { $_ => $inventory->$_ } (qw(cluster_id node_uuid concept data storage path path_keys enabled historic description server_name))) },
 					 "db record matches original inventory") or diag(Dumper($dbrec));
 
 # force reloading itself to make sure data was updated
@@ -281,6 +284,7 @@ my $inventory_invariant = Clone::clone($inventory);
 $inventory_invariant->{_subconcepts} = bag(@{$inventory->{_subconcepts}});
 $inventory_invariant->{_nmisng} = ignore();
 $inventory_invariant->{_dirty} = ignore();
+$inventory_invariant->{_node_name} = $node_name;
 
 cmp_deeply( $instantiated, $inventory_invariant, "whole structure of instantiated object matches original");
 
@@ -374,17 +378,21 @@ my $alltics = $nmisng->get_timed_data_model(cluster_id => $cluster_id, node_uuid
 is($alltics->error, undef, "timed data model has reported success");
 my $allticsdata = $alltics->data;
 # note: qr on time doesn't work, competing bag match elems then match nothing at all
-cmp_deeply($allticsdata, bag({_id => ignore(), expire_at => ignore(), time => ignore(),
-															inventory_id => ignore(), cluster_id => ignore(),
+my $timed_bag = bag({_id => ignore(), expire_at => ignore(), time => ignore(),
+															inventory_id => ignore(), cluster_id => ignore(), 
+															configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
 															subconcepts => [{ subconcept => $concept, data => $first, derived_data => $first_derived }], inventory_id => $tictac->id },
 														 {_id => ignore(), expire_at => ignore(), time => ignore(),
-															inventory_id => ignore(), cluster_id => ignore(),
+															inventory_id => ignore(), cluster_id => ignore(), 
+															configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
 															subconcepts => [{ subconcept => $concept,     data => $second, derived_data => $second_derived}], inventory_id => $tictac->id },
 														 {_id => ignore(), expire_at => ignore(), time => ignore(),
-															inventory_id => ignore(), cluster_id => ignore(),
+															inventory_id => ignore(), cluster_id => ignore(), 
+															configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
 															subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => $third_derived }], inventory_id => $tictac->id }
-),
-					 "get_timed_data_model(concept) returns all timed data entries") or diag(Dumper($allticsdata));
+);
+cmp_deeply($allticsdata, $timed_bag,
+					 "get_timed_data_model(concept) returns all timed data entries") or diag(Dumper($allticsdata,$timed_bag));
 
 # give me the  two most recent ones
 my $duo = $nmisng->get_timed_data_model(cluster_id => $cluster_id, node_uuid => $newnode->uuid,
@@ -392,9 +400,11 @@ my $duo = $nmisng->get_timed_data_model(cluster_id => $cluster_id, node_uuid => 
 is($duo->error, undef, "timed data model has reported success");
 cmp_deeply($duo->data, [ { _id => ignore(), 'time' => re(qr/^\d+(\.\d+)?$/), inventory_id => $tictac->id,
 													 cluster_id => $tictac->cluster_id,
+													 configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
 													 subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => $third_derived }], expire_at => ignore },
 												 { _id => ignore(), 'time' => re(qr/^\d+(\.\d+)?$/), inventory_id => $tictac->id,
 													 cluster_id => $tictac->cluster_id,
+													 configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
 													 subconcepts => [{ subconcept => $concept, data => $second, derived_data => $second_derived }], expire_at => ignore }],
 					 "get_timed_data_model(cluster+node+concept,limit,sort) returns desired timed data") or diag(Dumper($duo->data));
 
@@ -416,8 +426,8 @@ my $latestonly = $nmisng->get_timed_data_model(cluster_id => $cluster_id, node_u
 																							 sort => { time => -1 }, limit => 1);
 is($latestonly->error, undef, "timed data model has reported success");
 
-cmp_deeply($latestonly->data, bag({inventory_id => $cuckoo->id, subconcepts => [{ subconcept => $concept, data => {full=>"done"}, derived_data => ignore()}], time => ignore(), _id => ignore(), expire_at => ignore, cluster_id => ignore,},
-																	{inventory_id => $tictac->id, subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => ignore() }], time => ignore(), _id => ignore(), expire_at => ignore, cluster_id => ignore  },),
+cmp_deeply($latestonly->data, bag({inventory_id => $cuckoo->id, subconcepts => [{ subconcept => $concept, data => {full=>"done"}, derived_data => ignore()}], time => ignore(), _id => ignore(), expire_at => ignore, cluster_id => ignore,configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,},
+																	{inventory_id => $tictac->id, subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => ignore() }], time => ignore(), _id => ignore(), expire_at => ignore, cluster_id => ignore,configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid, },),
 					 "get_timed_data_model(cluster+node,limit=1,sort=-time) returns the latest timed data for this node") or diag(Dumper($latestonly->data));
 
 
@@ -634,6 +644,28 @@ $one->data($doesntsmelllive);
 $one->save; $one->reload;
 
 cmp_deeply($one->data, \%expected, "data(existing live data) works in data_live mode and replaces all of data");
+
+#node_name and group name are cached on the record for faster inventory sorting in the other products,
+# test this
+# make sure invetory is using this node
+is( $newnode->uuid, $inventory->node_uuid, "make sure inventory node uuid matches");
+my $configuration = $newnode->configuration();
+is( $inventory->{_configuration}{group}, $configuration->{group}, "groups match");
+# change the group
+$configuration->{group} = "inventorygroupy";
+$newnode->configuration($configuration);
+$newnode->save();
+my $configuration = $newnode->configuration();
+is( $configuration->{group}, "inventorygroupy", "node group changed");
+# this should update {configuration}{group}
+$inventory->save();
+# there is no accessor for configuration
+is( $inventory->{_configuration}{group}, $configuration->{group}, "groups match");
+
+$newnode->name("newnodename");
+$newnode->save();
+$inventory->save();
+is( $inventory->{_node_name}, $newnode->name(), "node_names match");
 
 
 if (-t \*STDIN)

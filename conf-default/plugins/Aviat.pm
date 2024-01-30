@@ -98,6 +98,8 @@ sub update_plugin
                 foreach my $w (qw(index Description ifAdminStatus ifDescr ifHighSpeed ifLastChange ifOperStatus ifSpeed ifType)) {
                     $interface_data->{$w} = $data->{$w};
                 }
+				# to keep path keys similar to other interfaces
+                $interface_data->{index} = $data->{index};
                 $interface_data->{ifIndex} = $data->{index};
                 $interface_data->{collect} = "true";
                 $interface_data->{interface} = $data->{ifDescr};
@@ -106,13 +108,14 @@ sub update_plugin
                 if ($data->{ifAdminStatus} eq "up") {
                    $active++;
                 }
-                
-                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => [], data => $interface_data );
+				# must use path keys
+                my $path_keys = ['index'];
+                my $path = $nodeobj->inventory_path( concept => 'interface', path_keys => $path_keys, data => $interface_data );
 
                 my ($inventory,$error_message) = $nodeobj->inventory(
                     concept => 'interface',
                     path => $path,
-                    path_keys => [],
+                    path_keys => $path_keys,
                     create => 1
                 );
                 $NG->log->error("Failed to get inventory for device_global, error_message:$error_message")

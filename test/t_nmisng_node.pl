@@ -135,8 +135,9 @@ $configplus->{morituri} = "te salutant";
 $node->configuration($configplus);
 cmp_deeply( [$node->save], [2,undef], "config with extra properties was savable");
 my $cursor = $nodescoll->find({name => $node->name});
-is($cursor->count, 1, "saved node is in the db");
-my $plus = $cursor->next // {};
+my @all = $cursor->all;
+is(@all, 1, "saved node is in the db");
+my $plus = $all[0] // {};
 
 cmp_deeply($plus->{configuration}, $configplus, "saved config data with extras is correct");
 
@@ -177,10 +178,10 @@ my ( $inventory2, $error2 )
 	= $node->inventory( concept => $concept . "_new", data => $inventory2_data, path_keys => $path_keys, create => 1 );
 
 # save, which should insert
-( my $op, $error ) = $inventory->save();
+( my $op, $error ) = $inventory->save( node => $node );
 is( $op, 1, "Inventory saves with insert op and no error" ) or diag("Save returned error: $error");
 isnt( $inventory->id, undef, "Inventory gets an id after it's saved" );
-( $op, $error ) = $inventory2->save();
+( $op, $error ) = $inventory2->save( node => $node );
 is( $op, 1, "Inventory2 saves with insert op and no error" ) or diag("Save returned error: $error, path:".join(",", @{ $inventory2->path()} ));
 
 my $path = $node->inventory_path( concept => $concept, data => $data, path_keys => $path_keys );
@@ -248,6 +249,21 @@ is($res->count, 1, "get_nodes_model does finds numeric name if asked by regex th
 
 cmp_deeply($nmisng->get_node_names, bag("12345","node1"), "get_node_names finds numeric name'd node");
 
+my $no_inventory = $numb->interface_by_ifDescr( "doesnotexist");
+is( $no_inventory, undef, "interface_by_ifDescr returns undef when ifDescr is not found" );
+
+my $index = 1;
+my ( $intf_inventory, $error ) = $numb->inventory( concept => "interface", path_keys => [$index], create => 1 );
+is($error, undef, "creating new interface inventory should work");
+
+$intf_inventory->data( { "ifDescr" => "existsifDescr", "index" => $index } );
+( my $op, $error ) = $intf_inventory->save( node => $numb );
+is( $op, 1, "Inventory saves with insert op and no error" ) or diag("Save returned error: $error");
+isnt( $intf_inventory->id, undef, "Inventory gets an id after it's saved" );
+
+$DB::single = 1;
+my $is_inventory = $numb->interface_by_ifDescr( "existsifDescr" );
+is( $is_inventory->{data}{ifDescr}, "existsifDescr" , "interface_by_ifDescr finds interface inventory with ifDescr" ) or diag(Dumper($is_inventory));
 
 if (-t \*STDIN)
 {

@@ -19,9 +19,10 @@ and the install.log may contain further clues as to what went wrong.
 
 If you want NMIS to collect data from WMI-based nodes you will
 have to download wmic from http://dl-nmis.opmantek.com/wmic-omk.tgz,
-then compile and install it by hand. The Opmantek Wiki at
-https://community.opmantek.com/x/VQJFAQ has more information
-on this procedure.
+then compile and install it by hand. 
+
+The Opmantek Wiki at https://community.opmantek.com/x/VQJFAQ has more
+information on this procedure.
 
 If you do not plan to use WMI-based models you can safely ignore
 this issue.

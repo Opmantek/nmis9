@@ -1411,6 +1411,7 @@ sub ensure_indexes
 			indices       => [
 				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
 				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
+    				[[cluster_id => 1, lastupdate => 1], {unique => 0}],
 				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 			]
 	);
@@ -2671,12 +2672,7 @@ sub grouped_node_summary
 
 	my $q = NMISNG::DB::get_query( and_part => $filters );
 	my @pipe = (
-		{'$match' => {'concept' => 'catchall'}},
-		{   '$lookup' =>
-				{'from' => 'nodes', 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'node_config'}
-		},
-		{'$unwind' => {'path'               => '$node_config', 'preserveNullAndEmptyArrays' => boolean::false}},
-		{'$match'  => {'node_config.activated.NMIS' => 1}},
+		{'$match' => { 'concept' => 'catchall', 'data.activated.NMIS' => 1}},
 		{   '$lookup' => {
 				'from'         => 'latest_data',
 				'localField'   => '_id',
@@ -2691,8 +2687,8 @@ sub grouped_node_summary
 	my $node_project = {
 		'$project' => {
 			'_id'       => 1,
-			'name'      => '$node_config.name',
-			'uuid'      => '$node_config.uuid',
+			'name'      => '$data.name',
+			'uuid'      => '$data.uuid',
 			'down'      => {'$cond' => {'if' => {'$eq' => ['$data.nodedown', 'true']}, 'then' => 1, 'else' => 0}},
 			'degraded'  => {'$cond' => {'if' => {'$eq' => ['$data.nodestatus', 'degraded']}, 'then' => 1, 'else' => 0}},
 			'reachable' => '$latest_data.subconcepts.data.reachability',
@@ -2710,11 +2706,11 @@ sub grouped_node_summary
 			# add in all the things network.pl is expecting: half are CONFIGURATION half are dynamic catchall/latest
 			'nodedown'    => '$data.nodedown',
 			'nodestatus'  => '$data.nodestatus',
-			'netType'     => '$node_config.configuration.netType',
+			'netType'     => '$data.netType',
 			'nodeType'    => '$data.nodeType',
 			'response'    => '$latest_data.subconcepts.data.responsetime',
-			'roleType'    => '$node_config.configuration.roleType',
-			'ping'        => '$node_config.configuration.ping',
+			'roleType'    => '$data.roleType',
+			'ping'        => '$data.ping',
 			'sysLocation' => '$data.sysLocation',
 			'last_update' => '$data.last_update',
 			'last_poll' => '$data.last_poll',
@@ -2757,6 +2753,7 @@ sub grouped_node_summary
 	}
 
 	# print "pipe:".Dumper(\@pipe);
+	# $self->log->info("pipe: \n".JSON::XS->new->convert_blessed(1)->utf8->pretty->encode(\@pipe));
 	my ( $entries, $count, $error ) = NMISNG::DB::aggregate(
 		collection         => $self->inventory_collection(),
 		pre_count_pipeline => \@pipe,
@@ -3448,12 +3445,12 @@ LABEL_ESC:
 		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
 		if ( $event_obj->event =~ /interface/i && !$event_obj->is_proactive )
 		{
-			### load the interface information and check the collect status.
-			my $S = NMISNG::Sys->new(nmisng => $self);    # node object
-			if ( $S->init( node => $nmisng_node, snmp => 'false' ) )
+			my $ifIndex = undef;
+			my $ifDescr = $event_obj->element;
+			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );			
+			if( $interface_inventory )
 			{
-				my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
-				if ( !NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
+				if ( !NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )
 				{
 					# meta events are subject to both Log and Notify controls
 					if (    NMISNG::Util::getbool( $thisevent_control->{Log} )
@@ -3827,13 +3824,14 @@ LABEL_ESC:
 											if ( $event_obj->event =~ /Interface/ )
 											{
 												my $ifIndex = undef;
-												my $S       = NMISNG::Sys->new(nmisng => $self);    # sys accessor object
-												if ( ( $S->init( name => $event_obj->node_name, snmp => 'false' ) ) )
-												{                                  # get cached info of node only
-													my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
-													if ( NMISNG::Util::getbool( $IFD->{$event_obj->element}{collect} ) )
+												my $ifDescr = $event_obj->element;
+												my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );
+												
+												if( $interface_inventory )
+												{
+													if ( NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )
 													{
-														$ifIndex = $IFD->{$event_obj->element}{ifIndex};
+														$ifIndex = $interface_inventory->{data}{ifIndex};
 														$message
 															.= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$event_data->{node_name}&intf=$ifIndex\n";
 													}

@@ -2821,7 +2821,7 @@ sub update_intf_info
 				if ($target->{ifDescr} eq "noSuchInstance"
 						or $target->{ifType} eq "noSuchInstance")
 				{
-					$self->nmisng->log->error("Cannot retrieve interface $index: snmp reports nonexistent");
+					$self->nmisng->log->error("($nodename) Cannot retrieve interface $index: snmp reports nonexistent");
 					$keepInterface = 0;
 				}
 
@@ -3760,7 +3760,7 @@ sub collect_intf_data
 		# new interface, or existing interface which is historic, no current inventory yet?
 		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
-			$self->nmisng->log->info("Interface $index is new, needs update");
+			$self->nmisng->log->info("($nodename) Interface $index is new, needs update");
 			$thisif->{_needs_update} = 1;
 			next;
 		}
@@ -3771,7 +3771,7 @@ sub collect_intf_data
 			$self->nmisng->log->debug("[$nodename]  _ifAdminStatus does not exist ");
 			if ($isValidTable == 1) {
 				# we have to track already dead ones (in if_data_map), but we don't work on them
-				$self->nmisng->log->info("Interface $index, $thisif->{ifDescr} was removed!")
+				$self->nmisng->log->info("($nodename) Interface $index, $thisif->{ifDescr} was removed!")
 						if (!$thisif->{historic});
 	
 				delete $if_data_map{$index}; # nothing to do except mark it as historic at the end
@@ -3791,7 +3791,7 @@ sub collect_intf_data
 		my $curstatus = $thisif->{ifAdminStatus};
 		my $newstate = $thisif->{_ifAdminStatus};
 
-		$self->nmisng->log->debug("($S->{name}) no ifAdminStatus for index=$index present")
+		$self->nmisng->log->debug("($nodename) no ifAdminStatus for index=$index present")
 				if (!defined $curstatus);
 
 		# needs to check if the ifAdminStatus is enabled in this model or not too
@@ -3801,7 +3801,7 @@ sub collect_intf_data
 			if ((defined $newstate and $newstate eq "up")
 					xor (defined $curstatus and $curstatus eq "up"))
 			{
-				$self->nmisng->log->info("Interface $index, admin status changed from $curstatus to $newstate, needs update");
+				$self->nmisng->log->info("($nodename) Interface $index, admin status changed from $curstatus to $newstate, needs update");
 				$thisif->{_needs_update} = 1;
 				next;
 			}
@@ -3812,7 +3812,7 @@ sub collect_intf_data
 				 and ( !defined($thisif->{ifLastChangeSec}) # and we had none before
 							 or $thisif->{ifLastChangeSec} != $thisif->{_ifLastChangeSec}) ) # or the old value is different
 		{
-			$self->nmisng->log->info("Interface index $index, needs update because of ifLastChange $thisif->{_ifLastChangeSec}s"
+			$self->nmisng->log->info("($nodename) Interface index $index, needs update because of ifLastChange $thisif->{_ifLastChangeSec}s"
 												 . ($thisif->{ifLastChangeSec}? ", was $thisif->{ifLastChangeSec}"
 														: ", new interface"));
 			$thisif->{_needs_update} = 1;
@@ -3832,14 +3832,14 @@ sub collect_intf_data
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
 		if (!defined $maybenew)
 		{
-			$self->nmisng->log->warn("Interface index $needsmust was removed while trying to update");
+			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
 			next;
 		}
 		# ...which MAY be different from the one we've got in the if_data_map
 		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
 		{
-			$self->nmisng->log->debug2("Interface index $needsmust "
+			$self->nmisng->log->debug2("($nodename) Interface index $needsmust "
 																 .(defined($thisif->{_id})? "has changed substantially" : "is new")
 																 . " and has a new inventory");
 
@@ -3856,7 +3856,7 @@ sub collect_intf_data
 		}
 		else
 		{
-			$self->nmisng->log->debug2(sub {"Interface index $needsmust was updated"});
+			$self->nmisng->log->debug2(sub {"($nodename) Interface index $needsmust was updated"});
 			# just mark this interface as updated
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
@@ -4011,7 +4011,7 @@ sub collect_intf_data
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
 		if (!defined $maybenew)
 		{
-			$self->nmisng->log->warn("Interface index $needsmust was removed while trying to update");
+			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
 			next;
 		}
@@ -8775,12 +8775,12 @@ sub collect
 		}
 		else
 		{
-			my $msg = "updateNodeInfo for $name failed: "
+			my $msg = "($name) updateNodeInfo failed: "
 				. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) );
 			$self->nmisng->log->error($msg);
 		}
 	} else {
-		$self->nmisng->log->debug3(sub {"Node $name not pingable or no collect"});
+		$self->nmisng->log->debug3(sub {"($name) Node not pingable or no collect"});
 		# updating time stamps for last poll, the collect was run even if the node was down.
 		$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
 		$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
@@ -9017,6 +9017,28 @@ sub ext_ping
 	return($pt{min}, $pt{avg}, $pt{max}, $pt{loss});
 }
 
+# get an interface inventory model (single) for node
+# by ifDescr
+sub interface_by_ifDescr 
+{
+	my ($self,$ifDescr) = @_;
+	# ifDescr is in the interface inventory path so use path to find it, unfortunately index it isn't 100% hit
+	# because it can't do 0,1,2,4
+	my $path = $self->inventory_path( concept => "interface", data => { ifDescr => $ifDescr }, partial => 1 );
+	# my ( $interface_inventory, $error_message ) = $self->inventory( concept => 'interface', path => $path, create => 1 );
+	# $self->nmisng->log->warn("Node::interface_by_ifDescr error getting interface from ifDescr:$ifDescr, error_message:$error_message ") if( $error_message );
+
+	# we don't need a whole object so just do the search her einstead of using self->inventory
+	my $result = $self->get_inventory_model( concept => "interface", path => $path );
+	my $interface_inventory;
+	if (!$result->error) 
+	{
+		$self->nmisng->log->warn("Node::interface_by_ifDescr found more than one interface for ifDescr:$ifDescr") if( $result->count > 1 );
+		my $data = $result->data();
+		$interface_inventory = $data->[0] if( @$data > 0 );
+	}
+	return $interface_inventory;
+}
 
 1;
 
