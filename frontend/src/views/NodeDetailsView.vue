@@ -7,10 +7,10 @@
                 <div class="card-title" v-if="!isLoading">
                   <h3>{{  nodeData.name }}</h3>
                   <span>
-                    <a :href="'/cgi-nmis9/tables.pl?act=config_table_edit&amp;table=Nodes&amp;widget=true&amp;key='+nodeData.name" id="cfg_nodes">Edit Node</a>
+                    <a :href="'/cgi-nmis9/tables.pl?act=config_table_edit&amp;table=Nodes&amp;widget=true&amp;key='+nodeData.name" id="cfg_nodes" target="_blank">Edit Node</a>
                   </span>
                   <span class="ps-3">
-                    <a :href="'/cgi-nmis9/nodeconf.pl?act=config_nodeconf_view&amp;widget=true&amp;node='+nodeData.name" id="cfg_nodecGfg">Node Configuration</a>
+                    <a :href="'/cgi-nmis9/nodeconf.pl?act=config_nodeconf_view&amp;widget=true&amp;node='+nodeData.name" id="cfg_nodecGfg" target="_blank">Node Configuration</a>
                   </span>
                 </div>
                 <div v-else>
@@ -34,9 +34,10 @@
                   </div>
                   <div class="col-4">
                     <table class="table table-bordered" v-if="!isLoading">
-                      <tbody>
-                        <td>
-                          graph cell
+                      <tbody v-for="graph in Object.keys(nodeData.graphLink)">
+                        <td >
+                          {{graph}}
+                          <img :src="nodeData.graphLink[graph]">
                         </td>
                       </tbody>
                     </table>
