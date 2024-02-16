@@ -7092,12 +7092,26 @@ sub collect_server_data
 
 	$self->nmisng->log->debug("Starting server device/storage collection, node $S->{name}");
 
-	# clean up node file
-	NMISNG::Util::TODO("fixme9 Need a cleanup/historic checker");
-
 	# get cpu info
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
 	{
+		my %newProcessors;
+		my %oldProcessors;
+		my $oldProcessorIDs = $self->get_inventory_ids( concept => "device", 
+			filter => { historic => 0, "data.hrDeviceType" => "1.3.6.1.2.1.25.3.1.3" });
+		$self->nmisng->log->debug2("Got " . scalar(@{$oldProcessorIDs}) . " processors.");
+		foreach my $id (@{$oldProcessorIDs})
+		{
+			$self->nmisng->log->debug2("Processing Processor ID '$id'");
+			my ($cpuInventory,$error) = $self->inventory(_id => $id);
+			if ($cpuInventory && !$error)
+			{
+				my $data = $cpuInventory->data();
+				$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
+				$oldProcessors{$data->{index}} = $id;
+			}
+		}
+
 		# this will put hrCpuLoad into the device_global concept
 		# NOTE: should really be PIT!!!
 		my $overall_target = {};
@@ -7142,6 +7156,7 @@ sub collect_server_data
 				$self->nmisng->log->debug2(sub {"device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}"});
 				if ( $D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3' )
 				{# hrDeviceProcessor
+					$newProcessors{$index} = 1;
 					( $hrCpuLoad, $D->{hrDeviceDescr} )
 						= $SNMP->getarray( "hrProcessorLoad.${index}", "hrDeviceDescr.${index}" );
 					$self->nmisng->log->debug2(sub {"CPU $index hrProcessorLoad=$hrCpuLoad hrDeviceDescr=$D->{hrDeviceDescr}"});
@@ -7220,7 +7235,35 @@ sub collect_server_data
 				}
 			}
 		}
-		NMISNG::Util::TODO("Need to clean up device/devices here and mark unused historic");
+		# We Need to clean up device/devices here and mark unused historic.
+		foreach my $index ( keys %oldProcessors )
+		{
+			$self->nmisng->log->debug2("Searching for Processor Index '$index'");
+			unless (exists($newProcessors{$index}))
+			{
+				$self->nmisng->log->debug2("Could not find Processor Index '$index', removing.");
+				my ( $inventory, $error ) = $self->inventory( _id => $oldProcessors{$index} );
+				if ( $inventory )
+				{
+                    my ($ok, $deleteError) = $inventory->delete();
+                    if ($deleteError)
+                    {
+                         $self->nmisng->log->error("Failed to delete inventory for Processor '$index', ERROR:: $deleteError");
+                    }
+#					$inventory->enabled(0);
+#					$inventory->historic(1);
+#					$inventory->save();
+				}
+				else
+				{
+					$self->nmisng->log->debug2("Could not find Processor '$index' in the system.");
+				}
+			}
+			else
+			{
+				$self->nmisng->log->debug2("Found Processor Index '$index'");
+			}
+		}
 	}
 	else
 	{

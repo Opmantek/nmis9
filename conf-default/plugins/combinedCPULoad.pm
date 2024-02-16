@@ -67,7 +67,7 @@ sub collect_plugin
 
 	my $host_ids = $S->nmisng_node->get_inventory_ids(
 		concept => "device",
-		filter => { historic => 0 });
+		filter => { historic => 0, "data.hrDeviceType" => "1.3.6.1.2.1.25.3.1.3" });
 	
 	if (@$host_ids)
 	{
