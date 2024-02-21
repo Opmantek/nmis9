@@ -143,7 +143,7 @@ sub update_plugin
                     # disable for now
                     $inventory->data_info( subconcept => 'interface', enabled => 0 );
 
-                    my ($op,$error) = $inventory->save();
+                    my ($op,$error) = $inventory->save( node => $node );
                     $inventory->description( $data->{ifDescr} );
 
                     $NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
@@ -157,7 +157,7 @@ sub update_plugin
         $catchall_data->{ifNumber} = $ids;
         $catchall_data->{active} = $active;
         $inv->data($catchall_data);
-        my ($op,$error) = $inv->save();
+        my ($op,$error) = $inv->save( node => $node );
         $NG->log->info( "saved catchall op: $op");
         
 	}
@@ -195,7 +195,7 @@ sub collect_plugin
 			my $data = $ifTable->data();
 			$ifTable->historic(0);
 			$ifTable->data($data);
-			my ($op, $serror) = $ifTable->save();
+			my ($op, $serror) = $ifTable->save( node => $node );
 			$NG->log->debug2(sub {"Inventory update: $op "});
 			if ($serror)
 			{

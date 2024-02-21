@@ -42,7 +42,7 @@ use Scalar::Util;       # for weaken
 use Data::Dumper;
 use Time::HiRes;
 use Time::Moment;								# for ttl indices
-use DateTime;										# ditto
+#use DateTime;										# ditto
 use List::MoreUtils;    # for uniq
 use Carp;
 use File::Basename;							# for relocate_storage
@@ -484,13 +484,13 @@ sub add_timed_data
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
 	return "cannot add timed data, invalid derived_data argument!"
 		if ( ref( $args{derived_data} ) ne "HASH" );    # empty hash is acceptable
-	my ( $data, $derived_data, $time, $delay_insert, $flush )
-			= @args{'data', 'derived_data', 'time', 'delay_insert','flush'};
+	my ( $data, $derived_data, $time, $delay_insert, $flush, $node )
+			= @args{'data', 'derived_data', 'time', 'delay_insert','flush','node'};
 
 	# automatically take care of datasets
 	# one of these two must be defined
 	my ( $subconcept, $datasets ) = @args{'subconcept', 'datasets'};
-
+	
 	return "subconcept is required stack:" . Carp::longmess() if ( !$subconcept && !$flush);
 	return "datasets must be hash if defined" . Carp::longmess()
 			if ( $datasets && ref($datasets) ne 'HASH' && !$flush );
@@ -507,7 +507,11 @@ sub add_timed_data
 	my $timedrecord = { time => $time, expire_at => $expire_at, cluster_id => $self->cluster_id };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
     $timedrecord->{node_uuid} = $self->node_uuid();
-	my $node = $self->nmisng->node( filter => {uuid => $self->node_uuid()} );
+	# if a node was forgotten or was not given proper node object
+	if( !$node || ref($node) ne "NMISNG::Node" ) {	
+		$node = $self->nmisng->node( filter => {uuid => $self->node_uuid()} );
+		$self->nmisng->log->debug(sub {"Inventory::add_timed_data node not provided in args:\n ".Carp::longmess()});
+	}
 	if ($node)
 	{
 		$timedrecord->{configuration}->{group} = $node->configuration()->{'group'};
@@ -585,7 +589,7 @@ sub add_timed_data
 
 		# if the datasets were modified they need to be saved, only if we're not flushing
 		# which should only come from save (so don't start a recursive loop)
-		$self->save() if (!$flush && $datasets_modfied);
+		$self->save( node => $node ) if (!$flush && $datasets_modfied);
 	}
 	else
 	{
@@ -1037,7 +1041,8 @@ sub relocate_storage
 	
 	# Needed to makeRRDname from database, if current path is corrupt
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
-	$S->init(node => $self->nmisng->node(name => $curname));
+	my $node = $self->nmisng->node(name => $curname);
+	$S->init(node => $node);
 
 	# full sanity check FIRST - can the path fixup happen? does the current name match?
 	my $safetomangle = Clone::clone($self->{_storage});
@@ -1133,7 +1138,7 @@ sub relocate_storage
 	$self->{_storage} = $safetomangle;
 	$self->_dirty(1,"storage");
 
-	my ($op, $error) = $self->save;
+	my ($op, $error) = $self->save( node => $node );
 	return (0, "failed to save updated inventory: $error")
 			if ($op <= 0);
 
@@ -1268,7 +1273,7 @@ sub path
 #  using the path to make sure we don't create duplicates, this will clobber whatever
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
 #
-# args: lastupdate, (optional, defaults to now),
+# args: lastupdate, (optional, defaults to now), node (obj)
 # note: lastupdate and expire_at currently not added to object but stored in db only
 #
 # the object's _id and _path are refreshed
@@ -1281,13 +1286,21 @@ sub save
 	my ( $self, %args ) = @_;
 	my $lastupdate = $args{lastupdate} // Time::HiRes::time;
 
+	my $node = $args{node};
+	if( $self->node_uuid ne '' && !$node ) {
+		$self->nmisng->log->debug(sub {"Inventory::save has node uuid and no node!".Carp::longmess()});
+	}
+
 	# first, check if what we have is saveable at all
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
 	#node_name and group name are cached on the record for faster inventory sorting in the other products,
 	#maybe we should append with cached? as this data could be stale?
-	my $node = $self->nmisng->node( filter => { uuid => $self->node_uuid } );
+	# if a node was forgotten or was not given proper node object
+	if( !$node || ref($node) ne "NMISNG::Node" ) {
+		$node = $self->nmisng->node( filter => { uuid => $self->node_uuid } );
+	}
 	my ($name, $group);
 	
 	# for now configuration is special, it's not accessible outside the class
@@ -1490,7 +1503,7 @@ sub save
 		my $pit_record = $self->{_queued_pit};
 		# using ourself means id will be added (so new inventories will work, no save first required)
 		# telling it to flush should bypass any special handling, allowing the data straight through
-		my $error = $self->add_timed_data(flush => 1, %$pit_record);
+		my $error = $self->add_timed_data(flush => 1, node => $node, %$pit_record);
 		if ($error)
 		{
 			$result->{success} = 0;

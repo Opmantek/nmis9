@@ -173,7 +173,7 @@ my $first_inventory = NMISNG::Inventory::DefaultInventory->new(
 	data      => $first_data,
 	path_keys => ['key1']
 );
-( my $op, $error ) = $first_inventory->save;
+( my $op, $error ) = $first_inventory->save( node => $newnode );
 cmp_deeply( $op, 1, "Save first entry so update has to find correct record") or diag("Save returned error: $error");
 cmp_deeply( $first_inventory->data, $first_data, "First record has correct data");
 
@@ -183,7 +183,7 @@ is($newdesc, $first_inventory->{_description}, "description can be changed");
 
 # save/insert/is_new
 is( $inventory->is_new, 1, "unsaved inventory should be new" );
-( $op, $error ) = $inventory->save();
+( $op, $error ) = $inventory->save( node => $newnode );
 is( $op, 1, "Valid inventory is saved via insert" ) or diag("Save returned error: $error");
 is( $inventory->is_new, 0, "saved inventory should not be new" );
 isnt( $inventory->id, undef, "Inventory gets an id after it's saved");
@@ -193,7 +193,7 @@ isnt( $inventory->id, undef, "Inventory gets an id after it's saved");
 # eg - test update in insert via upsert
 $inventory->{_id} = undef;
 is( $inventory->is_new, 1, "meddled with inventory thinks it's new again" );
-( $op, $error ) = $inventory->save();
+( $op, $error ) = $inventory->save( node => $newnode );
 is( $op, 2, "inventory is saved via update even though new" ) or diag("Save returned error: $error");
 isnt( $inventory->id, undef, "Inventory gets an id after it's saved");
 
@@ -246,7 +246,7 @@ $inventory->data_info( subconcept => $concept, enabled => 1, display_keys => ['k
 cmp_deeply( $inventory->data_info( subconcept => $concept ), { enabled => 1, display_keys => ['keyedby'] }, "set/get dataset info works");
 
 # save/update
-( $op, $error ) = $inventory->save();
+( $op, $error ) = $inventory->save( node => $newnode );
 is( $op, 2, "Valid non-new inventory should be updated when saved" ) or diag("Save returned error: $error");
 isnt( $inventory->id, undef, "Inventory gets an id after it's saved");
 
@@ -322,7 +322,7 @@ is($curval, $inventory->{_historic}, "historic accessor can undef value");
 #lastly change data on first entry and make sure it's updated
 $first_data->{extrathing1} = "extravalue1";
 $first_inventory->data($first_data);
-$first_inventory->save();
+$first_inventory->save( node => $newnode );
 cmp_deeply( $first_inventory->data, $first_data, "first inventory data was updated" );
 
 ($op,$error) = $first_inventory->delete();
@@ -339,14 +339,14 @@ cmp_deeply($res, { success => 1 }, "get newest returns ok-but-empty for concept 
 																					 data => { "keyedby" => "fourty2" ,
 																										 "something" => "else" });
 is($error, undef, "creation of tictac inventory worked");
-($op, $error) = $tictac->save;
+($op, $error) = $tictac->save( node => $newnode );
 is($op, 1, "tictac concept was saved") or diag("error message was: $error");
 cmp_deeply($tictac->storage,undef, "inventory w/o storage is properly represented");
 cmp_deeply($tictac->subconcepts, [], "inventory w/o storage has empty subconcepts list");
 
 my $first =  { "itisnow" => "first entry" };
 my $first_derived = { 'itwasthen' => 'first entry' };
-$error = $tictac->add_timed_data(data => $first, derived_data => $first_derived, subconcept => $concept );
+$error = $tictac->add_timed_data(data => $first, derived_data => $first_derived, subconcept => $concept, node => $newnode );
 is($error, undef, "adding timed data to tictac worked") or diag($error);
 my $first_datasets = $tictac->dataset_info( subconcept => $concept );
 cmp_deeply( $first_datasets, { 'itisnow' => 1 }, 'adding time data automatically adds dataset info for subconcept' );
@@ -354,7 +354,7 @@ cmp_deeply( $first_datasets, { 'itisnow' => 1 }, 'adding time data automatically
 my $now = Time::HiRes::time;
 my $second =  { "itisnow2" => "second entry" };
 my $second_derived = { 'itwasthen' => 'second entry' };
-$error = $tictac->add_timed_data(data => $second, time => $now, derived_data => $second_derived, datasets => { $concept => { 'itisnow2' => 1 }}, subconcept => $concept );
+$error = $tictac->add_timed_data(data => $second, time => $now, node => $newnode, derived_data => $second_derived, datasets => { $concept => { 'itisnow2' => 1 }}, subconcept => $concept );
 is($error, undef, "adding timed data to tictac worked again") or diag($error);
 
 my $second_datasets = $tictac->dataset_info( subconcept => $concept );
@@ -367,7 +367,7 @@ cmp_deeply($res, { success => 1, time => $now,  data => { $concept => $second },
 # add a third for this concept
 my $third = { "itisnow" => "third", "itisnow3" => "forth" };
 my $third_derived = { 'itwasthen' => 'third entry' };
-$error = $tictac->add_timed_data(data => $third, time => $now + 0.1, derived_data => $third_derived, subconcept => $concept."3");
+$error = $tictac->add_timed_data(data => $third, time => $now + 0.1, derived_data => $third_derived, subconcept => $concept."3", node => $newnode);
 is($error, undef, "adding timed data to tictac worked again") or diag($error);
 
 my $third_datasets = $tictac->dataset_info( subconcept => $concept."3" );
@@ -413,12 +413,12 @@ cmp_deeply($duo->data, [ { _id => ignore(), 'time' => re(qr/^\d+(\.\d+)?$/), inv
 																					 path_keys => ['keyedby'],
 																					 data => { "keyedby" => "fourty2" ,
 																										 "not" => "tictac" });
-$cuckoo->save;
-$error = $cuckoo->add_timed_data(data => { "dingdong" => "it works" }, derived_data => {}, time => Time::HiRes::time, subconcept => $concept);
+$cuckoo->save( node => $newnode );
+$error = $cuckoo->add_timed_data(data => { "dingdong" => "it works" }, derived_data => {}, time => Time::HiRes::time, subconcept => $concept, node => $newnode);
 is($error, undef, "adding timed data to tictac worked again") or diag($error);
-$error = $cuckoo->add_timed_data(data => { "seconds" => "please" }, derived_data => {}, time => Time::HiRes::time + 0.1, subconcept => $concept);
+$error = $cuckoo->add_timed_data(data => { "seconds" => "please" }, derived_data => {}, time => Time::HiRes::time + 0.1, subconcept => $concept, node => $newnode);
 is($error, undef, "adding timed data to tictac worked again") or diag($error);
-$error = $cuckoo->add_timed_data(data => { "full" => "done" }, derived_data => {}, time => Time::HiRes::time + 0.1, subconcept => $concept);
+$error = $cuckoo->add_timed_data(data => { "full" => "done" }, derived_data => {}, time => Time::HiRes::time + 0.1, subconcept => $concept, node => $newnode);
 is($error, undef, "adding timed data to tictac worked again") or diag($error);
 
 # now ask for "gimme the latest timed data for this node", i.e. across all concepts
@@ -441,7 +441,7 @@ my $one = NMISNG::Inventory::DefaultInventory->new(
 	enabled => 1, historic => 0,
 	path_keys => []
 		);
-($op,my $err) = $one->save;
+($op,my $err) = $one->save( node => $newnode );
 is($op, 1, "minisave savable") or diag("error was: $err");
 my @dirty= $one->_whatisdirty;
 cmp_deeply(\@dirty, [], "freshly saved inv is not dirty");
@@ -465,7 +465,7 @@ for (
 
 	my $whatisit = $one->$what($value);
 	cmp_deeply($whatisit, $value, "setting $what reported back correct data");
-	($op, $error) = $one->save;
+	($op, $error) = $one->save( node => $newnode );
 	is($op, 2, "new $what meant save needed") or diag("error was: $error");
 
 	my ($expire_old,$expire_new);
@@ -481,7 +481,7 @@ for (
 	}
 
 	$one->$what($one->$what);
-	($op, $error) = $one->save;
+	($op, $error) = $one->save( node => $newnode );
 	is($op, 3, "unchanged $what meant no save") or diag("error was: $error");
 
 	if (!$one->historic)
@@ -515,11 +515,11 @@ for ([ "data_info" => [ "subconcept" => "subbie", 'enabled' => 1 ]],
 	my ($what,$arglist) = @$_;
 
 	$one->$what(@$arglist);
-	($op, $error) = $one->save;
+	($op, $error) = $one->save( node => $newnode );
 	is($op, 2, "new $what meant save needed") or diag("error was: $error");
 
 	$one->$what(@$arglist);
-	($op, $error) = $one->save;
+	($op, $error) = $one->save( node => $newnode );
 	is($op, 3, "unchanged $what meant no save") or diag("error was: $error");
 
 	$one->reload;
@@ -536,7 +536,7 @@ $one = NMISNG::Inventory::DefaultInventory->new(
 	enabled => 1, historic => 0,
 	path_keys => []
 		);
-$one->save;
+$one->save( node => $newnode );
 
 my $two = NMISNG::Inventory::DefaultInventory->new(
 	nmisng    => $nmisng,
@@ -562,8 +562,8 @@ cmp_deeply($one->data, \%deltaone, "setting one works, data is correct");
 $two->data( \%deltatwo);
 cmp_deeply($two->data, \%deltatwo, "setting two works, data is correct");
 
-$two->save;
-$one->save;
+$two->save( node => $newnode );
+$one->save( node => $newnode );
 cmp_deeply($one->data, \%deltaone, "data in one is as expected post-save"); # i.e. they're still split-horizon
 cmp_deeply($two->data, \%deltatwo, "data in two is as expected post-save");
 
@@ -578,7 +578,7 @@ cmp_deeply($one->data, \%expected, "concurrent changes caused expected data");
 %deltatwo = ( one => "no", two => 2, eight => "zoom", nine => "nintynine" , "second" => "wins");
 %expected = ( one => "no", two => 2, eight => "zoom", "first" => "wins" , "second" => "wins");
 $one->data(\%deltaone); $two->data(\%deltatwo); # order irrelevant
-$one->save; $two->save;					# order critical; second save overwrites
+$one->save( node => $newnode ); $two->save( node => $newnode );					# order critical; second save overwrites
 $one->reload; $two->reload;
 cmp_deeply($two->data, \%expected, "conflicting data change, last save wins");
 cmp_deeply($one->data, \%expected, "conflicting data change, last save wins, first agrees");
@@ -594,7 +594,7 @@ my $liveone = $one->data_live;
 $liveone->{two} = undef;
 $liveone->{winner} = "live";
 
-$one->save; $two->save;
+$one->save( node => $newnode ); $two->save( node => $newnode );
 # verify that either save doesn't interfere with the data_live one
 cmp_deeply($one->data, { one => "no", two => undef, eight => "zoom",
 												 "first" => "wins" , "second" => "wins", "winner" => "live"},
@@ -618,7 +618,7 @@ $liveone->{winner} = "save order counts";
 							"three" => "new",
 							"four" => "alsonew" );
 
-$one->save; $two->save;
+$one->save( node => $newnode ); $two->save( node => $newnode );
 $one->reload; $two->reload;
 
 cmp_deeply($one->data, \%expected, "first data_live has correct data");
@@ -628,7 +628,7 @@ cmp_deeply($two->data, \%expected, "second data_live also has correct data");
 %expected = ( foo => "bar", "really" => "nice"  );
 my $newdata = \%expected;
 $one->data($newdata);
-$one->save; $one->reload;
+$one->save( node => $newnode ); $one->reload;
 
 cmp_deeply($one->data, \%expected, "data(new info) works in data_live mode and replaces all of data");
 
@@ -641,7 +641,7 @@ $doesntsmelllive->{foo} = "bar and diddly";
 
 %expected = ( x => "y", foo => "bar and diddly", really => "nice" );
 $one->data($doesntsmelllive);
-$one->save; $one->reload;
+$one->save( node => $newnode ); $one->reload;
 
 cmp_deeply($one->data, \%expected, "data(existing live data) works in data_live mode and replaces all of data");
 
@@ -654,11 +654,11 @@ is( $inventory->{_configuration}{group}, $configuration->{group}, "groups match"
 # change the group
 $configuration->{group} = "inventorygroupy";
 $newnode->configuration($configuration);
-$newnode->save();
+$newnode->save( node => $newnode );
 my $configuration = $newnode->configuration();
 is( $configuration->{group}, "inventorygroupy", "node group changed");
 # this should update {configuration}{group}
-$inventory->save();
+$inventory->save( node => $newnode );
 # there is no accessor for configuration
 is( $inventory->{_configuration}{group}, $configuration->{group}, "groups match");
 

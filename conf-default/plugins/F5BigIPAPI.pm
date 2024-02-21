@@ -180,7 +180,7 @@ sub collect_plugin
 
             # Save the data so it appears in the GUI
             $serv_inventory->data($data); # set changed info
-			my ( $op, $subError ) = $serv_inventory->save();
+			my ( $op, $subError ) = $serv_inventory->save( node => $node );
 			if ($subError)
 			{
 				$NG->log->error("Failed to save inventory for Virtual Server '$name'; Error: $subError");
@@ -258,7 +258,7 @@ sub collect_plugin
 						$data->{pktsOut}                    = $f5SubData->{pktsOut};
 						$pool_inventory->data($data); # set changed info
 						# the above will put data into inventory, so save
-						my ( $op, $subError ) = $pool_inventory->save();
+						my ( $op, $subError ) = $pool_inventory->save( node => $node );
 						$NG->log->debug( "saved '$poolName' op: $op");
 						if ($subError)
 						{
@@ -410,7 +410,7 @@ sub update_plugin
 													data => $dbname) if ($dbname);
 
 		# the above will put data into inventory, so save
-		my ( $op, $subError ) = $subInventory->save();
+		my ( $op, $subError ) = $subInventory->save( node => $node );
 		if ($subError)
 		{
 			$NG->log->error("Failed to save Concept '$virtSvrConcept' inventory for Virtual Server '$name': $subError");
@@ -497,7 +497,7 @@ sub update_plugin
 																	subconcept => $poolConcept,
 																	data => $dbname) if ($dbname);
 					# the above will put data into inventory, so save
-					my ( $op, $subError ) = $subMemberInventory->save();
+					my ( $op, $subError ) = $subMemberInventory->save( node => $node );
 					if ($subError)
 					{
 						$NG->log->error("Failed to save '$poolConcept' inventory for Virtual Server Pool '$poolName'; Member '$memberName'; Error: $subError");

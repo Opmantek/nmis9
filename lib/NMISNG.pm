@@ -770,7 +770,7 @@ sub compute_thresholds
 	# Save the new status results, but only if run standalone
 	if ($running_independently)
 	{
-		$catchall_inventory->save();
+		$catchall_inventory->save( node => $S->nmisng_node );
 	}
 
 	$self->log->debug(&NMISNG::Log::trace()."Finished");
@@ -1745,7 +1745,7 @@ sub find_due_nodes
 						$shortlived->{demote_grace} = $graceperiod_start = $ninfo->{demote_grace} = $now;
 						# track newly added nodes, to prioritise type=update
 						$newnodes{$maybe} = 1 if ($catchall->is_new);
-						my ( $op, $error ) = $catchall->save;
+						my ( $op, $error ) = $catchall->save( node => $nodeobj );
 						$self->log->error("Failed to update catchall inventory: $error") if ($error);
 					}
 				}
