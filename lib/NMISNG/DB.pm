@@ -1522,6 +1522,7 @@ sub update
 	my $collection  = $arg{collection};
 	my $query       = $arg{query};
 	my $record      = $arg{record};
+	my $bulk        = $arg{bulk};
 	my $safe        = $arg{safe} // 1;
 	my $return_info = undef;
 	my $new_record  = $record;
@@ -1543,14 +1544,24 @@ sub update
 	# print "calling $methodname, upsert:$upsert with query".Dumper($query)."and updates ".Dumper($updates);
 	try
 	{
-		my $result = $collection->$methodname($query, $updates, {upsert => $upsert});
-		if ( $result->acknowledged )
+		if($bulk)
 		{
-			$updated_records = $result->modified_count;
-			$matched_records = $result->matched_count;
-			$upserted_id = $result->upserted_id;
+			my $results;
+			$results = $bulk->find( $query )->upsert->$methodname($updates) if($upsert);
+			$results = $bulk->find( $query)->$methodname($updates);
+			$success = 1;
 		}
-		$success = 1;
+		else
+		{
+			my $result = $collection->$methodname($query, $updates, {upsert => $upsert});
+			if ( $result->acknowledged )
+			{
+				$updated_records = $result->modified_count;
+				$matched_records = $result->matched_count;
+				$upserted_id = $result->upserted_id;
+			}
+			$success = 1;
+		}
 	}
 	catch
 	{
