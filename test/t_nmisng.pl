@@ -37,6 +37,7 @@ our $VERSION = "1.1.0";
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+use Test::Deep;
 use Test::More;
 
 use NMISNG;
@@ -138,6 +139,35 @@ is( scalar(@$node_uuids), 1,           "node uuid list has number of nodes expec
 is( $node_uuids->[0],     $node->uuid, "first node uuid is correct" );
 
 #TODO: test get_inventory_model
+
+
+# test tracking of timed collections
+my $the_existing_timed_collections = $nmisng->existing_timed_collections();
+isnt( $the_existing_timed_collections->{"timed_testconcept1"}, 1, "before getting timed_concept_collection does not know about new collection");
+$nmisng->timed_concept_collection( concept => "testconcept1" );
+$the_existing_timed_collections = $nmisng->existing_timed_collections();
+is( $the_existing_timed_collections->{"timed_testconcept1"}, 1, "after getting timed_concept_collection a new collection is created");
+$nmisng->timed_concept_collection( concept => "testconcept2" );
+my $list = $nmisng->timed_collections_list();
+my $expect = { "timed_testconcept1" => 1, "timed_testconcept2" => 1 };
+cmp_deeply( $list, $expect, "known timed collections has expected list");
+my $nmisng2 = NMISNG->new(
+	config => $C,
+	log    => $logger,
+	existing_timed_collections => $list
+);
+$the_existing_timed_collections = $nmisng->existing_timed_collections();
+cmp_deeply( $the_existing_timed_collections, $list, "new nmisng takes existing timed colleciton data");
+$nmisng->timed_concept_collection( concept => "testconcept3" );
+my $list = $nmisng2->timed_collections_list();
+$expect->{"timed_testconcept3"} = 1;
+cmp_deeply( $list, $expect, "known timed collections has expected list");
+my $nmisng3 = NMISNG->new(
+	config => $C,
+	log    => $logger
+);
+$nmisng3->existing_timed_collections($the_existing_timed_collections);
+is( $nmisng3->existing_timed_collections, $the_existing_timed_collections, "setting _existing_timed_collections works");
 
 cleanup_db();
 done_testing();

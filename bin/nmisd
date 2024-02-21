@@ -462,6 +462,9 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 
 # this opens a database connection - which we must not share with any children!
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
+my $tc_list = $nmisng->timed_collections_list();
+$nmisng->existing_timed_collections($tc_list);
+
 &NMISNG::rrdfunc::require_RRDs;
 
 my $zoo = ($scheduler_state->{zoo} //= {}); # process state structure for manage_processes
@@ -1101,6 +1104,10 @@ sub manage_processes
 			# make sure this gets a NEW nmisng object, with NEW database handles!
 			$nmisng = Compat::NMIS::new_nmisng(nocache => 1,
 																				 debug => $debug);
+			# tell it which timed collections we know about
+			my $tc_list = $nmisng->timed_collections_list();
+			$nmisng->existing_timed_collections($tc_list);
+
 			if (!defined $cmdline->{debug})
 			{
 				# fping worker logs to its own logfile
@@ -1178,6 +1185,9 @@ sub manage_processes
 				srand();
 				# make sure this gets a NEW nmisng object, with NEW database handles!
 				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $debug);
+				my $tc_list = $nmisng->timed_collections_list();
+				$nmisng->existing_timed_collections($tc_list);
+
 				$nmisng->log->logprefix("worker\[$$\] ");
 				$nmisng->log->info("started");
 				$0 = "nmisd.worker.<idle>";

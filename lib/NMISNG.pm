@@ -68,6 +68,9 @@ use Compat::Timing;
 #  log - NMISNG::Log object to log to, required.
 #  db - mongodb database object, optional.
 #  drop_unwanted_indices - optional, default is 0.
+#  existing_timed_collections - optional, list of existing timed collections, needed because they
+#		are created dynamically and will need indexes when they are knew, hash of name => 1 if 
+# 		it's there and all good
 #
 #  allow for instantiating a test collection in our $db for running tests
 #  in a hashkey named 'tests' passed as arg to NMISNG->new()
@@ -84,6 +87,7 @@ sub new
 	my $self = bless(
 		{   _config  => $args{config},
 			_db      => $args{db},
+			_existing_timed_collections => $args{existing_timed_collections} // {},
 			_log     => $args{log},
 			_plugins => undef,           # sub plugins populates that on the go
 		},
@@ -4545,6 +4549,38 @@ sub status_collection
 
 }
 
+# find all collections for timed_ data, they are created based
+# on model info so cannot be pre-calculated easily.
+# returns a hash of collection_name => 1 for collections
+# that exist
+sub timed_collections_list
+{
+	my ( $self, %args ) = @_;
+	my $query = NMISNG::DB::get_query( and_part => { name => "regex:timed_"} );
+	my $cursor = NMISNG::DB::list_collections( db => $self->get_db(), filter => $query );
+	
+	my $timed_collection_names = {};
+	if( $cursor ) {
+		while ( my $entry = $cursor->next )
+		{
+			# potentially could check indexes as well?
+			$timed_collection_names->{ $entry->{name} } = 1;
+		}
+	}
+	return $timed_collection_names;
+}
+
+# set/get which timed collections are known about
+sub existing_timed_collections
+{
+	my ($self, $newvalue) = @_;
+	if (defined $newvalue)
+	{
+		$self->{_existing_timed_collections} = $newvalue;
+	}
+	return $self->{_existing_timed_collections} // {};
+}
+
 # helper to instantiate/get/update one of the dynamic collections
 # for timed data, one per concept
 # indices are set up on set or instantiate
@@ -4569,12 +4605,17 @@ sub timed_concept_collection
 	my $stashname = "_db_$collname";
 
 	my $mustcheckindex;
+	# if we don't know about the collection we must try and create indexes for it
+	# otherwise we don't
+	my $my_existing_timed_collections = $self->existing_timed_collections();
+	if( $my_existing_timed_collections->{$collname} != 1 ) {
+		$mustcheckindex = 1;
+	}
 
 	# use and cache the given handle?
 	if ( ref($newhandle) eq "MongoDB::Collection" )
 	{
-		$self->{$stashname} = $newhandle;
-		$mustcheckindex = 1;
+		$self->{$stashname} = $newhandle;		
 	}
 
 	# or create a new one on the go?
@@ -4589,13 +4630,12 @@ sub timed_concept_collection
 			$self->log->fatal( "Could not get collection $collname: " . NMISNG::DB::get_error_string );
 			return undef;
 		}
-
-		$mustcheckindex = 1;
 	}
 
 	if ($mustcheckindex)
 	{
 		# sole index is by time and inventory_id, compound
+		$self->log->info("NMISNG::timed_concept_collection creating indexes for collection: $collname");
 		my $err = NMISNG::DB::ensure_index(
 			collection    => $self->{$stashname},
 			drop_unwanted => $drop_unwanted,
@@ -4606,7 +4646,13 @@ sub timed_concept_collection
 				[{expire_at => 1}, {expireAfterSeconds => 0}],            # ttl index for auto-expiration
 			]
 		);
-		$self->log->error("index setup failed for $collname: $err") if ($err);
+		if ($err) {
+			$self->log->error("index setup failed for $collname: $err");
+		} else {
+			$my_existing_timed_collections->{$collname} = 1;
+			$self->existing_timed_collections($my_existing_timed_collections);
+		}
+
 	}
 
 	return $self->{$stashname};
