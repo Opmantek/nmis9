@@ -4886,7 +4886,7 @@ sub update_links
 sub update_queue
 {
 	my ( $self, %args ) = @_;
-	my ( $jobdata, $atomic, $bulk ) = @args{"jobdata", "atomic","bulk"};
+	my ( $jobdata, $atomic, $bulk ) = @args{"jobdata", "atomic", "bulk"};
 
 	return "Cannot update queue entry without valid jobdata argument!"
 		if (
@@ -4915,6 +4915,8 @@ sub update_queue
 		&& (  !NMISNG::Util::getbool( $self->config->{global_threshold} )
 			|| NMISNG::Util::getbool( $self->config->{threshold_poll_node} ) )
 		);
+	return "atomic and bulk operations should not happen at the same time" 
+		if ( $bulk && ref($atomic) eq "HASH" && keys %$atomic  );
 
 	# perform minimal argument validation
 	if ( $jobdata->{type} =~ /^(collect|update|services|plugins)$/ )
