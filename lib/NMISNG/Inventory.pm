@@ -507,7 +507,8 @@ sub add_timed_data
 	my $timedrecord = { time => $time, expire_at => $expire_at, cluster_id => $self->cluster_id };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
     $timedrecord->{node_uuid} = $self->node_uuid();
-	if( !$node ) {
+	# if a node was forgotten or was not given proper node object
+	if( !$node || ref($node) ne "NMISNG::Node" ) {	
 		$node = $self->nmisng->node( filter => {uuid => $self->node_uuid()} );
 		$self->nmisng->log->debug(sub {"Inventory::add_timed_data node not provided in args:\n ".Carp::longmess()});
 	}
@@ -1296,7 +1297,10 @@ sub save
 
 	#node_name and group name are cached on the record for faster inventory sorting in the other products,
 	#maybe we should append with cached? as this data could be stale?
-	$node = $self->nmisng->node( filter => { uuid => $self->node_uuid } ) if( !$node );
+	# if a node was forgotten or was not given proper node object
+	if( !$node || ref($node) ne "NMISNG::Node" ) {
+		$node = $self->nmisng->node( filter => { uuid => $self->node_uuid } );
+	}
 	my ($name, $group);
 	
 	# for now configuration is special, it's not accessible outside the class
