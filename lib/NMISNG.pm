@@ -2015,11 +2015,10 @@ sub get_inventory_model
 		$query_count = $res->{count};
 	}
 
-	#bodge to see if we can use the index hint, this helps to fix an issue whitch the schedular
-	if($q->{'path.2'} and $q->{'path.2'} eq "catchall" and !defined($q->{'path.1'}) )
-	{
-		$args{index_hint} = 'path.0_1_path.2_1';
-	}
+	# scheduler does this often so try and make it cheaper
+        if( keys(%$q) == 2 && defined($q->{'path.0'}) && $q->{'path.0'} && defined($q->{'path.2'}) && $q->{'path.2'} ) {
+                $args{index_hint} = 'path.0_1_path.2_1';
+        }
 
 	my $entries = NMISNG::DB::find(
 		collection  => $self->inventory_collection,
