@@ -7,6 +7,10 @@
     'Enterprise' => 'NxNetworks',
     'OID' => '1'
   },
+  '52642' => {
+    'Enterprise' => 'FiberStore',
+    'OID' => '52642'
+  },
   '10' => {
     'Enterprise' => 'NSC',
     'OID' => '10'
