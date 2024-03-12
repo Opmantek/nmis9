@@ -2,28 +2,23 @@
 # a set of common functions for dealing with yum (and apt) repositories
 # use POSIX functionality only, no bashisms!
 #
-# note: common_functions.sh must be loaded
+# note: common_funtions.sh must be loaded
 
 # small helper function that determines whether the installer
 # can access the internet (actually just web).
-#
-# 2024-01-17 changed from testing against https://opmantek.com/robots.txt to https://firstwave.com/ because it failed today, 
-# I assume because Pagely.com which hosts opmantek.com and firstwave.com has changed the behaviour for security/performance reasons.
-# 2024-01-24 change to https://services.opmantek.com/ping because easier to modify than firstwave.com and sends smaller faster response.
-#
 # returns 0 if access works, 1 otherwise
 is_web_available()
 {
 		printBanner "Checking if Web is accessible..."
 		# curl is available even on minimal centos install
-		if type curl >/dev/null 2>&1 && execPrint "curl --connect-timeout 3 --insecure -L -s --retry 2 -o /dev/null https://services.opmantek.com/ping 2>/dev/null";
+		if type curl >/dev/null 2>&1 && execPrint "curl --insecure -L -s -m 10 --retry 2 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null";
 		then
 				echolog "Web access is OK."
 				return 0
 		fi
 
 		# hmm, maybe we have wget?
-		if type wget >/dev/null 2>&1 && execPrint "wget --timeout=3 --no-check-certificate -q --tries=3 -O /dev/null https://services.opmantek.com/ping 2>/dev/null"; then
+		if type wget >/dev/null 2>&1 && execPrint "wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null"; then
 				echolog "Web access is OK."
 				return 0
 		fi
@@ -159,9 +154,13 @@ enable_custom_repo() {
 		# epel: comfy for centos, not so for rh
 		# ghettoforge: doesn't seem problematic,
 		# repoforge: uncomfy everywhere, besides stone-dead...
-		if [ "$REPONAME" = "epel" ]; then
+		# added remi support but Centos stream solves all our issue's
+		if [ "$REPONAME" = "REMI" ]; then
+				printBanner "Enabling REMI repository"
+				execPrint yum -y install https://rpms.remirepo.net/enterprise/remi-release-"${OS_MAJOR}".rpm
+		elif [ "$REPONAME" = "epel" ]; then
 				printBanner "Enabling EPEL repository"
-				if [ "$OS_ISCENTOS" = 1 ]; then
+			if [ "$OS_ISCENTOS" = 1 ]; then
 						execPrint yum -y install epel-release
 				else
 						# default RHEL7 and RHEL8 installs come with EPEL enabled but needed RHEL repos disabled
@@ -184,6 +183,14 @@ enable_custom_repo() {
 									if [ -n "$(subscription-manager repos | grep -A4 "codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms" | grep Enabled | grep 0)" ]; then
 										execPrint "subscription-manager repos --enable=codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms 2>&1"||:;
 									fi;
+							elif [ "$OS_MAJOR" = 9 ]; then
+									if [ -n "$(subscription-manager repos | grep -A4 "rhel-${OS_MAJOR}-for-x86_64-supplementary-rpms" | grep Enabled | grep 0)" ]; then
+                                                                                execPrint "subscription-manager repos --enable=rhel-${OS_MAJOR}-for-x86_64-supplementary-rpms 2>&1"||:;
+                                                                        fi;
+                                                                        if [ -n "$(subscription-manager repos | grep -A4 "codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms" | grep Enabled | grep 0)" ]; then
+                                                                                execPrint "subscription-manager repos --enable=codeready-builder-for-rhel-${OS_MAJOR}-x86_64-rpms 2>&1"||:;
+                                                                        fi;
+
 							fi
 							# variable RHEL_EPEL_REPOS_ENABLED only gets set here
 							RHEL_EPEL_REPOS_ENABLED=1;
@@ -211,9 +218,9 @@ enable_custom_repo() {
 				fi
 		else
 				return 1
-		fi
+			fi
 
-		return 0
+			return 0
 }
 
 
