@@ -15,13 +15,13 @@ flavour
 if [ "$OSFLAVOUR" = "redhat" ]; then
 		MGR=YUM
 		PKGLIST="httpd httpd-tools rrdtool logrotate \
-		autoconf automake gcc cairo cairo-devel traceroute mtr \
+		autoconf automake gcc cairo cairo-devel \
     pango pango-devel libxml2 libxml2-devel gd gd-devel \
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
     net-snmp-utils perl-IO-Socket-SSL perl-Net-SSLeay \
     perl-JSON-XS fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu* \
     perl-libwww-perl perl-WWW-Mechanize perl-Net-DNS perl-Digest-SHA \
-    perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
+    perl-DBI perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
     perl-Proc-ProcessTable perl-Authen-SASL \
     perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP \
     perl-GD perl-SNMP_Session \
@@ -41,7 +41,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 	perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
 	perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
 	perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings \
-	perl-YAML-LibYAML perl-Crypt-CBC perl-CryptX perl-Syntax-Keyword-Try perl-Math-Random-Secure"
+	perl-YAML-LibYAML"
 
 		# time-modules package gone in centos/rh7
 		if [ "${OS_MAJOR}" -ge 7 ]; then
@@ -63,7 +63,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 		MGR=APT
 		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
-		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus traceroute mtr \
+		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus \
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
     libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl \
@@ -77,7 +77,7 @@ elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
     libexcel-writer-xlsx-perl libsnmp-session-perl libcgi-pm-perl \
     libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl \
-    libcgi-session-perl libcrypt-cbc-perl libcryptx-perl libyaml-libyaml-perl libsyntax-keyword-try-perl libmath-random-secure-perl"
+    libcgi-session-perl libyaml-libyaml-perl"
 
 		# ubuntu 16.04 needs a mongodb perl driver >= 1.2.3: we load this from cpanm
 		# debian8 can't load a mongodb perl driver >= 1.2.3 from cpanm and is therefore not NMIS9 compatible
@@ -120,7 +120,7 @@ installation won't complete successfully.
 We recommend that you check our Wiki article on working around
 package installation without Internet access in that case:
 
-    https://community.opmantek.com/x/boSG
+https://community.opmantek.com/x/boSG
 
 EOF
 		input_ok "Hit <Enter> when ready to continue: "
@@ -143,6 +143,18 @@ if [ "$CANUSEWEB" = 1 ]; then
 		unset haveit
 		# clean up as this was temporary
 #		disable_distro "${NEEDDISTRO}";
+#	elif [ "${OSFLAVOUR}" = "debian" ] && [ "${OS_MAJOR}" -ge 10 ]; then
+#		# FIX FOR DEBIAN >= 10 WHICH REQUIRES libssl1.0.0 AND jessie GPG PUBKEY WHEN INSTALLING MONGODB:
+#		# prime_apt is called during  install_package() and after disable_distro() functions:
+#		NEEDDISTRO="jessie";
+#		# get the release key first
+#		type wget >/dev/null 2>&1 && GIMMEKEY="wget --tries=5 -q -T 20 -O - https://ftp-master.debian.org/keys/archive-key-8.asc" || GIMMEKEY="curl --retry 4 -L -s -m 20 https://ftp-master.debian.org/keys/archive-key-8.asc";
+#		# apt-key adv doesn't work cleanly with gpg 2.1+
+#		execPrint "$GIMMEKEY | apt-key add -"||:;
+#		# this function calls enable_distro
+#		install_package "libssl1.0.0";
+#		# clean up as this was temporary
+#		disable_distro "${NEEDDISTRO}";
 	else
 		# default action where above fix not needed
 		[ "$OSFLAVOUR" = "redhat" ] && prime_yum
@@ -152,6 +164,7 @@ fi
 
 # check and get mongodb, returns 0 if ok, 1 or 2 otherwise
 # absolute min for nmis 9 is 3.4.0
+
 printBanner "Checking if mongoDB is installed..."
 mongo_or_bust 3 4 0 || exit 1
 
@@ -164,8 +177,8 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
             echo "$PRODUCT requires the following packages to be installed first:";
             echo
             echo "perl-CPAN perl-App-cpanminus using $MGR";
-            echo "Devel::GlobalDestruction::XS and Proc::Queue using CPANM";
-            echo
+            echo "Devel::GlobalDestruction::XS Proc::Queue";
+            echo "Net::SMTPS using $CPANM"
             echo "The installer can download and install these packages.";
             if input_yn "Do you want to install these packages now?" "5af4"; then
                 REPO='';
@@ -180,6 +193,8 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
                     fi;
                     cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
                     cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+		    cpanm Net::SMTPS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+
                     unset PROMPT;
                 fi;
                 unset REPO;
@@ -242,7 +257,14 @@ if ! check_missing_packages $PKGLIST; then
 						if [ "$OSFLAVOUR" = "redhat" ]; then
 								REPO=''
 								NEEDREPO=''
+								REPONAME=''
+								REPOURL=''
 								if [ "$pkg" = "perl-Net-SNMP" \
+														-o "$pkg" = "perl-DateTime " \
+														-o "$pkg" = "perl-Devel-StackTrace " \
+														-o "$pkg" = "perl-Test-Requires " \
+														-o "$pkg" = "perl-File-Copy-Recursive " \
+														-o "$pkg" = "perl-Module-Runtime " \
 														-o "$pkg" = "glib" \
 														-o "$pkg" = "glib-devel" \
 														-o "$pkg" = "perl-Crypt-Rijndael" \
@@ -250,7 +272,7 @@ if ! check_missing_packages $PKGLIST; then
 														-o "$pkg" = "perl-Net-SMTPS" \
 														-o "$pkg" = "perl-WWW-Mechanize" \
 														-o "$pkg" = "perl-Proc-ProcessTable" ] || \
-								   { [ "${OS_MAJOR}" -eq 7 ] && [ "${OS_ISCENTOS:-0}" != 1 ] && [ "$pkg" = "net-snmp-perl" -o "$pkg" = "gd-devel" ]; }; then
+								   { [ "${OS_MAJOR}" -eq 9 ] && [ "${OS_ISCENTOS:-0}" != 1 ] && [ "$pkg" = "net-snmp-perl" -o "$pkg" = "gd-devel" ]; }; then
 										REPO="--enablerepo=epel"
 										NEEDREPO="epel"
 										REPONAME="EPEL"
@@ -263,8 +285,16 @@ if ! check_missing_packages $PKGLIST; then
 								fi
 						elif [ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -ge "9" ]; then
 								NEEDDISTRO=''
+#								# librrd4 and libpng12-0 are only present up to jessie/8
+#								if [ "$pkg" = "librrd4" -o "$pkg" = "libpng12-0" ]; then
+#										NEEDDISTRO="jessie"
+#								fi
 						elif [ "$OSFLAVOUR" = "ubuntu" -a \( "$OS_MAJOR" -gt "16" -o \( "$OS_MAJOR" = "16" -a "$OS_MINOR" -gt "4" \) \) ] ; then
 								NEEDDISTRO=''
+#								# librrd4 and libpng12-0 are only present up to xenial/16.04, NOT 16.10...
+#								if [ "$pkg" = "librrd4" -o "$pkg" = "libpng12-0" ]; then
+#										NEEDDISTRO="xenial"
+#								fi
 						fi
 
 						install_package $pkg
