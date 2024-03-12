@@ -1427,6 +1427,9 @@ sub save
 				$result->{success} = 0;
 				$result->{error} = "Inventory save of new inventory resulted in update. Find for _id failed after update with".NMISNG::DB::get_error_string();
 			}
+		} else {
+			$self->nmisng->log->fatal(NMISNG::Log::trace() ."\n Error inserting Inventory! DUPLICATE INVENTORY");
+			$self->nmisng->log->error("Inventory save of new inventory resulted in an error, DUPLICATE INVENTORY. Error:".NMISNG::DB::get_error_string() );
 		}
 	}
 	# not new, so we update it but try change as little as possible
@@ -1529,6 +1532,10 @@ sub save
 			$self->_dirty(1,"data");
 			$self->{_data_orig} = Clone::clone($self->{_data});
 		}
+	}
+	if( $result->{error} && $result->{error} =~ /duplicate key error/ ) {
+		$self->nmisng->log->fatal(NMISNG::Log::trace() ."\n Error inserting Inventory! DUPLICATE INVENTORY");
+		$self->nmisng->log->error("Inventory update of new inventory resulted in an error, DUPLICATE INVENTORY. Error:".NMISNG::DB::get_error_string() );
 	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }

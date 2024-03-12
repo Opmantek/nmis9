@@ -1323,6 +1323,7 @@ sub ensure_indexes
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
 				[["data.ip.ipAdEntAddr" => 1], {unique             => 0}],
 				[{expire_at             => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+				[["path.0"  => 1, "path.1" => 1], {unique => 1, partialFilterExpression => {"path.2" => { '$eq' => "catchall"}}}],
 			]
 	);
 	
@@ -5367,8 +5368,11 @@ sub undump_node
 		my $res = NMISNG::DB::insert(collection => $self->$collfunc,
 																 record => $onething->{what},
 																 constraints => 1); # constrain_record is vital for $oid, $binary...
-		return { error => "failed to insert record into $onething->{where} collection: $res->{error}" }
-		if (!$res->{success});
+		if( $onething->{where} eq 'events' &&  !$res->{success} && $res->{error} =~ /node_uuid_1_event_1_element_1_active_1/) {
+			print "ignoring failure because events have a duplicity issue: failed to insert record into $onething->{where} collection: $res->{error}\n";
+		} elsif (!$res->{success}) {
+			return { error => "failed to insert record into $onething->{where} collection: $res->{error}" };
+		}
 	}
 
 	# and, if there are rrd files then unpack them as well
