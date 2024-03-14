@@ -2,9 +2,8 @@
 # setup cron jobs for NMIS, prepare init script for the NMIS9 daemon
 
 # Find out where we are and get common functions
-SCRIPTPATH=$(dirname "$(readlink -f "$0")")
-. "$SCRIPTPATH/common_functions.sh"
-
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
 # Guess OS flavour and set OSFLAVOUR
 flavour
 
