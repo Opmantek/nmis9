@@ -14,7 +14,7 @@ flavour
 
 if [ "$OSFLAVOUR" = "redhat" ]; then
 		MGR=YUM
-		PKGLIST="httpd httpd-tools rrdtool logrotate \
+		PKGLIST="httpd httpd-tools rrdtool logrotate traceroute mtr \
 		autoconf automake gcc cairo cairo-devel \
     pango pango-devel libxml2 libxml2-devel gd gd-devel \
     libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
@@ -41,7 +41,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 	perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
 	perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
 	perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings \
-	perl-YAML-LibYAML"
+	perl-YAML-LibYAML perl-Crypt-CBC perl-CryptX perl-Syntax-Keyword-Try perl-Math-Random-Secure"
 
 		# time-modules package gone in centos/rh7
 		if [ "${OS_MAJOR}" -ge 7 ]; then
