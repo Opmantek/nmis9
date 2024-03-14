@@ -2,7 +2,7 @@
 # a set of common functions for dealing with yum (and apt) repositories
 # use POSIX functionality only, no bashisms!
 #
-# note: common_funtions.sh must be loaded
+# note: common_functions.sh must be loaded
 
 # small helper function that determines whether the installer
 # can access the internet (actually just web).
