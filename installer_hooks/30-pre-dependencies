@@ -178,7 +178,7 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
             echo
             echo "perl-CPAN perl-App-cpanminus using $MGR";
             echo "Devel::GlobalDestruction::XS Proc::Queue";
-            echo "Net::SMTPS using $CPANM"
+            echo "Net::SMTPS using CPANM"
             echo "The installer can download and install these packages.";
             if input_yn "Do you want to install these packages now?" "5af4"; then
                 REPO='';
