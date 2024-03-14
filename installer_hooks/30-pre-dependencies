@@ -63,7 +63,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 		MGR=APT
 		PKGLIST="build-essential apache2 rrdtool apache2-utils logrotate \
-		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus \
+		autoconf automake gcc make libcairo2 libcairo2-dev cpanminus traceroute mtr \
     libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
     libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
     libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl \
@@ -77,7 +77,7 @@ elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
     libexcel-writer-xlsx-perl libsnmp-session-perl libcgi-pm-perl \
     libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl \
-    libcgi-session-perl libyaml-libyaml-perl"
+    libcgi-session-perl libcrypt-cbc-perl libcryptx-perl libyaml-libyaml-perl libsyntax-keyword-try-perl libmath-random-secure-perl"
 
 		# ubuntu 16.04 needs a mongodb perl driver >= 1.2.3: we load this from cpanm
 		# debian8 can't load a mongodb perl driver >= 1.2.3 from cpanm and is therefore not NMIS9 compatible
