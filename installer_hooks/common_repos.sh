@@ -11,14 +11,14 @@ is_web_available()
 {
 		printBanner "Checking if Web is accessible..."
 		# curl is available even on minimal centos install
-		if type curl >/dev/null 2>&1 && execPrint "curl --insecure -L -s -m 10 --retry 2 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null";
+		if type curl >/dev/null 2>&1 && execPrint "curl --connect-timeout 3 --insecure -L -s --retry 2 -o /dev/null https://services.opmantek.com/ping 2>/dev/null";
 		then
 				echolog "Web access is OK."
 				return 0
 		fi
 
 		# hmm, maybe we have wget?
-		if type wget >/dev/null 2>&1 && execPrint "wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null"; then
+		if type wget >/dev/null 2>&1 && execPrint "wget --no-check-certificate -q -T 10 --tries=3 -O /dev/null https://services.opmantek.com/ping 2>/dev/null"; then
 				echolog "Web access is OK."
 				return 0
 		fi
