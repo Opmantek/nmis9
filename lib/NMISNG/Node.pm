@@ -4442,9 +4442,11 @@ sub handle_configuration_changes
 		);
 	}
 
-
+	# on some devices this value changes by a second or two depending on when the request happens,
+	# to deal with that we require the difference to be at least 10 (or config'ed value)
 	### If it is newer, someone changed it!
-	if ( $configLastChanged > $configLastChanged_prev )
+	my $minConfigTimeChange = $self->nmisng->config->{minimum_node_configuration_change_seconds} // 10;
+	if ( $configLastChanged > $configLastChanged_prev && abs($configLastChanged - $configLastChanged_prev) > $minConfigTimeChange )
 	{
 		$catchall_data->{configChangeCount}++;
 
