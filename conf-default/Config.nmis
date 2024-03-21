@@ -96,6 +96,7 @@ my %hash = (
 	'default_authkey' => '',
 	'default_authpassword' => '',
 	'default_communityRO' => 'public',
+	'default_event_level' => 'Major',
 	'default_graphtype' => 'abits',
 	'default_privkey' => '',
 	'default_privpassword' => '',
