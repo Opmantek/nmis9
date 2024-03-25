@@ -27,16 +27,24 @@ add_mongo_4_repository () {
 		DESIREDVER=${1:-4.2}
 
 		# redhat/centos: mongodb supplies rpms for 4.2 for all platforms and versions we care about
-		if [ "$OSFLAVOUR" = "redhat" ]; then
-				REPOFILE=/etc/yum.repos.d/mongodb-org-$DESIREDVER.repo
-				if [ -f "${REPOFILE}" ]; then
-						logmsg "Mongodb.org repository entry already present."
-						return 0;
-				fi
-				cat >"${REPOFILE}" <<EOF
+                if [ "$OSFLAVOUR" = "redhat" ]; then
+                        REPOFILE="/etc/yum.repos.d/mongodb-org-$DESIREDVER.repo"
+
+                if [ -f "${REPOFILE}" ]; then
+                         logmsg "Mongodb.org repository entry already present."
+                return 0
+                fi
+
+                if [ "${OS_MAJOR}" -eq 9 ]; then
+                # For RHEL 9 and DESIREDVER 4.2, we use RHEL 8 repo
+                        baseurl="https://repo.mongodb.org/yum/redhat/8/mongodb-org/"
+                else
+                    	baseurl="https://repo.mongodb.org/yum/redhat/${OS_MAJOR}/mongodb-org/"
+                fi
+                cat >"${REPOFILE}" <<EOF
 [mongodb-org-$DESIREDVER]
 name=MongoDB Repository
-baseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/$DESIREDVER/x86_64/
+baseurl=$baseurl$DESIREDVER/x86_64/
 gpgcheck=0
 enabled=1
 gpgkey=https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc
