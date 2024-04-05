@@ -4499,5 +4499,38 @@ sub _make_seed {
 
 	return 0;
 }
+# take pregen'd sequence of fractions, returns percentile
+# input: percentile, sequence
+# output: the value
+#
+# from https://metacpan.org/dist/Math-Utils/source/lib/Math/Utils.pm our $VERSION = '1.14';
+sub _ceil
+{
+		return wantarray? map(($_ > 0 and int($_) != $_)? int($_ + 1): int($_), @_):
+				($_[0] > 0 and int($_[0]) != $_[0])? int($_[0] + 1): int($_[0]);
+}
+sub percentile
+{
+		my ($percentile,@sequence) = @_;
+		my $sequence_ref = \@sequence;
+
+		die "percentile must be 0 > percentile <= 100\n"
+				if ( (!defined $percentile) or ($percentile > 100) or ($percentile <= 0) );
+
+		# PERL RETURNS AN ARRAY OF 1 ELEMENT EQUAL undef
+		# WHEN PASSING UNDEFINED ARRAYS AND NOT ARRAY REFERENCES TO A FUNCTION:
+		my $array_length = ( (@$sequence_ref) and (defined @$sequence_ref[0]) )? scalar @$sequence_ref: 0;
+
+		# OMK-8362: We have historically returned 0.0 (zero) for $array_length == 0.0
+		#			We are continuing to return 0.0 (zero) and not 'N/A',
+		#			so we back off of this strict implementation and rather return 0.0
+		#			as there is only risk in failing here when the outcome is the same: no data = 0.0, not 'N/A':
+		return 0.0 if ($array_length == 0);
+		###die "array must have length > 0" if ($array_length == 0);
+
+		$percentile /= 100;
+
+		return (sort { $a <=> $b } @$sequence_ref)[ _ceil($percentile * $array_length)-1 ];
+}
 
 1;
