@@ -913,7 +913,7 @@ sub typeExport
 					my $percentile = NMISNG::Util::percentile($calculate_percentile, @$dsData);
 					foreach my $rtime (keys %{$statval})
 					{
-						$statval->{$rtime}->{$newTitle} = $percentile;
+						$statval->{$rtime}->{$newTitle} = $percentile if( defined($statval->{$rtime}{$ds}) );
 					}
 					push @$head, $newTitle;
 				}

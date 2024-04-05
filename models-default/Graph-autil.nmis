@@ -54,9 +54,6 @@
 			'CDEF:ifInUtil=input,8,*,$ifSpeedIn,/,100,*,$split,*',
 			'CDEF:ifOutUtil=output,8,*,$ifSpeedOut,/,100,*',
 
-			'VDEF:inputPct=inputUtil,95,PERCENT',			
-			'VDEF:outputPct=ifOutUtil,95,PERCENT',
-
 			'CDEF:inputUtilM=inputM,8,*,$ifSpeedIn,/,100,*',
 			'CDEF:ifInUtilM=inputM,8,*,$ifSpeedIn,/,100,*,$split,*',
 			'CDEF:ifOutUtilM=outputM,8,*,$ifSpeedOut,/,100,*',
@@ -65,13 +62,11 @@
 			'LINE1:ifInUtilM#4169E1: Maximum Input\\t',
 			'GPRINT:inputUtil:LAST:Current %4.2lf%%',
 			'GPRINT:inputUtil:AVERAGE:Average %4.2lf%%',
-			#'GPRINT:inputPct:95th%% %4.2lf%%',
 			'GPRINT:inputUtil:MAX:Maximum %4.2lf%%\\n',
 			'$GLINE:ifOutUtil#00FF7F: Average Output\\t',
 			'LINE1:ifOutUtilM#2E8B57: Maximum Output\\t',
 			'GPRINT:ifOutUtil:LAST:Current %4.2lf%%',
 			'GPRINT:ifOutUtil:AVERAGE:Average %4.2lf%%',
-			#'GPRINT:outputPct:95th%% %4.2lf%%',
 			'GPRINT:ifOutUtil:MAX:Maximum %4.2lf%%\\n',
 			
 			'GPRINT:status:AVERAGE:Average Interface Availability %6.0lf%%',
