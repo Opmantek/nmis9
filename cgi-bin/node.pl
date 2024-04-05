@@ -782,6 +782,13 @@ sub typeExport
 	{
 		bailout(code => 403, message => "Not Authorized to export rrd data for nodes in group '$Q->{group}'.");
 	}
+	# check for overlays (which currently are only percentile)
+	my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
+	if (!$res->{success}) 
+	{
+		bailout(code => 400, message => "failed to read Graph-$graphtype!");
+	}
+	my $graph = $res->{data};
 
 	# figure out start and end
 	my ($start, $end) = @{$Q}{"start","end"};
@@ -870,30 +877,47 @@ sub typeExport
 				push	@ifUtilBucketOut, $util;
 			}
 		}
-
-		my $ifInUtil95th = NMISNG::Util::percentile(95, @ifUtilBucket);
-		my $ifOutUtil = NMISNG::Util::percentile(95, @ifUtilBucketOut);
-
-		#second loop is to fill in the 95th
-		foreach my $rtime (sort keys %{$statval})
-		{
-			if(defined($statval->{$rtime}->{ifInOctets}))
-			{
-				$statval->{$rtime}->{ifIn95th} = $ifInUtil95th;
-			}
-			if(defined($statval->{$rtime}->{ifOutOctets}))
-			{
-				$statval->{$rtime}->{ifOut95th} = $ifOutUtil;
-			}	
-		}
-
 		#headers for csv
 		push @$head, "ifInUtil";
 		push @$head ,"ifOutUtil";
+	}
 
-		push @$head, "ifIn95th";
-		push @$head ,"ifOut95th";
+	# look for overlays, if it's there look for percentile, find dataset values, calculate percentile, 
+	# put that back into the stat values, one entry for each time
+	if(defined ($graph->{option}{overlays}) and ref($graph->{option}{overlays}) eq "HASH")
+	{
+		my $overlays = $graph->{option}->{overlays};
+		if(defined($overlays->{percentile}) and ref($overlays->{percentile}) eq "HASH")
+		{
+			my $po = $overlays->{percentile};
+			#check if this is between 0 and 100
+			my $calculate_percentile = 95;
+			$calculate_percentile = $po->{calculate} if(defined($po->{calculate}) and $po->{calculate} >= 0 and $po->{calculate} <=	100);
 
+			#we have a key which is our dataset name as input and value whic will be the label on the graph, if small we dont show the label
+			if(defined($po->{datasets}) and ref($po->{datasets}) eq "HASH")
+			{
+				my $datasets = $po->{datasets};
+				#sort the datasets
+				my @sorted_datasets = sort keys %$datasets;
+				foreach my $ds (@sorted_datasets)
+				{
+					my $newTitle = $datasets->{$ds};
+					my $dsData;
+					# get the data in the dataset
+					foreach my $rtime (keys %{$statval}) {
+						push @$dataBucket, $statval->{$rtime}{$ds} if( defined($statval->{$rtime}{$ds}) );
+					}
+					# calculate the  percentil
+					my $percentile = NMISNG::Util::percentile($calculate_percentile, @$dsData);
+					foreach my $rtime (keys %{$statval})
+					{
+						$statval->{$rtime}->{$newTitle} = $percentile;
+					}
+					push @$head, $dsTitle;
+				}
+			}
+		}
 	}
 
 	print header($headeropts);
