@@ -696,6 +696,7 @@ sub show_export_options
 														 cssgroup => 'Group',
 														 nmis => undef); # no item label is shown
 
+	#/
 	print qq|<table><tr><th class='title' colspan='2'>Export Options for Graph "$heading"</th></tr>|;
 
 	my $label = $graphtype2itemname{$graphtype};
@@ -827,6 +828,73 @@ sub typeExport
 
 	$headeropts->{type} = "text/csv";
 	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
+
+	$S->nmisng->log->info("Exporting data for $Q->{node} $Q->{intf} $Q->{item} $start to $end, headers: @$head");
+
+	#If we have the grapgh autil convert the in and out octets to util and then work out the 95% across the range
+	if($Q->{graphtype} eq "autil")
+	{
+
+		#now we know we are looking at an interface grab its inventory class so we can then get the speed in and out
+		my $pathdata = { index => $Q->{intf} };
+		my $path = $S->nmisng_node->inventory_path( concept => 'interface', data => $pathdata, partial => 1 );
+		my ($inventory, $error) = $S->nmisng_node->inventory( concept => 'interface', path => $path);
+		if( $error )
+		{
+			$S->nmisng->log->error("Failed to load inventory for interface $Q->{intf} on node $Q->{node}: $error");
+			bailout(message => "Failed to load inventory for interface $Q->{intf} on node $Q->{node}");
+		}
+		my $ifSpeedIn = $inventory->ifSpeedIn;
+		my $ifSpeedOut = $inventory->ifSpeedOut;
+
+		#got the speed time to work out util, we will have this as part of statval
+
+		#first loop is to work out the util
+		my (@ifUtilBucket, @ifUtilBucketOut);
+		foreach my $rtime (sort keys %{$statval})
+		{
+
+			if(defined($statval->{$rtime}->{ifInOctets}))
+			{
+				my $val = $statval->{$rtime}->{ifInOctets};
+				my $util = $val * 8 / $ifSpeedIn * 100;
+				$statval->{$rtime}->{ifInUtil} = $util;
+				push @ifUtilBucket, $util;
+			}
+
+			if(defined($statval->{$rtime}->{ifOutOctets}))
+			{
+				my $val = $statval->{$rtime}->{ifOutOctets};
+				my $util = $val * 8 / $ifSpeedOut * 100;
+				$statval->{$rtime}->{ifOutUtil} = $util;
+				push	@ifUtilBucketOut, $util;
+			}
+		}
+
+		my $ifInUtil95th = NMISNG::Util::percentile(95, @ifUtilBucket);
+		my $ifOutUtil = NMISNG::Util::percentile(95, @ifUtilBucketOut);
+
+		#second loop is to fill in the 95th
+		foreach my $rtime (sort keys %{$statval})
+		{
+			if(defined($statval->{$rtime}->{ifInOctets}))
+			{
+				$statval->{$rtime}->{ifIn95th} = $ifInUtil95th;
+			}
+			if(defined($statval->{$rtime}->{ifOutOctets}))
+			{
+				$statval->{$rtime}->{ifOut95th} = $ifOutUtil;
+			}	
+		}
+
+		#headers for csv
+		push @$head, "ifInUtil";
+		push @$head ,"ifOutUtil";
+
+		push @$head, "ifIn95th";
+		push @$head ,"ifOut95th";
+
+	}
 
 	print header($headeropts);
 
