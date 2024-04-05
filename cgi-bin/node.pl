@@ -768,6 +768,7 @@ sub typeExport
 {
 	my $S = NMISNG::Sys->new; # get system object
 	$S->init(name => $Q->{node}, snmp => 'false');
+	my $graphtype = $Q->{graphtype};
 
 	my %interfaceTable;
 	my $database;
@@ -804,7 +805,7 @@ sub typeExport
 													&& $Q->{resolution} != 0?
 													$Q->{resolution}: undef );
 
-	my $db = $S->makeRRDname(graphtype => $Q->{graphtype}, index=>$Q->{intf},item=>$Q->{item});
+	my $db = $S->makeRRDname(graphtype => $graphtype, index=>$Q->{intf},item=>$Q->{item});
 	my ($statval,$head,$meta) = NMISNG::rrdfunc::getRRDasHash(database => $db,
 																														mode=>"AVERAGE",
 																														start => $start,
@@ -906,7 +907,7 @@ sub typeExport
 					my $dsData;
 					# get the data in the dataset
 					foreach my $rtime (keys %{$statval}) {
-						push @$dataBucket, $statval->{$rtime}{$ds} if( defined($statval->{$rtime}{$ds}) );
+						push @$dsData, $statval->{$rtime}{$ds} if( defined($statval->{$rtime}{$ds}) );
 					}
 					# calculate the  percentil
 					my $percentile = NMISNG::Util::percentile($calculate_percentile, @$dsData);
@@ -914,7 +915,7 @@ sub typeExport
 					{
 						$statval->{$rtime}->{$newTitle} = $percentile;
 					}
-					push @$head, $dsTitle;
+					push @$head, $newTitle;
 				}
 			}
 		}
