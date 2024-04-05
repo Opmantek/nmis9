@@ -1003,6 +1003,11 @@ sub draw
 			push(@rrdargs, "--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
 		}
 		push @rrdargs, @{$graph->{option}{$size}};
+		#allow for generic extras to be added into the graph
+		if(defined ($graph->{option}{extras}) and ref($graph->{option}{extras}) eq "ARRAY")
+		{
+			push @rrdargs, @{$graph->{option}{extras}};
+		}
 	}
 
 	my $extras = {
