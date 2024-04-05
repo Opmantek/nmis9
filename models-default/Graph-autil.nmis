@@ -92,7 +92,16 @@
 			'GPRINT:outputUtil:AVERAGE:Avg. %4.1lf%%',
 			'GPRINT:outputUtil:MAX:Max %4.1lf%%\\n',
 			'COMMENT:Interface Speed $speed'
-		]
+		],
+		'overlays' => {
+			'percentile' => {
+				datasets => {
+					outputUtil => "95th Percentile Output",
+					inputSplitUtil => "95th Percentile Input",
+				},
+				calculate => 95
+			},
+		}
 	}
 );
 
