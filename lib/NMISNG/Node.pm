@@ -6938,9 +6938,7 @@ sub update_concepts
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
 
-	my $inventory = $self->inventory_concepts();
-	my %concepts;
-	
+
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
 		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
@@ -6952,6 +6950,15 @@ sub update_concepts
 		return 0;
 	}
 
+	my $inventory = $self->inventory_concepts();
+	if(ref($inventory) eq "ARRAY")
+	{
+		$self->nmisng->log->error("Failed to get inventory concepts for node $name, error: $inventory");
+		return 0;
+	}
+
+	my %concepts;
+	
 	# get the default (sub)sections from config, model can override
 	my @healthSections = split(
 		",",
