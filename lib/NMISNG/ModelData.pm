@@ -60,6 +60,7 @@ sub new
 		_nmisng => $args{nmisng},
 		_data => $args{data} // [],
 		_error => $args{error},
+		_error_checked => 0,
 		_query_count => $args{query_count},
 		_sort => $args{sort},
 		_limit => $args{limit},
@@ -94,6 +95,7 @@ sub new
 sub error
 {
 	my ($self) = @_;
+	$self->{_error_checked} = 1;
 	return $self->{_error};
 }
 
@@ -112,6 +114,10 @@ sub data
 	elsif (defined $newvalue)
 	{
 		die "Data must be array!\n";
+	}
+	if( !$self->{_error_checked} ) {
+		$self->{_nmisng}->log->warn("ModelData::data is being accessed without checking for errors! trace:".NMISNG::Log::trace());
+		$self->{_error_checked} = 1; # stop this message from happening again for this object
 	}
 	return $self->{_data};
 }
@@ -132,7 +138,8 @@ sub objects
 	my ($self) = @_;
 
 	# parrot error if the caller didn't care, e.g. ->get_xyz_model(...)->objects
-	return { error => $self->{_error} } if ($self->{_error});
+	my $error = $self->error();
+	return { error => $error } if ($error);
 	
 	# otherwise, nothing to do is NOT an error
 	return { success => 1, objects => [] }

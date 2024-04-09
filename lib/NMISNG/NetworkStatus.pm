@@ -306,7 +306,9 @@ sub get_load_node_table
 		# ask the database for all noes, my cluster id and all others
 		$modelData = $self->get_nodes_model();
 	}
-
+	if( $modelData->error() ) {
+		$self->nmisng()->log->error(" NetworkStatus:get_load_node_table failed to get nodes model: ".$modelData->error());
+	}
 	my $data = $modelData->data();
 
 	my %map = map { $_->{name} => $_ } @$data;

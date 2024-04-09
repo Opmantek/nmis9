@@ -2259,6 +2259,11 @@ sub get_node_names
 {
 	my ( $self, %args ) = @_;
 	my $model_data = $self->get_nodes_model( %args, fields_hash => {name => 1} );
+	if (my $error = $model_data->error)
+	{
+		$self->log->error("Failed to get nodes model: $error");
+		return [];
+	}
 	my $data       = $model_data->data();
 	my @node_names = map { $_->{name} } @$data;
 	return \@node_names;
@@ -2268,6 +2273,11 @@ sub get_node_uuids
 {
 	my ( $self, %args ) = @_;
 	my $model_data = $self->get_nodes_model( %args, fields_hash => {uuid => 1} );
+	if (my $error = $model_data->error)
+	{
+		$self->log->error("Failed to get nodes model: $error");
+		return []; 
+	}
 	my $data       = $model_data->data();
 	my @uuids      = map { $_->{uuid} } @$data;
 	return \@uuids;
@@ -2838,8 +2848,11 @@ sub node
 	my $node;
 	# we only need the uuid, and the name only for error handling
 	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
-
-	if ( $modeldata->count() > 1 )
+	if (my $error = $modeldata->error) 
+	{
+		$self->log->error( "NMISNG::Node error loading nodes model: ".$error);
+	}
+	elsif ( $modeldata->count() > 1 )
 	{
 		my @names = map { $_->{name} } @{$modeldata->data()};
 		$self->log->debug( "Node request returned more than one node, args" . Dumper( \%args ) );
