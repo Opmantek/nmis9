@@ -8645,8 +8645,9 @@ sub collect
 													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
 		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
 		
-		my $old_data = $inventory->data();
-		if ($old_data) {
+		if (!$error) 
+		{
+			my $old_data = $inventory->data();
 			my $polltime = Time::HiRes::time;
 			$old_data->{'last_poll_snmp_attempt'} = $polltime;
 			$old_data->{'last_poll_wmi_attempt'} = $polltime;
@@ -8656,8 +8657,10 @@ sub collect
 			my ($save, $error2) = $inventory->save( node => $self );
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
-		} else {
-			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
+		} 
+		else 
+		{
+			$self->nmisng->log->error("Failed to get inventory for node $name failed, $error");
 		}
 		
 		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
