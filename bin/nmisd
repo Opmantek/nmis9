@@ -141,7 +141,7 @@ if ($< != 0)
 # use debug, or info arg, or configured log_level
 my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 # create the logfile so that permissions can be adjusted
-Mojo::File->new($logfile)->spurt("") if (!-f $logfile);
+NMISNG::Util::spew_file( $logfile, "" ) if (!-f $logfile);
 NMISNG::Util::setFileProtDiag(file =>$logfile) if (-f $logfile);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 							   debug => $cmdline->{debug}) // $config->{log_level},
@@ -1138,7 +1138,7 @@ sub manage_processes
 				# fping worker logs to its own logfile
 				my $fpinglogfile = $config->{'fping_log'};
 				# create it so that the permissions can be adjusted
-				Mojo::File->new($fpinglogfile)->spurt("") if (!-f $fpinglogfile);
+				NMISNG::Util::spew_file($fpinglogfile, "") if (!-f $fpinglogfile);
 				NMISNG::Util::setFileProtDiag(file => $fpinglogfile);
 				$nmisng->log->path($fpinglogfile);
 

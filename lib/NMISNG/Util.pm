@@ -64,6 +64,7 @@ use List::Util 1.33;
 #use Crypt::Cipher::AES;
 #use Syntax::Keyword::Try;
 use Try::Tiny;
+use Mojo::File;
 
 use Data::Dumper;
 $Data::Dumper::Indent=1;			# fixme9: do we really need these globally on?
@@ -4532,5 +4533,20 @@ sub percentile
 
 		return (sort { $a <=> $b } @$sequence_ref)[ _ceil($percentile * $array_length)-1 ];
 }
+
+#Wrapper around Mojo::File to handle spew/spurt from mojo 9.34
+sub spew_file
+{
+	my ($file, $data) = @_;
+	if (Mojo::File->can('spew'))
+	{
+        Mojo::File->new($file)->spew($data);
+    } 
+	else
+	{
+        Mojo::File->new($file)->spurt($data);
+    }
+}
+
 
 1;
