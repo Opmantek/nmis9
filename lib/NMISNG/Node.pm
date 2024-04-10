@@ -6874,7 +6874,7 @@ sub update
 				$self->nmisng->log->debug("Plugin $plugin indicated no changes");
 			}
 		}
-		if ( !NMISNG::Util::getbool($C->{disable_interfaces_summary}) )
+		if ( NMISNG::Util::getbool($C->{enable_interfaces_summary}) )
 		{
 			$self->nmisng->log->debug("Running the Update Links subroutine");
 			$self->nmisng->update_links();
