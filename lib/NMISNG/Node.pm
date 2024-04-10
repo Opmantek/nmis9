@@ -1017,25 +1017,25 @@ sub inventory_concepts
 	my $q = $self->nmisng->get_inventory_model_query( %args );
 	my $retval = ();
 
-	# print "q".Dumper($q);
 	# query parts that don't look at $datasets could run first if we need optimisation
 	my @prepipeline = (
 		{ '$match' => $q },
 		{ '$group' =>
 			{ '_id' => { "concept" => '$concept'}  # group by subconcepts
 		}}
-  );
-  my ($entries,$count,$error) = NMISNG::DB::aggregate(
+  	);
+  	my ($entries,$count,$error) = NMISNG::DB::aggregate(
 		collection => $self->nmisng->inventory_collection,
 		pre_count_pipeline => \@prepipeline, #use either pipe, doesn't matter
-		allowtempfiles => 1
+		allowtempfiles => 1,
 	);
+	return (undef, $error) if ($error);
+
 	foreach my $entry (@$entries)
 	{
 		push @$retval, $entry->{_id}{concept};
-
 	}
-	return ($error) ? $error : $retval;
+	return ($retval, undef);
 }
 
 # get all subconcepts and any dataset found within that subconcept
@@ -6950,10 +6950,10 @@ sub update_concepts
 		return 0;
 	}
 
-	my $inventory = $self->inventory_concepts();
-	if(ref($inventory) eq "ARRAY")
+	my ($inventory, $error) = $self->inventory_concepts();
+	if($error)
 	{
-		$self->nmisng->log->error("Failed to get inventory concepts for node $name, error: $inventory");
+		$self->nmisng->log->error("update_concepts failed to get inventory for node: '$name', error: $error");
 		return 0;
 	}
 
