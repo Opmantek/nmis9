@@ -89,7 +89,8 @@ sub new
 			_db      => $args{db},
 			_existing_timed_collections => $args{existing_timed_collections} // {},
 			_log     => $args{log},
-			_plugins => undef,           # sub plugins populates that on the go
+			_plugins => undef,            # sub plugins populates that on the go
+			_validation_plugins => undef, # sub plugins populates that on the go
 		},
 		$class
 	);
@@ -1422,6 +1423,21 @@ sub ensure_indexes
 	);
 	$self->log->error("index setup failed for nodes: $err") if ($err);
 	
+
+	## add in custom indices
+	$self->log->info("NMISNG adding custom_indexes");
+	my $custom_indices = $self->config->{custom_indices};
+
+	foreach my $entry (keys %{$custom_indices}){
+		$self->log->info("Adding custom_index for $entry");
+		$err = NMISNG::DB::ensure_index(
+				collection    => $self->{'_db_'.$entry},
+				drop_unwanted => $drop_unwanted,
+				indices  => $custom_indices->{$entry}
+		);
+		$self->log->error("index setup failed for $entry: $err") if ($err);
+	}
+
 	$self->log->info("NMISNG end of ensure_indexes");
 	return;
 }
@@ -2932,6 +2948,82 @@ sub opstatus_collection
 	}
 	return $self->{_db_opstatus};
 }
+
+
+# loads code plugins if necessary, returns the names
+# args: none
+# returns: list of package/class names
+sub validation_plugins
+{
+	my ( $self, %args ) = @_;
+
+	if ( ref( $self->{_validation_plugins} ) eq "ARRAY" )
+	{
+		return @{$self->{_validation_plugins}};
+	}
+
+	my $C = $self->config;
+	$self->{_validation_plugins} = [];
+	
+	# first check the custom plugin dir, then the default dir;
+	# files in custom win over files in default
+	my %candfiles;    # filename => fullpath
+	for my $dir ( $C->{validation_plugin})
+	{
+		next if ( !-d $dir );
+		if ( !opendir( PD, $dir ) )
+		{
+			$self->log->error("Error: cannot open plugin dir $dir: $!");
+			return ();
+		}
+		for my $cand ( grep( /\.pm$/, readdir(PD) ) )
+		{
+			$candfiles{$cand} //= "$dir/$cand";    #'"
+		}
+		closedir(PD);
+	}
+
+	for my $candidate ( keys %candfiles )
+	{
+		my $packagename = $candidate;
+		$packagename =~ s/\.pm$//;
+		my $pluginfile = $candfiles{$candidate};
+
+		# read it and check that it has precisely one matching package line
+		$self->log->debug("Checking candidate plugin $candidate ($pluginfile)");
+
+		if ( !open( F, $pluginfile ) )
+		{
+			$self->log->error("Error: cannot open plugin file $pluginfile: $!");
+			next;
+		}
+		my @plugindata = <F>;
+		close F;
+		my @packagelines = grep( /^\s*package\s+[a-zA-Z0-9_:-]+\s*;\s*$/, @plugindata );
+		if ( @packagelines > 1 or $packagelines[0] !~ /^\s*package\s+$packagename\s*;\s*$/ )
+		{
+			$self->log->info("Plugin $candidate doesn't have correct \"package\" declaration. Ignoring.");
+			next;
+		}
+
+		# do the actual load and eval
+		eval { require "$pluginfile"; };
+		if ($@)
+		{
+			$self->log->info("Ignoring plugin $candidate ($pluginfile) as it isn't valid perl: $@");
+			next;
+		}
+
+		# we're interested if one or more of the supported plugin functions are provided
+		push @{$self->{_validation_plugins}}, $packagename
+			if ( $packagename->can("update_valid")
+			or $packagename->can("collect_plugin")
+			or $packagename->can("after_collect_plugin")
+			or $packagename->can("after_update_plugin") );
+	}
+	return @{$self->{_validation_plugins}};
+}
+
 
 # loads code plugins if necessary, returns the names
 # args: none

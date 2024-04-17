@@ -1761,6 +1761,36 @@ sub validate
 		}
 	}
 
+	# check for a validation plugin
+	# run if present else do nothing.
+	$self->nmisng->log->info("Initializing validation plugins");
+	
+	my @plugins = $self->nmisng->validation_plugins;
+	$self->nmisng->log->info("Plugins are -".Dumper(\@plugins));
+		foreach my $plugin(@plugins){
+			if ($plugin eq 'NodeValidation'){
+				$self->nmisng->log->info("Calling plugin :- $plugin ");
+				my ( $status, @errors );		
+				my $funcname = $plugin->can("update_valid");
+
+				eval { ( $status, @errors ) = &$funcname( node => $self,
+												config => $self->nmisng->config,
+												nmisng => $self->nmisng)
+		 		};
+		 		
+				if ( $status >= 1 or $status < 0 or $@ ) {
+					$self->nmisng->log->error("Plugin $plugin failed to execute successfully: $@") if ($@);
+					for my $err (@errors)
+					{
+						$self->nmisng->log->error("Plugin $plugin: $err");
+						return (-$status,$err)
+					}		
+				}
+				elsif ( $status == 0 ) {
+					$self->nmisng->log->debug("Plugin $plugin successfully executed no changes");
+				}
+			}
+		}
 	return (1,undef);
 }
 
