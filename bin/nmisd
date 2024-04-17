@@ -1434,6 +1434,22 @@ sub worker_loop
 		# we have some work to do!
 		if ($ourjob)
 		{
+			if( $ourjob->{profile} ne '' ) 
+			{
+				# where should the file go
+				my $logpathprefix = $ourjob->{output} // '/tmp/'.$ourjob->{type};
+				my $logfn = "$logpathprefix-".Time::HiRes::time.".nytprof";
+				# if profile was just turned on with 1 keep everthing on, otherwise assum the profile value is the settings to use
+				# use_db_sub=1 is needed because we load the package as late as possible.  To run without this we will need to require
+				# the nytprof package earlier (not sure, maybe even before we fork?)
+				my $nyt_defaults = 'use_db_sub=1';
+				$ENV{NYTPROF} = ($ourjob->{profile} eq "1") ? $nyt_defaults : $ourjob->{profile};												 
+				$nmisng->log->info("Enabling profiling for job $ourjob->{_id}, type $ourjob->{type}, settings: $ENV{NYTPROF}, profile output: $logfn");												 
+				# bring in the nytprof package, this worker will die after this run
+				require Devel::NYTProf;				
+				# Turn on and tell it to use the filename we calculated
+				DB::enable_profile($logfn);
+			}
 			my ($oldverbosity, $normallog);
 			# does the job carry a custom output directive?
 			# then TEMPORARILY switch to that
@@ -2390,6 +2406,15 @@ sub worker_loop
 			{
 				# or restore the original verbosity level if there was a per-job one
 				$nmisng->log->new_level($oldverbosity)
+			}
+
+			if( $ourjob->{profile} ne '' ) {
+				DB::finish_profile();
+				$ENV{NYTPROF} = undef;
+				# don't keep this worker alive
+				$ttl = 0;
+				$nmisng->log->info("Done profiling for job $ourjob->{_id}, type $ourjob->{type}"
+												 .($ourjob->{tag}? ", tag \"$ourjob->{tag}\"":""));
 			}
 		}
 

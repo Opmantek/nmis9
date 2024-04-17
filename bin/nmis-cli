@@ -190,6 +190,9 @@ job.output: optional,  if given as /path/name_prefix or name_prefix
  name_prefix-<timestamp>.log.
 job.tag: somerandomvalue
  Optional, used for post-operation plugin grouping.
+job.profile: set profile options (for now =1 works, suggested: calls=0:slowops=0)
+  if given the profiler will be started for that job only, when the job
+  is complete the worker will die so no profiling code is left loaded
 
 |;
 
@@ -422,6 +425,7 @@ elsif ($Q->{act} eq "schedule")
 	my $verbosity = $Q->{"job.verbosity"};
 	my $customlog = $Q->{"job.output"};
 	my $sharedtag = $Q->{"job.tag"}; # optional, for collect or update
+	my $profile = $Q->{"job.profile"}; # optional, for collect or update
 
 	# at=time or now
 	my $when = $Q->{at}? NMISNG::Util::parseDateTime($Q->{at}) || NMISNG::Util::getUnixTime($Q->{at}) : Time::HiRes::time;
@@ -430,7 +434,7 @@ elsif ($Q->{act} eq "schedule")
 	my %jobargs;
 	for my $match (grep(/^job\..+$/, keys %$Q))
 	{
-		next if ($match =~ /^job\.(type|priority|verbosity|output|tag|data|keeprrds)$/); # these don't go into the job args
+		next if ($match =~ /^job\.(type|priority|verbosity|output|tag|data|keeprrds|profile)$/); # these don't go into the job args
 		my $argument = $match;
 		$argument =~ s/^job\.//;
 		$jobargs{$argument} = (($argument eq "force") # for force we'd need 1/0
@@ -477,6 +481,7 @@ elsif ($Q->{act} eq "schedule")
 					priority => $priority,
 					verbosity => $verbosity,
 					output => $customlog,
+					profile => $profile,
 					in_progress => 0,					# somebody else is to work on this
 					args => \%jobargs });
 			die "Failed to add schedule: $error\n" if ($error);
@@ -496,6 +501,7 @@ elsif ($Q->{act} eq "schedule")
 						priority => $priority,
 						verbosity => $verbosity,
 						output => $customlog,
+						profile => $profile,
 						in_progress => 0,					# somebody else is to work on this
 						tag => $sharedtag,
 						args => \%jobargs });
@@ -514,6 +520,7 @@ elsif ($Q->{act} eq "schedule")
 				priority => $priority,
 				verbosity => $verbosity,
 				output => $customlog,
+				profile => $profile,
 				in_progress => 0,					# somebody else is to work on this
 			});
 		die "Failed to add schedule: $error\n" if ($error);
@@ -535,11 +542,11 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 	for my $match (grep(/^job\..+$/, keys %$Q))
 	{
 		my $what = $Q->{$match};
-		my $where = ($match =~ /^job\.(type|priority|verbosity|output|tag)$/)?  # these don't go into args.X
+		my $where = ($match =~ /^job\.(type|priority|verbosity|output|tag.|_id)$/)?  # these don't go into args.X
 				$1 : ($match =~ s/^job\./args./ && $match); # the rest does
 		$queryargs{$where} = $what;
 	}
-
+print "queryargs".Dumper(\%queryargs);
 	my $queued = $nmisng->get_queue_model(%queryargs);
 	if (my $fault = $queued->error)
 	{
@@ -589,7 +596,7 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 		{
 			my $fmt = "%-26s%-26s%-12s%-45s%s\n";
 			printf("Queued Jobs:\n$fmt",
-						 "Id","When","Priority","What","Parameters");
+						 "Id","Profile","When","Priority","What","Parameters");
 
 			my $some;
 			for my $sched (grep(!$_->{in_progress}, @$queuedjobs))
@@ -605,10 +612,12 @@ elsif ($Q->{act} =~ /^list[_-]schedules?$/)
 
 				printf($fmt,
 							 $sched->{_id},
+							 $sched->{profile},
 							 scalar(localtime($sched->{time})),
 							 $sched->{priority},
 							 "$sched->{type} for $nodename",
-							 $printable);
+							 $printable,
+							 );
 			}
 
 			print "No queued jobs at this time.\n" if (!$some);
