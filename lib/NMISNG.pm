@@ -2968,7 +2968,7 @@ sub validation_plugins
 	# first check the custom plugin dir, then the default dir;
 	# files in custom win over files in default
 	my %candfiles;    # filename => fullpath
-	for my $dir ( $C->{validation_plugin})
+	for my $dir ( $C->{validation_plugin}, $C->{validation_plugin_default})
 	{
 		next if ( !-d $dir );
 		if ( !opendir( PD, $dir ) )

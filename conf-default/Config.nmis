@@ -48,6 +48,7 @@ my %hash = (
 	'plugin_root' => '<nmis_conf>/plugins',
 	'plugin_root_default' => '<nmis_conf_default>/plugins',
 	'validation_plugin' => '<nmis_conf>/validation_plugins',
+	'validation_plugin_default' => '<nmis_conf_default>/validation_plugins',
 	'report_root' => '<nmis_base>/htdocs/reports',
 	'script_root' => '<nmis_conf>/scripts',
 	'script_root_default' => '<nmis_conf_default>/scripts',
