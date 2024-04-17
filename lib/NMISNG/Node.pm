@@ -1666,7 +1666,7 @@ sub sync_catchall
 		$catchall_data->{webserver} = $self->configuration->{webserver};
 		$catchall_data->{wmidomain} = $self->configuration->{wmidomain};
 		$catchall_data->{wmiversion} = $self->configuration->{wmiversion};
-		my ( $op, $error ) = $catchall_inventory->save( node => $self );
+		my ( $op, $error ) = $catchall_inventory->save( node => $self , update => 1);
 		if ($error)
 		{
 			$self->nmisng->log->error("Failed to update catchall inventory for node '$self->{_name}' during save: $error") if ($error);
@@ -2030,7 +2030,7 @@ sub handle_down
 		$quicklynow->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 		$catchall->data($quicklynow);
-		$catchall->save( node => $self );
+		$catchall->save( node => $self, update => 1 );
 
 		$self->nmisng->log->debug($self->name.": changed ${typeofdown}down state to ".$quicklynow->{"${typeofdown}down"});
 	}
@@ -3468,7 +3468,7 @@ sub update_intf_info
 				$inventory->data_info( subconcept => 'interface', enabled => 1 );
 				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
-				my ( $op, $error ) = $inventory->save( node => $self );
+				my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error( "Failed to save inventory:"
 																	 . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -4231,7 +4231,7 @@ sub collect_intf_data
 		$inventory->historic(0);
 		$inventory->enabled(1);
 
-		my ($op, $error) = $inventory->save( node => $self );
+		my ($op, $error) = $inventory->save( node => $self, update => 1 );
 		$self->nmisng->log->error("failed to save inventory for $nodename, interface $inventory_data->{ifDescr}: $error")
 				if ($op <= 0);
 
@@ -4752,7 +4752,7 @@ sub collect_systemhealth_info
 					}
 	
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1 );
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -4922,7 +4922,7 @@ sub collect_systemhealth_info
 					}
 					
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -5078,7 +5078,7 @@ sub collect_systemhealth_data
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
-				$inventory->save( node => $self );
+				$inventory->save( node => $self , update => 1);
 			}
 			# this allows us to prevent adding data when it wasn't collected (but not an error)
 			elsif( $howdiditgo->{skipped} ) {}
@@ -5620,7 +5620,7 @@ sub collect_cbqos_info
 						$inventory->data_info( subconcept => $classname, enabled => 0 );
 					}
 
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 							if ($error);
@@ -5758,7 +5758,7 @@ sub collect_cbqos_data
 			}
 			# saving is required bacause create_update_rrd can change inventory, setting data not done because
 			# it's not changed
-			$inventory->save( node => $self );
+			$inventory->save( node => $self , update => 1);
 		}
 	}
 	return $happy? 1 : 0;
@@ -6673,7 +6673,7 @@ sub update
 			$old_data->{'last_update_attempt'} = Time::HiRes::time;
 		
 			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self );
+			my ($save, $error2) = $inventory->save( node => $self , update => 1);
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
 		} else {
@@ -7149,7 +7149,7 @@ sub collect_server_data
 			$inventory->enabled(1);
 			# disable for now
 			$inventory->data_info( subconcept => 'device_global', enabled => 0 );
-			($op,$error) = $inventory->save( node => $self );
+			($op,$error) = $inventory->save( node => $self , update => 1);
 			$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		}
 
@@ -7226,7 +7226,7 @@ sub collect_server_data
 																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 
-						($op,$error) = $inventory->save( node => $self );
+						($op,$error) = $inventory->save( node => $self , update => 1);
 						$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					}
 					$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
@@ -7240,7 +7240,7 @@ sub collect_server_data
 					if($inventory)
 					{
 						$inventory->enabled(0);
-						$inventory->save( node => $self );
+						$inventory->save( node => $self , update => 1);
 					}
 				}
 			}
@@ -7499,7 +7499,7 @@ sub collect_server_data
 				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
-				($op,$error) = $inventory->save( node => $self );
+				($op,$error) = $inventory->save( node => $self , update => 1);
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
@@ -7509,7 +7509,7 @@ sub collect_server_data
 				if( $inventory )
 				{
 					$inventory->historic(1);
-					$inventory->save( node => $self );
+					$inventory->save( node => $self , update => 1);
 				}
 				# nothing needs to be done here, storage target is the data from last time so it's already in db
 				# maybe mark it historic?
@@ -7704,7 +7704,7 @@ sub collect_services
 			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
 			# i think disabled here makes sense
 			$processinventory->data_info( subconcept => 'snmp_services', enabled => 0 );
-			(my $op, $error) = $processinventory->save( node => $self );
+			(my $op, $error) = $processinventory->save( node => $self , update => 1);
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
 			$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, node => $self,
 																								 subconcept => 'snmp_services');
@@ -7767,7 +7767,7 @@ sub collect_services
 
 			die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
 			$invobj->historic(1);
-			$error = $invobj->save( node => $self );
+			$error = $invobj->save( node => $self, update => 1 );
 			$self->nmisng->log->error("failed to save historic inventory object for service $maybedead: $error") if ($error);
 		}
 	}
@@ -8494,7 +8494,7 @@ sub collect_services
 
 		# TODO: enable this? needs to know some things to show potentially
 		$inventory->data_info( subconcept => 'service', enabled => 0 );
-		( my $op, $error ) = $inventory->save( node => $self );
+		( my $op, $error ) = $inventory->save( node => $self , update => 1);
 		$self->nmisng->log->error("service status saving inventory failed: $error") if ($error);
 
 		# and add a new point-in-time record for this service
@@ -8661,7 +8661,7 @@ sub collect
 			$old_data->{'last_poll_attempt'} = $polltime;
 		
 			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self );
+			my ($save, $error2) = $inventory->save( node => $self , update => 1);
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
 		} 
@@ -8722,7 +8722,7 @@ sub collect
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
 		# collect will have to wait until a next run...
-		$catchall_inventory->save( node => $self );
+		$catchall_inventory->save( node => $self, update => 1 );
 		return $res;
 	}
 

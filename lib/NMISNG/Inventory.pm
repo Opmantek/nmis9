@@ -384,7 +384,7 @@ sub new
 				(   map { ( "_$_" => $args{$_} ) } (
 							qw(concept node_uuid cluster_id data id nmisng
 						path path_keys storage subconcepts description
-            lastupdate)
+            lastupdate expire_at)
 						)
 				)
 		},
@@ -728,6 +728,14 @@ sub node_uuid
 {
 	my ($self) = @_;
 	return $self->{_node_uuid};
+}
+
+# RO, returns when this document should expire
+sub expire_at
+{
+	my ($self) = @_;
+	return $self->{_expire_at} if ( !$self->is_new );
+	return;
 }
 
 # returns the storage structure, optionally replaces it (all of it)
@@ -1196,7 +1204,7 @@ sub reload
 		my $newme = $modeldata->data()->[0];
 
 		# some things are ro/no settergetter, path MUST be set directly, its accessor gets confused by id/is_new!
-		for my $copyable (qw(cluster_id node_uuid concept path lastupdate))
+		for my $copyable (qw(cluster_id node_uuid concept path lastupdate expire_at))
 		{
 			$self->{"_$copyable"} = $newme->{$copyable};
 		}
@@ -1284,7 +1292,8 @@ sub path
 sub save
 {
 	my ( $self, %args ) = @_;
-	my $lastupdate = $args{lastupdate} // Time::HiRes::time;
+	my $lastupdate	= $args{lastupdate} // Time::HiRes::time;
+	my $update		= $args{update} 	// 0;
 
 	my $node = $args{node};
 	if( $self->node_uuid ne '' && !$node ) {
@@ -1352,6 +1361,11 @@ sub save
 		# an acceptable date type for the driver version
 		my $pleasegoaway = $lastupdate + ($self->nmisng->config->{purge_inventory_after} || 14*86400);
 		$pleasegoaway = Time::Moment->from_epoch($pleasegoaway);
+		#check if the expire_at is now in the past from a bad lastupdate. This should never happen!
+		if( $pleasegoaway < Time::Moment->now_utc )
+		{
+			$self->nmisng->log->error("Inventory lastupdate is in the past" . NMISNG::Log::trace());
+		}
 		$record->{expire_at} = $pleasegoaway;
 	}
 
@@ -1450,7 +1464,14 @@ sub save
 		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
 
 		my (%setthese, %unsetthese);
-		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
+
+
+		#Handle cases where NMIS is updating the inventory but nothing in record has changed, we need to make sure lastupdate is updated as opHA uses this to track when data should be pushed
+		if($update)
+		{
+			$setthese{lastupdate} = $lastupdate;
+		}
+
 
 		$op = 3; # nothing to update
 		for my $saveme ($self->_whatisdirty)
@@ -1490,6 +1511,19 @@ sub save
 		if( defined($setthese{'data.index'}) ) { # && $self->{_index_is_string} ) {
 			$setthese{'data.index'} = NMISNG::DB::make_string( $setthese{'data.index'} );
 		}
+
+		#if the only thing being saved is the expire_at value, and it is >86400 * 2 seconds from now, do not save, either update or save that happens with <2 days will update it.
+		my $expire_cutoff = Time::Moment->now_utc->plus_seconds(86400 * 2)->epoch;
+		my $current_expire = Time::Moment->from_epoch($self->expire_at)->epoch;
+		if($current_expire > $expire_cutoff )
+		{
+			if( scalar(keys %setthese) == 1 && exists($setthese{expire_at}) )
+		{
+				$self->nmisng->log->debug3("expire_at is more than 2 days in the future, not saving");
+				%setthese = ();
+			}
+		}
+
 
 		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);
 		$updateargs{record}->{'$unset'} = \%unsetthese if (keys %unsetthese);
