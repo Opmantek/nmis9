@@ -254,7 +254,7 @@ isnt( $inventory->id, undef, "Inventory gets an id after it's saved");
 my $db = $nmisng->get_db;
 my $invcoll = $nmisng->inventory_collection;
 my $q = {_id => $inventory->id};
-is($invcoll->count($q), 1, "db has saved inventory record"); # no more cursor->count
+is($invcoll->count_documents($q), 1, "db has saved inventory record"); # no more cursor->count
 my $cursor = $invcoll->find($q);
 my $dbrec = $cursor->next;
 
@@ -492,10 +492,16 @@ for (
 		$expire_new = $cursor? $cursor->next->{expire_at} : undef;
 		isnt($expire_new, undef, "expire_at is set for nonhistoric");
 
-		if (ref($expire_new)  and ref($expire_old))
+		if (ref($expire_new) eq 'BSON::Time' and ref($expire_old) eq 'BSON::Time') {
+			my $epoch_new = $expire_new->epoch();
+			my $epoch_old = $expire_old->epoch();
+			
+			cmp_ok($epoch_new, ">", $epoch_old, "no save still updates expire_at")
+				or diag("old: " . $expire_old->as_iso8601 . " new: " . $expire_new->as_iso8601);
+		}
+		else
 		{
-			cmp_ok($expire_new->compare($expire_old),">",0,"no save still updates expire_at")
-					or diag("old: ".$expire_old->strftime("%s%6f")." new: ".$expire_new->strftime("%s%6f"));
+			diag("expire_at not a BSON::Time object");
 		}
 	}
 	$one->reload;
