@@ -1506,15 +1506,15 @@ sub save
 		}
 
 
-		#if the only thing being saved is the expire_at value, and it is >86400 * 2 seconds from now, do not save, either update or save that happens with <2 days will update it.
-		my $update_grace = ($self->nmisng->config->{expire_at_update_grace_period} // 86400);
-		$update_grace = Time::Moment->now_utc->plus_seconds($update_grace);
 		my $expire_at = $self->expire_at();
-		if(ref($expire_at) eq 'BSON::Time')
+		#op3 means no changes , check we have expire_at on setthese as this is done outside the update loop and we have expire on the current record
+		if( $op == 3 and exists($setthese{"expire_at"}) and ref($expire_at) eq 'BSON::Time')
 		{
+			my $update_grace = ($self->nmisng->config->{expire_at_update_grace_period} // 86400);
+			$update_grace = Time::Moment->now_utc->plus_seconds($update_grace);
 			$expire_at = $expire_at->as_time_moment;
-			#if the expire at is after the update grace period, and the only thing being saved is the expire_at value, do not update this value
-			delete $setthese{"expire_at"} if($op == 3 and $expire_at->is_after($update_grace) )
+			#if the expire_at is after the update grace period, and the only thing being saved is the expire_at value, do not update this value, this saves us making just an expire_at update to the db.
+			delete $setthese{"expire_at"} if( $expire_at->is_after($update_grace) );
 		}
 
 		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);
