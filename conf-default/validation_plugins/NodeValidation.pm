@@ -1,4 +1,4 @@
-#
+# ****************************************************************************
 #  Copyright Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -45,6 +45,7 @@ sub update_valid
     ## check if the device_ci already exists or not ?
     my $current_device_ci =  $node->configuration->{device_ci};
     my $current_host = $node->configuration->{host};
+    my $current_host_bkp = $node->configuration->{host_backup};
     if ( validate_ci('ci_field' => $current_device_ci,node => $node,config => $C, nmisng=>$NG))
     {
         push @errors, "The CI field alredy exists in the database";
@@ -54,7 +55,7 @@ sub update_valid
         push @errors, "The Hostname alredy registered to another device in the database";
     }
 
-    if ( validate_IP_addr('current_host' => $current_host,node => $node,config => $C, nmisng=>$NG))
+    if ( validate_IP_addr('host' => $current_host,'host_backup' => $current_host_bkp, node => $node,config => $C, nmisng=>$NG))
     {
         push @errors, "The primary or backup monitoring IP address is already associated with another device.";
     }
@@ -82,17 +83,23 @@ sub validate_IP_addr
 	else
 	{
 		$ip = NMISNG::Util::resolveDNStoAddr($host);
-        $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
+        $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
 	}
 
-    my $md = $NG->get_inventory_model(concept => "catchall");
+    my $q = {
+                concept => "catchall",
+                '$or' => [ { 'data.host_addr' => $ip }, { 'data.host_addr_backup' => $bkp_ip }]
+            };
+
+    my $md = $NG->get_inventory_model($q);
     if (my $error = $md->error)
 	{
-		$self->log->error("Failed to get inventory model: $error");
+		$NG->log->error("Failed to get inventory model: $error");
         return 1;
 	}
     foreach my $entry ( @{$md->data}){
-        # will the primary and backup montoting ip address will be checked simultaneously for a single node !!
+        # $NG->log->info("Entry node is ".$entry->{node_name}."\n");
+        # will the primary or backup montoting ip address will be checked simultaneously for a single node !!
         if ($entry->{data}->{host_addr} eq $ip || $entry->{data}->{host_addr_backup} eq $bkp_ip ){
             return 1;
         }
