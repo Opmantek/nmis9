@@ -525,7 +525,7 @@ sub update_plugin
 		}
 
 		# The above has added data to the inventory, that we now save.
-		my ( $op, $subError ) = $inventory->save( node => $node );
+		my ( $op, $subError ) = $inventory->save( node => $node, update => 1 );
 		$NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		if ($subError)
 		{

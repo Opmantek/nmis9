@@ -67,7 +67,7 @@ sub update_plugin
 			$changesweremade = 1;
 
 			$hmbinventory->data($hmbdata); # set changed info
-			(undef,$error) = $hmbinventory->save; # and save to the db
+			(undef,$error) = $hmbinventory->save; # and save to the db, update not required
 			$NG->log->error("Failed to save inventory for $hmbid: $error")
 					if ($error);
 		}

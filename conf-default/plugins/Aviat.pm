@@ -129,7 +129,7 @@ sub update_plugin
                     $inventory->enabled(1);
                     # disable for now
                     $inventory->data_info( subconcept => 'interface', enabled => 0 );
-                    my ($op,$error) = $inventory->save( node => $node );
+                    my ($op,$error) = $inventory->save( node => $node, update => 1 );
                     $NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
                     $NG->log->info( "saved ".join(',', @$path)." op: $op");
                 } else {

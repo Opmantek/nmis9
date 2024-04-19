@@ -1283,6 +1283,9 @@ sub path
 #
 # args: lastupdate, (optional, defaults to now), node (obj)
 # note: lastupdate and expire_at currently not added to object but stored in db only
+# 		update - 0/1 set 1 if the save is coming from an update function that is where
+#				that piece of inventory is created, if the function just updates existing
+#				inventory that is created elsewhere keep 0
 #
 # the object's _id and _path are refreshed
 # returns ($op,$error), op is 1 for insert, 2 for update/save,

@@ -157,7 +157,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$cdpinventory->data($cdpdata); # set changed info
-			(undef,$error) = $cdpinventory->save; # and save to the db
+			(undef,$error) = $cdpinventory->save; # and save to the db, update not required, already existed
 			$NG->log->error("Failed to save inventory for $cdpid: $error")
 					if ($error);
 		}

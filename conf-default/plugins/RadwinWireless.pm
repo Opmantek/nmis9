@@ -73,7 +73,7 @@ sub update_plugin
 			$hbsdata->{node_uuid} = $managednode->uuid;
 
 			$hbsinventory->data($hbsdata); # set changed info
-			(undef,$error) = $hbsinventory->save; # and save it to db
+			(undef,$error) = $hbsinventory->save; # and save it to db # update not required
 			$NG->log->error("Failed to save inventory for $hbsid: $error")
 					if ($error);
 		}

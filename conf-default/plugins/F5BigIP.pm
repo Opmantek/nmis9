@@ -204,7 +204,7 @@ sub collect_plugin
                 
                 # Save the data
                 $host_inventory->data($data); # set changed info
-                (undef,$error) = $host_inventory->save; # and save to the db
+                (undef,$error) = $host_inventory->save; # and save to the db, update not required
                 $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
                         if ($error);
 			}

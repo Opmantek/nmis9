@@ -103,7 +103,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$atinventory->data($atdata); # set changed info
-			(undef,$error) = $atinventory->save; # and save to the db
+			(undef,$error) = $atinventory->save; # and save to the db, update not required
 			$NG->log->error("Failed to save inventory for $atid: $error")
 					if ($error);
 		}
