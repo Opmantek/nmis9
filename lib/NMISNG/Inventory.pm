@@ -1464,7 +1464,7 @@ sub save
 		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
 
 		#Handle cases where NMIS is updating the inventory but nothing in record has changed, we need to make sure lastupdate is updated as opHA uses this to track when data should be pushed
-		$setthese{lastupdate} = $lastupdate if($update);
+		$self->_dirty(1,"lastupdate") if ($update);
 
 		$op = 3; # nothing to update
 		for my $saveme ($self->_whatisdirty)

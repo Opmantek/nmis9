@@ -526,7 +526,26 @@ my $cursor = NMISNG::DB::find(collection => $nmisng->inventory_collection,
 my $expire_new = $cursor? $cursor->next->{expire_at} : undef;
 cmp_ok($expire_new, '>',  $expire_old, 'expire_at is updated after we change data');
 
+#now lets test if lastupdate is updated, first check a save with no data does not change this
+my $lastupdate_old = $one->lastupdate;
+($op, $error) = $one->save( node => $newnode );
+is($op, 3, "update is not needed") or diag("error was: $error");
+my $cursor = NMISNG::DB::find(collection => $nmisng->inventory_collection,
+														query => { _id => $one->id },
+														fields_hash => { lastupdate => 1});
+my $lastupdate_new = $cursor? $cursor->next->{lastupdate} : undef;
+is($lastupdate_new, $lastupdate_old, 'lastupdate is the same');
 
+
+#now lets force an update on save
+sleep(0.1);
+($op, $error) = $one->save( node => $newnode, update => 1 );
+is($op, 2, "update is needed on update") or diag("error was: $error");
+my $cursor = NMISNG::DB::find(collection => $nmisng->inventory_collection,
+														query => { _id => $one->id },
+														fields_hash => { lastupdate => 1});
+my $lastupdate_new = $cursor? $cursor->next->{lastupdate} : undef;
+cmp_ok($lastupdate_new, '>',  $lastupdate_old, 'expire_at is updated after we change data');
 
 # these don't parrot back and want arg lists
 for ([ "data_info" => [ "subconcept" => "subbie", 'enabled' => 1 ]],
