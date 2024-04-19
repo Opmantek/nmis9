@@ -157,7 +157,7 @@ sub update_plugin
         $catchall_data->{ifNumber} = $ids;
         $catchall_data->{active} = $active;
         $inv->data($catchall_data);
-        my ($op,$error) = $inv->save( node => $node );
+        my ($op,$error) = $inv->save( node => $node, update => 1 );
         $NG->log->info( "saved catchall op: $op");
         
 	}

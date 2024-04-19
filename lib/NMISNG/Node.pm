@@ -1666,7 +1666,7 @@ sub sync_catchall
 		$catchall_data->{webserver} = $self->configuration->{webserver};
 		$catchall_data->{wmidomain} = $self->configuration->{wmidomain};
 		$catchall_data->{wmiversion} = $self->configuration->{wmiversion};
-		my ( $op, $error ) = $catchall_inventory->save( node => $self );
+		my ( $op, $error ) = $catchall_inventory->save( node => $self , update => 1);
 		if ($error)
 		{
 			$self->nmisng->log->error("Failed to update catchall inventory for node '$self->{_name}' during save: $error") if ($error);
@@ -2030,7 +2030,7 @@ sub handle_down
 		$quicklynow->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 		$catchall->data($quicklynow);
-		$catchall->save( node => $self );
+		$catchall->save( node => $self, update => 1 );
 
 		$self->nmisng->log->debug($self->name.": changed ${typeofdown}down state to ".$quicklynow->{"${typeofdown}down"});
 	}
@@ -3468,7 +3468,7 @@ sub update_intf_info
 				$inventory->data_info( subconcept => 'interface', enabled => 1 );
 				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
-				my ( $op, $error ) = $inventory->save( node => $self );
+				my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error( "Failed to save inventory:"
 																	 . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -4752,7 +4752,7 @@ sub collect_systemhealth_info
 					}
 	
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1 );
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -4922,7 +4922,7 @@ sub collect_systemhealth_info
 					}
 					
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -5620,7 +5620,7 @@ sub collect_cbqos_info
 						$inventory->data_info( subconcept => $classname, enabled => 0 );
 					}
 
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 							if ($error);
@@ -6673,7 +6673,7 @@ sub update
 			$old_data->{'last_update_attempt'} = Time::HiRes::time;
 		
 			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self );
+			my ($save, $error2) = $inventory->save( node => $self , update => 1);
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
 		} else {
@@ -7704,7 +7704,7 @@ sub collect_services
 			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
 			# i think disabled here makes sense
 			$processinventory->data_info( subconcept => 'snmp_services', enabled => 0 );
-			(my $op, $error) = $processinventory->save( node => $self );
+			(my $op, $error) = $processinventory->save( node => $self , update => 1);
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
 			$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, node => $self,
 																								 subconcept => 'snmp_services');
@@ -8722,7 +8722,7 @@ sub collect
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
 		# collect will have to wait until a next run...
-		$catchall_inventory->save( node => $self );
+		$catchall_inventory->save( node => $self  );
 		return $res;
 	}
 
