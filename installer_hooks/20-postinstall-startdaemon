@@ -10,8 +10,11 @@ printBanner "Starting NMIS 9 Daemon"
 if [ -x /etc/init.d/nmis9d ]; then
 		echolog "Starting NMIS9 Daemon"
 		execPrint "service nmis9d start"
+elif [ -f /etc/systemd/system/nmis9d.service ]; then
+		echolog "Starting NMIS9 Daemon"
+		execPrint "systemctl start nmis9d"
 else
-		echolog "No init script for the NMIS9 daemon on the system, cannot start it until that is installed (as /etc/init.d/nmis9d)."
+		echolog "No init script or service file for the NMIS9 daemon on the system, cannot start it until that is installed as /etc/init.d/nmis9d or /etc/systemd/system/nmis9d.service"
 		input_ok "Hit <Enter> when ready to continue: "
 fi
 
@@ -19,5 +22,3 @@ fi
 rm -f /tmp/nmis_install_running $TARGETDIR/conf/NMIS_IS_LOCKED $TARGETDIR/var/nmis_system/selftest.json
 
 exit 0
-
-

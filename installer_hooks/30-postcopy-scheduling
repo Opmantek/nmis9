@@ -1,125 +1,131 @@
 #!/bin/sh
 # setup cron jobs for NMIS, prepare init script for the NMIS9 daemon
 
-# find out where we are, and get common functions
+# Find out where we are and get common functions
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
-
-# guesses os flavour, sets OSFLAVOUR
+# Guess OS flavour and set OSFLAVOUR
 flavour
 
 printBanner "NMIS Scheduling and Daemon Setup"
 
 # sysv init
-SRCFILE=$TARGETDIR/conf-default/init/nmis9d
-DESTFILE=/etc/init.d/nmis9d
-SERVICENAME=`basename $DESTFILE`
+SRCFILE="$TARGETDIR/conf-default/init/nmis9d"
+DESTFILE="/etc/init.d/nmis9d"
+SERVICENAME=$(basename "$DESTFILE")
 
 # systemd init
-if type systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1; then
-		HAVESD=1
-		SRCFILESD=$TARGETDIR/conf-default/init/nmis9d.service
-		DESTFILESD=/etc/systemd/system/nmis9d.service
-		SERVICENAMESD=`basename $DESTFILESD`
-		
-		if [ ! -f $DESTFILESD ] || ! diff -q $DESTFILESD $SRCFILESD ; then
-				WANTUPDATE=1
-		fi
+SRCFILESD="$TARGETDIR/conf-default/init/nmis9d.service"
+DESTFILESD="/etc/systemd/system/nmis9d.service"
+SERVICENAMESD=$(basename "$DESTFILESD")
+
+# Check for the presence of both init systems
+HAVE_SYSV=0
+HAVE_SYSTEMD=0
+if [ -d /etc/init.d ]; then
+    HAVE_SYSV=1
 fi
 
-# be polite, ask before doing anything harsh
-if [ ! -f $DESTFILE ] || ! diff -q $DESTFILE $SRCFILE; then
-		WANTUPDATE=1
+if command -v systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1; then
+    HAVE_SYSTEMD=1
 fi
 
-if [ -n "$WANTUPDATE" ] ; then
-		printBanner "Updated init scripts for $PRODUCT daemon available"
+# Check if updates are needed
+WANTUPDATE=0
+if [ $HAVE_SYSV -eq 1 ] && ([ ! -f "$DESTFILE" ] || ! diff -q "$DESTFILE" "$SRCFILE"); then
+    WANTUPDATE=1
+fi
 
-		cat <<EOF
+if [ $HAVE_SYSTEMD -eq 1 ] && ([ ! -f "$DESTFILESD" ] || ! diff -q "$DESTFILESD" "$SRCFILESD"); then
+    WANTUPDATE=1
+fi
+
+# Update scripts if needed
+if [ $WANTUPDATE -eq 1 ]; then
+    printBanner "Updated init scripts for $PRODUCT daemon available"
+    cat <<EOF
 
 Your system has no init scripts for the $PRODUCT daemon,
 or different ones from the scripts shipped with ${PRODUCT}.
 
 EOF
-		if input_yn "Ok to install or update the $PRODUCT daemon init scripts?" "c274" ; then
-				execPrint cp -af $SRCFILE $DESTFILE
-				echolog "Updated init script in $DESTFILE."
-				
-				if [ $TARGETDIR != "/usr/local/nmis9" ]; then
-					echolog "$TARGETDIR not standart. Updating $DESTFILE"
-					sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILE
-				fi
-		
-				echo
+    if input_yn "Ok to install or update the $PRODUCT daemon init scripts?" "c274"; then
+        if [ $HAVE_SYSV -eq 1 ]; then
+            execPrint cp -af "$SRCFILE" "$DESTFILE"
+            echolog "Updated init script in $DESTFILE."
+            if [ "$TARGETDIR" != "/usr/local/nmis9" ]; then
+                echolog "$TARGETDIR not standard. Updating $DESTFILE"
+                sed -i "s!/usr/local/nmis9!$TARGETDIR!g" "$DESTFILE"
+            fi
+            echo
 
-				if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
-            execPrint "update-rc.d $SERVICENAME defaults"
-        elif [ "$OSFLAVOUR" = "redhat" ]; then
-            execPrint "chkconfig --add $SERVICENAME"
-            execPrint "chkconfig $SERVICENAME on"
+            if [ "$OSFLAVOUR" = "debian" ] || [ "$OSFLAVOUR" = "ubuntu" ]; then
+                execPrint "update-rc.d $SERVICENAME defaults"
+            elif [ "$OSFLAVOUR" = "redhat" ]; then
+                execPrint "chkconfig --add $SERVICENAME"
+                execPrint "chkconfig $SERVICENAME on"
+            fi
         fi
 
-				if [ -n "$HAVESD" ]; then
-						execPrint cp -af $SRCFILESD $DESTFILESD
-						echolog "Updated init script in $DESTFILESD."
-						
-						if [ $TARGETDIR != "/usr/local/nmis9" ]; then
-							echolog "$TARGETDIR not standart. Updating $DESTFILESD"
-							sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILESD
-						fi
-						
-						echo
-						execPrint systemctl daemon-reload
-						execPrint systemctl enable $SERVICENAMESD
-				fi
-		else
-				echolog "Not creating or overwriting $DESTFILE, as directed."
-				cat <<EOF
+        if [ $HAVE_SYSTEMD -eq 1 ]; then
+            execPrint cp -af "$SRCFILESD" "$DESTFILESD"
+            echolog "Updated init script in $DESTFILESD."
+            if [ "$TARGETDIR" != "/usr/local/nmis9" ]; then
+                echolog "$TARGETDIR not standard. Updating $DESTFILESD"
+                sed -i "s!/usr/local/nmis9!$TARGETDIR!g" "$DESTFILESD"
+            fi
+            echo
+            execPrint systemctl daemon-reload
+            execPrint systemctl enable "$SERVICENAMESD"
+        fi
+    else
+        echolog "Not creating or overwriting init scripts, as directed."
+        cat <<EOF
 
 $PRODUCT requires that its daemon is active for correct operation.
 
-You need to install a daeon init script as $DESTFILE
+You need to install a daemon init script as $DESTFILE for SysV init
 or $DESTFILESD for systemd
-(possibly using the example ones from $SRCFILE
-or $SRCFILESD),
+(possibly using the example ones from $SRCFILE or $SRCFILESD),
 or ensure by other means that the $PRODUCT daemon is started automatically
 on system boot before $PRODUCT will work.
 
 EOF
-				input_ok "Hit <Enter> when ready to continue: "
-		fi
+        input_ok "Hit <Enter> when ready to continue: "
+    fi
 else
-		echolog "Up-to-date init scripts for $PRODUCT daemon already present."
+    echolog "Up-to-date init scripts for $PRODUCT daemon already present."
 fi
 
-SRCFILE=$TARGETDIR/conf-default/cron.d/nmis9
-DESTFILE=/etc/cron.d/nmis9
+# Cron setup
+SRCFILE="$TARGETDIR/conf-default/cron.d/nmis9"
+DESTFILE="/etc/cron.d/nmis9"
 
-# be polite, ask before doing anything harsh
-if [ ! -f $DESTFILE ] || ! diff -q $DESTFILE $SRCFILE; then
-		if input_yn "Ok to install new NMIS cron schedule?" "34e8" ; then
-				execPrint cp -af $SRCFILE $DESTFILE
-				if [ $TARGETDIR != "/usr/local/nmis9" ]; then
-					echolog "$TARGETDIR not standart. Updating $DESTFILE"
-					sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $DESTFILE
-				fi
-				echolog "Created schedule in $DESTFILE."
-				echo
-		else
-				echolog "Not creating or overwriting $DESTFILE, as directed."
-				cat <<EOF
+# Be polite, ask before doing anything harsh
+if [ ! -f "$DESTFILE" ] || ! diff -q "$DESTFILE" "$SRCFILE"; then
+    if input_yn "Ok to install new NMIS cron schedule?" "34e8"; then
+        execPrint cp -af "$SRCFILE" "$DESTFILE"
+        if [ "$TARGETDIR" != "/usr/local/nmis9" ]; then
+            echolog "$TARGETDIR not standard. Updating $DESTFILE"
+            sed -i "s!/usr/local/nmis9!$TARGETDIR!g" "$DESTFILE"
+        fi
+        echolog "Created schedule in $DESTFILE."
+        echo
+    else
+        echolog "Not creating or overwriting $DESTFILE, as directed."
+        cat <<EOF
 
 $PRODUCT requires some periodic scheduling setup to work fully.
+
 An example default Cron schedule is available in
 $SRCFILE, which should be installed as $DESTFILE after
-any local customisations.
+any local customizations.
 
 EOF
-				input_ok "Hit <Enter> when ready to continue: "
-		fi
+        input_ok "Hit <Enter> when ready to continue: "
+    fi
 else
-		echolog "NMIS's cron schedule is uptodate."
+    echolog "NMIS's cron schedule is uptodate."
 fi
-
 
 exit 0
