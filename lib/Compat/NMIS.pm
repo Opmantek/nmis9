@@ -29,7 +29,7 @@
 package Compat::NMIS;
 use strict;
 
-our $VERSION = "9.4.6";
+our $VERSION = "9.4.7";
 
 use Time::ParseDate;
 use Time::Local;
