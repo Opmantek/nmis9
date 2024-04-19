@@ -285,6 +285,8 @@ $inventory_invariant->{_subconcepts} = bag(@{$inventory->{_subconcepts}});
 $inventory_invariant->{_nmisng} = ignore();
 $inventory_invariant->{_dirty} = ignore();
 $inventory_invariant->{_node_name} = $node_name;
+#Call hex so they are in both the same objects
+$instantiated->id->hex;
 
 cmp_deeply( $instantiated, $inventory_invariant, "whole structure of instantiated object matches original");
 
@@ -476,36 +478,55 @@ for (
 																	fields_hash => { expire_at => 1 });
 		$expire_old = $cursor? $cursor->next->{expire_at} : undef;
 		isnt($expire_old, undef, "expire_at is set for nonhistoric");
-
 		sleep(0.1);									# make sure a bit of time elapses
 	}
-
 	$one->$what($one->$what);
 	($op, $error) = $one->save( node => $newnode );
 	is($op, 3, "unchanged $what meant no save") or diag("error was: $error");
 
-	if (!$one->historic)
+	#test that a simple save wont update expire at
+	if (!$one->historic and $op == 3)
 	{
 		my $cursor = NMISNG::DB::find(collection => $nmisng->inventory_collection,
 																	query => { _id => $one->id },
 																	fields_hash => { expire_at => 1 });
 		$expire_new = $cursor? $cursor->next->{expire_at} : undef;
-		isnt($expire_new, undef, "expire_at is set for nonhistoric");
-
+		is(ref($expire_new), 'BSON::Time', "expire at is 'BSON::Time") or diag(Dumper($expire_new));
+		# print(Dumper($expire_old));
+		# print(Dumper($expire_new));
 		if (ref($expire_new) eq 'BSON::Time' and ref($expire_old) eq 'BSON::Time') {
 			my $epoch_new = $expire_new->epoch();
 			my $epoch_old = $expire_old->epoch();
 			
-			cmp_ok($epoch_new, ">", $epoch_old, "no save still updates expire_at")
+			is($epoch_new, $epoch_old, "no save still updates expire_at")
 				or diag("old: " . $expire_old->as_iso8601 . " new: " . $expire_new->as_iso8601);
 		}
-		else
-		{
-			diag("expire_at not a BSON::Time object");
-		}
+
 	}
 	$one->reload;
 }
+
+
+#now check that a save is needed if the expire_at is updated
+$one->reload;
+my $cursor = NMISNG::DB::find(collection => $nmisng->inventory_collection,
+															query => { _id => $one->id },
+															fields_hash => { expire_at => 1});
+my $expire_old = $cursor ? $cursor->next->{expire_at} : undef;
+isnt($expire_old, undef, "expire_at is set for nonhistoric");
+
+sleep(0.1);
+#the last test sets this as historic
+$one->historic(0);
+($op, $error) = $one->save( node => $newnode );
+is($op, 2, "update is needed") or diag("error was: $error");
+my $cursor = NMISNG::DB::find(collection => $nmisng->inventory_collection,
+														query => { _id => $one->id },
+														fields_hash => { expire_at => 1});
+my $expire_new = $cursor? $cursor->next->{expire_at} : undef;
+cmp_ok($expire_new, '>',  $expire_old, 'expire_at is updated after we change data');
+
+
 
 # these don't parrot back and want arg lists
 for ([ "data_info" => [ "subconcept" => "subbie", 'enabled' => 1 ]],

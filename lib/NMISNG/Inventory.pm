@@ -1292,7 +1292,8 @@ sub path
 sub save
 {
 	my ( $self, %args ) = @_;
-	my $lastupdate	= $args{lastupdate} // Time::HiRes::time;
+	my $lastupdate		= $args{lastupdate} // Time::HiRes::time;
+	my $lastupdate_utc 	= Time::Moment->now_utc->epoch;
 	my $update		= $args{update} 	// 0;
 
 	my $node = $args{node};
@@ -1359,13 +1360,8 @@ sub save
 	{
 		# to make the db ttl expiration work this must be
 		# an acceptable date type for the driver version
-		my $pleasegoaway = $lastupdate + ($self->nmisng->config->{purge_inventory_after} || 14*86400);
-		$pleasegoaway = Time::Moment->from_epoch($pleasegoaway);
+		my $pleasegoaway = Time::Moment->now_utc->plus_seconds( $self->nmisng->config->{purge_inventory_after} || 14*86400 );
 		#check if the expire_at is now in the past from a bad lastupdate. This should never happen!
-		if( $pleasegoaway < Time::Moment->now_utc )
-		{
-			$self->nmisng->log->error("Inventory lastupdate is in the past" . NMISNG::Log::trace());
-		}
 		$record->{expire_at} = $pleasegoaway;
 	}
 
@@ -1465,13 +1461,10 @@ sub save
 
 		my (%setthese, %unsetthese);
 
+		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
 
 		#Handle cases where NMIS is updating the inventory but nothing in record has changed, we need to make sure lastupdate is updated as opHA uses this to track when data should be pushed
-		if($update)
-		{
-			$setthese{lastupdate} = $lastupdate;
-		}
-
+		$setthese{lastupdate} = $lastupdate if($update);
 
 		$op = 3; # nothing to update
 		for my $saveme ($self->_whatisdirty)
@@ -1512,18 +1505,17 @@ sub save
 			$setthese{'data.index'} = NMISNG::DB::make_string( $setthese{'data.index'} );
 		}
 
-		#if the only thing being saved is the expire_at value, and it is >86400 * 2 seconds from now, do not save, either update or save that happens with <2 days will update it.
-		my $expire_cutoff = Time::Moment->now_utc->plus_seconds(86400 * 2)->epoch;
-		my $current_expire = Time::Moment->from_epoch($self->expire_at)->epoch;
-		if($current_expire > $expire_cutoff )
-		{
-			if( scalar(keys %setthese) == 1 && exists($setthese{expire_at}) )
-		{
-				$self->nmisng->log->debug3("expire_at is more than 2 days in the future, not saving");
-				%setthese = ();
-			}
-		}
 
+		#if the only thing being saved is the expire_at value, and it is >86400 * 2 seconds from now, do not save, either update or save that happens with <2 days will update it.
+		my $update_grace = ($self->nmisng->config->{expire_at_update_grace_period} // 86400);
+		$update_grace = Time::Moment->now_utc->plus_seconds($update_grace);
+		my $expire_at = $self->expire_at();
+		if(ref($expire_at) eq 'BSON::Time')
+		{
+			$expire_at = $expire_at->as_time_moment;
+			#if the expire at is after the update grace period, and the only thing being saved is the expire_at value, do not update this value
+			delete $setthese{"expire_at"} if($op == 3 and $expire_at->is_after($update_grace) )
+		}
 
 		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);
 		$updateargs{record}->{'$unset'} = \%unsetthese if (keys %unsetthese);
