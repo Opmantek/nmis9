@@ -32,8 +32,13 @@ our $VERSION = "2.0.1";
 
 
 use Data::Dumper;
-#node is the current node which is about to be update
-#returns 1 or 0 if the node is valid or not and a list of errors
+
+# update_valid, sub called by Node.pm to validate nodes, using plugins.
+# Parameters:
+# Node   - the Node object containing the new values to be validated
+# Config - the system configuration object
+# NMISNG - the NMISNG object to use
+#returns 1 or 0 - node is valid or not and  list of errors
 sub update_valid
 {
     my (%args) = @_;
@@ -58,17 +63,11 @@ sub update_valid
     {
         push @errors, $error;
     }
-
-    # if ( validate_IP_addr('host' => $current_host,'host_backup' => $current_host_bkp, node => $node,config => $C, nmisng=>$NG))
-    # {
-    #     push @errors, "The primary or backup monitoring IP address is already associated with another device.";
-    # }
- 
     return (scalar(@errors), @errors);
 }
 
-# return 1 if host exists in db , 
-# return 0 if host does not exists in db.
+# return error if ip/backup_ip exists in db , 
+# return 0 if ip/backup_ip  does not exists in db.
 sub validate_IP_addr
 {
     my (%args) = @_;
@@ -152,6 +151,7 @@ sub validate_IP_addr
 
 
 ## db check for ip.
+# this checks if the ip/backup-ip , exists in db or not ?
 sub db_ip_check
 {
     my (%args) = @_;
@@ -225,8 +225,8 @@ sub db_ip_check
 
 
 
-# return 1 if host exists in db , 
-# return 0 if host does not exists in db.
+# return error if host exists in db , 
+# return 0 if host  does not exists in db.
 sub validate_host
 {
     my (%args) = @_;
@@ -293,6 +293,7 @@ sub validate_host
 
 }
 ## db check for host.
+## this sub check if host exists in db or not ?
 sub db_host_check
 {
     my (%args) = @_;
@@ -327,8 +328,8 @@ sub db_host_check
 }
 
 
-# return 1 if device ci exists in db , 
-# return 0 if device ci does not exists in db.
+# return error if custom field exists in db , 
+# return 0 if custom field does not exists in db.
 sub validate_ci
 {
     my (%args) = @_;
@@ -396,6 +397,7 @@ sub validate_ci
  
 
 ## db check for ci field.
+## this checks if custom field exists in db or not ?
 sub db_ci_check
 {
     my (%args) = @_;
@@ -430,7 +432,7 @@ sub db_ci_check
 }
 
 
-
+## dummy sub , which can be called by Node.pm for some other functionality .
 sub create_valid
 {
     my (%args) = @_;
