@@ -50,11 +50,11 @@ sub update_valid
     {
         push @errors, $error;
     }
-    if ( my $error = validate_host('current_host' => $current_host,node => $node,config => $C, nmisng=>$NG))
+    elsif ( my $error = validate_host('current_host' => $current_host,node => $node,config => $C, nmisng=>$NG))
     {
         push @errors, $error;
     }
-    if ( $error = validate_IP_addr('host' => $current_host,'host_backup' => $current_host_bkp, node => $node,config => $C, nmisng=>$NG))
+    elsif ( $error = validate_IP_addr('host' => $current_host,'host_backup' => $current_host_bkp, node => $node,config => $C, nmisng=>$NG))
     {
         push @errors, $error;
     }
@@ -92,6 +92,22 @@ sub validate_IP_addr
         return ("Failed to get nodes model, Error validating IP field.");
 	}
     
+    my $node_configuration = $node->configuration;
+    
+    ## convert the host and backup host, to ip and backup ip address. 
+    my ($ip, $bkp_ip);
+    if ($node_configuration->{ip_protocol} eq 'IPv6')
+	{
+		$ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
+        $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
+	}
+	else
+	{
+		$ip = NMISNG::Util::resolveDNStoAddr($host);
+        $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
+	}
+
+
     my $data = $model_data->data();
     if (@{$data}){
         ## UPDATE
@@ -105,10 +121,13 @@ sub validate_IP_addr
             my ($error,$status) = db_ip_check(node=> $node,nmisng=> $NG,host => $host,host_backup => $host_backup);
             if ($status){
                 ## all good host does not exist anywhere
+                $NG->log->info("IP or Backup IP monitoring address does not exists in database, validation complete."); 
                 return 0;
             }
             else{
-                $message = "IP and Backup IP monitoring address is already present in nodes:- ".$error;
+                
+                $message = "IP:- $ip or Backup IP:- $bkp_ip monitoring address is already present in nodes:- ".$error;
+                $NG->log->info($message); 
                 return ($message);
             }
         }
@@ -119,10 +138,12 @@ sub validate_IP_addr
             my ($error,$status) = db_ip_check(node=> $node,nmisng=> $NG,host => $host,host_backup => $host_backup);
             if ($status){
                 ## all good host does not exist anywhere
+                $NG->log->info("IP or Backup IP monitoring address does not exists in database, validation complete."); 
                 return 0;
             }
             else{
-                $message = "IP and Backup IP monitoring address is already present in nodes:- ".$error;
+                 $message = "IP:- $ip or Backup IP:- $bkp_ip monitoring address is already present in nodes:- ".$error;
+                $NG->log->info($message); 
                 return ($message);
             }
     }
@@ -136,9 +157,9 @@ sub db_ip_check
     my (%args) = @_;
     my ($node,$NG,$host,$host_backup) = @args{node,nmisng,host,host_backup};
 
-    $NG->log->info("db_ip_check ");
     my $node_configuration = $node->configuration;
     
+    ## convert the host and backup host, to ip and backup ip address. 
     my ($ip, $bkp_ip);
     if ($node_configuration->{ip_protocol} eq 'IPv6')
 	{
@@ -151,6 +172,8 @@ sub db_ip_check
         $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
 	}
 
+
+    ## query part for or and and.
     my $query = NMISNG::DB::get_query(
                                         and_part => {  concept => "catchall",
                                                         node_uuid => { '$ne' => $node->uuid } },
@@ -161,6 +184,7 @@ sub db_ip_check
                                         }
                                     );
 
+    ## required fields. 
     my $fields_hash = {        
                         'node_name'  => 1,
                         'node_uuid' => 1,
@@ -170,6 +194,7 @@ sub db_ip_check
                     };
 
 
+    ## db query to find data in inventory.
     my $entries = NMISNG::DB::find(
 		            collection  => $NG->inventory_collection,
 		            query       => $query,
@@ -181,12 +206,12 @@ sub db_ip_check
 	{
 		push @all, $entry;
 	}
-    $NG->log->info("entries are ".Dumper(\@all));
+
+    # if entries exist , then grab the node names and send it through.
     if (@all){
         foreach my $entry(@all){
-            push @names,$entry->{node_name};
-            
-
+            my $linked_data = "$entry->{node_name} ($entry->{data}->{host_addr},$entry->{data}->{host_addr_backup})";
+            push @names,$linked_data;
         }
         return(@names,0);
     }
@@ -225,9 +250,9 @@ sub validate_host
     my $data = $model_data->data();
     if (@{$data}){
         ## UPDATE
-        $NG->log->info("CALLING UPDATE");
+        # $NG->log->info("CALLING UPDATE");
         if ($host eq $data->[0]->{configuration}->{host}){
-            $NG->log->info("No changes in CI field, validation complete."); 
+            $NG->log->info("No changes in host, validation complete."); 
             return 0;
         }
         else{
@@ -238,10 +263,13 @@ sub validate_host
             my ($error,$status) = db_host_check(nmisng=> $NG,host => $host);
             if ($status){
                 ## all good host does not exist anywhere
+                $NG->log->info("No changes in CI field, validation complete."); 
                 return 0;
             }
             else{
+                
                 $message = "HOST is already present in nodes:- ".$error;
+                $NG->log->info($message); 
                 return ($message);
             }
 
@@ -249,14 +277,16 @@ sub validate_host
     }
     else{
         ## INSERT
-        $NG->log->info("CALLING INSERT");
+        # $NG->log->info("CALLING INSERT");
         my ($error,$status) = db_host_check(nmisng=> $NG,host => $host);
         if ($status){
-            ## all good CI does not exist anywhere
+            ## all good Host does not exist anywhere
+            $NG->log->info("Host does not exists in database, validation complete."); 
             return 0;
         }
         else{
             $message = "HOST is already present in nodes:- ".$error;
+            $NG->log->info($message); 
             return ($message);
         }
     }
@@ -335,10 +365,12 @@ sub validate_ci
             my ($error,$status) = db_ci_check(nmisng=> $NG,custom_field => $CIF);
             if ($status){
                 ## all good CI does not exist anywhere
+                $NG->log->info("No changes in CI field, validation complete."); 
                 return 0;
             }
             else{
                 $message = "CI field already present in nodes:- ".$error;
+                $NG->log->info($message); 
                 return ($message);
             }
         }
@@ -351,10 +383,12 @@ sub validate_ci
             my ($error,$status) = db_ci_check(nmisng=> $NG,custom_field => $CIF);
             if ($status){
                 ## all good CI does not exist anywhere
+                $NG->log->info("CI field does not exists in database, validation complete."); 
                 return 0;
             }
             else{
                 $message = "CI field already present in nodes:- ".$error;
+                $NG->log->info($message); 
                 return ($message);
             }
         }
