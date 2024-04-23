@@ -1425,19 +1425,22 @@ sub ensure_indexes
 	
 
 	## add in custom indices
-	$self->log->info("NMISNG adding custom_indexes");
-	my $custom_indices = $self->config->{custom_indices};
-
-	foreach my $entry (keys %{$custom_indices}){
-		$self->log->info("Adding custom_index for $entry");
-		$err = NMISNG::DB::ensure_index(
+	
+	my $custom_indexes = $self->config->{custom_indexes};
+	if ($custom_indexes){
+		$self->log->info("NMISNG adding custom_indexes");
+		foreach my $entry (keys %{$custom_indexes}){
+			$self->log->info("Adding custom_index for $entry");
+			$err = NMISNG::DB::ensure_index(
 				collection    => $self->{'_db_'.$entry},
 				drop_unwanted => $drop_unwanted,
-				indices  => $custom_indices->{$entry}
-		);
-		$self->log->error("index setup failed for $entry: $err") if ($err);
+				indices  => $custom_indexes->{$entry}
+			);
+			$self->log->error("index setup failed for $entry: $err") if ($err);
+		}		
+		$self->log->info("NMISNG end of custom_index");
 	}
-
+	
 	$self->log->info("NMISNG end of ensure_indexes");
 	return;
 }
@@ -2086,7 +2089,7 @@ sub get_inventory_model_query
 			map { $queryinputs{$_} = $args{filter}->{$_}; } ( keys %{$args{filter}} );
 		}
 		$q = NMISNG::DB::get_query( and_part => \%queryinputs );
-
+		$self->log->info("q is ".Dumper($q));
 		# translate the path components into the lookup path
 		if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
 		{
