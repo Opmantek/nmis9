@@ -2781,12 +2781,12 @@ sub update_intf_info
 			}
 			else
 			{
-				if ( $SNMP->error =~ /is empty or does not exist/ )
+				# windows can give nosuchname, that's a valid response and NOT snmp down
+				if ( $SNMP->error =~ /is empty or does not exist/ || $SNMP->error =~ /Received noSuchName/ )
 				{
 					# fixme9 unclear if terminal
 					$self->nmisng->log->debug2(sub { "SNMP Object Not Present ($nodename) on get interface index table: " . $SNMP->error });
 				}
-
 				# snmp failed
 				else
 				{
@@ -2868,13 +2868,27 @@ sub update_intf_info
 			}
 			else
 			{
-				# snmp failed
-				$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error} );
-
-				if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
+				# windows boxes respond errors differently, if we are asking for a singleInterface and it's not there
+				# it's not a snmpdown, it's just a bad fishing trip
+				if( $singleInterface && $SNMP->error =~ /Received noSuchName/ )
 				{
-					$self->nmisng->log->debug2(sub {"Finished (stop polling on error)"});
+					$self->nmisng->log->debug2(sub { "SNMP Object Not Present ($nodename) on get interface index: $intf_one error: " . $SNMP->error });
+					# we are done, no point in trying more
 					return 0;
+					# $S->{error} eq 'loadInfo failed for win2019-snmp: ERROR (win2019-snmp): no values collected for section(s) standard!'
+					# $SNMP->error eq 'Received noSuchName(2) error-status at error-index 1'
+
+				}
+				else 
+				{
+					# snmp failed
+					$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error} );
+
+					if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
+					{
+						$self->nmisng->log->debug2(sub {"Finished (stop polling on error)"});
+						return 0;
+					}
 				}
 			}
 		}
@@ -3831,7 +3845,8 @@ sub collect_intf_data
 
 		# this returns an inventory object (or undef on error/nonexistent)...
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
-		if (!defined $maybenew)
+		#  maybenew can be 0 unfortunately
+		if (!$maybenew)
 		{
 			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
@@ -3988,8 +4003,10 @@ sub collect_intf_data
 			# relevant transition === entering or leaving up state
 			# breaks when seeing lowerLayerDown
 			# worker[4031185] Interface 563, oper status changed from lowerLayerDown to lowerLayerDown, needs update
-			if (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
-					or ($newstatus !~ /^(up|ok|dormant)$/))
+			# NOTE: MD this was creating many log warnings for 'down' to 'down' so I'm changing this at the same time as
+			# other issuess
+			if ( $newstatus ne $prevstatus and (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
+					or ($newstatus !~ /^(up|ok|dormant)$/)) )
 			{
 				$self->nmisng->log->info("Interface $index, oper status changed from $prevstatus to $newstatus, needs update");
 				$thisif->{_needs_update} = 1;
@@ -4010,7 +4027,8 @@ sub collect_intf_data
 
 		# this returns an inventory object (or undef if removed/error)...
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
-		if (!defined $maybenew)
+		#  maybenew can be 0 unfortunately
+		if (!$maybenew)
 		{
 			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
@@ -4830,7 +4848,7 @@ sub collect_systemhealth_info
 					$self->nmisng->log->debug2( "SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: "
 							. $SNMP->error );
 				}
-				elsif( $SNMP->error =~ /incorrect syntax/ )
+				elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
 				{
 					# error converting the name to an OID shouldn't trigger SNMP Down
 					$self->nmisng->log->error( "Model Error, $S->{name}) on get systemHealth $section index table: "
@@ -5122,7 +5140,7 @@ sub handle_sys_get_data_error
 		$self->nmisng->log->warn( "$message SNMP Object Not Present, error: ". $SNMP->error );
 		return 1;
 	}
-	elsif( $SNMP->error =~ /incorrect syntax/ )
+	elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
 	{
 		# error converting the name to an OID shouldn't trigger SNMP Down
 		$self->nmisng->log->error( "$message Model Error, error: " . $SNMP->error );
