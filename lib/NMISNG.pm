@@ -90,7 +90,6 @@ sub new
 			_existing_timed_collections => $args{existing_timed_collections} // {},
 			_log     => $args{log},
 			_plugins => undef,            # sub plugins populates that on the go
-			_validation_plugins => undef, # sub plugins populates that on the go
 		},
 		$class
 	);
@@ -2089,7 +2088,6 @@ sub get_inventory_model_query
 			map { $queryinputs{$_} = $args{filter}->{$_}; } ( keys %{$args{filter}} );
 		}
 		$q = NMISNG::DB::get_query( and_part => \%queryinputs );
-		$self->log->info("q is ".Dumper($q));
 		# translate the path components into the lookup path
 		if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
 		{
@@ -2956,81 +2954,6 @@ sub opstatus_collection
 # loads code plugins if necessary, returns the names
 # args: none
 # returns: list of package/class names
-sub validation_plugins
-{
-	my ( $self, %args ) = @_;
-
-	if ( ref( $self->{_validation_plugins} ) eq "ARRAY" )
-	{
-		return @{$self->{_validation_plugins}};
-	}
-
-	my $C = $self->config;
-	$self->{_validation_plugins} = [];
-	
-	# first check the custom plugin dir, then the default dir;
-	# files in custom win over files in default
-	my %candfiles;    # filename => fullpath
-	for my $dir ( $C->{validation_plugin}, $C->{validation_plugin_default})
-	{
-		next if ( !-d $dir );
-		if ( !opendir( PD, $dir ) )
-		{
-			$self->log->error("Error: cannot open plugin dir $dir: $!");
-			return ();
-		}
-		for my $cand ( grep( /\.pm$/, readdir(PD) ) )
-		{
-			$candfiles{$cand} //= "$dir/$cand";    #'"
-		}
-		closedir(PD);
-	}
-
-	for my $candidate ( keys %candfiles )
-	{
-		my $packagename = $candidate;
-		$packagename =~ s/\.pm$//;
-		my $pluginfile = $candfiles{$candidate};
-
-		# read it and check that it has precisely one matching package line
-		$self->log->debug("Checking candidate plugin $candidate ($pluginfile)");
-
-		if ( !open( F, $pluginfile ) )
-		{
-			$self->log->error("Error: cannot open plugin file $pluginfile: $!");
-			next;
-		}
-		my @plugindata = <F>;
-		close F;
-		my @packagelines = grep( /^\s*package\s+[a-zA-Z0-9_:-]+\s*;\s*$/, @plugindata );
-		if ( @packagelines > 1 or $packagelines[0] !~ /^\s*package\s+$packagename\s*;\s*$/ )
-		{
-			$self->log->info("Plugin $candidate doesn't have correct \"package\" declaration. Ignoring.");
-			next;
-		}
-
-		# do the actual load and eval
-		eval { require "$pluginfile"; };
-		if ($@)
-		{
-			$self->log->info("Ignoring plugin $candidate ($pluginfile) as it isn't valid perl: $@");
-			next;
-		}
-
-		# we're interested if one or more of the supported plugin functions are provided
-		push @{$self->{_validation_plugins}}, $packagename
-			if ( $packagename->can("update_valid")
-			or $packagename->can("collect_plugin")
-			or $packagename->can("after_collect_plugin")
-			or $packagename->can("after_update_plugin") );
-	}
-	return @{$self->{_validation_plugins}};
-}
-
-
-# loads code plugins if necessary, returns the names
-# args: none
-# returns: list of package/class names
 sub plugins
 {
 	my ( $self, %args ) = @_;
@@ -3052,7 +2975,7 @@ sub plugins
 	# first check the custom plugin dir, then the default dir;
 	# files in custom win over files in default
 	my %candfiles;    # filename => fullpath
-	for my $dir ( $C->{plugin_root}, $C->{plugin_root_default} )
+	for my $dir ( $C->{plugin_root}, $C->{plugin_root_default},$C->{validation_plugin}, $C->{validation_plugin_default})
 	{
 		next if ( !-d $dir );
 		if ( !opendir( PD, $dir ) )
@@ -3101,6 +3024,7 @@ sub plugins
 		# we're interested if one or more of the supported plugin functions are provided
 		push @{$self->{_plugins}}, $packagename
 			if ( $packagename->can("update_plugin")
+			or $packagename->can("validate_node")
 			or $packagename->can("collect_plugin")
 			or $packagename->can("after_collect_plugin")
 			or $packagename->can("after_update_plugin") );
