@@ -185,11 +185,12 @@ isnt( $inventory->id, undef, "Inventory gets an id after it's saved" );
 is( $op, 1, "Inventory2 saves with insert op and no error" ) or diag("Save returned error: $error, path:".join(",", @{ $inventory2->path()} ));
 
 my $path = $node->inventory_path( concept => $concept, data => $data, path_keys => $path_keys );
+
 # print "path:".Dumper($path);
 # now look for the thing we saved using the proper path
 # path_keys not required for either of these because create=>0, if it's possible we were going to create it
 # then it might be required
-( $inventory, $error ) = $node->inventory( concept => 'sometype', path => $path, create => 0 );
+( $inventory, $error ) = $node->inventory( concept => 'sometype', path => $path, create => 0, filter => { historic => undef } );
 isnt( $inventory, undef, "Search for inventory using path found entry just added" )
 	or diag("Inventory search returned error:$error");
 isnt( $inventory->id, undef, "Inventory gets an id after it's saved" );
@@ -198,6 +199,16 @@ isnt( $inventory->id, undef, "Inventory gets an id after it's saved" );
 ( $inventory, $error ) = $node->inventory( concept => 'sometype', _id => $inventory->id, create => 0 );
 isnt( $inventory, undef, "Search for inventory using _id found entry just added" )
 	or diag("Inventory search returned error:$error");
+
+( my $modify_inventory, $error ) = $node->inventory( concept => 'sometype', path => $path, create => 0, filter => { historic => undef } );
+$modify_inventory->historic(0);
+
+( $inventory, $error ) = $node->inventory( concept => 'sometype', path => $path, create => 0, filter => { historic => 1 } );
+is( $inventory, undef, "finding historic finds nothing" );
+
+# this test needs to leave inentory for the next ones
+( $inventory, $error ) = $node->inventory( concept => 'sometype', path => $path, create => 0, filter => { historic => 0 } );
+isnt( $inventory->id, undef, "finding not historic finds the inventory" );
 
 # get_inventory_ids
 my $ids = $node->get_inventory_ids();
