@@ -28,7 +28,7 @@
 # *****************************************************************************
 package NMISNG::rrdfunc;
 
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 use strict;
 use feature 'state';
@@ -752,7 +752,14 @@ sub optionsRRD
 	
 	$timinginfo //= { heartbeat => 900, poll => 300 };
 	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
-	$S->nmisng->log->debug("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
+	$S->nmisng->log->debug("timing options for this file of type $type: step: $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
+
+	#worker[3861834] Exception while processing job 6614a45f41209f76ca738cc6: Illegal modulus zero at /usr/local/nmis9/bin/../lib/NMISNG/rrdfunc.pm line 758.
+	if(!defined($timinginfo->{poll}))
+	{
+		$S->nmisng->log->error("No polling interval defined for type $type, using default 300 seconds");
+		$timinginfo->{poll} = 300;
+	}
 
 	# align the start time with the step interval, but reduce by one interval so that we can send data immediately
 	my $starttime = time - (time % $timinginfo->{poll}) - $timinginfo->{poll};

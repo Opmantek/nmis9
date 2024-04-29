@@ -132,7 +132,7 @@ sub update_plugin
 			if ($changed)
 			{
 				$inventory->data($inventory_data); # set changed info
-				(undef,$error) = $inventory->save; # and save to the db
+				(undef,$error) = $inventory->save; # and save to the db # update not required
 				if ($error)
 				{
 					$NG->log->error("$plugin:$sub: Failed to save inventory for $concept $inventory_data_key ".$inventory_data->{$inventory_data_key}. " : $error");

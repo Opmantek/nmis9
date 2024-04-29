@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.4.6";
+our $VERSION = "9.4.7";
 
 use strict;
 use Data::Dumper;
@@ -46,7 +46,7 @@ use List::Util 1.45;
 use boolean;
 use Fcntl qw(:DEFAULT :flock :mode);    # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Errno qw(EAGAIN ESRCH EPERM);
-use Mojo::File;                         # slurp and spurt
+use Mojo::File;                         # slurp
 use JSON::XS;
 use Archive::Zip 1.36;					# for dump()/undump()
 
@@ -512,8 +512,8 @@ sub config_backup
 	if ( !$nodes->error && @{$nodes->data} )
 	{
 		# ensure that the output is indeed valid json, utf-8 encoded
-		Mojo::File->new($nodedumpfile)
-			->spurt( JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $nodes->data ) );
+		my $encoded = JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $nodes->data );
+		NMISNG::Util::spew_file( $nodedumpfile, $encoded );
 	}
 
 	# ...and of _custom_ models and configuration files (and the default ones for good measure)
@@ -5269,7 +5269,7 @@ sub dump_node
 				print STDERR "unconvertable object: ".Dumper($dumpme->{what}); # shouldn't be reached so noise is ok
 				return { error => "failed to convert object type $dumpme->{where}, id $dumpme->{what}->{_id}: $@"	};
 			}
-			Mojo::File->new($fullpath)->spurt($jsondata);
+			NMISNG::Util::spew_file($fullpath, $jsondata);
 		}
 		return { error => "could not add file $fullpath to zip!" }
 		if (!$zip->addFile({filename => $fullpath, zipName => $zipname}));

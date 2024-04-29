@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 use strict;
 
@@ -1017,25 +1017,25 @@ sub inventory_concepts
 	my $q = $self->nmisng->get_inventory_model_query( %args );
 	my $retval = ();
 
-	# print "q".Dumper($q);
 	# query parts that don't look at $datasets could run first if we need optimisation
 	my @prepipeline = (
 		{ '$match' => $q },
 		{ '$group' =>
 			{ '_id' => { "concept" => '$concept'}  # group by subconcepts
 		}}
-  );
-  my ($entries,$count,$error) = NMISNG::DB::aggregate(
+  	);
+  	my ($entries,$count,$error) = NMISNG::DB::aggregate(
 		collection => $self->nmisng->inventory_collection,
 		pre_count_pipeline => \@prepipeline, #use either pipe, doesn't matter
-		allowtempfiles => 1
+		allowtempfiles => 1,
 	);
+	return (undef, $error) if ($error);
+
 	foreach my $entry (@$entries)
 	{
 		push @$retval, $entry->{_id}{concept};
-
 	}
-	return ($error) ? $error : $retval;
+	return ($retval, undef);
 }
 
 # get all subconcepts and any dataset found within that subconcept
@@ -1666,7 +1666,7 @@ sub sync_catchall
 		$catchall_data->{webserver} = $self->configuration->{webserver};
 		$catchall_data->{wmidomain} = $self->configuration->{wmidomain};
 		$catchall_data->{wmiversion} = $self->configuration->{wmiversion};
-		my ( $op, $error ) = $catchall_inventory->save( node => $self );
+		my ( $op, $error ) = $catchall_inventory->save( node => $self , update => 1);
 		if ($error)
 		{
 			$self->nmisng->log->error("Failed to update catchall inventory for node '$self->{_name}' during save: $error") if ($error);
@@ -2057,7 +2057,7 @@ sub handle_down
 		$quicklynow->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 		$catchall->data($quicklynow);
-		$catchall->save( node => $self );
+		$catchall->save( node => $self, update => 1 );
 
 		$self->nmisng->log->debug($self->name.": changed ${typeofdown}down state to ".$quicklynow->{"${typeofdown}down"});
 	}
@@ -2808,12 +2808,12 @@ sub update_intf_info
 			}
 			else
 			{
-				if ( $SNMP->error =~ /is empty or does not exist/ )
+				# windows can give nosuchname, that's a valid response and NOT snmp down
+				if ( $SNMP->error =~ /is empty or does not exist/ || $SNMP->error =~ /Received noSuchName/ )
 				{
 					# fixme9 unclear if terminal
 					$self->nmisng->log->debug2(sub { "SNMP Object Not Present ($nodename) on get interface index table: " . $SNMP->error });
 				}
-
 				# snmp failed
 				else
 				{
@@ -2895,13 +2895,27 @@ sub update_intf_info
 			}
 			else
 			{
-				# snmp failed
-				$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error} );
-
-				if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
+				# windows boxes respond errors differently, if we are asking for a singleInterface and it's not there
+				# it's not a snmpdown, it's just a bad fishing trip
+				if( $singleInterface && $SNMP->error =~ /Received noSuchName/ )
 				{
-					$self->nmisng->log->debug2(sub {"Finished (stop polling on error)"});
+					$self->nmisng->log->debug2(sub { "SNMP Object Not Present ($nodename) on get interface index: $intf_one error: " . $SNMP->error });
+					# we are done, no point in trying more
 					return 0;
+					# $S->{error} eq 'loadInfo failed for win2019-snmp: ERROR (win2019-snmp): no values collected for section(s) standard!'
+					# $SNMP->error eq 'Received noSuchName(2) error-status at error-index 1'
+
+				}
+				else 
+				{
+					# snmp failed
+					$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error} );
+
+					if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
+					{
+						$self->nmisng->log->debug2(sub {"Finished (stop polling on error)"});
+						return 0;
+					}
 				}
 			}
 		}
@@ -3495,7 +3509,7 @@ sub update_intf_info
 				$inventory->data_info( subconcept => 'interface', enabled => 1 );
 				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
-				my ( $op, $error ) = $inventory->save( node => $self );
+				my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error( "Failed to save inventory:"
 																	 . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -3858,7 +3872,8 @@ sub collect_intf_data
 
 		# this returns an inventory object (or undef on error/nonexistent)...
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
-		if (!defined $maybenew)
+		#  maybenew can be 0 unfortunately
+		if (!$maybenew)
 		{
 			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
@@ -4015,8 +4030,10 @@ sub collect_intf_data
 			# relevant transition === entering or leaving up state
 			# breaks when seeing lowerLayerDown
 			# worker[4031185] Interface 563, oper status changed from lowerLayerDown to lowerLayerDown, needs update
-			if (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
-					or ($newstatus !~ /^(up|ok|dormant)$/))
+			# NOTE: MD this was creating many log warnings for 'down' to 'down' so I'm changing this at the same time as
+			# other issuess
+			if ( $newstatus ne $prevstatus and (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
+					or ($newstatus !~ /^(up|ok|dormant)$/)) )
 			{
 				$self->nmisng->log->info("Interface $index, oper status changed from $prevstatus to $newstatus, needs update");
 				$thisif->{_needs_update} = 1;
@@ -4037,7 +4054,8 @@ sub collect_intf_data
 
 		# this returns an inventory object (or undef if removed/error)...
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
-		if (!defined $maybenew)
+		#  maybenew can be 0 unfortunately
+		if (!$maybenew)
 		{
 			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
@@ -4779,7 +4797,7 @@ sub collect_systemhealth_info
 					}
 	
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1 );
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -4857,7 +4875,7 @@ sub collect_systemhealth_info
 					$self->nmisng->log->debug2( "SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: "
 							. $SNMP->error );
 				}
-				elsif( $SNMP->error =~ /incorrect syntax/ )
+				elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
 				{
 					# error converting the name to an OID shouldn't trigger SNMP Down
 					$self->nmisng->log->error( "Model Error, $S->{name}) on get systemHealth $section index table: "
@@ -4949,7 +4967,7 @@ sub collect_systemhealth_info
 					}
 					
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -5149,7 +5167,7 @@ sub handle_sys_get_data_error
 		$self->nmisng->log->warn( "$message SNMP Object Not Present, error: ". $SNMP->error );
 		return 1;
 	}
-	elsif( $SNMP->error =~ /incorrect syntax/ )
+	elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
 	{
 		# error converting the name to an OID shouldn't trigger SNMP Down
 		$self->nmisng->log->error( "$message Model Error, error: " . $SNMP->error );
@@ -5647,7 +5665,7 @@ sub collect_cbqos_info
 						$inventory->data_info( subconcept => $classname, enabled => 0 );
 					}
 
-					my ( $op, $error ) = $inventory->save( node => $self );
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 							if ($error);
@@ -6700,7 +6718,7 @@ sub update
 			$old_data->{'last_update_attempt'} = Time::HiRes::time;
 		
 			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self );
+			my ($save, $error2) = $inventory->save( node => $self , update => 1);
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
 		} else {
@@ -6901,7 +6919,7 @@ sub update
 				$self->nmisng->log->debug("Plugin $plugin indicated no changes");
 			}
 		}
-		if ( !NMISNG::Util::getbool($C->{disable_interfaces_summary}) )
+		if ( NMISNG::Util::getbool($C->{enable_interfaces_summary}) )
 		{
 			$self->nmisng->log->debug("Running the Update Links subroutine");
 			$self->nmisng->update_links();
@@ -6965,9 +6983,7 @@ sub update_concepts
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
 
-	my $inventory = $self->inventory_concepts();
-	my %concepts;
-	
+
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
 		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
@@ -6979,6 +6995,15 @@ sub update_concepts
 		return 0;
 	}
 
+	my ($inventory, $error) = $self->inventory_concepts();
+	if($error)
+	{
+		$self->nmisng->log->error("update_concepts failed to get inventory for node: '$name', error: $error");
+		return 0;
+	}
+
+	my %concepts;
+	
 	# get the default (sub)sections from config, model can override
 	my @healthSections = split(
 		",",
@@ -7724,7 +7749,7 @@ sub collect_services
 			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
 			# i think disabled here makes sense
 			$processinventory->data_info( subconcept => 'snmp_services', enabled => 0 );
-			(my $op, $error) = $processinventory->save( node => $self );
+			(my $op, $error) = $processinventory->save( node => $self , update => 1);
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
 			$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, node => $self,
 																								 subconcept => 'snmp_services');
@@ -8672,8 +8697,9 @@ sub collect
 													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
 		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
 		
-		my $old_data = $inventory->data();
-		if ($old_data) {
+		if (!$error) 
+		{
+			my $old_data = $inventory->data();
 			my $polltime = Time::HiRes::time;
 			$old_data->{'last_poll_snmp_attempt'} = $polltime;
 			$old_data->{'last_poll_wmi_attempt'} = $polltime;
@@ -8683,8 +8709,10 @@ sub collect
 			my ($save, $error2) = $inventory->save( node => $self );
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
-		} else {
-			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
+		} 
+		else 
+		{
+			$self->nmisng->log->error("Failed to get inventory for node $name failed, $error");
 		}
 		
 		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
@@ -8739,7 +8767,7 @@ sub collect
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
 		# collect will have to wait until a next run...
-		$catchall_inventory->save( node => $self );
+		$catchall_inventory->save( node => $self  );
 		return $res;
 	}
 

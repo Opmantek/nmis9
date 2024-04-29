@@ -30,7 +30,7 @@
 # find all duplicate catchall documents, remove both so a new one can be 
 # created
 use strict;
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {

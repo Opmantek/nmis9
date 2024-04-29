@@ -147,7 +147,7 @@ sub update_plugin
 						subconcept => "Juniper_CoS",
 						enabled => 0
 					);
-					my ( $op, $subError ) = $inventory->save( node => $node );
+					my ( $op, $subError ) = $inventory->save( node => $node ); # update not required
 					if ($subError)
 					{
 						$NG->log->error("Failed to unmanage inventory for Class of Service Index '$index': $subError");
@@ -183,7 +183,7 @@ sub update_plugin
 			$NG->log->debug2(sub {"jnxCoStable: cosDescription = '$juniperCoSData->{cosDescription}'"});
 			$NG->log->debug("jnxCoStable: update_plugin: Found COS Entry with interface '$juniperCoSData->{IntName}' and '$juniperCoSData->{jnxCosFcName}'.");
 			# The above has added data to the inventory, that we now save.
-			my ( $op, $subError ) = $inventory->save( node => $node );
+			my ( $op, $subError ) = $inventory->save( node => $node ); # update not required
 			if ($subError)
 			{
 				$NG->log->error("Failed to save inventory for Class of Service Index '$index': $subError");

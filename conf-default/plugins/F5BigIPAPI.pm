@@ -410,7 +410,7 @@ sub update_plugin
 													data => $dbname) if ($dbname);
 
 		# the above will put data into inventory, so save
-		my ( $op, $subError ) = $subInventory->save( node => $node );
+		my ( $op, $subError ) = $subInventory->save( node => $node, update => 1 );
 		if ($subError)
 		{
 			$NG->log->error("Failed to save Concept '$virtSvrConcept' inventory for Virtual Server '$name': $subError");
@@ -497,7 +497,7 @@ sub update_plugin
 																	subconcept => $poolConcept,
 																	data => $dbname) if ($dbname);
 					# the above will put data into inventory, so save
-					my ( $op, $subError ) = $subMemberInventory->save( node => $node );
+					my ( $op, $subError ) = $subMemberInventory->save( node => $node, update => 1 );
 					if ($subError)
 					{
 						$NG->log->error("Failed to save '$poolConcept' inventory for Virtual Server Pool '$poolName'; Member '$memberName'; Error: $subError");

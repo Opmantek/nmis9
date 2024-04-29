@@ -228,7 +228,7 @@ sub collect_plugin
 			}		
 
 			# The above has added data to the inventory, that we now save.
-			my ( $op, $saveError ) = $inventory->save( node => $node );
+			my ( $op, $saveError ) = $inventory->save( node => $node ); # update => 1 not required
 			$NG->log->debug2(sub { "saved op: $op"});
 			if ($saveError)
 			{

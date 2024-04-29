@@ -148,7 +148,7 @@ sub inventory
 {
 	my ($self,%args) = @_;
 	my $node = $self->nmisng_node;
-	my ($concept,$index,$partial,$data,$nolog) = @args{'concept','index','partial','data','nolog'};
+	my ($concept,$index,$partial,$data,$nolog,$historic) = @args{'concept','index','partial','data','nolog','historic'};
 	return if(!$node);
 	return if(!$concept);
 
@@ -188,7 +188,8 @@ sub inventory
 	my ($inventory,$error_message);
 	if( ref($path) eq 'ARRAY' )
 	{
-		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path);
+		# historic here can be undef and is ignored by the search
+		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, filter => { historic => $historic });
 		if( !$inventory && $concept eq 'catchall' )
 		{
 			# catchall can/should be created if not found, it's better to create it here so whoever needs it can get it
@@ -2114,7 +2115,7 @@ sub parseString
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
-		$inventory ||= $self->inventory( concept => $sect, index => $indx, item => $itm, nolog => 1 );
+		$inventory ||= $self->inventory( concept => $sect, index => $indx, item => $itm, nolog => 1, historic => 0 );
 		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
 		my $rebuilt;

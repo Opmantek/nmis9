@@ -62,7 +62,7 @@ sub collect_plugin
 		return (0, "combinedCPULoad: SNMP Down, skipping Host Resources plugin");
 	}
 	else {
-		$NG->log->info("combinedCPULoad: Running Combined CPU Load plugin for node::$node");
+		$NG->log->debug("combinedCPULoad: Attempting Combined CPU Load plugin for node::$node");
 	}
 
 	my $host_ids = $S->nmisng_node->get_inventory_ids(
@@ -71,6 +71,7 @@ sub collect_plugin
 	
 	if (@$host_ids)
 	{
+		$NG->log->info("combinedCPULoad: Running Combined CPU Load plugin for node::$node");
 		$NG->log->info("combinedCPULoad: Working on $node Combined CPU Calculations");
 		# for saving all the types of memory we want to use
 		my $cpu_total   = 0;
