@@ -93,19 +93,30 @@ sub validate_IP_addr
     
     my $node_configuration = $node->configuration;
     
-    ## convert the host and backup host, to ip and backup ip address. 
-    my ($ip, $bkp_ip);
-    if ($node_configuration->{ip_protocol} eq 'IPv6')
-	{
-		$ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
-        $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
-	}
-	else
-	{
-		$ip = NMISNG::Util::resolveDNStoAddr($host);
-        $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
-	}
 
+    ## check if its a host name or ip or not.
+      my ($ip, $bkp_ip);
+        if ($host =~ /^\d+.\d+.\d+\.\d+$/ || $host_backup =~ /^\d+.\d+.\d+\.\d+$/ ){
+            $ip = $host;
+            $bkp_ip = $host_backup;
+        }
+        else{
+            ## convert the host and backup host, to ip and backup ip address. 
+            if ($node_configuration->{ip_protocol} eq 'IPv6')
+	        {
+		        $ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
+                $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
+	        }
+	        else
+	        {
+		        $ip = NMISNG::Util::resolveDNStoAddr($host);
+                $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
+	        }
+        }
+    #
+    
+  
+  
 
     my $data = $model_data->data();
     if (@{$data}){
@@ -161,17 +172,24 @@ sub db_ip_check
     
     ## convert the host and backup host, to ip and backup ip address. 
     my ($ip, $bkp_ip);
-    if ($node_configuration->{ip_protocol} eq 'IPv6')
-	{
-		$ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
-        $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
-	}
-	else
-	{
-		$ip = NMISNG::Util::resolveDNStoAddr($host);
-        $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
-	}
-
+    
+    
+    if ($host =~ /^\d+.\d+.\d+\.\d+$/ || $host_backup =~ /^\d+.\d+.\d+\.\d+$/ ){
+        $ip = $host;
+        $bkp_ip = $host_backup;
+    }
+    else{
+        if ($node_configuration->{ip_protocol} eq 'IPv6')
+	    {
+		    $ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
+            $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
+	    }
+	    else
+	    {
+		    $ip = NMISNG::Util::resolveDNStoAddr($host);
+            $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
+	    }
+    }
 
     ## query part for or and and.
     my $query = NMISNG::DB::get_query(
@@ -180,7 +198,9 @@ sub db_ip_check
 										
                                         or_part => {
                                             'data.host_addr' => $ip ,
-                                            'data.host_addr_backup' => $bkp_ip 
+                                            'data.host_addr_backup' => $bkp_ip,
+                                            'data.host' => $ip,
+                                            'data.host_backup' => $bkp_ip 
                                         }
                                     );
 
@@ -190,7 +210,9 @@ sub db_ip_check
                         'node_uuid' => 1,
                         'concept'  => 1,
                         'data.host_addr' => 1,
-                        'data.host_addr_backup' => 1
+                        'data.host_addr_backup' => 1,
+                        'data.host' => 1,
+                        'data.host_backup' => 1,
                     };
 
 
@@ -210,7 +232,13 @@ sub db_ip_check
     # if entries exist , then grab the node names and send it through.
     if (@all){
         foreach my $entry(@all){
-            my $linked_data = "$entry->{node_name} ($entry->{data}->{host_addr},$entry->{data}->{host_addr_backup})";
+            my $linked_data;
+            if ($entry->{data}->{host_addr} || $entry->{data}->{host_addr_backup}){
+                $linked_data = "$entry->{node_name} ($entry->{data}->{host_addr},$entry->{data}->{host_backup})";
+            }
+            else {
+                $linked_data = "$entry->{node_name} ($entry->{data}->{host},$entry->{data}->{host_backup})";
+            }
             push @names,$linked_data;
         }
         return(@names,0);
