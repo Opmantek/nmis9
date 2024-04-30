@@ -3661,6 +3661,11 @@ sub collect_intf_data
 		return 1;
 	}
 
+	# we may want to do this at some point, the ifTableLastChange could be used to turn this on
+	# every few cycles. For now attempting to update all historic interfaces every poll cycle
+	# is causing too many issues
+	my $attempt_to_update_historic_interfaces = 0;
+
 	$self->nmisng->log->debug2(sub {"Starting Interface get data for node $nodename"});
 
 	# adminstatus only uses 1..3 , operstatus can have all 1..7.
@@ -3794,8 +3799,8 @@ sub collect_intf_data
 
 		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
 
-		# new interface, or existing interface which is historic, no current inventory yet?
-		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
+		# new interface (no current inventory yet?), or existing interface which is historic and attempt_to_update_historic_interfaces is on
+		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} and $attempt_to_update_historic_interfaces ))
 		{
 			$self->nmisng->log->info("($nodename) Interface $index is new, needs update");
 			$thisif->{_needs_update} = 1;
@@ -3874,8 +3879,11 @@ sub collect_intf_data
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
 			next;
 		}
-		# ...which MAY be different from the one we've got in the if_data_map
-		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
+		# ...which MAY be different from the one we've got in the if_data_map, 
+		# it has no id (how?) or it does and the newly updated one is different, update the if_data_map
+		# if it's got an id and it's marked historic we also need $attempt_to_update_historic_interfaces to be on
+		# in that case update it's data (which turns it back on?)
+		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} and $attempt_to_update_historic_interfaces ))
 		{
 			$self->nmisng->log->debug2("($nodename) Interface index $needsmust "
 																 .(defined($thisif->{_id})? "has changed substantially" : "is new")
