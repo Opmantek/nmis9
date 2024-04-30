@@ -174,7 +174,7 @@ sub collect_plugin
 	}
 	else
 	{
-		$NG->log->info("Running Cisco Memory/CPU collect plugin for Node '$node', Model '$catchall->{nodeModel}'.");
+		$NG->log->debug("Running Cisco Memory/CPU collect plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 	}
 
 	# Node must have have data for entityMib to be relevant
@@ -196,7 +196,8 @@ sub collect_plugin
 
 	if (!keys %emibData)
 	{
-		$NG->log->error("Failed to get 'entityMib' indices for Node '$node'!");
+		# this isn't an error, there may not be any
+		$NG->log->debug("Failed to get 'entityMib' indices for Node '$node'!");
 		return (0,"Failed to get 'entityMib' indices for Node '$node'!");
 	}
 
@@ -455,7 +456,7 @@ sub collect_plugin
 					data       => $rrdData,
 					item       => undef);
 	my ( $op, $error ) = $inventory->save( node => $node );
-	$NG->log->info( "saved op: $op");
+	$NG->log->debug( "saved op: $op");
 	if ($error)
 	{
 		$NG->log->error("Failed to save inventory for Node '$node'; Error: $error");
@@ -466,11 +467,11 @@ sub collect_plugin
 	}
 	if ($changesweremade)
 	{
-		$NG->log->info("CPU/Memory collection was successful.");
+		$NG->log->debug("CPU/Memory collection was successful.");
 	}
 	else
 	{
-		$NG->log->info("No CPU/Memory collections were made.");
+		$NG->log->debug("No CPU/Memory collections were made.");
 	}
 
 	return ($changesweremade,undef);							# happy, and changes were made so save view and nodes file
