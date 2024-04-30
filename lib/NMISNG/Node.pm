@@ -976,8 +976,8 @@ sub inventory
 		{
 			# sort above ensures that we return the same 'first' object every time,
 			# even in that clash/duplicate case
-			$self->nmisng->log->warn("Inventory search returned more than one value, using the first!");
-			$self->nmisng->log->debug6(sub {"Inventory search returned more than one value, using the first!".Dumper(\%args)});
+			$self->nmisng->log->debug("Inventory search returned more than one value, using the first!");
+			$self->nmisng->log->debug2(sub {"Inventory search returned more than one value, using the first!".Dumper(\%args)});
 			# HOWEVER, if we can we'll return the first non-historic object
 			# as the most useful of all bad choices
 			my $rawdata = $model_data->data; # inefficient is fine here
@@ -1589,7 +1589,7 @@ sub save
 		$self->nmisng->log->debug7(sub {"Update return: ". Dumper($result) . "\n"});
 	}
 	
-	# Audit 
+	# Audit, update catchall if we can
 	if ($result->{success}) {
 		my $audit_enabled = NMISNG::Util::getbool($self->nmisng->config->{audit_enabled}) // 1;
 		NMISNG::Util::audit_log(who => $meta->{who},
@@ -1599,8 +1599,33 @@ sub save
 						details => $meta->{details},
 						when => $saveTime) if ($audit_enabled);
 
+		
+		# This code creates/updates catchall on save, this has been commented out for the moment because
+		# adding a new node on a primary should not create a catchall on the primary (which this would do)
+
+		# if we can lock the node then update host info and it's catchall, for new nodes this should work
+		# every time (which is what we are most concerned about)
+		# NOTE: this will create a catchall for a new node
+		# $self->nmisng->log->debug2(sub {"Getting lock for node to update host_addr and sync catchall $entry{name}"});
+		# my $lock = $self->lock(type => 'update');
+		# if( !$lock->{error} && !$lock->{conflict} ) 
+		# {
+		# 	my $path = $self->inventory_path(concept => "catchall", data => {}, path_keys => []);
+		# 	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", path => $path, path_keys => [], create => 1 );
+		# 	if( !$error ) 
+		# 	{
+		# 		my $catchall_data = $catchall_inventory->data_live();
+		# 		$self->update_host_addr( catchall_data => $catchall_data );
+		# 		$self->sync_catchall( cache => $catchall_inventory );
+		# 		$self->unlock(lock => $lock);
+		# 	}
+		# 	else 
+		# 	{
+		# 		$self->nmisng->log->warn(sub {"Node::save failed to get catchall so cannot sync: $error"});	
+		# 	}
+		# }
 	}
-	
+
 	$self->nmisng->log->debug2(sub {"Return code: $op"});
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
@@ -1626,46 +1651,29 @@ sub sync_catchall
 	{
 		$self->nmisng->log->debug3(sub {"Synchronizong 'catchall"});
 		my $catchall_data = $catchall_inventory->data_live();
+
+		# this prop changes names
 		$catchall_data->{last_node_config_update} = $self->{_lastupdate};
-		$catchall_data->{active} = $self->configuration->{active};
-		$catchall_data->{addresses} = $self->configuration->{addresses};
-		$catchall_data->{aliases} = $self->configuration->{aliases};
-		$catchall_data->{businessService} = $self->configuration->{businessService};
-		$catchall_data->{cbqos} = $self->configuration->{cbqos};
-		$catchall_data->{collect} = $self->configuration->{collect};
-		$catchall_data->{context} = $self->configuration->{context};
-		$catchall_data->{customer} = $self->configuration->{customer};
-		$catchall_data->{depend} = $self->configuration->{depend};
-		$catchall_data->{display_name} = $self->configuration->{display_name};
-		$catchall_data->{group} = $self->configuration->{group};
-		$catchall_data->{host} = $self->configuration->{host};
-		$catchall_data->{host_backup} = $self->configuration->{host_backup};
-		$catchall_data->{ip_protocol} = $self->configuration->{ip_protocol};
-		$catchall_data->{location} = $self->configuration->{location};
-		$catchall_data->{max_msg_size} = $self->configuration->{max_msg_size};
-		$catchall_data->{max_repetitions} = $self->configuration->{max_repetitions};
-		$catchall_data->{model} = $self->configuration->{model};
-		$catchall_data->{netType} = $self->configuration->{netType};
-		$catchall_data->{node_context_name} = $self->configuration->{node_context_name};
-		$catchall_data->{node_context_url} = $self->configuration->{node_context_url};
-		$catchall_data->{notes} = $self->configuration->{notes};
-		$catchall_data->{ping} = $self->configuration->{ping};
-		$catchall_data->{pollers} = $self->configuration->{pollers};
-		$catchall_data->{polling_policy} = $self->configuration->{polling_policy};
-		$catchall_data->{port} = $self->configuration->{port};
-		$catchall_data->{remote_connection_name} = $self->configuration->{remote_connection_name};
-		$catchall_data->{remote_connection_url} = $self->configuration->{remote_connection_url};
-		$catchall_data->{roleType} = $self->configuration->{roleType};
-		$catchall_data->{serviceStatus} = $self->configuration->{serviceStatus};
-		$catchall_data->{services} = $self->configuration->{services};
-		$catchall_data->{sysDescr} = $self->configuration->{sysDescr};
-		$catchall_data->{threshold} = $self->configuration->{threshold};
-		$catchall_data->{timezone} = $self->configuration->{timezone};
-		$catchall_data->{username} = $self->configuration->{username};
-		$catchall_data->{version} = $self->configuration->{version};
-		$catchall_data->{webserver} = $self->configuration->{webserver};
-		$catchall_data->{wmidomain} = $self->configuration->{wmidomain};
-		$catchall_data->{wmiversion} = $self->configuration->{wmiversion};
+		# these are nice to have in there right from the start, it is set somewhere else
+		# i'm not sure where but adding them here as well
+		$catchall_data->{name} = $self->name;
+		$catchall_data->{uuid} = $self->uuid;
+		
+		# these props all go to the same name
+		my @copy_props = qw(active addresses aliases businessService cbqos collect context customer depend display_name group host host_backup 
+			ip_protocol location max_msg_size max_repetitions model netType node_context_name node_context_url notes 
+			ping pollers polling_policy port remote_connection_name remote_connection_url roleType serviceStatus services 
+			sysDescr threshold timezone username version webserver wmidomain wmiversion);
+		
+		# check the config for extra things to copy
+		my $extra_props = $self->nmisng->config->{copy_node_configuration_to_catchall_list} // [];
+		push @copy_props, @$extra_props if( ref($extra_props) eq 'ARRAY' && @$extra_props > 0 );
+
+		foreach my $prop (@copy_props) 
+		{
+			$catchall_data->{$prop} = $self->configuration->{$prop};
+		}
+		
 		my ( $op, $error ) = $catchall_inventory->save( node => $self , update => 1);
 		if ($error)
 		{
@@ -2322,34 +2330,48 @@ sub update_node_info
 	if ($success)
 	{
 		# get the current ip address if the host property was a name, ditto host_backup
-		for (["host","host_addr"], ["host_backup", "host_addr_backup"])
-		{
-			my ($sourceprop, $targetprop) = @$_;
-			my $sourceval = $self->configuration->{$sourceprop};
-			my $ip;
-			if ($self->configuration->{ip_protocol} eq 'IPv6')
-			{
-				$ip = NMISNG::Util::resolveDNStoAddrIPv6($sourceval);
-			}
-			else
-			{
-				$ip = NMISNG::Util::resolveDNStoAddr($sourceval);
-			}
-
-			if ($sourceval && ($ip))
-			{
-				$catchall_data->{$targetprop} = $ip; # cache and display
-			}
-			else
-			{
-				$catchall_data->{$targetprop} = '';
-			}
-		}
+		$self->update_host_addr( catchall_data => $catchall_data );
 	}
 	$self->nmisng->log->debug2( "update_node_info Finished "
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(nodedown snmpdown wmidown)) ) );
 
 	return { success => $success, error => \@problems };
+}
+
+# takes the host and host_backup entries, resolves them to IP addresses
+# and copies them into the catcahll with _addr_ in the middle of the name
+# NOTE: if the host value is already an IP address then nothing is copied
+#   (it's not known if this is on purpose, it seems to be as the GUI would)
+#   show the IP address twice otherwise
+# args: catchall_data
+sub update_host_addr
+{
+	my ($self,%args) = @_;
+	my $catchall_data = $args{'catchall_data'};
+
+	for (["host","host_addr"], ["host_backup", "host_addr_backup"])
+	{
+		my ($sourceprop, $targetprop) = @$_;
+		my $sourceval = $self->configuration->{$sourceprop};
+		my $ip;
+		if ($self->configuration->{ip_protocol} eq 'IPv6')
+		{
+			$ip = NMISNG::Util::resolveDNStoAddrIPv6($sourceval);
+		}
+		else
+		{
+			$ip = NMISNG::Util::resolveDNStoAddr($sourceval);
+		}
+
+		if ($sourceval && ($ip))
+		{
+			$catchall_data->{$targetprop} = $ip; # cache and display
+		}
+		else
+		{
+			$catchall_data->{$targetprop} = '';
+		}
+	}
 }
 
 # collect and updates the node info and node view structures, during collect type operation
