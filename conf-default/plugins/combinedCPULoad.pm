@@ -72,7 +72,6 @@ sub collect_plugin
 	if (@$host_ids)
 	{
 		$NG->log->info("combinedCPULoad: Running Combined CPU Load plugin for node::$node");
-		$NG->log->info("combinedCPULoad: Working on $node Combined CPU Calculations");
 		# for saving all the types of memory we want to use
 		my $cpu_total   = 0;
 		my $cpu_max     = 0;

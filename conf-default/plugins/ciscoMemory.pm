@@ -174,7 +174,7 @@ sub collect_plugin
 	}
 	else
 	{
-		$NG->log->debug("Running Cisco Memory/CPU collect plugin for Node '$node', Model '$catchall->{nodeModel}'.");
+		$NG->log->info("Running Cisco Memory/CPU collect plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 	}
 
 	# Node must have have data for entityMib to be relevant
