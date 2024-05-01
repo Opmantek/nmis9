@@ -86,10 +86,10 @@ sub validate_IP_addr
                                                         } );   
     
     if (my $error = $model_data->error)
-	{
-		$NG->log->error("Failed to get nodes model: $error");
+    {
+        $NG->log->error("Failed to get nodes model: $error");
         return ("Failed to get nodes model, Error validating IP field.");
-	}
+    }
     
     my $node_configuration = $node->configuration;
     
@@ -103,15 +103,15 @@ sub validate_IP_addr
         else{
             ## convert the host and backup host, to ip and backup ip address. 
             if ($node_configuration->{ip_protocol} eq 'IPv6')
-	        {
-		        $ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
+            {
+                $ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
                 $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
-	        }
-	        else
-	        {
-		        $ip = NMISNG::Util::resolveDNStoAddr($host);
+            }
+            else
+            {
+                $ip = NMISNG::Util::resolveDNStoAddr($host);
                 $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
-	        }
+            }
         }
     #
     
@@ -180,22 +180,22 @@ sub db_ip_check
     }
     else{
         if ($node_configuration->{ip_protocol} eq 'IPv6')
-	    {
-		    $ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
+        {
+            $ip = NMISNG::Util::resolveDNStoAddrIPv6($host);
             $bkp_ip = NMISNG::Util::resolveDNStoAddrIPv6($host_backup);
-	    }
-	    else
-	    {
-		    $ip = NMISNG::Util::resolveDNStoAddr($host);
+        }
+        else
+        {
+            $ip = NMISNG::Util::resolveDNStoAddr($host);
             $bkp_ip = NMISNG::Util::resolveDNStoAddr($host_backup);
-	    }
+        }
     }
 
     ## query part for or and and.
     my $query = NMISNG::DB::get_query(
                                         and_part => {  concept => "catchall",
                                                         node_uuid => { '$ne' => $node->uuid } },
-										
+                                        
                                         or_part => {
                                             'data.host_addr' => $ip ,
                                             'data.host_addr_backup' => $bkp_ip,
@@ -218,16 +218,16 @@ sub db_ip_check
 
     ## db query to find data in inventory.
     my $entries = NMISNG::DB::find(
-		            collection  => $NG->inventory_collection,
-		            query       => $query,
+                    collection  => $NG->inventory_collection,
+                    query       => $query,
                     fields_hash => $fields_hash                                  
                     );
 
     my @all;
-	while ( my $entry = $entries->next )
-	{
-		push @all, $entry;
-	}
+    while ( my $entry = $entries->next )
+    {
+        push @all, $entry;
+    }
 
     # if entries exist , then grab the node names and send it through.
     if (@all){
@@ -270,10 +270,10 @@ sub validate_host
                                                         } );   
     
     if (my $error = $model_data->error)
-	{
-		$NG->log->error("Failed to get nodes model: $error");
+    {
+        $NG->log->error("Failed to get nodes model: $error");
         return ("Failed to get nodes model, Error validating CI field.");
-	}
+    }
     
     my $data = $model_data->data();
     if (@{$data}){
@@ -334,10 +334,10 @@ sub db_host_check
                                                                   'configuration.device_ci' => 1
                                                         } );   
     if (my $error = $model_data->error)
-	{
-		$NG->log->error("Failed to get nodes model: $error");
+    {
+        $NG->log->error("Failed to get nodes model: $error");
         return ("Failed to get nodes model, Error validating CI field.",0);
-	}
+    }
     
     my $data = $model_data->data();
     if (@{$data}){
@@ -364,63 +364,19 @@ sub validate_ci
     my ($node, $C ,$NG,$CIF) = @args{qw(node config nmisng ci_field)};
     
      $NG->log->debug2(sub {"Validating CI field :- Checking if CI already exists or not ?"});
-
-
-    ## check if its an update or insert ?
-    my $model_data = $NG->get_nodes_model(      filter => {uuid => $node->uuid },
-                                                fields_hash => {  
-                                                                  'name' => 1, 
-                                                                  'configuration.device_ci' => 1
-                                                        } );   
-    
-    if (my $error = $model_data->error)
-	{
-		$NG->log->error("Failed to get nodes model: $error");
-        return ("Failed to get nodes model, Error validating CI field.");
-	}
-    
-    my $data = $model_data->data();
-    if (@{$data}){
-        ## UPDATE
-        $NG->log->debug2(sub {"CALLING UPDATE"});
-        if ($CIF eq $data->[0]->{configuration}->{device_ci}){
-            $NG->log->debug2(sub {"No changes in CI field, validation complete."}); 
-            return 0;
-        }
-        else{
-            ## given ci field does not match with the one present in db.
-            ## check if the field exists in db for any other node or not ?
-
-            my ($error,$status) = db_ci_check(nmisng=> $NG,custom_field => $CIF);
-            if ($status){
-                ## all good CI does not exist anywhere
-                $NG->log->debug2(sub {"No changes in CI field, validation complete."}); 
-                return 0;
-            }
-            else{
-                $message = "CI field already present in nodes:- ".$error;
-                $NG->log->debug2(sub {$message}); 
-                return ($message);
-            }
-        }
-
+    if( $CIF eq '' )
+    {
+        return "ci_field cannot be empty";
     }
-    else{
-         $NG->log->debug2(sub {"CALLING INSERT"});
-           ## check if the field exists in db for any other node or not ?
-
-            my ($error,$status) = db_ci_check(nmisng=> $NG,custom_field => $CIF);
-            if ($status){
-                ## all good CI does not exist anywhere
-                $NG->log->debug2(sub {"CI field does not exists in database, validation complete."}); 
-                return 0;
-            }
-            else{
-                $message = "CI field already present in nodes:- ".$error;
-                $NG->log->debug2(sub {$message}); 
-                return ($message);
-            }
+    # look to see if any nodes exist with same ci value
+    my (@nodes,$status) = db_ci_check(nmisng=> $NG,custom_field => $CIF);
+    foreach $found_node (@nodes) {
+        # if there is a node and it has a different uuid then we have a conflict
+        if( $found_node->{uuid} ne $node->uuid) {
+            return ($found_node->{name});
         }
+    }
+    return 0;
 }
  
 
@@ -435,28 +391,27 @@ sub db_ci_check
     my $model_data = $NG->get_nodes_model( filter => {'configuration.device_ci' => $custom_field },
                                                 fields_hash => {  
                                                                   'name' => 1, 
+                                                                  'uuid' => 1,
                                                                   'configuration.device_ci' => 1
                                                         } );   
     if (my $error = $model_data->error)
-	{
-		$NG->log->error("Failed to get nodes model: $error");
+    {
+        $NG->log->error("Failed to get nodes model: $error");
         return ("Failed to get nodes model, Error validating CI field.",0);
-	}
+    }
     
     my $data = $model_data->data();
     if (@{$data}){
-        my @names;
+        my @nodes;
         foreach my $entry(@{$data}){
-            push @names,$entry->{name};
+            push @nodes,$entry;
         }
-        return(@names,0);
+        return(@nodes,0);
     }
     else{
         ## all good it does not exist anywhere else.
         return (undef,1);
     }
-    
-
 }
 
 
