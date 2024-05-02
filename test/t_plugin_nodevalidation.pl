@@ -41,8 +41,8 @@ use lib "$FindBin::Bin/../lib";
 
 use File::Copy;
 use Test::More;
-use Test::Deep;
 use Data::Dumper;
+use Test::Deep;
 
 use NMISNG;
 use NMISNG::Node;
@@ -53,12 +53,14 @@ my $C = NMISNG::Util::loadConfTable();
 
 my $node_name = "node0";
 my $node_name1 = "node1";
+my $node_name2 = "node2";
 
 # modify dbname to be time specific for this test
 $C->{db_name} = "t_nmisng-" . time;
 
 # log to stdout
-my $logger = NMISNG::Log->new( level => 'debug' );
+my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
+                                                                 debug => 1 ));
 
 my $nmisng = NMISNG->new(
 	config => $C,
@@ -170,13 +172,51 @@ cmp_deeply( [$node2->save], [-1, ignore], "Saving node with different host, save
 # update device_ci on second node to be unique but different
 my $configuration = $node2->configuration();
 $configuration->{host} = '1.2.3.3';
+$configuration->{host_backup} = '1.2.3.4';
 $node2->configuration($configuration);
-cmp_deeply( [$node2->save], [2, undef], "Saving node with different host, save is successful" );
+cmp_deeply( [$node2->save], [2, undef], "Saving node with different host and backup host, save is successful" );
 
-# my ($is_valid,$reason) = $node2->validate();
-# print "is_valid:$is_valid, reason:$reason\n";
 
-# start tsting the duplicate ip addresses
+my $path = $node2->inventory_path(concept => "catchall", data => {}, path_keys => []);
+my ($catchall_inventory, $error) =  $node2->inventory( concept => "catchall", path => $path, path_keys => [], create => 1 );
+if( !$error ) 
+{
+	my $catchall_data = $catchall_inventory->data_live();	
+	$node2->sync_catchall( cache => $catchall_inventory );
+	$catchall_inventory->save();
+}
+
+# add third node:
+my $node3 = NMISNG::Node->new(
+	uuid   => NMISNG::Util::getUUID(),
+	nmisng => $nmisng,
+);
+$node3->name($node_name2);
+$node3->cluster_id(1);
+$node3->configuration( {					
+						host => "1.2.3.7",
+						host_backup => "1.2.3.4",
+						group => "somegroup",
+						netType => "default",
+						roleType => "default",
+						threshold => 1,
+						device_ci => 'abc126' } );
+
+
+cmp_deeply( [$node3->validate], [-1, re(qr/monitoring address is already present/)], "Validation failed for ".$node3->name );
+
+my $configuration = $node3->configuration();
+
+## change the configuration of backup host.
+$configuration->{host_backup} = '1.2.3.8';
+
+$node3->configuration($configuration);
+
+cmp_deeply( [$node3->save], [1, undef], "Saving node with different backup host, save is successful" );
+
+
+
+
 
 
 if (-t \*STDIN)
