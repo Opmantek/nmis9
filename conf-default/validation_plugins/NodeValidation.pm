@@ -30,6 +30,9 @@
 package NodeValidation;
 our $VERSION = "2.0.1";
 
+# what this validates:
+#  device_ci - should be unique and present on each node
+#  host - 
 
 use Data::Dumper;
 
@@ -261,115 +264,9 @@ sub validate_host
     my ($node, $C ,$NG,$host) = @args{qw(node config nmisng current_host)};
     
     $NG->log->debug2(sub {"Validating Host :- Checking if Hostname is already registered or not ?"});
-
-      ## check if its an update or insert ?
-    my $model_data = $NG->get_nodes_model(      filter => {uuid => $node->uuid },
-                                                fields_hash => {  
-                                                                  'name' => 1, 
-                                                                  'configuration.host' => 1
-                                                        } );   
-    
-    if (my $error = $model_data->error)
-    {
-        $NG->log->error("Failed to get nodes model: $error");
-        return ("Failed to get nodes model, Error validating CI field.");
-    }
-    
-    my $data = $model_data->data();
-    if (@{$data}){
-        ## UPDATE
-        # $NG->log->info("CALLING UPDATE");
-        if ($host eq $data->[0]->{configuration}->{host}){
-            $NG->log->debug2(sub {"No changes in host, validation complete."}); 
-            return 0;
-        }
-        else{
-
-            ## given host does not match with the one present in db.
-            ## check if the host exists in db for any other node or not ?
-
-            my ($error,$status) = db_host_check(nmisng=> $NG,host => $host);
-            if ($status){
-                ## all good host does not exist anywhere
-                $NG->log->debug2(sub {"No changes in CI field, validation complete."}); 
-                return 0;
-            }
-            else{
-                
-                $message = "HOST is already present in nodes:- ".$error;
-                $NG->log->debug2(sub {$message}); 
-                return ($message);
-            }
-
-        }
-    }
-    else{
-        ## INSERT
-        # $NG->log->info("CALLING INSERT");
-        my ($error,$status) = db_host_check(nmisng=> $NG,host => $host);
-        if ($status){
-            ## all good Host does not exist anywhere
-            $NG->log->debug2(sub {"Host does not exists in database, validation complete."}); 
-            return 0;
-        }
-        else{
-            $message = "HOST is already present in nodes:- ".$error;
-            $NG->log->debug2(sub {$message}); 
-            return ($message);
-        }
-    }
-
-}
-## db check for host.
-## this sub check if host exists in db or not ?
-sub db_host_check
-{
-    my (%args) = @_;
-    my ($NG,$host) = @args{nmisng,host};
-
-     ## check if the host is present in db for any node 
-    my $model_data = $NG->get_nodes_model( filter => {'configuration.host' => $host },
-                                                fields_hash => {  
-                                                                  'name' => 1, 
-                                                                  'configuration.device_ci' => 1
-                                                        } );   
-    if (my $error = $model_data->error)
-    {
-        $NG->log->error("Failed to get nodes model: $error");
-        return ("Failed to get nodes model, Error validating CI field.",0);
-    }
-    
-    my $data = $model_data->data();
-    if (@{$data}){
-        my @names;
-        foreach my $entry(@{$data}){
-            push @names,$entry->{name};
-        }
-        return(@names,0);
-    }
-    else{
-        ## all good it does not exist anywhere else.
-        return (undef,1);
-    }
-    
-
-}
-
-
-# return error if custom field exists in db , 
-# return 0 if custom field does not exists in db.
-sub validate_ci
-{
-    my (%args) = @_;
-    my ($node, $C ,$NG,$CIF) = @args{qw(node config nmisng ci_field)};
-    
-     $NG->log->debug2(sub {"Validating CI field :- Checking if CI already exists or not ?"});
-    if( $CIF eq '' )
-    {
-        return "ci_field cannot be empty";
-    }
+      
     # look to see if any nodes exist with same ci value
-    my (@nodes,$status) = db_ci_check(nmisng=> $NG,custom_field => $CIF);
+    my (@nodes,$status) = db_check(nmisng=> $NG,filter_value => $host, filter_key => 'configuration.host' );
     foreach $found_node (@nodes) {
         # if there is a node and it has a different uuid then we have a conflict
         if( $found_node->{uuid} ne $node->uuid) {
@@ -378,22 +275,21 @@ sub validate_ci
     }
     return 0;
 }
- 
 
-## db check for ci field.
-## this checks if custom field exists in db or not ?
-sub db_ci_check
+## db check for host.
+## this sub check if host exists in db or not ?
+sub db_check
 {
     my (%args) = @_;
-    my ($NG,$custom_field) = @args{nmisng,custom_field};
+    my ($NG,$filter_value,$filter_key) = @args{nmisng,filter_value,filter_key};
 
-     ## check if the ci field is present in db for any node 
-    my $model_data = $NG->get_nodes_model( filter => {'configuration.device_ci' => $custom_field },
+     ## check if the host is present in db for any node 
+    my $model_data = $NG->get_nodes_model( filter => { $filter_key => $filter_value },
                                                 fields_hash => {  
                                                                   'name' => 1, 
                                                                   'uuid' => 1,
                                                                   'configuration.device_ci' => 1
-                                                        } );   
+                                                        } );
     if (my $error = $model_data->error)
     {
         $NG->log->error("Failed to get nodes model: $error");
@@ -415,6 +311,29 @@ sub db_ci_check
 }
 
 
+# return error if custom field exists in db , 
+# return 0 if custom field does not exists in db.
+sub validate_ci
+{
+    my (%args) = @_;
+    my ($node, $C ,$NG,$CIF) = @args{qw(node config nmisng ci_field)};
+    
+     $NG->log->debug2(sub {"Validating CI field :- Checking if CI already exists or not ?"});
+    if( $CIF eq '' )
+    {
+        return "ci_field cannot be empty";
+    }
+    # look to see if any nodes exist with same ci value
+    my (@nodes,$status) = db_check(nmisng=> $NG,filter_value => $CIF, filter_key => 'configuration.device_ci' );
+    foreach $found_node (@nodes) {
+        # if there is a node and it has a different uuid then we have a conflict
+        if( $found_node->{uuid} ne $node->uuid) {
+            return ($found_node->{name});
+        }
+    }
+    return 0;
+}
+ 
 ## dummy sub , which can be called by Node.pm for some other functionality .
 sub create_valid
 {

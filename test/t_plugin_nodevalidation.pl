@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 
-# Test NMISNG Node functions
+# Test NMISNG Node plugin NodeValidation features
 #  uses nmisng object for convenience
 #  creates (and removes) a mongo database called t_nmisg-<timestamp>
 #  in whatever mongodb is configured in ../conf/
@@ -141,7 +141,7 @@ cmp_deeply( [$node2->save], [re(qr/^-\d/), ignore], "Node with duplicate device_
 my $configuration = $node2->configuration();
 $configuration->{device_ci} = 'abc124';
 $node2->configuration($configuration);
-cmp_deeply( [$node2->save], [1, undef], "Saving node with different device_ci, save is successful" );
+cmp_deeply( [$node2->save], [1, undef], "Saving node with different device_ci, save is successful" ) or diag;
 
 
 # update device_ci on second node to duplicate
@@ -157,8 +157,27 @@ $configuration->{device_ci} = 'abc125';
 $node2->configuration($configuration);
 cmp_deeply( [$node2->save], [2, undef], "Saving node with different device_ci, save is successful" );
 
+
+# make sure host values must be unique
+# we already have two unique values, changing one to be a duplicate should be all that is needed
+# update device_ci on second node to duplicate
+my $configuration = $node2->configuration();
+$configuration->{host} = '1.2.3.4';
+$node2->configuration($configuration);
+cmp_deeply( [$node2->validate], [re(qr/^-\d/),$node_name], "Update node with duplicate host is not valid" );
+cmp_deeply( [$node2->save], [-1, ignore], "Saving node with different host, save not successful" );
+
+# update device_ci on second node to be unique but different
+my $configuration = $node2->configuration();
+$configuration->{host} = '1.2.3.3';
+$node2->configuration($configuration);
+cmp_deeply( [$node2->save], [2, undef], "Saving node with different host, save is successful" );
+
 # my ($is_valid,$reason) = $node2->validate();
 # print "is_valid:$is_valid, reason:$reason\n";
+
+# start tsting the duplicate ip addresses
+
 
 if (-t \*STDIN)
 {
