@@ -89,7 +89,7 @@ sub new
 			_db      => $args{db},
 			_existing_timed_collections => $args{existing_timed_collections} // {},
 			_log     => $args{log},
-			_plugins => undef,           # sub plugins populates that on the go
+			_plugins => undef,            # sub plugins populates that on the go
 		},
 		$class
 	);
@@ -1422,6 +1422,24 @@ sub ensure_indexes
 	);
 	$self->log->error("index setup failed for nodes: $err") if ($err);
 	
+
+	## add in custom indices
+	
+	my $custom_indexes = $self->config->{custom_indexes};
+	if ($custom_indexes){
+		$self->log->info("NMISNG adding custom_indexes");
+		foreach my $entry (keys %{$custom_indexes}){
+			$self->log->info("Adding custom_index for $entry");
+			$err = NMISNG::DB::ensure_index(
+				collection    => $self->{'_db_'.$entry},
+				drop_unwanted => $drop_unwanted,
+				indices  => $custom_indexes->{$entry}
+			);
+			$self->log->error("index setup failed for $entry: $err") if ($err);
+		}		
+		$self->log->info("NMISNG end of custom_index");
+	}
+	
 	$self->log->info("NMISNG end of ensure_indexes");
 	return;
 }
@@ -2070,7 +2088,6 @@ sub get_inventory_model_query
 			map { $queryinputs{$_} = $args{filter}->{$_}; } ( keys %{$args{filter}} );
 		}
 		$q = NMISNG::DB::get_query( and_part => \%queryinputs );
-
 		# translate the path components into the lookup path
 		if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
 		{
@@ -2933,6 +2950,7 @@ sub opstatus_collection
 	return $self->{_db_opstatus};
 }
 
+
 # loads code plugins if necessary, returns the names
 # args: none
 # returns: list of package/class names
@@ -2957,7 +2975,7 @@ sub plugins
 	# first check the custom plugin dir, then the default dir;
 	# files in custom win over files in default
 	my %candfiles;    # filename => fullpath
-	for my $dir ( $C->{plugin_root}, $C->{plugin_root_default} )
+	for my $dir ( $C->{plugin_root}, $C->{plugin_root_default})
 	{
 		next if ( !-d $dir );
 		if ( !opendir( PD, $dir ) )
@@ -3006,6 +3024,7 @@ sub plugins
 		# we're interested if one or more of the supported plugin functions are provided
 		push @{$self->{_plugins}}, $packagename
 			if ( $packagename->can("update_plugin")
+			or $packagename->can("validate_node")
 			or $packagename->can("collect_plugin")
 			or $packagename->can("after_collect_plugin")
 			or $packagename->can("after_update_plugin") );
