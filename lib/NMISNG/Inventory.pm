@@ -1404,7 +1404,7 @@ sub save
 		if( defined($record->{data}{index}) ) { # && $self->{_index_is_string} ) {
 			$record->{data}{index} = NMISNG::DB::make_string( $record->{data}{index} );
 		}
-		
+		# Description should always be a string
 		if( defined($record->{data}{Description}) ) { 
 			$record->{data}{Description} = NMISNG::DB::make_string( $record->{data}{Description} );
 		}		
@@ -1463,12 +1463,13 @@ sub save
 		# what do we need to update?
 		# most properties are easy, except for data where we  want to update individual properties,
 		# which means the record must use 'data.X', which means the db module must not apply constraints
-				
+
 
 		my (%setthese, %unsetthese);
 
 		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
-		
+		# Description should always be a string
+		# make-sure current Description of records will be converted to string on update.
 		if ((exists $self->{_data_orig}->{"Description"} && $self->{_data_orig}->{"Description"}  =~ /^[0-9]+$/) ||  (exists $record->{data}->{Description} && $record->{data}->{Description}  =~ /^[0-9]+$/) ){
 			my $data_Description = $record->{data}->{Description} // $self->{_data_orig}->{Description} // undef;
 			$record->{data}->{"Description"}= NMISNG::DB::make_string($data_Description);
