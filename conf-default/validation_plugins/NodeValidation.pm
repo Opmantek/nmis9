@@ -66,6 +66,7 @@ sub validate_node
     {
         push @errors, $error;
     }
+
     return (scalar(@errors), @errors);
 }
 
@@ -266,11 +267,13 @@ sub validate_host
     $NG->log->debug2(sub {"Validating Host :- Checking if Hostname is already registered or not ?"});
       
     # look to see if any nodes exist with same ci value
-    my (@nodes,$status) = db_check(nmisng=> $NG,filter_value => $host, filter_key => 'configuration.host' );
-    foreach $found_node (@nodes) {
-        # if there is a node and it has a different uuid then we have a conflict
-        if( $found_node->{uuid} ne $node->uuid) {
-            return ($found_node->{name});
+    my ($nodes,$status) = db_check(nmisng=> $NG,filter_value => $host, filter_key => 'configuration.host' );
+    if( $status == 0 ) {
+        foreach $found_node (@$nodes) {
+            # if there is a node and it has a different uuid then we have a conflict
+            if( $found_node->{uuid} ne $node->uuid) {
+                return ("Another node is already using host:$host, named:$found_node->{name}");
+            }
         }
     }
     return 0;
@@ -297,16 +300,16 @@ sub db_check
     }
     
     my $data = $model_data->data();
-    if (@{$data}){
-        my @nodes;
+    my @nodes = ();
+    if (@{$data}) {
         foreach my $entry(@{$data}){
             push @nodes,$entry;
         }
-        return(@nodes,0);
+        return(\@nodes,0);
     }
     else{
         ## all good it does not exist anywhere else.
-        return (undef,1);
+        return (\@nodes,1);
     }
 }
 
@@ -324,11 +327,13 @@ sub validate_ci
         return "ci_field cannot be empty";
     }
     # look to see if any nodes exist with same ci value
-    my (@nodes,$status) = db_check(nmisng=> $NG,filter_value => $CIF, filter_key => 'configuration.device_ci' );
-    foreach $found_node (@nodes) {
-        # if there is a node and it has a different uuid then we have a conflict
-        if( $found_node->{uuid} ne $node->uuid) {
-            return ($found_node->{name});
+    my ($nodes,$status) = db_check(nmisng=> $NG,filter_value => $CIF, filter_key => 'configuration.device_ci' );
+    if( $status == 0 ) {
+        foreach $found_node (@$nodes) {
+            # if there is a node and it has a different uuid then we have a conflict
+            if( $found_node->{uuid} ne $node->uuid) {
+                return ("Another node is already using device_ci:$CIF, named:$found_node->{name}");
+            }
         }
     }
     return 0;

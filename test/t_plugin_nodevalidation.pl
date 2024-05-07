@@ -136,7 +136,7 @@ $node2->configuration( {host => "1.2.3.5",
 											device_ci => 'abc123' } );
 
 # duplicate device_ci is not valid
-cmp_deeply( [$node2->validate], [re(qr/^-\d/),$node_name], "New node with duplicate device_ci is not valid" );
+cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "New node with duplicate device_ci is not valid" );
 cmp_deeply( [$node2->save], [re(qr/^-\d/), ignore], "Node with duplicate device_ci does not save" );
 
 # change device_ci on second node
@@ -150,7 +150,7 @@ cmp_deeply( [$node2->save], [1, undef], "Saving node with different device_ci, s
 my $configuration = $node2->configuration();
 $configuration->{device_ci} = 'abc123';
 $node2->configuration($configuration);
-cmp_deeply( [$node2->validate], [re(qr/^-\d/),$node_name], "Update node with duplicate device_ci is not valid" );
+cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "Update node with duplicate device_ci is not valid" );
 cmp_deeply( [$node2->save], [-1, ignore], "Saving node with different device_ci, save not successful" );
 
 # update device_ci on second node to be unique but different
@@ -166,7 +166,7 @@ cmp_deeply( [$node2->save], [2, undef], "Saving node with different device_ci, s
 my $configuration = $node2->configuration();
 $configuration->{host} = '1.2.3.4';
 $node2->configuration($configuration);
-cmp_deeply( [$node2->validate], [re(qr/^-\d/),$node_name], "Update node with duplicate host is not valid" );
+cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "Update node with duplicate host is not valid" );
 cmp_deeply( [$node2->save], [-1, ignore], "Saving node with different host, save not successful" );
 
 # update device_ci on second node to be unique but different
@@ -183,7 +183,7 @@ if( !$error )
 {
 	my $catchall_data = $catchall_inventory->data_live();	
 	$node2->sync_catchall( cache => $catchall_inventory );
-	$catchall_inventory->save();
+	$catchall_inventory->save( node => $node2 );
 }
 
 # add third node:
