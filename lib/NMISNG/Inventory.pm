@@ -1404,7 +1404,10 @@ sub save
 		if( defined($record->{data}{index}) ) { # && $self->{_index_is_string} ) {
 			$record->{data}{index} = NMISNG::DB::make_string( $record->{data}{index} );
 		}
-
+		
+		if( defined($record->{data}{Description}) ) { 
+			$record->{data}{Description} = NMISNG::DB::make_string( $record->{data}{Description} );
+		}		
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
 			query      => $q,
@@ -1460,12 +1463,19 @@ sub save
 		# what do we need to update?
 		# most properties are easy, except for data where we  want to update individual properties,
 		# which means the record must use 'data.X', which means the db module must not apply constraints
-		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
+				
 
 		my (%setthese, %unsetthese);
 
 		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
-
+		
+		if ((exists $self->{_data_orig}->{"Description"} && $self->{_data_orig}->{"Description"}  =~ /^[0-9]+$/) ||  (exists $record->{data}->{Description} && $record->{data}->{Description}  =~ /^[0-9]+$/) ){
+			my $data_Description = $record->{data}->{Description} // $self->{_data_orig}->{Description} // undef;
+			$record->{data}->{"Description"}= NMISNG::DB::make_string($data_Description);
+			$self->_dirty(1,"data") if ($data_Description);
+		
+		}
+		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
 		#Handle cases where NMIS is updating the inventory but nothing in record has changed, we need to make sure lastupdate is updated as opHA uses this to track when data should be pushed
 		$self->_dirty(1,"lastupdate") if ($update);
 
