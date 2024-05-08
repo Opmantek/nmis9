@@ -116,7 +116,8 @@ sub data
 		die "Data must be array!\n";
 	}
 	if( !$self->{_error_checked} ) {
-		$self->{_nmisng}->log->debug(sub {"ModelData::data is being accessed without checking for errors! trace:".NMISNG::Log::trace()});
+		$self->{_nmisng}->log->debug(sub {"ModelData::data is being accessed without checking for errors! trace:".NMISNG::Log::trace()}) 
+			if(ref($self->{_nmisng}) eq "NMISNG");
 		$self->{_error_checked} = 1; # stop this message from happening again for this object
 	}
 	return $self->{_data};
