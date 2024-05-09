@@ -31,7 +31,7 @@ package NodeValidation;
 our $VERSION = "2.0.1";
 
 # what this validates:
-#  device_ci - should be unique and present on each node
+#  ci - should be unique and present on each node
 #  host - 
 
 use Data::Dumper;
@@ -50,11 +50,11 @@ sub validate_node
     my @errors = ();
     
     
-    ## check if the device_ci already exists or not ?
-    my $current_device_ci =  $node->configuration->{device_ci};
+    ## check if the ci already exists or not ?
+    my $current_ci =  $node->configuration->{ci};
     my $current_host = $node->configuration->{host};
     my $current_host_bkp = $node->configuration->{host_backup};
-    if ( my $error = validate_ci('ci_field' => $current_device_ci,node => $node,config => $C, nmisng=>$NG))
+    if ( my $error = validate_ci('ci_field' => $current_ci, node => $node,config => $C, nmisng=>$NG))
     {
         push @errors, $error;
     }
@@ -291,7 +291,7 @@ sub db_check
                                                 fields_hash => {  
                                                                   'name' => 1, 
                                                                   'uuid' => 1,
-                                                                  'configuration.device_ci' => 1
+                                                                  'configuration.ci' => 1
                                                         } );
     if (my $error = $model_data->error)
     {
@@ -327,12 +327,12 @@ sub validate_ci
         return "ci_field cannot be empty";
     }
     # look to see if any nodes exist with same ci value
-    my ($nodes,$status) = db_check(nmisng=> $NG,filter_value => $CIF, filter_key => 'configuration.device_ci' );
+    my ($nodes,$status) = db_check(nmisng=> $NG,filter_value => $CIF, filter_key => "configuration.ci" );
     if( $status == 0 ) {
         foreach $found_node (@$nodes) {
             # if there is a node and it has a different uuid then we have a conflict
             if( $found_node->{uuid} ne $node->uuid) {
-                return ("Another node is already using device_ci:$CIF, named:$found_node->{name}");
+                return ("Another node is already using ci:$CIF, named:$found_node->{name}");
             }
         }
     }

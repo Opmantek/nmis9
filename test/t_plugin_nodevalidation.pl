@@ -84,7 +84,7 @@ sub cleanup_db
 
 is( -r $enabled_plugin, 1, "plugin is found and readable" );
 
-# create node with no device_ci
+# create node with no ci
 my $node = NMISNG::Node->new(
 	uuid   => NMISNG::Util::getUUID(),
 	nmisng => $nmisng,
@@ -101,25 +101,25 @@ $node->configuration( {host => "1.2.3.4",
 											threshold => 1, } );
 
 # returns -number and error says can't be empty
-cmp_deeply( [$node->validate], [re(qr/^-\d/),re(qr/cannot be empty/)], "New node with no device_ci is not" );
+cmp_deeply( [$node->validate], [re(qr/^-\d/),re(qr/cannot be empty/)], "New node with no ci is not" );
 
 # add ci value
 my $configuration = $node->configuration();
-$configuration->{device_ci} = 'abc123';
+$configuration->{ci} = 'abc123';
 $node->configuration($configuration);
-is( $node->_dirty,1, "setting just device_ci means node is dirty" );
+is( $node->_dirty,1, "setting just ci means node is dirty" );
 
-# node with unique device_ci is valid
-cmp_deeply( [$node->validate], [re(qr/^\d/),ignore], "New node with unique device_ci is valid" );
+# node with unique ci is valid
+cmp_deeply( [$node->validate], [re(qr/^\d/),ignore], "New node with unique ci is valid" );
 
 # save node
 cmp_deeply( [$node->save], [1, undef], "Node is valid, save is successful" );
 
 # set device ci to same value and save again
 my $configuration = $node->configuration();
-$configuration->{device_ci} = 'abc123';
+$configuration->{ci} = 'abc123';
 $node->configuration($configuration);
-cmp_deeply( [$node->save], [2, undef], "Updating node with same device_ci, save is successful" );
+cmp_deeply( [$node->save], [2, undef], "Updating node with same ci, save is successful" );
 
 # add second node:
 my $node2 = NMISNG::Node->new(
@@ -133,43 +133,43 @@ $node2->configuration( {host => "1.2.3.5",
 											 netType => "default",
 											 roleType => "default",
 											threshold => 1,
-											device_ci => 'abc123' } );
+											ci => 'abc123' } );
 
-# duplicate device_ci is not valid
-cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "New node with duplicate device_ci is not valid" );
-cmp_deeply( [$node2->save], [re(qr/^-\d/), ignore], "Node with duplicate device_ci does not save" );
+# duplicate ci is not valid
+cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "New node with duplicate ci is not valid" );
+cmp_deeply( [$node2->save], [re(qr/^-\d/), ignore], "Node with duplicate ci does not save" );
 
-# change device_ci on second node
+# change ci on second node
 my $configuration = $node2->configuration();
-$configuration->{device_ci} = 'abc124';
+$configuration->{ci} = 'abc124';
 $node2->configuration($configuration);
-cmp_deeply( [$node2->save], [1, undef], "Saving node with different device_ci, save is successful" ) or diag;
+cmp_deeply( [$node2->save], [1, undef], "Saving node with different ci, save is successful" ) or diag;
 
 
-# update device_ci on second node to duplicate
+# update ci on second node to duplicate
 my $configuration = $node2->configuration();
-$configuration->{device_ci} = 'abc123';
+$configuration->{ci} = 'abc123';
 $node2->configuration($configuration);
-cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "Update node with duplicate device_ci is not valid" );
-cmp_deeply( [$node2->save], [-1, ignore], "Saving node with different device_ci, save not successful" );
+cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "Update node with duplicate ci is not valid" );
+cmp_deeply( [$node2->save], [-1, ignore], "Saving node with different ci, save not successful" );
 
-# update device_ci on second node to be unique but different
+# update ci on second node to be unique but different
 my $configuration = $node2->configuration();
-$configuration->{device_ci} = 'abc125';
+$configuration->{ci} = 'abc125';
 $node2->configuration($configuration);
-cmp_deeply( [$node2->save], [2, undef], "Saving node with different device_ci, save is successful" );
+cmp_deeply( [$node2->save], [2, undef], "Saving node with different ci, save is successful" );
 
 
 # make sure host values must be unique
 # we already have two unique values, changing one to be a duplicate should be all that is needed
-# update device_ci on second node to duplicate
+# update ci on second node to duplicate
 my $configuration = $node2->configuration();
 $configuration->{host} = '1.2.3.4';
 $node2->configuration($configuration);
 cmp_deeply( [$node2->validate], [re(qr/^-\d/),re(qr/Another node is already usin.*$node_name/)], "Update node with duplicate host is not valid" );
 cmp_deeply( [$node2->save], [-1, ignore], "Saving node with different host, save not successful" );
 
-# update device_ci on second node to be unique but different
+# update ci on second node to be unique but different
 my $configuration = $node2->configuration();
 $configuration->{host} = '1.2.3.3';
 $configuration->{host_backup} = '1.2.3.4';
@@ -200,7 +200,7 @@ $node3->configuration( {
 						netType => "default",
 						roleType => "default",
 						threshold => 1,
-						device_ci => 'abc126' } );
+						ci => 'abc126' } );
 
 
 cmp_deeply( [$node3->validate], [-1, re(qr/monitoring address is already present/)], "Validation failed for ".$node3->name );
