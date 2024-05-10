@@ -580,7 +580,15 @@ sub configuration
 				$newvalue->{$wantarray} = [ map { $_ eq ''? () : $_ } (split(/\s*,\s*/, $newvalue->{$wantarray})) ];
 			}
 		}
-
+		
+		# PROP_STRINGS should always be a string
+		my @prop_strings = ('group','location');		
+		# convert given props to strings if they are integers.
+		foreach my $prop_name (@prop_strings){
+			if( defined($newvalue->{$prop_name}) && $newvalue->{$prop_name} =~ /^[0-9]+$/ ) { 
+				$newvalue->{$prop_name} = NMISNG::DB::make_string( $newvalue->{$prop_name} );
+			}		
+		}
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
