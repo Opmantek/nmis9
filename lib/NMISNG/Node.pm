@@ -581,14 +581,6 @@ sub configuration
 			}
 		}
 		
-		# PROP_STRINGS should always be a string
-		my @prop_strings = ('group','location');		
-		# convert given props to strings if they are integers.
-		foreach my $prop_name (@prop_strings){
-			if( defined($newvalue->{$prop_name}) && $newvalue->{$prop_name} =~ /^[0-9]+$/ ) { 
-				$newvalue->{$prop_name} = NMISNG::DB::make_string( $newvalue->{$prop_name} );
-			}		
-		}
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
@@ -1563,6 +1555,15 @@ sub save
 			);
 
 	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|comments|configuration|activated|lastupdate|enterprise_service_tags)$/, keys %{$self->{_unknown}}));
+
+	# PROP_STRINGS should always be a string
+	my @prop_strings = ('group','location');		
+	# convert given props to strings if they are integers.
+	foreach my $prop_name (@prop_strings){
+		if( defined($entry{configuration}{$prop_name}) && $entry{configuration}{$prop_name} =~ /^[0-9]+$/ ) { 
+			$entry{configuration}{$prop_name} = NMISNG::DB::make_string( $entry{configuration}{$prop_name} );
+		}		
+	}
 
 	if ($self->is_new())
 	{
