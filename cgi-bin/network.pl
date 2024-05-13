@@ -3367,6 +3367,11 @@ escalate ));
 			{
 				$color = Compat::NMIS::colorLowGood( $thisintf->{$k} ) if (!defined $color);
 			}
+			elsif ( $k eq "collect" ){
+				my $overrides = $nmisng_node->overrides;
+				my $if_descr = $thisintf->{ifDescr};
+				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{collect};
+			}
 			elsif ( $k eq 'Description' )
 			{
 				$content = "$thisintf->{Description}";
