@@ -34,6 +34,7 @@ package cdpTable;
 our $VERSION = "2.0.1";
 
 use strict;
+use Data::Dumper;
 
 sub update_plugin
 {
@@ -41,7 +42,8 @@ sub update_plugin
 	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
 	# anything to do? does this node collect cdp information?
-	my $cdpids = $S->nmisng_node->get_inventory_ids(
+	my $nmisng_node = $S->nmisng_node;
+	my $cdpids = $nmisng_node->get_inventory_ids(
 		concept => "cdp",
 		filter => { historic => 0 });
 
@@ -49,24 +51,24 @@ sub update_plugin
 	my $changesweremade = 0;
 
 	$NG->log->info("Working on $node cdp");
+	
 
 	# for linkage lookup this needs the interfaces inventory as well, but
 	# a non-object r/o copy of just the data (no meta) is enough
 	# we don't want to re-query multiple times for the same interface...
-	my $result = $S->nmisng_node->get_inventory_model(concept => "interface",
-																										filter => { historic => 0 });
-	if (my $error = $result->error)
-	{
-		$NG->log->error("Failed to get inventory: $error");
-		return(0,undef);
-	}
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+	# my $result = $S->nmisng_node->get_inventory_model(concept => "interface", filter => { historic => 0 });
+	# if (my $error = $result->error)
+	# {
+	# 	$NG->log->error("Failed to get inventory: $error");
+	# 	return(0,undef);
+	# }
+	# my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
 	for my $cdpid (@$cdpids)
 	{
 		my $mustsave;
 
-		my ($cdpinventory,$error) = $S->nmisng_node->inventory(_id => $cdpid);
+		my ($cdpinventory,$error) = $nmisng_node->inventory(_id => $cdpid);
 		if ($error)
 		{
 			$NG->log->error("Failed to get inventory $cdpid: $error");
@@ -76,64 +78,75 @@ sub update_plugin
 		my $cdpdata = $cdpinventory->data; # r/o copy, must be saved back if changed
 		my $cdpNeighbour = $cdpdata->{cdpCacheDeviceId};
 
-		# some cdp data includes Serial numbers and FQDN's
-		my @possibleNames = ($cdpNeighbour, lc($cdpNeighbour));
+		# some cdp data includes Serial numbers and FQDN's		
+		# map the names to remove duplicates
+		my $possibleNames = {};
+		$possibleNames->{$cdpNeighbour} = 1;
+		$possibleNames->{lc($cdpNeighbour)} = 1;
 
 		if ( $cdpNeighbour =~ /\(\w+\)$/ )
 		{
 			my $name = $cdpNeighbour;
 			$name =~ s/\(\w+\)$//g;
-
-			push @possibleNames, $name, lc($name);
+			$possibleNames->{$name} = 1;
+			$possibleNames->{lc($name)} = 1;			
 		}
 		if ((my @fqdn = split(/\./,$cdpNeighbour)) > 1)
 		{
-			push @possibleNames,$fqdn[0], lc($fqdn[0]);
+			$possibleNames->{$fqdn[0]} = 1;
+			$possibleNames->{lc($fqdn[0])} = 1;			
+		}		
+		# search for possible names in 3 places
+		# we also have cdpCacheAddress if cdpCacheAddress is "ip"
+		my @possibleNamesArr = map {$_} (keys %$possibleNames);
+		my $query = {'concept' => 'catchall','enabled' => 1,'historic' => 0,
+			'$or' => [
+				{'node_name' => $possibleNamesArr[0] },
+				{'data.host' => $possibleNamesArr[0] },
+				{'data.sysName' => $possibleNamesArr[0] }
+			]
+		 };
+		#  is there is more than one make the search more complex:
+		if( @possibleNamesArr > 1) {
+			$query->{'$or'} = [
+				{'node_name' => { '$in' => \@possibleNamesArr}},
+				{'data.host' => { '$in' => \@possibleNamesArr}},
+				{'data.sysName' => { '$in' => \@possibleNamesArr}}
+			];
 		}
-
-		my $gotNeighbourName = 0;
-		foreach my $maybe (@possibleNames)
-		{
-			# is there a managed node with the given neighbour name?
-			my $managednode = $NG->node(name => $maybe);
-			if (ref($managednode) eq "NMISNG::Node")
-			{
-				$changesweremade = $mustsave = 1;
-
-				$cdpdata->{cdpCacheDeviceId_raw} = $cdpdata->{cdpCacheDeviceId};
-				$cdpdata->{cdpCacheDeviceId_id} = "node_view_$maybe";
-				$cdpdata->{cdpCacheDeviceId_url} = "$C->{network}?&act=network_node_view&node=$maybe";
-				$cdpdata->{cdpCacheDeviceId} = $maybe;
-				# futureproofing so that opCharts can also use this linkage safely
-				$cdpdata->{node_uuid} = $managednode->uuid;
-
-				$gotNeighbourName = 1;
-				last;
-			}
+		
+		# if we have an ip address we can search for that too
+		$NG->log->debug(sub{ "cdpTable looking for names:".join(',',@possibleNamesArr)});
+		if( $cdpdata->{cdpCacheAddressType} eq 'ip' ) {
+			push @{$query->{'$or'}}, { 'data.host' => $cdpdata->{cdpCacheAddress} };
+			push @{$query->{'$or'}}, { 'data.host_addr' => $cdpdata->{cdpCacheAddress} };
+			$NG->log->debug(sub{ "cdpTable looking for host: $cdpdata->{cdpCacheAddress}"});
 		}
-
-		# nothing found? look harder - try to match by host property...
-		# ...but remember the proper node name
-		if ( not $gotNeighbourName )
-		{
-			for my $maybe (@possibleNames)
-			{
-				my $managednode = $NG->node(host => $maybe);
-				if (ref($managednode) eq "NMISNG::Node")
-				{
-					$changesweremade = $mustsave = 1;
-
-					my $propername = $managednode->name;
-					$cdpdata->{cdpCacheDeviceId_raw} = $cdpdata->{cdpCacheDeviceId};
-					$cdpdata->{cdpCacheDeviceId_id} = "node_view_$propername";
-					$cdpdata->{cdpCacheDeviceId_url} = "$C->{network}?&act=network_node_view&node=$propername";
-					$cdpdata->{cdpCacheDeviceId} = $propername;
-					# futureproofing so that opCharts can also use this linkage safely
-					$cdpdata->{node_uuid} = $managednode->uuid;
-
-					last;
-				}
-			}
+		
+		$NG->log->debug2(sub{ "cdpTable query:".Dumper($query)});
+		my $entries = NMISNG::DB::find(
+			collection  => $NG->inventory_collection,
+			query       => $query,
+			fields_hash => { 'node_name','node_uuid' }
+		);
+		
+		# get them all, shouldn't be many, hopefully 1
+		my @all = $entries->all;
+		$NG->log->warn("cdpTable found more than one matching node for cdp, query:".Dumper($query)) if(@all > 1);		
+		# loop through, take the first one, this could be improved to pick the best match
+		# it's possible the same node is monitored more than once, single poller shouldn't have
+		# overlapping ip's and this should be run on the poller
+		foreach my $entry (@all) {			
+			my ($node_name,$node_uuid) = ($entry->{node_name},$entry->{node_uuid});
+			$NG->log->debug(sub{ "cdpTable matched $cdpdata->{cdpCacheIfIndex}:$cdpdata->{cdpCacheDevicePort} to node: $node_name"});
+			$changesweremade = $mustsave = 1;
+			$cdpdata->{cdpCacheDeviceId_raw} = $cdpdata->{cdpCacheDeviceId};
+			$cdpdata->{cdpCacheDeviceId_id} = "node_view_$node_name";
+			$cdpdata->{cdpCacheDeviceId_url} = "$C->{network}?&act=network_node_view&node=$node_name";
+			$cdpdata->{cdpCacheDeviceId} = $node_name;
+			# futureproofing so that opCharts can also use this linkage safely
+			$cdpdata->{node_uuid} = $node_uuid;
+			last;
 		}
 
 		# index N.M? split and link to interface
@@ -145,10 +158,24 @@ sub update_plugin
 			my $index = $cdpdata->{cdpCacheIfIndex} = $parts[0];
 			$cdpdata->{cdpCacheDeviceIndex} = $parts[1];
 
-			if (ref($ifdata{$index}) eq "HASH"
-					&& defined($ifdata{$index}->{ifDescr}))
+			# large # of interfaces x large # of devices means it's better to query per interface
+			# this query should hit index path.1 path.2, path.3 and should be really cheap
+			# because we aren't filling the path in from 0 we need to tell it partial match is ok			
+			my $path = $nmisng_node->inventory_path( concept => "interface", data => { index => $index }, path_keys => ['index'], partial => 1 );
+			# remove the cluster_id so we hit the index we want. i'm not sure why 0,1,2,3 isn't an index
+			$path->[0] = undef;
+			my $result = $nmisng_node->get_inventory_model( path => $path, filter => { historic => 0 }, fields_hash => { 'data.ifDescr' } );
+			if (my $error = $result->error)
 			{
-				$cdpdata->{ifDescr} = $ifdata{$index}->{ifDescr};
+				$NG->log->error("Failed to get inventory: $error");
+				return(0,undef);
+			}
+			my $data = $result->data();
+			$NG->log->warn("cdpTable found more than one interface for index:$index, node:$node") if( @$data > 1);
+			my $intf = $data->[0];
+			if ($intf && $intf->{ifDescr} ne '')
+			{
+				$cdpdata->{ifDescr} = $intf->{ifDescr};
 				$cdpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$index&node=$node";
 				$cdpdata->{ifDescr_id} = "node_view_$node";
 			}
@@ -157,7 +184,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$cdpinventory->data($cdpdata); # set changed info
-			(undef,$error) = $cdpinventory->save; # and save to the db
+			(undef,$error) = $cdpinventory->save(node => $nmisng_node); # and save to the db, update not required, already existed
 			$NG->log->error("Failed to save inventory for $cdpid: $error")
 					if ($error);
 		}

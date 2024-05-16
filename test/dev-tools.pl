@@ -70,6 +70,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=inventory - Will show node inventory
  * act=collect - Collect node
  * act=update - Update node
+ * act=plugin - Run plugin ( node= op= plugin=) 
  * act=model - Show model 
  * act=escalations - Run escalations
 \n";

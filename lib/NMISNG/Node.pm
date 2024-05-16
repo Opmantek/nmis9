@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 use strict;
 
@@ -580,7 +580,7 @@ sub configuration
 				$newvalue->{$wantarray} = [ map { $_ eq ''? () : $_ } (split(/\s*,\s*/, $newvalue->{$wantarray})) ];
 			}
 		}
-
+		
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
@@ -949,7 +949,7 @@ sub inventory
 	# force these arguments to be for this node
 	my $data = $args{data};
 	$args{cluster_id} = $self->cluster_id();
-	$args{node_uuid}  = $self->uuid();
+	$args{node_uuid}  = $self->uuid();	
 
 	# fix the search to this node
 	my $path = $args{path} // [];
@@ -976,8 +976,8 @@ sub inventory
 		{
 			# sort above ensures that we return the same 'first' object every time,
 			# even in that clash/duplicate case
-			$self->nmisng->log->warn("Inventory search returned more than one value, using the first!");
-			$self->nmisng->log->debug6(sub {"Inventory search returned more than one value, using the first!".Dumper(\%args)});
+			$self->nmisng->log->debug("Inventory search returned more than one value, using the first!");
+			$self->nmisng->log->debug2(sub {"Inventory search returned more than one value, using the first!".Dumper(\%args)});
 			# HOWEVER, if we can we'll return the first non-historic object
 			# as the most useful of all bad choices
 			my $rawdata = $model_data->data; # inefficient is fine here
@@ -1017,25 +1017,25 @@ sub inventory_concepts
 	my $q = $self->nmisng->get_inventory_model_query( %args );
 	my $retval = ();
 
-	# print "q".Dumper($q);
 	# query parts that don't look at $datasets could run first if we need optimisation
 	my @prepipeline = (
 		{ '$match' => $q },
 		{ '$group' =>
 			{ '_id' => { "concept" => '$concept'}  # group by subconcepts
 		}}
-  );
-  my ($entries,$count,$error) = NMISNG::DB::aggregate(
+  	);
+  	my ($entries,$count,$error) = NMISNG::DB::aggregate(
 		collection => $self->nmisng->inventory_collection,
 		pre_count_pipeline => \@prepipeline, #use either pipe, doesn't matter
-		allowtempfiles => 1
+		allowtempfiles => 1,
 	);
+	return (undef, $error) if ($error);
+
 	foreach my $entry (@$entries)
 	{
 		push @$retval, $entry->{_id}{concept};
-
 	}
-	return ($error) ? $error : $retval;
+	return ($retval, undef);
 }
 
 # get all subconcepts and any dataset found within that subconcept
@@ -1556,6 +1556,15 @@ sub save
 
 	map { $entry{$_} = $self->{_unknown}->{$_}; } (grep(!/^(_id|uuid|name|cluster_id|overrides|comments|configuration|activated|lastupdate|enterprise_service_tags)$/, keys %{$self->{_unknown}}));
 
+	# PROP_STRINGS should always be a string
+	my @prop_strings = ('group','location');		
+	# convert given props to strings if they are integers.
+	foreach my $prop_name (@prop_strings){
+		if( defined($entry{configuration}{$prop_name}) && $entry{configuration}{$prop_name} =~ /^[0-9]+$/ ) { 
+			$entry{configuration}{$prop_name} = NMISNG::DB::make_string( $entry{configuration}{$prop_name} );
+		}		
+	}
+
 	if ($self->is_new())
 	{
 		$self->nmisng->log->debug2(sub {"Calling Insert"});
@@ -1589,7 +1598,7 @@ sub save
 		$self->nmisng->log->debug7(sub {"Update return: ". Dumper($result) . "\n"});
 	}
 	
-	# Audit 
+	# Audit, update catchall if we can
 	if ($result->{success}) {
 		my $audit_enabled = NMISNG::Util::getbool($self->nmisng->config->{audit_enabled}) // 1;
 		NMISNG::Util::audit_log(who => $meta->{who},
@@ -1599,8 +1608,33 @@ sub save
 						details => $meta->{details},
 						when => $saveTime) if ($audit_enabled);
 
+		
+		# This code creates/updates catchall on save, this has been commented out for the moment because
+		# adding a new node on a primary should not create a catchall on the primary (which this would do)
+
+		# if we can lock the node then update host info and it's catchall, for new nodes this should work
+		# every time (which is what we are most concerned about)
+		# NOTE: this will create a catchall for a new node
+		# $self->nmisng->log->debug2(sub {"Getting lock for node to update host_addr and sync catchall $entry{name}"});
+		# my $lock = $self->lock(type => 'update');
+		# if( !$lock->{error} && !$lock->{conflict} ) 
+		# {
+		# 	my $path = $self->inventory_path(concept => "catchall", data => {}, path_keys => []);
+		# 	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", path => $path, path_keys => [], create => 1 );
+		# 	if( !$error ) 
+		# 	{
+		# 		my $catchall_data = $catchall_inventory->data_live();
+		# 		$self->update_host_addr( catchall_data => $catchall_data );
+		# 		$self->sync_catchall( cache => $catchall_inventory );
+		# 		$self->unlock(lock => $lock);
+		# 	}
+		# 	else 
+		# 	{
+		# 		$self->nmisng->log->warn(sub {"Node::save failed to get catchall so cannot sync: $error"});	
+		# 	}
+		# }
 	}
-	
+
 	$self->nmisng->log->debug2(sub {"Return code: $op"});
 	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
@@ -1626,47 +1660,30 @@ sub sync_catchall
 	{
 		$self->nmisng->log->debug3(sub {"Synchronizong 'catchall"});
 		my $catchall_data = $catchall_inventory->data_live();
+
+		# this prop changes names
 		$catchall_data->{last_node_config_update} = $self->{_lastupdate};
-		$catchall_data->{active} = $self->configuration->{active};
-		$catchall_data->{addresses} = $self->configuration->{addresses};
-		$catchall_data->{aliases} = $self->configuration->{aliases};
-		$catchall_data->{businessService} = $self->configuration->{businessService};
-		$catchall_data->{cbqos} = $self->configuration->{cbqos};
-		$catchall_data->{collect} = $self->configuration->{collect};
-		$catchall_data->{context} = $self->configuration->{context};
-		$catchall_data->{customer} = $self->configuration->{customer};
-		$catchall_data->{depend} = $self->configuration->{depend};
-		$catchall_data->{display_name} = $self->configuration->{display_name};
-		$catchall_data->{group} = $self->configuration->{group};
-		$catchall_data->{host} = $self->configuration->{host};
-		$catchall_data->{host_backup} = $self->configuration->{host_backup};
-		$catchall_data->{ip_protocol} = $self->configuration->{ip_protocol};
-		$catchall_data->{location} = $self->configuration->{location};
-		$catchall_data->{max_msg_size} = $self->configuration->{max_msg_size};
-		$catchall_data->{max_repetitions} = $self->configuration->{max_repetitions};
-		$catchall_data->{model} = $self->configuration->{model};
-		$catchall_data->{netType} = $self->configuration->{netType};
-		$catchall_data->{node_context_name} = $self->configuration->{node_context_name};
-		$catchall_data->{node_context_url} = $self->configuration->{node_context_url};
-		$catchall_data->{notes} = $self->configuration->{notes};
-		$catchall_data->{ping} = $self->configuration->{ping};
-		$catchall_data->{pollers} = $self->configuration->{pollers};
-		$catchall_data->{polling_policy} = $self->configuration->{polling_policy};
-		$catchall_data->{port} = $self->configuration->{port};
-		$catchall_data->{remote_connection_name} = $self->configuration->{remote_connection_name};
-		$catchall_data->{remote_connection_url} = $self->configuration->{remote_connection_url};
-		$catchall_data->{roleType} = $self->configuration->{roleType};
-		$catchall_data->{serviceStatus} = $self->configuration->{serviceStatus};
-		$catchall_data->{services} = $self->configuration->{services};
-		$catchall_data->{sysDescr} = $self->configuration->{sysDescr};
-		$catchall_data->{threshold} = $self->configuration->{threshold};
-		$catchall_data->{timezone} = $self->configuration->{timezone};
-		$catchall_data->{username} = $self->configuration->{username};
-		$catchall_data->{version} = $self->configuration->{version};
-		$catchall_data->{webserver} = $self->configuration->{webserver};
-		$catchall_data->{wmidomain} = $self->configuration->{wmidomain};
-		$catchall_data->{wmiversion} = $self->configuration->{wmiversion};
-		my ( $op, $error ) = $catchall_inventory->save;
+		# these are nice to have in there right from the start, it is set somewhere else
+		# i'm not sure where but adding them here as well
+		$catchall_data->{name} = $self->name;
+		$catchall_data->{uuid} = $self->uuid;
+		
+		# these props all go to the same name
+		my @copy_props = qw(active addresses aliases businessService cbqos collect context customer depend display_name group host host_backup 
+			ip_protocol location max_msg_size max_repetitions model netType node_context_name node_context_url notes 
+			ping pollers polling_policy port remote_connection_name remote_connection_url roleType serviceStatus services 
+			sysDescr threshold timezone username version webserver wmidomain wmiversion);
+		
+		# check the config for extra things to copy
+		my $extra_props = $self->nmisng->config->{copy_node_configuration_to_catchall_list} // [];
+		push @copy_props, @$extra_props if( ref($extra_props) eq 'ARRAY' && @$extra_props > 0 );
+
+		foreach my $prop (@copy_props) 
+		{
+			$catchall_data->{$prop} = $self->configuration->{$prop};
+		}
+		
+		my ( $op, $error ) = $catchall_inventory->save( node => $self , update => 1);
 		if ($error)
 		{
 			$self->nmisng->log->error("Failed to update catchall inventory for node '$self->{_name}' during save: $error") if ($error);
@@ -1761,6 +1778,33 @@ sub validate
 		}
 	}
 
+	# check for a validate_node in plugins and execute it.
+	# run if present else do nothing.
+	$self->nmisng->log->debug(sub {"Calling Validation plugins"});
+
+	my @plugins = $self->nmisng->plugins;
+	$self->nmisng->log->debug9(sub {"Plugins: ".Dumper(\@plugins)});
+		foreach my $plugin(@plugins){
+				
+			my $funcname = $plugin->can("validate_node");
+			next if ( !$funcname );
+			my ( $status, @errors );		
+			eval { ( $status, @errors ) = &$funcname(	node => $self, 
+														config => $self->nmisng->config,
+														nmisng => $self->nmisng) 
+														};		 		
+			if ( $status >= 1 or $status < 0 or $@ ) {
+				$self->nmisng->log->debug2(sub {"Plugin $plugin failed to execute successfully: $@"}) if ($@);
+				for my $err (@errors)
+				{
+					$self->nmisng->log->error("Plugin $plugin: $err");
+					return (-$status,$err)
+				}		
+			}
+			elsif ( $status == 0 ) {
+				$self->nmisng->log->debug("Plugin $plugin successfully executed no changes");
+			}
+		}
 	return (1,undef);
 }
 
@@ -1897,7 +1941,7 @@ sub pingable
 			}
 			else
 			{
-				$pinginv->save if ($pinginv->is_new); # timed data only possible once inventory is in the db
+				$pinginv->save( node => $self ) if ($pinginv->is_new); # timed data only possible once inventory is in the db
 
 				# this saves both timed data and the inventory
 				my $error = $pinginv->add_timed_data(
@@ -1905,6 +1949,7 @@ sub pingable
 					data => $timeddata,
 					derived_data => {},
 					subconcept => "ping",
+					node => $self
 						);
 				$self->nmisng->log->error("Failed to add ping timed data: $error") if ($error);
 			}
@@ -2029,7 +2074,7 @@ sub handle_down
 		$quicklynow->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 		$catchall->data($quicklynow);
-		$catchall->save;
+		$catchall->save( node => $self, update => 1 );
 
 		$self->nmisng->log->debug($self->name.": changed ${typeofdown}down state to ".$quicklynow->{"${typeofdown}down"});
 	}
@@ -2321,34 +2366,48 @@ sub update_node_info
 	if ($success)
 	{
 		# get the current ip address if the host property was a name, ditto host_backup
-		for (["host","host_addr"], ["host_backup", "host_addr_backup"])
-		{
-			my ($sourceprop, $targetprop) = @$_;
-			my $sourceval = $self->configuration->{$sourceprop};
-			my $ip;
-			if ($self->configuration->{ip_protocol} eq 'IPv6')
-			{
-				$ip = NMISNG::Util::resolveDNStoAddrIPv6($sourceval);
-			}
-			else
-			{
-				$ip = NMISNG::Util::resolveDNStoAddr($sourceval);
-			}
-
-			if ($sourceval && ($ip))
-			{
-				$catchall_data->{$targetprop} = $ip; # cache and display
-			}
-			else
-			{
-				$catchall_data->{$targetprop} = '';
-			}
-		}
+		$self->update_host_addr( catchall_data => $catchall_data );
 	}
 	$self->nmisng->log->debug2( "update_node_info Finished "
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(nodedown snmpdown wmidown)) ) );
 
 	return { success => $success, error => \@problems };
+}
+
+# takes the host and host_backup entries, resolves them to IP addresses
+# and copies them into the catcahll with _addr_ in the middle of the name
+# NOTE: if the host value is already an IP address then nothing is copied
+#   (it's not known if this is on purpose, it seems to be as the GUI would)
+#   show the IP address twice otherwise
+# args: catchall_data
+sub update_host_addr
+{
+	my ($self,%args) = @_;
+	my $catchall_data = $args{'catchall_data'};
+
+	for (["host","host_addr"], ["host_backup", "host_addr_backup"])
+	{
+		my ($sourceprop, $targetprop) = @$_;
+		my $sourceval = $self->configuration->{$sourceprop};
+		my $ip;
+		if ($self->configuration->{ip_protocol} eq 'IPv6')
+		{
+			$ip = NMISNG::Util::resolveDNStoAddrIPv6($sourceval);
+		}
+		else
+		{
+			$ip = NMISNG::Util::resolveDNStoAddr($sourceval);
+		}
+
+		if ($sourceval && ($ip))
+		{
+			$catchall_data->{$targetprop} = $ip; # cache and display
+		}
+		else
+		{
+			$catchall_data->{$targetprop} = '';
+		}
+	}
 }
 
 # collect and updates the node info and node view structures, during collect type operation
@@ -2624,7 +2683,7 @@ sub collect_node_data
 																	 .", subconcept $section failed: $stats");
 					$stats = {};
 				}
-				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section,
+				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section, node => $self,
 																								time => $catchall_data->{last_poll}, delay_insert => 1 );
 				$self->nmisng->log->error("timed data adding for ". $inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
 			}		
@@ -2780,12 +2839,12 @@ sub update_intf_info
 			}
 			else
 			{
-				if ( $SNMP->error =~ /is empty or does not exist/ )
+				# windows can give nosuchname, that's a valid response and NOT snmp down
+				if ( $SNMP->error =~ /is empty or does not exist/ || $SNMP->error =~ /Received noSuchName/ )
 				{
 					# fixme9 unclear if terminal
 					$self->nmisng->log->debug2(sub { "SNMP Object Not Present ($nodename) on get interface index table: " . $SNMP->error });
 				}
-
 				# snmp failed
 				else
 				{
@@ -2867,13 +2926,27 @@ sub update_intf_info
 			}
 			else
 			{
-				# snmp failed
-				$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error} );
-
-				if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
+				# windows boxes respond errors differently, if we are asking for a singleInterface and it's not there
+				# it's not a snmpdown, it's just a bad fishing trip
+				if( $singleInterface && $SNMP->error =~ /Received noSuchName/ )
 				{
-					$self->nmisng->log->debug2(sub {"Finished (stop polling on error)"});
+					$self->nmisng->log->debug2(sub { "SNMP Object Not Present ($nodename) on get interface index: $intf_one error: " . $SNMP->error });
+					# we are done, no point in trying more
 					return 0;
+					# $S->{error} eq 'loadInfo failed for win2019-snmp: ERROR (win2019-snmp): no values collected for section(s) standard!'
+					# $SNMP->error eq 'Received noSuchName(2) error-status at error-index 1'
+
+				}
+				else 
+				{
+					# snmp failed
+					$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error} );
+
+					if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
+					{
+						$self->nmisng->log->debug2(sub {"Finished (stop polling on error)"});
+						return 0;
+					}
 				}
 			}
 		}
@@ -3151,7 +3224,18 @@ sub update_intf_info
 		my $intfCollect = 0;    # reset counters
 
 		$self->nmisng->log->debug2(sub {"Checking interfaces for duplicate ifDescr"});
-		my $ifDescrIndx;
+		
+		# check for duplicates, part 1, make a list of all names and counts
+		# if there are any duplicates, all from that set of duplicates should have it's ifDescr modified to have ifIndex added
+		my $ifDescr_match_count = {};
+		foreach my $i (@ifIndexNum)
+		{
+			my $target = $target_table->{$i};
+			$target->{ifDescr} ||= $i;
+			$ifDescr_match_count->{$target->{ifDescr}} += 1;
+		}
+
+		# check for duplicates part 2, adjust the names and add extra properties
 		foreach my $i (@ifIndexNum)
 		{
 			my $target = $target_table->{$i};
@@ -3163,15 +3247,13 @@ sub update_intf_info
 
 			# ifDescr must always be filled
 			$target->{ifDescr} ||= $i;
-			# ifDescr is duplicated?
-			if ( exists $ifDescrIndx->{$target->{ifDescr}} and $ifDescrIndx->{$target->{ifDescr}} ne "" )
+			# ifDescr is duplicated?, the dup count > 1 means more than one use it
+			if( $ifDescr_match_count->{$target->{ifDescr}} > 1 )
 			{
+				$target->{ifDescr_orig} = $target->{ifDescr};
 				$target->{ifDescr} .= "-$i";                  # add index to string
+				$target->{ifDescr_duplicate} = 1;
 				$self->nmisng->log->debug2(sub {"Interface ifDescr changed to $target->{ifDescr}"});
-			}
-			else
-			{
-				$ifDescrIndx->{$target->{ifDescr}} = $i;
 			}
 		}
 		$self->nmisng->log->debug2(sub {"Completed duplicate ifDescr processing"});
@@ -3467,7 +3549,7 @@ sub update_intf_info
 				$inventory->data_info( subconcept => 'interface', enabled => 1 );
 				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
-				my ( $op, $error ) = $inventory->save();
+				my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error( "Failed to save inventory:"
 																	 . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -3624,6 +3706,11 @@ sub collect_intf_data
 		return 1;
 	}
 
+	# we may want to do this at some point, the ifTableLastChange could be used to turn this on
+	# every few cycles. For now attempting to update all historic interfaces every poll cycle
+	# is causing too many issues
+	my $attempt_to_update_historic_interfaces = 0;
+
 	$self->nmisng->log->debug2(sub {"Starting Interface get data for node $nodename"});
 
 	# adminstatus only uses 1..3 , operstatus can have all 1..7.
@@ -3660,6 +3747,8 @@ sub collect_intf_data
 			'data.ifAdminStatus' => 1,
 			'data.ifOperStatus' => 1,
 			'data.ifDescr' => 1,
+			'data.ifDescr_orig' => 1,
+			'data.ifDescr_duplicate' => 1,
 			'data.ifIndex' => 1,
 			'data.ifLastChangeSec' => 1, # ifLastChange is textual and NO GOOD
 			'data.real' => 1,
@@ -3686,7 +3775,7 @@ sub collect_intf_data
 		my $thisindex = $maybeevil->{data}->{ifIndex};
 		if (exists $if_data_map{$thisindex} )
 		{
-			$self->nmisng->log->warn("clashing inventories for interface index $thisindex!");
+			$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex!");
 			next;
 		}
 
@@ -3757,8 +3846,8 @@ sub collect_intf_data
 
 		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
 
-		# new interface, or existing interface which is historic, no current inventory yet?
-		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
+		# new interface (no current inventory yet?), or existing interface which is historic and attempt_to_update_historic_interfaces is on
+		if (!$thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} and $attempt_to_update_historic_interfaces ))
 		{
 			$self->nmisng->log->info("($nodename) Interface $index is new, needs update");
 			$thisif->{_needs_update} = 1;
@@ -3830,14 +3919,18 @@ sub collect_intf_data
 
 		# this returns an inventory object (or undef on error/nonexistent)...
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
-		if (!defined $maybenew)
+		#  maybenew can be 0 unfortunately
+		if (!$maybenew)
 		{
 			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
 			next;
 		}
-		# ...which MAY be different from the one we've got in the if_data_map
-		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} ))
+		# ...which MAY be different from the one we've got in the if_data_map, 
+		# it has no id (how?) or it does and the newly updated one is different, update the if_data_map
+		# if it's got an id and it's marked historic we also need $attempt_to_update_historic_interfaces to be on
+		# in that case update it's data (which turns it back on?)
+		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id} or ( $thisif->{_id} and $thisif->{historic} and $attempt_to_update_historic_interfaces ))
 		{
 			$self->nmisng->log->debug2("($nodename) Interface index $needsmust "
 																 .(defined($thisif->{_id})? "has changed substantially" : "is new")
@@ -3954,6 +4047,7 @@ sub collect_intf_data
 	# this covers reordered interfaces (interface index is not invariant, ifdescr is treated as invariant)
 	# new interfaces should have been handled in 4.
 	$self->nmisng->log->debug5(sub {"collect_intf_data phase 6"});
+	# map { $if_data_map{$_}{ifDescr} } (keys %if_data_map);
 	for my $index (keys %if_data_map)
 	{
 		my $thisif = $if_data_map{$index};
@@ -3964,9 +4058,19 @@ sub collect_intf_data
 						 or ref($thisif->{_rrd_data}->{interface}) ne "HASH"
 						 or $thisif->{_was_updated}); # or if the interface was updated already...
 
+		# _rrd_data is just updated from snmp and has original ifDescr, which is treated as invariant,
+		# we need to handle the case where there are duplicate ifDescrs, in this case the ifIndex has 
+		# been added to ifDescr also extra properties exist to help detect this, in this case adjust 
+		# the ifdescr we've just loaded up from snmp to match the modified one
 		my $intfsection = $thisif->{_rrd_data}->{interface}->{$index};
 
 		my $newifdescr = NMISNG::Util::rmBadChars( $intfsection->{ifDescr}->{value} );
+		# marked as being duplicate, original ifdescr matches what was just polled and calcualted matches expected, take what we had
+		if( ($thisif->{ifDescr_duplicate} == 1) && ($thisif->{ifDescr_orig} eq $newifdescr) and ($thisif->{ifDescr} eq $newifdescr."-$index") ) {
+			$newifdescr = $thisif->{ifDescr};
+			$self->nmisng->log->debug2(sub{"Interface $index, using modified ifDescr $thisif->{ifDescr} because of duplicate ifDescrs"});
+		}
+
 		# only perform interface decription change detection if we are using ifAdminStatus for status and change detection as well
 		if ($newifdescr ne $thisif->{ifDescr} and !$dontwanna_ifadminstatus)
 		{
@@ -3987,8 +4091,10 @@ sub collect_intf_data
 			# relevant transition === entering or leaving up state
 			# breaks when seeing lowerLayerDown
 			# worker[4031185] Interface 563, oper status changed from lowerLayerDown to lowerLayerDown, needs update
-			if (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
-					or ($newstatus !~ /^(up|ok|dormant)$/))
+			# NOTE: MD this was creating many log warnings for 'down' to 'down' so I'm changing this at the same time as
+			# other issuess
+			if ( $newstatus ne $prevstatus and (($newstatus eq 'down' and $prevstatus =~ /^(up|ok)$/)
+					or ($newstatus !~ /^(up|ok|dormant)$/)) )
 			{
 				$self->nmisng->log->info("Interface $index, oper status changed from $prevstatus to $newstatus, needs update");
 				$thisif->{_needs_update} = 1;
@@ -4009,7 +4115,8 @@ sub collect_intf_data
 
 		# this returns an inventory object (or undef if removed/error)...
 		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
-		if (!defined $maybenew)
+		#  maybenew can be 0 unfortunately
+		if (!$maybenew)
 		{
 			$self->nmisng->log->warn("($nodename) Interface index $needsmust was removed while trying to update");
 			delete $if_data_map{$needsmust}; # nothing to do except mark it as historic at the end
@@ -4200,7 +4307,7 @@ sub collect_intf_data
 					$stats = {};
 				}
 				# add data and stats
-				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats,
+				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																								subconcept => $sectionname,
 																								time => $catchall_data->{last_poll},
 																								delay_insert => 1 );
@@ -4230,7 +4337,7 @@ sub collect_intf_data
 		$inventory->historic(0);
 		$inventory->enabled(1);
 
-		my ($op, $error) = $inventory->save();
+		my ($op, $error) = $inventory->save( node => $self );
 		$self->nmisng->log->error("failed to save inventory for $nodename, interface $inventory_data->{ifDescr}: $error")
 				if ($op <= 0);
 
@@ -4441,9 +4548,11 @@ sub handle_configuration_changes
 		);
 	}
 
-
+	# on some devices this value changes by a second or two depending on when the request happens,
+	# to deal with that we require the difference to be at least 10 (or config'ed value)
 	### If it is newer, someone changed it!
-	if ( $configLastChanged > $configLastChanged_prev )
+	my $minConfigTimeChange = $self->nmisng->config->{minimum_node_configuration_change_seconds} // 10;
+	if ( $configLastChanged > $configLastChanged_prev && abs($configLastChanged - $configLastChanged_prev) > $minConfigTimeChange )
 	{
 		$catchall_data->{configChangeCount}++;
 
@@ -4749,7 +4858,7 @@ sub collect_systemhealth_info
 					}
 	
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save();
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1 );
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -4827,7 +4936,7 @@ sub collect_systemhealth_info
 					$self->nmisng->log->debug2( "SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: "
 							. $SNMP->error );
 				}
-				elsif( $SNMP->error =~ /incorrect syntax/ )
+				elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
 				{
 					# error converting the name to an OID shouldn't trigger SNMP Down
 					$self->nmisng->log->error( "Model Error, $S->{name}) on get systemHealth $section index table: "
@@ -4919,7 +5028,7 @@ sub collect_systemhealth_info
 					}
 					
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save();
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -5066,7 +5175,7 @@ sub collect_systemhealth_data
 																				.", subconcept $sect failed: $stats");
 							$stats = {};
 						}
-						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect, node => $self,
 																									time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
@@ -5075,7 +5184,7 @@ sub collect_systemhealth_data
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
-				$inventory->save();
+				$inventory->save( node => $self );
 			}
 			# this allows us to prevent adding data when it wasn't collected (but not an error)
 			elsif( $howdiditgo->{skipped} ) {}
@@ -5119,7 +5228,7 @@ sub handle_sys_get_data_error
 		$self->nmisng->log->warn( "$message SNMP Object Not Present, error: ". $SNMP->error );
 		return 1;
 	}
-	elsif( $SNMP->error =~ /incorrect syntax/ )
+	elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
 	{
 		# error converting the name to an OID shouldn't trigger SNMP Down
 		$self->nmisng->log->error( "$message Model Error, error: " . $SNMP->error );
@@ -5617,7 +5726,7 @@ sub collect_cbqos_info
 						$inventory->data_info( subconcept => $classname, enabled => 0 );
 					}
 
-					my ( $op, $error ) = $inventory->save();
+					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 							if ($error);
@@ -5739,7 +5848,7 @@ sub collect_cbqos_data
 																		.", subconcept $CMName failed: $stats");
 							$stats = {};
 						}
-						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName,
+						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName, node => $self,
 																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
@@ -5755,7 +5864,7 @@ sub collect_cbqos_data
 			}
 			# saving is required bacause create_update_rrd can change inventory, setting data not done because
 			# it's not changed
-			$inventory->save();
+			$inventory->save( node => $self );
 		}
 	}
 	return $happy? 1 : 0;
@@ -6608,11 +6717,11 @@ $self->nmisng->log->debug2(sub {"total number of interfaces coll. up=$reach{intf
 			my $previous_pit = $catchall_data->get_newest_timed_data();
 			NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit, "health" );
 			my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
-			my $error = $catchall_data->add_timed_data( data => $pit, derived_data => $stats, subconcept => "health",
+			my $error = $catchall_data->add_timed_data( data => $pit, derived_data => $stats, subconcept => "health", node => $self,
 																									time => $catchall_data->{last_poll}, delay_insert => 1 );
 			$self->nmisng->log->error("($name) failed to add timed data for ". $catchall_data->concept .": $error") if ($error);
 			# $inventory->data($data);
-			$catchall_data->save();
+			$catchall_data->save( node => $self );
 		}
 	}
 	$self->nmisng->log->debug2(sub {"Finished"});
@@ -6670,7 +6779,7 @@ sub update
 			$old_data->{'last_update_attempt'} = Time::HiRes::time;
 		
 			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save();
+			my ($save, $error2) = $inventory->save( node => $self , update => 1);
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
 		} else {
@@ -6871,7 +6980,7 @@ sub update
 				$self->nmisng->log->debug("Plugin $plugin indicated no changes");
 			}
 		}
-		if ( !NMISNG::Util::getbool($C->{disable_interfaces_summary}) )
+		if ( NMISNG::Util::getbool($C->{enable_interfaces_summary}) )
 		{
 			$self->nmisng->log->debug("Running the Update Links subroutine");
 			$self->nmisng->update_links();
@@ -6899,7 +7008,7 @@ sub update
 	my $previous_pit = $catchall_inventory->get_newest_timed_data();
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
-	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
+	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
 																									time => $catchall_data->{last_poll}, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
@@ -6909,7 +7018,7 @@ sub update
 	my $coarse = $self->coarse_status;
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-	$catchall_inventory->save();
+	$catchall_inventory->save( node => $self );
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);
@@ -6935,9 +7044,7 @@ sub update_concepts
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
 
-	my $inventory = $self->inventory_concepts();
-	my %concepts;
-	
+
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
 		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
@@ -6949,6 +7056,15 @@ sub update_concepts
 		return 0;
 	}
 
+	my ($inventory, $error) = $self->inventory_concepts();
+	if($error)
+	{
+		$self->nmisng->log->error("update_concepts failed to get inventory for node: '$name', error: $error");
+		return 0;
+	}
+
+	my %concepts;
+	
 	# get the default (sub)sections from config, model can override
 	my @healthSections = split(
 		",",
@@ -7092,12 +7208,26 @@ sub collect_server_data
 
 	$self->nmisng->log->debug("Starting server device/storage collection, node $S->{name}");
 
-	# clean up node file
-	NMISNG::Util::TODO("fixme9 Need a cleanup/historic checker");
-
 	# get cpu info
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
 	{
+		my %newProcessors;
+		my %oldProcessors;
+		my $oldProcessorIDs = $self->get_inventory_ids( concept => "device", 
+			filter => { historic => 0, "data.hrDeviceType" => "1.3.6.1.2.1.25.3.1.3" });
+		$self->nmisng->log->debug2("Got " . scalar(@{$oldProcessorIDs}) . " processors.");
+		foreach my $id (@{$oldProcessorIDs})
+		{
+			$self->nmisng->log->debug2("Processing Processor ID '$id'");
+			my ($cpuInventory,$error) = $self->inventory(_id => $id);
+			if ($cpuInventory && !$error)
+			{
+				my $data = $cpuInventory->data();
+				$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
+				$oldProcessors{$data->{index}} = $id;
+			}
+		}
+
 		# this will put hrCpuLoad into the device_global concept
 		# NOTE: should really be PIT!!!
 		my $overall_target = {};
@@ -7125,7 +7255,7 @@ sub collect_server_data
 			$inventory->enabled(1);
 			# disable for now
 			$inventory->data_info( subconcept => 'device_global', enabled => 0 );
-			($op,$error) = $inventory->save();
+			($op,$error) = $inventory->save( node => $self );
 			$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		}
 
@@ -7142,6 +7272,7 @@ sub collect_server_data
 				$self->nmisng->log->debug2(sub {"device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}"});
 				if ( $D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3' )
 				{# hrDeviceProcessor
+					$newProcessors{$index} = 1;
 					( $hrCpuLoad, $D->{hrDeviceDescr} )
 						= $SNMP->getarray( "hrProcessorLoad.${index}", "hrDeviceDescr.${index}" );
 					$self->nmisng->log->debug2(sub {"CPU $index hrProcessorLoad=$hrCpuLoad hrDeviceDescr=$D->{hrDeviceDescr}"});
@@ -7196,12 +7327,12 @@ sub collect_server_data
 																		.", subconcept hrsmpcpu failed: $stats");
 							$stats = {};
 						}
-						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats,
+						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																										subconcept => 'hrsmpcpu',
 																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 
-						($op,$error) = $inventory->save();
+						($op,$error) = $inventory->save( node => $self );
 						$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					}
 					$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
@@ -7215,12 +7346,40 @@ sub collect_server_data
 					if($inventory)
 					{
 						$inventory->enabled(0);
-						$inventory->save();
+						$inventory->save( node => $self );
 					}
 				}
 			}
 		}
-		NMISNG::Util::TODO("Need to clean up device/devices here and mark unused historic");
+		# We Need to clean up device/devices here and mark unused historic.
+		foreach my $index ( keys %oldProcessors )
+		{
+			$self->nmisng->log->debug2("Searching for Processor Index '$index'");
+			unless (exists($newProcessors{$index}))
+			{
+				$self->nmisng->log->debug2("Could not find Processor Index '$index', removing.");
+				my ( $inventory, $error ) = $self->inventory( _id => $oldProcessors{$index} );
+				if ( $inventory )
+				{
+                    my ($ok, $deleteError) = $inventory->delete();
+                    if ($deleteError)
+                    {
+                         $self->nmisng->log->error("Failed to delete inventory for Processor '$index', ERROR:: $deleteError");
+                    }
+#					$inventory->enabled(0);
+#					$inventory->historic(1);
+#					$inventory->save();
+				}
+				else
+				{
+					$self->nmisng->log->debug2("Could not find Processor '$index' in the system.");
+				}
+			}
+			else
+			{
+				$self->nmisng->log->debug2("Found Processor Index '$index'");
+			}
+		}
 	}
 	else
 	{
@@ -7435,7 +7594,7 @@ sub collect_server_data
 																			.", subconcept $subconcept failed: $stats");
 						$stats = {};
 					}
-					my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $subconcept,
+					my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $subconcept, node => $self,
 																									time => $catchall_data->{last_poll}, delay_insert => 1 );
 					$self->nmisng->log->error("failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					$inventory->data_info( subconcept => $subconcept, enabled => 0 );
@@ -7446,7 +7605,7 @@ sub collect_server_data
 				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
-				($op,$error) = $inventory->save();
+				($op,$error) = $inventory->save( node => $self );
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
@@ -7456,7 +7615,7 @@ sub collect_server_data
 				if( $inventory )
 				{
 					$inventory->historic(1);
-					$inventory->save();
+					$inventory->save( node => $self );
 				}
 				# nothing needs to be done here, storage target is the data from last time so it's already in db
 				# maybe mark it historic?
@@ -7651,9 +7810,9 @@ sub collect_services
 			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
 			# i think disabled here makes sense
 			$processinventory->data_info( subconcept => 'snmp_services', enabled => 0 );
-			(my $op, $error) = $processinventory->save();
+			(my $op, $error) = $processinventory->save( node => $self , update => 1);
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
-			$error = $processinventory->add_timed_data(data => \%services, derived_data => {},
+			$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, node => $self,
 																								 subconcept => 'snmp_services');
 			$self->nmisng->log->error("snmp_services timed data saving failed: $error") if ($error);
 
@@ -7714,7 +7873,7 @@ sub collect_services
 
 			die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
 			$invobj->historic(1);
-			$error = $invobj->save();
+			$error = $invobj->save( node => $self );
 			$self->nmisng->log->error("failed to save historic inventory object for service $maybedead: $error") if ($error);
 		}
 	}
@@ -8441,7 +8600,7 @@ sub collect_services
 
 		# TODO: enable this? needs to know some things to show potentially
 		$inventory->data_info( subconcept => 'service', enabled => 0 );
-		( my $op, $error ) = $inventory->save();
+		( my $op, $error ) = $inventory->save( node => $self );
 		$self->nmisng->log->error("service status saving inventory failed: $error") if ($error);
 
 		# and add a new point-in-time record for this service
@@ -8457,7 +8616,7 @@ sub collect_services
 		map { $dspresent{$_} =1 } (values %{$status{ds}})
 				if (ref($status{ds}) eq "HASH");
 
-		$error = $inventory->add_timed_data(data => \%status,
+		$error = $inventory->add_timed_data(data => \%status, node => $self,
 																				derived_data => {},
 																				time => NMISNG::Util::numify($thisrun),
 																				datasets => { "service" => \%dspresent },
@@ -8599,19 +8758,22 @@ sub collect
 													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
 		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
 		
-		my $old_data = $inventory->data();
-		if ($old_data) {
+		if (!$error) 
+		{
+			my $old_data = $inventory->data();
 			my $polltime = Time::HiRes::time;
 			$old_data->{'last_poll_snmp_attempt'} = $polltime;
 			$old_data->{'last_poll_wmi_attempt'} = $polltime;
 			$old_data->{'last_poll_attempt'} = $polltime;
 		
 			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save();
+			my ($save, $error2) = $inventory->save( node => $self );
 			
 			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
-		} else {
-			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
+		} 
+		else 
+		{
+			$self->nmisng->log->error("Failed to get inventory for node $name failed, $error");
 		}
 		
 		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
@@ -8666,7 +8828,7 @@ sub collect
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
 		# collect will have to wait until a next run...
-		$catchall_inventory->save();
+		$catchall_inventory->save( node => $self  );
 		return $res;
 	}
 
@@ -8857,7 +9019,7 @@ sub collect
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory, conf => $C );
-	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
+	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
 																					time => $catchall_data->{last_poll}, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
@@ -8867,7 +9029,7 @@ sub collect
 	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-	$catchall_inventory->save(force => $force); 
+	$catchall_inventory->save(force => $force, node => $self ); 
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);

@@ -56,16 +56,16 @@ my $log_level = $ARG->{debug} // $C->{log_level};
 my $log_file = $ARG->{log_file};
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $log_level), path => $log_file );
 
-my $pass = 0;
-my $dirpass = 1;
-my $dirlevel = 0;
-my $maxrecurse = 500;
+# don't go deeper than this level of directories
 my $maxlevel = 10;
 
 my $bad_file;
 my $bad_dir;
 my $file_count;
 my $extension = "rrd";
+
+# set this to remove all .rrd.bak files from all directories found in database_root
+my $only_remove_backups = $ARG->{only_remove_backups} // 0;
 
 my $rrdtool = ($ARG->{rrdtool} ne '') ? "$ARG->{rrdtool}/rrdtool" : "rrdtool";
 my $info = `$rrdtool`;
@@ -86,7 +86,7 @@ if ($ARG->{dir} ne '') { $dir = $ARG->{dir}; }
 
 print " Resize all RRD files to desired size\n";
 
-&processDir(dir => $dir);
+&processDir(dir => $dir, dirlevel => 1);
 
 print "Done.  Processed $file_count RRD files.\n";
 
@@ -97,14 +97,15 @@ sub processDir {
 	my %args = @_;
 	# Starting point
 	my $dir = $args{dir};
+	my $dirlevel = $args{dirlevel};
 	my @dirlist;	
 	my $index;
-	++$dirlevel;
+	
 	my @filename; 
 	my $key;
 
 	if ( -d $dir ) {
-		print "\nProcessing Directory $dir pass=$dirpass level=$dirlevel\n"; 
+		print "\nProcessing Directory $dir level=$dirlevel\n"; 
 	}
 	else {
 		print "\n$dir is not a directory\n";
@@ -112,8 +113,7 @@ sub processDir {
 	}	
 
 	#sleep 1;
-	if ( $dirpass >= 1 and $dirpass < $maxrecurse and $dirlevel <= $maxlevel ) {
-		++$dirpass;
+	if ( $dirlevel <= $maxlevel ) {
 		opendir (DIR, "$dir");
 		@dirlist = readdir DIR;
 		closedir DIR;
@@ -134,8 +134,7 @@ sub processDir {
 				and $bad_dir !~ /$dirlist[$index]/i
 			) {
 				#if (!$debug) { print "."; }
-				processDir(dir => "$dir/$dirlist[$index]");
-				--$dirlevel;
+				processDir(dir => "$dir/$dirlist[$index]", dirlevel => $dirlevel + 1);
 			}
 		}	
 	}
@@ -152,6 +151,16 @@ sub processRRDFile {
 	chdir($dir);
 	
 	print "dir=$dir rrd=$rrd\n";
+
+	# if only_remove_backups, then just do that, nothing else
+	if( $only_remove_backups ) {
+		my $backup = "$dir/$rrd.bak";
+		$logger->debug("removing $backup");
+		if ( -f $backup ) {
+			unlink $backup;
+		}
+		return;
+	}
 
 	++$file_count;
 	my @lines;

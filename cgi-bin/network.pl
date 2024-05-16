@@ -30,7 +30,7 @@
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 use strict;
 use URI::Escape;
@@ -3366,6 +3366,11 @@ escalate ));
 			elsif ($k eq "totalUtil")
 			{
 				$color = Compat::NMIS::colorLowGood( $thisintf->{$k} ) if (!defined $color);
+			}
+			elsif ( $k eq "collect" ){
+				my $overrides = $nmisng_node->overrides;
+				my $if_descr = $thisintf->{ifDescr};
+				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{collect};
 			}
 			elsif ( $k eq 'Description' )
 			{

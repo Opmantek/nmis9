@@ -224,7 +224,7 @@ sub update_plugin
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
-					(my $operation, $error) = $inventory->save;
+					(my $operation, $error) = $inventory->save( update => 1 ); # update required because we made id
 					$NG->log->error("Failed to save inventory for macTable $macAddress: $error") if($error);
 				}
 			}

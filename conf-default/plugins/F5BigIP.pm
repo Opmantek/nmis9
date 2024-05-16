@@ -57,16 +57,14 @@ sub collect_plugin
 		$NG->log->info("Skipping Host Resources plugin for node::$node, Node Down");
 		return ( error => "Node Down, skipping Host Resources plugin");
 	}
-	else {
-		$NG->log->info("Running plugin for node::$node");
-	}
-
+	
 	my $changesweremade = 0;
 
 	my $nodeobj = $NG->node(name => $node);
 	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
 	
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP" or !NMISNG::Util::getbool($catchall->{collect}));
+	$NG->log->info("Running plugin for node::$node");
 
 	my $f5Data = getF5Data(name => $node, NG => $NG, C => $C);
 	
@@ -204,7 +202,7 @@ sub collect_plugin
                 
                 # Save the data
                 $host_inventory->data($data); # set changed info
-                (undef,$error) = $host_inventory->save; # and save to the db
+                (undef,$error) = $host_inventory->save; # and save to the db, update not required
                 $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
                         if ($error);
 			}

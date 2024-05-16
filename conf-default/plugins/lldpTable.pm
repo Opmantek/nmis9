@@ -204,7 +204,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$lldpinventory->data($data); # set changed info
-			(undef,$error) = $lldpinventory->save; # and save to the db
+			(undef,$error) = $lldpinventory->save; # and save to the db, update not required
 			$NG->log->error("Failed to save inventory for $lldpid: $error")
 					if ($error);
 		}

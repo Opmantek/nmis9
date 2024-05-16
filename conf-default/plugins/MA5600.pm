@@ -150,7 +150,7 @@ sub update_plugin
 					# set the inventory things description, as this was made up from other data
 					$gpon_traffic->description( $data->{ONTBASE} );
 
-                    (undef,$error) = $gpon_traffic->save; # and save to the db
+                    (undef,$error) = $gpon_traffic->save; # and save to the db, update not required
                     $NG->log->error("Failed to save inventory for ".$gpon_traffic->id. " : $error")
                             if ($error);
                 } 
@@ -189,7 +189,7 @@ sub update_plugin
 					{
 						$data->{hwGponDeviceOntPassword} = $d;
 						$section->data($data); # set changed info
-						(undef,$error) = $section->save; # and save to the db
+						(undef,$error) = $section->save; # and save to the db, update not required
 						$NG->log->error("Failed to save inventory for ".$section->id. " : $error")
 								if ($error);
 					}

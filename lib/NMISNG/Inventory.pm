@@ -42,7 +42,7 @@ use Scalar::Util;       # for weaken
 use Data::Dumper;
 use Time::HiRes;
 use Time::Moment;								# for ttl indices
-use DateTime;										# ditto
+#use DateTime;										# ditto
 use List::MoreUtils;    # for uniq
 use Carp;
 use File::Basename;							# for relocate_storage
@@ -384,7 +384,7 @@ sub new
 				(   map { ( "_$_" => $args{$_} ) } (
 							qw(concept node_uuid cluster_id data id nmisng
 						path path_keys storage subconcepts description
-            lastupdate)
+            lastupdate expire_at)
 						)
 				)
 		},
@@ -484,13 +484,13 @@ sub add_timed_data
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
 	return "cannot add timed data, invalid derived_data argument!"
 		if ( ref( $args{derived_data} ) ne "HASH" );    # empty hash is acceptable
-	my ( $data, $derived_data, $time, $delay_insert, $flush )
-			= @args{'data', 'derived_data', 'time', 'delay_insert','flush'};
+	my ( $data, $derived_data, $time, $delay_insert, $flush, $node )
+			= @args{'data', 'derived_data', 'time', 'delay_insert','flush','node'};
 
 	# automatically take care of datasets
 	# one of these two must be defined
 	my ( $subconcept, $datasets ) = @args{'subconcept', 'datasets'};
-
+	
 	return "subconcept is required stack:" . Carp::longmess() if ( !$subconcept && !$flush);
 	return "datasets must be hash if defined" . Carp::longmess()
 			if ( $datasets && ref($datasets) ne 'HASH' && !$flush );
@@ -507,7 +507,11 @@ sub add_timed_data
 	my $timedrecord = { time => $time, expire_at => $expire_at, cluster_id => $self->cluster_id };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
     $timedrecord->{node_uuid} = $self->node_uuid();
-	my $node = $self->nmisng->node( filter => {uuid => $self->node_uuid()} );
+	# if a node was forgotten or was not given proper node object
+	if( !$node || ref($node) ne "NMISNG::Node" ) {	
+		$node = $self->nmisng->node( filter => {uuid => $self->node_uuid()} );
+		$self->nmisng->log->debug(sub {"Inventory::add_timed_data node not provided in args:\n ".Carp::longmess()});
+	}
 	if ($node)
 	{
 		$timedrecord->{configuration}->{group} = $node->configuration()->{'group'};
@@ -585,7 +589,7 @@ sub add_timed_data
 
 		# if the datasets were modified they need to be saved, only if we're not flushing
 		# which should only come from save (so don't start a recursive loop)
-		$self->save() if (!$flush && $datasets_modfied);
+		$self->save( node => $node ) if (!$flush && $datasets_modfied);
 	}
 	else
 	{
@@ -724,6 +728,14 @@ sub node_uuid
 {
 	my ($self) = @_;
 	return $self->{_node_uuid};
+}
+
+# RO, returns when this document should expire
+sub expire_at
+{
+	my ($self) = @_;
+	return $self->{_expire_at} if ( !$self->is_new );
+	return;
 }
 
 # returns the storage structure, optionally replaces it (all of it)
@@ -1037,7 +1049,8 @@ sub relocate_storage
 	
 	# Needed to makeRRDname from database, if current path is corrupt
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
-	$S->init(node => $self->nmisng->node(name => $curname));
+	my $node = $self->nmisng->node(name => $curname);
+	$S->init(node => $node);
 
 	# full sanity check FIRST - can the path fixup happen? does the current name match?
 	my $safetomangle = Clone::clone($self->{_storage});
@@ -1133,7 +1146,7 @@ sub relocate_storage
 	$self->{_storage} = $safetomangle;
 	$self->_dirty(1,"storage");
 
-	my ($op, $error) = $self->save;
+	my ($op, $error) = $self->save( node => $node );
 	return (0, "failed to save updated inventory: $error")
 			if ($op <= 0);
 
@@ -1191,7 +1204,7 @@ sub reload
 		my $newme = $modeldata->data()->[0];
 
 		# some things are ro/no settergetter, path MUST be set directly, its accessor gets confused by id/is_new!
-		for my $copyable (qw(cluster_id node_uuid concept path lastupdate))
+		for my $copyable (qw(cluster_id node_uuid concept path lastupdate expire_at))
 		{
 			$self->{"_$copyable"} = $newme->{$copyable};
 		}
@@ -1268,8 +1281,11 @@ sub path
 #  using the path to make sure we don't create duplicates, this will clobber whatever
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
 #
-# args: lastupdate, (optional, defaults to now),
+# args: lastupdate, (optional, defaults to now), node (obj)
 # note: lastupdate and expire_at currently not added to object but stored in db only
+# 		update - 0/1 set 1 if the save is coming from an update function that is where
+#				that piece of inventory is created, if the function just updates existing
+#				inventory that is created elsewhere keep 0
 #
 # the object's _id and _path are refreshed
 # returns ($op,$error), op is 1 for insert, 2 for update/save,
@@ -1279,7 +1295,14 @@ sub path
 sub save
 {
 	my ( $self, %args ) = @_;
-	my $lastupdate = $args{lastupdate} // Time::HiRes::time;
+	my $lastupdate		= $args{lastupdate} // Time::HiRes::time;
+	my $lastupdate_utc 	= Time::Moment->now_utc->epoch;
+	my $update		= $args{update} 	// 0;
+
+	my $node = $args{node};
+	if( $self->node_uuid ne '' && !$node ) {
+		$self->nmisng->log->debug(sub {"Inventory::save has node uuid and no node!".Carp::longmess()});
+	}
 
 	# first, check if what we have is saveable at all
 	my ( $valid, $validation_error ) = $self->validate();
@@ -1287,7 +1310,10 @@ sub save
 
 	#node_name and group name are cached on the record for faster inventory sorting in the other products,
 	#maybe we should append with cached? as this data could be stale?
-	my $node = $self->nmisng->node( filter => { uuid => $self->node_uuid } );
+	# if a node was forgotten or was not given proper node object
+	if( !$node || ref($node) ne "NMISNG::Node" ) {
+		$node = $self->nmisng->node( filter => { uuid => $self->node_uuid } );
+	}
 	my ($name, $group);
 	
 	# for now configuration is special, it's not accessible outside the class
@@ -1337,8 +1363,8 @@ sub save
 	{
 		# to make the db ttl expiration work this must be
 		# an acceptable date type for the driver version
-		my $pleasegoaway = $lastupdate + ($self->nmisng->config->{purge_inventory_after} || 14*86400);
-		$pleasegoaway = Time::Moment->from_epoch($pleasegoaway);
+		my $pleasegoaway = Time::Moment->now_utc->plus_seconds( $self->nmisng->config->{purge_inventory_after} || 14*86400 );
+		#check if the expire_at is now in the past from a bad lastupdate. This should never happen!
 		$record->{expire_at} = $pleasegoaway;
 	}
 
@@ -1378,7 +1404,10 @@ sub save
 		if( defined($record->{data}{index}) ) { # && $self->{_index_is_string} ) {
 			$record->{data}{index} = NMISNG::DB::make_string( $record->{data}{index} );
 		}
-
+		# Description should always be a string
+		if( defined($record->{data}{Description}) ) { 
+			$record->{data}{Description} = NMISNG::DB::make_string( $record->{data}{Description} );
+		}		
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
 			query      => $q,
@@ -1414,6 +1443,9 @@ sub save
 				$result->{success} = 0;
 				$result->{error} = "Inventory save of new inventory resulted in update. Find for _id failed after update with".NMISNG::DB::get_error_string();
 			}
+		} else {
+			$self->nmisng->log->fatal(NMISNG::Log::trace() ."\n Error inserting Inventory! DUPLICATE INVENTORY");
+			$self->nmisng->log->error("Inventory save of new inventory resulted in an error, DUPLICATE INVENTORY. Error:".NMISNG::DB::get_error_string() );
 		}
 	}
 	# not new, so we update it but try change as little as possible
@@ -1431,10 +1463,22 @@ sub save
 		# what do we need to update?
 		# most properties are easy, except for data where we  want to update individual properties,
 		# which means the record must use 'data.X', which means the db module must not apply constraints
-		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
+
 
 		my (%setthese, %unsetthese);
+
 		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
+		# Description should always be a string
+		# make-sure current Description of records will be converted to string on update.
+		if ((exists $self->{_data_orig}->{"Description"} && $self->{_data_orig}->{"Description"}  =~ /^[0-9]+$/) ||  (exists $record->{data}->{Description} && $record->{data}->{Description}  =~ /^[0-9]+$/) ){
+			my $data_Description = $record->{data}->{Description} // $self->{_data_orig}->{Description} // undef;
+			$record->{data}->{"Description"}= NMISNG::DB::make_string($data_Description);
+			$self->_dirty(1,"data") if ($data_Description);
+		
+		}
+		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
+		#Handle cases where NMIS is updating the inventory but nothing in record has changed, we need to make sure lastupdate is updated as opHA uses this to track when data should be pushed
+		$self->_dirty(1,"lastupdate") if ($update);
 
 		$op = 3; # nothing to update
 		for my $saveme ($self->_whatisdirty)
@@ -1475,6 +1519,18 @@ sub save
 			$setthese{'data.index'} = NMISNG::DB::make_string( $setthese{'data.index'} );
 		}
 
+
+		my $expire_at = $self->expire_at();
+		#op3 means no changes , check we have expire_at on setthese as this is done outside the update loop and we have expire on the current record
+		if( $op == 3 and exists($setthese{"expire_at"}) and ref($expire_at) eq 'BSON::Time')
+		{
+			my $update_grace = ($self->nmisng->config->{expire_at_update_grace_period} // 86400);
+			$update_grace = Time::Moment->now_utc->plus_seconds($update_grace);
+			$expire_at = $expire_at->as_time_moment;
+			#if the expire_at is after the update grace period, and the only thing being saved is the expire_at value, do not update this value, this saves us making just an expire_at update to the db.
+			delete $setthese{"expire_at"} if( $expire_at->is_after($update_grace) );
+		}
+
 		$updateargs{record} = {'$set' => \%setthese} if (keys %setthese);
 		$updateargs{record}->{'$unset'} = \%unsetthese if (keys %unsetthese);
 
@@ -1490,7 +1546,7 @@ sub save
 		my $pit_record = $self->{_queued_pit};
 		# using ourself means id will be added (so new inventories will work, no save first required)
 		# telling it to flush should bypass any special handling, allowing the data straight through
-		my $error = $self->add_timed_data(flush => 1, %$pit_record);
+		my $error = $self->add_timed_data(flush => 1, node => $node, %$pit_record);
 		if ($error)
 		{
 			$result->{success} = 0;
@@ -1516,6 +1572,10 @@ sub save
 			$self->_dirty(1,"data");
 			$self->{_data_orig} = Clone::clone($self->{_data});
 		}
+	}
+	if( $result->{error} && $result->{error} =~ /duplicate key error/ ) {
+		$self->nmisng->log->fatal(NMISNG::Log::trace() ."\n Error inserting Inventory! DUPLICATE INVENTORY");
+		$self->nmisng->log->error("Inventory update of new inventory resulted in an error, DUPLICATE INVENTORY. Error:".NMISNG::DB::get_error_string() );
 	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
