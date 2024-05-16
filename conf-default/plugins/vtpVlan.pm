@@ -109,7 +109,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$vtpinventory->data($vtpdata); # set changed info
-			(undef,$error) = $vtpinventory->save; # and save to the db
+			(undef,$error) = $vtpinventory->save; # and save to the db # update not required
 			$NG->log->error("Failed to save inventory for $vtpid: $error")
 					if ($error);
 		}

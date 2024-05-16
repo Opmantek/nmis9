@@ -83,7 +83,7 @@ sub update_plugin
 			$changesweremade = 1;
 
 			$aminventory->data($airmaxdata); # set changed info
-			(undef,$error) = $aminventory->save;
+			(undef,$error) = $aminventory->save; # update not required
 			$NG->log->error("Failed to save inventory for $amid: $error")
 					if ($error);
 		}

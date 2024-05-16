@@ -62,16 +62,16 @@ sub collect_plugin
 		return (0, "combinedCPULoad: SNMP Down, skipping Host Resources plugin");
 	}
 	else {
-		$NG->log->info("combinedCPULoad: Running Combined CPU Load plugin for node::$node");
+		$NG->log->debug("combinedCPULoad: Attempting Combined CPU Load plugin for node::$node");
 	}
 
 	my $host_ids = $S->nmisng_node->get_inventory_ids(
 		concept => "device",
-		filter => { historic => 0 });
+		filter => { historic => 0, "data.hrDeviceType" => "1.3.6.1.2.1.25.3.1.3" });
 	
 	if (@$host_ids)
 	{
-		$NG->log->info("combinedCPULoad: Working on $node Combined CPU Calculations");
+		$NG->log->info("combinedCPULoad: Running Combined CPU Load plugin for node::$node");
 		# for saving all the types of memory we want to use
 		my $cpu_total   = 0;
 		my $cpu_max     = 0;

@@ -28,7 +28,7 @@
 # *****************************************************************************
 package NMISNG::rrdfunc;
 
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 use strict;
 use feature 'state';
@@ -752,7 +752,14 @@ sub optionsRRD
 	
 	$timinginfo //= { heartbeat => 900, poll => 300 };
 	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
-	$S->nmisng->log->debug("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
+	$S->nmisng->log->debug("timing options for this file of type $type: step: $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
+
+	#worker[3861834] Exception while processing job 6614a45f41209f76ca738cc6: Illegal modulus zero at /usr/local/nmis9/bin/../lib/NMISNG/rrdfunc.pm line 758.
+	if(!defined($timinginfo->{poll}))
+	{
+		$S->nmisng->log->error("No polling interval defined for type $type, using default 300 seconds");
+		$timinginfo->{poll} = 300;
+	}
 
 	# align the start time with the step interval, but reduce by one interval so that we can send data immediately
 	my $starttime = time - (time % $timinginfo->{poll}) - $timinginfo->{poll};
@@ -1003,6 +1010,45 @@ sub draw
 			push(@rrdargs, "--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
 		}
 		push @rrdargs, @{$graph->{option}{$size}};
+
+		#allow for generic overlways to be added into the graph
+		if(defined ($graph->{option}{overlays}) and ref($graph->{option}{overlays}) eq "HASH")
+		{
+			#currently we can only show percentiles on graphs
+			my $overlays = $graph->{option}->{overlays};
+
+			if(defined($overlays->{percentile}) and ref($overlays->{percentile}) eq "HASH")
+			{
+				my $po = $overlays->{percentile};
+				#check if this is between 0 and 100
+				my $calculate_percentile = 95;
+				$calculate_percentile = $po->{calculate} if(defined($po->{calculate}) and $po->{calculate} >= 0 and $po->{calculate} <=	100);
+
+				#we have a key which is our dataset name as input and value whic will be the label on the graph, if small we dont show the label
+				if(defined($po->{datasets}) and ref($po->{datasets}) eq "HASH")
+				{
+					my $datasets = $po->{datasets};
+					#sort the datasets
+					my @sorted_datasets = sort keys %$datasets;
+					foreach my $ds (@sorted_datasets)
+					{
+						my $label = $datasets->{$ds};
+						if($width > 400)
+						{
+							push @rrdargs, "VDEF:${ds}95=$ds,$calculate_percentile,PERCENTNAN";
+							push @rrdargs, "LINE1:${ds}95#EE4B2B:$label";
+							push @rrdargs, "GPRINT:${ds}95:%4.2lf%s\\n";
+						}
+						else
+						{
+							push @rrdargs, "VDEF:${ds}95=$ds,$calculate_percentile,PERCENTNAN";
+							push @rrdargs, "LINE1:${ds}95#EE4B2B:$label";
+							push @rrdargs, "GPRINT:${ds}95:%4.2lf%s\\n";
+						}
+					}
+				}
+			}
+		}
 	}
 
 	my $extras = {

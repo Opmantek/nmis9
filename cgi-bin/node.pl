@@ -696,6 +696,7 @@ sub show_export_options
 														 cssgroup => 'Group',
 														 nmis => undef); # no item label is shown
 
+	#/
 	print qq|<table><tr><th class='title' colspan='2'>Export Options for Graph "$heading"</th></tr>|;
 
 	my $label = $graphtype2itemname{$graphtype};
@@ -767,6 +768,7 @@ sub typeExport
 {
 	my $S = NMISNG::Sys->new; # get system object
 	$S->init(name => $Q->{node}, snmp => 'false');
+	my $graphtype = $Q->{graphtype};
 
 	my %interfaceTable;
 	my $database;
@@ -781,6 +783,13 @@ sub typeExport
 	{
 		bailout(code => 403, message => "Not Authorized to export rrd data for nodes in group '$Q->{group}'.");
 	}
+	# check for overlays (which currently are only percentile)
+	my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
+	if (!$res->{success}) 
+	{
+		bailout(code => 400, message => "failed to read Graph-$graphtype!");
+	}
+	my $graph = $res->{data};
 
 	# figure out start and end
 	my ($start, $end) = @{$Q}{"start","end"};
@@ -796,7 +805,7 @@ sub typeExport
 													&& $Q->{resolution} != 0?
 													$Q->{resolution}: undef );
 
-	my $db = $S->makeRRDname(graphtype => $Q->{graphtype}, index=>$Q->{intf},item=>$Q->{item});
+	my $db = $S->makeRRDname(graphtype => $graphtype, index=>$Q->{intf},item=>$Q->{item});
 	my ($statval,$head,$meta) = NMISNG::rrdfunc::getRRDasHash(database => $db,
 																														mode=>"AVERAGE",
 																														start => $start,
@@ -827,6 +836,90 @@ sub typeExport
 
 	$headeropts->{type} = "text/csv";
 	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
+
+	$S->nmisng->log->info("Exporting data for $Q->{node} $Q->{intf} $Q->{item} $start to $end, headers: @$head");
+
+	#If we have the grapgh autil convert the in and out octets to util and then work out the 95% across the range
+	if($Q->{graphtype} eq "autil")
+	{
+
+		#now we know we are looking at an interface grab its inventory class so we can then get the speed in and out
+		my $pathdata = { index => $Q->{intf} };
+		my $path = $S->nmisng_node->inventory_path( concept => 'interface', data => $pathdata, partial => 1 );
+		my ($inventory, $error) = $S->nmisng_node->inventory( concept => 'interface', path => $path);
+		if( $error )
+		{
+			$S->nmisng->log->error("Failed to load inventory for interface $Q->{intf} on node $Q->{node}: $error");
+			bailout(message => "Failed to load inventory for interface $Q->{intf} on node $Q->{node}");
+		}
+		my $ifSpeedIn = $inventory->ifSpeedIn;
+		my $ifSpeedOut = $inventory->ifSpeedOut;
+
+		#got the speed time to work out util, we will have this as part of statval
+
+		#first loop is to work out the util
+		my (@ifUtilBucket, @ifUtilBucketOut);
+		foreach my $rtime (sort keys %{$statval})
+		{
+
+			if(defined($statval->{$rtime}->{ifInOctets}))
+			{
+				my $val = $statval->{$rtime}->{ifInOctets};
+				my $util = $val * 8 / $ifSpeedIn * 100;
+				$statval->{$rtime}->{ifInUtil} = $util;
+				push @ifUtilBucket, $util;
+			}
+
+			if(defined($statval->{$rtime}->{ifOutOctets}))
+			{
+				my $val = $statval->{$rtime}->{ifOutOctets};
+				my $util = $val * 8 / $ifSpeedOut * 100;
+				$statval->{$rtime}->{ifOutUtil} = $util;
+				push	@ifUtilBucketOut, $util;
+			}
+		}
+		#headers for csv
+		push @$head, "ifInUtil";
+		push @$head ,"ifOutUtil";
+	}
+
+	# look for overlays, if it's there look for percentile, find dataset values, calculate percentile, 
+	# put that back into the stat values, one entry for each time
+	if(defined ($graph->{option}{overlays}) and ref($graph->{option}{overlays}) eq "HASH")
+	{
+		my $overlays = $graph->{option}->{overlays};
+		if(defined($overlays->{percentile}) and ref($overlays->{percentile}) eq "HASH")
+		{
+			my $po = $overlays->{percentile};
+			#check if this is between 0 and 100
+			my $calculate_percentile = 95;
+			$calculate_percentile = $po->{calculate} if(defined($po->{calculate}) and $po->{calculate} >= 0 and $po->{calculate} <=	100);
+
+			#we have a key which is our dataset name as input and value whic will be the label on the graph, if small we dont show the label
+			if(defined($po->{datasets}) and ref($po->{datasets}) eq "HASH")
+			{
+				my $datasets = $po->{datasets};
+				#sort the datasets
+				my @sorted_datasets = sort keys %$datasets;
+				foreach my $ds (@sorted_datasets)
+				{
+					my $newTitle = $datasets->{$ds};
+					my $dsData;
+					# get the data in the dataset
+					foreach my $rtime (keys %{$statval}) {
+						push @$dsData, $statval->{$rtime}{$ds} if( defined($statval->{$rtime}{$ds}) );
+					}
+					# calculate the  percentil
+					my $percentile = NMISNG::Util::percentile($calculate_percentile, @$dsData);
+					foreach my $rtime (keys %{$statval})
+					{
+						$statval->{$rtime}->{$newTitle} = $percentile if( defined($statval->{$rtime}{$ds}) );
+					}
+					push @$head, $newTitle;
+				}
+			}
+		}
+	}
 
 	print header($headeropts);
 

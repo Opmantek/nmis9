@@ -39,7 +39,7 @@ use Data::Dumper;
 use Test::Deep::NoTest;
 use Time::HiRes;
 
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 # Allow testing of proposed fix for Event Load():
 # intent of t_event.pl and t_notify.pl tests shows "Node Up" and "Node Down" must include finding in "Event Previous"
@@ -533,6 +533,7 @@ sub getLogLevel
 	my $node = $S->nmisng_node;
 	my $role = $node->configuration->{roleType} || 'access ';
 	my $type = $node->configuration->{nodeType} || 'router';
+	my $default_event_level = $self->nmisng->config->{default_event_level} // 'Major';
 
 	my $M = $S->mdl;
 
@@ -573,7 +574,7 @@ sub getLogLevel
 		}
 		else
 		{
-			$mdl_level = 'Major';
+			$mdl_level = $default_event_level;
 
 			# not found, use default
 			$self->nmisng->log->warn("node=". $node->name

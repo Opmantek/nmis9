@@ -93,7 +93,7 @@ sub update_plugin
 				$cpuinventory->data($cpudata); # set changed info
 				# set the inventory description to a nice string.
 				$cpuinventory->description( "$emibdata{$entityIndex}->{entPhysicalName}" );
-				(undef,$error) = $cpuinventory->save; # and save to the db
+				(undef,$error) = $cpuinventory->save; # and save to the db, update => 1 not required, inventory already existed
 				$NG->log->error("Failed to save inventory for $cpuid: $error")
 						if ($error);
 			}

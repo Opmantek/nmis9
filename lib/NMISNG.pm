@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.4.6";
+our $VERSION = "9.4.7";
 
 use strict;
 use Data::Dumper;
@@ -46,7 +46,7 @@ use List::Util 1.45;
 use boolean;
 use Fcntl qw(:DEFAULT :flock :mode);    # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Errno qw(EAGAIN ESRCH EPERM);
-use Mojo::File;                         # slurp and spurt
+use Mojo::File;                         # slurp
 use JSON::XS;
 use Archive::Zip 1.36;					# for dump()/undump()
 
@@ -68,6 +68,9 @@ use Compat::Timing;
 #  log - NMISNG::Log object to log to, required.
 #  db - mongodb database object, optional.
 #  drop_unwanted_indices - optional, default is 0.
+#  existing_timed_collections - optional, list of existing timed collections, needed because they
+#		are created dynamically and will need indexes when they are knew, hash of name => 1 if 
+# 		it's there and all good
 #
 #  allow for instantiating a test collection in our $db for running tests
 #  in a hashkey named 'tests' passed as arg to NMISNG->new()
@@ -84,8 +87,9 @@ sub new
 	my $self = bless(
 		{   _config  => $args{config},
 			_db      => $args{db},
+			_existing_timed_collections => $args{existing_timed_collections} // {},
 			_log     => $args{log},
-			_plugins => undef,           # sub plugins populates that on the go
+			_plugins => undef,            # sub plugins populates that on the go
 		},
 		$class
 	);
@@ -508,8 +512,8 @@ sub config_backup
 	if ( !$nodes->error && @{$nodes->data} )
 	{
 		# ensure that the output is indeed valid json, utf-8 encoded
-		Mojo::File->new($nodedumpfile)
-			->spurt( JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $nodes->data ) );
+		my $encoded = JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $nodes->data );
+		NMISNG::Util::spew_file( $nodedumpfile, $encoded );
 	}
 
 	# ...and of _custom_ models and configuration files (and the default ones for good measure)
@@ -766,7 +770,7 @@ sub compute_thresholds
 	# Save the new status results, but only if run standalone
 	if ($running_independently)
 	{
-		$catchall_inventory->save();
+		$catchall_inventory->save( node => $S->nmisng_node );
 	}
 
 	$self->log->debug(&NMISNG::Log::trace()."Finished");
@@ -1319,6 +1323,7 @@ sub ensure_indexes
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
 				[["data.ip.ipAdEntAddr" => 1], {unique             => 0}],
 				[{expire_at             => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+				[["path.0"  => 1, "path.1" => 1], {unique => 1, partialFilterExpression => {"path.2" => { '$eq' => "catchall"}}}],
 			]
 	);
 	
@@ -1416,6 +1421,24 @@ sub ensure_indexes
 			]
 	);
 	$self->log->error("index setup failed for nodes: $err") if ($err);
+	
+
+	## add in custom indices
+	
+	my $custom_indexes = $self->config->{custom_indexes};
+	if ($custom_indexes){
+		$self->log->info("NMISNG adding custom_indexes");
+		foreach my $entry (keys %{$custom_indexes}){
+			$self->log->info("Adding custom_index for $entry");
+			$err = NMISNG::DB::ensure_index(
+				collection    => $self->{'_db_'.$entry},
+				drop_unwanted => $drop_unwanted,
+				indices  => $custom_indexes->{$entry}
+			);
+			$self->log->error("index setup failed for $entry: $err") if ($err);
+		}		
+		$self->log->info("NMISNG end of custom_index");
+	}
 	
 	$self->log->info("NMISNG end of ensure_indexes");
 	return;
@@ -1741,7 +1764,7 @@ sub find_due_nodes
 						$shortlived->{demote_grace} = $graceperiod_start = $ninfo->{demote_grace} = $now;
 						# track newly added nodes, to prioritise type=update
 						$newnodes{$maybe} = 1 if ($catchall->is_new);
-						my ( $op, $error ) = $catchall->save;
+						my ( $op, $error ) = $catchall->save( node => $nodeobj );
 						$self->log->error("Failed to update catchall inventory: $error") if ($error);
 					}
 				}
@@ -2011,11 +2034,10 @@ sub get_inventory_model
 		$query_count = $res->{count};
 	}
 
-	#bodge to see if we can use the index hint, this helps to fix an issue whitch the schedular
-	if($q->{'path.2'} and $q->{'path.2'} eq "catchall" and !defined($q->{'path.1'}) )
-	{
-		$args{index_hint} = 'path.0_1_path.2_1';
-	}
+	# scheduler does this often so try and make it cheaper
+        if( keys(%$q) == 2 && defined($q->{'path.0'}) && $q->{'path.0'} && defined($q->{'path.2'}) && $q->{'path.2'} ) {
+                $args{index_hint} = 'path.0_1_path.2_1';
+        }
 
 	my $entries = NMISNG::DB::find(
 		collection  => $self->inventory_collection,
@@ -2066,7 +2088,6 @@ sub get_inventory_model_query
 			map { $queryinputs{$_} = $args{filter}->{$_}; } ( keys %{$args{filter}} );
 		}
 		$q = NMISNG::DB::get_query( and_part => \%queryinputs );
-
 		# translate the path components into the lookup path
 		if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
 		{
@@ -2255,6 +2276,11 @@ sub get_node_names
 {
 	my ( $self, %args ) = @_;
 	my $model_data = $self->get_nodes_model( %args, fields_hash => {name => 1} );
+	if (my $error = $model_data->error)
+	{
+		$self->log->error("Failed to get nodes model: $error");
+		return [];
+	}
 	my $data       = $model_data->data();
 	my @node_names = map { $_->{name} } @$data;
 	return \@node_names;
@@ -2264,6 +2290,11 @@ sub get_node_uuids
 {
 	my ( $self, %args ) = @_;
 	my $model_data = $self->get_nodes_model( %args, fields_hash => {uuid => 1} );
+	if (my $error = $model_data->error)
+	{
+		$self->log->error("Failed to get nodes model: $error");
+		return []; 
+	}
 	my $data       = $model_data->data();
 	my @uuids      = map { $_->{uuid} } @$data;
 	return \@uuids;
@@ -2834,8 +2865,11 @@ sub node
 	my $node;
 	# we only need the uuid, and the name only for error handling
 	my $modeldata = $self->get_nodes_model(%args, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
-
-	if ( $modeldata->count() > 1 )
+	if (my $error = $modeldata->error) 
+	{
+		$self->log->error( "NMISNG::Node error loading nodes model: ".$error);
+	}
+	elsif ( $modeldata->count() > 1 )
 	{
 		my @names = map { $_->{name} } @{$modeldata->data()};
 		$self->log->debug( "Node request returned more than one node, args" . Dumper( \%args ) );
@@ -2916,6 +2950,7 @@ sub opstatus_collection
 	return $self->{_db_opstatus};
 }
 
+
 # loads code plugins if necessary, returns the names
 # args: none
 # returns: list of package/class names
@@ -2940,7 +2975,7 @@ sub plugins
 	# first check the custom plugin dir, then the default dir;
 	# files in custom win over files in default
 	my %candfiles;    # filename => fullpath
-	for my $dir ( $C->{plugin_root}, $C->{plugin_root_default} )
+	for my $dir ( $C->{plugin_root}, $C->{plugin_root_default})
 	{
 		next if ( !-d $dir );
 		if ( !opendir( PD, $dir ) )
@@ -2989,6 +3024,7 @@ sub plugins
 		# we're interested if one or more of the supported plugin functions are provided
 		push @{$self->{_plugins}}, $packagename
 			if ( $packagename->can("update_plugin")
+			or $packagename->can("validate_node")
 			or $packagename->can("collect_plugin")
 			or $packagename->can("after_collect_plugin")
 			or $packagename->can("after_update_plugin") );
@@ -4545,6 +4581,38 @@ sub status_collection
 
 }
 
+# find all collections for timed_ data, they are created based
+# on model info so cannot be pre-calculated easily.
+# returns a hash of collection_name => 1 for collections
+# that exist
+sub timed_collections_list
+{
+	my ( $self, %args ) = @_;
+	my $query = NMISNG::DB::get_query( and_part => { name => "regex:timed_"} );
+	my $cursor = NMISNG::DB::list_collections( db => $self->get_db(), filter => $query );
+	
+	my $timed_collection_names = {};
+	if( $cursor ) {
+		while ( my $entry = $cursor->next )
+		{
+			# potentially could check indexes as well?
+			$timed_collection_names->{ $entry->{name} } = 1;
+		}
+	}
+	return $timed_collection_names;
+}
+
+# set/get which timed collections are known about
+sub existing_timed_collections
+{
+	my ($self, $newvalue) = @_;
+	if (defined $newvalue)
+	{
+		$self->{_existing_timed_collections} = $newvalue;
+	}
+	return $self->{_existing_timed_collections} // {};
+}
+
 # helper to instantiate/get/update one of the dynamic collections
 # for timed data, one per concept
 # indices are set up on set or instantiate
@@ -4569,12 +4637,17 @@ sub timed_concept_collection
 	my $stashname = "_db_$collname";
 
 	my $mustcheckindex;
+	# if we don't know about the collection we must try and create indexes for it
+	# otherwise we don't
+	my $my_existing_timed_collections = $self->existing_timed_collections();
+	if( $my_existing_timed_collections->{$collname} != 1 ) {
+		$mustcheckindex = 1;
+	}
 
 	# use and cache the given handle?
 	if ( ref($newhandle) eq "MongoDB::Collection" )
 	{
-		$self->{$stashname} = $newhandle;
-		$mustcheckindex = 1;
+		$self->{$stashname} = $newhandle;		
 	}
 
 	# or create a new one on the go?
@@ -4589,13 +4662,12 @@ sub timed_concept_collection
 			$self->log->fatal( "Could not get collection $collname: " . NMISNG::DB::get_error_string );
 			return undef;
 		}
-
-		$mustcheckindex = 1;
 	}
 
 	if ($mustcheckindex)
 	{
 		# sole index is by time and inventory_id, compound
+		$self->log->info("NMISNG::timed_concept_collection creating indexes for collection: $collname");
 		my $err = NMISNG::DB::ensure_index(
 			collection    => $self->{$stashname},
 			drop_unwanted => $drop_unwanted,
@@ -4606,7 +4678,13 @@ sub timed_concept_collection
 				[{expire_at => 1}, {expireAfterSeconds => 0}],            # ttl index for auto-expiration
 			]
 		);
-		$self->log->error("index setup failed for $collname: $err") if ($err);
+		if ($err) {
+			$self->log->error("index setup failed for $collname: $err");
+		} else {
+			$my_existing_timed_collections->{$collname} = 1;
+			$self->existing_timed_collections($my_existing_timed_collections);
+		}
+
 	}
 
 	return $self->{$stashname};
@@ -4887,7 +4965,7 @@ sub update_links
 sub update_queue
 {
 	my ( $self, %args ) = @_;
-	my ( $jobdata, $atomic ) = @args{"jobdata", "atomic"};
+	my ( $jobdata, $atomic, $bulk ) = @args{"jobdata", "atomic", "bulk"};
 
 	return "Cannot update queue entry without valid jobdata argument!"
 		if (
@@ -4916,6 +4994,8 @@ sub update_queue
 		&& (  !NMISNG::Util::getbool( $self->config->{global_threshold} )
 			|| NMISNG::Util::getbool( $self->config->{threshold_poll_node} ) )
 		);
+	return "atomic and bulk operations should not happen at the same time" 
+		if ( $bulk && ref($atomic) eq "HASH" && keys %$atomic  );
 
 	# perform minimal argument validation
 	if ( $jobdata->{type} =~ /^(collect|update|services|plugins)$/ )
@@ -4963,7 +5043,8 @@ sub update_queue
 	{
 		my $res = NMISNG::DB::insert(
 			collection => $self->queue_collection,
-			record     => $jobdata
+			record     => $jobdata,
+			bulk => $bulk
 		);
 		return "Insertion of queue entry failed: $res->{error}" if ( !$res->{success} );
 		$jobdata->{_id} = $jobid = $res->{id};
@@ -4980,7 +5061,8 @@ sub update_queue
 		my $res = NMISNG::DB::update(
 			collection => $self->queue_collection,
 			query      => NMISNG::DB::get_query( and_part => \%qargs ),
-			record     => $jobdata
+			record     => $jobdata,
+			bulk => $bulk
 		);
 		$jobdata->{_id} = $jobid;    # put it back!
 		return "Update of queue entry failed: $res->{error}" if ( !$res->{success} );
@@ -5187,7 +5269,7 @@ sub dump_node
 				print STDERR "unconvertable object: ".Dumper($dumpme->{what}); # shouldn't be reached so noise is ok
 				return { error => "failed to convert object type $dumpme->{where}, id $dumpme->{what}->{_id}: $@"	};
 			}
-			Mojo::File->new($fullpath)->spurt($jsondata);
+			NMISNG::Util::spew_file($fullpath, $jsondata);
 		}
 		return { error => "could not add file $fullpath to zip!" }
 		if (!$zip->addFile({filename => $fullpath, zipName => $zipname}));
@@ -5318,8 +5400,11 @@ sub undump_node
 		my $res = NMISNG::DB::insert(collection => $self->$collfunc,
 																 record => $onething->{what},
 																 constraints => 1); # constrain_record is vital for $oid, $binary...
-		return { error => "failed to insert record into $onething->{where} collection: $res->{error}" }
-		if (!$res->{success});
+		if( $onething->{where} eq 'events' &&  !$res->{success} && $res->{error} =~ /node_uuid_1_event_1_element_1_active_1/) {
+			print "ignoring failure because events have a duplicity issue: failed to insert record into $onething->{where} collection: $res->{error}\n";
+		} elsif (!$res->{success}) {
+			return { error => "failed to insert record into $onething->{where} collection: $res->{error}" };
+		}
 	}
 
 	# and, if there are rrd files then unpack them as well

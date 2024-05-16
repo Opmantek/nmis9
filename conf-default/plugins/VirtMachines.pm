@@ -78,7 +78,7 @@ sub update_plugin
 			$vmdata->{vmwVmDisplayName_id} = "node_view_$vmName";
 
 			$vminventory->data($vmdata); # set changed info
-			(undef,$error) = $vminventory->save;
+			(undef,$error) = $vminventory->save; # update not required
 			$NG->log->error("Failed to save inventory for $vmid: $error")
 					if ($error);
 		}

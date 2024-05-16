@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="9.4.6";
+our $VERSION = "9.4.7";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -141,7 +141,7 @@ if ($< != 0)
 # use debug, or info arg, or configured log_level
 my $logfile = "$config->{'<nmis_logs>'}/nmis.log";
 # create the logfile so that permissions can be adjusted
-Mojo::File->new($logfile)->spurt("") if (!-f $logfile);
+NMISNG::Util::spew_file( $logfile, "" ) if (!-f $logfile);
 NMISNG::Util::setFileProtDiag(file =>$logfile) if (-f $logfile);
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 							   debug => $cmdline->{debug}) // $config->{log_level},
@@ -462,6 +462,9 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 
 # this opens a database connection - which we must not share with any children!
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
+my $tc_list = $nmisng->timed_collections_list();
+$nmisng->existing_timed_collections($tc_list);
+
 &NMISNG::rrdfunc::require_RRDs;
 
 my $zoo = ($scheduler_state->{zoo} //= {}); # process state structure for manage_processes
@@ -591,6 +594,7 @@ while (!$exit_marker)
 
 		my $tag = int(rand(1<<31));
 		$nmisng->log->info("Jobs for this $operation operation share tag \"$tag\"");
+		my ($bulk,$runbulk) = (NMISNG::DB::begin_bulk( collection => $nmisng->queue_collection ),0);
 		for my $nodeuuid (keys %{$duenodes->{nodes}})
 		{
 			# let's hand the work to somebody!
@@ -631,11 +635,13 @@ while (!$exit_marker)
 																											 ($operation eq "update" && $duenodes->{newnodes}->{$nodeuuid}?
 																												1 : $config->{"priority_$operation"} // 0.5),
 																									 in_progress => 0,
-																									 args => \%jobargs,
-																									 tag => $tag });
+																									 args => \%jobargs,																									 
+																									 tag => $tag },
+																									 bulk => $bulk);
+			$runbulk = 1;
 			if ($error)
 			{
-				$nmisng->log->error("failed to queue job $operation on $nodeuuid: $error!");
+				$nmisng->log->error("failed to queue job op: $operation on $nodeuuid: $error!");
 				next;
 			}
 			$nmisng->log->debug2("Queued job $operation for $nodeuuid ($duenodes->{nodes}->{$nodeuuid}->{name})");
@@ -650,6 +656,12 @@ while (!$exit_marker)
 						 $jobdueat ];
 			}
 		}
+		if( $runbulk ) {
+			my $result = NMISNG::DB::end_bulk( bulk => $bulk );
+			if( $result->{success} != 1 ) {
+				$nmisng->log->error("failed to queue job, errory_type: $result->{error_type}, error: $result->{error}!");
+			}
+		}
 	}
 
 	# then look at completed related jobs, ie. same op and same tag
@@ -658,6 +670,8 @@ while (!$exit_marker)
 	# in_flight carries operation, tag, uuid and queue id plus desired start time
 	# check op+tag, any jobs left in queue? wait longer. none left? schedule plugin
 	# fixme: should we add logic to give up on plugins for stuck/overdue jobs? or leave that to nmis-cli act=abort
+	
+	my ($bulk,$runbulk) = (NMISNG::DB::begin_bulk( collection => $nmisng->queue_collection ),0);
 	for my $icanhasplugin (qw(update collect))
 	{
 		$nmisng->log->debug2("Checking (un)finished $icanhasplugin jobs");
@@ -713,16 +727,16 @@ while (!$exit_marker)
 																												 args => {
 																													 phase => $icanhasplugin, # post-collect or post-update plugins
 																													 uuid => [ keys %$thisflock ], # these were the nodes in the op
-																												 },
-																												 tag => $tag });
+																												 },																												 
+																												 tag => $tag },
+																												 bulk => $bulk);
+						$runbulk = 1;
 						if ($error)
 						{
 							$nmisng->log->error("failed to queue post-$icanhasplugin plugins for tag $tag: $error!");
 							next;
 						}
 				}
-		
-				
 			}
 
 			# we're done with this flock
@@ -730,7 +744,12 @@ while (!$exit_marker)
 			++$ready_jobs;
 		}
 	}
-
+	if( $runbulk ) {
+		my $result = NMISNG::DB::end_bulk( bulk => $bulk );
+		if( $result->{success} != 1 ) {
+			$nmisng->log->error("failed to queue job, errory_type: $result->{error_type}, error: $result->{error}!");
+		}
+	}
 
 	# fixme9! how about reports? schedulable or not?
 
@@ -741,6 +760,7 @@ while (!$exit_marker)
 	push @schedulables, "thresholds"
 			if (NMISNG::Util::getbool($config->{global_threshold})
 					and !NMISNG::Util::getbool($config->{threshold_poll_node}));
+	my ($bulk,$runbulk) = (NMISNG::DB::begin_bulk( collection => $nmisng->queue_collection ),0);
 	for my $automagic (@schedulables)
 	{
 		my $period = $config->{"schedule_$automagic"};
@@ -802,9 +822,11 @@ while (!$exit_marker)
 				type => $jobtype,
 				time => Time::HiRes::time,
 				# some ops are mostly nice-to-have, others are much more critical
-				priority => $config->{"priority_$jobtype"} // 0.5,
-				in_progress => 0, } );
+				priority => $config->{"priority_$jobtype"} // 0.5,				
+				in_progress => 0, },
+				bulk => $bulk );
 
+			$runbulk = 1;
 			if ($error)
 			{
 				$nmisng->log->error("failed to queue job: $error!");
@@ -814,6 +836,12 @@ while (!$exit_marker)
 		else
 		{
 			$nmisng->log->debug3("skipping $automagic, not due: last performed at $previous");
+		}
+	}
+	if( $runbulk ) {
+		my $result = NMISNG::DB::end_bulk( bulk => $bulk );
+		if( $result->{success} != 1 ) {
+			$nmisng->log->error("failed to queue job, errory_type: $result->{error_type}, error: $result->{error}!");
 		}
 	}
 
@@ -1101,12 +1129,16 @@ sub manage_processes
 			# make sure this gets a NEW nmisng object, with NEW database handles!
 			$nmisng = Compat::NMIS::new_nmisng(nocache => 1,
 																				 debug => $debug);
+			# tell it which timed collections we know about
+			my $tc_list = $nmisng->timed_collections_list();
+			$nmisng->existing_timed_collections($tc_list);
+
 			if (!defined $cmdline->{debug})
 			{
 				# fping worker logs to its own logfile
 				my $fpinglogfile = $config->{'fping_log'};
 				# create it so that the permissions can be adjusted
-				Mojo::File->new($fpinglogfile)->spurt("") if (!-f $fpinglogfile);
+				NMISNG::Util::spew_file($fpinglogfile, "") if (!-f $fpinglogfile);
 				NMISNG::Util::setFileProtDiag(file => $fpinglogfile);
 				$nmisng->log->path($fpinglogfile);
 
@@ -1178,6 +1210,9 @@ sub manage_processes
 				srand();
 				# make sure this gets a NEW nmisng object, with NEW database handles!
 				$nmisng = Compat::NMIS::new_nmisng(nocache => 1, debug => $debug);
+				my $tc_list = $nmisng->timed_collections_list();
+				$nmisng->existing_timed_collections($tc_list);
+
 				$nmisng->log->logprefix("worker\[$$\] ");
 				$nmisng->log->info("started");
 				$0 = "nmisd.worker.<idle>";
@@ -1316,35 +1351,51 @@ sub worker_loop
 				next;
 			}
 
+			######################
+			# Postpone handling
+			######################
+			$nmisng->log->debug("Trying to claim job type '$canihaveit->{type}'");
 			# a job was claimable, but is it safe to perform this op right now?
 			# look for in_progress interfering jobs (needs args check for node-specific stuff!)
 			my %checkargs = ( time => { '$lt' => Time::HiRes::time }, # should have started
-												in_progress => { '$ne' => 0 },					# has started
-												id => { '$ne' => $canihaveit->{_id} },	# is not this job
-												type => $canihaveit->{type} );					# but of the same type
-			# and concerns the same node as this job
-			$checkargs{"args.uuid"} = $canihaveit->{args}->{uuid} if ($canihaveit->{type} =~ /^(collect|update|services)$/);
-
-			my $maybeclash = $nmisng->get_queue_model(%checkargs);
-			if (my $error = $maybeclash->error)
+								in_progress => { '$ne' => 0 },			# has started
+#								id => { '$ne' => $canihaveit->{_id} },	# is not this job (this doesn't work!)
+								type => $canihaveit->{type});			# but of the same type
+			# Add the UUID if it is set.
+           	$checkargs{"args.uuid"} = $canihaveit->{args}->{uuid} if (exists($canihaveit->{args}->{uuid}));
+			# For these, I need exclusive access to the node; type doesn't matter.
+			if ($canihaveit->{type} =~ /^(delete_nodes|collect|update|services)$/)
 			{
-				$nmisng->log->error("Failed to check for clashing jobs: $error - assuming no in_progress instances exist");
+				delete($checkargs{type});
+			}
+			$nmisng->log->debug2("Check Args: " . Dumper(%checkargs) . "\n\n\n");
+			my $q = NMISNG::DB::get_query( and_part => \%checkargs );
+			my $maybeclash = NMISNG::DB::count(
+				collection => $nmisng->queue_collection,
+				query      => $q,
+				verbose    => 1
+			);
+
+#			my $maybeclash = $nmisng->get_queue_model(%checkargs); # This doesn't work, and its SO complicatedr.  The count above is all we need.
+			$nmisng->log->debug2("Query Count " . Dumper($maybeclash) . "\n\n\n");
+			if ($maybeclash->{error})
+			{
+				$nmisng->log->error("Failed to check for clashing jobs: $maybeclash->{error} - assuming no in_progress instances exist");
 				$ourjob = $canihaveit;
 				last;
 			}
-			if ($maybeclash->count)
+			if ($maybeclash->{count} > 1) # We always find ourself (filtering on ID above doesn't work).
 			{
+				$nmisng->log->debug("We have a clash!\n");
 				# possible reactions? a) abort the job completely (until somebody schedules another instance),
 				# or b) unclaim the job and postpone it for a few seconds
 				my $postpone = $nmisng->config->{postpone_clashing_schedule};
 				if ($postpone && $postpone > 0)
 				{
-					$canihaveit->{in_progress} = 0;
-					$canihaveit->{time} += $postpone;
-					$canihaveit->{status} = { pid => undef };
-
 					$nmisng->log->warn("An in-progress job clashes with job $canihaveit->{_id}, postponing this job");
-
+					$canihaveit->{in_progress}  = 0;
+					$canihaveit->{time}        += $postpone;
+					$canihaveit->{status}       = { pid => undef };
 					my ($error, undef) = $nmisng->update_queue(jobdata => $canihaveit);
 					if ($error)
 					{
@@ -1369,6 +1420,9 @@ sub worker_loop
 				}
 				next;										# try another job, this one wasn't processable
 			}
+			#########################
+			# END - Postpone handling
+			#########################
 
 			$ourjob = $canihaveit;
 			last;
@@ -2711,7 +2765,7 @@ sub fping_loop
 				}
 				else
 				{
-					$pinginv->save if ($pinginv->is_new); # timed data only possible once inventory is in the db
+					$pinginv->save( node => $node) if ($pinginv->is_new); # timed data only possible once inventory is in the db
 
 					# this saves both timed data and the inventory
 					my $error = $pinginv->add_timed_data(
@@ -2719,6 +2773,7 @@ sub fping_loop
 						data => $timeddata,
 						derived_data => {},
 						subconcept => "ping",
+						node => $node
 							);
 					$nmisng->log->error("Failed to add ping timed data: $error") if ($error);
 				}
@@ -2739,7 +2794,7 @@ sub fping_loop
 					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
 					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-					my ( $op, $error ) = $catchall_inventory->save;
+					my ( $op, $error ) = $catchall_inventory->save( node => $node);
 					if ($error)
 					{
 						$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $error") if ($error);
@@ -2827,7 +2882,7 @@ sub fping_loop
 					my $coarse = $node->coarse_status(catchall_data => $catchall_data);
 					$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-					my ( $op, $error ) = $catchall_inventory->save;
+					my ( $op, $error ) = $catchall_inventory->save( node => $node );
 					if ($error)
 					{
 						$nmisng->log->error("Failed to update catchall inventory for node '$thisstate->{name}' during save: $error") if ($error);

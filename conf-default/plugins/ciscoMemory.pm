@@ -100,7 +100,7 @@ sub update_plugin
 			# set the inventory description to a nice string.
 			$cempinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} - $cempdata->{MemPoolName}");
 
-			my ( $op, $error ) = $cempinventory->save();
+			my ( $op, $error ) = $cempinventory->save( node => $node );
 			$NG->log->debug2(sub { "saved op: $op"});
 			if ($error)
 			{
@@ -196,7 +196,8 @@ sub collect_plugin
 
 	if (!keys %emibData)
 	{
-		$NG->log->error("Failed to get 'entityMib' indices for Node '$node'!");
+		# this isn't an error, there may not be any
+		$NG->log->debug("Failed to get 'entityMib' indices for Node '$node'!");
 		return (0,"Failed to get 'entityMib' indices for Node '$node'!");
 	}
 
@@ -438,7 +439,7 @@ sub collect_plugin
 					index      => undef,
 					data       => $rrdData,
 					item       => undef);
-	my ( $op, $error ) = $inventory->save();
+	my ( $op, $error ) = $inventory->save( node => $node );
 	$NG->log->debug2(sub {"saved inventory for Node '$node'; op: $op"});
 	if ($error)
 	{
@@ -454,8 +455,8 @@ sub collect_plugin
 					index      => undef,
 					data       => $rrdData,
 					item       => undef);
-	my ( $op, $error ) = $inventory->save();
-	$NG->log->info( "saved op: $op");
+	my ( $op, $error ) = $inventory->save( node => $node );
+	$NG->log->debug( "saved op: $op");
 	if ($error)
 	{
 		$NG->log->error("Failed to save inventory for Node '$node'; Error: $error");
@@ -466,11 +467,11 @@ sub collect_plugin
 	}
 	if ($changesweremade)
 	{
-		$NG->log->info("CPU/Memory collection was successful.");
+		$NG->log->debug("CPU/Memory collection was successful.");
 	}
 	else
 	{
-		$NG->log->info("No CPU/Memory collections were made.");
+		$NG->log->debug("No CPU/Memory collections were made.");
 	}
 
 	return ($changesweremade,undef);							# happy, and changes were made so save view and nodes file

@@ -33,7 +33,7 @@
 package NMISNG::DB;
 use strict;
 
-our $VERSION = "9.4.4";
+our $VERSION = "9.4.7";
 
 use Data::Dumper;
 use JSON::XS;
@@ -921,6 +921,31 @@ sub get_collection
 	return $coll;
 }
 
+
+
+# a thin wrapper around list_collections
+# mainly for future-proofing at this point - but might get additional functionality, eg. index making
+# args: db, name (both required)
+# returns: collection handle or undef on failure (consult getErrorString in that case)
+sub list_collections
+{
+	my (%args) = @_;
+	my ( $db, $filter, $options ) = @args{"db", "filter", "options" };
+
+	if ( ref($db) ne "MongoDB::Database" )
+	{
+		$error_string = "Invalid args passed to list_collections!";
+		return;
+	}
+	my $cursor = eval { $db->list_collections($filter,$options); };
+	if ($@)
+	{
+		$error_string = $@;
+		return;
+	}
+	return $cursor;
+}
+
 sub get_db
 {
 	my %args = @_;
@@ -1497,6 +1522,7 @@ sub update
 	my $collection  = $arg{collection};
 	my $query       = $arg{query};
 	my $record      = $arg{record};
+	my $bulk        = $arg{bulk};
 	my $safe        = $arg{safe} // 1;
 	my $return_info = undef;
 	my $new_record  = $record;
@@ -1518,14 +1544,24 @@ sub update
 	# print "calling $methodname, upsert:$upsert with query".Dumper($query)."and updates ".Dumper($updates);
 	try
 	{
-		my $result = $collection->$methodname($query, $updates, {upsert => $upsert});
-		if ( $result->acknowledged )
+		if($bulk)
 		{
-			$updated_records = $result->modified_count;
-			$matched_records = $result->matched_count;
-			$upserted_id = $result->upserted_id;
+			my $results;
+			$results = $bulk->find( $query )->upsert->$methodname($updates) if($upsert);
+			$results = $bulk->find( $query)->$methodname($updates);
+			$success = 1;
 		}
-		$success = 1;
+		else
+		{
+			my $result = $collection->$methodname($query, $updates, {upsert => $upsert});
+			if ( $result->acknowledged )
+			{
+				$updated_records = $result->modified_count;
+				$matched_records = $result->matched_count;
+				$upserted_id = $result->upserted_id;
+			}
+			$success = 1;
+		}
 	}
 	catch
 	{

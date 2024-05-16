@@ -30,7 +30,7 @@
 #
 # a command-line node administration tool for NMIS 9
 use strict;
-our $VERSION = "9.4.2.2";
+our $VERSION = "9.4.7";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -105,7 +105,7 @@ if ($cmdline->{__parse_error__})
 	{
 		if ($cmdline->{act} eq 'unset' && $_ =~ /'(entry.*)'/)
 		{
-			$cmdline->{$1} = undef;;
+			$cmdline->{$1} = undef;
 			$ok            = 1;
 			next;
 		}
@@ -129,42 +129,59 @@ if ($server_role eq "POLLER") {
 	$usage = "Usage: $PROGNAME act=<action to take> [options...]
 
 \t$PROGNAME act=dump {node=<node_name>|uuid=<nodeUUID>} file=<path> [everything=<[0|t]/[1|f]>]
-\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [wantpoller=<[0|t]/[1|f]>]
+\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [wantgroup=<[0|t]/[1|f]>] [wantpoller=<[0|t]/[1|f]>] [wantstatus=<[0|t]/[1|f]>] [wantuuid=<[0|t]/[1|f]>] [overwrite=<[0|t]/[1|f]>]
 \t$PROGNAME act=restore file=<path> [localise_ids=<[0|t]/[1|f]>]
 \t$PROGNAME act=show {node=<node_name>|uuid=<nodeUUID>} 
+
+\033[1mGLOBAL OPTIONS:\033[0m
+debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
+quiet=<true|false|yes|no> avoids printing unnecessary data.
 
 restore: restores a previously dumped node's data. if 
  localise_ids=true (default: false), then the cluster id is rewritten
  to match the local nmis installation.
  
+show: prints a node's properties in the same format as set
+ with option quoted=true, show adds double-quotes where needed
+ with option interfaces=true show interface basic information
+ with option inventory=true dumps all the inventory data
+ with option catchall=true dumps just the inventory catchall data
+ 
+\033[1m
 This server is a $server_role. This is why the number of actions is restricted.
 
-OPTIONS:
-debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
-quiet=<true|false|yes|no> avoids printing unnecessary data.
-
 Run $PROGNAME -h for detailed help.
+\033[0m
 \n\n";
 } else {
 	$usage = "Usage: $PROGNAME act=<action to take> [options...]
 
 \t$PROGNAME act=clean-node-events {node=<node_name>|uuid=<nodeUUID>} 
 \t$PROGNAME act=create file=<someFile.json> [server={<server_name>|<cluster_id>}]
-\t$PROGNAME act=delete {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [server={<server_name>|<cluster_id>}] [deletedata=<[0|t]/[1|f]>] confirm=YES
+\t$PROGNAME act=delete {node=<node_name>[,...]|uuid=<nodeUUID>[,...]|group=<group_name>[,...]} [server={<server_name>|<cluster_id>}] [deletedata=<[0|t]/[1|f]>] confirm=YES
 \t$PROGNAME act=dump {node=<node_name>|uuid=<nodeUUID>} file=<path> [everything=<[0|t]/[1|f]>]
-\t$PROGNAME act=export [format=<nodes>] [file=<path>] {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [keep_ids=<[0|t]/[1|f]>]
+\t$PROGNAME act=export [format=<nodes>] [file=<path>] {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [keep_ids=<[0|t]/[1|f]>] [overwrite=<[0|t]/[1|f]>]
 \t$PROGNAME act=import file=<somefile.json>
 \t$PROGNAME act=import_bulk {nodes=<filepath>|nodeconf=<dirpath>} [nmis9_format=<[0|t]/[1|f]>]
-\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [file=<someFile.json>] [format=json]
+\t$PROGNAME act={list|list_uuid} {node=<node_name>|uuid=<nodeUUID>|group=<group_name>} [wantgroup=<[0|t]/[1|f]>] [wantpoller=<[0|t]/[1|f]>] [wantstatus=<[0|t]/[1|f]>] [wantuuid=<[0|t]/[1|f]>] [overwrite=<[0|t]/[1|f]>]
 \t$PROGNAME act=mktemplate [placeholder=<[0|t]/[1|f]>]
 \t$PROGNAME act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<nodeUUID>} [remove_old=<[0|t]/[1|f]>] [force=<[0|t]/[1|f]>]
 \t$PROGNAME act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name> [entry.<key>=<value>...]
 \t$PROGNAME act=restore file=<path> [localise_ids=<[0|t]/[1|f]>]
-\t$PROGNAME act=set {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
-\t$PROGNAME act=unset {node=<node_name>|uuid=<nodeUUID>} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
+\t$PROGNAME act=set {node=<node_name>[,...]|uuid=<nodeUUID>[,...]|group=<group_name>[,...]} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
+\t$PROGNAME act=unset {node=<node_name>[,...]|uuid=<nodeUUID>[,...]|group=<group_name>[,...]} entry.<key>=<value>... [server={<server_name>|<cluster_id>}]
 \t$PROGNAME act=show {node=<node_name>|uuid=<nodeUUID>} 
 \t$PROGNAME act=update file=<someFile.json> [server={<server_name>|<cluster_id>}]
 \t$PROGNAME act=validate-node-inventory [concept=<concept_name>] [dryrun=<[0|t]/[1|f]>] [make_historic=<[0|t]/[1|f]>]
+
+\033[1mGLOBAL OPTIONS:\033[0m
+debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
+quiet=<true|false|yes|no> avoids printing unnecessary data.
+\033[1m> The actions 'create', 'delete', 'set', 'unset', and 'update' also support the following 'schedule' arguments:\033[0m
+schedule=<true|false|yes|no|1|0>
+priority=0..1
+time=<time>
+verbosity=<1..9|debug|info|warn|error|fatal>
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
@@ -182,7 +199,7 @@ export: exports to file=someFile (or STDOUT if no file given),
 
 import-bulk: By default, will import nmis8 format nodes
   
-delete: only deletes if confirm=yes (in uppercase) is given,
+delete: only deletes if confirm=YES (in uppercase) is given,
  if deletedata=true (default) then RRD files for a node are
  also deleted.
 
@@ -199,14 +216,12 @@ restore: restores a previously dumped node's data. if
  localise_ids=true (default: false), then the cluster id is rewritten
  to match the local nmis installation.
 
-OPTIONS:
-debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
-quiet=<true|false|yes|no> avoids printing unnecessary data.
-
 server: Will update the node in the remote pollers.
   It is important to use this argument for remotes.
 
+\033[1m
 Run $PROGNAME -h for detailed help.
+\033[0m
 
 \n\n";
 }
@@ -218,7 +233,7 @@ if ($usagesw) {
 
 if (!@ARGV)
 {
-    help();
+	print($usage);
     exit(0);
 }
 
@@ -371,7 +386,7 @@ elsif ($cmdline->{act} eq "import"
 	# file can contain: one node hash, or array of X node hashes
 	my $lotsanodes = decode_json(Mojo::File->new($infile)->slurp);
 	die "invalid structure\n" if (ref($lotsanodes) !~ /^(HASH|ARRAY)$/);
-	print("Nodes to import: " . Dumper($lotsanodes) . "\n") if ($cmdline->{debug} >5);;
+	print("Nodes to import: " . Dumper($lotsanodes) . "\n") if ($cmdline->{debug} >5);
 
 	my %stats = (created => 0, updated => 0);
 
@@ -485,15 +500,29 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 {
 	# list the nodes in existence - possibly with uuids.
-	# iff a node or group arg is given, then only matching nodes are included
-	my $wantuuid   = $1 // $cmdline->{wantuuid} // 0;;
-	my $wantpoller = $cmdline->{wantpoller} // 0;
-	my $quiet      = $cmdline->{quiet};
-	my $format      = $cmdline->{format};
-	my $file      = $cmdline->{file};
+	# if a node or group arg is given, then only matching nodes are included
+	my $wantuuid   = $1 // NMISNG::Util::getbool_cli("wantuuid", $cmdline->{wantuuid}, 0);
+	my @groups     = split(",", $cmdline->{group}) if ($cmdline->{group});
+	my @nodes      = split(",", $cmdline->{node}) if ($cmdline->{node});
+	my @uuids      = split(",", $cmdline->{uuid}) if ($cmdline->{uuid});
+	my $wantgroup  = NMISNG::Util::getbool_cli("wantgroup", $cmdline->{wantgroup}, 0);
+	my $wantpoller = NMISNG::Util::getbool_cli("wantpoller", $cmdline->{wantpoller}, 0);
+	my $wantstatus = NMISNG::Util::getbool_cli("wantstatus", $cmdline->{wantstatus}, 0);
+	my $quiet      = NMISNG::Util::getbool_cli("quiet", $cmdline->{quiet}, 0);
+    my $overwrite  = NMISNG::Util::getbool_cli("overwrite", $cmdline->{overwrite}, 0);
+	my $format     = $cmdline->{format};
+	my $file       = $cmdline->{file};
+	my $nodelist;
+	my %active;
+	my %groupNames;
+	my %nodeNames;
+	my %collect;
+	my %clusterID;
+	my @data;
+
 
 	# no node, no group => export all of them
-	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file);
+	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file && !$overwrite);
 
 	my $fh;
 	if (!$file or $file eq "-")
@@ -505,9 +534,100 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 		open($fh,">$file") or die "cannot write to $file: $!\n";
 	}
 
-	# returns a modeldata object
-	my $nodelist = $nmisng->get_nodes_model(name => $cmdline->{node}, uuid => $cmdline->{uuid}, group => $cmdline->{group}, fields_hash => { name => 1, uuid => 1, cluster_id => 1});
-	if (!$nodelist or !$nodelist->count)
+	foreach my $eachNode (@nodes)
+	{
+		$nodelist = $nmisng->get_nodes_model(name => $eachNode, fields_hash => { name => 1, uuid => 1, cluster_id => 1, "configuration.active" => 1, "configuration.collect" => 1, "configuration.group" => 1});
+#		print("Nodes " . Dumper($nodelist) . "\n");
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Node Name:    $_->{name}\n" if ($debug);
+				print STDERR "Node UUID:    $_->{uuid}\n" if ($debug);
+				print STDERR "Group         $_->{configuration}{group}\n" if ($debug);
+				print STDERR "Cluster ID    $_->{cluster_id}\n" if ($debug);
+				print STDERR "Node Active:  $_->{configuration}{active}\n" if ($debug);
+				print STDERR "Node Collect: $_->{configuration}{collect}\n" if ($debug);
+				push(@data, $_->{uuid});
+				$active{$_->{uuid}}     = ($_->{configuration}{active} ? "Yes" : "No");
+				$collect{$_->{uuid}}    = ($_->{configuration}{collect} ? "Yes" : "No");
+				$groupNames{$_->{uuid}} = $_->{configuration}{group};
+				$clusterID{$_->{uuid}}  = $_->{cluster_id};
+				$nodeNames{$_->{uuid}}  = $_->{name};
+			}
+		}
+	}
+	foreach my $eachUUID (@uuids)
+	{
+		$nodelist = $nmisng->get_nodes_model(uuid => $eachUUID, fields_hash => { name => 1, uuid => 1, cluster_id => 1, "configuration.active" => 1, "configuration.collect" => 1, "configuration.group" => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Node Name: $_->{name}\n" if ($debug);
+				print STDERR "Node UUID: $_->{uuid}\n" if ($debug);
+				print STDERR "Group         $_->{configuration}{group}\n" if ($debug);
+				print STDERR "Cluster ID    $_->{cluster_id}\n" if ($debug);
+				print STDERR "Node Active:  $_->{configuration}{active}\n" if ($debug);
+				print STDERR "Node Collect: $_->{configuration}{collect}\n" if ($debug);
+				push(@data, $_->{uuid});
+				$active{$_->{uuid}}    = ($_->{configuration}{active} ? "Yes" : "No");
+				$collect{$_->{uuid}}   = ($_->{configuration}{collect} ? "Yes" : "No");
+				$groupNames{$_->{uuid}} = $_->{configuration}{group};
+				$clusterID{$_->{uuid}} = $_->{cluster_id};
+				$nodeNames{$_->{uuid}} = $_->{name};
+			}
+		}
+	}
+	foreach my $eachGroup (@groups)
+	{
+		$nodelist = $nmisng->get_nodes_model(group => $eachGroup, fields_hash => { name => 1, uuid => 1, cluster_id => 1, "configuration.active" => 1, "configuration.collect" => 1, "configuration.group" => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Node Name: $_->{name}\n" if ($debug);
+				print STDERR "Node UUID: $_->{uuid}\n" if ($debug);
+				print STDERR "Group         $_->{configuration}{group}\n" if ($debug);
+				print STDERR "Cluster ID    $_->{cluster_id}\n" if ($debug);
+				print STDERR "Node Active:  $_->{configuration}{active}\n" if ($debug);
+				print STDERR "Node Collect: $_->{configuration}{collect}\n" if ($debug);
+				push(@data, $_->{uuid});
+				$active{$_->{uuid}}    = ($_->{configuration}{active} ? "Yes" : "No");
+				$collect{$_->{uuid}}   = ($_->{configuration}{collect} ? "Yes" : "No");
+				$groupNames{$_->{uuid}} = $_->{configuration}{group};
+				$clusterID{$_->{uuid}} = $_->{cluster_id};
+				$nodeNames{$_->{uuid}} = $_->{name};
+			}
+		}
+	}
+	if (scalar(@data) == 0)
+	{
+		$nodelist = $nmisng->get_nodes_model(fields_hash => { name => 1, uuid => 1, cluster_id => 1, "configuration.active" => 1, "configuration.collect" => 1, "configuration.group" => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Node Name: $_->{name}\n" if ($debug);
+				print STDERR "Node UUID: $_->{uuid}\n" if ($debug);
+				print STDERR "Group         $_->{configuration}{group}\n" if ($debug);
+				print STDERR "Cluster ID    $_->{cluster_id}\n" if ($debug);
+				print STDERR "Node Active:  $_->{configuration}{active}\n" if ($debug);
+				print STDERR "Node Collect: $_->{configuration}{collect}\n" if ($debug);
+				push(@data, $_->{uuid});
+				$active{$_->{uuid}}    = ($_->{configuration}{active} ? "Yes" : "No");
+				$collect{$_->{uuid}}   = ($_->{configuration}{collect} ? "Yes" : "No");
+				$groupNames{$_->{uuid}} = $_->{configuration}{group};
+				$clusterID{$_->{uuid}} = $_->{cluster_id};
+				$nodeNames{$_->{uuid}} = $_->{name};
+			}
+		}
+	}
+	if (scalar(@data) == 0)
 	{
 		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
 				if (!$quiet);
@@ -516,22 +636,35 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 	else
 	{
 		if ( !$quiet && -t \*STDOUT && !$format) {
-			if ($wantuuid && $wantpoller)
+			my $uuidLine1   = "";
+			my $uuidLine2   = "";
+			my $groupLine1  = "";
+			my $groupLine2  = "";
+			my $pollerLine1 = "";
+			my $pollerLine2 = "";
+			my $statusLine1 = "";
+			my $statusLine2 = "";
+			if ($wantuuid)
 			{
-				print $fh("Node UUID                               Node Name                                      Poller\n===================================================================================================================\n");
+				$uuidLine1="Node UUID                               ";
+				$uuidLine2="========================================";
 			}
-			elsif ($wantuuid && !$wantpoller)
+			if ($wantgroup)
 			{
-				print $fh("Node UUID                               Node Name\n=================================================================\n");
+				$groupLine1="Group                                   ";
+				$groupLine2="========================================";
 			}
-			elsif (!$wantuuid && $wantpoller)
+			if ($wantpoller)
 			{
-				print $fh("Node Name                                      Poller\n===================================================================================================================\n");
+				$pollerLine1="Poller       ";
+				$pollerLine2="=============";
 			}
-			else
+			if ($wantstatus)
 			{
-				print $fh("Node Names:\n===================================================\n");
+				$statusLine1="Active Collect";
+				$statusLine2="==============";
 			}
+			print $fh("${uuidLine1}Node Name                                      ${groupLine1}${pollerLine1}${statusLine1}\n${uuidLine2}===============================================${groupLine2}${pollerLine2}${statusLine2}\n");
 		}		
 		my %remotes;
 
@@ -539,46 +672,61 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 			my $remotelist = $nmisng->get_remote();
 			%remotes = map {$_->{'cluster_id'} => $_->{'server_name'}} @$remotelist;
 			$remotes{$config->{cluster_id}} = "local";
-			print("Remotes: " . Dumper(%remotes) . "\n") if ($cmdline->{debug} >1);;
+			print("Remotes: " . Dumper(%remotes) . "\n") if ($cmdline->{debug} >1);
 		}
 
-		my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
-		print("Node Data: " .  Dumper(@nodeDataList) . "\n") if ($cmdline->{debug} >1);
 		if($format eq "json")
 		{
 			my $output = ();
-			foreach my $nodeData (@nodeDataList)
+			for my $uuid (@data)
 			{
+				my $active     = $active{$uuid};
+				my $collect    = $collect{$uuid};
+				my $clusterID  = $remotes{$clusterID{$uuid}};
+				my $name       = $nodeNames{$uuid};
+				my $group      = $groupNames{$uuid};
 				my $node = {
-					name =>  $nodeData->{name}
+					name =>  $name
 				};
-				$node->{uuid} = $nodeData->{uuid} if($wantuuid);
-				$node->{cluster_id} = $nodeData->{cluster_id} if($wantpoller);
+				$node->{uuid}       = $uuid      if ($wantuuid);
+				$node->{cluster_id} = $clusterID if ($wantpoller);
+				$node->{group}      = $group     if ($wantpoller);
+				$node->{active}     = $active    if ($wantstatus);
+				$node->{collect}    = $collect   if ($wantstatus);
 				push @$output, $node;
 			}
 			print $fh JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $output);
 		}
 		else 
 		{
-			foreach my $nodeData (@nodeDataList)
+			for my $uuid (@data)
 			{
-				print("Node: " . Dumper($nodeData) . "\n") if ($cmdline->{debug} >1);;
-				if ($wantuuid && $wantpoller)
+				my $active     = $active{$uuid};
+				my $collect    = $collect{$uuid};
+				my $clusterID  = $remotes{$clusterID{$uuid}};
+				my $node       = $nodeNames{$uuid};
+				my $group      = $groupNames{$uuid};
+				my $uuidLine   = "";
+				my $groupLine   = "";
+				my $pollerLine = "";
+				my $statusLine = "";
+				if ($wantuuid)
 				{
-					printf $fh ("%s    %s  %s\n", $nodeData->{uuid}, substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+					$uuidLine = sprintf("%s    ", $uuid);
 				}
-				elsif ($wantuuid && !$wantpoller)
+				if ($wantgroup)
 				{
-					printf $fh ("%s    %s\n", $nodeData->{uuid}, $nodeData->{name});
+					$groupLine = sprintf("%s", substr("$group                                                 ", 0, 40));
 				}
-				elsif (!$wantuuid && $wantpoller)
+				if ($wantpoller)
 				{
-					printf $fh ("%s  %s\n", substr("$nodeData->{name}                                             ", 0, 45), $remotes{$nodeData->{cluster_id}});
+					$pollerLine = sprintf("%s", substr("$clusterID                                             ", 0, 13));
 				}
-				else
+				if ($wantstatus)
 				{
-					printf $fh ("%s\n", $nodeData->{name});
+					$statusLine = sprintf(" %s    %s  ", substr("$active ", 0, 3), substr("$collect ", 0, 3));
 				}
+				printf $fh ("%s%s%s%s%s\n", $uuidLine, substr("$node                                             ", 0, 47), $groupLine, $pollerLine, $statusLine);
 			}
 		}
 	}
@@ -799,603 +947,879 @@ elsif ($cmdline->{act} eq "show")
 }
 elsif ($cmdline->{act} eq "set" && $server_role ne "POLLER")
 {
-	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
-
-	die "Cannot set node without node argument!\n\n$usage\n"
-			if (!$node && !$uuid);
+	die "Cannot set node without 'node', 'uuid', or 'group' argument!\n\n$usage\n"
+			if (!$cmdline->{node} and !$cmdline->{group} and !$cmdline->{uuid});
 			
-	my $schedule  = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, 0);
-	my $time      = $cmdline->{time} // time;
-	my $priority  = $cmdline->{priority} // $config->{priority_node_create} // 0; # Default for this job?
-	my $verbosity = NMISNG::Util::getdebug_cli($cmdline->{verbosity}) // $config->{log_level};
-	my $what = "set_nodes";
-	my %jobargs;
-		
-	my @data = split(",", $node) if ($node);
-	@data = split(",", $uuid) if ($uuid);
-	
-	my $nodes = join( '-', @data);
-	my $meta = {
-			what => "Set node",
-			who => $me,
-			where => $nodes,
-			how => "node_admin",
-			details => "Set node(s) " . $nodes
-	};
-	
-	if ($schedule) {
-		$jobargs{uuid} = \@data;
-		$jobargs{data} = $cmdline;
-		$jobargs{meta} = $meta;
-		
-		my ($error,$jobid) = $nmisng->update_queue(
-				jobdata => {
-					type => $what,
-					time => $time,
-					priority => $priority,
-					verbosity => $verbosity,
-					in_progress => 0,					# somebody else is to work on this
-					args => \%jobargs });
-		
-		die "Failed to instantiate job! $error\n" if $error;
-		print STDERR "Job $jobid created for type $what and ".@data." nodes.\n"
-				if (-t \*STDERR);	
-		
-	} else {
-		if ($server) {
-			my ($error, $server_data) = get_server( server => $server );
-			die "Invalid server '$server'; Error: $error!\n" if ($error);
-		}
-		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
-		if ($server and $nodeobj) {
-			my $props = $nodeobj->unknown();
-			$props->{status} = "update";
-			$nodeobj->unknown($props);
-		}
-		die "Node $node does not exist.\n" if (!$nodeobj);
-		$node ||= $nodeobj->name;			# if looked up via uuid
-	
-		die "Please use act=rename for node renaming!\n"
-				if (exists($cmdline->{"entry.name"}));
-	
-		my $curconfig           = $nodeobj->configuration;
-		my $curoverrides        = $nodeobj->overrides;
-		my $curactivated        = $nodeobj->activated;
-		my $curcomments         = $nodeobj->comments;
-		my $curextras           = $nodeobj->unknown;
-		my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
-		my $updateOverrides     = 0;
-		my $updateConfiguration = 0;
-		my $updateActivated     = 0;
-		my $updateArrayThings   = 0;
-		my $updateComments      = 0;
-		my $updateUnknown       = 0;
-		my $anythingtodo;
-	
-		for my $name (keys %$cmdline)
+	my $nodelist;
+	my %nodeNames;
+	my @data;
+	my @groups = split(",", $cmdline->{group}) if ($cmdline->{group});
+	my @nodes  = split(",", $cmdline->{node}) if ($cmdline->{node});
+	my @uuids  = split(",", $cmdline->{uuid}) if ($cmdline->{uuid});
+	my $server = @{$cmdline}{server};
+	my $server_data;
+	if ($server) {
+		my ($error, $server_data) = get_server( server => $server );
+		die "Invalid server '$server'; Error: $error!\n" if ($error);
+	}
+	foreach my $eachNode (@nodes)
+	{
+		$nodelist = $nmisng->get_nodes_model(name => $eachNode, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
 		{
-			next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
-			++$anythingtodo;
-	
-			my $value = $cmdline->{$name};
-			undef $value if ($value eq "undef");
-			$name =~ s/^entry\.//;
-	
-			# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
-			$name = "activated.NMIS" if ($name eq "configuration.active");
-	
-			# where does it go? overrides.X is obvious...
-			if ($name =~ /^overrides\.(.+)$/)
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
 			{
-				$curoverrides->{$1} = $value;
-				$updateOverrides    = 1;
+				print STDERR "Node Name: $_->{name}\n";
+				print STDERR "Node UUID: $_->{uuid}\n";
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
 			}
-			# ...name, cluster_id a bit less...
-			elsif ($name =~ /^(name|cluster_id)$/)
+		}
+	}
+	foreach my $eachUUID (@uuids)
+	{
+		$nodelist = $nmisng->get_nodes_model(uuid => $eachUUID, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
 			{
-				$nodeobj->$1($value);
+				print STDERR "Node Name: $_->{name}\n";
+				print STDERR "Node UUID: $_->{uuid}\n";
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
 			}
-			# ...and activated.X not at all
-			elsif ($name =~ /^activated\.(.+)$/)
+		}
+	}
+	foreach my $eachGroup (@groups)
+	{
+		$nodelist = $nmisng->get_nodes_model(group => $eachGroup, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
 			{
-				$curactivated->{$1} = $value;
-				$updateActivated    = 1;
+				print STDERR "Node Name: $_->{name}\n";
+				print STDERR "Node UUID: $_->{uuid}\n";
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
 			}
-			# ...and comments
-			elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
+		}
+	}
+	if (scalar(@data) == 0)
+	{
+		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
+				if (!$quiet);
+		exit 1;
+	}
+	else
+	{
+		my $schedule  = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, 0);
+		my $time      = $cmdline->{time} // time;
+		my $priority  = $cmdline->{priority} // $config->{priority_node_create} // 0; # Default for this job?
+		my $verbosity = NMISNG::Util::getdebug_cli($cmdline->{verbosity}) // $config->{log_level};
+		my $what = "set_nodes";
+		my %jobargs;
+			
+		my $nodes = join( '-', @data);
+		my $meta = {
+				what => "Set node",
+				who => $me,
+				how => "node_admin",
+		};
+		
+		if ($schedule) {
+			$jobargs{data} = $cmdline;
+			
+			for my $uuid (@data)
 			{
-				if (defined($1) && defined($2))
+				my $node       = $nodeNames{$uuid};
+				$$meta{where}   = $node;
+				$$meta{details} = "Set node '$node'";
+				$jobargs{uuid} = $uuid;
+				$jobargs{meta} = $meta;
+				my ($error,$jobid) = $nmisng->update_queue(
+					jobdata => {
+						type => $what,
+						time => $time,
+						priority => $priority,
+						verbosity => $verbosity,
+						in_progress => 0,					# somebody else is to work on this
+						args => \%jobargs });
+			
+				print STDERR "Job $jobid created for type $what and node '$node'.\n" if (-t \*STDERR);	
+				die "Failed to instantiate job! $error\n" if $error;
+			}
+			
+		} else {
+			for my $uuid (@data)
+			{
+				my $node        = $nodeNames{$uuid};
+				my $nodeobj     = $nmisng->node(name => $node, uuid=> $uuid);
+				$$meta{where}   = $node;
+				$$meta{details} = "Set node '$node'";
+				die "Node '$node' does not exist.\n" if (!$nodeobj);
+				if ($server and $nodeobj) {
+					my $props = $nodeobj->unknown();
+					$props->{status} = "update";
+					$nodeobj->unknown($props);
+				}
+				die "Please use act=rename for node renaming!\n"
+						if (exists($cmdline->{"entry.name"}));
+			
+				my $curconfig           = $nodeobj->configuration;
+				my $curoverrides        = $nodeobj->overrides;
+				my $curactivated        = $nodeobj->activated;
+				my $curcomments         = $nodeobj->comments;
+				my $curextras           = $nodeobj->unknown;
+				my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
+				my $updateOverrides     = 0;
+				my $updateConfiguration = 0;
+				my $updateActivated     = 0;
+				my $updateArrayThings   = 0;
+				my $updateComments      = 0;
+				my $updateUnknown       = 0;
+				my $anythingtodo;
+			
+				for my $name (keys %$cmdline)
 				{
-					if (defined($value))
+					next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+					++$anythingtodo;
+			
+					my $value = $cmdline->{$name};
+					undef $value if ($value eq "undef");
+					$name =~ s/^entry\.//;
+			
+					# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+					$name = "activated.NMIS" if ($name eq "configuration.active");
+			
+					# where does it go? overrides.X is obvious...
+					if ($name =~ /^overrides\.(.+)$/)
 					{
-						$$curcomments[$1][$2] = $value;
+						$curoverrides->{$1} = $value;
+						$updateOverrides    = 1;
+					}
+					# ...name, cluster_id a bit less...
+					elsif ($name =~ /^(name|cluster_id)$/)
+					{
+						$nodeobj->$1($value);
+					}
+					# ...and activated.X not at all
+					elsif ($name =~ /^activated\.(.+)$/)
+					{
+						$curactivated->{$1} = $value;
+						$updateActivated    = 1;
+					}
+					# ...and comments
+					elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
+					{
+						if (defined($1) && defined($2))
+						{
+							if (defined($value))
+							{
+								$$curcomments[$1][$2] = $value;
+							}
+						}
+						else
+						{
+							if (defined($value))
+							{
+								$$curcomments[$1] = $value;
+							}
+						}
+						$updateComments   = 1;
+					}
+					# ...and then there's the unknown unknowns
+					elsif ($name =~ /^unknown\.(.+)$/)
+					{
+						$curextras->{$1} = $value;
+						$updateUnknown   = 1;
+					}
+					# and aliases and addresses, but these are ARRAYS
+					elsif ($name =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
+					{
+						$curarraythings->{$1} = $value;
+						$updateArrayThings    = 1;
+					}
+					# configuration.X
+					elsif ($name =~ /^configuration\.(.+)$/)
+					{
+						my $prop = $1;
+						if ($name =~ /connect_options/) {
+							my @value = split(',', $value);
+							$curconfig->{$prop} = \@value;
+						} else {
+							$curconfig->{$prop} = $value;
+						}
+						$updateConfiguration = 1;
+					}
+					else
+					{
+						die "Unknown or unsupported property '$name'!\n";
 					}
 				}
-				else
+		
+				# Fix deleted comments.
+				@{$curcomments}  = grep defined, @{$curcomments};
+				my $commentsSize = scalar(@{$curcomments});
+				for(my $i=0; $i < $commentsSize; $i++)
 				{
-					if (defined($value))
+					my $eachComment = ${$curcomments}[$i];
+					@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
+				}
+		
+				die "No changes for node '$node'!\n" if (!$anythingtodo);
+			
+				for ([$curconfig, "configuration"],
+						 [$curoverrides, "override"],
+						 [$curactivated, "activated"],
+						 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
+						 [$curcomments, "comments" ],
+						 [$curextras, "unknown/extras" ])
+				{
+					my ($checkwhat, $name) = @$_;
+			
+					# Don't waste overhead if nothing was changed.
+					next if ($name eq "configuration"                             && !$updateConfiguration);
+					next if ($name eq "override"                                  && !$updateOverrides);
+					next if ($name eq "activated"                                 && !$updateActivated);
+					next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
+					next if ($name eq "comments"                                  && !$updateComments);
+					next if ($name eq "unknown/extras"                            && !$updateUnknown);
+		
+					if ($name eq "addresses/aliases/enterprise_service_tags")
 					{
-						$$curcomments[$1] = $value;
+						################################################
+						# Start: Ethernet Interfce with a Subinterface #
+						################################################
+						# If we have an Ethernet Interfce with a Subinterface, it will look like
+						# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
+						# the first dot because if there are sub-properties being set, we want
+						# those to be interpreted properly.
+						### FIXME Do all Interfaces with dot delemited subinterfaces contain
+						### FIXME the string 'Ethernet'? if not, the comparison in the loop
+						### FIXME below will need to be expanded as we encounter them!
+		
+						my $new_hash = {};
+						for my $key (keys %$checkwhat)
+						{
+							# substitution in key
+							my $new_key = $key;
+							if ($key =~ /.*Ethernet.*\.\d+.*/)
+							{
+								$new_key =~ s/\Q.\E/\Q\.\E/;
+							}
+							$new_hash->{$new_key} = $checkwhat->{$key};
+						}
+						print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
+						$checkwhat = $new_hash;
+		
+						##############################################
+						# End: Ethernet Interfce with a Subinterface #
+						##############################################
+					}
+		
+					unless ($name eq "comments")
+					{
+						my $error = NMISNG::Util::translate_dotfields($checkwhat);
+						die "translation of '$name' arguments failed: $error\n" if ($error);
 					}
 				}
-				$updateComments   = 1;
-			}
-			# ...and then there's the unknown unknowns
-			elsif ($name =~ /^unknown\.(.+)$/)
-			{
-				$curextras->{$1} = $value;
-				$updateUnknown   = 1;
-			}
-			# and aliases and addresses, but these are ARRAYS
-			elsif ($name =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
-			{
-				$curarraythings->{$1} = $value;
-				$updateArrayThings    = 1;
-			}
-			# configuration.X
-			elsif ($name =~ /^configuration\.(.+)$/)
-			{
-				my $prop = $1;
-				if ($name =~ /connect_options/) {
-					my @value = split(',', $value);
-					$curconfig->{$prop} = \@value;
-				} else {
-					$curconfig->{$prop} = $value;
-				}
-				$updateConfiguration = 1;
-			}
-			else
-			{
-				die "Unknown or unsupported property '$name'!\n";
+			
+				$nodeobj->overrides($curoverrides) if ($updateOverrides);
+				$nodeobj->configuration($curconfig) if ($updateConfiguration);
+				$nodeobj->activated($curactivated) if ($updateActivated);
+				$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
+				$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
+				$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
+				$nodeobj->comments($curcomments) if ($updateComments);
+				$nodeobj->unknown($curextras) if ($updateUnknown);
+				
+				(my $op, $error) = $nodeobj->save(meta => $meta);
+				die "Failed to save '$node': $error\n" if ($op <= 0); # zero is no saving needed	
+				
+				print STDERR "Successfully updated node '$node'.\n"
+					if (-t \*STDERR);								# if terminal
 			}
 		}
-
-		# Fix deleted comments.
-		@{$curcomments}  = grep defined, @{$curcomments};
-		my $commentsSize = scalar(@{$curcomments});
-		for(my $i=0; $i < $commentsSize; $i++)
-		{
-			my $eachComment = ${$curcomments}[$i];
-			@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
-		}
-
-		die "No changes for node '$node'!\n" if (!$anythingtodo);
-	
-		for ([$curconfig, "configuration"],
-				 [$curoverrides, "override"],
-				 [$curactivated, "activated"],
-				 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
-				 [$curcomments, "comments" ],
-				 [$curextras, "unknown/extras" ])
-		{
-			my ($checkwhat, $name) = @$_;
-	
-			# Don't waste overhead if nothing was changed.
-			next if ($name eq "configuration"                             && !$updateConfiguration);
-			next if ($name eq "override"                                  && !$updateOverrides);
-			next if ($name eq "activated"                                 && !$updateActivated);
-			next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
-			next if ($name eq "comments"                                  && !$updateComments);
-			next if ($name eq "unknown/extras"                            && !$updateUnknown);
-
-			if ($name eq "addresses/aliases/enterprise_service_tags")
-			{
-				################################################
-				# Start: Ethernet Interfce with a Subinterface #
-				################################################
-				# If we have an Ethernet Interfce with a Subinterface, it will look like
-				# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
-				# the first dot because if there are sub-properties being set, we want
-				# those to be interpreted properly.
-				### FIXME Do all Interfaces with dot delemited subinterfaces contain
-				### FIXME the string 'Ethernet'? if not, the comparison in the loop
-				### FIXME below will need to be expanded as we encounter them!
-
-				my $new_hash = {};
-				for my $key (keys %$checkwhat)
-				{
-					# substitution in key
-					my $new_key = $key;
-					if ($key =~ /.*Ethernet.*\.\d+.*/)
-					{
-						$new_key =~ s/\Q.\E/\Q\.\E/;
-					}
-					$new_hash->{$new_key} = $checkwhat->{$key};
-				}
-				print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
-				$checkwhat = $new_hash;
-
-				##############################################
-				# End: Ethernet Interfce with a Subinterface #
-				##############################################
-			}
-
-			unless ($name eq "comments")
-			{
-				my $error = NMISNG::Util::translate_dotfields($checkwhat);
-				die "translation of '$name' arguments failed: $error\n" if ($error);
-			}
-		}
-	
-		$nodeobj->overrides($curoverrides) if ($updateOverrides);
-		$nodeobj->configuration($curconfig) if ($updateConfiguration);
-		$nodeobj->activated($curactivated) if ($updateActivated);
-		$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
-		$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
-		$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
-		$nodeobj->comments($curcomments) if ($updateComments);
-		$nodeobj->unknown($curextras) if ($updateUnknown);
-		
-		(my $op, $error) = $nodeobj->save(meta => $meta);
-		die "Failed to save '$node': $error\n" if ($op <= 0); # zero is no saving needed	
-		
-		print STDERR "Successfully updated node '$node'.\n"
-			if (-t \*STDERR);								# if terminal
 	}
 
 	exit 0;
 }
 elsif ($cmdline->{act} eq "unset" && $server_role ne "POLLER")
 {
-	my ($node, $uuid, $server) = @{$cmdline}{"node","uuid","server"}; # uuid is safer
-
-	die "Cannot set node without node argument!\n\n$usage\n"
-			if (!$node && !$uuid);
+	die "Cannot unset node without 'node', 'uuid', or 'group' argument!\n\n$usage\n"
+			if (!$cmdline->{node} and !$cmdline->{group} and !$cmdline->{uuid});
 			
-	my $schedule  = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, 0);
-	my $schedule  = $cmdline->{schedule} // 0; # Schedule by default? Yes
-	my $time      = $cmdline->{time} // time;
-	my $priority  = $cmdline->{priority} // $config->{priority_node_create} // 0; # Default for this job?
-	my $verbosity = NMISNG::Util::getdebug_cli($cmdline->{verbosity}) // $config->{log_level};
-	my $what = "unset_nodes";
-	my %jobargs;
-		
-	my @data = split(",", $node) if ($node);
-	@data = split(",", $uuid) if ($uuid);
-	
-	my $nodes = join( '-', @data);
-	my $meta = {
-			what => "Unset node",
-			who => $me,
-			where => $nodes,
-			how => "node_admin",
-			details => "Unset node(s) " . $nodes
-	};
-	
-	if ($schedule) {
-		$jobargs{uuid} = \@data;
-		$jobargs{data} = $cmdline;
-		$jobargs{meta} = $meta;
-		
-		my ($error,$jobid) = $nmisng->update_queue(
-				jobdata => {
-					type => $what,
-					time => $time,
-					priority => $priority,
-					verbosity => $verbosity,
-					in_progress => 0,					# somebody else is to work on this
-					args => \%jobargs });
-		
-		die "Failed to instantiate job! $error\n" if $error;
-		print STDERR "Job $jobid created for type $what and ".@data." nodes.\n"
-				if (-t \*STDERR);	
-		
-	} else {
-		if ($server) {
-			my ($error, $server_data) = get_server( server => $server );
-			die "Invalid server '$server'; Error: $error!\n" if ($error);
-		}
-		my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
-		if ($server and $nodeobj) {
-			my $props = $nodeobj->unknown();
-			$props->{status} = "update";
-			$nodeobj->unknown($props);
-		}
-		die "Node $node does not exist.\n" if (!$nodeobj);
-		$node ||= $nodeobj->name;			# if looked up via uuid
-	
-		die "Can not unset the Name, or Cluster ID!\n"
-				if (exists($cmdline->{"entry.name"}) || exists($cmdline->{"entry.cluster_id"}));
-	
-		my $curconfig           = $nodeobj->configuration;
-		my $curoverrides        = $nodeobj->overrides;
-		my $curactivated        = $nodeobj->activated;
-		my $curcomments         = $nodeobj->comments;
-		my $curextras           = $nodeobj->unknown;
-		my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
-		my $updateOverrides     = 0;
-		my $updateConfiguration = 0;
-		my $updateActivated     = 0;
-		my $updateArrayThings   = 0;
-		my $updateComments      = 0;
-		my $updateUnknown       = 0;
-		my $anythingtodo;
-	
-		for my $name (keys %$cmdline)
+	my $nodelist;
+	my %nodeNames;
+	my @data;
+	my @groups = split(",", $cmdline->{group}) if ($cmdline->{group});
+	my @nodes  = split(",", $cmdline->{node}) if ($cmdline->{node});
+	my @uuids  = split(",", $cmdline->{uuid}) if ($cmdline->{uuid});
+	my $server = @{$cmdline}{server};
+	my $server_data;
+	if ($server) {
+		my ($error, $server_data) = get_server( server => $server );
+		die "Invalid server '$server'; Error: $error!\n" if ($error);
+	}
+	foreach my $eachNode (@nodes)
+	{
+		$nodelist = $nmisng->get_nodes_model(name => $eachNode, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
 		{
-			next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
-			++$anythingtodo;
-	
-			$name =~ s/^entry\.//;
-	
-			# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
-			$name = "activated.NMIS" if ($name eq "configuration.active");
-	
-			# where does it go? overrides.X is obvious...
-			if ($name =~ /^overrides\.(.+)$/)
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
 			{
-				if (defined($curoverrides->{$1}) && ref(\$curoverrides->{$1}) eq 'SCALAR')
-				{
-					delete($curoverrides->{$1});
-				}
-				else
-				{
-					undef($curoverrides->{$1})
-				}
-				$updateOverrides    = 1;
-			}
-			# ...and activated.X not at all
-			elsif ($name =~ /^activated\.(.+)$/)
-			{
-				if (defined($curactivated->{$1}) && ref(\$curactivated->{$1}) eq 'SCALAR')
-				{
-					delete($curactivated->{$1});
-				}
-				else
-				{
-					undef($curactivated->{$1})
-				}
-				$updateActivated    = 1;
-			}
-			# ...and comments
-			elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
-			{
-				if (defined($1) && defined($2))
-				{
-					undef($$curcomments[$1][$2]);
-				}
-				else
-				{
-					undef($$curcomments[$1]);
-				}
-				$updateComments   = 1;
-			}
-			# ...and then there's the unknown unknowns
-			elsif ($name =~ /^unknown\.(.+)$/)
-			{
-				if (defined($curextras->{$1}) && ref(\$curextras->{$1}) eq 'SCALAR')
-				{
-					delete($curextras->{$1});
-				}
-				else
-				{
-					undef($curextras->{$1})
-				}
-				$updateUnknown   = 1;
-			}
-			# and aliases and addresses, but these are ARRAYS
-			elsif ($name =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
-			{
-				if (defined() && ref(\$curarraythings->{$1}) eq 'SCALAR')
-				{
-					delete($curarraythings->{$1});
-				}
-				else
-				{
-					undef($curarraythings->{$1})
-				}
-				$updateArrayThings    = 1;
-			}
-			# configuration.X
-			elsif ($name =~ /^configuration\.(.+)$/)
-			{
-				my $prop = $1;
-				if (defined($curconfig->{$prop}) && ref(\$curconfig->{$prop}) eq 'SCALAR')
-				{
-					delete($curconfig->{$prop});
-				}
-				else
-				{
-					undef($curconfig->{$prop})
-				}
-				$updateConfiguration = 1;
-			}
-			else
-			{
-				die "Unknown or unsupported property '$name'!\n";
+				print STDERR "Node Name: $_->{name}\n";
+				print STDERR "Node UUID: $_->{uuid}\n";
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
 			}
 		}
-
-		# Fix deleted comments.
-		@{$curcomments}     = grep defined, @{$curcomments};
-		my $commentsSize = scalar(@{$curcomments});
-		for(my $i=0; $i < $commentsSize; $i++)
+	}
+	foreach my $eachUUID (@uuids)
+	{
+		$nodelist = $nmisng->get_nodes_model(uuid => $eachUUID, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
 		{
-			my $eachComment = ${$curcomments}[$i];
-			@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
-		}
-
-		die "No changes for node '$node'!\n" if (!$anythingtodo);
-	
-		for ([$curconfig, "configuration"],
-				 [$curoverrides, "override"],
-				 [$curactivated, "activated"],
-				 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
-				 [$curcomments, "comments" ],
-				 [$curextras, "unknown/extras" ])
-		{
-			my ($checkwhat, $name) = @$_;
-	
-			# Don't waste overhead if nothing was changed.
-			next if ($name eq "configuration"                             && !$updateConfiguration);
-			next if ($name eq "override"                                  && !$updateOverrides);
-			next if ($name eq "activated"                                 && !$updateActivated);
-			next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
-			next if ($name eq "comments"                                  && !$updateComments);
-			next if ($name eq "unknown/extras"                            && !$updateUnknown);
-
-			if ($name eq "addresses/aliases/enterprise_service_tags")
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
 			{
-				################################################
-				# Start: Ethernet Interfce with a Subinterface #
-				################################################
-				# If we have an Ethernet Interfce with a Subinterface, it will look like
-				# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
-				# the first dot because if there are sub-properties being set, we want
-				# those to be interpreted properly.
-				### FIXME Do all Interfaces with dot delemited subinterfaces contain
-				### FIXME the string 'Ethernet'? if not, the comparison in the loop
-				### FIXME below will need to be expanded as we encounter them!
-
-				my $new_hash = {};
-				for my $key (keys %$checkwhat)
+				print STDERR "Node Name: $_->{name}\n";
+				print STDERR "Node UUID: $_->{uuid}\n";
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
+			}
+		}
+	}
+	foreach my $eachGroup (@groups)
+	{
+		$nodelist = $nmisng->get_nodes_model(group => $eachGroup, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Node Name: $_->{name}\n";
+				print STDERR "Node UUID: $_->{uuid}\n";
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
+			}
+		}
+	}
+	if (scalar(@data) == 0)
+	{
+		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
+				if (!$quiet);
+		exit 1;
+	}
+	else
+	{
+		my $schedule  = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, 0);
+		my $time      = $cmdline->{time} // time;
+		my $priority  = $cmdline->{priority} // $config->{priority_node_create} // 0; # Default for this job?
+		my $verbosity = NMISNG::Util::getdebug_cli($cmdline->{verbosity}) // $config->{log_level};
+		my $what = "unset_nodes";
+		my %jobargs;
+		my $nodes = join( '-', @data);
+		my $meta = {
+				what => "Unset node",
+				who => $me,
+				how => "node_admin",
+		};
+		
+		if ($schedule) {
+			$jobargs{data} = $cmdline;
+			for my $uuid (@data)
+			{
+				my $node        = $nodeNames{$uuid};
+				$$meta{where}   = $node;
+				$$meta{details} = "Unset node '$node'";
+				$jobargs{uuid}  = $uuid;
+				$jobargs{meta}  = $meta;
+				my ($error,$jobid) = $nmisng->update_queue(
+					jobdata => {
+						type => $what,
+						time => $time,
+						priority => $priority,
+						verbosity => $verbosity,
+						in_progress => 0,					# somebody else is to work on this
+						args => \%jobargs });
+			
+				print STDERR "Job $jobid created for type $what and node '$node'.\n" if (-t \*STDERR);	
+				die "Failed to instantiate job! $error\n" if $error;
+			}
+		} else {
+			for my $uuid (@data)
+			{
+				my $node        = $nodeNames{$uuid};
+				my $nodeobj     = $nmisng->node(name => $node, uuid=> $uuid);
+				$$meta{where}   = $node;
+				$$meta{details} = "Unset node '$node'";
+				die "Node '$node' does not exist.\n" if (!$nodeobj);
+				if ($server and $nodeobj) {
+					my $props = $nodeobj->unknown();
+					$props->{status} = "update";
+					$nodeobj->unknown($props);
+				}
+				die "Can not unset the Name, or Cluster ID!\n"
+						if (exists($cmdline->{"entry.name"}) || exists($cmdline->{"entry.cluster_id"}));
+			
+				my $curconfig           = $nodeobj->configuration;
+				my $curoverrides        = $nodeobj->overrides;
+				my $curactivated        = $nodeobj->activated;
+				my $curcomments         = $nodeobj->comments;
+				my $curextras           = $nodeobj->unknown;
+				my $curarraythings      = { aliases => $nodeobj->aliases, addresses => $nodeobj->addresses, enterprise_service_tags => $nodeobj->enterprise_service_tags };
+				my $updateOverrides     = 0;
+				my $updateConfiguration = 0;
+				my $updateActivated     = 0;
+				my $updateArrayThings   = 0;
+				my $updateComments      = 0;
+				my $updateUnknown       = 0;
+				my $anythingtodo;
+			
+				for my $name (keys %$cmdline)
 				{
-					# substitution in key
-					my $new_key = $key;
-					if ($key =~ /.*Ethernet.*\.\d+.*/)
+					next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+					++$anythingtodo;
+			
+					$name =~ s/^entry\.//;
+			
+					# translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+					$name = "activated.NMIS" if ($name eq "configuration.active");
+			
+					# where does it go? overrides.X is obvious...
+					if ($name =~ /^overrides\.(.+)$/)
 					{
-						$new_key =~ s/\Q.\E/\Q\.\E/;
+						if (defined($curoverrides->{$1}) && ref(\$curoverrides->{$1}) eq 'SCALAR')
+						{
+							delete($curoverrides->{$1});
+						}
+						else
+						{
+							undef($curoverrides->{$1})
+						}
+						$updateOverrides    = 1;
 					}
-					$new_hash->{$new_key} = $checkwhat->{$key};
+					# ...and activated.X not at all
+					elsif ($name =~ /^activated\.(.+)$/)
+					{
+						if (defined($curactivated->{$1}) && ref(\$curactivated->{$1}) eq 'SCALAR')
+						{
+							delete($curactivated->{$1});
+						}
+						else
+						{
+							undef($curactivated->{$1})
+						}
+						$updateActivated    = 1;
+					}
+					# ...and comments
+					elsif ($name =~ /^comments\.([0-9]+)(?:\.([0-9]+))?$/)
+					{
+						if (defined($1) && defined($2))
+						{
+							undef($$curcomments[$1][$2]);
+						}
+						else
+						{
+							undef($$curcomments[$1]);
+						}
+						$updateComments   = 1;
+					}
+					# ...and then there's the unknown unknowns
+					elsif ($name =~ /^unknown\.(.+)$/)
+					{
+						if (defined($curextras->{$1}) && ref(\$curextras->{$1}) eq 'SCALAR')
+						{
+							delete($curextras->{$1});
+						}
+						else
+						{
+							undef($curextras->{$1})
+						}
+						$updateUnknown   = 1;
+					}
+					# and aliases and addresses, but these are ARRAYS
+					elsif ($name =~ /^((aliases|addresses|enterprise_service_tags)\.(.+))$/)
+					{
+						if (defined() && ref(\$curarraythings->{$1}) eq 'SCALAR')
+						{
+							delete($curarraythings->{$1});
+						}
+						else
+						{
+							undef($curarraythings->{$1})
+						}
+						$updateArrayThings    = 1;
+					}
+					# configuration.X
+					elsif ($name =~ /^configuration\.(.+)$/)
+					{
+						my $prop = $1;
+						if (defined($curconfig->{$prop}) && ref(\$curconfig->{$prop}) eq 'SCALAR')
+						{
+							delete($curconfig->{$prop});
+						}
+						else
+						{
+							undef($curconfig->{$prop})
+						}
+						$updateConfiguration = 1;
+					}
+					else
+					{
+						die "Unknown or unsupported property '$name'!\n";
+					}
 				}
-				print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
-				$checkwhat = $new_hash;
-
-				##############################################
-				# End: Ethernet Interfce with a Subinterface #
-				##############################################
-			}
-
-			unless ($name eq "comments")
-			{
-				my $error = NMISNG::Util::translate_dotfields_delete($checkwhat);
-				die "translation of '$name' arguments failed: $error\n" if ($error);
+		
+				# Fix deleted comments.
+				@{$curcomments}     = grep defined, @{$curcomments};
+				my $commentsSize = scalar(@{$curcomments});
+				for(my $i=0; $i < $commentsSize; $i++)
+				{
+					my $eachComment = ${$curcomments}[$i];
+					@{$eachComment} = grep defined, @{$eachComment} if (ref($eachComment) eq "ARRAY");
+				}
+		
+				die "No changes for node '$node'!\n" if (!$anythingtodo);
+			
+				for ([$curconfig, "configuration"],
+						 [$curoverrides, "override"],
+						 [$curactivated, "activated"],
+						 [$curarraythings, "addresses/aliases/enterprise_service_tags" ],
+						 [$curcomments, "comments" ],
+						 [$curextras, "unknown/extras" ])
+				{
+					my ($checkwhat, $name) = @$_;
+			
+					# Don't waste overhead if nothing was changed.
+					next if ($name eq "configuration"                             && !$updateConfiguration);
+					next if ($name eq "override"                                  && !$updateOverrides);
+					next if ($name eq "activated"                                 && !$updateActivated);
+					next if ($name eq "addresses/aliases/enterprise_service_tags" && !$updateArrayThings);
+					next if ($name eq "comments"                                  && !$updateComments);
+					next if ($name eq "unknown/extras"                            && !$updateUnknown);
+		
+					if ($name eq "addresses/aliases/enterprise_service_tags")
+					{
+						################################################
+						# Start: Ethernet Interfce with a Subinterface #
+						################################################
+						# If we have an Ethernet Interfce with a Subinterface, it will look like
+						# 'GigabitEthernet2/1/13.1416', so we have to escape the key, but only
+						# the first dot because if there are sub-properties being set, we want
+						# those to be interpreted properly.
+						### FIXME Do all Interfaces with dot delemited subinterfaces contain
+						### FIXME the string 'Ethernet'? if not, the comparison in the loop
+						### FIXME below will need to be expanded as we encounter them!
+		
+						my $new_hash = {};
+						for my $key (keys %$checkwhat)
+						{
+							# substitution in key
+							my $new_key = $key;
+							if ($key =~ /.*Ethernet.*\.\d+.*/)
+							{
+								$new_key =~ s/\Q.\E/\Q\.\E/;
+							}
+							$new_hash->{$new_key} = $checkwhat->{$key};
+						}
+						print("new_hash: ". Dumper($new_hash) . "\n") if ($cmdline->{debug} >1);
+						$checkwhat = $new_hash;
+		
+						##############################################
+						# End: Ethernet Interfce with a Subinterface #
+						##############################################
+					}
+		
+					unless ($name eq "comments")
+					{
+						my $error = NMISNG::Util::translate_dotfields_delete($checkwhat);
+						die "translation of '$name' arguments failed: $error\n" if ($error);
+					}
+				}
+			
+				$nodeobj->overrides($curoverrides) if ($updateOverrides);
+				$nodeobj->configuration($curconfig) if ($updateConfiguration);
+				$nodeobj->activated($curactivated) if ($updateActivated);
+				$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
+				$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
+				$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
+				$nodeobj->comments($curcomments) if ($updateComments);
+				$nodeobj->unknown($curextras) if ($updateUnknown);
+				
+				(my $op, $error) = $nodeobj->save(meta => $meta);
+				die "Failed to save '$node': $error\n" if ($op <= 0); # zero is no saving needed	
+				
+				print STDERR "Successfully updated node '$node'.\n"
+					if (-t \*STDERR);								# if terminal
 			}
 		}
-	
-		$nodeobj->overrides($curoverrides) if ($updateOverrides);
-		$nodeobj->configuration($curconfig) if ($updateConfiguration);
-		$nodeobj->activated($curactivated) if ($updateActivated);
-		$nodeobj->addresses($curarraythings->{addresses}) if ($updateArrayThings);
-		$nodeobj->aliases($curarraythings->{aliases}) if ($updateArrayThings);
-		$nodeobj->enterprise_service_tags($curarraythings->{enterprise_service_tags}) if ($updateArrayThings);
-		$nodeobj->comments($curcomments) if ($updateComments);
-		$nodeobj->unknown($curextras) if ($updateUnknown);
-		
-		(my $op, $error) = $nodeobj->save(meta => $meta);
-		die "Failed to save '$node': $error\n" if ($op <= 0); # zero is no saving needed	
-		
-		print STDERR "Successfully updated node '$node'.\n"
-			if (-t \*STDERR);								# if terminal
 	}
 
 	exit 0;
 }
 elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 {
-	my ($node,$uuid,$group,$confirmation,$nukedata,$server) = @{$cmdline}{"node","uuid","group","confirm","deletedata", "server"};
+	die "Cannot delete node without 'node', 'uuid', or 'group' argument!\n\n$usage\n"
+			if (!$cmdline->{node} and !$cmdline->{group} and !$cmdline->{uuid});
+			
+	my $nodelist;
+	my %nodeNames;
+	my %deletedNodes;
+	my @data;
+	my $backup = $config->{'backup_node_on_delete'} // 1;
+	my $backup_folder = $config->{'node_dumps_dir'} // $config->{'<nmis_var>'}."/node_dumps";
+	if ( !-d $backup_folder )
+	{
+		mkdir( $backup_folder, 0700 ) or return die "Cannot create backup folder '$backup_folder': $!";
+	}
+	if ( !-w $backup_folder )
+	{
+		die "Cannot write to backup folder '$backup_folder': $!";
+	}
+	my @groups       = split(",", $cmdline->{group}) if ($cmdline->{group});
+	my @nodes        = split(",", $cmdline->{node}) if ($cmdline->{node});
+	my @uuids        = split(",", $cmdline->{uuid}) if ($cmdline->{uuid});
+	my $server       = $cmdline->{server};
+	my $confirmation = $cmdline->{confirm};
+	my $deletedata   = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, NMISNG::Util::getbool($config->{keeprrds_on_delete_node}, "invert"));
+	if (!$confirmation or $confirmation ne "YES")
+	{
+		if (-t \*STDERR)
+		{
+			$confirmation = NMISNG::Util::askYesNo("Are you sure you want to delete these node(s)?  This action cannot be undone!");
+			exit(1) unless ($confirmation);
+		}
+		else
+		{
+			die "NOT deleting anything:\nPlease rerun with the argument confirm='YES' in all uppercase.\n\n";
+		}
+	}
+	my $server_data;
+	if ($server) {
+		my ($error, $server_data) = get_server( server => $server );
+		die "Invalid server '$server'; Error: $error!\n" if ($error);
+	}
+	foreach my $eachNode (@nodes)
+	{
+		$nodelist = $nmisng->get_nodes_model(name => $eachNode, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Deleting Node Name: $_->{name} (UUID: $_->{uuid})\n" if (-t \*STDERR);
+				$logger->info("User $me: Deleting Node Name: $_->{name} (UUID: $_->{uuid})");
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
+				$deletedNodes{$_->{uuid}} = 0;
+			}
+		}
+	}
+	foreach my $eachUUID (@uuids)
+	{
+		$nodelist = $nmisng->get_nodes_model(uuid => $eachUUID, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Deleting Node Name: $_->{name} (UUID: $_->{uuid})\n" if (-t \*STDERR);
+				$logger->info("User $me: Deleting Node Name: $_->{name} (UUID: $_->{uuid})");
+				$nodeNames{$_->{uuid}} = $_->{name};
+				$deletedNodes{$_->{uuid}} = 0;
+			}
+		}
+	}
+	foreach my $eachGroup (@groups)
+	{
+		$nodelist = $nmisng->get_nodes_model(group => $eachGroup, fields_hash => { name => 1, uuid => 1});
+		if ($nodelist and $nodelist->count)
+		{
+			my @nodeDataList = sort { $a->{name} cmp $b->{name} } (@{$nodelist->data});
+			foreach (@nodeDataList)
+			{
+				print STDERR "Deleting Node Name: $_->{name} (UUID: $_->{uuid})\n" if (-t \*STDERR);
+				$logger->info("User $me: Deleting Node Name: $_->{name} (UUID: $_->{uuid})");
+				push(@data, $_->{uuid});
+				$nodeNames{$_->{uuid}} = $_->{name};
+				$deletedNodes{$_->{uuid}} = 0;
+			}
+		}
+	}
+	if (scalar(@data) == 0)
+	{
+		print STDERR "No matching nodes exist.\n" # but not an error, so let's not die
+				if (!$quiet);
+		exit 1;
+	}
+	else
+	{
+		my $file      = $cmdline->{file};
+		my $schedule  = NMISNG::Util::getbool_cli("schedule", $cmdline->{schedule}, 0);
+		my $nodes     = join( '-', @data);
 
-	die "Cannot delete without node, uuid or group argument!\n\n$usage\n" if (!$node and !$group and !$uuid);
-	die "NOT deleting anything:\nplease rerun with the argument confirm='YES' in all uppercase\n\n"
-			if (!$confirmation or $confirmation ne "YES");
-
-	my $file = $cmdline->{file};
-	my $schedule = $cmdline->{schedule} // 0; # Schedule by default? Yes	
-	
-	my @nodes = split(",", $node);
-	my @uuid = split(",", $uuid);
-	my $nodes = (scalar(@nodes) > 0) ? join( '-', @nodes) : join( '-', @uuid);
-	my $meta = {
-			what => "Remove node",
-			who => $me,
-			where => $node . " " . $uuid,
-			how => "node_admin",
-			details => "Removed node(s) " . $node . " " . $uuid
-	};
-		
-	if ($schedule) {
-		
-		die "No nodes to be removed" if (scalar(@nodes) == 0 and scalar(@uuid) == 0);
-		
-		# Support for node dump
-		my $time = $cmdline->{time} // time;
-		my $priority = $cmdline->{priority} // $config->{priority_node_create}; # Default for this job?
-		my $verbosity = $cmdline->{verbosity} // $config->{log_level};
-		my $keeprrds = $cmdline->{keeprrds} // $config->{keeprrds_on_delete_node} // 0;
-		my $what = "delete_nodes";
-		my %jobargs;
-		
-		$jobargs{node} = \@nodes if (scalar(@nodes) > 0);
-		$jobargs{uuid} = \@uuid if (scalar(@uuid) > 0);
-		
-		$jobargs{keeprrds} = $keeprrds;
-		$jobargs{meta} = $meta;
-		
-		my ($error,$jobid) = $nmisng->update_queue(
-				jobdata => {
+		my $meta = {
+				what => "Remove node",
+				who => $me,
+				where => $nodes,
+				how => "node_admin",
+				details => "Removed node(s) " . $nodes
+		};
+			
+		if ($schedule) {
+			# Support for node dump
+			my $time      = $cmdline->{time} // time;
+			my $priority  = $cmdline->{priority} // $config->{priority_node_create} // 0;; # Default for this job?
+			my $verbosity = $cmdline->{verbosity} // $config->{log_level};
+			my $keeprrds  = $deletedata;
+			my $what      = "delete_nodes";
+			my %jobargs;
+			
+			$jobargs{keeprrds} = $keeprrds;
+			for my $uuid (@data)
+			{
+				my $node       = $nodeNames{$uuid};
+				$$meta{where}   = $node;
+				$$meta{details} = "Removed node '$node'";
+				$jobargs{uuid} = $uuid;
+				$jobargs{meta} = $meta;
+				my ($error,$jobid) = $nmisng->update_queue(
+					jobdata => {
 					type => $what,
 					time => $time,
 					priority => $priority,
 					verbosity => $verbosity,
 					in_progress => 0,					# somebody else is to work on this
 					args => \%jobargs });
-		
-		die "Failed to instantiate job! $error\n" if $error;
-		print STDERR "Job $jobid created for type $what and ".@nodes." nodes.\n"
-				if (-t \*STDERR);	
-		
-	} else {
-		my $server_data;
-		if ($server) {
-			(my $error, $server_data) = get_server(server => $server);
-			die $error if ($error);
-		}
-		my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid, group => $group);
-		die "No matching nodes exist\n" if (!$nodemodel->count);
-		
-		my $gimmeobj = $nodemodel->objects; # instantiate, please!
-		die "Failed to instantiate node objects: $gimmeobj->{error}\n"
-				if (!$gimmeobj->{success});
-	
-		for my $mustdie (@{$gimmeobj->{objects}})
-		{
-			# NODE FROM CATALOG
-			if ($server and $mustdie) {
-				# Update the node status
-				my $props = $mustdie->unknown();
-				$props->{status} = "delete";
-				$mustdie->unknown($props);
-				(my $op, $error) = $mustdie->save;
-				die "Failed to mark for delete node: $error $op\n" if ($op <= 0); # zero is no saving needed
-
-				print STDERR "Successfully marked for delete node ($op).\n"
-						if (-t \*STDERR);			
-			# NODE
-			} else {
-				# First, backup
-				my $backup = $config->{'backup_node_on_delete'} // 1;
-				my $backup_folder = $config->{'node_dumps_dir'} // $config->{'<nmis_var>'}."/node_dumps";
-				if ( !-d $backup_folder )
+			
+				print STDERR "Job $jobid created for type $what and node '$node'.\n" if (-t \*STDERR);	
+				die "Failed to instantiate job! Error: $error\n" if $error;
+			}
+		} else {
+			my $retries = 0;
+			my $finished = 0;
+			# First deactivate every node so nothing starts while we are running.
+			for my $uuid (@data)
+			{
+				my $node       = $nodeNames{$uuid};
+				$$meta{where}   = $node;
+				$$meta{details} = "Removed node '$node'";
+				my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
+				if ($nodeobj)
 				{
-					mkdir( $backup_folder, 0700 ) or return die "Cannot create $backup_folder: $!";
+					print STDERR "Deactivating node '$node'.\n" if (-t \*STDERR);	
+					my $curcfg = $nodeobj->configuration;
+					$curcfg->{collect} = 1;
+					$curcfg->{activated}->{NMIS} = $curcfg->{active} = 1;
+					my $newConfig = $nodeobj->configuration($curcfg);
+					(my $op, $error) = $nodeobj->save(meta => $meta);
+					if ($op < 0) # zero is no saving needed	
+					{
+						print STDERR "Failed to save '$node' deletion may fail: $error (Code=$op)\n" if (-t \*STDERR);
+						$logger->error("Failed to save '$node' deletion may fail: $error (Code=$op)");
+					}
 				}
-				my $res;
-				
-				if ($backup) {
-					$res = $nmisng->dump_node(name => $mustdie->name,
-										 uuid => $mustdie->uuid,
-										 target => $backup_folder . "/".$mustdie->name.".zip",
-										 override => 1);
-										 #options => \%options);
+				else
+				{
+					print STDERR "node '$node' does not exist.\n" if (-t \*STDERR);	
+					$logger->error("node '$node' does not exist.");
+					$deletedNodes{$uuid} = 1;
+					next;
 				}
-				if (!$backup || $res->{success}) {
-					
-					my ($ok, $error) = $mustdie->delete(keep_rrd => NMISNG::Util::getbool($nukedata, "invert"), meta => $meta); # === eq false
-					die $mustdie->name.": $error\n" if (!$ok);
-					print STDERR "Successfully deleted node $node $uuid.\n"
-					if (-t \*STDERR);
-				} else {
-					die "Failed to backup node: ". $mustdie->name . " ". $res->{error};
+			}
+			while (!$finished)
+			{
+				for my $uuid (@data)
+				{
+					next if ($deletedNodes{$uuid});
+					my $node      = $nodeNames{$uuid};
+					my $nodemodel = $nmisng->get_nodes_model(name => $node, uuid => $uuid);
+					if (!$nodemodel->count)
+					{
+						print STDERR "node '$node' does not exist.\n" if (-t \*STDERR);	
+						$logger->error("node '$node' does not exist.");
+						$deletedNodes{$uuid} = 1;
+						next;
+					}
+					my $nodeobj = $nodemodel->objects; # instantiate, please!
+					if (!$nodeobj->{success})
+					{
+						print STDERR "Failed to instantiate node objects: $nodeobj->{error}\n" if (-t \*STDERR);
+						$logger->error("Failed to instantiate node objects: $nodeobj->{error}");
+						$deletedNodes{$uuid} = 1;
+						next;
+					}
+					for my $eachNodeObj (@{$nodeobj->{objects}})
+					{
+						# NODE FROM CATALOG
+						if ($server and $eachNodeObj) {
+							# Update the node status
+							my $props = $eachNodeObj->unknown();
+							$props->{status} = "delete";
+							$eachNodeObj->unknown($props);
+							(my $op, $error) = $eachNodeObj->save;
+							if ($op <= 0) # zero is no saving needed
+							{
+								print STDERR "Failed to mark for delete node: $error $op\n" if (-t \*STDERR);
+								$logger->error("Failed to mark for delete node: $error $op");
+								next;
+							}
+							print STDERR "Successfully marked for delete node ($op).\n" if (-t \*STDERR);
+						# NODE
+						} else {
+							# First, backup
+							my $res;
+							
+							if ($backup) {
+								$res = $nmisng->dump_node(name => $eachNodeObj->name,
+													 uuid => $eachNodeObj->uuid,
+													 target => $backup_folder . "/".$eachNodeObj->name.".zip",
+													 override => 1);
+							}
+							if (!$backup || $res->{success}) {
+								my ($ok, $error) = $eachNodeObj->delete(keep_rrd => $deletedata, meta => $meta); # === eq false
+								if ($ok)
+								{
+									print STDERR "Successfully deleted node $node $uuid.\n" if (-t \*STDERR);
+									$logger->info("Successfully deleted node $node $uuid.");
+									$deletedNodes{$uuid} = 1;
+								}
+								else
+								{
+									print STDERR "Failed to delete node $node $uuid.\n" if (-t \*STDERR);
+									$logger->error("Failed to delete node $node $uuid.");
+								}
+							} else {
+								print STDERR "Failed to backup node: ". $node . " ". $res->{error} . ".\n" if (-t \*STDERR);
+								$logger->error("Failed to backup node: ". $node . " ". $res->{error});
+							}
+						}
+					}
+				}
+				$retries++;
+				$finished = 1;
+				if ($retries <= 10)
+				{
+					foreach (keys %deletedNodes)
+					{
+						$finished = 0 if (!$deletedNodes{$_});
+					}
+					sleep 30 if (!$finished);
+				}
+				else
+				{
+					my $failedDeletions = "";
+					foreach (keys %deletedNodes)
+					{
+						$failedDeletions = $failedDeletions . "'$nodeNames{$_}', " if (!$deletedNodes{$_})
+					}
+					die "delete node action failed: The following nodes could not be deleted: " . substr($failedDeletions, 0 , (length($failedDeletions)-2)) . "\n";
 				}
 			}
 		}
@@ -1945,30 +2369,59 @@ sub help
    push(@lines, "     0 Success\n");
    push(@lines, "     215 Failure\n\n");
    push(@lines, "\033[1mACTIONS\033[0m\n");
-   push(@lines, "     act=clean-node-events node=<name>|uuid=<node_uuid>\n");
+   push(@lines, "     act=clean-node-events node=<node_name>|uuid=<node_uuid>\n");
    push(@lines, "                     This action clears all events associated with\n");
    push(@lines, "                     the specified node.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=create file=<someFile.json>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                             [priority=0..1]\n");
+   push(@lines, "                             [schedule=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [time=<time>]\n");
+   push(@lines, "                             [verbosity=<1..9|debug|info|warn|error|fatal>]\n");
    push(@lines, "                     This action creates an NMIS Node from an NMIS\n");
    push(@lines, "                     template file.  Use 'mktemplate' to create a\n");
-   push(@lines, "                     blank template.\n");
+   push(@lines, "                     blank template. if 'schedule' is set to 'true'\n");
+   push(@lines, "                     the set will be run as a scheduled job instead\n");
+   push(@lines, "                     of being run interactivly. 'priority', 'time',\n");
+   push(@lines, "                     and 'verbosity' are all related to scheduled mode.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=delete node=<name>|uuid=<node_uuid>|group=<group_name>\n");
+   push(@lines, "     act=delete [node=<node_name>[,<node_name2>...]]\n");
+   push(@lines, "                             [uuid=<node_uuid>[,<node_uuid2>...]]\n");
+   push(@lines, "                             [group=<group_name>[,<group_name2>...]]\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [deletedata=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [priority=0..1]\n");
+   push(@lines, "                             [schedule=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [time=<time>]\n");
+   push(@lines, "                             [verbosity=<1..9|debug|info|warn|error|fatal>]\n");
    push(@lines, "                             confirm=YES\n");
-   push(@lines, "                     This action deletes an existing NMIS node.\n");
+   push(@lines, "                     This action deletes one or more existing NMIS nodes.\n");
    push(@lines, "                     It only deletes if confirm=YES (in uppercase)\n");
    push(@lines, "                     is given. if deletedata=true (default) then RRD\n");
-   push(@lines, "                     files for a node are also deleted.\n");
+   push(@lines, "                     files for a node are also deleted. The 'server' argument\n");
+   push(@lines, "                     performs the action on the specified server. if 'schedule'\n");
+   push(@lines, "                     is set to 'true', the delete will be run as a scheduled\n");
+   push(@lines, "                     job instead of being run interactivly. 'priority',\n");
+   push(@lines, "                     'time', and 'verbosity' are all related to\n");
+   push(@lines, "                     scheduled mode.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=dump node=<name>|uuid=<node_uuid> file=<path>\n");
+   push(@lines, "                     NOTE: This command may take up to 5 minutes\n");
+   push(@lines, "                           to complete as it may need to wait for\n");
+   push(@lines, "                           running updates or collections to complete\n");
+   push(@lines, "                           before the deletion can occur.  If the deletion\n");
+   push(@lines, "                           cannot be completed within 5 minutes the action\n");
+   push(@lines, "                           will fail logging the nodes that could not be\n");
+   push(@lines, "                           deleted. 'schedule=true' will queue jobs instead\n");
+   push(@lines, "                           and only run them when it can get exlusive\n");
+   push(@lines, "                           access to the node.\n");
+   push(@lines, "     act=dump node=<node_name>|uuid=<node_uuid> file=<path>\n");
    push(@lines, "                             [everything=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This action dumps To a specified file but does\n");
-   push(@lines, "                     not delete the node from the system.\n");
-   push(@lines, "     act=export node=<name>|uuid=<node_uuid>|group=<group_name>\n");
+   push(@lines, "                     not delete the node from the system. the resulting file\n");
+   push(@lines, "                     will be a zipped file containing several json files\n");
+   push(@lines, "                     defining the database entries for the node.\n");
+   push(@lines, "     act=export node=<node_name>|uuid=<node_uuid>|group=<group_name>\n");
    push(@lines, "                             [file=<path>]\n");
    push(@lines, "                             [format=<nodes|json>]\n");
    push(@lines, "                             [keep_ids=<true|false|yes|no|1|0>]\n");
@@ -1976,8 +2429,8 @@ sub help
    push(@lines, "                     This action exports a node into the specified\n");
    push(@lines, "                     file (or STDOUT if no file given). It will\n");
    push(@lines, "                     export to nmis9 (json) format by default or\n");
-   push(@lines, "                     legacy (nmis8 perl hash with an '.nmis'\n");
-   push(@lines, "                     extension) if format='nodes' is specified The\n");
+   push(@lines, "                     if format='nodes' is specified, legacy (nmis8\n");
+   push(@lines, "                     perl hash with an '.nmis' extension). The\n");
    push(@lines, "                     uuid and cluster_id are NOT exported unless\n");
    push(@lines, "                     'keep_ids' is true. Unlike 'dump', the node\n");
    push(@lines, "                     will be deleted from the system. if 'overwrite;\n");
@@ -1998,10 +2451,13 @@ sub help
    push(@lines, "                     the import. This option is to avoid excessive\n");
    push(@lines, "                     overhead on the system.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=list (or list_uuid) [node=<name>|uuid=<node_uuid>|group=<group_name>]\n");
+   push(@lines, "     act=list (or list_uuid) [node=<node_name>|uuid=<node_uuid>|group=<group_name>]\n");
+   push(@lines, "                             [wantgroup=<true|false|yes|no|1|0>]\n");
    push(@lines, "                             [wantpoller=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [wantstatus=<true|false|yes|no|1|0>]\n");
    push(@lines, "                             [wantuuid=<true|false|yes|no|1|0>]\n");
    push(@lines, "                             [file=<someFile.json>] [format=json]\n");
+   push(@lines, "                             [overwrite=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This action lists the nodes in the system. If called\n");
    push(@lines, "                     with 'list', only the node names will be listed. If\n");
    push(@lines, "                     'wantpoller' is true the poller is listed as well. If\n");
@@ -2011,18 +2467,20 @@ sub help
    push(@lines, "                     'list_uuid' the uuid flag is automatically set.\n");
    push(@lines, "                     If 'file' is specified, the output will be sent\n");
    push(@lines, "                     to a file. If 'format=json' is specified, the output\n");
-   push(@lines, "                     will be formatted as a json document.\n");
+   push(@lines, "                     will be formatted as a json document. if 'overwrite;\n");
+   push(@lines, "                     is specified, the output file will be\n");
+   push(@lines, "                     overwritten if it exists.\n");
    push(@lines, "     act=mktemplate file=<someFile.json> [placeholder=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This prints blank template for node creation,\n");
    push(@lines, "                     optionally with '__REPLACE_XX__' placeholder.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<nodeUUID>}\n");
+   push(@lines, "     act=move-nmis8-rrd-files {node=<node_name>|ALL|uuid=<node_uuid>}\n");
    push(@lines, "                             [remove_old=<true|false|yes|no|1|0>]\n");
    push(@lines, "                             [force=<true|false|yes|no|1|0>]\n");
    push(@lines, "                     This moves old NMIS8 RRD files out of the active\n");
    push(@lines, "                     RRD Database directory.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=rename {old=<node_name>|uuid=<nodeUUID>} new=<new_name>\n");
+   push(@lines, "     act=rename {old=<node_name>|uuid=<node_uuid>} new=<new_name>\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [entry.<key>=<value>...]\n");
    push(@lines, "                     This action renames a node. The 'server' argument\n");
@@ -2035,7 +2493,9 @@ sub help
    push(@lines, "                     from the specified file. If localise_ids=true\n");
    push(@lines, "                     (default: false), then the cluster id is\n");
    push(@lines, "                     rewritten to match the local nmis installation.\n");
-   push(@lines, "     act=set {node=<node_name>|uuid=<nodeUUID>\n");
+   push(@lines, "     act=set [node=<node_name>[,<node_name2>...]]\n");
+   push(@lines, "                             [uuid=<node_uuid>[,<node_uuid2>...]]\n");
+   push(@lines, "                             [group=<group_name>[,<group_name2>...]]\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [entry.<key>=<value>...]\n");
    push(@lines, "                             [priority=0..1]\n");
@@ -2046,11 +2506,24 @@ sub help
    push(@lines, "                     nodes. The 'server' argument performs the action\n");
    push(@lines, "                     on the specified server. if 'schedule' is set to\n");
    push(@lines, "                     'true', the set will be run as a scheduled job\n");
-   push(@lines, "                     instead of being run interactivly. 'priority'\n");
+   push(@lines, "                     instead of being run interactivly. 'priority',\n");
    push(@lines, "                     'time', and 'verbosity' are all related to\n");
    push(@lines, "                     scheduled mode.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=unset {node=<node_name>|uuid=<nodeUUID>\n");
+   push(@lines, "     act=show {node=<node_name>|uuid=<node_uuid>}\n");
+   push(@lines, "                             [catchall=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [interfaces=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [inventory=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [quoted=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                     This action displays the attributes of the\n");
+   push(@lines, "                     specified node.\n");
+   push(@lines, "                     'catchall' dumps just the inventory catchall data.\n");
+   push(@lines, "                     'interfaces' show interface basic information.\n");
+   push(@lines, "                     'inventory' dumps all the inventory data.\n");
+   push(@lines, "                     'quoted' adds double-quotes where needed.\n");
+   push(@lines, "     act=unset [node=<node_name>[,<node_name2>...]]\n");
+   push(@lines, "                             [uuid=<node_uuid>[,<node_uuid2>...]]\n");
+   push(@lines, "                             [group=<group_name>[,<group_name2>...]]\n");
    push(@lines, "                             [server={<server_name>|<cluster_id>}]\n");
    push(@lines, "                             [entry.<key>=<value>...]\n");
    push(@lines, "                             [priority=0..1]\n");
@@ -2063,27 +2536,24 @@ sub help
    push(@lines, "                     posible. The 'server' argument performs the action\n");
    push(@lines, "                     on the specified server. if 'schedule' is set to\n");
    push(@lines, "                     'true', the unset will be run as a scheduled job\n");
-   push(@lines, "                     instead of being run interactivly. 'priority'\n");
+   push(@lines, "                     instead of being run interactivly. 'priority',\n");
    push(@lines, "                     'time', and 'verbosity' are all related to\n");
    push(@lines, "                     scheduled mode.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
-   push(@lines, "     act=show {node=<node_name>|uuid=<nodeUUID>}\n");
-   push(@lines, "                             [catchall=<true|false|yes|no|1|0>]\n");
-   push(@lines, "                             [interfaces=<true|false|yes|no|1|0>]\n");
-   push(@lines, "                             [inventory=<true|false|yes|no|1|0>]\n");
-   push(@lines, "                             [quoted=<true|false|yes|no|1|0>]\n");
-   push(@lines, "                     This action displays the attributes of the\n");
-   push(@lines, "                     specified node.\n");
-   push(@lines, "                     'catchall' dumps just the inventory catchall data.\n");
-   push(@lines, "                     'interfaces' show interface basic information.\n");
-   push(@lines, "                     'inventory' dumps all the inventory data.\n");
-   push(@lines, "                     'quoted' adds double-quotes where needed.\n");
    push(@lines, "     act=update file=<someFile.json> [server={<server_name>|<cluster_id>}]\n");
+   push(@lines, "                             [priority=0..1]\n");
+   push(@lines, "                             [schedule=<true|false|yes|no|1|0>]\n");
+   push(@lines, "                             [time=<time>]\n");
+   push(@lines, "                             [verbosity=<1..9|debug|info|warn|error|fatal>]\n");
    push(@lines, "                     This action updates an existing NMIS Node from an NMIS\n");
    push(@lines, "                     template file. If no uuid is present, a new node will\n");
    push(@lines, "                     be created. If a property is not set, it will be removed.\n");
    push(@lines, "                     Use 'set' to set or replace only one property.\n");
    push(@lines, "                     file.  Use 'mktemplate' to create a blank template.\n");
+   push(@lines, "                     if 'schedule' is set to 'true', the set will be run as\n");
+   push(@lines, "                     a scheduled job instead of being run interactivly.\n");
+   push(@lines, "                     'priority', 'time', and 'verbosity' are all related to\n");
+   push(@lines, "                     scheduled mode.\n");
    push(@lines, "                     NOTE: This action cannot be run in a poller!\n");
    push(@lines, "     act=validate-node-inventory [concept=<concept_name>]\n");
    push(@lines, "                             [dryrun=<true|false|yes|no|1|0>]\n");
