@@ -104,7 +104,7 @@ sub update_plugin
 	}
 	else
 	{
-		$NG->log->info("Running Alcatel ASAM plugin for Node '$node', Model '$catchall_data->{nodeModel}'.");
+		$NG->log->debug("Running Alcatel ASAM plugin for Node '$node', Model '$catchall_data->{nodeModel}'.");
 	}
 
 	$NG->log->debug9(sub {"\$node:        " . Dumper($node) . "\n\n\n"});

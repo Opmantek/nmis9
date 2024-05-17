@@ -73,11 +73,11 @@ sub collect_plugin
 
 	my $catchall_data = $inventory->data();
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
-		$NG->log->info("Skipping F5BigIP plugin for node::$node, Node Down");
+		$NG->log->debug("Skipping F5BigIP plugin for node::$node, Node Down");
 		return (2, "Node Down, skipping F5BigIP plugin");
 	}
 	else {
-		$NG->log->info("Running F5BigIP Collect plugin for node::$node");
+		$NG->log->debug("Running F5BigIP Collect plugin for node::$node");
 	}
 
 	my $changesweremade = 0;
@@ -297,11 +297,11 @@ sub update_plugin
 
 	my $catchall_data = $inventory->data();
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
-		$NG->log->info("Skipping F5BigIP plugin for node::$node, Node Down");
+		$NG->log->debug("Skipping F5BigIP plugin for node::$node, Node Down");
 		return (2, "Node Down, skipping F5BigIP plugin");
 	}
 	else {
-		$NG->log->info("Running F5BigIP Update plugin for node::$node");
+		$NG->log->debug("Running F5BigIP Update plugin for node::$node");
 	}
 
 	my $changesweremade = 0;

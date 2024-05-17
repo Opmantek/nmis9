@@ -54,7 +54,7 @@ sub collect_plugin
 
 	my $catchall_data = $inventory->data();
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) ) {
-		$NG->log->info("Skipping Host Resources plugin for node::$node, Node Down");
+		$NG->log->debug("Skipping Host Resources plugin for node::$node, Node Down");
 		return ( error => "Node Down, skipping Host Resources plugin");
 	}
 	
@@ -64,7 +64,7 @@ sub collect_plugin
 	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
 	
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP" or !NMISNG::Util::getbool($catchall->{collect}));
-	$NG->log->info("Running plugin for node::$node");
+	$NG->log->debug("Running plugin for node::$node");
 
 	my $f5Data = getF5Data(name => $node, NG => $NG, C => $C);
 	
@@ -74,7 +74,7 @@ sub collect_plugin
 	
 	if (@$host_ids)
 	{
-		$NG->log->info("Working on '$node'");
+		$NG->log->debug("Working on '$node'");
 		my $f5Data = getF5Data(name => $node, NG => $NG, C => $C);
 		if ( defined $f5Data->{error} ) {
 			$NG->log->error("ERROR with $node: $f5Data->{error}");

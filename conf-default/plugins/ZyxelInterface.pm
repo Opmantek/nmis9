@@ -81,7 +81,7 @@ sub update_plugin
 	}
 	else
 	{
-		$NG->log->info("Running ZyxelInterface plugin for Node '$node', Model '$catchall->{nodeModel}'.");
+		$NG->log->debug("Running ZyxelInterface plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 	}
 
 
