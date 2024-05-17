@@ -64,7 +64,7 @@ sub collect_plugin
 	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
 	
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP" or !NMISNG::Util::getbool($catchall->{collect}));
-	$NG->log->debug("Running plugin for node::$node");
+	$NG->log->debug("Running F5BigIP plugin for node::$node");
 
 	my $f5Data = getF5Data(name => $node, NG => $NG, C => $C);
 	
