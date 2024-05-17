@@ -217,7 +217,7 @@
         'title' => 'Critical Disk Usage',
         'unit' => '%',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+        'control' => 'CVAR=hrStorageTypeName;$CVAR =~ /Fixed Disk/',
       },
       #'HighMemoryUsage' => {
       #  'type' => 'threshold-rising',
