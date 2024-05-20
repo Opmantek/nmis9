@@ -53,7 +53,7 @@ add_mongo_repository () {
 		local RELEASENAME
 
 		local DESIREDVER
-		DESIREDVER=${1:-3.4}
+		DESIREDVER=${1:-6.0}
 
 		# redhat/centos: mongodb supplies rpms for 3.2 and 3.4 for all platforms and versions we care about
 		if [ "$OSFLAVOUR" = "redhat" ]; then
@@ -238,9 +238,10 @@ EOF
 
 				# find out where we are, and get additional common function to install mongo 4.2
 				SCRIPTPATH=${0%/*}
-				. $SCRIPTPATH/common_mongodb_4.sh
+				# . $SCRIPTPATH/common_mongodb_4.sh
+				. $SCRIPTPATH/common_mongodb_6.sh
 				# check and get mongodb 4.2, returns 0 if ok, 1 or 2 otherwise
-				new_mongo_4_or_bust 4 2 0|| exit 1
+				new_mongo_6_or_bust 6 0 5|| exit 1
 
 		# mongo is installed, but is the version sufficient?
 		else
