@@ -29,7 +29,7 @@
 # *****************************************************************************
 # a command-line node import tool for NMIS 9
 use strict;
-our $VERSION = "9.4.7";
+our $VERSION = "9.4.8";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
