@@ -14,7 +14,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:perCentQueueUtil=$database:perCentQueueUtil:AVERAGE',
-			'AREA:perCentQueueUtil#0000ff:Queue Utilization',
+			'AREA:perCentQueueUtil#0000ff: Queue Utilization',
 			'GPRINT:perCentQueueUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:perCentQueueUtil:MAX:Max %1.2lf%%\\n'
 		],
@@ -23,7 +23,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:perCentQueueUtil=$database:perCentQueueUtil:AVERAGE',
-			'AREA:perCentQueueUtil#0000ff:Queue Utilization',
+			'AREA:perCentQueueUtil#0000ff: Queue Utilization',
 			'GPRINT:perCentQueueUtil:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:perCentQueueUtil:MAX:Max %1.2lf%%\\n'
 		]

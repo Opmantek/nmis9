@@ -11,13 +11,13 @@
 	'option' => {
 		'standard' => [
 			'DEF:workQueueMessgs=$database:workQueueMessgs:AVERAGE',
-			'AREA:workQueueMessgs#53199e:Message Queue',
-			'GPRINT:workQueueMessgs:LAST:Amount %6.0lf %S\\n'
+			'AREA:workQueueMessgs#53199e: Message Queue',
+			'GPRINT:workQueueMessgs:LAST:%6.0lf %S\\n'
 		],
 		'small' => [
 			'DEF:workQueueMessgs=$database:workQueueMessgs:AVERAGE',
-			'AREA:workQueueMessgs#53199e:Message Queue',
-			'GPRINT:workQueueMessgs:LAST:Amount  %6.0lf %S\\n'
+			'AREA:workQueueMessgs#53199e: Message Queue',
+			'GPRINT:workQueueMessgs:LAST:%6.0lf %S\\n'
 		]
 	}
 );

@@ -40,12 +40,12 @@
 	'option' => {
 		'standard' => [
 			'DEF:quarantinedMsg=$database:quarantinedMsg:AVERAGE',
-			'LINE:quarantinedMsg#6a73d9:Quarantined Messages',
+			'LINE:quarantinedMsg#6a73d9: Quarantined Messages',
 			'GPRINT:quarantinedMsg:LAST:%1.0lf\\n'
 		],
 		'small' => [
                         'DEF:quarantinedMsg=$database:quarantinedMsg:AVERAGE',
-                        'LINE:quarantinedMsg#6a73d9:Quarantined Messages',
+                        'LINE:quarantinedMsg#6a73d9: Quarantined Messages',
                         'GPRINT:quarantinedMsg:LAST:%1.0lf\\n'
 		]
 	}
