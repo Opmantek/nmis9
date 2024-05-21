@@ -241,7 +241,7 @@ EOF
 				# . $SCRIPTPATH/common_mongodb_4.sh
 				. $SCRIPTPATH/common_mongodb_6.sh
 				# check and get mongodb 4.2, returns 0 if ok, 1 or 2 otherwise
-				new_mongo_6_or_bust 6 0 1|| exit 1
+				new_mongo_6_or_bust 6 0 15|| exit 1
 
 		# mongo is installed, but is the version sufficient?
 		else
