@@ -74,7 +74,7 @@ sub update_plugin
 	my %emibdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
 
 	return (0,undef) if (!keys %emibdata);
-	$NG->log->info("Running Cisco Memory/CPU update plugin for Node '$node'.");
+	$NG->log->debug("Running Cisco Memory/CPU update plugin for Node '$node'.");
 
 	$NG->log->debug("Working on Node '$node' 'cempMemPool'");
 
@@ -174,7 +174,7 @@ sub collect_plugin
 	}
 	else
 	{
-		$NG->log->info("Running Cisco Memory/CPU collect plugin for Node '$node', Model '$catchall->{nodeModel}'.");
+		$NG->log->debug("Running Cisco Memory/CPU collect plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 	}
 
 	# Node must have have data for entityMib to be relevant

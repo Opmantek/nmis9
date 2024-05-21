@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.4.7";
+our $VERSION = "9.4.8";
 
 use strict;
 
@@ -3224,7 +3224,18 @@ sub update_intf_info
 		my $intfCollect = 0;    # reset counters
 
 		$self->nmisng->log->debug2(sub {"Checking interfaces for duplicate ifDescr"});
-		my $ifDescrIndx;
+		
+		# check for duplicates, part 1, make a list of all names and counts
+		# if there are any duplicates, all from that set of duplicates should have it's ifDescr modified to have ifIndex added
+		my $ifDescr_match_count = {};
+		foreach my $i (@ifIndexNum)
+		{
+			my $target = $target_table->{$i};
+			$target->{ifDescr} ||= $i;
+			$ifDescr_match_count->{$target->{ifDescr}} += 1;
+		}
+
+		# check for duplicates part 2, adjust the names and add extra properties
 		foreach my $i (@ifIndexNum)
 		{
 			my $target = $target_table->{$i};
@@ -3236,15 +3247,13 @@ sub update_intf_info
 
 			# ifDescr must always be filled
 			$target->{ifDescr} ||= $i;
-			# ifDescr is duplicated?
-			if ( exists $ifDescrIndx->{$target->{ifDescr}} and $ifDescrIndx->{$target->{ifDescr}} ne "" )
+			# ifDescr is duplicated?, the dup count > 1 means more than one use it
+			if( $ifDescr_match_count->{$target->{ifDescr}} > 1 )
 			{
+				$target->{ifDescr_orig} = $target->{ifDescr};
 				$target->{ifDescr} .= "-$i";                  # add index to string
+				$target->{ifDescr_duplicate} = 1;
 				$self->nmisng->log->debug2(sub {"Interface ifDescr changed to $target->{ifDescr}"});
-			}
-			else
-			{
-				$ifDescrIndx->{$target->{ifDescr}} = $i;
 			}
 		}
 		$self->nmisng->log->debug2(sub {"Completed duplicate ifDescr processing"});
@@ -3738,6 +3747,8 @@ sub collect_intf_data
 			'data.ifAdminStatus' => 1,
 			'data.ifOperStatus' => 1,
 			'data.ifDescr' => 1,
+			'data.ifDescr_orig' => 1,
+			'data.ifDescr_duplicate' => 1,
 			'data.ifIndex' => 1,
 			'data.ifLastChangeSec' => 1, # ifLastChange is textual and NO GOOD
 			'data.real' => 1,
@@ -3764,7 +3775,7 @@ sub collect_intf_data
 		my $thisindex = $maybeevil->{data}->{ifIndex};
 		if (exists $if_data_map{$thisindex} )
 		{
-			$self->nmisng->log->warn("clashing inventories for interface index $thisindex!");
+			$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex!");
 			next;
 		}
 
@@ -4036,6 +4047,7 @@ sub collect_intf_data
 	# this covers reordered interfaces (interface index is not invariant, ifdescr is treated as invariant)
 	# new interfaces should have been handled in 4.
 	$self->nmisng->log->debug5(sub {"collect_intf_data phase 6"});
+	# map { $if_data_map{$_}{ifDescr} } (keys %if_data_map);
 	for my $index (keys %if_data_map)
 	{
 		my $thisif = $if_data_map{$index};
@@ -4046,9 +4058,19 @@ sub collect_intf_data
 						 or ref($thisif->{_rrd_data}->{interface}) ne "HASH"
 						 or $thisif->{_was_updated}); # or if the interface was updated already...
 
+		# _rrd_data is just updated from snmp and has original ifDescr, which is treated as invariant,
+		# we need to handle the case where there are duplicate ifDescrs, in this case the ifIndex has 
+		# been added to ifDescr also extra properties exist to help detect this, in this case adjust 
+		# the ifdescr we've just loaded up from snmp to match the modified one
 		my $intfsection = $thisif->{_rrd_data}->{interface}->{$index};
 
 		my $newifdescr = NMISNG::Util::rmBadChars( $intfsection->{ifDescr}->{value} );
+		# marked as being duplicate, original ifdescr matches what was just polled and calcualted matches expected, take what we had
+		if( ($thisif->{ifDescr_duplicate} == 1) && ($thisif->{ifDescr_orig} eq $newifdescr) and ($thisif->{ifDescr} eq $newifdescr."-$index") ) {
+			$newifdescr = $thisif->{ifDescr};
+			$self->nmisng->log->debug2(sub{"Interface $index, using modified ifDescr $thisif->{ifDescr} because of duplicate ifDescrs"});
+		}
+
 		# only perform interface decription change detection if we are using ifAdminStatus for status and change detection as well
 		if ($newifdescr ne $thisif->{ifDescr} and !$dontwanna_ifadminstatus)
 		{

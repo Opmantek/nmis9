@@ -72,7 +72,7 @@ sub update_plugin
 	}
 	else
 	{
-		$NG->log->info("Running AdtranInterface plugin for Node '$node', Model '$catchall->{nodeModel}'.");
+		$NG->log->debug("Running AdtranInterface plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 	}
 
 	# Load any nodeconf overrides for this node
