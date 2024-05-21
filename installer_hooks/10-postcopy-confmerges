@@ -5,7 +5,7 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
-if [ -n "$CLEANSLATE" ]; then
+if [ -z "$CLEANSLATE" ]; then
 		logmsg "No config updates required"
 		exit 0
 fi
