@@ -54,7 +54,8 @@ Usage: $me [-hyd] [-t /some/path] [[-p|-P] /some/file] [optX=valX...]
      with the default choice
 -p:  pre-seeded non-interactive mode, answers come from
      the file given as argument
--P:  generate default preseed file\n\n";
+-P:  generate default preseed file
+-mongo6: Install Mongo6 \n\n";
 
 my (%options, %extras);
 die $usage if ( @ARGV == 1 && $ARGV[0] =~ /^-(\?|h|-help)$/i
@@ -1142,6 +1143,7 @@ sub run_hooks
 				$ENV{LOGFILE} = $logfile if (!$simulate);
 				$ENV{CLEANSLATE} = 1 if ($is_initial_install);
 				$ENV{PRESEED} = $options{p} if ($options{p}); # preseed file
+				$ENV{MONGO6} = $options{mongo6} if ($options{mongo6}); # MONGO 6 install.
 				for my $extra (keys %extras)
 				{
 					$ENV{"OPT_".uc($extra)} = $extras{$extra};
