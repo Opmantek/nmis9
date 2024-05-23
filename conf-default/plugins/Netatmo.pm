@@ -65,7 +65,7 @@ sub collect_plugin
 	# if this node isn't using the model type Netatmo, move along.
 	return (1,undef) if $catchall_data->{nodeModel} ne "Netatmo";
 
-	$NG->log->info("Running Netatmo Collect plugin for node::$node");
+	$NG->log->debug("Running Netatmo Collect plugin for node::$node");
 	
 	my $changesweremade = 0;
 

@@ -80,7 +80,7 @@ sub update_plugin
 		return (0,undef);
 	}
 
-	$NG->log->info("Running Juniper Class of Service plugin for Node '$node', Model '$catchall->{nodeModel}'.");
+	$NG->log->debug("Running Juniper Class of Service plugin for Node '$node', Model '$catchall->{nodeModel}'.");
 
 	# Do not Set the Header data. , let NMIS work it out using the model
 	# my $juniperCoSInfo = [

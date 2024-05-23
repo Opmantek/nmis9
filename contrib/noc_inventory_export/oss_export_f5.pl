@@ -396,6 +396,8 @@ my %nodeAlias = (
 # Step 5: For loading only the local nodes on a Master or a Slave
 my $NODES = Compat::NMIS::loadLocalNodeTable();
 
+#F5 patterns are necessary!
+my $f5_pattern = qr/F5/;  # Matches devices with "F5" in the model or vendor name
 #What vendors are we going to process
 my $goodVendors = qr/F5 Labs, Inc./;
 
@@ -462,7 +464,7 @@ sub exportNodes {
 
 	if ($xls) {
 		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
-		$currow = 1;								# header is row 0
+		$currow = 1;							# header is row 0
 	}
 	else {
 		die "ERROR: Internal error, xls is no longer defined.\n";
@@ -589,84 +591,89 @@ sub exportNodes {
 
 
 sub exportInventory {
-	my (%args)   = @_;
-	my $xls      = $args{xls};
-	my $avgFile  = $args{file};
-	my $invFile  = $args{file};
-	my $avgTitle = $args{section};
-	my $invTitle = $args{section};
-	my $section  = $args{section};
-	my $averages = $args{averages};
-	my $found    = 0;
-	my $avgPage  = 0;
-	my $avgSheet;
-	my $invSheet;
-	my $avgCurRow;
-	my $invCurRow;
-	my $avgCSVData;
-	my $invCSVData;
-	my @exceptions;
-	my @avgColSize;
-	my @invColSize;
+    my (%args)   = @_;
+    my $xls      = $args{xls};
+    my $avgFile  = $args{file};
+    my $invFile  = $args{file};
+    my $avgTitle = $args{section};
+    my $invTitle = $args{section};
+    my $section  = $args{section};
+    my $averages = $args{averages};
+    my $found    = 0;
+    my $avgPage  = 0;
+    my $avgSheet;
+    my $invSheet;
+    my $avgCurRow;
+    my $invCurRow;
+    my $avgCSVData;
+    my $invCSVData;
+    my @exceptions;
+    my @avgColSize;
+    my @invColSize;
 
-	$invTitle =  $args{title} if defined $args{title};
-	$avgTitle =  "$invTitle Averages ($timespan)";
-	$avgFile  =~ s/\.csv/_avg.csv/;
+    $invTitle =  $args{title} if defined $args{title};
+    $avgTitle =  "$invTitle Averages ($timespan)";
+    $avgFile  =~ s/\.csv/_avg.csv/;
 
-	die "I must know which section!" if not defined $args{section};
+    die "I must know which section!" if not defined $args{section};
 
-	my $model_section_top = "systemHealth";
-	$model_section_top = $args{model_section_top} if defined $args{model_section_top};
+    my $model_section_top = "systemHealth";
+    $model_section_top = $args{model_section_top} if defined $args{model_section_top};
 
-	my $model_section = $section;
-	$model_section = $args{model_section} if defined $args{model_section};
+    my $model_section = $section;
+    $model_section = $args{model_section} if defined $args{model_section};
 
-	print "Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n";
+    print "Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n";
 
-	print "Creating '$invTitle' sheet with section $section\n";
+    print "Creating '$invTitle' sheet with section $section\n";
 
+    # Declare some vars for filling in later.
+    my @avgHeaders;
+    my @invHeaders;
+    my %avgAlias;
+    my %invAlias;
 
-	# Declare some vars for filling in later.
-	my @avgHeaders;
-	my @invHeaders;
-	my %avgAlias;
-	my %invAlias;
+    # Define a pattern to match F5 devices
+    my $f5_pattern = qr/F5/;
 
-	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} ) {
-			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $nodeobj       = $nmisng->node(name => $node);
-			my $inv           = $S->inventory( concept => 'catchall' );
-			my $catchall_data = $inv->data;
-			my $MDL           = $S->mdl;
-			print "DEBUG: Model " . Dumper($MDL) . "\n\n\n" if ($debug > 8);
+    foreach my $node (sort keys %{$NODES}) {
+        if ($NODES->{$node}{active}) {
+            my $S = NMISNG::Sys->new; # get system object
+            $S->init(name => $node, snmp => 'false'); # load node info and Model if name exists
+            my $nodeobj = $nmisng->node(name => $node);
+            my $inv = $S->inventory(concept => 'catchall');
+            my $catchall_data = $inv->data;
+            my $MDL = $S->mdl;
 
-			# move on if this isn't a good one.
-			if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
-				print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
-				next;
-			}
+            # Check if the device is an F5 device
+            if ($catchall_data->{nodeModel} =~ /$f5_pattern/ || $catchall_data->{nodeVendor} =~ /$f5_pattern/) {
+                # move on if this isn't a good one.
+                if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+                    print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+                    next;
+                }
 
-			# handling for this is device/model specific.
-			my %invConcept = undef;
-			my %avgConcept = undef;
+                # handling for this is device/model specific.
+                my %invConcept = undef;
+                my %avgConcept = undef;
 
-			if ( $catchall_data->{nodeModel} =~ /$goodModels/ or $catchall_data->{nodeVendor} =~ /$goodVendors/ ) {
-				if (( defined $MDL->{system}{rrd}{$section} and ref($MDL->{system}{rrd}{$section}) eq "HASH")
-						or ( defined $MDL->{interface}{sys}{$section} and ref($MDL->{interface}{sys}{$section}) eq "HASH")
-						or ( defined $MDL->{systemHealth}{sys}{$section} and ref($MDL->{systemHealth}{sys}{$section}) eq "HASH")) {
-					my $result = $S->nmisng_node->get_inventory_model( concept => "$section", filter => { historic => 0 });
-					print "DEBUG: Concept '$section' Result " . Dumper($result) . "\n\n\n" if ($debug > 8);
-					if (!$result->error)
-					{
-						%invConcept = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
-						print "DEBUG: Concept '$section' Object: " . Dumper(%invConcept) . "\n\n\n" if ($debug > 3);
-					}
-					else {
-						print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
-						next;
-					}
+                if ($catchall_data->{nodeModel} =~ /$goodModels/ or $catchall_data->{nodeVendor} =~ /$goodVendors/) {
+                    if ((defined $MDL->{system}{rrd}{$section} and ref($MDL->{system}{rrd}{$section}) eq "HASH") 
+                        or (defined $MDL->{interface}{sys}{$section} and ref($MDL->{interface}{sys}{$section}) eq "HASH") 
+                        or (defined $MDL->{systemHealth}{sys}{$section} and ref($MDL->{systemHealth}{sys}{$section}) eq "HASH")) {
+                        my $result = $S->nmisng_node->get_inventory_model(concept => "$section", filter => { historic => 0 });
+                        print "DEBUG: Concept '$section' Result " . Dumper($result) . "\n\n\n" if ($debug > 8);
+                        if (!$result->error) {
+                            %invConcept = map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+                            print "DEBUG: Concept '$section' Object: " . Dumper(%invConcept) . "\n\n\n" if ($debug > 3);
+                        } else {
+                            print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+                            next;
+                        }
+                    } else {
+                        print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+                        next;
+                    }
 				}
 				else {
 					print "ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
@@ -694,13 +701,13 @@ sub exportInventory {
 									foreach my $avgIndex (keys %$currentStats) {
 										my $eachIndex = $$currentStats{$avgIndex};
 										foreach my $avgMetric (keys %$eachIndex) {
-											my $eachMetric = $$eachIndex{$avgMetric};
-											print "Index: $avgIndex:$avgMetric = '$eachMetric'\n" if ($debug > 2);
-											if (!exists($avgTestHash{$avgMetric})) {
-												$avgTestHash{$avgMetric} = 1;
-												push(@avgHeaders, $avgMetric);
-											}
-											$invConcept{$avgIndex}{$avgMetric}    = $eachMetric;
+										my $eachMetric = $$eachIndex{$avgMetric};
+										print "Index: $avgIndex:$avgMetric = '$eachMetric'\n" if ($debug > 2);
+										if (!exists($avgTestHash{$avgMetric})) {
+										$avgTestHash{$avgMetric} = 1;
+										push(@avgHeaders, $avgMetric);
+										}
+										$invConcept{$avgIndex}{$avgMetric}    = $eachMetric;
 										}
 									}
 								}
@@ -761,7 +768,7 @@ sub exportInventory {
 					}
 					if ($xls) {
 						$invSheet = add_worksheet(xls => $xls, title => $invTitle, columns => \@aliases);
-						$invCurRow = 1;								# header is row 0
+						$invCurRow = 1;			# header is row 0
 					}
 					else {
 						die "ERROR: Internal error, xls is no longer defined.\n";
@@ -838,13 +845,13 @@ sub exportInventory {
 									foreach my $avgIndex (keys %$currentStats) {
 										my $eachIndex = $$currentStats{$avgIndex};
 										foreach my $avgMetric (keys %$eachIndex) {
-											my $eachMetric = $$eachIndex{$avgMetric};
-											print "Index: $avgIndex:$avgMetric = '$eachMetric'\n" if ($debug > 2);
-											if (!exists($avgTestHash{$avgMetric})) {
-												$avgTestHash{$avgMetric} = 1;
-												push(@avgBuildHeaders, $avgMetric);
-											}
-											$avgConcept{$avgIndex}{$avgMetric}{$i} = $eachMetric;
+										my $eachMetric = $$eachIndex{$avgMetric};
+										print "Index: $avgIndex:$avgMetric = '$eachMetric'\n" if ($debug > 2);
+										if (!exists($avgTestHash{$avgMetric})) {
+										$avgTestHash{$avgMetric} = 1;
+										push(@avgBuildHeaders, $avgMetric);
+										}
+										$avgConcept{$avgIndex}{$avgMetric}{$i} = $eachMetric;
 										}
 									}
 								}
@@ -891,7 +898,7 @@ sub exportInventory {
 						}
 						if ($xls) {
 							$avgSheet = add_worksheet(xls => $xls, title => $avgTitle, columns => \@aliases);
-							$avgCurRow = 1;								# header is row 0
+							$avgCurRow = 1;		# header is row 0
 						}
 						else {
 							die "ERROR: Internal error, xls is no longer defined.\n";
@@ -1144,9 +1151,9 @@ sub nodeCheck {
 				$updateList{$node} = $catchall_data->{lastUpdatePoll};
 			}
 
-
+                        # this might not be as important as it needs to be, so it only should be invoked with debug flags on run
 			if ( $LNT->{$node}{model} ne "automatic" ) {
-				print "WARNING: $node model not automatic; $LNT->{$node}{model} $catchall_data->{sysDescr}\n";
+				print "WARNING: $node model not automatic; $LNT->{$node}{model} $catchall_data->{sysDescr}\n" if $debug;
 			}
 
 			#print "updateMaxSnmpMsgSize $node $catchall_data->{sysObjectName}\n";
@@ -1158,10 +1165,10 @@ sub nodeCheck {
 			}
 		}
 	}
-
-	print "Nodes requiring update:\n";
+        # this might not be as important as it needs to be, so it only should be invoked with debug flags on run
+	print "Nodes requiring update:\n" if $debug;
 	foreach my $node (sort keys %updateList) {
-		print "$node ". NMISNG::Util::returnDateStamp($updateList{$node}) ."\n";
+		print "$node ". NMISNG::Util::returnDateStamp($updateList{$node}) ."\n" if $debug;
 	}
 
 	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $LNT);

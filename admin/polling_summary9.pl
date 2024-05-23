@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "9.4.7";
+our $VERSION = "9.4.8";
 use strict;
 
 use FindBin;

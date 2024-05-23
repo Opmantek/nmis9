@@ -30,7 +30,7 @@
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-our $VERSION = "9.4.7";
+our $VERSION = "9.4.8";
 
 use strict;
 use URI::Escape;
@@ -3164,7 +3164,7 @@ sub _load_interfaces
 
 			# blank out unknown and nosuch values
 			$view{$ifindex}->{$knownthing} = ($thisdata->{$knownthing} =~ /noSuch|unknown/i?
-																				"" : $thisdata->{$knownthing});
+																				"" : $thisdata->{$knownthing}); #/
 		}
 
 		# ...also get the escalation status
