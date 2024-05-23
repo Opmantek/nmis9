@@ -4,6 +4,13 @@
 # find out where we are, and get common functions
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
+#no mongo edit daemon here covers initial/upgrades
+if [ "${NO_MONGO}" = 1 ]; then
+	no_mongo_daemon_files
+	echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (mongo_or_bust) as instructed."
+else
+	echolog "NO_MONGO=${NO_MONGO}";
+fi;
 
 printBanner "Starting NMIS 9 Daemon"
 

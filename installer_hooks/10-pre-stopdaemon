@@ -4,8 +4,11 @@
 # find out where we are, and get common functions
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
+if [ -x "/etc/systemd/system/nmis9d.service" ]; then
+                printBanner "Stopping NMIS9 Daemons"
+                execPrint systemctl stop nmis9d
 
-if [ -x "/etc/init.d/nmis9d" ]; then
+elif [ -x "/etc/init.d/nmis9d" ]; then
 		printBanner "Stopping NMIS9 Daemons"
 		execPrint service nmis9d stop
 fi
