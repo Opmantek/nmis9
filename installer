@@ -55,7 +55,7 @@ Usage: $me [-hyd] [-t /some/path] [[-p|-P] /some/file] [optX=valX...]
 -p:  pre-seeded non-interactive mode, answers come from
      the file given as argument
 -P:  generate default preseed file
--U: Install Mongo6 \n\n";
+-U:  Install Mongo6 \n\n";
 
 my (%options, %extras);
 die $usage if ( @ARGV == 1 && $ARGV[0] =~ /^-(\?|h|-help)$/i
