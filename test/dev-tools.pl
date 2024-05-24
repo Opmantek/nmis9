@@ -189,22 +189,30 @@ elsif ($Q->{act} =~ /^plugin/)
 		my $S = NMISNG::Sys->new(nmisng => $nmisng);
 		$S->init(name=>$node);
 		my ($status, @errors);
+		my $ran_something = 0;
 		for my $plugin ($nmisng->plugins)
 		{
 			if ($which_plugin =~ /ALL/ or $which_plugin =~ /$plugin/) {
 				print "Plugin: $plugin \n";
 				my $funcname = $plugin->can($op);
 				next if ( !$funcname );
+				$ran_something = 1;
 				eval { ( $status, @errors ) = &$funcname( node => $node,
 										sys => $S,
 										config => $C,
 										nmisng => $nmisng, ); };
+				if ( $@ ) {
+					print "Plugin eval failed: ".Dumper($@);
+				}										
 				print "Status $status \n";
 				print "Errors ".Dumper(@errors)." \n";
 			}
 			
 		}
+		print "probably can't find plugin (or maybe it had errors), didn't run anything\n" if(!$ran_something);
 		
+	} else {
+		print "no node object\n";
 	}
 	exit 0;
 }
