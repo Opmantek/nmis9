@@ -40,12 +40,12 @@
 	'option' => {
 		'standard' => [
 			'DEF:connectionsIn=$database:connectionsIn:AVERAGE',
-			'LINE:connectionsIn#6a73d9:Incoming Connections',
+			'LINE:connectionsIn#6a73d9: Incoming Connections',
 			'GPRINT:connectionsIn:LAST:%1.0lf\\n'
 		],
 		'small' => [
                         'DEF:connectionsIn=$database:connectionsIn:AVERAGE',
-                        'LINE:connectionsIn#6a73d9:Incoming Connections',
+                        'LINE:connectionsIn#6a73d9: Incoming Connections',
                         'GPRINT:connectionsIn:LAST:%1.0lf\\n'
 		]
 	}

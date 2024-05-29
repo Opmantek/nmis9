@@ -1,5 +1,5 @@
 #
-## $Id: Graph-esaRcpRecv.nmis,2023/01/09 mitchells Exp $
+## $Id: Graph-esaReportUtil.nmis,2023/12/28 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -29,24 +29,24 @@
 #
 # *****************************************************************************
 %hash = (
-	'heading' => 'Recipients Received',
+	'heading' => 'Reporting CPU Utilisation',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'No.'
+		'standard' => 'Util'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-			'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-			'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+			'DEF:ReportingCPUUtil=$database:ReportingCPUUtil:AVERAGE',
+			'LINE:ReportingCPUUtil#6a73d9: CPU Utilisation',
+			'GPRINT:ReportingCPUUtil:LAST:%1.0lf\\n'
 		],
 		'small' => [
-                        'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-                        'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-                        'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:ReportingCPUUtil=$database:ReportingCPUUtil:AVERAGE',
+                        'LINE:ReportingCPUUtil#6a73d9: CPU Utilisation',
+                        'GPRINT:ReportingCPUUtil:LAST:%1.0lf\\n'
 		]
 	}
 );

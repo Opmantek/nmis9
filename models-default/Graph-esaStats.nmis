@@ -20,13 +20,13 @@
                         'DEF:memAvail=$database:memAvail:AVERAGE',
 
 
-			'AREA:queueAvailStatus#6a73d9:Queue Avail',
+			'AREA:queueAvailStatus#6a73d9: Queue Avail',
 			'GPRINT:queueAvailStatus:LAST:Status %1.0lf\\n',
 
-                        'STACK:resConsReason#356e8f:Resource Conservation',
+                        'STACK:resConsReason#356e8f: Resource Conservation',
                         'GPRINT:resConsReason:LAST:Status %1.0lf\\n',
 
-                        'STACK:memAvail#e39d2d:Memory Avail',
+                        'STACK:memAvail#e39d2d: Memory Avail',
                         'GPRINT:memAvail:LAST:Status %1.0lf\\n'
 
 		],
@@ -41,13 +41,13 @@
                         'DEF:memAvail=$database:memAvail:AVERAGE',
 
 
-                        'AREA:queueAvailStatus#6a73d9:Queue Avail',
+                        'AREA:queueAvailStatus#6a73d9: Queue Avail',
                         'GPRINT:queueAvailStatus:LAST:Status %1.0lf\\n',
 
-       	       	       	'STACK:resConsReason#356e8f:Resource Conservation',
+       	       	       	'STACK:resConsReason#356e8f: Resource Conservation',
                         'GPRINT:resConsReason:LAST:Status %1.0lf\\n',
 
-                        'STACK:memAvail#e39d2d:Memory Avail',
+                        'STACK:memAvail#e39d2d: Memory Avail',
                         'GPRINT:memAvail:LAST:Status %1.0lf\\n'
 
 		]

@@ -40,12 +40,12 @@
 	'option' => {
 		'standard' => [
 			'DEF:ActiveRecips=$database:ActiveRecips:AVERAGE',
-			'LINE:ActiveRecips#6a73d9:Delivery Queue',
+			'LINE:ActiveRecips#6a73d9: Delivery Queue',
 			'GPRINT:ActiveRecips:LAST:%1.0lf\\n'
 		],
 		'small' => [
                         'DEF:ActiveRecips=$database:ActiveRecips:AVERAGE',
-                        'LINE:ActiveRecips#6a73d9:Delivery Queue',
+                        'LINE:ActiveRecips#6a73d9: Delivery Queue',
                         'GPRINT:ActiveRecips:LAST:%1.0lf\\n'
 		]
 	}

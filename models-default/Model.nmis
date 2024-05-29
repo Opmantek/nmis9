@@ -696,6 +696,9 @@
         '10' => {
           'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
         },
+        '15' => {
+          'SecureTrafficManager' => 'Saisei Traffic Manager'
+        },
         '20' => {
           'net-snmp' => '.'
         },
