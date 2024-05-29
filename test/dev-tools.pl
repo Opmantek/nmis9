@@ -227,7 +227,7 @@ elsif ($Q->{act} =~ /^plugin/)
 			}
 			
 		}
-		print "probably can't find plugin (or maybe it had errors), didn't run anything\n" if(!$ran_something);
+		print "probably can't find plugin (or maybe it had errors), didn't run anything (turn on debug to see more info)\n" if(!$ran_something);
 		
 	} else {
 		print "no node object\n";

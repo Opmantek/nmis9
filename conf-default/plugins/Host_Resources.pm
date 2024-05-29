@@ -185,11 +185,16 @@ sub collect_plugin
 				$data->{hrStorageUsage} = NMISNG::Util::getDiskBytes($data->{hrStorageUnits} * $data->{hrStorageUsed})
 						if (defined $usedisnumber && $usedisnumber && $data->{hrStorageUnits});
 
+				$data->{hrStorageFree} = NMISNG::Util::getDiskBytes( ($data->{hrStorageSize} - $data->{hrStorageUsed}) * $data->{hrStorageUnits} ) 
+					if (defined($data->{hrStorageTotal}) && defined($data->{hrStorageUsage}) && ($data->{hrStorageSize} - $data->{hrStorageUsed} > 1));
+
+
 				$data->{hrStorageTypeName} = $typeName;
 
 				my @summary;
 				push(@summary,"Size: $data->{hrStorageTotal}<br/>") if ($sizeisnumber);
 				push(@summary,"Used: $data->{hrStorageUsage} ($data->{hrStorageUtil}%)<br/>") if ($usedisnumber);
+				push(@summary,"Free: $data->{hrStorageFree}<br/>") if (defined($data->{hrStorageFree}));
 				push(@summary,"Partition: $data->{hrPartitionLabel}<br/>") if defined $data->{hrPartitionLabel};
 
 				$data->{hrStorageSummary} = join(" ",@summary);
