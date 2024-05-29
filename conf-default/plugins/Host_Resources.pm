@@ -185,6 +185,8 @@ sub collect_plugin
 				$data->{hrStorageUsage} = NMISNG::Util::getDiskBytes($data->{hrStorageUnits} * $data->{hrStorageUsed})
 						if (defined $usedisnumber && $usedisnumber && $data->{hrStorageUnits});
 
+				# Add in free calculation, remove previous one so we don't get any " b" results
+				delete $data->{hrStorageFree};
 				$data->{hrStorageFree} = NMISNG::Util::getDiskBytes( ($data->{hrStorageSize} - $data->{hrStorageUsed}) * $data->{hrStorageUnits} ) 
 					if (defined($data->{hrStorageTotal}) && defined($data->{hrStorageUsage}) && ($data->{hrStorageSize} - $data->{hrStorageUsed} > 1));
 
