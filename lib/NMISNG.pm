@@ -224,6 +224,8 @@ sub applyThresholdToInventory
 		{
 			$stats = $latest_data_ret->{derived_data}{$type};
 			$self->log->debug2(sub {"Using stats from newest timed data for subconcept=$type"});
+
+			# TODO: check how old the data is! it has a time value!
 		}
 		else
 		{
@@ -575,6 +577,7 @@ sub config_backup
 # delegates the evaluation work to applyThresholdToInventory, then updates info structures.
 #
 # args: self, sys (required), running_independently (optional, default 0)
+#   force (optional, default 0, handy for debugging)
 # note: writes node info file and saves inventory if running_independently is 0
 #
 # returns: nothing
@@ -584,6 +587,7 @@ sub compute_thresholds
 
 	my $S                     = $args{sys};
 	my $running_independently = $args{running_independently};
+	my $force                 = $args{force};
 
 	my $pollTimer     = Compat::Timing->new;
 	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events', conf => $self->config );
@@ -594,7 +598,7 @@ sub compute_thresholds
 	my $catchall_data      = $catchall_inventory->data_live();
 
 	# skip if node down
-	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
+	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) && !$force )
 	{
 		$self->log->debug2(sub {"Node down, skipping thresholding for $S->{name}"});
 		return;
@@ -5395,7 +5399,6 @@ sub undump_node
 
 	for my $onething (@insertme)
 	{
-		
 		my $collfunc = "$onething->{where}_collection";
 		my $res = NMISNG::DB::insert(collection => $self->$collfunc,
 																 record => $onething->{what},

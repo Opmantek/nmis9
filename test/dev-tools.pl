@@ -73,6 +73,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=plugin - Run plugin ( node= op= plugin=) 
  * act=model - Show model 
  * act=escalations - Run escalations
+ * act=thresholds - Run thresholds for a node (node= force=)
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -176,6 +177,23 @@ elsif ($Q->{act} =~ /^escalations/)
 {
 	$nmisng->process_escalations;
 	exit 0;
+}
+elsif ($Q->{act} =~ /^thresholds/) 
+{
+	my $node = $Q->{node};
+	die "Need a node to run " if (!$node);
+	my $nodeobj = $nmisng->node(name => $node);
+	if ($nodeobj) {	
+		my $S = NMISNG::Sys->new(nmisng => $nmisng);
+		if ( $S->init( node => $nodeobj, snmp => 0 ) )
+		{
+			$nmisng->compute_thresholds( sys => $S, running_independently => 1, force => $Q->{force} );
+		} else {
+			print "failed to instantiate Sys: " . $S->status->{error}."\n";
+		}
+	} else {
+		print "no node object found for $node\n";
+	}
 }
 elsif ($Q->{act} =~ /^plugin/)
 {
