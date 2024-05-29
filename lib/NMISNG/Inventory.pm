@@ -1135,6 +1135,10 @@ sub relocate_storage
 		{
 			NMISNG::Util::createDir($targetdir);
 		}
+		## remove the rrd files for new name if exists.
+		if ( -e $fullnew){
+			return (0, "cannot unlink new file \"$fullnew\" : $!") if (! unlink $fullnew);
+		}
 		if (!link($fullexisting, $fullnew))
 		{
 			return (0, "cannot link \"$fullexisting\" to \"$fullnew\": $!");

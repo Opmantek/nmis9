@@ -1,5 +1,5 @@
 #
-## $Id: Graph-esaRcpRecv.nmis,2023/01/09 mitchells Exp $
+## $Id: Graph-stmPartitionFlows.nmis 2024/02/22 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -28,26 +28,27 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+
 %hash = (
-	'heading' => 'Recipients Received',
+	'heading' => 'Partition Active Flows',
 	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'standard' => 'Partition Active Flows',
+		'short' => 'Partition Active Flows'
 	},
 	'vlabel' => {
-		'standard' => 'No.'
+		'standard' => ''
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-			'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-			'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+			'DEF:partitionActFlows=$database:partitionActFlows:AVERAGE',
+			'LINE:partitionActFlows#485fc7: Active Flows',
+                        'GPRINT:partitionActFlows:LAST:%1.0lf\\n'
+
 		],
 		'small' => [
-                        'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-                        'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-                        'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:partitionActFlows=$database:partitionActFlows:AVERAGE',
+                        'LINE:partitionActFlows#485fc7: Active Flows',
+                        'GPRINT:partitionActFlows:LAST:%1.0lf\\n'
 		]
 	}
 );
-

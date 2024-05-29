@@ -2940,6 +2940,11 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 		{
 			$color = Compat::NMIS::colorLowGood( $thisintf->{$k} ) if (!defined $color);
 		}
+		elsif ( $k eq "collect" ){
+				my $overrides = $nmisng_node->overrides;
+				my $if_descr = $thisintf->{ifDescr};
+				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k};
+		}
 		elsif ( $k eq 'ifSpeed')
 		{
 			# either the one and only, or in and out separately
@@ -3370,7 +3375,7 @@ escalate ));
 			elsif ( $k eq "collect" ){
 				my $overrides = $nmisng_node->overrides;
 				my $if_descr = $thisintf->{ifDescr};
-				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{collect};
+				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k};
 			}
 			elsif ( $k eq 'Description' )
 			{

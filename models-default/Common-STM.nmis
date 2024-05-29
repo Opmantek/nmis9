@@ -1,0 +1,368 @@
+#
+## $Id: Common-STM.nmis,v 1.1 2024/02/21 mitchells $
+
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+ 'database' => {
+  'type' => {
+   'stmGeolocation' => '/nodes/$node/health/stmGeolocation-$index.rrd',
+   'stmGroup' => '/nodes/$node/health/stmGroup-$index.rrd',
+   'stmPartition' => '/nodes/$node/health/stmPartition-$index.rrd',
+   'stmPolicy' => '/nodes/$node/health/stmPolicy-$index.rrd',
+   'stmCpuHealth' => '/nodes/$node/health/stmCpuHealth-$index.rrd',
+   'stmDiskHealth' => '/nodes/$node/health/stmDiskHealth-$index.rrd',
+   'stmMemHealth' => '/nodes/$node/health/stmMemHealth-$index.rrd'
+  }
+ },
+ 'systemHealth' => {
+   'rrd' => {
+    'stmGeolocation' => {
+     'indexed' => 'true',
+     'graphtype' => 'stmGeoFlows',
+     'snmp' => {
+      'geoActiveFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.7'
+      }
+     }
+    },
+    'stmGroup' => {
+     'indexed' => 'true',
+     'graphtype' => 'stmGroupFlows',
+     'snmp' => {
+      'groupActiveFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.5.1.1.7'
+      }
+     }
+    },
+    'stmPartition' => {
+     'indexed' => 'true',
+     'graphtype' => 'stmPartitionFlows',
+     'snmp' => {
+      'partitionActFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.8'
+      }
+     }
+    },
+    'stmPolicy' => {
+     'indexed' => 'true',
+     'graphtype' => 'stmPolicyFlows',
+     'snmp' => {
+      'policyActiveFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.20'
+      }
+     }
+    },
+    'stmCpuHealth' => {
+     'indexed' => 'true',
+     'graphtype' => 'stmCpu',
+     'snmp' => {
+      'stmCpuInUse' => {
+       'oid' => '.1.3.6.1.4.1.41720.7.1.1.7'
+      }
+     }
+    },
+    'stmDiskHealth' => {
+     'indexed' => 'true',
+     'graphtype' => 'stmDisk',
+     'snmp' => {
+      'stmDiskFree' => {
+       'oid' => '.1.3.6.1.4.1.41720.7.1.1.5'
+      }
+     }
+    },
+    'stmMemHealth' => {
+     'indexed' => 'true',
+     'graphtype' => 'stmMem',
+     'snmp' => {
+      'stmAvailMemory' => {
+       'oid' => '.1.3.6.1.4.1.41720.7.1.1.6'
+      }
+     }
+    }
+   },
+   'sys' => {
+    'stmPartition' => {
+     'headers' => 'partitionName,partitionDescription,partitionParentName,partitionRate,partitionOneMinRate,partitionTotalBytes,partitionActFlows',
+     'index_oid' => '.1.3.6.1.4.1.41720.3.1.1.2',
+     'index_regex' => '\.1\.2\.(\d+)$',
+     'indexed' => 'partitionName',
+     'snmp' => {
+      'partitionName' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.2',
+       'title' => 'Partition Name'
+      },
+      'partitionDescription' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.3',
+       'replace' => {
+        '' => 'No Description Defined'
+       },
+       'title' => 'Partition Description'
+      },
+      'partitionParentName' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.4',
+       'replace' => {
+        'noSuchInstance' => 'No Parent Defined'
+       },
+       'title' => 'Partition Parent Name'
+      },
+      'partitionRate' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.5',
+       'title' => 'Partition Rate'
+      },
+      'partitionOneMinRate' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.6',
+       'title' => 'Partiton One Minute Rate'
+      },
+      'partitionTotalBytes' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.7',
+       'title' => 'Partition Total Bytes'
+      },
+      'partitionActFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.3.1.1.8',
+       'title' => 'Partition Active Flows'
+      }
+     }
+    },
+    'stmGeolocation' => {
+     'headers' => 'geolocationName,geolocationCode,geolocationFlowCount,geolocationTermFlows,geoActiveFlows,geolocationSourceBytes,geolocationDestBytes,geolocationSourceRate,geolocationDestRate,geolocationTotalRate,geolocationAverageRtt,geolocationDistress',
+     'index_oid' => '.1.3.6.1.4.1.41720.4.1.1.2',
+     'index_regex' => '\.1\.2\.(\d+)$',
+     'indexed' => 'geolocationName',
+     'snmp' => {
+      'geolocationName' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.2',
+       'title' => 'Geolocation Name'
+      },
+      'geolocationCode' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.3',
+       'replace' => {
+        '' => 'No Geolocation'
+       },
+       'title' => 'Geolocation Code'
+      },
+      'geolocationFlowCount' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.5',
+       'title' => 'Flow Count'
+      },
+      'geolocationTermFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.6',
+       'title' => 'Terminated Flow Count'
+      },
+      'geoActiveFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.7',
+       'title' => 'Active Flows'
+      },
+      'geolocationSourceBytes' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.8',
+       'title' => 'Source Bytes'
+      },
+      'geolocationDestBytes' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.9',
+       'title' => 'Destination Bytes'
+      },
+      'geolocationSourceRate' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.10',
+       'title' => 'Source Rate'
+      },
+      'geolocationDestRate' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.11',
+       'title' => 'Destination Rate'
+      },
+      'geolocationTotalRate' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.12',
+       'title' => 'Total Rate'
+      },
+      'geolocationAverageRtt' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.13',
+       'title' => 'Average RTT'
+      },
+      'geolocationDistress' => {
+       'oid' => '.1.3.6.1.4.1.41720.4.1.1.14',
+       'title' => 'Distress'
+      }
+     }
+    },
+    'stmGroup' => {
+     'headers' => 'groupName,groupDescription,groupFlowCount,groupTerminatedFlows,groupActiveFlows,groupSourceByteCount,groupDestByteCount,groupSourceRate,groupDestRate,groupTotalRate,groupAverageRtt,groupDistress',
+     'index_oid' => '.1.3.6.1.4.1.41720.5.1.1.2',
+     'index_regex' => '\.1\.2\.(\d+)$',
+     'indexed' => 'groupName',
+     'snmp' => {
+      'groupName' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.2',
+        'title' => 'Group Name'
+      },
+      'groupDescription' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.3',
+        'replace' => {
+         '' => 'No Description Defined'
+        },
+        'title' => 'Group Description'
+      },
+      'groupFlowCount' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.5',
+        'title' => 'Flow Count'
+      },
+      'groupTerminatedFlows' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.6',
+        'title' => 'Terminated Flows'
+      },
+      'groupActiveFlows' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.7',
+        'title' => 'Active Flows'
+      },
+      'groupSourceByteCount' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.8',
+        'title' => 'Source Byte Count'
+      },
+      'groupDestByteCount' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.9',
+        'title' => 'Destination Byte Count'
+      },
+      'groupSourceRate' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.10',
+        'title' => 'Source Rate'
+      },
+      'groupDestRate' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.11',
+        'title' => 'Destination Rate'
+      },
+      'groupTotalRate' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.12',
+        'title' => 'Total Rate'
+      },
+      'groupAverageRtt' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.13',
+        'title' => 'Average RTT'
+      },
+      'groupDistress' => {
+        'oid' => '.1.3.6.1.4.1.41720.5.1.1.14',
+        'title' => 'Distress'
+      }
+     }
+    },
+    'stmPolicy' => {
+     'headers' => 'policyName,policyDescription,policyTrafficUpstream,policyTrafficDownstream,policyBytesTransmitUp,policyBytesTransmitDown,policyActiveFlows,policyCongestionUp,policyCongestionDown',
+     'index_oid' => '.1.3.6.1.4.1.41720.6.1.1.2',
+     'index_regex' => '\.1\.2\.(\d+)$',
+     'indexed' => 'policyName',
+     'snmp' => {
+      'policyName' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.2',
+       'title' => 'Policy Name'
+      },
+      'policyDescription' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.3',
+       'replace' => {
+        '' => 'No Description Defined'
+       },
+       'title' => 'Policy Description'
+      },
+      'policyTrafficUpstream' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.16',
+       'title' => 'Traffic Upstream'
+      },
+      'policyTrafficDownstream' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.17',
+       'title' => 'Traffic Downstream'
+      },
+      'policyBytesTransmitUp' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.18',
+       'title' => 'Bytes Transmitted Upstream'
+      },
+      'policyBytesTransmitDown' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.19',
+       'title' => 'Bytes Transmitted Downstream'
+      },
+      'policyActiveFlows' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.20',
+       'title' => 'Active Flows'
+      },
+      'policyCongestionUp' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.21',
+       'title' => 'Congestion Upstream'
+      },
+      'policyCongestionDown' => {
+       'oid' => '.1.3.6.1.4.1.41720.6.1.1.22',
+       'title' => 'Congestion Downstream'
+      }
+     }
+    },
+    'stmCpuHealth' => {
+     'headers' => 'policyMgrName,stmCpuInUse',
+     'index_oid' => '.1.3.6.1.4.1.41720.7.1.1.2',
+     'index_regex' => '\.1\.2\.(\d+)$',     
+     'indexed' => 'policyMgrName',
+     'snmp' => {
+     'policyMgrName' => {
+      'oid' => '.1.3.6.1.4.1.41720.7.1.1.2',
+      'title' => 'Policy Manager Name'
+     },
+     'stmCpuInUse' => {
+      'oid' => '.1.3.6.1.4.1.41720.7.1.1.7',
+      'title' => 'CPU In Use'
+      }
+     }
+    },
+    'stmDiskHealth' => {
+     'headers' => 'policyMgrName,stmDiskFree',
+     'index_oid' => '.1.3.6.1.4.1.41720.7.1.1.2',
+     'index_regex' => '\.1\.2\.(\d+)$',
+     'indexed' => 'policyMgrName',
+     'snmp' => {
+     'policyMgrName' => {
+      'oid' => '.1.3.6.1.4.1.41720.7.1.1.2',
+      'title' => 'Policy Manager Name'
+     },
+     'stmDiskFree' => {
+      'oid' => '.1.3.6.1.4.1.41720.7.1.1.5',
+      'title' => 'Disk Free'
+      }
+     }
+    },
+    'stmMemHealth' => {
+     'headers' => 'policyMgrName,stmAvailMemory',
+     'index_oid' => '.1.3.6.1.4.1.41720.7.1.1.2',
+     'index_regex' => '\.1\.2\.(\d+)$',
+     'indexed' => 'policyMgrName',
+     'snmp' => {
+     'policyMgrName' => {
+      'oid' => '.1.3.6.1.4.1.41720.7.1.1.2',
+      'title' => 'Policy Manager Name'
+     },
+     'stmAvailMemory' => {
+      'oid' => '.1.3.6.1.4.1.41720.7.1.1.6',
+      'title' => 'Available Memory'
+      }
+     }
+    }
+   }
+ }
+);
