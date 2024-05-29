@@ -309,7 +309,7 @@ sub logEvent
 
 	my $time = time();
 	my $C    = NMISNG::Util::loadConfTable();
-
+	my $events_strip_non_ascii_characters = $C->{events_strip_non_ascii_characters} // 0;
 	my @problems;
 
 	sysopen( DATAFILE, "$C->{event_log}", O_WRONLY | O_APPEND | O_CREAT )
@@ -317,8 +317,13 @@ sub logEvent
 	flock( DATAFILE, LOCK_EX )
 		or push( @problems, "Cannot lock $C->{event_log}: $!" );
 
+	my $message = "$time,$node_name,$event,$level,$element,$details\n";
+	# some logging systems don't like non-ascii chars so remove them if config asks to
+	if( $events_strip_non_ascii_characters ) {
+		$message =~ s/[\x80-\xFF]//g;
+	}
 	# it's possible we shouldn't write if we can't lock it...
-	print DATAFILE "$time,$node_name,$event,$level,$element,$details\n";
+	print DATAFILE $message;
 	close(DATAFILE) or push( @problems, "Cannot close $C->{event_log}: $!" );
 	NMISNG::Util::setFileProtDiag( file => $C->{event_log} );    # set file owner/permission, default: nmis, 0775
 

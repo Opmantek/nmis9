@@ -56,6 +56,8 @@ my $C     = NMISNG::Util::loadConfTable();
 my $debug = $nvp{debug};
 
 my $logfile = $C->{'<nmis_logs>'} . "/t_event.log";
+$C->{event_log} = $C->{'<nmis_logs>'} . "/t_nmis_event.log";
+unlink $C->{event_log};
 my $logger  = NMISNG::Log->new(
 	level => $debug // $C->{log_level},
 	path => ( $debug ? undef : $logfile ),
@@ -205,9 +207,28 @@ is( $eventmodel->count(), 0, "after event is deleted it can't be found any more"
 my ( $level, $log, $syslog );
 my $event_val4 = 'Proactive';
 my $event4 = NMISNG::Event->new( nmisng => $nmisng, node_uuid => $node_core->uuid, event => $event_val4, context => "test");
-my ( $level, $log, $syslog ) = $event4->getLogLevel(sys => $S, event => $event4, level => "Major");
+my ( $level, $log, $syslog ) = $event4->getLogLevel(sys => $S, event => $event4->event, level => "Major");
+
+# test removing special characters, event file is unlinked at the start, all tests above need to make 
+# sure they don't write any special chars into it 
+my $event5 = NMISNG::Event->new( nmisng => $nmisng, node_uuid => $node_core->uuid, event => "Crazy Character Alert", context => "test");
+my ( $level, $log, $syslog ) = $event5->getLogLevel(sys => $S, level => "Major");
+$event5->details("New details with fun character 75 °C e:ế house:𨉟 ");
+$C->{events_strip_non_ascii_characters} = 1;
+$event5->log( node_name => $node_core->name, level => $level);
+# search
+my $grep_command = 'grep -P "[\x80-\xFF]" '.$C->{event_log};
+my $output = `$grep_command`;
+is( $output=~ /[°|ế|𨉟]/ , "", "event output has no special characters");
+
+$C->{events_strip_non_ascii_characters} = 0;
+$event5->log( node_name => $node_core->name, level => $level);
+# search again
+$output = `$grep_command`;
+isnt( $output=~ /[°|ế|𨉟]/ , "", "event output has special characters");
 
 print "\n";
 print "This test was run with argument 'TEST_PROPOSED_LOAD_FIX=".($nvp{TEST_PROPOSED_LOAD_FIX}//0)."'\n";
 print "This test will only pass all tests with argument 'TEST_PROPOSED_LOAD_FIX=1:'\n";
 done_testing();
+
