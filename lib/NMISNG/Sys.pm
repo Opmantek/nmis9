@@ -2638,6 +2638,8 @@ sub translate_threshold_level
 	my $reset = 0;
 	# item is the attribute name of summary stats of Model
 	my $attribname = $M->{threshold}->{name}->{$thrname}->{item};
+	$self->nmisng->log->debug2(sub {"Sys::translate_threshold_level item/attribname:'$attribname' could not be found in stats, keys:".join(",", keys %$stats)}) 
+		if( !defined($stats->{$attribname}));
 	my $value = $stats->{$attribname}; # note: stats is separate per index, ie. flat
 	$self->nmisng->log->debug("threshold=$thrname, item=$attribname, value=$value");
 
