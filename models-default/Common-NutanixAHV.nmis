@@ -1,0 +1,400 @@
+## $Id: Common-NutanixAHV.nmis,v 1.1 2024/05/29 mitchells $
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+   'type' => {
+    'ahvVirtMachines' => '/nodes/$node/health/ahvVirtMachines-$index.rrd',
+    'ahvControllerResources' => '/nodes/$node/health/ahvControllerResources-$index.rrd',
+    'ahvStoragePools' => '/nodes/$node/health/ahvStoragePools-$index.rrd',
+    'ahvStorageContainers' => '/nodes/$node/health/ahvStorageContainers-$index.rrd'
+   }
+  },
+  'alerts' => {
+   'ahvVirtMachines' => {
+    'vmCpuUsagePercent' => {
+     'type' => 'test',
+     'test' => 'CVAR1=vmCpuUsagePercent;$CVAR1 > 90',
+     'value' => 'CVAR1=vmCpuUsagePercent;int($CVAR1)',
+     'element' => 'vmName',
+     'event' => 'Virtual Machine CPU Utilization',
+     'level' => 'Major'
+    },
+    'vmMemUsagePercent' => {
+     'type' => 'test',
+     'test' => 'CVAR1=vmMemUsagePercent;$CVAR1 > 90',
+     'value' => 'CVAR1=vmMemUsagePercent;int($CVAR1)',
+     'element' => 'vmName',
+     'event' =>	'Virtual Machine Memory Utilization',
+     'level' =>	'Major'
+    }
+   },
+   'ahvControllerServices' => {
+    'cstControllerVMStatus' => {
+     'type' => 'test',
+     'test' => 'CVAR1=cstControllerVMStatus;$CVAR1 ne "Up"',
+     'value' => 'CVAR1=cstControllerVMStatus;return "$CVAR1"',
+     'element' => 'cstControllerVMId',
+     'event' => 'Controller VM Status',
+     'level' => 'Major'
+    },
+    'cstDataServiceStatus' => {
+     'type' => 'test',
+     'test' => 'CVAR1=cstDataServiceStatus;$CVAR1 ne "Up"',
+     'value' => 'CVAR1=cstDataServiceStatus;return "$CVAR1"',
+     'element' => 'cstControllerVMId',
+     'event' =>	'Core Data Services Status',
+     'level' =>	'Major'
+    },
+    'cstMetadataServiceStatus' => {
+     'type' => 'test',
+     'test' => 'CVAR1=cstMetadataServiceStatus;$CVAR1 ne "Up"',
+     'value' => 'CVAR1=cstMetadataServiceStatus;return "$CVAR1"',
+     'element' => 'cstControllerVMId',
+     'event' => 'Metadata Services Status',
+     'level' => 'Major'
+    }
+   },
+   'ahvControllerResources' => {
+    'crtMemory' => {
+     'type' => 'test',
+     'test' => 'CVAR1=crtMemory;$CVAR1 < 2',
+     'value' => 'CVAR1=crtMemory;int($CVAR1)',
+     'element' => 'crtName',
+     'event' => 'Controller Memory Available',
+     'level' => 'Major'
+    }
+   },
+   'ahvStoragePools' => {
+    'spitRemainingCapacity' => {
+     'type' => 'test',
+     'test' => 'CVAR1=spitUsedCapacity;CVAR2=spitTotalCapacity;$CVAR1 / $CVAR2 * 100 > 90',
+     'value' => 'CVAR1=spitUsedCapacity;CVAR2=spitTotalCapacity;$CVAR1 / $CVAR2 * 100',
+     'element' => 'spitStoragePoolName',
+     'event' => 'Storage Pool Usage',
+     'level' => 'Major'
+    }
+   },
+   'ahvStorageContainers' => {
+    'citRemainingCapacity' => {
+     'type' => 'test',
+     'test' => 'CVAR1=citUsedCapacity;CVAR2=citTotalCapacity;$CVAR1 / $CVAR2 * 100 > 90',
+     'value' => 'CVAR1=citUsedCapacity;CVAR2=citTotalCapacity;$CVAR1 / $CVAR2 * 100',
+     'element' => 'citContainerName',
+     'event' => 'Storage Container Usage',
+     'level' => 'Major'
+    }
+   }
+  },
+  'systemHealth' => {
+   'rrd' => {
+    'ahvVirtMachines' => {
+     'indexed' => 'true',
+     'graphtype' => 'ahvVmStats',
+     'snmp' => {
+      'vmCpuUsagePercent' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.7'
+      },
+      'vmMemUsagePercent' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.9'
+      }
+     }
+    },
+    'ahvControllerResources' => {
+     'indexed' => 'true',
+     'graphtype' => 'ahvControllerStats',
+     'snmp' => {
+      'crtMemory' => {
+       'oid' => '.1.3.6.1.4.1.41263.4.1.3',
+       'calculate' => 'CVAR1=crtMemory; sprintf("%.2f",$CVAR1 / 1000000000);'
+      }
+     }
+    },
+    'ahvStoragePools' => {
+     'indexed' => 'true',
+     'graphtype' => 'ahvStoragePools',
+     'snmp' => {
+      'spitUsedCapacity' => {
+       'oid' => '.1.3.6.1.4.1.41263.7.1.5',
+       'calculate' => 'CVAR1=spitUsedCapacity; sprintf("%.2f",$CVAR1 / 1000000000);'
+      }
+     }
+    },
+    'ahvStorageContainers' => {
+     'indexed' => 'true',
+     'graphtype' => 'ahvStorageContainers',
+     'snmp' => {
+      'citUsedCapacity' => {
+       'oid' => '.1.3.6.1.4.1.41263.8.1.5',
+       'calculate' => 'CVAR1=citUsedCapacity; sprintf("%.2f",$CVAR1 / 1000000000);'
+      }
+     }
+    }
+   },
+   'sys' => {
+    'ahvSoftware' => {
+     'headers' => 'svtControllerVMId,svtNutanixBootstrap,svtNutanixInfrastructure,svtNutanixCore,svtNutanixToolchain,svtNutanixServiceability,svtLinuxKernel',
+     'index_oid' => '.1.3.6.1.4.1.41263.1.1.1',
+     'index_regex' => '\.1\.(\d+)$',
+     'indexed' => 'svtControllerVMId',
+     'snmp' => {
+      'svtControllerVMId' => {
+       'oid' => '.1.3.6.1.4.1.41263.1.1.2',
+       'title' => 'Controller VM ID'
+      },
+      'svtNutanixBootstrap' => {
+       'oid' => '.1.3.6.1.4.1.41263.1.1.3',
+       'title' => 'Bootstrap Software Version'
+      },
+      'svtNutanixInfrastructure' => {
+       'oid' => '.1.3.6.1.4.1.41263.1.1.4',
+       'title' => 'Infrastructure Software Version'
+      },
+      'svtNutanixCore' => {
+       'oid' => '.1.3.6.1.4.1.41263.1.1.5',
+       'title' => 'Core Software Version'
+      },
+      'svtNutanixToolchain' => {
+       'oid' => '.1.3.6.1.4.1.41263.1.1.6',
+       'title' => 'Toolchain Software Version'
+      },
+      'svtNutanixServiceability' => {
+       'oid' => '.1.3.6.1.4.1.41263.1.1.7',
+       'title' => 'Serviceability Software Version'
+      },
+      'svtLinuxKernel' => {
+       'oid' => '.1.3.6.1.4.1.41263.1.1.8',
+       'title' => 'Linux Kernel Version'
+      }
+     }
+    },
+    'ahvStorageContainers' => {
+     'headers' => 'citContainerId,citContainerName,citUsedCapacity,citTotalCapacity,citIOPerSecond,citAvgLatencyUsecs,citIOBandwidth',
+     'index_oid' => '.1.3.6.1.4.1.41263.8.1.1',
+     'index_regex' => '\.1\.(\d+)$',
+     'indexed' => 'citContainerId',
+     'snmp' => {
+      'citContainerId' => {
+       'oid' => '.1.3.6.1.4.1.41263.8.1.2',
+       'title' => 'Container ID'
+      },
+      'citContainerName' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.8.1.3',
+       'title' => 'Container Name'
+      },
+      'citUsedCapacity' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.8.1.5',
+       'calculate' => 'CVAR1=citUsedCapacity; sprintf("%.2f",$CVAR1 / 1000000000);',
+       'title' => 'Container Used Capacity (GB)'
+      },
+      'citTotalCapacity' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.8.1.4',
+       'calculate' => 'CVAR1=citTotalCapacity; sprintf("%.2f",$CVAR1 / 1000000000);',
+       'title' => 'Container Total Capacity (GB)'
+      },
+      'citIOPerSecond' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.8.1.6',
+       'title' => 'Container IOPS'
+      },
+      'citAvgLatencyUsecs' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.8.1.7',
+       'title' => 'Container Avg Latency'
+      },
+      'citIOBandwidth' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.8.1.8',
+       'title' => 'Container IO Bandwidth'
+      }
+     }
+    },
+    'ahvStoragePools' => {
+     'headers' => 'spitStoragePoolId,spitStoragePoolName,spitUsedCapacity,spitTotalCapacity,spitIOPerSecond,spitAvgLatencyUsecs,spitIOBandwidth',
+     'index_oid' => '.1.3.6.1.4.1.41263.7.1.1',
+     'index_regex' => '\.1\.(\d+)$',
+     'indexed' => 'spitStoragePoolId',
+     'snmp' => {
+      'spitStoragePoolId' => {
+       'oid' => '.1.3.6.1.4.1.41263.7.1.2',
+       'title' => 'Storage Pool ID'
+      },
+      'spitStoragePoolName' => {
+       'oid' => '.1.3.6.1.4.1.41263.7.1.3',
+       'title' => 'Storage Pool Name'
+      },
+      'spitUsedCapacity' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.7.1.5',
+       'calculate' => 'CVAR1=spitUsedCapacity; sprintf("%.2f",$CVAR1 / 1000000000);',
+       'title' => 'Storage Pool	Used Capacity (GB)'
+      },
+      'spitTotalCapacity' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.7.1.4',
+       'calculate' => 'CVAR1=spitTotalCapacity; sprintf("%.2f",$CVAR1 / 1000000000);',
+       'title' => 'Storage Pool	Total Capacity (GB)'
+      },
+      'spitIOPerSecond' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.7.1.6',
+       'title' => 'Storage Pool	IOPS'
+      },
+      'spitAvgLatencyUsecs' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.7.1.7',
+       'title' => 'Storage Pool	Avg IO Latency'
+      },
+      'spitIOBandwidth' => {
+       'oid' =>	'.1.3.6.1.4.1.41263.7.1.8',
+       'title' => 'Storage Pool	IO Bandwidth (KBps)'
+      }
+     }
+    },
+    'ahvControllerResources' => {
+     'headers' => 'crtControllerVMId,crtName,crtMemory,crtNumCpus',
+     'index_oid' => '.1.3.6.1.4.1.41263.4.1.1',
+     'index_regex' => '\.1\.1\.(\d+)$',
+     'indexed' => 'crtControllerVMId',
+     'snmp' => {
+      'crtControllerVMId' => {
+       'oid' => '.1.3.6.1.4.1.41263.4.1.2',
+       'title' => 'Controller VM ID'
+      },
+      'crtName' => {
+       'oid' => '.1.3.6.1.4.1.41263.4.1.5',
+       'title' => 'Controller Name'
+      },
+      'crtMemory' => {
+       'oid' => '.1.3.6.1.4.1.41263.4.1.3',
+       'calculate' => 'CVAR1=crtMemory; sprintf("%.2f",$CVAR1 / 1000000000);',
+       'title' => 'Total Memory Available (GB)'
+      },
+      'crtNumCpus' => {
+       'oid' => '.1.3.6.1.4.1.41263.4.1.4',
+       'title' => 'CPUs Allocated'
+      }
+     }
+    },
+    'ahvControllerServices' => {
+     'headers' => 'cstControllerVMId,cstControllerVMStatus,cstDataServiceStatus,cstMetadataServiceStatus',
+     'index_oid' =>'.1.3.6.1.4.1.41263.11.1.1',
+     'index_regex' => '\.1\.1\.(\d+)$',
+     'indexed' => 'cstControllerVMId',
+     'snmp' => {
+      'cstControllerVMId' => {
+       'oid' => '.1.3.6.1.4.1.41263.11.1.2',
+       'title' => 'Controller VM ID'
+      },
+      'cstControllerVMStatus' => {
+       'oid' => '.1.3.6.1.4.1.41263.11.1.3',
+       'title' => 'Node Status'
+      },
+      'cstDataServiceStatus' => {
+       'oid' => '.1.3.6.1.4.1.41263.11.1.4',
+       'title' => 'Core Data Service Status'
+      },
+      'cstMetadataServiceStatus' => {
+       'oid' => '.1.3.6.1.4.1.41263.11.1.5',
+       'title' => 'Metadata Service Status'
+      }
+     }
+    },
+    'ahvVirtMachines' => {
+     'headers' => 'vmId,vmName,vmHypervisorId,vmPowerState,vmCpuCount,vmCpuUsagePercent,vmMemory,vmMemUsagePercent,vmReadIOPerSecond,vmWriteIOPerSecond,vmAverageLatency,vmIOBandwidth,vmRxBytes,vmTxBytes,vmRxDropCount,vmTxDropCount',
+     'index_oid' => '.1.3.6.1.4.1.41263.10.1.1',
+     'index_regex' => '\.1\.1\.(\d+)$',
+     'indexed' => 'vmId',     
+     'snmp' => {
+      'vmId' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.2',
+       'title' => 'VM ID'
+      },
+      'vmName' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.3',
+       'title' => 'VM Name'
+      },
+      'vmHypervisorId' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.4',
+       'title' => 'Hypervisor'
+      },
+      'vmPowerState' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.5',
+       'title' => 'Power State'
+      },
+      'vmCpuCount' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.6',
+       'title' => 'CPUs'
+      },
+      'vmCpuUsagePercent' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.7',
+       'title' => 'CPU Used Pct'
+      },
+      'vmMemory' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.8',
+       'calculate' => 'CVAR1=vmMemory; sprintf("%.2f",$CVAR1 / 1000000000);',
+       'title' => 'Memory (GB)'
+      },
+      'vmMemUsagePercent' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.9',
+       'title' => 'Memory Used Pct'
+      },
+      'vmReadIOPerSecond' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.10',
+       'title' => 'Read IOPS'
+      },
+      'vmWriteIOPerSecond' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.11',
+       'title' => 'Write IOPS'
+      },
+      'vmAverageLatency' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.12',
+       'title' => 'Avg Latency'
+      },
+      'vmIOBandwidth' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.13',
+       'title' => 'IO Bandwidth'
+      },
+      'vmRxBytes' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.14',
+       'title' => 'Receive Bytes'
+      },
+      'vmTxBytes' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.15',
+       'title' => 'Transmit Bytes'
+      },
+      'vmRxDropCount' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.17',
+       'title' => 'Receive Drop Count'
+      },
+      'vmTxDropCount' => {
+       'oid' => '.1.3.6.1.4.1.41263.10.1.18',
+       'replace' => {
+        'noSuchObject' => 'N/A'
+       },
+       'title' => 'Transmit Drop Count'
+      }
+     }
+    }
+   }
+  }
+);
