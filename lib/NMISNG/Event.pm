@@ -666,7 +666,7 @@ sub level
 		#				hence, we must ensure a default value is set when '!defined $current':
 		$self->{data}{level_previous} = $current // 'Normal' if ( $newvalue ne $current );
 		$self->{data}{level} = $newvalue;
-		$self->nmisng->log->info("EVENT LEVEL level=$newvalue level_previous=$current");
+		$self->nmisng->log->debug2("EVENT LEVEL level=$newvalue level_previous=$current");
 	}
 	return $current;
 }
