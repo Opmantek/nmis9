@@ -1,0 +1,608 @@
+#
+## $Id: Common-SynologyNAS.nmis,v 1.1 2023/09/14 20:09:18 mitchells $
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+    'type' => {
+     'synologyRaid' => '/nodes/$node/health/synologyRaid-$index.rrd',     
+     'synologyDisk' => '/nodes/$node/health/synologyDisk-$index.rrd',
+     'synologyStorageIO' => '/nodes/$node/health/synologyStorageIO-$index.rrd',
+     'synologySpaceIO' => '/nodes/$node/health/synologySpaceIO-$index.rrd',
+     'synologyNFS' => '/nodes/$node/health/synologyNFS-$index.rrd',
+     'synologyServices' => '/nodes/$node/health/synologyServices-$index.rrd'
+    }
+  },
+  'alerts' => {
+   'synologyDisk' => {
+    'diskTemperature' => {
+     'type' => 'test',
+      'test' => 'CVAR1=diskTemperature;$CVAR1 eq 0',
+      'value' => 'CVAR1=diskTemperature;int($CVAR1)',
+      'element' => 'diskID',
+      'event' => 'Disk Temperature',
+      'level' => 'Critical'
+    },
+    'diskHealthStatus' => {
+     'type' => 'test',
+      'test' => 'CVAR1=diskHealthStatus;$CVAR1 ne "Normal"',
+      'value' => 'CVAR1=diskHealthStatus;return "$CVAR1"',
+      'element' => 'diskID',
+      'event' => 'Disk Health Status',
+      'level' => 'Critical'
+    }
+   },
+   'synologyRaid' => {
+    'raidStatus' => {
+     'type' => 'test',
+      'test' => 'CVAR1=raidStatus;$CVAR1 ne "Normal"',
+      'value' => 'CVAR1=raidStatus;return "$CVAR1"',
+      'element' => 'raidName',
+      'event' => 'RAID Status',
+      'level' => 'Critical'
+    },
+    'raidStorageRemaining' => {
+     'type' => 'test',
+     'test' => 'CVAR1=raidFreeSize;CVAR2=raidTotalSize;$CVAR1 / $CVAR2 * 100 > 90',
+     'value' => 'CVAR1=raidFreeSize;CVAR2=raidTotalSize;$CVAR1 / $CVAR2 * 100',
+     'element' => 'raidName',
+     'event' => 'RAID Capacity Available',
+     'level' => 'Critical',
+     'control' => 'CVAR=raidName;$CVAR =~ /Volume/'
+    }
+   },
+   'synologySMART' => {
+    'diskSMARTAttrStatus' => {
+     'type' => 'test',
+     'test' => 'CVAR1=diskSMARTAttrStatus;$CVAR1 ne "OK"',
+     'value' => 'CVAR1=diskSMARTAttrStatus;return "$CVAR1"',
+     'element' => 'diskSMARTAttrName',
+     'event' => 'SMART Attribute Status',
+     'level' => 'Critical'
+    }
+   }
+  },
+  'systemHealth' => {
+    'rrd' => {
+     'synologyDisk' => {
+      'indexed' => 'true',
+      'graphtype' => 'synologyDisk',
+      'snmp' => {
+       'diskTemperature' => {
+         'oid' => '.1.3.6.1.4.1.6574.2.1.1.6'
+       }
+      }
+     },
+     'synologyRaid' => {
+      'indexed' => 'true',
+      'graphtype' => 'synologyRaid',
+      'snmp' => {
+       'raidFreeSize' => {
+        'oid' => '.1.3.6.1.4.1.6574.3.1.1.4',
+        'calculate' => 'CVAR1=raidFreeSize; sprintf("%.2f",$CVAR1 / 1000000000000);'
+       }
+      }
+     },
+     'synologyStorageIO' => {
+      'indexed' => 'true',
+      'graphtype' => 'synologyStrDiskLoad',
+      'snmp' => {
+       'storageIOLA1' => {
+        'oid' => '.1.3.6.1.4.1.6574.101.1.1.9'
+       },
+       'storageIOLA5' => {
+        'oid' => '.1.3.6.1.4.1.6574.101.1.1.10'
+       }
+      }
+     },
+     'synologySpaceIO' => {
+      'indexed' => 'true',
+      'graphtype' => 'synologySpaDiskLoad',
+      'snmp' => {
+       'spaceIOLA1' => {
+        'oid' => '.1.3.6.1.4.1.6574.102.1.1.9'
+       },
+       'spaceIOLA5' => {
+        'oid' => '.1.3.6.1.4.1.6574.102.1.1.10'
+       }
+      }
+     },
+     'synologyNFS' => {
+      'indexed' => 'true',
+      'graphtype' => 'synologyNFSLatency',
+      'snmp' => {
+       'nfsReadMaxLatency' => {
+        'oid' => '.1.3.6.1.4.1.6574.107.1.1.4'
+       },
+       'nfsWriteMaxLatency' => {
+        'oid' => '.1.3.6.1.4.1.6574.107.1.1.5'
+       }
+      }
+     },
+     'synologyServices' => {
+      'indexed' => 'true',
+      'graphtype' => 'synologyServices',
+      'snmp' => {
+       'serviceUsers' => {
+        'oid' => '.1.3.6.1.4.1.6574.6.1.1.3'
+       }
+      }
+     }
+    },
+    'sys' => {
+      'synologyiSCSITarget' => {
+        'headers' => 'iSCSITargetName,iSCSITargetIQN,iSCSITargetConnectionStatus',
+        'index_oid' => '.1.3.6.1.4.1.6574.110.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'iSCSITargetName',
+        'snmp' => {
+          'iSCSITargetName' => {
+            'oid' => '.1.3.6.1.4.1.6574.110.1.1.2',
+            'title' => 'iSCSI Target Name'
+          },
+          'iSCSITargetIQN' => {
+            'oid' => '.1.3.6.1.4.1.6574.110.1.1.3',
+            'title' => 'iSCSI Target IQN'
+          },
+          'iSCSITargetConnectionStatus' => {
+            'oid' => '.1.3.6.1.4.1.6574.110.1.1.4',
+            'title' => 'iSCSI Connection Status'
+          }
+	}
+      },
+      'synologyNFS' => {
+        'headers' => 'nfsName,nfsTotalMaxLatency,nfsReadMaxLatency,nfsWriteMaxLatency,nfsTotalOPS,nfsReadOPS,nfsWriteOPS',
+        'index_oid' => '.1.3.6.1.4.1.6574.107.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'nfsName',
+        'snmp' => {
+          'nfsName' => {
+            'oid' => '.1.3.6.1.4.1.6574.107.1.1.2',
+            'title' => 'NFS Name'
+          },
+          'nfsTotalMaxLatency' => {
+            'oid' => '.1.3.6.1.4.1.6574.107.1.1.3',
+            'title' => 'NFS Ops Max Latency'
+          },
+          'nfsReadMaxLatency' => {
+            'oid' => '.1.3.6.1.4.1.6574.107.1.1.4',
+            'title' => 'NFS Ops Read Latency'
+          },
+          'nfsWriteMaxLatency' => {
+            'oid' => '.1.3.6.1.4.1.6574.107.1.1.5',
+            'title' => 'NFS Ops Write Latency'
+          },
+          'nfsTotalOPS' => {
+            'oid' => '.1.3.6.1.4.1.6574.107.1.1.6',
+            'title' => 'NFS All Ops Count'
+          },
+          'nfsReadOPS' => {
+            'oid' => '.1.3.6.1.4.1.6574.107.1.1.7',
+            'title' => 'NFS Read Ops Count'
+          },
+          'nfsWriteOPS' => {
+            'oid' => '.1.3.6.1.4.1.6574.107.1.1.8',
+            'title' => 'NFS Write Ops Count'
+          }
+	}
+      },
+      'synologySpaceIO' => {
+        'headers' => 'spaceIODevice,spaceUUID,spaceIONRead,spaceIONWritten,spaceIOReads,spaceIOWrites,spaceIOLA,spaceIOLA1,spaceIOLA5,spaceIOLA15',
+        'index_oid' => '.1.3.6.1.4.1.6574.102.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'spaceIODevice',
+        'snmp' => {
+          'spaceIODevice' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.2',
+            'title' => 'Volume Device'
+          },
+          'spaceIONRead' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.3',
+            'title' => 'Volume IO Bytes Read'
+          },
+          'spaceIONWritten' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.4',
+            'title' => 'Volume IO Bytes Written'
+          },
+          'spaceIOReads' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.5',
+            'title' => 'Volume IO Read Accesses'
+          },
+          'spaceIOWrites' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.6',
+            'title' => 'Volume IO Write Accesses'
+          },
+          'spaceIOLA' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.8',
+            'title' => 'Disk Volume Load (%)'
+          },
+          'spaceIOLA1' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.9',
+            'title' => 'Disk Volume Load 1min (%)'
+          },
+          'spaceIOLA5' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.10',
+            'title' => 'Disk Volume Load 5min (%)'
+          },
+          'spaceIOLA15' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.11',
+            'title' => 'Disk Volume Load 15min (%)'
+          },
+          'spaceUUID' => {
+            'oid' => '.1.3.6.1.4.1.6574.102.1.1.14',
+            'title' => 'Volume UUID'
+          }
+        }
+      },
+      'synologySMART' => {
+        'headers' => 'diskSMARTInfoDevName,diskSMARTAttrID,diskSMARTAttrName,diskSMARTAttrCurrent,diskSMARTAttrWorst,diskSMARTAttrThreshold,diskSMARTAttrRaw,diskSMARTAttrStatus',
+        'index_oid' => '.1.3.6.1.4.1.6574.5.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'diskSMARTInfoDevName',
+        'snmp' => {
+          'diskSMARTInfoDevName' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.2',
+            'title' => 'Disk Name'
+          },
+	  'diskSMARTAttrName' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.3',
+            'title' => 'SMART Attribute'
+          },
+	  'diskSMARTAttrID' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.4',
+            'title' => 'SMART Attribute ID'
+          },
+	  'diskSMARTAttrCurrent' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.5',
+            'title' => 'SMART Attribute Current Value'
+          },
+	  'diskSMARTAttrWorst' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.6',
+            'title' => 'SMART Attribute Worst Value'
+          },
+	  'diskSMARTAttrThreshold' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.7',
+            'title' => 'SMART Attribute Threshold'
+          },
+	  'diskSMARTAttrRaw' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.8',
+            'title' => 'SMART Attribute Raw Value'
+          },
+	  'diskSMARTAttrStatus' => {
+            'oid' => '.1.3.6.1.4.1.6574.5.1.1.9',
+            'title' => 'SMART Attribute Status'
+          }
+        }
+      },
+      'synologyServices' => {
+        'headers' => 'serviceName,serviceUsers',
+        'index_oid' => '.1.3.6.1.4.1.6574.6.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'serviceName',
+        'snmp' => {
+          'serviceName' => {
+            'oid' => '.1.3.6.1.4.1.6574.6.1.1.2',
+            'title' => 'Service Name'
+          },
+          'serviceUsers' => {
+            'oid' => '.1.3.6.1.4.1.6574.6.1.1.3',
+            'title' => 'Service Users'
+          }
+        }
+      },
+      'synologyRaid' => {
+        'headers' => 'raidName,raidStatus,raidFreeSize,raidTotalSize,raidHotSpareCnt',
+        'index_oid' => '.1.3.6.1.4.1.6574.3.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'raidName',
+        'snmp' => {
+          'raidName' => {
+            'oid' => '.1.3.6.1.4.1.6574.3.1.1.2',
+            'title' => 'RAID Name'
+          },
+          'raidStatus' => {
+            'oid' => '.1.3.6.1.4.1.6574.3.1.1.3',
+            'title' => 'RAID Status',
+            'replace' => {
+             '1' => 'Normal',
+             '2' => 'Repairing',
+             '3' => 'Migrating',
+             '4' => 'Expanding',
+             '5' => 'Deleting',
+             '6' => 'Creating',
+             '7' => 'RaidSyncing',
+             '8' => 'RaidParityChecking',
+             '9' => 'RaidAssembling',
+             '10' => 'Cancelling',
+             '11' => 'Degraded',
+             '12' => 'Crashed',
+             '13' => 'DataScrubbing',
+             '14' => 'RaidDeploying',
+             '15' => 'RaidUnDeploying',
+             '16' => 'RaidMountCache',
+             '17' => 'RaidUnmountCache',
+             '18' => 'RaidExpandingUnfinishedSHR',
+             '19' => 'RaidConvertSHRToPool',
+             '20' => 'RaidMigrateSHR1ToSHR2',
+             '21' => 'RaidUnknownStatus'
+            }
+          },
+          'raidFreeSize' => {
+            'oid' => '.1.3.6.1.4.1.6574.3.1.1.4',
+       	    'calculate'	=> 'CVAR1=raidFreeSize; sprintf("%.2f",$CVAR1 / 1000000000000);',
+            'title' => 'RAID Free Size (TB)'
+          },
+          'raidTotalSize' => {
+            'oid' => '.1.3.6.1.4.1.6574.3.1.1.5',
+            'calculate' => 'CVAR1=raidTotalSize; sprintf("%.2f",$CVAR1 / 1000000000000);',
+            'title' => 'RAID Total Size (TB)'
+          },
+          'raidHotSpareCnt' => {
+            'oid' => '.1.3.6.1.4.1.6574.3.1.1.6',
+            'title' => 'RAID Hot Spare Count'
+          }
+        }
+      },
+      'synologyiSCSI' => {
+        'headers' => 'iSCSILUNUUID,iSCSILUNName,iSCSILUNThroughputReadHigh,iSCSILUNThroughputReadLow,iSCSILUNThroughputWriteHigh,iSCSILUNThroughputWriteLow,iSCSILUNIopsRead,iSCSILUNIopsWrite,iSCSILUNDiskLatencyRead,iSCSILUNDiskLatencyWrite,iSCSILUNNetworkLatencyTx,iSCSILUNNetworkLatencyRx,iSCSILUNIoSizeRead,iSCSILUNIoSizeWrite,iSCSILUNQueueDepth,iSCSILUNType,iSCSILUNDiskLatencyAvg,iSCSILUNThinProvisionVolFreeMBs',
+        'index_oid' => '.1.3.6.1.4.1.6574.104.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'iSCSILUNUUID',
+        'snmp' => {
+          'iSCSILUNUUID' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.2',
+            'title' => 'LUN UUID'
+          },
+          'iSCSILUNName' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.3',
+            'title' => 'LUN Name'
+          },
+          'iSCSILUNThroughputReadHigh' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.4',
+            'title' => 'LUN Read Throughput (high)'
+          },
+          'iSCSILUNThroughputReadLow' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.5',
+            'title' => 'LUN Read Throughput (low)'
+          },
+          'iSCSILUNThroughputWriteHigh' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.6',
+            'title' => 'LUN Write Throughput (high)'
+          },
+          'iSCSILUNThroughputWriteLow' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.7',
+            'title' => 'LUN Write Throughput (low)'
+          },
+          'iSCSILUNIopsRead' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.8',
+            'title' => 'LUN Read IOPS'
+          },
+          'iSCSILUNIopsWrite' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.9',
+            'title' => 'LUN Write IOPS'
+          },
+          'iSCSILUNDiskLatencyRead' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.10',
+            'title' => 'LUN Read Disk Latency'
+          },
+          'iSCSILUNDiskLatencyWrite' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.11',
+            'title' => 'LUN Write Disk Latency'
+          },
+          'iSCSILUNNetworkLatencyTx' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.12',
+            'title' => 'LUN Network Transmit Latency'
+          },
+          'iSCSILUNNetworkLatencyRx' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.13',
+            'title' => 'LUN Network Receive Latency'
+          },
+          'iSCSILUNIoSizeRead' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.14',
+            'title' => 'LUN Read Avg IO Size'
+          },
+          'iSCSILUNIoSizeWrite' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.15',
+            'title' => 'LUN Write Avg IO Size'
+          },
+          'iSCSILUNQueueDepth' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.16',
+            'title' => 'LUN iSCSI Commands Queued'
+          },
+          'iSCSILUNType' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.17',
+            'title' => 'LUN Type'
+          },
+          'iSCSILUNDiskLatencyAvg' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.18',
+            'title' => 'LUN Disk Avg Latency'
+          },
+          'iSCSILUNThinProvisionVolFreeMBs' => {
+            'oid' => '.1.3.6.1.4.1.6574.104.1.1.19',
+            'title' => 'LUN Free Space (MB)'
+          }
+        }
+      },
+      'synologyEbox' => {
+        'headers' => 'eboxModel,eboxPower,eboxRedundantPower',
+        'index_oid' => '.1.3.6.1.4.1.6574.105.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'eboxModel',
+        'snmp' => {
+          'eboxModel' => {
+            'oid' => '.1.3.6.1.4.1.6574.105.1.1.2',
+            'title' => 'Expansion Unit Model'
+          },
+          'eboxPower' => {
+            'oid' => '.1.3.6.1.4.1.6574.105.1.1.3',
+            'title' => 'Expansion Unit Power Status',
+            'replace' => {
+             '1' => 'Normal',
+             '2' => 'Poor',
+             '3' => 'Disconnected'
+            }
+          },
+	  'eboxRedundantPower' => {
+            'oid' => '.1.3.6.1.4.1.6574.105.1.1.4',
+            'title' => 'Expansion Redundant Unit Power Status',
+       	    'replace' => {
+       	     '1' => 'Normal',
+       	     '2' => 'Poor',
+       	     '3' => 'Disconnected'
+       	    }
+          }
+        }
+      },
+      'synologyDisk' => {
+        'headers' => 'diskID,diskName,diskModel,diskType,diskRole,diskTemperature,diskRetry,diskBadSector,diskIdentifyFail,diskRemainLife,diskStatus,diskHealthStatus',
+        'index_oid' => '.1.3.6.1.4.1.6574.2.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'diskID',
+        'snmp' => {
+          'diskID' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.2',
+            'title' => 'Disk ID'
+          },
+          'diskModel' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.3',
+            'title' => 'Disk Model'
+          },
+          'diskType' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.4',
+            'title' => 'Disk Type'
+          },
+          'diskStatus' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.5',
+            'title' => 'Disk Status',
+            'replace' => {
+             '1' => 'Normal',
+             '2' => 'Initialized',
+             '3' => 'NotInitialized',
+             '4' => 'SystemPartitionFailed',
+             '5' => 'Crashed'
+            }
+          },
+          'diskTemperature' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.6',
+            'title' => 'Disk Temperature'
+          },
+          'diskRole' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.7',
+            'title' => 'Disk Role',
+            'replace' => {
+             'data' => 'data',
+             'hotspare' => 'hotspare',
+             'ssd_cache' => 'ssd_cache',
+             'none' => 'none',
+             'unknown' => 'unknown'
+            }
+          },
+          'diskRetry' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.8',
+            'title' => 'Disk Retry'
+          },
+          'diskBadSector' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.9',
+            'title' => 'Disk Bad Sector'
+          },
+          'diskIdentifyFail' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.10',
+            'title' => 'Disk Identify Fails'
+          },
+          'diskRemainLife' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.11',
+            'title' => 'Disk Remain Life'
+          },
+          'diskName' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.12',
+            'title' => 'Disk Name'
+          },
+          'diskHealthStatus' => {
+            'oid' => '.1.3.6.1.4.1.6574.2.1.1.13',
+            'title' => 'Disk Health Status',
+            'replace' => {
+             '1' => 'Normal',
+             '2' => 'Warning',
+             '3' => 'Critical',
+             '4' => 'Fail'
+            }
+          }
+        }
+      },
+      'synologyStorageIO' => {
+        'headers' => 'storageIODevice,storageIODeviceSerial,storageIONRead,storageIONWritten,storageIOReads,storageIOWrites,storageIOLA,storageIOLA1,storageIOLA5,storageIOLA15',
+        'index_oid' => '.1.3.6.1.4.1.6574.101.1.1.1',
+        'index_regex' => '\.1\.1\.(\d+)$',
+        'indexed' => 'storageIODevice',
+        'snmp' => {
+          'storageIODevice' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.2',
+            'title' => 'Storage Device'
+          },
+          'storageIONRead' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.3',
+            'title' => 'Disk IO Bytes Read'
+          },
+          'storageIONWritten' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.4',
+            'title' => 'Disk IO Bytes Written'
+          },
+          'storageIOReads' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.5',
+            'title' => 'Disk IO Read Accesses'
+          },
+          'storageIOWrites' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.6',
+            'title' => 'Disk IO Write Accesses'
+          },
+          'storageIOLA' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.8',
+            'title' => 'Disk Load (%)'
+          },
+          'storageIOLA1' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.9',
+            'title' => 'Disk Load 1min (%)'
+          },
+          'storageIOLA5' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.10',
+            'title' => 'Disk Load 5min (%)'
+          },
+          'storageIOLA15' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.11',
+            'title' => 'Disk Load 15min (%)'
+          },
+          'storageIODeviceSerial' => {
+            'oid' => '.1.3.6.1.4.1.6574.101.1.1.14',
+            'title' => 'Disk Serial'
+          }
+        }
+      }
+    }
+  }
+);
