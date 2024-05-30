@@ -668,6 +668,13 @@
         }
       }
     },
+    'Universal' => {
+     'order' => {
+      '10' => {
+       'NutanixAHV' => 'nutanix'
+      }
+     }
+    },
     'VMware Inc.' => {
       'order' => {
         '10' => {

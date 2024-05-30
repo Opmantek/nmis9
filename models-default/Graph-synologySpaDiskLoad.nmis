@@ -1,0 +1,56 @@
+#
+## $Id: Graph-synologySpaDiskLoad.nmis 2023/09/16 10:40:00 mitchells Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+	'heading' => 'Synology Space Disk Volume Load',
+	'title' => {
+		'standard' => 'Synology Disk Volume Load',
+		'short' => 'Synology Disk Volume Load'
+	},
+	'vlabel' => {
+		'standard' => '%'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:spaceIOLA1=$database:spaceIOLA1:AVERAGE',
+                        'DEF:spaceIOLA5=$database:spaceIOLA5:AVERAGE',
+			'LINE1:spaceIOLA1#6e2c19:Disk Volume Load 1min',
+                        'LINE1:spaceIOLA5#c20e26:Disk Volume Load 5min'
+
+		],
+		'small' => [
+                        'DEF:spaceIOLA1=$database:spaceIOLA1:AVERAGE',
+                        'DEF:spaceIOLA5=$database:spaceIOLA5:AVERAGE',
+                        'LINE1:spaceIOLA1#6e2c19:Disk Vol Load 1min',
+                        'LINE1:spaceIOLA5#c20e26:Disk Vol Load 5min'
+		]
+	}
+);

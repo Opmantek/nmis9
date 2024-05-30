@@ -1,0 +1,482 @@
+#
+## $Id: Model-SynologyNAS.nmis,v 1.1 2023/09/15 13:09:18 mitchells $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+%hash = (
+  '-common-' => {
+    'class' => {
+      'Host_Resources' => {
+        'common-model' => 'Host_Resources'
+      },
+      'database' => {
+        'common-model' => 'database'
+      },
+      'diskIOTable' => {
+        'common-model' => 'diskIOTable'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'SynologyNAS' => {
+        'common-model' => 'SynologyNAS'
+      },
+      'Cisco-neighbor' => {
+         'common-model' => 'Cisco-neighbor'
+      }
+    }
+  },
+  'interface' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)'
+    },
+    'nocollect' => {
+      'Description' => '^#',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'ifOperStatus' => 'other',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn',
+      'noDescription' => 'false'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+    },
+    'rrd' => {
+      'interface' => {
+        'graphtype' => 'bits,abits,maxbits,util,autil',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out'
+      },
+      'pkts_hc' => {
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'pkt_errors_in,pkt_errors_out'
+      }
+    },
+    'sys' => {
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          }
+        }
+      },
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Admin Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Oper Status'
+          },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          }
+        }
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'SynologyNAS',
+    'nodeType' => 'server',
+    'nodegraph' => 'health,response,laload',
+    'rrd' => {
+      'laload' => {
+	'graphtype' => 'laload',
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => '.1.3.6.1.4.1.2021.10.1.5.1',
+            'option' => 'gauge,0:U'
+          },
+	  'laLoad5' => {
+            'oid' => '.1.3.6.1.4.1.2021.10.1.5.2',
+            'option' => 'gauge,0:U'
+          }
+       	}
+      },
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
+    },
+    'sys' => {
+      'synology' => {
+       'snmp' => {
+        'systemName' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.1.0',
+         'title' => 'Synology Model'
+        },
+        'serialNumber' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.2.0',
+         'title' => 'Serial Number'
+        },
+        'version' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.3.0',
+         'title' => 'DSM Version'
+        },
+        'upgradeAvailable' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.4.0',
+         'replace' => {
+          '1' => 'Upgrade available',
+          '2' => 'Running latest version',
+          '3' => 'Connecting',
+          '4' => 'Disconnected',
+          '5' => 'Others'
+         }
+        },
+        'temperature' => {
+         'oid' => '1.3.6.1.4.1.6574.1.2.0'
+        },
+        'powerStatus' => {
+         'oid' => '1.3.6.1.4.1.6574.1.3.0',
+         'replace' => {
+          '1' => 'Normal',
+          '2' => 'Failed'
+         }
+        },
+        'systemFanStatus' => {
+         'oid' => '1.3.6.1.4.1.6574.1.4.1.0',
+       	 'replace' => {
+          '1' => 'Normal',
+       	  '2' => 'Failed'
+       	 }
+       	},
+        'cpuFanStatus' => {
+         'oid' => '1.3.6.1.4.1.6574.1.4.2.0',
+         'replace' => {
+          '1' => 'Normal',
+          '2' => 'Failed'
+         }
+	},
+       }
+      },
+     'alerts' => {
+      'snmp' => {
+       'upgradeAvailable' => {
+        'oid' => '1.3.6.1.4.1.6574.1.5.4.0',
+        'title' => 'DSM Update Status',
+        'alert' => {
+         'test' => '$r eq 1',
+         'event' => 'DSM Upgrade Available',
+         'level' => 'Warning'
+        }
+       },
+       'temperature' => {
+        'oid' => '1.3.6.1.4.1.6574.1.2.0',
+        'title' => 'System Temperature',
+        'alert' => {
+         'test' => 'CVAR1=temperature;$CVAR1 >= 60',
+         'event' => 'System Temperature',
+         'level' => 'Warning'
+        }
+      },
+      'powerStatus' => {
+       	'oid' => '1.3.6.1.4.1.6574.1.3.0',
+       	'title' => 'Power Status',
+        'alert' => {
+         'test' => '$r eq 2',
+       	 'event' => 'Power Status',
+       	 'level' => 'Warning'
+       	}
+      },
+      'systemFanStatus' => {
+        'oid' => '1.3.6.1.4.1.6574.1.4.1.0',
+        'title' => 'System Fan Status',
+        'alert' => {
+         'test' => '$r eq 2',
+         'event' => 'System Fan Status',
+         'level' => 'Warning'
+        }
+      },
+      'cpuFanStatus' => {
+        'oid' => '1.3.6.1.4.1.6574.1.4.2.0',
+        'title' => 'CPU Fan Status',
+        'alert' => {
+         'test' => '$r eq 2',
+         'event' => 'CPU Fan Status',
+         'level' => 'Warning'
+        }
+       }
+      }
+     },
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'oid' => 'sysContact',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Contact'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysLocation' => {
+            'oid' => 'sysLocation',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'SNMP Location'
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+            'title' => 'System Name'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          }
+        }
+      }
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'Host_Storage,diskIOTable,synologyDisk,synologyRaid,synologyServices,synologyStorageIO,synologySpaceIO,synologySMART,synologyiSCSI,synologyEbox,synologyNFS,synologyiSCSITarget,addressTable'
+  }
+);
