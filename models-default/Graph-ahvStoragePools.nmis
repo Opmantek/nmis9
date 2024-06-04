@@ -1,5 +1,5 @@
 #
-## $Id: Graph-esaRcpRecv.nmis,2023/01/09 mitchells Exp $
+## $Id: Graph-ahvStoragePools.nmis,2024/05/30 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -29,24 +29,22 @@
 #
 # *****************************************************************************
 %hash = (
-	'heading' => 'Recipients Received',
+	'heading' => 'AHV Storage Pool Statistics',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'No.'
+		'standard' => 'GB'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-			'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-			'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+			'DEF:spitUsedCapacity=$database:spitUsedCapacity:AVERAGE',
+			'LINE1:spitUsedCapacity#6a73d9: Used Capacity'
 		],
 		'small' => [
-                        'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-                        'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-                        'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:spitUsedCapacity=$database:spitUsedCapacity:AVERAGE',
+                        'LINE1:spitUsedCapacity#6a73d9: Used Capacity'
 		]
 	}
 );

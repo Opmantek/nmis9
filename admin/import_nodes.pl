@@ -147,12 +147,10 @@ foreach my $node (keys %newNodes)
 
         if (!$nodemodel->count) {
             print "ADDING: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
-            ++$sum->{add};
             $isnew = 1;
             $operation = "create";
         } elsif ($nodemodel->count == 1 ) {
             print "UPDATE: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
-            ++$sum->{update};
             $operation = "update";
         } else {
             print "ERROR: node=$newNodes{$node}{name} returning more than one node. Skipping. \n" if $verbose;
@@ -289,20 +287,35 @@ foreach my $node (keys %newNodes)
         $nodeobj->aliases($curarraythings->{aliases});
         $nodeobj->unknown($curextras);
 
+        my $success = 1;
         if ($simulate eq "f")
         {
             (my $op, $error) = $nodeobj->save;
             if ($op <= 0) { # zero is no saving needed
                 $logger->error("Failed to save $node: $error");
-                print "\tFailed to save $node! $error \n";
-                next;
+                print "\tFailed to save $node! $error \n";              
+                $success = 0;  
+            } else {
+                print STDERR "\t=> Successfully ${operation}d node $node.\n" if $verbose;                
             }
-            print STDERR "\t=> Successfully ${operation}d node $node.\n" if $verbose;              
             #print Dumper($nodeobj);
             
         } else {
+            my ( $valid, $validation_error ) = $nodeobj->validate();
+            if( $valid < 0 ) {
+                print "\tNode $node does not pass validation: $validation_error\n";
+                $success = 0;
+            } 
             print STDERR "\t=> Node $node not saved. Simulation mode.\n" if $verbose;  
             print Dumper($nodeobj) if $debug > 1;
+        }
+        # update summaries
+        if( $success ) {
+            $operation = "";
+            ++$sum->{add} if($operation eq 'create');
+            ++$sum->{update} if($operation eq 'update');
+        } else {
+            ++$sum->{error};
         }
     }
     else {

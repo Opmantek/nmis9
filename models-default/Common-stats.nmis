@@ -310,6 +310,24 @@
         'PRINT:percentProcessor:AVERAGE:percentProcessor=%1.2lf',
         'PRINT:percentProcessor:MAX:percentProcessorMax=%1.2lf',
       ],
+      'asyncoshealth' => [
+       'DEF:quarantinedMsg=$database:quarantinedMsg:AVERAGE',
+       'DEF:connectionsIn=$database:connectionsIn:AVERAGE',
+       'DEF:ActiveRecips=$database:ActiveRecips:AVERAGE',
+       'PRINT:ActiveRecips:AVERAGE:ActiveRecips=%1.2lf',
+       'PRINT:quarantinedMsg:AVERAGE:quarantinedMsg=%1.2lf',
+       'PRINT:connectionsIn:AVERAGE:connectionsIn=%1.2lf'
+      ],
+      'esacpuhealth' => [
+       'DEF:CaseCPUUtil=$database:CaseCPUUtil:AVERAGE',
+       'DEF:quarantineCPUUtil=$database:quarantineCPUUtil:AVERAGE',
+       'DEF:ReportingCPUUtil=$database:ReportingCPUUtil:AVERAGE',
+       'DEF:avCPUUtil=$database:avCPUUtil:AVERAGE',
+       'PRINT:avCPUUtil:AVERAGE:avCPUUtil=%1.2lf',
+       'PRINT:ReportingCPUUtil:AVERAGE:ReportingCPUUtil=%1.2lf',
+       'PRINT:quarantineCPUUtil:AVERAGE:quarantineCPUUtil=%1.2lf',
+       'PRINT:CaseCPUUtil:AVERAGE:CaseCPUUtil=%1.2lf'
+      ],
       'WindowsPagefile' => [
         'DEF:pageUsage=$database:pageUsage:AVERAGE',
         'DEF:pageTotal=$database:pageTotal:AVERAGE',

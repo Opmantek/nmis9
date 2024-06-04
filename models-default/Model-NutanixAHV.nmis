@@ -1,11 +1,10 @@
-#
-# $Id: Model-CiscoESA.nmis,2023/03/20 mitchells Exp $
+## $Id: Model-NutanixAHV.nmis,v 1.0 2024/05/29 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
-#  This file is part of Network Management Information System (“NMIS”).
+#  This file is part of Network Management Information System (^ZNMIS^Z).
 #
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -32,11 +31,20 @@
 %hash = (
   '-common-' => {
     'class' => {
+      'Host_Resources' => {
+        'common-model' => 'Host_Resources'
+      },
       'database' => {
         'common-model' => 'database'
       },
+      'diskIOTable' => {
+        'common-model' => 'diskIOTable'
+      },
       'event' => {
         'common-model' => 'event'
+      },
+      'software' => {
+        'common-model' => 'software'
       },
       'stats' => {
         'common-model' => 'stats'
@@ -47,37 +55,30 @@
       'threshold' => {
         'common-model' => 'threshold'
       },
-      'Host_Resources' => {
-        'common-model' => 'Host_Resources'
-      },
-      'diskIOTable' => {
-        'common-model' => 'diskIOTable'
-      },
-      'CiscoESA' => {
-       'common-model' => 'CiscoESA'
+      'NutanixAHV' => {
+        'common-model' => 'NutanixAHV'
       }
     }
   },
-  'database' => {
-    'type' => {
-      'asyncoshealth' => '/nodes/$node/health/esa_health.rrd',
-      'esacpuhealth' => '/nodes/$node/health/esacpuhealth.rrd'
-    }
-  },
   'interface' => {
-   'collect' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)'
     },
     'nocollect' => {
-      'ifDescr' => 'sublayer|controller|^e0|^e1|^t0|^t1|^t3|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
       'ifOperStatus' => 'other',
-      'ifType' => 'lapd|ds0|ds1|other|isdn',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
     },
     'noevent' => {
-    },
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+   },
     'rrd' => {
       'interface' => {
         'graphtype' => 'bits,abits,maxbits,util,autil',
-        'indexed' => 'ifDescr',
+        'indexed' => 'true',
         'snmp' => {
           'ifAdminStatus' => {
             'oid' => 'ifAdminStatus',
@@ -184,11 +185,11 @@
     },
     'sys' => {
       'extra' => {
-       'indexed' => 'true',
+        'indexed' => 'true',
         'snmp' => {
           'Description' => {
-            'oid' => 'ifName',
-            'title' => 'Description'
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
           },
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'
@@ -196,9 +197,8 @@
         }
       },
       'standard' => {
-        'indexed' => 'ifDescr',
-        'headers' => 'ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
-	'snmp' => {
+        'indexed' => 'true',
+        'snmp' => {
           'ifAdminStatus' => {
             'oid' => 'ifAdminStatus',
             'replace' => {
@@ -214,7 +214,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -243,18 +243,165 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           }
         }
       }
     }
   },
   'system' => {
+    'nodeModel' => 'NutanixAHV',
     'nodeType' => 'server',
-    'nodeModel' => 'CiscoESA',
-    'nodeVendor' => 'Cisco Systems, Inc.',
-    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon,esaAvUtil,esaCaseUtil,esaQtineUtil,esaReportUtil,esaCpuLoad',
+    'nodegraph' => 'health,response,ss-cpu,Host_Memory,ss-blocks,hrsystem,ip,tcp-conn,tcp-segs,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrvmem',
     'rrd' => {
+      'laload' => {
+        'graphtype' => 'laload',
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+            'option' => 'gauge,0:U'
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+            'option' => 'gauge,0:U'
+          }
+	}
+      },
+      'tcp' => {
+        'graphtype' => 'tcp-conn,tcp-segs',
+        'snmp' => {
+          'tcpActiveOpens' => {
+            'oid' => 'tcpActiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpPassiveOpens' => {
+            'oid' => 'tcpPassiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpAttemptFails' => {
+            'oid' => 'tcpAttemptFails',
+            'option' => 'counter,0:U'
+          },
+          'tcpEstabResets' => {
+            'oid' => 'tcpEstabResets',
+            'option' => 'counter,0:U'
+          },
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'option' => 'gauge,0:U'
+          },
+          'tcpInSegs' => {
+            'oid' => 'tcpInSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutSegs' => {
+            'oid' => 'tcpOutSegs',
+            'option' => 'counter,0:U'
+          },
+	  'tcpRetransSegs' => {
+            'oid' => 'tcpRetransSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpInErrs' => {
+            'oid' => 'tcpInErrs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutRsts' => {
+            'oid' => 'tcpOutRsts',
+            'option' => 'counter,0:U'
+          }
+        },
+      },
+      'systemStats' => {
+        'graphtype' => 'ss-cpu,ss-blocks,ss-intcon',
+        'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait,ssCpuRawIdle',
+        'snmp' => {
+          'ssCpuRawUser' => {
+            'oid' => 'ssCpuRawUser',
+            'title' => 'ssCpuRawUser',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawUser.0 = Counter32: 114857779'
+          },
+          'ssCpuRawNice' => {
+            'oid' => 'ssCpuRawNice',
+            'title' => 'ssCpuRawNice',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawNice.0 = Counter32: 1294466'
+          },
+          'ssCpuRawSystem' => {
+            'oid' => 'ssCpuRawSystem',
+            'title' => 'ssCpuRawSystem',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawSystem.0 = Counter32: 15958442'
+          },
+          'ssCpuRawIdle' => {
+            'oid' => 'ssCpuRawIdle',
+            'title' => 'ssCpuRawIdle',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawIdle.0 = Counter32: 336740221'
+          },
+          'ssCpuRawWait' => {
+            'oid' => 'ssCpuRawWait',
+            'title' => 'ssCpuRawWait',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawWait.0 = Counter32: 17718957'
+          },
+          'ssCpuRawKernel' => {
+            'oid' => 'ssCpuRawKernel',
+            'title' => 'ssCpuRawKernel',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawKernel.0 = Counter32: 0'
+          },
+          'ssCpuRawInterrupt' => {
+            'oid' => 'ssCpuRawInterrupt',
+            'title' => 'ssCpuRawInterrupt',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawInterrupt.0 = Counter32: 93048'
+          },
+          'ssCpuRawSoftIRQ' => {
+            'oid' => 'ssCpuRawSoftIRQ',
+            'title' => 'ssCpuRawSoftIRQ',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawSoftIRQ.0 = Counter32: 4101707'
+          },
+          'ssIORawSent' => {
+            'oid' => 'ssIORawSent',
+            'title' => 'ssIORawSent',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssIORawSent.0 = Counter32: 2246167484'
+          },
+          'ssIORawReceived' => {
+            'oid' => 'ssIORawReceived',
+            'title' => 'ssIORawReceived',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssIORawReceived.0 = Counter32: 15277366'
+          },
+          'ssRawInterrupts' => {
+            'oid' => 'ssRawInterrupts',
+            'title' => 'ssRawInterrupts',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawInterrupts.0 = Counter32: 1995002251'
+          },
+          'ssRawContexts' => {
+            'oid' => 'ssRawContexts',
+            'title' => 'ssRawContexts',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawContexts.0 = Counter32: 1623525406'
+          },
+          'ssRawSwapIn' => {
+            'oid' => 'ssRawSwapIn',
+            'title' => 'ssRawSwapIn',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawSwapIn.0 = Counter32: 1580'
+          },
+          'ssRawSwapOut' => {
+            'oid' => 'ssRawSwapOut',
+            'title' => 'ssRawSwapOut',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawSwapOut.0 = Counter32: 10695'
+          },
+	},
+      },
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -302,6 +449,9 @@
             'oid' => 'ipOutDiscards',
             'option' => 'counter,0:U'
           },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
           'ipOutRequests' => {
             'oid' => 'ipOutRequests',
             'option' => 'counter,0:U'
@@ -319,164 +469,35 @@
             'option' => 'counter,0:U'
           }
         }
-      },
-      'nodehealth' => {
-       'threshold' => 'memUtil,cpu',
-       'graphtype' => 'memUtil,cpu',
-       'snmp' => {
-        'avgBusy1' => {
-         'snmpObjectName' => 'perCentCPUUtilization',
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
-         'option' => 'gauge,0:U'
-        },
-        'avgBusy5' => {
-         'snmpObjectName' => 'perCentCPUUtilization',
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
-         'option' => 'gauge,0:U'
-        },
-        'memUtil' => {
-         'snmpObjectName' => 'perCentMemoryUtilization',        
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.1.0',
-         'option' => 'gauge,0:U'
-        }
-       }
-      },
-      'esacpuhealth' => {
-       'graphtype' => 'esaAvUtil,esaCaseUtil,esaQtineUtil,esaReportUtil',
-       'threshold' => 'esaAvCpuUtil,esaCaseCpuUtil,esaQuartCpuUtil,esaReportCpuUtil',
-       'snmp' => {
-        'avCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.4.0',
-         'option' => 'gauge,0:U'
-        },
-        'CaseCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.5.0',
-         'option' => 'gauge,0:U'
-        },
-        'quarantineCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.22.0',
-         'option' => 'gauge,0:U'
-        },
-        'ReportingCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.21.0',
-         'option' => 'gauge,0:U'
-        }
-       }
-      },
-      'asyncoshealth' => {
-       'graphtype' => 'esaStats,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon,esaCpuLoad',
-       'threshold' => 'quarantineMsg,connsIn,deliveryQueue',
-       'snmp' => {
-        'perCentQueueUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
-         'option' => 'gauge,0:U'
-        },
-        'queueAvailStatus' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
-         'option' => 'gauge,0:U'
-        },
-        'resConsReason' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
-         'option' => 'gauge,0:U'
-        },
-        'memAvail' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.7.0',
-         'option' => 'gauge,0:U'
-        },
-        'asyncOSPwrSupply' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
-         'option' => 'gauge,0:U'
-        },
-        'asyncOSPwrRedund' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
-         'option' => 'gauge,0:U'
-        },
-        'workQueueMessgs' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
-         'option' => 'gauge,0:U'
-         },
-        'MsgRecOneMin' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.1.1.1.0',
-         'option' => 'gauge,0:U'
-        },
-        'RcpRecOneMin' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.1.2.1.0',
-         'option' => 'gauge,0:U'
-        },
-        'ActiveRecips' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.12.0',
-         'option' => 'gauge,0:U'
-        },
-        'quarantinedMsg' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.19.0',
-         'option' => 'gauge,0:U'
-        },
-        'connectionsIn' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.10.0',
-         'option' => 'gauge,0:U'
-        },
-        'esaCpuLoad' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.26.0',
-         'option' => 'gauge,0:U'
-        }
-       }
-      },
-    'alerts' => {
-     'snmp' => {
-      'workQueueMessgs' => {
-       'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
-       'title' => 'Work Queue Messages',
-       'alert' => {
-        'test' => '$r > 100',
-        'event' => 'Work Queue Messages',
-        'unit' => '',
-        'level' => 'Warning'
-        }
-       },
-       'resConsReason' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
-        'title' => 'Resource Conservation Reason',
-        'alert' => {
-         'test' => '$r != 1',
-         'event' => 'Resource Conservation Reason',
-         'unit' => '',
-         'level' => 'Warning'
-        }
-       },
-       'perCentQueueUtil' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
-        'title' => 'Queue Utilization',
-        'alert' => {
-         'test' => '$r > 70',
-         'event' => 'Queue Utilization',
-         'unit' => '',
-         'level' => 'Warning'
-        }
-       },
-       'queueAvailStatus' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
-        'title' => 'Queue Availability',
-        'alert' => {
-         'test' => '$r != 1',
-         'event' => 'Queue Availability',
-         'unit' => '',
-         'level' => 'Warning'
-        }
-       },
-       'esaCpuLoad' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.26.0',
-        'title' => 'ESA CPU Load',
-        'alert' => {
-         'test' => '$r > 60',
-         'event' => 'ESA CPU Load',
-         'unit' => '',
-         'level' => 'Warning'
-        }
-       }
       }
-     }
     },
     'sys' => {
+      'laLoad' => {
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+          }
+	}
+      },
+      'nutanix' => {
+       'snmp' => {
+        'clusterName' => {
+         'oid' => '1.3.6.1.4.1.41263.501.0',
+         'title' => 'Cluster Name'
+        },
+        'clusterVersion' => {
+         'oid' => '1.3.6.1.4.1.41263.502.0',
+         'title' => 'Cluster Version'
+        },
+        'clusterStatus' => {
+         'oid' => '1.3.6.1.4.1.41263.503.0',
+         'title' => 'Cluster Status'
+        }
+       }
+      },
       'standard' => {
         'snmp' => {
           'ifNumber' => {
@@ -517,6 +538,51 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor,esaUpdateFailures,esaFanStatus,esaKeyExpiry,esaRaidStatus,esaTemperature',
-  }
+    'sections' => 'Host_Device,Host_File_System,Host_Processor,Host_Storage,addressTable,diskIOTable,hrProcessorLoad,ahvSoftware,ahvVirtMachines,ahvControllerServices,ahvControllerResources,ahvStoragePools,ahvStorageContainers'
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      } 
+    },
+    'nocollect' => {
+      'Description' => '^(/mnt/cdrom$|/media|/run|/dev/shm|/sys)',
+    },
+    'rrd' => {
+      'hrmem' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrmem',
+      },
+      'hrcachemem' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrcachemem',
+      },
+      'hrbufmem' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrbufmem',
+      },
+      'hrvmem' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrvmem',
+      },
+    }
+  },
 );

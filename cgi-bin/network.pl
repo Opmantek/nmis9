@@ -2940,6 +2940,11 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 		{
 			$color = Compat::NMIS::colorLowGood( $thisintf->{$k} ) if (!defined $color);
 		}
+		elsif ( $k eq "collect" ){
+				my $overrides = $nmisng_node->overrides;
+				my $if_descr = $thisintf->{ifDescr};
+				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k};
+		}
 		elsif ( $k eq 'ifSpeed')
 		{
 			# either the one and only, or in and out separately
@@ -3370,7 +3375,7 @@ escalate ));
 			elsif ( $k eq "collect" ){
 				my $overrides = $nmisng_node->overrides;
 				my $if_descr = $thisintf->{ifDescr};
-				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{collect};
+				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k};
 			}
 			elsif ( $k eq 'Description' )
 			{
@@ -3706,6 +3711,7 @@ sub viewStorage
 
 		my $total = $D->{hrStorageUnits} * $D->{hrStorageSize};
 		my $used  = $D->{hrStorageUnits} * $D->{hrStorageUsed};
+		my $free  = $total - $used;
 
 		my $util = sprintf( "%.1f%", $used / $total * 100 );
 
@@ -3735,6 +3741,7 @@ sub viewStorage
 		# disks use crazy multiples to display MB, GB, etc.
 		print Tr( td( {class => 'header'}, 'Total' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($total) ) );
 		print Tr( td( {class => 'header'}, 'Used' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($used), "($util)" ) );
+		print Tr( td( {class => 'header'}, 'Free' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($free) ) );
 		print Tr( td( {class => 'header'}, 'Description' ), td( {class => 'info Plain'}, $D->{hrStorageDescr} ) );
 		print Tr( td( {class => 'header'}, 'Mount Point' ), td( {class => 'info Plain'}, $D->{hrFSRemoteMountPoint} ) )
 			if defined $D->{hrFSRemoteMountPoint};

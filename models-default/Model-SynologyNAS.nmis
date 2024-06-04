@@ -1,5 +1,5 @@
 #
-# $Id: Model-CiscoESA.nmis,2023/03/20 mitchells Exp $
+## $Id: Model-SynologyNAS.nmis,v 1.1 2023/09/15 13:09:18 mitchells $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -28,12 +28,17 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
 %hash = (
   '-common-' => {
     'class' => {
+      'Host_Resources' => {
+        'common-model' => 'Host_Resources'
+      },
       'database' => {
         'common-model' => 'database'
+      },
+      'diskIOTable' => {
+        'common-model' => 'diskIOTable'
       },
       'event' => {
         'common-model' => 'event'
@@ -47,37 +52,34 @@
       'threshold' => {
         'common-model' => 'threshold'
       },
-      'Host_Resources' => {
-        'common-model' => 'Host_Resources'
+      'SynologyNAS' => {
+        'common-model' => 'SynologyNAS'
       },
-      'diskIOTable' => {
-        'common-model' => 'diskIOTable'
-      },
-      'CiscoESA' => {
-       'common-model' => 'CiscoESA'
+      'Cisco-neighbor' => {
+         'common-model' => 'Cisco-neighbor'
       }
     }
   },
-  'database' => {
-    'type' => {
-      'asyncoshealth' => '/nodes/$node/health/esa_health.rrd',
-      'esacpuhealth' => '/nodes/$node/health/esacpuhealth.rrd'
-    }
-  },
   'interface' => {
-   'collect' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)'
     },
     'nocollect' => {
-      'ifDescr' => 'sublayer|controller|^e0|^e1|^t0|^t1|^t3|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
       'ifOperStatus' => 'other',
-      'ifType' => 'lapd|ds0|ds1|other|isdn',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn',
+      'noDescription' => 'false'
     },
     'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
     },
     'rrd' => {
       'interface' => {
         'graphtype' => 'bits,abits,maxbits,util,autil',
-        'indexed' => 'ifDescr',
+        'indexed' => 'true',
         'snmp' => {
           'ifAdminStatus' => {
             'oid' => 'ifAdminStatus',
@@ -184,11 +186,11 @@
     },
     'sys' => {
       'extra' => {
-       'indexed' => 'true',
+        'indexed' => 'true',
         'snmp' => {
           'Description' => {
-            'oid' => 'ifName',
-            'title' => 'Description'
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
           },
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'
@@ -196,9 +198,8 @@
         }
       },
       'standard' => {
-        'indexed' => 'ifDescr',
-        'headers' => 'ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
-	'snmp' => {
+        'indexed' => 'true',
+        'snmp' => {
           'ifAdminStatus' => {
             'oid' => 'ifAdminStatus',
             'replace' => {
@@ -214,7 +215,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -243,18 +244,30 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           }
         }
       }
     }
   },
   'system' => {
+    'nodeModel' => 'SynologyNAS',
     'nodeType' => 'server',
-    'nodeModel' => 'CiscoESA',
-    'nodeVendor' => 'Cisco Systems, Inc.',
-    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon,esaAvUtil,esaCaseUtil,esaQtineUtil,esaReportUtil,esaCpuLoad',
+    'nodegraph' => 'health,response,laload',
     'rrd' => {
+      'laload' => {
+	'graphtype' => 'laload',
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => '.1.3.6.1.4.1.2021.10.1.5.1',
+            'option' => 'gauge,0:U'
+          },
+	  'laLoad5' => {
+            'oid' => '.1.3.6.1.4.1.2021.10.1.5.2',
+            'option' => 'gauge,0:U'
+          }
+       	}
+      },
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -302,6 +315,9 @@
             'oid' => 'ipOutDiscards',
             'option' => 'counter,0:U'
           },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
           'ipOutRequests' => {
             'oid' => 'ipOutRequests',
             'option' => 'counter,0:U'
@@ -319,164 +335,108 @@
             'option' => 'counter,0:U'
           }
         }
-      },
-      'nodehealth' => {
-       'threshold' => 'memUtil,cpu',
-       'graphtype' => 'memUtil,cpu',
+      }
+    },
+    'sys' => {
+      'synology' => {
        'snmp' => {
-        'avgBusy1' => {
-         'snmpObjectName' => 'perCentCPUUtilization',
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
-         'option' => 'gauge,0:U'
+        'systemName' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.1.0',
+         'title' => 'Synology Model'
         },
-        'avgBusy5' => {
-         'snmpObjectName' => 'perCentCPUUtilization',
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
-         'option' => 'gauge,0:U'
+        'serialNumber' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.2.0',
+         'title' => 'Serial Number'
         },
-        'memUtil' => {
-         'snmpObjectName' => 'perCentMemoryUtilization',        
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.1.0',
-         'option' => 'gauge,0:U'
-        }
+        'version' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.3.0',
+         'title' => 'DSM Version'
+        },
+        'upgradeAvailable' => {
+         'oid' => '1.3.6.1.4.1.6574.1.5.4.0',
+         'replace' => {
+          '1' => 'Upgrade available',
+          '2' => 'Running latest version',
+          '3' => 'Connecting',
+          '4' => 'Disconnected',
+          '5' => 'Others'
+         }
+        },
+        'temperature' => {
+         'oid' => '1.3.6.1.4.1.6574.1.2.0'
+        },
+        'powerStatus' => {
+         'oid' => '1.3.6.1.4.1.6574.1.3.0',
+         'replace' => {
+          '1' => 'Normal',
+          '2' => 'Failed'
+         }
+        },
+        'systemFanStatus' => {
+         'oid' => '1.3.6.1.4.1.6574.1.4.1.0',
+       	 'replace' => {
+          '1' => 'Normal',
+       	  '2' => 'Failed'
+       	 }
+       	},
+        'cpuFanStatus' => {
+         'oid' => '1.3.6.1.4.1.6574.1.4.2.0',
+         'replace' => {
+          '1' => 'Normal',
+          '2' => 'Failed'
+         }
+	},
        }
       },
-      'esacpuhealth' => {
-       'graphtype' => 'esaAvUtil,esaCaseUtil,esaQtineUtil,esaReportUtil',
-       'threshold' => 'esaAvCpuUtil,esaCaseCpuUtil,esaQuartCpuUtil,esaReportCpuUtil',
-       'snmp' => {
-        'avCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.4.0',
-         'option' => 'gauge,0:U'
-        },
-        'CaseCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.5.0',
-         'option' => 'gauge,0:U'
-        },
-        'quarantineCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.22.0',
-         'option' => 'gauge,0:U'
-        },
-        'ReportingCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.21.0',
-         'option' => 'gauge,0:U'
-        }
-       }
-      },
-      'asyncoshealth' => {
-       'graphtype' => 'esaStats,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon,esaCpuLoad',
-       'threshold' => 'quarantineMsg,connsIn,deliveryQueue',
-       'snmp' => {
-        'perCentQueueUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
-         'option' => 'gauge,0:U'
-        },
-        'queueAvailStatus' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
-         'option' => 'gauge,0:U'
-        },
-        'resConsReason' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
-         'option' => 'gauge,0:U'
-        },
-        'memAvail' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.7.0',
-         'option' => 'gauge,0:U'
-        },
-        'asyncOSPwrSupply' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
-         'option' => 'gauge,0:U'
-        },
-        'asyncOSPwrRedund' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
-         'option' => 'gauge,0:U'
-        },
-        'workQueueMessgs' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
-         'option' => 'gauge,0:U'
-         },
-        'MsgRecOneMin' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.1.1.1.0',
-         'option' => 'gauge,0:U'
-        },
-        'RcpRecOneMin' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.1.2.1.0',
-         'option' => 'gauge,0:U'
-        },
-        'ActiveRecips' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.12.0',
-         'option' => 'gauge,0:U'
-        },
-        'quarantinedMsg' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.19.0',
-         'option' => 'gauge,0:U'
-        },
-        'connectionsIn' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.10.0',
-         'option' => 'gauge,0:U'
-        },
-        'esaCpuLoad' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.26.0',
-         'option' => 'gauge,0:U'
-        }
-       }
-      },
-    'alerts' => {
-     'snmp' => {
-      'workQueueMessgs' => {
-       'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
-       'title' => 'Work Queue Messages',
-       'alert' => {
-        'test' => '$r > 100',
-        'event' => 'Work Queue Messages',
-        'unit' => '',
-        'level' => 'Warning'
-        }
-       },
-       'resConsReason' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
-        'title' => 'Resource Conservation Reason',
+     'alerts' => {
+      'snmp' => {
+       'upgradeAvailable' => {
+        'oid' => '1.3.6.1.4.1.6574.1.5.4.0',
+        'title' => 'DSM Update Status',
         'alert' => {
-         'test' => '$r != 1',
-         'event' => 'Resource Conservation Reason',
-         'unit' => '',
+         'test' => '$r eq 1',
+         'event' => 'DSM Upgrade Available',
          'level' => 'Warning'
         }
        },
-       'perCentQueueUtil' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
-        'title' => 'Queue Utilization',
+       'temperature' => {
+        'oid' => '1.3.6.1.4.1.6574.1.2.0',
+        'title' => 'System Temperature',
         'alert' => {
-         'test' => '$r > 70',
-         'event' => 'Queue Utilization',
-         'unit' => '',
+         'test' => 'CVAR1=temperature;$CVAR1 >= 60',
+         'event' => 'System Temperature',
          'level' => 'Warning'
         }
-       },
-       'queueAvailStatus' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
-        'title' => 'Queue Availability',
+      },
+      'powerStatus' => {
+       	'oid' => '1.3.6.1.4.1.6574.1.3.0',
+       	'title' => 'Power Status',
         'alert' => {
-         'test' => '$r != 1',
-         'event' => 'Queue Availability',
-         'unit' => '',
+         'test' => '$r eq 2',
+       	 'event' => 'Power Status',
+       	 'level' => 'Warning'
+       	}
+      },
+      'systemFanStatus' => {
+        'oid' => '1.3.6.1.4.1.6574.1.4.1.0',
+        'title' => 'System Fan Status',
+        'alert' => {
+         'test' => '$r eq 2',
+         'event' => 'System Fan Status',
          'level' => 'Warning'
         }
-       },
-       'esaCpuLoad' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.26.0',
-        'title' => 'ESA CPU Load',
+      },
+      'cpuFanStatus' => {
+        'oid' => '1.3.6.1.4.1.6574.1.4.2.0',
+        'title' => 'CPU Fan Status',
         'alert' => {
-         'test' => '$r > 60',
-         'event' => 'ESA CPU Load',
-         'unit' => '',
+         'test' => '$r eq 2',
+         'event' => 'CPU Fan Status',
          'level' => 'Warning'
         }
        }
       }
-     }
-    },
-    'sys' => {
+     },
       'standard' => {
         'snmp' => {
           'ifNumber' => {
@@ -517,6 +477,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor,esaUpdateFailures,esaFanStatus,esaKeyExpiry,esaRaidStatus,esaTemperature',
+    'sections' => 'Host_Storage,diskIOTable,synologyDisk,synologyRaid,synologyServices,synologyStorageIO,synologySpaceIO,synologySMART,synologyiSCSI,synologyEbox,synologyNFS,synologyiSCSITarget,addressTable'
   }
 );

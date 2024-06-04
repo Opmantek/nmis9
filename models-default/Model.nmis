@@ -668,6 +668,13 @@
         }
       }
     },
+    'Universal' => {
+     'order' => {
+      '10' => {
+       'NutanixAHV' => 'nutanix'
+      }
+     }
+    },
     'VMware Inc.' => {
       'order' => {
         '10' => {
@@ -695,6 +702,9 @@
       'order' => {
         '10' => {
           'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
+        },
+        '15' => {
+          'SecureTrafficManager' => 'Saisei Traffic Manager'
         },
         '20' => {
           'net-snmp' => '.'

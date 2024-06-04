@@ -1794,7 +1794,7 @@ sub validate
 														nmisng => $self->nmisng) 
 														};		 		
 			if ( $status >= 1 or $status < 0 or $@ ) {
-				$self->nmisng->log->debug2(sub {"Plugin $plugin failed to execute successfully: $@"}) if ($@);
+				$self->nmisng->log->error(sub {"Plugin $plugin failed to execute successfully: $@"}) if ($@);
 				for my $err (@errors)
 				{
 					$self->nmisng->log->error("Plugin $plugin: $err");
@@ -6741,6 +6741,7 @@ sub update
 	my $name = $self->name;
 	my $updatetimer = Compat::Timing->new;
 	my $C = $self->nmisng->config;
+	my $force = $args{force};
 
 	$self->nmisng->log->debug("Starting update, node $name");
 	$0 = "nmisd worker update $name";
@@ -6767,7 +6768,7 @@ sub update
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
 	# and primes the sys object for snmp/wmi ops
 
-	if (!$S->init(node => $self,	update => 'true', force => $args{force}))
+	if (!$S->init(node => $self,	update => 'true', force => $force))
 	{
 		$self->unlock(lock => $lock);
 		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
@@ -6829,7 +6830,7 @@ sub update
 																									@{$outageres->{current}} )? 1 : 0;
 	}
 
-	if (NMISNG::Util::getbool( $args{force} ) )
+	if (NMISNG::Util::getbool( $force ) )
 	{
 		# make all things for this node historic, they can bring them back if they want
 		my $result = $self->bulk_update_inventory_historic();
@@ -7018,6 +7019,11 @@ sub update
 	my $coarse = $self->coarse_status;
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
+	my ( $save_op, $save_error ) = $catchall_inventory->save(force => $force, node => $self, update => 1 );
+	if ($save_error)
+	{
+		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
+	}
 	$catchall_inventory->save( node => $self );
 	if (my $issues = $self->unlock(lock => $lock))
 	{
@@ -9029,7 +9035,11 @@ sub collect
 	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-	$catchall_inventory->save(force => $force, node => $self ); 
+	my ( $save_op, $save_error ) = $catchall_inventory->save(force => $force, node => $self );
+	if ($save_error)
+	{
+		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
+	}
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);

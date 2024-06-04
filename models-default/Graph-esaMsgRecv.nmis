@@ -40,12 +40,12 @@
 	'option' => {
 		'standard' => [
 			'DEF:MsgRecOneMin=$database:MsgRecOneMin:AVERAGE',
-			'LINE:MsgRecOneMin#6a73d9:Messages Received',
+			'LINE:MsgRecOneMin#6a73d9: Messages Received',
 			'GPRINT:MsgRecOneMin:LAST:%1.0lf\\n'
 		],
 		'small' => [
                         'DEF:MsgRecOneMin=$database:MsgRecOneMin:AVERAGE',
-                        'LINE:MsgRecOneMin#6a73d9:Messages Received',
+                        'LINE:MsgRecOneMin#6a73d9: Messages Received',
                         'GPRINT:MsgRecOneMin:LAST:%1.0lf\\n'
 		]
 	}

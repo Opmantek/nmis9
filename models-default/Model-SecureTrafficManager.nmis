@@ -1,45 +1,38 @@
 #
-# $Id: Model-CiscoESA.nmis,2023/03/20 mitchells Exp $
+## $Id: Model-SecureTrafficManager.nmis,v 1.0 2024/02/20 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#
+#  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#
-#  This file is part of Network Management Information System (“NMIS”).
-#
+#  
+#  This file is part of Network Management Information System (^ZNMIS^Z).
+#  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#
+#  
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#
+#  
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).
+#  along with NMIS (most likely in a file named LICENSE).  
 #  If not, see <http://www.gnu.org/licenses/>
-#
+#  
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com
-#
+#  www.opmantek.com or email contact@opmantek.com 
+#  
 #  User group details:
 #  http://support.opmantek.com/users/
-#
+#  
 # *****************************************************************************
-
 %hash = (
   '-common-' => {
     'class' => {
       'database' => {
         'common-model' => 'database'
-      },
-      'event' => {
-        'common-model' => 'event'
-      },
-      'stats' => {
-        'common-model' => 'stats'
       },
       'summary' => {
         'common-model' => 'summary'
@@ -47,37 +40,42 @@
       'threshold' => {
         'common-model' => 'threshold'
       },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'temp' => {
+       'common-model' => 'lmTempSensors'
+      },
       'Host_Resources' => {
         'common-model' => 'Host_Resources'
       },
-      'diskIOTable' => {
-        'common-model' => 'diskIOTable'
-      },
-      'CiscoESA' => {
-       'common-model' => 'CiscoESA'
+      'STM' => {
+       'common-model' => 'STM'
       }
     }
   },
-  'database' => {
-    'type' => {
-      'asyncoshealth' => '/nodes/$node/health/esa_health.rrd',
-      'esacpuhealth' => '/nodes/$node/health/esacpuhealth.rrd'
-    }
-  },
   'interface' => {
-   'collect' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)'
     },
     'nocollect' => {
-      'ifDescr' => 'sublayer|controller|^e0|^e1|^t0|^t1|^t3|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
       'ifOperStatus' => 'other',
-      'ifType' => 'lapd|ds0|ds1|other|isdn',
+      'ifType' => 'lapd|ds0|ds1|isdn'
     },
     'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
     },
     'rrd' => {
       'interface' => {
         'graphtype' => 'bits,abits,maxbits,util,autil',
-        'indexed' => 'ifDescr',
+        'indexed' => 'true',
         'snmp' => {
           'ifAdminStatus' => {
             'oid' => 'ifAdminStatus',
@@ -184,11 +182,11 @@
     },
     'sys' => {
       'extra' => {
-       'indexed' => 'true',
+        'indexed' => 'true',
         'snmp' => {
           'Description' => {
-            'oid' => 'ifName',
-            'title' => 'Description'
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
           },
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'
@@ -196,9 +194,8 @@
         }
       },
       'standard' => {
-        'indexed' => 'ifDescr',
-        'headers' => 'ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
-	'snmp' => {
+        'indexed' => 'true',
+        'snmp' => {
           'ifAdminStatus' => {
             'oid' => 'ifAdminStatus',
             'replace' => {
@@ -214,7 +211,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -243,17 +240,16 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           }
         }
       }
     }
   },
   'system' => {
-    'nodeType' => 'server',
-    'nodeModel' => 'CiscoESA',
-    'nodeVendor' => 'Cisco Systems, Inc.',
-    'nodegraph' => 'health,response,cpu,esaStats,memUtil,ip,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon,esaAvUtil,esaCaseUtil,esaQtineUtil,esaReportUtil,esaCpuLoad',
+    'nodeModel' => 'SecureTrafficManager',
+    'nodeType' => 'generic',
+    'nodegraph' => 'health,response,hrsystem',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',
@@ -302,6 +298,9 @@
             'oid' => 'ipOutDiscards',
             'option' => 'counter,0:U'
           },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
           'ipOutRequests' => {
             'oid' => 'ipOutRequests',
             'option' => 'counter,0:U'
@@ -319,165 +318,65 @@
             'option' => 'counter,0:U'
           }
         }
-      },
-      'nodehealth' => {
-       'threshold' => 'memUtil,cpu',
-       'graphtype' => 'memUtil,cpu',
-       'snmp' => {
-        'avgBusy1' => {
-         'snmpObjectName' => 'perCentCPUUtilization',
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
-         'option' => 'gauge,0:U'
-        },
-        'avgBusy5' => {
-         'snmpObjectName' => 'perCentCPUUtilization',
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.2.0',
-         'option' => 'gauge,0:U'
-        },
-        'memUtil' => {
-         'snmpObjectName' => 'perCentMemoryUtilization',        
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.1.0',
-         'option' => 'gauge,0:U'
-        }
+      }
+    },
+    'sys' => {
+     'policyManager' => {
+      'snmp' => {
+       'PolicyMgrVersion' => {
+        'oid' => '1.3.6.1.4.1.41720.7.1.1.8.10',
+        'title' => 'Policy Manager Version'
+       },
+       'PolicyMgrCpu' => {
+        'oid' => '1.3.6.1.4.1.41720.7.1.1.7.10'
+       },
+       'PolicyMgrAvailableMemory' => {
+        'oid' => '1.3.6.1.4.1.41720.7.1.1.6.10'
+       },
+       'PolicyMgrDiskFree' => {
+        'oid' => '1.3.6.1.4.1.41720.7.1.1.5.10'
+       },
+       'PolicyMgrCpuTemp' => {
+        'oid' => '1.3.6.1.4.1.41720.7.1.1.4.10'
+       },
+       'PolicyMgrName' => {
+        'oid' => '1.3.6.1.4.1.41720.7.1.1.2.10',
+        'title' => 'Policy Manager Name'
        }
-      },
-      'esacpuhealth' => {
-       'graphtype' => 'esaAvUtil,esaCaseUtil,esaQtineUtil,esaReportUtil',
-       'threshold' => 'esaAvCpuUtil,esaCaseCpuUtil,esaQuartCpuUtil,esaReportCpuUtil',
-       'snmp' => {
-        'avCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.4.0',
-         'option' => 'gauge,0:U'
-        },
-        'CaseCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.5.0',
-         'option' => 'gauge,0:U'
-        },
-        'quarantineCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.22.0',
-         'option' => 'gauge,0:U'
-        },
-        'ReportingCPUUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.21.0',
-         'option' => 'gauge,0:U'
-        }
-       }
-      },
-      'asyncoshealth' => {
-       'graphtype' => 'esaStats,esaQueueUtil,esaWorkQueueMsg,esaMsgRecv,esaRcpRecv,esaActRecv,esaMsgQtine,esaIncomingCon,esaCpuLoad',
-       'threshold' => 'quarantineMsg,connsIn,deliveryQueue',
-       'snmp' => {
-        'perCentQueueUtil' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
-         'option' => 'gauge,0:U'
-        },
-        'queueAvailStatus' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
-         'option' => 'gauge,0:U'
-        },
-        'resConsReason' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
-         'option' => 'gauge,0:U'
-        },
-        'memAvail' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.7.0',
-         'option' => 'gauge,0:U'
-        },
-        'asyncOSPwrSupply' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.2',
-         'option' => 'gauge,0:U'
-        },
-        'asyncOSPwrRedund' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.8.1.3',
-         'option' => 'gauge,0:U'
-        },
-        'workQueueMessgs' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
-         'option' => 'gauge,0:U'
-         },
-        'MsgRecOneMin' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.1.1.1.0',
-         'option' => 'gauge,0:U'
-        },
-        'RcpRecOneMin' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.1.2.1.0',
-         'option' => 'gauge,0:U'
-        },
-        'ActiveRecips' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.12.0',
-         'option' => 'gauge,0:U'
-        },
-        'quarantinedMsg' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.19.0',
-         'option' => 'gauge,0:U'
-        },
-        'connectionsIn' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.3.2.10.0',
-         'option' => 'gauge,0:U'
-        },
-        'esaCpuLoad' => {
-         'oid' => '1.3.6.1.4.1.15497.1.1.1.26.0',
-         'option' => 'gauge,0:U'
-        }
-       }
-      },
+      }
+     },
     'alerts' => {
      'snmp' => {
-      'workQueueMessgs' => {
-       'oid' => '1.3.6.1.4.1.15497.1.1.1.11.0',
-       'title' => 'Work Queue Messages',
+      'PolicyMgrCpu' => {
+       'oid' => '1.3.6.1.4.1.41720.7.1.1.7.10',
+       'title' => 'CPU In Use',
        'alert' => {
-        'test' => '$r > 100',
-        'event' => 'Work Queue Messages',
-        'unit' => '',
+        'test' => 'CVAR1=PolicyMgrCpu;$CVAR1 >= 80',
+        'event' => 'CPU Usage',
         'level' => 'Warning'
-        }
-       },
-       'resConsReason' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.6.0',
-        'title' => 'Resource Conservation Reason',
-        'alert' => {
-         'test' => '$r != 1',
-         'event' => 'Resource Conservation Reason',
-         'unit' => '',
-         'level' => 'Warning'
-        }
-       },
-       'perCentQueueUtil' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.4.0',
-        'title' => 'Queue Utilization',
-        'alert' => {
-         'test' => '$r > 70',
-         'event' => 'Queue Utilization',
-         'unit' => '',
-         'level' => 'Warning'
-        }
-       },
-       'queueAvailStatus' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.5.0',
-        'title' => 'Queue Availability',
-        'alert' => {
-         'test' => '$r != 1',
-         'event' => 'Queue Availability',
-         'unit' => '',
-         'level' => 'Warning'
-        }
-       },
-       'esaCpuLoad' => {
-        'oid' => '1.3.6.1.4.1.15497.1.1.1.26.0',
-        'title' => 'ESA CPU Load',
-        'alert' => {
-         'test' => '$r > 60',
-         'event' => 'ESA CPU Load',
-         'unit' => '',
-         'level' => 'Warning'
-        }
+       }
+      },
+      'PolicyMgrAvailableMemory' => {
+       'oid' => '1.3.6.1.4.1.41720.7.1.1.6.10',
+       'title' => 'Memory Available',
+       'alert' => {
+        'test' => 'CVAR1=PolicyMgrAvailableMemory;$CVAR1 =< 10',
+        'event' => 'Available Memory Decreasing',
+        'level' => 'Warning'
+       }
+      },
+      'PolicyMgrDiskFree' => {
+       'oid' => '1.3.6.1.4.1.41720.7.1.1.5.10',
+       'title' => 'Disk Free',
+       'alert' => {
+        'test' => 'CVAR1=PolicyMgrDiskFree;$CVAR1 =< 20',
+        'event' => 'Disk Space Free',
+        'level' => 'Warning'
        }
       }
      }
     },
-    'sys' => {
-      'standard' => {
+     'standard' => {
         'snmp' => {
           'ifNumber' => {
             'oid' => 'ifNumber',
@@ -517,6 +416,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'diskIOTable,InterfaceTable,ESA_Power_Supply,Host_Processor,esaUpdateFailures,esaFanStatus,esaKeyExpiry,esaRaidStatus,esaTemperature',
+    'sections' => 'stmCpuHealth,stmDiskHealth,stmMemHealth,stmGeolocation,stmGroup,stmPartition,stmPolicy'
   }
 );

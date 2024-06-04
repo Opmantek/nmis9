@@ -1,5 +1,5 @@
 #
-## $Id: Graph-esaRcpRecv.nmis,2023/01/09 mitchells Exp $
+## $Id: Graph-ahvVmStats.nmis,2024/05/30 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -29,24 +29,30 @@
 #
 # *****************************************************************************
 %hash = (
-	'heading' => 'Recipients Received',
+	'heading' => 'AHV VM Statistics',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'No.'
+		'standard' => 'Pct.'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-			'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-			'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+			'DEF:vmCpuUsagePercent=$database:vmCpuUsagePercent:AVERAGE',
+                        'DEF:vmMemUsagePercent=$database:vmMemUsagePercent:AVERAGE',
+			'LINE1:vmCpuUsagePercent#6a73d9: CPU Usage',
+                        'GPRINT:vmCpuUsagePercent:LAST:%1.0lf%%\\n',
+                        'LINE1:vmMemUsagePercent#0303fc: Memory Usage',
+                        'GPRINT:vmMemUsagePercent:LAST:%1.0lf%%\\n'
 		],
 		'small' => [
-                        'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-                        'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-                        'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:vmCpuUsagePercent=$database:vmCpuUsagePercent:AVERAGE',
+                        'DEF:vmMemUsagePercent=$database:vmMemUsagePercent:AVERAGE',
+                        'LINE1:vmCpuUsagePercent#6a73d9: CPU Usage',
+                        'GPRINT:vmCpuUsagePercent:LAST:%1.0lf%%\\n',
+                        'LINE1:vmMemUsagePercent#0303fc: Memory Usage',
+                        'GPRINT:vmMemUsagePercent:LAST:%1.0lf%%\\n'
 		]
 	}
 );

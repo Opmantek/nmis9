@@ -902,7 +902,125 @@
         'title' => 'Idle CPU',
         'unit' => '%'
       },
-
+      'connsIn' => {
+        'event' => 'Proactive Incoming Connections',
+        'item' => 'connectionsIn',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '1500',
+              'fatal' => '1000',
+              'major' => '900',
+              'minor' => '800',
+              'warning' => '500'
+            }
+          }
+        },
+        'title' => 'Incoming Connections',
+        'unit' => ''
+      },
+      'deliveryQueue' => {
+        'event' => 'Proactive Delivery Queue',
+        'item' => 'ActiveRecips',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '3000',
+              'fatal' => '2500',
+              'major' => '2000',
+              'minor' => '200',
+              'warning' => '10'
+            }
+          }
+        },
+        'title' => 'Delivery Queue',
+        'unit' => ''
+      },
+      'esaAvCpuUtil' => {
+        'event' => 'Proactive AV CPU Utilisation',
+        'item' => 'avCPUUtil',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '99',
+              'fatal' => '99',
+              'major' => '99',
+              'minor' => '90',
+              'warning' => '90'
+            }
+          }
+        },
+        'title' => 'Anti-Virus CPU Utilisation',
+        'unit' => '%'
+      },
+      'esaCaseCpuUtil' => {
+        'event' => 'Proactive CASE CPU Utilisation',
+        'item' => 'CaseCPUUtil',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '99',
+              'fatal' => '99',
+              'major' => '99',
+              'minor' => '90',
+              'warning' => '90'
+            }
+          }
+        },
+        'title' => 'Anti-Spam CPU Utilisation',
+        'unit' => '%'
+      },
+      'esaQuartCpuUtil' => {
+        'event' => 'Proactive Quarantine CPU Utilisation',
+        'item' => 'quarantineCPUUtil',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '99',
+              'fatal' => '99',
+              'major' => '99',
+              'minor' => '90',
+              'warning' => '90'
+            }
+          }
+        },
+        'title' => 'Quarantine CPU Utilisation',
+        'unit' => '%'
+      },
+      'esaReportCpuUtil' => {
+        'event' => 'Proactive Reporting CPU Utilisation',
+        'item' => 'ReportingCPUUtil',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '99',
+              'fatal' => '99',
+              'major' => '99',
+              'minor' => '90',
+              'warning' => '90'
+            }
+          }
+        },
+        'title' => 'Reporting CPU Utilisation',
+        'unit' => '%'
+      },
+      'quarantineMsg' => {
+        'event' => 'Proactive Quarantined Messages',
+        'item' => 'quarantinedMsg',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '25',
+              'fatal' => '20',
+              'major' => '15',
+              'minor' => '5',
+              'warning' => '5'
+            }
+          }
+        },
+        'title' => 'Quarantine Messages',
+        'unit' => ''
+      },
       'ssCpuRawIdle' => {
         'event' => 'Proactive CPU Idle',
         'item' => 'ssCpuRawIdle',

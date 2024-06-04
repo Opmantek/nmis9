@@ -1,5 +1,5 @@
 #
-## $Id: Graph-esaRcpRecv.nmis,2023/01/09 mitchells Exp $
+## $Id: Graph-synologyNFSLatency.nmis 2023/09/16 10:40:00 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -28,26 +28,28 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+
 %hash = (
-	'heading' => 'Recipients Received',
+	'heading' => 'Synology NFS Operations Latency',
 	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'standard' => 'Synology NFS Ops Latency',
+		'short' => 'Synology NFS Ops Latency'
 	},
 	'vlabel' => {
-		'standard' => 'No.'
+		'standard' => ''
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-			'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-			'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:nfsReadMaxLatency=$database:nfsReadMaxLatency:AVERAGE',
+                        'DEF:nfsWriteMaxLatency=$database:nfsWriteMaxLatency:AVERAGE',
+			'LINE1:nfsReadMaxLatency#1cc967:Read Latency',
+                        'LINE1:nfsWriteMaxLatency#15cad4:Write Latency'
 		],
 		'small' => [
-                        'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-                        'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-                        'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:nfsReadMaxLatency=$database:nfsReadMaxLatency:AVERAGE',
+                        'DEF:nfsWriteMaxLatency=$database:nfsWriteMaxLatency:AVERAGE',
+                        'LINE1:nfsReadMaxLatency#1cc967:Read Latency',
+                        'LINE1:nfsWriteMaxLatency#15cad4:Write Latency'
 		]
 	}
 );
-

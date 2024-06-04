@@ -1,5 +1,5 @@
 #
-## $Id: Graph-esaRcpRecv.nmis,2023/01/09 mitchells Exp $
+## $Id: Graph-synologyStrDiskLoad.nmis 2023/09/16 10:40:00 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -28,26 +28,29 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+
 %hash = (
-	'heading' => 'Recipients Received',
+	'heading' => 'Synology Disk Load',
 	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'standard' => 'Synology Disk Load',
+		'short' => 'Synology Disk Load'
 	},
 	'vlabel' => {
-		'standard' => 'No.'
+		'standard' => '%'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-			'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-			'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+			'DEF:storageIOLA1=$database:storageIOLA1:AVERAGE',
+                        'DEF:storageIOLA5=$database:storageIOLA5:AVERAGE',
+			'LINE1:storageIOLA1#cf6e1f:Disk Load 1min',
+                        'LINE1:storageIOLA5#6a62a8:Disk Load 5min'
+
 		],
 		'small' => [
-                        'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-                        'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-                        'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:storageIOLA1=$database:storageIOLA1:AVERAGE',
+                        'DEF:storageIOLA5=$database:storageIOLA5:AVERAGE',
+                        'LINE1:storageIOLA1#cf6e1f:Disk Load 1min',
+                        'LINE1:storageIOLA5#6a62a8:Disk Load 5min'
 		]
 	}
 );
-

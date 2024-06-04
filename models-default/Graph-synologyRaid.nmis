@@ -1,5 +1,5 @@
 #
-## $Id: Graph-esaRcpRecv.nmis,2023/01/09 mitchells Exp $
+## $Id: Graph-synologyRaid.nmis 2024/05/30 10:40:00 mitchells Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -28,26 +28,25 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+
 %hash = (
-	'heading' => 'Recipients Received',
+	'heading' => 'Synology RAID Available',
 	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'standard' => 'Synology RAID Available',
+		'short' => 'Synology RAID Available'
 	},
 	'vlabel' => {
-		'standard' => 'No.'
+		'standard' => 'Capacity'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-			'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-			'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+			'DEF:raidFreeSize=$database:raidFreeSize:AVERAGE',
+			'LINE:raidFreeSize#485fc7: Available Space'
+
 		],
 		'small' => [
-                        'DEF:RcpRecOneMin=$database:RcpRecOneMin:AVERAGE',
-                        'LINE:RcpRecOneMin#6a73d9: Recipients Received',
-                        'GPRINT:RcpRecOneMin:LAST:%1.0lf\\n'
+                        'DEF:raidFreeSize=$database:raidFreeSize:AVERAGE',
+                        'LINE:raidFreeSize#485fc7: Available Space'
 		]
 	}
 );
-
