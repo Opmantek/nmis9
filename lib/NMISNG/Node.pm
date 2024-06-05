@@ -999,6 +999,15 @@ sub inventory
 		Module::Load::load $class;
 		$inventory = $class->new(%args); # this doesn't report errors!
 
+		# special handling for catchall, we only want the catchall to be creatend on the server
+		# that matches it's cluster_id (which should be where it is polled), we risk duplicates without this
+		if( $inventory->concept eq 'catchall' && ($inventory->cluster_id eq $self->nmisng->config->{cluster_id}) ) 
+		{
+			$self->nmisng->log->warn($self->name.": Node::Inventory request to create catchall with mismatching cluster_id, 
+				server:$self->nmisng->config->{cluster_id}, inventory:".$inventory->cluster_id.", trace:".NMISNG::Log::trace());
+			return (undef,"cannot create catchall for this node on this server");
+		}
+
 		return (undef, "failed to instantiate $class object!") if (!$inventory);
 	}
 
@@ -1609,30 +1618,32 @@ sub save
 						when => $saveTime) if ($audit_enabled);
 
 		
-		# This code creates/updates catchall on save, this has been commented out for the moment because
-		# adding a new node on a primary should not create a catchall on the primary (which this would do)
-
+		# This code creates/updates catchall on save, when the node cluster_id matches the server cluster_id
+		# (so it is being polled here)
 		# if we can lock the node then update host info and it's catchall, for new nodes this should work
 		# every time (which is what we are most concerned about)
 		# NOTE: this will create a catchall for a new node
-		# $self->nmisng->log->debug2(sub {"Getting lock for node to update host_addr and sync catchall $entry{name}"});
-		# my $lock = $self->lock(type => 'update');
-		# if( !$lock->{error} && !$lock->{conflict} ) 
-		# {
-		# 	my $path = $self->inventory_path(concept => "catchall", data => {}, path_keys => []);
-		# 	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", path => $path, path_keys => [], create => 1 );
-		# 	if( !$error ) 
-		# 	{
-		# 		my $catchall_data = $catchall_inventory->data_live();
-		# 		$self->update_host_addr( catchall_data => $catchall_data );
-		# 		$self->sync_catchall( cache => $catchall_inventory );
-		# 		$self->unlock(lock => $lock);
-		# 	}
-		# 	else 
-		# 	{
-		# 		$self->nmisng->log->warn(sub {"Node::save failed to get catchall so cannot sync: $error"});	
-		# 	}
-		# }
+		if( $self->cluster_id eq $self->nmisng->config->{cluster_id} ) {
+			$self->nmisng->log->debug2(sub {"Getting lock for node to update host_addr and sync catchall $entry{name}"});
+			my $lock = $self->lock(type => 'update'); # we might want a collect lock here?
+			if( !$lock->{error} && !$lock->{conflict} ) 
+			{
+				my $path = $self->inventory_path(concept => "catchall", data => {}, path_keys => []);
+				my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", path => $path, path_keys => [], create => 1 );
+				if( !$error ) 
+				{
+					my $catchall_data = $catchall_inventory->data_live();
+					$self->update_host_addr( catchall_data => $catchall_data );
+					$self->sync_catchall( cache => $catchall_inventory );
+					$self->unlock(lock => $lock);
+				}
+				else 
+				{
+					# this isn't a huge deal
+					$self->nmisng->log->warn(sub {"Node::save failed to get catchall so cannot sync: $error"});	
+				}
+			}
+		}
 	}
 
 	$self->nmisng->log->debug2(sub {"Return code: $op"});
