@@ -1001,10 +1001,10 @@ sub inventory
 
 		# special handling for catchall, we only want the catchall to be creatend on the server
 		# that matches it's cluster_id (which should be where it is polled), we risk duplicates without this
-		if( $inventory->concept eq 'catchall' && ($inventory->cluster_id eq $self->nmisng->config->{cluster_id}) ) 
+		if( $inventory->concept eq 'catchall' && ($inventory->cluster_id ne $self->nmisng->config->{cluster_id}) ) 
 		{
 			$self->nmisng->log->warn($self->name.": Node::Inventory request to create catchall with mismatching cluster_id, 
-				server:$self->nmisng->config->{cluster_id}, inventory:".$inventory->cluster_id.", trace:".NMISNG::Log::trace());
+				server:".$self->nmisng->config->{cluster_id}.", inventory:".$inventory->cluster_id.", trace:".NMISNG::Log::trace());
 			return (undef,"cannot create catchall for this node on this server");
 		}
 
