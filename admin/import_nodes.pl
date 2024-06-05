@@ -311,7 +311,6 @@ foreach my $node (keys %newNodes)
         }
         # update summaries
         if( $success ) {
-            $operation = "";
             ++$sum->{add} if($operation eq 'create');
             ++$sum->{update} if($operation eq 'update');
         } else {
