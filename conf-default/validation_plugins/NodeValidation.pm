@@ -90,6 +90,9 @@ sub validate_node
     return (scalar(@errors), @errors);
 }
 
+# takes host/host_backup and returns ip addresses
+# if the values are already ip addresses (either of them)
+# it will return ip's
 sub resolve_host_to_IP
 {
     my ($host, $host_backup,$ip_protocol) = @_;
@@ -113,6 +116,7 @@ sub resolve_host_to_IP
     }
     return ($ip,$bkp_ip);
 }
+
 # find any nodes with (ips) host_addr and host_addr_backup that match
 # the host and host_backup (resolved to ip's if they are names)
 # return error if ip/backup_ip exists in db , 
@@ -129,7 +133,10 @@ sub validate_IP_addr
     my $query = NMISNG::DB::get_query(
         and_part => {  concept => "catchall",
             node_uuid => { '$ne' => $node->uuid } },
-    );    
+    );
+
+    # in this case we don't use regex search because anything getting into host_addr*
+    # must be an ip
     my $host_list = [$host];
     push @$host_list, $host_backup if($host_backup);
     push @$host_list, $ip if($ip);    
@@ -183,13 +190,14 @@ sub validate_host
     # the search needs to be case insensetive. host must be set, host_backup does not
     my $host_list = [qr/^$host$/i];
     push @$host_list, qr/^$host_backup$/i if($host_backup);
+    # IP's don't need regex, they will only be IP addresses
     push @$host_list, $ip if($ip);
     push @$host_list, $backup_ip if($backup_ip);
     my $q = { '$or' => [ 
                 { 'configuration.host' => { '$in' => $host_list }}, 
                 { 'configuration.host_backup' => { '$in' => $host_list }},
     ]};
-    # print Dumper($q);
+
     my $cursor = NMISNG::DB::find(
 			collection  => $NG->nodes_collection,
 			query       => $q,
