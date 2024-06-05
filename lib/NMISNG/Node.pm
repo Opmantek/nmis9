@@ -1635,13 +1635,13 @@ sub save
 					my $catchall_data = $catchall_inventory->data_live();
 					$self->update_host_addr( catchall_data => $catchall_data );
 					$self->sync_catchall( cache => $catchall_inventory );
-					$self->unlock(lock => $lock);
 				}
 				else 
 				{
 					# this isn't a huge deal
 					$self->nmisng->log->warn(sub {"Node::save failed to get catchall so cannot sync: $error"});	
 				}
+				$self->unlock(lock => $lock);
 			}
 		}
 	}
