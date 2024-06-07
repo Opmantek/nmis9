@@ -42,6 +42,10 @@ use Crypt::Rijndael;
 use Digest::MD5;
 use Digest::HMAC;
 use Digest::SHA;
+use Data::Dumper;
+use MojoX::JSON::RPC::Client;
+use MIME::Base64;
+use UUID::Tiny qw(:std);
 
 # creates new snmp object, does NOT open connection.
 # args: nmisng (required),
@@ -223,6 +227,7 @@ sub open
 	my $cobj = (ref($args{config}) eq "HASH"
 							&& keys %{$args{config}})? $args{config} : {};
 
+
 	my $ip_protocol = $cobj->{ip_protocol} || $args{ip_protocol} || 'IPv4';
 	my $domain = $ip_protocol eq "IPv6" ? "udp6" : "udp";
 
@@ -291,21 +296,9 @@ sub open
 		return undef;
 	}
 
-	# now actually open the SNMP session
-	($self->{session}, $self->{error}) =
-			Net::SNMP->session(
-				-domain		=> $self->{config}->{domain},
-				-version	=> $self->{config}->{version},
-				-hostname	=> $self->{config}->{host},
-				-timeout	=> $self->{config}->{timeout},
-				-retries	=> $self->{config}->{retries},
-				-translate   => [-timeticks => 0x0,		# Turn off so sysUpTime is numeric
-												 -unsigned => 0x1,		# unsigned integers
-												 -octet_string => 0x1],   # Lets octal string
-				-port		=> $self->{config}->{port},
-				-maxmsgsize => $self->{config}->{max_msg_size},
-				@authopts,
-			);
+
+	
+	$self->{session} = create_UUID();
 
 	if (!$self->{session})
 	{
@@ -313,8 +306,8 @@ sub open
 		return undef;
 	}
 
-	$self->{actual_version} = $self->{session}->version;
-	$self->{actual_max_msg_size} = $self->{session}->max_msg_size;
+	#$self->{actual_version} = $self->{session}->version;
+	#$self->{actual_max_msg_size} = $self->{session}->max_msg_size;
 
 	return 1;
 }
@@ -374,7 +367,8 @@ sub get
 	push @methodargs, ("-contextname" => $self->{config}->{context})
 			if ($self->{config}->{context});
 
-			my $result = $self->{session}->get_request(@methodargs);
+	#my $result = $self->{session}->get_request(@methodargs);
+	my $result = $self->make_rpc_request('Get',\@certainlyoids);
 	return undef if (!$self->checkResult($result, \@vars));
 
 	$self->nmisng->log->debug4(sub {&NMISNG::Log::trace()
@@ -446,7 +440,8 @@ sub getarray
 		push @methodargs, ("-contextname" => $self->{config}->{context})
 				if ($self->{config}->{context});
 
-		my $result = $self->{session}->get_request(@methodargs);
+		my $result = $self->make_rpc_request('Get',\@oidchunk);
+
 		return undef if (!$self->checkResult($result, \@varchunk));
 
 		for my $oid (@oidchunk)
@@ -507,13 +502,9 @@ sub gettable
 	my $triesleft = 5;
 	while ($triesleft)
 	{
-		my @methodargs = ( "-baseoid" => $name );
-		push @methodargs, ("-contextname" => $self->{config}->{context})
-				if ($self->{config}->{context});
-		push @methodargs, ("-maxrepetitions" => $maxrepetitions)
-				if ($maxrepetitions);
-
-		my $result = $self->{session}->get_table(@methodargs);
+		my @methodargs;
+		push @methodargs, $name;
+		my $result = $self->make_rpc_request('Walk',\@methodargs);
 		my $errormsg = $self->{session}->error;
 		--$triesleft;
 		if ($triesleft && $errormsg && $errormsg =~ /message size exceeded/i)
@@ -607,5 +598,106 @@ sub set
 	return undef if (!$self->checkResult($result, [keys %$setthese]));
 	return $result;
 }
+
+sub make_rpc_request {
+    my ($self, $action, $oids) = @_;
+
+    # Validate the action parameter
+    if ($action !~ /^(Get|Walk)$/) {
+        my $error_msg = "make_rpc_request invalid action: $action";
+        $self->nmisng->log->error($error_msg);
+        $self->{error} = $error_msg;
+        return undef;
+    }
+
+    # Create a new RPC client
+    my $client = MojoX::JSON::RPC::Client->new;
+	#http://example.net:9000/rpc
+	my $spacelift = $self->nmisng->config->{'spacelift_uri'};
+
+	if (!defined($spacelift) or $spacelift eq "") {
+		 my $error_msg = "invalid uri for connecting to spacelift daemon";
+        $self->nmisng->log->error($error_msg);
+        $self->{error} = $error_msg;
+        return undef;
+	}
+    # Log the OIDs being requested
+    # Prepare the call object for the RPC request
+    my $callobj = {
+        method => "NMISService.$action",
+        params => [{
+            Node => {
+                Community => $self->{config}->{community},
+                Host => $self->{config}->{host},
+                Version => $self->{config}->{version},
+				Transport => $self->{config}->{domain},
+                Context => $self->{config}->{context},
+				Username => $self->{config}->{username},
+				Timeout => $self->{config}->{timeout},
+                PrivKey => $self->{config}->{privkey},
+                PrivPassword => $self->{config}->{privpassword},
+                PrivProtocol => $self->{config}->{privprotocol},
+                AuthKey => $self->{config}->{authkey},
+                AuthPassword => $self->{config}->{authpassword},
+                AuthProtocol => $self->{config}->{authprotocol},
+                MaxRepetitions => $self->{config}->{max_repetitions},
+				SessionID => $self->{config}->{session},
+            },
+            OIDS => $oids,
+        }],
+        id => 1,
+    };
+	
+	$self->nmisng->log->debug(sub { "make_rpc_request oids: " . Dumper($callobj) });
+
+    # Execute the RPC call
+    my $res = $client->call($uri, $callobj);
+    if ($res) {
+        if ($res->{rpc_response}) {
+            my $resp = $res->{rpc_response};
+            if ($resp->{error}) {
+                my $err = "make_rpc_request error: " . $resp->{error};
+                $self->nmisng->log->error($err);
+                $self->{error} = $err;
+                return undef;
+            } else {
+                return $self->process_response($resp);
+            }
+        } else {
+            $self->nmisng->log->error("No response from RPC call");
+            return undef;
+        }
+    } else {
+        $self->nmisng->log->error("RPC call failed");
+        return undef;
+    }
+}
+
+sub process_response {
+    my ($self, $resp) = @_;
+    my $final = {};
+    my $done = $resp->{result}->{OIDS};
+
+    if ($done and ref($done) eq "ARRAY") {
+        foreach my $pdu (@$done) {
+            if (defined($pdu->{oid}) and $pdu->{oid} =~ /^(\d+)(\.\d+)*$/) {
+                my $value = $pdu->{value};
+                if ($pdu->{type} == 4 or $pdu->{type} == 3) {
+                    # Decode base64 values
+                    $value = decode_base64($value);
+                }
+                # Check for duplicate OIDs
+                if (!defined($final->{$pdu->{oid}})) {
+                    $final->{$pdu->{oid}} = $value;
+                } else {
+                    $self->nmisng->log->warn("make_rpc_request duplicate oid: $pdu->{oid}");
+                }
+            }
+        }
+    }
+
+    return $final;
+}
+
 
 1;
