@@ -1688,10 +1688,10 @@ sub sync_catchall
 		# check the config for extra things to copy
 		my $extra_props = $self->nmisng->config->{copy_node_configuration_to_catchall_list} // [];
 		push @copy_props, @$extra_props if( ref($extra_props) eq 'ARRAY' && @$extra_props > 0 );
-
+		my $configuration = $self->configuration();
 		foreach my $prop (@copy_props) 
 		{
-			$catchall_data->{$prop} = $self->configuration->{$prop};
+			$catchall_data->{$prop} = $configuration->{$prop} if( defined($configuration->{$prop}) );
 		}
 		
 		my ( $op, $error ) = $catchall_inventory->save( node => $self , update => 1);
