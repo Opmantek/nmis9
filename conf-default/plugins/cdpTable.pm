@@ -31,10 +31,29 @@
 # info from cdp data for linkage in the nmis gui
 
 package cdpTable;
-our $VERSION = "2.0.1";
+our $VERSION = "2.0.2";
 
 use strict;
 use Data::Dumper;
+
+sub or_terms_to_query_or {
+	my ($or_terms) = @_;
+	my $query_or = [];
+	my $havesomething = 0;
+	# take each of the thigns we are or'ing, if the array has > 1 value 
+	# use $in, otherwise just match that thing
+	foreach my $orrkey (keys %$or_terms) {
+		my $size = @{$or_terms->{$orrkey}};
+		if( $size > 1 ) {
+			push @$query_or, { $orrkey => { '$in' => $or_terms->{$orrkey}}};
+			$havesomething = 1;
+		} elsif ($size == 1)  {
+			push @$query_or, { $orrkey => $or_terms->{$orrkey}[0] };
+			$havesomething = 1;
+		}
+	}
+	return ($havesomething) ? $query_or : undef;
+}
 
 sub update_plugin
 {
@@ -50,7 +69,7 @@ sub update_plugin
 	return (0,undef) if (!@$cdpids);
 	my $changesweremade = 0;
 
-	$NG->log->info("Working on $node cdp");
+	$NG->log->debug("Working on $node cdp");
 	
 
 	# for linkage lookup this needs the interfaces inventory as well, but
@@ -99,35 +118,30 @@ sub update_plugin
 		# search for possible names in 3 places
 		# we also have cdpCacheAddress if cdpCacheAddress is "ip"
 		my @possibleNamesArr = map {$_} (keys %$possibleNames);
-		my $query = {'concept' => 'catchall','enabled' => 1,'historic' => 0,
-			'$or' => [
-				{'node_name' => $possibleNamesArr[0] },
-				{'data.host' => $possibleNamesArr[0] },
-				{'data.sysName' => $possibleNamesArr[0] }
-			]
-		 };
-		#  is there is more than one make the search more complex:
-		if( @possibleNamesArr > 1) {
-			$query->{'$or'} = [
-				{'node_name' => { '$in' => \@possibleNamesArr}},
-				{'data.host' => { '$in' => \@possibleNamesArr}},
-				{'data.sysName' => { '$in' => \@possibleNamesArr}}
-			];
-		}
-		
+		my %or_terms = (
+			'node_name' => \@possibleNamesArr,
+			'data.host' => \@possibleNamesArr,
+			'data.sysName' => \@possibleNamesArr
+		);
+		$NG->log->debug2(sub{ "cdpTable looking for names:".join(',',@possibleNamesArr)});
+
 		# if we have an ip address we can search for that too
-		$NG->log->debug(sub{ "cdpTable looking for names:".join(',',@possibleNamesArr)});
 		if( $cdpdata->{cdpCacheAddressType} eq 'ip' ) {
-			push @{$query->{'$or'}}, { 'data.host' => $cdpdata->{cdpCacheAddress} };
-			push @{$query->{'$or'}}, { 'data.host_addr' => $cdpdata->{cdpCacheAddress} };
-			$NG->log->debug(sub{ "cdpTable looking for host: $cdpdata->{cdpCacheAddress}"});
+			push @{$or_terms{'data.host'}}, $cdpdata->{cdpCacheAddress};
+			push @{$or_terms{'data.host_addr'}}, $cdpdata->{cdpCacheAddress};
+			$NG->log->debug3(sub{ "cdpTable looking for host: $cdpdata->{cdpCacheAddress}"});
 		}
+
+		my $query_or = or_terms_to_query_or(\%or_terms);
+		my $query = {'concept' => 'catchall','enabled' => 1,'historic' => 0,
+			'$or' => $query_or
+		 };
 		
-		$NG->log->debug2(sub{ "cdpTable query:".Dumper($query)});
+		$NG->log->debug3(sub{ "cdpTable query:".Dumper($query)});
 		my $entries = NMISNG::DB::find(
 			collection  => $NG->inventory_collection,
 			query       => $query,
-			fields_hash => { 'node_name','node_uuid' }
+			fields_hash => { 'node_name' => 1,'node_uuid' => 1 }
 		);
 		
 		# get them all, shouldn't be many, hopefully 1
@@ -164,7 +178,7 @@ sub update_plugin
 			my $path = $nmisng_node->inventory_path( concept => "interface", data => { index => $index }, path_keys => ['index'], partial => 1 );
 			# remove the cluster_id so we hit the index we want. i'm not sure why 0,1,2,3 isn't an index
 			$path->[0] = undef;
-			my $result = $nmisng_node->get_inventory_model( path => $path, filter => { historic => 0 }, fields_hash => { 'data.ifDescr' } );
+			my $result = $nmisng_node->get_inventory_model( path => $path, filter => { historic => 0 }, fields_hash => { 'data.ifDescr' => 1 } );
 			if (my $error = $result->error)
 			{
 				$NG->log->error("Failed to get inventory: $error");
