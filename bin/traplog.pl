@@ -40,6 +40,7 @@ use FindBin;
 use Socket;
 use Getopt::Std;
 use POSIX qw();
+use Fcntl ':flock';
 
 my %options;
 getopts("nf:t:", \%options) or die "Usage: $0 [-n] [-f filterregex] [-t targetfile]\n-n: disable dns lookups\-f regex: suppress traps matching this regex\n-t targetfile: write to this file, default: ../logs/nmis9/trap.log\n\n";
@@ -125,9 +126,11 @@ my $out = join("\t",$hostname,$ipaddress,@buffer);
 # save the output if it's not filtered
 if ( !defined($trapfilter) || $out !~ $trapfilter )
 {
-	open (DATA, ">>$filename") || die "Cannot open the file $filename: $!\n";
-	print DATA returnDateStamp()."\t$out\n";
-	close(DATA);
+	open (my $data_fh, ">>", $filename) || die "Cannot open the file $filename: $!\n";
+	flock($data_fh, LOCK_EX);
+	print $data_fh returnDateStamp()."\t$out\n";
+    flock($data_fh, LOCK_UN);
+    close($data_fh);
 }
 
 exit 0;
