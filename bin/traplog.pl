@@ -31,7 +31,7 @@
 # Intentionally left distant from NMIS Code, as we want it to run
 # really fast with minimal use statements.
 #
-our $VERSION="1.1.0";
+our $VERSION="1.1.1";
 
 use strict;
 use FindBin;
@@ -42,6 +42,7 @@ use Getopt::Std;
 use POSIX qw();
 use Fcntl ':flock';
 
+my $max_message_size = 10000;
 my %options;
 getopts("nf:t:", \%options) or die "Usage: $0 [-n] [-f filterregex] [-t targetfile]\n-n: disable dns lookups\-f regex: suppress traps matching this regex\n-t targetfile: write to this file, default: ../logs/nmis9/trap.log\n\n";
 
@@ -93,9 +94,16 @@ if ( ($hostname eq "<UNKNOWN>" or $hostname =~ /^UDP:\s*/ )
 }
 
 # the remainder is all variables
+my $readsize = 0;
 while (my $line = <STDIN>)
 {
 	chomp $line;
+	$readsize += length($line);
+	# stop readying after max_message_size characters to try and prevent bad 
+	# messages from slipping through
+	if( $readsize > $max_message_size ) {
+		exit 1;
+	}
 	$line = escapeHTML($line);
 
 	my ($varname,$rest) = split(/\s+/,$line,2);
@@ -122,6 +130,11 @@ $hostname = escapeHTML($hostname);
 $ipaddress = escapeHTML($ipaddress);
 
 my $out = join("\t",$hostname,$ipaddress,@buffer);
+# if somehow our output length has become too large,  stop
+# this is aalso an attempt to prevent bad/corrupt messages
+if( length($out) > $max_message_size ) {
+	exit 1;
+}
 
 # save the output if it's not filtered
 if ( !defined($trapfilter) || $out !~ $trapfilter )
