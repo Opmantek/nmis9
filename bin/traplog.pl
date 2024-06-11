@@ -166,9 +166,7 @@ sub escapeHTML
 # Function which returns the time, iso8601-formatted, NON-locale-capable
 sub returnDateStamp
 {
-	my $time = shift;
-	$time ||= time;
-
+	my $time = time;
 	return POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($time));
 }
 
