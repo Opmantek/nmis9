@@ -200,7 +200,7 @@ sub checkResult
 		return undef;
 	}
 
-	$self->{error} = $self->{session}->error;
+	# $self->{error} = $self->{session}->error;
 	return 1 if (defined $result);
 
 	my $list = join(", ", @{$inputs});
@@ -297,14 +297,13 @@ sub open
 	}
 
 
-	
-	$self->{session} = create_UUID();
+	$self->{session} = 1;
 
-	if (!$self->{session})
-	{
-		$self->nmisng->log->error("$self->{name} $self->{error}");
-		return undef;
-	}
+	# if (!$self->{session})
+	# {
+	# 	$self->nmisng->log->error("$self->{name} $self->{error}");
+	# 	return undef;
+	# }
 
 	#$self->{actual_version} = $self->{session}->version;
 	#$self->{actual_max_msg_size} = $self->{session}->max_msg_size;
@@ -319,9 +318,11 @@ sub close
 {
 	my ($self) = @_;
 
-	$self->{session}->close if $self->{session};
+	my $result = $self->make_rpc_request('Close',[]);
 	undef $self->{session};
 	undef $self->{errors};
+	undef $self->{sessionid};
+	undef $self->{client};
 
 	return undef;
 }
@@ -505,19 +506,19 @@ sub gettable
 		my @methodargs;
 		push @methodargs, $name;
 		my $result = $self->make_rpc_request('Walk',\@methodargs);
-		my $errormsg = $self->{session}->error;
-		--$triesleft;
-		if ($triesleft && $errormsg && $errormsg =~ /message size exceeded/i)
-		{
-			# if the net::snmp guesswork with maxrepetitions 0 didn't pan out, try 20;
-			# if we had a value, reduce it by 25%.
-			$maxrepetitions = $maxrepetitions? int($maxrepetitions * 0.75) : 20;
+		# my $errormsg = $self->{session}->error;
+		# --$triesleft;
+		# if ($triesleft && $errormsg && $errormsg =~ /message size exceeded/i)
+		# {
+		# 	# if the net::snmp guesswork with maxrepetitions 0 didn't pan out, try 20;
+		# 	# if we had a value, reduce it by 25%.
+		# 	$maxrepetitions = $maxrepetitions? int($maxrepetitions * 0.75) : 20;
 
-			# and make sure this persists across the session lifetime
-			$self->{config}->{max_repetitions} = $maxrepetitions;
-			$self->nmisng->log->warn("($self->{name}) SNMP message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
-			next;
-		}
+		# 	# and make sure this persists across the session lifetime
+		# 	$self->{config}->{max_repetitions} = $maxrepetitions;
+		# 	$self->nmisng->log->warn("($self->{name}) SNMP message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
+		# 	next;
+		# }
 		return undef if (!$self->checkResult($result, [$name]));
 
 		$self->nmisng->log->debug3(sub {&NMISNG::Log::trace()
@@ -603,52 +604,70 @@ sub make_rpc_request {
     my ($self, $action, $oids) = @_;
 
     # Validate the action parameter
-    if ($action !~ /^(Get|Walk)$/) {
+    if ($action !~ /^(Get|Walk|Close)$/) {
         my $error_msg = "make_rpc_request invalid action: $action";
         $self->nmisng->log->error($error_msg);
         $self->{error} = $error_msg;
         return undef;
     }
 
+	my $client;
+	if($self->{client})
+	{
+		$client = $self->{client};
+	}
+	else
+	{
+		# Create a new RPC client
+		$client = MojoX::JSON::RPC::Client->new;
+		$self->{client} = $client;
+	}
     # Create a new RPC client
-    my $client = MojoX::JSON::RPC::Client->new;
 	#http://example.net:9000/rpc
 	my $spacelift = $self->nmisng->config->{'spacelift_uri'};
 
-	if (!defined($spacelift) or $spacelift eq "") {
-		 my $error_msg = "invalid uri for connecting to spacelift daemon";
-        $self->nmisng->log->error($error_msg);
-        $self->{error} = $error_msg;
-        return undef;
+	if(!defined($spacelift) or $spacelift eq "")
+	{
+		die "Spacelift URI not defined in Config.nmis";
 	}
+
+	my $url = Mojo::URL->new($spacelift);
+	my $uri = $url->path("/rpc");
+
+	my $obj = { SessionID => $self->{sessionid}, OIDS => $oids};
+
+	#only send the node details if we have no sessionid
+	if(!defined($self->{sessionid}) or $self->{sessionid} eq "" and $action ne "Close") {
+		$obj->{Node} = {
+			Community => $self->{config}->{community},
+			Host => $self->{config}->{host},
+			Version => $self->{config}->{version},
+			Transport => $self->{config}->{domain},
+			Context => $self->{config}->{context},
+			Username => $self->{config}->{username},
+			Timeout => $self->{config}->{timeout},
+			PrivKey => $self->{config}->{privkey},
+			PrivPassword => $self->{config}->{privpassword},
+			PrivProtocol => $self->{config}->{privprotocol},
+			AuthKey => $self->{config}->{authkey},
+			AuthPassword => $self->{config}->{authpassword},
+			AuthProtocol => $self->{config}->{authprotocol},
+			MaxRepetitions => $self->{config}->{max_repetitions},
+    	};
+	}
+	
+
     # Log the OIDs being requested
     # Prepare the call object for the RPC request
     my $callobj = {
         method => "NMISService.$action",
-        params => [{
-            Node => {
-                Community => $self->{config}->{community},
-                Host => $self->{config}->{host},
-                Version => $self->{config}->{version},
-				Transport => $self->{config}->{domain},
-                Context => $self->{config}->{context},
-				Username => $self->{config}->{username},
-				Timeout => $self->{config}->{timeout},
-                PrivKey => $self->{config}->{privkey},
-                PrivPassword => $self->{config}->{privpassword},
-                PrivProtocol => $self->{config}->{privprotocol},
-                AuthKey => $self->{config}->{authkey},
-                AuthPassword => $self->{config}->{authpassword},
-                AuthProtocol => $self->{config}->{authprotocol},
-                MaxRepetitions => $self->{config}->{max_repetitions},
-				SessionID => $self->{config}->{session},
-            },
-            OIDS => $oids,
-        }],
+        params => [
+			$obj
+		],
         id => 1,
     };
 	
-	$self->nmisng->log->debug(sub { "make_rpc_request oids: " . Dumper($callobj) });
+	$self->nmisng->log->debug5(sub { "make_rpc_request oids: " . Dumper($callobj) });
 
     # Execute the RPC call
     my $res = $client->call($uri, $callobj);
@@ -677,6 +696,12 @@ sub process_response {
     my ($self, $resp) = @_;
     my $final = {};
     my $done = $resp->{result}->{OIDS};
+	#grab the session id
+	my $uuid = $resp->{result}->{SessionID};
+	if (defined($uuid) and $uuid ne "")
+	{
+		$self->{sessionid} = $uuid;
+	}
 
     if ($done and ref($done) eq "ARRAY") {
         foreach my $pdu (@$done) {
