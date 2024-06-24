@@ -120,7 +120,7 @@ else
 {
 	$nmisng->log->error("ERROR Configuration file for FtpExport missing.");
 	print "ERROR Configuration file for FtpExport missing. \n" if ($debug);
-	return ;
+	exit 1;
 }
 
 #print Dumper $exportConfig;
@@ -149,7 +149,7 @@ if (!defined($ftp_log_directory) || $ftp_log_directory eq '') {
 if ($errmsg)
 {
 	$logger->error($errmsg);
-	return;
+	exit 1;
 }
 
 # Log the output of the SFTP to assist in identifying files that could not be uploaded
@@ -246,6 +246,7 @@ sub ftpExportFile {
 			if ($opReportsFtpLogFlag == 1) {
 				print F "unable to change cwd: " . $sftp->error . "\n";
 			}
+			exit 1;
 		}
 		if (!$sftp->put($file)) {
 			$nmisng->error("put failed: " . $sftp->error);
@@ -253,7 +254,7 @@ sub ftpExportFile {
 			if ($opReportsFtpLogFlag == 1) {
 				print F "put failed: " . $sftp->error . "\n";
 			}
-			return;
+			exit 1;
 		}
 
 		#$nmisng->info("Export file $file put to $server:$directory");
@@ -283,5 +284,3 @@ close(F);
 
 # Delete dat file once transfer is done
 unlink ($dat_filename);
-
-1; 
