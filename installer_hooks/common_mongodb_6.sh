@@ -81,13 +81,13 @@ EOF
 						    "${RES}" \
 						    "${RELEASENAME:-}";
 
-				if [ "$OSFLAVOUR" = "debian" ]; then
+				if [ "$OSFLAVOUR" = "debian" ] || [ "$OSFLAVOUR" = "ubuntu" ]; then
 						[ "$OS_MAJOR" = 9 ] && MONGORELNAME=stretch || MONGORELNAME=buster
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/debian $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
 						# debian 9: mongo package for jessie requires older libssl, only a/v in jessie
 						###[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
 				else
-						MONGORELNAME="bionic";
+						MONGORELNAME="focal";
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
 				fi
 
