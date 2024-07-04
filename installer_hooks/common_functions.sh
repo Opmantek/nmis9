@@ -955,3 +955,14 @@ EOF
 	fi;
 	return 0;
 } # end version_check_ntp_type_service
+
+#CPU instruction set check for mongo6
+check_cpu_instruction() {
+	instruction=$1
+ 	if grep -q "$instruction" /proc/cpuinfo; then
+	printBanner "CPU supports $instruction"
+ 	else
+  	printBanner "CPU does not support $instruction"
+	exit 1
+	fi
+}
