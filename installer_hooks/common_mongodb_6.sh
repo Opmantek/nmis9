@@ -112,6 +112,9 @@ install_mongo_6 () {
 				 echolog "NO_MONGO=${NO_MONGO}: Continuing (install_mongo_6) ...";
 		fi;
 
+		# common function
+  		check_cpu_instruction "avx"
+  
 		if [ "$OSFLAVOUR" = "redhat" ]; then
 				execPrint "yum install -y mongodb-org 2>&1"||:;
 				# redhat installs don't start servers - do a stop and start, important for upgrade
