@@ -57,7 +57,7 @@
         'PRINT:mikrotikCpu:AVERAGE:mikrotikCpu=%1.2lf',
         'PRINT:mikrotikCpu:AVERAGE:cpuLoad=%1.2lf',
       ], 
-      'cpu-cpm' => [
+      'cpu_cpm' => [
         'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
         'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',
       ],

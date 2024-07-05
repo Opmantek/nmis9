@@ -36,7 +36,7 @@
     'rrd' => {
       'cpu_cpm' => {
         'indexed' => 'true',
-        'graphtype' => 'cpu-cpm',
+        'graphtype' => 'cpu_cpm',
         'threshold' => 'cpu_cpm',
         'snmp' => {
           'cpmCPUTotal1min' => {
