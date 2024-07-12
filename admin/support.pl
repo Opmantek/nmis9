@@ -342,6 +342,27 @@ sub collect_evidence
 		cp("/etc/systemd/system/nmis9d.service", "$targetdir/system_status/init");
 	}
 
+	my @daemons = ("nmis9d", "apache2", "httpd", "mongod"); # Add or remove daemons as needed
+
+	open(my $daemon_info_fh, '>>', "$targetdir/system_status/init/daemon_status") or die "Could not open file '$targetdir/system_status/init/daemon_status' $!";
+
+        foreach my $daemon (@daemons) {
+                my $status = `systemctl is-active $daemon 2>/dev/null`;
+                chomp $status;
+                my $start_time = `systemctl show -p ActiveEnterTimestamp $daemon 2>/dev/null | cut -d= -f2`;
+                chomp $start_time;
+
+                print $daemon_info_fh "$daemon status: $status\n";
+                if ($start_time) {
+                        print $daemon_info_fh "$daemon latest start time: $start_time\n";
+                } else {
+                        print $daemon_info_fh "$daemon: No start time available (may not be managed by systemd)\n";
+                }
+                print $daemon_info_fh "\n";
+        }
+
+        close $daemon_info_fh;
+
 	# capture the cpanm build logs
 	if (-d "/root/.cpanm/work/")
 	{
