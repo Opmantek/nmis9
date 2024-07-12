@@ -279,6 +279,18 @@ sub collect_evidence
 	cp("/proc/locks","$targetdir/system_status/");
 	# the cpuinfo
 	cp("/proc/cpuinfo","$targetdir/system_status/");
+        chmod(0644,"$targetdir/system_status/cpuinfo"); # /proc/cpuinfo isn't writable
+
+        # Check for AVX support
+        my $avx_support = `cat /proc/cpuinfo | grep avx`;
+        my $avx_status = $avx_support ? "AVX is supported" : "AVX is not supported";
+
+        # Write the result to cpuinfo file
+        open(my $cpuinfo_fh, '>', "$targetdir/system_status/cpuinfo") or die "Could not open file '$targetdir/system_status/cpuinfo' $!";
+        print $cpuinfo_fh "AVX Support: $avx_status\n";
+        print $cpuinfo_fh "\nFull CPU Info:\n";
+        print $cpuinfo_fh `cat /proc/cpuinfo`;
+        close $cpuinfo_fh;
 
 	# dump the memory info, free
 	cp("/proc/meminfo","$targetdir/system_status/meminfo");
