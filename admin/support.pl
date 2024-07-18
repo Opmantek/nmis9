@@ -853,7 +853,7 @@ sub collect_bot_data
 	
 	# top
 	open($fh, "<", "$dir/system_status/top")
-			or die "Can't open < top data: $!";
+	or ($args{system_status} ? print "Skipping top data.\n" : die "Can't open < top data: $!");
 
 	while (my $line = <$fh>) {
 		if ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
