@@ -41,7 +41,7 @@ use lib "$FindBin::Bin/../lib";
 
 use NMISNG::Util;
 
-print "Opmantek NMIS Support Tool Version $VERSION\n";
+print "FirstWave NMIS Support Tool Version $VERSION\n";
 
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
@@ -747,7 +747,7 @@ sub makesupportarchive
 	
 	print "\nAll done.\n\nCollected system information is in $zfn
 	Please include this $whattool file when you contact
-	the NMIS Community or the Opmantek Team.\n\n";	
+	the NMIS Community or the FirstWave Team.\n\n";	
 }
 
 # mongo 'shell mode' extended json, which isn't digestible to json_xs etc.
