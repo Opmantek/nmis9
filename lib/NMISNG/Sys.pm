@@ -204,8 +204,7 @@ sub inventory
 		$self->nmisng->log->error("Failed to get inventory path for node:".$node->name.", concept:$concept, index:$index path:$path") if (!$nolog);
 	}
 
-	$self->{_inventory_cache}{$concept} = $inventory
-		if($concept eq 'catchall');
+	$self->{_inventory_cache}{$concept} = $inventory if($concept eq 'catchall' && $inventory);
 
 	return $inventory;
 }
@@ -1736,6 +1735,36 @@ sub loadModel
 				}
 			}
 			$self->nmisng->log->debug("model $model loaded (from source)");
+			# pre-process the model before it is cached and check for issues
+			# at the moment, all this does is make sure oid's do not start with a "."
+			
+			# this section is deep and scary because that's how models are...
+			foreach my $root_section (keys %{$self->{mdl}}) {
+				# skip sections which we are not interested in at the moment, this should land us with a list that looks 
+				# like system,systemHealth,interface (and then a bunch of stuff tacked on, storage,hrdisk,device,etc)
+				next if( grep( /^$root_section$/, (qw(-common- alerts database event heading stats summary threshold))));
+				# only look at sys and rrd keys in here because these are the only ones that have datasets
+				# other things like nocollect do live in here
+				foreach my $rrd_or_sys (qw(sys rrd)) {
+					next if( !defined($self->{mdl}{$root_section}{$rrd_or_sys}));
+					foreach my $section_key (keys %{$self->{mdl}{$root_section}{$rrd_or_sys}} ) {
+						my $section = $self->{mdl}{$root_section}{$rrd_or_sys}{$section_key};
+						# again, only snmp sections now because they have oids, graphtype,threshold also live here
+						if( defined( $section->{snmp}) ) {
+							foreach my $dataset_key (keys %{$section->{snmp}}) {
+								my $dataset = $section->{snmp}{$dataset_key};
+								# now look for the oid section in the dataset
+								# oid's cannot start with a ".", remove the first character if it does
+								if( defined($dataset->{oid}) && substr($dataset->{oid}, 0, 1) eq '.') {
+									$dataset->{oid} = substr($dataset->{oid},1);
+									# NOTE: we should be reporting this to someplace that
+									$self->nmisng->log->debug("model $model, removed . from oid at $root_section/$rrd_or_sys/$section_key/snmp/$dataset_key/oid/ : $dataset->{oid}");
+								}
+							}
+						}
+					}
+				}
+			}
 
 			# save to cache BEFORE the policy application, if caching is on OR if in update operation
 			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
