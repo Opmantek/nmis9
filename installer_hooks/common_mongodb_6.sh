@@ -4,15 +4,15 @@
 # and that flavour() was called.
 
 # adds the official mongodb.org rpm/apt repository,
-# either the given version or 4.2 as fallback
+# either the given version or 6.2 as fallback
 # args: mongodb major.minor version string
-add_mongo_4_repository () {
+add_mongo_6_repository () {
 		# do mongo?
 		if [ "${NO_MONGO}" = 1 ]; then
-				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (add_mongo_4_repository) as instructed."
+				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (add_mongo_6_repository) as instructed."
 				return 0;
 		else
-				 echolog "NO_MONGO=${NO_MONGO}: Continuing (add_mongo_4_repository) ...";
+				 echolog "NO_MONGO=${NO_MONGO}: Continuing (add_mongo_6_repository) ...";
 		fi;
 
 		# shellcheck disable=SC2039
@@ -24,17 +24,16 @@ add_mongo_4_repository () {
 
 		# shellcheck disable=SC2039
 		local DESIREDVER
-		DESIREDVER=${1:-4.2}
+		DESIREDVER=${1:-6.0}
 
-		# redhat/centos: mongodb supplies rpms for 4.2 for all platforms and versions we care about
-                if [ "$OSFLAVOUR" = "redhat" ]; then
-                        REPOFILE="/etc/yum.repos.d/mongodb-org-$DESIREDVER.repo"
-			if [ -f "${REPOFILE}" ]; then
-                		logmsg "Mongodb.org repository entry already present."
-                		return 0;
-                fi
-		cat >"${REPOFILE}" <<EOF
-
+		# redhat/centos: mongodb supplies rpms for 6.2 for all platforms and versions we care about
+		if [ "$OSFLAVOUR" = "redhat" ]; then
+				REPOFILE=/etc/yum.repos.d/mongodb-org-$DESIREDVER.repo
+				if [ -f "${REPOFILE}" ]; then
+						logmsg "Mongodb.org repository entry already present."
+						return 0;
+				fi
+				cat >"${REPOFILE}" <<EOF
 [mongodb-org-$DESIREDVER]
 name=MongoDB Repository
 baseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/$DESIREDVER/x86_64/
@@ -48,7 +47,9 @@ EOF
 				# shellcheck disable=SC2039
 				local RES;
 				# shellcheck disable=SC2039
-				local OUTPUT;
+				local OUTPUT;				
+				echolog "Installing gnupg for MONGO6";
+				execPrint "apt-get install -y gnupg 2>&1"||:;				
 				SOURCESFILE=/etc/apt/sources.list.d/mongodb-org-$DESIREDVER.list
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
 
@@ -72,13 +73,13 @@ EOF
 						    "${RES}" \
 						    "${RELEASENAME:-}";
 
-				if [ "$OSFLAVOUR" = "debian" ]; then
+				if [ "$OSFLAVOUR" = "debian" ] || [ "$OSFLAVOUR" = "ubuntu" ]; then
 						[ "$OS_MAJOR" = 9 ] && MONGORELNAME=stretch || MONGORELNAME=buster
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/debian $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
 						# debian 9: mongo package for jessie requires older libssl, only a/v in jessie
 						###[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
 				else
-						MONGORELNAME="bionic";
+						MONGORELNAME="focal";
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
 				fi
 
@@ -94,15 +95,18 @@ EOF
 }
 
 # installs and starts up a local mongodb
-install_mongo_4 () {
+install_mongo_6 () {
 		# do mongo?
 		if [ "${NO_MONGO}" = 1 ]; then
-				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (install_mongo_4) as instructed."
+				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (install_mongo_6) as instructed."
 				return 0;
 		else
-				 echolog "NO_MONGO=${NO_MONGO}: Continuing (install_mongo_4) ...";
+				 echolog "NO_MONGO=${NO_MONGO}: Continuing (install_mongo_6) ...";
 		fi;
 
+		# common function
+  		check_cpu_instruction "avx"
+  
 		if [ "$OSFLAVOUR" = "redhat" ]; then
 				execPrint "yum install -y mongodb-org 2>&1"||:;
 				# redhat installs don't start servers - do a stop and start, important for upgrade
@@ -155,25 +159,25 @@ install_mongo_4 () {
 #
 #
 # function returns 0 if ok, 1 on errors or unsatisfied requirements, 2 if the user says no to installation/upgrade
-new_mongo_4_or_bust ()
+new_mongo_6_or_bust ()
 {
 		# do mongo?
 		if [ "${NO_MONGO}" = 1 ]; then
-				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (new_mongo_4_or_bust) as instructed."
+				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (new_mongo_6_or_bust) as instructed."
 				return 0;
 		else
-				 echolog "NO_MONGO=${NO_MONGO}: Continuing (new_mongo_4_or_bust) ...";
+				 echolog "NO_MONGO=${NO_MONGO}: Continuing (new_mongo_6_or_bust) ...";
 		fi;
 
 		# shellcheck disable=SC2039
 		local MIN_MAJ MIN_MIN MIN_PATCH
 
-		# Default to 4.2 as we do in add_mongo_4_repository() function
+		# Default to 6.0 as we do in add_mongo_6_repository() function
 		# Simplifies things for Dependency Check Mode
-		MIN_MAJ=${1:-4}
-		MIN_MIN=${2:-2}
+		MIN_MAJ=${1:-6}
+		MIN_MIN=${2:-0}
 		# shellcheck disable=SC2034
-		MIN_PATCH=${3:-0}
+		MIN_PATCH=${3:-5}
 
 		# ignore mongodb altogether if NO_LOCAL_MONGODB is set, but do warn about it
 		if [ -n "${NO_LOCAL_MONGODB:-}" ]; then
@@ -250,8 +254,8 @@ EOF
 				fi
 
 				echolog "Installing MongoDB repository and software"
-				add_mongo_4_repository "${MIN_MAJ}.${MIN_MIN}"||:;
-				install_mongo_4||:;
+				add_mongo_6_repository "${MIN_MAJ}.${MIN_MIN}"||:;
+				install_mongo_6||:;
 
 		# mongo is installed - this function only deals with new installs of MongoDB
 		else
