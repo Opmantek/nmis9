@@ -1413,7 +1413,8 @@ sub getModelFile
 
 			# loadtable caches, therefore preferred over readfiletohash
 			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn, conf => $C);
-			return { error => "failed to read file $fn: $!" } if (ref($modeldata) ne "HASH"
+			# modeldata has the error in it if there was one
+			return { error => "failed to read file $fn: $! $modeldata" } if (ref($modeldata) ne "HASH"
 																														or !keys %$modeldata);
 			return { success => 1, data => $modeldata, is_custom => $iscustom, mtime => $age};
 		}
