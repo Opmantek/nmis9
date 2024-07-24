@@ -470,10 +470,11 @@ sub init
 		{
 			$loadthis = "Model-$curmodel";
 		}
-		# specific model, update yes, ping yes, collect no -> set manual model
-		elsif ( $thisnodeconfig->{model} ne "automatic" 
-			and !NMISNG::Util::getbool( $thisnodeconfig->{collect} )
-			and $self->{update} )
+		# this was specific model, update yes,  collect no -> set manual model, that is wrong
+		# now: specific model, update yes, collect yes -> set manual model, we don't care about
+		# ping, collect being true or false doesn't really matter but setting a specific model
+		# for no collect means specific model collect does not get set
+		elsif ( $thisnodeconfig->{model} ne "automatic" and $self->{update} )
 		{
 			$loadthis = "Model-$thisnodeconfig->{model}";
 		}
@@ -496,7 +497,7 @@ sub init
 		# default model otherwise
 		$self->nmisng->log->debug("loading model $loadthis for node $self->{name}");
 	}
-
+	
 	# model loading failures are terminal
 	return 0 if ( !$self->loadModel( model => $loadthis ) );
 
