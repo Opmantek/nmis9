@@ -593,7 +593,7 @@ sub init
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
 	if ( $self->{name} and $snmp and $thisnodeconfig->{collect})
 	{
-		if(defined($thisnodeconfig->{snmp_engine}) and $thisnodeconfig->{snmp_engine} eq "rpc")
+		if($thisnodeconfig->{snmp_engine} eq "rpc")
 		{
 			$self->nmisng->log->debug("Creating snmp engine for $self->{name} using RPC engine");
 			# remember name for error message, no relevance for comms
