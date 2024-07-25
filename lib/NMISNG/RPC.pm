@@ -6,21 +6,23 @@ use Mojo::Base -base;
 use Carp;
 use JSON::XS;
 use Mojo::UserAgent;
+use Try::Tiny;
 
 #Wraps Mojo user agent to make JSON-RPC 2.0 requests, inspired by MojoX::JSONRPC2::HTTP;
 #We will need a long requesttime out for large snmp requests
 use constant REQUEST_TIMEOUT    => 300;
-has ua      => sub {
+has ua  => sub {
     Mojo::UserAgent->new
         ->inactivity_timeout(0)
         ->request_timeout(REQUEST_TIMEOUT)
 };
-#TODO make this configurable   
-has url => 'http://localhost:9000/rpc';
-
+has url => sub { croak '->url() not defined' };
 
 sub call  { return shift->_request('call',@_) }
 
+# Request returns error and a result
+# Error will be a string if there is an error or undef if there is no error, this error could be a transport error, HTTP error or JSON-RPC error
+# Result will be a hashref if there is a result or undef if there is no result
 sub _request {
     my ($self, $func, $method, @params) = @_;
 
@@ -39,26 +41,26 @@ sub _request {
         id => $id,
     };
 
-    use Data::Dumper;
-    print(Dumper($json));
+    my ($tx, $res, $error, $result);
+    try {
+        $tx = $self->ua->post(
+        $self->url,
+            { 
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            },
+            json => $json
+        );
+        $res = $tx->res 
+    } catch {
+        return ("Error making request: $_", undef);
+    };
 
-    my $tx = $self->ua->post(
-       $self->url,
-        { 
-            'Content-Type' => 'application/json',
-            'Accept' => 'application/json',
-        },
-        json => $json
-    );
-
-    my $res = $tx->res;
-
-    my ($error, $result);
      # transport error (we don't have HTTP reply)
     if ($res->error && !$res->error->{code}) {
         $error = $res->error->{message};
     }
-    # HTTP error or JSON-RPC error
+    # HTTP error or JSON-RPC error which is part of the body but 400
     elsif ($res->is_error) {
         $error = $res->error->{message};
         #Check if we have an error message in the JSON-RPC responses
@@ -69,11 +71,12 @@ sub _request {
     else {
         $result = $res->json->{result};
         #check the ids match
-        if ($res->json->{id} != $id) {
+        if ($res->json->{id} != $id) 
+        {
             $error = "Invalid response id";
         }
     }
-    #Return the result or die
+
     return ($error, $result);
 
 }
