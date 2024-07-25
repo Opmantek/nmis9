@@ -459,6 +459,7 @@ sub set
 # The RPC Daemon will create a new session if the sessionid is not set
 # SessionID will be returned in the response and used for subsequent requests
 # The daemon will keep these sessions open for a period of time, usally 5 mins after the last request or close.
+# Return a hash of OIDs and values or undef if an error occurs, check $self->{error} for the error message
 sub make_rpc_request 
 {
     my ($self, $action, $oids) = @_;
@@ -481,6 +482,16 @@ sub make_rpc_request
 	{
 		# Create a new RPC client
 		$client = NMISNG::RPC->new;
+		my $configured_url = $self->nmisng->config->{nmis_rpc_url};
+		if(!defined($configured_url) or $configured_url eq "")
+		{
+			$self->nmisng->log->error("make_rpc_request no rpc url defined");
+			$self->{error} = "No rpc url defined";
+			return undef;
+		}
+		my $url = Mojo::URL->new($configured_url);
+		$url->path("/rpc");
+		$client->url($url);
 		$self->{client} = $client;
 	}
 
@@ -527,6 +538,7 @@ sub make_rpc_request
 	{
         return $self->process_response($res);
     }
+	return undef;
 }
 
 #Take back the response from our rpc service and process it
