@@ -34,6 +34,7 @@ use strict;
 
 use NMISNG::Util;          # common functions
 use NMISNG::Snmp;
+use NMISNG::Engine::SnmpRPC;
 use NMISNG::rrdfunc;
 use NMISNG::WMI;
 use NMISNG::ModelData;					# gettypeinstances needs help
@@ -590,13 +591,26 @@ sub init
 	}
 
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
-	if ( $self->{name} and $snmp and $thisnodeconfig->{collect} )
+	if ( $self->{name} and $snmp and $thisnodeconfig->{collect})
 	{
-		# remember name for error message, no relevance for comms
-		$self->{snmp} = NMISNG::Snmp->new(
-			nmisng => $self->nmisng,
-			name  => $self->{name},
-		);
+		if($thisnodeconfig->{snmp_engine} eq "rpc")
+		{
+			$self->nmisng->log->debug("Creating snmp engine for $self->{name} using RPC engine");
+			# remember name for error message, no relevance for comms
+			$self->{snmp} = NMISNG::Engine::SnmpRPC->new(
+				nmisng => $self->nmisng,
+				name  => $self->{name},
+			);
+		}
+		else
+		{
+			# remember name for error message, no relevance for comms
+			$self->{snmp} = NMISNG::Snmp->new(
+				nmisng => $self->nmisng,
+				name  => $self->{name},
+			);
+		}
+
 	}
 
 	# wmi: no connections supported AND we try this only if
