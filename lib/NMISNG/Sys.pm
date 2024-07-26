@@ -386,6 +386,11 @@ sub init
 	if ( $self->{name} )
 	{
 		my $catchall = $self->inventory( concept => 'catchall' );
+		# there are instances where we cannot create a catchall (if the nodes cluster_id does not match the servers cluster_id)
+		if( !$catchall ) {
+			$self->{error} = "Failed to load catchall data for $self->{node}!";
+			return 0;
+		}
 		# if force is off, load the existing node info
 		# if on, ignore that information and start from scratch (to bypass optimisations)
 		if ( $self->{update} && NMISNG::Util::getbool( $args{force} ) )
