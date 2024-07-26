@@ -6,7 +6,7 @@ SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
 # an initial install of this product
-if [ -z "$CLEANSLATE" ]; then
+if [ "$CLEANSLATE" = "1" ]; then
 		printBanner "NMIS Installation Complete"
 		cat <<EOF 
 This initial installation of $PRODUCT is now complete.
