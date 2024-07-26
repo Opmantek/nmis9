@@ -5,7 +5,7 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
-if [ -z "$CLEANSLATE" ]; then
+if [ -n "$CLEANSLATE" ]; then
 		printBanner "Installing default config files"
 
 		# copy only the absolute minimum necessary, the rest can stay in conf-default
