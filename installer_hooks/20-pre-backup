@@ -5,7 +5,7 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
-if [ -n "$CLEANSLATE" -a  -f "$TARGETDIR/lib/NMISNG.pm" ]; then
+if [ "$CLEANSLATE" = "0" ] && [ -f "$TARGETDIR/lib/NMISNG.pm" ]; then
 		printBanner "An existing installation was detected."
 
 		cat <<EOF
