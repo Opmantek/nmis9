@@ -553,10 +553,9 @@ sub _ldap_verify
 	my $dn;
 	my $sec = 0;
 	$sec = 1 if ( $auth eq "ldaps" or $auth eq "ms-ldaps");
-	my $auth_ldap_base    = $self->{config}->{'auth_ldap_context'}; # retired value
+	my $auth_ldap_base = $self->{config}->{'auth_ldap_base'} // $self->{config}->{'auth_ldap_context'};
 	my $auth_ldap_acc     = $self->{config}->{'auth_ldap_acc'};
 	my $auth_ldap_attr    = $self->{config}->{'auth_ldap_attr'};
-	my $auth_ldap_base    = $self->{config}->{'auth_ldap_base'};
 	my $auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ldap_debug'});
 	my $auth_ldap_psw     = NMISNG::Util::decrypt($self->{config}->{auth_ldap_psw}, 'authentication', 'auth_ldap_psw');
 	my $auth_ldap_server  = $self->{config}->{'auth_ldap_server'};
@@ -565,18 +564,24 @@ sub _ldap_verify
 	my $auth_ldaps_verify = $self->{config}->{'auth_ldaps_verify'} // "optional";
 	if ( $auth eq "ms-ldap" or $auth eq "ms-ldaps") {
 		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Honoring legacy ActiveDirectory settings.") if ($self->{debug});
-		$auth_ldap_base    = $self->{config}->{'auth_ms_ldap_context'}                                                        if ($self->{config}->{'auth_ms_ldap_context'}); # retired value
-		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_acc'}                                                            if ($self->{config}->{'auth_ms_ldap_acc'});
-		$auth_ldap_attr    = $self->{config}->{'auth_ms_ldap_attr'}                                                           if ($self->{config}->{'auth_ms_ldap_attr'});
-		$auth_ldap_base    = $self->{config}->{'auth_ms_ldap_base'}                                                           if ($self->{config}->{'auth_ms_ldap_base'});
-		$auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ms_ldap_debug'})                                   if ($self->{config}->{'auth_ms_ldap_debug'});
-		$auth_ldap_psw     = NMISNG::Util::decrypt($self->{config}->{auth_ms_ldap_psw}, 'authentication', 'auth_ms_ldap_psw') if ($self->{config}->{'auth_ms_ldap_psw'});
-		$auth_ldap_server  = $self->{config}->{'auth_ms_ldap_server'}                                                         if ($self->{config}->{'auth_ms_ldap_server'});
-		$auth_ldaps_capath = $self->{config}->{'auth_ms_ldaps_capath'}                                                        if ($self->{config}->{'auth_ms_ldap_capath'});
-		$auth_ldaps_server = $self->{config}->{'auth_ms_ldaps_server'}                                                        if ($self->{config}->{'auth_ms_ldaps_server'});
-		$auth_ldaps_verify = $self->{config}->{'auth_ms_ldaps_verify'}                                                        if ($self->{config}->{'auth_ms_ldap_verify'});
-		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_dn_acc'}                                                         if ($self->{config}->{'auth_ms_ldap_dn_acc'});  # retired value
-		$auth_ldap_psw     = $self->{config}->{'auth_ms_ldap_dn_psw'}                                                         if ($self->{config}->{'auth_ms_ldap_dn_psw'});  # retired value
+		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_acc'} if ($self->{config}->{'auth_ms_ldap_acc'});
+		$auth_ldap_attr    = $self->{config}->{'auth_ms_ldap_attr'} if ($self->{config}->{'auth_ms_ldap_attr'});
+		# Retrieve the LDAP base configuration
+		# Prioritize 'auth_ms_ldap_base' over 'auth_ms_ldap_context' if both are defined
+		# Use 'auth_ms_ldap_base' if available, otherwise fallback to 'auth_ms_ldap_context'. Remember 'auth_ldap_context' is retired value.
+		if (defined ($self->{config}->{'auth_ms_ldap_base'}) || defined ($self->{config}->{'auth_ms_ldap_context'})){
+			$auth_ldap_base = $self->{config}->{'auth_ms_ldap_base'} // $self->{config}->{'auth_ms_ldap_context'};
+		}
+		if (defined ($self->{config}->{'auth_ms_ldap_psw'}) || defined ($self->{config}->{'auth_ms_ldap_dn_psw'})){
+			$auth_ldap_psw = NMISNG::Util::decrypt($self->{config}->{auth_ms_ldap_psw}, 'authentication', 'auth_ms_ldap_psw') // $self->{config}->{'auth_ms_ldap_dn_psw'};
+		}
+		$auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ms_ldap_debug'}) if ($self->{config}->{'auth_ms_ldap_debug'});
+		$auth_ldap_server  = $self->{config}->{'auth_ms_ldap_server'} if ($self->{config}->{'auth_ms_ldap_server'});
+		$auth_ldaps_capath = $self->{config}->{'auth_ms_ldaps_capath'} if ($self->{config}->{'auth_ms_ldap_capath'});
+		$auth_ldaps_server = $self->{config}->{'auth_ms_ldaps_server'} if ($self->{config}->{'auth_ms_ldaps_server'});
+		$auth_ldaps_verify = $self->{config}->{'auth_ms_ldaps_verify'} if ($self->{config}->{'auth_ms_ldap_verify'});
+		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_dn_acc'} if ($self->{config}->{'auth_ms_ldap_dn_acc'});  # retired value
+		
 	}
 
 	if($sec)
@@ -2300,10 +2305,9 @@ sub _get_ldap_privs
 	my $user = $args{"user"};
 	my $ldap;
     my $sec = 0;
-	my $auth_ldap_base       = $self->{config}->{'auth_ldap_context'}; # retured value
+	my $auth_ldap_base       = $self->{config}->{'auth_ldap_base'} // $self->{config}->{'auth_ldap_context'}; # retured value
 	my $auth_ldap_acc        = $self->{config}->{'auth_ldap_acc'};
 	my $auth_ldap_attr       = $self->{config}->{'auth_ldap_attr'};
-	my $auth_ldap_base       = $self->{config}->{'auth_ldap_base'};
 	my $auth_ldap_debug      = NMISNG::Util::getbool($self->{config}->{'auth_ldap_debug'});
 	my $auth_ldap_group      = $self->{config}->{'auth_ldap_group'};
 	my $auth_ldap_privs      = $self->{config}->{'auth_ldap_privs'};
@@ -2313,19 +2317,29 @@ sub _get_ldap_privs
 	my $auth_ldaps_server    = $self->{config}->{'auth_ldaps_server'};
 	if ( $self->{auth} eq "ms-ldap" or $self->{auth} eq "ms-ldaps") {
 		NMISNG::Util::logAuth("INFO Honoring legacy ActiveDirectory settings.") if ($self->{debug});
-		$auth_ldap_base       = $self->{config}->{'auth_ms_ldap_context'}                       if ($self->{config}->{'auth_ms_ldap_context'}); # retired value
-		$auth_ldap_acc        = $self->{config}->{'auth_ms_ldap_acc'}                           if ($self->{config}->{'auth_ms_ldap_acc'});
-		$auth_ldap_attr       = $self->{config}->{'auth_ms_ldap_attr'}                          if ($self->{config}->{'auth_ms_ldap_attr'});
-		$auth_ldap_base       = $self->{config}->{'auth_ms_ldap_base'}                          if ($self->{config}->{'auth_ms_ldap_base'});
+		# Prioritize 'auth_ldap_psw' over 'auth_ms_ldap_dn_psw' if both are defined
+		# Use 'auth_ldap_psw' if available, otherwise fallback to 'auth_ms_ldap_dn_psw'. Remember 'auth_ms_ldap_dn_psw' is retired value.
+		if (defined ($self->{config}->{'auth_ms_ldap_psw'}) || defined ($self->{config}->{'auth_ms_ldap_dn_psw'})){
+			$auth_ldap_psw = NMISNG::Util::decrypt($self->{config}->{auth_ms_ldap_psw}, 'authentication', 'auth_ms_ldap_psw') // $self->{config}->{'auth_ms_ldap_dn_psw'};
+		}
+		# Retrieve the LDAP base configuration
+		# Prioritize 'auth_ms_ldap_base' over 'auth_ms_ldap_context' if both are defined
+		# Use 'auth_ms_ldap_base' if available, otherwise fallback to 'auth_ms_ldap_context'. Remember 'auth_ldap_context' is retired value.
+		if (defined ($self->{config}->{'auth_ms_ldap_base'}) || defined ($self->{config}->{'auth_ms_ldap_context'})){
+			$auth_ldap_base = $self->{config}->{'auth_ms_ldap_base'} // $self->{config}->{'auth_ms_ldap_context'};
+		}
+		# Prioritize 'auth_ms_ldap_acc' over 'auth_ms_ldap_dn_acc' if both are defined
+		# Use 'auth_ms_ldap_acc' if available, otherwise fallback to 'auth_ms_ldap_dn_acc'. Remember 'auth_ms_ldap_dn_acc' is retired value.
+		if (defined ($self->{config}->{'auth_ms_ldap_acc'}) || defined ($self->{config}->{'auth_ms_ldap_dn_acc'})){
+			$auth_ldap_acc = $self->{config}->{'auth_ms_ldap_acc'} // $self->{config}->{'auth_ms_ldap_dn_acc'};
+		}
+		$auth_ldap_attr       = $self->{config}->{'auth_ms_ldap_attr'} if ($self->{config}->{'auth_ms_ldap_attr'});
 		$auth_ldap_debug      = NMISNG::Util::getbool($self->{config}->{'auth_ms_ldap_debug'})  if ($self->{config}->{'auth_ms_ldap_debug'});
-		$auth_ldap_group      = $self->{config}->{'auth_ms_ldap_group'}                         if ($self->{config}->{'auth_ms_ldap_group'});
-		$auth_ldap_privs      = $self->{config}->{'auth_ms_ldap_privs'}                         if ($self->{config}->{'auth_ms_ldap_privs'});
-		$auth_ldap_privs_file = $self->{config}->{'auth_ms_ldap_privs_file'}                    if ($self->{config}->{'auth_ms_ldap_privs_file'});
-		$auth_ldap_psw        = $self->{config}->{'auth_ms_ldap_psw'}                           if ($self->{config}->{'auth_ms_ldap_psw'});
-		$auth_ldap_server     = $self->{config}->{'auth_ms_ldap_server'}                        if ($self->{config}->{'auth_ms_ldap_server'});
-		$auth_ldaps_server    = $self->{config}->{'auth_ms_ldaps_server'}                       if ($self->{config}->{'auth_ms_ldaps_server'});
-		$auth_ldap_acc        = $self->{config}->{'auth_ms_ldap_dn_acc'}                        if ($self->{config}->{'auth_ms_ldap_dn_acc'}); # retured value
-		$auth_ldap_psw        = $self->{config}->{'auth_ms_ldap_dn_psw'}                        if ($self->{config}->{'auth_ms_ldap_dn_psw'}); # retured value
+		$auth_ldap_group      = $self->{config}->{'auth_ms_ldap_group'} if ($self->{config}->{'auth_ms_ldap_group'});
+		$auth_ldap_privs      = $self->{config}->{'auth_ms_ldap_privs'} if ($self->{config}->{'auth_ms_ldap_privs'});
+		$auth_ldap_privs_file = $self->{config}->{'auth_ms_ldap_privs_file'} if ($self->{config}->{'auth_ms_ldap_privs_file'});
+		$auth_ldap_server     = $self->{config}->{'auth_ms_ldap_server'} if ($self->{config}->{'auth_ms_ldap_server'});
+		$auth_ldaps_server    = $self->{config}->{'auth_ms_ldaps_server'} if ($self->{config}->{'auth_ms_ldaps_server'});
 	}
 
     if ((!$auth_ldaps_server or $auth_ldaps_server eq "") and (!$auth_ldap_server or $auth_ldap_server eq "")) {
@@ -2406,7 +2420,7 @@ sub _get_ldap_privs
 			close(F);
 		}
 	
-#		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:" . Dumper($result)) if ($self->{debug});
+		#NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:" . Dumper($result)) if ($self->{debug});
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search ERROR: " . $result->error ) if ($self->{debug});
 		if (!$result or !$result->{entries}) {
 			if ($success) {
@@ -2470,7 +2484,7 @@ sub _get_ldap_privs
 				print F NMISNG::Util::returnDateStamp() . ": " . Dumper($result) ."\n";
 				close(F);
 			}
-#			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:\n" . Dumper($result) . "\n") if ($self->{debug});
+			#NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:\n" . Dumper($result) . "\n") if ($self->{debug});
 			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search ERROR:\n" . $result->error . "\n") if ($self->{debug});
 			if (!$result or !$result->{entries}) {
 				$self->{log}->error("Auth::_get_ldap_privs, No groups for $user. ". $result->{errorMessage});
