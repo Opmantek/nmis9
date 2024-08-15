@@ -949,7 +949,7 @@ sub exportInventory {
 	close INVCSV;
 	if ($found && $email) {
 		my $content = "Report for '$invTitle' attached.\n";
-		notifyByEmail(email => $email, subject => $invTitle, content => $content, csvName => "$invFile", csvData => $invCSVData);
+		notifyByEmail(email => $email, subject => $invTitle, content => $content, csvName => "$invFile", csvData => $invCSVData, xlsxName => $xlsFile );
 	}
 	if ($avgPage) {
 		my $i=0;
@@ -1176,19 +1176,18 @@ sub nodeCheck {
 
 sub notifyByEmail {
 	my %args = @_;
-
 	my $email = $args{email};
 	my $subject = $args{subject};
 	my $content = $args{content};
 	my $csvName = $args{csvName};
 	my $csvData = $args{csvData};
+	my $xlsxName = $args{xlsxName};
 
 	if ($content && $email) {
-
-		print "Sending email with '$csvName' to '$email'\n" if $debug;
+		print "Sending email with '$csvName' and '$xlsxName' to '$email'\n" if $debug;
 
 		my $entity = MIME::Entity->build(
-			From=>$C->{mail_from}, 
+			From=>$C->{mail_from},
 			To=>$email,
 			Subject=> $subject,
 			Type=>"multipart/mixed"
@@ -1202,13 +1201,22 @@ sub notifyByEmail {
 			Disposition => "inline",
 			Type  => "text/plain"
 		);
-										
+
 		if ( $csvData ) {
 			$entity->attach(
 				Data => $csvData,
 				Disposition => "attachment",
 				Filename => $csvName,
 				Type => "text/csv"
+			);
+		}
+
+		if ( $xlsxName && -f $xlsxName ) {
+			$entity->attach(
+				Path => $xlsxName,
+				Disposition => "attachment",
+				Filename => basename($xlsxName),
+				Type => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 			);
 		}
 
