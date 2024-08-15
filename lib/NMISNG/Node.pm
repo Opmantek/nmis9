@@ -5127,10 +5127,22 @@ sub collect_systemhealth_data
 
 			# value should be in $index_var, loadInfo also puts it in {index} so fall back to that
 			my $index = $data->{index};
+			
+			# if index_suffix_oid is set, we grab whatever value that oid returns and append it to the index
+			# we use port here because it does what want, the naming already existed
+			my $port;
+			my $index_suffix_oid = $M->{systemHealth}->{sys}->{$section}->{index_suffix_oid} // undef;
+			if( $index_suffix_oid ne '' ) {
+				my $needdot = (substr($index,0,1) ne '.') ? '.' : '';
+				my $oid = $index_suffix_oid . $needdot . $index;
+				my $result = $S->snmp->get( $oid );
+				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
+				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$port = $index . '.' . $result->{$oid};
+				}
+			}
 
-			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index,
-																 # fixme9 gone debug => $model
-					);
+			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, port => $port);
 			my $howdiditgo = $S->status;
 
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
