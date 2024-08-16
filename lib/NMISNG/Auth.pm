@@ -79,18 +79,20 @@ sub new
 
 	my $self = bless({
 		_require => (defined $config->{auth_require})? $config->{auth_require} : 1,
-		dir => $arg{dir},
-		user => undef,
+		all_groups_allowed => undef,
+		auth => undef,
+		banner => $arg{banner},
 		config => $config, # a live config, loaded or passed in by the caller
 		confname => $arg{confname},	# optional
-		banner => $arg{banner},
+		cookie_flavour => $config->{auth_cookie_flavour} || 'nmis',
+		debug => NMISNG::Util::getbool($config->{auth_debug}),
+		dir => $arg{dir},
+		dn => undef,
+		groups => undef,
 		priv => undef,
 		privlevel => 0, # default all
-		cookie_flavour => $config->{auth_cookie_flavour} || 'nmis',
-		groups => undef,
-		all_groups_allowed => undef,
-		debug => NMISNG::Util::getbool($config->{auth_debug}),
-									 }, $class);
+		user => undef,
+	}, $class);
 
 	return $self;
 }
@@ -439,48 +441,40 @@ sub user_verify {
 
 	my $authCount = 0;
 	for my $auth ( $self->{config}->{auth_method_1},
-								 $self->{config}->{auth_method_2},
-								 $self->{config}->{auth_method_3} )
+					 $self->{config}->{auth_method_2},
+					 $self->{config}->{auth_method_3} )
 	{
 		next if $auth eq '';
 		++$authCount;
 
+		$self->{auth} = $auth;	
 		if( $auth eq "apache" ) {
 			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }
 			else { $exit=0; }
 		} elsif ( $auth eq "htpasswd" ) {
 			$exit = $self->_file_verify($self->{config}->{auth_htpasswd_file},$u,$p,$self->{config}->{auth_htpasswd_encrypt});
-
 		} elsif ( $auth eq "radius" ) {
-			$exit = $self->_radius_verify($u,$p);
-
+			$exit = $self->_radius_verify($u,$p,$auth);
 		} elsif ( $auth eq "tacacs" ) {
-			$exit = $self->_tacacs_verify($u,$p);
-
+			$exit = $self->_tacacs_verify($u,$p,$auth);
 		} elsif ( $auth eq "crowd" ) {
-			$exit = $self->_crowd_verify($u,$p);
-
+			$exit = $self->_crowd_verify($u,$p,$auth);
 		} elsif ( $auth eq "system" ) {
-			$exit = $self->_system_verify($u,$p);
-
+			$exit = $self->_system_verify($u,$p,$auth);
 		} elsif ( $auth eq "ldaps" ) {
-			$exit = $self->_ldap_verify($u,$p,1);
-
+			$exit = $self->_ldap_verify($u,$p,$auth);
 		} elsif ( $auth eq "ldap" ) {
-			$exit = $self->_ldap_verify($u,$p,0);
-
+			$exit = $self->_ldap_verify($u,$p,$auth);
 		} elsif ( $auth eq "ms-ldap" ) {
-			$exit = $self->_ms_ldap_verify($u,$p,0);
-
+			$exit = $self->_ldap_verify($u,$p,$auth);
 		} elsif ( $auth eq "ms-ldaps" ) {
-		  ### 2013-05-27 keiths, Change from Mateusz Kwiatkowski
-			$exit = $self->_ms_ldap_verify($u,$p,1);
+			$exit = $self->_ldap_verify($u,$p,$auth);
 		} elsif ( $auth eq "novell-ldap" ) {
-			$exit = _novell_ldap_verify($u,$p,0);
+			$exit = $self->_novell_ldap_verify($u,$p,$auth);
 		} elsif ( $auth eq "connectwise" ) {
-			$exit = $self->_connectwise_verify($u,$p);
+			$exit = $self->_connectwise_verify($u,$p,$auth);
 		} elsif ( $auth eq "pam" ) {
-			$exit = $self->_pam_verify($u,$p);
+			$exit = $self->_pam_verify($u,$p,$auth);
 		}
 
 		if ($exit) {
@@ -549,53 +543,172 @@ sub _file_verify {
 #----------------------------------
 
 # LDAP verify a username
-sub _ldap_verify {
+sub _ldap_verify
+{
 	my $self = shift;
-	my($u, $p, $sec) = @_;
-	my($dn,$context,$msg);
-	my($ldap);
-	my($attr,@attrlist);
+	my($u, $p, $auth) = @_;
+	my $ldap;
+	my $status;
+	my $entry;
+	my $dn;
+	my $sec = 0;
+	$sec = 1 if ( $auth eq "ldaps" or $auth eq "ms-ldaps");
 
+	my $ldap_config = $self->configure_ldap($self);
+	
 
-	if($sec) {
+	if($sec)
+	{
 		# load the LDAPS module
 		eval { require IO::Socket::SSL; require Net::LDAPS; };
 		if($@) {
-			NMISNG::Util::logAuth("ERROR, no IO::Socket::SSL; Net::LDAPS installed");
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: No IO::Socket::SSL; Net::LDAPS installe.");
 			return 0;
 		} # no Net::LDAPS installed
+		unless ($ldap_config->{auth_ldaps_server}) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP secure server address ('auth_ldaps_server' key) missing in configuration of NMIS");
+			return 0;
+		} # Configuration Error.
 	} else {
 		# load the LDAP module
 		eval { require Net::LDAP; };
 		if($@) {
-			NMISNG::Util::logAuth("ERROR, no Net::LDAP installed");
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: No Net::LDAP installed.");
 			return 0;
 		} # no Net::LDAP installed
+		unless ($ldap_config->{auth_ldap_server}) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP server address ('auth_ldap_server' key) missing in configuration of NMIS");
+			return 0;
+		} # Configuration Error.
 	}
+	unless ($ldap_config->{auth_ldap_base}) {
+		NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP base or context address ('auth_ldap_base' key) missing in configuration of NMIS");
+		return 0;
+	} # Configuration Error.
 
-	# Connect to LDAP and verify username and password
+	# Connect to LDAP (readonly) account
 	if($sec) {
-		$ldap = new Net::LDAPS($self->{config}->{'auth_ldaps_server'});
+		$ldap = Net::LDAPS->new($ldap_config->{auth_ldaps_server},
+			verify =>  $ldap_config->{auth_ldaps_verify},
+			capath =>  $ldap_config->{auth_ldaps_capath}
+		);
+
 	} else {
-		$ldap = new Net::LDAP($self->{config}->{'auth_ldap_server'});
+		$ldap = Net::LDAP->new($ldap_config->{auth_ldap_server});
 	}
-	if(!$ldap) {
-		NMISNG::Util::logAuth("ERROR, no LDAP object created, maybe ldap server address missing in configuration of NMIS");
+	if($@ || !$ldap) {
+		NMISNG::Util::logAuth("Auth::_ldap_verify, Could not create LDAP session; ERROR: $@");
 		return 0;
 	}
-	@attrlist = ( 'uid','cn' );
-	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
-		if( $self->{config}->{'auth_ldap_attr'} );
 
-	foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
-		foreach $attr ( @attrlist ) {
-			$dn = "$attr=$u,".$context;
-			$msg = $ldap->bind($dn, password=>$p) ;
-			if(!$msg->is_error) {
-				$ldap->unbind();
-				return 1;
+	my @attrlist = ( 'uid','cn','sAMAccountName' );
+	@attrlist = split( "[ ,]", $ldap_config->{auth_ldap_attr} ) if( $ldap_config->{auth_ldap_attr} );
+
+	# Old OpenLDAP implementation with no authorization.
+	unless ($ldap_config->{auth_ldap_acc}) {
+		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Verifying LDAP credentials without access credentials.") if ($self->{debug});
+		foreach my $context ( split ":", $ldap_config->{auth_ldap_base}  ) {
+			foreach my $attr ( @attrlist ) {
+				my $dn = "$attr=$u,".$context;
+				$self->{dn} = $dn;
+				my $results = $ldap->bind($dn, password=>$p) ;
+				# if full debugging dumps are requested, put it in a separate log file
+				if ($ldap_config->{auth_ldap_debug})
+				{
+					open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
+					print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->bind($dn, password=>**************)\n";
+					print F NMISNG::Util::returnDateStamp() . ": " . Dumper($results) ."\n";
+					close(F);
+				}
+				if(!$results->is_error) {
+					$ldap->unbind();
+					return 1;
+				}
 			}
 		}
+		return 0; # not found
+	}
+	else {   # New LDAP implementation for both ActiveDirectory and OpenLDAP with authorization.
+		unless ($ldap_config->{auth_ldap_psw}) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP Admin Access password ('auth_ldap_psw' key) missing in configuration of NMIS");
+			return 0;
+		} # Configuration Error.
+		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO Verifying LDAP: credentials using access credentials.") if ($self->{debug});
+		# bind LDAP for request DN of user
+		$status = $ldap->bind( $ldap_config->{auth_ldap_acc}, password => $ldap_config->{auth_ldap_psw});
+		# if full debugging dumps are requested, put it in a separate log file
+		if ($ldap_config->{auth_ldap_debug})
+		{
+			open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
+			print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->bind($ldap_config->{auth_ldap_acc}, password=>**************, version => 3)\n";
+			print F NMISNG::Util::returnDateStamp() . ": " . Dumper($status) ."\n";
+			close(F);
+		}
+		if (defined $status->code() && $status->code() != 0) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: LDAP validation of $ldap_config->{auth_ldap_acc}, error msg ".$status->error()." ");
+			return 0;
+		}
+		NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP Base user '$ldap_config->{auth_ldap_acc}' is authorized") if ($self->{debug});
+	
+		foreach my $attr ( @attrlist ) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP search, base=$ldap_config->{auth_ldap_base},".  "filter=${attr}=$u, attr=distinguishedName") if ($self->{debug});
+			my $results = $ldap->search(scope=>'sub',base=>"$ldap_config->{auth_ldap_base}",filter=>"($attr=$u)",attrs=>['distinguishedName']);
+			# if full debugging dumps are requested, put it in a separate log file
+			if ($ldap_config->{auth_ldap_debug})
+			{
+				open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
+				print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->search(scope=>'sub',base=>'$ldap_config->{auth_ldap_base}',filter=>'($attr=$u)',attrs=>['distinguishedName'])\n";
+				print F NMISNG::Util::returnDateStamp() . ": " . Dumper($results) ."\n";
+				close(F);
+			}
+	
+			if (($entry = $results->entry(0))) {
+				$dn = $entry->dn();
+				$self->{dn} = $dn;
+				last;
+			} else {
+				NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP search failed") if ($self->{debug});
+			}
+		}
+	
+		if ($dn eq '') {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: user '$u' not found in Active Directory") if ($self->{debug});
+			$ldap->unbind();
+			return 0;
+		}
+	
+		my $d = $dn;
+		$d =~ s/\\//g;
+		NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP found distinguishedName='$d'.") if ($self->{debug});
+	
+		#Now we unbind and now try to login with the current user
+		$ldap->unbind;
+
+		if($sec) {
+			$ldap = Net::LDAPS->new($ldap_config->{auth_ldaps_server},
+				verify =>  $ldap_config->{auth_ldaps_verify},
+				capath =>  $ldap_config->{auth_ldaps_capath}
+			);
+
+		} else {
+			$ldap = Net::LDAP->new($ldap_config->{auth_ldap_server});
+		}
+		if($@ || !$ldap) {
+			NMISNG::Util::logAuth("Auth::_ldap_verify, ERROR: Could not create LDAP session; ERROR: $@");
+			return 0;
+		}
+
+		# check user
+	
+		$status = $ldap->bind("$dn",password=>"$p");
+		NMISNG::Util::logAuth("Auth::_ldap_verify, DEBUG: LDAP bind dn '$d' status ".$status->code()) if ($self->{debug});
+		if (defined $status->code && $status->code == 0) {
+			# permitted
+			$ldap->unbind();
+			return 1;
+		}
+	
+		$ldap->unbind();
 	}
 
 	return 0; # not found
@@ -608,10 +721,13 @@ sub _ldap_verify {
 
 sub _novell_ldap_verify {
 	my $self = shift;
-	my($u, $p, $sec) = @_;
+	my($u, $p, $auth) = @_;
 	my($dn,$context,$msg);
 	my($ldap);
 	my($attr,@attrlist);
+	my $auth_ldap_debug      = NMISNG::Util::getbool($self->{config}->{'auth_ldap_debug'});
+	my $sec = 0;
+	$sec = 1 if ( $auth eq "novell-ldaps" );
 
 
 	if($sec) {
@@ -648,23 +764,33 @@ sub _novell_ldap_verify {
 
 	$msg = $ldap->bind; # Anonymous bind
 	if ($msg->is_error) {
-		NMISNG::Util::logAuth2("cant search LDAP (anonymous bind), need binddn which is uninplemented","TODO");
+		NMISNG::Util::logAuth2("can't search LDAP (anonymous bind), need binddn which is uninplemented","TODO");
 		NMISNG::Util::logAuth2("LDAP anonymous bind failed","ERROR");
 		return 0;
 	}
 
-	foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
+	foreach $context ( split ":", $self->{config}->{'auth_ldap_base'}  ) {
 
 		$dn = undef;
+		$self->{dn} = $dn;
 		# Search "attr=user" in each context
 		foreach $attr ( @attrlist ) {
 
 			$msg = $ldap->search(base=>$context,filter=>"$attr=$u",scope=>"sub",attrs=>["dn"]);
+			# if full debugging dumps are requested, put it in a separate log file
+			if ($auth_ldap_debug)
+			{
+				open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
+				print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->search(base=>$context,filter=>'$attr=$u',scope=>'sub',attrs=>['dn'])\n";
+				print F NMISNG::Util::returnDateStamp() . ": " . Dumper($msg) ."\n";
+				close(F);
+			}
 
 			if ( $msg->is_error ) { #|| ($msg->count != 1)) { # not Found, try next context
 				next;
 			}
 			$dn = $msg->entry(0)->dn;
+			$self->{dn} = $dn;
 		}
 		# if found, use DN to bind
 		# not found => dn is undef
@@ -686,121 +812,6 @@ sub _novell_ldap_verify {
 
 	NMISNG::Util::logAuth2("LDAP user not found in any context","ERROR");
 	return 0; # not found in any context
-}
-
-#----------------------------------
-# Microsoft LDAP verify username/password
-sub _ms_ldap_verify
-{
-	my $self = shift;
-	my($u, $p, $sec) = @_;
-	my $ldap;
-	my $ldap2;
-	my $status;
-	my $status2;
-	my $entry;
-	my $dn;
-
-	my $extra_ldap_debug  = NMISNG::Util::getbool($self->{config}->{auth_ms_ldap_debug});
-
-	if($sec)
-	{
-		# load the LDAPS module
-		eval { require IO::Socket::SSL; require Net::LDAPS; };
-		if($@) {
-			NMISNG::Util::logAuth("ERROR no IO::Socket::SSL; Net::LDAPS installed");
-			return 0;
-		} # no Net::LDAPS installed
-	} else {
-		# load the LDAP module
-		eval { require Net::LDAP; };
-		if($@) {
-			NMISNG::Util::logAuth("ERROR no Net::LDAP installed from CPAN");
-			return 0;
-		} # no Net::LDAP installed
-	}
-
-	# Connect to LDAP by know (readonly) account
-	if($sec) {
-		$ldap = new Net::LDAPS($self->{config}->{'auth_ms_ldaps_server'});
-	} else {
-		$ldap = new Net::LDAP($self->{config}->{'auth_ms_ldap_server'});
-	}
-	if(!$ldap) {
-		NMISNG::Util::logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing in configuration of NMIS");
-		return 0;
-	}
-
-	# bind LDAP for request DN of user
-	$status = $ldap->bind( $self->{config}->{'auth_ms_ldap_dn_acc'},
-												 password=> $self->{config}->{'auth_ms_ldap_dn_psw'});
-	if ($status->code() ne 0) {
-
-		NMISNG::Util::logAuth("ERROR LDAP validation of $self->{config}->{'auth_ms_ldap_dn_acc'}, error msg ".$status->error()." ");
-		return 0;
-	}
-
-	NMISNG::Util::logAuth("DEBUG LDAP Base user=$self->{config}->{'auth_ms_ldap_dn_acc'} authorized") if $extra_ldap_debug;
-
-
-	for my $attr ( split ',',$self->{config}->{'auth_ms_ldap_attr'}) {
-
-		NMISNG::Util::logAuth("DEBUG LDAP search, base=$self->{config}->{'auth_ms_ldap_base'},".
-													"filter=${attr}=$u, attr=distinguishedName") if $extra_ldap_debug;
-
-		my $results = $ldap->search(scope=>'sub',base=>"$self->{config}->{'auth_ms_ldap_base'}",filter=>"($attr=$u)",attrs=>['distinguishedName']);
-
-		# if full debugging dumps are requested, put it in a separate log file
-		if ($extra_ldap_debug)
-		{
-			open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ms-ldap-debug.log");
-			print F NMISNG::Util::returnDateStamp(). Dumper($results) ."\n";
-			close(F);
-		}
-
-		if (($entry = $results->entry(0))) {
-			$dn = $entry->dn();
-		} else {
-			NMISNG::Util::logAuth("DEBUG LDAP search failed") if $extra_ldap_debug;
-		}
-	}
-
-	if ($dn eq '') {
-		NMISNG::Util::logAuth("DEBUG user $u not found in Active Directory") if $extra_ldap_debug;
-		$ldap->unbind();
-		return 0;
-	}
-
-	my $d = $dn;
-	$d =~ s/\\//g;
-	NMISNG::Util::logAuth("DEBUG LDAP found distinguishedName=$d") if $extra_ldap_debug;
-
-	# check user
-
-	# Connect to LDAP and verify username and password
-	if($sec) {
-		$ldap2 = new Net::LDAPS($self->{config}->{'auth_ms_ldaps_server'});
-	} else {
-		$ldap2 = new Net::LDAP($self->{config}->{'auth_ms_ldap_server'});
-	}
-	if(!$ldap2) {
-		NMISNG::Util::logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing");
-		return 0;
-	}
-
-	$status2 = $ldap2->bind("$dn",password=>"$p");
-	NMISNG::Util::logAuth("DEBUG LDAP bind dn $d status ".$status->code()) if $extra_ldap_debug;
-	if ($status2->code eq 0) {
-		# permitted
-		$ldap->unbind();
-		$ldap2->unbind();
-		return 1;
-	}
-
-	$ldap->unbind();
-	$ldap2->unbind();
-
-	return 0; # not found
 }
 
 #----------------------------------
@@ -1372,20 +1383,17 @@ sub _crowd_verify {
 # args: type, username, password, headeropts, listmodules
 sub loginout {
 	my ($self, %args) = @_;
-
 	my $type = lc($args{type});
 	my $username = $args{username};
 	my $password = $args{password};
-
 	my $listmodules = $args{listmodules};
-
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	my $session;
 	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
 		
-	NMISNG::Util::logAuth("DEBUG: loginout type=$type username=$username")
+	NMISNG::Util::logAuth("DEBUG: loginout, Type=$type Username=$username")
 			if $self->{debug};
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -1408,6 +1416,7 @@ sub loginout {
 	
 	if (defined($username) && $username ne '')
 	{
+		NMISNG::Util::logAuth("Account '$username' is trying to log in.");
 		# someone is trying to log in
 		if ($maxtries)
 		{
@@ -1421,13 +1430,16 @@ sub loginout {
 			}
 		}
 		
+		my $max_sessions = $self->get_max_sessions(user => $username);
+		NMISNG::Util::logAuth("Max sessions is $max_sessions.");
 		if ($max_sessions_enabled)
 		{
 			my $max_sessions = $self->get_max_sessions(user => $username);
+			NMISNG::Util::logAuth("Max sessions is $max_sessions.");
 			my ($error, $sessions) = $self->get_live_session_counter(user => $username);
 			if (($max_sessions != 0) && ($sessions >= $max_sessions))
 			{
-				NMISNG::Util::logAuth("Account $username max sessions $max_sessions reached.");
+				NMISNG::Util::logAuth("Account '$username' max sessions ($max_sessions) reached.");
 				$self->do_login(listmodules => $listmodules,
 												msg => "Too many open sessions ($sessions), login not allowed");
 				return 0;
@@ -1466,10 +1478,10 @@ sub loginout {
 			}
 
 			NMISNG::Util::logAuth("user=$self->{user} logged in");
-			NMISNG::Util::logAuth("DEBUG: loginout user=$self->{user} logged in") if $self->{debug};
+			NMISNG::Util::logAuth("DEBUG: loginout, User=$self->{user} logged in") if $self->{debug};
 			
 			# Create session
-			if ($max_sessions_enabled or $expire_users) {
+#			if ($max_sessions_enabled or $expire_users) {
 				if ($max_sessions_enabled) {
 					my $max_sessions = $self->get_max_sessions(user => $username);
 					if ($max_sessions != 0) {
@@ -1478,7 +1490,19 @@ sub loginout {
 				} else {
 					$session = $self->generate_session(user_name => $self->{user});
 				}	
-			}
+				if ($session) {
+					NMISNG::Util::logAuth("DEBUG: loginout, Created a new session.") if $self->{debug};
+					$session->param('auth',                $self->{auth});
+					$session->param('username',            $self->{user});
+					$session->param('dn',                  $self->{dn});
+					$session->param('priv',                $self->{priv});
+					$session->param('privlevel',           $self->{privlevel});
+					$session->param('groups',              $self->{groups});
+					$session->param('rawgroups',           $self->{rawgroups});
+				} else {
+					NMISNG::Util::logAuth("DEBUG: loginout, Unable to create a new session.") if $self->{debug};
+				}
+#			}
 			
 		}
 		else
@@ -1547,9 +1571,10 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 			$self->do_login(msg=>"", listmodules => $listmodules);
 			return 0;
 		}
-
-		$self->SetUser( $username );
-		NMISNG::Util::logAuth("DEBUG: cookie OK") if $self->{debug};
+		else { # session is good.
+			$self->SetUser( $username );
+			NMISNG::Util::logAuth("DEBUG: cookie OK") if $self->{debug};
+		}
 	}
 
 	# logout has to be down here because we need the username loaded to generate the correct cookie
@@ -1558,18 +1583,11 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 		return 0;
 	}
 
-	# user should be set at this point, if not then redirect
-	unless ($self->{user}) {
-		NMISNG::Util::logAuth("DEBUG: loginout forcing login, shouldn't have gotten this far") if $self->{debug};
-		$self->do_login(listmodules => $listmodules);
-		return 0;
-	}
-
+	
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {
-		if ($max_sessions_enabled)
-		{
-			# Create session
+#		if ($max_sessions_enabled)
+#		{
 			# Load session
 			if (!$session) {
 				$session = CGI::Session->load(undef, undef, {Directory=>$session_dir});
@@ -1577,19 +1595,36 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 			
 			# This is the session cookie
 			if ($session) {
+				NMISNG::Util::logAuth("DEBUG: loginout, Found an existing session.") if $self->{debug};
+				$session->param('auth',                $self->{auth});
+				$session->param('username',            $self->{user});
+				$session->param('dn',                  $self->{dn});
+				$session->param('priv',                $self->{priv});
+				$session->param('privlevel',           $self->{privlevel});
+				$session->param('groups',              $self->{groups});
+				$session->param('rawgroups',           $self->{rawgroups});
 				my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
 				push @cookies, $cookie;
+				NMISNG::Util::logAuth("DEBUG: loginout made Session cookie $cookies[0]") if $self->{debug};
+			} else {
+				NMISNG::Util::logAuth("DEBUG: loginout, Unable to locate an existing session.") if $self->{debug};
 			}
-		}
+#		}
 		
 		# Update last login
 		$self->update_last_login(user => $self->{user});
 		
 		push @cookies, $self->generate_cookie(user_name => $self->{user});
-		NMISNG::Util::logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
+		NMISNG::Util::logAuth("DEBUG: loginout made User cookie $cookies[0]") if $self->{debug};
+	}
+	# user should be set at this point, if not then redirect
+	unless ($self->{user}) {
+		NMISNG::Util::logAuth("DEBUG: loginout, Forcing login, shouldn't have gotten this far") if $self->{debug};
+		$self->do_login( msg => "Login failed, internal error", listmodules => $listmodules);
+		return 0;
 	}
 	$headeropts->{-cookie} = [@cookies];
-	return 1; # all oke
+	return 1; # all ok
 }
 
 # increments or resets the login failure counter for a given user
@@ -1680,20 +1715,96 @@ sub User {
 # Set the user and read in the user privilege and groups
 #
 sub SetUser {
-	my $self = shift;
+	my ($self,$user) = @_;
 	$self->{_require} = 1;
-	my $user = shift;
-	if ( $user ) {
+	# set default privileges to lowest level
+	$self->{priv} = "anonymous";
+	$self->{privlevel} = 5;
+	$self->SetGroups();
+
+	if ( $user )
+	{
+		# Determine if we are already logged in.
+		NMISNG::Util::logAuth("DEBUG Auth::SetUser, verifying user '$user'.") if $self->{debug};
+		my $testCookie = $self->verify_id();
+		if( $testCookie ne '' ) { # Found valid cookie
+			NMISNG::Util::logAuth("DEBUG Auth::SetUser, user '$user' verified.") if $self->{debug};
+			my $cgi = new CGI;
+			my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+			my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
+			my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
+			if ($session && $session->param('priv')) {
+				NMISNG::Util::logAuth("DEBUG Auth::SetUser, User '$user' found cached priveleges.") if $self->{debug};
+				$self->{user}      = $user;
+				$self->{auth}      = $session->param('auth');
+				$self->{dn}        = $session->param('dn');
+				$self->{priv}      = $session->param('priv');
+				$self->{privlevel} = $session->param('privlevel');
+				$self->{rawgroups} = $session->param('rawgroups');
+				$self->SetGroups( rawgroups => $self->{rawgroups} );
+				return 1;
+			}
+		}
 		$self->{user} = $user; # username
-		# set default privileges to lowest level
-		$self->{priv} = "anonymous";
-		$self->{privlevel} = 5;
-		delete $self->{all_groups_allowed}; # bsts, if the auth object gets reused
-		$self->_GetPrivs($self->{user});		# this potentially sets all_groups_allowed
-		return 1;
+		return $self->_GetPrivs($self->{user});
 	}
-	else {
+	else
+	{
+		NMISNG::Util::logAuth("DEBUG Auth::SetUser, no user.") if $self->{debug};
+		$self->{user} = undef;
+		$self->_GetPrivs(undef);
 		return 0;
+	}
+}
+
+#----------------------------------
+
+# Set the groups for the current user
+# param - rawgroups
+sub SetGroups
+{
+	my ($self,%args) = @_;
+
+	$self->{rawgroups} = undef;
+	$self->{groups} = [];
+	if( $args{rawgroups} )
+	{
+		my $rawgroups = $self->{rawgroups} = $args{rawgroups};
+		my @groups = sort(split /\s*,\s*/, NMISNG::Util::stripSpaces($rawgroups));
+		if ( not @groups and $self->{config}->{auth_default_groups} ne "" )
+		{
+			@groups = split /,/, $self->{config}->{auth_default_groups};
+			NMISNG::Util::logAuth("INFO Auth::SetGroups, Groups not found for User \"$self->{user}\" using groups configured in Config.nmis->auth_default_groups");
+		}
+		push @{$self->{groups}}, "network";
+
+		# is the user authorised for all (known and unknown) groups? then record that
+		if ( grep { $_ eq 'all' } @groups)
+		{
+			$self->{all_groups_allowed} = 1;
+			$self->{groups} = \@groups;
+		}
+		elsif ( $rawgroups eq "none" or $rawgroups eq "" )
+		{
+			$self->{groups} = [];
+			delete $self->{all_groups_allowed};
+		}
+		else
+		{
+			$self->{groups} = \@groups;
+			delete $self->{all_groups_allowed};
+		}
+	}
+	elsif( $args{grouplist} )
+	{
+		# default group stuff does not apply if the list is specific
+		$self->{groups}    = $args{grouplist};
+		$self->{rawgroups} = $args{grouplist};
+	}
+	else
+	{
+		$self->{groups} = [];
+		delete $self->{all_groups_allowed};
 	}
 }
 
@@ -1747,86 +1858,6 @@ sub CheckAccessCmd {
 	NMISNG::Util::logAuth("CheckAccessCmd: $self->{user}, $command, $perm") if $self->{debug};
 
 	return $perm;
-}
-
-#----------------------------------
-
-# Private routines go here
-#
-# _GetPrivs -- load and parse the conf/Users.xxxx file
-# also loads conf/PrivMap.xxxx to map the privilege to a
-# numeric privilege level.
-#
-sub _GetPrivs {
-	my $self = shift;
-	my $user = lc shift;
-
-	my $UT = Compat::NMIS::loadGenericTable("Users");
-	my $PMT = Compat::NMIS::loadGenericTable("PrivMap");
-
-	if ( exists $UT->{$user}{privilege} and $UT->{$user}{privilege} ne ""  ) {
-		$self->{priv} = $UT->{$user}{privilege};
-	}
-	else {
-		if ( $self->{config}->{auth_default_privilege} ne ""
-				 and !NMISNG::Util::getbool($self->{config}->{auth_default_privilege},"invert") ) {
-			$self->{priv} = $self->{config}->{auth_default_privilege};
-			$self->{privlevel} = 5;
-			NMISNG::Util::logAuth("INFO User \"$user\" not found in Users table, assigned default privilege $self->{config}->{auth_default_privilege}");
-		}
-		else {
-			$self->{priv} = "";
-			$self->{privlevel} = 5;
-			NMISNG::Util::logAuth("INFO User \"$user\" not found in Users table, no default privilege configured");
-			return 0;
-		}
-	}
-
-	if ( ! exists $PMT->{$self->{priv}} and $PMT->{$self->{priv}}{level} eq "" ) {
-		NMISNG::Util::logAuth("Privilege $self->{priv} not found for user \"$user\" ");
-		$self->{priv} = "";
-		$self->{privlevel} = 5;
-		return 0;
-	}
-
-	$self->{privlevel} = 5;
-	if ( $PMT->{$self->{priv}}{level} ne "" ) {
-		$self->{privlevel} = $PMT->{$self->{priv}}{level};
-	}
-	NMISNG::Util::logAuth("INFO User \"$user\" has priv=$self->{priv} and privlevel=$self->{privlevel}") if $self->{debug};
-
-	# groups come from the user sertting or the auth_default_groups
-	my $grouplistraw = $UT->{$user}{groups};
-	if (!$grouplistraw && $self->{config}->{auth_default_groups})
-	{
-		$grouplistraw = $self->{config}->{auth_default_groups};
-		NMISNG::Util::logAuth("INFO Groups not found for User \"$user\", using auth_default_groups from configuration");
-	}
-
-	# leading/trailing space is gone after stripspaces, rest after split
-	my @groups = sort(split /\s*,\s*/, NMISNG::Util::stripSpaces($grouplistraw));
-	# note: the main health status graphs uses the implied virtual group network,
-	# this group must be explicitly stated if you want to see this graph
-	push @groups, "network";
-
-	# is the user authorised for all (known and unknown) groups? then record that
-	if ( grep { $_ eq 'all' } @groups)
-	{
-		$self->{all_groups_allowed} = 1;
-		$self->{groups} = \@groups;
-	}
-	elsif ($UT->{$user}{groups} eq "none"
-				 or !$grouplistraw)
-	{
-		$self->{groups} = [];
-		delete $self->{all_groups_allowed};
-	}
-	else
-	{
-		$self->{groups} = \@groups;
-		delete $self->{all_groups_allowed};
-	}
-	return 1;
 }
 
 # Generate a session to track user login state in the server side
@@ -2139,6 +2170,403 @@ sub update_last_login
 	if ($@){NMISNG::Util::logAuth("Could not chmod g+rw $last_login_file: $@\n");}
 
 	return 1;
+}
+
+#----------------------------------
+# Private routines go here
+#----------------------------------
+
+# _GetPrivs -- load and parse the conf/Users.nmis file
+# also loads conf/PrivMap.nmis to map the privilege to a
+# numeric privilege level.
+# unloads if user is undef
+#
+# user record contains parsed and expanded groups list
+# AND rawgroups (=original group value from the source) so that groups=all can be matched
+# with non-nmis groups and things that are groupless
+
+
+sub _GetPrivs
+{
+	my $self = shift;
+	my $user = lc shift;
+	my $groupList;
+	my $auth_ldap_acc          = $self->{config}->{'auth_ldap_acc'};
+	my $auth_ldap_privs        = $self->{config}->{'auth_ldap_privs'};
+	my $auth_default_groups    = $self->{config}->{'auth_default_groups'};
+	my $auth_default_privilege = $self->{config}->{'auth_default_privilege'};
+	if ( $self->{auth} eq "ms-ldap" or $self->{auth} eq "ms-ldaps") {
+		NMISNG::Util::logAuth("INFO Honoring legacy ActiveDirectory settings.") if ($self->{debug});
+		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_acc'}                           if ($self->{config}->{'auth_ms_ldap_acc'});
+		$auth_ldap_privs   = $self->{config}->{'auth_ms_ldap_privs'}                         if ($self->{config}->{'auth_ms_ldap_privs'});
+	}
+
+	# unset because some things exit early
+	$self->SetGroups();
+
+	# if no user exit early (used as a way to unset everything)
+	if( !$user )
+	{
+		$self->{priv} = "";
+		$self->{privlevel} = 5;
+		return 0;
+	}
+
+	my $UT  = Compat::NMIS::loadGenericTable("Users");
+	my $PMT = Compat::NMIS::loadGenericTable("PrivMap");
+	my $user_local = 0;
+
+	if ( exists $UT->{$user}{privilege} and $UT->{$user}{privilege} ne ""  ) {
+		NMISNG::Util::logAuth("DEBUG Auth::_GetPrivs, User '$user' using local for privs") if $self->{debug};
+		$self->{priv} = $UT->{$user}{privilege};
+		$user_local = 1;
+		NMISNG::Util::logAuth("DEBUG Auth::_GetPrivs, User '$user' use priv: $self->{priv}") if $self->{debug};
+    } elsif ( $auth_ldap_privs && $auth_ldap_acc ) { # If 'auth_ldap_acc' is unset, then we are authenticating without authorization, so we have to assign default priveleges unless we are defined locally.
+		NMISNG::Util::logAuth("DEBUG Auth::_GetPrivs, User '$user' using _get_ldap_privs for privs") if $self->{debug};
+		($self->{priv}, $groupList) = $self->_get_ldap_privs(user => $user);
+		NMISNG::Util::logAuth("DEBUG Auth::_GetPrivs, User '$user' use priv: $self->{priv}") if $self->{debug};
+		NMISNG::Util::logAuth("DEBUG Auth::_GetPrivs, User '$user' use mapping for groups: $groupList") if $self->{debug};
+	}
+	else {
+		if ( $auth_default_privilege ne "" and !NMISNG::Util::getbool($auth_default_privilege,"invert") ) {
+			$self->{priv} = $auth_default_privilege;
+			$self->{privlevel} = 5;
+			NMISNG::Util::logAuth("WARN Auth::_GetPrivs, User '$user' not found in Users table, assigned default privilege '$auth_default_privilege.'");
+			$user_local = 1;
+		} else {
+			$self->{priv} = "";
+			$self->{privlevel} = 5;
+			NMISNG::Util::logAuth("ERROR Auth::_GetPrivs, User '$user' not found in Users table, no default privilege configured");
+			return 0;
+		}
+		# We dont have a user in NMIS but we want the user to be able to login and take default groups
+		if ( $auth_default_groups and $auth_default_groups ne "" ) {
+			$UT->{$user}{groups} = $auth_default_groups;
+		}
+	}
+
+	if ( ! exists $PMT->{$self->{priv}} and $PMT->{$self->{priv}}{level} eq "" ) {
+		NMISNG::Util::logAuth("WARN Auth::_GetPrivs, Privilege '$self->{priv}' not found for user '$user'.");
+		$self->{priv} = "";
+		$self->{privlevel} = 5;
+		return 0;
+	}
+
+	$self->{privlevel} = 5;
+	if ( $PMT->{$self->{priv}}{level} ne "" ) {
+		$self->{privlevel} = $PMT->{$self->{priv}}{level};
+	}
+	NMISNG::Util::logAuth("DEBUG Auth::_GetPrivs, User '$user' has priv='$self->{priv}' and privlevel='$self->{privlevel}'.") if $self->{debug};
+
+	if ($auth_ldap_privs and $user_local == 0) {
+		$self->SetGroups( rawgroups => $groupList );
+	} else {
+		$self->SetGroups( rawgroups => $UT->{$user}{groups} );
+	}
+   	NMISNG::Util::logAuth("DEBUG Auth::_GetPrivs, User '$user' has groups '" . join(", ", @{$self->{groups}}) . "'.") if ($self->{debug});
+	
+	return 1;
+}
+
+# Mapping with ldap
+# Get groups for the logged in user from ldap
+# And map the groups with a local privilege from nmis
+# Returns privilege, and group
+sub _get_ldap_privs
+{
+	my ($self, %args) = @_;
+	my $user = $args{"user"};
+	my $ldap;
+    my $sec = 0;
+
+	my $ldap_config = $self->configure_ldap($self);
+	
+    if ((!$ldap_config->{auth_ldaps_server} or $ldap_config->{auth_ldaps_server} eq "") and (!$ldap_config->{auth_ldaps_server} or $ldap_config->{auth_ldaps_server} eq "")) {
+        NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, called but not configured");
+		return 0;
+    }
+
+    if (defined $ldap_config->{auth_ldaps_server}) {
+        $sec = 1;
+    }
+
+	NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, User: ". Dumper($user) . "\n") if ($self->{debug});
+
+
+	if($sec) {
+		# load the LDAPS module
+		eval { require IO::Socket::SSL; require Net::LDAPS; };
+		if($@) {
+			NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, no IO::Socket::SSL; Net::LDAPS installed");
+			return 0;
+		} # no Net::LDAPS installed
+	} else {
+		# load the LDAP module
+		eval { require Net::LDAP; };
+		if($@) {
+			NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, no Net::LDAP installed,".$@);
+			return 0;
+		} # no Net::LDAP installed
+	}
+
+	# Connect to LDAP and verify username and password
+	if($sec) {
+		my $ldapServer = $ldap_config->{auth_ldaps_server};
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Attempting to create a secure connection for 'auth_ldaps_server' ($ldapServer)") if ($self->{debug});
+		$ldap = new Net::LDAPS($ldapServer);
+	} else {
+		my $ldapServer = $ldap_config->{auth_ldaps_server};
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Attempting to create a connection for 'auth_ldap_server' ($ldapServer')") if ($self->{debug});
+		$ldap = new Net::LDAP($ldapServer);
+	}
+	if(!$ldap) {
+		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, no LDAP object created, maybe ldap server address missing in NMIS configuration");
+		return 0;
+	}
+
+	# LDAP authentication
+    my $mesg;
+    my $success = 0;
+	$mesg = $ldap->bind ( $ldap_config->{auth_ldap_acc}, password => NMISNG::Util::decrypt($ldap_config->{auth_ldap_psw}), version => 3);
+	# if full debugging dumps are requested, put it in a separate log file
+	if ($ldap_config->{auth_ldap_debug})
+	{
+		open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
+		print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->bind($ldap_config->{auth_ldap_acc}, password=>**************, version => 3)\n";
+		print F NMISNG::Util::returnDateStamp() . ": " . Dumper($mesg) ."\n";
+		close(F);
+	}
+	if ($mesg->{resultCode} != 0) {
+		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, Error binding to ldap.");
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, " . Dumper($mesg)) if ($self->{debug});
+		return 0;
+	}
+	
+	# Active Directory should work here, but OpenLDAP may not.
+	my @list_member;
+	my $count = 0;
+	my $attrs = $ldap_config->{auth_ldap_group} ?  [$ldap_config->{auth_ldap_group}] : ['memberOf'];
+	my @filterlist = split( "[ ,]", ($ldap_config->{auth_ldap_attr} ?  $ldap_config->{auth_ldap_attr} : 'samaccountname') );
+	foreach my $filter ( @filterlist ) {
+		NMISNG::Util::logAuth("DEBUG LDAP Search base: '$ldap_config->{auth_ldap_base}', attr: '" . join(", ", @{$attrs}) . "', Searchstring: ($filter=$user)") if ($self->{debug});
+		my $result = $ldap->search (base => $ldap_config->{auth_ldap_base}, scope => "sub", filter  => "($filter=$user)", attrs => $attrs);
+		# if full debugging dumps are requested, put it in a separate log file
+		if ($ldap_config->{auth_ldap_debug})
+		{
+			open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
+			print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->search (base => $ldap_config->{auth_ldap_base}, scope => 'sub', filter  => '($filter=$user)', attrs => " . join(", ", @{$attrs}) . ")\n";
+			print F NMISNG::Util::returnDateStamp() . ": " . Dumper($result) ."\n";
+			close(F);
+		}
+	
+		#NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:" . Dumper($result)) if ($self->{debug});
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search ERROR: " . $result->error ) if ($self->{debug});
+		if (!$result or !$result->{entries}) {
+			if ($success) {
+				$count = 0;
+			}
+			else {
+				NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, No groups for '$user'. ". $result->{errorMessage});
+				return 0;
+			}
+		}
+		else {
+			$count = $result->count;
+		}
+		# Result processing
+		# We always get entries, but sometimes it's empty.
+		# How many entries were returned from the search
+		if ($count > 0) {
+			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: Found $count groups using the 'attrs' filter.") if ($self->{debug});
+			for (my $index = 0 ; $index < $count ; $index++)
+			{
+				my $entry = $result->entry($index);
+				my @attrs = $entry->attributes; # Obtain attributes for this entry.
+				foreach my $var (@attrs)
+				{
+					NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: Entry $count Var is '$var'.") if ($self->{debug});
+					#get a list of values for a given attribute
+					my $attr = $entry->get_value( $var, asref => 1 );
+					NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: Entry $count Attr is '" . join(", ", @{$attr}) . "'.") if ($self->{debug});
+					if ( defined($attr) )
+					{
+						foreach my $value ( @$attr )
+						{
+							NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: $var: $value") if ($self->{debug});
+							if ($value =~ /CN/i) {
+								my @ignore   = split("[,=]", $value);
+								my $groupCN = $ignore[1];;
+								NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: Adding Group: '$groupCN'") if ($self->{debug});
+								push @list_member, $groupCN;
+							}
+							$success = 1;
+						}
+					}			
+				}
+			}
+		}
+	}
+
+	if (!$success) {
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: Found no groups using the 'attrs' filter.") if ($self->{debug});
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Searching all groups with a user filter.") if ($self->{debug});
+		foreach my $filter ( @filterlist ) {
+			# OpenLDAP will probably succeed here.
+			my $attrs = [ "cn" ];
+			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search base: " . $ldap_config->{auth_ldap_base} . ", attr: '" . join(", ", @{$attrs}) . "', Searchstring: '(&(member=$self->{dn})(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames)(objectClass=group)))'.") if ($self->{debug});
+			my $result = $ldap->search (base => $ldap_config->{auth_ldap_base}, filter  => "(&(member=$self->{dn})(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames)(objectClass=group)))", attrs => $attrs);
+			# if full debugging dumps are requested, put it in a separate log file
+			if ($ldap_config->{auth_ldap_debug})
+			{
+				open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
+				print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->search (base => $ldap_config->{auth_ldap_base}, scope => 'sub', filter  => '($filter=$user)', attrs => " . join(", ", @{$attrs}) . ")\n";
+				print F NMISNG::Util::returnDateStamp() . ": " . Dumper($result) ."\n";
+				close(F);
+			}
+			#NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:\n" . Dumper($result) . "\n") if ($self->{debug});
+			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search ERROR:\n" . $result->error . "\n") if ($self->{debug});
+			if (!$result or !$result->{entries}) {
+				$self->{log}->error("Auth::_get_ldap_privs, No groups for $user. ". $result->{errorMessage});
+				return 0;
+			}
+			# Result processing, second try.
+			# How many entries were returned from the search
+			my $count = $result->count;
+			if ($count > 0) {
+				for (my $index = 0 ; $index < $count ; $index++)
+				{
+					my $entry = $result->entry($index);
+					my @attrs = $entry->attributes; # Obtain attributes for this entry.
+					foreach my $var (@attrs)
+					{
+						#get a list of values for a given attribute
+						my $attr = $entry->get_value( $var, asref => 1 );
+						if ( defined($attr) )
+						{
+							foreach my $value ( @$attr )
+							{
+								NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: $var: $value") if ($self->{debug});
+								if ($value =~ /CN/i) {
+									NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: Adding Group: '$value'") if ($self->{debug});
+									push @list_member, $value;
+								}
+								$success = 1;
+							}
+						}			
+					}
+				}
+			}
+			else {
+				NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs: Found no groups searching all groups for the distinctiveName.") if ($self->{debug});
+			}
+		}
+	}
+	
+    NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Groups for '$user' are: " . join(", ", @{list_member})) if ($self->{debug});
+
+	my $usergroups;
+	# Read mapping file
+	# Mapping using auth_ldap_privs file
+	# Mapping file name
+	my $ldap_mapping_file = $ldap_config->{auth_ldap_privs_file};
+	NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Searching for ldap_mapping_file '$ldap_mapping_file'.") if ($self->{debug});
+	if (! -f $ldap_mapping_file) {
+		$ldap_mapping_file = $self->{config}->{'<nmis_conf>'} . "/AuthLdapPrivs.json";
+	}
+	if (-f $ldap_mapping_file) {
+		$usergroups = NMISNG::Util::readFiletoHash( file => $ldap_mapping_file, json => 1);
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, ldap_mapping_file '$ldap_mapping_file' found and read.") if ($self->{debug});
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Mapped User groups Dump: " . Dumper($usergroups)) if ($self->{debug});
+		eval { NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Mapped User Groups are: " . join(", ", @{keys %{$usergroups}})) if ($self->{debug}); };
+	} else {
+		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, cannot read '$ldap_mapping_file': $!");
+		return 0;
+	}
+
+	my %matches;
+	my $numMatch = 0;
+	my $chosen;
+	# Match mapping groups with an LDAP group
+	foreach my $group (@list_member) {
+		if ($usergroups->{$group}) {
+			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Privilege '".$usergroups->{$group}->{privilege}."' for '$group' found") if ($self->{debug});
+			$matches{$group}->{privilege} = $usergroups->{$group}->{privilege};
+			$matches{$group}->{groups} = $usergroups->{$group}->{groups};
+			$matches{$group}->{priority} = $usergroups->{$group}->{priority};
+			$numMatch++;
+			$chosen = $matches{$group};
+			#return ($priv, $g);
+		} else {
+			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Group '$group' was not found in the list of NMIS groups.") if ($self->{debug});
+		}
+	}
+
+	# We choose the group based on the priority
+	if ($numMatch == 1) {
+		return ($chosen->{privilege}, $chosen->{groups});
+	} elsif ($numMatch > 1) {
+		foreach my $match ( keys %matches) {
+			if ($matches{$match}->{priority} < $chosen->{priority}) {
+					$chosen = $matches{$match};
+			}
+		}
+		return ($chosen->{privilege}, $chosen->{groups});
+	} else {
+		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, No matching groups found for '$user'!");
+	}
+	return 0;
+}
+
+sub configure_ldap {
+  	my ($self, %args) = @_;
+	
+    my $auth_ldap_base = $self->{config}->{'auth_ldap_base'} // $self->{config}->{'auth_ldap_context'};
+	my $auth_ldap_acc     = $self->{config}->{'auth_ldap_acc'};
+	my $auth_ldap_attr    = $self->{config}->{'auth_ldap_attr'};
+	my $auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ldap_debug'});
+	my $auth_ldap_psw     = NMISNG::Util::decrypt($self->{config}->{auth_ldap_psw}, 'authentication', 'auth_ldap_psw');
+	my $auth_ldap_server  = $self->{config}->{'auth_ldap_server'};
+	my $auth_ldaps_capath = $self->{config}->{'auth_ldaps_capath'};
+	my $auth_ldaps_server = $self->{config}->{'auth_ldaps_server'};
+	my $auth_ldaps_verify = $self->{config}->{'auth_ldaps_verify'} // "optional";
+	 my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
+	   my $auth_ldap_privs     = $self->{config}->{'auth_ldap_privs'};
+    my $auth_ldap_privs_file = $self->{config}->{'auth_ldap_privs_file'} // $self->{config}->{'<nmis_conf>'} . "/AuthLdapPrivs.json";
+
+	if ( $self->{auth} eq "ms-ldap" or $self->{auth} eq "ms-ldaps") {
+		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Honoring legacy ActiveDirectory settings.") if ($self->{debug});
+		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_acc'} if ($self->{config}->{'auth_ms_ldap_acc'});
+		$auth_ldap_attr    = $self->{config}->{'auth_ms_ldap_attr'} if ($self->{config}->{'auth_ms_ldap_attr'});
+		# Retrieve the LDAP base configuration
+		# Prioritize 'auth_ms_ldap_base' over 'auth_ms_ldap_context' if both are defined
+		# Use 'auth_ms_ldap_base' if available, otherwise fallback to 'auth_ms_ldap_context'. Remember 'auth_ldap_context' is retired value.
+		if (defined ($self->{config}->{'auth_ms_ldap_base'}) || defined ($self->{config}->{'auth_ms_ldap_context'})){
+			$auth_ldap_base = $self->{config}->{'auth_ms_ldap_base'} // $self->{config}->{'auth_ms_ldap_context'};
+		}
+		if (defined ($self->{config}->{'auth_ms_ldap_psw'}) || defined ($self->{config}->{'auth_ms_ldap_dn_psw'})){
+			$auth_ldap_psw = NMISNG::Util::decrypt($self->{config}->{auth_ms_ldap_psw}, 'authentication', 'auth_ms_ldap_psw') // $self->{config}->{'auth_ms_ldap_dn_psw'};
+		}
+		$auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ms_ldap_debug'}) if ($self->{config}->{'auth_ms_ldap_debug'});
+		$auth_ldap_server  = $self->{config}->{'auth_ms_ldap_server'} if ($self->{config}->{'auth_ms_ldap_server'});
+		$auth_ldaps_capath = $self->{config}->{'auth_ms_ldaps_capath'} if ($self->{config}->{'auth_ms_ldap_capath'});
+		$auth_ldaps_server = $self->{config}->{'auth_ms_ldaps_server'} if ($self->{config}->{'auth_ms_ldaps_server'});
+		$auth_ldaps_verify = $self->{config}->{'auth_ms_ldaps_verify'} if ($self->{config}->{'auth_ms_ldap_verify'});
+		$auth_ldap_acc     = $self->{config}->{'auth_ms_ldap_dn_acc'} if ($self->{config}->{'auth_ms_ldap_dn_acc'});  # retired value
+		
+	}
+
+    return {
+        auth_ldap_base       => $auth_ldap_base,
+        auth_ldap_acc        => $auth_ldap_acc,
+        auth_ldap_attr       => $auth_ldap_attr,
+        auth_ldap_debug      => $auth_ldap_debug,
+        auth_ldap_group      => $auth_ldap_group,
+        auth_ldap_privs      => $auth_ldap_privs,
+        auth_ldap_privs_file => $auth_ldap_privs_file,
+        auth_ldap_psw        => $auth_ldap_psw,
+        auth_ldap_server     => $auth_ldap_server,
+        auth_ldaps_server    => $auth_ldaps_server,
+    };
 }
 
 1;

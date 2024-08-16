@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.5.0";
+our $VERSION = "9.5.1";
 
 use strict;
 
@@ -998,15 +998,6 @@ sub inventory
 		$args{nmisng} = $self->nmisng;
 		Module::Load::load $class;
 		$inventory = $class->new(%args); # this doesn't report errors!
-
-		# special handling for catchall, we only want the catchall to be creatend on the server
-		# that matches it's cluster_id (which should be where it is polled), we risk duplicates without this
-		if( $inventory->concept eq 'catchall' && ($inventory->cluster_id ne $self->nmisng->config->{cluster_id}) ) 
-		{
-			$self->nmisng->log->warn($self->name.": Node::Inventory request to create catchall with mismatching cluster_id, 
-				server:".$self->nmisng->config->{cluster_id}.", inventory:".$inventory->cluster_id.", trace:".NMISNG::Log::trace());
-			return (undef,"cannot create catchall for this node on this server");
-		}
 
 		return (undef, "failed to instantiate $class object!") if (!$inventory);
 	}
@@ -5136,10 +5127,22 @@ sub collect_systemhealth_data
 
 			# value should be in $index_var, loadInfo also puts it in {index} so fall back to that
 			my $index = $data->{index};
+			
+			# if index_suffix_oid is set, we grab whatever value that oid returns and append it to the index
+			# we use port here because it does what want, the naming already existed
+			my $port;
+			my $index_suffix_oid = $M->{systemHealth}->{sys}->{$section}->{index_suffix_oid} // undef;
+			if( $index_suffix_oid ne '' ) {
+				my $needdot = (substr($index,0,1) ne '.') ? '.' : '';
+				my $oid = $index_suffix_oid . $needdot . $index;
+				my $result = $S->snmp->get( $oid );
+				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
+				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$port = $index . '.' . $result->{$oid};
+				}
+			}
 
-			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index,
-																 # fixme9 gone debug => $model
-					);
+			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, port => $port);
 			my $howdiditgo = $S->status;
 
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
