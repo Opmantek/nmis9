@@ -1140,7 +1140,7 @@ sub run_hooks
 				$ENV{UNATTENDED} = 1 if ($noninteractive);
 				$ENV{SIMULATE} = 1 if ($simulate);
 				$ENV{LOGFILE} = $logfile if (!$simulate);
-				$ENV{CLEANSLATE} = 1 if ($is_initial_install);
+				$ENV{CLEANSLATE} = ($is_initial_install) ? 1 : 0;
 				$ENV{PRESEED} = $options{p} if ($options{p}); # preseed file
 				for my $extra (keys %extras)
 				{
