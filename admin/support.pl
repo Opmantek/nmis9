@@ -279,6 +279,18 @@ sub collect_evidence
 	cp("/proc/locks","$targetdir/system_status/");
 	# the cpuinfo
 	cp("/proc/cpuinfo","$targetdir/system_status/");
+        chmod(0644,"$targetdir/system_status/cpuinfo"); # /proc/cpuinfo isn't writable
+
+        # Check for AVX support
+        my $avx_support = `cat /proc/cpuinfo | grep avx`;
+        my $avx_status = $avx_support ? "AVX is supported" : "AVX is not supported";
+
+        # Write the result to cpuinfo file
+        open(my $cpuinfo_fh, '>', "$targetdir/system_status/cpuinfo") or die "Could not open file '$targetdir/system_status/cpuinfo' $!";
+        print $cpuinfo_fh "AVX Support: $avx_status\n";
+        print $cpuinfo_fh "\nFull CPU Info:\n";
+        print $cpuinfo_fh `cat /proc/cpuinfo`;
+        close $cpuinfo_fh;
 
 	# dump the memory info, free
 	cp("/proc/meminfo","$targetdir/system_status/meminfo");
@@ -324,11 +336,38 @@ sub collect_evidence
 	# capture the nmisd init script info
 	cp("/etc/init.d/nmis9d", "$targetdir/system_status/init");
 	system("find -L /etc/rc* -name \"*nmis9d\" -ls > $targetdir/system_status/init/nmisd_init_links");
-	# capture the nmisd service info
-	if (-f "/etc/systemd/system/nmis9d.service")
-	{
+	
+	# Check if systemctl is available
+	my $systemctl_available = `which systemctl 2>/dev/null`;
+	chomp $systemctl_available;
+	unless ($systemctl_available) {
+		die "systemctl is not available on this system.\n";
+	}
+	# Capture the nmisd service info
+	if (-f "/etc/systemd/system/nmis9d.service") {
 		cp("/etc/systemd/system/nmis9d.service", "$targetdir/system_status/init");
 	}
+	my @daemons = ("nmis9d", "apache2", "httpd", "mongod"); # Add or remove daemons as needed
+	open(my $daemon_info_fh, '>>', "$targetdir/system_status/init/daemon_status") or die "Could not open file '$targetdir/system_status/init/daemon_status' $!";
+	foreach my $daemon (@daemons) {
+		my $status = `systemctl is-active $daemon 2>/dev/null`;
+		chomp $status;
+		if (defined $status && $status ne '') {
+			my $start_time = `systemctl show -p ActiveEnterTimestamp $daemon 2>/dev/null | cut -d= -f2`;
+			chomp $start_time;
+			print $daemon_info_fh "$daemon status: $status\n";
+			if ($start_time) {
+				print $daemon_info_fh "$daemon latest start time: $start_time\n";
+			} else {
+				print $daemon_info_fh "$daemon: No start time available (may not be managed by systemd)\n";
+			}
+		} else {
+			print $daemon_info_fh "$daemon: No status information available (may not be managed by systemd)\n";
+		}
+		print $daemon_info_fh "\n";
+	}
+
+	close $daemon_info_fh;
 
 	# capture the cpanm build logs
 	if (-d "/root/.cpanm/work/")
