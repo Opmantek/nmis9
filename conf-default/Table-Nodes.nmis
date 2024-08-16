@@ -120,6 +120,7 @@ my @models = ('automatic', sort keys %knownmodels);
 								 validate => { "onefromlist" => undef }  }},
 	 { ping => { header => 'Ping', display => 'header,popup,bool',value => ["true", "false"],
 							 validate => { "onefromlist" => undef }  }},
+	
 	 { collect => { header => 'Collect',display => 'header,popup,bool',value => ["true", "false"],
 									validate => { "onefromlist" => undef }  }},
 	 { cbqos => { header => 'CBQoS',display => 'popup',value => ["none", "input", "output", "both"],
@@ -138,6 +139,8 @@ my @models = ('automatic', sort keys %knownmodels);
 
 	 { extra_options => { special => 'separator', header => 'SNMP Settings'}},
 	 { version => { header => 'SNMP Version',display => 'popup',value => ["snmpv2c","snmpv1","snmpv3"],
+									validate => { "onefromlist" => undef } }},
+	{ snmp_engine => { header => 'NMIS SNMP Engine',display => 'popup',value => ["classic","rpc"],
 									validate => { "onefromlist" => undef } }},
 	 { max_msg_size => { header => "SNMP Max Message Size", display => 'text', value => ["$C->{snmp_max_msg_size}"],
 											 validate => { 'int-or-empty' => [ 484, 65535 ] } } },

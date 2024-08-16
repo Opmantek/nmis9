@@ -1594,7 +1594,7 @@ sub validate
 	my $storage = $self->storage;
 
 	# must have, alphabetical for now, make cheapest first later?
-	return ( -1, "invalid cluster_id" )        if ( !$self->cluster_id );
+	return ( -1, "invalid cluster_id" )        if ( !$self->cluster_id || ($self->cluster_id ne $self->nmisng->config->{cluster_id}) );
 	return ( -2, "invalid concept" )           if ( !$self->concept );
 	return ( -3, "invalid data" )              if ( ref($self->data()) ne 'HASH' );
 	return ( -4, "invalid path" )              if ( !$path || ref($path) ne 'ARRAY' || @$path < 1 );

@@ -1,0 +1,8 @@
+{
+   "Domain Admins" : {
+      "privilege" : "administrator",
+      "level" : "0",
+      "groups": "all",
+      "priority": 1
+   }
+}

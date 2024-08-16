@@ -45,7 +45,7 @@ my $me = basename($0);
 my $usage = "NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-Usage: $me [-hyd] [-t /some/path] [[-p|-P] /some/file] [optX=valX...]
+Usage: $me [-hyd] [-t /some/path] [-m T|t|F|f] [[-p|-P] /some/file] [optX=valX...]
 
 -h:  show this help screen
 -d:  produce extra debug output and logs
@@ -54,11 +54,13 @@ Usage: $me [-hyd] [-t /some/path] [[-p|-P] /some/file] [optX=valX...]
      with the default choice
 -p:  pre-seeded non-interactive mode, answers come from
      the file given as argument
--P:  generate default preseed file\n\n";
+-P:  generate default preseed file\n\n
+-m:  mongodb TRUE|true|T|t     Do install, setup and upgrade MongoDB (default)
+             FALSE|false|F|f   Don't install, setup or upgrade MongoDB\n";
 
 my (%options, %extras);
 die $usage if ( @ARGV == 1 && $ARGV[0] =~ /^-(\?|h|-help)$/i
-								|| !getopts("yldnt:p:P:", \%options));
+								|| !getopts("yldnt:p:P:m:", \%options));
 
 for my $maybe (@ARGV)
 {
@@ -74,6 +76,22 @@ my $simulate = $options{n}? 1 : 0;
 my $noninteractive = $options{y} || $options{p}? 1 : 0 ; # preseed is also a noninteractive mode
 my $logfile = undef; # until we have a dir
 my $answers;				 # preseed mode
+
+#do mongo?
+my $no_mongo=0;
+if (defined $options{m})
+{
+        my $m_uc_option = uc($options{m});
+        if ($m_uc_option eq 'F' or $m_uc_option eq 'FALSE' or $m_uc_option eq 'T' or $m_uc_option eq 'TRUE')
+        {
+                $no_mongo = ($m_uc_option eq 'F' or $m_uc_option eq 'FALSE')? 1 : 0;
+        }
+        else
+	{
+                die $usage;
+        }
+        $m_uc_option = undef;
+}
 
 # preseed generation requested?
 if (my $newseed = $options{P})
@@ -377,7 +395,8 @@ logmsg(0,"Installation of NMIS ($prodversion)\n",
 			 "started: ".scalar(localtime).", host: $hostname\n",
 			 "source: $sourcedir, target: $targetdir\n",
 			 "debug: $debug, simulate: $simulate, unattended install: $noninteractive\n",
-			 "initial install into blank $targetdir: $is_initial_install\n");
+			 "initial install into blank $targetdir: $is_initial_install\n",
+			 "no_mongo: $no_mongo\n");
 
 # first, run the pre phase plugins - especially dependency!
 # these are mainly for stuff like checking pre-reqs, massaging the environment etc.
@@ -1141,6 +1160,7 @@ sub run_hooks
 				$ENV{SIMULATE} = 1 if ($simulate);
 				$ENV{LOGFILE} = $logfile if (!$simulate);
 				$ENV{CLEANSLATE} = 1 if ($is_initial_install);
+				$ENV{NO_MONGO} = $no_mongo;
 				$ENV{PRESEED} = $options{p} if ($options{p}); # preseed file
 				for my $extra (keys %extras)
 				{
