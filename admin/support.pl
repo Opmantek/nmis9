@@ -41,7 +41,7 @@ use lib "$FindBin::Bin/../lib";
 
 use NMISNG::Util;
 
-print "Opmantek NMIS Support Tool Version $VERSION\n";
+print "FirstWave NMIS Support Tool Version $VERSION\n";
 
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
@@ -747,7 +747,7 @@ sub makesupportarchive
 	
 	print "\nAll done.\n\nCollected system information is in $zfn
 	Please include this $whattool file when you contact
-	the NMIS Community or the Opmantek Team.\n\n";	
+	the NMIS Community or the FirstWave Team.\n\n";	
 }
 
 # mongo 'shell mode' extended json, which isn't digestible to json_xs etc.
@@ -851,35 +851,42 @@ sub collect_bot_data
 	}
 	close ($fh);
 	
-	# top
-	open($fh, "<", "$dir/system_status/top")
-			or die "Can't open < top data: $!";
+	#top
+	my $top_file = "$dir/system_status/top";
 
-	while (my $line = <$fh>) {
-		if ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
-			$bot_data->{stats}->{cpuUser} = $1;
-			$bot_data->{stats}->{cpuSys} = $2;
-			$bot_data->{stats}->{cpuNice} = $3;
-			$bot_data->{stats}->{cpuIdle} = $4;
-			$bot_data->{stats}->{cpuWaitIO} = $5;
-			$bot_data->{stats}->{cpuHi} = $6;
-			$bot_data->{stats}->{cpuSi} = $7;
-			$bot_data->{stats}->{cpuSt} = $8;
+	if (-e $top_file) {
+		if (open(my $fh, "<", $top_file)) {
+			while (my $line = <$fh>) {
+				if ( $line =~ /%Cpu\(s\):\s+(\d+\.\d+) us,\s+(\d+\.\d+) sy,\s+(\d+\.\d+) ni,\s*(\d+\.\d+) id,\s+(\d+\.\d+) wa,\s+(\d+\.\d+) hi,\s+(\d+\.\d+) si,\s+(\d+\.\d+) st/ ) {
+					$bot_data->{stats}->{cpuUser} = $1;
+					$bot_data->{stats}->{cpuSys} = $2;
+					$bot_data->{stats}->{cpuNice} = $3;
+					$bot_data->{stats}->{cpuIdle} = $4;
+					$bot_data->{stats}->{cpuWaitIO} = $5;
+					$bot_data->{stats}->{cpuHi} = $6;
+					$bot_data->{stats}->{cpuSi} = $7;
+					$bot_data->{stats}->{cpuSt} = $8;
+				}
+				elsif ( $line =~ /[MK]iB Mem :\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used,\s+(\d+\.?\d*) buff\/cache/ ) {
+					$bot_data->{stats}->{memTotal} = $1;
+					$bot_data->{stats}->{memFree} = $2;
+					$bot_data->{stats}->{memUsed} = $3;
+					$bot_data->{stats}->{membuff} = $4;
+				}
+				elsif ( $line =~ /[MK]iB Swap:\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used.\s+(\d+\.?\d*) avail Mem/ ) {
+					$bot_data->{stats}->{swaptotal} = $1;
+					$bot_data->{stats}->{swapfree} = $2;
+					$bot_data->{stats}->{swapused} = $3;
+					$bot_data->{stats}->{memAvail} = $4;
+				}
+			}
+			close ($fh);
+		} else {
+			print "Could not open $top_file: $!\n";
 		}
-		elsif ( $line =~ /[MK]iB Mem :\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used,\s+(\d+\.?\d*) buff\/cache/ ) {
-			$bot_data->{stats}->{memTotal} = $1;
-			$bot_data->{stats}->{memFree} = $2;
-			$bot_data->{stats}->{memUsed} = $3;
-			$bot_data->{stats}->{membuff} = $4;
-		}
-		elsif ( $line =~ /[MK]iB Swap:\s+(\d+\.?\d*) total,\s+(\d+\.?\d*) free,\s+(\d+\.?\d*) used.\s+(\d+\.?\d*) avail Mem/ ) {
-			$bot_data->{stats}->{swaptotal} = $1;
-			$bot_data->{stats}->{swapfree} = $2;
-			$bot_data->{stats}->{swapused} = $3;
-			$bot_data->{stats}->{memAvail} = $4;
-		}
+	} else {
+		print "No system stats available. File $top_file does not exist.\n";
 	}
-	close ($fh);
 
 	# Custom models
 	my $custommodels = 0;
