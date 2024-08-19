@@ -5142,7 +5142,7 @@ sub collect_systemhealth_data
 				}
 			}
 
-			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, port => $port);
+			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, port => $port, inventory => $inventory);
 			my $howdiditgo = $S->status;
 
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
@@ -5928,7 +5928,8 @@ sub handle_custom_alerts
 						index  => $index,
 						type   => $sect,
 						sect   => $sect,
-						extras => $data, # <- this isn't really needed, it's going to look this up for cvars anyway
+						extras => $data, # <- this isn't really needed, it's going to look this up for cvars anyway,
+						inventory => $inventory,
 						eval => 1
 					);
 					$self->nmisng->log->debug2(sub {"control_result sect=$sect index=$index control_result=$control_result"});

@@ -307,7 +307,8 @@ sub applyThresholdToInventory
 			thrname => $nm,
 			stats   => $stats,
 			index   => $index,
-			item    => $item
+			item    => $item,
+			inventory => $inventory
 		);
 
 		# get 'Proactive ....' string of Model

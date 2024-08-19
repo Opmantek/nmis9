@@ -1014,6 +1014,7 @@ sub getData
 	my $port    = $args{port};
 	my $class   = $args{class};
 	my $section = $args{section};
+	my $inventory = $args{inventory};
 
 	my $wantdebug = $args{debug};
 	my $dmodel    = $args{model};
@@ -1035,7 +1036,8 @@ sub getData
 		class   => $self->{mdl}{$class}{rrd},
 		section => $section,
 		index   => $index,
-		port    => $port
+		port    => $port,
+		inventory => $inventory
 	);
 	$self->{error}      = $status->{error};
 	$self->{wmi_error}  = $status->{wmi_error};
@@ -1122,6 +1124,7 @@ sub getValues
 	my $section = $args{section};
 	my $index   = $args{index};
 	my $port    = $args{port};
+	my $inventory = $args{inventory};
 
 	my ( %data, %status, %todos );
 
@@ -1164,6 +1167,7 @@ sub getValues
 						 index  => $index,
 						 sect   => $sectionname,
 						 type => defined $port? "interface": undef,
+						 inventory => $inventory,
 						 eval => 1,
 
 				)
@@ -2164,6 +2168,7 @@ sub parseString
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
+		$DB::single = 1 if( !$inventory );
 		$inventory ||= $self->inventory( concept => $sect, index => $indx, item => $itm, nolog => 1, historic => 0 );
 		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
@@ -2631,6 +2636,7 @@ sub translate_threshold_level
 	my $stats = $args{stats}; # value of items
 	my $index = $args{index};
 	my $item = $args{item};
+	my $inventory = $args{inventory};
 
 	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
 
@@ -2661,6 +2667,7 @@ sub translate_threshold_level
 														index=>$index,
 														item=>$item,
 														sect=>$type,
+														inventory=>$inventory,
 														eval => 1)))
 		{
 			$val = $T->{$thr}{value};
