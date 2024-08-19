@@ -34,7 +34,7 @@ High Availability and more.
 Contact FirstWave - contact@firstwave.com
 
 ## Documentation
-All documentation can be found @ https://community.firstwave.com/
+All documentation can be found @ https://docs.community.firstwave.com/
 
 ## Support
 Commercial support available from FirstWave - https://www.firstwave.com/
