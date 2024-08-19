@@ -419,6 +419,8 @@ if ($xlsFile) {
 }
 
 exportNodes($xls,"$dir/oss-nodes.csv");
+exportNodeInfo(xls => $xls, file => "$dir/oss-f5-max-cpu-data.csv", title => "MAX CPU USAGE", section => "F5_CPU");
+exportNodeInfo(xls => $xls, file => "$dir/oss-f5-max-memory-data.csv", title => "MAX Memory USAGE", section => "F5_Memory");
 exportInventory(xls => $xls, file => "$dir/oss-interfaces-data.csv", title => "Interfaces", section => "interface", model_section => "standard", model_section_top => "interface", averages => 0);
 exportInventory(xls => $xls, file => "$dir/oss-f5-pools-data.csv", title => "F5 Pools", section => "F5_Pools", averages => 0);
 exportInventory(xls => $xls, file => "$dir/oss-virtual-server-table-data.csv", title => "Virtual Server Table", section => "VirtualServTable", averages => 0);
@@ -433,6 +435,110 @@ end_xlsx(xls => $xls);
 print "XLS saved to $xlsFile\n";
 
 print $t->elapTime(). " End\n";
+
+
+
+
+sub exportNodeInfo{
+	my (%args)   = @_;
+	my $section  = $args{section};
+	my $title  = $args{title};
+	my $xls      = $args{xls};
+    my $avgFile  = $args{file};
+	my $begin    = @tsStartArray[0];
+	my $end      = @tsEndArray[0];
+	my $nodeFile  = $args{file};
+    my $found    = 0;
+	my $nodeCSVData;
+	my $nodeSheet;
+	my $nodeCurRow;
+
+	# Define a pattern to match F5 devices
+    my $f5_pattern = qr/F5/;
+	my @headers = ("Node Name",$title);
+
+	if ($nodeFile) {
+		print "Creating $nodeFile\n";
+		open(INVCSV,">$nodeFile") or die "Error with CSV File $nodeFile: $!\n";
+		# print a CSV header
+			my $header = join($sep,@headers);
+			print INVCSV "$header\n";
+			$nodeCSVData .= "$header\n";
+		}
+
+
+	if ($xls) {
+		$nodeSheet = add_worksheet(xls => $xls, title => $title, columns => \@headers);
+		$nodeCurRow = 1;			# header is row 0
+	}
+	else {
+		die "ERROR: Internal error, xls is no longer defined.\n";
+	}
+	
+
+
+    foreach my $node (sort keys %{$NODES}) {
+        if ($NODES->{$node}{active}) {
+            my $S = NMISNG::Sys->new; # get system object
+            $S->init(name => $node, snmp => 'false'); # load node info and Model if name exists
+            my $nodeobj = $nmisng->node(name => $node);
+            
+			my $inv = $S->inventory(concept => 'catchall');
+            my $catchall_data = $inv->data;
+			
+            # Check if the device is an F5 device
+            if ($catchall_data->{nodeModel} =~ /$f5_pattern/ || $catchall_data->{nodeVendor} =~ /$f5_pattern/) {
+                # move on if this isn't a good one.
+                if ($catchall_data->{nodeVendor} !~ /$goodVendors/) {
+                    print "DEBUG: Ignoring system '$NODES->{$node}{name}' as vendor $catchall_data->{nodeVendor} does not qualify.\n" if ($debug);
+                    next;
+                }
+				
+				my $model_data =  $nodeobj->get_inventory_model( concept => "F5_CPU" );
+				if (my $error = $model_data->error)
+				{
+					print("Failed to get inventory: $error");
+					return(0,undef);
+				}
+				my $obj = $model_data->objects;
+				
+				
+				foreach my $inv ( @{$obj->{objects}}){			
+					$found = 1;
+					my $standardstats  = Compat::NMIS::getSubconceptStats(
+					sys => $S,
+					inventory => $inv,
+					subconcept => $section,
+					start => $begin,
+					end => $end,
+					conf => $C );
+					my @data ;
+					if ($section =~ /CPU/){
+			 			@data = ($node."-".$inv->description,$standardstats->{processorMax});
+					}
+					elsif ($section =~ /Memory/){
+						@data = ($node."-".$inv->description,$standardstats->{tmm_usedMax});
+					}
+
+					# push(@data,$standardstats->{processorMax});					
+					my $row = join($sep,@data);
+					print INVCSV "$row\n";
+					$nodeCSVData .= "$row\n";
+					if ($nodeSheet) {
+						$nodeSheet->write($nodeCurRow, 0, [ @data[0..$#data] ]);
+						++$nodeCurRow;
+					}
+			 	}
+			}
+		}
+	}	
+	close INVCSV;
+
+	if ($found && $email) {
+		my $content = "Report for '$title' attached.\n";
+		notifyByEmail(email => $email, subject => $title, content => $content, csvName => "$nodeFile", csvData => $nodeCSVData, xlsxName => $xlsFile );
+	}
+}
 
 sub exportNodes {
 	my $xls   = shift;

@@ -142,6 +142,7 @@
 			'F5_Memory' => [
 				'DEF:tmm_total=$database:tmmMemTotalKB:AVERAGE',
 				'DEF:tmm_used=$database:tmmMemUsedKB:AVERAGE',
+				'DEF:tmm_usedMax=$database:tmmMemUsedKB:MAX',
 				'DEF:other_total=$database:otherMemTotalKB:AVERAGE',
 				'DEF:other_used=$database:otherMemUsedKB:AVERAGE',
 
@@ -149,11 +150,14 @@
 				'CDEF:otherMemUtil=other_used,other_total,/,100,*',
 
 				'PRINT:tmmMemUtil:AVERAGE:tmmMemUtil=%1.2lf',
+				'PRINT:tmm_usedMax:MAX:tmm_usedMax=%1.2lf',
 				'PRINT:otherMemUtil:AVERAGE:otherMemUtil=%1.2lf',
 			],
 			'F5_CPU' => [
 				'DEF:f5PROC=$database:CpuRatio5min:AVERAGE',
+				'DEF:f5PROCMAX=$database:CpuRatio5min:MAX',
 				'PRINT:f5PROC:AVERAGE:processorAverage=%1.2lf',
+				'PRINT:f5PROCMAX:MAX:processorMax=%1.2lf',
 			],
 			'F5_Core' => [
 				'DEF:sysMHCpuUsage5m=$database:sysMHCpuUsage5m:AVERAGE',
