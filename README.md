@@ -2,11 +2,11 @@ NMIS 9.x README
 ---------------
 
 ## Copyright and licensing
-NMIS Copyright (C) Opmantek Ltd (www.opmantek.com)
+NMIS Copyright (C) FirstWave Ltd (www.firstwave.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 This is free software licensed under GNU GPL, and you are welcome to
-redistribute it under certain conditions; see https://www.opmantek.com
-or email contact@opmantek.com
+redistribute it under certain conditions; see https://www.firstwave.com
+or email contact@firstwave.com
 
 You should have received a copy of the GNU General Public License
 along with NMIS (most likely in a file named LICENSE).
@@ -31,12 +31,12 @@ Additional modules are available under low cost commercial licenses for:
 NetFlow, Application Flow, Mapping, Advanced Reporting,
 Database Integration, Event Management, Configuration Management,
 High Availability and more.
-Contact Opmantek - contact@opmantek.com
+Contact FirstWave - contact@firstwave.com
 
 ## Documentation
-All documentation can be found @ https://community.opmantek.com/
+All documentation can be found @ https://community.firstwave.com/
 
 ## Support
-Commercial support available from Opmantek - https://www.opmantek.com/
-or contact@opmantek.com
-Community support available @ https://community.opmantek.com/
+Commercial support available from FirstWave - https://www.firstwave.com/
+or contact@firstwave.com
+Community support available @ https://docs.community.firstwave.com/

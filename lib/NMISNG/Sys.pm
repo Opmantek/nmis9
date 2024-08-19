@@ -2168,7 +2168,6 @@ sub parseString
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
-		$DB::single = 1 if( !$inventory );
 		$inventory ||= $self->inventory( concept => $sect, index => $indx, item => $itm, nolog => 1, historic => 0 );
 		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
