@@ -493,6 +493,8 @@ $SIG{"TERM"} = $SIG{"INT"} = sub {
 # signal handler for USR1/USR2 is just for this process
 $SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
 
+NMISNG::DB::set_log_db(1);
+
 while (!$exit_marker)
 {
 	my $ready_jobs;								# marker set if there are worker-jobs ready to start

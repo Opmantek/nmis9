@@ -102,7 +102,7 @@ my $nmisng = NMISNG->new(
 	config => $C,
 	log    => $logger,
 		);
-
+NMISNG::DB::set_log_db(1);
 # for audit logging
 my ($thislogin) = getpwuid($<); # only first field is of interest
 
