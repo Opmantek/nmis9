@@ -84,6 +84,12 @@ else
 
 my $error_string;
 
+my $log_db_calls = 0;
+sub set_log_db {
+	my ($val) = @_;
+	$log_db_calls = $val;
+}
+
 # args:
 # 	- collection
 # 	- count, return a total record count, even if ssl values are set (means pipe is run twice)
@@ -98,6 +104,8 @@ my $error_string;
 #   - list of ( array of records, count, error ), count is = 0 if not asked for
 sub aggregate
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);;
+
 	my (%arg)               = @_;
 	my $collection          = $arg{collection};
 	my $pre_count_pipeline  = $arg{pre_count_pipeline} // [];
@@ -202,6 +210,7 @@ sub aggregate
 # returns: hashref with success/error/count/ids
 sub batch_insert
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %arg = @_;
 
 	my $collection = $arg{collection};
@@ -245,6 +254,7 @@ sub batch_insert
 # returns: the bulk op object
 sub begin_bulk
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);;
 	my (%arg) = @_;
 	my $collection = $arg{"collection"};
 	my $ordered = $arg{'ordered'} // 0;
@@ -261,6 +271,7 @@ sub begin_bulk
 # if verbose 1, hashref with keys success, error, count.
 sub count
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);;
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $query      = $arg{query};
@@ -295,6 +306,7 @@ sub count
 # returns: result record plus error, success fields
 sub coll_stats
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %arg        = @_;
 	my $db         = $arg{db};
 	my $collection = $arg{collection};
@@ -431,6 +443,7 @@ sub constrain_record
 # returns: result hash (with success, error, notes, changed, size keys)
 sub create_capped_collection
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my (%arg) = @_;
 	my ( $conn, $db, $collection, $wantsize ) = @arg{"connection", "db", "collection", "size"};
 
@@ -654,6 +667,7 @@ sub create_capped_collection
 # returns undef if there's a fault, listref of values otherwise
 sub distinct
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %arg = @_;
 	my ( $db, $collname, $key, $query ) = @arg{qw(db collection key query)};
 
@@ -687,6 +701,7 @@ sub distinct
 # returns object with success/error and some results
 sub end_bulk
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my (%arg)   = @_;
 	my $bulk    = $arg{"bulk"};
 	my $success = undef;
@@ -728,6 +743,7 @@ sub end_bulk
 # returns: undef or error message
 sub ensure_index
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my (%args) = @_;
 
 	my ( $db, $coll, $indexlist ) = @args{"db", "collection", "indices"};
@@ -840,6 +856,7 @@ sub ensure_index
 # sets the error_string if problems are encountered.
 sub find
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $query      = $arg{query};
@@ -904,6 +921,7 @@ sub find
 # returns: collection handle or undef on failure (consult getErrorString in that case)
 sub get_collection
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my (%args) = @_;
 	my ( $db, $collname ) = @args{"db", "name"};
 
@@ -929,6 +947,7 @@ sub get_collection
 # returns: collection handle or undef on failure (consult getErrorString in that case)
 sub list_collections
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my (%args) = @_;
 	my ( $db, $filter, $options ) = @args{"db", "filter", "options" };
 
@@ -948,6 +967,7 @@ sub list_collections
 
 sub get_db
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %args = @_;
 	my $CONF = $args{conf};
 	my $conn = get_db_connection( conf => $CONF );
@@ -986,6 +1006,7 @@ sub connection_of_db
 # returns the db handle, or undef in case of errors (and then $error_string is set)
 sub get_db_connection
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %args    = @_;
 	my $app_key = $args{app_key} // '';
 	my $CONF    = $args{conf};
@@ -1289,6 +1310,7 @@ sub get_query_part
 # returns: hashref, { succes: bool, id: inserted_id, error: message if error }
 sub insert
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $record     = $arg{record};
@@ -1380,6 +1402,7 @@ sub make_oid
 # returns: connection handle or undef, plus sets error_string
 sub reget_db_connection
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %args      = @_;
 	my $maybelive = $args{connection};
 
@@ -1428,6 +1451,7 @@ sub reget_db_connection
 # from docs: safe If the update fails and safe is set, this function will croak. ( version < 1.0 )
 sub remove
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $query      = $arg{query} // {};
@@ -1476,6 +1500,7 @@ sub remove
 # code clones from errmsg, err or error (in that order) - no guarantees with the old driver, may not be hash!
 sub run_command
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my (%args) = @_;
 	return {ok => 0, errmsg => "Insufficient arguments"} if ( !$args{db} or !$args{command} );
 	my $result;
@@ -1518,6 +1543,7 @@ sub run_command
 # args: safe, optional allows setting write concern, see http://search.cpan.org/~mongodb/MongoDB-v0.705.0.0/lib/MongoDB/MongoClient.pm#w
 sub update
 {
+	NMISNG::Util::logDB("") if( $log_db_calls == 1);
 	my %arg         = @_;
 	my $collection  = $arg{collection};
 	my $query       = $arg{query};

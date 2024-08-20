@@ -1682,6 +1682,63 @@ sub logPolling {
 	}
 }
 
+sub logDB {
+	my $msg = shift;
+	my $conf = shift;
+	my $C = $conf // loadConfTable;
+	my $handle;
+
+	#To enable polling log a file must be configured in Config.nmis and the file must exist.
+	$C->{logDB} = "/usr/local/nmis9/logs/db_calls.log";
+	if ( $C->{logDB} ne "" and -f $C->{logDB} ) {
+		if ($C eq '') {
+			# no config loaded
+			die "FATAL logDB, NO Config Loaded: $msg";
+		}
+		elsif ( not -f $C->{logDB} and not -d $C->{'<nmis_logs>'} ) {
+			print "ERROR, logDB can't do anything but NAG YOU\n";
+			warn "ERROR logDB: the message which killed me was: $msg\n";
+		}
+
+		my @frames;
+		for my $i (0..10) # 0 is this function but we need the line nr for frame 1
+		{
+			my @oneframe = caller($i);
+			last if (!@oneframe);
+
+			my ($filename,$lineno,$subname) = @oneframe[1,2,3];
+
+			$subname =~ s/^main:://;			# not useful
+			# keep the try invocation, but not "try {...}", ditto for catch
+			$subname =~ s/^(try|catch)\s+\{\.{3}\}\s*$/$1/;
+			$frames[$i]->{subname} = $subname;
+
+			$frames[$i+1]->{lineno} = $lineno; # save in outer frame
+			$frames[$i+1]->{filename} = $filename;
+		}
+		shift @frames;								# ditch empty zeroth frame
+
+		for my $i (0..$#frames)
+		{
+			# ditch eval and try::tiny related wrapping frames
+			# also ditch the one frame you get at the end of try/catch
+			$frames[$i]->{skip}=1 if (
+				( $frames[$i]->{subname}
+					&& $frames[$i]->{subname} =~ /^(\(eval\)|Try::Tiny::try|Try::Tiny::catch)/)
+				|| ($i > 0
+						&& $frames[$i-1]->{subname}
+						&& $frames[$i-1]->{subname} =~ "Try::Tiny::(try|catch)"));
+		}
+		my $stack = join("::", map { $_->{skip}? () :($_->{subname})} (reverse @frames)) . " ";
+		$msg = $stack. " : $0";
+		open($handle,">>$C->{logDB}") or warn returnTime." logDB, Couldn't open log file $C->{logDB}. $!\n";
+		flock($handle, LOCK_EX)  or warn "logDB, can't lock filename: $!";
+		print $handle NMISNG::Util::returnDateStamp().",$msg\n" or warn returnTime." logPolling, can't write file $C->{logDB}. $!\n";
+		close $handle or warn "logDB, can't close filename: $!";
+		NMISNG::Util::setFileProtDiag(file =>$C->{logDB});
+	}
+}
+
 # normal op: compares first argument against true or 1 or yes
 # opposite: compares first argument against false or 0 or no
 #
