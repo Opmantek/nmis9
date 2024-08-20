@@ -59,6 +59,9 @@ sub new
 		_attribute_name => undef,
 		_nmisng => $args{nmisng},
 		_data => $args{data} // [],
+		_cursor => $args{cursor},
+		_cursor_count => 0,
+		_cursor_data_fetched => 0,
 		_error => $args{error},
 		_error_checked => 0,
 		_query_count => $args{query_count},
@@ -101,18 +104,24 @@ sub error
 
 # a setter-getter for the data array
 # returns the live data
+# if modeldata is using cursor it will fetch all data 
+# from cursor once and store it, this is not optimal use for 
+# 
 #
 # args: new data array ref
 # returns: data array ref (post update!) or dies on error
 sub data
 {
 	my ( $self, $newvalue ) = @_;
+	
 	if ( ref($newvalue) eq "ARRAY" )
 	{
+		die "ModelData::data setting data when cursor is provided is not allowed" if( $self->{_cursor} );
 		$self->{_data} = $newvalue;
 	}
 	elsif (defined $newvalue)
 	{
+		die "ModelData::data setting data when cursor is provided is not allowed" if( $self->{_cursor} );
 		die "Data must be array!\n";
 	}
 	if( !$self->{_error_checked} ) {
@@ -120,15 +129,73 @@ sub data
 			if(ref($self->{_nmisng}) eq "NMISNG");
 		$self->{_error_checked} = 1; # stop this message from happening again for this object
 	}
+	# if we have a cursor and data is called get all the data
+	if( $self->{_cursor} && $self->{_cursor_data_fetched} == 0 ) {
+		my @all = $self->{_cursor}->all();
+		$self->{_data} = \@all;
+		$self->{_cursor_data_fetched} = 1;
+		# print "called data with cursor!!!\n\n".$self->{_nmisng}->log->trace() if( $self->{_count_calling} != 1);
+	}
 	return $self->{_data};
 }
 
 # readonly - returns number of entries in data or zero if no data
+#   if using a cursor this forces all data to be grabbed in order to get count
+#   so try not to use it if iterating over potentially large datasets
 sub count
 {
 	my ($self) = @_;
+	# have to use data here so the cursor gets used
+	$self->{_count_calling} = 1;
+	my $data = $self->data();
+	$self->{_count_calling} = 0;
+	return (ref($data) eq 'ARRAY')? scalar(@$data) : 0;
+}
 
-	return (ref($self->{_data}) eq 'ARRAY')? scalar(@{$self->{_data}}) : 0;
+# returns 1 if iterator has next entry
+sub has_next 
+{
+	my ($self) = @_;
+	my $cursor_count = $self->{_cursor_count};
+	
+	return $self->{_cursor}->has_next if( $self->{_cursor} );	
+	return ( ($cursor_count + 1) < @{$self->{_data}} );
+}
+
+# iterator, return next value, retuns undef if there is nothing
+# if using mongo cursor batching is automatic
+# if not using cursor just gets next thing in data array
+# no support for resetting count/location
+sub next 
+{
+	my ($self) = @_;
+	my $cursor_count = $self->{_cursor_count};
+	$self->{_cursor_count}++;
+	return $self->{_cursor}->next if( $self->{_cursor} );	
+	return $self->{_data}->[$cursor_count];
+}
+
+# returns object of next record
+# returns undef if we're past the end
+# if using mongo cursor batching is automatic
+sub next_object
+{
+	my ($self) = @_;
+	my $cursor_count = $self->{_cursor_count};
+	$self->{_cursor_count}++;	
+	my $raw_record;
+	
+	if( $self->{_cursor} )
+	{
+		$raw_record = $self->{_cursor}->next;
+		return if( !$raw_record );
+	}
+	else
+	{
+		return if( !exists $self->{_data}->[$cursor_count] );
+	}
+	# raw record will be undef if not using a cursor so object will access ->data
+	return $self->object($cursor_count,$raw_record);
 }
 
 # returns a list of instantiated objects for the current data
@@ -186,22 +253,29 @@ sub objects
 
 # returns the Nth data entry instantiated as an object
 # args: n
+# 		raw_record - for internal use, will generate object using this data if supplied
 # returns: (undef, object ref) or (error message)
 sub object
 {
-	my ($self, $nth) = @_;
+	my ($self, $nth, $raw_record) = @_;
 
 	return "Missing nth argument!" if (!defined $nth);
 	return "Missing class_name or nmisng, cannot instantiate objects!"
 			if ((!$self->{_class_name} and !$self->{_resolver})
-					or ref($self->{_nmisng}) ne "NMISNG");
-
-	return "nth argument outside of limits!"
+					or ref($self->{_nmisng}) ne "NMISNG");	
+	
+	my $raw;
+	if( $raw_record ) {
+		$raw = $raw_record;
+	}
+	else
+	{
+		return "nth argument  outside of limits! ($nth)"
 			if (ref($self->{_data}) ne "ARRAY"
 					or !exists $self->{_data}->[$nth]);
-
-	my $raw = $self->{_data}->[$nth];
-
+		$raw = $self->{_data}->[$nth];
+	}
+	 
 	# how do we find out the class name? either static or via resolver function
 	my $classname = $self->{_class_name};
 	if (!$classname)

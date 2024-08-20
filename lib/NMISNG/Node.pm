@@ -5081,15 +5081,12 @@ sub collect_systemhealth_data
 		: $self->nmisng->config->{model_health_sections} );
 
 	for my $section (@healthSections)
-	{
-		my $ids = $self->get_inventory_ids( concept => $section, filter => { enabled => 1, historic => 0 } );
-
+	{		
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
 		# OR only sys section but no rrd (e.g. addresstable)
 		next
-			if ( @$ids < 1
-			or !exists( $M->{systemHealth}->{rrd} )
+			if ( !exists( $M->{systemHealth}->{rrd} )
 			or ref( $M->{systemHealth}->{rrd}->{$section} ) ne "HASH" );
 			
 		my $thissection = $M->{systemHealth}{sys}{$section};
@@ -5104,11 +5101,14 @@ sub collect_systemhealth_data
 		}
 
 		# that's instance index value
-		foreach my $id (@$ids)
+		my $model_data = $self->get_inventory_model( concept => $section, filter => { enabled => 1, historic => 0 } );
+		if(my $error = $model_data->error() ) 
 		{
-			my ( $inventory, $error ) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next if ( !$inventory );
-
+			$self->nmisng->log->error("Failed to get inventory with error:$error");
+		}
+		while( my $inventory = $model_data->next_object )
+		{
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 
 			# sanity check the data
@@ -5771,16 +5771,15 @@ sub collect_cbqos_data
 	foreach my $direction ( "in", "out" )
 	{
 		my $concept = "cbqos-$direction";
-		my $ids = $self->get_inventory_ids(concept => $concept,
-																			 filter => { enabled => 1, historic => 0 });
-
+		my $model_data = $self->get_inventory_model(concept => $concept, filter => { enabled => 1, historic => 0 });
+		if( my $error = $model_data->error() ) {
+			$self->nmisng->log->error("Failed to get inventory for  concept:$concept, error_message:$error");
+			next;
+		}
 		# oke, we have get now the PolicyIndex and ObjectsIndex directly
-		foreach my $id ( @$ids )
+		while( my $inventory = $model_data->next_object() )
 		{
-			my ($inventory,$error_message) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message")
-					&& next if(!$inventory);
-
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 			# for now ifIndex is stored in the index attribute
 			my $intf = $data->{index};
@@ -5910,13 +5909,15 @@ sub handle_custom_alerts
 	{
 		# get the inventory instances that are relevant for this section,
 		# ie. only enabled and nonhistoric ones
-		my $ids = $self->get_inventory_ids( concept => $sect, filter => { enabled => 1, historic => 0 } );
+		my $model_data = $self->get_inventory_model( concept => $sect, filter => { enabled => 1, historic => 0 } );
+		if( my $error = $model_data->error ) {
+			$self->nmisng->log->error("Failed to get inventory, concept:$sect, , error_message:$error");				
+			next;
+		}
 		$self->nmisng->log->debug2(sub {"Custom Alerts for $sect"});
-		foreach my $id ( @$ids )
+		while( my $inventory = $model_data->next_object() )
 		{
-			my ($inventory,$error_message) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory, concept:$sect, _id:$id, error_message:$error_message") && next
-					if(!$inventory);
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 			my $index = $data->{index};
 			foreach my $alrt ( keys %{$CA->{$sect}} )
@@ -6478,12 +6479,15 @@ sub compute_reachability
 			$self->nmisng->log->debug2(sub {"Getting Interface Utilisation Health"});
 			$intcount   = 0;
 			$intsummary = 0;
-			my $ids = $self->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+			my $model_data = $self->get_inventory_model( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+			if( my $error = $model_data->error() ) {
+				$self->nmisng->log->error("compute_reachability failed to get inventory, error:$error ");
+			}
 
 			# get all collected interfaces
-			foreach my $id (@$ids)
+			while( my $intf_inventory = $model_data->next_object() )
 			{
-				my ($intf_inventory,$error) = $self->inventory( _id => $id );
+				my $id = $intf_inventory->id();				
 				# stats have already been run on the interface, just look them up
 				my $latest_ret = $intf_inventory->get_newest_timed_data();
 				if( !$latest_ret->{success} )
@@ -7234,19 +7238,19 @@ sub collect_server_data
 	{
 		my %newProcessors;
 		my %oldProcessors;
-		my $oldProcessorIDs = $self->get_inventory_ids( concept => "device", 
+		my $model_data = $self->get_inventory_model( concept => "device", 
 			filter => { historic => 0, "data.hrDeviceType" => "1.3.6.1.2.1.25.3.1.3" });
-		$self->nmisng->log->debug2("Got " . scalar(@{$oldProcessorIDs}) . " processors.");
-		foreach my $id (@{$oldProcessorIDs})
+		if(my $error = $model_data->error() ) 
 		{
+			$self->nmisng->log->error("Failed to get inventory with error:$error");
+		}
+		while( my $cpuInventory = $model_data->next_object )
+		{
+			my $id = $cpuInventory->id();
 			$self->nmisng->log->debug2("Processing Processor ID '$id'");
-			my ($cpuInventory,$error) = $self->inventory(_id => $id);
-			if ($cpuInventory && !$error)
-			{
-				my $data = $cpuInventory->data();
-				$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
-				$oldProcessors{$data->{index}} = $id;
-			}
+			my $data = $cpuInventory->data();
+			$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
+			$oldProcessors{$data->{index}} = $id;			
 		}
 
 		# this will put hrCpuLoad into the device_global concept

@@ -668,10 +668,10 @@ sub compute_thresholds
 				return undef;
 			}
 
-			$self->log->debug2( "threshold="
+			$self->log->debug2(sub { "threshold="
 					. join( ",", @$thrname )
 					. " found in section=$s type=$type indexed=$thissection->{indexed}, count="
-					. $inventory_model->count() );
+					. $inventory_model->count() } );
 
 			# turn the 'models' into objects so that parseString can use it if required
 			my $objectresult = $inventory_model->objects;
@@ -2057,19 +2057,13 @@ sub get_inventory_model
 	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
 		if ( !defined $entries );
 
-	my @all;
-	while ( my $entry = $entries->next )
-	{
-		push @all, $entry;
-	}
-
 	# create modeldata object with instantiation info from caller
 	# add in the fallback automagic function, if class_name isn't present
 	$args{class_name} //= {"concept" => \&NMISNG::Inventory::get_inventory_class};
 	my $model_data_object = NMISNG::ModelData->new(
 		nmisng      => $self,
 		class_name  => $args{class_name},
-		data        => \@all,
+		cursor      => $entries,		
 		query_count => $query_count
 	);
 	return $model_data_object;
@@ -2130,7 +2124,6 @@ sub get_latest_data_model
 
 	my $q = NMISNG::DB::get_query( and_part => $filter );
 
-	my $entries = [];
 	my $query_count;
 	if ( $args{count} )
 	{
@@ -2151,13 +2144,9 @@ sub get_latest_data_model
 	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
 		if ( !defined $cursor );
 
-	while ( my $entry = $cursor->next )
-	{
-		push @$entries, $entry;
-	}
 	my $model_data_object = NMISNG::ModelData->new(
 		nmisng      => $self,
-		data        => $entries,
+		cursor      => $cursor,
 		query_count => $query_count,
 		sort        => $args{sort},
 		limit       => $args{limit},
@@ -2223,14 +2212,13 @@ sub get_nodes_model
 	my $fields_hash = $args{fields_hash};
 	# We have cases where users are restricted to groups but we still want the user to be able to search via group
 	# Build up a and query to first restrict mongo to a list of groups then allow freeform filter on theose groups
-	my $q = {
+	my $q = (keys %$filter > 0) ? {
 		'$and' => [
 			NMISNG::DB::get_query( and_part => $filter )
-	]};
+	]} : {};
 	unshift ( @{$q->{'$and'}} , NMISNG::DB::get_query( and_part => {"configuration.group" => $args{restrict_groups}})) if($args{restrict_groups});
 
-
-	my $model_data = [];
+	my $cursor;
 	my $query_count;
 
 	if ( $args{count} )
@@ -2248,7 +2236,7 @@ sub get_nodes_model
 	# if you want only a count but no data, set count to 1 and limit to 0
 	if ( !( $args{count} && defined $args{limit} && $args{limit} == 0 ) )
 	{
-		my $cursor = NMISNG::DB::find(
+		$cursor = NMISNG::DB::find(
 			collection  => $collection,
 			query       => $q,
 			fields_hash => $fields_hash,
@@ -2261,13 +2249,12 @@ sub get_nodes_model
 			nmisng => $self,
 			error  => "Find failed: " . NMISNG::DB::get_error_string
 		) if ( !defined $cursor );
-		@$model_data = $cursor->all;
 	}
 
 	my $model_data_object = NMISNG::ModelData->new(
 				class_name  => "NMISNG::Node",
 				nmisng      => $self,
-				data        => $model_data,
+				cursor      => $cursor,
 				query_count => $query_count,
 				sort        => $args{sort},
 				limit       => $args{limit},
@@ -2380,11 +2367,12 @@ sub get_opstatus_model
 		$querycount = $res->{count};
 	}
 
+	my $cursor;
 	# if you want only a count but no data, set count to 1 and limit to 0
 	if ( !( $args{count} && defined $args{limit} && $args{limit} == 0 ) )
 	{
 		# now perform the actual retrieval, with skip and limit passed in
-		my $cursor = NMISNG::DB::find(
+		$cursor = NMISNG::DB::find(
 			collection => $self->opstatus_collection,
 			query      => $q,
 			sort       => $args{sort},
@@ -2397,7 +2385,7 @@ sub get_opstatus_model
 		) if ( !defined $cursor );
 		@modeldata = $cursor->all;
 	}
-
+	# ModelData->next TODO 
 	# asking for nonexistent id is treated as failure - asking for 'id NOT matching X' is not
 	return NMISNG::ModelData->new( nmisng => $self, error => "No matching opstatus entry!" )
 		if ( !@modeldata && ref( $args{id} ) =~ /^(BSON|MongoDB)::OID$/ );
@@ -2539,14 +2527,10 @@ sub get_status_model
 	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
 		if ( !defined $cursor );
 
-	while ( my $entry = $cursor->next )
-	{
-		push @$entries, $entry;
-	}
 	my $model_data_object = NMISNG::ModelData->new(
 		nmisng      => $self,
 		class_name  => "NMISNG::Status",
-		data        => $entries,
+		cursor      => $cursor,
 		query_count => $query_count,
 		sort        => $args{sort},
 		limit       => $args{limit},
@@ -2638,7 +2622,7 @@ sub get_timed_data_model
 	# fixme: must report this as error, or at least ditch those args,
 	# or possibly do sort+limit per concept and ditch skip?
 
-	my @rawtimedata;
+	my $cursor;
 
 	# now figure out the appropriate collection for each of the concepts,
 	# then query each of those for time data matching the candidate inventory instances
@@ -2648,7 +2632,7 @@ sub get_timed_data_model
 
 		#fixme handle  error
 
-		my $cursor = NMISNG::DB::find(
+		$cursor = NMISNG::DB::find(
 			collection => $timedcoll,
 
 			# undef will mean unrestricted, one value will do equality lookup,
@@ -2660,14 +2644,10 @@ sub get_timed_data_model
 		);
 		return NMISNG::ModelData->new( error => "Find failed: " . &NMISNG::DB::getErrorString )
 			if ( !$cursor );
-		while ( my $tdata = $cursor->next )
-		{
-			push @rawtimedata, $tdata;
-		}
 	}
 
 	# no object instantiation is expected or possible for timed data
-	return NMISNG::ModelData->new( data => \@rawtimedata );
+	return NMISNG::ModelData->new( cursor => $cursor );
 }
 
 # group nodes by specified group, then summarise their reachability and health as well as get total count
