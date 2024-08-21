@@ -59,7 +59,7 @@ sub collect_plugin
 	my $nodeobj    = $NG->node(name => $node);
 	my %nodeconfig = %{$S->nmisng_node->configuration};
 	my $NC         = $nodeobj->configuration;
-	my $catchall   = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall   = $S->inventory( concept => 'catchall' )->data_live();
 	my $cardTotal  = 0;
 	my $snmpData;
 

@@ -570,7 +570,7 @@ sub exportOltPorts {
 			my $S = NMISNG::Sys->new(nmisng => $nmisng);
 			my $nodeobj = $nmisng->node(name => $node);
 			$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
-			my $catchall_data = $S->inventory( concept => 'catchall' )->{_data};
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 			my $IF = $nodeobj->ifinfo;	
 			my $MDL = $S->mdl;
@@ -914,7 +914,7 @@ sub exportAdslPorts {
 			my $S = NMISNG::Sys->new(nmisng => $nmisng);
 			my $nodeobj = $nmisng->node(name => $node);
 			$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
-			my $catchall_data = $S->inventory( concept => 'catchall' )->{_data};
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 			my $IF = $nodeobj->ifinfo;
 
@@ -1189,7 +1189,7 @@ sub exportAsamDslamPorts {
 			my $S = NMISNG::Sys->new(nmisng => $nmisng);
 			my $nodeobj = $nmisng->node(name => $node);
 			$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
-			my $catchall_data = $S->inventory( concept => 'catchall' )->{_data};
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 			my $IF = $nodeobj->ifinfo;	
 			my $MDL = $S->mdl;

@@ -103,7 +103,7 @@ else {
 						next;
 					}
 					my $inv = $S->inventory(concept => 'catchall');
-					my $catchall_inventory = $inv->{_data};
+					my $catchall_inventory = $inv->data();
             
 					my $polling_policy = $nodeobj->configuration->{polling_policy} ? $nodeobj->configuration->{polling_policy} : "default";
 					my $snmp = 300;
