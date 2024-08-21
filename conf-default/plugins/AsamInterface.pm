@@ -80,7 +80,7 @@ sub update_plugin
 
 	my $nodeobj    = $NG->node(name => $node);
 	my $NC         = $nodeobj->configuration;
-	my $catchall   = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall   = $S->inventory( concept => 'catchall' )->data_live();
 	my %nodeconfig = %{$S->nmisng_node->configuration};
 
 
@@ -123,7 +123,7 @@ sub update_plugin
 		$NG->log->error("Failed to get inventory for interface index 17; Error: $error");
 	}
 	$NG->log->debug9(sub {"\$eqptHolderList: " . Dumper($eqptHolderList) . "\n\n\n"});
-	$asamModel = $eqptHolderList->{_data}->{eqptHolderPlannedType} || $catchall->{nodeModel};
+	$asamModel = $eqptHolderList->data_live->{eqptHolderPlannedType} || $catchall->{nodeModel};
 
 	$NG->log->info("ASAM Model: '$asamModel'");
 

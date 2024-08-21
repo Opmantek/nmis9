@@ -57,7 +57,7 @@ sub update_plugin
 	my $NI = $S->nmisng_node;
 	my $nodeobj = $NG->node(name => $node);
 	my $NC = $nodeobj->configuration;
-	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
 
 	# This plugin deals only with this specific device type, and only ones with snmp enabled and working
 	# and finally only if the number of interfaces is greater than the limit, otherwise the normal

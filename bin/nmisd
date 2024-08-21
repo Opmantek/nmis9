@@ -710,9 +710,9 @@ while (!$exit_marker)
 									'args.uuid' => [ keys %$thisflock ] # these were the nodes in the op
 				);
 
-				if ( scalar(@{$jobs->{_data}}) > 0 ) {
-					$nmisng->log->debug("Already exist " . scalar(@{$jobs->{_data}}) . " jobs for plugins and uuid " . Dumper([ keys %$thisflock ]));
-					$nmisng->log->info("Already exist " . scalar(@{$jobs->{_data}}) . " jobs for plugins and uuid. Skipping job ");
+				if ( scalar(@{$jobs->data()}) > 0 ) {
+					$nmisng->log->debug("Already exist " . scalar(@{$jobs->data()}) . " jobs for plugins and uuid " . Dumper([ keys %$thisflock ]));
+					$nmisng->log->info("Already exist " . scalar(@{$jobs->data()}) . " jobs for plugins and uuid. Skipping job ");
 				} else {
 					$nmisng->log->info("Scheduling post-$icanhasplugin plugin execution for tag $tag and "
 																 .(scalar keys %$thisflock)." nodes");

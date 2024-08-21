@@ -61,7 +61,7 @@ sub collect_plugin
 	my $changesweremade = 0;
 
 	my $nodeobj = $NG->node(name => $node);
-	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
 	
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP" or !NMISNG::Util::getbool($catchall->{collect}));
 	$NG->log->debug("Running F5BigIP plugin for node::$node");
