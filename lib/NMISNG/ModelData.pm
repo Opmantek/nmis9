@@ -135,6 +135,8 @@ sub data
 		$self->{_data} = \@all;
 		$self->{_cursor_data_fetched} = 1;
 		# print "called data with cursor!!!\n\n".$self->{_nmisng}->log->trace() if( $self->{_count_calling} != 1);
+	} elsif( $self->{_cursor_count} ) {
+		die 'ModelDaata::data cannot get all data after next iterator is used, _cursor_count '.$self->{_cursor_count};
 	}
 	return $self->{_data};
 }
