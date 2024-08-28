@@ -1,0 +1,23 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Disk Temperature'
+	},
+	'vlabel' => {
+		'standard' => 'Disk Temperature'
+	},
+	'option' => {
+		'standard' => [
+		    'DEF:hardDiskTemp=$database:hardDiskTemp:AVERAGE',
+		    'LINE2:hardDiskTemp#0000ff:Disk Temperature',
+    		'GPRINT:hardDiskTemp:LAST:Current %8.2lf',
+    		'GPRINT:hardDiskTemp:MIN:Min %8.2lf',
+    		'GPRINT:hardDiskTemp:MAX:Max %8.2lf\\n',
+		],
+		'small' => [
+		    'DEF:hardDiskTemp=$database:hardDiskTemp:AVERAGE',
+		    'LINE2:hardDiskTemp#0000ff:Disk Temperature',
+    		'GPRINT:hardDiskTemp:LAST:Current %8.2lf\\n',
+		]
+	}
+);

@@ -1,0 +1,361 @@
+% hash = (
+  'heading' => {
+    'graphtype' => {
+      'fan-status' => "Fan Status",
+      'psu-status' => "PSU Status",
+      'temp-status' => "Temperature Status",
+      'nqaJitterStats' => "nqa Jitter Stats  In & Out",
+      'temp-value' => "Temperature Value",
+    },
+  },
+  'database' => {
+    'type' => {
+      #-- -- -- -- -- -- --
+        'nqaJitterStats' => '/nodes/$node/health/nqaJitterStats-$index.rrd',
+        'nqaAdminCtrl' => '/nodes/$node/health/nqaAdminCtrl-$index.rrd',
+        #-- -- -- -- -- -- --
+    }
+  },
+  'threshold' => {
+    'name' => {
+      'nqaJJitter_In' => {
+        'item' => 'nqaJJitterIn',
+        'event' => 'Proactive nqa JJitter In High',
+				'title' => "NQA JJitter In High",
+				'unit' => "Tests",
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '3',
+              'critical' => '2.50',
+              'major' => '2',
+              'minor' => '1.50',
+              'warning' => '1.40'
+            },
+          },
+        },
+      },
+      'nqaJJitter_Out' => {
+        'item' => 'nqaJJitterOut',
+        'event' => 'Proactive nqa JJitter Out High',
+				'title' => "NQA JJitter Out High",
+				'unit' => "Tests",
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '3',
+              'critical' => '2.50',
+              'major' => '2',
+              'minor' => '1.50',
+              'warning' => '1.40'
+            },
+          },
+        },
+      },
+      },
+    },  
+  'systemHealth' => {
+    'sys' => {
+      'nqaAdminCtrl' => {
+        'indexed' => 'nqaAdminCtrlEntry',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.1',
+        #'index_regex' => '\.2\.1\.1\.1\.([\d\.]+)$',
+        'index_regex' => '\.(\d+)$',
+        'headers' => 'index,nqaAdminCtrlOwnerIndex,nqaAdminCtrlStatus,nqaAdminCtrlJitterThresholdSD,nqaAdminCtrlJitterThresholdDS,nqaAdminCtrlTestName,nqaAdminCtrlTag,nqaAdminCtrlType,nqaAdminCtrlFrequency,nqaAdminCtrlTimeOut,nqaAdminCtrlThreshold1,nqaAdminCtrlThreshold2,nqaAdminCtrlThreshold3',
+        'snmp' => {
+          'nqaAdminCtrlOwnerIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.1',
+            'title' => 'NQA Admin Control Owner Index'
+          },
+          'nqaAdminCtrlStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.10',
+            'title' => 'NQA Admin Control Status',
+            'replace' => {
+              '1' => 'Active (1)',
+              '6' => 'Destroy (6)',
+              '4' => 'CreateAndGo (4)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'nqaAdminCtrlJitterThresholdSD' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.11',
+            'title' => 'NQA Admin Control Jitter Threshold SD'
+          },
+          'nqaAdminCtrlJitterThresholdDS' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.12',
+            'title' => 'NQA Admin Control Jitter Threshold DS'
+          },
+          'nqaAdminCtrlTestName' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.2',
+            'title' => 'NQA Admin Control Test Name'
+          },
+          'nqaAdminCtrlTag' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.3',
+            'title' => 'NQA Admin Control Tag'
+          },
+          'nqaAdminCtrlType' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.4',
+            'title' => 'NQA Admin Control Type'
+          },
+          'nqaAdminCtrlFrequency' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.5',
+            'title' => 'NQA Admin Control Frequency'
+          },
+          'nqaAdminCtrlTimeOut' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.6',
+            'title' => 'NQA Admin Control TimeOut'
+          },
+          'nqaAdminCtrlThreshold1' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.7',
+            'title' => 'NQA Admin Control Threshold 1'
+          },
+          'nqaAdminCtrlThreshold2' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.8',
+            'title' => 'NQA Admin Control Threshold 2'
+          },
+          'nqaAdminCtrlThreshold3' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.9',
+            'title' => 'NQA Admin Control Threshold 3'
+          },
+        },
+      },
+      'nqaHistory' => {
+        'indexed' => 'nqaHistoryLastRC',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.9',
+        #'index_regex' => '\.5\.1\.1\.9\.([\d\.]+)$',
+        'index_regex' => '\.(\d+)$',
+        'headers' => 'index,nqaHistoryTimeStamp,nqaHistoryAddressType,nqaHistoryAddress,nqaHistoryCompletionTime,nqaHistoryFinishState,nqaHistoryLastRC',
+        'snmp' => {
+          'nqaHistoryIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.1',
+            'title' => 'NQA History Index'
+          },
+          'nqaHistoryHopIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.2',
+            'title' => 'NQA History Hop Index'
+          },
+          'nqaHistoryProbeIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.3',
+            'title' => 'NQA History Probe Index'
+          },
+          'nqaHistoryTimeStamp' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.4',
+            'title' => 'NQA History Time Stamp',
+            'calculate' => 'my $octects = ($r =~ /^0x/ ) ? substr($r,2) : $r; return sprintf("%04d-%02d-%02d %02d:%02d:%02d", unpack("n C6 a C2",pack("H*", $octects)));',
+          },
+          'nqaHistoryAddressType' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.5',
+            'title' => 'NQA History Address Type',
+            'replace' => {
+              '16' => 'dns',
+              '4' => 'ipv6z',
+              '1' => 'ipv4',
+              '3' => 'ipv4z',
+              '2' => 'ipv6',
+              '0' => 'unknown',
+            },
+          },
+          'nqaHistoryAddress' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.6',
+            'title' => 'NQA History Address'
+          },
+          'nqaHistoryCompletionTime' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.7',
+            'title' => 'NQA History Completion Time',
+            'replace' => {
+              '7' => 'noConnected',
+              '4' => 'busy',
+              '1' => 'success',
+              '3' => 'drop',
+              '2' => 'timeout',
+              '5' => 'overThreshold',
+              '6' => 'disconnected',
+            },
+          },
+          'nqaHistoryFinishState' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.8',
+            'title' => 'NQA History Finish State',
+            'replace' => {
+              '7' => 'noConnected',
+              '6' => 'disconnected',
+              '5' => 'overThreshold',
+              '4' => 'busy',
+              '1' => 'success',
+              '3' => 'drop',
+              '2' => 'timeout',
+            },
+          },
+          'nqaHistoryLastRC' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.5.1.1.9',
+            'title' => 'NQA History Last RC'
+          }
+        }
+      },
+      'nqaJitterStats' => {
+        'indexed' => 'nqaJJitterOut',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.51',        
+        # grab the index part out, leave the last number out of the index
+        'index_regex' => '\.4\.3\.1\.\d+\.([\d\.]+)\.\d+$',
+        'index_suffix_oid' => '1.3.6.1.4.1.2011.5.25.111.2.3.1.8', 
+          'headers' => 'nqaAdminCtrlTestName,nqaAdminParaTargetAddress,nqaAvgJitterDS,nqaNumOfRTT,nqaRTTMax,nqaNumOfPositivesSD,nqaNumOfNegativesSD,nqaNumOfPositivesDS,nqaNumOfNegativesDS,nqaProbeResponses,nqaSentProbes,nqaDrops,nqaJJitterOut,nqaJJitterIn',
+          'snmp' => {
+            'nqaAdminCtrlTestName' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.2',
+              'title' => 'Test Name'
+            },
+            'nqaAdminParaTargetAddress' => {          
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.2.2.1.2',
+              'title' => 'Destination Address'    
+            },
+            'nqaAvgJitterDS' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
+              'title' => 'NQA Jitter Stats Avg Jitter DS'
+            },
+            'nqaNumOfRTT' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.4',
+              'title' => 'NQA Jitter Stats Num Of RTT'
+            },           
+            'nqaRTTMax' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.6',
+              'title' => 'NQA Jitter Stats RTT Max'
+            },                                                                  
+            'nqaNumOfPositivesSD' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.12',
+              'title' => 'NQA Jitter Stats Num Of Positives SD'
+            },
+            'nqaNumOfNegativesSD' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.18',
+              'title' => 'NQA Jitter Stats Num Of Negatives SD'
+            },    
+            'nqaNumOfPositivesDS' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.24',
+              'title' => 'NQA Jitter Stats Num Of Positives DS'
+            },
+            'nqaNumOfNegativesDS' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.30',
+              'title' => 'NQA Jitter Stats Num Of Negatives DS'
+            },     
+            'nqaProbeResponses' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.40',
+              'title' => 'NQA Jitter Stats Probe Responses'
+            },
+            'nqaSentProbes' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.41',
+              'title' => 'NQA Jitter Stats Sent Probes'
+            },
+            'nqaDrops' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.42',
+              'title' => 'NQA Jitter Stats Drops'
+            }, 
+            'nqaJJitterOut' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.51',
+              'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+                },
+              'title' => 'NQA Jitter Stats Jitter Out'
+              },
+            'nqaJJitterIn' => {
+              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.52',
+                            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+                    },
+              'title' => 'NQA Jitter Stats Jitter In'
+            },
+          },
+      },
+    },
+    'rrd' => {
+      'nqaJitterStats' => {
+        'graphtype' => 'JitterStats_in_out',
+        'indexed' => 'true',
+        'threshold' => 'nqaJJitter_In,nqaJJitter_Out',
+        'snmp' => {
+          'nqaAvgJitterDS' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
+              #'title' => 'NQA Jitter Stats Avg Jitter DS'
+          },
+            'nqaNumOfRTT' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.4',
+              #'title' => 'NQA Jitter Stats Num Of RTT'
+            },
+            'nqaNumOfPositivesSD' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.12',
+              #'title' => 'NQA Jitter Stats Num Of Positives SD'
+            },
+            'nqaNumOfNegativesSD' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.18',
+              #'title' => 'NQA Jitter Stats Num Of Negatives SD'
+            },    
+            'nqaNumOfPositivesDS' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.24',
+              #'title' => 'NQA Jitter Stats Num Of Positives DS'
+            },
+            'nqaNumOfNegativesDS' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.30',
+              #'title' => 'NQA Jitter Stats Num Of Negatives DS'
+            },     
+            'nqaProbeResponses' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.40',
+              #'title' => 'NQA Jitter Stats Probe Responses'
+            },
+            'nqaSentProbes' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.41',
+              #'title' => 'NQA Jitter Stats Sent Probes'
+            },
+            'nqaDrops' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.42',
+              #'title' => 'NQA Jitter Stats Drops'
+            },           
+          'nqaJJitterOut' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.51',
+            # 'title' => 'NQA Jitter Stats Jitter Out'
+          },
+          'nqaJJitterIn' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.52',
+            # 'title' => 'NQA Jitter Stats Jitter In'
+          },
+          'nqaRTTMax' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.6',
+            #'title' => 'NQA Jitter Stats RTT Max'
+          },
+        },
+      },
+      'nqaAdminCtrl' => {
+        'graphtype' => 'nqaAdminCtrl',
+        'threshold' => '',
+        'snmp' => {
+          'nqaAdminCtrlS' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.10',
+          },
+          'nqaAdminCtrlJiT' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.11',
+          },
+          'nqaJitterThres' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.12',
+          },
+          'nqaAdminCtrlType' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.4',
+          },
+          'nqaAdminCtrlFre' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.5',
+          },
+          'nqaCtrlTimeOut' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.6',
+          },
+          'nqaCtrlThreshold1' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.7',
+          },
+          'nqaCtrlThreshold2' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.8',
+          },
+          'nqaCtrlThreshold3' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.9',
+          },
+        },
+      },
+    },
+  },
+);
