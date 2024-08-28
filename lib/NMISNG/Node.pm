@@ -61,7 +61,7 @@ use NMISNG::rrdfunc;
 
 use Compat::IP;
 
-my $bulk_timed_data = 1;
+use constanct BULK_TIMED_DATA => 1;
 
 # create a new node object
 # params:
@@ -2639,7 +2639,7 @@ sub collect_node_data
 		
 		$self->process_alerts( sys => $S );
 		my $timed_bulk;
-		if( $bulk_timed_data == 1 ) {
+		if( BULK_TIMED_DATA == 1 ) {
 			$timed_bulk = {};
 		}
 		foreach my $section ( keys %{$rrdData} )
@@ -4287,7 +4287,7 @@ sub collect_intf_data
 		my $previous_pit = $inventory->get_newest_timed_data(); # one needed for the pit updates,
 
 		my $timed_bulk;
-		if( $bulk_timed_data == 1 ) {
+		if( BULK_TIMED_DATA == 1 ) {
 			$timed_bulk = {};
 		}
 		# now walk all rrd data sections and send them off to rrd
@@ -5099,7 +5099,7 @@ sub collect_systemhealth_data
 		: $self->nmisng->config->{model_health_sections} );
 
 	my $timed_bulk;
-	if( $bulk_timed_data == 1 ) {
+	if( BULK_TIMED_DATA == 1 ) {
 		$timed_bulk = {};
 	}
 
@@ -5800,7 +5800,7 @@ sub collect_cbqos_data
 	my $happy;
 
 	my $timed_bulk;
-	if( $bulk_timed_data == 1 ) {
+	if( BULK_TIMED_DATA == 1 ) {
 		$timed_bulk = {};
 	}
 	foreach my $direction ( "in", "out" )
@@ -7327,7 +7327,7 @@ sub collect_server_data
 
 		$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
 		my $timed_bulk;
-		if( $bulk_timed_data == 1 ) {
+		if( BULK_TIMED_DATA == 1 ) {
 			$timed_bulk = {};
 		}
 		foreach my $index ( keys %{$deviceIndex} )
