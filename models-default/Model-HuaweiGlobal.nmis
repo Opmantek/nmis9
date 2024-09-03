@@ -1,4 +1,4 @@
-% hash = (
+%hash = (
   '-common-' => {
     'class' => {
       'database' => {

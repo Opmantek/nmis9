@@ -1,10 +1,16 @@
-% hash = (
+%hash = (
   'heading' => {
     'graphtype' => {
       'fan-status' => "Fan Status",
       'psu-status' => "PSU Status",
       'temp-status' => "Temperature Status",
-      'nqaJitterStats' => "nqa Jitter Stats  In & Out",
+      'NQA-jitter-in-out' => "NQA Jitter In & Out",
+      'NQA-jitter-delay-ds' => 'NQA Jitter Delay DS',
+      'NQA-jitter-delay-sd' => 'NQA Jitter Delay SD',
+      'NQA-pkt-loss' => 'NQA Packet Loss',
+      'NQA-probes' => 'NQA Probe Info',
+      'NQA-rtt-info' => 'NQA RTT Info',
+      'NQA-rtt-mma' => 'NQA RTT Min/Max/Avg',
       'temp-value' => "Temperature Value",
     },
   },
@@ -18,11 +24,11 @@
   },
   'threshold' => {
     'name' => {
-      'nqaJJitter_In' => {
-        'item' => 'nqaJJitterIn',
-        'event' => 'Proactive nqa JJitter In High',
-				'title' => "NQA JJitter In High",
-				'unit' => "Tests",
+      'nqaJitter_In' => {
+        'item' => 'nqaJitterIn',
+        'event' => 'Proactive nqa Jitter In High',
+        'title' => "NQA Jitter In High",
+        'unit' => "Tests",
         'select' => {
           'default' => {
             'value' => {
@@ -35,11 +41,11 @@
           },
         },
       },
-      'nqaJJitter_Out' => {
-        'item' => 'nqaJJitterOut',
-        'event' => 'Proactive nqa JJitter Out High',
-				'title' => "NQA JJitter Out High",
-				'unit' => "Tests",
+      'nqaJitter_Out' => {
+        'item' => 'nqaJitterOut',
+        'event' => 'Proactive nqa Jitter Out High',
+        'title' => "NQA Jitter Out High",
+        'unit' => "Tests",
         'select' => {
           'default' => {
             'value' => {
@@ -198,129 +204,257 @@
         # grab the index part out, leave the last number out of the index
         'index_regex' => '\.4\.3\.1\.\d+\.([\d\.]+)\.\d+$',
         'index_suffix_oid' => '1.3.6.1.4.1.2011.5.25.111.2.3.1.8', 
-          'headers' => 'nqaAdminCtrlTestName,nqaAdminParaTargetAddress,nqaAvgJitterDS,nqaNumOfRTT,nqaRTTMax,nqaNumOfPositivesSD,nqaNumOfNegativesSD,nqaNumOfPositivesDS,nqaNumOfNegativesDS,nqaProbeResponses,nqaSentProbes,nqaDrops,nqaJJitterOut,nqaJJitterIn',
-          'snmp' => {
-            'nqaAdminCtrlTestName' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.2',
-              'title' => 'Test Name'
-            },
-            'nqaAdminParaTargetAddress' => {          
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.2.2.1.2',
-              'title' => 'Destination Address'    
-            },
-            'nqaAvgJitterDS' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
-              'title' => 'NQA Jitter Stats Avg Jitter DS'
-            },
-            'nqaNumOfRTT' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.4',
-              'title' => 'NQA Jitter Stats Num Of RTT'
-            },           
-            'nqaRTTMax' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.6',
-              'title' => 'NQA Jitter Stats RTT Max'
-            },                                                                  
-            'nqaNumOfPositivesSD' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.12',
-              'title' => 'NQA Jitter Stats Num Of Positives SD'
-            },
-            'nqaNumOfNegativesSD' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.18',
-              'title' => 'NQA Jitter Stats Num Of Negatives SD'
-            },    
-            'nqaNumOfPositivesDS' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.24',
-              'title' => 'NQA Jitter Stats Num Of Positives DS'
-            },
-            'nqaNumOfNegativesDS' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.30',
-              'title' => 'NQA Jitter Stats Num Of Negatives DS'
-            },     
-            'nqaProbeResponses' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.40',
-              'title' => 'NQA Jitter Stats Probe Responses'
-            },
-            'nqaSentProbes' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.41',
-              'title' => 'NQA Jitter Stats Sent Probes'
-            },
-            'nqaDrops' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.42',
-              'title' => 'NQA Jitter Stats Drops'
-            }, 
-            'nqaJJitterOut' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.51',
-              'replace' => {
+        'headers' => 'nqaSentProbes,nqaAvgJitterDS,nqaProbeResponses,nqaRTTMin,nqaRTTMax,nqaRTTAvg,nqaRTTSum,nqaNumOfRTT,nqaJtrStsRTTSum2L,nqaJtrStsRTTSum2H,nqaPacketLossSD,nqaPktLossUnknown,nqaPacketLossDS,nqaPacketLossRatio,nqaJitterOut,nqaJitterIn,nqaJtrStsMinDelDS,nqaJtrStsMaxDelDS,nqaJtrStsAvgDelDS,nqaJtrStsMinDelSD,nqaJtrStsMaxDelSD,nqaJtrStsAvgDelSD,nqaAdminCtrlTestName',
+        'snmp' => {
+          'nqaSentProbes' => {
+            #'title' => 'NQA Jitter Stats Sent Probes'
+            'title' => 'SendProbe',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.41',
+          },
+          'nqaAvgJitterDS' => {
+            #'title' => 'NQA Jitter Stats Avg Jitter DS',
+            'title' => 'Completion',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
+            #INTEGER{noResult(0),success(1),failure(2),negotiateFailed(3)}
+            'replace' => {
+              '0' => 'No Result(0)',
+              '1' => 'Success (1)',
+              '2' => 'Failure (2)',
+              '3' => 'Negotiate Failed (3)',
               'noSuchObject' => 'N/A',
               'noSuchInstance' => 'N/A',
-                },
-              'title' => 'NQA Jitter Stats Jitter Out'
-              },
-            'nqaJJitterIn' => {
-              #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.52',
-                            'replace' => {
-              'noSuchObject' => 'N/A',
-              'noSuchInstance' => 'N/A',
-                    },
-              'title' => 'NQA Jitter Stats Jitter In'
             },
           },
+          'nqaProbeResponses' => {              
+            #'title' => 'NQA Jitter Stats Probe Responses'
+            'title' => 'Respuesta de Probes',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.40',
+          },
+          'nqaRTTMin' => {
+            'title' => 'RTT Minimo',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.8'
+          },
+          'nqaRTTMax' => {
+            #'title' => 'NQA Jitter Stats RTT Max'
+            'title' => 'RTT Maximo',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.9'
+          },
+          'nqaRTTAvg' => {
+            'title' => 'RTT Promedio',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.46'
+          },
+          'nqaRTTSum' => {
+            #'title' => 'RTT Sum',
+            'title' => 'RTT Suma',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.5'
+          },
+          'nqaNumOfRTT' => {
+            #'title' => 'NQA Jitter Stats Num Of RTT'
+            'title' => 'Numero de RTT',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.4',
+          },
+          'nqaJtrStsRTTSum2L' => {
+            'title' => 'RTT Square Sum Low',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.6'
+          },
+          'nqaJtrStsRTTSum2H' => {
+            'title' => 'RTT Square Sum High',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.7'
+          },
+          'nqaPacketLossSD' => {
+            #'title' => 'Packet Loss SD',
+            'title' => 'Perdida de Paquetes SD',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.34',
+          },
+          'nqaPktLossUnknown' => {
+            #'title' => 'Unknown Packet Loss',
+            'title' => 'Perdida de Paquetes Desconocida'
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.54',
+          },
+          'nqaPacketLossDS' => {
+            #'title' => 'Packet Loss DS',
+            'title' => 'Perdida de Paquetes DS',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.35',
+          },
+          'nqaPacketLossRatio' => {
+            #'title' => 'Packet Loss Ratio',
+            'title' => 'Ratio de Perdida de Paquetes',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.47',
+          },
+          'nqaJitterOut' => {
+            #'title' => 'NQA Jitter Stats Jitter Out'
+            'title' => 'Jitter Out'
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.51',
+          },
+          'nqaJitterIn' => {
+            #'title' => 'NQA Jitter Stats Jitter In'
+            'title' => 'Jitter In'
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.52',
+          },
+          'nqaJtrStsMinDelDS' => {
+            'title' => 'Delay Min DS',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.64'
+          },
+          'nqaJtrStsMaxDelDS' => {
+            'title' => 'Delay Max DS',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.45'
+          },
+          'nqaJtrStsAvgDelDS' => {
+            'title' => 'Delay Avg DS',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.69'
+          },
+          'nqaJtrStsMinDelSD' => {
+            'title' => 'Delay Min SD',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.61'
+          },
+          'nqaJtrStsMaxDelSD' => {
+            'title' => 'Delay Max SD',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.44'
+          },
+          'nqaJtrStsAvgDelSD' => {
+            'title' => 'Delay Avg SD',
+            #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.68'
+          },          
+          'nqaAdminCtrlTestName' => {
+            'title' => 'Test Name',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.2',
+          },
+# this will not work because of the index will be appended when fetching rrd  
+#          'nqaSchLastFinIdx' => {
+#            'title' => 'Numero de Test',
+#            #'oid' => '1.3.6.1.4.1.2011.5.25.111.2.3.1.8'
+#          },
+          'nqaAdminParaTargetAddress' => {
+            'title' => 'Destination Address',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.2.1.2',
+          },
+        },
       },
     },
     'rrd' => {
       'nqaJitterStats' => {
-        'graphtype' => 'JitterStats_in_out',
+        'graphtype' => 'NQA-jitter-in-out,NQA-probes,NQA-rtt-mma,NQA-rtt-info,NQA-pkt-loss,NQA-jitter-delay-ds,NQA-jitter-delay-sd',
         'indexed' => 'true',
-        'threshold' => 'nqaJJitter_In,nqaJJitter_Out',
+        'threshold' => 'nqaJitter_In,nqaJitter_Out',
         'snmp' => {
+          'nqaSentProbes' => {
+            #'title' => 'NQA Jitter Stats Sent Probes'
+            #'title' => 'SendProbe',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.41',
+            'option' => 'counter,0:U'
+          },
           'nqaAvgJitterDS' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
-              #'title' => 'NQA Jitter Stats Avg Jitter DS'
+            #'title' => 'NQA Jitter Stats Avg Jitter DS',
+            #'title' => 'Completion',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
           },
-            'nqaNumOfRTT' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.4',
-              #'title' => 'NQA Jitter Stats Num Of RTT'
-            },
-            'nqaNumOfPositivesSD' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.12',
-              #'title' => 'NQA Jitter Stats Num Of Positives SD'
-            },
-            'nqaNumOfNegativesSD' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.18',
-              #'title' => 'NQA Jitter Stats Num Of Negatives SD'
-            },    
-            'nqaNumOfPositivesDS' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.24',
-              #'title' => 'NQA Jitter Stats Num Of Positives DS'
-            },
-            'nqaNumOfNegativesDS' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.30',
-              #'title' => 'NQA Jitter Stats Num Of Negatives DS'
-            },     
-            'nqaProbeResponses' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.40',
-              #'title' => 'NQA Jitter Stats Probe Responses'
-            },
-            'nqaSentProbes' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.41',
-              #'title' => 'NQA Jitter Stats Sent Probes'
-            },
-            'nqaDrops' => {
-              'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.42',
-              #'title' => 'NQA Jitter Stats Drops'
-            },           
-          'nqaJJitterOut' => {
-            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.51',
-            # 'title' => 'NQA Jitter Stats Jitter Out'
+          'nqaProbeResponses' => {              
+            #'title' => 'NQA Jitter Stats Probe Responses'
+            #'title' => 'Respuesta de Probes',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.40',
+            'option' => 'counter,0:U'
           },
-          'nqaJJitterIn' => {
-            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.52',
-            # 'title' => 'NQA Jitter Stats Jitter In'
+          'nqaRTTMin' => {
+            #'title' => 'Minimum RTT',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.8'
           },
           'nqaRTTMax' => {
-            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.6',
             #'title' => 'NQA Jitter Stats RTT Max'
+            #'title' => 'Maximum RTT',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.9'
           },
+          'nqaRTTAvg' => {
+            #'title' => 'Average RTT',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.46'
+          },
+          'nqaRTTSum' => {
+            #'title' => 'RTT Sum',
+            #'title' => 'RTT Suma',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.5',
+            'option' => 'counter,0:U'
+          },
+          'nqaNumOfRTT' => {
+            #'title' => 'NQA Jitter Stats Num Of RTT'
+            #'title' => 'Numero de RTT',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.4',
+            'option' => 'counter,0:U'
+          },
+          'nqaJtrStsRTTSum2L' => {
+            #'title' => 'RTT Square Sum Low',
+            oid => '1.3.6.1.4.1.2011.5.25.111.4.3.1.6',
+            'option' => 'counter,0:U'
+
+          },
+          'nqaJtrStsRTTSum2H' => {
+            #'title' => 'RTT Square Sum High',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.7',
+            'option' => 'counter,0:U'
+          },
+          'nqaPacketLossSD' => {
+            #'title' => 'Packet Loss SD',
+            #'title' => 'Perdida de Paquetes SD',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.34',
+            'option' => 'counter,0:U'
+          },
+          'nqaPktLossUnknown' => {
+            #'title' => 'Unknown Packet Loss',
+            #'title' => 'Perdida de Paquetes Desconocida'
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.54',
+            'option' => 'counter,0:U'
+          },
+          'nqaPacketLossDS' => {
+            #'title' => 'Packet Loss DS',
+            #'title' => 'Perdida de Paquetes DS',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.35',
+            'option' => 'counter,0:U'
+          },
+          'nqaPacketLossRatio' => {
+            #'title' => 'Packet Loss Ratio',
+            #'title' => 'Ratio de Perdida de Paquetes',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.47',
+          },
+          'nqaJitterOut' => {
+            #'title' => 'NQA Jitter Stats Jitter Out'
+            #'title' => 'Jitter Out'
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.51',
+            # OCTET STRING
+          },
+          'nqaJitterIn' => {
+            #'title' => 'NQA Jitter Stats Jitter In'
+            #'title' => 'Jitter In'
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.52',
+            # OCTET STRING
+          },
+          'nqaJtrStsMinDelDS' => {
+            #'title' => 'Min Delay DS',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.64'
+          },
+          'nqaJtrStsMaxDelDS' => {
+            #'title' => 'Max Delay DS',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.45'
+          },
+          'nqaJtrStsAvgDelDS' => {
+            #'title' => 'Avg Delay DS',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.69'
+          },
+          'nqaJtrStsMinDelSD' => {
+            #'title' => 'Min Delay SD',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.61'
+          },
+          'nqaJtrStsMaxDelSD' => {
+            #'title' => 'Max Delay SD',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.44'
+          },
+          'nqaJtrStsAvgDelSD' => {
+            #'title' => 'Avg Delay SD',
+            'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.68'
+          },          
+# this does not work because it cannot have the index prefix added to it
+#          'nqaSchLastFinIdx' => {
+#            #'title' => 'Numero de Test',
+#            'oid' => '1.3.6.1.4.1.2011.5.25.111.2.3.1.8',
+#            'option' => 'counter,0:U'
+#          },
         },
       },
       'nqaAdminCtrl' => {

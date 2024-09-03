@@ -1,0 +1,40 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'RTT Info'
+	},
+	'vlabel' => {
+		'standard' => 'RTT Info'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:nqaRTTSum=$database:nqaRTTSum:AVERAGE',
+			'DEF:nqaNumOfRTT=$database:nqaNumOfRTT:AVERAGE',
+			'DEF:nqaJtrStsRTTSum2L=$database:nqaJtrStsRTTSum2L:AVERAGE',
+			'DEF:nqaJtrStsRTTSum2H=$database:nqaJtrStsRTTSum2H:AVERAGE',
+			'LINE2:nqaRTTSum#ff0000:RTT Suma\\t\\t',
+			'GPRINT:nqaRTTSum:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaNumOfRTT#00ff00:Numero de RTT\\t',
+			'GPRINT:nqaNumOfRTT:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaJtrStsRTTSum2L#0000ff:RTT Square Sum Low\\t',
+			'GPRINT:nqaJtrStsRTTSum2L:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaJtrStsRTTSum2H#ff00ff:RTT Square Sum High\\t',
+			'GPRINT:nqaJtrStsRTTSum2H:AVERAGE:AVG %1.0lf\\n'
+		],
+		'small' => [
+			'DEF:nqaRTTSum=$database:nqaRTTSum:AVERAGE',
+			'DEF:nqaNumOfRTT=$database:nqaNumOfRTT:AVERAGE',
+			'DEF:nqaJtrStsRTTSum2L=$database:nqaJtrStsRTTSum2L:AVERAGE',
+			'DEF:nqaJtrStsRTTSum2H=$database:nqaJtrStsRTTSum2H:AVERAGE',
+
+			'LINE2:nqaRTTSum#ff0000:RTT Suma\\t\\t\\t',
+			'GPRINT:nqaRTTSum:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaNumOfRTT#00ff00:Numero de RTT\\t\\t',
+			'GPRINT:nqaNumOfRTT:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaJtrStsRTTSum2L#0000ff:RTT Square Sum Low\\t',
+			'GPRINT:nqaJtrStsRTTSum2L:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaJtrStsRTTSum2H#ff00ff:RTT Square Sum High\\t',
+			'GPRINT:nqaJtrStsRTTSum2H:AVERAGE:AVG %1.0lf\\n'
+		]
+	}
+);

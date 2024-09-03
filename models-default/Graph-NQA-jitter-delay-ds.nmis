@@ -1,0 +1,34 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Jitter Delay DS'
+	},
+	'vlabel' => {
+		'standard' => 'Jitter Delay DS'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:nqaJtrStsMinDelDS=$database:nqaJtrStsMinDelDS:AVERAGE',
+			'DEF:nqaJtrStsMaxDelDS=$database:nqaJtrStsMaxDelDS:AVERAGE',
+			'DEF:nqaJtrStsAvgDelDS=$database:nqaJtrStsAvgDelDS:AVERAGE',
+			'LINE2:nqaJtrStsMinDelDS#ff0000:Delay Min DS\\t',
+			'GPRINT:nqaJtrStsMinDelDS:LAST:Current %1.0lf\\n',
+			'LINE2:nqaJtrStsMaxDelDS#00ff00:Delay Max DS\\t',
+			'GPRINT:nqaJtrStsMaxDelDS:LAST:Current %1.0lf\\n',
+			'LINE2:nqaJtrStsAvgDelDS#0000ff:Delay Avg DS\\t',
+			'GPRINT:nqaJtrStsAvgDelDS:LAST:Current %1.0lf\\n'
+		],
+		'small' => [
+			'DEF:nqaJtrStsMinDelDS=$database:nqaJtrStsMinDelDS:AVERAGE',
+			'DEF:nqaJtrStsMaxDelDS=$database:nqaJtrStsMaxDelDS:AVERAGE',
+			'DEF:nqaJtrStsAvgDelDS=$database:nqaJtrStsAvgDelDS:AVERAGE',
+
+			'LINE2:nqaJtrStsMinDelDS#ff0000:Delay Min DS\\t',
+			'GPRINT:nqaJtrStsMinDelDS:LAST:Current %1.0lf\\n',
+			'LINE2:nqaJtrStsMaxDelDS#00ff00:Delay Max DS\\t',
+			'GPRINT:nqaJtrStsMaxDelDS:LAST:Current %1.0lf\\n',
+			'LINE2:nqaJtrStsAvgDelDS#0000ff:Delay Avg DS\\t',
+			'GPRINT:nqaJtrStsAvgDelDS:LAST:Current %1.0lf\\n'
+		]
+	}
+);

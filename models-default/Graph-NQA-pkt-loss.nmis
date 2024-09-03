@@ -1,0 +1,41 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'NQA Packet Loss'
+	},
+	'vlabel' => {
+		'standard' => 'NQA Packet Loss'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:nqaPacketLossSD=$database:nqaPacketLossSD:AVERAGE',
+			'DEF:nqaPktLossUnknown=$database:nqaPktLossUnknown:AVERAGE',
+			'DEF:nqaPacketLossDS=$database:nqaPacketLossDS:AVERAGE',
+			'DEF:nqaPacketLossRatio=$database:nqaPacketLossRatio:AVERAGE',
+			
+			'LINE2:nqaPacketLossSD#ff0000:Perdida de Paquetes SD\\t\\t',
+			'GPRINT:nqaPacketLossSD:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaPktLossUnknown#00ff00:Perdida de Paquetes Desconocida\\t',
+			'GPRINT:nqaPktLossUnknown:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaPacketLossDS#0000ff:Perdida de Paquetes DS\\t\\t',
+			'GPRINT:nqaPacketLossDS:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaPacketLossRatio#ff00ff:Ratio de Perdida de Paquetes\\t',
+			'GPRINT:nqaPacketLossRatio:LAST:Current %1.0lf\\n'
+		],
+		'small' => [
+			'DEF:nqaPacketLossSD=$database:nqaPacketLossSD:AVERAGE',
+			'DEF:nqaPktLossUnknown=$database:nqaPktLossUnknown:AVERAGE',
+			'DEF:nqaPacketLossDS=$database:nqaPacketLossDS:AVERAGE',
+			'DEF:nqaPacketLossRatio=$database:nqaPacketLossRatio:AVERAGE',
+
+			'LINE2:nqaPacketLossSD#ff0000:Perdida de Paquetes SD\\t\\t\\t',
+			'GPRINT:nqaPacketLossSD:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaPktLossUnknown#00ff00:Perdida de Paquetes Desconocida\\t',
+			'GPRINT:nqaPktLossUnknown:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaPacketLossDS#0000ff:Perdida de Paquetes DS\\t\\t\\t',
+			'GPRINT:nqaPacketLossDS:AVERAGE:AVG %1.0lf\\n',
+			'LINE2:nqaPacketLossRatio#ff00ff:Ratio de Perdida de Paquetes\\t\\t',
+			'GPRINT:nqaPacketLossRatio:LAST:Current %1.0lf\\n'
+		]
+	}
+);
