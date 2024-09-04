@@ -61,7 +61,7 @@ use NMISNG::rrdfunc;
 
 use Compat::IP;
 
-use constanct BULK_TIMED_DATA => 1;
+use constant BULK_TIMED_DATA => 1;
 
 # create a new node object
 # params:

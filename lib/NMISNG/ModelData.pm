@@ -130,50 +130,69 @@ sub data
 		$self->{_error_checked} = 1; # stop this message from happening again for this object
 	}
 	# if we have a cursor and data is called get all the data
-	if( $self->{_cursor} && $self->{_cursor_data_fetched} == 0 ) {
+	if( $self->{_cursor} && $self->{_cursor_count} > 0 ) {		
+		# NOTE: this involves resetting and screwing up the cursor / iteration so just say no
+		die 'ModelDaata::data cannot get all data after next iterator is used, _cursor_count: '.$self->{_cursor_count};
+	} elsif( $self->{_cursor} && $self->{_cursor_data_fetched} == 0 ) {
 		my @all = $self->{_cursor}->all();
 		$self->{_data} = \@all;
 		$self->{_cursor_data_fetched} = 1;
 		# print "called data with cursor!!!\n\n".$self->{_nmisng}->log->trace() if( $self->{_count_calling} != 1);
-	} elsif( $self->{_cursor_count} ) {
-		die 'ModelDaata::data cannot get all data after next iterator is used, _cursor_count '.$self->{_cursor_count};
 	}
 	return $self->{_data};
 }
 
 # readonly - returns number of entries in data or zero if no data
-#   if using a cursor this forces all data to be grabbed in order to get count
-#   so try not to use it if iterating over potentially large datasets
+#   if using a cursor it tries to be smart and re-use the query/filter
+#   if iterating try not to use this, still not cheap
+# returns count of dataset, 0 if nothing is found
 sub count
 {
 	my ($self) = @_;
-	# have to use data here so the cursor gets used
-	$self->{_count_calling} = 1;
-	my $data = $self->data();
-	$self->{_count_calling} = 0;
-	return (ref($data) eq 'ARRAY')? scalar(@$data) : 0;
+	my $count = 0;
+	 
+	my $cursor = $self->{_cursor};
+	# not using this for now because there's places that end up calling count 
+	# a bunch of times and re-running the query isn't actually more efficient
+	if( $cursor && 0) {
+		# this digs a little deeper into the cursor than we should be 
+		my $client = $cursor->client();		
+		my $query = $cursor->_query();
+		my $filter = $query->filter();
+		my $db_name = $query->{db_name};
+		my $coll_name = $query->{coll_name};
+		my $db = $client->get_database($db_name);
+		my $collection = $db->get_collection($coll_name);		
+		# print "filter,options".Dumper($filter,$options);
+		my $options = {};
+		$count = $collection->count_documents($filter,$options);
+	} else {
+		my $data = $self->data();
+		$count = (ref($data) eq 'ARRAY')? scalar(@$data) : 0;
+	}
+	return $count;
 }
 
-# returns 1 if iterator has next entry
+# returns 1 if iterator has next entry, 0 if not
 sub has_next 
 {
 	my ($self) = @_;
 	my $cursor_count = $self->{_cursor_count};
 	
-	return $self->{_cursor}->has_next if( $self->{_cursor} );	
-	return ( ($cursor_count + 1) < @{$self->{_data}} );
+	return ( $self->{_cursor}->has_next ) ? 1 : 0 if( $self->{_cursor} && !$self->{_cursor_data_fetched} );	
+	return ( ($cursor_count + 1) < @{$self->{_data}} ) ? 1 : 0;
 }
 
 # iterator, return next value, retuns undef if there is nothing
 # if using mongo cursor batching is automatic
 # if not using cursor just gets next thing in data array
 # no support for resetting count/location
-sub next 
+sub next_value 
 {
 	my ($self) = @_;
 	my $cursor_count = $self->{_cursor_count};
 	$self->{_cursor_count}++;
-	return $self->{_cursor}->next if( $self->{_cursor} );	
+	return $self->{_cursor}->next if( $self->{_cursor} && !$self->{_cursor_data_fetched} );	
 	return $self->{_data}->[$cursor_count];
 }
 
@@ -212,8 +231,9 @@ sub objects
 	return { error => $error } if ($error);
 	
 	# otherwise, nothing to do is NOT an error
+	my $data = $self->data();
 	return { success => 1, objects => [] }
-	if (ref($self->{_data}) ne "ARRAY" or !@{$self->{_data}});
+	if (ref($data) ne "ARRAY" or !@$data);
 	# but not knowing what objects to make is
 	return { error => "Missing class_name or nmisng, cannot instantiate objects!" }
 	if ((!$self->{_class_name} and !$self->{_attribute_name})
@@ -223,7 +243,7 @@ sub objects
 	Module::Load::load($self->{_class_name}) 	if ($self->{_class_name});
 
 	my @objects;
-	for my $raw (@{$self->{_data}})
+	for my $raw (@$data)
 	{
 		my $classname = $self->{_class_name};
 		# the dynamic case with resolver function
@@ -266,16 +286,20 @@ sub object
 			if ((!$self->{_class_name} and !$self->{_resolver})
 					or ref($self->{_nmisng}) ne "NMISNG");	
 	
+	my $error = $self->error();
+	return $error if ($error);
+	
 	my $raw;
 	if( $raw_record ) {
 		$raw = $raw_record;
 	}
 	else
 	{
+		my $data = $self->data();
 		return "nth argument  outside of limits! ($nth)"
-			if (ref($self->{_data}) ne "ARRAY"
-					or !exists $self->{_data}->[$nth]);
-		$raw = $self->{_data}->[$nth];
+			if (ref($data) ne "ARRAY"
+					or !exists $data->[$nth]);
+		$raw = $data->[$nth];
 	}
 	 
 	# how do we find out the class name? either static or via resolver function
