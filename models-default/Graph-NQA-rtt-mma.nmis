@@ -29,6 +29,14 @@
 			'GPRINT:nqaRTTMax:LAST:Current %1.0lf\\n',
 			'LINE2:nqaRTTAvg#0000ff:RTT Promedio\\t',
 			'GPRINT:nqaRTTAvg:LAST:Current %1.0lf\\n'
-		]
+		],
+		'overlays' => {
+			'percentile' => {
+				datasets => {
+					nqaRTTAvg => "RTT Promedio 95th %",
+				},
+				calculate => 95
+			},
+		}
 	}
 );

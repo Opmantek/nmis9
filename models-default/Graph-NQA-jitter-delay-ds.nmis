@@ -29,6 +29,14 @@
 			'GPRINT:nqaJtrStsMaxDelDS:LAST:Current %1.0lf\\n',
 			'LINE2:nqaJtrStsAvgDelDS#0000ff:Delay Avg DS\\t',
 			'GPRINT:nqaJtrStsAvgDelDS:LAST:Current %1.0lf\\n'
-		]
-	}
+		],
+		'overlays' => {
+			'percentile' => {
+				datasets => {
+					nqaJtrStsAvgDelDS => "Delay Avg DS 95th %",
+				},
+				calculate => 95
+			},
+		}
+	}	
 );

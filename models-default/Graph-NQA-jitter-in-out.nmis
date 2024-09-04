@@ -28,6 +28,15 @@
 			'GPRINT:nqaJitterOut:LAST:Current %1.3lf\\n',
 			'LINE2:nqaJitterIn#ff0000:Jitter In\\t\\t',
 			'GPRINT:nqaJitterIn:LAST:Current %1.3lf\\n',
-		]
+		],
+		'overlays' => {
+			'percentile' => {
+				datasets => {
+					nqaJitterOut => "Jitter Out 95th %",
+					nqaJitterIn => "Jitter In 95th %",
+				},
+				calculate => 95
+			},
+		}
 	}
 );
