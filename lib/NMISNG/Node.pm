@@ -7781,15 +7781,23 @@ sub collect_services
 					$self->nmisng->log->debug3(sub { "Indextable=$inst textoid=$textoid value=$value"});
 				}
 			}
-
-			# SNMP failed, so mark SNMP down so code below handles results properly
+			# logging SNMP error if there is no index present for SNMP OID
+			# handle down SNMP error if its a session issue.
 			else
 			{
-				$self->nmisng->log->error("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
-				$self->handle_down( sys => $S, type => "snmp",
-														details => "get SNMP Service Data: " . $SNMP->error);
-				$snmp_allowed = 0;
-				last;
+				if ($SNMP->error =~ /error-index/){
+					$self->nmisng->log->debug3(sub { "Service agent might not support:".$var});
+				}
+				else{
+					$self->nmisng->log->error("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+					
+					if ($SNMP->error =~ /No session open/){
+						$self->handle_down( sys => $S, type => "snmp",
+															details => "get SNMP Service Data: " . $SNMP->error);
+						$snmp_allowed = 0;
+						last;
+					}
+				}
 			}
 		}
 
