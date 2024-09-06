@@ -204,7 +204,7 @@
         # grab the index part out, leave the last number out of the index
         'index_regex' => '\.4\.3\.1\.\d+\.([\d\.]+)\.\d+$',
         'index_suffix_oid' => '1.3.6.1.4.1.2011.5.25.111.2.3.1.8', 
-        'headers' => 'nqaSentProbes,nqaAvgJitterDS,nqaProbeResponses,nqaRTTMin,nqaRTTMax,nqaRTTAvg,nqaRTTSum,nqaNumOfRTT,nqaJtrStsRTTSum2L,nqaJtrStsRTTSum2H,nqaPacketLossSD,nqaPktLossUnknown,nqaPacketLossDS,nqaPacketLossRatio,nqaJitterOut,nqaJitterIn,nqaJtrStsMinDelDS,nqaJtrStsMaxDelDS,nqaJtrStsAvgDelDS,nqaJtrStsMinDelSD,nqaJtrStsMaxDelSD,nqaJtrStsAvgDelSD,nqaAdminCtrlTestName',
+        'headers' => 'nqaSentProbes,nqaAvgJitterDS,nqaProbeResponses,nqaRTTMin,nqaRTTMax,nqaRTTAvg,nqaRTTSum,nqaNumOfRTT,nqaJtrStsRTTSum2L,nqaJtrStsRTTSum2H,nqaPacketLossSD,nqaPktLossUnknown,nqaPacketLossDS,nqaPacketLossRatio,nqaJitterOut,nqaJitterIn,nqaJtrStsMinDelDS,nqaJtrStsMaxDelDS,nqaJtrStsAvgDelDS,nqaJtrStsMinDelSD,nqaJtrStsMaxDelSD,nqaJtrStsAvgDelSD,nqaAdminCtrlTestName,index_suffix',
         'snmp' => {
           'nqaSentProbes' => {
             #'title' => 'NQA Jitter Stats Sent Probes'
@@ -216,13 +216,13 @@
             'title' => 'Completion',
             #'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
             #INTEGER{noResult(0),success(1),failure(2),negotiateFailed(3)}
+            #Telemx asked for these values so it can be graphed
+            #this replace is actually done in the rrd
             'replace' => {
-              '0' => 'No Result(0)',
-              '1' => 'Success (1)',
-              '2' => 'Failure (2)',
-              '3' => 'Negotiate Failed (3)',
-              'noSuchObject' => 'N/A',
-              'noSuchInstance' => 'N/A',
+              '0' => '0 - noResult',
+              '1' => '100 - success',
+              '2' => '50 - failure',
+              '3' => '0 - negotiateFailed',
             },
           },
           'nqaProbeResponses' => {              
@@ -319,11 +319,11 @@
             'title' => 'Test Name',
             'oid' => '1.3.6.1.4.1.2011.5.25.111.2.1.1.2',
           },
-# this will not work because of the index will be appended when fetching rrd  
-#          'nqaSchLastFinIdx' => {
-#            'title' => 'Numero de Test',
+# special value that holds the suffix
+          'index_suffix' => {
+            'title' => 'Numero de Test',
 #            #'oid' => '1.3.6.1.4.1.2011.5.25.111.2.3.1.8'
-#          },
+          },
           'nqaAdminParaTargetAddress' => {
             'title' => 'Destination Address',
             'oid' => '1.3.6.1.4.1.2011.5.25.111.2.2.1.2',
@@ -347,6 +347,14 @@
             #'title' => 'NQA Jitter Stats Avg Jitter DS',
             #'title' => 'Completion',
             'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.2',
+            #INTEGER{noResult(0),success(1),failure(2),negotiateFailed(3)}
+            #Telemx asked for these values so it can be graphed
+            'replace' => {
+              '0' => 0,
+              '1' => 100,
+              '2' => 50,
+              '3' => 0,
+            }
           },
           'nqaProbeResponses' => {              
             #'title' => 'NQA Jitter Stats Probe Responses'
@@ -378,7 +386,8 @@
             #'title' => 'NQA Jitter Stats Num Of RTT'
             #'title' => 'Numero de RTT',
             'oid' => '1.3.6.1.4.1.2011.5.25.111.4.3.1.4',
-            'option' => 'counter,0:U'
+            # docs say this is a counter but it does not act like one
+            #'option' => 'counter,0:U'
           },
           'nqaJtrStsRTTSum2L' => {
             #'title' => 'RTT Square Sum Low',

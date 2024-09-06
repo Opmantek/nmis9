@@ -10,24 +10,24 @@
 		'standard' => [
 			'DEF:nqaJitterOut=$database:nqaJitterOut:AVERAGE',
 			'LINE2:nqaJitterOut#0000ff:Jitter Out\\t',
-			'GPRINT:nqaJitterOut:LAST:Current %1.3lf\\t',
-			'GPRINT:nqaJitterOut:MIN:Min %1.3lf',
-			'GPRINT:nqaJitterOut:MAX:Max %1.3lf\\n',
+			'GPRINT:nqaJitterOut:LAST:Current %1.3lf ms\\t',
+			'GPRINT:nqaJitterOut:MIN:Min %1.3lf ms',
+			'GPRINT:nqaJitterOut:MAX:Max %1.3lf ms\\n',
 
 			'DEF:nqaJitterIn=$database:nqaJitterIn:AVERAGE',
 			'LINE2:nqaJitterIn#ff0000:Jitter In\\t\\t',
-			'GPRINT:nqaJitterIn:LAST:Current %1.3lf\\t',
-			'GPRINT:nqaJitterIn:MIN:Min %1.3lf',
-			'GPRINT:nqaJitterIn:MAX:Max %1.3lf\\n',
+			'GPRINT:nqaJitterIn:LAST:Current %1.3lf ms\\t',
+			'GPRINT:nqaJitterIn:MIN:Min %1.3lf ms',
+			'GPRINT:nqaJitterIn:MAX:Max %1.3lf ms\\n',
 		],
 		'small' => [
 			'DEF:nqaJitterOut=$database:nqaJitterOut:AVERAGE',
 			'DEF:nqaJitterIn=$database:nqaJitterIn:AVERAGE',
 			
 			'LINE2:nqaJitterOut#0000ff:Jitter Out\\t',
-			'GPRINT:nqaJitterOut:LAST:Current %1.3lf\\n',
+			'GPRINT:nqaJitterOut:LAST:Current %1.3lf ms\\n',
 			'LINE2:nqaJitterIn#ff0000:Jitter In\\t\\t',
-			'GPRINT:nqaJitterIn:LAST:Current %1.3lf\\n',
+			'GPRINT:nqaJitterIn:LAST:Current %1.3lf ms\\n',
 		],
 		'overlays' => {
 			'percentile' => {

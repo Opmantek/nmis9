@@ -16,7 +16,7 @@
 			'LINE2:nqaAvgJitterDS#00ff00:Completion',
 			'GPRINT:nqaAvgJitterDS:LAST:Current %1.0lf\\n',
 			'LINE2:nqaProbeResponses#0000ff:Respuesta de Probes',
-			'GPRINT:nqaProbeResponses:LAST:Current %1.0lf\\n'
+			'GPRINT:nqaProbeResponses:LAST:Current %1.0lf ms\\n'
 		],
 		'small' => [
 			'DEF:nqaSentProbes=$database:nqaSentProbes:AVERAGE',
@@ -28,7 +28,7 @@
 			'LINE2:nqaAvgJitterDS#00ff00:Completion\\t\\t\\t',
 			'GPRINT:nqaAvgJitterDS:LAST:Current %1.0lf\\n',
 			'LINE2:nqaProbeResponses#0000ff:Respuesta de Probes\\t',
-			'GPRINT:nqaProbeResponses:LAST:Current %1.0lf\\n'
+			'GPRINT:nqaProbeResponses:LAST:Current %1.0lf ms\\n'
 		]
 	}
 );

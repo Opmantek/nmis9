@@ -13,13 +13,13 @@
 			'DEF:nqaJtrStsRTTSum2L=$database:nqaJtrStsRTTSum2L:AVERAGE',
 			'DEF:nqaJtrStsRTTSum2H=$database:nqaJtrStsRTTSum2H:AVERAGE',
 			'LINE2:nqaRTTSum#ff0000:RTT Suma\\t\\t',
-			'GPRINT:nqaRTTSum:AVERAGE:AVG %1.0lf\\n',
+			'GPRINT:nqaRTTSum:AVERAGE:AVG %1.0lf ms\\n',
 			'LINE2:nqaNumOfRTT#00ff00:Numero de RTT\\t',
 			'GPRINT:nqaNumOfRTT:AVERAGE:AVG %1.0lf\\n',
 			'LINE2:nqaJtrStsRTTSum2L#0000ff:RTT Square Sum Low\\t',
-			'GPRINT:nqaJtrStsRTTSum2L:AVERAGE:AVG %1.0lf\\n',
+			'GPRINT:nqaJtrStsRTTSum2L:AVERAGE:AVG %1.0lf ms\\n',
 			'LINE2:nqaJtrStsRTTSum2H#ff00ff:RTT Square Sum High\\t',
-			'GPRINT:nqaJtrStsRTTSum2H:AVERAGE:AVG %1.0lf\\n'
+			'GPRINT:nqaJtrStsRTTSum2H:AVERAGE:AVG %1.0lf ms\\n'
 		],
 		'small' => [
 			'DEF:nqaRTTSum=$database:nqaRTTSum:AVERAGE',
@@ -28,13 +28,13 @@
 			'DEF:nqaJtrStsRTTSum2H=$database:nqaJtrStsRTTSum2H:AVERAGE',
 
 			'LINE2:nqaRTTSum#ff0000:RTT Suma\\t\\t\\t',
-			'GPRINT:nqaRTTSum:AVERAGE:AVG %1.0lf\\n',
+			'GPRINT:nqaRTTSum:AVERAGE:AVG %1.0lf ms\\n',
 			'LINE2:nqaNumOfRTT#00ff00:Numero de RTT\\t\\t',
 			'GPRINT:nqaNumOfRTT:AVERAGE:AVG %1.0lf\\n',
 			'LINE2:nqaJtrStsRTTSum2L#0000ff:RTT Square Sum Low\\t',
-			'GPRINT:nqaJtrStsRTTSum2L:AVERAGE:AVG %1.0lf\\n',
+			'GPRINT:nqaJtrStsRTTSum2L:AVERAGE:AVG %1.0lf ms\\n',
 			'LINE2:nqaJtrStsRTTSum2H#ff00ff:RTT Square Sum High\\t',
-			'GPRINT:nqaJtrStsRTTSum2H:AVERAGE:AVG %1.0lf\\n'
+			'GPRINT:nqaJtrStsRTTSum2H:AVERAGE:AVG %1.0lf ms\\n'
 		]
 	}
 );
