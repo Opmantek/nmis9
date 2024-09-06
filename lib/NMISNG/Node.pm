@@ -3303,9 +3303,10 @@ sub update_intf_info
 					}
 				}
 
-				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off)$/ )
+				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off|other)$/ )
 				{
 					$target->{setlimits} = $thisintfover->{setlimits};
+					$target->{setlimits_percentage} = $thisintfover->{setlimits_percentage};
 				}
 			}
 
@@ -3599,7 +3600,7 @@ sub update_intf_info
 
 			# no limit or dud limit or dud speed or non-collected interface?
 			if (   $desiredlimit
-				&& $desiredlimit =~ /^(normal|strict|off)$/
+				&& $desiredlimit =~ /^(normal|strict|off|other)$/
 				&& $target->{ifSpeed}
 				&& NMISNG::Util::getbool( $target->{collect} ) )
 			{
@@ -3609,10 +3610,16 @@ sub update_intf_info
 						. " ($target->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-				my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
-					: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
-					:                             int( $target->{ifSpeed} / 8 );
+				## if desired limit is other then use the percentage to calculate maxbits.
+				my $maxbytes;
+				if ($desiredlimit eq 'other'){
+					$maxbytes =  ( $target->{ifSpeed} / 8 ) * ($target->{setlimits_percentage} / 100 );
+				}
+				else{
+					$maxbytes = $desiredlimit eq "off"    ? "U"
+						: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
+						:                             int( $target->{ifSpeed} / 8 );
+				}
 				my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 				for (
@@ -5633,7 +5640,7 @@ sub collect_cbqos_info
 			# don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
 			next if ( ref( $if_data_map{$index} ) ne "HASH"
 								or !$if_data->{ifSpeed}
-								or $if_data->{setlimits} !~ /^(normal|strict|off)$/
+								or $if_data->{setlimits} !~ /^(normal|strict|off|other)$/
 								or !NMISNG::Util::getbool( $if_data->{collect} ) );
 
 			my $thisintf     = $if_data;
@@ -5645,10 +5652,16 @@ sub collect_cbqos_info
 				. " ($thisintf->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-			my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
+			## if desired limit is other then use the percentage to calculate maxbits.
+			my $maxbytes;
+			if ($desiredlimit eq 'other'){
+				$maxbytes =  ( $thisintf->{ifSpeed} / 8 ) * ($thisintf->{setlimits_percentage} / 100 );
+			}
+			else{
+				$maxbytes = $desiredlimit eq "off"    ? "U"
 					: $desiredlimit eq "normal" ? int( $thisintf->{ifSpeed} / 4 )
 					:                             int( $thisintf->{ifSpeed} / 8 );
+			}
 			my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 			for my $direction (qw(in out))
