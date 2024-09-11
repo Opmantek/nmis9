@@ -67,7 +67,7 @@ sub collect_plugin
 	my ($inventory,$error) = $S->inventory(concept => 'catchall');
 	return (2, "failed to instantiate catchall inventory: $error") if ($error);
 
-	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
 	
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP-API" or !NMISNG::Util::getbool($catchall->{collect}));
 
@@ -291,7 +291,7 @@ sub update_plugin
 	my ($inventory,$error) = $S->inventory(concept => 'catchall');
 	return (2, "failed to instantiate catchall inventory: $error") if ($error);
 
-	my $catchall        = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall        = $S->inventory( concept => 'catchall' )->data_live();
 
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP-API");
 

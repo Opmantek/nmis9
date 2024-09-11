@@ -2,7 +2,7 @@ NMIS 9.x README
 ---------------
 
 ## Copyright and licensing
-NMIS Copyright (C) FirstWave Ltd (www.firstwave.com)
+NMIS Copyright (C) Opmantek Ltd (www.firstwave.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 This is free software licensed under GNU GPL, and you are welcome to
 redistribute it under certain conditions; see https://www.firstwave.com

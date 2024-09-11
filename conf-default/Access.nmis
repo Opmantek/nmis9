@@ -762,6 +762,28 @@
     'level5' => '0',
     'name' => 'Table_Access_view'
   },
+  'table_authldapprivs_rw' => {
+    'descr' => 'Write access to table AuthLdapPrivs',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '0',
+    'level2' => '0',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_AuthLdapPrivs_rw'
+  },
+  'table_authldapprivs_view' => {
+    'descr' => 'View access to table AuthLdapPrivs',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_AuthLdapPrivs_view'
+  },  
   'table_businessservices_rw' => {
     'descr' => 'Write access to table Business Services',
     'group' => 'access',

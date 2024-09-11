@@ -1,0 +1,9 @@
+%hash = (   
+   "Domain Admins" => {
+      "ldap_group" => "Domain Admins",
+      "privilege" => "administrator",
+      "level" => "0",
+      "groups"=> "all",
+      "priority"=> 1
+   }  
+);

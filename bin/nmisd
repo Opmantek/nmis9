@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.5.1";
+our $VERSION = "9.5.2-beta1";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -710,9 +710,9 @@ while (!$exit_marker)
 									'args.uuid' => [ keys %$thisflock ] # these were the nodes in the op
 				);
 
-				if ( scalar(@{$jobs->{_data}}) > 0 ) {
-					$nmisng->log->debug("Already exist " . scalar(@{$jobs->{_data}}) . " jobs for plugins and uuid " . Dumper([ keys %$thisflock ]));
-					$nmisng->log->info("Already exist " . scalar(@{$jobs->{_data}}) . " jobs for plugins and uuid. Skipping job ");
+				if ( scalar(@{$jobs->data()}) > 0 ) {
+					$nmisng->log->debug("Already exist " . scalar(@{$jobs->data()}) . " jobs for plugins and uuid " . Dumper([ keys %$thisflock ]));
+					$nmisng->log->info("Already exist " . scalar(@{$jobs->data()}) . " jobs for plugins and uuid. Skipping job ");
 				} else {
 					$nmisng->log->info("Scheduling post-$icanhasplugin plugin execution for tag $tag and "
 																 .(scalar keys %$thisflock)." nodes");
@@ -773,8 +773,7 @@ while (!$exit_marker)
 		my $jobtype = $automagic;
 
 		# don't schedule another if an instance is already in progress
-		my $running = $nmisng->get_queue_model(type => $jobtype,
-																					 in_progress => { '$ne' => 0 });
+		my $running = $nmisng->get_queue_model(type => $jobtype, in_progress => { '$gt' => 0 });
 		$nmisng->log->error("failed to query job queue: ".$running->error)
 				if ($running->error);
 		# also don't schedule anything if overdue instances exist,
@@ -929,7 +928,7 @@ while (!$exit_marker)
 	{
 		$nmisng->log->error("Failed to count overdue jobs: $error");
 	}
-	my $active = $nmisng->get_queue_model(limit => 0, count => 1, in_progress => { '$ne' => 0 });
+	my $active = $nmisng->get_queue_model(limit => 0, count => 1, in_progress => { '$gt' => 0 });
 	if (my $error = $active->error)
 	{
 		$nmisng->log->error("Failed to count in-progress jobs: $error");
@@ -1358,7 +1357,7 @@ sub worker_loop
 			# a job was claimable, but is it safe to perform this op right now?
 			# look for in_progress interfering jobs (needs args check for node-specific stuff!)
 			my %checkargs = ( time => { '$lt' => Time::HiRes::time }, # should have started
-								in_progress => { '$ne' => 0 },			# has started
+								in_progress => { '$gt' => 0 },			# has started
 #								id => { '$ne' => $canihaveit->{_id} },	# is not this job (this doesn't work!)
 								type => $canihaveit->{type});			# but of the same type
 			# Add the UUID if it is set.

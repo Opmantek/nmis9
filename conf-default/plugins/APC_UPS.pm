@@ -60,7 +60,7 @@ sub collect_plugin
 {
 	my (%args) = @_;
 	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
-	my $catchall = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
 	
 	return (0,undef) if ($S->{mdl}->{system}->{nodeModel} ne "APC-ups" or !NMISNG::Util::getbool($catchall->{collect}));
 	my $changesweremade = 0;

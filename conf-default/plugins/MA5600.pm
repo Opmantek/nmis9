@@ -27,7 +27,7 @@ sub update_plugin
 	#my $S = NMISNG::Sys->new(nmisng => $NG);
 	my $nodeobj = $NG->node(name => $node);
 	#$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
-	my $catchall_data = $S->inventory( concept => 'catchall' )->{_data};
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $IF = $nodeobj->ifinfo;	
 	my $MDL = $S->mdl;

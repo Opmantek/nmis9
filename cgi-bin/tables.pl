@@ -949,7 +949,7 @@ sub doeditTable
 		# Validate
 		my $notvalid = 0;
 		foreach my $prop (keys %$thisentry) {
-			if ($prop !~ /sysDescr/ ) {
+			if ($prop !~ /sysDescr|community/ ) {
 
 				if (ref($thisentry->{$prop}) ne "ARRAY" and ref($thisentry->{$prop}) ne "HASH" and $thisentry->{$prop} ne "") {
 					if ($prop eq "customer" and $thisentry->{$prop} =~ $not_allowed_chars_customer) {

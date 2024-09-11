@@ -1,0 +1,61 @@
+#
+#  Copyright Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System ("NMIS").
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+use Compat::NMIS;
+use NMISNG::Auth;
+
+my $C = NMISNG::Util::loadConfTable();
+
+# variables used for the security mods
+my $AU = NMISNG::Auth->new(conf => $C); 
+# Calling program needs to do auth, then set the ENVIRONMENT before this is called.
+$AU->SetUser($ENV{'NMIS_USER'});
+
+my $nmisng = Compat::NMIS::new_nmisng;
+my @groups = sort map { $AU->InGroup($_)? $_ :  () } ($nmisng->get_group_names);
+
+my @privs = ();
+my $PM = loadTable(dir=>'conf',name=>'PrivMap');
+# I assume a natural order: administrator = 0 (highest priv) and guest = 6 (lowest priv)
+foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;} 
+
+#   "OMK Admin" : {
+#      "privilege" : "administrator",
+#      "groups": "all",
+#      "priority": 1
+#   },
+return (
+			AuthLdapPrivs => [
+				{ ldap_group => { header => 'LDAP Group',display => 'key,header,text', value => ["specify"] }},
+				{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},				
+				{ groups => { header => 'NMIS Group',display => 'header,scrolling', value => ["none", "all", "network", (@groups) ] }},
+				{ priority => { header => 'Priority',display => 'header,popup', helptext => 'If user is in more than one group which takes priority', value => [10,9,8,7,6,5,4,3,2,1,0] }}
+			]
+);
+
