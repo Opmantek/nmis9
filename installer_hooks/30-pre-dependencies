@@ -70,7 +70,7 @@ elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
     libio-socket-ssl-perl libwww-perl libwww-mechanize-perl libnet-smtp-ssl-perl libnet-smtps-perl \
     libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl  \
     libdigest-sha-perl libnet-xmpp-perl libsafe-isa-perl libtie-ixhash-perl \
-    libnet-ldap-perl libdbi-perl \
+    libnet-ldap-perl libdbi-perl lsb-release \
     libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl \
     libauthen-sasl-perl librrds-perl libtest-deep-perl dialog \
     libcrypt-des-perl libdigest-hmac-perl libclone-perl \
