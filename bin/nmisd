@@ -2852,9 +2852,21 @@ sub fping_loop
 					# let's check the event existence before instantiating node and sys objects
 					my $eventname = &NMISNG::Node::handle_down_eventnames->{$whatevent};
 					my $event = $nmisng->events->event( node_uuid => $uuid, event => $eventname );
-					if (!$event->exists)
+					# handle edge case where catchall down status does not match
+					# event status (event exists, catchall does not have this nodedown value),
+					#   an update woth force=true could do this
+					# fping_loop is relied upon to make sure they match,  
+					# this double checks, if event exists but state in catcahll does not exist
+					# handle_down will take care of setting and saving if it needs to (and is safe to call)
+					my $down_status_in_catchall; # no default, if there is no catchall it definitely doesn't match
+					if($catchall_inventory)
 					{
-						$nmisng->log->debug("$uuid ($thisstate->{name}) is DOWN, raising event $eventname");
+						my $catchall_data = $catchall_inventory->data_live();
+						$down_status_in_catchall = $catchall_data->{"${whatevent}down"};
+					}
+
+					if (!$event->exists || $down_status_in_catchall ne 'true' )
+					{						$nmisng->log->debug("$uuid ($thisstate->{name}) is DOWN, raising event $eventname");
 
 						my $node = $nmisng->node(uuid => $uuid);
 						my $sys = NMISNG::Sys->new(nmisng => $nmisng);
