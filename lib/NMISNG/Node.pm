@@ -61,6 +61,8 @@ use NMISNG::rrdfunc;
 
 use Compat::IP;
 
+use constant BULK_TIMED_DATA => 1;
+
 # create a new node object
 # params:
 #   uuid - required
@@ -2642,6 +2644,10 @@ sub collect_node_data
 		my %subconcepts;
 		
 		$self->process_alerts( sys => $S );
+		my $timed_bulk;
+		if( BULK_TIMED_DATA == 1 ) {
+			$timed_bulk = {};
+		}
 		foreach my $section ( keys %{$rrdData} )
 		{
 			$subconcepts{$section} = 1; # Remove non existing subconcepts from catchall
@@ -2692,12 +2698,19 @@ sub collect_node_data
 					$stats = {};
 				}
 				my $error = $catchall_inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section, node => $self,
-																								time => $catchall_data->{last_poll}, delay_insert => 1 );
+										time => $catchall_data->{last_poll}, delay_insert => 1,
+										bulk => $timed_bulk );
 				$self->nmisng->log->error("timed data adding for ". $catchall_inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
 			}		
 		}
 		# NO save on inventory because it's the catchall right now
 
+		# save the timed data though
+		if( $timed_bulk ) {
+			foreach my $bulk (keys %$timed_bulk) {
+				NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+			}
+		}
 		# Now, update non existent subconcepts/storage from inventory/catchall
 		my $storage = $catchall_inventory->storage();
 			
@@ -4281,6 +4294,10 @@ sub collect_intf_data
 
 		my $previous_pit = $inventory->get_newest_timed_data(); # one needed for the pit updates,
 
+		my $timed_bulk;
+		if( BULK_TIMED_DATA == 1 ) {
+			$timed_bulk = {};
+		}
 		# now walk all rrd data sections and send them off to rrd
 		for my $sectionname (sort keys %{$thisif->{_rrd_data}})
 		{
@@ -4320,7 +4337,8 @@ sub collect_intf_data
 				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																								subconcept => $sectionname,
 																								time => $catchall_data->{last_poll},
-																								delay_insert => 1 );
+																								delay_insert => 1,
+																								bulk => $timed_bulk );
 				$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error")
 						if ($error);
 			}
@@ -5097,16 +5115,18 @@ sub collect_systemhealth_data
 		? $M->{systemHealth}{sections}
 		: $self->nmisng->config->{model_health_sections} );
 
+	my $timed_bulk;
+	if( BULK_TIMED_DATA == 1 ) {
+		$timed_bulk = {};
+	}
+
 	for my $section (@healthSections)
 	{
-		my $ids = $self->get_inventory_ids( concept => $section, filter => { enabled => 1, historic => 0 } );
-
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
 		# OR only sys section but no rrd (e.g. addresstable)
 		next
-			if ( @$ids < 1
-			or !exists( $M->{systemHealth}->{rrd} )
+			if ( !exists( $M->{systemHealth}->{rrd} )
 			or ref( $M->{systemHealth}->{rrd}->{$section} ) ne "HASH" );
 			
 		my $thissection = $M->{systemHealth}{sys}{$section};
@@ -5121,11 +5141,14 @@ sub collect_systemhealth_data
 		}
 
 		# that's instance index value
-		foreach my $id (@$ids)
+		my $model_data = $self->get_inventory_model( concept => $section, filter => { enabled => 1, historic => 0 } );
+		if(my $error = $model_data->error() ) 
 		{
-			my ( $inventory, $error ) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next if ( !$inventory );
-
+			$self->nmisng->log->error("Failed to get inventory with error:$error");
+		}
+		while( my $inventory = $model_data->next_object )
+		{
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 
 			# sanity check the data
@@ -5207,7 +5230,7 @@ sub collect_systemhealth_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect, node => $self,
-																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+							time => $catchall_data->{last_poll}, delay_insert => 1, bulk => $timed_bulk );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
@@ -5229,6 +5252,13 @@ sub collect_systemhealth_data
 			}
 		}
 	}
+	
+	if( $timed_bulk ) {
+		foreach my $bulk (keys %$timed_bulk) {
+			NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+		}
+	}
+
 	$self->nmisng->log->debug("Finished with collect_systemhealth_data");
 	return 1;
 }
@@ -5788,19 +5818,23 @@ sub collect_cbqos_data
 	my $catchall_data = $catchall_inventory->data_live();
 	
 	my $happy;
+
+	my $timed_bulk;
+	if( BULK_TIMED_DATA == 1 ) {
+		$timed_bulk = {};
+	}
 	foreach my $direction ( "in", "out" )
 	{
 		my $concept = "cbqos-$direction";
-		my $ids = $self->get_inventory_ids(concept => $concept,
-																			 filter => { enabled => 1, historic => 0 });
-
+		my $model_data = $self->get_inventory_model(concept => $concept, filter => { enabled => 1, historic => 0 });
+		if( my $error = $model_data->error() ) {
+			$self->nmisng->log->error("Failed to get inventory for  concept:$concept, error_message:$error");
+			next;
+		}
 		# oke, we have get now the PolicyIndex and ObjectsIndex directly
-		foreach my $id ( @$ids )
+		while( my $inventory = $model_data->next_object() )
 		{
-			my ($inventory,$error_message) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message")
-					&& next if(!$inventory);
-
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 			# for now ifIndex is stored in the index attribute
 			my $intf = $data->{index};
@@ -5883,7 +5917,8 @@ sub collect_cbqos_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName, node => $self,
-																										time => $catchall_data->{last_poll}, delay_insert => 1 );
+																										time => $catchall_data->{last_poll}, delay_insert => 1,
+																										bulk => $timed_bulk );
 						$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
@@ -5900,6 +5935,11 @@ sub collect_cbqos_data
 			# saving is required bacause create_update_rrd can change inventory, setting data not done because
 			# it's not changed
 			$inventory->save( node => $self );
+		}
+	}
+	if( $timed_bulk ) {
+		foreach my $bulk (keys %$timed_bulk) {
+			NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
 		}
 	}
 	return $happy? 1 : 0;
@@ -5932,13 +5972,15 @@ sub handle_custom_alerts
 	{
 		# get the inventory instances that are relevant for this section,
 		# ie. only enabled and nonhistoric ones
-		my $ids = $self->get_inventory_ids( concept => $sect, filter => { enabled => 1, historic => 0 } );
+		my $model_data = $self->get_inventory_model( concept => $sect, filter => { enabled => 1, historic => 0 } );
+		if( my $error = $model_data->error ) {
+			$self->nmisng->log->error("Failed to get inventory, concept:$sect, , error_message:$error");				
+			next;
+		}
 		$self->nmisng->log->debug2(sub {"Custom Alerts for $sect"});
-		foreach my $id ( @$ids )
+		while( my $inventory = $model_data->next_object() )
 		{
-			my ($inventory,$error_message) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory, concept:$sect, _id:$id, error_message:$error_message") && next
-					if(!$inventory);
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 			my $index = $data->{index};
 			foreach my $alrt ( keys %{$CA->{$sect}} )
@@ -6500,12 +6542,15 @@ sub compute_reachability
 			$self->nmisng->log->debug2(sub {"Getting Interface Utilisation Health"});
 			$intcount   = 0;
 			$intsummary = 0;
-			my $ids = $self->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+			my $model_data = $self->get_inventory_model( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+			if( my $error = $model_data->error() ) {
+				$self->nmisng->log->error("compute_reachability failed to get inventory, error:$error ");
+			}
 
 			# get all collected interfaces
-			foreach my $id (@$ids)
+			while( my $intf_inventory = $model_data->next_object() )
 			{
-				my ($intf_inventory,$error) = $self->inventory( _id => $id );
+				my $id = $intf_inventory->id();				
 				# stats have already been run on the interface, just look them up
 				my $latest_ret = $intf_inventory->get_newest_timed_data();
 				if( !$latest_ret->{success} )
@@ -7258,19 +7303,19 @@ sub collect_server_data
 	{
 		my %newProcessors;
 		my %oldProcessors;
-		my $oldProcessorIDs = $self->get_inventory_ids( concept => "device", 
+		my $model_data = $self->get_inventory_model( concept => "device", 
 			filter => { historic => 0, "data.hrDeviceType" => "1.3.6.1.2.1.25.3.1.3" });
-		$self->nmisng->log->debug2("Got " . scalar(@{$oldProcessorIDs}) . " processors.");
-		foreach my $id (@{$oldProcessorIDs})
+		if(my $error = $model_data->error() ) 
 		{
+			$self->nmisng->log->error("Failed to get inventory with error:$error");
+		}
+		while( my $cpuInventory = $model_data->next_object )
+		{
+			my $id = $cpuInventory->id();
 			$self->nmisng->log->debug2("Processing Processor ID '$id'");
-			my ($cpuInventory,$error) = $self->inventory(_id => $id);
-			if ($cpuInventory && !$error)
-			{
-				my $data = $cpuInventory->data();
-				$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
-				$oldProcessors{$data->{index}} = $id;
-			}
+			my $data = $cpuInventory->data();
+			$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
+			$oldProcessors{$data->{index}} = $id;			
 		}
 
 		# this will put hrCpuLoad into the device_global concept
@@ -7305,7 +7350,10 @@ sub collect_server_data
 		}
 
 		$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
-
+		my $timed_bulk;
+		if( BULK_TIMED_DATA == 1 ) {
+			$timed_bulk = {};
+		}
 		foreach my $index ( keys %{$deviceIndex} )
 		{
 			# create a new target for each index
@@ -7374,7 +7422,8 @@ sub collect_server_data
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																										subconcept => 'hrsmpcpu',
-																										time => $catchall_data->{last_poll}, delay_insert => 1 );
+																										time => $catchall_data->{last_poll}, delay_insert => 1,
+																										bulk => $timed_bulk );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 
 						($op,$error) = $inventory->save( node => $self );
@@ -7396,6 +7445,12 @@ sub collect_server_data
 				}
 			}
 		}
+		if( $timed_bulk ) {
+			foreach my $bulk (keys %$timed_bulk) {
+				NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+			}
+		}
+
 		# We Need to clean up device/devices here and mark unused historic.
 		foreach my $index ( keys %oldProcessors )
 		{

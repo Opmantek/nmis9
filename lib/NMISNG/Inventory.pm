@@ -465,6 +465,8 @@ sub new
 #   ie. key subconceptA => { dsnameA => 1, dsnameB => 1 }, subconceptB => ....
 #   in this case, data may be a deep hash. if you repeat calls with delay_save in that situation, the last
 #   data/derived data wins. the inventory's datasets info is amended/extended from that dataset info.
+# bulk: a hash with bulk operations inside of it, hash holds one bulk object per dataset that needs 
+# 		an op run on it, bulk objects will be created automatically for each collection that they are needed for
 #
 #
 # returns: undef or error message
@@ -484,8 +486,8 @@ sub add_timed_data
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
 	return "cannot add timed data, invalid derived_data argument!"
 		if ( ref( $args{derived_data} ) ne "HASH" );    # empty hash is acceptable
-	my ( $data, $derived_data, $time, $delay_insert, $flush, $node )
-			= @args{'data', 'derived_data', 'time', 'delay_insert','flush','node'};
+	my ( $data, $derived_data, $time, $delay_insert, $flush, $node, $bulk )
+			= @args{'data', 'derived_data', 'time', 'delay_insert','flush','node','bulk'};
 
 	# automatically take care of datasets
 	# one of these two must be defined
@@ -551,7 +553,7 @@ sub add_timed_data
 		$timedrecord->{derived_data}->{$subconcept} = $derived_data;
 	}
 
-	if ( !$delay_insert || $flush )
+	if ( !$delay_insert || $flush || $bulk )
 	{
 		return "cannot add timed data to unsaved inventory instance!"
 			if ( $self->is_new );
@@ -572,10 +574,23 @@ sub add_timed_data
 		$timedrecord->{subconcepts} = \@subconcepts;
 		delete $timedrecord->{data};
 		delete $timedrecord->{derived_data};
-
+		# get bulk is supplied make sure we have a bulk operation for this timed collection
+		my $timed_bulk;
+		my $latest_bulk;
+		if( $bulk ) {
+			if( !$bulk->{$self->concept()} ) {
+				$bulk->{$self->concept()} = NMISNG::DB::begin_bulk( collection => $self->nmisng->timed_concept_collection(concept => $self->concept()) );
+			}
+			if( !$bulk->{"latest_data"} ) {
+				$bulk->{"latest_data"} = NMISNG::DB::begin_bulk( collection => $self->nmisng->latest_data_collection() );
+			}
+			$timed_bulk = $bulk->{$self->concept()};
+			$latest_bulk = $bulk->{"latest_data"};
+		}
 		my $dbres = NMISNG::DB::insert(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
-			record     => $timedrecord
+			record     => $timedrecord,
+			bulk       => $timed_bulk 	
 		);
 		return "failed to insert record: $dbres->{error}" if ( !$dbres->{success} );
 
@@ -583,13 +598,14 @@ sub add_timed_data
 			collection => $self->nmisng->latest_data_collection(),
 			query => { inventory_id => $self->id },
 			record => $timedrecord,
-			upsert => 1
+			upsert => 1,
+			bulk   => $latest_bulk
 		);
 		return "failed to upsert data record: $dbres->{error}" if ( !$dbres->{success} );
 
 		# if the datasets were modified they need to be saved, only if we're not flushing
 		# which should only come from save (so don't start a recursive loop)
-		$self->save( node => $node ) if (!$flush && $datasets_modfied);
+		$self->save( node => $node ) if (!$flush && $datasets_modfied && !$bulk);
 	}
 	else
 	{
@@ -598,6 +614,7 @@ sub add_timed_data
 	}
 	return undef;
 }
+
 
 # retrieve the one most recent timed data for this instance, this will come from the latest_data
 #  unless specifically told to get "from_timed"

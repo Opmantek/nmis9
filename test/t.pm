@@ -137,6 +137,7 @@ sub prime_nodes
 		};
 		my ($catchall, $error) = $node->inventory(
 			concept => "catchall", path_keys => [], data => $catchall_data, create => 1);
+		die "Error getting catchall : $error" if( $error );
 		$catchall->save( node => $node );
 	}
 }

@@ -66,184 +66,180 @@ sub collect_plugin
 
 	my $changesweremade = 0;
 
-	my $host_ids = $S->nmisng_node->get_inventory_ids(
+	my $model_data = $S->nmisng_node->get_inventory_model(
 		concept => "Host_Storage",
 		filter => { historic => 0 });
-	
-	if (@$host_ids)
-	{
-		$NG->log->debug("Working on $node Host Memory Calculations");
-		# for saving all the types of memory we want to use
-		my $Host_Memory;
-        
-		# look through each of the different types of memory for cache and buffer
-		for my $host_id (@$host_ids)
-		{
-			my ($host_inventory,$error) = $S->nmisng_node->inventory(_id => $host_id);
-			if ($error)
-			{
-				$NG->log->error("Failed to get inventory $host_id: $error");
-				next;
-			}
+	if( my $error = $model_data->error() ) {
+		$NG->log->error("Failed to get inventory: $error");
+	}
 
-			$changesweremade = 1;
-			my $data = $host_inventory->data();
-            
-			# sanity check the data
-			if (   ref($data) ne "HASH"
-				or !keys %$data
-				or !exists( $data->{index} ) )
-			{
-				my $index = $data->{index} // 'noindex';
-				$NG->log->error("invalid data forindex $index in model, cannot get data for this index!");
-				next;
+	$NG->log->debug("Working on $node Host Memory Calculations");
+	# for saving all the types of memory we want to use
+	my $Host_Memory;
+	
+	# look through each of the different types of memory for cache and buffer
+	while( my $host_inventory = $model_data->next_object() )
+	{
+		my $host_id = $host_inventory->id();		
+
+		$changesweremade = 1;
+		my $data = $host_inventory->data();
+		
+		# sanity check the data
+		if (   ref($data) ne "HASH"
+			or !keys %$data
+			or !exists( $data->{index} ) )
+		{
+			my $index = $data->{index} // 'noindex';
+			$NG->log->error("invalid data forindex $index in model, cannot get data for this index!");
+			next;
+		}
+		
+		my $type = undef;
+		my $typeName = undef;
+	
+		# is this the physical memory?
+		if ( defined $data->{hrStorageDescr} ) {
+			if ( $data->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
+				$typeName = "Memory";
+				$type = "physical";
 			}
-            
-			my $type = undef;
-			my $typeName = undef;
-        
-			# is this the physical memory?
-			if ( defined $data->{hrStorageDescr} ) {
-				if ( $data->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
-					$typeName = "Memory";
-					$type = "physical";
-				}
-				elsif ( $data->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
-					$typeName = "Memory";
-					$type = "cached";
-				}
-				elsif ( $data->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
-					$typeName = "Memory";
-					$type = "buffers";
-				}
-				elsif ( $data->{hrStorageDescr} =~ /Virtual memory/ ) {
-					$typeName = "Memory";
-					$type = "virtual";
-				}
-				elsif ( $data->{hrStorageDescr} =~ /Swap space/ ) {
-					$typeName = "Memory";
-					$type = "swap";
-				}
-				elsif ( $data->{hrStorageType} =~ /FixedDisk/ ) {
-					$typeName = "Fixed Disk";
-					$type = "disk";
-				}
-				elsif ( $data->{hrStorageType} =~ /NetworkDisk/ ) {
-					$typeName = "Network Disk";
-					$type = "disk";
-				}
-				elsif ( $data->{hrStorageType} =~ /RemovableDisk/ ) {
-					$typeName = "Removable Disk";
-					$type = "disk";
-				}
-				elsif ( $data->{hrStorageType} =~ /Disk/ ) {
-					$typeName = "Other Disk";
-					$type = "disk";
-				}
-				elsif ( $data->{hrStorageType} =~ /FlashMemory/ ) {
-					$typeName = "Flash Memory";
-					$type = "disk";
-				}
-				else {
-					$typeName = $data->{hrStorageType};
-					$type = "other";
-				}
+			elsif ( $data->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
+				$typeName = "Memory";
+				$type = "cached";
+			}
+			elsif ( $data->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
+				$typeName = "Memory";
+				$type = "buffers";
+			}
+			elsif ( $data->{hrStorageDescr} =~ /Virtual memory/ ) {
+				$typeName = "Memory";
+				$type = "virtual";
+			}
+			elsif ( $data->{hrStorageDescr} =~ /Swap space/ ) {
+				$typeName = "Memory";
+				$type = "swap";
+			}
+			elsif ( $data->{hrStorageType} =~ /FixedDisk/ ) {
+				$typeName = "Fixed Disk";
+				$type = "disk";
+			}
+			elsif ( $data->{hrStorageType} =~ /NetworkDisk/ ) {
+				$typeName = "Network Disk";
+				$type = "disk";
+			}
+			elsif ( $data->{hrStorageType} =~ /RemovableDisk/ ) {
+				$typeName = "Removable Disk";
+				$type = "disk";
+			}
+			elsif ( $data->{hrStorageType} =~ /Disk/ ) {
+				$typeName = "Other Disk";
+				$type = "disk";
+			}
+			elsif ( $data->{hrStorageType} =~ /FlashMemory/ ) {
+				$typeName = "Flash Memory";
+				$type = "disk";
 			}
 			else {
-				$typeName = "Unknown";
+				$typeName = $data->{hrStorageType};
 				$type = "other";
 			}
-            
-			if ( $typeName eq "Memory" ) {
-				$NG->log->debug("Host Memory Type = $data->{hrStorageDescr} interesting as $type");
-			}
-			else {
-				$NG->log->debug2("Host Storage Type = $data->{hrStorageDescr} less interesting") if defined $data->{hrStorageDescr};
-			}
-
-			# do we have a type of memory to process?
-			if ( defined $type ) {
-				$Host_Memory->{$type ."_total"} = $data->{hrStorageSize};
-				$Host_Memory->{$type ."_used"} = $data->{hrStorageUsed};
-				$Host_Memory->{$type ."_units"} = $data->{hrStorageAllocationUnits};
-			}
-            
-			if ( defined $data->{hrStorageUnits} and defined $data->{hrStorageSize} and defined $data->{hrStorageUsed} ) {
-				# must guard against 'noSuchInstance', which surivies first check b/c non-empty
-				my $sizeisnumber = ( $data->{hrStorageSize}
-										 # int or float
-										 && $data->{hrStorageSize} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
-
-				$data->{hrStorageUtil} = sprintf("%.1f", $data->{hrStorageUsed} / $data->{hrStorageSize} * 100)
-						if (defined $sizeisnumber && $sizeisnumber && $data->{hrStorageSize} != 0);
-
-				$data->{hrStorageTotal} = NMISNG::Util::getDiskBytes($data->{hrStorageUnits} * $data->{hrStorageSize})
-						if (defined $sizeisnumber && $sizeisnumber && $data->{hrStorageUnits});
-
-				my $usedisnumber = ($data->{hrStorageUsed}
-										&& $data->{hrStorageUsed} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
-				$data->{hrStorageUsage} = NMISNG::Util::getDiskBytes($data->{hrStorageUnits} * $data->{hrStorageUsed})
-						if (defined $usedisnumber && $usedisnumber && $data->{hrStorageUnits});
-
-				# Add in free calculation, remove previous one so we don't get any " b" results
-				delete $data->{hrStorageFree};
-				$data->{hrStorageFree} = NMISNG::Util::getDiskBytes( ($data->{hrStorageSize} - $data->{hrStorageUsed}) * $data->{hrStorageUnits} ) 
-					if (defined($data->{hrStorageTotal}) && defined($data->{hrStorageUsage}) && ($data->{hrStorageSize} - $data->{hrStorageUsed} > 1));
-
-
-				$data->{hrStorageTypeName} = $typeName;
-
-				my @summary;
-				push(@summary,"Size: $data->{hrStorageTotal}<br/>") if ($sizeisnumber);
-				push(@summary,"Used: $data->{hrStorageUsage} ($data->{hrStorageUtil}%)<br/>") if ($usedisnumber);
-				push(@summary,"Free: $data->{hrStorageFree}<br/>") if (defined($data->{hrStorageFree}));
-				push(@summary,"Partition: $data->{hrPartitionLabel}<br/>") if defined $data->{hrPartitionLabel};
-
-				$data->{hrStorageSummary} = join(" ",@summary);
-                
-                # Save the data
-                $host_inventory->data($data); # set changed info
-                (undef,$error) = $host_inventory->save( node => $node ); # and save to the db
-                $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
-                        if ($error);
-			}
-        } # Foreach
-        if ( ref($Host_Memory) eq "HASH" ) {
-			# lets calculate the available memory
-			# https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/5/html/tuning_and_optimizing_red_hat_enterprise_linux_for_oracle_9i_and_10g_databases/chap-oracle_9i_and_10g_tuning_guide-memory_usage_and_page_cache
-			# So available total is the physical memory total
-			$Host_Memory->{available_total} = $Host_Memory->{physical_total};
-			$Host_Memory->{available_units} = $Host_Memory->{physical_units};
-
-			# available used is the physical used but subtract the cached and buffer memory which is available for use.
-			$Host_Memory->{available_used} = $Host_Memory->{physical_used} - $Host_Memory->{cached_used} - $Host_Memory->{buffers_used};
-			# we don't need total for cache, buffers and available as it is really physical
-			# the units all appear to be the same so just keeping physical
-			my $rrddata = {
-				'physical_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_total}},
-				'physical_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_used}},
-				'physical_units' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_units}},
-				'available_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{available_used}},
-				'cached_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_used}},
-				'buffers_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_used}},
-				'virtual_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_total}},
-				'virtual_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_used}},
-				'swap_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_total}},
-				'swap_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_used}},
-
-				#'buffers_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_total}},
-				#'cached_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_total}},
-			};
-
-            my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>"Host_Memory");
-			# check for RRD update errors
-			if (!$updatedrrdfileref) { $NG->log->debug("Update RRD failed!") };
-
-			$NG->log->debug("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref") if ($updatedrrdfileref);
-			$NG->log->debug2(sub {"Host_Memory Object: ". Dumper($Host_Memory),1});
 		}
-        
-    }
+		else {
+			$typeName = "Unknown";
+			$type = "other";
+		}
+		
+		if ( $typeName eq "Memory" ) {
+			$NG->log->debug("Host Memory Type = $data->{hrStorageDescr} interesting as $type");
+		}
+		else {
+			$NG->log->debug2("Host Storage Type = $data->{hrStorageDescr} less interesting") if defined $data->{hrStorageDescr};
+		}
+
+		# do we have a type of memory to process?
+		if ( defined $type ) {
+			$Host_Memory->{$type ."_total"} = $data->{hrStorageSize};
+			$Host_Memory->{$type ."_used"} = $data->{hrStorageUsed};
+			$Host_Memory->{$type ."_units"} = $data->{hrStorageAllocationUnits};
+		}
+		
+		if ( defined $data->{hrStorageUnits} and defined $data->{hrStorageSize} and defined $data->{hrStorageUsed} ) {
+			# must guard against 'noSuchInstance', which surivies first check b/c non-empty
+			my $sizeisnumber = ( $data->{hrStorageSize}
+										# int or float
+										&& $data->{hrStorageSize} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+
+			$data->{hrStorageUtil} = sprintf("%.1f", $data->{hrStorageUsed} / $data->{hrStorageSize} * 100)
+					if (defined $sizeisnumber && $sizeisnumber && $data->{hrStorageSize} != 0);
+
+			$data->{hrStorageTotal} = NMISNG::Util::getDiskBytes($data->{hrStorageUnits} * $data->{hrStorageSize})
+					if (defined $sizeisnumber && $sizeisnumber && $data->{hrStorageUnits});
+
+			my $usedisnumber = ($data->{hrStorageUsed}
+									&& $data->{hrStorageUsed} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+			$data->{hrStorageUsage} = NMISNG::Util::getDiskBytes($data->{hrStorageUnits} * $data->{hrStorageUsed})
+					if (defined $usedisnumber && $usedisnumber && $data->{hrStorageUnits});
+
+			# Add in free calculation, remove previous one so we don't get any " b" results
+			delete $data->{hrStorageFree};
+			$data->{hrStorageFree} = NMISNG::Util::getDiskBytes( ($data->{hrStorageSize} - $data->{hrStorageUsed}) * $data->{hrStorageUnits} ) 
+				if (defined($data->{hrStorageTotal}) && defined($data->{hrStorageUsage}) && ($data->{hrStorageSize} - $data->{hrStorageUsed} > 1));
+
+
+			$data->{hrStorageTypeName} = $typeName;
+
+			my @summary;
+			push(@summary,"Size: $data->{hrStorageTotal}<br/>") if ($sizeisnumber);
+			push(@summary,"Used: $data->{hrStorageUsage} ($data->{hrStorageUtil}%)<br/>") if ($usedisnumber);
+			push(@summary,"Free: $data->{hrStorageFree}<br/>") if (defined($data->{hrStorageFree}));
+			push(@summary,"Partition: $data->{hrPartitionLabel}<br/>") if defined $data->{hrPartitionLabel};
+
+			$data->{hrStorageSummary} = join(" ",@summary);
+			
+			# Save the data
+			$host_inventory->data($data); # set changed info
+			(undef,$error) = $host_inventory->save( node => $node ); # and save to the db
+			$NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
+					if ($error);
+		}
+	} # Foreach
+	if ( ref($Host_Memory) eq "HASH" ) {
+		# lets calculate the available memory
+		# https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/5/html/tuning_and_optimizing_red_hat_enterprise_linux_for_oracle_9i_and_10g_databases/chap-oracle_9i_and_10g_tuning_guide-memory_usage_and_page_cache
+		# So available total is the physical memory total
+		$Host_Memory->{available_total} = $Host_Memory->{physical_total};
+		$Host_Memory->{available_units} = $Host_Memory->{physical_units};
+
+		# available used is the physical used but subtract the cached and buffer memory which is available for use.
+		$Host_Memory->{available_used} = $Host_Memory->{physical_used} - $Host_Memory->{cached_used} - $Host_Memory->{buffers_used};
+		# we don't need total for cache, buffers and available as it is really physical
+		# the units all appear to be the same so just keeping physical
+		my $rrddata = {
+			'physical_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_total}},
+			'physical_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_used}},
+			'physical_units' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_units}},
+			'available_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{available_used}},
+			'cached_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_used}},
+			'buffers_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_used}},
+			'virtual_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_total}},
+			'virtual_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_used}},
+			'swap_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_total}},
+			'swap_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_used}},
+
+			#'buffers_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_total}},
+			#'cached_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_total}},
+		};
+
+		my $updatedrrdfileref = $S->create_update_rrd(data=>$rrddata, type=>"Host_Memory");
+		# check for RRD update errors
+		if (!$updatedrrdfileref) { $NG->log->debug("Update RRD failed!") };
+
+		$NG->log->debug("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref") if ($updatedrrdfileref);
+		$NG->log->debug2(sub {"Host_Memory Object: ". Dumper($Host_Memory),1});
+	}
+	
+
 
 	return ($changesweremade,undef); # report if we changed anything
 }
