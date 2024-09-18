@@ -90,7 +90,7 @@ cmp_deeply( [$node->save], [re(qr/^-\d/), ignore], "Node without name is not val
 is( $node->_dirty, 1, "New node some config set that didn't save is still dirty" );
 is( $node->is_new, 1, "New node is still new" );
 
-$node->cluster_id(1);
+$node->cluster_id($nmisng->config->{cluster_id});
 $node->name($node_name);
 $node->configuration( {host => "1.2.3.4",
 											 group => "somegroup",
@@ -166,7 +166,10 @@ is( $node->_dirty, 0, "node updated overrides isn't dirty" );
 my $concept   = 'sometype';
 my $data      = {abc => "123"};
 my $path_keys = ['abc'];
-cmp_deeply( [$node->inventory()], [undef, ignore()], "No inventory should return undef" );
+# node save creates catchall so this shoudl return 1 now
+# my ($ret1,$ret2) = $node->inventory();
+# print "result of inventory".Dumper($ret1,$ret2)."\n";
+# cmp_deeply( [$node->inventory()], [undef, ignore()], "No inventory should return undef" );
 my ( $inventory, $error )
 	= $node->inventory( concept => $concept, data => $data, path_keys => $path_keys, create => 1 );
 isnt( $inventory, undef, "Inventory is created when it does not exist" ) or diag("Error creating inventory:$error");
@@ -180,7 +183,7 @@ my ( $inventory2, $error2 )
 # save, which should insert
 ( my $op, $error ) = $inventory->save( node => $node );
 is( $op, 1, "Inventory saves with insert op and no error" ) or diag("Save returned error: $error");
-isnt( $inventory->id, undef, "Inventory gets an id after it's saved" );
+isnt( $inventory->id, undef, "Inventory gets an id after it's saved" ) or diag($error);
 ( $op, $error ) = $inventory2->save( node => $node );
 is( $op, 1, "Inventory2 saves with insert op and no error" ) or diag("Save returned error: $error, path:".join(",", @{ $inventory2->path()} ));
 
@@ -212,21 +215,22 @@ isnt( $inventory->id, undef, "finding not historic finds the inventory" );
 
 # get_inventory_ids
 my $ids = $node->get_inventory_ids();
-is( @$ids, 2, "getting all inventory ids should be 2" );
+# automatically have one catchall made for us
+is( @$ids, 3, "getting all inventory ids should be 3" );
 $ids = $node->get_inventory_ids( concept => $concept );
 is( @$ids, 1, "getting by concept should be 1" );
 is( $ids->[0], $inventory->id, "id of inventory should match what we have" );
 
 # get unique inventory concepts
 my $concepts = $node->get_distinct_values( key => 'concept', collection => $nmisng->inventory_collection );
-cmp_deeply( $concepts, bag($concept, $concept."_new"), 'distinct of concepts should return two' );
+cmp_deeply( $concepts, bag($concept, $concept."_new","catchall"), 'distinct of concepts should return two' );
 
 # create a node with a numeric name, check that it ends up as string in the db
 # OMK-6160
 my $numb = NMISNG::Node->new(nmisng => $nmisng, uuid => NMISNG::Util::getUUID);
 isnt($numb, undef, "Node object creatable");
 $numb->name(12345);
-$numb->cluster_id(1);
+$numb->cluster_id($nmisng->config->{cluster_id});
 $numb->configuration({host => "2.3.4.5",
 											group => "somegroup",
 											netType => "default",
@@ -272,7 +276,6 @@ $intf_inventory->data( { "ifDescr" => "existsifDescr", "index" => $index } );
 is( $op, 1, "Inventory saves with insert op and no error" ) or diag("Save returned error: $error");
 isnt( $intf_inventory->id, undef, "Inventory gets an id after it's saved" );
 
-$DB::single = 1;
 my $is_inventory = $numb->interface_by_ifDescr( "existsifDescr" );
 is( $is_inventory->{data}{ifDescr}, "existsifDescr" , "interface_by_ifDescr finds interface inventory with ifDescr" ) or diag(Dumper($is_inventory));
 

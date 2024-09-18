@@ -2875,7 +2875,8 @@ sub fping_loop
 						$node->handle_down( sys => $sys,
 																type => $whatevent,
 																up => 0,
-																details => $details);
+																details => $details,
+																catchall_inventory => $catchall_inventory);
 					}
 				}
 			}
@@ -2934,7 +2935,8 @@ sub fping_loop
 						$node->handle_down( sys => $sys,
 																type => $clearme,
 																up => 1,
-																details => $details);
+																details => $details,
+																catchall_inventory => $catchall_inventory);
 					}
 				}
 			}
