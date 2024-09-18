@@ -753,7 +753,7 @@ sub makesupportarchive
 		if ($whattool eq "zip")
 		{
 			$whattool = "tar";
-			print "Retrying uysing tar";
+			print "Retrying using tar";
 
 			($error, $zfn) = makearchive($targetfile, $startdir, $sourcedir, $whattool);
 			die "Failed to create archive file: $error\n" if ($error);
