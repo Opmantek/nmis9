@@ -459,18 +459,23 @@ sub collect_evidence
 	# capture relevant mongo status data, if the mongo shell client is a/v,
 	# and if a mongodb is configured and reachable
 	# what's the mongo access configuration?
+	# Determine which MongoDB shell to use
+	my $mongo_shell = "mongo";
+	system("which mongosh >/dev/null 2>&1") == 0 and $mongo_shell = "mongosh";
+	print "Detected MongoDB shell: $mongo_shell\n";
+
 	my @mongoargs = ("--quiet", 	# no heading, just json output please!
 									 "--username", $globalconf->{db_username},
 									 "--password", NMISNG::Util::decrypt($globalconf->{db_password}, 'database', 'db_password'),
 									 "--host", $globalconf->{db_server},
 									 "--port", $globalconf->{db_port});
-	my $status = system("type mongo >/dev/null 2>&1");
+	my $status = system("type $mongo_shell >/dev/null 2>&1");
 	if (POSIX::WIFEXITED($status) && !POSIX::WEXITSTATUS($status))
 	{
 		# get the general mongo status
-		open("F", "|mongo ".join(" ",@mongoargs)
+		open("F", "|$mongo_shell ".join(" ",@mongoargs)
 				 ." admin >$targetdir/system_status/mongo_status 2>&1")
-				or warn "can't run mongo: $!\n";
+				or warn "can't run $mongo_shell: $!\n";
 		F->autoflush(1);
 
 		# fire the most essential commands blindly, don't want the complexity of ipc::run here
@@ -488,7 +493,7 @@ sub collect_evidence
 		}
 		# finding and showing index details is a bit more work
 
-		print F 'var known = db.getCollectionNames(); for(var i=0, len=known.length; i < len; i++) { print("--- examining collection "+known[i]+" ---"); var r = db.getCollection(known[i]).stats(); print(tojson(r)); }'."\n";
+		print F 'var known = db.getCollectionNames(); for(var i=0, len=known.length; i < len; i++) { print("--- examining collection "+known[i]+" ---"); var r = db.getCollection(known[i]).stats(); printjson(r); }' . "\n";
 
 		print F "exit\n";
 		close(F);
@@ -509,7 +514,7 @@ sub collect_evidence
 		{
 			my ($query, $outputfile) = @$_;
 			
-			open(F,"-|", "mongo",
+			open(F,"-|", $mongo_shell,
 					 @mongoargs, $dbname, "--eval", $query);
 			my @exportdata = <F>;
 			close(F);
@@ -945,6 +950,10 @@ sub collect_bot_data
 	
 	my $dbname= $globalconf->{db_name};
 	# Data count
+	my $mongo_shell = "mongo";
+	system("which mongosh >/dev/null 2>&1") == 0 and $mongo_shell = "mongosh";
+	print "Detected MongoDB shell: $mongo_shell\n";
+
 	print "\n Trying to get data from mongo... \n";
 	for (
 			[ 'db.queue.find().count()', 'queue'],
