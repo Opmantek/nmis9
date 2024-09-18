@@ -969,7 +969,7 @@ sub collect_bot_data
 								 "--password", NMISNG::Util::decrypt($globalconf->{db_password}, 'database', 'db_password'),
 								 "--host", $globalconf->{db_server},
 								 "--port", $globalconf->{db_port});
-		my $run = "mongo @mongoargs $dbname --eval \"$query\"";
+		my $run = "$mongo_shell @mongoargs $dbname --eval \"$query\"";
 
 		$bot_data->{count}->{$data} = `$run`;
 	}
