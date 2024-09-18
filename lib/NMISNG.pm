@@ -1291,6 +1291,8 @@ sub ensure_indexes
 				# needed for joins
 				[[node_uuid  => 1]],
 				[{lastupdate => 1}, {unique => 0}],
+				[[node_uuid  => 1, event => 1, historic => 1]],
+				[[node_uuid  => 1, event => 1, element => 1, historic => 1]],
 				[[node_uuid  => 1, event => 1, element => 1, active => 1], {unique => 1, partialFilterExpression => {historic => { '$lte' => 0}}}],
 				#[[node_uuid  => 1, event => 1, element => 1, historic => 1, startdate => 1], {unique => 1}],
 				# [ [node_uuid=>1,event=>1,element=>1,active=>1], {unique => 1}],
@@ -1327,6 +1329,7 @@ sub ensure_indexes
 
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
 				[["data.ip.ipAdEntAddr" => 1], {unique             => 0}],
+				[["path.2" => 1, "data.ipAdEntAddr1" => 1,"historic" => 1,"enabled" => 1]], # for lookup_node
 				[{expire_at             => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 				[["path.0"  => 1, "path.1" => 1], {unique => 1, partialFilterExpression => {"path.2" => { '$eq' => "catchall"}}}],
 			]
@@ -1421,7 +1424,7 @@ sub ensure_indexes
 			indices       => [
 				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
 				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
-    				[[cluster_id => 1, lastupdate => 1], {unique => 0}],
+				[[cluster_id => 1, lastupdate => 1], {unique => 0}],
 				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 			]
 	);
