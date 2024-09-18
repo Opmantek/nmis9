@@ -2464,22 +2464,18 @@ sub _get_ldap_privs
 	
     NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Groups for '$user' are: " . join(", ", @{list_member})) if ($self->{debug});
 
-	my $usergroups;
+	
 	# Read mapping file
-	# Mapping using auth_ldap_privs file
-	# Mapping file name
-	my $ldap_mapping_file = $ldap_config->{auth_ldap_privs_file};
-	NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Searching for ldap_mapping_file '$ldap_mapping_file'.") if ($self->{debug});
-	if (! -f $ldap_mapping_file) {
-		$ldap_mapping_file = $self->{config}->{'<nmis_conf>'} . "/AuthLdapPrivs.json";
-	}
-	if (-f $ldap_mapping_file) {
-		$usergroups = NMISNG::Util::readFiletoHash( file => $ldap_mapping_file, json => 1);
-		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, ldap_mapping_file '$ldap_mapping_file' found and read.") if ($self->{debug});
+	# Mapping using NMIS table system instead of  auth_ldap_privs file
+	# NMIS will try conf then conf-default
+	# y $ldap_mapping_file = $ldap_config->{auth_ldap_privs_file};
+	my $usergroups =  NMISNG::Util::loadTable(dir=>'conf',name=>"AuthLdapPrivs");
+	if( $usergroups && ref($usergroups) eq 'HASH' ) {		
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, ldap_mapping_file AuthLdapPrivs found and read.") if ($self->{debug});
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Mapped User groups Dump: " . Dumper($usergroups)) if ($self->{debug});
 		eval { NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Mapped User Groups are: " . join(", ", @{keys %{$usergroups}})) if ($self->{debug}); };
 	} else {
-		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, cannot read '$ldap_mapping_file': $!");
+		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, cannot read Table AuthLdapPrivs: $usergroups");
 		return 0;
 	}
 
@@ -2531,7 +2527,7 @@ sub configure_ldap {
 	my $auth_ldaps_verify = $self->{config}->{'auth_ldaps_verify'} // "optional";
 	 my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
 	   my $auth_ldap_privs     = $self->{config}->{'auth_ldap_privs'};
-    my $auth_ldap_privs_file = $self->{config}->{'auth_ldap_privs_file'} // $self->{config}->{'<nmis_conf>'} . "/AuthLdapPrivs.json";
+    # my $auth_ldap_privs_file = $self->{config}->{'auth_ldap_privs_file'} // "AuthLdapPrivs";
 
 	if ( $self->{auth} eq "ms-ldap" or $self->{auth} eq "ms-ldaps") {
 		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Honoring legacy ActiveDirectory settings.") if ($self->{debug});
@@ -2562,7 +2558,7 @@ sub configure_ldap {
         auth_ldap_debug      => $auth_ldap_debug,
         auth_ldap_group      => $auth_ldap_group,
         auth_ldap_privs      => $auth_ldap_privs,
-        auth_ldap_privs_file => $auth_ldap_privs_file,
+        # auth_ldap_privs_file => $auth_ldap_privs_file,
         auth_ldap_psw        => $auth_ldap_psw,
         auth_ldap_server     => $auth_ldap_server,
         auth_ldaps_server    => $auth_ldaps_server,

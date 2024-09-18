@@ -54,7 +54,7 @@ return (
 			AuthLdapPrivs => [
 				{ ldap_group => { header => 'LDAP Group',display => 'key,header,text', value => ["specify"] }},
 				{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},				
-				{ groups => { header => 'NMIS Group',display => 'header,scrolling', value => ["none", "all", "network", (@groups) ] }},
+				{ groups => { header => 'NMIS Groups',display => 'header,scrolling',value => [ "all", @groups ] }},				
 				{ priority => { header => 'Priority',display => 'header,popup', helptext => 'If user is in more than one group which takes priority', value => [10,9,8,7,6,5,4,3,2,1,0] }}
 			]
 );
