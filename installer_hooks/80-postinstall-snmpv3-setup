@@ -58,9 +58,9 @@ fi
 printBanner "Patching in SNMPv3 conf files"
 
 execPrint "mkdir -p /usr/local/nmis9/lib/Net/SNMP/Security/"
-	echo "made Security directory"
+	echo "Made Security directory"
 execPrint "cp /usr/local/nmis9/contrib/perl-net-snmp-256/USM.pm /usr/local/nmis9/lib/Net/SNMP/Security/"
-	echo "patched USM.pm"
+	echo "Patched USM.pm"
 execPrint "cp /usr/local/nmis9/contrib/perl-net-snmp-256/Table-Nodes.nmis /usr/local/nmis9/conf/"
 	echo "Copied Table-nodes.nmis into conf Directory"
 
