@@ -2281,12 +2281,12 @@ sub _get_ldap_privs
 
 	my $ldap_config = $self->configure_ldap($self);
 	
-    if ((!$ldap_config->{auth_ldaps_server} or $ldap_config->{auth_ldaps_server} eq "") and (!$ldap_config->{auth_ldaps_server} or $ldap_config->{auth_ldaps_server} eq "")) {
+     if ((!$ldap_config->{auth_ldaps_server}) and (!$ldap_config->{auth_ldap_server})) {
         NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, called but not configured");
 		return 0;
     }
 
-    if (defined $ldap_config->{auth_ldaps_server}) {
+    if ( !$ldap_config->{auth_ldaps_server} eq "") {
         $sec = 1;
     }
 
@@ -2315,7 +2315,7 @@ sub _get_ldap_privs
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Attempting to create a secure connection for 'auth_ldaps_server' ($ldapServer)") if ($self->{debug});
 		$ldap = new Net::LDAPS($ldapServer);
 	} else {
-		my $ldapServer = $ldap_config->{auth_ldaps_server};
+		my $ldapServer = $ldap_config->{auth_ldap_server};
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Attempting to create a connection for 'auth_ldap_server' ($ldapServer')") if ($self->{debug});
 		$ldap = new Net::LDAP($ldapServer);
 	}
@@ -2327,12 +2327,12 @@ sub _get_ldap_privs
 	# LDAP authentication
     my $mesg;
     my $success = 0;
-	$mesg = $ldap->bind ( $ldap_config->{auth_ldap_acc}, password => NMISNG::Util::decrypt($ldap_config->{auth_ldap_psw}), version => 3);
+	$mesg = $ldap->bind ($ldap_config->{auth_ldap_acc}, password => $ldap_config->{auth_ldap_psw});
 	# if full debugging dumps are requested, put it in a separate log file
 	if ($ldap_config->{auth_ldap_debug})
 	{
 		open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
-		print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->bind($ldap_config->{auth_ldap_acc}, password=>**************, version => 3)\n";
+		print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->bind($ldap_config->{auth_ldap_acc}, password=>**************)\n";
 		print F NMISNG::Util::returnDateStamp() . ": " . Dumper($mesg) ."\n";
 		close(F);
 	}
@@ -2426,7 +2426,7 @@ sub _get_ldap_privs
 			#NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:\n" . Dumper($result) . "\n") if ($self->{debug});
 			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search ERROR:\n" . $result->error . "\n") if ($self->{debug});
 			if (!$result or !$result->{entries}) {
-				$self->{log}->error("Auth::_get_ldap_privs, No groups for $user. ". $result->{errorMessage});
+				NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, No groups for $user. ". $result->{errorMessage});
 				return 0;
 			}
 			# Result processing, second try.
@@ -2520,13 +2520,13 @@ sub configure_ldap {
 	my $auth_ldap_acc     = $self->{config}->{'auth_ldap_acc'};
 	my $auth_ldap_attr    = $self->{config}->{'auth_ldap_attr'};
 	my $auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ldap_debug'});
-	my $auth_ldap_psw     = NMISNG::Util::decrypt($self->{config}->{auth_ldap_psw}, 'authentication', 'auth_ldap_psw');
+	my $auth_ldap_psw     = $self->{config}->{auth_ldap_psw};
 	my $auth_ldap_server  = $self->{config}->{'auth_ldap_server'};
 	my $auth_ldaps_capath = $self->{config}->{'auth_ldaps_capath'};
 	my $auth_ldaps_server = $self->{config}->{'auth_ldaps_server'};
 	my $auth_ldaps_verify = $self->{config}->{'auth_ldaps_verify'} // "optional";
-	 my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
-	   my $auth_ldap_privs     = $self->{config}->{'auth_ldap_privs'};
+	my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
+	my $auth_ldap_privs   = $self->{config}->{'auth_ldap_privs'};
     # my $auth_ldap_privs_file = $self->{config}->{'auth_ldap_privs_file'} // "AuthLdapPrivs";
 
 	if ( $self->{auth} eq "ms-ldap" or $self->{auth} eq "ms-ldaps") {
@@ -2540,7 +2540,7 @@ sub configure_ldap {
 			$auth_ldap_base = $self->{config}->{'auth_ms_ldap_base'} // $self->{config}->{'auth_ms_ldap_context'};
 		}
 		if (defined ($self->{config}->{'auth_ms_ldap_psw'}) || defined ($self->{config}->{'auth_ms_ldap_dn_psw'})){
-			$auth_ldap_psw = NMISNG::Util::decrypt($self->{config}->{auth_ms_ldap_psw}, 'authentication', 'auth_ms_ldap_psw') // $self->{config}->{'auth_ms_ldap_dn_psw'};
+			$auth_ldap_psw = $self->{config}->{'auth_ms_ldap_psw'} // $self->{config}->{'auth_ms_ldap_dn_psw'};
 		}
 		$auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ms_ldap_debug'}) if ($self->{config}->{'auth_ms_ldap_debug'});
 		$auth_ldap_server  = $self->{config}->{'auth_ms_ldap_server'} if ($self->{config}->{'auth_ms_ldap_server'});
