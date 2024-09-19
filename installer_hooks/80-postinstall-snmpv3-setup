@@ -33,13 +33,29 @@ else
 	printBanner  "Net::SNMP version 6 or higher is already installed."
 fi
 
+#cipher method module check?
+if ! perl -e 'use Crypt::Rijndael; exit(0);' 2>/dev/null; then
+	printBanner "Crypt::Rijndael module is not installed."
+	if input_yn "Would you like to install Crypt::Rijndael using cpanm?" "b2e8"; then
+		execPrint "cpanm Crypt::Rijndael"
+		if ! perl -e 'use Crypt::Rijndael; exit(0);' 2>/dev/null; then
+			printBanner "Failed to install Crypt::Rijndael. Please install it manually and run this script again."
+			exit 1
+		fi
+	else
+		printBanner "Crypt::Rijndael is required. Please install it and run this script again."
+		exit 1
+	fi
+else
+	printBanner "Crypt::Rijndael is already installed."
+
+fi
 # enable SNMPv3
 execPrint "mkdir -p /usr/local/nmis9/lib/Net/SNMP/Security/"
+	echo "made Security directory"
 execPrint "cp /usr/local/nmis9/contrib/perl-net-snmp-256/USM.pm /usr/local/nmis9/lib/Net/SNMP/Security/"
-if [ -f "/usr/local/nmis9/contrib/Table-Nodes.nmis" ]; then
-	execPrint "cp /usr/local/nmis9/contrib/Table-Nodes.nmis /usr/local/nmis9/conf/"||:;
-else
-	printBanner "File /usr/local/nmis9/contrib/Table-Nodes.nmis does not exist. Skipping copy operation."
-fi
+	echo "patched USM.pm"
+execPrint "cp /usr/local/nmis9/contrib/perl-net-snmp-256/Table-Nodes.nmis /usr/local/nmis9/conf/"
+	echo "Copied Table-nodes.nmis into conf Directory"
 
 exit 0
