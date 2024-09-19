@@ -1,0 +1,67 @@
+#!/bin/sh
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+printBanner "Running snmpv3 configuration helper"
+# prompt user about enabling SNMPv3-256bit support
+if ! input_yn "Do you want to enable SNMPv3-256bit support?" "a7f3"; then
+	echo "SNMPv3-256bit support will not be enabled."
+	exit 0
+fi
+
+# check if Net::SNMP version 6 is installed, if not offer to install it (we get required packages in 30-pre-deps)
+#the v returned in the net::snmp version means we needto use regex to get rid of it :( ....
+printBanner "Checking Net::SNMP is up to date and compatible"
+
+if ! perl -MNet::SNMP -e 'my $v = Net::SNMP->VERSION; $v =~ s/^v//; exit($v >= 6 ? 0 : 1)' 2>/dev/null; then
+	echo "Net::SNMP version 6 or higher is not installed."
+	if input_yn "Would you like to install Net::SNMP using cpanm?" "b2e8"; then
+		if ! command -v cpanm >/dev/null 2>&1; then
+			echo "cpanm is not installed. Please install cpanm and run this script again."
+			exit 1
+		fi
+		execPrint "cpanm Net::SNMP@6.0.1"
+		if ! perl -MNet::SNMP -e 'my $v = Net::SNMP->VERSION; $v =~ s/^v//; exit($v >= 6 ? 0 : 1)' 2>/dev/null; then
+			echo "Failed to install Net::SNMP version 6 or higher. Please install it manually and run this script again."
+			exit 1
+		fi
+	else
+		echo "Net::SNMP version 6 or higher is required. Please install it and run this script again."
+		exit 1
+	fi
+else
+	echo  "Net::SNMP version 6 or higher is already installed."
+fi
+
+#cipher method module check?
+printBanner "Checking Crypt::Rijndael is installed"
+
+if ! perl -e 'use Crypt::Rijndael; exit(0);' 2>/dev/null; then
+	echo "Crypt::Rijndael module is not installed."
+	if input_yn "Would you like to install Crypt::Rijndael using cpanm?" "b2e8"; then
+		execPrint "cpanm Crypt::Rijndael"
+		if ! perl -e 'use Crypt::Rijndael; exit(0);' 2>/dev/null; then
+			echo "Failed to install Crypt::Rijndael. Please install it manually and run this script again."
+			exit 1
+		fi
+	else
+		echo "Crypt::Rijndael is required. Please install it and run this script again."
+		exit 1
+	fi
+else
+	echo "Crypt::Rijndael is already installed."
+
+fi
+# enable SNMPv3
+printBanner "Patching in SNMPv3 conf files"
+
+execPrint "mkdir -p /usr/local/nmis9/lib/Net/SNMP/Security/"
+	echo "Made Security directory"
+execPrint "cp /usr/local/nmis9/contrib/perl-net-snmp-256/USM.pm /usr/local/nmis9/lib/Net/SNMP/Security/"
+	echo "Patched USM.pm"
+execPrint "cp /usr/local/nmis9/contrib/perl-net-snmp-256/Table-Nodes.nmis /usr/local/nmis9/conf/"
+	echo "Copied Table-nodes.nmis into conf Directory"
+
+exit 0
