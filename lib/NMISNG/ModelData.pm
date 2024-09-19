@@ -116,24 +116,26 @@ sub data
 	
 	if ( ref($newvalue) eq "ARRAY" )
 	{
-		die "ModelData::data setting data when cursor is provided is not allowed" if( $self->{_cursor} );
+		# can't set data while iterating, if all data has been fetched then setting it is ok
+		die "ModelData::data setting data when cursor is provided is not allowed, trace".NMISNG::Log::trace() if($self->{_cursor} && $self->{_cursor_data_fetched} == 0);
 		$self->{_data} = $newvalue;
 	}
 	elsif (defined $newvalue)
 	{
-		die "ModelData::data setting data when cursor is provided is not allowed" if( $self->{_cursor} );
-		die "Data must be array!\n";
+		die "Data must be array!\n, trace".NMISNG::Log::trace();
 	}
 	if( !$self->{_error_checked} ) {
 		$self->{_nmisng}->log->debug(sub {"ModelData::data is being accessed without checking for errors! trace:".NMISNG::Log::trace()}) 
 			if(ref($self->{_nmisng}) eq "NMISNG");
 		$self->{_error_checked} = 1; # stop this message from happening again for this object
 	}
-	# if we have a cursor and data is called get all the data
+	# if we have a cursor and data is called, error out if the cursor has started iterating
 	if( $self->{_cursor} && $self->{_cursor_count} > 0 ) {		
 		# NOTE: this involves resetting and screwing up the cursor / iteration so just say no
-		die 'ModelDaata::data cannot get all data after next iterator is used, _cursor_count: '.$self->{_cursor_count};
-	} elsif( $self->{_cursor} && $self->{_cursor_data_fetched} == 0 ) {
+		die 'ModelDaata::data cannot get all data after next iterator is used, _cursor_count: '.$self->{_cursor_count}.' trace:'.NMISNG::Log::trace();
+	} 
+	# if we have a cursor, data is called get iterating has not started, get all data
+	elsif( $self->{_cursor} && $self->{_cursor_data_fetched} == 0 ) {
 		my @all = $self->{_cursor}->all();
 		$self->{_data} = \@all;
 		$self->{_cursor_data_fetched} = 1;

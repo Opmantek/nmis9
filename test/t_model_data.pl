@@ -147,6 +147,29 @@ is( $all_objects_ret->{success}, 1, "objects was success");
 is( @{$all_objects_ret->{objects}},$total_count, "objects returns total count");
 
 
+# test setting data before iterating and while iterating
+$md = $nmisng->get_nodes_model( sort => {node_name => 1} );
+is( $md->error, undef, "no error");
+my $has_error;
+try {
+    $md->data(["something"]);
+} catch {
+    $has_error = $_;
+};
+isnt($has_error,undef,"Error should be made when using cursor and data has not been fetched");
+
+# test setting data before iterating and while iterating
+$md = $nmisng->get_nodes_model( sort => {node_name => 1} );
+is( $md->error, undef, "no error");
+my $has_error;
+try {
+    my $data = $md->data();
+    $md->data(["something"]);
+} catch {
+    $has_error = $_;
+};
+is($has_error,undef,"Error should not be made when using cursor and data has not been fetched");
+
 if (-t \*STDIN)
 {
 	print "enter to continue and cleanup: ";
