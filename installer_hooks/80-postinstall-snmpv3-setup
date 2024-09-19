@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# prompt user about enabling SNMPv3-256bit support
+if ! input_yn "Do you want to enable SNMPv3-256bit support?" "a7f3"; then
+	echo "SNMPv3-256bit support will not be enabled."
+	exit 0
+fi
+
+# check if Net::SNMP version 6 is installed, if not offer to install it (we get required packages in 30-pre-deps)
+if ! perl -MNet::SNMP -e 'exit($Net::SNMP::VERSION < 6)' 2>/dev/null; then
+	printBanner "Net::SNMP version 6 or higher is not installed."
+	if input_yn "Would you like to install Net::SNMP using cpanm?" "b2e8"; then
+		if ! command -v cpanm >/dev/null 2>&1; then
+			printBanner "cpanm is not installed. Please install cpanm and run this script again."
+			exit 1
+		fi
+		cpanm Net::SNMP
+		if ! perl -MNet::SNMP -e 'exit($Net::SNMP::VERSION < 6)' 2>/dev/null; then
+			printBanner "Failed to install Net::SNMP version 6 or higher. Please install it manually and run this script again."
+			exit 1
+		fi
+	else
+		printBanner "Net::SNMP version 6 or higher is required. Please install it and run this script again."
+		exit 1
+	fi
+fi
+
+# enable SNMPv3
+execPrint "mkdir -p /usr/local/nmis9/lib/Net/SNMP/Security/"
+execPrint "cp /usr/local/nmis9/contrib/perl-net-snmp-256/USM.pm /usr/local/nmis9/lib/Net/SNMP/Security/"
+execPrint "cp /usr/local/nmis9/contrib/Table-Nodes.nmis /usr/local/nmis9/conf/"
+
+printBanner "SNMPv3-256bit support has been enabled and files have been copied successfully."
+exit 0
