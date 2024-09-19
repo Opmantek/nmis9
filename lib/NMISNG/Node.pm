@@ -2644,10 +2644,7 @@ sub collect_node_data
 		my %subconcepts;
 		
 		$self->process_alerts( sys => $S );
-		my $timed_bulk;
-		if( BULK_TIMED_DATA == 1 ) {
-			$timed_bulk = {};
-		}
+
 		foreach my $section ( keys %{$rrdData} )
 		{
 			$subconcepts{$section} = 1; # Remove non existing subconcepts from catchall
@@ -2697,20 +2694,14 @@ sub collect_node_data
 																	 .", subconcept $section failed: $stats");
 					$stats = {};
 				}
+
 				my $error = $catchall_inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section, node => $self,
-										time => $catchall_data->{last_poll}, delay_insert => 1,
-										bulk => $timed_bulk );
+										time => $catchall_data->{last_poll}, delay_insert => 1 );
 				$self->nmisng->log->error("timed data adding for ". $catchall_inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
 			}		
 		}
 		# NO save on inventory because it's the catchall right now
-
-		# save the timed data though
-		if( $timed_bulk ) {
-			foreach my $bulk (keys %$timed_bulk) {
-				NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
-			}
-		}
+		# no bulking because the save happens at the end for catchall anyway		
 		# Now, update non existent subconcepts/storage from inventory/catchall
 		my $storage = $catchall_inventory->storage();
 			
@@ -4180,6 +4171,11 @@ sub collect_intf_data
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
 
+	my $bulk_save;
+	if( BULK_TIMED_DATA == 1 ) {
+		$bulk_save = {};
+	}
+
 	# work on enabled and nonhistoric
 	for my $index (sort grep($if_data_map{$_}->{enabled}
 													 && !$if_data_map{$_}->{historic}, keys %if_data_map))
@@ -4294,10 +4290,6 @@ sub collect_intf_data
 
 		my $previous_pit = $inventory->get_newest_timed_data(); # one needed for the pit updates,
 
-		my $timed_bulk;
-		if( BULK_TIMED_DATA == 1 ) {
-			$timed_bulk = {};
-		}
 		# now walk all rrd data sections and send them off to rrd
 		for my $sectionname (sort keys %{$thisif->{_rrd_data}})
 		{
@@ -4337,8 +4329,7 @@ sub collect_intf_data
 				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																								subconcept => $sectionname,
 																								time => $catchall_data->{last_poll},
-																								delay_insert => 1,
-																								bulk => $timed_bulk );
+																								delay_insert => 1 );
 				$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error")
 						if ($error);
 			}
@@ -4365,10 +4356,18 @@ sub collect_intf_data
 		$inventory->historic(0);
 		$inventory->enabled(1);
 
-		my ($op, $error) = $inventory->save( node => $self );
+		my ($op, $error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 		$self->nmisng->log->error("failed to save inventory for $nodename, interface $inventory_data->{ifDescr}: $error")
 				if ($op <= 0);
 
+	}
+
+	# save the timed data though
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+		}
 	}
 
 	# handle accumulated alerts
@@ -5115,9 +5114,9 @@ sub collect_systemhealth_data
 		? $M->{systemHealth}{sections}
 		: $self->nmisng->config->{model_health_sections} );
 
-	my $timed_bulk;
+	my $bulk_save;
 	if( BULK_TIMED_DATA == 1 ) {
-		$timed_bulk = {};
+		$bulk_save = {};
 	}
 
 	for my $section (@healthSections)
@@ -5230,7 +5229,7 @@ sub collect_systemhealth_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect, node => $self,
-							time => $catchall_data->{last_poll}, delay_insert => 1, bulk => $timed_bulk );
+							time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
@@ -5238,7 +5237,7 @@ sub collect_systemhealth_data
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
-				$inventory->save( node => $self );
+				$inventory->save( node => $self, bulk_save => $bulk_save );
 			}
 			# this allows us to prevent adding data when it wasn't collected (but not an error)
 			elsif( $howdiditgo->{skipped} ) {}
@@ -5253,9 +5252,10 @@ sub collect_systemhealth_data
 		}
 	}
 	
-	if( $timed_bulk ) {
-		foreach my $bulk (keys %$timed_bulk) {
-			NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
 		}
 	}
 
@@ -5819,9 +5819,9 @@ sub collect_cbqos_data
 	
 	my $happy;
 
-	my $timed_bulk;
+	my $bulk_save;
 	if( BULK_TIMED_DATA == 1 ) {
-		$timed_bulk = {};
+		$bulk_save = {};
 	}
 	foreach my $direction ( "in", "out" )
 	{
@@ -5917,8 +5917,7 @@ sub collect_cbqos_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName, node => $self,
-																										time => $catchall_data->{last_poll}, delay_insert => 1,
-																										bulk => $timed_bulk );
+																										time => $catchall_data->{last_poll}, delay_insert => 1);
 						$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
@@ -5934,12 +5933,13 @@ sub collect_cbqos_data
 			}
 			# saving is required bacause create_update_rrd can change inventory, setting data not done because
 			# it's not changed
-			$inventory->save( node => $self );
+			$inventory->save( node => $self, bulk_save => $bulk_save );
 		}
 	}
-	if( $timed_bulk ) {
-		foreach my $bulk (keys %$timed_bulk) {
-			NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
 		}
 	}
 	return $happy? 1 : 0;
@@ -7350,9 +7350,9 @@ sub collect_server_data
 		}
 
 		$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
-		my $timed_bulk;
+		my $bulk_save;
 		if( BULK_TIMED_DATA == 1 ) {
-			$timed_bulk = {};
+			$bulk_save = {};
 		}
 		foreach my $index ( keys %{$deviceIndex} )
 		{
@@ -7422,11 +7422,10 @@ sub collect_server_data
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																										subconcept => 'hrsmpcpu',
-																										time => $catchall_data->{last_poll}, delay_insert => 1,
-																										bulk => $timed_bulk );
+																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 
-						($op,$error) = $inventory->save( node => $self );
+						($op,$error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 						$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					}
 					$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
@@ -7440,14 +7439,15 @@ sub collect_server_data
 					if($inventory)
 					{
 						$inventory->enabled(0);
-						$inventory->save( node => $self );
+						$inventory->save( node => $self,  bulk_save => $bulk_save );
 					}
 				}
 			}
 		}
-		if( $timed_bulk ) {
-			foreach my $bulk (keys %$timed_bulk) {
-				NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+		if( $bulk_save ) {
+			foreach my $bulk_section (keys %$bulk_save) {
+				my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+				$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
 			}
 		}
 
@@ -7494,6 +7494,11 @@ sub collect_server_data
 
 	if ( $M->{storage} ne '' )
 	{
+		my $bulk_save;
+		if( BULK_TIMED_DATA == 1 ) {
+			$bulk_save = {};
+		}
+
 		my $disk_cnt             = 1;
 		my $storageIndex         = $SNMP->getindex('hrStorageIndex');
 		my $hrFSMountPoint       = undef;
@@ -7705,7 +7710,7 @@ sub collect_server_data
 				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
-				($op,$error) = $inventory->save( node => $self );
+				($op,$error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
@@ -7721,6 +7726,13 @@ sub collect_server_data
 				# maybe mark it historic?
 			}
 		}
+		# put it here
+		if( $bulk_save ) {
+			foreach my $bulk_section (keys %$bulk_save) {
+				my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+				$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+			}
+		}		
 	}
 	else
 	{

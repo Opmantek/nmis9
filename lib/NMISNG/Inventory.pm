@@ -465,8 +465,13 @@ sub new
 #   ie. key subconceptA => { dsnameA => 1, dsnameB => 1 }, subconceptB => ....
 #   in this case, data may be a deep hash. if you repeat calls with delay_save in that situation, the last
 #   data/derived data wins. the inventory's datasets info is amended/extended from that dataset info.
-# bulk: a hash with bulk operations inside of it, hash holds one bulk object per dataset that needs 
+# bulk_save: a hash with bulk operations inside of it, hash holds one bulk object per dataset that needs 
 # 		an op run on it, bulk objects will be created automatically for each collection that they are needed for
+#		THIS SHOULD ONLY BE USED BY SAVE, this whole thing basically requires add_timed_data delay_insert and then 
+#		to be flushed, for non-indexed data it does not work properly if it's not indexed, the sections need to be 
+# 		grouped together and that only happens when not being flushed until the end, otherwise the query just clobbers 
+#		the last upsert 
+#		*(all timed data sharing the same inventory needs to be saved/flushed at the same time )*
 #
 #
 # returns: undef or error message
@@ -486,8 +491,8 @@ sub add_timed_data
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
 	return "cannot add timed data, invalid derived_data argument!"
 		if ( ref( $args{derived_data} ) ne "HASH" );    # empty hash is acceptable
-	my ( $data, $derived_data, $time, $delay_insert, $flush, $node, $bulk )
-			= @args{'data', 'derived_data', 'time', 'delay_insert','flush','node','bulk'};
+	my ( $data, $derived_data, $time, $delay_insert, $flush, $node, $bulk_save )
+			= @args{'data', 'derived_data', 'time', 'delay_insert','flush','node','bulk_save'};
 
 	# automatically take care of datasets
 	# one of these two must be defined
@@ -553,7 +558,7 @@ sub add_timed_data
 		$timedrecord->{derived_data}->{$subconcept} = $derived_data;
 	}
 
-	if ( !$delay_insert || $flush || $bulk )
+	if ( !$delay_insert || $flush || $bulk_save )
 	{
 		return "cannot add timed data to unsaved inventory instance!"
 			if ( $self->is_new );
@@ -577,15 +582,15 @@ sub add_timed_data
 		# get bulk is supplied make sure we have a bulk operation for this timed collection
 		my $timed_bulk;
 		my $latest_bulk;
-		if( $bulk ) {
-			if( !$bulk->{$self->concept()} ) {
-				$bulk->{$self->concept()} = NMISNG::DB::begin_bulk( collection => $self->nmisng->timed_concept_collection(concept => $self->concept()) );
+		if( $bulk_save ) {
+			if( !$bulk_save->{$self->concept()} ) {
+				$bulk_save->{$self->concept()} = NMISNG::DB::begin_bulk( collection => $self->nmisng->timed_concept_collection(concept => $self->concept()) );
 			}
-			if( !$bulk->{"latest_data"} ) {
-				$bulk->{"latest_data"} = NMISNG::DB::begin_bulk( collection => $self->nmisng->latest_data_collection() );
+			if( !$bulk_save->{"latest_data"} ) {
+				$bulk_save->{"latest_data"} = NMISNG::DB::begin_bulk( collection => $self->nmisng->latest_data_collection() );
 			}
-			$timed_bulk = $bulk->{$self->concept()};
-			$latest_bulk = $bulk->{"latest_data"};
+			$timed_bulk = $bulk_save->{$self->concept()};
+			$latest_bulk = $bulk_save->{"latest_data"};
 		}
 		my $dbres = NMISNG::DB::insert(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
@@ -605,7 +610,7 @@ sub add_timed_data
 
 		# if the datasets were modified they need to be saved, only if we're not flushing
 		# which should only come from save (so don't start a recursive loop)
-		$self->save( node => $node ) if (!$flush && $datasets_modfied && !$bulk);
+		$self->save( node => $node ) if (!$flush && $datasets_modfied && !$bulk_save);
 	}
 	else
 	{
@@ -1303,6 +1308,8 @@ sub path
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
 #
 # args: lastupdate, (optional, defaults to now), node (obj)
+#     bulk_save - used to save the time data in bulk, variable passed in will either be or
+# 		become a bulk hash with bulk entries that need to be ended be the caller
 # note: lastupdate and expire_at currently not added to object but stored in db only
 # 		update - 0/1 set 1 if the save is coming from an update function that is where
 #				that piece of inventory is created, if the function just updates existing
@@ -1319,6 +1326,7 @@ sub save
 	my $lastupdate		= $args{lastupdate} // Time::HiRes::time;
 	my $lastupdate_utc 	= Time::Moment->now_utc->epoch;
 	my $update		= $args{update} 	// 0;
+	my $bulk_save		= $args{bulk_save};
 
 	my $node = $args{node};
 	if( $self->node_uuid ne '' && !$node ) {
@@ -1567,7 +1575,7 @@ sub save
 		my $pit_record = $self->{_queued_pit};
 		# using ourself means id will be added (so new inventories will work, no save first required)
 		# telling it to flush should bypass any special handling, allowing the data straight through
-		my $error = $self->add_timed_data(flush => 1, node => $node, %$pit_record);
+		my $error = $self->add_timed_data(flush => 1, node => $node, bulk_save => $bulk_save, %$pit_record);
 		if ($error)
 		{
 			$result->{success} = 0;
