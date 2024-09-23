@@ -964,13 +964,7 @@ sub draw
 	{
 		$mydatabase = $S->makeRRDname(graphtype=>$graphtype, index=>$intf, item=>$item, inventory => $inventory);
 		return { error => "failed to find database for graphtype $graphtype!" } if (!$mydatabase);
-		my $res;
-		if ($inventory->data->{'hrStorageDescr'} eq'Physical memory' && $graphtype eq 'Host_Storage'){
-			$res = NMISNG::Util::getModelFile(model => "Graph-$graphtype-PhysicalMem");	
-		}
-		else{
-			$res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
-		}
+		my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
 		return { return => "failed to read Graph-$graphtype!" } if (!$res->{success});
 		my $graph = $res->{data};
 
@@ -1013,9 +1007,31 @@ sub draw
 		else
 		{
 			push(@rrdargs, "--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+		}		
+
+		## check if we have extra's in graph , if yes, then parse the control structure.
+		if(defined ($graph->{extras}) and ref ($graph->{extras}) eq 'ARRAY'){			
+			my $extras = $graph->{extras};
+			
+			foreach my $entry (@{$extras}){
+					if($S->parseString(
+                         string => "($entry->{control}) ? 1:0",
+                         inventory => $inventory,
+						 sect => $subconcept,
+                         eval => 1,))
+						 {							
+							## add the extra's to graph 
+							push(@{$graph->{option}{$size}}, @{$entry->{$size}});
+						 }						 
+						 else{
+							## remove the extra's from graph so they won't stay in memory for other options.
+							my %remove = map { $_ => 1 } @{$entry->{$size}};
+							@{$graph->{option}{$size}} = grep { !$remove{$_} } @{$graph->{option}{$size}};							
+						 }
+			}
+			
 		}
 		push @rrdargs, @{$graph->{option}{$size}};
-
 		#allow for generic overlways to be added into the graph
 		if(defined ($graph->{option}{overlays}) and ref($graph->{option}{overlays}) eq "HASH")
 		{
