@@ -62,6 +62,7 @@ use Compat::NMIS;
 
 # for worker_loop
 use constant { EXIT_POLITE => 0, EXIT_TTL => 1, EXIT_IMMEDIATELY => 2, EXIT_ERROR => 3, EXIT_IDLE => 4 };
+use constant BULK_TIMED_DATA => 1;
 
 my $PID       = ${$};
 my $PROGNAME  = basename($0);
@@ -2715,6 +2716,10 @@ sub fping_loop
 			close FROMFPING;
 		}
 
+		my $bulk_save;
+		if( BULK_TIMED_DATA == 1 ) {
+			$bulk_save = {};
+		}
 		# fourth: analyse the results we've got this time, trigger events if required
 		for my $statekey (@thistime)
 		{
@@ -2764,17 +2769,21 @@ sub fping_loop
 				}
 				else
 				{
-					$pinginv->save( node => $node) if ($pinginv->is_new); # timed data only possible once inventory is in the db
+					$pinginv->save( node => $node ) if ($pinginv->is_new); # timed data only possible once inventory is in the db
 
-					# this saves both timed data and the inventory
+					# this queues the save up until the inventory is saved
 					my $error = $pinginv->add_timed_data(
 						time => $thisstate->{lastping},
 						data => $timeddata,
 						derived_data => {},
 						subconcept => "ping",
-						node => $node
-							);
+						node => $node,
+						delay_insert => 1 );
 					$nmisng->log->error("Failed to add ping timed data: $error") if ($error);
+					# this saves (which should be op 3 - nop most of the time) and puts the timed
+					# data into a bulk save opertion that is finished at the end
+					my ($op,$inv_error) = $pinginv->save( node => $node, bulk_save => $bulk_save );
+					$nmisng->log->error("Failed to save ping inventory: $inv_error") if ($inv_error);
 				}
 			}
 
@@ -2939,6 +2948,14 @@ sub fping_loop
 																catchall_inventory => $catchall_inventory);
 					}
 				}
+			}
+		}
+		# save the timed data
+		if( $bulk_save ) {
+			foreach my $bulk_section (keys %$bulk_save) {
+				my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+				$nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+				$nmisng->log->debug(sub {"Bulk timed data results: ".Dumper($bulk_results)});
 			}
 		}
 
