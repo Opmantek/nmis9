@@ -50,7 +50,6 @@
 
 			'LINE1:size#000000: Total Storage',
 			'AREA:used#3277a8: Storage Used',
-			'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
 			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes',
 			'GPRINT:used:AVERAGE:Average Storage Used %1.3lf %Sbytes',
 			'GPRINT:used:MAX:Maximum Storage Used %1.3lf %Sbytes\n', 
