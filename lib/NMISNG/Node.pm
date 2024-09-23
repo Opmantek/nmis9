@@ -6823,7 +6823,8 @@ sub update
 	my $name = $self->name;
 	my $updatetimer = Compat::Timing->new;
 	my $C = $self->nmisng->config;
-	my $force = $args{force};
+	my ($force,$starttime) = @args{'force','starttime'};
+	$starttime //= Time::HiRes::time;
 
 	$self->nmisng->log->debug("Starting update, node $name");
 	$0 = "nmisd worker update $name";
@@ -6886,7 +6887,7 @@ sub update
 	my $catchall_data = $catchall_inventory->data_live();
 
 	# record that we are trying an update; last_update records only successfully completed updates...
-	$catchall_data->{last_update_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_update_attempt} = $starttime;
 
 	$self->nmisng->log->debug("node=$name "
 			. join( " ",
@@ -7010,7 +7011,7 @@ sub update
 			{
 				$self->nmisng->log->debug("node is set to collect=false, not collecting any info");
 			}
-			$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{last_update} = $starttime;
 			# we updated something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 		}
@@ -7093,7 +7094,7 @@ sub update
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+																									time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
@@ -8842,7 +8843,8 @@ sub unlock
 sub collect
 {
 	my ($self, %args) = @_;
-	my ($wantsnmp, $wantwmi,$force) = @args{"wantsnmp","wantwmi","force"};
+	my ($wantsnmp,$wantwmi,$force,$starttime) = @args{"wantsnmp","wantwmi","force","starttime"};
+	$starttime //= Time::HiRes::time;
 
 	my $name = $self->name;
 	my $pollTimer = Compat::Timing->new;
@@ -8911,12 +8913,12 @@ sub collect
 	
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
-	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_poll_attempt} = $starttime;
 	if (defined($wantsnmp)) {
-		$catchall_data->{last_poll_snmp_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_snmp_attempt} = $starttime;
 	}
 	if (defined($wantwmi)) {
-		$catchall_data->{last_poll_wmi_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
 	
 	$self->nmisng->log->debug( "node=$name "
@@ -9009,7 +9011,7 @@ sub collect
 		# returns 1 if one or more sources have worked,
 		# also updates snmp/wmi down states in nodeinfo/catchall
 		# and sets the relevant last_poll_xyz markers
-		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $args{starttime} // Time::HiRes::time, catchall_inventory => $catchall_inventory );
+		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $starttime, catchall_inventory => $catchall_inventory );
 		my $curstate = $S->status;  # collect_node_info does NOT disable faulty sources!
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply
@@ -9037,8 +9039,8 @@ sub collect
 			}
 			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
-			$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-			$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{collectPollDelta} = $starttime - $previous_poll;
+			$catchall_data->{last_poll} = $starttime;
 			# we polled something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 
@@ -9067,8 +9069,8 @@ sub collect
 	} else {
 		$self->nmisng->log->debug3(sub {"($name) Node not pingable or no collect"});
 		# updating time stamps for last poll, the collect was run even if the node was down.
-		$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-		$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{collectPollDelta} = $starttime;
+		$catchall_data->{last_poll} = $starttime;
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
@@ -9143,8 +9145,9 @@ sub collect
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory, conf => $C );
+	# must use starttime here as last_poll could be bunk
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																					time => $catchall_data->{last_poll}, delay_insert => 1 );
+																					time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
