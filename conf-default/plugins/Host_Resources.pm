@@ -236,29 +236,18 @@ sub collect_plugin
 								'hrStorageUnits' => {
 											'value' => $data->{hrStorageUnits} }										
 								};
-				}
-				else{
-					$temp = {'hrStorageAvailUnits' => {
-											'value' => $physical_data->{hrStorageAvailUnits} },
-								'hrStorageSize' => {
-											'value' => $data->{hrStorageSize} },
-								'hrStorageUsed' => {
-											'value' => $data->{hrStorageUsed} },
-								'hrStorageUnits' => {
-											'value' => $data->{hrStorageUnits} }										
-								};
-				}
 					my $db = $S->create_update_rrd( data => $temp,
-                                                                                    type   => "Host_Storage",
-                                                                                    index  => $data->{index},
-                                                                                    inventory => $host_inventory );
-					
+													type   => "Host_Storage",
+													index  => $data->{index},
+													inventory => $host_inventory );					
+				}
+				
 	                # Save the data
-			$data->{hrStorageSummary} = join(" ",@{$data->{hrStorageSummary}});
-	                $host_inventory->data($data); # set changed info
-	                (undef,$error) = $host_inventory->save( node => $node ); # and save to the db
-	                $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
-                        if ($error);
+				$data->{hrStorageSummary} = join(" ",@{$data->{hrStorageSummary}});
+	            $host_inventory->data($data); # set changed info
+	            (undef,$error) = $host_inventory->save( node => $node ); # and save to the db
+	            $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
+                if ($error);
 		}
 	} # Foreach
 	if ( ref($Host_Memory) eq "HASH" ) {

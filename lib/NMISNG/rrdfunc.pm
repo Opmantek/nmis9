@@ -964,8 +964,13 @@ sub draw
 	{
 		$mydatabase = $S->makeRRDname(graphtype=>$graphtype, index=>$intf, item=>$item, inventory => $inventory);
 		return { error => "failed to find database for graphtype $graphtype!" } if (!$mydatabase);
-
-		my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
+		my $res;
+		if ($inventory->data->{'hrStorageDescr'} eq'Physical memory' && $graphtype eq 'Host_Storage'){
+			$res = NMISNG::Util::getModelFile(model => "Graph-$graphtype-PhysicalMem");	
+		}
+		else{
+			$res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
+		}
 		return { return => "failed to read Graph-$graphtype!" } if (!$res->{success});
 		my $graph = $res->{data};
 

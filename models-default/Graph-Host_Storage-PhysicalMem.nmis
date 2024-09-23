@@ -43,34 +43,44 @@
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
 			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
 			'DEF:hrStorageUnits=$database:hrStorageUnits:MAX',
+			'DEF:hrStorageAvailUnits=$database:hrStorageAvailUnits:MAX',
 			'CDEF:perUsedD=hrStorageUsed,hrStorageSize,/,100,*',
 
 			'CDEF:used=hrStorageUsed,hrStorageUnits,*',
 			'CDEF:size=hrStorageSize,hrStorageUnits,*',
+			'CDEF:avail=hrStorageAvailUnits,hrStorageUnits,*',
 
 			'LINE1:size#000000: Total Storage',
+			
 			'AREA:used#3277a8: Storage Used',
-			'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
+			'LINE1:avail#ff9933: Available Storage',
 			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes',
 			'GPRINT:used:AVERAGE:Average Storage Used %1.3lf %Sbytes',
 			'GPRINT:used:MAX:Maximum Storage Used %1.3lf %Sbytes\n', 
 			'GPRINT:perUsedD:LAST:Current %1.1lf%%',
 			'GPRINT:perUsedD:AVERAGE:Average %1.1lf%%',
 			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',
+			'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
 		],
 		'small' => [
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
 			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
 			'DEF:hrStorageUnits=$database:hrStorageUnits:MAX',
+			'DEF:hrStorageAvailUnits=$database:hrStorageAvailUnits:MAX',
 
 			'CDEF:used=hrStorageUsed,hrStorageUnits,*',
 			'CDEF:size=hrStorageSize,hrStorageUnits,*',
+			'CDEF:avail=hrStorageAvailUnits,hrStorageUnits,*',
 
 			'LINE1:size#000000: Total Storage',
+			
 			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes\\n',
+			
 			'AREA:used#3277a8: ',
+			'LINE1:avail#ff9933: Available Storage',
 			'GPRINT:used:AVERAGE:Avg. Usage %1.2lf %Sbytes',
 			'GPRINT:used:MAX:Max Usage %1.2lf %Sbytes\n', 
+			'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
 		]
 	}
 );
