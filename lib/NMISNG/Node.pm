@@ -5187,6 +5187,7 @@ sub collect_systemhealth_data
 				my $result = $S->snmp->get( $oid );
 				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
 				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
 					$port = $index . '.' . $result->{$oid};
 				}
 			}

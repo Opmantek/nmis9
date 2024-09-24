@@ -1,0 +1,34 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Probes'
+	},
+	'vlabel' => {
+		'standard' => 'Probes'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:nqaSentProbes=$database:nqaSentProbes:AVERAGE',
+			'DEF:nqaAvgJitterDS=$database:nqaAvgJitterDS:AVERAGE',
+			'DEF:nqaProbeResponses=$database:nqaProbeResponses:AVERAGE',
+			'LINE2:nqaSentProbes#ff0000:SendProbe',
+			'GPRINT:nqaSentProbes:LAST:Current %1.0lf\\n',
+			'LINE2:nqaAvgJitterDS#00ff00:Completion',
+			'GPRINT:nqaAvgJitterDS:LAST:Current %1.0lf\\n',
+			'LINE2:nqaProbeResponses#0000ff:Respuesta de Probes',
+			'GPRINT:nqaProbeResponses:LAST:Current %1.0lf ms\\n'
+		],
+		'small' => [
+			'DEF:nqaSentProbes=$database:nqaSentProbes:AVERAGE',
+			'DEF:nqaAvgJitterDS=$database:nqaAvgJitterDS:AVERAGE',
+			'DEF:nqaProbeResponses=$database:nqaProbeResponses:AVERAGE',
+
+			'LINE2:nqaSentProbes#ff0000:SendProbe\\t\\t\\t',
+			'GPRINT:nqaSentProbes:LAST:Current %1.0lf\\n',
+			'LINE2:nqaAvgJitterDS#00ff00:Completion\\t\\t\\t',
+			'GPRINT:nqaAvgJitterDS:LAST:Current %1.0lf\\n',
+			'LINE2:nqaProbeResponses#0000ff:Respuesta de Probes\\t',
+			'GPRINT:nqaProbeResponses:LAST:Current %1.0lf ms\\n'
+		]
+	}
+);

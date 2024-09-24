@@ -136,6 +136,8 @@ sub update_plugin
 				{
 					$inventory_data->{ifDescr} = $ifdata{$ifindex}{ifDescr};
 
+					$inventory_data->{ifDescr_ClassifierName_Direction} = "$inventory_data->{ifDescr}:$inventory_data->{ClassifierName}:$inventory_data->{Direction}";
+
 					$NG->log->info("$plugin:$sub: Found $concept entry with $inventory_data_key '$inventory_data->{$inventory_data_key}': 'ifDescr' = '$inventory_data->{ifDescr}'.");
 					$NG->log->debug("$plugin:$sub: Node $node updating node info $concept $inventory_data_key '$inventory_data->{$inventory_data_key}': new '$inventory_data->{ifDescr}'");
 				}

@@ -1,0 +1,34 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node $length'
+	},
+	'vlabel' => {
+		'standard' => '(Mb) Mem Util.'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:hwMemoryDevSize=$database:hwMemoryDevSize:AVERAGE',
+			'DEF:hwMemoryDevFree=$database:hwMemoryDevFree:AVERAGE',
+			'CDEF:hwMemoryDevSize1=hwMemoryDevSize,1000000,/',
+			'CDEF:hwMemoryDevF1=hwMemoryDevFree,1000000,/',
+			'LINE1:hwMemoryDevSize1#00FF00:Memory Size',
+			'GPRINT:hwMemoryDevSize1:AVERAGE:Avg %1.2lf\\n',
+			'LINE1:hwMemoryDevF1#00CED1:Memory Free',
+			'GPRINT:hwMemoryDevF1:AVERAGE:Avg %1.2lf',
+			'GPRINT:hwMemoryDevF1:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:hwMemoryDevSize=$database:hwMemoryDevSize:AVERAGE',
+			'DEF:hwMemoryDevFree=$database:hwMemoryDevFree:AVERAGE',
+			'CDEF:hwMemoryDevSize1=hwMemoryDevSize,1000000,/',
+			'CDEF:hwMemoryDevF1=hwMemoryDevFree,1000000,/',
+			'LINE1:hwMemoryDevSize1#00FF00:Memory Size',
+			'GPRINT:hwMemoryDevSize1:AVERAGE:Avg %1.2lf\\n',
+			'LINE1:hwMemoryDevF1#00CED1:Memory Free',
+			'GPRINT:hwMemoryDevF1:AVERAGE:Avg %1.2lf',
+			'GPRINT:hwMemoryDevF1:MAX:Max %1.2lf\\n',
+		]
+	}
+);
+

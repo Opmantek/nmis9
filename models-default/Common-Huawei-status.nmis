@@ -1,0 +1,1321 @@
+% hash = (
+  'heading' => {
+    'graphtype' => {
+      'cpu-huawei' => "Huawei CPU",
+      'mem-huawei' => "Huawei Memory",
+      'HW_EntityState' => "Huawei Entity State",
+      'HW_memoryProperty' => "Huawei memory Property",
+      'HW_temperature' => "Huawei Temperature",
+    },
+  },
+  'database' => {
+    'type' => {
+      #-- -- -- -- -- -- --
+      'nqaAdminCtrl' => '/nodes/$node/health/nqaAdminCtrl-$index.rrd',
+      'hwCpuDev' => '/nodes/$node/health/hwCpuDev-$index.rrd',
+      'hwMemoryDevSize' => '/nodes/$node/health/hwMemoryDevSize-$index.rrd',
+      'hwEntityState' => '/nodes/$node/health/hwEntityState-$index.rrd',
+      'hardDisk' => '/nodes/$node/health/hardDisk-$index.rrd',
+      'memoryProperty' => '/nodes/$node/health/HW_memoryProperty-$index.rrd',
+      'temperature' => '/nodes/$node/health/HW_temperature-$index.rrd',
+
+      #-- -- -- -- -- -- --
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'hwRUModuleInfo' => {
+        'graphtype' => '',
+        'threshold' => '',
+        'control' => 'CVAR=hwEntityModel;$CVAR =~ /([\w]+)/',
+        'snmp' => {
+        },
+      },
+      'memoryProperty' => {
+        'graphtype' => 'HW_memoryProperty',
+        'control' => 'CVAR=memoryDevicename;$CVAR !~ /^0/',
+        'indexed' => 'true',
+        'threshold' => '',
+        'snmp' => {
+            'memoryStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.6',
+          },
+        },
+      },
+      'hardDisk' => {
+        'graphtype' => 'hardDisk',
+        'control' => 'CVAR1=hardDiskTemp;$CVAR1 !~ /(255)/',
+        'indexed' => 'true',
+        'threshold' => '',
+        'snmp' => {
+          'hardDiskTemp' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.20',
+            },
+          },
+      },
+      'temperature' => {
+        'graphtype' => 'HW_temperature',
+#        'calculate' => '$r * 0.1;',
+        'indexed' => 'true',
+        'threshold' => '',
+        'snmp' => {
+          'temperatureReading' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.3',
+          },
+          },
+      },
+      'hwEntityState' => {
+        'graphtype' => 'HW_EntityState',
+        'control' => 'CVAR=slotname;$CVAR !~ /(GigabitEthernet|XGigabit)/ and CVAR1=hwEntityOperStatus;$CVAR1 !~ /(1|2|4)/',
+        'indexed' => 'true',
+        'threshold' => '',
+        'snmp' => {
+          'hwEntityCpuUsage' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.5',
+            # 'title' => 'Entity CPU Usage',
+          },
+          'hwEntityMemUsage' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.7',
+            # 'title' => 'Entity Memory Usage',
+          },
+          'MemUsageThreshold' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.8',
+            'title' => 'Entity Memory Usage Threshold'
+          },
+          'EntityTemperature' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.11',
+            # 'title' => 'Entity Temperature',
+          },
+          'TemThreshold' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.12',
+            # 'title' => 'Entity Temperature Threshold',
+          },
+          'hwEntityVoltage' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.13',
+            # 'title' => 'Entity Voltage',
+          },
+        },
+      },
+      'hwCpuDev' => {
+        'graphtype' => 'cpu-huawei',
+        'indexed' => 'true',
+        'threshold' => '',
+        'snmp' => {
+          'hwCpuDevDuty' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.4.1.2'
+          },
+          'hwAvgDuty1min' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.4.1.3'
+          },
+          'hwAvgDuty5min' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.4.1.4'
+          },
+        },
+      },
+      'hwMemoryDevSize' => {
+        'graphtype' => 'mem-huawei',
+        'indexed' => 'true',
+        'threshold' => '',
+        'snmp' => {
+          'hwMemoryDevSize' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.5.1.1.2',
+          },
+          'hwMemoryDevFree' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.5.1.1.3',
+          },
+        },
+      },
+    },
+    'sys' => {
+      'hwL2Vlan' => {
+        'indexed' => 'hwL2VlanDescr',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.2',
+        'index_regex' => '\.3\.1\.1\.1\.1\.2\.([\d.]+)$',
+        'headers' => 'hwL2VlanDescr,hwL2VlanPortList,hwL2VlanType,hwL2VlanIfIndex,hwL2VlanAdminStatus,hwL2VlanCreateStatus,hwL2VlanRowStatus,hwL2VlanName,hwL2VlanManagementVlan,hwL2VlanDynamicVlan',
+        'snmp' => {
+          'hwL2VlanDescr' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.2',
+            'title' => 'L2 VLAN Description'
+          },
+          'hwL2VlanPortList' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.3',
+            'title' => 'L2 VLAN Port List'
+          },
+          'hwL2VlanType' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.4',
+            'title' => 'L2 VLAN Type',
+            'replace' => {
+              '1' => 'super vlan(1)',
+              '2' => 'common-vlan(2)',
+              '3' => 'sub-vlan(3)',
+              '4' => 'muxVlan(4)',
+              '5' => 'muxSubVlan(5)',
+              '6' => 'protocolTransVlan(6)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwL2VlanIfIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.6',
+            'title' => 'L2 VLAN Interface Index',
+            'replace' => {
+              '-1' => 'Not configured. (-1)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwL2VlanAdminStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.9',
+            'title' => 'HW L2 VLAN Admin Status',
+            'replace' => {
+              '1' => 'Enabled(1)',
+              '2' => 'Disable(2)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwL2VlanCreateStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.11',
+            'title' => 'HW L2 VLAN Create Status',
+            'replace' => {
+              '1' => 'other(1)',
+              '2' => 'static(2)',
+              '3' => 'dynamic(3)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwL2VlanRowStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.12',
+            'title' => 'HW L2 VLAN Row Status',
+            'replace' => {
+              '1' => 'active(1)',
+              '2' => 'notInService(2)',
+              '3' => 'notReady(3)',
+              '4' => 'createAndGo(4)',
+              '5' => 'createAndWait(5)',
+              '6' => 'destroy(6)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwL2VlanName' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.17',
+            'title' => 'HW L2 VLAN Name',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwL2VlanManagementVlan' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.20',
+            'title' => 'HW L2 VLAN Management VLAN',
+            'replace' => {
+              '1' => 'enabled(1): yes',
+              '2' => 'disabled(2): no',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwL2VlanDynamicVlan' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.42.3.1.1.1.1.21',
+            'title' => 'HW L2 VLAN Dynamic VLAN',
+            'replace' => {
+              '1' => 'enabled(1): yes',
+              '2' => 'disabled(2): no',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          }
+        }
+      },
+      'HealthEvent' => {
+        'indexed' => 'eventSensorName',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.2',
+        'index_regex' => '\.1\.1\.1\.50\.1\.2\.([\d\.]+)$',
+        'headers' => 'eventIndex,eventSensorName,eventAlertTime,eventAlertSeverity,eventDescription,eventCode,eventOID',
+        'snmp' => {
+          'eventIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.1',
+            'title' => 'Event Index'
+          },
+          'eventSensorName' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.2',
+            'title' => 'Event Sensor Name'
+          },
+          'eventAlertTime' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.3',
+            'title' => 'Event Alert Time'
+          },
+          'eventAlertSeverity' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.4',
+            'title' => 'Event Alert Severity'
+          },
+          'eventDescription' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.5',
+            'title' => 'Event Description'
+          },
+          'eventCode' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.6',
+            'title' => 'Event Code'
+          },
+          'eventOID' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.50.1.7',
+            'title' => 'Event OID'
+          },
+        },
+      },
+      'DiskPartition' => {
+        'indexed' => 'diskPartitionName',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.51.1.2',
+        'index_regex' => '\.1\.1\.1\.51\.1\.2\.([\d\.]+)$',
+        'headers' => 'diskPartitionIndex,diskPartitionName,totalCapacityGiB,diskPartitionUsage',
+        'snmp' => {
+          'diskPartitionIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.51.1.1',
+            'title' => 'Disk Partition Index'
+          },
+          'diskPartitionName' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.51.1.2',
+            'title' => 'Disk Partition Name'
+          },
+          'totalCapacityGiB' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.51.1.3',
+            'title' => 'Total Capacity (GiB)'
+          },
+          'diskPartitionUsage' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.1.51.1.4',
+            'title' => 'Disk Partition Usage'
+          },
+        },
+      },
+      'networkDescription' => {
+        'indexed' => 'ethNum',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.1',
+        'index_regex' => '\.12\.50\.1\.1\.([\d\.]+)$',
+        'headers' => 'ethNum,ethMode,vlanID,ethInfo,ethIPv4Enable,ethIPAddress,ethNetmask,ethDefaultGateway,ethIPSource,ethMACAddress,ethType,ethHostPort,ethEnable',
+        'snmp' => {
+          'ethNum' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.1',
+            'title' => 'Ethernet Number'
+          },
+          'ethMode' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.10',
+            'title' => 'Ethernet Mode'
+          },
+          'vlanID' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.11',
+            'title' => 'VLAN ID'
+          },
+          'ethInfo' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.12',
+            'title' => 'Ethernet Info'
+          },
+          'ethIPv4Enable' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.13',
+            'title' => 'Ethernet IPv4 Enable'
+          },
+          'ethIPAddress' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.2',
+            'title' => 'Ethernet IP Address'
+          },
+          'ethNetmask' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.3',
+            'title' => 'Ethernet Netmask'
+          },
+          'ethDefaultGateway' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.4',
+            'title' => 'Ethernet Default Gateway'
+          },
+          'ethIPSource' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.5',
+            'title' => 'Ethernet IP Source'
+          },
+          'ethMACAddress' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.6',
+            'title' => 'Ethernet MAC Address'
+          },
+          'ethType' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.7',
+            'title' => 'Ethernet Type'
+          },
+          'ethHostPort' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.8',
+            'title' => 'Ethernet Host Port'
+          },
+          'ethEnable' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.12.50.1.9',
+            'title' => 'Ethernet Enable'
+          },
+        },
+      },
+      'cpuProperty' => {
+        'indexed' => 'cpuDevicename',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.10',
+        'index_regex' => '\.1\.1\.15\.50\.1\.10\.([\d\.]+)$',
+        'headers' => 'cpuIndex,cpuDevicename,cpuProcessorID,cpuCoreCount,cpuThreadCount,cpuMemoryTechnology,cpuL1CacheK,cpuL2CacheK,cpuL3CacheK,cpuManufacturer,cpuFamily,cpuType,cpuClockRate,cpuStatus,cpuAvailability,cpuLocation,cpuFunction',
+        'snmp' => {
+          'cpuIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.1',
+            'title' => 'CPU Index'
+          },
+          'cpuDevicename' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.10',
+            'title' => 'CPU Device Name'
+          },
+          'cpuProcessorID' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.11',
+            'title' => 'CPU Processor ID'
+          },
+          'cpuCoreCount' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.12',
+            'title' => 'CPU Core Count'
+          },
+          'cpuThreadCount' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.13',
+            'title' => 'CPU Thread Count'
+          },
+          'cpuMemoryTechnology' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.14',
+            'title' => 'CPU Memory Technology'
+          },
+          'cpuL1CacheK' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.15',
+            'title' => 'CPU L1 Cache (K)'
+          },
+          'cpuL2CacheK' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.16',
+            'title' => 'CPU L2 Cache (K)'
+          },
+          'cpuL3CacheK' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.17',
+            'title' => 'CPU L3 Cache (K)'
+          },
+          'cpuManufacturer' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.2',
+            'title' => 'CPU Manufacturer'
+          },
+          'cpuFamily' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.3',
+            'title' => 'CPU Family'
+          },
+          'cpuType' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.4',
+            'title' => 'CPU Type'
+          },
+          'cpuClockRate' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.5',
+            'title' => 'CPU Clock Rate'
+          },
+          'cpuStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.6',
+            'title' => 'CPU Status'
+          },
+          'cpuAvailability' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.7',
+            'title' => 'CPU Availability'
+          },
+          'cpuLocation' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.8',
+            'title' => 'CPU Location'
+          },
+          'cpuFunction' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.15.50.1.9',
+            'title' => 'CPU Function'
+          },
+        },
+      },
+      'memoryProperty' => {
+        'indexed' => 'memoryDevicename',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.10',
+        'index_regex' => '\.1\.1\.16\.50\.1\.10\.([\d\.]+)$',
+        'headers' => 'memoryDimmIndex,memoryDevicename,memoryType,memorySN,memoryMinimumVoltage,memoryRank,memoryBitWidth,memoryTechnology,memoryLogic,memoryManufacturer,memorySize,memoryClockRate,memoryStatus,memoryAvailability,memoryLocation,memoryFunction',
+        'snmp' => {
+          'memoryDimmIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.1',
+            'title' => 'Memory DIMM Index'
+          },
+          'memoryDevicename' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.10',
+            'title' => 'Memory Device Name'
+          },
+          'memoryType' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.11',
+            'title' => 'Memory Type'
+          },
+          'memorySN' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.12',
+            'title' => 'Memory Serial Number'
+          },
+          'memoryMinimumVoltage' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.13',
+            'title' => 'Memory Minimum Voltage'
+          },
+          'memoryRank' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.14',
+            'title' => 'Memory Rank'
+          },
+          'memoryBitWidth' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.15',
+            'title' => 'Memory Bit Width'
+          },
+          'memoryTechnology' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.16',
+            'title' => 'Memory Technology'
+          },
+          'memoryLogic' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.2',
+            'title' => 'Memory Logic'
+          },
+          'memoryManufacturer' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.3',
+            'title' => 'Memory Manufacturer'
+          },
+          'memorySize' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.4',
+            'title' => 'Memory Size'
+          },
+          'memoryClockRate' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.5',
+            'title' => 'Memory Clock Rate'
+          },
+          'memoryStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.6',
+            'title' => 'Memory Status',
+            'replace' => {
+              '6' => 'unknown',
+              '1' => 'ok',
+              '4' => 'critical',
+              '3' => 'major',
+              '2' => 'minor',
+              '5' => 'absence',
+            },
+
+          },
+          'memoryAvailability' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.7',
+            'title' => 'Memory Availability',
+            'replace' => {
+              '1' => 'unknown',
+              '4' => 'active',
+              '3' => 'backup',
+              '2' => 'disabled',
+            },
+          },
+          'memoryLocation' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.8',
+            'title' => 'Memory Location'
+          },
+          'memoryFunction' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.16.50.1.9',
+            'title' => 'Memory Function'
+          },
+        },
+      },
+      'hardDisk' => {
+        'indexed' => 'hardDiskPresence',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.2',
+        'index_regex' => '\.1\.1\.18\.50\.1\.2\.([\d\.]+)$',
+        'headers' => 'hardDiskDevicename,hardDiskPresence,hardDiskStatus,hardDiskLocation,hardDiskFunction,hardDiskSerialNumber,hardDiskModelNumber,hardDiskManufacturer,hardDiskFwState,DiskCapacityInGB,hardDiskCapableSpeedInMbps,hardDiskNegotiatedSpeedInMbps,hardDiskTemp,hardDiskCapacityInMB',
+        'snmp' => {
+          'hardDiskIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.1',
+            'title' => 'Hard Disk Index'
+          },
+          'hardDiskPresence' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.2',
+            'title' => 'Hard Disk Presence',
+            'replace' => {
+              '1' => '1:absence',
+              '3' => '3:unknown',
+              '2' => '2:presence',
+            },
+          },
+          'hardDiskStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.3',
+            'title' => 'Hard Disk Status',
+            'replace' => {
+              '6' => 'unknown',
+              '1' => 'ok',
+              '4' => 'critical',
+              '3' => 'major',
+              '2' => 'minor',
+              '5' => 'absence',
+            },
+          },
+          'hardDiskLocation' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.4',
+            'title' => 'Hard Disk Location'
+          },
+          'hardDiskFunction' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.5',
+            'title' => 'Hard Disk Function'
+          },
+          'hardDiskDevicename' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.6',
+            'title' => 'Hard Disk Device Name'
+          },
+          'hardDiskSerialNumber' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.7',
+            'title' => 'Hard Disk Serial Number'
+          },
+          'hardDiskModelNumber' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.8',
+            'title' => 'Hard Disk Model Number'
+          },
+          'hardDiskManufacturer' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.9',
+            'title' => 'Hard Disk Manufacturer'
+          },
+          'hardDiskFwState' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.10',
+            'title' => 'Hard Disk Firmware State',
+            'replace' => {
+              '1' => '1: Unconfigured Good',
+              '2' => '2: Unconfigured Bad (read only)',
+              '3' => '3: Hot Spared (read only)',
+              '4' => '4: Offline',
+              '5' => '5: Failed (read only)',
+              '6' => '6: Rebuild (read only)',
+              '7' => '7: Online',
+              '8' => '8: Copyback (read only)',
+              '9' => '9: JBOD',
+              '10' => '10: Unconfigured Shielded (read only)',
+              '11' => '11: Hot Spare Shielded (read only)',
+              '12' => '12: Configured Shielded (read only)',
+              '13' => '13: Foreign (read only)',
+              '14' => '14: Active (read only)',
+              '15' => '15: Stand-by (read only)',
+              '16' => '16: Sleep (read only)',
+              '17' => '17: DST executing in background (read only)',
+              '18' => '18: SMART Off-line Data Collection executing in background (read only)',
+              '19' => '19: SCT command executing in background (read only)',
+              '255' => '255: Unknown (read only)',
+            },
+          },
+          'hardDiskFwVersion' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.11',
+            'title' => 'Hard Disk Firmware Version'
+          },
+          'DiskCapacityInGB' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.12',
+            'title' => 'Hard Disk Capacity (GB)'
+          },
+          'hardDiskInterfaceType' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.14',
+            'title' => 'Hard Disk Interface Type',
+            'replace' => {
+              '255' => '255: Unknown',
+              '7' => '7: PCIe',
+              '6' => '6: SATA/SAS',
+              '1' => '1: Undefined',
+              '4' => '4: SATA',
+              '3' => '3: SAS',
+              '2' => '2: Parallel-SCSI',
+              '5' => '5: Fiber Channel',
+            },
+          },
+          'hardDiskPowerState' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.15',
+            'title' => 'Hard Disk Power State'
+          },
+          'hardDiskRebuildProgress' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.16',
+            'title' => 'Hard Disk Rebuild Progress'
+          },
+          'hardDiskPatrolReadStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.17',
+            'title' => 'Hard Disk Patrol Read Status'
+          },
+          'hardDiskCapableSpeedInMbps' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.18',
+            'title' => 'Hard Disk Capable Speed (Mbps)'
+          },
+          'hardDiskNegotiatedSpeedInMbps' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.19',
+            'title' => 'Hard Disk Negotiated Speed (Mbps)'
+          },          
+          'hardDiskTemp' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.20',
+            'title' => 'Hard Disk Temperature (Celsius)'
+          },
+          'hardDiskSASAddr1' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.21',
+            'title' => 'Hard Disk SAS Address 1'
+          },
+          'hardDiskSASAddr2' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.22',
+            'title' => 'Hard Disk SAS Address 2'
+          },
+          'hardDiskPrefailState' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.23',
+            'title' => 'Hard Disk Prefail State'
+          },
+          'hardDiskHotSpareState' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.24',
+            'title' => 'Hard Disk Hot Spare State'
+          },
+          'hardDiskRemnantWearout' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.25',
+            'title' => 'Hard Disk Remnant Wearout'
+          },
+          'hardDiskMediaErrCount' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.26',
+            'title' => 'Hard Disk Media Error Count'
+          },
+          'hardDiskPrefailErrCount' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.27',
+            'title' => 'Hard Disk Prefail Error Count'
+          },
+          'hardDiskOtherErrCount' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.28',
+            'title' => 'Hard Disk Other Error Count'
+          },
+          'hardDiskLocationState' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.29',
+            'title' => 'Hard Disk Location State'
+          },
+          'hardDiskCapacityInMB' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.30',
+            'title' => 'Hard Disk Capacity (MB)'
+          },
+          'hardDiskPowerOnHours' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.18.50.1.31',
+            'title' => 'Hard Disk Power On Hours'
+          },          
+        },
+      },
+      'powerStatistic' => {
+        'indexed' => 'powerStatistic',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.1',
+        'index_regex' => '\.1\.1\.20\.1\.([\d\.]+)$',
+        'headers' => 'peakPower,peakPowerOccurTime,averagePower,powerConsumption,powerStatisticStartTime,clearPowerStatistic,heat',
+        'snmp' => {
+          'peakPower' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.1',
+            'title' => 'Peak Power'
+          },
+          'peakPowerOccurTime' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.2',
+            'title' => 'Peak Power Occurrence Time'
+          },
+          'averagePower' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.3',
+            'title' => 'Average Power'
+          },
+          'powerConsumption' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.4',
+            'title' => 'Power Consumption'
+          },
+          'powerStatisticStartTime' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.5',
+            'title' => 'Power Statistic Start Time'
+          },
+          'clearPowerStatistic' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.6',
+            'title' => 'Clear Power Statistic'
+          },
+          'heat' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.20.7',
+            'title' => 'Heat'
+          }
+        }
+      },
+      'domainNameSystem' => {
+        'indexed' => 'domainNameSystem',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.2.1',
+        'index_regex' => '\.1\.1\.2\.1\.([\d\.]+)$',
+        'headers' => 'domainName,preferredDNSServer,alternateDNSServer,dnsSource,bindNetPort,bindIPProtocol',
+        'snmp' => {
+          'domainName' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.2.1',
+            'title' => 'Domain Name'
+          },
+          'preferredDNSServer' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.2.2',
+            'title' => 'Preferred DNS Server'
+          },
+          'alternateDNSServer' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.2.3',
+            'title' => 'Alternate DNS Server'
+          },
+          'dnsSource' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.2.4',
+            'title' => 'DNS Source'
+          },
+          'bindNetPort' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.2.5',
+            'title' => 'Bind Network Port',
+            'obsolete' => 1
+          },
+          'bindIPProtocol' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.2.6',
+            'title' => 'Bind IP Protocol'
+          }
+        }
+      },
+      'powerManagement' => {
+        'indexed' => 'powerManagement',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.23.1',
+        'index_regex' => '\.1\.1\.23\.1\.([\d\.]+)$',
+        'headers' => 'powerCappingEnable,powerCappingValue,powerCappingFailureAction',
+        'snmp' => {
+          'powerCappingEnable' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.23.1',
+            'title' => 'Power Capping Enable'
+          },
+          'powerCappingValue' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.23.2',
+            'title' => 'Power Capping Value'
+          },
+          'powerCappingFailureAction' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.23.3',
+            'title' => 'Power Capping Failure Action'
+          }
+        }
+      },
+      'temperature' => {
+        'indexed' => 'temperatureObject',
+        'index_oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.1',
+        'index_regex' => '\.1\.1\.26\.50\.1\.1\.([\d\.]+)$',
+        'headers' => 'temperatureIndex,temperatureObject,temperatureReading1,temperatureUpperCritical,temperatureUpperMinor',
+        'snmp' => {
+          'temperatureIndex' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.1',
+            'title' => 'Temperature Index'
+          },
+          'temperatureObject' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.2',
+            'title' => 'Temperature Object'
+          },
+          'temperatureReading1' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.3',
+            'title' => 'Temperature Reading',
+            'calculate' => '$r * 0.1;',
+            'replace' => {
+              '65535' => 'N/A',
+              '6553.5' => 'N/A',
+            },
+          },
+          'temperatureUpperNonRecoverable' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.4',
+            'title' => 'Temperature Upper Non-Recoverable',
+            'calculate' => '$r * 0.1;',
+            'replace' => {
+              '65535' => 'N/A',
+              '6553.5' => 'N/A',
+            },
+          },
+          'temperatureUpperCritical' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.5',
+            'title' => 'Temperature Upper Critical',
+            'calculate' => '$r * 0.1;',
+            'replace' => {
+              '65535' => 'N/A',
+              '6553.5' => 'N/A',
+            },
+          },
+          'temperatureUpperMinor' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.6',
+            'title' => 'Temperature Upper Minor',
+            'calculate' => '$r * 0.1;',
+            'replace' => {
+              '65535' => 'N/A',
+              '6553.5' => 'N/A',
+            },
+          },
+          'temperatureLowerNonRecoverable' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.7',
+            'title' => 'Temperature Lower Non-Recoverable',
+            'calculate' => '$r * 0.1;',
+            'replace' => {
+              '65535' => 'N/A',
+              '6553.5' => 'N/A',
+            },
+          },
+          'temperatureLowerCritical' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.8',
+            'title' => 'Temperature Lower Critical',
+            'calculate' => '$r * 0.1;',
+            'replace' => {
+              '65535' => 'N/A',
+              '6553.5' => 'N/A',
+            },
+          },
+          'temperatureLowerMinor' => {
+            'oid' => '1.3.6.1.4.1.2011.2.235.1.1.26.50.1.9',
+            'title' => 'Temperature Lower Minor',
+            'calculate' => '$r * 0.1;',
+            'replace' => {
+              '65535' => 'N/A',
+              '6553.5' => 'N/A',
+            },
+          },
+        },
+      },
+      'hwFanStatus' => {
+        'indexed' => 'hwEntityFanSlot',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.1',
+        'index_regex' => '\.10\.1\.1\.([\d\.]+)$',
+        'headers' => 'hwEntityFanSlot,hwEntityFanSn,hwEntityFanReg,hwEntityFanSpdAdjMode,hwEntityFanSpeed,hwEntityFanPresent,hwEntityFanState,hwEntityFanDesc',
+        'snmp' => {
+          'hwEntityFanSlot' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.1',
+            'title' => 'Entity Fan Slot'
+          },
+          'hwEntityFanSn' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.2',
+            'title' => 'Entity Fan Serial Number'
+          },
+          'hwEntityFanReg' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.3',
+            'title' => 'Entity Fan Registration',
+            'replace' => {
+              '1' => 'Yes(1)',
+              '2' => 'No(2)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityFanSpdAdjMode' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.4',
+            'title' => 'Entity Fan Speed Adjustment Mode',
+            'replace' => {
+              '1' => 'auto(1)',
+              '2' => 'Manual(2)',
+              '3' => 'unknown(3)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityFanSpeed' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.5',
+            'title' => 'Entity Fan Speed'
+          },
+          'hwEntityFanPresent' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.6',
+            'title' => 'Entity Fan Present',
+            'replace' => {
+              '1' => 'present(1)',
+              '2' => 'absent(2)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityFanState' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.7',
+            'title' => 'Entity Fan State',
+            'replace' => {
+              '1' => 'normal(1)',
+              '2' => 'abnormal(2)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityFanDesc' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.8',
+            'title' => 'Entity Fan Description'
+          },
+        },
+      },
+      'hwCpuDev' => {
+        'indexed' => 'hwCpuDevDuty',
+        'index_oid' => '1.3.6.1.4.1.2011.6.3.4.1.2',
+        'index_regex' => '\.1\.2\.([\d\.]+)$',
+        'headers' => '',
+        'snmp' => {
+          'hwCpuDevDuty' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.4.1.2',
+            'title' => 'hwCpuDevDuty'
+          },
+          'hwAvgDuty1min' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.4.1.3',
+            'title' => 'hwAvgDuty1min'
+          },
+          'hwAvgDuty5min' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.4.1.4',
+            'title' => 'hwAvgDuty5min'
+          },
+        },
+      },
+      'hwMemoryDevSize' => {
+        'indexed' => 'hwMemoryDevSize',
+        'index_oid' => '1.3.6.1.4.1.2011.6.3.5.1.1.2',
+        'index_regex' => '\.1\.2\.([\d\.]+)$',
+        'headers' => 'name,hwMemoryDevSize,hwMemoryDevFree',
+        'snmp' => {
+          'name' => {
+            'oid' => '1.3.6.1.4.1.2011.6.3.5.1.1.1',
+            'title' => 'name',
+            'replace' => {
+              '1' => 'Memory',
+              '2' => 'Memory',
+              '3' => 'Memory',
+              '4' => 'Memory',
+              '' => 'Memory',
+              'noSuchObject' => 'Memory',
+              'noSuchInstance' => 'Memory',
+            },
+          },
+          'hwMemoryDevSize' => {
+            'calculate' => '$r = $r / 1000000',
+            'oid' => '1.3.6.1.4.1.2011.6.3.5.1.1.2',
+            'title' => 'hwMemoryDevSize (bytes)',
+          },
+          'hwMemoryDevFree' => {
+            'calculate' => '$r = $r / 1000000',
+            'oid' => '1.3.6.1.4.1.2011.6.3.5.1.1.3',
+            'title' => 'hwMemoryDevFree (bytes)',
+          },
+        },
+      },
+      'hwEntityState' => {
+        'indexed' => 'hwEntityOperStatus',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.2',
+        'index_regex' => '\.2\.([\d\.]+)$',
+        'headers' =>
+        'index,hwEntityAdminStatus,slotname,hwEntityBoardName,ChassisVers,serialnumber,hwEntityOperStatus,hwEntityStandbyStatus,EntityTemperature,TemThreshold,hwEntityVoltage,hwEntityCpuUsage,hwEntityMemUsage,MemUsageThreshold',
+        'snmp' => {
+          'slotname' => {
+            'oid' => '1.3.6.1.2.1.47.1.1.1.1.7',
+            'title' => 'Huawei Slot Name'
+          },
+          'hwEntityBoardName' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.43',
+            'title' => 'Board Name'
+          },
+          'ChassisVers' => {
+            'oid' => '1.3.6.1.2.1.47.1.1.1.1.8',
+            'title' => 'Huawei Chassis Version'
+          },
+          'serialnumber' => {
+            'oid' => '1.3.6.1.2.1.47.1.1.1.1.11',
+            'title' => 'Huawei serial number'
+          },
+          'hwEntityAdminStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.1',
+            'title' => 'Huawei Admin Status',
+            'replace' => {
+              '1' => 'notSupported (1)',
+              '2' => 'locked(2)',
+              '3' => 'shuttingDown(3)',
+              '4' => 'unlocked(4)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityOperStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.2',
+            'title' => 'Entity Operational Status',
+            'replace' => {
+              '1' => 'notSupported (1)',
+              '2' => 'disabled(2)',
+              '3' => 'enabled(3)',
+              '4' => 'offline(4)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityStandbyStatus' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.3',
+            'title' => 'Entity Standby Status',
+            'replace' => {
+              '1' => 'notSupported (1)',
+              '2' => 'hotStandby(2)',
+              '3' => 'coldStandby(3)',
+              '4' => 'providingService(4)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A'
+            },
+          },
+          'hwEntityCpuUsage' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.5',
+            'title' => 'Entity CPU Usage',
+            'units' => '%'
+          },
+          'hwEntityMemUsage' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.7',
+            'title' => 'Entity Memory Usage',
+            'units' => '%'
+          },
+          'MemUsageThreshold' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.8',
+            'title' => 'Entity Memory Usage Threshold'
+          },
+          'EntityTemperature' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.11',
+            'title' => 'Entity Temperature',
+          },
+          'TemThreshold' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.12',
+            'title' => 'Entity Temperature Threshold',
+          },
+          'hwEntityVoltage' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.13',
+            'title' => 'Entity Voltage',
+            'units' => 'C'
+          },
+        },
+      },
+      'hwPwrStatus' => {
+        'indexed' => 'hwEntityPwrSlot',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.1',
+        'index_regex' => '\.18\.1\.1\.([\d\.]+)$',
+        'headers' =>
+        'hwEntityPwrSlot,hwEntityPwrSn,hwEntityPwrReg,hwEntityPwrMode,hwEntityPwrPresent,hwEntityPwrState,hwEntityPwrCurrent,hwEntityPwrVoltage,hwEntityPwrDesc',
+        'snmp' => {
+          'hwEntityPwrSlot' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.1',
+            'title' => 'Entity Power Slot'
+          },
+          'hwEntityPwrSn' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.2',
+            'title' => 'Entity Power Serial Number'
+          },
+          'hwEntityPwrReg' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.3',
+            'title' => 'Entity Power Registration',
+            'replace' => {
+              '1' => 'Yes (1)',
+              '2' => 'No(2)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityPwrMode' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.4',
+            'title' => 'Entity Power Mode',
+            'replace' => {
+              '1' => 'Unknown (1)',
+              '2' => 'DC (2)',
+              '3' => 'AC (3)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityPwrPresent' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.5',
+            'title' => 'Entity Power Present',
+            'replace' => {
+              '1' => 'present (1)',
+              '2' => 'absent (2)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityPwrState' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.6',
+            'title' => 'Entity Power State',
+            'replace' => {
+              '1' => 'supply (1)',
+              '2' => 'notSupply (2)',
+              '3' => 'sleep (3)',
+              '4' => 'unknown (4)',
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            },
+          },
+          'hwEntityPwrCurrent' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.7',
+            'title' => 'Entity Power Current',
+            'units' => 'A',
+          },
+          'hwEntityPwrVoltage' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.8',
+            'title' => 'Entity Power Voltage',
+            'units' => 'V',
+          },
+          'hwEntityPwrDesc' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.9',
+            'title' => 'Entity Power Description'
+          },
+        },
+      },
+      'hwRUModuleInfo' => {
+        'indexed' => 'hwEntityBomId',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.1',
+        'index_regex' => '\.1\.1\.2\.1\.1\.([\d\.]+)$',
+        'headers' => 'hwEntityBomId,hwEntityBomLocalDesc,hwEntityManufacturedDate,hwEntityManufactureCode,hwEntityCLEICode,hwEntityUpdateLog,hwEntityArchivesInfoVersion,hwEntityOpenBomId,hwEntityIssueNum,hwEntityBoardType,hwEntityExInfo,hwEntityModel,hwEntityElabelVersion,hwEntityBomEnDesc',
+        'snmp' => {
+          'hwEntityBomId' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.1',
+            'title' => 'HW Entity BOM ID'
+          },
+          'hwEntityIssueNum' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.10',
+            'title' => 'HW Entity Issue Num'
+          },
+          'hwEntityBoardType' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.11',
+            'title' => 'HW Entity Board Type'
+          },
+          'hwEntityExInfo' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.12',
+            'title' => 'HW Entity Ex Info'
+          },
+          'hwEntityModel' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.13',
+            'title' => 'HW Entity Model'
+          },
+          'hwEntityElabelVersion' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.14',
+            'title' => 'HW Entity Elabel Version'
+          },
+          'hwEntityBomEnDesc' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.2',
+            'title' => 'HW Entity BOM English Description'
+          },
+          'hwEntityBomLocalDesc' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.3',
+            'title' => 'HW Entity BOM Local Description'
+          },
+          'hwEntityManufacturedDate' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.4',
+            'title' => 'HW Entity Manufactured Date'
+          },
+          'hwEntityManufactureCode' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.5',
+            'title' => 'HW Entity Manufacture Code'
+          },
+          'hwEntityCLEICode' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.6',
+            'title' => 'HW Entity CLEI Code'
+          },
+          'hwEntityUpdateLog' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.7',
+            'title' => 'HW Entity Update Log'
+          },
+          'hwEntityArchivesInfoVersion' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.8',
+            'title' => 'HW Entity Archives Info Version'
+          },
+          'hwEntityOpenBomId' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.2.1.9',
+            'title' => 'HW Entity Open BOM ID'
+          }
+        },
+      },
+      'hwAAAOfflineRecord' => {
+        'indexed' => 'hwOfflineRecordUserName',
+        'index_oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.2',
+        'index_regex' => '\.1\.2\.([\d\.]+)$',
+        'headers' => 'hwAAAOfflineIndex,hwOfflineRecordUserName,hwOfflineRecordDomainName,hwOfflineRecordUserMAC,hwOfflineRecordAccessType,hwOfflineRecordInterface,hwOfflineRecordAccessPeVlan,hwOfflineRecordAccessCeVlan,hwOfflineRecordIPAddress,hwOfflineRecordUserID,hwOfflineRecordUserLoginTime,hwOfflineRecordUserLogoutTime,hwOfflineRecordOfflineReason',
+          'snmp' => {
+            'hwAAAOfflineIndex' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.1',
+              'title' => 'HW AAA Offline Index'
+            },
+            'hwOfflineRecordUserName' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.2',
+              'title' => 'HW Offline Record User Name'
+            },
+            'hwOfflineRecordDomainName' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.3',
+              'title' => 'HW Offline Record Domain Name'
+            },
+            'hwOfflineRecordUserMAC' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.4',
+              'title' => 'HW Offline Record User MAC'
+            },
+            'hwOfflineRecordAccessType' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.5',
+              'title' => 'HW Offline Record Access Type'
+            },
+            'hwOfflineRecordInterface' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.6',
+              'title' => 'HW Offline Record Interface'
+            },
+            'hwOfflineRecordAccessPeVlan' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.7',
+              'title' => 'HW Offline Record Access Pe Vlan'
+            },
+            'hwOfflineRecordAccessCeVlan' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.8',
+              'title' => 'HW Offline Record Access Ce Vlan'
+            },
+            'hwOfflineRecordIPAddress' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.9',
+              'title' => 'HW Offline Record IP Address'
+            },
+            'hwOfflineRecordUserID' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.10',
+              'title' => 'HW Offline Record User ID'
+            },
+            'hwOfflineRecordUserLoginTime' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.11',
+              'title' => 'HW Offline Record User Login Time'
+            },
+            'hwOfflineRecordUserLogoutTime' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.12',
+              'title' => 'HW Offline Record User Logout Time'
+            },
+            'hwOfflineRecordOfflineReason' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.13',
+              'title' => 'HW Offline Record Offline Reason'
+            },
+            'hwOfflineRecordStackTypeFlag' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.14',
+              'title' => 'HW Offline Record Stack Type Flag'
+            },
+            'hwOfflineRecordAccessPVC' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.15',
+              'title' => 'HW Offline Record Access PVC'
+            },
+            'hwOfflineRecordIPv6NDRAPrefix' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.16',
+              'title' => 'HW Offline Record IPv6 ND RA Prefix'
+            },
+            'hwOfflineRecordIPv6Address' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.17',
+              'title' => 'HW Offline Record IPv6 Address'
+            },
+            'hwOfflineRecordIPv6PDPrefix' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.18',
+              'title' => 'HW Offline Record IPv6 PD Prefix'
+            },
+            'hwOfflineRecordUserAuthenState' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.19',
+              'title' => 'HW Offline Record User Authen State'
+            },
+            'hwOfflineRecordUserAcctState' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.20',
+              'title' => 'HW Offline Record User Acct State'
+            },
+            'hwOfflineRecordUserAuthorState' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.21',
+              'title' => 'HW Offline Record User Author State'
+            },
+            'hwOfflineRecordIPv6PDPrefixLength' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.22',
+              'title' => 'HW Offline Record IPv6 PD Prefix Length'
+            },
+            'hwOfflineRecordAPID' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.23',
+              'title' => 'HW Offline Record AP ID'
+            },
+            'hwOfflineRecordAPMAC' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.24',
+              'title' => 'HW Offline Record AP MAC'
+            },
+            'hwOfflineRecordSSID' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.25',
+              'title' => 'HW Offline Record SSID'
+            },
+            'hwOfflineRecordASID' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.26',
+              'title' => 'HW Offline Record AS ID'
+            },
+            'hwOfflineRecordASMAC' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.27',
+              'title' => 'HW Offline Record AS MAC'
+            },
+            'hwOfflineRecordASIfname' => {
+              'oid' => '1.3.6.1.4.1.2011.5.2.1.52.1.28',
+              'title' => 'HW Offline Record AS Ifname'
+            }
+          },
+      },
+
+    },
+  },
+);
