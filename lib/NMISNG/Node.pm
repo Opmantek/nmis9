@@ -3789,7 +3789,11 @@ sub collect_intf_data
 		my $thisindex = $maybeevil->{data}->{ifIndex};
 		if (exists $if_data_map{$thisindex} )
 		{
-			$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex!");
+			if( $if_data_map{$thisindex}->{enabled} || $maybeevil->{enabled} ) {
+				$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex! (One is enabled)");
+			} else {
+				$self->nmisng->log->debug(sub {$self->name.": clashing inventories for interface index $thisindex! Neither are enabled"});
+			}
 			next;
 		}
 
