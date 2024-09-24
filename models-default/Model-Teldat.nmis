@@ -1,0 +1,921 @@
+%hash = (
+    '-common-' => {
+        'class' => {
+            'calls' => {
+                'common-model' => 'calls'
+            },
+            'cbqos' => {
+                'common-model' => 'Teldat-cbqos'
+            },
+            'database' => {
+                'common-model' => 'database'
+            },
+            'event' => {
+                'common-model' => 'event'
+            },
+            'heading' => {
+                'common-model' => 'heading'
+            },
+            'stats' => {
+                'common-model' => 'stats'
+            },
+            'summary' => {
+                'common-model' => 'summary'
+            },
+            'threshold' => {
+                'common-model' => 'threshold'
+            }
+        }
+    },
+    'alerts' => {
+        'bgpPeer' => {
+            'bgpPeerStateDown' => {
+                'element' => 'index',
+                'event'   => 'BGP Peer Down',
+                'level'   => 'Critical',
+                'test'    => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
+                'type'    => 'test',
+                'unit'    => '',
+                'value'   => 'CVAR1=bgpPeerState;$CVAR1 * 1'
+            }
+        },
+        'echoRtt' => {
+            'CompletionTime' => {
+                'type'    => 'test',
+                'test'    => 'CVAR1=OperCompletionTime;$CVAR1 eq 0',
+                'value'   => 'CVAR1=OperCompletionTime;$CVAR1 * 1',
+                'unit'    => 'ms',
+                'element' => 'index',
+                'event'   => 'Response time eq 0 Problem with IPSLA',
+                'level'   => 'Critical'
+            },
+            'SenseValue' => {
+                'type'    => 'test',
+                'test'    => 'CVAR1=OperSenseValue;$CVAR1 != 1',
+                'value'   => 'CVAR1=OperSenseValue;$CVAR1 * 1',
+                'unit'    => 'OperSense',
+                'element' => 'index',
+                'event'   => 'Status Not OK Problem with IPSLA',
+                'level'   => 'Critical'
+            }
+        },
+    },
+    'database' => {
+        'type' => {
+            #--------------
+            'TeldatBRSStat' =>  '/nodes/$node/interface/tdbrs-$index.rrd',
+            'TeldatQoSStat' =>  '/nodes/$node/interface/tdqos-$index.rrd',
+            'QoSOut' =>  '/nodes/$node/interface/QoSOut-$index.rrd',
+            'TeldatFRStat' =>   '/nodes/$node/interface/TeldatFrameRelayStat-$index.rrd',
+            #--------------
+        }
+    },
+    'interface' => {
+        'collect' => {
+            'Description' => '(CNOC|Collection)'
+
+        },
+        'nocollect' => {
+            'Description' => '^#|NO COLLECT',
+            'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|FastEthernet|Voice|GigabitEthernet',
+            'ifOperStatus' => 'null',
+            'ifType' => 'lapd|ds0|rs232|ds1|other|softwareloopback|isdn|l2vlan|atmSub|tunnel|ethernetCsmacd|voiceOverIp|voiceEncap|iso88023Csmacd|fast|adsl|interleave|ppp|ieee80211|propVirtual|gigabitEthernet|ieee8023adLag|l3ipvlan|propVirtual|slip|^atm|voiceFXS|voiceEM|iso88023Csmacd|sdlc',
+            'noDescription' => 'true'
+        },
+        'noevent' => {
+            'Description' => '^!|^0',
+            'ifDescr'     => 'null',
+            'ifType'      => 'other'
+        },
+        'rrd' => {
+            'interface' => {
+                'graphtype' => 'bits,abits,maxbits,util,autil',
+                'indexed'   => 'true',
+                'snmp'      => {
+                    'ifAdminStatus' => {
+                        'oid'     => 'ifAdminStatus',
+                        'replace' => {
+                            '1' => 'up',
+                            '2' => 'down',
+                            '3' => 'testing',
+                            '4' => 'unknown',
+                            '5' => 'dormant',
+                            '6' => 'notPresent',
+                            '7' => 'lowerLayerDown'
+                        }
+                    },
+                    'ifDescr' => {
+                        'oid' => 'ifDescr'
+                    },
+                    'ifHCInOctets' => {
+                        'oid'    => 'ifHCInOctets',
+                        'option' => 'counter,0:$ifSpeed'
+                    },
+                    'ifHCOutOctets' => {
+                        'oid'    => 'ifHCOutOctets',
+                        'option' => 'counter,0:$ifSpeed'
+                    },
+                    'ifInOctets' => {
+                        'oid'    => 'ifInOctets',
+                        'option' => 'counter,0:$ifSpeed'
+                    },
+                    'ifLastChange' => {
+                        'oid' => 'ifLastChange'
+                    },
+                    'ifOperStatus' => {
+                        'oid'     => 'ifOperStatus',
+                        'option'  => 'gauge,0:100',
+                        'replace' => {
+                            '1' => 'up',
+                            '2' => 'down',
+                            '3' => 'testing',
+                            '4' => 'unknown',
+                            '5' => 'dormant',
+                            '6' => 'notPresent',
+                            '7' => 'lowerLayerDown'
+                        }
+                    },
+                    'ifOutOctets' => {
+                        'oid'    => 'ifOutOctets',
+                        'option' => 'counter,0:$ifSpeed'
+                    }
+                },
+                'threshold' => 'util_in,util_out'
+            },
+            'pkts_hc' => {
+                'graphtype' => 'pkts_hc,errpkts_hc',
+                'indexed'   => 'true',
+                'snmp'      => {
+                    'ifHCInBcastPkts' => {
+                        'oid'    => 'ifHCInBroadcastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifHCInMcastPkts' => {
+                        'oid'    => 'ifHCInMulticastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifHCInOctets' => {
+                        'oid'    => 'ifHCInOctets',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifHCInUcastPkts' => {
+                        'oid'    => 'ifHCInUcastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifHCOutBcastPkts' => {
+                        'oid'    => 'ifHCOutBroadcastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifHCOutMcastPkts' => {
+                        'oid'    => 'ifHCOutMulticastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifHCOutOctets' => {
+                        'oid'    => 'ifHCOutOctets',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifHCOutUcastPkts' => {
+                        'oid'    => 'ifHCOutUcastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifInBcastPkts' => {
+                        'oid'    => 'ifInBroadcastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifInDiscards' => {
+                        'oid'    => 'ifInDiscards',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifInErrors' => {
+                        'oid'    => 'ifInErrors',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifInMcastPkts' => {
+                        'oid'    => 'ifInMulticastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifInOctets' => {
+                        'oid'    => 'ifInOctets',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifInUcastPkts' => {
+                        'oid'    => 'ifInUcastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifOutBcastPkts' => {
+                        'oid'    => 'ifOutBroadcastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifOutDiscards' => {
+                        'oid'    => 'ifOutDiscards',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifOutErrors' => {
+                        'oid'    => 'ifOutErrors',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifOutMcastPkts' => {
+                        'oid'    => 'ifOutMulticastPkts',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifOutOctets' => {
+                        'oid'    => 'ifOutOctets',
+                        'option' => 'counter,0:U'
+                    },
+                    'ifOutUcastPkts' => {
+                        'oid'    => 'ifOutUcastPkts',
+                        'option' => 'counter,0:U'
+                    }
+                },
+                'threshold' =>  'pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out'
+            }
+        },
+        'sys' => {
+            'extra' => {
+                'indexed' => 'true',
+                'snmp'    => {
+                    'Description' => {
+                        'oid'   => 'ifAlias',
+                        'title' => 'Description'
+                    },
+                    'ifHighSpeed' => {
+                        'oid' => 'ifHighSpeed'
+                    }
+                }
+            },
+            'standard' => {
+                'indexed' => 'true',
+                'snmp'    => {
+                    'ifAdminStatus' => {
+                        'oid'     => 'ifAdminStatus',
+                        'replace' => {
+                            '1' => 'up',
+                            '2' => 'down',
+                            '3' => 'testing',
+                            '4' => 'unknown',
+                            '5' => 'dormant',
+                            '6' => 'notPresent',
+                            '7' => 'lowerLayerDown'
+                        },
+                        'title' => 'Admin Status'
+                    },
+                    'ifDescr' => {
+                        'oid'   => 'ifDescr',
+                        'title' => 'Name (ifDescr)'
+                    },
+                    'ifLastChange' => {
+                        'oid'   => 'ifLastChange',
+                        'title' => 'Last Change'
+                    },
+                    'ifOperStatus' => {
+                        'oid'     => 'ifOperStatus',
+                        'replace' => {
+                            '1' => 'up',
+                            '2' => 'down',
+                            '3' => 'testing',
+                            '4' => 'unknown',
+                            '5' => 'dormant',
+                            '6' => 'notPresent',
+                            '7' => 'lowerLayerDown'
+                        },
+                        'title' => 'Oper Status'
+                    },
+                    'ifPhysAddress' => {
+                        'oid'   => 'ifPhysAddress',
+                        'title' => 'Physical Address'
+                    },
+                    'ifSpeed' => {
+                        'oid'   => 'ifSpeed',
+                        'title' => 'Bandwidth'
+                    },
+                    'ifType' => {
+                        'oid'   => 'ifType',
+                        'title' => 'Type (ifType)'
+                    }
+                }
+            }
+        }
+    },
+    'system' => {
+        'nbarpd_check' => 'false',
+        'nodeModel'    => 'Teldat',
+        'nodeType'     => 'router',
+        'nodeVendor'   => 'TELDAT, S.A.',
+        'nodegraph'    => 'health,response,cpu,mem-proc-teldat',
+        'rrd'          => {
+            'mib2ip' => {
+                'graphtype' => 'ip',
+                'snmp'      => {
+                    'ipForwDatagrams' => {
+                        'oid'    => 'ipForwDatagrams',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipFragCreates' => {
+                        'oid'    => 'ipFragCreates',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipFragFails' => {
+                        'oid'    => 'ipFragFails',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipFragOKs' => {
+                        'oid'    => 'ipFragOKs',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInAddrErrors' => {
+                        'oid'    => 'ipInAddrErrors',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInDelivers' => {
+                        'oid'    => 'ipInDelivers',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInDiscards' => {
+                        'oid'    => 'ipInDiscards',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInHdrErrors' => {
+                        'oid'    => 'ipInHdrErrors',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInReceives' => {
+                        'oid'    => 'ipInReceives',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInUnknownProtos' => {
+                        'oid'    => 'ipInUnknownProtos',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipOutDiscards' => {
+                        'oid'    => 'ipOutDiscards',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipOutNoRoutes' => {
+                        'oid'    => 'ipOutNoRoutes',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipOutRequests' => {
+                        'oid'    => 'ipOutRequests',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipReasmFails' => {
+                        'oid'    => 'ipReasmFails',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipReasmOKs' => {
+                        'oid'    => 'ipReasmOKs',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipReasmReqds' => {
+                        'oid'    => 'ipReasmReqds',
+                        'option' => 'counter,0:U'
+                    }
+                }
+            },
+            'nodehealth' => {
+                'graphtype' => 'cpu,mem-proc-teldat',
+                'snmp'      => {
+                    'MemoryFreePROC' => {
+                        'oid' => '.1.3.6.1.4.1.2007.4.1.2.1.1.28.0'
+                    },
+                    'MemoryTotalPROC' => {
+                        'oid' => '.1.3.6.1.4.1.2007.4.1.2.1.1.27.0'
+                    },
+                    'avgBusy1' => {
+                        'oid' => '.1.3.6.1.4.1.2007.4.1.2.1.2.1.1.2.0'
+                    },
+                    'avgBusy5' => {
+                        'oid' => '.1.3.6.1.4.1.2007.4.1.2.1.2.1.1.3.0'
+                    }
+                },
+                'threshold' => 'cpu,mem-proc',
+            }
+        },
+        'sys' => {
+            'extra' => {
+                'snmp' => {
+                    'serialNum' => {
+                        'oid'   => 'sysDescr',
+                        'title' => 'Serial Number'
+                    },
+                    'softwareImage' => {
+                        'oid' => '1.3.6.1.4.1.2007.1.2.1.6.0',
+                        #'snmpObjectName' => 'ciscoImageString',
+                        'title' => 'Software Image'
+                    },
+                    'softwareVersion' => {
+                        'oid' => '1.3.6.1.4.1.2007.1.2.1.6.0',
+                        'title' => 'Software Version'
+                    }
+                }
+            },
+            'standard' => {
+                'snmp' => {
+                    'ifNumber' => {
+                        'oid'   => 'ifNumber',
+                        'title' => 'Interfaces'
+                    },
+                    'sysContact' => {
+                        'oid'     => 'sysContact',
+                        'replace' => {
+                            '' => 'default'
+                        },
+                        'title' => 'Contact'
+                    },
+                    'sysDescr' => {
+                        'oid'   => 'sysDescr',
+                        'title' => 'Description'
+                    },
+                    'sysLocation' => {
+                        'oid'     => 'sysLocation',
+                        'replace' => {
+                            '' => 'default'
+                        },
+                        'title' => 'Location'
+                    },
+                    'sysName' => {
+                        'oid' => 'sysName'
+                    },
+                    'sysObjectID' => {
+                        'oid' => 'sysObjectID'
+                    },
+                    'sysUpTime' => {
+                        #'calculate' => '$r * 100',
+                        #'oid' => 'snmpEngineTime',
+                        'oid'   => '1.3.6.1.2.1.1.3.0',
+                        'title' => 'Uptime'
+                    }
+                }
+            },
+        }
+    },
+    'systemHealth' => {
+        'rrd' => {
+			'QoSOut' => {
+				'graphtype' => 'QoSOut',
+				'indexed' => 'true',
+				'snmp' => {
+					'BytesTx' => {
+						'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.1.1.6',
+						'option' => 'counter,0:U',
+					},
+					'BytesDrops' => {
+						'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.1.1.7',
+						'option' => 'counter,0:U',
+					},
+				}
+			},            
+            'bgpPeer' => {
+                'graphtype' => 'bgpPeer,bgpPeerStats',
+                'indexed'   => 'true',
+                'snmp'      => {
+                    'bgpPeerFsmEstTran' => {
+                        'oid'    => '1.3.6.1.2.1.15.3.1.15',
+                        'option' => 'counter,0:U',
+                        'sysObjectName' =>
+                          'bgpPeerFsmEstablishedTransitions'
+                    },
+                    'bgpPeerInTotMsgs' => {
+                        'oid'           => '1.3.6.1.2.1.15.3.1.12',
+                        'option'        => 'counter,0:U',
+                        'sysObjectName' => 'bgpPeerInTotalMessages'
+                    },
+                    'bgpPeerInUpdates' => {
+                        'oid'    => '1.3.6.1.2.1.15.3.1.10',
+                        'option' => 'counter,0:U'
+                    },
+                    'bgpPeerOutTotMsgs' => {
+                        'oid'           => '1.3.6.1.2.1.15.3.1.13',
+                        'option'        => 'counter,0:U',
+                        'sysObjectName' => 'bgpPeerOutTotalMessages'
+                    },
+                    'bgpPeerOutUpdates' => {
+                        'oid'    => '1.3.6.1.2.1.15.3.1.11',
+                        'option' => 'counter,0:U'
+                    },
+                    'bgpPeerState' => {
+                        'oid'     => '1.3.6.1.2.1.15.3.1.2',
+                        'replace' => {
+                            '1' => '0',
+                            '2' => '20',
+                            '3' => '40',
+                            '4' => '60',
+                            '5' => '80',
+                            '6' => '100'
+                        },
+                        'title' => 'BGP Peer State'
+                    }
+                }
+            },
+            'echoRtt' => {
+                'control'   => 'CVAR=CtrlAdminRttType;$CVAR =~ /echo/',
+                'graphtype' => 'echoRtt',
+                'indexed'   => 'true',
+                'snmp'      => {
+                    'OperCompletionTime' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.2.10.1.1'
+                    }
+                }
+            },
+            'icmpjitterRtt' => {
+                'control'   => 'CVAR=CtrlAdminRttType;$CVAR =~ /icmp/',
+                'graphtype' => 'icmpjitterRtt',
+                'indexed'   => 'true',
+                'snmp'      => {
+                    'IcmpJitterAvg' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.44'
+                    },
+                    'IcmpPktLoss' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.26'
+                    },
+                    'JAdminToS' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.2.2.1.9'
+                    },
+                    'JNumPackets' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.2.2.1.18'
+                    },
+                    'JitterRTTMax' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.5'
+                    },
+                    'JitterRTTMin' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.4.1.4'
+                    },
+                    'OperCompletionTime' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.2.10.1.1'
+                    }
+                }
+            },
+            'jitterRttMon' => {
+                'control'   => 'CVAR=CtrlAdminRttType;$CVAR eq jitter',
+                'graphtype' => 'jitterRttMon',
+                'indexed'   => 'true',
+                'snmp'      => {
+                    'JAdminToS' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.2.2.1.9'
+                    },
+                    'JNumPackets' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.2.2.1.18'
+                    },
+                    'JPacketLossDS' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.2.1.27'
+                    },
+                    'JPacketLossSD' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.2.1.26'
+                    },
+                    'JitterOperRTTMax' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.2.1.5'
+                    },
+                    'JitterOperRTTMin' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.2.1.4'
+                    },
+                    'JoperAvg' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.5.2.1.46'
+                    },
+                    'OperCompletionTime' => {
+                        'oid' => '1.3.6.1.4.1.9.9.42.1.2.10.1.1'
+                    }
+                }
+            },
+        },
+        'sections' => 'bgpPeer,TeldatFRStat,TeldatQoSStat,TeldatBRSStat,cdp,fanStatus,psuStatus,tempStatus,echoRtt,jitterRttMon,icmpjitterRtt',
+        'sys' => {
+		'QoSOut' => {
+			'headers' => 'index,QosName,Interface,BytesTx,BytesDrops',
+			#'headers' => 'QosName,index,Interface,BytesTx,BytesDrops',
+			'index_oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.1.1.4',
+			'index_regex' => '\.4\.1\.1\.1\.4\.([\d\.]+)$',
+			'indexed' => 'QosName',
+			'snmp' => {
+				'QosName' => {
+					'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.1.1.4',
+					'title' => 'QoS Name'
+				},
+				'Interface' => {
+					'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1',
+					'title' => 'Interface'
+				},
+				#'BytesTx' => {
+				#	'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.7',
+				#	'title' => 'Bytes Transfered'
+				#},
+				#'BytesDrops' => {
+				#	'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.8',
+				#	'title' => 'Bytes dropped'
+				#},
+			}
+		},            
+            'bgpPeer' => {
+                'headers' =>    'bgpPeerState,bgpPeerStateName,bgpPeerRemoteAddr,bgpPeerRemoteAs',
+                'index_oid'   => '1.3.6.1.2.1.15.3.1',
+                'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+                'indexed'     => 'bgpPeerIdentifier',
+                'snmp'        => {
+                    # 'bgpPeerAdminStatus' => {
+                    #	'oid' => '1.3.6.1.2.1.15.3.1.3',
+                    #	'replace' => {
+                    #	  '1' => 'stop',
+                    #	  '2' => 'start'
+                    #	},
+                    #	'title' => 'BGP Peer Admin Status'
+                    # },
+                    'bgpPeerFsmEstTran' => {
+                        'oid' => '1.3.6.1.2.1.15.3.1.15',
+                        'sysObjectName' =>
+                          'bgpPeerFsmEstablishedTransitions',
+                        'title' => 'BGP Peer Transitions'
+                    },
+
+                    # 'bgpPeerIdentifier' => {
+                    #	'oid' => '1.3.6.1.2.1.15.3.1.1',
+                    #	'title' => 'BGP Peer Identifier'
+                    # },
+                    'bgpPeerInTotMsgs' => {
+                        'oid'           => '1.3.6.1.2.1.15.3.1.12',
+                        'sysObjectName' => 'bgpPeerInTotalMessages',
+                        'title'         => 'BGP Peer In Messages'
+                    },
+                    'bgpPeerInUpdates' => {
+                        'oid'   => '1.3.6.1.2.1.15.3.1.10',
+                        'title' => 'BGP Peer In Updates'
+                    },
+                    'bgpPeerOutTotMsgs' => {
+                        'oid'           => '1.3.6.1.2.1.15.3.1.13',
+                        'sysObjectName' => 'bgpPeerOutTotalMessages',
+                        'title'         => 'BGP Peer Out Messages'
+                    },
+                    'bgpPeerOutUpdates' => {
+                        'oid'   => '1.3.6.1.2.1.15.3.1.11',
+                        'title' => 'BGP Peer Out Updates'
+                    },
+                    'bgpPeerRemoteAddr' => {
+                        'oid'   => '1.3.6.1.2.1.15.3.1.7',
+                        'title' => 'BGP Peer Remote Address'
+                    },
+                    'bgpPeerRemoteAs' => {
+                        'oid'   => '1.3.6.1.2.1.15.3.1.9',
+                        'title' => 'BGP Peer Remote AS'
+                    },
+                    'bgpPeerState' => {
+                        'oid'   => '1.3.6.1.2.1.15.3.1.2',
+                        'title' => 'BGP Peer State'
+                    },
+                    'bgpPeerStateName' => {
+                        'oid'     => '1.3.6.1.2.1.15.3.1.2',
+                        'replace' => {
+                            '1' => 'idle',
+                            '2' => 'connect',
+                            '3' => 'active',
+                            '4' => 'opensent',
+                            '5' => 'openconfirm',
+                            '6' => 'established'
+                        },
+                        'title' => 'BGP Peer State'
+                    }
+                }
+            },
+            'echoRtt' => {
+                'headers' => 'index,CtrlAdminRttType,OperSense,JAdminToS,JAdminSourceAddress,JAdminTargetAddress',
+                'indexed' => 'rttMonLatestRttOperCompletionTime',
+                'snmp'    => {
+                    'CtrlAdminRttType' => {
+                        'oid'     => '1.3.6.1.4.1.9.9.42.1.2.1.1.4',
+                        'replace' => {
+                            '1'  => 'echo',
+                            '10' => 'dlsw',
+                            '11' => 'dhcp',
+                            '12' => 'ftp',
+                            '13' => 'voip',
+                            '14' => 'rtp',
+                            '15' => 'lspGroup',
+                            '16' => 'icmpjitter',
+                            '17' => 'lspPing',
+                            '18' => 'lspTrace',
+                            '19' => 'ethernetPing',
+                            '2'  => 'pathEcho',
+                            '20' => 'ethernetJitter',
+                            '21' => 'lspPingPseudowire',
+                            '22' => 'video',
+                            '3'  => 'fileIO',
+                            '4'  => 'script',
+                            '5'  => 'udpEcho',
+                            '6'  => 'tcpConnect',
+                            '7'  => 'http',
+                            '8'  => 'dns',
+                            '9'  => 'jitter'
+                        },
+                        'title' => 'CtrlAdminRttType'
+                    },
+                    'JAdminSourceAddress' => {
+                        'oid'   => '1.3.6.1.4.1.9.9.42.1.2.2.1.6',
+                        'title' => 'IP Source'
+                    },
+                    'JAdminTargetAddress' => {
+                        'oid'   => '1.3.6.1.4.1.9.9.42.1.2.2.1.2',
+                        'title' => 'IP Target'
+                    },
+                    'JAdminToS' => {
+                        'oid'   => '1.3.6.1.4.1.9.9.42.1.2.2.1.9',
+                        'title' => 'Type of Service'
+                    },
+                    'OperCompletionTime' => {
+                        'oid'   => '1.3.6.1.4.1.9.9.42.1.2.10.1.1',
+                        'title' => 'OperCompletionTime'
+                    },
+                    'OperSense' => {
+                        'oid'     => '1.3.6.1.4.1.9.9.42.1.2.10.1.2',
+                        'replace' => {
+                            '0'  => 'other',
+                            '1'  => 'ok',
+                            '10' => 'applicationSpecific',
+                            '11' => 'dnsServerTimeout',
+                            '12' => 'tcpConnectTimeout',
+                            '13' => 'httpTransactionTimeout',
+                            '14' => 'dnsQueryError',
+                            '15' => 'httpError',
+                            '16' => 'error',
+                            '17' => 'mplsLspEchoTxError',
+                            '18' => 'mplsLspUnreachable',
+                            '19' => 'mplsLspMalformedReq',
+                            '2'  => 'disconnected',
+                            '20' => 'mplsLspReachButNotFEC',
+                            '3'  => 'overThreshold',
+                            '4'  => 'timeout',
+                            '5'  => 'busy',
+                            '6'  => 'notConnected',
+                            '7'  => 'dropped',
+                            '8'  => 'sequenceError',
+                            '9'  => 'verifyError'
+                        },
+                        'title' => 'OperSense'
+                    },
+                    'OperSenseValue' => {
+                        'oid'   => '1.3.6.1.4.1.9.9.42.1.2.10.1.2',
+                        'title' => 'OperSenseValue'
+                    }
+                }
+            },
+            'icmpjitterRtt' => {
+                'headers' => 'index,CtrlAdminRttType,OperSense',
+                'indexed' => 'rttMonLatestRttOperCompletionTime',
+                'snmp'    => {
+                    'CtrlAdminRttType' => {
+                        'oid'     => 'rttMonCtrlAdminRttType',
+                        'replace' => {
+                            '1'  => 'echo',
+                            '10' => 'dlsw',
+                            '11' => 'dhcp',
+                            '12' => 'ftp',
+                            '13' => 'voip',
+                            '14' => 'rtp',
+                            '15' => 'lspGroup',
+                            '16' => 'icmpjitter',
+                            '17' => 'lspPing',
+                            '18' => 'lspTrace',
+                            '19' => 'ethernetPing',
+                            '2'  => 'pathEcho',
+                            '20' => 'ethernetJitter',
+                            '21' => 'lspPingPseudowire',
+                            '22' => 'video',
+                            '3'  => 'fileIO',
+                            '4'  => 'script',
+                            '5'  => 'udpEcho',
+                            '6'  => 'tcpConnect',
+                            '7'  => 'http',
+                            '8'  => 'dns',
+                            '9'  => 'jitter'
+                        },
+                        'title' => 'CtrlAdminRttType'
+                    },
+                    'JAdminSourceAddress' => {
+                        'oid'   => 'rttMonEchoAdminSourceAddress',
+                        'title' => 'IP Source'
+                    },
+                    'JAdminTargetAddress' => {
+                        'oid'   => 'rttMonEchoAdminTargetAddress',
+                        'title' => 'IP Target'
+                    },
+                    'JAdminToS' => {
+                        'oid'   => 'rttMonEchoAdminTOS',
+                        'title' => 'Type of Service'
+                    },
+                    'OperCompletionTime' => {
+                        'oid'   => 'rttMonLatestRttOperCompletionTime',
+                        'title' => 'OperCompletionTime'
+                    },
+                    'OperSense' => {
+                        'oid'     => 'rttMonLatestRttOperSense',
+                        'replace' => {
+                            '0'  => 'other',
+                            '1'  => 'ok',
+                            '10' => 'applicationSpecific',
+                            '11' => 'dnsServerTimeout',
+                            '12' => 'tcpConnectTimeout',
+                            '13' => 'httpTransactionTimeout',
+                            '14' => 'dnsQueryError',
+                            '15' => 'httpError',
+                            '16' => 'error',
+                            '17' => 'mplsLspEchoTxError',
+                            '18' => 'mplsLspUnreachable',
+                            '19' => 'mplsLspMalformedReq',
+                            '2'  => 'disconnected',
+                            '20' => 'mplsLspReachButNotFEC',
+                            '3'  => 'overThreshold',
+                            '4'  => 'timeout',
+                            '5'  => 'busy',
+                            '6'  => 'notConnected',
+                            '7'  => 'dropped',
+                            '8'  => 'sequenceError',
+                            '9'  => 'verifyError'
+                        },
+                        'title' => 'OperSense'
+                    },
+                    'OperSenseValue' => {
+                        'oid'   => 'rttMonLatestRttOperSense',
+                        'title' => 'OperSenseValue'
+                    }
+                }
+            },
+            'jitterRttMon' => {
+                'headers' =>    'index,CtrlAdminRttType,OperSense,JAdminToS,JAdminSourceAddress,JAdminTargetAddress',
+                'indexed' => 'rttMonLatestRttOperCompletionTime',
+                'snmp'    => {
+                    'CtrlAdminRttType' => {
+                        'oid'     => 'rttMonCtrlAdminRttType',
+                        'replace' => {
+                            '1'  => 'echo',
+                            '10' => 'dlsw',
+                            '11' => 'dhcp',
+                            '12' => 'ftp',
+                            '13' => 'voip',
+                            '14' => 'rtp',
+                            '15' => 'lspGroup',
+                            '16' => 'icmpjitter',
+                            '17' => 'lspPing',
+                            '18' => 'lspTrace',
+                            '19' => 'ethernetPing',
+                            '2'  => 'pathEcho',
+                            '20' => 'ethernetJitter',
+                            '21' => 'lspPingPseudowire',
+                            '22' => 'video',
+                            '3'  => 'fileIO',
+                            '4'  => 'script',
+                            '5'  => 'udpEcho',
+                            '6'  => 'tcpConnect',
+                            '7'  => 'http',
+                            '8'  => 'dns',
+                            '9'  => 'jitter'
+                        },
+                        'title' => 'CtrlAdminRttType'
+                    },
+                    'JAdminSourceAddress' => {
+                        'oid'   => 'rttMonEchoAdminSourceAddress',
+                        'title' => 'IP Source'
+                    },
+                    'JAdminTargetAddress' => {
+                        'oid'   => 'rttMonEchoAdminTargetAddress',
+                        'title' => 'IP Target'
+                    },
+                    'JAdminToS' => {
+                        'oid'   => 'rttMonEchoAdminTOS',
+                        'title' => 'Type of Service'
+                    },
+                    'OperCompletionTime' => {
+                        'oid'   => 'rttMonLatestRttOperCompletionTime',
+                        'title' => 'OperCompletionTime'
+                    },
+                    'OperSense' => {
+                        'oid'     => 'rttMonLatestRttOperSense',
+                        'replace' => {
+                            '0'  => 'other',
+                            '1'  => 'ok',
+                            '10' => 'applicationSpecific',
+                            '11' => 'dnsServerTimeout',
+                            '12' => 'tcpConnectTimeout',
+                            '13' => 'httpTransactionTimeout',
+                            '14' => 'dnsQueryError',
+                            '15' => 'httpError',
+                            '16' => 'error',
+                            '17' => 'mplsLspEchoTxError',
+                            '18' => 'mplsLspUnreachable',
+                            '19' => 'mplsLspMalformedReq',
+                            '2'  => 'disconnected',
+                            '20' => 'mplsLspReachButNotFEC',
+                            '3'  => 'overThreshold',
+                            '4'  => 'timeout',
+                            '5'  => 'busy',
+                            '6'  => 'notConnected',
+                            '7'  => 'dropped',
+                            '8'  => 'sequenceError',
+                            '9'  => 'verifyError'
+                        },
+                        'title' => 'OperSense'
+                    },
+                    'OperSenseValue' => {
+                        'oid'   => 'rttMonLatestRttOperSense',
+                        'title' => 'OperSenseValue'
+                    }
+                }
+            },
+        }
+    }
+);

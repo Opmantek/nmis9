@@ -1,0 +1,42 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'RTT Min/Max'
+	},
+	'vlabel' => {
+		'standard' => 'RTT Min/Max'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:nqaRTTMin=$database:nqaRTTMin:AVERAGE',
+			'DEF:nqaRTTMax=$database:nqaRTTMax:AVERAGE',
+			'DEF:nqaRTTAvg=$database:nqaRTTAvg:AVERAGE',
+			'LINE2:nqaRTTMin#ff0000:RTT Minimo\\t',
+			'GPRINT:nqaRTTMin:LAST:Current %1.0lf ms\\n',
+			'LINE2:nqaRTTMax#00ff00:RTT Maximo\\t',
+			'GPRINT:nqaRTTMax:LAST:Current %1.0lf ms\\n',
+			'LINE2:nqaRTTAvg#0000ff:RTT Promedio\\t',
+			'GPRINT:nqaRTTAvg:LAST:Current %1.0lf ms\\n'
+		],
+		'small' => [
+			'DEF:nqaRTTMin=$database:nqaRTTMin:AVERAGE',
+			'DEF:nqaRTTMax=$database:nqaRTTMax:AVERAGE',
+			'DEF:nqaRTTAvg=$database:nqaRTTAvg:AVERAGE',
+
+			'LINE2:nqaRTTMin#ff0000:RTT Minimo\\t',
+			'GPRINT:nqaRTTMin:LAST:Current %1.0lf ms\\n',
+			'LINE2:nqaRTTMax#00ff00:RTT Maximo\\t',
+			'GPRINT:nqaRTTMax:LAST:Current %1.0lf ms\\n',
+			'LINE2:nqaRTTAvg#0000ff:RTT Promedio\\t',
+			'GPRINT:nqaRTTAvg:LAST:Current %1.0lf ms\\n'
+		],
+		'overlays' => {
+			'percentile' => {
+				datasets => {
+					nqaRTTAvg => "RTT Promedio 95th %",
+				},
+				calculate => 95
+			},
+		}
+	}
+);

@@ -503,7 +503,14 @@ sub add_timed_data
 			if ( $datasets && ref($datasets) ne 'HASH' && !$flush );
 	# ttl: record time plus purge_timeddata_after seconds (default 7 days)
 	$time ||= Time::HiRes::time;
+
+	# make sure the expire value makes sense
 	my $expire_at = $time + ($self->nmisng->config->{purge_timeddata_after} || 7*86400);
+	my $now = time;
+	if( $expire_at < $now ) {
+			$self->nmisng->log->warn("NMISNG::Inventory::add_timed_data setting inventory expire to time < now! subconcept: $subconcept, trace:".NMISNG::Log::trace());
+			$expire_at = $now + ($self->nmisng->config->{purge_timeddata_after} || 7*86400);
+	}
 
 	# to make the db ttl expiration work this must be
 	# an acceptable date type for the driver version
@@ -1396,7 +1403,7 @@ sub save
 		#check if the expire_at is now in the past from a bad lastupdate. This should never happen!
 		$record->{expire_at} = $pleasegoaway;
 	}
-
+	
 	# numify anything in path
 	my $path = $record->{path};
 

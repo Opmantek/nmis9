@@ -2558,7 +2558,8 @@ sub collect_node_info
 					sys     => $S,
 					event   => "Node Reset",
 					details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptime",
-					context => {type => "node"}
+					context => {type => "node"},
+					inventory_id => $catchall_inventory->id
 						);
 
 				# now stash this info in the catchall object, to ensure we insert ONE set of U's into the rrds
@@ -3314,9 +3315,10 @@ sub update_intf_info
 					}
 				}
 
-				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off)$/ )
+				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off|other)$/ )
 				{
 					$target->{setlimits} = $thisintfover->{setlimits};
+					$target->{setlimits_percentage} = $thisintfover->{setlimits_percentage};
 				}
 			}
 
@@ -3610,7 +3612,7 @@ sub update_intf_info
 
 			# no limit or dud limit or dud speed or non-collected interface?
 			if (   $desiredlimit
-				&& $desiredlimit =~ /^(normal|strict|off)$/
+				&& $desiredlimit =~ /^(normal|strict|off|other)$/
 				&& $target->{ifSpeed}
 				&& NMISNG::Util::getbool( $target->{collect} ) )
 			{
@@ -3620,10 +3622,16 @@ sub update_intf_info
 						. " ($target->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-				my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
-					: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
-					:                             int( $target->{ifSpeed} / 8 );
+				## if desired limit is other then use the percentage to calculate maxbits.
+				my $maxbytes;
+				if ($desiredlimit eq 'other'){
+					$maxbytes =  ( $target->{ifSpeed} / 8 ) * ($target->{setlimits_percentage} / 100 );
+				}
+				else{
+					$maxbytes = $desiredlimit eq "off"    ? "U"
+						: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
+						:                             int( $target->{ifSpeed} / 8 );
+				}
 				my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 				for (
@@ -4519,7 +4527,8 @@ sub checkPIX
 					event   => "Node Failover",
 					element => 'PIX',
 					details =>
-					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}"
+					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}",
+					inventory_id => $catchall_inventory->id
 						);
 			}
 		}
@@ -4595,6 +4604,7 @@ sub handle_configuration_changes
 			element => "",
 			details => "Changed at " . NMISNG::Util::convUpTime( $configLastChanged / 100 ),
 			context => {type => "node"},
+			inventory_id => $catchall_inventory->id
 		);
 		$self->nmisng->log->info("checkNodeConfiguration configuration change detected for $S->{name}, creating event");
 	}
@@ -5181,6 +5191,7 @@ sub collect_systemhealth_data
 				my $result = $S->snmp->get( $oid );
 				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
 				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
 					$port = $index . '.' . $result->{$oid};
 				}
 			}
@@ -5685,7 +5696,7 @@ sub collect_cbqos_info
 			# don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
 			next if ( ref( $if_data_map{$index} ) ne "HASH"
 								or !$if_data->{ifSpeed}
-								or $if_data->{setlimits} !~ /^(normal|strict|off)$/
+								or $if_data->{setlimits} !~ /^(normal|strict|off|other)$/
 								or !NMISNG::Util::getbool( $if_data->{collect} ) );
 
 			my $thisintf     = $if_data;
@@ -5697,10 +5708,16 @@ sub collect_cbqos_info
 				. " ($thisintf->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-			my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
+			## if desired limit is other then use the percentage to calculate maxbits.
+			my $maxbytes;
+			if ($desiredlimit eq 'other'){
+				$maxbytes =  ( $thisintf->{ifSpeed} / 8 ) * ($thisintf->{setlimits_percentage} / 100 );
+			}
+			else{
+				$maxbytes = $desiredlimit eq "off"    ? "U"
 					: $desiredlimit eq "normal" ? int( $thisintf->{ifSpeed} / 4 )
 					:                             int( $thisintf->{ifSpeed} / 8 );
+			}
 			my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 			for my $direction (qw(in out))
@@ -6827,7 +6844,8 @@ sub update
 	my $name = $self->name;
 	my $updatetimer = Compat::Timing->new;
 	my $C = $self->nmisng->config;
-	my $force = $args{force};
+	my ($force,$starttime) = @args{'force','starttime'};
+	$starttime //= Time::HiRes::time;
 
 	$self->nmisng->log->debug("Starting update, node $name");
 	$0 = "nmisd worker update $name";
@@ -6890,7 +6908,7 @@ sub update
 	my $catchall_data = $catchall_inventory->data_live();
 
 	# record that we are trying an update; last_update records only successfully completed updates...
-	$catchall_data->{last_update_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_update_attempt} = $starttime;
 
 	$self->nmisng->log->debug("node=$name "
 			. join( " ",
@@ -6960,6 +6978,7 @@ sub update
 				Compat::NMIS::notify(sys => $S,
 														 event => "Node Polling Failover",
 														 element => undef,
+														 inventory_id => $catchall_inventory->id,
 														 details => ("SNMP Session switched to backup address \"".
 																				 $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" });
@@ -6972,6 +6991,7 @@ sub update
 																 upevent => "Node Polling Failover Closed", # please log it with this name
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}. '"'));
 			}
@@ -7014,7 +7034,7 @@ sub update
 			{
 				$self->nmisng->log->debug("node is set to collect=false, not collecting any info");
 			}
-			$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{last_update} = $starttime;
 			# we updated something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 		}
@@ -7097,7 +7117,7 @@ sub update
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+																									time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
@@ -8846,7 +8866,8 @@ sub unlock
 sub collect
 {
 	my ($self, %args) = @_;
-	my ($wantsnmp, $wantwmi,$force) = @args{"wantsnmp","wantwmi","force"};
+	my ($wantsnmp,$wantwmi,$force,$starttime) = @args{"wantsnmp","wantwmi","force","starttime"};
+	$starttime //= Time::HiRes::time;
 
 	my $name = $self->name;
 	my $pollTimer = Compat::Timing->new;
@@ -8915,12 +8936,12 @@ sub collect
 	
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
-	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_poll_attempt} = $starttime;
 	if (defined($wantsnmp)) {
-		$catchall_data->{last_poll_snmp_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_snmp_attempt} = $starttime;
 	}
 	if (defined($wantwmi)) {
-		$catchall_data->{last_poll_wmi_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
 	
 	$self->nmisng->log->debug( "node=$name "
@@ -8993,6 +9014,7 @@ sub collect
 														 details => ("SNMP Session switched to backup address \""
 																				 . $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" },
+														 inventory_id => $catchall_inventory->id,
 														 conf => $C );
 			}
 			# or are we using the primary address?
@@ -9003,6 +9025,7 @@ sub collect
 																 upevent => "Node Polling Failover Closed", # please log it thusly
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}.'"'), );
 			}
@@ -9013,7 +9036,7 @@ sub collect
 		# returns 1 if one or more sources have worked,
 		# also updates snmp/wmi down states in nodeinfo/catchall
 		# and sets the relevant last_poll_xyz markers
-		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $args{starttime} // Time::HiRes::time, catchall_inventory => $catchall_inventory );
+		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $starttime, catchall_inventory => $catchall_inventory );
 		my $curstate = $S->status;  # collect_node_info does NOT disable faulty sources!
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply
@@ -9041,8 +9064,8 @@ sub collect
 			}
 			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
-			$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-			$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{collectPollDelta} = $starttime - $previous_poll;
+			$catchall_data->{last_poll} = $starttime;
 			# we polled something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 
@@ -9071,8 +9094,8 @@ sub collect
 	} else {
 		$self->nmisng->log->debug3(sub {"($name) Node not pingable or no collect"});
 		# updating time stamps for last poll, the collect was run even if the node was down.
-		$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-		$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{collectPollDelta} = $starttime;
+		$catchall_data->{last_poll} = $starttime;
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
@@ -9147,8 +9170,9 @@ sub collect
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory, conf => $C );
+	# must use starttime here as last_poll could be bunk
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																					time => $catchall_data->{last_poll}, delay_insert => 1 );
+																					time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;

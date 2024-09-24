@@ -1,5 +1,5 @@
 #
-## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
+## $Id: Graph-upsvoltout.nmis,v 8.2 2011/08/28 15:11:53 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -30,39 +30,43 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'UPS Output Source Status', 
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node $length'
+		'short' => 'UPS Output Source'
 	},
 	'vlabel' => {
-		'standard' => '% CPU Util.'
+		'standard' => 'UPS Output Source'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:hwCpuDevDuty=$database:hwCpuDevDuty:AVERAGE',
-			'DEF:hwAvgDuty1min=$database:hwAvgDuty1min:AVERAGE',
-			'DEF:hwAvgDuty5min=$database:hwAvgDuty5min:AVERAGE',
-			'LINE1:hwCpuDevDuty#00FF00:Cpu Dev Duty',
-			'GPRINT:hwCpuDevDuty:AVERAGE:Avg %1.2lf%%\\n',
-			'LINE1:hwAvgDuty1min#00CED1:Avg Busy 1min',
-			'GPRINT:hwAvgDuty1min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty1min:MAX:Max %1.2lf%%\\n',
-			'LINE1:hwAvgDuty5min#4682B4:Avg Busy 5min',
-			'GPRINT:hwAvgDuty5min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty5min:MAX:Max %1.2lf%%\\n'
+			'DEF:upsOutputSourceS=$database:upsOutputSourceS:AVERAGE',
+			'LINE2:upsOutputSourceS#0000ff:UPS Output Source Status ',
+			'GPRINT:upsOutputSourceS:LAST:Current %1.2lf',
+			'GPRINT:upsOutputSourceS:MIN:Min %1.2lf',
+			'GPRINT:upsOutputSourceS:MAX:Max %1.2lf\\n',
+			#'GPRINT:upsOutputSourceS:AVERAGE:Avg %1.2lf\\n',
+
+			'DEF:upsOutputNLines=$database:upsOutputNLines:AVERAGE',
+			'LINE2:upsOutputNLines#ff0000:UPS Output Num Lines',
+			'GPRINT:upsOutputNLines:LAST:Current %1.2lf',
+			'GPRINT:upsOutputNLines:MIN:Min %1.2lf',
+			'GPRINT:upsOutputNLines:MAX:Max %1.2lf\\n',
+			#'GPRINT:upsOutputNLines:AVERAGE:Avg %1.2lf\\n',
+
 		],
 		'small' => [
-			'DEF:hwCpuDevDuty=$database:hwCpuDevDuty:AVERAGE',
-			'DEF:hwAvgDuty1min=$database:hwAvgDuty1min:AVERAGE',
-			'DEF:hwAvgDuty5min=$database:hwAvgDuty5min:AVERAGE',
-			'LINE1:hwCpuDevDuty#00FF00:Cpu Dev Duty',
-			'GPRINT:hwCpuDevDuty:AVERAGE:Avg %1.2lf%%\\n',
-			'LINE1:hwAvgDuty1min#00CED1:Avg Busy 1min',
-			'GPRINT:hwAvgDuty1min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty1min:MAX:Max %1.2lf%%\\n',
-			'LINE1:hwAvgDuty5min#4682B4:Avg Busy 5min',
-			'GPRINT:hwAvgDuty5min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty5min:MAX:Max %1.2lf%%\\n'
+			'DEF:upsOutputSourceS=$database:upsOutputSourceS:AVERAGE',
+			'LINE2:upsOutputSourceS#0000ff:UPS Output Source Status\\n',
+			'GPRINT:upsOutputSourceS:LAST:Current %1.2lf',
+			'GPRINT:upsOutputSourceS:MIN:Min %1.2lf',
+			'GPRINT:upsOutputSourceS:MAX:Max %1.2lf\\n',
+
+			'DEF:upsOutputNLines=$database:upsOutputNLines:AVERAGE',
+			'LINE2:upsOutputNLines#ff0000:UPS Output Num Lines\\n',
+			'GPRINT:upsOutputNLines:LAST:Current %1.2lf',
+			'GPRINT:upsOutputNLines:MIN:Min %1.2lf',
+			'GPRINT:upsOutputNLines:MAX:Max %1.2lf\\n',
 		]
 	}
 );
