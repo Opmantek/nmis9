@@ -38,6 +38,23 @@
 	'vlabel' => {
 		'standard' => 'Storage Usage'
 	},
+	'extras' =>[
+		{
+			'control' => 'CVAR1=hrStorageDescr;$CVAR1 eq "Physical memory"',
+			'standard' => [
+				'DEF:hrStorageAvailUnits=$database:hrStorageAvailUnits:MAX',
+				'CDEF:avail=hrStorageAvailUnits,hrStorageUnits,*',
+				'LINE1:avail#ff9933: Available Storage',
+				'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
+			],
+			'small' => [
+				'DEF:hrStorageAvailUnits=$database:hrStorageAvailUnits:MAX',
+				'CDEF:avail=hrStorageAvailUnits,hrStorageUnits,*',
+				'LINE1:avail#ff9933: Available Storage',
+				'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
+			]
+		}
+	],
 	'option' => {
 		'standard' => [
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
