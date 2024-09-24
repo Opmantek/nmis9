@@ -1,0 +1,28 @@
+#!/bin/sh
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+# if there are no custom files skip this
+if [ ! -d /usr/local/nmis9/custom_install_files ]; then
+	exit 0
+fi
+
+printBanner "Running custom install files"
+# prompt user about enabling SNMPv3-256bit support
+if ! input_yn "Do you want to copy the custom install files into this install?" "a7f3"; then
+	echo "Custom install files will not be coped."
+	exit 0
+fi
+
+# enable SNMPv3
+printBanner "Copying custom install files"
+
+execPrint "cp /usr/local/nmis9/custom_install_files/cgi-bin/* /usr/local/nmis9/cgi-bin/"	
+echo "copied files to cgi-bin"
+execPrint "cp /usr/local/nmis9/custom_install_files/conf-default/*.nmis /usr/local/nmis9/conf-default/"	
+echo "copied files to conf-default"
+execPrint "cp /usr/local/nmis9/custom_install_files/conf-default/plugins/* /usr/local/nmis9/conf-default/plugins/"	
+echo "copied files to conf-default/plugins"
+exit 0
