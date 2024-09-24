@@ -76,7 +76,10 @@ sub collect_plugin
 	$NG->log->debug("Working on $node Host Memory Calculations");
 	# for saving all the types of memory we want to use
 	my $Host_Memory;
-	
+
+	my ($buffers_data,$cached_data,$physical_data,$physical_id);
+	my $save = 0;
+	my $inventories = {};
 	# look through each of the different types of memory for cache and buffer
 	while( my $host_inventory = $model_data->next_object() )
 	{
@@ -103,14 +106,19 @@ sub collect_plugin
 			if ( $data->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
 				$typeName = "Memory";
 				$type = "physical";
+				$physical_data = $data;
+				$physical_id = $host_id;
+
 			}
 			elsif ( $data->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
 				$typeName = "Memory";
 				$type = "cached";
+				$cached_data = $data;
 			}
 			elsif ( $data->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
 				$typeName = "Memory";
 				$type = "buffers";
+				$buffers_data = $data;
 			}
 			elsif ( $data->{hrStorageDescr} =~ /Virtual memory/ ) {
 				$typeName = "Memory";
@@ -195,13 +203,51 @@ sub collect_plugin
 			push(@summary,"Free: $data->{hrStorageFree}<br/>") if (defined($data->{hrStorageFree}));
 			push(@summary,"Partition: $data->{hrPartitionLabel}<br/>") if defined $data->{hrPartitionLabel};
 
-			$data->{hrStorageSummary} = join(" ",@summary);
-			
-			# Save the data
-			$host_inventory->data($data); # set changed info
-			(undef,$error) = $host_inventory->save( node => $node ); # and save to the db
-			$NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
-					if ($error);
+			$data->{hrStorageSummary} = \@summary;
+				$save = 1;
+			}			
+			$inventories->{$host_id} = { inventory => $host_inventory, data => $data };
+		}
+					
+		# calculate available and add it to physical		
+		# Free  + cached + buffers, which aligns with free -m better than used - cached - buffers
+		my $physical_available = (($physical_data->{hrStorageSize} - $physical_data->{hrStorageUsed}) * $physical_data->{hrStorageUnits}) + 
+			($cached_data->{hrStorageUnits} * $cached_data->{hrStorageUsed}) +
+			($buffers_data->{hrStorageUnits} * $buffers_data->{hrStorageUsed});
+
+		$physical_data->{hrStorageAvailUnits} = $physical_available / $physical_data->{hrStorageUnits};
+		$physical_data->{hrStorageAvailable} = NMISNG::Util::getDiskBytes($physical_available);
+		push(@{$physical_data->{hrStorageSummary}}, "Available: $physical_data->{hrStorageAvailable}<br/>");
+		
+		foreach my $id (keys %$inventories) {
+			my $host_inventory = $inventories->{$id}{inventory};
+			my $data = $inventories->{$id}{data};			
+		            my $typeName = $data->{typeName};
+			my $type = $data->{type};  
+			if( $save == 1 ) {
+				my $temp;
+				if ($id == $physical_id ){
+					$temp = {'hrStorageAvailUnits' => {
+											'value' => $physical_data->{hrStorageAvailUnits} },
+								'hrStorageSize' => {
+											'value' => $data->{hrStorageSize} },
+								'hrStorageUsed' => {
+											'value' => $data->{hrStorageUsed} },
+								'hrStorageUnits' => {
+											'value' => $data->{hrStorageUnits} }										
+								};
+					my $db = $S->create_update_rrd( data => $temp,
+													type   => "Host_Storage",
+													index  => $data->{index},
+													inventory => $host_inventory );					
+				}
+				
+	                # Save the data
+				$data->{hrStorageSummary} = join(" ",@{$data->{hrStorageSummary}});
+	            $host_inventory->data($data); # set changed info
+	            (undef,$error) = $host_inventory->save( node => $node ); # and save to the db
+	            $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
+                if ($error);
 		}
 	} # Foreach
 	if ( ref($Host_Memory) eq "HASH" ) {
