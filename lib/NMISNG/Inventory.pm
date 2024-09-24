@@ -1404,11 +1404,6 @@ sub save
 		$record->{expire_at} = $pleasegoaway;
 	}
 	
-	# do not allow the catchall document to expire
-	if( $record->{concept} eq 'catchall' ) {
-		delete $record->{expire_at};
-	}
-
 	# numify anything in path
 	my $path = $record->{path};
 
