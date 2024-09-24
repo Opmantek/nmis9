@@ -28,7 +28,11 @@
 #
 # *****************************************************************************
 # a command-line node import tool for NMIS 9
+# -| For SNMP V3, the CSV file must contain columns to indicate version and attributes.
+#
 use strict;
+use warnings;
+
 our $VERSION = "9.5.1";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
@@ -88,7 +92,8 @@ die "no config available!\n" if (ref($config) ne "HASH"
 
 # log to stderr if debug is given
 my $logfile = $config->{'<nmis_logs>'} . "/cli.log"; # shared by nmis-cli and this one
-my $error = NMISNG::Util::setFileProtDiag(file => $logfile) if (-f $logfile);
+my $error;
+$error = NMISNG::Util::setFileProtDiag(file => $logfile) if (-f $logfile);
 warn "failed to set permissions: $error\n" if ($error);
 
 # use debug or configured log_level
@@ -108,7 +113,7 @@ my $nmisng = NMISNG->new(config => $config, log  => $logger);
 my $csvfile = $cmdline->{csv};
 my $simulate = $cmdline->{simulate} // "t";
 my $time = $cmdline->{time};
-my $debug = $cmdline->{debug} ? undef : NMISNG::Util::getbool($cmdline->{debug});
+my $debug = $cmdline->{debug} ? 0 : NMISNG::Util::getbool($cmdline->{debug});
 my $verbose = $cmdline->{verbose} ? 1 : NMISNG::Util::getbool($cmdline->{verbose});
 
 die "invalid nodes file $csvfile argument!\n" if (!-r $csvfile);
@@ -121,209 +126,211 @@ my %newNodes = &myLoadCSV($csvfile,"name",",");
 print "  done in ".$t->deltaTime() ."\n" if $time;
 
 my $nodenamerule = $config->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
-
 print "\n" if $verbose;
 my $sum = initSummary();
 print $t->markTime(). " Processing nodes \n" if $time;
+
+# check for basic issues first
+foreach my $node_key (keys %newNodes)
+{
+    my $node_entry = $newNodes{$node_key}; 
+    print $t->markTime(). " Processing $node_key \n" if $time;
+    die "Invalid node name \"$node_key\"\n"
+            if ($node_key !~ $nodenamerule);
+
+    # check required fields
+    my $missing = 0;
+    foreach my $key ('host', 'name', 'roleType', 'netType', 'threshold', 'version') {
+        if( $node_entry->{$key} eq '' ) {
+            print STDERR "$node_key field '$key' is blank: '".$node_entry->{$key}."'\n";
+            $missing = 1;
+        }        
+    }
+    die "fix blank fields for $node_key" if($missing);
+    die "Community required" if( $node_entry->{version} eq 'snmpv2c' && $node_entry->{community} eq '');
+}
+
+# now process nodes if we're still running
 foreach my $node (keys %newNodes)
 {
-    print $t->markTime(). " Processing $node \n" if $time;
-    die "Invalid node name \"$node\"\n"
-            if ($node !~ $nodenamerule);
+    my $nodename = $newNodes{$node}{name};
+    my $nodeuuid = $newNodes{$node}{uuid};
+    ++$sum->{total};
 
-    if ( $newNodes{$node}{name} ne ""
-             and $newNodes{$node}{host} ne ""
-             and $newNodes{$node}{roleType} ne ""
-             and $newNodes{$node}{community} ne ""
-    ) {
+    my $nodemodel = $nmisng->get_nodes_model(filter => {name => $nodename, uuid => $nodeuuid});
+    my $isnew = 0;
+    my $operation;
+    if( my $error = $nodemodel->error() ) {
+        die "Error getting nodes: $error\n";
+    }
+    if (!$nodemodel->count) {
+        print "ADDING: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
+        #  ++$sum->{add};
+        $isnew = 1;
+        $operation = "create";
+    } elsif ($nodemodel->count == 1 ) {
+        print "UPDATE: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
+        # ++$sum->{update};
+        $operation = "update";
+    } else {
+        print "ERROR: node=$newNodes{$node}{name} returning more than one node. Skipping. \n" if $verbose;
+        ++$sum->{error};
+        last;
+    }
 
-        my $nodename = $newNodes{$node}{name};
-        my $nodeuuid = $newNodes{$node}{uuid};
-        ++$sum->{total};
+    my $nodeobj;
+    
+    # New node!
+    if ( $isnew == 1 ) {
+        $newNodes{$node}{uuid} ||= NMISNG::Util::getUUID($newNodes{$node}{name});
+        $nodeobj = $nmisng->node(uuid => $newNodes{$node}{uuid}, create => 1);
+        # It will be a local node if cluster_id not set
+        $newNodes{$node}{cluster_id} ||= $config->{cluster_id};
+        $newNodes{$node}{threshold} = (NMISNG::Util::getbool($newNodes{$node}{threshold})) ? 'true' : 'false';
+        $nodeobj->name($newNodes{$node}{name});
 
-        my $nodemodel = $nmisng->get_nodes_model(filter => {name => $nodename, uuid => $nodeuuid});
-        my $isnew = 0;
-        my $operation;
+    } else {
+        $nodeobj = $nmisng->node(name => $newNodes{$node}{name});
+    }
+    
+    my $curconfig = $nodeobj->configuration;
+    my $curoverrides = $nodeobj->overrides;
+    my $curactivated = $nodeobj->activated;
+    my $curextras = $nodeobj->unknown;
+    my $curarraythings = { aliases => $nodeobj->aliases,
+                                                    addresses => $nodeobj->addresses };
+    my $anythingtodo;
 
-        if (!$nodemodel->count) {
-            print "ADDING: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
-            $isnew = 1;
-            $operation = "create";
-        } elsif ($nodemodel->count == 1 ) {
-            print "UPDATE: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n" if $verbose;
-            $operation = "update";
-        } else {
-            print "ERROR: node=$newNodes{$node}{name} returning more than one node. Skipping. \n" if $verbose;
-            ++$sum->{error};
-            last;
-        }
+    print "curractivated 1: ". Dumper $curactivated if $debug > 2;
+    print "new node: ". Dumper $newNodes{$node} if $debug > 2;
 
-        my $nodeobj;
-        
-        # New node!
-        if ( $isnew == 1 ) {
-            $newNodes{$node}{uuid} ||= NMISNG::Util::getUUID($newNodes{$node}{name});
-            $nodeobj = $nmisng->node(uuid => $newNodes{$node}{uuid}, create => 1);
-            # It will be a local node
-            $newNodes{$node}{cluster_id} ||= $config->{cluster_id};
-            $newNodes{$node}{threshold} ||= 'true';
-            $nodeobj->name($newNodes{$node}{name});
+    for my $name (keys %{$newNodes{$node}})
+    {
+        ++$anythingtodo;
 
-            # what other defaults should we set
-            if ( not defined $newNodes{$node}{netType} or (defined $newNodes{$node}{netType} and $newNodes{$node}{netType} eq "" ) ) {
-                $newNodes{$node}{netType} = "lan";
-            }
+        print "Processing $node name=$name value=$newNodes{$node}{$name}\n" if $debug;
 
+        my $value = $newNodes{$node}{$name};
+        undef $value if ($value eq "undef");
+        $name =~ s/^entry\.//;
 
-        } else {
-            $nodeobj = $nmisng->node(name => $newNodes{$node}{name});
-        }
-        
-        my $curconfig = $nodeobj->configuration;
-        my $curoverrides = $nodeobj->overrides;
-        my $curactivated = $nodeobj->activated;
-        my $curextras = $nodeobj->unknown;
-        my $curarraythings = { aliases => $nodeobj->aliases,
-                                                     addresses => $nodeobj->addresses };
-        my $anythingtodo;
+        # translate the backwards-compatibility configuration.active, which shadows activated.NMIS
+        $name = "activated.NMIS" if ($name eq "configuration.active");
 
-        print "curractivated 1: ". Dumper $curactivated if $debug > 2;
-
-        print "new node: ". Dumper $newNodes{$node} if $debug > 2;
-
-        for my $name (keys %{$newNodes{$node}})
+        # where does it go? overrides.X is obvious...
+        if ($name =~ /^overrides\.(.+)$/)
         {
-            ++$anythingtodo;
-
-            print "Processing $node name=$name value=$newNodes{$node}{$name}\n" if $debug;
-
-            my $value = $newNodes{$node}{$name};
-            undef $value if ($value eq "undef");
-            $name =~ s/^entry\.//;
-
-            # translate the backwards-compatibility configuration.active, which shadows activated.NMIS
-            $name = "activated.NMIS" if ($name eq "configuration.active");
-
-            # where does it go? overrides.X is obvious...
-            if ($name =~ /^overrides\.(.+)$/)
-            {
-                $curoverrides->{$name} = $value;
-            }
-            # ...name, cluster_id a bit less...
-            elsif ($name =~ /^(name|cluster_id)$/)
-            {
-                $nodeobj->$name($value);
-            }
-            # ...and activated.X not at all
-            elsif ($name =~ /^activated\.(.+)$/)
-            {
-                print "Translating activated name=$name value=$value regex=$1\n" if $debug;
-                $curactivated->{$1} = $value;
-            }
-            # ...and then there's the unknown unknowns
-            elsif ($name =~ /^unknown\.(.+)$/)
-            {
-                print "Unknown $name $value\n" if $debug > 1;
-                $curextras->{$name} = $value;
-            }
-            # and aliases and addresses, but these are ARRAYS
-            elsif ($name =~ /^((aliases|addresses)\.(.+))$/)
-            {
-                $curarraythings->{$name} = $value;
-            }
-            # configuration.X
-            elsif ($name =~ /^configuration\.(.+)$/)
-            {
-                $curconfig->{$name} = $value;
-            }
-            else
-            {
-                # Property will be added to configuration?
-                
-                #print "\t Adding $name val $value \n";
-                print "Else $name $value\n" if $debug > 1;
-                $curconfig->{$name} = $value;
-                #$logger->error("Unknown property \"$name\"!");
-                #print "\tUnknown property \"$name\"!\n";
-                #last;
-            }
-
-            # these have to be set to something if blank
-            $curactivated->{NMIS} = 1 if ( not defined $curactivated->{NMIS} );
-            $curconfig->{active} = "true" if ( not defined $curconfig->{active} );
-            $curconfig->{collect} = "true" if ( not defined $curconfig->{collect} );
-            $curconfig->{ping} = "true" if ( not defined $curconfig->{ping} );
+            $curoverrides->{$name} = $value;
         }
-        if (!$anythingtodo) {
-            $logger->error("No changes for node \"$node\"!");
-            print "\tNo changes for node \"$node\"!\n";
-            last;
-        }
-
-        print "curractivated 2: ". Dumper $curactivated if $debug > 2;
-
-        for ([$curconfig, "configuration"],
-                 [$curoverrides, "override"],
-                 [$curactivated, "activated"],
-                 [$curarraythings, "addresses/aliases" ],
-                 [$curextras, "unknown/extras" ])
+        # ...name, cluster_id a bit less...
+        elsif ($name =~ /^(name|cluster_id)$/)
         {
-            my ($checkwhat, $name) = @$_;
-            my $error = NMISNG::Util::translate_dotfields($checkwhat) if ($checkwhat);
-            if ($error) {
-                $logger->error("translation of $name arguments failed: $error");
-                print "\ttranslation of $name arguments failed: $error \n";
-                #last;
-            }
+            $nodeobj->$name($value);
         }
-
-        print "curractivated 3: ". Dumper $curactivated if $debug > 2;
-        print Dumper $curconfig if $debug > 2;
-
-        $nodeobj->overrides($curoverrides);
-        $nodeobj->configuration($curconfig);
-        $nodeobj->activated($curactivated);
-        $nodeobj->addresses($curarraythings->{addresses});
-        $nodeobj->aliases($curarraythings->{aliases});
-        $nodeobj->unknown($curextras);
-
-        my $success = 1;
-        if ($simulate eq "f")
+        # ...and activated.X not at all
+        elsif ($name =~ /^activated\.(.+)$/)
         {
-            (my $op, $error) = $nodeobj->save;
-            if ($op <= 0) { # zero is no saving needed
-                $logger->error("Failed to save $node: $error");
-                print "\tFailed to save $node! $error \n";              
-                $success = 0;  
-            } else {
-                print STDERR "\t=> Successfully ${operation}d node $node.\n" if $verbose;                
-            }
-            #print Dumper($nodeobj);
+            print "Translating activated name=$name value=$value regex=$1\n" if $debug;
+            $curactivated->{$1} = $value;
+        }
+        # ...and then there's the unknown unknowns
+        elsif ($name =~ /^unknown\.(.+)$/)
+        {
+            print "Unknown $name $value\n" if $debug > 1;
+            $curextras->{$name} = $value;
+        }
+        # and aliases and addresses, but these are ARRAYS
+        elsif ($name =~ /^((aliases|addresses)\.(.+))$/)
+        {
+            $curarraythings->{$name} = $value;
+        }
+        # configuration.X
+        elsif ($name =~ /^configuration\.(.+)$/)
+        {
+            $curconfig->{$name} = $value;
+        }
+        else
+        {
+            # Property will be added to configuration?
             
-        } else {
-            my ( $valid, $validation_error ) = $nodeobj->validate();
-            if( $valid < 0 ) {
-                print "\tNode $node does not pass validation: $validation_error\n";
-                $success = 0;
-            } 
-            print STDERR "\t=> Node $node not saved. Simulation mode.\n" if $verbose;  
-            print Dumper($nodeobj) if $debug > 1;
+            #print "\t Adding $name val $value \n";
+            print "Else $name $value\n" if $debug > 1;
+            $curconfig->{$name} = $value;
+            #$logger->error("Unknown property \"$name\"!");
+            #print "\tUnknown property \"$name\"!\n";
+            #last;
         }
-        # update summaries
-        if( $success ) {
-            ++$sum->{add} if($operation eq 'create');
-            ++$sum->{update} if($operation eq 'update');
-        } else {
-            ++$sum->{error};
+
+        # these have to be set to something if blank
+        $curactivated->{NMIS} = 1 && $logger->info("$node setting activated.NMIS to 1") if ( not defined $curactivated->{NMIS} );
+        $curconfig->{active} = "true" && $logger->info("$node setting active true") if ( not defined $curconfig->{active} );
+        $curconfig->{collect} = "true" && $logger->info("$node setting collect true") if ( not defined $curconfig->{collect} );
+        $curconfig->{ping} = "true" && $logger->info("$node setting ping true") if ( not defined $curconfig->{ping} );
+    }
+    if (!$anythingtodo) {
+        $logger->error("No changes for node \"$node\"!");
+        print "\tNo changes for node \"$node\"!\n";
+        last;
+    }
+
+    print "curractivated 2: ". Dumper $curactivated if $debug > 2;
+
+    for ([$curconfig, "configuration"],
+                [$curoverrides, "override"],
+                [$curactivated, "activated"],
+                [$curarraythings, "addresses/aliases" ],
+                [$curextras, "unknown/extras" ])
+    {
+        my ($checkwhat, $name) = @$_;
+        my $error = NMISNG::Util::translate_dotfields($checkwhat) if ($checkwhat);
+        if ($error) {
+            $logger->error("translation of $name arguments failed: $error");
+            print "\ttranslation of $name arguments failed: $error \n";
+            #last;
         }
     }
-    else {
-        print STDERR "One of the required node fields is blank\n";
-        print STDERR "$node field 'name' is blank\n" if $newNodes{$node}{name} eq "";
-        print STDERR "$node field 'host' is blank\n" if $newNodes{$node}{host} eq "";
-        print STDERR "$node field 'roleType' is blank\n" if $newNodes{$node}{roleType} eq "";
-        print STDERR "$node field 'community' is blank\n" if $newNodes{$node}{community} eq "";
+
+    print "curractivated 3: ". Dumper $curactivated if $debug > 2;
+    print Dumper $curconfig if $debug > 2;
+
+    $nodeobj->overrides($curoverrides);
+    $nodeobj->configuration($curconfig);
+    $nodeobj->activated($curactivated);
+    $nodeobj->addresses($curarraythings->{addresses});
+    $nodeobj->aliases($curarraythings->{aliases});
+    $nodeobj->unknown($curextras);
+
+    my $success = 1;
+    if ($simulate eq "f")
+    {
+        (my $op, $error) = $nodeobj->save;
+        if ($op <= 0) { # zero is no saving needed
+            $logger->error("Failed to save $node: $error");
+            print "\tFailed to save $node! $error \n";
+            $success = 0;
+        } else {
+            print STDERR "\t=> Successfully ${operation}d node $node.\n" if $verbose;
+        }
+        #print Dumper($nodeobj);
+
+    } else {
+        my ( $valid, $validation_error ) = $nodeobj->validate();
+        if( $valid < 0 ) {
+            print "\tNode $node does not pass validation: $validation_error\n";
+            $success = 0;
+        }
+        $logger->debug2("Node $node configuration:".Dumper($nodeobj->configuration));
+        print STDERR "\t=> Node $node not saved. Simulation mode.\n" if $verbose;
+        print Dumper($nodeobj) if $debug > 1;
     }
+    # update summaries
+    if( $success ) {
+        ++$sum->{add} if($operation eq 'create');
+        ++$sum->{update} if($operation eq 'update');
+    } else {
+        ++$sum->{error};
+    }
+
     print $t->markTime(). " Processing $node end \n" if $time;
 }
 print $t->markTime(). " End processing nodes \n" if $time;
@@ -401,6 +408,9 @@ sub myLoadCSV {
                     $head = $#headers + 1;
                     $row = $#rowElements + 1;
                     print STDERR "ERROR: $0 in csv.pm: Invalid CSV data file $file; line $line; record \"$reckey\"; $head elements in header; $row elements in data.\n";
+                    print STDERR "header: ".join(",", @headers)."\n";
+                    print STDERR"row:    ".join(",", @rowElements);
+                    print STDERR "\n";
                 }
                 #What if $reckey is blank could form an alternate key?
                 if ( $reckey eq "" or $key eq "" ) {
@@ -421,3 +431,4 @@ sub myLoadCSV {
 
     return (%data);
 }
+
