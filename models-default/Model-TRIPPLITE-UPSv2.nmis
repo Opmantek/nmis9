@@ -1,8 +1,49 @@
-%hash = (
+#
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com|https://firstwave.com/)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#  Model update by Arnulfo G. from Firstwave LATAM 04/22/2024
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+#  Ajustar Model.nmis
+#    'Tripp Lite' => {
+#      'order' => {
+#        '5' => {
+#          'TRIPPLITE-UPSv2' => 'POWERALERT|PowerAlert|Tripp Lite'
+#        },
+#        '10' => {
+#          'POWERALERT-Tripp' => 'POWERALERT'
+#        },
+#      }
+#    }, 
+# *****************************************************************************
+% hash = (
   '-common-' => {
     'class' => {
-      'alerts' => {
-        'common-model' => 'TrippliteUps-alerts'
+      'Cisco-neighbor' => {
+        'common-model' => 'Cisco-neighbor'
       },
       'database' => {
         'common-model' => 'database'
@@ -19,34 +60,66 @@
       'summary' => {
         'common-model' => 'summary'
       },
+      'alerts' => {
+        'common-model' => 'TrippliteUps-alerts'
+      },
       'threshold' => {
         'common-model' => 'threshold'
-      }
+      },
     }
-  },
-  'database' => {
+},
+  'stats' => {
     'type' => {
-      'UPSBatteryDetail' => '/nodes/$node/interface/UPSBatteryDetail-$index.rrd',
+      'upsOutputSource' => [
+        'DEF:upsOutputSourceS=$database:upsOutputSourceS:AVERAGE',
+        'PRINT:upsOutputSourceS:AVERAGE:upsOutputSourceS=%1.2lf'
+      ],
+    },
+},
+#'threshold' => {
+#    'name' => {
+#      'laload_threshold' => {
+#        'item' => 'upsOutputSourceS',
+#        'event' => 'Proactive UPS en Modo Bateria',
+#        'select' => {
+#          'default' => {
+#            'value' => {
+#              'fatal' => '10',
+#              'critical' => '5',
+#              'major' => '5',         
+#              'minor' => '5',
+#              'warning' => '5'
+#            }
+#          }
+#        },
+#      },
+#    },
+#},
+
+'database' => {
+    'type' => {
       'UpsBatteryPack' => '/nodes/$node/interface/UpsBatteryPack-$index.rrd',
-      'upsConfig' => '/nodes/$node/interface/upsConfig-$index.rrd',
+      'upsg' => '/nodes/$node/misc/upsg1.rrd',
       'upsInputNumLines' => '/nodes/$node/interface/upsInputNLines-$index.rrd',
       'upsOutputNumLines' => '/nodes/$node/interface/upsOutputNLines-$index.rrd',
       'upsOutputSource' => '/nodes/$node/interface/upsOutputSource-$index.rrd',
-      'upsg' => '/nodes/$node/misc/upsg1.rrd'
+      'upsConfig' => '/nodes/$node/interface/upsConfig-$index.rrd',
+      'UPSBatteryDetail' => '/nodes/$node/interface/UPSBatteryDetail-$index.rrd',
+      'UpsBatteryPack' => '/nodes/$node/interface/UpsBatteryPack-$index.rrd',
     }
-  },
+},
   'heading' => {
     'graphtype' => {
-      'ConfigInput' => 'UPS Config Input Detail',
-      'ConfigOutput' => 'UPS Config Output Detail',
-      'UPSBatteryDetail' => 'UPS Battery Detail',
-      'UpsBatteryPack' => 'UPS Battery Pack',
-      'batterycvr' => 'Battery Curr. Volt. Charge Remaining%. ',
+      'upsgeneral' => 'Ups',
       'upsInpuNtLines' => 'UPS Input Number Lines',
       'upsOutNputLines' => 'UPS Output Number Lines',
+      'batterycvr' => 'Battery Curr. Volt. Charge Remaining%. ',
       'upsOutputSource' => 'UPS Output Source Status',
+      'ConfigInput' => 'UPS Config Input Detail',
+      'ConfigOutput' => 'UPS Config Output Detail',
       'upsOutputSourceHerts' => 'UPS Output Source Status Herts',
-      'upsgeneral' => 'Ups'
+      'UPSBatteryDetail' => 'UPS Battery Detail',
+      'UpsBatteryPack' => 'UPS Battery Pack',
     }
   },
   'interface' => {
@@ -239,17 +312,10 @@
       }
     }
   },
-  'stats' => {
-    'type' => {
-      'upsOutputSource' => [
-        'DEF:upsOutputSourceS=$database:upsOutputSourceS:AVERAGE',
-        'PRINT:upsOutputSourceS:AVERAGE:upsOutputSourceS=%1.2lf'
-      ]
-    }
-  },
   'system' => {
     'nodeModel' => 'TRIPPLITE-UPSv2',
     'nodeModelComment' => 'Actualizacion de modelo por Arnulfo G. de Firstwave LATAM',
+    #'nodeType' => 'UPS',
     'nodeVendor' => 'Tripp Lite',
     'nodegraph' => 'health,response,ip,frag,upsgeneral,batterycvr',
     'rrd' => {
@@ -324,51 +390,27 @@
       'upsg' => {
         'graphtype' => 'upsgeneral,batterycvr',
         'snmp' => {
-          'upsBatteryCurrent' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.2.6.0'
-          },
-          'upsBatteryVoltage' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.2.5.0'
+          'upsbatstatus' => {
+            'oid' => '1.3.6.1.2.1.33.1.2.1.0',
           },
           'upsSecondsOnB' => {
-            'oid' => '1.3.6.1.2.1.33.1.2.2.0'
+            'oid' => '1.3.6.1.2.1.33.1.2.2.0',
           },
           'upsbatremperc' => {
-            'oid' => '1.3.6.1.2.1.33.1.2.4.0'
+            'oid' => '1.3.6.1.2.1.33.1.2.4.0',
           },
-          'upsbatstatus' => {
-            'oid' => '1.3.6.1.2.1.33.1.2.1.0'
-          }
-        }
-      }
+          'upsBatteryVoltage' => {
+            'oid' => '1.3.6.1.2.1.33.1.2.5.0',
+            'calculate' => '$r * 0.1',
+          },
+          'upsBatteryCurrent' => {
+            'oid' => '1.3.6.1.2.1.33.1.2.6.0',
+            'calculate' => '$r * 0.1',            
+          },
+        },
+      },
     },
     'sys' => {
-      'identity' => {
-        'snmp' => {
-          'CommPortName' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.3.1',
-            'title' => 'Communications Port Name'
-          },
-          'CommPortType' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.2.1',
-            'title' => 'CommPortType'
-          },
-          'FirmwareVersion' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.4.1',
-            'title' => 'Firmware Version'
-          },
-          'Protocol' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.1.1',
-            'title' => 'Protocol'
-          },
-          'SerialNum' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.5.1',
-            'title' => 'Serial Number'
-          }
-        }
-      },
       'standard' => {
         'snmp' => {
           'ifNumber' => {
@@ -402,165 +444,652 @@
           'sysUpTime' => {
             'oid' => 'sysUpTime',
             'title' => 'Uptime'
-          }
-        }
+          },
+        },
       },
       'upsg' => {
         'snmp' => {
-          'upsBatteryCurrent' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.2.6.0',
+          'upsbatstatus' => {
             'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
+              '4' => 'depleted',
+              '1' => 'unknown',
+              '3' => 'low',
+              '2' => 'normal'
             },
-            'title' => 'UPS Battery Current 0.1 Volt DC'
+            'oid' => '1.3.6.1.2.1.33.1.2.1.0',
+            'title' => 'Battery status'
           },
-          'upsBatteryVoltage' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.2.5.0',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'title' => 'UPS Battery Voltage 0.1 Volt DC'
-          },
-          'upsIdentName' => {
-            'oid' => '1.3.6.1.2.1.33.1.1.5.0',
-            'title' => 'UPS Ident Name'
-          },
-          'upsModel' => {
-            'oid' => '1.3.6.1.2.1.33.1.1.2.0',
-            'title' => 'UPS model'
+          # 'upsSecondsOnBattery' => {
+          #   'oid' => '1.3.6.1.2.1.33.1.2.2.0',
+          #   'title' => 'UPS Seconds On Battery '
+          # },
+          'upsbatremtim' => {
+            'oid' => '1.3.6.1.2.1.33.1.2.3.0',
+            'title' => 'Remaining time (min.)'
           },
           'upsbatremperc' => {
             'oid' => '1.3.6.1.2.1.33.1.2.4.0',
             'title' => 'Battery charge remaining %'
           },
-          'upsbatremtim' => {
-            'oid' => '1.3.6.1.2.1.33.1.2.3.0',
-            'title' => 'Remaining time (min.)'
-          },
-          'upsbatstatus' => {
-            'oid' => '1.3.6.1.2.1.33.1.2.1.0',
+          'upsBatteryVoltage' => {
+            'oid' => '1.3.6.1.2.1.33.1.2.5.0',
+            'title' => 'UPS Battery Voltage 0.1 Volt DC',
+            'calculate' => '$r * 0.1',
             'replace' => {
-              '1' => 'unknown',
-              '2' => 'normal',
-              '3' => 'low',
-              '4' => 'depleted'
-            },
-            'title' => 'Battery status'
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+            },   
+          },
+          'upsBatteryCurrent' => {
+            'oid' => '1.3.6.1.2.1.33.1.2.6.0',
+            'title' => 'UPS Battery Current 0.1 Volt DC',
+            'calculate' => '$r * 0.1',
+            'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+            },               
           },
           'upsbattemp' => {
             'oid' => '1.3.6.1.2.1.33.1.2.7.0',
+            'title' => 'Battery temp.',
             'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'title' => 'Battery temp.'
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+            },             
           },
           'upsmanufacturer' => {
             'oid' => '1.3.6.1.2.1.33.1.1.1.0',
             'title' => 'Manufacturer'
           },
+          'upsModel' => {
+            'oid' => '1.3.6.1.2.1.33.1.1.2.0',
+            'title' => 'UPS model'
+          },
+          'upsIdentName' => {
+            'oid' => '1.3.6.1.2.1.33.1.1.5.0',
+            'title' => 'UPS Ident Name'
+          },
           'upsoutputsrc' => {
             'replace' => {
-              '1' => 'other',
-              '2' => 'none',
-              '3' => 'normal',
-              '4' => 'bypass',
-              '5' => 'battery',
               '6' => 'booster',
-              '7' => 'reducer'
-            }
-          }
-        }
-      }
-    }
+              '4' => 'bypass',
+              '1' => 'other',
+              '3' => 'normal',
+              '7' => 'reducer',
+              '2' => 'none',
+              '5' => 'battery'
+            },
+          },
+        },
+      },
+      'identity' => {
+        'snmp' => {
+          'Protocol' => {
+            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.1.1',
+            'title' => 'Protocol'
+          },
+          'CommPortType' => {
+            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.2.1',
+            'title' => 'CommPortType'
+          },
+          'CommPortName' => {
+            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.3.1',
+            'title' => 'Communications Port Name'
+          },
+          'FirmwareVersion' => {
+            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.4.1',
+            'title' => 'Firmware Version'
+          },
+          'SerialNum' => {
+            'oid' => '1.3.6.1.4.1.850.1.1.2.1.1.5.1',
+            'title' => 'Serial Number'
+          },
+        },
+      },
+#      'alerts' => {
+#        'snmp' => {
+#          'upsbatstatus' => {
+#              'oid' => '1.3.6.1.2.1.33.1.2.1.0',
+#              'title' => 'Estado de Bateria',
+#              'alert' => {
+#                  'test' => '$r ne "normal"',
+#                  'event' => 'UPS en Modo Bateria',
+#                  'unit' => 'Status',
+#                  'level' => 'Warning',
+#              }
+#          },
+#        }
+#      },
+    },
   },
   'systemHealth' => {
-    'rrd' => {
-      'UPSBatteryDetail' => {
-        'graphtype' => 'UPSBatteryDetail',
-        'indexed' => 'true',
-        'snmp' => {
-          'UpsBDCapacity' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.3'
-          },
-          'UpsBDCharge' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.4'
-          },
-          'UpsBDChargerStatus' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.5'
-          },
-          'UpsBDCurrent' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.2'
-          },
-          'UpsBDVoltage' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.1'
-          }
-        }
-      },
+    'sections' => 'addressTable,upsInputNumLines,upsOutputNumLines,upsOutputSource,upsConfig,UPSBatteryDetail,egressForwardedOct,UpsBatteryPack,egressForwardedPack,ifTable,ingDropOctets,ingForwardedPackets,ingFwdOctets,standard',
+    'sys' => {
       'UpsBatteryPack' => {
-        'comment' => '',
-        'graphtype' => 'UpsBatteryPack',
+          'headers' => 'DetailCondition,TempCentigrade,TempFarenheit,DetailAgeYears,LastReplaceDate,NextReplaceDate,DetailCycleCount',
+          'index_oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1',
+          'index_regex' => '\\.(\\d+\.\\d+)$',
+          'indexed' => 'DetailCondition',
+          'snmp' => {
+              'DetailCondition' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.1',
+                'sysObjectName' => 'DetailCondition',
+                'title' => 'Detail Condition',
+              },
+              'TempCentigrade' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.2',
+                'sysObjectName' => 'TempCentigrade',
+                'title' => 'Temperature Centigrade',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+              'TempFarenheit' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.3',
+                'sysObjectName' => 'TempFarenheit',
+                'title' => 'Temperature Farenheit',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },       
+              },
+              'DetailAgeYears' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.4',
+                'sysObjectName' => 'DetailAgeYears',
+                'title' => 'Detail Age Years',
+              },
+              'LastReplaceDate' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.5',
+                'sysObjectName' => 'LastReplaceDate',
+                'title' => 'Last Replace Date',
+              },
+              'NextReplaceDate' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.6',
+                'sysObjectName' => 'NextReplaceDate',
+                'title' => 'Next Replace Date',
+              },
+              'DetailCycleCount' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.7',
+                'sysObjectName' => 'DetailCycleCount',
+                'title' => 'DetailCycleCount',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+            },
+      },
+      'upsInputNumLines' => {
+          'comment' => 'A list of input table entries.  The number of entries is given by the value of upsInputNumLines.',
+          'headers' => 'index,InputFrequency,InputVoltage,InputCurrent,InputTruePower',
+          'index_oid' => '1.3.6.1.2.1.33.1.3.3.1.2',
+          'index_regex' => '\\.(\\d+)$',
+          'indexed' => 'InputFrequency',
+          'snmp' => {
+              'InputFrequency' => {
+                'oid' => '1.3.6.1.2.1.33.1.3.3.1.2',
+                'sysObjectName' => 'InputFrequency',
+                'title' => 'InputFrequency 0.1 Hertz',
+                'calculate' => '$r * 0.1',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'InputVoltage' => {
+                'oid' => '1.3.6.1.2.1.33.1.3.3.1.3',
+                'sysObjectName' => 'InputVoltage',
+                'title' => 'Input Voltage RMS Volts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+              'InputCurrent' => {
+                'oid' => '1.3.6.1.2.1.33.1.3.3.1.4',
+                'sysObjectName' => 'InputCurrent',
+                'title' => 'Input Current 0.1 RMS Amp',
+                'calculate' => '$r * 0.1',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },       
+              },
+              'InputTruePower' => {
+                'oid' => '1.3.6.1.2.1.33.1.3.3.1.5',
+                'sysObjectName' => 'InputTruePower',
+                'title' => 'Input True Power 	Watts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+            },
+      },
+      'upsOutputNumLines' => {
+          'comment' => 'A list of Output table entries.  The number of entries is given by the value of upsOutputNumLines.',
+          'headers' => 'index,OutputVoltage,OutputCurrent,OutputPower,OutputPercentLoad',
+          'index_oid' => '1.3.6.1.2.1.33.1.4.4.1.2',
+          'index_regex' => '\\.(\\d+)$',
+          'indexed' => 'OutputFrequency',
+          'snmp' => {
+              'OutputVoltage' => {
+                'oid' => '1.3.6.1.2.1.33.1.4.4.1.2',
+                'sysObjectName' => 'OutputVoltage',
+                'title' => 'Output Voltage RMS Volts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'OutputCurrent' => {
+                'oid' => '1.3.6.1.2.1.33.1.4.4.1.3',
+                'sysObjectName' => 'OutputCurrent',
+                'title' => 'Output Current 0.1 RMS Amp',
+                'calculate' => '$r * 0.1',             
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+              'OutputPower' => {
+                'oid' => '1.3.6.1.2.1.33.1.4.4.1.4',
+                'sysObjectName' => 'OutputPower',
+                'title' => 'Output Power 	Watts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },       
+              },
+              'OutputPercentLoad' => {
+                'oid' => '1.3.6.1.2.1.33.1.4.4.1.5',
+                'sysObjectName' => 'OutputPercentLoad',
+                'title' => 'Output Percent Load',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+            },
+      },
+      'upsOutputSource' => {
+          'headers' => 'index,upsOutputSourceN,upsOutputFrequency,upsOutputNumLines',
+          'index_oid' => '1.3.6.1.2.1.33.1.4.1',
+          'index_regex' => '\\.(\\d+)$',
+          'indexed' => 'upsOutputSourceN',
+          'snmp' => {
+              'upsOutputSourceN' => {
+                'replace' => {
+                  '1' => 'other(1)',
+                  '2' => 'none(2)',
+                  '3' => 'normal(3)',
+                  '4' => 'bypass(4)',
+                  '5' => 'battery(5)',
+                  '6' => 'booster(6)',
+                  '7' => 'reducer(7)',
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+                'oid' => '1.3.6.1.2.1.33.1.4.1',
+                'sysObjectName' => 'upsOutputSourceN',
+                'title' => 'UPS Output Source Status',                
+              },
+              'upsOutputSourceS' => {
+                'oid' => '1.3.6.1.2.1.33.1.4.1',
+                'sysObjectName' => 'upsOutputSourceS',
+                'title' => 'UPS Output Source'
+              },              
+              'upsOutputFrequency' => {
+                'calculate' => '$r * 0.1',
+                'oid' => '1.3.6.1.2.1.33.1.4.2',
+                'sysObjectName' => 'upsOutputFrequency',
+                'title' => 'UPS Output Frequency 0.1 Hertz',  
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+              'upsOutputNumLines' => {
+                'oid' => '1.3.6.1.2.1.33.1.4.3',
+                'sysObjectName' => 'upsOutputNumLines',
+                'title' => 'UPS Output Num Lines',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },       
+              },
+            },
+      },
+      'UPSBatteryDetail' => {
+          'headers' => 'index,UpsBatteryDetailVoltage,UpsBatteryDetailCurrent,UpsBatteryDetailCapacity,UpsBatteryDetailCharge,UpsBatteryDetailChargerStatus',
+          'index_oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.1',
+          'index_regex' => '\\.(\\d+)$',
+          'indexed' => 'UpsBatteryDetailVoltage',
+          'snmp' => {
+              'UpsBatteryDetailVoltage' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.1',
+                'sysObjectName' => 'UpsBatteryDetailVoltage',
+                'title' => 'Ups Battery Detail Voltage 0.1 Volt DC',
+                'calculate' => '$r * 0.1',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'UpsBatteryDetailCurrent' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.2',
+                'calculate' => '$r * 0.1',
+                'sysObjectName' => 'UpsBatteryDetailCurrent',
+                'title' => 'Ups Battery Detail Current 0.1 Amp DC',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+              'UpsBatteryDetailCapacity' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.3',
+                'sysObjectName' => 'UpsBatteryDetailCapacity',
+                'title' => 'Ups Battery Detail Capacity percent',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },       
+              },
+              'UpsBatteryDetailCharge' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.4',
+                'sysObjectName' => 'UpsBatteryDetailCharge',
+                'title' => 'Ups Battery Detail Charge',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+              'UpsBatteryDetailChargerStatus' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.5',
+                'sysObjectName' => 'UpsBatteryDetailChargerStatus',
+                'title' => 'Ups Battery Detail Charger Status',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+            },
+      },
+      'tlpAlarmControl' => {
+          'headers' => 'tlpAlarmControlIndex,tlpAlarmControlDetail,tlpAlarmControlSeverity',
+          'index_oid' => '1.3.6.1.4.1.850.1.3.4.1.1.1',
+          'index_regex' => '\\.(\\d+\.\\d+)$',
+          'indexed' => 'tlpAlarmControlIndex',
+          'snmp' => {
+              'tlpAlarmControlIndex' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.4.1.1.1',
+                'sysObjectName' => 'tlpAlarmControlIndex',
+                'title' => 'tlp Alarm Control Index',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'tlpAlarmControlDescr' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.4.1.1.2',
+                'sysObjectName' => 'tlpAlarmControlDescr',
+                'title' => 'tlp Alarm Control Descr',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+              'tlpAlarmControlDetail' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.4.1.1.3',
+                'sysObjectName' => 'tlpAlarmControlDetail',
+                'title' => 'tlp Alarm Control Detail',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },       
+              },
+              'tlpAlarmControlSeverity' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.4',
+                'sysObjectName' => 'tlpAlarmControlSeverity',
+                'title' => 'tlp Alarm Control Severity',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+            },
+      },
+      'tlpAlarm' => {
+          'headers' => 'index,tlpAlarmId,tlpAlarmTime,tlpAlarmDetail,tlpAlarmType,tlpAlarmState,tlpAlarmAcknowledged',
+          'index_oid' => '1.3.6.1.4.1.850.1.3.2.1.1',
+          'index_regex' => '\\.(\\d+)$',
+          'indexed' => 'tlpAlarmId',
+          'snmp' => {
+              'tlpAlarmId' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.1',
+                'sysObjectName' => 'tlpAlarmId',
+                'title' => 'tlp AlarmId',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'tlpAlarmDescr' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.2',
+                'sysObjectName' => 'tlpAlarmDescr',
+                'title' => 'tlp Alarm Descr',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },
+              },
+              'tlpAlarmTime' => {
+               'calculate' => '$r = int($r/100); $r = func::convUpTime($r);',
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.3',
+                'sysObjectName' => 'tlpAlarmTime',
+                'title' => 'tlp Alarm Time',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },       
+              },
+              'tlpAlarmTableRef' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.4',
+                'sysObjectName' => 'tlpAlarmTableRef',
+                'title' => 'tlp Alarm Table Ref',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+              'tlpAlarmTableRowRef' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.5',
+                'sysObjectName' => 'tlpAlarmTableRowRef',
+                'title' => 'tlp Alarm Table Row Ref',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+              'tlpAlarmDetail' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.6',
+                'sysObjectName' => 'tlpAlarmDetail',
+                'title' => 'tlpAlarmDetail',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+              'tlpAlarmType' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.7',
+                'sysObjectName' => 'tlpAlarmType',
+                'title' => 'tlpAlarmType',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+              'tlpAlarmState' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.8',
+                'sysObjectName' => 'tlpAlarmState',
+                'title' => 'tlpAlarmState',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                  '1' => 'Active',
+                  '2' => 'Inactive',
+                  },  
+              },
+              'tlpAlarmAcknowledged' => {
+                'oid' => '1.3.6.1.4.1.850.1.3.2.1.9',
+                'sysObjectName' => 'tlpAlarmAcknowledged',
+                'title' => 'tlpAlarmAcknowledged',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },  
+              },
+            },
+      },
+      'upsConfig' => {
+          'headers' => 'index,upsConfigInputVoltage,upsConfigInputFreq,upsConfigOutputVoltage,upsConfigOutputFreq,upsConfigOutputVA,upsConfigOutputPower,upsConfigLowBattTime,upsConfigAudibleStatus,upsConfigLowVoltageTransferPoint,upsConfigHighVoltageTransferPoint',
+          'index_oid' => '1.3.6.1.2.1.33.1.9.1',
+          'index_regex' => '\\.(\\d+)$',
+          'indexed' => 'upsConfigInputVoltage',
+          'snmp' => {
+              'upsConfigInputVoltage' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.1',
+                'sysObjectName' => 'upsConfigInputVoltage',
+                'title' => 'UPS Config Input Voltage RMS Volts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'upsConfigInputFreq' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.2',
+                'sysObjectName' => 'upsConfigInputFreq ',
+                'title' => 'UPS Config Input Freq 0.1 Hertz',
+                'calculate' => '$r * 0.1',             
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                 
+              },
+              'upsConfigOutputVoltage' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.3',
+                'sysObjectName' => 'upsConfigOutputVoltage  ',
+                'title' => 'UPS Config Output Voltage RMS Volts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'upsConfigOutputFreq' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.4',
+                'sysObjectName' => 'upsConfigOutputFreq',
+                'title' => 'UPS Config Output Freq 	0.1 Hertz',
+                'calculate' => '$r * 0.1',             
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                 
+              },
+              'upsConfigOutputVA' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.5',
+                'sysObjectName' => 'upsConfigOutputVA',
+                'title' => 'UPS Config Output VA 	Volt-Amps',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'upsConfigOutputPower' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.6',
+                'sysObjectName' => 'upsConfigOutputPower',
+                'title' => 'UPS Config Output Power 	Watts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'upsConfigLowBattTime' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.7',
+                'sysObjectName' => 'upsConfigLowBattTime',
+                'title' => 'UPS Config Low BattTime 	minutes',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'upsConfigAudibleStatus' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.8',
+                'sysObjectName' => 'upsConfigAudibleStatus',
+                'title' => 'UPS Config AudibleS tatus',
+                'replace' => {
+                  '1' => 'disabled(1)',
+                  '2' => 'enabled(2)',
+                  '3' => 'muted(3)',
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'upsConfigLowVoltageTransferPoint' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.9',
+                'sysObjectName' => 'upsConfigLowVoltageTransferPoint',
+                'title' => 'UPS Config Low Voltage Transfer Point RMS Volts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },
+              'upsConfigHighVoltageTransferPoint' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.10',
+                'sysObjectName' => 'upsConfigHighVoltageTransferPoint ',
+                'title' => 'UPS Config High Voltage Transfer Point RMS Volts',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },                  
+              },            
+          },
+      },       
+    },
+    'rrd' => {
+      'UpsBatteryPack' => {
+        'comment' => 'This is a sparse dependent table, and will contain the number of entries based upon the number of upss and battery packs managed by the agent as reported by tlpUpsIdentNumUps and tlpUpsIdentNumBatteryPacks.',
+        #'graphtype' => 'UpsBatteryPack',
         'indexed' => 'true',
         'snmp' => {
-          'DetailAgeYears' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.4'
+          'DetailCondition' => {
+            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.1',
+            'sysObjectName' => 'DetailCondition',
+            'option' => 'gauge,0:U',
           },
           'TempCentigrade' => {
             'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.2',
+            'sysObjectName' => 'TempCentigrade',
+            'option' => 'gauge,0:U',
             'replace' => {
               'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            }
+              'noSuchObject' => 'N/A',
+            },
           },
           'TempFarenheit' => {
             'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.3',
+            'sysObjectName' => 'TempFarenheit',
+            'option' => 'gauge,0:U',
             'replace' => {
               'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            }
-          }
-        }
-      },
-      'upsConfig' => {
-        'comment' => 'A list of input table entries.  The number of entries is given by the value of upsOutputNumLines.',
-        'graphtype' => 'ConfigInput,ConfigOutput',
-        'indexed' => 'true',
-        'snmp' => {
-          'CHighVTPRMSVolts' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.10'
+              'noSuchObject' => 'N/A',
+            },          
           },
-          'CLowVTPRMSVolts' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.9'
+          'DetailAgeYears' => {
+            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.4',
+            'sysObjectName' => 'DetailAge',
+            'option' => 'gauge,0:U',
           },
-          'upsConfigInputFreq' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.9.2'
-          },
-          'upsConfigInputV' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.1'
-          },
-          'upsConfigLowBattT' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.7'
-          },
-          'upsConfigOutputFreq' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.9.4'
-          },
-          'upsConfigOutputP' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.6'
-          },
-          'upsConfigOutputV' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.3'
-          },
-          'upsConfigOutputVA' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.5'
-          }
         }
       },
       'upsInputNumLines' => {
@@ -568,40 +1097,40 @@
         'graphtype' => 'upsInpuNtLines',
         'indexed' => 'true',
         'snmp' => {
-          'InputCurrent' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.3.3.1.4',
-            'option' => 'gauge,0:U',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'InputCurrent'
-          },
           'InputFrequency' => {
             'calculate' => '$r * 0.1',
             'oid' => '1.3.6.1.2.1.33.1.3.3.1.2',
+            'sysObjectName' => 'InputFrequency',
             'option' => 'gauge,0:U',
-            'sysObjectName' => 'InputFrequency'
-          },
-          'InputTruePower' => {
-            'oid' => '1.3.6.1.2.1.33.1.3.3.1.5',
-            'option' => 'gauge,0:U',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'InputTruePower'
           },
           'InputVoltage' => {
             'oid' => '1.3.6.1.2.1.33.1.3.3.1.3',
+            'sysObjectName' => 'InputVoltage',
             'option' => 'gauge,0:U',
             'replace' => {
               'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
+              'noSuchObject' => 'N/A',
             },
-            'sysObjectName' => 'InputVoltage'
-          }
+          },
+          'InputCurrent' => {
+            'calculate' => '$r * 0.1',
+            'oid' => '1.3.6.1.2.1.33.1.3.3.1.4',
+            'sysObjectName' => 'InputCurrent',
+            'option' => 'gauge,0:U',
+            'replace' => {
+              'noSuchInstance' => 'N/A',
+              'noSuchObject' => 'N/A',
+            },          
+          },
+          'InputTruePower' => {
+            'oid' => '1.3.6.1.2.1.33.1.3.3.1.5',
+            'sysObjectName' => 'InputTruePower',
+            'option' => 'gauge,0:U',
+            'replace' => {
+              'noSuchInstance' => 'N/A',
+              'noSuchObject' => 'N/A',
+            },  
+          },
         }
       },
       'upsOutputNumLines' => {
@@ -609,563 +1138,170 @@
         'graphtype' => 'upsOutputNLines',
         'indexed' => 'true',
         'snmp' => {
+          'OutputVoltage' => {
+            'oid' => '1.3.6.1.2.1.33.1.4.4.1.2',
+            'sysObjectName' => 'OutputVoltage',
+            'option' => 'gauge,0:U',
+          },
           'OutputCurrent' => {
             'calculate' => '$r * 0.1',
             'oid' => '1.3.6.1.2.1.33.1.4.4.1.3',
+            'sysObjectName' => 'OutputCurrent',
             'option' => 'gauge,0:U',
             'replace' => {
               'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
+              'noSuchObject' => 'N/A',
             },
-            'sysObjectName' => 'OutputCurrent'
-          },
-          'OutputPercentLoad' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.4.1.5',
-            'option' => 'gauge,0:U',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'OutputPercentLoad'
           },
           'OutputPower' => {
             'oid' => '1.3.6.1.2.1.33.1.4.4.1.4',
+            'sysObjectName' => 'OutputPower',
             'option' => 'gauge,0:U',
             'replace' => {
               'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'OutputPower'
+              'noSuchObject' => 'N/A',
+            },          
           },
-          'OutputVoltage' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.4.1.2',
+          'OutputPercentLoad' => {
+            'oid' => '1.3.6.1.2.1.33.1.4.4.1.5',
+            'sysObjectName' => 'OutputPercentLoad',
             'option' => 'gauge,0:U',
-            'sysObjectName' => 'OutputVoltage'
-          }
-        }
+            'replace' => {
+              'noSuchInstance' => 'N/A',
+              'noSuchObject' => 'N/A',
+            },  
+          },
+        },
+      },
+      'UpsBatteryPack' => {
+        'comment' => '',
+        'graphtype' => 'UpsBatteryPack',
+        'indexed' => 'true',
+        'snmp' => {
+              'TempCentigrade' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.2',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },   
+                #'title' => 'Temperature Centigrade',
+              },
+              'TempFarenheit' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.3',
+                'replace' => {
+                  'noSuchObject' => 'N/A',
+                  'noSuchInstance' => 'N/A',
+                },   
+                #'title' => 'Temperature Farenheit',     
+              },
+              'DetailAgeYears' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.4',
+                #'title' => 'Detail Age Years',
+              },
+        },
+      },
+      'upsConfig' => {
+        'comment' => 'A list of input table entries.  The number of entries is given by the value of upsOutputNumLines.',
+        'graphtype' => 'ConfigInput,ConfigOutput',
+        'indexed' => 'true',
+        'snmp' => {
+              'upsConfigInputV' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.1',
+                #'title' => 'UPS Config Input Voltage RMS Volts',                
+              },
+              'upsConfigInputFreq' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.2',
+                #'title' => 'UPS Config Input Freq 0.1 Hertz',
+                'calculate' => '$r * 0.1',                           
+              },
+              'upsConfigOutputV' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.3',
+               # 'title' => 'UPS Config Output Voltage RMS Volts',                
+              },
+              'upsConfigOutputFreq' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.4',
+                #'title' => 'UPS Config Output Freq  0.1 Hertz',
+                'calculate' => '$r * 0.1',                              
+              },
+              'upsConfigOutputVA' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.5',
+                #'title' => 'UPS Config Output VA  Volt-Amps',                 
+              },
+              'upsConfigOutputP' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.6',
+                #'title' => 'UPS Config Output Power   Watts',                
+              },
+              'upsConfigLowBattT' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.7',
+                #'title' => 'UPS Config Low BattTime   minutes',                 
+              },
+              'CLowVTPRMSVolts' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.9',
+                #'title' => 'UPS Config Low Voltage Transfer Point RMS Volts',                
+              },
+              'CHighVTPRMSVolts' => {
+                'oid' => '1.3.6.1.2.1.33.1.9.10',
+                #'title' => 'UPS Config High Voltage Transfer Point RMS Volts',        
+              }, 
+        },
+      },
+      'UPSBatteryDetail' => {
+        'graphtype' => 'UPSBatteryDetail',
+        'indexed' => 'true',
+        'snmp' => {
+              'UpsBDVoltage' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.1',
+               # 'title' => 'Ups Battery Detail Voltage 0.1 Volt DC',
+                'calculate' => '$r * 0.1',              
+              },
+              'UpsBDCurrent' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.2',
+                'calculate' => '$r * 0.1',
+                #'title' => 'Ups Battery Detail Current 0.1 Amp DC',
+              },
+              'UpsBDCapacity' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.3',
+               #         'title' => 'Ups Battery Detail Capacity percent',      
+              },
+              'UpsBDCharge' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.4',
+                #'title' => 'Ups Battery Detail Charge',
+              },
+              'UpsBDChargerStatus' => {
+                'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.5',
+                #'title' => 'Ups Battery Detail Charger Status',
+              },
+        },
       },
       'upsOutputSource' => {
         'graphtype' => 'upsOutputSource,upsOutputSourceHerts',
+        'threshold' => 'upsOutputSource,laload_threshold',
         'indexed' => 'true',
         'snmp' => {
+          'upsOutputSourceS' => {
+            'oid' => '1.3.6.1.2.1.33.1.4.1',          
+          },
           'upsOutputFrequency' => {
             'calculate' => '$r * 0.1',
             'oid' => '1.3.6.1.2.1.33.1.4.2',
+            'sysObjectName' => 'upsOutputFrequency',
             'option' => 'gauge,0:U',
             'replace' => {
               'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
+              'noSuchObject' => 'N/A',
             },
-            'sysObjectName' => 'upsOutputFrequency'
           },
           'upsOutputNLines' => {
             'oid' => '1.3.6.1.2.1.33.1.4.3',
+            'sysObjectName' => 'upsOutputNLines',
             'option' => 'gauge,0:U',
             'replace' => {
               'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsOutputNLines'
+              'noSuchObject' => 'N/A',
+            },          
           },
-          'upsOutputSourceS' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.1'
-          }
-        },
-        'threshold' => 'upsOutputSource,laload_threshold'
-      }
+        }
+      },
     },
-    'sections' => 'addressTable,upsInputNumLines,upsOutputNumLines,upsOutputSource,upsConfig,UPSBatteryDetail,egressForwardedOct,UpsBatteryPack,egressForwardedPack,ifTable,ingDropOctets,ingForwardedPackets,ingFwdOctets,standard',
-    'sys' => {
-      'UPSBatteryDetail' => {
-        'headers' => 'index,UpsBatteryDetailVoltage,UpsBatteryDetailCurrent,UpsBatteryDetailCapacity,UpsBatteryDetailCharge,UpsBatteryDetailChargerStatus',
-        'index_oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.1',
-        'index_regex' => '\\.(\\d+)$',
-        'indexed' => 'UpsBatteryDetailVoltage',
-        'snmp' => {
-          'UpsBatteryDetailCapacity' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'UpsBatteryDetailCapacity',
-            'title' => 'Ups Battery Detail Capacity percent'
-          },
-          'UpsBatteryDetailCharge' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.4',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'UpsBatteryDetailCharge',
-            'title' => 'Ups Battery Detail Charge'
-          },
-          'UpsBatteryDetailChargerStatus' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.5',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'UpsBatteryDetailChargerStatus',
-            'title' => 'Ups Battery Detail Charger Status'
-          },
-          'UpsBatteryDetailCurrent' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'UpsBatteryDetailCurrent',
-            'title' => 'Ups Battery Detail Current 0.1 Amp DC'
-          },
-          'UpsBatteryDetailVoltage' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.1',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'UpsBatteryDetailVoltage',
-            'title' => 'Ups Battery Detail Voltage 0.1 Volt DC'
-          }
-        }
-      },
-      'UpsBatteryPack' => {
-        'headers' => 'DetailCondition,TempCentigrade,TempFarenheit,DetailAgeYears,LastReplaceDate,NextReplaceDate,DetailCycleCount',
-        'index_oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1',
-        'index_regex' => '\\.(\\d+\\.\\d+)$',
-        'indexed' => 'DetailCondition',
-        'snmp' => {
-          'DetailAgeYears' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.4',
-            'sysObjectName' => 'DetailAgeYears',
-            'title' => 'Detail Age Years'
-          },
-          'DetailCondition' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.1',
-            'sysObjectName' => 'DetailCondition',
-            'title' => 'Detail Condition'
-          },
-          'DetailCycleCount' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.7',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'DetailCycleCount',
-            'title' => 'DetailCycleCount'
-          },
-          'LastReplaceDate' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.5',
-            'sysObjectName' => 'LastReplaceDate',
-            'title' => 'Last Replace Date'
-          },
-          'NextReplaceDate' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.6',
-            'sysObjectName' => 'NextReplaceDate',
-            'title' => 'Next Replace Date'
-          },
-          'TempCentigrade' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'TempCentigrade',
-            'title' => 'Temperature Centigrade'
-          },
-          'TempFarenheit' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.5.1.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'TempFarenheit',
-            'title' => 'Temperature Farenheit'
-          }
-        }
-      },
-      'tlpAlarm' => {
-        'headers' => 'index,tlpAlarmId,tlpAlarmTime,tlpAlarmDetail,tlpAlarmType,tlpAlarmState,tlpAlarmAcknowledged',
-        'index_oid' => '1.3.6.1.4.1.850.1.3.2.1.1',
-        'index_regex' => '\\.(\\d+)$',
-        'indexed' => 'tlpAlarmId',
-        'snmp' => {
-          'tlpAlarmAcknowledged' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.9',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmAcknowledged',
-            'title' => 'tlpAlarmAcknowledged'
-          },
-          'tlpAlarmDescr' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmDescr',
-            'title' => 'tlp Alarm Descr'
-          },
-          'tlpAlarmDetail' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.6',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmDetail',
-            'title' => 'tlpAlarmDetail'
-          },
-          'tlpAlarmId' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.1',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmId',
-            'title' => 'tlp AlarmId'
-          },
-          'tlpAlarmState' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.8',
-            'replace' => {
-              '1' => 'Active',
-              '2' => 'Inactive',
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmState',
-            'title' => 'tlpAlarmState'
-          },
-          'tlpAlarmTableRef' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.4',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmTableRef',
-            'title' => 'tlp Alarm Table Ref'
-          },
-          'tlpAlarmTableRowRef' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.5',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmTableRowRef',
-            'title' => 'tlp Alarm Table Row Ref'
-          },
-          'tlpAlarmTime' => {
-            'calculate' => '$r = int($r/100); $r = func::convUpTime($r);',
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmTime',
-            'title' => 'tlp Alarm Time'
-          },
-          'tlpAlarmType' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.2.1.7',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmType',
-            'title' => 'tlpAlarmType'
-          }
-        }
-      },
-      'tlpAlarmControl' => {
-        'headers' => 'tlpAlarmControlIndex,tlpAlarmControlDetail,tlpAlarmControlSeverity',
-        'index_oid' => '1.3.6.1.4.1.850.1.3.4.1.1.1',
-        'index_regex' => '\\.(\\d+\\.\\d+)$',
-        'indexed' => 'tlpAlarmControlIndex',
-        'snmp' => {
-          'tlpAlarmControlDescr' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.4.1.1.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmControlDescr',
-            'title' => 'tlp Alarm Control Descr'
-          },
-          'tlpAlarmControlDetail' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.4.1.1.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmControlDetail',
-            'title' => 'tlp Alarm Control Detail'
-          },
-          'tlpAlarmControlIndex' => {
-            'oid' => '1.3.6.1.4.1.850.1.3.4.1.1.1',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmControlIndex',
-            'title' => 'tlp Alarm Control Index'
-          },
-          'tlpAlarmControlSeverity' => {
-            'oid' => '1.3.6.1.4.1.850.1.1.3.1.3.1.2.1.4',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'tlpAlarmControlSeverity',
-            'title' => 'tlp Alarm Control Severity'
-          }
-        }
-      },
-      'upsConfig' => {
-        'headers' => 'index,upsConfigInputVoltage,upsConfigInputFreq,upsConfigOutputVoltage,upsConfigOutputFreq,upsConfigOutputVA,upsConfigOutputPower,upsConfigLowBattTime,upsConfigAudibleStatus,upsConfigLowVoltageTransferPoint,upsConfigHighVoltageTransferPoint',
-        'index_oid' => '1.3.6.1.2.1.33.1.9.1',
-        'index_regex' => '\\.(\\d+)$',
-        'indexed' => 'upsConfigInputVoltage',
-        'snmp' => {
-          'upsConfigAudibleStatus' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.8',
-            'replace' => {
-              '1' => 'disabled(1)',
-              '2' => 'enabled(2)',
-              '3' => 'muted(3)',
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigAudibleStatus',
-            'title' => 'UPS Config AudibleS tatus'
-          },
-          'upsConfigHighVoltageTransferPoint' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.10',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigHighVoltageTransferPoint ',
-            'title' => 'UPS Config High Voltage Transfer Point RMS Volts'
-          },
-          'upsConfigInputFreq' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.9.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigInputFreq ',
-            'title' => 'UPS Config Input Freq 0.1 Hertz'
-          },
-          'upsConfigInputVoltage' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.1',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigInputVoltage',
-            'title' => 'UPS Config Input Voltage RMS Volts'
-          },
-          'upsConfigLowBattTime' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.7',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigLowBattTime',
-            'title' => 'UPS Config Low BattTime 	minutes'
-          },
-          'upsConfigLowVoltageTransferPoint' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.9',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigLowVoltageTransferPoint',
-            'title' => 'UPS Config Low Voltage Transfer Point RMS Volts'
-          },
-          'upsConfigOutputFreq' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.9.4',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigOutputFreq',
-            'title' => 'UPS Config Output Freq 	0.1 Hertz'
-          },
-          'upsConfigOutputPower' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.6',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigOutputPower',
-            'title' => 'UPS Config Output Power 	Watts'
-          },
-          'upsConfigOutputVA' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.5',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigOutputVA',
-            'title' => 'UPS Config Output VA 	Volt-Amps'
-          },
-          'upsConfigOutputVoltage' => {
-            'oid' => '1.3.6.1.2.1.33.1.9.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsConfigOutputVoltage  ',
-            'title' => 'UPS Config Output Voltage RMS Volts'
-          }
-        }
-      },
-      'upsInputNumLines' => {
-        'comment' => 'A list of input table entries.  The number of entries is given by the value of upsInputNumLines.',
-        'headers' => 'index,InputFrequency,InputVoltage,InputCurrent,InputTruePower',
-        'index_oid' => '1.3.6.1.2.1.33.1.3.3.1.2',
-        'index_regex' => '\\.(\\d+)$',
-        'indexed' => 'InputFrequency',
-        'snmp' => {
-          'InputCurrent' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.3.3.1.4',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'InputCurrent',
-            'title' => 'Input Current 0.1 RMS Amp'
-          },
-          'InputFrequency' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.3.3.1.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'InputFrequency',
-            'title' => 'InputFrequency 0.1 Hertz'
-          },
-          'InputTruePower' => {
-            'oid' => '1.3.6.1.2.1.33.1.3.3.1.5',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'InputTruePower',
-            'title' => 'Input True Power 	Watts'
-          },
-          'InputVoltage' => {
-            'oid' => '1.3.6.1.2.1.33.1.3.3.1.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'InputVoltage',
-            'title' => 'Input Voltage RMS Volts'
-          }
-        }
-      },
-      'upsOutputNumLines' => {
-        'comment' => 'A list of Output table entries.  The number of entries is given by the value of upsOutputNumLines.',
-        'headers' => 'index,OutputVoltage,OutputCurrent,OutputPower,OutputPercentLoad',
-        'index_oid' => '1.3.6.1.2.1.33.1.4.4.1.2',
-        'index_regex' => '\\.(\\d+)$',
-        'indexed' => 'OutputFrequency',
-        'snmp' => {
-          'OutputCurrent' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.4.4.1.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'OutputCurrent',
-            'title' => 'Output Current 0.1 RMS Amp'
-          },
-          'OutputPercentLoad' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.4.1.5',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'OutputPercentLoad',
-            'title' => 'Output Percent Load'
-          },
-          'OutputPower' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.4.1.4',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'OutputPower',
-            'title' => 'Output Power 	Watts'
-          },
-          'OutputVoltage' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.4.1.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'OutputVoltage',
-            'title' => 'Output Voltage RMS Volts'
-          }
-        }
-      },
-      'upsOutputSource' => {
-        'headers' => 'index,upsOutputSourceN,upsOutputFrequency,upsOutputNumLines',
-        'index_oid' => '1.3.6.1.2.1.33.1.4.1',
-        'index_regex' => '\\.(\\d+)$',
-        'indexed' => 'upsOutputSourceN',
-        'snmp' => {
-          'upsOutputFrequency' => {
-            'calculate' => '$r * 0.1',
-            'oid' => '1.3.6.1.2.1.33.1.4.2',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsOutputFrequency',
-            'title' => 'UPS Output Frequency 0.1 Hertz'
-          },
-          'upsOutputNumLines' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.3',
-            'replace' => {
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsOutputNumLines',
-            'title' => 'UPS Output Num Lines'
-          },
-          'upsOutputSourceN' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.1',
-            'replace' => {
-              '1' => 'other(1)',
-              '2' => 'none(2)',
-              '3' => 'normal(3)',
-              '4' => 'bypass(4)',
-              '5' => 'battery(5)',
-              '6' => 'booster(6)',
-              '7' => 'reducer(7)',
-              'noSuchInstance' => 'N/A',
-              'noSuchObject' => 'N/A'
-            },
-            'sysObjectName' => 'upsOutputSourceN',
-            'title' => 'UPS Output Source Status'
-          },
-          'upsOutputSourceS' => {
-            'oid' => '1.3.6.1.2.1.33.1.4.1',
-            'sysObjectName' => 'upsOutputSourceS',
-            'title' => 'UPS Output Source'
-          }
-        }
-      }
-    }
-  }
+  },
 );

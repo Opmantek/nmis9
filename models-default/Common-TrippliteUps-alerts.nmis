@@ -38,7 +38,7 @@
         'element' => 'upsOutputSourceN',
         'event' => 'UPS en Modo Bateria',
         'level' => 'Critical',
-        'test' => 'CVAR1=upsOutputSourceS;$CVAR1 == 3', #3:normal-5:battery
+        'test' => 'CVAR1=upsOutputSourceS;$CVAR1 == 5', #3:normal-5:battery
         'type' => 'test',
         #'title' => "Modo bat",
         'value' => 'CVAR1=upsOutputSourceS;int($CVAR1)'
