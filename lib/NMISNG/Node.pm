@@ -2558,7 +2558,8 @@ sub collect_node_info
 					sys     => $S,
 					event   => "Node Reset",
 					details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptime",
-					context => {type => "node"}
+					context => {type => "node"},
+					inventory_id => $catchall_inventory->id
 						);
 
 				# now stash this info in the catchall object, to ensure we insert ONE set of U's into the rrds
@@ -4515,7 +4516,8 @@ sub checkPIX
 					event   => "Node Failover",
 					element => 'PIX',
 					details =>
-					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}"
+					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}",
+					inventory_id => $catchall_inventory->id
 						);
 			}
 		}
@@ -4591,6 +4593,7 @@ sub handle_configuration_changes
 			element => "",
 			details => "Changed at " . NMISNG::Util::convUpTime( $configLastChanged / 100 ),
 			context => {type => "node"},
+			inventory_id => $catchall_inventory->id
 		);
 		$self->nmisng->log->info("checkNodeConfiguration configuration change detected for $S->{name}, creating event");
 	}
@@ -6957,6 +6960,7 @@ sub update
 				Compat::NMIS::notify(sys => $S,
 														 event => "Node Polling Failover",
 														 element => undef,
+														 inventory_id => $catchall_inventory->id,
 														 details => ("SNMP Session switched to backup address \"".
 																				 $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" });
@@ -6969,6 +6973,7 @@ sub update
 																 upevent => "Node Polling Failover Closed", # please log it with this name
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}. '"'));
 			}
@@ -8991,6 +8996,7 @@ sub collect
 														 details => ("SNMP Session switched to backup address \""
 																				 . $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" },
+														 inventory_id => $catchall_inventory->id,
 														 conf => $C );
 			}
 			# or are we using the primary address?
@@ -9001,6 +9007,7 @@ sub collect
 																 upevent => "Node Polling Failover Closed", # please log it thusly
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}.'"'), );
 			}
