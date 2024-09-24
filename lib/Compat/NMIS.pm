@@ -2200,6 +2200,7 @@ sub checkEvent
 									   node_uuid => $args{node_uuid},
 									   event => $args{event},
 									   element => $args{element},
+									   inventory_id => $args{inventory_id},
 									   configuration => {group => $S->nmisng_node()->{'_configuration'}->{'group'}} );
 
 	# only take the missing data from the db, that way our new details/level will
@@ -2281,6 +2282,8 @@ sub notify
 		 $event_obj->level( $level );
 		 $event_obj->details( $details );
 		 $event_obj->context( $args{context} );
+		#  This will put the inventory_id into the event
+		 $event_obj->inventory_id( $inventory_id );
 
 		# get level(if not defined) and log status from Model
 		($level,$log,$syslog) = $event_obj->getLogLevel(sys=>$S);

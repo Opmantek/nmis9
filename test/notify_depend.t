@@ -233,8 +233,9 @@ sub nodeDown {
 
 	print $t->elapTime(). " nodeDown(): Load Some Data\n";
 	my $NI = $S->{info};
+	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 
-	Compat::NMIS::notify(sys=>$S,event=>"Node Down",element=>"",details=>"Ping failed");
+	Compat::NMIS::notify(sys=>$S,event=>"Node Down",element=>"",details=>"Ping failed", inventory_id => $catchall_inventory->id);
 	# call notify twice, make sure we don't get logged twice
 	my $event = $nmisng->events->event( node_uuid => $S->nmisng_node->uuid, event=>"Node Down", element=>"");
 	if( my $error = $event->load() )
@@ -256,8 +257,8 @@ sub nodeUp {
 
 	print $t->elapTime(). " nodeUp(): Load Some Data\n";
 	my $NI = $S->{info};
-
-	my $result = Compat::NMIS::checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
+	my $catchall_inventory = $S->inventory( concept => 'catchall' );
+	my $result = Compat::NMIS::checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed", inventory_id => $catchall_inventory->id);
 	my $event = $nmisng->events->event( node_uuid => $S->nmisng_node->uuid, event=>"Node Down", element=>"");
 	if( my $error = $event->load() )
 	{
