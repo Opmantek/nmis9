@@ -19,10 +19,10 @@ fi
 # enable SNMPv3
 printBanner "Copying custom install files"
 
-execPrint "cp /usr/local/nmis9/custom_install_files/cgi-bin/* /usr/local/nmis9/cgi-bin/"	
+execPrint "cp $TARGETDIR/custom_install_files/cgi-bin/* $TARGETDIR/cgi-bin/"
 echo "copied files to cgi-bin"
-execPrint "cp /usr/local/nmis9/custom_install_files/conf-default/*.nmis /usr/local/nmis9/conf-default/"	
+execPrint "cp $TARGETDIR/custom_install_files/conf-default/*.nmis $TARGETDIR/conf-default/"
 echo "copied files to conf-default"
-execPrint "cp /usr/local/nmis9/custom_install_files/conf-default/plugins/* /usr/local/nmis9/conf-default/plugins/"	
+execPrint "cp $TARGETDIR/custom_install_files/conf-default/plugins/* $TARGETDIR/conf-default/plugins/"
 echo "copied files to conf-default/plugins"
 exit 0
