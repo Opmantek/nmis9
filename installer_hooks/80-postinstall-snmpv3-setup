@@ -57,11 +57,11 @@ fi
 # enable SNMPv3
 printBanner "Patching in SNMPv3 conf files"
 
-execPrint "mkdir -p $targetdir/lib/Net/SNMP/Security/"
+execPrint "mkdir -p $TARGETDIR/lib/Net/SNMP/Security/"
 	echo "Made Security directory"
-execPrint "cp $targetdir/contrib/perl-net-snmp-256/USM.pm /usr/local/nmis9/lib/Net/SNMP/Security/"
+execPrint "cp $TARGETDIR/contrib/perl-net-snmp-256/USM.pm $TARGETDIR/lib/Net/SNMP/Security/"
 	echo "Patched USM.pm"
-execPrint "cp $targetdir/nmis9/contrib/perl-net-snmp-256/Table-Nodes.nmis /usr/local/nmis9/conf/"
+execPrint "cp $TARGETDIR/contrib/perl-net-snmp-256/Table-Nodes.nmis $TARGETDIR/conf/"
 	echo "Copied Table-nodes.nmis into conf Directory"
 
 exit 0
