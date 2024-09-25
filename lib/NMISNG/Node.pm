@@ -8167,8 +8167,8 @@ sub collect_services
 
 				my $nmap = (
 					$scan =~ /^udp$/i
-					? "nmap -sU --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
-					: "nmap -sT --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
+					? "nmap -sU --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
+					: "nmap -sT --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
 						);
 
 				# fork and read from pipe
