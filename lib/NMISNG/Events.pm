@@ -270,19 +270,19 @@ sub get_events_model
 
 	if ($cursor)
 	{
-		@all = $cursor->all;
+		$model_data_object = NMISNG::ModelData->new(
+			nmisng     => $self->nmisng,
+			class_name => 'NMISNG::Event',
+			cursor      => $cursor
+		);
 	}
 	else
 	{
-		return NMISNG::ModelData->new(error => &NMISNG::DB::get_error_string);
+		$model_data_object =  NMISNG::ModelData->new(error => &NMISNG::DB::get_error_string);
 	}
 
 	# create modeldata object with instantiation info from caller
-	return NMISNG::ModelData->new(
-		nmisng     => $self->nmisng,
-		class_name => 'NMISNG::Event',
-		data       => \@all
-	);
+	return $model_data_object;
 }
 
 # write a record for a given event to the event log file
