@@ -40,6 +40,21 @@
 		'small' => 'Mem Usage',
 				
 	},
+	'extras' =>[
+		{
+			'control' => 'CVAR1=hrStorageDescr;$CVAR1 eq "Physical memory"',
+			'standard' => [
+				'DEF:hrMemAvail=$database:hrMemAvail:LAST',
+				'LINE1:hrMemAvail#ff9933: Available Storage',
+				'GPRINT:hrMemAvail:LAST:Available Storage %1.3lf %sbytes\\n',
+			],
+			'small' => [
+				'DEF:hrMemAvail=$database:hrMemAvail:LAST',
+				'LINE1:hrMemAvail#ff9933: Available Storage',
+				'GPRINT:hrMemAvail:LAST:Available Storage %1.3lf %sbytes\\n',
+			]
+		}
+	],
 	'option' => {
 		'standard' => [
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',

@@ -3701,7 +3701,24 @@ sub viewStorage
 	print Tr( th( {class => 'title', colspan => '3'}, "Storage of node $catchall_data->{name}" ) );
 
 	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'storage',
-																								filter => { historic => 0, enabled => 1 } );
+																								filter => { historic => 0, enabled => 1 } );	
+	# create buffer, cached and available data
+	my ($buffers_data,$cached_data,$available_data);
+	my $model_data = $S->nmisng_node->get_inventory_model( concept => 'storage',
+																								filter => { historic => 0, enabled => 1 } );	
+	my $data = $model_data->data;
+	
+	foreach my $entry ( @{$data} )
+	{
+		my $D = $entry->{data};
+		if ($D->{hrStorageDescr} eq 'Cached memory'){
+			$cached_data  = $D->{hrStorageUnits} * $D->{hrStorageUsed};			
+		}
+		elsif($D->{hrStorageDescr} eq 'Memory buffers'){
+			$buffers_data  = $D->{hrStorageUnits} * $D->{hrStorageUsed};	
+		}
+	}
+	
 	foreach my $id ( @$ids )
 	{
 		my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
@@ -3713,6 +3730,12 @@ sub viewStorage
 		my $used  = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 		my $free  = $total - $used;
 
+		# check if available units present in inventory else calculate it.
+			if (defined $D->{hrStorageAvailUnits}){
+				$available_data = $D->{hrStorageUnits} * $D->{hrStorageAvailUnits};
+			}else{
+				$available_data = $free + $cached_data + $buffers_data;
+			}
 		my $util = sprintf( "%.1f%", $used / $total * 100 );
 
 		my $rowSpan = 5;
@@ -3732,7 +3755,8 @@ sub viewStorage
 					node      => $node,
 					intf      => $index,
 					width     => $smallGraphWidth,
-					height    => $smallGraphHeight
+					height    => $smallGraphHeight,
+					inventory => $inventory
 				)
 			)
 		);
@@ -3742,6 +3766,7 @@ sub viewStorage
 		print Tr( td( {class => 'header'}, 'Total' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($total) ) );
 		print Tr( td( {class => 'header'}, 'Used' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($used), "($util)" ) );
 		print Tr( td( {class => 'header'}, 'Free' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($free) ) );
+		print Tr( td( {class => 'header'}, 'Available' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($available_data) ) ) if ($D->{hrStorageDescr} eq "Physical memory");
 		print Tr( td( {class => 'header'}, 'Description' ), td( {class => 'info Plain'}, $D->{hrStorageDescr} ) );
 		print Tr( td( {class => 'header'}, 'Mount Point' ), td( {class => 'info Plain'}, $D->{hrFSRemoteMountPoint} ) )
 			if defined $D->{hrFSRemoteMountPoint};

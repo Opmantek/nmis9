@@ -7499,8 +7499,9 @@ sub collect_server_data
 		my $hrFSMountPoint       = undef;
 		my $hrFSRemoteMountPoint = undef;
 		my $fileSystemTable      = undef;
-
-		foreach my $index ( keys %{$storageIndex} )
+		my ($cached_units, $buffer_units);
+		# sort in decending order so Physical memory with index 1 should always be last (to calculate available units)
+		foreach my $index ( sort { $b <=> $a } keys %{$storageIndex} )
 		{
 			# look for existing data for this as 'fallback'
 			my $oldstorage;
@@ -7615,6 +7616,11 @@ sub collect_server_data
 
 						$S->{reach}{memfree} = $D->{hrMemSize}{value} - $D->{hrMemUsed}{value};
 						$S->{reach}{memused} = $D->{hrMemUsed}{value};
+						# calculate available memory
+						if ($storage_target->{hrStorageDescr} eq 'Physical memory'){
+							$D->{hrMemAvail}{value} = $S->{reach}{memfree} + $cached_units + $buffer_units;
+							$storage_target->{hrStorageAvailUnits} = $D->{hrMemAvail}{value} / $storage_target->{hrStorageUnits};
+						}
 
 						if ( ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) ) )
 						{
@@ -7663,6 +7669,12 @@ sub collect_server_data
 						$D->{$itemname . "Size"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
 						$D->{$itemname . "Used"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
 
+						if ($storage_target->{hrStorageDescr} eq 'Cached memory'){
+							$cached_units  = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};		
+						}
+						elsif($storage_target->{hrStorageDescr} eq 'Memory buffers'){
+							$buffer_units  = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};		
+						}
 						if ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) )
 						{
 							$storage_target->{hrStorageType}         = 'Other Memory';
