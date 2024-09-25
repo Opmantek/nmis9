@@ -51,11 +51,11 @@ foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;}
 #      "priority": 1
 #   },
 return (
-			AuthLdapPrivs => [
-				{ ldap_group => { header => 'LDAP Group',display => 'key,header,text', value => ["specify"] }},
-				{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},				
-				{ groups => { header => 'NMIS Groups',display => 'header,scrolling',value => [ "all", @groups ] }},				
-				{ priority => { header => 'Priority',display => 'header,popup', helptext => 'If user is in more than one group which takes priority', value => [10,9,8,7,6,5,4,3,2,1,0] }}
-			]
+	AuthLdapPrivs => [
+		{ ldap_group => { mandatory => 'true', header => 'LDAP Group',display => 'key,header,text', value => ["specify"], helptext => 'LDAP Group name to match user to' }},
+		{ privilege => { mandatory => 'true', header => 'Privilege',display => 'header,popup', value => [ @privs ], helptext => 'Privilege level users in LDAP group will have' }},
+		{ groups => { mandatory => 'true', header => 'NMIS Groups',display => 'header,scrolling',value => [ "all", @groups ] , helptext => 'NMIS groups users in LDAP group can see'}},
+		{ priority => { mandatory => 'true',  header => 'Priority',display => 'header,popup', helptext => 'Users matching more than one group, higher is more priority entry will be assigned', value => [10,9,8,7,6,5,4,3,2,1] }}
+	]
 );
 
