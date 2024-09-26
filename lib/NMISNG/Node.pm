@@ -2455,7 +2455,7 @@ sub collect_node_info
 
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
-	my $loadsuccess = $S->loadInfo( class => 'system',
+	my $loadsuccess = $S->loadInfo( class => 'system', inventory => $catchall_inventory,
 																	target => $catchall_data );
 
 	# polling policy needs saving regardless of success/failure
@@ -2631,7 +2631,7 @@ sub collect_node_data
 
 	$self->nmisng->log->debug("Starting collect_node_data, node $S->{name}");
 
-	my $rrdData    = $S->getData( class => 'system',
+	my $rrdData    = $S->getData( class => 'system', inventory => $catchall_inventory
 																# fixme9 gone model => $model
 			);
 	my $howdiditgo = $S->status;
@@ -4003,6 +4003,7 @@ sub collect_intf_data
 
 		# returns undef if no good
 		my $rrdData = $S->getData( class => 'interface', index => $index,
+		#TODO: inventory? what is it? 
 				# fixme9: gone											 model => $model
 				);
 		my $howdiditgo =$thisif->{_rrd_status} = $S->status;
@@ -5885,7 +5886,7 @@ sub collect_cbqos_data
 				my $port = "$PIndex.$OIndex";
 
 				my $rrdData
-					= $S->getData( class => $concept, index => $intf, port => $port,
+					= $S->getData( class => $concept, index => $intf, port => $port, inventory => $inventory
 												 # fixme9: gone model => $model
 					);
 				my $howdiditgo = $S->status;
@@ -6142,6 +6143,8 @@ sub handle_custom_alerts
 					$alert->{alert}   = $alrt;                      # the key, good enough
 					$alert->{index}   = $index;
 					$alert->{source} = $CA->{$sect}{$alrt}{source};
+					$alert->{inventory_id} = $inventory->id();
+					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
 					 
 					push( @{$S->{alerts}}, $alert );
 				}
@@ -6170,6 +6173,10 @@ sub process_alerts
 	my $alerts = $S->{alerts};
 	foreach my $alert ( @{$alerts} )
 	{
+		# this function is called several times with the same list! at the end they 
+		# are now marked as processed so we only run through them once
+		next if $alert->{_reserved_has_been_processed} == 1;
+
 		$self->nmisng->log->debug(
 			"Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}"
 		) if $alert->{test_result};
@@ -6179,7 +6186,35 @@ sub process_alerts
 		my $tresult      = $alert->{test_result} ? $alert->{level} : "Normal";
 		my $statusResult = $tresult eq "Normal"  ? "ok"            : "error";
 
+		# default alert setting
 		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		
+		# if there is a custom calculate_details section added, see if we can process it, if we can the result
+		# of that will become the details
+		if( defined($alert->{calculate_details}) && $alert->{calculate_details} && $alert->{inventory_id} ) 
+		{
+			my ( $inventory, $error ) = $self->inventory( _id => $alert->{inventory_id} );
+			if( $inventory && !$error ) {
+				$self->nmisng->log->debug3(sub {"process_alerts evaluating $alert->{calculate_details}"});
+				( my $error, $details ) = $S->eval_string(
+					string  => $alert->{calculate_details},
+					context => $alert->{value},
+					# inventory data available as well as all info in the current alert
+					variables => [$inventory->data(),$alert, { current_details => $details }]
+				);
+				$self->nmisng->log->debug3(sub {"process_alerts result: $details"});
+				if ($error)
+				{					
+					$self->nmisng->log->error("Alert details error, eval_string failed: $error");
+				}
+			} else {
+				$self->nmisng->log->error("Error event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, failed to load inventory: $error");	
+			}
+		} 
+		elsif( defined($alert->{calculate_details}) && $alert->{calculate_details} ) {
+			$self->nmisng->log->info("Alert with custom details does not work because inventory is not supplied, event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}");
+		}
+
 		if ( $alert->{test_result} )
 		{
 			Compat::NMIS::notify(
@@ -6232,7 +6267,7 @@ sub process_alerts
 			inventory_id => $alert->{inventory_id}
 		);
 		my $save_error = $status_obj->save();
-
+		$alert->{_reserved_has_been_processed} = 1;
 		if( $save_error )
 		{
 			$self->log->error("Failed to save status alert object, error:".$save_error);
@@ -7541,7 +7576,8 @@ sub collect_server_data
 			my $wasloadable = $S->loadInfo(
 				class  => 'storage',
 				index  => $index,
-				target => $storage_target
+				target => $storage_target,
+				inventory => $inventory
 			);
 			if ( $wasloadable )
 			{
