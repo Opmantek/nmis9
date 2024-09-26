@@ -3729,13 +3729,12 @@ sub viewStorage
 		my $total = $D->{hrStorageUnits} * $D->{hrStorageSize};
 		my $used  = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 		my $free  = $total - $used;
+		my $available_data;
 
-		# check if available units present in inventory else calculate it.
-			if (defined $D->{hrStorageAvailUnits}){
-				$available_data = $D->{hrStorageUnits} * $D->{hrStorageAvailUnits};
-			}else{
-				$available_data = $free + $cached_data + $buffers_data;
-			}
+		# check if data is availble, it already has units multiplied in
+		if (defined $D->{hrMemAvail}){
+			$available_data = $D->{hrMemAvail};
+		}
 		my $util = sprintf( "%.1f%", $used / $total * 100 );
 
 		my $rowSpan = 5;

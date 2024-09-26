@@ -216,7 +216,7 @@ sub collect_plugin
 				($cached_data->{hrStorageUnits} * $cached_data->{hrStorageUsed}) +
 				($buffers_data->{hrStorageUnits} * $buffers_data->{hrStorageUsed});
 
-			$physical_data->{hrStorageAvailUnits} = $physical_available / $physical_data->{hrStorageUnits};
+			$physical_data->{hrStorageAvail} = $physical_available;
 			$physical_data->{hrStorageAvailable} = NMISNG::Util::getDiskBytes($physical_available);
 			push(@{$physical_data->{hrStorageSummary}}, "Available: $physical_data->{hrStorageAvailable}<br/>");
 		}
@@ -229,8 +229,8 @@ sub collect_plugin
 			if( $save == 1 ) {
 				my $temp;
 				if ($id == $physical_id ){
-					$temp = {'hrStorageAvailUnits' => {
-											'value' => $physical_data->{hrStorageAvailUnits} },
+					$temp = {'hrStorageAvail' => {
+											'value' => $physical_data->{hrStorageAvail} },
 								'hrStorageSize' => {
 											'value' => $data->{hrStorageSize} },
 								'hrStorageUsed' => {

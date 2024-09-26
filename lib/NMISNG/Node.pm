@@ -7681,10 +7681,11 @@ sub collect_server_data
 
 						$S->{reach}{memfree} = $D->{hrMemSize}{value} - $D->{hrMemUsed}{value};
 						$S->{reach}{memused} = $D->{hrMemUsed}{value};
-						# calculate available memory
+						# calculate available memory, don't divide by 0/undef
+						# this mimics what host_resources does hrMemAvail
 						if ($storage_target->{hrStorageDescr} eq 'Physical memory'){
 							$D->{hrMemAvail}{value} = $S->{reach}{memfree} + $cached_units + $buffer_units;
-							$storage_target->{hrStorageAvailUnits} = $D->{hrMemAvail}{value} / $storage_target->{hrStorageUnits};
+							$storage_target->{hrMemAvail} = $D->{hrMemAvail}{value};
 						}
 
 						if ( ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) ) )
