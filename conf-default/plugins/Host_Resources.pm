@@ -228,7 +228,8 @@ sub collect_plugin
 			my $type = $data->{type};  
 			if( $save == 1 ) {
 				my $temp;
-				if ($id == $physical_id ){
+				# id's are strings
+				if ($id eq $physical_id ){
 					$temp = {'hrStorageAvail' => {
 											'value' => $physical_data->{hrStorageAvail} },
 								'hrStorageSize' => {
