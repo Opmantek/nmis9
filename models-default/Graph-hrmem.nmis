@@ -40,25 +40,42 @@
 		'small' => 'Mem Usage',
 				
 	},
+	'extras' =>[
+		{
+			'control' => 'CVAR1=hrStorageDescr;$CVAR1 eq "Physical memory"',
+			'standard' => [
+				'DEF:hrMemAvail=$database:hrMemAvail:AVERAGE',
+				'LINE1:hrMemAvail#ff9933: Available',
+				'GPRINT:hrMemAvail:AVERAGE:Avg %1.3lf %Sb\t',
+				'GPRINT:hrMemAvail:MIN:Min %1.3lf %Sb\n',
+			],
+			'small' => [
+				'DEF:hrMemAvail=$database:hrMemAvail:AVERAGE',
+				'LINE1:hrMemAvail#ff9933: Avail\t',
+				'GPRINT:hrMemAvail:AVERAGE:Avg %1.3lf %Sb\t',
+				'GPRINT:hrMemAvail:MIN:Min %1.3lf %Sb\n',
+			]
+		}
+	],
 	'option' => {
 		'standard' => [
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
 			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
-			'LINE1:hrMemSize#006400: Total Memory',
+			'LINE1:hrMemSize#006400: Total\t',
 			'GPRINT:hrMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrMemUsed#7FFF00: Memory Used',
-			'GPRINT:hrMemUsed:MIN:Min Used %1.3lf %sb',
-			'GPRINT:hrMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\\n'
+			'AREA:hrMemUsed#7FFF00: Used\t',
+			'GPRINT:hrMemUsed:MIN:Min %1.3lf %sb\t',
+			'GPRINT:hrMemUsed:AVERAGE:Avg %1.3lf %Sb\t',
+			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\n'
 		],
 		'small' => [
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
 			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
-			'LINE1:hrMemSize#006400: Total Memory',
+			'LINE1:hrMemSize#006400: Total\t',
 			'GPRINT:hrMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrMemUsed#7FFF00: Memory Used',
-			'GPRINT:hrMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\\n'
+			'AREA:hrMemUsed#7FFF00: Used\t',
+			'GPRINT:hrMemUsed:AVERAGE:Avg %1.3lf %Sb\t',
+			'GPRINT:hrMemUsed:MAX:Max %1.3lf %Sb\\n'
 		]
 	}
 );

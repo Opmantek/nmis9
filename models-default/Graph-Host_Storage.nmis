@@ -42,16 +42,16 @@
 		{
 			'control' => 'CVAR1=hrStorageDescr;$CVAR1 eq "Physical memory"',
 			'standard' => [
-				'DEF:hrStorageAvailUnits=$database:hrStorageAvailUnits:MAX',
-				'CDEF:avail=hrStorageAvailUnits,hrStorageUnits,*',
-				'LINE1:avail#ff9933: Available Storage',
-				'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
+				'DEF:hrStorageAvail=$database:hrStorageAvail:AVERAGE',				
+				'LINE1:hrStorageAvail#ff9933: Available',
+				'GPRINT:hrStorageAvail:AVERAGE:Avg %1.3lf %Sb\t',
+				'GPRINT:hrStorageAvail:MIN:Min %1.3lf %Sb\\n',
 			],
 			'small' => [
-				'DEF:hrStorageAvailUnits=$database:hrStorageAvailUnits:MAX',
-				'CDEF:avail=hrStorageAvailUnits,hrStorageUnits,*',
-				'LINE1:avail#ff9933: Available Storage',
-				'GPRINT:avail:MAX:Available Storage %1.3lf %sbytes\\n',
+				'DEF:hrStorageAvail=$database:hrStorageAvail:AVERAGE',				
+				'LINE1:hrStorageAvail#ff9933: Avail\t',
+				'GPRINT:hrStorageAvail:AVERAGE:Avg %1.3lf %Sb\t',
+				'GPRINT:hrStorageAvail:MIN:Min %1.3lf %Sb\\n',
 			]
 		}
 	],
@@ -65,12 +65,12 @@
 			'CDEF:used=hrStorageUsed,hrStorageUnits,*',
 			'CDEF:size=hrStorageSize,hrStorageUnits,*',
 
-			'LINE1:size#000000: Total Storage',
-			'AREA:used#3277a8: Storage Used',
-			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes',
-			'GPRINT:used:AVERAGE:Average Storage Used %1.3lf %Sbytes',
-			'GPRINT:used:MAX:Maximum Storage Used %1.3lf %Sbytes\n', 
-			'GPRINT:perUsedD:LAST:Current %1.1lf%%',
+			'LINE1:size#000000: Total',			
+			'GPRINT:size:MAX:Storage Size %1.3lf %sb\n',
+			'AREA:used#3277a8: Used\t',
+			'GPRINT:used:AVERAGE:Average %1.3lf %Sb\t',
+			'GPRINT:used:MAX:Maximum %1.3lf %Sb', 
+			'GPRINT:perUsedD:LAST:Percent Current %1.1lf%%',
 			'GPRINT:perUsedD:AVERAGE:Average %1.1lf%%',
 			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',
 		],
@@ -82,11 +82,11 @@
 			'CDEF:used=hrStorageUsed,hrStorageUnits,*',
 			'CDEF:size=hrStorageSize,hrStorageUnits,*',
 
-			'LINE1:size#000000: Total Storage',
-			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes\\n',
-			'AREA:used#3277a8: ',
-			'GPRINT:used:AVERAGE:Avg. Usage %1.2lf %Sbytes',
-			'GPRINT:used:MAX:Max Usage %1.2lf %Sbytes\n', 
+			'LINE1:size#000000: Total\t',
+			'GPRINT:size:MAX:Size %1.3lf %sb\\n',
+			'AREA:used#3277a8: Used\t',
+			'GPRINT:used:AVERAGE:Avg %1.2lf %Sb\t',
+			'GPRINT:used:MAX:Max %1.2lf %Sb\n', 
 		]
 	}
 );
