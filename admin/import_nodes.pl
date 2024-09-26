@@ -72,10 +72,10 @@ nodes to update/create
 
 The sample CSV looks like this:
 --sample--
-name,host,group,roleType,community,netType,activated.NMIS,activated.opConfig
-import_test1,127.0.0.1,Branches,core,nmisGig8,1,1
-import_test2,127.0.0.1,Sales,core,nmisGig8,lan,1,1
-import_test3,127.0.0.1,DataCenter,core,nmisGig8,lan,1,1
+name,host,group,roleType,community,netType,activated.NMIS,activated.opConfig,version,threshold
+import_test1,127.0.0.1,Branches,core,nmisGig8,default,1,1,snmpv2c,true
+import_test2,127.0.0.1,Sales,core,nmisGig8,lan,1,1,snmpv2c,false
+import_test3,127.0.0.1,DataCenter,core,nmisGig8,lan,1,1,snmpv2c,1
 --sample--
 
 \n\n";
@@ -140,14 +140,18 @@ foreach my $node_key (keys %newNodes)
 
     # check required fields
     my $missing = 0;
-    foreach my $key ('host', 'name', 'roleType', 'netType', 'threshold', 'version') {
-        if( $node_entry->{$key} eq '' ) {
-            print STDERR "$node_key field '$key' is blank: '".$node_entry->{$key}."'\n";
+    foreach my $key ('host', 'name', 'roleType', 'netType', 'threshold') {
+        if( !defined($node_entry->{$key}) || $node_entry->{$key} eq '' ) {            
+            print STDERR "$node_key field '$key' is blank\n";
             $missing = 1;
-        }        
+        }
+    }
+    if( (defined($node_entry->{community}) || defined($node_entry->{username})) && !$node_entry->{version} ) {
+        print STDERR "version required if using snmp\n".Dumper($node_entry);
+        $missing = 1;
     }
     die "fix blank fields for $node_key" if($missing);
-    die "Community required" if( $node_entry->{version} eq 'snmpv2c' && $node_entry->{community} eq '');
+    die "Community required if using snmpv2c" if( $node_entry->{version} eq 'snmpv2c' && $node_entry->{community} eq '');
 }
 
 # now process nodes if we're still running
