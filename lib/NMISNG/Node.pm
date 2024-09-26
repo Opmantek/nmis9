@@ -2455,7 +2455,7 @@ sub collect_node_info
 
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
-	my $loadsuccess = $S->loadInfo( class => 'system',
+	my $loadsuccess = $S->loadInfo( class => 'system', inventory => $catchall_inventory,
 																	target => $catchall_data );
 
 	# polling policy needs saving regardless of success/failure
@@ -2558,7 +2558,8 @@ sub collect_node_info
 					sys     => $S,
 					event   => "Node Reset",
 					details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptime",
-					context => {type => "node"}
+					context => {type => "node"},
+					inventory_id => $catchall_inventory->id
 						);
 
 				# now stash this info in the catchall object, to ensure we insert ONE set of U's into the rrds
@@ -2630,7 +2631,7 @@ sub collect_node_data
 
 	$self->nmisng->log->debug("Starting collect_node_data, node $S->{name}");
 
-	my $rrdData    = $S->getData( class => 'system',
+	my $rrdData    = $S->getData( class => 'system', inventory => $catchall_inventory
 																# fixme9 gone model => $model
 			);
 	my $howdiditgo = $S->status;
@@ -2644,10 +2645,7 @@ sub collect_node_data
 		my %subconcepts;
 		
 		$self->process_alerts( sys => $S );
-		my $timed_bulk;
-		if( BULK_TIMED_DATA == 1 ) {
-			$timed_bulk = {};
-		}
+
 		foreach my $section ( keys %{$rrdData} )
 		{
 			$subconcepts{$section} = 1; # Remove non existing subconcepts from catchall
@@ -2697,20 +2695,14 @@ sub collect_node_data
 																	 .", subconcept $section failed: $stats");
 					$stats = {};
 				}
+
 				my $error = $catchall_inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section, node => $self,
-										time => $catchall_data->{last_poll}, delay_insert => 1,
-										bulk => $timed_bulk );
+										time => $catchall_data->{last_poll}, delay_insert => 1 );
 				$self->nmisng->log->error("timed data adding for ". $catchall_inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
 			}		
 		}
 		# NO save on inventory because it's the catchall right now
-
-		# save the timed data though
-		if( $timed_bulk ) {
-			foreach my $bulk (keys %$timed_bulk) {
-				NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
-			}
-		}
+		# no bulking because the save happens at the end for catchall anyway		
 		# Now, update non existent subconcepts/storage from inventory/catchall
 		my $storage = $catchall_inventory->storage();
 			
@@ -3323,9 +3315,10 @@ sub update_intf_info
 					}
 				}
 
-				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off)$/ )
+				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off|other)$/ )
 				{
 					$target->{setlimits} = $thisintfover->{setlimits};
+					$target->{setlimits_percentage} = $thisintfover->{setlimits_percentage};
 				}
 			}
 
@@ -3619,7 +3612,7 @@ sub update_intf_info
 
 			# no limit or dud limit or dud speed or non-collected interface?
 			if (   $desiredlimit
-				&& $desiredlimit =~ /^(normal|strict|off)$/
+				&& $desiredlimit =~ /^(normal|strict|off|other)$/
 				&& $target->{ifSpeed}
 				&& NMISNG::Util::getbool( $target->{collect} ) )
 			{
@@ -3629,10 +3622,16 @@ sub update_intf_info
 						. " ($target->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-				my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
-					: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
-					:                             int( $target->{ifSpeed} / 8 );
+				## if desired limit is other then use the percentage to calculate maxbits.
+				my $maxbytes;
+				if ($desiredlimit eq 'other'){
+					$maxbytes =  ( $target->{ifSpeed} / 8 ) * ($target->{setlimits_percentage} / 100 );
+				}
+				else{
+					$maxbytes = $desiredlimit eq "off"    ? "U"
+						: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
+						:                             int( $target->{ifSpeed} / 8 );
+				}
 				my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 				for (
@@ -3798,7 +3797,11 @@ sub collect_intf_data
 		my $thisindex = $maybeevil->{data}->{ifIndex};
 		if (exists $if_data_map{$thisindex} )
 		{
-			$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex!");
+			if( $if_data_map{$thisindex}->{enabled} || $maybeevil->{enabled} ) {
+				$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex! (One is enabled)");
+			} else {
+				$self->nmisng->log->debug(sub {$self->name.": clashing inventories for interface index $thisindex! Neither are enabled"});
+			}
 			next;
 		}
 
@@ -4000,6 +4003,7 @@ sub collect_intf_data
 
 		# returns undef if no good
 		my $rrdData = $S->getData( class => 'interface', index => $index,
+		#TODO: inventory? what is it? 
 				# fixme9: gone											 model => $model
 				);
 		my $howdiditgo =$thisif->{_rrd_status} = $S->status;
@@ -4180,6 +4184,11 @@ sub collect_intf_data
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
 
+	my $bulk_save;
+	if( BULK_TIMED_DATA == 1 ) {
+		$bulk_save = {};
+	}
+
 	# work on enabled and nonhistoric
 	for my $index (sort grep($if_data_map{$_}->{enabled}
 													 && !$if_data_map{$_}->{historic}, keys %if_data_map))
@@ -4294,10 +4303,6 @@ sub collect_intf_data
 
 		my $previous_pit = $inventory->get_newest_timed_data(); # one needed for the pit updates,
 
-		my $timed_bulk;
-		if( BULK_TIMED_DATA == 1 ) {
-			$timed_bulk = {};
-		}
 		# now walk all rrd data sections and send them off to rrd
 		for my $sectionname (sort keys %{$thisif->{_rrd_data}})
 		{
@@ -4337,8 +4342,7 @@ sub collect_intf_data
 				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																								subconcept => $sectionname,
 																								time => $catchall_data->{last_poll},
-																								delay_insert => 1,
-																								bulk => $timed_bulk );
+																								delay_insert => 1 );
 				$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error")
 						if ($error);
 			}
@@ -4365,10 +4369,18 @@ sub collect_intf_data
 		$inventory->historic(0);
 		$inventory->enabled(1);
 
-		my ($op, $error) = $inventory->save( node => $self );
+		my ($op, $error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 		$self->nmisng->log->error("failed to save inventory for $nodename, interface $inventory_data->{ifDescr}: $error")
 				if ($op <= 0);
 
+	}
+
+	# save the timed data though
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+		}
 	}
 
 	# handle accumulated alerts
@@ -4516,7 +4528,8 @@ sub checkPIX
 					event   => "Node Failover",
 					element => 'PIX',
 					details =>
-					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}"
+					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}",
+					inventory_id => $catchall_inventory->id
 						);
 			}
 		}
@@ -4592,6 +4605,7 @@ sub handle_configuration_changes
 			element => "",
 			details => "Changed at " . NMISNG::Util::convUpTime( $configLastChanged / 100 ),
 			context => {type => "node"},
+			inventory_id => $catchall_inventory->id
 		);
 		$self->nmisng->log->info("checkNodeConfiguration configuration change detected for $S->{name}, creating event");
 	}
@@ -5115,9 +5129,9 @@ sub collect_systemhealth_data
 		? $M->{systemHealth}{sections}
 		: $self->nmisng->config->{model_health_sections} );
 
-	my $timed_bulk;
+	my $bulk_save;
 	if( BULK_TIMED_DATA == 1 ) {
-		$timed_bulk = {};
+		$bulk_save = {};
 	}
 
 	for my $section (@healthSections)
@@ -5178,6 +5192,7 @@ sub collect_systemhealth_data
 				my $result = $S->snmp->get( $oid );
 				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
 				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
 					$port = $index . '.' . $result->{$oid};
 				}
 			}
@@ -5230,7 +5245,7 @@ sub collect_systemhealth_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect, node => $self,
-							time => $catchall_data->{last_poll}, delay_insert => 1, bulk => $timed_bulk );
+							time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
@@ -5238,7 +5253,7 @@ sub collect_systemhealth_data
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
-				$inventory->save( node => $self );
+				$inventory->save( node => $self, bulk_save => $bulk_save );
 			}
 			# this allows us to prevent adding data when it wasn't collected (but not an error)
 			elsif( $howdiditgo->{skipped} ) {}
@@ -5253,9 +5268,10 @@ sub collect_systemhealth_data
 		}
 	}
 	
-	if( $timed_bulk ) {
-		foreach my $bulk (keys %$timed_bulk) {
-			NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
 		}
 	}
 
@@ -5681,7 +5697,7 @@ sub collect_cbqos_info
 			# don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
 			next if ( ref( $if_data_map{$index} ) ne "HASH"
 								or !$if_data->{ifSpeed}
-								or $if_data->{setlimits} !~ /^(normal|strict|off)$/
+								or $if_data->{setlimits} !~ /^(normal|strict|off|other)$/
 								or !NMISNG::Util::getbool( $if_data->{collect} ) );
 
 			my $thisintf     = $if_data;
@@ -5693,10 +5709,16 @@ sub collect_cbqos_info
 				. " ($thisintf->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-			my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
+			## if desired limit is other then use the percentage to calculate maxbits.
+			my $maxbytes;
+			if ($desiredlimit eq 'other'){
+				$maxbytes =  ( $thisintf->{ifSpeed} / 8 ) * ($thisintf->{setlimits_percentage} / 100 );
+			}
+			else{
+				$maxbytes = $desiredlimit eq "off"    ? "U"
 					: $desiredlimit eq "normal" ? int( $thisintf->{ifSpeed} / 4 )
 					:                             int( $thisintf->{ifSpeed} / 8 );
+			}
 			my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 			for my $direction (qw(in out))
@@ -5819,9 +5841,9 @@ sub collect_cbqos_data
 	
 	my $happy;
 
-	my $timed_bulk;
+	my $bulk_save;
 	if( BULK_TIMED_DATA == 1 ) {
-		$timed_bulk = {};
+		$bulk_save = {};
 	}
 	foreach my $direction ( "in", "out" )
 	{
@@ -5864,7 +5886,7 @@ sub collect_cbqos_data
 				my $port = "$PIndex.$OIndex";
 
 				my $rrdData
-					= $S->getData( class => $concept, index => $intf, port => $port,
+					= $S->getData( class => $concept, index => $intf, port => $port, inventory => $inventory
 												 # fixme9: gone model => $model
 					);
 				my $howdiditgo = $S->status;
@@ -5917,8 +5939,7 @@ sub collect_cbqos_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName, node => $self,
-																										time => $catchall_data->{last_poll}, delay_insert => 1,
-																										bulk => $timed_bulk );
+																										time => $catchall_data->{last_poll}, delay_insert => 1);
 						$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
@@ -5934,12 +5955,13 @@ sub collect_cbqos_data
 			}
 			# saving is required bacause create_update_rrd can change inventory, setting data not done because
 			# it's not changed
-			$inventory->save( node => $self );
+			$inventory->save( node => $self, bulk_save => $bulk_save );
 		}
 	}
-	if( $timed_bulk ) {
-		foreach my $bulk (keys %$timed_bulk) {
-			NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
 		}
 	}
 	return $happy? 1 : 0;
@@ -6121,6 +6143,8 @@ sub handle_custom_alerts
 					$alert->{alert}   = $alrt;                      # the key, good enough
 					$alert->{index}   = $index;
 					$alert->{source} = $CA->{$sect}{$alrt}{source};
+					$alert->{inventory_id} = $inventory->id();
+					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
 					 
 					push( @{$S->{alerts}}, $alert );
 				}
@@ -6149,6 +6173,10 @@ sub process_alerts
 	my $alerts = $S->{alerts};
 	foreach my $alert ( @{$alerts} )
 	{
+		# this function is called several times with the same list! at the end they 
+		# are now marked as processed so we only run through them once
+		next if $alert->{_reserved_has_been_processed} == 1;
+
 		$self->nmisng->log->debug(
 			"Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}"
 		) if $alert->{test_result};
@@ -6158,7 +6186,35 @@ sub process_alerts
 		my $tresult      = $alert->{test_result} ? $alert->{level} : "Normal";
 		my $statusResult = $tresult eq "Normal"  ? "ok"            : "error";
 
+		# default alert setting
 		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		
+		# if there is a custom calculate_details section added, see if we can process it, if we can the result
+		# of that will become the details
+		if( defined($alert->{calculate_details}) && $alert->{calculate_details} && $alert->{inventory_id} ) 
+		{
+			my ( $inventory, $error ) = $self->inventory( _id => $alert->{inventory_id} );
+			if( $inventory && !$error ) {
+				$self->nmisng->log->debug3(sub {"process_alerts evaluating $alert->{calculate_details}"});
+				( my $error, $details ) = $S->eval_string(
+					string  => $alert->{calculate_details},
+					context => $alert->{value},
+					# inventory data available as well as all info in the current alert
+					variables => [$inventory->data(),$alert, { current_details => $details }]
+				);
+				$self->nmisng->log->debug3(sub {"process_alerts result: $details"});
+				if ($error)
+				{					
+					$self->nmisng->log->error("Alert details error, eval_string failed: $error");
+				}
+			} else {
+				$self->nmisng->log->error("Error event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, failed to load inventory: $error");	
+			}
+		} 
+		elsif( defined($alert->{calculate_details}) && $alert->{calculate_details} ) {
+			$self->nmisng->log->info("Alert with custom details does not work because inventory is not supplied, event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}");
+		}
+
 		if ( $alert->{test_result} )
 		{
 			Compat::NMIS::notify(
@@ -6211,7 +6267,7 @@ sub process_alerts
 			inventory_id => $alert->{inventory_id}
 		);
 		my $save_error = $status_obj->save();
-
+		$alert->{_reserved_has_been_processed} = 1;
 		if( $save_error )
 		{
 			$self->log->error("Failed to save status alert object, error:".$save_error);
@@ -6823,7 +6879,8 @@ sub update
 	my $name = $self->name;
 	my $updatetimer = Compat::Timing->new;
 	my $C = $self->nmisng->config;
-	my $force = $args{force};
+	my ($force,$starttime) = @args{'force','starttime'};
+	$starttime //= Time::HiRes::time;
 
 	$self->nmisng->log->debug("Starting update, node $name");
 	$0 = "nmisd worker update $name";
@@ -6886,7 +6943,7 @@ sub update
 	my $catchall_data = $catchall_inventory->data_live();
 
 	# record that we are trying an update; last_update records only successfully completed updates...
-	$catchall_data->{last_update_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_update_attempt} = $starttime;
 
 	$self->nmisng->log->debug("node=$name "
 			. join( " ",
@@ -6956,6 +7013,7 @@ sub update
 				Compat::NMIS::notify(sys => $S,
 														 event => "Node Polling Failover",
 														 element => undef,
+														 inventory_id => $catchall_inventory->id,
 														 details => ("SNMP Session switched to backup address \"".
 																				 $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" });
@@ -6968,6 +7026,7 @@ sub update
 																 upevent => "Node Polling Failover Closed", # please log it with this name
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}. '"'));
 			}
@@ -7010,7 +7069,7 @@ sub update
 			{
 				$self->nmisng->log->debug("node is set to collect=false, not collecting any info");
 			}
-			$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{last_update} = $starttime;
 			# we updated something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 		}
@@ -7093,7 +7152,7 @@ sub update
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+																									time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
@@ -7350,9 +7409,9 @@ sub collect_server_data
 		}
 
 		$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
-		my $timed_bulk;
+		my $bulk_save;
 		if( BULK_TIMED_DATA == 1 ) {
-			$timed_bulk = {};
+			$bulk_save = {};
 		}
 		foreach my $index ( keys %{$deviceIndex} )
 		{
@@ -7422,11 +7481,10 @@ sub collect_server_data
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, node => $self,
 																										subconcept => 'hrsmpcpu',
-																										time => $catchall_data->{last_poll}, delay_insert => 1,
-																										bulk => $timed_bulk );
+																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 
-						($op,$error) = $inventory->save( node => $self );
+						($op,$error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 						$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					}
 					$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
@@ -7440,14 +7498,15 @@ sub collect_server_data
 					if($inventory)
 					{
 						$inventory->enabled(0);
-						$inventory->save( node => $self );
+						$inventory->save( node => $self,  bulk_save => $bulk_save );
 					}
 				}
 			}
 		}
-		if( $timed_bulk ) {
-			foreach my $bulk (keys %$timed_bulk) {
-				NMISNG::DB::end_bulk(bulk => $timed_bulk->{$bulk});
+		if( $bulk_save ) {
+			foreach my $bulk_section (keys %$bulk_save) {
+				my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+				$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
 			}
 		}
 
@@ -7494,6 +7553,11 @@ sub collect_server_data
 
 	if ( $M->{storage} ne '' )
 	{
+		my $bulk_save;
+		if( BULK_TIMED_DATA == 1 ) {
+			$bulk_save = {};
+		}
+
 		my $disk_cnt             = 1;
 		my $storageIndex         = $SNMP->getindex('hrStorageIndex');
 		my $hrFSMountPoint       = undef;
@@ -7513,7 +7577,8 @@ sub collect_server_data
 			my $wasloadable = $S->loadInfo(
 				class  => 'storage',
 				index  => $index,
-				target => $storage_target
+				target => $storage_target,
+				inventory => $inventory
 			);
 			if ( $wasloadable )
 			{
@@ -7717,7 +7782,7 @@ sub collect_server_data
 				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
-				($op,$error) = $inventory->save( node => $self );
+				($op,$error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
@@ -7733,6 +7798,13 @@ sub collect_server_data
 				# maybe mark it historic?
 			}
 		}
+		# put it here
+		if( $bulk_save ) {
+			foreach my $bulk_section (keys %$bulk_save) {
+				my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+				$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+			}
+		}		
 	}
 	else
 	{
@@ -8143,8 +8215,8 @@ sub collect_services
 
 				my $nmap = (
 					$scan =~ /^udp$/i
-					? "nmap -sU --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
-					: "nmap -sT --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
+					? "nmap -sU --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
+					: "nmap -sT --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
 						);
 
 				# fork and read from pipe
@@ -8842,7 +8914,8 @@ sub unlock
 sub collect
 {
 	my ($self, %args) = @_;
-	my ($wantsnmp, $wantwmi,$force) = @args{"wantsnmp","wantwmi","force"};
+	my ($wantsnmp,$wantwmi,$force,$starttime) = @args{"wantsnmp","wantwmi","force","starttime"};
+	$starttime //= Time::HiRes::time;
 
 	my $name = $self->name;
 	my $pollTimer = Compat::Timing->new;
@@ -8911,12 +8984,12 @@ sub collect
 	
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
-	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_poll_attempt} = $starttime;
 	if (defined($wantsnmp)) {
-		$catchall_data->{last_poll_snmp_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_snmp_attempt} = $starttime;
 	}
 	if (defined($wantwmi)) {
-		$catchall_data->{last_poll_wmi_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
 	
 	$self->nmisng->log->debug( "node=$name "
@@ -8989,6 +9062,7 @@ sub collect
 														 details => ("SNMP Session switched to backup address \""
 																				 . $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" },
+														 inventory_id => $catchall_inventory->id,
 														 conf => $C );
 			}
 			# or are we using the primary address?
@@ -8999,6 +9073,7 @@ sub collect
 																 upevent => "Node Polling Failover Closed", # please log it thusly
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}.'"'), );
 			}
@@ -9009,7 +9084,7 @@ sub collect
 		# returns 1 if one or more sources have worked,
 		# also updates snmp/wmi down states in nodeinfo/catchall
 		# and sets the relevant last_poll_xyz markers
-		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $args{starttime} // Time::HiRes::time, catchall_inventory => $catchall_inventory );
+		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $starttime, catchall_inventory => $catchall_inventory );
 		my $curstate = $S->status;  # collect_node_info does NOT disable faulty sources!
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply
@@ -9037,8 +9112,8 @@ sub collect
 			}
 			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
-			$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-			$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{collectPollDelta} = $starttime - $previous_poll;
+			$catchall_data->{last_poll} = $starttime;
 			# we polled something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 
@@ -9067,8 +9142,8 @@ sub collect
 	} else {
 		$self->nmisng->log->debug3(sub {"($name) Node not pingable or no collect"});
 		# updating time stamps for last poll, the collect was run even if the node was down.
-		$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-		$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{collectPollDelta} = $starttime;
+		$catchall_data->{last_poll} = $starttime;
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
@@ -9143,8 +9218,9 @@ sub collect
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory, conf => $C );
+	# must use starttime here as last_poll could be bunk
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																					time => $catchall_data->{last_poll}, delay_insert => 1 );
+																					time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;

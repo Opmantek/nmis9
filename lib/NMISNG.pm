@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.5.2-beta1";
+our $VERSION = "9.5.2-beta2";
 
 use strict;
 use Data::Dumper;
@@ -3110,9 +3110,8 @@ sub process_escalations
 	# active flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
 	# we might rename that transition t/f, and have this function handle only the ones with transition true.
 
-	for ( my $i = 0; $i < $inactivemodel->count; $i++ )
+	while( my $event_obj = $inactivemodel->next_object ) 
 	{
-		my $event_obj  = $inactivemodel->object($i);
 		my $event_data = $event_obj->data();           # for easier string printing
 		                                               # if the event is configured for no notify, do nothing
 		my $thisevent_control = $events_config->{$event_obj->event}
@@ -3397,10 +3396,9 @@ sub process_escalations
 
 	# now handle the actual escalations; only events marked-as-current are left now.
 LABEL_ESC:
-	for ( my $i = 0; $i < $activemodel->count; $i++ )
+	
+	while( my $event_obj = $activemodel->next_object ) 
 	{
-		my $event_obj = $activemodel->object($i);
-
 		# we must tell the object it's already loaded or whenever load is called
 		# (which save does call) will clober any changes made before it's called
 		$event_obj->loaded(1);
@@ -3471,7 +3469,7 @@ LABEL_ESC:
 		{
 			my $ifIndex = undef;
 			my $ifDescr = $event_obj->element;
-			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );			
+			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );
 			if( $interface_inventory )
 			{
 				if ( !NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )

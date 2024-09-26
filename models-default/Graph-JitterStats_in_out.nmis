@@ -1,0 +1,33 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'nqa Jitter Stats  In & Out'
+	},
+	'vlabel' => {
+		'standard' => 'nqa Jitter Stats  In & Out'
+	},
+	'option' => {
+		'standard' => [
+		    'DEF:nqaJJitterOut=$database:nqaJJitterOut:AVERAGE',
+		    'LINE2:nqaJJitterOut#0000ff:)Stats Jitter Out\\n',
+    		'GPRINT:nqaJJitterOut:LAST:Current %8.2lf',
+    		'GPRINT:nqaJJitterOut:MIN:Min %8.2lf',
+    		'GPRINT:nqaJJitterOut:MAX:Max %8.2lf\\n',
+
+			'DEF:nqaJJitterIn=$database:nqaJJitterIn:AVERAGE',
+			'LINE2:nqaJJitterIn#ff0000:Stats Jitter In\\n',
+			'GPRINT:nqaJJitterIn:LAST:Current %1.2lf',
+			'GPRINT:nqaJJitterIn:MIN:Min %1.2lf',
+			'GPRINT:nqaJJitterIn:MAX:Max %1.2lf',
+		],
+		'small' => [
+		    'DEF:nqaJJitterOut=$database:nqaJJitterOut:AVERAGE',
+		    'LINE2:nqaJJitterOut#0000ff:Stats Jitter Out\\n',
+    		'GPRINT:nqaJJitterOut:LAST:Current %8.2lf\\n',
+
+			'DEF:nqaJJitterIn=$database:nqaJJitterIn:AVERAGE',
+			'LINE2:nqaJJitterIn#ff0000:Stats Jitter In\\n',
+			'GPRINT:nqaJJitterIn:LAST:Current %1.2lf',
+		]
+	}
+);

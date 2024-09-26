@@ -1,5 +1,5 @@
 #
-## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
+## $Id: Graph-upsvoltout.nmis,v 8.2 2011/08/28 15:11:53 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -30,39 +30,40 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Ups',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node $length'
+		'short' => 'UPS Status'
 	},
 	'vlabel' => {
-		'standard' => '% CPU Util.'
+		'standard' => 'UPS Status'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:hwCpuDevDuty=$database:hwCpuDevDuty:AVERAGE',
-			'DEF:hwAvgDuty1min=$database:hwAvgDuty1min:AVERAGE',
-			'DEF:hwAvgDuty5min=$database:hwAvgDuty5min:AVERAGE',
-			'LINE1:hwCpuDevDuty#00FF00:Cpu Dev Duty',
-			'GPRINT:hwCpuDevDuty:AVERAGE:Avg %1.2lf%%\\n',
-			'LINE1:hwAvgDuty1min#00CED1:Avg Busy 1min',
-			'GPRINT:hwAvgDuty1min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty1min:MAX:Max %1.2lf%%\\n',
-			'LINE1:hwAvgDuty5min#4682B4:Avg Busy 5min',
-			'GPRINT:hwAvgDuty5min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty5min:MAX:Max %1.2lf%%\\n'
+		    'DEF:upsbatstatus=$database:upsbatstatus:AVERAGE',
+		    'LINE2:upsbatstatus#0000ff:UPS Bat Status (1=unknow 2=normal 3=low 4=depleted)\\n',
+    		'GPRINT:upsbatstatus:LAST:Current %8.2lf',
+    		'GPRINT:upsbatstatus:MIN:Min %8.2lf',
+    		'GPRINT:upsbatstatus:MAX:Max %8.2lf\\n',
+
+			'DEF:upsSecondsOnB=$database:upsSecondsOnB:AVERAGE',
+			'LINE2:upsSecondsOnB#ff0000:UPS Seconds On Battery\\n',
+			'GPRINT:upsSecondsOnB:LAST:Current %1.2lf',
+			'GPRINT:upsSecondsOnB:MIN:Min %1.2lf',
+			'GPRINT:upsSecondsOnB:MAX:Max %1.2lf',
 		],
 		'small' => [
-			'DEF:hwCpuDevDuty=$database:hwCpuDevDuty:AVERAGE',
-			'DEF:hwAvgDuty1min=$database:hwAvgDuty1min:AVERAGE',
-			'DEF:hwAvgDuty5min=$database:hwAvgDuty5min:AVERAGE',
-			'LINE1:hwCpuDevDuty#00FF00:Cpu Dev Duty',
-			'GPRINT:hwCpuDevDuty:AVERAGE:Avg %1.2lf%%\\n',
-			'LINE1:hwAvgDuty1min#00CED1:Avg Busy 1min',
-			'GPRINT:hwAvgDuty1min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty1min:MAX:Max %1.2lf%%\\n',
-			'LINE1:hwAvgDuty5min#4682B4:Avg Busy 5min',
-			'GPRINT:hwAvgDuty5min:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hwAvgDuty5min:MAX:Max %1.2lf%%\\n'
+		    'DEF:upsbatstatus=$database:upsbatstatus:AVERAGE',
+		    'LINE2:upsbatstatus#0000ff:UPS Bat Status (1=unknow 2=normal 3=low 4=depleted)\\n',
+    		'GPRINT:upsbatstatus:LAST:Current %8.2lf',
+    		'GPRINT:upsbatstatus:MIN:Min %8.2lf',
+    		'GPRINT:upsbatstatus:MAX:Max %8.2lf\\n',
+
+			'DEF:upsSecondsOnB=$database:upsSecondsOnB:AVERAGE',
+			'LINE2:upsSecondsOnB#ff0000:UPS Seconds On Battery\\n',
+			'GPRINT:upsSecondsOnB:LAST:Current %1.2lf',
+			'GPRINT:upsSecondsOnB:MIN:Min %1.2lf',
+			'GPRINT:upsSecondsOnB:MAX:Max %1.2lf',
 		]
 	}
 );

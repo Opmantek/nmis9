@@ -124,6 +124,13 @@
         }
       }
     },
+    'Aruba' => {
+      'order' => {
+        '10' => {
+          'Default-HC' => 'Aruba'
+        }
+      }
+    },
     'Ascend Communications Inc.' => {
       'order' => {
         '10' => {
@@ -308,19 +315,39 @@
     },
     'HUAWEI Technology Co.,Ltd' => {
       'order' => {
+
+        '2' => {
+          'HuaweiGlobal' => 'AR651|AR650|AR161|AR160|ATN 905-S|Huawei Versatile Routing Platform|Hardware management system|USG6500E|V600R007C20SPC300|S5735|L24T4X|AR3260|AR3200|AR2220E|AR6121|AR2220|AR6140|USG6600|AR2200|AR2240|AR1220|AC6605|AR611W|AR610|AR8000|AR8140|AR6280|AR6300|NE20E|S5700|S5720|S5735'
+        },
+        # '5' => {
+        #   'HuaweiRouterAR651' => 'AR611W|AR650|AR651|USG6600|AR6121|AR6140|AR2220|AR1220|NE20E'
+        # },
+
+        # '7' => {
+        #   'HuaweiRouterUSG6500E' => 'USG6500E'
+        # },
+
+        # '8' => {
+        #   'HuaweiSwitches' => 'S5700|S5720|S5735'
+        # },
+
         '10' => {
           'Huawei-MA5600' => 'Huawei Integrated Access Software'
         },
-        '20' => {
+        '50' => {
           'Huawei-NetEngine' => 'Huawei Versatile Routing Platform'
         },
-        '30' => {
-          'HuaweiRouter' => 'AR2220|AR1220'
-        },
-        '50' => {
-          'HuaweiRouterAR2240-uses-common' => 'AR2240'
-          #'HuaweiRouterAR2240' => 'AR2240'
-        },
+       #  '30' => {
+       #    'HuaweiRouter' => 'AR2220|AR1220'
+       #  },
+       # '20' => {
+       #    'HuaweiRouterAR2240' => 'AR2240|AR6280'
+       #  },
+
+       #  '21' => {
+       #    'HuaweiAR6300' => 'AR6300'
+       #  },
+
         '99' => {
           'Default-HC' => '.'
         }
@@ -606,6 +633,11 @@
     },
     'TELDAT, S.A.' => {
       'order' => {
+
+        '9' => {
+          'Teldat' => 'M1|ATLAS360|ATLAS260|ATLAS150|ATLAS60|TV BASE|i60|i70|RS123|iM8|M8-Smart'
+        },
+
         '11' => {
           'Teldat150' => 'ATLAS150'
         },
@@ -641,6 +673,16 @@
       'order' => {
         '10' => {
           'Trango' => 'Apex Lynx-2.0.1'
+        }
+      }
+    },
+    'Tripp Lite' => {
+      'order' => {
+        '10' => {
+          'TRIPPLITE-UPSv2' => 'Ubuntu 16.04|Ubuntu 18.04'
+         },
+        '20' => {
+          'POWERALERT-Tripp' => 'POWERALERT'
         }
       }
     },
@@ -758,7 +800,7 @@
           'Mitel3000' => 'VerSw:1'
         }
       }
-    },  
+    },
     'Dell Computer Corporation' => {
       'order' => { 
         '10' => {
@@ -771,7 +813,7 @@
           'sdeDell' => '',
         },
       }
-    },
+    }
   },
   'stats' => {
     'type' => {

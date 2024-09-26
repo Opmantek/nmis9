@@ -1,0 +1,26 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Memory Status'
+	},
+	'vlabel' => {
+		'standard' => 'Memory Status'
+	},
+	'option' => {
+		'standard' => [
+		    'DEF:memoryStatus=$database:memoryStatus:AVERAGE',
+		    'LINE2:memoryStatus#0000ff:Memory Status',
+    		'GPRINT:memoryStatus:LAST:Current %8.2lf',
+    		'GPRINT:memoryStatus:MIN:Min %8.2lf',
+    		'GPRINT:memoryStatus:MAX:Max %8.2lf\\n',
+		    'COMMENT:1=OK 2=Minor 3= Major 4=Critical 5=absence 6=unknown\\n',
+		],
+		'small' => [
+		    'DEF:memoryStatus=$database:memoryStatus:AVERAGE',
+		    'LINE2:memoryStatus#0000ff:Memory Status',
+    		'GPRINT:memoryStatus:LAST:Current %8.2lf\\n',
+ 		    'COMMENT:1=OK 2=Minor 3= Major 4=Critical 5=absence 6=unknown\\n',
+
+		]
+	}
+);
