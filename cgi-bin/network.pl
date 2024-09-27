@@ -3724,7 +3724,7 @@ sub viewStorage
 		my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
 		my $D         = $inventory->data();
 		my $graphtype = $D->{hrStorageGraph};
-		my $index     = $D->{hrStorageIndex};
+		my $index     = $D->{hrStorageIndex} // $D->{index};
 
 		my $total = $D->{hrStorageUnits} * $D->{hrStorageSize};
 		my $used  = $D->{hrStorageUnits} * $D->{hrStorageUsed};
