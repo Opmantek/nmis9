@@ -7683,7 +7683,7 @@ sub collect_server_data
 						$S->{reach}{memused} = $D->{hrMemUsed}{value};
 						# calculate available memory, don't divide by 0/undef
 						# this mimics what host_resources does hrMemAvail
-						if ($storage_target->{hrStorageDescr} eq 'Physical memory'){
+						if ($storage_target->{hrStorageDescr} eq 'Physical memory' && defined($cached_units) && defined($buffer_units)){
 							$D->{hrMemAvail}{value} = $S->{reach}{memfree} + $cached_units + $buffer_units;
 							$storage_target->{hrMemAvail} = $D->{hrMemAvail}{value};
 						}

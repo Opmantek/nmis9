@@ -38,23 +38,24 @@
 	'vlabel' => {
 		'standard' => 'Storage Usage'
 	},
-	'extras' =>[
-		{
-			'control' => 'CVAR1=hrStorageDescr;$CVAR1 eq "Physical memory"',
-			'standard' => [
-				'DEF:hrStorageAvail=$database:hrStorageAvail:AVERAGE',				
-				'LINE1:hrStorageAvail#ff9933: Available',
-				'GPRINT:hrStorageAvail:AVERAGE:Avg %1.3lf %Sb\t',
-				'GPRINT:hrStorageAvail:MIN:Min %1.3lf %Sb\\n',
-			],
-			'small' => [
-				'DEF:hrStorageAvail=$database:hrStorageAvail:AVERAGE',				
-				'LINE1:hrStorageAvail#ff9933: Avail\t',
-				'GPRINT:hrStorageAvail:AVERAGE:Avg %1.3lf %Sb\t',
-				'GPRINT:hrStorageAvail:MIN:Min %1.3lf %Sb\\n',
-			]
-		}
-	],
+# disabled, see plugin longer explanation, writing to RRD twice makes the value wrong
+#	'extras' =>[
+#		{
+#			'control' => 'CVAR1=hrStorageDescr;$CVAR1 eq "Physical memory"',
+#			'standard' => [
+#				'DEF:hrStorageAvail=$database:hrStorageAvail:AVERAGE',
+#				'LINE1:hrStorageAvail#ff9933: Available',
+#				'GPRINT:hrStorageAvail:AVERAGE:Avg %1.3lf %Sb\t',
+#				'GPRINT:hrStorageAvail:MIN:Min %1.3lf %Sb\\n',
+#			],
+#			'small' => [
+#				'DEF:hrStorageAvail=$database:hrStorageAvail:AVERAGE',
+#				'LINE1:hrStorageAvail#ff9933: Avail\t',
+#				'GPRINT:hrStorageAvail:AVERAGE:Avg %1.3lf %Sb\t',
+#				'GPRINT:hrStorageAvail:MIN:Min %1.3lf %Sb\\n',
+#			]
+#		}
+#	],
 	'option' => {
 		'standard' => [
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',

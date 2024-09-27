@@ -77,13 +77,14 @@ sub collect_plugin
 	# for saving all the types of memory we want to use
 	my $Host_Memory;
 
-	my ($buffers_data,$cached_data,$physical_data,$physical_id);
+	my $physical_id;
 	my $save = 0;
 	my $inventories = {};
 	# look through each of the different types of memory for cache and buffer
+
 	while( my $host_inventory = $model_data->next_object() )
 	{
-		my $host_id = $host_inventory->id();		
+		my $host_id = $host_inventory->id()->value;
 
 		$changesweremade = 1;
 		my $data = $host_inventory->data();
@@ -106,19 +107,15 @@ sub collect_plugin
 			if ( $data->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
 				$typeName = "Memory";
 				$type = "physical";
-				$physical_data = $data;
 				$physical_id = $host_id;
-
 			}
 			elsif ( $data->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
 				$typeName = "Memory";
 				$type = "cached";
-				$cached_data = $data;
 			}
 			elsif ( $data->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
 				$typeName = "Memory";
 				$type = "buffers";
-				$buffers_data = $data;
 			}
 			elsif ( $data->{hrStorageDescr} =~ /Virtual memory/ ) {
 				$typeName = "Memory";
@@ -208,44 +205,59 @@ sub collect_plugin
 			}			
 			$inventories->{$host_id} = { inventory => $host_inventory, data => $data };
 		}
-					
-		# calculate available and add it to physical		
-		if (defined $physical_data && ref($physical_data) eq 'HASH'){
-			# Free  + cached + buffers, which aligns with free -m better than used - cached - buffers
-			my $physical_available = (($physical_data->{hrStorageSize} - $physical_data->{hrStorageUsed}) * $physical_data->{hrStorageUnits}) + 
-				($cached_data->{hrStorageUnits} * $cached_data->{hrStorageUsed}) +
-				($buffers_data->{hrStorageUnits} * $buffers_data->{hrStorageUsed});
 
-			$physical_data->{hrStorageAvail} = $physical_available;
-			$physical_data->{hrStorageAvailable} = NMISNG::Util::getDiskBytes($physical_available);
-			push(@{$physical_data->{hrStorageSummary}}, "Available: $physical_data->{hrStorageAvailable}<br/>");
+		# Mimic what is in Node::collect_server_data to calculate "avialable memory"
+		# calculate available and add it to physical		
+		# $D->{hrMemSize}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
+		# $D->{hrMemUsed}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
+		# $S->{reach}{memfree} = $D->{hrMemSize}{value} - $D->{hrMemUsed}{value};
+		# $cached_units  = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
+		# $buffer_units  = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
+		# $D->{hrMemAvail}{value} = $S->{reach}{memfree} + $cached_units + $buffer_units;
+
+		my $physical_available;
+		if ( ref($Host_Memory) eq "HASH" ) {
+			my $memsize = $Host_Memory->{physical_units} * $Host_Memory->{physical_total};
+			my $memused = $Host_Memory->{physical_units} * $Host_Memory->{physical_used};
+			my $memfree = $memsize - $memused;
+			my $cached_units = $Host_Memory->{cached_used} * $Host_Memory->{cached_units};
+			my $buffer_units = $Host_Memory->{buffers_used} * $Host_Memory->{buffers_units};
+			$physical_available = $memfree + $cached_units + $buffer_units;
+			$NG->log->debug(sub { "physical_available:$physical_available"});
 		}
-		
+
 		foreach my $id (keys %$inventories) {
 			my $host_inventory = $inventories->{$id}{inventory};
 			my $data = $inventories->{$id}{data};			
-		            my $typeName = $data->{typeName};
+			my $typeName = $data->{typeName};
 			my $type = $data->{type};  
 			if( $save == 1 ) {
 				my $temp;
-				# id's are strings
-				if ($id eq $physical_id ){
-					$temp = {'hrStorageAvail' => {
-											'value' => $physical_data->{hrStorageAvail} },
-								'hrStorageSize' => {
-											'value' => $data->{hrStorageSize} },
-								'hrStorageUsed' => {
-											'value' => $data->{hrStorageUsed} },
-								'hrStorageUnits' => {
-											'value' => $data->{hrStorageUnits} }										
-								};
-					my $db = $S->create_update_rrd( data => $temp,
-													type   => "Host_Storage",
-													index  => $data->{index},
-													inventory => $host_inventory );					
+				
+				# if we've got the physical memory and we have data for it
+				if ($id eq $physical_id && defined($physical_available) ){
+					$data->{hrStorageAvail} = $physical_available;
+					$data->{hrStorageAvailable} = NMISNG::Util::getDiskBytes($physical_available);
+					$NG->log->debug(sub { "hrStorageAvail:$data->{hrStorageAvail}"});
+					$NG->log->debug(sub { "hrStorageAvailable:$data->{hrStorageAvailable}"});
+					push(@{$data->{hrStorageSummary}}, "Available: $data->{hrStorageAvailable}<br/>");
+					$temp = {
+						'hrStorageAvail' => { 'value' => $data->{hrStorageAvail} },
+						'hrStorageSize' => { 'value' => $data->{hrStorageSize} },
+						'hrStorageUsed' => { 'value' => $data->{hrStorageUsed} },
+						'hrStorageUnits' => { 'value' => $data->{hrStorageUnits} }
+					};
+					# Don't update rrd for now, it's not working properly, I think it's because we write with no value
+					# and then write with a value and it's averaging the values out, if this has to be done we will have
+					# to modify the system to only write to rrd once
+					# my $db = $S->create_update_rrd( data => $temp,
+					# 	type   => "Host_Storage",
+					# 	index  => $data->{index},
+					# 	inventory => $host_inventory 
+					# );
 				}
 				
-	                # Save the data
+				# Save the data
 				$data->{hrStorageSummary} = join(" ",@{$data->{hrStorageSummary}});
 	            $host_inventory->data($data); # set changed info
 	            (undef,$error) = $host_inventory->save( node => $node ); # and save to the db
@@ -254,6 +266,7 @@ sub collect_plugin
 		}
 	} # Foreach
 	if ( ref($Host_Memory) eq "HASH" ) {
+		
 		# lets calculate the available memory
 		# https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/5/html/tuning_and_optimizing_red_hat_enterprise_linux_for_oracle_9i_and_10g_databases/chap-oracle_9i_and_10g_tuning_guide-memory_usage_and_page_cache
 		# So available total is the physical memory total
