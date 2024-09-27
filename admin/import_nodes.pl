@@ -266,10 +266,10 @@ foreach my $node (keys %newNodes)
         }
 
         # these have to be set to something if blank
-        $curactivated->{NMIS} = 1 && $logger->info("$node setting activated.NMIS to 1") if ( not defined $curactivated->{NMIS} );
-        $curconfig->{active} = "true" && $logger->info("$node setting active true") if ( not defined $curconfig->{active} );
-        $curconfig->{collect} = "true" && $logger->info("$node setting collect true") if ( not defined $curconfig->{collect} );
-        $curconfig->{ping} = "true" && $logger->info("$node setting ping true") if ( not defined $curconfig->{ping} );
+        if ( not defined $curactivated->{NMIS} ) {$curactivated->{NMIS} = 1; $logger->info("$node setting activated.NMIS to 1") }
+        if ( not defined $curconfig->{active} ) { $curconfig->{active} = "true"; $logger->info("$node setting active true"); }
+        if ( not defined $curconfig->{collect} ) { $curconfig->{collect} = "true"; $logger->info("$node setting collect true"); }
+        if ( not defined $curconfig->{ping} ) { $curconfig->{ping} = "true"; $logger->info("$node setting ping true"); }
     }
     if (!$anythingtodo) {
         $logger->error("No changes for node \"$node\"!");
