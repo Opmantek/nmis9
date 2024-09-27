@@ -21,10 +21,11 @@ printBanner "Copying custom install files"
 
 execPrint "cp $TARGETDIR/custom_install_files/cgi-bin/* $TARGETDIR/cgi-bin/"
 echo "copied files to cgi-bin"
-execPrint "cp $TARGETDIR/custom_install_files/conf/*.nmis $TARGETDIR/conf/"
-echo "copied files to conf"
 execPrint "cp $TARGETDIR/custom_install_files/conf-default/*.nmis $TARGETDIR/conf-default/"
 echo "copied files to conf-default"
 execPrint "cp $TARGETDIR/custom_install_files/conf-default/plugins/* $TARGETDIR/conf-default/plugins/"
 echo "copied files to conf-default/plugins"
+
+printBanner "Patching existing NMIS config with new conf-default Config"
+execPrint "$TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf/Config.nmis"
 exit 0
