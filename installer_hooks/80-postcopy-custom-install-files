@@ -25,6 +25,9 @@ execPrint "cp $TARGETDIR/custom_install_files/conf-default/*.nmis $TARGETDIR/con
 echo "copied files to conf-default"
 execPrint "cp $TARGETDIR/custom_install_files/conf-default/plugins/* $TARGETDIR/conf-default/plugins/"
 echo "copied files to conf-default/plugins"
+execPrint "cp $TARGETDIR/custom_install_files/admin/* $TARGETDIR/admin/"
+echo "copied files to admin"
+
 
 printBanner "Patching existing NMIS config with new conf-default Config"
 execPrint "$TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf/Config.nmis"
