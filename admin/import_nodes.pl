@@ -270,6 +270,7 @@ foreach my $node (keys %newNodes)
         if ( not defined $curconfig->{active} ) { $curconfig->{active} = "true"; $logger->info("$node setting active true"); }
         if ( not defined $curconfig->{collect} ) { $curconfig->{collect} = "true"; $logger->info("$node setting collect true"); }
         if ( not defined $curconfig->{ping} ) { $curconfig->{ping} = "true"; $logger->info("$node setting ping true"); }
+        if ( not defined $curconfig->{model} || $curconfig->{model} eq '' ) { $curconfig->{model} = "automatic"; $logger->info("$node setting model automatic"); }
     }
     if (!$anythingtodo) {
         $logger->error("No changes for node \"$node\"!");
