@@ -617,6 +617,8 @@ sub typeGraph
 	print hidden(-name=>'p_end', -default=>"$p_end",-override=>'1');
 	print hidden(-name=>'p_time', -default=>"$time",-override=>'1');
 	print hidden(-name=>'act', -default=>"network_graph_view", -override=>'1');
+	## add intf if exist 
+	print hidden(-name=>'intf', -default=>$inventory->data->{'index'}, -override=>'1') if ($inventory->data->{'index'});
 
 	print "</form>", comment("typeGraph end");
 	print end_html;
