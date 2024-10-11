@@ -57,6 +57,7 @@
 	],
 	'option' => {
 		'standard' => [
+			'--base','1024',
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
 			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
 			'DEF:hrStorageUnits=$database:hrStorageUnits:MAX',
@@ -75,6 +76,7 @@
 			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',
 		],
 		'small' => [
+			'--base','1024',
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
 			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
 			'DEF:hrStorageUnits=$database:hrStorageUnits:MAX',

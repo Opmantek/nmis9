@@ -42,6 +42,7 @@
 	},
 	'option' => {
 		'standard' => [
+			'--base','1024',
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
 			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
 			'LINE1:hrMemSize#006400: Total Memory',
@@ -52,6 +53,7 @@
 			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		],
 		'small' => [
+			'--base','1024',
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
 			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
 			'LINE1:hrMemSize#006400: Total Memory',
