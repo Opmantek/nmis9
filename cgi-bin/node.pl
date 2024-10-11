@@ -368,6 +368,7 @@ sub typeGraph
 	# primary form part - if we want the url to have the params then we need to use GET
 	# and tell cgi explicitely to use the appropriate encoding type...
 
+	my $inventory = $S->inventory( concept => $concept, index => $index );
 	print start_form(-method => 'GET', -enctype => "application/x-www-form-urlencoded",
 									 -name=>"dograph", -action=>url(-absolute=>1)),
 	start_table();
@@ -437,6 +438,9 @@ sub typeGraph
 																												-values=>['',sort $S->getTypeInstances(section => "service")],
 																												-default=>"$index",
 																												-onChange=>'this.form.submit()');
+												}
+												elsif($inventory->data->{index}){			
+													return hidden(-name=>'intf', -default=>$inventory->data->{index},-override=>'1');
 												}
 												 }),
 											# Fast select graphtype buttons
@@ -534,7 +538,6 @@ sub typeGraph
 	}
 
 	my @output;
-	my $inventory = $S->inventory( concept => $concept, index => $index );
 	# check if database selectable with this info
 	if ( ($S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,
 												suppress_errors=>'true', inventory=>$inventory))
@@ -617,8 +620,6 @@ sub typeGraph
 	print hidden(-name=>'p_end', -default=>"$p_end",-override=>'1');
 	print hidden(-name=>'p_time', -default=>"$time",-override=>'1');
 	print hidden(-name=>'act', -default=>"network_graph_view", -override=>'1');
-	## add intf if exist 
-	print hidden(-name=>'intf', -default=>$inventory->data->{'index'}, -override=>'1') if ($inventory->data->{'index'});
 
 	print "</form>", comment("typeGraph end");
 	print end_html;
