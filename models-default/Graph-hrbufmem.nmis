@@ -38,6 +38,7 @@
 	},
 	'option' => {
 		'standard' => [
+			'--lower-limit','0',
 			'DEF:hrBufMemSize=$database:hrBufMemSize:AVERAGE',
 			'DEF:hrBufMemUsed=$database:hrBufMemUsed:AVERAGE',
 			'LINE1:hrBufMemSize#006400: Total Memory',
@@ -48,6 +49,7 @@
 			'GPRINT:hrBufMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		],
 		'small' => [
+			'--lower-limit','0',
 			'DEF:hrBufMemSize=$database:hrBufMemSize:AVERAGE',
 			'DEF:hrBufMemUsed=$database:hrBufMemUsed:AVERAGE',
 			'LINE1:hrBufMemSize#006400: Total Memory',

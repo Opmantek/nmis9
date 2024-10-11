@@ -40,6 +40,8 @@
 	},
 	'option' => {
 		'standard' => [
+			'--lower-limit','0',
+			'--upper-limit','100',
 			'DEF:hrDiskSize=$database:hrDiskSize:MAX',
 			'DEF:hrDiskUsed=$database:hrDiskUsed:MAX',
 			'CDEF:perUsedD=hrDiskUsed,hrDiskSize,/,100,*',
@@ -52,6 +54,8 @@
 			'GPRINT:hrDiskUsed:MAX:Maximum Disk Used %1.3lf %Sbytes\n' 
 		],
 		'small' => [
+			'--lower-limit','0',
+			'--upper-limit','100',
 			'DEF:hrDiskSize=$database:hrDiskSize:MAX',
 			'DEF:hrDiskUsed=$database:hrDiskUsed:MAX',
 			'CDEF:perUsedD=hrDiskUsed,hrDiskSize,/,100,*',

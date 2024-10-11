@@ -41,6 +41,7 @@
 	},
 	'option' => {
 		'standard' => [
+			'--lower-limit','0',
 			'DEF:hrVMemSize=$database:hrVMemSize:AVERAGE',
 			'DEF:hrVMemUsed=$database:hrVMemUsed:AVERAGE',
 			'LINE1:hrVMemSize#006400: Total Virtual Memory',
@@ -51,6 +52,7 @@
 			'GPRINT:hrVMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		],
 		'small' => [
+			'--lower-limit','0',
 			'DEF:hrVMemSize=$database:hrVMemSize:AVERAGE',
 			'DEF:hrVMemUsed=$database:hrVMemUsed:AVERAGE',
 			'LINE1:hrVMemSize#006400: Total Virt. Memory',
