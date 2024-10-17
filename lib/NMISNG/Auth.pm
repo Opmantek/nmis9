@@ -2468,8 +2468,8 @@ sub _get_ldap_privs
 	# Read mapping file
 	# Mapping using NMIS table system instead of  auth_ldap_privs file
 	# NMIS will try conf then conf-default
-	# y $ldap_mapping_file = $ldap_config->{auth_ldap_privs_file};
-	my $usergroups =  NMISNG::Util::loadTable(dir=>'conf',name=>"AuthLdapPrivs");
+	my $ldap_mapping_file = $ldap_config->{auth_ldap_privs_file};
+	my $usergroups =  NMISNG::Util::loadTable(dir=>'conf',name=> $ldap_mapping_file);
 	if( $usergroups && ref($usergroups) eq 'HASH' ) {		
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, ldap_mapping_file AuthLdapPrivs found and read.") if ($self->{debug});
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Mapped User groups Dump: " . Dumper($usergroups)) if ($self->{debug});
@@ -2479,37 +2479,54 @@ sub _get_ldap_privs
 		return 0;
 	}
 
+	my $usergroups_lc;
+	foreach my $key (keys %{$usergroups})
+	{
+		$usergroups_lc->{lc($key)} = $usergroups->{$key};
+	}
+
 	my %matches;
 	my $numMatch = 0;
 	my $chosen;
 	# Match mapping groups with an LDAP group
-	foreach my $group (@list_member) {
-		if ($usergroups->{$group}) {
-			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Privilege '".$usergroups->{$group}->{privilege}."' for '$group' found") if ($self->{debug});
-			$matches{$group}->{privilege} = $usergroups->{$group}->{privilege};
-			$matches{$group}->{groups} = $usergroups->{$group}->{groups};
-			$matches{$group}->{priority} = $usergroups->{$group}->{priority};
+	NMISNG::Util::logAuth("Auth::get_ldap_privs, Checking users: '$user' groups, list_members: " . join(", ", @list_member)) if ($self->{debug});
+	foreach my $group (@list_member) 
+	{
+		$group = lc($group);
+		NMISNG::Util::logAuth("Auth::get_ldap_privs, Checking group '$group' for '$user'") if ($self->{debug});
+		if (exists $usergroups_lc->{$group})
+		{
+			NMISNG::Util::logAuth("Auth::get_ldap_privs, Privilege '".$usergroups_lc->{$group}->{privilege}."' for '$group' found") if ($self->{debug});
+			$matches{$group}->{privilege} = $usergroups_lc->{$group}->{privilege};
+			# just in case they come in as an array, this system likes comma seperated
+			if( ref($usergroups_lc->{$group}->{groups}) eq 'ARRAY') {
+				$usergroups_lc->{$group}->{groups} = join(",", @{$usergroups_lc->{$group}->{groups}});
+			}
+			$matches{$group}->{groups} = $usergroups_lc->{$group}->{groups};
+			$matches{$group}->{priority} = $usergroups_lc->{$group}->{priority};
 			$numMatch++;
 			$chosen = $matches{$group};
-			#return ($priv, $g);
-		} else {
-			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Group '$group' was not found in the list of NMIS groups.") if ($self->{debug});
+
+		} 
+		else
+		{
+			NMISNG::Util::logAuth("Auth::get_ldap_privs, Group '$group' was not found in the list of OMK groups.");
 		}
 	}
 
-	# We choose the group based on the priority
-	if ($numMatch == 1) {
-		return ($chosen->{privilege}, $chosen->{groups});
-	} elsif ($numMatch > 1) {
-		foreach my $match ( keys %matches) {
-			if ($matches{$match}->{priority} < $chosen->{priority}) {
-					$chosen = $matches{$match};
-			}
-		}
-		return ($chosen->{privilege}, $chosen->{groups});
-	} else {
-		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, No matching groups found for '$user'!");
-	}
+	 if ($numMatch == 1){
+        return ($chosen->{privilege}, $chosen->{groups});
+    } elsif ($numMatch > 1) {
+        foreach my $match (keys %matches) {
+            if ($matches{$match}->{priority} < $chosen->{priority}) {
+                $chosen = $matches{$match};
+            }
+        }
+        return ($chosen->{privilege}, $chosen->{groups});
+    } else {
+        NMISNG::Util::logAuth("Auth::get_ldap_privs, No matching groups found for '$user'!");
+        return 0;
+    }
 	return 0;
 }
 
@@ -2527,7 +2544,7 @@ sub configure_ldap {
 	my $auth_ldaps_verify = $self->{config}->{'auth_ldaps_verify'} // "optional";
 	my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
 	my $auth_ldap_privs   = $self->{config}->{'auth_ldap_privs'};
-    # my $auth_ldap_privs_file = $self->{config}->{'auth_ldap_privs_file'} // "AuthLdapPrivs";
+    my $auth_ldap_privs_file = $self->{config}->{'auth_ldap_privs_file'} // "AuthLdapPrivs";
 
 	if ( $self->{auth} eq "ms-ldap" or $self->{auth} eq "ms-ldaps") {
 		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Honoring legacy ActiveDirectory settings.") if ($self->{debug});
@@ -2558,7 +2575,7 @@ sub configure_ldap {
         auth_ldap_debug      => $auth_ldap_debug,
         auth_ldap_group      => $auth_ldap_group,
         auth_ldap_privs      => $auth_ldap_privs,
-        # auth_ldap_privs_file => $auth_ldap_privs_file,
+        auth_ldap_privs_file => $auth_ldap_privs_file,
         auth_ldap_psw        => $auth_ldap_psw,
         auth_ldap_server     => $auth_ldap_server,
         auth_ldaps_server    => $auth_ldaps_server,

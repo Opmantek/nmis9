@@ -149,7 +149,7 @@
     'Table' => 'ifTypes'
   },
   'AuthLdapPrivs' => {
-    'CaseSensitiveKey' => 'true',
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Mapping LDAP groups to NMIS Auth',
     'DisplayName' => 'LDAP Group Mapping',
     'Table' => 'AuthLdapPrivs'
