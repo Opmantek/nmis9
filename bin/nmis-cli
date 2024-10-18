@@ -670,12 +670,12 @@ elsif ($Q->{act} =~ /^(delete[_-]schedule|abort)$/)
 		}
 		my $jobs = $nmisng->get_queue_model(%queryargs);
 		my $count = $jobs->count;
-		print("Working on ALL count: $count \n)");
+		print("Working on ALL count: $count \n");
 		if (my $fault = $jobs->error)
 		{
 			die "Failed to lookup schedule: $fault\n";
 		}
-		@todo = map { $_->{_id}->{value} } (@{$jobs->data()});
+		@todo = map { $_->{_id}->value } (@{$jobs->data()});
 	}
 	elsif ($Q->{id})
 	{
