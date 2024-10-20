@@ -1348,7 +1348,8 @@ sub ensure_indexes
 				[{expire_at      => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 				[{"node_uuid"    => 1}, {unique => 0}],
 				[{"configuration.group"    => 1}, {unique => 0}],
-				[{"time"    => -1}, {unique => 0}]
+				[{"time"    => -1}, {unique => 0}],
+				[["lastupdate" => 1], {unique => 0}]
 			]
 	);
 	$self->log->error("index setup failed for inventory: $err") if ($err);
@@ -1363,8 +1364,9 @@ sub ensure_indexes
 												# as aliases.alias and addresses.address
 												# (for the semi-dynamic dns alias and address info)
 												[ [ "aliases.alias" => 1 ] ],
-												[ [ "addresses.address" => 1 ] ], ],
-				);
+												[ [ "addresses.address" => 1 ] ],
+												[["lastupdate" => 1], {unique => 0}],
+				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
 	
 	# opstatus collection 
@@ -1426,6 +1428,7 @@ sub ensure_indexes
 				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
 				[[cluster_id => 1, lastupdate => 1], {unique => 0}],
 				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+				[["lastupdate" => 1], {unique => 0}]
 			]
 	);
 	$self->log->error("index setup failed for nodes: $err") if ($err);
