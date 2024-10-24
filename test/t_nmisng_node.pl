@@ -96,8 +96,12 @@ $node->configuration( {host => "1.2.3.4",
 											 group => "somegroup",
 											 netType => "default",
 											 roleType => "default",
-											threshold => 1, } );
+											threshold => 1 } );
 is( $node->_dirty,   1, "New node some config set is dirty" );
+cmp_deeply( [$node->validate], [-8,'model must not be empty, use automatic'], "New node with no model value is not valid" );
+my $configuration = $node->configuration();
+$configuration->{model} = 'automatic';
+$node->configuration( $configuration );
 cmp_deeply( [$node->validate], [1,undef], "New node with name is valid" )
 		or diag("validate returned: ".Dumper($node->validate));
 cmp_deeply( [$node->save], [1, undef], "Node name is valid, so saved with insert" );
@@ -105,13 +109,16 @@ is( $node->_dirty, 0, "New node that is saved is not dirty" );
 is( $node->is_new, 0, "New node that is saved is no longer new" );
 
 # now force an update instead of insert
-my $configuration = $node->configuration();
+$configuration = $node->configuration();
 $configuration->{host} = 'localhost';
+$configuration->{model} = ''; #empty model should be changed to automatic on save when node is updated
 $node->configuration($configuration);
 is( $node->_dirty,   1, "node some config set is dirty" );
 cmp_deeply( [$node->validate], [1,undef], "node with name is valid" );
 cmp_deeply( [$node->save], [2, undef], "Node is valid, so saved with update" );
 is( $node->_dirty, 0, "node updated config isn't dirty" );
+$configuration = $node->configuration();
+is( $configuration->{model}, 'automatic', "Node model is set to automatic when value is empty and node is updated");	
 
 # create a nonexistent node, but with args that indicate that it SHOULD be pre-existing
 my $nonex = NMISNG::Node->new(uuid => NMISNG::Util::getUUID,
@@ -235,7 +242,8 @@ $numb->configuration({host => "2.3.4.5",
 											group => "somegroup",
 											netType => "default",
 											roleType => "default",
-											threshold => 1, });
+											threshold => 1,
+											model => 'automatic' });
 cmp_deeply([$numb->save], [1, undef], "numeric name'd node saved ok");
 
 

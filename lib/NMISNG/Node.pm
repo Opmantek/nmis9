@@ -1564,7 +1564,17 @@ sub save
 	foreach my $prop_name (@prop_strings){
 		if( defined($entry{configuration}{$prop_name}) && $entry{configuration}{$prop_name} =~ /^[0-9]+$/ ) { 
 			$entry{configuration}{$prop_name} = NMISNG::DB::make_string( $entry{configuration}{$prop_name} );
-		}		
+		}
+	}
+	# Threshold not defined, set to true by default
+	# this was moved from validate
+	if (!defined($entry{configuration}{threshold})) {
+		$entry{configuration}{threshold} = 1;
+		$self->nmisng->log->info("Threshold not defined. Setting to true by default");
+	}
+	# is this is an update model could be empty, in that case make it automatic
+	if( !$self->is_new && $entry{configuration}{model} eq '' ) {
+		$entry{configuration}{model} = 'automatic';
 	}
 
 	if ($self->is_new())
@@ -1714,6 +1724,8 @@ sub uuid
 
 # returns (1,nothing) if the node configuration is valid,
 # (negative or 0, explanation) otherwise
+# NOTE: don't change node config here, not the place for it
+#  and if you must make sure to save it back to the node
 sub validate
 {
 	my ($self) = @_;
@@ -1745,11 +1757,11 @@ sub validate
 	return (-3, "given roleType '".$configuration->{roleType}."' is not a known type: '".$self->nmisng->config->{roletype_list}."'")
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
-	
-	# Threshold not defined, set to true by default
-	if (!defined($configuration->{threshold})) {
-		$configuration->{threshold} = 1;
-		$self->nmisng->log->info("Threshold not defined. Setting to true by default");
+		
+	# empty model makes problems. setting values in validate does not seem correct but
+	# threshold is already being modified..
+	if( $self->is_new && $configuration->{model} eq '' ) {	
+		return (-8,"model must not be empty, use automatic");
 	}
 
 	# if addresses/aliases are present, they must be arrays of hashes, each hash with correct
