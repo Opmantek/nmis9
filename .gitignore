@@ -19,3 +19,5 @@ Vagrantfile
 *.swo
 install.log
 .vscode
+omk
+

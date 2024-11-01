@@ -2,6 +2,8 @@
 
 set -e
 
+NMIS_HOME=/usr/local/nmis9
+
 # shellcheck disable=SC1091
 source /etc/profile
 
@@ -17,15 +19,7 @@ setup() {
     fi
   done
 
-  #boostrap config items
-  for f in users.dat Config.nmis
-  do
-    file="${NMIS_HOME}"/conf/"${f}"
-    [[ -f "${file}" ]] || cp "${NMIS_HOME}"/conf-default/"${f}" "${NMIS_HOME}"/conf/"${f}"
-  done
-
   # fake a couple of aseets dirs for mojo
-
  ln -s "${NMIS_HOME}"/menu "${NMIS_HOME}"/assets/menu9 || echo "Could not symlink menu9 dir"
  ln -s "${NMIS_HOME}"/htdocs/cache "${NMIS_HOME}"/htdocs/nmis9/cache || echo "Could not symlink cache dir"
 
@@ -48,15 +42,37 @@ setup() {
 nmis_frontend() {
     set -m
       /usr/local/nmis9/bin/nmisd foreground=1 debug=1 &
-      /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080"
-    fg %1
+      /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080" &
 }
 
+setup_db() {
+#make sure we set up
+	yes '' | /usr/local/omk/bin/setup_mongodb.exe
+}
+
+start_apps() {
+#start services up
+    services=("omkd" "opchartsd" "opeventsd" "opconfigd")
+
+    for service in "${services[@]}"; do
+        echo "Starting $service daemon..."
+        service $service start
+        if [ $? -eq 0 ]; then
+            echo "$service service started successfully."
+        else
+            echo "Failed to start $service service."
+        fi
+    done
+}
 
 run() {
   setup
+  setup_db
   nmis_frontend
+  start_apps
 
+#tail omkd out to keep alive, or anything rlly
+  tail -f /usr/local/omk/log/omkd_out.log
 }
 
 run "$@"
