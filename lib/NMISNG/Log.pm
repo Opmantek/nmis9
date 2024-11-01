@@ -346,8 +346,6 @@ sub change_level
 # filename is basename'd, functions have their main:: removed
 sub trace
 {
-	my (%args) = @_;
-
 	# look at up to 10 frames
 	my @frames;
 	for my $i (0..10) # 0 is this function but we need the line nr for frame 1

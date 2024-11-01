@@ -316,6 +316,8 @@
           'hrStorageUnits' => {
             'oid' => 'hrStorageAllocationUnits'
           },
+           'hrStorageAvail' => {
+          },
           'hrStorageSize' => {
             'oid' => 'hrStorageSize'
           },

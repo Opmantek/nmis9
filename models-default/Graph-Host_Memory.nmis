@@ -42,6 +42,7 @@
 	},
 	'option' => {
 		'standard' => [
+			'--base','1024',
 			'DEF:physical_total=$database:physical_total:AVERAGE',
 			'DEF:available_used=$database:available_used:AVERAGE',
 			'DEF:physical_used=$database:physical_used:AVERAGE',
@@ -94,6 +95,7 @@
 			'GPRINT:total_physical:AVERAGE:%1.3lf %sb\\n',
 		],
 		'small' => [
+			'--base','1024',
 			'DEF:physical_total=$database:physical_total:AVERAGE',
 			'DEF:available_used=$database:available_used:AVERAGE',
 			'DEF:physical_used=$database:physical_used:AVERAGE',

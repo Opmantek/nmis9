@@ -42,6 +42,7 @@
 	},
 	'option' => {
 		'standard' => [
+			'--lower-limit','0',
 			'DEF:hrSwapMemSize=$database:hrSwapMemSize:AVERAGE',
 			'DEF:hrSwapMemUsed=$database:hrSwapMemUsed:AVERAGE',
 			'LINE1:hrSwapMemSize#8B0000: Total Swap Space',
@@ -52,6 +53,7 @@
 			'GPRINT:hrSwapMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		],
 		'small' => [
+			'--lower-limit','0',
 			'DEF:hrSwapMemSize=$database:hrSwapMemSize:AVERAGE',
 			'DEF:hrSwapMemUsed=$database:hrSwapMemUsed:AVERAGE',
 			'LINE1:hrSwapMemSize#8B0000: Total Memory',

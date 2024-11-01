@@ -297,7 +297,6 @@ my %hash = (
 	'auth_ldap_debug' => 'false',
 	'auth_ldap_group' => 'memberOf',
 	'auth_ldap_privs' => 1,
-	'auth_ldap_privs_file' => '<nmis_conf_default>/AuthLdapPrivs.json',
 	'auth_ldap_psw' => 'XXXXXXXXX',
 	'auth_ldap_server' => '192.168.1.5:389',
 	'auth_ldaps_capath' => '',

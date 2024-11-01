@@ -93,6 +93,7 @@ $node->configuration( { host => "1.2.3.4",
 												netType => "default",
 												roleType => "default",
 												threshold => 1,
+												model => 'automatic'
 											} );
 my ($op,$error) = $node->save();
 

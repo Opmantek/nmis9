@@ -64,6 +64,12 @@ use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
 use JSON::XS;
 use CGI::Session;
 
+# these two lines fix an error with perl 5.30.0 and cgi::session
+# which end up creating this error: Undefined subroutine utf8::SWASHNEW called at /usr/share/perl5/Unicode/Stringprep.pm line 169.
+use utf8;
+BEGIN { eval { utf8->import; require 'utf8_heavy.pl' }; }
+
+
 # You MUST set config's auth_web_key so that cookies are unique for your site. this fallback key is NOT safe for internet-facing sites!
 my $CHOCOLATE_CHIP = '5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv';
 
@@ -2281,12 +2287,12 @@ sub _get_ldap_privs
 
 	my $ldap_config = $self->configure_ldap($self);
 	
-    if ((!$ldap_config->{auth_ldaps_server} or $ldap_config->{auth_ldaps_server} eq "") and (!$ldap_config->{auth_ldaps_server} or $ldap_config->{auth_ldaps_server} eq "")) {
+     if ((!$ldap_config->{auth_ldaps_server}) and (!$ldap_config->{auth_ldap_server})) {
         NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, called but not configured");
 		return 0;
     }
 
-    if (defined $ldap_config->{auth_ldaps_server}) {
+    if ( !$ldap_config->{auth_ldaps_server} eq "") {
         $sec = 1;
     }
 
@@ -2315,7 +2321,7 @@ sub _get_ldap_privs
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Attempting to create a secure connection for 'auth_ldaps_server' ($ldapServer)") if ($self->{debug});
 		$ldap = new Net::LDAPS($ldapServer);
 	} else {
-		my $ldapServer = $ldap_config->{auth_ldaps_server};
+		my $ldapServer = $ldap_config->{auth_ldap_server};
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Attempting to create a connection for 'auth_ldap_server' ($ldapServer')") if ($self->{debug});
 		$ldap = new Net::LDAP($ldapServer);
 	}
@@ -2327,12 +2333,12 @@ sub _get_ldap_privs
 	# LDAP authentication
     my $mesg;
     my $success = 0;
-	$mesg = $ldap->bind ( $ldap_config->{auth_ldap_acc}, password => NMISNG::Util::decrypt($ldap_config->{auth_ldap_psw}), version => 3);
+	$mesg = $ldap->bind ($ldap_config->{auth_ldap_acc}, password => $ldap_config->{auth_ldap_psw});
 	# if full debugging dumps are requested, put it in a separate log file
 	if ($ldap_config->{auth_ldap_debug})
 	{
 		open(F, ">>", $self->{config}->{'<nmis_logs>'}."/auth-ldap-debug.log");
-		print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->bind($ldap_config->{auth_ldap_acc}, password=>**************, version => 3)\n";
+		print F NMISNG::Util::returnDateStamp() . ": " . "\$ldap->bind($ldap_config->{auth_ldap_acc}, password=>**************)\n";
 		print F NMISNG::Util::returnDateStamp() . ": " . Dumper($mesg) ."\n";
 		close(F);
 	}
@@ -2426,7 +2432,7 @@ sub _get_ldap_privs
 			#NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search RESULT:\n" . Dumper($result) . "\n") if ($self->{debug});
 			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, LDAP Search ERROR:\n" . $result->error . "\n") if ($self->{debug});
 			if (!$result or !$result->{entries}) {
-				$self->{log}->error("Auth::_get_ldap_privs, No groups for $user. ". $result->{errorMessage});
+				NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, No groups for $user. ". $result->{errorMessage});
 				return 0;
 			}
 			# Result processing, second try.
@@ -2464,56 +2470,68 @@ sub _get_ldap_privs
 	
     NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Groups for '$user' are: " . join(", ", @{list_member})) if ($self->{debug});
 
-	my $usergroups;
+	
 	# Read mapping file
-	# Mapping using auth_ldap_privs file
-	# Mapping file name
-	my $ldap_mapping_file = $ldap_config->{auth_ldap_privs_file};
-	NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Searching for ldap_mapping_file '$ldap_mapping_file'.") if ($self->{debug});
-	if (! -f $ldap_mapping_file) {
-		$ldap_mapping_file = $self->{config}->{'<nmis_conf>'} . "/AuthLdapPrivs.json";
-	}
-	if (-f $ldap_mapping_file) {
-		$usergroups = NMISNG::Util::readFiletoHash( file => $ldap_mapping_file, json => 1);
-		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, ldap_mapping_file '$ldap_mapping_file' found and read.") if ($self->{debug});
+	# Mapping using NMIS table system instead of  auth_ldap_privs file
+	# NMIS will try conf then conf-default
+	my $usergroups =  NMISNG::Util::loadTable(dir=>'conf',name=> "AuthLdapPrivs");
+	if( $usergroups && ref($usergroups) eq 'HASH' ) {		
+		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, ldap_mapping_file AuthLdapPrivs found and read.") if ($self->{debug});
 		NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Mapped User groups Dump: " . Dumper($usergroups)) if ($self->{debug});
 		eval { NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Mapped User Groups are: " . join(", ", @{keys %{$usergroups}})) if ($self->{debug}); };
 	} else {
-		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, cannot read '$ldap_mapping_file': $!");
+		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, cannot read Table AuthLdapPrivs: $usergroups");
 		return 0;
+	}
+
+	my $usergroups_lc;
+	foreach my $key (keys %{$usergroups})
+	{
+		$usergroups_lc->{lc($key)} = $usergroups->{$key};
 	}
 
 	my %matches;
 	my $numMatch = 0;
 	my $chosen;
 	# Match mapping groups with an LDAP group
-	foreach my $group (@list_member) {
-		if ($usergroups->{$group}) {
-			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Privilege '".$usergroups->{$group}->{privilege}."' for '$group' found") if ($self->{debug});
-			$matches{$group}->{privilege} = $usergroups->{$group}->{privilege};
-			$matches{$group}->{groups} = $usergroups->{$group}->{groups};
-			$matches{$group}->{priority} = $usergroups->{$group}->{priority};
+	NMISNG::Util::logAuth("Auth::get_ldap_privs, Checking users: '$user' groups, list_members: " . join(", ", @list_member)) if ($self->{debug});
+	foreach my $group (@list_member) 
+	{
+		$group = lc($group);
+		NMISNG::Util::logAuth("Auth::get_ldap_privs, Checking group '$group' for '$user'") if ($self->{debug});
+		if (exists $usergroups_lc->{$group})
+		{
+			NMISNG::Util::logAuth("Auth::get_ldap_privs, Privilege '".$usergroups_lc->{$group}->{privilege}."' for '$group' found") if ($self->{debug});
+			$matches{$group}->{privilege} = $usergroups_lc->{$group}->{privilege};
+			# just in case they come in as an array, this system likes comma seperated
+			if( ref($usergroups_lc->{$group}->{groups}) eq 'ARRAY') {
+				$usergroups_lc->{$group}->{groups} = join(",", @{$usergroups_lc->{$group}->{groups}});
+			}
+			$matches{$group}->{groups} = $usergroups_lc->{$group}->{groups};
+			$matches{$group}->{priority} = $usergroups_lc->{$group}->{priority};
 			$numMatch++;
 			$chosen = $matches{$group};
-			#return ($priv, $g);
-		} else {
-			NMISNG::Util::logAuth("DEBUG Auth::_get_ldap_privs, Group '$group' was not found in the list of NMIS groups.") if ($self->{debug});
+
+		} 
+		else
+		{
+			NMISNG::Util::logAuth("Auth::get_ldap_privs, Group '$group' was not found in the list of OMK groups.");
 		}
 	}
 
-	# We choose the group based on the priority
-	if ($numMatch == 1) {
-		return ($chosen->{privilege}, $chosen->{groups});
-	} elsif ($numMatch > 1) {
-		foreach my $match ( keys %matches) {
-			if ($matches{$match}->{priority} < $chosen->{priority}) {
-					$chosen = $matches{$match};
-			}
-		}
-		return ($chosen->{privilege}, $chosen->{groups});
-	} else {
-		NMISNG::Util::logAuth("ERROR Auth::_get_ldap_privs, No matching groups found for '$user'!");
-	}
+	 if ($numMatch == 1){
+        return ($chosen->{privilege}, $chosen->{groups});
+    } elsif ($numMatch > 1) {
+        foreach my $match (keys %matches) {
+            if ($matches{$match}->{priority} < $chosen->{priority}) {
+                $chosen = $matches{$match};
+            }
+        }
+        return ($chosen->{privilege}, $chosen->{groups});
+    } else {
+        NMISNG::Util::logAuth("Auth::get_ldap_privs, No matching groups found for '$user'!");
+        return 0;
+    }
 	return 0;
 }
 
@@ -2524,14 +2542,13 @@ sub configure_ldap {
 	my $auth_ldap_acc     = $self->{config}->{'auth_ldap_acc'};
 	my $auth_ldap_attr    = $self->{config}->{'auth_ldap_attr'};
 	my $auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ldap_debug'});
-	my $auth_ldap_psw     = NMISNG::Util::decrypt($self->{config}->{auth_ldap_psw}, 'authentication', 'auth_ldap_psw');
+	my $auth_ldap_psw     = $self->{config}->{auth_ldap_psw};
 	my $auth_ldap_server  = $self->{config}->{'auth_ldap_server'};
 	my $auth_ldaps_capath = $self->{config}->{'auth_ldaps_capath'};
 	my $auth_ldaps_server = $self->{config}->{'auth_ldaps_server'};
 	my $auth_ldaps_verify = $self->{config}->{'auth_ldaps_verify'} // "optional";
-	 my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
-	   my $auth_ldap_privs     = $self->{config}->{'auth_ldap_privs'};
-    my $auth_ldap_privs_file = $self->{config}->{'auth_ldap_privs_file'} // $self->{config}->{'<nmis_conf>'} . "/AuthLdapPrivs.json";
+	my $auth_ldap_group   = $self->{config}->{'auth_ldap_group'};
+	my $auth_ldap_privs   = $self->{config}->{'auth_ldap_privs'};
 
 	if ( $self->{auth} eq "ms-ldap" or $self->{auth} eq "ms-ldaps") {
 		NMISNG::Util::logAuth("Auth::_ldap_verify, INFO: Honoring legacy ActiveDirectory settings.") if ($self->{debug});
@@ -2544,7 +2561,7 @@ sub configure_ldap {
 			$auth_ldap_base = $self->{config}->{'auth_ms_ldap_base'} // $self->{config}->{'auth_ms_ldap_context'};
 		}
 		if (defined ($self->{config}->{'auth_ms_ldap_psw'}) || defined ($self->{config}->{'auth_ms_ldap_dn_psw'})){
-			$auth_ldap_psw = NMISNG::Util::decrypt($self->{config}->{auth_ms_ldap_psw}, 'authentication', 'auth_ms_ldap_psw') // $self->{config}->{'auth_ms_ldap_dn_psw'};
+			$auth_ldap_psw = $self->{config}->{'auth_ms_ldap_psw'} // $self->{config}->{'auth_ms_ldap_dn_psw'};
 		}
 		$auth_ldap_debug   = NMISNG::Util::getbool($self->{config}->{'auth_ms_ldap_debug'}) if ($self->{config}->{'auth_ms_ldap_debug'});
 		$auth_ldap_server  = $self->{config}->{'auth_ms_ldap_server'} if ($self->{config}->{'auth_ms_ldap_server'});
@@ -2562,7 +2579,6 @@ sub configure_ldap {
         auth_ldap_debug      => $auth_ldap_debug,
         auth_ldap_group      => $auth_ldap_group,
         auth_ldap_privs      => $auth_ldap_privs,
-        auth_ldap_privs_file => $auth_ldap_privs_file,
         auth_ldap_psw        => $auth_ldap_psw,
         auth_ldap_server     => $auth_ldap_server,
         auth_ldaps_server    => $auth_ldaps_server,

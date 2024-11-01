@@ -1,0 +1,66 @@
+%hash = (
+	'heading' => 'UPS Battery Detail',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'UPS Battery Detail'
+	},
+	'vlabel' => {
+		'standard' => 'UPS Battery Detail'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:UpsBDVoltage=$database:UpsBDVoltage:AVERAGE',
+			'LINE1:UpsBDVoltage#0000ff:Ups Battery Detail Voltage 0.1 Volt DC',
+			'GPRINT:UpsBDVoltage:LAST:Current %1.2lf',
+			'GPRINT:UpsBDVoltage:MIN:Min %1.2lf',
+			'GPRINT:UpsBDVoltage:MAX:Max %1.2lf\\n',
+
+			'DEF:UpsBDCurrent=$database:UpsBDCurrent:AVERAGE',
+			'LINE1:UpsBDCurrent#00ff00:Ups Battery Detail Current 0.1 Amp DC',
+			'GPRINT:UpsBDCurrent:LAST:Current %1.2lf',
+			'GPRINT:UpsBDCurrent:MIN:Min %1.2lf',
+			'GPRINT:UpsBDCurrent:MAX:Max %1.2lf\\n',
+
+			'DEF:UpsBDCapacity=$database:UpsBDCapacity:AVERAGE',
+			'LINE1:UpsBDCapacity#ff0000:Ups Battery Detail Capacity percent',
+			'GPRINT:UpsBDCapacity:LAST:Current %1.2lf',
+			'GPRINT:UpsBDCapacity:MIN:Min %1.2lf',
+			'GPRINT:UpsBDCapacity:MAX:Max %1.2lf\\n',
+
+			'DEF:UpsBDCharge=$database:UpsBDCharge:AVERAGE',
+			'LINE1:UpsBDCharge#fff000:Ups Battery Detail Charge',
+			'GPRINT:UpsBDCharge:LAST:Current %1.2lf',
+			'GPRINT:UpsBDCharge:MIN:Min %1.2lf',
+			'GPRINT:UpsBDCharge:MAX:Max %1.2lf\\n',
+
+			'DEF:UpsBDChargerStatus=$database:UpsBDChargerStatus:AVERAGE',
+			'LINE1:UpsBDChargerStatus#fff000:Ups Battery Detail Charger Status',
+			'GPRINT:UpsBDChargerStatus:LAST:Current %1.2lf',
+			'GPRINT:UpsBDChargerStatus:MIN:Min %1.2lf',
+			'GPRINT:UpsBDChargerStatus:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+			'DEF:UpsBDVoltage=$database:UpsBDVoltage:AVERAGE',
+			'LINE1:UpsBDVoltage#0000ff:Battery Detail Voltage 0.1 Volt DC',
+			'GPRINT:UpsBDVoltage:LAST:Current %1.2lf\\n',
+
+			'DEF:UpsBDCurrent=$database:UpsBDCurrent:AVERAGE',
+			'LINE1:UpsBDCurrent#00ff00:Battery Detail Current 0.1 Amp DC',
+			'GPRINT:UpsBDCurrent:LAST:Current %1.2lf\\n',
+
+
+			'DEF:UpsBDCapacity=$database:UpsBDCapacity:AVERAGE',
+			'LINE1:UpsBDCapacity#ff0000:Battery Detail Capacity percent',
+			'GPRINT:UpsBDCapacity:LAST:Current %1.2lf\\n',
+
+			'DEF:UpsBDCharge=$database:UpsBDCharge:AVERAGE',
+			'LINE1:UpsBDCharge#fff000:Battery Detail Charge',
+			'GPRINT:UpsBDCharge:LAST:Current %1.2lf\\n',
+
+			'DEF:UpsBDChargerStatus=$database:UpsBDChargerStatus:AVERAGE',
+			'LINE1:UpsBDChargerStatus#ff8605:Battery Detail Charger Status',
+			'GPRINT:UpsBDChargerStatus:LAST:Current %1.2lf\\n',
+		]
+	}
+);
+

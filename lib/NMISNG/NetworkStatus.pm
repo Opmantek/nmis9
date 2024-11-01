@@ -510,11 +510,17 @@ sub getGroupSummary {
 		foreach my $entry (@$node_data)
 		{
 			my $node = $entry->{name};
+			next if( $node eq 'global' );
+	
 			++$nodecount{counttotal};
 			my $outage = '';
 			$summaryHash{$node} = $entry;
 
 			my $nodeobj = $self->nmisng->node(uuid => $entry->{uuid}); # much safer than by node name
+			if( !$nodeobj ) {
+				$self->log->error("getGroupSummary: failed to get node obj for $entry->{name} uuid $entry->{uuid}");
+				next;
+			}
 
 			# check nodes
 			# Carefull logic here, if nodedown is false then the node is up

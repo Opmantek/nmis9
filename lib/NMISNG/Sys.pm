@@ -480,7 +480,9 @@ sub init
 		# now: specific model, update yes, collect yes -> set manual model, we don't care about
 		# ping, collect being true or false doesn't really matter but setting a specific model
 		# for no collect means specific model collect does not get set
-		elsif ( $thisnodeconfig->{model} ne "automatic" and $self->{update} )
+		# model eq '' is treated by node as automatic, it is no longer allowed but still needs
+		# to be handled
+		elsif ( $thisnodeconfig->{model} ne "automatic" and $thisnodeconfig->{model} ne "" and $self->{update} )
 		{
 			$loadthis = "Model-$thisnodeconfig->{model}";
 		}
@@ -504,7 +506,7 @@ sub init
 		$self->nmisng->log->debug("loading model $loadthis for node $self->{name}");
 	}
 	
-	# model loading failures are terminal
+	# model loading failures are terminal	
 	return 0 if ( !$self->loadModel( model => $loadthis ) );
 
 	# if a policy is given, override the database timing part of the model data
@@ -873,6 +875,7 @@ sub loadInfo
 	my $dmodel    = $args{model};             # if separate model printfs are wanted
 
 	my $target = $args{target};
+	my $inventory = $args{inventory};
 	if ( !$target )
 	{
 		$self->{error} = "loadInfo failed for $self->{name}: target not provided!";
@@ -885,7 +888,8 @@ sub loadInfo
 		class   => $self->{mdl}{$class}{sys},
 		section => $section,
 		index   => $index,
-		port    => $port
+		port    => $port,
+		inventory => $inventory
 	);
 	$self->{wmi_error}  = $status->{wmi_error};
 	$self->{snmp_error} = $status->{snmp_error};
@@ -982,9 +986,10 @@ sub loadNodeInfo
 	my %args = @_;
 
 	my $C = NMISNG::Util::loadConfTable();
-	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $self->inventory( concept => 'catchall' );
+	my $catchall_data = $catchall_inventory->data_live();
 
-	my $exit = $self->loadInfo( class => 'system', target => $catchall_data );    # sets status
+	my $exit = $self->loadInfo( class => 'system', target => $catchall_data, inventory => $catchall_inventory );    # sets status
 
 	# check if nbarpd is possible: wanted by model, snmp configured, no snmp problems in last load
 	if ( NMISNG::Util::getbool( $self->{mdl}{system}{nbarpd_check} ) && $self->{snmp} && !$self->{snmp_error} )
@@ -1506,6 +1511,8 @@ sub getValues
 					source  => $thing->{query} ? "wmi" : "snmp",   # not sure we actually need that in the alert context
 					value   => $value,
 					test_result => $result,
+					calculate_details => (defined($sectiondetails->{alert}{calculate_details}) && $sectiondetails->{alert}{calculate_details} ne '') ? $sectiondetails->{alert}{calculate_details} : undef,
+					inventory_id => ($inventory) ? $inventory->id : undef
 				};
 			}
 		}

@@ -41,34 +41,30 @@
 	'option' => {
 		'standard' => [
 			'DEF:totalMem=$database:MemoryTotalPROC:AVERAGE',
-            'DEF:MemFree=$database:MemoryFreePROC:AVERAGE',
-			#			'DEF:MemUsed=$database:hwEntityMemUsed:AVERAGE',
-            'CDEF:MemUsed=totalMem,MemFree,-',
-			#			'CDEF:MemFree=totalMem,MemUsed,-',
-			'CDEF:perUsedMem=MemUsed,100,*,totalMem,/',
-			'CDEF:perFreeMem=MemFree,100,*,totalMem,/',
-			'AREA:perFreeMem#cccccc',
-			#			'STACK:perUsedMem#cccccc',
-			'LINE2:perFreeMem#0000ff: % Processor Mem Free',
-			'LINE2:perUsedMem#000000: % Processor Mem Used\\n',
-			'GPRINT:MemUsed:AVERAGE:Proc Mem Used %1.lf bytes',
-			'GPRINT:MemFree:AVERAGE:Proc Mem Free %1.lf bytes',
-			'GPRINT:totalMem:AVERAGE:Total Proc Mem %1.lf bytes\\n',
-			'GPRINT:perUsedMem:AVERAGE:Proc Mem Used %1.lf %%',
-			'GPRINT:perFreeMem:AVERAGE:Proc Mem Free %1.lf %%'
-		],
-		'small' => [
-			'DEF:totalMem=$database:MemoryTotalPROC:AVERAGE',
-            'DEF:MemFree=$database:MemoryFreePROC:AVERAGE',
-			#			'DEF:MemUsed=$database:hwEntityMemUsed:AVERAGE',
-            'CDEF:MemUsed=totalMem,MemFree,-',
-			#			'CDEF:MemFree=totalMem,MemUsed,-',
+			'DEF:MemFree=$database:MemoryFreePROC:AVERAGE',
+			'CDEF:MemUsed=totalMem,MemFree,-',
 			'CDEF:perUsedMem=MemUsed,100,*,totalMem,/',
 			'CDEF:perFreeMem=MemFree,100,*,totalMem,/',
 			'AREA:perFreeMem#cccccc',
 			'STACK:perUsedMem#cccccc',
-			'LINE2:perFreeMem#0000ff: % Processor Mem Free',
-			'LINE2:perUsedMem#000000: % Processor Mem Used'
+			'LINE2:perFreeMem#0000ff:% Processor Mem Free',
+			'LINE2:perUsedMem#000000:% Processor Mem Used\\n',
+			'GPRINT:MemUsed:AVERAGE:Proc Mem Used %1.0lf bytes',
+			'GPRINT:MemFree:AVERAGE:Proc Mem Free %1.0lf bytes',
+			'GPRINT:totalMem:AVERAGE:Total Proc Mem %1.0lf bytes\\n',
+			'GPRINT:perUsedMem:AVERAGE:Proc Mem Used %1.0lf %%',
+			'GPRINT:perFreeMem:AVERAGE:Proc Mem Free %1.0lf %%'
+		],
+		'small' => [
+			'DEF:totalMem=$database:MemoryTotalPROC:AVERAGE',
+			'DEF:MemFree=$database:MemoryFreePROC:AVERAGE',
+			'CDEF:MemUsed=totalMem,MemFree,-',
+			'CDEF:perUsedMem=MemUsed,100,*,totalMem,/',
+			'CDEF:perFreeMem=MemFree,100,*,totalMem,/',
+			'AREA:perFreeMem#cccccc',
+			'STACK:perUsedMem#cccccc',
+			'LINE2:perFreeMem#0000ff:% Processor Mem Free',
+			'LINE2:perUsedMem#000000:% Processor Mem Used'
 		]
 	}
 );

@@ -53,7 +53,7 @@
 			'DEF:ssCpuRawSoftIRQ=$database:ssCpuRawSoftIRQ:AVERAGE',
 			'DEF:ssCpuRawSteal=$database:ssCpuRawSteal:AVERAGE',
 			
-			'CDEF:ssCpuTotal=ssCpuRawUser,ssCpuRawNice,+,ssCpuRawSystem,+,ssCpuRawIdle,+,ssCpuRawWait,+,ssCpuRawKernel,+,ssCpuRawInterrupt,+,ssCpuRawSoftIRQ,+,ssCpuRawSteal,+',
+			'CDEF:ssCpuTotal=ssCpuRawUser,ssCpuRawNice,+,ssCpuRawSystem,+,ssCpuRawIdle,+,ssCpuRawWait,+,ssCpuRawKernel,+,ssCpuRawInterrupt,+,ssCpuRawSoftIRQ,+,ssCpuRawSteal,ADDNAN',
 			'CDEF:ssCpuRawUserP=ssCpuRawUser,ssCpuTotal,/,100,*',
 			'CDEF:ssCpuRawNiceP=ssCpuRawNice,ssCpuTotal,/,100,*',
 			'CDEF:ssCpuRawSystemP=ssCpuRawSystem,ssCpuTotal,/,100,*',

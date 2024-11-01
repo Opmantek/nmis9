@@ -1,0 +1,54 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Entity State'
+	},
+	'vlabel' => {
+		'standard' => 'Entity State'
+	},
+	'option' => {
+		'standard' => [
+		    'DEF:hwEntityCpuUsage=$database:hwEntityCpuUsage:AVERAGE',
+		    'LINE2:hwEntityCpuUsage#fcba03:Cpu Usage',
+    		'GPRINT:hwEntityCpuUsage:LAST:Current %8.2lf',
+    		'GPRINT:hwEntityCpuUsage:MIN:Min %8.2lf',
+    		'GPRINT:hwEntityCpuUsage:MAX:Max %8.2lf\\n',
+
+			'DEF:hwEntityMemUsage=$database:hwEntityMemUsage:AVERAGE',
+			'LINE2:hwEntityMemUsage#0bfc03:Mem Usage',
+			'GPRINT:hwEntityMemUsage:LAST:Current %1.2lf',
+			'GPRINT:hwEntityMemUsage:MIN:Min %1.2lf',
+			'GPRINT:hwEntityMemUsage:MAX:Max %1.2lf\\n',
+
+			'DEF:EntityTemperature=$database:EntityTemperature:AVERAGE',
+			'LINE2:EntityTemperature#03fcfc:Temperature',
+			'GPRINT:EntityTemperature:LAST:Current %1.2lf',
+			'GPRINT:EntityTemperature:MIN:Min %1.2lf',
+			'GPRINT:EntityTemperature:MAX:Max %1.2lf\\n',
+
+			'DEF:hwEntityVoltage=$database:hwEntityVoltage:AVERAGE',
+			'LINE2:hwEntityVoltage#fc030b:Voltage',
+			'GPRINT:hwEntityVoltage:LAST:Current %1.2lf',
+			'GPRINT:hwEntityVoltage:MIN:Min %1.2lf',
+			'GPRINT:hwEntityVoltage:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+		    'DEF:hwEntityCpuUsage=$database:hwEntityCpuUsage:AVERAGE',
+		    'LINE2:hwEntityCpuUsage#fcba03:Cpu Usage',
+    		'GPRINT:hwEntityCpuUsage:LAST:Current %8.2lf\\n',
+
+			'DEF:hwEntityMemUsage=$database:hwEntityMemUsage:AVERAGE',
+			'LINE2:hwEntityMemUsage#0bfc03:Mem Usage',
+			'GPRINT:hwEntityMemUsage:LAST:Current %1.2lf\\n',
+
+			'DEF:EntityTemperature=$database:EntityTemperature:AVERAGE',
+			'LINE2:EntityTemperature#03fcfc:Temperature',
+			'GPRINT:EntityTemperature:LAST:Current %1.2lf\\n',
+
+			'DEF:hwEntityVoltage=$database:hwEntityVoltage:AVERAGE',
+			'LINE2:hwEntityVoltage#fc030b:Voltage',
+			'GPRINT:hwEntityVoltage:LAST:Current %1.2lf\\n',
+
+		]
+	}
+);

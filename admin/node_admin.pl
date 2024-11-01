@@ -726,7 +726,7 @@ if ($cmdline->{act} =~ /^list([_-]uuid)?$/)
 				{
 					$statusLine = sprintf(" %s    %s  ", substr("$active ", 0, 3), substr("$collect ", 0, 3));
 				}
-				printf $fh ("%s%s%s%s%s\n", $uuidLine, substr("$node                                             ", 0, 47), $groupLine, $pollerLine, $statusLine);
+				printf $fh ("%s%s%s%s%s\n", $uuidLine, substr("$node                                             ", 0, 80), $groupLine, $pollerLine, $statusLine);
 			}
 		}
 	}

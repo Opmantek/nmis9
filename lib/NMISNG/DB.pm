@@ -1547,8 +1547,11 @@ sub update
 		if($bulk)
 		{
 			my $results;
-			$results = $bulk->find( $query )->upsert->$methodname($updates) if($upsert);
-			$results = $bulk->find( $query)->$methodname($updates);
+			if($upsert) {
+				$results = $bulk->find( $query )->upsert->$methodname($updates);
+			} else {
+				$results = $bulk->find( $query)->$methodname($updates);
+			}
 			$success = 1;
 		}
 		else

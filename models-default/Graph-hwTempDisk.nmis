@@ -1,0 +1,22 @@
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Temp.'
+	},
+	'vlabel' => {
+		'standard' => 'Temperature Environment'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:tempenv=$database:tempenv:AVERAGE',
+			'LINE1:tempenv#00ff00: Degrees'
+		],
+		'small' => [
+			'DEF:tempenv=$database:tempenv:AVERAGE',
+			'LINE1:tempenv#00ff00: Degrees',
+			'GPRINT:tempenv:AVERAGE:Avg Temp. Env. %1.2lf Degrees'
+		]
+	}
+);
+

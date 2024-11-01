@@ -1,0 +1,27 @@
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Temperature Reading'
+	},
+	'vlabel' => {
+		'standard' => 'Temperature Reading'
+	},
+	'option' => {
+		'standard' => [
+		    'DEF:temperatureReading=$database:temperatureReading:AVERAGE',
+		    'CDEF:temperature=temperatureReading,0.1,*',
+		    'LINE2:temperature#ff0000:Temperature Reading\\n',
+		    'GPRINT:temperature:LAST:Current %1.2lf',
+		    'GPRINT:temperature:MIN:Min %1.2lf',
+		    'GPRINT:temperature:MAX:Max %1.2lf',
+		],
+		'small' => [
+		    'DEF:temperatureReading=$database:temperatureReading:AVERAGE',
+		    'CDEF:temperature=temperatureReading,0.1,*',
+		    'LINE2:temperature#ff0000:Temperature Reading\\n',
+		    'GPRINT:temperature:LAST:Current %1.2lf',
+		    'GPRINT:temperature:MIN:Min %1.2lf',
+		    'GPRINT:temperature:MAX:Max %1.2lf',
+		]
+	}
+);

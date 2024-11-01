@@ -162,7 +162,7 @@
             'oid' => 'hrSystemProcesses',
             'title' => 'System Processes',
             'alert' => {
-              'test' => '$r > 200',
+              'test' => '$r > 375',
               'event' => 'High Number of System Processes',
               'unit' => 'processes',
               'level' => 'Warning'

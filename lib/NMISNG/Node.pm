@@ -61,6 +61,8 @@ use NMISNG::rrdfunc;
 
 use Compat::IP;
 
+use constant BULK_TIMED_DATA => 1;
+
 # create a new node object
 # params:
 #   uuid - required
@@ -1540,6 +1542,23 @@ sub save
 	# note also: node_admin's export and a few others use the raw db, so need to know this
 	my %dbsafeovers = map { "==".Mojo::Util::b64_encode($_,'') => $self->{_overrides}->{$_} } (keys %{$self->{_overrides}});
 
+	my $configuration = $self->configuration();
+	my $made_config_changes = 0;
+	# Threshold not defined, set to true by default
+	# this was moved from validate
+	if (!defined($configuration->{threshold})) {
+		$configuration->{threshold} = 1; # make sure changes we make in the record are also in the object		
+		$made_config_changes++;
+		$self->nmisng->log->info("Threshold not defined. Setting to true by default");
+	}
+	# is this is an update model could be empty, in that case make it automatic
+	if( !$self->is_new && $configuration->{model} eq '' ) {
+		$configuration->{model} = 'automatic'; # make sure changes we make in the record are also in the object		
+		$made_config_changes++;
+		$self->nmisng->log->info("model empty, setting it to automatic");
+	}
+	$self->configuration( $configuration ) if( $made_config_changes );
+
 	my ($result, $op);
 	my %entry = ( uuid => $self->{uuid},
 								name => NMISNG::DB::make_string($self->{_name}), # must treat as string even if it looks like a number
@@ -1562,7 +1581,7 @@ sub save
 	foreach my $prop_name (@prop_strings){
 		if( defined($entry{configuration}{$prop_name}) && $entry{configuration}{$prop_name} =~ /^[0-9]+$/ ) { 
 			$entry{configuration}{$prop_name} = NMISNG::DB::make_string( $entry{configuration}{$prop_name} );
-		}		
+		}
 	}
 
 	if ($self->is_new())
@@ -1712,6 +1731,8 @@ sub uuid
 
 # returns (1,nothing) if the node configuration is valid,
 # (negative or 0, explanation) otherwise
+# NOTE: don't change node config here, not the place for it
+#  and if you must make sure to save it back to the node
 sub validate
 {
 	my ($self) = @_;
@@ -1743,11 +1764,11 @@ sub validate
 	return (-3, "given roleType '".$configuration->{roleType}."' is not a known type: '".$self->nmisng->config->{roletype_list}."'")
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
-	
-	# Threshold not defined, set to true by default
-	if (!defined($configuration->{threshold})) {
-		$configuration->{threshold} = 1;
-		$self->nmisng->log->info("Threshold not defined. Setting to true by default");
+		
+	# empty model makes problems. setting values in validate does not seem correct but
+	# threshold is already being modified..
+	if( $self->is_new && $configuration->{model} eq '' ) {	
+		return (-8,"model must not be empty, use automatic");
 	}
 
 	# if addresses/aliases are present, they must be arrays of hashes, each hash with correct
@@ -1818,10 +1839,11 @@ sub pingable
 	my ($self, %args) = @_;
 
 	my $S    = $args{sys};
+	my $catchall_inventory = $args{catchall_inventory};
 	my $RI   = $S->reach;     # reach table
 
-	my $time_marker = $args{time_marker} || time;
-	my $catchall_data = $S->inventory(concept => 'catchall')->data_live();
+	my $time_marker = $args{time_marker} || time;	
+	my $catchall_data = $catchall_inventory->data_live();
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
 
@@ -1968,8 +1990,9 @@ sub pingable
 						event   => "Node Down",
 						level   => "Normal",
 						element => "",
-						details => "Ping failed"
-							);
+						details => "Ping failed",
+						inventory_id => $catchall_inventory->id
+					);
 					$self->nmisng->log->warn("Fixing Event DB error: $nodename, Event DB says Node Down but nodedown said not.");
 				}
 				else
@@ -1980,8 +2003,9 @@ sub pingable
 						sys     => $S,
 						type    => "node",
 						up      => 1,
-						details => "Ping avg=$ping_avg loss=$ping_loss%"
-							);
+						details => "Ping avg=$ping_avg loss=$ping_loss%",
+						catchall_inventory => $catchall_inventory
+					);
 				}
 			}
 			else
@@ -1989,7 +2013,7 @@ sub pingable
 				# down - log if not already down
 				$self->nmisng->log->error("($nodename) ping failed")
 						if ( !NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
-				$self->handle_down( sys => $S, type => "node", details => "Ping failed" );
+				$self->handle_down( sys => $S, type => "node", details => "Ping failed", catchall_inventory => $catchall_inventory );
 			}
 		}
 
@@ -2043,7 +2067,7 @@ sub handle_down
 {
 	my ($self, %args) = @_;
 
-	my ($S, $typeofdown, $details, $goingup) = @args{"sys", "type", "details", "up"};
+	my ($S, $typeofdown, $details, $goingup, $catchall_inventory) = @args{"sys", "type", "details", "up","catchall_inventory"};
 	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|node|failover|backup)$/ );
 
 	$goingup = NMISNG::Util::getbool($goingup);
@@ -2059,24 +2083,23 @@ sub handle_down
 		details => $details,
 		level   => ( $goingup ? 'Normal' : undef ),
 		context => {type => $typeofdown },
-		inventory_id => $S->inventory( concept => 'catchall' ),
+		inventory_id => $catchall_inventory->id,
 		conf => $self->nmisng->config
-			);
+	);
 
 	# for these three we set a XYZdown marker in the catchall, in the most atomic fashion possible
 	# (to minimise race conditions with other processes holding a catchall_live)
 	if ($typeofdown =~ /^(snmp|wmi|node)$/)
-	{
-		my $catchall = $S->inventory(concept => 'catchall');
-		my $quicklynow = $catchall->data;
+	{		
+		my $quicklynow = $catchall_inventory->data;
 		$quicklynow->{"${typeofdown}down"} = ($goingup ? 'false' : 'true');
 
 		# ensuring that nodestatus stays up to date with XXXXdown status
 		my $coarse = $self->coarse_status(catchall_data => $quicklynow);
 		$quicklynow->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
-		$catchall->data($quicklynow);
-		$catchall->save( node => $self, update => 1 );
+		$catchall_inventory->data($quicklynow);
+		$catchall_inventory->save( node => $self, update => 1 );
 
 		$self->nmisng->log->debug($self->name.": changed ${typeofdown}down state to ".$quicklynow->{"${typeofdown}down"});
 	}
@@ -2132,13 +2155,14 @@ sub update_node_info
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
+	my $catchall_inventory = $args{'catchall_inventory'};
 
 	my $RI   = $S->reach;          # reach table
 	my $M    = $S->mdl;            # model table
 	my $SNMP = $S->snmp;           # snmp object
 	my $C    = $self->nmisng->config;
 
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_data = $catchall_inventory->data_live();
 	$RI->{snmpresult} = $RI->{wmiresult} = 0;
 
 	my ($success, @problems);
@@ -2278,7 +2302,7 @@ sub update_node_info
 					$self->get_dns_location($catchall_data);
 
 					# PIX failover test
-					$self->checkPIX( sys => $S );
+					$self->checkPIX( sys => $S, catchall_inventory => $catchall_inventory );
 
 					$success = 1;    # done
 				}
@@ -2348,7 +2372,7 @@ sub update_node_info
 			my $sourcename = uc($source);
 
 			# happy, clear previous source down flag and event (if any)
-			$self->handle_down( sys => $S, type => $source, up => 1, details => "$sourcename ok" );
+			$self->handle_down( sys => $S, type => $source, up => 1, details => "$sourcename ok", catchall_inventory => $catchall_inventory );
 		}
 
 		# or fire down event if it was enabled but didn't work
@@ -2360,7 +2384,8 @@ sub update_node_info
 			$self->handle_down(
 				sys     => $S,
 				type    => $source,
-				details => $curstate->{"${source}_error"} || $oldstate->{"${source}_error"}
+				details => $curstate->{"${source}_error"} || $oldstate->{"${source}_error"},
+				catchall_inventory => $catchall_inventory 
 			);
 		}
 	}
@@ -2422,6 +2447,7 @@ sub collect_node_info
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
+	my $catchall_inventory = $args{'catchall_inventory'};
 
 	my $RI   = $S->reach;
 	my $M    = $S->mdl;
@@ -2430,14 +2456,15 @@ sub collect_node_info
 
 	my $result;
 	my $exit = 1;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
+	my $catchall_data = $catchall_inventory->data_live();
 
 	my $nodename = $self->name;
 
 	$self->nmisng->log->debug("Starting Collect Node Info, node $nodename");
 
 	# clear any node reset indication from the last run
-  delete $catchall_data->{admin}->{node_was_reset};
+	delete $catchall_data->{admin}->{node_was_reset};
 
 	# capture previous states now for checking of this node
 	my $sysObjectID  = $catchall_data->{sysObjectID};
@@ -2447,7 +2474,7 @@ sub collect_node_info
 
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
-	my $loadsuccess = $S->loadInfo( class => 'system',
+	my $loadsuccess = $S->loadInfo( class => 'system', inventory => $catchall_inventory,
 																	target => $catchall_data );
 
 	# polling policy needs saving regardless of success/failure
@@ -2464,7 +2491,7 @@ sub collect_node_info
 			{
 				my $sourcename = uc($source);
 				$RI->{"${source}result"} = 100;
-				$self->handle_down(sys => $S, type => $source, up => 1, details => "$sourcename ok" );
+				$self->handle_down(sys => $S, type => $source, up => 1, details => "$sourcename ok", catchall_inventory => $catchall_inventory );
 
 				# record a _successful_ collect for the different sources,
 				# the collect now-or-later logic needs that, not just attempted at time x
@@ -2472,7 +2499,7 @@ sub collect_node_info
 			}
 			else
 			{
-				$self->handle_down( sys => $S, type => $source, details => $curstate->{"${source}_error"} );
+				$self->handle_down( sys => $S, type => $source, details => $curstate->{"${source}_error"}, catchall_inventory => $catchall_inventory );
 				$RI->{"${source}result"} = 0;
 			}
 		}
@@ -2491,7 +2518,7 @@ sub collect_node_info
 		{
 			# fixme9: why not a complete update()?
 			$self->nmisng->log->debug("($nodename) Device type/model changed $sysObjectID now $catchall_data->{sysObjectID}");
-			my $result = $self->update_node_info( sys => $S );
+			my $result = $self->update_node_info( sys => $S, catchall_inventory => $catchall_inventory );
 
 			# fixme9: errors must be passed back to caller!
 			return 1 if ($result->{success});
@@ -2511,7 +2538,7 @@ sub collect_node_info
 		if ( $doIfNumberCheck and $ifNumber != $catchall_data->{ifNumber} )
 		{
 			$self->nmisng->log->debug("($nodename) Number of interfaces changed from $ifNumber now $catchall_data->{ifNumber}");
-			$self->update_intf_info( sys => $S );  # get new interface table
+			$self->update_intf_info( sys => $S, catchall_inventory => $catchall_inventory );  # get new interface table
 		}
 
 		my $interface_max_number = $self->nmisng->config->{interface_max_number} || 5000;
@@ -2550,7 +2577,8 @@ sub collect_node_info
 					sys     => $S,
 					event   => "Node Reset",
 					details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptime",
-					context => {type => "node"}
+					context => {type => "node"},
+					inventory_id => $catchall_inventory->id
 						);
 
 				# now stash this info in the catchall object, to ensure we insert ONE set of U's into the rrds
@@ -2584,10 +2612,10 @@ sub collect_node_info
 			$catchall_data->{nodeType} = $overrides->{nodeType};
 		}
 
-		$self->checkPIX(sys => $S);    # check firewall if needed
+		$self->checkPIX(sys => $S, catchall_inventory => $catchall_inventory);    # check firewall if needed
 
 		# conditional on model section to ensure backwards compatibility with different Juniper values.
-		$self->handle_configuration_changes(sys => $S)
+		$self->handle_configuration_changes(sys => $S, catchall_inventory => $catchall_inventory)
 				if ( exists( $M->{system}{sys}{nodeConfiguration} )
 						 or exists( $M->{system}{sys}{juniperConfiguration} ) );
 	}
@@ -2616,13 +2644,13 @@ sub collect_node_data
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
+	my $catchall_inventory = $args{catchall_inventory};
 
-	my $inventory = $S->inventory( concept => 'catchall' );
-	my $catchall_data = $inventory->data_live();
+	my $catchall_data = $catchall_inventory->data_live();
 
 	$self->nmisng->log->debug("Starting collect_node_data, node $S->{name}");
 
-	my $rrdData    = $S->getData( class => 'system',
+	my $rrdData    = $S->getData( class => 'system', inventory => $catchall_inventory
 																# fixme9 gone model => $model
 			);
 	my $howdiditgo = $S->status;
@@ -2630,12 +2658,13 @@ sub collect_node_data
 
 	if ( !$anyerror )
 	{
-		my $previous_pit = $inventory->get_newest_timed_data();
+		my $previous_pit = $catchall_inventory->get_newest_timed_data();
 
 		# Remove non existing subconcepts from catchall
 		my %subconcepts;
 		
 		$self->process_alerts( sys => $S );
+
 		foreach my $section ( keys %{$rrdData} )
 		{
 			$subconcepts{$section} = 1; # Remove non existing subconcepts from catchall
@@ -2670,32 +2699,33 @@ sub collect_node_data
 			{
 				$self->nmisng->log->debug2(sub {"rrdData, section=$section, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}"});
 			}
-			my $db = $S->create_update_rrd( inventory => $inventory, data => $D, type => $section );
+			my $db = $S->create_update_rrd( inventory => $catchall_inventory, data => $D, type => $section );
 			if ($db)
 			{
 				my $target = {};
 				NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $section );
 				my $period = $self->nmisng->_threshold_period( subconcept => $section );
-				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $catchall_inventory,
 															subconcept => $section, start => $period, end => time,
 															conf => $self->nmisng->config);
 				if (ref($stats) ne "HASH")
 				{
-					$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$inventory->concept
+					$self->nmisng->log->warn("getSubconceptStats for node ".$self->name.", concept ".$catchall_inventory->concept
 																	 .", subconcept $section failed: $stats");
 					$stats = {};
 				}
-				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section, node => $self,
-																								time => $catchall_data->{last_poll}, delay_insert => 1 );
-				$self->nmisng->log->error("timed data adding for ". $inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
+
+				my $error = $catchall_inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $section, node => $self,
+										time => $catchall_data->{last_poll}, delay_insert => 1 );
+				$self->nmisng->log->error("timed data adding for ". $catchall_inventory->concept . " on node " .$self->name. " failed: $error") if ($error);
 			}		
 		}
 		# NO save on inventory because it's the catchall right now
-
+		# no bulking because the save happens at the end for catchall anyway		
 		# Now, update non existent subconcepts/storage from inventory/catchall
-		my $storage = $inventory->storage();
+		my $storage = $catchall_inventory->storage();
 			
-		foreach my $sub (@{$inventory->subconcepts()}) {
+		foreach my $sub (@{$catchall_inventory->subconcepts()}) {
 			if (!$subconcepts{$sub}) {
 				if ($sub ne "health") {
 					$self->nmisng->log->debug7(sub {"Subconcept not existing anymore. Removing: ". Dumper($storage->{$sub})});
@@ -2704,13 +2734,13 @@ sub collect_node_data
 			}
 		}
 	
-		$inventory->storage($storage);
+		$catchall_inventory->storage($storage);
 	}
 	elsif ($howdiditgo->{skipped}) {}
 	else
 	{
 		my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_node_data", 
-			section => "system", index => "catchall", catchall_data => $catchall_data);
+			section => "system", index => "catchall", catchall_data => $catchall_data, catchall_inventory => $catchall_inventory);
 		# return if there is no snmp session
 		return 0 if ( $error_result == 10 );
 	}
@@ -2755,8 +2785,9 @@ sub update_intf_info
 	my ($self, %args)     = @_;
 	my $S        = $args{sys};      # object
 	my $intf_one = $args{index};    # index for single interface update
-
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $args{catchall_inventory};
+	
+	my $catchall_data = $catchall_inventory->data_live();
 	my $C = $self->nmisng->config;
 
 	my $nodename = $self->name;
@@ -2851,7 +2882,7 @@ sub update_intf_info
 				else
 				{
 					$self->nmisng->log->error("($nodename) on get interface index table: " . $SNMP->error );
-					$self->handle_down( sys => $S, type => "snmp", details => $SNMP->error );
+					$self->handle_down( sys => $S, type => "snmp", details => $SNMP->error, catchall_inventory => $catchall_inventory );
 				}
 
 				$self->nmisng->log->debug2(sub {"Finished (snmp failure)"});
@@ -2942,7 +2973,7 @@ sub update_intf_info
 				else 
 				{
 					# snmp failed
-					$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error} );
+					$self->handle_down( sys => $S, type => "snmp", details => $S->status->{snmp_error}, catchall_inventory => $catchall_inventory );
 
 					if ( NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} ) )
 					{
@@ -3303,9 +3334,10 @@ sub update_intf_info
 					}
 				}
 
-				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off)$/ )
+				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off|other)$/ )
 				{
 					$target->{setlimits} = $thisintfover->{setlimits};
+					$target->{setlimits_percentage} = $thisintfover->{setlimits_percentage};
 				}
 			}
 
@@ -3599,7 +3631,7 @@ sub update_intf_info
 
 			# no limit or dud limit or dud speed or non-collected interface?
 			if (   $desiredlimit
-				&& $desiredlimit =~ /^(normal|strict|off)$/
+				&& $desiredlimit =~ /^(normal|strict|off|other)$/
 				&& $target->{ifSpeed}
 				&& NMISNG::Util::getbool( $target->{collect} ) )
 			{
@@ -3609,10 +3641,16 @@ sub update_intf_info
 						. " ($target->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-				my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
-					: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
-					:                             int( $target->{ifSpeed} / 8 );
+				## if desired limit is other then use the percentage to calculate maxbits.
+				my $maxbytes;
+				if ($desiredlimit eq 'other'){
+					$maxbytes =  ( $target->{ifSpeed} / 8 ) * ($target->{setlimits_percentage} / 100 );
+				}
+				else{
+					$maxbytes = $desiredlimit eq "off"    ? "U"
+						: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
+						:                             int( $target->{ifSpeed} / 8 );
+				}
 				my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 				for (
@@ -3697,6 +3735,7 @@ sub collect_intf_data
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
+	my $catchall_inventory = $args{catchall_inventory};
 
 	my $nodename = $self->name;
 	# get any nodeconf overrides if such exists for this node
@@ -3777,7 +3816,11 @@ sub collect_intf_data
 		my $thisindex = $maybeevil->{data}->{ifIndex};
 		if (exists $if_data_map{$thisindex} )
 		{
-			$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex!");
+			if( $if_data_map{$thisindex}->{enabled} || $maybeevil->{enabled} ) {
+				$self->nmisng->log->warn($self->name.": clashing inventories for interface index $thisindex! (One is enabled)");
+			} else {
+				$self->nmisng->log->debug(sub {$self->name.": clashing inventories for interface index $thisindex! Neither are enabled"});
+			}
 			next;
 		}
 
@@ -3920,7 +3963,7 @@ sub collect_intf_data
 		$self->nmisng->log->debug("Performing phase 1 update_intf_info for index $needsmust");
 
 		# this returns an inventory object (or undef on error/nonexistent)...
-		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
+		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust, catchall_inventory => $catchall_inventory);
 		#  maybenew can be 0 unfortunately
 		if (!$maybenew)
 		{
@@ -3979,6 +4022,7 @@ sub collect_intf_data
 
 		# returns undef if no good
 		my $rrdData = $S->getData( class => 'interface', index => $index,
+		#TODO: inventory? what is it? 
 				# fixme9: gone											 model => $model
 				);
 		my $howdiditgo =$thisif->{_rrd_status} = $S->status;
@@ -4116,7 +4160,7 @@ sub collect_intf_data
 		assert(!$thisif->{_was_updated}, "should update_intf_info() index $needsmust at most once!");
 
 		# this returns an inventory object (or undef if removed/error)...
-		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust);
+		my $maybenew = $self->update_intf_info( sys => $S, index => $needsmust, catchall_inventory => $catchall_inventory );
 		#  maybenew can be 0 unfortunately
 		if (!$maybenew)
 		{
@@ -4155,9 +4199,14 @@ sub collect_intf_data
 	# 8. do something with the stashed rrd data; now if_data_map should have
 	# the correct inventory id attached for every single interface
 	$self->nmisng->log->debug5(sub {"collect_intf_data phase 8"});
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live(); # live, no saving needed
+	my $catchall_data = $catchall_inventory->data_live(); # live, no saving needed
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
+
+	my $bulk_save;
+	if( BULK_TIMED_DATA == 1 ) {
+		$bulk_save = {};
+	}
 
 	# work on enabled and nonhistoric
 	for my $index (sort grep($if_data_map{$_}->{enabled}
@@ -4339,10 +4388,18 @@ sub collect_intf_data
 		$inventory->historic(0);
 		$inventory->enabled(1);
 
-		my ($op, $error) = $inventory->save( node => $self );
+		my ($op, $error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 		$self->nmisng->log->error("failed to save inventory for $nodename, interface $inventory_data->{ifDescr}: $error")
 				if ($op <= 0);
 
+	}
+
+	# save the timed data though
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+		}
 	}
 
 	# handle accumulated alerts
@@ -4434,7 +4491,8 @@ sub checkPIX
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $args{catchall_inventory};
+	my $catchall_data = $catchall_inventory->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
 	{
@@ -4489,7 +4547,8 @@ sub checkPIX
 					event   => "Node Failover",
 					element => 'PIX',
 					details =>
-					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}"
+					"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}",
+					inventory_id => $catchall_inventory->id
 						);
 			}
 		}
@@ -4513,7 +4572,8 @@ sub handle_configuration_changes
 	my ($self, %args) = @_;
 
 	my $S    = $args{sys};
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $args{catchall_inventory};
+	my $catchall_data = $catchall_inventory->data_live();
 
 	$self->nmisng->log->debug2(sub {"Starting handle_configuration_changes"});
 
@@ -4564,6 +4624,7 @@ sub handle_configuration_changes
 			element => "",
 			details => "Changed at " . NMISNG::Util::convUpTime( $configLastChanged / 100 ),
 			context => {type => "node"},
+			inventory_id => $catchall_inventory->id
 		);
 		$self->nmisng->log->info("checkNodeConfiguration configuration change detected for $S->{name}, creating event");
 	}
@@ -4648,6 +4709,7 @@ sub collect_systemhealth_info
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};    # object
+	my $catchall_inventory = $args{catchall_inventory};
 
 	my $name = $self->name;
 	my $C = $self->nmisng->config;
@@ -4655,7 +4717,8 @@ sub collect_systemhealth_info
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
 
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
+	my $catchall_data = $catchall_inventory->data_live();
 
 	$self->nmisng->log->debug("Get systemHealth Info of node $name, model $catchall_data->{nodeModel}");
 
@@ -4771,7 +4834,8 @@ sub collect_systemhealth_info
 				$self->handle_down(
 					sys     => $S,
 					type    => "wmi",
-					details => "failed to get index table for systemHealth $section: $error"
+					details => "failed to get index table for systemHealth $section: $error",
+					catchall_inventory => $catchall_inventory
 				);
 				next;
 			}
@@ -4873,7 +4937,8 @@ sub collect_systemhealth_info
 					$self->handle_down(
 						sys     => $S,
 						type    => "wmi",
-						details => "failed to get table for systemHealth $section: $error"
+						details => "failed to get table for systemHealth $section: $error",
+						catchall_inventory => $catchall_inventory
 					);
 					next;
 				}
@@ -4928,7 +4993,7 @@ sub collect_systemhealth_info
 			else
 			{
 				my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_systemhealth_data", 
-					section => $section, index => $index_snmp, catchall_data => $catchall_data);
+					section => $section, index => $index_snmp, catchall_data => $catchall_data, catchall_inventory => $catchall_inventory);
 				# return if there is no snmp session
 				return 0 if ( $error_result == 10 );
 				next;
@@ -4950,7 +5015,8 @@ sub collect_systemhealth_info
 					$self->handle_down(
 						sys     => $S,
 						type    => "snmp",
-						details => "get systemHealth $section index table: " . $SNMP->error
+						details => "get systemHealth $section index table: " . $SNMP->error,
+						catchall_inventory => $catchall_inventory
 					);
 				}
 			}
@@ -5043,7 +5109,8 @@ sub collect_systemhealth_info
 					$self->handle_down(
 						sys     => $S,
 						type    => "snmp",
-						details => "get systemHealth $section index $index: $error"
+						details => "get systemHealth $section index $index: $error",
+						catchall_inventory => $catchall_inventory
 					);
 				}
 			}
@@ -5061,11 +5128,12 @@ sub collect_systemhealth_data
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
-
+	my $catchall_inventory = $args{catchall_inventory};
 	my $name = $self->name;
 
 	my $M  = $S->mdl;         # node model table
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	
+	my $catchall_data = $catchall_inventory->data_live();
 
 	$self->nmisng->log->debug("Get systemHealth Data of node $name, model $catchall_data->{nodeModel}");
 
@@ -5080,16 +5148,18 @@ sub collect_systemhealth_data
 		? $M->{systemHealth}{sections}
 		: $self->nmisng->config->{model_health_sections} );
 
+	my $bulk_save;
+	if( BULK_TIMED_DATA == 1 ) {
+		$bulk_save = {};
+	}
+
 	for my $section (@healthSections)
 	{
-		my $ids = $self->get_inventory_ids( concept => $section, filter => { enabled => 1, historic => 0 } );
-
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
 		# OR only sys section but no rrd (e.g. addresstable)
 		next
-			if ( @$ids < 1
-			or !exists( $M->{systemHealth}->{rrd} )
+			if ( !exists( $M->{systemHealth}->{rrd} )
 			or ref( $M->{systemHealth}->{rrd}->{$section} ) ne "HASH" );
 			
 		my $thissection = $M->{systemHealth}{sys}{$section};
@@ -5104,11 +5174,14 @@ sub collect_systemhealth_data
 		}
 
 		# that's instance index value
-		foreach my $id (@$ids)
+		my $model_data = $self->get_inventory_model( concept => $section, filter => { enabled => 1, historic => 0 } );
+		if(my $error = $model_data->error() ) 
 		{
-			my ( $inventory, $error ) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next if ( !$inventory );
-
+			$self->nmisng->log->error("Failed to get inventory with error:$error");
+		}
+		while( my $inventory = $model_data->next_object )
+		{
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 
 			# sanity check the data
@@ -5138,6 +5211,7 @@ sub collect_systemhealth_data
 				my $result = $S->snmp->get( $oid );
 				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
 				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
 					$port = $index . '.' . $result->{$oid};
 				}
 			}
@@ -5190,7 +5264,7 @@ sub collect_systemhealth_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect, node => $self,
-																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+							time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
@@ -5198,20 +5272,28 @@ sub collect_systemhealth_data
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
-				$inventory->save( node => $self );
+				$inventory->save( node => $self, bulk_save => $bulk_save );
 			}
 			# this allows us to prevent adding data when it wasn't collected (but not an error)
 			elsif( $howdiditgo->{skipped} ) {}
 			else
 			{
 				my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_systemhealth_data", 
-					section => $section, index => $index, catchall_data => $catchall_data);
+					section => $section, index => $index, catchall_data => $catchall_data, catchall_inventory => $catchall_inventory);
 				# return if there is no snmp session
 				return 0 if ( $error_result == 10 );
 				next;
 			}
 		}
 	}
+	
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+		}
+	}
+
 	$self->nmisng->log->debug("Finished with collect_systemhealth_data");
 	return 1;
 }
@@ -5226,7 +5308,7 @@ sub collect_systemhealth_data
 sub handle_sys_get_data_error 
 {
 	my ($self,%args) = @_;
-	my ($S,$caller,$section,$index,$catchall_data) = @args{'sys','caller','section','index','catchall_data'};
+	my ($S,$caller,$section,$index,$catchall_data,$catchall_inventory) = @args{'sys','caller','section','index','catchall_data','catchall_inventory'};
 	
 	my $name = $self->name;
 	my $SNMP = $S->snmp;
@@ -5251,9 +5333,9 @@ sub handle_sys_get_data_error
 	else
 	{
 		$self->nmisng->log->error("$message model: $catchall_data->{nodeModel}, error: $anyerror");
-		$self->handle_down( sys => $S, type => "snmp", details => "$caller, $section, error: $howdiditgo->{snmp_error}" )
+		$self->handle_down( sys => $S, type => "snmp", details => "$caller, $section, error: $howdiditgo->{snmp_error}", catchall_inventory => $catchall_inventory )
 			if ( $howdiditgo->{snmp_error} );
-		$self->handle_down( sys => $S, type => "wmi", details => "$caller, $section error: $howdiditgo->{wmi_error}" )
+		$self->handle_down( sys => $S, type => "wmi", details => "$caller, $section error: $howdiditgo->{wmi_error}", catchall_inventory => $catchall_inventory )
 			if ( $howdiditgo->{wmi_error} );
 
 		# if there is no session do not try and continue
@@ -5276,6 +5358,7 @@ sub collect_cbqos
 {
 	my ($self, %args) = @_;
 	my ($S,$isupdate)    = @args{"sys","update"};
+	my $catchall_inventory = $args{'catchall_inventory'};
 
 	my $name = $self->name;
 	if ( $self->configuration->{cbqos} !~ /^(true|input|output|both)$/ )
@@ -5290,10 +5373,10 @@ sub collect_cbqos
 	{
 		$self->collect_cbqos_info( sys => $S );    # get indexes
 	}
-	elsif (!$self->collect_cbqos_data(sys => $S))
+	elsif (!$self->collect_cbqos_data(sys => $S, catchall_inventory => $catchall_inventory))
 	{
 		$self->collect_cbqos_info( sys => $S );    # (re)get indexes
-		$self->collect_cbqos_data( sys => $S );    # and reget data
+		$self->collect_cbqos_data( sys => $S, catchall_inventory => $catchall_inventory );    # and reget data
 	}
 
 	$self->nmisng->log->debug("Finished with collect_cbqos");
@@ -5633,7 +5716,7 @@ sub collect_cbqos_info
 			# don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
 			next if ( ref( $if_data_map{$index} ) ne "HASH"
 								or !$if_data->{ifSpeed}
-								or $if_data->{setlimits} !~ /^(normal|strict|off)$/
+								or $if_data->{setlimits} !~ /^(normal|strict|off|other)$/
 								or !NMISNG::Util::getbool( $if_data->{collect} ) );
 
 			my $thisintf     = $if_data;
@@ -5645,10 +5728,16 @@ sub collect_cbqos_info
 				. " ($thisintf->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-			my $maxbytes
-					= $desiredlimit eq "off"    ? "U"
+			## if desired limit is other then use the percentage to calculate maxbits.
+			my $maxbytes;
+			if ($desiredlimit eq 'other'){
+				$maxbytes =  ( $thisintf->{ifSpeed} / 8 ) * ($thisintf->{setlimits_percentage} / 100 );
+			}
+			else{
+				$maxbytes = $desiredlimit eq "off"    ? "U"
 					: $desiredlimit eq "normal" ? int( $thisintf->{ifSpeed} / 4 )
 					:                             int( $thisintf->{ifSpeed} / 8 );
+			}
 			my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 			for my $direction (qw(in out))
@@ -5765,22 +5854,28 @@ sub collect_cbqos_data
 {
 	my ($self, %args)  = @_;
 	my $S     = $args{sys};
+	my $catchall_inventory = $args{catchall_inventory};
 
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_data = $catchall_inventory->data_live();
+	
 	my $happy;
+
+	my $bulk_save;
+	if( BULK_TIMED_DATA == 1 ) {
+		$bulk_save = {};
+	}
 	foreach my $direction ( "in", "out" )
 	{
 		my $concept = "cbqos-$direction";
-		my $ids = $self->get_inventory_ids(concept => $concept,
-																			 filter => { enabled => 1, historic => 0 });
-
+		my $model_data = $self->get_inventory_model(concept => $concept, filter => { enabled => 1, historic => 0 });
+		if( my $error = $model_data->error() ) {
+			$self->nmisng->log->error("Failed to get inventory for  concept:$concept, error_message:$error");
+			next;
+		}
 		# oke, we have get now the PolicyIndex and ObjectsIndex directly
-		foreach my $id ( @$ids )
+		while( my $inventory = $model_data->next_object() )
 		{
-			my ($inventory,$error_message) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message")
-					&& next if(!$inventory);
-
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 			# for now ifIndex is stored in the index attribute
 			my $intf = $data->{index};
@@ -5810,7 +5905,7 @@ sub collect_cbqos_data
 				my $port = "$PIndex.$OIndex";
 
 				my $rrdData
-					= $S->getData( class => $concept, index => $intf, port => $port,
+					= $S->getData( class => $concept, index => $intf, port => $port, inventory => $inventory
 												 # fixme9: gone model => $model
 					);
 				my $howdiditgo = $S->status;
@@ -5863,14 +5958,15 @@ sub collect_cbqos_data
 							$stats = {};
 						}
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName, node => $self,
-																										time => $catchall_data->{last_poll}, delay_insert => 1 );
+																										time => $catchall_data->{last_poll}, delay_insert => 1);
 						$self->nmisng->log->error("(".$self->name.") failed to add timed data for ". $inventory->concept .": $error") if ($error);
 					}
 				}
 				else
 				{
 					my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "getCBQoSdata", 
-					section => "ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex", index => $intf, catchall_data => $catchall_data);
+					section => "ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex", index => $intf, catchall_data => $catchall_data,
+					catchall_inventory => $catchall_inventory);
 					# return if there is no snmp session
 					return 0 if ( $error_result == 10 );
 					next;
@@ -5878,7 +5974,13 @@ sub collect_cbqos_data
 			}
 			# saving is required bacause create_update_rrd can change inventory, setting data not done because
 			# it's not changed
-			$inventory->save( node => $self );
+			$inventory->save( node => $self, bulk_save => $bulk_save );
+		}
+	}
+	if( $bulk_save ) {
+		foreach my $bulk_section (keys %$bulk_save) {
+			my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+			$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
 		}
 	}
 	return $happy? 1 : 0;
@@ -5895,9 +5997,10 @@ sub handle_custom_alerts
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
+	my $catchall_inventory = $args{catchall_inventory};
 
 	my $name = $self->name;
-	my $nodemodel = $S->inventory( concept => 'catchall' )->data->{nodeModel};
+	my $nodemodel = $catchall_inventory->data->{nodeModel};
 
 	my $M    = $S->mdl;
 	my $CA   = $S->alerts;
@@ -5910,13 +6013,15 @@ sub handle_custom_alerts
 	{
 		# get the inventory instances that are relevant for this section,
 		# ie. only enabled and nonhistoric ones
-		my $ids = $self->get_inventory_ids( concept => $sect, filter => { enabled => 1, historic => 0 } );
+		my $model_data = $self->get_inventory_model( concept => $sect, filter => { enabled => 1, historic => 0 } );
+		if( my $error = $model_data->error ) {
+			$self->nmisng->log->error("Failed to get inventory, concept:$sect, , error_message:$error");				
+			next;
+		}
 		$self->nmisng->log->debug2(sub {"Custom Alerts for $sect"});
-		foreach my $id ( @$ids )
+		while( my $inventory = $model_data->next_object() )
 		{
-			my ($inventory,$error_message) = $self->inventory( _id => $id );
-			$self->nmisng->log->error("Failed to get inventory, concept:$sect, _id:$id, error_message:$error_message") && next
-					if(!$inventory);
+			my $id = $inventory->id();
 			my $data = $inventory->data();
 			my $index = $data->{index};
 			foreach my $alrt ( keys %{$CA->{$sect}} )
@@ -6057,6 +6162,8 @@ sub handle_custom_alerts
 					$alert->{alert}   = $alrt;                      # the key, good enough
 					$alert->{index}   = $index;
 					$alert->{source} = $CA->{$sect}{$alrt}{source};
+					$alert->{inventory_id} = $inventory->id();
+					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
 					 
 					push( @{$S->{alerts}}, $alert );
 				}
@@ -6085,6 +6192,10 @@ sub process_alerts
 	my $alerts = $S->{alerts};
 	foreach my $alert ( @{$alerts} )
 	{
+		# this function is called several times with the same list! at the end they 
+		# are now marked as processed so we only run through them once
+		next if $alert->{_reserved_has_been_processed} == 1;
+
 		$self->nmisng->log->debug(
 			"Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}"
 		) if $alert->{test_result};
@@ -6094,7 +6205,35 @@ sub process_alerts
 		my $tresult      = $alert->{test_result} ? $alert->{level} : "Normal";
 		my $statusResult = $tresult eq "Normal"  ? "ok"            : "error";
 
+		# default alert setting
 		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		
+		# if there is a custom calculate_details section added, see if we can process it, if we can the result
+		# of that will become the details
+		if( defined($alert->{calculate_details}) && $alert->{calculate_details} && $alert->{inventory_id} ) 
+		{
+			my ( $inventory, $error ) = $self->inventory( _id => $alert->{inventory_id} );
+			if( $inventory && !$error ) {
+				$self->nmisng->log->debug3(sub {"process_alerts evaluating $alert->{calculate_details}"});
+				( my $error, $details ) = $S->eval_string(
+					string  => $alert->{calculate_details},
+					context => $alert->{value},
+					# inventory data available as well as all info in the current alert
+					variables => [$inventory->data(),$alert, { current_details => $details }]
+				);
+				$self->nmisng->log->debug3(sub {"process_alerts result: $details"});
+				if ($error)
+				{					
+					$self->nmisng->log->error("Alert details error, eval_string failed: $error");
+				}
+			} else {
+				$self->nmisng->log->error("Error event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, failed to load inventory: $error");	
+			}
+		} 
+		elsif( defined($alert->{calculate_details}) && $alert->{calculate_details} ) {
+			$self->nmisng->log->info("Alert with custom details does not work because inventory is not supplied, event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}");
+		}
+
 		if ( $alert->{test_result} )
 		{
 			Compat::NMIS::notify(
@@ -6147,7 +6286,7 @@ sub process_alerts
 			inventory_id => $alert->{inventory_id}
 		);
 		my $save_error = $status_obj->save();
-
+		$alert->{_reserved_has_been_processed} = 1;
 		if( $save_error )
 		{
 			$self->log->error("Failed to save status alert object, error:".$save_error);
@@ -6203,12 +6342,12 @@ sub compute_reachability
 	my ($self, %args) = @_;
 	my $S = $args{sys};                      # system object
 	my $donotupdaterrd = $args{delayupdate};
+	my $catchall_inventory = $args{catchall_inventory};
 
 	my $name = $self->name;
 	my $C = $self->nmisng->config;
 
 	my $RI = $S->reach;                                   # reach info
-	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $catchall_inventory->data_live();
 
 	my $cpuWeight;
@@ -6478,12 +6617,15 @@ sub compute_reachability
 			$self->nmisng->log->debug2(sub {"Getting Interface Utilisation Health"});
 			$intcount   = 0;
 			$intsummary = 0;
-			my $ids = $self->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+			my $model_data = $self->get_inventory_model( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+			if( my $error = $model_data->error() ) {
+				$self->nmisng->log->error("compute_reachability failed to get inventory, error:$error ");
+			}
 
 			# get all collected interfaces
-			foreach my $id (@$ids)
+			while( my $intf_inventory = $model_data->next_object() )
 			{
-				my ($intf_inventory,$error) = $self->inventory( _id => $id );
+				my $id = $intf_inventory->id();				
 				# stats have already been run on the interface, just look them up
 				my $latest_ret = $intf_inventory->get_newest_timed_data();
 				if( !$latest_ret->{success} )
@@ -6756,7 +6898,8 @@ sub update
 	my $name = $self->name;
 	my $updatetimer = Compat::Timing->new;
 	my $C = $self->nmisng->config;
-	my $force = $args{force};
+	my ($force,$starttime) = @args{'force','starttime'};
+	$starttime //= Time::HiRes::time;
 
 	$self->nmisng->log->debug("Starting update, node $name");
 	$0 = "nmisd worker update $name";
@@ -6819,7 +6962,7 @@ sub update
 	my $catchall_data = $catchall_inventory->data_live();
 
 	# record that we are trying an update; last_update records only successfully completed updates...
-	$catchall_data->{last_update_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_update_attempt} = $starttime;
 
 	$self->nmisng->log->debug("node=$name "
 			. join( " ",
@@ -6859,7 +7002,7 @@ sub update
 
 	# if reachable then we can update the model and get rid of the default we got from init above
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
-	if ($self->pingable(sys => $S))
+	if ($self->pingable(sys => $S, catchall_inventory => $catchall_inventory))
 	{
 		# snmp-enabled node? then try to open a session (and test it)
 		if ( $S->status->{snmp_enabled} )
@@ -6881,7 +7024,7 @@ sub update
 			{
 				$self->nmisng->log->error("SNMP session open to $name failed: " . $S->status->{snmp_error} );
 				$S->disable_source("snmp");
-				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error});
+				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error}, catchall_inventory => $catchall_inventory);
 			}
 			# or did we have to fall back to the backup address for this node?
 			elsif ($candosnmp && $S->status->{fallback})
@@ -6889,6 +7032,7 @@ sub update
 				Compat::NMIS::notify(sys => $S,
 														 event => "Node Polling Failover",
 														 element => undef,
+														 inventory_id => $catchall_inventory->id,
 														 details => ("SNMP Session switched to backup address \"".
 																				 $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" });
@@ -6901,16 +7045,17 @@ sub update
 																 upevent => "Node Polling Failover Closed", # please log it with this name
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}. '"'));
 			}
-			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok")
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
 					if ($candosnmp);
 		}
 
 		# this will try all enabled sources, 0 only if none worked
 		# it also disables sys sources that don't work!
-		my $result = $self->update_node_info(sys => $S);
+		my $result = $self->update_node_info(sys => $S, catchall_inventory => $catchall_inventory);
 		@problems = @{$result->{error}} if (ref($result->{error}) eq "ARRAY"
 																		 && @{$result->{error}}); # (partial) success doesn't mean no errors reported
 
@@ -6919,7 +7064,7 @@ sub update
 			# update_node_info will have deleted the interface info, need to rebuild from scratch
 			if ( NMISNG::Util::getbool( $self->configuration->{collect} ) )
 			{
-				if ($self->update_intf_info(sys => $S))
+				if ($self->update_intf_info(sys => $S, catchall_inventory => $catchall_inventory))
 				{
 					$self->nmisng->log->debug("node=$name role=$catchall_data->{roleType} type=$catchall_data->{nodeType} vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
 
@@ -6935,15 +7080,15 @@ sub update
 				}
 
 				# fixme: why no error handling for any of these?
-				$self->collect_systemhealth_info(sys => $S) if defined $S->{mdl}{systemHealth};
+				$self->collect_systemhealth_info(sys => $S, catchall_inventory => $catchall_inventory) if defined $S->{mdl}{systemHealth};
 				$self->update_concepts(sys => $S) if defined $S->{mdl}{systemHealth};
-				$self->collect_cbqos(sys => $S, update => 1);
+				$self->collect_cbqos(sys => $S, update => 1, catchall_inventory => $catchall_inventory);
 			}
 			else
 			{
 				$self->nmisng->log->debug("node is set to collect=false, not collecting any info");
 			}
-			$catchall_data->{last_update} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{last_update} = $starttime;
 			# we updated something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 		}
@@ -6960,7 +7105,8 @@ sub update
 
 	# don't let it make the rrd update, we want to add updatetime!
 	my $reachdata = $self->compute_reachability(sys => $S,
-																							delayupdate => 1);
+																							delayupdate => 1,
+																							catchall_inventory => $catchall_inventory);
 
 	if (!@problems)
 	{
@@ -7025,7 +7171,7 @@ sub update
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory );
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+																									time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;
@@ -7212,9 +7358,10 @@ sub collect_server_data
 {
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
+	my $catchall_inventory = $args{catchall_inventory};
 
 	my $name = $self->name;
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_data = $catchall_inventory->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
 	{
@@ -7234,19 +7381,19 @@ sub collect_server_data
 	{
 		my %newProcessors;
 		my %oldProcessors;
-		my $oldProcessorIDs = $self->get_inventory_ids( concept => "device", 
+		my $model_data = $self->get_inventory_model( concept => "device", 
 			filter => { historic => 0, "data.hrDeviceType" => "1.3.6.1.2.1.25.3.1.3" });
-		$self->nmisng->log->debug2("Got " . scalar(@{$oldProcessorIDs}) . " processors.");
-		foreach my $id (@{$oldProcessorIDs})
+		if(my $error = $model_data->error() ) 
 		{
+			$self->nmisng->log->error("Failed to get inventory with error:$error");
+		}
+		while( my $cpuInventory = $model_data->next_object )
+		{
+			my $id = $cpuInventory->id();
 			$self->nmisng->log->debug2("Processing Processor ID '$id'");
-			my ($cpuInventory,$error) = $self->inventory(_id => $id);
-			if ($cpuInventory && !$error)
-			{
-				my $data = $cpuInventory->data();
-				$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
-				$oldProcessors{$data->{index}} = $id;
-			}
+			my $data = $cpuInventory->data();
+			$self->nmisng->log->debug2("Adding old Processor index '$data->{index}'");
+			$oldProcessors{$data->{index}} = $id;			
 		}
 
 		# this will put hrCpuLoad into the device_global concept
@@ -7281,7 +7428,10 @@ sub collect_server_data
 		}
 
 		$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
-
+		my $bulk_save;
+		if( BULK_TIMED_DATA == 1 ) {
+			$bulk_save = {};
+		}
 		foreach my $index ( keys %{$deviceIndex} )
 		{
 			# create a new target for each index
@@ -7353,7 +7503,7 @@ sub collect_server_data
 																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						$self->nmisng->log->error("($name) failed to add timed data for ". $inventory->concept .": $error") if ($error);
 
-						($op,$error) = $inventory->save( node => $self );
+						($op,$error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 						$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					}
 					$self->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
@@ -7367,11 +7517,18 @@ sub collect_server_data
 					if($inventory)
 					{
 						$inventory->enabled(0);
-						$inventory->save( node => $self );
+						$inventory->save( node => $self,  bulk_save => $bulk_save );
 					}
 				}
 			}
 		}
+		if( $bulk_save ) {
+			foreach my $bulk_section (keys %$bulk_save) {
+				my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+				$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+			}
+		}
+
 		# We Need to clean up device/devices here and mark unused historic.
 		foreach my $index ( keys %oldProcessors )
 		{
@@ -7415,13 +7572,19 @@ sub collect_server_data
 
 	if ( $M->{storage} ne '' )
 	{
+		my $bulk_save;
+		if( BULK_TIMED_DATA == 1 ) {
+			$bulk_save = {};
+		}
+
 		my $disk_cnt             = 1;
 		my $storageIndex         = $SNMP->getindex('hrStorageIndex');
 		my $hrFSMountPoint       = undef;
 		my $hrFSRemoteMountPoint = undef;
 		my $fileSystemTable      = undef;
-
-		foreach my $index ( keys %{$storageIndex} )
+		my ($cached_units, $buffer_units);
+		# sort in decending order so Physical memory with index 1 should always be last (to calculate available units)
+		foreach my $index ( sort { $b <=> $a } keys %{$storageIndex} )
 		{
 			# look for existing data for this as 'fallback'
 			my $oldstorage;
@@ -7433,7 +7596,8 @@ sub collect_server_data
 			my $wasloadable = $S->loadInfo(
 				class  => 'storage',
 				index  => $index,
-				target => $storage_target
+				target => $storage_target,
+				inventory => $inventory
 			);
 			if ( $wasloadable )
 			{
@@ -7536,6 +7700,14 @@ sub collect_server_data
 
 						$S->{reach}{memfree} = $D->{hrMemSize}{value} - $D->{hrMemUsed}{value};
 						$S->{reach}{memused} = $D->{hrMemUsed}{value};
+						# calculate available memory, don't divide by 0/undef
+						# this mimics what host_resources does hrMemAvail
+						if ($storage_target->{hrStorageDescr} eq 'Physical memory' && defined($cached_units) && defined($buffer_units)){
+							$D->{hrMemAvail}{value} = $S->{reach}{memfree} + $cached_units + $buffer_units;
+							$storage_target->{hrMemAvail} = $D->{hrMemAvail}{value};
+						} else {
+							$self->nmisng->log->info("collect_server_data trying to calculate available ")
+						}
 
 						if ( ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) ) )
 						{
@@ -7584,6 +7756,12 @@ sub collect_server_data
 						$D->{$itemname . "Size"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
 						$D->{$itemname . "Used"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
 
+						if ($storage_target->{hrStorageDescr} eq 'Cached memory'){
+							$cached_units  = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};		
+						}
+						elsif($storage_target->{hrStorageDescr} eq 'Memory buffers'){
+							$buffer_units  = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};		
+						}
 						if ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) )
 						{
 							$storage_target->{hrStorageType}         = 'Other Memory';
@@ -7626,7 +7804,7 @@ sub collect_server_data
 				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
-				($op,$error) = $inventory->save( node => $self );
+				($op,$error) = $inventory->save( node => $self, bulk_save => $bulk_save );
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
 				$self->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
@@ -7642,6 +7820,13 @@ sub collect_server_data
 				# maybe mark it historic?
 			}
 		}
+		# put it here
+		if( $bulk_save ) {
+			foreach my $bulk_section (keys %$bulk_save) {
+				my $bulk_results = NMISNG::DB::end_bulk(bulk => $bulk_save->{$bulk_section});
+				$self->nmisng->log->error("Error saving bulk timed data: ".Dumper($bulk_results)) if( $bulk_results->{error} );
+			}
+		}		
 	}
 	else
 	{
@@ -7708,7 +7893,8 @@ sub services
 	}
 	$self->collect_services( sys => $S, snmp => 0,
 													 force => $args{force},
-													 services => $preselected );
+													 services => $preselected,
+													 catchall_inventory => $catchall_inventory );
 	return { success => 1 };
 }
 
@@ -7729,8 +7915,9 @@ sub collect_services
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
 	my $preselected = $args{services};
+	my $catchall_inventory = $args{catchall_inventory};
 
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_data = $catchall_inventory->data_live();
 
 	# don't attempt anything silly if this is a wmi-only node
 	my $snmp_allowed = NMISNG::Util::getbool( $args{snmp} ) && $S->status->{snmp_enabled};
@@ -7793,7 +7980,8 @@ sub collect_services
 					
 					if ($SNMP->error =~ /No session open/){
 						$self->handle_down( sys => $S, type => "snmp",
-															details => "get SNMP Service Data: " . $SNMP->error);
+															details => "get SNMP Service Data: " . $SNMP->error,
+															catchall_inventory => $catchall_inventory);
 						$snmp_allowed = 0;
 						last;
 					}
@@ -8049,8 +8237,8 @@ sub collect_services
 
 				my $nmap = (
 					$scan =~ /^udp$/i
-					? "nmap -sU --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
-					: "nmap -sT --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
+					? "nmap -sU --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
+					: "nmap -sT --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
 						);
 
 				# fork and read from pipe
@@ -8748,7 +8936,8 @@ sub unlock
 sub collect
 {
 	my ($self, %args) = @_;
-	my ($wantsnmp, $wantwmi,$force) = @args{"wantsnmp","wantwmi","force"};
+	my ($wantsnmp,$wantwmi,$force,$starttime) = @args{"wantsnmp","wantwmi","force","starttime"};
+	$starttime //= Time::HiRes::time;
 
 	my $name = $self->name;
 	my $pollTimer = Compat::Timing->new;
@@ -8817,12 +9006,12 @@ sub collect
 	
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
-	$catchall_data->{last_poll_attempt} = $args{starttime} // Time::HiRes::time;
+	$catchall_data->{last_poll_attempt} = $starttime;
 	if (defined($wantsnmp)) {
-		$catchall_data->{last_poll_snmp_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_snmp_attempt} = $starttime;
 	}
 	if (defined($wantwmi)) {
-		$catchall_data->{last_poll_wmi_attempt} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
 	
 	$self->nmisng->log->debug( "node=$name "
@@ -8847,7 +9036,7 @@ sub collect
 	}
 
 	# can I ping the node, is it reachable?
-	my $pingable = $self->pingable(sys => $S);
+	my $pingable = $self->pingable(sys => $S, catchall_inventory => $catchall_inventory);
 
 	$self->nmisng->log->debug("node=$catchall_data->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType} vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber} pingable=$pingable");
 
@@ -8884,7 +9073,7 @@ sub collect
 			{
 				$self->nmisng->log->error("SNMP session open to $name failed: " . $S->status->{snmp_error} );
 				$S->disable_source("snmp");
-				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error});
+				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error}, catchall_inventory => $catchall_inventory);
 			}
 			# or did we have to fall back to the backup address for this node?
 			elsif ($candosnmp && $S->status->{fallback})
@@ -8895,6 +9084,7 @@ sub collect
 														 details => ("SNMP Session switched to backup address \""
 																				 . $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" },
+														 inventory_id => $catchall_inventory->id,
 														 conf => $C );
 			}
 			# or are we using the primary address?
@@ -8905,17 +9095,18 @@ sub collect
 																 upevent => "Node Polling Failover Closed", # please log it thusly
 																 element => undef,
 																 level => "Normal",
+																 inventory_id => $catchall_inventory->id,
 																 details => ("SNMP Session using primary address \"".
 																						 $self->configuration->{host}.'"'), );
 			}
-			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok")
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
 					if ($candosnmp);
 		}
 
 		# returns 1 if one or more sources have worked,
 		# also updates snmp/wmi down states in nodeinfo/catchall
 		# and sets the relevant last_poll_xyz markers
-		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $args{starttime} // Time::HiRes::time);
+		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $starttime, catchall_inventory => $catchall_inventory );
 		my $curstate = $S->status;  # collect_node_info does NOT disable faulty sources!
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply
@@ -8943,26 +9134,37 @@ sub collect
 			}
 			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
-			$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-			$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+			$catchall_data->{collectPollDelta} = $starttime - $previous_poll;
+			$catchall_data->{last_poll} = $starttime;
 			# we polled something, so outside of dead node demotion grace period
 			delete $catchall_data->{demote_grace};
 
 			# fixme: why no error handling for any of these?
 
 			# get node data and store in rrd
-			$self->collect_node_data(sys => $S);
+			my $time_start = Time::HiRes::time;
+			$self->collect_node_data(sys => $S, catchall_inventory => $catchall_inventory);
+			$catchall_data->{collect_node_data_time} = Time::HiRes::time - $time_start;
 			# get intf data and store in rrd
+			$time_start = Time::HiRes::time;
 			my $ids = $self->get_inventory_ids( concept => 'interface' );
-			$self->collect_intf_data(sys => $S) if( @$ids > 0);
+			$self->collect_intf_data(sys => $S, catchall_inventory => $catchall_inventory) if( @$ids > 0);
+			$catchall_data->{collect_intf_data_time} = Time::HiRes::time - $time_start;
 
-			$self->collect_systemhealth_data(sys => $S);
-			$self->collect_cbqos(sys => $S, update => 0);
+			$time_start = Time::HiRes::time;
+			$self->collect_systemhealth_data(sys => $S, catchall_inventory => $catchall_inventory);
+			$catchall_data->{collect_systemhealth_data_time} = Time::HiRes::time - $time_start;
 
-			$self->collect_server_data( sys => $S );
-
+			$self->collect_cbqos(sys => $S, update => 0, catchall_inventory => $catchall_inventory);
+			
+			$time_start = Time::HiRes::time;
+			$self->collect_server_data( sys => $S, catchall_inventory => $catchall_inventory );
+			$catchall_data->{collect_server_data_time} = Time::HiRes::time - $time_start;
+			
 			# Custom Alerts, includes process_alerts
-			$self->handle_custom_alerts(sys => $S);
+			$time_start = Time::HiRes::time;
+			$self->handle_custom_alerts(sys => $S, catchall_inventory => $catchall_inventory);
+			$catchall_data->{handle_custom_alerts_time} = Time::HiRes::time - $time_start;
 		}
 		else
 		{
@@ -8973,18 +9175,22 @@ sub collect
 	} else {
 		$self->nmisng->log->debug3(sub {"($name) Node not pingable or no collect"});
 		# updating time stamps for last poll, the collect was run even if the node was down.
-		$catchall_data->{collectPollDelta} = $args{starttime} // Time::HiRes::time - $previous_poll;
-		$catchall_data->{last_poll} = $args{starttime} // Time::HiRes::time;
+		$catchall_data->{collectPollDelta} = $starttime;
+		$catchall_data->{last_poll} = $starttime;
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
 	# but try snmp services only if snmp is actually ok
+	my $services_time_start = Time::HiRes::time;
 	$self->collect_services( sys => $S,
 													 snmp => NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true',
-													 force => $force );
+													 force => $force,
+													 catchall_inventory => $catchall_inventory );
+	my $services_time = Time::HiRes::time - $services_time_start;
+	$catchall_data->{collect_services_time} = $services_time;
 
 	# don't let that function perform the rrd update, we want to add the polltime to it!
-	my $reachdata = $self->compute_reachability( sys => $S, delayupdate => 1 );
+	my $reachdata = $self->compute_reachability( sys => $S, delayupdate => 1, catchall_inventory => $catchall_inventory );
 
 	# compute thresholds with the node, if configured to do so
 	if ( NMISNG::Util::getbool($C->{global_threshold}) && # any thresholds whatsoever?
@@ -9029,6 +9235,7 @@ sub collect
 	$self->nmisng->log->debug("polltime for $name was $polltime");
 	$reachdata->{polltime} = {value => $polltime, option => "gauge,0:U"};
 	$reachdata->{polldelta} = {value => $catchall_data->{collectPollDelta}, option => "gauge,0:U"};
+	#$catchall_data->{polltime} = $polltime;
 
 	# parrot the previous reading's update time
 	my $prevval = "U";
@@ -9048,8 +9255,9 @@ sub collect
 	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 
 	my $stats = $self->compute_summary_stats(sys => $S, inventory => $catchall_inventory, conf => $C );
+	# must use starttime here as last_poll could be bunk
 	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', node => $self,
-																					time => $catchall_data->{last_poll}, delay_insert => 1 );
+																					time => $starttime, delay_insert => 1 );
 	$self->nmisng->log->error("timed data adding for health failed: $error") if ($error);
 
 	$S->close;

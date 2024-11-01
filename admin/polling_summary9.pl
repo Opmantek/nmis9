@@ -29,9 +29,12 @@
 # *****************************************************************************
 our $VERSION = "9.5.1";
 use strict;
+use warnings;
 
 use FindBin;
 use lib "$FindBin::RealBin/../lib";
+
+use List::Util;
 
 use Data::Dumper;
 use NMISNG;
@@ -41,12 +44,13 @@ use Compat::NMIS;
 
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 my $config = NMISNG::Util::loadConfTable( dir => undef, debug => undef, info => undef);
-my $debug = $cmdline->{debug};
+my $debug = $cmdline->{debug} // 0;
 
 # use debug, or info arg, or configured log_level
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $cmdline->{debug}, info => $cmdline->{info}), path  => undef );
 
 my $nmisng = NMISNG->new(config => $config, log  => $logger);
+my $workers = $config->{nmisd_max_workers};
 
 if ( defined $cmdline->{node} ) {
 	oneNode($cmdline->{node});
@@ -76,7 +80,12 @@ else {
     
     # define the output heading and the print format
 	my @heading = ("node", "attempt", "status", "ping", "snmp", "policy", "delta", "snmp", "avgdel", "poll", "update", "pollmessage");	
-
+    
+    my $allstats = {
+        "period" => [],
+        "collect" => { max => undef, avg =>undef, alltimes =>[], usedworkers => [], period => 300 },
+        "update" => { max => undef, avg =>undef, alltimes =>[], usedworkers => [], period => 86400 }
+    };
 	foreach my $node (sort @$nodes) {
 		#oneNode($node);
 			next if ($seen{$node});
@@ -106,21 +115,34 @@ else {
 					my $catchall_inventory = $inv->data();
             
 					my $polling_policy = $nodeobj->configuration->{polling_policy} ? $nodeobj->configuration->{polling_policy} : "default";
-					my $snmp = 300;
-					if ( defined $PP->{$polling_policy}{snmp} ) {
-						$snmp = $PP->{$polling_policy}{snmp};
-						if ( $snmp =~ /(\d+)m/ ) {
-							$snmp = $1 * 60;
-						}
-						elsif ( $snmp =~ /(\d+)h/ ) {
-						     $snmp = $1 * 3600;
-						}
-						else {
-							$snmp = "ERROR";
-							print STDERR "ERROR polling_policy=$polling_policy snmp=$PP->{$polling_policy}{snmp}\n";
-						}				
-					}
-    
+					     
+                    # get seconds value for snmp and update from PP
+                    foreach my $name ('snmp','update') {
+                        my $period;                        
+                        if ( defined $PP->{$polling_policy}{$name} ) {
+                            $period = $PP->{$polling_policy}{$name};
+                            if ( $period =~ /(\d+)m/ ) {
+                                $period = $1 * 60;
+                            }
+                            elsif ( $period =~ /(\d+)h/ ) {
+                                $period = $1 * 3600;
+                            }
+                            elsif ( $period =~ /(\d+)d/ ) {
+                                $period = $1 * 86400;
+                            }
+                            else {
+                                $period = "ERROR";
+                                print STDERR "ERROR polling_policy=$polling_policy snmp=$PP->{$polling_policy}{$name}\n";
+                            }
+                            $name = "collect" if ($name eq 'snmp');
+                            $allstats->{$name}{period} = $period if($period);
+                            print "DONE: name: $name, period:$period\n"  if( $debug > 2);;
+                        }
+                        
+                    }
+                    my $snmp = $allstats->{collect}{period};
+                    my $updateperiod = $allstats->{update}{period};
+                    
 					my $polldelta = "NaN";
 					my $polltime = "NaN";
 					my $updatetime = "NaN";
@@ -130,9 +152,22 @@ else {
 					    my @results;
 					    my $stats = NMISNG::rrdfunc::getRRDStats(database => $rrdfilename, graphtype => "health", index => undef, item => undef, start => time() - 86400,  end => time() );
                
-						$polldelta = sprintf("%.2f",$stats->{polldelta}->{mean});
-						$polltime = sprintf("%.2f",$stats->{polltime}->{mean});
-						$updatetime = sprintf("%.2f",$stats->{updatetime}->{mean});
+						$polldelta = sprintf("%.2f",$stats->{polldelta}->{mean}) if( $stats->{polldelta}->{mean} );
+                        $polldelta = "---" if ($polldelta > 864000);
+						$polltime = sprintf("%.2f",$stats->{polltime}->{mean}) if( $stats->{polltime}->{mean} );
+						$updatetime = sprintf("%.2f",$stats->{updatetime}->{mean}) if( $stats->{updatetime}->{mean} );
+
+                         if( $polltime ne 'NaN') {
+                            push @{$allstats->{collect}{alltimes}}, $polltime;
+                            push @{$allstats->{collect}{usedworkers}}, ($polltime/$snmp);
+                            print "Collect Added $polltime which is ".($polltime/$snmp)."\n" if( $debug > 2);
+                        }
+                        if( $updatetime ne 'NaN') {
+                            push @{$allstats->{update}{alltimes}}, $updatetime;
+                            push @{$allstats->{update}{usedworkers}}, ($updatetime/$updateperiod);
+                            print "Update Added $updatetime which is ".($updatetime/$updateperiod)."\n" if( $debug > 2);
+                        }
+                        
 					}
 
                     my $lastAttempt = $catchall_inventory->{last_poll_attempt} ? NMISNG::Util::returnTime($catchall_inventory->{last_poll_attempt}) : "--:--:--";
@@ -146,7 +181,7 @@ else {
                         $delta = "---";
                     }
         
-                    my $delta = sprintf("%.2f",$delta);
+                    $delta = sprintf("%.2f",$delta) if( $delta ne '---');
 
                     my %status;
                     # Default values
@@ -248,15 +283,34 @@ else {
 	}
     my $now = NMISNG::Util::returnTime(time());
     my @heading2 = ("----", "----", "----", "----", "----", "----", "----", "----", "----", "----", "----", "----");	
-	printf "\n\n\n %-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @heading;
-	printf "%-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @heading2;
+	printf "\n\n\n%-40s %-9s %-9s %-5s %-5s %-10s %-12s %-4s %-12s %-6s %-7s %-16s\n", @heading;
+	printf "%-40s %-9s %-9s %-5s %-5s %-10s %-12s %-4s %-12s %-6s %-7s %-16s\n", @heading2;
 	foreach my $n (@output) {
-		printf "%-24s %-9s %-9s %-5s %-5s %-10s %-6s %-4s %-7s %-6s %-7s %-16s\n", @$n;
+		printf "%-40s %-9s %-9s %-5s %-5s %-10s %-12s %-4s %-12s %-6s %-7s %-16s\n", @$n;
 	}
 	
 	print "\ntotalNodes=$totalNodes totalPoll=$totalPoll ontime=$goodPoll pingOnly=$pingOnly 1x_late=$latePoll5m 3x_late=$latePoll15m 12x_late=$latePoll1h 144x_late=$latePoll12h\n";
 	print "time=$now pingDown=$pingDown snmpDown=$snmpDown badSnmp=$badSnmp noSnmp=$noSnmp demoted=$demoted\n";
     print "\ntotalNodesIncludingRemotes=$totalnodeswithremotes\n";
+
+    $allstats->{collect}{sum} = List::Util::sum @{$allstats->{collect}{alltimes}};
+    $allstats->{collect}{avg} = $allstats->{collect}{sum} / scalar @{$allstats->{collect}{alltimes}} if( scalar @{$allstats->{collect}{alltimes}} > 0 );
+    $allstats->{update}{sum} = List::Util::sum @{$allstats->{update}{alltimes}};
+    $allstats->{update}{avg} = $allstats->{update}{sum} / scalar @{$allstats->{update}{alltimes}} if( scalar @{$allstats->{update}{alltimes}} > 0 );
+    $allstats->{collect}{max} = List::Util::max @{$allstats->{collect}{alltimes}};
+    $allstats->{update}{max} = List::Util::max @{$allstats->{update}{alltimes}};
+    $allstats->{collect}{usedworkers_sum} = List::Util::sum @{$allstats->{collect}{usedworkers}};
+    $allstats->{update}{usedworkers_sum} = List::Util::sum @{$allstats->{update}{usedworkers}};
+
+    print "Collect:\tAverage\t".sprintf("%.2f",$allstats->{collect}{avg})."\tMax\t".sprintf("%.2f",$allstats->{collect}{max})."\tSum\t".sprintf("%.2f",$allstats->{collect}{sum})."\n";
+    print "Update:\t\tAverage\t".sprintf("%.2f",$allstats->{update}{avg})."\tMax\t".sprintf("%.2f",$allstats->{update}{max})."\tSum\t".sprintf("%.2f",$allstats->{update}{sum})."\n\n";
+
+    print "Sum of workers used Collect:\t".sprintf("%.2f",$allstats->{collect}{usedworkers_sum})."\n";
+    print "Sum of workers used Update:\t".sprintf("%.2f",$allstats->{update}{usedworkers_sum})."\n";
+    my $total_used_time = $allstats->{collect}{usedworkers_sum}+$allstats->{update}{usedworkers_sum};
+    my $suggestion = $total_used_time * 1.3;
+    print "Total worker time used\t".sprintf("%.2f",$total_used_time)."\tMinimum suggested workers (30% more):\t".sprintf("%.2f",$suggestion)."\n";
+    print "Current workers setting:\t$workers\n";
 }
 
 sub oneNode {

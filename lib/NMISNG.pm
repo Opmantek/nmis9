@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.5.2-beta1";
+our $VERSION = "9.5.2";
 
 use strict;
 use Data::Dumper;
@@ -668,10 +668,10 @@ sub compute_thresholds
 				return undef;
 			}
 
-			$self->log->debug2( "threshold="
+			$self->log->debug2(sub { "threshold="
 					. join( ",", @$thrname )
 					. " found in section=$s type=$type indexed=$thissection->{indexed}, count="
-					. $inventory_model->count() );
+					. $inventory_model->count() } );
 
 			# turn the 'models' into objects so that parseString can use it if required
 			my $objectresult = $inventory_model->objects;
@@ -1291,6 +1291,8 @@ sub ensure_indexes
 				# needed for joins
 				[[node_uuid  => 1]],
 				[{lastupdate => 1}, {unique => 0}],
+				[[node_uuid  => 1, event => 1, historic => 1]],
+				[[node_uuid  => 1, event => 1, element => 1, historic => 1]],
 				[[node_uuid  => 1, event => 1, element => 1, active => 1], {unique => 1, partialFilterExpression => {historic => { '$lte' => 0}}}],
 				#[[node_uuid  => 1, event => 1, element => 1, historic => 1, startdate => 1], {unique => 1}],
 				# [ [node_uuid=>1,event=>1,element=>1,active=>1], {unique => 1}],
@@ -1327,6 +1329,7 @@ sub ensure_indexes
 
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
 				[["data.ip.ipAdEntAddr" => 1], {unique             => 0}],
+				[["path.2" => 1, "data.ipAdEntAddr1" => 1,"historic" => 1,"enabled" => 1]], # for lookup_node
 				[{expire_at             => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 				[["path.0"  => 1, "path.1" => 1], {unique => 1, partialFilterExpression => {"path.2" => { '$eq' => "catchall"}}}],
 			]
@@ -1345,7 +1348,8 @@ sub ensure_indexes
 				[{expire_at      => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 				[{"node_uuid"    => 1}, {unique => 0}],
 				[{"configuration.group"    => 1}, {unique => 0}],
-				[{"time"    => -1}, {unique => 0}]
+				[{"time"    => -1}, {unique => 0}],
+				[["lastupdate" => 1], {unique => 0}]
 			]
 	);
 	$self->log->error("index setup failed for inventory: $err") if ($err);
@@ -1360,8 +1364,9 @@ sub ensure_indexes
 												# as aliases.alias and addresses.address
 												# (for the semi-dynamic dns alias and address info)
 												[ [ "aliases.alias" => 1 ] ],
-												[ [ "addresses.address" => 1 ] ], ],
-				);
+												[ [ "addresses.address" => 1 ] ],
+												[["lastupdate" => 1], {unique => 0}],
+				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
 	
 	# opstatus collection 
@@ -1421,8 +1426,9 @@ sub ensure_indexes
 			indices       => [
 				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
 				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
-    				[[cluster_id => 1, lastupdate => 1], {unique => 0}],
+				[[cluster_id => 1, lastupdate => 1], {unique => 0}],
 				[{expire_at  => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+				[["lastupdate" => 1], {unique => 0}]
 			]
 	);
 	$self->log->error("index setup failed for nodes: $err") if ($err);
@@ -2057,19 +2063,13 @@ sub get_inventory_model
 	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
 		if ( !defined $entries );
 
-	my @all;
-	while ( my $entry = $entries->next )
-	{
-		push @all, $entry;
-	}
-
 	# create modeldata object with instantiation info from caller
 	# add in the fallback automagic function, if class_name isn't present
 	$args{class_name} //= {"concept" => \&NMISNG::Inventory::get_inventory_class};
 	my $model_data_object = NMISNG::ModelData->new(
 		nmisng      => $self,
 		class_name  => $args{class_name},
-		data        => \@all,
+		cursor      => $entries,		
 		query_count => $query_count
 	);
 	return $model_data_object;
@@ -2130,7 +2130,6 @@ sub get_latest_data_model
 
 	my $q = NMISNG::DB::get_query( and_part => $filter );
 
-	my $entries = [];
 	my $query_count;
 	if ( $args{count} )
 	{
@@ -2151,13 +2150,9 @@ sub get_latest_data_model
 	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
 		if ( !defined $cursor );
 
-	while ( my $entry = $cursor->next )
-	{
-		push @$entries, $entry;
-	}
 	my $model_data_object = NMISNG::ModelData->new(
 		nmisng      => $self,
-		data        => $entries,
+		cursor      => $cursor,
 		query_count => $query_count,
 		sort        => $args{sort},
 		limit       => $args{limit},
@@ -2223,14 +2218,13 @@ sub get_nodes_model
 	my $fields_hash = $args{fields_hash};
 	# We have cases where users are restricted to groups but we still want the user to be able to search via group
 	# Build up a and query to first restrict mongo to a list of groups then allow freeform filter on theose groups
-	my $q = {
+	my $q = (keys %$filter > 0) ? {
 		'$and' => [
 			NMISNG::DB::get_query( and_part => $filter )
-	]};
+	]} : {};
 	unshift ( @{$q->{'$and'}} , NMISNG::DB::get_query( and_part => {"configuration.group" => $args{restrict_groups}})) if($args{restrict_groups});
 
-
-	my $model_data = [];
+	my $cursor;
 	my $query_count;
 
 	if ( $args{count} )
@@ -2248,7 +2242,7 @@ sub get_nodes_model
 	# if you want only a count but no data, set count to 1 and limit to 0
 	if ( !( $args{count} && defined $args{limit} && $args{limit} == 0 ) )
 	{
-		my $cursor = NMISNG::DB::find(
+		$cursor = NMISNG::DB::find(
 			collection  => $collection,
 			query       => $q,
 			fields_hash => $fields_hash,
@@ -2261,13 +2255,12 @@ sub get_nodes_model
 			nmisng => $self,
 			error  => "Find failed: " . NMISNG::DB::get_error_string
 		) if ( !defined $cursor );
-		@$model_data = $cursor->all;
 	}
 
 	my $model_data_object = NMISNG::ModelData->new(
 				class_name  => "NMISNG::Node",
 				nmisng      => $self,
-				data        => $model_data,
+				cursor      => $cursor,
 				query_count => $query_count,
 				sort        => $args{sort},
 				limit       => $args{limit},
@@ -2380,11 +2373,12 @@ sub get_opstatus_model
 		$querycount = $res->{count};
 	}
 
+	my $cursor;
 	# if you want only a count but no data, set count to 1 and limit to 0
 	if ( !( $args{count} && defined $args{limit} && $args{limit} == 0 ) )
 	{
 		# now perform the actual retrieval, with skip and limit passed in
-		my $cursor = NMISNG::DB::find(
+		$cursor = NMISNG::DB::find(
 			collection => $self->opstatus_collection,
 			query      => $q,
 			sort       => $args{sort},
@@ -2397,7 +2391,7 @@ sub get_opstatus_model
 		) if ( !defined $cursor );
 		@modeldata = $cursor->all;
 	}
-
+	# ModelData->next TODO 
 	# asking for nonexistent id is treated as failure - asking for 'id NOT matching X' is not
 	return NMISNG::ModelData->new( nmisng => $self, error => "No matching opstatus entry!" )
 		if ( !@modeldata && ref( $args{id} ) =~ /^(BSON|MongoDB)::OID$/ );
@@ -2539,14 +2533,10 @@ sub get_status_model
 	return NMISNG::ModelData->new( error => "find failed: " . NMISNG::DB::get_error_string )
 		if ( !defined $cursor );
 
-	while ( my $entry = $cursor->next )
-	{
-		push @$entries, $entry;
-	}
 	my $model_data_object = NMISNG::ModelData->new(
 		nmisng      => $self,
 		class_name  => "NMISNG::Status",
-		data        => $entries,
+		cursor      => $cursor,
 		query_count => $query_count,
 		sort        => $args{sort},
 		limit       => $args{limit},
@@ -2638,7 +2628,7 @@ sub get_timed_data_model
 	# fixme: must report this as error, or at least ditch those args,
 	# or possibly do sort+limit per concept and ditch skip?
 
-	my @rawtimedata;
+	my $cursor;
 
 	# now figure out the appropriate collection for each of the concepts,
 	# then query each of those for time data matching the candidate inventory instances
@@ -2648,7 +2638,7 @@ sub get_timed_data_model
 
 		#fixme handle  error
 
-		my $cursor = NMISNG::DB::find(
+		$cursor = NMISNG::DB::find(
 			collection => $timedcoll,
 
 			# undef will mean unrestricted, one value will do equality lookup,
@@ -2660,14 +2650,10 @@ sub get_timed_data_model
 		);
 		return NMISNG::ModelData->new( error => "Find failed: " . &NMISNG::DB::getErrorString )
 			if ( !$cursor );
-		while ( my $tdata = $cursor->next )
-		{
-			push @rawtimedata, $tdata;
-		}
 	}
 
 	# no object instantiation is expected or possible for timed data
-	return NMISNG::ModelData->new( data => \@rawtimedata );
+	return NMISNG::ModelData->new( cursor => $cursor );
 }
 
 # group nodes by specified group, then summarise their reachability and health as well as get total count
@@ -2877,8 +2863,8 @@ sub node
 	elsif ( $modeldata->count() > 1 )
 	{
 		my @names = map { $_->{name} } @{$modeldata->data()};
-		$self->log->debug( "Node request returned more than one node, args" . Dumper( \%args ) );
-		$self->log->warn( "Node request returned more than one node, names:" . join( ",", @names ) );
+		$self->log->debug( sub { "Node request returned more than one node, args" . Dumper( \%args )} );
+		$self->log->warn( "Node request returned ".scalar(@names)." nodes!".NMISNG::Log::trace() );
 
 		# Try filter by cluster_id
 		if (($args{name} || $args{filter}{name}) && !$args{filter}{cluster_id}  )
@@ -3127,9 +3113,8 @@ sub process_escalations
 	# active flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
 	# we might rename that transition t/f, and have this function handle only the ones with transition true.
 
-	for ( my $i = 0; $i < $inactivemodel->count; $i++ )
+	while( my $event_obj = $inactivemodel->next_object ) 
 	{
-		my $event_obj  = $inactivemodel->object($i);
 		my $event_data = $event_obj->data();           # for easier string printing
 		                                               # if the event is configured for no notify, do nothing
 		my $thisevent_control = $events_config->{$event_obj->event}
@@ -3414,10 +3399,9 @@ sub process_escalations
 
 	# now handle the actual escalations; only events marked-as-current are left now.
 LABEL_ESC:
-	for ( my $i = 0; $i < $activemodel->count; $i++ )
+	
+	while( my $event_obj = $activemodel->next_object ) 
 	{
-		my $event_obj = $activemodel->object($i);
-
 		# we must tell the object it's already loaded or whenever load is called
 		# (which save does call) will clober any changes made before it's called
 		$event_obj->loaded(1);
@@ -3488,7 +3472,7 @@ LABEL_ESC:
 		{
 			my $ifIndex = undef;
 			my $ifDescr = $event_obj->element;
-			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );			
+			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );
 			if( $interface_inventory )
 			{
 				if ( !NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )
