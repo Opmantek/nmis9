@@ -297,8 +297,6 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 	# so we will not be able to tell the person that started us we failed.  So we get our lock while we have
 	# a terminal, and then simply replace it with the daemon's PID once we are running in the background.
 	# Set my pid lock.
-	#ensure index's here for docker
-	print $nmisng->ensure_indexes();
 
 	my $isRunning = 0;
 	my $otherDaemon = Mojo::File->new($pidFile)->slurp() if (-f $pidFile);
@@ -498,6 +496,8 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 
 # this opens a database connection - which we must not share with any children!
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
+#ensure index's here for docker
+	print $nmisng->ensure_indexes();
 my $tc_list = $nmisng->timed_collections_list();
 $nmisng->existing_timed_collections($tc_list);
 
