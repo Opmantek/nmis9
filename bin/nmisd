@@ -1,4 +1,3 @@
-
 #!/usr/bin/perl
 #
 #  Copyright 1999-2018 Opmantek Limited (www.opmantek.com)
@@ -290,48 +289,16 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 
 # Wrap all this stuff in brackets to avoid creating a bunch of variables we never need again.
 {
-
 	# So why do we set our PID twice???
 	# We want to first verify we are not already running, and if we are in debug mode we will not become a daemon.
 	# After we become a daemon, we will not be able to write to the console because we will close our STDOUT
 	# so we will not be able to tell the person that started us we failed.  So we get our lock while we have
 	# a terminal, and then simply replace it with the daemon's PID once we are running in the background.
 	# Set my pid lock.
-
 	my $isRunning = 0;
 	my $otherDaemon = Mojo::File->new($pidFile)->slurp() if (-f $pidFile);
 	chomp($otherDaemon);
 	if ($debug)
-
-	die "Another instance of $me is running (pid $otherdaemon)!\n"
-			if  ($cmdline->{act} !~ /^(stop|abort)$/);
-
-	# int: please shut down when you're ready. term: shut down now
-	# note: signalling that scheduling daemon will take care of its workers as well
-	my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
-	kill($whichsignal, $otherdaemon);		# polite
-	sleep(1);
-	kill('KILL', $otherdaemon);					# then  firm
-	unlink($pidfile);
-	$logger->info("Killed process $otherdaemon as instructed.");
-	exit (0);
-}
-# if stop/abort, get rid of these; if starting up
-# they'll get 'adopted' by this scheduler daemon
-elsif (@otherprocs && $cmdline->{act} =~ /^(stop|abort)$/)
-{
-	my $whichsignal = $cmdline->{act} eq "abort"? "TERM":"INT";
-	kill($whichsignal, @otherprocs);
-	sleep(1);
-	kill("KILL", @otherprocs);
-	$logger->info("Killed worker processes ".join(" ",@otherprocs). " as instructed");
-	exit(0);
-}
-
-# allowed to become a daemon? foreground mode is mostly just for debugging
-if (!NMISNG::Util::getbool($cmdline->{foreground}))
-{
-	if (!defined(my $pid = fork))
 	{
 		print "PID file '$pidFile' " . ((-f $pidFile) ? "exists." : "does not exist.") . "\n";
 		print "Running PID is $otherDaemon\n" if (int($otherDaemon));
@@ -496,8 +463,6 @@ if (!NMISNG::Util::getbool($cmdline->{foreground}))
 
 # this opens a database connection - which we must not share with any children!
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
-#ensure index's here for docker
-	print $nmisng->ensure_indexes();
 my $tc_list = $nmisng->timed_collections_list();
 $nmisng->existing_timed_collections($tc_list);
 
@@ -525,6 +490,10 @@ $SIG{"TERM"} = $SIG{"INT"} = sub {
 	# int means when ready, term means now
 	exit(0) if ($signame eq "TERM");
 };
+
+#For docker, easier if we ensure the index on start
+#TODO look into better logging and check if there is a perf cost
+print $nmisng->ensure_indexes();
 
 # signal handler for USR1/USR2 is just for this process
 $SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
@@ -3049,4 +3018,3 @@ args: hashref of stuff for the op
  services: also want list of services
  schedule: fixme9 tbd - for telling the scheduler to do X at time Y; node,group,operation etc etc
  plugins: require phase = collect or update, and uuid => array of 'handled nodes' uuids
-
