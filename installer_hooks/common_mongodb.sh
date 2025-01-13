@@ -5,7 +5,7 @@
 
 # returns 0 if mongo is locally installed, 1 otherwise
 # also sets MONGO_VERSION, MONGO_MAJOR, _MINOR and _PATCH if installed and mongod can be found
-is_mongo_installed() {
+is_mongo_installed () {
 		# non-package installation? if mongod is in the path we call it ok
 		if ! type mongod >/dev/null 2>&1; then
 				if [ "${DEPENDENCY_CHECK_ONLY}" = 1 ]; then
@@ -192,8 +192,7 @@ install_mongo () {
 #
 #
 # function returns 0 if ok, 1 on errors or unsatisfied requirements, 2 if the user says no to installation/upgrade
-mongo_or_bust ()
-{
+mongo_or_bust () {
 		# do mongo?
 		if [ "${NO_MONGO}" = 1 ]; then
 				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (mongo_or_bust) as instructed."

@@ -78,7 +78,7 @@ EOF
 						# debian 9: mongo package for jessie requires older libssl, only a/v in jessie
 						###[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
 				else
-						MONGORELNAME="bionic";
+						MONGORELNAME="bionic"; # ubuntu 18.04
 						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
 				fi
 
@@ -155,8 +155,7 @@ install_mongo_4 () {
 #
 #
 # function returns 0 if ok, 1 on errors or unsatisfied requirements, 2 if the user says no to installation/upgrade
-new_mongo_4_or_bust ()
-{
+new_mongo_4_or_bust () {
 		# do mongo?
 		if [ "${NO_MONGO}" = 1 ]; then
 				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (new_mongo_4_or_bust) as instructed."
@@ -210,7 +209,7 @@ EOF
 					# shellcheck disable=SC2129
 					echo "#		MUST be configured for authentication, and needs to be primed" >> "${DEPENDENCY_CHECK_FILE}";
 					# shellcheck disable=SC2129
-					echo "#		specifically for Opmantek use as documented on this page:" >> "${DEPENDENCY_CHECK_FILE}";
+					echo "#		specifically for FirstWave use as documented on this page:" >> "${DEPENDENCY_CHECK_FILE}";
 					# shellcheck disable=SC2129
 					echo "#		https://community.opmantek.com/x/h4Aj" >> "${DEPENDENCY_CHECK_FILE}";
 					# shellcheck disable=SC2129
@@ -222,7 +221,7 @@ EOF
 Please note that $PRODUCT requires MongoDB to be either installed
 locally on this server, OR accessible via the network. MongoDB also
 MUST be configured for authentication, and needs to be primed
-specifically for Opmantek use as documented on this page:
+specifically for FirstWave use as documented on this page:
 
     https://community.opmantek.com/x/h4Aj
 
