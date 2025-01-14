@@ -78,15 +78,17 @@ EOF
 						if [ "$OS_MAJOR" = 10 ]; then
 							MONGOREPONAME=debian
 							MONGORELNAME=buster    # debian 10
+							echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/$MONGOREPONAME $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
 						elif [ "$OS_MAJOR" = 11 ]; then
 							MONGOREPONAME=debian
 							MONGORELNAME=bullseye  # debian 11
+							echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/$MONGOREPONAME $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
 						else
 							# MongoDB 6.0 works on Debian 12 bookworm using Ubuntu 22.04 LTS (jammy) repository - https://www.mongodb.com/community/forums/t/mongo-6-x-on-debian-12/232593
 							MONGOREPONAME=ubuntu
 							MONGORELNAME=jammy  # ubuntu 22 for debian 12
+							echo "deb [ trusted=yes ] https://repo.mongodb.org/apt/$MONGOREPONAME $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
 						fi;
-						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/$MONGOREPONAME $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
 				else
 						# MongoDB 6.0 is supported on Ubuntu 18.04 bionic, Ubuntu 20.04 focal and Ubuntu 22.04 jammy
 						if [ "$OS_MAJOR" = 18 ]; then
@@ -96,7 +98,7 @@ EOF
 						else
 							MONGORELNAME=jammy    # ubuntu 22
 						fi;
-						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
+						echo "deb [ trusted=yes ] https://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
 				fi
 
 				execPrint "apt-get update -qq 2>&1"||:;
@@ -158,7 +160,7 @@ install_mongo_6 () {
 				# normally mongod should start on installation, but with systemd that seems unreliable
 				sleep 3 # to give it time to start up
 				# ubuntu: service X status is running through pager and thus blocks :-(
-				# debian: normal, but >/dev/null doesn' hurt
+				# debian: normal, but >/dev/null doesn't hurt
 				execPrint "service mongod status >/dev/null || service mongod start 2>&1"||:;
 				# and, for some stupid reason, mongod isn't enabled for auto-start, at least not the 3.2 package...
 				execPrint "type systemctl >/dev/null 2>&1 && systemctl enable mongod 2>&1"||:;
@@ -166,6 +168,7 @@ install_mongo_6 () {
 				logmsg "Unknown distribution $OSFLAVOUR!"
 				return 1
 		fi
+		printBanner "MongoDB 6 installed."
 		return 0
 }
 
