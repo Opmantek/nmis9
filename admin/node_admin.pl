@@ -123,6 +123,10 @@ my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
 my $config = NMISNG::Util::loadConfTable( dir => $customconfdir, debug => $cmdline->{debug});
 die "no config available!\n" if (ref($config) ne "HASH" or !keys %$config);
 my $server_role = $config->{'server_role'};
+if (defined($server_role) && $server_role ne 'STANDALONE'){
+	print("You are running on a server that is not in Standalone mode, you need to use opHA opnode_admin.pl\n");
+	exit(0);
+}
 my $usage;
 if ($server_role eq "POLLER") {
 	
