@@ -67,12 +67,14 @@ my $PROGNAME = basename($0);
 my $debugsw = -1;
 my $helpsw = 0;
 my $quietsw = 0;
+my $skipsw = 0;
 my $usagesw = 0;
 my $versionsw = 0;
 
  die unless (GetOptions('debug:i'    => \$debugsw,
                         'help'       => \$helpsw,
                         'quiet'      => \$quietsw,
+						'skip'		 => \$skipsw,
                         'usage'      => \$usagesw,
                         'version'    => \$versionsw));
 
@@ -246,8 +248,21 @@ if (!$cmdline->{act})
 
 my $debug   = $debugsw;
 my $quiet   = $quietsw;
+my $skip    = $skipsw;
 $debug      = $cmdline->{debug}                                            if (exists($cmdline->{debug}));   # Backwards compatibility
 $quiet      = NMISNG::Util::getbool_cli("quiet", $cmdline->{quiet}, 0)     if (exists($cmdline->{quiet}));   # Backwards compatibility
+$skip       = NMISNG::Util::getbool_cli("quiet", $cmdline->{skip}, 0)     if (exists($cmdline->{skip}));   # Backwards compatibility
+
+# Add a warning if the server role is not STANDALONE
+if ((!$skip) && defined($server_role) && $server_role ne 'STANDALONE'){
+	
+	print("\033[1mWARNING!!!\033[0m.This feature is for servers in Standalone mode. It is safe to continue, the outcome may be incorrect. Please use opnode_admin.pl instead, Use skip=1 in command to suppress the warnings.\n");
+
+	my $input = NMISNG::Util::askYesNo("Type 'y' or <Enter> to accept, or 'n' to decline","yes");
+	if (!$input){
+		exit(0);
+	}
+}
 
 # For audit 
 my $me = getpwuid($<);
