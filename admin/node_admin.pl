@@ -256,7 +256,7 @@ $skip       = NMISNG::Util::getbool_cli("quiet", $cmdline->{skip}, 0)     if (ex
 # Add a warning if the server role is not STANDALONE
 if ((!$skip) && defined($server_role) && $server_role ne 'STANDALONE'){
 	
-	print("\033[1mWARNING!!!\033[0m.You are running on a server that is not in Standalone mode, you need to use opHA opnode_admin.pl, Use skip=1 in command to suppress the warnings.\n");
+	print("\033[1mWARNING!!!\033[0m.This feature is for servers in Standalone mode. It is safe to continue, the outcome may be incorrect. Please use opnode_admin.pl instead, Use skip=1 in command to suppress the warnings.\n");
 
 	my $input = NMISNG::Util::askYesNo("Type 'y' or <Enter> to accept, or 'n' to decline","yes");
 	if (!$input){
