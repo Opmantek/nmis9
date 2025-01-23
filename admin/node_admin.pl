@@ -67,14 +67,14 @@ my $PROGNAME = basename($0);
 my $debugsw = -1;
 my $helpsw = 0;
 my $quietsw = 0;
-my $skipsw = 0;
+my $skip_ha_warningssw = 0;
 my $usagesw = 0;
 my $versionsw = 0;
 
  die unless (GetOptions('debug:i'    => \$debugsw,
                         'help'       => \$helpsw,
                         'quiet'      => \$quietsw,
-						'skip'		 => \$skipsw,
+						'skip_ha_warnings'		 => \$skip_ha_warningssw,
                         'usage'      => \$usagesw,
                         'version'    => \$versionsw));
 
@@ -124,7 +124,7 @@ if ($cmdline->{__parse_error__})
 my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
 my $config = NMISNG::Util::loadConfTable( dir => $customconfdir, debug => $cmdline->{debug});
 die "no config available!\n" if (ref($config) ne "HASH" or !keys %$config);
-my $server_role = $config->{'server_role'};
+my $server_role = NMISNG::Util::getServerRole(config => $config);
 my $usage;
 if ($server_role eq "POLLER") {
 	
@@ -138,6 +138,7 @@ if ($server_role eq "POLLER") {
 \033[1mGLOBAL OPTIONS:\033[0m
 debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
 quiet=<true|false|yes|no> avoids printing unnecessary data.
+skip_ha_warnings=<true|false|yes|no> suppresses warnings when the server role is not Standalone.
 
 restore: restores a previously dumped node's data. if 
  localise_ids=true (default: false), then the cluster id is rewritten
@@ -179,6 +180,7 @@ Run $PROGNAME -h for detailed help.
 \033[1mGLOBAL OPTIONS:\033[0m
 debug=<true|false|yes|no|info|warn|error|fatal|verbose|0-9> sets debugging verbosity.
 quiet=<true|false|yes|no> avoids printing unnecessary data.
+skip_ha_warnings=<true|false|yes|no> suppresses warnings when the server role is not Standalone.
 \033[1m> The actions 'create', 'delete', 'set', 'unset', and 'update' also support the following 'schedule' arguments:\033[0m
 schedule=<true|false|yes|no|1|0>
 priority=0..1
@@ -248,16 +250,17 @@ if (!$cmdline->{act})
 
 my $debug   = $debugsw;
 my $quiet   = $quietsw;
-my $skip    = $skipsw;
+my $skip_ha_warnings    = $skip_ha_warningssw;
 $debug      = $cmdline->{debug}                                            if (exists($cmdline->{debug}));   # Backwards compatibility
 $quiet      = NMISNG::Util::getbool_cli("quiet", $cmdline->{quiet}, 0)     if (exists($cmdline->{quiet}));   # Backwards compatibility
-$skip       = NMISNG::Util::getbool_cli("quiet", $cmdline->{skip}, 0)     if (exists($cmdline->{skip}));   # Backwards compatibility
+$skip_ha_warnings       = NMISNG::Util::getbool_cli("quiet", $cmdline->{skip_ha_warnings}, 0)     if (exists($cmdline->{skip_ha_warnings}));   # Backwards compatibility
 
 # Add a warning if the server role is not STANDALONE
-if ((!$skip) && defined($server_role) && $server_role ne 'STANDALONE'){
+if ((!$skip_ha_warnings) && defined($server_role) && $server_role ne 'Standalone'){
 	
-	print("\033[1mWARNING!!!\033[0m.This feature is for servers in Standalone mode. It is safe to continue, the outcome may be incorrect. Please use opnode_admin.pl instead, Use skip=1 in command to suppress the warnings.\n");
 
+
+	print("\033[1mWARNING!!!\033[0m node_admin.pl is for servers in Standalone role. This server is in $server_role role. It may NOT be safe to continue, the outcome may be incorrect. Please use opnode_admin.pl instead or use skip_ha_warnings=1 in command to suppress this warning.\n");
 	my $input = NMISNG::Util::askYesNo("Type 'y' or <Enter> to accept, or 'n' to decline","yes");
 	if (!$input){
 		exit(0);
@@ -2370,6 +2373,7 @@ sub help
    push(@lines, " --debug[1-9]             - global option to print detailed messages\n");
    push(@lines, " --help                   - display command line usage\n");
    push(@lines, " --quiet                  - display no output\n");
+   push(@lines, " --skip_ha_warnings       - suppresses warnings when the server role is not Standalone.\n");
    push(@lines, " --usage                  - display a brief overview of command syntax\n");
    push(@lines, " --version                - print a version message and exit\n");
    push(@lines, "\n");

@@ -751,6 +751,16 @@ sub alpha
 	return lc($f) cmp lc($s);
 }
 
+# reads/loads config and returns the server role
+# input config data or null
+# output server_role or Standalone
+sub getServerRole {
+	my %args = @_;
+	
+	my $config = $args{config} // loadConfTable();
+	return $config->{server_role} // "Standalone";
+}
+
 # reads and returns the nmis config file data
 # reads from the given directory or the default one; uses cached data if possible.
 # ATTENTION: no dir argument on a subsequent call means that the PREVIOUS
