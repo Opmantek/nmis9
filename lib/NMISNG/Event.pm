@@ -324,6 +324,19 @@ sub check
 	# check if the event exists and load its details
 	if ( $exists && $self->active )
 	{
+
+		if ( !NMISNG::Util::getbool( $self->nmisng->config->{"keep_event_history"}, "invert" ) ){
+			# set expiry in case saving/escalations do not run properly
+        	my $expire_at = $self->nmisng->config->{purge_event_after} // 86400;
+        	$expire_at = Time::Moment->from_epoch( time + $expire_at );
+			my $q =  $self->_query();
+			my $dbres = NMISNG::DB::update(
+				collection => $self->nmisng->events_collection(),
+				query      => $q,
+				record     => {'$set' => {expire_at => $expire_at, lastupdate => time}},
+				freeform   => 1
+			);			
+		}	
 		# a down event exists, so log an UP and delete the original event
 		my $new_event = $self->event;
 
