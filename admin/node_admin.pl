@@ -253,7 +253,7 @@ my $quiet   = $quietsw;
 my $skip_ha_warnings    = $skip_ha_warningssw;
 $debug      = $cmdline->{debug}                                            if (exists($cmdline->{debug}));   # Backwards compatibility
 $quiet      = NMISNG::Util::getbool_cli("quiet", $cmdline->{quiet}, 0)     if (exists($cmdline->{quiet}));   # Backwards compatibility
-$skip_ha_warnings       = NMISNG::Util::getbool_cli("quiet", $cmdline->{skip_ha_warnings}, 0)     if (exists($cmdline->{skip_ha_warnings}));   # Backwards compatibility
+$skip_ha_warnings       = NMISNG::Util::getbool_cli("skip_ha_warnings", $cmdline->{skip_ha_warnings}, 0) if (exists($cmdline->{skip_ha_warnings}));   # Backwards compatibility
 
 # Add a warning if the server role is not STANDALONE
 if ((!$skip_ha_warnings) && defined($server_role) && $server_role ne 'Standalone'){
