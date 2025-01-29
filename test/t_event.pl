@@ -159,7 +159,11 @@ is( $event3->acknowledge( ack => 1, user => 'testuser' ), undef, "acknowledge re
 is( $event3->logged, 1, "event got logged");
 is( $event3->ack, 1, "event is now acknowledged");
 is( $event3->user, 'testuser', 'acknowledge set the user');
+$C->{"keep_event_history"} = 'true';
+is( $event3->expire_at, undef, "Expire At for event is undef");
 $event3->check(sys => $S);
+is( $event3->load(force => 1, only_take_missing => 0), undef, "loading event with force and not only_take_missing brings in all values");
+isnt( $event3->expire_at, undef, "Expire At for event not undef after check if keep_event_history is true");
 isnt( $event3->event, $event_val1, "event value should go from down->up");
 isnt( $event3->active, 1, "event should now be inactive");
 is( $event3->level, 'Normal', "event should now be at normal level");

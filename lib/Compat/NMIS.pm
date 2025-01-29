@@ -2245,6 +2245,17 @@ sub notify
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
+	# search for upevent that is not historic (no escalations run on it) event shouldn't exist
+    # if it does we get index issues. deleting it here means escalations will not be run
+    # on that up event, ok because it's going down now anyway, no reason to notify it
+	# this is only called when things are going down, validate with ~normal anyway
+	my $thisevent_up =  $events_config->{$event}->{CancelingEvent} // undef;
+	if( $thisevent_up && $thisevent_up ne 'N/A' && $level !~ /Normal/i ) {
+		my $eventobjUP = $S->nmisng_node->event( event => $thisevent_up, element => $element, historic => 0 ); # no search for active, really no active up events should exist
+		$eventobjUP->delete() if( $eventobjUP );
+	}
+
+
 	# create new event object with all properties, when load is called if it is found these will
 	# be overwritten by the existing properties
 	my $event_obj = $S->nmisng_node->event(event => $event, element => $element, configuration => {group => $S->nmisng_node()->{'_configuration'}->{'group'}});
