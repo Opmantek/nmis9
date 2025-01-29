@@ -2252,7 +2252,7 @@ sub notify
 	my $thisevent_up =  $events_config->{$event}->{CancelingEvent} // undef;
 	if( $thisevent_up && $thisevent_up ne 'N/A' && $level !~ /Normal/i ) {
 		my $eventobjUP = $S->nmisng_node->event( event => $thisevent_up, element => $element, historic => 0 ); # no search for active, really no active up events should exist
-		$eventobjUP->delete();
+		$eventobjUP->delete() if( $eventobjUP );
 	}
 
 

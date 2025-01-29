@@ -324,19 +324,24 @@ sub check
 	# check if the event exists and load its details
 	if ( $exists && $self->active )
 	{
-
+		# we are about to take an active event and mark it in-active, creating the "up" event. process escalation will then
+		# find the inactive event, notify all of the up event and then delete/mark it historic. 
+		# Two issues can occur: 
+		# 1. marking the event active 0 can fail (save hits an error/index issue). 
+		# 2. if escalations do not run fast enough (or at all) the up event created never goes away (which can cause #1).
+		# to mitigate these two issues give this event an expire_at value so it will eventually go away
 		if ( !NMISNG::Util::getbool( $self->nmisng->config->{"keep_event_history"}, "invert" ) ){
 			# set expiry in case saving/escalations do not run properly
-        	my $expire_at = $self->nmisng->config->{purge_event_after} // 86400;
-        	$expire_at = Time::Moment->from_epoch( time + $expire_at );
+			my $expire_at = $self->nmisng->config->{purge_event_after} // 86400;
+			$expire_at = Time::Moment->from_epoch( time + $expire_at + 300 );
 			my $q =  $self->_query();
 			my $dbres = NMISNG::DB::update(
 				collection => $self->nmisng->events_collection(),
 				query      => $q,
 				record     => {'$set' => {expire_at => $expire_at, lastupdate => time}},
 				freeform   => 1
-			);			
-		}	
+			);
+		}
 		# a down event exists, so log an UP and delete the original event
 		my $new_event = $self->event;
 
