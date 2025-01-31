@@ -1557,18 +1557,24 @@ sub save
 		$made_config_changes++;
 		$self->nmisng->log->info("model empty, setting it to automatic");
 	}
-
+	
+	# check if configuration depend is present or not ?
 	if ( defined($configuration->{depend}) && ref($configuration->{depend}) eq 'ARRAY') {
-		$made_config_changes++;
-		my @depends_uuid;
-		foreach my $node(@{$configuration->{depend}}){			
-			
-			my $nodeobj = $self->nmisng->node(name => $node);			
-			push(@depends_uuid,$nodeobj->uuid);
-			
-			$self->nmisng->log->info("Modify depend: ".$node." => ".$nodeobj->uuid);
+		
+		# # fetch all nodes.
+		my $nodes_model = $self->nmisng->get_nodes_model(fields_hash => { name => 1, uuid => 1});		
+		my $nodes = $nodes_model->data();
+		my %dep_node_hash = map { $_ => 1 } @{$configuration->{depend}};
+		# convert node name to node uuid for given nodes
+		foreach my $node(@{$nodes}){
+			if (exists $dep_node_hash{$node->{name}}){
+				$made_config_changes++;
+				# delete the node name and add in the uuid.
+				delete $dep_node_hash{$node->{name}};
+				$dep_node_hash{$node->{uuid}} = 1;
+			}
 		}
-		$configuration->{depend} = \@depends_uuid;
+		@{$configuration->{depend}} = (keys %dep_node_hash);
 	}
 	$self->configuration( $configuration ) if( $made_config_changes );
 
