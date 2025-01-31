@@ -1557,6 +1557,19 @@ sub save
 		$made_config_changes++;
 		$self->nmisng->log->info("model empty, setting it to automatic");
 	}
+
+	if ( defined($configuration->{depend}) && ref($configuration->{depend}) eq 'ARRAY') {
+		$made_config_changes++;
+		my @depends_uuid;
+		foreach my $node(@{$configuration->{depend}}){			
+			
+			my $nodeobj = $self->nmisng->node(name => $node);			
+			push(@depends_uuid,$nodeobj->uuid);
+			
+			$self->nmisng->log->info("Modify depend: ".$node." => ".$nodeobj->uuid);
+		}
+		$configuration->{depend} = \@depends_uuid;
+	}
 	$self->configuration( $configuration ) if( $made_config_changes );
 
 	my ($result, $op);
