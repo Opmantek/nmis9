@@ -8580,6 +8580,7 @@ sub collect_services
 				{
 					kill('TERM', $pid);    # get rid of the service tester, it ran over time...
 					$self->nmisng->log->error("service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+					$status{status_text} = "service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.";
 					$ret = 0;
 					kill( "KILL", $pid );
 				}
@@ -8604,6 +8605,7 @@ sub collect_services
 							if ($programexit < 0 || $programexit > 100)
 							{
 								$self->nmisng->log->error("service program $svc->{Program} terminated with unexpected exit code $programexit!");
+								$status{status_text} = "service program $svc->{Program} terminated with unexpected exit code $programexit!";
 								$programexit = 0;
 							}
 							$ret = $programexit;
@@ -8612,6 +8614,7 @@ sub collect_services
 					else
 					{
 						$self->nmisng->log->warn("service program $svc->{Program} terminated abnormally!");
+						$status{status_text} = "service program $svc->{Program} terminated abnormally!";
 						$ret = 0;
 					}
 				}
