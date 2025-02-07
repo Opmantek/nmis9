@@ -48,7 +48,7 @@ EOF
 				local RES;
 				# shellcheck disable=SC2039
 				local OUTPUT;				
-				echolog "Installing gnupg for MONGO6";
+				echolog "Installing gnupg for MongoDB 6";
 				execPrint "apt-get install -y gnupg 2>&1"||:;				
 				SOURCESFILE=/etc/apt/sources.list.d/mongodb-org-$DESIREDVER.list
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
