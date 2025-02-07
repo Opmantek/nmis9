@@ -630,6 +630,7 @@ sub init
 			domain   => $thisnodeconfig->{wmidomain},
 			username => $thisnodeconfig->{wmiusername},
 			password => $thisnodeconfig->{wmipassword},
+			wmic_server_location => $C->{"wmic_server_location"}  // "http://127.0.0.1:2313/wmic",
 			program  => $C->{"<nmis_bin>"} . "/wmic",
 			tmp      => "$tmp"
 		);
