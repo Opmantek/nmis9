@@ -1380,16 +1380,26 @@ sub getValues
 				{
 					( $error, $fields, $meta ) = $self->{wmi}->get( wql => $query );
 				}
+
 				if ($error)
 				{
 					$self->nmisng->log->error("($self->{name}) on get values by wmi: $error");
 					$status{wmi_error} = $error;
+					next;
 				}
 				else
 				{
 					# if indexed, gettable will have returned ALL known indices + values.
 					$seen{$query} = $fields;
 				}
+			}
+
+			#last check to make sure we have data
+			if(!$seen{$query})
+			{
+				$self->nmisng->log->error("($self->{name}) on get values by wmi: no data returned for query $query");
+				$status{wmi_error} = "no data returned for query $query";
+				next;
 			}
 
 			# get the field name from the model entry
