@@ -1360,7 +1360,7 @@ sub getValues
 		{
 			my $query = $todos{$itemname}->{query};
 
-			if ( !defined($seen{$query}) )
+			if ( !$seen{$query} )
 			{
 				# fixme: do we need dynamically created lists of fields, ie. from the known-to-be wanted stuff?
 				# or is a blanket retrieve-all-then-filter good enough? where are the costs, in wmic startup or the
@@ -1395,7 +1395,7 @@ sub getValues
 			}
 
 			#last check to make sure we have data
-			if(!defined($seen{$query}))
+			if(!$seen{$query})
 			{
 				$self->nmisng->log->error("($self->{name}) on get values by wmi: no data returned for query $query");
 				$status{wmi_error} = "no data returned for query $query";
