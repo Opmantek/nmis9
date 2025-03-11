@@ -2123,10 +2123,10 @@ sub makesysuptime
 
 	# if this is wmi, we need to make a sysuptime first. these are seconds
 	# who should own sysUpTime, this needs to only happen if SNMP not available OMK-3223
-	#if ($catchall_data->{wintime} && $catchall_data->{winboottime})
-	#{
-	#	$catchall_data->{sysUpTime} = 100 * ($catchall_data->{wintime}-$catchall_data->{winboottime});
-	#}
+	if (defined($catchall_data->{wintime}) && $catchall_data->{wintime} && $catchall_data->{winboottime})
+	{
+		$catchall_data->{sysUpTime} = 100 * ($catchall_data->{wintime}-$catchall_data->{winboottime});
+	}
 
 	# pre-mangling it's a number, maybe fractional, in 1/100s ticks
 	# post-manging it is text, and we can't do a damn thing anymore
