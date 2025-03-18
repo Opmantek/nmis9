@@ -36,7 +36,6 @@ use strict;
 use File::Temp;
 use Try::Tiny;
 use JSON::XS;
-use Data::Dumper; # delete me
 
 use Encode 2.23;								# core module, version is what came with 5.10.0 which we can make do with
 # the constructor is not doing much at this time, merely checks that the arguments are sufficient
@@ -207,7 +206,7 @@ sub _run_query
 				{
 					my ($classname, @fieldnames, %nicedata);
 					# we need to get the classname, wmic returns it, wmic_server does not so use the last word/token in the query 
-					# assuming it will be the 'table' which seems to be the classname				
+					# assuming it will be the 'table' which seems to be the classname
 					my @words = split(' ', $query);
 					$classname = $words[-1];
 					
@@ -355,23 +354,36 @@ sub _run_query
 
 			if ($@ or ref($json) ne "ARRAY")
 			{
-				print "json decode had a problem: $@\n, query:$query\n rawdata:$rawdata";
-				return  { error => "Cannot parse wmic output: $@" };
-			}
+				if( $rawdata =~ /no such host/ || $rawdata =~ /no route to host/ ) 
+				{
+					$result{error} = "Could not reach host:$self->{host}, output: $rawdata";
+				}
+				elsif( $rawdata =~ /ERROR_ACCESS_DENIED/ ) 
+				{
+					$result{error} = "Access denied to host:$self->{host}, output: $rawdata";
+				}
+				else
+				{
+					# print "json decode had a problem: $@\n, query:$query\n rawdata:$rawdata";
+					$result{error} = "Cannot parse wmic output: $@";
+				}
+			} 
+			else {
 
-			my ($classname, @fieldnames, %nicedata);
-			# we need to get the classname, wmic returns it, wmic_server does not so use the last word/token in the query 
-			# assuming it will be the 'table' which seems to be the classname				
-			my @words = split(' ', $query);
-			$classname = $words[-1];
-			
-			foreach my $entry (@$json) 
-			{
-				$nicedata{$classname} ||= [];
-				push @{$nicedata{$classname}}, $entry;
+				my ($classname, @fieldnames, %nicedata);
+				# we need to get the classname, wmic returns it, wmic_server does not so use the last word/token in the query 
+				# assuming it will be the 'table' which seems to be the classname
+				my @words = split(' ', $query);
+				$classname = $words[-1];
+				
+				foreach my $entry (@$json) 
+				{
+					$nicedata{$classname} ||= [];
+					push @{$nicedata{$classname}}, $entry;
+				}
+				$result{ok} = 1;
+				$result{data} = \%nicedata;
 			}
-			$result{ok} = 1;
-			$result{data} = \%nicedata;
 		}
 	}
 
