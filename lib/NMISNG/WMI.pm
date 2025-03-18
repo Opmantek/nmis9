@@ -29,7 +29,7 @@
 #
 # this module queries WMI services via the standalone wmic executable
 package NMISNG::WMI;
-our $VERSION = "2.3.0";
+our $VERSION = "2.3.1";
 our $tmp     = "$ENV{NMISTMPDIR}" || "/tmp";
 
 use strict;
