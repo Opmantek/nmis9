@@ -365,7 +365,8 @@ sub _run_query
 				else
 				{
 					# print "json decode had a problem: $@\n, query:$query\n rawdata:$rawdata";
-					$result{error} = "Cannot parse wmic output: $@";
+					# if it's not JSON it's an error so let it pass through
+					$result{error} = "$rawdata";
 				}
 			} 
 			else {
