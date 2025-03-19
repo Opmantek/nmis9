@@ -6445,9 +6445,11 @@ sub compute_reachability
 
 	# ${polltype}result is not defined if not tried, use the one that is defined
 	my $pollresult = $RI->{snmpresult} // $RI->{wmiresult} // undef;
-	if( defined($RI->{snmpresult}) && defined($RI->{wmiresult}) ) {
+	if( defined($RI->{snmpresult}) && defined($RI->{wmiresult}) ) 
+	{
 		# if they both are use the lower value
-		$pollresult = ($RI->{snmpresult} < $RI->{wmiresult}) ? $RI->{wmiresult} : $RI->{snmpresult}
+		$pollresult = $RI->{snmpresult}
+		$pollresult = $RI->{wmiresult} if( $RI->{wmiresult} < $RI->{snmpresult} );
 	}
 
 
