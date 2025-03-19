@@ -564,6 +564,7 @@ sub init
 				}
 			}
 		}
+
 		# AND set the default to the snmp timing, to cover unmodelled sections
 		# (which are currently all snmp-based, e.g. hrsmpcpu)
 		if ($policy->{snmp})				# not null
@@ -597,8 +598,10 @@ sub init
 		}
 	}
 
-	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
-	if ( $self->{name} and $snmp and $thisnodeconfig->{collect})
+	# init the snmp accessor if snmp wanted and possible, but do not connect (yet), 
+	# to be wanted it needs to have a community or snmpv3 username, default of "public" must be added to config and not
+	# come from the SNMP package defaults
+	if ( $self->{name} and $snmp and $thisnodeconfig->{collect} and ( $thisnodeconfig->{username} || $thisnodeconfig->{community}) )
 	{
 		if($thisnodeconfig->{snmp_engine} eq "rpc")
 		{

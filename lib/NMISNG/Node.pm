@@ -6443,7 +6443,13 @@ sub compute_reachability
 	$reach{responsetime} = $RI->{pingavg};
 	$reach{loss}         = $RI->{pingloss};
 
-	my $snmpresult = $RI->{snmpresult};
+	# ${polltype}result is not defined if not tried, use the one that is defined
+	my $pollresult = $RI->{snmpresult} // $RI->{wmiresult} // undef;
+	if( defined($RI->{snmpresult}) && defined($RI->{wmiresult}) ) {
+		# if they both are use the lower value
+		$pollresult = ($RI->{snmpresult} < $RI->{wmiresult}) ? $RI->{wmiresult} : $RI->{snmpresult}
+	}
+
 
 	$reach{cpu} = $RI->{cpu};
 	$reach{mem} = $RI->{mem};
@@ -6505,7 +6511,7 @@ sub compute_reachability
 
 	# Health should actually reflect a combination of these values
 	# ie if response time is high health should be decremented.
-	if ( $pingresult == 100 and $snmpresult == 100 )
+	if ( $pingresult == 100 and $pollresult == 100 )
 	{
 
 		$reach{reachability} = 100;
@@ -6758,7 +6764,7 @@ sub compute_reachability
 	}
 
 	# there is a current outage for this node
-	elsif ( ( $pingresult == 0 or $snmpresult == 0 ) and $outage eq 'current' )
+	elsif ( ( $pingresult == 0 or $pollresult == 0 ) and $outage eq 'current' )
 	{
 		$reach{reachability} = "U";
 		$reach{availability} = "U";
@@ -6767,9 +6773,8 @@ sub compute_reachability
 		$reach{health}       = "U";
 		$reach{loss}         = "U";
 	}
-
 	# ping is working but SNMP is Down
-	elsif ( $pingresult == 100 and $snmpresult == 0 )
+	elsif ( $pingresult == 100 and $pollresult == 0 )
 	{
 		$reach{reachability} = 80;                       # correct ? is up and degraded
 		$reach{availability} = $intAvailValueWhenDown;
