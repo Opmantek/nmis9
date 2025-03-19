@@ -1306,17 +1306,19 @@ sub _tacacs_verify {
 		NMISNG::Util::logAuth("ERROR, no Authen::TacacsPlus installed");
 		return 0;
 	} # no Authen::TacacsPlus installed
-
+	# fetch the tacacs primary and secondary server details.
 	my ($host,$port) = split(/:/,$self->{config}->{auth_tacacs_server});
+	my ($host_secondary,$port_secondary) = split(/:/,$self->{config}->{auth_tacacs_server_secondary});
 	if ($host eq "") {
 		NMISNG::Util::logAuth("ERROR, no tacacs server address specified in configuration of NMIS");
 	} elsif ($self->{config}->{auth_tacacs_secret} eq "") {
 		NMISNG::Util::logAuth("ERROR, no tacacs secret specified in configuration of NMIS");
 	} else {
 		$port = 49 if $port eq "";
-		my $tacacs = new Authen::TacacsPlus(
-			Host => $host,
-			Key => $self->{config}->{auth_tacacs_secret},
+		$port_secondary = 49 if $port_secondary eq "";
+		my $tacacs = Authen::TacacsPlus->new(
+			{ Host => $host, Key => $self->{config}->{auth_tacacs_secret}, Port => $port },
+			{ Host => $host_secondary, Key => $self->{config}->{auth_tacacs_secret_secondary}, Port => $port_secondary }
 		);
 		if ( $tacacs->authen($user,$pswd)) {
 			$tacacs->close();
