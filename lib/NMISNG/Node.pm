@@ -2358,9 +2358,12 @@ sub update_node_info
 	}
 
 	# process the overall results, set node states etc.
+	# disable_source changes the state so grab the current state again or we don't see
+	# the affect of the disable call (unless we attempted twice which doesn't always happen)
+	$curstate = $S->status;
 	for my $source (qw(snmp wmi))
 	{
-		# $curstate should be state as of last loadnodeinfo() op
+		# $curstate should be state as of last loadnodeinfo() op (with update above it is)
 
 		# we can call a source ok iff we started with it enabled, still enabled,
 		# and the (second) loadnodeinfo didn't turn up any trouble for this source
