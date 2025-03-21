@@ -6448,7 +6448,7 @@ sub compute_reachability
 	if( defined($RI->{snmpresult}) && defined($RI->{wmiresult}) ) 
 	{
 		# if they both are use the lower value
-		$pollresult = $RI->{snmpresult}
+		$pollresult = $RI->{snmpresult};
 		$pollresult = $RI->{wmiresult} if( $RI->{wmiresult} < $RI->{snmpresult} );
 	}
 
