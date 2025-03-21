@@ -341,7 +341,7 @@ sub _run_query
 			# remove new lines in the error message
 			$result{error} =~ s/\n/\\n/;
 			unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
-			# unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
+			unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
 		}
 		else
 		{
