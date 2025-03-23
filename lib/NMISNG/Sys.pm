@@ -601,7 +601,7 @@ sub init
 	my $have_snmp_settings = ( $thisnodeconfig->{username} ne "" || $thisnodeconfig->{community} ne "" ) ? 1 : 0;
 	my $have_wmi_settings = ( $thisnodeconfig->{wmiusername} ne "" ) ? 1 : 0;
 	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings ) ? 1 : 0;
-	$self->nmisng->log->info("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings");
+	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings");
 	
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet), 
 	# to be wanted it needs to have a community or snmpv3 username, default of "public" must be added to config and not
