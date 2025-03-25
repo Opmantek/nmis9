@@ -36,6 +36,9 @@
       'database' => {
         'common-model' => 'database'
       },
+      'sysUpTime' => {
+        'common-model' => 'sysUptime'
+      },
       'summary' => {
         'common-model' => 'summary'
       },
@@ -138,6 +141,14 @@
           }
         }
       },
+      #'sysUpTime' => {
+      #  'snmp' => {
+       #   'sysUpTime' => {
+       #     'oid' => 'snmpEngineTime',
+       #     'title' => 'System Uptime'
+       #   }
+       # }
+     # },
       'nodeConfiguration' => {
         'snmp' => {
           'configLastChanged' => {
@@ -256,6 +267,7 @@
         },
         'graphtype' => 'cpu,mem-io,mem-proc,mem-router'
       },
+
       'Buffers' => {
         'graphtype' => 'buffer',
         'snmp' => {
@@ -283,6 +295,14 @@
           },
         },
       },
+      #'sysUpTime' => {
+      #  'graphtype' => 'sysuptime',
+      #  'snmp' => {
+      #    'sysUpTime' => {
+      #      'oid' => 'snmpEngineTime'
+      #    },
+      #  },
+      #},
       'TopologyChanges' => {
         'graphtype' => 'topo',
         'snmp' => {
@@ -362,7 +382,7 @@
       }
     },
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,ip,mem-router,topo,routenumber'
+    'nodegraph' => 'health,response,cpu,ip,mem-router,topo,routenumber,sysuptime'
   },
   'interface' => {
     'sys' => {
