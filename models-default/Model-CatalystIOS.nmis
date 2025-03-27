@@ -36,8 +36,8 @@
       'database' => {
         'common-model' => 'database'
       },
-      'sysUpTime' => {
-        'common-model' => 'sysUptime'
+      'sysuptime' => {
+        'common-model' => 'sysuptime'
       },
       'summary' => {
         'common-model' => 'summary'

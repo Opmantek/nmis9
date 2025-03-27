@@ -28,29 +28,26 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
 %hash = (
-	'heading' => 'Uptime',
-	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
-	},
-	'vlabel' => {
-		'standard' => 'days',
-		'short' => 'd'
-	},
-	'option' => {
-		'standard' => [
-			'DEF:top=$database:sysUpTime:AVERAGE',
-			'LINE1:top#0000ff: seconds',
-			'GPRINT:top:AVERAGE:Avg %1.0lf',
-			'GPRINT:top:MAX:Max %1.0lf\\n'
-		],
-		'small' => [
-			'DEF:top=$database:sysUpTime:AVERAGE',
-			'LINE1:top#0000ff: seconds',
-			'GPRINT:top:AVERAGE:Avg %1.0lf',
-			'GPRINT:top:MAX:Max %1.0lf\\n'
-		]
-	}
+    'heading' => 'Uptime',
+    'title' => {
+        'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+        'short' => '$node - $length'
+    },
+    'vlabel' => {
+        'standard' => 'days',
+        'short' => 'd'
+    },
+    'option' => {
+        'standard' => [
+            'DEF:sysUpTimeCustom=$database:sysUpTimeCustom:AVERAGE',
+            'CDEF:sysUpTimeCustomDays=sysUpTimeCustom,86400,/',
+            'LINE1:sysUpTimeCustomDays#0000ff: days'
+        ],
+        'small' => [
+            'DEF:sysUpTimeCustom=$database:sysUpTimeCustom:AVERAGE',
+            'CDEF:sysUpTimeCustomDays=sysUpTimeCustom,86400,/',
+            'LINE1:sysUpTimeCustomDays#0000ff: days'
+        ]
+    }
 );

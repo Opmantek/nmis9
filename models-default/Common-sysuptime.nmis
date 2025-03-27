@@ -31,26 +31,17 @@
 %hash = (
   'database' => {
     'type' => {
-      'sysUpTime' => '/nodes/$node/health/uptime.rrd',
+      'sysUpTimeCustom' => '/nodes/$node/health/uptime.rrd',
     }
   },
   'system' => {
-    'sys' => {
-      'sysUpTime' => {
-        'snmp' => {
-          'sysUpTime' => {
-           'oid' => 'snmpEngineTime',
-            'title' => 'System Uptime'
-          },
-        },
-      },
-    },
     'rrd' => {
-      'sysUpTime' => {
+      'sysUpTimeCustom' => {
         'graphtype' => 'sysuptime',
         'snmp' => {
-          'sysUpTime' => {
-            'oid' => 'snmpEngineTime'
+          'sysUpTimeCustom' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime Days'
           }
         }
       }
