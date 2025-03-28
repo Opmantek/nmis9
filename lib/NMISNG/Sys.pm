@@ -643,6 +643,7 @@ sub init
 			password => $thisnodeconfig->{wmipassword},
 			wmic_server_location => $C->{"wmic_server_location"}  // "http://127.0.0.1:2313/wmic",
 			program  => $C->{"<nmis_bin>"} . "/wmic",
+			timeout  => $C->{wmi_global_timeout},
 			tmp      => "$tmp"
 		);
 		if ( ref($maybe) )

@@ -55,7 +55,7 @@ sub new
 			host     => $args{host},
 			version  => $args{version},
 			domain   => $args{domain},
-			timeout  => $args{timeout},
+			timeout  => $args{timeout} // '20', # 5 is default snmp timeout
 			program  => $args{program} || "wmic",
 			tmp      => $args{tmp} || "/tmp",
 			wmic_server_location => $args{wmic_server_location} || "http://127.0.0.1:2313/wmic"
@@ -313,6 +313,7 @@ sub _run_query
 			$cmdLine .= " --auth-level=privacy";
 			$cmdLine .= " --auth-spnego";
 			$cmdLine .= " --auth-type=krb5";
+			$cmdLine .= " --timeout=${timeout}s"; # add s for seconds to the end
 
 			print $cmdfh "$cmdLine";
 			close($cmdfh);
