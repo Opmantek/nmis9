@@ -33,7 +33,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use Data::Dumper;
-use CGI;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+
+
 # fixme needed?use URI::Escape;
 
 use NMISNG;
@@ -60,6 +62,7 @@ die "Cannot instantiate NMISNG object!\n" if (!$nmisng);
 my $cli_debugging = (@ARGV or !$q->request_uri);
 my $config = $nmisng->config;
 $config->{auth_require} = 0 if ($cli_debugging);
+my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 1);
 
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = NMISNG::Auth->new( conf => $config );
@@ -97,7 +100,7 @@ my $start = ($Q->{start}?  NMISNG::Util::parseDateTime($Q->{start})
 my $end = ($Q->{end}?  NMISNG::Util::parseDateTime($Q->{end})
 						 || NMISNG::Util::getUnixTime($Q->{end})
 					 : time );
-
+my $id = $Q->{id};
 
 my $sort =  { time => -1};
 if (defined($Q->{sort}) && $Q->{sort} =~ /^(-)?([a-z_-]+)$/)
@@ -105,15 +108,22 @@ if (defined($Q->{sort}) && $Q->{sort} =~ /^(-)?([a-z_-]+)$/)
 	$sort = { $2 => (defined($1)? -1: 1) };
 }
 
-my $ops = $nmisng->get_opstatus_model(time => { '$gte' => $start,
+my $ops;
+if( $id ) {
+	$ops = $nmisng->get_opstatus_model(id => $id);
+}
+else
+{
+	$ops = $nmisng->get_opstatus_model(time => { '$gte' => $start,
 																								'$lte' => $end },
 																			activity => $Q->{activity},
 																			type => $Q->{type},
 																			status => $Q->{status},
 																			details => $Q->{details}, # attention: not indexed, slow
 																			sort => $sort,
-																			limit => $Q->{limit},
+																			limit => $Q->{limit}
 		);
+}
 if (my $error = $ops->error)
 {
 	die "Failed to query opstatus: $error\n";
@@ -129,6 +139,13 @@ Compat::NMIS::pageStart(title => "NMIS Operational Status Viewer",
 if (!$ops->count)
 {
 	print "<p>No matching records!</p>";
+}
+elsif( $id ) 
+{
+	my $one = $ops->data()->[0];
+	print "<pre style='text-align: left;'><code>";
+	print $one->{logs};
+	print "</code></pre>";
 }
 else
 {
@@ -169,10 +186,14 @@ else
 					.$halfbaked."&hellip;"."</span>"
 		}
 
-
+		# turn time into a url if it's collect or update (that is all we are keeping logs of for now)
+		my $widget = ($wantwidget) ? 'true' : 'false';
+		my $time = NMISNG::Util::returnDateStamp($one->{time});
+		$time = a(  {href => url( -absolute => 1 ) . "?id=$one->{_id}&widget=$widget"},$time) 
+			if( $one->{activity} eq 'collect' || $one->{activity} eq 'update' && $opstatus_save_logs );
 		print "<tr><td>",
 		join("</td><td>",
-				 NMISNG::Util::returnDateStamp($one->{time}),
+				 $time,
 				 $q->escapeHTML($one->{activity}),
 				 $q->escapeHTML($one->{type}),
 				 $one->{status},				# fixed html-safe values
