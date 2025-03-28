@@ -7901,7 +7901,7 @@ sub services
 																																				&& $_->{options}->{nostats} }
 																									@{$outageres->{current}}) ? 1:0;
 	}
-	$self->collect_services( sys => $S, snmp => 0,
+	$self->collect_services( sys => $S, snmp => 0, wmi => 0,
 													 force => $args{force},
 													 services => $preselected,
 													 catchall_inventory => $catchall_inventory );
@@ -7931,6 +7931,7 @@ sub collect_services
 
 	# don't attempt anything silly if this is a wmi-only node
 	my $snmp_allowed = NMISNG::Util::getbool( $args{snmp} ) && $S->status->{snmp_enabled};
+	my $wmi_allowed = NMISNG::Util::getbool( $args{wmi} ) && $S->status->{wmi_enabled};
 
 	my $node = $self->name;
 	my $C = $self->nmisng->config;
@@ -7945,6 +7946,7 @@ sub collect_services
 	# do an snmp service poll first, regardless of whether any specific services being enabled or not
 
 	my %snmpTable;
+	my $wmiresult;
 	# do we have snmp-based services and are we allowed to check them?
 	# ie node active and collect on; if so, then do the snmp collection here
 	if ( $snmp_allowed
@@ -7998,10 +8000,9 @@ sub collect_services
 				}
 			}
 		}
-
 		# are we still good to continue?
 		# don't do anything with the (incomplete and unusable) snmp data if snmp failed just now
-		if ($snmp_allowed)
+		if ( keys %{$snmpTable{hrSWRunName}} > 0 )
 		{
 			# prepare service list for all observed services, but ditch 'invalid' == zombies
 			for my $pid ( keys %{$snmpTable{hrSWRunName}} )
@@ -8025,56 +8026,149 @@ sub collect_services
 				push @{$services{ $instance{hrSWRunName} }}, \%instance;
 				$self->nmisng->log->debug4(sub {"Found process: ".Data::Dumper->new([\%instance])->Terse(1)->Indent(0)->Pair("=")->Dump});
 			}
+		}
+	}
+	elsif ( $wmi_allowed
+			 and $self->is_active
+			 and $self->configuration->{collect}
+			 and ref($self->configuration->{services}) eq "ARRAY"
+			 and grep( exists( $ST->{$_} ) && $ST->{$_}->{Service_Type} eq "service",
+								 @{$self->configuration->{services}} )
+			)
+	{
+		$self->nmisng->log->debug(sub {"node $node has WMI services to check"});
 
-			# keep all processes for display, not rrd - park this as timed-data
-			# for 'snmp_services' - fixme rename the concept?
-			my $procinv_path = $self->inventory_path(concept => "snmp_services", path_keys => [], data => {});
-			die "failed to create path for snmp_services: $procinv_path\n" if (!ref($procinv_path));
-			my ( $processinventory, $error)  = $self->inventory( concept => "snmp_services",
-																													 path => $procinv_path,
-																													 path_keys => [],
-																													 create => 1);
-			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
-			# i think disabled here makes sense
-			$processinventory->data_info( subconcept => 'snmp_services', enabled => 0 );
-			(my $op, $error) = $processinventory->save( node => $self , update => 1);
-			die "failed to save inventory for snmp_services: $error\n" if ($error);
-			$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, node => $self,
-																								 subconcept => 'snmp_services');
-			$self->nmisng->log->error("snmp_services timed data saving failed: $error") if ($error);
+		# an example of what we are collecting. make sure the keys match the values, keys are 
+		# used in the query
+		my $thissection = {
+			'indexed' => 'ProcessId',
+			'wmi' => {
+				'Name' => {
+					'field' => 'Name',
+				},
+				'DisplayName' => {
+					'field' => 'DisplayName',
+				},
+				'State' => {
+					'field' => 'State',
+				},
+				'PathName' => {
+					'field' => 'PathName',
+				},
+				'ProcessId' => {
+					'field' => 'ProcessId',
+				},
+				'StartMode' => {
+					'field' => 'StartMode'
+				},
+				'ServiceType' => {
+					'field' => 'ServiceType'
+				}
+			},
+		};
+	  my $section = "wmi_services";
+	  
+		my @fieldkeys = keys %{$thissection->{wmi}};
+		my $index_var = $thissection->{indexed};
+		
+		$self->nmisng->log->debug2(sub {"collect_services: section=$section, source WMI, index_var=$index_var"});
+		my $wmiaccessor = $S->wmi;
+		my $wmisection   = $thissection->{wmi};          # the whole section, might contain more than just the index
+		my $indexsection = $wmisection->{$index_var};    # the subsection for the index var
 
-			# now clear events that applied to processes that no longer exist
-			my $eventsmodel = $self->get_events_model( filter => { event => 'regex:process memory' } );
-			if (my $error = $eventsmodel->error)
-			{
-				$self->nmisng->log->error("snmp_services error getting events: $error");
+		my $selectfields = join(",", @fieldkeys);
+		my $query = "SELECT $selectfields FROM Win32_Service";
+		
+		# wmi gettable gives us both the indices and the data
+		$self->nmisng->log->debug4(sub {"running query:$query"});
+		( my $error, $wmiresult, my $meta ) = $wmiaccessor->gettable(
+			wql    => $query,
+			index  => $index_var,
+			fields => \@fieldkeys
+		);
+		if( $error ) 
+		{
+			$self->nmisng->log->error("collect_services wmi error: $error running query:$query");
+		}
+		else 
+		{
+			# fill in results to match snmp values so all the rest of the system works without wmi specific changes
+			foreach my $key (keys %$wmiresult) {
+				my $row = $wmiresult->{$key};
+				my %instance = (
+					pid         => $row->{ProcessId},
+					hrSWRunName => $row->{DisplayName},
+					hrSWRunPath => $row->{PathName},
+					hrSWRunType => "$row->{ServiceType} - $row->{StartMode}",
+					hrSWRunStatus => lc($row->{State}),
+					hrSWRunPerfCPU => undef,
+					hrSWRunPerfMem => undef
+				);
+				# key by process name, keep array of instances, just like snmp code above
+				$services{ $instance{hrSWRunName} } //= [];
+				push @{$services{ $instance{hrSWRunName} }}, \%instance;
+				$self->nmisng->log->debug4(sub {"Found process: ".Data::Dumper->new([\%instance])->Terse(1)->Indent(0)->Pair("=")->Dump});
 			}
-			for my $thisevent ( @{$eventsmodel->data} )
-			{
-			  # fixme NMIS-73: this should be tied to both the element format
-				# and a to-be-added 'service' field of the event
-			  # until then we trigger on the element format plus event name
-				# fixme9: nothing raises these events - if and when that changes, event needs to contain process name plus pid, separately
-				if ( $thisevent->{element} =~ /^(\S.+):(\d+)$/)
-				{
-					my ($processname, $pid)  = ($1,$2);
-					if (ref($services{$processname}) ne "ARRAY" or none { $_->{pid} == $pid } (@{$services{$processname}}))
-					{
-						$self->nmisng->log->debug("clearing event $thisevent->{event} for node $thisevent->{node_name}: process $processname (pid $pid) no longer exists");
+		}
+	}
+# print "Services: ".Dumper(\%services);
 
-						Compat::NMIS::checkEvent(
-							sys     => $S,
-							event   => $thisevent->{event},
-							level   => $thisevent->{level},
-							element => $thisevent->{element},
-							details => $thisevent->{details},
-							inventory_id => $processinventory->id
-								);
-					}
+	# are we still good to continue?		
+	if( keys %services > 0 )
+	{
+		# keep all processes for display, not rrd - park this as timed-data
+		# for 'snmp_services' - fixme rename the concept?
+		my $procinv_path = $self->inventory_path(concept => "snmp_services", path_keys => [], data => {});
+		die "failed to create path for snmp_services: $procinv_path\n" if (!ref($procinv_path));
+		my ( $processinventory, $error)  = $self->inventory( concept => "snmp_services",
+																												 path => $procinv_path,
+																												 path_keys => [],
+																												 create => 1);
+		die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
+		# i think disabled here makes sense
+		$processinventory->data_info( subconcept => 'snmp_services', enabled => 0 );
+		(my $op, $error) = $processinventory->save( node => $self , update => 1);
+		die "failed to save inventory for snmp_services: $error\n" if ($error);
+
+		$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, node => $self,
+																							 subconcept => 'snmp_services');
+		$self->nmisng->log->error("snmp_services timed data saving failed: $error") if ($error);
+
+		# now clear events that applied to processes that no longer exist
+		my $eventsmodel = $self->get_events_model( filter => { event => 'regex:process memory' } );
+		if (my $error = $eventsmodel->error)
+		{
+			$self->nmisng->log->error("snmp_services error getting events: $error");
+		}
+		for my $thisevent ( @{$eventsmodel->data} )
+		{
+		  # fixme NMIS-73: this should be tied to both the element format
+			# and a to-be-added 'service' field of the event
+		  # until then we trigger on the element format plus event name
+			# fixme9: nothing raises these events - if and when that changes, event needs to contain process name plus pid, separately
+			if ( $thisevent->{element} =~ /^(\S.+):(\d+)$/)
+			{
+				my ($processname, $pid)  = ($1,$2);
+				if (ref($services{$processname}) ne "ARRAY" or none { $_->{pid} == $pid } (@{$services{$processname}}))
+				{
+					$self->nmisng->log->debug("clearing event $thisevent->{event} for node $thisevent->{node_name}: process $processname (pid $pid) no longer exists");
+
+					Compat::NMIS::checkEvent(
+						sys     => $S,
+						event   => $thisevent->{event},
+						level   => $thisevent->{level},
+						element => $thisevent->{element},
+						details => $thisevent->{details},
+						inventory_id => $processinventory->id
+							);
 				}
 			}
 		}
 	}
+
+
+
+
 
 	# find and mark as historic any services no longer configured for this host
 	# all possible services are desired at this point
@@ -8187,7 +8281,7 @@ sub collect_services
 		my (%Val, %status);
 
 		# log that we're checking (or why not)
-		$self->nmisng->log->debug(($servicetype eq "service" && !$snmp_allowed)? "Not checking name=$name, no SNMP available"
+		$self->nmisng->log->debug(($servicetype eq "service" && !$snmp_allowed && !$wmi_allowed)? "Not checking name=$name, no SNMP/WMI available"
 															: "Checking service_type=$servicetype name=$name service_name=$servicename" );
 
 
@@ -8295,7 +8389,7 @@ sub collect_services
  		{
 			# snmp not allowed also includes the case of snmp having failed just now
 			# in which case we cannot and must not say anything about this service
-			next if (!$snmp_allowed);
+			next if (!$snmp_allowed && !$wmi_allowed);
 
 			my $wantedprocname = $servicename;
 			my $parametercheck = $thisservice->{Service_Parameters};
@@ -9197,6 +9291,7 @@ sub collect
 	my $services_time_start = Time::HiRes::time;
 	$self->collect_services( sys => $S,
 													 snmp => NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true',
+													 wmi => NMISNG::Util::getbool( $catchall_data->{wmidown} ) ? 'false' : 'true',
 													 force => $force,
 													 catchall_inventory => $catchall_inventory );
 	my $services_time = Time::HiRes::time - $services_time_start;

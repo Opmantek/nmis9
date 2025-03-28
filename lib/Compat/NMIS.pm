@@ -1573,8 +1573,8 @@ sub createHrButtons
 			push @out, CGI::td({class=>'header litehead'},
 												 CGI::a({class=>'wht',href=>"network.pl?act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"storage"));
 		}
-		# this should potentially be querying for active/not-historic
-		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
+		# this should potentially be querying for active/not-historic, 		
+		$ids = $S->nmisng_node->get_inventory_ids( concept => 'snmp_services' );		
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if ( @$ids > 0 )
 		{
