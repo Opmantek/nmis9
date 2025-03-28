@@ -1551,8 +1551,8 @@ sub save
 		$made_config_changes++;
 		$self->nmisng->log->info("Threshold not defined. Setting to true by default");
 	}
-	# is this is an update model could be empty, in that case make it automatic
-	if( !$self->is_new && $configuration->{model} eq '' ) {
+	# model is not allowed be empty, in that case make it automatic
+	if( $configuration->{model} eq '' ) {
 		$configuration->{model} = 'automatic'; # make sure changes we make in the record are also in the object		
 		$made_config_changes++;
 		$self->nmisng->log->info("model empty, setting it to automatic");
@@ -1765,12 +1765,6 @@ sub validate
 			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
 		
-	# empty model makes problems. setting values in validate does not seem correct but
-	# threshold is already being modified..
-	if( $self->is_new && $configuration->{model} eq '' ) {	
-		return (-8,"model must not be empty, use automatic");
-	}
-
 	# if addresses/aliases are present, they must be arrays of hashes, each hash with correct
 	# inner property and expires must make sense
 	for (["addresses","address"], ["aliases","alias"])
