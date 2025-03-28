@@ -62,6 +62,7 @@ die "Cannot instantiate NMISNG object!\n" if (!$nmisng);
 my $cli_debugging = (@ARGV or !$q->request_uri);
 my $config = $nmisng->config;
 $config->{auth_require} = 0 if ($cli_debugging);
+my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 1);
 
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = NMISNG::Auth->new( conf => $config );
@@ -189,7 +190,7 @@ else
 		my $widget = ($wantwidget) ? 'true' : 'false';
 		my $time = NMISNG::Util::returnDateStamp($one->{time});
 		$time = a(  {href => url( -absolute => 1 ) . "?id=$one->{_id}&widget=$widget"},$time) 
-			if( $one->{activity} eq 'collect' || $one->{activity} eq 'update');
+			if( $one->{activity} eq 'collect' || $one->{activity} eq 'update' && $opstatus_save_logs );
 		print "<tr><td>",
 		join("</td><td>",
 				 $time,
