@@ -410,10 +410,10 @@ printBanner("Checking Perl Module Dependencies...");
 my ($isok,@missingones) = check_installed_modules();
 if (!$isok)
 {
-	print "The installer can use CPAN to install the missing Perl packages
-that NMIS depends on, if your system has Internet access.
+	print "The installer can install the missing Perl packages
+that NMIS depends on from CPAN, if your system has Internet access.
 
-These modules can be installed with CPAN:
+These modules can be installed from CPAN:
 
   perl -MCPAN -e shell
     install [module name]

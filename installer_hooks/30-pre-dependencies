@@ -169,8 +169,8 @@ printBanner "Checking if MongoDB is installed..."
 mongo_or_bust 3 4 0 || exit 1
 
 
-# rhel8 fails to install these using yum, but centos8 is able to install these using yum - restrict to rhel8 nand newer
-#stop mongo here for rhel 9 soo we can cpanm the driver, no need too start it again, setup_mongodb.pl will
+# rhel8 fails to install these using yum, but centos8 is able to install these using yum - restrict to rhel8 and newer
+#stop mongo here for rhel 9 so we can cpanm the driver, no need to start it again, setup_mongodb.pl will
 if [ "${OSFLAVOUR}" = "redhat" ]; then
 	if systemctl is-active --quiet mongod; then
 		systemctl stop mongod
@@ -190,14 +190,14 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
             echo "$PRODUCT requires the following packages to be installed first:";
             echo
             echo "perl-CPAN perl-App-cpanminus using $MGR";
-            echo "Devel::GlobalDestruction::XS Proc::Queue";
-            echo "Net::SMTPS using CPANM"
+            echo "Devel::GlobalDestruction::XS Proc::Queue Net::SMTPS using CPANM"
             echo "The installer can download and install these packages.";
             if input_yn "Do you want to install these packages now?" "5af4"; then
                 REPO='';
                 NEEDREPO='';
                 install_package "perl-CPAN"||:;
                 install_package "perl-App-cpanminus"||:;
+                install_package "perl-LWP-Protocol-https"||:;
                 if type cpanm >/dev/null; then
                     if [ -n "${UNATTENDED}" ]; then
                             PROMPT="";
@@ -206,12 +206,17 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
                     fi;
                     cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
                     cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-		    cpanm Net::SMTPS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Net::SMTPS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
 
                     unset PROMPT;
                 fi;
                 unset REPO;
                 unset NEEDREPO;
+                ## check cpanm is working
+                if ! cpanm Net::SMTPS --sudo ; then 
+                    echolog "cpanm is not working"
+                    exit 1
+                fi
             fi;
         fi;
 	else # not RHEL8 - install from Package Manager
