@@ -5308,7 +5308,7 @@ sub handle_sys_get_data_error
 	my ($S,$caller,$section,$index,$catchall_data,$catchall_inventory) = @args{'sys','caller','section','index','catchall_data','catchall_inventory'};
 	
 	my $name = $self->name;
-	my $SNMP = $S->snmp;
+	my $SNMP = $S->snmp; # this may not be defined
 	my $howdiditgo = $S->status;
 	my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
@@ -5316,12 +5316,12 @@ sub handle_sys_get_data_error
 	$message .= "index: $index " if($index);
 
 	# handle some errors without making node down
-	if ( $SNMP->error =~ /is empty or does not exist/ )
+	if ( $SNMP && $SNMP->error =~ /is empty or does not exist/ )
 	{
 		$self->nmisng->log->warn( "$message SNMP Object Not Present, error: ". $SNMP->error );
 		return 1;
 	}
-	elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
+	elsif( $SNMP && ($SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/) )
 	{
 		# error converting the name to an OID shouldn't trigger SNMP Down
 		$self->nmisng->log->error( "$message Model Error, error: " . $SNMP->error );
@@ -5336,7 +5336,7 @@ sub handle_sys_get_data_error
 			if ( $howdiditgo->{wmi_error} );
 
 		# if there is no session do not try and continue
-		if ( $SNMP->error =~ /No session open/ ) {
+		if ( $SNMP && $SNMP->error =~ /No session open/ ) {
 			$self->nmisng->log->info("$message No session, stopping attempts to collect more");
 			return 10;
 		} else {
