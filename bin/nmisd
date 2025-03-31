@@ -987,10 +987,10 @@ while (!$exit_marker)
 selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes unset_nodes
 )))
 		{
-			# no occurrences of op X -> count must be zero, not undefined.
+			# no occurrences of op X -> count must be zero, not undefined. (time as well)
 			# undefined is ok for cumulative time values, because
 			# we want rrdtool to compute max and avgs for times when such data is available
-			$statsdata{$ds} = { option => "gauge,0:U", value => $ds =~ /count$/? 0 : 'U' };
+			$statsdata{$ds} = { option => "gauge,0:U", value => $ds =~ /count$|time$/? 0 : 'U' };
 		}
 		for my $ds (qw(procs queuedjobs activejobs overduejobs))
 		{
