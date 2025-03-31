@@ -55,7 +55,7 @@ sub new
 			host     => $args{host},
 			version  => $args{version},
 			domain   => $args{domain},
-			timeout  => $args{timeout} // '20', # 5 is default snmp timeout
+			timeout  => $args{timeout} // 10, # 5 is default snmp timeout, 5 seems to leave many requests timing out
 			program  => $args{program} || "wmic",
 			tmp      => $args{tmp} || "/tmp",
 			wmic_server_location => $args{wmic_server_location} || "http://127.0.0.1:2313/wmic"
