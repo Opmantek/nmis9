@@ -519,6 +519,12 @@ and then restart the installer.\n\n";
 			{
 				system("cpanm --sudo $prompt $rhel7_mongodb_module 2>&1");
 			}
+			# RHEL8 also has failing MongoDB 2.2.2 tests (so does debian if installed from cpan, it seems the tests are broken)
+			# so install with notest (FYI tests don't run if mongo isn't running)
+			if ($osflavour eq "redhat" and $osmajor >= 8)
+			{
+				system("cpanm --sudo $prompt --notest MongoDB 2>&1");
+			}
 		}
 		else
 		{
