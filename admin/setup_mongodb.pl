@@ -437,7 +437,7 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 		{
 			# we need $osflavour for logrotate file config:
 			#
-			# this $osaflavour code copied from installer
+			# this $osflavour code copied from installer
 			my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos,$osisrocky);
 			if (-f "/etc/redhat-release")
 			{
