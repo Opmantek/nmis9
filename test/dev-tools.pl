@@ -153,7 +153,7 @@ elsif ($Q->{act} =~ /^collect/)
 		my $pollTimer = Compat::Timing->new;
 		my $wantsnmp = $Q->{wantsnmp} // 1;
 		my $wantwmi = $Q->{wantwmi} // 0;
-		$nodeobj->collect( wantsnmp => $wantsnmp, wantwmi => $wantwmi );
+		$nodeobj->collect( wantsnmp => $wantsnmp, wantwmi => $wantwmi, force => $Q->{force} );
 		my $polltime = $pollTimer->elapTime();
 		print "Collect finished in $polltime \n";
 	} else {
@@ -256,7 +256,40 @@ elsif ($Q->{act} =~ /^dump-node/)
 	}
 	exit 0;
 }
+elsif ($Q->{act} =~ /^services/)
+{
+		my $node = $Q->{node};
+								
+    die "Need a node to run " if (!$node);
+	my $nodeobj = $nmisng->node(name => $node);
+	if ($nodeobj) {
+		my $timer = Compat::Timing->new;
+		my $wantsnmp = $Q->{wantsnmp} // 1;
+		my $wantwmi = $Q->{wantwmi} // 1;
 
+		my $S = NMISNG::Sys->new(nmisng => $nodeobj->nmisng);
+		if( !$S->init( node => $nodeobj,
+									snmp => $wantsnmp,
+									wmi => $wantwmi,
+									policy => $nodeobj->configuration->{polling_policy},
+		)) {
+			die "failed to init S\n";
+		}
+		my $catchall_inventory = $S->inventory( concept => 'catchall' );
+		my $catchall_data = $catchall_inventory->data_live();
+		$nodeobj->collect_services( sys => $S,
+													 snmp => NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true',
+													 wmi => NMISNG::Util::getbool( $catchall_data->{wmidown} ) ? 'false' : 'true',
+													 force => $Q->{force} // 0,
+													 catchall_inventory => $catchall_inventory );		
+		my $totaltime = $timer->elapTime();
+		print "services finished in $totaltime \n";
+	} else {
+		 print " Error init for $node\n";
+	}
+	exit 0;
+	
+}
 # Test snmp
 sub testgraph
 {

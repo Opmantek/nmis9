@@ -29,12 +29,13 @@
 #
 # this module queries WMI services via the standalone wmic executable
 package NMISNG::WMI;
-our $VERSION = "2.3.0";
+our $VERSION = "2.3.1";
 our $tmp     = "$ENV{NMISTMPDIR}" || "/tmp";
 
 use strict;
 use File::Temp;
 use Try::Tiny;
+use JSON::XS;
 
 use Encode 2.23;								# core module, version is what came with 5.10.0 which we can make do with
 # the constructor is not doing much at this time, merely checks that the arguments are sufficient
@@ -54,7 +55,7 @@ sub new
 			host     => $args{host},
 			version  => $args{version},
 			domain   => $args{domain},
-			timeout  => $args{timeout},
+			timeout  => $args{timeout} // 10, # 5 is default snmp timeout, 5 seems to leave many requests timing out
 			program  => $args{program} || "wmic",
 			tmp      => $args{tmp} || "/tmp",
 			wmic_server_location => $args{wmic_server_location} || "http://127.0.0.1:2313/wmic"
@@ -169,7 +170,7 @@ sub _run_query
 	my $query = $args{query};
 	return ( error => "query missing" ) if (!$query);
 	my $timeout = $args{timeout};
-	my (@rawdata, $exitcode, %result, $version, $cmdLine);
+	my ($rawdata, $exitcode, %result, $version, $cmdLine);
 
 	if (!$self->{version})
 	{
@@ -205,7 +206,7 @@ sub _run_query
 				{
 					my ($classname, @fieldnames, %nicedata);
 					# we need to get the classname, wmic returns it, wmic_server does not so use the last word/token in the query 
-					# assuming it will be the 'table' which seems to be the classname				
+					# assuming it will be the 'table' which seems to be the classname
 					my @words = split(' ', $query);
 					$classname = $words[-1];
 					
@@ -226,15 +227,9 @@ sub _run_query
 	else {
 		# prep tempfile for wmic's stderr.
 		my ($tfh, $tfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
-		# and another for its auth data.
-		my ($authfh, $authfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
 		# and yet another for the command line entered.
 		my ($cmdfh, $cmdfn) = File::Temp::tempfile("$tmp/wmic.XXXXXXX");
-		chmod(0600,$authfn);
 
-		# random column delimiter, 10 letters should do
-		my $delim = join('', map { ('a'..'z')[rand 26] } (0..9));
-		
 		# Handle Version 1 and Version 2 which are wmic executable
 		# fork and pipe
 		my $pid = open(WMIC, "-|");
@@ -242,7 +237,6 @@ sub _run_query
 		{
 			unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
 			unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
-			unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 			return (error => "cannot fork to run wmic: $!");
 		}
 		elsif ($pid)
@@ -255,9 +249,9 @@ sub _run_query
 				local $SIG{ALRM} = sub { die "alarm\n"; };
 				alarm($timeout) if ($timeout); # setup execution timeout
 
-				close $tfh;									# not ours to use
-				close $authfh;
-				@rawdata = <WMIC>;					# read the goodies from the child
+				close $tfh;									# not ours to use				
+				# @rawdata = <WMIC>;				# read the goodies from the child	
+				$rawdata = join('',<WMIC>); # read the goodies into a scalar instead
 				close(WMIC);
 				$exitcode = $?;
 				alarm(0);
@@ -270,7 +264,6 @@ sub _run_query
 				kill("KILL",$pid);
 				unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
 				unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
-				unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 				return (error => "timeout after $timeout seconds");
 			}
 		}
@@ -285,32 +278,42 @@ sub _run_query
 
 			# let's accept usernames with domains, as user@domain or domain/user
 			my $foundDomain = 0;
+			my ($sendUsername,$sendPassword,$sendDomain);
 			if ($self->{username})
 			{
 					if ($self->{username} =~ m!^([^/@]+)([/@])(.+)$!)
 					{
 						my ($user,$delim,$domain) = ($1,$2,$3);
 						($user,$domain) = ($domain,$user) if ($delim eq "/");
-						print $authfh "username=$user\ndomain=$domain\n";
+						# print $authfh "username=$user\ndomain=$domain\n";
 						$foundDomain = 1;
+						$sendUsername=$user;
+						$sendDomain=$domain;
 					}
 					else
 					{
-							print $authfh "username=$self->{username}\n";
+							# print $authfh "username=$self->{username}\n";
+							$sendUsername=$self->{username};
 					}
 			}
 			if ($self->{domain} && !$foundDomain)
 			{
-				print $authfh "domain=$self->{domain}\n";
+				# print $authfh "domain=$self->{domain}\n";
+				$sendDomain=$self->{domain};
 			}
-			print $authfh "password=$self->{password}\n" if ($self->{password});
-			close $authfh;
-
-			$cmdLine  = "$self->{program} --delimiter=$delim -A $authfn";
-			$cmdLine .= " --option='client ntlmv2 auth'=Yes" if ($self->{version} eq 'Version 2');
-			$cmdLine .= " --no-pass" if (!$self->{password});
-			$cmdLine .= " //".$self->{host};
-			$cmdLine .= " '$query' | grep -v dcerpc_pipe_connect";
+			$sendPassword=$self->{password};
+			# print $authfh "password=$self->{password}\n" if ($self->{password});
+			# close $authfh;
+			$ENV{USERNAME} = $sendUsername;
+			$ENV{PASSWORD} = $sendPassword;
+			$cmdLine  = "$self->{program}";
+			$cmdLine .= " --domain='$sendDomain'";
+			$cmdLine .= " --server='$self->{host}'";
+			$cmdLine .= " --query='$query'";
+			$cmdLine .= " --auth-level=privacy";
+			$cmdLine .= " --auth-spnego";
+			$cmdLine .= " --auth-type=krb5";
+			$cmdLine .= " --timeout=${timeout}s"; # add s for seconds to the end
 
 			print $cmdfh "$cmdLine";
 			close($cmdfh);
@@ -340,55 +343,49 @@ sub _run_query
 			$result{error} =~ s/\n/\\n/;
 			unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
 			unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
-			unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 		}
 		else
 		{
 			unlink $cmdfn or warn "Could not remove file '$cmdfn' Error: $!";
 			unlink $tfn or warn "Could not remove file '$tfn' Error: $!";
-			unlink $authfn or warn "Could not remove file '$authfn' Error: $!";
 			# worked? extract class, fieldnames
-			# produce hash for each class, array of subhashes for the rows
-			my ($classname, @fieldnames, %nicedata);
-			for my $line (@rawdata)
-			{
-				chomp $line;
-				# wmic may very well return utf-8 encoded data, e.g. for Caption in win32_operatingsystem on 6.0.6001
-				# so let's try to be nice and decode it into native unicode
-				my $validunicode = eval { decode('utf-8', $line, Encode::FB_CROAK); };
-				$line = $validunicode if (!$@);
+			# produce hash for each class, array of subhashes for the rows			
+			my ($json,$classname, @fieldnames, %nicedata);
+			eval {  $json = decode_json($rawdata); };
 
-				# CLASS: Win32_PerfRawData_PerfOS_PagingFile
-				if ($line =~ /^class:\s+(\S+)\s*$/i)
+			if ($@ or ref($json) ne "ARRAY")
+			{
+				if( $rawdata =~ /no such host/ || $rawdata =~ /no route to host/ ) 
 				{
-					$classname = $1;
-					undef @fieldnames;	# next line must be field names
+					$result{error} = "Could not reach host:$self->{host}, output: $rawdata";
+				}
+				elsif( $rawdata =~ /ERROR_ACCESS_DENIED/ ) 
+				{
+					$result{error} = "Access denied to host:$self->{host}, output: $rawdata";
 				}
 				else
 				{
-					# should be either list of names or list of values, with delim
-					my @columns = split(qr/$delim/, $line);
-					if (!@fieldnames)
-					{
-						@fieldnames = @columns;
-					}
-					else
-					{
-						return (error => "response contains data without classname!") if (!$classname);
-						return (error => "response data doesn't contain correct number of columns!")
-								if (@columns != @fieldnames);
-
-						# the only transformation we perform is replacing the common '(null)' value with undef.
-						my %thisrow = (map { $fieldnames[$_] => defined($columns[$_])
-																		&& $columns[$_] ne '(null)'? $columns[$_] : undef  }
-													(0..$#fieldnames));
-						$nicedata{$classname} ||= [];
-						push @{$nicedata{$classname}}, \%thisrow;
-					}
+					# print "json decode had a problem: $@\n, query:$query\n rawdata:$rawdata";
+					# if it's not JSON it's an error so let it pass through
+					$result{error} = "$rawdata";
 				}
+			} 
+			else {
+
+				my ($classname, @fieldnames, %nicedata);
+				# we need to get the classname, wmic returns it, wmic_server does not so use the last word/token in the query 
+				# assuming it will be the 'table' which seems to be the classname
+				my @words = split(' ', $query);
+				$classname = $words[-1];
+				
+				foreach my $entry (@$json) 
+				{
+					$nicedata{$classname} ||= [];
+					push @{$nicedata{$classname}}, $entry;
+				}
+				$result{ok} = 1;
+				$result{data} = \%nicedata;
 			}
-			$result{ok} = 1;
-			$result{data} = \%nicedata;
 		}
 	}
 

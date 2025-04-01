@@ -199,7 +199,7 @@ list-outages: shows overview of selected outage schedules
 show-outage: displays the details for one outage instance
 
 create-outage: creates new outage schedule
-update-oudage: updates existing outage schedule
+update-outage: updates existing outage schedule
  only the given outage.A, outage.X.Y properties are changed.
 
 check-outage: reports which outages would apply at the given time
@@ -1936,7 +1936,7 @@ sub help
    push(@lines, "                              include. This argument can be repeated.\n");
    push(@lines, "     act=show-outage\n");
    push(@lines, "                     This action displays the details for one outage instance.\n");
-   push(@lines, "     act=update-oudage\n");
+   push(@lines, "     act=update-outage\n");
    push(@lines, "                      This action updates an existing outage schedule.\n");
    push(@lines, "                      only the given outage.A, outage.X.Y properties are changed.\n");
    push(@lines, "\n");

@@ -2194,15 +2194,39 @@ nodeVendor sysObjectName roleType netType );
 				time => { '$lt' => time + 30 }, # arbitrary choice
 				"args.uuid" => [ $nmisng_node->uuid ],
 				count => 1, limit => 0); # need a count, no data
-
+			
 			%details = ( title => "Last ".($jobtype eq "update"? "Update" : "Collect"),
 									 value => $sourceval );
+
+			if( NMISNG::Util::getbool( $C->{'opstatus_save_logs'} // 1 ) ) {
+				# try and find the last time this ran to get the log output
+				my $activity = ($jobtype eq 'update') ? 'update' : 'collect';
+				my $ops = $nmisng->get_opstatus_model(
+																				"context.node_uuid" => $nmisng_node->uuid,
+																				activity => $activity,
+																				# type => "completed",
+																				# status => $Q->{status},
+																				sort => { time => -1 },
+																				limit => 1
+
+				);
+				if (my $error = $ops->error)
+				{
+					print STDERR "Failed to query opstatus: $error\n";
+				}
+				elsif( $ops->count == 1 ) {
+					my $id = $ops->data()->[0]{_id};
+					my $opstatus_url = "$C->{'<cgi_url_base>'}/opstatus.pl?id=$id&widget=$widget";
+					$details{url} = $opstatus_url;
+				}
+			}
 
 			if (defined $due_or_active && !$due_or_active->error && $due_or_active->query_count)
 			{
 				$details{value} .= "\n($jobtype in progress/pending)";
 				$details{color} = "#ffcc00";
 			}
+
 		}
 		elsif ( $propname eq 'TimeSinceTopologyChange')
 		{

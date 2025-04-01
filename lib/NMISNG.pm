@@ -4492,6 +4492,7 @@ sub remove_queue
 #  type (event type, freeform error or status name),
 #  details (optional, freeform, may be undef for delete on update),
 #  stats (optional, structure, may be undef for delete on update),
+#  logs (optional), log messages captured duing operation
 #  context (what node/thing/job was involved, optional,
 #   may be undef for delete on update.
 #   SHOULD have context.node_uuid = singleton or array of involved nodes),
@@ -4528,6 +4529,7 @@ sub save_opstatus
 	$statusrec->{context} = $args{context} if ( exists $args{context} && defined($args{context}));    # undef is ok for deletion
 	$statusrec->{details} = $args{details} if ( exists $args{details} );    # undef is ok for deletion
 	$statusrec->{stats}   = $args{stats} if ( exists $args{stats} );      	# undef is ok for deletion
+	$statusrec->{logs}    = $args{logs} if( exists $args{logs} );
 	delete $statusrec->{_id};                                               # must not be present for update
 
 	my $expire_at = $statusrec->{time} + ( $self->config->{purge_opstatus_after} || 7 * 86400 );

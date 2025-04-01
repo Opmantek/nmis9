@@ -432,6 +432,9 @@
         },
         '40' => {
           'Windows2000' => 'Windows (2000 )?Version 5\\.0'
+        },
+        '50' => {
+          'Windows2012' => 'Windows Version 10\\.0'
         }
       }
     },

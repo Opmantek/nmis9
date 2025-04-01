@@ -987,10 +987,10 @@ while (!$exit_marker)
 selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes unset_nodes
 )))
 		{
-			# no occurrences of op X -> count must be zero, not undefined.
+			# no occurrences of op X -> count must be zero, not undefined. (time as well)
 			# undefined is ok for cumulative time values, because
 			# we want rrdtool to compute max and avgs for times when such data is available
-			$statsdata{$ds} = { option => "gauge,0:U", value => $ds =~ /count$/? 0 : 'U' };
+			$statsdata{$ds} = { option => "gauge,0:U", value => $ds =~ /count$|time$/? 0 : 'U' };
 		}
 		for my $ds (qw(procs queuedjobs activejobs overduejobs))
 		{
@@ -1297,6 +1297,9 @@ sub worker_loop
 	my $config = $nmisng->config;
 	my $ttl = $max_cycles;
 	my $parent = getppid;
+
+	my $can_log_capture = $nmisng->log->can("capture");
+	my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 1);
 
 	while (!$$mustdie and (!defined($ttl) or $ttl))
 	{
@@ -2314,7 +2317,9 @@ sub worker_loop
 																									output => $ourjob->{output}},
 							);
 					$nmisng->log->error("Failed to save opstatus: $error") if ($error);
-
+					# start capturing log output to save into opstatus, make sure object can do it 
+					my $capture_messages;
+					$capture_messages = $nmisng->log->capture() if( $can_log_capture );
 					$nmisng->log->info("Starting $methodname for node $nodeuuid (".$thenode->name.")");
 					my $result = $thenode->$methodname(@methodargs);
 					alarm(0) if ($maxruntime);
@@ -2326,6 +2331,7 @@ sub worker_loop
 					# locked is not-quite an error, so we report it as informational
 					$state->{status} = $result->{success}? "ok": $result->{locked}? "info" : "error";
 					$state->{details} = $result->{success}? "completed successfully (".$thenode->name.")" : "failed: $result->{error}";
+					$state->{logs} = join("",@$capture_messages) if( $can_log_capture && $opstatus_save_logs );
 				}
 				else
 				{
@@ -2350,6 +2356,7 @@ sub worker_loop
 															 type => "exception",
 															 details => $state->{exception},
 															 stats => undef,
+															 logs => $state->{logs},
 															 context => $state->{context});
 			}
 			else
@@ -2362,6 +2369,7 @@ sub worker_loop
 																										status => $state->{status},
 																										details => $state->{details},
 																										stats => $state->{stats},
+																										logs => $state->{logs},
 																										context => $state->{context},
 															 );
 				$nmisng->log->error("Failed to save opstatus: $error") if ($error);
