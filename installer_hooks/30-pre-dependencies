@@ -176,15 +176,17 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
             printBanner "Some required packages need to be installed first!"
             echo "$PRODUCT requires the following packages to be installed first:";
             echo
-            echo "perl-CPAN perl-App-cpanminus using $MGR";
+            echo "gcc perl-CPAN perl-App-cpanminus using $MGR";
             echo "Devel::GlobalDestruction::XS Proc::Queue";
             echo "Net::SMTPS using CPANM"
             echo "The installer can download and install these packages.";
             if input_yn "Do you want to install these packages now?" "5af4"; then
                 REPO='';
                 NEEDREPO='';
+                install_package "gcc"||:;
                 install_package "perl-CPAN"||:;
                 install_package "perl-App-cpanminus"||:;
+                install_package "perl-LWP-Protocol-https"||:;
                 if type cpanm >/dev/null; then
                     if [ -n "${UNATTENDED}" ]; then
                             PROMPT="";
