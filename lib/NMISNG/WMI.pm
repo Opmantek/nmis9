@@ -250,7 +250,6 @@ sub _run_query
 				alarm($timeout) if ($timeout); # setup execution timeout
 
 				close $tfh;									# not ours to use				
-				# @rawdata = <WMIC>;				# read the goodies from the child	
 				$rawdata = join('',<WMIC>); # read the goodies into a scalar instead
 				close(WMIC);
 				$exitcode = $?;
@@ -271,7 +270,7 @@ sub _run_query
 		{
 			# child
 			open(STDIN, "</dev/null");
-			open(STDERR, '>&'.$tfh);		# stderr to go there, please
+			open(STDERR, '>&', $tfh);		# stderr to go there, please
 
 			# -A format is badly documented. smbclient manpage has a little bit of info
 			# however, unclear if that password can be quoted or contain spaces or the like...
@@ -285,25 +284,21 @@ sub _run_query
 					{
 						my ($user,$delim,$domain) = ($1,$2,$3);
 						($user,$domain) = ($domain,$user) if ($delim eq "/");
-						# print $authfh "username=$user\ndomain=$domain\n";
 						$foundDomain = 1;
 						$sendUsername=$user;
 						$sendDomain=$domain;
 					}
 					else
 					{
-							# print $authfh "username=$self->{username}\n";
-							$sendUsername=$self->{username};
+						$sendUsername=$self->{username};
 					}
 			}
 			if ($self->{domain} && !$foundDomain)
 			{
-				# print $authfh "domain=$self->{domain}\n";
 				$sendDomain=$self->{domain};
 			}
 			$sendPassword=$self->{password};
-			# print $authfh "password=$self->{password}\n" if ($self->{password});
-			# close $authfh;
+
 			$ENV{USERNAME} = $sendUsername;
 			$ENV{PASSWORD} = $sendPassword;
 			$cmdLine  = "$self->{program}";
@@ -367,7 +362,7 @@ sub _run_query
 				{
 					# print "json decode had a problem: $@\n, query:$query\n rawdata:$rawdata";
 					# if it's not JSON it's an error so let it pass through
-					$result{error} = "$rawdata";
+					$result{error} = "raw output: $rawdata";
 				}
 			} 
 			else {
