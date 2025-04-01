@@ -2323,7 +2323,7 @@ sub worker_loop
 					$nmisng->log->info("Starting $methodname for node $nodeuuid (".$thenode->name.")");
 					my $result = $thenode->$methodname(@methodargs);
 					alarm(0) if ($maxruntime);
-					$nmisng->log->debug2("Finished $methodname for node $nodeuuid (".$thenode->name.")");
+					$nmisng->log->info("Finished $methodname for node $nodeuuid (".$thenode->name.")");
 
 					$nmisng->log->debug(sprintf("$methodname for node $nodeuuid (%s) took %.1fs",
 																			$thenode->name, (Time::HiRes::time - $state->{stats}->{time})));
