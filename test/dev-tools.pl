@@ -124,22 +124,20 @@ elsif ($Q->{act} =~ /^inventory/)
 elsif ($Q->{act} =~ /^model/)
 {
 	my $node = $Q->{node};
-								
-    die "Need a node to run " if (!$node);
+	die "Need a node to run " if (!$node);
 	my $nodeobj = $nmisng->node(name => $node); 
 	if ($nodeobj) {
-		my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object
-		eval {
-                $S->init(name=>$node);
-        }; if ($@) # load node info and Model if name exists
+		my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object		
+
+		if( !$S->init(name=>$node) )
 		{
-               print " Error init for $node\n";
-               die;
-        }
+		   print " Error init for $node\n, status:".Dumper($S->status);
+       die;
+		}
 		my $mdl = $S->mdl();
 		print Dumper($mdl);
 	} else {
-		 print " Error init for $node\n";
+		 print " Could not find node $node\n";
 	}
 	exit 0;
 }
