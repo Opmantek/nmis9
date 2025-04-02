@@ -4484,6 +4484,27 @@ sub remove_queue
 	return undef;
 }
 
+# this is meant to be used when nmisd is not running (or is starting up)
+# to clear jobs that are marked active, if nmis is restarting or dead they aren't
+# active anymore!
+sub clear_active_queue
+{
+	my ( $self ) = @_;
+	$self->log->info("clearing active job queue");
+	my $jobs = $self->get_queue_model( { in_progress => 1 });
+	if (my $fault = $jobs->error)
+	{
+		return "clear_active_queue: Failed to lookup schedule: $fault\n";
+	}
+
+	my $all_good;
+	while ( my $entry = $jobs->next_value ) {
+		# should handle oid object staying oid object
+		$all_good .= $self->remove_queue( id => $entry->{_id} ) if ($entry->{_id});
+	}
+	return $all_good;
+}
+
 # records/updates the status of an operation
 # args: id (optional but required for updating an existing record)
 #  time (defaults to now),
