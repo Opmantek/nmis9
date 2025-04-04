@@ -9,7 +9,7 @@
 # returns 0 if access works, 1 otherwise
 is_web_available()
 {
-		if [ "$CANUSEWEB" != 1 ]; then
+		if [ "$OPT_CANUSEWEB" != 1 ]; then
 			echolog "Web access is disabled"
 			return 1;
 		fi
