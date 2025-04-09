@@ -2067,6 +2067,7 @@ sub prep_extras_with_catchalls
 	my $str = $args{str};
 	my $type = $args{type};
 	my $inventory = $args{inventory};
+	my $C = $self->{config} // $self->nmisng->config();
 
 	# so sadly this is not enough to make interface work right now
 	$section ||= $type;
@@ -2078,7 +2079,15 @@ sub prep_extras_with_catchalls
 		my $data = $self->inventory(concept => "catchall")->data_live();
 		$extras->{node} ||= $self->{node};
 
-		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location))
+		my @catchall_keys = qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location);
+		# grab additional keys, allow comma seperated list or array
+		# uses same config item that controls config items -> catchall
+		my $additional_keys = $C->{copy_node_configuration_to_catchall_list} // [];
+		if( ref($C->{copy_node_configuration_to_catchall_list} // []) ne 'ARRAY' ) {
+			my @splitskeys= split(",", $C->{copy_node_configuration_to_catchall_list} // '');
+			$additional_keys = \@splitskeys;
+		}
+		foreach my $key (@catchall_keys,@$additional_keys)
 		{
 			$extras->{$key} ||= $data->{$key};
 		}

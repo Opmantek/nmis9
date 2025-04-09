@@ -1666,6 +1666,7 @@ sub sync_catchall
 {
 	my ($self, %args)      = @_;
 	my $S                  = $args{sys};
+	my $C = $self->nmisng->config;
 	my $catchall_inventory;
 
 	my $return = -1;
@@ -1695,8 +1696,13 @@ sub sync_catchall
 			ping pollers polling_policy port remote_connection_name remote_connection_url roleType serviceStatus services 
 			sysDescr threshold timezone username version webserver wmidomain wmiversion);
 		
-		# check the config for extra things to copy
-		my $extra_props = $self->nmisng->config->{copy_node_configuration_to_catchall_list} // [];
+		# check the config for extra things to copy, allow comma seperated list or array
+		my $extra_props = $C->{copy_node_configuration_to_catchall_list} // [];		
+		if( ref($C->{copy_node_configuration_to_catchall_list} // []) ne 'ARRAY' ) {
+			my @splitskeys= split(",", $C->{copy_node_configuration_to_catchall_list} // '');
+			$extra_props = \@splitskeys;
+		}
+
 		push @copy_props, @$extra_props if( ref($extra_props) eq 'ARRAY' && @$extra_props > 0 );
 		my $configuration = $self->configuration();
 		foreach my $prop (@copy_props) 
