@@ -1365,6 +1365,8 @@ sub ensure_indexes
 												# (for the semi-dynamic dns alias and address info)
 												[ [ "aliases.alias" => 1 ] ],
 												[ [ "addresses.address" => 1 ] ],
+												# depend for graphLookups
+												[ [ "configuration.depend" => 1 ] ],
 												[["lastupdate" => 1], {unique => 0}],
 				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
