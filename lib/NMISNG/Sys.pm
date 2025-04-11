@@ -1709,6 +1709,8 @@ sub loadModel
 			map { push @depstocheck, "Common-".$self->{mdl}->{"-common-"}->{class}->{$_}->{"common-model"}; }
 			(keys %{$self->{mdl}{'-common-'}{class}}) if (ref($self->{mdl}->{'-common-'}) eq "HASH"
 																										&& ref($self->{mdl}->{'-common-'}->{class}) eq "HASH");
+			my $global_model_overrides = $C->{'global_model_overrides'} // [];
+			map { push @depstocheck, "Override-$_" } (@$global_model_overrides);
 
 			for my $other (@depstocheck)
 			{
@@ -1767,8 +1769,8 @@ sub loadModel
 			$shortname =~ s/^Model-//;
 			$self->{mdl}->{system}->{nodeModel} = $shortname;
 
-			# continue with loading common Models
-			foreach my $class ( keys %{$self->{mdl}{'-common-'}{class}} )
+			# continue with loading common Models, sorted using characters because we didn't use numbers here...
+			foreach my $class (sort  {$a cmp $b} keys %{$self->{mdl}{'-common-'}{class}} )
 			{
 				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
 				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
@@ -1788,6 +1790,28 @@ sub loadModel
 					}
 				}
 			}
+			# after all models are loaded add in override files
+			my $global_model_overrides = $C->{'global_model_overrides'} // [];
+			foreach my $override (@$global_model_overrides) {
+				my $name = "Override-$override";
+				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
+					if (!$commonres->{success})
+				{
+					$self->{error} = "ERROR ($self->{name}) failed to read Model file $name: $commonres->{error}!";
+					$exit = 0;
+				}
+				else
+				{
+					# this mostly copies, so cloning not needed
+					# however, an unmergeable model is terminal, mustn't be cached, useless.
+					if ( !$self->_mergeHash( $self->{mdl}, $commonres->{data} ) )
+					{
+						$self->{error} = "ERROR ($self->{name}) model merging failed!";
+						return 0;
+					}
+				}
+			}
+
 			$self->nmisng->log->debug("model $model loaded (from source)");
 			# pre-process the model before it is cached and check for issues
 			# at the moment, all this does is make sure oid's do not start with a "."
