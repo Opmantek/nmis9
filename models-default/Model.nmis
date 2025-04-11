@@ -430,11 +430,14 @@
         '30' => {
           'Windows2012' => 'Windows Version 6\\.3'
         },
-        '40' => {
-          'Windows2000' => 'Windows (2000 )?Version 5\\.0'
+	'35' => {
+          'WindowsServer' => 'Windows Server 2019'
         },
-        '50' => {
-          'Windows2012' => 'Windows Version 10\\.0'
+	'40' => {
+          'WindowsServer' => 'Windows Version 10\\.0'
+        },
+        '45' => {
+          'Windows2000' => 'Windows (2000 )?Version 5\\.0'
         }
       }
     },
