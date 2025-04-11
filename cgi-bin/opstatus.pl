@@ -143,9 +143,15 @@ if (!$ops->count)
 elsif( $id ) 
 {
 	my $one = $ops->data()->[0];
-	print "<pre style='text-align: left;'><code>";
-	print $one->{logs};
-	print "</code></pre>";
+	if( $one->{logs} ne "" ) {
+		print "<pre style='text-align: left;'><code>";
+		print $one->{logs};
+		print "</code></pre>";
+	}
+	else 
+	{
+		print "<p>Logs not collected, check config item opstatus_save_logs, and Mojolicious version logs can capture</p>";
+	}
 }
 else
 {
