@@ -3471,8 +3471,9 @@ LABEL_ESC:
 		if ( $event_obj->event =~ /interface/i && !$event_obj->is_proactive )
 		{
 			my $ifIndex = undef;
-			my $ifDescr = $event_obj->element;
-			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );
+			my $ifDescr = $event_obj->element; # some events have interface in the name but no element
+			my $interface_inventory;
+		       $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr ) if( $ifDescr );
 			if( $interface_inventory )
 			{
 				if ( !NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )

@@ -4552,7 +4552,7 @@ sub checkPIX
 		$catchall_data->{pixPrimary}   = $result->{'cfwHardwareStatusValue.6'};    # remember
 		$catchall_data->{pixSecondary} = $result->{'cfwHardwareStatusValue.7'};
 	}
-	$self->nmisng->log->debug2(sub {&NMIS::Log::trace() ."Finished"});
+	$self->nmisng->log->debug2(sub {&NMISNG::Log::trace() ."Finished"});
 	return 1;
 }
 
@@ -9529,6 +9529,11 @@ sub interface_by_ifDescr
 	my ($self,$ifDescr) = @_;
 	# ifDescr is in the interface inventory path so use path to find it, unfortunately index it isn't 100% hit
 	# because it can't do 0,1,2,4
+	#
+	if( $ifDescr eq "" ) {
+		$self->nmisng->log->warn(sub {"interface_by_ifDescr called with empty ifDescr".&NMISNG::Log::trace()});
+		return;
+	}
 	my $path = $self->inventory_path( concept => "interface", data => { ifDescr => $ifDescr }, partial => 1 );
 	# my ( $interface_inventory, $error_message ) = $self->inventory( concept => 'interface', path => $path, create => 1 );
 	# $self->nmisng->log->warn("Node::interface_by_ifDescr error getting interface from ifDescr:$ifDescr, error_message:$error_message ") if( $error_message );
