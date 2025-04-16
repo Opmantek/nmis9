@@ -62,7 +62,7 @@ die "Cannot instantiate NMISNG object!\n" if (!$nmisng);
 my $cli_debugging = (@ARGV or !$q->request_uri);
 my $config = $nmisng->config;
 $config->{auth_require} = 0 if ($cli_debugging);
-my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 1);
+my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 0);
 
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = NMISNG::Auth->new( conf => $config );

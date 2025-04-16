@@ -2198,7 +2198,7 @@ nodeVendor sysObjectName roleType netType );
 			%details = ( title => "Last ".($jobtype eq "update"? "Update" : "Collect"),
 									 value => $sourceval );
 
-			if( NMISNG::Util::getbool( $C->{'opstatus_save_logs'} // 1 ) ) {
+			if( NMISNG::Util::getbool( $C->{'opstatus_save_logs'} // 0 ) ) {
 				# try and find the last time this ran to get the log output
 				my $activity = ($jobtype eq 'update') ? 'update' : 'collect';
 				my $ops = $nmisng->get_opstatus_model(
