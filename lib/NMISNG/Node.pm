@@ -4953,6 +4953,12 @@ sub collect_systemhealth_info
 				$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
 				next;
 			}
+
+			if ( !$SNMP )
+			{
+				$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
+				next;
+			}
 			
 			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
