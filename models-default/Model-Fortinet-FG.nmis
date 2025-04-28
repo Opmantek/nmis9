@@ -84,7 +84,6 @@
 #      }
 #    },
 #
-
 %hash = (
   '-common-' => {
     'class' => {
@@ -105,15 +104,45 @@
       }
     }
   },
-
+  'alerts' => {
+    'fgHwSensor' => {
+      'fgHwSensorEntValue' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Warning' => '70',
+          'Minor' => '75',
+          'Major' => '80',
+          'Critical' => '85',
+          'Fatal' => '90',
+        },
+        'control' => 'CVAR=fgHwSensorEntName;$CVAR =~ /(Temp|Temperature)/',
+        'element' => 'fgHwSensorEntName',
+        'event' => 'High Temperature',
+        'title' => "Temperature",
+        'test' => '',
+        'unit' => 'Degrees',
+        'value' => 'CVAR1=fgHwSensorEntValue;int($CVAR1)'
+      }
+    },
+  },
  'database' => {
     'type' => {
       'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
       'Virtual_Domains' => '/nodes/$node/health/VirtualDomains-$index.rrd',
       'IP_Pool_Stats' => '/nodes/$node/health/IpPool-$index.rrd',
+      'fgHwSensor' => '/nodes/$node/health/fgHwSensor-$index.rrd',
     }
   },
- 
+  'stats' => {
+    'type' => {
+      'fgSystemInfo' => [
+        'DEF:fgSysMemUsage=$database:fgSysMemUsage:AVERAGE',
+        'PRINT:fgSysMemUsage:AVERAGE:fgSysMemUsage=%1.2lf', 
+        'DEF:fgSysCpuUsage=$database:fgSysCpuUsage:AVERAGE',
+        'PRINT:fgSysCpuUsage:AVERAGE:fgSysCpuUsage=%1.2lf', 
+      ],
+    }
+  },
   'heading' => {
     'graphtype' => {
       'fortinet-cpu' => 'CPU Usage',
@@ -127,85 +156,113 @@
   },
   
   'systemHealth' => {
-    'sections' => 'Virtual_Domains,IP_Pool_Stats',
+    'sections' => 'fgHwSensor,VirtualDomains,IP_Pool_Stats',
     'sys' => {
-      'Virtual_Domains' => {
-        'headers' => 'fgVdEntName,fgVdEntOpMode,fgVdEntHaState',
-        'index_oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.1',
-        'indexed' => 'fgVdEntIndex',
+      'fgHwSensor' => {
+        'indexed' => 'fgHwSensorEntName',
+        'index_oid' => '1.3.6.1.4.1.12356.101.4.3.2.1.2',
+        'index_regex' => '\.3\.2\.1\.2\.(\d+)$',
+        'headers' => 'fgHwSensorEntName,fgHwSensorEntValue',
         'snmp' => {
-          'fgVdEntName' => {
-            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.2',
-            'sysObjectName' => 'fgVdEntName',
-            'title' => 'Virtual Domain Name'
+          'fgHwSensorEntName' => {
+            'oid' => '1.3.6.1.4.1.12356.101.4.3.2.1.2',
+            'title' => 'FG Sensor Name'
           },
-          'fgVdEntOpMode' => {
-            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.3',
-            'sysObjectName' => 'fgVdEntOpMode',
-            'title' => 'VD Operational Mode',
-            'replace' => {
-              '1' => 'nat',
-              '2' => 'transparent',
-            },
+          'fgHwSensorEntValue' => {
+            'oid' => '1.3.6.1.4.1.12356.101.4.3.2.1.3',
+            'title' => 'FG Sensor Current Value'
           },
-          'fgVdEntHaState' => {
-            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.4',
-            'sysObjectName' => 'fgVdEntHaState',
-            'title' => 'VD HA State',
-            'replace' => {
-              '1' => 'master',
-              '2' => 'backup',
-              '3' => 'standalone',
-            },
-          },
-          'fgVdEntCpuUsage' => {
-            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.5',
-            'sysObjectName' => 'fgVdEntCpuUsage',
-            'title' => 'VD CPU Usage'
-          },
-          'fgVdEntMemUsage' => {
-            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.6',
-            'sysObjectName' => 'fgVdEntMemUsage',
-            'title' => 'VD Memory Usage'
-          },
-          'fgVdEntSesCount' => {
-            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.7',
-            'sysObjectName' => 'fgVdEntSesCount',
-            'title' => 'VD Session Count'
-          },
-        }
+        },
       },
-      'IP_Pool_Stats' => {
-        'headers' => 'fgFwIppStatsName,fgFwIppStatsType,fgFwIppSStartIp,fgFwIppStatsEndIp',
-        'index_oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.1',	
-        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$', 
-        'indexed' => 'fgFwIppStatsName',
+      'Virtual_Domains' => {
+          'headers' => 'fgVdEntName,fgVdEntOpMode,fgVdEntHaState',
+          'index_oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.1',
+          'indexed' => 'fgVdEntIndex',
           'snmp' => {
-            'fgFwIppStatsName' => {
-              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.1',
-              'sysObjectName' => 'fgFwIppStatsName',
-              'title' => 'Stats Name'
+            'fgVdEntName' => {
+              'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.2',
+              'sysObjectName' => 'fgVdEntName',
+              'title' => 'Virtual Domain Name'
             },
-            'fgFwIppStatsType' => {
-              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.2',
-              'sysObjectName' => 'fgFwIppStatsType',
-              'title' => 'Stats Type'
+            'fgVdEntOpMode' => {
+              'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.3',
+              'sysObjectName' => 'fgVdEntOpMode',
+              'title' => 'VD Operational Mode',
+              'replace' => {
+                '1' => 'nat',
+                '2' => 'transparent',
+              },
             },
-            'fgFwIppSStartIp' => {
-              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.3',
-              'sysObjectName' => 'fgFwIppSStartIp',
-              'title' => 'Stats Start Ip'
+            'fgVdEntHaState' => {
+              'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.4',
+              'sysObjectName' => 'fgVdEntHaState',
+              'title' => 'VD HA State',
+              'replace' => {
+                '1' => 'master',
+                '2' => 'backup',
+                '3' => 'standalone',
+              },
             },
-            'fgFwIppStatsEndIp' => {
-              'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.4',
-              'sysObjectName' => 'fgFwIppStatsEndIp',
-              'title' => 'Stats End Ip'
-            },        
+            'fgVdEntCpuUsage' => {
+              'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.5',
+              'sysObjectName' => 'fgVdEntCpuUsage',
+              'title' => 'VD CPU Usage'
+            },
+            'fgVdEntMemUsage' => {
+              'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.6',
+              'sysObjectName' => 'fgVdEntMemUsage',
+              'title' => 'VD Memory Usage'
+            },
+            'fgVdEntSesCount' => {
+              'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.7',
+              'sysObjectName' => 'fgVdEntSesCount',
+              'title' => 'VD Session Count'
+            },
+          }
+        },
+        'IP_Pool_Stats' => {
+          'headers' => 'fgFwIppStatsName,fgFwIppStatsType,fgFwIppSStartIp,fgFwIppStatsEndIp',
+          'index_oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.1',	
+          'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$', 
+          'indexed' => 'fgFwIppStatsName',
+            'snmp' => {
+              'fgFwIppStatsName' => {
+                'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.1',
+                'sysObjectName' => 'fgFwIppStatsName',
+                'title' => 'Stats Name'
+              },
+              'fgFwIppStatsType' => {
+                'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.2',
+                'sysObjectName' => 'fgFwIppStatsType',
+                'title' => 'Stats Type'
+              },
+              'fgFwIppSStartIp' => {
+                'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.3',
+                'sysObjectName' => 'fgFwIppSStartIp',
+                'title' => 'Stats Start Ip'
+              },
+              'fgFwIppStatsEndIp' => {
+                'oid' => '1.3.6.1.4.1.12356.101.5.3.2.1.1.4',
+                'sysObjectName' => 'fgFwIppStatsEndIp',
+                'title' => 'Stats End Ip'
+              },        
+          }
         }
-      }
     },
     
     'rrd' => {
+      'fgHwSensor' => {
+        'graphtype' => 'fortinet-temp',
+        'control' => 'CVAR=fgHwSensorEntName;$CVAR =~ /(Temp|Temperature)/',
+        'indexed' => 'true',
+        'threshold' => 'tempfortinet',
+        'snmp' => {
+          'fgHwSensorCurrent' => {
+            'oid' => '1.3.6.1.4.1.12356.101.4.3.2.1.3',
+            'sysObjectName' => 'fgHwSensorEntValue',
+          },
+        },
+      },
       'Virtual_Domains' => {
         'graphtype' => 'fortinet-vd-cpu,fortinet-vd-mem,fortinet-vd-sessions',    
         'indexed' => 'true',
@@ -351,6 +408,7 @@
     'rrd' => {
       'fgSystemInfo' => {
         'graphtype' => 'fortinet-cpu,fortinet-mem,fortinet-disk,fortinet-sessions',    
+        'threshold' => 'fgSysMemUsage,fortcpuUsage',
         'snmp' => {
           'fgSysCpuUsage' => {
             'oid' => 'fgSysCpuUsage',

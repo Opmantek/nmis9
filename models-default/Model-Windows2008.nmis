@@ -63,12 +63,12 @@
         'common-model' => 'combinedCPUload'
       },
       'wmi' => {
-        'common-model' => 'Windows-wmi'
+        'common-model' => 'Windows-wmi_v1'
       }
     }
   },
 	'systemHealth' => {
-		'sections' => 'WindowsPagefile,LogicalDisk',
+		'sections' => 'NetworkInterface,WindowsPagefile,LogicalDisk,TCPMetrics,UDPMetrics,Utilmemory,CPULoad',
 	},
 
   'system' => {

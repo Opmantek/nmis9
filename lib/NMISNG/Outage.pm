@@ -39,7 +39,7 @@ use UUID::Tiny (qw(:std));
 use DateTime;
 use List::Util 1.33;
 use Carp;
-
+use Clone;
 use NMISNG::Util;
 
 # outage data/argument structure:
@@ -379,9 +379,10 @@ sub find_outages
 	my (%args) = @_;
 	my $filter = ref($args{filter}) eq "HASH"? $args{filter} : {};
 
-	my $data = NMISNG::Util::loadTable(dir => "conf", name => "Outages")
+	my $outage_data = NMISNG::Util::loadTable(dir => "conf", name => "Outages")
 			if (NMISNG::Util::existFile(dir => "conf", name => "Outages")); # or we get lots of log noise
-	$data //= {};
+	$outage_data //= {};
+	my $data = Clone::clone($outage_data); # no overwriting of the original 
 
 	# unfiltered?
 	return { success => 1, outages => [ values %$data ] }
@@ -561,13 +562,31 @@ sub check_outages
 
 				for my $propname (keys %{$maybeout->{selector}->{$selcat}})
 				{
-					my $actual = ($selcat eq "config"?
-												$globalconfig->{$propname} :
-												$propname eq "nodeModel"? $nodemodel
-												# uuid, cluster_id, name, activated.NMIS, overrides live OUTSIDE of configuration!
-												: $propname =~ /^(uuid|cluster_id|name)$/ ?
-												$node->$propname
-												: $nodeconfig->{$propname});
+					my $actual;
+					if ($propname =~ /configuration/){
+						my $config_propname = $propname;
+						$config_propname =~ s/configuration.//;
+						
+						if ($selcat eq "config") {
+							$actual = $globalconfig->{$config_propname};
+						} elsif ($config_propname eq "nodeModel") {
+							$actual = $nodemodel;
+						} elsif ($config_propname =~ /^(uuid|cluster_id|name)$/) {
+							$actual = $node->$config_propname;
+						} else {
+							$actual = $nodeconfig->{$config_propname};
+						}
+					} else {
+						if ($selcat eq "config") {
+							$actual = $globalconfig->{$propname};
+						} elsif ($propname eq "nodeModel") {
+							$actual = $nodemodel;
+						} elsif ($propname =~ /^(uuid|cluster_id|name)$/) {
+							$actual = $node->$propname;
+						} else {
+							$actual = $nodeconfig->{$propname};
+						}
+					}
 					# choices can be: regex, or fixed string, or array of fixed strings
 					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
 

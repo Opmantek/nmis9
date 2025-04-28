@@ -153,6 +153,7 @@ my %hash = (
 	# To have additional fields in the node summary data.
 	'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 	'non_stateful_events' => 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded',
+	'opstatus_save_logs' => 1,
 	'os_cmd_file_decompress' => 'gzip -d -c',
 	'os_cmd_read_file_reverse' => 'tac',
 	'os_execperm' => '0770',

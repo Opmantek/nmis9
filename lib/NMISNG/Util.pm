@@ -588,20 +588,20 @@ sub getBits {
 	$_ = shift;
 	my $ps = shift; # 'ps'
 	if ( $_ eq "NaN" ) { return "$_" ;}
-	elsif ( $_ > 1000000000 ) { $_ /= 1000000000; /(\d+\.\d\d)/; return "$1 Gb${ps}"; }
-	elsif ( $_ > 1000000 ) { $_ /= 1000000; /(\d+\.\d\d)/; return "$1 Mb${ps}"; }
-	elsif ( $_ > 1000 ) { $_ /= 1000; /(\d+\.\d\d)/; return "$1 Kb${ps}"; }
-	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
+	elsif ( $_ >= 1000000000 ) { $_ /= 1000000000; /(\d+\.?\d{0,2})/; return "$1 Gb${ps}"; }
+	elsif ( $_ >= 1000000 ) { $_ /= 1000000; /(\d+\.?\d{0,2})/; return "$1 Mb${ps}"; }
+	elsif ( $_ >= 1000 ) { $_ /= 1000; /(\d+\.?\d{0,2})/; return "$1 Kb${ps}"; }
+	else { /(\d+\.?\d{0,2})/; return"$1 b${ps}"; }
 }
 
 sub getDiskBytes {
 	$_ = shift;
 	my $ps = shift; # 'ps'
 	if ( $_ eq "NaN" ) { return "$_" ;}
-	elsif ( $_ > 1073741824 ) { $_ /= 1073741824; /(\d+\.\d\d)/; return "$1 GB${ps}"; }
-	elsif ( $_ > 1048576 ) { $_ /= 1048576; /(\d+\.\d\d)/; return "$1 MB${ps}"; }
-	elsif ( $_ > 1024 ) { $_ /= 1024; /(\d+\.\d\d)/; return "$1 KB${ps}"; }
-	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
+	elsif ( $_ >= 1073741824 ) { $_ /= 1073741824; /(\d+\.?\d{0,2})/; return "$1 GB${ps}"; }
+	elsif ( $_ >= 1048576 ) { $_ /= 1048576; /(\d+\.?\d{0,2})/; return "$1 MB${ps}"; }
+	elsif ( $_ >= 1024 ) { $_ /= 1024;/(\d+\.?\d{0,2})/; return "$1 KB${ps}"; }
+	else { /(\d+\.?\d{0,2})/; return"$1 b${ps}"; }
 }
 
 # performs a binary copy of a file, used for backup of files.
@@ -749,6 +749,16 @@ sub alpha
 
 	# Default is to sort alphabetically
 	return lc($f) cmp lc($s);
+}
+
+# reads/loads config and returns the server role
+# input config data or null
+# output server_role or Standalone
+sub getServerRole {
+	my %args = @_;
+	
+	my $config = $args{config} // loadConfTable();
+	return $config->{server_role} // "Standalone";
 }
 
 # reads and returns the nmis config file data

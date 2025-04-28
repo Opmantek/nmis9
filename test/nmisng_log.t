@@ -123,4 +123,29 @@ for (['4','info', 'debug',4],
 	is($logger->detaillevel, $newdetail, "changing to '$input' sets details to $newdetail");
 }
 
+# check capture_and_log
+{
+	unlink $targetfile;
+	my $logger = NMISNG::Log->new(level => "info", # why not
+																path => $targetfile);
+	$logger->info("singleline1");
+	my $capture = $logger->capture_and_log();
+	$logger->info("bothline2");
+	$logger->info("bothline3");
+	my $captured_lines = "$capture";
+	undef $capture;
+
+	$logger->info("singleline2");
+	my $logoutput = Mojo::File->new($targetfile)->slurp;
+
+	like($logoutput,qr/singleline1/,"logoutput has expected line");
+	like($logoutput,qr/bothline2/,"logoutput has expected line");
+	like($logoutput,qr/bothline3/,"logoutput has expected line");
+	like($logoutput,qr/singleline2/,"logoutput has expected line");
+
+	unlike($captured_lines,qr/singleline1/,"captured_lines has expected line");
+	like($captured_lines,qr/bothline2/,"captured_lines has expected line");
+	like($captured_lines,qr/bothline3/,"captured_lines has expected line");
+	unlike($captured_lines,qr/singleline2/,"captured_lines has expected line");
+}
 done_testing;

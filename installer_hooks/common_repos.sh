@@ -9,6 +9,11 @@
 # returns 0 if access works, 1 otherwise
 is_web_available()
 {
+		if [ "$OPT_CANUSEWEB" != 1 ]; then
+			echolog "Web access is disabled"
+			return 1;
+		fi
+
                 printBanner "Checking if Web is accessible..."
                 # curl is available even on minimal centos install
                 if type curl >/dev/null 2>&1 && execPrint "curl --connect-timeout 30 --insecure -L -s --retry 3 -o /dev/null https://services.opmantek.com/ping 2>/dev/null";
