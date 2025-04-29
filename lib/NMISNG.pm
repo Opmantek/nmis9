@@ -1367,6 +1367,8 @@ sub ensure_indexes
 												[ [ "addresses.address" => 1 ] ],
 												# depend for graphLookups
 												[ [ "configuration.depend" => 1 ] ],
+												# uuid and polling group to grab polling groups for nodes
+												[["uuid"  => 1, "configuration.polling_group" => 1],{unique => 1}],
 												[["lastupdate" => 1], {unique => 0}],
 				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
