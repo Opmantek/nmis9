@@ -2644,7 +2644,17 @@ sub fping_loop
 
 		# third: ping the ones in need, in chunks if necessary
 		my @thistime = @todos;				# todos is consumed
-		my $allChunks = $nmisng->get_polling_group_chunks(\@todos);
+		my $allChunks;
+		
+		if ( NMISNG::Util::getbool($config->{run_polling_group_chunks})){
+			$allChunks = $nmisng->get_polling_group_chunks(\@todos);
+		}
+		else{
+			my @todos_copy1 = @todos; # Create a copy to preserve original @todos
+			while (my @chunk = splice(@todos_copy1, 0, ($config->{fastping_node_poll} || 200))) {
+				push @{$allChunks}, \@chunk;
+			}
+		}
 		foreach my $chunk (@$allChunks)
 		# while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
 		{
