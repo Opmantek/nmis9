@@ -1367,6 +1367,8 @@ sub ensure_indexes
 												[ [ "addresses.address" => 1 ] ],
 												# depend for graphLookups
 												[ [ "configuration.depend" => 1 ] ],
+												# uuid and polling group to grab polling groups for nodes
+												[["uuid"  => 1, "configuration.polling_group" => 1],{unique => 1}],
 												[["lastupdate" => 1], {unique => 0}],
 				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
@@ -1939,6 +1941,92 @@ sub get_db
 {
 	my ($self) = @_;
 	return $self->{_db};
+}
+#return the array of chunks WRT chunk size.
+# input List of todos uuid's from NMIS daemon
+sub get_polling_group_chunks
+{
+	my ($self,$uuids) = @_;
+	
+	my $polling_group_data;
+	my $map_uuids_to_check;
+	my (@groups,@chunks,@used);
+	my $chunk_size = $self->config->{fastping_node_poll} // 200;
+	
+	# For each UUID, check how many times it appears in the list.
+	# If it appears to have 0 and 1 , consider it dual-homed and mark it as 1.
+	foreach my $to_check (@{$uuids}){
+		if ($to_check =~ /:/){
+			$to_check =~ s/:[0-9]//g;
+			$map_uuids_to_check->{$to_check} = 1;
+		}
+		else{
+			$map_uuids_to_check->{$to_check} = 0;
+		}
+	}
+	# grab all the uuid's from mapped items	
+	my @all_uuids_to_check = keys %{$map_uuids_to_check};
+
+	# fetch polling group for all the mapped uuid's.
+	my $model_data = $self->get_nodes_model(uuid => \@all_uuids_to_check, fields_hash => {"uuid" => 1, "configuration.polling_group" => 1} );
+	my $data = $model_data->data();
+	
+	# Create a hash structure which will contain the list of uuids and count of uuid's wrt assigned polling groups
+	foreach my $node (@{$data}){
+		my $id = $node->{configuration}->{polling_group};
+		if (defined $map_uuids_to_check->{$node->{uuid}} && $map_uuids_to_check->{$node->{uuid}} == 1){
+			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":0");
+			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":1");
+			$polling_group_data->{$id}->{'count'} += 2;
+		}
+		elsif (defined $map_uuids_to_check->{$node->{uuid}} && $map_uuids_to_check->{$node->{uuid}} == 0){
+			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid});
+			$polling_group_data->{$id}->{'count'} += 1;
+		}
+		
+	}
+
+	####### Using the polling_group_data to convert it into a array for count comparison.
+
+	foreach my $item (keys %{$polling_group_data}){
+		 push @groups, {
+            id    => $item,
+            count => $polling_group_data->{$item}{count},
+            nodes => $polling_group_data->{$item}{nodes}
+        };
+	}
+
+
+	# Sort descending by count to fit bigger groups first
+	@groups = sort { $b->{count} <=> $a->{count} } @groups;
+    
+
+	for (my $i = 0; $i < @groups; $i++) {
+		next if $used[$i];  # Skip this group if it's already been used
+
+		my $base = $groups[$i];             # Start with the current base group
+		my $curr_nodes = [ @{$base->{nodes}} ];  # Clone the node list of this group
+		my $curr_count = $base->{count};   # Get the node count for this group
+		$used[$i] = 1;                      # Mark this group as used
+
+		# Try to combine with other groups to fill up to the chunk size
+		for (my $j = $i + 1; $j < @groups; $j++) {
+			next if $used[$j];             # Skip if already used
+			my $try = $groups[$j];         # Candidate group to try merging
+
+			# If merging won't exceed the chunk size, do it
+			if ($curr_count + $try->{count} <= $chunk_size) {
+				push @$curr_nodes, @{$try->{nodes}};  # Add nodes to the current chunk
+				$curr_count += $try->{count};         # Update current total count
+				$used[$j] = 1;                         # Mark this group as used
+
+				last if $curr_count == $chunk_size;   # Stop early if we've hit perfect chunk size
+			}
+		}
+
+		push @chunks, $curr_nodes;  # Save the final chunk of nodes
+	}
+		return \@chunks;
 }
 
 # find all unique values for key from collection and filter provided
