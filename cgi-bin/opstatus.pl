@@ -62,7 +62,7 @@ die "Cannot instantiate NMISNG object!\n" if (!$nmisng);
 my $cli_debugging = (@ARGV or !$q->request_uri);
 my $config = $nmisng->config;
 $config->{auth_require} = 0 if ($cli_debugging);
-my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 1);
+my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 0);
 
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = NMISNG::Auth->new( conf => $config );
@@ -143,9 +143,15 @@ if (!$ops->count)
 elsif( $id ) 
 {
 	my $one = $ops->data()->[0];
-	print "<pre style='text-align: left;'><code>";
-	print $one->{logs};
-	print "</code></pre>";
+	if( $one->{logs} ne "" ) {
+		print "<pre style='text-align: left;'><code>";
+		print $one->{logs};
+		print "</code></pre>";
+	}
+	else 
+	{
+		print "<p>Logs not collected, check config item opstatus_save_logs, and Mojolicious version logs can capture</p>";
+	}
 }
 else
 {

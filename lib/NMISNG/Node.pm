@@ -1666,6 +1666,7 @@ sub sync_catchall
 {
 	my ($self, %args)      = @_;
 	my $S                  = $args{sys};
+	my $C = $self->nmisng->config;
 	my $catchall_inventory;
 
 	my $return = -1;
@@ -1695,8 +1696,13 @@ sub sync_catchall
 			ping pollers polling_policy port remote_connection_name remote_connection_url roleType serviceStatus services 
 			sysDescr threshold timezone username version webserver wmidomain wmiversion);
 		
-		# check the config for extra things to copy
-		my $extra_props = $self->nmisng->config->{copy_node_configuration_to_catchall_list} // [];
+		# check the config for extra things to copy, allow comma seperated list or array
+		my $extra_props = $C->{copy_node_configuration_to_catchall_list} // [];		
+		if( ref($C->{copy_node_configuration_to_catchall_list} // []) ne 'ARRAY' ) {
+			my @splitskeys= split(",", $C->{copy_node_configuration_to_catchall_list} // '');
+			$extra_props = \@splitskeys;
+		}
+
 		push @copy_props, @$extra_props if( ref($extra_props) eq 'ARRAY' && @$extra_props > 0 );
 		my $configuration = $self->configuration();
 		foreach my $prop (@copy_props) 
@@ -4552,7 +4558,7 @@ sub checkPIX
 		$catchall_data->{pixPrimary}   = $result->{'cfwHardwareStatusValue.6'};    # remember
 		$catchall_data->{pixSecondary} = $result->{'cfwHardwareStatusValue.7'};
 	}
-	$self->nmisng->log->debug2(sub {&NMIS::Log::trace() ."Finished"});
+	$self->nmisng->log->debug2(sub {&NMISNG::Log::trace() ."Finished"});
 	return 1;
 }
 
@@ -4945,6 +4951,12 @@ sub collect_systemhealth_info
 		{
 			if( !$index_snmp ) {
 				$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
+				next;
+			}
+
+			if ( !$SNMP )
+			{
+				$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
 				next;
 			}
 			
@@ -9529,6 +9541,11 @@ sub interface_by_ifDescr
 	my ($self,$ifDescr) = @_;
 	# ifDescr is in the interface inventory path so use path to find it, unfortunately index it isn't 100% hit
 	# because it can't do 0,1,2,4
+	#
+	if( $ifDescr eq "" ) {
+		$self->nmisng->log->warn(sub {"interface_by_ifDescr called with empty ifDescr".&NMISNG::Log::trace()});
+		return;
+	}
 	my $path = $self->inventory_path( concept => "interface", data => { ifDescr => $ifDescr }, partial => 1 );
 	# my ( $interface_inventory, $error_message ) = $self->inventory( concept => 'interface', path => $path, create => 1 );
 	# $self->nmisng->log->warn("Node::interface_by_ifDescr error getting interface from ifDescr:$ifDescr, error_message:$error_message ") if( $error_message );

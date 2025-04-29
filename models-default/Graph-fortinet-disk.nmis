@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Disk Usage',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
@@ -47,6 +48,7 @@
 			'CDEF:diskUtil=fgSysDiskUsage,fgSysDiskCapacity,/,100,*',			
 			'AREA:diskUtil#00BFFF: % Disk Used',
 			'GPRINT:diskUtil:AVERAGE:Avg %6.1lf%%\n',
+			'GPRINT:fgSysDiskCapacity:MAX:Disk Capacity %1.2lf %sbytes\n',
 		],
 		'small' => [
 			'--upper-limit','100',
@@ -57,6 +59,7 @@
 			'CDEF:diskUtil=fgSysDiskUsage,fgSysDiskCapacity,/,100,*',			
 			'AREA:diskUtil#00BFFF: % Disk Used',
 			'GPRINT:diskUtil:AVERAGE:Avg %6.1lf%%\n',
+			'GPRINT:fgSysDiskCapacity:MAX:Disk Capacity %1.2lf %sbytes\n',
 		]
 	}
 );

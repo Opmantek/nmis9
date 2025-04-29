@@ -1308,7 +1308,7 @@ sub worker_loop
 	my $parent = getppid;
 
 	my $can_log_capture = ( $nmisng->log->can("capture") ne '');
-	my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 1);
+	my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 0);
 
 	while (!$$mustdie and (!defined($ttl) or $ttl))
 	{
@@ -2779,8 +2779,14 @@ sub fping_loop
 			}
 			my $node = $nmisng->node(uuid => $uuid);
 
+			
+			# this shouldn't be possible but it's been seen
+			if( !$node ) {
+				$nmisng->log->error("fping could not load node with uuid:$uuid!");
+				next;
+			}
 			# no answers whatsoever? then complain, we don't know if up or down so can't really raise any events
-			if ($thisstate->{pending})
+			elsif ($thisstate->{pending})
 			{
 				$nmisng->log->error("fping has not reported any state for Node $thisstate->{name} ($thisstate->{ip})!");
 				next;

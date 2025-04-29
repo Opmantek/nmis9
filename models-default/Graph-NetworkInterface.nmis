@@ -1,0 +1,83 @@
+#
+## $Id: Graph-autil.nmis,v 8.3 2011/11/28 05:36:52 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'heading' => 'Interface Utilisation',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel'=> {
+		'standard' => '% Avg Util',
+		'split' => 'In(-) Out(+) Avg Util'
+	},
+	'option' => {
+		'standard' => [
+			#'--upper-limit','100',
+			#'--lower-limit','-100',
+			#'--rigid',
+			'DEF:Tspeed=$database:CurrentBandwidth:AVERAGE',
+			'DEF:BReceivedPersec=$database:BytesReceivedPersec:AVERAGE',
+			'DEF:BSentPersec=$database:BytesSentPersec:AVERAGE',
+			'DEF:BTotalPersec=$database:BytesTotalPersec:AVERAGE',
+			'DEF:BReceivedPersecM=$database:BytesReceivedPersec:MAX',
+			'DEF:BSentPersecM=$database:BytesSentPersec:MAX',
+
+			'CDEF:inputUtil=BReceivedPersec,8,*,Tspeed,/,100,*',
+			'CDEF:inputSplitUtil=BReceivedPersec,8,*,Tspeed,/,100,*,$split,*',
+			'CDEF:outputUtil=BSentPersec,8,*,Tspeed,/,100,*',
+			
+			'CDEF:inputUtilM=BReceivedPersecM,8,*,Tspeed,/,100,*',
+			'CDEF:inputSplitUtilM=BReceivedPersecM,8,*,Tspeed,/,100,*,$split,*',
+			'CDEF:outputUtilM=BSentPersecM,8,*,Tspeed,/,100,*',
+			
+			'$GLINE:inputSplitUtil#00BFFF: Average Input\\t',
+			'LINE1:inputSplitUtilM#4169E1: Maximum Input\\t',
+			'GPRINT:inputUtil:LAST:Current %4.2lf%%',
+			'GPRINT:inputUtil:AVERAGE:Average %4.2lf%%',
+			
+			'GPRINT:inputUtil:MAX:Maximum %4.2lf%%\\n',
+			'$GLINE:outputUtil#00FF7F: Average Output\\t',
+			'LINE1:outputUtilM#2E8B57: Maximum Output\\t',
+			'GPRINT:outputUtil:LAST:Current %4.2lf%%',
+			'GPRINT:outputUtil:AVERAGE:Average %4.2lf%%',
+			
+			'GPRINT:outputUtil:MAX:Maximum %4.2lf%%\\n',
+
+			#'COMMENT:Interface Speed $Tspeed\\n'
+
+			#'LINE1:inputUtil#4169E1: Input Util\\t',
+			#'$GLINE:inputSplitUtil#00BFFF: Average Input Util\\t',
+
+
+		],
+	}
+);

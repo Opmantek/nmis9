@@ -39,7 +39,7 @@ use UUID::Tiny (qw(:std));
 use DateTime;
 use List::Util 1.33;
 use Carp;
-
+use Clone;
 use NMISNG::Util;
 
 # outage data/argument structure:
@@ -379,9 +379,10 @@ sub find_outages
 	my (%args) = @_;
 	my $filter = ref($args{filter}) eq "HASH"? $args{filter} : {};
 
-	my $data = NMISNG::Util::loadTable(dir => "conf", name => "Outages")
+	my $outage_data = NMISNG::Util::loadTable(dir => "conf", name => "Outages")
 			if (NMISNG::Util::existFile(dir => "conf", name => "Outages")); # or we get lots of log noise
-	$data //= {};
+	$outage_data //= {};
+	my $data = Clone::clone($outage_data); # no overwriting of the original 
 
 	# unfiltered?
 	return { success => 1, outages => [ values %$data ] }
