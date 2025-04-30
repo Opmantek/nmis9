@@ -1,12 +1,12 @@
 #remove everything OMK from this file  if you want just nmis
 #copy a pre-built OMK artifact to root directory of this build if you want OMK
-FROM perl:5.32.1-buster
+FROM perl:5.32.1-threaded-bullseye
 
 ARG NMIS_HOME=/usr/local/nmis9
 ARG NMIS_USER=nmis
 ARG NMIS_GROUP=nmis
 
-ENV PERL5LIB=/usr/share/perl5
+ENV PERL5LIB="/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32"
 
 RUN \
   apt-get update  > /dev/null && \
@@ -16,7 +16,7 @@ RUN \
 
 RUN \
   apt-get -y install tini libcairo2 libcairo2-dev libglib2.0-dev libpango1.0-dev libxml2 libxml2-dev \
-  libgd-gd2-perl libnet-ssleay-perl libcrypt-ssleay-perl fping nmap snmp snmpd snmptrapd \
+  libgd-gd2-perl libnet-ssleay-perl libcrypt-ssleay-perl fping nmap snmp snmpd snmptrapd iputils-ping dnsutils mtr traceroute \
   libnet-snmp-perl libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl libio-socket-ssl-perl \
   libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl libcrypt-unixcrypt-perl libcrypt-rijndael-perl \
   libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl libnet-snpp-perl libdbi-perl \
@@ -41,6 +41,7 @@ RUN mkdir ${NMIS_HOME}/assets
 COPY ./conf-default/Users.nmis ${NMIS_HOME}/conf
 COPY ./conf-default/users.dat ${NMIS_HOME}/conf
 COPY ./conf-default/Access.nmis ${NMIS_HOME}/conf
+COPY ./conf-default/Config.nmis ${NMIS_HOME}/conf
 
 VOLUME ${NMIS_HOME}/conf
 VOLUME ${NMIS_HOME}/database
