@@ -5197,6 +5197,7 @@ sub dump_node
 	my $nodename = $args{name};		# much less preferrable
 	my $override = $args{override}; # Override file if allready exists
 	my $setperms = $args{setperms} // 1; # Update file permissions
+	my $redact = $args{redact} // 0; # to remove sensitive info
 
 	my $options = ref($args{options}) eq 'HASH'? $args{options} : {};
 
@@ -5218,6 +5219,8 @@ sub dump_node
 	my $noderec = $md->data->[0];
 	$uuid //= $noderec->{uuid};
 	$nodename //= $noderec->{name};
+	my @redact_attrs = (qw(community authpassword privpassword authkey privkey wmipassword));
+	map { $noderec->{configuration}{$_} = "**********" } (@redact_attrs) if( $redact );
 
 	# create temp dir first, subdirs for each of the involved db collections
 	my $td = eval { File::Temp::tempdir("dump-$noderec->{uuid}-XXXXXXX",
