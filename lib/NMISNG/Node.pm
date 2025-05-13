@@ -1418,6 +1418,7 @@ sub rename
 	my $newname = $args{new_name};
 	my $old = $self->name;
 	my $server = $args{server};
+	my $is_local = $args{is_local};
 
 	return (0, "Invalid new_name argument") if (!$newname);
 
@@ -1455,22 +1456,25 @@ sub rename
 	my $gimme = $result->objects;
 	return (0, "Failed to instantiate inventory: $gimme->{error}")
 			if (!$gimme->{success});
-	for my $invinstance (@{$gimme->{objects}})
-	{
-		$self->nmisng->log->debug("relocating rrds for inventory instance "
-															.$invinstance->id
-															.", concept ".$invinstance->concept
-															.", description \"".$invinstance->description.'"');
-		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
-		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
-				if (!$ok);
-		# informational
-		$self->nmisng->log->debug2(sub {"relocation reported $error"}) if ($error);
+	# relocate inventory storage only if its a local node.
+	if ($is_local){
+		for my $invinstance (@{$gimme->{objects}})
+		{
+			$self->nmisng->log->debug("relocating rrds for inventory instance "
+																.$invinstance->id
+																.", concept ".$invinstance->concept
+																.", description \"".$invinstance->description.'"');
+			my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
+			return (0, "Failed to relocate inventory storage Arihant VOLLA".$invinstance->id.": $error")
+					if (!$ok);
+			# informational
+			$self->nmisng->log->debug2(sub {"relocation reported $error"}) if ($error);
 
-		# relocate storage returns relative names
-		my $dbroot = $self->nmisng->config->{'database_root'};
-		push @todelete, map { "$dbroot/$_" } (@oktorm);
-	}
+			# relocate storage returns relative names
+			my $dbroot = $self->nmisng->config->{'database_root'};
+			push @todelete, map { "$dbroot/$_" } (@oktorm);
+		}
+	}			
 
 	# then update ourself and save
 	$self->{_name} = $newname;
