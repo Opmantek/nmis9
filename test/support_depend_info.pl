@@ -42,7 +42,10 @@ my $me = getpwuid($<);
 
 if( $cmdline->{act} eq 'dump') 
 {
-  my $md = $nmisng->get_inventory_model( filter => { "concept" => ["lldp","cdp"]}, fields_hash => { "node_uuid" => 1, "node_name" => 1 } );
+  my $md = $nmisng->get_inventory_model( 
+    filter => { "concept" => ["lldp","cdp"], "data.node_uuid" => { '$exists'  => 1, '$ne' => "" } }, 
+    fields_hash => { "node_uuid" => 1, "node_name" => 1, "data.node_uuid" => 1} 
+  );
   if( my $error = $md->error ) {
       print "Error getting cdp/lldp inventory: $error\n";
       exit 1;
@@ -52,18 +55,25 @@ if( $cmdline->{act} eq 'dump')
 
   my $exported_nodes = {};
   while( my $entry = $md->next_value ) {
-      my $uuid = $entry->{node_uuid};
-      next if( $exported_nodes->{$uuid} );
-      
-      # my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
-      # die "Cannot dump node data without node/uuid and file arguments!\n" if (!$file || (!$nodename && !$uuid));
-      my %options = ( historic_events => 0, opstatus_limit => 1, rrd => 0 );
-      my $file = $data_dir."/$uuid";
-      my $res = $nmisng->dump_node( uuid => $uuid, target => $file, options => \%options, override => $override, redact => $redact);
-      die "Failed to dump node data: $res->{error}\n" if (!$res->{success});
-      $exported_nodes->{$uuid} = 1;
-
-      $logger->info("Successfully dumped node data to file $file");
+      # get both source and destination (not all have data pointing back)
+      my @dump_uuids = ($entry->{node_uuid});
+      push @dump_uuids, $entry->{data}{node_uuid} if( defined($entry->{data}{node_uuid}) ); #query should make sure of this
+      foreach my $uuid (@dump_uuids) {
+        next if( $exported_nodes->{$uuid} );
+        
+        # my ($nodename, $uuid, $file) = @{$cmdline}{"node","uuid","file"}; # uuid is safer than node name
+        # die "Cannot dump node data without node/uuid and file arguments!\n" if (!$file || (!$nodename && !$uuid));
+        my %options = ( historic_events => 0, opstatus_limit => 1, rrd => 0 );
+        my $file = $data_dir."/$uuid";
+        my $res = $nmisng->dump_node( uuid => $uuid, target => $file, options => \%options, override => $override, redact => $redact);
+        # don't die, keep going to get all files
+        if (!$res->{success}) {
+          $logger->error( "Failed to dump node data: $res->{error}") 
+        } else {
+          $exported_nodes->{$uuid} = 1;
+          $logger->info("Successfully dumped node data to file $file");
+        }        
+      }
   }
 }
 elsif( $cmdline->{act} eq 'restore') 
@@ -84,20 +94,22 @@ elsif( $cmdline->{act} eq 'restore')
     };
 
     my $res = $nmisng->undump_node(source  => "$data_dir/$file", localise_ids => $localiseme );
-    die "Failed to restore node data: $res->{error}\n" if (!$res->{success});
+    if (!$res->{success}) {
+      $logger->error("Failed to restore node data: $res->{error}");
+    } else {
+      $logger->info("Successfully restored node $res->{node}->{name} ($res->{node}->{uuid})");        
 
-    $logger->info("Successfully restored node $res->{node}->{name} ($res->{node}->{uuid})");        
-
-    NMISNG::Util::audit_log(who => $me,
-              what => "restored node",
-              where => "restored node $res->{node}->{name}",
-              how => "node_admin",
-              details => "Restore node ". $res->{node}->{name},
-              when => time)
-    if ($res->{success});
-  }	
+      NMISNG::Util::audit_log(who => $me,
+                what => "restored node",
+                where => "restored node $res->{node}->{name}",
+                how => "node_admin",
+                details => "Restore node ". $res->{node}->{name},
+                when => time)
+      if ($res->{success});
+    }
+  }
 } else {
   print $usage;
 }
 
-  
+exit;
