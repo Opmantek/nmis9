@@ -1,0 +1,140 @@
+#
+## $Id: Common-IP-FORWARD.nmis,v 1.1 2025/05/13 20:09:18 mitchells $
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+ 'systemHealth' => {
+    'sys' => {
+      'ipCidrRoute' => {
+       'headers' => 'ipCidrRouteDest,ipCidrRouteNextHopAS,ipCidrRouteMetric1,ipCidrRouteMetric2,ipCidrRouteMetric3,ipCidrRouteMetric4,ipCidrRouteMetric5,ipCidrRouteStatus,ipCidrRouteMask,ipCidrRouteTos,ipCidrRouteNextHop,ipCidrRouteIfIndex,ipCidrRouteType,ipCidrRouteProto,ipCidrRouteAge,ipCidrRouteInfo',
+       'index_oid' => '1.3.6.1.2.1.4.24.4.1.5',
+       'index_regex' => '\.1\.5\.(\S+)$',
+       'indexed' => 'ipCidrRouteIfIndex',
+       'snmp' => {
+        'ipCidrRouteDest' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.1',
+         'title' => 'Destination IP Address'
+        },
+        'ipCidrRouteNextHopAS' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.10',
+         'title' => 'Next Hop AS'
+        },
+        'ipCidrRouteMetric1' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.11',
+         'title' => 'Primary Routing Metric'
+        },
+        'ipCidrRouteMetric2' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.12',
+         'title' => 'Alternate Routing Metric 1'
+        },
+        'ipCidrRouteMetric3' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.13',
+         'title' => 'Alternate Routing Metric 2'
+        },
+        'ipCidrRouteMetric4' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.14',
+         'title' => 'Alternate Routing Metric 3'
+        },
+        'ipCidrRouteMetric5' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.15',
+         'title' => 'Alternate Routing Metric 4'
+        },
+        'ipCidrRouteStatus' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.16',
+         'title' => 'Route Status',
+         'replace' => {
+          '1' => 'active',
+          '2' => 'notInService',
+          '3' => 'notReady',
+          '4' => 'createAndGo',
+          '5' => 'createAndWait',
+          '6' => 'destroy'
+         }
+        },
+        'ipCidrRouteMask' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.2',
+         'title' => 'Route Mask'
+        },
+        'ipCidrRouteTos' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.3',
+         'title' => 'Route TOS'
+        },
+        'ipCidrRouteNextHop' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.4',
+         'title' => 'Route Next Hop'
+        },
+        'ipCidrRouteIfIndex' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.5',
+         'title' => 'Route ifIndex'
+        },
+        'ipCidrRouteType' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.6',
+         'title' => 'Route Type',
+         'replace' => {
+          '1' => 'other',
+          '2' => 'reject',
+          '3' => 'local',
+          '4' => 'remote'
+         }
+        },
+        'ipCidrRouteProto' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.7',
+         'title' => 'Routing Mechanism',
+         'replace' => {
+          '1' => 'other',
+          '2' => 'local',
+          '3' => 'netmgmt',
+          '4' => 'icmp',
+          '5' => 'egp',
+          '6' => 'ggp',
+          '7' => 'hello',
+          '8' => 'rip',
+          '9' => 'isIs',
+          '10' => 'esIs',
+          '11' => 'ciscoIgrp',
+          '12' => 'bbnSpfIgp',
+          '13' => 'ospf',
+          '14' => 'bgp',
+          '15' => 'idpr',
+          '16' => 'ciscoEigrp'
+         }
+        },
+        'ipCidrRouteAge' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.8',
+         'title' => 'Route Age'
+        },
+        'ipCidrRouteInfo' => {
+         'oid' => '1.3.6.1.2.1.4.24.4.1.9',
+         'title' => 'MIB Definition'
+        }
+       }
+      }
+     }
+  }
+);
