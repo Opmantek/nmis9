@@ -190,7 +190,7 @@ sub update_plugin
 			$changesweremade = $mustsave = 1;
 		}
 
-		$NG->log->debug2(sub {"macDaddy: ". Dumper $macdata});
+		$NG->log->debug4(sub {"macDaddy: ". Dumper $macdata});
 
 		if ($mustsave)
 		{
