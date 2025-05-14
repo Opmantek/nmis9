@@ -119,7 +119,7 @@ sub update_plugin
 		}
 
 		my $macdata = $mactinventory->data; # r/o copy, must be saved back if changed
-
+		my $macdata_uuid = $mactinventory->node_uuid;
 		# look for interface linkage
 		my $ifIndex = $macdata->{dot1qTpFdbPort};
 		my $gotIfIndex = 0;
@@ -163,18 +163,34 @@ sub update_plugin
 					push(@hexBits, sprintf("%02x", $nibble) );
 				}
 				$macdata->{dot1qTpFdbAddress} = join(":", @hexBits);
-
 			}
 			#Q-BRIDGE-MIB::dot1qTpFdbStatus.1.'..?5?c'
 			else {
-				$macdata->{dot1qTpFdbAddress} = NMISNG::Util::beautify_physaddress($octets[1]);	
+				$macdata->{dot1qTpFdbAddress} = NMISNG::Util::beautify_physaddress($octets[1]);		
 			}
 			
+			my $dot1qTpFdbAddress_ifPhysAddress = "0x" . $macdata->{dot1qTpFdbAddress};
+			$dot1qTpFdbAddress_ifPhysAddress =~ s/://g;  # Remove all colons
+						
+			my $interfaces = $S->nmisng->get_inventory_model(
+			concept => "interface",
+			filter => { "data.ifPhysAddress" => $dot1qTpFdbAddress_ifPhysAddress , "node_uuid" => {'$nin' => [$macdata_uuid]}},
+			fields_hash => { 'node_uuid' => 1,'path' => 1 ,'data.ipAdEntAddr1' => 1},
+			sort => {"data.ipAdEntAddr1"  => -1 },
+			limit => 1);
+			if ($interfaces){
+				foreach my $item (@{$interfaces->data}){
+					$macdata->{remote_node_uuid} = $item->{node_uuid};
+					$macdata->{remote_inventory_ipAdEntAddr1} = $item->{data}->{ipAdEntAddr1};
+					$macdata->{remote_inventory_path} = $item->{path};
+					$macdata->{remote_inventory_id} = $item->{_id}->hex();
+				}
+			}
 
 			$changesweremade = $mustsave = 1;
 		}
 
-		$NG->log->debug4(sub {"macDaddy: ". Dumper $macdata});
+		$NG->log->debug2(sub {"macDaddy: ". Dumper $macdata});
 
 		if ($mustsave)
 		{
