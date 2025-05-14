@@ -179,7 +179,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$mactinventory->data($macdata); # set changed info
-			(undef,$error) = $mactinventory->save; # and save to the db, update => 1 not required, already exists
+			(undef,$error) = $mactinventory->save( node => $S->nmisng_node ); # and save to the db, update => 1 not required, already exists
 			$NG->log->error("Failed to save inventory for $mactid: $error")
 					if ($error);
 		}
