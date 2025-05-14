@@ -161,6 +161,7 @@ sub update_plugin
 			
 			# futureproofing so that opCharts can also use this linkage safely
 			$cdpdata->{node_uuid} = $node_uuid;
+			$cdpdata->{remote_node_uuid} = $node_uuid;
 			my $remote_node = $NG->node( uuid => $node_uuid );			
 			# find remote interface using cdpCacheDevicePort which is ifDescr
 			my $remote_path = $remote_node->inventory_path( concept => "interface", data => { ifDescr => $cdpdata->{cdpCacheDevicePort} }, path_keys => ['ifDescr'], partial => 1 );
@@ -169,8 +170,8 @@ sub update_plugin
 				$NG->log->error("Failed to get remote node inventory: $error");
 			} else {
 				my $remote_inv = $remote_result->next_value;
-				$cdpdata->{remote_interface_inventory_id} = $remote_inv->{_id}->hex();
-				$cdpdata->{remote_interface_inventory_path} = $remote_inv->{path};
+				$cdpdata->{remote_inventory_id} = $remote_inv->{_id}->hex();
+				$cdpdata->{remote_inventory_path} = $remote_inv->{path};
 			}			
 			# we don't have enough info to get the remote interface inventory here
 			# if we were searching the interface table for ip addresses we would (or if we had an ifIndex of ifDescr of the remote)
@@ -207,8 +208,8 @@ sub update_plugin
 				$cdpdata->{ifDescr} = $ifDescr;
 				$cdpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$index&node=$node";
 				$cdpdata->{ifDescr_id} = "node_view_$node";
-				$cdpdata->{local_interface_inventory_id} = $inventory->{_id}->hex();
-				$cdpdata->{local_interface_inventory_path} = $inventory->{path};
+				$cdpdata->{local_inventory_id} = $inventory->{_id}->hex();
+				$cdpdata->{local_inventory_path} = $inventory->{path};
 			}
 		}
 
