@@ -174,7 +174,7 @@ sub update_plugin
 						
 			my $interfaces = $S->nmisng->get_inventory_model(
 			concept => "interface",
-			filter => { "data.ifPhysAddress" => $dot1qTpFdbAddress_ifPhysAddress , "node_uuid" => {'$nin' => [$macdata_uuid]}},
+			filter => { "data.ifPhysAddress" => $dot1qTpFdbAddress_ifPhysAddress , "node_uuid" => {'$ne' => $macdata_uuid},"historic" => 0, "enabled" => 1 },
 			fields_hash => { 'node_uuid' => 1,'path' => 1 ,'data.ipAdEntAddr1' => 1},
 			sort => {"data.ipAdEntAddr1"  => -1 },
 			limit => 1);
