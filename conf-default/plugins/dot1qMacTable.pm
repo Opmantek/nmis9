@@ -178,7 +178,10 @@ sub update_plugin
 			fields_hash => { 'node_uuid' => 1,'path' => 1 ,'data.ipAdEntAddr1' => 1},
 			sort => {"data.ipAdEntAddr1"  => -1 },
 			limit => 1);
-			if ($interfaces){
+			if (my $error = $interfaces->error) {
+				$NG->log->error("Failed to lookup inventory interface for $dot1qTpFdbAddress_ifPhysAddress: $error");
+			}
+			else {
 				foreach my $item (@{$interfaces->data}){
 					$macdata->{remote_node_uuid} = $item->{node_uuid};
 					$macdata->{remote_inventory_ipAdEntAddr1} = $item->{data}->{ipAdEntAddr1};
