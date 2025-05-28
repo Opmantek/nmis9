@@ -124,7 +124,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$vtpinventory->data($vtpdata); # set changed info
-			(undef,$error) = $vtpinventory->save; # and save to the db
+			(undef,$error) = $vtpinventory->save( node => $S->nmisng_node ); # and save to the db
 			$NG->log->error("Failed to save inventory for $vtpid: $error")
 					if ($error);
 		}

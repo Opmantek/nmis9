@@ -170,6 +170,16 @@ try {
 };
 is($has_error,undef,"Error should not be made when using cursor and data has not been fetched");
 
+# test next_object after getting count
+$md = $nmisng->get_nodes_model( sort => {node_name => 1} );
+ok( $md->count > 0, "count is greater than 0");
+
+while( my $nodeobj = $md->next_object ) {
+    is( ref($nodeobj), "NMISNG::Node", "next value returns Node object");
+}
+my $has_next = $md->has_next();
+is( $has_next, 0, "does not has next value");
+
 if (-t \*STDIN)
 {
 	print "enter to continue and cleanup: ";
