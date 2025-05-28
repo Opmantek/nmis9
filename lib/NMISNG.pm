@@ -1325,7 +1325,7 @@ sub ensure_indexes
 				[{"lastupdate"           => 1}, {unique => 0}],
 				[{"subconcepts"          => 1}, {unique => 0}],
 				[["data_info.subconcept" => 1, enabled => 1, node_name => 1], {unique => 0}],
-				[["data_info.ifPhysAddress" => 1, node_uuid => 1, enabled => 1, historic => 1], {unique => 0}],
+				[["data.ifPhysAddress" => 1, node_uuid => 1, enabled => 1, historic => 1], {unique => 0}],
 				
 
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
