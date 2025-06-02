@@ -1,0 +1,27 @@
+%hash = (
+        'title' => {
+                'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+                'short' => '$node - $length'
+        },
+        'vlabel' => {
+                'standard' => 'Degrees',
+                'short' => 'Degrees'
+        },
+        'option' => {
+                'standard' => [
+                        'DEF:fgHwSensorEntValue=$database:fgHwSensorCurrent:AVERAGE',
+                        'LINE1:fgHwSensorEntValue#4daef6: Degrees',
+                        'GPRINT:fgHwSensorEntValue:LAST:Current %1.2lf',
+                        'GPRINT:fgHwSensorEntValue:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:fgHwSensorEntValue:MAX:Max %1.2lf\\n',
+                ],
+                'small' => [
+                        'DEF:fgHwSensorEntValue=$database:fgHwSensorCurrent:AVERAGE',
+                        'LINE1:fgHwSensorEntValue#4daef6: Degrees',
+                        'GPRINT:fgHwSensorEntValue:LAST:Current %1.2lf',
+                        'GPRINT:fgHwSensorEntValue:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:fgHwSensorEntValue:MAX:Max %1.2lf\\n',
+                ]
+        }
+);
+

@@ -134,9 +134,11 @@ else {
                                 $period = "ERROR";
                                 print STDERR "ERROR polling_policy=$polling_policy snmp=$PP->{$polling_policy}{$name}\n";
                             }
-                            $name = "collect" if ($name eq 'snmp');
-                            $allstats->{$name}{period} = $period if($period);
-                            print "DONE: name: $name, period:$period\n"  if( $debug > 2);;
+                            my $statsname = $name;
+                            $statsname = "collect" if ($name eq 'snmp');
+                            
+                            $allstats->{$statsname}{period} = $period if($period);
+                            print "DONE: name: $statsname, period:$period\n"  if( $debug > 2);;
                         }
                         
                     }
@@ -208,8 +210,8 @@ else {
 
                     my $collect_snmp = 1;
 
-                    if ( (defined($nodeobj->configuration->{collect}) &&  $nodeobj->configuration->{collect} == 0 )
-                        or (defined($nodeobj->configuration->{collect_snmp}) && $nodeobj->configuration->{collect_snmp} == 0) )
+                    if ( (defined($nodeobj->configuration->{collect}) &&  NMISNG::Util::getbool($nodeobj->configuration->{collect}) == 0 )
+                        or (defined($nodeobj->configuration->{collect_snmp}) && NMISNG::Util::getbool($nodeobj->configuration->{collect_snmp}) == 0) )
                     {
                         $collect_snmp = 0;
                     }

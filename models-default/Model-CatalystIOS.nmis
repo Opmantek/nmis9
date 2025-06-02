@@ -92,6 +92,27 @@
       },
     }
   },
+  'alerts' => {
+    'env-temp' => {
+      'currentTemp' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Warning' => '70',
+          'Minor' => '75',
+          'Major' => '80',
+          'Critical' => '85',
+          'Fatal' => '90',
+        },
+        'control' => 'CVAR=tempDescr;$CVAR =~ /(temp|Temp|GREEN)/',
+        'element' => 'tempDescr',
+        'event' => 'High Temperature',
+        'title' => "Temperature",
+        'test' => '',
+        'unit' => 'Degrees',
+        'value' => 'CVAR1=currentTemp;int($CVAR1)'
+      }
+    },
+  },
   'system' => {
     'nodeType' => 'switch',
     'nodeModel' => 'CatalystIOS',
@@ -648,6 +669,34 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,addressTable,cdp,lldp,lldpLocal,macTable,cpu_cpm,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
-  },
+    'sections' => 'Cisco_CBQoS,addressTable,cdp,lldp,lldpLocal,macTable,cpu_cpm,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity,env-temp', #latam
+    'sys' => { #latam
+      'env-temp' => {
+        'indexed' => 'ciscoEnvMonTemperatureStatusEntry',
+        'headers' => 'tempDescr,currentTemp',
+        'snmp' => {
+          'tempDescr' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
+            'title' => 'Sensor Description'
+          },
+          'currentTemp' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusValue',
+            'title' => 'Current Temp'
+          },
+        },
+      },
+    },
+    'rrd' => {
+      'env-temp' => {
+        'indexed' => 'true',
+        'graphtype' => 'env-temp',
+          'control' => 'CVAR=tempDescr;$CVAR =~ /(Temp|temp|GREEN)/',
+          'snmp' => {
+            'currentTemp' => {
+              'oid' => 'ciscoEnvMonTemperatureStatusValue',
+          }
+        }
+      }
+    } #latam
+  }
 );

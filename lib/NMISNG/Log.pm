@@ -165,6 +165,7 @@ sub debug1 { shift->_log(debug => @_); };
 sub is_level
 {
 	my ($self, $level) = @_;
+
 	if (defined($level) && $level =~ /^[1-9]$/)
 	{
 		return ($level <= $self->detaillevel && $self->SUPER::is_level('debug'));
@@ -381,6 +382,20 @@ sub trace
 		$_->{skip}? () :
 				($_->{subname}||basename($_->{filename})).'#'.$_->{lineno} }
 							(reverse @frames)) . " ";
+}
+
+# capture and send the message to log as well
+sub capture_and_log {
+  my ($self, $level) = @_;
+
+  # capture deregisters all cbs for message, puts in it's own message handler
+  # and puts everything back when it destructs.
+  my $capture = $self->SUPER::capture($level);
+
+  # add in our original handler, which will get tossed when destruct rebuilds the list
+  $self->on(message => \&Mojo::Log::_message);
+
+  return $capture;
 }
 
 1;

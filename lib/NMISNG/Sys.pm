@@ -564,6 +564,7 @@ sub init
 				}
 			}
 		}
+
 		# AND set the default to the snmp timing, to cover unmodelled sections
 		# (which are currently all snmp-based, e.g. hrsmpcpu)
 		if ($policy->{snmp})				# not null
@@ -597,8 +598,18 @@ sub init
 		}
 	}
 
-	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
-	if ( $self->{name} and $snmp and $thisnodeconfig->{collect})
+	my $have_snmp_settings = ( $thisnodeconfig->{username} ne "" || $thisnodeconfig->{community} ne "" ) ? 1 : 0;
+	my $have_wmi_settings = ( $thisnodeconfig->{wmiusername} ne "" ) ? 1 : 0;
+	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings ) ? 1 : 0;
+	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings");
+	
+	# init the snmp accessor if snmp wanted and possible, but do not connect (yet), 
+	# to be wanted it needs to have a community or snmpv3 username, default of "public" must be added to config and not
+	# come from the SNMP package defaults
+	# because collect is enabled, if we have no collect settings defined we enable snmp so that an error is created, 
+	# this is done to keep the functionality the same as it was. the alternative to this is to creat a "no polling" event
+	# if collect is on and no polling engine is enabled
+	if ( $self->{name} and $snmp and $thisnodeconfig->{collect} and ($have_snmp_settings or !$have_any_settings) )
 	{
 		if($thisnodeconfig->{snmp_engine} eq "rpc")
 		{
@@ -622,7 +633,7 @@ sub init
 
 	# wmi: no connections supported AND we try this only if
 	# suitable config args are present (ie. host and username, password is optional)
-	if ( $self->{name} and $wantwmi and $thisnodeconfig->{host} and $thisnodeconfig->{wmiusername} )
+	if ( $self->{name} and $wantwmi and $thisnodeconfig->{host} and $have_wmi_settings )
 	{
 		my $maybe = NMISNG::WMI->new(
 			host     => $thisnodeconfig->{host},
@@ -630,7 +641,9 @@ sub init
 			domain   => $thisnodeconfig->{wmidomain},
 			username => $thisnodeconfig->{wmiusername},
 			password => $thisnodeconfig->{wmipassword},
+			wmic_server_location => $C->{"wmic_server_location"}  // "http://127.0.0.1:2313/wmic",
 			program  => $C->{"<nmis_bin>"} . "/wmic",
+			timeout  => $thisnodeconfig->{wmitimeout} // $C->{wmi_global_timeout},
 			tmp      => "$tmp"
 		);
 		if ( ref($maybe) )
@@ -1379,16 +1392,26 @@ sub getValues
 				{
 					( $error, $fields, $meta ) = $self->{wmi}->get( wql => $query );
 				}
+
 				if ($error)
 				{
 					$self->nmisng->log->error("($self->{name}) on get values by wmi: $error");
 					$status{wmi_error} = $error;
+					next;
 				}
 				else
 				{
 					# if indexed, gettable will have returned ALL known indices + values.
 					$seen{$query} = $fields;
 				}
+			}
+
+			#last check to make sure we have data
+			if(!$seen{$query})
+			{
+				$self->nmisng->log->error("($self->{name}) on get values by wmi: no data returned for query $query");
+				$status{wmi_error} = "no data returned for query $query";
+				next;
 			}
 
 			# get the field name from the model entry
@@ -1686,6 +1709,8 @@ sub loadModel
 			map { push @depstocheck, "Common-".$self->{mdl}->{"-common-"}->{class}->{$_}->{"common-model"}; }
 			(keys %{$self->{mdl}{'-common-'}{class}}) if (ref($self->{mdl}->{'-common-'}) eq "HASH"
 																										&& ref($self->{mdl}->{'-common-'}->{class}) eq "HASH");
+			my $global_model_overrides = $C->{'global_model_overrides'} // [];
+			map { push @depstocheck, "Override-$_" } (@$global_model_overrides);
 
 			for my $other (@depstocheck)
 			{
@@ -1744,8 +1769,8 @@ sub loadModel
 			$shortname =~ s/^Model-//;
 			$self->{mdl}->{system}->{nodeModel} = $shortname;
 
-			# continue with loading common Models
-			foreach my $class ( keys %{$self->{mdl}{'-common-'}{class}} )
+			# continue with loading common Models, sorted using characters because we didn't use numbers here...
+			foreach my $class (sort  {$a cmp $b} keys %{$self->{mdl}{'-common-'}{class}} )
 			{
 				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
 				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
@@ -1765,6 +1790,28 @@ sub loadModel
 					}
 				}
 			}
+			# after all models are loaded add in override files
+			my $global_model_overrides = $C->{'global_model_overrides'} // [];
+			foreach my $override (@$global_model_overrides) {
+				my $name = "Override-$override";
+				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
+					if (!$commonres->{success})
+				{
+					$self->{error} = "ERROR ($self->{name}) failed to read Model file $name: $commonres->{error}!";
+					$exit = 0;
+				}
+				else
+				{
+					# this mostly copies, so cloning not needed
+					# however, an unmergeable model is terminal, mustn't be cached, useless.
+					if ( !$self->_mergeHash( $self->{mdl}, $commonres->{data} ) )
+					{
+						$self->{error} = "ERROR ($self->{name}) model merging failed!";
+						return 0;
+					}
+				}
+			}
+
 			$self->nmisng->log->debug("model $model loaded (from source)");
 			# pre-process the model before it is cached and check for issues
 			# at the moment, all this does is make sure oid's do not start with a "."
@@ -2044,6 +2091,7 @@ sub prep_extras_with_catchalls
 	my $str = $args{str};
 	my $type = $args{type};
 	my $inventory = $args{inventory};
+	my $C = $self->{config} // $self->nmisng->config();
 
 	# so sadly this is not enough to make interface work right now
 	$section ||= $type;
@@ -2055,7 +2103,15 @@ sub prep_extras_with_catchalls
 		my $data = $self->inventory(concept => "catchall")->data_live();
 		$extras->{node} ||= $self->{node};
 
-		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location))
+		my @catchall_keys = qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location);
+		# grab additional keys, allow comma seperated list or array
+		# uses same config item that controls config items -> catchall
+		my $additional_keys = $C->{copy_node_configuration_to_catchall_list} // [];
+		if( ref($C->{copy_node_configuration_to_catchall_list} // []) ne 'ARRAY' ) {
+			my @splitskeys= split(",", $C->{copy_node_configuration_to_catchall_list} // '');
+			$additional_keys = \@splitskeys;
+		}
+		foreach my $key (@catchall_keys,@$additional_keys)
 		{
 			$extras->{$key} ||= $data->{$key};
 		}

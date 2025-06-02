@@ -960,9 +960,9 @@ EOF
 check_cpu_instruction() {
 	instruction=$1
  	if grep -q "$instruction" /proc/cpuinfo; then
-	printBanner "CPU supports $instruction"
+	echolog "CPU supports $instruction"
  	else
-  	printBanner "CPU does not support $instruction"
+  	echolog "CPU does not support $instruction"
 	exit 1
 	fi
 }

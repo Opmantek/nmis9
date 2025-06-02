@@ -48,7 +48,7 @@ EOF
 				local RES;
 				# shellcheck disable=SC2039
 				local OUTPUT;				
-				echolog "Installing gnupg for MONGO6";
+				echolog "Installing gnupg for MongoDB 6";
 				execPrint "apt-get install -y gnupg 2>&1"||:;				
 				SOURCESFILE=/etc/apt/sources.list.d/mongodb-org-$DESIREDVER.list
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
@@ -73,14 +73,32 @@ EOF
 						    "${RES}" \
 						    "${RELEASENAME:-}";
 
-				if [ "$OSFLAVOUR" = "debian" ] || [ "$OSFLAVOUR" = "ubuntu" ]; then
-						[ "$OS_MAJOR" = 9 ] && MONGORELNAME=stretch || MONGORELNAME=buster
-						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/debian $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
-						# debian 9: mongo package for jessie requires older libssl, only a/v in jessie
-						###[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
+				if [ "$OSFLAVOUR" = "debian" ] ; then
+						# MongoDB 6.0 is supported on Debian 10 buster and Debian 11 bullseye
+						if [ "$OS_MAJOR" = 10 ]; then
+							MONGOREPONAME=debian
+							MONGORELNAME=buster    # debian 10
+							echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/$MONGOREPONAME $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
+						elif [ "$OS_MAJOR" = 11 ]; then
+							MONGOREPONAME=debian
+							MONGORELNAME=bullseye  # debian 11
+							echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/$MONGOREPONAME $MONGORELNAME/mongodb-org/$DESIREDVER main" >"${SOURCESFILE}"
+						else
+							# MongoDB 6.0 works on Debian 12 bookworm using Ubuntu 22.04 LTS (jammy) repository - https://www.mongodb.com/community/forums/t/mongo-6-x-on-debian-12/232593
+							MONGOREPONAME=ubuntu
+							MONGORELNAME=jammy  # ubuntu 22 for debian 12
+							echo "deb [ trusted=yes ] https://repo.mongodb.org/apt/$MONGOREPONAME $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
+						fi;
 				else
-						MONGORELNAME="focal";
-						echo "deb [ trusted=yes ] http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
+						# MongoDB 6.0 is supported on Ubuntu 18.04 bionic, Ubuntu 20.04 focal and Ubuntu 22.04 jammy
+						if [ "$OS_MAJOR" = 18 ]; then
+							MONGORELNAME=bionic   # ubuntu 18
+						elif [ "$OS_MAJOR" = 20 ]; then
+							MONGORELNAME=focal    # ubuntu 20
+						else
+							MONGORELNAME=jammy    # ubuntu 22
+						fi;
+						echo "deb [ trusted=yes ] https://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >"${SOURCESFILE}"
 				fi
 
 				execPrint "apt-get update -qq 2>&1"||:;
@@ -142,7 +160,7 @@ install_mongo_6 () {
 				# normally mongod should start on installation, but with systemd that seems unreliable
 				sleep 3 # to give it time to start up
 				# ubuntu: service X status is running through pager and thus blocks :-(
-				# debian: normal, but >/dev/null doesn' hurt
+				# debian: normal, but >/dev/null doesn't hurt
 				execPrint "service mongod status >/dev/null || service mongod start 2>&1"||:;
 				# and, for some stupid reason, mongod isn't enabled for auto-start, at least not the 3.2 package...
 				execPrint "type systemctl >/dev/null 2>&1 && systemctl enable mongod 2>&1"||:;
@@ -150,6 +168,7 @@ install_mongo_6 () {
 				logmsg "Unknown distribution $OSFLAVOUR!"
 				return 1
 		fi
+		printBanner "MongoDB 6 installed."
 		return 0
 }
 
@@ -159,8 +178,7 @@ install_mongo_6 () {
 #
 #
 # function returns 0 if ok, 1 on errors or unsatisfied requirements, 2 if the user says no to installation/upgrade
-new_mongo_6_or_bust ()
-{
+new_mongo_6_or_bust () {
 		# do mongo?
 		if [ "${NO_MONGO}" = 1 ]; then
 				echolog "NO_MONGO=${NO_MONGO}: Skipping MongoDB (new_mongo_6_or_bust) as instructed."
@@ -214,7 +232,7 @@ EOF
 					# shellcheck disable=SC2129
 					echo "#		MUST be configured for authentication, and needs to be primed" >> "${DEPENDENCY_CHECK_FILE}";
 					# shellcheck disable=SC2129
-					echo "#		specifically for Opmantek use as documented on this page:" >> "${DEPENDENCY_CHECK_FILE}";
+					echo "#		specifically for FirstWave use as documented on this page:" >> "${DEPENDENCY_CHECK_FILE}";
 					# shellcheck disable=SC2129
 					echo "#		https://community.opmantek.com/x/h4Aj" >> "${DEPENDENCY_CHECK_FILE}";
 					# shellcheck disable=SC2129
@@ -226,7 +244,7 @@ EOF
 Please note that $PRODUCT requires MongoDB to be either installed
 locally on this server, OR accessible via the network. MongoDB also
 MUST be configured for authentication, and needs to be primed
-specifically for Opmantek use as documented on this page:
+specifically for FirstWave use as documented on this page:
 
     https://community.opmantek.com/x/h4Aj
 

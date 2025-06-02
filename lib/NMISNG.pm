@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.5.2";
+our $VERSION = "9.6.0";
 
 use strict;
 use Data::Dumper;
@@ -1365,6 +1365,8 @@ sub ensure_indexes
 												# (for the semi-dynamic dns alias and address info)
 												[ [ "aliases.alias" => 1 ] ],
 												[ [ "addresses.address" => 1 ] ],
+												# depend for graphLookups
+												[ [ "configuration.depend" => 1 ] ],
 												[["lastupdate" => 1], {unique => 0}],
 				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
@@ -3471,8 +3473,9 @@ LABEL_ESC:
 		if ( $event_obj->event =~ /interface/i && !$event_obj->is_proactive )
 		{
 			my $ifIndex = undef;
-			my $ifDescr = $event_obj->element;
-			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );
+			my $ifDescr = $event_obj->element; # some events have interface in the name but no element
+			my $interface_inventory;
+		       $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr ) if( $ifDescr );
 			if( $interface_inventory )
 			{
 				if ( !NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )
@@ -4484,6 +4487,27 @@ sub remove_queue
 	return undef;
 }
 
+# this is meant to be used when nmisd is not running (or is starting up)
+# to clear jobs that are marked active, if nmis is restarting or dead they aren't
+# active anymore!
+sub clear_active_queue
+{
+	my ( $self ) = @_;
+	$self->log->info("clearing active job queue");
+	my $jobs = $self->get_queue_model( { in_progress => 1 });
+	if (my $fault = $jobs->error)
+	{
+		return "clear_active_queue: Failed to lookup schedule: $fault\n";
+	}
+
+	my $all_good;
+	while ( my $entry = $jobs->next_value ) {
+		# should handle oid object staying oid object
+		$all_good .= $self->remove_queue( id => $entry->{_id} ) if ($entry->{_id});
+	}
+	return $all_good;
+}
+
 # records/updates the status of an operation
 # args: id (optional but required for updating an existing record)
 #  time (defaults to now),
@@ -4492,6 +4516,7 @@ sub remove_queue
 #  type (event type, freeform error or status name),
 #  details (optional, freeform, may be undef for delete on update),
 #  stats (optional, structure, may be undef for delete on update),
+#  logs (optional), log messages captured duing operation
 #  context (what node/thing/job was involved, optional,
 #   may be undef for delete on update.
 #   SHOULD have context.node_uuid = singleton or array of involved nodes),
@@ -4528,6 +4553,7 @@ sub save_opstatus
 	$statusrec->{context} = $args{context} if ( exists $args{context} && defined($args{context}));    # undef is ok for deletion
 	$statusrec->{details} = $args{details} if ( exists $args{details} );    # undef is ok for deletion
 	$statusrec->{stats}   = $args{stats} if ( exists $args{stats} );      	# undef is ok for deletion
+	$statusrec->{logs}    = $args{logs} if( exists $args{logs} );
 	delete $statusrec->{_id};                                               # must not be present for update
 
 	my $expire_at = $statusrec->{time} + ( $self->config->{purge_opstatus_after} || 7 * 86400 );

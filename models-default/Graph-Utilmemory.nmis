@@ -1,5 +1,5 @@
 #
-# $Id: Model-FortinetFW.nmis,v 8.7 2012/11/16 05:46:04 josea Exp $
+## $Id: Graph-mem-proc.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -30,33 +30,34 @@
 # *****************************************************************************
 
 %hash = (
-        'heading' => 'CPU Usage',
+	'heading' => 'Windows Memory Utilisation',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'CPU usage (%)',
+		'standard' => '% Memory Utilisation',
+		'short' => '% Memory Util.'
 	},
 	'option' => {
 		'standard' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
-			'DEF:fgSysCpuUsage=$database:fgSysCpuUsage:AVERAGE',
-			'LINE1:fgSysCpuUsage#4682B4: CPU usage',
-			'GPRINT:fgSysCpuUsage:AVERAGE:Avg %6.1lf%%',
-			'GPRINT:fgSysCpuUsage:MAX:Max %6.1lf%%\\n',
+			'DEF:MemFree=$database:FreePhysicalMemory:AVERAGE',
+			'DEF:MemTotal=$database:TotalVisibleMemory:AVERAGE',
+			'CDEF:MemUsed=MemTotal,MemFree,-',
+			'CDEF:perUsedMem=MemUsed,MemTotal,/,100,*',
+			'CDEF:perFreeMem=MemFree,MemTotal,/,100,*',
+			'CDEF:GMemFree=MemFree,1000000,/',
+			'CDEF:GMemTotal=MemTotal,1000000,/',
+			'CDEF:GMemUsed=MemUsed,1000000,/',
+			'AREA:perUsedMem#00BFFF: Mem Used percent',
+			'GPRINT:perUsedMem:AVERAGE:Avg Mem Used %1.1lf%%',
+			'GPRINT:perFreeMem:AVERAGE:Avg Mem Free %1.1lf%%\\n',
+			'GPRINT:GMemUsed:AVERAGE:Mem Used Gbytes %1.2lf',
+			'GPRINT:GMemFree:AVERAGE:Mem Free Gbytes %1.2lf',
+			'GPRINT:GMemTotal:AVERAGE:Total Mem Gbytes %1.2lf\\n',
 		],
-		'small' => [
-			'--upper-limit','100',
-			'--lower-limit','0',
-			'--rigid',
-			'DEF:fgSysCpuUsage=$database:fgSysCpuUsage:AVERAGE',
-			'LINE1:fgSysCpuUsage#4682B4: CPU usage',
-			'GPRINT:fgSysCpuUsage:AVERAGE: %6.1lf%%',
-			'GPRINT:fgSysCpuUsage:MAX:Max %6.1lf%%\\n',
-		]
-
 	}
 );
