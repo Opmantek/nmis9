@@ -235,10 +235,10 @@ EOF
 		# not present yet? then offer to install
 		if ! is_mongo_installed; then
 
-				# find out where we are, and get additional common function to install mongo 4.2
+				# find out where we are, and get additional common function to install mongo 8.0
 				SCRIPTPATH=${0%/*}
 				. $SCRIPTPATH/common_mongodb_8.sh
-				# check and get mongodb 4.2, returns 0 if ok, 1 or 2 otherwise
+				# check and get mongodb 8.0, returns 0 if ok, 1 or 2 otherwise
 				new_mongo_8_or_bust 8 0 9|| exit 1
 
 		# mongo is installed, but is the version sufficient?
