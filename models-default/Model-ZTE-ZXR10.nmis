@@ -1,0 +1,1206 @@
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+    '-common-' => {
+        'class' => {
+            'database' => {
+                'common-model' => 'database'
+            },
+            'threshold' => {
+                'common-model' => 'threshold'
+            },
+            'summary' => {
+                'common-model' => 'summary'
+            },
+            'heading' => {
+                'common-model' => 'heading'
+            },
+            'stats' => {
+                'common-model' => 'stats'
+            },
+            'event' => {
+                'common-model' => 'event'
+            },
+            'asset' => {
+                'common-model' => 'asset'
+            }
+        }
+    },
+    'database' => {
+        'type' => {
+            'zxr10SystemCard' => '/nodes/$node/health/zxr10SystemCard-$index.rrd',            
+            'zxr10SystemMemCPU' => '/nodes/$node/health/zxr10SystemMemCPU-$index.rrd',
+            'zxr10SystemTemp' => '/nodes/$node/health/zxr10SystemTemp-$index.rrd',            
+            'zxr10SystemPower' => '/nodes/$node/health/zxr10SystemPower-$index.rrd',            
+            'zxr10GponStats' => '/nodes/$node/interface/zxr10GponStats-$index.rrd',
+            'zxr10GponTrfc' => '/nodes/$node/interface/zxr10GponTrfc-$index.rrd',
+        }
+    },
+    'heading' => {
+        'graphtype' => {
+            'zxr10SystemCard'     => 'Card CPU and Memory Usage',
+            'zxr10SystemTemp'         => 'System Temp',
+            'zxr10SystemMemCPU'         => 'System CPU and Memory Usage',
+            'zxr10TempPwr'        => 'Board Temperature and Power',
+            'zxr10GponStats'      => 'GPON OLT Ethernet Statistics',
+            'Service_Port'  => 'Service Port',
+            'zxr10GponTrfc'  => 'GPON User Traffic',
+        }
+    },
+    'stats' => {
+        'type' => {
+            'zxr10SystemCard' => [
+                'DEF:cpuUtil=$database:zxAnCardCpuLoad:AVERAGE',
+                'DEF:memUtil=$database:zxAnCardMemUsage:AVERAGE',
+                'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
+                'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+            ],
+            'zxr10SystemMemCPU' => [
+                'DEF:cpuUtil=$database:zxr10SysCpuUtil:AVERAGE',
+                'DEF:memUtil=$database:zxr10SystemMemUsed:AVERAGE',
+                'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
+                'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+            ]
+        },
+    },
+    'systemHealth' => {
+       'sections' => 'zxr10SystemCard,zxr10SystemMemCPU,zxr10SystemTemp,zxr10SystemPower,zxr10GponStats,zxr10entityMib,ifTable,Service_Port,zxr10GponDevice,zxr10GponTrfc',        
+        'rrd' => {
+            'zxr10SystemCard' => {
+                 'indexed'   => 'true',
+                 'graphtype' => 'zxr10SystemCard',
+                 'snmp'      => {
+                    'zxAnCardMemUsage'  => {
+                        'oid'     => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.11'                     
+                    },
+                    'zxAnCardCpuLoad' => {
+                        'oid'     => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.9'                                            
+                    }
+                 }
+            },
+            'zxr10SystemMemCPU' => {
+                 'indexed'   => 'true',
+                 'graphtype' => 'zxr10SystemMemCPU',
+                 'snmp'      => {
+                     'zxr10SysCpuUtil' => {
+                         'oid'     => '1.3.6.1.4.1.3902.3.6002.2.1.1.9'                        
+                     },
+                     'zxr10SystemMemUsed' => {
+                            'oid'     => '1.3.6.1.4.1.3902.3.6002.2.1.1.6'                          
+                    }
+                }
+            },
+            'zxr10SystemTemp' => {
+                'indexed'   => 'true',
+                 'graphtype' => 'zxr10SystemTemp',
+                 'snmp'      => {
+                     'zxr10BoardCurTemp' => {
+                        'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.9'
+                     }                        
+                }
+            },
+             'zxr10SystemPower' => {
+                'indexed'   => 'true',
+                 'graphtype' => 'zxr10SystemPower',
+                 'snmp'      => {
+                     'zxr10SysCurrPower' => {
+                        'oid'     => '1.3.6.1.4.1.3902.3.6002.2.7.1.6'
+                     }                        
+                }
+            },             
+             'zxr10GponTrfc' => {
+                 'indexed'   => 'true',
+                 'graphtype' => 'zxr10GponTrfc',                 
+                 'snmp'      => {
+                    'CurrStatsInOctets' => {
+                        'oid'       => '1.3.6.1.4.1.3902.1082.110.21.2.2.1.2',
+                        'option'    => 'counter,0:1250000000',
+                    },
+                    'CurrStatsOutOctets' => {
+                        'oid'       => '1.3.6.1.4.1.3902.1082.110.21.2.2.1.3',
+                        'option'    => 'counter,0:1250000000',
+                    },
+                    'OutbTrafficTableN' => {
+                        'oid'          => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.28',
+                        'replace' => {
+                            '128KB' => '128000',
+                            '256KB' => '256000',
+                            '384KB' => '384000',
+                            '512KB' => '512000',
+                            '768KB' => '768000',
+                            '1MB' => '1000000',
+                            '1.5MB' => '1500000',
+                            '2MB' => '2000000',
+                            '3MB' => '3000000',
+                            '4MB' => '4000000',
+                            '5MB' => '5000000',
+                            '6MB' => '6000000',
+                            '8MB' => '8000000',
+                            '10MB' => '10000000',
+                            '12MB' => '12000000',
+                            '15MB' => '15000000',
+                            '20MB' => '20000000',
+                            '25MB' => '25000000',
+                            '30MB' => '30000000',
+                            '40MB' => '40000000',
+                            '50MB' => '50000000',
+                            '60MB' => '60000000',
+                            '75MB' => '75000000',
+                            '100MB' => '100000000',
+                            '150MB' => '150000000',
+                            '200MB' => '200000000',
+                            '250MB' => '250000000',
+                            '300MB' => '300000000',
+                            '400MB' => '400000000',
+                            'ip-traffic-table_6' => '9999999999',
+                        },
+                    },
+                    'IngressTrafficPrf' => {
+                        'oid'          => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.27',
+                        'replace' => {
+                            '128KB' => '128000',
+                            '256KB' => '256000',
+                            '384KB' => '384000',
+                            '512KB' => '512000',
+                            '768KB' => '768000',
+                            '1MB' => '1000000',
+                            '1.5MB' => '1500000',
+                            '2MB' => '2000000',
+                            '3MB' => '3000000',
+                            '4MB' => '4000000',
+                            '5MB' => '5000000',
+                            '6MB' => '6000000',
+                            '8MB' => '8000000',
+                            '10MB' => '10000000',
+                            '12MB' => '12000000',
+                            '15MB' => '15000000',
+                            '20MB' => '20000000',
+                            '25MB' => '25000000',
+                            '30MB' => '30000000',
+                            '40MB' => '40000000',
+                            '50MB' => '50000000',
+                            '60MB' => '60000000',
+                            '75MB' => '75000000',
+                            '100MB' => '100000000',
+                            '150MB' => '150000000',
+                            '200MB' => '200000000',
+                            '250MB' => '250000000',
+                            '300MB' => '300000000',
+                            '400MB' => '400000000',
+                            'ip-traffic-table_6' => '9999999999',
+                        }
+                    }
+                 }
+             },
+             'zxr10GponStats' => {
+                 'indexed'   => 'true',
+                 'index_regex' => '\.(\d+)$',
+                 'graphtype' => 'zxr10GponStats',                 
+                 'control' => 'CVAR=ifType;$CVAR eq "gpon"',
+                 'snmp'    => {
+                     'zxr10GponRecvBytes' => {
+                         'oid' => '1.3.6.1.4.1.3902.1082.500.4.2.1.2.1.1',
+                         'snmpObjectName' =>
+                           'zxAnPonOltIfRxOctets',
+                         'option' => 'counter,0:U'
+                     },
+                     'zxr10GponSendBytes' => {
+                         'oid' => '1.3.6.1.4.1.3902.1082.500.4.2.1.2.1.44',
+                         'snmpObjectName' =>
+                           'zxAnPonOltIfTxOctets',
+                         'option' => 'counter,0:U'
+                     }
+                 }
+             }
+        },
+        'sys' => {
+            'zxr10GponTrfc' => {
+                'indexed' => 'zxAnSrvPortConfEntry',
+                'index_regex' => '\.1\.\d+\.(\d+.\d+)$',
+                'index_oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1',
+                'headers' => 'zxAnSrvPortAdminStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
+                    'snmp' => {
+                      'zxAnSrvPortAdminStatus' => {
+                          'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
+                            'title' => 'Admin Status',
+                            'title_export' => 'Admin Status',
+                      },	
+                      'zxAnSrvPortEgressTrafficPrf' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.28',
+                            'title' => 'Egress Traffic Profile',
+                            'title_export' => 'Egress Traffic Profile',
+                        },
+                        'zxAnSrvPortIngressTrafficPrf' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.27',
+                            'title' => 'Ingress Traffic Profile',
+                            'title_export' => 'Ingress Traffic Profile',
+                        }
+                    }
+            },
+            'zxr10entityMib' => {
+              'indexed' => 'entPhysicalDescr',
+               'headers' => 'index,entPhysicalDescr,entPhysicalContainedIn,entPhysicalName,entPhysicalModelName,entPhysicalVendorType,entPhysicalClass,entPhysicalParentRelPos,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
+              'snmp' => {
+                'entPhysicalDescr' => {
+                    'oid' => 'entPhysicalDescr',
+                    'title' => 'Physical Descr'
+                },
+                'entPhysicalVendorType' => {
+                    'oid' => 'entPhysicalVendorType',
+                    'title' => 'Vendor Type'
+                },
+                'entPhysicalContainedIn' => {
+                    'oid' => 'entPhysicalContainedIn',
+                    'title' => 'Contained In'
+                },
+                'entPhysicalClass' => {
+                    'oid' => 'entPhysicalClass',
+                    'title' => 'Class',
+                    'replace' => {
+                    '1' => 'other',
+                    '2' => 'unknown',
+                    '3' => 'chassis',
+                    '4' => 'backplane',
+                    '5' => 'container',
+                    '6' => 'powerSupply',
+                    '7' => 'fan',
+                    '8' => 'sensor',
+                    '9' => 'module',
+                    '10' => 'port',
+                    '11' => 'stack',
+                    '12' => 'cpu',
+                    },
+                },
+                'entPhysicalParentRelPos' => {
+                    'oid' => 'entPhysicalParentRelPos',
+                    'title' => 'Position'
+                },
+                'entPhysicalName' => {
+                    'oid' => 'entPhysicalName',
+                    'title' => 'Physical Name'
+                },
+                'entPhysicalHardwareRev' => {
+                    'oid' => 'entPhysicalHardwareRev',
+                    'title' => 'Hardware Rev'
+                },
+                'entPhysicalFirmwareRev' => {
+                    'oid' => 'entPhysicalFirmwareRev',
+                    'title' => 'Firmware Rev'
+                },
+                'entPhysicalSoftwareRev' => {
+                    'oid' => 'entPhysicalSoftwareRev',
+                    'title' => 'Software Rev'
+                },
+                'entPhysicalSerialNum' => {
+                    'oid' => 'entPhysicalSerialNum',
+                    'title' => 'Serial Num'
+                },
+                'entPhysicalModelName' => {
+                    'oid' => 'entPhysicalModelName',
+                    'title' => 'Model Name'
+                },
+                'entAliasMappingIdentifier' => {
+                    'oid' => 'entAliasMappingIdentifier',
+                    'title' => 'Mapping ID'
+                }          
+            }
+        },
+            'zxr10SystemCard' => {
+                'indexed'     => 'zxAnCardEntry',
+                'index_regex' => '1\.\d+\.(\d+.\d+.\d+)$',
+                'index_oid'   => '1.3.6.1.4.1.3902.1082.10.1.2.4.1',
+                'headers' => 'zxAnCardMachineId,zxAnCardActualType,zxAnCardCpuLoad,zxAnCardMemUsage,zxAnCardAdminStatus,zxAnCardOperStatus',
+                'snmp' => {
+                    'zxAnCardOperStatus' => {
+                        'oid'     => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.5',
+                        'title'   => 'Oper Status'                       
+                    },
+                    'zxAnCardAdminStatus' => {
+                        'oid'     => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.6',
+                        'title'   => 'Admin Status'                       
+                    },
+                    'zxAnCardMemUsage'  => {
+                        'oid'     => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.11',
+                        'title'   => 'Memory Usage'                       
+                    },
+                    'zxAnCardCpuLoad' => {
+                        'oid'     => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.9',
+                        'title'   => 'CPU Load',
+                        'replace' => {
+                            '-1' => 'N/A'
+                        },
+                    },
+                    'zxAnCardActualType' => {
+                        'oid'   => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.4',
+                        'title' => 'Card Type'
+                    },
+                    'zxAnCardMachineId' => {
+                        'oid'   => '1.3.6.1.4.1.3902.1082.10.1.2.4.1.43',
+                        'title' => 'Card Machine ID'
+                    }
+                }
+            },
+             'zxr10SystemMemCPU' => {
+                'indexed'     => 'zxr10CpusystemEntry',
+                'index_regex' => '\.2\.1\.1\.\d+\.(\d+.\d+.\d+.\d+)$',
+                'index_oid'   => '1.3.6.1.4.1.3902.3.6002.2.1.1',
+                'headers' => 'zxr10SystemOamCpuName,zxr10SystemMemUsed,zxr10SysCpuUtil',
+                'snmp' => {
+                        'zxr10SystemOamCpuName' => {
+                            'oid'     => '1.3.6.1.4.1.3902.3.6002.2.1.1.13',
+                            'title'   => 'System CPU Name'
+                        },
+                        'zxr10SystemMemUsed' => {
+                            'oid'     => '1.3.6.1.4.1.3902.3.6002.2.1.1.6',
+                            'title'   => 'System Memory Utilization',
+                            'replace' => {
+                                '-1' => 'N/A'
+                            }
+                        },
+                        'zxr10SysCpuUtil' => {
+                            'oid'     => '1.3.6.1.4.1.3902.3.6002.2.1.1.9',
+                            'title'   => 'System CPU Utilization',
+                            'replace' => {
+                                '-1' => 'U'
+                            }
+                        }
+                                                
+                    }                
+            },
+            'zxr10GponDevice' => {
+                'indexed'     => 'zxAnPonSrvChannelIfIndex',
+                'index_regex' => '500\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.(\d+.\d+)$',
+                'index_oid' => '1.3.6.1.4.1.3902.1082.500.2.2.9.2.1.3',  
+                'headers' => 'zxAnPonSrvChannelIfIndex,zxAnGponRmOnuVendorId,zxAnGponRmOnuSerialNum,zxAnPonSrvVndBindOnuPwd,zxAnGponOnuMgmtTypeName,zxAnGponRmOnuAlias,zxAnGponSrvOnuStatusEntry,zxAnEponOnuHwVersion,zxAnEponOnuSwVersion,zxAnGponSrvOnuFiberLen,zxAnGponSrvOnuLastOnlineTime,zxAnGponSrvOnuLastOfflineTime,zxAnGponSrvOnuLastOfflineReason,zxAnGponRmOnuBatteryMonitor,zxAnGponRmAniTxOptLevel,zxAnGponRmAniRxOptLevel,zxAnGponRmAniPowerFeedVoltage,zxAnGponRmOnuSysMemUsage,zxAnGponOnuMgmtDesc',
+                'snmp' => {
+                    'zxAnPonSrvChannelIfIndex' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.500.2.2.9.2.1.3',
+                        'title' => 'Channel Index',
+                        'title_export' => 'Channel Index',
+                    },
+                    'zxAnGponRmOnuVendorId' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.1',
+                        'title' => 'OnuVendorId',
+                        'title_export' => 'OnuVendorId',
+				    },                    
+                    'zxAnGponRmOnuSerialNum' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.3',
+                        'title' => 'ONUSerialNumber',
+                        'title_export' => 'ONUSerialNumber',
+				    },                    
+                    'zxAnPonSrvVndBindOnuPwd' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.500.2.2.12.4.1.9',
+                        'title' => 'OLTPassword',
+                        'title_export' => 'OLTPassword',
+				    },  
+                    'zxAnGponOnuMgmtTypeName' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.1',
+                        'title' => 'ONTVendor',
+                        'title_export' => 'ONTVendor',
+				  },
+				    'zxAnGponRmOnuAlias' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.19',
+                        'title' => 'ONTDescription',
+                        'title_export' => 'ONTDescription',
+	    			  },
+		    		  'zxAnGponSrvOnuStatusEntry' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1',
+                        'title' => 'Entry Status',
+                        'title_export' => 'ONTEntryStatus',
+                        'replace' => {
+                            '1' => 'active',
+                            '2' => 'notInService',
+                            '3' => 'notReady',
+                            '4' => 'createAndGo',
+                            '5' => 'createAndWait',
+                            '6' => 'destroy',
+                        },
+                    },
+				  'zxAnEponOnuHwVersion' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.30.14.1.11',
+					'title' => 'ONTVersion',
+					'title_export' => 'ONTVersion',
+				  },
+				  'zxAnEponOnuSwVersion' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.30.14.1.10',
+					'title' => 'ONTSoftwareVersion',
+					'title_export' => 'ONTSoftwareVersion',
+				  },
+				  'zxAnGponSrvOnuFiberLen' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.10.1.2',
+					'title' => 'ONTDistancia',
+					'title_export' => 'ONTDistancia',
+				  },
+				  'zxAnGponSrvOnuLastOnlineTime' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.5',
+					'title' => 'ONTUpTime',
+					'title_export' => 'ONTUpTime',
+				  },
+				  'zxAnGponSrvOnuLastOfflineTime' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.6',
+					'title' => 'ONTLastDown',
+					'title_export' => 'ONTLastDown',
+				  },
+				  'zxAnGponSrvOnuLastOfflineReason' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.7',
+					'title' => 'ONTLastDownCause',
+					'title_export' => 'ONTLastDownCause',
+				  },
+				  'zxAnGponRmOnuBatteryMonitor' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.5',
+					'title' => 'ONTBatteryStatus',
+					'title_export' => 'ONTBatteryStatus',
+					'replace' => {
+					  '0' => 'notSupport',
+					  '1' => 'charge',
+					  '2' => 'discharge',
+					  '3' => 'holding',
+					  '4' => 'supportButInvalid',
+					  '-1' => 'unknownStatus',
+					},
+				  },				
+				  'zxAnGponRmAniTxOptLevel' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.14',
+					'title' => 'ONTTxPower',
+					'title_export' => 'ONTTxPower',
+				  },
+				  'zxAnGponRmAniRxOptLevel' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10',
+					'title' => 'ONTRxPower',
+					'title_export' => 'ONTRxPower',
+				  },
+				  'zxAnGponRmAniPowerFeedVoltage' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.17',
+					'title' => 'ONTVoltage',
+					'title_export' => 'ONTVoltage',
+				  },
+				  'zxAnGponRmOnuSysMemUsage' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.25.1.2',
+					'title' => 'ONTMemUsage',
+					'title_export' => 'ONTMemUsage',
+				  },				  
+				  'zxAnGponOnuMgmtDesc' => {
+					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.3',
+					'title' => 'OntProductDescription',
+					'title_export' => 'OntProductDescription',
+				  }                               
+                }
+            },
+            'zxr10SystemTemp' => {
+                'indexed'     => 'zxr10BoardTempEntry',
+                'index_regex' => '\.1\.\d+\.(\d+.\d+.\d+.\d+.\d+)$',
+                'index_oid'   => '1.3.6.1.4.1.3902.3.6002.2.5.1',
+                'headers' => 'zxr10BoardTempBoard,zxr10BoardTempDescription,zxr10BoardTempSlotNo,zxr10BoardCurTemp',                
+                'snmp' => {
+                    'zxr10BoardTempBoard' => {
+                         'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.6',
+                        'title'   => 'Temp Board',
+                    },
+                     'zxr10BoardTempDescription' => {
+                         'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.7',
+                        'title'   => 'Temp Board Description',                        
+                    },
+                     'zxr10BoardTempRackNo' => {
+                         'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.1',
+                        'title'   => 'Board Rack Number',                    
+                    },
+                      'zxr10BoardTempShelfNo' => {
+                         'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.2',
+                        'title'   => 'Board Shelf Number',                    
+                    },
+                      'zxr10BoardTempSlotNo' => {
+                         'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.3',
+                        'title'   => 'Board Slot Number',                    
+                    },
+                      'zxr10BoardTempAddr' => {
+                         'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.5',
+                        'title'   => 'Board Temp Address',                    
+                    },                    
+                     'zxr10BoardCurTemp' => {
+                        'oid'     => '1.3.6.1.4.1.3902.3.6002.2.5.1.9',
+                        'title'   => 'Board Temperature',
+                        'replace' => {
+                            '2147483647' => 'N/A'
+                        },
+                    }
+                }
+            },
+            'zxr10SystemPower' => {
+                'indexed'     => 'zxr10BoardPowerEntry',
+                'index_regex' => '\.7\.1\.\d+\.(\d+.\d+.\d+)$',
+                'index_oid'   => '1.3.6.1.4.1.3902.3.6002.2.7.1',
+                'headers' => 'zxr10BoardPowerRackNo,zxr10BoardPowerShelfNo,zxr10BoardPowerSlotNo,zxr10SysCurrPower',
+                'snmp' => {
+                    'zxr10BoardPowerRackNo' => {
+                            'oid'   => '1.3.6.1.4.1.3902.3.6002.2.7.1.1',
+                            'title' => 'Rack Number'
+                        },
+                    'zxr10BoardPowerShelfNo' => {
+                            'oid'   => '1.3.6.1.4.1.3902.3.6002.2.7.1.2',
+                            'title' => 'Shelf Number'
+                        },
+                    'zxr10BoardPowerSlotNo' => {
+                            'oid'   => '1.3.6.1.4.1.3902.3.6002.2.7.1.3',
+                            'title' => 'Slot Number'
+                        },
+                     'zxr10SysCurrPower' => {
+                            'oid'   => '1.3.6.1.4.1.3902.3.6002.2.7.1.6',
+                            'title' => 'Current Board Power'
+                        }
+                    }
+            },
+            'ifTable' => {
+                'indexed' => 'ifIndex',
+                'headers' =>
+                  'ifIndex,ifDescr,ifType,ifAdminStatus,ifOperStatus,ifName',
+                'snmp' => {
+                    'ifIndex' => {
+                        'comment'   => 'This SNMP agent uses ifIndexes larger than 32 bit which can confuse some code which follow the standards.',
+                        'oid'       => 'ifIndex',
+                        'title'     => 'Interface Index',
+                        'calculate' => '$r = unpack("I", pack("i", $r))'
+                    },
+                    'ifDescr' => {
+                        'oid'   => 'ifDescr',
+                        'title' => 'Name (ifDescr)'
+                    },
+                    'ifType' => {
+                        'oid'     => 'ifType',
+                        'title'   => 'Type (ifType)',
+                        'replace' => {
+                            '6'   => 'ethernetCsmacd',
+                            '37'  => 'atm',
+                            '135' => 'l2vlan',
+                            '194' => 'atmVciEndPt',
+                            '209' => 'bridge',
+                            '244' => 'wwanPP2',
+                            '249' => 'aluELP',
+                            '250' => 'gpon',
+                        },
+                    },
+                    'ifAdminStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '4' => 'unknown',
+                            '1' => 'up',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid'   => 'ifAdminStatus',
+                        'title' => 'Admin Status'
+                    },
+                    'ifOperStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '4' => 'unknown',
+                            '1' => 'up',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid'   => 'ifOperStatus',
+                        'title' => 'Oper Status'
+                    },
+                    'ifName' => {
+                        'oid'   => 'ifName',
+                        'title' => 'Name (ifName)'
+                    }
+                }
+            },
+            'Service_Port' => {
+                'indexed' => 'zxAnSrvPortCurrStatsEntry',
+                'index_regex' => '\.110\.\d+\.\d+\.\d+\.\d+\.\d+\.(\d+.\d+)$',
+                'index_oid' => '1.3.6.1.4.1.3902.1082.110.21.2.2.1',
+                'headers' => 'index,zxAnSrvPortUserSVid,zxAnSrvPortCurrStatsVportId,zxAnSrvPortDesc,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf,zxAnSrvPortCurrStatsInOctets,zxAnSrvPortCurrStatsOutOctets',
+                    'snmp' => {
+                        'index' => {
+                            'title' => 'ServicePortIndex',
+                            'title_export' => 'ServicePortIndex',
+                        },                     
+                        'zxAnSrvPortCurrStatsVportId'   =>  {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.21.2.2.1.1',
+                            'title' => 'VPort ID',
+                            'title_export' => 'VPort ID',
+                        },                               
+                        'zxAnSrvPortCurrStatsInOctets' =>   {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.21.2.2.1.2',
+                            'title' => 'Octet Received',
+                            'title_export' => 'Octet Received',
+                        },                                     
+                        'zxAnSrvPortCurrStatsOutOctets'   =>   {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.21.2.2.1.3',
+                            'title' => 'Octet Transmitted',
+                            'title_export' => 'Octet Transmitted',
+                        },                 
+                        'zxAnSrvPortDesc'  =>   {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.1',
+                            'title' => 'Port Description',
+                            'title_export' => 'Port Description',
+                        },                 
+                        'zxAnSrvPortUserSVid' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.9',
+                            'title' => 'Vlan_Id',
+                            'title_export' => 'Vlan_Id',
+                        },           
+                        'zxAnSrvPortAdminStatus' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
+                            'title' => 'AdminStatus',
+                            'title_export' => 'AdminStatus',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },
+                        'zxAnSrvPortRowStatus' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.50',
+                            'title' => 'OperStatus',
+                            'title_export' => 'OperState',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },                        
+                        'zxAnSrvPortEgressTrafficPrf' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.28',
+                            'title' => 'Egress Traffic Profile',
+                            'title_export' => 'Egress Traffic Profile',
+                        },
+                        'zxAnSrvPortIngressTrafficPrf' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.27',
+                            'title' => 'Ingress Traffic Profile',
+                            'title_export' => 'Ingress Traffic Profile',
+                        }
+                    }
+            },           
+            'Service_Port' => {
+                'indexed' => 'zxAnSrvPortConfEntry',
+                # 'index_regex' => '\.(\d+)$',
+                'index_regex' => '\.(\d+.\d+)$',
+                'index_oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1',
+                'headers' => 'zxAnSrvPortDesc,zxAnSrvPortUserSVid,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
+                    'snmp' => {                 
+                        'zxAnSrvPortDesc'  =>   {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.1',
+                            'title' => 'Port Description',
+                            'title_export' => 'Port Description',
+                        },                 
+                        'zxAnSrvPortUserSVid' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.9',
+                            'title' => 'Vlan_Id',
+                            'title_export' => 'Vlan_Id',
+                        },           
+                        'zxAnSrvPortAdminStatus' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
+                            'title' => 'AdminStatus',
+                            'title_export' => 'AdminStatus',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },
+                        'zxAnSrvPortRowStatus' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.50',
+                            'title' => 'OperStatus',
+                            'title_export' => 'OperState',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },                        
+                        'zxAnSrvPortEgressTrafficPrf' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.28',
+                            'title' => 'Egress Traffic Profile',
+                            'title_export' => 'Egress Traffic Profile',
+                        },
+                        'zxAnSrvPortIngressTrafficPrf' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.27',
+                            'title' => 'Ingress Traffic Profile',
+                            'title_export' => 'Ingress Traffic Profile',
+                        }
+                    }
+            },                        
+            'zxr10GponStats' => {
+                'indexed' => 'ifIndex',                
+                'headers' => 'ifName,ifIndex,ifType,ifAdminStatus,ifOperStatus,ifOperStatus,zxAnOpticalTemperature,zxAnOpticalBiasCurrent,zxAnOpticalIfTxPwrCurrValue',
+                'snmp' => {
+                    'ifIndex' => {
+                        'oid'       => 'ifIndex',
+                        'title'     => 'Interface Index',
+                        'calculate' => '$r = unpack("I", pack("i", $r))'
+                    },
+                    'ifDescr' => {
+                        'oid'   => 'ifDescr',
+                        'title' => 'Name (ifDescr)'
+                    },
+                    'ifType' => {
+                        'oid'     => 'ifType',
+                        'title'   => 'Type (ifType)',
+                        'replace' => {
+                            '6'   => 'ethernetCsmacd',
+                            '37'  => 'atm',
+                            '135' => 'l2vlan',
+                            '194' => 'atmVciEndPt',
+                            '209' => 'bridge',
+                            '244' => 'wwanPP2',
+                            '249' => 'aluELP',
+                            '250' => 'gpon',
+                        },
+                    },
+                    'ifAdminStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '4' => 'unknown',
+                            '1' => 'up',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid'   => 'ifAdminStatus',
+                        'title' => 'Admin Status'
+                    },
+                    'ifOperStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '4' => 'unknown',
+                            '1' => 'up',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid'   => 'ifOperStatus',
+                        'title' => 'Oper Status'
+                    },
+                    'ifName' => {
+                        'oid'   => 'ifName',
+                        'title' => 'Name (ifName)'
+                    },
+
+                    'ifOperStatus' => {
+                        'oid'   => '1.3.6.1.2.1.2.2.1.8',
+                        'title' => 'OLT Status',
+                        'title_export' => 'OLT Status',
+                        'replace'      => {
+                            '1' => 'up',
+                            '2' => 'down',
+                        },
+                    },
+                    'zxAnOpticalIfTxPwrCurrValue' => {
+                        'oid'          => '1.3.6.1.4.1.3902.1082.30.40.2.4.1.3',
+                        'title'        => 'OLTPortTxPower',
+                        'title_export' => 'OLTPortTxPower',
+                    },
+                    'zxAnOpticalTemperature' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.30.40.2.4.1.8',
+                        'title' => 'ONTTemp',
+                        'title_export' => 'ONTTemp',
+				  },
+				    'zxAnOpticalBiasCurrent' => {
+                        'oid' => '1.3.6.1.4.1.3902.1082.30.40.2.4.1.5',
+                        'title' => 'ONTBiasCurrent',
+                        'title_export' => 'ONTBiasCurrent',
+				  },
+                }
+            }		             
+        }
+    },
+    'system' => {
+        'nodegraph' => 'health,response,ip',
+        'nodeModel' => 'ZTE-ZXR10',
+        'nodeType'  => 'switch',
+        'sys'       => {
+            'extra' => {
+                'snmp' => {
+                    'zxr10CurrentTemp' => {
+                        'oid'        => '1.3.6.1.4.1.3902.3.6002.2.6.2.1.19',
+                        'snmpObject' => 'zxr10PowerModuleCurTemp',
+                        'title'      => 'Current Temp'
+                    },
+                }
+            },
+            'standard' => {
+                'snmp' => {
+                    'sysLocation' => {
+                        'replace' => {
+                            '' => 'default'
+                        },
+                        'oid'   => 'sysLocation',
+                        'title' => 'Location'
+                    },
+                    'sysDescr' => {
+                        'oid'   => 'sysDescr',
+                        'title' => 'Description'
+                    },
+                    'sysObjectID' => {
+                        'oid' => 'sysObjectID'
+                    },
+                    'sysUpTime' => {
+                        'oid'   => 'sysUpTime',
+                        'title' => 'Uptime'
+                    },
+                    'ifNumber' => {
+                        'oid'   => 'ifNumber',
+                        'title' => 'Interfaces'
+                    },
+                    'sysContact' => {
+                        'replace' => {
+                            '' => 'default'
+                        },
+                        'oid'   => 'sysContact',
+                        'title' => 'Contact'
+                    },
+                    'sysName' => {
+                        'oid' => 'sysName'
+                      }
+
+                }
+            }
+        },
+        'rrd' => {
+            'mib2ip' => {
+                'snmp' => {
+                    'ipInAddrErrors' => {
+                        'oid'    => 'ipInAddrErrors',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipFragCreates' => {
+                        'oid'    => 'ipFragCreates',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInDiscards' => {
+                        'oid'    => 'ipInDiscards',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInReceives' => {
+                        'oid'    => 'ipInReceives',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipFragOKs' => {
+                        'oid'    => 'ipFragOKs',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInDelivers' => {
+                        'oid'    => 'ipInDelivers',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipReasmFails' => {
+                        'oid'    => 'ipReasmFails',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipReasmReqds' => {
+                        'oid'    => 'ipReasmReqds',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipFragFails' => {
+                        'oid'    => 'ipFragFails',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipOutRequests' => {
+                        'oid'    => 'ipOutRequests',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipOutNoRoutes' => {
+                        'oid' => 'ipOutNoRoutes'
+                    },
+                    'ipInHdrErrors' => {
+                        'oid'    => 'ipInHdrErrors',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipForwDatagrams' => {
+                        'oid'    => 'ipForwDatagrams',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipOutDiscards' => {
+                        'oid'    => 'ipOutDiscards',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipReasmOKs' => {
+                        'oid'    => 'ipReasmOKs',
+                        'option' => 'counter,0:U'
+                    },
+                    'ipInUnknownProtos' => {
+                        'oid'    => 'ipInUnknownProtos',
+                        'option' => 'counter,0:U'
+                    }
+                },
+                'graphtype' => 'ip,frag'
+            }
+        }
+    },
+    'interface' => {
+        'sys' => {
+            'standard' => {
+                'indexed' => 'true',
+                'snmp'    => {
+                    #
+                    'ifIndex' => {
+                        'oid'       => 'ifIndex',
+                        'title'     => 'ifIndex',
+                        'calculate' => '$r = unpack("I", pack("i", $r))'
+                    },
+                    'ifOperStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '1' => 'up',
+                            '4' => 'unknown',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid'   => 'ifOperStatus',
+                        'title' => 'Oper Status'
+                    },
+                    'ifDescr' => {
+                        'oid'   => 'ifName',
+                        'title' => 'Name (ifName)'
+                    },
+                    'ifPhysAddress' => {
+                        'oid'   => 'ifPhysAddress',
+                        'title' => 'Physical Address',
+                    },
+
+                    'ifSpeed' => {
+                        'oid'   => 'ifSpeed',
+                        'title' => 'Bandwidth'
+                    },
+                    'ifAdminStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '1' => 'up',
+                            '4' => 'unknown',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid'   => 'ifAdminStatus',
+                        'title' => 'Admin Status'
+                    },
+                    'ifType' => {
+                        'oid'   => 'ifType',
+                        'title' => 'Type (ifType)'
+                    },
+                    'ifLastChange' => {
+                        'oid'   => 'ifLastChange',
+                        'title' => 'Last Change'
+                    }
+                }
+            },
+            'extra' => {
+                'indexed' => 'true',
+                'snmp'    => {
+                    'ifHighSpeed' => {
+                        'oid' => 'ifHighSpeed'
+                    },
+                    'Description' => {
+                        'oid'   => 'ifAlias',
+                        'title' => 'Description (ifAlias)'
+                    }
+                }
+            }
+        },
+        'rrd' => {
+            'interface' => {
+                'indexed' => 'true',
+                'snmp'    => {
+                    'ifOperStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '1' => 'up',
+                            '4' => 'unknown',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid'    => 'ifOperStatus',
+                        'option' => 'gauge,0:100'
+                    },
+                    'ifDescr' => {
+                        'oid' => 'ifName'
+                    },
+                    'ifInOctets' => {
+                        'oid'     => 'ifInOctets',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '4294967295' => '0',
+                        }
+                    },
+                    'ifHCOutOctets' => {
+                        'oid'     => 'ifHCOutOctets',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifAdminStatus' => {
+                        'replace' => {
+                            '6' => 'notPresent',
+                            '1' => 'up',
+                            '4' => 'unknown',
+                            '3' => 'testing',
+                            '7' => 'lowerLayerDown',
+                            '2' => 'down',
+                            '5' => 'dormant'
+                        },
+                        'oid' => 'ifAdminStatus'
+                    },
+                    'ifOutOctets' => {
+                        'oid'     => 'ifOutOctets',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '4294967295' => '0',
+                        }
+                    },
+                    'ifHCInOctets' => {
+                        'oid'     => 'ifHCInOctets',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    }
+                },
+                'threshold' => 'util_in,util_out',
+                'graphtype' => 'bits,abits,maxbits,util,autil'
+            },
+            'pkts_hc' => {
+                'indexed'   => 'true',
+                'threshold' => 'pkt_errors_in,pkt_errors_out',
+                'graphtype' => 'pkts_hc,errpkts_hc',
+                'snmp'      => {
+                    'ifHCInOctets' => {
+                        'oid'     => 'ifHCInOctets',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifHCInUcastPkts' => {
+                        'oid'     => 'ifHCInUcastPkts',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifHCInMcastPkts' => {
+                        'oid'     => 'ifHCInMulticastPkts',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifHCInBcastPkts' => {
+                        'oid'     => 'ifHCInBroadcastPkts',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifInDiscards' => {
+                        'oid'     => 'ifInDiscards',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '4294967295' => '0',
+                        }
+                    },
+                    'ifInErrors' => {
+                        'oid'     => 'ifInErrors',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '4294967295' => '0',
+                        }
+                    },
+                    'ifHCOutOctets' => {
+                        'oid'     => 'ifHCOutOctets',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifHCOutUcastPkts' => {
+                        'oid'     => 'ifHCOutUcastPkts',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifHCOutMcastPkts' => {
+                        'oid'     => 'ifHCOutMulticastPkts',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifHCOutBcastPkts' => {
+                        'oid'     => 'ifHCOutBroadcastPkts',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '18446744073709551615' => '0',
+                        }
+                    },
+                    'ifOutDiscards' => {
+                        'oid'     => 'ifOutDiscards',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '4294967295' => '0',
+                        }
+                    },
+                    'ifOutErrors' => {
+                        'oid'     => 'ifOutErrors',
+                        'option'  => 'counter,0:U',
+                        'replace' => {
+                            '4294967295' => '0',
+                        }
+                    },
+                }
+            }
+        },
+        'collect' => {
+            'Description' => '(CNOC|Collection)',
+        },
+        'nocollect' => {
+            'ifOperStatus'  => 'other|notPresent',
+            'ifDescr'       => 'NOMATCH',
+            'Description'   => '^#',
+            'noDescription' => 'false',
+            'ifType'        => 'gpon|softwareLoopback|l3ipvlan|other'
+        },
+        'noevent' => {
+            'Description' => '^!',
+            'ifDescr'     => 'null',
+            'ifType'      => 'other'
+        }
+    }
+);
