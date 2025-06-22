@@ -1465,7 +1465,7 @@ sub rename
 																.", concept ".$invinstance->concept
 																.", description \"".$invinstance->description.'"');
 			my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
-			return (0, "Failed to relocate inventory storage Arihant VOLLA".$invinstance->id.": $error")
+			return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
 					if (!$ok);
 			# informational
 			$self->nmisng->log->debug2(sub {"relocation reported $error"}) if ($error);

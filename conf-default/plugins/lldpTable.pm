@@ -188,6 +188,7 @@ sub update_plugin
 				$data->{lldpNeighbour_id} = "node_view_$node_name";
 				# futureproofing so that opCharts can also use this linkage safely
 				$data->{node_uuid} = $node_uuid;
+				$data->{remote_node_uuid} = $node_uuid;
 				if( defined($data->{lldpRemPortDesc}) ) {
 					my $remote_node = $NG->node( uuid => $node_uuid );
 					my $remote_path = $remote_node->inventory_path( concept => "interface", data => { ifDescr => $data->{lldpRemPortDesc} }, path_keys => ['ifDescr'], partial => 1 );
@@ -196,8 +197,8 @@ sub update_plugin
 						$NG->log->error("Failed to get remote node inventory: $error");
 					} else {
 						my $remote_inv = $remote_result->next_value;
-						$data->{remote_interface_inventory_id} = $remote_inv->{_id}->hex();
-						$data->{remote_interface_inventory_path} = $remote_inv->{path};
+						$data->{remote_inventory_id} = $remote_inv->{_id}->hex();
+						$data->{remote_inventory_path} = $remote_inv->{path};
 					}
 					
 				}
@@ -245,10 +246,11 @@ sub update_plugin
 					$data->{lldpRemSysName} = $node_name;
 					$data->{lldpRemSysName_url} = "$C->{network}?act=network_node_view&node=$node_name";
 					$data->{lldpNeighbour_id} = "node_view_$node_name";
-					$data->{remote_interface_inventory_id} = $entry->{_id}->hex();
-					$data->{remote_interface_inventory_path} = $entry->{path};
+					$data->{remote_inventory_id} = $entry->{_id}->hex();
+					$data->{remote_inventory_path} = $entry->{path};
 					# futureproofing so that opCharts can also use this linkage safely
-					$data->{node_uuid} = $node_uuid;					
+					$data->{node_uuid} = $node_uuid;
+					$data->{remote_node_uuid} = $node_uuid;
 
 					$changesweremade = $mustsave = $gotNeighbourName = 1;
 					last;
@@ -278,8 +280,8 @@ sub update_plugin
 				$data->{ifDescr} = $ifdata{$portnum}->{data}{ifDescr};
 				$data->{ifDescr_url} = "$C->{network}?&act=network_interface_view&intf=$portnum&node=$node";
 				$data->{ifDescr_id} = "node_view_$node";
-				$data->{local_interface_inventory_id} = $ifdata{$portnum}->{_id}->hex();
-				$data->{local_interface_inventory_path} = $ifdata{$portnum}->{path};
+				$data->{local_inventory_id} = $ifdata{$portnum}->{_id}->hex();
+				$data->{local_inventory_path} = $ifdata{$portnum}->{path};
 				$NG->log->debug2("Found an ifDescr entry for $portnum: $data->{ifDescr}");
 			}
 			# can we find a lldpLocal entry with that portnumber?
@@ -299,8 +301,8 @@ sub update_plugin
 						$data->{ifDescr} = $ifdata{$ifindex}->{data}{ifDescr};
 						$data->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifindex&node=$node";
 						$data->{ifDescr_id} = "node_view_$node";
-						$data->{local_interface_inventory_id} = $ifdata{$ifindex}->{_id}->hex();
-						$data->{local_interface_inventory_path} = $ifdata{$ifindex}->{path};
+						$data->{local_inventory_id} = $ifdata{$ifindex}->{_id}->hex();
+						$data->{local_inventory_path} = $ifdata{$ifindex}->{path};
 						$NG->log->debug("Found an ifDescr entry for $portnum: $data->{ifDescr}");
 						last;
 					}

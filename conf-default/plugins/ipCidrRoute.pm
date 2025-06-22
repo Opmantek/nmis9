@@ -37,6 +37,23 @@ our $VERSION = "1.0.0";
 use strict;
 use NMISNG::Util;								# for beautify_physaddress
 use Data::Dumper;
+use Socket;
+
+sub subnet_mask_to_bits {
+    my ($subnet_mask) = @_;
+
+    # Convert the subnet mask to a 32-bit integer
+    my $mask_int = unpack("N", inet_aton($subnet_mask));
+
+    # Count the number of 1 bits in the binary representation
+    my $bits = 0;
+    while ($mask_int) {
+        $bits += $mask_int & 1;
+        $mask_int >>= 1;
+    }
+
+    return $bits;
+}
 
 sub update_plugin
 {
@@ -140,15 +157,22 @@ sub update_plugin
 			$atdata->{ifDescr} = $ifdata{$atindex}->{data}{ifDescr};
 			$atdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$atindex&node=$node";
 			$atdata->{ifDescr_id} = "node_view_$node";
-			$changesweremade = $mustsave = 1;
+			
 			$atdata->{local_inventory_id} = $ifdata{$atindex}->{_id}->hex();
 			$atdata->{local_inventory_path} = $ifdata{$atindex}->{path};
 
 			$atdata->{Description} = $ifdata{$atindex}->{data}{Description};
 		}
+		
+		# add in mask bits to make sorting routes easier
+		if(  $atdata->{ipCidrRouteMask} ne '0.0.0.0' ) {
+			$atdata->{ipCidrRouteMaskBits} = subnet_mask_to_bits( $atdata->{ipCidrRouteMask});
+			$changesweremade = $mustsave = 1;
+		}
 
 		if ($mustsave)
 		{
+			$NG->log->debug8(sub{"Saving data".Dumper($atdata)});
 			$atinventory->data($atdata); # set changed info
 			(undef,$error) = $atinventory->save( node => $S->nmisng_node ); # and save to the db, update not required
 			$NG->log->error("Failed to save inventory for $atid: $error")

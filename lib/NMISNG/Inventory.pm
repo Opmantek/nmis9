@@ -1110,6 +1110,14 @@ sub relocate_storage
 			next;
 		}
 		
+		# parse string is using the old node name which has no spaces, if it had a space , parse string would have run filter name on it. 
+		my $new_node_name_parsed = $S->parseString(
+		string => '$newnodename', 
+		extras => { 'newnodename' => $newname },
+		'eval' => 0, # only expand, no expression to evaluate
+		filter => 1); # Remove blanks and backslash
+		# $newname = NMISNG::Util::filterName($newname);
+		$newname = $new_node_name_parsed;
 		$newfile =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 			
 		# Make sure the file name is the same. Could change if is a duplicate, pe
