@@ -95,7 +95,8 @@ sub update_plugin
 		}
 	}
 	else {
-		$NG->log->error("Error, no inventory data found for dot1dBasePort");	
+		# this is not an error AFAIK
+		$NG->log->debug(sub {"Error, no inventory data found for dot1dBasePort"});
 	}
 	
 	
