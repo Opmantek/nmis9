@@ -162,6 +162,7 @@ sub update_plugin
 			# futureproofing so that opCharts can also use this linkage safely
 			$cdpdata->{node_uuid} = $node_uuid;
 			$cdpdata->{remote_node_uuid} = $node_uuid;
+			$cdpdata->{remote_node_name} = $node_name;
 			my $remote_node = $NG->node( uuid => $node_uuid );			
 			# find remote interface using cdpCacheDevicePort which is ifDescr
 			my $remote_path = $remote_node->inventory_path( concept => "interface", data => { ifDescr => $cdpdata->{cdpCacheDevicePort} }, path_keys => ['ifDescr'], partial => 1 );
