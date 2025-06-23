@@ -331,7 +331,7 @@ mongo_or_bust () {
 		if ! is_mongo_installed; then
 
 				# check and install latest supported mongodb, returns 0 if ok, 1 or 2 otherwise
-				new_mongo_7_or_bust || exit 1
+				new_mongo_or_bust || exit 1
 
 		# mongo is installed, but is the version sufficient?
 		else
