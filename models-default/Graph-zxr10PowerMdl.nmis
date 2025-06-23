@@ -36,23 +36,19 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Watt',
-		'short' => 'Watt'
+		'standard' => 'Power (Watts)',
+		'short' => 'Power (Watts)'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:tempenv=$database:zxr10UsedPower:AVERAGE',
-			'LINE1:tempenv#4daef6: Watt',
-			'GPRINT:tempenv:LAST:Current %1.2lf',
-			'GPRINT:tempenv:AVERAGE:Avg. %1.2lf',
-			'GPRINT:tempenv:MAX:Max %1.2lf\\n',
+			'DEF:usedpwr=$database:zxr10PowerUtil:AVERAGE',
+			'LINE1:usedpwr#4daef6: Watt',
+			'GPRINT:usedpwr:LAST:Current %1.2lf'			
 		],
 		'small' => [
-			'DEF:tempenv=$database:zxr10UsedPower:AVERAGE',
-			'LINE1:tempenv#4daef6: Watt',
-			'GPRINT:tempenv:LAST:Current %1.2lf',
-			'GPRINT:tempenv:AVERAGE:Avg. %1.2lf',
-			'GPRINT:tempenv:MAX:Max %1.2lf\\n',
+			'DEF:usedpwr=$database:zxr10PowerUtil:AVERAGE',
+			'LINE1:usedpwr#4daef6: Watt',
+			'GPRINT:usedpwr:LAST:Current %1.2lf'			
 		]
 	}
 );

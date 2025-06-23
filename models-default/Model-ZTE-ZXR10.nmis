@@ -73,7 +73,7 @@
             'zxr10GponStats'      => 'GPON OLT Ethernet Statistics',
             'Service_Port'  => 'Service Port',
             'zxr10GponTrfc'  => 'GPON User Traffic',
-            zxr10PowerMdl  => 'System Power Module',
+            'zxr10PowerMdl'  => 'System Power Module',
         }
     },
     'stats' => {
@@ -89,6 +89,10 @@
                 'DEF:memUtil=$database:zxr10SystemMemUsed:AVERAGE',
                 'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
                 'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+            ],
+            'zxr10PowerMdl' => [
+                 'DEF:pwrUtil=$database:zxr10PowerUtil:AVERAGE',
+                 'PRINT:pwrUtil:AVERAGE:pwrUtil=%1.2lf'
             ]
         },
     },
@@ -99,9 +103,9 @@
                  'indexed'   => 'true',
                  'graphtype' => 'zxr10PowerMdl',
                  'snmp'      => {
-                    'zxr10UsedPower' => {
-                        'oid'   => '1.3.6.1.4.1.3902.3.6002.2.6.2.1.17',
-                        'snmpObjectName' => 'zxr10PowerModuleUsedPower'                            
+                    'zxr10PowerUtil' => {
+                        'oid'   => '1.3.6.1.4.1.3902.3.6002.2.6.2.1.18',
+                        'snmpObjectName' => 'zxr10PowerModulePowerUsedRate'                            
                     }                      
                  }
             },
@@ -600,7 +604,7 @@
                 'indexed'     => 'zxr10PowerModuleEntry',
                 'index_regex' => '\.2\.1\.\d+\.(\d+.\d+.\d+.\d+)$',
                 'index_oid'   => '1.3.6.1.4.1.3902.3.6002.2.6.2.1',
-                'headers' => 'zxr10PowerModuleName,zxr10PowerModulePartNumber,zxr10PowerModulePowerCapacity,zxr10PowerModuleUsedPower,zxr10PowerModuleCurTemp',
+                'headers' => 'zxr10PowerModuleName,zxr10PowerModulePartNumber,zxr10PowerModulePowerCapacity,zxr10PowerModuleUsedPower,zxr10PowerModulePowerUsedRate,zxr10PowerModuleCurTemp',
                 'snmp' => {
                     'zxr10PowerModuleName' => {                        
                             'oid'   => '1.3.6.1.4.1.3902.3.6002.2.6.2.1.13',
@@ -621,7 +625,12 @@
                     'zxr10PowerModuleUsedPower' => {
                             'oid'   => '1.3.6.1.4.1.3902.3.6002.2.6.2.1.17',
                             'title' => 'Module Used Power'
-                        }                                                               
+                        },
+                    'zxr10PowerModulePowerUsedRate' => {
+                            'oid'   => '1.3.6.1.4.1.3902.3.6002.2.6.2.1.18',
+                            'title' => 'Module Power Util'
+                        },
+
                     }
             },
             'ifTable' => {
