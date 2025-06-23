@@ -36,17 +36,17 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Power (Watts)',
-		'short' => 'Power (Watts)'
+		'standard' => 'Power Util (Watts)',
+		'short' => 'Power Util (Watts)'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:usedpwr=$database:zxr10PowerUtil:AVERAGE',
+			'DEF:usedpwr=$database:zxr10PowerUtil:LAST',
 			'LINE1:usedpwr#4daef6: Watt',
 			'GPRINT:usedpwr:LAST:Current %1.2lf'			
 		],
 		'small' => [
-			'DEF:usedpwr=$database:zxr10PowerUtil:AVERAGE',
+			'DEF:usedpwr=$database:zxr10PowerUtil:LAST',
 			'LINE1:usedpwr#4daef6: Watt',
 			'GPRINT:usedpwr:LAST:Current %1.2lf'			
 		]
