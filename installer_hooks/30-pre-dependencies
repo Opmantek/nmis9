@@ -109,20 +109,20 @@ fi;
 
 is_web_available && CANUSEWEB=1
 if [ "$CANUSEWEB" != 1 ]; then
-		cat <<EOF
+		cat <<-EOF
 
-Your system cannot access the web, therefore $MGR will not
-be able to download any missing software packages. If any
-such missing packages are detected and you don't have
-a local source of packages (e.g. an installation DVD) then the
-installation won't complete successfully.
+			Your system cannot access the web, therefore $MGR will not
+			be able to download any missing software packages. If any
+			such missing packages are detected and you don't have
+			a local source of packages (e.g. an installation DVD) then the
+			installation won't complete successfully.
 
-We recommend that you check our Wiki article on working around
-package installation without Internet access in that case:
+			We recommend that you check our Wiki article on working around
+			package installation with limited Internet access in that case:
 
-https://community.opmantek.com/x/boSG
+			    https://docs.community.firstwave.com/wiki/x/l4Cmv
 
-EOF
+		EOF
 		input_ok "Hit <Enter> when ready to continue: "
 fi
 
@@ -334,14 +334,14 @@ if ! check_missing_packages $PKGLIST; then
 				echolog "Packages missing but installer was instructed to NOT install them."
 				cat <<EOF
 
-$PRODUCT will not run without the following packages installed:
+					$PRODUCT will not run without the following packages installed:
 
-$MISSING
+					$MISSING
 
-You will have to resolve these
-dependencies manually before $PRODUCT will operate properly.
+					You will have to resolve these
+					dependencies manually before $PRODUCT will operate properly.
 
-EOF
+				EOF
 				input_ok "Hit <Enter> when ready to continue: "
 		fi
 fi
