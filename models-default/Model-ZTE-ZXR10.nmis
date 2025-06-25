@@ -258,14 +258,42 @@
                 'indexed' => 'zxAnSrvPortConfEntry',
                 'index_regex' => '\.1\.\d+\.(\d+.\d+)$',
                 'index_oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1',
-                'headers' => 'zxAnSrvPortAdminStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
-                    'snmp' => {
-                      'zxAnSrvPortAdminStatus' => {
+                'headers' => 'index,zxAnSrvPortDesc,zxAnSrvPortUserSVid,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
+                    'snmp' => {                        
+                        'zxAnSrvPortDesc' => {
+                          'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.1',
+                            'title' => 'Description',
+                            'title_export' => 'Description',
+                        },                                  
+                        'zxAnSrvPortUserSVid' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.9',
+                            'title' => 'Vlan_Id',
+                            'title_export' => 'Vlan_Id',
+                        },           
+                        'zxAnSrvPortAdminStatus' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
+                            'title' => 'AdminStatus',
+                            'title_export' => 'AdminStatus',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },
+                        'zxAnSrvPortRowStatus' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.50',
+                            'title' => 'OperStatus',
+                            'title_export' => 'OperState',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },                      	
+                        'zxAnSrvPortAdminStatus' => {
                           'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
                             'title' => 'Admin Status',
                             'title_export' => 'Admin Status',
-                      },	
-                      'zxAnSrvPortEgressTrafficPrf' => {
+                        },	
+                        'zxAnSrvPortEgressTrafficPrf' => {
                             'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.28',
                             'title' => 'Egress Traffic Profile',
                             'title_export' => 'Egress Traffic Profile',
@@ -755,54 +783,7 @@
                             'title_export' => 'Ingress Traffic Profile',
                         }
                     }
-            },           
-            'Service_Port' => {
-                'indexed' => 'zxAnSrvPortConfEntry',
-                # 'index_regex' => '\.(\d+)$',
-                'index_regex' => '\.(\d+.\d+)$',
-                'index_oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1',
-                'headers' => 'zxAnSrvPortDesc,zxAnSrvPortUserSVid,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
-                    'snmp' => {                 
-                        'zxAnSrvPortDesc'  =>   {
-                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.1',
-                            'title' => 'Port Description',
-                            'title_export' => 'Port Description',
-                        },                 
-                        'zxAnSrvPortUserSVid' => {
-                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.9',
-                            'title' => 'Vlan_Id',
-                            'title_export' => 'Vlan_Id',
-                        },           
-                        'zxAnSrvPortAdminStatus' => {
-                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
-                            'title' => 'AdminStatus',
-                            'title_export' => 'AdminStatus',
-                            'replace' => {
-                              '1' => 'True',
-                              '2' => 'False',
-                            },
-                        },
-                        'zxAnSrvPortRowStatus' => {
-                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.50',
-                            'title' => 'OperStatus',
-                            'title_export' => 'OperState',
-                            'replace' => {
-                              '1' => 'True',
-                              '2' => 'False',
-                            },
-                        },                        
-                        'zxAnSrvPortEgressTrafficPrf' => {
-                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.28',
-                            'title' => 'Egress Traffic Profile',
-                            'title_export' => 'Egress Traffic Profile',
-                        },
-                        'zxAnSrvPortIngressTrafficPrf' => {
-                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.27',
-                            'title' => 'Ingress Traffic Profile',
-                            'title_export' => 'Ingress Traffic Profile',
-                        }
-                    }
-            },                        
+            },             
             'zxr10GponStats' => {
                 'indexed' => 'ifIndex',                
                 'headers' => 'ifName,ifIndex,ifType,ifAdminStatus,ifOperStatus,ifOperStatus,zxAnOpticalTemperature,zxAnOpticalBiasCurrent,zxAnOpticalIfTxPwrCurrValue',
