@@ -258,17 +258,22 @@
                 'indexed' => 'zxAnSrvPortConfEntry',
                 'index_regex' => '\.1\.\d+\.(\d+.\d+)$',
                 'index_oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1',
-                'headers' => 'index,zxAnSrvPortDesc,zxAnSrvPortUserSVid,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
+                'headers' => 'index,zxAnSrvPortDesc,zxAnSrvPortUserVid,zxAnSrvPortUserSVid,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortCVid,zxAnSrvPortSVid,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
                     'snmp' => {                        
                         'zxAnSrvPortDesc' => {
                           'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.1',
                             'title' => 'Description',
                             'title_export' => 'Description',
-                        },                                  
-                        'zxAnSrvPortUserSVid' => {
-                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.9',
+                        },         
+                        'zxAnSrvPortUserVid'	=> {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.8',
                             'title' => 'Vlan_Id',
                             'title_export' => 'Vlan_Id',
+                        },           
+                        'zxAnSrvPortUserSVid' => {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.9',
+                            'title' => 'SVlan_Id',
+                            'title_export' => 'SVlan_Id',
                         },           
                         'zxAnSrvPortAdminStatus' => {
                             'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
@@ -288,11 +293,16 @@
                               '2' => 'False',
                             },
                         },                      	
-                        'zxAnSrvPortAdminStatus' => {
-                          'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.2',
-                            'title' => 'Admin Status',
-                            'title_export' => 'Admin Status',
-                        },	
+                        'zxAnSrvPortCVid'	=> {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.18',
+                            'title' => 'Network Side CVLAN',
+                            'title_export' => 'Network Side CVLAN',
+                        },
+                        'zxAnSrvPortSVid'	=> {
+                            'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.19',
+                            'title' => 'Network Side SVLAN',
+                            'title_export' => 'Network Side SVLAN',
+                        },
                         'zxAnSrvPortEgressTrafficPrf' => {
                             'oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1.28',
                             'title' => 'Egress Traffic Profile',
@@ -308,71 +318,71 @@
             'zxr10entityMib' => {
               'indexed' => 'entPhysicalDescr',
                'headers' => 'index,entPhysicalDescr,entPhysicalContainedIn,entPhysicalName,entPhysicalModelName,entPhysicalVendorType,entPhysicalClass,entPhysicalParentRelPos,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
-              'snmp' => {
-                'entPhysicalDescr' => {
-                    'oid' => 'entPhysicalDescr',
-                    'title' => 'Physical Descr'
-                },
-                'entPhysicalVendorType' => {
-                    'oid' => 'entPhysicalVendorType',
-                    'title' => 'Vendor Type'
-                },
-                'entPhysicalContainedIn' => {
-                    'oid' => 'entPhysicalContainedIn',
-                    'title' => 'Contained In'
-                },
-                'entPhysicalClass' => {
-                    'oid' => 'entPhysicalClass',
-                    'title' => 'Class',
-                    'replace' => {
-                    '1' => 'other',
-                    '2' => 'unknown',
-                    '3' => 'chassis',
-                    '4' => 'backplane',
-                    '5' => 'container',
-                    '6' => 'powerSupply',
-                    '7' => 'fan',
-                    '8' => 'sensor',
-                    '9' => 'module',
-                    '10' => 'port',
-                    '11' => 'stack',
-                    '12' => 'cpu',
+                'snmp' => {
+                    'entPhysicalDescr' => {
+                        'oid' => 'entPhysicalDescr',
+                        'title' => 'Physical Descr'
                     },
-                },
-                'entPhysicalParentRelPos' => {
-                    'oid' => 'entPhysicalParentRelPos',
-                    'title' => 'Position'
-                },
-                'entPhysicalName' => {
-                    'oid' => 'entPhysicalName',
-                    'title' => 'Physical Name'
-                },
-                'entPhysicalHardwareRev' => {
-                    'oid' => 'entPhysicalHardwareRev',
-                    'title' => 'Hardware Rev'
-                },
-                'entPhysicalFirmwareRev' => {
-                    'oid' => 'entPhysicalFirmwareRev',
-                    'title' => 'Firmware Rev'
-                },
-                'entPhysicalSoftwareRev' => {
-                    'oid' => 'entPhysicalSoftwareRev',
-                    'title' => 'Software Rev'
-                },
-                'entPhysicalSerialNum' => {
-                    'oid' => 'entPhysicalSerialNum',
-                    'title' => 'Serial Num'
-                },
-                'entPhysicalModelName' => {
-                    'oid' => 'entPhysicalModelName',
-                    'title' => 'Model Name'
-                },
-                'entAliasMappingIdentifier' => {
-                    'oid' => 'entAliasMappingIdentifier',
-                    'title' => 'Mapping ID'
-                }          
-            }
-        },
+                    'entPhysicalVendorType' => {
+                        'oid' => 'entPhysicalVendorType',
+                        'title' => 'Vendor Type'
+                    },
+                    'entPhysicalContainedIn' => {
+                        'oid' => 'entPhysicalContainedIn',
+                        'title' => 'Contained In'
+                    },
+                    'entPhysicalClass' => {
+                        'oid' => 'entPhysicalClass',
+                        'title' => 'Class',
+                        'replace' => {
+                        '1' => 'other',
+                        '2' => 'unknown',
+                        '3' => 'chassis',
+                        '4' => 'backplane',
+                        '5' => 'container',
+                        '6' => 'powerSupply',
+                        '7' => 'fan',
+                        '8' => 'sensor',
+                        '9' => 'module',
+                        '10' => 'port',
+                        '11' => 'stack',
+                        '12' => 'cpu',
+                        },
+                    },
+                    'entPhysicalParentRelPos' => {
+                        'oid' => 'entPhysicalParentRelPos',
+                        'title' => 'Position'
+                    },
+                    'entPhysicalName' => {
+                        'oid' => 'entPhysicalName',
+                        'title' => 'Physical Name'
+                    },
+                    'entPhysicalHardwareRev' => {
+                        'oid' => 'entPhysicalHardwareRev',
+                        'title' => 'Hardware Rev'
+                    },
+                    'entPhysicalFirmwareRev' => {
+                        'oid' => 'entPhysicalFirmwareRev',
+                        'title' => 'Firmware Rev'
+                    },
+                    'entPhysicalSoftwareRev' => {
+                        'oid' => 'entPhysicalSoftwareRev',
+                        'title' => 'Software Rev'
+                    },
+                    'entPhysicalSerialNum' => {
+                        'oid' => 'entPhysicalSerialNum',
+                        'title' => 'Serial Num'
+                    },
+                    'entPhysicalModelName' => {
+                        'oid' => 'entPhysicalModelName',
+                        'title' => 'Model Name'
+                    },
+                    'entAliasMappingIdentifier' => {
+                        'oid' => 'entAliasMappingIdentifier',
+                        'title' => 'Mapping ID'
+                    }          
+                }
+            },
             'zxr10SystemCard' => {
                 'indexed'     => 'zxAnCardEntry',
                 'index_regex' => '1\.\d+\.(\d+.\d+.\d+)$',
