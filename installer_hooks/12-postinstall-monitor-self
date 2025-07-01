@@ -7,7 +7,7 @@ SCRIPTPATH=${0%/*}
 
 printBanner "Who monitors the monitor?"
 
-if $TARGETDIR/admin/node_admin.pl act=export 2>/dev/null | grep -q -P "\Whost\W+:\s+\W(localhost|127\.0\.0\.1)\W"; then
+if $TARGETDIR/admin/node_admin.pl act=export skip_ha_warnings=true 2>/dev/null | grep -q -P "\Whost\W+:\s+\W(localhost|127\.0\.0\.1)\W"; then
 		echolog "NMIS 9 is already configured to monitor localhost";
 		exit 0;
 fi
