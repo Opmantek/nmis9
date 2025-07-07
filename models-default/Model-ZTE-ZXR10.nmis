@@ -457,7 +457,7 @@
                 'indexed'     => 'zxAnPonSrvChannelIfIndex',
                 'index_regex' => '500\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.(\d+.\d+)$',
                 'index_oid' => '1.3.6.1.4.1.3902.1082.500.2.2.9.2.1.3',  
-                'headers' => 'zxAnPonSrvChannelIfIndex,zxAnGponRmOnuVendorId,zxAnGponRmOnuSerialNum,zxAnPonSrvVndBindOnuPwd,zxAnGponOnuMgmtTypeName,zxAnGponRmOnuAlias,zxAnGponSrvOnuStatusEntry,zxAnEponOnuHwVersion,zxAnEponOnuSwVersion,zxAnGponSrvOnuFiberLen,zxAnGponSrvOnuLastOnlineTime,zxAnGponSrvOnuLastOfflineTime,zxAnGponSrvOnuLastOfflineReason,zxAnGponRmOnuBatteryMonitor,zxAnGponRmAniTxOptLevel,zxAnGponRmAniRxOptLevel,zxAnGponRmAniPowerFeedVoltage,zxAnGponRmOnuSysMemUsage,zxAnGponOnuMgmtDesc',
+                'headers' => 'index,zxAnPonSrvChannelIfIndex,zxAnGponRmOnuVendorId,zxAnGponRmOnuSerialNum,zxAnPonSrvVndBindOnuPwd,zxAnGponOnuMgmtTypeName,zxAnGponRmOnuAlias,zxAnGponSrvOnuStatusEntry,zxAnEponOnuHwVersion,zxAnEponOnuSwVersion,zxAnGponSrvOnuFiberLen,zxAnGponSrvOnuLastOnlineTime,zxAnGponSrvOnuLastOfflineTime,zxAnGponSrvOnuLastOfflineReason,zxAnGponRmOnuBatteryMonitor,zxAnGponRmAniTxOptLevel,zxAnGponRmAniRxOptLevel,zxAnGponRmAniPowerFeedVoltage,zxAnGponRmOnuSysMemUsage,zxAnGponOnuMgmtDesc',
                 'snmp' => {
                     'zxAnPonSrvChannelIfIndex' => {
                         'oid' => '1.3.6.1.4.1.3902.1082.500.2.2.9.2.1.3',
@@ -670,19 +670,48 @@
             },
             'ifTable' => {
                 'indexed' => 'ifIndex',
-                'headers' =>
-                  'ifIndex,ifDescr,ifType,ifAdminStatus,ifOperStatus,ifName',
+                'headers' => 'ifIndex,zxAnSrvPortResType,zxAnSrvPortResRack,zxAnSrvPortResShelf,zxAnSrvPortResSlot,zxAnSrvPortResPort,ifDescr,ifType,ifAdminStatus,ifOperStatus,ifName',
                 'snmp' => {
                     'ifIndex' => {
                         'comment'   => 'This SNMP agent uses ifIndexes larger than 32 bit which can confuse some code which follow the standards.',
                         'oid'       => 'ifIndex',
                         'title'     => 'Interface Index',
                         'calculate' => '$r = unpack("I", pack("i", $r))'
-                    },
+                        },
+                    'zxAnSrvPortResType'   =>  {
+                            'oid' => '1.3.6.1.2.1.2.2.1.1',
+                            'title' => 'Type',
+                            'title_export' => 'Type',
+                            'calculate' => '{$r = ($r & 0xF0000000) >> 28};' 
+                        },
+                    'zxAnSrvPortResRack'   =>  {
+                            'oid' => '1.3.6.1.2.1.2.2.1.1',
+                            'title' => 'Rack ID',
+                            'title_export' => 'Rack ID',
+                            'calculate' => '{$r = ($r & 0x0F000000) >> 24};' 
+                        },
+                    'zxAnSrvPortResShelf'   =>  {
+                            'oid' => '1.3.6.1.2.1.2.2.1.1',
+                            'title' => 'Shelf ID',
+                            'title_export' => 'Shelf ID',
+                            'calculate' => '{$r = ($r & 0x00FF0000) >> 16};' 
+                        },
+                    'zxAnSrvPortResSlot'   =>  {
+                            'oid' => '1.3.6.1.2.1.2.2.1.1',
+                            'title' => 'Slot ID',
+                            'title_export' => 'Slot ID',
+                            'calculate' => '{$r = ($r & 0x0000FF00) >> 8};' 
+                        },
+                    'zxAnSrvPortResPort'   =>  {
+                            'oid' => '1.3.6.1.2.1.2.2.1.1',
+                            'title' => 'Port ID',
+                            'title_export' => 'Port ID',
+                            'calculate' => '{$r = ($r & 0x000000FF)};' 
+                        },    
                     'ifDescr' => {
                         'oid'   => 'ifDescr',
                         'title' => 'Name (ifDescr)'
-                    },
+                        },
                     'ifType' => {
                         'oid'     => 'ifType',
                         'title'   => 'Type (ifType)',
