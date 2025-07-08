@@ -389,6 +389,11 @@ my @oltHeaders = qw(
 
 my @zte_oltHeaders = qw( 
 	sysUpTime
+	zxAnSrvPortResType
+	zxAnSrvPortResRack
+	zxAnSrvPortResShelf
+	zxAnSrvPortResSlot
+	zxAnSrvPortResPort
 	zxAnSrvPortUserSVid
 	zxAnSrvPortCurrStatsVportId
 	zxAnSrvPortDesc
@@ -651,10 +656,10 @@ sub exportzteOltPorts {
 			# handling for this is device/model specific.
 			my $INV;
 			my $nodemodel = $catchall_data->{nodeModel} eq "Model" ? $catchall_data->{model} : $catchall_data->{nodeModel};
-			print "[exportOltPorts] Checking node $node model '$nodemodel' against $goodModels \n" if ($debug);
+			print "[exportzteOltPorts] Checking node $node model '$nodemodel' against $goodModels \n" if ($debug);
 
 			if ( $nodemodel =~ /$goodModels/ ) {
-				print("Processing Node '$NODES->{$node}{name}'\n");
+				print("Processing ZTE Node '$NODES->{$node}{name}'\n");
 				$modelCount++;
 
 				my $invIds = $S->nmisng_node->get_inventory_ids(
@@ -674,7 +679,8 @@ sub exportzteOltPorts {
 						$INV->{$data->{index}} = $data;
 					}
 				}
-				# print("INV is ".Dumper($INV)."\n");
+				
+				print("INV =>  ".Dumper($INV)."\n");
 				my $sectionIds = $S->nmisng_node->get_inventory_ids( concept => "zxr10GponDevice");
 				# print("Gpon section id's are ".Dumper($sectionIds)."\n");
 				if (@$sectionIds) {	
@@ -691,7 +697,8 @@ sub exportzteOltPorts {
 							print("WARNING, Last Update Data collection was more than 1 day ago: $lastUpdatePoll\n");
 						}
 						$gponDeviceIndex->{$data->{index}} = $data;					
-					}					
+					}
+					print("gponDeviceIndex	=> ".Dumper($gponDeviceIndex)."\n");				
 					if ( not @invHeaders ) {
 						if ( not defined $myHeaders ) {							
 							@{$myHeaders} = split(",",$MDL->{$model_section_top}{sys}{$model_section}{headers});
@@ -763,12 +770,13 @@ sub exportzteOltPorts {
 						$INV->{$idx}{host} = $NODES->{$node}{host};
 						$INV->{$idx}{sysUpTime} = $catchall_data->{sysUpTime};
 						$INV->{$idx}{last_update} = $lastUpdatePoll;
-						
+						print("idx is ".$idx."\n");
 						my @gponIndex = split /\./, $idx;
+						print("gponIndex is ".Dumper(\@gponIndex)."\n");
 						my @gponIndex_list = ($gponIndex[0].".1",$gponIndex[0].".2");
 
 						foreach my $gponIndex (@gponIndex_list){
-							
+									
 							if ( not defined $gponDeviceIndex->{$gponIndex} ) {
 								print("ERROR: $node no $secondary_section data for gponIndex=$gponIndex\n");					
 							}
