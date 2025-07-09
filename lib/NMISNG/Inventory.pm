@@ -1117,6 +1117,14 @@ sub relocate_storage
 		'eval' => 0, # only expand, no expression to evaluate
 		filter => 1); # Remove blanks and backslash
 		# $newname = NMISNG::Util::filterName($newname);
+		
+		# OMK-11758 , we need to parse currname also, as it might have spaces in it and rrds will be on parsed path.
+		my $curname = $S->parseString(
+		string => '$curname', 
+		extras => { 'curname' => $curname },
+		'eval' => 0, # only expand, no expression to evaluate
+		filter => 1); 
+
 		$newname = $new_node_name_parsed;
 		$newfile =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/i;
 			
