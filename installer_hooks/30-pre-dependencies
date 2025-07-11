@@ -332,7 +332,7 @@ if ! check_missing_packages $PKGLIST; then
 
 		else
 				echolog "Packages missing but installer was instructed to NOT install them."
-				cat <<EOF
+				cat <<-EOF
 
 					$PRODUCT will not run without the following packages installed:
 

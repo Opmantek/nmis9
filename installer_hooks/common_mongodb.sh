@@ -79,29 +79,12 @@ add_mongo_7_repository () {
 				# shellcheck disable=SC2039
 				local OUTPUT;				
 				echolog "Installing gnupg for MongoDB $DESIREDVER";
-				execPrint "apt-get install -y gnupg 2>&1"||:;				
+				execPrint "apt-get install -y gnupg curl 2>&1"||:;				
 				SOURCESFILE=/etc/apt/sources.list.d/mongodb-org-$DESIREDVER.list
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
 
 				# get the release key first
-				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 --tries=3 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -L -s -m 20 --retry 2 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
-
-				RES=0;
-				OUTPUT="";
-				# apt-key adv doesn't work cleanly with gpg 2.1+
-				OUTPUT="$($GIMMEKEY | apt-key add - 2>&1)"||RES=$?;
-				# echologVerboseError expects parameters: COMMAND (as a string '$*' or '...', not an array '$@'), EXITCODE then COMMANDOUTPUT
-				echologVerboseError "$GIMMEKEY | apt-key add - " \
-						    "${RES}" \
-						    "${OUTPUT:-}";
-
-				RES=0;
-				RELEASENAME=""
-				RELEASENAME=$(lsb_release -sc 2>&1)||RES=$?;
-				# echologVerboseError expects parameters: COMMAND (as a string '$*' or '...', not an array '$@'), EXITCODE then COMMANDOUTPUT
-				echologVerboseError "lsb_release -sc 2>&1" \
-						    "${RES}" \
-						    "${RELEASENAME:-}";
+				curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --yes -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
 
 				if [ "$OSFLAVOUR" = "debian" ] ; then
 						# MongoDB 7.0 is supported on Debian 12 bookworm and Debian 11 bullseye
@@ -150,7 +133,7 @@ add_mongo_3_repository () {
 		local RELEASENAME
 
 		local DESIREDVER
-		DESIREDVER=${1:-6.0}
+		DESIREDVER=${1:-3.2}
 
 		# redhat/centos: mongodb supplies rpms for 3.2 and 3.4 for all platforms and versions we care about
 		if [ "$OSFLAVOUR" = "redhat" ]; then
@@ -187,14 +170,6 @@ add_mongo_3_repository () {
 				echologVerboseError "$GIMMEKEY | apt-key add - " \
 						    "${RES}" \
 						    "${OUTPUT:-}";
-
-				RES=0;
-				RELEASENAME=""
-				RELEASENAME=`lsb_release -sc 2>&1`||RES=$?;
-				# echologVerboseError expects parameters: COMMAND (as a string '$*' or '...', not an array '$@'), EXITCODE then COMMANDOUTPUT
-				echologVerboseError "lsb_release -sc 2>&1" \
-						    "${RES}" \
-						    "${RELEASENAME:-}";
 
 				# debian 7, 8: 3.4 is a/v - upstream doesn't have newer version-specific packages
 				# debian 9: 3.2 is in debian proper but we normally need 3.4.
@@ -331,7 +306,7 @@ mongo_or_bust () {
 		if ! is_mongo_installed; then
 
 				# check and install latest supported mongodb, returns 0 if ok, 1 or 2 otherwise
-				new_mongo_7_or_bust || exit 1
+				new_mongo_or_bust || exit 1
 
 		# mongo is installed, but is the version sufficient?
 		else
@@ -466,7 +441,7 @@ new_mongo_or_bust () {
 		# shellcheck disable=SC2039
 		local MIN_MAJ MIN_MIN MIN_PATCH
 
-		# Default to 6.0 as we do in add_mongo_6_repository() function
+		# Default to 7.0 as we do in add_mongo_7_repository() function
 		# Simplifies things for Dependency Check Mode
 		MIN_MAJ=${1:-7}
 		MIN_MIN=${2:-0}
