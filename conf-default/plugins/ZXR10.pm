@@ -58,7 +58,7 @@ sub update_plugin
 	{ 
 
 		my $servicePortData = $S->nmisng_node->get_inventory_ids(
-            concept => "Service_Port",
+            concept => "Service_Port_ZTE",
             filter => { historic => 0 });
 
 		if (@{$servicePortData}){
