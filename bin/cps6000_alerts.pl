@@ -28,9 +28,6 @@
 #
 # *****************************************************************************
 
-# This program should be run from Cron for the required alerting period, e.g. 5 minutes
-#4-59/5 * * * * /usr/local/admin/interface_util_alerts.pl
-
 # The average utilisation will be calculated for each interface for the last X minutes
 use strict;
 use warnings;
@@ -97,10 +94,14 @@ my $nmisConfig = NMISNG::Util::loadConfTable( dir => "$FindBin::Bin/../conf", de
 # not wanting this level of debug for debug = 1.
 my $nmisDebug = $debug > 1 ? $debug : 0;
 my $logfile = $nmisConfig->{'<nmis_logs>'} . "/cps6000.log";
+#print "logfile = $logfile\n";
 my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $nmisDebug, info => $cmdline->{info}), path  => $logfile );
+#print "logger = ". Dumper($logger)."\n";
+print "Script cps6000_alerts started\n";
+$logger->info("Script cps6000_alerts started\n");
 
 my $nmisng = NMISNG->new(config => $nmisConfig, log => $logger);
-
+my %cps6000Cct_data;
 
 # if (NMISNG::Util::existFile(dir=>'conf',name=>'nocSyslog')) {
 # 	my $syslogConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'nocSyslog');
@@ -111,19 +112,18 @@ my $nmisng = NMISNG->new(config => $nmisConfig, log => $logger);
 
 #print "cps6000_alerts.pl: syslog_server=$syslog_server syslog_facility=$syslog_facility extraLogging=$extraLogging\n" if $info;
 
-if ($groups) {
+if ($groups && $node) {
 	updateCircuitGroups($nmisng,$node);
-	#exit 0;
 }
 
-if ($node) {
-	processNode($nmisng,$node);
-}
-else {
-	processAllNodes();
-}
+processAllNodes();
 
-#exit 0;
+# if ($node) {
+# 	processNode($nmisng,$node);
+# }
+# else {
+# 	processAllNodes();
+# }
 
 #For the circuit groups which have worked, get them from the MIB
 sub updateCircuitGroups
@@ -132,7 +132,7 @@ sub updateCircuitGroups
 	my $node = shift;
 	my $CG_New;
 
-	print "updateCircuitGroups: $node\n" if $node;
+	#print "updateCircuitGroups: $node\n" if $node;
 	my $nodeobj = $nmisng->node(name => $node);
 	
 	my $S = NMISNG::Sys->new; # get system object
@@ -140,18 +140,18 @@ sub updateCircuitGroups
 	
 	my $CG = NMISNG::Util::loadTable(dir=>'conf',name=>'CircuitGroups');
 
-	my $result_cps6000Groups = $nmisng->get_inventory_model(concept => "cps6000Groups", filter => { historic => 0 });
+	my $cps6000Groups_result = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => "cps6000Groups", filter => { historic => 0 });
 	#print "updateCircuitGroups result: ".Dumper($result)."\n";
-	if (my $error = $result_cps6000Groups->error)
+	if (my $error = $cps6000Groups_result->error)
 	{
 		print "failed to lookup inventory records for cps6000Grp: $error \n";
 		$logger->error("ERROR: failed to lookup inventory records for cps6000Grp: $error");
 		return;
 	}
-	my %data_cps6000Groups = map { ($_->{data}->{index} => $_->{data}) } (@{$result_cps6000Groups->data});
+	my %data_cps6000Groups = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Groups_result->data});
 	#print "updateCircuitGroups ifdata: ".Dumper(\%data_cps6000Groups)."\n";
 	
-	my $cps6000Grp = $nmisng->get_inventory_model(concept => "cps6000Grp", filter => { historic => 0 });
+	my $cps6000Grp = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => "cps6000Grp", filter => { historic => 0 });
 	#print "updateCircuitGroups cps6000Grp: ".Dumper($cps6000Grp)."\n";
 	if (my $error = $cps6000Grp->error)
 	{
@@ -159,73 +159,41 @@ sub updateCircuitGroups
 		$logger->error("ERROR: failed to lookup inventory records for cps6000Grp: $error");
 		return;
 	}
-	my %data_cps6000Grp = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Grp->data});
-	print "updateCircuitGroups ifdata: ".Dumper(\%data_cps6000Grp)."\n";
+	my %cps6000Groups_data = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Grp->data});
+	#print "updateCircuitGroups cps6000Groups_data ifdata: ".Dumper(\%cps6000Groups_data)."\n";
 
-	# WORK WITH FAKE DATA FOR NOW AS NMIS INVENTORY IS NOT SHOWING CORRECT/CONCRETE DATA
-	my %data_cps6000Grp =(
-		'0' => {
-			'cpsGrpEntryAadc' => '0',
-			'cpsGrpEntryCap' => '7196',
-			'cpsGrpEntryCct' => 'K0232,K0231,K0230,K0229,K0228,K0227,K0226,K0225,K0224,K0223,K0222,K0221,K0205,K0206,K0207,K0208,K0209,K0210,	K0211,K0212,K0213,K0214,K0215,K0216,K0217,K0218,K0219,K0220',
-			'cpsGrpEntryDes' => 'FTTN Default Group',
-			'cpsGrpEntryIde' => 'GR000',
-			'cpsGrpEntryIndex' => 0,
-			'cpsGrpEntryLrs' => '0',
-			'cpsGrpEntryOlcap' => '7196',
-			'cpsGrpEntryTadc' => '26',
-			'index' => '0'
-			},
-		'1' => {
-		'cpsGrpEntryAadc' => '65',
-		'cpsGrpEntryCap' => '4113',
-		'cpsGrpEntryCct' => 'K0201,K0202,K0203,K0204,K0205,K0206,K0207,K0208,K0209,K0120,K0111,K0112,K0113,K0114,K0115,K0116',
-		'cpsGrpEntryDes' => 'DSLAM ACAILUB CBL AILU2 201-25',
-		'cpsGrpEntryIde' => 'GR001',
-		'cpsGrpEntryIndex' => 1,
-		'cpsGrpEntryLrs' => '0',
-		'cpsGrpEntryOlcap' => '4113',
-		'cpsGrpEntryTadc' => '1065',
-		'index' => '1'
-		},
-		'2' => {
-		'cpsGrpEntryAadc' => '66',
-		'cpsGrpEntryCap' => '4112',
-		'cpsGrpEntryCct' => 'K0101,K0102,K0103,K0104,K0105,K0106,K0107,K0108,K0109,K0110,K0111,K0112,K0113,K0114,K0115,K0116',
-		'cpsGrpEntryDes' => 'DSLAM ACMLLC1 C3 1-50',
-		'cpsGrpEntryIde' => 'GR002',
-		'cpsGrpEntryIndex' => 2,
-		'cpsGrpEntryLrs' => '0',
-		'cpsGrpEntryOlcap' => '4112',
-		'cpsGrpEntryTadc' => '1064',
-		'index' => '2'
-		},
-		'3' => {
-		'cpsGrpEntryAadc' => '67',
-		'cpsGrpEntryCap' => '4114',
-		'cpsGrpEntryCct' => 'K0401,K0402,K0403,K0404,K0405,K0406,K0407,K0408,K0409,K0140,K0111,K0112,K0113,K0114,K0115,K0116',
-		'cpsGrpEntryDes' => 'DSLAM ACAILUA1 CBL AILU2 251-3',
-		'cpsGrpEntryIde' => 'GR003',
-		'cpsGrpEntryIndex' => 3,
-		'cpsGrpEntryLrs' => '0',
-		'cpsGrpEntryOlcap' => '4114',
-		'cpsGrpEntryTadc' => '1065',
-		'index' => '3'
-		}
-	
-	);
- 	#print "updateCircuitGroups ifdata: ".Dumper(\%data_cps6000Grp)."\n";
 	
 
+	my $cps6000Cct_result = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => "cps6000Cct", filter => { historic => 0 });
+	#print "updateCircuitGroups result: ".Dumper($result)."\n";
+	if (my $error = $cps6000Cct_result->error)
+	{
+		print "failed to lookup inventory records for cps6000Grp: $error \n";
+		$logger->error("ERROR: failed to lookup inventory records for cps6000Grp: $error");
+		return;
+	}
+	my %data_cps6000Cct = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Cct_result->data});
+	#print "updateCircuitGroups : ".Dumper(\%data_cps6000Cct)."\n";
+	
+	my $cps6000Cct = $nmisng->get_inventory_model(concept => "cps6000Cct", filter => { historic => 0 });
+	#print "updateCircuitGroups cps6000Cct: ".Dumper($cps6000Cct)."\n";
+	if (my $error = $cps6000Cct->error)
+	{
+		print "failed to lookup inventory records for cps6000Cct: $error \n";
+		$logger->error("ERROR: failed to lookup inventory records for cps6000Cct: $error");
+		return;
+	}
+	%cps6000Cct_data = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Cct->data});
+	#print "updateCircuitGroups cps6000Cct_data : ".Dumper(\%cps6000Cct_data)."\n";
 
-	foreach my $groupId ( keys %data_cps6000Grp) {
-		if ( $data_cps6000Grp{$groupId}{cpsGrpEntryIde} 
-			and $data_cps6000Grp{$groupId}{cpsGrpEntryIde} ne "GR000" 
-			and $data_cps6000Grp{$groupId}{cpsGrpEntryDes} 
-			and $data_cps6000Grp{$groupId}{cpsGrpEntryDes} !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
+	foreach my $groupId ( keys %cps6000Groups_data) {
+		if ( $cps6000Groups_data{$groupId}{cpsGrpEntryIde} 
+			and $cps6000Groups_data{$groupId}{cpsGrpEntryIde} ne "GR000" 
+			and $cps6000Groups_data{$groupId}{cpsGrpEntryDes} 
+			and $cps6000Groups_data{$groupId}{cpsGrpEntryDes} !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
 		) 
 		{
-			my $circuitGroup = $data_cps6000Grp{$groupId}{cpsGrpEntryDes};
+			my $circuitGroup = $cps6000Groups_data{$groupId}{cpsGrpEntryDes};
 			#print "updateCircuitGroups circuitGroup: ".Dumper($circuitGroup)."\n";
 			my $dslamNode = undef;
 			if ( $circuitGroup ) {
@@ -245,238 +213,466 @@ sub updateCircuitGroups
 			#print "updateCircuitGroups direccion: ".Dumper($direccion)."\n";
 
 			$CG->{$circuitGroup} = {
-			'circuitGroup' => $circuitGroup,
-			'circuits' => $data_cps6000Grp{$groupId}{cpsGrpEntryCct},
-			'geNode' => $node,
-			'dslamNode' => $dslamNode,
-			'groupId' => $groupId,
-			'shelf' => $shelf,
-			'cable' => $cable,
-			'cuenta' => $cuenta,
-			'direccion' => $direccion,
+				'circuitGroup' => $circuitGroup,
+				'circuits' => $cps6000Groups_data{$groupId}{cpsGrpEntryCct},
+				'geNode' => $node,
+				'dslamNode' => $dslamNode,
+				'groupId' => $groupId,
+				'shelf' => $shelf,
+				'cable' => $cable,
+				'cuenta' => $cuenta,
+				'direccion' => $direccion,
 			};
 		}
 	}
 	
 	#print "updateCircuitGroups CG After : ".Dumper($CG)."\n";
 	NMISNG::Util::writeTable(dir=>'conf',name=>'CircuitGroups',data=>$CG);
+	my $count = scalar keys %{$CG};
+	print "Number of keys in CG: $count\n";
 }
-
-
 
 sub processAllNodes {
 
 	my $nodes = $nmisng->get_node_names(filter => { cluster_id => $nmisConfig->{cluster_id} });
-	print "processAllNodes nodes=$nodes\n";
+	#print "processAllNodes nodes=".Dumper ($nodes)."\n";
 	my %seen;
     
 	foreach my $node (sort @$nodes) {
-		next if ($seen{$node});
-		$seen{$node} = 1;
-		processNode($nmisng,$node);
+		#print "processAllNodes:Processing $node\n" if $node;
+		my $S = NMISNG::Sys->new; # get system object
+		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
+		my $nodeobj = $nmisng->node(name => $node);
+		
+		#print "nodeobj".Dumper ($nodeobj);
+		if ( !$nodeobj)  {
+			$logger->fatal("Node $node failed to get the $nodeobj");
+			die "Node $node failed to get the $nodeobj .\n";
+		}
+		if ($nodeobj) {
+			# is the node active?
+			my ($nmisConfiguration,$error) = $nodeobj->configuration();
+			#print "processNode:nmisConfiguration ". Dumper($nmisConfiguration)."\n" if $nmisConfiguration;
+			my $active = $nmisConfiguration->{active};
+			my $collect = $nmisConfiguration->{collect};
+			my $group = $nmisConfiguration->{group};
+			my $host = $nmisConfiguration->{host};
+			my $cluster_id = $nodeobj->cluster_id;
+			my $model = $nmisConfiguration->{model};
+			#print "processNode:model $model\n" if $model;
+			
+			my $sys;
+
+			# Only locals and active nodes
+			if ($active and $collect) {
+				#print "$node is active and local\n";
+				if ( $model eq "GE-QS941" ) {
+					updateCircuitGroups($nmisng,$node);
+					processNode($nmisng,$node,$model,$S);
+				}
+			}
+		}	
+		else {
+			#print " $node active=$active $cluster_id $nmisConfig->{cluster_id}\n";
+		}
+		
 	}
 }
 
 sub processNode {
 	my $nmisng = shift;
 	my $node = shift;
-
-	#print "processNode:Processing $node\n" if $node;
-	my $S = NMISNG::Sys->new; # get system object
-	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-
-	my $nodeobj = $nmisng->node(name => $node);
-	#print "nodeobj".Dumper ($nodeobj);
-	if ( !$nodeobj)  {
-		$logger->fatal("Node $node failed to get the $nodeobj");
-		die "Node $node failed to get the $nodeobj .\n";
-	}
+	my $model = shift;
+	my $S = shift;
 	
-	if ($nodeobj) {
-
-        # is the node active?
-		my ($nmisConfiguration,$error) = $nodeobj->configuration();
-		#print "processNode:nmisConfiguration ". Dumper($nmisConfiguration)."\n" if $nmisConfiguration;
-		my $active = $nmisConfiguration->{active};
-		my $collect = $nmisConfiguration->{collect};
-		my $group = $nmisConfiguration->{group};
-		my $host = $nmisConfiguration->{host};
-		my $cluster_id = $nodeobj->cluster_id;
-		my $model = $nmisConfiguration->{model};
-		#print "processNode:model $model\n" if $model;
+	if ($node) {
+		print "In processNode processing node $node which has model $model\n";
+		$logger->info("In processNode processing node $node which has model $model\n");
 		
-		my $sys;
+		# using the custom table CircuitGroups to get the group name from.
+		my $CG = NMISNG::Util::loadTable(dir=>'conf',name=>'CircuitGroups');
+		my %groupIdx;
+		my %groupList;
+		#initialise the unknown group for the SNMP bug in QS941
+		$groupList{"$node Unknown"}{desc} = "$node Unknown";
+		$groupList{"$node Unknown"}{circuits} = 0;
+		$groupList{"$node Unknown"}{faulty} = 0;
+		#print "CG = \n".Dumper($CG);
 
-		# Only locals and active nodes
-		if ($active and $collect) {
-			print "$node is active and local\n";
-			if ( $model eq "GE-QS941" ) {
-				# using the custom table CircuitGroups to get the group name from.
-				my $CG = NMISNG::Util::loadTable(dir=>'conf',name=>'CircuitGroups');
-				my %groupIdx;
-				my %groupList;
-				#initialise the unknown group for the SNMP bug in QS941
-				$groupList{"$node Unknown"}{desc} = "$node Unknown";
-				$groupList{"$node Unknown"}{circuits} = 0;
-				$groupList{"$node Unknown"}{faulty} = 0;
-				#print "CG".Dumper($CG);
+		# for my $cg (sort {$a cmp $b} keys %{$CG}) {
+		# 	#print "cg = $cg\n";
+		# 	# Only interested in Circuit Groups setup for the GE Node we are managing.
+		# 	if ( exists $CG->{$cg}{geNode} and $node eq $CG->{$cg}{geNode} ) {
+		# 		# if the group id came from a good place.
+		# 		my $groupId = $CG->{$cg}{groupId};
 
-				for my $cg (sort {$a cmp $b} keys %{$CG}) {
-					print "cg = $cg\n";
-					# Only interested in Circuit Groups setup for the GE Node we are managing.
-					if ( exists $CG->{$cg}{geNode} and $node eq $CG->{$cg}{geNode} ) {
-						# if the group id came from a good place.
-						my $groupId = $CG->{$cg}{groupId};
-	
-						$groupList{$cg}{desc} = $cg;				
-						$groupList{$cg}{circuits} = 0;				
-						$groupList{$cg}{faulty} = 0;				
-						my @circuits = split(",",$CG->{$cg}{circuits});
-						# print "DEBUG: circuits\n";
-						# print Dumper \@circuits;
-						foreach my $circuit (@circuits) {
-							# get the index loaded
-							$groupIdx{$circuit} = $cg;
-						}
-						print "$node Group: $cg DSLAM=$CG->{$cg}{dslamNode}\n" if $info or $debug;
-					}
-				}
-				print "DEBUG: groupList\n";
-				print Dumper \%groupList;
+		# 		$groupList{$cg}{desc} = $cg;				
+		# 		$groupList{$cg}{circuits} = 0;				
+		# 		$groupList{$cg}{faulty} = 0;				
+		# 		my @circuits = split(",",$CG->{$cg}{circuits});
+				
+		# 		if (@circuits){
+		# 			# print "DEBUG: circuits\n";
+		# 			# print Dumper \@circuits;
+		# 			foreach my $circuit (@circuits) {
+		# 				# get the index loaded
+		# 				$groupIdx{$circuit} = $cg;
+		# 			}
+		# 		}
+		# 		#print "$node Group: '$cg' DSLAM=$CG->{$cg}{dslamNode}\n";
+		# 	}
+		# }
+		# print "DEBUG: groupList\n";
+		# print Dumper \%groupList;
 
-				print "DEBUG: groupIdx\n";
-				print Dumper \%groupIdx;
+		# print "DEBUG: groupIdx\n";
+		# print Dumper \%groupIdx;
 
-				# if ( exists $NI->{cps6000Cct}) {
-				# }
+		# if ( %cps6000Cct_data) {
+		# 	my $circuitFaulty = 0;
+		# 	# Loop through top-level keys
+		# 	foreach my $circuitIndex (sort keys %cps6000Cct_data) {
+		# 		#print "circuitIndex: $circuitIndex\n";
+		# 		my $entry = $cps6000Cct_data{$circuitIndex};
+		# 		my $circuitId = $cps6000Cct_data{$circuitIndex}{cpsCctEntryIde};
+		# 		#print "circuitId: $circuitId\n";
 
-				# # 10 circuits, 1 faulty circuit = 10% power loss, fault/circuits * 100
-				foreach my $groupId ( keys %groupList ) {
-					## do not create alerts on the default group
-					my $groupDesc = $groupList{$groupId}{desc};
-					if ( $groupId 
-						and $groupId ne "GR000" 
-						and $groupDesc 
-						and $groupDesc !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
-						and exists $CG->{$groupId}{circuits}
-						and $CG->{$groupId}{circuits} ne ""
-					) {
-						my $potency = $groupList{$groupId}{circuits} * 65;
-						my $potencyLoss = $groupList{$groupId}{faulty} * 65;
-						my $powerLoss = "0";
-						print "processNode:potency $potency\n";
-						print "processNode:potencyLoss $potencyLoss\n";
-						if ( $potencyLoss > 0 and $potency > 0 ) {
-							$powerLoss = sprintf("%.2f",($potencyLoss / $potency) * 100);
-							print "processNode:powerLoss $powerLoss\n";
-						}
-						
-						my $infoForDetails = undef;
-						if ( exists $CG->{$groupId}{dslamNode} ) {
-							$infoForDetails = "$CG->{$groupId}{dslamNode} $CG->{$groupId}{shelf} $CG->{$groupId}{cable} $CG->{$groupId}{cuenta} $CG->{$groupId}{direccion}";
-						}
-						else {
-							$infoForDetails = "No circuit group details available";
-						}
-		
-						#NORMAL, 0%
-						my $level = "Normal";
-						
-						#FATAL, Power Lost > 90%
-						if ( $powerLoss > 90 ) {
-							$level = "Fatal";
-						}
-						#CRITICAL, Power lost > 50 %
-						elsif ( $powerLoss > 50 ) {
-							$level = "Critical";
-						}
-						#MAJOR, Power Lost = > 30 % & < = 50 %
-						elsif ( $powerLoss >= 30 and $powerLoss <= 50) {
-							$level = "Major";
-						}
-						#MINOR, Power Lost <30 %
-						elsif ( $powerLoss < 30 and $powerLoss > 0  ) {
-							$level = "Minor";
-						}
-		
-						my $event = "Alert: DSLAM Power Loss";
-						my $element = $groupId;
-						my $details = "$infoForDetails: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
-						
-						print "node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n";
-						$logger->info("node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level") if $extraLogging;
-						#processCondition($S,$node,$nodeobj,$event,$element,$details,$level);
-					}
-					elsif (not $groupDesc) {
-						print "WARNING node=$node, groupId=$groupId Group Description is empty in circuit group\n";						
-					}
-				}
-			}
-		}	
-		else {
-			print " $node active=$active $cluster_id $nmisConfig->{cluster_id}\n";
-		}
+		# 		my $groupId = "$node Unknown";
+		# 		my $groupDesc = "$node Unknown";
+		# 		my $dslamNode = undef;
+		# 		my $infoForDetails = undef;
+		# 		if ( exists $groupIdx{$circuitId} and $groupIdx{$circuitId} ne "" ) {
+		# 			$groupId = $CG->{$groupIdx{$circuitId}}{groupId};
+		# 			$groupDesc = $CG->{$groupIdx{$circuitId}}{circuitGroup};
+		# 			$dslamNode = $CG->{$groupIdx{$circuitId}}{dslamNode};				
+		# 		}
+		# 		else {
+		# 			$groupIdx{$circuitId} = "$node Unknown";
+		# 		}
+
+		# 		$groupId = "$node Unknown" if not $groupId;
+		# 		$groupDesc = "$node Unknown" if not $groupDesc;
+				
+		# 		if ( $groupId and exists $groupList{$groupId}{circuits} ) {
+		# 			++$groupList{$groupId}{circuits};
+		# 		}
+		# 		else {
+		# 			$groupList{$groupId}{circuits} = 0;
+		# 		}
+
+		# 		$cps6000Cct_data{$circuitIndex}{cpsCctEntryGrp} = $groupDesc;
+
+		# 		if ( $dslamNode and exists $groupIdx{$circuitId} ) {
+					
+		# 			#TODO remove this later now developing gives unwanted noise
+		# 			#$infoForDetails = "$dslamNode $CG->{$groupIdx{$circuitId}}{shelf} $CG->{$groupIdx{$circuitId}}{cable} $CG->{$groupIdx{$circuitId}}{cuenta} $CG->{$groupIdx{$circuitId}}{direccion}";
+					
+		# 			$infoForDetails = "No info details available";
+					
+		# 		}
+		# 		else {
+		# 			$infoForDetails = "No circuit details available";
+		# 		}
+		# 		print "$node Circuit: $cps6000Cct_data{$circuitIndex}{cpsCctEntryDes} $groupId $infoForDetails\n";
+		# 		$logger->debug("$node Circuit: $cps6000Cct_data{$circuitIndex}{cpsCctEntryDes} $groupId $infoForDetails");
+
+		# 		## detect condition
+		# 		my $element = "Circuit $cps6000Cct_data{$circuitIndex}{cpsCctEntryIde}";
+		# 		my $event = undef;
+		# 		my $level = undef;
+		# 		my $details = undef;
+			
+		# 		# Circuitos Sin Comunicación - No Communication Circuits:
+		# 		#"Circuitos Sin Comunicación" translates to "Circuits Without Communication", and it refers to circuits that are not sending data or have lost communication with the central monitoring system.
+		# 		#  if STT in ['MISSING','STANDBY(USER)']:
+		# 		if ( $cps6000Cct_data{$circuitIndex}{cpsCctEntryStt} ) {
+		# 			$event = "Alert: Circuitos Sin Comunicación";
+		# 			$details = "$infoForDetails: STT=$cps6000Cct_data{$circuitIndex}{cpsCctEntryStt}";
+		# 			$level = "Normal";
+		# 			# Does the condition exist now?
+		# 			if ( $cps6000Cct_data{$circuitIndex}{cpsCctEntryStt} =~ /80|20/ ) {						
+		# 				$level = $defaultLevel;
+		# 				++$circuitFaulty;
+		# 			}
+		# 			#processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+		# 		}
+
+		# 		# Circuitos Sin Comunicación (Falla desconocida) - No Communication Circuits (unknown failure):
+		# 		#  All Variables set to 0
+		# 		$event = "Alert: Circuitos Sin Comunicación (Falla desconocida)";
+		# 		$details = "$infoForDetails: STT=$cps6000Cct_data{$circuitIndex}{cpsCctEntryStt}";
+		# 		$level = "Normal";
+		# 		# Does the condition exist now?
+		# 		# can this ever happen?
+		# 		if ( 0 ) {						
+		# 			$level = $defaultLevel;
+		# 			++$circuitFaulty;
+		# 		}
+		# 		# set the event properties and process the condition (state)
+		# 		#processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+
+		# 		# Pares Abiertos - Open couple:
+		# 		#"Pares Abiertos" in English translates to "Open Pairs".
+		# 		# Open Pairs typically refers to twisted pair wires (like in telecom or networking) that are:
+		# 		# Not connected at one or both ends
+		# 		# Unused or left open, often causing signal loss or communication failure
+		# 		#  if (ADC in range(1,5)) and (VDC>=370)
+		# 		if ( $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} 
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc}
+		# 		) {
+		# 			$event = "Alert: Pares Abiertos";
+		# 			$details = "$infoForDetails: ADC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} VDC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc}";
+		# 			$level = "Normal";
+		# 			# Does the condition exist now?
+		# 			if ( 
+		# 				$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} >= 1
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} <= 5
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} >= 370
+		# 			) {						
+		# 				$level = $defaultLevel;
+		# 				++$circuitFaulty;
+		# 			}
+		# 			#processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+		# 		}
+
+		# 		# Pares Averiados - couple damaged
+		# 		# "Pares Averiados" translates to "Faulty Pairs" or "Damaged Pairs" in English.
+		# 		# In systems using twisted-pair wiring (like telecom, networking, or power distribution), "pares averiados" refers to:
+		# 		# Wire pairs that are physically damaged, shorted, cut, or experiencing interference
+		# 		# Pairs that fail continuity or signal integrity tests
+		# 		#  if ( (ADC in range(0,8)) or (VDC in range(30,300)) ) and ( (LDS==1) or (CFL==1) )
+		# 		if ( $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} 
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc}
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl}
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryLds}
+		# 		) {
+		# 			$event = "Alert: Pares Averiados";
+		# 			$details = "$infoForDetails: ADC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} VDC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} LDS=$cps6000Cct_data{$circuitIndex}{cpsCctEntryLds} CFL=$cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl}";
+		# 			$level = "Normal";
+		# 			# Does the condition exist now?
+		# 			if (
+		# 				$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} >= 0
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} <= 8
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} >= 30
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} <= 300
+		# 				and 
+		# 				( $cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl} == 1
+		# 				or  $cps6000Cct_data{$circuitIndex}{cpsCctEntryLds} == 1 )
+		# 			) {						
+		# 				$level = $defaultLevel;
+		# 				++$circuitFaulty;
+		# 			}
+		# 			print (__LINE__);
+		# 			print ("\n $node,$event,$element,$details,$level \n") if $circuitAlerts;
+		# 			#processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+		# 		}
+
+		# 		# Tarjeta Desconectada - Card Offline
+		# 		# "Tarjeta Desconectada" translates to "Card Disconnected" in English.
+		# 		# Refers to a hardware card (e.g., power supply unit, controller card, communication module) that is:
+		# 		# Physically removed
+		# 		# Unplugged
+		# 		# Not detected by the system
+		# 		#  if ((ADC in range(0,5)) and (VDC>=370)) and CFL==0:
+		# 		if ( $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} 
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc}
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl}
+		# 		) {							
+		# 			$event = "Alert: Tarjeta Desconectada";
+		# 			$details = "$infoForDetails: ADC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} VDC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} CFL=$cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl}";
+		# 			$level = "Normal";
+		# 			# Does the condition exist now?
+		# 			if ( 
+		# 				$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} >= 0
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} <= 5
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} >= 370
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl} == 0
+		# 			) {						
+		# 				$level = $defaultLevel;
+		# 				++$circuitFaulty;
+		# 			}
+		# 			#processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+		# 		}
+
+		# 		# Carga en Descenso - Loading Up
+		# 		# "Carga en Descenso" translates to "Load Decreasing" or "Decreasing Load" in English.
+		# 		# Indicates that the electrical load or power consumption on a system or circuit is going down
+		# 		# Could be due to:
+		# 		# Devices being turned off
+		# 		# Reduced demand
+		# 		# Automatic load shedding 
+		# 		# System adjustments or failures
+		# 		#  if ( (ADC in range(8,38)) and (VDC>=370) and (LDS==1) ):
+		# 		if ( $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} 
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc}
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryLds}
+		# 		) {
+		# 			$event = "Alert: Carga en Descenso";
+		# 			$details = "$infoForDetails: ADC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} VDC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} LDS=$cps6000Cct_data{$circuitIndex}{cpsCctEntryLds}";
+		# 			$level = "Normal";
+		# 			# Does the condition exist now?
+		# 			if ( 
+		# 				$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} >= 8
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} <= 38
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} >= 370
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryLds} == 1
+		# 			) {						
+		# 				$level = $defaultLevel;
+		# 				++$circuitFaulty;
+		# 			}
+		# 			#processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+		# 		}
+
+		# 		# Corto en Central - Short on Central
+		# 		# "Corto en Central" translates to "Short in Central" or more clearly, "Short Circuit in Central Office" 
+		# 		#  if ( (ADC<=3) and (VDC<=30) and (CFL==1) ):
+		# 		if ( $cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} 
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc}
+		# 			and $cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl}
+		# 		) {
+		# 			$event = "Alert: Corto en Central";
+		# 			$details = "$infoForDetails: ADC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} VDC=$cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} CFL=$cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl}";
+		# 			$level = "Normal";
+		# 			# Does the condition exist now?
+		# 			if ( 
+		# 				$cps6000Cct_data{$circuitIndex}{cpsCctEntryAdc} <= 3
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryVdc} <= 30
+		# 				and $cps6000Cct_data{$circuitIndex}{cpsCctEntryCfl} == 1
+		# 			) {						
+		# 				$level = $defaultLevel;
+		# 				++$circuitFaulty;
+		# 			}
+		# 			#processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+		# 		}
+				
+		# 		# if any of the conditions apply the circuit is faulty, but only once.
+		# 		if ( $circuitFaulty ) {
+		# 			++$groupList{$groupId}{faulty};
+		# 		}
+				
+		# 	} # End of for loop
+		# }
+
+		# # 10 circuits, 1 faulty circuit = 10% power loss, fault/circuits * 100
+		# foreach my $groupId ( keys %groupList ) {
+		# 	## do not create alerts on the default group
+		# 	my $groupDesc = $groupList{$groupId}{desc};
+		# 	if ( $groupId 
+		# 		and $groupId ne "GR000" 
+		# 		and $groupDesc 
+		# 		and $groupDesc !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
+		# 		and exists $CG->{$groupId}{circuits}
+		# 		and $CG->{$groupId}{circuits} ne ""
+		# 	) {
+		# 		my $potency = $groupList{$groupId}{circuits} * 65;
+		# 		my $potencyLoss = $groupList{$groupId}{faulty} * 65;
+		# 		my $powerLoss = "0";
+		# 		if ( $potencyLoss > 0 and $potency > 0 ) {
+		# 			$powerLoss = sprintf("%.2f",($potencyLoss / $potency) * 100);
+		# 		}
+				
+		# 		my $infoForDetails = undef;
+		# 		if ( exists $CG->{$groupId}{dslamNode} ) {
+		# 			$infoForDetails = "$CG->{$groupId}{dslamNode} $CG->{$groupId}{shelf} $CG->{$groupId}{cable} $CG->{$groupId}{cuenta} $CG->{$groupId}{direccion}";
+		# 		}
+		# 		else {
+		# 			$infoForDetails = "No circuit group details available";
+		# 		}
+
+		# 		#NORMAL, 0%
+		# 		my $level = "Normal";
+				
+		# 		#FATAL, Power Lost > 90%
+		# 		if ( $powerLoss > 90 ) {
+		# 			$level = "Fatal";
+		# 		}
+		# 		#CRITICAL, Power lost > 50 %
+		# 		elsif ( $powerLoss > 50 ) {
+		# 			$level = "Critical";
+		# 		}
+		# 		#MAJOR, Power Lost = > 30 % & < = 50 %
+		# 		elsif ( $powerLoss >= 30 and $powerLoss <= 50) {
+		# 			$level = "Major";
+		# 		}
+		# 		#MINOR, Power Lost <30 %
+		# 		elsif ( $powerLoss < 30 and $powerLoss > 0  ) {
+		# 			$level = "Minor";
+		# 		}
+
+		# 		my $event = "Alert: DSLAM Power Loss";
+		# 		my $element = $groupId;
+		# 		my $details = "$infoForDetails: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
+				
+		# 		print "node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n";
+		# 		#logit("node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level");
+		# 		#processCondition($S,$node,$event,$element,$details,$level);
+		# 	}
+		# 	elsif (not $groupDesc) {
+		# 		print "WARNING node=$node, groupId=$groupId Group Description is empty in circuit group\n";						
+		# 	}
+		# }
 	}
 
 }  # end of processNode
 
 
-sub processCondition {
-	my $S = shift;
-	my $node = shift;
-	my $nodeobj = shift;
-	my $event = shift;
-	#my $event = "Fatal"; ## to test if event is generated or not.
-	my $element = shift;
-	my $details = shift;
-	my $level = shift;
+# sub processCondition {
+# 	my $S = shift;
+# 	my $node = shift;
+# 	my $nodeobj = shift;
+# 	my $event = shift;
+# 	#my $event = "Fatal"; ## to test if event is generated or not.
+# 	my $element = shift;
+# 	my $details = shift;
+# 	my $level = shift;
 
-	my $condition = 0;
+# 	my $condition = 0;
 
-	$logger->info("processCondition: $node, $event, $level, $element, $details") if $extraLogging;
+# 	$logger->info("processCondition: $node, $event, $level, $element, $details") if $extraLogging;
 
-	# # Did the condition exist previously?
-	my $eventExists = $nodeobj->eventExist($node, $event, $element);
-	print "processCondition:eventExists $eventExists\n";
+# 	# # Did the condition exist previously?
+# 	my $eventExists = $nodeobj->eventExist($node, $event, $element);
+# 	print "processCondition:eventExists $eventExists\n";
 
-	if ( $eventExists and $level =~ /Normal/i) {
-	 	# Proactive Closed.
-	 	# $condition = 1;
-		# Compat::NMIS::checkEvent(sys=>$S,event=>$event,level=>"Normal",element=>$element,details=>$details);
-	 	# $event = "$event Closed" if $event !~ /Closed/;
-		if ( NMISNG::Util::getbool($nmisEventProcessing) ) {
-				Compat::NMIS::checkEvent(sys=>$S,event=>$event,level=>"Normal",element=>$element,details=>$details);
-			}
-			# else {						
-			# 	$nodeobj->eventDelete(
-			# 		event => {
-			# 			event => $event, 
-			# 			element => $element 
-			# 		});
-			# }
-			$event = "$event Closed" if $event !~ /Closed/;
-			$sendSyslog = 1;
-	}
-	elsif ( not $eventExists and $level =~ /Normal/i) {
-		$condition = 2;
-		# Life is good, nothing to see here.
-	}
-	elsif ( not $eventExists and $level !~ /Normal/i) {
-		$condition = 3;
-		$event =~ s/ Closed//g;
-		#print "processCondition:HERE I M\n";
+# 	if ( $eventExists and $level =~ /Normal/i) {
+# 	 	# Proactive Closed.
+# 	 	# $condition = 1;
+# 		# Compat::NMIS::checkEvent(sys=>$S,event=>$event,level=>"Normal",element=>$element,details=>$details);
+# 	 	# $event = "$event Closed" if $event !~ /Closed/;
+# 		if ( NMISNG::Util::getbool($nmisEventProcessing) ) {
+# 				Compat::NMIS::checkEvent(sys=>$S,event=>$event,level=>"Normal",element=>$element,details=>$details);
+# 			}
+# 			# else {						
+# 			# 	$nodeobj->eventDelete(
+# 			# 		event => {
+# 			# 			event => $event, 
+# 			# 			element => $element 
+# 			# 		});
+# 			# }
+# 			$event = "$event Closed" if $event !~ /Closed/;
+# 			#$sendSyslog = 1;
+# 	}
+# 	elsif ( not $eventExists and $level =~ /Normal/i) {
+# 		$condition = 2;
+# 		# Life is good, nothing to see here.
+# 	}
+# 	elsif ( not $eventExists and $level !~ /Normal/i) {
+# 		$condition = 3;
+# 		$event =~ s/ Closed//g;
+# 		#print "processCondition:HERE I M\n";
 
-		Compat::NMIS::notify(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details);
-		$nodeobj->eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
-	}
-	elsif ( $eventExists and $level !~ /Normal/i) {
-		$condition = 4;
-		# existing condition
-	}
-	print "node=$node, event=$event, level=$level, element=$element, details=$details\n";
+# 		Compat::NMIS::notify(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details);
+# 		$nodeobj->eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
+# 	}
+# 	elsif ( $eventExists and $level !~ /Normal/i) {
+# 		$condition = 4;
+# 		# existing condition
+# 	}
+# 	print "node=$node, event=$event, level=$level, element=$element, details=$details\n";
 	
-	#print "node=$node, event=$event, level=$level, element=$element, details=$details\n" if $info or $debug;
-}
+# 	#print "node=$node, event=$event, level=$level, element=$element, details=$details\n" if $info or $debug;
+# }
 
 
 
