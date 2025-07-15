@@ -43,20 +43,6 @@ my $defaultLevel = "Major";
 
 my $circuitAlerts = 1;
 
-my $threshold_period = "-5 minutes";
-my $thresholds = {
-              'fatal' => '90',
-              'critical' => '80',
-              'major' => '60',
-              'minor' => '20',
-              'warning' => '10'
-             };
-
-# set this to 1 to include group in the message details, 0 to exclude.
-my $includeGroup = 1;
-
-# the seperator for the details field.
-my $detailSep = "-- ";
 
 my $extraLogging = 0;
 # *****************************************************************************
@@ -101,7 +87,7 @@ print "***************************Script cps6000_alerts started*****************
 $logger->info("Starting cps6000_alerts script\n");
 
 my $nmisng = NMISNG->new(config => $nmisConfig, log => $logger);
-my %cps6000Cct_data;
+
 
 if (NMISNG::Util::existFile(dir=>'conf',name=>'nocSyslog')) {
 	my $syslogConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'nocSyslog');
@@ -113,15 +99,9 @@ if (NMISNG::Util::existFile(dir=>'conf',name=>'nocSyslog')) {
 print "cps6000_alerts.pl: syslog_server=$syslog_server syslog_facility=$syslog_facility extraLogging=$extraLogging\n" if $info;
 
 
-
-#processAllNodes();
-
 if ($node) {
 	processAllNodes($node,$nmisng);
 }
-# elsif ($node && $groups) {
-# 	updateCircuitGroups($nmisng,$node);
-# }
 else {
 	processAllNodes(undef, $nmisng);
 }
@@ -160,41 +140,19 @@ sub updateCircuitGroups
 		$logger->error("ERROR: failed to lookup inventory records for cps6000Grp: $error");
 		return;
 	}
-	my %cps6000Groups_data = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Grp->data});
-	#print "updateCircuitGroups cps6000Groups_data ifdata: ".Dumper(\%cps6000Groups_data)."\n";
+	my %cps6000Grp_data = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Grp->data});
+	#print "updateCircuitGroups cps6000Grp_data ifdata: ".Dumper(\%cps6000Grp_data)."\n";
 
 	
 
-	my $cps6000Cct_result = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => "cps6000Cct", filter => { historic => 0 });
-	#print "updateCircuitGroups result: ".Dumper($result)."\n";
-	if (my $error = $cps6000Cct_result->error)
-	{
-		print "failed to lookup inventory records for cps6000Grp: $error \n";
-		$logger->error("ERROR: failed to lookup inventory records for cps6000Grp: $error");
-		return;
-	}
-	my %data_cps6000Cct = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Cct_result->data});
-	#print "updateCircuitGroups : ".Dumper(\%data_cps6000Cct)."\n";
-	
-	my $cps6000Cct = $nmisng->get_inventory_model(concept => "cps6000Cct", filter => { historic => 0 });
-	#print "updateCircuitGroups cps6000Cct: ".Dumper($cps6000Cct)."\n";
-	if (my $error = $cps6000Cct->error)
-	{
-		print "failed to lookup inventory records for cps6000Cct: $error \n";
-		$logger->error("ERROR: failed to lookup inventory records for cps6000Cct: $error");
-		return;
-	}
-	%cps6000Cct_data = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Cct->data});
-	#print "updateCircuitGroups cps6000Cct_data : ".Dumper(\%cps6000Cct_data)."\n";
-
-	foreach my $groupId ( keys %cps6000Groups_data) {
-		if ( $cps6000Groups_data{$groupId}{cpsGrpEntryIde} 
-			and $cps6000Groups_data{$groupId}{cpsGrpEntryIde} ne "GR000" 
-			and $cps6000Groups_data{$groupId}{cpsGrpEntryDes} 
-			and $cps6000Groups_data{$groupId}{cpsGrpEntryDes} !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
+	foreach my $groupId ( keys %cps6000Grp_data) {
+		if ( $cps6000Grp_data{$groupId}{cpsGrpEntryIde} 
+			and $cps6000Grp_data{$groupId}{cpsGrpEntryIde} ne "GR000" 
+			and $cps6000Grp_data{$groupId}{cpsGrpEntryDes} 
+			and $cps6000Grp_data{$groupId}{cpsGrpEntryDes} !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
 		) 
 		{
-			my $circuitGroup = $cps6000Groups_data{$groupId}{cpsGrpEntryDes};
+			my $circuitGroup = $cps6000Grp_data{$groupId}{cpsGrpEntryDes};
 			#print "updateCircuitGroups circuitGroup: ".Dumper($circuitGroup)."\n";
 			my $dslamNode = undef;
 			if ( $circuitGroup ) {
@@ -215,7 +173,7 @@ sub updateCircuitGroups
 
 			$CG->{$circuitGroup} = {
 				'circuitGroup' => $circuitGroup,
-				'circuits' => $cps6000Groups_data{$groupId}{cpsGrpEntryCct},
+				'circuits' => $cps6000Grp_data{$groupId}{cpsGrpEntryCct},
 				'geNode' => $node,
 				'dslamNode' => $dslamNode,
 				'groupId' => $groupId,
@@ -226,11 +184,14 @@ sub updateCircuitGroups
 			};
 		}
 	}
-	
+
+	foreach my $key (keys %$CG) {
+    	delete $CG->{$key} if ref($CG->{$key}) eq 'HASH' && !%{ $CG->{$key} };
+	}
 	#print "updateCircuitGroups CG After : ".Dumper($CG)."\n";
 	NMISNG::Util::writeTable(dir=>'conf',name=>'CircuitGroups',data=>$CG);
-	my $count = scalar keys %{$CG};
-	print "Number of keys in CG: $count\n";
+	# my $count = scalar keys %{$CG};
+	# print "Number of keys in CG: $count\n";
 }
 
 sub processAllNodes {
@@ -250,7 +211,7 @@ sub processAllNodes {
 	#print "processAllNodes nodes=".Dumper ($nodes)."\n";
     
 	foreach my $node (sort @$nodes) {
-		#print "processAllNodes:Processing $node\n" if $node;
+		
 		my $S = NMISNG::Sys->new; # get system object
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 
@@ -279,6 +240,7 @@ sub processAllNodes {
 			if ($active and $collect) {
 				#print "$node is active and local\n";
 				if ( $model eq "GE-QS941" ) {
+					print "***************************processAllNodes:Processing $node ***************************\n" if $info;
 					updateCircuitGroups($nmisng,$node);
 					processNode($nmisng, $node, $model, $S, $nodeobj);
 				}
@@ -301,7 +263,7 @@ sub processNode {
 	my $nodeobj = shift;
 	
 	if ($node) {
-		print "In processNode processing node $node which has model $model\n";
+		print "In processNode processing node $node which has model $model\n" if $info or $debug;
 		$logger->info("In processNode processing node $node which has model $model\n");
 		
 		# using the custom table CircuitGroups to get the group name from.
@@ -342,6 +304,21 @@ sub processNode {
 
 		# print "DEBUG: groupIdx for $node \n";
 		# print Dumper \%groupIdx;
+		
+		my $cps6000Cct = $nmisng->get_inventory_model(concept => "cps6000Cct", filter => { historic => 0 });
+		#print "updateCircuitGroups cps6000Cct: ".Dumper($cps6000Cct)."\n";
+		if (my $error = $cps6000Cct->error)
+		{
+			print "failed to lookup inventory records for cps6000Cct: $error \n";
+			$logger->error("ERROR: failed to lookup inventory records for cps6000Cct: $error");
+			return;
+		}
+
+		my $cps6000Cct_inventory_data = $cps6000Cct->data; # r/o copy, must be saved back if changed
+		#print "updateCircuitGroups cps6000Cct_inventory_data : ".Dumper(\$cps6000Cct_inventory_data)."\n";
+
+		my %cps6000Cct_data = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Cct->data});
+		#print "updateCircuitGroups cps6000Cct_data : ".Dumper(\%cps6000Cct_data)."\n";
 
 		if ( %cps6000Cct_data) {
 			my $circuitFaulty = 0;
@@ -349,7 +326,7 @@ sub processNode {
 			foreach my $circuitIndex (sort keys %cps6000Cct_data) {
 				#print "circuitIndex: $circuitIndex\n";
 				my $entry = $cps6000Cct_data{$circuitIndex};
-				my $circuitId = $cps6000Cct_data{$circuitIndex}{cpsCctEntryIde};
+				my $circuitId = $cps6000Cct_data{$circuitIndex}->{cpsCctEntryIde};
 				#print "circuitId: $circuitId\n";
 
 				my $groupId = "$node Unknown";
@@ -378,19 +355,21 @@ sub processNode {
 				}
 
 				$cps6000Cct_data{$circuitIndex}{cpsCctEntryGrp} = $groupDesc;
+				$cps6000Cct_data{$circuitIndex}{cpsCctEntryGrp_title} = 'Circuit Group';
+				#$cps6000Cct_inventory_data->[$circuitIndex]{'data'}{'cpsCctEntryGrp'} = $groupDesc;
+				# $cps6000Cct_inventory_data->[$circuitIndex]{'data'}{'cpsCctEntryGrp_title'} = 'Circuit Group';
 
 				if ( $dslamNode and exists $groupIdx{$circuitId} ) {
 					
-					#TODO remove this later now developing gives unwanted noise
-					#$infoForDetails = "$dslamNode $CG->{$groupIdx{$circuitId}}{shelf} $CG->{$groupIdx{$circuitId}}{cable} $CG->{$groupIdx{$circuitId}}{cuenta} $CG->{$groupIdx{$circuitId}}{direccion}";
+					$infoForDetails = "$dslamNode $CG->{$groupIdx{$circuitId}}{shelf} $CG->{$groupIdx{$circuitId}}{cable} $CG->{$groupIdx{$circuitId}}{cuenta} $CG->{$groupIdx{$circuitId}}{direccion}";
 					
-					$infoForDetails = "No info details available in CircuitGroups.nmis";
+					#$infoForDetails = "No info details available in CircuitGroups.nmis";
 					
 				}
 				else {
 					$infoForDetails = "No circuit details available";
 				}
-				#print "$node Circuit: $cps6000Cct_data{$circuitIndex}{cpsCctEntryDes} $groupId $infoForDetails\n";
+				print "$node Circuit: $cps6000Cct_data{$circuitIndex}{cpsCctEntryDes} $groupId $infoForDetails\n" if $info or $debug;
 				$logger->debug("$node Circuit: $cps6000Cct_data{$circuitIndex}{cpsCctEntryDes} $groupId $infoForDetails");
 
 				## detect condition
@@ -566,10 +545,12 @@ sub processNode {
 				}
 				
 			} # End of for loop
+
 			# print "DEBUG: groupList faulty for $node \n";
 			# print Dumper \%groupList;
 		}
 
+		#print "updateCircuitGroups After modfiy cps6000Cct_data : ".Dumper(\%cps6000Cct_data)."\n";
 		# 10 circuits, 1 faulty circuit = 10% power loss, fault/circuits * 100
 		foreach my $groupId ( keys %groupList ) {
 			## do not create alerts on the default group
@@ -591,8 +572,8 @@ sub processNode {
 				my $infoForDetails = undef;
 				if ( exists $CG->{$groupId}{dslamNode} ) {
 					#TODO remove this later now developing gives unwanted noise
-					# $infoForDetails = "$CG->{$groupId}{dslamNode} $CG->{$groupId}{shelf} $CG->{$groupId}{cable} $CG->{$groupId}{cuenta} $CG->{$groupId}{direccion}";
-					$infoForDetails = "No info details available in CircuitGroups.nmis";
+					$infoForDetails = "$CG->{$groupId}{dslamNode} $CG->{$groupId}{shelf} $CG->{$groupId}{cable} $CG->{$groupId}{cuenta} $CG->{$groupId}{direccion}";
+					# $infoForDetails = "No info details available in CircuitGroups.nmis";
 				}
 				else {
 					$infoForDetails = "No circuit group details available";
@@ -621,16 +602,18 @@ sub processNode {
 				my $event = "Alert: DSLAM Power Loss";
 				my $element = $groupId;
 				my $details = "$infoForDetails: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
-				
+				print "node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n" if $info or $debug;
+				$logger->info("node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level");
 				processCondition($S, $node, $nodeobj, $event, $element, $details, $level);
 			}
 			elsif (not $groupDesc) {
-				print "WARNING node=$node, groupId=$groupId Group Description is empty in circuit group\n";						
+				print "WARNING node=$node, groupId=$groupId Group Description is empty in circuit group\n"  if $info or $debug;						
 			}
 		}
-
+		
 		
 	}
+	
 
 }  # end of processNode
 
@@ -708,6 +691,6 @@ sub processCondition {
 			$logger->info($message) if $extraLogging;
 		}
 	}
-	#print "node=$node, event=$event, level=$level, element=$element, details=$details\n";
+	print "node=$node, event=$event, level=$level, element=$element, details=$details\n" if $info or $debug;
 	
 }
