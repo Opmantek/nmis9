@@ -9163,6 +9163,17 @@ sub collect
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
 		# collect will have to wait until a next run...
+
+		# run the collect services even if snmp or wmi is down which is causing last_update to be null,		
+		if ( NMISNG::Util::getbool($self->nmisng->config->{collect_pingable_services})){
+			
+			$self->collect_services( sys => $S,
+									snmp => NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true',
+									wmi => NMISNG::Util::getbool( $catchall_data->{wmidown} ) ? 'false' : 'true',
+									force => $force,
+									catchall_inventory => $catchall_inventory );
+		}
+		
 		$catchall_inventory->save( node => $self  );
 		return $res;
 	}
