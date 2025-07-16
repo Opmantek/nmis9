@@ -3808,8 +3808,10 @@ sub viewService
 
 	my $S = NMISNG::Sys->new(nmisng => $nmisng);    # get system object
 	# Force this. For some reason Model default is loaded. 
-	$S->{mdl}{system}{nodeModel} = "Model-ServiceOnly";
+
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
+	$S->{mdl}{system}{nodeModel} = "Model-ServiceOnly";
+	$S->loadModel(model => $S->{mdl}{system}{nodeModel});
 	my $nmisng_node = $S->nmisng_node;
 
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
