@@ -389,6 +389,7 @@ my @oltHeaders = qw(
 
 my @zte_oltHeaders = qw( 
 	sysUpTime
+	index
 	zxAnSrvPortResType
 	zxAnSrvPortResRack
 	zxAnSrvPortResShelf
@@ -777,25 +778,25 @@ sub exportzteOltPorts {
 
 						foreach my $gponIndex (@gponIndex_list){
 									
-							if ( not defined $gponDeviceIndex->{$gponIndex} ) {
-								print("ERROR: $node no $secondary_section data for gponIndex=$gponIndex\n");					
+							if ( defined $gponDeviceIndex->{$gponIndex} ) {
+								print("INFO: $node, $secondary_section data found for $INV->{$idx}->{index} is ".Dumper($gponDeviceIndex->{$gponIndex})."\n");													
 							}
 							else {
-								print("INFO: $node, $secondary_section data for zxAnSrvPortDesc=$INV->{$idx}{zxAnSrvPortDesc} gponIndex=$gponIndex\n");					
+								print("ERROR: $node no $secondary_section data for gponIndex=$gponIndex\n");					
 							}
 
 							foreach my $heading (@{$secondary_headers}) {
-								# print("heading is ".$heading."\n");
-								$INV->{$idx}{$heading} = $gponDeviceIndex->{$gponIndex}{$heading};
+								$INV->{$idx}->{$heading} = $gponDeviceIndex->{$gponIndex}->{$heading};
 							}
 												
 							my @columns;
 							my $currcol=0;
 							foreach my $header (@invHeaders) {
 								my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
-								my $data   = undef;								
-								if ( defined $INV->{$idx}{$header} ) {																
-									$data = $INV->{$idx}{$header};								
+								my $data   = undef;	
+								print("header is ".$header." =>");							
+								if ( defined $INV->{$idx}->{$header} ) {						
+									$data = $INV->{$idx}->{$header};			
 								}
 								else {
 									$data = "TBD";
@@ -803,11 +804,13 @@ sub exportzteOltPorts {
 								$data   = "" if $data eq "noSuchInstance";
 								$colLen = ((length($data) > 253 || length($invAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
 								$data   = changeCellSep($data);
+								print("data is ".$data."\n");
 								$colsize[$currcol] = $colLen;
 								push(@columns,'"' . $data. '"');
 								$currcol++;
 							}
 							my $row = join($sep,@columns);
+							print("row is ".$row."\n");
 							print $CSV "$row\n";
 							$csvData .= "$row\n";
 
