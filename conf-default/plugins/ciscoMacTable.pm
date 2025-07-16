@@ -83,7 +83,7 @@ sub update_plugin
 		$NG->log->error("Failed to get inventory: $error");
 		return(0,undef);
 	}
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+	my %ifdata =  map { ($_->{data}->{index} => $_) } (@{$result->data});
 
 	my @knownindices; # for marking as non/historic
 	for my $vtpid (@$vtpids)
@@ -111,12 +111,13 @@ sub update_plugin
 		my $ifIndex = $vtpdata->{vtpVlanIfIndex};
 
 		if (ref($ifdata{$ifIndex}) eq "HASH"
-				&& defined $ifdata{$ifIndex}->{ifDescr})
+				&& defined $ifdata{$ifIndex}->{data}{ifDescr})
 		{
-			$vtpdata->{ifDescr} = $ifdata{$ifIndex}->{ifDescr};
+			$vtpdata->{ifDescr} = $ifdata{$ifIndex}->{data}{ifDescr};
 			$vtpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifIndex&node=$node";
 			$vtpdata->{ifDescr_id} = "node_view_$node";
-
+			$vtpdata->{local_inventory_id} = $ifdata{$ifIndex}->{_id}->hex();
+			$vtpdata->{local_inventory_path} = $ifdata{$ifIndex}->{path};
 			$changesweremade = $mustsave = 1;
 		}
 
@@ -199,9 +200,11 @@ sub update_plugin
 					{
 						my $addressIfIndex = $baseIndex->{ $ports->{$portKey} };
 
-						$newdata{ifDescr} = $ifdata{$addressIfIndex}->{ifDescr};
+						$newdata{ifDescr} = $ifdata{$addressIfIndex}->{data}{ifDescr};
 						$newdata{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$addressIfIndex&node=$node";
 						$newdata{ifDescr_id} = "node_view_$node";
+						$newdata{local_inventory_id} = $ifdata{$addressIfIndex}->{_id}->hex();
+						$newdata{local_inventory_path} = $ifdata{$addressIfIndex}->{path};
 					}
 
 					push @knownindices, $newdata{index}; # for marking unwanted remnants as historic

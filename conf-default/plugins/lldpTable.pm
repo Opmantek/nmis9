@@ -189,6 +189,7 @@ sub update_plugin
 				# futureproofing so that opCharts can also use this linkage safely
 				$data->{node_uuid} = $node_uuid;
 				$data->{remote_node_uuid} = $node_uuid;
+				$data->{remote_node_name} = $node_name;
 				if( defined($data->{lldpRemPortDesc}) ) {
 					my $remote_node = $NG->node( uuid => $node_uuid );
 					my $remote_path = $remote_node->inventory_path( concept => "interface", data => { ifDescr => $data->{lldpRemPortDesc} }, path_keys => ['ifDescr'], partial => 1 );
@@ -251,6 +252,7 @@ sub update_plugin
 					# futureproofing so that opCharts can also use this linkage safely
 					$data->{node_uuid} = $node_uuid;
 					$data->{remote_node_uuid} = $node_uuid;
+					$data->{remote_node_name} = $node_name;
 
 					$changesweremade = $mustsave = $gotNeighbourName = 1;
 					last;

@@ -1,0 +1,2 @@
+Location,Geocode,Latitude,Longitude,Address1,Address2,City,Country,Floor,Postcode,Room,State,Suburb
+TestLocation,"Brisbane, Australia",1,2,abc road,,defcidty,ghicountry,jkafloor,1234,lmnoroom,NSW,EBCBD

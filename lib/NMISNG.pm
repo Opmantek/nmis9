@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.6.1-BETA";
+our $VERSION = "9.6.1";
 
 use strict;
 use Data::Dumper;
@@ -1974,7 +1974,7 @@ sub get_polling_group_chunks
 	
 	# Create a hash structure which will contain the list of uuids and count of uuid's wrt assigned polling groups
 	foreach my $node (@{$data}){
-		my $id = $node->{configuration}->{polling_group};
+		my $id = $node->{configuration}->{polling_group} // 'un-assigned';
 		if (defined $map_uuids_to_check->{$node->{uuid}} && $map_uuids_to_check->{$node->{uuid}} == 1){
 			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":0");
 			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":1");
