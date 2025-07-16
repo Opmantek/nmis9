@@ -22,7 +22,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
     perl-JSON-XS fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu* \
     perl-libwww-perl perl-WWW-Mechanize perl-Net-DNS perl-Digest-SHA \
     perl-DBI perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
-    perl-Proc-ProcessTable perl-Authen-SASL \
+    perl-Proc-ProcessTable perl-Authen-SASL perl-LDAP \
     perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP \
     perl-GD perl-SNMP_Session \
     rrdtool-perl perl-Test-Deep dialog \
@@ -207,7 +207,7 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
                     fi;
                     cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
                     cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-                    cpanm Net::SMTPS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Net::SMTPS --sudo "${PROMPT}" ||2>&1:; # can't use execprint as cpanm may be interactive
 
                     unset PROMPT;
                 fi;
