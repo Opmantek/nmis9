@@ -93,6 +93,7 @@ my %hash = (
 	'cache_summary_tables' => 'true',
 	'cache_var_tables' => 'true',
 	'cbqos_cm_collect_all' => 'true',
+	'collect_pingable_services' => 'false',
 	'default_authkey' => '',
 	'default_authpassword' => '',
 	'default_communityRO' => 'public',
