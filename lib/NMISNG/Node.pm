@@ -258,6 +258,10 @@ sub _load
 	{
 		$entry = $cursor->next;
 	}
+	else 
+	{
+		$self->nmisng->log->error("NMISNG::Node::_load Failed to load node ".$self->uuid." from database: ".NMISNG::DB::get_error_string());
+	}
 	if ($entry)
 	{
 		# translate from db to our local names where needed,
