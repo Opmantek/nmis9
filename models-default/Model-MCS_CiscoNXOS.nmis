@@ -406,8 +406,8 @@
             'title' => 'Type'
           },
           'currentTemp' => {
-	          #'calculate' => '$r * 0.001; $r = ($r > 200 ? undef: $r)',
-            'calculate' => '$r * 0.001',
+	          'calculate' => '$r * 0.001; $r = ($r > 200 ? undef: $r)',
+            #'calculate' => '$r * 0.001',
             'oid' => 'entSensorValue',
             'title' => 'Current Temp'
           },
@@ -432,8 +432,8 @@
           'control' => 'CVAR=tempDescr;$CVAR =~ /(Temperature Sensor)/',
           'snmp' => {
             'currentTemp' => {
-              #'calculate' => '$r * 0.001; $r = ($r > 200 ? undef: $r)',
-              'calculate' => '$r * 0.001',
+              #'calculate' => '$r * 0.001',
+              'calculate' => '$r * 0.001; $r = ($r > 200 ? undef: $r)',
               'oid' => 'entSensorValue',
             }
           },
