@@ -118,8 +118,10 @@ sub updateCircuitGroups
 	
 	my $S = NMISNG::Sys->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	
 	my $CG = NMISNG::Util::loadTable(dir=>'conf',name=>'CircuitGroups');
+	#print "CG".Dumper($CG);
 
 	my $cps6000Groups_result = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => "cps6000Groups", filter => { historic => 0 });
 	#print "updateCircuitGroups result: ".Dumper($result)."\n";
@@ -186,12 +188,14 @@ sub updateCircuitGroups
 	}
 
 	foreach my $key (keys %$CG) {
-    	delete $CG->{$key} if ref($CG->{$key}) eq 'HASH' && !%{ $CG->{$key} };
+		delete $CG->{$key} if ref($CG->{$key}) eq 'HASH' && !%{ $CG->{$key} };
 	}
 	#print "updateCircuitGroups CG After : ".Dumper($CG)."\n";
 	NMISNG::Util::writeTable(dir=>'conf',name=>'CircuitGroups',data=>$CG);
 	# my $count = scalar keys %{$CG};
 	# print "Number of keys in CG: $count\n";
+	
+
 }
 
 sub processAllNodes {
@@ -200,6 +204,18 @@ sub processAllNodes {
 	my $nodes;
 	my $cluster_id;
 	my $active;
+
+	my $cfgdir = "$FindBin::RealBin/../conf";
+	my $conf = NMISNG::Util::loadConfTable(dir => $cfgdir, debug => $debug);
+	my $filename = "$conf/CircuitGroups.nmis";
+	
+	if (! -e $filename) 
+	{
+		#print "File does not exist.\n";
+		my $CircuitGroups = ();
+		# create empty file
+		NMISNG::Util::writeTable(dir=>'conf',name=>'CircuitGroups',data=>$CircuitGroups);
+	}
 
 	if (defined $node) {
 		$nodes = [ $node ];
