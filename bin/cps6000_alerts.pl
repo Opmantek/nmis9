@@ -62,15 +62,10 @@ use Data::Dumper;
 my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 my $node = $cmdline->{node};
 my $groups = $cmdline->{groups};
-my $cleanEvents = $cmdline->{clean};
+
 my $debug = 0;
 $debug = $cmdline->{debug} if defined $cmdline->{debug};
 
-if ( $cleanEvents) {
-	print "Cleaning Events\n";
-	cleanEvents();
-	exit;
-}
 
 my $info = NMISNG::Util::getbool( $cmdline->{info} ) if defined $cmdline->{info};
 
