@@ -258,6 +258,10 @@ sub _load
 	{
 		$entry = $cursor->next;
 	}
+	else 
+	{
+		$self->nmisng->log->error("NMISNG::Node::_load Failed to load node ".$self->uuid." from database: ".NMISNG::DB::get_error_string());
+	}
 	if ($entry)
 	{
 		# translate from db to our local names where needed,
@@ -1418,6 +1422,7 @@ sub rename
 	my $newname = $args{new_name};
 	my $old = $self->name;
 	my $server = $args{server};
+	my $is_local = $args{is_local};
 
 	return (0, "Invalid new_name argument") if (!$newname);
 
@@ -1455,22 +1460,25 @@ sub rename
 	my $gimme = $result->objects;
 	return (0, "Failed to instantiate inventory: $gimme->{error}")
 			if (!$gimme->{success});
-	for my $invinstance (@{$gimme->{objects}})
-	{
-		$self->nmisng->log->debug("relocating rrds for inventory instance "
-															.$invinstance->id
-															.", concept ".$invinstance->concept
-															.", description \"".$invinstance->description.'"');
-		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
-		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
-				if (!$ok);
-		# informational
-		$self->nmisng->log->debug2(sub {"relocation reported $error"}) if ($error);
+	# relocate inventory storage only if its a local node.
+	if ($is_local){
+		for my $invinstance (@{$gimme->{objects}})
+		{
+			$self->nmisng->log->debug("relocating rrds for inventory instance "
+																.$invinstance->id
+																.", concept ".$invinstance->concept
+																.", description \"".$invinstance->description.'"');
+			my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old, new => $newname, inventory => $invinstance);
+			return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
+					if (!$ok);
+			# informational
+			$self->nmisng->log->debug2(sub {"relocation reported $error"}) if ($error);
 
-		# relocate storage returns relative names
-		my $dbroot = $self->nmisng->config->{'database_root'};
-		push @todelete, map { "$dbroot/$_" } (@oktorm);
-	}
+			# relocate storage returns relative names
+			my $dbroot = $self->nmisng->config->{'database_root'};
+			push @todelete, map { "$dbroot/$_" } (@oktorm);
+		}
+	}			
 
 	# then update ourself and save
 	$self->{_name} = $newname;
@@ -9159,6 +9167,17 @@ sub collect
 		$self->nmisng->log->warn("'last update' time not known for $name, switching to update operation instead");
 		my $res = $self->update(lock => $lock); # tell update to reuse/upgrade the one lock already held
 		# collect will have to wait until a next run...
+
+		# run the collect services even if snmp or wmi is down which is causing last_update to be null,		
+		if ( NMISNG::Util::getbool($self->nmisng->config->{collect_pingable_services})){
+			
+			$self->collect_services( sys => $S,
+									snmp => NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true',
+									wmi => NMISNG::Util::getbool( $catchall_data->{wmidown} ) ? 'false' : 'true',
+									force => $force,
+									catchall_inventory => $catchall_inventory );
+		}
+		
 		$catchall_inventory->save( node => $self  );
 		return $res;
 	}

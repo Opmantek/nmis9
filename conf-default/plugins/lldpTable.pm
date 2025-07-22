@@ -74,13 +74,14 @@ sub update_plugin
 	# for linkage lookup this needs the interfaces inventory as well, but
 	# a non-object r/o copy of just the data (no meta) is enough
 	# we don't want to re-query multiple times for the same interface...
-	my $result = $S->nmisng_node->get_inventory_model(concept => "interface", filter => { historic => 0 });
+	my $result = $S->nmisng_node->get_inventory_model(concept => "interface", filter => { historic => 0 }, fields_hash => { "path" => 1, "data.ifDescr" => 1, "data.ifIndex" => 1,  "data.index" => 1});
 	if (my $error = $result->error)
 	{
 		$NG->log->error("Failed to get interface inventory: $error");
 		return(0,undef);
 	}
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+	my %ifdata =  map { ($_->{data}->{index} => $_) } (@{$result->data});
+	my %ifdatabyDescr =  map { ($_->{data}->{ifDescr} => $_) } (@{$result->data});
 
 	my $lldpMD = $S->nmisng_node->get_inventory_model(concept => "lldp", filter => { historic => 0 });
 	if (my $error = $lldpMD->error)
@@ -97,7 +98,7 @@ sub update_plugin
 		$NG->log->error("Failed to get lldpLocal inventory: $error");
 		return(0,undef);
 	}
-	my %lldplocaldata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+	my %lldplocaldata =  map { ($_->{data}->{index} => $_) } (@{$result->data});
 	
 	for(my $i = 0; $i < $lldpCount; $i++)
 	{
@@ -169,7 +170,7 @@ sub update_plugin
 			my $entries = NMISNG::DB::find(
 				collection  => $NG->inventory_collection,
 				query       => $query,
-				fields_hash => { 'node_name' => 1 ,'node_uuid' => 1 }
+				fields_hash => { 'node_name' => 1 ,'node_uuid' => 1, 'path' => 1 }
 			);
 			
 			# get them all, shouldn't be many, hopefully 1
@@ -187,7 +188,21 @@ sub update_plugin
 				$data->{lldpNeighbour_id} = "node_view_$node_name";
 				# futureproofing so that opCharts can also use this linkage safely
 				$data->{node_uuid} = $node_uuid;
-
+				$data->{remote_node_uuid} = $node_uuid;
+				$data->{remote_node_name} = $node_name;
+				if( defined($data->{lldpRemPortDesc}) ) {
+					my $remote_node = $NG->node( uuid => $node_uuid );
+					my $remote_path = $remote_node->inventory_path( concept => "interface", data => { ifDescr => $data->{lldpRemPortDesc} }, path_keys => ['ifDescr'], partial => 1 );
+					my $remote_result = $remote_node->get_inventory_model( path => $remote_path, filter => { historic => 0 }, fields_hash => { 'path' => 1 } );
+					if( my $error = $remote_result->error ) {
+						$NG->log->error("Failed to get remote node inventory: $error");
+					} else {
+						my $remote_inv = $remote_result->next_value;
+						$data->{remote_inventory_id} = $remote_inv->{_id}->hex();
+						$data->{remote_inventory_path} = $remote_inv->{path};
+					}
+					
+				}
 				$changesweremade = $mustsave = $gotNeighbourName = 1;
 				last;
 			}
@@ -216,7 +231,7 @@ sub update_plugin
 				my $entries = NMISNG::DB::find(
 					collection  => $NG->inventory_collection,
 					query       => $query,
-					fields_hash => { 'node_name' => 1 ,'node_uuid' => 1 }
+					fields_hash => { 'node_name' => 1 ,'node_uuid' => 1 , 'path' => 1 }
 				);
 				
 				# get them all, shouldn't be many, hopefully 1
@@ -232,8 +247,12 @@ sub update_plugin
 					$data->{lldpRemSysName} = $node_name;
 					$data->{lldpRemSysName_url} = "$C->{network}?act=network_node_view&node=$node_name";
 					$data->{lldpNeighbour_id} = "node_view_$node_name";
+					$data->{remote_inventory_id} = $entry->{_id}->hex();
+					$data->{remote_inventory_path} = $entry->{path};
 					# futureproofing so that opCharts can also use this linkage safely
-					$data->{node_uuid} = $node_uuid;					
+					$data->{node_uuid} = $node_uuid;
+					$data->{remote_node_uuid} = $node_uuid;
+					$data->{remote_node_name} = $node_name;
 
 					$changesweremade = $mustsave = $gotNeighbourName = 1;
 					last;
@@ -259,28 +278,33 @@ sub update_plugin
 			}
 
 			# is the lldpLocPortNum actually the ifIndex?  easy.
-			if ( defined $ifdata{$data->{lldpLocPortNum}}{ifDescr} ) {
-				$data->{ifDescr} = $ifdata{$portnum}{ifDescr};
+			if ( defined $ifdata{$data->{lldpLocPortNum}}->{data}{ifDescr} ) {				
+				$data->{ifDescr} = $ifdata{$portnum}->{data}{ifDescr};
 				$data->{ifDescr_url} = "$C->{network}?&act=network_interface_view&intf=$portnum&node=$node";
 				$data->{ifDescr_id} = "node_view_$node";
+				$data->{local_inventory_id} = $ifdata{$portnum}->{_id}->hex();
+				$data->{local_inventory_path} = $ifdata{$portnum}->{path};
 				$NG->log->debug2("Found an ifDescr entry for $portnum: $data->{ifDescr}");
 			}
 			# can we find a lldpLocal entry with that portnumber?
-			elsif (ref($lldplocaldata{$portnum}) eq "HASH" && ref($lldplocaldata{$portnum}->{data}) eq "HASH")
+			elsif (ref($lldplocaldata{$portnum}) eq "HASH" )
 			{
 				# can we find an interface whose description matches
-				# lldpLocPortDesc or lldpLocPortId?
+				# lldpLocPortDesc or lldpLocPortId?				
 				for my $lldpLocalInt (qw(lldpLocPortDesc lldpLocPortId))
 				{
 					my $ifDescr = $lldplocaldata{$portnum}->{data}{$lldpLocalInt};
 					# do we have an interface with that ifdescr?
-					if (my @matches = grep($ifdata{$_}->{ifDescr} eq $ifDescr, keys %ifdata))
+					# if (my @matches = grep($ifdata{$_}->{data}{ifDescr} eq $ifDescr, keys %ifdata))
+					if( defined($ifdatabyDescr{$ifDescr}) )
 					{
-						my $ifindex  = $matches[0]; # there should be at most one match
+						my $ifindex = $ifdatabyDescr{$ifDescr}->{data}{ifIndex};
 						$data->{lldpIfIndex} = $ifindex;
-						$data->{ifDescr} = $ifdata{$ifindex}->{ifDescr};
+						$data->{ifDescr} = $ifdata{$ifindex}->{data}{ifDescr};
 						$data->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifindex&node=$node";
 						$data->{ifDescr_id} = "node_view_$node";
+						$data->{local_inventory_id} = $ifdata{$ifindex}->{_id}->hex();
+						$data->{local_inventory_path} = $ifdata{$ifindex}->{path};
 						$NG->log->debug("Found an ifDescr entry for $portnum: $data->{ifDescr}");
 						last;
 					}
