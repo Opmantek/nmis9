@@ -111,6 +111,8 @@ sub new
 
 	# park the db handle for future use, note: this is NOT the connection handle!
 	$self->{_db} = $db;
+	# cache the pid the db connection was created on se we can check for pid changing
+	$self->{_db_connnection_pid} = $$;
 
 	# allow for instantiating a test collection in our $db for running tests:
 	my $tests = $args{tests};
@@ -1938,9 +1940,20 @@ sub find_due_nodes
 
 # returns mongodb db handle - note this is NOT the connection handle!
 # (nmisng::db::connection_of_db() can provide the conn handle)
+# calls reconnect on the mongoclient if PID has changed
 sub get_db
 {
 	my ($self) = @_;
+	my $thispid = $$;
+	if( $thispid != $self->{_db_connnection_pid} ) 
+	{
+		$self->log->debug(sub {"NMISNG::get_db reconnecting after fork"});
+		my $mongoclient = NMISNG::DB::connection_of_db( $self->{_db} );
+		$mongoclient->reconnect();
+		$self->{_db_connnection_pid} = $thispid;
+		# NOTE: db object doesn't need to change, it has a reference to the client
+		# which is still the same
+	}
 	return $self->{_db};
 }
 #return the array of chunks WRT chunk size.
