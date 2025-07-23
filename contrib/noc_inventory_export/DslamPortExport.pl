@@ -580,7 +580,7 @@ exportzteOltPorts(xls                => $xls,
 				exportType        => $exportType,
 				section           => "Service_Port_ZTE",
 				headers           => \@zte_oltHeaders,
-				secondary_section => "GPON_Device",
+				secondary_section => "zxr10GponDevice",
 				secondary_headers => \@zte_gponHeaders,				
 				models            => qr/ZTE-ZXR10/);
 
@@ -605,7 +605,7 @@ NMISNG::Util::writeTable(dir => "conf", name => "DslamPortFiles", data => $expor
 
 exit (0);
 
-
+# sub to grab ZTE ports data.
 sub exportzteOltPorts {
 	my (%args) = @_;
 	print("calling exportzteOltPorts \n\n");
@@ -637,6 +637,7 @@ sub exportzteOltPorts {
 	print("Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n");
 
 	# declare some vars for filling in later.
+	my @zteHeaders;
 	my %invAlias;
 	my $modelCount = 0;
 
@@ -700,15 +701,15 @@ sub exportzteOltPorts {
 						$gponDeviceIndex->{$data->{index}} = $data;					
 					}
 					print("gponDeviceIndex	=> ".Dumper($gponDeviceIndex)."\n");				
-					if ( not @invHeaders ) {
+					if ( not @zteHeaders ) {
 						if ( not defined $myHeaders ) {							
 							@{$myHeaders} = split(",",$MDL->{$model_section_top}{sys}{$model_section}{headers});
 						}
 
-						@invHeaders = ('node','host','last_update', @{$myHeaders});
+						@zteHeaders = ('node','host','last_update', @{$myHeaders});
 						
 						# fill in the aliases for each of the items from the model	
-						foreach my $heading (@invHeaders) {
+						foreach my $heading (@zteHeaders) {
 							if ( defined $MDL->{$model_section_top}{sys}{$model_section}{snmp}{$heading}{title_export} ) {
 								$invAlias{$heading} = $MDL->{$model_section_top}{sys}{$model_section}{snmp}{$heading}{title_export};
 							}
@@ -717,7 +718,7 @@ sub exportzteOltPorts {
 							}
 						}
 						# add the secondary headers to the main ones for use later.
-						push(@invHeaders,@{$secondary_headers});
+						push(@zteHeaders,@{$secondary_headers});
 
 						# now load all the headers from the secondary model
 						foreach my $heading (@{$secondary_headers}) {
@@ -744,7 +745,7 @@ sub exportzteOltPorts {
 												
 						# create a header
 						my @aliases;
-						foreach my $header (@invHeaders) {
+						foreach my $header (@zteHeaders) {
 							my $alias = $header;
 							$alias = $invAlias{$header} if $invAlias{$header};
 							push(@aliases,"\"$alias\"");
@@ -791,7 +792,7 @@ sub exportzteOltPorts {
 												
 							my @columns;
 							my $currcol=0;
-							foreach my $header (@invHeaders) {
+							foreach my $header (@zteHeaders) {
 								my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
 								my $data   = undef;	
 								print("header is ".$header." =>");							
@@ -832,7 +833,7 @@ sub exportzteOltPorts {
 	print("Processed $modelCount '$goodModels'.\n");
 	my $i=0;
 	if ($sheet) {
-		foreach my $header (@invHeaders) {
+		foreach my $header (@zteHeaders) {
 			$sheet->set_column( $i, $i, $colsize[$i]+2);
 			$i++;
 		}
