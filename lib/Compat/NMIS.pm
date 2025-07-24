@@ -2243,7 +2243,9 @@ sub notify
 
 	# events.nmis controls which events are active/logging/notifying
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
-	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
+	# make sure there is event config defaults if the event isn't in our event list
+	$events_config->{$event} ||= { Log => "true", Notify => "true", Status => "true"};
+	my $thisevent_control = $events_config->{$event};
 
 	# search for upevent that is not historic (no escalations run on it) event shouldn't exist
     # if it does we get index issues. deleting it here means escalations will not be run
