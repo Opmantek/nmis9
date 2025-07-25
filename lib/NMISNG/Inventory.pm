@@ -210,14 +210,14 @@ sub parse_rrd_update_data
 sub parse_model_subconcept_tags
 {
 	my ($model_section,$proto) = @_;
-	my $retval = [];
+	my $retval;
 	my $headers = [ split(/\s*,\s*/, $model_section->{headers}) ];
 
 	foreach my $key (@$headers)
 	{		
 		if( defined($model_section->{$proto}->{$key}) && defined($model_section->{$proto}->{$key}->{'tag'}) ) {
 			my $tag = $model_section->{$proto}->{$key}->{'tag'};
-			push @$retval, { $key => $tag };
+			$retval->{$key} = $tag;			
 		}	
 	}
 	return $retval;
