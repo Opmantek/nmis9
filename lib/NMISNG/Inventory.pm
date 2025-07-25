@@ -204,6 +204,25 @@ sub parse_rrd_update_data
 	return { $subconcept => \%key_meta };
 }
 
+# parse subconcept tags from model to inventory.
+# input model section and protocol(snmp/wmi)
+# output tags for the section
+sub parse_model_subconcept_tags
+{
+	my ($model_section,$proto) = @_;
+	my $retval = [];
+	my $headers = [ split(/\s*,\s*/, $model_section->{headers}) ];
+
+	foreach my $key (@$headers)
+	{		
+		if( defined($model_section->{$proto}->{$key}) && defined($model_section->{$proto}->{$key}->{'tag'}) ) {
+			my $tag = $model_section->{$proto}->{$key}->{'tag'};
+			push @$retval, { $key => $tag };
+		}	
+	}
+	return $retval;
+}
+
 # used to turn 'headers' section in a model into the keys and descriptions
 # for displaying the subconcept in a table (for instance)
 # headers lists the data keys to be displayed but does not describe the column
@@ -954,13 +973,13 @@ sub data_live
 sub data_info
 {
 	my ( $self, %args ) = @_;
-	my ( $subconcept, $enabled, $display_keys ) = @args{'subconcept', 'enabled', 'display_keys'};
+	my ( $subconcept, $enabled, $display_keys,$tags ) = @args{'subconcept', 'enabled', 'display_keys', 'tags'};
 	return "cannot get or set data_info, invalid subconcept argument:$subconcept!"
 		if ( !$subconcept );    # must be something
 
-	if (defined($enabled) || defined($display_keys))
+	if (defined($enabled) || defined($display_keys) || defined($tags))
 	{
-		my $newinfo = { enabled => $enabled, display_keys => Clone::clone($display_keys) // [] };
+		my $newinfo = { enabled => $enabled, display_keys => Clone::clone($display_keys) // [], tags => Clone::clone($tags) // [] };
 		my $display_keys_type = ref($newinfo->{display_keys});
 		if( $display_keys_type ne 'ARRAY' ) {
 			return "display_keys must be an array, $display_keys_type is not valid";
