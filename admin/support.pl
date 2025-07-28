@@ -296,6 +296,8 @@ sub collect_evidence
 	cp("/proc/meminfo","$targetdir/system_status/meminfo");
 	chmod(0644,"$targetdir/system_status/meminfo"); # /proc/meminfo isn't writable
 	system("free >> $targetdir/system_status/meminfo");
+	`echo "\n OOM Killer:\n" >> $targetdir/system_status/meminfo`;
+	system("dmesg -T | grep -i kill >> $targetdir/system_status/meminfo"); # look for oom killer
 
 	system("df >> $targetdir/system_status/disk_info");
 	system("mount >> $targetdir/system_status/disk_info");
@@ -321,9 +323,11 @@ sub collect_evidence
 
 	# copy /etc/hosts, /etc/resolv.conf, interface and route status
 	map { cp($_,"$targetdir/system_status/"); }("/etc/hosts","/etc/resolv.conf","/etc/nsswitch.conf");
-	system("/sbin/ifconfig -a > $targetdir/system_status/ifconfig") == 0
+	system("/usr/bin/ip addr > $targetdir/system_status/ifconfig") == 0
+			or system("/sbin/ifconfig -a > $targetdir/system_status/ifconfig") == 0
 			or warn "can't save interface status: $!\n";
-	system("/sbin/route -n > $targetdir/system_status/route") == 0
+	system("/usr/bin/ip route > $targetdir/system_status/route") == 0
+			or system("/sbin/route -n > $targetdir/system_status/route") == 0
 			or warn "can't save routing table: $!\n";
 
 	# capture the cron files, root's and nmis's tabs
@@ -456,6 +460,8 @@ sub collect_evidence
 	# also copy all of nmis_system
 	system("cp","-a", "$vardir/nmis_system", "$targetdir/var/");
 
+	# capture mongo config
+	system("cp","/etc/mongod.conf","$targetdir/system_status/") == 0 or warn "can't save mongod.conf: $!\n";
 	# capture relevant mongo status data, if the mongo shell client is a/v,
 	# and if a mongodb is configured and reachable
 	# what's the mongo access configuration?

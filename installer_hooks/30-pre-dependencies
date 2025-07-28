@@ -22,7 +22,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
     perl-JSON-XS fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu* \
     perl-libwww-perl perl-WWW-Mechanize perl-Net-DNS perl-Digest-SHA \
     perl-DBI perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
-    perl-Proc-ProcessTable perl-Authen-SASL \
+    perl-Proc-ProcessTable perl-Authen-SASL perl-LDAP \
     perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP \
     perl-GD perl-SNMP_Session \
     rrdtool-perl perl-Test-Deep dialog \
@@ -109,20 +109,20 @@ fi;
 
 is_web_available && CANUSEWEB=1
 if [ "$CANUSEWEB" != 1 ]; then
-		cat <<EOF
+		cat <<-EOF
 
-Your system cannot access the web, therefore $MGR will not
-be able to download any missing software packages. If any
-such missing packages are detected and you don't have
-a local source of packages (e.g. an installation DVD) then the
-installation won't complete successfully.
+			Your system cannot access the web, therefore $MGR will not
+			be able to download any missing software packages. If any
+			such missing packages are detected and you don't have
+			a local source of packages (e.g. an installation DVD) then the
+			installation won't complete successfully.
 
-We recommend that you check our Wiki article on working around
-package installation without Internet access in that case:
+			We recommend that you check our Wiki article on working around
+			package installation with limited Internet access in that case:
 
-https://community.opmantek.com/x/boSG
+			    https://docs.community.firstwave.com/wiki/x/l4Cmv
 
-EOF
+		EOF
 		input_ok "Hit <Enter> when ready to continue: "
 fi
 
@@ -207,7 +207,7 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
                     fi;
                     cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
                     cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-                    cpanm Net::SMTPS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Net::SMTPS --sudo "${PROMPT}" ||2>&1:; # can't use execprint as cpanm may be interactive
 
                     unset PROMPT;
                 fi;
@@ -332,16 +332,16 @@ if ! check_missing_packages $PKGLIST; then
 
 		else
 				echolog "Packages missing but installer was instructed to NOT install them."
-				cat <<EOF
+				cat <<-EOF
 
-$PRODUCT will not run without the following packages installed:
+					$PRODUCT will not run without the following packages installed:
 
-$MISSING
+					$MISSING
 
-You will have to resolve these
-dependencies manually before $PRODUCT will operate properly.
+					You will have to resolve these
+					dependencies manually before $PRODUCT will operate properly.
 
-EOF
+				EOF
 				input_ok "Hit <Enter> when ready to continue: "
 		fi
 fi

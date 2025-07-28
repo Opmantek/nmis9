@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.6.1-BETA";
+our $VERSION = "9.6.2";
 
 use strict;
 use Data::Dumper;
@@ -111,6 +111,8 @@ sub new
 
 	# park the db handle for future use, note: this is NOT the connection handle!
 	$self->{_db} = $db;
+	# cache the pid the db connection was created on se we can check for pid changing
+	$self->{_db_connnection_pid} = $$;
 
 	# allow for instantiating a test collection in our $db for running tests:
 	my $tests = $args{tests};
@@ -1325,7 +1327,7 @@ sub ensure_indexes
 				[{"lastupdate"           => 1}, {unique => 0}],
 				[{"subconcepts"          => 1}, {unique => 0}],
 				[["data_info.subconcept" => 1, enabled => 1, node_name => 1], {unique => 0}],
-				[["data_info.ifPhysAddress" => 1, node_uuid => 1, enabled => 1, historic => 1], {unique => 0}],
+				[["data.ifPhysAddress" => 1, node_uuid => 1, enabled => 1, historic => 1], {unique => 0}],
 				
 
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
@@ -1938,9 +1940,20 @@ sub find_due_nodes
 
 # returns mongodb db handle - note this is NOT the connection handle!
 # (nmisng::db::connection_of_db() can provide the conn handle)
+# calls reconnect on the mongoclient if PID has changed
 sub get_db
 {
 	my ($self) = @_;
+	my $thispid = $$;
+	if( $thispid != $self->{_db_connnection_pid} ) 
+	{
+		$self->log->debug(sub {"NMISNG::get_db reconnecting after fork"});
+		my $mongoclient = NMISNG::DB::connection_of_db( $self->{_db} );
+		$mongoclient->reconnect();
+		$self->{_db_connnection_pid} = $thispid;
+		# NOTE: db object doesn't need to change, it has a reference to the client
+		# which is still the same
+	}
 	return $self->{_db};
 }
 #return the array of chunks WRT chunk size.
@@ -1974,7 +1987,7 @@ sub get_polling_group_chunks
 	
 	# Create a hash structure which will contain the list of uuids and count of uuid's wrt assigned polling groups
 	foreach my $node (@{$data}){
-		my $id = $node->{configuration}->{polling_group};
+		my $id = $node->{configuration}->{polling_group} // 'un-assigned';
 		if (defined $map_uuids_to_check->{$node->{uuid}} && $map_uuids_to_check->{$node->{uuid}} == 1){
 			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":0");
 			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":1");
