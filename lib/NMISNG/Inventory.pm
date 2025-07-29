@@ -223,6 +223,56 @@ sub parse_model_subconcept_tags
 	return $retval;
 }
 
+
+# parse subconcept tags from model to inventory.
+# input model section and protocol(snmp/wmi)
+# output tags for the section
+sub parse_model_rrd_tags {
+    my ($self, $node) = @_;
+    
+	# grab the model details to parse rrd tags.
+    my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
+    $S->init(node => $node);    
+	my $model = $S->mdl;
+		
+    return {} unless ref $model eq 'HASH' ;
+
+    my %result;
+
+    # Traverse each RRD section (e.g., nodehealth, zxr10SystemMemCPU)
+	
+    foreach my $top (keys %$model) {
+		
+		my $section = $model->{$top};
+		
+        next unless ref $section eq 'HASH';
+        next unless exists $section->{rrd} && ref $section->{rrd} eq 'HASH';
+
+        foreach my $rrd_key (keys %{ $section->{rrd} }) {
+
+            my $rrd_entry = $section->{rrd}{$rrd_key};
+            next unless ref $rrd_entry eq 'HASH';
+
+            my %tags;
+
+            foreach my $proto (keys %$rrd_entry) {
+                my $proto_block = $rrd_entry->{$proto};
+                next unless ref $proto_block eq 'HASH';
+
+                foreach my $item (keys %$proto_block) {
+                    my $val = $proto_block->{$item};
+                    if (ref $val eq 'HASH' && exists $val->{tag}) {
+                        $tags{$item} = $val->{tag};
+                    }
+                }
+            }
+
+            $result{$rrd_key} = \%tags if %tags;
+        }
+    }
+
+    return \%result;
+}
 # used to turn 'headers' section in a model into the keys and descriptions
 # for displaying the subconcept in a table (for instance)
 # headers lists the data keys to be displayed but does not describe the column
@@ -1405,7 +1455,9 @@ sub save
 			$self->_dirty(1,"configuration");
 		}
 	}
-
+	# grab all the tags present in model
+	my $tag = $self->parse_model_rrd_tags($node);	
+	
 	my ( $result, $op );
 
 	my $record = {
@@ -1452,7 +1504,13 @@ sub save
 	foreach my $subconcept ( keys %{$self->{_datasets}} )
 	{
 		my @datasets = keys %{$self->dataset_info( subconcept => $subconcept )};
-		push @{$record->{dataset_info}}, {subconcept => $subconcept, datasets => \@datasets};
+		
+		if (defined $tag->{$subconcept}){			
+			push @{$record->{dataset_info}}, {subconcept => $subconcept, datasets => \@datasets, tags => $tag->{$subconcept} };				
+		}
+		else{
+			push @{$record->{dataset_info}}, {subconcept => $subconcept, datasets => \@datasets};
+		}				
 	}
 
 	# data_info gets changed like dataset_info for easier mongo work, store as array with
@@ -1539,6 +1597,7 @@ sub save
 		my (%setthese, %unsetthese);
 
 		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
+		$setthese{"dataset_info"} = $record->{dataset_info} if (exists $record->{dataset_info});
 		# Description should always be a string
 		# make-sure current Description of records will be converted to string on update.
 		if ((exists $self->{_data_orig}->{"Description"} && $self->{_data_orig}->{"Description"}  =~ /^[0-9]+$/) ||  (exists $record->{data}->{Description} && $record->{data}->{Description}  =~ /^[0-9]+$/) ){
