@@ -4781,7 +4781,7 @@ sub collect_systemhealth_info
 		$index_var = $index_snmp = $thissection->{indexed};
 		$index_regex = $thissection->{index_regex} if ( exists( $thissection->{index_regex} ) );
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
-		my ($header_info,$description);
+		my ($header_info,$tags,$description);
 
 		if ( !defined($index_var) or $index_var eq '' )
 		{
@@ -4801,6 +4801,7 @@ sub collect_systemhealth_info
 		{
 			$self->nmisng->log->debug2(sub {"systemhealth: section=$section, source WMI, index_var=$index_var"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );
+			$tags = NMISNG::Inventory::parse_model_subconcept_tags( $thissection, 'wmi' );
 
 			my $wmiaccessor = $S->wmi;
 			if ( !$wmiaccessor )
@@ -4924,7 +4925,8 @@ sub collect_systemhealth_info
 					$inventory->data_info(
 						subconcept => $section,
 						enabled => 1,
-						display_keys => $header_info
+						display_keys => $header_info,
+						tags => $tags
 					);
 					if( @$header_info > 0 )
 					{
@@ -4970,6 +4972,7 @@ sub collect_systemhealth_info
 			
 			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
+			$tags = NMISNG::Inventory::parse_model_subconcept_tags( $thissection, 'snmp' );		
 			my ( %healthIndexNum, $healthIndexTable );
 
 			# first loop gets the index we want to use out of the oid
@@ -5087,8 +5090,9 @@ sub collect_systemhealth_info
 					# set which columns should be displayed
 					$inventory->data_info(
 						subconcept => $section,
-						enabled => 1,
-						display_keys => $header_info
+						enabled => 1,						
+						display_keys => $header_info,
+						tags => $tags
 					);
 					if( @$header_info > 0 )
 					{
