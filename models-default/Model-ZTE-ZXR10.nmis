@@ -454,16 +454,11 @@
                     }                
             },
             'zxr10GponDevice' => {
-                'indexed'     => 'zxAnPonSrvChannelIfIndex',
+                'indexed'     => 'zxAnGponRmOnuVendorId',
                 'index_regex' => '500\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.(\d+.\d+)$',
-                'index_oid' => '1.3.6.1.4.1.3902.1082.500.2.2.9.2.1.3',  
-                'headers' => 'index,zxAnPonSrvChannelIfIndex,zxAnGponRmOnuVendorId,zxAnGponRmOnuSerialNum,zxAnPonSrvVndBindOnuPwd,zxAnGponOnuMgmtTypeName,zxAnGponRmOnuAlias,zxAnGponSrvOnuStatusEntry,zxAnEponOnuHwVersion,zxAnEponOnuSwVersion,zxAnGponSrvOnuFiberLen,zxAnGponSrvOnuLastOnlineTime,zxAnGponSrvOnuLastOfflineTime,zxAnGponSrvOnuLastOfflineReason,zxAnGponRmOnuBatteryMonitor,zxAnGponRmAniTxOptLevel,zxAnGponRmAniRxOptLevel,zxAnGponRmAniPowerFeedVoltage,zxAnGponRmOnuSysMemUsage,zxAnGponOnuMgmtDesc',
-                'snmp' => {
-                    'zxAnPonSrvChannelIfIndex' => {
-                        'oid' => '1.3.6.1.4.1.3902.1082.500.2.2.9.2.1.3',
-                        'title' => 'Channel Index',
-                        'title_export' => 'Channel Index',
-                    },
+                'index_oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.1',  
+                'headers' => 'index,zxAnGponRmOnuVendorId,zxAnGponRmOnuSerialNum,zxAnPonSrvVndBindOnuPwd,zxAnGponOnuMgmtTypeName,zxAnGponRmOnuAlias,zxAnGponSrvOnuFiberLen,zxAnGponSrvOnuLastOnlineTime,zxAnGponSrvOnuLastOfflineTime,zxAnGponSrvOnuLastOfflineReason,zxAnGponRmOnuBatteryMonitor,zxAnGponRmAniTxOptLevel,zxAnGponRmAniRxOptLevel,zxAnGponRmAniPowerFeedVoltage,zxAnGponRmOnuSysMemUsage,zxAnGponOnuMgmtDesc',
+                'snmp' => {                   
                     'zxAnGponRmOnuVendorId' => {
                         'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.1',
                         'title' => 'OnuVendorId',
@@ -483,55 +478,32 @@
                         'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.1',
                         'title' => 'ONTVendor',
                         'title_export' => 'ONTVendor',
-				  },
+				    },
 				    'zxAnGponRmOnuAlias' => {
                         'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.19',
                         'title' => 'ONTDescription',
                         'title_export' => 'ONTDescription',
-	    			  },
-		    		  'zxAnGponSrvOnuStatusEntry' => {
-                        'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1',
-                        'title' => 'Entry Status',
-                        'title_export' => 'ONTEntryStatus',
-                        'replace' => {
-                            '1' => 'active',
-                            '2' => 'notInService',
-                            '3' => 'notReady',
-                            '4' => 'createAndGo',
-                            '5' => 'createAndWait',
-                            '6' => 'destroy',
-                        },
-                    },
-				  'zxAnEponOnuHwVersion' => {
-					'oid' => '1.3.6.1.4.1.3902.1082.500.30.14.1.11',
-					'title' => 'ONTVersion',
-					'title_export' => 'ONTVersion',
-				  },
-				  'zxAnEponOnuSwVersion' => {
-					'oid' => '1.3.6.1.4.1.3902.1082.500.30.14.1.10',
-					'title' => 'ONTSoftwareVersion',
-					'title_export' => 'ONTSoftwareVersion',
-				  },
-				  'zxAnGponSrvOnuFiberLen' => {
-					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.10.1.2',
-					'title' => 'ONTDistancia',
-					'title_export' => 'ONTDistancia',
-				  },
-				  'zxAnGponSrvOnuLastOnlineTime' => {
-					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.5',
-					'title' => 'ONTUpTime',
-					'title_export' => 'ONTUpTime',
-				  },
-				  'zxAnGponSrvOnuLastOfflineTime' => {
-					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.6',
-					'title' => 'ONTLastDown',
-					'title_export' => 'ONTLastDown',
-				  },
-				  'zxAnGponSrvOnuLastOfflineReason' => {
-					'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.7',
-					'title' => 'ONTLastDownCause',
-					'title_export' => 'ONTLastDownCause',
-				  },
+	    			},				  
+				    'zxAnGponSrvOnuFiberLen' => {
+					    'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.10.1.2',
+					    'title' => 'ONTDistancia',
+					    'title_export' => 'ONTDistancia',
+				    },
+				    'zxAnGponSrvOnuLastOnlineTime' => {
+					    'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.5',
+					    'title' => 'ONTUpTime',
+					    'title_export' => 'ONTUpTime',
+				    },
+				    'zxAnGponSrvOnuLastOfflineTime' => {
+					    'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.6',
+					    'title' => 'ONTDownTime',
+					    'title_export' => 'ONTDownTime',
+				    },
+				    'zxAnGponSrvOnuLastOfflineReason' => {
+					    'oid' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.7',
+					    'title' => 'ONTLastDownCause',
+					    'title_export' => 'ONTLastDownCause',
+				    },
 				  'zxAnGponRmOnuBatteryMonitor' => {
 					'oid' => '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.5',
 					'title' => 'ONTBatteryStatus',

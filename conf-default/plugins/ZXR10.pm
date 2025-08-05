@@ -56,6 +56,9 @@ sub update_plugin
 	}
 	else
 	{ 
+		my $ONTTxPower = $snmp->getindex("1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.14",$max_repetitions);
+		my $ONTRxPower = $snmp->getindex("1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10",$max_repetitions);
+		my $ONTVoltage = $snmp->getindex("1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.17",$max_repetitions);
 
 		my $servicePortData = $S->nmisng_node->get_inventory_ids(
             concept => "Service_Port_ZTE",
@@ -83,11 +86,88 @@ sub update_plugin
 				
 			}
 		}
+
+		my $gponDeviceData =  $S->nmisng_node->get_inventory_ids(
+            concept => "zxr10GponDevice",
+            filter => { historic => 0 });
+
+		if ($gponDeviceData){
+			for my $id (@{$gponDeviceData}) {
+				my ($inventory, $error) = $S->nmisng_node->inventory(_id => $id);
+				if ($error){
+					$NG->log->error("Failed to get inventory $id: $error");
+					next;
+				}
+				my $data = $inventory->data();					
+				
+				my $index = $data->{index}; 
+				$index = $index.".1";
+				
+				$NG->log->debug(sub {"index is ".Dumper($index)});
+				$NG->log->debug(sub {"Power is ".Dumper($ONTTxPower)});
+				$data->{zxAnGponRmAniTxOptLevel} = $ONTTxPower->{$index};
+				$data->{zxAnGponRmAniRxOptLevel} = $ONTRxPower->{$index};
+				$data->{zxAnGponRmAniPowerFeedVoltage} = $ONTVoltage->{$index};
+
+				if ($data->{zxAnGponRmOnuSerialNum}){
+					$data->{zxAnGponRmOnuSerialNum} = decode_onu_serial($NG,$data->{zxAnGponRmOnuSerialNum});
+				}
+				if ($data->{zxAnGponSrvOnuLastOnlineTime}){
+					$data->{zxAnGponSrvOnuLastOnlineTime} = snmp_hex_to_datetime($NG,$data->{zxAnGponSrvOnuLastOnlineTime});
+					$data->{zxAnGponSrvOnuLastOfflineTime} = snmp_hex_to_datetime($NG,$data->{zxAnGponSrvOnuLastOfflineTime});								
+				}
+					$inventory->data($data);
+					$inventory->save;
+			}
+		}
+
 	}
 
 	return (1,undef);
 }
 
+
+# sub to decode onu serial number
+# input hex serial number
+# output undef or vendorid-decimal serial number
+sub decode_onu_serial {
+     my ($NG,$hex) = @_;
+    $hex =~ s/^0x//i;
+    my @bytes = unpack("C*", pack("H*", $hex));
+
+    my $vendor_id = join('', map { chr($_) } @bytes[0..3]);
+    my $serial_hex = sprintf("%02x%02x%02x%02x", @bytes[4..7]);
+    my $serial_dec = unpack("N", pack("H*", $serial_hex));  # unsigned 32-bit
+	
+	my $result = $vendor_id." - ".$serial_dec;
+    return undef if ($serial_dec == 0);
+	return $result;
+}
+
+# convert hex time to date and time
+# input hex
+# output time in a date-time format.
+sub snmp_hex_to_datetime {
+    my ($NG,$hex) = @_;
+    $hex =~ s/^0x//i;  # remove leading 0x if present
+    my @bytes = unpack("C*", pack("H*", $hex));
+	
+	# Check minimum length
+    $NG->log->debug( "Invalid SNMP DateAndTime hex string") if @bytes < 7;
+
+    my ($year, $month, $day, $hour, $minute, $second) = (
+        ($bytes[0] << 8) + $bytes[1],
+        $bytes[2],
+        $bytes[3],
+        $bytes[4],
+        $bytes[5],
+        $bytes[6]
+    );
+
+	return undef if ($year == 0);
+    return sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+                   $year, $month, $day, $hour, $minute, $second);
+}
 
 sub collect_plugin
 {

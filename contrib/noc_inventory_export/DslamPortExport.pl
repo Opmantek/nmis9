@@ -405,18 +405,12 @@ my @zte_oltHeaders = qw(
 	zxAnSrvPortCurrStatsInOctets
 	zxAnSrvPortCurrStatsOutOctets
 );
-
-
 my @zte_gponHeaders = qw( 
-	zxAnPonSrvChannelIfIndex
 	zxAnGponRmOnuVendorId
 	zxAnGponRmOnuSerialNum
 	zxAnPonSrvVndBindOnuPwd
 	zxAnGponOnuMgmtTypeName
 	zxAnGponRmOnuAlias
-	zxAnGponSrvOnuStatusEntry
-	zxAnEponOnuHwVersion
-	zxAnEponOnuSwVersion
 	zxAnGponSrvOnuFiberLen
 	zxAnGponSrvOnuLastOnlineTime
 	zxAnGponSrvOnuLastOfflineTime
