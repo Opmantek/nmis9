@@ -97,26 +97,7 @@
     }
   },
   'alerts' => {
-#    'env-temp' => {
-#      'tempStatus' => {
-#        'type' => 'threshold-rising',
-#        'threshold' => {
-#          'Warning' => '80',
-#          'Minor' => '85',
-#          'Major' => '80',
-#          'Critical' => '95',
-#          'Fatal' => '100',
-#        },
-#        'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device|Inlet|Crossbar|CPU|DDR)/',
-#        'element' => 'tempDescr',
-#        'event' => 'High Temperature Test',
-#        'title' => "Temperature",
-#        'test' => '',
-#        'unit' => '°C',
-#        'value' => 'CVAR1=currentTemp;int($CVAR1)'
-#      }
-#    },
-    'env-temp-Lane' => {
+      'env-temp-Lane' => {
       'tempStatus' => {
         'type' => 'threshold-rising',
         'threshold' => {
@@ -134,7 +115,7 @@
         'unit' => '°C',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
-    },
+   },
   },
   'system' => {
     'nodeType' => 'switch',
@@ -323,9 +304,9 @@
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,ciscoAssest,env-temp,env-temp-Lane,vtpVlan,dot1dBasePort,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply,fanStatusCefc',
+    'sections' => 'cpu_cpm,cempMemPool,Memory-cpm,Cisco_CBQoS,macTable,cdp,lldp,lldpLocal,entityMib,ciscoAssest,env-temp-Lane,vtpVlan,dot1dBasePort,ospfNbr,bgpPeer,Cisco_BGP_Peer,topChanges,powerSupply,fanStatusCefc',
     'sys' => {
-      'env-temp' => {
+      'env-temp-Lane' => {
         'indexed' => 'entSensorStatus',
         'headers' => 'tempDescr,currentTemp',
         'snmp' => {
@@ -363,77 +344,24 @@
             'title' => 'Type'
           },
           'currentTemp' => {
-            'oid' => 'entSensorValue',
-            'title' => 'Current Temp'
-          },
-        },
-      },
-      'env-temp-Lane' => {
-        'indexed' => 'entSensorStatus',
-        'headers' => 'tempDescr,tempStatus,tempType,currentTemp',
-        'snmp' => {
-          'tempDescr' => {
-            'oid' => 'entPhysicalDescr',
-            'title' => 'Descr.'
-          },
-          'tempStatus' => {
-            'replace' => {
-              '1' => 'ok',
-              '2' => 'unavailable',
-              '3' => 'nonoperational',
-            },
-            'oid' => 'entSensorStatus',
-            'title' => 'Status'
-          },
-          'tempType' => {
-            'replace' => {
-              '1' => 'other',
-              '2' => 'unknown',
-              '3' => 'voltsAC',
-              '4' => 'voltsDC',
-              '5' => 'amperes',
-              '6' => 'watts',
-              '7' => 'hertz',
-              '8' => 'celsius',
-              '9' => 'percentRH',
-              '10' => 'rpm',
-              '11' => 'cmm',
-              '12' => 'truthvalue',
-              '13' => 'specialEnum',
-              '14' => 'dBm',
-            },
-            'oid' => 'entSensorType',
-            'title' => 'Type'
-          },
-          'currentTemp' => {
-	          'calculate' => '$r * 0.001; $r = ($r > 200 ? undef: $r)',
+	          'calculate' => '$r * 0.001; $r = ($r > 200 ? 0: $r)',
             #'calculate' => '$r * 0.001',
             'oid' => 'entSensorValue',
             'title' => 'Current Temp'
           },
         },
-      },      
+      },
+           
     },
     'rrd' => {
-      'env-temp' => {
-        'indexed' => 'true',
-        'graphtype' => 'env-temp',
-        #'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
-          'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device|Inlet|Crossbar|CPU|DDR)/',
-          'snmp' => {
-            'currentTemp' => {
-              'oid' => 'entSensorValue',
-            }
-          },
-      },
       'env-temp-Lane' => {
         'indexed' => 'true',
         'graphtype' => 'env-temp-Lane',
           'control' => 'CVAR=tempDescr;$CVAR =~ /(Temperature Sensor)/',
           'snmp' => {
             'currentTemp' => {
+              'calculate' => '$r * 0.001; $r = ($r > 200 ? 0: $r)',
               #'calculate' => '$r * 0.001',
-              'calculate' => '$r * 0.001; $r = ($r > 200 ? undef: $r)',
               'oid' => 'entSensorValue',
             }
           },
@@ -642,7 +570,7 @@
 #       },
         'pkts_hc' => {
           'indexed' => 'true',
-          'threshold' => 'pkt_errors_in,pkt_errors_out,bcast_in',
+          'threshold' => 'pkt_errors_in,pkt_errors_out',
           'graphtype' => 'pkts_hc,errpkts_hc',
           'snmp' => {
             'ifInOctets' => {
@@ -912,4 +840,3 @@
     }
   }
 );
-
