@@ -1,4 +1,4 @@
-package RS420;
+package RS421;
 our $VERSION = "1.0.0";
 
 use lib "$FindBin::Bin/../../lib";
@@ -42,7 +42,7 @@ sub update_plugin
 	my $max_repetitions = $NC->{max_repetitions} || $C->{snmp_max_repetitions};
 	my %nodeconfig = %{$NC};
 
-	return (1,undef) if ( $catchall_data->{nodeModel} ne "Teldat-OSDX-RS420" or !NMISNG::Util::getbool($catchall_data->{collect}));
+	return (1,undef) if ( $catchall_data->{nodeModel} ne "xxxTeldat-OSDX-RS420" or !NMISNG::Util::getbool($catchall_data->{collect}));
    
 	# open snmp session
 	my $snmp = NMISNG::Snmp->new(
@@ -62,7 +62,7 @@ sub update_plugin
         # $NG->log->info("Dummy log for debugging");
 		my $servicePortData = $S->nmisng_node->get_inventory_ids(
             concept => "teldatNQA",
-            filter => { historic => 0 });
+            filter => { historic => 0 });		
 
 		if (@{$servicePortData}){
 			for my $id (@{$servicePortData}) {
@@ -88,28 +88,33 @@ sub update_plugin
             concept => "interface",
             filter => { historic => 0 });
 
-		if (@{$interfaces}){
-			# grab  all the data table for oid 1.3.6.1.4.1.2007.6.3 
-			my $oidWalk = $snmp->gettable("1.3.6.1.4.1.2007.6.3",$max_repetitions);
+		if (@{$interfaces}){            
 			# load ifTable
 			my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);
-			my @oids = (
-				'1.3.6.1.4.1.2007.6.3.1.1.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.4.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.4.5.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.4.5.2.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.6.1.1.16',
-				'1.3.6.1.4.1.2007.6.3.1.6.5.1.1.16',
-				'1.3.6.1.4.1.2007.6.3.1.7.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.10.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.10.4.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.10.4.2.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.11.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.13.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.14.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.3.1.1.1'
-			);			
+			my @list_get_oids;
+            my $oids_map;    
+            # default oid map
+            my $oids = {
+                '1.3.6.1.4.1.2007.6.3.1.1.1.1.15'         => 161,  # ieee8023adLag
+                '1.3.6.1.4.1.2007.6.3.1.4.1.1.15'         => 53,   # propVirtual
+                '1.3.6.1.4.1.2007.6.3.1.4.5.1.1.15'       => 53,   # propVirtual
+                '1.3.6.1.4.1.2007.6.3.1.4.5.2.1.1.15'     => 53,   # propVirtual
+                '1.3.6.1.4.1.2007.6.3.1.6.1.1.16'         => 243,  # wwanPP
+                '1.3.6.1.4.1.2007.6.3.1.6.5.1.1.16'       => 243,  # wwanPP
+                '1.3.6.1.4.1.2007.6.3.1.7.1.1.15'         => 131,  # tunnel
+                '1.3.6.1.4.1.2007.6.3.1.10.1.1.15'        => 6,    # ethernetCsmacd
+                '1.3.6.1.4.1.2007.6.3.1.10.4.1.1.15'      => 6,    # ethernetCsmacd
+                '1.3.6.1.4.1.2007.6.3.1.10.4.2.1.1.15'    => 6,    # ethernetCsmacd
+                '1.3.6.1.4.1.2007.6.3.1.11.1.1.15'        => 24,   # softwareLoopback
+                '1.3.6.1.4.1.2007.6.3.1.13.1.1.15'        => 131,  # tunnel
+                '1.3.6.1.4.1.2007.6.3.1.14.1.1.15'        => 131,  # tunnel
+                '1.3.6.1.4.1.2007.6.3.3.1.1.1'            => 71,   # ieee80211
+            };
+			# $NG->log->debug(sub {" Arihant ifDescr: ".Dumper $oidWalk});
 			for my $id (@{$interfaces}) {
+                # initialize final variable						
+                            
+
 				my ($inventory, $error) = $S->nmisng_node->inventory(_id => $id);
 				
 				if ($error){
@@ -119,28 +124,35 @@ sub update_plugin
 				my $data = $inventory->data();	
 				my $ifType = $data->{ifType};
 				my $index;
+                
 				# grab the index for the ifType
 				foreach my $idx (keys %{$IFT}) {
  				   if ($IFT->{$idx}->{ifType} eq $ifType) {
         				$index = $idx;
     				}
 				}
-
+                $NG->log->debug(sub {"index is $index, descr is ".$inventory->description() });
 				my $ifDescr = $data->{ifDescr};
 				# convert ifDescr to decimal			
 				my $alias_oid = str_to_ascii_string($ifDescr);								
 				# add index to alias oid
-				$alias_oid = $index.".".$alias_oid;								
-				foreach my $oid (@oids){
-					my $dummy_oid = $oid.".".$alias_oid;
-					if (exists $oidWalk->{$dummy_oid}){
-						$data->{"Description"} = $oidWalk->{$dummy_oid};
-						$NG->log->debug4(sub {" Description found in snmpwalk for oid  :: $dummy_oid :: Description".$oidWalk->{$dummy_oid}});	
-					}				
-				}		
-				$inventory->data($data);
-				$inventory->save(node => $node);
-			}
+				$alias_oid = $index.".".$alias_oid;				
+
+				foreach my $oid (keys %{$oids}){
+					my $oid_type = $oids->{$oid};
+                    if ($oid_type eq $index){
+                        my $dummy_oid = $oid.".".$alias_oid;                        
+                        push(@{$oids_map->{$ifDescr}},$dummy_oid);
+                        push(@list_get_oids,$dummy_oid);
+                    }                									                    
+                }		                				
+                
+            }
+
+            my $result = $snmp->get(@list_get_oids);
+            $NG->log->debug(sub {"\$list_get_oids for : ".Dumper \@list_get_oids});
+            $NG->log->debug(sub {"\$list_get_oids for : ".Dumper $oids_map});
+            $NG->log->debug(sub {"\$result for : ".Dumper $result});
 		}
 	}
 
