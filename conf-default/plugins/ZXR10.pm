@@ -139,7 +139,7 @@ sub decode_onu_serial {
     my $serial_hex = sprintf("%02x%02x%02x%02x", @bytes[4..7]);
     my $serial_dec = unpack("N", pack("H*", $serial_hex));  # unsigned 32-bit
 	
-	my $result = $vendor_id." - ".$serial_dec;
+	my $result = $vendor_id.$serial_dec;
     return undef if ($serial_dec == 0);
 	return $result;
 }
