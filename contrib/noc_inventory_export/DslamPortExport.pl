@@ -391,6 +391,7 @@ my @zte_oltHeaders = qw(
 	sysUpTime
 	index
 	zxAnSrvPortResType
+	zxAnSubIfIndex
 	zxAnSrvPortResRack
 	zxAnSrvPortResShelf
 	zxAnSrvPortResSlot

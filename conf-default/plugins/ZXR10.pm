@@ -72,20 +72,42 @@ sub update_plugin
 					next;
 				}
 				my $data = $inventory->data();	
-				my ($index) = split(/\./, $data->{index}); 
+				my ($index,$sub_index) = split(/\./, $data->{index}); 
 				
 				$data->{zxAnSrvPortResType}		= ($index & 0xF0000000) >> 28;
 				$data->{zxAnSrvPortResRack}		= ($index & 0x0F000000) >> 24;
 				$data->{zxAnSrvPortResShelf}	= ($index & 0x00FF0000) >> 16;
 				$data->{zxAnSrvPortResSlot}		= ($index & 0x0000FF00) >> 8;
 				$data->{zxAnSrvPortResPort}		= ($index & 0x000000FF);
-				
-				$NG->log->debug9("data with all the details in Service_Port: ".Dumper($data)."\n");
+								
+				$data->{zxAnSubIfIndex} =  ($sub_index >> 16) & 0x7FF;
+
 				$inventory->data($data);
 				$inventory->save;
 				
 			}
 		}
+
+		my $gponTrfcData =  $S->nmisng_node->get_inventory_ids(
+            concept => "zxr10GponTrfc",
+            filter => { historic => 0 });
+		if (@{$gponTrfcData}){
+			for my $id (@{$gponTrfcData}) {
+				my ($inventory, $error) = $S->nmisng_node->inventory(_id => $id);
+				if ($error){
+					$NG->log->error("Failed to get inventory $id: $error");
+					next;
+				}
+				my $data = $inventory->data();	
+				my ($index,$sub_index) = split(/\./, $data->{index}); 
+									
+				$data->{zxAnSubIfIndex} =  (( 0 + $sub_index) >> 16) & 0x7FF;
+								
+				$inventory->data($data);
+				$inventory->save;				
+			}
+		}
+
 
 		my $gponDeviceData =  $S->nmisng_node->get_inventory_ids(
             concept => "zxr10GponDevice",
@@ -111,6 +133,7 @@ sub update_plugin
 
 				if ($data->{zxAnGponRmOnuSerialNum}){
 					$data->{zxAnGponRmOnuSerialNum} = decode_onu_serial($NG,$data->{zxAnGponRmOnuSerialNum});
+					$NG->log->debug(sub {"zxAnGponRmOnuSerialNum after is ".Dumper($data->{zxAnGponRmOnuSerialNum})});
 				}
 				if ($data->{zxAnGponSrvOnuLastOnlineTime}){
 					$data->{zxAnGponSrvOnuLastOnlineTime} = snmp_hex_to_datetime($NG,$data->{zxAnGponSrvOnuLastOnlineTime});
@@ -139,9 +162,13 @@ sub decode_onu_serial {
     my $serial_hex = sprintf("%02x%02x%02x%02x", @bytes[4..7]);
     my $serial_dec = unpack("N", pack("H*", $serial_hex));  # unsigned 32-bit
 	
-	my $result = $vendor_id.$serial_dec;
-    return undef if ($serial_dec == 0);
-	return $result;
+	if ($serial_dec == 0){
+		return undef;		
+	}
+	else{
+		return 	$vendor_id.uc($serial_hex)
+	}
+		
 }
 
 # convert hex time to date and time
