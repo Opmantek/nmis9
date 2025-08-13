@@ -110,7 +110,7 @@
         'control' => 'CVAR=tempDescr;$CVAR =~ /(Temperature Sensor)/',
         'element' => 'tempDescr',
         'event' => 'High Temperature Sensor',
-        'title' => "Temperature",
+        'title' => 'Temperature',
         'test' => '',
         'unit' => '°C',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
