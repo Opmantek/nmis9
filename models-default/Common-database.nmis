@@ -130,7 +130,6 @@
 	  'entPhySensor' => '/nodes/$node/health/entPhySensor-$index.rrd',
       'env-temp' => '/nodes/$node/misc/env-temp-$index.rrd',
       'env_temp' => '/nodes/$node/misc/env-temp-$index.rrd',
-      'env-temp-Lane' => '/nodes/$node/misc/env-temp-Lane-$index.rrd',
       'f5' => '/nodes/$node/health/f5-$index.rrd',
       'f5_Connection' => '/nodes/$node/health/f5_Connection.rrd',
       'f5_Memory' => '/nodes/$node/health/f5_Memory.rrd',
