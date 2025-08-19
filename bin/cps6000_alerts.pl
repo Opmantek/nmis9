@@ -63,11 +63,12 @@ my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 my $node = $cmdline->{node};
 my $groups = $cmdline->{groups};
 
-my $debug = 0;
-$debug = $cmdline->{debug} if defined $cmdline->{debug};
+my $debug = defined $cmdline->{debug} ? $cmdline->{debug} : 1;
 
 
-my $info = NMISNG::Util::getbool( $cmdline->{info} ) if defined $cmdline->{info};
+my $info = defined $cmdline->{info} 
+    ? NMISNG::Util::getbool($cmdline->{info}) 
+    : 1;
 
 my $nmisConfig = NMISNG::Util::loadConfTable( dir => "$FindBin::Bin/../conf", debug => $debug, info => undef);
 
@@ -108,7 +109,7 @@ sub updateCircuitGroups
 	my $node = shift;
 	my $CG_New;
 
-	#print "updateCircuitGroups: $node\n" if $node;
+	print "updateCircuitGroups: $node\n" if $node;
 	my $nodeobj = $nmisng->node(name => $node);
 	
 	my $S = NMISNG::Sys->new; # get system object
@@ -116,10 +117,12 @@ sub updateCircuitGroups
 
 	
 	my $CG = NMISNG::Util::loadTable(dir=>'conf',name=>'CircuitGroups');
-	#print "CG".Dumper($CG);
+	$logger->info("updateCircuitGroups CG at start: ".Dumper($CG));
+	#print "CG at start ".Dumper($CG);
 
 	my $cps6000Groups_result = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => "cps6000Groups", filter => { historic => 0 });
-	#print "updateCircuitGroups result: ".Dumper($result)."\n";
+	#$logger->info("updateCircuitGroups cps6000Groups_result: ".Dumper($cps6000Groups_result));
+	#print "updateCircuitGroups cps6000Groups_result: ".Dumper($cps6000Groups_result)."\n";
 	if (my $error = $cps6000Groups_result->error)
 	{
 		print "failed to lookup inventory records for cps6000Grp: $error \n";
@@ -127,9 +130,11 @@ sub updateCircuitGroups
 		return;
 	}
 	my %data_cps6000Groups = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Groups_result->data});
+	$logger->info("updateCircuitGroups ifdata: ".Dumper(\%data_cps6000Groups));
 	#print "updateCircuitGroups ifdata: ".Dumper(\%data_cps6000Groups)."\n";
 	
 	my $cps6000Grp = $nmisng->get_inventory_model(node_uuid => $nodeobj->uuid, concept => "cps6000Grp", filter => { historic => 0 });
+	#$logger->info("updateCircuitGroups cps6000Grp: ".Dumper($cps6000Grp));
 	#print "updateCircuitGroups cps6000Grp: ".Dumper($cps6000Grp)."\n";
 	if (my $error = $cps6000Grp->error)
 	{
@@ -138,6 +143,7 @@ sub updateCircuitGroups
 		return;
 	}
 	my %cps6000Grp_data = map { ($_->{data}->{index} => $_->{data}) } (@{$cps6000Grp->data});
+	$logger->info("updateCircuitGroups cps6000Grp_data: ".Dumper(\%cps6000Grp_data));
 	#print "updateCircuitGroups cps6000Grp_data ifdata: ".Dumper(\%cps6000Grp_data)."\n";
 
 	
@@ -151,6 +157,7 @@ sub updateCircuitGroups
 		{
 			my $circuitGroup = $cps6000Grp_data{$groupId}{cpsGrpEntryDes};
 			#print "updateCircuitGroups circuitGroup: ".Dumper($circuitGroup)."\n";
+			$logger->info("updateCircuitGroups circuitGroup: ".Dumper($circuitGroup));
 			my $dslamNode = undef;
 			if ( $circuitGroup ) {
 				my @tmp = split(" ",$circuitGroup);
@@ -159,13 +166,18 @@ sub updateCircuitGroups
 			
 			$dslamNode = $dslamNode ? $dslamNode : $CG->{$circuitGroup}{dslamNode};
 			#print "updateCircuitGroups dslamNode: ".Dumper($dslamNode)."\n";
-			my $shelf = $CG->{$circuitGroup}{shelf} ? $CG->{$circuitGroup}{shelf} : undef;
+			$logger->info("updateCircuitGroups dslamNode: ".Dumper($dslamNode) );
+			my $shelf = $CG->{$circuitGroup}{shelf} ? $CG->{$circuitGroup}{shelf} : "undef";
 			#print "updateCircuitGroups shelf: ".Dumper($shelf)."\n";
-			my $cable = $CG->{$circuitGroup}{cable} ? $CG->{$circuitGroup}{cable} : undef;
+			$logger->info("updateCircuitGroups shelf: ".Dumper($shelf) );
+			my $cable = $CG->{$circuitGroup}{cable} ? $CG->{$circuitGroup}{cable} : "undef";
+			$logger->info("updateCircuitGroups cable: ".Dumper($cable) );
 			#print "updateCircuitGroups cable: ".Dumper($cable)."\n";
-			my $cuenta = $CG->{$circuitGroup}{cuenta} ? $CG->{$circuitGroup}{cuenta} : undef;
+			my $cuenta = $CG->{$circuitGroup}{cuenta} ? $CG->{$circuitGroup}{cuenta} : "undef";
+			$logger->info("updateCircuitGroups cuenta: ".Dumper($cuenta) );
 			#print "updateCircuitGroups cuenta: ".Dumper($cuenta)."\n";
-			my $direccion = $CG->{$circuitGroup}{direccion} ? $CG->{$circuitGroup}{direccion} : undef;
+			my $direccion = $CG->{$circuitGroup}{direccion} ? $CG->{$circuitGroup}{direccion} : "undef";
+			$logger->info("updateCircuitGroups direccion: ".Dumper($direccion) );
 			#print "updateCircuitGroups direccion: ".Dumper($direccion)."\n";
 
 			$CG->{$circuitGroup} = {
@@ -186,6 +198,7 @@ sub updateCircuitGroups
 		delete $CG->{$key} if ref($CG->{$key}) eq 'HASH' && !%{ $CG->{$key} };
 	}
 	#print "updateCircuitGroups CG After : ".Dumper($CG)."\n";
+	$logger->info("updateCircuitGroups CG After: ".Dumper($CG));
 	NMISNG::Util::writeTable(dir=>'conf',name=>'CircuitGroups',data=>$CG);
 	# my $count = scalar keys %{$CG};
 	# print "Number of keys in CG: $count\n";
@@ -219,7 +232,7 @@ sub processAllNodes {
 	}
 
 	
-	#print "processAllNodes nodes=".Dumper ($nodes)."\n";
+	#print "processAllNodes nodes = ".Dumper ($nodes)."\n";
     
 	foreach my $node (sort @$nodes) {
 		
@@ -228,7 +241,7 @@ sub processAllNodes {
 
 		my $nodeobj = $nmisng->node(name => $node);
 		
-		#print "nodeobj".Dumper ($nodeobj);
+		#print "nodeobj = ".Dumper ($nodeobj);
 		if ( !$nodeobj)  {
 			$logger->fatal("Node $node failed to get the $nodeobj");
 			die "Node $node failed to get the $nodeobj .\n";
@@ -243,14 +256,17 @@ sub processAllNodes {
 			my $host = $nmisConfiguration->{host};
 			$cluster_id = $nodeobj->cluster_id;
 			my $model = $nmisConfiguration->{model};
-			#print "processNode:model $model\n" if $model;
-			
+			# print "processNode:model $model\n" if $model;
+			# print "processNode:active $active\n" if $active;
+			# print "processNode:collect $collect\n" if $collect;
+
 			my $sys;
 
 			# Only locals and active nodes
-			if ($active and $collect) {
+			if (defined $active && defined $collect && $active && $collect) {
+
 				#print "$node is active and local\n";
-				if ( $model eq "GE-QS941" ) {
+				 if (defined $model && $model eq "GE-QS941") {
 					print "***************************processAllNodes:Processing $node ***************************\n" if $info;
 					updateCircuitGroups($nmisng,$node);
 					processNode($nmisng, $node, $model, $S, $nodeobj);
@@ -263,6 +279,7 @@ sub processAllNodes {
 		}
 		
 	}
+	$logger->info("Script cps6000_alerts has concluded\n");
 	print "***************************Script cps6000_alerts has concluded.***************************\n";
 }
 
@@ -274,7 +291,7 @@ sub processNode {
 	my $nodeobj = shift;
 	
 	if ($node) {
-		print "In processNode processing node $node which has model $model\n" if $info or $debug;
+		print "***************************In processNode processing node $node which has model $model***************************\n" if $info or $debug;
 		$logger->info("In processNode processing node $node which has model $model\n");
 		
 		# using the custom table CircuitGroups to get the group name from.
