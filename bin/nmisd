@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.6.0";
+our $VERSION = "9.6.2";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -2597,7 +2597,7 @@ sub fping_loop
 			if (exists($multihomed{$thisstate->{uuid}})) # temporary property is present for both
 			{
 				$thisstate->{has_sibling} = $thisstate->{uuid};
-				$thisstate->{is_primary} = $statekey =~ /:0$/?1:0;
+				$thisstate->{is_primary} = $statekey =~ /:0$/ ?1:0;
 			}
 
 			$thisstate->{ip_protocol} = $noderec->{configuration}->{ip_protocol};
@@ -2648,14 +2648,26 @@ sub fping_loop
 
 		# third: ping the ones in need, in chunks if necessary
 		my @thistime = @todos;				# todos is consumed
-		while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
+		my $allChunks;
+		
+		if ( NMISNG::Util::getbool($config->{run_polling_group_chunks})){
+			$allChunks = $nmisng->get_polling_group_chunks(\@todos);
+		}
+		else{
+			my @todos_copy1 = @todos; # Create a copy to preserve original @todos
+			while (my @chunk = splice(@todos_copy1, 0, ($config->{fastping_node_poll} || 200))) {
+				push @{$allChunks}, \@chunk;
+			}
+		}
+		foreach my $chunk (@$allChunks)
+		# while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
 		{
 			my %ip2staterec;
 			my @cmd4 = ($fpingpath4, @fpingargs);
 			my @cmd6 = ($fpingpath6, @fpingargs);
 			my ($hasip4, $hasip6);
 			
-			for my $statekey (@chunk)
+			for my $statekey (@$chunk)
 			{
 				my $thisip = $state{$statekey}->{ip};
 				if ($state{$statekey}->{ip_protocol} eq 'IPv6')

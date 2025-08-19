@@ -766,13 +766,18 @@ sub _novell_ldap_verify {
 	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
 		if( $self->{config}->{'auth_ldap_attr'} );
 
-	# TODO: Implement non-anonymous bind
 
-	$msg = $ldap->bind; # Anonymous bind
-	if ($msg->is_error) {
-		NMISNG::Util::logAuth2("can't search LDAP (anonymous bind), need binddn which is uninplemented","TODO");
-		NMISNG::Util::logAuth2("LDAP anonymous bind failed","ERROR");
-		return 0;
+	# now bind to the server and then check for an error if anonymous bind is enabled
+	# this seems to just be a general connectivity check, anonymous bind is disabled
+	# on many servers so this may not be useful, error: "anonymous bind disallowed"
+	my $ldap_anonymous_bind = $self->{config}->{ldap_anonymous_bind} // 0;
+	if( $ldap_anonymous_bind ) {
+		$msg = $ldap->bind; # Anonymous bind
+		if ($msg->is_error) {
+			NMISNG::Util::logAuth2("can't search LDAP (anonymous bind), need binddn which is uninplemented","TODO");
+			NMISNG::Util::logAuth2("LDAP anonymous bind failed","ERROR");
+			return 0;
+		}
 	}
 
 	foreach $context ( split ":", $self->{config}->{'auth_ldap_base'}  ) {

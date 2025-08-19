@@ -130,12 +130,13 @@ sub data
 		$self->{_error_checked} = 1; # stop this message from happening again for this object
 	}
 	# if we have a cursor and data is called, error out if the cursor has started iterating
-	if( $self->{_cursor} && $self->{_cursor_count} > 0 ) {		
+	# and we haven't fetched all data yet
+	if( $self->{_cursor} && $self->{_cursor_count} > 0 && !$self->{_cursor_data_fetched} ) {		
 		# NOTE: this involves resetting and screwing up the cursor / iteration so just say no
 		die 'ModelDaata::data cannot get all data after next iterator is used, _cursor_count: '.$self->{_cursor_count}.' trace:'.NMISNG::Log::trace();
 	} 
 	# if we have a cursor, data is called get iterating has not started, get all data
-	elsif( $self->{_cursor} && $self->{_cursor_data_fetched} == 0 ) {
+	elsif( $self->{_cursor} && !$self->{_cursor_data_fetched} ) {
 		my @all = $self->{_cursor}->all();
 		$self->{_data} = \@all;
 		$self->{_cursor_data_fetched} = 1;
@@ -208,7 +209,7 @@ sub next_object
 	$self->{_cursor_count}++;	
 	my $raw_record;
 	
-	if( $self->{_cursor} )
+	if( $self->{_cursor} && !$self->{_cursor_data_fetched} )
 	{
 		$raw_record = $self->{_cursor}->next;
 		return if( !$raw_record );

@@ -67,9 +67,9 @@ sub update_plugin
 		$NG->log->error("Failed to get inventory: $error");
 		return(0,undef);
 	}
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->data});
+	my %ifdata =  map { ($_->{data}->{index} => $_) } (@{$result->data});
 
-	$NG->log->debug6(sub {"ifdata: ". Dumper \%ifdata});
+	$NG->log->debug8(sub {"ifdata: ". Dumper \%ifdata});
 
 	# get a lookup of base mapping port to ifIndex
 	my $dot1dBasePortIndex;
@@ -95,7 +95,8 @@ sub update_plugin
 		}
 	}
 	else {
-		$NG->log->error("Error, no inventory data found for dot1dBasePort");	
+		# this is not an error AFAIK
+		$NG->log->debug(sub {"Error, no inventory data found for dot1dBasePort"});
 	}
 	
 	
@@ -119,7 +120,7 @@ sub update_plugin
 		}
 
 		my $macdata = $mactinventory->data; # r/o copy, must be saved back if changed
-
+		my $macdata_uuid = $mactinventory->node_uuid;
 		# look for interface linkage
 		my $ifIndex = $macdata->{dot1qTpFdbPort};
 		my $gotIfIndex = 0;
@@ -136,17 +137,19 @@ sub update_plugin
 
 		if ($gotIfIndex)
 		{
-			if (defined $ifdata{$ifIndex}->{ifDescr})
+			if (defined $ifdata{$ifIndex}->{data}{ifDescr})
 			{
-				$macdata->{ifDescr} = $ifdata{$ifIndex}->{ifDescr};
+				$macdata->{ifDescr} = $ifdata{$ifIndex}->{data}{ifDescr};
 				$macdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifIndex&node=$node";
 				$macdata->{ifDescr_id} = "node_view_$node";
+				$macdata->{local_inventory_id} = $ifdata{$ifIndex}->{_id}->hex();
+				$macdata->{local_inventory_path} = $ifdata{$ifIndex}->{path};
 				$changesweremade = $mustsave = 1;
 			}
 
-			if ( defined $ifdata{$ifIndex}->{Description} )
+			if ( defined $ifdata{$ifIndex}->{data}{Description} )
 			{
-				$macdata->{Description} = $ifdata{$ifIndex}->{Description};
+				$macdata->{Description} = $ifdata{$ifIndex}->{data}{Description};
 				$changesweremade = $mustsave = 1;
 			}
 		}
@@ -163,13 +166,33 @@ sub update_plugin
 					push(@hexBits, sprintf("%02x", $nibble) );
 				}
 				$macdata->{dot1qTpFdbAddress} = join(":", @hexBits);
-
 			}
 			#Q-BRIDGE-MIB::dot1qTpFdbStatus.1.'..?5?c'
 			else {
-				$macdata->{dot1qTpFdbAddress} = NMISNG::Util::beautify_physaddress($octets[1]);	
+				$macdata->{dot1qTpFdbAddress} = NMISNG::Util::beautify_physaddress($octets[1]);		
 			}
 			
+			my $dot1qTpFdbAddress_ifPhysAddress = "0x" . $macdata->{dot1qTpFdbAddress};
+			$dot1qTpFdbAddress_ifPhysAddress =~ s/://g;  # Remove all colons
+						
+			my $interfaces = $S->nmisng->get_inventory_model(
+			concept => "interface",
+			filter => { "data.ifPhysAddress" => $dot1qTpFdbAddress_ifPhysAddress, "historic" => 0, "enabled" => 1 },
+			fields_hash => { 'node_uuid' => 1,'node_name' => 1, 'path' => 1 ,'data.ipAdEntAddr1' => 1},
+			sort => {"data.ipAdEntAddr1"  => -1 },
+			limit => 1);
+			if (my $error = $interfaces->error) {
+				$NG->log->error("Failed to lookup inventory interface for $dot1qTpFdbAddress_ifPhysAddress: $error");
+			}
+			else {
+				foreach my $item (@{$interfaces->data}){
+					$macdata->{remote_node_uuid} = $item->{node_uuid};
+					$macdata->{remote_node_name} = $item->{node_name};
+					$macdata->{remote_inventory_ipAdEntAddr1} = $item->{data}->{ipAdEntAddr1};
+					$macdata->{remote_inventory_path} = $item->{path};
+					$macdata->{remote_inventory_id} = $item->{_id}->hex();
+				}
+			}
 
 			$changesweremade = $mustsave = 1;
 		}
@@ -179,7 +202,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$mactinventory->data($macdata); # set changed info
-			(undef,$error) = $mactinventory->save; # and save to the db, update => 1 not required, already exists
+			(undef,$error) = $mactinventory->save( node => $S->nmisng_node ); # and save to the db, update => 1 not required, already exists
 			$NG->log->error("Failed to save inventory for $mactid: $error")
 					if ($error);
 		}
