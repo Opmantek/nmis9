@@ -60,6 +60,8 @@ sub update_plugin
 		my $ONTRxPower = $snmp->getindex("1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10",$max_repetitions);
 		my $ONTVoltage = $snmp->getindex("1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.17",$max_repetitions);
 
+		my $CPULoad = $snmp->getindex("1.3.6.1.4.1.3902.3.6002.2.1.1.9",$max_repetitions);
+		my $MemUsage = $snmp->getindex("1.3.6.1.4.1.3902.3.6002.2.1.1.34",$max_repetitions);		
 		my $servicePortData = $S->nmisng_node->get_inventory_ids(
             concept => "Service_Port_ZTE",
             filter => { historic => 0 });
@@ -83,8 +85,30 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  ($sub_index >> 16) & 0x7FF;
 
 				$inventory->data($data);
-				$inventory->save;
-				
+				$inventory->save(node => $node);				
+			}
+		}
+		
+		my $systemMemCard = $S->nmisng_node->get_inventory_ids(
+            concept => "zxr10SystemCard",
+            filter => { historic => 0 });
+
+		if (@{$systemMemCard}){
+			for my $id (@{$systemMemCard}) {
+				my ($inventory, $error) = $S->nmisng_node->inventory(_id => $id);
+				if ($error){
+					$NG->log->error("Failed to get inventory $id: $error");
+					next;
+				}
+				my $data = $inventory->data();	
+				my $index = $data->{index};
+
+				# grab the required index for CPU Load and Mem Usage
+				$index = $index.".0";				
+				$data->{'zxAnCardMemUsage'} =  $MemUsage->{$index};
+				$data->{'zxAnCardCpuLoad'} = $CPULoad->{$index};				
+				$inventory->data($data);
+				$inventory->save(node => $node);				
 			}
 		}
 
@@ -104,7 +128,7 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  (( 0 + $sub_index) >> 16) & 0x7FF;
 								
 				$inventory->data($data);
-				$inventory->save;				
+				$inventory->save(node => $node);				
 			}
 		}
 
@@ -140,7 +164,7 @@ sub update_plugin
 					$data->{zxAnGponSrvOnuLastOfflineTime} = snmp_hex_to_datetime($NG,$data->{zxAnGponSrvOnuLastOfflineTime});								
 				}
 					$inventory->data($data);
-					$inventory->save;
+					$inventory->save(node => $node);
 			}
 		}
 
