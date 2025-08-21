@@ -123,6 +123,14 @@ elsif ($Q->{act} =~ /^inventory/)
 	my $result = testinventory(node => $node);
 	exit 0;
 }
+elsif ($Q->{act} =~ /^tags/)
+{
+	my $node = $Q->{node};
+	my $tag = $Q->{tag};
+    die "Need a node to run " if (!$node);
+	my $result = testinventorytags(node => $node, tag => $tag);
+	exit 0;
+}
 elsif ($Q->{act} =~ /^model/)
 {
 	my $node = $Q->{node};
@@ -467,6 +475,42 @@ sub testinventory
 			}
 		
 		 }
+    }
+    else {
+        print "Error, need a node to run: node=NODENAME \n";
+        return 0;
+    }
+}
+
+sub testinventorytags
+{
+    my %args = @_;
+	my $node = $args{node};
+	my $tag = $args{tag};
+	my $debug = $args{debug};
+    
+    print "==============================================\n";
+    print "==============      Test Inventory  tags==========\n";
+    print "==============================================\n";
+ 
+    my $config = NMISNG::Util::loadConfTable( dir => undef, debug => undef, info => undef);
+    
+    # use debug, or info arg, or configured log_level
+    my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $debug, info => $args{info}), path  => undef ); 
+    my $nmisng = NMISNG->new(config => $config, log  => $logger);
+    
+    if ( defined $node ) {
+		my $nodeobj = $nmisng->node(name => $node);
+		print "====================$node ---- $tag ==========================\n";
+		if (defined $tag){
+			my $result = $nodeobj->get_rrd_paths_by_tag(node_name => $node, tag => $tag);
+			#print "result=".Dumper($result);
+		}
+		else {
+        	print "Error, need a tag\n";
+        	return 0;
+    	}
+		
     }
     else {
         print "Error, need a node to run: node=NODENAME \n";

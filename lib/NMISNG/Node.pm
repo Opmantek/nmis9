@@ -9585,6 +9585,70 @@ sub interface_by_ifDescr
 	return $interface_inventory;
 }
 
+
+sub get_rrd_paths_by_tag {
+  	my ($self, %args) = @_;
+	my $node_name = $args{node_name};
+	$node_name =~ s/^\s+|\s+$//g;
+    my $tag = $args{tag};
+	$tag =~ s/^\s+|\s+$//g;
+	print "===================get_rrd_paths_by_tag node_name = $node_name ---- tag =$tag ==========================\n";
+	# $self->nmisng->log->fatal("Node::get_rrd_paths_by_tag Tag is required") if(!defined $tag);
+	# return;
+
+	
+	# my $q = NMISNG::DB::get_query( and_part => {"node_name" => $node_name, "dataset_tags.tags" =>  $tag }
+    # );
+	
+
+	# my $cursor = NMISNG::DB::find(
+	# 	collection  => $self->nmisng->inventory_collection,
+	# 	query       => $q,
+	# 	fields_hash => { "node_name" => 1,  "storage" => 1, "dataset_tags"=> 1}
+	# );
+
+	my @prepipeline = (
+		{
+			'$match' => {
+				'node_name' => $node_name,
+				'dataset_tags.tags' => $tag
+			}
+		},
+		{
+			'$project' => {
+			'node_name'    => 1,
+			'storage'    => 1,
+			'_id'      => 0,
+				'dataset_tags' => {
+					'$filter' => {
+						'input' => '$dataset_tags',
+						'as'    => 'ds',
+						'cond'  => { '$in' => [ $tag, '$$ds.tags' ] }
+					}
+				}
+			}
+		}
+	);
+
+
+	my ($entries,$count,$error) =  NMISNG::DB::aggregate(
+		collection => $self->nmisng->inventory_collection,
+		pre_count_pipeline => \@prepipeline,
+	);
+
+	return (undef, $error) if ($error);
+	print "entries=".Dumper($entries);
+
+	return $entries;
+
+	# foreach my $entry (@$entries)
+	# {
+	# 	push @$retval, $entry->{_id}{concept};
+	# }
+	# return ($retval, undef);
+
+}
+
 1;
 
 =pod
