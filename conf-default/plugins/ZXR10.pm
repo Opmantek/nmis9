@@ -124,7 +124,11 @@ sub update_plugin
 				}
 				my $data = $inventory->data();	
 				my ($index,$sub_index) = split(/\./, $data->{index}); 
-									
+
+				$data->{zxAnSrvPortResRack}		= ($index & 0x0F000000) >> 24;
+				$data->{zxAnSrvPortResShelf}	= ($index & 0x00FF0000) >> 16;
+				$data->{zxAnSrvPortResSlot}		= ($index & 0x0000FF00) >> 8;
+				$data->{zxAnSrvPortResPort}		= ($index & 0x000000FF);									
 				$data->{zxAnSubIfIndex} =  (( 0 + $sub_index) >> 16) & 0x7FF;
 								
 				$inventory->data($data);

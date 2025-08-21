@@ -659,6 +659,8 @@ sub exportzteOltPorts {
 				print("Processing ZTE Node '$NODES->{$node}{name}'\n");
 				$modelCount++;
 
+
+				# grab all the inventory id's for the main section , which is Service_Port_ZTE
 				my $invIds = $S->nmisng_node->get_inventory_ids(
 					concept => "$section");						
 				if (@$invIds) {						
@@ -668,18 +670,26 @@ sub exportzteOltPorts {
 							print("Failed to get inventory $sectionId: $error\n");
 							next;
 						}
-						my $data = $section->data();
 
+						my $data = $section->data();
+						my ($index,$sub_index) = split(/\./, $data->{index}); 
+						# convert this to matchable index with gponDevices.
+						# which is append IFIndex and ONT Id.
+						
+						# ONT ID is $data->{zxAnSubIfIndex}.
+						$index = $index.".".$data->{zxAnSubIfIndex};
+						
 						if ( time() - $lastUpdateTime > 86400 ) {
 							print("WARNING, Last Update Data collection was more than 1 day ago: $lastUpdatePoll\n");
 						}
-						$INV->{$data->{index}} = $data;
+						$INV->{$index} = $data;
 					}
 				}
 				
-				print("INV =>  ".Dumper($INV)."\n");
-				my $sectionIds = $S->nmisng_node->get_inventory_ids( concept => "zxr10GponDevice");
-				# print("Gpon section id's are ".Dumper($sectionIds)."\n");
+				print("INV =>  ".Dumper($INV)."\n") if ($debug);
+				
+				#Now grab the the ids for second section which is zxr10GponDevice.
+				my $sectionIds = $S->nmisng_node->get_inventory_ids( concept => "zxr10GponDevice");				
 				if (@$sectionIds) {	
 					my $gponDeviceIndex;
 
@@ -695,7 +705,9 @@ sub exportzteOltPorts {
 						}
 						$gponDeviceIndex->{$data->{index}} = $data;					
 					}
-					print("gponDeviceIndex	=> ".Dumper($gponDeviceIndex)."\n");				
+					print("gponDeviceIndex	=> ".Dumper($gponDeviceIndex)."\n") if ($debug);				
+					
+					# Now adjust the headers and other things.
 					if ( not @zteHeaders ) {
 						if ( not defined $myHeaders ) {							
 							@{$myHeaders} = split(",",$MDL->{$model_section_top}{sys}{$model_section}{headers});
@@ -759,6 +771,7 @@ sub exportzteOltPorts {
 							die "ERROR: Internal error, xls is not defined.\n";
 						}
 					}
+					# Now join the two sections based on the index created in section 1, Service_Port_ZTE
 					foreach my $idx (oid_lex_sort(keys %{$INV})) {					
 						
 						next if not defined $INV->{$idx};														
@@ -767,54 +780,47 @@ sub exportzteOltPorts {
 						$INV->{$idx}{host} = $NODES->{$node}{host};
 						$INV->{$idx}{sysUpTime} = $catchall_data->{sysUpTime};
 						$INV->{$idx}{last_update} = $lastUpdatePoll;
-						print("idx is ".$idx."\n");
-						my @gponIndex = split /\./, $idx;
-						print("gponIndex is ".Dumper(\@gponIndex)."\n");
-						my @gponIndex_list = ($gponIndex[0].".1",$gponIndex[0].".2");
+															
+						if ( defined $gponDeviceIndex->{$idx} ) {
+							print("INFO: $node, $secondary_section data found for $INV->{$idx}->{index} is ".Dumper($gponDeviceIndex->{$idx})."\n");													
+						}
+						else {
+							print("ERROR: $node no $secondary_section data for gponIndex=$idx\n");					
+						}
 
-						foreach my $gponIndex (@gponIndex_list){
-									
-							if ( defined $gponDeviceIndex->{$gponIndex} ) {
-								print("INFO: $node, $secondary_section data found for $INV->{$idx}->{index} is ".Dumper($gponDeviceIndex->{$gponIndex})."\n");													
+						foreach my $heading (@{$secondary_headers}) {
+							$INV->{$idx}->{$heading} = $gponDeviceIndex->{$idx}->{$heading};
+						}
+												
+						my @columns;
+						my $currcol=0;
+						foreach my $header (@zteHeaders) {
+							my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
+							my $data   = undef;	
+							print("header is ".$header." =>");							
+							if ( defined $INV->{$idx}->{$header} ) {						
+								$data = $INV->{$idx}->{$header};			
 							}
 							else {
-								print("ERROR: $node no $secondary_section data for gponIndex=$gponIndex\n");					
+								$data = "TBD";
 							}
-
-							foreach my $heading (@{$secondary_headers}) {
-								$INV->{$idx}->{$heading} = $gponDeviceIndex->{$gponIndex}->{$heading};
-							}
-												
-							my @columns;
-							my $currcol=0;
-							foreach my $header (@zteHeaders) {
-								my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
-								my $data   = undef;	
-								print("header is ".$header." =>");							
-								if ( defined $INV->{$idx}->{$header} ) {						
-									$data = $INV->{$idx}->{$header};			
-								}
-								else {
-									$data = "TBD";
-								}
-								$data   = "" if $data eq "noSuchInstance";
-								$colLen = ((length($data) > 253 || length($invAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
-								$data   = changeCellSep($data);
-								print("data is ".$data."\n");
-								$colsize[$currcol] = $colLen;
-								push(@columns,'"' . $data. '"');
-								$currcol++;
-							}
-							my $row = join($sep,@columns);
-							print("row is ".$row."\n");
-							print $CSV "$row\n";
-							$csvData .= "$row\n";
-
-							if ($sheet) {
-								$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
-								++$currow;
-							}
+							$data   = "" if $data eq "noSuchInstance";
+							$colLen = ((length($data) > 253 || length($invAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+							$data   = changeCellSep($data);
+							print("data is ".$data."\n");
+							$colsize[$currcol] = $colLen;
+							push(@columns,'"' . $data. '"');
+							$currcol++;
 						}
+						my $row = join($sep,@columns);
+						print("row is ".$row."\n");
+						print $CSV "$row\n";
+						$csvData .= "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}						
 					}
 				} 
 
