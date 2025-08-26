@@ -672,7 +672,7 @@ sub exportzteOltPorts {
 						}
 
 						my $data = $section->data();
-						my ($index,$sub_index) = split(/\./, $data->{index}); 
+						my $index = $data->{index};
 						# convert this to matchable index with gponDevices.
 						# which is append IFIndex and ONT Id.
 						
@@ -780,16 +780,19 @@ sub exportzteOltPorts {
 						$INV->{$idx}{host} = $NODES->{$node}{host};
 						$INV->{$idx}{sysUpTime} = $catchall_data->{sysUpTime};
 						$INV->{$idx}{last_update} = $lastUpdatePoll;
-															
-						if ( defined $gponDeviceIndex->{$idx} ) {
-							print("INFO: $node, $secondary_section data found for $INV->{$idx}->{index} is ".Dumper($gponDeviceIndex->{$idx})."\n");													
+						
+						# create a gpon index from service port INV index.
+						my ($ifIndex,$subindex,$ont_id) = split(/\./,$idx);						
+						my $gpon_idx = $ifIndex.'.'.$ont_id;						
+						if ( defined $gponDeviceIndex->{$gpon_idx} ) {
+							print("INFO: $node, $secondary_section data found for $INV->{$idx}->{index} is ".Dumper($gponDeviceIndex->{$gpon_idx})."\n");													
 						}
 						else {
-							print("ERROR: $node no $secondary_section data for gponIndex=$idx\n");					
+							print("ERROR: $node no $secondary_section data for gponIndex=$gpon_idx\n");					
 						}
 
 						foreach my $heading (@{$secondary_headers}) {
-							$INV->{$idx}->{$heading} = $gponDeviceIndex->{$idx}->{$heading};
+							$INV->{$idx}->{$heading} = $gponDeviceIndex->{$gpon_idx}->{$heading};
 						}
 												
 						my @columns;
