@@ -297,7 +297,7 @@ my %hash = (
 	'auth_ldap_acc' => 'cn=administrator,ou=people,dc=corp,dc=opmantek,dc=com',
 	'auth_ldap_attr' => 'sAMAccountName cn',
 	'auth_ldap_base' => 'dc=corp,dc=opmantek,dc=com',
-	'auth_ldap_context" => '',
+	'auth_ldap_context' => '',
 	'auth_ldap_debug' => 'false',
 	'auth_ldap_group' => 'memberOf',
 	'auth_ldap_privs' => 1,
