@@ -4765,6 +4765,43 @@ sub collect_systemhealth_info
 			# NOTE: you'll still want graphtype and header values in the section
 			next;
 		}
+		if (defined($thissection->{index_function}) && $thissection->{index_function}){
+			# grab inventory from plugin function.			
+			for my $plugin ($self->nmisng->plugins){				
+				my $funcname = $plugin->can($thissection->{index_function});
+				next if ( !$funcname );
+				$self->nmisng->log->debug4("Running a Plugin $plugin to grab data from". $thissection->{index_function});
+							
+				my ( $status, @errors );
+				my $prevprefix = $self->nmisng->log->logprefix;
+				$self->nmisng->log->logprefix("$plugin\[$$\] ");
+				eval { ( $status, @errors ) = &$funcname( node => $name,
+																								sys => $S,
+																								config => $C,
+																								thissection => $thissection,
+																								section => $section,
+																								nmisng => $self->nmisng, ); };
+				$self->nmisng->log->logprefix($prevprefix);
+			
+				if ( $status >= 2 or $status < 0 or $@ )
+				{
+					$self->nmisng->log->error("Plugin $plugin failed to run: $@") if ($@);
+					for my $err (@errors)
+					{
+						$self->nmisng->log->error("Plugin $plugin: $err");
+					}
+				}
+				elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
+				{
+					$self->nmisng->log->debug("Plugin $plugin indicated success");
+				}
+				elsif ( $status == 0 )
+				{
+					$self->nmisng->log->debug("Plugin $plugin indicated no changes");
+				}							
+			}			
+			next;			
+		}		
 
 		# all systemhealth sections must be indexed by something
 		# this holds the name, snmp or wmi
@@ -9579,6 +9616,82 @@ sub interface_by_ifDescr
 		$interface_inventory = $data->[0] if( @$data > 0 );
 	}
 	return $interface_inventory;
+}
+
+
+sub get_rrd_paths_by_tag {
+  	my ($self, %args) = @_;
+	my $node_name = $args{node_name};
+    my $tag = $args{tag};
+	$self->nmisng->log->info("Node::get_rrd_paths_by_tag Tag is $tag");
+	#print "===================get_rrd_paths_by_tag node_name = $node_name ---- tag =$tag ==========================\n";
+	if(!defined $tag) {
+		$self->nmisng->log->fatal("Node::get_rrd_paths_by_tag Tag is required");
+		return;
+	}
+
+	my @prepipeline = (
+		{
+			'$match' => {
+				'node_name' => $node_name,
+				'dataset_tags.tags' => $tag
+			}
+		},
+		{
+			'$project' => {
+			'node_name'    => 1,
+			'storage'    => 1,
+			'_id'      => 0,,
+			'data.index' => 1,
+				'dataset_tags' => {
+					'$filter' => {
+						'input' => '$dataset_tags',
+						'as'    => 'ds',
+						'cond'  => { '$in' => [ $tag, '$$ds.tags' ] }
+					}
+				}
+			}
+		}
+	);
+
+	my ($entries,$count,$error) =  NMISNG::DB::aggregate(
+		collection => $self->nmisng->inventory_collection,
+		pre_count_pipeline => \@prepipeline,
+	);
+
+	if  ($error) {
+		$self->nmisng->log->error("Node::get_rrd_paths_by_tag: $error");
+		return (undef, $error);
+	}
+	
+	my %rec;
+	#print "entries=".Dumper(@$entries);
+	foreach my $entry (@$entries){
+		my $node_name   = $entry->{node_name};
+		#print "node_name=".Dumper($node_name);
+		my $index = $entry->{data}{index};
+		#print "index=".Dumper($node_name);
+		my $dataset_name;
+		my $rrd_path;
+		for my $dtag (@{ $entry->{dataset_tags} }) {
+           	$dataset_name = $dtag->{dataset_name};
+			#print "dataset_name=".Dumper($dataset_name);
+			$rrd_path = $entry->{storage}{$dataset_name}{rrd};
+			#print "rrd_path=".Dumper($rrd_path);
+        }
+		# my $dataset_name = $entry->{dataset_tags}{dataset_name};
+        #my $rrd_path = $entry->{storage}{$dataset_name}{rrd};
+		if (defined $index){
+        	$rec{$node_name}{$dataset_name}{$index} = $rrd_path;
+		}
+		else{
+			$rec{$node_name}{$dataset_name}= $rrd_path;
+		}
+
+	}
+
+	#print "rec=".Dumper(\%rec);
+	return \%rec;
 }
 
 1;
