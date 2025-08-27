@@ -1254,6 +1254,21 @@ sub getValues
 			for my $itemname ( keys %{$thissection->{snmp}} )
 			{
 				my $thisitem = $thissection->{snmp}->{$itemname};
+				if ( exists( $thisitem->{calculate_oid} ) && ( my $calc = $thisitem->{calculate_oid} ) ) {
+					$self->nmisng->log->debug4("Calculating oid : $calc \n");
+					my ( $error, $result ) = $self->eval_string(
+						string  => $calc,
+						context => "", # there is no data coming in, it just needs the inventory data
+						variables => [$inventory->data()] );
+					if ($error) {
+						$status{error} = $error;
+						$self->nmisng->log->error("($self->{name}) getValues calculate_oid failed: $error");
+						next;
+					}
+					$thisitem->{oid} = $result;
+				}
+
+				
 				next if ( !exists $thisitem->{oid} );
 
 				$self->nmisng->log->debug3(sub { "oid for section $sectionname, item $itemname primed for loading"});
