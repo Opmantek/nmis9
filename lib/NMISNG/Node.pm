@@ -4765,8 +4765,11 @@ sub collect_systemhealth_info
 			# NOTE: you'll still want graphtype and header values in the section
 			next;
 		}
+		my ( %healthIndexNum, $healthIndexTable );
+		my $plugin_healthIndexTable;		
+
 		if (defined($thissection->{index_function}) && $thissection->{index_function}){
-			# grab inventory from plugin function.			
+			# grab healthIndexTable  from plugin function which is same as that of my target.
 			for my $plugin ($self->nmisng->plugins){				
 				my $funcname = $plugin->can($thissection->{index_function});
 				next if ( !$funcname );
@@ -4775,32 +4778,19 @@ sub collect_systemhealth_info
 				my ( $status, @errors );
 				my $prevprefix = $self->nmisng->log->logprefix;
 				$self->nmisng->log->logprefix("$plugin\[$$\] ");
-				eval { ( $status, @errors ) = &$funcname( node => $name,
-																								sys => $S,
-																								config => $C,
-																								thissection => $thissection,
-																								section => $section,
-																								nmisng => $self->nmisng, ); };
-				$self->nmisng->log->logprefix($prevprefix);
+				
+				eval { ( $plugin_healthIndexTable, @errors ) = &$funcname( node => $name,
+																			sys => $S,
+																			config => $C,
+																			thissection => $thissection,
+																			section => $section,
+																			nmisng => $self->nmisng, ); };				
+				if (@errors){
+					$self->nmisng->log->error("Error running $funcname in plugin $plugin ");
+					next;
+				}																
 			
-				if ( $status >= 2 or $status < 0 or $@ )
-				{
-					$self->nmisng->log->error("Plugin $plugin failed to run: $@") if ($@);
-					for my $err (@errors)
-					{
-						$self->nmisng->log->error("Plugin $plugin: $err");
-					}
-				}
-				elsif ( $status == 1 )    # changes were made, need to re-save the view and info files
-				{
-					$self->nmisng->log->debug("Plugin $plugin indicated success");
-				}
-				elsif ( $status == 0 )
-				{
-					$self->nmisng->log->debug("Plugin $plugin indicated no changes");
-				}							
-			}			
-			next;			
+			}	
 		}		
 
 		# all systemhealth sections must be indexed by something
@@ -4820,7 +4810,7 @@ sub collect_systemhealth_info
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
 		my ($header_info,$description);
 
-		if ( !defined($index_var) or $index_var eq '' )
+		if (!defined($thissection->{index_function}) && (!defined($index_var) or $index_var eq '' ))
 		{
 			$self->nmisng->log->debug2(sub {"No index var found for $section, skipping"});
 			next;
@@ -4994,26 +4984,40 @@ sub collect_systemhealth_info
 		}
 		else
 		{
-			if( !$index_snmp ) {
-				$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
-				next;
-			}
+			if (!defined($thissection->{index_function}) ){
+		
+				if( !$index_snmp ) {
+					$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
+					next;
+				}
 
-			if ( !$SNMP )
-			{
-				$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
-				next;
+				if (!$SNMP )
+				{
+					$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
+					next;
+				}
+			}
+			else{
+				$self->nmisng->log->debug2(sub {"skipping SNMP checks as we have grabbed the SNMP data from plugin function"});
 			}
 			
 			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
-			my ( %healthIndexNum, $healthIndexTable );
-
-			# first loop gets the index we want to use out of the oid
-			# so we need to keep a map of index => target
-			# potientially these two loops could be merged.
+			
 			my $targets = {};
-			if ( $healthIndexTable = $SNMP->gettable($index_snmp) )
+
+			if (defined($plugin_healthIndexTable) && $plugin_healthIndexTable){
+					# make plugin_healthIndexTable as my new healthIndexTable
+					$healthIndexTable = $plugin_healthIndexTable;
+					
+					foreach my $index (keys %{$healthIndexTable}){
+						$healthIndexNum{$index} = $index;
+					}
+
+					# copy the targets to be same as well, Since we already have the data
+					$targets = $plugin_healthIndexTable;
+			}	
+			elsif ( $healthIndexTable = $SNMP->gettable($index_snmp) )
 			{
 				foreach my $oid ( Net::SNMP::oid_lex_sort( keys %{$healthIndexTable} ) )
 				{
@@ -5086,7 +5090,9 @@ sub collect_systemhealth_info
 			{
 				my $target = $targets->{$index};
 				# we pass loadInfo a hash to fill in, then put that into the inventory data
-				if( $S->loadInfo(
+				# loadinfo won't work in case of index function as we have self defined indexes.
+				# so added an or statement with this.
+				if(defined($thissection->{index_function})  or  $S->loadInfo(
 						class   => 'systemHealth',
 						section => $section,
 						index   => $index,

@@ -315,11 +315,11 @@ sub loadCBQoS_standardised
 		}
 		elsif ($qos_type eq QOS_TYPE_QOS_STR
 			   and $M->{systemHealth}{sys}{$TeldatOSDXQoSKey}
-			   and ($NI = $S->nmisng_node->retrieve_section(sys=>$S, section=>$TeldatOSDXQoSKey))
+			   and ($NI = $S->nmisng_node->retrieve_section(sys=>$S, section=>$TeldatOSDXQoSKey , "data.ifIndex" => $index))
 			   and exists $NI->{$TeldatOSDXQoSKey})
 		{
 
-			my $thisQoSKey = $TeldatOSDXQoSKey;
+			my $thisQoSKey = $TeldatOSDXQoSKey;					
 			undef $TeldatOSDXQoSKey;
 			
 			my $teldatqos = $NI->{$thisQoSKey};						

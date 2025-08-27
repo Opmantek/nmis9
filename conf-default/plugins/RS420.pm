@@ -25,6 +25,9 @@ sub getTeldatInventory {
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $IF = $nodeobj->ifinfo;	
+	my %ifDescr_to_index = map {
+    	$IF->{$_}{ifDescr} => $_
+	} keys %{$IF};
 	my $MDL = $S->mdl;
             
 	my $NC = $nodeobj->configuration;
@@ -48,7 +51,9 @@ sub getTeldatInventory {
 	else
 	{ 
 		# grab the 6.3 table for TELDAT
-		$snmpTable = $snmp->gettable("1.3.6.1.4.1.2007.6.3");		
+		$snmpTable = $snmp->gettable("1.3.6.1.4.1.2007.6.3");	
+		return (undef,"Unable to get SNMP table data") if (! $snmpTable);
+		
 		my %patterns = (								
 				out	=> 	{
 						class   		=> qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.1\.6\.(.+)\.(\d+)$/,
@@ -74,9 +79,12 @@ sub getTeldatInventory {
         		my $regex = $patterns{$dir}{$metric};
         		foreach my $oid (keys %{$snmpTable}) {
             	if ($oid =~ $regex) {
-                		my ($interfaceMapping, $descr, $class) 			= ($1, $2, $3);					
-                		$rows{"$dir|$descr|$class"}{index}    			= $descr.".".$class;
-						$rows{"$dir|$descr|$class"}{description} 		= ascii_to_str_string($descr);
+                		my ($interfaceMapping, $descr, $class) 	= ($1, $2, $3);	
+						my $ascii_descr  = ascii_to_str_string($descr);				
+
+						$rows{"$dir|$descr|$class"}{index}    			= $descr.".".$class;
+						$rows{"$dir|$descr|$class"}{description} 		= $ascii_descr;
+						$rows{"$dir|$descr|$class"}{ifIndex} 			= $ifDescr_to_index{$ascii_descr};
                 		$rows{"$dir|$descr|$class"}{class}    			= $class;
                 		$rows{"$dir|$descr|$class"}{direction}     		= $dir;
 						$rows{"$dir|$descr|$class"}{interfaceMapping} 	= $interfaceMapping;
@@ -99,65 +107,14 @@ sub getTeldatInventory {
 			elsif($rows{$item}->{direction} eq 'out'){
 				$direction_oid = '6.1.2.1.1.2.6';				
 			}
-
-			# grab the index from above hash
-			# my $index = $rows{$item}{interfaceMapping}.'.'.$direction_oid.'.'.$rows{$item}{index};			
-			
-			
-		#101.116.104.48.112.51.1
+	
 			my $index = $rows{$item}{index};
 			$rows{$item}{index} = $index;
 			
 			$targets->{$index} = $rows{$item};							
 		}
-
-
-		my ($header_info,$tags,$description);
-		$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );			
-		# $tags = NMISNG::Inventory::parse_model_subconcept_tags( $thissection, 'snmp' );		
 		
-		foreach my $target (keys %{$targets}){
-			my $data  = $targets->{$target};
-
-
-			my $path_keys = ['index'];			
-			my $path = $nodeobj->inventory_path( concept => $section, data => $data, path_keys => $path_keys );
-
-			# create an inventory object
-			my ( $inventory, $error_message ) = $nodeobj->inventory(
-				concept   => $section,
-				path      => $path,
-				path_keys => $path_keys,
-				create    => 1
-			);
-			
-
-			$inventory->data($data);
-			# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-			$inventory->path( recalculate => 1 );
-			$inventory->historic(0);
-			$inventory->enabled(1);
-
-			$inventory->data_info(
-						subconcept => $section,
-						enabled => 1,						
-						display_keys => $header_info
-					);
-
-			
-			if( @$header_info > 0 )
-			{
-				my @keys = keys (%{$header_info->[0]});
-				# use first key in headers to get description
-				$description = $data->{ $keys[0] };
-				$inventory->description( $description ) if($description);
-			}
-
-			my ( $op, $error ) = $inventory->save( node => $nodeobj , update => 1);				
-			$NG->log->info("saved ".join(',', @$path)." op: $op");
-				
-			$NG->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" ) if ($error);
-		}		
+		return ($targets,undef);		
 	}
 }
 sub update_plugin
