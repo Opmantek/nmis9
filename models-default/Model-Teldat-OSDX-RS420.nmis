@@ -513,7 +513,7 @@
        },
        'sys' => {
           'TeldatQoSStatsOSDX-out' => {                
-                'index_function' => "getTeldatInventory",           
+                'index_function' => "RS420::getTeldatInventory", 
                 'headers' => 'description,class,direction,MatchedPackets,MatchedBytes',
                 'snmp' => {                    												
                      'class' => {                      
@@ -534,7 +534,7 @@
                 }
           },     
           'TeldatQoSStatsOSDX-in' => {                
-                'index_function' => "getTeldatInventory",           
+                'index_function' => "RS420::getTeldatInventory",       
                 'headers' => 'description,class,direction,MatchedPackets,MatchedBytes',
                 'snmp' => {                    												
                      'class' => {                      

@@ -4769,29 +4769,42 @@ sub collect_systemhealth_info
 		my $plugin_healthIndexTable;		
 
 		if (defined($thissection->{index_function}) && $thissection->{index_function}){
-			# grab healthIndexTable  from plugin function which is same as that of my target.
-			for my $plugin ($self->nmisng->plugins){				
-				my $funcname = $plugin->can($thissection->{index_function});
-				next if ( !$funcname );
-				$self->nmisng->log->debug4("Running a Plugin $plugin to grab data from". $thissection->{index_function});
-							
-				my ( $status, @errors );
-				my $prevprefix = $self->nmisng->log->logprefix;
-				$self->nmisng->log->logprefix("$plugin\[$$\] ");
+			# grab healthIndexTable  from plugin function which is same as that of my target.			
+				my ($model_plugin,$funcname) = split(/::/,$thissection->{index_function}, 2);
+				my $can_funcname;								
 				
-				eval { ( $plugin_healthIndexTable, @errors ) = &$funcname( node => $name,
+				# check if the model plugin exist and can it perform the function or not.
+				for my $plugin ($self->nmisng->plugins) {
+					if ($plugin eq $model_plugin){
+						$self->nmisng->log->debug1("Plugin is $plugin function name is $funcname");		
+						$can_funcname = $plugin->can("$funcname");
+						# if can function , then perform it.
+						if ($can_funcname){
+							$self->nmisng->log->debug1("Performing $funcname from plugin: $model_plugin");						
+							my ( $status, @errors );
+							my $prevprefix = $self->nmisng->log->logprefix;
+							$self->nmisng->log->logprefix("$plugin\[$$\] ");
+				
+							eval { ( $plugin_healthIndexTable, @errors ) = &$can_funcname( node => $name,
 																			sys => $S,
 																			config => $C,
 																			thissection => $thissection,
 																			section => $section,
 																			nmisng => $self->nmisng, ); };				
-				if (@errors){
-					$self->nmisng->log->error("Error running $funcname in plugin $plugin ");
-					next;
-				}																
-			
-			}	
-		}		
+							if (@errors){
+								$self->nmisng->log->error("Error running $funcname in plugin $plugin ".Dumper(\@errors));
+								next;
+							}else{
+								$self->nmisng->log->debug1("Successfully ran $funcname using Plugin $model_plugin");	
+							}	
+						}	
+						else{
+							$self->nmisng->log->error("Skiping this section,Plugin $plugin does not have the function 	$funcname");	
+							next;
+						}			
+					}					
+				}																							
+			}		
 
 		# all systemhealth sections must be indexed by something
 		# this holds the name, snmp or wmi

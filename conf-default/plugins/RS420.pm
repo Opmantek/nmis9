@@ -114,7 +114,7 @@ sub getTeldatInventory {
 			$targets->{$index} = $rows{$item};							
 		}
 		
-		return ($targets,undef);		
+		return $targets;		
 	}
 }
 sub update_plugin
