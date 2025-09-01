@@ -38,11 +38,11 @@ if [ 0$EOSOK -eq 1 ];then
 	echolog "  For more information see wiki https://community.opmantek.com/display/opCommon/Encryption+of+Secrets"
 	echolog ""
 	if [ -z "$OMK_INSTALLED_PRODUCTS" ]; then
-		input_yn "Would you like to enable encryption of secrets in NMIS now?" "3419";
+		input_yn "Would you like to enable encryption of secrets in NMIS now?" "3420";
 	elif [ -z "$OMK_INSTALLED_PRODUCTS" -o 0$EOSENABLED -eq 1 ]; then
-		input_yn "Encryption is already enabled on you system, would you like to keep it enabled?" "3419";
+		input_yn "Encryption is already enabled on you system, would you like to keep it enabled?" "3421";
 	else
-		input_ny "Would you like to enable encryption of secrets in NMIS now?" "3419";
+		input_ny "Would you like to enable encryption of secrets in NMIS now?" "3422";
 	fi
 	answer=$?
 	if [ 0$answer -eq 0 ]; then
