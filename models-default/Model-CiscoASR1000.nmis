@@ -100,6 +100,9 @@
       },
       'threshold' => {
         'common-model' => 'threshold'
+      },
+      'IP-FORWARD' => {
+        'common-model' => 'IP-FORWARD'
       }
     }
   },
@@ -513,6 +516,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_BGP_Peer,Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,cdp,cpu_cpm,cempMemBuffer,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,cbqos-in,cbqos-out,entityMib,entPhySensor,env-temp,ifStack,ifTable,mplsL3VpnIfConf,mplsL3VpnVrf,mplsVpnInterface,mplsVpnVrf,ospfNbr,powerStatus,powerSupply'
+    'sections' => 'Cisco_BGP_Peer,Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,cdp,cpu_cpm,cempMemBuffer,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,cbqos-in,cbqos-out,entityMib,entPhySensor,env-temp,ifStack,ifTable,mplsL3VpnIfConf,mplsL3VpnVrf,mplsVpnInterface,mplsVpnVrf,ospfNbr,powerStatus,powerSupply,ipCidrRoute'
   }
 );
