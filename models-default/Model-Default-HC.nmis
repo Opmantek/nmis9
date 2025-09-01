@@ -49,11 +49,14 @@
       },
       'IP-FORWARD' => {
         'common-model' => 'IP-FORWARD'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
       }
     }
   },
   'systemHealth' => {
-    'sections' => 'ipCidrRoute'
+    'sections' => 'ipCidrRoute,lldp'
   },
   'system' => {
     'nodegraph' => 'health,response,ip',

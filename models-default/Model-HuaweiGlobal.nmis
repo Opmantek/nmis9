@@ -37,6 +37,9 @@
       'Huawei-status' => {
         'common-model' => 'Huawei-status'
       },
+      'lldp' => {
+        'common-model' => 'lldp'
+      },
       'IP-FORWARD' => {
         'common-model' => 'IP-FORWARD'
       }
