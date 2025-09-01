@@ -46,8 +46,14 @@
       },
       'event' => {
         'common-model' => 'event'
+      },
+      'IP-FORWARD' => {
+        'common-model' => 'IP-FORWARD'
       }
     }
+  },
+  'systemHealth' => {
+    'sections' => 'ipCidrRoute'
   },
   'system' => {
     'nodegraph' => 'health,response,ip',
