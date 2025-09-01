@@ -9588,12 +9588,21 @@ sub interface_by_ifDescr
 sub check_datasets_for_node {
     my ($self, %args) = @_;
     my $node_name     = $args{node_name} or die "node_name is required";
-    my $datasets_want = $args{datasets};  # arrayref of dataset names
+    my $datasets = $args{datasets};  # arrayref of dataset names
 	
-    die "datasets must be an arrayref" unless ref $datasets_want eq 'ARRAY';
-
-	my $filter =
-   my $q = NMISNG::DB::get_query( and_part => {'node_name' => $node_name} );
+     # Normalize datasets: always an arrayref
+    my $datasets_want;
+    if (ref $datasets eq 'ARRAY') {
+        $datasets_want = $datasets;
+    }
+    elsif (defined $datasets) {
+        $datasets_want = [$datasets];   # wrap string into arrayref
+    }
+    else {
+        die "datasets is required (string or arrayref)";
+    }
+	
+	my $q = NMISNG::DB::get_query( and_part => {'node_name' => $node_name} );
 
     # Get all docs for this node
 	my $cursor = NMISNG::DB::find(
@@ -9643,6 +9652,7 @@ sub get_rrd_paths_by_tag {
 		{
 			'$project' => {
 			'node_name'    => 1,
+			'data.index'    => 1,
 			'storage'    => 1,
 			'_id'      => 0,
 				'dataset_tags' => {
@@ -9665,7 +9675,34 @@ sub get_rrd_paths_by_tag {
 	return (undef, $error) if ($error);
 	#print "entries=".Dumper($entries);
 
-	return $entries;
+	
+	my %rec;
+     foreach my $doc (@$entries) {
+        my $node_name   = $doc->{node_name};
+        my $idx = $doc->{data}{index};
+
+        # loop through dataset_tags
+        for my $dtag (@{ $doc->{dataset_tags} || [] }) {
+            my $dataset_name = $dtag->{dataset_name};
+            my $tags         = $dtag->{tags} || [];
+			my $storage_rrd   = $doc->{storage}{$dataset_name}{rrd};
+			
+
+            # only include if the tag matches
+            if (grep { $_ eq $tag } @$tags) {
+				if ($idx){
+					$rec{$node_name}{$dataset_name}{$idx} = $storage_rrd;
+				}
+				else{
+					$rec{$node_name}{$dataset_name} = $storage_rrd;
+				}
+                
+            }
+			
+        }
+    }
+	#print "rec=".Dumper(%rec);
+    return \%rec;   # return hashref
 
 }
 
