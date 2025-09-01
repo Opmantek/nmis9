@@ -9585,6 +9585,42 @@ sub interface_by_ifDescr
 	return $interface_inventory;
 }
 
+sub check_datasets_for_node {
+    my ($self, %args) = @_;
+    my $node_name     = $args{node_name} or die "node_name is required";
+    my $datasets_want = $args{datasets};  # arrayref of dataset names
+	
+    die "datasets must be an arrayref" unless ref $datasets_want eq 'ARRAY';
+
+	my $filter =
+   my $q = NMISNG::DB::get_query( and_part => {'node_name' => $node_name} );
+
+    # Get all docs for this node
+	my $cursor = NMISNG::DB::find(
+		collection => $self->nmisng->inventory_collection,
+		query       => $q,
+	);
+	
+    my @all = $cursor->all; 
+
+    my %found;
+
+    foreach my $doc (@all) {
+        for my $dtag (@{ $doc->{dataset_tags} || [] }) {
+			#print "dtag: ".Dumper($dtag);
+            my $dataset_name = $dtag->{dataset_name};
+           	my $tags         = $dtag->{tags} || [];
+			#print "tags: ".Dumper($tags);
+			# Check if any tag matches
+			if (grep { my $t = $_; grep { $_ eq $t } @{$datasets_want} } @$tags) {
+				$found{$dataset_name} = 1;
+			}
+        }
+    }
+
+    return \%found;  # keys = datasets with the given tag
+}
+
 
 sub get_rrd_paths_by_tag {
   	my ($self, %args) = @_;
@@ -9596,16 +9632,6 @@ sub get_rrd_paths_by_tag {
 	# $self->nmisng->log->fatal("Node::get_rrd_paths_by_tag Tag is required") if(!defined $tag);
 	# return;
 
-	
-	# my $q = NMISNG::DB::get_query( and_part => {"node_name" => $node_name, "dataset_tags.tags" =>  $tag }
-    # );
-	
-
-	# my $cursor = NMISNG::DB::find(
-	# 	collection  => $self->nmisng->inventory_collection,
-	# 	query       => $q,
-	# 	fields_hash => { "node_name" => 1,  "storage" => 1, "dataset_tags"=> 1}
-	# );
 
 	my @prepipeline = (
 		{
@@ -9637,15 +9663,9 @@ sub get_rrd_paths_by_tag {
 	);
 
 	return (undef, $error) if ($error);
-	print "entries=".Dumper($entries);
+	#print "entries=".Dumper($entries);
 
 	return $entries;
-
-	# foreach my $entry (@$entries)
-	# {
-	# 	push @$retval, $entry->{_id}{concept};
-	# }
-	# return ($retval, undef);
 
 }
 

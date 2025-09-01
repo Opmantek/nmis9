@@ -123,6 +123,15 @@ elsif ($Q->{act} =~ /^inventory/)
 	my $result = testinventory(node => $node);
 	exit 0;
 }
+elsif ($Q->{act} =~ /^checkinventorydatasets/)
+{
+	my $node = $Q->{node};
+	my $datasets = $Q->{datasets};
+	#print $datasets;
+    die "Need a node to run " if (!$node);
+	my $result = checkinventorydatasets(node => $node, datasets => $datasets);
+	exit 0;
+}
 elsif ($Q->{act} =~ /^tags/)
 {
 	my $node = $Q->{node};
@@ -482,6 +491,44 @@ sub testinventory
     }
 }
 
+sub checkinventorydatasets
+{
+	my %args = @_;
+	my $node = $args{node};
+	my $datasets = $args{datasets};
+	my $debug = $args{debug};
+
+	# Parse datasets array
+	my @datasets = split /,/, $args{datasets};
+	
+	die "No datasets provided\n"  unless @datasets;
+	print "==============================================\n";
+    print "==============   checkinventorydatasets ==========\n";
+    print "==============================================\n";
+
+	my $config = NMISNG::Util::loadConfTable( dir => undef, debug => undef, info => undef);
+    
+    # use debug, or info arg, or configured log_level
+    my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $debug, info => $args{info}), path  => undef ); 
+    my $nmisng = NMISNG->new(config => $config, log  => $logger);
+    
+    if ( defined $node ) {
+		my $nodeobj = $nmisng->node(name => $node);
+
+		print "====================\$node =$node --- ==========================\n";
+		print "====================\@datasets =".Dumper(@datasets)."--- ==========================\n";
+		if (defined $node){
+			my $result = $nodeobj->check_datasets_for_node(node_name => $node, datasets => \@datasets);
+			print "result=".Dumper($result);
+		}
+		
+    }
+    else {
+        print "Error, need a node to run: node=NODENAME \n";
+        return 0;
+    }
+	
+}
 sub testinventorytags
 {
     my %args = @_;
