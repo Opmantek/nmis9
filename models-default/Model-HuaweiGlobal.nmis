@@ -36,6 +36,9 @@
       },
       'Huawei-status' => {
         'common-model' => 'Huawei-status'
+      },
+      'IP-FORWARD' => {
+        'common-model' => 'IP-FORWARD'
       }
     },
   },
@@ -433,7 +436,7 @@
   },
   'systemHealth' => {
     'sections' =>
-    'QualityOfServiceStat,hwL2Vlan,bgpPeer,hwMemoryDevSize,hwCpuDev,dot1qPvid,addressTable,entityMib,ifStack,ifTable,standard,temp,CBQoSPolicyClass,CBQoSApplyPolicy,CBQoSIfClass,CBQoSIfCar,hwFanStatus,hwEntityState,hwPwrStatus,nqaJitterStats,HealthEvent,DiskPartition,networkDescription,cpuProperty,memoryProperty,hardDisk,temperature,powerStatistic,powerManagement',
+    'QualityOfServiceStat,hwL2Vlan,bgpPeer,hwMemoryDevSize,hwCpuDev,dot1qPvid,addressTable,entityMib,ifStack,ifTable,standard,temp,CBQoSPolicyClass,CBQoSApplyPolicy,CBQoSIfClass,CBQoSIfCar,hwFanStatus,hwEntityState,hwPwrStatus,nqaJitterStats,HealthEvent,DiskPartition,networkDescription,cpuProperty,memoryProperty,hardDisk,temperature,powerStatistic,powerManagement,ipCidrRoute',
     #hwRUModuleInfo,nqaAdminCtrl
 
     'sys' => {
