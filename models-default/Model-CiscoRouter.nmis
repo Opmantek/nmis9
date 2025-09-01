@@ -90,6 +90,9 @@
       'Cisco-power' => {
         'common-model' => 'Cisco-power'
       },
+      'IP-FORWARD' => {
+        'common-model' => 'IP-FORWARD'
+      }
     }
   },
   'system' => {
@@ -618,6 +621,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,NetFlowInterfaces,IPSLA-Echo-RTT,IPSLA-ICMP-Jitter-RTT,IPSLA-Jitter-RTT,cpu_cpm,cempMemPool,Memory-cpm,ciscoMemoryPool,cempMemBuffer,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'Cisco_CBQoS,NetFlowInterfaces,IPSLA-Echo-RTT,IPSLA-ICMP-Jitter-RTT,IPSLA-Jitter-RTT,cpu_cpm,cempMemPool,Memory-cpm,ciscoMemoryPool,cempMemBuffer,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity,ipCidrRoute',
   }
 );
