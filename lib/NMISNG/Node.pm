@@ -9588,9 +9588,9 @@ sub interface_by_ifDescr
 sub check_datasets_for_node {
     my ($self, %args) = @_;
     my $node_name     = $args{node_name} or die "node_name is required";
-    my $datasets = $args{datasets};  # arrayref of dataset names
+    my $datasets = $args{datasets};  # arrayref/string of dataset names
 	
-     # Normalize datasets: always an arrayref
+    # Normalize datasets can be arrayref or string
     my $datasets_want;
     if (ref $datasets eq 'ARRAY') {
         $datasets_want = $datasets;
@@ -9604,7 +9604,7 @@ sub check_datasets_for_node {
 	
 	my $q = NMISNG::DB::get_query( and_part => {'node_name' => $node_name} );
 
-    # Get all docs for this node
+    # Get all records for this node
 	my $cursor = NMISNG::DB::find(
 		collection => $self->nmisng->inventory_collection,
 		query       => $q,
@@ -9614,8 +9614,8 @@ sub check_datasets_for_node {
 
     my %found;
 
-    foreach my $doc (@all) {
-        for my $dtag (@{ $doc->{dataset_tags} || [] }) {
+    foreach my $rec (@all) {
+        for my $dtag (@{ $rec->{dataset_tags} || [] }) {
 			#print "dtag: ".Dumper($dtag);
             my $dataset_name = $dtag->{dataset_name};
            	my $tags         = $dtag->{tags} || [];
@@ -9637,7 +9637,7 @@ sub get_rrd_paths_by_tag {
 	$node_name =~ s/^\s+|\s+$//g;
     my $tag = $args{tag};
 	$tag =~ s/^\s+|\s+$//g;
-	print "===================get_rrd_paths_by_tag node_name = $node_name ---- tag =$tag ==========================\n";
+	#print "===================get_rrd_paths_by_tag node_name = $node_name ---- tag =$tag ==========================\n";
 	# $self->nmisng->log->fatal("Node::get_rrd_paths_by_tag Tag is required") if(!defined $tag);
 	# return;
 
@@ -9674,18 +9674,17 @@ sub get_rrd_paths_by_tag {
 
 	return (undef, $error) if ($error);
 	#print "entries=".Dumper($entries);
-
 	
 	my %rec;
-     foreach my $doc (@$entries) {
-        my $node_name   = $doc->{node_name};
-        my $idx = $doc->{data}{index};
+     foreach my $rec (@$entries) {
+        my $node_name   = $rec->{node_name};
+        my $idx = $rec->{data}{index};
 
         # loop through dataset_tags
-        for my $dtag (@{ $doc->{dataset_tags} || [] }) {
+        for my $dtag (@{ $rec->{dataset_tags} || [] }) {
             my $dataset_name = $dtag->{dataset_name};
             my $tags         = $dtag->{tags} || [];
-			my $storage_rrd   = $doc->{storage}{$dataset_name}{rrd};
+			my $storage_rrd   = $rec->{storage}{$dataset_name}{rrd};
 			
 
             # only include if the tag matches
@@ -9696,9 +9695,7 @@ sub get_rrd_paths_by_tag {
 				else{
 					$rec{$node_name}{$dataset_name} = $storage_rrd;
 				}
-                
             }
-			
         }
     }
 	#print "rec=".Dumper(%rec);
