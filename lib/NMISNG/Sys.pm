@@ -98,6 +98,7 @@ sub new
 sub mdl       { my $self = shift; return $self->{mdl} };                   # my $M = $S->mdl
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
+sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!
 # it also contains ONLY the nmisng::node's configuration(), not uuid/cluster_id/name/activated()!
