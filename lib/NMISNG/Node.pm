@@ -9585,21 +9585,21 @@ sub interface_by_ifDescr
 	return $interface_inventory;
 }
 
-sub check_datasets_for_node {
+sub check_datasets_tags_for_node {
     my ($self, %args) = @_;
     my $node_name     = $args{node_name} or die "node_name is required";
-    my $datasets = $args{datasets};  # arrayref/string of dataset names
+    my $datasets_tags = $args{datasets_tags};  # arrayref/string of dataset names
 	
-    # Normalize datasets can be arrayref or string
-    my $datasets_want;
-    if (ref $datasets eq 'ARRAY') {
-        $datasets_want = $datasets;
+    # Normalize datasets_tags can be arrayref or string
+    my $datasets_tags_want;
+    if (ref $datasets_tags eq 'ARRAY') {
+        $datasets_tags_want = $datasets_tags;
     }
-    elsif (defined $datasets) {
-        $datasets_want = [$datasets];   # wrap string into arrayref
+    elsif (defined $datasets_tags) {
+        $datasets_tags_want = [$datasets_tags];   # wrap string into arrayref
     }
     else {
-        die "datasets is required (string or arrayref)";
+        die "datasets_tags is required (string or arrayref)";
     }
 	
 	my $q = NMISNG::DB::get_query( and_part => {'node_name' => $node_name} );
@@ -9621,7 +9621,7 @@ sub check_datasets_for_node {
            	my $tags         = $dtag->{tags} || [];
 			#print "tags: ".Dumper($tags);
 			# Check if any tag matches
-			if (grep { my $t = $_; grep { $_ eq $t } @{$datasets_want} } @$tags) {
+			if (grep { my $t = $_; grep { $_ eq $t } @{$datasets_tags_want} } @$tags) {
 				$found{$dataset_name} = 1;
 			}
         }
@@ -9654,6 +9654,7 @@ sub get_rrd_paths_by_tag {
 			'node_name'    => 1,
 			'data.index'    => 1,
 			'storage'    => 1,
+			'dataset_info.subconcept' => 1,
 			'_id'      => 0,
 				'dataset_tags' => {
 					'$filter' => {
@@ -9677,23 +9678,26 @@ sub get_rrd_paths_by_tag {
 	
 	my %rec;
      foreach my $rec (@$entries) {
+		#print "\$rec = ".Dumper($rec)."\n";
         my $node_name   = $rec->{node_name};
         my $idx = $rec->{data}{index};
+		my $subconcept = $rec->{dataset_info}[0]{subconcept};
 
         # loop through dataset_tags
         for my $dtag (@{ $rec->{dataset_tags} || [] }) {
             my $dataset_name = $dtag->{dataset_name};
+			
             my $tags         = $dtag->{tags} || [];
-			my $storage_rrd   = $rec->{storage}{$dataset_name}{rrd};
+			my $storage_rrd   = $rec->{storage}{$subconcept}{rrd};
 			
 
             # only include if the tag matches
             if (grep { $_ eq $tag } @$tags) {
 				if ($idx){
-					$rec{$node_name}{$dataset_name}{$idx} = $storage_rrd;
+					$rec{$node_name}{$subconcept}{$idx} = $storage_rrd;
 				}
 				else{
-					$rec{$node_name}{$dataset_name} = $storage_rrd;
+					$rec{$node_name}{$subconcept} = $storage_rrd;
 				}
             }
         }
