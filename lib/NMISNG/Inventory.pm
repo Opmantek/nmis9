@@ -452,7 +452,7 @@ sub new
 				_datasets => {},
 				(   map { ( "_$_" => $args{$_} ) } (
 							qw(concept node_uuid cluster_id data id nmisng
-						path path_keys storage subconcepts description
+						path path_keys storage subconcepts description model_class protocol
             lastupdate expire_at)
 						)
 				)
@@ -814,6 +814,13 @@ sub historic
 	return $self->{_historic};
 }
 
+# RO, returns class of this Inventory
+sub model_class
+{
+	my ($self) = @_;
+	return $self->{_model_class};
+}
+
 # RO, returns nmisng object that this inventory object is using
 sub nmisng
 {
@@ -826,6 +833,13 @@ sub node_uuid
 {
 	my ($self) = @_;
 	return $self->{_node_uuid};
+}
+
+# RO, returns class of this Inventory
+sub protocol
+{
+	my ($self) = @_;
+	return $self->{_protocol};
 }
 
 # RO, returns when this document should expire
@@ -1395,6 +1409,17 @@ sub path
 	}
 }
 
+sub update_tags
+{
+	my ($self,%args) = @_;
+	my $SYS = $args{SYS};
+	return if(!$SYS);
+	return if($SYS->initialised != 1);
+
+	my $model_section = $self->model_section;
+
+}
+
 # save the inventory obj in the database, if this thing thinks it's new do an upsert
 #  using the path to make sure we don't create duplicates, this will clobber whatever
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
@@ -1437,6 +1462,11 @@ sub save
 	}
 	my ($name, $group);
 	
+	# update tags from model, only on update
+	if( $update ) {
+		$self->update_tags();
+	}
+
 	# for now configuration is special, it's not accessible outside the class
 	my $configuration = $self->{_configuration};
 	if (ref($node) eq "NMISNG::Node")
@@ -1466,6 +1496,7 @@ sub save
 		node_uuid  => $self->node_uuid,
 		node_name  => $name,
 		configuration => $configuration,
+		class 		=> $self->class,
 		concept    => $self->concept(),
 		path       => $self->path(),         # path is calculated but must be stored so it can be queried
 		path_keys  => $self->path_keys(),    # could be empty, kept in db for selfcontainment and convenience
