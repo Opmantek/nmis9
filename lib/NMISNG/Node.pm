@@ -9639,11 +9639,11 @@ sub check_datasets_tags_for_node {
 	my ($self, %args) = @_; my $node_name = $args{node_name} or die "node_name is required"; 
 	my $datasets_tags = $args{datasets_tags}; # Normalize tags to arrayref 
 	my $tags_want = ref $datasets_tags eq 'ARRAY' ? $datasets_tags : defined $datasets_tags ? [$datasets_tags] : die "datasets_tags is required";
-	 # Query DB 
-	 my $q = NMISNG::DB::get_query( and_part => { node_name => $node_name, 'dataset_tags.tags' => { '$in' => $tags_want } } ); 
-	 my $cursor = NMISNG::DB::find( collection => $self->nmisng->inventory_collection, query => $q, ); 
-	 my %found; 
-	 while (my $rec = $cursor->next) { 
+	# Query DB 
+	my $q = NMISNG::DB::get_query( and_part => { node_name => $node_name, 'dataset_tags.tags' => { '$in' => $tags_want } } ); 
+	my $cursor = NMISNG::DB::find( collection => $self->nmisng->inventory_collection, query => $q, ); 
+	my %found; 
+	while (my $rec = $cursor->next) { 
 		# map dataset to subconcept 
 		my %map; 
 		for my $info (@{ $rec->{dataset_info} }) { 
@@ -9660,7 +9660,7 @@ sub check_datasets_tags_for_node {
 	return \%found; 
 }
 
-## TODO NEED TO CHANGE IT FOR NODEHEALTH SUBCONCEPT RRD's coming wrong
+
 sub get_rrd_paths_by_tag {
   	my ($self, %args) = @_;
 	my $node_name = $args{node_name};
@@ -9685,7 +9685,7 @@ sub get_rrd_paths_by_tag {
 	else {
 		die "tags is required (string or arrayref)";
 	}
-	print "tags_ref = ".Dumper($tags_ref)."\n";
+	#print "tags_ref = ".Dumper($tags_ref)."\n";
 
 	my @prepipeline = (
 		{
@@ -9699,7 +9699,7 @@ sub get_rrd_paths_by_tag {
 				'node_name'    => 1,
 				'data.index'    => 1,
 				'storage'    => 1,
-				'dataset_info.subconcept' => 1,
+				'dataset_info' => 1,
 				'_id'      => 0,
 					'dataset_tags' => {
 						'$filter' => {
@@ -9711,6 +9711,7 @@ sub get_rrd_paths_by_tag {
 				}
 			}
 	);
+	
 
 
 	my ($entries,$count,$error) =  NMISNG::DB::aggregate(
@@ -9722,31 +9723,64 @@ sub get_rrd_paths_by_tag {
 	#print "entries=".Dumper($entries);
 	
 	my %rec;
-	foreach my $rec (@$entries) {
-		my $node_name   = $rec->{node_name};
-		my $idx         = $rec->{data}{index};
-		
-		my $subconcept;
-		my %map; 
-		for my $info (@{ $rec->{dataset_info} }) { 
-			$subconcept = $info->{subconcept}; $map{$_} = $subconcept for @{ $info->{datasets}}; 
-		} 
+	
+	my %wanted_tags = map { $_ => 1 } @$tags_ref;
 
-		for my $dtag (@{ $rec->{dataset_tags} || [] }) {
-			my $dataset_name   = $dtag->{dataset_name};
-			my $tags_from_db   = $dtag->{tags} || [];
-			my $storage_rrd    = $rec->{storage}{$subconcept}{rrd};
+	for my $doc (@$entries) {
+		my $node_name = $doc->{node_name};
+		print "Node: $node_name\n";
 
-			# Only include if **any tag matches**
-			if (grep { my $t = $_; grep { $_ eq $t } @$tags_ref } @$tags_from_db) {
-				if ($idx) {
-					$rec{$node_name}{$subconcept}{$idx} = $storage_rrd;
-				} else {
-					$rec{$node_name}{$subconcept} = $storage_rrd;
-				}
+		my $idx;
+		$idx = $doc->{data}{index} if exists $doc->{data} && exists $doc->{data}{index};
+
+		# collect wanted datasets
+		my %wanted_datasets;
+		for my $dt (@{$doc->{dataset_tags}}) {
+			print "  Checking dataset_tag: $dt->{dataset_name} tags=@{$dt->{tags}}\n";
+			if (grep { $wanted_tags{$_} } @{$dt->{tags}}) {
+				$wanted_datasets{$dt->{dataset_name}} = 1;
+				print "    -> MATCH: $dt->{dataset_name}\n";
+			}
+		}
+
+		# if nothing matched, show it
+		unless (%wanted_datasets) {
+			print "  No matching datasets for tags: @$tags_ref\n";
+		}
+
+		# scan dataset_info
+		for my $sc (@{$doc->{dataset_info}}) {
+			my $subconcept = $sc->{subconcept};
+			my @matches = grep { $wanted_datasets{$_} } @{$sc->{datasets}};
+
+			if (@matches) {
+				print "  Subconcept $subconcept has matching datasets: @matches\n";
+			}
+
+			next unless @matches;
+
+			# storage path
+			my $storage_rrd;
+			if (exists $doc->{storage}{$subconcept}) {
+				$storage_rrd = $doc->{storage}{$subconcept}{rrd};
+				print "    Storage found: $storage_rrd\n";
+			} else {
+				print "    No storage for $subconcept\n";
+			}
+			next unless $storage_rrd;
+
+			# fill rec
+			if (defined $idx) {
+				$rec{$node_name}{$subconcept}{$idx} = $storage_rrd;
+			} else {
+				$rec{$node_name}{$subconcept} = $storage_rrd;
 			}
 		}
 	}
+
+
+
+
 	#print "rec=".Dumper(%rec);
     return \%rec;   # return hashref
 
