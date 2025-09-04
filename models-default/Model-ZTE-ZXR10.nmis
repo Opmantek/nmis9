@@ -238,7 +238,7 @@
                 'indexed' => 'zxAnSrvPortConfEntry',
                 'index_regex' => '\.1\.\d+\.(\d+.\d+)$',
                 'index_oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1',
-                'headers' => 'index,zxAnSubIfIndex,zxAnSrvPortResRack,zxAnSrvPortResShelf,zxAnSrvPortResSlot,zxAnSrvPortResPort,zxAnSrvPortDesc,zxAnSrvPortUserVid,zxAnSrvPortUserSVid,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortCVid,zxAnSrvPortSVid,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
+                'headers' => 'index,zxAnSubIfIndex,zxAnSrvPortResRack,zxAnSrvPortResShelf,zxAnSrvPortResSlot,zxAnSrvPortResPort,zxAnSrvPortDesc,zxAnSrvPortUserVid,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortCVid,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
                     'snmp' => {    
                        'zxAnSubIfIndex'   =>  {
                             'oid' => '1.3.6.1.4.1.3902.1082.30.5.5.1.1.2',
@@ -762,7 +762,7 @@
                 'indexed' => 'zxAnSrvPortConfEntry',
                 'index_regex' => '\.110\.\d+\.\d+\.\d+\.\d+\.\d+\.(\d+.\d+)$',
                 'index_oid' => '1.3.6.1.4.1.3902.1082.110.5.2.2.1',
-                 'headers' => 'index,zxAnSubIfIndex,zxAnSrvPortResRack,zxAnSrvPortResShelf,zxAnSrvPortResSlot,zxAnSrvPortResPort,zxAnSrvPortUserSVid,zxAnSrvPortCurrStatsVportId,zxAnSrvPortDesc,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
+                 'headers' => 'index,zxAnSubIfIndex,zxAnSrvPortResRack,zxAnSrvPortResShelf,zxAnSrvPortResSlot,zxAnSrvPortResPort,zxAnSrvPortDesc,zxAnSrvPortAdminStatus,zxAnSrvPortRowStatus,zxAnSrvPortEgressTrafficPrf,zxAnSrvPortIngressTrafficPrf',
                     'snmp' => {
                         'index' => {
                             'title' => 'ServicePortIndex',
