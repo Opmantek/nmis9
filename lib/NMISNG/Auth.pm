@@ -766,13 +766,18 @@ sub _novell_ldap_verify {
 	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
 		if( $self->{config}->{'auth_ldap_attr'} );
 
-	# TODO: Implement non-anonymous bind
 
-	$msg = $ldap->bind; # Anonymous bind
-	if ($msg->is_error) {
-		NMISNG::Util::logAuth2("can't search LDAP (anonymous bind), need binddn which is uninplemented","TODO");
-		NMISNG::Util::logAuth2("LDAP anonymous bind failed","ERROR");
-		return 0;
+	# now bind to the server and then check for an error if anonymous bind is enabled
+	# this seems to just be a general connectivity check, anonymous bind is disabled
+	# on many servers so this may not be useful, error: "anonymous bind disallowed"
+	my $ldap_anonymous_bind = $self->{config}->{ldap_anonymous_bind} // 0;
+	if( $ldap_anonymous_bind ) {
+		$msg = $ldap->bind; # Anonymous bind
+		if ($msg->is_error) {
+			NMISNG::Util::logAuth2("can't search LDAP (anonymous bind), need binddn which is uninplemented","TODO");
+			NMISNG::Util::logAuth2("LDAP anonymous bind failed","ERROR");
+			return 0;
+		}
 	}
 
 	foreach $context ( split ":", $self->{config}->{'auth_ldap_base'}  ) {
@@ -1306,23 +1311,37 @@ sub _tacacs_verify {
 		NMISNG::Util::logAuth("ERROR, no Authen::TacacsPlus installed");
 		return 0;
 	} # no Authen::TacacsPlus installed
-
+	# fetch the tacacs primary and secondary server details.
 	my ($host,$port) = split(/:/,$self->{config}->{auth_tacacs_server});
+	my ($host_secondary,$port_secondary) = split(/:/,$self->{config}->{auth_tacacs_server_secondary});
+	$port = 49 if $port eq "";
+	$port_secondary = 49 if $port_secondary eq "";
+	
 	if ($host eq "") {
 		NMISNG::Util::logAuth("ERROR, no tacacs server address specified in configuration of NMIS");
 	} elsif ($self->{config}->{auth_tacacs_secret} eq "") {
 		NMISNG::Util::logAuth("ERROR, no tacacs secret specified in configuration of NMIS");
 	} else {
-		$port = 49 if $port eq "";
-		my $tacacs = new Authen::TacacsPlus(
-			Host => $host,
-			Key => $self->{config}->{auth_tacacs_secret},
-		);
-		if ( $tacacs->authen($user,$pswd)) {
-			$tacacs->close();
-			return 1;
+		my $tacacs;
+		if ($host_secondary ne ""){
+			$tacacs = new Authen::TacacsPlus(
+				[ Host => $host, Key => $self->{config}->{auth_tacacs_secret}, Port => $port ],
+				[ Host => $host_secondary, Key => $self->{config}->{auth_tacacs_secret_secondary}, Port => $port_secondary ]
+			);
 		}
-		$tacacs->close();
+		else {
+			$tacacs = new Authen::TacacsPlus(
+				[ Host => $host, Key => $self->{config}->{auth_tacacs_secret}, Port => $port ],
+			);
+		}
+				
+		if (defined $tacacs){
+			if ( $tacacs->authen($user,$pswd)) {
+				$tacacs->close();
+				return 1;
+			}
+			$tacacs->close();
+		}		
 	}
 	return 0;
 }

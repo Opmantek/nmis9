@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.5.2";
+our $VERSION = "9.6.2";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -82,6 +82,11 @@ option confdir=<path>:      Path to configuration files.
 option debug=<[0|t]/[1|f]>: Print extra debug information.
 option foreground=<t|1>:    Stay in the foreground, don't daemonize.
 option max_workers=<N>:     Overrides the configuration.
+
+option singleprocess=<t|1>:
+	# foreground 1, singleprocess 0: supervisor stays in FG but workers are created
+	# foreground 1, singleprocess 1: only supervisor process and nothing else
+	# singleprocess is ignored if foreground is 0.
 \n\n";
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-(h|\?||u|-usage|-help)$/);
@@ -465,6 +470,10 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 my $nmisng = Compat::NMIS::new_nmisng(config => $config, log => $logger);
 my $tc_list = $nmisng->timed_collections_list();
 $nmisng->existing_timed_collections($tc_list);
+# before anything starts up clear any jobs that were active
+# they end up sitting there until their timeout period when
+# and nmisd wasn't running before this so they cant be active
+$nmisng->clear_active_queue();
 
 &NMISNG::rrdfunc::require_RRDs;
 
@@ -991,10 +1000,10 @@ while (!$exit_marker)
 selftest perms backup purge cleanup esc thresholds metrics postupdate postcollect delete_nodes update_nodes create_nodes set_nodes unset_nodes
 )))
 		{
-			# no occurrences of op X -> count must be zero, not undefined.
+			# no occurrences of op X -> count must be zero, not undefined. (time as well)
 			# undefined is ok for cumulative time values, because
 			# we want rrdtool to compute max and avgs for times when such data is available
-			$statsdata{$ds} = { option => "gauge,0:U", value => $ds =~ /count$/? 0 : 'U' };
+			$statsdata{$ds} = { option => "gauge,0:U", value => $ds =~ /count$|time$/? 0 : 'U' };
 		}
 		for my $ds (qw(procs queuedjobs activejobs overduejobs))
 		{
@@ -1301,6 +1310,9 @@ sub worker_loop
 	my $config = $nmisng->config;
 	my $ttl = $max_cycles;
 	my $parent = getppid;
+
+	my $can_log_capture = ( $nmisng->log->can("capture") ne '');
+	my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 0);
 
 	while (!$$mustdie and (!defined($ttl) or $ttl))
 	{
@@ -2318,11 +2330,13 @@ sub worker_loop
 																									output => $ourjob->{output}},
 							);
 					$nmisng->log->error("Failed to save opstatus: $error") if ($error);
-
+					# start capturing log output to save into opstatus, make sure object can do it 
+					my $capture;
+					$capture = $nmisng->log->capture_and_log() if( $can_log_capture & $opstatus_save_logs );
 					$nmisng->log->info("Starting $methodname for node $nodeuuid (".$thenode->name.")");
 					my $result = $thenode->$methodname(@methodargs);
 					alarm(0) if ($maxruntime);
-					$nmisng->log->debug2("Finished $methodname for node $nodeuuid (".$thenode->name.")");
+					$nmisng->log->info("Finished $methodname for node $nodeuuid (".$thenode->name.")");
 
 					$nmisng->log->debug(sprintf("$methodname for node $nodeuuid (%s) took %.1fs",
 																			$thenode->name, (Time::HiRes::time - $state->{stats}->{time})));
@@ -2330,6 +2344,10 @@ sub worker_loop
 					# locked is not-quite an error, so we report it as informational
 					$state->{status} = $result->{success}? "ok": $result->{locked}? "info" : "error";
 					$state->{details} = $result->{success}? "completed successfully (".$thenode->name.")" : "failed: $result->{error}";
+					if( $can_log_capture && $opstatus_save_logs && $capture ) {
+						$state->{logs} = join("",@$capture);
+						undef $capture;
+					}
 				}
 				else
 				{
@@ -2354,6 +2372,7 @@ sub worker_loop
 															 type => "exception",
 															 details => $state->{exception},
 															 stats => undef,
+															 logs => $state->{logs},
 															 context => $state->{context});
 			}
 			else
@@ -2366,6 +2385,7 @@ sub worker_loop
 																										status => $state->{status},
 																										details => $state->{details},
 																										stats => $state->{stats},
+																										logs => $state->{logs},
 																										context => $state->{context},
 															 );
 				$nmisng->log->error("Failed to save opstatus: $error") if ($error);
@@ -2577,7 +2597,7 @@ sub fping_loop
 			if (exists($multihomed{$thisstate->{uuid}})) # temporary property is present for both
 			{
 				$thisstate->{has_sibling} = $thisstate->{uuid};
-				$thisstate->{is_primary} = $statekey =~ /:0$/?1:0;
+				$thisstate->{is_primary} = $statekey =~ /:0$/ ?1:0;
 			}
 
 			$thisstate->{ip_protocol} = $noderec->{configuration}->{ip_protocol};
@@ -2628,14 +2648,26 @@ sub fping_loop
 
 		# third: ping the ones in need, in chunks if necessary
 		my @thistime = @todos;				# todos is consumed
-		while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
+		my $allChunks;
+		
+		if ( NMISNG::Util::getbool($config->{run_polling_group_chunks})){
+			$allChunks = $nmisng->get_polling_group_chunks(\@todos);
+		}
+		else{
+			my @todos_copy1 = @todos; # Create a copy to preserve original @todos
+			while (my @chunk = splice(@todos_copy1, 0, ($config->{fastping_node_poll} || 200))) {
+				push @{$allChunks}, \@chunk;
+			}
+		}
+		foreach my $chunk (@$allChunks)
+		# while (my @chunk = splice(@todos, 0, ($config->{fastping_node_poll} || 200)))
 		{
 			my %ip2staterec;
 			my @cmd4 = ($fpingpath4, @fpingargs);
 			my @cmd6 = ($fpingpath6, @fpingargs);
 			my ($hasip4, $hasip6);
 			
-			for my $statekey (@chunk)
+			for my $statekey (@$chunk)
 			{
 				my $thisip = $state{$statekey}->{ip};
 				if ($state{$statekey}->{ip_protocol} eq 'IPv6')
@@ -2751,8 +2783,14 @@ sub fping_loop
 			}
 			my $node = $nmisng->node(uuid => $uuid);
 
+			
+			# this shouldn't be possible but it's been seen
+			if( !$node ) {
+				$nmisng->log->error("fping could not load node with uuid:$uuid!");
+				next;
+			}
 			# no answers whatsoever? then complain, we don't know if up or down so can't really raise any events
-			if ($thisstate->{pending})
+			elsif ($thisstate->{pending})
 			{
 				$nmisng->log->error("fping has not reported any state for Node $thisstate->{name} ($thisstate->{ip})!");
 				next;

@@ -29,7 +29,7 @@
 package Compat::NMIS;
 use strict;
 
-our $VERSION = "9.5.2";
+our $VERSION = "9.6.2";
 
 use Time::ParseDate;
 use Time::Local;
@@ -1573,8 +1573,8 @@ sub createHrButtons
 			push @out, CGI::td({class=>'header litehead'},
 												 CGI::a({class=>'wht',href=>"network.pl?act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&cluster_id=$parent"},"storage"));
 		}
-		# this should potentially be querying for active/not-historic
-		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
+		# this should potentially be querying for active/not-historic, 		
+		$ids = $S->nmisng_node->get_inventory_ids( concept => 'snmp_services' );		
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if ( @$ids > 0 )
 		{
@@ -2244,6 +2244,17 @@ sub notify
 	# events.nmis controls which events are active/logging/notifying
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
+
+	# search for upevent that is not historic (no escalations run on it) event shouldn't exist
+    # if it does we get index issues. deleting it here means escalations will not be run
+    # on that up event, ok because it's going down now anyway, no reason to notify it
+	# this is only called when things are going down, validate with ~normal anyway
+	my $thisevent_up =  $events_config->{$event}->{CancelingEvent} // undef;
+	if( $thisevent_up && $thisevent_up ne 'N/A' && $level !~ /Normal/i ) {
+		my $eventobjUP = $S->nmisng_node->event( event => $thisevent_up, element => $element, historic => 0 ); # no search for active, really no active up events should exist
+		$eventobjUP->delete() if( $eventobjUP );
+	}
+
 
 	# create new event object with all properties, when load is called if it is found these will
 	# be overwritten by the existing properties

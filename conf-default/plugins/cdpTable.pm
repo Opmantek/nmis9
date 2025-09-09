@@ -158,8 +158,23 @@ sub update_plugin
 			$cdpdata->{cdpCacheDeviceId_id} = "node_view_$node_name";
 			$cdpdata->{cdpCacheDeviceId_url} = "$C->{network}?&act=network_node_view&node=$node_name";
 			$cdpdata->{cdpCacheDeviceId} = $node_name;
+			
 			# futureproofing so that opCharts can also use this linkage safely
 			$cdpdata->{node_uuid} = $node_uuid;
+			$cdpdata->{remote_node_uuid} = $node_uuid;
+			$cdpdata->{remote_node_name} = $node_name;
+			my $remote_node = $NG->node( uuid => $node_uuid );			
+			# find remote interface using cdpCacheDevicePort which is ifDescr
+			my $remote_path = $remote_node->inventory_path( concept => "interface", data => { ifDescr => $cdpdata->{cdpCacheDevicePort} }, path_keys => ['ifDescr'], partial => 1 );
+			my $remote_result = $remote_node->get_inventory_model( path => $remote_path, filter => { historic => 0 }, fields_hash => { 'path' => 1 } );
+			if( my $error = $remote_result->error ) {
+				$NG->log->error("Failed to get remote node inventory: $error");
+			} elsif( my $remote_inv = $remote_result->next_value ) {
+				$cdpdata->{remote_inventory_id} = $remote_inv->{_id}->hex();
+				$cdpdata->{remote_inventory_path} = $remote_inv->{path};
+			}			
+			# we don't have enough info to get the remote interface inventory here
+			# if we were searching the interface table for ip addresses we would (or if we had an ifIndex of ifDescr of the remote)
 			last;
 		}
 
@@ -178,7 +193,7 @@ sub update_plugin
 			my $path = $nmisng_node->inventory_path( concept => "interface", data => { index => $index }, path_keys => ['index'], partial => 1 );
 			# remove the cluster_id so we hit the index we want. i'm not sure why 0,1,2,3 isn't an index
 			$path->[0] = undef;
-			my $result = $nmisng_node->get_inventory_model( path => $path, filter => { historic => 0 }, fields_hash => { 'data.ifDescr' => 1 } );
+			my $result = $nmisng_node->get_inventory_model( path => $path, filter => { historic => 0 }, fields_hash => { 'path' => 1 } );
 			if (my $error = $result->error)
 			{
 				$NG->log->error("Failed to get inventory: $error");
@@ -186,12 +201,15 @@ sub update_plugin
 			}
 			my $data = $result->data();
 			$NG->log->warn("cdpTable found more than one interface for index:$index, node:$node") if( @$data > 1);
-			my $intf = $data->[0];
-			if ($intf && $intf->{ifDescr} ne '')
+			my $inventory = $data->[0];
+			my $ifDescr = $inventory->{path}[4]; #ifdescr is in the path
+			if ($ifDescr ne '')
 			{
-				$cdpdata->{ifDescr} = $intf->{ifDescr};
+				$cdpdata->{ifDescr} = $ifDescr;
 				$cdpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$index&node=$node";
 				$cdpdata->{ifDescr_id} = "node_view_$node";
+				$cdpdata->{local_inventory_id} = $inventory->{_id}->hex();
+				$cdpdata->{local_inventory_path} = $inventory->{path};
 			}
 		}
 

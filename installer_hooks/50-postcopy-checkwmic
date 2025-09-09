@@ -6,7 +6,7 @@ SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
 # check that the wmic we've shipped actually works on this platform
-WMICV=`$TARGETDIR/bin/wmic -V 2>&1`
+WMICV=`$TARGETDIR/bin/wmic -h 2>&1`
 if [ $? != 0 ]; then
 		printBanner "Precompiled WMIC failed to run!"
 		logmsg "Output of wmic test was: $WMICV"

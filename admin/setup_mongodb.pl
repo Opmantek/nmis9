@@ -97,7 +97,7 @@ server is running without authentication (which is unlikely) or has already
 been setup with a database user that has full administrative credentials.
 
 To configure MongoDB on a remote server please see the documentation at
-    https://community.opmantek.com/x/h4Aj\n\n";
+    https://docs.community.firstwave.com/wiki/x/d4Cmv\n\n";
 
 	input_ok("Hit enter to continue, Ctrl-C to abort: ");
 	print "\n";
@@ -437,7 +437,7 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 		{
 			# we need $osflavour for logrotate file config:
 			#
-			# this $osaflavour code copied from installer
+			# this $osflavour code copied from installer
 			my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos,$osisrocky);
 			if (-f "/etc/redhat-release")
 			{

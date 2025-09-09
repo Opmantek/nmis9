@@ -93,6 +93,7 @@ my %hash = (
 	'cache_summary_tables' => 'true',
 	'cache_var_tables' => 'true',
 	'cbqos_cm_collect_all' => 'true',
+	'collect_pingable_services' => 'false',
 	'default_authkey' => '',
 	'default_authpassword' => '',
 	'default_communityRO' => 'public',
@@ -153,6 +154,7 @@ my %hash = (
 	# To have additional fields in the node summary data.
 	'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 	'non_stateful_events' => 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded',
+	'opstatus_save_logs' => 1,
 	'os_cmd_file_decompress' => 'gzip -d -c',
 	'os_cmd_read_file_reverse' => 'tac',
 	'os_execperm' => '0770',
@@ -172,6 +174,7 @@ my %hash = (
 	'polling_interval_factor' => 0.95, # fraction of the polling interval after which node is considered for next poll
 	'postpone_clashing_schedule' => 30, # if positive, clashing jobs are retried N seconds later, otherwise clashing jobs are discarded
 	'report_files_max' => '60',
+	'run_polling_group_chunks' => 'false',
 	'response_time_threshold' => '500',
 	# To enable the logging of polling time to the NMIS log, will log every node every 5 minutes, set this to 1 or true
 	# Various selftest limits

@@ -22,7 +22,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
     perl-JSON-XS fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu* \
     perl-libwww-perl perl-WWW-Mechanize perl-Net-DNS perl-Digest-SHA \
     perl-DBI perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
-    perl-Proc-ProcessTable perl-Authen-SASL \
+    perl-Proc-ProcessTable perl-Authen-SASL perl-LDAP \
     perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP \
     perl-GD perl-SNMP_Session \
     rrdtool-perl perl-Test-Deep dialog \
@@ -109,20 +109,20 @@ fi;
 
 is_web_available && CANUSEWEB=1
 if [ "$CANUSEWEB" != 1 ]; then
-		cat <<EOF
+		cat <<-EOF
 
-Your system cannot access the web, therefore $MGR will not
-be able to download any missing software packages. If any
-such missing packages are detected and you don't have
-a local source of packages (e.g. an installation DVD) then the
-installation won't complete successfully.
+			Your system cannot access the web, therefore $MGR will not
+			be able to download any missing software packages. If any
+			such missing packages are detected and you don't have
+			a local source of packages (e.g. an installation DVD) then the
+			installation won't complete successfully.
 
-We recommend that you check our Wiki article on working around
-package installation without Internet access in that case:
+			We recommend that you check our Wiki article on working around
+			package installation with limited Internet access in that case:
 
-https://community.opmantek.com/x/boSG
+			    https://docs.community.firstwave.com/wiki/x/l4Cmv
 
-EOF
+		EOF
 		input_ok "Hit <Enter> when ready to continue: "
 fi
 
@@ -165,26 +165,40 @@ fi
 # check and get mongodb, returns 0 if ok, 1 or 2 otherwise
 # absolute min for nmis 9 is 3.4.0
 
-printBanner "Checking if mongoDB is installed..."
+printBanner "Checking if MongoDB is installed..."
 mongo_or_bust 3 4 0 || exit 1
 
 
-# rhel8 fails to install these using yum, but centos8 is able to install these using yum - restrict to rhel8 nand newer
+# rhel8 fails to install these using yum, but centos8 is able to install these using yum - restrict to rhel8 and newer
+#stop mongo here for rhel 9 so we can cpanm the driver, no need to start it again, setup_mongodb.pl will
+if [ "${OSFLAVOUR}" = "redhat" ]; then
+	if systemctl is-active --quiet mongod; then
+		systemctl stop mongod
+		if [ $? -eq 0 ]; then
+		echo "MongoDB stopped successfully"
+	else
+		echo "Failed to stop MongoDB"
+	exit 1
+		fi
+	fi
+fi
+
 if [ "${OSFLAVOUR}" = "redhat" ]; then
 	if [ "$OS_ISCENTOS" != 1 ] && [ "${OS_MAJOR}" -ge 8 ]; then
         if [ "$CANUSEWEB" = 1 ]; then
             printBanner "Some required packages need to be installed first!"
             echo "$PRODUCT requires the following packages to be installed first:";
             echo
-            echo "perl-CPAN perl-App-cpanminus using $MGR";
-            echo "Devel::GlobalDestruction::XS Proc::Queue";
-            echo "Net::SMTPS using CPANM"
+            echo "gcc perl-CPAN perl-App-cpanminus using $MGR";
+            echo "Devel::GlobalDestruction::XS Proc::Queue Net::SMTPS using CPANM"
             echo "The installer can download and install these packages.";
             if input_yn "Do you want to install these packages now?" "5af4"; then
                 REPO='';
                 NEEDREPO='';
+				install_package "gcc"||:;  #cpan packages below use this, fails without making sure this isn't installed
                 install_package "perl-CPAN"||:;
                 install_package "perl-App-cpanminus"||:;
+                install_package "perl-LWP-Protocol-https"||:;
                 if type cpanm >/dev/null; then
                     if [ -n "${UNATTENDED}" ]; then
                             PROMPT="";
@@ -193,12 +207,17 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
                     fi;
                     cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
                     cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-		    cpanm Net::SMTPS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Net::SMTPS --sudo "${PROMPT}" ||2>&1:; # can't use execprint as cpanm may be interactive
 
                     unset PROMPT;
                 fi;
                 unset REPO;
                 unset NEEDREPO;
+                ## check cpanm is working
+                if ! cpanm Net::SMTPS --sudo ; then 
+                    echolog "cpanm is not working"
+                    exit 1
+                fi
             fi;
         fi;
 	else # not RHEL8 - install from Package Manager
@@ -251,7 +270,7 @@ if ! check_missing_packages $PKGLIST; then
 		echo
 		echo "The installer can use $MGR to download and install these packages.";
 
-		if input_yn "Do you want to install these packages with $MGR now?" "7ce6"; then
+		if  [ "$CANUSEWEB" = 1 ] && input_yn "Do you want to install these packages with $MGR now?" "7ce6"; then
 
 				for pkg in $MISSING; do
 						if [ "$OSFLAVOUR" = "redhat" ]; then
@@ -313,16 +332,16 @@ if ! check_missing_packages $PKGLIST; then
 
 		else
 				echolog "Packages missing but installer was instructed to NOT install them."
-				cat <<EOF
+				cat <<-EOF
 
-$PRODUCT will not run without the following packages installed:
+					$PRODUCT will not run without the following packages installed:
 
-$MISSING
+					$MISSING
 
-You will have to resolve these
-dependencies manually before $PRODUCT will operate properly.
+					You will have to resolve these
+					dependencies manually before $PRODUCT will operate properly.
 
-EOF
+				EOF
 				input_ok "Hit <Enter> when ready to continue: "
 		fi
 fi

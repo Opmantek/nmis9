@@ -30,100 +30,100 @@
 # *****************************************************************************
 
 %hash = (
-  '-common-' => {
-    'class' => {
-      'database' => {
-        'common-model' => 'database'
-      },
-      'threshold' => {
-        'common-model' => 'threshold'
-      },
-      'summary' => {
-        'common-model' => 'summary'
-      },
-      'stats' => {
-        'common-model' => 'stats'
-      },
-      'event' => {
-        'common-model' => 'event'
-      },
-      'software' => {
-        'common-model' => 'software'
-      },
-      'interface' => {
-        'common-model' => 'Windows-interface'
-      },
-      'system' => {
-        'common-model' => 'Windows-system'
-      },
-      'alerts' => {
-        'common-model' => 'Windows-alerts'
-      },
-      'combinedCPUload' => {
-        'common-model' => 'combinedCPUload'
-      },
-      'wmi' => {
-        'common-model' => 'Windows-wmi'
-      }
-    }
-  },
+	'-common-' => {
+		'class' => {
+			'database' => {
+				'common-model' => 'database'
+			},
+			'threshold' => {
+				'common-model' => 'threshold'
+			},
+			'summary' => {
+				'common-model' => 'summary'
+			},
+			'stats' => {
+				'common-model' => 'stats'
+			},
+			'event' => {
+				'common-model' => 'event'
+			},
+			'software' => {
+				'common-model' => 'software'
+			},
+			'interface' => {
+				'common-model' => 'Windows-interface'
+			},
+			'system' => {
+				'common-model' => 'Windows-system'
+			},
+			'alerts' => {
+				'common-model' => 'Windows-alerts'
+			},
+			'combinedCPUload' => {
+				'common-model' => 'combinedCPUload'
+			},
+			'wmi' => {
+				'common-model' => 'Windows-wmi_v1'
+			}
+		}
+	},
 	'systemHealth' => {
-		'sections' => 'WindowsPagefile,LogicalDisk',
+		'sections' => 'NetworkInterface,WindowsPagefile,LogicalDisk,TCPMetrics,UDPMetrics,Utilmemory,CPULoad',
 	},
 
-  'system' => {
-    'nodegraph' => 'health,response,combinedCPUload,ip,tcp-conn,tcp-segs,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
-    'nodeType' => 'server',
-    'nodeModel' => 'Windows2008R2',
-    'nodeVendor' => 'Microsoft',
+	'system' => {
+		'nodegraph' => 'health,response,combinedCPUload,ip,tcp-conn,tcp-segs,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
+		'nodeType' => 'server',
+		'nodeModel' => 'Windows2008R2',
+		'nodeVendor' => 'Microsoft',
 
-    'sys' => {
+		'sys' => {
 
-      'standard' => {
+			'standard' => {
 
 				'snmp' => {
-          'sysLocation' => {
-            'replace' => {
-              '' => 'default',
-              'noSuchObject' => 'default'
-            },
-            'oid' => 'sysLocation',
-            'title' => 'SNMP Location'
-          },
-          'sysObjectID' => {
-            'oid' => 'sysObjectID'
-          },
-          'sysDescr' => {
-            'oid' => 'sysDescr',
-            'title' => 'Description'
-          },
-          'ifNumber' => {
-            'oid' => 'ifNumber'
-          },
-          'sysName' => {
-            'oid' => 'sysName',
-            'title' => 'System Name'
-          },
-          'sysContact' => {
-            'replace' => {
-              '' => 'default',
-              'noSuchObject' => 'default'
-            },
-            'oid' => 'sysContact',
-            'title' => 'Contact'
-          },
-          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
-          #              has been running for, not the uptime of the box.  hrSystemUpTime
-          #              is the same as 'uptime' on the bash command line.
-          'sysUpTime' => {
-            'oid' => 'hrSystemUptime',
-            'title' => 'Uptime',
-          },
-          'snmpUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'SNMP_Uptime',
+					'sysLocation' => {
+						'replace' => {
+							'' => 'default',
+							'noSuchObject' => 'default'
+						},
+						'oid' => 'sysLocation',
+						'title' => 'SNMP Location'
 					},
-        },
+					'sysObjectID' => {
+						'oid' => 'sysObjectID'
+					},
+					'sysDescr' => {
+						'oid' => 'sysDescr',
+						'title' => 'Description'
+					},
+					'ifNumber' => {
+						'oid' => 'ifNumber'
+					},
+					'sysName' => {
+						'oid' => 'sysName',
+						'title' => 'System Name'
+					},
+					'sysContact' => {
+						'replace' => {
+							'' => 'default',
+							'noSuchObject' => 'default'
+						},
+						'oid' => 'sysContact',
+						'title' => 'Contact'
+					},
+					# SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+					#              has been running for, not the uptime of the box.  hrSystemUpTime
+					#              is the same as 'uptime' on the bash command line.
+					'sysUpTime' => {
+						'oid' => 'hrSystemUptime',
+						'title' => 'Uptime',
+					},
+					'snmpUpTime' => {
+						'oid' => 'sysUpTime',
+						'title' => 'SNMP_Uptime',
+					},
+				},
 
 				'wmi' => {
 					'winbuild' => {
@@ -154,29 +154,29 @@
 					},
 
 				},
-      },
+			},
 
-      'extra' => {
-        'snmp' => {
-          'hrNumUsers' => {
-            'oid' => 'hrSystemNumUsers.0',
-            'title' => 'Users'
-          },
-          'hrProcesses' => {
-            'oid' => 'hrSystemProcesses.0',
-            'title' => 'Processes'
-          },
-          'hrMemorySize' => {
-            'oid' => 'hrMemorySize.0',
-            'title' => 'Memory'
-          },
-        },
+			'extra' => {
+				'snmp' => {
+					'hrNumUsers' => {
+						'oid' => 'hrSystemNumUsers.0',
+						'title' => 'Users'
+					},
+					'hrProcesses' => {
+						'oid' => 'hrSystemProcesses.0',
+						'title' => 'Processes'
+					},
+					'hrMemorySize' => {
+						'oid' => 'hrMemorySize.0',
+						'title' => 'Memory'
+					},
+				},
 				'wmi' => {
 					'LocalDateTime' => {
 						'query' => "select * from win32_operatingsystem",
 						'field' => "LocalDateTime", # 20160824173101.375199+600
 						'calculate' => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); return NMISNG::Util::returnDateStamp($r)',
-            'title' => 'System Clock',
+						'title' => 'System Clock',
 					},
 
 					# example for pulling stuff from an UNSHARED SEPARATE 'query'
@@ -187,7 +187,7 @@
 						'calculate' => '$r =~ s/\s*$//; return $r;',
 					},
 				},
-      },
-    },
-  },
+			},
+		},
+	},
 );

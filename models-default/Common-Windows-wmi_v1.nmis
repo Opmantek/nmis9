@@ -1,0 +1,568 @@
+#
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your 'option') any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+	'database' => {
+		'type' => {
+			'Utilmemory' => '/nodes/$node/health/Utilmemory-$index.rrd',
+			'CPULoad' => '/nodes/$node/health/CPULoad-$index.rrd',
+			'AdditionalMetrics' => '/nodes/$node/health/AdditionalMetrics-$index.rrd',      
+		}
+	},
+	'threshold' => {
+		'name' => {
+			'WindowsUsedSpace' => {
+        'event' => 'Proactive Disk Used Space',
+        'item' => 'PercentUsedSpace',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '95',
+              'fatal' => '98',
+              'major' => '93',
+              'minor' => '92',
+              'warning' => '90'
+            }
+          }
+        },
+        'title' => 'Disk Used Space',
+        'unit' => '%'
+      },
+			'WindowsCPU' => {
+        'event' => 'Proactive WIndows_CPU',
+        'item' => 'LoadPercCPU',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '97',
+              'critical' => '90',
+              'major' => '90',
+              'minor' => '85',
+              'warning' => '85'
+            }
+          }
+        },
+        'title' => 'CPU Utilisation',
+        'unit' => '%'
+      },
+        'Utilmemory' => {
+        'event' => 'Proactive Usage Memory_Windows',
+        'item' => 'UsedMemory',
+        'select' => {
+          'default' => {
+           'value' => {
+              'critical' => '80',
+              'fatal' => '95',
+              'major' => '70',
+              'minor' => '60',
+              'warning' => '5.11'
+            }
+          }
+        },
+        'title' => 'Usage Memory_Windows' ,
+        'unit' => '%'
+      },
+      'WindowsMemory' => {
+        'event' => 'Proactive Windows_Mem',
+        'item' => 'TotalVisibleMemory',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '97',
+              'critical' => '90',
+              'major' => '90',
+              'minor' => '85',
+              'warning' => '0.5'
+            }
+          }
+        },
+        'title' => 'Memory Utilisation',
+        'unit' => '%'
+      },
+		}
+	},
+  'system' => {
+    'rrd' => {
+      'WindowsProcessor' => {
+        'graphtype' => 'WindowsProcessor',
+        'threshold' => 'WindowsProcessor',
+        'wmi' => {
+          "-common-" => {
+            'query' => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+          },
+          'dpcsQueuedPersec' => {
+            'field' => 'DPCsQueuedPersec',
+            'option' => 'gauge,0:U',
+          },
+          'interruptsPersec' => {
+            'field' => 'InterruptsPersec',
+            'option' => 'gauge,0:U',
+          },
+          'percentDpc' => {
+            'field' => 'PercentDPCTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentIdle' =>{
+            'field' => 'PercentIdleTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentInterrupt' => {
+            'field' => 'PercentInterruptTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentPrivileged' => {
+            'field' => 'PercentPrivilegedTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentProcessor' => {
+            'field' => 'PercentProcessorTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentUser' => {
+            'field' => 'PercentUserTime',
+            'option' => 'gauge,0:U',
+          },
+        },
+      },    
+    },
+  },
+  'systemHealth' => {
+    'sys' => {
+      'WindowsPagefile' => {
+        'headers' => 'Name,pageTotal,pageUsage',
+        'indexed' => 'Name',
+        'wmi' => {
+          "-common-" => {
+            'query' => 'select * from win32_pagefileusage',
+          },
+          'Name' => {
+            'field' => 'Name',
+            'title' => 'Name'
+          },
+          'pageUsage' => {
+            'field' => 'CurrentUsage',
+            'calculate' => 'return $r*(1<<20);',
+            'title' => 'Usage'
+          },
+          'pageTotal' => {
+            'field' => 'AllocatedBaseSize',
+            'calculate' => 'return $r*(1<<20);',
+            'title' => 'Size'
+          },
+        },
+      },
+      'LogicalDisk' => {
+        'headers' => 'Name,Description,FreeSpace',
+        'indexed' => 'Name',
+      	'wmi' => {
+          'Name' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'Name',
+            'title' => 'name of the disk device',
+          },
+          'Description' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'Description',
+            'title' => 'optional description of the disk device',
+          },
+          'FreeSpace' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'FreeMegabytes',
+            'title' => 'free space in bytes of the disk device',
+            'calculate' => 'return $r * (1<<20);',
+          },
+        },
+      },
+      'TCPMetrics' => {
+        'headers' => 'ConnectionsActive,ConnectionFailures,ConnectionsEstablished',
+        'indexed' => 'ConnectionsActive',
+        'wmi' => {
+          'ConnectionsActive' => {
+            'query' => 'select * from Win32_PerfRawData_Tcpip_TCPv4',
+            'field' => 'ConnectionsActive',
+            'title' => 'Local TCP Connections',
+          },
+          'ConnectionFailures' => {
+            'query' => 'select * from Win32_PerfRawData_Tcpip_TCPv4',
+            'field' => 'ConnectionFailures',
+            'title' => 'Remote TCP Connection Failures',
+          },
+          'ConnectionsEstablished' => {
+            'query' => 'select * from Win32_PerfRawData_Tcpip_TCPv4',
+            'field' => 'ConnectionsEstablished',
+            'title' => 'TCP Connections Established',
+          },
+        },
+      },
+      'UDPMetrics' => {
+        'headers' => 'DatagramsReceivedPersec,DatagramsSentPersec,DatagramsReceivedErrors',
+        'indexed' => 'DatagramsReceivedPersec',
+        'wmi' => {
+          'DatagramsReceivedPersec' => {
+            'query' => 'select * from Win32_PerfRawData_Tcpip_UDPv4',
+            'field' => 'DatagramsReceivedPersec',
+            'title' => 'Datagrams Received Per Second',
+          },
+          'DatagramsSentPersec' => {
+            'query' => 'select * from Win32_PerfRawData_Tcpip_UDPv4',
+            'field' => 'DatagramsSentPersec',
+            'title' => 'Datagrams Sent Per Second',
+          },
+          'DatagramsReceivedErrors' => {
+            'query' => 'select * from Win32_PerfRawData_Tcpip_UDPv4',
+            'field' => 'DatagramsReceivedErrors',
+            'title' => 'Datagrams Sent Per Second',
+          },
+        },
+      },
+      'Utilmemory' => {
+        'headers' => 'TotalVisibleMemorySize,FreePhysicalMemory,TotalVirtualMemorySize,UsedMemory,MemoryUsage',
+        'indexed' => 'TotalVisibleMemorySize',
+        'wmi' => {
+            'TotalVisibleMemorySize' => {
+                'query' => 'select * from Win32_OperatingSystem',
+                'field' => 'TotalVisibleMemorySize',
+                'title' => 'Total Memory Size',
+                'calculate' => 'return $r / 1024;'  # Convertir de KB a MB
+            },
+            'FreePhysicalMemory' => {
+                'query' => 'select * from Win32_OperatingSystem',
+                'field' => 'FreePhysicalMemory',
+                'title' => 'Free Memory Size',
+                'calculate' => 'return $r / 1024;'  # Convertir de KB a MB
+            },
+            'TotalVirtualMemorySize' => {
+                'query' => 'select * from Win32_OperatingSystem',
+                'field' => 'TotalVirtualMemorySize',
+                'title' => 'Total Virtual Memory Size',
+                'calculate' => 'return $r / 1024;'  # Convertir de KB a MB
+            },
+            'UsedMemory' => {
+                'query' => 'select * from Win32_OperatingSystem',
+                'field' => 'FreePhysicalMemory',
+                #'calculate' => 'return ($TotalVisibleMemorySize - $r) / 1024;',  # Convertir de KB a MB
+                    'calculate' => 'CVAR1=TotalVisibleMemorySize; return ($CVAR1 - $r);',  # Calcula la memoria usada: TotalVisibleMemory - FreePhysicalMemory
+                    'dependencies' => ['TotalVisibleMemory', 'FreePhysicalMemory'], # Depende de estas métricas
+                'title' => 'Used Memory',
+            },
+            'MemoryUsage' => {
+                'query' => 'select * from Win32_OperatingSystem',
+                'field' => 'FreePhysicalMemory',
+                #'calculate' => 'return (1 - ($r / $TotalVisibleMemorySize)) * 100;',
+                                  'calculate' => 'CVAR1=TotalVisibleMemorySize; return sprintf("%.3f", (1 - ($r / $CVAR1)) * 100);',  # Calcula el porcentaje de memoria usada con 3 decimales
+                    'dependencies' => ['TotalVisibleMemory', 'FreePhysicalMemory'],  # Depende de estas métricas  
+                'title' => 'Memory Usage (%) ',
+            },
+        },
+      },
+      'NetworkInterface' => {
+        'headers' => 'Name,Description,CurrentBandwidth,BytesReceivedPersec,BytesSentPersec,BytesTotalPersec',
+        'indexed' => 'Name',
+        'wmi' => {
+          'Name' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'Name',
+            'title' => 'interface name',
+          },
+          'Description' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'Description',
+            'title' => 'interface description',
+          },
+          'CurrentBandwidth' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'CurrentBandwidth',
+            'title' => 'interface speed',
+          },
+           'BytesReceivedPersec' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'BytesReceivedPersec',
+            'title' => 'bytes in per sec',
+          },
+           'BytesSentPersec' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'BytesSentPersec',
+            'title' => 'bytes out per sec',
+          },
+           'BytesTotalPersec' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'BytesTotalPersec',
+            'title' => 'total bytes per sec',
+          },
+        },
+      },
+      #'AdditionalMetrics' => {
+      #  'headers' => 'ServiceName',
+      #  'indexed' => 'Name',
+      #  'wmi' => {
+      #    'ServiceName' => {
+      #      'query' => 'select * from Win32_Service',
+      #      'field' => 'Name',
+      #      'title' => 'Service Name',
+      #    },
+      #  },
+      #},
+      #'UsersAndProcesses' => {
+      #    'headers' => 'ProcessCount,UserName',
+      #    'indexed' => 'NumberOfProcesses',
+      #    'wmi' => {
+      #      'ProcessCount' => {
+      #        'query' => 'select * from Win32_OperatingSystem',
+      #        'field' => 'NumberOfProcesses',
+      #        'title' => 'Total Processes Running',
+      #      },            
+      #    },
+      #  },            
+       'CPULoad' => {
+        'headers' => 'DeviceID,Caption,LoadPercentage',
+        'indexed' => 'DeviceID',
+        'wmi' => {
+          'DeviceID' => {
+            'query' => 'select * from Win32_Processor',
+            'field' => 'DeviceID',
+            'title' => 'name of the cpu',
+          },
+          'Caption' => {
+            'query' => 'select * from Win32_Processor',
+            'field' => 'Caption',
+            'title' => 'architecture name',
+          },
+          'LoadPercentage' => {
+            'query' => 'select * from Win32_Processor',
+            'field' => 'LoadPercentage',
+            'title' => 'load cpu percentage',
+            #'calculate' => 'return $r * (1<<20);',
+          },
+        },
+      },      
+    },
+    'rrd' => {
+      'WindowsPagefile' => {
+        'graphtype' => 'WindowsPaging',
+        'threshold' => 'WindowsPaging',
+        'indexed' => 'Name',
+        'wmi' => {
+          'pageUsage' => {
+            'query' => 'select * from win32_pagefileusage',
+            'field' => 'CurrentUsage',
+            'calculate' => 'return $r*(1<<20);',
+          },
+          'pageTotal' => {
+            'query' => 'select * from win32_pagefileusage',
+            'field' => 'AllocatedBaseSize',
+            'calculate' => 'return $r*(1<<20);',
+          },
+        },
+      },      
+        'Utilmemory' => {
+            'graphtype' => 'Utilmemory',
+            'threshold' => 'Utilmemory',
+            'indexed' => 'TotalVisibleMemorySize',  # Indexar por memoria total visible
+            'wmi' => {
+                'TotalVisibleMemory' => {
+                    'query' => 'select * from Win32_OperatingSystem',
+                    'field' => 'TotalVisibleMemorySize',
+                    'option' => 'gauge,U:U',  # Tipo de dato: gauge, sin límites
+                    'title' => 'Total Visible Memory (KB)',
+                    'calculate' => 'return $r;'  # No se necesita conversión, se mantiene en KB
+                },
+                'FreePhysicalMemory' => {
+                    'query' => 'select * from Win32_OperatingSystem',
+                    'field' => 'FreePhysicalMemory',
+                    'option' => 'gauge,U:U',  # Tipo de dato: gauge, sin límites
+                    'title' => 'Free Physical Memory (KB)',
+                    'calculate' => 'return $r;'  # No se necesita conversión, se mantiene en KB
+                },
+                'TotalVirtualMemory' => {
+                    'query' => 'select * from Win32_OperatingSystem',
+                    'field' => 'TotalVirtualMemorySize',
+                    'option' => 'gauge,U:U',  # Tipo de dato: gauge, sin límites
+                    'title' => 'Total Virtual Memory (KB)',
+                    'calculate' => 'return $r;'  # No se necesita conversión, se mantiene en KB
+                },
+                # 'UsedMemory' => {
+                #     'query' => 'select * from Win32_OperatingSystem',
+                #     'field' => 'FreePhysicalMemory',
+                #     'option' => 'gauge,U:U',  # Tipo de dato: gauge, sin límites
+                #     'title' => 'Used Memory (KB)',
+                #     'calculate' => 'CVAR1=TotalVisibleMemorySize; return ($CVAR1 - $r);',  # Calcula la memoria usada: TotalVisibleMemory - FreePhysicalMemory
+                #     'dependencies' => ['TotalVisibleMemory', 'FreePhysicalMemory']  # Depende de estas métricas
+                # },
+                # 'MemoryUsage' => {
+                #     'query' => 'select * from Win32_OperatingSystem',
+                #     'field' => 'FreePhysicalMemory',
+                #     'option' => 'gauge,U:U',  # Tipo de dato: gauge, sin límites
+                #     'title' => 'Memory Usage (%)',
+                #     'calculate' => 'CVAR1=TotalVisibleMemorySize; return sprintf("%.3f", (1 - ($r / $CVAR1)) * 100);',  # Calcula el porcentaje de memoria usada con 3 decimales
+                #     'dependencies' => ['TotalVisibleMemory', 'FreePhysicalMemory']  # Depende de estas métricas
+                # },
+            },
+        },      
+      'CPULoad' => {
+        'graphtype' => 'CPULoad',
+        'threshold' => 'WindowsCPU',
+        'indexed' => 'DeviceID',
+        'wmi' => {
+          'LoadPercentage' => {
+            'query' => 'select * from Win32_Processor',
+            'field' => 'LoadPercentage',
+            'option' => 'gauge,U:U'
+        },
+      },
+     },
+     'NetworkInterface' => {
+        'graphtype' => 'NetworkInterface',
+        'indexed' => 'Name',
+        'wmi' => {
+          'CurrentBandwidth' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'CurrentBandwidth',
+            'option' => 'gauge,U:U'
+        },
+          'BytesReceivedPersec' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'BytesReceivedPersec',
+            'option' => 'counter,U:U'
+        },
+          'BytesSentPersec' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'BytesSentPersec',
+            'option' => 'counter,U:U'
+        },
+         'BytesTotalPersec' => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_NetworkInterface',
+            'field' => 'BytesTotalPersec',
+            'option' => 'counter,U:U'
+        },
+      },
+     },
+      'LogicalDisk' =>
+      {
+        'graphtype' => 'WindowsDisk,WindowsDiskBytes',
+        'indexed' => 'Name', # for wmi the index 'field' name MUST be given and the same as in the sys section
+        'threshold' => 'DiskQueueLength,WindowsUsedSpace',
+        'control' => 'CVAR=Name;$CVAR ne "_Total"',
+
+      	'wmi' => {
+          'AvgDiskReadQLen' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'AvgDiskReadQueueLength',
+            'title' => 'Average Disk Read Queue Length',
+            'calculate' => 'CVAR1=Frequency_PerfTime; sprintf("%d",$r / $CVAR1 * 1000);',
+            'option' => 'counter,U:U'
+          },
+          'AvgDiskWriteQLen' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'AvgDiskWriteQueueLength',
+            'title' => 'Average Disk Write Queue Length',
+            'calculate' => 'CVAR1=Frequency_PerfTime; sprintf("%d",$r / $CVAR1 * 1000);',
+            'option' => 'counter,U:U'
+          },
+          'Frequency_PerfTime' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'Frequency_PerfTime',
+            'option' => 'nosave',
+          },
+
+          'DiskWritesPersec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskWritesPersec',
+            'title' => 'Disk Writes per Second',
+            'option' => 'counter,U:U'
+          },
+          'DiskReadsPersec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskReadsPersec',
+            'title' => 'Disk Reads per Second',
+            'option' => 'counter,U:U'
+          },
+
+          'DiskReadBytesSec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskReadBytesPersec',
+            'title' => 'Disk Read Bytes per Second',
+            'option' => 'counter,U:U'
+          },
+          'DiskWriteBytesSec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskWriteBytesPersec',
+            'title' => 'Disk Write Bytes per Second',
+            'option' => 'counter,U:U'
+          },
+
+          'PercentFreeSpace' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'PercentFreeSpace',
+            'title' => 'Percent Free Space',
+            'calculate' => 'CVAR1=PercentFreeSpaceB; return sprintf("%.3f",$r / $CVAR1 * 100);',
+            'option' => 'gauge,U:U'
+          },
+          'PercentFreeSpaceB' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'PercentFreeSpace_Base',
+            'option' => 'nosave',
+          },
+
+          #'PerDiskReadTime' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskReadTime',
+          #  'title' => 'Percent Disk Read Time',
+          #  'calculate' => 'CVAR1=PerDiskReadTimeB; sprintf("%.3f",$r / $CVAR1 * 100);',
+          #  'option' => 'gauge,U:U'
+          #},
+          #'PerDiskReadTimeB' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskReadTime_Base',
+          #  'option' => 'nosave',
+          #},
+          #
+          #'PerDiskWriteTime' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskWriteTime',
+          #  'title' => 'Percent Disk Write Time',
+          #  'calculate' => 'CVAR1=PerDiskWriteTimeB; sprintf("%.3f",$r / $CVAR1 * 100);',
+          #  'option' => 'gauge,U:U'
+          #},
+          #'PerDiskWriteTimeB' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskWriteTime_Base',
+          #  'option' => 'nosave',
+          #},
+          #
+
+        },
+      },
+    },
+  }
+);

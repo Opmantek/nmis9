@@ -74,6 +74,8 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=model - Show model 
  * act=escalations - Run escalations
  * act=thresholds - Run thresholds for a node (node= force=)
+ * act=services - Run services for a node (node= force=) 
+ * act=gettable - Get data from a node (node= oid= query=) 
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -124,22 +126,20 @@ elsif ($Q->{act} =~ /^inventory/)
 elsif ($Q->{act} =~ /^model/)
 {
 	my $node = $Q->{node};
-								
-    die "Need a node to run " if (!$node);
+	die "Need a node to run " if (!$node);
 	my $nodeobj = $nmisng->node(name => $node); 
 	if ($nodeobj) {
-		my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object
-		eval {
-                $S->init(name=>$node);
-        }; if ($@) # load node info and Model if name exists
+		my $S = NMISNG::Sys->new(nmisng => $nmisng); # get system object		
+
+		if( !$S->init(name=>$node) )
 		{
-               print " Error init for $node\n";
-               die;
-        }
+		   print " Error init for $node\n, status:".Dumper($S->status);
+       die;
+		}
 		my $mdl = $S->mdl();
 		print Dumper($mdl);
 	} else {
-		 print " Error init for $node\n";
+		 print " Could not find node $node\n";
 	}
 	exit 0;
 }
@@ -153,7 +153,7 @@ elsif ($Q->{act} =~ /^collect/)
 		my $pollTimer = Compat::Timing->new;
 		my $wantsnmp = $Q->{wantsnmp} // 1;
 		my $wantwmi = $Q->{wantwmi} // 0;
-		$nodeobj->collect( wantsnmp => $wantsnmp, wantwmi => $wantwmi );
+		$nodeobj->collect( wantsnmp => $wantsnmp, wantwmi => $wantwmi, force => $Q->{force} );
 		my $polltime = $pollTimer->elapTime();
 		print "Collect finished in $polltime \n";
 	} else {
@@ -256,7 +256,132 @@ elsif ($Q->{act} =~ /^dump-node/)
 	}
 	exit 0;
 }
+elsif ($Q->{act} =~ /^services/)
+{
+	my $node = $Q->{node};
+								
+    die "Need a node to run " if (!$node);
+	my $nodeobj = $nmisng->node(name => $node);
 
+	if ($nodeobj) {
+
+		my $timer = Compat::Timing->new;
+		my $wantsnmp = $Q->{wantsnmp} // 1;
+		my $wantwmi = $Q->{wantwmi} // 1;
+
+		my $S = NMISNG::Sys->new(nmisng => $nodeobj->nmisng);
+		if( !$S->init( node => $nodeobj,
+									snmp => $wantsnmp,
+									wmi => $wantwmi,
+									policy => $nodeobj->configuration->{polling_policy},
+		)) {
+			die "failed to init S\n";
+		}
+		my $catchall_inventory = $S->inventory( concept => 'catchall' );
+		my $catchall_data = $catchall_inventory->data_live();
+
+		# snmp needs it's session opened
+		if ($nodeobj->configuration->{collect} && $S->status->{snmp_enabled} )
+		{
+			my $candosnmp = $S->open(
+				timeout      => $C->{snmp_timeout},
+				retries      => $C->{snmp_retries},
+				max_msg_size => $C->{snmp_max_msg_size},
+
+				# how many oids/pdus per bulk request, or let net::snmp guess a value
+				max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+
+				# how many oids per simple get request for getarray, or default (no guessing)
+				oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10, );
+		}
+		
+		$nodeobj->collect_services( sys => $S,
+														 snmp => NMISNG::Util::getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true',
+													 wmi => NMISNG::Util::getbool( $catchall_data->{wmidown} ) ? 'false' : 'true',
+													 force => $Q->{force} // 0,
+													 catchall_inventory => $catchall_inventory );		
+		my $totaltime = $timer->elapTime();
+		print "services finished in $totaltime \n";
+	} else {
+		 print " Error init for $node\n";
+	}
+	exit 0;
+	
+}
+elsif ($Q->{act} =~ /^gettable/)
+{
+
+	my $node = $Q->{node};
+    die "Need a node to run " if (!$node);
+	my $nodeobj = $nmisng->node(name => $node);
+
+	my $oid = $Q->{oid};
+	my $query = $Q->{query};
+	my $index = $Q->{index};
+
+	if ($nodeobj) {
+
+		my $timer = Compat::Timing->new;
+		my $wantsnmp = $Q->{wantsnmp} // 1;
+		my $wantwmi = $Q->{wantwmi} // 1;
+
+		my $S = NMISNG::Sys->new(nmisng => $nodeobj->nmisng);
+		if( !$S->init( node => $nodeobj,
+									snmp => $wantsnmp,
+									wmi => $wantwmi,
+									policy => $nodeobj->configuration->{polling_policy},
+		)) {
+			die "failed to init S\n";
+		}
+		my $catchall_inventory = $S->inventory( concept => 'catchall' );
+		my $catchall_data = $catchall_inventory->data_live();
+
+		# snmp needs it's session opened
+		if( $wantsnmp && $S->status->{snmp_enabled} && $oid )
+		{
+			my $SNMP = $S->snmp;
+			my $candosnmp = $S->open(
+				timeout      => $C->{snmp_timeout},
+				retries      => $C->{snmp_retries},
+				max_msg_size => $C->{snmp_max_msg_size},
+
+				# how many oids/pdus per bulk request, or let net::snmp guess a value
+				max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+
+				# how many oids per simple get request for getarray, or default (no guessing)
+				oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10, );
+			if ( my $table = $SNMP->getindex($oid) ) 
+			{
+				print Dumper($table);
+			}
+			else
+			{
+				if (my $error = $SNMP->error ) {
+					print "SNMP Error: $error\n";				
+				}
+			}
+		}elsif( $wantsnmp && $oid ) {
+			print "wmi not enabled: ".Dumper($S->status);
+		}
+		if( $wantwmi && $S->status->{wmi_enabled} && $query ) {
+			my ( $error, $data, $meta ) = $S->{wmi}->gettable(
+				wql   => $query,
+				index => $index
+			);
+			if( $error ) {
+				print "WMI Error: $error\n";
+				} else {
+					print "meta:".Dumper($meta);
+					print "data:".Dumper($data);
+				}
+		} elsif( $wantwmi && $query ) {
+			print "wmi not enabled: ".Dumper($S->status);
+		}
+	} else {
+		print "Can't find node $node\n";
+	}
+
+}
 # Test snmp
 sub testgraph
 {

@@ -1,6 +1,5 @@
 #remove everything OMK from this file  if you want just nmis
 #copy a pre-built OMK artifact to root directory of this build if you want OMK
-#FROM perl:5.32.1-threaded-bullseye
 FROM perl:5.32.1-slim-threaded-bullseye
 
 LABEL maintainer="James Greewnwood. <james.greenwood@firstwave.com>" 

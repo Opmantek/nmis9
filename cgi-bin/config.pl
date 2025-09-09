@@ -839,6 +839,10 @@ sub getHelp {
 								'port is optional, default is 49<br>'.
 								'library Authen::TacacsPlus must be installed from CPAN',
 		'auth_tacacs_secret' => 'Format: string<br>radius secret',
+		'auth_tacacs_server_secondary' => 'Format: string<br>tacacs server address:port secondary in either hostname:port or ipaddress:port<br>'.
+								'port is optional, default is 49<br>'.
+								'library Authen::TacacsPlus must be installed from CPAN',
+		'auth_tacacs_secret_secondary' => 'Format: string<br>radius secret secondary',
 		'auth_user_file' => 	'Format: string<br>Apache Authentication User File, for htpasswd authentication',
 		'auth_expire' => 	'Format: string<br>authorization cookie lifespan<br>in the form {number-of-units time-unit} (e.g. "+6min")<br>'.
 								'there is default of +10min',

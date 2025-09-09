@@ -84,6 +84,9 @@
       'memory' => {
         'common-model' => 'Cisco-memory'
       },
+      'temp' => {
+        'common-model' => 'CiscoR-temp'
+      },
       'Cisco-power' => {
         'common-model' => 'Cisco-power'
       },

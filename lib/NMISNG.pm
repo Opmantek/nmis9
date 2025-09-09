@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.5.2";
+our $VERSION = "9.6.2";
 
 use strict;
 use Data::Dumper;
@@ -1325,6 +1325,7 @@ sub ensure_indexes
 				[{"lastupdate"           => 1}, {unique => 0}],
 				[{"subconcepts"          => 1}, {unique => 0}],
 				[["data_info.subconcept" => 1, enabled => 1, node_name => 1], {unique => 0}],
+				[["data.ifPhysAddress" => 1, node_uuid => 1, enabled => 1, historic => 1], {unique => 0}],
 				
 
 				# unfortunately we need a custom extra index for concept == interface, to find nodes by ip address
@@ -1365,6 +1366,10 @@ sub ensure_indexes
 												# (for the semi-dynamic dns alias and address info)
 												[ [ "aliases.alias" => 1 ] ],
 												[ [ "addresses.address" => 1 ] ],
+												# depend for graphLookups
+												[ [ "configuration.depend" => 1 ] ],
+												# uuid and polling group to grab polling groups for nodes
+												[["uuid"  => 1, "configuration.polling_group" => 1],{unique => 1}],
 												[["lastupdate" => 1], {unique => 0}],
 				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
@@ -1937,6 +1942,92 @@ sub get_db
 {
 	my ($self) = @_;
 	return $self->{_db};
+}
+#return the array of chunks WRT chunk size.
+# input List of todos uuid's from NMIS daemon
+sub get_polling_group_chunks
+{
+	my ($self,$uuids) = @_;
+	
+	my $polling_group_data;
+	my $map_uuids_to_check;
+	my (@groups,@chunks,@used);
+	my $chunk_size = $self->config->{fastping_node_poll} // 200;
+	
+	# For each UUID, check how many times it appears in the list.
+	# If it appears to have 0 and 1 , consider it dual-homed and mark it as 1.
+	foreach my $to_check (@{$uuids}){
+		if ($to_check =~ /:/){
+			$to_check =~ s/:[0-9]//g;
+			$map_uuids_to_check->{$to_check} = 1;
+		}
+		else{
+			$map_uuids_to_check->{$to_check} = 0;
+		}
+	}
+	# grab all the uuid's from mapped items	
+	my @all_uuids_to_check = keys %{$map_uuids_to_check};
+
+	# fetch polling group for all the mapped uuid's.
+	my $model_data = $self->get_nodes_model(uuid => \@all_uuids_to_check, fields_hash => {"uuid" => 1, "configuration.polling_group" => 1} );
+	my $data = $model_data->data();
+	
+	# Create a hash structure which will contain the list of uuids and count of uuid's wrt assigned polling groups
+	foreach my $node (@{$data}){
+		my $id = $node->{configuration}->{polling_group} // 'un-assigned';
+		if (defined $map_uuids_to_check->{$node->{uuid}} && $map_uuids_to_check->{$node->{uuid}} == 1){
+			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":0");
+			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid}.":1");
+			$polling_group_data->{$id}->{'count'} += 2;
+		}
+		elsif (defined $map_uuids_to_check->{$node->{uuid}} && $map_uuids_to_check->{$node->{uuid}} == 0){
+			push(@{$polling_group_data->{$id}->{'nodes'}},$node->{uuid});
+			$polling_group_data->{$id}->{'count'} += 1;
+		}
+		
+	}
+
+	####### Using the polling_group_data to convert it into a array for count comparison.
+
+	foreach my $item (keys %{$polling_group_data}){
+		 push @groups, {
+            id    => $item,
+            count => $polling_group_data->{$item}{count},
+            nodes => $polling_group_data->{$item}{nodes}
+        };
+	}
+
+
+	# Sort descending by count to fit bigger groups first
+	@groups = sort { $b->{count} <=> $a->{count} } @groups;
+    
+
+	for (my $i = 0; $i < @groups; $i++) {
+		next if $used[$i];  # Skip this group if it's already been used
+
+		my $base = $groups[$i];             # Start with the current base group
+		my $curr_nodes = [ @{$base->{nodes}} ];  # Clone the node list of this group
+		my $curr_count = $base->{count};   # Get the node count for this group
+		$used[$i] = 1;                      # Mark this group as used
+
+		# Try to combine with other groups to fill up to the chunk size
+		for (my $j = $i + 1; $j < @groups; $j++) {
+			next if $used[$j];             # Skip if already used
+			my $try = $groups[$j];         # Candidate group to try merging
+
+			# If merging won't exceed the chunk size, do it
+			if ($curr_count + $try->{count} <= $chunk_size) {
+				push @$curr_nodes, @{$try->{nodes}};  # Add nodes to the current chunk
+				$curr_count += $try->{count};         # Update current total count
+				$used[$j] = 1;                         # Mark this group as used
+
+				last if $curr_count == $chunk_size;   # Stop early if we've hit perfect chunk size
+			}
+		}
+
+		push @chunks, $curr_nodes;  # Save the final chunk of nodes
+	}
+		return \@chunks;
 }
 
 # find all unique values for key from collection and filter provided
@@ -3471,8 +3562,9 @@ LABEL_ESC:
 		if ( $event_obj->event =~ /interface/i && !$event_obj->is_proactive )
 		{
 			my $ifIndex = undef;
-			my $ifDescr = $event_obj->element;
-			my $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr );
+			my $ifDescr = $event_obj->element; # some events have interface in the name but no element
+			my $interface_inventory;
+		       $interface_inventory = $nmisng_node->interface_by_ifDescr( $ifDescr ) if( $ifDescr );
 			if( $interface_inventory )
 			{
 				if ( !NMISNG::Util::getbool( $interface_inventory->{data}{collect} ) )
@@ -4484,6 +4576,27 @@ sub remove_queue
 	return undef;
 }
 
+# this is meant to be used when nmisd is not running (or is starting up)
+# to clear jobs that are marked active, if nmis is restarting or dead they aren't
+# active anymore!
+sub clear_active_queue
+{
+	my ( $self ) = @_;
+	$self->log->info("clearing active job queue");
+	my $jobs = $self->get_queue_model( { in_progress => 1 });
+	if (my $fault = $jobs->error)
+	{
+		return "clear_active_queue: Failed to lookup schedule: $fault\n";
+	}
+
+	my $all_good;
+	while ( my $entry = $jobs->next_value ) {
+		# should handle oid object staying oid object
+		$all_good .= $self->remove_queue( id => $entry->{_id} ) if ($entry->{_id});
+	}
+	return $all_good;
+}
+
 # records/updates the status of an operation
 # args: id (optional but required for updating an existing record)
 #  time (defaults to now),
@@ -4492,6 +4605,7 @@ sub remove_queue
 #  type (event type, freeform error or status name),
 #  details (optional, freeform, may be undef for delete on update),
 #  stats (optional, structure, may be undef for delete on update),
+#  logs (optional), log messages captured duing operation
 #  context (what node/thing/job was involved, optional,
 #   may be undef for delete on update.
 #   SHOULD have context.node_uuid = singleton or array of involved nodes),
@@ -4528,6 +4642,7 @@ sub save_opstatus
 	$statusrec->{context} = $args{context} if ( exists $args{context} && defined($args{context}));    # undef is ok for deletion
 	$statusrec->{details} = $args{details} if ( exists $args{details} );    # undef is ok for deletion
 	$statusrec->{stats}   = $args{stats} if ( exists $args{stats} );      	# undef is ok for deletion
+	$statusrec->{logs}    = $args{logs} if( exists $args{logs} );
 	delete $statusrec->{_id};                                               # must not be present for update
 
 	my $expire_at = $statusrec->{time} + ( $self->config->{purge_opstatus_after} || 7 * 86400 );
@@ -5083,6 +5198,7 @@ sub dump_node
 	my $nodename = $args{name};		# much less preferrable
 	my $override = $args{override}; # Override file if allready exists
 	my $setperms = $args{setperms} // 1; # Update file permissions
+	my $redact = $args{redact} // 0; # to remove sensitive info
 
 	my $options = ref($args{options}) eq 'HASH'? $args{options} : {};
 
@@ -5104,6 +5220,8 @@ sub dump_node
 	my $noderec = $md->data->[0];
 	$uuid //= $noderec->{uuid};
 	$nodename //= $noderec->{name};
+	my @redact_attrs = (qw(community authpassword privpassword authkey privkey wmipassword));
+	map { $noderec->{configuration}{$_} = "**********" } (@redact_attrs) if( $redact );
 
 	# create temp dir first, subdirs for each of the involved db collections
 	my $td = eval { File::Temp::tempdir("dump-$noderec->{uuid}-XXXXXXX",
