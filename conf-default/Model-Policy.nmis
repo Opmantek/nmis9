@@ -47,6 +47,7 @@
          lldp => 'true',
          bgpPeer => 'true',
          ospfNbr => 'true',
+         ipCidrRoute => 'true',
 
          diskIOTable => 'true',
          software => 'false',
