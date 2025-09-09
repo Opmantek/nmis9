@@ -987,13 +987,14 @@ sub inventory
 			# HOWEVER, if we can we'll return the first non-historic object
 			# as the most useful of all bad choices
 			my $rawdata = $model_data->data; # inefficient is fine here
-			$bestchoice = List::Util::first { !$rawdata->[$_]->{historic} } (0..$#{$rawdata});
-			
-			# make sure pre 9.6.3 nmis inventory gets model_class value
-			$bestchoice->{model_class} //= $args{model_class} if(defined($args{model_class}));
-			$bestchoice->{protocol} //= $args{protocol} if(defined($args{protocol}));
+			$bestchoice = List::Util::first { !$rawdata->[$_]->{historic} } (0..$#{$rawdata});			
 		}
 		
+		# make sure pre 9.6.3 nmis inventory gets model_class value if it was provided
+		my $raw_data = $model_data->data->[$bestchoice];
+		$raw_data->{model_class} //= $args{model_class} if(defined($args{model_class}));
+		$raw_data->{protocol} //= $args{protocol} if(defined($args{protocol}));
+				
 		# instantiate as object, please
 		(my $error, $inventory) = $model_data->object($bestchoice // 0);
 		return (undef, "instantiation failed: $error") if ($error);
@@ -2185,7 +2186,7 @@ sub update_node_info
 
 		# this is normally with the DEFAULT model from Model.nmis
 		# fixme: not true if switched to update op on the go!
-		my $firstloadok = $S->loadNodeInfo();
+		my $firstloadok = $S->loadNodeInfo( catchall_inventory => $catchall_inventory );
 
 		# source that hasn't worked? disable immediately
 		$curstate = $S->status;
@@ -2261,7 +2262,7 @@ sub update_node_info
 				if ( $self->configuration->{model} eq 'automatic' || $self->configuration->{model} eq "" )
 				{
 					# get nodeModel based on nodeVendor and sysDescr (real or synthetic)
-					$catchall_data->{nodeModel} = $S->selectNodeModel();    # select and save name in node info table
+					$catchall_data->{nodeModel} = $S->selectNodeModel(catchall_inventory => $catchall_inventory);    # select and save name in node info table
 					$self->nmisng->log->debug2(sub {"selectNodeModel returned model=$catchall_data->{nodeModel}"});
 
 					$catchall_data->{nodeModel} ||= 'Default';              # fixme why default and not generic?
@@ -2282,7 +2283,7 @@ sub update_node_info
 
 				# update node info table a second time, but now with the actually desired model
 				# fixme: see logic problem above, should not have to do both
-				my $secondloadok = $S->loadNodeInfo();
+				my $secondloadok = $S->loadNodeInfo( catchall_inventory => $catchall_inventory );
 
 				# source that hasn't worked? disable immediately
 				$curstate = $S->status;
@@ -4806,8 +4807,7 @@ sub collect_systemhealth_info
 		{
 			my $protocol = 'wmi';
 			$self->nmisng->log->debug2(sub {"systemhealth: section=$section, source WMI, index_var=$index_var"});
-			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );
-			$tags = NMISNG::Inventory::parse_model_subconcept_tags( $thissection, 'wmi' );
+			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );			
 
 			my $wmiaccessor = $S->wmi;
 			if ( !$wmiaccessor )
@@ -4934,8 +4934,7 @@ sub collect_systemhealth_info
 						subconcept => $section,
 						enabled => 1,
 						display_keys => $header_info,
-						model_path => $model_path,
-						tags => $tags
+						model_path => $model_path
 					);
 					if( @$header_info > 0 )
 					{
@@ -4982,7 +4981,6 @@ sub collect_systemhealth_info
 			
 			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
-			$tags = NMISNG::Inventory::parse_model_subconcept_tags( $thissection, 'snmp' );		
 			my ( %healthIndexNum, $healthIndexTable );
 
 			# first loop gets the index we want to use out of the oid
@@ -5104,8 +5102,7 @@ sub collect_systemhealth_info
 						subconcept => $section,
 						enabled => 1,						
 						display_keys => $header_info,
-						model_path => $model_path,
-						tags => $tags
+						model_path => $model_path
 					);
 					if( @$header_info > 0 )
 					{
@@ -6936,7 +6933,7 @@ $self->nmisng->log->debug2(sub {"total number of interfaces coll. up=$reach{intf
 # requested without init and then it's needed, etc))
 sub SYS {
 	my ($self, $new, ) = @_;
-	if (ref($new) eq "ARRAY")
+	if (defined $new)
 	{
 		$self->{_SYS}  = $new;
 	}
@@ -6982,40 +6979,11 @@ sub update
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);    # create system object
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
 	# and primes the sys object for snmp/wmi ops
-
-	if (!$S->init(node => $self,	update => 'true', force => $force))
-	{
+	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => "system" );
+	if( $error ) {
 		$self->unlock(lock => $lock);
-		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
-		
-		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
-		
-		my $old_data = $inventory->data();
-		if ($old_data) {
-			$old_data->{'last_update_attempt'} = Time::HiRes::time;
-		
-			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self , update => 1);
-			
-			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
-		} else {
-			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
-		}
-		
-		return { error => "Sys init failed: ".$S->status->{error} };
-	}
-	else {
-		$self->SYS($S);  # keep a reference to the sys object in the node for the rest of the update
-	}
-
-
-	# this is the first time catchall is accessed, handle error here, all others will assume it works
-	my $catchall_inventory = $S->inventory(concept => 'catchall');
-	if(!$catchall_inventory)
-	{
-		$self->unlock(lock => $lock);
-		$self->nmisng->log->fatal("Failed to load catchall inventory for node $name");
-		return { error => "Failed to load catchall inventory for node $name" };
+		$self->nmisng->log->fatal("($name) failed to load catchall inventory: $error");
+		return { error => "failed to load catchall inventory: $error" };
 	}
 
 	# catchall uses 'live' data which is a direct reference to the data because it's too easy to
@@ -7025,6 +6993,19 @@ sub update
 	# record that we are trying an update; last_update records only successfully completed updates...
 	$catchall_data->{last_update_attempt} = $starttime;
 
+	if (!$S->init(node => $self,	update => 'true', force => $force, catchall_inventory => $catchall_inventory))
+	{
+		$self->unlock(lock => $lock);
+		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
+			
+		my ($save, $error2) = $catchall_inventory->save( node => $self , update => 1);			
+		$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		
+		return { error => "Sys init failed: ".$S->status->{error} };
+	}
+	
+	$self->SYS($S);  # keep a reference to the sys object in the node for the rest of the update
+	
 	$self->nmisng->log->debug("node=$name "
 			. join( " ",
 							( map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ),
@@ -9134,48 +9115,13 @@ sub collect
 	}
 
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
-
-	# if the init fails attempt an update operation instead
-	# Thats initialised to node polling policy	
-	if (!$S->init( node => $self,
-									snmp => $wantsnmp,
-									wmi => $wantwmi,
-									policy => $self->configuration->{polling_policy},
-			))
-	{
-		$self->nmisng->log->debug( "Sys init for $name failed: "
-													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
-		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
-		
-		if (!$error) 
-		{
-			my $old_data = $inventory->data();
-			my $polltime = Time::HiRes::time;
-			$old_data->{'last_poll_snmp_attempt'} = $polltime;
-			$old_data->{'last_poll_wmi_attempt'} = $polltime;
-			$old_data->{'last_poll_attempt'} = $polltime;
-		
-			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self );
-			
-			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
-		} 
-		else 
-		{
-			$self->nmisng->log->error("Failed to get inventory for node $name failed, $error");
-		}
-		
-		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
-		my $res = $self->update(lock => $lock); # 'upgrade' the one lock we currently hold
-		# collect will have to wait until a next run...but do clean the lock up now
-		return $res;
-	}
-	else {
-		$self->SYS($S);  # keep a reference to the sys object in the node for the rest of the update
+	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => "system" );
+	if( $error ) {
+		$self->unlock(lock => $lock);
+		$self->nmisng->log->fatal("($name) failed to load catchall inventory: $error");
+		return { error => "failed to load catchall inventory: $error" };
 	}
 
-
-	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $catchall_inventory->data_live();
 	my $previous_poll = $catchall_data->{last_poll};
 	
@@ -9188,6 +9134,31 @@ sub collect
 	if (defined($wantwmi)) {
 		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
+
+
+	# if the init fails attempt an update operation instead
+	# Thats initialised to node polling policy	
+	if (!$S->init( node => $self,
+									snmp => $wantsnmp,
+									wmi => $wantwmi,
+									policy => $self->configuration->{polling_policy},
+									catchall_inventory => $catchall_inventory
+			))
+	{
+		$self->nmisng->log->debug( "Sys init for $name failed: "
+													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
+		my ($save, $error2) = $catchall_inventory->save( node => $self );		
+		$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		
+		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
+		my $res = $self->update(lock => $lock); # 'upgrade' the one lock we currently hold
+		# collect will have to wait until a next run...but do clean the lock up now
+		return $res;
+	}
+	else {
+		$self->SYS($S);  # keep a reference to the sys object in the node for the rest of the update
+	}
+	
 	
 	$self->nmisng->log->debug( "node=$name "
 														 . join( " ", map { "$_=" . $catchall_data->{$_} }
