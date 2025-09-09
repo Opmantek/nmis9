@@ -9632,6 +9632,47 @@ sub check_datasets_tags_for_node {
 }
 
 
+# get_rrd_paths_by_tag
+# ---------------------
+# Fetches RRD file paths for a given node and tag(s).
+#
+# Workflow:
+# 1. Normalizes 'tags' (string or arrayref) into an arrayref.
+# 2. Aggregates MongoDB documents:
+#      - '$match' ensures node_name matches and dataset_tags contains the tags.
+#      - '$project' keeps node_name, index, storage(for rrd path), dataset_info, and
+#        filters dataset_tags with '$setIsSubset' checks if the $tags_ref array is a subset of the dataset_tags array
+# 3. Iterates over results:
+#      - Checks dataset_tags against requested tags.
+#      - Collects matching dataset_names.
+#      - Resolves RRD paths from storage and attaches them into '%rec'.
+#
+# Return structure:
+#   $rec{node_name}{subconcept}{index?} = $rrd_path
+#
+# Tag matching:
+# - '$setIsSubset' All requested tags must exist in dataset_tags
+# - Works for:
+#     ["mem-util"]                        → dataset must contain "mem-util"
+#     ["mem-util", "report-node-health"]  → dataset must contain both tags
+#
+# Example for cpu:
+#   With index present:
+#     {
+#       "Switch-2" => {
+#         "cpu_cpm" => {
+#           1 => "/nodes/Switch-2/health/cpu-cpm-1.rrd"
+#         }
+#       }
+#     }
+# Example for memory:
+#   Without index:
+#     {
+#       "Switch-2" => {
+#         "hrmem" => "/nodes/Switch-2/health/hrmem.rrd"
+#       }
+#     }
+#
 sub get_rrd_paths_by_tag {
   	my ($self, %args) = @_;
 	my $node_name = $args{node_name};
@@ -9699,7 +9740,7 @@ sub get_rrd_paths_by_tag {
 
 	for my $doc (@$entries) {
 		my $node_name = $doc->{node_name};
-		print "Node: $node_name\n";
+		#print "Node: $node_name\n";
 
 		my $idx;
 		$idx = $doc->{data}{index} if exists $doc->{data} && exists $doc->{data}{index};
@@ -9707,16 +9748,16 @@ sub get_rrd_paths_by_tag {
 		# collect wanted datasets
 		my %wanted_datasets;
 		for my $dt (@{$doc->{dataset_tags}}) {
-			print "  Checking dataset_tag: $dt->{dataset_name} tags=@{$dt->{tags}}\n";
+			#print "  Checking dataset_tag: $dt->{dataset_name} tags=@{$dt->{tags}}\n";
 			if (grep { $wanted_tags{$_} } @{$dt->{tags}}) {
 				$wanted_datasets{$dt->{dataset_name}} = 1;
-				print "    -> MATCH: $dt->{dataset_name}\n";
+				#print "    -> MATCH: $dt->{dataset_name}\n";
 			}
 		}
 
-		# if nothing matched, show it
+		# if nothing matched, show/return message
 		unless (%wanted_datasets) {
-			print "  No matching datasets for tags: @$tags_ref\n";
+			return "No matching datasets for tags: @$tags_ref\n";
 		}
 
 		# scan dataset_info
@@ -9725,7 +9766,8 @@ sub get_rrd_paths_by_tag {
 			my @matches = grep { $wanted_datasets{$_} } @{$sc->{datasets}};
 
 			if (@matches) {
-				print "  Subconcept $subconcept has matching datasets: @matches\n";
+				$self->nmisng->log->debug("Subconcept $subconcept has matching datasets: @matches");
+				#print "Subconcept $subconcept has matching datasets: @matches\n";
 			}
 
 			next unless @matches;
@@ -9733,10 +9775,9 @@ sub get_rrd_paths_by_tag {
 			# storage path
 			my $storage_rrd;
 			if (exists $doc->{storage}{$subconcept}) {
+				#print "Storage found: $storage_rrd\n";
 				$storage_rrd = $doc->{storage}{$subconcept}{rrd};
-				print "    Storage found: $storage_rrd\n";
-			} else {
-				print "    No storage for $subconcept\n";
+				$self->nmisng->log->debug("Storage found: $storage_rrd");
 			}
 			next unless $storage_rrd;
 
@@ -9748,8 +9789,6 @@ sub get_rrd_paths_by_tag {
 			}
 		}
 	}
-
-
 
 
 	#print "rec=".Dumper(%rec);
