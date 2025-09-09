@@ -153,10 +153,10 @@ sub update_plugin
 				my $index = $data->{index}; 
 				$index = $index.".1";
 				
-				$NG->log->debug(sub {"index is ".Dumper($index)});
-				$NG->log->debug(sub {"Power is ".Dumper($ONTTxPower)});
-				$data->{zxAnGponRmAniTxOptLevel} = $ONTTxPower->{$index};
-				$data->{zxAnGponRmAniRxOptLevel} = $ONTRxPower->{$index};
+				# $NG->log->debug(sub {"index is ".Dumper($index)});
+				# $NG->log->debug(sub {"Power is ".Dumper($ONTTxPower)});
+				$data->{zxAnGponRmAniTxOptLevel} = $ONTTxPower->{$index} * 0.001;
+				$data->{zxAnGponRmAniRxOptLevel} = $ONTRxPower->{$index} * 0.001;
 				$data->{zxAnGponRmAniPowerFeedVoltage} = $ONTVoltage->{$index};
 
 				if ($data->{zxAnGponRmOnuSerialNum}){
