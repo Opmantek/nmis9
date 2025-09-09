@@ -204,74 +204,52 @@ sub parse_rrd_update_data
 	return { $subconcept => \%key_meta };
 }
 
-# parse subconcept tags from model to inventory.
-# input model section and protocol(snmp/wmi)
-# output tags for the section
-sub parse_model_subconcept_tags
-{
-	my ($model_section,$proto) = @_;
-	my $retval;
-	my $headers = [ split(/\s*,\s*/, $model_section->{headers}) ];
-
-	foreach my $key (@$headers)
-	{		
-		if( defined($model_section->{$proto}->{$key}) && defined($model_section->{$proto}->{$key}->{'tag'}) ) {
-			my $tag = $model_section->{$proto}->{$key}->{'tag'};
-			$retval->{$key} = $tag;			
-		}	
-	}
-	return $retval;
-}
-
 
 # parse subconcept tags from model to inventory.
-# input model section and protocol(snmp/wmi)
+# input model section and protocol(snmp/wmi),
+# parameters: node obj, subconcept to look for, array of existing tags from this inventory
 # output tags for the section
-sub parse_model_rrd_tags {
-    my ($self, $node) = @_;
-    
-	# grab the model details to parse rrd tags.
-    my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
-    $S->init(node => $node);    
-	my $model = $S->mdl;
-		
-    return {} unless ref $model eq 'HASH' ;
+sub parse_model_for_tags {
+    my ($self,%args) = @_;		
+		my ($node,$sys_or_rrd,$subconcept,$existing_tags_for_subconcept) = @args{'node','sys_or_rrd','subconcept','existing_tags_for_subconcept'};
+    my $tags = [];
+		$existing_tags_for_subconcept //= [];
 
-    my %result;
+		# grab the model details to parse sys_or_rrd tags.
+    my $S = $node->SYS();
+		return $tags if(!$S);
 
-    # Traverse each RRD section (e.g., nodehealth, zxr10SystemMemCPU)
-	
-    foreach my $top (keys %$model) {
-		
-		my $section = $model->{$top};
-		
-        next unless ref $section eq 'HASH';
-        next unless exists $section->{rrd} && ref $section->{rrd} eq 'HASH';
+		my $model = $S->mdl;
+    return $tags unless ref $model eq 'HASH' ;		
+		return $tags if $self->model_class eq '';
 
-        foreach my $rrd_key (keys %{ $section->{rrd} }) {
+    # model class eg system, systemHealth, interface
+		my $class = $model->{$self->model_class};
 
-            my $rrd_entry = $section->{rrd}{$rrd_key};
-            next unless ref $rrd_entry eq 'HASH';
+		return $tags unless ref $class eq 'HASH';
+		return $tags unless exists $class->{$sys_or_rrd} && ref $class->{$sys_or_rrd} eq 'HASH';
+		return $tags if !defined($class->{$sys_or_rrd}{$subconcept}) || ref($class->{$sys_or_rrd}{$subconcept}) ne 'HASH';
 
-            my %tags;
+		my $section = $class->{$sys_or_rrd}{$subconcept};
+		my $protocol = $self->protocol // 'snmp';
+		return $tags if( ref($section->{$protocol}) ne 'HASH');
+				
+		foreach my $dataset_name (keys %{$section->{$protocol}}) 
+		{
+			next if(ref($section->{$protocol}{$dataset_name}) ne 'HASH');
+			my $dataset = $section->{$protocol}{$dataset_name};				
+			if( defined($dataset->{tags}) ) 
+			{
+				push @$tags, { name => $dataset_name, tags => $dataset->{tags}, source => "model" };
+			}
+		}
 
-            foreach my $proto (keys %$rrd_entry) {
-                my $proto_block = $rrd_entry->{$proto};
-                next unless ref $proto_block eq 'HASH';
+		# get the list of non-model tags, add them to the list		
+		foreach my $entry (@$existing_tags_for_subconcept ) {
+			push @$tags, $entry if( $entry->{source} ne 'model');
+		}
 
-                foreach my $item (keys %$proto_block) {
-                    my $val = $proto_block->{$item};
-                    if (ref $val eq 'HASH' && exists $val->{tag}) {
-                        $tags{$item} = $val->{tag};
-                    }
-                }
-            }
-
-            $result{$rrd_key} = \%tags if %tags;
-        }
-    }
-
-    return \%result;
+    return $tags;
 }
 # used to turn 'headers' section in a model into the keys and descriptions
 # for displaying the subconcept in a table (for instance)
@@ -450,6 +428,8 @@ sub new
 				_historic => 0,
 				_dirty => {},
 				_datasets => {},
+				_dataset_tags => {},
+				_data_tags => {},
 				(   map { ( "_$_" => $args{$_} ) } (
 							qw(concept node_uuid cluster_id data id nmisng
 						path path_keys storage subconcepts description model_class protocol
@@ -472,20 +452,26 @@ sub new
 
 	foreach my $entry (@$dataset_info)
 	{
+		my $subconcept_dataset_tags = $entry->{dataset_tags} // [];
+		delete $entry->{dataset_tags};
 		my $subconcept          = $entry->{subconcept};
 		my $subconcept_datasets = $entry->{datasets};
 
 		# turn arrays into hashes here, we store as array in db because we can't do much with keys in mongo
 		my %dataset_map = map { $_ => 1 } (@$subconcept_datasets);
 		$self->dataset_info( subconcept => $subconcept, datasets => \%dataset_map );
+		$self->dataset_tags( subconcept => $subconcept, dataset_tags => $subconcept_dataset_tags );
 	}
 
 	my $data_info = $args{data_info} // [];
 	die "data_info must be an array" . Carp::longmess() if ( ref($data_info) ne 'ARRAY' );
 	$self->{_data_info} = {};
 	foreach my $entry (@$data_info)
-	{
+	{		
+		my $subconcept_data_tags = $entry->{data_tags} // [];
+		delete $entry->{data_tags};
 		$self->data_info(%$entry);
+		$self->data_tags( subconcept => $entry->{subconcept}, data_tags => $subconcept_data_tags );
 	}
 	# Fill the server name
 	$self->{"_server_name"} = $self->{_nmisng}->get_server_name(cluster_id => $self->{_cluster_id});
@@ -1037,13 +1023,13 @@ sub data_live
 sub data_info
 {
 	my ( $self, %args ) = @_;
-	my ( $subconcept, $enabled, $display_keys,$tags ) = @args{'subconcept', 'enabled', 'display_keys', 'tags'};
+	my ( $subconcept, $enabled, $display_keys,$tags ) = @args{'subconcept', 'enabled', 'display_keys'};
 	return "cannot get or set data_info, invalid subconcept argument:$subconcept!"
 		if ( !$subconcept );    # must be something
 
-	if (defined($enabled) || defined($display_keys) || defined($tags))
+	if (defined($enabled) || defined($display_keys) )
 	{
-		my $newinfo = { enabled => $enabled, display_keys => Clone::clone($display_keys) // [], tags => Clone::clone($tags) // [] };
+		my $newinfo = { enabled => $enabled, display_keys => Clone::clone($display_keys) // [] };
 		my $display_keys_type = ref($newinfo->{display_keys});
 		if( $display_keys_type ne 'ARRAY' ) {
 			return "display_keys must be an array, $display_keys_type is not valid";
@@ -1052,6 +1038,27 @@ sub data_info
 		$self->{_data_info}->{$subconcept} = $newinfo;
 	}
 	return Clone::clone($self->{_data_info}->{$subconcept});
+}
+
+# returns arrahref of hashes { dataset_name => "dsname", tags => ["tag1","tag2"] } defined for the specified subconcept or empty array
+# arguments: subconcept - string, [newvalue] - new tags arrayref for given subconceps
+sub data_tags
+{
+	my ( $self, %args ) = @_;
+	my ( $subconcept, $data_tags ) = @args{'subconcept', 'data_tags'};
+
+	return "cannot get or set data_tags, invalid subconcept argument:$subconcept!"
+		if ( !$subconcept );    # must be something
+
+	if ( defined($data_tags) )
+	{
+		return "cannot set data_tags, invalid newvalue argument!"
+				if ( ref($data_tags) ne "ARRAY" );    # empty hash is acceptable
+		# NOTE: dataset_info is where this ends up in the db structure so we mark that part dirty
+		$self->_dirty(1,"data_info") if (!eq_deeply($self->{_data_tags}->{$subconcept}, $data_tags));
+		$self->{_data_tags}->{$subconcept} = $data_tags;
+	}
+	return $self->{_data_tags}->{$subconcept} // [];
 }
 
 # returns hashref of datasets defined for the specified subconcept or empty hash
@@ -1067,7 +1074,7 @@ sub dataset_info
 
 	if ( defined($datasets) )
 	{
-		return "cannot set datasets, invalid newvalue argument!"
+		return "cannot set dataset_info, invalid newvalue argument!"
 				if ( ref($datasets) ne "HASH" );    # empty hash is acceptable
 
 		$self->_dirty(1,"dataset_info") if (!eq_deeply($self->{_datasets}->{$subconcept},
@@ -1075,6 +1082,50 @@ sub dataset_info
 		$self->{_datasets}->{$subconcept} = $datasets;
 	}
 	return $self->{_datasets}->{$subconcept} // {};
+}
+
+# sub dataset_graphtypes
+# {
+# 	my ( $self, %args ) = @_;
+# 	my ( $subconcept, $graphtypes ) = @args{'subconcept', 'graphtypes'};
+
+# 	return "cannot get or set graphtypes, invalid subconcept argument:$subconcept!"
+# 		if ( !$subconcept );    # must be something
+
+# 	if ( defined($graphtypes) )
+# 	{
+# 		return "cannot set graphtypes, invalid newvalue argument!"
+# 				if ( ref($graphtypes) ne "ARRAY" );    # empty hash is acceptable
+# 		# NOTE: dataset_info is where this ends up in the db structure so we mark that part dirty
+# 		$self->_dirty(1,"dataset_info") if (!eq_deeply($self->{_dataset_graphtypes}->{$subconcept}, $graphtypes));
+# 		# if ($self->{_newdone} == 1 && grep($_ eq "dataset_info", $self->_whatisdirty)) {
+# 		# 	$DB::single = 1;
+# 		# 	print "dataset_info DIRTY \n";
+# 		# }
+# 		$self->{_dataset_graphtypes}->{$subconcept} = $graphtypes;
+# 	}
+# 	return $self->{_dataset_graphtypes}->{$subconcept} // [];
+# }
+
+# returns arrahref of hashes { dataset_name => "dsname", tags => ["tag1","tag2"] } defined for the specified subconcept or empty array
+# arguments: subconcept - string, [newvalue] - new tags arrayref for given subconceps
+sub dataset_tags
+{
+	my ( $self, %args ) = @_;
+	my ( $subconcept, $dataset_tags ) = @args{'subconcept', 'dataset_tags'};
+
+	return "cannot get or set dataset_tags, invalid subconcept argument:$subconcept!"
+		if ( !$subconcept );    # must be something
+
+	if ( defined($dataset_tags) )
+	{
+		return "cannot set dataset_tags, invalid newvalue argument!"
+				if ( ref($dataset_tags) ne "ARRAY" );    # empty hash is acceptable
+		# NOTE: dataset_info is where this ends up in the db structure so we mark that part dirty
+		$self->_dirty(1,"dataset_info") if (!eq_deeply($self->{_dataset_tags}->{$subconcept}, $dataset_tags));
+		$self->{_dataset_tags}->{$subconcept} = $dataset_tags;
+	}
+	return $self->{_dataset_tags}->{$subconcept} // [];
 }
 
 # remove this inventory entry from the db, including all timed_data instances,
@@ -1462,11 +1513,6 @@ sub save
 	}
 	my ($name, $group);
 	
-	# update tags from model, only on update
-	if( $update ) {
-		$self->update_tags();
-	}
-
 	# for now configuration is special, it's not accessible outside the class
 	my $configuration = $self->{_configuration};
 	if (ref($node) eq "NMISNG::Node")
@@ -1485,9 +1531,6 @@ sub save
 			$self->_dirty(1,"configuration");
 		}
 	}
-	# grab all the tags present in model
-	my $tag = $self->parse_model_rrd_tags($node);	
-	
 	my ( $result, $op );
 
 	my $record = {
@@ -1496,7 +1539,7 @@ sub save
 		node_uuid  => $self->node_uuid,
 		node_name  => $name,
 		configuration => $configuration,
-		class 		=> $self->class,
+		model_class => $self->model_class,
 		concept    => $self->concept(),
 		path       => $self->path(),         # path is calculated but must be stored so it can be queried
 		path_keys  => $self->path_keys(),    # could be empty, kept in db for selfcontainment and convenience
@@ -1511,7 +1554,7 @@ sub save
 
 		lastupdate => $lastupdate,
 	};
-
+	
 	# if not historic: extend expire_at ttl off the current lastupdate
 	if (!$self->historic)
 	{
@@ -1535,13 +1578,17 @@ sub save
 	foreach my $subconcept ( keys %{$self->{_datasets}} )
 	{
 		my @datasets = keys %{$self->dataset_info( subconcept => $subconcept )};
-		
-		if (defined $tag->{$subconcept}){			
-			push @{$record->{dataset_info}}, {subconcept => $subconcept, datasets => \@datasets, tags => $tag->{$subconcept} };				
+		my $dataset_info = {subconcept => $subconcept, datasets => \@datasets};
+		my $dataset_tags = $self->dataset_tags( subconcept => $subconcept );
+		# redo model tags on update
+		if( $update ) {
+			$dataset_tags = $self->parse_model_for_tags(node => $node, sys_or_rrd => "rrd", subconcept => $subconcept, existing_tags_for_subconcept =>$dataset_tags);
+			# set them back into the object so dirty tags can be set if needed			
+			$dataset_tags = $self->dataset_tags( subconcept => $subconcept, dataset_tags => $dataset_tags );
 		}
-		else{
-			push @{$record->{dataset_info}}, {subconcept => $subconcept, datasets => \@datasets};
-		}				
+		# always set them, if it's empty that may be to empty it
+		$dataset_info->{dataset_tags} = $dataset_tags;
+		push @{$record->{dataset_info}}, $dataset_info;
 	}
 
 	# data_info gets changed like dataset_info for easier mongo work, store as array with
@@ -1550,6 +1597,15 @@ sub save
 	foreach my $subconcept ( keys %{$self->{_data_info}} )
 	{
 		my $subconcept_info = $self->data_info( subconcept => $subconcept );
+		my $data_tags = $self->data_tags( subconcept => $subconcept );
+		# redo model tags on update
+		if( $update ) {
+			$data_tags = $self->parse_model_for_tags(node => $node, sys_or_rrd => "sys", subconcept => $subconcept, existing_tags_for_subconcept => $data_tags);
+			# set them back into the object so dirty tags can be set if needed
+			$data_tags = $self->data_tags( subconcept => $subconcept, data_tags => $data_tags );
+		}
+		# always set them, if it's empty that may be to empty it
+		$subconcept_info->{data_tags} = $data_tags;
 		push( @{$record->{data_info}}, { %$subconcept_info, subconcept => $subconcept });
 	}
 
@@ -1640,6 +1696,9 @@ sub save
 		$updateargs{constraints} = 0 if (grep($_ eq "data", $self->_whatisdirty));
 		#Handle cases where NMIS is updating the inventory but nothing in record has changed, we need to make sure lastupdate is updated as opHA uses this to track when data should be pushed
 		$self->_dirty(1,"lastupdate") if ($update);
+		# force these to be saved if it's an update
+		$self->_dirty(1,"model_class") if ($update && $record->{model_class});
+		$self->_dirty(1,"protocol") if ($update && $record->{protocol});
 
 		$op = 3; # nothing to update
 		for my $saveme ($self->_whatisdirty)
