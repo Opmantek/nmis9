@@ -9732,7 +9732,6 @@ sub get_rrd_paths_by_tag {
 	);
 
 	return (undef, $error) if ($error);
-	#print "entries=".Dumper($entries);
 	
 	my %rec;
 	
@@ -9740,7 +9739,6 @@ sub get_rrd_paths_by_tag {
 
 	for my $doc (@$entries) {
 		my $node_name = $doc->{node_name};
-		#print "Node: $node_name\n";
 
 		my $idx;
 		$idx = $doc->{data}{index} if exists $doc->{data} && exists $doc->{data}{index};
@@ -9748,10 +9746,8 @@ sub get_rrd_paths_by_tag {
 		# collect wanted datasets
 		my %wanted_datasets;
 		for my $dt (@{$doc->{dataset_tags}}) {
-			#print "  Checking dataset_tag: $dt->{dataset_name} tags=@{$dt->{tags}}\n";
 			if (grep { $wanted_tags{$_} } @{$dt->{tags}}) {
 				$wanted_datasets{$dt->{dataset_name}} = 1;
-				#print "    -> MATCH: $dt->{dataset_name}\n";
 			}
 		}
 
@@ -9767,7 +9763,6 @@ sub get_rrd_paths_by_tag {
 
 			if (@matches) {
 				$self->nmisng->log->debug("Subconcept $subconcept has matching datasets: @matches");
-				#print "Subconcept $subconcept has matching datasets: @matches\n";
 			}
 
 			next unless @matches;
@@ -9775,7 +9770,6 @@ sub get_rrd_paths_by_tag {
 			# storage path
 			my $storage_rrd;
 			if (exists $doc->{storage}{$subconcept}) {
-				#print "Storage found: $storage_rrd\n";
 				$storage_rrd = $doc->{storage}{$subconcept}{rrd};
 				$self->nmisng->log->debug("Storage found: $storage_rrd");
 			}
@@ -9789,7 +9783,6 @@ sub get_rrd_paths_by_tag {
 			}
 		}
 	}
-
 
 	#print "rec=".Dumper(%rec);
     return \%rec;   # return hashref
