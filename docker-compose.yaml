@@ -1,0 +1,60 @@
+version: '3.4'
+services:
+  mongo:
+    image: mongo:6.0
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - /persistent/mongod.conf:/etc/mongod.conf
+      - mongo_data:/data/mongodb
+    ports:
+      - "27017:27017"
+    networks:
+      - nmis_net
+  nmis:
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v1.7
+    restart: always
+    environment:
+      NMIS_DB_USERNAME: root
+      NMIS_DB_PASSWORD: example
+      NMIS_DB_SERVER: 192.168.xx.xxx
+      NMIS_SERVER_NAME: xxx.opmantek.net
+    depends_on:
+      - mongo
+    volumes:
+      - log_data:/usr/local/nmis9/logs
+      - var_data:/usr/local/nmis9/var
+      - conf_data:/usr/local/nmis9/conf
+      - database_data:/usr/local/nmis9/database
+      # You can mount your own config files into volumes in the container but 
+      # you must ensure that the db config details match whats in this compose file
+      # - ./default-config/Config.nmis:/usr/local/nmis9/conf/Config.nmis
+      # - ./default-config/opCommon.json:/usr/local/omk/conf/opCommon.json
+      - /persistent/Config.nmis:/usr/local/nmis9/conf/Config.nmis
+      - /persistent/opCommon.json:/usr/local/omk/conf/opCommon.json
+      - omk_log_data:/usr/local/omk/log
+      - omk_var_data:/usr/local/omk/var
+      - omk_conf_data:/usr/local/omk/conf
+      # - ./persistent:/persistent
+      # - ./app_conf/opLicense.json:/usr/local/omk/conf/opLicense.json
+    ports:
+      - "8080:8080"
+      - "8042:8042"
+      - "2055:2055/udp"
+      - "161:161/udp"
+      - "25:25"
+    networks:
+      - nmis_net
+networks:
+  nmis_net:
+volumes:
+  log_data:
+  var_data:
+  conf_data:
+  database_data:
+  omk_log_data:
+  omk_var_data:
+  omk_conf_data:
+  mongo_data:
