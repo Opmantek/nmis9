@@ -14,15 +14,17 @@ ARG NMIS_USER_GID=10001
 
 ENV PERL5LIB="/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32"
 
-RUN wget -qO- https://www.mongodb.org/static/pgp/server-8.0.asc | tee /etc/apt/trusted.gpg.d/server-8.0.asc && \
-    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-8.0.list
-
 RUN apt-get update  > /dev/null && \
     apt-get install --assume-yes \
+      gnupg \
       ca-certificates \
       curl > /dev/null
 
-RUN apt-get -y install --no-install-recommends tini \
+RUN curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg && \
+    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/6.0 main" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+
+RUN apt-get update  > /dev/null && \
+    apt-get -y install --no-install-recommends tini \
     libcairo2 \
     libcairo2-dev \
     libglib2.0-dev \
@@ -136,7 +138,7 @@ RUN mv /usr/local/nmis9/omk /usr/local/ && \
     mv /usr/local/omk/install/opchartsd.init.d.bak /etc/init.d/opchartsd && \
     mv /usr/local/omk/install/opconfigd.init.d.bak /etc/init.d/opconfigd && \
     mv /usr/local/omk/install/opeventsd.init.d.bak /etc/init.d/opeventsd && \
-    rm /etc/apt/sources.list.d/mongodb-org-8.0.list
+    rm /etc/apt/sources.list.d/mongodb-org-6.0.list
 
 # NMIS Web 8080
 # OMK Web 8042
