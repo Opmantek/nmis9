@@ -211,15 +211,11 @@ sub parse_rrd_update_data
 # output tags for the section
 sub parse_model_for_tags {
     my ($self,%args) = @_;		
-		my ($node,$sys_or_rrd,$subconcept,$existing_tags_for_subconcept) = @args{'node','sys_or_rrd','subconcept','existing_tags_for_subconcept'};
+		my ($model,$sys_or_rrd,$subconcept,$existing_tags_for_subconcept) = @args{'model','sys_or_rrd','subconcept','existing_tags_for_subconcept'};
     my $tags = [];
 		$existing_tags_for_subconcept //= [];
 
-		# grab the model details to parse sys_or_rrd tags.
-    my $S = $node->SYS();
-		return $tags if(!$S);
-
-		my $model = $S->mdl;
+		# grab the model details to parse sys_or_rrd tags.    
     return $tags unless ref $model eq 'HASH' ;		
 		return $tags if $self->model_class eq '';
 
@@ -234,7 +230,7 @@ sub parse_model_for_tags {
 		my $protocol = $self->protocol // 'snmp';
 		return $tags if( ref($section->{$protocol}) ne 'HASH');
 				
-		foreach my $dataset_name (keys %{$section->{$protocol}}) 
+		foreach my $dataset_name (sort keys %{$section->{$protocol}}) 
 		{
 			next if(ref($section->{$protocol}{$dataset_name}) ne 'HASH');
 			my $dataset = $section->{$protocol}{$dataset_name};				
@@ -1540,6 +1536,8 @@ sub save
 		node_name  => $name,
 		configuration => $configuration,
 		model_class => $self->model_class,
+		protocol => $self->protocol,
+
 		concept    => $self->concept(),
 		path       => $self->path(),         # path is calculated but must be stored so it can be queried
 		path_keys  => $self->path_keys(),    # could be empty, kept in db for selfcontainment and convenience
@@ -1573,6 +1571,12 @@ sub save
 		$path->[$i] = NMISNG::Util::numify( $path->[$i] );
 	}
 
+	# get the model for tags if it's going to run
+	my $model;
+	if( $update && $node && $node->SYS ) {
+		$model = $node->SYS->mdl;
+	}
+
 	# right now dataset subconcepts are not hooked up to subconcept list
 	$record->{dataset_info} = [];
 	foreach my $subconcept ( keys %{$self->{_datasets}} )
@@ -1582,7 +1586,7 @@ sub save
 		my $dataset_tags = $self->dataset_tags( subconcept => $subconcept );
 		# redo model tags on update
 		if( $update ) {
-			$dataset_tags = $self->parse_model_for_tags(node => $node, sys_or_rrd => "rrd", subconcept => $subconcept, existing_tags_for_subconcept =>$dataset_tags);
+			$dataset_tags = $self->parse_model_for_tags(model => $model, sys_or_rrd => "rrd", subconcept => $subconcept, existing_tags_for_subconcept =>$dataset_tags);
 			# set them back into the object so dirty tags can be set if needed			
 			$dataset_tags = $self->dataset_tags( subconcept => $subconcept, dataset_tags => $dataset_tags );
 		}
@@ -1600,7 +1604,7 @@ sub save
 		my $data_tags = $self->data_tags( subconcept => $subconcept );
 		# redo model tags on update
 		if( $update ) {
-			$data_tags = $self->parse_model_for_tags(node => $node, sys_or_rrd => "sys", subconcept => $subconcept, existing_tags_for_subconcept => $data_tags);
+			$data_tags = $self->parse_model_for_tags(model => $model, sys_or_rrd => "sys", subconcept => $subconcept, existing_tags_for_subconcept => $data_tags);
 			# set them back into the object so dirty tags can be set if needed
 			$data_tags = $self->data_tags( subconcept => $subconcept, data_tags => $data_tags );
 		}
