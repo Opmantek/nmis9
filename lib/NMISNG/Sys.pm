@@ -1467,6 +1467,7 @@ sub getValues
 					$self->nmisng->log->error("($self->{name}) getValues failed: $error");
 				}
 				$value = $result;
+				$knownvars{$thing->{item}} = $value;
 			}
 
 			# replace table: replace with known value, or 'unknown' fallback, or leave unchanged
@@ -1514,33 +1515,43 @@ sub getValues
 				my $test = $sectiondetails->{alert}->{test};
 				$self->nmisng->log->debug3(sub { "checking test $test for basic alert \"$target->{title}\"" });
 
-				# setup known var value list so that eval_string can handle CVARx substitutions
-				my ( $error, $result ) = $self->eval_string(
-					string  => $test,
-					context => $value,
-
-					# for now we don't support multiple or cooked, per-section values
-					variables => [\%knownvars]
-				);
-				if ($error)
-				{
-					$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
-					$self->nmisng->log->error("($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
+				# Value being undefined likely only comes from calculate setting it to undef. This can occur when the data
+        		# returned from the device is considered invalid(erroneous) and needs to be ignored, in this case we do
+        		# not want the existing event/status to change. Hopefully better data is returned on the next collect.
+				if( !defined($value) ) {
+					$self->nmisng->log->warn("($self->{name}) test $test for basic alert \"$target->{title}\" did not return defined data, status/event will not be run");
 				}
-				$self->nmisng->log->debug3(sub { "test $test, result=$result"});
-				push @{$self->{alerts}}, {
-					name    => $self->{name},
-					type    => "test",
-					event   => $sectiondetails->{alert}->{event},
-					level   => $sectiondetails->{alert}->{level},
-					ds      => $thing->{item},
-					section => $gothere,                           # that's the section name
-					source  => $thing->{query} ? "wmi" : "snmp",   # not sure we actually need that in the alert context
-					value   => $value,
-					test_result => $result,
-					calculate_details => (defined($sectiondetails->{alert}{calculate_details}) && $sectiondetails->{alert}{calculate_details} ne '') ? $sectiondetails->{alert}{calculate_details} : undef,
-					inventory_id => ($inventory) ? $inventory->id : undef
-				};
+				else{
+					
+
+					# setup known var value list so that eval_string can handle CVARx substitutions
+					my ( $error, $result ) = $self->eval_string(
+						string  => $test,
+						context => $value,
+
+						# for now we don't support multiple or cooked, per-section values
+						variables => [\%knownvars]
+					);
+					if ($error)
+					{
+						$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
+						$self->nmisng->log->error("($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
+					}
+					$self->nmisng->log->debug3(sub { "test $test, result=$result"});
+					push @{$self->{alerts}}, {
+						name    => $self->{name},
+						type    => "test",
+						event   => $sectiondetails->{alert}->{event},
+						level   => $sectiondetails->{alert}->{level},
+						ds      => $thing->{item},
+						section => $gothere,                           # that's the section name
+						source  => $thing->{query} ? "wmi" : "snmp",   # not sure we actually need that in the alert context
+						value   => $value,
+						test_result => $result,
+						calculate_details => (defined($sectiondetails->{alert}{calculate_details}) && $sectiondetails->{alert}{calculate_details} ne '') ? $sectiondetails->{alert}{calculate_details} : undef,
+						inventory_id => ($inventory) ? $inventory->id : undef
+					};
+				}
 			}
 		}
 	}

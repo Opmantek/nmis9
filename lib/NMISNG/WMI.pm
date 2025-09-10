@@ -185,7 +185,7 @@ sub _run_query
 
 		my $url     = Mojo::URL->new( $self->{wmic_server_location} );
 		my $id = $self->{username};
-		my $token = $self->{password};
+		my $token = NMISNG::Util::decrypt($self->{password});
 		my $host = $self->{host};
 		my $namespace = "root/cimv2";
 		my $post_json = { id => $id, token => $token, host => $host, query => $query, namespace => $namespace };
@@ -300,7 +300,7 @@ sub _run_query
 			$sendPassword=$self->{password};
 
 			$ENV{USERNAME} = $sendUsername;
-			$ENV{PASSWORD} = $sendPassword;
+			$ENV{PASSWORD} = NMISNG::Util::decrypt($sendPassword);
 			$cmdLine  = "$self->{program}";
 			$cmdLine .= " --domain='$sendDomain'";
 			$cmdLine .= " --server='$self->{host}'";

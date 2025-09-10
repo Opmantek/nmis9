@@ -59,6 +59,9 @@
       'combinedCPUload' => {
         'common-model' => 'combinedCPUload'
       },
+      'IP-FORWARD' => {
+        'common-model' => 'IP-FORWARD'
+      }
     }    
   },
   'stats' => {
@@ -398,7 +401,7 @@
 
   'systemHealth' => {
     #Server_Connections
-    'sections' => 'diskIOTable,software,Host_Device,Host_Processor,env-temp,Host_Storage,Host_Disk_Storage,Host_Partition,Host_File_System',
+    'sections' => 'diskIOTable,software,Host_Device,Host_Processor,env-temp,Host_Storage,Host_Disk_Storage,Host_Partition,Host_File_System,ipCidrRoute',
     'sys' => {
       'diskIOTable' => {        
         'indexed' => 'diskIOIndex',        
