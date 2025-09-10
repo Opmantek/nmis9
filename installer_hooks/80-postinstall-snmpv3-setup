@@ -40,7 +40,7 @@ printBanner "Checking Crypt::Rijndael is installed"
 
 if ! perl -e 'use Crypt::Rijndael; exit(0);' 2>/dev/null; then
 	echo "Crypt::Rijndael module is not installed."
-	if input_yn "Would you like to install Crypt::Rijndael using cpanm?" "b2e8"; then
+	if input_yn "Would you like to install Crypt::Rijndael using cpanm?" "b2e9"; then
 		execPrint "cpanm Crypt::Rijndael"
 		if ! perl -e 'use Crypt::Rijndael; exit(0);' 2>/dev/null; then
 			echo "Failed to install Crypt::Rijndael. Please install it manually and run this script again."
