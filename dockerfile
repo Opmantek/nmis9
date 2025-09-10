@@ -14,6 +14,9 @@ ARG NMIS_USER_GID=10001
 
 ENV PERL5LIB="/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32"
 
+RUN wget -qO- https://www.mongodb.org/static/pgp/server-8.0.asc | tee /etc/apt/trusted.gpg.d/server-8.0.asc && \
+    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
 RUN apt-get update  > /dev/null && \
     apt-get install --assume-yes \
       ca-certificates \
@@ -132,7 +135,8 @@ RUN mv /usr/local/nmis9/omk /usr/local/ && \
     mv /usr/local/omk/install/omkd.init.d.bak /etc/init.d/omkd && \
     mv /usr/local/omk/install/opchartsd.init.d.bak /etc/init.d/opchartsd && \
     mv /usr/local/omk/install/opconfigd.init.d.bak /etc/init.d/opconfigd && \
-    mv /usr/local/omk/install/opeventsd.init.d.bak /etc/init.d/opeventsd
+    mv /usr/local/omk/install/opeventsd.init.d.bak /etc/init.d/opeventsd && \
+    rm /etc/apt/sources.list.d/mongodb-org-8.0.list
 
 # NMIS Web 8080
 # OMK Web 8042
