@@ -6,7 +6,7 @@ SCRIPTPATH=${0%/*}
 
 printBanner "Running snmpv3 configuration helper"
 # prompt user about enabling SNMPv3-256bit support
-if ! input_yn "Do you want to enable SNMPv3-256bit support?" "a7f3"; then
+if ! input_yn "Do you want to enable SNMPv3-256bit support?" "a7f4"; then
 	echo "SNMPv3-256bit support will not be enabled."
 	exit 0
 fi

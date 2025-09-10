@@ -11,7 +11,7 @@ fi
 
 printBanner "Running custom install files"
 # prompt user about enabling SNMPv3-256bit support
-if ! input_yn "Do you want to copy the custom install files into this install?" "a7f3"; then
+if ! input_yn "Do you want to copy the custom install files into this install?" "a7f5"; then
 	echo "Custom install files will not be copied."
 	exit 0
 fi
