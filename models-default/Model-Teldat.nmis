@@ -24,6 +24,9 @@
             },
             'threshold' => {
                 'common-model' => 'threshold'
+            },
+            'IP-FORWARD' => {
+              'common-model' => 'IP-FORWARD'
             }
         }
     },
@@ -577,7 +580,7 @@
                 }
             },
         },
-        'sections' => 'bgpPeer,TeldatFRStat,TeldatQoSStat,TeldatBRSStat,cdp,fanStatus,psuStatus,tempStatus,echoRtt,jitterRttMon,icmpjitterRtt',
+        'sections' => 'bgpPeer,TeldatFRStat,TeldatQoSStat,TeldatBRSStat,cdp,fanStatus,psuStatus,tempStatus,echoRtt,jitterRttMon,icmpjitterRtt,ipCidrRoute',
         'sys' => {
 		'QoSOut' => {
 			'headers' => 'index,QosName,Interface,BytesTx,BytesDrops',

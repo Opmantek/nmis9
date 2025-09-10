@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.6.2";
+our $VERSION = "9.6.3";
 
 use strict;
 use Data::Dumper;
@@ -103,7 +103,7 @@ sub new
 		if ( !$conn )
 		{
 			my $errmsg = NMISNG::DB::get_error_string;
-			$self->log->fatal("cannot connect to MongoDB: $errmsg");
+			$self->log->fatal("NMISNG cannot connect to MongoDB: $errmsg");
 			die "cannot connect to MongoDB: $errmsg\n";
 		}
 		$db = $conn->get_database( $self->config->{db_name} );
