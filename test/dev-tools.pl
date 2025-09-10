@@ -76,8 +76,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=thresholds - Run thresholds for a node (node= force=)
  * act=services - Run services for a node (node= force=) 
  * act=gettable - Get data from a node (node= oid= query=) 
- * act=get_tagged_datasets - Gets datasets that have been tagged
- * act=rrds_by_tags - If datasets have been tagged return rrds associated with datasets that have been tagged
+ * act=get_tagged_datasets - The function returns different results based on the objective variable: If tagged is passed, it returns the datasets of a given subconcept that are tagged. If rrd is passed, it returns the RRD paths for the given subconcept.
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -129,18 +128,12 @@ elsif ($Q->{act} =~ /^get_tagged_datasets/)
 {
 	my $node = $Q->{node};
 	my $datasets_tags = $Q->{datasets_tags};
+	my $objective = $Q->{objective};
     die "Need a node to run " if (!$node);
-	my $result = get_tagged_datasets(node => $node, datasets_tags => $datasets_tags);
+	my $result = get_tagged_datasets(node => $node, datasets_tags => $datasets_tags, objective => $objective);
 	exit 0;
 }
-elsif ($Q->{act} =~ /^rrds_by_tags/)
-{
-	my $node = $Q->{node};
-	my $tags = $Q->{tags};
-    die "Need a node to run " if (!$node);
-	my $result = rrds_by_tags(node => $node, tags => $tags);
-	exit 0;
-}
+
 elsif ($Q->{act} =~ /^model/)
 {
 	my $node = $Q->{node};
@@ -498,6 +491,7 @@ sub get_tagged_datasets
 	my $node = $args{node};
 	my $datasets_tags = $args{datasets_tags};
 	my $debug = $args{debug};
+	my $objective = $args{objective};
 
 	# Parse datasets_tags array
 	my @datasets_tags = split /,/, $args{datasets_tags};
@@ -516,8 +510,8 @@ sub get_tagged_datasets
 		print "====================\$node =$node --- \@datasets_tags =".Dumper(@datasets_tags)."==========================\n";
 		
 		if (defined $node){
-			my $result = $nodeobj->check_datasets_tags_for_node(node_name => $node, datasets_tags => \@datasets_tags);
-			print "result=".Dumper($result);
+			my $result = $nodeobj->tagged_datasets_for_subconcept(node_name => $node, datasets_tags => \@datasets_tags, objective => $objective);
+			#print "result=".Dumper($result);
 		}
 		
     }
@@ -528,33 +522,3 @@ sub get_tagged_datasets
 	
 }
 
-sub rrds_by_tags
-{
-    my %args = @_;
-	my $node = $args{node};
-	my $tags = $args{tags};
-	my $debug = $args{debug};
-    
-	die "No tags provided\n"  unless $tags;
-    print "============== rrds_by_tags==========\n";
- 
-    my $config = NMISNG::Util::loadConfTable( dir => undef, debug => undef, info => undef);
-    
-    # use debug, or info arg, or configured log_level
-    my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $debug, info => $args{info}), path  => undef ); 
-    my $nmisng = NMISNG->new(config => $config, log  => $logger);
-    
-    if ( defined $node ) {
-		my $nodeobj = $nmisng->node(name => $node);
-		print "====================\$node = $node --- \$tags =".Dumper($tags)."==========================\n";
-		if (defined $tags){
-			my $result = $nodeobj->get_rrd_paths_by_tag(node_name => $node, tags => $tags);
-			print "result=".Dumper($result);
-		}
-		
-    }
-    else {
-        print "Error, need a node to run: node=NODENAME \n";
-        return 0;
-    }
-}

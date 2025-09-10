@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.6.3";
+our $VERSION = "9.5.1";
 
 use strict;
 
@@ -9606,188 +9606,78 @@ sub interface_by_ifDescr
 	return $interface_inventory;
 }
 
-sub check_datasets_tags_for_node { 
-	my ($self, %args) = @_; my $node_name = $args{node_name} or die "node_name is required"; 
-	my $datasets_tags = $args{datasets_tags}; # Normalize tags to arrayref 
+sub tagged_datasets_for_subconcept { 
+	my ($self, %args) = @_; 
+	my $node_name = $args{node_name} or die "node_name is required"; 
+	my $datasets_tags = $args{datasets_tags}; # Normalize tags to arrayref
+	my $objective = $args{objective};
 	my $tags_want = ref $datasets_tags eq 'ARRAY' ? $datasets_tags : defined $datasets_tags ? [$datasets_tags] : die "datasets_tags is required";
 	# Query DB 
-	my $q = NMISNG::DB::get_query( and_part => { node_name => $node_name, 'dataset_tags.tags' => { '$in' => $tags_want } } ); 
-	my $cursor = NMISNG::DB::find( collection => $self->nmisng->inventory_collection, query => $q, ); 
+	my $q = NMISNG::DB::get_query( and_part => { node_name => $node_name, 'dataset_info.dataset_tags.tags' => { '$in' => $tags_want } } ); 
+	my $entries = NMISNG::DB::find(
+			collection  => $self->nmisng->inventory_collection,
+			query       => $q,
+			fields_hash => { 'node_name' => 1,'dataset_info' => 1, 'storage'    => 1, 'data.index'    => 1,}
+	);
+	#print "entries".Dumper($entries);
+	my @all = $entries->all;
+	#print "all".Dumper(@all);
 	my %found; 
-	while (my $rec = $cursor->next) { 
-		# map dataset to subconcept 
-		my %map; 
-		for my $info (@{ $rec->{dataset_info} }) { 
-			my $subconcept = $info->{subconcept}; $map{$_} = $subconcept for @{ $info->{datasets}}; 
-		} 
-		# only keep datasets with matching tags 
-		for my $dtag (@{ $rec->{dataset_tags} }) { 
-			next unless grep { my $t = $_; grep { $_ eq $t } @$tags_want } @{ $dtag->{tags} }; 
-			my $ds = $dtag->{dataset_name}; 
-			my $subconcept = $map{$ds}; 
-			$found{$subconcept}{$ds} = 1; 
-		} 
-	} 
-	return \%found; 
-}
-
-
-# get_rrd_paths_by_tag
-# ---------------------
-# Fetches RRD file paths for a given node and tag(s).
-#
-# Workflow:
-# 1. Normalizes 'tags' (string or arrayref) into an arrayref.
-# 2. Aggregates MongoDB documents:
-#      - '$match' ensures node_name matches and dataset_tags contains the tags.
-#      - '$project' keeps node_name, index, storage(for rrd path), dataset_info, and
-#        filters dataset_tags with '$setIsSubset' checks if the $tags_ref array is a subset of the dataset_tags array
-# 3. Iterates over results:
-#      - Checks dataset_tags against requested tags.
-#      - Collects matching dataset_names.
-#      - Resolves RRD paths from storage and attaches them into '%rec'.
-#
-# Return structure:
-#   $rec{node_name}{subconcept}{index?} = $rrd_path
-#
-# Tag matching:
-# - '$setIsSubset' All requested tags must exist in dataset_tags
-# - Works for:
-#     ["mem-util"]                        → dataset must contain "mem-util"
-#     ["mem-util", "report-node-health"]  → dataset must contain both tags
-#
-# Example for cpu:
-#   With index present:
-#     {
-#       "Switch-2" => {
-#         "cpu_cpm" => {
-#           1 => "/nodes/Switch-2/health/cpu-cpm-1.rrd"
-#         }
-#       }
-#     }
-# Example for memory:
-#   Without index:
-#     {
-#       "Switch-2" => {
-#         "hrmem" => "/nodes/Switch-2/health/hrmem.rrd"
-#       }
-#     }
-#
-sub get_rrd_paths_by_tag {
-  	my ($self, %args) = @_;
-	my $node_name = $args{node_name};
-	$node_name =~ s/^\s+|\s+$//g;
-    my $tags = $args{tags};
-	
-	#print "node_name = $node_name\n";
-	#print "tags = ".Dumper($tags)."\n";
-	#print "===================get_rrd_paths_by_tag node_name = $node_name ---- tag =$tag ==========================\n";
-	# $self->nmisng->log->fatal("Node::get_rrd_paths_by_tag Tag is required") if(!defined $tag);
-	# return;
-
-	# Normalize tags into arrayref
-	my $tags_ref;
-	if (ref $tags eq 'ARRAY') {
-		$tags_ref = [ map { s/^\s+|\s+$//g; $_ } @$tags ]; # trim whitespace
-	}
-	elsif (defined $tags) {
-		$tags =~ s/^\s+|\s+$//g;
-		$tags_ref = [$tags];
-	}
-	else {
-		die "tags is required (string or arrayref)";
-	}
-	#print "tags_ref = ".Dumper($tags_ref)."\n";
-
-	my @prepipeline = (
-		{
-			'$match' => {
-				'node_name' => $node_name,
-				'dataset_tags.tags' => { '$in' => $tags_ref }  # match any of the tags
-			}
-		},
-		{
-			'$project' => {
-				'node_name'    => 1,
-				'data.index'    => 1,
-				'storage'    => 1,
-				'dataset_info' => 1,
-				'_id'      => 0,
-					'dataset_tags' => {
-						'$filter' => {
-							'input' => '$dataset_tags',
-							'as'    => 'ds',
-							'cond'  => { '$setIsSubset' => [ $tags_ref, '$$ds.tags' ] } 
-						}
+	my %rrd_rec;
+	foreach my $entry (@all) {	
+		my $info = $entry->{dataset_info};
+		my $idx;
+		$idx = $entry->{data}{index} if exists $entry->{data} && exists $entry->{data}{index};
+		my $subconcept_datasets;
+		#print "info".Dumper($info);
+		for my $rec (@{$info}) {
+			my $subconcept = $rec->{subconcept};
+			#print "subconcept".Dumper($subconcept);
+			my $storage_rrd;
+			
+			# Convert datasets array to a hash for fast lookup
+			my %datasets_lookup = map { $_ => 1 } @{$rec->{'datasets'}};
+			# Check each dataset_tag name
+			foreach my $tag (@{$rec->{'dataset_tags'}}) {
+				my $ds_name = $tag->{'name'};
+				if (exists $datasets_lookup{$ds_name}) {
+					if (exists $entry->{storage}{$subconcept}) {
+						$storage_rrd = $entry->{storage}{$subconcept}{rrd};
+						#print "    Storage found: $storage_rrd\n";
+					} else {
+						#print "    No storage for $subconcept\n";
 					}
+							# fill rec
+					if (defined $idx) {
+						$rrd_rec{$node_name}{$subconcept}{$idx} = $storage_rrd;
+					} else {
+						$rrd_rec{$node_name}{$subconcept} = $storage_rrd;
+					}
+					#print "$ds_name => exists\n";
+					$found{$subconcept}{$ds_name} = 1;
+				} else {
+					#print "$ds_name => does not exist\n";
 				}
 			}
-	);
-	
-
-
-	my ($entries,$count,$error) =  NMISNG::DB::aggregate(
-		collection => $self->nmisng->inventory_collection,
-		pre_count_pipeline => \@prepipeline,
-	);
-
-	return (undef, $error) if ($error);
-	
-	my %rec;
-	
-	my %wanted_tags = map { $_ => 1 } @$tags_ref;
-
-	for my $doc (@$entries) {
-		my $node_name = $doc->{node_name};
-
-		my $idx;
-		$idx = $doc->{data}{index} if exists $doc->{data} && exists $doc->{data}{index};
-
-		# collect wanted datasets
-		my %wanted_datasets;
-		for my $dt (@{$doc->{dataset_tags}}) {
-			if (grep { $wanted_tags{$_} } @{$dt->{tags}}) {
-				$wanted_datasets{$dt->{dataset_name}} = 1;
-			}
-		}
-
-		# if nothing matched, show/return message
-		unless (%wanted_datasets) {
-			return "No matching datasets for tags: @$tags_ref\n";
-		}
-
-		# scan dataset_info
-		for my $sc (@{$doc->{dataset_info}}) {
-			my $subconcept = $sc->{subconcept};
-			my @matches = grep { $wanted_datasets{$_} } @{$sc->{datasets}};
-
-			if (@matches) {
-				$self->nmisng->log->debug("Subconcept $subconcept has matching datasets: @matches");
-			}
-
-			next unless @matches;
-
-			# storage path
-			my $storage_rrd;
-			if (exists $doc->{storage}{$subconcept}) {
-				$storage_rrd = $doc->{storage}{$subconcept}{rrd};
-				$self->nmisng->log->debug("Storage found: $storage_rrd");
-			}
-			next unless $storage_rrd;
-
-			# fill rec
-			if (defined $idx) {
-				$rec{$node_name}{$subconcept}{$idx} = $storage_rrd;
-			} else {
-				$rec{$node_name}{$subconcept} = $storage_rrd;
-			}
 		}
 	}
-
-	#print "rec=".Dumper(%rec);
-    return \%rec;   # return hashref
-
+	if ($objective eq 'tagged')
+	{
+		print "found".Dumper(\%found);
+		return \%found;
+	}
+	elsif($objective eq 'rrd'){
+		print "rrd_rec".Dumper(\%rrd_rec);
+		return \%rrd_rec;
+	}
+	else {
+		print "found".Dumper(\%found);
+		print "rrd_rec".Dumper(\%rrd_rec);
+	}
+	
+	 
 }
+
 
 1;
 
