@@ -480,11 +480,34 @@
           'snmp' => {
           'MatchedPackets' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.2.6"',
-              'option' => 'counter,0:U'
+              'option'        => 'counter,0:U'
             },
             'MatchedBytes' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.3.6"',
-              'option' => 'counter,0:U'
+              'option'        => 'counter,0:U'
+            },
+            'MatchedDropsPackets' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.4.6"',
+              'option'        => 'counter,0:U'
+            },
+            'MatchedOverLimits' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.5.6"',
+              'option'        => 'counter,0:U'
+            },         
+            'MatchedDropBytes' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.6.6"',
+              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return (($CVAR1/$CVAR2) * $CVAR3);',
+              'option'        => 'counter,0:U'
+            },
+            'MatchedTotalPackets' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.7.6"',
+              'calculate'     =>  'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 + $CVAR2)',
+              'option'        => 'counter,0:U'
+            },
+            'MatchedTotalBytes' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.8.6"',
+              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR1 + (($CVAR1/$CVAR2) * $CVAR3));',
+              'option'        => 'counter,0:U'
             }
           }
         },
@@ -493,12 +516,36 @@
           'snmp' => {
           'MatchedPackets' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.2.6"',
-              'option' => 'counter,0:U'
+              'option'        => 'counter,0:U'
             },
             'MatchedBytes' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.3.6"',
-              'option' => 'counter,0:U'
+              'option'        => 'counter,0:U'
+            },
+            'MatchedDropsPackets' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.4.6"',
+              'option'        => 'counter,0:U'
+            },
+            'MatchedOverLimits' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.5.6"',
+              'option'        => 'counter,0:U'
+            },           
+            'MatchedDropBytes' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.6.6"',
+              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return (($CVAR1/$CVAR2) * $CVAR3);',
+              'option'        => 'counter,0:U'
+            },
+            'MatchedTotalPackets' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.7.6"',
+              'calculate'     =>  'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 + $CVAR2)',
+              'option'        => 'counter,0:U'
+            },
+            'MatchedTotalBytes' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.8.6"',
+              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR1 + (($CVAR1/$CVAR2) * $CVAR3));',
+              'option'        => 'counter,0:U'
             }
+
           }
         },
         'teldatFanStatus' => {
@@ -514,7 +561,7 @@
        'sys' => {
           'TeldatQoSStatsOSDX-out' => {                
                 'index_function' => "RS420::getTeldatInventory", 
-                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes',
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes,MatchedDropsPackets,MatchedOverLimits',
                 'snmp' => {                    												
                      'class' => {                      
                       'title' => 'Class'
@@ -527,15 +574,21 @@
                     },
                      'MatchedBytes' => {                      
                       'title' => 'Bytes'
-                    },                                                     
-                     'description' => {                      
+                    },
+                    'MatchedDropsPackets' => {
+                      'title' => 'Packet Drops'
+                    },
+                    'MatchedOverLimits' => {
+                       'title' => 'OverLimits' 
+                    },                                                    
+                    'description' => {                      
                       'title' => 'InterfaceName'
                     }
                 }
           },     
           'TeldatQoSStatsOSDX-in' => {                
                 'index_function' => "RS420::getTeldatInventory",       
-                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes',
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes,MatchedDrops,MatchedOverLimits',
                 'snmp' => {                    												
                      'class' => {                      
                       'title' => 'Class'
@@ -548,8 +601,13 @@
                     },
                      'MatchedBytes' => {                      
                       'title' => 'Bytes'
-                    },                                                     
-                     'description' => {                      
+                    },
+                     'MatchedDropsPackets' => {
+                      'title' => 'Packet Drops'
+                    },
+                    'MatchedOverLimits' => {
+                       'title' => 'OverLimits' 
+                    },                                  'description' => {                      
                       'title' => 'InterfaceName'
                     }
                 }

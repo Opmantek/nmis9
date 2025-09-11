@@ -98,6 +98,15 @@ sub qoskey_standardised_supported_na_string
 									   PostPolicyUtil DropPktClass percentClass PrePolicyUtilClass);
 			return NA_STR if grep { $qospolkey eq $_ }@supported_qoskeys;
 		}
+		elsif ($thispolicy->{CfgSection} eq STANDARDISED_TELDAT_OSDX_QOS_KEY_1 || $thispolicy->{CfgSection} eq STANDARDISED_TELDAT_OSDX_QOS_KEY_2  )
+		{
+			# unsupported CfgDSNames: (MatchedPassBytes MatchedDropBytes MatchedPassPackets MatchedDropPackets NoBufDropPkt)
+			# unsupported: (bandwidth percent DropPkt PostPolicyUtil DropBits MaxDropBits PostPolicyBits MaxPostPolicyBits NoBufDropPkt DropPktClass percentClass)
+			# CfgDSNames => [qw(MatchedBytes,,MatchedDropBytes,MatchedPassPackets,,MatchedDropsPackets)]}; 
+			my @supported_qoskeys = qw(name inout action PrePolicyPkt PostPolicyPkt DropByte MaxDropByte 
+									   PrePolicyBits MaxPrePolicyBits);
+			return NA_STR if grep { $qospolkey eq $_ }@supported_qoskeys;
+		}
 		# teldat qos
 		elsif ($thispolicy->{CfgSection} eq STANDARDISED_TELDAT_QOS_KEY_1)
 		{
@@ -337,7 +346,7 @@ sub loadCBQoS_standardised
 													CfgItem =>  undef,
 													CfgUnique => $k, # index+cmname is not unique, doesn't cover inbound/outbound - this does.
 													CfgSection => $thisQoSKey, # TeldatQoSStatsOSDX-in
-													CfgDSNames => [qw(MatchedBytes,MatchedPackets)]}; 
+													CfgDSNames => [qw(MatchedTotalBytes MatchedBytes MatchedDropBytes MatchedTotalPackets MatchedPackets MatchedDropsPackets)]}; 
 			}
 						
 		}
