@@ -76,7 +76,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=thresholds - Run thresholds for a node (node= force=)
  * act=services - Run services for a node (node= force=) 
  * act=gettable - Get data from a node (node= oid= query=) 
- * act=get_tagged_datasets - The function returns different results based on the objective variable: If tagged is passed, it returns the datasets of a given subconcept that are tagged. If rrd is passed, it returns the RRD paths for the given subconcept.
+ * act=get_tagged_datasets - The function returns different results based on the objective variable: If tagged is passed, it returns the datasets of a given subconcept that are tagged. If rrd_path is passed, it returns the RRD paths for the given subconcept.
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -498,6 +498,7 @@ sub get_tagged_datasets
 	
 	die "No datasets_tags provided\n"  unless @datasets_tags;
 	print "==============   get_tagged_datasets ==========\n";
+	##usuage ./dev-tools.pl act="get_tagged_datasets" node=Switch-2  datasets_tags="mem-free"  objective="tagged" debug=3
 	my $config = NMISNG::Util::loadConfTable( dir => undef, debug => undef, info => undef);
     
     # use debug, or info arg, or configured log_level
@@ -511,7 +512,7 @@ sub get_tagged_datasets
 		
 		if (defined $node){
 			my $result = $nodeobj->tagged_datasets_for_subconcept(node_name => $node, datasets_tags => \@datasets_tags, objective => $objective);
-			#print "result=".Dumper($result);
+			print "result=".Dumper($result);
 		}
 		
     }
