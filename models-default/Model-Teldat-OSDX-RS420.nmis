@@ -476,6 +476,7 @@
     'sections' => 'bgpPeer,teldatNQA,teldatFanStatus,env-temp,TeldatQoSStatsOSDX-out,TeldatQoSStatsOSDX-in',
       'rrd' => { 
         'TeldatQoSStatsOSDX-out' => {
+          'graphtype' => 'TeldatQoSStatOSDXPackets,TeldatQoSStatOSDXBytes',
           'indexed' => 'true',
           'snmp' => {
           'MatchedPackets' => {
@@ -512,6 +513,7 @@
           }
         },
         'TeldatQoSStatsOSDX-in' => {
+          'graphtype' => 'TeldatQoSStatOSDXPackets,TeldatQoSStatOSDXBytes',
           'indexed' => 'true',
           'snmp' => {
           'MatchedPackets' => {

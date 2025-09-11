@@ -82,6 +82,9 @@
       'Cisco-power' => {
         'common-model' => 'Cisco-power'
       },
+      'IP-FORWARD' => {
+        'common-model' => 'IP-FORWARD'
+      },      
     }
   },
   'custom' => {
@@ -547,7 +550,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,addressTable,cdp,lldp,lldpLocal,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'cpu_cpm,ciscoNormalizedCPUMem,cempMemPool,Memory-cpm,ciscoMemoryPool,addressTable,cdp,lldp,lldpLocal,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,powerSupply,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity,ipCidrRoute',
   },
   'system' => {
     'nodeModel' => 'CatalystIOSXE',
