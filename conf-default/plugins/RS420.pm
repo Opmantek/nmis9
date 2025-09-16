@@ -58,15 +58,15 @@ sub getTeldatInventory {
 				out	=> 	{
 						class   			 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.1\.6\.(.+)\.(\d+)$/,
 						MatchedPackets 		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.2\.6\.(.+)\.(\d+)$/,
-						MatchedBytes  		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.3\.6\.(.+)\.(\d+)$/
-						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.4\.6\.(.+)\.(\d+)$/
+						MatchedBytes  		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.3\.6\.(.+)\.(\d+)$/,
+						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.4\.6\.(.+)\.(\d+)$/,
 						MatchedOverLimits  	 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.5\.6\.(.+)\.(\d+)$/
 						},
 				in	=> {
 						class   			 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.1\.6\.(.+)\.(\d+)$/,
 						MatchedPackets 		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.2\.6\.(.+)\.(\d+)$/,
-						MatchedBytes   		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.3\.6\.(.+)\.(\d+)$/
-						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.4\.6\.(.+)\.(\d+)$/
+						MatchedBytes   		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.3\.6\.(.+)\.(\d+)$/,
+						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.4\.6\.(.+)\.(\d+)$/,
 						MatchedOverLimits    => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.5\.6\.(.+)\.(\d+)$/
 						}
 					);
@@ -199,22 +199,22 @@ sub update_plugin
 			
 			# load ifTable
 			
-			my @oids = (
-				'1.3.6.1.4.1.2007.6.3.1.1.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.4.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.4.5.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.4.5.2.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.6.1.1.16',
-				'1.3.6.1.4.1.2007.6.3.1.6.5.1.1.16',
-				'1.3.6.1.4.1.2007.6.3.1.7.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.10.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.10.4.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.10.4.2.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.11.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.13.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.1.14.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.3.1.1.1'
-			);			
+			my $oids = {
+				'1.3.6.1.4.1.2007.6.3.1.1.1.1.15' 		=> 0,
+				'1.3.6.1.4.1.2007.6.3.1.4.1.1.15'		=> 0,
+				'1.3.6.1.4.1.2007.6.3.1.4.5.1.1.15'		=> 1,
+				'1.3.6.1.4.1.2007.6.3.1.4.5.2.1.1.15'	=> 1,
+				'1.3.6.1.4.1.2007.6.3.1.6.1.1.16'		=> 0,
+				'1.3.6.1.4.1.2007.6.3.1.6.5.1.1.16'		=> 1,
+				'1.3.6.1.4.1.2007.6.3.1.7.1.1.15'		=> 0,
+				'1.3.6.1.4.1.2007.6.3.1.10.1.1.15'		=> 0,
+				'1.3.6.1.4.1.2007.6.3.1.10.4.1.1.15'	=> 1,
+				'1.3.6.1.4.1.2007.6.3.1.10.4.2.1.1.15'	=> 1,
+				'1.3.6.1.4.1.2007.6.3.1.11.1.1.15'		=> 0,
+				'1.3.6.1.4.1.2007.6.3.1.13.1.1.15'		=> 0,
+				'1.3.6.1.4.1.2007.6.3.1.14.1.1.15'		=> 0,
+				'1.3.6.1.4.1.2007.6.3.3.1.1.1'			=> 0
+			};			
 			for my $id (@{$interfaces}) {
 				my ($inventory, $error) = $S->nmisng_node->inventory(_id => $id);
 				
@@ -233,17 +233,48 @@ sub update_plugin
 				}
 
 				my $ifDescr = $data->{ifDescr};
+				# change the "." to x03, 									
+				$ifDescr =~ s/\./\x03/g;
+				
 				# convert ifDescr to decimal			
-				my $alias_oid = str_to_ascii_string($ifDescr);								
+				my $alias_oid = str_to_ascii_string($ifDescr);
+				my $interfaceMapping;
+				# ^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.\d+(\.\d+)?\.6\.2\.1\.1\.6\.6$
+				my $in_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.2\.1\.1\.6\.6\.\Q$alias_oid\E$/;
+				my $out_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.1\.1\.1\.6\.6\.\Q$alias_oid\E$/;										
 				# add index to alias oid
-				$alias_oid = $index.".".$alias_oid;				
-				# 6.blah.blah
-				foreach my $oid (@oids){
-					my $dummy_oid = $oid.".".$alias_oid;
+				$alias_oid = $index.".".$alias_oid;								
+				# check to see if dummy oid is present in oid walk, if yes then add in the logical bit to logical interface along with description
+				foreach my $oid (keys %{$oids}){
+					my $dummy_oid = $oid.".".$alias_oid;											
+					
 					if (exists $oidWalk->{$dummy_oid}){
-						$data->{"Description"} = $oidWalk->{$dummy_oid};						
+						$data->{"Description"} = $oidWalk->{$dummy_oid};			
+						$data->{"is_logical"} = $oids->{$oid};
 					}				
-				}		
+				}
+				# if the interface is logical, then grab the IN/OUT SPEED from oid walk 
+				# since we are assuming 10.4 for it being a logical interface oid pattern
+				# if ($data->{is_logical} ){						
+					foreach my $oid (keys %{$oidWalk}) {
+						if ($oid =~ $in_speed_pattern) {
+							$interfaceMapping = $1;  # captures the (\d+)
+
+							$data->{"ifSpeedIn"} = $oidWalk->{$oid};
+							$data->{"interfaceMapping"} = $interfaceMapping;
+							$data->{"indexAlias"} = $alias_oid;
+							$NG->log->debug1("IN Matched OID=$oid with index=$interfaceMapping, value=$oidWalk->{$oid}\n");
+						}
+						if ($oid =~ $out_speed_pattern) {
+							$interfaceMapping = $1;  # captures the (\d+)
+							$data->{"ifSpeedOut"} = $oidWalk->{$oid};
+							$data->{"interfaceMapping"} = $interfaceMapping;
+							$data->{"indexAlias"} = $alias_oid;
+							$NG->log->debug1("OUT Matched OID=$oid with index=$interfaceMapping, value=$oidWalk->{$oid}\n");
+						}
+					}
+				# }
+
 				$inventory->data($data);
 				$inventory->save(node => $node);
 			}
