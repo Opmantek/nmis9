@@ -68,13 +68,13 @@
             'oid' => 'ifDescr'
           },
           'ifHCInOctets' => {
-            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : ifHCInOctets;',
-            'calculate_index' => 'CVAR1=indexAlias; return ($CVAR1 ne "") ? "$CVAR1" : "";',              
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
             'option' => 'counter,0:U'
           },
           'ifHCOutOctets' => {
-            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : ifHCOutOctets;',
-            'calculate_index' => 'CVAR1=indexAlias; return ($CVAR1 ne "") ? "$CVAR1" : "";',
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCOutOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
             'option' => 'counter,0:U'
           },
           'ifInOctets' => {
@@ -114,8 +114,8 @@
             'option' => 'counter,0:U'
           },
           'ifHCInOctets' => {                     
-            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : ifHCInOctets;',
-            'calculate_index' => 'CVAR1=indexAlias; return ($CVAR1 ne "") ? "$CVAR1" : "";',              
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',                            
             'option' => 'counter,0:U'
           },
           'ifHCInUcastPkts' => {
@@ -131,8 +131,8 @@
             'option' => 'counter,0:U'
           },
           'ifHCOutOctets' => {            
-            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : ifHCOutOctets;',
-            'calculate_index' => 'CVAR1=indexAlias; return ($CVAR1 ne "") ? "$CVAR1" : "";',
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCOutOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
             'option' => 'counter,0:U'
           },
           'ifHCOutUcastPkts' => {
@@ -140,8 +140,8 @@
             'option' => 'counter,0:U'
           },
           'ifInDiscards' => {                    
-            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.4" : ifInDiscards;',
-            'calculate_index' => 'CVAR1=indexAlias; return ($CVAR1 ne "") ? "$CVAR1" : "";',              
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.4" : "ifInDiscards";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
             'option' => 'counter,0:U'
           },
           'ifInErrors' => {
@@ -149,8 +149,8 @@
             'option' => 'counter,0:U'
           },
           'ifOutDiscards' => {            
-            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.4" : ifOutDiscards;',
-            'calculate_index' => 'CVAR1=indexAlias; return ($CVAR1 ne "") ? "$CVAR1" : "";',              
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.4" : "ifOutDiscards";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
             'option' => 'counter,0:U'
           },
           'ifOutErrors' => {

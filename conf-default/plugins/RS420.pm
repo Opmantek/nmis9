@@ -223,6 +223,10 @@ sub update_plugin
 					next;
 				}
 				my $data = $inventory->data();	
+				# add empty items which are to be used in calculate_oid/index
+				$data->{"interfaceMapping"} = "";
+				$data->{"indexAlias"} = "";
+				$data->{"is_logical"} = "";
 				my $ifType = $data->{ifType};
 				my $index;
 				# grab the index for the ifType
