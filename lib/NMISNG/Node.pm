@@ -6362,7 +6362,7 @@ sub process_alerts
 		$alert->{_reserved_has_been_processed} = 1;
 		if( $save_error )
 		{
-			$self->log->error("Failed to save status alert object, error:".$save_error);
+			$self->nmisng->log->error("Failed to save status alert object, error:".$save_error);
 		}
 	}
 }
