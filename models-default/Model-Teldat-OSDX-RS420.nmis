@@ -21,14 +21,15 @@
       },
       'lmTempSensors' => {
         'common-model' => 'lmTempSensors'
-      }
+            }
     }
   },
   'database' => {
    'type' => {
     'teldatFanStatus' => '/nodes/$node/health/teldatFanStatus-$index.rrd',
     'TeldatQoSStatsOSDX-out' => '/nodes/$node/health/TeldatQoSStatsOSDX-out-$index.rrd',
-    'TeldatQoSStatsOSDX-in' => '/nodes/$node/health/TeldatQoSStatsOSDX-in-$index.rrd'
+    'TeldatQoSStatsOSDX-in' => '/nodes/$node/health/TeldatQoSStatsOSDX-in-$index.rrd',
+    'teldatNQA' => '/nodes/$node/health/teldatNQA-$index.rrd'
    }
   },
   'interface' => {
@@ -69,12 +70,12 @@
           },
           'ifHCInOctets' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
             'option' => 'counter,0:U'
           },
           'ifHCOutOctets' => {
-            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCOutOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
+             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCOutOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
             'option' => 'counter,0:U'
           },
           'ifInOctets' => {
@@ -113,9 +114,9 @@
             'oid' => 'ifHCInMulticastPkts',
             'option' => 'counter,0:U'
           },
-          'ifHCInOctets' => {                     
+          'ifHCInOctets' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',                            
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
             'option' => 'counter,0:U'
           },
           'ifHCInUcastPkts' => {
@@ -130,27 +131,27 @@
             'oid' => 'ifHCOutMulticastPkts',
             'option' => 'counter,0:U'
           },
-          'ifHCOutOctets' => {            
+          'ifHCOutOctets' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCOutOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
             'option' => 'counter,0:U'
           },
           'ifHCOutUcastPkts' => {
             'oid' => 'ifHCOutUcastPkts',
             'option' => 'counter,0:U'
           },
-          'ifInDiscards' => {                    
+          'ifInDiscards' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.4" : "ifInDiscards";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
             'option' => 'counter,0:U'
           },
           'ifInErrors' => {
             'oid' => 'ifInErrors',
             'option' => 'counter,0:U'
           },
-          'ifOutDiscards' => {            
+          'ifOutDiscards' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.4" : "ifOutDiscards";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',              
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;', 
             'option' => 'counter,0:U'
           },
           'ifOutErrors' => {
@@ -320,30 +321,7 @@
          'MemoryFreePROC' => {
 	   'oid' => '1.3.6.1.4.1.2007.6.3.2.7.1.3.0',   
            'calculate' => 'CVAR2=MemoryUsedPROC; return ($r - $CVAR2);',
-           #'option'    => 'gauge,U:U',
           },
-          # 'MemoryUsedMBUF' => {
-          #   'oid' => 'ciscoMemoryPoolUsed.8'
-          # },
-          # 'MemoryFreeMBUF' => {
-          #   'oid' => 'ciscoMemoryPoolFree.8'
-          # },
-          # 'MemoryFreeCLUSTER' => {
-          #   'oid' => 'ciscoMemoryPoolFree.9'
-          # },
-          # 'MemoryUsedCLUSTER' => {
-          #   'oid' => 'ciscoMemoryPoolUsed.9'
-          # },
-          # 'TopChanges' => {
-          #   'oid' => 'dot1dStpTopChanges',
-          #   'option' => 'counter,0:U'
-          # },
-          # 'MemoryUsedIO' => {
-          #   'oid' => 'ciscoMemoryPoolUsed.2'
-          # },
-          # 'MemoryFreeIO' => {
-          #   'oid' => 'ciscoMemoryPoolFree.2'
-          # }
         },
         #'graphtype' => 'mem-cluster,mem-dram,mem-mbuf,topo,traffic'
         'graphtype' => 'mem-cluster,cpu,mem-teldat-osdx'
@@ -396,10 +374,11 @@
               '4' => 'shutdown',
               '3' => 'critical',
               '2' => 'warning',
-              '5' => 'notPresent'
+              '5' => 'notPresent',
+              ''  => 'N/A'
             },
             'oid' => '1.3.6.1.4.1.2007.6.3.2.1.11.2.0',
-            'title' => 'Power Supply A'
+            'title' => 'Power Supply A Status'
           },
           'SupplyDescr1' => {
             'replace' => {
@@ -408,16 +387,8 @@
               '2' => 'ac',
               '5' => 'internalRedundant'
             },
-            'oid' => '1.3.6.1.4.1.2007.6.3.2.1.11.1.0'
-          },
-          'SupplyDescr2' => {
-            'replace' => {
-              '4' => 'externalPowerSupply',
-              '3' => 'dc',
-              '2' => 'ac',
-              '5' => 'internalRedundant'
-            },
-            'oid' => '1.3.6.1.4.1.2007.6.3.2.1.12.1.0'
+            'oid'   => '1.3.6.1.4.1.2007.6.3.2.1.11.1.0',
+            'title' => 'PS A Plugged In'
           },
           'SupplyState2' => {
             'replace' => {
@@ -426,11 +397,22 @@
               '4' => 'shutdown',
               '3' => 'critical',
               '2' => 'warning',
-              '5' => 'notPresent'
+              '5' => 'notPresent',
+              ''  => 'N/A'
             },
             'oid' => '1.3.6.1.4.1.2007.6.3.2.1.12.2.0',
-            'title' => 'Power Supply B'
-          }
+            'title' => 'Power Supply B Status'
+          },
+          'SupplyDescr2' => {
+              'replace' => {
+                  '4' => 'externalPowerSupply',
+                  '3' => 'dc',
+                  '2' => 'ac',
+                  '5' => 'internalRedundant'
+              },
+              'oid'   => '1.3.6.1.4.1.2007.6.3.2.1.12.1.0',
+              'title' => 'PS B Plugged In'
+          },
         },
         #'control' => '$sysObjectName =~ /0000/'
       },
@@ -479,7 +461,7 @@
     },
   },
   'systemHealth' => {
-    'sections' => 'bgpPeer,teldatNQA,teldatFanStatus,env-temp,TeldatQoSStatsOSDX-out,TeldatQoSStatsOSDX-in',
+      'sections' => 'bgpPeer,ospfNbr,teldatNQA,TeldatQoSStatsOSDX-out,TeldatQoSStatsOSDX-in,teldatFanStatus,env-temp,udpEndpointProcess',
       'rrd' => { 
         'TeldatQoSStatsOSDX-out' => {
           'graphtype' => 'TeldatQoSStatOSDXPackets,TeldatQoSStatOSDXBytes',
@@ -487,34 +469,34 @@
           'snmp' => {
           'MatchedPackets' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.2.6"',
-              'option'        => 'counter,0:U'
+              'option' => 'counter,0:U'
             },
             'MatchedBytes' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.3.6"',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedDropsPackets' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.4.6"',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedOverLimits' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.5.6"',
-              'option'        => 'counter,0:U'
-            },         
-            'MatchedDropBytes' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.6.6"',
-              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return (($CVAR1/$CVAR2) * $CVAR3);',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedPostPolicyPackets' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.7.6"',
-              'calculate'     =>  'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedPostPolicyBytes' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.8.6"',
-              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
-              'option'        => 'counter,0:U'
+              'option' => 'counter,0:U'
+                    },
+                    'MatchedDropsPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.4.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedOverLimits' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.5.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedDropBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.6.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return (($CVAR1/$CVAR2) * $CVAR3);',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedPostPolicyPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.7.6"',
+                        'calculate' => 'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedPostPolicyBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.8.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
+                        'option' => 'counter,0:U'
             }
           }
         },
@@ -524,45 +506,63 @@
           'snmp' => {
           'MatchedPackets' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.2.6"',
-              'option'        => 'counter,0:U'
+              'option' => 'counter,0:U'
             },
             'MatchedBytes' => {
               'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.3.6"',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedDropsPackets' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.4.6"',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedOverLimits' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.5.6"',
-              'option'        => 'counter,0:U'
-            },           
-            'MatchedDropBytes' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.6.6"',
-              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return (($CVAR1/$CVAR2) * $CVAR3);',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedPostPolicyPackets' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.7.6"',
-              'calculate'     =>  'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
-              'option'        => 'counter,0:U'
-            },
-            'MatchedPostPolicyBytes' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.8.6"',
-              'calculate'     =>  'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
-              'option'        => 'counter,0:U'
+              'option' => 'counter,0:U'
+                    },
+                    'MatchedDropsPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.4.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedOverLimits' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.5.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedDropBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.6.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return (($CVAR1/$CVAR2) * $CVAR3);',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedPostPolicyPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.7.6"',
+                        'calculate' => 'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedPostPolicyBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.8.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
+                        'option' => 'counter,0:U'
             }
 
           }
+        },
+        'teldatNQA' => {
+            'graphtype' => 'telOSDxWindowJitter_RTT,telOSDxWindowLoss',
+            'indexed'   => 'true',
+            'snmp'      => {
+                'telOSDxWinJitter' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
+                },
+                'telOSDxWinRtt' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.2',
+                },
+                'telOSDxWinLoss' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.5',
+                },
+                'telOSDxAVGJitter' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.6',
+                },
+            }
         },
         'teldatFanStatus' => {
          'indexed' => 'true',
          'graphtype' => 'teldatFanStatus',
          'snmp' => {
-          'fanRPM' => {
-           'oid' => '1.3.6.1.4.1.2007.6.3.2.5.1.1.2'
-          }
+            'fanRPM' => {
+              'oid' => '1.3.6.1.4.1.2007.6.3.2.5.1.1.2',
+            }
          }
         }       
        },
@@ -582,20 +582,22 @@
                     },
                      'MatchedBytes' => {                      
                       'title' => 'Bytes'
-                    },
+                    },                                                     
                     'MatchedDropsPackets' => {
-                      'title' => 'Packet Drops'
+                        'title' => 'Packet Drops'
                     },
                     'MatchedOverLimits' => {
-                       'title' => 'OverLimits' 
-                    },                                                    
-                    'description' => {                      
+                        'title' => 'OverLimits'
+                    },
+                     'description' => {                      
                       'title' => 'InterfaceName'
                     }
                 }
           },     
           'TeldatQoSStatsOSDX-in' => {                
                 'index_function' => "RS420::getTeldatInventory",       
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes',
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes,MatchedDrops,MatchedOverLimits',
                 'headers' => 'description,class,direction,MatchedPackets,MatchedBytes,MatchedDropsPackets,MatchedOverLimits',
                 'snmp' => {                    												
                      'class' => {                      
@@ -609,13 +611,14 @@
                     },
                      'MatchedBytes' => {                      
                       'title' => 'Bytes'
-                    },
-                     'MatchedDropsPackets' => {
-                      'title' => 'Packet Drops'
+                    },                                                     
+                    'MatchedDropsPackets' => {
+                        'title' => 'Packet Drops'
                     },
                     'MatchedOverLimits' => {
-                       'title' => 'OverLimits' 
-                    },                                  'description' => {                      
+                        'title' => 'OverLimits'
+                    },
+                    'description' => {
                       'title' => 'InterfaceName'
                     }
                 }
@@ -637,12 +640,13 @@
            }
           },
           'teldatNQA' => {
+
 #           'indexed' => 'telOSDxMonDBServiceNsmOperationEntry',
 #           'index_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1',
            'indexed' => 'telOSDxMonDBServiceNsmOperationWindowJitter',
            'index_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
            'index_regex' => '1.\d+.(\d+.\d+.\d+.\d+.\d+)$',
-           'headers' => 'telOSDxMonDBServiceNsmOperationEntry,telOSDxMonDBServiceNsmOperationWindowJitter,telOSDxMonDBServiceNsmOperationWindowRtt,telOSDxMonDBServiceNsmOperationWindowLoss',
+                'headers' => 'telOSDxMonDBServiceNsmOperationEntry,telOSDxMonDBServiceNsmOperationWindowJitter,telOSDxMonDBServiceNsmOperationWindowRtt,telOSDxMonDBServiceNsmOperationWindowLoss,telOSDxMonDBServiceNsmOperationWindowRttJitterv',
            'snmp' => {
             'telOSDxMonDBServiceNsmOperationEntry' => {
              'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1',
@@ -659,6 +663,10 @@
             'telOSDxMonDBServiceNsmOperationWindowLoss' => {
              'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.5',
              'title' => 'Packet Loss'
+            },
+            'telOSDxMonDBServiceNsmOperationWindowRttJitterv' => {
+                'oid'   => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.6',
+                'title' => 'AVG Jitter'
             }
            }
           },
