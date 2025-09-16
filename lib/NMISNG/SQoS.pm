@@ -345,7 +345,7 @@ sub loadCBQoS_standardised
 													CfgItem =>  undef,
 													CfgUnique => $k, # index+cmname is not unique, doesn't cover inbound/outbound - this does.
 													CfgSection => $thisQoSKey, # TeldatQoSStatsOSDX-in
-													CfgDSNames => [qw(MatchedBytes MatchedPostPolicyBytes MatchedDropBytes MatchedPackets MatchedPostPolicyPackets MatchedDropsPackets)]}; 
+													CfgDSNames => [qw(MatchedBytes PostPolicyBytes MatchedDropBytes MatchedPackets PostPolicyPackets MatchedDropsPackets)]}; 
 													# CfgDSNames => [qw(MatchedTotalBytes MatchedBytes MatchedDropBytes MatchedTotalPackets MatchedPackets MatchedDropsPackets)]}; 
 			}
 						
