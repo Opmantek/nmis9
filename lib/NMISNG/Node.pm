@@ -3795,7 +3795,13 @@ sub collect_intf_data
 		'concept' => 'interface',
 		fields_hash => {
 			'_id' => 1,
+			"concept" => 1,
+			'cluster_id' => 1,
+			'node_uuid' => 1,
 			'data.collect' => 1,
+			'data.interfaceMapping' => 1,
+			'data.indexAlias' => 1,
+			'data.is_logical' => 1,
 			'data.ifAdminStatus' => 1,
 			'data.ifOperStatus' => 1,
 			'data.ifDescr' => 1,
@@ -3813,7 +3819,7 @@ sub collect_intf_data
 		return undef;
 	}
 
-	my (%if_data_map, %leftovers);	# leftovers: 1 is presumed dead, 0 is ok
+	my (%if_data_map, %leftovers, %if_inventory_map);	# leftovers: 1 is presumed dead, 0 is ok
 
 	# create a map of the inventory state,
 	# by ifindex so we can look them up easily, clone _id into data to make things easier
@@ -3841,6 +3847,13 @@ sub collect_intf_data
 			$maybeevil->{data}->{$thing} = $maybeevil->{$thing};
 		}
 		$if_data_map{ $thisindex } = $maybeevil->{data};
+		
+		my $class = NMISNG::Inventory::get_inventory_class( "interface" );
+		Module::Load::load $class;
+		$maybeevil->{nmisng} = $self->nmisng;
+		my $no_save_inventory = $class->new(%$maybeevil); # this doesn't report errors!		
+		$if_inventory_map{$thisindex} = $no_save_inventory;
+		
 	}
 
 	# 2a. get the ifadminstatus, ifoperstatus and iflastchange tables
@@ -4032,7 +4045,8 @@ sub collect_intf_data
 		}
 
 		# returns undef if no good
-		my $rrdData = $S->getData( class => 'interface', index => $index,
+		$self->nmisng->log->debug5("collecting  rrd data for for index  : ".$index."\n");
+		my $rrdData = $S->getData( class => 'interface', index => $index, inventory => $if_inventory_map{ $index}
 		#TODO: inventory? what is it? 
 				# fixme9: gone											 model => $model
 				);
@@ -4044,8 +4058,7 @@ sub collect_intf_data
 				|| $howdiditgo->{wmi_error})
 		{
 			$self->nmisng->log->error("$nodename failed to get interface data for ifIndex=$index: $anyerror");
-		}
-
+		}		
 		# 5a. a certain amount of data massaging is required before we can make use of the rrd data,
 		# ie. moving of HC octet counters
 		# that's because the 'special handling for manual interface discovery' needs the ifoctet counters...

@@ -1254,6 +1254,25 @@ sub getValues
 			for my $itemname ( keys %{$thissection->{snmp}} )
 			{
 				my $thisitem = $thissection->{snmp}->{$itemname};
+				if (exists( $thisitem->{calculate_index} ) && ( my $calc = $thisitem->{calculate_index} ) ) {
+					# check if its a logical interface or not ?
+					# next if not logical interface as we don't need to calculate index for it.
+					if ($calc ne ""){						
+						my ( $error, $result ) = $self->eval_string(
+						string  => $calc,
+						context => "", # there is no data coming in, it just needs the inventory data
+						variables => [$inventory->data()] );						
+						if ($error) {
+							$status{error} = $error;
+							$self->nmisng->log->error("($self->{name}) getValues calculate_index failed: $error");
+							next;
+						}
+						if ($result){
+							$suffix = ".".$result;
+							$self->nmisng->log->debug4("calculated suffix for logical interface is : ".$suffix." \n");
+						}						
+					}					
+				}
 				if ( exists( $thisitem->{calculate_oid} ) && ( my $calc = $thisitem->{calculate_oid} ) ) {
 					$self->nmisng->log->debug4("Calculating oid : $calc \n");
 					my ( $error, $result ) = $self->eval_string(
@@ -1271,7 +1290,7 @@ sub getValues
 				
 				next if ( !exists $thisitem->{oid} );
 
-				$self->nmisng->log->debug3(sub { "oid for section $sectionname, item $itemname primed for loading"});
+				$self->nmisng->log->debug3(sub { "oid $thisitem->{oid} for section $sectionname, item $itemname primed for loading"});
 
 				# for snmp each oid belongs to one reportable thingy, and we want to get all oids in one go
 				# HOWEVER, the same thing is often saved in multiple sections!
