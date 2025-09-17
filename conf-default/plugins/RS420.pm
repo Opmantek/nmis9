@@ -184,7 +184,7 @@ sub update_plugin
                 $data->{"telOSDxMonDBServiceNsmOperationEntry"} = $name->{$index};
 
 				$inventory->data($data);
-				$inventory->save(node => $node);
+				$inventory->save(node => $nodeobj, update => 1);
 				
 			}
 		}
@@ -277,7 +277,7 @@ sub update_plugin
 					}
 				}
 			}		
-			$NG->log->debug1("index_oid_table is ".Dumper(\%index_oid_table)."\n");			
+			$NG->log->debug2(sub {"index_oid_table is ".Dumper(\%index_oid_table)."\n"});
 			for my $id (@{$interfaces}) {
 				my ($inventory, $error) = $S->nmisng_node->inventory(_id => $id);
 				
@@ -296,9 +296,12 @@ sub update_plugin
 					$data->{"is_logical"}  = $index_oid_table{$ifIndex}{"is_logical"};
 					$data->{"interfaceMapping"}  = $index_oid_table{$ifIndex}{"interfaceMapping"};
 					$data->{"indexAlias"}  = $index_oid_table{$ifIndex}{"alias"};
+					$NG->log->debug3(sub{"found data for ifIndex=$ifIndex, is_logical=$data->{is_logical} interfaceMapping=$data->{interfaceMapping} indexAlias=$data->{indexAlias}"});
+				} else {
+					$NG->log->info("NO found data for ifIndex=$ifIndex");
 				}
 
-				# now looking for Alias description by joining oids and its alias.
+ 				# now looking for Alias description by joining oids and its alias.
 				foreach my $desc_oid (@description_oids){
 					my $match = $desc_oid.'.'.$data->{"indexAlias"};
 					if (exists $oidWalk->{$match}){
@@ -325,7 +328,8 @@ sub update_plugin
 				}
 
 				$inventory->data($data);
-				$inventory->save(node => $node);
+				my ( $op, $error ) = $inventory->save(node => $nodeobj, update => 1);
+				$NG->log->error("Failed to save inventory, error during save: $error") if ($error);
 			}
 		}
 	}

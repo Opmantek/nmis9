@@ -1284,7 +1284,12 @@ sub getValues
 						$self->nmisng->log->error("($self->{name}) getValues calculate_oid failed: $error");
 						next;
 					}
-					$thisitem->{oid} = $result;
+					if($result) {
+						$thisitem->{oid} = $result;
+					} else {
+						# if we had to calculate and got no value we dont have an oid
+						next;
+					}
 				}
 
 				
