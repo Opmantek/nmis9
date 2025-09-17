@@ -237,26 +237,44 @@ sub update_plugin
 				}
 
 				my $ifDescr = $data->{ifDescr};
-				# change the "." to x03, 									
-				$ifDescr =~ s/\./\x03/g;
-				
+				my $interfaceMapping;
 				# convert ifDescr to decimal			
 				my $alias_oid = str_to_ascii_string($ifDescr);
-				my $interfaceMapping;
-				# ^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.\d+(\.\d+)?\.6\.2\.1\.1\.6\.6$
-				my $in_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.2\.1\.1\.8\.6\.\Q$alias_oid\E$/;
-				my $out_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.1\.1\.1\.8\.6\.\Q$alias_oid\E$/;										
-				# add index to alias oid
-				$alias_oid = $index.".".$alias_oid;								
+				
+				# add x to alias oid as a wild number placeholder for "."
+				$alias_oid =~ s/46/x/;
+																									
+				# add x to alias oid as a wild number placeholder
+				$alias_oid = '(x.'.$alias_oid.')';					
+
 				# check to see if dummy oid is present in oid walk, if yes then add in the logical bit to logical interface along with description
 				foreach my $oid (keys %{$oids}){
-					my $dummy_oid = $oid.".".$alias_oid;											
-					
-					if (exists $oidWalk->{$dummy_oid}){
-						$data->{"Description"} = $oidWalk->{$dummy_oid};			
-						$data->{"is_logical"} = $oids->{$oid};
-					}				
+					# add alias to oid and create a template to create pattern.
+					my $dummy_oid = $oid.".".$alias_oid;	
+
+					# Escape all regex chars safely
+					my $template = quotemeta($dummy_oid);
+					$template =~ s/\\?x/(\\d+)/g;
+					$template =~ s/\\\(/\(/g;   # unescape (
+					$template =~ s/\\\)/\)/g;   # unescape )
+					# Compile regex
+					my $regex = qr/^$template$/;
+					# $NG->log->debug1("IN $ifDescr");
+					# $NG->log->debug1("regex is $regex");
+					# search/map this 	regex in oidwalk to grab data
+					foreach my $walk (keys %{$oidWalk}){
+						if ($walk =~ $regex){		
+							$NG->log->debug1("matched walkis $walk  regex is $regex ");					
+							$alias_oid = $1;
+							$data->{"Description"} = $oidWalk->{$walk};	
+							$data->{"is_logical"} = $oids->{$oid};							
+						}
+					}									
 				}
+				my $in_speed_pattern  = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.2\.1\.1\.8\.\Q$alias_oid\E$/;
+				my $out_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.1\.1\.1\.8\.\Q$alias_oid\E$/;				
+				# $NG->log->debug1("alias_oid $alias_oid ");					
+				# $NG->log->debug1("out_speed_pattern $out_speed_pattern ");					
 				# if the interface is logical, then grab the IN/OUT SPEED from oid walk 
 				# since we are assuming 10.4 for it being a logical interface oid pattern
 				# if ($data->{is_logical} ){						
@@ -270,6 +288,7 @@ sub update_plugin
 							$NG->log->debug1("IN Matched OID=$oid with index=$interfaceMapping, value=$oidWalk->{$oid}\n");
 						}
 						if ($oid =~ $out_speed_pattern) {
+							# $NG->log->debug1("matheched oid is $oid with  $out_speed_pattern ");		
 							$interfaceMapping = $1;  # captures the (\d+)
 							$data->{"ifSpeedOut"} = $oidWalk->{$oid};
 							$data->{"interfaceMapping"} = $interfaceMapping;
