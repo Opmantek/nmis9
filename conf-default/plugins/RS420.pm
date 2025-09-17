@@ -244,8 +244,8 @@ sub update_plugin
 				my $alias_oid = str_to_ascii_string($ifDescr);
 				my $interfaceMapping;
 				# ^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.\d+(\.\d+)?\.6\.2\.1\.1\.6\.6$
-				my $in_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.2\.1\.1\.6\.6\.\Q$alias_oid\E$/;
-				my $out_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.1\.1\.1\.6\.6\.\Q$alias_oid\E$/;										
+				my $in_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.2\.1\.1\.8\.6\.\Q$alias_oid\E$/;
+				my $out_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.1\.1\.1\.8\.6\.\Q$alias_oid\E$/;										
 				# add index to alias oid
 				$alias_oid = $index.".".$alias_oid;								
 				# check to see if dummy oid is present in oid walk, if yes then add in the logical bit to logical interface along with description
