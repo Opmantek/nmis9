@@ -810,7 +810,7 @@
     'Dell Computer Corporation' => {
       'order' => { 
         '10' => {
-          'DellSwitch' => 'Ethernet Switch',
+          'DellSwitch' => 'Ethernet Switch|Gigabit Switch',
         },
         '20' => {
           'sdeDell' => '.',
