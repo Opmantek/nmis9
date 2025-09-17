@@ -160,8 +160,7 @@ sub update_plugin
 		$NG->log->error("Could not open SNMP session to node $node: ".$snmp->error);
 	}
 	else
-	{ 
-        
+	{         
         my $name = $snmp->getindex("1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1",$max_repetitions);
         my $oidWalk = $snmp->gettable("1.3.6.1.4.1.2007.6.3",$max_repetitions);
         my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);		
@@ -198,23 +197,87 @@ sub update_plugin
 			# grab  all the data table for oid 1.3.6.1.4.1.2007.6.3 
 			
 			# load ifTable
+			my @description_oids = (
+				'1.3.6.1.4.1.2007.6.3.1.1.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.4.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.4.5.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.4.5.2.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.6.1.1.16',
+				'1.3.6.1.4.1.2007.6.3.1.6.5.1.1.16',
+				'1.3.6.1.4.1.2007.6.3.1.7.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.10.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.10.4.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.10.4.2.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.11.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.13.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.1.14.1.1.15',
+				'1.3.6.1.4.1.2007.6.3.3.1.1.1'
+			);					
+
+			my @list_index_oids = (
+						'1.3.6.1.4.1.2007.6.3.1.1.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.1.4.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.1.4.2.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.2.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.3.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.3.4.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.3.4.2.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.4.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.4.5.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.4.5.2.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.5.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.6.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.6.5.1.1.15',
+						'1.3.6.1.4.1.2007.6.3.1.7.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.8.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.8.4.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.8.4.2.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.9.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.10.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.10.4.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.10.4.2.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.11.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.12.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.13.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.13.4.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.13.4.2.1.1.14',
+						'1.3.6.1.4.1.2007.6.3.1.14.1.1.14',
+					);
 			
-			my $oids = {
-				'1.3.6.1.4.1.2007.6.3.1.1.1.1.15' 		=> 0,
-				'1.3.6.1.4.1.2007.6.3.1.4.1.1.15'		=> 0,
-				'1.3.6.1.4.1.2007.6.3.1.4.5.1.1.15'		=> 1,
-				'1.3.6.1.4.1.2007.6.3.1.4.5.2.1.1.15'	=> 1,
-				'1.3.6.1.4.1.2007.6.3.1.6.1.1.16'		=> 0,
-				'1.3.6.1.4.1.2007.6.3.1.6.5.1.1.16'		=> 1,
-				'1.3.6.1.4.1.2007.6.3.1.7.1.1.15'		=> 0,
-				'1.3.6.1.4.1.2007.6.3.1.10.1.1.15'		=> 0,
-				'1.3.6.1.4.1.2007.6.3.1.10.4.1.1.15'	=> 1,
-				'1.3.6.1.4.1.2007.6.3.1.10.4.2.1.1.15'	=> 1,
-				'1.3.6.1.4.1.2007.6.3.1.11.1.1.15'		=> 0,
-				'1.3.6.1.4.1.2007.6.3.1.13.1.1.15'		=> 0,
-				'1.3.6.1.4.1.2007.6.3.1.14.1.1.15'		=> 0,
-				'1.3.6.1.4.1.2007.6.3.3.1.1.1'			=> 0
-			};			
+			my %index_oid_table;		
+
+			for my $oid (@list_index_oids) {				
+				for my $key (keys %{$oidWalk}) {
+					if (index($key, $oid) != -1) {  # substring match 
+						my $index = $oidWalk->{$key};           			
+
+						# grab the substring of $key after $oid
+						if ($key =~ /^(\Q$oid\E)\.(.*)$/) {
+							my $prefix          = $1;   # same as $oid
+							my $rest            = $2;   # part after $oid
+							my ($interfaceMapping, $logicalMapping);
+
+							if ($oid =~ /^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.(.*)$/) {
+								$interfaceMapping = $1;
+								$logicalMapping   = $2;
+							}
+
+							# Example condition on rest
+							if ($rest eq "1.1.14") {
+								$index_oid_table{$index}{"is_logical"} = 0;
+							}
+							else {
+								$index_oid_table{$index}{"is_logical"} = 1;
+							}
+
+							$index_oid_table{$index}{"interfaceMapping"} = $interfaceMapping;	
+							$index_oid_table{$index}{"oid"}              = $key;
+							$index_oid_table{$index}{"alias"}            = $rest;
+						}
+					}
+				}
+			}		
+			$NG->log->debug1("index_oid_table is ".Dumper(\%index_oid_table)."\n");			
 			for my $id (@{$interfaces}) {
 				my ($inventory, $error) = $S->nmisng_node->inventory(_id => $id);
 				
@@ -227,76 +290,39 @@ sub update_plugin
 				$data->{"interfaceMapping"} = "";
 				$data->{"indexAlias"} = "";
 				$data->{"is_logical"} = "";
-				my $ifType = $data->{ifType};
-				my $index;
-				# grab the index for the ifType
-				foreach my $idx (keys %{$IFT}) {
- 				   if ($IFT->{$idx}->{ifType} eq $ifType) {
-        				$index = $idx;
-    				}
-				}
-
-				my $ifDescr = $data->{ifDescr};
-				my $interfaceMapping;
-				# convert ifDescr to decimal			
-				my $alias_oid = str_to_ascii_string($ifDescr);
+				my $ifIndex = $data->{ifIndex};
 				
-				# add x to alias oid as a wild number placeholder for "."
-				$alias_oid =~ s/46/x/;
-																									
-				# add x to alias oid as a wild number placeholder
-				$alias_oid = '(x.'.$alias_oid.')';					
-
-				# check to see if dummy oid is present in oid walk, if yes then add in the logical bit to logical interface along with description
-				foreach my $oid (keys %{$oids}){
-					# add alias to oid and create a template to create pattern.
-					my $dummy_oid = $oid.".".$alias_oid;	
-
-					# Escape all regex chars safely
-					my $template = quotemeta($dummy_oid);
-					$template =~ s/\\?x/(\\d+)/g;
-					$template =~ s/\\\(/\(/g;   # unescape (
-					$template =~ s/\\\)/\)/g;   # unescape )
-					# Compile regex
-					my $regex = qr/^$template$/;
-					# $NG->log->debug1("IN $ifDescr");
-					# $NG->log->debug1("regex is $regex");
-					# search/map this 	regex in oidwalk to grab data
-					foreach my $walk (keys %{$oidWalk}){
-						if ($walk =~ $regex){		
-							$NG->log->debug1("matched walkis $walk  regex is $regex ");					
-							$alias_oid = $1;
-							$data->{"Description"} = $oidWalk->{$walk};	
-							$data->{"is_logical"} = $oids->{$oid};							
-						}
-					}									
+				if (defined ($index_oid_table{$ifIndex})){
+					$data->{"is_logical"}  = $index_oid_table{$ifIndex}{"is_logical"};
+					$data->{"interfaceMapping"}  = $index_oid_table{$ifIndex}{"interfaceMapping"};
+					$data->{"indexAlias"}  = $index_oid_table{$ifIndex}{"alias"};
 				}
-				my $in_speed_pattern  = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.2\.1\.1\.8\.\Q$alias_oid\E$/;
-				my $out_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.1\.1\.1\.8\.\Q$alias_oid\E$/;				
-				# $NG->log->debug1("alias_oid $alias_oid ");					
-				# $NG->log->debug1("out_speed_pattern $out_speed_pattern ");					
-				# if the interface is logical, then grab the IN/OUT SPEED from oid walk 
-				# since we are assuming 10.4 for it being a logical interface oid pattern
-				# if ($data->{is_logical} ){						
-					foreach my $oid (keys %{$oidWalk}) {
-						if ($oid =~ $in_speed_pattern) {
-							$interfaceMapping = $1;  # captures the (\d+)
 
-							$data->{"ifSpeedIn"} = $oidWalk->{$oid};
-							$data->{"interfaceMapping"} = $interfaceMapping;
-							$data->{"indexAlias"} = $alias_oid;
-							$NG->log->debug1("IN Matched OID=$oid with index=$interfaceMapping, value=$oidWalk->{$oid}\n");
+				# now looking for Alias description by joining oids and its alias.
+				foreach my $desc_oid (@description_oids){
+					my $match = $desc_oid.'.'.$data->{"indexAlias"};
+					if (exists $oidWalk->{$match}){
+						$data->{"Description"} = $oidWalk->{$match};	
+					}
+				}
+
+				my $in_speed_pattern  = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.2\.1\.1\.8\.\Q$data->{"indexAlias"}\E$/;
+				my $out_speed_pattern = qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)(\.\d+)?\.6\.1\.1\.1\.8\.\Q$data->{"indexAlias"}\E$/;				
+				
+				foreach my $oid (keys %{$oidWalk}) {
+					if ($oid =~ $in_speed_pattern) {
+						my $interfaceMapping = $1;  # captures the (\d+)
+
+						$data->{"ifSpeedIn"} = $oidWalk->{$oid};							
+						$NG->log->debug1("IN Matched OID=$oid with index=$interfaceMapping, value=$oidWalk->{$oid}\n");
 						}
 						if ($oid =~ $out_speed_pattern) {
-							# $NG->log->debug1("matheched oid is $oid with  $out_speed_pattern ");		
-							$interfaceMapping = $1;  # captures the (\d+)
-							$data->{"ifSpeedOut"} = $oidWalk->{$oid};
-							$data->{"interfaceMapping"} = $interfaceMapping;
-							$data->{"indexAlias"} = $alias_oid;
-							$NG->log->debug1("OUT Matched OID=$oid with index=$interfaceMapping, value=$oidWalk->{$oid}\n");
-						}
+						
+						my $interfaceMapping = $1;  # captures the (\d+)
+						$data->{"ifSpeedOut"} = $oidWalk->{$oid};							
+						$NG->log->debug1("OUT Matched OID=$oid with index=$interfaceMapping, value=$oidWalk->{$oid}\n");
 					}
-				# }
+				}
 
 				$inventory->data($data);
 				$inventory->save(node => $node);
