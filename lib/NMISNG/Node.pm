@@ -9613,11 +9613,12 @@ sub tagged_datasets_for_subconcept {
 
 	my ($self, %args) = @_; 
 	my $node_name = $args{node_name} or die "node_name is required"; 
+	my $node_uuid = $args{node_uuid}; 
 	my $datasets_tags = $args{datasets_tags}; # Normalize tags to arrayref
 	my $objective = $args{objective};
 	my $tags_of_interest = ref $datasets_tags eq 'ARRAY' ? $datasets_tags : defined $datasets_tags ? [$datasets_tags] : die "datasets_tags is required";
 	# Query DB 
-	my $q = NMISNG::DB::get_query( and_part => { node_name => $node_name, 'dataset_info.dataset_tags.tags' => { '$in' => $tags_of_interest } } ); 
+	my $q = NMISNG::DB::get_query( and_part => { node_uuid => $node_uuid, 'dataset_info.dataset_tags.tags' => { '$in' => $tags_of_interest } } ); 
 	my $entries = NMISNG::DB::find(
 			collection  => $self->nmisng->inventory_collection,
 			query       => $q,
