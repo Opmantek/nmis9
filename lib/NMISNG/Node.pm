@@ -9613,7 +9613,7 @@ sub tagged_datasets_for_subconcept {
 
 	my ($self, %args) = @_; 
 	my $node_name = $args{node_name} or die "node_name is required"; 
-	my $node_uuid = $args{node_uuid}; 
+	my $node_uuid = $args{node_uuid} or die "node_uuid is required"; 
 	my $datasets_tags = $args{datasets_tags}; # Normalize tags to arrayref
 	my $objective = $args{objective};
 	my $tags_of_interest = ref $datasets_tags eq 'ARRAY' ? $datasets_tags : defined $datasets_tags ? [$datasets_tags] : die "datasets_tags is required";
