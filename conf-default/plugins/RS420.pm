@@ -263,7 +263,7 @@ sub update_plugin
 							}
 
 							# Example condition on rest
-							if ($rest eq "1.1.14") {
+							if ($logicalMapping eq "1.1.14") {
 								$index_oid_table{$index}{"is_logical"} = 0;
 							}
 							else {
