@@ -49,6 +49,14 @@
 			'AREA:MatchedBytes#BCFD0A: Bytes Transfered',
 			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf\t',
 			'GPRINT:MatchedBytes:MAX:Max %1.2lf\n',
-		]
+		],
+		'overlays' => {
+			'percentile' => {
+				datasets => {
+					MatchedBytes => "95th Percentile Bytes Transfered",
+				},
+				calculate => 95
+			},
+		}
 	}
 );
