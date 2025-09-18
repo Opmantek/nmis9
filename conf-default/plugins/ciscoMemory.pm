@@ -136,7 +136,8 @@ sub collect_plugin
 	my $NI       = $S->nmisng_node;
 	my $nodeobj  = $NG->node(name => $node);
 	my $NC       = $nodeobj->configuration;
-	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $S->inventory( concept => 'catchall' );
+	my $catchall = $catchall_inventory->data_live();
 	my %cpu1Avg;
 	my %cpu5Avg;
 	my %cpuFree;
@@ -434,12 +435,15 @@ sub collect_plugin
 	$rrdData->{MemoryUsedPROC}{value} = $cpuUsedAvg;
 	# Update the RRD file.
 	my $dbname = $S->create_update_rrd(graphtype => "nodehealth",
-					inventory  => $inventory,
+					inventory  => $catchall_inventory,
 					type       => "nodehealth",
 					index      => undef,
 					data       => $rrdData,
 					item       => undef);
+	
 	my ( $op, $error ) = $inventory->save( node => $node );
+	# The above has added data to the inventory, that we now save.
+	my ( $op, $error ) = $inventory->save( node => $node, update => 1 );
 	$NG->log->debug2(sub {"saved inventory for Node '$node'; op: $op"});
 	if ($error)
 	{
