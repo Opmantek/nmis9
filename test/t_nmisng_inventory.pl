@@ -293,10 +293,13 @@ $inventory_invariant->{_subconcepts} = bag(@{$inventory->{_subconcepts}});
 $inventory_invariant->{_nmisng} = ignore();
 $inventory_invariant->{_dirty} = ignore();
 $inventory_invariant->{_node_name} = $node_name;
+$inventory_invariant->{_data_tags} = { $concept => [] };
+$inventory_invariant->{_dataset_tags} = { $concept => [] };
+
 #Call hex so they are in both the same objects
 $instantiated->id->hex;
 
-cmp_deeply( $instantiated, $inventory_invariant, "whole structure of instantiated object matches original");
+cmp_deeply( $instantiated, $inventory_invariant, "whole structure of instantiated object matches original") or diag(Dumper($instantiated,$inventory_invariant));
 
 cmp_deeply( $instantiated->data, $inventory->data, "instantiated inventory has correct data" );
 cmp_deeply( $instantiated->subconcepts, bag(@{$inventory->subconcepts}), "instantiated inventory has correct subconcepts" );
