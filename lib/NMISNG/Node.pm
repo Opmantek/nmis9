@@ -3800,6 +3800,9 @@ sub collect_intf_data
 		'concept' => 'interface',
 		fields_hash => {
 			'_id' => 1,
+			"concept" => 1,
+			'cluster_id' => 1,
+			'node_uuid' => 1,
 			'data.collect' => 1,
 			'data.ifAdminStatus' => 1,
 			'data.ifOperStatus' => 1,
@@ -3818,7 +3821,7 @@ sub collect_intf_data
 		return undef;
 	}
 
-	my (%if_data_map, %leftovers);	# leftovers: 1 is presumed dead, 0 is ok
+	my (%if_data_map, %leftovers, %if_inventory_map);	# leftovers: 1 is presumed dead, 0 is ok
 
 	# create a map of the inventory state,
 	# by ifindex so we can look them up easily, clone _id into data to make things easier
@@ -3846,6 +3849,13 @@ sub collect_intf_data
 			$maybeevil->{data}->{$thing} = $maybeevil->{$thing};
 		}
 		$if_data_map{ $thisindex } = $maybeevil->{data};
+		
+		my $class = NMISNG::Inventory::get_inventory_class( "interface" );
+		Module::Load::load $class;
+		$maybeevil->{nmisng} = $self->nmisng;
+		my $no_save_inventory = $class->new(%$maybeevil); # this doesn't report errors!		
+		$if_inventory_map{$thisindex} = $no_save_inventory;
+		
 	}
 
 	# 2a. get the ifadminstatus, ifoperstatus and iflastchange tables
@@ -4037,10 +4047,10 @@ sub collect_intf_data
 		}
 
 		# returns undef if no good
-		my $rrdData = $S->getData( class => 'interface', index => $index,
-		#TODO: inventory? what is it? 
+		$self->nmisng->log->debug5("collecting  rrd data for for index  : ".$index."\n");
+				#TODO: inventory? what is it? 
 				# fixme9: gone											 model => $model
-				);
+		my $rrdData = $S->getData( class => 'interface', index => $index, inventory => $if_inventory_map{$index} );
 		my $howdiditgo =$thisif->{_rrd_status} = $S->status;
 
 		# any errors?
@@ -4049,8 +4059,7 @@ sub collect_intf_data
 				|| $howdiditgo->{wmi_error})
 		{
 			$self->nmisng->log->error("$nodename failed to get interface data for ifIndex=$index: $anyerror");
-		}
-
+		}		
 		# 5a. a certain amount of data massaging is required before we can make use of the rrd data,
 		# ie. moving of HC octet counters
 		# that's because the 'special handling for manual interface discovery' needs the ifoctet counters...
@@ -4770,6 +4779,46 @@ sub collect_systemhealth_info
 			# NOTE: you'll still want graphtype and header values in the section
 			next;
 		}
+		my ( %healthIndexNum, $healthIndexTable );
+		my $plugin_healthIndexTable;		
+
+		if (defined($thissection->{index_function}) && $thissection->{index_function}){
+			# grab healthIndexTable  from plugin function which is same as that of my target.			
+				my ($model_plugin,$funcname) = split(/::/,$thissection->{index_function}, 2);
+				my $can_funcname;								
+				
+				# check if the model plugin exist and can it perform the function or not.
+				for my $plugin ($self->nmisng->plugins) {
+					if ($plugin eq $model_plugin){
+						$self->nmisng->log->debug1("Plugin is $plugin function name is $funcname");		
+						$can_funcname = $plugin->can("$funcname");
+						# if can function , then perform it.
+						if ($can_funcname){
+							$self->nmisng->log->debug1("Performing $funcname from plugin: $model_plugin");						
+							my ( $status, @errors );
+							my $prevprefix = $self->nmisng->log->logprefix;
+							$self->nmisng->log->logprefix("$plugin\[$$\] ");
+				
+							eval { ( $plugin_healthIndexTable, @errors ) = &$can_funcname( node => $name,
+																			sys => $S,
+																			config => $C,
+																			thissection => $thissection,
+																			section => $section,
+																			nmisng => $self->nmisng, ); };				
+							if (@errors){
+								$self->nmisng->log->error("Error running $funcname in plugin $plugin ".Dumper(\@errors));
+								next;
+							}else{
+								$self->nmisng->log->debug1("Successfully ran $funcname using Plugin $model_plugin");	
+							}	
+						}	
+						else{
+							$self->nmisng->log->error("Skiping this section,Plugin $plugin does not have the function 	$funcname");	
+							next;
+						}			
+					}					
+				}																							
+			}		
 
 		# all systemhealth sections must be indexed by something
 		# this holds the name, snmp or wmi
@@ -4788,7 +4837,7 @@ sub collect_systemhealth_info
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
 		my ($header_info,$description);
 
-		if ( !defined($index_var) or $index_var eq '' )
+		if (!defined($thissection->{index_function}) && (!defined($index_var) or $index_var eq '' ))
 		{
 			$self->nmisng->log->debug2(sub {"No index var found for $section, skipping"});
 			next;
@@ -4966,26 +5015,41 @@ sub collect_systemhealth_info
 		else
 		{
 			my $protocol = 'snmp';
-			if( !$index_snmp ) {
-				$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
-				next;
-			}
+			if (!defined($thissection->{index_function}) ){
+		
+				if( !$index_snmp ) {
+					$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
+					next;
+				}
 
-			if ( !$SNMP )
-			{
-				$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
-				next;
+				if (!$SNMP )
+				{
+					$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
+					next;
+				}
+			}
+			else{
+				$self->nmisng->log->debug2(sub {"skipping SNMP checks as we have grabbed the SNMP data from plugin function"});
 			}
 			
 			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
-			my ( %healthIndexNum, $healthIndexTable );
-
-			# first loop gets the index we want to use out of the oid
-			# so we need to keep a map of index => target
-			# potientially these two loops could be merged.
+			
 			my $targets = {};
-			if ( $healthIndexTable = $SNMP->gettable($index_snmp) )
+
+			if (defined($plugin_healthIndexTable) && $plugin_healthIndexTable){
+					# make plugin_healthIndexTable as my new healthIndexTable
+					$healthIndexTable = $plugin_healthIndexTable;
+					# plugin must return a hash, the keys of the hash are the indexes.
+					# the values of the hash are the data to be added into the inventory for that index
+					foreach my $index (keys %{$healthIndexTable}){
+						$healthIndexNum{$index} = $index;
+					}
+
+					# copy the targets to be same as well, Since we already have the data
+					$targets = $plugin_healthIndexTable;
+			}	
+			elsif ( $healthIndexTable = $SNMP->gettable($index_snmp) )
 			{
 				foreach my $oid ( Net::SNMP::oid_lex_sort( keys %{$healthIndexTable} ) )
 				{
@@ -5058,7 +5122,9 @@ sub collect_systemhealth_info
 			{
 				my $target = $targets->{$index};
 				# we pass loadInfo a hash to fill in, then put that into the inventory data
-				if( $S->loadInfo(
+				# we have indexes but if no data is defined to load an error will be reported
+				# to avoid this we don't loadinfo if index_function is used (for now)				
+				if(defined($thissection->{index_function})  or  $S->loadInfo(
 						class   => 'systemHealth',
 						section => $section,
 						index   => $index,
@@ -6319,7 +6385,7 @@ sub process_alerts
 		$alert->{_reserved_has_been_processed} = 1;
 		if( $save_error )
 		{
-			$self->log->error("Failed to save status alert object, error:".$save_error);
+			$self->nmisng->log->error("Failed to save status alert object, error:".$save_error);
 		}
 	}
 }

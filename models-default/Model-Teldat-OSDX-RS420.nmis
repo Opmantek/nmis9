@@ -1,0 +1,724 @@
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },      
+      'event' => {
+        'common-model' => 'event'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'lmTempSensors' => {
+        'common-model' => 'lmTempSensors'
+            }
+    }
+  },
+  'database' => {
+   'type' => {
+    'teldatFanStatus' => '/nodes/$node/health/teldatFanStatus-$index.rrd',
+    'TeldatQoSStatsOSDX-out' => '/nodes/$node/health/TeldatQoSStatsOSDX-out-$index.rrd',
+    'TeldatQoSStatsOSDX-in' => '/nodes/$node/health/TeldatQoSStatsOSDX-in-$index.rrd',
+    'teldatNQA' => '/nodes/$node/health/teldatNQA-$index.rrd'
+   }
+  },
+  'interface' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)'
+    },
+    'nocollect' => {
+      'Description' => '^#',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'ifOperStatus' => 'other',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn',
+      'noDescription' => 'false'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+    },
+    'rrd' => {
+      'interface' => {
+        'graphtype' => 'bits,abits,maxbits,util,autil',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifHCInOctets' => {
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.3" : "ifHCOutOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifInOctets";',
+            'option' => 'counter,0:U'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifOutOctets' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifOutOctets";',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out'
+      },
+      'pkts_hc' => {
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHCInBcastPkts' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCInBroadcastPkts";',
+            #'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCInMulticastPkts";',
+            #'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            # for logical interface, it will only provide total packets.
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.1" : "ifHCInUcastPkts";',
+            #'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCOutBroadcastPkts";',
+            #'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCOutMulticastPkts";',
+            #'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.3" : "ifHCOutOctets";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            # for logical interface, it will only provide total packets.
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.
+            $CVAR1.4.6.1.1.1.1" : "ifHCOutUcastPkts";',
+            #'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.4" : "ifInDiscards";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifInErrors";',
+            #'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.4" : "ifOutDiscards";',
+            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;', 
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifOutErrors";',
+            #'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out'
+      }
+    },
+    'sys' => {
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          }
+        }
+      },
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Admin Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Oper Status'
+          },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          }
+        }
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'Teldat-OSDX-RS420',
+    'nodeType' => 'router',
+    'nodegraph' => 'health,response,ip,buffer,cpu,mem-teldat-osdx',
+    'rrd' => {
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          }
+        }
+      },
+      'nodehealth' => {
+        'snmp' => {
+          'sysTraffic' => {
+            'oid' => 'sysTraffic'
+          },
+          'avgBusy1' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.1.7.0'
+          },
+          'avgBusy5' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.1.13.0'
+          },
+          'MemoryUsedPROC' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.1.9.0'
+          },
+          'MemoryTotalPROC' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.7.1.3.0'
+          },
+         'MemoryFreePROC' => {
+	         'oid' => '1.3.6.1.4.1.2007.6.3.2.7.1.3.0',   
+           'calculate' => 'CVAR2=MemoryUsedPROC; return ($r - $CVAR2);',
+          },
+        },
+        #'graphtype' => 'mem-cluster,mem-dram,mem-mbuf,topo,traffic'
+        'graphtype' => 'mem-cluster,cpu,mem-teldat-osdx'
+      },
+    },
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'oid' => 'sysContact',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Contact'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysLocation' => {
+            'oid' => 'sysLocation',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'SNMP Location'
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+            'title' => 'System Name'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+        }
+      },
+      'power' => {
+        'snmp' => {
+          'SupplyState1' => {
+            'replace' => {
+              '6' => 'notFunctioning',
+              '1' => 'normal',
+              '4' => 'shutdown',
+              '3' => 'critical',
+              '2' => 'warning',
+              '5' => 'notPresent',
+              ''  => 'N/A'
+            },
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.1.11.2.0',
+            'title' => 'Power Supply A Status'
+          },
+          'SupplyDescr1' => {
+            'replace' => {
+              '4' => 'externalPowerSupply',
+              '3' => 'dc',
+              '2' => 'ac',
+              '5' => 'internalRedundant'
+            },
+            'oid'   => '1.3.6.1.4.1.2007.6.3.2.1.11.1.0',
+            'title' => 'PS A Plugged In'
+          },
+          'SupplyState2' => {
+            'replace' => {
+              '6' => 'notFunctioning',
+              '1' => 'normal',
+              '4' => 'shutdown',
+              '3' => 'critical',
+              '2' => 'warning',
+              '5' => 'notPresent',
+              ''  => 'N/A'
+            },
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.1.12.2.0',
+            'title' => 'Power Supply B Status'
+          },
+          'SupplyDescr2' => {
+              'replace' => {
+                  '4' => 'externalPowerSupply',
+                  '3' => 'dc',
+                  '2' => 'ac',
+                  '5' => 'internalRedundant'
+              },
+              'oid'   => '1.3.6.1.4.1.2007.6.3.2.1.12.1.0',
+              'title' => 'PS B Plugged In'
+          },
+        },
+        #'control' => '$sysObjectName =~ /0000/'
+      },
+      'extra' => {
+        'snmp' => {
+          'serialNum' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.7.1.1.0',
+            'title' => 'Serial Number'
+          },
+        }
+      },
+      'nodeConfiguration' => {
+        'snmp' => {
+          'HardwareMemory' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.7.1.3.0',
+            'snmpObject' => 'HardwareMemory',
+            'title' => 'HardwareMemory'
+          },
+          'HardwareModel' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.7.1.4.0',
+            'snmpObject' => 'HardwareModel',
+            'title' => 'HardwareModel'
+          },
+          'InfoOsVersion' => {
+            'oid' => '1.3.6.1.4.1.2007.6.3.2.7.2.1.0',
+            'snmpObject' => 'InfoOsVersion',
+            'title' => 'InfoOsVersion'
+          },          
+          'versionTag' => {
+            'oid' => '1.3.6.1.4.1.2021.100.2.0',
+            'snmpObject' => 'versionTag',
+            'title' => 'versionTag'
+          },
+          'versionCDate' => {
+            'oid' => '1.3.6.1.4.1.2021.100.4.0',
+            'snmpObject' => 'versionCDate',
+            'title' => 'versionCDate'
+          },
+          'versionCDate' => {
+            'oid' => '1.3.6.1.4.1.2021.100.4.0',
+            'snmpObject' => 'versionCDate',
+            'title' => 'versionCDate'
+          },
+        }
+      },  
+    },
+  },
+  'systemHealth' => {
+      'sections' => 'bgpPeer,ospfNbr,teldatNQA,TeldatQoSStatsOSDX-out,TeldatQoSStatsOSDX-in,teldatFanStatus,env-temp,udpEndpointProcess',
+      'rrd' => {
+        'TeldatQoSStatsOSDX-out' => {
+          'graphtype' => 'TeldatQoSStatOSDXPackets,TeldatQoSStatOSDXBytes',
+          'indexed' => 'true',
+          'snmp' => {
+          'MatchedPackets' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.2.6"',
+              'option' => 'counter,0:U'
+            },
+            'MatchedBytes' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.3.6"',
+              'option' => 'counter,0:U'
+                    },
+                    'MatchedDropsPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.4.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedOverLimits' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.5.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedDropBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.6.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : (($CVAR1/$CVAR2) * $CVAR3);',
+                        'option' => 'counter,0:U'
+                    },
+                    'PostPolicyPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.7.6"',
+                        'calculate' => 'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
+                        'option' => 'counter,0:U'
+                    },
+                    'PostPolicyBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.8.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
+                        'option' => 'counter,0:U'
+            }
+          }
+        },
+        'TeldatQoSStatsOSDX-in' => {
+          'graphtype' => 'TeldatQoSStatOSDXPackets,TeldatQoSStatOSDXBytes',
+          'indexed' => 'true',
+          'snmp' => {
+          'MatchedPackets' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.2.6"',
+              'option' => 'counter,0:U'
+            },
+            'MatchedBytes' => {
+              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.3.6"',
+              'option' => 'counter,0:U'
+                    },
+                    'MatchedDropsPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.4.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedOverLimits' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.5.6"',
+                        'option' => 'counter,0:U'
+                    },
+                    'MatchedDropBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.6.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : (($CVAR1/$CVAR2) * $CVAR3);',
+                        'option' => 'counter,0:U'
+                    },
+                    'PostPolicyPackets' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.7.6"',
+                        'calculate' => 'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
+                        'option' => 'counter,0:U'
+                    },
+                    'PostPolicyBytes' => {
+                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.8.6"',
+                        'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
+                        'option' => 'counter,0:U'
+            }
+
+          }
+        },
+        'teldatNQA' => {
+            'graphtype' => 'telOSDxWindowJitter_RTT,telOSDxWindowLoss',
+            'indexed'   => 'true',
+            'snmp'      => {
+                'telOSDxWinJitter' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
+                },
+                'telOSDxWinRtt' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.2',
+                },
+                'telOSDxWinLoss' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.5',
+                },
+                'telOSDxAVGJitter' => {
+                    'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.6',
+                },
+            }
+        },
+        'teldatFanStatus' => {
+         'indexed' => 'true',
+         'graphtype' => 'teldatFanStatus',
+         'snmp' => {
+            'fanRPM' => {
+              'oid' => '1.3.6.1.4.1.2007.6.3.2.5.1.1.2',
+            }
+         }
+        }       
+       },
+       'sys' => {
+          'TeldatQoSStatsOSDX-out' => {                
+                'index_function' => "RS420::getTeldatInventory", 
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes,MatchedDropsPackets,MatchedOverLimits',
+                'snmp' => {
+                     'class' => {
+                      'title' => 'Class'
+                    },
+                     'direction' => {
+                      'title' => 'Direction'
+                    },
+                     'MatchedPackets' => {
+                      'title' => 'Packets'
+                    },
+                     'MatchedBytes' => {
+                      'title' => 'Bytes'
+                    },
+                    'MatchedDropsPackets' => {
+                      'title' => 'Packet Drops'
+                    },
+                    'MatchedOverLimits' => {
+                      'title' => 'OverLimits'
+                    },
+                     'description' => {
+                      'title' => 'InterfaceName'
+                    }
+                }
+          },     
+          'TeldatQoSStatsOSDX-in' => {                
+                'index_function' => "RS420::getTeldatInventory",       
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes',
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes,MatchedDrops,MatchedOverLimits',
+                'headers' => 'description,class,direction,MatchedPackets,MatchedBytes,MatchedDropsPackets,MatchedOverLimits',
+                'snmp' => {                    												
+                     'class' => {                      
+                      'title' => 'Class'
+                    },
+                     'direction' => {                      
+                      'title' => 'Direction'
+                    },
+                     'MatchedPackets' => {                      
+                      'title' => 'Packets'
+                    },
+                     'MatchedBytes' => {                      
+                      'title' => 'Bytes'
+                    },                                                     
+                    'MatchedDropsPackets' => {
+                        'title' => 'Packet Drops'
+                    },
+                    'MatchedOverLimits' => {
+                        'title' => 'OverLimits'
+                    },
+                    'description' => {
+                      'title' => 'InterfaceName'
+                    }
+                }
+          },     
+          'teldatFanStatus' => {
+           'indexed' => 'fanID',
+           'index_oid' => '1.3.6.1.4.1.2007.6.3.2.5.1.1.1',
+           'index_regex' => '\.1\.(\d+.\d+)$',
+           'headers' => 'fanID,fanRPM',
+           'snmp' => {
+            'fanID' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.2.5.1.1.1',
+             'title' => 'Fan ID'
+            },
+            'fanRPM' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.2.5.1.1.2',
+             'title' => 'Fan RPM'
+            }
+           }
+          },
+          'teldatNQA' => {
+
+#           'indexed' => 'telOSDxMonDBServiceNsmOperationEntry',
+#           'index_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1',
+           'indexed' => 'telOSDxMonDBServiceNsmOperationWindowJitter',
+           'index_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
+           'index_regex' => '1.\d+.(\d+.\d+.\d+.\d+.\d+)$',
+                'headers' => 'telOSDxMonDBServiceNsmOperationEntry,telOSDxMonDBServiceNsmOperationWindowJitter,telOSDxMonDBServiceNsmOperationWindowRtt,telOSDxMonDBServiceNsmOperationWindowLoss,telOSDxMonDBServiceNsmOperationWindowRttJitterv',
+           'snmp' => {
+            'telOSDxMonDBServiceNsmOperationEntry' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1',
+             'title' => 'Name'
+            },
+            'telOSDxMonDBServiceNsmOperationWindowJitter' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
+             'title' => 'Jitter'
+           },
+            'telOSDxMonDBServiceNsmOperationWindowRtt' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.2',
+             'title' => 'RTT'
+            },
+            'telOSDxMonDBServiceNsmOperationWindowLoss' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.5',
+             'title' => 'Packet Loss'
+            },
+            'telOSDxMonDBServiceNsmOperationWindowRttJitterv' => {
+                'oid'   => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.6',
+                'title' => 'AVG Jitter'
+            }
+           }
+          },
+          'udpEndpointProcess' => {
+            'indexed' => 'udpEndpointLocalAddress',
+            'index_oid' => '1.3.6.1.2.1.7.7.1.2',  # udpEndpointLocalAddress
+            'index_regex' => '\.7\.1\.2\.([\d+\.]+)$',
+            'headers' => 'udpEndpointLocalAddressType,udpEndpointLocalAddress,udpEndpointLocalPort,udpEndpointRemoteAddressType,udpEndpointRemoteAddress,udpEndpointRemotePort,udpEndpointInstance,udpEndpointProcess',
+            'snmp' => {
+                'udpEndpointLocalAddressType' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.1',
+                    'title' => 'UDP Endpoint Local Address Type'
+                },
+                'udpEndpointLocalAddress' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.2',
+                    'title' => 'UDP Endpoint Local Address'
+                },
+                'udpEndpointLocalPort' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.3',
+                    'title' => 'UDP Endpoint Local Port'
+                },
+                'udpEndpointRemoteAddressType' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.4',
+                    'title' => 'UDP Endpoint Remote Address Type'
+                },
+                'udpEndpointRemoteAddress' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.5',
+                    'title' => 'UDP Endpoint Remote Address'
+                },
+                'udpEndpointRemotePort' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.6',
+                    'title' => 'UDP Endpoint Remote Port'
+                },
+                'udpEndpointInstance' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.7',
+                    'title' => 'UDP Endpoint Instance'
+                },
+                'udpEndpointProcess' => {
+                    'oid'   => '1.3.6.1.2.1.7.7.1.8',
+                    'title' => 'UDP Endpoint Process ID'
+                }
+            }
+        },
+       
+       }, 
+  }
+);

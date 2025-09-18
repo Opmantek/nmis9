@@ -44,6 +44,8 @@ use constant {
 	STANDARDISED_HUAWEI_QOS_KEY_1 => "QualityOfServiceStat",
     STANDARDISED_JUNIPER_QOS_KEY_1 => "Juniper_CoS",
     STANDARDISED_TELDAT_QOS_KEY_1 => "TeldatQoSStat",
+	STANDARDISED_TELDAT_OSDX_QOS_KEY_1 => "TeldatQoSStatsOSDX-out",
+	STANDARDISED_TELDAT_OSDX_QOS_KEY_2 => "TeldatQoSStatsOSDX-in",
     STANDARDISED_TELDAT_BRS_KEY_1 => "TeldatBRSStat",
 
 	NA_STR => "N/A", # QoS Report only for now
@@ -94,6 +96,14 @@ sub qoskey_standardised_supported_na_string
 			my @supported_qoskeys = qw(name inout action PrePolicyPkt PostPolicyPkt DropByte MaxDropByte DropBits MaxDropBits PrePolicyByte MaxPrePolicyByte
 									   PrePolicyBits MaxPrePolicyBits PostPolicyByte MaxPostPolicyByte PostPolicyBits MaxPostPolicyBits PrePolicyUtil MaxPrePolicyUtil
 									   PostPolicyUtil DropPktClass percentClass PrePolicyUtilClass);
+			return NA_STR if grep { $qospolkey eq $_ }@supported_qoskeys;
+		}
+		elsif ($thispolicy->{CfgSection} eq STANDARDISED_TELDAT_OSDX_QOS_KEY_1 || $thispolicy->{CfgSection} eq STANDARDISED_TELDAT_OSDX_QOS_KEY_2  )
+		{
+			# unsupported CfgDSNames: (MatchedPassBytes MatchedDropBytes MatchedPassPackets MatchedDropPackets NoBufDropPkt)
+			# unsupported: (bandwidth percent DropPkt PostPolicyUtil DropBits MaxDropBits PostPolicyBits MaxPostPolicyBits NoBufDropPkt DropPktClass percentClass)
+			# CfgDSNames => [qw(MatchedBytes,,MatchedDropBytes,MatchedPassPackets,,MatchedDropsPackets)]}; 
+			my @supported_qoskeys = qw(name inout action PrePolicyPkt PostPolicyPkt DropByte MaxDropByte PrePolicyByte MaxPrePolicyByte PrePolicyBits MaxPrePolicyBits PostPolicyByte MaxPostPolicyByte);
 			return NA_STR if grep { $qospolkey eq $_ }@supported_qoskeys;
 		}
 		# teldat qos
@@ -176,9 +186,16 @@ sub loadCBQoS_standardised
 		my $CiscoQoSKey = "ClassMap";
 		my $HuaweiQoSKey = STANDARDISED_HUAWEI_QOS_KEY_1;
 		my $JuniperQoSKey = STANDARDISED_JUNIPER_QOS_KEY_1;
-		my $TeldatQoSKey = STANDARDISED_TELDAT_QOS_KEY_1;
+		my $TeldatQoSKey = STANDARDISED_TELDAT_QOS_KEY_1;		
 		my $TeldatBRSKey = STANDARDISED_TELDAT_BRS_KEY_1;
-
+		my $TeldatOSDXQoSKey;
+		if ($direction eq "in" ){
+			$TeldatOSDXQoSKey = STANDARDISED_TELDAT_OSDX_QOS_KEY_1;
+		}
+		else{
+			$TeldatOSDXQoSKey = STANDARDISED_TELDAT_OSDX_QOS_KEY_2;
+		}
+		
 		my ($NI, $data);
 		# optimization: attempt Cisco first
 		if ($qos_type eq QOS_TYPE_QOS_STR
@@ -303,6 +320,35 @@ sub loadCBQoS_standardised
 													CfgDSNames => [qw(Queued Txed RedDropBytes QedPkts TxedPkts TotalDropPkts NoBufDropPkt)]};
 				}
 			}
+		}
+		elsif ($qos_type eq QOS_TYPE_QOS_STR
+			   and $M->{systemHealth}{sys}{$TeldatOSDXQoSKey}
+			   and ($NI = $S->nmisng_node->retrieve_section(sys=>$S, section=>$TeldatOSDXQoSKey , "data.ifIndex" => $index))
+			   and exists $NI->{$TeldatOSDXQoSKey})
+		{
+
+			my $thisQoSKey = $TeldatOSDXQoSKey;					
+			undef $TeldatOSDXQoSKey;
+			
+			my $teldatqos = $NI->{$thisQoSKey};						
+			for my $k (keys %{$teldatqos})
+			{
+				my $CMName;	
+				$CMName = $teldatqos->{$k}->{class} if ($teldatqos->{$k}->{class});
+				push @CMNames, $CMName;
+
+				$PMName = $teldatqos->{$k}->{direction};
+
+				$CBQosValues{$index.$CMName} = {CfgType => "Bandwidth",
+													CfgRate => undef,
+													CfgIndex => $teldatqos->{$k}->{index},
+													CfgItem =>  undef,
+													CfgUnique => $k, # index+cmname is not unique, doesn't cover inbound/outbound - this does.
+													CfgSection => $thisQoSKey, # TeldatQoSStatsOSDX-in
+													CfgDSNames => [qw(MatchedBytes PostPolicyBytes MatchedDropBytes MatchedPackets PostPolicyPackets MatchedDropsPackets)]}; 
+													# CfgDSNames => [qw(MatchedTotalBytes MatchedBytes MatchedDropBytes MatchedTotalPackets MatchedPackets MatchedDropsPackets)]}; 
+			}
+						
 		}
 		elsif ($qos_type eq QOS_TYPE_QOS_STR
 			   and $M->{systemHealth}{sys}{$TeldatQoSKey}
