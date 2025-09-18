@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.5.1";
+our $VERSION = "9.6.3";
 
 use strict;
 
@@ -4762,7 +4762,6 @@ sub collect_systemhealth_info
 		next
 				if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
 		my $thissection = $M->{systemHealth}->{sys}->{$section};
-		my $model_path = ["systemHealth","sys","section"];
 
 		# if we set the placeholder value we expect a plugin or something to create the values
 		if (defined($thissection->{placeholder}) && $thissection->{placeholder})
@@ -4787,7 +4786,7 @@ sub collect_systemhealth_info
 		$index_var = $index_snmp = $thissection->{indexed};
 		$index_regex = $thissection->{index_regex} if ( exists( $thissection->{index_regex} ) );
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
-		my ($header_info,$tags,$description);
+		my ($header_info,$description);
 
 		if ( !defined($index_var) or $index_var eq '' )
 		{
@@ -4933,8 +4932,7 @@ sub collect_systemhealth_info
 					$inventory->data_info(
 						subconcept => $section,
 						enabled => 1,
-						display_keys => $header_info,
-						model_path => $model_path
+						display_keys => $header_info
 					);
 					if( @$header_info > 0 )
 					{
@@ -5101,8 +5099,7 @@ sub collect_systemhealth_info
 					$inventory->data_info(
 						subconcept => $section,
 						enabled => 1,						
-						display_keys => $header_info,
-						model_path => $model_path
+						display_keys => $header_info
 					);
 					if( @$header_info > 0 )
 					{
@@ -7656,7 +7653,7 @@ sub collect_server_data
 																						data => $storage_target );
 					($inventory,$error) = $self->inventory(
 						concept => 'storage',
-						model_class => 'nomodel',
+						model_class => 'storage',
 						protocol 	=> 'snmp',
 						path => $path,
 						path_keys => ['index'],

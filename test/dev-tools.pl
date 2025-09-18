@@ -511,7 +511,7 @@ sub get_tagged_datasets
 		print "====================\$node =$node --- \@datasets_tags =".Dumper(@datasets_tags)."==========================\n";
 		
 		if (defined $node){
-			my $result = $nodeobj->tagged_datasets_for_subconcept(node_name => $node, node_uuid => $node_uuid, datasets_tags => \@datasets_tags, objective => $objective);
+			my $result = $nodeobj->tagged_datasets_for_subconcept( datasets_tags => \@datasets_tags, objective => $objective);
 			print "result=".Dumper($result);
 		}
 		

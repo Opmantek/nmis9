@@ -1036,7 +1036,7 @@ sub data_info
 	return Clone::clone($self->{_data_info}->{$subconcept});
 }
 
-# returns arrahref of hashes { dataset_name => "dsname", tags => ["tag1","tag2"] } defined for the specified subconcept or empty array
+# returns arrahref of hashes { ame => "dsname", tags => ["tag1","tag2"] } defined for the specified subconcept or empty array
 # arguments: subconcept - string, [newvalue] - new tags arrayref for given subconceps
 sub data_tags
 {
@@ -1080,30 +1080,7 @@ sub dataset_info
 	return $self->{_datasets}->{$subconcept} // {};
 }
 
-# sub dataset_graphtypes
-# {
-# 	my ( $self, %args ) = @_;
-# 	my ( $subconcept, $graphtypes ) = @args{'subconcept', 'graphtypes'};
-
-# 	return "cannot get or set graphtypes, invalid subconcept argument:$subconcept!"
-# 		if ( !$subconcept );    # must be something
-
-# 	if ( defined($graphtypes) )
-# 	{
-# 		return "cannot set graphtypes, invalid newvalue argument!"
-# 				if ( ref($graphtypes) ne "ARRAY" );    # empty hash is acceptable
-# 		# NOTE: dataset_info is where this ends up in the db structure so we mark that part dirty
-# 		$self->_dirty(1,"dataset_info") if (!eq_deeply($self->{_dataset_graphtypes}->{$subconcept}, $graphtypes));
-# 		# if ($self->{_newdone} == 1 && grep($_ eq "dataset_info", $self->_whatisdirty)) {
-# 		# 	$DB::single = 1;
-# 		# 	print "dataset_info DIRTY \n";
-# 		# }
-# 		$self->{_dataset_graphtypes}->{$subconcept} = $graphtypes;
-# 	}
-# 	return $self->{_dataset_graphtypes}->{$subconcept} // [];
-# }
-
-# returns arrahref of hashes { dataset_name => "dsname", tags => ["tag1","tag2"] } defined for the specified subconcept or empty array
+# returns arrahref of hashes { name => "dsname", tags => ["tag1","tag2"] } defined for the specified subconcept or empty array
 # arguments: subconcept - string, [newvalue] - new tags arrayref for given subconceps
 sub dataset_tags
 {
@@ -1456,17 +1433,6 @@ sub path
 	}
 }
 
-sub update_tags
-{
-	my ($self,%args) = @_;
-	my $SYS = $args{SYS};
-	return if(!$SYS);
-	return if($SYS->initialised != 1);
-
-	my $model_section = $self->model_section;
-
-}
-
 # save the inventory obj in the database, if this thing thinks it's new do an upsert
 #  using the path to make sure we don't create duplicates, this will clobber whatever
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
@@ -1585,7 +1551,7 @@ sub save
 		my $dataset_info = {subconcept => $subconcept, datasets => \@datasets};
 		my $dataset_tags = $self->dataset_tags( subconcept => $subconcept );
 		# redo model tags on update
-		if( $update ) {
+		if( $update && $model ) {
 			$dataset_tags = $self->parse_model_for_tags(model => $model, sys_or_rrd => "rrd", subconcept => $subconcept, existing_tags_for_subconcept =>$dataset_tags);
 			# set them back into the object so dirty tags can be set if needed			
 			$dataset_tags = $self->dataset_tags( subconcept => $subconcept, dataset_tags => $dataset_tags );
@@ -1603,7 +1569,7 @@ sub save
 		my $subconcept_info = $self->data_info( subconcept => $subconcept );
 		my $data_tags = $self->data_tags( subconcept => $subconcept );
 		# redo model tags on update
-		if( $update ) {
+		if( $update && $model) {
 			$data_tags = $self->parse_model_for_tags(model => $model, sys_or_rrd => "sys", subconcept => $subconcept, existing_tags_for_subconcept => $data_tags);
 			# set them back into the object so dirty tags can be set if needed
 			$data_tags = $self->data_tags( subconcept => $subconcept, data_tags => $data_tags );
@@ -1688,7 +1654,6 @@ sub save
 		my (%setthese, %unsetthese);
 
 		$setthese{"expire_at"} = $record->{expire_at} if (exists $record->{expire_at});
-		$setthese{"dataset_info"} = $record->{dataset_info} if (exists $record->{dataset_info});
 		# Description should always be a string
 		# make-sure current Description of records will be converted to string on update.
 		if ((exists $self->{_data_orig}->{"Description"} && $self->{_data_orig}->{"Description"}  =~ /^[0-9]+$/) ||  (exists $record->{data}->{Description} && $record->{data}->{Description}  =~ /^[0-9]+$/) ){
