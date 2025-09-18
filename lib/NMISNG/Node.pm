@@ -3799,9 +3799,6 @@ sub collect_intf_data
 			'cluster_id' => 1,
 			'node_uuid' => 1,
 			'data.collect' => 1,
-			'data.interfaceMapping' => 1,
-			'data.indexAlias' => 1,
-			'data.is_logical' => 1,
 			'data.ifAdminStatus' => 1,
 			'data.ifOperStatus' => 1,
 			'data.ifDescr' => 1,
@@ -4046,10 +4043,9 @@ sub collect_intf_data
 
 		# returns undef if no good
 		$self->nmisng->log->debug5("collecting  rrd data for for index  : ".$index."\n");
-		my $rrdData = $S->getData( class => 'interface', index => $index, inventory => $if_inventory_map{ $index}
-		#TODO: inventory? what is it? 
+				#TODO: inventory? what is it? 
 				# fixme9: gone											 model => $model
-				);
+		my $rrdData = $S->getData( class => 'interface', index => $index, inventory => $if_inventory_map{$index} );
 		my $howdiditgo =$thisif->{_rrd_status} = $S->status;
 
 		# any errors?
@@ -5035,7 +5031,8 @@ sub collect_systemhealth_info
 			if (defined($plugin_healthIndexTable) && $plugin_healthIndexTable){
 					# make plugin_healthIndexTable as my new healthIndexTable
 					$healthIndexTable = $plugin_healthIndexTable;
-					
+					# plugin must return a hash, the keys of the hash are the indexes.
+					# the values of the hash are the data to be added into the inventory for that index
 					foreach my $index (keys %{$healthIndexTable}){
 						$healthIndexNum{$index} = $index;
 					}
@@ -5116,8 +5113,8 @@ sub collect_systemhealth_info
 			{
 				my $target = $targets->{$index};
 				# we pass loadInfo a hash to fill in, then put that into the inventory data
-				# loadinfo won't work in case of index function as we have self defined indexes.
-				# so added an or statement with this.
+				# we have indexes but if no data is defined to load an error will be reported
+				# to avoid this we don't loadinfo if index_function is used (for now)				
 				if(defined($thissection->{index_function})  or  $S->loadInfo(
 						class   => 'systemHealth',
 						section => $section,
