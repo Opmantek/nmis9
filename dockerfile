@@ -94,6 +94,10 @@ RUN apt-get update  > /dev/null && \
     sysstat \
     net-tools \
     mongodb-mongosh \
+    libfile-slurp-perl \
+    iproute2 \
+    procps \
+    libyaml-libyaml-perl \
     #OMK related packages from here down
     sshpass \
     unixodbc \
@@ -104,6 +108,9 @@ RUN apt-get update  > /dev/null && \
     rm -rf /var/lib/apt/lists/* 
 
 WORKDIR /tmp
+
+# Soft link because some tools look for /usr/bin/ip not /sbin/ip
+RUN ln -s /sbin/ip /usr/bin/ip
 
 # Systemctl redirect when scripts try call systemctl inside the container
 RUN git clone https://github.com/gdraheim/docker-systemctl-replacement && \
