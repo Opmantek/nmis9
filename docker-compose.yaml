@@ -3,6 +3,12 @@ services:
   mongo:
     image: mongo:6.0
     restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo mongo:27017/test --quiet
+      interval: 60s
+      timeout: 60s
+      retries: 5
+      start_period: 60s
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
@@ -30,8 +36,6 @@ services:
       - database_data:/usr/local/nmis9/database
       # You can mount your own config files into volumes in the container but 
       # you must ensure that the db config details match whats in this compose file
-      # - ./default-config/Config.nmis:/usr/local/nmis9/conf/Config.nmis
-      # - ./default-config/opCommon.json:/usr/local/omk/conf/opCommon.json
       - /persistent/Config.nmis:/usr/local/nmis9/conf/Config.nmis
       - /persistent/opCommon.json:/usr/local/omk/conf/opCommon.json
       - omk_log_data:/usr/local/omk/log
