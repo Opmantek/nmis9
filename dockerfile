@@ -9,15 +9,23 @@ LABEL maintainer="Kishen Kumar. <kishen.kumar@firstwave.com>"
 ARG NMIS_HOME=/usr/local/nmis9
 ARG NMIS_USER=nmis
 ARG NMIS_GROUP=nmis
+ARG NMIS_USER_UID=10001
+ARG NMIS_USER_GID=10001
 
 ENV PERL5LIB="/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32"
 
 RUN apt-get update  > /dev/null && \
     apt-get install --assume-yes \
+      gnupg \
+      git \
       ca-certificates \
       curl > /dev/null
 
-RUN apt-get -y install --no-install-recommends tini \
+RUN curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg && \
+    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/6.0 main" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+
+RUN apt-get update  > /dev/null && \
+    apt-get -y install --no-install-recommends tini \
     libcairo2 \
     libcairo2-dev \
     libglib2.0-dev \
@@ -82,6 +90,10 @@ RUN apt-get -y install --no-install-recommends tini \
     libtie-ixhash-perl \
     libmojolicious-plugin-cgi-perl \
     libmongodb-perl \
+    libconfig-yaml-perl \
+    sysstat \
+    net-tools \
+    mongodb-mongosh \
     #OMK related packages from here down
     sshpass \
     unixodbc \
@@ -91,11 +103,19 @@ RUN apt-get -y install --no-install-recommends tini \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
 
+WORKDIR /tmp
+
+# Systemctl redirect when scripts try call systemctl inside the container
+RUN git clone https://github.com/gdraheim/docker-systemctl-replacement && \
+    cp docker-systemctl-replacement/files/docker/systemctl3.py /usr/bin/systemctl && \
+    rm -rf docker-systemctl-replacement
+
+RUN addgroup --gid ${NMIS_USER_GID} ${NMIS_GROUP} && \
+    useradd --uid ${NMIS_USER_UID} --gid ${NMIS_GROUP} --shell /bin/bash ${NMIS_USER}
+
 WORKDIR ${NMIS_HOME}
 
 COPY . ${NMIS_HOME}
-
-EXPOSE 8080
 
 RUN mkdir ${NMIS_HOME}/conf \
     ${NMIS_HOME}/database \
@@ -118,8 +138,19 @@ RUN mv /usr/local/nmis9/omk /usr/local/ && \
     mv /usr/local/omk/install/omkd.init.d.bak /etc/init.d/omkd && \
     mv /usr/local/omk/install/opchartsd.init.d.bak /etc/init.d/opchartsd && \
     mv /usr/local/omk/install/opconfigd.init.d.bak /etc/init.d/opconfigd && \
-    mv /usr/local/omk/install/opeventsd.init.d.bak /etc/init.d/opeventsd
+    mv /usr/local/omk/install/opeventsd.init.d.bak /etc/init.d/opeventsd && \
+    rm /etc/apt/sources.list.d/mongodb-org-6.0.list
 
-EXPOSE 8042
+# NMIS Web 8080
+# OMK Web 8042
+# MTA Port 25
+# SNMP Ports 161/udp 162/udp
+# NetFlow Port 2055
+EXPOSE 8080 \
+       8042 \
+       25 \
+       161/udp \
+       162/udp \
+       2055/udp
 
 ENTRYPOINT ["tini", "--", "/usr/local/nmis9/docker-entrypoint.sh"]
