@@ -46,7 +46,7 @@ nmis_frontend() {
 }
 
 setup_db() {
-#make sure we set up
+  yes '' | /usr/local/nmis9/admin/setup_mongodb.pl
 	yes '' | /usr/local/omk/bin/setup_mongodb.exe
 }
 
