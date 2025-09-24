@@ -1249,14 +1249,16 @@ sub getValues
 		if ( ref( $thissection->{snmp} ) eq "HASH" && $self->{snmp} )
 		{
 			# expecting port OR index for interfaces, cbqos etc. note that port overrides index!
-			my $suffix
+			my $default_suffix
 				= ( defined($port) && $port ne '' ) ? ".$port"
 				: ( defined($index) && $index ne '' ) ? ".$index"
 				:                                       "";
-			$self->nmisng->log->debug("class: index=$index port=$port suffix=$suffix");
+			$self->nmisng->log->debug("class: index=$index port=$port suffix=$default_suffix");
 
 			for my $itemname ( keys %{$thissection->{snmp}} )
 			{
+				# because we recalculate index for some items we must reset this on every loop
+				my $suffix = $default_suffix;
 				my $thisitem = $thissection->{snmp}->{$itemname};
 				if (exists( $thisitem->{calculate_index} ) && ( my $calc = $thisitem->{calculate_index} ) ) {
 					# check if its a logical interface or not ?
@@ -1271,9 +1273,10 @@ sub getValues
 							$self->nmisng->log->error("($self->{name}) getValues calculate_index failed: $error");
 							next;
 						}
+						# if calculate index returns undef or an empty string then the default_suffix is used
 						if ($result){
 							$suffix = ".".$result;
-							$self->nmisng->log->debug4("calculated suffix for logical interface is : ".$suffix." \n");
+							$self->nmisng->log->debug4(sub {"calculated suffix for logical interface is : ".$suffix});
 						}						
 					}					
 				}

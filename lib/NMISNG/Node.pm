@@ -3752,6 +3752,7 @@ sub collect_intf_data
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
 	my $catchall_inventory = $args{catchall_inventory};
+	my $catchall_data = $catchall_inventory->data_live(); # live, no saving needed
 
 	my $nodename = $self->name;
 	# get any nodeconf overrides if such exists for this node
@@ -3796,11 +3797,24 @@ sub collect_intf_data
 
 	# 1. get the interface inventories for this node, but only the bits we need (so far)
 	$self->nmisng->log->debug5(sub {"collect_intf_data phase 1"});
-	my $result = $self->get_inventory_model(
-		'concept' => 'interface',
-		fields_hash => {
+	my $ifNumber     = $catchall_data->{ifNumber} // 10; # default to 10 if not set
+	my $max_interfaces_before_cutback = $self->nmisng->config->{max_interfaces_before_cutback} // 100;
+	# if there are a lot of interfaces, only get the fields we really need
+	# if there are only a few, get everything, it's handy for custom properties in calculate_index/oid
+	my $which_fields = ($ifNumber < $max_interfaces_before_cutback) ?
+		{
 			'_id' => 1,
-			"concept" => 1,
+			'concept' => 1,
+			'cluster_id' => 1,
+			'node_uuid' => 1,
+			'data' => 1,
+			'enabled' => 1,
+			'historic' => 1
+		} 
+	: 
+		{
+			'_id' => 1,
+			'concept' => 1,
 			'cluster_id' => 1,
 			'node_uuid' => 1,
 			'data.collect' => 1,
@@ -3814,7 +3828,8 @@ sub collect_intf_data
 			'data.real' => 1,
 			'enabled' => 1,
 			'historic' => 1
-		} );
+	};
+	my $result = $self->get_inventory_model('concept' => 'interface',	fields_hash => $which_fields );
 	if (my $error = $result->error)
 	{
 		$self->nmisng->log->error("get inventory model failed: $error");
@@ -4223,8 +4238,7 @@ sub collect_intf_data
 
 	# 8. do something with the stashed rrd data; now if_data_map should have
 	# the correct inventory id attached for every single interface
-	$self->nmisng->log->debug5(sub {"collect_intf_data phase 8"});
-	my $catchall_data = $catchall_inventory->data_live(); # live, no saving needed
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 8"});	
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
 
