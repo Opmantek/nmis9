@@ -387,6 +387,44 @@ my @oltHeaders = qw(
 	hwExtSrvFlowInboundTrafficTableName
 );
 
+my @zte_oltHeaders = qw( 
+	sysUpTime
+	index
+	zxAnSrvPortResType
+	zxAnSubIfIndex
+	zxAnSrvPortResRack
+	zxAnSrvPortResShelf
+	zxAnSrvPortResSlot
+	zxAnSrvPortResPort
+	zxAnSrvPortUserSVid
+	zxAnSrvPortCurrStatsVportId
+	zxAnSrvPortDesc
+	zxAnSrvPortAdminStatus
+	zxAnSrvPortRowStatus
+	zxAnSrvPortEgressTrafficPrf
+	zxAnSrvPortIngressTrafficPrf
+	zxAnSrvPortCurrStatsInOctets
+	zxAnSrvPortCurrStatsOutOctets
+);
+my @zte_gponHeaders = qw( 
+	zxAnGponRmOnuVendorId
+	zxAnGponRmOnuSerialNum
+	zxAnPonSrvVndBindOnuPwd
+	zxAnGponOnuMgmtTypeName
+	zxAnGponRmOnuAlias
+	zxAnGponSrvOnuFiberLen
+	zxAnGponSrvOnuLastOnlineTime
+	zxAnGponSrvOnuLastOfflineTime
+	zxAnGponSrvOnuLastOfflineReason
+	zxAnGponRmOnuBatteryMonitor
+	zxAnGponRmAniTxOptLevel
+	zxAnGponRmAniRxOptLevel
+	zxAnGponRmAniPowerFeedVoltage
+	zxAnGponRmOnuSysMemUsage
+	zxAnGponOnuMgmtDesc
+);
+
+
 my @gponHeaders = qw( 
 	hwGponDeviceOntSn
 	hwGponDeviceOntPassword
@@ -518,10 +556,293 @@ if ( $ftp ) {
 				  directory => $exportConfig->{exportFtpDirectory},
 				  nmisng    => $nmisng);
 }
+$csvData = "";
+
+$exportType = "ZTE-OLT";
+
+$exportFile                 = getFileName($exportType, $C->{server_name});
+$exportFiles->{$exportType} = "$dir/$exportFile";
+$CSV_FH                     = getFileHandle("$dir/$exportFile");
+
+print("Generating $exportType Export File $exportFile\n");
+
+print("Working on ZTE_OLT_Ports\n");
+
+$exportFiles->{$exportType} = "$dir/$exportFile";
+
+exportzteOltPorts(xls                => $xls,
+				exportHandle      => $CSV_FH,
+				exportType        => $exportType,
+				section           => "Service_Port_ZTE",
+				headers           => \@zte_oltHeaders,
+				secondary_section => "zxr10GponDevice",
+				secondary_headers => \@zte_gponHeaders,				
+				models            => qr/ZTE-ZXR10/);
+
+close($CSV_FH);
+print("Closed Export File $dir/$exportFile\n");
+
+if ($email) {
+	my $content = "Report for 'OLT' attached.\n";
+	notifyByEmail(email => $email, subject => "$content", content => "$content\n", csvName => "$dir/$exportFile", csvData => $csvData);
+}
+
+if ( $ftp ) {
+	ftpExportFile(file      => $exportFiles->{$exportType},
+				  server    => $exportConfig->{exportFtpServer},
+				  user      => $exportConfig->{exportFtpUser},
+				  password  => $exportConfig->{exportFtpPassword},
+				  directory => $exportConfig->{exportFtpDirectory},
+				  nmisng    => $nmisng);
+}
 
 NMISNG::Util::writeTable(dir => "conf", name => "DslamPortFiles", data => $exportFiles);
 
 exit (0);
+
+# sub to grab ZTE ports data.
+sub exportzteOltPorts {
+	my (%args) = @_;
+	print("calling exportzteOltPorts \n\n");
+
+	my $xls        = $args{xls};
+	my $myHeaders  = $args{headers};
+	my $goodModels = $args{models};
+	my $exportType = $args{exportType};
+	my $CSV        = $args{exportHandle};
+	my $title      = $args{section};
+	my $sheet;
+	my $currow;
+	my @colsize;
+
+	my $section = $args{section};
+	die "I must know which section!" if not defined $args{section};
+
+	$title = $args{title} if defined $args{title};
+
+	my $secondary_headers = $args{secondary_headers};
+	my $secondary_section = $args{secondary_section};
+
+	my $model_section_top = "systemHealth";
+	$model_section_top = $args{model_section_top} if defined $args{model_section_top};
+
+	my $model_section = $section;
+	$model_section = $args{model_section} if defined $args{model_section};
+
+	print("Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n");
+
+	# declare some vars for filling in later.
+	my @zteHeaders;
+	my %invAlias;
+	my $modelCount = 0;
+
+	foreach my $node (sort keys %{$NODES}) {						
+		if ( $NODES->{$node}{active} == 1 ) {
+			my $S = NMISNG::Sys->new(nmisng => $nmisng);
+			my $nodeobj = $nmisng->node(name => $node);
+			$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
+
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
+			my $IF = $nodeobj->ifinfo;	
+			my $MDL = $S->mdl;
+
+			my $lastUpdateTime = defined $catchall_data->{last_update} ? $catchall_data->{last_update} : $catchall_data->{lastUpdatePoll};
+			my $lastUpdatePoll = defined $lastUpdateTime ? NMISNG::Util::returnDateStamp($lastUpdateTime) : "N/A";
+
+			# handling for this is device/model specific.
+			my $INV;
+			my $nodemodel = $catchall_data->{nodeModel} eq "Model" ? $catchall_data->{model} : $catchall_data->{nodeModel};
+			print "[exportzteOltPorts] Checking node $node model '$nodemodel' against $goodModels \n" if ($debug);
+
+			if ( $nodemodel =~ /$goodModels/ ) {
+				print("Processing ZTE Node '$NODES->{$node}{name}'\n");
+				$modelCount++;
+
+
+				# grab all the inventory id's for the main section , which is Service_Port_ZTE
+				my $invIds = $S->nmisng_node->get_inventory_ids(
+					concept => "$section");						
+				if (@$invIds) {						
+					for my $sectionId (@$invIds) {
+						my ($section, $error) = $S->nmisng_node->inventory(_id => $sectionId);
+						if ($error) {
+							print("Failed to get inventory $sectionId: $error\n");
+							next;
+						}
+
+						my $data = $section->data();
+						my $index = $data->{index};
+						# convert this to matchable index with gponDevices.
+						# which is append IFIndex and ONT Id.
+						
+						# ONT ID is $data->{zxAnSubIfIndex}.
+						$index = $index.".".$data->{zxAnSubIfIndex};
+						
+						if ( time() - $lastUpdateTime > 86400 ) {
+							print("WARNING, Last Update Data collection was more than 1 day ago: $lastUpdatePoll\n");
+						}
+						$INV->{$index} = $data;
+					}
+				}
+				
+				print("INV =>  ".Dumper($INV)."\n") if ($debug);
+				
+				#Now grab the the ids for second section which is zxr10GponDevice.
+				my $sectionIds = $S->nmisng_node->get_inventory_ids( concept => "zxr10GponDevice");				
+				if (@$sectionIds) {	
+					my $gponDeviceIndex;
+
+					for my $sectionId (@$sectionIds) {
+						my ($section, $error) = $S->nmisng_node->inventory(_id => $sectionId);
+						if ($error) {
+							print("Failed to get inventory $sectionId: $error\n");
+							next;
+						}
+						my $data = $section->data();						
+						if ( time() - $lastUpdateTime > 86400 ) {
+							print("WARNING, Last Update Data collection was more than 1 day ago: $lastUpdatePoll\n");
+						}
+						$gponDeviceIndex->{$data->{index}} = $data;					
+					}
+					print("gponDeviceIndex	=> ".Dumper($gponDeviceIndex)."\n") if ($debug);				
+					
+					# Now adjust the headers and other things.
+					if ( not @zteHeaders ) {
+						if ( not defined $myHeaders ) {							
+							@{$myHeaders} = split(",",$MDL->{$model_section_top}{sys}{$model_section}{headers});
+						}
+
+						@zteHeaders = ('node','host','last_update', @{$myHeaders});
+						
+						# fill in the aliases for each of the items from the model	
+						foreach my $heading (@zteHeaders) {
+							if ( defined $MDL->{$model_section_top}{sys}{$model_section}{snmp}{$heading}{title_export} ) {
+								$invAlias{$heading} = $MDL->{$model_section_top}{sys}{$model_section}{snmp}{$heading}{title_export};
+							}
+							else {
+								$invAlias{$heading} = $heading;
+							}
+						}
+						# add the secondary headers to the main ones for use later.
+						push(@zteHeaders,@{$secondary_headers});
+
+						# now load all the headers from the secondary model
+						foreach my $heading (@{$secondary_headers}) {
+							if ( defined $MDL->{systemHealth}{sys}{$secondary_section}{snmp}{$heading}{title_export} ) {
+								$invAlias{$heading} = $MDL->{systemHealth}{sys}{$secondary_section}{snmp}{$heading}{title_export};
+							}
+							else {
+								$invAlias{$heading} = $heading;
+							}
+						}
+
+						# set the aliases for the static items
+						$invAlias{node} = 'OLT Name';
+						$invAlias{host}	= 'OLT IP';
+						$invAlias{sysUpTime} = 'Ultimo Sincronismo';
+						$invAlias{last_update} = 'Ultimo Datos Actualizar';
+
+						$invAlias{ifIndex} = 'Index of port';
+						$invAlias{ifDescr} = 'Port';
+
+						$invAlias{ifLastChange} = 'Ultima Bajada';
+						$invAlias{ifOperStatus} = 'Condicion Operativa';
+						$invAlias{ifAdminStatus} = 'Condicion Administrativa';
+												
+						# create a header
+						my @aliases;
+						foreach my $header (@zteHeaders) {
+							my $alias = $header;
+							$alias = $invAlias{$header} if $invAlias{$header};
+							push(@aliases,"\"$alias\"");
+						}
+						if ( not $headerDone{$exportType} ) {
+							my $row = join($sep,@aliases);
+							print $CSV    "$row\n";
+							$headerDone{$exportType} = 1;
+						}
+						if ($xls) {
+							print("Adding worksheet '$title'\n");
+							$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+							$currow = 1;								# header is row 0
+						}
+						else {
+							die "ERROR: Internal error, xls is not defined.\n";
+						}
+					}
+					# Now join the two sections based on the index created in section 1, Service_Port_ZTE
+					foreach my $idx (oid_lex_sort(keys %{$INV})) {					
+						
+						next if not defined $INV->{$idx};														
+						# OK this is a good one, lets get it into the CSV.
+						$INV->{$idx}{node} = $node;
+						$INV->{$idx}{host} = $NODES->{$node}{host};
+						$INV->{$idx}{sysUpTime} = $catchall_data->{sysUpTime};
+						$INV->{$idx}{last_update} = $lastUpdatePoll;
+						
+						# create a gpon index from service port INV index.
+						my ($ifIndex,$subindex,$ont_id) = split(/\./,$idx);						
+						my $gpon_idx = $ifIndex.'.'.$ont_id;						
+						if ( defined $gponDeviceIndex->{$gpon_idx} ) {
+							print("INFO: $node, $secondary_section data found for $INV->{$idx}->{index} is ".Dumper($gponDeviceIndex->{$gpon_idx})."\n");													
+						}
+						else {
+							print("ERROR: $node no $secondary_section data for gponIndex=$gpon_idx\n");					
+						}
+
+						foreach my $heading (@{$secondary_headers}) {
+							$INV->{$idx}->{$heading} = $gponDeviceIndex->{$gpon_idx}->{$heading};
+						}
+												
+						my @columns;
+						my $currcol=0;
+						foreach my $header (@zteHeaders) {
+							my $colLen = (($colsize[$currcol] ne '' ) ? $colsize[$currcol] : length($invAlias{$header}));
+							my $data   = undef;	
+							print("header is ".$header." =>");							
+							if ( defined $INV->{$idx}->{$header} ) {						
+								$data = $INV->{$idx}->{$header};			
+							}
+							else {
+								$data = "TBD";
+							}
+							$data   = "" if $data eq "noSuchInstance";
+							$colLen = ((length($data) > 253 || length($invAlias{$header}) > 253) ? 253 : ((length($data) > $colLen) ? length($data) : $colLen));
+							$data   = changeCellSep($data);
+							print("data is ".$data."\n");
+							$colsize[$currcol] = $colLen;
+							push(@columns,'"' . $data. '"');
+							$currcol++;
+						}
+						my $row = join($sep,@columns);
+						print("row is ".$row."\n");
+						print $CSV "$row\n";
+						$csvData .= "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}						
+					}
+				} 
+
+			} 
+			else {
+				print("ERROR: $node no $section MIB Data available, check the model contains it and run an update on the node.\n");
+				next;
+			}
+		}
+	}
+	print("Processed $modelCount '$goodModels'.\n");
+	my $i=0;
+	if ($sheet) {
+		foreach my $header (@zteHeaders) {
+			$sheet->set_column( $i, $i, $colsize[$i]+2);
+			$i++;
+		}
+	}
+}
 
 # Service_Port.hwExtSrvFlowDescInfo = GPON_Device.hwGponDeviceOntPassword
 # GPON_Device.index padded with .0 e.g. 4194329344.22.0 = GPON_Device_IP.index
