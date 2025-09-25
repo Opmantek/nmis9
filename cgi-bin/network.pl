@@ -103,6 +103,9 @@ my $t      = Compat::Timing->new();
 my $timing = 0;
 $timing = 1 if NMISNG::Util::getbool( $Q->{timing} );
 
+# provides a way to get errors from some graphs, this turns them on
+my $debug = NMISNG::Util::getbool( $Q->{debug} );
+
 if ( $Q->{refresh} eq "" and $wantwidget )
 {
 	$Q->{refresh} = $C->{widget_refresh_time};
@@ -2783,12 +2786,16 @@ nodeVendor sysObjectName roleType netType );
 				if ($graph !~ /Error/ ) {
 					print Tr( td( {class => 'header'}, $_->[0] ) ),
 					Tr(
-					td( {class => 'image'},
-					   $graph
-					)
-					); 
+						td( {class => 'image'},
+							$graph
+						)
+					);
 				}
-				
+				else {
+					# if in debug print the error
+					print Tr( td( $graph )) if($debug);
+					$nmisng->log->debug(sub {"Error printing graph (may be ok in some instances): $graph"});
+				}
 			}
 		}    # end for
 	}
