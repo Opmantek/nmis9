@@ -98,6 +98,7 @@ sub new
 sub mdl       { my $self = shift; return $self->{mdl} };                   # my $M = $S->mdl
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
+sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!
 # it also contains ONLY the nmisng::node's configuration(), not uuid/cluster_id/name/activated()!
@@ -149,7 +150,7 @@ sub inventory
 {
 	my ($self,%args) = @_;
 	my $node = $self->nmisng_node;
-	my ($concept,$index,$partial,$data,$nolog,$historic) = @args{'concept','index','partial','data','nolog','historic'};
+	my ($concept,$index,$partial,$data,$nolog,$historic,$model_class,$protocol) = @args{'concept','index','partial','data','nolog','historic','model_class','protocol'};
 	return if(!$node);
 	return if(!$concept);
 
@@ -190,13 +191,13 @@ sub inventory
 	if( ref($path) eq 'ARRAY' )
 	{
 		# historic here can be undef and is ignored by the search
-		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, filter => { historic => $historic });
+		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, filter => { historic => $historic }, model_class => $model_class, protocol => $protocol);
 		if( !$inventory && $concept eq 'catchall' )
 		{
 			# catchall can/should be created if not found, it's better to create it here so whoever needs it can get it
 			# instead of having one magic place that makes it and that has to be run first
 			# does not pass in data, doing that on create is not the right way, setting the value after creation is more consistent
-			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, create => 1);
+			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, create => 1,model_class => "system", protocol => $protocol);
 		}
 		$self->nmisng->log->error("Failed to get inventory for node:".$node->name.", concept:$concept error_message:$error_message path:".join(',', @$path)) if(!$inventory && !$nolog);
 	}
@@ -384,8 +385,11 @@ sub init
 	# load info of node and interfaces into this object, if a node is given
 	# otherwise load the 'generic' sys object
 	if ( $self->{name} )
-	{
-		my $catchall = $self->inventory( concept => 'catchall' );
+	{		
+		my $catchall = $args{catchall_inventory} // $self->inventory( concept => 'catchall' );	
+		# make sure cache gets same catchall if we were given one
+		$self->{_inventory_cache}{"catchall"} = $catchall;
+		
 		# there are instances where we cannot create a catchall (if the nodes cluster_id does not match the servers cluster_id)
 		if( !$catchall ) {
 			$self->{error} = "Failed to load catchall data for $self->{node}!";
@@ -999,7 +1003,7 @@ sub loadNodeInfo
 	my %args = @_;
 
 	my $C = NMISNG::Util::loadConfTable();
-	my $catchall_inventory = $self->inventory( concept => 'catchall' );
+	my $catchall_inventory = $args{catchall_inventory};
 	my $catchall_data = $catchall_inventory->data_live();
 
 	my $exit = $self->loadInfo( class => 'system', target => $catchall_data, inventory => $catchall_inventory );    # sets status
@@ -1677,7 +1681,9 @@ sub eval_string
 sub selectNodeModel
 {
 	my ( $self, %args ) = @_;
-	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
+	
+	my $catchall_inventory = $args{catchall_inventory};
+	my $catchall_data = $catchall_inventory->data_live();
 	my $vendor = $catchall_data->{nodeVendor};
 	my $descr  = $catchall_data->{sysDescr};
 
