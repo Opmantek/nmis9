@@ -2747,8 +2747,8 @@ sub translate_threshold_level
 {
 	my ($self, %args) = @_;
 
-	my $M  = $self->mdl;
 
+	my $M  = $self->mdl;
 	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $stats = $args{stats}; # value of items
@@ -2757,6 +2757,7 @@ sub translate_threshold_level
 	my $inventory = $args{inventory};
 
 	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
+	
 
 	my $val;											# hash of level cutoffs to compare against
 	my $level;										# text
@@ -2777,6 +2778,7 @@ sub translate_threshold_level
 	my $T = $M->{threshold}{name}{$thrname}{select};
 	$item = $args{item} // $M->{threshold}{name}{$thrname}{element};
 	
+	
 	foreach my $thr (sort {$a <=> $b} keys %{$T})
 	{
 		$self->nmisng->log->debug3(sub {"translate_threshold_level threshold:$thrname, thr:$thr, sect:$type, index:$index, item:$item"});
@@ -2792,13 +2794,16 @@ sub translate_threshold_level
 			$level_select = $thr;
 			$self->nmisng->log->debug("found threshold=$thrname entry=$thr");
 			last;
+			
 		}
 	}
 	# if nothing found and there are default values available, use these
 	if (!defined($val) and $T->{default}{value} ne "")
 	{
 		$val = $T->{default}{value};
+		
 		$level_select = "default";
+		
 		$self->nmisng->log->debug("found threshold=$thrname entry=default");
 	}
 	# still no luck? error out
@@ -2812,9 +2817,11 @@ sub translate_threshold_level
 	my $reset = 0;
 	# item is the attribute name of summary stats of Model
 	my $attribname = $M->{threshold}->{name}->{$thrname}->{item};
+	
 	$self->nmisng->log->debug2(sub {"Sys::translate_threshold_level item/attribname:'$attribname' could not be found in stats, keys:".join(",", keys %$stats)}) 
 		if( !defined($stats->{$attribname}));
 	my $value = $stats->{$attribname}; # note: stats is separate per index, ie. flat
+	
 	$self->nmisng->log->debug("threshold=$thrname, item=$attribname, value=$value");
 
 	# check unknown/nonnumeric value, treat it as normal
@@ -2825,6 +2832,17 @@ sub translate_threshold_level
 						 level_select => $level_select,
 						 level_value => $value };
 	}
+
+	## OMK-1937. In some cases the $value is undef.. handle the $value undef case.
+	if (!defined $value) {
+		$self->nmisng->log->debug("value $value is undefined, skipped.");
+		return { level => "Normal",
+						 reset => 0,
+						 level_select => $level_select,
+						 level_value => 0 };
+	}
+
+	
 
 	### all zeros policy to disable thresholding - match and return 'normal'
 	if ( $val->{warning} == 0
@@ -2842,26 +2860,61 @@ sub translate_threshold_level
 						 reset => $reset };
 	}
 
+	## ## OMK-1937 related code changes
 	# Thresholds for higher being good and lower bad
+	## examples Free disk space (MB/%)
+	## Available memory
 	if ( $val->{warning} > $val->{fatal}
 			and defined $val->{warning}
 			and defined $val->{minor}
 			and defined $val->{major}
 			and defined $val->{critical}
 			and defined $val->{fatal} ) {
-		if ( $value <= $val->{fatal} ) { $level = "Fatal"; $thrvalue = $val->{fatal};}
+		if ( $value <= $val->{fatal} ) { 
+			# Fatal: value has dropped below fatal threshold
+			$level = "Fatal"; 
+			$thrvalue = $val->{fatal};
+			$reset    = $val->{critical};  # clears once value goes back above critical
+		}
 		elsif ( $value <= $val->{critical} and $value > $val->{fatal} )
-		{ $level = "Critical"; $thrvalue = $val->{critical};}
+		{ 
+			# Critical: dropped below critical, but still above fatal
+			$level = "Critical";  
+			$reset    = $val->{major}; # clears once value goes back above major
+			$thrvalue = $val->{critical};
+		}
 		elsif ( $value <= $val->{major} and $value > $val->{critical} )
-		{ $level = "Major"; $thrvalue = $val->{major}; }
+		{ 
+			# Major: dropped below major, but still above critical
+			$level = "Major"; 
+			$reset = $val->{minor};  # clears once value goes back above minor
+			$reset    = $val->{minor}; 
+		}
 		elsif ( $value <= $val->{minor} and $value > $val->{major} )
-		{ $level = "Minor"; $thrvalue = $val->{minor}; }
+		{ 
+			# Minor: dropped below minor, but still above major
+			$level = "Minor"; 
+			$reset = $val->{warning}; # clears once value goes back above warning
+			$thrvalue = $val->{minor}; 
+		}
 		elsif ( $value <= $val->{warning} and $value > $val->{minor} )
-		{ $level = "Warning"; $thrvalue = $val->{warning}; }
+		{ 
+			# Warning: dropped below warning, but still above minor
+			$level = "Warning"; 
+			$reset    = $val->{warning}; # clears once value goes back above warning
+			$thrvalue = $val->{warning}; 
+		} 
 		elsif ( $value > $val->{warning} )
-		{ $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
+		{ 
+			# Healthy state: value is above warning threshold
+			$level = "Normal"; 
+			$reset = $val->{warning}; 
+			$thrvalue = $val->{warning}; # no alert until it drops below warning
+		}
 	}
-	# Thresholds for lower being good and higher being bad
+
+	# Thresholds for lower being good and higher being bad 
+	# example: CPU utilization %, memory utilization %
 	elsif ( $val->{warning} < $val->{fatal}
 			and defined $val->{warning}
 			and defined $val->{minor}
@@ -2869,17 +2922,47 @@ sub translate_threshold_level
 			and defined $val->{critical}
 			and defined $val->{fatal} ) {
 		if ( $value < $val->{warning} )
-		{ $level = "Normal"; $reset = $val->{warning}; $thrvalue = $val->{warning}; }
+		{ 
+			# Healthy state: value below warning threshold
+			$level = "Normal"; 
+			$reset = $val->{warning}; # no alert until it crosses warning
+			$thrvalue = $val->{warning};  
+		}
 		elsif ( $value >= $val->{warning} and $value < $val->{minor} )
-		{ $level = "Warning"; $thrvalue = $val->{warning}; }
+		{ 
+			# Warning triggered: value crossed warning but not yet minor
+			$level = "Warning"; 
+			$reset    = $val->{warning}; # clears when back below warning
+			$thrvalue = $val->{warning}; 
+		}
 		elsif ( $value >= $val->{minor} and $value < $val->{major} )
-		{ $level = "Minor"; $thrvalue = $val->{minor}; }
+		{ 
+			# Minor triggered: value crossed minor but not yet major
+			$level = "Minor"; 
+			$reset    = $val->{warning}; # clears when back below warning threshold
+			$thrvalue = $val->{minor}; 
+		}
 		elsif ( $value >= $val->{major} and $value < $val->{critical} )
-		{ $level = "Major"; $thrvalue = $val->{major}; }
+		{ 
+			# Major triggered: value crossed major but not yet critical
+			$level = "Major"; 
+			$reset = $val->{minor};  # clears when back below minor threshold
+			$thrvalue = $val->{major}; 
+		}
 		elsif ( $value >= $val->{critical} and $value < $val->{fatal} )
-		{ $level = "Critical"; $thrvalue = $val->{critical}; }
+		{ 
+			# Critical triggered: value crossed critical but not yet fatal
+			$level = "Critical"; 
+			$reset    = $val->{major}; # clears when back below major threshold
+			$thrvalue = $val->{critical};  
+		}
 		elsif ( $value >= $val->{fatal} )
-		{ $level = "Fatal"; $thrvalue = $val->{fatal}; }
+		{ 
+			# Fatal triggered: value is above fatal threshold
+			$level = "Fatal";
+			$reset    = $val->{critical}; # clears when back below critical threshold
+			$thrvalue = $val->{fatal};
+		}
 	}
 
 	# fixme: why is level normal returned if the threshold config is broken??
@@ -2894,7 +2977,7 @@ sub translate_threshold_level
 						 reset => $reset };
 	}
 	$self->nmisng->log->debug("result threshold=$thrname, level=$level, value=$value, thrvalue=$thrvalue, reset=$reset");
-
+	
 	return { level => $level,
 					 level_value => $value,
 					 level_threshold => $thrvalue,
