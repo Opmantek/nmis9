@@ -103,7 +103,7 @@ sub qoskey_standardised_supported_na_string
 			# unsupported CfgDSNames: (MatchedPassBytes MatchedDropBytes MatchedPassPackets MatchedDropPackets NoBufDropPkt)
 			# unsupported: (bandwidth percent DropPkt PostPolicyUtil DropBits MaxDropBits PostPolicyBits MaxPostPolicyBits NoBufDropPkt DropPktClass percentClass)
 			# CfgDSNames => [qw(MatchedBytes,,MatchedDropBytes,MatchedPassPackets,,MatchedDropsPackets)]}; 
-			my @supported_qoskeys = qw(name inout action PrePolicyPkt PostPolicyPkt DropByte MaxDropByte PrePolicyByte MaxPrePolicyByte PrePolicyBits MaxPrePolicyBits PostPolicyByte MaxPostPolicyByte);
+			my @supported_qoskeys = qw(name inout action PrePolicyPkt PostPolicyPkt DropByte MaxDropByte PrePolicyByte MaxPrePolicyByte PrePolicyBits MaxPrePolicyBits PostPolicyByte MaxPostPolicyByte PrePolicyByte_95 PrePolicyPkt_95);
 			return NA_STR if grep { $qospolkey eq $_ }@supported_qoskeys;
 		}
 		# teldat qos
