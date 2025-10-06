@@ -3444,12 +3444,9 @@ sub update_intf_info
 			if ( ref( $overrides->{$ifDescr} ) eq "HASH" )
 			{
 				my $thisintfover = $overrides->{$ifDescr};
+				# removing previous condition as it was always failing, we don't save ifDescr in overrides.
+				if ( defined($thisintfover->{collect})){
 
-				if ( $thisintfover->{collect}
-						 # fixme9: this is stupid. the override is already keyed by this ifdescr...why copy and check AGAIN?
-						 and $thisintfover->{ifDescr} eq $target->{ifDescr} )
-
-				{
 					$target->{nc_collect} = $target->{collect};
 					$target->{collect}    = $thisintfover->{collect};
 					$self->nmisng->log->debug2(sub {"Manual update of Collect by nodeConf"});
