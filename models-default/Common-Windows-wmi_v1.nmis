@@ -372,11 +372,13 @@
           'pageUsage' => {
             'query' => 'select * from win32_pagefileusage',
             'field' => 'CurrentUsage',
+            'tags' => ['swap-used'],
             'calculate' => 'return $r*(1<<20);',
           },
           'pageTotal' => {
             'query' => 'select * from win32_pagefileusage',
             'field' => 'AllocatedBaseSize',
+            'tags' => ['swap-size'],
             'calculate' => 'return $r*(1<<20);',
           },
         },
@@ -391,6 +393,7 @@
                     'field' => 'TotalVisibleMemorySize',
                     'option' => 'gauge,U:U',  # Tipo de dato: gauge, sin límites
                     'title' => 'Total Visible Memory (KB)',
+                    'tags' => ['mem-size'],
                     'calculate' => 'return $r;'  # No se necesita conversión, se mantiene en KB
                 },
                 'FreePhysicalMemory' => {
@@ -398,6 +401,7 @@
                     'field' => 'FreePhysicalMemory',
                     'option' => 'gauge,U:U',  # Tipo de dato: gauge, sin límites
                     'title' => 'Free Physical Memory (KB)',
+                    'tags' => ['mem-free'], 
                     'calculate' => 'return $r;'  # No se necesita conversión, se mantiene en KB
                 },
                 'TotalVirtualMemory' => {
@@ -433,6 +437,7 @@
           'LoadPercentage' => {
             'query' => 'select * from Win32_Processor',
             'field' => 'LoadPercentage',
+            'tags' => ['cpu-util'], 
             'option' => 'gauge,U:U'
         },
       },
