@@ -1498,7 +1498,7 @@ sub getValues
 				# setup known var value list so that eval_string can handle CVARx substitutions
 				# add inventory data for calculation of inventory vars in Model.
 				if (defined $inventory){
-					%knownvars = (%knownvars, map { $_ => $inventory->data->{$_} } keys %{ $inventory->data });
+					%knownvars = (%knownvars, %{ $inventory->data });
 				}				
 				my ( $error, $result ) = $self->eval_string(
 					string  => $calc,
