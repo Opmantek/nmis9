@@ -107,13 +107,13 @@
         'indexed' => 'true',
         'snmp' => {
           'ifHCInBcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCInBroadcastPkts";',
-            #'oid' => 'ifHCInBroadcastPkts',
+            'oid' => 'ifHCInBroadcastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCInMcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCInMulticastPkts";',
-            #'oid' => 'ifHCInMulticastPkts',
+            'oid' => 'ifHCInMulticastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCInOctets' => {
@@ -127,14 +127,14 @@
             #'oid' => 'ifHCInUcastPkts',
             'option' => 'counter,0:U'
           },
-          'ifHCOutBcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCOutBroadcastPkts";',
-            #'oid' => 'ifHCOutBroadcastPkts',
+          'ifHCOutBcastPkts' => {            
+            'oid' => 'ifHCOutBroadcastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCOutMcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCOutMulticastPkts";',
-            #'oid' => 'ifHCOutMulticastPkts',
+            'oid' => 'ifHCOutMulticastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCOutOctets' => {
@@ -154,8 +154,8 @@
             'option' => 'counter,0:U'
           },
           'ifInErrors' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifInErrors";',
-            #'oid' => 'ifInErrors',
+            'oid' => 'ifInErrors',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifOutDiscards' => {
@@ -164,8 +164,8 @@
             'option' => 'counter,0:U'
           },
           'ifOutErrors' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifOutErrors";',
-            #'oid' => 'ifOutErrors',
+            'oid' => 'ifOutErrors',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           }
         },
