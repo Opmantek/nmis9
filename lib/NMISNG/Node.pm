@@ -1696,6 +1696,8 @@ sub sync_catchall
 		# i'm not sure where but adding them here as well
 		$catchall_data->{name} = $self->name;
 		$catchall_data->{uuid} = $self->uuid;
+		# backwards compat for NMIS8->NMIS9
+		$catchall_data->{server} = $C->{server_name} // "localhost";
 		
 		# these props all go to the same name
 		my @copy_props = qw(active addresses aliases businessService cbqos collect context customer depend display_name group host host_backup 
@@ -5423,7 +5425,7 @@ sub handle_sys_get_data_error
 	my $howdiditgo = $S->status;
 	my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
-	my $message = "$($name) $caller for section:$section ";
+	my $message = "($name) $caller for section:$section ";
 	$message .= "index: $index " if($index);
 
 	# handle some errors without making node down
