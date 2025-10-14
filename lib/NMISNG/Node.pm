@@ -893,7 +893,8 @@ sub get_inventory_ids
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
-	$args{cluster_id} = $self->cluster_id;
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $args{cluster_id} = $self->cluster_id;
 	$args{node_uuid}  = $self->uuid();
 	
 	my $result = $self->nmisng->get_inventory_model(%args);
@@ -923,7 +924,8 @@ sub get_status_model
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter} // {};
 
-	$filter->{cluster_id} = $self->cluster_id;
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $filter->{cluster_id} = $self->cluster_id;
 	$filter->{node_uuid} = $self->uuid;
 	$args{filter} = $filter;
 
@@ -954,7 +956,7 @@ sub inventory
 
 	# force these arguments to be for this node
 	my $data = $args{data};
-	$args{cluster_id} = $self->cluster_id();
+	# $args{cluster_id} = $self->cluster_id();
 	$args{node_uuid}  = $self->uuid();	
 
 	# fix the search to this node
@@ -962,6 +964,7 @@ sub inventory
 
 	# it sucks hard coding this to 1, please find a better way
 	$path->[1] = $self->uuid;
+	$path->[0] = undef;
 
 	# tell get_inventory_model enough to instantiate object later
 	my $model_data = $self->nmisng->get_inventory_model(
@@ -1002,6 +1005,7 @@ sub inventory
 	elsif ($create)
 	{
 		# concept must be supplied, for now, "leftovers" may end up being a concept,
+		$args{cluster_id} = $self->cluster_id();
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
 		$self->nmisng->log->debug("Creating Inventory for concept: $args{concept}, class:$class");
 		$self->nmisng->log->error("Creating Inventory without concept") if ( !$args{concept} );
@@ -1022,7 +1026,9 @@ sub inventory_concepts
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
-	$args{cluster_id} = $self->cluster_id();
+
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $args{cluster_id} = $self->cluster_id();
 	$args{node_uuid}  = $self->uuid();
 
 	my $q = $self->nmisng->get_inventory_model_query( %args );
@@ -1058,7 +1064,8 @@ sub inventory_datasets_by_subconcept
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
-	$args{cluster_id} = $self->cluster_id();
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $args{cluster_id} = $self->cluster_id();
 	$args{node_uuid}  = $self->uuid();
 
 	if( $filter->{subconcepts} )
