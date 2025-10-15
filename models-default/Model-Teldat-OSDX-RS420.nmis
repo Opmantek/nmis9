@@ -107,13 +107,13 @@
         'indexed' => 'true',
         'snmp' => {
           'ifHCInBcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCInBroadcastPkts";',
-            #'oid' => 'ifHCInBroadcastPkts',
+            'oid' => 'ifHCInBroadcastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCInMcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCInMulticastPkts";',
-            #'oid' => 'ifHCInMulticastPkts',
+            'oid' => 'ifHCInMulticastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCInOctets' => {
@@ -127,14 +127,14 @@
             #'oid' => 'ifHCInUcastPkts',
             'option' => 'counter,0:U'
           },
-          'ifHCOutBcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCOutBroadcastPkts";',
-            #'oid' => 'ifHCOutBroadcastPkts',
+          'ifHCOutBcastPkts' => {            
+            'oid' => 'ifHCOutBroadcastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCOutMcastPkts' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifHCOutMulticastPkts";',
-            #'oid' => 'ifHCOutMulticastPkts',
+            'oid' => 'ifHCOutMulticastPkts',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifHCOutOctets' => {
@@ -154,8 +154,8 @@
             'option' => 'counter,0:U'
           },
           'ifInErrors' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifInErrors";',
-            #'oid' => 'ifInErrors',
+            'oid' => 'ifInErrors',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           },
           'ifOutDiscards' => {
@@ -164,8 +164,8 @@
             'option' => 'counter,0:U'
           },
           'ifOutErrors' => {
-            'calculate_oid' => 'CVAR1=is_logical; return ($CVAR1) ? undef : "ifOutErrors";',
-            #'oid' => 'ifOutErrors',
+            'oid' => 'ifOutErrors',
+            'calculate' => 'CVAR1=is_logical; return ($CVAR1) ? 0 : $r',
             'option' => 'counter,0:U'
           }
         },
@@ -651,33 +651,49 @@
           },
           'teldatNQA' => {
 
-#           'indexed' => 'telOSDxMonDBServiceNsmOperationEntry',
-#           'index_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1',
-           'indexed' => 'telOSDxMonDBServiceNsmOperationWindowJitter',
-           'index_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
-           'index_regex' => '1.\d+.(\d+.\d+.\d+.\d+.\d+)$',
-                'headers' => 'telOSDxMonDBServiceNsmOperationEntry,telOSDxMonDBServiceNsmOperationWindowJitter,telOSDxMonDBServiceNsmOperationWindowRtt,telOSDxMonDBServiceNsmOperationWindowLoss,telOSDxMonDBServiceNsmOperationWindowRttJitterv',
+           'indexed' => 'telOSDxMonDBServiceNsmOperationEntry',
+           'index_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1',
+           'index_regex' => '6\.3\.4\.2\.1\.1\.1\.1\.([\d\.]+)$',
+           'index_suffix_oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.1',
+            'headers' => 'telOSDxMonDBServiceNsmOperationTag,telOSDxMonDBServiceNsmOperationSourceAddress,telOSDxMonDBServiceNsmOperationDestinationAddress,telOSDxMonDBServiceNsmOperationType,telOSDxMonDBServiceNsmOperationTos',
            'snmp' => {
-            'telOSDxMonDBServiceNsmOperationEntry' => {
+            'telOSDxMonDBServiceNsmOperationTag' => {
              'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.1',
              'title' => 'Name'
             },
-            'telOSDxMonDBServiceNsmOperationWindowJitter' => {
-             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
-             'title' => 'Jitter'
-           },
-            'telOSDxMonDBServiceNsmOperationWindowRtt' => {
-             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.2',
-             'title' => 'RTT'
+            'telOSDxMonDBServiceNsmOperationSourceAddress' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.15',
+             'title' => 'Source Address'
             },
-            'telOSDxMonDBServiceNsmOperationWindowLoss' => {
-             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.5',
-             'title' => 'Packet Loss'
+            'telOSDxMonDBServiceNsmOperationDestinationAddress' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.5',
+             'title' => 'Destinatation Address'
             },
-            'telOSDxMonDBServiceNsmOperationWindowRttJitterv' => {
-                'oid'   => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.6',
-                'title' => 'AVG Jitter'
-            }
+            'telOSDxMonDBServiceNsmOperationType' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.10',
+             'title' => 'Type'
+            },
+            'telOSDxMonDBServiceNsmOperationTos' => {
+             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.14',
+             'title' => 'TOS'
+            },
+# these cannot work in the sys section because they require the index_suffix_oid            
+#            'telOSDxMonDBServiceNsmOperationWindowJitter' => {
+#             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.3',
+#             'title' => 'Jitter'
+#           },
+#            'telOSDxMonDBServiceNsmOperationWindowRtt' => {
+#             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.2',
+#             'title' => 'RTT'
+#            },
+#            'telOSDxMonDBServiceNsmOperationWindowLoss' => {
+#             'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.5',
+#             'title' => 'Packet Loss'
+#            },
+#            'telOSDxMonDBServiceNsmOperationWindowRttJitterv' => {
+#                'oid'   => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.6',
+#                'title' => 'AVG Jitter'
+#            }
            }
           },
           'udpEndpointProcess' => {
