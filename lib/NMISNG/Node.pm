@@ -5318,7 +5318,7 @@ sub collect_systemhealth_data
 			if( $index_suffix_oid ne '' ) {
 				my $needdot = (substr($index,0,1) ne '.') ? '.' : '';
 				my $oid = $index_suffix_oid . $needdot . $index;
-				my $result = $S->snmp->get( $oid );
+				my $result = $S->snmp->gettable( $oid );
 				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
 				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
 					$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
