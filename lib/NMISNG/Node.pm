@@ -5321,8 +5321,17 @@ sub collect_systemhealth_data
 				my $result = $S->snmp->gettable( $oid );
 				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
 				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
-					$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
-					$port = $index . '.' . $result->{$oid};
+					# first look for exact match
+					if( defined($result->{$oid}) ) {
+						$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
+						$port = $index . '.' . $result->{$oid};
+					}
+					# if there's only one result let's use it. the returned key/oid may have values appended to it
+					elsif( keys %$result == 1 ) {
+						my ($found_suffix_oid, $found_suffix_value) = each %$result;
+						$data->{index_suffix} = $found_suffix_value; # store so it can be used/displayed
+						$port = $index . '.' . $found_suffix_value;
+					}
 				}
 			}
 
