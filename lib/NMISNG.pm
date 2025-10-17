@@ -1326,7 +1326,9 @@ sub ensure_indexes
 				[[concept   => 1, enabled => 1, historic => 1], {unique => 0}],
 				[{"lastupdate"           => 1}, {unique => 0}],
 				[{"subconcepts"          => 1}, {unique => 0}],
-				[["data_info.subconcept" => 1, enabled => 1, node_name => 1], {unique => 0}],
+				[["data_info.subconcept" => 1, enabled => 1, node_name => 1], {unique => 0}],				
+				[{"data_info.data_tags.tags" => 1}, node_uuid => 1, {unique => 0}],
+				[{"dataset_info.dataset_tags.tags" => 1}, node_uuid => 1, {unique => 0}],
 				[["data.ifPhysAddress" => 1, node_uuid => 1, enabled => 1, historic => 1], {unique => 0}],
 				
 
