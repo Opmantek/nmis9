@@ -880,7 +880,7 @@ sub exportOltPorts {
 	print("Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n");
 
 	# declare some vars for filling in later.
-#	my @invHeaders;
+	my @invHeaders;
 	my %invAlias;
 	my $modelCount = 0;
 
@@ -1226,7 +1226,7 @@ sub exportAdslPorts {
 	print("Exporting model_section_top=$model_section_top model_section=$model_section section=$section\n");
 
 	# declare some vars for filling in later.
-#	my @invHeaders;
+	my @invHeaders;
 	my %invAlias;
 	my $modelCount = 0;
 
