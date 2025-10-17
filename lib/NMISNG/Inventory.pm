@@ -1579,6 +1579,8 @@ sub save
 		push( @{$record->{data_info}}, { %$subconcept_info, subconcept => $subconcept });
 	}
 
+	$self->update_dashnode_data( record => $record );
+	
 	# if it's new upsert to try and make sure we're not making a duplicate
 	if ( $self->is_new() || $args{force})
 	{
@@ -1767,6 +1769,52 @@ sub save
 		$self->nmisng->log->error("Inventory update of new inventory resulted in an error, DUPLICATE INVENTORY. Error:".NMISNG::DB::get_error_string() );
 	}
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
+}
+
+# update dashnode data structure if enabled
+# args: record - the record being saved
+# modifies: $self->nmisng->{dashnode_context}{data}
+sub update_dashnode_data {
+	my ($self, %args) = @_;
+	my $record = $args{record};
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) ) {
+		my $dn_data = $self->nmisng->{dashnode_context}{data};
+		my $dn_concept = $self->concept();
+		my $data = { %{$record->{data}} }; # take a copy because we're modifying the data
+		if( $dn_concept eq 'catchall' ) {
+			$dn_concept = "system";
+			$data = { %$data }; # take a copy because we're modifying the data
+			$dn_data->{$dn_concept} = $data;
+
+			# map new fields back to old ones
+			$dn_data->{$dn_concept}{"lastUpdatePoll"} = $data->{"last_update"};
+			$dn_data->{$dn_concept}{"lastUpdateSec"} = $data->{"last_poll"};
+			$dn_data->{$dn_concept}{"lastCollectPoll"} = $data->{"last_poll"};
+			$dn_data->{$dn_concept}{"Customer"} = $data->{"customer"};
+			
+			# // map 0/1 back to "true"/"false"			
+			foreach my $prop ("collect","active","threshold","snmpdown","calls","webserver","nodedown","ping") {
+				my $value = $dn_data->{$dn_concept}{$prop};
+				$dn_data->{$dn_concept}{$prop} = ($value == 1) ? "true" : "false";
+			}
+			# map array back to comma separated string
+			my $value = $dn_data->{$dn_concept}{services} //= [];
+			$dn_data->{$dn_concept}{"Services"} = (ref($value) eq 'ARRAY') ? join(",",@$value) : "";
+		}
+		elsif( $dn_concept eq 'cbqos-out' || $dn_concept eq 'cbqos-in' ) {
+			my $index = $record->{data}{index};
+			my $inout = ($dn_concept eq 'cbqos-out') ? 'out' : 'in';
+			# $data = { %$data }; # take a copy because we're modifying the data
+			$dn_data->{cbqos}{$index}{$inout} = $data;
+		}
+		elsif( defined($record->{data}{index}) ) {
+			my $index = $record->{data}{index};
+			$dn_data->{$dn_concept}{$index} = $data;
+		} 
+		else {
+			$dn_data->{$dn_concept} = $data;
+		}
+	}
 }
 
 

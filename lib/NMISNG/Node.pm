@@ -7032,6 +7032,51 @@ sub SYS {
 	return $self->{_SYS};
 }
 
+# load nmis8 style "dashnode" file if it exists
+# otherwise (or if force set) initialise empty structure
+# args: self, op (collect/update), force (optional)
+sub load_dashnode_data {
+	my ($self, %args) = @_;	
+
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) ) {
+		my $op = $args{op};
+		$self->nmisng->{dashnode_context} = { op => $op, data => { status => {} } };
+		if( !$args{force} ) {
+			my $fn = $self->nmisng->config->{'<nmis_var>'}."/".$self->name."-node.json";
+			if ( -r $fn ) {
+				my $value = NMISNG::Util::readFiletoHash(file => $fn);
+				# value must be hash or it's an error
+				if( ref($value) ne 'HASH' ) {  
+					$self->nmisng->log->error("load_dashnode_data error saving file:$value");
+					return 0
+				}
+				$self->nmisng->{dashnode_context}{data} = $value;				
+			}
+		}		
+	}
+	return 1;
+}
+
+# save nmis8 style "dashnode" file to var directory
+# if enable_dashnode_file is set and dashnode_context exists
+sub save_dashnode_data {
+	my ($self, %args) = @_;
+
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) && defined($self->nmisng->{dashnode_context}) && defined($self->nmisng->{dashnode_context}{data})) {		
+		my $fn = $self->nmisng->config->{'<nmis_var>'}."/".$self->name."-node.json";
+
+		# print Dumper($self->nmisng->{dashnode_context}{data}{status});
+		my $error = NMISNG::Util::writeHashtoFile(file => $fn, data =>$self->nmisng->{dashnode_context}{data}, json => 1 );
+		if( $error ) {
+			$self->nmisng->log->error("save_dashnode_data error saving file:$error");
+			return 0;
+		}
+		# clear context after save so it doesn't get reused incorrectly
+		delete $self->nmisng->config->{dashnode_context};		
+	}
+	return 1;
+}
+
 # perform update operation for this one node
 # args: self, optional force, optional starttime (default now),
 # lock (optional, a live lock structure, if collect() decides to switch to update() on the go)
@@ -7067,6 +7112,10 @@ sub update
 		$self->nmisng->log->$severity("skipping update for node $name: active $lock->{type} lock held by $lock->{conflict}");
 		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
+	
+	# update will always force dashnode to be regenerated so old things can be removed 
+	# because mongo auto expire won't work in the file
+	$self->load_dashnode_data(op => "update", force => 1);
 
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);    # create system object
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
@@ -7320,6 +7369,7 @@ sub update
 		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
 	}
 	$catchall_inventory->save( node => $self );
+	$self->save_dashnode_data();
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);
@@ -9227,7 +9277,6 @@ sub collect
 		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
 
-
 	# if the init fails attempt an update operation instead
 	# Thats initialised to node polling policy	
 	if (!$S->init( node => $self,
@@ -9250,6 +9299,7 @@ sub collect
 	else {
 		$self->SYS($S);  # keep a reference to the sys object in the node for the rest of the update
 	}
+	$self->load_dashnode_data( op => "collect", force => $force);
 	
 	
 	$self->nmisng->log->debug( "node=$name "
@@ -9521,6 +9571,7 @@ sub collect
 	{
 		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
 	}
+	$self->save_dashnode_data();
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);
