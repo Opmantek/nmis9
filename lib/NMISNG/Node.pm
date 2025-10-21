@@ -1224,10 +1224,12 @@ sub is_new
 sub coarse_status
 {
 	my ($self, %args) = @_;
-
-    my ($inventory, $error) =  $self->inventory( concept => "catchall" );
-	my $old_data = ($inventory && !$error)? $inventory->data() : {};
-	my $catchall_data = (defined($args{catchall_data}) && %{$args{catchall_data}}) ? $args{catchall_data} : $old_data;
+	
+	my $catchall_data = $args{catchall_data};
+	if( !$catchall_data ) {
+		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+		$catchall_data = ($inventory && !$error)? $inventory->data() : {};
+	}
 
 	# 1 for reachable
 	# 0 for unreachable
@@ -7360,7 +7362,7 @@ sub update
 	$S->close;
 
 	# update the coarse compat 'nodestatus' property, not multiple times
-	my $coarse = $self->coarse_status;
+	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 	my ( $save_op, $save_error ) = $catchall_inventory->save(force => $force, node => $self, update => 1 );
