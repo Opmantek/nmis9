@@ -1,9 +1,10 @@
+# compose.yaml file for NMIS Suite
 services:
   mongo:
     image: mongo:7.0
     restart: always
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo mongo:27017/test --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
       interval: 60s
       timeout: 60s
       retries: 5
@@ -22,8 +23,8 @@ services:
     image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v1.9
     restart: always
     environment:
-      NMIS_DB_USERNAME: ${NMIS_DB_USERNAME}
-      NMIS_DB_PASSWORD: ${NMIS_DB_PASSWORD}
+      NMIS_DB_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      NMIS_DB_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
       NMIS_DB_SERVER: ${NMIS_DB_SERVER}
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
     depends_on:
