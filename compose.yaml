@@ -25,7 +25,7 @@ services:
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
       NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
-      NMIS_DB_SERVER: ${MONGODB_SERVER}
+      NMIS_DB_SERVER: mongo
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
     depends_on:
       - mongo
