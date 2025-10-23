@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.6.3";
+our $VERSION = "9.6.4";
 
 use strict;
 use Data::Dumper;
@@ -1299,6 +1299,7 @@ sub ensure_indexes
 				#[[node_uuid  => 1, event => 1, element => 1, historic => 1, startdate => 1], {unique => 1}],
 				# [ [node_uuid=>1,event=>1,element=>1,active=>1], {unique => 1}],
 				[{expire_at => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
+				[["active"=>1,"historic"=>1,"cluster_id"=>1],{unique=>0}], # worker escalations
 			]
 	);
 	$self->log->error("index setup failed for events: $err") if ($err);
@@ -1326,7 +1327,9 @@ sub ensure_indexes
 				[[concept   => 1, enabled => 1, historic => 1], {unique => 0}],
 				[{"lastupdate"           => 1}, {unique => 0}],
 				[{"subconcepts"          => 1}, {unique => 0}],
-				[["data_info.subconcept" => 1, enabled => 1, node_name => 1], {unique => 0}],
+				[["data_info.subconcept" => 1, enabled => 1, node_name => 1], {unique => 0}],				
+				[["data_info.data_tags.tags" => 1, node_uuid => 1], {unique => 0}],
+				[["dataset_info.dataset_tags.tags" => 1, node_uuid => 1], {unique => 0}],
 				[["data.ifPhysAddress" => 1, node_uuid => 1, enabled => 1, historic => 1], {unique => 0}],
 				
 
@@ -1373,6 +1376,7 @@ sub ensure_indexes
 												# uuid and polling group to grab polling groups for nodes
 												[["uuid"  => 1, "configuration.polling_group" => 1],{unique => 1}],
 												[["lastupdate" => 1], {unique => 0}],
+												[["cluster_id" => 1, "activated" => 1],{unique => 0}], # scheduler
 				]);
 	$self->log->error("index setup failed for nodes: $err") if ($err);	
 	
@@ -1385,13 +1389,13 @@ sub ensure_indexes
 				# opstatus: searchable by when, by status (good/bad), by activity,
 				# context (primarily node but also queue_id), and by type
 				# not included: details and stats
-				[{"time"              => -1}],
+				[{"time"              => -1}],				
 				#Keep an index of activity and compound that with time for sorting
 				[["activity"          => 1, "time"          => -1]],
 				[{"status"            => 1}],
 				[{"context.node_uuid" => 1}],
 				[{"context.queue_id"  => 1}],
-				[{"type"              => 1}],
+				[{"type"              => 1}],				
 				[{"expire_at"         => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 			]
 	);
@@ -1414,14 +1418,15 @@ sub ensure_indexes
 	$err = NMISNG::DB::ensure_index(
 			collection    => $self->{_db_queue},
 			drop_unwanted => $drop_unwanted,
-			indices       => [
-
+			indices       => [				
 				# need to search/sort by time, priority and in_progress, both type and tag,
 				# and also args.uuid
 				[["time"      => 1, "in_progress" => 1, "priority" => 1,]],
 				[["time"      => 1, "in_progress" => 1, "tag"      => 1]],    # fixme: or separate for tag?
 				[["time"      => 1, "in_progress" => 1, "type"     => 1]],    # fixme: or separate?
 				[["args.uuid" => 1]],
+				[["in_progress" => 1, "type" => 1], { unique => 0 }], # scheduler
+				[["tag" => 1, "type" => 1],{unique => 0}], # scheduler
 			]
 	);
 	$self->log->error("index setup failed for queue: $err") if ($err);
@@ -1431,6 +1436,7 @@ sub ensure_indexes
 			collection    => $self->{_db_status},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
+				[[node_uuid  => 1], {unique => 0}],
 				[[cluster_id => 1, node_uuid => 1, event => 1, element => 1], {unique => 0}],
 				[[cluster_id => 1, method => 1, index => 1, class => 1], {unique => 0}],
 				[[cluster_id => 1, lastupdate => 1], {unique => 0}],

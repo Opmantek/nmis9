@@ -76,6 +76,7 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  * act=thresholds - Run thresholds for a node (node= force=)
  * act=services - Run services for a node (node= force=) 
  * act=gettable - Get data from a node (node= oid= query=) 
+ * act=get_tagged_datasets - The function returns different results based on the objective variable: If tagged is passed, it returns the datasets of a given subconcept that are tagged. If rrd_path is passed, it returns the RRD paths for the given subconcept.
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -123,6 +124,16 @@ elsif ($Q->{act} =~ /^inventory/)
 	my $result = testinventory(node => $node);
 	exit 0;
 }
+elsif ($Q->{act} =~ /^get_tagged_datasets/)
+{
+	my $node = $Q->{node};
+	my $datasets_tags = $Q->{datasets_tags};
+	my $objective = $Q->{objective};
+    die "Need a node to run " if (!$node);
+	my $result = get_tagged_datasets(node => $node, datasets_tags => $datasets_tags, objective => $objective);
+	exit 0;
+}
+
 elsif ($Q->{act} =~ /^model/)
 {
 	my $node = $Q->{node};
@@ -473,3 +484,42 @@ sub testinventory
         return 0;
     }
 }
+
+sub get_tagged_datasets
+{
+	my %args = @_;
+	my $node = $args{node};
+	my $datasets_tags = $args{datasets_tags};
+	my $debug = $args{debug};
+	my $objective = $args{objective};
+
+	# Parse datasets_tags array
+	my @datasets_tags = split /,/, $args{datasets_tags};
+	
+	die "No datasets_tags provided\n"  unless @datasets_tags;
+	print "==============   get_tagged_datasets ==========\n";
+	##usuage ./dev-tools.pl act="get_tagged_datasets" node=Switch-2  datasets_tags="mem-free"  objective="tagged" debug=3
+	my $config = NMISNG::Util::loadConfTable( dir => undef, debug => undef, info => undef);
+    
+    # use debug, or info arg, or configured log_level
+    my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level( debug => $debug, info => $args{info}), path  => undef ); 
+    my $nmisng = NMISNG->new(config => $config, log  => $logger);
+    
+    if ( defined $node ) {
+		my $nodeobj = $nmisng->node(name => $node);
+		my $node_uuid = $nodeobj->uuid;
+		print "====================\$node =$node --- \@datasets_tags =".Dumper(@datasets_tags)."==========================\n";
+		
+		if (defined $node){
+			my $result = $nodeobj->tagged_datasets_for_subconcept( datasets_tags => \@datasets_tags, objective => $objective);
+			print "result=".Dumper($result);
+		}
+		
+    }
+    else {
+        print "Error, need a node to run: node=NODENAME \n";
+        return 0;
+    }
+	
+}
+
