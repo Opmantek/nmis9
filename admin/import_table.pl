@@ -31,7 +31,7 @@
 use strict;
 use warnings;
 
-our $VERSION = "9.6.3";
+our $VERSION = "9.6.4";
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
     print "version=$VERSION\n";

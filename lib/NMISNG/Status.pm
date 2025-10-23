@@ -222,6 +222,7 @@ sub save
 	$data{lastupdate} = time;
 
 	my $q = $self->_query();
+	$self->update_dashnode_data(record => \%data);
 
 	my $dbres = NMISNG::DB::update(
 		collection => $self->nmisng->status_collection(),
@@ -242,6 +243,50 @@ sub save
 	# }
 
 	return $error;
+}
+
+# update dashnode data structure if enabled
+# args: record - the record being saved
+# modifies: $self->nmisng->{dashnode_context}{data}
+sub update_dashnode_data {
+	my ($self, %args) = @_;
+	my $record = $args{record};
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) ) {
+		my $data = { %$record }; # take a copy because we're modifying the data		
+		if( $data->{index} == ""){
+			$data->{index} = 0;
+		}
+		my $key;
+		if( $data->{method} eq "Threshold" ) {
+			$key = $data->{property} . "--" . $data->{index};
+		}
+		elsif( $data->{method} eq "Alert" ) {
+			$key = $data->{event} . "--" . $data->{element};
+		}
+		else {
+			$key = $data->{event} . "--" . $data->{element};
+		}
+
+		# QoS status key needs more uniqueness for dashnode so add in inventory id
+		# (NMIS8 had the ClassMap key but we don't have that in this event)
+		if( $data->{property} =~ /^qos_/ ) {
+			$key .= "--".$data->{"inventory_id"}->hex;
+		}
+
+		$data->{"updated"} = $data->{"lastupdate"};
+		# $data->{"class"} //= "";
+		# $data->{"element"} //= "";
+		$data->{"level_select"} //= "default";
+		$data->{"inventory_id"} = $data->{"inventory_id"}->hex;
+		$data->{expire_at} = $data->{expire_at}->to_string;
+		delete $data->{lastupdate};
+		# delete $data->{inventory_id};
+		# delete $data->{expire_at};
+		# delete $data->{cluster_id};
+		# delete $data->{node_uuid};
+
+		$self->nmisng->{dashnode_context}{data}{status}{$key} = $data;
+	}
 }
 
 sub updated

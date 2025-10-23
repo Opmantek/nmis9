@@ -31,7 +31,7 @@
 # note: every node must have a UUID, this object will not divine one for you
 
 package NMISNG::Node;
-our $VERSION = "9.6.3";
+our $VERSION = "9.6.4";
 
 use strict;
 
@@ -893,7 +893,8 @@ sub get_inventory_ids
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
-	$args{cluster_id} = $self->cluster_id;
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $args{cluster_id} = $self->cluster_id;
 	$args{node_uuid}  = $self->uuid();
 	
 	my $result = $self->nmisng->get_inventory_model(%args);
@@ -923,7 +924,8 @@ sub get_status_model
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter} // {};
 
-	$filter->{cluster_id} = $self->cluster_id;
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $filter->{cluster_id} = $self->cluster_id;
 	$filter->{node_uuid} = $self->uuid;
 	$args{filter} = $filter;
 
@@ -954,7 +956,7 @@ sub inventory
 
 	# force these arguments to be for this node
 	my $data = $args{data};
-	$args{cluster_id} = $self->cluster_id();
+	# $args{cluster_id} = $self->cluster_id();
 	$args{node_uuid}  = $self->uuid();	
 
 	# fix the search to this node
@@ -962,6 +964,7 @@ sub inventory
 
 	# it sucks hard coding this to 1, please find a better way
 	$path->[1] = $self->uuid;
+	$path->[0] = undef;
 
 	# tell get_inventory_model enough to instantiate object later
 	my $model_data = $self->nmisng->get_inventory_model(
@@ -987,9 +990,14 @@ sub inventory
 			# HOWEVER, if we can we'll return the first non-historic object
 			# as the most useful of all bad choices
 			my $rawdata = $model_data->data; # inefficient is fine here
-			$bestchoice = List::Util::first { !$rawdata->[$_]->{historic} } (0..$#{$rawdata});
+			$bestchoice = List::Util::first { !$rawdata->[$_]->{historic} } (0..$#{$rawdata});			
 		}
-
+		
+		# make sure pre 9.6.3 nmis inventory gets model_class value if it was provided
+		my $raw_data = $model_data->data->[$bestchoice];
+		$raw_data->{model_class} //= $args{model_class} if(defined($args{model_class}));
+		$raw_data->{protocol} //= $args{protocol} if(defined($args{protocol}));
+				
 		# instantiate as object, please
 		(my $error, $inventory) = $model_data->object($bestchoice // 0);
 		return (undef, "instantiation failed: $error") if ($error);
@@ -997,6 +1005,7 @@ sub inventory
 	elsif ($create)
 	{
 		# concept must be supplied, for now, "leftovers" may end up being a concept,
+		$args{cluster_id} = $self->cluster_id();
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
 		$self->nmisng->log->debug("Creating Inventory for concept: $args{concept}, class:$class");
 		$self->nmisng->log->error("Creating Inventory without concept") if ( !$args{concept} );
@@ -1017,7 +1026,9 @@ sub inventory_concepts
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
-	$args{cluster_id} = $self->cluster_id();
+
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $args{cluster_id} = $self->cluster_id();
 	$args{node_uuid}  = $self->uuid();
 
 	my $q = $self->nmisng->get_inventory_model_query( %args );
@@ -1053,7 +1064,8 @@ sub inventory_datasets_by_subconcept
 {
 	my ( $self, %args ) = @_;
 	my $filter = $args{filter};
-	$args{cluster_id} = $self->cluster_id();
+	# node_uuid is unique, we don't need to pass on cluster_id
+	# $args{cluster_id} = $self->cluster_id();
 	$args{node_uuid}  = $self->uuid();
 
 	if( $filter->{subconcepts} )
@@ -1151,26 +1163,20 @@ sub retrieve_section
 		$self->nmisng->log->debug9(sub {"$self->{_name}: retrieve_section('$section'): not using cache"});
 
 		$self->{_retrieve_section}->{$cache_key}->{$section} = {};
-		my $ids = $self->get_inventory_ids( concept => $section,
-											filter => { historic => 0 } );
-		foreach my $id (@$ids)
+		my $md = $self->get_inventory_model(concept => $section, filter => { historic => 0 }, fields_hash => { _id => 1, data => 1 } );
+		if (my $error = $md->error)
 		{
-			my ( $inventory, $error ) = $self->inventory( _id => $id );
-			if ( !$inventory )
-			{
-				$self->nmisng->log->error("$self->{_name}: retrieve_section('$section'): Failed to get inventory with id:$id, error:$error");
-				next;
-			}
-			my $D = $inventory->data();
-			my $index = $D->{index} // $id;
-			if (! defined($index) or $index eq "")
-			{
-				$index = $id;
-			}
-			$self->{_retrieve_section}->{$cache_key}->{$section}->{$index} = $D;
+			$self->log->error("retrieve_section: failed: $error");
 		}
-		# not applicable to $self->_load() or $%self->save(), so calling $self->dirty() is not necessary
-		#$self->_dirty( 1, "retrieve_section" );
+		else 
+		{			
+			while( my $entry = $md->next_value ) 
+			{		
+				my $D = $entry->{data};
+				my $index = $D->{index} || $entry->{_id};			
+				$self->{_retrieve_section}->{$cache_key}->{$section}->{$index} = $D;
+			}		
+		}
 	}
 	else
 	{
@@ -1218,10 +1224,12 @@ sub is_new
 sub coarse_status
 {
 	my ($self, %args) = @_;
-
-    my ($inventory, $error) =  $self->inventory( concept => "catchall" );
-	my $old_data = ($inventory && !$error)? $inventory->data() : {};
-	my $catchall_data = (defined($args{catchall_data}) && %{$args{catchall_data}}) ? $args{catchall_data} : $old_data;
+	
+	my $catchall_data = $args{catchall_data};
+	if( !$catchall_data ) {
+		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
+		$catchall_data = ($inventory && !$error)? $inventory->data() : {};
+	}
 
 	# 1 for reachable
 	# 0 for unreachable
@@ -1647,7 +1655,7 @@ sub save
 			if( !$lock->{error} && !$lock->{conflict} ) 
 			{
 				my $path = $self->inventory_path(concept => "catchall", data => {}, path_keys => []);
-				my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", path => $path, path_keys => [], create => 1 );
+				my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => 'system', path => $path, path_keys => [], create => 1 );
 				if( !$error ) 
 				{
 					my $catchall_data = $catchall_inventory->data_live();
@@ -1697,6 +1705,8 @@ sub sync_catchall
 		# i'm not sure where but adding them here as well
 		$catchall_data->{name} = $self->name;
 		$catchall_data->{uuid} = $self->uuid;
+		# backwards compat for NMIS8->NMIS9
+		$catchall_data->{server} = $C->{server_name} // "localhost";
 		
 		# these props all go to the same name
 		my @copy_props = qw(active addresses aliases businessService cbqos collect context customer depend display_name group host host_backup 
@@ -1965,7 +1975,7 @@ sub pingable
 			# but even with separate subconcepts, timed data cannot be saved 'incrementally'
 			# result: the collect code and this fping code cannot safely share
 			# the catchall inventory's timed data
-			my ($pinginv,$error) = $self->inventory(concept => "ping", create => 1,
+			my ($pinginv,$error) = $self->inventory(concept => "ping", create => 1, model_class => "nomodel", protocol => 'ping',
 																							data => { }, path_keys => []); # not indexed, one per node
 			if ($error or !$pinginv)
 			{
@@ -2187,7 +2197,7 @@ sub update_node_info
 
 		# this is normally with the DEFAULT model from Model.nmis
 		# fixme: not true if switched to update op on the go!
-		my $firstloadok = $S->loadNodeInfo();
+		my $firstloadok = $S->loadNodeInfo( catchall_inventory => $catchall_inventory );
 
 		# source that hasn't worked? disable immediately
 		$curstate = $S->status;
@@ -2263,7 +2273,7 @@ sub update_node_info
 				if ( $self->configuration->{model} eq 'automatic' || $self->configuration->{model} eq "" )
 				{
 					# get nodeModel based on nodeVendor and sysDescr (real or synthetic)
-					$catchall_data->{nodeModel} = $S->selectNodeModel();    # select and save name in node info table
+					$catchall_data->{nodeModel} = $S->selectNodeModel(catchall_inventory => $catchall_inventory);    # select and save name in node info table
 					$self->nmisng->log->debug2(sub {"selectNodeModel returned model=$catchall_data->{nodeModel}"});
 
 					$catchall_data->{nodeModel} ||= 'Default';              # fixme why default and not generic?
@@ -2284,7 +2294,7 @@ sub update_node_info
 
 				# update node info table a second time, but now with the actually desired model
 				# fixme: see logic problem above, should not have to do both
-				my $secondloadok = $S->loadNodeInfo();
+				my $secondloadok = $S->loadNodeInfo( catchall_inventory => $catchall_inventory );
 
 				# source that hasn't worked? disable immediately
 				$curstate = $S->status;
@@ -3445,12 +3455,9 @@ sub update_intf_info
 			if ( ref( $overrides->{$ifDescr} ) eq "HASH" )
 			{
 				my $thisintfover = $overrides->{$ifDescr};
+				# removing previous condition as it was always failing, we don't save ifDescr in overrides.
+				if ( defined($thisintfover->{collect})){
 
-				if ( $thisintfover->{collect}
-						 # fixme9: this is stupid. the override is already keyed by this ifdescr...why copy and check AGAIN?
-						 and $thisintfover->{ifDescr} eq $target->{ifDescr} )
-
-				{
 					$target->{nc_collect} = $target->{collect};
 					$target->{collect}    = $thisintfover->{collect};
 					$self->nmisng->log->debug2(sub {"Manual update of Collect by nodeConf"});
@@ -3529,6 +3536,8 @@ sub update_intf_info
 			{
 				( $inventory, my $error_message ) = $self->inventory(
 					concept   => 'interface',
+					model_class => 'interface',
+					protocol 	=> 'snmp',
 					path      => $path,
 					create    => 1
 				);
@@ -3545,6 +3554,8 @@ sub update_intf_info
 					# And create new information
 					( $inventory, my $error_message ) = $self->inventory(
 							concept   => 'interface',
+							model_class => 'interface',
+							protocol 	=> 'snmp',
 							path      => $path,
 							create    => 1
 					);
@@ -3596,10 +3607,12 @@ sub update_intf_info
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
 				my ( $op, $error ) = $inventory->save( node => $self , update => 1);
 				$self->nmisng->log->debug2(sub { "saved ".join(',', @{$inventory->path})." op: $op"});
-				$self->nmisng->log->error( "Failed to save inventory:"
-																	 . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);
 
+				# no inventory means we can't continue
+				if ($error) {
+					$self->nmisng->log->error( "Failed to save inventory:". join( ",", @{$inventory->path} ) . " error:$error" );
+					next;
+				}
 				# mark as nonhistoric so that we can ditch the actually historic ones...
 				$activeones{$inventory->id} = 1;
 				$inventory_id = $inventory->id;
@@ -3747,6 +3760,7 @@ sub collect_intf_data
 	my ($self, %args) = @_;
 	my $S    = $args{sys};
 	my $catchall_inventory = $args{catchall_inventory};
+	my $catchall_data = $catchall_inventory->data_live(); # live, no saving needed
 
 	my $nodename = $self->name;
 	# get any nodeconf overrides if such exists for this node
@@ -3791,10 +3805,26 @@ sub collect_intf_data
 
 	# 1. get the interface inventories for this node, but only the bits we need (so far)
 	$self->nmisng->log->debug5(sub {"collect_intf_data phase 1"});
-	my $result = $self->get_inventory_model(
-		'concept' => 'interface',
-		fields_hash => {
+	my $ifNumber     = $catchall_data->{ifNumber} // 10; # default to 10 if not set
+	my $max_interfaces_before_cutback = $self->nmisng->config->{max_interfaces_before_cutback} // 100;
+	# if there are a lot of interfaces, only get the fields we really need
+	# if there are only a few, get everything, it's handy for custom properties in calculate_index/oid
+	my $which_fields = ($ifNumber < $max_interfaces_before_cutback) ?
+		{
 			'_id' => 1,
+			'concept' => 1,
+			'cluster_id' => 1,
+			'node_uuid' => 1,
+			'data' => 1,
+			'enabled' => 1,
+			'historic' => 1
+		} 
+	: 
+		{
+			'_id' => 1,
+			'concept' => 1,
+			'cluster_id' => 1,
+			'node_uuid' => 1,
 			'data.collect' => 1,
 			'data.ifAdminStatus' => 1,
 			'data.ifOperStatus' => 1,
@@ -3806,14 +3836,15 @@ sub collect_intf_data
 			'data.real' => 1,
 			'enabled' => 1,
 			'historic' => 1
-		} );
+	};
+	my $result = $self->get_inventory_model('concept' => 'interface',	fields_hash => $which_fields );
 	if (my $error = $result->error)
 	{
 		$self->nmisng->log->error("get inventory model failed: $error");
 		return undef;
 	}
 
-	my (%if_data_map, %leftovers);	# leftovers: 1 is presumed dead, 0 is ok
+	my (%if_data_map, %leftovers, %if_inventory_map);	# leftovers: 1 is presumed dead, 0 is ok
 
 	# create a map of the inventory state,
 	# by ifindex so we can look them up easily, clone _id into data to make things easier
@@ -3841,6 +3872,13 @@ sub collect_intf_data
 			$maybeevil->{data}->{$thing} = $maybeevil->{$thing};
 		}
 		$if_data_map{ $thisindex } = $maybeevil->{data};
+		
+		my $class = NMISNG::Inventory::get_inventory_class( "interface" );
+		Module::Load::load $class;
+		$maybeevil->{nmisng} = $self->nmisng;
+		my $no_save_inventory = $class->new(%$maybeevil); # this doesn't report errors!		
+		$if_inventory_map{$thisindex} = $no_save_inventory;
+		
 	}
 
 	# 2a. get the ifadminstatus, ifoperstatus and iflastchange tables
@@ -4032,10 +4070,10 @@ sub collect_intf_data
 		}
 
 		# returns undef if no good
-		my $rrdData = $S->getData( class => 'interface', index => $index,
-		#TODO: inventory? what is it? 
+		$self->nmisng->log->debug5("collecting  rrd data for for index  : ".$index."\n");
+				#TODO: inventory? what is it? 
 				# fixme9: gone											 model => $model
-				);
+		my $rrdData = $S->getData( class => 'interface', index => $index, inventory => $if_inventory_map{$index} );
 		my $howdiditgo =$thisif->{_rrd_status} = $S->status;
 
 		# any errors?
@@ -4044,8 +4082,7 @@ sub collect_intf_data
 				|| $howdiditgo->{wmi_error})
 		{
 			$self->nmisng->log->error("$nodename failed to get interface data for ifIndex=$index: $anyerror");
-		}
-
+		}		
 		# 5a. a certain amount of data massaging is required before we can make use of the rrd data,
 		# ie. moving of HC octet counters
 		# that's because the 'special handling for manual interface discovery' needs the ifoctet counters...
@@ -4209,8 +4246,7 @@ sub collect_intf_data
 
 	# 8. do something with the stashed rrd data; now if_data_map should have
 	# the correct inventory id attached for every single interface
-	$self->nmisng->log->debug5(sub {"collect_intf_data phase 8"});
-	my $catchall_data = $catchall_inventory->data_live(); # live, no saving needed
+	$self->nmisng->log->debug5(sub {"collect_intf_data phase 8"});	
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
 
@@ -4765,6 +4801,46 @@ sub collect_systemhealth_info
 			# NOTE: you'll still want graphtype and header values in the section
 			next;
 		}
+		my ( %healthIndexNum, $healthIndexTable );
+		my $plugin_healthIndexTable;		
+
+		if (defined($thissection->{index_function}) && $thissection->{index_function}){
+			# grab healthIndexTable  from plugin function which is same as that of my target.			
+				my ($model_plugin,$funcname) = split(/::/,$thissection->{index_function}, 2);
+				my $can_funcname;								
+				
+				# check if the model plugin exist and can it perform the function or not.
+				for my $plugin ($self->nmisng->plugins) {
+					if ($plugin eq $model_plugin){
+						$self->nmisng->log->debug1("Plugin is $plugin function name is $funcname");		
+						$can_funcname = $plugin->can("$funcname");
+						# if can function , then perform it.
+						if ($can_funcname){
+							$self->nmisng->log->debug1("Performing $funcname from plugin: $model_plugin");						
+							my ( $status, @errors );
+							my $prevprefix = $self->nmisng->log->logprefix;
+							$self->nmisng->log->logprefix("$plugin\[$$\] ");
+				
+							eval { ( $plugin_healthIndexTable, @errors ) = &$can_funcname( node => $name,
+																			sys => $S,
+																			config => $C,
+																			thissection => $thissection,
+																			section => $section,
+																			nmisng => $self->nmisng, ); };				
+							if (@errors){
+								$self->nmisng->log->error("Error running $funcname in plugin $plugin ".Dumper(\@errors));
+								next;
+							}else{
+								$self->nmisng->log->debug1("Successfully ran $funcname using Plugin $model_plugin");	
+							}	
+						}	
+						else{
+							$self->nmisng->log->error("Skiping this section,Plugin $plugin does not have the function 	$funcname");	
+							next;
+						}			
+					}					
+				}																							
+			}		
 
 		# all systemhealth sections must be indexed by something
 		# this holds the name, snmp or wmi
@@ -4783,7 +4859,7 @@ sub collect_systemhealth_info
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
 		my ($header_info,$description);
 
-		if ( !defined($index_var) or $index_var eq '' )
+		if (!defined($thissection->{index_function}) && (!defined($index_var) or $index_var eq '' ))
 		{
 			$self->nmisng->log->debug2(sub {"No index var found for $section, skipping"});
 			next;
@@ -4799,8 +4875,9 @@ sub collect_systemhealth_info
 
 		if ( exists( $thissection->{wmi} ) )
 		{
+			my $protocol = 'wmi';
 			$self->nmisng->log->debug2(sub {"systemhealth: section=$section, source WMI, index_var=$index_var"});
-			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );
+			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );			
 
 			my $wmiaccessor = $S->wmi;
 			if ( !$wmiaccessor )
@@ -4908,6 +4985,8 @@ sub collect_systemhealth_info
 
 					my ( $inventory, $error_message ) = $self->inventory(
 						concept   => $section,
+						model_class => 'systemHealth',
+						protocol 	=> $protocol,
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
@@ -4935,7 +5014,7 @@ sub collect_systemhealth_info
 					}
 	
 					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self , update => 1 );
+					my ( $op, $error ) = $inventory->save( node => $self , sys => $S, update => 1 );
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -4957,9 +5036,22 @@ sub collect_systemhealth_info
 		}
 		else
 		{
-			if( !$index_snmp ) {
-				$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
-				next;
+			my $protocol = 'snmp';
+			if (!defined($thissection->{index_function}) ){
+		
+				if( !$index_snmp ) {
+					$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
+					next;
+				}
+
+				if (!$SNMP )
+				{
+					$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
+					next;
+				}
+			}
+			else{
+				$self->nmisng->log->debug2(sub {"skipping SNMP checks as we have grabbed the SNMP data from plugin function"});
 			}
 
 			if ( !$SNMP )
@@ -4970,13 +5062,22 @@ sub collect_systemhealth_info
 			
 			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
 			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
-			my ( %healthIndexNum, $healthIndexTable );
-
-			# first loop gets the index we want to use out of the oid
-			# so we need to keep a map of index => target
-			# potientially these two loops could be merged.
+			
 			my $targets = {};
-			if ( $healthIndexTable = $SNMP->gettable($index_snmp) )
+
+			if (defined($plugin_healthIndexTable) && $plugin_healthIndexTable){
+					# make plugin_healthIndexTable as my new healthIndexTable
+					$healthIndexTable = $plugin_healthIndexTable;
+					# plugin must return a hash, the keys of the hash are the indexes.
+					# the values of the hash are the data to be added into the inventory for that index
+					foreach my $index (keys %{$healthIndexTable}){
+						$healthIndexNum{$index} = $index;
+					}
+
+					# copy the targets to be same as well, Since we already have the data
+					$targets = $plugin_healthIndexTable;
+			}	
+			elsif ( $healthIndexTable = $SNMP->gettable($index_snmp) )
 			{
 				foreach my $oid ( Net::SNMP::oid_lex_sort( keys %{$healthIndexTable} ) )
 				{
@@ -5049,7 +5150,9 @@ sub collect_systemhealth_info
 			{
 				my $target = $targets->{$index};
 				# we pass loadInfo a hash to fill in, then put that into the inventory data
-				if( $S->loadInfo(
+				# we have indexes but if no data is defined to load an error will be reported
+				# to avoid this we don't loadinfo if index_function is used (for now)				
+				if(defined($thissection->{index_function})  or  $S->loadInfo(
 						class   => 'systemHealth',
 						section => $section,
 						index   => $index,
@@ -5072,6 +5175,8 @@ sub collect_systemhealth_info
 					# NOTE: systemHealth requires {index} => $index to be set, it
 					my ( $inventory, $error_message ) = $self->inventory(
 						concept   => $section,
+						model_class => 'systemHealth',
+						protocol 	=> $protocol,
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
@@ -5087,7 +5192,7 @@ sub collect_systemhealth_info
 					# set which columns should be displayed
 					$inventory->data_info(
 						subconcept => $section,
-						enabled => 1,
+						enabled => 1,						
 						display_keys => $header_info
 					);
 					if( @$header_info > 0 )
@@ -5225,11 +5330,20 @@ sub collect_systemhealth_data
 			if( $index_suffix_oid ne '' ) {
 				my $needdot = (substr($index,0,1) ne '.') ? '.' : '';
 				my $oid = $index_suffix_oid . $needdot . $index;
-				my $result = $S->snmp->get( $oid );
+				my $result = $S->snmp->gettable( $oid );
 				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
 				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
-					$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
-					$port = $index . '.' . $result->{$oid};
+					# first look for exact match
+					if( defined($result->{$oid}) ) {
+						$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
+						$port = $index . '.' . $result->{$oid};
+					}
+					# if there's only one result let's use it. the returned key/oid may have values appended to it
+					elsif( keys %$result == 1 ) {
+						my ($found_suffix_oid, $found_suffix_value) = each %$result;
+						$data->{index_suffix} = $found_suffix_value; # store so it can be used/displayed
+						$port = $index . '.' . $found_suffix_value;
+					}
 				}
 			}
 
@@ -5332,7 +5446,7 @@ sub handle_sys_get_data_error
 	my $howdiditgo = $S->status;
 	my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
-	my $message = "$($name) $caller for section:$section ";
+	my $message = "($name) $caller for section:$section ";
 	$message .= "index: $index " if($index);
 
 	# handle some errors without making node down
@@ -5776,10 +5890,12 @@ sub collect_cbqos_info
 				{
 					my ( $inventory, $error_message ) = $self->inventory(
 						concept   => "cbqos-$direction",
+						model_class => 'nomodel',
+						protocol 	=> 'snmp',
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
-							);
+					);
 
 					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 
@@ -6306,7 +6422,7 @@ sub process_alerts
 		$alert->{_reserved_has_been_processed} = 1;
 		if( $save_error )
 		{
-			$self->log->error("Failed to save status alert object, error:".$save_error);
+			$self->nmisng->log->error("Failed to save status alert object, error:".$save_error);
 		}
 	}
 }
@@ -6910,6 +7026,65 @@ $self->nmisng->log->debug2(sub {"total number of interfaces coll. up=$reach{intf
 	return \%reachVal;
 }
 
+# SET on update and collect
+# returns what they intialise. in the future this could be 
+# made smarter, with parameters for sys, init true etc,
+# and upgrades to sys could be made (like if sys was initially
+# requested without init and then it's needed, etc))
+sub SYS {
+	my ($self, $new, ) = @_;
+	if (defined $new)
+	{
+		$self->{_SYS}  = $new;
+	}
+	return $self->{_SYS};
+}
+
+# load nmis8 style "dashnode" file if it exists
+# otherwise (or if force set) initialise empty structure
+# args: self, op (collect/update), force (optional)
+sub load_dashnode_data {
+	my ($self, %args) = @_;	
+
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) ) {
+		my $op = $args{op};
+		$self->nmisng->{dashnode_context} = { op => $op, data => { status => {} } };
+		if( !$args{force} ) {
+			my $fn = $self->nmisng->config->{'<nmis_var>'}."/".$self->name."-node.json";
+			if ( -r $fn ) {
+				my $value = NMISNG::Util::readFiletoHash(file => $fn);
+				# value must be hash or it's an error
+				if( ref($value) ne 'HASH' ) {  
+					$self->nmisng->log->error("load_dashnode_data error saving file:$value");
+					return 0
+				}
+				$self->nmisng->{dashnode_context}{data} = $value;				
+			}
+		}		
+	}
+	return 1;
+}
+
+# save nmis8 style "dashnode" file to var directory
+# if enable_dashnode_file is set and dashnode_context exists
+sub save_dashnode_data {
+	my ($self, %args) = @_;
+
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) && defined($self->nmisng->{dashnode_context}) && defined($self->nmisng->{dashnode_context}{data})) {		
+		my $fn = $self->nmisng->config->{'<nmis_var>'}."/".$self->name."-node.json";
+
+		# print Dumper($self->nmisng->{dashnode_context}{data}{status});
+		my $error = NMISNG::Util::writeHashtoFile(file => $fn, data =>$self->nmisng->{dashnode_context}{data}, json => 1 );
+		if( $error ) {
+			$self->nmisng->log->error("save_dashnode_data error saving file:$error");
+			return 0;
+		}
+		# clear context after save so it doesn't get reused incorrectly
+		delete $self->nmisng->config->{dashnode_context};		
+	}
+	return 1;
+}
+
 # perform update operation for this one node
 # args: self, optional force, optional starttime (default now),
 # lock (optional, a live lock structure, if collect() decides to switch to update() on the go)
@@ -6945,40 +7120,19 @@ sub update
 		$self->nmisng->log->$severity("skipping update for node $name: active $lock->{type} lock held by $lock->{conflict}");
 		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
+	
+	# update will always force dashnode to be regenerated so old things can be removed 
+	# because mongo auto expire won't work in the file
+	$self->load_dashnode_data(op => "update", force => 1);
 
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);    # create system object
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
 	# and primes the sys object for snmp/wmi ops
-
-	if (!$S->init(node => $self,	update => 'true', force => $force))
-	{
+	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => "system" );
+	if( $error ) {
 		$self->unlock(lock => $lock);
-		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
-		
-		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
-		
-		my $old_data = $inventory->data();
-		if ($old_data) {
-			$old_data->{'last_update_attempt'} = Time::HiRes::time;
-		
-			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self , update => 1);
-			
-			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
-		} else {
-			$self->nmisng->log->warn("Failed to get inventory for node $name failed, $error");
-		}
-		
-		return { error => "Sys init failed: ".$S->status->{error} };
-	}
-
-	# this is the first time catchall is accessed, handle error here, all others will assume it works
-	my $catchall_inventory = $S->inventory(concept => 'catchall');
-	if(!$catchall_inventory)
-	{
-		$self->unlock(lock => $lock);
-		$self->nmisng->log->fatal("Failed to load catchall inventory for node $name");
-		return { error => "Failed to load catchall inventory for node $name" };
+		$self->nmisng->log->fatal("($name) failed to load catchall inventory: $error");
+		return { error => "failed to load catchall inventory: $error" };
 	}
 
 	# catchall uses 'live' data which is a direct reference to the data because it's too easy to
@@ -6988,6 +7142,19 @@ sub update
 	# record that we are trying an update; last_update records only successfully completed updates...
 	$catchall_data->{last_update_attempt} = $starttime;
 
+	if (!$S->init(node => $self,	update => 'true', force => $force, catchall_inventory => $catchall_inventory))
+	{
+		$self->unlock(lock => $lock);
+		$self->nmisng->log->error("($name) init failed: " . $S->status->{error} );
+			
+		my ($save, $error2) = $catchall_inventory->save( node => $self , update => 1);			
+		$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		
+		return { error => "Sys init failed: ".$S->status->{error} };
+	}
+	
+	$self->SYS($S);  # keep a reference to the sys object in the node for the rest of the update
+	
 	$self->nmisng->log->debug("node=$name "
 			. join( " ",
 							( map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ),
@@ -7201,7 +7368,7 @@ sub update
 	$S->close;
 
 	# update the coarse compat 'nodestatus' property, not multiple times
-	my $coarse = $self->coarse_status;
+	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
 
 	my ( $save_op, $save_error ) = $catchall_inventory->save(force => $force, node => $self, update => 1 );
@@ -7210,6 +7377,7 @@ sub update
 		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
 	}
 	$catchall_inventory->save( node => $self );
+	$self->save_dashnode_data();
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);
@@ -7432,6 +7600,8 @@ sub collect_server_data
 																			path_keys => [], data => $overall_target );
 		my ($inventory,$error_message) = $self->inventory(
 			concept => 'device_global',
+			model_class => "nomodel",
+			protocol 	=> 'snmp',
 			path => $path,
 			path_keys => [],
 			create => 1
@@ -7485,6 +7655,8 @@ sub collect_server_data
 					my $path = $self->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
 					($inventory,$error_message) = $self->inventory(
 						concept => 'device',
+						model_class => 'nomodel',
+						protocol 	=> 'snmp',
 						path => $path,
 						path_keys => ['index'],
 						create => 1
@@ -7634,6 +7806,8 @@ sub collect_server_data
 																						data => $storage_target );
 					($inventory,$error) = $self->inventory(
 						concept => 'storage',
+						model_class => 'storage',
+						protocol 	=> 'snmp',
 						path => $path,
 						path_keys => ['index'],
 						create => 1
@@ -7961,6 +8135,7 @@ sub collect_services
 
 	my %snmpTable;
 	my $wmiresult;
+	my $protocol;
 	# do we have snmp-based services and are we allowed to check them?
 	# ie node active and collect on; if so, then do the snmp collection here
 	if ( $snmp_allowed
@@ -7973,6 +8148,7 @@ sub collect_services
 	{
 		$self->nmisng->log->debug2(sub {"node $node has SNMP services to check"});
 		my $SNMP = $S->snmp;
+		$protocol = 'snmp';
 
 		# get the process parameters by column, allowing efficient bulk requests
 		# but possibly running into bad agents at times, which gettable/getindex
@@ -8051,6 +8227,7 @@ sub collect_services
 			)
 	{
 		$self->nmisng->log->debug(sub {"node $node has WMI services to check"});
+		$protocol = 'wmi';
 
 		# an example of what we are collecting. make sure the keys match the values, keys are 
 		# used in the query
@@ -8135,6 +8312,8 @@ sub collect_services
 		my $procinv_path = $self->inventory_path(concept => "snmp_services", path_keys => [], data => {});
 		die "failed to create path for snmp_services: $procinv_path\n" if (!ref($procinv_path));
 		my ( $processinventory, $error)  = $self->inventory( concept => "snmp_services",
+																												model_class => 'nomodel',
+																												protocol 	=> $protocol,
 																												 path => $procinv_path,
 																												 path_keys => [],
 																												 create => 1);
@@ -8251,6 +8430,8 @@ sub collect_services
 
 		my ($inventory, $error) = $self->inventory(
 			concept => "service",
+			model_class => 'nomodel',
+			protocol 	=> $servicetype, # TODO: I think this makes sense, ??? it may not align with services above for that type
 			path => $path,
 			path_keys => $path_keys,
 			create  => 1,
@@ -9084,44 +9265,13 @@ sub collect
 	}
 
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
-
-	# if the init fails attempt an update operation instead
-	# Thats initialised to node polling policy	
-	if (!$S->init( node => $self,
-									snmp => $wantsnmp,
-									wmi => $wantwmi,
-									policy => $self->configuration->{polling_policy},
-			))
-	{
-		$self->nmisng->log->debug( "Sys init for $name failed: "
-													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
-		my ($inventory, $error) =  $self->inventory( concept => "catchall" );
-		
-		if (!$error) 
-		{
-			my $old_data = $inventory->data();
-			my $polltime = Time::HiRes::time;
-			$old_data->{'last_poll_snmp_attempt'} = $polltime;
-			$old_data->{'last_poll_wmi_attempt'} = $polltime;
-			$old_data->{'last_poll_attempt'} = $polltime;
-		
-			$inventory->data($old_data);
-			my ($save, $error2) = $inventory->save( node => $self );
-			
-			$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
-		} 
-		else 
-		{
-			$self->nmisng->log->error("Failed to get inventory for node $name failed, $error");
-		}
-		
-		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
-		my $res = $self->update(lock => $lock); # 'upgrade' the one lock we currently hold
-		# collect will have to wait until a next run...but do clean the lock up now
-		return $res;
+	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => "system" );
+	if( $error ) {
+		$self->unlock(lock => $lock);
+		$self->nmisng->log->fatal("($name) failed to load catchall inventory: $error");
+		return { error => "failed to load catchall inventory: $error" };
 	}
 
-	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $catchall_inventory->data_live();
 	my $previous_poll = $catchall_data->{last_poll};
 	
@@ -9134,6 +9284,31 @@ sub collect
 	if (defined($wantwmi)) {
 		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
+
+	# if the init fails attempt an update operation instead
+	# Thats initialised to node polling policy	
+	if (!$S->init( node => $self,
+									snmp => $wantsnmp,
+									wmi => $wantwmi,
+									policy => $self->configuration->{polling_policy},
+									catchall_inventory => $catchall_inventory
+			))
+	{
+		$self->nmisng->log->debug( "Sys init for $name failed: "
+													. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
+		my ($save, $error2) = $catchall_inventory->save( node => $self );		
+		$self->nmisng->log->warn("Update last poll for $name failed, $error2") if ($error2);
+		
+		$self->nmisng->log->warn("Sys init for node $name failed, switching to update operation instead");
+		my $res = $self->update(lock => $lock); # 'upgrade' the one lock we currently hold
+		# collect will have to wait until a next run...but do clean the lock up now
+		return $res;
+	}
+	else {
+		$self->SYS($S);  # keep a reference to the sys object in the node for the rest of the update
+	}
+	$self->load_dashnode_data( op => "collect", force => $force);
+	
 	
 	$self->nmisng->log->debug( "node=$name "
 														 . join( " ", map { "$_=" . $catchall_data->{$_} }
@@ -9404,6 +9579,7 @@ sub collect
 	{
 		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
 	}
+	$self->save_dashnode_data();
 	if (my $issues = $self->unlock(lock => $lock))
 	{
 		$self->nmisng->log->error($issues);
@@ -9580,6 +9756,92 @@ sub interface_by_ifDescr
 	}
 	return $interface_inventory;
 }
+
+## Grab tagged datasets from DB
+## Map them dynamically tags to dataset names
+## Return either dataset names (subconcept) or rrd paths depending on the call
+sub tagged_datasets_for_subconcept { 
+
+	my ($self, %args) = @_; 
+	my $node_name = $self->name;
+	my $node_uuid = $self->uuid;
+	my $datasets_tags = $args{datasets_tags}; # Normalize tags to arrayref
+	my $objective = $args{objective};
+	my $tags_of_interest = ref $datasets_tags eq 'ARRAY' ? $datasets_tags : defined $datasets_tags ? [$datasets_tags] : die "datasets_tags is required";
+	# Query DB 
+	my $q = NMISNG::DB::get_query( and_part => { node_uuid => $node_uuid, 'dataset_info.dataset_tags.tags' => { '$in' => $tags_of_interest } } ); 
+	my $entries = NMISNG::DB::find(
+			collection  => $self->nmisng->inventory_collection,
+			query       => $q,
+			fields_hash => { 'node_name' => 1,'dataset_info' => 1, 'storage'    => 1, 'data.index'    => 1,}
+	);
+	#print "entries".Dumper($entries);
+	my @all = $entries->all;
+	#print "all".Dumper(@all);
+	my %tagged_ds; 
+	my %rrd_rec;
+	foreach my $entry (@all) {	
+		#print "entry".Dumper($entry);
+		my $info = $entry->{dataset_info};
+		my $idx;
+		$idx = $entry->{data}{index} if exists $entry->{data} && exists $entry->{data}{index};
+		my $subconcept_datasets;
+		#print "info".Dumper($info);
+		for my $rec (@{$info}) {
+			my $subconcept = $rec->{subconcept};
+			#print "subconcept".Dumper($subconcept);
+			my $storage_rrd;
+			
+			# Convert datasets array to a hash for fast lookup
+			my %datasets_lookup = map { $_ => 1 } @{$rec->{'datasets'}};
+			# Check each dataset_tag name
+			foreach my $ds_tag (@{$rec->{'dataset_tags'}}) {
+				my $ds_name = $ds_tag->{'name'};
+				for my $tag (@{$ds_tag->{tags}}) {
+					if (grep { $_ eq $tag } @$tags_of_interest) {
+						$tagged_ds{$subconcept}{$tag} = $ds_name;
+					}
+				}
+				if (exists $datasets_lookup{$ds_name}) {
+					if (exists $entry->{storage}{$subconcept}) {
+						$storage_rrd = $entry->{storage}{$subconcept}{rrd};
+						#print "Storage found: $storage_rrd\n";
+					} else {
+						#print "No storage for $subconcept\n";
+					}
+					# fill rec
+					if (defined $idx) {
+						$rrd_rec{$node_name}{$subconcept}{$idx} = $storage_rrd;
+					} else {
+						$rrd_rec{$node_name}{$subconcept} = $storage_rrd;
+					}
+				} else {
+					#print "$ds_name does not exist\n";
+				}
+			}
+		}
+	}
+	if ($objective eq 'tagged')
+	{
+		#print "tagged_ds".Dumper(\%tagged_ds);
+		$self->nmisng->log->debug("Node::tagged_datasets_for_subconcept found tagged_ds:".Dumper (\%tagged_ds));
+		return \%tagged_ds;
+	}
+	elsif($objective eq 'rrd_path'){
+		#print "rrd_rec".Dumper(\%rrd_rec);
+		$self->nmisng->log->debug("Node::tagged_datasets_for_subconcept found rrd_rec:".Dumper (\%rrd_rec));
+		return \%rrd_rec;
+	}
+	else {
+		#print "tagged_ds".Dumper(\%tagged_ds);
+		#print "rrd_rec".Dumper(\%rrd_rec);
+		$self->nmisng->log->debug("Node::tagged_datasets_for_subconcept found tagged_ds:".Dumper (\%tagged_ds));
+		$self->nmisng->log->debug("Node::tagged_datasets_for_subconcept found rrd_rec:".Dumper (\%rrd_rec));
+	}
+	
+	 
+}
+
 
 1;
 
