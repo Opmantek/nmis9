@@ -1,17 +1,17 @@
-version: '3.4'
+# compose.yaml file for NMIS Suite
 services:
   mongo:
-    image: mongo:6.0
+    image: mongo:7.0
     restart: always
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo mongo:27017/test --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
       interval: 60s
       timeout: 60s
       retries: 5
       start_period: 60s
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
     volumes:
       - /persistent/mongod.conf:/etc/mongod.conf
       - mongo_data:/data/mongodb
@@ -20,20 +20,20 @@ services:
     networks:
       - nmis_net
   nmis:
-    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v1.7
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v1.9
     restart: always
     environment:
-      NMIS_DB_USERNAME: root
-      NMIS_DB_PASSWORD: example
-      NMIS_DB_SERVER: 192.168.xx.xxx
-      NMIS_SERVER_NAME: xxx.opmantek.net
+      NMIS_DB_USERNAME: ${MONGODB_USERNAME}
+      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_SERVER: mongo
+      NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
     depends_on:
       - mongo
     volumes:
-      - log_data:/usr/local/nmis9/logs
-      - var_data:/usr/local/nmis9/var
-      - conf_data:/usr/local/nmis9/conf
-      - database_data:/usr/local/nmis9/database
+      - nmis_log_data:/usr/local/nmis9/logs
+      - nmis_var_data:/usr/local/nmis9/var
+      - nmis_conf_data:/usr/local/nmis9/conf
+      - nmis_database_data:/usr/local/nmis9/database
       # You can mount your own config files into volumes in the container but 
       # you must ensure that the db config details match whats in this compose file
       - /persistent/Config.nmis:/usr/local/nmis9/conf/Config.nmis
@@ -51,14 +51,27 @@ services:
       - "25:25"
     networks:
       - nmis_net
+  redis:
+    image: redis:6.0.16
+    restart: always
+    environment:
+      REDIS_PASSWORD: example
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    networks:
+      - nmis_net
 networks:
   nmis_net:
 volumes:
-  log_data:
-  var_data:
-  conf_data:
-  database_data:
+  nmis_log_data:
+  nmis_var_data:
+  nmis_conf_data:
+  nmis_database_data:
   omk_log_data:
   omk_var_data:
   omk_conf_data:
   mongo_data:
+  redis_data:
