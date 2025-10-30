@@ -758,7 +758,8 @@ sub getServerRole {
 	my %args = @_;
 	
 	my $config = $args{config} // loadConfTable();
-	return $config->{server_role} // "Standalone";
+	# empty "" is also reported as Standalone
+	return $config->{server_role} || "Standalone";
 }
 
 # reads and returns the nmis config file data
