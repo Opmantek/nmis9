@@ -70,12 +70,12 @@
           },
           'ifHCInOctets' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'calculate_index' => 'CVAR1=indexAlias;CVAR2=is_logical;CVAR3=index;return ($CVAR2) ? "$CVAR1" : "$CVAR3";',
             'option' => 'counter,0:U'
           },
           'ifHCOutOctets' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.3" : "ifHCOutOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'calculate_index' => 'CVAR1=indexAlias;CVAR2=is_logical;CVAR3=index;return ($CVAR2) ? "$CVAR1" : "$CVAR3";',
             'option' => 'counter,0:U'
           },
           'ifInOctets' => {
@@ -118,7 +118,7 @@
           },
           'ifHCInOctets' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.3" : "ifHCInOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'calculate_index' => 'CVAR1=indexAlias;CVAR2=is_logical;CVAR3=index;return ($CVAR2) ? "$CVAR1" : "$CVAR3";',
             'option' => 'counter,0:U'
           },
           'ifHCInUcastPkts' => {
@@ -139,7 +139,7 @@
           },
           'ifHCOutOctets' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.3" : "ifHCOutOctets";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'calculate_index' => 'CVAR1=indexAlias;CVAR2=is_logical;CVAR3=index;return ($CVAR2) ? "$CVAR1" : "$CVAR3";',
             'option' => 'counter,0:U'
           },
           'ifHCOutUcastPkts' => {
@@ -150,7 +150,7 @@
           },
           'ifInDiscards' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.2.1.1.4" : "ifInDiscards";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;',
+            'calculate_index' => 'CVAR1=indexAlias;CVAR2=is_logical;CVAR3=index;return ($CVAR2) ? "$CVAR1" : "$CVAR3";',
             'option' => 'counter,0:U'
           },
           'ifInErrors' => {
@@ -160,7 +160,7 @@
           },
           'ifOutDiscards' => {
             'calculate_oid' => 'CVAR1=interfaceMapping; CVAR2=is_logical; return ($CVAR2) ? "1.3.6.1.4.1.2007.6.3.1.$CVAR1.4.6.1.1.1.4" : "ifOutDiscards";',
-            'calculate_index' => 'CVAR1=indexAlias; CVAR2=is_logical; return ($CVAR2) ? "$CVAR1" : undef;', 
+            'calculate_index' => 'CVAR1=indexAlias;CVAR2=is_logical;CVAR3=index;return ($CVAR2) ? "$CVAR1" : "$CVAR3";',
             'option' => 'counter,0:U'
           },
           'ifOutErrors' => {
@@ -564,6 +564,12 @@
                 'telOSDxAVGJitter' => {
                     'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.2.1.1.6',
                 },
+                'telOSDxProbesSent' => {
+                  # 'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.4', 
+                  # this doesn't use the window/suffix so it has to be calculated to that suffix is not added
+                  'calculate_oid' => 'CVAR1=index;return "1.3.6.1.4.1.2007.6.3.4.2.1.1.1.4.$CVAR1"',
+                  'option' => 'counter,0:U',
+                },
             }
         },
         'teldatFanStatus' => {
@@ -667,7 +673,7 @@
             },
             'telOSDxMonDBServiceNsmOperationDestinationAddress' => {
              'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.5',
-             'title' => 'Destinatation Address'
+             'title' => 'Destination Address'
             },
             'telOSDxMonDBServiceNsmOperationType' => {
              'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.10',
@@ -679,7 +685,7 @@
             },
             'telOSDxMonDBServiceNsmOperationProbesSent' => {
              'oid' => '1.3.6.1.4.1.2007.6.3.4.2.1.1.1.4',
-             'title' => 'Probe'
+             'title' => 'Probes'
             },
           # these cannot work in the sys section because they require the index_suffix_oid            
           #            'telOSDxMonDBServiceNsmOperationWindowJitter' => {

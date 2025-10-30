@@ -1273,12 +1273,15 @@ sub getValues
 							$self->nmisng->log->error("($self->{name}) getValues calculate_index failed: $error");
 							next;
 						}
-						# if calculate index returns undef or an empty string then the default_suffix is used
+						# if calculate index returns undef or an empty the suffix is set to nothing
+						# this allows calculate_oid to completely alter the oid without suffix always being added
 						if ($result){
-							$suffix = ".".$result;
-							$self->nmisng->log->debug4(sub {"calculated suffix for logical interface is : ".$suffix});
-						}						
-					}					
+							$suffix = ".".$result;							
+						} else {
+							$suffix = "";
+						}
+						$self->nmisng->log->debug4(sub {"calculated suffix is: ".$suffix});
+					}
 				}
 				if ( exists( $thisitem->{calculate_oid} ) && ( my $calc = $thisitem->{calculate_oid} ) ) {
 					$self->nmisng->log->debug4("Calculating oid : $calc \n");
