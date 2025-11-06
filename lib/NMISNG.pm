@@ -476,6 +476,10 @@ sub compute_metrics
 		# logs any errors
 		$S->create_update_rrd( data => $data, type => "metrics", item => $group);
 	}
+	if( NMISNG::Util::getbool($self->config->{enable_nodesum_file}) ) {
+		$self->generate_nmis8_style_node_summary( C => $self->config );
+	}
+	
 	$self->log->debug2(sub {&NMISNG::Log::trace()."Finished"});
 	return {success => 1};
 }
@@ -2392,6 +2396,90 @@ sub get_node_names
 	my $data       = $model_data->data();
 	my @node_names = map { $_->{name} } @$data;
 	return \@node_names;
+}
+
+# generate a node summary in the style of NMIS8's nodesum file
+sub generate_nmis8_style_node_summary 
+{
+	my ($self,%args) = @_;
+	my $C = $args{C};
+	my $group = $args{group};
+
+	my $filter =  { concept => "catchall", cluster_id => $self->config->{cluster_id}, 'data.active' => 1, group => $group };
+	my $md = $self->get_inventory_model( filter => $filter, fields_hash => { "node_name" => 1, "data" => 1 } );
+	if( my $error = $md->error ) {
+		$self->log->error("generate_nmis8_style_node_summary error getting catchall inventory: $error");
+		return undef;
+	}
+	# my $NT = loadLocalNodeTable();
+	my %nt;
+
+	my $node_summary_field_list = "customer,businessService";
+	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
+		$node_summary_field_list = $C->{node_summary_field_list};
+	}
+
+	my @node_summary_properties = split(",",$node_summary_field_list);
+
+	while (my $entry = $md->next_value) {
+	# foreach my $nd (keys %{$NT}) {
+		my $catchall_data = $entry->{data};
+		# next if (!getbool($catchall_data->{active}));
+		# next if $group ne '' and $catchall_data->{group} !~ /$group/;
+
+		# my $NI = loadNodeInfoTable($nd);
+		my $name = $entry->{node_name};
+		my $nd = $name;
+		$nt{$nd}{active} = $catchall_data->{active};
+		$nt{$nd}{ping} = $catchall_data->{ping};
+
+		$nt{$nd}{name} = $catchall_data->{name};
+		$nt{$nd}{group} = $catchall_data->{group};
+		$nt{$nd}{collect} = $catchall_data->{collect};
+		
+		$nt{$nd}{netType} = $catchall_data->{netType};
+		$nt{$nd}{roleType} = $catchall_data->{roleType};
+		$nt{$nd}{nodeType} = $catchall_data->{nodeType};
+		$nt{$nd}{nodeModel} = $catchall_data->{nodeModel};
+		$nt{$nd}{nodeVendor} = $catchall_data->{nodeVendor};
+		$nt{$nd}{last_poll} = $catchall_data->{last_poll};
+		$nt{$nd}{sysName} = $catchall_data->{sysName} ;
+		$nt{$nd}{server} = $C->{'server_name'};
+
+		foreach my $property (@node_summary_properties) {
+			$nt{$nd}{$property} //= $catchall_data->{$property};
+		}
+
+		$nt{$nd}{nodedown} = $catchall_data->{nodedown};
+		# coarse_status saves nodedown_escalate into catchall data when it's run (collect,update,handle_down)
+		$nt{$nd}{escalate} = $catchall_data->{nodedown_escalate} // undef;
+
+		# coarse status is saved into catchall data on collect (and handle_down)
+		$nt{$nd}{nodestatus} = $catchall_data->{nodestatus};
+		
+		# For nodesum file, add outage details from reach to catchall	
+		my $otgStatus = $catchall_data->{outage_status} // "";
+		my $otgHash = $catchall_data->{outage_details} // {};
+		my $outageText;
+
+		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
+			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
+			$outageText = "node=$nd<br>start=".NMISNG::Util::returnDateStamp($otgHash->{actual_start})
+			."<br>end=".NMISNG::Util::returnDateStamp($otgHash->{actual_end})."<br>change=$otgHash->{change_id}";
+		}
+		$nt{$nd}{outage} = $otgStatus;
+		$nt{$nd}{outageText} = $outageText;
+
+		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
+		my $sysLocation = $catchall_data->{sysLocation};
+		if (($catchall_data->{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
+			# Node has sysLocation that is formatted for Geo Data
+			( my $lat, my $long, my $alt, $sysLocation) = split(',',$catchall_data->{sysLocation});
+		}
+		$nt{$nd}{sysLocation} = $sysLocation ;
+	}
+	my $file = "nmis-nodesum";	
+	NMISNG::Util::writeTable(dir=>'var',name=>$file,data=>\%nt);
 }
 
 sub get_node_uuids

@@ -1216,6 +1216,8 @@ sub is_new
 # underlying events state can change asynchronously (eg. fping), and the per-node status from the node
 # file cannot be guaranteed to be up to date if that happens.
 #
+# NOTE: has side-effect of setting nodedown_escalate in catchall_data (for nodesum)
+#
 # fixme9: catchall node info is now almost always up to date,
 # so looking for events should no longer be necessary
 #
@@ -1244,6 +1246,7 @@ sub coarse_status
 	# let NMIS use the status summary calculations
 	my $status_summary_threshold = $self->nmisng->config->{status_summary_threshold} // 99;
 	
+	$catchall_data->{nodedown_escalate} = undef;
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if ( NMISNG::Util::getbool($catchall_data->{ping},"invert")
 			 and ( $self->eventExist($snmp_down) or $self->eventExist( $wmi_down_event)) )
@@ -1251,9 +1254,11 @@ sub coarse_status
 		$status = 0;
 	}
 	# ping enabled, but unpingable -> down
-	elsif ( $self->eventExist($node_down) )
+	elsif (my $erec = $self->eventExist($node_down) )
 	{
 		$status = 0;
+		# nodesum uses this, so copy it over so it doesn't have to look for the event again
+		$catchall_data->{nodedown_escalate} = $erec->{escalate} if (ref($erec) eq "HASH" and defined $erec->{escalate});
 	}
 	# ping enabled, pingable but dead snmp or dead wmi or failover'd -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
@@ -2285,8 +2290,28 @@ sub update_node_info
 				}
 
 				$self->nmisng->log->debug2(sub {"about to loadModel model=$catchall_data->{nodeModel}"});
-				$S->loadModel( model => "Model-$catchall_data->{nodeModel}" );
-
+				my $want_model = $catchall_data->{nodeModel};
+				my $model_load_success = $S->loadModel( model => "Model-$catchall_data->{nodeModel}" );
+				
+				if( !$model_load_success ) {
+					Compat::NMIS::notify(
+						sys     => $S,
+						event   => "Model File Invalid",
+						details => "Model $catchall_data->{nodeModel} could not be loaded",
+						context => {type => "node"},
+						inventory_id => $catchall_inventory->{_id}{hex}
+					);
+				}
+				else {
+					Compat::NMIS::checkEvent(
+						sys     => $S,
+						event   => "Model File Invalid",
+						level   => "Normal",						
+						details => "Model $catchall_data->{nodeModel} loaded",
+						inventory_id => $catchall_inventory->{_id}{hex}
+					);
+				}	
+	
 				# now we know more about the host, nodetype and model have been positively determined,
 				# so we'll force-overwrite those values
 				$S->copyModelCfgInfo( type => 'overwrite' );
@@ -6613,12 +6638,15 @@ sub compute_reachability
 	}
 	elsif ( $reach{availability} eq "" ) { $reach{availability} = $intAvailValueWhenDown; }
 
-	my ( $outage, undef ) = NMISNG::Outage::outageCheck( node => $self, time => time() );
-	$self->nmisng->log->debug2(sub {"Outage for $name is ". ($outage || "<none>")});
+	my ( $outage_status, $outage_details ) = NMISNG::Outage::outageCheck( node => $self, time => time() );
+	$self->nmisng->log->debug2(sub {"Outage for $name is ". ($outage_status || "<none>")});
+	# return the data to the caller, mark it to be nosave so rrd skips trying to save it	
+	$reach{outage_info} = { option => "nosave", value => { outage_status => $outage_status, outage_details => $outage_details }};	
 
-	$reach{outage} = $outage eq "current"? 1 : 0;
+	$reach{outage} = $outage_status eq "current"? 1 : 0;
+
 	# raise a planned outage event, or close it
-	if ($outage eq "current")
+	if ($outage_status eq "current")
 	{
 		Compat::NMIS::notify(sys=>$S,
 												 event=> "Planned Outage Open",
@@ -6893,7 +6921,7 @@ sub compute_reachability
 	}
 
 	# there is a current outage for this node
-	elsif ( ( $pingresult == 0 or $pollresult == 0 ) and $outage eq 'current' )
+	elsif ( ( $pingresult == 0 or $pollresult == 0 ) and $outage_status eq 'current' )
 	{
 		$reach{reachability} = "U";
 		$reach{availability} = "U";
@@ -6996,6 +7024,9 @@ $self->nmisng->log->debug2(sub {"total number of interfaces coll. up=$reach{intf
 	$reachVal{intfUp}{option}      = "gauge,0:U";
 	$reachVal{intfCollect}{option} = "gauge,0:U";
 	$reachVal{intfColUp}{option}   = "gauge,0:U";
+
+	# this is nosave data, used for nodesum
+	$reachVal{outage_info} = $reach{outage_info};
 
 	# update the rrd or leave it to a caller?
 	if ( !$donotupdaterrd )
@@ -7292,7 +7323,14 @@ sub update
 	my $reachdata = $self->compute_reachability(sys => $S,
 																							delayupdate => 1,
 																							catchall_inventory => $catchall_inventory);
-
+	
+	# For nodesum file, add outage details from reach to catchall, this must be done before reachdata is processed
+	if( ref($reachdata->{outage_info}) eq 'HASH' && ref($reachdata->{outage_info}{value}) eq 'HASH' ) {
+		# $reach{outage_info} { option => "nosave", value => { outage_status => $outage_status, outage_time => $outage_time }};			
+		$catchall_data->{outage_status} = $reachdata->{outage_info}{value}{outage_status} // "";
+		$catchall_data->{outage_details} = $reachdata->{outage_info}{value}{outage_details} // "";
+	}
+	
 	if (!@problems)
 	{
 		# done with the standard work, now run any plugins that offer update_plugin()
@@ -7364,7 +7402,7 @@ sub update
 	# update the coarse compat 'nodestatus' property, not multiple times
 	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
-
+	
 	my ( $save_op, $save_error ) = $catchall_inventory->save(force => $force, node => $self, update => 1 );
 	if ($save_error)
 	{
@@ -9493,6 +9531,14 @@ sub collect
 
 	# don't let that function perform the rrd update, we want to add the polltime to it!
 	my $reachdata = $self->compute_reachability( sys => $S, delayupdate => 1, catchall_inventory => $catchall_inventory );
+	# For nodesum file, add outage details from reach to catchall, this must be done before reachdata is processed
+
+	if( ref($reachdata->{outage_info}) eq 'HASH' && ref($reachdata->{outage_info}{value}) eq 'HASH' ) {
+		# $reach{outage_info} { option => "nosave", value => { outage_status => $outage_status, outage_time => $outage_time }};			
+		$catchall_data->{outage_status} = $reachdata->{outage_info}{value}{outage_status} // "";
+		$catchall_data->{outage_details} = $reachdata->{outage_info}{value}{outage_details} // "";
+	}
+
 
 	# compute thresholds with the node, if configured to do so
 	if ( NMISNG::Util::getbool($C->{global_threshold}) && # any thresholds whatsoever?
@@ -9567,7 +9613,7 @@ sub collect
 	# update the coarse compat 'nodestatus' property, not multiple times
 	my $coarse = $self->coarse_status(catchall_data => $catchall_data);
 	$catchall_data->{nodestatus} = $coarse < 0? "degraded" : $coarse? "reachable" : "unreachable";
-
+	
 	my ( $save_op, $save_error ) = $catchall_inventory->save(force => $force, node => $self );
 	if ($save_error)
 	{

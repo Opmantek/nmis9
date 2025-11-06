@@ -1296,6 +1296,7 @@ sub getValues
 					}
 					if($result) {
 						$thisitem->{oid} = $result;
+						$self->nmisng->log->debug4(sub {"calculated oid is: ".$result});
 					} else {
 						# if we had to calculate and got no value we dont have an oid
 						next;
