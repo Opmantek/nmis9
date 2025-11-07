@@ -83,10 +83,8 @@ sub getTeldatInventory {
         		foreach my $oid (keys %{$snmpTable}) {
             	if ($oid =~ $regex) {
                 		my ($interfaceMapping, $descr, $class) 	= ($1, $2, $3);	
-						my $interfaceMappingBit = ($interfaceMapping =~ /^\d+$/) ? 6 : 4;
-						print("descr is ".$descr."\n");
+						my $interfaceMappingBit = ($interfaceMapping =~ /^\d+$/) ? 6 : 4;						
 						my $ascii_descr  = ascii_to_str_string($descr);				
-						print("ascii_descr is ".$ascii_descr."\n");
 						$rows{"$dir|$descr|$class"}{index}    			= $descr.".".$class;
 						$rows{"$dir|$descr|$class"}{description} 		= $ascii_descr;
 						$rows{"$dir|$descr|$class"}{ifIndex} 			= $ifDescr_to_index{$ascii_descr};
