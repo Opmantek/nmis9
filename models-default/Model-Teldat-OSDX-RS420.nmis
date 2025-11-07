@@ -478,33 +478,33 @@
           'indexed' => 'true',
           'snmp' => {
           'MatchedPackets' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.2.6"',
+              'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.2.$CVAR2"',
               'option' => 'counter,0:U'
             },
             'MatchedBytes' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.3.6"',
+              'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.3.$CVAR2"',
               'option' => 'counter,0:U'
                     },
                     'MatchedDropsPackets' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.4.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.4.$CVAR2"',
                         'option' => 'counter,0:U'
                     },
                     'MatchedOverLimits' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.5.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.5.$CVAR2"',
                         'option' => 'counter,0:U'
                     },
                     'MatchedDropBytes' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.6.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.6.$CVAR2"',
                         'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : (($CVAR1/$CVAR2) * $CVAR3);',
                         'option' => 'counter,0:U'
                     },
                     'PostPolicyPackets' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.7.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.7.$CVAR2"',
                         'calculate' => 'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
                         'option' => 'counter,0:U'
                     },
                     'PostPolicyBytes' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.8.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.1.2.1.1.8.$CVAR2"',
                         'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
                         'option' => 'counter,0:U'
             }
@@ -515,33 +515,33 @@
           'indexed' => 'true',
           'snmp' => {
           'MatchedPackets' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.2.6"',
+              'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.2.$CVAR2"',
               'option' => 'counter,0:U'
             },
             'MatchedBytes' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.3.6"',
+              'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.3.$CAVR2"',
               'option' => 'counter,0:U'
                     },
                     'MatchedDropsPackets' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.4.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.4.$CVAR2"',
                         'option' => 'counter,0:U'
                     },
                     'MatchedOverLimits' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.5.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.5.$CVAR2"',
                         'option' => 'counter,0:U'
                     },
                     'MatchedDropBytes' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.6.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.6.$CVAR2"',
                         'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : (($CVAR1/$CVAR2) * $CVAR3);',
                         'option' => 'counter,0:U'
                     },
                     'PostPolicyPackets' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.7.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.7.$CVAR2"',
                         'calculate' => 'CVAR1=MatchedPackets; CVAR2=MatchedDropsPackets; return ($CVAR1 - $CVAR2)',
                         'option' => 'counter,0:U'
                     },
                     'PostPolicyBytes' => {
-                        'calculate_oid' => 'CVAR1=interfaceMapping;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.8.6"',
+                        'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.8.$CVAR2"',
                         'calculate' => 'CVAR1=MatchedBytes;CVAR2=MatchedPackets; CVAR3=MatchedDropsPackets; return ($CVAR2 == 0) ? 0 : ($CVAR1 - (($CVAR1/$CVAR2) * $CVAR3));',
                         'option' => 'counter,0:U'
             }
