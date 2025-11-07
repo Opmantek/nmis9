@@ -519,7 +519,7 @@
               'option' => 'counter,0:U'
             },
             'MatchedBytes' => {
-              'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.3.$CAVR2"',
+              'calculate_oid' => 'CVAR1=interfaceMapping;CVAR2=interfaceMappingBit;return "1.3.6.1.4.1.2007.6.3.1.$CVAR1.6.2.2.1.1.3.$CVAR2"',
               'option' => 'counter,0:U'
                     },
                     'MatchedDropsPackets' => {
