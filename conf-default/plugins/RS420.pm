@@ -211,7 +211,8 @@ sub update_plugin
 				'1.3.6.1.4.1.2007.6.3.1.11.1.1.15',
 				'1.3.6.1.4.1.2007.6.3.1.13.1.1.15',
 				'1.3.6.1.4.1.2007.6.3.1.14.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.3.1.1.1'
+				'1.3.6.1.4.1.2007.6.3.3.1.1.1'				
+				# 1.3.6.1.4.1.2007.6.3.1.10.4.1.1.15.4.101.116.104.50.4.50.54.57.51
 			);					
 
 			my @list_index_oids = (
@@ -303,7 +304,14 @@ sub update_plugin
 
  				# now looking for Alias description by joining oids and its alias.
 				foreach my $desc_oid (@description_oids){
-					my $match = $desc_oid.'.'.$data->{"indexAlias"};
+					my $match;
+					# if its logical add in the oid part to match logical oid.
+					if ($data->{"is_logical"} ){
+						$match = $desc_oid.'.4.'.$data->{"indexAlias"};	
+					}
+					else{
+						$match = $desc_oid.'.'.$data->{"indexAlias"};
+					}					
 					if (exists $oidWalk->{$match}){
 						$data->{"Description"} = $oidWalk->{$match};	
 					}
