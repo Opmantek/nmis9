@@ -89,6 +89,11 @@
     'CancelingEvent' => 'Alert: Virtual Machine not Powered On Closed',
     'Description' => 'The Virtual Machine is NOT powered on, this may or may not be a desirable state.',
   },
+  'Default' => {
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+  },
   'NMIS runtime exceeded' => {
 		'Event' => 'NMIS runtime exceeded',
 		'Notify' => 'true',
