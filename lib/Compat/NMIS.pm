@@ -2243,17 +2243,9 @@ sub notify
 
 	# events.nmis controls which events are active/logging/notifying
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
-	my $thisevent_control = $events_config->{$event} || $events_config->{'Default'};
-	
-	# If not defined, apply the defaults
-	if ( !defined $thisevent_control ) {
-		$thisevent_control = {
-			Log    => "true",
-			Notify => "true",
-			Status => "true",
-		};
-	}
-	
+	  my $thisevent_control = $events_config->{$event} ||
+                            $events_config->{'Default'} || { Log => "true", Notify => "true", Status => "true" };
+
 	# search for upevent that is not historic (no escalations run on it) event shouldn't exist
     # if it does we get index issues. deleting it here means escalations will not be run
     # on that up event, ok because it's going down now anyway, no reason to notify it
