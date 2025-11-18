@@ -2245,10 +2245,11 @@ sub notify
 	my $events_config = NMISNG::Util::loadTable(dir => 'conf', name => 'Events', conf => $conf);
 	# make sure there is event config defaults if the event isn't in our event list
 	# If theres no configuration entry for this $event in Event.nmis, use default values for logging, notification, and status
-	$events_config->{$event} ||= { Log => "true", Notify => "true", Status => "true"};
-	my $thisevent_control = $events_config->{$event};
+	# Use $events_config->{Default} if present, otherwise fall back to a hardcoded default
+	my $thisevent_control = $events_config->{$event} ||
+                            $events_config->{'Default'} || { Log => "true", Notify => "true", Status => "true" };
 	
-
+	
 	# search for upevent that is not historic (no escalations run on it) event shouldn't exist
     # if it does we get index issues. deleting it here means escalations will not be run
     # on that up event, ok because it's going down now anyway, no reason to notify it

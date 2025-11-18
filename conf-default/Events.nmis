@@ -586,5 +586,10 @@
     'CancelingEvent' => 'opHAMB Peer Pause Closed',
     'Description' => 'An opHA Message Bus producer peer pause event occurred.',
   },
+  'Default' => {
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+  },
 
 );
