@@ -479,6 +479,9 @@ sub compute_metrics
 	if( NMISNG::Util::getbool($self->config->{enable_nodesum_file}) ) {
 		$self->generate_nmis8_style_node_summary( C => $self->config );
 	}
+	if( NMISNG::Util::getbool($self->config->{enable_topn_files}) ) {
+		$self->generate_nmis8_style_topn_files( C => $self->config );
+	}	
 	
 	$self->log->debug2(sub {&NMISNG::Log::trace()."Finished"});
 	return {success => 1};
@@ -1228,6 +1231,84 @@ sub get_cluster_orphans_with_lookup
 	);
 	my @ditchables = map { $_->{_id} } (@$goners);
 	return ( \@ditchables, undef, $error );
+}
+
+sub get_topn_by_status_model
+{
+	my ($self,%args) = @_;
+	my ($property,$method,$type,$calculation,$consider_seconds,$topn) = @args{'property','method','type','calculation','consider_seconds','topn'};
+	my ($want_config,$want_inventory) = @args{'want_config','want_inventory'};
+	my $sort_by = $args{'sort_by'} // -1;
+	#We have attachched the nodes group and uuid to the latests data for fast searching, if we are grouping by these then they should be first in the pipeline
+	my $gte_time = time() - $consider_seconds;
+	my $config_search;
+
+	# we must have these to make it work
+	if( $property eq '' ) {
+		$self->log->error("get_topn_by_latest_data_model property:$property is required");
+		return ([],0,"get_topn_by_latest_data_model property:$property is required");
+	}
+	my @pipe = ();
+
+	my $q = NMISNG::DB::get_query( and_part => { 
+		'lastupdate' => { '$gte' => $gte_time },
+		'property' => $property, 
+		'type' => $type,		
+	}); 
+
+	my @starter_pipe = (
+		{ '$match' => { %$q } }
+	);
+	push @pipe,@starter_pipe;
+	# handle the very specific case in the example
+	if( $calculation eq '100 - $value' ) {
+		   my $calculation_pipe = {
+        '$set' => {
+          'value' => { '$subtract' => ['100', '$value'] }
+        }
+      };
+		push @pipe,$calculation_pipe; 
+	}
+
+	if($topn > 1)
+	{
+		push @pipe, { '$sort' => { 'value' => $sort_by }};
+		push @pipe, { '$limit' => $topn };
+	} 
+	if( $want_config ) {
+		push @pipe, { '$lookup' => { 'from' => $self->nodes_collection->name, 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'nodes' }};
+		push @pipe, { '$unwind' => '$nodes' };
+	}
+	if( $want_inventory ) {
+		push @pipe, { '$lookup' => { 'from' => $self->inventory_collection->name, 'localField' => 'inventory_id', 'foreignField' => '_id', 'as' => 'inventory' }};
+		push @pipe, { '$unwind' => '$inventory' };
+	}
+	# push @pipe, { '$project' => { 		
+	# 	 '_id'=> 1,
+	# 	 'time'=> 1,
+	# 	 'inventory_id'=> 1,
+	# 	 'inventory'=> 1,
+	# 	 'nodes'=> 1,
+	# 	#  'subconcept' => '$subconcepts.subconcept'
+	# }};
+	$self->log->debug5(sub {"topn pre_count_pipeline: \n".JSON::XS->new->convert_blessed(1)->utf8->pretty->encode(\@pipe)});
+	(my $entries,my $count, my $error) = NMISNG::DB::aggregate(
+		collection => $self->status_collection(),
+		pre_count_pipeline => \@pipe,
+		count => 0,		
+		allowtempfiles => 1,
+	);
+	if( $error ) {		
+		$self->log->error("get_topn_by_latest_data_model mongo error: $error");
+		$self->log->debug("get_topn_by_latest_data_model pipe".Dumper(\@pipe));
+		return ([],0,$error);
+	}
+
+	foreach my $entry (@$entries)
+	{
+		$entry->{_id} = $entry->{_id}->to_string;
+	}
+	return ($entries,$count,$error);
 }
 
 # little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)
@@ -2480,6 +2561,99 @@ sub generate_nmis8_style_node_summary
 	}
 	my $file = "nmis-nodesum";	
 	NMISNG::Util::writeTable(dir=>'var',name=>$file,data=>\%nt);
+}
+
+sub generate_nmis8_style_topn_files
+{
+	my ($self,%args) = @_;
+	my $C = $args{C};
+	my $topn = $args{topn} || 10;
+	my $consider_seconds = $args{consider_seconds} || 900;
+	my $force = $args{force} // 0;
+
+	my $topnDir = $C->{'<nmis_var>'}.'/topn';
+	NMISNG::Util::createDir($topnDir);
+
+	my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
+	my $statefile = "$varsysdir/topn_state.json";
+	my $topn_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );	
+	my $topn_time_between_runs = $C->{topn_time_between_runs} // 299;
+
+	my $min_time_diff = $C->{topn_time_between_runs} || 299;
+	my $last_runtime = 0;
+	my $now = time;
+	
+	if( $topn_state ) {
+		$last_runtime = $topn_state->{time};
+	}
+	if( !$force ) {
+		my $diff = $now - $last_runtime;
+		if( $diff < $min_time_diff) {
+			$self->log->debug("generate_nmis8_style_topn_files not running, time diff: $diff, is not >= $min_time_diff");
+			return;
+		}
+		else {
+			$self->log->debug("generate_nmis8_style_topn_files running, time diff: $diff, is not < $min_time_diff");
+		}
+	}
+	# write timestamp right away so a long running attempt doesn't mean it 
+	$topn_state->{time} = $now;
+	NMISNG::Util::writeHashtoFile( file => $statefile, data => $topn_state);
+	$self->log->debug("generate_nmis8_style_topn_files starting");
+	my $topn_properties = $C->{topn_properties} || [
+		{
+			'chart' => 'resource_id',
+			'data' => 'response',
+			'method' => 'Threshold',
+			'property' => 'response',
+			'resource_type' => 'health'
+		}
+	];
+	foreach my $topn_def (@$topn_properties) {						
+		my $field = $topn_def->{property};
+		my ($entries,$count,$error) = $self->get_topn_by_status_model(
+			'property' => $topn_def->{property},
+			'method' => $topn_def->{method},
+			'type' => $topn_def->{resource_type},
+			'calculation' => $topn_def->{calculation},			
+			'consider_seconds' => $consider_seconds,
+			'topn' => $topn,				
+			want_config => 1,
+			want_inventory => 1
+		);
+		if( $error ) {
+			print "ERROR! $error\n";
+			next;
+		}
+		
+		# map the data into the expected "old" format
+		my $data = [];
+		foreach my $entry (@$entries) {
+			my $new_data = {};
+			$new_data->{"chart"} = $topn_def->{"resource_id"};
+			$new_data->{"display_suffix"} = "";
+			$new_data->{"value"} = $entry->{value};
+			$new_data->{"node"} = $entry->{nodes}{name};
+			$new_data->{"element"} = $entry->{element};			
+			$new_data->{"resource_id"} = $entry->{inventory}{concept};
+			$new_data->{"index"} = $entry->{index} // 0;
+			$new_data->{"property"} = $entry->{property};
+			push @$data,$new_data;
+		}
+		
+		my $handle;
+		my $file = "$topnDir/$field.json";
+		if( open($handle, ">$file") ) {
+			print $handle JSON::XS->new->convert_blessed(1)->utf8->pretty->encode($data);				
+			close $handle;
+		} else {
+			print "ERROR: cannot write to $file: $!\n";
+		};
+	}
+	# write new timestamp so the time reflects the time it was finished
+	$topn_state->{time} = time;	
+	NMISNG::Util::writeHashtoFile( file => $statefile, data => $topn_state);
+	$self->log->debug("generate_nmis8_style_topn_files complete");
 }
 
 sub get_node_uuids

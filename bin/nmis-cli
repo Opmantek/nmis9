@@ -1298,6 +1298,10 @@ elsif ($Q->{act} =~ /notify/)
 		}
 	}
 }
+elsif ($Q->{act} =~ /run_topn/)
+{
+	$nmisng->generate_nmis8_style_topn_files( C => $C, topn => $Q->{topn}, consider_seconds => $Q->{consider_seconds}, force => NMISNG::Util::getbool_cli("force", $Q->{force}, 0) );
+}
 else
 {
 	print "\033[1mUnrecognized action! ('act=$Q->{act}')\033[0m\n\n";
