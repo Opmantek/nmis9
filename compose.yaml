@@ -69,6 +69,7 @@ services:
       - /persistent/apache/conf-enabled:/usr/local/apache2/conf/conf-enabled
       - /persistent/apache/httpd.conf:/usr/local/apache2/conf/httpd.conf
       - /persistent/apache/sites-enabled:/usr/local/apache2/conf/sites-enabled
+      - apache2_logs:/usr/local/apache2/logs
     ports:
       - 8070:80
     networks:
@@ -85,3 +86,4 @@ volumes:
   omk_conf_data:
   mongo_data:
   redis_data:
+  apache2_logs:
