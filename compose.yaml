@@ -63,6 +63,16 @@ services:
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     networks:
       - nmis_net
+  httpd:
+    image: httpd:2.4.62-bookworm
+    volumes:
+      - /persistent/apache/conf-enabled:/usr/local/apache2/conf/conf-enabled
+      - /persistent/apache/httpd.conf:/usr/local/apache2/conf/httpd.conf
+      - /persistent/apache/sites-enabled:/usr/local/apache2/conf/sites-enabled
+    ports:
+      - 8070:80
+    networks:
+      - nmis_net
 networks:
   nmis_net:
 volumes:
