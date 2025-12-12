@@ -2637,6 +2637,7 @@ sub generate_nmis8_style_topn_files
 			$new_data->{"element"} = $entry->{element};			
 			$new_data->{"resource_id"} = $entry->{inventory}{concept};
 			$new_data->{"index"} = $entry->{index} // 0;
+			$new_data->{"index_id"} = $entry->{index} // 0;
 			$new_data->{"property"} = $entry->{property};
 			push @$data,$new_data;
 		}
