@@ -304,13 +304,15 @@ sub update_plugin
  				# now looking for Alias description by joining oids and its alias.
 				foreach my $desc_oid (@description_oids){
 					my $match;
-					# if its logical add in the oid part to match logical oid.
-					if ($data->{"is_logical"} ){
-						$match = $desc_oid.'.4.'.$data->{"indexAlias"};	
-					}
-					else{
-						$match = $desc_oid.'.'.$data->{"indexAlias"};
-					}					
+					# since alias already has rest of the oid, we don't need to check for logical bit
+					$match = $desc_oid.'.'.$data->{"indexAlias"};
+					# # if its logical add in the oid part to match logical oid.
+					# if ($data->{"is_logical"} ){
+					# 	$match = $desc_oid.'.4.'.$data->{"indexAlias"};	
+					# }
+					# else{
+					# 	$match = $desc_oid.'.'.$data->{"indexAlias"};
+					# }					
 					if (exists $oidWalk->{$match}){
 						$data->{"Description"} = $oidWalk->{$match};	
 					}
