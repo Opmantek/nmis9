@@ -13,14 +13,15 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
     volumes:
-      - /persistent/mongod.conf:/etc/mongod.conf
       - mongo_data:/data/mongodb
+      - mongo_log:/var/log/mongodb
+      - ./mongod.conf:/etc/mongod.conf
     ports:
       - "27017:27017"
     networks:
       - nmis_net
   nmis:
-    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v1.9
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v2.1
     restart: always
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
@@ -36,13 +37,12 @@ services:
       - nmis_database_data:/usr/local/nmis9/database
       # You can mount your own config files into volumes in the container but 
       # you must ensure that the db config details match whats in this compose file
-      - /persistent/Config.nmis:/usr/local/nmis9/conf/Config.nmis
-      - /persistent/opCommon.json:/usr/local/omk/conf/opCommon.json
+      - ./Config.nmis:/usr/local/nmis9/conf/Config.nmis
+      - ./opCommon.json:/usr/local/omk/conf/opCommon.json
       - omk_log_data:/usr/local/omk/log
       - omk_var_data:/usr/local/omk/var
       - omk_conf_data:/usr/local/omk/conf
-      # - ./persistent:/persistent
-      # - ./app_conf/opLicense.json:/usr/local/omk/conf/opLicense.json
+      # - ./opLicense.json:/usr/local/omk/conf/opLicense.json
     ports:
       - "8080:8080"
       - "8042:8042"
@@ -59,17 +59,19 @@ services:
     ports:
       - "6379:6379"
     volumes:
+      - ./redis.conf:/etc/redis/redis.conf
       - redis_data:/data
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    command: ["redis-server", "/etc/redis/redis.conf", "--requirepass", "${REDIS_PASSWORD}"]
     networks:
       - nmis_net
   httpd:
     image: httpd:2.4.62-bookworm
+    restart: always
     volumes:
-      - /persistent/apache/conf-enabled:/usr/local/apache2/conf/conf-enabled
-      - /persistent/apache/httpd.conf:/usr/local/apache2/conf/httpd.conf
-      - /persistent/apache/sites-enabled:/usr/local/apache2/conf/sites-enabled
-      - apache2_logs:/usr/local/apache2/logs
+      - ./apache/conf-enabled:/usr/local/apache2/conf/conf-enabled
+      - ./apache/httpd.conf:/usr/local/apache2/conf/httpd.conf
+      - ./apache/sites-enabled:/usr/local/apache2/conf/sites-enabled
+      - httpd_log:/usr/local/apache2/logs
     ports:
       - 8070:80
     networks:
@@ -85,5 +87,6 @@ volumes:
   omk_var_data:
   omk_conf_data:
   mongo_data:
+  mongo_log:
   redis_data:
-  apache2_logs:
+  httpd_log:
