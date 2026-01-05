@@ -51,7 +51,7 @@ cd $DOCKER_NMIS_HOME
 DOCKER_CONF_URL=https://raw.githubusercontent.com/Opmantek/nmis9/feature_docker_9_5_2/conf-default/docker/docker_conf.zip
 curl -LO $DOCKER_CONF_URL > /dev/null
 unzip -n docker_conf.zip
-cd docker_conf
+cp -a docker_conf/. .
 sleep 7
 docker compose down > /dev/null
 
