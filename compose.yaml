@@ -15,9 +15,10 @@ services:
     volumes:
       - mongo_data:/data/mongodb
       - mongo_log:/var/log/mongodb
-      - ./mongod.conf:/etc/mongod.conf
+      - ./mongo/mongod.conf:/etc/mongod.conf
     ports:
       - "27017:27017"
+    command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
     networks:
       - nmis_net
   nmis:
@@ -55,11 +56,11 @@ services:
     image: redis:6.0.16
     restart: always
     environment:
-      REDIS_PASSWORD: example
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
     volumes:
-      - ./redis.conf:/etc/redis/redis.conf
+      - ./redis/redis.conf:/etc/redis/redis.conf
       - redis_data:/data
     command: ["redis-server", "/etc/redis/redis.conf", "--requirepass", "${REDIS_PASSWORD}"]
     networks:
