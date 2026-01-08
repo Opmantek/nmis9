@@ -7,8 +7,8 @@
 set -o errexit
 set -o pipefail
 
-mkdir -p ~/nmis_suite
-cd ~/nmis_suite
+mkdir -p ~/nmis-suite
+cd ~/nmis-suite
 
 # Check if Docker is installed
 FIRST_SETUP=0
