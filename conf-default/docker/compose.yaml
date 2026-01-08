@@ -1,26 +1,5 @@
 # compose.yaml file for NMIS Suite
 services:
-  mongo:
-    image: mongo:7.0
-    restart: always
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
-      interval: 60s
-      timeout: 60s
-      retries: 5
-      start_period: 60s
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
-    volumes:
-      - mongo_data:/data/mongodb
-      - mongo_log:/var/log/mongodb
-      - ./mongo/mongod.conf:/etc/mongod.conf
-    ports:
-      - "27017:27017"
-    command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
-    networks:
-      - nmis_net
   nmis:
     image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v2.1
     restart: always
@@ -50,6 +29,27 @@ services:
       - "2055:2055/udp"
       - "161:161/udp"
       - "25:25"
+    networks:
+      - nmis_net
+  mongo:
+    image: mongo:7.0
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
+      interval: 60s
+      timeout: 60s
+      retries: 5
+      start_period: 60s
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    volumes:
+      - mongo_data:/data/mongodb
+      - mongo_log:/var/log/mongodb
+      - ./mongo/mongod.conf:/etc/mongod.conf
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
     networks:
       - nmis_net
   redis:

@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# This script is for local docker development and not for production use
+# This script is used to install the NMIS Suite for Docker onto a MacOS based machine.
+# It installs Docker, Docker Compose and their dependencies,directories and configuration files for the NMIS Suite for Docker.
+# It starts the NMIS Suite for Docker and tells you how to access it.
+# For more information see https://docs.community.firstwave.com/wiki/x/BYAD3
 
 set -o errexit
 set -o pipefail
 
-mkdir -p ~/nmis_docker
-cd ~/nmis_docker
+mkdir -p ~/nmis_suite
+cd ~/nmis_suite
 
 # Check if Docker is installed
 FIRST_SETUP=0
@@ -37,13 +40,19 @@ if [[ $FIRST_SETUP == 1 ]]; then
     done
 fi
 
+# Test and print Docker and Docker Compose versions
+echo -e "\n$(docker version)\n"
+echo -e "\n$(docker compose version)\n"
+
 # Pull NMIS/OMK Docker related configurations
-DOCKER_CONF_URL=https://raw.githubusercontent.com/Opmantek/nmis9/feature_docker_9_5_2/conf-default/docker/docker_conf.zip
-curl -LO $DOCKER_CONF_URL > /dev/null
+DOCKER_CONF_URL=https://raw.githubusercontent.com/Opmantek/nmis9/feature_docker_9_5_2/conf-default/docker_conf.zip
+curl -LO $DOCKER_CONF_URL >/dev/null 2>&1
 unzip -n docker_conf.zip
-cp -a docker_conf/. .
+cp -a docker/. .
 sleep 7
-docker compose down > /dev/null
+echo -e "\n\n"
+docker compose down >/dev/null 
+echo -e "\n\n"
 
 # Update NMIS & OMK configuration
 FLAG_FILE=.init_nmis
@@ -62,10 +71,29 @@ if [[ ! -f $FLAG_FILE ]]; then
     sed -i '' "s|\"db_password\".*|"'"db_password"'": \"$DOCKER_MONGO_PWD\",|" opCommon.json
     sed -i '' "s|\"redis_password\".*|"'"redis_password"'": \"$DOCKER_REDIS_PWD\",|" opCommon.json
     echo "" > $FLAG_FILE
+
+  echo -e \
+  "\nPlease record these randomly generated passwords for Mongo and Redis:
+     
+     MONGO USERNAME: $DOCKER_MONGO_USER
+     MONGO PASSWORD: $DOCKER_MONGO_PWD
+     REDIS PASSWORD: $DOCKER_REDIS_PWD
+   
+They are used by the NMIS/OMK container to connect to the Mongo and Redis instance,
+and are stored in the .env file located in $DOCKER_NMIS_HOME. Please backup this file.\n\n"
 fi
 
 # Compose up NMIS/OMK services and check status
 echo -e "\nSpinning up containers..."
-docker compose up -d > /dev/null
+docker compose up -d >/dev/null 2>&1
 sleep 7
-echo -e "\n$(docker ps)\n"
+echo -e "\n$(docker ps)\n\n"
+
+echo -e \
+"\nThe NMIS Suite dashboard should be accesible at:
+
+    http://<HOSTNAME_OR_IP>:8070/omk
+
+If your browser is running on the same machine as NMIS Suite, this would be:
+
+    http://localhost:8070/omk\n"
