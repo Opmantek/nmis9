@@ -2,7 +2,7 @@
 # This script is used to install the NMIS Suite for Docker onto a Debian based machine.
 # It installs Docker, Docker Compose and their dependencies,directories and configuration files for the NMIS Suite for Docker.
 # It starts the NMIS Suite for Docker and tells you how to access it.
-# For more information see https://docs.community.firstwave.com/wiki/x/BYAD3
+# For more information see https://docs.community.firstwave.com/wiki/x/AQCs5g
 
 set -o errexit
 set -o pipefail
