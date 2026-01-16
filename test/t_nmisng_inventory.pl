@@ -56,6 +56,7 @@ my $cluster_id = NMISNG::Util::getUUID();
 # modify dbname to be time specific for this test
 $C->{db_name} = "t_nmisng-" . time;
 $C->{cluster_id} = $cluster_id;
+$C->{enable_timed_collections} = "true";
 # log to stderr
 my $logger = NMISNG::Log->new( level => 'debug' );
 
@@ -395,19 +396,18 @@ my $allticsdata = $alltics->data;
 my $timed_bag = bag({_id => ignore(), expire_at => ignore(), time => ignore(),
 															inventory_id => ignore(), cluster_id => ignore(), 
 															configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
-															subconcepts => [{ subconcept => $concept, data => $first, derived_data => $first_derived }], inventory_id => $tictac->id },
+															subconcepts => [{ subconcept => $concept, data => $first, derived_data => $first_derived }] },
 														 {_id => ignore(), expire_at => ignore(), time => ignore(),
 															inventory_id => ignore(), cluster_id => ignore(), 
 															configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
-															subconcepts => [{ subconcept => $concept,     data => $second, derived_data => $second_derived}], inventory_id => $tictac->id },
+															subconcepts => [{ subconcept => $concept,     data => $second, derived_data => $second_derived}]},
 														 {_id => ignore(), expire_at => ignore(), time => ignore(),
 															inventory_id => ignore(), cluster_id => ignore(), 
 															configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
-															subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => $third_derived }], inventory_id => $tictac->id }
+															subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => $third_derived }]}
 );
 # todo - enable
-# cmp_deeply($allticsdata, $timed_bag,
-# 					 "get_timed_data_model(concept) returns all timed data entries") or diag(Dumper($allticsdata,$timed_bag));
+cmp_deeply($allticsdata, $timed_bag,"get_timed_data_model(concept) returns all timed data entries") or diag(Dumper($allticsdata,get_timed_bag()));
 
 # give me the  two most recent ones
 my $duo = $nmisng->get_timed_data_model(cluster_id => $cluster_id, node_uuid => $newnode->uuid,

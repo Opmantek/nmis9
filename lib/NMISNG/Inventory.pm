@@ -476,6 +476,8 @@ sub new
 	$self->{_configuration} = $args{configuration} // {};
 	$self->{_node_name} = $args{node_name};
 	
+	$self->{_enable_timed_collections} = NMISNG::Util::getbool( $self->nmisng->config->{enable_timed_collections} // 1 );
+	
 	# not dirty at this time
 	$self->_dirty(0);
 
@@ -554,6 +556,7 @@ sub add_timed_data
 			if ( $datasets && ref($datasets) ne 'HASH' && !$flush );
 	# ttl: record time plus purge_timeddata_after seconds (default 7 days)
 	$time ||= Time::HiRes::time;
+	my $enable_timed_collections = $self->{_enable_timed_collections} // 1;
 
 	# make sure the expire value makes sense
 	my $expire_at = $time + ($self->nmisng->config->{purge_timeddata_after} || 7*86400);
@@ -641,7 +644,8 @@ sub add_timed_data
 		my $timed_bulk;
 		my $latest_bulk;
 		if( $bulk_save ) {
-			if( !$bulk_save->{$self->concept()} ) {
+			# only add timed data if enabled in config
+			if($enable_timed_collections && !$bulk_save->{$self->concept()} ) {
 				$bulk_save->{$self->concept()} = NMISNG::DB::begin_bulk( collection => $self->nmisng->timed_concept_collection(concept => $self->concept()) );
 			}
 			if( !$bulk_save->{"latest_data"} ) {
@@ -650,12 +654,16 @@ sub add_timed_data
 			$timed_bulk = $bulk_save->{$self->concept()};
 			$latest_bulk = $bulk_save->{"latest_data"};
 		}
-		my $dbres = NMISNG::DB::insert(
-			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
-			record     => $timedrecord,
-			bulk       => $timed_bulk 	
-		);
-		return "failed to insert record: $dbres->{error}" if ( !$dbres->{success} );
+		my $dbres;
+		# only add timed data if enabled in config
+		if( $enable_timed_collections ) {
+			$dbres = NMISNG::DB::insert(
+				collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
+				record     => $timedrecord,
+				bulk       => $timed_bulk 	
+			);
+			return "failed to insert record: $dbres->{error}" if ( !$dbres->{success} );
+		}
 
 		$dbres = NMISNG::DB::update(
 			collection => $self->nmisng->latest_data_collection(),
@@ -1118,8 +1126,9 @@ sub delete
 
 	# delete all timed instances of this one,
 	# and anything from latest data
-	for my $coll ($self->nmisng->timed_concept_collection( concept => $self->concept() ),
-								$self->nmisng->latest_data_collection)
+	my @collections = ($self->nmisng->latest_data_collection);
+	push @collections, $self->nmisng->timed_concept_collection( concept => $self->concept() ) if( $self->{_enable_timed_collections} );
+	for my $coll (@collections)
 	{
 		my $result = NMISNG::DB::remove(
 			collection => $coll,
