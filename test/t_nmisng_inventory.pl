@@ -406,7 +406,7 @@ my $timed_bag = bag({_id => ignore(), expire_at => ignore(), time => ignore(),
 															configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,
 															subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => $third_derived }]}
 );
-# todo - enable
+
 cmp_deeply($allticsdata, $timed_bag,"get_timed_data_model(concept) returns all timed data entries") or diag(Dumper($allticsdata,get_timed_bag()));
 
 # give me the  two most recent ones
@@ -441,12 +441,28 @@ is($error, undef, "adding timed data to tictac worked again") or diag($error);
 my $latestonly = $nmisng->get_timed_data_model(cluster_id => $cluster_id, node_uuid => $newnode->uuid,
 																							 sort => { time => -1 }, limit => 1);
 is($latestonly->error, undef, "timed data model has reported success");
-
 # TODO: fix
 # cmp_deeply($latestonly->data, bag({inventory_id => $cuckoo->id->hex, subconcepts => [{ subconcept => $concept, data => {full=>"done"}, derived_data => ignore()}], time => ignore(), _id => ignore(), expire_at => ignore, cluster_id => ignore,configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid,},
 # 																	{inventory_id => $tictac->id->hex, subconcepts => [{ subconcept => $concept."3", data => $third, derived_data => ignore() }], time => ignore(), _id => ignore(), expire_at => ignore, cluster_id => ignore,configuration => { group => $newnode->configuration->{group} }, node_uuid => $nodeuuid, },),
 # 					 "get_timed_data_model(cluster+node,limit=1,sort=-time) returns the latest timed data for this node") or diag(Dumper($latestonly->data));
 
+
+# turn off timed data and another concept to make sure it isn't saved
+$nmisng->config->{enable_timed_collections} = 'false';
+# 
+(my $notimed, $error) = $newnode->inventory(create => 1, concept => "notimed",
+																					 path_keys => ['keyedby'],
+																					 data => { "keyedby" => "fourty2" ,
+																										 "not" => "tictac" });
+$notimed->save( node => $newnode );
+is( $notimed->{_enable_timed_collections}, 0, "timed data is off for this inventory");
+$error = $notimed->add_timed_data(data => { "dingdong" => "it works" }, derived_data => {}, time => Time::HiRes::time, subconcept => $concept, node => $newnode);
+my $allnotimed = $nmisng->get_timed_data_model(cluster_id => $cluster_id, node_uuid => $newnode->uuid, concept => "notimed", sort => { time => 1 });
+is($allnotimed->error, 'timed collections disabled', "timed data model tells us it's disabled");
+is( $allnotimed->count, 0, "timed data is not found because it is disabled");
+
+# turn timed back to on
+$nmisng->config->{enable_timed_collections} = 'true';
 
 # check the save-just-what-is-needed logic
 my $one = NMISNG::Inventory::DefaultInventory->new(

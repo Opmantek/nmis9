@@ -2683,6 +2683,7 @@ sub generate_nmis8_style_topn_files
 	$topn_state->{time} = $now;
 	NMISNG::Util::writeHashtoFile( file => $statefile, data => $topn_state);
 	$self->log->debug("generate_nmis8_style_topn_files starting");
+	# default to a single entry for response time coming through a threshold
 	my $topn_properties = $C->{topn_properties} || [
 		{
 			'chart' => 'resource_id',
@@ -2719,14 +2720,17 @@ sub generate_nmis8_style_topn_files
 			# map the data into the expected "old" format			
 			foreach my $entry (@$entries) {
 				my $new_data = {};
+				$new_data->{"chart"} = $topn_def->{"resource_id"};
+				$new_data->{"display_suffix"} = "";
 				$new_data->{"value"} = $entry->{topn_data};
 				$new_data->{"node"} = $entry->{nodes}{name};				
 				$new_data->{"resource_id"} = $entry->{inventory}{concept};
 				$new_data->{"index"} = $entry->{index} // $entry->{inventory}{data}{index} // 0;
 				$new_data->{"index_id"} = $entry->{index};
-				# i pulled this from applyThresholdToInventory
+				# i pulled this from applyThresholdToInventory, uses index
 				$new_data->{"element"} = (!$new_data->{"index"}) ? '' : $entry->{element} // $entry->{inventory}{description} // $entry->{inventory}{data}{index};
 				$new_data->{"property"} = $topn_def->{topn_key};
+
 				push @$data,$new_data;
 			}
 		}
