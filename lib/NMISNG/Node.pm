@@ -1435,7 +1435,7 @@ sub rename
 	my $newname = $args{new_name};
 	my $old = $self->name;
 	my $server = $args{server};
-	my $is_local = $args{is_local};
+	my $is_local = $args{is_local} // 1;
 
 	return (0, "Invalid new_name argument") if (!$newname);
 
