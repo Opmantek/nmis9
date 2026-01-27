@@ -1088,7 +1088,7 @@
       "nmis_cgi_url_base" : "/cgi-nmis8",
       "nmisx_cache_interface_ip" : 1800,
       "<nmis9_logs>" : "/usr/local/nmis9/logs",
-      "nmis_host_base" : "http://localhost"
+      "nmis_host_base" : ""
    },
    "opexport" : {
       "opexport_save_queue_dir" : "<omk_var>/save_queue",
