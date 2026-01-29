@@ -15,7 +15,7 @@ services:
     volumes:
       - mongo_data:/data/db
       - mongo_log:/var/log/mongodb
-      - ./mongo/mongod.conf:/etc/mongod.conf
+      - ./nmis9/conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
     ports:
       - "27017:27017"
     command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
