@@ -142,10 +142,14 @@ RUN addgroup --gid ${NMIS_USER_GID} ${NMIS_GROUP} && \
 
 WORKDIR ${NMIS_HOME}
 
-COPY ../conf-default/Users.nmis ${NMIS_HOME}/conf
-COPY ../conf-default/users.dat ${NMIS_HOME}/conf
-COPY ../conf-default/Access.nmis ${NMIS_HOME}/conf
-COPY ../conf-default/docker/Config.nmis.docker ${NMIS_HOME}/conf/Config.nmis
+COPY ../conf-default/Users.nmis \
+     ../conf-default/users.dat \
+     ../conf-default/Access.nmis \
+     ../conf-default/docker/Config.nmis.docker \
+     ${NMIS_HOME}/conf/
+
+RUN mv ${NMIS_HOME}/conf/Config.nmis.docker \
+       ${NMIS_HOME}/conf/Config.nmis
 
 # NMIS Web 8080
 # MTA Port 25
