@@ -14,7 +14,7 @@ jobs:
       - name: Get NMIS version
         id: version
         run: | 
-          VERSION=$(grep 'our $VERSION' nmis9/lib/NMISNG.pm | 's/.*"\([0-9.]*\)".*/\1/')
+          VERSION=$(grep 'our $VERSION' lib/NMISNG.pm | 's/.*"\([0-9.]*\)".*/\1/')
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> docker-dev/.env.dev
 
