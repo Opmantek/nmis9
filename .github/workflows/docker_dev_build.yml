@@ -16,7 +16,7 @@ jobs:
         run: | 
           VERSION=$(grep 'our $VERSION' lib/NMISNG.pm | sed 's/.*"\([0-9.]*\)".*/\1/')
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "VERSION=$VERSION" >> docker-dev/.env.dev
+          echo "VERSION=$VERSION" >> docker-dev/.env-dev
 
       - name: Build NMIS image
         run: |
