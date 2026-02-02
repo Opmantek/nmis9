@@ -25,5 +25,5 @@ jobs:
       
       - name: Compose up NMIS container
         run: |
-          docker-compose -f docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up
+          docker compose -f docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up
           docker ps
