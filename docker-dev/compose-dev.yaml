@@ -13,16 +13,14 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
     volumes:
-      - mongo_data:/data/db
-      - mongo_log:/var/log/mongodb
-      - ./nmis9/conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
+      - ../conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
     ports:
       - "27017:27017"
     command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
     networks:
       - nmis_net
   nmis:
-    image: nmis-dev:latest
+    image: nmis-dev:${VERSION}
     restart: always
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
@@ -32,11 +30,8 @@ services:
     depends_on:
       - mongo
     volumes:
-      - nmis_log_data:/usr/local/nmis9/logs
-      - nmis_var_data:/usr/local/nmis9/var
-      - nmis_conf_data:/usr/local/nmis9/conf
-      - nmis_database_data:/usr/local/nmis9/database
-      - ./nmis9:/usr/local/nmis9
+
+      - ../:/usr/local/nmis9
     ports:
       - "8080:8080"
       - "2055:2055/udp"

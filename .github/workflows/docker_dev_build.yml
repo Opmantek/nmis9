@@ -1,0 +1,29 @@
+name: Docker Dev Build
+
+on:
+  push:
+    branches: [ docker_dev_actions_test ]
+
+jobs:
+  build_docker_image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get NMIS version
+        id: version
+        run: | 
+          VERSION=$(grep 'our $VERSION' nmis9/lib/NMISNG.pm | 's/.*"\([0-9.]*\)".*/\1/')
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> docker-dev/.env.dev
+
+      - name: Build NMIS image
+        run: |
+          docker build -t nmis_dev:${VERSION} -f docker-dev/dockerfile-dev .
+          docker image ls
+      
+      - name: Compose up NMIS container
+        run: |
+          docker-compose -f docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up
+          docker ps
