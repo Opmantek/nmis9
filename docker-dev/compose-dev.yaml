@@ -21,7 +21,6 @@ services:
       - nmis_net
   nmis:
     image: nmis-dev:${VERSION}
-    pull_policy: never
     restart: always
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}

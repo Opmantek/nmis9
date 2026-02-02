@@ -21,7 +21,7 @@ jobs:
 
       - name: Build NMIS image
         run: |
-          docker build -t nmis_dev:${VERSION} -f docker-dev/dockerfile-dev .
+          docker build -t nmis-dev:${VERSION} -f docker-dev/dockerfile-dev .
           docker image ls
       
       - name: Compose up NMIS container
