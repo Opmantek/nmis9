@@ -41,6 +41,7 @@ jobs:
           NMIS_CONT_NAME=$(docker ps --format "{{.Names}}" | grep nmis-1)
           echo "NMIS_CONT_NAME=$NMIS_CONT_NAME" >> "$GITHUB_ENV"
           echo "$NMIS_CONT_NAME"
+          sleep 30
       
       - name: Run Docker unit tests
         run : |
