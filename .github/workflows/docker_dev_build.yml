@@ -45,7 +45,7 @@ jobs:
       - name: Run Docker unit tests
         run : |
           echo "${NMIS_CONT_NAME}"
-          docker exec -it ${NMIS_CONT_NAME} /bin/bash -c "/usr/local/nmis9/docker-dev/docker_tests.sh"
+          docker exec ${NMIS_CONT_NAME} /bin/bash -c "/usr/local/nmis9/docker-dev/docker_tests.sh"
 
       - name: Compose down NMIS container
         run: |
