@@ -35,7 +35,6 @@ services:
     ports:
       - "8080:8080"
       - "2055:2055/udp"
-      - "161:161/udp"
       - "25:25"
     networks:
       - nmis_net
