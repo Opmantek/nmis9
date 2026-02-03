@@ -40,9 +40,11 @@ jobs:
           docker ps
           NMIS_CONT_NAME=$(docker ps --format "{{.Names}}" | grep nmis-1)
           echo "NMIS_CONT_NAME=$NMIS_CONT_NAME" >> "$GITHUB_ENV"
+          echo "$NMIS_CONT_NAME"
       
       - name: Run Docker unit tests
         run : |
+          echo "${NMIS_CONT_NAME}"
           docker exec -it ${NMIS_CONT_NAME} /bin/bash -c "/usr/local/nmis9/docker-dev/docker_tests.sh"
 
       - name: Compose down NMIS container
