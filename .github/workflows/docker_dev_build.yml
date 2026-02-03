@@ -12,8 +12,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Lint dockerfile
-        run : |
-          hadolint --config docker-dev/.hadolint.yaml docker-dev/dockerfile-dev
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker-dev/dockerfile
+          config: docker-dev/.hadolint.yaml
 
       - name: Install pre-requisite packages
         run : |
