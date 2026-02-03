@@ -11,13 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Lint dockerfile
+        run : |
+          hadolint --config docker-dev/.hadolint.yaml docker-dev/dockerfile-dev
+
+      - name: Install pre-requisite packages
+        run : |
+          apt install snmp snmpd
+
       - name: Get NMIS version
         id: version
         run: | 
           VERSION=$(grep 'our $VERSION' lib/NMISNG.pm | sed 's/.*"\([0-9.]*\)".*/\1/')
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo -e "\nVERSION=$VERSION" >> docker-dev/.env-dev
-          cat docker-dev/.env-dev
 
       - name: Build NMIS image
         run: |
@@ -26,6 +33,15 @@ jobs:
       
       - name: Compose up NMIS container
         run: |
-          cat docker-dev/.env-dev
-          docker compose -f docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up
+          docker compose -f docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up -d
           docker ps
+          NMIS_CONT_NAME=$(docker ps --format "{{.Names}}" | grep nmis-1)
+          echo "NMIS_CONT_NAME=$NMIS_CONT_NAME" >> "$GITHUB_ENV"
+      
+      - name: Run Docker unit tests
+        run : |
+          docker exec -it $NMIS_CONT_NAME /bin/bash -c "/usr/local/nmis9/docker-dev/docker_tests.sh"
+
+      - name: Compose down NMIS container
+        run: |
+          docker compose -f docker-dev/compose-dev.yaml down
