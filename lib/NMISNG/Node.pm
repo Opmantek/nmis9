@@ -1538,10 +1538,10 @@ sub rename
 # returns tuple, ($success,$error_message),
 # 0 if no saving required
 #-1 if node is not valid,
+# -2 if error inserting
+# -3 if error updating
 # >0 if all good
-#
-# TODO/fixme9: error checking just uses assert right now, we may want
-#   a differnent way of doing this
+
 sub save
 {
 	my ($self, %args) = @_;
@@ -1613,13 +1613,17 @@ sub save
 			collection => $self->collection,
 			record     => \%entry,
 		);
-		assert( $result->{success}, "Record inserted successfully " );
-		$self->{_id} = $result->{id} if ( $result->{success} );
-
-		$self->_dirty(0); # all clean now
-		$self->{_lastupdate} = $saveTime;
-		$op = 1;
-		$self->nmisng->log->debug7(sub {"Insert return: ". Dumper($result) . "\n"});
+		if( $result->{success} ) {
+			$self->{_id} = $result->{id} if ( $result->{success} );
+			$self->_dirty(0); # all clean now
+			$self->{_lastupdate} = $saveTime;
+			$op = 1;
+			$self->nmisng->log->debug7(sub {"Insert return: ". Dumper($result) . "\n"});
+		} else  {
+			# error inserting, return the error immediately
+			$op = -2;
+			return ($op,$result->{error});
+		}
 	}
 	else
 	{
@@ -1630,12 +1634,16 @@ sub save
 			freeform   => 1,					# we need to replace the whole record
 			record     => \%entry
 				);
-		assert( $result->{success}, "Record updated successfully" );
-
-		$self->_dirty(0);
-		$self->{_lastupdate} = $saveTime;
-		$op = 2;
-		$self->nmisng->log->debug7(sub {"Update return: ". Dumper($result) . "\n"});
+		if( $result->{success} ) {
+			$self->_dirty(0);
+			$self->{_lastupdate} = $saveTime;
+			$op = 2;
+			$self->nmisng->log->debug7(sub {"Update return: ". Dumper($result) . "\n"});
+		} else {
+			# error updating, return the error immediately
+			$op = -3;
+			return ($op,$result->{error});
+		}
 	}
 	
 	# Audit, update catchall if we can

@@ -1731,10 +1731,10 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
 				if ($nodeobj)
 				{
-					print STDERR "Deactivating node '$node'.\n" if (-t \*STDERR);	
+					print STDERR "Deactivating node '".$nodeobj->name."'deletion.\n" if (-t \*STDERR);
 					my $curcfg = $nodeobj->configuration;
-					$curcfg->{collect} = 1;
-					$curcfg->{activated}->{NMIS} = $curcfg->{active} = 1;
+					$curcfg->{collect} = 0;
+					$curcfg->{activated}->{NMIS} = $curcfg->{active} = 0;
 					my $newConfig = $nodeobj->configuration($curcfg);
 					(my $op, $error) = $nodeobj->save(meta => $meta);
 					if ($op < 0) # zero is no saving needed	

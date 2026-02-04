@@ -5531,10 +5531,23 @@ sub update_queue
 		return "Invalid job data, args must contain uuid property!";
 	}
 	
-	if ( $jobdata->{type} =~ /^(delete_nodes)$/
-		and !$jobdata->{args}->{uuid} and !$jobdata->{args}->{node})
+	if ( $jobdata->{type} =~ /^(delete_nodes)$/ )
 	{
-		return "Invalid job data, args must contain uuid or names property!";
+		return "Invalid job data, args must contain uuid or names property!" if( !$jobdata->{args}->{uuid} and !$jobdata->{args}->{node} );
+
+		# disable node before queueing so it stops being scheduled, it may be collect/updating while this happens
+		# nodes generally don't alter their configuration during this, we should probably codify that so we know it doesn't happen
+		my $nodeobj = $self->node(name => $jobdata->{args}->{node}, uuid => $jobdata->{args}->{uuid});
+		if ($nodeobj)
+		{
+			$self->log->info("Deactivating node '".$nodeobj->name."' for deletion.");
+			my $curcfg = $nodeobj->configuration;
+			$curcfg->{collect} = 0;
+			$curcfg->{activated}->{NMIS} = $curcfg->{active} = 0;
+			my $newConfig = $nodeobj->configuration($curcfg);
+			my ($op, $error) = $nodeobj->save(meta => $jobdata->{args}->{meta});
+			$self->log->error("Failed to save '".$nodeobj->name."' deletion may fail: $error (Code=$op)") if ($op < 0) # zero is no saving needed
+		}
 	}
 	
 	if ( $jobdata->{type} =~ /^(update_nodes|create_nodes|set_nodes|unset_nodes)$/
