@@ -1490,7 +1490,6 @@ sub worker_loop
 			$0 = "nmisd." . $ourjob->{type}; # Change worker name
 			
 			# the simpler jobs don't have extra args that need to go into opstatus context
-			# also, if the job doesn't get marked as started and the scheduler sees that its
 			if ($ourjob->{type} =~ /^(update_links|selftest|permissions_test|configbackup|purge|dbcleanup|escalations|thresholds|metrics)$/)
 			{
 				(my $error, $state->{statusid}) =
