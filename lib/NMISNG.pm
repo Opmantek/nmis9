@@ -5546,8 +5546,13 @@ sub update_queue
 			$curcfg->{activated}->{NMIS} = $curcfg->{active} = 0;
 			my $newConfig = $nodeobj->configuration($curcfg);
 			my ($op, $error) = $nodeobj->save(meta => $jobdata->{args}->{meta});
-			$self->log->error("Failed to save '".$nodeobj->name."' deletion may fail: $error (Code=$op)") if ($op < 0) # zero is no saving needed
+			$self->log->error("Failed to save '".$nodeobj->name."' deletion may fail: $error (Code=$op)") if ($op < 0); # zero is no saving needed
+			
+			#make sure uuid is set
+			$jobdata->{args}->{uuid} = $nodeobj->uuid;
 		}
+		#NOTE: the node_uuid MUST be set or the scheduler can't query for clashing nodes properly
+		return "Invalid job data, args must contain uuid" if( !$jobdata->{args}->{uuid} );
 	}
 	
 	if ( $jobdata->{type} =~ /^(update_nodes|create_nodes|set_nodes|unset_nodes)$/
