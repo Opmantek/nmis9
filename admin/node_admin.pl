@@ -1731,7 +1731,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 				my $nodeobj = $nmisng->node(name => $node, uuid=> $uuid);
 				if ($nodeobj)
 				{
-					print STDERR "Deactivating node '".$nodeobj->name."'deletion.\n" if (-t \*STDERR);
+					print STDERR "Deactivating node '".$nodeobj->name."' for deletion.\n" if (-t \*STDERR);
 					my $curcfg = $nodeobj->configuration;
 					$curcfg->{collect} = 0;
 					$curcfg->{activated}->{NMIS} = $curcfg->{active} = 0;
