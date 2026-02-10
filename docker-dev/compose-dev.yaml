@@ -35,6 +35,7 @@ services:
       - "8080:8080"
       - "2055:2055/udp"
       - "25:25"
+      - "33:33"
     networks:
       - nmis_net
 networks:
