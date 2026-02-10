@@ -53,21 +53,20 @@ sub getTeldatInventory {
 		# grab the 6.3 table for TELDAT
 		$snmpTable = $snmp->gettable("1.3.6.1.4.1.2007.6.3");	
 		return (undef,"Unable to get SNMP table data") if (! $snmpTable);
-		
 		my %patterns = (								
 				out	=> 	{
-						class   			 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.1\.6\.(.+)\.(\d+)$/,
-						MatchedPackets 		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.2\.6\.(.+)\.(\d+)$/,
-						MatchedBytes  		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.3\.6\.(.+)\.(\d+)$/,
-						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.4\.6\.(.+)\.(\d+)$/,
-						MatchedOverLimits  	 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.1\.2\.1\.1\.5\.6\.(.+)\.(\d+)$/
+						class   			 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.1\.2\.1\.1\.1\.(?:\d+)\.(.+)\.(\d+)$/,
+						MatchedPackets  	 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.1\.2\.1\.1\.2\.(?:\d+)\.(.+)\.(\d+)$/,						
+						MatchedBytes  		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.1\.2\.1\.1\.3\.(?:\d+)\.(.+)\.(\d+)$/,
+						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.1\.2\.1\.1\.4\.(?:\d+)\.(.+)\.(\d+)$/,
+						MatchedOverLimits  	 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.1\.2\.1\.1\.5\.(?:\d+)\.(.+)\.(\d+)$/
 						},
 				in	=> {
-						class   			 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.1\.6\.(.+)\.(\d+)$/,
-						MatchedPackets 		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.2\.6\.(.+)\.(\d+)$/,
-						MatchedBytes   		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.3\.6\.(.+)\.(\d+)$/,
-						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.4\.6\.(.+)\.(\d+)$/,
-						MatchedOverLimits    => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.(\d+)\.6\.2\.2\.1\.1\.5\.6\.(.+)\.(\d+)$/
+						class   			 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.2\.2\.1\.1\.1\.(?:\d+)\.(.+)\.(\d+)$/,
+						MatchedPackets  	 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.2\.2\.1\.1\.2\.(?:\d+)\.(.+)\.(\d+)$/,						
+						MatchedBytes  		 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.2\.2\.1\.1\.3\.(?:\d+)\.(.+)\.(\d+)$/,
+						MatchedDropsPackets  => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.2\.2\.1\.1\.4\.(?:\d+)\.(.+)\.(\d+)$/,
+						MatchedOverLimits  	 => qr/^1\.3\.6\.1\.4\.1\.2007\.6\.3\.1\.((?:\d+\.)*\d+)(?=\.6)\.6\.2\.2\.1\.1\.5\.(?:\d+)\.(.+)\.(\d+)$/
 						}
 					);
 
@@ -84,14 +83,15 @@ sub getTeldatInventory {
         		foreach my $oid (keys %{$snmpTable}) {
             	if ($oid =~ $regex) {
                 		my ($interfaceMapping, $descr, $class) 	= ($1, $2, $3);	
+						my $interfaceMappingBit = ($interfaceMapping =~ /^\d+$/) ? 6 : 4;						
 						my $ascii_descr  = ascii_to_str_string($descr);				
-
 						$rows{"$dir|$descr|$class"}{index}    			= $descr.".".$class;
 						$rows{"$dir|$descr|$class"}{description} 		= $ascii_descr;
 						$rows{"$dir|$descr|$class"}{ifIndex} 			= $ifDescr_to_index{$ascii_descr};
                 		$rows{"$dir|$descr|$class"}{class}    			= $class;
                 		$rows{"$dir|$descr|$class"}{direction}     		= $dir;
 						$rows{"$dir|$descr|$class"}{interfaceMapping} 	= $interfaceMapping;
+						$rows{"$dir|$descr|$class"}{interfaceMappingBit} = $interfaceMappingBit;						
                 		$rows{"$dir|$descr|$class"}{$metric} 			= $snmpTable->{$oid};
 					}
 				}
@@ -211,7 +211,7 @@ sub update_plugin
 				'1.3.6.1.4.1.2007.6.3.1.11.1.1.15',
 				'1.3.6.1.4.1.2007.6.3.1.13.1.1.15',
 				'1.3.6.1.4.1.2007.6.3.1.14.1.1.15',
-				'1.3.6.1.4.1.2007.6.3.3.1.1.1'
+				'1.3.6.1.4.1.2007.6.3.3.1.1.1'								
 			);					
 
 			my @list_index_oids = (
@@ -303,7 +303,14 @@ sub update_plugin
 
  				# now looking for Alias description by joining oids and its alias.
 				foreach my $desc_oid (@description_oids){
-					my $match = $desc_oid.'.'.$data->{"indexAlias"};
+					my $match;
+					# if its logical add in the oid part to match logical oid.
+					if ($data->{"is_logical"} ){
+						$match = $desc_oid.'.4.'.$data->{"indexAlias"};	
+					}
+					else{
+						$match = $desc_oid.'.'.$data->{"indexAlias"};
+					}					
 					if (exists $oidWalk->{$match}){
 						$data->{"Description"} = $oidWalk->{$match};	
 					}
@@ -343,8 +350,9 @@ sub str_to_ascii_string {
 }
 
 sub ascii_to_str_string {
-	my ($ascii_str) = @_;
-    return join('', map { chr($_) } split(/\./, $ascii_str));
+    my ($ascii_str) = @_;
+    my @codes = split(/\./, $ascii_str);
+    return join('', map { $_ < 10 ? '.' : chr($_) } @codes);
 }
 
 

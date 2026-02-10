@@ -29,7 +29,7 @@
 #
 # Utility package for various reusable general-purpose functions
 package NMISNG::Util;
-our $VERSION = "9.6.4";
+our $VERSION = "9.6.5";
 
 use strict;
 use feature 'state';						# loadconftable, uuid functions
@@ -758,7 +758,8 @@ sub getServerRole {
 	my %args = @_;
 	
 	my $config = $args{config} // loadConfTable();
-	return $config->{server_role} // "Standalone";
+	# empty "" is also reported as Standalone
+	return $config->{server_role} || "Standalone";
 }
 
 # reads and returns the nmis config file data

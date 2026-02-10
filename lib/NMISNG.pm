@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.6.4";
+our $VERSION = "9.6.5";
 
 use strict;
 use Data::Dumper;
@@ -476,6 +476,13 @@ sub compute_metrics
 		# logs any errors
 		$S->create_update_rrd( data => $data, type => "metrics", item => $group);
 	}
+	if( NMISNG::Util::getbool($self->config->{enable_nodesum_file}) ) {
+		$self->generate_nmis8_style_node_summary( C => $self->config );
+	}
+	if( NMISNG::Util::getbool($self->config->{enable_topn_files}) ) {
+		$self->generate_nmis8_style_topn_files( C => $self->config );
+	}	
+	
 	$self->log->debug2(sub {&NMISNG::Log::trace()."Finished"});
 	return {success => 1};
 }
@@ -1226,6 +1233,166 @@ sub get_cluster_orphans_with_lookup
 	return ( \@ditchables, undef, $error );
 }
 
+sub get_topn_by_status_model
+{
+	my ($self,%args) = @_;
+	my ($property,$method,$type,$calculation,$consider_seconds,$topn) = @args{'property','method','type','calculation','consider_seconds','topn'};
+	my ($want_config,$want_inventory) = @args{'want_config','want_inventory'};
+	my $sort_by = $args{'sort_by'} // -1;
+	#We have attachched the nodes group and uuid to the latests data for fast searching, if we are grouping by these then they should be first in the pipeline
+	my $gte_time = time() - $consider_seconds;
+	my $config_search;
+
+	# we must have these to make it work
+	if( $property eq '' ) {
+		$self->log->error("get_topn_by_latest_data_model property:$property is required");
+		return ([],0,"get_topn_by_latest_data_model property:$property is required");
+	}
+	my @pipe = ();
+
+	my $q = NMISNG::DB::get_query( and_part => { 
+		'lastupdate' => { '$gte' => $gte_time },
+		'property' => $property, 
+		'type' => $type,		
+	}); 
+
+	my @starter_pipe = (
+		{ '$match' => { %$q } }
+	);
+	push @pipe,@starter_pipe;
+	# handle the very specific case in the example
+	if( $calculation eq '100 - $value' ) {
+		   my $calculation_pipe = {
+        '$set' => {
+          'value' => { '$subtract' => ['100', '$value'] }
+        }
+      };
+		push @pipe,$calculation_pipe; 
+	}
+
+	if($topn > 1)
+	{
+		push @pipe, { '$sort' => { 'value' => $sort_by }};
+		push @pipe, { '$limit' => $topn };
+	} 
+	if( $want_config ) {
+		push @pipe, { '$lookup' => { 'from' => $self->nodes_collection->name, 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'nodes' }};
+		push @pipe, { '$unwind' => '$nodes' };
+	}
+	if( $want_inventory ) {
+		push @pipe, { '$lookup' => { 'from' => $self->inventory_collection->name, 'localField' => 'inventory_id', 'foreignField' => '_id', 'as' => 'inventory' }};
+		push @pipe, { '$unwind' => '$inventory' };
+	}
+	# push @pipe, { '$project' => { 		
+	# 	 '_id'=> 1,
+	# 	 'time'=> 1,
+	# 	 'inventory_id'=> 1,
+	# 	 'inventory'=> 1,
+	# 	 'nodes'=> 1,
+	# 	#  'subconcept' => '$subconcepts.subconcept'
+	# }};
+	$self->log->debug5(sub {"topn pre_count_pipeline: \n".JSON::XS->new->convert_blessed(1)->utf8->pretty->encode(\@pipe)});
+	(my $entries,my $count, my $error) = NMISNG::DB::aggregate(
+		collection => $self->status_collection(),
+		pre_count_pipeline => \@pipe,
+		count => 0,		
+		allowtempfiles => 1,
+	);
+	if( $error ) {		
+		$self->log->error("get_topn_by_latest_data_model mongo error: $error");
+		$self->log->debug("get_topn_by_latest_data_model pipe".Dumper(\@pipe));
+		return ([],0,$error);
+	}
+
+	foreach my $entry (@$entries)
+	{
+		$entry->{_id} = $entry->{_id}->to_string;
+	}
+	return ($entries,$count,$error);
+}
+
+sub get_topn_by_latest_data_model
+{
+	my ($self,%args) = @_;
+	my ($topn_key,$consider_seconds,$topn,$data_section,$calculation) = @args{'topn_key','consider_seconds','topn','data_section','calculation'};
+	my ($want_config,$want_inventory) = @args{'want_config','want_inventory'};
+	my $sort_by = $args{'sort_by'} // -1;
+	#We have attachched the nodes group and uuid to the latests data for fast searching, if we are grouping by these then they should be first in the pipeline
+	my $gte_time = time() - $consider_seconds;
+	my $config_search;
+
+	# we must have these to make it work
+	if( $topn_key eq '' || $data_section eq '' ) {
+		$self->log->error("get_topn_by_latest_data_model these are required: topn_key:$topn_key data_section:$data_section");
+		return ([],0,"get_topn_by_latest_data_model these are required: topn_key:$topn_key data_section:$data_section")
+	}
+	if( $calculation ne '' ) {
+		my $msg = "get_topn_by_latest_data_model these are required: calculation not supported for latest_data model";
+		$self->log->error($msg);
+		return ([],0,$msg);
+	}
+
+	my @pipe = ();
+	$topn_key = "subconcepts.$data_section.$topn_key";	
+	my $q = NMISNG::DB::get_query( and_part => { 
+		'time' => { '$gte' => $gte_time },
+		$topn_key => { '$exists' => 1 }		
+	}); 	
+	my @starter_pipe = (
+		{ '$match' => { %$q } }
+	);
+	push @pipe,@starter_pipe;
+	my $project_key = { '$max' => '$'.$topn_key};
+	if($topn > 1)
+	{
+		$project_key = '$'.$topn_key;
+		push @pipe, { '$sort' => { $topn_key => $sort_by }};
+		push @pipe, { '$limit' => $topn };
+	} 
+	# now we have limited down to 10 or so, unwind and remove undefined
+	push @pipe, { '$unwind' => '$subconcepts' };
+	push @pipe, { '$match' => { $topn_key => { '$exists' => 1} } };
+	if( $want_config ) {
+		push @pipe, { '$lookup' => { 'from' => $self->nodes_collection->name, 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'nodes' }};
+		push @pipe, { '$unwind' => '$nodes' };
+	}
+	if( $want_inventory ) {
+		push @pipe, { '$lookup' => { 'from' => $self->inventory_collection->name, 'localField' => 'inventory_id', 'foreignField' => '_id', 'as' => 'inventory' }};
+		push @pipe, { '$unwind' => '$inventory' };
+	}
+	push @pipe, { '$project' => { 
+		'topn_data'=> $project_key,
+		 '_id'=> 1,
+		 'time'=> 1,
+		 'inventory_id'=> 1,
+		 'inventory'=> 1,
+		 'nodes'=> 1,
+		 'subconcept' => '$subconcepts.subconcept'
+	}};
+	# print "topn pre_count_pipeline: \n".JSON::XS->new->convert_blessed(1)->utf8->pretty->encode(\@pipe);
+	(my $entries,my $count, my $error) = NMISNG::DB::aggregate(
+		collection => $self->latest_data_collection(),
+		pre_count_pipeline => \@pipe,
+		count => 0,
+		sort => $args{sort},
+		skip => $args{skip},
+		limit => $args{limit},
+		allowtempfiles => 1,
+	);
+	if( $error ) {		
+		$self->log->error("get_topn_by_latest_data_model mongo error: $error");
+		$self->log->debug("get_topn_by_latest_data_model pipe".Dumper(\@pipe));
+		return ([],0,$error);
+	}
+
+	foreach my $entry (@$entries)
+	{
+		$entry->{_id} = $entry->{_id}->hex;
+	}
+	return ($entries,$count,$error);
+}
+
+
 # little helper that applies multiple node selection filters sequentially (ie. f1 OR f2)
 # and returns the active nodes that match
 #
@@ -1395,7 +1562,8 @@ sub ensure_indexes
 				[{"status"            => 1}],
 				[{"context.node_uuid" => 1}],
 				[{"context.queue_id"  => 1}],
-				[{"type"              => 1}],				
+				[{"type"              => 1}],
+				[{"property"          => 1}],
 				[{"expire_at"         => 1}, {expireAfterSeconds => 0}],    # ttl index for auto-expiration
 			]
 	);
@@ -2394,6 +2562,224 @@ sub get_node_names
 	return \@node_names;
 }
 
+# generate a node summary in the style of NMIS8's nodesum file
+sub generate_nmis8_style_node_summary 
+{
+	my ($self,%args) = @_;
+	my $C = $args{C};
+	my $group = $args{group};
+
+	my $filter =  { concept => "catchall", cluster_id => $self->config->{cluster_id}, 'data.active' => 1, group => $group };
+	my $md = $self->get_inventory_model( filter => $filter, fields_hash => { "node_name" => 1, "data" => 1 } );
+	if( my $error = $md->error ) {
+		$self->log->error("generate_nmis8_style_node_summary error getting catchall inventory: $error");
+		return undef;
+	}
+	# my $NT = loadLocalNodeTable();
+	my %nt;
+
+	my $node_summary_field_list = "customer,businessService";
+	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
+		$node_summary_field_list = $C->{node_summary_field_list};
+	}
+
+	my @node_summary_properties = split(",",$node_summary_field_list);
+
+	while (my $entry = $md->next_value) {
+	# foreach my $nd (keys %{$NT}) {
+		my $catchall_data = $entry->{data};
+		# next if (!getbool($catchall_data->{active}));
+		# next if $group ne '' and $catchall_data->{group} !~ /$group/;
+
+		# my $NI = loadNodeInfoTable($nd);
+		my $name = $entry->{node_name};
+		my $nd = $name;
+		$nt{$nd}{active} = $catchall_data->{active};
+		$nt{$nd}{ping} = $catchall_data->{ping};
+
+		$nt{$nd}{name} = $catchall_data->{name};
+		$nt{$nd}{group} = $catchall_data->{group};
+		$nt{$nd}{collect} = $catchall_data->{collect};
+		
+		$nt{$nd}{netType} = $catchall_data->{netType};
+		$nt{$nd}{roleType} = $catchall_data->{roleType};
+		$nt{$nd}{nodeType} = $catchall_data->{nodeType};
+		$nt{$nd}{nodeModel} = $catchall_data->{nodeModel};
+		$nt{$nd}{nodeVendor} = $catchall_data->{nodeVendor};
+		$nt{$nd}{last_poll} = $catchall_data->{last_poll};
+		$nt{$nd}{sysName} = $catchall_data->{sysName} ;
+		$nt{$nd}{server} = $C->{'server_name'};
+
+		foreach my $property (@node_summary_properties) {
+			$nt{$nd}{$property} //= $catchall_data->{$property};
+		}
+
+		$nt{$nd}{nodedown} = $catchall_data->{nodedown};
+		# coarse_status saves nodedown_escalate into catchall data when it's run (collect,update,handle_down)
+		$nt{$nd}{escalate} = $catchall_data->{nodedown_escalate} // undef;
+
+		# coarse status is saved into catchall data on collect (and handle_down)
+		$nt{$nd}{nodestatus} = $catchall_data->{nodestatus};
+		
+		# For nodesum file, add outage details from reach to catchall	
+		my $otgStatus = $catchall_data->{outage_status} // "";
+		my $otgHash = $catchall_data->{outage_details} // {};
+		my $outageText;
+
+		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
+			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
+			$outageText = "node=$nd<br>start=".NMISNG::Util::returnDateStamp($otgHash->{actual_start})
+			."<br>end=".NMISNG::Util::returnDateStamp($otgHash->{actual_end})."<br>change=$otgHash->{change_id}";
+		}
+		$nt{$nd}{outage} = $otgStatus;
+		$nt{$nd}{outageText} = $outageText;
+
+		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
+		my $sysLocation = $catchall_data->{sysLocation};
+		if (($catchall_data->{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
+			# Node has sysLocation that is formatted for Geo Data
+			( my $lat, my $long, my $alt, $sysLocation) = split(',',$catchall_data->{sysLocation});
+		}
+		$nt{$nd}{sysLocation} = $sysLocation ;
+	}
+	my $file = "nmis-nodesum";	
+	NMISNG::Util::writeTable(dir=>'var',name=>$file,data=>\%nt);
+}
+
+sub generate_nmis8_style_topn_files
+{
+	my ($self,%args) = @_;
+	my $C = $args{C};
+	my $topn = $args{topn} || 10;
+	my $consider_seconds = $args{consider_seconds} || 900;
+	my $force = $args{force} // 0;
+
+	my $topnDir = $C->{'<nmis_var>'}.'/topn';
+	NMISNG::Util::createDir($topnDir);
+
+	my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
+	my $statefile = "$varsysdir/topn_state.json";
+	my $topn_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );	
+	my $topn_time_between_runs = $C->{topn_time_between_runs} // 299;
+
+	my $min_time_diff = $C->{topn_time_between_runs} || 299;
+	my $last_runtime = 0;
+	my $now = time;
+	
+	if( $topn_state ) {
+		$last_runtime = $topn_state->{time};
+	}
+	if( !$force ) {
+		my $diff = $now - $last_runtime;
+		if( $diff < $min_time_diff) {
+			$self->log->debug("generate_nmis8_style_topn_files not running, time diff: $diff, is not >= $min_time_diff");
+			return;
+		}
+		else {
+			$self->log->debug("generate_nmis8_style_topn_files running, time diff: $diff, is not < $min_time_diff");
+		}
+	}
+	# write timestamp right away so a long running attempt doesn't mean it 
+	$topn_state->{time} = $now;
+	NMISNG::Util::writeHashtoFile( file => $statefile, data => $topn_state);
+	$self->log->debug("generate_nmis8_style_topn_files starting");
+	# default to a single entry for response time coming through a threshold
+	my $topn_properties = $C->{topn_properties} || [
+		{
+			'chart' => 'resource_id',
+			'data' => 'response',
+			'method' => 'Threshold',
+			'property' => 'response',
+			'resource_type' => 'health'
+		}
+	];
+	foreach my $topn_def (@$topn_properties) {
+		my $data = [];	
+		my $field = $topn_def->{property};
+		my $method = $topn_def->{method};
+		# latest_data as method means checking latest_data collection
+		# otherwise it's "Threshold" and we look at status
+		# they return close to the same but slightly different data
+		if( $method eq 'latest_data' ) 
+		{
+			$field = $topn_def->{topn_key};
+			my ($entries,$count,$error) = $self->get_topn_by_latest_data_model(
+				'topn_key' => $topn_def->{topn_key},
+				'consider_seconds' => $consider_seconds,				
+				'data_section' => $topn_def->{data_section},
+				'calculation' => $topn_def->{calculation},				
+				'topn' => $topn,				
+				want_config => 1,
+				want_inventory => 1
+			);
+			
+			if( $error ) {
+				$self->log->error("generate_nmis8_style_topn_files ERROR! $error");
+				next;
+			}
+			# map the data into the expected "old" format			
+			foreach my $entry (@$entries) {
+				my $new_data = {};
+				$new_data->{"chart"} = $topn_def->{"resource_id"};
+				$new_data->{"display_suffix"} = "";
+				$new_data->{"value"} = $entry->{topn_data};
+				$new_data->{"node"} = $entry->{nodes}{name};				
+				$new_data->{"resource_id"} = $entry->{inventory}{concept};
+				$new_data->{"index"} = $entry->{index} // $entry->{inventory}{data}{index} // 0;
+				$new_data->{"index_id"} = $entry->{index};
+				# i pulled this from applyThresholdToInventory, uses index
+				$new_data->{"element"} = (!$new_data->{"index"}) ? '' : $entry->{element} // $entry->{inventory}{description} // $entry->{inventory}{data}{index};
+				$new_data->{"property"} = $topn_def->{topn_key};
+
+				push @$data,$new_data;
+			}
+		}
+		else
+		{
+			my ($entries,$count,$error) = $self->get_topn_by_status_model(
+				'property' => $topn_def->{property},
+				'method' => $topn_def->{method},
+				'type' => $topn_def->{resource_type},
+				'calculation' => $topn_def->{calculation},			
+				'consider_seconds' => $consider_seconds,
+				'topn' => $topn,				
+				want_config => 1,
+				want_inventory => 1
+			);
+			if( $error ) {
+				$self->log->error("generate_nmis8_style_topn_files ERROR! $error");
+				next;
+			}			
+			# map the data into the expected "old" format			
+			foreach my $entry (@$entries) {
+				my $new_data = {};
+				$new_data->{"chart"} = $topn_def->{"resource_id"};
+				$new_data->{"display_suffix"} = "";
+				$new_data->{"value"} = $entry->{value};
+				$new_data->{"node"} = $entry->{nodes}{name};
+				$new_data->{"element"} = $entry->{element};			
+				$new_data->{"resource_id"} = $entry->{inventory}{concept};
+				$new_data->{"index"} = $entry->{index} // 0;
+				$new_data->{"index_id"} = $entry->{index} // 0;
+				$new_data->{"property"} = $entry->{property};
+				push @$data,$new_data;
+			}
+		}
+		my $handle;
+		my $file = "$topnDir/$field.json";
+		if( open($handle, ">$file") ) {
+			print $handle JSON::XS->new->convert_blessed(1)->utf8->pretty->encode($data);				
+			close $handle;
+		} else {
+			$self->log->error("generate_nmis8_style_topn_files ERROR: cannot write to $file: $!");
+		};
+	}
+	# write new timestamp so the time reflects the time it was finished
+	$topn_state->{time} = time;	
+	NMISNG::Util::writeHashtoFile( file => $statefile, data => $topn_state);
+	$self->log->debug("generate_nmis8_style_topn_files complete");
+}
+
 sub get_node_uuids
 {
 	my ( $self, %args ) = @_;
@@ -2666,6 +3052,12 @@ sub get_timed_data_model
 {
 	my ( $self, %args ) = @_;
 
+	# is it disabled
+	if( !NMISNG::Util::getbool( $self->config->{enable_timed_collections} // 1 ) ) {
+		return NMISNG::ModelData->new(
+				error => "timed collections disabled" );
+	}
+	
 	# determine the inventory instances to look for
 	my %concept2cand;
 
@@ -2758,7 +3150,7 @@ sub get_timed_data_model
 			skip  => $args{skip},
 			limit => $args{limit}
 		);
-		return NMISNG::ModelData->new( error => "Find failed: " . &NMISNG::DB::getErrorString )
+		return NMISNG::ModelData->new( error => "Find failed: " . NMISNG::DB::get_error_string() )
 			if ( !$cursor );
 	}
 
@@ -4754,6 +5146,12 @@ sub timed_concept_collection
 		$self->log->error("cannot get concept collection without concept argument!");
 		return undef;
 	}
+	
+	# is it disabled
+	if( !NMISNG::Util::getbool( $self->config->{enable_timed_collections} // 1 ) ) {
+		return undef;
+	}
+
 	my $collname = lc($conceptname);
 	$collname =~ s/[^a-z0-9]+//g;
 	$collname = "timed_" . substr( $collname, 0, 64 );    # bsts; 120 byte max database.collname
@@ -5133,10 +5531,28 @@ sub update_queue
 		return "Invalid job data, args must contain uuid property!";
 	}
 	
-	if ( $jobdata->{type} =~ /^(delete_nodes)$/
-		and !$jobdata->{args}->{uuid} and !$jobdata->{args}->{node})
+	if ( $jobdata->{type} =~ /^(delete_nodes)$/ )
 	{
-		return "Invalid job data, args must contain uuid or names property!";
+		return "Invalid job data, args must contain uuid or names property!" if( !$jobdata->{args}->{uuid} and !$jobdata->{args}->{node} );
+
+		# disable node before queueing so it stops being scheduled, it may be collect/updating while this happens
+		# nodes generally don't alter their configuration during this, we should probably codify that so we know it doesn't happen
+		my $nodeobj = $self->node(name => $jobdata->{args}->{node}, uuid => $jobdata->{args}->{uuid});
+		if ($nodeobj)
+		{
+			$self->log->info("Deactivating node '".$nodeobj->name."' for deletion.");
+			my $curcfg = $nodeobj->configuration;
+			$curcfg->{collect} = 0;
+			$curcfg->{activated}->{NMIS} = $curcfg->{active} = 0;
+			my $newConfig = $nodeobj->configuration($curcfg);
+			my ($op, $error) = $nodeobj->save(meta => $jobdata->{args}->{meta});
+			$self->log->error("Failed to save '".$nodeobj->name."' deletion may fail: $error (Code=$op)") if ($op < 0); # zero is no saving needed
+			
+			#make sure uuid is set
+			$jobdata->{args}->{uuid} = $nodeobj->uuid;
+		}
+		#NOTE: the node_uuid MUST be set or the scheduler can't query for clashing nodes properly
+		return "Invalid job data, args must contain uuid" if( !$jobdata->{args}->{uuid} );
 	}
 	
 	if ( $jobdata->{type} =~ /^(update_nodes|create_nodes|set_nodes|unset_nodes)$/

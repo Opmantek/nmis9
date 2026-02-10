@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "9.6.4";
+our $VERSION = "9.6.5";
 
 
 use FindBin;
@@ -1297,6 +1297,10 @@ elsif ($Q->{act} =~ /notify/)
 			die "event error: $error\n";
 		}
 	}
+}
+elsif ($Q->{act} =~ /run_topn/)
+{
+	$nmisng->generate_nmis8_style_topn_files( C => $C, topn => $Q->{topn}, consider_seconds => $Q->{consider_seconds}, force => NMISNG::Util::getbool_cli("force", $Q->{force}, 0) );
 }
 else
 {

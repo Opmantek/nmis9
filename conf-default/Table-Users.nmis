@@ -47,7 +47,7 @@ foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;}
 
 return (
 			Users => [
-				{ user => { header => 'User',display => 'key,header,text', value => ["specify"] }},
+				{ user => { header => 'User',display => 'key,header,text', value => ["specify"],helptext => 'User names are validated against a regex pattern. Configure a custom pattern in the authentication settings to support complex or non-standard user names.' }},
 				{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},
 				{ admission => { header => 'Admission',display => 'header,popup', value => ["true","false","bypass"] }},
 				{ groups => { header => 'Group',display => 'header,scrolling', value => ["none", "all", "network", (@groups) ] }}
