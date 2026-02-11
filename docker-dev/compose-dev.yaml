@@ -2,6 +2,7 @@
 services:
   mongo:
     image: mongo:7.0
+    platform: linux/amd64
     restart: always
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
@@ -23,6 +24,7 @@ services:
       - nmis_net
   nmis:
     image: docker.opmantek.net/nmis-dev:latest
+    platform: linux/amd64
     restart: always
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
