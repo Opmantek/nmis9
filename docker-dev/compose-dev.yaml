@@ -22,7 +22,7 @@ services:
     networks:
       - nmis_net
   nmis:
-    image: nmis-dev:latest
+    image: docker.opmantek.net/nmis-dev:latest
     restart: always
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
