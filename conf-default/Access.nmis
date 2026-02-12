@@ -31,18 +31,8 @@
 # are viewable at http://opmantek.com/licensing
 #   
 # *****************************************************************************
+
 %hash = (
-  'access_redacted_values' => {
-    'descr' => 'Allow a user to view redacted node configuration values',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 0,
-    'level2' => 0,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Access_Redacted_Values'
-  },
   'apache_access_log' => {
     'descr' => 'Permit Access to Logfile',
     'group' => 'access',
@@ -285,7 +275,20 @@
     'level5' => '0',
     'name' => 'dyn_health'
   },
-  'dyn_outage' => {
+	
+  'dyn_times' => {
+    'descr' => 'Enable button Reports Dyn Time',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'dyn_time'
+  },
+	
+	'dyn_outage' => {
     'descr' => 'Enable button Reports Dyn Outage',
     'group' => 'button',
     'level0' => '1',
@@ -317,17 +320,6 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'dyn_response'
-  },
-  'dyn_times' => {
-    'descr' => 'Enable button Reports Dyn Time',
-    'group' => 'button',
-    'level0' => '1',
-    'level1' => '1',
-    'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'dyn_time'
   },
   'dyn_top10' => {
     'descr' => 'Enable button Reports Dyn Top10',
@@ -450,292 +442,6 @@
     'level5' => '0',
     'name' => 'Messages'
   },
-  'module_opaddress_admin' => {
-    'descr' => 'Admin Access to opAddress',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opAddress_admin'
-  },
-  'module_opaddress_rw' => {
-    'descr' => 'R/W Access to opAddress',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opAddress_rw'
-  },
-  'module_opaddress_view' => {
-    'descr' => 'View Access to opAddress',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opAddress_view'
-  },
-  'module_opadmin_admin' => {
-    'descr' => 'Admin Access to System Management',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opAdmin_admin'
-  },
-  'module_opadmin_view' => {
-    'descr' => 'View Access to System Management',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opAdmin_view'
-  },
-  'module_opadmin_view_system' => {
-    'descr' => 'Read Only access to System Management',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opAdmin_view_system'
-  },
-  'module_opcharts_admin' => {
-    'descr' => 'Admin Access to opCharts',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opCharts_admin'
-  },
-  'module_opcharts_rw' => {
-    'descr' => 'R/W Access to opCharts',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opCharts_rw'
-  },
-  'module_opcharts_view' => {
-    'descr' => 'View Access to opCharts',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opCharts_view'
-  },
-  'module_opcharts_view_system' => {
-    'descr' => 'View Access to the opCharts System Menu',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opCharts_view_system'
-  },
-  'module_opconfig_admin' => {
-    'descr' => 'Admin Access to opConfig',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opConfig_admin'
-  },
-  'module_opconfig_rw' => {
-    'descr' => 'R/W Access to opConfig',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opConfig_rw'
-  },
-  'module_opconfig_view' => {
-    'descr' => 'View Access to opConfig',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opConfig_view'
-  },
-  'module_opcore_admin' => {
-    'descr' => 'Admin Access to opCore',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opCore_admin'
-  },
-  'module_opcore_rw' => {
-    'descr' => 'R/W Access to opCore',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opCore_rw'
-  },
-  'module_opcore_view' => {
-    'descr' => 'View Access to opCore',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opCore_view'
-  },
-  'module_opevents_admin' => {
-    'descr' => 'Admin Access to opEvents',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opEvents_admin'
-  },
-  'module_opevents_rw' => {
-    'descr' => 'R/W Access to opEvents',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opEvents_rw'
-  },
-  'module_opevents_rw_reports' => {
-    'descr' => 'R/W Access to opEvents Reports',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opEvents_rw_reports'
-  },
-  'module_opevents_sd_admin' => {
-    'descr' => 'Admin Access to opEvents Service Desk',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opEvents_sd_admin'
-  },
-  'module_opevents_sd_ops' => {
-    'descr' => 'Operator Access to opEvents Service Desk',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opEvents_sd_ops'
-  },
-  'module_opevents_view' => {
-    'descr' => 'View Access to opEvents',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opEvents_view'
-  },
-  'module_opevents_view_reports' => {
-    'descr' => 'View Access to opEvents Reports',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opEvents_view_reports'
-  },
-  'module_opexport_admin' => {
-    'descr' => 'Admin Access to opExport',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opExport_admin'
-  },
-  'module_opexport_rw' => {
-    'descr' => 'R/W Access to opExport',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opExport_rw'
-  },
-  'module_opexport_view' => {
-    'descr' => 'View Access to opExport',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opExport_view'
-  },
   'module_opflow_admin' => {
     'descr' => 'Admin Access to opFlow',
     'group' => 'access',
@@ -768,182 +474,6 @@
     'level4' => '1',
     'level5' => '0',
     'name' => 'Module_opFlow_view'
-  },
-  'module_opflowsp_admin' => {
-    'descr' => 'Admin Access to opFlowSP',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opFlowSP_admin'
-  },
-  'module_opflowsp_rw' => {
-    'descr' => 'R/W Access to opFlowSP',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opFlowSP_rw'
-  },
-  'module_opflowsp_view' => {
-    'descr' => 'View Access to opFlowSP',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opFlowSP_view'
-  },
-  'module_opha_admin' => {
-    'descr' => 'Admin Access to opHA',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opHA_admin'
-  },
-  'module_opha_rw' => {
-    'descr' => 'R/W Access to opHA',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opHA_rw'
-  },
-  'module_opha_view' => {
-    'descr' => 'View Access to opHA',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opHA_view'
-  },
-  'module_oplicense_admin' => {
-    'descr' => 'Admin Access to opLicense',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opLicense_admin'
-  },
-  'module_opmaps_admin' => {
-    'descr' => 'Admin Access to opMaps',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opMaps_admin'
-  },
-  'module_opmaps_rw' => {
-    'descr' => 'R/W Access to opMaps',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opMaps_rw'
-  },
-  'module_opmaps_view' => {
-    'descr' => 'View Access to opMaps',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opMaps_view'
-  },
-  'module_opreports_admin' => {
-    'descr' => 'Admin Access to opReports',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opReports_admin'
-  },
-  'module_opreports_rw' => {
-    'descr' => 'R/W Access to opReports',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opReports_rw'
-  },
-  'module_opreports_view' => {
-    'descr' => 'View Access to opReports',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opReports_view'
-  },
-  'module_optrend_admin' => {
-    'descr' => 'Admin Access to opTrend',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 0,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opTrend_admin'
-  },
-  'module_optrend_rw' => {
-    'descr' => 'R/W Access to opTrend',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 0,
-    'level5' => 0,
-    'name' => 'Module_opTrend_rw'
-  },
-  'module_optrend_view' => {
-    'descr' => 'View Access to opTrend',
-    'group' => 'access',
-    'level0' => 1,
-    'level1' => 1,
-    'level2' => 1,
-    'level3' => 1,
-    'level4' => 1,
-    'level5' => 0,
-    'name' => 'Module_opTrend_view'
   },
   'nmis_log' => {
     'descr' => 'Access to Logfile',
@@ -1011,17 +541,6 @@
     'level5' => '0',
     'name' => 'ntw_top10'
   },
-  'poller_event_log' => {
-    'descr' => 'Access to Logfile',
-    'group' => 'button',
-    'level0' => '1',
-    'level1' => '1',
-    'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'Poller_Event_Log'
-  },
   'router_syslog' => {
     'descr' => 'Permit Access to Logfile',
     'group' => 'access',
@@ -1065,6 +584,17 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'rpt_stored'
+  },
+  'poller_event_log' => {
+    'descr' => 'Access to Logfile',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Poller_Event_Log'
   },
   'snmp_traps' => {
     'descr' => 'Access to Logfile',
@@ -1132,6 +662,18 @@
     'level5' => '0',
     'name' => 'strd_health'
   },
+	'strd_times' => {
+    'descr' => 'Enable button Reports Stored Time',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'strd_times'
+  },
+
   'strd_outage' => {
     'descr' => 'Enable button Reports Stored Outage',
     'group' => 'button',
@@ -1164,17 +706,6 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'strd_response'
-  },
-  'strd_times' => {
-    'descr' => 'Enable button Reports Stored Time',
-    'group' => 'button',
-    'level0' => '1',
-    'level1' => '1',
-    'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'strd_times'
   },
   'strd_top10' => {
     'descr' => 'Enable button Reports Stored Top10',
@@ -1252,7 +783,7 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'Table_AuthLdapPrivs_view'
-  },
+  },  
   'table_businessservices_rw' => {
     'descr' => 'Write access to table Business Services',
     'group' => 'access',
@@ -1428,6 +959,28 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'Table_Groups_view'
+  }, 
+  'table_roles_rw' => {
+    'descr' => 'View access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Roles_rw'
+  },
+  'table_roles_view' => {
+    'descr' => 'Read/write access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Roles_view'
   },
   'table_iftypes_rw' => {
     'descr' => 'Write access to table ifTypes',
@@ -1605,28 +1158,6 @@
     'level5' => '0',
     'name' => 'Table_Outages_view'
   },
-  'table_polling-policy_rw' => {
-    'descr' => 'Write access to table Polling-Policy',
-    'group' => 'access',
-    'level0' => '1',
-    'level1' => '1',
-    'level2' => '0',
-    'level3' => '0',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'Table_Polling-Policy_rw'
-  },
-  'table_polling-policy_view' => {
-    'descr' => 'View access to table Polling-Policy',
-    'group' => 'access',
-    'level0' => '1',
-    'level1' => '1',
-    'level2' => '0',
-    'level3' => '0',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'Table_Polling-Policy_view'
-  },
   'table_portal_rw' => {
     'descr' => 'Write access to table Portal',
     'group' => 'access',
@@ -1671,8 +1202,8 @@
     'level5' => '0',
     'name' => 'Table_PrivMap_view'
   },
-  'table_roles_rw' => {
-    'descr' => 'View access to table $table',
+  'table_servicestatus_rw' => {
+    'descr' => 'Write access to table Service Status',
     'group' => 'access',
     'level0' => '1',
     'level1' => '1',
@@ -1680,18 +1211,18 @@
     'level3' => '0',
     'level4' => '0',
     'level5' => '0',
-    'name' => 'Table_Roles_rw'
+    'name' => 'Table_status_rw'
   },
-  'table_roles_view' => {
-    'descr' => 'Read/write access to table $table',
+  'table_servicestatus_view' => {
+    'descr' => 'View access to table Service Status',
     'group' => 'access',
     'level0' => '1',
     'level1' => '1',
     'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
+    'level3' => '0',
+    'level4' => '1',
     'level5' => '0',
-    'name' => 'Table_Roles_view'
+    'name' => 'Table_servicestatus_view'
   },
   'table_services_rw' => {
     'descr' => 'Write access to table Services',
@@ -1715,28 +1246,30 @@
     'level5' => '0',
     'name' => 'Table_Services_view'
   },
-  'table_servicestatus_rw' => {
-    'descr' => 'Write access to table Service Status',
+
+  'table_polling-policy_rw' => {
+    'descr' => 'Write access to table Polling-Policy',
     'group' => 'access',
     'level0' => '1',
     'level1' => '1',
-    'level2' => '1',
+    'level2' => '0',
     'level3' => '0',
     'level4' => '0',
     'level5' => '0',
-    'name' => 'Table_status_rw'
+    'name' => 'Table_Polling-Policy_rw'
   },
-  'table_servicestatus_view' => {
-    'descr' => 'View access to table Service Status',
+  'table_polling-policy_view' => {
+    'descr' => 'View access to table Polling-Policy',
     'group' => 'access',
     'level0' => '1',
     'level1' => '1',
-    'level2' => '1',
+    'level2' => '0',
     'level3' => '0',
-    'level4' => '1',
+    'level4' => '0',
     'level5' => '0',
-    'name' => 'Table_servicestatus_view'
+    'name' => 'Table_Polling-Policy_view'
   },
+
   'table_tables_rw' => {
     'descr' => 'View access to table $table',
     'group' => 'access',
@@ -1802,17 +1335,6 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'Table_Users_view'
-  },
-  'tls_collect' => {
-    'descr' => 'Enable button Tools System collect',
-    'group' => 'button',
-    'level0' => '1',
-    'level1' => '0',
-    'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'tls_collect'
   },
   'tls_date' => {
     'descr' => 'Enable button Tools System date',
@@ -2066,5 +1588,16 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'tls_who'
+  },
+  'tls_collect' => {
+    'descr' => 'Enable button Tools System collect',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '0',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'tls_collect'
   }
 );
