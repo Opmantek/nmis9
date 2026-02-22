@@ -9,6 +9,7 @@ An NMIS notification plugin that publishes NMIS events to an MQTT broker as JSON
 - Configurable ignore list using regex patterns to filter unwanted events
 - Enriches events with extra details (host name, formatted date, optional group info)
 - JSON-formatted MQTT messages
+- Optional secondary MQTT server support for HA or flexibility
 
 ## Requirements
 
