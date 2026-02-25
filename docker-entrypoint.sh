@@ -9,10 +9,9 @@ source /etc/profile
 
 setup() {
   # Create data directories
-  for d in assets var/nmis_system models-custem database conf logs
+  for d in assets var/nmis_system models-custom database conf logs
   do
     dir=${NMIS_HOME}/${d}
-    [[ -d "${dir}" ]] || mkdir -p "${dir}"
 
     if [[ "$(stat --format='%U:%G' "$dir")" != 'nmis:nmis' ]] && [[ -w "$dir" ]]; then
       chown -R nmis:nmis "$dir" || echo "Warning can not change owner to nmis:nmis"
@@ -41,7 +40,7 @@ setup() {
 
 nmis_frontend() {
     set -m
-      /usr/local/nmis9/bin/nmisd foreground=1 debug=1 &
+      /usr/local/nmis9/bin/nmisd foreground=1 &
       /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080" &
 }
 

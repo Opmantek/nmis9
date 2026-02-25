@@ -13,6 +13,7 @@ ARG NMIS_USER_UID=10001
 ARG NMIS_USER_GID=10001
 
 ENV PERL5LIB="/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32"
+ENV CONTAINER=1
 
 RUN apt-get update  > /dev/null && \
     apt-get install --assume-yes \
@@ -124,12 +125,14 @@ WORKDIR ${NMIS_HOME}
 
 COPY . ${NMIS_HOME}
 
-RUN mkdir ${NMIS_HOME}/conf \
+RUN mkdir -p ${NMIS_HOME}/conf \
+    ${NMIS_HOME}/conf/conf.d \
     ${NMIS_HOME}/database \
     ${NMIS_HOME}/var \
     ${NMIS_HOME}/logs \
     ${NMIS_HOME}/htdocs/nmis9 \
-    ${NMIS_HOME}/assets
+    ${NMIS_HOME}/assets \
+    ${NMIS_HOME}/models-custom
 
 COPY ./conf-default/Users.nmis ${NMIS_HOME}/conf
 COPY ./conf-default/users.dat ${NMIS_HOME}/conf
@@ -140,6 +143,7 @@ VOLUME ${NMIS_HOME}/conf
 VOLUME ${NMIS_HOME}/database
 VOLUME ${NMIS_HOME}/var
 VOLUME ${NMIS_HOME}/logs
+VOLUME ${NMIS_HOME}/models-custom
 
 RUN mv /usr/local/nmis9/omk /usr/local/ && \
     mv /usr/local/omk/install/omkd.init.d.bak /etc/init.d/omkd && \

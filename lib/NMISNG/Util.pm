@@ -1054,7 +1054,11 @@ sub warn_die
 # returns undef if successful, error message otherwise
 sub setFileProtDiag
 {
-	return undef;
+	# Should only happen in a container environment
+	if (defined($ENV{CONTAINER}) && $ENV{CONTAINER} eq "1") {
+		return undef;
+    }
+
 	my (%args) = @_;
 	my $C; # = $args{conf} // NMISNG::Util::loadConfTable();
 	(ref($args{conf}) eq "HASH" ? $C = $args{conf}
