@@ -15,6 +15,7 @@ services:
       - nmis_var_data:/usr/local/nmis9/var
       - nmis_conf_data:/usr/local/nmis9/conf
       - nmis_database_data:/usr/local/nmis9/database
+      - nmis_models_custom:/usr/local/nmis9/models-custom
       # You can mount your own config files into volumes in the container but 
       # you must ensure that the db config details match whats in this compose file
       - ./Config.nmis:/usr/local/nmis9/conf/Config.nmis
@@ -84,6 +85,7 @@ volumes:
   nmis_var_data:
   nmis_conf_data:
   nmis_database_data:
+  nmis_models_custom:
   omk_log_data:
   omk_var_data:
   omk_conf_data:
