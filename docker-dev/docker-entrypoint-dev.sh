@@ -15,7 +15,8 @@ setup() {
   for d in assets var/nmis_system models-custom database conf logs
   do
     dir=${NMIS_HOME}/${d}
-
+    [[ -d "${dir}" ]] || mkdir -p "${dir}"
+    
     if [[ "$(stat --format='%U:%G' "$dir")" != 'nmis:nmis' ]] && [[ -w "$dir" ]]; then
       chown -R nmis:nmis "$dir" || echo "Warning can not change owner to nmis:nmis"
     fi
