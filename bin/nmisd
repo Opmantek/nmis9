@@ -500,6 +500,10 @@ $SIG{"TERM"} = $SIG{"INT"} = sub {
 	exit(0) if ($signame eq "TERM");
 };
 
+#For docker, easier if we ensure the index on start
+#TODO look into better logging and check if there is a perf cost
+print $nmisng->ensure_indexes();
+
 # signal handler for USR1/USR2 is just for this process
 $SIG{"USR1"} = $SIG{"USR2"} = sub { &verbosity_signal_handler(shift, $nmisng->log); };
 
@@ -3052,4 +3056,3 @@ args: hashref of stuff for the op
  services: also want list of services
  schedule: fixme9 tbd - for telling the scheduler to do X at time Y; node,group,operation etc etc
  plugins: require phase = collect or update, and uuid => array of 'handled nodes' uuids
-

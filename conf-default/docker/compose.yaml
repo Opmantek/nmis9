@@ -1,0 +1,95 @@
+# compose.yaml file for NMIS Suite
+services:
+  nmis:
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9_omk:v2.2
+    restart: always
+    environment:
+      NMIS_DB_USERNAME: ${MONGODB_USERNAME}
+      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_SERVER: mongo
+      NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
+    depends_on:
+      - mongo
+    volumes:
+      - nmis_log_data:/usr/local/nmis9/logs
+      - nmis_var_data:/usr/local/nmis9/var
+      - nmis_conf_data:/usr/local/nmis9/conf
+      - nmis_database_data:/usr/local/nmis9/database
+      - nmis_models_custom:/usr/local/nmis9/models-custom
+      # You can mount your own config files into volumes in the container but 
+      # you must ensure that the db config details match whats in this compose file
+      - ./Config.nmis:/usr/local/nmis9/conf/Config.nmis
+      - ./opCommon.json:/usr/local/omk/conf/opCommon.json
+      - omk_log_data:/usr/local/omk/log
+      - omk_var_data:/usr/local/omk/var
+      - omk_conf_data:/usr/local/omk/conf
+      # - ./opLicense.json:/usr/local/omk/conf/opLicense.json
+    ports:
+      - "8080:8080"
+      - "8042:8042"
+      - "2055:2055/udp"
+      - "161:161/udp"
+      - "25:25"
+    networks:
+      - nmis_net
+  mongo:
+    image: mongo:7.0
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
+      interval: 60s
+      timeout: 60s
+      retries: 5
+      start_period: 60s
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    volumes:
+      - mongo_data:/data/mongodb
+      - mongo_log:/var/log/mongodb
+      - ./mongo/mongod.conf:/etc/mongod.conf
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
+    networks:
+      - nmis_net
+  redis:
+    image: redis:6.0.16
+    restart: always
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis.conf:/etc/redis/redis.conf
+      - redis_data:/data
+    command: ["redis-server", "/etc/redis/redis.conf", "--requirepass", "${REDIS_PASSWORD}"]
+    networks:
+      - nmis_net
+  httpd:
+    image: httpd:2.4.62-bookworm
+    restart: always
+    volumes:
+      - ./apache2/conf-enabled:/usr/local/apache2/conf/conf-enabled
+      - ./apache2/httpd.conf:/usr/local/apache2/conf/httpd.conf
+      - ./apache2/sites-enabled:/usr/local/apache2/conf/sites-enabled
+      - httpd_log:/usr/local/apache2/logs
+    ports:
+      - 8070:80
+    networks:
+      - nmis_net
+networks:
+  nmis_net:
+volumes:
+  nmis_log_data:
+  nmis_var_data:
+  nmis_conf_data:
+  nmis_database_data:
+  nmis_models_custom:
+  omk_log_data:
+  omk_var_data:
+  omk_conf_data:
+  mongo_data:
+  mongo_log:
+  redis_data:
+  httpd_log:

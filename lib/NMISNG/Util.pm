@@ -890,6 +890,14 @@ sub loadConfTable
 			}
 		}
 	}
+
+	$config_cache->{db_username} = $ENV{NMIS_DB_USERNAME} if(defined($ENV{NMIS_DB_USERNAME}));
+	$config_cache->{db_password} = $ENV{NMIS_DB_PASSWORD} if(defined($ENV{NMIS_DB_PASSWORD}));
+	$config_cache->{db_server} = $ENV{NMIS_DB_SERVER} if(defined($ENV{NMIS_DB_SERVER}));
+	$config_cache->{server_name} = $ENV{NMIS_SERVER_NAME} if(defined($ENV{NMIS_SERVER_NAME}));
+	$config_cache->{cluster_id} = $ENV{NMIS_CLUSTER_ID} if(defined($ENV{NMIS_CLUSTER_ID}));
+	$config_cache->{'<cgi_url_base>'} = $ENV{NMIS_URL_BASE} if(defined($ENV{NMIS_URL_BASE}));
+
 	return $config_cache;
 }
 
@@ -954,7 +962,7 @@ sub read_load_cache
 		}
 		
 		# this one is vital for NMIS9 in particular: the cluster_id must be unique AND not change
-		if (!$config_cache->{cluster_id} && $is_master)
+		if (!$config_cache->{cluster_id} && $is_master && !$ENV{NMIS_CLUSTER_ID})
 		{
 			$deepdata{id}->{cluster_id} = $config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
 			# and write back the updated config file - cannot use writehashtofile yet!
@@ -1046,6 +1054,11 @@ sub warn_die
 # returns undef if successful, error message otherwise
 sub setFileProtDiag
 {
+	# Should only happen in a container environment
+	if (defined($ENV{CONTAINER}) && $ENV{CONTAINER} eq "1") {
+		return undef;
+    }
+
 	my (%args) = @_;
 	my $C; # = $args{conf} // NMISNG::Util::loadConfTable();
 	(ref($args{conf}) eq "HASH" ? $C = $args{conf}
