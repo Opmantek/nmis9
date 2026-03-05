@@ -42,15 +42,15 @@ The install script will:
 
    ```bash
    cp mqttevent.pm /usr/local/nmis9/lib/Notify/mqttevent.pm
-   cp mqttevent.nmis /usr/local/nmis9/conf/mqttevent.nmis
+   cp Table-mqttevent.nmis /usr/local/nmis9/conf/Table-mqttevent.nmis
    cp mqttIgnoreList.txt /usr/local/nmis9/conf/mqttIgnoreList.txt
-   chown nmis:nmis /usr/local/nmis9/lib/Notify/mqttevent.pm /usr/local/nmis9/conf/mqttevent.nmis /usr/local/nmis9/conf/mqttIgnoreList.txt
-   chmod 640 /usr/local/nmis9/lib/Notify/mqttevent.pm /usr/local/nmis9/conf/mqttevent.nmis /usr/local/nmis9/conf/mqttIgnoreList.txt
+   chown nmis:nmis /usr/local/nmis9/lib/Notify/mqttevent.pm /usr/local/nmis9/conf/Table-mqttevent.nmis /usr/local/nmis9/conf/mqttIgnoreList.txt
+   chmod 640 /usr/local/nmis9/lib/Notify/mqttevent.pm /usr/local/nmis9/conf/Table-mqttevent.nmis /usr/local/nmis9/conf/mqttIgnoreList.txt
    ```
 
 ### Configuration
 
-1. Edit `/usr/local/nmis9/conf/mqttevent.nmis` with your MQTT broker details:
+1. Edit `/usr/local/nmis9/conf/Table-mqttevent.nmis` with your MQTT broker details:
 
    ```perl
    %hash = (
@@ -104,7 +104,7 @@ Generally speaking adding the MQTT method to default escalation at level0 would 
 
 When NMIS triggers a notification, this plugin:
 
-1. Reads MQTT connection settings from `conf/mqttevent.nmis`
+1. Reads MQTT connection settings from `conf/Table-mqttevent.nmis`
 2. Checks the event against the ignore list — matching events are silently skipped
 3. Enriches the event with the NMIS server hostname and a human-readable date string
 4. Publishes the event as a JSON object to `<topic>/<node_name>` on the configured MQTT broker

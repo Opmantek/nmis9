@@ -1,0 +1,17 @@
+%hash = (
+  'mqtt' => {
+    'topic'         => 'nmis/event', # or whatever you like e.g. your/mqtt/topic
+    'server'        => 'your.mqtt.server:1883',
+    'username'      => 'your_mqtt_username',
+    'password'      => 'your_mqtt_password',
+    'extra_logging' => 0,
+  },
+  # Optional mqtt secondary server for highly available messaging or just general flexibility.
+  # To use uncomment and complete the required details.
+  #'mqtt_secondary' => {
+  #  'topic'         => 'nmis/event', # or whatever you like e.g. your/mqtt/topic
+  #  'server'        => 'your_other.mqtt.server:1883',
+  #  'username'      => 'your_other_mqtt_username',
+  #  'password'      => 'your_other_mqtt_password',
+  #}
+);
