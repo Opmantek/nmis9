@@ -59,13 +59,13 @@ chown "${NMIS_USER}:${NMIS_GROUP}" "${NMIS_LIB}/mqttevent.pm"
 chmod 640 "${NMIS_LIB}/mqttevent.pm"
 
 # Install the config file (don't overwrite if it already exists)
-if [[ -f "${NMIS_CONF}/Table-mqttevent.nmis" ]]; then
-    echo "  ${NMIS_CONF}/Table-mqttevent.nmis (exists - skipped, not overwriting)"
+if [[ -f "${NMIS_CONF}/mqttevent.nmis" ]]; then
+    echo "  ${NMIS_CONF}/mqttevent.nmis (exists - skipped, not overwriting)"
 else
-    echo "  ${NMIS_CONF}/Table-mqttevent.nmis"
-    cp "${SCRIPT_DIR}/Table-mqttevent.nmis" "${NMIS_CONF}/Table-mqttevent.nmis"
-    chown "${NMIS_USER}:${NMIS_GROUP}" "${NMIS_CONF}/Table-mqttevent.nmis"
-    chmod 640 "${NMIS_CONF}/Table-mqttevent.nmis"
+    echo "  ${NMIS_CONF}/mqttevent.nmis"
+    cp "${SCRIPT_DIR}/mqttevent.nmis" "${NMIS_CONF}/mqttevent.nmis"
+    chown "${NMIS_USER}:${NMIS_GROUP}" "${NMIS_CONF}/mqttevent.nmis"
+    chmod 640 "${NMIS_CONF}/mqttevent.nmis"
 fi
 
 # Install the ignore list (don't overwrite if it already exists)
@@ -82,6 +82,6 @@ echo ""
 echo "Installation complete."
 echo ""
 echo "Next steps:"
-echo "  1. Edit ${NMIS_CONF}/Table-mqttevent.nmis with your MQTT broker details."
+echo "  1. Edit ${NMIS_CONF}/mqttevent.nmis with your MQTT broker details."
 echo "  2. (Optional) Edit ${NMIS_CONF}/mqttIgnoreList.txt to filter events."
 echo "  3. Configure NMIS to use Notify::mqttevent for your desired events."

@@ -60,9 +60,9 @@ sub sendNotification
 	my $C = $nmisng->config;
 
 	# get mqtt config from config file.
-	if (NMISNG::Util::existFile(dir=>'conf',name=>'Table-mqttevent')) {
+	if (NMISNG::Util::existFile(dir=>'conf',name=>'mqttevent')) {
 		# loadtable falls back to conf-default if conf doesn't have the file
-		my $mqttConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'Table-mqttevent');
+		my $mqttConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'mqttevent');
 		$topic = $mqttConfig->{mqtt}{topic};
 		$server = $mqttConfig->{mqtt}{server};
 		$username = $mqttConfig->{mqtt}{username};
