@@ -1,0 +1,66 @@
+#
+# Configuration for the MqttObservations collect plugin.
+#
+# Install this file to: /usr/local/nmis9/conf/mqttobservations.nmis
+#
+# The plugin publishes per-node latest_data observations to an MQTT broker
+# as OTel-inspired flat JSON messages.
+#
+# Topic format: {topic}/{node_name}/{concept}/{description}
+#               {topic}/{node_name}/{subconcept}   (catchall/ping)
+#
+%hash = (
+
+	# MQTT broker connection settings
+	'mqtt' => {
+		# MQTT broker address and port
+		'server'   => 'your.mqtt.server:1883',
+
+		# Base topic prefix. The full topic will be:
+		#   {topic}/{node_name}/{concept}/{index}
+		# e.g. obs/nmis/router1/interface/GigabitEthernet0_0
+		'topic'    => 'obs/nmis',
+
+		# Broker authentication (leave empty if not required)
+		'username' => '',
+		'password' => '',
+
+		# Set to 1 to publish messages with the MQTT retain flag,
+		# so the broker keeps the last message per topic for new subscribers.
+		'retain' => 1,
+
+		# Number of times to retry publishing on failure (0 = no retries)
+		'retries' => 1,
+
+		# Set to 1 to enable verbose per-message debug logging
+		'extra_logging' => 0,
+	},
+
+	# Optional secondary MQTT broker. If configured, every message is also
+	# published to this broker. Remove or leave 'server' empty to disable.
+	#'mqtt_secondary' => {
+	#	'server'   => 'secondary.mqtt.server:1883',
+	#	'topic'    => 'obs/nmis',
+	#	'username' => '',
+	#	'password' => '',
+	#},
+
+	# List of NMIS inventory concepts to publish.
+	# Each concept maps to a class of collected data:
+	#   'interface'    - network interfaces (ifDescr, ifOperStatus, counters, ...)
+	#   'catchall'     - general node info (sysName, sysDescr, reachability, ...)
+	#   'Host_Storage' - disk/memory storage (hrStorageDescr, utilisation, ...)
+	#
+	# Only concepts listed here will be published. Remove or comment out any
+	# concepts you do not need.
+	'concepts' => [
+		'catchall',
+		'interface',
+		'Host_Storage',
+		'diskIOTable',
+		'env-temp',
+		'service',
+		'ping',
+		'device'
+	],
+);
