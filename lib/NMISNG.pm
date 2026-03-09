@@ -49,6 +49,7 @@ use Errno qw(EAGAIN ESRCH EPERM);
 use Mojo::File;                         # slurp
 use JSON::XS;
 use Archive::Zip 1.36;					# for dump()/undump()
+use Text::CSV;
 
 use NMISNG::DB;
 use NMISNG::Events;
@@ -5622,6 +5623,9 @@ sub update_queue
 #   historic_events => 0 (default) or 1, only include current events if 0
 #   opstatus_limit => N or undef, default undef. include N most recent records or all
 #   rrd => 0 (default) or 1 to include all rrd files of this node
+#   rrd_format => undef (default, raw rrd) or "csv" to convert rrd data to csv
+#   rrd_start => unix timestamp, start of rrd export range (default: first available sample)
+#   rrd_end => unix timestamp, end of rrd export range (default: now)
 #
 # returns: hashref, success/error
 sub dump_node
@@ -5787,12 +5791,72 @@ sub dump_node
 	my $ziperr;
 	Archive::Zip::setErrorHandler(sub { $ziperr = shift;}); # a::z croaks by default
 	my $zip = Archive::Zip->new();
+
+	# if rrd_format is csv, we convert rrd files to csv instead of dumping the binary
+	my $rrd_as_csv = ($options->{rrd_format} && lc($options->{rrd_format}) eq "csv");
+	if ($rrd_as_csv)
+	{
+		mkdir("$td/rrd_csv") or return { error => "could not create dir $td/rrd_csv: $!" };
+	}
+
 	for my $dumpme (sort { $a->{where} cmp $b->{where} } @todump)
 	{
 		my $is_rrd_file = ($dumpme->{where} eq "rrd");
 		my ($fullpath,$zipname);
 
-		if ($is_rrd_file)
+		if ($is_rrd_file && $rrd_as_csv)
+		{
+			# convert rrd to csv
+			my $relfile = $dumpme->{what}->{_id};
+			my $rrdpath = $self->config->{database_root} . $relfile;
+			next if (!-f $rrdpath);
+
+			# determine time range: from first available sample to last update
+			my $rrd_start = $options->{rrd_start};
+			my $rrd_end = $options->{rrd_end} // time();
+			if (!$rrd_start)
+			{
+				# RRDs::first returns the timestamp of the first data sample in rra 0
+				$rrd_start = RRDs::first($rrdpath);
+				if (my $err = RRDs::error())
+				{
+					$self->log->warn("could not determine first sample for $rrdpath: $err, skipping");
+					next;
+				}
+			}
+
+			my ($statval, $head, $meta) = NMISNG::rrdfunc::getRRDasHash(
+				database => $rrdpath,
+				mode     => "AVERAGE",
+				start    => $rrd_start,
+				end      => $rrd_end,
+			);
+			if ($meta->{error})
+			{
+				$self->log->warn("could not read rrd $rrdpath: $meta->{error}, skipping");
+				next;
+			}
+			next if (!$meta->{rows_with_data}); # empty rrd, skip
+
+			# build csv content
+			my $csv = Text::CSV->new({binary => 1, eol => "\n"});
+			(my $csvrelfile = $relfile) =~ s/\.rrd$/.csv/;
+			my $csvtmppath = "$td/rrd_csv/" . join("_", split(m!/!, $csvrelfile));
+			open(my $csvfh, ">:encoding(utf8)", $csvtmppath)
+				or return { error => "could not create csv temp file $csvtmppath: $!" };
+
+			$csv->print($csvfh, $head);
+			foreach my $rtime (sort { $a <=> $b } keys %{$statval})
+			{
+				next unless List::Util::any { defined $statval->{$rtime}->{$_} } (@$head);
+				$csv->print($csvfh, [map { $statval->{$rtime}->{$_} } @$head]);
+			}
+			close($csvfh);
+
+			$zipname = "$uuid/rrd_csv$csvrelfile";
+			$fullpath = $csvtmppath;
+		}
+		elsif ($is_rrd_file)
 		{
 			my $relfile = $dumpme->{what}->{_id};
 			$zipname = "$uuid/$dumpme->{where}$relfile"; # rrd path is relative but with leading /

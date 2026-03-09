@@ -841,6 +841,12 @@ elsif  ($cmdline->{act} eq "dump")
 	my %options = (NMISNG::Util::getbool_cli("everything", $cmdline->{everything}, 0)
 								? (historic_events => 1, opstatus_limit => undef, rrd => 1 )
 								: ( historic_events => 0, opstatus_limit => 1000, rrd => 0));
+	# rrd_format=csv converts rrd files to csv in the dump instead of including raw rrd binaries
+	if ($cmdline->{rrd_format})
+	{
+		$options{rrd} = 1;
+		$options{rrd_format} = $cmdline->{rrd_format};
+	}
 	my $res = $nmisng->dump_node(name => $nodename,
 															 uuid => $uuid,
 															 target => $file,
