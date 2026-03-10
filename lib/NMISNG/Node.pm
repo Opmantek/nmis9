@@ -1550,14 +1550,13 @@ sub save
 			if ($self->is_new && !$self->_dirty);
 	return ( 0,  undef )          if ( !$self->_dirty() );
 
+	# OMK-12345 this removed N/A if node depend has 'N/A'
 	my $configuration = $self->configuration;
-	
 	if (defined $configuration->{depend}){
-		$configuration->{depend} = [ grep { $_ ne 'N/A' } @{$configuration->{depend}} ] ;
+		$configuration->{depend} = [ grep { $_ ne 'N/A' } @{$configuration->{depend}} ] ;	
 		# this will set the dirty bit for configuration automatically.
 		$self->configuration($configuration);
 	}
-
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 	
@@ -1792,8 +1791,9 @@ sub validate
 				if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
 	
+	# OMK-12345 this validates if node depend has actual nodes or not.
 	if (defined $configuration->{depend}){
-		foreach my $node (@{$configuration->{depend}}){
+		foreach my $node (@{$configuration->{depend}}){									
 			if (!$self->nmisng->get_nodes_model(name => $node)->count){
 				return (-1, "Invalid node name in configuration/depend: $node");
 			}
