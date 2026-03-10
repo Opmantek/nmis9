@@ -1550,6 +1550,17 @@ sub save
 			if ($self->is_new && !$self->_dirty);
 	return ( 0,  undef )          if ( !$self->_dirty() );
 
+	# OMK-12345 this removed N/A if node depend has 'N/A'
+	# N/A used to be allowed in depend setting, it is no longer a valid value
+	my $configuration = $self->configuration;
+	if (defined $configuration->{depend}){
+		my @filtered = grep { $_ ne 'N/A' } @{$configuration->{depend}};
+		# only call setter if the array changed, otherwise the dirty bit will be set unnecessarily
+		if (@filtered != @{$configuration->{depend}}) {
+			$configuration->{depend} = \@filtered;
+			$self->configuration($configuration);
+		}
+	}
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 	
@@ -1783,7 +1794,15 @@ sub validate
 		return (-1, "node '".$self->{_name}."' requires $musthave property")
 				if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
-
+	
+	# OMK-12345 this validates if node depend has actual nodes or not.
+	if (defined $configuration->{depend}){
+		foreach my $node (@{$configuration->{depend}}){									
+			if (!$self->nmisng->get_nodes_model(name => $node)->count){
+				return (-1, "Invalid node name in configuration/depend: $node");
+			}
+		}
+	}
 	# note: this function and sub rename must apply the same restrictions.
 	# '/' is one of the few characters that absolutely cannot work as
 	# node name (b/c of file and dir names)
