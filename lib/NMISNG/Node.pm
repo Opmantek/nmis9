@@ -1551,6 +1551,7 @@ sub save
 	return ( 0,  undef )          if ( !$self->_dirty() );
 
 	# OMK-12345 this removed N/A if node depend has 'N/A'
+	# N/A used to be allowed in depend setting, it is no longer a valid value
 	my $configuration = $self->configuration;
 	if (defined $configuration->{depend}){
 		my @filtered = grep { $_ ne 'N/A' } @{$configuration->{depend}};
