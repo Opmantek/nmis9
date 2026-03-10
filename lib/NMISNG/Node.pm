@@ -1553,9 +1553,12 @@ sub save
 	# OMK-12345 this removed N/A if node depend has 'N/A'
 	my $configuration = $self->configuration;
 	if (defined $configuration->{depend}){
-		$configuration->{depend} = [ grep { $_ ne 'N/A' } @{$configuration->{depend}} ] ;	
-		# this will set the dirty bit for configuration automatically.
-		$self->configuration($configuration);
+		my @filtered = grep { $_ ne 'N/A' } @{$configuration->{depend}};
+		# only call setter if the array changed, otherwise the dirty bit will be set unnecessarily
+		if (@filtered != @{$configuration->{depend}}) {
+			$configuration->{depend} = \@filtered;
+			$self->configuration($configuration);
+		}
 	}
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
