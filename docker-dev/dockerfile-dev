@@ -144,19 +144,6 @@ RUN addgroup --gid ${NMIS_USER_GID} ${NMIS_GROUP} && \
 
 WORKDIR ${NMIS_HOME}
 
-COPY ../conf-default/Users.nmis \
-     ../conf-default/users.dat \
-     ../conf-default/Access.nmis \
-     ../conf-default/docker/Config.nmis.docker \
-     ${NMIS_HOME}/conf/
-
-RUN mv ${NMIS_HOME}/conf/Config.nmis.docker \
-       ${NMIS_HOME}/conf/Config.nmis
-
-RUN chown -R ${NMIS_USER}:${NMIS_GROUP} ${NMIS_HOME}
-
-USER ${NMIS_USER}
-
 # NMIS Web 8080
 # MTA Port 25
 # SNMP Ports 161/udp 162/udp

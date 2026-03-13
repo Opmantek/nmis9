@@ -37,7 +37,6 @@ services:
     depends_on:
       - mongo
     volumes:
-      - nmis_conf_data:/usr/local/nmis9/conf
       - ../:/usr/local/nmis9
     ports:
       - "8080:8080"
