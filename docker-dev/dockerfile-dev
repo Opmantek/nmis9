@@ -1,5 +1,5 @@
 # This dockerfile is to create NMIS from source images
-FROM perl:5.32.1-threaded-bullseye
+FROM debian:bullseye
 
 LABEL maintainer="James Greewnwood. <james.greenwood@firstwave.com>" 
 LABEL maintainer="Louis Tissington. <louis.tissington@firstwave.com>"
@@ -43,7 +43,9 @@ RUN apt-get update  > /dev/null && \
     snmptrapd \
     iputils-ping \
     dnsutils \
+    gcc \
     mtr \
+    make \
     traceroute \
     libnet-snmp-perl \
     libcrypt-passwdmd5-perl \
@@ -106,7 +108,7 @@ RUN apt-get update  > /dev/null && \
 WORKDIR /tmp
 
 # Essential cpanm perl modules
-RUN /usr/bin/cpanm --notest --no-interactive \
+RUN cpanm --notest --no-interactive \
     --local-lib=/usr/local/lib/site_perl \
     IO::Socket::IP \
     Socket \
@@ -127,8 +129,7 @@ RUN /usr/bin/cpanm --notest --no-interactive \
     Crypt::UnixCrypt \
     Authen::TacacsPlus \
     Authen::Simple::RADIUS \
-    SOAP::Lite \
-    Net::SFTP::Foreign
+    SOAP::Lite
 
 # Soft link because some tools look for /usr/bin/ip not /sbin/ip
 RUN ln -s /sbin/ip /usr/bin/ip
@@ -151,6 +152,10 @@ COPY ../conf-default/Users.nmis \
 
 RUN mv ${NMIS_HOME}/conf/Config.nmis.docker \
        ${NMIS_HOME}/conf/Config.nmis
+
+RUN chown -R ${NMIS_USER}:${NMIS_GROUP} ${NMIS_HOME}
+
+USER ${NMIS_USER}
 
 # NMIS Web 8080
 # MTA Port 25
