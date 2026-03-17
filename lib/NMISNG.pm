@@ -5943,6 +5943,8 @@ sub undump_node
 																 constraints => 1); # constrain_record is vital for $oid, $binary...
 		if( $onething->{where} eq 'events' &&  !$res->{success} && $res->{error} =~ /node_uuid_1_event_1_element_1_active_1/) {
 			print "ignoring failure because events have a duplicity issue: failed to insert record into $onething->{where} collection: $res->{error}\n";
+		} elsif( $onething->{where} eq 'opstatus' &&  !$res->{success} && $res->{error} =~ /_id_/) {
+			print "ignoring failure because opstatus can have multiple nodes so the same record may exist in multiple dumps: failed to insert record into $onething->{where} collection: $res->{error}\n";
 		} elsif (!$res->{success}) {
 			return { error => "failed to insert record into $onething->{where} collection: $res->{error}" };
 		}
@@ -5952,6 +5954,7 @@ sub undump_node
 	my $dbdir = $self->config->{database_root};
 	for my $zippedrrd (@rrdfiles)
 	{
+		next if $zippedrrd !~ /\.rrd$/; # sanity check, needs to be an rrd file extension (some other files have been making it into the zip and causing problems)
 		( my $targetfn = $zippedrrd ) =~ s!^$noderec->{uuid}/rrd!$dbdir!;
 		( my $targetdir = $targetfn ) =~  s!/[^/]+$!!;
 
