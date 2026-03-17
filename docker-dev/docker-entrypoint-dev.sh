@@ -70,7 +70,10 @@ dev_user_map() {
     DEV_GROUP="$group"
   else
     groupadd -g "$DEV_GID" dev
+<<<<<<< HEAD
     DEV_GROUP="dev"
+=======
+>>>>>>> 6dc8dfb3 (OMK-12085 Permissions mapping for development)
   fi
 
   if [[ -n "$user" ]]; then
@@ -90,6 +93,10 @@ run() {
   setup_db
   dev_user_map
   nmis_frontend
+<<<<<<< HEAD
+=======
+  dev_user_map
+>>>>>>> 6dc8dfb3 (OMK-12085 Permissions mapping for development)
   # Tail something to keep the container alive
   tail -f /dev/null
 }
