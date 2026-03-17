@@ -5913,7 +5913,11 @@ sub undump_node
 	my @insertme = ({ where => "nodes", what => $noderec});
 	for my $fn (@filenames)
 	{
-		next if ($fn eq $nodefiles[0] or $fn =~ /\.rrd$/);
+		# we decode_json below so we only want to process json files
+		# zip files are supported but the filename is not necessarily indicative of the content, so we have to look at the content (still .json it seems)
+		# this prevents things like .bak files that have been left around from causing problems
+		next if ($fn eq $nodefiles[0] or $fn !~ /\.json$/);
+
 
 		(undef, my $collection, undef) = split(m!/!,$fn); # uuid/collection/oid.json, and oid is embedded
 

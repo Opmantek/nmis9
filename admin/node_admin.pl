@@ -442,10 +442,7 @@ elsif ($cmdline->{act} eq "import"
 				how => "node_admin",
 				details => "Import node " . $node->name
 		};
-		my ($op,$error) = $node->save(meta => $meta);
-		
-		# and save
-		my ($op,$error) = $node->save();
+		my ($op,$error) = $node->save(meta => $meta);		
 		if($op <= 0)									# zero is no saving needed
 		{
 			$logger->error("Error saving node '".$node->name."': Code; $op, Error; $error");
