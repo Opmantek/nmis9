@@ -153,6 +153,10 @@ COPY ../conf-default/Users.nmis \
 RUN mv ${NMIS_HOME}/conf/Config.nmis.docker \
        ${NMIS_HOME}/conf/Config.nmis
 
+RUN chown -R ${NMIS_USER}:${NMIS_GROUP} ${NMIS_HOME}
+
+USER ${NMIS_USER}
+
 # NMIS Web 8080
 # MTA Port 25
 # SNMP Ports 161/udp 162/udp
