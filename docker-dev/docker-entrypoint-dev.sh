@@ -15,11 +15,7 @@ setup() {
   for d in assets var/nmis_system models-custom database conf logs
   do
     dir=${NMIS_HOME}/${d}
-    [[ -d "${dir}" ]] || mkdir -p "${dir}"
-    
-    if [[ "$(stat --format='%U:%G' "$dir")" != 'nmis:nmis' ]] && [[ -w "$dir" ]]; then
-      chown -R nmis:nmis "$dir" || echo "Warning can not change owner to nmis:nmis"
-    fi
+    [[ -d "${dir}" ]] || mkdir -p "${dir}"    
   done
 
  # fake a couple of aseets dirs for mojo
@@ -55,12 +51,33 @@ setup_db() {
   yes '' | /usr/local/nmis9/admin/setup_mongodb.pl
 }
 
+dev_user_map() {
+  group="$(getent group "$DEV_GID" | cut -d: -f1)"
+  user="$(getent passwd "$DEV_UID" | cut -d: -f1)"
+
+  if [[ -n "$group" ]]; then
+    DEV_GROUP="$group"
+  else
+    groupadd -g "$DEV_GID" dev
+  fi
+
+  if [[ -n "$user" ]]; then
+    DEV_USER="$user"
+  else
+    useradd -m -u "$DEV_UID" -g "${DEV_GROUP}" -s /bin/bash dev
+    DEV_USER="dev"
+  fi
+
+  find "$NMIS_HOME" \
+    -path "$NMIS_HOME/.git" -prune -o \
+    -exec chown "$DEV_UID:$DEV_GID" {} +
+}
 
 run() {
   setup
   setup_db
   nmis_frontend
-
+  dev_user_map
   # Tail something to keep the container alive
   tail -f /dev/null
 }

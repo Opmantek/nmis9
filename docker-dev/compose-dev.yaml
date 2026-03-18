@@ -31,6 +31,8 @@ services:
       NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
       NMIS_DB_SERVER: mongo
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
+      DEV_UID: ${DEV_UID}
+      DEV_GID: ${DEV_GID}
       CONTAINER: 1
     depends_on:
       - mongo
