@@ -5011,7 +5011,7 @@ sub collect_systemhealth_info
 				}
 
 				# save the seen index value
-				my $target = {$index_var => $indexvalue};
+				my $target = { index_var => $index_var, index_value => $indexvalue };
 
 				# then get all data for this indexvalue
 				# Inventory note: for now Sys will populate the nodeinfo section it cares about
@@ -5150,8 +5150,9 @@ sub collect_systemhealth_info
 							next;
 						}
 					}
-
-					$targets->{$index}{$index_var} = $indexvalue;
+					# use predictable keys, index_var as the key is dangerous (dots in it will break things)					
+					$targets->{$index}{index_var} = $index_var;
+					$targets->{$index}{index_value} = $indexvalue;
 				}
 			}
 			else
