@@ -3,6 +3,7 @@
 set -e
 
 NMIS_HOME=/usr/local/nmis9
+NMIS_LOG=${NMIS_HOME}/logs/nmis.log
 
 # shellcheck disable=SC1091
 source /etc/profile
@@ -35,8 +36,9 @@ setup() {
     done
   fi
 
+  # Remove pid file that gets saved in /var mount, otherwise stops nmisd from running when starting the container
+  rm -f "${NMIS_HOME}/var/nmis_system/nmisd.pid"
 }
-
 
 nmis_frontend() {
     set -m
@@ -46,32 +48,15 @@ nmis_frontend() {
 
 setup_db() {
   yes '' | /usr/local/nmis9/admin/setup_mongodb.pl
-	yes '' | /usr/local/omk/bin/setup_mongodb.exe
-}
-
-start_apps() {
-#start services up
-    services=("omkd" "opchartsd" "opeventsd" "opconfigd")
-
-    for service in "${services[@]}"; do
-        echo "Starting $service daemon..."
-        service $service start
-        if [ $? -eq 0 ]; then
-            echo "$service service started successfully."
-        else
-            echo "Failed to start $service service."
-        fi
-    done
 }
 
 run() {
   setup
   setup_db
   nmis_frontend
-  start_apps
 
 #tail omkd out to keep alive, or anything rlly
-  tail -f /usr/local/omk/log/omkd_out.log
+  tail -f "${NMIS_LOG}"
 }
 
 run "$@"
