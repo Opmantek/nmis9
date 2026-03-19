@@ -1,0 +1,548 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opmantek.com/nmis9/model-schema.json",
+  "title": "NMIS9 Model File Schema",
+  "description": "Schema for NMIS9 .nmis model files (Model-*, Common-*, Graph-*)",
+
+  "$defs": {
+
+    "stringOrNumber": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" }
+      ]
+    },
+
+    "replaceMap": {
+      "description": "Value replacement mapping (raw value -> display string)",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/stringOrNumber" }
+    },
+
+    "snmpFieldDef": {
+      "description": "Single SNMP field definition",
+      "type": "object",
+      "properties": {
+        "oid":            { "type": "string" },
+        "title":          { "type": "string" },
+        "title_export":   { "type": "string" },
+        "option":         { "type": "string" },
+        "replace":        { "$ref": "#/$defs/replaceMap" },
+        "calculate":      { "type": "string" },
+        "info":           { "type": "string" },
+        "comment":        { "type": "string" },
+        "snmpObject":     { "type": "string" },
+        "snmpObjectName": { "type": "string" },
+        "sysObjectName":  { "type": "string" },
+        "check":          { "type": "string" },
+        "format":         { "type": "string" },
+        "alert":          { "type": "object", "additionalProperties": true },
+        "event":          { "type": "string" },
+        "level":          { "type": "string" },
+        "test":           { "type": "string" },
+        "type":           { "type": "string" },
+        "element":        { "type": "string" },
+        "unit":           { "type": "string" },
+        "units":          { "type": "string" },
+        "value":          { "type": "string" },
+        "threshold": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "additionalProperties": true }
+          ]
+        },
+        "control":        { "type": "string" },
+        "graphtype":      { "type": "string" },
+        "obsolete":       { "$ref": "#/$defs/stringOrNumber" },
+        "cbqosMibObject_comment": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "wmiFieldDef": {
+      "description": "Single WMI field definition",
+      "type": "object",
+      "properties": {
+        "field":        { "type": "string" },
+        "query":        { "type": "string" },
+        "title":        { "type": "string" },
+        "option":       { "type": "string" },
+        "calculate":    { "type": "string" },
+        "tags": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "dependencies": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "wmiCommonBlock": {
+      "description": "The -common- key in a wmi block with shared query",
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "snmpBlock": {
+      "description": "Object of SNMP field definitions",
+      "type": "object",
+      "patternProperties": {
+        "^.*$": { "$ref": "#/$defs/snmpFieldDef" }
+      }
+    },
+
+    "wmiBlock": {
+      "description": "Object of WMI field definitions, optionally with -common- shared query",
+      "type": "object",
+      "properties": {
+        "-common-": { "$ref": "#/$defs/wmiCommonBlock" }
+      },
+      "patternProperties": {
+        "^(?!-common-$).*$": { "$ref": "#/$defs/wmiFieldDef" }
+      }
+    },
+
+    "dataSubsection": {
+      "description": "A named sys/rrd subsection defining collected data",
+      "type": "object",
+      "properties": {
+        "snmp":           { "$ref": "#/$defs/snmpBlock" },
+        "wmi":            { "$ref": "#/$defs/wmiBlock" },
+        "indexed":        { "$ref": "#/$defs/stringOrNumber" },
+        "graphtype":      { "type": "string" },
+        "threshold":      { "type": "string" },
+        "headers":        { "type": "string" },
+        "index_headers":  { "type": "string" },
+        "index_oid":      { "type": "string" },
+        "index_regex":    { "type": "string" },
+        "index_suffix_oid": { "type": "string" },
+        "index_function": { "type": "string" },
+        "control":        { "type": "string" },
+        "control_comment": { "type": "string" },
+        "control_descr":  { "type": "string" },
+        "comment":        { "type": "string" },
+        "option":         { "type": "string" },
+        "no_graphs":      { "$ref": "#/$defs/stringOrNumber" },
+        "nocollect": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "additionalProperties": true }
+          ]
+        },
+        "skip_collect":   { "$ref": "#/$defs/stringOrNumber" },
+        "snmpObjectName": { "type": "string" },
+        "nexus":          { "type": "string" },
+        "placeholder": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "additionalProperties": true }
+          ]
+        },
+        "extra":          { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
+    },
+
+    "stringMap": {
+      "description": "Object with string values",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+
+    "collectFilterBlock": {
+      "description": "Collect/nocollect/noevent filter rules (field -> regex)",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+
+    "sysRrdContainer": {
+      "description": "Container with sys/rrd subsections and metadata",
+      "type": "object",
+      "properties": {
+        "sys": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": { "$ref": "#/$defs/dataSubsection" }
+          }
+        },
+        "rrd": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": { "$ref": "#/$defs/dataSubsection" }
+          }
+        },
+        "nodegraph":        { "type": "string" },
+        "nodeModel":        { "type": "string" },
+        "nodeModelComment": { "type": "string" },
+        "nodeType":         { "type": "string" },
+        "nodeVendor":       { "type": "string" },
+        "sections":         { "type": "string" },
+        "collect":          { "$ref": "#/$defs/collectFilterBlock" },
+        "nocollect":        { "$ref": "#/$defs/collectFilterBlock" },
+        "noevent":          { "$ref": "#/$defs/collectFilterBlock" },
+        "cbqos": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "additionalProperties": true }
+          ]
+        },
+        "nbarpd_check":     { "type": "string" },
+        "check_nbarpd":     { "type": "string" },
+        "overlays":         { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
+    },
+
+    "commonReference": {
+      "description": "The -common- top-level key referencing Common-* files",
+      "type": "object",
+      "required": ["class"],
+      "properties": {
+        "class": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "object",
+              "required": ["common-model"],
+              "properties": {
+                "common-model": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "severityValues": {
+      "description": "Severity level values (warning/minor/major/critical/fatal)",
+      "type": "object",
+      "properties": {
+        "warning":  { "$ref": "#/$defs/stringOrNumber" },
+        "minor":    { "$ref": "#/$defs/stringOrNumber" },
+        "major":    { "$ref": "#/$defs/stringOrNumber" },
+        "critical": { "$ref": "#/$defs/stringOrNumber" },
+        "fatal":    { "$ref": "#/$defs/stringOrNumber" }
+      },
+      "additionalProperties": true
+    },
+
+    "alertDef": {
+      "description": "Alert entry definition",
+      "type": "object",
+      "properties": {
+        "type":      { "type": "string" },
+        "threshold": { "$ref": "#/$defs/severityValues" },
+        "test":      { "type": "string" },
+        "value":     { "type": "string" },
+        "element":   { "type": "string" },
+        "event":     { "type": "string" },
+        "level":     { "type": "string" },
+        "control":   { "type": "string" },
+        "unit":      { "type": "string" },
+        "title":     { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "alertsSection": {
+      "description": "Top-level alerts section (alert groups or sysRrdContainer-like sections)",
+      "type": "object",
+      "additionalProperties": true
+    },
+
+    "thresholdSelectEntry": {
+      "description": "A threshold select entry with optional control and value severity hash",
+      "type": "object",
+      "properties": {
+        "value":   { "$ref": "#/$defs/severityValues" },
+        "control": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "thresholdDef": {
+      "description": "Threshold definition",
+      "type": "object",
+      "properties": {
+        "event":  { "type": "string" },
+        "item":   { "type": "string" },
+        "title":  { "type": "string" },
+        "unit":   { "type": "string" },
+        "select": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": { "$ref": "#/$defs/thresholdSelectEntry" }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "thresholdSection": {
+      "description": "Top-level threshold section: { name: { ThresholdName: thresholdDef } }",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": { "$ref": "#/$defs/thresholdDef" }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "databaseSizeEntry": {
+      "description": "RRD database size config",
+      "type": "object",
+      "properties": {
+        "rows_day":   { "$ref": "#/$defs/stringOrNumber" },
+        "rows_week":  { "$ref": "#/$defs/stringOrNumber" },
+        "rows_month": { "$ref": "#/$defs/stringOrNumber" },
+        "rows_year":  { "$ref": "#/$defs/stringOrNumber" },
+        "step_day":   { "$ref": "#/$defs/stringOrNumber" },
+        "step_week":  { "$ref": "#/$defs/stringOrNumber" },
+        "step_month": { "$ref": "#/$defs/stringOrNumber" },
+        "step_year":  { "$ref": "#/$defs/stringOrNumber" }
+      },
+      "additionalProperties": true
+    },
+
+    "databaseTimingEntry": {
+      "description": "RRD database timing config",
+      "type": "object",
+      "properties": {
+        "heartbeat": { "$ref": "#/$defs/stringOrNumber" },
+        "poll":      { "$ref": "#/$defs/stringOrNumber" }
+      },
+      "additionalProperties": true
+    },
+
+    "databaseSection": {
+      "description": "Top-level database section",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "db": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": "object",
+              "patternProperties": {
+                "^.*$": { "$ref": "#/$defs/databaseSizeEntry" }
+              }
+            },
+            "timing": {
+              "type": "object",
+              "patternProperties": {
+                "^.*$": { "$ref": "#/$defs/databaseTimingEntry" }
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "statsSection": {
+      "description": "Top-level stats section: { type: { name: [rrd strings] } }",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "eventRoleEntry": {
+      "description": "Event role entry with logging/syslog/level",
+      "type": "object",
+      "properties": {
+        "logging": { "type": "string" },
+        "syslog":  { "type": "string" },
+        "level":   { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "eventSection": {
+      "description": "Top-level event section: { event: { name: { role: eventRoleEntry } } }",
+      "type": "object",
+      "properties": {
+        "event": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "object",
+              "patternProperties": {
+                "^.*$": { "$ref": "#/$defs/eventRoleEntry" }
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "summarySection": {
+      "description": "Top-level summary section",
+      "type": "object",
+      "properties": {
+        "statstype": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "object",
+              "properties": {
+                "sumname": {
+                  "type": "object",
+                  "patternProperties": {
+                    "^.*$": {
+                      "type": "object",
+                      "properties": {
+                        "stsname": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        }
+                      },
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "headingSection": {
+      "description": "Top-level heading section",
+      "type": "object",
+      "properties": {
+        "graphtype": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "graphOptionBlock": {
+      "description": "Graph option block with standard/small arrays of RRD strings, or overlay objects",
+      "type": "object",
+      "patternProperties": {
+        "^.*$": {
+          "oneOf": [
+            { "type": "array", "items": { "$ref": "#/$defs/stringOrNumber" } },
+            { "type": "string" },
+            { "type": "object", "additionalProperties": true }
+          ]
+        }
+      }
+    },
+
+    "graphTitleBlock": {
+      "description": "Graph title block with standard/short variants",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+
+    "graphVlabelBlock": {
+      "description": "Graph vlabel block with standard/small variants",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+
+    "modelSelectorFile": {
+      "description": "The Model.nmis selector file (maps vendor/sysDescr to model names)",
+      "type": "object",
+      "properties": {
+        "database": { "$ref": "#/$defs/databaseSection" },
+        "heading":  { "$ref": "#/$defs/headingSection" },
+        "stats":    { "$ref": "#/$defs/statsSection" },
+        "system":   { "$ref": "#/$defs/sysRrdContainer" },
+        "models": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "object",
+              "properties": {
+                "order": {
+                  "type": "object",
+                  "patternProperties": {
+                    "^\\d+$": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string" }
+                    }
+                  }
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "graphFile": {
+      "description": "Graph-*.nmis file schema",
+      "type": "object",
+      "required": ["option"],
+      "properties": {
+        "heading": { "type": "string" },
+        "title":   { "$ref": "#/$defs/graphTitleBlock" },
+        "vlabel":  { "$ref": "#/$defs/graphVlabelBlock" },
+        "option":  { "$ref": "#/$defs/graphOptionBlock" }
+      },
+      "additionalProperties": true
+    },
+
+    "modelCommonFile": {
+      "description": "Model-*.nmis and Common-*.nmis file schema",
+      "type": "object",
+      "properties": {
+        "-common-":    { "$ref": "#/$defs/commonReference" },
+        "system":      { "$ref": "#/$defs/sysRrdContainer" },
+        "systemHealth": { "$ref": "#/$defs/sysRrdContainer" },
+        "interface":   { "$ref": "#/$defs/sysRrdContainer" },
+        "database":    { "$ref": "#/$defs/databaseSection" },
+        "heading":     { "$ref": "#/$defs/headingSection" },
+        "threshold":   { "$ref": "#/$defs/thresholdSection" },
+        "stats":       { "$ref": "#/$defs/statsSection" },
+        "alerts":      { "$ref": "#/$defs/alertsSection" },
+        "event":       { "$ref": "#/$defs/eventSection" },
+        "summary":     { "$ref": "#/$defs/summarySection" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/sysRrdContainer" }
+    }
+  },
+
+  "$ref": "#/$defs/modelCommonFile"
+}
