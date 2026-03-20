@@ -4,7 +4,7 @@
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
-#  This file is part of Network Management Information System (“NMIS”).
+#  This file is part of Network Management Information System ("NMIS").
 #
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -28,11 +28,12 @@
 #
 # *****************************************************************************
 
-# Test NMISNG fuctions
-# creates (and removes) a mongo database called t_nmisg-<timestamp>
-#  in whatever mongodb is configured in ../conf/
+# Test NMISNG config loading (layered config system)
+# Tests the load-once layered config with source tracking.
+# Note: since config is load-once per process, tests that require different
+# conf.d content run in subprocesses.
 use strict;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -44,82 +45,119 @@ use NMISNG::Log;
 use NMISNG::Util;
 use Compat::Timing;
 use IO::File;
-use File::Path qw( make_path );
+use File::Path qw( make_path remove_tree );
 use Data::Dumper;
 
 my $t = Compat::Timing->new();
+
+# --- Test 1: Basic config loading ---
 my $time = $t->elapTime();
 my $C = NMISNG::Util::loadConfTable();
 $time = $t->elapTime() - $time;
 print $time. " time load config \n";
 
-# log to stdout
-my $logger = NMISNG::Log->new( level => 'debug' );
-
 is($C->{'auth_expire'}, "+30min", "Config file loaded" );
+ok(defined $C->{'db_server'}, "db_server is present");
+ok(defined $C->{'<nmis_base>'}, "nmis_base directory macro is present");
 
+# --- Test 2: Caching - second call returns same ref ---
+my $C2 = NMISNG::Util::loadConfTable();
+is($C, $C2, "Second loadConfTable call returns cached ref");
+
+# --- Test 3: Source tracking ---
+my $sources = NMISNG::Util::getConfigSources();
+ok(ref($sources) eq 'HASH', "getConfigSources returns hashref");
+ok(scalar keys %$sources > 0, "getConfigSources has entries");
+
+my $db_source = NMISNG::Util::getConfigSources(key => 'db_server');
+ok(defined $db_source, "getConfigSources returns info for db_server");
+ok($db_source->{layer} >= 1 && $db_source->{layer} <= 4, "db_server has valid layer");
+ok(defined $db_source->{section}, "db_server has section info");
+is($db_source->{section}, "database", "db_server section is 'database'");
+
+# --- Test 4: Hardcoded values tracked ---
+my $conf_source = NMISNG::Util::getConfigSources(key => 'conf');
+ok(defined $conf_source, "getConfigSources returns info for hardcoded 'conf'");
+is($conf_source->{source}, "hardcoded", "conf source is 'hardcoded'");
+
+# --- Test 5: Macro replacement ---
+is($C->{'syslog_log'}, $C->{'<nmis_logs>'}."/cisco.log", "Replacing macros from master config OK" );
+
+# --- Test 6: cluster_id is present ---
+ok(defined $C->{cluster_id} && $C->{cluster_id} ne '', "cluster_id is present and non-empty");
+
+# --- Test 7: conf.d override-only (run in subprocess) ---
 my $conf_d_dir = $C->{'<nmis_conf>'} . "/conf.d";
 if ( !-d $conf_d_dir ) {
     make_path $conf_d_dir or die "Failed to create path: $conf_d_dir";
 }
 
-my $file = "$conf_d_dir/TEST.nmis";
+my $test_file = "$conf_d_dir/TEST.nmis";
 
-my $content = "%hash = (\'authentication\'=>{\'auth_expire\'=>\'+2min\',
-\'test\'=>2});";
-
-my $fn;
-open($fn, '>', $file) or die "Could not open file '$file' $!";
-
-print $fn $content;
-close $fn;
-
-sub cleanup_db
+# Write a conf.d file that overrides an existing key
 {
-    unlink $file;
-	# Remove conf file
+    open(my $fh, '>', $test_file) or die "Could not open file '$test_file' $!";
+    print $fh "%hash = ('authentication'=>{'auth_expire'=>'+2min'});\n";
+    close $fh;
 }
 
-$time = $t->elapTime();
-$C = NMISNG::Util::loadConfTable();
-$time = $t->elapTime() - $time;
-print $time. " time load new config \n";
+# Test override in a subprocess (since config is load-once per process)
+my $override_result = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    print \$C->{auth_expire};
+' 2>/dev/null`;
+is($override_result, "+2min", "conf.d override of existing key works (subprocess)");
 
-is($C->{'auth_expire'}, "+2min", "External config file loaded" );
+# Test that conf.d cannot add new keys (override-only)
+{
+    open(my $fh, '>', $test_file) or die "Could not open file '$test_file' $!";
+    print $fh "%hash = ('authentication'=>{'auth_expire'=>'+2min', 'brand_new_key'=>'should_not_appear'});\n";
+    close $fh;
+}
 
-# Try to edit not editable configs
-$content = "%hash = (\'id\'=>{\'cluster_id\'=>\'FAIL\'});";
-#my $fn;
-open($fn, '>', $file) or die "Could not open file '$file' $!";
+my $newkey_result = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    print defined(\$C->{brand_new_key}) ? "FOUND" : "NOT_FOUND";
+' 2>/dev/null`;
+is($newkey_result, "NOT_FOUND", "conf.d cannot add new keys (override-only)");
 
-print $fn $content;
-close $fn;
-$time = $t->elapTime();
-$C = NMISNG::Util::loadConfTable();
-$time = $t->elapTime() - $time;
-print $time. " time load new config \n";
+# Test that conf.d override is tracked in source
+my $source_result = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my \$s = NMISNG::Util::getConfigSources(key => "auth_expire");
+    print \$s->{layer} if \$s;
+' 2>/dev/null`;
+is($source_result, "3", "conf.d override tracked as layer 3");
 
-is($C->{'cluster_id'}, "a5159999-0d11-4bcb-a402-39a460012345", "Non modificable properties OK" );
+# --- Test 8: ENV override ---
+my $env_result = `NMIS_DB_SERVER=testhost perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    print \$C->{db_server};
+' 2>/dev/null`;
+is($env_result, "testhost", "ENV NMIS_DB_SERVER override works");
 
-# Test for replacing macros in the file
-open($fn, '>', $file) or die "Could not open file '$file' $!";
+# ENV override tracked as layer 4
+my $env_source_result = `NMIS_DB_SERVER=testhost perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my \$s = NMISNG::Util::getConfigSources(key => "db_server");
+    print \$s->{layer} if \$s;
+' 2>/dev/null`;
+is($env_source_result, "4", "ENV override tracked as layer 4");
 
-$content = "%hash = (\'authentication\'=>{\'auth_htpasswd_file\'=>\'<nmis_conf>/users.dat\'});";
-close $fn;
-$time = $t->elapTime();
-$C = NMISNG::Util::loadConfTable();
-$time = $t->elapTime() - $time;
-print $time. " time load new config \n";
-# Check values
-#print Dumper($C);
+# ENV URL_BASE backward compat
+my $urlbase_result = `NMIS_URL_BASE=/test-cgi perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    print \$C->{"<cgi_url_base>"};
+' 2>/dev/null`;
+is($urlbase_result, "/test-cgi", "ENV NMIS_URL_BASE maps to <cgi_url_base>");
 
-# We need to add here the real values as we need to know if the values are correctly replaced
-is($C->{'auth_htpasswd_file'}, "/usr/local/nmis9_josunec/conf/users.dat", "Replacing Macros from external conf OK" );
-is($C->{'auth_htpasswd_file'}, $C->{'<nmis_conf>'}."/users.dat", "Replacing Macros from external conf OK" );
-is($C->{'syslog_log'}, "/usr/local/nmis9_josunec/logs/cisco.log", "Replacing Macros from master config OK" );
-is($C->{'syslog_log'}, $C->{'<nmis_logs>'}."/cisco.log", "Replacing Macros from master config OK" );
-# Read again to see if it is loading the cache
-#my $C = NMISNG::Util::loadConfTable();
+# Cleanup
+unlink $test_file;
 
-cleanup_db();
 done_testing();

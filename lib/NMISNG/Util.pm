@@ -72,6 +72,9 @@ $Data::Dumper::Sortkeys=1;
 
 use NMISNG::Log;					# for parse_debug_level
 
+# Package-level storage for config source tracking (populated by loadConfTable)
+our $_config_sources_ref = {};
+
 sub TODO
 {
 	my (@stuff) = @_;
@@ -762,146 +765,248 @@ sub getServerRole {
 	return $config->{server_role} || "Standalone";
 }
 
-# reads and returns the nmis config file data
-# reads from the given directory or the default one; uses cached data if possible.
-# ATTENTION: no dir argument on a subsequent call means that the PREVIOUS
-# dir and file are checked!
-#
-# attention: this massages in certain values: info, debug  etc!
-# this function must be self-contained, as most stuff in NMISNG::Util:: calls loadconftable
+# Layered configuration loading with source tracking.
+# Loading order: conf-default/Config.nmis -> conf/Config.nmis -> conf/conf.d/*.nmis -> NMIS_* env vars
+# Config is immutable for process lifetime (load-once, no mtime checks).
+# Process restart required to pick up config changes.
 #
 # args: dir, debug (all optional)
 # returns: hash ref, dies (verbosely) on failure
 sub loadConfTable
 {
 	my %args = @_;
-	state ($config_cache);
+	state ($config_cache, $cached_configfile);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
-	# abspath and friends don't work properly if the dirs in question don't exist;
 	mkpath($dir, { verbose  => 0, mode => 0755} ) if (!-d $dir);
 
-	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
-	# ...but the caller may have given us a dir in a previous call and NONE now
-	# in which case we assume they want the cached goodies, so we look at
-	# the file of the previous call.
-	$fn = $config_cache->{configfile} if (ref($config_cache) eq "HASH"
-																				&& $config_cache->{configfile}
-																				&& !defined $args{dir});
-	my $fallbackfn;								# only set if falling back
-	# Directory for the partial configuration files (From Master)
-	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");
-	my $stat = stat($fn);
-	# try conf-default if that doesn't work
-	if (!$stat)
+	my $fn = Cwd::abs_path("$dir/Config.nmis");
+	# if caller gave us a dir previously but not now, use the cached path
+	$fn = $cached_configfile if ($cached_configfile && !defined $args{dir});
+
+	# return cached config if already loaded for this path
+	if ($config_cache && $cached_configfile && $cached_configfile eq $fn)
 	{
-		$fallbackfn = ($args{dir}?
-									 "$args{dir}/../conf-default/"
-									 : "$FindBin::RealBin/../conf-default/") ."Config.nmis";
-		$stat = stat($fallbackfn);
-	}
-	if (!$stat)
-	{
-		# no config, no hope, no future
-		warn_die("all configuration files ($fn, $fallbackfn) are unreadable: $!");
+		return $config_cache;
 	}
 
-	my $external_files = get_external_files(dir => $partialconf_dir);
+	# --- Layer 1: conf-default/Config.nmis (defaults) ---
+	my $default_dir = $args{dir} ? "$args{dir}/../conf-default" : "$FindBin::RealBin/../conf-default";
+	my $default_fn = Cwd::abs_path("$default_dir/Config.nmis") // "$default_dir/Config.nmis";
 
-	# read the file if not read yet, or different dir requested
-	if ( !$config_cache
-			 or $config_cache->{configfile} ne $fn
-			 or $stat->mtime > $config_cache->{mtime} )
+	$config_cache = {};
+	my $config_sources = {};
+
+	if (-r $default_fn)
 	{
-		$config_cache = {};				# clear it
-		# note: cannot use readfiletohash here: infinite recursion as
-		# most helper functions (have to) call loadConfTable first!
-
-		# lock the file or config writing (which truncates) could cause race conditions
-		my $whichfile = $fallbackfn? $fallbackfn : $fn;
-	
-		$config_cache = read_load_cache(whichfile => $whichfile, cachefile => $config_cache, master => "true", fn => $fn );
-		$stat = stat($fn);
-						 
-		# certain values get massaged in/to the config
-		$config_cache->{conf} = "Config"; # fixme9: this is no longer very useful, only one config supported
-		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
-		# ensure hide_groups is present (saves us checking the ref all over the place)
-		$config_cache->{hide_groups} //= [];
-
-		# fixme9: saving this back is likely a bad idea, config vs. command line
-		# fixme: none of this is nmisng::log compatible, where info is only t/f,
-		# and verbosity is from fatal..info..debug..1-9.
-		my $verbosity = NMISNG::Log::parse_debug_level(debug => $args{debug});
-		$config_cache->{debug} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
-		# info is only consulted if debug isn't
-		if (!$config_cache->{debug})
+		my ($flat, $smap) = _load_and_flatten($default_fn);
+		warn_die("configuration file $default_fn unparseable or empty") if (!$flat || !keys %$flat);
+		$config_cache = $flat;
+		for my $k (keys %$flat)
 		{
-			$verbosity = NMISNG::Log::parse_debug_level(debug => $args{info});
-			$config_cache->{info} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+			$config_sources->{$k} = { source => $default_fn, layer => 1, section => $smap->{$k} };
 		}
-
-		$config_cache->{configfile} = $fn; # fixperms also wants that
-		$config_cache->{mtime} = $stat->mtime;
-		# config is loaded, all plain <xyz> -> "static stuff" macros need to be resolved
-		# walk all things in need of macro expansion and fix them up as much as possible each iteration
-		
-		$config_cache = replace_macros( config_cache => $config_cache );
-		# a little safety net (for init/systemd and other stuff that needs to find pidfiles etc):
-		# if the var directory configuration is non-standard,
-		# then maintain a symlink to the configured directory
-		# note: if var is reconfigured back to normal but symlink is correct, then no action is taken
-		my $confdvar = $config_cache->{'<nmis_var>'};
-		my @confdstat = (CORE::stat($confdvar))[0,1]; # device and inode
-		my $normalvar = "$config_cache->{'<nmis_base>'}/var";
-		my @normalstat = (CORE::stat($normalvar))[0,1]; # device and inode
-
-		if (-d $confdvar and ($confdstat[0] != $normalstat[0]
-													or $confdstat[1] != $normalstat[1]))
-		{
-			rename($normalvar, "$normalvar.deconfigured.$$") if (-e $normalvar);
-			symlink($confdvar, $normalvar)
-					or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
-		}
-		
-	} else {
-		#warn("\n>>> Reading cache");
 	}
-	
-	if (scalar @$external_files > 0)
+
+	# --- Layer 2: conf/Config.nmis (site config) ---
+	if (-r $fn && $fn ne $default_fn)
 	{
-		# Now that we finish loading all the values, lets load overriding partial files
-		# conf.d directory
-		my $properties = properties_never_override();	
-		foreach (@$external_files) {
-			my $stat = stat($_);
-			if ($stat->mtime > $config_cache->{@_}) {
-				my $local_config_cache;
-				push @{$config_cache->{configpeerfiles}}, $_;
-				$local_config_cache = read_load_cache(whichfile => $_, cachefile => $local_config_cache, master => 0, fn => $_ );	
-				# Merge with local cache
-				while ( my ($k,$v) = each(%{$local_config_cache}) ) {
-					# Never let the master change this value(s)
-					next if ( grep( /^$k$/, @$properties ));
-					$config_cache->{$k} = $v;
-				}
-				$config_cache = replace_macros( config_cache => $config_cache );
-				$config_cache->{@_} = $stat->mtime; # remember
+		my ($flat, $smap) = _load_and_flatten($fn);
+		if ($flat && keys %$flat)
+		{
+			_merge_full($config_cache, $flat);
+			for my $k (keys %$flat)
+			{
+				$config_sources->{$k} = { source => $fn, layer => 2, section => $smap->{$k} };
 			}
 		}
 	}
+	elsif (!-r $fn && !keys %$config_cache)
+	{
+		warn_die("all configuration files ($fn, $default_fn) are unreadable: $!");
+	}
 
-	$config_cache->{db_username} = $ENV{NMIS_DB_USERNAME} if(defined($ENV{NMIS_DB_USERNAME}));
-	$config_cache->{db_password} = $ENV{NMIS_DB_PASSWORD} if(defined($ENV{NMIS_DB_PASSWORD}));
-	$config_cache->{db_server} = $ENV{NMIS_DB_SERVER} if(defined($ENV{NMIS_DB_SERVER}));
-	$config_cache->{server_name} = $ENV{NMIS_SERVER_NAME} if(defined($ENV{NMIS_SERVER_NAME}));
-	$config_cache->{cluster_id} = $ENV{NMIS_CLUSTER_ID} if(defined($ENV{NMIS_CLUSTER_ID}));
-	$config_cache->{'<cgi_url_base>'} = $ENV{NMIS_URL_BASE} if(defined($ENV{NMIS_URL_BASE}));
+	# --- Layer 3: conf/conf.d/*.nmis (fragments, override-only) ---
+	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");
+	my $external_files = get_external_files(dir => $partialconf_dir);
+	for my $extfile (@$external_files)
+	{
+		my ($flat, $smap) = _load_and_flatten($extfile);
+		next if (!$flat || !keys %$flat);
+		my $changed = _merge_override($config_cache, $flat);
+		for my $k (@$changed)
+		{
+			$config_sources->{$k} = { source => $extfile, layer => 3, section => $smap->{$k} };
+		}
+	}
+
+	# --- Layer 4: Environment variables (NMIS_*) ---
+	_apply_env_overrides($config_cache, $config_sources);
+
+	# --- Post-merge processing ---
+	# Hardcoded values
+	$config_cache->{conf} = "Config";
+	$config_sources->{conf} = { source => "hardcoded", layer => 0, section => undef };
+	$config_cache->{auth_require} = 1;
+	$config_sources->{auth_require} = { source => "hardcoded", layer => 0, section => undef };
+	$config_cache->{hide_groups} //= [];
+
+	# Parse debug/info from args
+	my $verbosity = NMISNG::Log::parse_debug_level(debug => $args{debug});
+	$config_cache->{debug} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+	if (!$config_cache->{debug})
+	{
+		$verbosity = NMISNG::Log::parse_debug_level(debug => $args{info});
+		$config_cache->{info} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+	}
+
+	# Set configfile key (points to conf/Config.nmis or fallback)
+	$config_cache->{configfile} = (-r $fn) ? $fn : $default_fn;
+	$cached_configfile = $fn;
+
+	# Replace macros once across entire config
+	$config_cache = replace_macros( config_cache => $config_cache );
+
+	# Var directory symlink management
+	my $confdvar = $config_cache->{'<nmis_var>'};
+	my @confdstat = (CORE::stat($confdvar))[0,1];
+	my $normalvar = "$config_cache->{'<nmis_base>'}/var";
+	my @normalstat = (CORE::stat($normalvar))[0,1];
+
+	if (-d $confdvar and ($confdstat[0] != $normalstat[0]
+												or $confdstat[1] != $normalstat[1]))
+	{
+		rename($normalvar, "$normalvar.deconfigured.$$") if (-e $normalvar);
+		symlink($confdvar, $normalvar)
+				or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
+	}
+
+	# Cluster ID: if missing, generate UUID and write to conf/conf.d/system.nmis
+	if (!$config_cache->{cluster_id})
+	{
+		$config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
+		$config_sources->{cluster_id} = { source => "generated", layer => 0, section => "id" };
+		_write_cluster_id_to_confd($dir, $config_cache->{cluster_id});
+	}
+
+	# Store sources in package variable for getConfigSources access
+	$NMISNG::Util::_config_sources_ref = $config_sources;
 
 	return $config_cache;
 }
 
-# Get external configuration files
+# Returns source tracking info for config keys.
+# args: optional key => "keyname" to get info for a single key
+# returns: hashref of { key => { source, layer, section } } or single key's info
+sub getConfigSources
+{
+	my %args = @_;
+	my $sources = $NMISNG::Util::_config_sources_ref // {};
+	if (defined $args{key})
+	{
+		return $sources->{$args{key}};
+	}
+	return $sources;
+}
+
+# Load a .nmis config file and flatten its two-level hash to a single level.
+# Returns: ($flattened_hashref, $section_map_hashref) where section_map maps each key to its section name
+sub _load_and_flatten
+{
+	my ($filepath) = @_;
+	my %deepdata = do($filepath);
+	if ($@)
+	{
+		warn("configuration file $filepath unparseable: $@");
+		return (undef, undef);
+	}
+	if (!%deepdata)
+	{
+		# do() might return empty list on certain errors
+		warn("configuration file $filepath returned no data");
+		return (undef, undef);
+	}
+
+	my %flat;
+	my %section_map;
+	for my $section (keys %deepdata)
+	{
+		if (ref($deepdata{$section}) eq 'HASH')
+		{
+			for my $k (keys %{$deepdata{$section}})
+			{
+				$flat{$k} = $deepdata{$section}{$k};
+				$section_map{$k} = $section;
+			}
+		}
+	}
+	return (\%flat, \%section_map);
+}
+
+# Full merge: copies all keys from overlay into base (add + override)
+sub _merge_full
+{
+	my ($base, $overlay) = @_;
+	for my $k (keys %$overlay)
+	{
+		$base->{$k} = $overlay->{$k};
+	}
+}
+
+# Override-only merge: only replaces keys that already exist in base
+# Returns: arrayref of keys that were actually overridden
+sub _merge_override
+{
+	my ($base, $overlay) = @_;
+	my @changed;
+	for my $k (keys %$overlay)
+	{
+		if (exists $base->{$k})
+		{
+			$base->{$k} = $overlay->{$k};
+			push @changed, $k;
+		}
+	}
+	return \@changed;
+}
+
+# Scan %ENV for NMIS_* variables and apply as override-only to config
+sub _apply_env_overrides
+{
+	my ($config, $sources) = @_;
+
+	for my $envkey (keys %ENV)
+	{
+		next unless $envkey =~ /^NMIS_(.+)$/;
+		my $suffix = lc($1);
+		my $config_key = exists $config->{$suffix} ? $suffix : "<$suffix>";
+
+		if (exists $config->{$config_key})
+		{
+			$config->{$config_key} = $ENV{$envkey};
+			$sources->{$config_key} = { source => "ENV:$envkey", layer => 4, section => undef };
+		}
+	}
+}
+
+# Write cluster_id to conf/conf.d/system.nmis
+sub _write_cluster_id_to_confd
+{
+	my ($conf_dir, $cluster_id) = @_;
+	my $confd_dir = "$conf_dir/conf.d";
+	mkpath($confd_dir, { verbose => 0, mode => 0755 }) if (!-d $confd_dir);
+
+	my $system_file = "$confd_dir/system.nmis";
+	my %data = ( 'id' => { 'cluster_id' => $cluster_id } );
+	open(my $fh, ">", $system_file) or do {
+		warn("cannot write cluster_id to $system_file: $!");
+		return;
+	};
+	print $fh Data::Dumper->Dump([\%data], [qw(*hash)]);
+	close $fh;
+}
+
+# Get external configuration files (sorted for deterministic merge order)
 sub get_external_files
 {
 	my %args = @_;
@@ -913,71 +1018,15 @@ sub get_external_files
 			# Only .nmis files
 			next unless ($filename =~ m/\.nmis$/);
 			my $path = $dir . "/" . $filename;
-			push @files, $path; 
+			push @files, $path;
 		}
 		closedir(DIR);
 	}
+	@files = sort @files;
 	return \@files;
 }
 
-# Read a configuration file, block and load cache
-sub read_load_cache
-{
-	my %args = @_;
-	my $whichfile = $args{whichfile};
-	my $config_cache = $args{cachefile};
-	my $is_master = $args{master};
-	my $fn = $args{fn};
-
-	open(X, $whichfile) or warn_die("cannot open configuration file $whichfile: $!") if $is_master;
-	flock(X, LOCK_SH) or warn_die("cannot lock configuration file $whichfile: $!") if $is_master;
-
-	my %deepdata = do ($whichfile);
-	# should the file have unwanted gunk after the %hash = ();
-	# it'll most likely be a '1;' and do returns the last statement result...
-	if ($@)
-	{
-		my $nmisng = Compat::NMIS::new_nmisng();
-		$nmisng->log->info(&NMISNG::Log::trace()." MAKERRDNAME") if ($nmisng);
-		warn_die("configuration file $fn unparseable: $@ $is_master") if $is_master;
-		warn(">> configuration file $fn unparseable: $@");
-		close(X);	
-	}
-	elsif (keys %deepdata < 2 and $is_master)
-	{
-		my $nmisng = Compat::NMIS::new_nmisng();
-		$nmisng->log->info(&NMISNG::Log::trace()." MAKERRDNAME");
-		warn_die("configuration $whichfile does not have enough depth, only ". (scalar keys %deepdata). " entries!") if $is_master;
-	} else {
-		close(X);	
-		# strip the outer of two levels, does not flatten any deeper structure
-		for my $k (keys %deepdata)
-		{
-			for my $kk (keys %{$deepdata{$k}})
-			{
-				warn("Config section \"$k\" contains clashing config entry \"$kk\"!\n")
-						if (defined($config_cache->{$kk})); # not terminal
-				$config_cache->{$kk} = $deepdata{$k}->{$kk};
-			}
-		}
-		
-		# this one is vital for NMIS9 in particular: the cluster_id must be unique AND not change
-		if (!$config_cache->{cluster_id} && $is_master && !$ENV{NMIS_CLUSTER_ID})
-		{
-			$deepdata{id}->{cluster_id} = $config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
-			# and write back the updated config file - cannot use writehashtofile yet!
-			open(F, (-e $fn? "+<": ">"), $fn) or warn_die("cannot write configuration file $fn: $!");
-			seek(F,0,0);							# only relevant when opening existing file
-			truncate(F,0);						# ditto
-			flock(F, LOCK_EX) or warn_die("cannot lock configuration file $fn: $!");
-			print F Data::Dumper->Dump([\%deepdata], [qw(*hash)]);
-			close F;									# which unlocks
-			# and restat to get the new mtime
-		}
-	}
-	
-	return $config_cache;
-}
+# read_load_cache has been replaced by _load_and_flatten
 
 # small helper function that is going to replace macros
 # args: error message
@@ -1765,15 +1814,6 @@ sub getdebug_cli
 	return ((defined($val)) ? (($val =~ /(^true$)|(^yes$)|(^t$)|(^y$)|(^1$)/i) ? 1 : (($val =~ /(^false$)|(^no$)|(^f$)|(^n$)|(^0$)/i) ? 0 : (($val =~ /^verbose$/i) ? 9 : (($val =~ /^[0-9]$/) ? $val : die "Invalid debug value: '$val'\n" )))) : 0);
 }
 
-# Send an array with the properties never overrided by the conf master files
-# Hardcoded as we dont want them to be overrided
-# Could be a mess
-sub properties_never_override
-{
-	my @properties = ('cluster_id', 'server_name', 'nmis_host');
-	return \@properties;
-}
-
 # trivial wrapper around readfiletohash
 # difference to loadConfTable: loadconftable flattens and adds a few entries
 # args: only_local eq 1 loads only local config (Not by default)
@@ -1785,11 +1825,10 @@ sub readConfData
 
 	my $C = loadConfTable;
 	my $fn = $C->{configfile};
-	
+
 	my $rawdata = NMISNG::Util::readFiletoHash(file => $fn);
 
-	my $fnp = $C->{configpeerfiles};
-	if (defined($args{log})) 
+	if (defined($args{log}))
 	{
 		$logger = $args{log};
 	}
@@ -1798,15 +1837,19 @@ sub readConfData
 		my $nmisng = Compat::NMIS::new_nmisng();
 		$logger  = $nmisng->log;
 	}
-	
+
 	if ($args{only_local} ne 1)
 	{
-		$logger->info("Reading config properties from master. ");
+		$logger->info("Reading config properties from conf.d files. ");
+		# Determine conf.d directory from the configfile path
+		my $conf_dir = File::Basename::dirname($fn);
+		my $confd_dir = "$conf_dir/conf.d";
+		my $confd_files = get_external_files(dir => $confd_dir);
 		eval {
-			foreach ( @{$fnp} ) {
-			
+			foreach ( @$confd_files ) {
+
 				my $rawpartialdata = NMISNG::Util::readFiletoHash(file => $_);
-		
+
 				# strip the outer of two levels, does not flatten any deeper structure
 				# merge
 				for my $k (keys %{$rawpartialdata})
@@ -1815,8 +1858,7 @@ sub readConfData
 					{
 						if (ref($rawpartialdata->{$k}->{$kk}) ne "HASH" )
 						{
-							next if (grep( /^$kk$/, properties_never_override()));
-							$rawdata->{$k}->{$kk} =$rawpartialdata->{$k}->{$kk};
+							$rawdata->{$k}->{$kk} = $rawpartialdata->{$k}->{$kk};
 						}
 						else
 						{
