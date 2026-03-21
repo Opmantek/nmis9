@@ -3,5 +3,5 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use NMISCGI;
 use NMISCGI::CommunityRss;
-my $args = NMISCGI::authenticate(no_auth => 1) or exit;
+my $args = NMISCGI::initialise() or exit;
 NMISCGI::CommunityRss::runcgi($args);

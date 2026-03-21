@@ -34,7 +34,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 use NMISNG::Util;
 use NMISNG::Auth;
 
-sub authenticate {
+sub initialise {
 	my (%opts) = @_;
 
 	my $q = new CGI;
@@ -46,9 +46,13 @@ sub authenticate {
 
 	my $headeropts = {type => 'text/html', expires => 'now'};
 
-	if ($opts{no_auth}) {
-		return { q => $q, Q => $Q, C => $C, AU => undef, headeropts => $headeropts };
-	}
+	return { q => $q, Q => $Q, C => $C, headeropts => $headeropts };
+}
+
+sub authenticate {
+	my ($args, %opts) = @_;
+
+	my ($C, $headeropts) = @{$args}{qw(C headeropts)};
 
 	$C->{auth_require} = 0 if ($opts{allow_cli} && @ARGV);
 
@@ -56,9 +60,9 @@ sub authenticate {
 
 	if ($AU->Require) {
 		unless ($AU->loginout(
-			type       => $Q->{auth_type},
-			username   => $Q->{auth_username},
-			password   => $Q->{auth_password},
+			type       => $opts{auth_type},
+			username   => $opts{auth_username},
+			password   => $opts{auth_password},
 			headeropts => $headeropts
 		)) {
 			return undef;
@@ -69,12 +73,12 @@ sub authenticate {
 		$AU->SetUser($opts{set_user});
 	}
 
-	# cluster_id check (common across most files)
-	if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id}) {
+	if (defined($opts{cluster_id}) && $opts{cluster_id} ne $C->{cluster_id}) {
 		return undef;
 	}
 
-	return { q => $q, Q => $Q, C => $C, AU => $AU, headeropts => $headeropts };
+	$args->{AU} = $AU;
+	return $args;
 }
 
 1;
