@@ -1056,9 +1056,8 @@ sub setFileProtDiag
     }
 
 	my (%args) = @_;
-	my $C; # = $args{conf} // NMISNG::Util::loadConfTable();
-	(ref($args{conf}) eq "HASH" ? $C = $args{conf}
-                                : $C = NMISNG::Util::loadConfTable());
+	my $C = ref($args{conf}) eq "HASH" ? $args{conf}
+	                                   : NMISNG::Util::loadConfTable();
 
 	my $filename = $args{file};
 	my $username = $args{username} || $C->{nmis_user} || "nmis";
@@ -1543,15 +1542,6 @@ sub writeHashtoFile
 		return("writeHashtoFile: $errormsg");
 	}
 
-	# set ownership and permissions on the temp file BEFORE the rename,
-	# so the target file is never visible with wrong permissions
-	if (my $error = NMISNG::Util::setFileProtDiag(file => $tmp_filename, conf => $C))
-	{
-		unlink $tmp_filename;
-		close $handle if $caller_handle;
-		return $error;
-	}
-
 	# atomic rename - safe on same filesystem (temp file is in same dir)
 	if (!rename($tmp_filename, $file))
 	{
@@ -1564,6 +1554,14 @@ sub writeHashtoFile
 	# release caller's lock AFTER rename so concurrent readers are blocked
 	# until the new file is in place
 	close $handle if $caller_handle;
+
+	# set ownership and permissions AFTER the rename - data integrity is more
+	# important than permissions, so we never discard valid data just because
+	# chmod/chown fails
+	if (my $error = NMISNG::Util::setFileProtDiag(file => $file, conf => $C))
+	{
+		return $error;
+	}
 
 	return undef;
 }

@@ -254,6 +254,61 @@ ok(-s "$seq_file.nmis" > 0,
 	"Atomic write: file not empty after sequential writes");
 
 # ============================================================================
+# Atomic write: setFileProtDiag failure should not lose data
+# ============================================================================
+# Simulates the case where data is written correctly but setFileProtDiag
+# fails (e.g. bogus nmis_user). The data should still be saved rather
+# than thrown away.
+
+# Use a conf with a non-existent user so setFileProtDiag fails
+my $bad_user_conf = {
+	%$C,
+	'<nmis_conf>' => $test_dir,
+	'<nmis_var>'  => $test_dir,
+	'nmis_user'   => 'nonexistent_user_zzz_999',
+};
+# Make sure we're not in container mode (which skips setFileProtDiag entirely)
+local $ENV{CONTAINER} = undef;
+
+# Case 1: new file - data should exist despite permission failure
+my $perm_file = "$test_dir/PermTest";
+$err = NMISNG::Util::writeHashtoFile(
+	file => $perm_file, data => { system => { name => 'permtest' } },
+	conf => $bad_user_conf);
+# writeHashtoFile should return an error about the unknown user but still save the data
+# Test: setFileProtDiag has a ternary precedence bug on line 1060 that
+# causes it to always use the cached loadConfTable() instead of the
+# passed conf arg.  This means the conf => arg is silently ignored.
+my $testfn = "$test_dir/AtomicTest.nmis";
+my $direct_err = NMISNG::Util::setFileProtDiag(
+	file => $testfn, conf => $bad_user_conf);
+ok(defined $direct_err,
+	"setFileProtDiag: conf arg with bogus nmis_user should fail")
+	or diag("BUG: setFileProtDiag ignores conf arg due to ternary precedence bug (line 1060)");
+ok(defined $err, "Atomic write: setFileProtDiag error is reported: " . ($err // ""))
+	or diag("setFileProtDiag did not fail as expected - check that nonexistent_user_zzz_999 really doesn't exist");
+# But the file should still exist with valid data (data > permissions)
+my $perm_written = "$perm_file.nmis";
+ok(-e $perm_written && -s $perm_written,
+	"Atomic write: file exists with data even when setFileProtDiag fails (new file)")
+	or diag("BUG: valid data lost because setFileProtDiag failed on temp file before rename");
+
+# Case 2: overwrite - original data should be updated, not preserved with stale content
+my $perm_file2 = "$test_dir/PermTest2";
+# First write with good conf
+NMISNG::Util::writeHashtoFile(
+	file => $perm_file2, data => { system => { version => 'old' } },
+	conf => $test_conf);
+# Now overwrite with bad user conf
+$err = NMISNG::Util::writeHashtoFile(
+	file => $perm_file2, data => { system => { version => 'new' } },
+	conf => $bad_user_conf);
+my $perm2_readback = NMISNG::Util::readFiletoHash(file => $perm_file2, conf => $test_conf);
+is($perm2_readback->{system}->{version}, 'new',
+	"Atomic write: updated data survives setFileProtDiag failure (overwrite)")
+	or diag("BUG: setFileProtDiag failure caused new data to be discarded, file still has old content");
+
+# ============================================================================
 # Cleanup
 # ============================================================================
 unlink $ext_file;
