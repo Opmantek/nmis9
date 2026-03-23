@@ -41,6 +41,7 @@ use File::Basename;
 use File::stat;
 use File::Spec;
 use File::Copy;
+use File::Temp qw(tempfile);
 use Sys::Syslog qw(:standard :macros);
 
 use Time::ParseDate;
@@ -965,14 +966,9 @@ sub read_load_cache
 		if (!$config_cache->{cluster_id} && $is_master && !$ENV{NMIS_CLUSTER_ID})
 		{
 			$deepdata{id}->{cluster_id} = $config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
-			# and write back the updated config file - cannot use writehashtofile yet!
-			open(F, (-e $fn? "+<": ">"), $fn) or warn_die("cannot write configuration file $fn: $!");
-			seek(F,0,0);							# only relevant when opening existing file
-			truncate(F,0);						# ditto
-			flock(F, LOCK_EX) or warn_die("cannot lock configuration file $fn: $!");
-			print F Data::Dumper->Dump([\%deepdata], [qw(*hash)]);
-			close F;									# which unlocks
-			# and restat to get the new mtime
+			# write back the updated config file - pass conf to avoid recursing into loadConfTable
+			my $writeerr = writeHashtoFile(file => $fn, data => \%deepdata, conf => $config_cache);
+			warn_die("cannot write configuration file $fn: $writeerr") if $writeerr;
 		}
 	}
 	
@@ -1483,58 +1479,87 @@ sub writeHashtoFile
 									|| $json );
 	$file = NMISNG::Util::getFileName(file => $file, json => $json, conf => $C);
 
-	if ($handle eq "")
+	# Atomic write: write to a temp file in the same directory, verify the
+	# write succeeded, set ownership/permissions, then rename() over the
+	# original.  This prevents 0-byte files when the filesystem is full.
+	my $dir = File::Basename::dirname($file);
+	my ($tmp_fh, $tmp_filename) = eval {
+		tempfile(".tmp.XXXXXXXXXX", DIR => $dir, UNLINK => 0);
+	};
+	if (!$tmp_fh)
 	{
-		if (open($handle, "+<$file"))
-		{
-			flock($handle, LOCK_EX) or return("writeHashtoFile: can't lock $file: $!");
-
-			seek($handle,0,0) or return("writeHashtoFile: can't seek in $file: $!");
-			truncate($handle,0) or return("writeHashtoFileL can't truncate $file: $!");
-		}
-		else
-		{
-			open($handle, ">$file")  or return("writeHashtoFile: cannot write to $file: $!\n");
-			flock($handle, LOCK_EX) or return("writeHashtoFile: can't lock file $file: $!\n");
-		}
-	}
-	else
-	{
-		seek($handle,0,0) or return("writeHashtoFile: can't seek in $file: $!");
-		truncate($handle,0) or return("writeHashtoFile: can't truncate $file: $!");
+		close $handle if ($handle ne "");
+		return("writeHashtoFile: cannot create temp file in $dir: $@");
 	}
 
-	# write out the data, but defer error reporting until after the lock is released
 	my $errormsg;
 	if ( $useJson and $pretty )
 	{
 		# make sure that all json files contain valid utf8-encoded json, as required by rfc7159
-		if ( not print $handle JSON::XS->new->utf8(1)->pretty(1)->encode($data) )
+		if ( not print $tmp_fh JSON::XS->new->utf8(1)->pretty(1)->encode($data) )
 		{
-			$errormsg = "cannot write data object to file $file: $!";
+			$errormsg = "cannot write data object to file $tmp_filename: $!";
 		}
 	}
 	elsif ( $useJson )
 	{
 		# encode_json already ensures utf8-encoded json
-		eval { print $handle encode_json($data) } ;
+		eval { print $tmp_fh encode_json($data) } ;
 		if ( $@ ) {
-			$errormsg = "cannot write data object to $file: $@";
+			$errormsg = "cannot write data object to $tmp_filename: $@";
 		}
 	}
-	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
-		$errormsg = "cannot write to file $file: $!";
+	elsif ( not print $tmp_fh Data::Dumper->Dump([$data], [qw(*hash)]) ) {
+		$errormsg = "cannot write to temp file $tmp_filename: $!";
 	}
-	close $handle;
 
-	# now it's safe to handle the error
-	return("writeHashtoFile: $errormsg")
-			if ($errormsg);
-
-	if (my $error = NMISNG::Util::setFileProtDiag(file =>$file, conf => $C))
+	# flush and sync to ensure data hits disk before we check size or rename
+	if (!$errormsg)
 	{
+		$tmp_fh->flush() or $errormsg = "cannot flush temp file $tmp_filename: $!";
+	}
+	if (!$errormsg && $^O !~ /Win32/)
+	{
+		$tmp_fh->sync() or $errormsg = "cannot sync temp file $tmp_filename: $!";
+	}
+
+	# close() flushes remaining buffers - disk-full errors may only surface here
+	if (!close($tmp_fh) && !$errormsg)
+	{
+		$errormsg = "cannot close temp file $tmp_filename: $!";
+	}
+
+	# release caller's lock handle if one was passed in
+	close $handle if ($handle ne "");
+
+	# verify the temp file has content before replacing the original
+	if (!$errormsg && ! -s $tmp_filename)
+	{
+		$errormsg = "temp file $tmp_filename is empty after write, refusing to overwrite $file";
+	}
+
+	if ($errormsg)
+	{
+		unlink $tmp_filename;
+		return("writeHashtoFile: $errormsg");
+	}
+
+	# set ownership and permissions on the temp file BEFORE the rename,
+	# so the target file is never visible with wrong permissions
+	if (my $error = NMISNG::Util::setFileProtDiag(file => $tmp_filename, conf => $C))
+	{
+		unlink $tmp_filename;
 		return $error;
 	}
+
+	# atomic rename - safe on same filesystem (temp file is in same dir)
+	if (!rename($tmp_filename, $file))
+	{
+		my $rename_err = $!;
+		unlink $tmp_filename;
+		return("writeHashtoFile: cannot rename $tmp_filename to $file: $rename_err");
+	}
+
 	return undef;
 }
 
