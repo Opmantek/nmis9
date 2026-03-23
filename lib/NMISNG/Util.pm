@@ -1483,13 +1483,14 @@ sub writeHashtoFile
 	# write succeeded, set ownership/permissions, then rename() over the
 	# original.  This prevents 0-byte files when the filesystem is full.
 	my $dir = File::Basename::dirname($file);
+	my $caller_handle = (defined $handle && $handle ne "");
 	my ($tmp_fh, $tmp_filename) = eval {
 		tempfile(".tmp.XXXXXXXXXX", DIR => $dir, UNLINK => 0);
 	};
 	if (!$tmp_fh)
 	{
-		close $handle if ($handle ne "");
-		return("writeHashtoFile: cannot create temp file in $dir: $@");
+		close $handle if $caller_handle;
+		return("writeHashtoFile: cannot create temp file in $dir: " . ($@ || $!));
 	}
 
 	my $errormsg;
@@ -1529,9 +1530,6 @@ sub writeHashtoFile
 		$errormsg = "cannot close temp file $tmp_filename: $!";
 	}
 
-	# release caller's lock handle if one was passed in
-	close $handle if ($handle ne "");
-
 	# verify the temp file has content before replacing the original
 	if (!$errormsg && ! -s $tmp_filename)
 	{
@@ -1541,6 +1539,7 @@ sub writeHashtoFile
 	if ($errormsg)
 	{
 		unlink $tmp_filename;
+		close $handle if $caller_handle;
 		return("writeHashtoFile: $errormsg");
 	}
 
@@ -1549,6 +1548,7 @@ sub writeHashtoFile
 	if (my $error = NMISNG::Util::setFileProtDiag(file => $tmp_filename, conf => $C))
 	{
 		unlink $tmp_filename;
+		close $handle if $caller_handle;
 		return $error;
 	}
 
@@ -1557,8 +1557,13 @@ sub writeHashtoFile
 	{
 		my $rename_err = $!;
 		unlink $tmp_filename;
+		close $handle if $caller_handle;
 		return("writeHashtoFile: cannot rename $tmp_filename to $file: $rename_err");
 	}
+
+	# release caller's lock AFTER rename so concurrent readers are blocked
+	# until the new file is in place
+	close $handle if $caller_handle;
 
 	return undef;
 }
