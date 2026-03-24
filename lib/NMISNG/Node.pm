@@ -1099,7 +1099,7 @@ sub inventory_datasets_by_subconcept
 	);
 	foreach my $entry (@$entries)
 	{
-		$entry->{indexed} = ( $entry->{indexed} ) ? 1 : 0;
+		$entry->{indexed} = ( defined($entry->{indexed}) ) ? 1 : 0; # if this != null then it's indexed
 		$entry->{subconcept} = $entry->{_id}{subconcept};
 		delete $entry->{_id};
 		$retval->{ $entry->{subconcept} } = $entry;
