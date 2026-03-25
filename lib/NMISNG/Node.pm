@@ -8464,6 +8464,23 @@ sub collect_services
 	{
 		my $thisservice = $ST->{$service};
 
+		# Service referenced in node config but not defined in Services table
+		if (!$thisservice)
+		{
+			$self->nmisng->log->warn("Ignoring non-existent service \"$service\" for node $node");
+			Compat::NMIS::notify(
+				sys     => $S,
+				event   => "Service Configuration Error",
+				level   => "Warning",
+				element => $service,
+				details => "Service \"$service\" is configured for this node "
+					. "but not defined in the Services table",
+				context => {type => "service"},
+				conf    => $C
+			);
+			next;
+		}
+
 		# check for invalid service table data
 		next if ( !$service
 							or $service =~ m!^n\/a$!i
@@ -8984,9 +9001,30 @@ sub collect_services
 		else
 		{
 			# no recognised service type found
-			$self->nmisng->log->error("skipping service \"$service\", invalid service type!");
+			$self->nmisng->log->error("skipping service \"$service\", invalid service type \"$servicetype\"!");
+			Compat::NMIS::notify(
+				sys          => $S,
+				event        => "Service Configuration Error",
+				level        => "Warning",
+				element      => $service,
+				details      => "Service \"$service\" has invalid Service_Type "
+					. "\"$servicetype\"",
+				context      => {type => "service"},
+				inventory_id => $inventory->id,
+				conf         => $C
+			);
 			next;    # just do the next one - no alarms
 		}
+
+		# service was dispatched through a valid handler, clear any prior config error event
+		Compat::NMIS::checkEvent(
+			sys          => $S,
+			event        => "Service Configuration Error",
+			level        => "Normal",
+			element      => $service,
+			details      => "",
+			inventory_id => $inventory->id
+		);
 
 		# let external programs set the responsetime if so desired
 		$responsetime = $timer->elapTime if ( !defined $responsetime );
