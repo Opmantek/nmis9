@@ -1506,6 +1506,7 @@ sub worker_loop
 																								worker_process => $$ },
 						);
 				$nmisng->log->error("Failed to save opstatus: $error") if ($error);
+				NMISNG::DB::reset_db_stats();
 			}
 
 			# we don't want to end up with stuck jobs if anything dies, so bsts
@@ -2225,6 +2226,7 @@ sub worker_loop
 																										node_name => \@node_names },
 								);
 						$nmisng->log->error("Failed to save opstatus: $error") if ($error);
+						NMISNG::DB::reset_db_stats();
 
 						my $S;
 						for my $plugin ($nmisng->plugins)
@@ -2330,7 +2332,8 @@ sub worker_loop
 																									output => $ourjob->{output}},
 							);
 					$nmisng->log->error("Failed to save opstatus: $error") if ($error);
-					# start capturing log output to save into opstatus, make sure object can do it 
+					NMISNG::DB::reset_db_stats();
+					# start capturing log output to save into opstatus, make sure object can do it
 					my $capture;
 					$capture = $nmisng->log->capture_and_log() if( $can_log_capture & $opstatus_save_logs );
 					$nmisng->log->info("Starting $methodname for node $nodeuuid (".$thenode->name.")");
@@ -2379,6 +2382,7 @@ sub worker_loop
 			{
 				# work is done, report result in opstatus
 				$state->{stats}->{time} = Time::HiRes::time - $state->{stats}->{time}; # time was start marker, want it to be delta
+				$state->{stats}->{mongodb_stats} = NMISNG::DB::get_db_stats();
 				my ($error, undef) = $nmisng->save_opstatus(id => $state->{statusid},
 																										activity => $state->{activity} // $ourjob->{type},
 																										type => "completed",
