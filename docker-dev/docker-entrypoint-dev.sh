@@ -18,9 +18,20 @@ setup() {
     [[ -d "${dir}" ]] || mkdir -p "${dir}"    
   done
 
- # fake a couple of aseets dirs for mojo
- ln -s "${NMIS_HOME}"/menu "${NMIS_HOME}"/assets/menu9 || echo "Could not symlink menu9 dir"
- ln -s "${NMIS_HOME}"/htdocs/cache "${NMIS_HOME}"/htdocs/nmis9/cache || echo "Could not symlink cache dir"
+  # Add base configuration
+  for f in Users.nmis users.dat Access.nmis; do
+    if [[ ! -e "${NMIS_HOME}/conf/$f" ]]; then
+      cp -a "${NMIS_HOME}/conf-default/$f" "${NMIS_HOME}/conf/$f"
+    fi
+  done
+
+  if [[ ! -e "${NMIS_HOME}/conf/Config.nmis" ]]; then
+    cp "${NMIS_HOME}/conf-default/docker/Config.nmis.docker" "${NMIS_HOME}/conf/Config.nmis"
+  fi
+
+  # fake a couple of aseets dirs for mojo
+  ln -s "${NMIS_HOME}"/menu "${NMIS_HOME}"/assets/menu9 || echo "Could not symlink menu9 dir"
+  ln -s "${NMIS_HOME}"/htdocs/cache "${NMIS_HOME}"/htdocs/nmis9/cache || echo "Could not symlink cache dir"
 
   NODESIMPORT="${NMIS_HOME}"/import
   #check if there are any nodes to import
@@ -59,6 +70,7 @@ dev_user_map() {
     DEV_GROUP="$group"
   else
     groupadd -g "$DEV_GID" dev
+    DEV_GROUP="dev"
   fi
 
   if [[ -n "$user" ]]; then
@@ -76,8 +88,8 @@ dev_user_map() {
 run() {
   setup
   setup_db
-  nmis_frontend
   dev_user_map
+  nmis_frontend
   # Tail something to keep the container alive
   tail -f /dev/null
 }

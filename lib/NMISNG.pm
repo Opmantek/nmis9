@@ -1836,6 +1836,10 @@ sub find_due_nodes
 				if ( !exists $intervals{$maybesvc} )
 				{
 					$self->log->warn("Ignoring non-existent service \"$maybesvc\" for node $nodename");
+					# still schedule this node so collect_services() can raise an event
+					$due{$maybe} = $cands{$maybe};
+					$services{$maybe} //= [];
+					push @{$services{$maybe}}, $maybesvc;
 					next;
 				}
 
