@@ -1491,6 +1491,7 @@ sub worker_loop
 
 
 			my $state = { stats => { time => Time::HiRes::time }};		# for opstatus and exception handling
+			NMISNG::DB::reset_db_stats();
 			$0 = "nmisd." . $ourjob->{type}; # Change worker name
 			
 			# the simpler jobs don't have extra args that need to go into opstatus context
@@ -2330,7 +2331,7 @@ sub worker_loop
 																									output => $ourjob->{output}},
 							);
 					$nmisng->log->error("Failed to save opstatus: $error") if ($error);
-					# start capturing log output to save into opstatus, make sure object can do it 
+					# start capturing log output to save into opstatus, make sure object can do it
 					my $capture;
 					$capture = $nmisng->log->capture_and_log() if( $can_log_capture & $opstatus_save_logs );
 					$nmisng->log->info("Starting $methodname for node $nodeuuid (".$thenode->name.")");
@@ -2379,6 +2380,7 @@ sub worker_loop
 			{
 				# work is done, report result in opstatus
 				$state->{stats}->{time} = Time::HiRes::time - $state->{stats}->{time}; # time was start marker, want it to be delta
+				$state->{stats}->{mongodb_stats} = NMISNG::DB::get_db_stats();
 				my ($error, undef) = $nmisng->save_opstatus(id => $state->{statusid},
 																										activity => $state->{activity} // $ourjob->{type},
 																										type => "completed",
