@@ -21,13 +21,13 @@ setup() {
   # Add base configuration
   for f in Users.nmis users.dat Access.nmis; do
     if [[ ! -e "${NMIS_HOME}/conf/$f" ]]; then
-      cp -a "${NMIS_HOME}/conf-defaults/$f" "${NMIS_HOME}/conf/$f"
+      cp -a "${NMIS_HOME}/conf-default/$f" "${NMIS_HOME}/conf/$f"
     fi
   done
 
-  if [[ ! -e "${NMIS_HOME}/conf/Config.nmis" ]]; do
-    cp "${NMIS_HOME}/conf-defaults/docker/Config.nmis.docker" "${NMIS_HOME}/conf/Config.nmis"
-  done
+  if [[ ! -e "${NMIS_HOME}/conf/Config.nmis" ]]; then
+    cp "${NMIS_HOME}/conf-default/docker/Config.nmis.docker" "${NMIS_HOME}/conf/Config.nmis"
+  fi
 
   # fake a couple of aseets dirs for mojo
   ln -s "${NMIS_HOME}"/menu "${NMIS_HOME}"/assets/menu9 || echo "Could not symlink menu9 dir"
@@ -70,10 +70,7 @@ dev_user_map() {
     DEV_GROUP="$group"
   else
     groupadd -g "$DEV_GID" dev
-<<<<<<< HEAD
     DEV_GROUP="dev"
-=======
->>>>>>> 6dc8dfb3 (OMK-12085 Permissions mapping for development)
   fi
 
   if [[ -n "$user" ]]; then
@@ -93,10 +90,6 @@ run() {
   setup_db
   dev_user_map
   nmis_frontend
-<<<<<<< HEAD
-=======
-  dev_user_map
->>>>>>> 6dc8dfb3 (OMK-12085 Permissions mapping for development)
   # Tail something to keep the container alive
   tail -f /dev/null
 }
