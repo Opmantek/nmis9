@@ -11,55 +11,78 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-our ($q, $Q, $C, $AU, $headeropts, $widget, $wantwidget, $nmisng);
-
 sub runcgi {
 	my ($args) = @_;
-	($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
-	$headeropts = $args->{headeropts};
-	$nmisng = $args->{nmisng};
+	my ($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
+	my $headeropts = $args->{headeropts};
+	my $nmisng = $args->{nmisng};
 
 	# default is widgeted mode, only off if explicitely set to false
-	$widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false": "true";
+	my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false": "true";
 	# numeric option as $widget needs to remain t/f text
-	$wantwidget = $widget eq 'true';
+	my $wantwidget = $widget eq 'true';
+
+	my %common = (q => $q, C => $C, AU => $AU, headeropts => $headeropts,
+		nmisng => $nmisng, widget => $widget, wantwidget => $wantwidget);
 
 	#======================================================================
 
 	# select function
-	if ($Q->{act} eq 'outage_table_view') {			viewOutage();
-	} elsif ($Q->{act} eq 'outage_table_doadd') {	doaddOutage(); viewOutage();
-	} elsif ($Q->{act} eq 'outage_table_dodelete') {	dodeleteOutage(); viewOutage();
-	} else { notfound(); }
+	if ($Q->{act} eq 'outage_table_view') {
+		viewOutage(%common, node => $Q->{node}, conf => $Q->{conf},
+			refresh => $Q->{refresh}, start => $Q->{start}, end => $Q->{end},
+			change => $Q->{change}, error => $Q->{error});
+	} elsif ($Q->{act} eq 'outage_table_doadd') {
+		my $result = doaddOutage(AU => $AU, wantwidget => $wantwidget,
+			node => $Q->{node}, start => $Q->{start}, end => $Q->{end}, change => $Q->{change});
+		viewOutage(%common, node => $result->{node}, conf => $Q->{conf},
+			refresh => $Q->{refresh}, start => $result->{start}, end => $result->{end},
+			change => $result->{change}, error => $result->{error});
+	} elsif ($Q->{act} eq 'outage_table_dodelete') {
+		my $result = dodeleteOutage(AU => $AU, id => $Q->{id});
+		viewOutage(%common, node => '', conf => $Q->{conf},
+			refresh => $Q->{refresh}, error => $result->{error});
+	} else {
+		notfound(headeropts => $headeropts, act => $Q->{act});
+	}
 
 	return;
 }
 
+# args: headeropts, act
 sub notfound {
-	print header($headeropts);
-	print "Outage: ERROR, act=$Q->{act}<br>\n";
+	my (%args) = @_;
+	print header($args{headeropts});
+	print "Outage: ERROR, act=$args{act}<br>\n";
 	print "Request not found\n";
 }
 
 #===================
 
+# args: q, C, AU, headeropts, nmisng, widget, wantwidget,
+#       node, conf, refresh, start, end, change, error
 sub viewOutage
 {
+	my (%args) = @_;
+	my ($q, $C, $AU, $nmisng) = @args{qw(q C AU nmisng)};
+	my $widget = $args{widget};
+	my $wantwidget = $args{wantwidget};
+	my $node = $args{node};
+
 	my @out;
-	my $node = $Q->{node};
 
 	my $title = $node? "Outages for $node" : "List of Outages";
 
 	my $time = time();
 
-	print header($headeropts);
+	print header($args{headeropts});
 	Compat::NMIS::pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
 
 	my $NT = Compat::NMIS::loadNodeTable();
 	my $res = NMISNG::Outage::find_outages(); # attention: cannot filter by affected node
 	if (!$res->{success})
 	{
-		$Q->{error} = "Cannot find outages: $res->{error}";
+		print "Cannot find outages: $res->{error}";
 		return;
 	}
 	my @outages = @{$res->{outages}};
@@ -70,13 +93,13 @@ sub viewOutage
 
 	# start of form
 	print start_form(-id=>"nmisOutages", -href=>url(-absolute=>1)."?")
-			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "conf", -value => $args{conf})
 			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	# doesn't make sense to run the bar creator if it can't create any output anyway...
-	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},
-																			widget=>$widget, conf => $Q->{conf}, AU => $AU)
+	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, refresh=>$args{refresh},
+																			widget=>$widget, conf => $args{conf}, AU => $AU)
 			if ($node);
 
 	print start_table;
@@ -86,10 +109,10 @@ sub viewOutage
 		my $start = $time+300;
 		my $end = $time+3600;
 		my $change = 'ticket #';
-		if ($Q->{error} ne '') {
-			$start = $Q->{start};
-			$end = $Q->{end};
-			$change = $Q->{change};
+		if ($args{error} ne '') {
+			$start = $args{start};
+			$end = $args{end};
+			$change = $args{change};
 		}
 
 		my @nodes = grep { $AU->InGroup($NT->{$_}{group}) } sort {lc $a cmp lc $b} keys %{$NT};
@@ -129,8 +152,8 @@ sub viewOutage
 							 -value=>"Add"))
 			);
 
-		if ($Q->{error} ne '') {
-			print Tr(td({class=>'error',colspan=>'3'},$Q->{error}));
+		if ($args{error} ne '') {
+			print Tr(td({class=>'error',colspan=>'3'},$args{error}));
 		}
 	}
 
@@ -243,35 +266,34 @@ ENDS
 }
 
 
+# args: AU, wantwidget, node, start, end, change
+# returns hashref with node, start, end, change, error
 sub doaddOutage {
+	my (%args) = @_;
+	my $AU = $args{AU};
+	my $wantwidget = $args{wantwidget};
 
 	$AU->CheckAccess("Table_Outages_rw",'header');
 
-	my $node = $Q->{node};
-	my $start = parsedate($Q->{start}); # convert to number of seconds
-	my $end = parsedate($Q->{end});
-	my $change = $Q->{change};
+	my $node = $args{node};
+	my $start = parsedate($args{start}); # convert to number of seconds
+	my $end = parsedate($args{end});
+	my $change = $args{change};
 	my $time = time();
 
-	$Q->{start} = $start; # in case of error
-	$Q->{end} = $end;
-
 	if ($node eq '') {
-		$Q->{error} = "Node not selected";
-		return;
+		return { node => $node, start => $start, end => $end, change => $change,
+			error => "Node not selected" };
 	}
 	if ($start < $time) {
-		$Q->{start} = $Q->{end} = '';
-		$Q->{error} = "Cannot add Planned Outage with start time less than \"now\" ";
-		return;
+		return { node => $node, start => '', end => '', change => $change,
+			error => "Cannot add Planned Outage with start time less than \"now\" " };
 	}
 	if ($end <= $start) {
-		$Q->{end} = '';
-		$Q->{error} = "Cannot add start time later then or equal to end time";
-		return;
+		return { node => $node, start => $start, end => '', change => $change,
+			error => "Cannot add start time later then or equal to end time" };
 	}
 
-	$Q->{node} = '';			# fixme: what is that for??
 	$change =~ s/,//g; # remove comma to appease brittle event log system
 
 	# process multiple node selection - which arrives \0-packed if POSTed, ie. nonwidget,
@@ -288,26 +310,29 @@ sub doaddOutage {
 																												{ name =>
 																															(@nodes > 1? \@nodes : $nodes[0]) } }); # array only if more than one
 
-
 	if (!$res->{success})
 	{
-		$Q->{error} = "Failed to create outage: $res->{error}";
-		return;
+		return { node => '', start => $start, end => $end, change => $change,
+			error => "Failed to create outage: $res->{error}" };
 	}
+	return { node => '', error => '' };
 }
 
-# requires the outage id
+# args: AU, id
+# returns hashref with error
 sub dodeleteOutage
 {
+	my (%args) = @_;
+	my $AU = $args{AU};
+
 	$AU->CheckAccess("Table_Outages_rw",'header');
 
-	$Q->{node} = '';                                                        # fixme what is that for?
-
-	my $res = NMISNG::Outage::remove_outage(id => $Q->{id}, meta => { user => $AU->User } );
+	my $res = NMISNG::Outage::remove_outage(id => $args{id}, meta => { user => $AU->User } );
 	if (!$res->{success})
 	{
-		$Q->{error} = "Failed to delete outage $Q->{id}: $res->{error}";
+		return { error => "Failed to delete outage $args{id}: $res->{error}" };
 	}
+	return { error => '' };
 }
 
 1;

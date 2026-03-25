@@ -9,48 +9,68 @@ use NMISNG::Snmp;
 use Net::SNMP qw(oid_lex_sort);
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-our ($q, $Q, $C, $AU, $headeropts, $nmisng, $widget, $wantwidget);
-
 sub runcgi {
 	my ($args) = @_;
-	($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
-	$headeropts = $args->{headeropts};
-	$nmisng = $args->{nmisng};
+	my ($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
+	my $headeropts = $args->{headeropts};
+	my $nmisng = $args->{nmisng};
 
-	$widget = (!defined $ENV{HTTP_X_REQUESTED_WITH})? 'false' :
+	my $widget = (!defined $ENV{HTTP_X_REQUESTED_WITH})? 'false' :
 			NMISNG::Util::getbool( $Q->{widget}, "invert" ) ? 'false' : 'true';
-	$wantwidget = ($widget eq 'true');
+	my $wantwidget = ($widget eq 'true');
+
+	my %common = (q => $q, C => $C, AU => $AU, headeropts => $headeropts,
+		nmisng => $nmisng, widget => $widget, wantwidget => $wantwidget);
 
 	#======================================================================
 
 	# select function
 
-	if ($Q->{act} eq 'snmp_var_menu') {	menuSNMP();
-	} else { notfound(); }
+	if ($Q->{act} eq 'snmp_var_menu') {
+		menuSNMP(%common, refresh => $Q->{refresh},
+			node => $Q->{node}, pnode => $Q->{pnode},
+			var => $Q->{var}, pvar => $Q->{pvar},
+			oid => $Q->{oid}, go => $Q->{go},
+			community => $Q->{community}, pcommunity => $Q->{pcommunity},
+			host => $Q->{host}, version => $Q->{version}, debug => $Q->{debug});
+	} else {
+		notfound(headeropts => $headeropts, act => $Q->{act});
+	}
 
 	return;
 }
 
+# args: headeropts, act
 sub notfound {
-	print header($headeropts);
-	print "SNMP: ERROR, act=$Q->{act}<br>\n";
+	my (%args) = @_;
+	print header($args{headeropts});
+	print "SNMP: ERROR, act=$args{act}<br>\n";
 	print "Request not found\n";
 }
 
 #===================
 
+# args: q, C, AU, headeropts, nmisng, widget, wantwidget, refresh,
+#       node, pnode, var, pvar, oid, go, community, pcommunity, host, version, debug
 sub menuSNMP
 {
-	print header($headeropts);
-	Compat::NMIS::pageStartJscript( title => "NMIS SNMP Tool", refresh => $Q->{refresh} )
+	my (%args) = @_;
+	my ($q, $C, $AU, $nmisng) = @args{qw(q C AU nmisng)};
+	my $widget = $args{widget};
+	my $wantwidget = $args{wantwidget};
+
+	print header($args{headeropts});
+	Compat::NMIS::pageStartJscript( title => "NMIS SNMP Tool", refresh => $args{refresh} )
 			if ( !$wantwidget );
 
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $var = $Q->{var};
-	my $pvar = $Q->{pvar};
-	my $oid = $Q->{oid};
-	my $go = $Q->{go};
+	my $node = $args{node};
+	my $pnode = $args{pnode};
+	my $var = $args{var};
+	my $pvar = $args{pvar};
+	my $oid = $args{oid};
+	my $go = $args{go};
+	my $community = $args{community};
+	my $pcommunity = $args{pcommunity};
 
 	my $xoid;
 	my $NT = Compat::NMIS::loadLocalNodeTable(); # node table
@@ -66,18 +86,18 @@ sub menuSNMP
 	print start_table;
 
 	if ($node eq 'other') {
-		if ($Q->{community} ne '' and $Q->{community} ne '*****') {
-			$Q->{pcommunity} = $Q->{community};
-			$Q->{community} = '*****';
+		if ($community ne '' and $community ne '*****') {
+			$pcommunity = $community;
+			$community = '*****';
 		}
 		print td({class=>'header', colspan=>'1'},
-				"IP address ",textfield(-name=>"host",-size=>'25',-override=>1,-value=>"$Q->{host}"));
+				"IP address ",textfield(-name=>"host",-size=>'25',-override=>1,-value=>"$args{host}"));
 		print td({class=>'header', colspan=>'1'},
 				"version ",popup_menu(-name=>"version",-override=>1,
-					-values=>['snmpv2c','snmpv1'],-default=>"$Q->{version}"));
+					-values=>['snmpv2c','snmpv1'],-default=>"$args{version}"));
 		print td({class=>'header', colspan=>'1'},
-				"community ",textfield(-name=>"community",-size=>'15',-override=>1,-value=>"$Q->{community}"));
-		print hidden(-name=>'pcommunity', -default=>"$Q->{pcommunity}",-override=>'1');
+				"community ",textfield(-name=>"community",-size=>'15',-override=>1,-value=>"$community"));
+		print hidden(-name=>'pcommunity', -default=>"$pcommunity",-override=>'1');
 		print hidden(-name=>'node', -default=>"other",-override=>'1');
 	} else {
 		my @nodes = (sort {lc($a) cmp lc($b)} keys %{$NT});
@@ -128,7 +148,12 @@ sub menuSNMP
 									-value=>"Go"));
 
 	print end_Tr;
-	if ($node ne '' and $oid ne '' and NMISNG::Util::getbool($go)) { viewSNMP(oid=>$oid); }
+	if ($node ne '' and $oid ne '' and NMISNG::Util::getbool($go)) {
+		viewSNMP(q => $q, C => $C, nmisng => $nmisng, wantwidget => $wantwidget,
+			oid => $oid, node => $node, community => $community,
+			pcommunity => $pcommunity, version => $args{version},
+			host => $args{host}, debug => $args{debug});
+	}
 
 	print end_table;
 	print hidden(-name=>'pnode', -default=>"$node",-override=>'1');
@@ -140,24 +165,25 @@ sub menuSNMP
 
 }
 
+# args: q, C, nmisng, wantwidget, oid, node, community, pcommunity, version, host, debug
 sub viewSNMP
 {
-	my %args = @_;
+	my (%args) = @_;
+	my ($q, $C, $nmisng) = @args{qw(q C nmisng)};
 	my $oid = $args{oid};
 
-	my $node = $Q->{node};
+	my $node = $args{node};
 	my ($OIDS,$NAMES) = NMISNG::MIB::loadoid($nmisng);
 	my $result;
 	my $SNMP;
 
-	my $community = $Q->{community} eq '*****' ? $Q->{pcommunity} : $Q->{community};
+	my $community = $args{community} eq '*****' ? $args{pcommunity} : $args{community};
 
 	print start_Tr,start_td({colspan=>'3'}),start_table;
 
 	if ($node eq 'other') {
-		my $version = $Q->{version} ne '' ? $Q->{version} : 'snmpv2c';
-##		my $community = $Q->{community} eq '*****' ? $Q->{pcommunity} : $Q->{community};
-		my $host = $Q->{host};
+		my $version = $args{version} ne '' ? $args{version} : 'snmpv2c';
+		my $host = $args{host};
 		my $port = 161;
 		if ($host eq '') {
 			print Tr(td({class=>'error'},"Error, no IP address specified"));
@@ -170,7 +196,7 @@ sub viewSNMP
 											community => NMISNG::Util::stripSpaces($community),
 											port => $port,
 											max_msg_size => $C->{snmp_max_msg_size},
-											debug => $Q->{debug})) {
+											debug => $args{debug})) {
 			print Tr(td({class=>'error'},$SNMP->error));
 			return;
 		}

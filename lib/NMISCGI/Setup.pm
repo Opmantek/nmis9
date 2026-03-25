@@ -7,45 +7,48 @@ use Compat::NMIS;
 use NMISNG::Auth;
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-our ($q, $Q, $C, $AU, $headeropts, $wantwidget, $widget, %item2displayname);
+my %item2displayname = ( "server_name" => "Server Name",
+												 "nmis_host" => "NMIS Host",
+												 "auth_web_key" => "Authentication Secret",
+												 "auth_cookie_flavour" => "Cookie Type",
+												 "mail_server" => "Mail Server",
+												 "mail_server_port" => "Mail Server Port",
+												 "mail_user" => "Mail User",
+												 "mail_password" => "Mail Password",
+												 "mail_from" => "Mail Sender Address",
+												 "mail_domain" => "Mail Domain",
+												 "mail_use_tls" => "Use TLS Encryption",
+												 "mail_combine" => "Combined Emails",
+												 "status_mode" => "Node Status Mode",
+		);
 
 sub runcgi {
 	my ($args) = @_;
-	($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
-	$headeropts = $args->{headeropts};
+	my ($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
+	my $headeropts = $args->{headeropts};
 
 	# this cgi script defaults to widget mode ON
-	$wantwidget = exists $Q->{widget}? !NMISNG::Util::getbool($Q->{widget}, "invert") : 1;
-	$widget = $wantwidget ? "true" : "false";
+	my $wantwidget = exists $Q->{widget}? !NMISNG::Util::getbool($Q->{widget}, "invert") : 1;
+	my $widget = $wantwidget ? "true" : "false";
 
-	# config key to display name, needed in two places so here we go
-	%item2displayname = ( "server_name" => "Server Name",
-													 "nmis_host" => "NMIS Host",
-													 "auth_web_key" => "Authentication Secret",
-													 "auth_cookie_flavour" => "Cookie Type",
-													 "mail_server" => "Mail Server",
-													 "mail_server_port" => "Mail Server Port",
-													 "mail_user" => "Mail User",
-													 "mail_password" => "Mail Password",
-													 "mail_from" => "Mail Sender Address",
-													 "mail_domain" => "Mail Domain",
-													 "mail_use_tls" => "Use TLS Encryption",
-													 "mail_combine" => "Combined Emails",
-													 "status_mode" => "Node Status Mode",
-			);
+	my %common = (q => $q, C => $C, AU => $AU, headeropts => $headeropts,
+		wantwidget => $wantwidget, widget => $widget);
 
 	$AU->CheckAccess("table_config_view","header");
 
 	# just two actions: showing the setup (menu/panel), handling an edit action
 	if ($Q->{act} eq 'setup_menu' or NMISNG::Util::getbool($Q->{cancel}))
 	{
-		display_setup();
+		display_setup(%common, refresh => $Q->{refresh}, conf => $Q->{conf},
+			error_message => $Q->{error_message}, success_message => $Q->{success_message});
 	}
-	# edit submission action: returns 0 if ok, 1 otherwise (and sets $Q->{error_message})
+	# edit submission action
 	elsif ($Q->{act} eq 'setup_doedit')
 	{
-		edit_config();
-		display_setup();
+		# $Q required: option/* keys are determined at runtime by config structure
+		my $result = edit_config(C => $C, AU => $AU, Q => $Q, cancel => $Q->{cancel});
+		display_setup(%common, refresh => $Q->{refresh}, conf => $Q->{conf},
+			error_message => $result->{error_message}, success_message => $result->{success_message});
 	}
 	else
 	{
@@ -71,15 +74,16 @@ sub escape {
 }
 
 
-# display the editing forms/panels for the essential options
-# args: none, but uses $C
-# returns: nothing
+# args: q, C, AU, headeropts, wantwidget, widget, refresh, conf, error_message, success_message
 sub display_setup
 {
 	my (%args) = @_;
+	my ($q, $C, $AU) = @args{qw(q C AU)};
+	my $wantwidget = $args{wantwidget};
+	my $widget = $args{widget};
 
-	print header($headeropts);
-	Compat::NMIS::pageStart(title => "NMIS Setup", refresh => $Q->{refresh})
+	print header($args{headeropts});
+	Compat::NMIS::pageStart(title => "NMIS Setup", refresh => $args{refresh})
 			if (!$wantwidget);
 
 	# get the current config, structure unflattened; and the default config too!
@@ -99,19 +103,19 @@ Entries that likely need to be adjusted are marked with $iconbad.|;
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"nmissetup", -href=>url(-absolute=>1)."?")
-			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "conf", -value => $args{conf})
 			. hidden(-override => 1, -name => "act", -value => "setup_doedit")
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 
 	print start_table;
-	if (defined $Q->{error_message} && $Q->{error_message} ne "" )
+	if (defined $args{error_message} && $args{error_message} ne "" )
 	{
-		print Tr(td({class=>'Fatal', align=>'center', colspan => 3}, "Error: $Q->{error_message}"));
+		print Tr(td({class=>'Fatal', align=>'center', colspan => 3}, "Error: $args{error_message}"));
 	}
-	elsif (defined $Q->{success_message} && $Q->{success_message} ne "" )
+	elsif (defined $args{success_message} && $args{success_message} ne "" )
 	{
-		print Tr(td({class=>'Normal', align=>'center', colspan => 3}, "$Q->{success_message}"));
+		print Tr(td({class=>'Normal', align=>'center', colspan => 3}, "$args{success_message}"));
 	}
 
 	foreach (
@@ -264,14 +268,15 @@ Leave this blank if you don't need to authenticate at your mail server."],
 }
 
 
-# updates the configuration,
-# args: none, but uses $C and $Q
-# returns: 1 if all ok, 0 if not and sets $Q->{success_message} or $Q->{error_message}
+# args: C, AU, Q, cancel
+# $Q required: option/* keys are determined at runtime by config structure
+# returns hashref with error_message or success_message
 sub edit_config
 {
 	my (%args) = @_;
+	my ($C, $AU, $Q) = @args{qw(C AU Q)};
 
-	return 1 if (NMISNG::Util::getbool($Q->{cancel})); # shouldn't get here in the cancel case
+	return { success_message => "" } if (NMISNG::Util::getbool($args{cancel})); # shouldn't get here in the cancel case
 	$AU->CheckAccess("Table_Config_rw");
 
 	# read the current config in raw, unflattened form
@@ -279,6 +284,7 @@ sub edit_config
 	$rawconf = {} if (!ref($rawconf)); # it's that or die
 
 	my $changes;
+	# $Q required: option/* keys are determined at runtime by config structure
 	# elements are handed to us as option/<section>/<item>
 	for my $update (keys %$Q)
 	{
@@ -291,36 +297,30 @@ sub edit_config
 		if ($value eq "" and ( $item eq "nmis_host" or $item eq "mail_server" or $item eq "server_name"
 				or $item eq "mail_from" or $item eq "auth_web_key" ))
 		{
-			$Q->{error_message} = $item2displayname{$item}." cannot be blank!";
-			return 0;
+			return { error_message => $item2displayname{$item}." cannot be blank!" };
 		}
 		elsif ($item eq "status_mode" and $value !~ /^(coarse|fine-grained|classic)$/)
 		{
-			$Q->{error_message} = $item2displayname{$item}." must be one of coarse, fine-grained or classic!";
-			return 0;
+			return { error_message => $item2displayname{$item}." must be one of coarse, fine-grained or classic!" };
 		}
 		elsif (($item eq "nmis_host" or $item eq "mail_server")
 					 and $value !~ /^([a-zA-Z0-9_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
 		{
-			$Q->{error_message} = $item2displayname{$item}." contains invalid characters!";
-			return 0;
+			return { error_message => $item2displayname{$item}." contains invalid characters!" };
 		}
 		elsif ($item eq "mail_server_port" and ( $value !~ /^\d+$/ or $value > 65535) )
 		{
-			$Q->{error_message} = "Mail Server Port must be a number between 0 and 65535!";
-			return 0;
+			return { error_message => "Mail Server Port must be a number between 0 and 65535!" };
 		}
 		# this is crude, using email::valid would be a better choice; note that _ is actually NOT
 		# allowed in the domain/hostname part but we don't bother.
 		elsif ($item eq "mail_from" and $value !~ /[^@]+\@([a-zA-Z0-9_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
 		{
-			$Q->{error_message} = $item2displayname{$item}." is not a valid email address";
-			return 0;
+			return { error_message => $item2displayname{$item}." is not a valid email address" };
 		}
 		elsif (($item eq "mail_use_tls" or $item eq "mail_combine") and $value !~ /^(true|false)$/)
 		{
-			$Q->{error_message} = "Value for ".$item2displayname{$item}." must be true or false.";
-			return 0;
+			return { error_message => "Value for ".$item2displayname{$item}." must be true or false." };
 		}
 
 		if ($item eq "status_mode")	# catch a dummy - section is virtual
@@ -357,8 +357,7 @@ sub edit_config
 		{
 			if (!defined $rawconf->{$section})
 			{
-				$Q->{error_message} = "Error: Attempting to set unknown item $update!";
-				return 0;
+				return { error_message => "Error: Attempting to set unknown item $update!" };
 			}
 			# then adjust the entries in question and record that changes were made
 			my $curval = $rawconf->{$section}->{$item};
@@ -374,13 +373,12 @@ sub edit_config
 	if ($changes)
 	{
 		NMISNG::Util::writeConfData(data => $rawconf);
-		$Q->{success_message} = "Successfully saved all settings.";
+		return { success_message => "Successfully saved all settings." };
 	}
 	else
 	{
-		$Q->{success_message} = "No changes to save.";
+		return { success_message => "No changes to save." };
 	}
-	return 1;
 }
 
 1;

@@ -8,16 +8,17 @@ use Compat::NMIS;
 use NMISNG::Util;
 use NMISNG::Auth;
 
-our ($q, $Q, $C, $AU, $headeropts, $wantwidget, $widgetstate);
-
 sub runcgi {
 	my ($args) = @_;
-	($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
-	$headeropts = $args->{headeropts};
+	my ($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
+	my $headeropts = $args->{headeropts};
 
 	# widget defaults to true
-	$wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
-	$widgetstate = $wantwidget?"true":"false";
+	my $wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
+	my $widgetstate = $wantwidget?"true":"false";
+
+	my %common = (q => $q, C => $C, AU => $AU, wantwidget => $wantwidget,
+		widgetstate => $widgetstate);
 
 	# prime the output
 	print header($headeropts);
@@ -30,10 +31,14 @@ sub runcgi {
 
 	# select function
 
-	if ($Q->{act} eq 'find_interface_menu') {		menuFind('interface');
-	} elsif ($Q->{act} eq 'find_interface_view') {	viewInterfaceFind();
-	} elsif ($Q->{act} eq 'find_node_menu') {		menuFind('node');
-	} elsif ($Q->{act} eq 'find_node_view') {		viewNodeFind();
+	if ($Q->{act} eq 'find_interface_menu') {
+		menuFind(%common, obj => 'interface', conf => $Q->{conf});
+	} elsif ($Q->{act} eq 'find_interface_view') {
+		viewInterfaceFind(%common, find => $Q->{find});
+	} elsif ($Q->{act} eq 'find_node_menu') {
+		menuFind(%common, obj => 'node', conf => $Q->{conf});
+	} elsif ($Q->{act} eq 'find_node_view') {
+		viewNodeFind(%common, find => $Q->{find});
 	}
 	else
 	{
@@ -47,15 +52,19 @@ sub runcgi {
 
 #===================
 
+# args: q, C, AU, wantwidget, widgetstate, obj, conf
 sub menuFind
 {
-	my $obj = shift;
+	my (%args) = @_;
+	my $obj = $args{obj};
+	my $wantwidget = $args{wantwidget};
+	my $widgetstate = $args{widgetstate};
 
 	my $thisurl = url(-absolute=>1)."?";
 	# the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>'find_the_monkey', -href => $thisurl);
-	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+	print hidden(-override => 1, -name => "conf", -value => $args{conf})
 			. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
 			. hidden(-override => 1, -name => "widget", -value => $widgetstate);
 
@@ -72,11 +81,13 @@ sub menuFind
 }
 
 
-# fixme9: needs to be rewritten to NOT use slow
-# and inefficient loadInterfaceInfo()!
+# args: C, AU, wantwidget, widgetstate, find
 sub viewInterfaceFind
 {
-	my $find = $Q->{find};
+	my (%args) = @_;
+	my ($C, $AU) = @args{qw(C AU)};
+	my $widgetstate = $args{widgetstate};
+	my $find = $args{find};
 
 	# verify access to this command
 	$AU->CheckAccess("find_interface"); # same as menu
@@ -149,7 +160,7 @@ sub viewInterfaceFind
 	}
 
 	print start_table;
-	print Tr(td({class=>'header',align=>'center',colspan=>'9'},"Result of Search Interfaces with \'$Q->{find}\'"));
+	print Tr(td({class=>'header',align=>'center',colspan=>'9'},"Result of Search Interfaces with \'$find\'"));
 
 	if (!scalar @out) {
 		print Tr(td({class=>'error'},'No matches found in interface list'));
@@ -170,9 +181,12 @@ sub viewInterfaceFind
 
 } # typeFind
 
+# args: C, AU, wantwidget, widgetstate, find
 sub viewNodeFind {
-
-	my $find = $Q->{find};
+	my (%args) = @_;
+	my ($C, $AU) = @args{qw(C AU)};
+	my $widgetstate = $args{widgetstate};
+	my $find = $args{find};
 
 	# verify access to this command
 	$AU->CheckAccess("find_node"); # same as menu
@@ -230,7 +244,7 @@ sub viewNodeFind {
 	}
 
 	print start_table;
-	print Tr(td({class=>'header',align=>'center',colspan=>'9'},"Result of Search Nodes with \'$Q->{find}\'"));
+	print Tr(td({class=>'header',align=>'center',colspan=>'9'},"Result of Search Nodes with \'$find\'"));
 
 	if (!scalar @out) {
 		print Tr(td({class=>'error'},'No matches found in Nodes list'));

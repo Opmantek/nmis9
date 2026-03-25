@@ -8,47 +8,57 @@ use NMISNG::Sys;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-our ($q, $Q, $C, $AU, $headeropts, $widget, $wantwidget, $nmisng);
-
 sub runcgi {
 	my $args = shift;
-	$q = $args->{q};
-	$Q = $args->{Q};
-	$C = $args->{C};
-	$AU = $args->{AU};
-	$headeropts = $args->{headeropts};
-	$nmisng = $args->{nmisng};
+	my $q = $args->{q};
+	my $Q = $args->{Q};
+	my $C = $args->{C};
+	my $AU = $args->{AU};
+	my $headeropts = $args->{headeropts};
+	my $nmisng = $args->{nmisng};
 
 	# on unless explicitely set to false
-	$widget = NMISNG::Util::getbool($Q->{widget},"invert")? 'false' : "true";
-	$wantwidget = $widget eq "true";
+	my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? 'false' : "true";
+	my $wantwidget = $widget eq "true";
+
+	my %common = (q => $q, C => $C, AU => $AU, headeropts => $headeropts,
+		nmisng => $nmisng, widget => $widget, wantwidget => $wantwidget);
 
 	#======================================================================
 
 	# select function
 
 	if ($Q->{act} =~ /tool_system/) {
-		typeTool();
+		typeTool(%common, act => $Q->{act}, node => $Q->{node},
+			conf => $Q->{conf}, dns => $Q->{dns});
 	}
 	else {
-		notfound();
+		notfound(headeropts => $headeropts, act => $Q->{act}, node => $Q->{node});
 	}
 
 	return;
 }
 
+# args: headeropts, act, node
 sub notfound {
-	print header($headeropts), escapeHTML("Tools: ERROR, act=$Q->{act}, node=$Q->{node}")."<br>Request not found\n";
+	my (%args) = @_;
+	print header($args{headeropts}), escapeHTML("Tools: ERROR, act=$args{act}, node=$args{node}")."<br>Request not found\n";
 }
 
 #===================
 
 
+# args: q, C, AU, headeropts, nmisng, widget, wantwidget, act, node, conf, dns
 sub typeTool
 {
-	my $tool = $Q->{act};
+	my (%args) = @_;
+	my ($q, $C, $AU, $nmisng) = @args{qw(q C AU nmisng)};
+	my $widget = $args{widget};
+	my $wantwidget = $args{wantwidget};
+
+	my $tool = $args{act};
 	$tool =~ s/tool_system_//i;
-	my $node = $Q->{node};
+	my $node = $args{node};
 
 	my $NT = Compat::NMIS::loadNodeTable();
 	my $host = $NT->{$node}{host};
@@ -58,12 +68,12 @@ sub typeTool
 	# the definitely problematic ones.
 	if ($node =~ /[&`'"<>]/)
 	{
-		print header($headeropts), "Tools: ERROR, Rejecting Unsafe node argument '".escapeHTML($node)."'<br>\n";
+		print header($args{headeropts}), "Tools: ERROR, Rejecting Unsafe node argument '".escapeHTML($node)."'<br>\n";
 		exit;
 	}
 	if ($host =~ /[&`'"<>]/)
 	{
-		print header($headeropts), "Tools: ERROR, Rejecting Unsafe host argument '".escapeHTML($host)."'<br>\n";
+		print header($args{headeropts}), "Tools: ERROR, Rejecting Unsafe host argument '".escapeHTML($host)."'<br>\n";
 		exit;
 	}
 
@@ -76,17 +86,19 @@ sub typeTool
 	if ( $tool =~ /^(ping|trace|nslookup|finger|man|mank|mtr|lft|snmp)$/
 			 and (!$node or !$host))	# node must be given AND known for these cmds
 	{
-		selectNode();
+		selectNode(q => $q, C => $C, headeropts => $args{headeropts},
+			wantwidget => $wantwidget, widget => $widget,
+			conf => $args{conf}, act => $args{act}, node => $node);
 		exit;
 	}
 
-	print header($headeropts);
+	print header($args{headeropts});
 	Compat::NMIS::pageStartJscript(title => $title) if (!$wantwidget);
 
 	return unless $AU->CheckAccess("tls_$tool");
 	my $wid = "580px";
 
-	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, widget=>$widget, conf => $args{conf}, AU => $AU);
 
 	#certain outputs will have their own layout
 	if ($tool eq "hostinfo") {
@@ -108,12 +120,12 @@ sub typeTool
 											 vmstat => [qw(vmstat 1 10)],
 											 date => ['date'],
 											 df => [qw(df -k)],
-											 dns => \&viewDNS,
+											 dns => sub { viewDNS(AU => $AU, nmisng => $nmisng, dns => $args{dns}) },
 											 lft => [$C->{lft},"-NASE", $host],
 											 mtr => [$C->{mtr},qw(--report --report-cycles=10),$host],
 											 snmp => [$C->{'<nmis_admin>'}."/tests.pl", "act=snmp", "node=$node"],
 											 collect => [$C->{'<nmis_admin>'}."/support.pl", "action=collect", "gui=1"]
-				);
+			);
 
 		if (!$knowntools{$tool})
 		{
@@ -159,8 +171,14 @@ sub typeTool
 	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
+# args: q, C, headeropts, wantwidget, widget, conf, act, node
 sub selectNode {
-	print header($headeropts);
+	my (%args) = @_;
+	my ($q, $C) = @args{qw(q C)};
+	my $wantwidget = $args{wantwidget};
+	my $widget = $args{widget};
+
+	print header($args{headeropts});
 
 	print start_html(
 		-title=>'NMIS Network Tools',-style=>{'src'=>"$C->{'styles'}"},
@@ -176,14 +194,14 @@ sub selectNode {
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"nmisTools", -href=>url(-absolute=>1)."?")
-			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
-			. hidden(-override => 1, -name => "act", -value => $Q->{act})
+			. hidden(-override => 1, -name => "conf", -value => $args{conf})
+			. hidden(-override => 1, -name => "act", -value => $args{act})
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table({width=>'500px'});
 
-	print Tr(td({class=>'header'},"Node"),td({class=>'info Plain'},textfield(-name=>"node",size=>'25',value=>"$Q->{node}")));
+	print Tr(td({class=>'header'},"Node"),td({class=>'info Plain'},textfield(-name=>"node",size=>'25',value=>"$args{node}")));
 	print Tr(
 		td({class=>'info'},button(-name=>'cancelbutton',
 															onclick=> '$("#cancelinput").val("true");' .
@@ -209,15 +227,22 @@ sub hostInfo {
 	print end_table;
 }
 
+# args: AU, nmisng, dns
 sub viewDNS {
-	if ($Q->{dns} eq 'host') { viewHostDNS(); }
-	elsif ($Q->{dns} eq 'dns') { viewDnsDNS(); }
-	elsif ($Q->{dns} eq 'arpa') { viewArpaDNS(); }
-	elsif ($Q->{dns} eq 'loc') { viewLocDNS(); }
+	my (%args) = @_;
+	my ($AU, $nmisng) = @args{qw(AU nmisng)};
+
+	if ($args{dns} eq 'host') { viewHostDNS(AU => $AU); }
+	elsif ($args{dns} eq 'dns') { viewDnsDNS(AU => $AU); }
+	elsif ($args{dns} eq 'arpa') { viewArpaDNS(AU => $AU); }
+	elsif ($args{dns} eq 'loc') { viewLocDNS(AU => $AU, nmisng => $nmisng); }
 }
 
+# args: AU
 sub getInterfaceTable
 {
+	my (%args) = @_;
+	my $AU = $args{AU};
 
 	my $NT = Compat::NMIS::loadNodeTable();
 	# fixme9: needs to be rewritten to NOT use slow and inefficient loadInterfaceInfo!
@@ -262,10 +287,12 @@ sub getInterfaceTable
 }
 
 
+# args: AU
 sub viewHostDNS {
+	my (%args) = @_;
 
 	#Load the Interface Information table
-	my $ii = getInterfaceTable();
+	my $ii = getInterfaceTable(AU => $args{AU});
 
 	# Host Records
 	print Tr(td({class=>'header'},"Host Records"));
@@ -295,10 +322,12 @@ sub viewHostDNS {
 	print end_table,end_td,end_Tr;
 }
 
+# args: AU
 sub viewDnsDNS {
+	my (%args) = @_;
 
 	#Load the Interface Information table
-	my $ii = getInterfaceTable();
+	my $ii = getInterfaceTable(AU => $args{AU});
 
 	# DNS Records
 	print Tr(td({class=>'header'},"DNS Records"));
@@ -332,13 +361,12 @@ sub viewDnsDNS {
 	print end_table,end_td,end_Tr;
 }
 
+# args: AU
 sub viewArpaDNS {
+	my (%args) = @_;
 
 	#Load the Interface Information table
-	my $ii = getInterfaceTable();
-
-	#0.19.64.10.in-addr.arpa.       IN      PTR     network.mosp.cisco.com.
-	#1.19.64.10.in-addr.arpa.       IN      PTR     gw.mosp.cisco.com.
+	my $ii = getInterfaceTable(AU => $args{AU});
 
 	# in-addr.arpa. Records
 	print Tr(td({class=>'header'},"in-addr.arpa. DNS Records"));
@@ -365,53 +393,20 @@ sub viewArpaDNS {
 	print end_table,end_td,end_Tr;
 }
 
+# args: AU, nmisng
 sub viewLocDNS
 {
+	my (%args) = @_;
+	my ($AU, $nmisng) = @args{qw(AU nmisng)};
+
 	my $node;
 	my $location;
 	my %location_data;
 
 	#Load the Interface Information table
-	my $ii = getInterfaceTable();
+	my $ii = getInterfaceTable(AU => $AU);
 	#Load the location data.
 	my $LT = Compat::NMIS::loadGenericTable("Locations");
-
-
-# Extract from RFC1876 A Means for Expressing Location Information in the Domain Name System
-# This RFC specifies creates DNS LOC (location) records for visual traceroutes
-#--snip--
-#3. Master File Format
-#   The LOC record is expressed in a master file in the following format:
-#   <owner> <TTL> <class> LOC ( d1 [m1 [s1]] {"N"|"S"} d2 [m2 [s2]]
-#                               {"E"|"W"} alt["m"] [siz["m"] [hp["m"]
-#                               [vp["m"]]]] )
-#   (The parentheses are used for multi-line data as specified in [RFC1035] section 5.1.)
-#   where:
-#       d1:     [0 .. 90]            (degrees latitude)
-#       d2:     [0 .. 180]           (degrees longitude)
-#       m1, m2: [0 .. 59]            (minutes latitude/longitude)
-#       s1, s2: [0 .. 59.999]        (seconds latitude/longitude)
-#       alt:    [-100000.00 .. 42849672.95] BY .01 (altitude in meters)
-#       siz, hp, vp: [0 .. 90000000.00] (size/precision in meters)
-#
-#   If omitted, minutes and seconds default to zero, size defaults to 1m,
-#   horizontal precision defaults to 10000m, and vertical precision
-#   defaults to 10m.  These defaults are chosen to represent typical
-#   ZIP/postal code area sizes, since it is often easy to find
-#   approximate geographical location by ZIP/postal code.
-#
-#4. Example Data
-#;;;
-#;;; note that these data would not all appear in one zone file
-#;;;
-#;; network LOC RR derived from ZIP data.  note use of precision defaults
-#cambridge-net.kei.com.        LOC   42 21 54 N 71 06 18 W -24m 30m
-#;; higher-precision host LOC RR.  note use of vertical precision default
-#loiosh.kei.com.               LOC   42 21 43.952 N 71 5 6.344 W -24m 1m 200m
-#pipex.net.                    LOC   52 14 05 N 00 08 50 E 10m
-#curtin.edu.au.                LOC   32 7 19 S 116 2 25 E 10m
-#rwy04L.logan-airport.boston.  LOC   42 21 28.764 N 71 00 51.617 W -44m 2000m
-#--end snip--
 
 	# DNS LOC Records
 

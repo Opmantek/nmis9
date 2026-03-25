@@ -12,13 +12,11 @@ use NMISNG::Auth;
 
 $Data::Dumper::Indent = 1;
 
-our ($q, $Q, $C, $AU, $headeropts, $widget, $wantwidget, $nmisng);
-
 sub runcgi {
 	my ($args) = @_;
-	($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
-	$headeropts = $args->{headeropts};
-	$nmisng = $args->{nmisng};
+	my ($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
+	my $headeropts = $args->{headeropts};
+	my $nmisng = $args->{nmisng};
 
 	$Q = NMISNG::Util::filter_params($Q) if ($Q->{act} ne 'event_table_update');
 
@@ -26,21 +24,26 @@ sub runcgi {
 	$AU->CheckAccess("tls_event_db","header");
 
 	# this cgi script defaults to widget mode ON
-	$widget = NMISNG::Util::getbool($Q->{widget},"invert")? 'false' : 'true';
-	$wantwidget = $widget eq 'true';
+	my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? 'false' : 'true';
+	my $wantwidget = $widget eq 'true';
+
+	my %common = (q => $q, C => $C, AU => $AU, headeropts => $headeropts,
+		nmisng => $nmisng, widget => $widget, wantwidget => $wantwidget);
+
 	#======================================================================
 
 	# select function
 	if ($Q->{act} eq 'event_table_view')
 	{
-		viewEvent();
+		viewEvent(%common, node => $Q->{node}, refresh => $Q->{refresh}, conf => $Q->{conf});
 	} elsif ($Q->{act} eq 'event_table_list')
 	{
-		listEvent();
+		listEvent(%common, conf => $Q->{conf});
 	}
 	elsif ($Q->{act} eq 'event_table_update')
 	{
-		updateEvent(); listEvent();
+		updateEvent(q => $q, nmisng => $nmisng, AU => $AU);
+		listEvent(%common, conf => $Q->{conf});
 	}
 	else
 	{
@@ -56,19 +59,24 @@ sub runcgi {
 #
 #
 
+# args: q, C, AU, headeropts, nmisng, widget, wantwidget, node, refresh, conf
 sub viewEvent
 {
-	my $node = $Q->{node};
+	my (%args) = @_;
+	my ($C, $AU, $nmisng) = @args{qw(C AU nmisng)};
+	my $widget = $args{widget};
+	my $wantwidget = $args{wantwidget};
+	my $node = $args{node};
 
 	#start of page
-	print header($headeropts);
+	print header($args{headeropts});
 	Compat::NMIS::pageStartJscript(title => "NMIS View Event $node",refresh => 86400)
 			if (!$wantwidget);
 
 	my $S = NMISNG::Sys->new(nmisng => $nmisng);
 	$S->init(name=>$node,snmp=>'false');
 
-	print Compat::NMIS::createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	print Compat::NMIS::createHrButtons(node=>$node, system => $S, refresh=>$args{refresh},widget=>$widget, conf => $args{conf}, AU => $AU);
 
 	print start_table;
 
@@ -114,29 +122,28 @@ sub viewEvent
 	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
-###
+# args: q, C, AU, headeropts, nmisng, widget, wantwidget, conf
 sub listEvent
 {
-	print header($headeropts);
-	Compat::NMIS::pageStartJscript(title => "NMIS List Events") if (!$wantwidget);
+	my (%args) = @_;
+	my ($C, $AU, $nmisng) = @args{qw(C AU nmisng)};
+	my $widget = $args{widget};
+	my $wantwidget = $args{wantwidget};
 
-	# verify access to this command/tool bar/button
-	#
-#	if ( $AU->Require ) {
-#		# CheckAccess will throw up a web page and stop if access is not allowed
-#		$AU>CheckAccess("eventcur") or die "Attempted unauthorized access";
-#	}
+	print header($args{headeropts});
+	Compat::NMIS::pageStartJscript(title => "NMIS List Events") if (!$wantwidget);
 
 	# start of form
 	print start_form(-id=>"src_events_form",-href=>url(-absolute=>1)."?")
-			.	hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			.	hidden(-override => 1, -name => "conf", -value => $args{conf})
 			. hidden(-override => 1, -name => "act", -value => "event_table_update")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table;
 
 	my $eventsmodel= $nmisng->events()->get_events_model(filter => {historic => 0, cluster_id => ""});
-	displayEvents($eventsmodel->data, $C->{'server_name'}); #single server
+	displayEvents(C => $C, AU => $AU, widget => $widget, wantwidget => $wantwidget,
+		eventdata => $eventsmodel->data, server => $C->{'server_name'});
 	print end_table;
 	print end_form;
 
@@ -144,11 +151,15 @@ sub listEvent
 
 }
 
-# this receives one of two flavours of event hash:
-# new-style, eventfilename => event data, or old-style, eventhash => event data
+# args: C, AU, widget, wantwidget, eventdata, server
 sub displayEvents
 {
-	my ($eventdata, $server) = @_;
+	my (%args) = @_;
+	my ($C, $AU) = @args{qw(C AU)};
+	my $widget = $args{widget};
+	my $wantwidget = $args{wantwidget};
+	my $eventdata = $args{eventdata};
+	my $server = $args{server};
 
 	my $style;
 	my $button;
@@ -164,9 +175,6 @@ sub displayEvents
 	my %eventcount;
 	my $node_cnt;
 
-	my $node = $Q->{node};
-
-	my $C = NMISNG::Util::loadConfTable();
 	my $NT = Compat::NMIS::loadNodeTable();
 
 	# header
@@ -225,7 +233,7 @@ sub displayEvents
 			print Tr(td({class=>'heading3',colspan=>'10'},"Active Events. (Set All Events Inactive",
 						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'0$server')",-checked=>'',override=>'1'),
 					")"));
-			submitChangesButton();
+			submitChangesButton(wantwidget => $wantwidget);
 		}
 
 		if (!NMISNG::Util::getbool($tmpack) and $thisevent->{ack})
@@ -236,16 +244,20 @@ sub displayEvents
 			print Tr(td({class=>'heading3',colspan=>'10'},"Inactive Events. (Set All Events Active ",
 						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'1$server')",-checked=>'',override=>'1'),
 					")"));
-			submitChangesButton();
+			submitChangesButton(wantwidget => $wantwidget);
 		}
 
 		if ( $tempnode ne $thisevent->{node_name} ) {
 			$tempnode = $thisevent->{node_name};
 			$node_cnt = 0;
 
-			active($server,$tempnode,$tempnodeack,\%eventnoackcount)
+			active(C => $C, widget => $widget,
+				server => $server, tempnode => $tempnode, tempnodeack => $tempnodeack,
+				eventnoackcount => \%eventnoackcount)
 					if (!$thisevent->{ack});
-			inactive($server,$tempnode,$tempnodeack,\%eventackcount)
+			inactive(C => $C, widget => $widget,
+				server => $server, tempnode => $tempnode, tempnodeack => $tempnodeack,
+				eventackcount => \%eventackcount)
 					if ($thisevent->{ack});
 
 		}
@@ -296,15 +308,16 @@ sub displayEvents
 		$event_cnt++;
 		$node_cnt++;
 	} # foreach $event_hash
-	submitChangesButton();
+	submitChangesButton(wantwidget => $wantwidget);
 } # sub displayEvents
 
-# java - ack=false event=active
+# args: C, widget, server, tempnode, tempnodeack, eventnoackcount
 sub active {
-	my $server =shift;
-	my $tempnode = shift;
-	my $tempnodeack = shift;
-	my $eventnoackcount = shift;
+	my (%args) = @_;
+	my ($C, $widget) = @args{qw(C widget)};
+	my ($server, $tempnode, $tempnodeack) = @args{qw(server tempnode tempnodeack)};
+	my $eventnoackcount = $args{eventnoackcount};
+
 	print Tr(td({class=>'header'},
 							a({href=>"network.pl?act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
 					 td({class=>'info Plain',colspan=>'9'},
@@ -315,12 +328,13 @@ sub active {
 							")"));
 } # sub active
 
-# java - ack=true event=inactive
+# args: C, widget, server, tempnode, tempnodeack, eventackcount
 sub inactive {
-	my $server =shift;
-	my $tempnode = shift;
-	my $tempnodeack = shift;
-	my $eventackcount = shift;
+	my (%args) = @_;
+	my ($C, $widget) = @args{qw(C widget)};
+	my ($server, $tempnode, $tempnodeack) = @args{qw(server tempnode tempnodeack)};
+	my $eventackcount = $args{eventackcount};
+
 	print Tr(td({class=>'header'},
 							a({href=>"network.pl?act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
 					 td({class=>'info Plain',colspan=>'9'},
@@ -346,17 +360,22 @@ sub typeHeader {
 			);
 }
 
-#submit Changes
+# args: wantwidget
 sub submitChangesButton{
+	my (%args) = @_;
+	my $wantwidget = $args{wantwidget};
 	print Tr(
 		td({class=>'info Plain',colspan=>'8',align=>'right'},
 			button(-name=>'button',onclick=> ($wantwidget? "get('src_events_form');" : "submit()"),-value=>"Submit Changes")),
 		td({class=>'info Plain',colspan=>'2'}, '&nbsp'));
 }
 
-# change ack for the matching events
+# args: q, nmisng, AU
 sub updateEvent
 {
+	my (%args) = @_;
+	my ($q, $nmisng, $AU) = @args{qw(q nmisng AU)};
+
 	my @par = $q->param(); # parameter names
 	my @ids = $q->param('event_id'); # node names
 	my @ack = $q->param('ack'); # event ack status

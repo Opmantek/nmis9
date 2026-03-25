@@ -33,6 +33,7 @@ use strict;
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 use NMISNG::Util;
 use NMISNG::Auth;
+use Compat::NMIS;
 
 sub initialise {
 	my (%opts) = @_;
@@ -49,14 +50,24 @@ sub initialise {
 	return { q => $q, Q => $Q, C => $C, headeropts => $headeropts };
 }
 
+sub nmisng {
+	my ($args) = @_;
+	my $nmisng = Compat::NMIS::new_nmisng( config => $args->{C}, log => $args->{logger} );
+	return $nmisng;
+}
+
 sub authenticate {
 	my ($args, %opts) = @_;
 
 	my ($C, $headeropts) = @{$args}{qw(C headeropts)};
+	$DB::single = 1;	
 
+	# cache auth_require
+	my $auth_require = $C->{auth_require} // 1;
 	$C->{auth_require} = 0 if ($opts{allow_cli} && @ARGV);
 
 	my $AU = NMISNG::Auth->new(conf => $C);
+	$C->{auth_require} = $auth_require; # restore original value in case it was modified for CLI
 
 	if ($AU->Require) {
 		unless ($AU->loginout(

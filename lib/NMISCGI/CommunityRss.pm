@@ -7,25 +7,26 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-our ($q, $Q, $C, $headeropts);
-
 sub runcgi {
 	my ($args) = @_;
-	($q, $Q, $C) = @{$args}{qw(q Q C)};
-	$headeropts = $args->{headeropts};
+	my ($q, $Q, $C) = @{$args}{qw(q Q C)};
+	my $headeropts = $args->{headeropts};
 
 	if ($Q->{act} eq '' ) {
-		&printFeed();
+		printFeed(C => $C, headeropts => $headeropts, widget => $Q->{widget});
 	}
 	return;
 }
 
+# args: C, headeropts, widget
 sub printFeed {
+	my (%args) = @_;
+	my $C = $args{C};
 
 	my $feedurl = $C->{community_rss_url} || "https://community.opmantek.com/rss/NMIS.xml";
 
-	print header($headeropts);
-	Compat::NMIS::pageStartJscript(title => "NMIS Community News") if (!NMISNG::Util::getbool($Q->{widget}));
+	print header($args{headeropts});
+	Compat::NMIS::pageStartJscript(title => "NMIS Community News") if (!NMISNG::Util::getbool($args{widget}));
 
 	print qq|
 <script>
@@ -55,7 +56,7 @@ sub printFeed {
 
 	print end_table;
 
-	Compat::NMIS::pageEnd if (!NMISNG::Util::getbool($Q->{widget}));
+	Compat::NMIS::pageEnd if (!NMISNG::Util::getbool($args{widget}));
 
 }
 

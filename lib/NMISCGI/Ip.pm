@@ -7,15 +7,13 @@ use Compat::IP;
 use NMISNG::Auth;
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-our ($q, $Q, $C, $AU, $headeropts, $wantwidget);
-
 sub runcgi {
 	my ($args) = @_;
-	($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
-	$headeropts = $args->{headeropts};
+	my ($q, $Q, $C, $AU) = @{$args}{qw(q Q C AU)};
+	my $headeropts = $args->{headeropts};
 
 	# this cgi script defaults to widget mode ON
-	$wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
+	my $wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
 
 	print header($headeropts);
 	Compat::NMIS::pageStart(title => "NMIS IP Calc") if (!$wantwidget);
@@ -24,24 +22,35 @@ sub runcgi {
 
 	# select function
 
-	if ($Q->{act} =~ /tool_ip_menu/) {	menuIP();
-	} else { notfound(); }
+	if ($Q->{act} =~ /tool_ip_menu/) {
+		menuIP(q => $q, C => $C, wantwidget => $wantwidget,
+			conf => $Q->{conf}, address => $Q->{address},
+			mask1 => $Q->{mask1}, mask2 => $Q->{mask2});
+	} else {
+		notfound(act => $Q->{act}, node => $Q->{node});
+	}
 
 	Compat::NMIS::pageEnd if (!$wantwidget);
 	return;
 }
 
+# args: act, node
 sub notfound {
-	print "IP: ERROR, act=$Q->{act}, node=$Q->{node}<br>\n";
+	my (%args) = @_;
+	print "IP: ERROR, act=$args{act}, node=$args{node}<br>\n";
 	print "Request not found\n";
 }
 
 #===================
 
+# args: q, C, wantwidget, conf, address, mask1, mask2
 sub menuIP {
+	my (%args) = @_;
+	my ($q, $C) = @args{qw(q C)};
+	my $wantwidget = $args{wantwidget};
 
 		print start_form(-id=>"nmis", -href=> url(-absolute => 1)."?")
-				.hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+				.hidden(-override => 1, -name => "conf", -value => $args{conf})
 				. hidden(-override => 1, -name => "act", -value => "tool_ip_menu")
 				. hidden(-override => 1, -name => "widget", -value => ($wantwidget?"true":"false"));
 
@@ -49,13 +58,13 @@ sub menuIP {
 	print Tr(td({class=>'header',colspan=>'3'},"IP Subnet Calculator"));
 
 	print Tr(td({class=>'header'},'IP Address'),
-			td(textfield(-name=>"address",size=>'35',value=>$Q->{address})),
+			td(textfield(-name=>"address",size=>'35',value=>$args{address})),
 			td({class=>'header'},'IP address to base scheme on'));
 	print Tr(td({class=>'header'},'Mask'),
-			td(textfield(-name=>"mask1",size=>'35',value=>$Q->{mask1})),
+			td(textfield(-name=>"mask1",size=>'35',value=>$args{mask1})),
 			td({class=>'header'},'Basic IP Subnet Mask for scheme'));
 	print Tr(td({class=>'header'},'Mask'),
-			td(textfield(-name=>"mask2",size=>'35',value=>$Q->{mask2})),
+			td(textfield(-name=>"mask2",size=>'35',value=>$args{mask2})),
 			td({class=>'header'},'Extended subnet mask for full network'));
 
 	print Tr(td('&nbsp;'),
@@ -63,11 +72,13 @@ sub menuIP {
 									($wantwidget? "javascript:get('nmis');" : "submit()"),
 									-value=>'GO')));
 
-	ipDesc() if $Q->{address} eq '';
+	ipDesc() if $args{address} eq '';
 
-	ipCalc() if $Q->{address} ne '';
+	ipCalc(address => $args{address}, mask1 => $args{mask1}, mask2 => $args{mask2})
+		if $args{address} ne '';
 
-	ipSubnets() if $Q->{mask2} ne '' and $Q->{address} ne '';
+	ipSubnets(address => $args{address}, mask1 => $args{mask1}, mask2 => $args{mask2})
+		if $args{mask2} ne '' and $args{address} ne '';
 
 }
 
@@ -86,11 +97,13 @@ breakpoints.
 EOHTML
 }
 
+# args: address, mask1, mask2
 sub ipCalc {
+	my (%args) = @_;
 
-	my $address = $Q->{address};
-	my $mask = $Q->{mask1};
-	my $mask2 = $Q->{mask2};
+	my $address = $args{address};
+	my $mask = $args{mask1};
+	my $mask2 = $args{mask2};
 
 	my $subnet;
 	my $bits;
@@ -129,11 +142,13 @@ sub ipCalc {
 
 }
 
+# args: address, mask1, mask2
 sub ipSubnets {
+	my (%args) = @_;
 
-	my $address = $Q->{address};
-	my $mask = $Q->{mask1};
-	my $submask = $Q->{mask2};
+	my $address = $args{address};
+	my $mask = $args{mask1};
+	my $submask = $args{mask2};
 
 	my $numsmallsubnets;
 	my $numbigsubnets;
