@@ -280,22 +280,17 @@ my $env_new_key_test = `NMIS_BRAND_NEW_TEST_KEY=hello perl -I$FindBin::Bin/../li
 ' 2>/dev/null`;
 is($env_new_key_test, "hello", "ENV can add new keys not in config");
 
-# --- Test 17: writeConfData excludes ENV-sourced keys from written file ---
+# --- Test 17: writeConfData returns error for modified ENV-sourced key ---
 my $env_write_test = `NMIS_DB_SERVER=envhost perl -I$FindBin::Bin/../lib -e '
     use NMISNG::Util;
     my \$C = NMISNG::Util::loadConfTable();
     my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    # Change the ENV-managed key to a different value
+    \$rawdata->{database}{db_server} = "changed_host";
     my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
-    die "writeConfData failed: \$error" if \$error;
-    # Read back the written file and check db_server is not in it
-    my \$written = NMISNG::Util::readFiletoHash(file => \$C->{configfile});
-    my \$found = 0;
-    for my \$s (keys %\$written) {
-        \$found = 1 if ref(\$written->{\$s}) eq "HASH" && exists \$written->{\$s}{db_server};
-    }
-    print \$found ? "FOUND" : "EXCLUDED";
+    print defined(\$error) ? "ERROR:\$error" : "OK";
 ' 2>/dev/null`;
-is($env_write_test, "EXCLUDED", "writeConfData excludes ENV-sourced keys from written file");
+like($env_write_test, qr/ERROR:.*db_server/, "writeConfData returns error for modified ENV-sourced key");
 
 # --- Test 18: writeConfData returns error for modified conf.d key ---
 {

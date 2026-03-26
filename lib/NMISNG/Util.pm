@@ -1929,15 +1929,12 @@ sub writeConfData
 		{
 			my $src = $sources->{$key};
 
-			# ENV-sourced: skip silently
-			next if ($src && $src->{layer} == 4);
-
-			# conf.d-sourced: error if value changed, skip if unchanged
-			if ($src && $src->{layer} == 3)
+			# ENV-sourced or conf.d-sourced: error if value changed, skip if unchanged
+			if ($src && ($src->{layer} == 3 || $src->{layer} == 4))
 			{
 				if (!_config_values_equal($CC->{$section}{$key}, $C->{$key}))
 				{
-					return "Cannot modify property '$key' — it is managed by conf.d file $src->{source}";
+					return "Cannot modify property '$key' — it is managed by $src->{source}";
 				}
 				next;
 			}
