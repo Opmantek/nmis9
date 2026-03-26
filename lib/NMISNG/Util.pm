@@ -908,12 +908,12 @@ sub loadConfTable
 				or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
 	}
 
-	# Cluster ID: if missing, generate UUID and write to conf/conf.d/system.nmis
+	# Cluster ID: if missing, generate UUID and write to conf/Config.nmis
 	if (!$config_cache->{cluster_id})
 	{
 		$config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
-		$config_sources->{cluster_id} = { source => "generated", layer => 0, section => "id" };
-		_write_cluster_id_to_confd($dir, $config_cache->{cluster_id});
+		$config_sources->{cluster_id} = { source => $config_cache->{configfile}, layer => 2, section => "id" };
+		_write_cluster_id_to_config($config_cache->{configfile}, $config_cache->{cluster_id});
 	}
 
 	# Store sources in package variable for getConfigSources access
@@ -1019,19 +1019,23 @@ sub _apply_env_overrides
 	}
 }
 
-# Write cluster_id to conf/conf.d/system.nmis
-sub _write_cluster_id_to_confd
+# Write cluster_id to conf/Config.nmis (reads existing content, merges, writes back)
+sub _write_cluster_id_to_config
 {
-	my ($conf_dir, $cluster_id) = @_;
-	my $confd_dir = "$conf_dir/conf.d";
-	mkpath($confd_dir, { verbose => 0, mode => 0755 }) if (!-d $confd_dir);
+	my ($configfile, $cluster_id) = @_;
+	my %data;
+	if (-r $configfile)
+	{
+		%data = do($configfile);
+		%data = () if ($@ || !%data);
+	}
+	$data{id}{cluster_id} = $cluster_id;
 
-	my $system_file = "$confd_dir/system.nmis";
-	my %data = ( 'id' => { 'cluster_id' => $cluster_id } );
-	open(my $fh, ">", $system_file) or do {
-		warn("cannot write cluster_id to $system_file: $!");
+	open(my $fh, ">", $configfile) or do {
+		warn("cannot write cluster_id to $configfile: $!");
 		return;
 	};
+	flock($fh, LOCK_EX) or warn("cannot lock $configfile: $!");
 	print $fh Data::Dumper->Dump([\%data], [qw(*hash)]);
 	close $fh;
 }
