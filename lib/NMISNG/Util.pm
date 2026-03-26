@@ -797,6 +797,10 @@ sub loadConfTable
 	$config_cache = {};
 	my $config_sources = {};
 
+	# Properties that may only be defined in one non-default config file
+	my @exclusive_keys = ('cluster_id', 'server_name', 'nmis_host');
+	my %exclusive_source;
+
 	if (-r $default_fn)
 	{
 		my ($flat, $smap) = _load_and_flatten($default_fn);
@@ -814,10 +818,15 @@ sub loadConfTable
 		my ($flat, $smap) = _load_and_flatten($fn);
 		if ($flat && keys %$flat)
 		{
-			_merge_full($config_cache, $flat);
+			_merge_config($config_cache, $flat, 0);
 			for my $k (keys %$flat)
 			{
 				$config_sources->{$k} = { source => $fn, layer => 2, section => $smap->{$k} };
+			}
+			# Track exclusive keys claimed by site config
+			for my $ek (@exclusive_keys)
+			{
+				$exclusive_source{$ek} = $fn if (exists $flat->{$ek});
 			}
 		}
 	}
@@ -833,7 +842,25 @@ sub loadConfTable
 	{
 		my ($flat, $smap) = _load_and_flatten($extfile);
 		next if (!$flat || !keys %$flat);
-		my $changed = _merge_override($config_cache, $flat);
+
+		# Enforce exclusive keys: skip if already defined by an earlier non-default file
+		for my $ek (@exclusive_keys)
+		{
+			if (exists $flat->{$ek})
+			{
+				if (exists $exclusive_source{$ek})
+				{
+					warn("Exclusive property '$ek' in $extfile ignored — already defined in $exclusive_source{$ek}\n");
+					delete $flat->{$ek};
+				}
+				else
+				{
+					$exclusive_source{$ek} = $extfile;
+				}
+			}
+		}
+
+		my $changed = _merge_config($config_cache, $flat, 1);
 		for my $k (@$changed)
 		{
 			$config_sources->{$k} = { source => $extfile, layer => 3, section => $smap->{$k} };
@@ -841,7 +868,7 @@ sub loadConfTable
 	}
 
 	# --- Layer 4: Environment variables (NMIS_*) ---
-	_apply_env_overrides($config_cache, $config_sources);
+	_apply_env_overrides($config_cache, $config_sources, \@exclusive_keys, \%exclusive_source);
 
 	# --- Post-merge processing ---
 	# Hardcoded values
@@ -943,49 +970,52 @@ sub _load_and_flatten
 	return (\%flat, \%section_map);
 }
 
-# Full merge: copies all keys from overlay into base (add + override)
-sub _merge_full
+# Merge overlay keys into base.
+# If override_only is true, only replaces keys that already exist in base.
+# Returns: arrayref of keys that were actually set.
+sub _merge_config
 {
-	my ($base, $overlay) = @_;
-	for my $k (keys %$overlay)
-	{
-		$base->{$k} = $overlay->{$k};
-	}
-}
-
-# Override-only merge: only replaces keys that already exist in base
-# Returns: arrayref of keys that were actually overridden
-sub _merge_override
-{
-	my ($base, $overlay) = @_;
+	my ($base, $overlay, $override_only) = @_;
 	my @changed;
 	for my $k (keys %$overlay)
 	{
-		if (exists $base->{$k})
-		{
-			$base->{$k} = $overlay->{$k};
-			push @changed, $k;
-		}
+		next if ($override_only && !exists $base->{$k});
+		$base->{$k} = $overlay->{$k};
+		push @changed, $k;
 	}
 	return \@changed;
 }
 
-# Scan %ENV for NMIS_* variables and apply as override-only to config
+# Scan %ENV for NMIS_* variables and apply to config (can override or add new keys)
+# Exclusive keys are enforced if exclusive_keys/exclusive_source are provided.
 sub _apply_env_overrides
 {
-	my ($config, $sources) = @_;
+	my ($config, $sources, $exclusive_keys, $exclusive_source) = @_;
 
 	for my $envkey (keys %ENV)
 	{
 		next unless $envkey =~ /^NMIS_(.+)$/;
 		my $suffix = lc($1);
-		my $config_key = exists $config->{$suffix} ? $suffix : "<$suffix>";
+		# Resolution: plain key if exists, then <angle_bracket> if exists, otherwise plain key (new)
+		my $config_key = exists $config->{$suffix} ? $suffix
+			: exists $config->{"<$suffix>"} ? "<$suffix>"
+			: $suffix;
 
-		if (exists $config->{$config_key})
+		# Enforce exclusive keys
+		if ($exclusive_keys && grep { $_ eq $config_key } @$exclusive_keys)
 		{
-			$config->{$config_key} = $ENV{$envkey};
-			$sources->{$config_key} = { source => "ENV:$envkey", layer => 4, section => undef };
+			if ($exclusive_source && exists $exclusive_source->{$config_key})
+			{
+				warn("Exclusive property '$config_key' from ENV:$envkey ignored — already defined in $exclusive_source->{$config_key}\n");
+				next;
+			}
+			$exclusive_source->{$config_key} = "ENV:$envkey" if $exclusive_source;
 		}
+
+		warn("ENV $envkey overriding config key '$config_key' from source '$sources->{$config_key}{source}'\n")
+			if (exists $config->{$config_key} && $sources->{$config_key});
+		$config->{$config_key} = $ENV{$envkey};
+		$sources->{$config_key} = { source => "ENV:$envkey", layer => 4, section => undef };
 	}
 }
 
