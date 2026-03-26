@@ -133,7 +133,7 @@ sub displayConfig{
 
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	my ($CC,undef) = NMISNG::Util::readConfData();
+	my ($CC, undef) = NMISNG::Util::getConfDeep();
 
 	# start of form
     # the get() code doesn't work without a query param, nor does it work with all params present
@@ -143,11 +143,6 @@ sub displayConfig{
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table({width=>"400px"}) ; # first table level
-
-	if ($C->{configpeerfiles})
-	{
-		print Tr(td({class=>'Warning',align=>'center'}, "There are files from the master overriding the configuration"));
-	}
 	
 	if (defined $Q->{error_message} && $Q->{error_message} ne "" )
 	{
@@ -200,6 +195,7 @@ sub typeSect {
 
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 	my $ref = url(-absolute=>1);
+	my $sources = NMISNG::Util::getConfigSources();
 
 	# create items list, contains of presets and adds
 	my @items = map { keys %{$_} } @{$CT->{$section}};
@@ -207,9 +203,9 @@ sub typeSect {
 	my @items_cfg = sort keys %{$CC->{$section}};
 	for my $i (@items_cfg) { push @items_all,$i unless grep { $_ eq $i } @items; }
 
-	push @out,Tr(td({class=>"header"},$section),td({class=>'info Plain',colspan=>'2'},"&nbsp;"),td({class=>'info Plain'},
+	push @out,Tr(td({class=>"header"},$section),td({class=>'info Plain',colspan=>'3'},"&nbsp;"),td({class=>'info Plain'},
 			eval {
-				if ($AU->CheckAccess("Table_Config_rw","check") and !$C->{configpeerfiles}) {
+				if ($AU->CheckAccess("Table_Config_rw","check")) {
 					return a({ href=>"$ref?act=config_nmis_add&section=$section&widget=$widget"},'add&nbsp;');
 				} else { return ""; }
 			}
@@ -240,10 +236,31 @@ sub typeSect {
 		my $showOut = $value;
 		$showOut = '**************' if ($eachRef->{display} =~ /password/);
 
+		# Source display and editability
+		my $src = $sources->{$k};
+		my $source_display;
+		my $editable = 1;
+		if (!$src) {
+			$source_display = "";
+		} elsif ($src->{layer} == 1) {
+			$source_display = "default";
+		} elsif ($src->{layer} == 2) {
+			$source_display = "site config";
+		} elsif ($src->{layer} == 3) {
+			$source_display = "conf.d";
+			$editable = 0;
+		} elsif ($src->{layer} == 4) {
+			$source_display = "ENV";
+			$editable = 0;
+		} else {
+			$source_display = "system";
+		}
+
 		push @out,Tr(td({class=>"header"},"&nbsp;"),
 				td({class=>"header"},escape($k)),td({class=>'info Plain'}, escape($showOut)),
+				td({class=>'info Plain'}, $source_display),
 				eval {
-					if ($AU->CheckAccess("Table_Config_rw","check") and !$C->{configpeerfiles}) {
+					if ($editable && $AU->CheckAccess("Table_Config_rw","check")) {
 						return td({class=>'info Plain'},
 							a({ href=>"$ref?act=config_nmis_edit&section=$section&item=$k&widget=$widget"},'edit&nbsp;'),
 							eval {
@@ -252,7 +269,7 @@ sub typeSect {
 														'delete&nbsp;') unless (grep { $_ eq $k } @items);
 								return $line;
 							});
-					} else { return ""; }
+					} else { return td({class=>'info Plain'}, ""); }
 				}
 			);
 	}
@@ -275,7 +292,8 @@ sub editConfig {
 
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+	# Load defaults + site config so edit form shows current effective value
+	my ($CC, undef) = NMISNG::Util::getConfDeep();
 
 	my $ref;
 	for my $rf (@{$CT->{$section}}) {
@@ -441,21 +459,25 @@ sub doEditConfig
 	my $value = $Q->{value};
 	my $confirm = $Q->{confirm};
 
-	# that's the  non-flattened raw hash
-	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+	# Full effective config for validation
+	my ($effective, undef) = NMISNG::Util::getConfDeep();
+	# Site-local config for writing
+	my ($CC, undef) = NMISNG::Util::getConfDeep(only_local => 1);
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
-	# Validate section
-	if (!$CC->{$section}) {
+	# Validate section against full effective config
+	if (!$effective->{$section}) {
 		return validation_abort($section,
 								"non valid '$section'.")
 	}
-	# Validate item
-	if (!$CC->{$section}->{$item}) {
+	# Validate item against full effective config
+	if (!exists $effective->{$section}->{$item}) {
 		return validation_abort($item,
 								"non valid '$item' in '$section'.")
 	}
+	# Ensure the section/key exists in site config for writing
+	$CC->{$section}{$item} //= $effective->{$section}{$item};
 	
 	
 	# handle the roletype, nettype and nodetype lists and translate the separate values
@@ -674,7 +696,7 @@ sub deleteConfig {
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+	my ($CC, undef) = NMISNG::Util::getConfDeep();
 
 	my $value = $CC->{$section}{$item};
 
@@ -724,8 +746,7 @@ sub doDeleteConfig {
 	my $section = $Q->{section};
 	my $item = decode_entities($Q->{item});
 
-	# that's the  non-flattened raw hash
-	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+	my ($CC, undef) = NMISNG::Util::getConfDeep(only_local => 1);
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
@@ -746,7 +767,7 @@ sub doDeleteConfig {
 sub addConfig{
 	my %args = @_;
 
-	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+	my ($CC, undef) = NMISNG::Util::getConfDeep();
 
 	my $section = $Q->{section};
 
@@ -799,15 +820,18 @@ sub doAddConfig {
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my ($CC,undef) = NMISNG::Util::readConfData(only_local => 1);
+	my ($effective, undef) = NMISNG::Util::getConfDeep();
+	my ($CC, undef) = NMISNG::Util::getConfDeep(only_local => 1);
 
 	my $section = $Q->{section};
-	
-	# Validate section
-	if (!$CC->{$section}) {
+
+	# Validate section against full effective config
+	if (!$effective->{$section}) {
 		return validation_abort($section,
 								"non valid '$section'.")
 	}
+	# Ensure section exists in site config for writing
+	$CC->{$section} //= {};
 	
 	if ($Q->{id} ne '') {
 		$CC->{$section}{decode_entities($Q->{id})} = decode_entities($Q->{value});

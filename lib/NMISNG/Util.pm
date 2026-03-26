@@ -74,6 +74,8 @@ use NMISNG::Log;					# for parse_debug_level
 
 # Package-level storage for config source tracking (populated by loadConfTable)
 our $_config_sources_ref = {};
+# Set to 1 to force loadConfTable to reload on next call
+our $_config_cache_invalid = 0;
 
 sub TODO
 {
@@ -784,11 +786,14 @@ sub loadConfTable
 	# if caller gave us a dir previously but not now, use the cached path
 	$fn = $cached_configfile_fn if ($cached_configfile_fn && !defined $args{dir});
 
-	# return cached config if already loaded for this path
-	if ($config_cache && $cached_configfile_fn && $cached_configfile_fn eq $fn)
+	# return cached config if already loaded for this path (unless invalidated)
+	if ($config_cache && $cached_configfile_fn && $cached_configfile_fn eq $fn
+		&& !$NMISNG::Util::_config_cache_invalid)
 	{
 		return $config_cache;
 	}
+	warn("Config cache invalidated, reloading from disk\n") if $NMISNG::Util::_config_cache_invalid;
+	$NMISNG::Util::_config_cache_invalid = 0;
 
 	# --- Layer 1: conf-default/Config.nmis (defaults) ---
 	my $default_dir = $args{dir} ? "$args{dir}/../conf-default" : "$FindBin::RealBin/../conf-default";
@@ -1852,60 +1857,29 @@ sub getdebug_cli
 # difference to loadConfTable: loadconftable flattens and adds a few entries
 # args: only_local eq 1 loads only local config (Not by default)
 # returns: hashref-or-errormessage, file name
-sub readConfData
+# Reconstruct two-level config hash from loadConfTable + getConfigSources.
+# Replaces readConfData — no file I/O, uses cached layered config.
+# args: only_local => 1 (exclude conf.d layer 3 and ENV layer 4 keys)
+# returns: ($deep_hashref, $configfile_path)
+sub getConfDeep
 {
 	my %args = @_;
-	my $logger;
+	my $C = loadConfTable();
+	my $sources = getConfigSources();
+	my %deep;
 
-	my $C = loadConfTable;
-	my $fn = $C->{configfile};
-
-	my $rawdata = NMISNG::Util::readFiletoHash(file => $fn);
-
-	if (defined($args{log}))
+	for my $k (keys %$C)
 	{
-		$logger = $args{log};
-	}
-	else
-	{
-		my $nmisng = Compat::NMIS::new_nmisng();
-		$logger  = $nmisng->log;
+		my $src = $sources->{$k};
+		next unless $src && defined $src->{section};
+
+		# only_local: skip conf.d (layer 3) and ENV (layer 4) keys
+		next if ($args{only_local} && $src->{layer} >= 3);
+
+		$deep{$src->{section}}{$k} = $C->{$k};
 	}
 
-	if ($args{only_local} ne 1)
-	{
-		$logger->info("Reading config properties from conf.d files. ");
-		# Determine conf.d directory from the configfile path
-		my $conf_dir = File::Basename::dirname($fn);
-		my $confd_dir = "$conf_dir/conf.d";
-		my $confd_files = get_external_files(dir => $confd_dir);
-		eval {
-			foreach ( @$confd_files ) {
-
-				my $rawpartialdata = NMISNG::Util::readFiletoHash(file => $_);
-
-				# strip the outer of two levels, does not flatten any deeper structure
-				# merge
-				for my $k (keys %{$rawpartialdata})
-				{
-					for my $kk (keys %{$rawpartialdata->{$k}})
-					{
-						if (ref($rawpartialdata->{$k}->{$kk}) ne "HASH" )
-						{
-							$rawdata->{$k}->{$kk} = $rawpartialdata->{$k}->{$kk};
-						}
-						else
-						{
-							# FIXME: Support nested config values
-							$logger->warn($kk . " is a hash. Not being merged");
-						}
-					}
-				}
-			}
-		}; if ($@) { $logger->warn("Error reading config peer files. Show local config " . $@); }
-	}
-
-	return ($rawdata, $fn);
+	return (\%deep, $C->{configfile});
 }
 
 # Writes config data to conf/Config.nmis, filtering keys by their source:
@@ -1955,10 +1929,13 @@ sub writeConfData
 	if (!$has_keys)
 	{
 		unlink($configfile) if (-e $configfile);
+		$NMISNG::Util::_config_cache_invalid = 1;
 		return undef;
 	}
 
-	return NMISNG::Util::writeHashtoFile(file => $configfile, data => \%filtered);
+	my $error = NMISNG::Util::writeHashtoFile(file => $configfile, data => \%filtered);
+	$NMISNG::Util::_config_cache_invalid = 1 if (!$error);
+	return $error;
 }
 
 # Compare conf/Config.nmis against conf-default/Config.nmis and return
@@ -4062,7 +4039,7 @@ sub disableEOS {
 	{
 		$logger->info("Disabling Encryption of secrets.");
 		print("Disabling Encryption of secrets.\n");
-		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+		my ($fullConfig,undef) = getConfDeep(only_local => 1);
 		$fullConfig->{globals}{global_enable_password_encryption} = "false";
 		writeConfData(data=>$fullConfig);
 		# We changed encryption, so the test below is backwards.
@@ -4128,7 +4105,7 @@ sub enableEOS {
 		{
 			$logger->info("Enabling encryption of secrets.");
 			print("Enabling encryption of secrets.\n");
-			my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+			my ($fullConfig,undef) = getConfDeep(only_local => 1);
 			$fullConfig->{globals}{global_enable_password_encryption} = "true";
 			writeConfData(data=>$fullConfig);
 			# We changed encryption, so the test below is backwards.
@@ -4194,7 +4171,7 @@ sub verifyNMISEncryption {
 
 	my $nmis_encryption_enabled = getbool($config->{'global_enable_password_encryption'});
 
-	my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+	my ($fullConfig,undef) = getConfDeep(only_local => 1);
 	eval {require Crypt::CBC; require Crypt::Cipher::AES; require Math::Random::Secure; };
 	if($@)
 	{
@@ -4333,7 +4310,7 @@ sub verifyNMISEncryption {
 	}
 	else
 	{
-		my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+		my ($fullConfig,undef) = getConfDeep(only_local => 1);
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
 	   	{
@@ -4450,7 +4427,7 @@ sub decrypt {
 		{
 			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
 			$logger->error("Disabling Encryption of secrets.");
-			my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+			my ($fullConfig,undef) = getConfDeep(only_local => 1);
 			$fullConfig->{globals}{global_enable_password_encryption} = "false";
 			writeConfData(data=>$fullConfig);
 			return $password;
@@ -4479,7 +4456,7 @@ sub decrypt {
 			# dealing with the configuration file, so we we encrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+				my ($fullConfig,undef) = getConfDeep(only_local => 1);
 				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 				my $encrypted_pw = encrypt($password);
 				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
@@ -4532,7 +4509,7 @@ sub decrypt {
 					# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
 					if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 						# Get the non-flattened raw hash
-						my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+						my ($fullConfig,undef) = getConfDeep(only_local => 1);
 						$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 						if ($fullConfig->{$section}{$keyword} ne $password) {
 							$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
@@ -4584,7 +4561,7 @@ sub encrypt {
 		{
 			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
 			$logger->error("Disabling Encryption of secrets.");
-			my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+			my ($fullConfig,undef) = getConfDeep(only_local => 1);
 			$fullConfig->{globals}{global_enable_password_encryption} = "false";
 			writeConfData(data=>$fullConfig);
 		}
@@ -4614,7 +4591,7 @@ sub encrypt {
 			# dealing with the configuration file, so we we decrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
 				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = readConfData(log =>$logger, only_local => 1);
+				my ($fullConfig,undef) = getConfDeep(only_local => 1);
 				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
 					$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});

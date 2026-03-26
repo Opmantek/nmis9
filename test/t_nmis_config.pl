@@ -284,7 +284,7 @@ is($env_new_key_test, "hello", "ENV can add new keys not in config");
 my $env_write_test = `NMIS_DB_SERVER=envhost perl -I$FindBin::Bin/../lib -e '
     use NMISNG::Util;
     my \$C = NMISNG::Util::loadConfTable();
-    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    my (\$rawdata, \$fn) = NMISNG::Util::getConfDeep(only_local => 1);
     # Change the ENV-managed key to a different value
     \$rawdata->{database}{db_server} = "changed_host";
     my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
@@ -301,7 +301,7 @@ like($env_write_test, qr/ERROR:.*db_server/, "writeConfData returns error for mo
 my $confd_write_test = `perl -I$FindBin::Bin/../lib -e '
     use NMISNG::Util;
     my \$C = NMISNG::Util::loadConfTable();
-    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    my (\$rawdata, \$fn) = NMISNG::Util::getConfDeep(only_local => 1);
     # Change the conf.d-managed key
     \$rawdata->{authentication}{auth_expire} = "+99min";
     my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
@@ -313,7 +313,7 @@ like($confd_write_test, qr/ERROR:.*auth_expire/, "writeConfData returns error fo
 my $normal_write_test = `perl -I$FindBin::Bin/../lib -e '
     use NMISNG::Util;
     my \$C = NMISNG::Util::loadConfTable();
-    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    my (\$rawdata, \$fn) = NMISNG::Util::getConfDeep(only_local => 1);
     \$rawdata->{email}{mail_domain} = "test-changed.example.com";
     my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
     die "writeConfData failed: \$error" if \$error;
@@ -334,7 +334,7 @@ is($normal_write_test, "OK", "writeConfData allows writing normal keys");
 my $confd_unchanged_test = `perl -I$FindBin::Bin/../lib -e '
     use NMISNG::Util;
     my \$C = NMISNG::Util::loadConfTable();
-    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    my (\$rawdata, \$fn) = NMISNG::Util::getConfDeep(only_local => 1);
     # Pass data unchanged (includes conf.d merged values)
     my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
     print defined(\$error) ? "ERROR:\$error" : "OK";
