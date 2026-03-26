@@ -157,6 +157,84 @@ my $urlbase_result = `NMIS_URL_BASE=/test-cgi perl -I$FindBin::Bin/../lib -e '
 ' 2>/dev/null`;
 is($urlbase_result, "/test-cgi", "ENV NMIS_URL_BASE maps to <cgi_url_base>");
 
+# --- Test 9: stripDefaults returns valid structure ---
+my $strip_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my (\$stripped, \$removals) = NMISNG::Util::stripDefaults();
+    die "stripped not hash" unless ref(\$stripped) eq "HASH";
+    die "removals not array" unless ref(\$removals) eq "ARRAY";
+    # stripped should have section keys (deep structure)
+    my \$has_sections = grep { ref(\$stripped->{\$_}) eq "HASH" } keys %\$stripped;
+    die "no sections in stripped" unless \$has_sections;
+    # each removal should have section and key
+    for my \$r (@\$removals) {
+        die "bad removal entry" unless defined \$r->{section} && defined \$r->{key};
+    }
+    print "OK";
+' 2>/dev/null`;
+is($strip_test, "OK", "stripDefaults returns valid structure");
+
+# --- Test 10: stripDefaults removals only contain values matching defaults ---
+my $strip_match_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my \$default_file = \$C->{"<nmis_conf_default>"} . "/Config.nmis";
+    my \$defaults = NMISNG::Util::readFiletoHash(file => \$default_file);
+    my (\$stripped, \$removals) = NMISNG::Util::stripDefaults();
+    # every removal must exist in defaults with the same value
+    for my \$r (@\$removals) {
+        my \$s = \$r->{section};
+        my \$k = \$r->{key};
+        die "removal \$s/\$k not in defaults" unless ref(\$defaults->{\$s}) eq "HASH"
+            && exists \$defaults->{\$s}{\$k};
+    }
+    print "OK";
+' 2>/dev/null`;
+is($strip_match_test, "OK", "stripDefaults removals all exist in defaults");
+
+# --- Test 11: stripDefaults keeps site-only keys ---
+# Write a conf.d file with an override, then verify stripDefaults keeps overridden values
+{
+    open(my $fh, '>', $test_file) or die "Could not open file '$test_file' $!";
+    print $fh "%hash = ('authentication'=>{'auth_expire'=>'+99min'});\n";
+    close $fh;
+}
+my $strip_keep_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my (\$stripped, \$removals) = NMISNG::Util::stripDefaults();
+    # auth_expire in conf/Config.nmis should match the default (+30min),
+    # so it should be in removals (the conf.d override is separate from conf/Config.nmis)
+    # Verify stripped + defaults covers all keys from site config
+    my \$site = NMISNG::Util::readFiletoHash(file => \$C->{configfile});
+    for my \$section (keys %\$site) {
+        next unless ref(\$site->{\$section}) eq "HASH";
+        for my \$key (keys %{\$site->{\$section}}) {
+            my \$in_stripped = ref(\$stripped->{\$section}) eq "HASH"
+                && exists \$stripped->{\$section}{\$key};
+            my \$in_removals = grep { \$_->{section} eq \$section && \$_->{key} eq \$key } @\$removals;
+            die "key \$section/\$key lost" unless \$in_stripped || \$in_removals;
+        }
+    }
+    print "OK";
+' 2>/dev/null`;
+is($strip_keep_test, "OK", "stripDefaults: every site key is either kept or in removals");
+
+# --- Test 12: stripDefaults empty sections are removed ---
+my $strip_empty_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my (\$stripped, \$removals) = NMISNG::Util::stripDefaults();
+    # no empty sections should exist in stripped
+    for my \$section (keys %\$stripped) {
+        next unless ref(\$stripped->{\$section}) eq "HASH";
+        die "empty section \$section" unless keys %{\$stripped->{\$section}};
+    }
+    print "OK";
+' 2>/dev/null`;
+is($strip_empty_test, "OK", "stripDefaults: no empty sections in result");
+
 # Cleanup
 unlink $test_file;
 

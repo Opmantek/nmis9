@@ -775,17 +775,17 @@ sub getServerRole {
 sub loadConfTable
 {
 	my %args = @_;
-	state ($config_cache, $cached_configfile);
+	state ($config_cache, $cached_configfile_fn);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
 	mkpath($dir, { verbose  => 0, mode => 0755} ) if (!-d $dir);
 
 	my $fn = Cwd::abs_path("$dir/Config.nmis");
 	# if caller gave us a dir previously but not now, use the cached path
-	$fn = $cached_configfile if ($cached_configfile && !defined $args{dir});
+	$fn = $cached_configfile_fn if ($cached_configfile_fn && !defined $args{dir});
 
 	# return cached config if already loaded for this path
-	if ($config_cache && $cached_configfile && $cached_configfile eq $fn)
+	if ($config_cache && $cached_configfile_fn && $cached_configfile_fn eq $fn)
 	{
 		return $config_cache;
 	}
@@ -862,7 +862,7 @@ sub loadConfTable
 
 	# Set configfile key (points to conf/Config.nmis or fallback)
 	$config_cache->{configfile} = (-r $fn) ? $fn : $default_fn;
-	$cached_configfile = $fn;
+	$cached_configfile_fn = $fn;
 
 	# Replace macros once across entire config
 	$config_cache = replace_macros( config_cache => $config_cache );
@@ -1890,6 +1890,80 @@ sub writeConfData
 			if (-r "$configfile");
 
 	return NMISNG::Util::writeHashtoFile(file=>$configfile, data=>$CC);
+}
+
+# Compare conf/Config.nmis against conf-default/Config.nmis and return
+# a stripped version containing only keys that differ from or don't exist in defaults.
+# args: conf (optional, loadConfTable result)
+# returns: ($stripped_data, $removals)
+#   $stripped_data: deep two-level hashref ready for writeConfData
+#   $removals: arrayref of { section => $s, key => $k, value => $v }
+sub stripDefaults
+{
+	my %args = @_;
+	my $C = $args{conf} // NMISNG::Util::loadConfTable();
+
+	my $default_file = $C->{'<nmis_conf_default>'} . "/Config.nmis";
+	my $site_file = $C->{configfile};
+
+	my $defaults = NMISNG::Util::readFiletoHash(file => $default_file);
+	my $site = NMISNG::Util::readFiletoHash(file => $site_file);
+
+	my %stripped;
+	my @removals;
+
+	for my $section (keys %$site)
+	{
+		next unless ref($site->{$section}) eq 'HASH';
+		for my $key (keys %{$site->{$section}})
+		{
+			if (ref($defaults->{$section}) eq 'HASH'
+				&& exists $defaults->{$section}{$key}
+				&& _config_values_equal($site->{$section}{$key}, $defaults->{$section}{$key}))
+			{
+				push @removals, { section => $section, key => $key, value => $site->{$section}{$key} };
+			}
+			else
+			{
+				$stripped{$section}{$key} = $site->{$section}{$key};
+			}
+		}
+	}
+
+	return (\%stripped, \@removals);
+}
+
+# Deep equality check for config values (scalars, arrayrefs, hashrefs, regexps, undef)
+sub _config_values_equal
+{
+	my ($a, $b) = @_;
+	return 1 if (!defined $a && !defined $b);
+	return 0 if (!defined $a || !defined $b);
+	my ($ra, $rb) = (ref $a, ref $b);
+	return 0 if $ra ne $rb;
+	if ($ra eq 'Regexp') { return "$a" eq "$b"; }
+	if ($ra eq 'ARRAY')
+	{
+		return 0 if @$a != @$b;
+		for my $i (0..$#$a)
+		{
+			return 0 if !_config_values_equal($a->[$i], $b->[$i]);
+		}
+		return 1;
+	}
+	if ($ra eq 'HASH')
+	{
+		my @ka = sort keys %$a;
+		my @kb = sort keys %$b;
+		return 0 if @ka != @kb;
+		for my $i (0..$#ka)
+		{
+			return 0 if $ka[$i] ne $kb[$i];
+			return 0 if !_config_values_equal($a->{$ka[$i]}, $b->{$kb[$i]});
+		}
+		return 1;
+	}
+	return $a eq $b;
 }
 
 # creates the dir in question, and all missing intermediate
