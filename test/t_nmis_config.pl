@@ -349,6 +349,28 @@ is($confd_unchanged_test, "OK", "writeConfData skips unchanged conf.d keys witho
     rename(\$bak, \$C->{configfile}) if -e \$bak;
 ' 2>/dev/null`;
 
+# --- Test 21: configChanged returns false when no change has occurred ---
+my $no_change_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    print NMISNG::Util::configChanged() ? "CHANGED" : "OK";
+' 2>/dev/null`;
+is($no_change_test, "OK", "configChanged returns false when no change has occurred");
+
+# --- Test 22: configChanged returns true after another process writes config ---
+my $change_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    # Simulate another process writing the marker in the future
+    sleep(1);
+    my \$marker = \$C->{"<nmis_var>"} . "/nmis_system/config_changed";
+    open(my \$fh, ">", \$marker) or die "cannot write marker: \$!";
+    print \$fh time() . "\n";
+    close \$fh;
+    print NMISNG::Util::configChanged() ? "CHANGED" : "FAIL";
+' 2>/dev/null`;
+is($change_test, "CHANGED", "configChanged returns true after marker is updated");
+
 # Cleanup
 unlink $test_file;
 

@@ -76,6 +76,8 @@ use NMISNG::Log;					# for parse_debug_level
 our $_config_sources_ref = {};
 # Set to 1 to force loadConfTable to reload on next call
 our $_config_cache_invalid = 0;
+# Epoch when config was last loaded (not cache hit) — used by configChanged()
+our $_config_load_time = 0;
 
 sub TODO
 {
@@ -923,6 +925,7 @@ sub loadConfTable
 
 	# Store sources in package variable for getConfigSources access
 	$NMISNG::Util::_config_sources_ref = $config_sources;
+	$NMISNG::Util::_config_load_time = time();
 
 	return $config_cache;
 }
@@ -1930,12 +1933,43 @@ sub writeConfData
 	{
 		unlink($configfile) if (-e $configfile);
 		$NMISNG::Util::_config_cache_invalid = 1;
+		_notify_config_changed();
 		return undef;
 	}
 
 	my $error = NMISNG::Util::writeHashtoFile(file => $configfile, data => \%filtered);
-	$NMISNG::Util::_config_cache_invalid = 1 if (!$error);
+	if (!$error)
+	{
+		$NMISNG::Util::_config_cache_invalid = 1;
+		_notify_config_changed();
+	}
 	return $error;
+}
+
+# Write a marker file so other processes can detect config has changed on disk.
+sub _notify_config_changed
+{
+	my $C = loadConfTable();
+	my $dir = $C->{'<nmis_var>'} . "/nmis_system";
+	mkpath($dir, { verbose => 0, mode => 0755 }) if (!-d $dir);
+	my $marker = "$dir/config_changed";
+	open(my $fh, ">", $marker) or do {
+		warn("cannot write config change marker $marker: $!");
+		return;
+	};
+	print $fh time() . "\n";
+	close $fh;
+}
+
+# Returns true if config on disk has changed since this process loaded it.
+# Processes can poll this to decide whether to restart or reload.
+sub configChanged
+{
+	my $C = loadConfTable();
+	my $marker = $C->{'<nmis_var>'} . "/nmis_system/config_changed";
+	my $mtime = (CORE::stat($marker))[9];
+	return 0 if (!defined $mtime);
+	return ($mtime > $NMISNG::Util::_config_load_time) ? 1 : 0;
 }
 
 # Compare conf/Config.nmis against conf-default/Config.nmis and return
