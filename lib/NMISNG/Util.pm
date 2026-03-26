@@ -1905,6 +1905,7 @@ sub readConfData
 }
 
 # trivial wrapper around writeHashtoFile
+# If data is empty (no keys or all sections empty), backs up and removes the config file.
 # args: data, required
 # returns: undef or error message
 sub writeConfData
@@ -1918,6 +1919,26 @@ sub writeConfData
 	# save old one
 	File::Copy::cp($configfile, "$configfile.bak") # this overwrites any existing backup file
 			if (-r "$configfile");
+
+	# If data has no meaningful keys, remove the config file instead of writing an empty one
+	my $has_keys = 0;
+	if (ref($CC) eq 'HASH')
+	{
+		for my $section (keys %$CC)
+		{
+			if (ref($CC->{$section}) eq 'HASH' && keys %{$CC->{$section}})
+			{
+				$has_keys = 1;
+				last;
+			}
+		}
+	}
+
+	if (!$has_keys)
+	{
+		unlink($configfile) if (-e $configfile);
+		return undef;
+	}
 
 	return NMISNG::Util::writeHashtoFile(file=>$configfile, data=>$CC);
 }
