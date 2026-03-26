@@ -459,25 +459,20 @@ sub doEditConfig
 	my $value = $Q->{value};
 	my $confirm = $Q->{confirm};
 
-	# Full effective config for validation
-	my ($effective, undef) = NMISNG::Util::getConfDeep();
-	# Site-local config for writing
-	my ($CC, undef) = NMISNG::Util::getConfDeep(only_local => 1);
+	my ($CC, undef) = NMISNG::Util::getConfDeep();
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
-	# Validate section against full effective config
-	if (!$effective->{$section}) {
+	# Validate section
+	if (!$CC->{$section}) {
 		return validation_abort($section,
 								"non valid '$section'.")
 	}
-	# Validate item against full effective config
-	if (!exists $effective->{$section}->{$item}) {
+	# Validate item
+	if (!exists $CC->{$section}->{$item}) {
 		return validation_abort($item,
 								"non valid '$item' in '$section'.")
 	}
-	# Ensure the section/key exists in site config for writing
-	$CC->{$section}{$item} //= $effective->{$section}{$item};
 	
 	
 	# handle the roletype, nettype and nodetype lists and translate the separate values
@@ -746,7 +741,7 @@ sub doDeleteConfig {
 	my $section = $Q->{section};
 	my $item = decode_entities($Q->{item});
 
-	my ($CC, undef) = NMISNG::Util::getConfDeep(only_local => 1);
+	my ($CC, undef) = NMISNG::Util::getConfDeep();
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
 
@@ -820,18 +815,15 @@ sub doAddConfig {
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my ($effective, undef) = NMISNG::Util::getConfDeep();
-	my ($CC, undef) = NMISNG::Util::getConfDeep(only_local => 1);
+	my ($CC, undef) = NMISNG::Util::getConfDeep();
 
 	my $section = $Q->{section};
 
-	# Validate section against full effective config
-	if (!$effective->{$section}) {
+	# Validate section
+	if (!$CC->{$section}) {
 		return validation_abort($section,
 								"non valid '$section'.")
 	}
-	# Ensure section exists in site config for writing
-	$CC->{$section} //= {};
 	
 	if ($Q->{id} ne '') {
 		$CC->{$section}{decode_entities($Q->{id})} = decode_entities($Q->{value});

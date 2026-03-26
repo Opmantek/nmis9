@@ -78,6 +78,8 @@ our $_config_sources_ref = {};
 our $_config_cache_invalid = 0;
 # Epoch when config was last loaded (not cache hit) — used by configChanged()
 our $_config_load_time = 0;
+# Snapshot of config values before macro expansion — used by getConfDeep/writeConfData
+our $_config_pre_macros = {};
 
 sub TODO
 {
@@ -898,6 +900,9 @@ sub loadConfTable
 	$config_cache->{configfile} = (-r $fn) ? $fn : $default_fn;
 	$cached_configfile_fn = $fn;
 
+	# Snapshot pre-macro values for getConfDeep to use when writing back
+	$NMISNG::Util::_config_pre_macros = { %$config_cache };
+
 	# Replace macros once across entire config
 	$config_cache = replace_macros( config_cache => $config_cache );
 
@@ -1022,8 +1027,9 @@ sub _apply_env_overrides
 
 		warn("ENV $envkey overriding config key '$config_key' from source '$sources->{$config_key}{source}'\n")
 			if (exists $config->{$config_key} && $sources->{$config_key});
+		my $prev_section = $sources->{$config_key} ? $sources->{$config_key}{section} : undef;
 		$config->{$config_key} = $ENV{$envkey};
-		$sources->{$config_key} = { source => "ENV:$envkey", layer => 4, section => undef };
+		$sources->{$config_key} = { source => "ENV:$envkey", layer => 4, section => $prev_section };
 	}
 }
 
@@ -1869,6 +1875,7 @@ sub getConfDeep
 	my %args = @_;
 	my $C = loadConfTable();
 	my $sources = getConfigSources();
+	my $raw = $NMISNG::Util::_config_pre_macros;
 	my %deep;
 
 	for my $k (keys %$C)
@@ -1876,18 +1883,20 @@ sub getConfDeep
 		my $src = $sources->{$k};
 		next unless $src && defined $src->{section};
 
-		# only_local: skip conf.d (layer 3) and ENV (layer 4) keys
-		next if ($args{only_local} && $src->{layer} >= 3);
+		# only_local: only include site config (layer 2) keys
+		next if ($args{only_local} && $src->{layer} != 2);
 
-		$deep{$src->{section}}{$k} = $C->{$k};
+		# Use pre-macro value if available to preserve macro references in written files
+		$deep{$src->{section}}{$k} = exists $raw->{$k} ? $raw->{$k} : $C->{$k};
 	}
 
 	return (\%deep, $C->{configfile});
 }
 
 # Writes config data to conf/Config.nmis, filtering keys by their source:
-# - ENV-sourced keys (layer 4): silently excluded
-# - conf.d-sourced keys (layer 3): error if value changed, silently skipped if unchanged
+# - ENV-sourced keys (layer 4): error if changed, skipped if unchanged
+# - conf.d-sourced keys (layer 3): error if changed, skipped if unchanged
+# - Keys matching defaults (layer 1): skipped (no need to persist)
 # - All other keys: written to conf/Config.nmis
 # If resulting data is empty, backs up and removes the config file.
 # args: data (two-level hashref), required
@@ -1900,8 +1909,13 @@ sub writeConfData
 	my $C = NMISNG::Util::loadConfTable();
 	my $configfile = $C->{configfile};
 	my $sources = NMISNG::Util::getConfigSources();
+	my $raw = $NMISNG::Util::_config_pre_macros;
 
-	# Filter data based on source tracking
+	# Load defaults for comparison
+	my $default_file = $C->{'<nmis_conf_default>'} . "/Config.nmis";
+	my ($defaults, undef) = _load_and_flatten($default_file);
+
+	# Filter data based on source tracking and default comparison
 	my %filtered;
 	for my $section (keys %$CC)
 	{
@@ -1911,14 +1925,19 @@ sub writeConfData
 			my $src = $sources->{$key};
 
 			# ENV-sourced or conf.d-sourced: error if value changed, skip if unchanged
+			# Compare against pre-macro values to avoid false positives from macro expansion
 			if ($src && ($src->{layer} == 3 || $src->{layer} == 4))
 			{
-				if (!_config_values_equal($CC->{$section}{$key}, $C->{$key}))
+				if (!_config_values_equal($CC->{$section}{$key}, $raw->{$key}))
 				{
 					return "Cannot modify property '$key' — it is managed by $src->{source}";
 				}
 				next;
 			}
+
+			# Skip keys whose value matches the default — no need to persist
+			next if ($defaults && exists $defaults->{$key}
+				&& _config_values_equal($CC->{$section}{$key}, $defaults->{$key}));
 
 			$filtered{$section}{$key} = $CC->{$section}{$key};
 		}

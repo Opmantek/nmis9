@@ -49,12 +49,9 @@
     'db_name' => 'nmisng',
     'db_never_remove_indices' => [
       'nodes'
-    ],
-    'db_password' => '$ENV{NMIS_DB_PASSWORD}',
+    ],    
     'db_port' => '27017',
     'db_query_timeout' => 5000,
-    'db_server' => '$ENV{NMIS_DB_SERVER}',
-    'db_username' => '$ENV{NMIS_DB_USERNAME}'
   },
   'directories' => {
     '<menu_base>' => '<nmis_base>/menu',
