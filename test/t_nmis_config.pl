@@ -280,6 +280,80 @@ my $env_new_key_test = `NMIS_BRAND_NEW_TEST_KEY=hello perl -I$FindBin::Bin/../li
 ' 2>/dev/null`;
 is($env_new_key_test, "hello", "ENV can add new keys not in config");
 
+# --- Test 17: writeConfData excludes ENV-sourced keys from written file ---
+my $env_write_test = `NMIS_DB_SERVER=envhost perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
+    die "writeConfData failed: \$error" if \$error;
+    # Read back the written file and check db_server is not in it
+    my \$written = NMISNG::Util::readFiletoHash(file => \$C->{configfile});
+    my \$found = 0;
+    for my \$s (keys %\$written) {
+        \$found = 1 if ref(\$written->{\$s}) eq "HASH" && exists \$written->{\$s}{db_server};
+    }
+    print \$found ? "FOUND" : "EXCLUDED";
+' 2>/dev/null`;
+is($env_write_test, "EXCLUDED", "writeConfData excludes ENV-sourced keys from written file");
+
+# --- Test 18: writeConfData returns error for modified conf.d key ---
+{
+    open(my $fh, '>', $test_file) or die "Could not open file '$test_file' $!";
+    print $fh "%hash = ('authentication'=>{'auth_expire'=>'+5min'});\n";
+    close $fh;
+}
+my $confd_write_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    # Change the conf.d-managed key
+    \$rawdata->{authentication}{auth_expire} = "+99min";
+    my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
+    print defined(\$error) ? "ERROR:\$error" : "OK";
+' 2>/dev/null`;
+like($confd_write_test, qr/ERROR:.*auth_expire/, "writeConfData returns error for modified conf.d key");
+
+# --- Test 19: writeConfData allows writing normal keys ---
+my $normal_write_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    \$rawdata->{email}{mail_domain} = "test-changed.example.com";
+    my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
+    die "writeConfData failed: \$error" if \$error;
+    my \$written = NMISNG::Util::readFiletoHash(file => \$C->{configfile});
+    print(\$written->{email}{mail_domain} eq "test-changed.example.com" ? "OK" : "FAIL");
+' 2>/dev/null`;
+is($normal_write_test, "OK", "writeConfData allows writing normal keys");
+
+# Restore config after test 19
+`perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my \$bak = \$C->{configfile} . ".bak";
+    rename(\$bak, \$C->{configfile}) if -e \$bak;
+' 2>/dev/null`;
+
+# --- Test 20: writeConfData skips unchanged conf.d keys without error ---
+my $confd_unchanged_test = `perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my (\$rawdata, \$fn) = NMISNG::Util::readConfData(only_local => 1);
+    # Pass data unchanged (includes conf.d merged values)
+    my \$error = NMISNG::Util::writeConfData(data => \$rawdata);
+    print defined(\$error) ? "ERROR:\$error" : "OK";
+' 2>/dev/null`;
+is($confd_unchanged_test, "OK", "writeConfData skips unchanged conf.d keys without error");
+
+# Restore config after test 20
+`perl -I$FindBin::Bin/../lib -e '
+    use NMISNG::Util;
+    my \$C = NMISNG::Util::loadConfTable();
+    my \$bak = \$C->{configfile} . ".bak";
+    rename(\$bak, \$C->{configfile}) if -e \$bak;
+' 2>/dev/null`;
+
 # Cleanup
 unlink $test_file;
 

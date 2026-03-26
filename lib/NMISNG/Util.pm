@@ -1904,10 +1904,13 @@ sub readConfData
 	return ($rawdata, $fn);
 }
 
-# trivial wrapper around writeHashtoFile
-# If data is empty (no keys or all sections empty), backs up and removes the config file.
-# args: data, required
-# returns: undef or error message
+# Writes config data to conf/Config.nmis, filtering keys by their source:
+# - ENV-sourced keys (layer 4): silently excluded
+# - conf.d-sourced keys (layer 3): error if value changed, silently skipped if unchanged
+# - All other keys: written to conf/Config.nmis
+# If resulting data is empty, backs up and removes the config file.
+# args: data (two-level hashref), required
+# returns: undef on success, or error message string
 sub writeConfData
 {
 	my %args = @_;
@@ -1915,32 +1918,46 @@ sub writeConfData
 
 	my $C = NMISNG::Util::loadConfTable();
 	my $configfile = $C->{configfile};
+	my $sources = NMISNG::Util::getConfigSources();
 
-	# save old one
-	File::Copy::cp($configfile, "$configfile.bak") # this overwrites any existing backup file
-			if (-r "$configfile");
-
-	# If data has no meaningful keys, remove the config file instead of writing an empty one
-	my $has_keys = 0;
-	if (ref($CC) eq 'HASH')
+	# Filter data based on source tracking
+	my %filtered;
+	for my $section (keys %$CC)
 	{
-		for my $section (keys %$CC)
+		next unless ref($CC->{$section}) eq 'HASH';
+		for my $key (keys %{$CC->{$section}})
 		{
-			if (ref($CC->{$section}) eq 'HASH' && keys %{$CC->{$section}})
+			my $src = $sources->{$key};
+
+			# ENV-sourced: skip silently
+			next if ($src && $src->{layer} == 4);
+
+			# conf.d-sourced: error if value changed, skip if unchanged
+			if ($src && $src->{layer} == 3)
 			{
-				$has_keys = 1;
-				last;
+				if (!_config_values_equal($CC->{$section}{$key}, $C->{$key}))
+				{
+					return "Cannot modify property '$key' — it is managed by conf.d file $src->{source}";
+				}
+				next;
 			}
+
+			$filtered{$section}{$key} = $CC->{$section}{$key};
 		}
 	}
 
+	# Backup
+	File::Copy::cp($configfile, "$configfile.bak") if (-r "$configfile");
+
+	# If no keys remain, remove the config file
+	my $has_keys = grep { ref($filtered{$_}) eq 'HASH' && keys %{$filtered{$_}} } keys %filtered;
 	if (!$has_keys)
 	{
 		unlink($configfile) if (-e $configfile);
 		return undef;
 	}
 
-	return NMISNG::Util::writeHashtoFile(file=>$configfile, data=>$CC);
+	return NMISNG::Util::writeHashtoFile(file => $configfile, data => \%filtered);
 }
 
 # Compare conf/Config.nmis against conf-default/Config.nmis and return
