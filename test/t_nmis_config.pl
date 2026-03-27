@@ -57,9 +57,15 @@ make_path($test_conf, "$test_conf/conf.d", $test_conf_default);
 symlink("$FindBin::Bin/../conf-default/Config.nmis", "$test_conf_default/Config.nmis")
 	or die "Cannot symlink defaults: $!";
 
-# Also symlink the var directory so configChanged marker works
+# Redirect <nmis_var> to temp dir via conf.d override (persists across site config changes)
 my $test_var = "$tmpdir/var";
 make_path("$test_var/nmis_system");
+{
+	my $dir_override_file = "$test_conf/conf.d/00_test_dirs.nmis";
+	open(my $fh, '>', $dir_override_file) or die "Cannot write dir overrides: $!";
+	print $fh Data::Dumper->Dump([{ 'directories' => { '<nmis_base>' => $tmpdir, '<nmis_var>' => $test_var } }], [qw(*hash)]);
+	close $fh;
+}
 
 # Helper: force config reload from disk
 sub reload_config {
@@ -310,7 +316,7 @@ $C = reload_config();
 
 # --- Test 24: configChanged returns false when no change has occurred ---
 {
-	ok(!NMISNG::Util::configChanged(), "configChanged returns false when no change has occurred");
+	ok(!NMISNG::Util::configChanged(conf => $C), "configChanged returns false when no change has occurred");
 }
 
 # --- Test 25: configChanged returns true after marker is updated ---
@@ -321,7 +327,7 @@ $C = reload_config();
 	open(my $fh, ">", $marker) or die "cannot write marker: $!";
 	print $fh time() . "\n";
 	close $fh;
-	ok(NMISNG::Util::configChanged(), "configChanged returns true after marker is updated");
+	ok(NMISNG::Util::configChanged(conf => $C), "configChanged returns true after marker is updated");
 }
 
 # --- Test 26: writeConfData preserves site keys and adds new overrides without defaults ---

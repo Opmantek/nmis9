@@ -1999,7 +1999,7 @@ sub writeConfData
 	{
 		unlink($configfile) if (-e $configfile);
 		$NMISNG::Util::_config_cache_invalid = 1;
-		_notify_config_changed();
+		_notify_config_changed($C->{'<nmis_var>'});
 		return undef;
 	}
 
@@ -2007,16 +2007,17 @@ sub writeConfData
 	if (!$error)
 	{
 		$NMISNG::Util::_config_cache_invalid = 1;
-		_notify_config_changed();
+		_notify_config_changed($C->{'<nmis_var>'});
 	}
 	return $error;
 }
 
 # Write a marker file so other processes can detect config has changed on disk.
+# args: var_dir (the resolved <nmis_var> path)
 sub _notify_config_changed
 {
-	my $C = loadConfTable();
-	my $dir = $C->{'<nmis_var>'} . "/nmis_system";
+	my ($var_dir) = @_;
+	my $dir = "$var_dir/nmis_system";
 	mkpath($dir, { verbose => 0, mode => 0755 }) if (!-d $dir);
 	my $marker = "$dir/config_changed";
 	open(my $fh, ">", $marker) or do {
@@ -2029,9 +2030,11 @@ sub _notify_config_changed
 
 # Returns true if config on disk has changed since this process loaded it.
 # Processes can poll this to decide whether to restart or reload.
+# args: conf (required, loadConfTable result)
 sub configChanged
 {
-	my $C = loadConfTable();
+	my (%args) = @_;
+	my $C = $args{conf} or return 0;
 	my $marker = $C->{'<nmis_var>'} . "/nmis_system/config_changed";
 	my $mtime = (CORE::stat($marker))[9];
 	return 0 if (!defined $mtime);
