@@ -55,19 +55,50 @@ sub sendNotification
 	my $server;
 	my $username;
 	my $password;
+	my $retain;
+	my $retries;
 
 	confess("NMISNG argument required!") if (ref($nmisng) ne "NMISNG");
 	my $C = $nmisng->config;
+	my $mqttConfig = undef;
 
 	# get mqtt config from config file.
 	if (NMISNG::Util::existFile(dir=>'conf',name=>'mqttevent')) {
 		# loadtable falls back to conf-default if conf doesn't have the file
-		my $mqttConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'mqttevent');
-		$topic = $mqttConfig->{mqtt}{topic};
-		$server = $mqttConfig->{mqtt}{server};
-		$username = $mqttConfig->{mqtt}{username};
-		$password = $mqttConfig->{mqtt}{password};
+		$mqttConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'mqttevent');
+
+		if (!$mqttConfig || ref($mqttConfig) ne 'HASH')
+		{
+			$nmisng->log->error("Failed to load mqttevent configuration, mqtt event will not be sent. Please check conf/mqttevent.nmis file.");
+			return 0;
+		}
+
+		if ( defined $mqttConfig->{mqtt} and defined $mqttConfig->{mqtt}{server} and $mqttConfig->{mqtt}{server} 
+			and defined $mqttConfig->{mqtt}{username} and $mqttConfig->{mqtt}{username} 
+			and defined $mqttConfig->{mqtt}{password} and $mqttConfig->{mqtt}{password} 
+		)
+		{
+			$server = $mqttConfig->{mqtt}{server};
+			$username = $mqttConfig->{mqtt}{username};
+			$password = $mqttConfig->{mqtt}{password};
+		}
+		else
+		{
+			$nmisng->log->error("mqtt configuration missing required fields (server, username, password), mqtt event will not be sent. Please check conf/mqttevent.nmis file.");
+			return 0;
+		}
+
+		if ( defined $mqttConfig->{mqtt}{topic} and $mqttConfig->{mqtt}{topic} )
+		{
+			$topic = $mqttConfig->{mqtt}{topic};
+		}
+		else {
+			$topic = "nmis/event";
+		}
+
 		$extraLogging = NMISNG::Util::getbool($mqttConfig->{mqtt}{extra_logging});
+		$retain = int($mqttConfig->{mqtt}{retain} // 1);
+		$retries = int($mqttConfig->{mqtt}{retries} // 1);
 	}
 
 	# get the ignorelist from conf/ or conf-default/
@@ -95,8 +126,6 @@ sub sendNotification
 		if (not grep { $event->{event} =~ /$_/ } @ignoreList)
 		{
 			$nmisng->log->info("Processing mqtt event for $node_name $event->{event}");
-
-			my $info = 1;
 
 			# set this to 1 to include group in the message details, 0 to exclude.
 			my $includeGroup = 0;
@@ -142,13 +171,14 @@ sub sendNotification
 			# the node name appended, but this could be modified to use any 
 			# topic structure you want.
 			my $error = publishMqtt(
-						topic => "$topic/$node_name", 
-						message => $message, 
-						retain => 0,
-						server => $server,
-						username => $username,
-						password => $password
-					);
+					topic => "$topic/$node_name", 
+					message => $message, 
+					retain => $retain,
+					retries => $retries,
+					server => $server,
+					username => $username,
+					password => $password
+				);
 
 			if ($error)
 			{
@@ -160,24 +190,25 @@ sub sendNotification
 			}
 
 			# is there a secondary MQTT server configured to send to? if so, send to that as well.
-			if ( defined $C->{mqtt_secondary} and defined $C->{mqtt_secondary}{server} and $C->{mqtt_secondary}{server} )
+			if ( defined $mqttConfig->{mqtt_secondary} and defined $mqttConfig->{mqtt_secondary}{server} and $mqttConfig->{mqtt_secondary}{server} )
 			{
 				my $error = publishMqtt(
-							topic => "$C->{mqtt_secondary}{topic}/$node_name", 
-							message => $message, 
-							retain => 0,
-							server => $C->{mqtt_secondary}{server},
-							username => $C->{mqtt_secondary}{username},
-							password => $C->{mqtt_secondary}{password}
-						);
+						topic => "$mqttConfig->{mqtt_secondary}{topic}/$node_name", 
+						message => $message, 
+						retain => $retain,
+						retries => $retries,
+						server => $mqttConfig->{mqtt_secondary}{server},
+						username => $mqttConfig->{mqtt_secondary}{username},
+						password => $mqttConfig->{mqtt_secondary}{password}
+					);
 				
 				if ($error)
 				{
-					$nmisng->log->error("ERROR: failed to publishMqtt to $C->{mqtt_secondary}{server}: $error");
+					$nmisng->log->error("ERROR: failed to publishMqtt to $mqttConfig->{mqtt_secondary}{server}: $error");
 				}
 				else
 				{
-					$nmisng->log->info("mqtt sent to $C->{mqtt_secondary}{server}: $event->{node_name} $event->{event} $event->{element} $details");
+					$nmisng->log->info("mqtt sent to $mqttConfig->{mqtt_secondary}{server}: $event->{node_name} $event->{event} $event->{element} $details");
 				}
 			}
 		}
@@ -214,21 +245,35 @@ sub publishMqtt {
 	my $topic = $arg{topic};
 	my $message = $arg{message};
 	my $retain = $arg{retain};
+	my $retries = int($arg{retries} // 1);
 	my $server = $arg{server};
 	my $username = $arg{username};
 	my $password = $arg{password};
 
 	$ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN} = 1;
- 
-	my $mqtt = Net::MQTT::Simple->new($server);
-	$mqtt->login($username,$password);
 
-	if ( $retain ) {
-		$mqtt->retain($topic => $message);	
+	my $last_error;
+	for my $attempt (0 .. $retries)
+	{
+		eval {
+			my $mqtt = Net::MQTT::Simple->new($server);
+			$mqtt->login($username,$password);
+
+			if ( $retain ) {
+				$mqtt->retain($topic => $message);
+			}
+			else {
+				$mqtt->publish($topic => $message);
+			}
+			$mqtt->disconnect();
+		};
+		if ($@) {
+			$last_error = $@;
+			next;
+		}
+		return undef;    # success
 	}
-	else {
-		$mqtt->publish($topic => $message);
-	}
+	return $last_error;
 }
 
 1;

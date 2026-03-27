@@ -5,6 +5,8 @@
     'username'      => 'your_mqtt_username',
     'password'      => 'your_mqtt_password',
     'extra_logging' => 0,
+    'retain' => 1,
+    'retries' => 1,    
   },
   # Optional mqtt secondary server for highly available messaging or just general flexibility.
   # To use uncomment and complete the required details.
