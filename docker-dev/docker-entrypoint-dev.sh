@@ -54,7 +54,7 @@ setup() {
 nmis_frontend() {
   set -m
     /usr/local/nmis9/bin/nmisd foreground=1 debug=1 &
-    /usr/bin/morbo /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080" &
+    /usr/bin/morbo /usr/local/nmis9/script/nmisx daemon -m development -p -l "http://*:8080" &
 }
 
 
