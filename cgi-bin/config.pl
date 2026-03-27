@@ -203,7 +203,11 @@ sub typeSect {
 	my @items_cfg = sort keys %{$CC->{$section}};
 	for my $i (@items_cfg) { push @items_all,$i unless grep { $_ eq $i } @items; }
 
-	push @out,Tr(td({class=>"header"},$section),td({class=>'info Plain',colspan=>'3'},"&nbsp;"),td({class=>'info Plain'},
+	push @out,Tr(td({class=>"header"},$section),
+			td({class=>"header"},"Property"),
+			td({class=>"header"},"Value"),
+			td({class=>"header"},"Source"),
+			td({class=>'info Plain'},
 			eval {
 				if ($AU->CheckAccess("Table_Config_rw","check")) {
 					return a({ href=>"$ref?act=config_nmis_add&section=$section&widget=$widget"},'add&nbsp;');
@@ -245,7 +249,7 @@ sub typeSect {
 		} elsif ($src->{layer} == 1) {
 			$source_display = "default";
 		} elsif ($src->{layer} == 2) {
-			$source_display = "site config";
+			$source_display = "local";
 		} elsif ($src->{layer} == 3) {
 			$source_display = "conf.d";
 			$editable = 0;
@@ -256,8 +260,24 @@ sub typeSect {
 			$source_display = "system";
 		}
 
+		# Show default value in value column when property has been overridden
+		my $valueDisplay = escape($showOut);
+		if ($src && $src->{layer} != 1)
+		{
+			my $defaults = NMISNG::Util::getConfigDefaults();
+			if (ref($defaults->{$section}) eq 'HASH' && exists $defaults->{$section}{$k})
+			{
+				my $def_val = $defaults->{$section}{$k};
+				my $def_display = ref($def_val)
+					? Data::Dumper->new([$def_val])->Terse(1)->Indent(0)->Dump
+					: $def_val // 'undef';
+				$def_display = substr($def_display, 0, 40) . '...' if length($def_display) > 40;
+				$valueDisplay .= "<br><i>default: " . escape($def_display) . "</i>";
+			}
+		}
+
 		push @out,Tr(td({class=>"header"},"&nbsp;"),
-				td({class=>"header"},escape($k)),td({class=>'info Plain'}, escape($showOut)),
+				td({class=>"header"},escape($k)),td({class=>'info Plain'}, $valueDisplay),
 				td({class=>'info Plain'}, $source_display),
 				eval {
 					if ($editable && $AU->CheckAccess("Table_Config_rw","check")) {
@@ -292,7 +312,7 @@ sub editConfig {
 
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	# Load defaults + site config so edit form shows current effective value
+	# Load defaults + local config so edit form shows current effective value
 	my ($CC, undef) = NMISNG::Util::getConfDeep();
 
 	my $ref;

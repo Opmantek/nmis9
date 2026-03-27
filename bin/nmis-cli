@@ -1157,7 +1157,7 @@ elsif ($Q->{act} =~ /^strip[_-]config[_-]defaults$/)
 
 	if (!@$removals)
 	{
-		print "No default values found in site config — nothing to strip.\n" if (!$quiet);
+		print "No default values found in local config — nothing to strip.\n" if (!$quiet);
 		exit 0;
 	}
 

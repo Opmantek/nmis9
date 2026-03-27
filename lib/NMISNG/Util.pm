@@ -78,8 +78,9 @@ our $_config_sources_ref = {};
 our $_config_cache_invalid = 0;
 # Epoch when config was last loaded (not cache hit) — used by configChanged()
 our $_config_load_time = 0;
-# Snapshot of config values before macro expansion — used by getConfDeep/writeConfData
-our $_config_pre_macros = {};
+# Raw two-level hashes per layer, stored during loadConfTable
+# layer => { section => { key => value } }
+our %_raw_layers;
 
 sub TODO
 {
@@ -805,6 +806,7 @@ sub loadConfTable
 
 	$config_cache = {};
 	my $config_sources = {};
+	%NMISNG::Util::_raw_layers = ();
 
 	# Properties that may only be defined in one non-default config file
 	my @exclusive_keys = ('cluster_id', 'server_name', 'nmis_host');
@@ -812,27 +814,29 @@ sub loadConfTable
 
 	if (-r $default_fn)
 	{
-		my ($flat, $smap) = _load_and_flatten($default_fn);
+		my ($flat, $smap, $raw) = _load_and_flatten($default_fn);
 		warn_die("configuration file $default_fn unparseable or empty") if (!$flat || !keys %$flat);
 		$config_cache = $flat;
+		$_raw_layers{1} = $raw;
 		for my $k (keys %$flat)
 		{
 			$config_sources->{$k} = { source => $default_fn, layer => 1, section => $smap->{$k} };
 		}
 	}
 
-	# --- Layer 2: conf/Config.nmis (site config) ---
+	# --- Layer 2: conf/Config.nmis (local config) ---
 	if (-r $fn && $fn ne $default_fn)
 	{
-		my ($flat, $smap) = _load_and_flatten($fn);
+		my ($flat, $smap, $raw) = _load_and_flatten($fn);
 		if ($flat && keys %$flat)
 		{
 			_merge_config($config_cache, $flat, 0);
+			$_raw_layers{2} = $raw;
 			for my $k (keys %$flat)
 			{
 				$config_sources->{$k} = { source => $fn, layer => 2, section => $smap->{$k} };
 			}
-			# Track exclusive keys claimed by site config
+			# Track exclusive keys claimed by local config
 			for my $ek (@exclusive_keys)
 			{
 				$exclusive_source{$ek} = $fn if (exists $flat->{$ek});
@@ -847,9 +851,10 @@ sub loadConfTable
 	# --- Layer 3: conf/conf.d/*.nmis (fragments, override-only) ---
 	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");
 	my $external_files = get_external_files(dir => $partialconf_dir);
+	$_raw_layers{3} = {};
 	for my $extfile (@$external_files)
 	{
-		my ($flat, $smap) = _load_and_flatten($extfile);
+		my ($flat, $smap, $raw) = _load_and_flatten($extfile);
 		next if (!$flat || !keys %$flat);
 
 		# Enforce exclusive keys: skip if already defined by an earlier non-default file
@@ -861,6 +866,10 @@ sub loadConfTable
 				{
 					warn("Exclusive property '$ek' in $extfile ignored — already defined in $exclusive_source{$ek}\n");
 					delete $flat->{$ek};
+					# Also remove from raw so it doesn't leak into layer 3 storage
+					for my $s (keys %$raw) {
+						delete $raw->{$s}{$ek} if ref($raw->{$s}) eq 'HASH';
+					}
 				}
 				else
 				{
@@ -873,6 +882,15 @@ sub loadConfTable
 		for my $k (@$changed)
 		{
 			$config_sources->{$k} = { source => $extfile, layer => 3, section => $smap->{$k} };
+		}
+		# Merge raw into layer 3 storage (only keys that were actually merged)
+		for my $s (keys %$raw)
+		{
+			next unless ref($raw->{$s}) eq 'HASH';
+			for my $k (keys %{$raw->{$s}})
+			{
+				$_raw_layers{3}{$s}{$k} = $raw->{$s}{$k} if grep { $_ eq $k } @$changed;
+			}
 		}
 	}
 
@@ -896,12 +914,10 @@ sub loadConfTable
 		$config_cache->{info} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
 	}
 
-	# Set configfile key (points to conf/Config.nmis or fallback)
-	$config_cache->{configfile} = (-r $fn) ? $fn : $default_fn;
+	# Set configfile key — always points to conf/Config.nmis (the write target),
+	# even if it doesn't exist yet (writeConfData will create it)
+	$config_cache->{configfile} = $fn;
 	$cached_configfile_fn = $fn;
-
-	# Snapshot pre-macro values for getConfDeep to use when writing back
-	$NMISNG::Util::_config_pre_macros = { %$config_cache };
 
 	# Replace macros once across entire config
 	$config_cache = replace_macros( config_cache => $config_cache );
@@ -949,8 +965,16 @@ sub getConfigSources
 	return $sources;
 }
 
+# Returns the default config values (layer 1) as a two-level hash.
+# returns: hashref { section => { key => value } }
+sub getConfigDefaults
+{
+	loadConfTable(); # ensure loaded
+	return $_raw_layers{1} // {};
+}
+
 # Load a .nmis config file and flatten its two-level hash to a single level.
-# Returns: ($flattened_hashref, $section_map_hashref) where section_map maps each key to its section name
+# Returns: ($flattened_hashref, $section_map_hashref, $raw_two_level_hashref)
 sub _load_and_flatten
 {
 	my ($filepath) = @_;
@@ -958,13 +982,12 @@ sub _load_and_flatten
 	if ($@)
 	{
 		warn("configuration file $filepath unparseable: $@");
-		return (undef, undef);
+		return (undef, undef, undef);
 	}
 	if (!%deepdata)
 	{
-		# do() might return empty list on certain errors
 		warn("configuration file $filepath returned no data");
-		return (undef, undef);
+		return (undef, undef, undef);
 	}
 
 	my %flat;
@@ -980,7 +1003,7 @@ sub _load_and_flatten
 			}
 		}
 	}
-	return (\%flat, \%section_map);
+	return (\%flat, \%section_map, \%deepdata);
 }
 
 # Merge overlay keys into base.
@@ -1026,7 +1049,7 @@ sub _apply_env_overrides
 		}
 
 		warn("ENV $envkey overriding config key '$config_key' from source '$sources->{$config_key}{source}'\n")
-			if (exists $config->{$config_key} && $sources->{$config_key});
+			if (exists $config->{$config_key} && $sources->{$config_key} && $sources->{$config_key}{layer} > 1);
 		my $prev_section = $sources->{$config_key} ? $sources->{$config_key}{section} : undef;
 		$config->{$config_key} = $ENV{$envkey};
 		$sources->{$config_key} = { source => "ENV:$envkey", layer => 4, section => $prev_section };
@@ -1866,28 +1889,42 @@ sub getdebug_cli
 # difference to loadConfTable: loadconftable flattens and adds a few entries
 # args: only_local eq 1 loads only local config (Not by default)
 # returns: hashref-or-errormessage, file name
-# Reconstruct two-level config hash from loadConfTable + getConfigSources.
-# Replaces readConfData — no file I/O, uses cached layered config.
-# args: only_local => 1 (exclude conf.d layer 3 and ENV layer 4 keys)
+# Reconstruct two-level config hash from stored raw layer data.
+# No file I/O — uses layer data cached during loadConfTable.
+# args: only_local => 1 (only layer 2 / local config keys)
 # returns: ($deep_hashref, $configfile_path)
 sub getConfDeep
 {
 	my %args = @_;
-	my $C = loadConfTable();
-	my $sources = getConfigSources();
-	my $raw = $NMISNG::Util::_config_pre_macros;
+	my $C = loadConfTable(); # ensure loaded
 	my %deep;
 
-	for my $k (keys %$C)
+	# Merge raw layers in order: defaults(1), site(2), conf.d(3)
+	for my $layer (1, 2, 3)
 	{
-		my $src = $sources->{$k};
-		next unless $src && defined $src->{section};
+		next unless ref($_raw_layers{$layer}) eq 'HASH';
+		next if ($args{only_local} && $layer != 2);
+		for my $section (keys %{$_raw_layers{$layer}})
+		{
+			next unless ref($_raw_layers{$layer}{$section}) eq 'HASH';
+			for my $key (keys %{$_raw_layers{$layer}{$section}})
+			{
+				$deep{$section}{$key} = $_raw_layers{$layer}{$section}{$key};
+			}
+		}
+	}
 
-		# only_local: only include site config (layer 2) keys
-		next if ($args{only_local} && $src->{layer} != 2);
-
-		# Use pre-macro value if available to preserve macro references in written files
-		$deep{$src->{section}}{$k} = exists $raw->{$k} ? $raw->{$k} : $C->{$k};
+	# Apply ENV overrides (layer 4) so values round-trip correctly through writeConfData
+	if (!$args{only_local})
+	{
+		my $sources = getConfigSources();
+		for my $k (keys %$sources)
+		{
+			next unless $sources->{$k}{layer} == 4;
+			my $section = $sources->{$k}{section};
+			next unless defined $section;
+			$deep{$section}{$k} = $C->{$k};
+		}
 	}
 
 	return (\%deep, $C->{configfile});
@@ -1909,13 +1946,10 @@ sub writeConfData
 	my $C = NMISNG::Util::loadConfTable();
 	my $configfile = $C->{configfile};
 	my $sources = NMISNG::Util::getConfigSources();
-	my $raw = $NMISNG::Util::_config_pre_macros;
+	my $defaults = $_raw_layers{1} // {};
+	my $confd = $_raw_layers{3} // {};
 
-	# Load defaults for comparison
-	my $default_file = $C->{'<nmis_conf_default>'} . "/Config.nmis";
-	my ($defaults, undef) = _load_and_flatten($default_file);
-
-	# Filter data based on source tracking and default comparison
+	# Filter data: skip defaults, error on managed keys, keep only site overrides
 	my %filtered;
 	for my $section (keys %$CC)
 	{
@@ -1924,11 +1958,23 @@ sub writeConfData
 		{
 			my $src = $sources->{$key};
 
-			# ENV-sourced or conf.d-sourced: error if value changed, skip if unchanged
-			# Compare against pre-macro values to avoid false positives from macro expansion
-			if ($src && ($src->{layer} == 3 || $src->{layer} == 4))
+			# conf.d-sourced: error if value changed, skip if unchanged
+			if ($src && $src->{layer} == 3)
 			{
-				if (!_config_values_equal($CC->{$section}{$key}, $raw->{$key}))
+				my $raw_val = ref($confd->{$src->{section}}) eq 'HASH'
+					? $confd->{$src->{section}}{$key} : undef;
+				if (!_config_values_equal($CC->{$section}{$key}, $raw_val))
+				{
+					return "Cannot modify property '$key' — it is managed by $src->{source}";
+				}
+				next;
+			}
+
+			# ENV-sourced: error if value changed, skip if unchanged
+			if ($src && $src->{layer} == 4)
+			{
+				# ENV values are literal strings, compare against current effective value
+				if (!_config_values_equal($CC->{$section}{$key}, $C->{$key}))
 				{
 					return "Cannot modify property '$key' — it is managed by $src->{source}";
 				}
@@ -1936,8 +1982,9 @@ sub writeConfData
 			}
 
 			# Skip keys whose value matches the default — no need to persist
-			next if ($defaults && exists $defaults->{$key}
-				&& _config_values_equal($CC->{$section}{$key}, $defaults->{$key}));
+			next if (ref($defaults->{$section}) eq 'HASH'
+				&& exists $defaults->{$section}{$key}
+				&& _config_values_equal($CC->{$section}{$key}, $defaults->{$section}{$key}));
 
 			$filtered{$section}{$key} = $CC->{$section}{$key};
 		}
@@ -1991,22 +2038,17 @@ sub configChanged
 	return ($mtime > $NMISNG::Util::_config_load_time) ? 1 : 0;
 }
 
-# Compare conf/Config.nmis against conf-default/Config.nmis and return
+# Compare local config (layer 2) against defaults (layer 1) and return
 # a stripped version containing only keys that differ from or don't exist in defaults.
-# args: conf (optional, loadConfTable result)
+# Uses stored raw layer data — no file I/O.
 # returns: ($stripped_data, $removals)
 #   $stripped_data: deep two-level hashref ready for writeConfData
 #   $removals: arrayref of { section => $s, key => $k, value => $v }
 sub stripDefaults
 {
-	my %args = @_;
-	my $C = $args{conf} // NMISNG::Util::loadConfTable();
-
-	my $default_file = $C->{'<nmis_conf_default>'} . "/Config.nmis";
-	my $site_file = $C->{configfile};
-
-	my $defaults = NMISNG::Util::readFiletoHash(file => $default_file);
-	my $site = NMISNG::Util::readFiletoHash(file => $site_file);
+	loadConfTable(); # ensure loaded
+	my $defaults = $_raw_layers{1} // {};
+	my $site = $_raw_layers{2} // {};
 
 	my %stripped;
 	my @removals;
