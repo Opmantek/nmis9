@@ -46,13 +46,23 @@ pipelines:
             - linux.shell
           script:
             - SHORT_SHA="$(echo "$BITBUCKET_COMMIT" | cut -c1-7)"
-            - SEM_VER="$(sed -nE 's/.*\$VERSION = "([0-9.]+)";/\1/p' nmis9/bin/nmisd)"
+            - SEM_VER="$(sed -nE 's/.*\$VERSION = "([0-9.]+)";/\1/p' bin/nmisd)"
             - echo "SHORT_SHA $SHORT_SHA"
             - echo "SEM_VER $SEM_VER"
             - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
-            - docker build --no-cache --tag "$BB_PKG_REPO/nmis9-dev:$SEM_VER" -f docker-dev/dockerfile-dev .
-            - docker tag "$BB_PKG_REPO/nmis9-dev:$SEM_VER" "$BB_PKG_REPO/nmis9-dev:$SEM_VER-$SHORT_SHA"
-            - docker tag "$BB_PKG_REPO/nmis9-dev:$SEM_VER" "$BB_PKG_REPO/nmis9-dev:latest"
-            - docker push "$BB_PKG_REPO/nmis9-dev:$SEM_VER"
-            - docker push "$OP_DOCKER/nmis9-dev:$SEM_VER-$SHORT_SHA"
-            - docker push "$OP_DOCKER/nmis9-dev:latest"
+            - docker build --no-cache --tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" -f docker-dev/dockerfile-dev .
+            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis9-dev:$SEM_VER-$SHORT_SHA"
+            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis9-dev:latest"
+            - docker push "$BB_PKG_REPO/nmis-dev:$SEM_VER"
+            - docker push "$OP_DOCKER/nmis-dev:$SEM_VER-$SHORT_SHA"
+            - docker push "$OP_DOCKER/nmis-dev:latest"
+      - step:
+          name: Release NMIS ECR Image
+          runs-on:
+            - self.hosted
+            - linux.shell
+          script:
+            - SEM_VER="$(sed -nE 's/.*\$VERSION = "([0-9.]+)";/\1/p' bin/nmisd)"
+            - aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$OP_ECR"
+            - docker build --no-cache -t "$OP_ECR/nmis:$SEM_VER" -f docker/docker-prod/dockerfile-prod .
+            - docker push -t "$OP_ECR/nmis:$SEM_VER"
