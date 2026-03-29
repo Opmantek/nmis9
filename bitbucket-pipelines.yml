@@ -51,8 +51,8 @@ pipelines:
             - echo "SEM_VER $SEM_VER"
             - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
             - docker build --no-cache --tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" -f docker-dev/dockerfile-dev .
-            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis9-dev:$SEM_VER-$SHORT_SHA"
-            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis9-dev:latest"
+            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis-dev:$SEM_VER-$SHORT_SHA"
+            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis-dev:latest"
             - docker push "$BB_PKG_REPO/nmis-dev:$SEM_VER"
             - docker push "$OP_DOCKER/nmis-dev:$SEM_VER-$SHORT_SHA"
             - docker push "$OP_DOCKER/nmis-dev:latest"
