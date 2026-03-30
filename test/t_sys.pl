@@ -172,6 +172,47 @@ $mock_snmp->open(config => { oidpkt => 10 });
 ok($mock_snmp->isopen, "session reopened");
 
 # ============================================================
+# Test 1b: disable_source
+# ============================================================
+diag("=== Test 1b: disable_source ===");
+
+# Use a separate Sys object since disable_source destroys state
+my $S_ds = NMISNG::Sys->new(nmisng => $nmisng);
+$S_ds->init(node => $snmp_node, snmp => 1, wmi => 0, update => 0, catchall_inventory => $snmp_catchall);
+$S_ds->{snmp} = NMISNG::Snmp::Mock->new(nmisng => $nmisng, name => "test_disable", walk_data => \%snmp_walk);
+$S_ds->open();
+
+# Keep a reference to the mock before disable deletes it from Sys
+my $ds_mock = $S_ds->{snmp};
+
+# State BEFORE disable_source("snmp")
+is($S_ds->status->{snmp_enabled}, 1, "before disable: snmp_enabled is 1");
+ok(defined($S_ds->snmp), "before disable: snmp accessor returns object");
+ok(defined($S_ds->engine("snmp")), "before disable: engine('snmp') returns object");
+ok(scalar(@{$S_ds->engines}) >= 1, "before disable: engines list has entries");
+ok($ds_mock->isopen, "before disable: SNMP session is open");
+
+# Disable SNMP
+$S_ds->disable_source("snmp");
+
+# State AFTER disable_source("snmp")
+is($S_ds->status->{snmp_enabled}, 0, "after disable: snmp_enabled is 0");
+ok(!defined($S_ds->snmp), "after disable: snmp accessor returns undef");
+ok(!defined($S_ds->engine("snmp")), "after disable: engine('snmp') returns undef");
+my @snmp_engines = grep { $_->protocol_name eq "snmp" } @{$S_ds->engines};
+is(scalar(@snmp_engines), 0, "after disable: no SNMP engine in engines list");
+ok(!$ds_mock->isopen, "after disable: SNMP session was closed");
+
+# disable_source("wmi") when WMI not configured — should be a no-op
+my $engine_count_before = scalar(@{$S_ds->engines});
+$S_ds->disable_source("wmi");
+is(scalar(@{$S_ds->engines}), $engine_count_before, "disable_source('wmi') no-op when WMI not configured");
+
+# disable_source("bogus") — unknown source, should be a no-op
+$S_ds->disable_source("bogus");
+ok(1, "disable_source('bogus') did not crash");
+
+# ============================================================
 # Test 2: copyModelCfgInfo
 # ============================================================
 diag("=== Test 2: copyModelCfgInfo ===");

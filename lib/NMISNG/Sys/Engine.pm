@@ -63,4 +63,8 @@ sub classify_error { return undef; }
 # Default: 1 (no explicit session needed, e.g. WMI).
 sub open_session { return 1; }
 
+# Close this engine's transport session.
+# Default: no-op (no persistent session, e.g. WMI).
+sub close_session { return undef; }
+
 1;

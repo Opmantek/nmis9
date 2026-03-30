@@ -100,6 +100,17 @@ sub reach     { my $self = shift; return $self->{reach} };                 # my 
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
 sub engines   { my $self = shift; return $self->{_engines} || [] };       # my @E = @{$S->engines}
 
+# Returns the engine for a given protocol name, or undef if not found
+sub engine
+{
+	my ($self, $proto) = @_;
+	for my $e (@{$self->engines})
+	{
+		return $e if $e->protocol_name eq $proto;
+	}
+	return undef;
+}
+
 # Returns arrayref of protocol names for currently active engines
 sub enabled_sources
 {
@@ -771,7 +782,10 @@ sub open
 sub close
 {
 	my $self = shift;
-	return $self->{snmp}->close if ( defined( $self->{snmp} ) );
+	for my $engine (@{$self->engines})
+	{
+		$engine->close_session;
+	}
 }
 
 # small helper to tell sys that snmp or wmi are considered dead
@@ -781,9 +795,12 @@ sub close
 sub disable_source
 {
 	my ( $self, $moriturus ) = @_;
-	return if ( $moriturus !~ /^(wmi|snmp)$/ );
 
-	$self->close() if ( $moriturus eq "snmp" );                      # bsts, avoid leakage
+	my $engine = $self->engine($moriturus);
+	return if !$engine && !$self->{$moriturus};    # unknown source, nothing to do
+
+	$engine->close_session if $engine;
+
 	$self->nmisng->log->debug("disabling source $moriturus") if ( $self->{$moriturus} );
 	delete $self->{$moriturus};
 
@@ -1038,7 +1055,7 @@ sub loadNodeInfo
 	# check if nbarpd is possible: delegate to SNMP engine if available
 	if ( NMISNG::Util::getbool( $self->{mdl}{system}{nbarpd_check} ) && $self->{snmp} && !$self->{snmp_error} )
 	{
-		if (my ($snmp_engine) = grep { $_->protocol_name eq "snmp" } @{$self->engines})
+		if (my $snmp_engine = $self->engine("snmp"))
 		{
 			$catchall_data->{nbarpd} = $snmp_engine->check_nbarpd(
 				catchall_data => $catchall_data, config => $C

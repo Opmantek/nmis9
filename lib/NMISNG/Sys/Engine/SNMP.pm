@@ -221,4 +221,13 @@ sub open_session
 	);
 }
 
+# Close the SNMP transport session.
+sub close_session
+{
+	my ($self) = @_;
+	my $transport = $self->sys->{snmp};
+	return $transport->close if defined $transport;
+	return undef;
+}
+
 1;
