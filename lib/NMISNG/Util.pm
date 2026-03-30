@@ -940,17 +940,26 @@ sub loadConfTable
 				or warn_die("cannot symlink $normalvar to configured $confdvar: $!");
 	}
 
+	# Store sources in package variable for getConfigSources access
+	# (must happen before cluster_id block so writeConfData/getConfDeep can work)
+	$NMISNG::Util::_config_sources_ref = $config_sources;
+	$NMISNG::Util::_config_load_time = time();
+
 	# Cluster ID: if missing, generate UUID and write to conf/Config.nmis
 	if (!$config_cache->{cluster_id})
 	{
 		$config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
 		$config_sources->{cluster_id} = { source => $config_cache->{configfile}, layer => 2, section => "id" };
-		_write_cluster_id_to_config($config_cache->{configfile}, $config_cache->{cluster_id});
+		# Add to raw layer 2 so getConfDeep includes it
+		$_raw_layers{2} //= {};
+		$_raw_layers{2}{id}{cluster_id} = $config_cache->{cluster_id};
+		# Write through the standard config pipeline
+		my ($deep, undef) = getConfDeep();
+		my $error = writeConfData(data => $deep);
+		warn("cannot persist cluster_id: $error") if $error;
+		# writeConfData invalidates cache, but we're still building it — clear the flag
+		$NMISNG::Util::_config_cache_invalid = 0;
 	}
-
-	# Store sources in package variable for getConfigSources access
-	$NMISNG::Util::_config_sources_ref = $config_sources;
-	$NMISNG::Util::_config_load_time = time();
 
 	return $config_cache;
 }
@@ -1077,26 +1086,6 @@ sub _apply_env_overrides
 	}
 }
 
-# Write cluster_id to conf/Config.nmis (reads existing content, merges, writes back)
-sub _write_cluster_id_to_config
-{
-	my ($configfile, $cluster_id) = @_;
-	my %data;
-	if (-r $configfile)
-	{
-		%data = do($configfile);
-		%data = () if ($@ || !%data);
-	}
-	$data{id}{cluster_id} = $cluster_id;
-
-	open(my $fh, ">", $configfile) or do {
-		warn("cannot write cluster_id to $configfile: $!");
-		return;
-	};
-	flock($fh, LOCK_EX) or warn("cannot lock $configfile: $!");
-	print $fh Data::Dumper->Dump([\%data], [qw(*hash)]);
-	close $fh;
-}
 
 # Get external configuration files (sorted for deterministic merge order)
 sub get_external_files
@@ -1588,7 +1577,33 @@ sub getModelFile
 }
 
 
+# Write formatted data to an open file handle.
+# Returns undef on success, error message on failure.
+sub _write_data_to_handle
+{
+	my ($fh, $data, $filename, $useJson, $pretty) = @_;
+	if ($useJson && $pretty)
+	{
+		# make sure that all json files contain valid utf8-encoded json, as required by rfc7159
+		return "cannot write data object to file $filename: $!"
+			unless print $fh JSON::XS->new->utf8(1)->pretty(1)->encode($data);
+	}
+	elsif ($useJson)
+	{
+		# encode_json already ensures utf8-encoded json
+		eval { print $fh encode_json($data) };
+		return "cannot write data object to $filename: $@" if $@;
+	}
+	else
+	{
+		return "cannot write to file $filename: $!"
+			unless print $fh Data::Dumper->Dump([$data], [qw(*hash)]);
+	}
+	return undef;
+}
+
 # write hash data to file in suitable format
+# Uses atomic write (temp file + rename) to prevent 0-length files on disk-full or crash.
 # returns: undef or error message
 sub writeHashtoFile
 {
@@ -1626,51 +1641,61 @@ sub writeHashtoFile
 
 	if ($handle eq "")
 	{
-		if (open($handle, "+<$file"))
-		{
-			flock($handle, LOCK_EX) or return("writeHashtoFile: can't lock $file: $!");
+		# --- Atomic write path: write to temp file, then rename over target ---
+		my $tmpfile = "$file.tmp.$$";
 
-			seek($handle,0,0) or return("writeHashtoFile: can't seek in $file: $!");
-			truncate($handle,0) or return("writeHashtoFileL can't truncate $file: $!");
+		# Lock target file for mutual exclusion (don't truncate it)
+		my $lockhandle;
+		if (-e $file)
+		{
+			open($lockhandle, "+<", $file)
+				or return("writeHashtoFile: cannot open $file for locking: $!");
 		}
 		else
 		{
-			open($handle, ">$file")  or return("writeHashtoFile: cannot write to $file: $!\n");
-			flock($handle, LOCK_EX) or return("writeHashtoFile: can't lock file $file: $!\n");
+			open($lockhandle, ">", $file)
+				or return("writeHashtoFile: cannot create $file for locking: $!");
 		}
+		flock($lockhandle, LOCK_EX)
+			or return("writeHashtoFile: can't lock $file: $!");
+
+		# Write to temp file in same directory (ensures same filesystem for atomic rename)
+		open(my $tmphandle, ">", $tmpfile)
+			or do { close($lockhandle);
+					return("writeHashtoFile: cannot create temp file $tmpfile: $!"); };
+
+		my $errormsg = _write_data_to_handle($tmphandle, $data, $file, $useJson, $pretty);
+
+		# close flushes buffers — check for write errors (e.g. disk full)
+		if (!close($tmphandle) && !$errormsg)
+		{
+			$errormsg = "cannot close temp file $tmpfile: $!";
+		}
+
+		if ($errormsg)
+		{
+			unlink($tmpfile);
+			close($lockhandle);
+			return("writeHashtoFile: $errormsg");
+		}
+
+		# Atomic replace: rename is atomic on POSIX within same filesystem
+		rename($tmpfile, $file)
+			or do { unlink($tmpfile); close($lockhandle);
+					return("writeHashtoFile: cannot rename $tmpfile to $file: $!"); };
+
+		close($lockhandle);
 	}
 	else
 	{
-		seek($handle,0,0) or return("writeHashtoFile: can't seek in $file: $!");
-		truncate($handle,0) or return("writeHashtoFile: can't truncate $file: $!");
-	}
+		# --- Legacy handle path: caller manages locking ---
+		seek($handle, 0, 0) or return("writeHashtoFile: can't seek in $file: $!");
+		truncate($handle, 0) or return("writeHashtoFile: can't truncate $file: $!");
 
-	# write out the data, but defer error reporting until after the lock is released
-	my $errormsg;
-	if ( $useJson and $pretty )
-	{
-		# make sure that all json files contain valid utf8-encoded json, as required by rfc7159
-		if ( not print $handle JSON::XS->new->utf8(1)->pretty(1)->encode($data) )
-		{
-			$errormsg = "cannot write data object to file $file: $!";
-		}
+		my $errormsg = _write_data_to_handle($handle, $data, $file, $useJson, $pretty);
+		close $handle;
+		return("writeHashtoFile: $errormsg") if ($errormsg);
 	}
-	elsif ( $useJson )
-	{
-		# encode_json already ensures utf8-encoded json
-		eval { print $handle encode_json($data) } ;
-		if ( $@ ) {
-			$errormsg = "cannot write data object to $file: $@";
-		}
-	}
-	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
-		$errormsg = "cannot write to file $file: $!";
-	}
-	close $handle;
-
-	# now it's safe to handle the error
-	return("writeHashtoFile: $errormsg")
-			if ($errormsg);
 
 	if (my $error = NMISNG::Util::setFileProtDiag(file =>$file, conf => $C))
 	{
