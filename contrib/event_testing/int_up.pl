@@ -32,7 +32,7 @@
 
 use strict;
 
-my $eventlog = "/usr/local/nmis8/logs/event.log";
+my $eventlog = "/usr/local/nmis9/logs/event.log";
 
 eventlog($eventlog,"meatball","Interface Up","Normal","FastEthernet0","");
 eventlog($eventlog,"ASGARD","Proactive Interface Error Input Packets Closed","Normal","FastEthernet0/1","WAN Bandwidth=100 Mbps: Value=0.00951 Threshold=0.02 Time=00:15:00");
