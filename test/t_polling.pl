@@ -128,6 +128,11 @@ use constant {
 	OID_sensorName2  => '1.3.6.1.4.1.99999.1.1.1.2.2',
 	OID_sensorVal1   => '1.3.6.1.4.1.99999.1.1.1.3.1',
 	OID_sensorVal2   => '1.3.6.1.4.1.99999.1.1.1.3.2',
+	OID_sensorStat1  => '1.3.6.1.4.1.99999.1.1.1.4.1',
+	OID_sensorStat2  => '1.3.6.1.4.1.99999.1.1.1.4.2',
+	OID_sensorName3  => '1.3.6.1.4.1.99999.1.1.1.2.3',
+	OID_sensorStat3  => '1.3.6.1.4.1.99999.1.1.1.4.3',
+	OID_sensorVal3   => '1.3.6.1.4.1.99999.1.1.1.3.3',
 };
 
 # Default mock stats
@@ -302,6 +307,148 @@ is($sensor_model->count, 2, "testSensor still active after update_concepts");
 # Save catchall
 $snmp_catchall_inv->save(node => $snmp_node);
 $S->close();
+
+# ============================================================
+# Phase 2b: Test Inventory Lifecycle (Index Appear/Disappear)
+# ============================================================
+diag("=== Phase 2b: Inventory Lifecycle (Index Appear/Disappear) ===");
+
+# Save original values so we can restore after lifecycle tests
+my %saved_index2_oids = (
+	OID_sensorName2() => $snmp_walk{OID_sensorName2()},
+	OID_sensorStat2() => $snmp_walk{OID_sensorStat2()},
+	OID_sensorVal2()  => $snmp_walk{OID_sensorVal2()},
+);
+
+# --- Test A: Index disappears → marked historic ---
+diag("--- Test A: Index disappears ---");
+delete $snmp_walk{OID_sensorName2()};
+delete $snmp_walk{OID_sensorStat2()};
+delete $snmp_walk{OID_sensorVal2()};
+
+my $S_lc = setup_snmp_sys(node => $snmp_node, update => 1, catchall_inventory => $snmp_catchall_inv);
+$S_lc->open();
+$snmp_node->collect_systemhealth_info(sys => $S_lc, catchall_inventory => $snmp_catchall_inv);
+$S_lc->close();
+
+my $active_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 0 });
+is($active_sensors->count, 1, "After removing index 2: 1 active sensor");
+
+my $historic_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 1 });
+is($historic_sensors->count, 1, "After removing index 2: 1 historic sensor");
+
+# Validate the historic sensor is TempSensor2
+my $hist_objs = $historic_sensors->objects;
+my $hist_inv = $hist_objs->{objects}[0];
+is($hist_inv->data->{testSensorName}, $saved_index2_oids{OID_sensorName2()},
+	"Historic sensor is TempSensor2");
+
+# Validate the active sensor
+my $act_objs = $active_sensors->objects;
+my $act_inv = $act_objs->{objects}[0];
+ok(!$act_inv->historic, "Active sensor historic=0");
+ok($act_inv->enabled, "Active sensor enabled=1");
+
+# --- Test B: Index reappears → unmarked historic ---
+diag("--- Test B: Index reappears ---");
+$snmp_walk{OID_sensorName2()} = $saved_index2_oids{OID_sensorName2()};
+$snmp_walk{OID_sensorStat2()} = $saved_index2_oids{OID_sensorStat2()};
+$snmp_walk{OID_sensorVal2()}  = $saved_index2_oids{OID_sensorVal2()};
+
+$S_lc = setup_snmp_sys(node => $snmp_node, update => 1, catchall_inventory => $snmp_catchall_inv);
+$S_lc->open();
+$snmp_node->collect_systemhealth_info(sys => $S_lc, catchall_inventory => $snmp_catchall_inv);
+$S_lc->close();
+
+$active_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 0 });
+is($active_sensors->count, 2, "After restoring index 2: 2 active sensors");
+
+$historic_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 1 });
+is($historic_sensors->count, 0, "After restoring index 2: 0 historic sensors");
+
+# Validate both are active
+$act_objs = $active_sensors->objects;
+for my $inv (@{$act_objs->{objects}}) {
+	ok(!$inv->historic, "Sensor " . $inv->data->{testSensorName} . " is not historic");
+}
+
+# --- Test C: New index appears → new inventory created ---
+diag("--- Test C: New index appears ---");
+$snmp_walk{OID_sensorName3()} = "TempSensor3";
+$snmp_walk{OID_sensorStat3()} = "ok";
+$snmp_walk{OID_sensorVal3()}  = "60";
+
+$S_lc = setup_snmp_sys(node => $snmp_node, update => 1, catchall_inventory => $snmp_catchall_inv);
+$S_lc->open();
+$snmp_node->collect_systemhealth_info(sys => $S_lc, catchall_inventory => $snmp_catchall_inv);
+$S_lc->close();
+
+$active_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 0 });
+is($active_sensors->count, 3, "After adding index 3: 3 active sensors");
+
+# Find the new sensor
+$act_objs = $active_sensors->objects;
+my $found_sensor3 = 0;
+for my $inv (@{$act_objs->{objects}}) {
+	if ($inv->data->{testSensorName} eq "TempSensor3") {
+		$found_sensor3 = 1;
+		ok(!$inv->historic, "TempSensor3 is not historic");
+		ok($inv->enabled, "TempSensor3 is enabled");
+	}
+}
+ok($found_sensor3, "TempSensor3 inventory was created");
+
+# --- Test D: Collect skips historic inventory ---
+diag("--- Test D: Collect skips historic inventory ---");
+
+# Remove TempSensor3 so it becomes historic
+delete $snmp_walk{OID_sensorName3()};
+delete $snmp_walk{OID_sensorStat3()};
+delete $snmp_walk{OID_sensorVal3()};
+
+$S_lc = setup_snmp_sys(node => $snmp_node, update => 1, catchall_inventory => $snmp_catchall_inv);
+$S_lc->open();
+$snmp_node->collect_systemhealth_info(sys => $S_lc, catchall_inventory => $snmp_catchall_inv);
+$S_lc->close();
+
+$historic_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 1 });
+is($historic_sensors->count, 1, "TempSensor3 is now historic");
+
+# Run collect phase
+my $S_lc_collect = setup_snmp_sys(node => $snmp_node, update => 0, catchall_inventory => $snmp_catchall_inv);
+$S_lc_collect->open();
+$cd = $snmp_catchall_inv->data_live();
+$cd->{last_poll} = time - 300;
+$snmp_catchall_inv->save(node => $snmp_node);
+
+$snmp_node->collect_systemhealth_data(sys => $S_lc_collect, catchall_inventory => $snmp_catchall_inv);
+$S_lc_collect->close();
+
+# Active sensors should have timed data from this collect
+$active_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 0 });
+my $active_have_data = 1;
+$act_objs = $active_sensors->objects;
+for my $inv (@{$act_objs->{objects}}) {
+	my $td = $inv->get_newest_timed_data();
+	if (!$td || !$td->{success}) {
+		$active_have_data = 0;
+	}
+}
+ok($active_have_data, "Active sensors have timed data after collect");
+
+# Historic sensor should NOT have timed data from this collect cycle
+$historic_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 1 });
+$hist_objs = $historic_sensors->objects;
+$hist_inv = $hist_objs->{objects}[0];
+my $hist_td = $hist_inv->get_newest_timed_data();
+my $hist_has_no_recent_data = (!$hist_td || !$hist_td->{success} || !$hist_td->{data});
+ok($hist_has_no_recent_data, "Historic sensor has no timed data from collect");
+
+# --- Cleanup: restore original walk data ---
+# TempSensor3 OIDs already deleted above; index 2 already restored in Test B.
+# Verify we're back to 2 active sensors for subsequent phases.
+$active_sensors = $snmp_node->get_inventory_model(concept => "testSensor", filter => { historic => 0 });
+is($active_sensors->count, 2, "Restored to 2 active sensors for subsequent phases");
 
 # ============================================================
 # Phase 3: Test SNMP Collect Pipeline
