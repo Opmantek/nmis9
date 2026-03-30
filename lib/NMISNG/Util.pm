@@ -787,7 +787,7 @@ sub loadConfTable
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
 	mkpath($dir, { verbose  => 0, mode => 0755} ) if (!-d $dir);
 
-	my $fn = Cwd::abs_path("$dir/Config.nmis");
+	my $fn = Cwd::abs_path("$dir/Config.nmis") // "$dir/Config.nmis";
 	# if caller gave us a dir previously but not now, use the cached path
 	$fn = $cached_configfile_fn if ($cached_configfile_fn && !defined $args{dir});
 
@@ -849,8 +849,12 @@ sub loadConfTable
 	}
 
 	# --- Layer 3: conf/conf.d/*.nmis (fragments, override-only) ---
-	my $partialconf_dir = Cwd::abs_path("$dir/conf.d");
-	my $external_files = get_external_files(dir => $partialconf_dir);
+	my $partialconf_dir = "$dir/conf.d";
+	my $external_files = [];
+	if (-d $partialconf_dir) {
+		$partialconf_dir = Cwd::abs_path($partialconf_dir) || $partialconf_dir;
+		$external_files = get_external_files(dir => $partialconf_dir);
+	}
 	$_raw_layers{3} = {};
 	for my $extfile (@$external_files)
 	{
@@ -974,11 +978,28 @@ sub getConfigDefaults
 }
 
 # Load a .nmis config file and flatten its two-level hash to a single level.
+# Uses shared lock to avoid reading partially-written files.
 # Returns: ($flattened_hashref, $section_map_hashref, $raw_two_level_hashref)
 sub _load_and_flatten
 {
 	my ($filepath) = @_;
-	my %deepdata = do($filepath);
+
+	# Read under shared lock to protect against concurrent writes
+	open(my $fh, "<", $filepath) or do {
+		warn("cannot open configuration file $filepath: $!");
+		return (undef, undef, undef);
+	};
+	flock($fh, LOCK_SH) or do {
+		warn("cannot lock configuration file $filepath: $!");
+		close($fh);
+		return (undef, undef, undef);
+	};
+	local $/;
+	my $content = <$fh>;
+	close($fh);
+
+	# no strict 'vars' needed because .nmis files use %hash = (...) without declaring it
+	my %deepdata = do { no strict 'vars'; eval $content };
 	if ($@)
 	{
 		warn("configuration file $filepath unparseable: $@");

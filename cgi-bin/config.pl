@@ -196,6 +196,7 @@ sub typeSect {
 	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 	my $ref = url(-absolute=>1);
 	my $sources = NMISNG::Util::getConfigSources();
+	my $defaults = NMISNG::Util::getConfigDefaults();
 
 	# create items list, contains of presets and adds
 	my @items = map { keys %{$_} } @{$CT->{$section}};
@@ -263,8 +264,7 @@ sub typeSect {
 		# Show default value in value column when property has been overridden
 		my $valueDisplay = escape($showOut);
 		if ($src && $src->{layer} != 1)
-		{
-			my $defaults = NMISNG::Util::getConfigDefaults();
+		{			
 			if (ref($defaults->{$section}) eq 'HASH' && exists $defaults->{$section}{$k})
 			{
 				my $def_val = $defaults->{$section}{$k};
