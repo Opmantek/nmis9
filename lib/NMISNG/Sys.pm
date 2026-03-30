@@ -98,6 +98,7 @@ sub new
 sub mdl       { my $self = shift; return $self->{mdl} };                   # my $M = $S->mdl
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
+sub engines   { my $self = shift; return $self->{_engines} || [] };       # my @E = @{$S->engines}
 sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!
@@ -661,6 +662,19 @@ sub init
 		}
 	}
 
+	# Create protocol engines for query building and execution
+	$self->{_engines} = [];
+	if ($self->{snmp})
+	{
+		require NMISNG::Sys::Engine::SNMP;
+		push @{$self->{_engines}}, NMISNG::Sys::Engine::SNMP->new(sys => $self);
+	}
+	if ($self->{wmi})
+	{
+		require NMISNG::Sys::Engine::WMI;
+		push @{$self->{_engines}}, NMISNG::Sys::Engine::WMI->new(sys => $self);
+	}
+
 	return $self->{error} ? 0 : 1;
 }
 
@@ -762,6 +776,9 @@ sub disable_source
 	$self->close() if ( $moriturus eq "snmp" );                      # bsts, avoid leakage
 	$self->nmisng->log->debug("disabling source $moriturus") if ( $self->{$moriturus} );
 	delete $self->{$moriturus};
+
+	# Remove corresponding engine
+	$self->{_engines} = [ grep { $_->protocol_name ne $moriturus } @{$self->engines} ];
 }
 
 # DO NOT USE THIS FUNCTION, here for backwards compat!
@@ -1008,16 +1025,15 @@ sub loadNodeInfo
 
 	my $exit = $self->loadInfo( class => 'system', target => $catchall_data, inventory => $catchall_inventory );    # sets status
 
-	# check if nbarpd is possible: wanted by model, snmp configured, no snmp problems in last load
+	# check if nbarpd is possible: delegate to SNMP engine if available
 	if ( NMISNG::Util::getbool( $self->{mdl}{system}{nbarpd_check} ) && $self->{snmp} && !$self->{snmp_error} )
 	{
-		# find a value for max-repetitions: this controls how many OID's will be in a single request.
-		# note: no last-ditch default; if not set we let the snmp module do its thing
-		my $max_repetitions = $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions};
-		my %tmptable = $self->{snmp}->gettable( 'cnpdStatusTable', $max_repetitions );
-
-		$catchall_data->{nbarpd} = keys %tmptable ? "true" : "false";
-		$self->nmisng->log->debug("NBARPD is $catchall_data->{nbarpd} on this node");
+		if (my ($snmp_engine) = grep { $_->protocol_name eq "snmp" } @{$self->engines})
+		{
+			$catchall_data->{nbarpd} = $snmp_engine->check_nbarpd(
+				catchall_data => $catchall_data, config => $C
+			);
+		}
 	}
 	return $exit;
 }
@@ -1245,234 +1261,37 @@ sub getValues
 		# 	}
 		# }
 
-		# prep the list of things to tackle, snmp first - iff snmp is ok for this node
-		if ( ref( $thissection->{snmp} ) eq "HASH" && $self->{snmp} )
+		# Delegate query building to protocol engines
+		for my $engine (@{$self->engines})
 		{
-			# expecting port OR index for interfaces, cbqos etc. note that port overrides index!
-			my $default_suffix
-				= ( defined($port) && $port ne '' ) ? ".$port"
-				: ( defined($index) && $index ne '' ) ? ".$index"
-				:                                       "";
-			$self->nmisng->log->debug("class: index=$index port=$port suffix=$default_suffix");
+			next unless $engine->is_active;
+			my $proto = $engine->protocol_name;
+			my $section_hash = $thissection->{$proto};
+			next unless ref($section_hash) eq "HASH";
 
-			for my $itemname ( keys %{$thissection->{snmp}} )
-			{
-				# because we recalculate index for some items we must reset this on every loop
-				my $suffix = $default_suffix;
-				my $thisitem = $thissection->{snmp}->{$itemname};
-				if (exists( $thisitem->{calculate_index} ) && ( my $calc = $thisitem->{calculate_index} ) ) {
-					# check if its a logical interface or not ?
-					# next if not logical interface as we don't need to calculate index for it.
-					if ($calc ne ""){						
-						my ( $error, $result ) = $self->eval_string(
-						string  => $calc,
-						context => "", # there is no data coming in, it just needs the inventory data
-						variables => [$inventory->data()] );						
-						if ($error) {
-							$status{error} = $error;
-							$self->nmisng->log->error("($self->{name}) getValues calculate_index failed: $error");
-							next;
-						}
-						# if calculate index returns undef or an empty the suffix is set to nothing
-						# this allows calculate_oid to completely alter the oid without suffix always being added
-						if ($result){
-							$suffix = ".".$result;							
-						} else {
-							$suffix = "";
-						}
-						$self->nmisng->log->debug4(sub {"calculated suffix is: ".$suffix});
-					}
-				}
-				if ( exists( $thisitem->{calculate_oid} ) && ( my $calc = $thisitem->{calculate_oid} ) ) {
-					$self->nmisng->log->debug4("Calculating oid : $calc \n");
-					my ( $error, $result ) = $self->eval_string(
-						string  => $calc,
-						context => "", # there is no data coming in, it just needs the inventory data
-						variables => [$inventory->data()] );
-					if ($error) {
-						$status{error} = $error;
-						$self->nmisng->log->error("($self->{name}) getValues calculate_oid failed: $error");
-						next;
-					}
-					if($result) {
-						$thisitem->{oid} = $result;
-						$self->nmisng->log->debug4(sub {"calculated oid is: ".$result});
-					} else {
-						# if we had to calculate and got no value we dont have an oid
-						next;
-					}
-				}
-
-				
-				next if ( !exists $thisitem->{oid} );
-
-				$self->nmisng->log->debug3(sub { "oid $thisitem->{oid} for section $sectionname, item $itemname primed for loading"});
-
-				# for snmp each oid belongs to one reportable thingy, and we want to get all oids in one go
-				# HOWEVER, the same thing is often saved in multiple sections!
-				if ( $todos{$itemname} )
-				{
-					if ( $todos{$itemname}->{oid} ne $thisitem->{oid} . $suffix )
-					{
-						$status{snmp_error}
-							= "($self->{name}) model error, $itemname has multiple clashing oids!";
-						$self->nmisng->log->error( $status{snmp_error} );
-						next;
-					}
-					push @{$todos{$itemname}->{section}}, $sectionname;
-					push @{$todos{$itemname}->{details}}, $thisitem;
-
-					$self->nmisng->log->debug3(sub {"item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} )});
-				}
-				else
-				{
-					$todos{$itemname} = {
-						oid     => $thisitem->{oid} . $suffix,
-						section => [$sectionname],
-						item    => $itemname,                    # fixme might not be required
-						details => [$thisitem]
-					};
-				}
-			}
-		}
-
-		# now look for wmi-sourced stuff - iff wmi is ok for this node
-		if ( ref( $thissection->{wmi} ) eq "HASH" && $self->{wmi} )
-		{
-			for my $itemname ( keys %{$thissection->{wmi}} )
-			{
-				next if ( $itemname eq "-common-" );    # that's not a collectable item
-				my $thisitem = $thissection->{wmi}->{$itemname};
-
-				$self->nmisng->log->debug3(sub { "wmi query for section $sectionname, item $itemname primed for loading"});
-
-				# check if there's a -common- section with a query for multiple items?
-				my $query = (
-					exists( $thisitem->{query} ) ? $thisitem->{query}
-					: ( ref( $thissection->{wmi}->{"-common-"} ) eq "HASH"
-							&& exists( $thissection->{wmi}->{"-common-"}->{query} ) )
-					? $thissection->{wmi}->{"-common-"}->{query}
-					: undef
-				);
-
-				# nothing to be done if we don't know what to query for, or if we don't know what field to get
-				next if ( !$query or !$thisitem->{field} );
-
-				# fixme: do wmi queries have to be rewritten/expanded with node properties?
-
-				# for wmi we'd like to perform a query just ONCE for all involved items
-				# but again the sme thing may need saving in more than one section
-				if ( $todos{$itemname} )
-				{
-					if (   $todos{$itemname}->{query} ne $query
-						or $todos{$itemname}->{details}->{field} ne $thisitem->{field}
-						or $todos{$itemname}->{indexed} ne $thissection->{indexed} )
-					{
-						$status{wmi_error}
-							= "($self->{name}) model error, $itemname has multiple clashing queries/fields!";
-						$self->nmisng->log->error( $status{wmi_error} );
-						next;
-					}
-
-					push @{$todos{$itemname}->{section}}, $sectionname;
-					push @{$todos{$itemname}->{details}}, $thisitem;
-
-					$self->nmisng->log->debug3(sub {"item $itemname present in multiple sections: " . join( ", ", @{$todos{$itemname}->{section}} )});
-				}
-				else
-				{
-					$todos{$itemname} = {
-						query   => $query,
-						section => [$sectionname],
-						item    => $itemname,                # fixme might not be required
-						details => [$thisitem],              # crucial: contains the field(name)
-						indexed => $thissection->{indexed}
-					};    # crucial for controlling  gettable
-				}
-			}
+			my $eng_status = $engine->build_queries(
+				section_name    => $sectionname,
+				section_hash    => $section_hash,
+				section_indexed => $thissection->{indexed},
+				index           => $index,
+				port            => $port,
+				inventory       => $inventory,
+				todos           => \%todos,
+			);
+			$status{"${proto}_error"} = $eng_status->{error} if $eng_status->{error};
 		}
 	}
 
-	# any snmp oids requested? if so, get all in one go and update
-	# the involved todos entries with the raw data
-	if ( my @haveoid = grep( exists( $todos{$_}->{oid} ), keys %todos ) )
+	# Delegate query execution to protocol engines
+	for my $engine (@{$self->engines})
 	{
-		my @rawsnmp = $self->{snmp}->getarray( map { $todos{$_}->{oid} } (@haveoid) );
-		if ( my $error = $self->{snmp}->error )
-		{
-			$self->nmisng->log->error("($self->{name}) on get values by snmp: $error");
-			$status{snmp_error} = $error;
-		}
-		else
-		{
-			for my $idx ( 0 .. $#haveoid )
-			{
-				$todos{$haveoid[$idx]}->{rawvalue} = $rawsnmp[$idx];
-				$todos{$haveoid[$idx]}->{done}     = 1;
-			}
-		}
-	}
-
-	# any wmi queries requested? then perform the unique queries (once only!)
-	# then update all involved fields
-	if ( my @havequery = grep( exists( $todos{$_}->{query} ), keys %todos ) )
-	{
-		my %seen;
-		for my $itemname (@havequery)
-		{
-			my $query = $todos{$itemname}->{query};
-
-			if ( !$seen{$query} )
-			{
-				# fixme: do we need dynamically created lists of fields, ie. from the known-to-be wanted stuff?
-				# or is a blanket retrieve-all-then-filter good enough? where are the costs, in wmic startup or the
-				# extra data generation?
-				my ( $error, $fields, $meta );
-
-				# if this is an indexed query we must use gettable, get only returns the first result
-				if ( defined($index) && defined( $todos{$itemname}->{indexed} ) )
-				{
-					# wmi gettable needs INDEX FIELD NAME, not index instance value!
-					( $error, $fields, $meta ) = $self->{wmi}->gettable(
-						wql   => $query,
-						index => $todos{$itemname}->{indexed}
-					);
-				}
-				else
-				{
-					( $error, $fields, $meta ) = $self->{wmi}->get( wql => $query );
-				}
-
-				if ($error)
-				{
-					$self->nmisng->log->error("($self->{name}) on get values by wmi: $error");
-					$status{wmi_error} = $error;
-					next;
-				}
-				else
-				{
-					# if indexed, gettable will have returned ALL known indices + values.
-					$seen{$query} = $fields;
-				}
-			}
-
-			#last check to make sure we have data
-			if(!$seen{$query})
-			{
-				$self->nmisng->log->error("($self->{name}) on get values by wmi: no data returned for query $query");
-				$status{wmi_error} = "no data returned for query $query";
-				next;
-			}
-
-			# get the field name from the model entry
-			# note: field name is enforced same across all target sections so we use the first one
-			$todos{$itemname}->{rawvalue} = (
-				defined $index
-				? $seen{$query}->{$index}
-				: $seen{$query}
-			)->{$todos{$itemname}->{details}->[0]->{field}};
-			$todos{$itemname}->{done} = 1;
-		}
+		next unless $engine->is_active;
+		my $eng_status = $engine->execute_queries(
+			todos => \%todos,
+			index => $index,
+		);
+		my $proto = $engine->protocol_name;
+		$status{"${proto}_error"} = $eng_status->{error} if $eng_status->{error};
 	}
 
 	# now handle compute, format, replace, alerts etc.

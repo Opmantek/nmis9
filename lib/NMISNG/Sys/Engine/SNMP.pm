@@ -1,0 +1,184 @@
+package NMISNG::Sys::Engine::SNMP;
+# SNMP polling engine - handles OID building and batch SNMP fetching.
+# Extracted from NMISNG::Sys::getValues() lines 1249-1336 (build) and 1398-1414 (execute).
+
+use strict;
+use warnings;
+use parent 'NMISNG::Sys::Engine';
+
+our $VERSION = "9.6.5";
+
+sub protocol_name { return "snmp"; }
+
+sub is_active
+{
+	my ($self) = @_;
+	return defined($self->sys->{snmp}) ? 1 : 0;
+}
+
+# Build SNMP OID entries in the shared %todos hash.
+# Handles calculate_index, calculate_oid, suffix computation, and multi-section dedup.
+sub build_queries
+{
+	my ($self, %args) = @_;
+	my ($section_name, $section_hash, $index, $port, $inventory, $todos)
+		= @args{qw(section_name section_hash index port inventory todos)};
+
+	my $sys = $self->sys;
+	my %status;
+
+	my $default_suffix
+		= (defined($port) && $port ne '') ? ".$port"
+		: (defined($index) && $index ne '') ? ".$index"
+		: "";
+	$sys->nmisng->log->debug("class: index=$index port=$port suffix=$default_suffix");
+
+	for my $itemname (keys %{$section_hash})
+	{
+		my $suffix = $default_suffix;
+		my $thisitem = $section_hash->{$itemname};
+
+		# calculate_index: dynamic suffix computation
+		if (exists($thisitem->{calculate_index}) && (my $calc = $thisitem->{calculate_index}))
+		{
+			if ($calc ne "")
+			{
+				my ($error, $result) = $sys->eval_string(
+					string    => $calc,
+					context   => "",
+					variables => [$inventory ? $inventory->data() : {}]
+				);
+				if ($error)
+				{
+					$status{error} = $error;
+					$sys->nmisng->log->error("($sys->{name}) getValues calculate_index failed: $error");
+					next;
+				}
+				if ($result)
+				{
+					$suffix = "." . $result;
+				}
+				else
+				{
+					$suffix = "";
+				}
+				$sys->nmisng->log->debug4(sub { "calculated suffix is: " . $suffix });
+			}
+		}
+
+		# calculate_oid: dynamic OID computation
+		if (exists($thisitem->{calculate_oid}) && (my $calc = $thisitem->{calculate_oid}))
+		{
+			$sys->nmisng->log->debug4("Calculating oid : $calc \n");
+			my ($error, $result) = $sys->eval_string(
+				string    => $calc,
+				context   => "",
+				variables => [$inventory ? $inventory->data() : {}]
+			);
+			if ($error)
+			{
+				$status{error} = $error;
+				$sys->nmisng->log->error("($sys->{name}) getValues calculate_oid failed: $error");
+				next;
+			}
+			if ($result)
+			{
+				$thisitem->{oid} = $result;
+				$sys->nmisng->log->debug4(sub { "calculated oid is: " . $result });
+			}
+			else
+			{
+				next;
+			}
+		}
+
+		next if (!exists $thisitem->{oid});
+
+		$sys->nmisng->log->debug3(sub { "oid $thisitem->{oid} for section $section_name, item $itemname primed for loading" });
+
+		# Dedup: same item may appear in multiple sections
+		if ($todos->{$itemname})
+		{
+			if ($todos->{$itemname}->{oid} ne $thisitem->{oid} . $suffix)
+			{
+				$status{error} = "($sys->{name}) model error, $itemname has multiple clashing oids!";
+				$sys->nmisng->log->error($status{error});
+				next;
+			}
+			push @{$todos->{$itemname}->{section}}, $section_name;
+			push @{$todos->{$itemname}->{details}}, $thisitem;
+
+			$sys->nmisng->log->debug3(sub { "item $itemname present in multiple sections: " . join(", ", @{$todos->{$itemname}->{section}}) });
+		}
+		else
+		{
+			$todos->{$itemname} = {
+				oid     => $thisitem->{oid} . $suffix,
+				section => [$section_name],
+				item    => $itemname,
+				details => [$thisitem]
+			};
+		}
+	}
+
+	return \%status;
+}
+
+# Execute all pending SNMP queries in one batch getarray call.
+sub execute_queries
+{
+	my ($self, %args) = @_;
+	my ($todos, $index) = @args{qw(todos index)};
+
+	my $sys = $self->sys;
+	my $transport = $sys->{snmp};
+	return {} unless $transport;
+
+	my %status;
+
+	my @haveoid = grep { exists($todos->{$_}->{oid}) } keys %$todos;
+	return {} unless @haveoid;
+
+	my @rawsnmp = $transport->getarray(map { $todos->{$_}->{oid} } @haveoid);
+	if (my $error = $transport->error)
+	{
+		$sys->nmisng->log->error("($sys->{name}) on get values by snmp: $error");
+		$status{error} = $error;
+	}
+	else
+	{
+		for my $idx (0 .. $#haveoid)
+		{
+			$todos->{$haveoid[$idx]}->{rawvalue} = $rawsnmp[$idx];
+			$todos->{$haveoid[$idx]}->{done}     = 1;
+		}
+	}
+
+	return \%status;
+}
+
+# Check for NBARPD support via SNMP table lookup.
+# Called from Sys::loadNodeInfo().
+sub check_nbarpd
+{
+	my ($self, %args) = @_;
+	my $catchall_data = $args{catchall_data};
+	my $config = $args{config};
+
+	my $sys = $self->sys;
+	my $transport = $sys->{snmp};
+	return "false" unless $transport;
+
+	my $max_repetitions = $catchall_data->{max_repetitions} || $config->{snmp_max_repetitions};
+	my $result = $transport->gettable('cnpdStatusTable', $max_repetitions);
+
+	if ($result && ref($result) eq "HASH" && keys %$result)
+	{
+		$sys->nmisng->log->debug("NBARPD is true on this node");
+		return "true";
+	}
+	$sys->nmisng->log->debug("NBARPD is false on this node");
+	return "false";
+}
+
+1;
