@@ -31,7 +31,7 @@ sub build_queries
 		= (defined($port) && $port ne '') ? ".$port"
 		: (defined($index) && $index ne '') ? ".$index"
 		: "";
-	$sys->nmisng->log->debug("class: index=$index port=$port suffix=$default_suffix");
+	$sys->nmisng->log->debug("class: index=" . ($index // '') . " port=" . ($port // '') . " suffix=$default_suffix");
 
 	for my $itemname (keys %{$section_hash})
 	{
@@ -179,6 +179,46 @@ sub check_nbarpd
 	}
 	$sys->nmisng->log->debug("NBARPD is false on this node");
 	return "false";
+}
+
+# Classify the last SNMP transport error into a structured type.
+sub classify_error
+{
+	my ($self) = @_;
+	my $transport = $self->sys->{snmp};
+	return undef unless $transport;
+	my $error = $transport->error;
+	return undef unless $error;
+
+	if ($error =~ /is empty or does not exist/)
+	{
+		return { type => 'not_present', message => $error };
+	}
+	elsif ($error =~ /incorrect syntax/ || $error =~ /Received noSuchName/)
+	{
+		return { type => 'model_error', message => $error };
+	}
+	elsif ($error =~ /No session open/)
+	{
+		return { type => 'no_session', message => $error };
+	}
+	return { type => 'transport_error', message => $error };
+}
+
+# Open the SNMP session with config-driven parameters.
+sub open_session
+{
+	my ($self, %args) = @_;
+	my $config = $args{config};
+	my $catchall_data = $args{catchall_data};
+
+	return $self->sys->open(
+		timeout         => $config->{snmp_timeout},
+		retries         => $config->{snmp_retries},
+		max_msg_size    => $config->{snmp_max_msg_size},
+		max_repetitions => $catchall_data->{max_repetitions} || $config->{snmp_max_repetitions} || undef,
+		oidpkt          => $catchall_data->{max_repetitions} || $config->{snmp_max_repetitions} || 10,
+	);
 }
 
 1;

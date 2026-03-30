@@ -33,6 +33,8 @@ use Compat::Timing;
 
 use NMISNG::Snmp::Mock;
 use NMISNG::WMI::Mock;
+use NMISNG::rrdfunc;
+use RRDs;
 
 # ============================================================
 # Phase 1: Setup
@@ -445,6 +447,125 @@ if ($status_md && !$status_md->error) {
 }
 
 # ============================================================
+# Phase 3b: Test error handling and handle_down
+# ============================================================
+diag("=== Phase 3b: Error handling and handle_down ===");
+
+my $mock_for_errors = $S2->{snmp};
+
+# Helper: reset catchall snmpdown state and save
+sub reset_snmpdown {
+	my ($inv, $node) = @_;
+	my $d = $inv->data;
+	$d->{snmpdown} = 'false';
+	$d->{nodestatus} = 'reachable';
+	$inv->data($d);
+	$inv->save(node => $node, update => 1);
+}
+
+# --- Direct handle_down tests ---
+diag("  -- Direct handle_down tests --");
+
+# Test handle_down going DOWN
+reset_snmpdown($snmp_catchall_inv, $snmp_node);
+$snmp_node->handle_down(sys => $S2, type => "snmp", details => "test snmp down", catchall_inventory => $snmp_catchall_inv);
+
+my $hd_data = $snmp_catchall_inv->data();
+is($hd_data->{snmpdown}, 'true', "handle_down(snmp): snmpdown flag set to 'true'");
+ok($hd_data->{nodestatus} && $hd_data->{nodestatus} ne 'reachable',
+	"handle_down(snmp): nodestatus changed from reachable to '$hd_data->{nodestatus}'");
+ok($snmp_node->eventExist("SNMP Down"), "handle_down(snmp): 'SNMP Down' event created");
+
+# Test handle_down going UP (recovery)
+$snmp_node->handle_down(sys => $S2, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $snmp_catchall_inv);
+
+$hd_data = $snmp_catchall_inv->data();
+is($hd_data->{snmpdown}, 'false', "handle_down(snmp, up): snmpdown flag set to 'false'");
+is($hd_data->{nodestatus}, 'reachable', "handle_down(snmp, up): nodestatus back to 'reachable'");
+
+# Test handle_down for WMI
+reset_snmpdown($snmp_catchall_inv, $snmp_node);  # ensure clean state
+$snmp_node->handle_down(sys => $S2, type => "wmi", details => "test wmi down", catchall_inventory => $snmp_catchall_inv);
+$hd_data = $snmp_catchall_inv->data();
+is($hd_data->{wmidown}, 'true', "handle_down(wmi): wmidown flag set to 'true'");
+# Clean up WMI down state
+$snmp_node->handle_down(sys => $S2, type => "wmi", up => 1, details => "wmi ok", catchall_inventory => $snmp_catchall_inv);
+
+# --- handle_sys_get_data_error tests ---
+diag("  -- handle_sys_get_data_error tests --");
+
+# For no_session and transport_error to trigger handle_down, Sys status must have snmp_error set.
+# handle_sys_get_data_error checks $S->status->{snmp_error} to decide whether to call handle_down.
+
+# Test "not present" — return 1, NO handle_down
+reset_snmpdown($snmp_catchall_inv, $snmp_node);
+$mock_for_errors->force_error("Requested table is empty or does not exist");
+my $err_result = $snmp_node->handle_sys_get_data_error(
+	sys => $S2, caller => "test_not_present", section => "testSensor",
+	index => "1", catchall_data => $snmp_catchall_inv->data_live(),
+	catchall_inventory => $snmp_catchall_inv
+);
+is($err_result, 1, "error_not_present: returns 1");
+$hd_data = $snmp_catchall_inv->data();
+is($hd_data->{snmpdown}, 'false', "error_not_present: snmpdown still 'false' (no handle_down)");
+ok(!$snmp_node->eventExist("SNMP Down"), "error_not_present: no 'SNMP Down' event");
+
+# Test "model error" — return 2, NO handle_down
+reset_snmpdown($snmp_catchall_inv, $snmp_node);
+$mock_for_errors->force_error("incorrect syntax near OID");
+$err_result = $snmp_node->handle_sys_get_data_error(
+	sys => $S2, caller => "test_model_error", section => "testSensor",
+	index => "1", catchall_data => $snmp_catchall_inv->data_live(),
+	catchall_inventory => $snmp_catchall_inv
+);
+is($err_result, 2, "error_model: returns 2");
+$hd_data = $snmp_catchall_inv->data();
+is($hd_data->{snmpdown}, 'false', "error_model: snmpdown still 'false' (no handle_down)");
+ok(!$snmp_node->eventExist("SNMP Down"), "error_model: no 'SNMP Down' event");
+
+# Test "no session" — return 10, YES handle_down
+# Need to set snmp_error in Sys status so handle_down gets triggered
+reset_snmpdown($snmp_catchall_inv, $snmp_node);
+$mock_for_errors->force_error("No session open");
+$S2->{snmp_error} = "No session open";  # set status-level error
+$err_result = $snmp_node->handle_sys_get_data_error(
+	sys => $S2, caller => "test_no_session", section => "testSensor",
+	index => "1", catchall_data => $snmp_catchall_inv->data_live(),
+	catchall_inventory => $snmp_catchall_inv
+);
+is($err_result, 10, "error_no_session: returns 10");
+$hd_data = $snmp_catchall_inv->data();
+is($hd_data->{snmpdown}, 'true', "error_no_session: snmpdown set to 'true' (handle_down called)");
+ok($snmp_node->eventExist("SNMP Down"), "error_no_session: 'SNMP Down' event created");
+ok($hd_data->{nodestatus} && $hd_data->{nodestatus} ne 'reachable',
+	"error_no_session: nodestatus changed to '$hd_data->{nodestatus}'");
+
+# Clean up: recover from snmp down
+$snmp_node->handle_down(sys => $S2, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $snmp_catchall_inv);
+$S2->{snmp_error} = undef;
+
+# Test "transport error" — return 4, YES handle_down
+reset_snmpdown($snmp_catchall_inv, $snmp_node);
+$mock_for_errors->force_error("Connection timed out");
+$S2->{snmp_error} = "Connection timed out";
+$err_result = $snmp_node->handle_sys_get_data_error(
+	sys => $S2, caller => "test_transport_error", section => "testSensor",
+	index => "1", catchall_data => $snmp_catchall_inv->data_live(),
+	catchall_inventory => $snmp_catchall_inv
+);
+is($err_result, 4, "error_transport: returns 4");
+$hd_data = $snmp_catchall_inv->data();
+is($hd_data->{snmpdown}, 'true', "error_transport: snmpdown set to 'true' (handle_down called)");
+ok($snmp_node->eventExist("SNMP Down"), "error_transport: 'SNMP Down' event created");
+ok($hd_data->{nodestatus} && $hd_data->{nodestatus} ne 'reachable',
+	"error_transport: nodestatus changed to '$hd_data->{nodestatus}'");
+
+# Clean up for subsequent tests
+$snmp_node->handle_down(sys => $S2, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $snmp_catchall_inv);
+$S2->{snmp_error} = undef;
+$mock_for_errors->force_error(undef);
+
+# ============================================================
 # Phase 4: Test Custom Alerts (model-level alerts class)
 # ============================================================
 diag("=== Phase 4: Custom Alerts ===");
@@ -676,9 +797,82 @@ if ($wmi_status_md && !$wmi_status_md->error) {
 $SW2->close();
 
 # ============================================================
-# Phase 11: Cleanup
+# Phase 11: Test full update() and collect() orchestration
 # ============================================================
-diag("=== Phase 11: Cleanup ===");
+diag("=== Phase 11: Full update/collect orchestration ===");
+
+# Create a fresh node for this test
+my $orch_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID($C->{host_uuid_prefix}), nmisng => $nmisng);
+$orch_node->cluster_id($C->{cluster_id});
+$orch_node->name("test_orch_node");
+$orch_node->configuration({
+	host      => "127.0.0.1",
+	group     => "TestGroup",
+	netType   => "default",
+	roleType  => "default",
+	threshold => 1,
+	model     => "TestSnmp",
+	collect   => "true",
+	ping      => "false",
+	community => "public",
+	version   => "snmpv2c",
+});
+($op, $err) = $orch_node->save();
+ok(!$err, "Orchestration test node saved") or diag("Error: $err");
+
+# Monkey-patch NMISNG::Snmp::new to return our mock.
+# This ensures that when update()/collect() internally creates a Sys and calls init(),
+# the SNMP object created is our mock with walk data.
+my $orig_snmp_new = \&NMISNG::Snmp::new;
+{
+	no warnings 'redefine';
+	*NMISNG::Snmp::new = sub {
+		my ($class, %args) = @_;
+		return NMISNG::Snmp::Mock->new(
+			nmisng    => $args{nmisng},
+			name      => $args{name},
+			walk_data => \%snmp_walk,
+		);
+	};
+}
+
+# Test update() — full orchestration
+my $update_result = $orch_node->update(force => 1);
+ok($update_result->{success}, "Full update() succeeded") or diag("update error: " . ($update_result->{error} // 'none'));
+
+# Verify update populated catchall correctly
+my ($orch_catchall, $orch_err) = $orch_node->inventory(concept => "catchall");
+if (!$orch_err && $orch_catchall) {
+	my $ocd = $orch_catchall->data_live();
+	is($ocd->{sysDescr}, $snmp_walk{OID_sysDescr()}, "update() populated sysDescr");
+	is($ocd->{nodeModel}, "TestSnmp", "update() set nodeModel");
+	ok($ocd->{last_update}, "update() set last_update timestamp");
+}
+
+# Test collect() — full orchestration (needs last_update set by update above)
+my $collect_result = $orch_node->collect(wantsnmp => 1);
+ok($collect_result->{success}, "Full collect() succeeded") or diag("collect error: " . ($collect_result->{error} // 'none'));
+
+# Re-fetch catchall after collect (collect creates its own Sys/catchall internally)
+my ($orch_catchall2, $orch_err2) = $orch_node->inventory(concept => "catchall");
+if (!$orch_err2 && $orch_catchall2) {
+	my $ocd2 = $orch_catchall2->data();
+	ok($ocd2->{last_poll}, "collect() set last_poll timestamp");
+}
+else {
+	ok(0, "collect() set last_poll timestamp");
+}
+
+# Restore original NMISNG::Snmp::new
+{
+	no warnings 'redefine';
+	*NMISNG::Snmp::new = $orig_snmp_new;
+}
+
+# ============================================================
+# Phase 12: Cleanup
+# ============================================================
+diag("=== Phase 12: Cleanup ===");
 cleanup();
 ok(1, "Cleanup complete");
 

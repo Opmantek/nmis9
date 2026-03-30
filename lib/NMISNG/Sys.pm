@@ -99,6 +99,16 @@ sub mdl       { my $self = shift; return $self->{mdl} };                   # my 
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
 sub engines   { my $self = shift; return $self->{_engines} || [] };       # my @E = @{$S->engines}
+
+# Returns arrayref of protocol names for currently active engines
+sub enabled_sources
+{
+	my ($self) = @_;
+	return [ map { $_->protocol_name } grep { $_->is_active } @{$self->engines} ];
+}
+
+# Returns arrayref of all known protocol names (for iterating status checks)
+sub known_sources { return [qw(snmp wmi)]; }
 sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!

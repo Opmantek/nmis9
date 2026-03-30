@@ -37,7 +37,12 @@ sub name
 	return $self->{name};
 }
 
-sub error { return shift->{error}; }
+sub error
+{
+	my ($self) = @_;
+	return $self->{_forced_error} if defined $self->{_forced_error};
+	return $self->{error};
+}
 
 sub version
 {
@@ -95,6 +100,15 @@ sub keys2name
 		$rewritten{$name} = $hash->{$oid};
 	}
 	return \%rewritten;
+}
+
+# Force an error state for testing error handling paths.
+# When set, getarray() returns undef and error() returns the forced string.
+# Call with undef to clear.
+sub force_error
+{
+	my ($self, $error_string) = @_;
+	$self->{_forced_error} = $error_string;
 }
 
 # Open: just store config and mark session as open
@@ -191,6 +205,9 @@ sub getarray
 		$self->{error} = "No session open, cannot perform getarray!";
 		return undef;
 	}
+
+	# If a forced error is set, simulate transport failure
+	return undef if defined $self->{_forced_error};
 
 	my @certainlyoids;
 	for my $var (@vars)

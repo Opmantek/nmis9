@@ -2235,7 +2235,7 @@ sub update_node_info
 		$curstate = $S->status;
 		push @problems, $curstate->{error} if ($curstate->{error});
 
-		for my $source (qw(snmp wmi))
+		for my $source (@{$S->known_sources})
 		{
 			if ( $curstate->{"${source}_error"} )
 			{
@@ -2350,7 +2350,7 @@ sub update_node_info
 
 				# source that hasn't worked? disable immediately
 				$curstate = $S->status;
-				for my $source (qw(snmp wmi))
+				for my $source (@{$S->known_sources})
 				{
 					if ( $curstate->{"${source}_error"} )
 					{
@@ -2431,7 +2431,7 @@ sub update_node_info
 	# disable_source changes the state so grab the current state again or we don't see
 	# the affect of the disable call (unless we attempted twice which doesn't always happen)
 	$curstate = $S->status;
-	for my $source (qw(snmp wmi))
+	for my $source (@{$S->known_sources})
 	{
 		# $curstate should be state as of last loadnodeinfo() op (with update above it is)
 
@@ -2555,7 +2555,7 @@ sub collect_node_info
 
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
-	for my $source (qw(snmp wmi))
+	for my $source (@{$S->known_sources})
 	{
 		if ($curstate->{"${source}_enabled"})
 		{
@@ -5483,49 +5483,61 @@ sub collect_systemhealth_data
 # These call snmp/wmi down which degrades the node status
 #  4 
 #  10 if there is no session
-sub handle_sys_get_data_error 
+sub handle_sys_get_data_error
 {
 	my ($self,%args) = @_;
 	my ($S,$caller,$section,$index,$catchall_data,$catchall_inventory) = @args{'sys','caller','section','index','catchall_data','catchall_inventory'};
-	
+
 	my $name = $self->name;
-	my $SNMP = $S->snmp; # this may not be defined
 	my $howdiditgo = $S->status;
-	my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
 	my $message = "($name) $caller for section:$section ";
 	$message .= "index: $index " if($index);
 
-	# handle some errors without making node down
-	if ( $SNMP && $SNMP->error =~ /is empty or does not exist/ )
+	# Ask each engine to classify its transport error (if any)
+	for my $engine (@{$S->engines})
 	{
-		$self->nmisng->log->warn( "$message SNMP Object Not Present, error: ". $SNMP->error );
-		return 1;
-	}
-	elsif( $SNMP && ($SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/) )
-	{
-		# error converting the name to an OID shouldn't trigger SNMP Down
-		$self->nmisng->log->error( "$message Model Error, error: " . $SNMP->error );
-		return 2;
-	}
-	else
-	{
-		$self->nmisng->log->error("$message model: $catchall_data->{nodeModel}, error: $anyerror");
-		$self->handle_down( sys => $S, type => "snmp", details => "$caller, $section, error: $howdiditgo->{snmp_error}", catchall_inventory => $catchall_inventory )
-			if ( $howdiditgo->{snmp_error} );
-		$self->handle_down( sys => $S, type => "wmi", details => "$caller, $section error: $howdiditgo->{wmi_error}", catchall_inventory => $catchall_inventory )
-			if ( $howdiditgo->{wmi_error} );
+		my $classified = $engine->classify_error;
+		next unless $classified;
 
-		# if there is no session do not try and continue
-		if ( $SNMP && $SNMP->error =~ /No session open/ ) {
+		if ($classified->{type} eq 'not_present')
+		{
+			$self->nmisng->log->warn("$message Object Not Present, error: $classified->{message}");
+			return 1;
+		}
+		elsif ($classified->{type} eq 'model_error')
+		{
+			$self->nmisng->log->error("$message Model Error, error: $classified->{message}");
+			return 2;
+		}
+		elsif ($classified->{type} eq 'no_session')
+		{
+			# Mark sources with errors as down before stopping (matches original behavior)
+			for my $source (@{$S->known_sources})
+			{
+				$self->handle_down(sys => $S, type => $source,
+					details => "$caller, $section, error: " . ($howdiditgo->{"${source}_error"} // $classified->{message}),
+					catchall_inventory => $catchall_inventory)
+					if ($howdiditgo->{"${source}_error"});
+			}
 			$self->nmisng->log->info("$message No session, stopping attempts to collect more");
 			return 10;
-		} else {
-			return 4;
 		}
+		# transport_error falls through to the generic handler below
 	}
-	# never gets here
-	return 0;
+
+	# Generic error handling: check status-level errors for each known source
+	my $anyerror = $howdiditgo->{error};
+	for my $source (@{$S->known_sources})
+	{
+		$anyerror ||= $howdiditgo->{"${source}_error"};
+		$self->handle_down( sys => $S, type => $source,
+			details => "$caller, $section, error: $howdiditgo->{\"${source}_error\"}",
+			catchall_inventory => $catchall_inventory )
+			if ( $howdiditgo->{"${source}_error"} );
+	}
+	$self->nmisng->log->error("$message model: $catchall_data->{nodeModel}, error: $anyerror");
+	return 4;
 }
 
 ### Class Based Qos handling
@@ -7248,53 +7260,43 @@ sub update
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if ($self->pingable(sys => $S, catchall_inventory => $catchall_inventory))
 	{
-		# snmp-enabled node? then try to open a session (and test it)
-		if ( $S->status->{snmp_enabled} )
+		# Open sessions for each enabled engine
+		for my $engine (@{$S->engines})
 		{
-			my $candosnmp = $S->open(
-				timeout      => $C->{snmp_timeout},
-				retries      => $C->{snmp_retries},
-				max_msg_size => $C->{snmp_max_msg_size},
+			next unless $engine->is_active;
+			my $proto = $engine->protocol_name;
 
-				# how many oids/pdus per bulk request, or let net::snmp guess a value
-				max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+			my $candoopen = $engine->open_session(config => $C, catchall_data => $catchall_data);
 
-				# how many oids per simple get request (for getarray), or default (no guessing)
-				oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10,
-					);
-
-			# failed altogether?
-			if (!$candosnmp or $S->status->{snmp_error} )
+			if (!$candoopen or $S->status->{"${proto}_error"})
 			{
-				$self->nmisng->log->error("SNMP session open to $name failed: " . $S->status->{snmp_error} );
-				$S->disable_source("snmp");
-				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error}, catchall_inventory => $catchall_inventory);
+				$self->nmisng->log->error(uc($proto) . " session open to $name failed: " . ($S->status->{"${proto}_error"} // ''));
+				$S->disable_source($proto);
+				$self->handle_down(sys => $S, type => $proto, details => $S->status->{"${proto}_error"}, catchall_inventory => $catchall_inventory);
 			}
-			# or did we have to fall back to the backup address for this node?
-			elsif ($candosnmp && $S->status->{fallback})
+			elsif ($candoopen && $S->status->{fallback})
 			{
 				Compat::NMIS::notify(sys => $S,
 														 event => "Node Polling Failover",
 														 element => undef,
 														 inventory_id => $catchall_inventory->id,
-														 details => ("SNMP Session switched to backup address \"".
+														 details => (uc($proto) . " Session switched to backup address \"".
 																				 $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" });
 			}
-			# or are we using the primary address?
-			elsif ($candosnmp)
+			elsif ($candoopen)
 			{
 				Compat::NMIS::checkEvent(sys => $S,
 																 event => "Node Polling Failover",
-																 upevent => "Node Polling Failover Closed", # please log it with this name
+																 upevent => "Node Polling Failover Closed",
 																 element => undef,
 																 level => "Normal",
 																 inventory_id => $catchall_inventory->id,
-																 details => ("SNMP Session using primary address \"".
+																 details => (uc($proto) . " Session using primary address \"".
 																						 $self->configuration->{host}. '"'));
 			}
-			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
-					if ($candosnmp);
+			$self->handle_down(sys => $S, type => $proto, up => 1, details => "$proto ok", catchall_inventory => $catchall_inventory)
+					if ($candoopen);
 		}
 
 		# this will try all enabled sources, 0 only if none worked
@@ -9458,54 +9460,44 @@ sub collect
 	# are we meant to and able to talk to the node?
 	if ($pingable && $self->configuration->{collect})
 	{
-		# snmp-enabled node? then try to open a session (and test it)
-		if ($S->status->{snmp_enabled})
+		# Open sessions for each enabled engine
+		for my $engine (@{$S->engines})
 		{
-			my $candosnmp = $S->open(
-				timeout      => $C->{snmp_timeout},
-				retries      => $C->{snmp_retries},
-				max_msg_size => $C->{snmp_max_msg_size},
+			next unless $engine->is_active;
+			my $proto = $engine->protocol_name;
 
-				# how many oids/pdus per bulk request, or let net::snmp guess a value
-				max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+			my $candoopen = $engine->open_session(config => $C, catchall_data => $catchall_data);
 
-				# how many oids per simple get request for getarray, or default (no guessing)
-				oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10, );
-
-
-			# failed altogether?
-			if (!$candosnmp or $S->status->{snmp_error})
+			if (!$candoopen or $S->status->{"${proto}_error"})
 			{
-				$self->nmisng->log->error("SNMP session open to $name failed: " . $S->status->{snmp_error} );
-				$S->disable_source("snmp");
-				$self->handle_down(sys => $S, type => "snmp", details => $S->status->{snmp_error}, catchall_inventory => $catchall_inventory);
+				$self->nmisng->log->error(uc($proto) . " session open to $name failed: " . ($S->status->{"${proto}_error"} // ''));
+				$S->disable_source($proto);
+				$self->handle_down(sys => $S, type => $proto, details => $S->status->{"${proto}_error"}, catchall_inventory => $catchall_inventory);
 			}
-			# or did we have to fall back to the backup address for this node?
-			elsif ($candosnmp && $S->status->{fallback})
+			elsif ($candoopen && $S->status->{fallback})
 			{
 				Compat::NMIS::notify(sys => $S,
 														 event => "Node Polling Failover",
 														 element => undef,
-														 details => ("SNMP Session switched to backup address \""
+														 details => (uc($proto) . " Session switched to backup address \""
 																				 . $self->configuration->{host_backup}.'"'),
 														 context => { type => "node" },
 														 inventory_id => $catchall_inventory->id,
 														 conf => $C );
 			}
-			# or are we using the primary address?
-			elsif ($candosnmp)
+			elsif ($candoopen)
 			{
 				Compat::NMIS::checkEvent(sys => $S,
 																 event => "Node Polling Failover",
-																 upevent => "Node Polling Failover Closed", # please log it thusly
+																 upevent => "Node Polling Failover Closed",
 																 element => undef,
 																 level => "Normal",
 																 inventory_id => $catchall_inventory->id,
-																 details => ("SNMP Session using primary address \"".
-																						 $self->configuration->{host}.'"'), );
+																 details => (uc($proto) . " Session using primary address \"".
+																						 $self->configuration->{host}.'"'));
 			}
-			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
-					if ($candosnmp);
+			$self->handle_down(sys => $S, type => $proto, up => 1, details => "$proto ok", catchall_inventory => $catchall_inventory)
+					if ($candoopen);
 		}
 
 		# returns 1 if one or more sources have worked,
@@ -9530,7 +9522,7 @@ sub collect
 		elsif ($updatewasok)    # at least some info was retrieved by wmi or snmp
 		{
 			# at this point we need to tell sys that dead sources are to be ignored
-			for my $source (qw(snmp wmi))
+			for my $source (@{$S->known_sources})
 			{
 				if ( $curstate->{"${source}_error"} )
 				{

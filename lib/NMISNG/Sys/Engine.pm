@@ -52,4 +52,15 @@ sub build_queries { confess("abstract: build_queries must be overridden"); }
 # returns: hashref with optional 'error' key
 sub execute_queries { confess("abstract: execute_queries must be overridden"); }
 
+# Classify the last error from this engine's transport.
+# Returns: undef if no error, or hashref:
+#   { type => 'not_present'|'model_error'|'no_session'|'transport_error', message => $string }
+# Default: no classification (subclasses override for protocol-specific error patterns).
+sub classify_error { return undef; }
+
+# Open this engine's transport session. Called by Node before data collection.
+# Returns: 1 on success, 0 on failure.
+# Default: 1 (no explicit session needed, e.g. WMI).
+sub open_session { return 1; }
+
 1;
