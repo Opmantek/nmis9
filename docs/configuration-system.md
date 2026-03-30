@@ -66,7 +66,7 @@ my $C = NMISNG::Util::loadConfTable();
 
 ## Change Notification
 
-When `writeConfData` writes config, it also writes a timestamp to `<nmis_var>/nmis_system/config_changed`. Other processes can poll `NMISNG::Util::configChanged()` to detect that config has changed on disk since they loaded it.
+When `writeConfData` writes config, it also writes a timestamp to `<nmis_var>/nmis_system/config_changed`. Other processes can poll `NMISNG::Util::configChanged( conf=> $C )` to detect that config has changed on disk since they loaded it.
 
 ## Public API
 
@@ -119,9 +119,9 @@ Compares local config (layer 2) against defaults (layer 1). Returns the stripped
 
 Returns: `($stripped_hashref, \@removals)` where each removal is `{ section, key, value }`
 
-### `configChanged()`
+### `configChanged(conf => $C)`
 
-Returns true if the config change marker on disk is newer than when this process loaded config. Processes can poll this to decide whether to restart.
+Returns true if the config change marker on disk is newer than when this process loaded config. Requires the loaded config hashref (`$C` from `loadConfTable`). Processes can poll this to decide whether to restart.
 
 ## CLI Actions
 
