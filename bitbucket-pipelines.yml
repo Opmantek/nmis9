@@ -54,8 +54,8 @@ pipelines:
             - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis-dev:$SEM_VER-$SHORT_SHA"
             - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis-dev:latest"
             - docker push "$BB_PKG_REPO/nmis-dev:$SEM_VER"
-            - docker push "$OP_DOCKER/nmis-dev:$SEM_VER-$SHORT_SHA"
-            - docker push "$OP_DOCKER/nmis-dev:latest"
+            - docker push "$BB_PKG_REPO/nmis-dev:$SEM_VER-$SHORT_SHA"
+            - docker push "$BB_PKG_REPO/nmis-dev:latest"
     release-prod-image:
       - step:
           name: Release NMIS ECR Image
