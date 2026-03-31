@@ -2213,7 +2213,13 @@ sub update_node_info
 	my $C    = $self->nmisng->config;
 
 	my $catchall_data = $catchall_inventory->data_live();
-	$RI->{snmpresult} = $RI->{wmiresult} = 0;
+	# Only initialize poll results for sources that are enabled on this node;
+	# leaving disabled sources as undef prevents compute_reachability from
+	# treating them as failed (min of enabled=100 and disabled=0 would be 0).
+	for my $source (@{$S->known_sources})
+	{
+		$RI->{"${source}result"} = $S->status->{"${source}_enabled"} ? 0 : undef;
+	}
 
 	my ($success, @problems);
 
@@ -2458,7 +2464,7 @@ sub update_node_info
 				sys     => $S,
 				type    => $source,
 				details => $curstate->{"${source}_error"} || $oldstate->{"${source}_error"},
-				catchall_inventory => $catchall_inventory 
+				catchall_inventory => $catchall_inventory
 			);
 		}
 	}

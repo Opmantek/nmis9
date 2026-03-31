@@ -751,6 +751,15 @@ $RI->{cpu}        = 25;
 $RI->{memused}    = 500000;
 $RI->{memfree}    = 500000;
 
+# Ensure catchall data has required fields for compute_reachability
+$cd = $snmp_catchall_inv->data_live();
+$cd->{collect}     = "true";
+$cd->{nodeModel}   = "TestSnmp";
+$cd->{nodeType}    = "generic";
+$cd->{intfTotal}   = 0;
+$cd->{intfCollect} = 0;
+$snmp_catchall_inv->save(node => $snmp_node);
+
 my $reachdata = $snmp_node->compute_reachability(
 	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
 );
@@ -760,6 +769,43 @@ ok(exists $reachdata->{availability}, "availability key exists");
 ok(exists $reachdata->{health}, "health key exists");
 ok($reachdata->{reachability}{value} > 0, "reachability value > 0: $reachdata->{reachability}{value}");
 ok($reachdata->{health}{value} > 0, "health value > 0: $reachdata->{health}{value}");
+
+# --- Test compute_reachability when SNMP poll failed (degraded node) ---
+diag("--- Compute Reachability: SNMP poll failed (degraded) ---");
+$RI->{snmpresult} = 0;      # SNMP was tried and failed
+$RI->{pingresult} = 100;    # but ping still works
+
+my $degraded = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+);
+is($degraded->{reachability}{value}, 80, "degraded: reachability is 80 (up but degraded)");
+is($degraded->{health}{value}, "U", "degraded: health is U when SNMP down");
+
+# --- Test compute_reachability when source was never enabled (undef result) ---
+diag("--- Compute Reachability: WMI never enabled (undef result) ---");
+$RI->{snmpresult} = 100;
+$RI->{wmiresult}  = undef;  # WMI was never enabled, should not affect result
+
+my $snmponly = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+);
+is($snmponly->{reachability}{value}, 100, "snmp-only: reachability is 100");
+ok($snmponly->{health}{value} > 0, "snmp-only: health is numeric > 0: $snmponly->{health}{value}");
+
+# --- Test compute_reachability when both results exist and one failed ---
+diag("--- Compute Reachability: dual-protocol, WMI failed ---");
+$RI->{snmpresult} = 100;
+$RI->{wmiresult}  = 0;      # WMI enabled but failed: min(100,0) = 0
+
+my $dual_degraded = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+);
+is($dual_degraded->{reachability}{value}, 80, "dual-degraded: reachability is 80 (poll failed)");
+is($dual_degraded->{health}{value}, "U", "dual-degraded: health is U when a poll source failed");
+
+# Restore for subsequent tests
+$RI->{snmpresult} = 100;
+$RI->{wmiresult}  = undef;
 
 # ============================================================
 # Phase 6: Test Compute Summary Stats
