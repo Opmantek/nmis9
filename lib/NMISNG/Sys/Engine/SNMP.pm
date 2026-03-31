@@ -157,6 +157,45 @@ sub execute_queries
 	return \%status;
 }
 
+# Discover SNMP indexes for a systemHealth section via gettable on the index OID.
+# Returns ($error, \@active_indices, \%targets)
+sub discover_indexes
+{
+	my ($self, %args) = @_;
+	my ($section_config, $index_var, $index_snmp, $index_regex)
+		= @args{qw(section_config index_var index_snmp index_regex)};
+
+	my $sys = $self->sys;
+	my $transport = $sys->{snmp};
+	return ("SNMP not configured", undef, undef) unless $transport;
+
+	if (!$index_snmp)
+	{
+		return ("no index_snmp value for SNMP index discovery", undef, undef);
+	}
+
+	my $healthIndexTable = $transport->gettable($index_snmp);
+	if (!$healthIndexTable)
+	{
+		my $error = $transport->error // "unknown error";
+		return ($error, undef, undef);
+	}
+
+	my %targets;
+	for my $oid (keys %{$healthIndexTable})
+	{
+		my $index = $oid;
+		if ($oid =~ /$index_regex/)
+		{
+			$index = $1;
+		}
+		$targets{$index} = { index_var => $index_var, index_value => $index };
+	}
+
+	my @active_indices = sort keys %targets;
+	return (undef, \@active_indices, \%targets);
+}
+
 # Check for NBARPD support via SNMP table lookup.
 # Called from Sys::loadNodeInfo().
 sub check_nbarpd

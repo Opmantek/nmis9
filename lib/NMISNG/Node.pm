@@ -4813,9 +4813,7 @@ sub collect_systemhealth_info
 	my $name = $self->name;
 	my $C = $self->nmisng->config;
 
-	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
-
 
 	my $catchall_data = $catchall_inventory->data_live();
 
@@ -4826,7 +4824,7 @@ sub collect_systemhealth_info
 		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
 		return 0;
 	}
-	elsif ( !$S->status->{snmp_enabled} && !$S->status->{wmi_enabled} )
+	elsif ( !@{$S->enabled_sources} )
 	{
 		$self->nmisng->log->warn("cannot get systemHealth info, neither SNMP nor WMI enabled!");
 		return 0;
@@ -4922,366 +4920,179 @@ sub collect_systemhealth_info
 		if ( exists( $thissection->{wmi} ) and exists( $thissection->{snmp} ) )
 		{
 			$self->nmisng->log->error("systemhealth: section=$section cannot have both sources WMI and SNMP enabled!");
-			next;    # fixme: or is this completely terminal for this model?
+			next;
 		}
 
-		if ( exists( $thissection->{wmi} ) )
+		my $protocol = exists($thissection->{wmi}) ? 'wmi' : 'snmp';
+		my $engine = $S->engine($protocol);
+
+		if (!$engine || !$engine->is_active)
 		{
-			my $protocol = 'wmi';
-			$self->nmisng->log->debug2(sub {"systemhealth: section=$section, source WMI, index_var=$index_var"});
-			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );			
+			$self->nmisng->log->debug2(sub {"skipping section $section: source $protocol but node $S->{name} not configured for $protocol"});
+			next;
+		}
 
-			my $wmiaccessor = $S->wmi;
-			if ( !$wmiaccessor )
-			{
-				$self->nmisng->log->debug2(sub {"skipping section $section: source WMI but node $S->{name} not configured for WMI"});
-				next;
-			}
+		$self->nmisng->log->debug2(sub {"systemhealth: section=$section, source $protocol, index_var=$index_var"});
+		$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, $protocol );
 
-			# model broken if it says 'indexed by X' but doesn't have a query section for 'X'
-			if ( !exists( $thissection->{wmi}->{$index_var} ) )
-			{
-				$self->nmisng->log->error("Model section $section of $catchall_data->{nodeModel} is missing declaration for index_var $index_var!");
-				next;
-			}
+		# Discover indexes: via plugin function or engine
+		my (@active_indices, $targets);
 
-			my $wmisection   = $thissection->{wmi};          # the whole section, might contain more than just the index
-			my $indexsection = $wmisection->{$index_var};    # the subsection for the index var
-
-			# query can come from -common- or from the index var's own section
-			my $query = (
-				exists( $indexsection->{query} ) ? $indexsection->{query}
-				: ( ref( $wmisection->{"-common-"} ) eq "HASH"
-						&& exists( $wmisection->{"-common-"}->{query} ) ) ? $wmisection->{"-common-"}->{query}
-				: undef
-					);
-			if ( !$query or !$indexsection->{field} )
-			{
-				$self->nmisng->log->error("Model section $section of $catchall_data->{nodeModel} is missing query or field for WMI variable  $index_var!");
-				next;
-			}
-
-			# wmi gettable could give us both the indices and the data, but here we want only the different index values
-			my ( $error, $fields, $meta ) = $wmiaccessor->gettable(
-				wql    => $query,
-				index  => $index_var,
-				fields => [$index_var]
-			);
-
-			if ($error)
-			{
-				$self->nmisng->log->error("($S->{name}) failed to get index table for systemHealth $section of model $catchall_data->{nodeModel}: $error");
-				$self->handle_down(
-					sys     => $S,
-					type    => "wmi",
-					details => "failed to get index table for systemHealth $section: $error",
-					catchall_inventory => $catchall_inventory
-				);
-				next;
-			}
-
-			# we need to ditch no longer existent stuff by marking it historic, and for that we
-			# keep track of the live inventory items
-			my @active_indices = keys %$fields;
-			my $res = $self->bulk_update_inventory_historic(
-				active_indices => \@active_indices,
-				concept => $section );
-			$self->nmisng->log->error("bulk update historic failed: $res->{error}") if ($res->{error});
-
-
-			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
-			for my $indexvalue ( @active_indices )
-			{
-				$self->nmisng->log->debug2(sub {"section=$section index=$index_var, found value=$indexvalue"});
-
-				# allow disabling of collection for this instance,
-				# based on regex match against the index value
-				if (ref($thissection->{nocollect}) eq "HASH"
-						&& defined($thissection->{nocollect}->{$index_var}))
-				{
-					# this supports both 'nocollect' => { 'first' => qr/somere/i, 'second' => 'plaintext' }
-					my $rex = ref($thissection->{nocollect}->{$index_var}) eq "Regexp"?
-							$thissection->{nocollect}->{$index_var} : qr/$thissection->{nocollect}->{$index_var}/;
-
-					if ($indexvalue =~ $rex)
-					{
-						$self->nmisng->log->debug2(sub {"nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping"});
-						next;
-					}
-				}
-
-				# save the seen index value
-				my $target = { index_var => $index_var, index_value => $indexvalue };
-
-				# then get all data for this indexvalue
-				# Inventory note: for now Sys will populate the nodeinfo section it cares about
-				# afer successful load we'll delete it. in the future loadinfo should maybe be passed
-				# the location we want the data to go
-				if ($S->loadInfo(
-						class   => 'systemHealth',
-						section => $section,
-						index   => $indexvalue,
-						table   => $section,
-						target  => $target
-					)
-					)
-				{
-					$self->nmisng->log->debug2(sub {"section=$section index=$indexvalue read and stored"});
-
-					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
-					# so use 'index' for now.
-					# loadInfo always sets {index}
-					# my $path_keys = [$index_var];
-					my $path_keys = ['index'];
-					my $path = $self->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
-
-					my ( $inventory, $error_message ) = $self->inventory(
-						concept   => $section,
-						model_class => 'systemHealth',
-						protocol 	=> $protocol,
-						path      => $path,
-						path_keys => $path_keys,
-						create    => 1
-					);
-					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
-					# set data before recalculate
-					$inventory->data($target);
-					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-					$inventory->path( recalculate => 1 );
-					$inventory->historic(0);
-					$inventory->enabled(1);
-
-					# set which columns should be displayed
-					$inventory->data_info(
-						subconcept => $section,
-						enabled => 1,
-						display_keys => $header_info
-					);
-					if( @$header_info > 0 )
-					{
-						my @keys = keys (%{$header_info->[0]});
-						# use first key in headers to get description
-						$description = $target->{ $keys[0] };
-						$inventory->description( $description ) if($description);
-					}
-	
-					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self , sys => $S, update => 1 );
-					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
-					$self->nmisng->log->error(
-						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);
-				}
-				else
-				{
-					my $error = $S->status->{wmi_error};
-					$self->nmisng->log->error("($S->{name}) failed to get table for systemHealth $section of model $catchall_data->{nodeModel}: $error");
-					$self->handle_down(
-						sys     => $S,
-						type    => "wmi",
-						details => "failed to get table for systemHealth $section: $error",
-						catchall_inventory => $catchall_inventory
-					);
-					next;
-				}
-			}
+		if (defined($plugin_healthIndexTable) && $plugin_healthIndexTable)
+		{
+			# plugin already provided the index table
+			@active_indices = keys %{$plugin_healthIndexTable};
+			$targets = $plugin_healthIndexTable;
 		}
 		else
 		{
-			my $protocol = 'snmp';
-			if (!defined($thissection->{index_function}) ){
-		
-				if( !$index_snmp ) {
-					$self->nmisng->log->error("systemHealth: section=$section, source SNMP, index_var=$index_var, has no indexed/index_snmp value! nodeModel: $catchall_data->{nodeModel}");
-					next;
-				}
+			my $disc_error;
+			my $disc_targets;
+			($disc_error, my $disc_indices, $disc_targets) = $engine->discover_indexes(
+				section_config => $thissection,
+				index_var      => $index_var,
+				index_snmp     => $index_snmp,
+				index_regex    => $index_regex,
+			);
 
-				if (!$SNMP )
-				{
-					$self->nmisng->log->debug2(sub {"skipping section $section: source SNMP but node $S->{name} not configured for SNMP"});
-					next;
-				}
-			}
-			else{
-				$self->nmisng->log->debug2(sub {"skipping SNMP checks as we have grabbed the SNMP data from plugin function"});
-			}
-			
-			$self->nmisng->log->debug2(sub {"systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp"});
-			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
-			
-			my $targets = {};
-
-			if (defined($plugin_healthIndexTable) && $plugin_healthIndexTable){
-					# make plugin_healthIndexTable as my new healthIndexTable
-					$healthIndexTable = $plugin_healthIndexTable;
-					# plugin must return a hash, the keys of the hash are the indexes.
-					# the values of the hash are the data to be added into the inventory for that index
-					foreach my $index (keys %{$healthIndexTable}){
-						$healthIndexNum{$index} = $index;
-					}
-
-					# copy the targets to be same as well, Since we already have the data
-					$targets = $plugin_healthIndexTable;
-			}	
-			elsif ( $healthIndexTable = $SNMP->gettable($index_snmp) )
+			if ($disc_error)
 			{
-				foreach my $oid ( Net::SNMP::oid_lex_sort( keys %{$healthIndexTable} ) )
+				$self->nmisng->log->error("($S->{name}) failed to get index table for systemHealth $section of model $catchall_data->{nodeModel}: $disc_error");
+				# Classify the error for SNMP (not_present, model_error are non-fatal)
+				my $classified = $engine->classify_error;
+				if ($classified && $classified->{type} eq 'not_present')
 				{
-					my $index = $oid;
-					if ( $oid =~ /$index_regex/ )
-					{
-						$index = $1;
-					}
-					my $indexvalue = $healthIndexNum{$index} = $index;
-					$self->nmisng->log->debug2(sub {"section=$section index=$index is found, value=$indexvalue"});
-
-					# allow disabling of collection for this instance,
-					# based on regex match against the index value
-					if (ref($thissection->{nocollect}) eq "HASH"
-							&& defined($thissection->{nocollect}->{$index_var}))
-					{
-						# this supports both 'nocollect' => { 'first' => qr/somere/i, 'second' => 'plaintext' }
-						my $rex = ref($thissection->{nocollect}->{$index_var}) eq "Regexp"?
-								$thissection->{nocollect}->{$index_var} : qr/$thissection->{nocollect}->{$index_var}/;
-
-						if ($indexvalue =~ $rex)
-						{
-							$self->nmisng->log->debug2(sub {"nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping"});
-							next;
-						}
-					}
-					# use predictable keys, index_var as the key is dangerous (dots in it will break things)					
-					$targets->{$index}{index_var} = $index_var;
-					$targets->{$index}{index_value} = $indexvalue;
+					$self->nmisng->log->debug2("Object not present for section $section: $disc_error");
 				}
+				elsif ($classified && $classified->{type} eq 'model_error')
+				{
+					$self->nmisng->log->error("Model error for section $section: $disc_error");
+				}
+				elsif ($classified && $classified->{type} eq 'no_session')
+				{
+					$self->handle_down(
+						sys     => $S,
+						type    => $protocol,
+						details => "failed to get index table for systemHealth $section: $disc_error",
+						catchall_inventory => $catchall_inventory
+					);
+					return 0;
+				}
+				else
+				{
+					$self->handle_down(
+						sys     => $S,
+						type    => $protocol,
+						details => "failed to get index table for systemHealth $section: $disc_error",
+						catchall_inventory => $catchall_inventory
+					);
+				}
+				next;
+			}
+
+			@active_indices = @$disc_indices;
+			$targets = $disc_targets;
+		}
+
+		# mark historic records - indexes not in active list become historic
+		my $result = $self->bulk_update_inventory_historic(
+			active_indices => \@active_indices, concept => $section );
+		$self->nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
+
+		# Loop to get information for each active index
+		foreach my $index ( @active_indices )
+		{
+			$self->nmisng->log->debug2(sub {"section=$section index=$index_var, found value=$index"});
+
+			# allow disabling of collection for this instance,
+			# based on regex match against the index value
+			if (ref($thissection->{nocollect}) eq "HASH"
+					&& defined($thissection->{nocollect}->{$index_var}))
+			{
+				my $rex = ref($thissection->{nocollect}->{$index_var}) eq "Regexp"?
+						$thissection->{nocollect}->{$index_var} : qr/$thissection->{nocollect}->{$index_var}/;
+
+				if ($index =~ $rex)
+				{
+					$self->nmisng->log->debug2(sub {"nocollect match for systemHealth section=$section key=$index_var value=$index - skipping"});
+					next;
+				}
+			}
+
+			my $target = $targets->{$index} // { index_var => $index_var, index_value => $index };
+
+			# loadInfo populates the target hash with data from the device
+			# skip loadInfo if index_function plugin already provided the data
+			if (defined($thissection->{index_function}) or $S->loadInfo(
+					class   => 'systemHealth',
+					section => $section,
+					index   => $index,
+					table   => $section,
+					target  => $target
+			))
+			{
+				$self->nmisng->log->debug2(sub {"section=$section index=$index read and stored"});
+
+				my $path_keys = ['index'];
+				my $path = $self->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+
+				my ( $inventory, $error_message ) = $self->inventory(
+					concept   => $section,
+					model_class => 'systemHealth',
+					protocol 	=> $protocol,
+					path      => $path,
+					path_keys => $path_keys,
+					create    => 1
+				);
+				$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+				$inventory->data($target);
+				$inventory->path( recalculate => 1 );
+				$inventory->historic(0);
+				$inventory->enabled(1);
+
+				# set which columns should be displayed
+				$inventory->data_info(
+					subconcept => $section,
+					enabled => 1,
+					display_keys => $header_info
+				);
+				if( @$header_info > 0 )
+				{
+					my @keys = keys (%{$header_info->[0]});
+					$description = $target->{ $keys[0] };
+					$inventory->description( $description ) if($description);
+				}
+
+				# Regenerate storage: If db name has changed, we need this
+				$self->nmisng->log->debug("collect_systemhealth_info check storage $section");
+				if ($inventory->find_subconcept_type_storage(type => "rrd",
+															subconcept => $section )) {
+						my $dbname = $S->makeRRDname(graphtype => $section,
+													index     => $index,
+													inventory      => $inventory,
+													relative => 1);
+						$self->nmisng->log->debug8(sub {"Storage: ". Dumper($dbname)});
+						$inventory->set_subconcept_type_storage(type => "rrd",
+																subconcept => $section,
+																data => $dbname) if ($dbname);
+				}
+
+				my ( $op, $error ) = $inventory->save( node => $self , update => 1);
+				$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
+				$self->nmisng->log->error(
+					"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+					if ($error);
 			}
 			else
 			{
-				my $error_result = $self->handle_sys_get_data_error( sys => $S, caller => "collect_systemhealth_data", 
-					section => $section, index => $index_snmp, catchall_data => $catchall_data, catchall_inventory => $catchall_inventory);
-				# return if there is no snmp session
-				return 0 if ( $error_result == 10 );
-				next;
-
-				if ( $SNMP->error =~ /is empty or does not exist/ )
-				{
-					$self->nmisng->log->debug2( "SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: "
-							. $SNMP->error );
-				}
-				elsif( $SNMP->error =~ /incorrect syntax/ || $SNMP->error =~ /Received noSuchName/ )
-				{
-					# error converting the name to an OID shouldn't trigger SNMP Down
-					$self->nmisng->log->error( "Model Error, $S->{name}) on get systemHealth $section index table: "
-							. $SNMP->error );
-				}
-				else
-				{
-					$self->nmisng->log->error("($S->{name}) on get systemHealth $section index table of model $catchall_data->{nodeModel}: " . $SNMP->error );
-					$self->handle_down(
-						sys     => $S,
-						type    => "snmp",
-						details => "get systemHealth $section index table: " . $SNMP->error,
-						catchall_inventory => $catchall_inventory
-					);
-				}
-			}
-
-			# mark historic records
-			my @active_indices = (sort keys %healthIndexNum);
-			my $result = $self->bulk_update_inventory_historic(
-				active_indices => \@active_indices, concept => $section );
-			$self->nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
-
-			# Loop to get information, will be stored in {info}{$section} table
-			foreach my $index ( @active_indices )
-			{
-				my $target = $targets->{$index};
-				# we pass loadInfo a hash to fill in, then put that into the inventory data
-				# we have indexes but if no data is defined to load an error will be reported
-				# to avoid this we don't loadinfo if index_function is used (for now)				
-				if(defined($thissection->{index_function})  or  $S->loadInfo(
-						class   => 'systemHealth',
-						section => $section,
-						index   => $index,
-						table   => $section,
-						target  => $target
-				))
-				{
-					$self->nmisng->log->debug2(sub {"section=$section index=$index read and stored"});
-
-					# get the inventory object for this, path_keys required as we don't know what type it will be
-					NMISNG::Util::TODO("Do we use index or the healthIndextTable value that the loop above grabbed?");
-
-					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
-					# so use 'index' for now.
-					# loadInfo always sets {index}, which is potentially the oid part and not the value of the oid, eg. how fanStatus works
-
-					my $path_keys = ['index'];
-					my $path = $self->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
-
-					# NOTE: systemHealth requires {index} => $index to be set, it
-					my ( $inventory, $error_message ) = $self->inventory(
-						concept   => $section,
-						model_class => 'systemHealth',
-						protocol 	=> $protocol,
-						path      => $path,
-						path_keys => $path_keys,
-						create    => 1
-					);
-					$self->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
-					# set data before recalculate
-					$inventory->data($target);
-					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-					$inventory->path( recalculate => 1 );
-					$inventory->historic(0);
-					$inventory->enabled(1);
-
-					# set which columns should be displayed
-					$inventory->data_info(
-						subconcept => $section,
-						enabled => 1,						
-						display_keys => $header_info
-					);
-					if( @$header_info > 0 )
-					{
-						my @keys = keys (%{$header_info->[0]});
-						# use first key in headers to get description
-						$description = $target->{ $keys[0] };
-						$inventory->description( $description ) if($description);
-					}
-					
-					# Regenerate storage: If db name has changed, we need this
-					$self->nmisng->log->debug("collect_systemhealth_info check storage $section");
-					if ($inventory->find_subconcept_type_storage(type => "rrd",
-																subconcept => $section )) {
-							my $dbname = $S->makeRRDname(graphtype => $section,
-														index     => $index,
-														inventory      => $inventory,
-														relative => 1);
-							$self->nmisng->log->debug8(sub {"Storage: ". Dumper($dbname)});
-							$inventory->set_subconcept_type_storage(type => "rrd",
-																	subconcept => $section,
-																	data => $dbname) if ($dbname);
-					}
-					
-					# the above will put data into inventory, so save
-					my ( $op, $error ) = $inventory->save( node => $self , update => 1);
-					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
-					$self->nmisng->log->error(
-						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);
-				}
-				else
-				{
-					my $error = $S->status->{snmp_error};
-					$self->nmisng->log->error("($S->{name}) on get systemHealth $section index $index of model $catchall_data->{nodeModel}: $error");
-					$self->handle_down(
-						sys     => $S,
-						type    => "snmp",
-						details => "get systemHealth $section index $index: $error",
-						catchall_inventory => $catchall_inventory
-					);
-				}
+				my $error = $S->status->{"${protocol}_error"};
+				$self->nmisng->log->error("($S->{name}) on get systemHealth $section index $index of model $catchall_data->{nodeModel}: $error");
+				$self->handle_down(
+					sys     => $S,
+					type    => $protocol,
+					details => "get systemHealth $section index $index: $error",
+					catchall_inventory => $catchall_inventory
+				);
 			}
 		}
 	}

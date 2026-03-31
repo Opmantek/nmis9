@@ -52,6 +52,19 @@ sub build_queries { confess("abstract: build_queries must be overridden"); }
 # returns: hashref with optional 'error' key
 sub execute_queries { confess("abstract: execute_queries must be overridden"); }
 
+# Discover which indexes are currently present for a systemHealth section.
+# Called by Node::collect_systemhealth_info() to get the list of active indexes.
+#
+# args: section_config (hashref - the model's systemHealth sys section),
+#       index_var (string - the indexed field name),
+#       index_snmp (string - OID or name for SNMP index table),
+#       index_regex (string - regex to extract index from OID)
+# returns: ($error, \@active_indices, \%targets)
+#   $error: undef on success, error string on failure
+#   @active_indices: list of index values found
+#   %targets: index => { index_var => $name, index_value => $value } (optional per-index data)
+sub discover_indexes { confess("abstract: discover_indexes must be overridden"); }
+
 # Classify the last error from this engine's transport.
 # Returns: undef if no error, or hashref:
 #   { type => 'not_present'|'model_error'|'no_session'|'transport_error', message => $string }

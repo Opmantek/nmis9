@@ -149,4 +149,60 @@ sub execute_queries
 	return \%status;
 }
 
+# Discover WMI indexes for a systemHealth section via WQL gettable query.
+# Returns ($error, \@active_indices, \%targets)
+sub discover_indexes
+{
+	my ($self, %args) = @_;
+	my ($section_config, $index_var)
+		= @args{qw(section_config index_var)};
+
+	my $sys = $self->sys;
+	my $transport = $sys->{wmi};
+	return ("WMI not configured", undef, undef) unless $transport;
+
+	my $wmisection = $section_config->{wmi};
+
+	# model broken if it says 'indexed by X' but doesn't have a query section for 'X'
+	if (!exists($wmisection->{$index_var}))
+	{
+		return ("missing declaration for index_var $index_var", undef, undef);
+	}
+
+	my $indexsection = $wmisection->{$index_var};
+
+	# query can come from -common- or from the index var's own section
+	my $query = (
+		exists($indexsection->{query}) ? $indexsection->{query}
+		: (ref($wmisection->{"-common-"}) eq "HASH"
+			&& exists($wmisection->{"-common-"}->{query})) ? $wmisection->{"-common-"}->{query}
+		: undef
+	);
+
+	if (!$query or !$indexsection->{field})
+	{
+		return ("missing query or field for WMI variable $index_var", undef, undef);
+	}
+
+	my ($error, $fields, $meta) = $transport->gettable(
+		wql    => $query,
+		index  => $index_var,
+		fields => [$index_var]
+	);
+
+	if ($error)
+	{
+		return ($error, undef, undef);
+	}
+
+	my @active_indices = keys %$fields;
+	my %targets;
+	for my $indexvalue (@active_indices)
+	{
+		$targets{$indexvalue} = { index_var => $index_var, index_value => $indexvalue };
+	}
+
+	return (undef, \@active_indices, \%targets);
+}
+
 1;
