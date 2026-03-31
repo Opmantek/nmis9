@@ -565,11 +565,13 @@ Properties unique to items within an `snmp` block. All [common item properties](
 | **Valid values** | OID name (e.g., `'sysDescr'`) or numeric OID (e.g., `'1.3.6.1.2.1.1.1.0'`) |
 | **Code reference** | `Engine/SNMP.pm:95-116` |
 
-The SNMP OID to query. Named OIDs are resolved via MIB files. Leading dots are **silently stripped** during model loading (`Sys.pm:1749-1752`).
+The SNMP OID to query. Leading dots are **silently stripped** during model loading (`Sys.pm:1749-1752`).
 
-**Important**: For non-indexed sections, `.0` is NOT automatically appended. Include it in the model OID if querying a scalar value.
+**Named OIDs** (e.g., `'sysDescr'`): Resolved via MIB files. `.0` is automatically appended by `getarray()` via `name_to_oid()` when the name has no numeric tail (`Snmp.pm:151`). No need to include `.0` in the model.
 
-For indexed sections, the index value (or computed suffix) is automatically appended as `.<index>`.
+**Numeric OIDs** (e.g., `'1.3.6.1.4.1.99999.2.1.0'`): Used as-is. For non-indexed sections querying scalar values, `.0` **must** be included explicitly in the model.
+
+For indexed sections, the index value (or computed suffix) is automatically appended as `.<index>` regardless of OID type.
 
 ### `calculate_index`
 

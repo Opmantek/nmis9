@@ -551,6 +551,65 @@ if ($disk_inv_c) {
 }
 
 # ============================================================
+# Test 21: WMI execute_queries handles missing index gracefully
+# ============================================================
+diag("=== Test 21: WMI execute_queries missing index ===");
+
+# Create a WMI Sys with mock data, then call getData with a non-existent index.
+# Before the fix, this would crash with "Can't use an undefined value as a HASH reference".
+my $SW_bad = NMISNG::Sys->new(nmisng => $nmisng);
+$SW_bad->init(node => $wmi_node, snmp => 0, wmi => 1, update => 0, catchall_inventory => $wmi_catchall);
+$SW_bad->{wmi} = NMISNG::WMI::Mock->new(wmi_data => \%wmi_data, host => '127.0.0.2', username => 'testuser');
+
+# Request data for an index that doesn't exist in the WMI result set
+my $bad_result = $SW_bad->getData(class => 'systemHealth', section => 'wmiDisk', index => 'Z:');
+my $bad_status = $SW_bad->status;
+# Should not crash — getData returns empty/error, not a die
+ok(1, "WMI getData with missing index did not crash");
+# The status should have an error or the result should be empty for that index
+ok(!$bad_result->{wmiDisk}{'Z:'} || !defined($bad_result->{wmiDisk}{'Z:'}{wmiDiskFreeSpace}{value}),
+	"WMI getData with missing index returned no data for Z:");
+
+# ============================================================
+# Test 22: WMI discover_indexes rejects bad metadata
+# ============================================================
+diag("=== Test 22: WMI discover_indexes bad metadata ===");
+
+# Create mock data where the index field doesn't exist in the rows,
+# causing gettable to return meta->{index} = undef
+my %bad_wmi_data = (
+	"select BadField from FakeTable" => [
+		{ "SomeOtherField" => "value1" },
+		{ "SomeOtherField" => "value2" },
+	]
+);
+my $bad_wmi_mock = NMISNG::WMI::Mock->new(wmi_data => \%bad_wmi_data, host => '127.0.0.2', username => 'test');
+
+# Build a minimal Sys with the bad mock
+my $SW_meta = NMISNG::Sys->new(nmisng => $nmisng);
+$SW_meta->init(node => $wmi_node, snmp => 0, wmi => 1, update => 'true', force => 1, catchall_inventory => $wmi_catchall);
+$SW_meta->{wmi} = $bad_wmi_mock;
+
+# Call discover_indexes with a section config where the index field doesn't exist
+use NMISNG::Sys::Engine::WMI;
+my $wmi_eng = NMISNG::Sys::Engine::WMI->new(sys => $SW_meta);
+my ($disc_err, $disc_indices, $disc_targets) = $wmi_eng->discover_indexes(
+	section_config => {
+		'wmi' => {
+			'BadField' => {
+				'query' => 'select BadField from FakeTable',
+				'field' => 'BadField',
+			}
+		}
+	},
+	index_var => 'BadField',
+);
+
+ok($disc_err, "discover_indexes returned error when index field missing from data");
+like($disc_err, qr/failed|missing/i, "discover_indexes error mentions failure: $disc_err");
+ok(!defined($disc_indices), "discover_indexes returned no indices on failure");
+
+# ============================================================
 # Cleanup
 # ============================================================
 diag("=== Cleanup ===");

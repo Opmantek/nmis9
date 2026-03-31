@@ -138,12 +138,16 @@ sub execute_queries
 		}
 
 		# Extract the specific field value for this item
-		$todos->{$itemname}->{rawvalue} = (
-			defined $index
-			? $seen{$query}->{$index}
-			: $seen{$query}
-		)->{$todos->{$itemname}->{details}->[0]->{field}};
-		$todos->{$itemname}->{done} = 1;
+		my $row = defined($index) ? $seen{$query}->{$index} : $seen{$query};
+		if (ref($row) eq "HASH")
+		{
+			$todos->{$itemname}->{rawvalue} = $row->{$todos->{$itemname}->{details}->[0]->{field}};
+			$todos->{$itemname}->{done} = 1;
+		}
+		else
+		{
+			$sys->nmisng->log->warn("($sys->{name}) WMI query $query returned no data for index " . ($index // 'undef'));
+		}
 	}
 
 	return \%status;
@@ -193,6 +197,14 @@ sub discover_indexes
 	if ($error)
 	{
 		return ($error, undef, undef);
+	}
+
+	# Validate that gettable successfully indexed by the requested field;
+	# if meta->{index} is undef, the field was missing or not unique and
+	# keys %$fields are row numbers, not real index values.
+	if (!defined($meta->{index}))
+	{
+		return ("WMI indexing by $index_var failed (field missing or not unique)", undef, undef);
 	}
 
 	my @active_indices = keys %$fields;
