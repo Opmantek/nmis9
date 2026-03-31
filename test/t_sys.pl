@@ -213,6 +213,46 @@ $S_ds->disable_source("bogus");
 ok(1, "disable_source('bogus') did not crash");
 
 # ============================================================
+# Test 1c: has_session
+# ============================================================
+diag("=== Test 1c: has_session ===");
+
+# SNMP engine has a real session (returns 1)
+my $S_hs = NMISNG::Sys->new(nmisng => $nmisng);
+$S_hs->init(node => $snmp_node, snmp => 1, wmi => 0, update => 0, catchall_inventory => $snmp_catchall);
+$S_hs->{snmp} = NMISNG::Snmp::Mock->new(nmisng => $nmisng, name => "test_has_session", walk_data => \%snmp_walk);
+
+my $snmp_engine = $S_hs->engine("snmp");
+ok($snmp_engine, "has_session: SNMP engine exists");
+is($snmp_engine->has_session, 1, "has_session: SNMP engine returns 1 (has real session)");
+
+# WMI engine does NOT have a session (returns 0)
+# Instantiate directly since the test node is SNMP-only
+use NMISNG::Sys::Engine::WMI;
+my $wmi_engine = NMISNG::Sys::Engine::WMI->new(sys => $S_hs);
+is($wmi_engine->has_session, 0, "has_session: WMI engine returns 0 (no real session)");
+
+# Base Engine class also returns 0
+use NMISNG::Sys::Engine;
+my $base_engine = NMISNG::Sys::Engine->new(sys => $S_hs);
+is($base_engine->has_session, 0, "has_session: base Engine returns 0");
+
+# ============================================================
+# Test 1d: disable_source validates against known_sources
+# ============================================================
+diag("=== Test 1d: disable_source property protection ===");
+
+# Verify that disable_source rejects non-protocol strings
+# even if they match existing Sys object properties
+my $name_before = $S_hs->{name};
+$S_hs->disable_source("name");
+is($S_hs->{name}, $name_before, "disable_source('name') did not delete Sys->{name}");
+
+my $mdl_before = $S_hs->{mdl};
+$S_hs->disable_source("mdl");
+is($S_hs->{mdl}, $mdl_before, "disable_source('mdl') did not delete Sys->{mdl}");
+
+# ============================================================
 # Test 2: copyModelCfgInfo
 # ============================================================
 diag("=== Test 2: copyModelCfgInfo ===");

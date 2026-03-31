@@ -10,6 +10,7 @@ use Net::SNMP;
 our $VERSION = "9.6.5";
 
 sub protocol_name { return "snmp"; }
+sub has_session   { return 1; }
 
 sub is_active
 {

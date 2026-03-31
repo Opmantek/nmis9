@@ -71,6 +71,13 @@ sub discover_indexes { confess("abstract: discover_indexes must be overridden");
 # Default: no classification (subclasses override for protocol-specific error patterns).
 sub classify_error { return undef; }
 
+# Returns true if this engine manages a persistent session that requires
+# open/close lifecycle (e.g. SNMP). Used to gate session-result handling
+# (failover notifications, up events) — engines without real sessions
+# should not trigger those.
+# Default: 0 (no session, e.g. WMI).
+sub has_session { return 0; }
+
 # Open this engine's transport session. Called by Node before data collection.
 # Returns: 1 on success, 0 on failure.
 # Default: 1 (no explicit session needed, e.g. WMI).

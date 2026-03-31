@@ -796,8 +796,11 @@ sub disable_source
 {
 	my ( $self, $moriturus ) = @_;
 
+	# Validate against known protocol names to prevent accidental deletion of unrelated Sys properties
+	return unless grep { $_ eq $moriturus } @{$self->known_sources};
+
 	my $engine = $self->engine($moriturus);
-	return if !$engine && !$self->{$moriturus};    # unknown source, nothing to do
+	return if !$engine && !$self->{$moriturus};    # source not active, nothing to do
 
 	$engine->close_session if $engine;
 

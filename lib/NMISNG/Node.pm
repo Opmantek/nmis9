@@ -7091,29 +7091,34 @@ sub update
 				$S->disable_source($proto);
 				$self->handle_down(sys => $S, type => $proto, details => $S->status->{"${proto}_error"}, catchall_inventory => $catchall_inventory);
 			}
-			elsif ($candoopen && $S->status->{fallback})
+			# Session-result handling (failover, up events) only for engines with real sessions;
+			# engines without sessions (e.g. WMI) should not clear down-state or trigger failover here.
+			elsif ($engine->has_session)
 			{
-				Compat::NMIS::notify(sys => $S,
-														 event => "Node Polling Failover",
-														 element => undef,
-														 inventory_id => $catchall_inventory->id,
-														 details => (uc($proto) . " Session switched to backup address \"".
-																				 $self->configuration->{host_backup}.'"'),
-														 context => { type => "node" });
+				if ($candoopen && $S->status->{fallback})
+				{
+					Compat::NMIS::notify(sys => $S,
+															 event => "Node Polling Failover",
+															 element => undef,
+															 inventory_id => $catchall_inventory->id,
+															 details => (uc($proto) . " Session switched to backup address \"".
+																					 $self->configuration->{host_backup}.'"'),
+															 context => { type => "node" });
+				}
+				elsif ($candoopen)
+				{
+					Compat::NMIS::checkEvent(sys => $S,
+																	 event => "Node Polling Failover",
+																	 upevent => "Node Polling Failover Closed",
+																	 element => undef,
+																	 level => "Normal",
+																	 inventory_id => $catchall_inventory->id,
+																	 details => (uc($proto) . " Session using primary address \"".
+																							 $self->configuration->{host}. '"'));
+				}
+				$self->handle_down(sys => $S, type => $proto, up => 1, details => "$proto ok", catchall_inventory => $catchall_inventory)
+						if ($candoopen);
 			}
-			elsif ($candoopen)
-			{
-				Compat::NMIS::checkEvent(sys => $S,
-																 event => "Node Polling Failover",
-																 upevent => "Node Polling Failover Closed",
-																 element => undef,
-																 level => "Normal",
-																 inventory_id => $catchall_inventory->id,
-																 details => (uc($proto) . " Session using primary address \"".
-																						 $self->configuration->{host}. '"'));
-			}
-			$self->handle_down(sys => $S, type => $proto, up => 1, details => "$proto ok", catchall_inventory => $catchall_inventory)
-					if ($candoopen);
 		}
 
 		# this will try all enabled sources, 0 only if none worked
@@ -9291,30 +9296,35 @@ sub collect
 				$S->disable_source($proto);
 				$self->handle_down(sys => $S, type => $proto, details => $S->status->{"${proto}_error"}, catchall_inventory => $catchall_inventory);
 			}
-			elsif ($candoopen && $S->status->{fallback})
+			# Session-result handling (failover, up events) only for engines with real sessions;
+			# engines without sessions (e.g. WMI) should not clear down-state or trigger failover here.
+			elsif ($engine->has_session)
 			{
-				Compat::NMIS::notify(sys => $S,
-														 event => "Node Polling Failover",
-														 element => undef,
-														 details => (uc($proto) . " Session switched to backup address \""
-																				 . $self->configuration->{host_backup}.'"'),
-														 context => { type => "node" },
-														 inventory_id => $catchall_inventory->id,
-														 conf => $C );
+				if ($candoopen && $S->status->{fallback})
+				{
+					Compat::NMIS::notify(sys => $S,
+															 event => "Node Polling Failover",
+															 element => undef,
+															 details => (uc($proto) . " Session switched to backup address \""
+																					 . $self->configuration->{host_backup}.'"'),
+															 context => { type => "node" },
+															 inventory_id => $catchall_inventory->id,
+															 conf => $C );
+				}
+				elsif ($candoopen)
+				{
+					Compat::NMIS::checkEvent(sys => $S,
+																	 event => "Node Polling Failover",
+																	 upevent => "Node Polling Failover Closed",
+																	 element => undef,
+																	 level => "Normal",
+																	 inventory_id => $catchall_inventory->id,
+																	 details => (uc($proto) . " Session using primary address \"".
+																							 $self->configuration->{host}.'"'));
+				}
+				$self->handle_down(sys => $S, type => $proto, up => 1, details => "$proto ok", catchall_inventory => $catchall_inventory)
+						if ($candoopen);
 			}
-			elsif ($candoopen)
-			{
-				Compat::NMIS::checkEvent(sys => $S,
-																 event => "Node Polling Failover",
-																 upevent => "Node Polling Failover Closed",
-																 element => undef,
-																 level => "Normal",
-																 inventory_id => $catchall_inventory->id,
-																 details => (uc($proto) . " Session using primary address \"".
-																						 $self->configuration->{host}.'"'));
-			}
-			$self->handle_down(sys => $S, type => $proto, up => 1, details => "$proto ok", catchall_inventory => $catchall_inventory)
-					if ($candoopen);
 		}
 
 		# returns 1 if one or more sources have worked,
