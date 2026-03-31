@@ -5,6 +5,7 @@ package NMISNG::Sys::Engine::SNMP;
 use strict;
 use warnings;
 use parent 'NMISNG::Sys::Engine';
+use Net::SNMP;
 
 our $VERSION = "9.6.5";
 
@@ -182,7 +183,7 @@ sub discover_indexes
 	}
 
 	my %targets;
-	for my $oid (keys %{$healthIndexTable})
+	for my $oid (Net::SNMP::oid_lex_sort(keys %{$healthIndexTable}))
 	{
 		my $index = $oid;
 		if ($oid =~ /$index_regex/)
