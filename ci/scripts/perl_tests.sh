@@ -7,6 +7,7 @@ nmis_tests="$nmis_home/test"
 working_tests=(
     uuid.t
     t_util.pm
+    t_nmis_config.pl
     t_status.pl
     t_nmisng_sys.pl
     t_nmisng_node_rename.pl
