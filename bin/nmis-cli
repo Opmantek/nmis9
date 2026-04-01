@@ -1151,6 +1151,127 @@ elsif ($Q->{act} eq "groupsync")
 {
 	die "groupsync is no longer supported or necessary.\n";
 }
+elsif ($Q->{act} =~ /^strip[_-]config[_-]defaults$/)
+{
+	my ($stripped, $removals) = NMISNG::Util::stripDefaults();
+
+	if (!@$removals)
+	{
+		print "No default values found in local config — nothing to strip.\n" if (!$quiet);
+		exit 0;
+	}
+
+	if (!$quiet)
+	{
+		print "The following " . scalar(@$removals) . " properties match defaults and will be removed:\n\n";
+		my %by_section;
+		for my $r (@$removals) { push @{$by_section{$r->{section}}}, $r; }
+		for my $section (sort keys %by_section)
+		{
+			print "  [$section]\n";
+			for my $r (@{$by_section{$section}})
+			{
+				my $display = ref($r->{value})
+					? Data::Dumper->new([$r->{value}])->Terse(1)->Indent(0)->Dump
+					: $r->{value} // 'undef';
+				$display = substr($display, 0, 60) . '...' if length($display) > 60;
+				print "    $r->{key} = $display\n";
+			}
+		}
+		print "\n";
+
+		if (!NMISNG::Util::askYesNo("Save stripped config? (y/n)", "n"))
+		{
+			print "Aborted — no changes made.\n";
+			exit 0;
+		}
+	}
+
+	my $error = NMISNG::Util::writeConfData(data => $stripped);
+	die "Failed to write config: $error\n" if $error;
+	print "Saved. Removed " . scalar(@$removals) . " default properties from $C->{configfile}\n" if (!$quiet);
+	exit 0;
+}
+elsif ($Q->{act} =~ /^restore[_-]config$/)
+{
+	my $configfile = $C->{configfile};
+	my $bakfile = "$configfile.bak";
+
+	if (!-r $bakfile)
+	{
+		die "No backup found at $bakfile\n";
+	}
+
+	if (!$quiet)
+	{
+		print "Restoring $bakfile to $configfile\n";
+		if (!NMISNG::Util::askYesNo("Proceed? (y/n)", "n"))
+		{
+			print "Aborted — no changes made.\n";
+			exit 0;
+		}
+	}
+
+	File::Copy::move($bakfile, $configfile)
+		or die "Failed to restore $bakfile to $configfile: $!\n";
+	print "Restored config from $bakfile\n" if (!$quiet);
+	exit 0;
+}
+elsif ($Q->{act} =~ /^show[_-]config$/)
+{
+	my $sources = NMISNG::Util::getConfigSources();
+	my $filter_section = $Q->{section};
+	my $filter_key = $Q->{key};
+
+	# Single key lookup
+	if (defined $filter_key)
+	{
+		my $val = $C->{$filter_key};
+		my $src = $sources->{$filter_key};
+		if (!defined $val && !$src)
+		{
+			print STDERR "Key '$filter_key' not found in config.\n";
+			exit 1;
+		}
+		my $display = ref($val) ? Data::Dumper->new([$val])->Terse(1)->Indent(0)->Dump : $val // 'undef';
+		my $source_info = $src ? "$src->{source}, layer $src->{layer}" : "unknown";
+		print "$filter_key = $display  ($source_info)\n";
+		exit 0;
+	}
+
+	# Group keys by section from source tracking
+	my %by_section;
+	for my $k (keys %$C)
+	{
+		next if $k eq 'configfile'; # internal key
+		my $src = $sources->{$k};
+		my $section = $src->{section} // 'other';
+		next if (defined $filter_section && $section ne $filter_section);
+		push @{$by_section{$section}}, $k;
+	}
+
+	if (!keys %by_section)
+	{
+		print "No config keys found" . (defined $filter_section ? " for section '$filter_section'" : "") . ".\n";
+		exit 0;
+	}
+
+	for my $section (sort keys %by_section)
+	{
+		print "[$section]\n";
+		for my $k (sort @{$by_section{$section}})
+		{
+			my $val = $C->{$k};
+			my $src = $sources->{$k};
+			my $display = ref($val) ? Data::Dumper->new([$val])->Terse(1)->Indent(0)->Dump : $val // 'undef';
+			$display = substr($display, 0, 60) . '...' if length($display) > 60;
+			my $source_info = $src ? "$src->{source}, layer $src->{layer}" : "unknown";
+			printf "  %-40s = %-30s (%s)\n", $k, $display, $source_info;
+		}
+		print "\n";
+	}
+	exit 0;
+}
 # do sanitary checking on inventory
 elsif ($Q->{act} =~ /^check[_-]inventory$/)
 {
