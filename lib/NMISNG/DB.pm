@@ -48,7 +48,7 @@ use Mojo::Util;									# for monkey_patch and  b64_encode/decode
 
 use version 0.77;    # needed to check driver version
 
-use Guard;
+use NMISNG::Guard;
 use NMISNG::Util;								# for getbool and numify
 
 # this is a little bit unfriendly, but required because mongo uses boolean::true or ::false,
@@ -1623,7 +1623,7 @@ sub _start_time_and_count {
 	my ($fname) = @_;
 	$_db_stats{$fname}++;
 	my $start = Time::HiRes::time();
-	return Guard->new(sub {
+	return NMISNG::Guard->new(sub {
 		$NMISNG::DB::_db_time{$fname} += Time::HiRes::time() - $start;
 	});
 }
