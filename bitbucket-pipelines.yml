@@ -25,6 +25,7 @@ pipelines:
             - git clone --depth 1 --branch $BITBUCKET_BRANCH https://github.com/Opmantek/nmis9
             - cd nmis9
             - sed -i "s/^DEV_UID=.*/DEV_UID=$(id -u)/; s/^DEV_GID=.*/DEV_GID=$(id -g)/" docker-dev/.env-dev
+            - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
             - docker compose --file docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up -d
       - step:
           name: Test NMIS
