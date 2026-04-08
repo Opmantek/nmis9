@@ -10,7 +10,7 @@ source /etc/profile
 
 setup() {
   # Create data directories
-  for d in assets var/nmis_system models-custom database conf logs
+  for d in assets var/nmis_system models-custom database conf logs htdocs/cache htdocs/nmis9
   do
     dir=${NMIS_HOME}/${d}
 
@@ -55,7 +55,7 @@ run() {
   setup_db
   nmis_frontend
 
-#tail omkd out to keep alive, or anything rlly
+  #tail omkd out to keep alive, or anything rlly
   tail -f "${NMIS_LOG}"
 }
 

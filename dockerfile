@@ -1,4 +1,4 @@
-FROM debian:bullseye
+FROM debian:bookworm-slim
 
 LABEL maintainer="James Greewnwood. <james.greenwood@firstwave.com>" 
 LABEL maintainer="Louis Tissington. <louis.tissington@firstwave.com>"
@@ -10,7 +10,7 @@ ARG NMIS_GROUP=nmis
 ARG NMIS_USER_UID=10001
 ARG NMIS_USER_GID=10001
 
-ENV PERL5LIB="/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32"
+ENV PERL5LIB=/usr/local/lib/site_perl/lib/perl5:/usr/local/lib/site_perl/lib/perl5/x86_64-linux-gnu:/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32
 ENV CONTAINER=1
 
 RUN apt-get update  > /dev/null && \
@@ -104,7 +104,6 @@ RUN apt-get update  > /dev/null && \
     unixodbc \
     odbcinst \
     tdsodbc \
-    logrotate && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
 
@@ -136,8 +135,7 @@ WORKDIR /tmp
 
 # Soft link because some tools look for /usr/bin/ip not /sbin/ip
 # Systemctl redirect when scripts try call systemctl inside the container
-RUN ln -s /sbin/ip /usr/bin/ip && \
-    git clone https://github.com/gdraheim/docker-systemctl-replacement && \
+RUN git clone https://github.com/gdraheim/docker-systemctl-replacement && \
     cp docker-systemctl-replacement/files/docker/systemctl3.py /usr/bin/systemctl && \
     rm -rf docker-systemctl-replacement
 
@@ -154,14 +152,16 @@ RUN mkdir -p ${NMIS_HOME}/conf \
     ${NMIS_HOME}/var \
     ${NMIS_HOME}/logs \
     ${NMIS_HOME}/htdocs/nmis9 \
+    ${NMIS_HOME}/htdocs/cache \
     ${NMIS_HOME}/assets \
     ${NMIS_HOME}/models-custom
 
 COPY ../conf-default/Users.nmis \
      ../conf-default/users.dat \
      ../conf-default/Access.nmis \
-     ../conf-default/docker/Config.nmis.docker \
      ${NMIS_HOME}/conf/
+
+COPY ../conf-default/docker/Config.nmis.docker ${NMIS_HOME}/conf/Config.nmis
 
 VOLUME ${NMIS_HOME}/conf \
        ${NMIS_HOME}/database \
@@ -173,6 +173,7 @@ RUN rm /etc/apt/sources.list.d/mongodb-org-7.0.list
 
 # NMIS user ownership
 RUN chown -R ${NMIS_USER}:${NMIS_GROUP} ${NMIS_HOME}
+USER ${NMIS_USER}
 
 # NMIS Web 8080
 # OMK Web 8042
