@@ -218,7 +218,6 @@
     'unknown_net_icon' => '<menu_url_base>/img/network-white.gif'
   },
   'id' => {
-    'cluster_id' => ''
   },
   'javascript' => {
     'calendar' => '<menu_url_base>/js/calendar.js',
