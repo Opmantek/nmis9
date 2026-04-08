@@ -24,7 +24,7 @@ services:
     networks:
       - nmis_net
   nmis:
-    image: nmis-dev-test:local
+    image: crg.apkg.io/firstwavecloud/nmis-dev:latest
     container_name: nmis
     platform: linux/amd64
     restart: always
