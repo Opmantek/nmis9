@@ -9,7 +9,7 @@ sub startup {
 
   my $url_base = "/cgi-nmis9";
   #Overide the config 
-  $ENV{NMIS_URL_BASE} = $url_base;
+  $ENV{NMIS_CGI_URL_BASE} = $url_base;
 
   $self->plugin(CGI => [ "$url_base/nmiscgi.pl" => "/usr/local/nmis9/cgi-bin/nmiscgi.pl" ]);
 

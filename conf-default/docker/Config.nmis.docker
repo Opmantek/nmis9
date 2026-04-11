@@ -50,11 +50,8 @@
     'db_never_remove_indices' => [
       'nodes'
     ],
-    'db_password' => '$ENV{NMIS_DB_PASSWORD}',
     'db_port' => '27017',
     'db_query_timeout' => 5000,
-    'db_server' => '$ENV{NMIS_DB_SERVER}',
-    'db_username' => '$ENV{NMIS_DB_USERNAME}'
   },
   'directories' => {
     '<menu_base>' => '<nmis_base>/menu',
@@ -221,7 +218,6 @@
     'unknown_net_icon' => '<menu_url_base>/img/network-white.gif'
   },
   'id' => {
-    'cluster_id' => '3b5764b8-7c5d-4370-8250-4d4926afbf84'
   },
   'javascript' => {
     'calendar' => '<menu_url_base>/js/calendar.js',
@@ -435,7 +431,6 @@
     'selftest_min_diskfree_mb' => 25,
     'selftest_min_diskfree_percent' => 10,
     'server_admin' => 'root@localhost',
-    'server_name' => 'localhost',
     'severity_by_roletype' => {
       'access' => [
         'Minor',

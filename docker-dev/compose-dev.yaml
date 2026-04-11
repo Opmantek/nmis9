@@ -24,7 +24,7 @@ services:
     networks:
       - nmis_net
   nmis:
-    image: docker.opmantek.net/nmis-dev:latest
+    image: crg.apkg.io/firstwavecloud/nmis-dev:latest
     container_name: nmis
     platform: linux/amd64
     restart: always
@@ -33,6 +33,7 @@ services:
       NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
       NMIS_DB_SERVER: mongo
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
+      NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID}
       DEV_UID: ${DEV_UID}
       DEV_GID: ${DEV_GID}
       CONTAINER: 1
