@@ -7123,7 +7123,9 @@ sub update
 
 		# this will try all enabled sources, 0 only if none worked
 		# it also disables sys sources that don't work!
+		my $time_start = Time::HiRes::time;
 		my $result = $self->update_node_info(sys => $S, catchall_inventory => $catchall_inventory);
+		$catchall_data->{update_node_info_time} = Time::HiRes::time - $time_start;
 		@problems = @{$result->{error}} if (ref($result->{error}) eq "ARRAY"
 																		 && @{$result->{error}}); # (partial) success doesn't mean no errors reported
 
@@ -7132,6 +7134,7 @@ sub update
 			# update_node_info will have deleted the interface info, need to rebuild from scratch
 			if ( NMISNG::Util::getbool( $self->configuration->{collect} ) )
 			{
+				$time_start = Time::HiRes::time;
 				if ($self->update_intf_info(sys => $S, catchall_inventory => $catchall_inventory))
 				{
 					$self->nmisng->log->debug("node=$name role=$catchall_data->{roleType} type=$catchall_data->{nodeType} vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
@@ -7146,11 +7149,20 @@ sub update
 							"MODEL $name: vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}\n";
 					}
 				}
+				$catchall_data->{update_intf_info_time} = Time::HiRes::time - $time_start;
 
 				# fixme: why no error handling for any of these?
+				$time_start = Time::HiRes::time;
 				$self->collect_systemhealth_info(sys => $S, catchall_inventory => $catchall_inventory) if defined $S->{mdl}{systemHealth};
+				$catchall_data->{collect_systemhealth_info_time} = Time::HiRes::time - $time_start;
+
+				$time_start = Time::HiRes::time;
 				$self->update_concepts(sys => $S) if defined $S->{mdl}{systemHealth};
+				$catchall_data->{update_concepts_time} = Time::HiRes::time - $time_start;
+
+				$time_start = Time::HiRes::time;
 				$self->collect_cbqos(sys => $S, update => 1, catchall_inventory => $catchall_inventory);
+				$catchall_data->{update_cbqos_time} = Time::HiRes::time - $time_start;
 			}
 			else
 			{
@@ -7186,6 +7198,7 @@ sub update
 	if (!@problems)
 	{
 		# done with the standard work, now run any plugins that offer update_plugin()
+		my $update_plugins_time_start = Time::HiRes::time;
 		for my $plugin ($self->nmisng->plugins)
 		{
 			my $funcname = $plugin->can("update_plugin");
@@ -7217,6 +7230,7 @@ sub update
 				$self->nmisng->log->debug("Plugin $plugin indicated no changes");
 			}
 		}
+		$catchall_data->{update_plugins_time} = Time::HiRes::time - $update_plugins_time_start;
 		if ( NMISNG::Util::getbool($C->{enable_interfaces_summary}) )
 		{
 			$self->nmisng->log->debug("Running the Update Links subroutine");
@@ -9188,10 +9202,11 @@ sub collect
 
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
 	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => "system" );
-	if( $error ) {
+	if( $error || !$catchall_inventory ) {
 		$self->unlock(lock => $lock);
-		$self->nmisng->log->fatal("($name) failed to load catchall inventory: $error");
-		return { error => "failed to load catchall inventory: $error" };
+		my $msg = $error // "catchall inventory does not exist, run update first";
+		$self->nmisng->log->fatal("($name) failed to load catchall inventory: $msg");
+		return { error => "failed to load catchall inventory: $msg" };
 	}
 
 	my $catchall_data = $catchall_inventory->data_live();
@@ -9330,7 +9345,9 @@ sub collect
 		# returns 1 if one or more sources have worked,
 		# also updates snmp/wmi down states in nodeinfo/catchall
 		# and sets the relevant last_poll_xyz markers
+		my $collect_node_info_start = Time::HiRes::time;
 		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $starttime, catchall_inventory => $catchall_inventory );
+		$catchall_data->{collect_node_info_time} = Time::HiRes::time - $collect_node_info_start;
 		my $curstate = $S->status;  # collect_node_info does NOT disable faulty sources!
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply
@@ -9379,8 +9396,10 @@ sub collect
 			$self->collect_systemhealth_data(sys => $S, catchall_inventory => $catchall_inventory);
 			$catchall_data->{collect_systemhealth_data_time} = Time::HiRes::time - $time_start;
 
+			$time_start = Time::HiRes::time;
 			$self->collect_cbqos(sys => $S, update => 0, catchall_inventory => $catchall_inventory);
-			
+			$catchall_data->{collect_cbqos_time} = Time::HiRes::time - $time_start;
+
 			$time_start = Time::HiRes::time;
 			$self->collect_server_data( sys => $S, catchall_inventory => $catchall_inventory );
 			$catchall_data->{collect_server_data_time} = Time::HiRes::time - $time_start;
@@ -9415,11 +9434,13 @@ sub collect
 	$catchall_data->{collect_services_time} = $services_time;
 
 	# don't let that function perform the rrd update, we want to add the polltime to it!
+	my $reachability_time_start = Time::HiRes::time;
 	my $reachdata = $self->compute_reachability( sys => $S, delayupdate => 1, catchall_inventory => $catchall_inventory );
+	$catchall_data->{compute_reachability_time} = Time::HiRes::time - $reachability_time_start;
 	# For nodesum file, add outage details from reach to catchall, this must be done before reachdata is processed
 
 	if( ref($reachdata->{outage_info}) eq 'HASH' && ref($reachdata->{outage_info}{value}) eq 'HASH' ) {
-		# $reach{outage_info} { option => "nosave", value => { outage_status => $outage_status, outage_time => $outage_time }};			
+		# $reach{outage_info} { option => "nosave", value => { outage_status => $outage_status, outage_time => $outage_time }};
 		$catchall_data->{outage_status} = $reachdata->{outage_info}{value}{outage_status} // "";
 		$catchall_data->{outage_details} = $reachdata->{outage_info}{value}{outage_details} // "";
 	}
@@ -9429,10 +9450,13 @@ sub collect
 	if ( NMISNG::Util::getbool($C->{global_threshold}) && # any thresholds whatsoever?
 			 NMISNG::Util::getbool( $C->{threshold_poll_node} ) ) # and computed as part of collect or not?
 	{
+		my $threshold_time_start = Time::HiRes::time;
 		$self->nmisng->compute_thresholds(sys => $S, running_independently => 0);
+		$catchall_data->{compute_thresholds_time} = Time::HiRes::time - $threshold_time_start;
 	}
 
 	# done with the standard work, now run any plugins that offer collect_plugin()
+	my $collect_plugins_time_start = Time::HiRes::time;
 	for my $plugin ($self->nmisng->plugins)
 	{
 		my $funcname = $plugin->can("collect_plugin");
@@ -9464,6 +9488,7 @@ sub collect
 			$self->nmisng->log->debug("Plugin $plugin indicated no changes");
 		}
 	}
+	$catchall_data->{collect_plugins_time} = Time::HiRes::time - $collect_plugins_time_start;
 	my $polltime = $pollTimer->elapTime();
 	$self->nmisng->log->debug("polltime for $name was $polltime");
 	$reachdata->{polltime} = {value => $polltime, option => "gauge,0:U"};
