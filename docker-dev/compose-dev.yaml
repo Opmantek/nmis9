@@ -43,6 +43,7 @@ services:
       - ../:/usr/local/nmis9
     ports:
       - "8080:8080"
+      - "10001:161/udp"
     networks:
       - nmis_net
 networks:
