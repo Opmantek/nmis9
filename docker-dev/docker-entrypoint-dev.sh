@@ -85,9 +85,23 @@ dev_user_map() {
     -exec chown "$DEV_UID:$DEV_GID" {} +
 }
 
+start_apps() {
+  services=("snmpd")
+    for service in "${services[@]}"; do
+      echo "Starting $service daemon..."
+      service $service start
+      if [ $? -eq 0 ]; then
+          echo "$service service started successfully."
+      else
+          echo "Failed to start $service service."
+      fi
+    done
+}
+
 run() {
   setup
   setup_db
+  start_apps
   dev_user_map
   nmis_frontend
   # Tail something to keep the container alive
