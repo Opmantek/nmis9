@@ -12,7 +12,7 @@ source /etc/profile
 
 setup() {
   # Create data directories
-  for d in assets var/nmis_system models-custom database conf logs
+  for d in assets var/nmis_system models-custom database conf logs htdocs/nmis9 htdocs/cache
   do
     dir=${NMIS_HOME}/${d}
     [[ -d "${dir}" ]] || mkdir -p "${dir}"    
@@ -29,7 +29,7 @@ setup() {
     cp "${NMIS_HOME}/conf-default/docker/Config.nmis.docker" "${NMIS_HOME}/conf/Config.nmis"
   fi
 
-  # fake a couple of aseets dirs for mojo
+  # fake a couple of assets dirs for mojo
   ln -s "${NMIS_HOME}"/menu "${NMIS_HOME}"/assets/menu9 || echo "Could not symlink menu9 dir"
   ln -s "${NMIS_HOME}"/htdocs/cache "${NMIS_HOME}"/htdocs/nmis9/cache || echo "Could not symlink cache dir"
 
