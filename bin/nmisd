@@ -85,6 +85,7 @@ option debug=<[0|t]/[1|f]>: Print extra debug information.
 option foreground=<t|1>:    Stay in the foreground, don't daemonize.
 option max_workers=<N>:     Overrides the configuration.
 option pidfile=<path>:      Override the PID file location (config 'nmisd_pid_file').
+                            Must be an absolute path ending in '.pid'.
 
 option singleprocess=<t|1>:
 	# foreground 1, singleprocess 0: supervisor stays in FG but workers are created
@@ -297,19 +298,72 @@ if ( !-d $varsysdir )
 }
 # PID file location is configurable to support SELinux policies that
 # require the pidfile in e.g. /run/. Precedence: command line > config > default.
-$pidFile      = $cmdline->{pidfile} || $config->{nmisd_pid_file} || "$varsysdir/nmisd.pid";
-# Ensure the directory for the pidfile exists (it may be outside nmis_var,
-# e.g. /run/nmis9/ under SELinux-managed deployments).
+my $pidfile_from_user = $cmdline->{pidfile} || $config->{nmisd_pid_file};
+$pidFile      = $pidfile_from_user || "$varsysdir/nmisd.pid";
+
+# Validate operator-supplied pidfile paths. The built-in default is trusted
+# because it lives inside $varsysdir; any value from CLI or config is not.
+# nmisd runs as root / nmis group, so a bad path could truncate or unlink
+# arbitrary files (via open(">…") at startup and the END block at shutdown).
+if ($pidfile_from_user)
+{
+	my $canonical = File::Spec->canonpath($pidFile);
+	if (!File::Spec->file_name_is_absolute($canonical))
+	{
+		die "pidfile path must be absolute: '$pidFile'\n";
+	}
+	if ($canonical =~ m!/\.\./! || $canonical =~ m!/\.\.$! || $canonical eq '..')
+	{
+		die "pidfile path must not contain '..' segments: '$pidFile'\n";
+	}
+	if (basename($canonical) !~ /\.pid\z/)
+	{
+		die "pidfile basename must end in '.pid': '$pidFile'\n";
+	}
+	if (-l $pidFile)
+	{
+		die "pidfile path is a symlink, refusing to follow: '$pidFile'\n";
+	}
+	if (-e $pidFile && !-f _)
+	{
+		die "pidfile path exists but is not a regular file: '$pidFile'\n";
+	}
+	$pidFile = $canonical;
+}
+
+# Ensure the directory for the pidfile exists and is writable (it may be
+# outside nmis_var, e.g. /run/nmis9/ under SELinux-managed deployments).
 my $pidFileDir = dirname($pidFile);
 if ( !-d $pidFileDir )
 {
 	NMISNG::Util::createDir($pidFileDir);
 	NMISNG::Util::setFileProtDiag(file => $pidFileDir);
 }
+if ( !-d $pidFileDir )
+{
+	die "pidfile directory '$pidFileDir' does not exist and could not be created: $!\n";
+}
+if ( !-w $pidFileDir )
+{
+	die "pidfile directory '$pidFileDir' is not writable by user " . (getpwuid($<) // $<) . "\n";
+}
 my $statefile = "$varsysdir/nmisd_state.json";
 my $scheduler_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );
 $scheduler_state = {} if (!ref($scheduler_state)); # i.e. if readFiletoHash reported an error
 $scheduler_state->{last_process_check} = 0; # DO run up worker children on startup
+
+# act=check is a config validator; it must never contend with a running daemon
+# for the PID lock, so force it into the foreground path (which skips the lock
+# block entirely).
+if ($check && !$foreground)
+{
+	if (defined($cmdline->{foreground})
+		&& !NMISNG::Util::getbool_cli("foreground", $cmdline->{foreground}, 0))
+	{
+		$logger->info("act=check: overriding foreground=0; validator must not take the PID lock");
+	}
+	$foreground = 1;
+}
 
 # Wrap all this stuff in brackets to avoid creating a bunch of variables we never need again.
 if (!$foreground)
@@ -455,7 +509,7 @@ if (!$foreground)
 				unlink($pidFile) if (-f $pidFile);
 				if ((!open(PIDLOCK, ">$pidFile")) || (!flock(PIDLOCK, LOCK_EX)))	# We will not be able to get an exclusive lock if the process is alive.
 				{
-					die "Cannot get PID lock!\n";
+					die "Cannot get PID lock on '$pidFile': $!\n";
 				}
 				print PIDLOCK "$PID\n";
 				$i_own_pidfile = 1;
@@ -484,7 +538,7 @@ if (!$foreground)
 		}
 		else
 		{
-			die "Unable to get a pid lock!\n";
+			die "Unable to get a pid lock on '$pidFile': $!\n";
 		}
 	}
 }
@@ -1115,7 +1169,16 @@ END {
 	if ($i_own_pidfile && $pidFile)
 	{
 		close(PIDLOCK);
-		unlink($pidFile) if -f $pidFile;
+		# Only unlink if the file still names us. Protects against a replacement
+		# supervisor having already rewritten the lock, and against stray END
+		# invocations inheriting $i_own_pidfile through some future code path.
+		if (-f $pidFile && open(my $verify, "<", $pidFile))
+		{
+			my $recorded = <$verify>;
+			close($verify);
+			chomp($recorded) if defined $recorded;
+			unlink($pidFile) if defined($recorded) && $recorded eq $$;
+		}
 	}
 }
 
