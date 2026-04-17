@@ -443,7 +443,8 @@ if (!$foreground)
 				}
 				elsif ($pid)
 				{
-					# parent: exits
+					# parent: clear ownership so END block doesn't unlink the child's pidfile
+					$i_own_pidfile = 0;
 					exit (0);
 				}
 	
@@ -1182,6 +1183,7 @@ sub manage_processes
 		elsif (!$newpid)					# the child, fping process
 		{
 			close(PIDLOCK) if defined fileno(PIDLOCK);
+			$i_own_pidfile = 0;
 			# the fping worker process
 			srand();
 			# make sure this gets a NEW nmisng object, with NEW database handles!
@@ -1265,6 +1267,7 @@ sub manage_processes
 			elsif (!$newpid)					# the child, worker process
 			{
 				close(PIDLOCK) if defined fileno(PIDLOCK);
+				$i_own_pidfile = 0;
 				# worker process:
 				srand();
 				# make sure this gets a NEW nmisng object, with NEW database handles!
