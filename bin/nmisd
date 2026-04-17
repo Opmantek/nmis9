@@ -68,10 +68,12 @@ my $PID       = ${$};
 my $PROGNAME  = basename($0);
 my $iAmDaemon = 0;
 my $pidFile = "";
+my $i_own_pidfile = 0;
 my $progPID   = "";
 my $usage     = "Usage: $PROGNAME [option=value...] [act=command]
 
  act=abort:   Terminate all workers and kill the running daemon.
+ act=check:   Validate configuration and exit (no database connection).
  act=status:  Indicates whether, or not the scheduler is running.
  act=stop:    Shut down the running daemon and workers.
  act=version: Print the version of this daemon and exit.
@@ -82,6 +84,7 @@ option confdir=<path>:      Path to configuration files.
 option debug=<[0|t]/[1|f]>: Print extra debug information.
 option foreground=<t|1>:    Stay in the foreground, don't daemonize.
 option max_workers=<N>:     Overrides the configuration.
+option pidfile=<path>:      Override the PID file location (config 'nmisd_pid_file').
 
 option singleprocess=<t|1>:
 	# foreground 1, singleprocess 0: supervisor stays in FG but workers are created
@@ -112,7 +115,7 @@ if ($cmdline->{act} eq "version")
 	exit 0;
 }
 
-die $usage if ($cmdline->{act} && $cmdline->{act} !~ /^(status|stop|abort)$/);
+die $usage if ($cmdline->{act} && $cmdline->{act} !~ /^(check|status|stop|abort)$/);
 
 # get the config from a potentially custom directory
 my $config  = NMISNG::Util::loadConfTable(dir => $cmdline->{confdir});
@@ -124,7 +127,13 @@ my $foreground = NMISNG::Util::getbool_cli("foreground", $cmdline->{foreground},
 my $maxWorkers = $cmdline->{max_workers} // $config->{nmisd_max_workers};
 my $status     = ($cmdline->{act} =~ /status/) ? 1 : 0;
 my $stop       = ($cmdline->{act} =~ /stop/) ? 1 : 0;
-my $daemon     = (!$abort && !$debug && !$foreground && !$stop) ? 1 : 0;
+my $check      = ($cmdline->{act} =~ /check/) ? 1 : 0;
+my $daemon     = (!$abort && !$check && !$debug && !$foreground && !$stop) ? 1 : 0;
+
+if ($foreground && ($stop || $abort || $status))
+{
+	die "Cannot use act=" . $cmdline->{act} . " in foreground mode; use the container orchestrator.\n";
+}
 
 # Make sure the user has the necessary priveleges to run the NMIS demon.
 # User must either be root, or a menber of the 'nmis' group.
@@ -286,13 +295,24 @@ if ( !-d $varsysdir )
 	NMISNG::Util::createDir($varsysdir);
 	NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 }
-$pidFile      = "$varsysdir/nmisd.pid";
+# PID file location is configurable to support SELinux policies that
+# require the pidfile in e.g. /run/. Precedence: command line > config > default.
+$pidFile      = $cmdline->{pidfile} || $config->{nmisd_pid_file} || "$varsysdir/nmisd.pid";
+# Ensure the directory for the pidfile exists (it may be outside nmis_var,
+# e.g. /run/nmis9/ under SELinux-managed deployments).
+my $pidFileDir = dirname($pidFile);
+if ( !-d $pidFileDir )
+{
+	NMISNG::Util::createDir($pidFileDir);
+	NMISNG::Util::setFileProtDiag(file => $pidFileDir);
+}
 my $statefile = "$varsysdir/nmisd_state.json";
 my $scheduler_state = ( -f $statefile? NMISNG::Util::readFiletoHash(file => $statefile): {} );
 $scheduler_state = {} if (!ref($scheduler_state)); # i.e. if readFiletoHash reported an error
 $scheduler_state->{last_process_check} = 0; # DO run up worker children on startup
 
 # Wrap all this stuff in brackets to avoid creating a bunch of variables we never need again.
+if (!$foreground)
 {
 	# So why do we set our PID twice???
 	# We want to first verify we are not already running, and if we are in debug mode we will not become a daemon.
@@ -408,6 +428,7 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 			# We are starting up; 
 			PIDLOCK->autoflush(1);
 			print PIDLOCK "$PID\n";
+			$i_own_pidfile = 1;
 			chmod (0644,"$pidFile");
 			umask($oldMask);
 			# Now become a daemon
@@ -436,6 +457,7 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 					die "Cannot get PID lock!\n";
 				}
 				print PIDLOCK "$PID\n";
+				$i_own_pidfile = 1;
 				$iAmDaemon = 1;
 				STDOUT->autoflush(1);
 				STDERR->autoflush(1);
@@ -464,6 +486,20 @@ $scheduler_state->{last_process_check} = 0; # DO run up worker children on start
 			die "Unable to get a pid lock!\n";
 		}
 	}
+}
+else
+{
+	$logger->info("foreground mode: skipping PID lock (orchestrator-managed)");
+}
+
+if ($check)
+{
+	print "Configuration OK.\n";
+	print "PID file: $pidFile\n";
+	print "Log file: $logfile\n";
+	print "Foreground: " . ($foreground ? "yes" : "no") . "\n";
+	print "fping: " . ($wantfpingworker ? ($fpingpath4 // "not found") : "disabled") . "\n";
+	exit(0);
 }
 
 # this opens a database connection - which we must not share with any children!
@@ -1074,6 +1110,14 @@ selftest perms backup purge cleanup esc thresholds metrics postupdate postcollec
 $nmisng->log->info("$PROGNAME terminating");
 exit(0);
 
+END {
+	if ($i_own_pidfile && $pidFile)
+	{
+		close(PIDLOCK);
+		unlink($pidFile) if -f $pidFile;
+	}
+}
+
 # ensure that the right number of worker and fping processes (and opslad)
 # are present
 # args: nmisng object, zoo (state of current processes), max_workers (override for config)
@@ -1137,6 +1181,7 @@ sub manage_processes
 		}
 		elsif (!$newpid)					# the child, fping process
 		{
+			close(PIDLOCK) if defined fileno(PIDLOCK);
 			# the fping worker process
 			srand();
 			# make sure this gets a NEW nmisng object, with NEW database handles!
@@ -1219,6 +1264,7 @@ sub manage_processes
 			}
 			elsif (!$newpid)					# the child, worker process
 			{
+				close(PIDLOCK) if defined fileno(PIDLOCK);
 				# worker process:
 				srand();
 				# make sure this gets a NEW nmisng object, with NEW database handles!
