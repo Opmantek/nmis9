@@ -1,0 +1,179 @@
+#
+# Model-TestWmi.nmis - Test model for WMI polling pipeline validation
+# This model is used by test/t_polling.pl and should not be assigned to real devices.
+#
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database' => {
+				'common-model' => 'database'
+			}
+		}
+	},
+	'system' => {
+		'nodegraph' => 'health,response',
+		'nodeModel' => 'TestWmi',
+		'nodeType'  => 'server',
+		'sys' => {
+			'standard' => {
+				'wmi' => {
+					'winosname' => {
+						'query' => 'select Caption from Win32_OperatingSystem',
+						'field' => 'Caption',
+						'title' => 'OS Name'
+					},
+					'winversion' => {
+						'query' => 'select Version from Win32_OperatingSystem',
+						'field' => 'Version',
+						'title' => 'OS Version'
+					},
+					'winbuild' => {
+						'query' => 'select BuildNumber from Win32_OperatingSystem',
+						'field' => 'BuildNumber',
+						'title' => 'Build Number'
+					},
+					'winsysname' => {
+						'query' => 'select CSName from Win32_OperatingSystem',
+						'field' => 'CSName',
+						'title' => 'System Name'
+					},
+					'wintime' => {
+						'query' => 'select LocalDateTime from Win32_OperatingSystem',
+						'field' => 'LocalDateTime',
+						'title' => 'Local Time',
+						'calculate' => 'return time();'
+					},
+					'winboottime' => {
+						'query' => 'select LastBootUpTime from Win32_OperatingSystem',
+						'field' => 'LastBootUpTime',
+						'title' => 'Boot Time',
+						'calculate' => 'return time() - 86400;'
+					}
+				}
+			}
+		},
+		'rrd' => {
+			'wmiCpu' => {
+				'graphtype' => 'wmiCpu',
+				'wmi' => {
+					'percentProcessor' => {
+						'query' => "select PercentProcessorTime from Win32_PerfFormattedData_PerfOS_Processor where Name='_Total'",
+						'field' => 'PercentProcessorTime',
+						'option' => 'gauge,0:U',
+						'title' => 'CPU Usage',
+						'alert' => {
+							'test' => '$r > 90',
+							'event' => 'High WMI CPU',
+							'level' => 'Warning'
+						}
+					}
+				}
+			}
+		}
+	},
+	'systemHealth' => {
+		'sections' => 'wmiDisk',
+		'sys' => {
+			'wmiDisk' => {
+				'indexed' => 'Name',
+				'headers' => 'Name,wmiDiskSize',
+				'wmi' => {
+					'Name' => {
+						'query' => 'select Name,Size,FreeSpace from Win32_LogicalDisk where DriveType=3',
+						'field' => 'Name',
+						'title' => 'Disk Name',
+						'indexed' => 'true'
+					},
+					'wmiDiskSize' => {
+						'query' => 'select Name,Size,FreeSpace from Win32_LogicalDisk where DriveType=3',
+						'field' => 'Size',
+						'title' => 'Disk Size'
+					}
+				}
+			}
+		},
+		'rrd' => {
+			'wmiDisk' => {
+				'graphtype' => 'wmiDisk',
+				'indexed' => 'Name',
+				'threshold' => 'wmiDiskUtil',
+				'wmi' => {
+					'wmiDiskFreeSpace' => {
+						'query' => 'select Name,Size,FreeSpace from Win32_LogicalDisk where DriveType=3',
+						'field' => 'FreeSpace',
+						'option' => 'gauge,0:U',
+						'title' => 'Free Space',
+						'alert' => {
+							'test' => '$r < 1073741824',
+							'event' => 'Low Disk Space',
+							'level' => 'Warning'
+						}
+					}
+				}
+			}
+		}
+	},
+	'alerts' => {
+		'wmiDisk' => {
+			'wmiDiskTestAlert' => {
+				'type' => 'test',
+				'test' => 'CVAR1=wmiDiskFreeSpace;$CVAR1 < 5368709120',
+				'value' => 'CVAR1=wmiDiskFreeSpace;$CVAR1',
+				'event' => 'Custom Disk Alert',
+				'unit' => 'bytes',
+				'level' => 'Minor',
+				'element' => 'Name'
+			},
+			'wmiDiskThresholdAlert' => {
+				'type' => 'threshold-rising',
+				'threshold' => {
+					'Warning' => '70',
+					'Minor' => '80',
+					'Major' => '90',
+					'Critical' => '95',
+					'Fatal' => '99'
+				},
+				'value' => 'CVAR1=wmiDiskFreeSpace;CVAR2=wmiDiskSize;return sprintf("%.0f", (1 - $CVAR1/$CVAR2) * 100)',
+				'event' => 'Custom Disk Threshold',
+				'unit' => '%',
+				'element' => 'Name'
+			}
+		}
+	},
+	'threshold' => {
+		'name' => {
+			'wmiDiskUtil' => {
+				'item' => 'wmiDiskUtil',
+				'event' => 'Proactive Disk Utilisation',
+				'select' => {
+					'default' => {
+						'value' => {
+							'warning' => '80',
+							'minor' => '85',
+							'major' => '90',
+							'critical' => '95',
+							'fatal' => '99'
+						}
+					}
+				},
+				'title' => 'Disk Utilisation',
+				'unit' => '%'
+			}
+		}
+	},
+	'stats' => {
+		'type' => {
+			'wmiDisk' => [
+				'DEF:free=$database:wmiDiskFreeSpace:AVERAGE',
+				'CDEF:wmiDiskUtil=free,1,*',
+				'PRINT:wmiDiskUtil:AVERAGE:wmiDiskUtil=%1.2lf'
+			],
+			'health' => [
+				'DEF:reachability=$database:reachability:AVERAGE',
+				'DEF:availability=$database:availability:AVERAGE',
+				'PRINT:reachability:AVERAGE:reachability=%1.2lf',
+				'PRINT:availability:AVERAGE:availability=%1.2lf'
+			]
+		}
+	}
+);

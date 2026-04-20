@@ -18,6 +18,8 @@ working_tests=(
     t_model_data.pl
     t_db_stats.pl
     nmisng_log.t
+    t_sys.pl
+    t_polling.pl
 )
 
 for i in "${working_tests[@]}"; do
