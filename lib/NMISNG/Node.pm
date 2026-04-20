@@ -635,6 +635,19 @@ sub delete
 		$self->configuration($curcfg);
 		$self->save;
 	}
+	# OMK-12345: Block deletion if this node is listed in another node's configuration.depend.
+	# configuration.depend stores node names (not UUIDs), so we query by name.
+	# MongoDB matches the scalar against the array field automatically (no $elemMatch needed).
+	my $node_name = $self->name;
+	my $depend_nodes = $self->nmisng->get_nodes_model(
+		filter      => { "configuration.depend" => $node_name },
+		fields_hash => { "name" => 1 }
+	);
+
+	if ($depend_nodes->count) {
+		my @blocking = map { $_->{name} } @{ $depend_nodes->data() };
+		return (0, "Node \"$node_name\" is referenced in the Depend configuration of: " . join(", ", @blocking) . ". Please remove it from those nodes before deleting.");
+	}
 
 	# then remove any queued jobs for this node, if not in-progess
 	my $result = $self->nmisng->get_queue_model("args.uuid" => [ $self->uuid ]);
