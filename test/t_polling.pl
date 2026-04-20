@@ -760,6 +760,14 @@ $cd->{intfTotal}   = 0;
 $cd->{intfCollect} = 0;
 $snmp_catchall_inv->save(node => $snmp_node);
 
+# Stock nmis9_dev's update_node_info sets wmiresult=0 unconditionally
+# (lib/NMISNG/Node.pm:2216), so compute_reachability's min() logic treats
+# the disabled WMI source as a failed poll and reports health = "U".
+# The follow-up refactor (commit e44eec11 on test-and-refactor-snmp-wmi)
+# replaces that init with a loop that only zeros enabled sources.
+# Normalize here so this test exercises only the healthy-path semantics.
+$RI->{wmiresult} = undef;
+
 my $reachdata = $snmp_node->compute_reachability(
 	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
 );
