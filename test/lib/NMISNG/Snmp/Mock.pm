@@ -186,8 +186,9 @@ sub get
 		}
 		else
 		{
-			# SNMP returns noSuchInstance for missing OIDs but doesn't fail the whole request
-			$result{$oid} = "NOSUCHINSTANCE";
+			# SNMP returns noSuchInstance for missing OIDs but doesn't fail the whole request.
+			# Case matters: NMISNG::Sys and rrdfunc compare against the literal "noSuchInstance".
+			$result{$oid} = "noSuchInstance";
 		}
 	}
 
@@ -238,7 +239,7 @@ sub getarray
 		}
 		else
 		{
-			push @retvals, "NOSUCHINSTANCE";
+			push @retvals, "noSuchInstance";
 		}
 	}
 
