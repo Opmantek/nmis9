@@ -644,7 +644,7 @@ sub delete
 		fields_hash => { "name" => 1 }
 	);
 
-	if (my $errmsg = $depend_nodes->{error})
+	if (my $errmsg = $depend_nodes->error)
 	{
 		$self->nmisng->log->error("Failed to look up dependency nodes for \"$node_name\": $errmsg");
     	return ( 0, "Could not verify node dependencies before deletion. Please try again." );
@@ -1815,8 +1815,13 @@ sub validate
 	
 	# OMK-12345 this validates if node depend has actual nodes or not.
 	if (defined $configuration->{depend}){
-		foreach my $node (@{$configuration->{depend}}){									
-			if (!$self->nmisng->get_nodes_model(name => $node)->count){
+		foreach my $node (@{$configuration->{depend}}){	
+			my $nodeModel = $self->nmisng->get_nodes_model(name => $node);
+			if (my $errmsg = $nodeModel->error)
+			{
+				$self->nmisng->log->error("Failed to look up node : \"$node\": $errmsg");
+			}			
+			if (!$nodeModel->count){
 				return (-1, "Invalid node name in configuration/depend: $node");
 			}
 		}
