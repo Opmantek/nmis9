@@ -11,7 +11,9 @@ sub new
 {
 	my ($class, %arg) = @_;
 
-	# Match real WMI.pm: return error string on missing required args
+	# wmi_data is mock-specific and must be present for the mock to function.
+	# host/username/password are accepted for interface parity with NMISNG::WMI->new
+	# but are not validated here (tests don't exercise the underlying WMI transport).
 	return "NMISNG::WMI::Mock requires wmi_data argument" if (!$arg{wmi_data});
 
 	my $self = bless({
@@ -108,25 +110,30 @@ sub gettable
 		return "No mock data found for query: $query";
 	}
 
-	my %result;
+	# Match real NMISNG::WMI->gettable semantics: before iterating, verify the
+	# requested index field exists AND is unique across all rows. If any row
+	# is missing the field or any value is duplicated, undef the indexfield
+	# entirely and key every row by its row number (with meta->{index} = undef).
 	my $used_index = $index_field;
-	my $row_num = 0;
-
-	for my $row (@$rows)
+	if ($used_index)
 	{
-		my $idx;
-		if ($index_field && exists $row->{$index_field})
+		my %seen;
+		for my $row (@$rows)
 		{
-			$idx = $row->{$index_field};
+			if (!defined($row->{$used_index}) || $seen{$row->{$used_index}}++)
+			{
+				$used_index = undef;
+				last;
+			}
 		}
-		else
-		{
-			# Fall back to row number
-			$idx = $row_num;
-			$used_index = undef;
-		}
+	}
 
-		# Filter fields if requested
+	my %result;
+	for my $i (0 .. $#{$rows})
+	{
+		my $row = $rows->[$i];
+		my $idx = $used_index ? $row->{$used_index} : $i;
+
 		my $data = $row;
 		if ($fields && @$fields)
 		{
@@ -139,7 +146,6 @@ sub gettable
 		}
 
 		$result{$idx} = $data;
-		$row_num++;
 	}
 
 	return (undef, \%result, { classname => "MockClass", index => $used_index });

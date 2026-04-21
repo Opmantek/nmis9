@@ -635,6 +635,24 @@ sub delete
 		$self->configuration($curcfg);
 		$self->save;
 	}
+	# OMK-12345: Block deletion if this node is listed in another node's configuration.depend.
+	# configuration.depend stores node names (not UUIDs), so we query by name.
+	# MongoDB matches the scalar against the array field automatically (no $elemMatch needed).
+	my $node_name = $self->name;
+	my $depend_nodes = $self->nmisng->get_nodes_model(
+		filter      => { "configuration.depend" => $node_name },
+		fields_hash => { "name" => 1 }
+	);
+
+	if (my $errmsg = $depend_nodes->error)
+	{
+		$self->nmisng->log->error("Failed to look up dependency nodes for \"$node_name\": $errmsg");
+    	return ( 0, "Could not verify node dependencies before deletion. Please try again." );
+	}
+	if ($depend_nodes->count) {
+		my @blocking = map { $_->{name} } @{ $depend_nodes->data() };
+		return (0, "Node \"$node_name\" is referenced in the Depend configuration of: " . join(", ", @blocking) . ". Please remove it from those nodes before deleting.");
+	}
 
 	# then remove any queued jobs for this node, if not in-progess
 	my $result = $self->nmisng->get_queue_model("args.uuid" => [ $self->uuid ]);
@@ -1797,8 +1815,13 @@ sub validate
 	
 	# OMK-12345 this validates if node depend has actual nodes or not.
 	if (defined $configuration->{depend}){
-		foreach my $node (@{$configuration->{depend}}){									
-			if (!$self->nmisng->get_nodes_model(name => $node)->count){
+		foreach my $node (@{$configuration->{depend}}){	
+			my $nodeModel = $self->nmisng->get_nodes_model(name => $node);
+			if (my $errmsg = $nodeModel->error)
+			{
+				$self->nmisng->log->error("Failed to look up node : \"$node\": $errmsg");
+			}			
+			if (!$nodeModel->count){
 				return (-1, "Invalid node name in configuration/depend: $node");
 			}
 		}

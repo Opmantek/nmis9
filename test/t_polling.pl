@@ -212,7 +212,7 @@ sub setup_wmi_sys
 # ============================================================
 # Create SNMP test node
 # ============================================================
-my $snmp_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID($C->{host_uuid_prefix}), nmisng => $nmisng);
+my $snmp_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
 $snmp_node->cluster_id($C->{cluster_id});
 $snmp_node->name("test_snmp_node");
 $snmp_node->configuration({
@@ -231,7 +231,7 @@ my ($op, $err) = $snmp_node->save();
 ok(!$err, "SNMP test node saved without error") or diag("Save error: $err");
 
 # Create WMI test node
-my $wmi_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID($C->{host_uuid_prefix}), nmisng => $nmisng);
+my $wmi_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
 $wmi_node->cluster_id($C->{cluster_id});
 $wmi_node->name("test_wmi_node");
 $wmi_node->configuration({
@@ -995,7 +995,7 @@ $SW2->close();
 diag("=== Phase 11: Full update/collect orchestration ===");
 
 # Create a fresh node for this test
-my $orch_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID($C->{host_uuid_prefix}), nmisng => $nmisng);
+my $orch_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
 $orch_node->cluster_id($C->{cluster_id});
 $orch_node->name("test_orch_node");
 $orch_node->configuration({
