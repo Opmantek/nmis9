@@ -644,6 +644,11 @@ sub delete
 		fields_hash => { "name" => 1 }
 	);
 
+	if (my $errmsg = $depend_nodes->{error})
+	{
+		$self->nmisng->log->error("Failed to look up dependency nodes for \"$node_name\": $errmsg");
+    	return ( 0, "Could not verify node dependencies before deletion. Please try again." );
+	}
 	if ($depend_nodes->count) {
 		my @blocking = map { $_->{name} } @{ $depend_nodes->data() };
 		return (0, "Node \"$node_name\" is referenced in the Depend configuration of: " . join(", ", @blocking) . ". Please remove it from those nodes before deleting.");
