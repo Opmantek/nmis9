@@ -254,6 +254,12 @@ $numb->configuration({host => "2.3.4.5",
 cmp_deeply([$numb->save], [1, undef], "numeric name'd node saved ok");
 
 
+$configuration = $numb->configuration();
+$configuration->{depend} = [ $node_name ];
+$numb->configuration($configuration);
+$numb->save();
+is($node->delete,"Node \"$node_name\" is referenced in the Depend configuration of: 12345. Please remove it from those nodes before deleting.","Users can not delete a node which is dependent on another node.");
+
 # that's us being precise...
 my $res = $nmisng->get_nodes_model(name => NMISNG::DB::make_string("12345"));
 is($res->count, 1,
