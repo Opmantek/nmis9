@@ -6342,6 +6342,7 @@ sub handle_custom_alerts
 					$alert->{alert}   = $alrt;                      # the key, good enough
 					$alert->{index}   = $index;
 					$alert->{source} = $CA->{$sect}{$alrt}{source};
+					$alert->{_source_file} = $CA->{$sect}{$alrt}{_source_file};
 					$alert->{inventory_id} = $inventory->id();
 					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
 					 
@@ -6463,6 +6464,7 @@ sub process_alerts
 			# name does not exist for simple alerts, let's synthesize it from ds
 			name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
+			threshold_source_file => $alert->{_source_file},
 			inventory_id => $alert->{inventory_id}
 		);
 		my $save_error = $status_obj->save();

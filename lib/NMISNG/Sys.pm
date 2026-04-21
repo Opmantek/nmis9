@@ -1836,6 +1836,17 @@ sub loadModel
 			$shortname =~ s/^Model-//;
 			$self->{mdl}->{system}->{nodeModel} = $shortname;
 
+			# tag thresholds/alerts in the primary model with their source filename
+			for my $tname (keys %{$self->{mdl}{threshold}{name} // {}}) {
+				$self->{mdl}{threshold}{name}{$tname}{_source_file} = $model;
+			}
+			for my $sect (keys %{$self->{mdl}{alerts} // {}}) {
+				for my $aname (keys %{$self->{mdl}{alerts}{$sect} // {}}) {
+					$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $model
+						if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+				}
+			}
+
 			# continue with loading common Models, sorted using characters because we didn't use numbers here...
 			foreach my $class (sort  {$a cmp $b} keys %{$self->{mdl}{'-common-'}{class}} )
 			{
@@ -1854,6 +1865,16 @@ sub loadModel
 					{
 						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
+					}
+					# tag thresholds/alerts contributed by this common model with its filename
+					for my $tname (keys %{$commonres->{data}{threshold}{name} // {}}) {
+						$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
+					}
+					for my $sect (keys %{$commonres->{data}{alerts} // {}}) {
+						for my $aname (keys %{$commonres->{data}{alerts}{$sect} // {}}) {
+							$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $name
+								if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+						}
 					}
 				}
 			}
@@ -1875,6 +1896,16 @@ sub loadModel
 					{
 						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
+					}
+					# tag thresholds/alerts contributed by this override model with its filename
+					for my $tname (keys %{$commonres->{data}{threshold}{name} // {}}) {
+						$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
+					}
+					for my $sect (keys %{$commonres->{data}{alerts} // {}}) {
+						for my $aname (keys %{$commonres->{data}{alerts}{$sect} // {}}) {
+							$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $name
+								if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+						}
 					}
 				}
 			}
