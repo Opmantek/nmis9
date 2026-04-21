@@ -101,7 +101,7 @@ use constant {
 }
 
 # Create SNMP test node
-my $snmp_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID($C->{host_uuid_prefix}), nmisng => $nmisng);
+my $snmp_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
 $snmp_node->cluster_id($C->{cluster_id});
 $snmp_node->name("test_sys_snmp");
 $snmp_node->configuration({
@@ -120,7 +120,7 @@ my ($op, $err) = $snmp_node->save();
 ok(!$err, "SNMP test node saved") or diag("Error: $err");
 
 # Create WMI test node
-my $wmi_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID($C->{host_uuid_prefix}), nmisng => $nmisng);
+my $wmi_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
 $wmi_node->cluster_id($C->{cluster_id});
 $wmi_node->name("test_sys_wmi");
 $wmi_node->configuration({
