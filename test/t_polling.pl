@@ -782,6 +782,11 @@ is($degraded->{reachability}{value}, 80, "degraded: reachability is 80 (up but d
 is($degraded->{health}{value}, "U", "degraded: health is U when SNMP down");
 
 # --- Test compute_reachability when source was never enabled (undef result) ---
+# Regression case for the undef-vs-0 init change in Node::update_node_info.
+# Pre-refactor, wmiresult was initialized to 0 even when WMI was disabled, so
+# compute_reachability's "both defined -> min" branch would drag a healthy
+# SNMP-only node down to pollresult=0 (reachability=80). Post-refactor, the
+# disabled source stays undef and the // chain picks snmpresult alone.
 diag("--- Compute Reachability: WMI never enabled (undef result) ---");
 $RI->{snmpresult} = 100;
 $RI->{wmiresult}  = undef;  # WMI was never enabled, should not affect result
@@ -791,6 +796,48 @@ my $snmponly = $snmp_node->compute_reachability(
 );
 is($snmponly->{reachability}{value}, 100, "snmp-only: reachability is 100");
 ok($snmponly->{health}{value} > 0, "snmp-only: health is numeric > 0: $snmponly->{health}{value}");
+
+# --- SNMP enabled+failed, WMI disabled (undef) ---
+# Asserts that a disabled WMI (undef) does NOT mask the SNMP failure.
+diag("--- Compute Reachability: SNMP failed, WMI disabled (undef) ---");
+$RI->{snmpresult} = 0;
+$RI->{wmiresult}  = undef;
+
+my $snmp_only_fail = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+);
+is($snmp_only_fail->{reachability}{value}, 80,
+	"snmp-only fail with wmi=undef: reachability=80 (WMI-undef did not mask)");
+is($snmp_only_fail->{health}{value}, "U",
+	"snmp-only fail with wmi=undef: health=U");
+
+# --- WMI enabled+succeeded, SNMP disabled (undef) ---
+# Mirror of the SNMP-only healthy case: snmpresult=undef must not drag the
+# pollresult to 0 via the "both defined" branch.
+diag("--- Compute Reachability: WMI enabled+ok, SNMP disabled (undef) ---");
+$RI->{snmpresult} = undef;
+$RI->{wmiresult}  = 100;
+
+my $wmi_only_ok = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+);
+is($wmi_only_ok->{reachability}{value}, 100,
+	"wmi-only healthy with snmp=undef: reachability=100");
+cmp_ok($wmi_only_ok->{health}{value}, '>', 0,
+	"wmi-only healthy: health > 0 (not 'U'): $wmi_only_ok->{health}{value}");
+
+# --- WMI enabled+failed, SNMP disabled (undef) ---
+diag("--- Compute Reachability: WMI failed, SNMP disabled (undef) ---");
+$RI->{snmpresult} = undef;
+$RI->{wmiresult}  = 0;
+
+my $wmi_only_fail = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+);
+is($wmi_only_fail->{reachability}{value}, 80,
+	"wmi-only fail with snmp=undef: reachability=80");
+is($wmi_only_fail->{health}{value}, "U",
+	"wmi-only fail with snmp=undef: health=U");
 
 # --- Test compute_reachability when both results exist and one failed ---
 diag("--- Compute Reachability: dual-protocol, WMI failed ---");
@@ -803,7 +850,53 @@ my $dual_degraded = $snmp_node->compute_reachability(
 is($dual_degraded->{reachability}{value}, 80, "dual-degraded: reachability is 80 (poll failed)");
 is($dual_degraded->{health}{value}, "U", "dual-degraded: health is U when a poll source failed");
 
-# Restore for subsequent tests
+# --- Mirror: dual-protocol, SNMP failed, WMI succeeded ---
+# Covers the symmetric ordering in the "both defined -> min" logic.
+diag("--- Compute Reachability: dual-protocol, SNMP failed ---");
+$RI->{snmpresult} = 0;
+$RI->{wmiresult}  = 100;
+
+my $dual_snmp_fail = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+);
+is($dual_snmp_fail->{reachability}{value}, 80,
+	"dual-protocol snmp-fail wmi-ok: reachability=80 (min=0)");
+is($dual_snmp_fail->{health}{value}, "U",
+	"dual-protocol snmp-fail wmi-ok: health=U");
+
+# --- Ping-only node: both sources disabled (collect=false) ---
+# Pre-refactor both results init to 0; post-refactor both stay undef. The
+# !collect branch in compute_reachability never inspects pollresult, so both
+# pre- and post-refactor should yield reachability=100. This locks in that
+# equivalence. Note: a `Use of uninitialized value` warning on the first
+# `$pollresult == 100` comparison is expected and harmless here.
+diag("--- Compute Reachability: ping-only (collect=false, both results undef) ---");
+my $saved_collect = $cd->{collect};
+$cd->{collect}    = "false";
+$snmp_catchall_inv->save(node => $snmp_node);
+$RI->{snmpresult} = undef;
+$RI->{wmiresult}  = undef;
+$RI->{pingresult} = 100;
+
+my $ping_only;
+{
+	# silence the expected uninitialized-value warning on undef==100/0
+	local $SIG{__WARN__} = sub {
+		my $msg = shift;
+		warn $msg unless $msg =~ /Use of uninitialized value.*in numeric eq/;
+	};
+	$ping_only = $snmp_node->compute_reachability(
+		sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv
+	);
+}
+is($ping_only->{reachability}{value}, 100,
+	"ping-only collect=false: reachability=100");
+cmp_ok($ping_only->{health}{value}, '>', 0,
+	"ping-only collect=false: health > 0: $ping_only->{health}{value}");
+
+# Restore collect state and poll results for subsequent phases.
+$cd->{collect} = $saved_collect;
+$snmp_catchall_inv->save(node => $snmp_node);
 $RI->{snmpresult} = 100;
 $RI->{wmiresult}  = undef;
 
