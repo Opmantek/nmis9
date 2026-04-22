@@ -4,6 +4,8 @@ set -e
 
 NMIS_HOME=/usr/local/nmis9
 NMIS_LOG=${NMIS_HOME}/logs/nmis.log
+NMIS_USER=nmis
+NMIS_GROUP=nmis
 
 # shellcheck disable=SC1091
 source /etc/profile
@@ -41,21 +43,38 @@ setup() {
 }
 
 nmis_frontend() {
-    set -m
-      /usr/local/nmis9/bin/nmisd foreground=1 &
-      /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080" &
+  su -s /bin/bash ${NMIS_USER} -c '
+    /usr/local/nmis9/bin/nmisd foreground=1 &
+    /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080" &
+  '
 }
 
 setup_db() {
   yes '' | /usr/local/nmis9/admin/setup_mongodb.pl
 }
 
+# Start any services required by NMIS
+start_apps() {
+  services=("snmpd" "snmptrapd")
+  for service in "${services[@]}"; do
+    echo "Starting $service daemon..."
+    service $service start
+    if [ $? -eq 0 ]; then
+        echo "$service service started successfully."
+    else
+        echo "Failed to start $service service."
+    fi
+  done
+}
+
 run() {
   setup
   setup_db
+  start_apps
   nmis_frontend
 
-  #tail omkd out to keep alive, or anything rlly
+  # Tail NMIS out to keep container alive
+  sleep 5
   tail -f "${NMIS_LOG}"
 }
 

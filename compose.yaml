@@ -1,6 +1,6 @@
 services:
   nmis:
-    image: nmis-release:test
+    image: nmis-release-bookworm:test
     container_name: nmis
     platform: linux/amd64
     restart: always
@@ -19,7 +19,8 @@ services:
       - nmis_database_data:/usr/local/nmis9/database
       - nmis_models_custom:/usr/local/nmis9/models-custom
     ports:
-      - "8080:8080"
+      - "8080:8080" 
+      - "10001:161/udp"
     entrypoint: ["tini", "--", "/usr/local/nmis9/docker-entrypoint.sh"]
     networks:
       - nmis_net

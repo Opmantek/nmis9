@@ -31,13 +31,13 @@ RUN apt-get update  > /dev/null && \
     libglib2.0-dev \
     libpango1.0-dev \
     libxml2 libxml2-dev \
-    libgd-gd2-perl \ 
+    libgd-gd2-perl \
     libnet-ssleay-perl \
     libcrypt-ssleay-perl \
     fping \
     nmap \
     snmp \
-    snmpd \ 
+    snmpd \
     snmptrapd \
     iputils-ping \
     dnsutils \
@@ -103,7 +103,7 @@ RUN apt-get update  > /dev/null && \
     sshpass \
     unixodbc \
     odbcinst \
-    tdsodbc \
+    tdsodbc && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
 
@@ -162,6 +162,7 @@ COPY ../conf-default/Users.nmis \
      ${NMIS_HOME}/conf/
 
 COPY ../conf-default/docker/Config.nmis.docker ${NMIS_HOME}/conf/Config.nmis
+COPY ../conf-default/snmpd/snmpd.conf ../conf-default/snmpd/snmptrapd.conf  /etc/snmp/
 
 VOLUME ${NMIS_HOME}/conf \
        ${NMIS_HOME}/database \
@@ -173,18 +174,16 @@ RUN rm /etc/apt/sources.list.d/mongodb-org-7.0.list
 
 # NMIS user ownership
 RUN chown -R ${NMIS_USER}:${NMIS_GROUP} ${NMIS_HOME}
-USER ${NMIS_USER}
 
 # NMIS Web 8080
 # OMK Web 8042
 # MTA Port 25
-# SNMP Ports 161/udp 162/udp
+# SNMP Ports 161/udp
 # NetFlow Port 2055
 EXPOSE 8080 \
        8042 \
        25 \
        161/udp \
-       162/udp \
        2055/udp
 
 ENTRYPOINT ["tini", "--", "/usr/local/nmis9/docker-entrypoint.sh"]
