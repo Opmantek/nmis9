@@ -207,7 +207,10 @@ sub discover_indexes
 		return ("WMI indexing by $index_var failed (field missing or not unique)", undef, undef);
 	}
 
-	my @active_indices = keys %$fields;
+	# sort for deterministic iteration order, matching Engine::SNMP::discover_indexes.
+	# Without this, inventory save order (driven by Node::collect_systemhealth_info
+	# foreach on @active_indices) is Perl hash-order and varies between calls.
+	my @active_indices = sort keys %$fields;
 	my %targets;
 	for my $indexvalue (@active_indices)
 	{

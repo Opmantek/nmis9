@@ -610,6 +610,123 @@ like($disc_err, qr/failed|missing/i, "discover_indexes error mentions failure: $
 ok(!defined($disc_indices), "discover_indexes returned no indices on failure");
 
 # ============================================================
+# Test 23: SNMP discover_indexes sort stability
+# ============================================================
+# Regression guard for commit 03778b70 ("fix index sorting regression from
+# refactor"). Engine::SNMP::discover_indexes iterates OIDs via
+# Net::SNMP::oid_lex_sort and then returns `sort keys %targets`, i.e.
+# lexicographic sort of the extracted index values.
+#
+# This test locks in two properties:
+#   1. The returned order is deterministic across repeated calls.
+#   2. The current order is lex-sort of index strings ("1","10","2","5","7").
+# If the policy ever changes to numeric sort, the second assertion will fail
+# intentionally so the author has to confirm the change was deliberate.
+diag("=== Test 23: SNMP discover_indexes sort stability ===");
+
+# Extend walk data under testSensor's index OID (1.3.6.1.4.1.99999.1.1.1.2)
+# with out-of-order indexes. Existing entries: .1, .2. Adding .5, .7, .10 so
+# numeric vs lex sort would give different answers.
+my %extra_oids = (
+	'1.3.6.1.4.1.99999.1.1.1.2.5'  => "TempSensor5",
+	'1.3.6.1.4.1.99999.1.1.1.2.7'  => "TempSensor7",
+	'1.3.6.1.4.1.99999.1.1.1.2.10' => "TempSensor10",
+);
+$snmp_walk{$_} = $extra_oids{$_} for keys %extra_oids;
+
+my $snmp_eng = $S->engine("snmp");
+ok($snmp_eng, "SNMP engine available for discover_indexes test");
+
+my ($err1, $idx1, $targets1) = $snmp_eng->discover_indexes(
+	section_config => {},
+	index_var      => 'testSensorName',
+	index_snmp     => '1.3.6.1.4.1.99999.1.1.1.2',
+	index_regex    => '1\.3\.6\.1\.4\.1\.99999\.1\.1\.1\.2\.(\d+)',
+);
+ok(!$err1, "SNMP discover_indexes succeeded");
+is_deeply([sort { $a <=> $b } @$idx1], [qw(1 2 5 7 10)],
+	"SNMP discover_indexes returned all 5 expected indexes");
+is_deeply($idx1, [qw(1 10 2 5 7)],
+	"SNMP discover_indexes: current policy is lex sort (1,10,2,5,7)");
+
+# Two successive calls must produce identical order.
+my ($err2, $idx2, $targets2) = $snmp_eng->discover_indexes(
+	section_config => {},
+	index_var      => 'testSensorName',
+	index_snmp     => '1.3.6.1.4.1.99999.1.1.1.2',
+	index_regex    => '1\.3\.6\.1\.4\.1\.99999\.1\.1\.1\.2\.(\d+)',
+);
+is_deeply($idx2, $idx1, "SNMP discover_indexes order is stable across repeated calls");
+
+# %targets keys should cover the same set as @active_indices.
+is_deeply([sort keys %$targets1], [qw(1 10 2 5 7)],
+	"SNMP discover_indexes: targets hash keys match returned indexes");
+
+# Restore walk data so later tests (if any) see the original.
+delete $snmp_walk{$_} for keys %extra_oids;
+
+# ============================================================
+# Test 24: WMI discover_indexes sort stability
+# ============================================================
+# Mirror of test 23 for WMI. Engine::WMI::discover_indexes returns
+# `keys %$fields` without an explicit sort — order depends on Perl hash
+# iteration. This test asserts that the order is at least deterministic
+# across repeated calls within a process (so inventory save order is stable).
+# If hash iteration order differs between calls, this fails and surfaces a
+# real asymmetry vs the SNMP engine.
+diag("=== Test 24: WMI discover_indexes sort stability ===");
+
+# Out-of-order disk names: Z:, A:, M:, B:
+my %sort_wmi_data = (
+	"select Name from Win32_LogicalDisk where DriveType=3" => [
+		{ Name => "Z:" },
+		{ Name => "A:" },
+		{ Name => "M:" },
+		{ Name => "B:" },
+	],
+);
+my $sort_wmi_mock = NMISNG::WMI::Mock->new(
+	wmi_data => \%sort_wmi_data, host => '127.0.0.2', username => 'test'
+);
+
+my $SW_sort = NMISNG::Sys->new(nmisng => $nmisng);
+$SW_sort->init(node => $wmi_node, snmp => 0, wmi => 1, update => 'true',
+	force => 1, catchall_inventory => $wmi_catchall);
+$SW_sort->{wmi} = $sort_wmi_mock;
+
+my $wmi_sort_eng = $SW_sort->engine("wmi");
+ok($wmi_sort_eng, "WMI engine available for discover_indexes test");
+
+my $sort_section_cfg = {
+	'wmi' => {
+		'Name' => {
+			'query' => 'select Name from Win32_LogicalDisk where DriveType=3',
+			'field' => 'Name',
+		},
+	},
+};
+
+my ($werr1, $widx1, $wtargets1) = $wmi_sort_eng->discover_indexes(
+	section_config => $sort_section_cfg,
+	index_var      => 'Name',
+);
+ok(!$werr1, "WMI discover_indexes succeeded") or diag("error: $werr1");
+is_deeply([sort @$widx1], [qw(A: B: M: Z:)],
+	"WMI discover_indexes returned all 4 expected indexes");
+
+# Determinism across calls.
+my ($werr2, $widx2, $wtargets2) = $wmi_sort_eng->discover_indexes(
+	section_config => $sort_section_cfg,
+	index_var      => 'Name',
+);
+is_deeply($widx2, $widx1,
+	"WMI discover_indexes order is stable across repeated calls");
+
+# %targets keys should cover the same set as @active_indices.
+is_deeply([sort keys %$wtargets1], [qw(A: B: M: Z:)],
+	"WMI discover_indexes: targets hash keys match returned indexes");
+
+# ============================================================
 # Cleanup
 # ============================================================
 diag("=== Cleanup ===");
