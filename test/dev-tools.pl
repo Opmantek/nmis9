@@ -68,15 +68,17 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  * act=graphs - Will show loadGraphTypeTable
  * act=inventory - Will show node inventory
- * act=collect - Collect node
- * act=update - Update node
- * act=plugin - Run plugin ( node= op= plugin=) 
- * act=model - Show model 
+ * act=collect - Collect node (add stats=1 for per-component timing and DB op counts)
+ * act=update - Update node (add stats=1 for per-component timing and DB op counts)
+ * act=plugin - Run plugin ( node= op= plugin=)
+ * act=model - Show model
  * act=escalations - Run escalations
  * act=thresholds - Run thresholds for a node (node= force=)
- * act=services - Run services for a node (node= force=) 
- * act=gettable - Get data from a node (node= oid= query=) 
+ * act=services - Run services for a node (node= force=)
+ * act=gettable - Get data from a node (node= oid= query=)
  * act=get_tagged_datasets - The function returns different results based on the objective variable: If tagged is passed, it returns the datasets of a given subconcept that are tagged. If rrd_path is passed, it returns the RRD paths for the given subconcept.
+ * act=adjust-to-new-cluster-id - Update cluster_id in all collections to match the current system cluster_id
+ * act=recover-cluster-id - Detect the correct cluster_id from DB and write it back to config (dryrun=1 to preview)
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -157,16 +159,26 @@ elsif ($Q->{act} =~ /^model/)
 elsif ($Q->{act} =~ /^collect/)
 {
 	my $node = $Q->{node};
-								
+
     die "Need a node to run " if (!$node);
 	my $nodeobj = $nmisng->node(name => $node);
 	if ($nodeobj) {
+		my $wantstats = NMISNG::Util::getbool($Q->{stats});
+		NMISNG::DB::reset_db_stats() if ($wantstats);
+
 		my $pollTimer = Compat::Timing->new;
 		my $wantsnmp = $Q->{wantsnmp} // 1;
 		my $wantwmi = $Q->{wantwmi} // 0;
-		$nodeobj->collect( wantsnmp => $wantsnmp, wantwmi => $wantwmi, force => $Q->{force} );
+		my $result = eval { $nodeobj->collect( wantsnmp => $wantsnmp, wantwmi => $wantwmi, force => $Q->{force} ) };
+		if ($@) {
+			print "Collect died: $@\n";
+		} elsif (ref($result) eq "HASH" && $result->{error}) {
+			print "Collect error: $result->{error}\n";
+		}
 		my $polltime = $pollTimer->elapTime();
 		print "Collect finished in $polltime \n";
+
+		print_benchmark_stats(nodeobj => $nodeobj, op => "collect") if ($wantstats);
 	} else {
 		 print " Error init for $node\n";
 	}
@@ -178,10 +190,190 @@ elsif ($Q->{act} =~ /^update/)
     die "Need a node to run " if (!$node);
 	my $nodeobj = $nmisng->node(name => $node);
 	if ($nodeobj) {
-		$nodeobj->update(force=> 1);
+		my $wantstats = NMISNG::Util::getbool($Q->{stats});
+		NMISNG::DB::reset_db_stats() if ($wantstats);
+
+		my $updateTimer = Compat::Timing->new;
+		my $result = eval { $nodeobj->update(force=> 1) };
+		if ($@) {
+			print "Update died: $@\n";
+		} elsif (ref($result) eq "HASH" && $result->{error}) {
+			print "Update error: $result->{error}\n";
+		}
+		my $updatetime = $updateTimer->elapTime();
+		print "Update finished in $updatetime \n";
+
+		print_benchmark_stats(nodeobj => $nodeobj, op => "update") if ($wantstats);
 	} else {
 		 print " Error init for $node\n";
 	}
+	exit 0;
+}
+elsif ($Q->{act} =~ /^adjust-to-new-cluster-id/)
+{
+	my $new_cluster_id = $C->{cluster_id};
+	die "No cluster_id found in config!\n" if (!$new_cluster_id);
+	print "Adjusting all cluster_id values to: $new_cluster_id\n\n";
+
+	my $total_matched = 0;
+	my $total_modified = 0;
+
+	# helper: update a collection and print results
+	my $update_collection = sub {
+		my (%args) = @_;
+		my $name = $args{name};
+		my $coll = $args{collection};
+		my $set_fields = $args{set_fields};
+
+		my $result = NMISNG::DB::update(
+			collection => $coll,
+			query      => {},
+			record     => { '$set' => $set_fields },
+			multiple   => 1,
+			freeform   => 1,
+		);
+		if ($result->{success}) {
+			printf("  %-20s matched: %d, modified: %d\n",
+				$name, $result->{matched_records}, $result->{updated_records});
+			$total_matched  += $result->{matched_records};
+			$total_modified += $result->{updated_records};
+		} else {
+			print "  $name ERROR: $result->{error}\n";
+		}
+	};
+
+	# fixed collections with a simple cluster_id field
+	$update_collection->(
+		name       => "nodes",
+		collection => $nmisng->nodes_collection,
+		set_fields => { cluster_id => $new_cluster_id },
+	);
+
+	# inventory has both cluster_id and path.0
+	$update_collection->(
+		name       => "inventory",
+		collection => $nmisng->inventory_collection,
+		set_fields => { cluster_id => $new_cluster_id, 'path.0' => NMISNG::Util::numify($new_cluster_id) },
+	);
+
+	$update_collection->(
+		name       => "events",
+		collection => $nmisng->events_collection,
+		set_fields => { cluster_id => $new_cluster_id },
+	);
+
+	$update_collection->(
+		name       => "status",
+		collection => $nmisng->status_collection,
+		set_fields => { cluster_id => $new_cluster_id },
+	);
+
+	$update_collection->(
+		name       => "latest_data",
+		collection => $nmisng->latest_data_collection,
+		set_fields => { cluster_id => $new_cluster_id },
+	);
+
+	# enumerate and update all timed_* collections
+	my $db = $nmisng->get_db();
+	my $coll_cursor = NMISNG::DB::list_collections(db => $db);
+	if ($coll_cursor) {
+		while (my $coll_info = $coll_cursor->next) {
+			my $coll_name = $coll_info->{name};
+			next unless ($coll_name =~ /^timed_/);
+			my $coll_handle = NMISNG::DB::get_collection(db => $db, name => $coll_name);
+			if ($coll_handle) {
+				$update_collection->(
+					name       => $coll_name,
+					collection => $coll_handle,
+					set_fields => { cluster_id => $new_cluster_id },
+				);
+			} else {
+				print "  $coll_name ERROR: could not get collection handle\n";
+			}
+		}
+	} else {
+		print "  WARNING: could not list collections to find timed_* tables\n";
+	}
+
+	print "\nTotal: matched $total_matched, modified $total_modified\n";
+	exit 0;
+}
+elsif ($Q->{act} =~ /^recover-cluster-id/)
+{
+	my $dryrun = NMISNG::Util::getbool($Q->{dryrun});
+	my $current_cluster_id = $C->{cluster_id};
+	print "Current config cluster_id: $current_cluster_id\n\n";
+
+	# count cluster_id occurrences in nodes and inventory
+	my %node_counts;
+	my %inv_counts;
+
+	my $node_cids = NMISNG::DB::distinct(collection => $nmisng->nodes_collection, key => "cluster_id");
+	if (ref($node_cids) eq "ARRAY") {
+		for my $cid (@$node_cids) {
+			$node_counts{$cid} = NMISNG::DB::count(
+				collection => $nmisng->nodes_collection,
+				query      => { cluster_id => $cid },
+			) // 0;
+		}
+	}
+
+	my $inv_cids = NMISNG::DB::distinct(collection => $nmisng->inventory_collection, key => "cluster_id");
+	if (ref($inv_cids) eq "ARRAY") {
+		for my $cid (@$inv_cids) {
+			$inv_counts{$cid} = NMISNG::DB::count(
+				collection => $nmisng->inventory_collection,
+				query      => { cluster_id => $cid },
+			) // 0;
+		}
+	}
+
+	print "Cluster ID distribution in nodes:\n";
+	for my $cid (sort { $node_counts{$b} <=> $node_counts{$a} } keys %node_counts) {
+		printf("  %-40s %d nodes\n", $cid, $node_counts{$cid});
+	}
+	print "  (no nodes found)\n" if (!keys %node_counts);
+
+	print "\nCluster ID distribution in inventory:\n";
+	for my $cid (sort { $inv_counts{$b} <=> $inv_counts{$a} } keys %inv_counts) {
+		printf("  %-40s %d items\n", $cid, $inv_counts{$cid});
+	}
+	print "  (no inventory found)\n" if (!keys %inv_counts);
+
+	# pick the most common cluster_id: prefer nodes, fall back to inventory
+	my ($recovered_id) = sort { $node_counts{$b} <=> $node_counts{$a} } keys %node_counts;
+	if (!$recovered_id) {
+		($recovered_id) = sort { $inv_counts{$b} <=> $inv_counts{$a} } keys %inv_counts;
+	}
+
+	if (!$recovered_id) {
+		print "\nNo cluster_id found in nodes or inventory, nothing to recover.\n";
+		exit 1;
+	}
+
+	print "\nRecovered cluster_id: $recovered_id\n";
+
+	if ($recovered_id eq $current_cluster_id) {
+		print "Config already matches the most common cluster_id. No changes needed.\n";
+		exit 0;
+	}
+
+	if ($dryrun) {
+		print "Dry run: would update config cluster_id from $current_cluster_id to $recovered_id\n";
+		exit 0;
+	}
+
+	# write the recovered cluster_id back to config using the standard pipeline
+	my ($deep, undef) = NMISNG::Util::getConfDeep();
+	$deep->{id}{cluster_id} = $recovered_id;
+	my $error = NMISNG::Util::writeConfData(data => $deep);
+	if ($error) {
+		print "ERROR writing config: $error\n";
+		exit 1;
+	}
+
+	print "Updated config cluster_id from $current_cluster_id to $recovered_id\n";
 	exit 0;
 }
 elsif ($Q->{act} =~ /^escalations/)
@@ -514,12 +706,109 @@ sub get_tagged_datasets
 			my $result = $nodeobj->tagged_datasets_for_subconcept( datasets_tags => \@datasets_tags, objective => $objective);
 			print "result=".Dumper($result);
 		}
-		
+
     }
     else {
         print "Error, need a node to run: node=NODENAME \n";
         return 0;
     }
-	
+
+}
+
+# Prints a benchmark report after a collect or update operation.
+# Pulls:
+#  - per-component times stored on catchall_data by Node::collect
+#    (collect_node_data_time, collect_intf_data_time,
+#    collect_systemhealth_data_time, collect_server_data_time,
+#    handle_custom_alerts_time, collect_services_time)
+#  - MongoDB call counts/times from NMISNG::DB stats
+#  - inventory item counts per concept for context on the workload
+# args: nodeobj (NMISNG::Node), op ("collect" or "update")
+sub print_benchmark_stats
+{
+	my (%args) = @_;
+	my $nodeobj = $args{nodeobj};
+	my $op = $args{op} // "operation";
+
+	print "\n=== Benchmark stats ($op on ".$nodeobj->name.") ===\n";
+
+	# per-component timings are stashed on catchall inventory during collect
+	my ($catchall_inventory, $cerror) = $nodeobj->inventory(concept => "catchall");
+	if (!$cerror && $catchall_inventory)
+	{
+		my $cd = $catchall_inventory->data();
+		my %timing_fields_by_op = (
+			collect => [qw(
+				collect_node_info_time
+				collect_node_data_time
+				collect_intf_data_time
+				collect_systemhealth_data_time
+				collect_cbqos_time
+				collect_server_data_time
+				handle_custom_alerts_time
+				collect_services_time
+				compute_reachability_time
+				compute_thresholds_time
+				collect_plugins_time
+			)],
+			update => [qw(
+				update_node_info_time
+				update_intf_info_time
+				collect_systemhealth_info_time
+				update_concepts_time
+				update_cbqos_time
+				update_plugins_time
+			)],
+		);
+		my @timing_fields = @{$timing_fields_by_op{$op} // []};
+		my $any = 0;
+		print "\n-- Per-component times (seconds) --\n";
+		for my $f (@timing_fields)
+		{
+			next if (!defined $cd->{$f});
+			printf("  %-40s %.4f\n", $f, $cd->{$f});
+			$any = 1;
+		}
+		print "  (no per-component timing recorded)\n" if (!$any);
+	}
+	else
+	{
+		print "\n(could not load catchall inventory for per-component times: "
+			.($cerror // "no inventory").")\n";
+	}
+
+	# inventory counts per concept give context for the workload size
+	print "\n-- Inventory counts by concept --\n";
+	my ($concepts) = $nodeobj->inventory_concepts();
+	if (ref($concepts) eq "ARRAY")
+	{
+		for my $concept (sort @$concepts)
+		{
+			my $ids = $nodeobj->get_inventory_ids(concept => $concept);
+			my $count = ref($ids) eq "ARRAY" ? scalar(@$ids) : 0;
+			printf("  %-40s %d\n", $concept, $count);
+		}
+	}
+
+	# MongoDB operation counts and cumulative times from DB::_start_time_and_count
+	# note: these include the inventory_concepts/get_inventory_ids calls above,
+	# but those are small and consistent across runs so still useful for A/B diffs.
+	my $stats = NMISNG::DB::get_db_stats();
+	print "\n-- MongoDB operations --\n";
+	printf("  %-20s %10s %12s\n", "function", "count", "total_sec");
+	my %allfns = map { $_ => 1 } (keys %{$stats->{counts}}, keys %{$stats->{times}});
+	my $total_count = 0;
+	my $total_time  = 0;
+	for my $fn (sort keys %allfns)
+	{
+		my $c = $stats->{counts}{$fn} // 0;
+		my $t = $stats->{times}{$fn}  // 0;
+		$total_count += $c;
+		$total_time  += $t;
+		printf("  %-20s %10d %12.4f\n", $fn, $c, $t);
+	}
+	printf("  %-20s %10d %12.4f\n", "TOTAL", $total_count, $total_time);
+
+	print "\n=== End benchmark stats ===\n";
 }
 
