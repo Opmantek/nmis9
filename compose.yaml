@@ -1,14 +1,16 @@
 services:
   nmis:
-    image: nmis-release-bookworm:test
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis:9.6.5
     container_name: nmis
     platform: linux/amd64
-    restart: always
+    restart: unless-stopped
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
       NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
       NMIS_DB_SERVER: mongo
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
+      NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID}
+      NMIS_DB_PORT: ${NMIS_DB_PORT}
       CONTAINER: 1
     depends_on:
       - mongo
