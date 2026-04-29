@@ -151,6 +151,27 @@ sub build_queries
 		my $thisitem = $section_hash->{$itemname};
 		next unless ref $thisitem eq 'HASH';
 
+		# Index-self pattern: an item in an indexed section that declares no
+		# metric/jsonpath/calculate_url is treated as "record this row's
+		# index value" — same role SNMP fills via an OID query that returns
+		# the row's name (e.g. ifDescr in the interface table). The framework
+		# stores the result under the item's name, so a model item called
+		# 'device' produces $target->{device} = 'ens18' for the row.
+		if (defined $section_indexed && defined $index
+		    && !defined $thisitem->{metric}
+		    && !defined $thisitem->{jsonpath}
+		    && !defined $thisitem->{calculate_url})
+		{
+			$todos->{$itemname} = {
+				section  => [$section_name],
+				item     => $itemname,
+				details  => [$thisitem],
+				rawvalue => $index,
+				done     => 1,
+			};
+			next;
+		}
+
 		my $endpoint_name = $thisitem->{endpoint} // $default_endpoint_name;
 		unless (defined $endpoint_name)
 		{
