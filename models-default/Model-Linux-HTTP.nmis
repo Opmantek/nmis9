@@ -4,6 +4,25 @@
 # /status endpoint for JSON. Indexed app_queue_depth section demonstrates
 # label-as-index for systemHealth.
 #
+# Naming alignment with existing NMIS conventions (see CLAUDE.md note:
+# "NMIS modeling often takes similar datasets from different models and uses
+#  common terms for them so that the same database structure can be used,
+#  the same graphs, thresholds, etc."):
+#
+#   - load section uses graphtype 'laload' with ds names laLoad1/laLoad5/laLoad15.
+#     Same as Model-net-snmp.nmis and Model-Checkpoint.nmis populate from SNMP.
+#     Reuses Graph-laload.nmis and the 'laload' RRD path defined in
+#     Common-database.nmis.
+#
+#   - memory section uses graphtype 'Host_Memory' with ds names physical_total,
+#     available_used, physical_units (constant 1 since node_exporter values are
+#     already in bytes), swap_total, swap_used. Reuses Graph-Host_Memory.nmis
+#     and the existing Host_Memory stats expression in Common-Host_Resources.nmis.
+#
+#   - AppQueues systemHealth section is genuinely app-specific (no existing
+#     equivalent) and uses its own naming. It demonstrates label-as-index
+#     extraction; the `queue` label becomes the row index.
+#
 # Pre-requisites on the node:
 #   - http_endpoints configured with at least 'node_exporter' and 'app_status'
 #     (entered via the GUI's HTTP Endpoints (JSON) field; see
@@ -26,29 +45,24 @@
 		'nodeModel'  => 'Linux-HTTP',
 		'nodeVendor' => 'generic',
 		'nodeType'   => 'server',
-		'nodegraph'  => 'health,response,Host_Memory,laload',
+		'nodegraph'  => 'health,response,laload,Host_Memory',
 
-		# Scalar host metrics from node_exporter via Prometheus text format.
+		# Scalar host properties surfaced on the node page (catchall).
 		'sys' => {
 			'standard' => {
 				'http_prom' => {
-					'-common-'                  => { 'endpoint' => 'node_exporter' },
-					'load1'                     => { 'metric' => 'node_load1',
-					                                  'title'  => '1-minute load average' },
-					'load5'                     => { 'metric' => 'node_load5',
-					                                  'title'  => '5-minute load average' },
-					'load15'                    => { 'metric' => 'node_load15',
-					                                  'title'  => '15-minute load average' },
-					'memfree'                   => { 'metric' => 'node_memory_MemFree_bytes',
-					                                  'title'  => 'Free memory (bytes)' },
-					'memtotal'                  => { 'metric' => 'node_memory_MemTotal_bytes',
-					                                  'title'  => 'Total memory (bytes)' },
-					'memavailable'              => { 'metric' => 'node_memory_MemAvailable_bytes',
-					                                  'title'  => 'Available memory (bytes)' },
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'laLoad1'  => { 'metric' => 'node_load1',  'title' => '1-minute load average' },
+					'laLoad5'  => { 'metric' => 'node_load5',  'title' => '5-minute load average' },
+					'laLoad15' => { 'metric' => 'node_load15', 'title' => '15-minute load average' },
+					'physical_total' => { 'metric' => 'node_memory_MemTotal_bytes',
+					                       'title' => 'Total memory (bytes)' },
+					'available_used' => { 'metric' => 'node_memory_MemAvailable_bytes',
+					                       'title' => 'Available memory (bytes)' },
 				},
 			},
 
-			# Application status from a JSON endpoint.
+			# Optional application status surfaced as catchall properties.
 			'app' => {
 				'http_json' => {
 					'-common-' => { 'endpoint' => 'app_status', 'path' => '/status' },
@@ -60,33 +74,58 @@
 			},
 		},
 
-		# Per-section RRD database mapping.
+		# RRD: produce ds names that match the existing graph + stats expressions.
+		# These reuse Graph-laload.nmis, Graph-Host_Memory.nmis, and the
+		# matching DB paths in Common-database.nmis (laload, hrmem etc.).
 		'rrd' => {
-			'load' => {
+			# Load average — direct fit. Graph-laload.nmis uses laLoad1, laLoad5;
+			# laLoad15 is captured for completeness.
+			'laload' => {
 				'graphtype' => 'laload',
-				'snmp'      => { 'load1'  => { 'oid' => 'unused' } },    # placeholder
 				'http_prom' => {
 					'-common-' => { 'endpoint' => 'node_exporter' },
-					'load1'    => { 'metric' => 'node_load1' },
-					'load5'    => { 'metric' => 'node_load5' },
-					'load15'   => { 'metric' => 'node_load15' },
+					'laLoad1'  => { 'metric' => 'node_load1',  'option' => 'gauge,0:U' },
+					'laLoad5'  => { 'metric' => 'node_load5',  'option' => 'gauge,0:U' },
+					'laLoad15' => { 'metric' => 'node_load15', 'option' => 'gauge,0:U' },
 				},
 			},
-			'mem' => {
+
+			# Memory — fits Host_Memory graph. node_exporter exposes raw byte
+			# values, so physical_units is the constant 1 (the SNMP/Windows
+			# version stores pages and a units multiplier; here values are
+			# already in their final unit).
+			'Host_Memory' => {
 				'graphtype' => 'Host_Memory',
 				'http_prom' => {
-					'-common-'     => { 'endpoint' => 'node_exporter' },
-					'memfree'      => { 'metric' => 'node_memory_MemFree_bytes' },
-					'memtotal'     => { 'metric' => 'node_memory_MemTotal_bytes' },
-					'memavailable' => { 'metric' => 'node_memory_MemAvailable_bytes' },
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'physical_total' => { 'metric' => 'node_memory_MemTotal_bytes',
+					                       'option' => 'gauge,0:U' },
+					# 'available_used' is RAM Linux considers usable for new work
+					# (free + reclaimable cache + reclaimable buffers).
+					'available_used' => { 'metric' => 'node_memory_MemAvailable_bytes',
+					                       'option' => 'gauge,0:U' },
+					# physical_units is a multiplier; node_exporter values are
+					# already in bytes so multiplier is 1. The 'metric' is just
+					# something present in the scrape so the engine has a value
+					# to override; calculate replaces it with the constant.
+					'physical_units' => { 'metric' => 'node_memory_MemTotal_bytes',
+					                       'calculate' => 'return 1;',
+					                       'option' => 'gauge,0:U' },
+					'swap_total'     => { 'metric' => 'node_memory_SwapTotal_bytes',
+					                       'option' => 'gauge,0:U' },
+					# swap_used = SwapTotal - SwapFree. calculate references
+					# previously-collected raw values via CVARn=item.
+					'swap_used'      => { 'metric' => 'node_memory_SwapFree_bytes',
+					                       'calculate' => 'CVAR1=swap_total; return $CVAR1 - $r;',
+					                       'option' => 'gauge,0:U' },
 				},
 			},
 		},
 	},
 
-	# Indexed systemHealth section: one row per `queue` label value found in
-	# app_queue_depth. label_filter restricts to known queues, max_rows
-	# bounds cardinality.
+	# Application-specific indexed metric: not aligned to a stock graph because
+	# no existing NMIS section monitors per-queue depths. Demonstrates the
+	# label-as-index pattern.
 	'systemHealth' => {
 		'sections' => 'AppQueues',
 		'sys'      => {
@@ -112,8 +151,10 @@
 				'indexed'   => 'true',
 				'http_prom' => {
 					'-common-'  => { 'endpoint' => 'app_metrics' },
-					'depth'     => { 'metric' => 'app_queue_depth' },
-					'processed' => { 'metric' => 'app_queue_processed_total' },
+					'depth'     => { 'metric' => 'app_queue_depth',
+					                  'option' => 'gauge,0:U' },
+					'processed' => { 'metric' => 'app_queue_processed_total',
+					                  'option' => 'counter,0:U' },
 				},
 			},
 		},

@@ -353,7 +353,7 @@ sub init
 			for my $subtype (qw(snmp wmi http ping update))
 			{
 					my $interval = $table_policies->{$polname}->{$subtype};
-					if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
+					if ( defined $interval && $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
 					{
 						my ( $rawvalue, $unit ) = ( $1, $3 );
 						$interval = $rawvalue * (
@@ -363,11 +363,18 @@ sub init
 							:                1
 						);
 					}
+					elsif ( !defined $interval || $interval =~ /^\s*$/ )
+					{
+						# A policy that doesn't override this subtype falls back
+						# to the default cadence silently (was always benign;
+						# logging an error here was noise, especially after http
+						# was added as a recognised subtype).
+						$interval = $intervals->{default}->{$subtype};
+					}
 					else
 					{
 						$self->nmisng->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
-						$interval = $intervals->{devault}->{$subtype};
-						#$self->nmisng->log->info(&NMISNG::Log::trace()." nmisng");
+						$interval = $intervals->{default}->{$subtype};
 					}
 					$intervals->{$polname}->{$subtype} = $interval;    # now in seconds
 			}
@@ -454,11 +461,10 @@ sub init
 		}
 	}
 
-	# load node configuration - attention: only done if snmp or wmi are true
-	# and if there's a node
-	if (!$self->{error}
-			and ( $snmp or $wantwmi )
-			and $self->{name} )
+	# load node configuration if we have a node. Previously this was guarded
+	# by ($snmp or $wantwmi) as an optimization, but Engine::HTTP also needs
+	# the node config (http_endpoints) and the read is cheap, so always do it.
+	if (!$self->{error} and $self->{name})
 	{
 		# fixme9: this is truly not good, duplicated, wasteful and mangled data.
 		# sys::ndcfg and this should be eradicated altogether, and replaced by using the node object's
@@ -626,8 +632,14 @@ sub init
 
 	my $have_snmp_settings = ( $thisnodeconfig->{username} ne "" || $thisnodeconfig->{community} ne "" ) ? 1 : 0;
 	my $have_wmi_settings = ( $thisnodeconfig->{wmiusername} ne "" ) ? 1 : 0;
-	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings ) ? 1 : 0;
-	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings");
+	# http_endpoints is either a JSON string (from the GUI textbox) or an
+	# arrayref (when stored structurally); presence of either counts.
+	my $have_http_settings =
+		(ref $thisnodeconfig->{http_endpoints} eq 'ARRAY' && @{$thisnodeconfig->{http_endpoints}})
+		|| (defined $thisnodeconfig->{http_endpoints} && !ref $thisnodeconfig->{http_endpoints} && $thisnodeconfig->{http_endpoints} =~ /\S/)
+		? 1 : 0;
+	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings || $have_http_settings ) ? 1 : 0;
+	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings have_http_settings:$have_http_settings");
 	
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet), 
 	# to be wanted it needs to have a community or snmpv3 username, default of "public" must be added to config and not
@@ -1281,10 +1293,26 @@ sub getValues
 			next;
 		}
 
-		if ( (!defined( $thissection->{snmp} ) || ref $thissection->{snmp} ne "HASH") && (!defined( $thissection->{wmi} ) || ref $thissection->{wmi} ne "HASH")  )
+		# Section needs at least one data-source block matching one of the
+		# active engines' section_keys (e.g. snmp, wmi, http_prom, http_json).
+		# Engine-aware so new engines pick up coverage automatically.
+		my $has_data_source = 0;
+		for my $engine (@{$self->engines})
 		{
-			$self->nmisng->log->debug2(sub {"collection of section $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect"});
-			$status{skipped} = "skipped $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect";
+			for my $sk (@{$engine->section_keys})
+			{
+				if (defined($thissection->{$sk}) && ref($thissection->{$sk}) eq "HASH")
+				{
+					$has_data_source = 1;
+					last;
+				}
+			}
+			last if $has_data_source;
+		}
+		if (!$has_data_source)
+		{
+			$self->nmisng->log->debug2(sub {"collection of section $sectionname skipped, it has no data-source block matching any active engine; if this is desired set skip_collect"});
+			$status{skipped} = "skipped $sectionname, no data-source block for any active engine";
 			next;
 		}
 		NMISNG::Util::TODO("GRAPHTYPE: Does full removal of this code make sense?");
