@@ -1,0 +1,515 @@
+package NMISNG::Sys::Engine::HTTP;
+# HTTP polling engine - fetches and parses HTTP endpoints (Prometheus
+# text-exposition or JSON) declared on a node as `http_endpoints`.
+#
+# Section keys this engine handles:
+#   http_prom => { ... }   -> Prometheus text-exposition extraction
+#   http_json => { ... }   -> JSON body extraction via JSONPath
+#
+# Endpoints are structural deltas from node defaults (scheme, host, port);
+# `host` falls back to the node's `host` attribute. No URL string templating
+# is involved. See lib/NMISNG/PromText.pm and lib/NMISNG/JSONPath.pm for the
+# parsers; see Engine::HTTP::Auth for the auth subsystem.
+
+use strict;
+use warnings;
+use parent 'NMISNG::Sys::Engine';
+
+use Mojo::UserAgent;
+use Mojo::URL;
+use JSON::XS qw(decode_json);
+
+use NMISNG::PromText;
+use NMISNG::JSONPath;
+use NMISNG::Sys::Engine::HTTP::Auth;
+
+our $VERSION = "9.6.5";
+
+sub protocol_name { return "http"; }
+
+# This engine handles two model-section keys (one parser each); the rest of
+# the system iterates section_keys instead of just protocol_name.
+sub section_keys { return [qw(http_prom http_json)]; }
+
+sub new
+{
+	my ($class, %args) = @_;
+	my $self = $class->SUPER::new(%args);
+	$self->{endpoints}      = {};      # name => endpoint config hashref
+	$self->{response_cache} = {};      # absolute_url => { samples => ..., decoded => ..., format => ... }
+	$self->{ua}             = undef;   # lazy-init Mojo::UserAgent
+	return $self;
+}
+
+# Called by Sys::init() to register the node's endpoint list. Each endpoint
+# is a hashref { name => 'foo', scheme?, host?, port?, auth? }.
+sub set_endpoints
+{
+	my ($self, $endpoints) = @_;
+	return unless ref $endpoints eq 'ARRAY';
+	for my $ep (@$endpoints)
+	{
+		next unless ref $ep eq 'HASH' && defined $ep->{name};
+		$self->{endpoints}{$ep->{name}} = $ep;
+	}
+}
+
+sub endpoint
+{
+	my ($self, $name) = @_;
+	return $self->{endpoints}{$name};
+}
+
+sub is_active
+{
+	my ($self) = @_;
+	return scalar(keys %{$self->{endpoints}}) > 0 ? 1 : 0;
+}
+
+# Reset the per-Sys-lifecycle scrape-response cache. Called by execute_queries
+# at the start of each batch so a long-lived Sys object does not serve stale
+# bodies on its second collect cycle. Tests can call this directly.
+sub reset_cache
+{
+	my ($self) = @_;
+	$self->{response_cache} = {};
+}
+
+sub _ua
+{
+	my ($self) = @_;
+	$self->{ua} //= Mojo::UserAgent->new->request_timeout(15);
+	return $self->{ua};
+}
+
+# Build the absolute base URL for an endpoint. host falls back to the node's
+# configured host; port defaults from scheme.
+sub _endpoint_base
+{
+	my ($self, $endpoint) = @_;
+	my $scheme = $endpoint->{scheme} // 'http';
+	my $node_host = $self->sys->{cfg}{node}{host} // $self->sys->{cfg}{node}{name};
+	my $host = $endpoint->{host} // $node_host;
+	my $port = $endpoint->{port} // ($scheme eq 'https' ? 443 : 80);
+	return "$scheme://$host:$port";
+}
+
+# Resolve a path against an endpoint base. If the path is absolute (begins
+# with http:// or https://) it overrides the endpoint base entirely.
+sub _resolve_url
+{
+	my ($self, $endpoint, $path) = @_;
+	$path //= '';
+	return $path if $path =~ m{^https?://}i;
+	my $base = $self->_endpoint_base($endpoint);
+	$path = "/$path" unless $path =~ m{^/};
+	return $base . $path;
+}
+
+# Build %todos entries for one model section, dispatched per-section-key
+# (http_prom or http_json) by Sys::getValues.
+#
+# args: section_name, section_key, section_hash, section_indexed,
+#       index, port, inventory, todos
+sub build_queries
+{
+	my ($self, %args) = @_;
+	my ($section_name, $section_key, $section_hash, $section_indexed,
+	    $index, $inventory, $todos)
+		= @args{qw(section_name section_key section_hash section_indexed
+		           index inventory todos)};
+
+	my $sys = $self->sys;
+	my %status;
+
+	# Resolve the endpoint for this section: per-item endpoint > -common- > error.
+	my $common = ref $section_hash->{'-common-'} eq 'HASH' ? $section_hash->{'-common-'} : {};
+	my $default_endpoint_name = $common->{endpoint};
+
+	for my $itemname (keys %{$section_hash})
+	{
+		next if $itemname eq '-common-';
+		my $thisitem = $section_hash->{$itemname};
+		next unless ref $thisitem eq 'HASH';
+
+		my $endpoint_name = $thisitem->{endpoint} // $default_endpoint_name;
+		unless (defined $endpoint_name)
+		{
+			$status{error} = "($sys->{name}) http: section $section_name has no endpoint declared";
+			$sys->nmisng->log->error($status{error});
+			next;
+		}
+
+		my $endpoint = $self->{endpoints}{$endpoint_name};
+		unless ($endpoint)
+		{
+			$status{error} = "($sys->{name}) http: endpoint '$endpoint_name' not configured on node";
+			$sys->nmisng->log->error($status{error});
+			next;
+		}
+
+		# Resolve fetch path: calculate_url > path > '-common-'.calculate_url > '-common-'.path > parser default.
+		my $path;
+		my $calc = $thisitem->{calculate_url} // $common->{calculate_url};
+		if (defined $calc && $calc ne '')
+		{
+			my @vars = ($inventory ? $inventory->data : {});
+			my ($err, $result) = $sys->eval_string(
+				string    => $calc,
+				context   => "",
+				variables => \@vars,
+			);
+			if ($err)
+			{
+				$status{error} = "calculate_url failed: $err";
+				$sys->nmisng->log->error("($sys->{name}) http: $status{error}");
+				next;
+			}
+			$path = $result;
+		}
+		else
+		{
+			$path = $thisitem->{path} // $common->{path}
+			      // ($section_key eq 'http_prom' ? '/metrics' : undef);
+		}
+
+		unless (defined $path && $path ne '')
+		{
+			$status{error} = "($sys->{name}) http: section $section_name item $itemname has no path";
+			$sys->nmisng->log->error($status{error});
+			next;
+		}
+
+		my $url = $self->_resolve_url($endpoint, $path);
+
+		# Per-format extraction info.
+		my $extract;
+		if ($section_key eq 'http_prom')
+		{
+			my $metric = $thisitem->{metric};
+			unless (defined $metric)
+			{
+				$status{error} = "($sys->{name}) http_prom item $itemname missing 'metric'";
+				$sys->nmisng->log->error($status{error});
+				next;
+			}
+			# label_match: for indexed sections, the section's `indexed` label
+			# is fixed to the per-row index value; per-item extra labels can
+			# narrow further.
+			my %label_match;
+			if (defined $section_indexed && defined $index)
+			{
+				$label_match{$section_indexed} = $index;
+			}
+			if (ref $thisitem->{match_labels} eq 'HASH')
+			{
+				%label_match = (%label_match, %{$thisitem->{match_labels}});
+			}
+			$extract = { format => 'prom', metric => $metric, labels => \%label_match };
+		}
+		elsif ($section_key eq 'http_json')
+		{
+			my $jp = $thisitem->{jsonpath};
+			unless (defined $jp)
+			{
+				$status{error} = "($sys->{name}) http_json item $itemname missing 'jsonpath'";
+				$sys->nmisng->log->error($status{error});
+				next;
+			}
+			$extract = { format => 'json', jsonpath => $jp };
+		}
+		else
+		{
+			$status{error} = "unknown section key $section_key";
+			next;
+		}
+
+		# Dedup across multiple sections sharing the same item name.
+		if ($todos->{$itemname})
+		{
+			push @{$todos->{$itemname}{section}}, $section_name;
+			push @{$todos->{$itemname}{details}}, $thisitem;
+		}
+		else
+		{
+			$todos->{$itemname} = {
+				url      => $url,
+				endpoint => $endpoint_name,
+				extract  => $extract,
+				section  => [$section_name],
+				item     => $itemname,
+				details  => [$thisitem],
+			};
+		}
+	}
+
+	return \%status;
+}
+
+# Execute pending HTTP fetches: group todos by URL, fetch once per URL,
+# extract per-todo. Sets {rawvalue} and {done} on each todo.
+sub execute_queries
+{
+	my ($self, %args) = @_;
+	my ($todos) = @args{qw(todos)};
+
+	my $sys = $self->sys;
+	my %status;
+
+	# Find todos this engine owns (have an `extract` field).
+	my @mine = grep { ref $todos->{$_}{extract} eq 'HASH' } keys %$todos;
+	return {} unless @mine;
+
+	# Group by URL (and endpoint, since auth is per-endpoint).
+	my %by_url;
+	for my $itemname (@mine)
+	{
+		my $t = $todos->{$itemname};
+		push @{$by_url{$t->{url}}}, $itemname;
+	}
+
+	for my $url (keys %by_url)
+	{
+		my $first_item = $by_url{$url}[0];
+		my $endpoint_name = $todos->{$first_item}{endpoint};
+		my $endpoint = $self->{endpoints}{$endpoint_name};
+
+		my $cached = $self->{response_cache}{$url};
+		if (!$cached)
+		{
+			my ($body, $content_type, $err) = $self->_fetch($endpoint, $url);
+			if ($err)
+			{
+				$status{error} = $err;
+				$sys->nmisng->log->error("($sys->{name}) http: fetch $url failed: $err");
+				# Mark todos failed (leave {done} false so caller knows).
+				next;
+			}
+
+			# Parse body once per URL based on the format the FIRST todo using
+			# this URL declared. (All todos using the same URL must agree on
+			# format; engines that mix would need separate URLs.)
+			my $format = $todos->{$first_item}{extract}{format};
+			$cached = $self->_parse($body, $format);
+			$self->{response_cache}{$url} = $cached;
+		}
+
+		for my $itemname (@{$by_url{$url}})
+		{
+			my $t = $todos->{$itemname};
+			my $value = $self->_extract_value($cached, $t->{extract});
+			if (defined $value)
+			{
+				$t->{rawvalue} = $value;
+				$t->{done}     = 1;
+			}
+			else
+			{
+				$sys->nmisng->log->debug3("($sys->{name}) http: no value for item $itemname at $url");
+			}
+		}
+	}
+
+	return \%status;
+}
+
+# Discover indexes for a systemHealth section. http_prom: scrape, gather
+# distinct values of the indexed label across declared metrics, apply
+# label_filter, cap at max_rows. http_json without index_function is not
+# supported (caller should use index_function on the section instead).
+sub discover_indexes
+{
+	my ($self, %args) = @_;
+	my ($section_config, $index_var) = @args{qw(section_config index_var)};
+	my $sys = $self->sys;
+
+	# Pick the section key that has data. If both are present we pick http_prom
+	# (the only kind supported by engine-side discovery).
+	my $section_hash;
+	my $section_key;
+	if (ref $section_config->{http_prom} eq 'HASH')
+	{
+		$section_hash = $section_config->{http_prom};
+		$section_key = 'http_prom';
+	}
+	elsif (ref $section_config->{http_json} eq 'HASH')
+	{
+		return ("http_json indexed sections require index_function for discovery", undef, undef);
+	}
+	else
+	{
+		return ("no http_prom/http_json subsection in indexed section", undef, undef);
+	}
+
+	# Resolve endpoint and URL.
+	my $common = ref $section_hash->{'-common-'} eq 'HASH' ? $section_hash->{'-common-'} : {};
+	my $endpoint_name = $common->{endpoint};
+	return ("section has no endpoint declared", undef, undef) unless defined $endpoint_name;
+	my $endpoint = $self->{endpoints}{$endpoint_name};
+	return ("endpoint '$endpoint_name' not configured on node", undef, undef) unless $endpoint;
+
+	my $path = $common->{path} // '/metrics';
+	my $url = $self->_resolve_url($endpoint, $path);
+
+	# Fetch + parse.
+	my $cached = $self->{response_cache}{$url};
+	if (!$cached)
+	{
+		my ($body, $content_type, $err) = $self->_fetch($endpoint, $url);
+		return ("fetch failed: $err", undef, undef) if $err;
+		$cached = $self->_parse($body, 'prom');
+		$self->{response_cache}{$url} = $cached;
+	}
+
+	# Determine which metric names this section pulls; we only consider those
+	# samples when discovering label values, otherwise unrelated metrics
+	# pollute the index space.
+	my %metrics_of_interest;
+	for my $itemname (keys %$section_hash)
+	{
+		next if $itemname eq '-common-';
+		my $m = $section_hash->{$itemname}{metric};
+		$metrics_of_interest{$m}++ if defined $m;
+	}
+
+	my %seen;
+	for my $sample (@{$cached->{samples} // []})
+	{
+		next unless $metrics_of_interest{$sample->{name}};
+		my $val = $sample->{labels}{$index_var};
+		$seen{$val}++ if defined $val;
+	}
+
+	# Apply label_filter regex if declared.
+	my @candidates = sort keys %seen;
+	if (ref $section_config->{label_filter} eq 'HASH'
+	    && defined $section_config->{label_filter}{$index_var})
+	{
+		my $re = $section_config->{label_filter}{$index_var};
+		@candidates = grep { /$re/ } @candidates;
+	}
+
+	# Enforce max_rows cap with a single warning rather than per-row spam.
+	my $cap = $section_config->{max_rows};
+	if (defined $cap && @candidates > $cap)
+	{
+		$sys->nmisng->log->warn(
+			"($sys->{name}) http: index $index_var produced "
+			. scalar(@candidates) . " rows; capping at $cap (max_rows)");
+		@candidates = @candidates[0 .. $cap - 1];
+	}
+
+	my %targets = map { $_ => { index_var => $index_var, index_value => $_ } } @candidates;
+	return (undef, \@candidates, \%targets);
+}
+
+# --- internals -------------------------------------------------------------
+
+# HTTP fetch with auth. Returns (body, content_type, error).
+sub _fetch
+{
+	my ($self, $endpoint, $url) = @_;
+	my $ua = $self->_ua;
+
+	# Build request, apply auth headers (and any required pre-fetch like token_fetch).
+	my %headers;
+	my $auth_err = NMISNG::Sys::Engine::HTTP::Auth::apply_auth(
+		engine   => $self,
+		endpoint => $endpoint,
+		headers  => \%headers,
+	);
+	return (undef, undef, $auth_err) if $auth_err;
+
+	my $tx = $ua->build_tx(GET => $url => \%headers);
+	$tx = $ua->start($tx);
+	my $res = $tx->result;
+
+	if ($res->is_error || $res->code == 401)
+	{
+		# Optional one-shot retry with re-login for token_fetch endpoints.
+		if ($res->code == 401 && ref $endpoint->{auth} eq 'HASH'
+		    && ($endpoint->{auth}{type} // '') eq 'token_fetch'
+		    && ($endpoint->{auth}{retry_on_401} // 1))
+		{
+			NMISNG::Sys::Engine::HTTP::Auth::invalidate_token(
+				engine => $self, endpoint => $endpoint,
+			);
+			%headers = ();
+			$auth_err = NMISNG::Sys::Engine::HTTP::Auth::apply_auth(
+				engine => $self, endpoint => $endpoint, headers => \%headers,
+			);
+			return (undef, undef, $auth_err) if $auth_err;
+			$tx = $ua->start($ua->build_tx(GET => $url => \%headers));
+			$res = $tx->result;
+		}
+
+		if ($res->is_error)
+		{
+			my $code = $res->code // 0;
+			my $msg = $res->message // 'unknown';
+			return (undef, undef, "HTTP $code $msg");
+		}
+	}
+
+	my $ct = $res->headers->content_type // '';
+	return ($res->body, $ct, undef);
+}
+
+sub _parse
+{
+	my ($self, $body, $format) = @_;
+	my $out = { format => $format };
+	if ($format eq 'prom')
+	{
+		my ($samples, $errors) = NMISNG::PromText::parse_metrics($body);
+		$out->{samples} = $samples;
+		$out->{errors}  = $errors;
+	}
+	elsif ($format eq 'json')
+	{
+		my $decoded = eval { decode_json($body) };
+		if ($@) { $out->{error} = "JSON decode failed: $@"; }
+		else    { $out->{decoded} = $decoded; }
+	}
+	return $out;
+}
+
+sub _extract_value
+{
+	my ($self, $cached, $extract) = @_;
+
+	if ($extract->{format} eq 'prom')
+	{
+		my $metric = $extract->{metric};
+		my $labels = $extract->{labels} // {};
+		for my $s (@{$cached->{samples} // []})
+		{
+			next if $s->{name} ne $metric;
+			my $match = 1;
+			for my $k (keys %$labels)
+			{
+				if (!exists $s->{labels}{$k} || $s->{labels}{$k} ne $labels->{$k})
+				{
+					$match = 0;
+					last;
+				}
+			}
+			return $s->{value} if $match;
+		}
+		return undef;
+	}
+	if ($extract->{format} eq 'json')
+	{
+		return undef unless defined $cached->{decoded};
+		my ($results, $err) = NMISNG::JSONPath::extract($cached->{decoded}, $extract->{jsonpath});
+		return undef if $err;
+		# Scalar paths produce a one-element array; wildcard paths produce many.
+		# Engine returns the first result, like SNMP's get rather than gettable.
+		# Indexed sections call build_queries per-index, so each invocation
+		# already targets one row.
+		return $results->[0];
+	}
+	return undef;
+}
+
+1;

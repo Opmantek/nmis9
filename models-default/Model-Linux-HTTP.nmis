@@ -1,0 +1,121 @@
+#
+# Example model for monitoring a Linux server through HTTP endpoints rather
+# than SNMP. Targets node_exporter for host metrics and an example app
+# /status endpoint for JSON. Indexed app_queue_depth section demonstrates
+# label-as-index for systemHealth.
+#
+# Pre-requisites on the node:
+#   - http_endpoints configured with at least 'node_exporter' and 'app_status'
+#     (entered via the GUI's HTTP Endpoints (JSON) field; see
+#     conf-default/Table-Nodes.nmis for the schema).
+#   - A reachable node_exporter on the node (default port 9100, path /metrics).
+#
+
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database'  => { 'common-model' => 'database' },
+			'summary'   => { 'common-model' => 'summary' },
+			'threshold' => { 'common-model' => 'threshold' },
+			'stats'     => { 'common-model' => 'stats' },
+			'event'     => { 'common-model' => 'event' },
+		},
+	},
+
+	'system' => {
+		'nodeModel'  => 'Linux-HTTP',
+		'nodeVendor' => 'generic',
+		'nodeType'   => 'server',
+		'nodegraph'  => 'health,response,Host_Memory,laload',
+
+		# Scalar host metrics from node_exporter via Prometheus text format.
+		'sys' => {
+			'standard' => {
+				'http_prom' => {
+					'-common-'                  => { 'endpoint' => 'node_exporter' },
+					'load1'                     => { 'metric' => 'node_load1',
+					                                  'title'  => '1-minute load average' },
+					'load5'                     => { 'metric' => 'node_load5',
+					                                  'title'  => '5-minute load average' },
+					'load15'                    => { 'metric' => 'node_load15',
+					                                  'title'  => '15-minute load average' },
+					'memfree'                   => { 'metric' => 'node_memory_MemFree_bytes',
+					                                  'title'  => 'Free memory (bytes)' },
+					'memtotal'                  => { 'metric' => 'node_memory_MemTotal_bytes',
+					                                  'title'  => 'Total memory (bytes)' },
+					'memavailable'              => { 'metric' => 'node_memory_MemAvailable_bytes',
+					                                  'title'  => 'Available memory (bytes)' },
+				},
+			},
+
+			# Application status from a JSON endpoint.
+			'app' => {
+				'http_json' => {
+					'-common-' => { 'endpoint' => 'app_status', 'path' => '/status' },
+					'state'    => { 'jsonpath' => '$.app.state',
+					                 'title'    => 'Application state' },
+					'uptime'   => { 'jsonpath' => '$.app.uptime_seconds',
+					                 'title'    => 'Application uptime (seconds)' },
+				},
+			},
+		},
+
+		# Per-section RRD database mapping.
+		'rrd' => {
+			'load' => {
+				'graphtype' => 'laload',
+				'snmp'      => { 'load1'  => { 'oid' => 'unused' } },    # placeholder
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'load1'    => { 'metric' => 'node_load1' },
+					'load5'    => { 'metric' => 'node_load5' },
+					'load15'   => { 'metric' => 'node_load15' },
+				},
+			},
+			'mem' => {
+				'graphtype' => 'Host_Memory',
+				'http_prom' => {
+					'-common-'     => { 'endpoint' => 'node_exporter' },
+					'memfree'      => { 'metric' => 'node_memory_MemFree_bytes' },
+					'memtotal'     => { 'metric' => 'node_memory_MemTotal_bytes' },
+					'memavailable' => { 'metric' => 'node_memory_MemAvailable_bytes' },
+				},
+			},
+		},
+	},
+
+	# Indexed systemHealth section: one row per `queue` label value found in
+	# app_queue_depth. label_filter restricts to known queues, max_rows
+	# bounds cardinality.
+	'systemHealth' => {
+		'sections' => 'AppQueues',
+		'sys'      => {
+			'AppQueues' => {
+				'indexed'      => 'queue',
+				'index_oid'    => 'queue',
+				'label_filter' => { 'queue' => '^(orders|payments|email|notifications)$' },
+				'max_rows'     => 100,
+				'http_prom'    => {
+					'-common-'  => { 'endpoint' => 'app_metrics' },
+					'queue'     => { 'metric' => 'app_queue_depth',
+					                  'title'  => 'Queue name' },
+					'depth'     => { 'metric' => 'app_queue_depth',
+					                  'title'  => 'Current queue depth' },
+					'processed' => { 'metric' => 'app_queue_processed_total',
+					                  'title'  => 'Processed messages (total)' },
+				},
+			},
+		},
+		'rrd' => {
+			'AppQueues' => {
+				'graphtype' => 'AppQueues',
+				'indexed'   => 'true',
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'app_metrics' },
+					'depth'     => { 'metric' => 'app_queue_depth' },
+					'processed' => { 'metric' => 'app_queue_processed_total' },
+				},
+			},
+		},
+	},
+);

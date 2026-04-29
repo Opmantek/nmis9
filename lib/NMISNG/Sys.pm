@@ -119,7 +119,7 @@ sub enabled_sources
 }
 
 # Returns arrayref of all known protocol names (for iterating status checks)
-sub known_sources { return [qw(snmp wmi)]; }
+sub known_sources { return [qw(snmp wmi http)]; }
 sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!
@@ -345,12 +345,12 @@ sub init
 	my $table_policies = NMISNG::Util::loadTable(dir => "conf", name => "Polling-Policy", conf => $C) // NMISNG::Util::loadTable(dir => "conf-default", name => "Polling-Policy", conf => $C);
 	my $policy;
 	my $intervals;
-	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, update => 86400};
+	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, http => 60, update => 86400};
 	if ($policy_name) {
 		for my $polname ( keys %$table_policies )
 		{
 			next if ( ref( $table_policies->{$polname} ) ne "HASH" );
-			for my $subtype (qw(snmp wmi ping update))
+			for my $subtype (qw(snmp wmi http ping update))
 			{
 					my $interval = $table_policies->{$polname}->{$subtype};
 					if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
@@ -694,6 +694,31 @@ sub init
 	{
 		require NMISNG::Sys::Engine::WMI;
 		push @{$self->{_engines}}, NMISNG::Sys::Engine::WMI->new(sys => $self);
+	}
+	# http_endpoints may be a Perl arrayref (when stored structurally) or a
+	# JSON-encoded string (when entered via the GUI textbox); accept both.
+	my $http_eps = $thisnodeconfig->{http_endpoints};
+	if (defined $http_eps && !ref $http_eps && $http_eps =~ /\S/)
+	{
+		require JSON::XS;
+		my $decoded = eval { JSON::XS::decode_json($http_eps) };
+		if (ref $decoded eq 'ARRAY')
+		{
+			$http_eps = $decoded;
+		}
+		else
+		{
+			$self->nmisng->log->error(
+				"($self->{name}) http_endpoints failed to JSON-decode: $@");
+			$http_eps = undef;
+		}
+	}
+	if (ref $http_eps eq 'ARRAY' && @$http_eps)
+	{
+		require NMISNG::Sys::Engine::HTTP;
+		my $http_engine = NMISNG::Sys::Engine::HTTP->new(sys => $self);
+		$http_engine->set_endpoints($http_eps);
+		push @{$self->{_engines}}, $http_engine;
 	}
 
 	return $self->{error} ? 0 : 1;
@@ -1291,24 +1316,30 @@ sub getValues
 		# 	}
 		# }
 
-		# Delegate query building to protocol engines
+		# Delegate query building to protocol engines. An engine may declare
+		# multiple section keys (e.g. Engine::HTTP handles http_prom + http_json);
+		# we dispatch once per matching section key on the model section.
 		for my $engine (@{$self->engines})
 		{
 			next unless $engine->is_active;
 			my $proto = $engine->protocol_name;
-			my $section_hash = $thissection->{$proto};
-			next unless ref($section_hash) eq "HASH";
+			for my $skey (@{$engine->section_keys})
+			{
+				my $section_hash = $thissection->{$skey};
+				next unless ref($section_hash) eq "HASH";
 
-			my $eng_status = $engine->build_queries(
-				section_name    => $sectionname,
-				section_hash    => $section_hash,
-				section_indexed => $thissection->{indexed},
-				index           => $index,
-				port            => $port,
-				inventory       => $inventory,
-				todos           => \%todos,
-			);
-			$status{"${proto}_error"} = $eng_status->{error} if $eng_status->{error};
+				my $eng_status = $engine->build_queries(
+					section_name    => $sectionname,
+					section_key     => $skey,
+					section_hash    => $section_hash,
+					section_indexed => $thissection->{indexed},
+					index           => $index,
+					port            => $port,
+					inventory       => $inventory,
+					todos           => \%todos,
+				);
+				$status{"${proto}_error"} = $eng_status->{error} if $eng_status->{error};
+			}
 		}
 	}
 

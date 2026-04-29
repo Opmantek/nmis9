@@ -89,6 +89,25 @@ my @models = ('automatic', sort keys %knownmodels);
 	 { wmiversion => { header => 'WMI Version', display => 'popup', value => ["Version 2", "Version 1","wmic_server"],
 								validate => { "onefromlist" => undef }  }},
 
+	 { http => { special => 'separator', header => "HTTP Endpoints" } },
+	 { api_user => { header => "API Username", display => 'text', value => [''] }},
+	 { api_pass => { header => "API Password", display => 'password', value => [''] }},
+	 # http_endpoints is a list of records; v1 stores it as JSON in a textbox
+	 # (Sys::init accepts either a Perl arrayref or a JSON-encoded string).
+	 # Each record: { name, scheme?, host?, port?, auth? }. host falls back to
+	 # the node's `host` attribute, scheme to 'http', port from scheme.
+	 # Example:
+	 #   [
+	 #     {"name":"node_exporter","port":9100},
+	 #     {"name":"f5_api","scheme":"https","port":443,
+	 #      "auth":{"type":"token_fetch","login_url":"/mgmt/shared/authn/login",
+	 #              "method":"POST","content_type":"application/json",
+	 #              "calculate_body":"CVAR1=api_user; CVAR2=api_pass; return qq({\"username\":\"$CVAR1\",\"password\":\"$CVAR2\"});",
+	 #              "token_jsonpath":"$.token.token","inject_header":"X-F5-Auth-Token",
+	 #              "ttl_seconds":600}}
+	 #   ]
+	 { http_endpoints => { header => 'HTTP Endpoints (JSON)', display => 'textbox', value => [''] }},
+
 	 { service_management => { special => 'separator', header => 'Service Management Options',display => 'readonly',value => [""] }},
 	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Customers')}] }},
 	 { businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{Compat::NMIS::loadGenericTable('BusinessServices')} ] }},
