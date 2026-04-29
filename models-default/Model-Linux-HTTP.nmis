@@ -123,40 +123,73 @@
 		},
 	},
 
-	# Application-specific indexed metric: not aligned to a stock graph because
-	# no existing NMIS section monitors per-queue depths. Demonstrates the
-	# label-as-index pattern.
+	# Indexed systemHealth section demonstrating label-as-index extraction
+	# from Prometheus metrics. node_exporter exposes per-interface counters
+	# with a `device` label whose values are filesystem-safe identifiers
+	# (e.g. ens18, docker0, br-xxxxxxxx). Each device becomes a row.
+	#
+	# label_filter trims the inventory to interfaces operators actually want
+	# to graph — by default we keep physical/named interfaces and the docker
+	# bridge, dropping the per-container veth* pairs. Override per-node.
+	#
+	# AppQueues (commented-out below) is the alternative demo for app-style
+	# metrics — left in as documentation since the dropdown wouldn't show it
+	# on a node without those metrics.
 	'systemHealth' => {
-		'sections' => 'AppQueues',
+		'sections' => 'NetInterfaces',
 		'sys'      => {
-			'AppQueues' => {
-				'indexed'      => 'queue',
-				'index_oid'    => 'queue',
-				'label_filter' => { 'queue' => '^(orders|payments|email|notifications)$' },
+			'NetInterfaces' => {
+				'indexed'      => 'device',
+				'index_oid'    => 'device',
+				'headers'      => 'device,rx_bytes,tx_bytes',
+				'label_filter' => { 'device' => '^(en[a-z0-9]+|eth\d+|lo|docker0|br-[0-9a-f]+)$' },
 				'max_rows'     => 100,
 				'http_prom'    => {
-					'-common-'  => { 'endpoint' => 'app_metrics' },
-					'queue'     => { 'metric' => 'app_queue_depth',
-					                  'title'  => 'Queue name' },
-					'depth'     => { 'metric' => 'app_queue_depth',
-					                  'title'  => 'Current queue depth' },
-					'processed' => { 'metric' => 'app_queue_processed_total',
-					                  'title'  => 'Processed messages (total)' },
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'device'    => { 'metric' => 'node_network_receive_bytes_total',
+					                  'title'  => 'Interface name' },
+					'rx_bytes'  => { 'metric' => 'node_network_receive_bytes_total',
+					                  'title'  => 'Receive bytes (total)' },
+					'tx_bytes'  => { 'metric' => 'node_network_transmit_bytes_total',
+					                  'title'  => 'Transmit bytes (total)' },
 				},
 			},
 		},
 		'rrd' => {
-			'AppQueues' => {
-				'graphtype' => 'AppQueues',
-				'indexed'   => 'true',
+			'NetInterfaces' => {
+				'graphtype' => 'NetInterfaces',
+				# indexed = name of the Prometheus label that identifies the row.
+				# (SNMP convention is `'indexed' => 'true'` because the index
+				# is an OID suffix; for the HTTP engine the label name is what
+				# matters, so we pass it through here.)
+				'indexed'   => 'device',
 				'http_prom' => {
-					'-common-'  => { 'endpoint' => 'app_metrics' },
-					'depth'     => { 'metric' => 'app_queue_depth',
-					                  'option' => 'gauge,0:U' },
-					'processed' => { 'metric' => 'app_queue_processed_total',
-					                  'option' => 'counter,0:U' },
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'rx_bytes' => { 'metric' => 'node_network_receive_bytes_total',
+					                 'option' => 'counter,0:U' },
+					'tx_bytes' => { 'metric' => 'node_network_transmit_bytes_total',
+					                 'option' => 'counter,0:U' },
 				},
 			},
 		},
 	},
+
+	# Reference: synthetic per-queue example, kept here as documentation of
+	# how the same pattern handles application metrics. To enable, paste this
+	# block into systemHealth.sys / systemHealth.rrd, add 'AppQueues' to
+	# systemHealth.sections, and configure an http_endpoints entry named
+	# 'app_metrics' on the node with an endpoint that exposes
+	# app_queue_depth{queue=...} and app_queue_processed_total{queue=...}.
+	#
+	# 'AppQueues' => {
+	#   'indexed'      => 'queue',
+	#   'index_oid'    => 'queue',
+	#   'label_filter' => { 'queue' => '^(orders|payments|email|notifications)$' },
+	#   'max_rows'     => 100,
+	#   'http_prom'    => {
+	#     '-common-'  => { 'endpoint' => 'app_metrics' },
+	#     'depth'     => { 'metric' => 'app_queue_depth' },
+	#     'processed' => { 'metric' => 'app_queue_processed_total' },
+	#   },
+	# },
 );
