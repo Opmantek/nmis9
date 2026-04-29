@@ -33,6 +33,15 @@ sub sys { return $_[0]->{_sys}; }
 # Must be overridden by subclasses.
 sub protocol_name { confess("abstract: protocol_name must be overridden"); }
 
+# Returns an arrayref of model-section keys this engine handles. Default is
+# [protocol_name]. Engines that handle multiple section keys (e.g. Engine::HTTP
+# with http_prom and http_json) override this to return all of theirs.
+sub section_keys
+{
+	my ($self) = @_;
+	return [ $self->protocol_name ];
+}
+
 # Returns true if this engine's transport is available on the Sys object.
 # Must be overridden by subclasses.
 sub is_active { confess("abstract: is_active must be overridden"); }
