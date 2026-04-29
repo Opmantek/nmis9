@@ -146,8 +146,12 @@
 				'max_rows'     => 100,
 				'http_prom'    => {
 					'-common-'  => { 'endpoint' => 'node_exporter' },
-					'device'    => { 'metric' => 'node_network_receive_bytes_total',
-					                  'title'  => 'Interface name' },
+					# 'device' has no metric: in an indexed section, an item
+					# without a metric/jsonpath/calculate_url is the index
+					# column — the engine fills it with the row's index value
+					# (the device name like 'ens18'). Same role SNMP gets from
+					# 'ifDescr' querying the actual interface-name OID.
+					'device'    => { 'title'  => 'Interface name' },
 					'rx_bytes'  => { 'metric' => 'node_network_receive_bytes_total',
 					                  'title'  => 'Receive bytes (total)' },
 					'tx_bytes'  => { 'metric' => 'node_network_transmit_bytes_total',

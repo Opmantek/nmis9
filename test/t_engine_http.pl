@@ -291,6 +291,50 @@ sub make_engine
 	is($values{email},    7, "indexed: email");
 }
 
+# --- index-self pattern: metric-less item -> rawvalue = index value ------
+# Models commonly declare an item whose role is to record the row's
+# identifier (e.g. an interface name). With no metric/jsonpath/calculate_url,
+# the engine fills rawvalue with the index value.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my $sec_hash = {
+		'-common-' => { endpoint => 'fix' },
+		queue      => { title => 'Queue name' },              # no metric -> index-self
+		depth      => { metric => 'app_queue_depth' },
+	};
+	my %todos;
+	$eng->build_queries(
+		section_name    => 'AppQueues',
+		section_key     => 'http_prom',
+		section_hash    => $sec_hash,
+		section_indexed => 'queue',
+		index           => 'orders',
+		todos           => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	is($todos{queue}{rawvalue}, 'orders',
+		"metric-less indexed item populated with index value");
+	is($todos{queue}{done}, 1,
+		"metric-less indexed item marked done so Sys::getValues stores it");
+	is($todos{depth}{rawvalue}, 3, "sibling metric extraction still works");
+
+	# Sanity: outside an indexed section, a metric-less item is still an error
+	# (no fallback semantics make sense without an index).
+	my %nope;
+	my $bs = $eng->build_queries(
+		section_name => 'scalar_oops',
+		section_key  => 'http_prom',
+		section_hash => {
+			'-common-' => { endpoint => 'fix' },
+			x          => { title => 'no metric here' },
+		},
+		todos => \%nope,
+	);
+	ok(defined $bs->{error}, "non-indexed item without metric is still an error");
+}
+
 # --- label_filter narrows results ----------------------------------------
 {
 	my ($eng, $sys) = make_engine(
