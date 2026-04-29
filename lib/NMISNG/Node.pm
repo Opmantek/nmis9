@@ -47,6 +47,7 @@ use Statistics::Lite;
 use URI::Escape;
 use POSIX qw(:sys_wait_h :signal_h);
 use Fcntl qw(:DEFAULT :flock :mode); # for flock
+use Errno qw(ESRCH);                 # for stale-lock detection in lock()
 use Net::SNMP;									# for oid_lex_sort
 use File::Temp;
 
@@ -9285,10 +9286,17 @@ sub collect_services
 # type is set from conflict or arg, handle is the open fh, file
 #
 # note: mostly irrelevant, nmisd workers normally don't start jobs if clashing
+#
+# Stale-lock self-heal: if the recorded holder PID is no longer alive (worker
+# was killed -9, OOM-killed, or nmisd was abort'd before unlocking), the lock
+# file is removed and acquisition is retried once. ESRCH is the only verdict
+# that means "process gone"; EPERM means alive but cross-user and is left
+# alone. The _stale_retried flag prevents looping.
 sub lock
 {
 	my ($self, %args) = @_;
 	my $lock = $args{lock} // {};
+	my $retried = delete $args{_stale_retried};
 
 	my $config = $self->nmisng->config;
 	my $fn = $lock->{file} = $config->{'<nmis_var>'}."/".$self->name.".lock";
@@ -9323,6 +9331,19 @@ sub lock
 		{
 			my ($pid,$op) = split(/\s+/, <$fhandle>);
 			close($fhandle);
+
+			if (!$retried && _is_pid_stale($pid))
+			{
+				$self->nmisng->log->warn(
+					"Stale node lock for ".$self->name." held by dead PID "
+					. (defined $pid ? $pid : 'undef')
+					. " (op=" . (defined $op ? $op : 'N/A')
+					. "); removing and retrying");
+				unlink($fn);
+				delete $lock->{handle};
+				return $self->lock(%args, _stale_retried => 1);
+			}
+
 			return { conflict => ($pid || -1), type => ($op || "N/A") };
 		}
 	}
@@ -9334,6 +9355,20 @@ sub lock
 	$fhandle->autoflush;
 
 	return $lock;
+}
+
+# Private helper for lock(): is the recorded holder PID stale?
+# Returns true if undef, non-numeric, <=0, or kill(0,$pid) reports ESRCH.
+# Returns false for live PIDs, including cross-user PIDs that yield EPERM
+# (those are alive, just outside our signaling permission).
+sub _is_pid_stale
+{
+	my ($pid) = @_;
+	return 1 if !defined $pid;
+	return 1 if $pid !~ /^\d+$/;
+	return 1 if $pid <= 0;
+	$! = 0;
+	return (!kill(0, $pid) && $! == ESRCH) ? 1 : 0;
 }
 
 # unlock an existing lock and cleans up the lockfile afterwards

@@ -453,6 +453,15 @@ if (!$foreground)
 				print("Scheduler process was not running.\n");
 			}
 			unlink($pidFile) if (-f $pidFile);
+			# Sweep any per-node lock files orphaned by workers that
+			# didn't reach Node::unlock() before we killed them.
+			# Class-method form: no NMISNG instance is built in the
+			# stop/abort path, and we don't want to open a DB connection
+			# just to do a filesystem sweep (especially mid-shutdown).
+			my $cleaned = NMISNG->clear_stale_node_locks(
+				config => $config, log => $logger);
+			print("Removed $cleaned stale node lock file(s).\n")
+				if ($cleaned && !$debug);
 			exit (0);
 		}
 	}
@@ -477,6 +486,13 @@ if (!$foreground)
 					print "No processes running, nothing to kill\n";
 				}
 				unlink($pidFile) if (-f $pidFile);
+				# Sweep stale per-node lock files (workers we just killed
+				# probably didn't reach Node::unlock()). Class-method form
+				# avoids opening a DB connection during emergency shutdown.
+				my $cleaned = NMISNG->clear_stale_node_locks(
+					config => $config, log => $logger);
+				print("Removed $cleaned stale node lock file(s).\n")
+					if ($cleaned && !$debug);
 				exit(0);
 			}
 			# We are starting up; 
@@ -565,6 +581,17 @@ $nmisng->existing_timed_collections($tc_list);
 # they end up sitting there until their timeout period when
 # and nmisd wasn't running before this so they cant be active
 $nmisng->clear_active_queue();
+
+# Sweep any per-node lock files left behind by a previous run whose
+# workers died without releasing (kill -9, OOM, panic). The Node::lock
+# function self-heals on each acquisition too, but cleaning up here
+# leaves a tidy initial state so the first job for any node doesn't
+# need to do the cleanup mid-run.
+{
+	my $cleaned = $nmisng->clear_stale_node_locks();
+	$logger->info("Removed $cleaned stale node lock file(s) at startup")
+		if ($cleaned);
+}
 
 &NMISNG::rrdfunc::require_RRDs;
 
