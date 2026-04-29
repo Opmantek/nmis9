@@ -5287,7 +5287,6 @@ sub thresholdProcess
 			value      => $args{value},
 			class      => $args{class},
 			threshold_select      => $args{level_select},
-			threshold_source_file => $S->mdl->{threshold}{name}{$args{thrname}}{_source_file},
 			threshold_source  => $S->mdl->{threshold}{name}{$args{thrname}}{_source_file},
 			threshold_metric  => $args{threshold_metric},
 			threshold_key     => $args{thrname},

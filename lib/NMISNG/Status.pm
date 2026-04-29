@@ -60,7 +60,6 @@ my %known_attrs = (
 	class => 1,
 	lastupdate => 1,
 	threshold_select => 1,
-	threshold_source_file => 1,
 	threshold_source  => 1,
 	threshold_metric  => 1,
 	threshold_key     => 1,

@@ -6487,7 +6487,6 @@ sub process_alerts
 			# name does not exist for simple alerts, let's synthesize it from ds
 			name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
-			threshold_source_file => $alert->{_source_file},
 			threshold_source  => $alert->{_source_file},
 			threshold_metric  => $alert->{ds},
 			model_subconcept  => $alert->{section},
