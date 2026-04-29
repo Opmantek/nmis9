@@ -4855,7 +4855,7 @@ sub collect_systemhealth_info
 	}
 	elsif ( !@{$S->enabled_sources} )
 	{
-		$self->nmisng->log->warn("cannot get systemHealth info, neither SNMP nor WMI enabled!");
+		$self->nmisng->log->warn("cannot get systemHealth info, no enabled data sources!");
 		return 0;
 	}
 
@@ -4944,20 +4944,38 @@ sub collect_systemhealth_info
 			next;
 		}
 
-		# determine if this is an snmp- OR wmi-backed systemhealth section
-		# combination of both cannot work, as there is only one index
-		if ( exists( $thissection->{wmi} ) and exists( $thissection->{snmp} ) )
+		# Determine which engine backs this systemHealth section by finding the
+		# one whose section_keys match a data-source block on the section. Only
+		# one engine may back a given section (the index space is shared).
+		my ($engine, $protocol);
+		my $matched_engines = 0;
+		for my $eng (@{$S->engines})
 		{
-			$self->nmisng->log->error("systemhealth: section=$section cannot have both sources WMI and SNMP enabled!");
+			my $matches_this_engine = 0;
+			for my $sk (@{$eng->section_keys})
+			{
+				if (exists $thissection->{$sk})
+				{
+					$matches_this_engine = 1;
+					last;
+				}
+			}
+			if ($matches_this_engine)
+			{
+				$matched_engines++;
+				$engine = $eng;
+				$protocol = $eng->protocol_name;
+			}
+		}
+		if ($matched_engines > 1)
+		{
+			$self->nmisng->log->error("systemhealth: section=$section cannot be backed by multiple engines simultaneously!");
 			next;
 		}
 
-		my $protocol = exists($thissection->{wmi}) ? 'wmi' : 'snmp';
-		my $engine = $S->engine($protocol);
-
 		if (!$engine || !$engine->is_active)
 		{
-			$self->nmisng->log->debug2(sub {"skipping section $section: source $protocol but node $S->{name} not configured for $protocol"});
+			$self->nmisng->log->debug2(sub {"skipping section $section: no active engine has a data-source block in this section"});
 			next;
 		}
 
@@ -7330,9 +7348,9 @@ sub update_concepts
 		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
 		return 0;
 	}
-	elsif ( !$S->status->{snmp_enabled} && !$S->status->{wmi_enabled} )
+	elsif ( !@{$S->enabled_sources} )
 	{
-		$self->nmisng->log->warn("cannot get systemHealth info, neither SNMP nor WMI enabled!");
+		$self->nmisng->log->warn("cannot get systemHealth info, no enabled data sources!");
 		return 0;
 	}
 
