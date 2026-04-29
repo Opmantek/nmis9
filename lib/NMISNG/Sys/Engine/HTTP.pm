@@ -38,7 +38,26 @@ sub new
 	$self->{endpoints}      = {};      # name => endpoint config hashref
 	$self->{response_cache} = {};      # absolute_url => { samples => ..., decoded => ..., format => ... }
 	$self->{ua}             = undef;   # lazy-init Mojo::UserAgent
+	$self->{_last_error}    = undef;   # last discover_indexes/fetch failure (for classify_error)
 	return $self;
+}
+
+# Classify the last error this engine produced (used by
+# Node::collect_systemhealth_info to decide if a discover_indexes failure
+# is fatal or just "this section doesn't apply on this node").
+sub classify_error
+{
+	my ($self) = @_;
+	my $err = $self->{_last_error};
+	return undef unless defined $err;
+	# A section pointing at an endpoint the node doesn't configure is not
+	# an error in any operational sense — it's a model/node mismatch the
+	# operator can decide to address. Treat it as not_present so the
+	# caller logs at debug rather than escalating.
+	return { type => 'not_present', message => $err }
+		if $err =~ /not configured on node/i
+		|| $err =~ /no endpoint declared/i;
+	return { type => 'transport_error', message => $err };
 }
 
 # Called by Sys::init() to register the node's endpoint list. Each endpoint
@@ -143,8 +162,13 @@ sub build_queries
 		my $endpoint = $self->{endpoints}{$endpoint_name};
 		unless ($endpoint)
 		{
-			$status{error} = "($sys->{name}) http: endpoint '$endpoint_name' not configured on node";
-			$sys->nmisng->log->error($status{error});
+			# Soft skip: models commonly declare optional sections (e.g. an
+			# app_status http_json section that not every node will have an
+			# endpoint configured for). Log info-level so operators see it
+			# during initial setup, but don't poison the polling cycle with
+			# http_error status.
+			$sys->nmisng->log->info(
+				"($sys->{name}) http: section $section_name skipped — endpoint '$endpoint_name' not configured on node");
 			next;
 		}
 
@@ -341,12 +365,22 @@ sub discover_indexes
 		return ("no http_prom/http_json subsection in indexed section", undef, undef);
 	}
 
-	# Resolve endpoint and URL.
+	# Resolve endpoint and URL. _last_error is set on these soft-fail paths
+	# so classify_error can flag them as not_present (non-fatal).
 	my $common = ref $section_hash->{'-common-'} eq 'HASH' ? $section_hash->{'-common-'} : {};
 	my $endpoint_name = $common->{endpoint};
-	return ("section has no endpoint declared", undef, undef) unless defined $endpoint_name;
+	if (!defined $endpoint_name)
+	{
+		$self->{_last_error} = "section has no endpoint declared";
+		return ($self->{_last_error}, undef, undef);
+	}
 	my $endpoint = $self->{endpoints}{$endpoint_name};
-	return ("endpoint '$endpoint_name' not configured on node", undef, undef) unless $endpoint;
+	if (!$endpoint)
+	{
+		$self->{_last_error} = "endpoint '$endpoint_name' not configured on node";
+		return ($self->{_last_error}, undef, undef);
+	}
+	$self->{_last_error} = undef;
 
 	my $path = $common->{path} // '/metrics';
 	my $url = $self->_resolve_url($endpoint, $path);

@@ -394,7 +394,10 @@ sub make_engine
 	like($bs->{error}, qr/no endpoint declared/, "error mentions endpoint");
 }
 
-# --- error: endpoint not configured on node ------------------------------
+# --- soft skip: endpoint not configured on node --------------------------
+# Models commonly declare optional sections (e.g. an http_json app_status
+# block that not every node has an endpoint configured for). The engine
+# logs and skips rather than poisoning the polling cycle with http_error.
 {
 	my ($eng, $sys) = make_engine(
 		endpoints => [{ name => 'fix', port => $port }],
@@ -409,8 +412,24 @@ sub make_engine
 		},
 		todos => \%todos,
 	);
-	ok(defined $bs->{error}, "unknown endpoint reported");
-	like($bs->{error}, qr/not configured/, "error mentions configuration");
+	ok(!defined $bs->{error}, "unknown endpoint: no error returned (soft skip)");
+	is(scalar keys %todos, 0,  "unknown endpoint: no todos produced");
+
+	# discover_indexes reports the error AND classifies it as not_present
+	# so the caller (Node::collect_systemhealth_info) treats it as non-fatal.
+	my ($d_err, $d_idx) = $eng->discover_indexes(
+		section_config => {
+			indexed   => 'foo',
+			http_prom => { '-common-' => { endpoint => 'wrong_name' },
+			               x          => { metric => 'whatever' } },
+		},
+		index_var => 'foo',
+	);
+	ok(defined $d_err, "discover_indexes still surfaces missing endpoint");
+	like($d_err, qr/not configured/, "error mentions configuration");
+	my $cls = $eng->classify_error;
+	is(($cls && $cls->{type}), 'not_present',
+		"classify_error reports not_present for missing endpoint");
 }
 
 done_testing();
