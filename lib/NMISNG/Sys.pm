@@ -1598,6 +1598,7 @@ sub getValues
 						source  => $thing->{query} ? "wmi" : "snmp",   # not sure we actually need that in the alert context
 						value   => $value,
 						test_result => $result,
+						_source_file => $sectiondetails->{alert}{_source_file},
 						calculate_details => (defined($sectiondetails->{alert}{calculate_details}) && $sectiondetails->{alert}{calculate_details} ne '') ? $sectiondetails->{alert}{calculate_details} : undef,
 						inventory_id => ($inventory) ? $inventory->id : undef
 					};
@@ -1927,6 +1928,7 @@ sub loadModel
 						if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
 				}
 			}
+			$self->_tag_inline_alert_sections($self->{mdl}, $self->{mdl}, $model);
 
 			# scoped overrides are auto-discovered from models-custom (no config setting required).
 			# Override-Model-<name>.nmis  applies to Model-<name>.nmis
@@ -1950,6 +1952,16 @@ sub loadModel
 					$self->{error} = "ERROR ($self->{name}) scoped override merge failed for $path!";
 					return 0;
 				}
+				for my $tname (keys %{$data->{threshold}{name} // {}}) {
+					$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
+				}
+				for my $sect (keys %{$data->{alerts} // {}}) {
+					for my $aname (keys %{$data->{alerts}{$sect} // {}}) {
+						$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $name
+							if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+					}
+				}
+				$self->_tag_inline_alert_sections($data, $self->{mdl}, $name);
 				push @applied_overrides, { path => $path, mtime => $mtime };
 				return 1;
 			};
@@ -1987,6 +1999,7 @@ sub loadModel
 								if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
 						}
 					}
+					$self->_tag_inline_alert_sections($commonres->{data}, $self->{mdl}, $name);
 					# apply Override-Common-<feature> immediately after its base Common file
 					return 0 if (!$apply_scoped_override->("Override-Common-$feature"));
 				}
@@ -2020,6 +2033,7 @@ sub loadModel
 								if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
 						}
 					}
+					$self->_tag_inline_alert_sections($commonres->{data}, $self->{mdl}, $name);
 				}
 			}
 
@@ -2221,6 +2235,38 @@ sub loadModel
 # small internal helper that merges two hashes
 # args: self, destination hashref, source hashref, optional recursion level indicator
 # stuff from source overwrites stuff in dest, including arrays.
+# Tags _source_file on inline alert entries (alert: sub-keys inside sys/rrd section DSes).
+# Reads from $source (never the shared cache), writes into $dest (the merged model).
+# For primary model source == dest (already cloned). For common/override they differ.
+sub _tag_inline_alert_sections
+{
+	my ($self, $source, $dest, $filename) = @_;
+	for my $root_sect (keys %$source)
+	{
+		next if grep { $_ eq $root_sect }
+			qw(-common- alerts database event heading stats summary threshold);
+		for my $rrd_or_sys (qw(sys rrd))
+		{
+			my $section_map = $source->{$root_sect}{$rrd_or_sys} // {};
+			for my $sect_key (keys %$section_map)
+			{
+				for my $proto (qw(snmp wmi))
+				{
+					for my $ds (keys %{$section_map->{$sect_key}{$proto} // {}})
+					{
+						next unless ref($section_map->{$sect_key}{$proto}{$ds}) eq 'HASH';
+						next unless ref($section_map->{$sect_key}{$proto}{$ds}{alert}) eq 'HASH';
+						$dest->{$root_sect}{$rrd_or_sys}{$sect_key}{$proto}{$ds}{alert}{_source_file}
+							= $filename
+							if ref(($dest->{$root_sect}{$rrd_or_sys}{$sect_key}{$proto}{$ds} // {})->{alert})
+							   eq 'HASH';
+					}
+				}
+			}
+		}
+	}
+}
+
 #
 # returns: destination hashref or undef, also sets details for status().
 sub _mergeHash

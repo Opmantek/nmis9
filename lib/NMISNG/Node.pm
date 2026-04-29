@@ -6488,6 +6488,10 @@ sub process_alerts
 			name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
 			threshold_source_file => $alert->{_source_file},
+			threshold_source  => $alert->{_source_file},
+			threshold_metric  => $alert->{ds},
+			model_subconcept  => $alert->{section},
+			threshold_key     => $alert->{alert} // $alert->{ds},
 			inventory_id => $alert->{inventory_id}
 		);
 		my $save_error = $status_obj->save();

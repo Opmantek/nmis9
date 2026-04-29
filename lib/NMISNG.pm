@@ -350,6 +350,8 @@ sub applyThresholdToInventory
 			index        => $index,                          # crucial for context
 			class        => $class,                          # crucial for context
 			level_select => $levelinfo->{level_select},
+			threshold_metric => $item,
+			model_subconcept => $type,
 			inventory_id => $inventory->id
 		);
 	}
@@ -5286,6 +5288,10 @@ sub thresholdProcess
 			class      => $args{class},
 			threshold_select      => $args{level_select},
 			threshold_source_file => $S->mdl->{threshold}{name}{$args{thrname}}{_source_file},
+			threshold_source  => $S->mdl->{threshold}{name}{$args{thrname}}{_source_file},
+			threshold_metric  => $args{threshold_metric},
+			threshold_key     => $args{thrname},
+			model_subconcept  => $args{model_subconcept},
 			inventory_id => NMISNG::DB::make_oid( $args{inventory_id} )
 		);
 		my $save_error = $status_obj->save();
