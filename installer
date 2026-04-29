@@ -57,7 +57,11 @@ Usage: $me [-hyd] [-t /some/path] [-m T|t|F|f] [[-p|-P] /some/file] [optX=valX..
 -P:  generate default preseed file\n\n
 -m:  mongodb TRUE|true|T|t     Do install, setup and upgrade MongoDB (default)
              FALSE|false|F|f   Don't install, setup or upgrade MongoDB\n
--o  offline mode, do not attempt to access the web";
+-o  offline mode, do not attempt to access the web
+
+allow_selinux=1  bypass the interactive SELinux prompt (for unattended
+                 installs on SELinux-enforcing hosts). Can also be supplied
+                 as the OPT_ALLOW_SELINUX environment variable.";
 
 my (%options, %extras);
 die $usage if ( @ARGV == 1 && $ARGV[0] =~ /^-(\?|h|-help)$/i
