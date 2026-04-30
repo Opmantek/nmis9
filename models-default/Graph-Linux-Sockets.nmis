@@ -1,0 +1,37 @@
+#
+# Graph-Linux-Sockets.nmis — kernel socket-table snapshot.
+#
+%hash = (
+	'heading' => 'Linux Sockets',
+	'title' => {
+		'standard' => '$node Sockets - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Sockets - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Open sockets',
+		'small'    => 'sockets',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:tcp_in=$database:sock_tcp_inuse:AVERAGE',
+			'DEF:tcp_tw=$database:sock_tcp_tw:AVERAGE',
+			'DEF:udp_in=$database:sock_udp_inuse:AVERAGE',
+			'DEF:total=$database:sock_total:AVERAGE',
+			'AREA:tcp_in#00BFFF: TCP in-use',
+			'GPRINT:tcp_in:AVERAGE:Avg %5.0lf',
+			'GPRINT:tcp_in:MAX:Max %5.0lf\\n',
+			'STACK:tcp_tw#FFA07A: TCP TIME_WAIT',
+			'GPRINT:tcp_tw:AVERAGE:Avg %5.0lf',
+			'GPRINT:tcp_tw:MAX:Max %5.0lf\\n',
+			'STACK:udp_in#7CFC00: UDP in-use',
+			'GPRINT:udp_in:AVERAGE:Avg %5.0lf',
+			'GPRINT:udp_in:MAX:Max %5.0lf\\n',
+			'LINE1:total#FF0000: Total',
+			'GPRINT:total:AVERAGE:Avg %5.0lf\\n',
+		],
+		'small' => [
+			'DEF:total=$database:sock_total:AVERAGE',
+			'AREA:total#00BFFF: total',
+		],
+	},
+);

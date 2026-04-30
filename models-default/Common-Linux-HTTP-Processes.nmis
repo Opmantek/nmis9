@@ -1,0 +1,29 @@
+#
+# Common-Linux-HTTP-Processes.nmis
+#
+# Process counts and fork rate from node_exporter.
+#   procs_running  - currently runnable processes (gauge)
+#   procs_blocked  - processes blocked on I/O (gauge)
+#   forks_total    - cumulative fork() calls (counter -> rate per second)
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_processes' => '/nodes/$node/health/linux_processes.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_processes' => {
+				'graphtype' => 'Linux-Processes',
+				'http_prom' => {
+					'-common-'      => { 'endpoint' => 'node_exporter' },
+					'procs_running' => { 'metric' => 'node_procs_running', 'option' => 'gauge,0:U' },
+					'procs_blocked' => { 'metric' => 'node_procs_blocked', 'option' => 'gauge,0:U' },
+					'forks_rate'    => { 'metric' => 'node_forks_total',   'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

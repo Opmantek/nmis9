@@ -1,43 +1,64 @@
 #
-# Example model for monitoring a Linux server through HTTP endpoints rather
-# than SNMP. Targets node_exporter for host metrics and an example app
-# /status endpoint for JSON. Indexed app_queue_depth section demonstrates
-# label-as-index for systemHealth.
+# Model-Linux-HTTP.nmis — comprehensive node_exporter coverage.
 #
-# Naming alignment with existing NMIS conventions (see CLAUDE.md note:
-# "NMIS modeling often takes similar datasets from different models and uses
-#  common terms for them so that the same database structure can be used,
-#  the same graphs, thresholds, etc."):
-#
-#   - load section uses graphtype 'laload' with ds names laLoad1/laLoad5/laLoad15.
-#     Same as Model-net-snmp.nmis and Model-Checkpoint.nmis populate from SNMP.
-#     Reuses Graph-laload.nmis and the 'laload' RRD path defined in
-#     Common-database.nmis.
-#
-#   - memory section uses graphtype 'Host_Memory' with ds names physical_total,
-#     available_used, physical_units (constant 1 since node_exporter values are
-#     already in bytes), swap_total, swap_used. Reuses Graph-Host_Memory.nmis
-#     and the existing Host_Memory stats expression in Common-Host_Resources.nmis.
-#
-#   - AppQueues systemHealth section is genuinely app-specific (no existing
-#     equivalent) and uses its own naming. It demonstrates label-as-index
-#     extraction; the `queue` label becomes the row index.
+# This file is intentionally small. All actual sys/rrd/systemHealth
+# content lives in topic-specific Common-Linux-HTTP-*.nmis files,
+# pulled in via the -common-.class block below. To enable or disable
+# a whole category of metrics, just comment / uncomment its include
+# line — that's the coarsest of three toggle layers, see the plan
+# (root: nmis-monitors-devices-using-linked-hearth.md) for the others.
 #
 # Pre-requisites on the node:
-#   - http_endpoints configured with at least 'node_exporter' and 'app_status'
-#     (entered via the GUI's HTTP Endpoints (JSON) field; see
-#     conf-default/Table-Nodes.nmis for the schema).
-#   - A reachable node_exporter on the node (default port 9100, path /metrics).
+#   - http_endpoints configured with at least { name => 'node_exporter',
+#     port => 9100 } (entered via the GUI's "HTTP Endpoints (JSON)"
+#     field; see conf-default/Table-Nodes.nmis for the schema).
+#   - A reachable node_exporter on the node (default port 9100, path
+#     /metrics). Default-off topics (Systemd, Hardware, APT, Conntrack)
+#     additionally require their respective node_exporter collectors
+#     to be enabled.
 #
 
 %hash = (
 	'-common-' => {
 		'class' => {
+			# NMIS standard plumbing — every model includes these.
 			'database'  => { 'common-model' => 'database' },
 			'summary'   => { 'common-model' => 'summary' },
 			'threshold' => { 'common-model' => 'threshold' },
 			'stats'     => { 'common-model' => 'stats' },
 			'event'     => { 'common-model' => 'event' },
+
+			# Linux-HTTP categories. Each Common-Linux-HTTP-* file is
+			# self-contained: it declares its own sys/rrd/systemHealth
+			# sections, its own database.type RRD-path mappings for the
+			# subconcepts it introduces, its own stats expressions, and
+			# its own thresholds. Disabling a topic = comment one line.
+			#
+			# Default-on:
+			'lh_load'        => { 'common-model' => 'Linux-HTTP-Load' },
+			'lh_memory'      => { 'common-model' => 'Linux-HTTP-Memory' },
+			'lh_cpu'         => { 'common-model' => 'Linux-HTTP-CPU' },
+			'lh_filesystem'  => { 'common-model' => 'Linux-HTTP-Filesystem' },
+			'lh_disk_io'     => { 'common-model' => 'Linux-HTTP-DiskIO' },
+			'lh_network'     => { 'common-model' => 'Linux-HTTP-Network' },
+			'lh_processes'   => { 'common-model' => 'Linux-HTTP-Processes' },
+			'lh_fd'          => { 'common-model' => 'Linux-HTTP-FileDescriptors' },
+			'lh_pressure'    => { 'common-model' => 'Linux-HTTP-Pressure' },
+			'lh_sockets'     => { 'common-model' => 'Linux-HTTP-Sockets' },
+			'lh_netstat'     => { 'common-model' => 'Linux-HTTP-Netstat' },
+			'lh_vmstat'      => { 'common-model' => 'Linux-HTTP-VMstat' },
+			'lh_sched'       => { 'common-model' => 'Linux-HTTP-Scheduler' },
+			'lh_time'        => { 'common-model' => 'Linux-HTTP-Time' },
+			'lh_os'          => { 'common-model' => 'Linux-HTTP-OS' },
+			'lh_entropy'     => { 'common-model' => 'Linux-HTTP-Entropy' },
+			'lh_arp'         => { 'common-model' => 'Linux-HTTP-ARP' },
+
+			# Default-off — uncomment for hosts that have these collectors
+			# enabled / are running on appropriate hardware:
+			# 'lh_systemd'   => { 'common-model' => 'Linux-HTTP-Systemd' },
+			# 'lh_hwmon'     => { 'common-model' => 'Linux-HTTP-Hardware' },
+			# 'lh_apt'       => { 'common-model' => 'Linux-HTTP-APT' },
+			# 'lh_conntrack' => { 'common-model' => 'Linux-HTTP-Conntrack' },
 		},
 	},
 
@@ -45,155 +66,21 @@
 		'nodeModel'  => 'Linux-HTTP',
 		'nodeVendor' => 'generic',
 		'nodeType'   => 'server',
+		# nodegraph aggregates graphtype names that should appear on the
+		# node summary page. Each Common-Linux-HTTP-* file contributes
+		# its own graphtypes via systemHealth/rrd sections; this list
+		# names the ones we want surfaced as direct node-page graphs
+		# (vs. drilled-into via the System Health dropdown).
 		'nodegraph'  => 'health,response,laload,Host_Memory',
-
-		# Scalar host properties surfaced on the node page (catchall).
-		'sys' => {
-			'standard' => {
-				'http_prom' => {
-					'-common-' => { 'endpoint' => 'node_exporter' },
-					'laLoad1'  => { 'metric' => 'node_load1',  'title' => '1-minute load average' },
-					'laLoad5'  => { 'metric' => 'node_load5',  'title' => '5-minute load average' },
-					'laLoad15' => { 'metric' => 'node_load15', 'title' => '15-minute load average' },
-					'physical_total' => { 'metric' => 'node_memory_MemTotal_bytes',
-					                       'title' => 'Total memory (bytes)' },
-					'available_used' => { 'metric' => 'node_memory_MemAvailable_bytes',
-					                       'title' => 'Available memory (bytes)' },
-				},
-			},
-
-			# Optional application status surfaced as catchall properties.
-			'app' => {
-				'http_json' => {
-					'-common-' => { 'endpoint' => 'app_status', 'path' => '/status' },
-					'state'    => { 'jsonpath' => '$.app.state',
-					                 'title'    => 'Application state' },
-					'uptime'   => { 'jsonpath' => '$.app.uptime_seconds',
-					                 'title'    => 'Application uptime (seconds)' },
-				},
-			},
-		},
-
-		# RRD: produce ds names that match the existing graph + stats expressions.
-		# These reuse Graph-laload.nmis, Graph-Host_Memory.nmis, and the
-		# matching DB paths in Common-database.nmis (laload, hrmem etc.).
-		'rrd' => {
-			# Load average — direct fit. Graph-laload.nmis uses laLoad1, laLoad5;
-			# laLoad15 is captured for completeness.
-			'laload' => {
-				'graphtype' => 'laload',
-				'http_prom' => {
-					'-common-' => { 'endpoint' => 'node_exporter' },
-					'laLoad1'  => { 'metric' => 'node_load1',  'option' => 'gauge,0:U' },
-					'laLoad5'  => { 'metric' => 'node_load5',  'option' => 'gauge,0:U' },
-					'laLoad15' => { 'metric' => 'node_load15', 'option' => 'gauge,0:U' },
-				},
-			},
-
-			# Memory — fits Host_Memory graph. node_exporter exposes raw byte
-			# values, so physical_units is the constant 1 (the SNMP/Windows
-			# version stores pages and a units multiplier; here values are
-			# already in their final unit).
-			'Host_Memory' => {
-				'graphtype' => 'Host_Memory',
-				'http_prom' => {
-					'-common-' => { 'endpoint' => 'node_exporter' },
-					'physical_total' => { 'metric' => 'node_memory_MemTotal_bytes',
-					                       'option' => 'gauge,0:U' },
-					# 'available_used' is RAM Linux considers usable for new work
-					# (free + reclaimable cache + reclaimable buffers).
-					'available_used' => { 'metric' => 'node_memory_MemAvailable_bytes',
-					                       'option' => 'gauge,0:U' },
-					# physical_units is a multiplier; node_exporter values are
-					# already in bytes so multiplier is 1. The 'metric' is just
-					# something present in the scrape so the engine has a value
-					# to override; calculate replaces it with the constant.
-					'physical_units' => { 'metric' => 'node_memory_MemTotal_bytes',
-					                       'calculate' => 'return 1;',
-					                       'option' => 'gauge,0:U' },
-					'swap_total'     => { 'metric' => 'node_memory_SwapTotal_bytes',
-					                       'option' => 'gauge,0:U' },
-					# swap_used = SwapTotal - SwapFree. calculate references
-					# previously-collected raw values via CVARn=item.
-					'swap_used'      => { 'metric' => 'node_memory_SwapFree_bytes',
-					                       'calculate' => 'CVAR1=swap_total; return $CVAR1 - $r;',
-					                       'option' => 'gauge,0:U' },
-				},
-			},
-		},
 	},
 
-	# Indexed systemHealth section demonstrating label-as-index extraction
-	# from Prometheus metrics. node_exporter exposes per-interface counters
-	# with a `device` label whose values are filesystem-safe identifiers
-	# (e.g. ens18, docker0, br-xxxxxxxx). Each device becomes a row.
-	#
-	# label_filter trims the inventory to interfaces operators actually want
-	# to graph — by default we keep physical/named interfaces and the docker
-	# bridge, dropping the per-container veth* pairs. Override per-node.
-	#
-	# AppQueues (commented-out below) is the alternative demo for app-style
-	# metrics — left in as documentation since the dropdown wouldn't show it
-	# on a node without those metrics.
+	# Aggregate list of all systemHealth sections this model can
+	# populate. Each section's sys+rrd content lives in its
+	# Common-Linux-HTTP-* file; if that Common file is commented out
+	# above, NMIS will silently skip the section here. Centralising
+	# the list is necessary because 'sections' is a string and a Common
+	# file declaring its own would just clobber the others.
 	'systemHealth' => {
-		'sections' => 'NetInterfaces',
-		'sys'      => {
-			'NetInterfaces' => {
-				'indexed'      => 'device',
-				'index_oid'    => 'device',
-				'headers'      => 'device,rx_bytes,tx_bytes',
-				'label_filter' => { 'device' => '^(en[a-z0-9]+|eth\d+|lo|docker0|br-[0-9a-f]+)$' },
-				'max_rows'     => 100,
-				'http_prom'    => {
-					'-common-'  => { 'endpoint' => 'node_exporter' },
-					# 'device' has no metric: in an indexed section, an item
-					# without a metric/jsonpath/calculate_url is the index
-					# column — the engine fills it with the row's index value
-					# (the device name like 'ens18'). Same role SNMP gets from
-					# 'ifDescr' querying the actual interface-name OID.
-					'device'    => { 'title'  => 'Interface name' },
-					'rx_bytes'  => { 'metric' => 'node_network_receive_bytes_total',
-					                  'title'  => 'Receive bytes (total)' },
-					'tx_bytes'  => { 'metric' => 'node_network_transmit_bytes_total',
-					                  'title'  => 'Transmit bytes (total)' },
-				},
-			},
-		},
-		'rrd' => {
-			'NetInterfaces' => {
-				'graphtype' => 'NetInterfaces',
-				# indexed = name of the Prometheus label that identifies the row.
-				# (SNMP convention is `'indexed' => 'true'` because the index
-				# is an OID suffix; for the HTTP engine the label name is what
-				# matters, so we pass it through here.)
-				'indexed'   => 'device',
-				'http_prom' => {
-					'-common-' => { 'endpoint' => 'node_exporter' },
-					'rx_bytes' => { 'metric' => 'node_network_receive_bytes_total',
-					                 'option' => 'counter,0:U' },
-					'tx_bytes' => { 'metric' => 'node_network_transmit_bytes_total',
-					                 'option' => 'counter,0:U' },
-				},
-			},
-		},
+		'sections' => 'CpuCores,LinuxFilesystem,LinuxDiskIO,NetInterfaces,SystemdUnits,HardwareSensors',
 	},
-
-	# Reference: synthetic per-queue example, kept here as documentation of
-	# how the same pattern handles application metrics. To enable, paste this
-	# block into systemHealth.sys / systemHealth.rrd, add 'AppQueues' to
-	# systemHealth.sections, and configure an http_endpoints entry named
-	# 'app_metrics' on the node with an endpoint that exposes
-	# app_queue_depth{queue=...} and app_queue_processed_total{queue=...}.
-	#
-	# 'AppQueues' => {
-	#   'indexed'      => 'queue',
-	#   'index_oid'    => 'queue',
-	#   'label_filter' => { 'queue' => '^(orders|payments|email|notifications)$' },
-	#   'max_rows'     => 100,
-	#   'http_prom'    => {
-	#     '-common-'  => { 'endpoint' => 'app_metrics' },
-	#     'depth'     => { 'metric' => 'app_queue_depth' },
-	#     'processed' => { 'metric' => 'app_queue_processed_total' },
-	#   },
-	# },
 );

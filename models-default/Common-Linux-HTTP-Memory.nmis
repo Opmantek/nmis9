@@ -1,0 +1,78 @@
+#
+# Common-Linux-HTTP-Memory.nmis
+#
+# Linux memory + swap from node_exporter. The headline RRD subconcept
+# 'Host_Memory' uses the same ds names that Graph-Host_Memory.nmis
+# expects (physical_total, available_used, physical_units, swap_total,
+# swap_used) so the stock graph + the existing realMemUtil / swapMemUtil
+# stats expressions in Common-Host_Resources.nmis just work.
+#
+# The secondary 'linux_mem_detail' subconcept captures the rest of
+# /proc/meminfo (Buffers, Cached, Slab, Dirty, Writeback, KernelStack,
+# AnonPages) for diagnostic deep-dives.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			# Host_Memory is also declared in Common-Host_Resources.nmis with
+			# a different path (hrMemory.rrd). For Linux-HTTP we keep the
+			# host_memory.rrd path that's been in use since the engine
+			# landed; if both Common files end up in the include chain
+			# (they don't currently), latest-wins applies.
+			'Host_Memory'      => '/nodes/$node/health/host_memory.rrd',
+			'linux_mem_detail' => '/nodes/$node/health/linux_mem_detail.rrd',
+		},
+	},
+
+	'system' => {
+		'sys' => {
+			'standard' => {
+				'http_prom' => {
+					'-common-'      => { 'endpoint' => 'node_exporter' },
+					'physical_total' => { 'metric' => 'node_memory_MemTotal_bytes',
+					                       'title'  => 'Total memory (bytes)' },
+					'available_used' => { 'metric' => 'node_memory_MemAvailable_bytes',
+					                       'title'  => 'Available memory (bytes)' },
+				},
+			},
+		},
+		'rrd' => {
+			'Host_Memory' => {
+				'graphtype' => 'Host_Memory',
+				'http_prom' => {
+					'-common-'        => { 'endpoint' => 'node_exporter' },
+					'physical_total' => { 'metric' => 'node_memory_MemTotal_bytes',
+					                       'option' => 'gauge,0:U' },
+					'available_used' => { 'metric' => 'node_memory_MemAvailable_bytes',
+					                       'option' => 'gauge,0:U' },
+					# physical_units is the SNMP/Windows-style multiplier; for
+					# node_exporter (already bytes) it is simply the constant 1.
+					# We pull any metric just so the engine has a value for the
+					# calculate expression to override.
+					'physical_units' => { 'metric'    => 'node_memory_MemTotal_bytes',
+					                       'calculate' => 'return 1;',
+					                       'option'    => 'gauge,0:U' },
+					'swap_total'     => { 'metric' => 'node_memory_SwapTotal_bytes',
+					                       'option' => 'gauge,0:U' },
+					'swap_used'      => { 'metric'    => 'node_memory_SwapFree_bytes',
+					                       'calculate' => 'CVAR1=swap_total; return $CVAR1 - $r;',
+					                       'option'    => 'gauge,0:U' },
+				},
+			},
+			'linux_mem_detail' => {
+				'graphtype' => 'Linux-MemoryDetail',
+				'http_prom' => {
+					'-common-'   => { 'endpoint' => 'node_exporter' },
+					'mem_free'    => { 'metric' => 'node_memory_MemFree_bytes',     'option' => 'gauge,0:U' },
+					'mem_buffers' => { 'metric' => 'node_memory_Buffers_bytes',     'option' => 'gauge,0:U' },
+					'mem_cached'  => { 'metric' => 'node_memory_Cached_bytes',      'option' => 'gauge,0:U' },
+					'mem_slab'    => { 'metric' => 'node_memory_Slab_bytes',        'option' => 'gauge,0:U' },
+					'mem_dirty'   => { 'metric' => 'node_memory_Dirty_bytes',       'option' => 'gauge,0:U' },
+					'mem_wb'      => { 'metric' => 'node_memory_Writeback_bytes',   'option' => 'gauge,0:U' },
+					'mem_anon'    => { 'metric' => 'node_memory_AnonPages_bytes',   'option' => 'gauge,0:U' },
+					'mem_kstack'  => { 'metric' => 'node_memory_KernelStack_bytes', 'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

@@ -1,0 +1,39 @@
+#
+# Graph-Linux-VMstat.nmis — page faults / page in-out / swap in-out per second.
+#
+%hash = (
+	'heading' => 'Linux VM stats',
+	'title' => {
+		'standard' => '$node VMstat - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node VMstat - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Pages per second',
+		'small'    => 'pgs/s',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:fault=$database:pgfault:AVERAGE',
+			'DEF:major=$database:pgmajfault:AVERAGE',
+			'DEF:swp_in=$database:pswpin:AVERAGE',
+			'DEF:swp_out=$database:pswpout:AVERAGE',
+			'DEF:oom=$database:oom_kill:AVERAGE',
+			'LINE1:fault#1E90FF: Page faults/s',
+			'GPRINT:fault:AVERAGE:Avg %7.1lf\\n',
+			'LINE2:major#FF8C00: Major faults/s',
+			'GPRINT:major:AVERAGE:Avg %5.2lf\\n',
+			'LINE1:swp_in#FF0000: Swap in/s',
+			'GPRINT:swp_in:AVERAGE:Avg %5.2lf\\n',
+			'LINE1:swp_out#8B0000: Swap out/s',
+			'GPRINT:swp_out:AVERAGE:Avg %5.2lf\\n',
+			'LINE2:oom#000000: OOM-kill/s',
+			'GPRINT:oom:AVERAGE:Avg %5.2lf\\n',
+		],
+		'small' => [
+			'DEF:fault=$database:pgfault:AVERAGE',
+			'DEF:major=$database:pgmajfault:AVERAGE',
+			'LINE1:fault#1E90FF: faults',
+			'LINE2:major#FF8C00: major',
+		],
+	},
+);

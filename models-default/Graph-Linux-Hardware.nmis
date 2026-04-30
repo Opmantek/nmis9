@@ -1,0 +1,26 @@
+#
+# Graph-Linux-Hardware.nmis — per-sensor temperature.
+#
+%hash = (
+	'heading' => 'Hardware sensor $index',
+	'title' => {
+		'standard' => '$node $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Temperature (°C)',
+		'small'    => '°C',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:t=$database:temp_celsius:AVERAGE',
+			'LINE1:t#FF0000: Temp °C',
+			'GPRINT:t:AVERAGE:Avg %5.1lf',
+			'GPRINT:t:MAX:Max %5.1lf\\n',
+		],
+		'small' => [
+			'DEF:t=$database:temp_celsius:AVERAGE',
+			'LINE1:t#FF0000: temp',
+		],
+	},
+);

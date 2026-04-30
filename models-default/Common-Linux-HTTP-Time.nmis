@@ -1,0 +1,43 @@
+#
+# Common-Linux-HTTP-Time.nmis
+#
+# Boot time + clock skew / NTP discipline indicators from node_exporter.
+# Stored as gauges; the difference between samples isn't usually
+# meaningful here — what matters is the current value (e.g. is the
+# clock offset growing? is sync_status zero?).
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_ntp' => '/nodes/$node/health/linux_ntp.rrd',
+		},
+	},
+
+	'system' => {
+		'sys' => {
+			'standard' => {
+				'http_prom' => {
+					'-common-'         => { 'endpoint' => 'node_exporter' },
+					'boot_time'         => { 'metric' => 'node_boot_time_seconds',
+					                          'title'  => 'Boot time (epoch seconds)' },
+					'time_zone_offset'  => { 'metric' => 'node_time_zone_offset_seconds',
+					                          'title'  => 'Timezone offset (seconds)' },
+				},
+			},
+		},
+		'rrd' => {
+			'linux_ntp' => {
+				'graphtype' => 'Linux-NTP',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'node_exporter' },
+					'time_offset' => { 'metric' => 'node_timex_offset_seconds',
+					                    'option' => 'gauge,U:U' },
+					'sync_status' => { 'metric' => 'node_timex_sync_status',
+					                    'option' => 'gauge,0:U' },
+					'maxerror'    => { 'metric' => 'node_timex_maxerror_seconds',
+					                    'option' => 'gauge,U:U' },
+				},
+			},
+		},
+	},
+);

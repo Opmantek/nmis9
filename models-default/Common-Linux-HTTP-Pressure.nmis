@@ -1,0 +1,48 @@
+#
+# Common-Linux-HTTP-Pressure.nmis
+#
+# Linux Pressure Stall Information (PSI) from node_exporter (kernel 4.20+).
+# Each metric is a counter of seconds; rate-per-second across an interval
+# is the fraction of time tasks were waiting/stalled on the resource.
+#   psi_*_waiting - some-tasks waiting (partial pressure)
+#   psi_*_stalled - all-tasks stalled (full pressure)
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_pressure' => '/nodes/$node/health/linux_pressure.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_pressure' => {
+				'graphtype' => 'Linux-Pressure',
+				'http_prom' => {
+					'-common-'        => { 'endpoint' => 'node_exporter' },
+					# PSI metrics are cumulative-seconds counters with
+					# fractional values (e.g. 1378.893251). RRD's COUNTER
+					# and DERIVE both reject non-integer input, so we
+					# scale by 1000 (-> integer milliseconds) in calculate
+					# and store as COUNTER. Graph CDEFs divide by 1000
+					# to recover the original rate-as-fraction.
+					'psi_cpu_wait'   => { 'metric'    => 'node_pressure_cpu_waiting_seconds_total',
+					                       'calculate' => 'return int($r * 1000);',
+					                       'option'    => 'counter,0:U' },
+					'psi_io_wait'    => { 'metric'    => 'node_pressure_io_waiting_seconds_total',
+					                       'calculate' => 'return int($r * 1000);',
+					                       'option'    => 'counter,0:U' },
+					'psi_io_stall'   => { 'metric'    => 'node_pressure_io_stalled_seconds_total',
+					                       'calculate' => 'return int($r * 1000);',
+					                       'option'    => 'counter,0:U' },
+					'psi_mem_wait'   => { 'metric'    => 'node_pressure_memory_waiting_seconds_total',
+					                       'calculate' => 'return int($r * 1000);',
+					                       'option'    => 'counter,0:U' },
+					'psi_mem_stall'  => { 'metric'    => 'node_pressure_memory_stalled_seconds_total',
+					                       'calculate' => 'return int($r * 1000);',
+					                       'option'    => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

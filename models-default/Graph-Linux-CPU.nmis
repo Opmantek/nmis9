@@ -1,0 +1,46 @@
+#
+# Graph-Linux-CPU.nmis — per-core CPU time by mode (counters).
+# RRD COUNTER converts cumulative seconds to per-second rates; rate
+# of 1.0 means the core spent 100% in that mode.
+#
+%hash = (
+	'heading' => 'Linux CPU $index',
+	'title' => {
+		'standard' => '$node CPU $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node CPU $index - $length',
+	},
+	'vlabel' => {
+		'standard' => 'CPU time fraction',
+		'small'    => 'frac',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:user=$database:mode_user:AVERAGE',
+			'DEF:sys=$database:mode_system:AVERAGE',
+			'DEF:wait=$database:mode_iowait:AVERAGE',
+			'DEF:irq=$database:mode_irq:AVERAGE',
+			'DEF:soft=$database:mode_softirq:AVERAGE',
+			'DEF:steal=$database:mode_steal:AVERAGE',
+			'DEF:nice=$database:mode_nice:AVERAGE',
+			'DEF:idle=$database:mode_idle:AVERAGE',
+			'AREA:user#1E90FF: User',
+			'STACK:nice#9370DB: Nice',
+			'STACK:sys#FF8C00: System',
+			'STACK:wait#FF6347: I/O wait',
+			'STACK:irq#FFD700: IRQ',
+			'STACK:soft#DAA520: SoftIRQ',
+			'STACK:steal#FF0000: Steal',
+			'STACK:idle#90EE90: Idle',
+			'GPRINT:user:AVERAGE:User avg %1.3lf',
+			'GPRINT:sys:AVERAGE:Sys %1.3lf',
+			'GPRINT:wait:AVERAGE:Wait %1.3lf',
+			'GPRINT:idle:AVERAGE:Idle %1.3lf\\n',
+		],
+		'small' => [
+			'DEF:user=$database:mode_user:AVERAGE',
+			'DEF:sys=$database:mode_system:AVERAGE',
+			'AREA:user#1E90FF: user',
+			'STACK:sys#FF8C00: sys',
+		],
+	},
+);

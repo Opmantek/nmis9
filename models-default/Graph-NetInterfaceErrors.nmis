@@ -1,0 +1,36 @@
+#
+# Graph-NetInterfaceErrors.nmis — per-interface rx/tx errors and drops.
+#
+%hash = (
+	'heading' => 'Network Errors $index',
+	'title' => {
+		'standard' => '$node $index errors - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index errs - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Events per second',
+		'small'    => 'evt/s',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:re=$database:rx_errs:AVERAGE',
+			'DEF:te=$database:tx_errs:AVERAGE',
+			'DEF:rd=$database:rx_drop:AVERAGE',
+			'DEF:td=$database:tx_drop:AVERAGE',
+			'LINE2:re#FF0000: rx errors',
+			'GPRINT:re:AVERAGE:Avg %5.2lf\\n',
+			'LINE2:te#8B0000: tx errors',
+			'GPRINT:te:AVERAGE:Avg %5.2lf\\n',
+			'LINE1:rd#FFA500: rx drops',
+			'GPRINT:rd:AVERAGE:Avg %5.2lf\\n',
+			'LINE1:td#FF8C00: tx drops',
+			'GPRINT:td:AVERAGE:Avg %5.2lf\\n',
+		],
+		'small' => [
+			'DEF:re=$database:rx_errs:AVERAGE',
+			'DEF:rd=$database:rx_drop:AVERAGE',
+			'LINE1:re#FF0000: errs',
+			'LINE1:rd#FFA500: drops',
+		],
+	},
+);

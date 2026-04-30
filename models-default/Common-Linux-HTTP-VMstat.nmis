@@ -1,0 +1,37 @@
+#
+# Common-Linux-HTTP-VMstat.nmis
+#
+# Virtual-memory subsystem counters from /proc/vmstat. All exporter
+# values are typed `untyped` but they're cumulative; treat as COUNTER
+# so RRD shows per-second rates.
+#   pgfault     - minor page faults (rate)
+#   pgmajfault  - major faults (page faulted in from disk — slow)
+#   pgpgin/out  - pages in/out of memory
+#   pswpin/out  - pages swapped in/out (key swap-pressure indicator)
+#   oom_kill    - out-of-memory kills (counter, hopefully zero)
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_vmstat' => '/nodes/$node/health/linux_vmstat.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_vmstat' => {
+				'graphtype' => 'Linux-VMstat',
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'pgfault'    => { 'metric' => 'node_vmstat_pgfault',    'option' => 'counter,0:U' },
+					'pgmajfault' => { 'metric' => 'node_vmstat_pgmajfault', 'option' => 'counter,0:U' },
+					'pgpgin'     => { 'metric' => 'node_vmstat_pgpgin',     'option' => 'counter,0:U' },
+					'pgpgout'    => { 'metric' => 'node_vmstat_pgpgout',    'option' => 'counter,0:U' },
+					'pswpin'     => { 'metric' => 'node_vmstat_pswpin',     'option' => 'counter,0:U' },
+					'pswpout'    => { 'metric' => 'node_vmstat_pswpout',    'option' => 'counter,0:U' },
+					'oom_kill'   => { 'metric' => 'node_vmstat_oom_kill',   'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

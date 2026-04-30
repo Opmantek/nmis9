@@ -1,0 +1,32 @@
+#
+# Common-Linux-HTTP-Sockets.nmis
+#
+# Kernel socket-table snapshots from /proc/net/sockstat. All gauges.
+# Useful for catching connection floods, TIME_WAIT growth, ephemeral
+# port pressure.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_sockets' => '/nodes/$node/health/linux_sockets.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_sockets' => {
+				'graphtype' => 'Linux-Sockets',
+				'http_prom' => {
+					'-common-'        => { 'endpoint' => 'node_exporter' },
+					'sock_total'      => { 'metric' => 'node_sockstat_sockets_used', 'option' => 'gauge,0:U' },
+					'sock_tcp_inuse'  => { 'metric' => 'node_sockstat_TCP_inuse',    'option' => 'gauge,0:U' },
+					'sock_tcp_tw'     => { 'metric' => 'node_sockstat_TCP_tw',       'option' => 'gauge,0:U' },
+					'sock_tcp_orphan' => { 'metric' => 'node_sockstat_TCP_orphan',   'option' => 'gauge,0:U' },
+					'sock_tcp_alloc'  => { 'metric' => 'node_sockstat_TCP_alloc',    'option' => 'gauge,0:U' },
+					'sock_udp_inuse'  => { 'metric' => 'node_sockstat_UDP_inuse',    'option' => 'gauge,0:U' },
+					'sock_tcp_mem'    => { 'metric' => 'node_sockstat_TCP_mem_bytes','option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

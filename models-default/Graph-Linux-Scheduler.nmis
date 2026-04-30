@@ -1,0 +1,30 @@
+#
+# Graph-Linux-Scheduler.nmis — context switches and IRQs per second.
+#
+%hash = (
+	'heading' => 'Linux Scheduler',
+	'title' => {
+		'standard' => '$node Scheduler - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Scheduler - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Events per second',
+		'small'    => 'evt/s',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:ctx=$database:ctx_switches:AVERAGE',
+			'DEF:irq=$database:intr_total:AVERAGE',
+			'LINE1:ctx#1E90FF: Context switches/s',
+			'GPRINT:ctx:AVERAGE:Avg %7.0lf',
+			'GPRINT:ctx:MAX:Max %7.0lf\\n',
+			'LINE1:irq#FF8C00: IRQs/s',
+			'GPRINT:irq:AVERAGE:Avg %7.0lf',
+			'GPRINT:irq:MAX:Max %7.0lf\\n',
+		],
+		'small' => [
+			'DEF:ctx=$database:ctx_switches:AVERAGE',
+			'LINE1:ctx#1E90FF: ctx',
+		],
+	},
+);
