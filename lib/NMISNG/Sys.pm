@@ -386,6 +386,11 @@ sub init
 	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
 	# ditto for wmi, but default from snmp
 	my $wantwmi = NMISNG::Util::getbool( exists $args{wmi} ? $args{wmi} : $snmp );
+	# http engine gate. Default to true so callers that don't pass it
+	# (dev-tools, tests, ad-hoc) still get HTTP collection if endpoints
+	# are configured. nmisd workers pass an explicit value derived from
+	# the polling policy's http cadence via NMISNG::find_due_nodes.
+	my $wanthttp = NMISNG::Util::getbool( exists $args{http} ? $args{http} : 1 );
 	my $catchall_data = {};
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
@@ -725,7 +730,7 @@ sub init
 			$http_eps = undef;
 		}
 	}
-	if (ref $http_eps eq 'ARRAY' && @$http_eps)
+	if ($wanthttp && ref $http_eps eq 'ARRAY' && @$http_eps)
 	{
 		require NMISNG::Sys::Engine::HTTP;
 		my $http_engine = NMISNG::Sys::Engine::HTTP->new(sys => $self);

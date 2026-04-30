@@ -19,6 +19,11 @@
 									display => 'header,popup',
 									value => [ "5m", "1m", "2m", "15m", "30m", "1h", "6h", "1d" ] }},
 
+		{  'http' => { mandatory => 'false',
+									header => 'HTTP Polling Frequency',
+									display => 'header,popup',
+									value => [ "1m", "30s", "2m", "5m", "15m", "30m", "1h" ] }},
+
 		{  'update' => { mandatory => 'true',
 										 header => 'Node Update Frequency',
 										 display => 'header,popup',
