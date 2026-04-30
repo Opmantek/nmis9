@@ -9206,16 +9206,20 @@ sub unlock
 
 
 # perform collect operation for this one node
-# args: self, wantsnmp and wantwmi (both required),
+# args: self, wantsnmp / wantwmi / wanthttp (per-flavour gates,
+#  passed by nmisd from find_due_nodes; wanthttp defaults to true so
+#  manual / dev-tools calls don't accidentally turn http off),
 #  starttime (optional, default: now),
-#  force (optiona, default 0)
+#  force (optional, default 0)
 #
 # returns: hashref, keys success/error/locked,
 #  success 0 + locked 1 is for early bail-out due to collect/update lock
 sub collect
 {
 	my ($self, %args) = @_;
-	my ($wantsnmp,$wantwmi,$force,$starttime) = @args{"wantsnmp","wantwmi","force","starttime"};
+	my ($wantsnmp,$wantwmi,$wanthttp,$force,$starttime)
+		= @args{"wantsnmp","wantwmi","wanthttp","force","starttime"};
+	$wanthttp //= 1;   # default-on for legacy callers (dev-tools, tests, ad-hoc)
 	$starttime //= Time::HiRes::time;
 
 	my $name = $self->name;
@@ -9223,7 +9227,8 @@ sub collect
 	my $C = $self->nmisng->config;
 
 	$self->nmisng->log->debug("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
-														.", want WMI: ".($wantwmi?"yes":"no"));
+														.", want WMI: ".($wantwmi?"yes":"no")
+														.", want HTTP: ".($wanthttp?"yes":"no"));
 	$0 = "nmisd worker collect $name";
 
 	# try to lock the node (announcing what for)
@@ -9262,12 +9267,19 @@ sub collect
 	if (defined($wantwmi)) {
 		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
+	if ($wanthttp) {
+		# Track http attempts symmetrically with snmp/wmi so
+		# NMISNG::find_due_nodes can compute next-due against the http
+		# cadence in the policy.
+		$catchall_data->{last_poll_http_attempt} = $starttime;
+	}
 
 	# if the init fails attempt an update operation instead
-	# Thats initialised to node polling policy	
+	# Thats initialised to node polling policy
 	if (!$S->init( node => $self,
 									snmp => $wantsnmp,
 									wmi => $wantwmi,
+									http => $wanthttp,
 									policy => $self->configuration->{polling_policy},
 									catchall_inventory => $catchall_inventory
 			))
