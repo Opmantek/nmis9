@@ -336,6 +336,8 @@ sub applyThresholdToInventory
 			$details .= $spacer . "Bandwidth=" . NMISNG::Util::convertIfSpeed($ifSpeed);
 		}
 
+		my $threshold_metric = $item // $M->{threshold}{name}{$nm}{item};
+
 		$self->thresholdProcess(
 			sys          => $S,
 			type         => $type,                           # crucial for event context
@@ -350,7 +352,7 @@ sub applyThresholdToInventory
 			index        => $index,                          # crucial for context
 			class        => $class,                          # crucial for context
 			level_select => $levelinfo->{level_select},
-			threshold_metric => $item,
+			threshold_metric => $threshold_metric,
 			model_subconcept => $type,
 			inventory_id => $inventory->id
 		);
