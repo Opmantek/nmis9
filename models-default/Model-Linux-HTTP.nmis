@@ -71,7 +71,15 @@
 		# its own graphtypes via systemHealth/rrd sections; this list
 		# names the ones we want surfaced as direct node-page graphs
 		# (vs. drilled-into via the System Health dropdown).
-		'nodegraph'  => 'health,response,laload,Host_Memory',
+		# Comma-separated list of graphtypes rendered inline as thumbnails
+		# on the node-view page (cgi-bin/network.pl:2696). Covers every
+		# scalar Linux-HTTP topic that produces an RRD; the indexed
+		# topics (CpuCores, LinuxFilesystem, LinuxDiskIO, NetInterfaces)
+		# stay reachable via the System Health dropdown.
+		'nodegraph'  => 'health,response,laload,Host_Memory,Linux-MemoryDetail,'
+		              .'Linux-Pressure,Linux-Sockets,Linux-Netstat,Linux-VMstat,'
+		              .'Linux-Scheduler,Linux-NTP,Linux-Entropy,Linux-ARP,'
+		              .'Linux-Processes,Linux-FileDescriptors',
 	},
 
 	# Aggregate list of all systemHealth sections this model can
