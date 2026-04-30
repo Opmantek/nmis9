@@ -1,0 +1,38 @@
+#
+# Graph-Linux-MemoryDetail.nmis — meminfo deep-dive (Buffers/Cached/Slab/Anon).
+#
+%hash = (
+	'heading' => 'Linux Memory Detail',
+	'title' => {
+		'standard' => '$node Memory detail - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Memory - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes',
+		'small'    => 'bytes',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:free=$database:mem_free:AVERAGE',
+			'DEF:bufs=$database:mem_buffers:AVERAGE',
+			'DEF:cache=$database:mem_cached:AVERAGE',
+			'DEF:slab=$database:mem_slab:AVERAGE',
+			'DEF:dirty=$database:mem_dirty:AVERAGE',
+			'DEF:anon=$database:mem_anon:AVERAGE',
+			'AREA:free#90EE90: Free',
+			'STACK:bufs#FFD700: Buffers',
+			'STACK:cache#1E90FF: Cached',
+			'STACK:slab#FFA500: Slab',
+			'STACK:anon#9370DB: Anonymous pages',
+			'LINE1:dirty#FF0000: Dirty',
+			'GPRINT:dirty:AVERAGE:Avg dirty %7.0lf',
+			'GPRINT:dirty:MAX:Max dirty %7.0lf\\n',
+		],
+		'small' => [
+			'DEF:cache=$database:mem_cached:AVERAGE',
+			'DEF:anon=$database:mem_anon:AVERAGE',
+			'AREA:cache#1E90FF: cache',
+			'STACK:anon#9370DB: anon',
+		],
+	},
+);

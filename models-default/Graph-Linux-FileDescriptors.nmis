@@ -1,0 +1,32 @@
+#
+# Graph-Linux-FileDescriptors.nmis — open FDs vs system max.
+#
+%hash = (
+	'heading' => 'Linux File Descriptors',
+	'title' => {
+		'standard' => '$node FDs - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node FDs - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Open file descriptors',
+		'small'    => 'FDs',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:alloc=$database:fd_alloc:AVERAGE',
+			'DEF:max=$database:fd_max:AVERAGE',
+			'CDEF:util=alloc,max,/,100,*',
+			'AREA:alloc#00BFFF: Allocated',
+			'GPRINT:alloc:AVERAGE:Avg %7.0lf',
+			'GPRINT:alloc:MAX:Max %7.0lf\\n',
+			'LINE1:max#FF0000: System max',
+			'GPRINT:max:LAST:%7.0lf\\n',
+			'GPRINT:util:AVERAGE:Utilisation Avg %1.2lf%%',
+			'GPRINT:util:MAX:Max %1.2lf%%\\n',
+		],
+		'small' => [
+			'DEF:alloc=$database:fd_alloc:AVERAGE',
+			'AREA:alloc#00BFFF: alloc',
+		],
+	},
+);

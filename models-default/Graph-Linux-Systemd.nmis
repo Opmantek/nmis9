@@ -1,0 +1,25 @@
+#
+# Graph-Linux-Systemd.nmis — per-unit active/inactive flag (1=active).
+#
+%hash = (
+	'heading' => 'Systemd unit $index',
+	'title' => {
+		'standard' => '$node $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Active (1=yes 0=no)',
+		'small'    => 'state',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:a=$database:active:AVERAGE',
+			'AREA:a#7CFC00: Active',
+			'GPRINT:a:LAST:Now %1.0lf\\n',
+		],
+		'small' => [
+			'DEF:a=$database:active:AVERAGE',
+			'AREA:a#7CFC00: act',
+		],
+	},
+);

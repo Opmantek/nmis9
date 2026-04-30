@@ -1,0 +1,67 @@
+#
+# Common-Linux-HTTP-Filesystem.nmis
+#
+# Per-mountpoint filesystem capacity from node_exporter. Indexed by
+# `mountpoint` (the row key shown in the System Health table). DS names
+# match the existing Graph-Host_Storage / Graph-Host_Storage_Util
+# graphs and the hrStorageUtil stats expression in Common-Host_Resources:
+#   hrStorageSize  - total size in bytes
+#   hrStorageUsed  - bytes used (size - avail)
+#
+# label_filter trims to "real" filesystems by fstype, dropping tmpfs,
+# devtmpfs, overlay, squashfs, etc that proliferate on container hosts.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'LinuxFilesystem' => '/nodes/$node/health/fs-$index.rrd',
+		},
+	},
+
+	'systemHealth' => {
+		# 'sections' string is centralised in Model-Linux-HTTP.nmis
+		'sys' => {
+			'LinuxFilesystem' => {
+				'indexed'      => 'mountpoint',
+				'index_oid'    => 'mountpoint',
+				'headers'      => 'mountpoint,fstype,hrStorageSize,hrStorageUsed,readonly',
+				'label_filter' => { 'fstype' => '^(ext[234]|xfs|btrfs|zfs|f2fs|vfat|ntfs)$' },
+				'max_rows'     => 64,
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'mountpoint'    => { 'title' => 'Mount point' },
+					'fstype'        => { 'metric' => 'node_filesystem_size_bytes',
+					                      # We can't easily extract the fstype label as
+					                      # a value; this slot just records the size,
+					                      # the operator can see fstype in the label
+					                      # filter or the graph metadata.
+					                      'title' => 'Filesystem type marker' },
+					'hrStorageSize' => { 'metric' => 'node_filesystem_size_bytes',
+					                      'title'  => 'Total size (bytes)' },
+					'hrStorageUsed' => { 'metric'    => 'node_filesystem_avail_bytes',
+					                      # hrStorageUsed = size - avail. avail comes
+					                      # from the metric we fetch; size is the
+					                      # 'hrStorageSize' raw value already in todos.
+					                      'calculate' => 'CVAR1=hrStorageSize; return $CVAR1 - $r;',
+					                      'title'     => 'Used (bytes)' },
+					'readonly'      => { 'metric' => 'node_filesystem_readonly',
+					                      'title'  => 'Read-only (1=yes)' },
+				},
+			},
+		},
+		'rrd' => {
+			'LinuxFilesystem' => {
+				'graphtype' => 'Host_Storage,Host_Storage_Util',
+				'indexed'   => 'mountpoint',
+				'http_prom' => {
+					'-common-'        => { 'endpoint' => 'node_exporter' },
+					'hrStorageSize'  => { 'metric' => 'node_filesystem_size_bytes',
+					                       'option' => 'gauge,0:U' },
+					'hrStorageUsed'  => { 'metric'    => 'node_filesystem_avail_bytes',
+					                       'calculate' => 'CVAR1=hrStorageSize; return $CVAR1 - $r;',
+					                       'option'    => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

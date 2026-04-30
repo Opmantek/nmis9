@@ -1,0 +1,39 @@
+#
+# Graph-Linux-Netstat.nmis — TCP segments + retransmissions per second.
+#
+%hash = (
+	'heading' => 'Linux Netstat (TCP)',
+	'title' => {
+		'standard' => '$node TCP - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node TCP - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Segments per second',
+		'small'    => 'segs/s',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:tcp_in=$database:tcp_in:AVERAGE',
+			'DEF:tcp_out=$database:tcp_out:AVERAGE',
+			'DEF:tcp_retrans=$database:tcp_retrans:AVERAGE',
+			'DEF:tcp_curr=$database:tcp_currest:AVERAGE',
+			'CDEF:tcp_out_neg=tcp_out,-1,*',
+			'AREA:tcp_in#00BFFF: TCP in',
+			'GPRINT:tcp_in:AVERAGE:Avg %7.1lf\\n',
+			'AREA:tcp_out_neg#7CFC00: TCP out',
+			'GPRINT:tcp_out:AVERAGE:Avg %7.1lf\\n',
+			'LINE1:tcp_retrans#FF0000: Retransmits/s',
+			'GPRINT:tcp_retrans:AVERAGE:Avg %5.2lf',
+			'GPRINT:tcp_retrans:MAX:Max %5.2lf\\n',
+			'COMMENT:Established',
+			'GPRINT:tcp_curr:LAST:%5.0lf\\n',
+		],
+		'small' => [
+			'DEF:tcp_in=$database:tcp_in:AVERAGE',
+			'DEF:tcp_out=$database:tcp_out:AVERAGE',
+			'CDEF:tcp_out_neg=tcp_out,-1,*',
+			'AREA:tcp_in#00BFFF: in',
+			'AREA:tcp_out_neg#7CFC00: out',
+		],
+	},
+);

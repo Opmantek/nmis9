@@ -1,0 +1,32 @@
+#
+# Common-Linux-HTTP-FileDescriptors.nmis
+#
+# Open file-descriptor count vs system-wide max from node_exporter.
+# Useful for catching FD-leak conditions.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_fd' => '/nodes/$node/health/linux_fd.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_fd' => {
+				'graphtype' => 'Linux-FileDescriptors',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'node_exporter' },
+					'fd_alloc'  => { 'metric' => 'node_filefd_allocated', 'option' => 'gauge,0:U' },
+					# fd_max is reported as ~9.2e18 on systems with no
+					# practical limit, which overflows MongoDB's 64-bit
+					# integer encoding when NMIS writes timed_data. nosave
+					# keeps it out of the inventory + RRD store; the value
+					# is essentially constant per-system anyway and not
+					# useful as a time-series.
+					'fd_max'    => { 'metric' => 'node_filefd_maximum',   'option' => 'nosave' },
+				},
+			},
+		},
+	},
+);

@@ -1,0 +1,31 @@
+#
+# Graph-Linux-APT.nmis — pending apt upgrades.
+#
+%hash = (
+	'heading' => 'APT pending upgrades',
+	'title' => {
+		'standard' => '$node APT - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node APT - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Package count',
+		'small'    => 'pkgs',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:p=$database:apt_pending:AVERAGE',
+			'DEF:h=$database:apt_held:AVERAGE',
+			'DEF:a=$database:apt_autoremove:AVERAGE',
+			'AREA:p#1E90FF: Pending',
+			'GPRINT:p:LAST:Now %5.0lf\\n',
+			'STACK:h#FFA500: Held',
+			'GPRINT:h:LAST:Now %5.0lf\\n',
+			'LINE1:a#7CFC00: Autoremove',
+			'GPRINT:a:LAST:Now %5.0lf\\n',
+		],
+		'small' => [
+			'DEF:p=$database:apt_pending:AVERAGE',
+			'AREA:p#1E90FF: pending',
+		],
+	},
+);

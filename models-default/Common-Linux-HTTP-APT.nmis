@@ -1,0 +1,32 @@
+#
+# Common-Linux-HTTP-APT.nmis  (default-off)
+#
+# Debian / Ubuntu package-manager state from node_exporter
+# (--collector.apt or the prometheus-node-exporter-apt package).
+# apt_upgrades_pending and apt_upgrades_held are labelled by `arch`
+# and `origin`; we sum across labels by setting no label_match (the
+# engine returns the first matching sample, so this captures one
+# representative origin — operators wanting per-origin breakdown can
+# turn the section into an indexed systemHealth instead).
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_apt' => '/nodes/$node/health/linux_apt.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_apt' => {
+				'graphtype' => 'Linux-APT',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'node_exporter' },
+					'apt_pending'    => { 'metric' => 'apt_upgrades_pending',    'option' => 'gauge,0:U' },
+					'apt_held'       => { 'metric' => 'apt_upgrades_held',       'option' => 'gauge,0:U' },
+					'apt_autoremove' => { 'metric' => 'apt_autoremove_pending',  'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

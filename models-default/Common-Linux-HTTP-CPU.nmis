@@ -1,0 +1,94 @@
+#
+# Common-Linux-HTTP-CPU.nmis
+#
+# Per-core CPU time accounting from node_exporter. node_cpu_seconds_total
+# is a counter labelled by `cpu` (core id) and `mode` (idle, user, system,
+# iowait, irq, softirq, steal, nice, guest). One row per core; each ds is
+# the cumulative seconds spent in that mode since boot. RRD COUNTER turns
+# successive samples into a per-second rate; %util can be derived in
+# graphs as (1 - idle_rate / cpu_count).
+#
+# Reuses the 'hrsmpcpu' subconcept name + Graph-hrsmpcpu graph from the
+# existing SNMP convention (Common-database.nmis already maps hrsmpcpu).
+# Per-mode ds names match the ssCpuRaw* convention from Graph-ss-cpu.
+#
+%hash = (
+	'systemHealth' => {
+		# 'sections' string is centralised in Model-Linux-HTTP.nmis
+		'sys' => {
+			'CpuCores' => {
+				'indexed'      => 'cpu',
+				'index_oid'    => 'cpu',
+				'headers'      => 'cpu,mode_user,mode_system,mode_idle,mode_iowait',
+				'max_rows'     => 256,
+				'http_prom'    => {
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'cpu'         => { 'title' => 'CPU core' },
+					'mode_user'   => { 'metric' => 'node_cpu_seconds_total',
+					                    'match_labels' => { 'mode' => 'user' },
+					                    'title'  => 'User mode (s)' },
+					'mode_system' => { 'metric' => 'node_cpu_seconds_total',
+					                    'match_labels' => { 'mode' => 'system' },
+					                    'title'  => 'System mode (s)' },
+					'mode_idle'   => { 'metric' => 'node_cpu_seconds_total',
+					                    'match_labels' => { 'mode' => 'idle' },
+					                    'title'  => 'Idle mode (s)' },
+					'mode_iowait' => { 'metric' => 'node_cpu_seconds_total',
+					                    'match_labels' => { 'mode' => 'iowait' },
+					                    'title'  => 'I/O wait (s)' },
+				},
+			},
+		},
+		'rrd' => {
+			'CpuCores' => {
+				'graphtype' => 'Linux-CPU',
+				'indexed'   => 'cpu',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					# node_cpu_seconds_total is a fractional-seconds counter
+					# (e.g. 476098.1). RRD's COUNTER/DERIVE need integer
+					# input, so we scale by 1000 (-> integer milliseconds)
+					# and use COUNTER. RRD then yields ms/sec rate; the
+					# Linux-CPU graph rendering scales back to fractions.
+					'mode_user'    => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'user' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+					'mode_system'  => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'system' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+					'mode_idle'    => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'idle' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+					'mode_iowait'  => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'iowait' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+					'mode_irq'     => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'irq' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+					'mode_softirq' => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'softirq' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+					'mode_steal'   => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'steal' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+					'mode_nice'    => { 'metric' => 'node_cpu_seconds_total',
+					                     'match_labels' => { 'mode' => 'nice' },
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+	'database' => {
+		'type' => {
+			'CpuCores' => '/nodes/$node/health/cpu-$index.rrd',
+		},
+	},
+);

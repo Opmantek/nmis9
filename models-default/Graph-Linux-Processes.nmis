@@ -1,0 +1,36 @@
+#
+# Graph-Linux-Processes.nmis — runnable + blocked process counts and fork rate.
+#
+%hash = (
+	'heading' => 'Linux Processes',
+	'title' => {
+		'standard' => '$node Processes - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Processes - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Process count / Fork rate (per s)',
+		'small'    => 'Procs / Forks',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:running=$database:procs_running:AVERAGE',
+			'DEF:blocked=$database:procs_blocked:AVERAGE',
+			'DEF:forks=$database:forks_rate:AVERAGE',
+			'LINE1:running#00BFFF: Running',
+			'GPRINT:running:AVERAGE:Avg %5.1lf',
+			'GPRINT:running:MAX:Max %5.1lf\\n',
+			'LINE1:blocked#FF6347: Blocked',
+			'GPRINT:blocked:AVERAGE:Avg %5.1lf',
+			'GPRINT:blocked:MAX:Max %5.1lf\\n',
+			'LINE1:forks#FFA500: Forks/sec',
+			'GPRINT:forks:AVERAGE:Avg %5.2lf',
+			'GPRINT:forks:MAX:Max %5.2lf\\n',
+		],
+		'small' => [
+			'DEF:running=$database:procs_running:AVERAGE',
+			'DEF:blocked=$database:procs_blocked:AVERAGE',
+			'LINE1:running#00BFFF: run',
+			'LINE1:blocked#FF6347: blk',
+		],
+	},
+);

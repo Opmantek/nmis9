@@ -1,0 +1,28 @@
+#
+# Common-Linux-HTTP-Scheduler.nmis
+#
+# Kernel scheduler / interrupt counters from /proc/stat.
+#   ctx_switches  - voluntary + involuntary context switches (counter)
+#   intr_total    - hardware interrupt count (counter)
+#   softnet_*     - per-CPU softirq queue handling (counter)
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_sched' => '/nodes/$node/health/linux_sched.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_sched' => {
+				'graphtype' => 'Linux-Scheduler',
+				'http_prom' => {
+					'-common-'      => { 'endpoint' => 'node_exporter' },
+					'ctx_switches'   => { 'metric' => 'node_context_switches_total', 'option' => 'counter,0:U' },
+					'intr_total'     => { 'metric' => 'node_intr_total',             'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

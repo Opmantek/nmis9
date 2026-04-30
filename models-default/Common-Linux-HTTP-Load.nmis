@@ -1,0 +1,35 @@
+#
+# Common-Linux-HTTP-Load.nmis
+#
+# Linux load averages from node_exporter. Reuses the existing Graph-laload
+# graph and the 'laload' RRD path in Common-database.nmis (no new database
+# entry needed — laload is an established subconcept name).
+#
+%hash = (
+	'system' => {
+		'sys' => {
+			'standard' => {
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'laLoad1'  => { 'metric' => 'node_load1',
+					                 'title'  => '1-minute load average' },
+					'laLoad5'  => { 'metric' => 'node_load5',
+					                 'title'  => '5-minute load average' },
+					'laLoad15' => { 'metric' => 'node_load15',
+					                 'title'  => '15-minute load average' },
+				},
+			},
+		},
+		'rrd' => {
+			'laload' => {
+				'graphtype' => 'laload',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'laLoad1'  => { 'metric' => 'node_load1',  'option' => 'gauge,0:U' },
+					'laLoad5'  => { 'metric' => 'node_load5',  'option' => 'gauge,0:U' },
+					'laLoad15' => { 'metric' => 'node_load15', 'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);
