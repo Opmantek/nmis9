@@ -1,10 +1,34 @@
  # compose.yaml file for NMIS
 services:
+  nmis:
+    image: crg.apkg.io/firstwavecloud/nmis-dev:latest
+    container_name: nmis
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      NMIS_DB_USERNAME: ${MONGODB_USERNAME:-root}
+      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD:-example}
+      NMIS_DB_SERVER: mongo
+      NMIS_SERVER_NAME: ${NMIS_SERVER_NAME:-nmis}
+      NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID:-5140a985-5d9b-4602-8969-ead7b3e3c00f}
+      DEV_UID: ${DEV_UID:-10001}
+      DEV_GID: ${DEV_GID:-10001}
+      CONTAINER: 1
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ../:/usr/local/nmis9
+    ports:
+      - "8080:8080"
+      - "10001:161/udp"
+    networks:
+      - nmis_net
   mongo:
     image: mongo:7.0
     container_name: mongo
     platform: linux/amd64
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
       interval: 60s
@@ -12,8 +36,8 @@ services:
       retries: 5
       start_period: 60s
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-example}
     volumes:
       - mongo_data:/data/db
       - mongo_log:/var/log/mongodb
@@ -21,29 +45,6 @@ services:
     ports:
       - "27017:27017"
     command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
-    networks:
-      - nmis_net
-  nmis:
-    image: crg.apkg.io/firstwavecloud/nmis-dev:latest
-    container_name: nmis
-    platform: linux/amd64
-    restart: always
-    environment:
-      NMIS_DB_USERNAME: ${MONGODB_USERNAME}
-      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
-      NMIS_DB_SERVER: mongo
-      NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
-      NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID}
-      DEV_UID: ${DEV_UID}
-      DEV_GID: ${DEV_GID}
-      CONTAINER: 1
-    depends_on:
-      - mongo
-    volumes:
-      - ../:/usr/local/nmis9
-    ports:
-      - "8080:8080"
-      - "10001:161/udp"
     networks:
       - nmis_net
 networks:

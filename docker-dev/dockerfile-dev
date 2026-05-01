@@ -1,5 +1,5 @@
 # This dockerfile is to create NMIS from source images
-FROM debian:bullseye
+FROM debian:bookworm-slim
 
 LABEL maintainer="James Greewnwood. <james.greenwood@firstwave.com>" 
 LABEL maintainer="Louis Tissington. <louis.tissington@firstwave.com>"
@@ -13,7 +13,7 @@ ARG NMIS_USER_GID=10001
 
 # Perl lib location seperate from Debian vendor and Debian site perl lib location
 # Avoids conflicts between Debian perl and cpanm perl package installations
-ENV PERL5LIB=/usr/local/lib/site_perl/lib/perl5:/usr/local/lib/site_perl/lib/perl5/x86_64-linux-gnu
+ENV PERL5LIB=/usr/local/lib/site_perl/lib/perl5:/usr/local/lib/site_perl/lib/perl5/x86_64-linux-gnu:/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32
 ENV CONTAINER=1
 
 RUN apt-get update  > /dev/null && \
@@ -131,29 +131,31 @@ RUN cpanm --notest --no-interactive \
     Authen::Simple::RADIUS \
     SOAP::Lite
 
-# Soft link because some tools look for /usr/bin/ip not /sbin/ip
-RUN ln -s /sbin/ip /usr/bin/ip
-
 # Systemctl redirect when scripts try call systemctl inside the container
 RUN git clone https://github.com/gdraheim/docker-systemctl-replacement && \
     cp docker-systemctl-replacement/files/docker/systemctl3.py /usr/bin/systemctl && \
     rm -rf docker-systemctl-replacement
 
 RUN addgroup --gid ${NMIS_USER_GID} ${NMIS_GROUP} && \
-    useradd --uid ${NMIS_USER_UID} --gid ${NMIS_GROUP} --shell /bin/bash ${NMIS_USER}
+    useradd --uid ${NMIS_USER_UID} --gid ${NMIS_GROUP} \
+            --shell /bin/bash \
+            --no-create-home \
+            ${NMIS_USER}
 
-COPY ../conf-default/snmpd/snmpd.conf ../conf-default/snmpd/snmptrapd.conf  /etc/snmp/
+
+COPY conf-default/snmpd/snmpd.conf \
+     conf-default/snmpd/snmptrapd.conf \
+     /etc/snmp/
 
 WORKDIR ${NMIS_HOME}
 
-# NMIS Web 8080
-# MTA Port 25
-# SNMP Ports 161/udp 162/udp
-# NetFlow Port 2055
+# NMIS Web   : 8080
+# MTA        : 25
+# SNMP       : 161/udp
+# NetFlow    : 2055/udp
 EXPOSE 8080 \
        25 \
        161/udp \
-       162/udp \
        2055/udp
 
 ENTRYPOINT ["tini", "--", "/usr/local/nmis9/docker-dev/docker-entrypoint-dev.sh"]
