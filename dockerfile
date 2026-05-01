@@ -1,6 +1,4 @@
-#remove everything OMK from this file  if you want just nmis
-#copy a pre-built OMK artifact to root directory of this build if you want OMK
-FROM perl:5.32.1-slim-threaded-bullseye
+FROM debian:bookworm-slim
 
 LABEL maintainer="James Greewnwood. <james.greenwood@firstwave.com>" 
 LABEL maintainer="Louis Tissington. <louis.tissington@firstwave.com>"
@@ -12,7 +10,7 @@ ARG NMIS_GROUP=nmis
 ARG NMIS_USER_UID=10001
 ARG NMIS_USER_GID=10001
 
-ENV PERL5LIB="/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32"
+ENV PERL5LIB=/usr/local/lib/site_perl/lib/perl5:/usr/local/lib/site_perl/lib/perl5/x86_64-linux-gnu:/usr/share/perl5:/usr/lib/x86_64-linux-gnu/perl5/5.32
 ENV CONTAINER=1
 
 RUN apt-get update  > /dev/null && \
@@ -22,26 +20,29 @@ RUN apt-get update  > /dev/null && \
       ca-certificates \
       curl > /dev/null
 
-RUN curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg && \
-    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/6.0 main" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+RUN curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg && \
+    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/7.0 main" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list
 
 RUN apt-get update  > /dev/null && \
-    apt-get -y install --no-install-recommends tini \
+    apt-get -y install --no-install-recommends \
+    tini \
     libcairo2 \
     libcairo2-dev \
     libglib2.0-dev \
     libpango1.0-dev \
     libxml2 libxml2-dev \
-    libgd-gd2-perl \ 
+    libgd-gd2-perl \
     libnet-ssleay-perl \
     libcrypt-ssleay-perl \
     fping \
     nmap \
     snmp \
-    snmpd \ 
+    snmpd \
     snmptrapd \
     iputils-ping \
     dnsutils \
+    gcc \
+    make \
     mtr \
     traceroute \
     libnet-snmp-perl \
@@ -99,20 +100,40 @@ RUN apt-get update  > /dev/null && \
     iproute2 \
     procps \
     libyaml-libyaml-perl \
-    #OMK related packages from here down
     sshpass \
     unixodbc \
     odbcinst \
-    tdsodbc \
-    logrotate && \
+    tdsodbc && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
+
+# Essential cpanm perl modules
+RUN cpanm --notest --no-interactive \
+    --local-lib=/usr/local/lib/site_perl \
+    IO::Socket::IP \
+    Socket \
+    ExtUtils::Constant \
+    JSON::PP \
+    Time::Local \
+    Test::More \
+    Config::AutoConf \
+    Path::Tiny \
+    DateTime::Locale \
+    Mojolicious@9.39 \
+    Devel::Size@0.84 \
+    # Non-essential cpanm perl modules
+    Net::SFTP::Foreign \
+    Net::LDAP \
+    Net::LDAPS \
+    IO::Socket::SSL \
+    Crypt::UnixCrypt \
+    Authen::TacacsPlus \
+    Authen::Simple::RADIUS \
+    SOAP::Lite
 
 WORKDIR /tmp
 
 # Soft link because some tools look for /usr/bin/ip not /sbin/ip
-RUN ln -s /sbin/ip /usr/bin/ip
-
 # Systemctl redirect when scripts try call systemctl inside the container
 RUN git clone https://github.com/gdraheim/docker-systemctl-replacement && \
     cp docker-systemctl-replacement/files/docker/systemctl3.py /usr/bin/systemctl && \
@@ -131,37 +152,38 @@ RUN mkdir -p ${NMIS_HOME}/conf \
     ${NMIS_HOME}/var \
     ${NMIS_HOME}/logs \
     ${NMIS_HOME}/htdocs/nmis9 \
+    ${NMIS_HOME}/htdocs/cache \
     ${NMIS_HOME}/assets \
     ${NMIS_HOME}/models-custom
 
-COPY ./conf-default/Users.nmis ${NMIS_HOME}/conf
-COPY ./conf-default/users.dat ${NMIS_HOME}/conf
-COPY ./conf-default/Access.nmis ${NMIS_HOME}/conf
-COPY ./conf-default/Config.nmis ${NMIS_HOME}/conf
+COPY ../conf-default/Users.nmis \
+     ../conf-default/users.dat \
+     ../conf-default/Access.nmis \
+     ${NMIS_HOME}/conf/
 
-VOLUME ${NMIS_HOME}/conf
-VOLUME ${NMIS_HOME}/database
-VOLUME ${NMIS_HOME}/var
-VOLUME ${NMIS_HOME}/logs
-VOLUME ${NMIS_HOME}/models-custom
+COPY ../conf-default/docker/Config.nmis.docker ${NMIS_HOME}/conf/Config.nmis
+COPY ../conf-default/snmpd/snmpd.conf ../conf-default/snmpd/snmptrapd.conf  /etc/snmp/
 
-RUN mv /usr/local/nmis9/omk /usr/local/ && \
-    mv /usr/local/omk/install/omkd.init.d.bak /etc/init.d/omkd && \
-    mv /usr/local/omk/install/opchartsd.init.d.bak /etc/init.d/opchartsd && \
-    mv /usr/local/omk/install/opconfigd.init.d.bak /etc/init.d/opconfigd && \
-    mv /usr/local/omk/install/opeventsd.init.d.bak /etc/init.d/opeventsd && \
-    rm /etc/apt/sources.list.d/mongodb-org-6.0.list
+VOLUME ${NMIS_HOME}/conf \
+       ${NMIS_HOME}/database \
+       ${NMIS_HOME}/var \
+       ${NMIS_HOME}/logs \
+       ${NMIS_HOME}/models-custom
+
+RUN rm /etc/apt/sources.list.d/mongodb-org-7.0.list
+
+# NMIS user ownership
+RUN chown -R ${NMIS_USER}:${NMIS_GROUP} ${NMIS_HOME}
 
 # NMIS Web 8080
 # OMK Web 8042
 # MTA Port 25
-# SNMP Ports 161/udp 162/udp
+# SNMP Ports 161/udp
 # NetFlow Port 2055
 EXPOSE 8080 \
        8042 \
        25 \
        161/udp \
-       162/udp \
        2055/udp
 
 ENTRYPOINT ["tini", "--", "/usr/local/nmis9/docker-entrypoint.sh"]
