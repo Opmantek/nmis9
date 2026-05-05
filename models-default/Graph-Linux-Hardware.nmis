@@ -1,8 +1,9 @@
 #
 # Graph-Linux-Hardware.nmis — per-sensor temperature.
+# Min matters: ambient swings (idle vs load) tell you cooling headroom.
 #
 %hash = (
-	'heading' => 'Hardware sensor $index',
+	'heading' => 'Hardware Sensor $index',
 	'title' => {
 		'standard' => '$node $index - $length from $datestamp_start to $datestamp_end',
 		'short'    => '$node $index - $length',
@@ -14,13 +15,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:t=$database:temp_celsius:AVERAGE',
-			'LINE1:t#FF0000: Temp °C',
-			'GPRINT:t:AVERAGE:Avg %5.1lf',
-			'GPRINT:t:MAX:Max %5.1lf\\n',
+			'LINE2:t#FF0000: Temperature',
+			'GPRINT:t:MIN:Min %5.1lf°C',
+			'GPRINT:t:AVERAGE:Avg %5.1lf°C',
+			'GPRINT:t:MAX:Max %5.1lf°C\\n',
 		],
 		'small' => [
 			'DEF:t=$database:temp_celsius:AVERAGE',
-			'LINE1:t#FF0000: temp',
+			'LINE1:t#FF0000: Temp',
 		],
 	},
 );

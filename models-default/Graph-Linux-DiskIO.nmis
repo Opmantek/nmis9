@@ -1,6 +1,6 @@
 #
-# Graph-Linux-DiskIO.nmis — per-device read+write throughput.
-# Counters are rate-converted by RRD, so values are bytes/sec.
+# Graph-Linux-DiskIO.nmis — per-device read+write throughput (mirrored axes).
+# Bytes/sec on the y-axis, ops/sec in the legend. --base 1024 for auto-scaled units.
 #
 %hash = (
 	'heading' => 'Linux Disk I/O $index',
@@ -14,28 +14,34 @@
 	},
 	'option' => {
 		'standard' => [
+			'--base', '1024',
 			'DEF:rb=$database:read_bytes:AVERAGE',
 			'DEF:wb=$database:write_bytes:AVERAGE',
 			'DEF:r=$database:reads:AVERAGE',
 			'DEF:w=$database:writes:AVERAGE',
 			'CDEF:wb_neg=wb,-1,*',
-			'AREA:rb#1E90FF: Read (B/s)',
-			'GPRINT:rb:AVERAGE:Avg %7.1lf',
-			'GPRINT:rb:MAX:Max %7.1lf\\n',
-			'AREA:wb_neg#FF8C00: Write (B/s)',
-			'GPRINT:wb:AVERAGE:Avg %7.1lf',
-			'GPRINT:wb:MAX:Max %7.1lf\\n',
-			'COMMENT:Read ops/s',
-			'GPRINT:r:AVERAGE:Avg %5.1lf\\n',
-			'COMMENT:Write ops/s',
-			'GPRINT:w:AVERAGE:Avg %5.1lf\\n',
+			'AREA:rb#1E90FF: Read',
+			'GPRINT:rb:AVERAGE:Avg %7.2lf%sB/s',
+			'GPRINT:rb:MAX:Max %7.2lf%sB/s\\n',
+			'AREA:wb_neg#FF8C00: Write',
+			'GPRINT:wb:AVERAGE:Avg %7.2lf%sB/s',
+			'GPRINT:wb:MAX:Max %7.2lf%sB/s\\n',
+			'COMMENT:Read ops',
+			'GPRINT:r:AVERAGE:Avg %5.2lf/s',
+			'GPRINT:r:MAX:Max %5.2lf/s\\n',
+			'COMMENT:Write ops',
+			'GPRINT:w:AVERAGE:Avg %5.2lf/s',
+			'GPRINT:w:MAX:Max %5.2lf/s\\n',
 		],
 		'small' => [
+			'--base', '1024',
 			'DEF:rb=$database:read_bytes:AVERAGE',
 			'DEF:wb=$database:write_bytes:AVERAGE',
+			'DEF:r=$database:reads:AVERAGE',
+			'DEF:w=$database:writes:AVERAGE',
 			'CDEF:wb_neg=wb,-1,*',
-			'AREA:rb#1E90FF: r',
-			'AREA:wb_neg#FF8C00: w',
+			'AREA:rb#1E90FF: Read',
+			'AREA:wb_neg#FF8C00: Write',
 		],
 	},
 );

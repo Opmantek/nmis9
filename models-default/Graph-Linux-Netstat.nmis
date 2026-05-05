@@ -1,5 +1,7 @@
 #
 # Graph-Linux-Netstat.nmis — TCP segments + retransmissions per second.
+# In/out shown on mirrored axes (out negated for visual symmetry); retransmits
+# and current established overlay as separate lines.
 #
 %hash = (
 	'heading' => 'Linux Netstat (TCP)',
@@ -18,22 +20,27 @@
 			'DEF:tcp_retrans=$database:tcp_retrans:AVERAGE',
 			'DEF:tcp_curr=$database:tcp_currest:AVERAGE',
 			'CDEF:tcp_out_neg=tcp_out,-1,*',
-			'AREA:tcp_in#00BFFF: TCP in',
-			'GPRINT:tcp_in:AVERAGE:Avg %7.1lf\\n',
-			'AREA:tcp_out_neg#7CFC00: TCP out',
-			'GPRINT:tcp_out:AVERAGE:Avg %7.1lf\\n',
-			'LINE1:tcp_retrans#FF0000: Retransmits/s',
+			'AREA:tcp_in#1E90FF: TCP In',
+			'GPRINT:tcp_in:AVERAGE:Avg %7.2lf',
+			'GPRINT:tcp_in:MAX:Max %7.2lf\\n',
+			'AREA:tcp_out_neg#7CFC00: TCP Out',
+			'GPRINT:tcp_out:AVERAGE:Avg %7.2lf',
+			'GPRINT:tcp_out:MAX:Max %7.2lf\\n',
+			'LINE2:tcp_retrans#FF0000: Retransmits',
 			'GPRINT:tcp_retrans:AVERAGE:Avg %5.2lf',
 			'GPRINT:tcp_retrans:MAX:Max %5.2lf\\n',
 			'COMMENT:Established',
-			'GPRINT:tcp_curr:LAST:%5.0lf\\n',
+			'GPRINT:tcp_curr:AVERAGE:Avg %5.0lf',
+			'GPRINT:tcp_curr:MAX:Max %5.0lf\\n',
 		],
 		'small' => [
 			'DEF:tcp_in=$database:tcp_in:AVERAGE',
 			'DEF:tcp_out=$database:tcp_out:AVERAGE',
+			'DEF:tcp_retrans=$database:tcp_retrans:AVERAGE',
 			'CDEF:tcp_out_neg=tcp_out,-1,*',
-			'AREA:tcp_in#00BFFF: in',
-			'AREA:tcp_out_neg#7CFC00: out',
+			'AREA:tcp_in#1E90FF: In',
+			'AREA:tcp_out_neg#7CFC00: Out',
+			'LINE1:tcp_retrans#FF0000: Retrans',
 		],
 	},
 );
