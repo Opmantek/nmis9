@@ -377,16 +377,34 @@ If set, the section is skipped during collection. Indicates that a plugin or ext
 
 Lists which sub-sections within `systemHealth` to collect. If not defined, falls back to the `model_health_sections` config value. Can be modified at runtime by Model Policy rules.
 
-### `snmp` / `wmi`
+### `snmp` / `wmi` / `http_prom` / `http_json`
 
 | | |
 |---|---|
 | **Type** | hash |
-| **Required** | At least one of `snmp` or `wmi` |
+| **Required** | At least one of `snmp`, `wmi`, `http_prom`, `http_json` |
 | **Valid values** | Hash of item definitions |
-| **Code reference** | `Sys.pm:1256-1261, 1296` |
+| **Code reference** | `Sys.pm:1256-1261, 1296`; `Engine/HTTP.pm:131` (build_queries); `Engine/HTTP.pm:371` (discover_indexes) |
 
-Protocol-specific item definitions. In `systemHealth` sections, a section **cannot have both** `snmp` and `wmi` (`Node.pm:4920-4925`). In `system` sections, both can coexist.
+Protocol-specific item definitions. The engine for a section is selected by which block is present:
+
+- `snmp` -- SNMP OIDs; see [Section 7](#7-snmp-specific-item-properties).
+- `wmi` -- WQL queries; see [Section 8](#8-wmi-specific-item-properties).
+- `http_prom` -- Prometheus text exposition format scrape; see [Section 9](#9-http-specific-item-properties).
+- `http_json` -- JSON API response; see [Section 9](#9-http-specific-item-properties).
+
+In `systemHealth` sections, a section **cannot mix** `snmp` with `wmi` (`Node.pm:4920-4925`). In `system` sections, the SNMP/WMI pair can coexist. HTTP blocks (`http_prom`, `http_json`) are picked up by the HTTP engine independently and may appear alongside or instead of the others.
+
+### `max_rows`
+
+| | |
+|---|---|
+| **Type** | integer |
+| **Required** | No |
+| **Valid values** | Positive integer |
+| **Code reference** | `Engine/HTTP.pm:447-454` |
+
+Section-level cap on the number of indices `discover_indexes` returns for an HTTP-driven systemHealth section. If the live scrape produces more candidate label tuples than the cap, the engine logs a single warning and truncates rather than spamming per-row errors. Useful as a safety net on metrics with high label cardinality. Today this is honoured only by the HTTP engine.
 
 ---
 
@@ -652,7 +670,266 @@ In WMI `rrd` sections, the `indexed` property **must be the actual WMI field nam
 
 ---
 
-## 9. Value Processing Order
+## 9. HTTP-Specific Item Properties
+
+Properties unique to items within an `http_prom` or `http_json` block. All [common item properties](#6-common-item-properties) (`title`, `option`, `calculate`, `format`, `replace`, `alert`) also apply.
+
+The HTTP engine reads metrics from HTTP endpoints, picking up two scrape formats independently:
+
+- **`http_prom`** -- the endpoint serves Prometheus text exposition format (`# TYPE`, `# HELP`, `metric{labels} value` lines). Items declare a Prometheus metric name; the engine parses the response and matches by name (and optionally by label).
+- **`http_json`** -- the endpoint serves JSON. Items declare a JSONPath expression; the engine fetches and decodes once, then extracts each item's value via `lib/NMISNG/JSONPath.pm`.
+
+Connection details (host, port, scheme, auth) live on the node config under `http_endpoints` -- see [HTTP Endpoint Configuration](#http-endpoint-configuration-node-level) below.
+
+```perl
+'http_prom' => {
+    '-common-' => { 'endpoint' => 'node_exporter' },
+    'load1'    => { 'metric' => 'node_load1' },
+    'cpu_user' => { 'metric'       => 'node_cpu_seconds_total',
+                    'match_labels' => { 'mode' => 'user' },
+                    'option'       => 'counter,0:U' },
+},
+'http_json' => {
+    '-common-' => { 'endpoint' => 'app_status', 'path' => '/api/health' },
+    'state'    => { 'jsonpath' => '$.app.state' },
+    'uptime'   => { 'jsonpath' => '$.app.uptime_seconds' },
+}
+```
+
+### `metric`
+
+| | |
+|---|---|
+| **Type** | string |
+| **Required** | Yes (for `http_prom` items, unless using the [index-self pattern](#index-self-pattern) or `calculate_url`) |
+| **Valid values** | Prometheus metric name (e.g., `'node_load1'`, `'node_filesystem_size_bytes'`) |
+| **Code reference** | `Engine/HTTP.pm:234`, sample matching at `Engine/HTTP.pm:430-436` |
+
+The Prometheus metric name to extract. The engine scrapes the endpoint once per URL (response cached across all items pointing at the same endpoint+path), parses the text into samples via `lib/NMISNG/PromText.pm`, and selects samples whose name matches `metric`. For non-indexed sections, the first matching sample wins. For indexed sections, the sample whose `indexed` label equals the row's index value is used.
+
+### `match_labels`
+
+| | |
+|---|---|
+| **Type** | hash |
+| **Required** | No |
+| **Valid values** | `{ label_name => label_value }` pairs |
+| **Code reference** | `Engine/HTTP.pm:249-252`, value extraction at `Engine/HTTP.pm:531-553` |
+
+Narrows sample selection by requiring exact label matches in addition to `metric`. Necessary when the same metric is exposed with multiple label combinations -- a fundamental Prometheus pattern that has no SNMP/WMI equivalent.
+
+#### Why it's needed
+
+A Prometheus metric name is not unique on the wire; the same name can produce many simultaneous samples distinguished only by their labels. A canonical example is `node_cpu_seconds_total` from node_exporter:
+
+```text
+node_cpu_seconds_total{cpu="0",mode="user"}      12345.6
+node_cpu_seconds_total{cpu="0",mode="system"}      678.9
+node_cpu_seconds_total{cpu="0",mode="iowait"}       42.0
+node_cpu_seconds_total{cpu="0",mode="idle"}      98765.4
+node_cpu_seconds_total{cpu="0",mode="irq"}           0.7
+node_cpu_seconds_total{cpu="0",mode="softirq"}       3.2
+node_cpu_seconds_total{cpu="0",mode="steal"}         0.0
+node_cpu_seconds_total{cpu="0",mode="nice"}          1.1
+node_cpu_seconds_total{cpu="1",mode="user"}      11122.3
+... eight `mode` samples per `cpu` value
+```
+
+A section indexed by `cpu` produces one row per core; each row's collection sees all eight mode samples (all valid, all with the matching `cpu` label). To split them into separate ds entries (`mode_user`, `mode_system`, `mode_iowait`, ...) so each gets its own RRD column and graph DEF, every item declares `match_labels` to pin the second dimension:
+
+```perl
+'mode_user'   => { 'metric' => 'node_cpu_seconds_total',
+                   'match_labels' => { 'mode' => 'user' } },
+'mode_system' => { 'metric' => 'node_cpu_seconds_total',
+                   'match_labels' => { 'mode' => 'system' } },
+'mode_iowait' => { 'metric' => 'node_cpu_seconds_total',
+                   'match_labels' => { 'mode' => 'iowait' } },
+```
+
+Without `match_labels` the engine would just take the first sample whose `cpu` matches and every mode_* ds would get the same value. The same pattern applies to `node_systemd_unit_state{name="...", state="active|failed|inactive|..."}` (`match_labels => { state => 'active' }`) and any other metric that uses a label as a "second axis" beyond the section index.
+
+#### Not the same as `control` -- and not a return of `label_filter`
+
+`match_labels` looks superficially similar to two other label-related mechanisms but operates on a different axis from both. Quick reference so the three don't get conflated:
+
+| Mechanism | What it gates | When it runs |
+|---|---|---|
+| `control` ([Section 5](#5-section-level-properties)) | Whether the row is actively collected | Per-row, in `Sys::getValues` |
+| `match_labels` (this property) | Which of a metric's label-distinguished samples maps to this ds | Per-ds, in `Engine::HTTP::_extract_value` |
+| `label_filter` (removed) | Was a per-row regex shortcut on the index label; fully replaced by `control`, which preserves inventory for filtered rows. Not coming back. | -- |
+
+`control` and `match_labels` compose -- a model uses `control` on the rrd block to decide which CPU cores are actively collected, and `match_labels` on each item to map the right sample to each mode_* ds.
+
+### `jsonpath`
+
+| | |
+|---|---|
+| **Type** | string |
+| **Required** | Yes (for `http_json` items, unless using the [index-self pattern](#index-self-pattern) or `calculate_url`) |
+| **Valid values** | JSONPath expression |
+| **Code reference** | `Engine/HTTP.pm:257-263`; parser in `lib/NMISNG/JSONPath.pm` |
+
+JSONPath expression that selects a value from the decoded JSON response. Supported subset: root (`$`), dotted keys (`$.key.subkey`), bracketed dotted keys (`$["dotted.name"]`), array indexing (`[0]`, `[N]`), array splat (`[*]`), and object splat (`.*`). Slices, filters, and negative indexes are rejected with a clear error -- if you need them, do the work in a `calculate` expression after extraction.
+
+```perl
+'state'  => { 'jsonpath' => '$.app.state' },
+'first'  => { 'jsonpath' => '$.members[0].value' },
+'all'    => { 'jsonpath' => '$.devices[*].temp' },
+```
+
+### `calculate_url`
+
+| | |
+|---|---|
+| **Type** | string |
+| **Required** | No |
+| **Valid values** | Perl expression that returns a URL or path string |
+| **Code reference** | `Engine/HTTP.pm:198-213` |
+
+Compute the per-item URL dynamically. Evaluated as a Perl expression with `parseString` (so `CVAR=fieldname;...` works against the row's inventory data). The return value can be either an absolute URL (`https://host:port/path`) or a path that gets joined to the endpoint's base URL.
+
+Use case: per-row JSON endpoints where the path includes the row's identifier. The F5 BigIP API pattern is the canonical example -- a pool's stats live at `/mgmt/tm/ltm/pool/<name>/stats`, so the model declares:
+
+```perl
+'pool_stats' => {
+    'calculate_url' => 'CVAR1=poolPath; return $CVAR1;',
+    'jsonpath'      => '$.entries[*].nestedStats.entries.activeMemberCnt.value',
+},
+```
+
+`calculate_url` may also live in `-common-` to share a templated path across every item in the block.
+
+### `endpoint`
+
+| | |
+|---|---|
+| **Type** | string |
+| **Required** | Yes (in `-common-` or per-item) |
+| **Valid values** | Name from the node's `http_endpoints` array |
+| **Code reference** | `Engine/HTTP.pm:_resolve_url` (line 118), endpoint registry in `Engine/HTTP.pm:set_endpoints` |
+
+Names which entry in the node's `http_endpoints` config supplies the host, port, scheme, and auth. Almost always declared once in `-common-` and inherited by every item:
+
+```perl
+'http_prom' => {
+    '-common-' => { 'endpoint' => 'node_exporter' },
+    'load1'    => { 'metric' => 'node_load1' },     # uses node_exporter
+}
+```
+
+Per-item overrides are allowed if a single section needs to read from multiple endpoints.
+
+### `path`
+
+| | |
+|---|---|
+| **Type** | string |
+| **Required** | No (default `/metrics` for `http_prom`; required for `http_json`) |
+| **Valid values** | URL path (e.g., `'/metrics'`, `'/api/v1/health'`) or absolute URL |
+| **Code reference** | `Engine/HTTP.pm:217`, default for prom at `Engine/HTTP.pm:412` |
+
+URL path appended to the endpoint's base URL. Most commonly placed in `-common-`. If the value begins with `http://` or `https://`, it's used verbatim and bypasses the endpoint's host/port/scheme.
+
+### Index-Self Pattern
+
+In an indexed section, an item with no `metric`, `jsonpath`, or `calculate_url` is treated specially: the engine fills its `rawvalue` with the row's index value. This lets a model store the index as a first-class inventory field without spending an extra metric extraction on it.
+
+```perl
+'http_prom' => {
+    '-common-' => { 'endpoint' => 'node_exporter' },
+    'device'   => { 'title' => 'Interface name' },           # index-self
+    'rx_bytes' => { 'metric' => 'node_network_receive_bytes_total' },
+}
+```
+
+For the row indexed by `device='eth0'`, the inventory ends up with both `device='eth0'` (from index-self) and `rx_bytes=<the counter value>` (from the metric). The pattern is detected at `Engine/HTTP.pm:160-172`.
+
+Outside an indexed section, a metric-less item is still an error -- there's no fallback semantics that make sense without a row identifier.
+
+### `-common-` Sub-Section
+
+Items without their own `endpoint`, `path`, or `calculate_url` inherit from a `-common-` entry in the same `http_prom` or `http_json` block. The `-common-` key itself is skipped during query building (`Engine/HTTP.pm:148`). Mirrors the WMI convention.
+
+### HTTP Endpoint Configuration (node-level)
+
+The HTTP engine does not take connection details from the model -- those live on the node, in the `http_endpoints` field of `conf-default/Table-Nodes.nmis`:
+
+```perl
+{ http_endpoints => { header => 'HTTP Endpoints (JSON)', display => 'textbox', value => [''] } },
+{ api_user       => { header => 'API Username', display => 'text', value => [''] } },
+{ api_pass       => { header => 'API Password', display => 'password', value => [''] } },
+```
+
+`http_endpoints` is stored as a JSON array of endpoint records; the GUI exposes it as a textbox. Each record:
+
+```json
+{ "name": "node_exporter",
+  "scheme": "http",
+  "host": "192.168.1.10",
+  "port": 9100,
+  "auth": { "type": "none" } }
+```
+
+#### Endpoint record fields
+
+| Field | Required | Description |
+|---|---|---|
+| `name` | Yes | Identifier referenced by the model's `endpoint` property. |
+| `scheme` | No (default `http`) | `http` or `https`. (`Engine/HTTP.pm:109`) |
+| `host` | No (default: node's `host`) | Hostname or IP. (`Engine/HTTP.pm:111`) |
+| `port` | No (default: 80/443 by scheme) | TCP port. (`Engine/HTTP.pm:112`) |
+| `auth` | No (default `{ type => 'none' }`) | Authentication sub-record; see below. |
+
+#### `auth.type`
+
+Five auth mechanisms are supported. All live in `lib/NMISNG/Sys/Engine/HTTP/Auth.pm`; see line numbers in each row.
+
+| `type` | Behaviour | Required keys (besides `type`) | Code |
+|---|---|---|---|
+| `none` | No auth header. | -- | `Auth.pm:41` |
+| `header` | Inject arbitrary static headers. | `headers` (hash of `name => value`) | `Auth.pm:48` |
+| `bearer` | `Authorization: Bearer <token>`. | `token` | `Auth.pm:57` |
+| `basic` | HTTP Basic. Falls back to node's `api_user` / `api_pass` if `user` / `pass` not on the endpoint. | `user`, `pass` (or node-level `api_user`, `api_pass`) | `Auth.pm:66-67` |
+| `token_fetch` | POST credentials to a login URL, extract a session token via JSONPath, inject it on subsequent calls; cache to disk for `ttl_seconds`; refresh on 401. | `login_url`, `token_jsonpath`, `inject_header`, plus body construction (`body` or `calculate_body`); see below | `Auth.pm:153-244` |
+
+#### `token_fetch` options
+
+| Field | Required | Default | Description | Code |
+|---|---|---|---|---|
+| `login_url` | Yes | -- | Endpoint-relative or absolute URL for the login POST. | `Auth.pm:192` |
+| `method` | No | `POST` | HTTP method for the login request. | `Auth.pm:196` |
+| `content_type` | No | -- | `Content-Type` header for the login request. | `Auth.pm:217` |
+| `body` | No (one of `body` / `calculate_body` required) | -- | Static request body. | `Auth.pm:211` |
+| `calculate_body` | No (one of `body` / `calculate_body` required) | -- | Perl expression to build the body dynamically; CVARs read from node config (so `CVAR1=api_user; CVAR2=api_pass; ...` works). | `Auth.pm:200-208` |
+| `token_jsonpath` | Yes | -- | JSONPath into the login response that yields the token string. | `Auth.pm:238` |
+| `inject_header` | Yes | -- | Header name on every authenticated request (e.g. `X-F5-Auth-Token`). | `Auth.pm:157` |
+| `ttl_seconds` | No | `300` | Cache lifetime for the fetched token. | `Auth.pm:174` |
+| `retry_on_401` | No | `1` (true) | If the authenticated request returns 401, invalidate the token, refetch, and retry once. | `Engine/HTTP.pm:486` |
+
+The fetched token is written to a per-node, mode-`0600` cache file under `var/nmis_system/http_token_cache/`. It's read back on subsequent runs to avoid logging in every poll cycle.
+
+### Row filtering: use `control`, not a separate property
+
+For HTTP-driven indexed sections (filesystems, interfaces, disks, systemd units), filtering noisy rows uses the standard NMIS `control` property on the rrd block (documented in [Section 5](#5-section-level-properties)) -- not an HTTP-specific filter. Discovery returns every label tuple the metric exposes; `control` decides which rows write fresh RRD data each poll. Inventory is preserved for every discovered row, matching the SNMP/WMI behaviour, so an operator can relax the `control` regex without losing history.
+
+```perl
+'rrd' => {
+    'LinuxDiskIO' => {
+        'graphtype' => 'Linux-DiskIO',
+        'indexed'   => 'device',
+        'control'   => 'CVAR=device;$CVAR =~ /^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|dm-\d+)$/',
+        'http_prom' => { ... },
+    },
+}
+```
+
+### Soft skip: missing endpoint
+
+If a model section declares an `endpoint` that the node doesn't have configured, the engine logs and returns no data without poisoning the polling cycle (`Engine/HTTP.pm:classify_error` reports `not_present`, treated as non-fatal by `Node::collect_systemhealth_info`). This makes it safe to keep optional HTTP sections in shared models -- nodes without that endpoint silently skip the section.
+
+---
+
+## 10. Value Processing Order
 
 The exact order values are processed in `getValues()` (`Sys.pm:1328-1452`):
 
@@ -688,7 +965,7 @@ graph LR
 
 ---
 
-## 10. The `alerts` Section
+## 11. The `alerts` Section
 
 Defines custom alerts evaluated per inventory item during `handle_custom_alerts()` (`Node.pm:6188+`).
 
@@ -770,7 +1047,7 @@ The `element` field name typically comes from the `sys` section of the same conc
 
 ---
 
-## 11. The `threshold` Section
+## 12. The `threshold` Section
 
 Defines threshold policies evaluated during `compute_thresholds` (`Sys.pm:2603+`).
 
@@ -840,7 +1117,7 @@ rrd section (threshold => 'testSensorUtil')
 
 ---
 
-## 12. The `stats` Section
+## 13. The `stats` Section
 
 Defines RRDtool graph commands for computing derived statistics.
 
@@ -885,7 +1162,7 @@ The `name` in `PRINT` lines **must match** the `item` field in threshold definit
 
 ---
 
-## 13. The `database` Section
+## 14. The `database` Section
 
 Defines RRD file paths and retention policies. Usually provided via `Common-database.nmis`.
 
@@ -935,7 +1212,7 @@ Maps subconcept names to RRD file path templates. Path variables:
 
 ---
 
-## 14. System Section Special Properties
+## 15. System Section Special Properties
 
 The `system` section has properties that set node-level metadata:
 
@@ -957,7 +1234,7 @@ The `system` section has properties that set node-level metadata:
 
 ---
 
-## 15. Model Policy
+## 16. Model Policy
 
 Not part of model files, but affects model loading. Stored in `conf/Model-Policy.nmis`.
 
@@ -988,7 +1265,7 @@ Not part of model files, but affects model loading. Stored in `conf/Model-Policy
 
 ---
 
-## 16. Properties Ignored by Code
+## 17. Properties Ignored by Code
 
 These properties appear in existing models but have no active code path:
 
@@ -999,7 +1276,7 @@ These properties appear in existing models but have no active code path:
 
 ---
 
-## 17. Complete Example: SNMP systemHealth Section
+## 18. Complete Example: SNMP systemHealth Section
 
 ```perl
 'systemHealth' => {
@@ -1097,7 +1374,83 @@ These properties appear in existing models but have no active code path:
 5. `threshold` evaluates `testSensorUtil` against the `select.default.value` levels
 6. `alerts` section evaluates custom alert expressions against inventory data
 
-## 18. Cross-Reference Map
+## 19. Complete Example: HTTP systemHealth Section
+
+A minimal but real example for the HTTP engine, distilled from `Common-Linux-HTTP-DiskIO.nmis`. The node config carries an `http_endpoints` entry named `node_exporter`; the model pulls per-block-device counters from `http://<node>:<port>/metrics` and writes one RRD per device.
+
+```perl
+'database' => {
+    'type' => {
+        'LinuxDiskIO' => '/nodes/$node/health/diskio-$index.rrd',
+    },
+},
+
+'systemHealth' => {
+    'sections' => 'LinuxDiskIO',
+    'sys' => {
+        'LinuxDiskIO' => {
+            'indexed'   => 'device',
+            'index_oid' => 'device',
+            'headers'   => 'device,reads,writes,read_bytes,write_bytes',
+            'max_rows'  => 64,
+            'http_prom' => {
+                '-common-'   => { 'endpoint' => 'node_exporter' },
+                'device'     => { 'title' => 'Device' },                    # index-self
+                'reads'      => { 'metric' => 'node_disk_reads_completed_total',
+                                   'title'  => 'Reads completed' },
+                'writes'     => { 'metric' => 'node_disk_writes_completed_total',
+                                   'title'  => 'Writes completed' },
+                'read_bytes' => { 'metric' => 'node_disk_read_bytes_total',
+                                   'title'  => 'Bytes read' },
+                'write_bytes'=> { 'metric' => 'node_disk_written_bytes_total',
+                                   'title'  => 'Bytes written' },
+            },
+        },
+    },
+    'rrd' => {
+        'LinuxDiskIO' => {
+            'graphtype' => 'Linux-DiskIO',
+            'indexed'   => 'device',
+            # Suppress RRD writes for partitions / loop / ram devices;
+            # inventory still records them so they remain visible.
+            'control'   => 'CVAR=device;$CVAR =~ /^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|xvd[a-z]+|dm-\d+)$/',
+            'http_prom' => {
+                '-common-'   => { 'endpoint' => 'node_exporter' },
+                'reads'      => { 'metric' => 'node_disk_reads_completed_total',
+                                   'option' => 'counter,0:U' },
+                'writes'     => { 'metric' => 'node_disk_writes_completed_total',
+                                   'option' => 'counter,0:U' },
+                'read_bytes' => { 'metric' => 'node_disk_read_bytes_total',
+                                   'option' => 'counter,0:U' },
+                'write_bytes'=> { 'metric' => 'node_disk_written_bytes_total',
+                                   'option' => 'counter,0:U' },
+            },
+        },
+    },
+},
+```
+
+Node-side configuration (entered via the GUI's "HTTP Endpoints (JSON)" field):
+
+```json
+[
+  { "name": "node_exporter",
+    "scheme": "http",
+    "host": "192.168.13.188",
+    "port": 9100,
+    "auth": { "type": "none" } }
+]
+```
+
+### How the Pieces Connect
+
+1. **Update phase**: `collect_systemhealth_info` calls `Engine::HTTP::discover_indexes`, which scrapes `/metrics` once and gathers every distinct value of the `device` label across the declared metrics. Up to `max_rows` candidates are returned; inventory is created for each.
+2. **Collect phase**: `collect_systemhealth_data` calls `getData` for each non-historic index. Before any RRD writes, `Sys::getValues` evaluates the rrd block's `control` expression against the row's inventory data; for rows that don't match (loop, ram, partitions), `getValues` returns `skipped` and no per-DS data lands.
+3. For matching rows, the engine extracts each metric from the cached scrape (the scrape is fetched once per URL; all items pointing at the same endpoint share one HTTP roundtrip) and writes the values to the RRD path resolved from `database.type.LinuxDiskIO`.
+4. The `device` index-self item populates each row's inventory `device` field with the row's index value, so the System Health table shows the device name in the header column.
+5. Renaming or filtering is reversible: relax the `control` regex and the next collect cycle starts writing RRDs for previously-suppressed rows -- inventory was preserved, so historical context isn't lost.
+
+## 20. Cross-Reference Map
 
 How the support sections wire together to drive alerting, thresholds, and graphing:
 
@@ -1140,7 +1493,7 @@ graph LR
 
 ---
 
-## 19. Data to Threshold Pipeline
+## 21. Data to Threshold Pipeline
 
 This diagram traces how a raw SNMP/WMI value ends up being evaluated as a threshold, showing which model sections are involved at each step.
 
@@ -1183,7 +1536,7 @@ The key linkage: the rrd section's `threshold` property names a threshold defini
 
 ---
 
-## 20. Polling Lifecycle
+## 22. Polling Lifecycle
 
 Sequence diagram showing the UPDATE and COLLECT phases and how model sections drive each step.
 
@@ -1191,7 +1544,7 @@ Sequence diagram showing the UPDATE and COLLECT phases and how model sections dr
 sequenceDiagram
     participant N as Node.pm
     participant S as Sys.pm
-    participant E as Engine<br/>(SNMP/WMI)
+    participant E as Engine<br/>(SNMP/WMI/HTTP)
     participant DB as MongoDB
     participant RRD as RRD Files
 
