@@ -3,8 +3,8 @@
 #
 # Hardware sensor data from node_exporter (--collector.hwmon). Indexed
 # by `chip` + `sensor` label — the engine doesn't currently support
-# composite indexes, so we use `sensor` alone (chip can be filtered via
-# label_filter or per-host overrides).
+# composite indexes, so we use `sensor` alone (chip can be filtered via a
+# `control` expression on the rrd block, or per-host overrides).
 #
 # This section is mostly empty on cloud VMs (no hardware sensors
 # exposed). Off by default; enable on bare-metal hosts.

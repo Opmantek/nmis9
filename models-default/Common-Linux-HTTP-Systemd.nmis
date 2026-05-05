@@ -7,8 +7,9 @@
 # We filter to state="active" so each unit becomes a single gauge:
 # 1 = active, 0 = anything else (failed, inactive, etc).
 #
-# label_filter restricts to .service and .target units; .timer/.socket/
-# .device tend to be noisy and uninteresting for top-level monitoring.
+# A `control` expression on the rrd block restricts active polling to
+# .service and .target units (the noisy .timer/.socket/.device units stay
+# in inventory so they remain visible, but RRD writes are suppressed).
 #
 %hash = (
 	'database' => {
@@ -24,7 +25,6 @@
 				'indexed'      => 'name',
 				'index_oid'    => 'name',
 				'headers'      => 'name,active',
-				'label_filter' => { 'name' => '.+\.(service|target)$' },
 				'max_rows'     => 200,
 				'http_prom' => {
 					'-common-'  => { 'endpoint' => 'node_exporter' },
@@ -39,6 +39,9 @@
 			'SystemdUnits' => {
 				'graphtype' => 'Linux-Systemd',
 				'indexed'   => 'name',
+				# Suppresses RRD writes for non-service/target units; inventory
+				# still records every unit so they remain visible.
+				'control'   => 'CVAR=name;$CVAR =~ /\.(service|target)$/',
 				'http_prom' => {
 					'-common-' => { 'endpoint' => 'node_exporter' },
 					'active' => { 'metric' => 'node_systemd_unit_state',

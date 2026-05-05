@@ -359,9 +359,15 @@ sub execute_queries
 }
 
 # Discover indexes for a systemHealth section. http_prom: scrape, gather
-# distinct values of the indexed label across declared metrics, apply
-# label_filter, cap at max_rows. http_json without index_function is not
-# supported (caller should use index_function on the section instead).
+# distinct values of the indexed label across declared metrics, cap at
+# max_rows. We deliberately do NOT filter rows here — every discovered
+# label tuple becomes inventory, and the canonical NMIS `control`
+# expression on the section's rrd block (evaluated by Sys::getValues)
+# decides which rows are actively polled. That keeps inventory
+# consistent with SNMP/WMI and lets operators see the full picture
+# even for rows whose data we don't currently write to RRD.
+# http_json without index_function is not supported (caller should use
+# index_function on the section instead).
 sub discover_indexes
 {
 	my ($self, %args) = @_;
@@ -435,14 +441,7 @@ sub discover_indexes
 		$seen{$val}++ if defined $val;
 	}
 
-	# Apply label_filter regex if declared.
 	my @candidates = sort keys %seen;
-	if (ref $section_config->{label_filter} eq 'HASH'
-	    && defined $section_config->{label_filter}{$index_var})
-	{
-		my $re = $section_config->{label_filter}{$index_var};
-		@candidates = grep { /$re/ } @candidates;
-	}
 
 	# Enforce max_rows cap with a single warning rather than per-row spam.
 	my $cap = $section_config->{max_rows};
