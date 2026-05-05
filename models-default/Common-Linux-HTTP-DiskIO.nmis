@@ -2,8 +2,9 @@
 # Common-Linux-HTTP-DiskIO.nmis
 #
 # Per-block-device I/O counters from node_exporter. Indexed by `device`
-# label (sda, sdb1, nvme0n1, dm-0, etc). label_filter keeps real block
-# devices and drops loop devices / partitions / weird virtual stuff.
+# label (sda, sdb1, nvme0n1, dm-0, etc). A `control` expression on the rrd
+# block restricts active polling to whole-disk block devices; inventory is
+# still created for every device the kernel reports (loop, partitions, ram).
 #
 %hash = (
 	'database' => {
@@ -19,10 +20,6 @@
 				'indexed'      => 'device',
 				'index_oid'    => 'device',
 				'headers'      => 'device,reads,writes,read_bytes,write_bytes',
-				# Whole-disk block devices: sd[a-z], nvme0n1 style, vd[a-z],
-				# xvd[a-z], dm-N, mapper-NAME. Skip partitions (sda1) and
-				# loop/ram devices.
-				'label_filter' => { 'device' => '^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|xvd[a-z]+|dm-\d+)$' },
 				'max_rows'     => 64,
 				'http_prom' => {
 					'-common-'   => { 'endpoint' => 'node_exporter' },
@@ -42,6 +39,10 @@
 			'LinuxDiskIO' => {
 				'graphtype' => 'Linux-DiskIO',
 				'indexed'   => 'device',
+				# Whole-disk block devices: sd[a-z], nvme0n1, vd[a-z], xvd[a-z],
+				# dm-N. Suppresses RRD writes for partitions / loop / ram devices;
+				# inventory still records them so they remain visible.
+				'control'   => 'CVAR=device;$CVAR =~ /^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|xvd[a-z]+|dm-\d+)$/',
 				'http_prom' => {
 					'-common-'    => { 'endpoint' => 'node_exporter' },
 					'reads'        => { 'metric' => 'node_disk_reads_completed_total',

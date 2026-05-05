@@ -10,8 +10,12 @@
 # hrStorageUnits "bytes per unit" multiplier that Graph-Host_Storage
 # requires for SNMP polling.
 #
-# label_filter trims to "real" filesystems by fstype, dropping tmpfs,
-# devtmpfs, overlay, squashfs, etc that proliferate on container hosts.
+# A `control` expression on the rrd block trims active polling to "real"
+# filesystems, dropping the pseudo-FS mountpoints (/proc, /sys, /dev, /run,
+# /snap, /var/lib/docker/...) that proliferate on container hosts. Inventory
+# is still created for every mountpoint the kernel exposes — only the RRD
+# writes are suppressed for the noisy rows. Operators see the full picture
+# in the System Health table and can relax the regex without losing history.
 #
 %hash = (
 	'database' => {
@@ -27,7 +31,6 @@
 				'indexed'      => 'mountpoint',
 				'index_oid'    => 'mountpoint',
 				'headers'      => 'mountpoint,fstype,hrStorageSize,hrStorageUsed,readonly',
-				'label_filter' => { 'fstype' => '^(ext[234]|xfs|btrfs|zfs|f2fs|vfat|ntfs)$' },
 				'max_rows'     => 64,
 				'http_prom' => {
 					'-common-'  => { 'endpoint' => 'node_exporter' },
@@ -55,6 +58,9 @@
 			'LinuxFilesystem' => {
 				'graphtype' => 'Linux-Filesystem,Linux-Filesystem-Util',
 				'indexed'   => 'mountpoint',
+				# Suppresses RRD writes for pseudo-FS mountpoints; inventory still
+				# exists for every row, so they remain visible in System Health.
+				'control'   => 'CVAR=mountpoint;$CVAR !~ m{^/(proc|sys|dev|run|snap)(/|$)} && $CVAR !~ m{^/var/lib/docker/}',
 				'http_prom' => {
 					'-common-'        => { 'endpoint' => 'node_exporter' },
 					'hrStorageSize'  => { 'metric' => 'node_filesystem_size_bytes',

@@ -23,16 +23,6 @@
 				'indexed'      => 'device',
 				'index_oid'    => 'device',
 				'headers'      => 'device,rx_bytes,tx_bytes,rx_errs,tx_errs,rx_drop,tx_drop,up',
-				# Default keeps physical / named interfaces, the docker0 bridge,
-				# and named docker bridges. Drops the per-container veth* pairs
-				# because they create churn in the inventory. Override per node.
-				# Default keeps physical / named interfaces and named docker
-			# bridges. Drops 'lo' because node_exporter on most distros
-			# doesn't emit rx/tx counter metrics for loopback (unlike for
-			# real interfaces), and the section needs values for at least
-			# some items to populate. Drops per-container veth* pairs to
-			# keep inventory churn low. Override per node if needed.
-			'label_filter' => { 'device' => '^(en[a-z0-9]+|eth\d+|docker0|br-[0-9a-f]+)$' },
 				'max_rows'     => 100,
 				'http_prom' => {
 					'-common-' => { 'endpoint' => 'node_exporter' },
@@ -60,6 +50,12 @@
 			'NetInterfaces' => {
 				'graphtype' => 'NetInterfaces,NetInterfaceErrors',
 				'indexed'   => 'device',
+				# Default keeps physical/named interfaces, docker0, and named
+				# docker bridges. Suppresses RRD writes for veth* pairs and lo
+				# (node_exporter doesn't emit rx/tx counters for loopback on
+				# most distros, so it would error anyway). Inventory still
+				# records every interface; relax the regex per-node to widen.
+				'control'   => 'CVAR=device;$CVAR =~ /^(en[a-z0-9]+|eth\d+|docker0|br-[0-9a-f]+)$/',
 				'http_prom' => {
 					'-common-' => { 'endpoint' => 'node_exporter' },
 					'rx_bytes' => { 'metric' => 'node_network_receive_bytes_total',

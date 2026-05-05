@@ -335,24 +335,31 @@ sub make_engine
 	ok(defined $bs->{error}, "non-indexed item without metric is still an error");
 }
 
-# --- label_filter narrows results ----------------------------------------
+# --- discover_indexes returns ALL candidates ----------------------------
+# The engine deliberately does not filter rows here. Even if the section
+# declares a `control` expression, every discovered label tuple becomes
+# inventory; the canonical NMIS control evaluation (in Sys::getValues)
+# decides which rows are actively polled. This matches SNMP/WMI and is
+# verified end-to-end in t_sys.pl test 14b.
 {
 	my ($eng, $sys) = make_engine(
 		endpoints => [{ name => 'fix', port => $port }],
 	);
 	my ($err, $idx) = $eng->discover_indexes(
 		section_config => {
-			indexed      => 'queue',
-			label_filter => { queue => '^(orders|payments)$' },
-			http_prom    => {
+			indexed   => 'queue',
+			control   => 'CVAR=queue;$CVAR =~ /^(orders|payments)$/',
+			http_prom => {
 				'-common-' => { endpoint => 'fix' },
 				depth      => { metric => 'app_queue_depth' },
 			},
 		},
 		index_var => 'queue',
 	);
-	is_deeply([sort @$idx], [qw(orders payments)],
-		"label_filter excludes ignore_me and email");
+	is($err, undef,
+		"discover_indexes: no error even with control on section");
+	is_deeply([sort @$idx], [sort qw(orders payments email ignore_me)],
+		"discover_indexes returns ALL candidates; control filters at collection time");
 }
 
 # --- max_rows caps results -----------------------------------------------
