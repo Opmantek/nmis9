@@ -3,10 +3,12 @@
 #
 # Per-mountpoint filesystem capacity from node_exporter. Indexed by
 # `mountpoint` (the row key shown in the System Health table). DS names
-# match the existing Graph-Host_Storage / Graph-Host_Storage_Util
-# graphs and the hrStorageUtil stats expression in Common-Host_Resources:
-#   hrStorageSize  - total size in bytes
-#   hrStorageUsed  - bytes used (size - avail)
+# (hrStorageSize, hrStorageUsed) carry over from HOST-RESOURCES-MIB so
+# the hrStorageUtil stats expression in Common-Host_Resources keeps
+# working, but graph rendering uses Graph-Linux-Filesystem* — those
+# treat the values as bytes-direct (node_exporter native), without the
+# hrStorageUnits "bytes per unit" multiplier that Graph-Host_Storage
+# requires for SNMP polling.
 #
 # label_filter trims to "real" filesystems by fstype, dropping tmpfs,
 # devtmpfs, overlay, squashfs, etc that proliferate on container hosts.
@@ -51,7 +53,7 @@
 		},
 		'rrd' => {
 			'LinuxFilesystem' => {
-				'graphtype' => 'Host_Storage,Host_Storage_Util',
+				'graphtype' => 'Linux-Filesystem,Linux-Filesystem-Util',
 				'indexed'   => 'mountpoint',
 				'http_prom' => {
 					'-common-'        => { 'endpoint' => 'node_exporter' },
