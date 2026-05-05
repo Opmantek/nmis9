@@ -118,7 +118,20 @@ sub enabled_sources
 	return [ map { $_->protocol_name } grep { $_->is_active } @{$self->engines} ];
 }
 
-# Returns arrayref of all known protocol names (for iterating status checks)
+# Returns arrayref of all known protocol names (for iterating status checks).
+# Many per-source field names are computed via string interpolation against
+# this list — grepping for the concrete names won't always find the source
+# line, so each interpolation site in Node.pm / NMISNG.pm has a comment
+# listing what the names expand to. The concrete fan-out for the current
+# list is:
+#   ${source}_enabled       => snmp_enabled, wmi_enabled, http_enabled
+#   ${source}_error         => snmp_error, wmi_error, http_error
+#   ${source}result         => snmpresult, wmiresult, httpresult
+#   last_poll_$source       => last_poll_snmp, last_poll_wmi, last_poll_http
+#   last_poll_${source}_attempt => last_poll_snmp_attempt, last_poll_wmi_attempt, last_poll_http_attempt
+# When adding/removing a source here, search the codebase for those concrete
+# names too — find_due_nodes, reachability aggregation, and the collect
+# post-processing loop all consume them.
 sub known_sources { return [qw(snmp wmi http)]; }
 sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
