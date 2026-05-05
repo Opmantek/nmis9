@@ -78,8 +78,8 @@
 		# stay reachable via the System Health dropdown.
 		'nodegraph'  => 'health,response,laload,Host_Memory,Linux-MemoryDetail,'
 		              .'Linux-Pressure,Linux-Sockets,Linux-Netstat,Linux-VMstat,'
-		              .'Linux-Scheduler,Linux-NTP,Linux-Entropy,Linux-ARP,'
-		              .'Linux-Processes,Linux-FileDescriptors',
+		              .'Linux-OomKill,Linux-Scheduler,Linux-NTP,Linux-Entropy,'
+		              .'Linux-ARP,Linux-Processes,Linux-FileDescriptors',
 	},
 
 	# Aggregate list of all systemHealth sections this model can
