@@ -142,6 +142,7 @@ diag("=== Phase 1: full update() lifecycle ===");
 my $node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
 $node->cluster_id($C->{cluster_id});
 $node->name("test_http_node");
+$node->activated({ NMIS => 1 });
 $node->configuration({
 	host      => "127.0.0.1",
 	group     => "TestGroup",
@@ -213,6 +214,76 @@ my $S = NMISNG::Sys->new(nmisng => $nmisng);
 $S->init(node => $node, snmp => 0, wmi => 0, update => 0, catchall_inventory => $cinv2);
 ok((grep { $_->protocol_name eq 'http' } @{$S->engines}), "HTTP engine present in collect-mode Sys");
 ok((grep { $_ eq 'http' } @{$S->known_sources}), "'http' in known_sources");
+
+# ============================================================
+# Phase 4: HTTP cadence is gated on configured endpoints
+# ============================================================
+diag("=== Phase 4: HTTP cadence gating ===");
+
+# Direct unit tests for the helper.
+{
+	is(NMISNG::_has_http_endpoints({ http_endpoints => [{ name => 'x' }] }), 1,
+		"_has_http_endpoints: arrayref with entries -> true");
+	is(NMISNG::_has_http_endpoints({ http_endpoints => [] }), 0,
+		"_has_http_endpoints: empty arrayref -> false");
+	is(NMISNG::_has_http_endpoints({ http_endpoints => '[{"name":"x"}]' }), 1,
+		"_has_http_endpoints: non-empty JSON string -> true");
+	is(NMISNG::_has_http_endpoints({ http_endpoints => '   ' }), 0,
+		"_has_http_endpoints: whitespace-only string -> false");
+	is(NMISNG::_has_http_endpoints({}), 0,
+		"_has_http_endpoints: missing key -> false");
+	is(NMISNG::_has_http_endpoints(undef), 0,
+		"_has_http_endpoints: undef -> false");
+}
+
+# End-to-end: create a fresh SNMP-only node (no http_endpoints) alongside the
+# existing HTTP node, drive find_due_nodes, and confirm only the HTTP node
+# has flavours.http=1. This is the regression that was failing before:
+# every legacy node was being scheduled for HTTP-cadence collects.
+{
+	my $snmp_only = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+	$snmp_only->cluster_id($C->{cluster_id});
+	$snmp_only->name("test_snmp_only_node");
+	$snmp_only->activated({ NMIS => 1 });
+	$snmp_only->configuration({
+		host      => "127.0.0.1",
+		group     => "TestGroup",
+		netType   => "default",
+		roleType  => "default",
+		threshold => 1,
+		model     => "TestSnmp",
+		collect   => "true",
+		ping      => "false",
+		community => "public",
+		version   => "snmpv2c",
+		# deliberately NO http_endpoints
+	});
+	my ($op2, $err2) = $snmp_only->save();
+	ok(!$err2, "snmp-only node saved") or diag($err2);
+
+	# find_due_nodes uses a hinted query — ensure the test DB has the indexes.
+	$nmisng->ensure_indexes;
+
+	my $due = $nmisng->find_due_nodes(type => 'collect', force => 1);
+	ok($due->{success}, "find_due_nodes returned success")
+		or diag("find_due_nodes error: " . ($due->{error} // 'unknown'));
+	my $flavours = $due->{flavours} // {};
+	diag("find_due_nodes full return: " . Dumper($due)) if $ENV{DEBUG};
+
+	my $snmp_uuid = $snmp_only->uuid;
+	# The HTTP node was just collected in Phase 2 so its cadence isn't due
+	# yet; we can only assert about the brand-new SNMP-only node here. The
+	# unit tests above already exercise _has_http_endpoints itself.
+	ok(exists $flavours->{$snmp_uuid},
+		"SNMP-only node appears in due list (no prior polls -> always due)");
+
+	# THE FIX: flavours.http for an SNMP-only node must be falsy (0 or absent).
+	# Before the fix, this would always be 1 because $nexthttp = 0+60 <= now.
+	ok(!$flavours->{$snmp_uuid}{http},
+		"SNMP-only node: flavours.http NOT enabled (no http_endpoints config)");
+	is($flavours->{$snmp_uuid}{snmp}, 1,
+		"SNMP-only node: flavours.snmp=1");
+}
 
 # ============================================================
 # Cleanup

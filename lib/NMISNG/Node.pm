@@ -2239,6 +2239,8 @@ sub update_node_info
 	# Only initialize poll results for sources that are enabled on this node;
 	# leaving disabled sources as undef prevents compute_reachability from
 	# treating them as failed (min of enabled=100 and disabled=0 would be 0).
+	# expands to: ${source}result => snmpresult, wmiresult, httpresult
+	#             ${source}_enabled => snmp_enabled, wmi_enabled, http_enabled
 	for my $source (@{$S->known_sources})
 	{
 		$RI->{"${source}result"} = $S->status->{"${source}_enabled"} ? 0 : undef;
@@ -2264,6 +2266,7 @@ sub update_node_info
 		$curstate = $S->status;
 		push @problems, $curstate->{error} if ($curstate->{error});
 
+		# expands to: ${source}_error => snmp_error, wmi_error, http_error
 		for my $source (@{$S->known_sources})
 		{
 			if ( $curstate->{"${source}_error"} )
@@ -2379,6 +2382,7 @@ sub update_node_info
 
 				# source that hasn't worked? disable immediately
 				$curstate = $S->status;
+				# expands to: ${source}_error => snmp_error, wmi_error, http_error
 				for my $source (@{$S->known_sources})
 				{
 					if ( $curstate->{"${source}_error"} )
@@ -2460,6 +2464,9 @@ sub update_node_info
 	# disable_source changes the state so grab the current state again or we don't see
 	# the affect of the disable call (unless we attempted twice which doesn't always happen)
 	$curstate = $S->status;
+	# expands to: ${source}_enabled => snmp_enabled, wmi_enabled, http_enabled
+	#             ${source}_error   => snmp_error, wmi_error, http_error
+	#             ${source}result   => snmpresult, wmiresult, httpresult
 	for my $source (@{$S->known_sources})
 	{
 		# $curstate should be state as of last loadnodeinfo() op (with update above it is)
@@ -2584,6 +2591,13 @@ sub collect_node_info
 
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
+	# Per-source state and timing reconciliation. The interpolated names below
+	# expand to:
+	#   ${source}_enabled  => snmp_enabled, wmi_enabled, http_enabled
+	#   ${source}_error    => snmp_error, wmi_error, http_error
+	#   ${source}result    => snmpresult, wmiresult, httpresult
+	#   last_poll_$source  => last_poll_snmp, last_poll_wmi, last_poll_http
+	#   last_poll_${source}_attempt => last_poll_snmp_attempt, last_poll_wmi_attempt, last_poll_http_attempt
 	for my $source (@{$S->known_sources})
 	{
 		if ($curstate->{"${source}_enabled"})
@@ -2604,9 +2618,13 @@ sub collect_node_info
 				$self->handle_down( sys => $S, type => $source, details => $curstate->{"${source}_error"}, catchall_inventory => $catchall_inventory );
 				$RI->{"${source}result"} = 0;
 			}
+			# Stamp the attempt time INSIDE the enabled block so disabled
+			# sources don't advance the cadence clock — otherwise
+			# find_due_nodes will keep re-arming this source's next-due
+			# slot every poll and trigger spurious collects (e.g. an
+			# SNMP-only node would get HTTP-cadence collects forever).
+			$catchall_data->{"last_poll_${source}_attempt"} = $time_marker;
 		}
-		# We need to update this time, next attempt will be since this time
-		$catchall_data->{"last_poll_${source}_attempt"} = $time_marker;
 		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
@@ -5004,19 +5022,31 @@ sub collect_systemhealth_info
 
 			if ($disc_error)
 			{
-				$self->nmisng->log->error("($S->{name}) failed to get index table for systemHealth $section of model $catchall_data->{nodeModel}: $disc_error");
-				# Classify the error for SNMP (not_present, model_error are non-fatal)
+				# Classify FIRST, then log at the level appropriate to the
+				# classification — the engine's classify_error knows whether
+				# this is a soft-skip (e.g. an optional HTTP endpoint not
+				# configured on this node) or a real failure. Logging at
+				# 'error' before classifying would emit recurring noise
+				# every poll for legitimately-absent sections.
 				my $classified = $engine->classify_error;
-				if ($classified && $classified->{type} eq 'not_present')
+				my $type       = ($classified && $classified->{type}) || '';
+				my $msg = "($S->{name}) failed to get index table for systemHealth $section of model $catchall_data->{nodeModel}: $disc_error";
+
+				if ($type eq 'not_present')
 				{
-					$self->nmisng->log->debug2("Object not present for section $section: $disc_error");
+					# Optional section / endpoint not configured here.
+					# Debug-level only — no operator action required.
+					$self->nmisng->log->debug("$msg (not_present, soft skip)");
 				}
-				elsif ($classified && $classified->{type} eq 'model_error')
+				elsif ($type eq 'model_error')
 				{
+					# Model-side bug; operator should investigate.
 					$self->nmisng->log->error("Model error for section $section: $disc_error");
 				}
-				elsif ($classified && $classified->{type} eq 'no_session')
+				elsif ($type eq 'no_session')
 				{
+					# Connectivity is dead — error + handle_down + abort.
+					$self->nmisng->log->error($msg);
 					$self->handle_down(
 						sys     => $S,
 						type    => $protocol,
@@ -5027,6 +5057,8 @@ sub collect_systemhealth_info
 				}
 				else
 				{
+					# Unclassified / transport_error — keep prior behaviour.
+					$self->nmisng->log->error($msg);
 					$self->handle_down(
 						sys     => $S,
 						type    => $protocol,
@@ -5371,6 +5403,7 @@ sub handle_sys_get_data_error
 		elsif ($classified->{type} eq 'no_session')
 		{
 			# Mark sources with errors as down before stopping (matches original behavior)
+			# expands to: ${source}_error => snmp_error, wmi_error, http_error
 			for my $source (@{$S->known_sources})
 			{
 				$self->handle_down(sys => $S, type => $source,
@@ -5386,6 +5419,7 @@ sub handle_sys_get_data_error
 
 	# Generic error handling: check status-level errors for each known source
 	my $anyerror = $howdiditgo->{error};
+	# expands to: ${source}_error => snmp_error, wmi_error, http_error
 	for my $source (@{$S->known_sources})
 	{
 		$anyerror ||= $howdiditgo->{"${source}_error"};
@@ -6493,13 +6527,18 @@ sub compute_reachability
 	$reach{responsetime} = $RI->{pingavg};
 	$reach{loss}         = $RI->{pingloss};
 
-	# ${polltype}result is not defined if not tried, use the one that is defined
-	my $pollresult = $RI->{snmpresult} // $RI->{wmiresult} // undef;
-	if( defined($RI->{snmpresult}) && defined($RI->{wmiresult}) ) 
+	# Aggregate pollresult across every known source — min of all defined results.
+	# Sources that weren't tried have undef and don't contribute; failed sources
+	# (= 0) pull the aggregate down so reachability degrades correctly.
+	# Iterating known_sources keeps this generic — adding a future engine to
+	# Sys::known_sources makes it participate here automatically.
+	# expands to: snmpresult, wmiresult, httpresult
+	my $pollresult;
+	for my $source (@{ $S->known_sources })
 	{
-		# if they both are use the lower value
-		$pollresult = $RI->{snmpresult};
-		$pollresult = $RI->{wmiresult} if( $RI->{wmiresult} < $RI->{snmpresult} );
+		my $r = $RI->{"${source}result"};
+		next unless defined $r;
+		$pollresult = $r if !defined $pollresult || $r < $pollresult;
 	}
 
 
@@ -9419,6 +9458,7 @@ sub collect
 		elsif ($updatewasok)    # at least some info was retrieved by wmi or snmp
 		{
 			# at this point we need to tell sys that dead sources are to be ignored
+			# expands to: ${source}_error => snmp_error, wmi_error, http_error
 			for my $source (@{$S->known_sources})
 			{
 				if ( $curstate->{"${source}_error"} )

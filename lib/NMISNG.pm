@@ -171,6 +171,22 @@ sub _threshold_period
 	return "-15 minutes";
 }
 
+# True iff the node config carries at least one HTTP endpoint declaration.
+# Used by find_due_nodes to gate the HTTP cadence; mirrors the live-decode
+# idiom in Sys.pm:643 so the truthiness check matches what the engine itself
+# will see when it tries to use the endpoints.
+# http_endpoints is stored either as an arrayref (when the model has been
+# pre-decoded) or as a JSON string (the raw GUI textbox value).
+sub _has_http_endpoints
+{
+	my ($cfg) = @_;
+	return 0 unless ref $cfg eq 'HASH';
+	my $eps = $cfg->{http_endpoints};
+	return 1 if ref $eps eq 'ARRAY' && @$eps;
+	return 1 if defined $eps && !ref $eps && $eps =~ /\S/;
+	return 0;
+}
+
 ###########
 # Public:
 ###########
@@ -1934,7 +1950,12 @@ sub find_due_nodes
 				}
 
 				$due{$maybe} = $cands{$maybe};
-				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;    # and ignore the last-xyz markers
+				# ignore the last-xyz markers; force a fresh poll. HTTP gated
+				# on configured endpoints so legacy nodes don't pick up an
+				# HTTP cadence they have no engine for.
+				$flavours{$maybe}->{snmp} = 1;
+				$flavours{$maybe}->{wmi}  = 1;
+				$flavours{$maybe}->{http} = _has_http_endpoints($nodeconfig) ? 1 : 0;
 			}
 
 			# logic for dead node demotion/rate-limiting
@@ -2000,7 +2021,12 @@ sub find_due_nodes
 				if ( $nexttry <= $now )
 				{
 					$due{$maybe} = $cands{$maybe};
-					$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1 if ( $whichop eq "collect" );
+					if ( $whichop eq "collect" )
+					{
+						$flavours{$maybe}->{snmp} = 1;
+						$flavours{$maybe}->{wmi}  = 1;
+						$flavours{$maybe}->{http} = _has_http_endpoints($nodeconfig) ? 1 : 0;
+					}
 				}
 			}
 
@@ -2053,7 +2079,12 @@ sub find_due_nodes
 			{
 				$self->log->debug("Node $nodename has no prior poll attempts (snmp/wmi/http), due for poll at $now");
 				$due{$maybe} = $cands{$maybe};
-				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = $flavours{$maybe}->{http} = 1;
+				# HTTP only triggers if the node has endpoints configured;
+				# otherwise the engine has no work to do and stamping the
+				# cadence would just keep re-arming itself.
+				$flavours{$maybe}->{snmp} = 1;
+				$flavours{$maybe}->{wmi}  = 1;
+				$flavours{$maybe}->{http} = _has_http_endpoints($nodeconfig) ? 1 : 0;
 			}
 			else
 			{
@@ -2073,34 +2104,42 @@ sub find_due_nodes
 				# strict 100% would mean that we might skip a full interval when polling takes longer
 				my $fudgefactor = ($self->config->{polling_interval_factor} || 0.95);
 
+				# Gate HTTP cadence on the node actually having endpoints
+				# configured. Without this, a SNMP/WMI-only node would get
+				# spurious HTTP-only collects every cadence interval (default
+				# 60s vs SNMP 300s) because $nexthttp = ($lasthttp // 0) +
+				# 60s is always true on first poll.
+				my $has_http = _has_http_endpoints($nodeconfig);
 				my $nextsnmp = ( $lastsnmp // 0 ) + $intervals{$polname}->{snmp} * $fudgefactor;
 				my $nextwmi  = ( $lastwmi  // 0 ) + $intervals{$polname}->{wmi}  * $fudgefactor;
-				my $nexthttp = ( $lasthttp // 0 ) + $intervals{$polname}->{http} * $fudgefactor;
+				my $nexthttp = $has_http
+					? ( $lasthttp // 0 ) + $intervals{$polname}->{http} * $fudgefactor
+					: undef;
 
 				# only flavours which worked in the past contribute to the now-or-later logic
 				if (   ( defined($lastsnmp) && $nextsnmp <= $now )
 					|| ( defined($lastwmi)  && $nextwmi  <= $now )
-					|| ( defined($lasthttp) && $nexthttp <= $now ) )
+					|| ( $has_http && defined($lasthttp) && $nexthttp <= $now ) )
 				{
 					$self->log->debug( "Node $nodename is due for poll at $now, last snmp: "
 							. ( $lastsnmp // "never" )
 							. ", last wmi: "
 							. ( $lastwmi // "never" )
 							. ", last http: "
-							. ( $lasthttp // "never" )
+							. ( $has_http ? ( $lasthttp // "never" ) : "n/a (no endpoints)" )
 							. ", next snmp: "
 							. ( $lastsnmp ? sprintf( "%.1fs ago", $now - $nextsnmp ) : "n/a" )
 							. ", next wmi: "
 							. ( $lastwmi ? sprintf( "%.1fs ago", $now - $nextwmi ) : "n/a" )
 							. ", next http: "
-							. ( $lasthttp ? sprintf( "%.1fs ago", $now - $nexthttp ) : "n/a" ) );
+							. ( $has_http && $lasthttp ? sprintf( "%.1fs ago", $now - $nexthttp ) : "n/a" ) );
 					$due{$maybe} = $cands{$maybe};
 
 					# but if we've decided on polling, then DO try flavours that have not worked in the past!
 					# next* <= now also covers the case of undefined last*
 					$flavours{$maybe}->{wmi}  = ( $nextwmi  <= $now ) ? 1 : 0;
 					$flavours{$maybe}->{snmp} = ( $nextsnmp <= $now ) ? 1 : 0;
-					$flavours{$maybe}->{http} = ( $nexthttp <= $now ) ? 1 : 0;
+					$flavours{$maybe}->{http} = ( $has_http && $nexthttp <= $now ) ? 1 : 0;
 				}
 				else
 				{
