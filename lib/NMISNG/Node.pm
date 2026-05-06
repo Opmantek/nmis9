@@ -6368,7 +6368,22 @@ sub handle_custom_alerts
 					$alert->{_source_file} = $CA->{$sect}{$alrt}{_source_file};
 					$alert->{inventory_id} = $inventory->id();
 					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
-					 
+
+					# Resolve raw SNMP OID for threshold_metric: parse the primary CVAR variable
+					# from the value expression, then look it up in the model's rrd/sys snmp section
+					my $metric_oid;
+					my $value_expr = $CA->{$sect}{$alrt}{value} // '';
+					if ($value_expr =~ /CVAR\d?=(\w+)/) {
+						
+						my $varname = $1;
+						my $snmp_def = $M->{systemHealth}{rrd}{$sect}{snmp}{$varname}
+						           // $M->{systemHealth}{sys}{$sect}{snmp}{$varname};
+						if (ref($snmp_def) eq 'HASH') {
+							$metric_oid = $snmp_def->{oid} // $snmp_def->{snmpObjectName};
+						}
+					}
+					$alert->{metric_oid} = $metric_oid // $alrt;
+
 					push( @{$S->{alerts}}, $alert );
 				}
 			}
@@ -6488,7 +6503,7 @@ sub process_alerts
 			name => $alert->{alert} || $alert->{ds},
 			value    => $alert->{value},
 			threshold_source  => $alert->{_source_file},
-			threshold_metric  => $alert->{ds},
+			threshold_metric  => $alert->{metric_oid} // $alert->{ds},
 			model_subconcept  => $alert->{section},
 			threshold_key     => $alert->{alert} // $alert->{ds},
 			inventory_id => $alert->{inventory_id}
