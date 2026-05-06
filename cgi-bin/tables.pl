@@ -553,6 +553,17 @@ sub editTable
 				elsif ($thisitem->{display} =~ /(^|,)textbox(,|$)/)
 				{
 					my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+					# JSON-encode structured values (arrayref / hashref) so the
+					# textarea shows a human-editable string instead of Perl's
+					# default "ARRAY(0x...)" stringification. Used by fields
+					# like http_endpoints, which Node::_normalize_http_endpoints
+					# canonicalizes to a Perl arrayref but the GUI roundtrips
+					# as JSON in this textbox.
+					if (ref $value)
+					{
+						require JSON::XS;
+						$value = JSON::XS->new->pretty(1)->canonical(1)->encode($value);
+					}
 					$line .= td(textarea(-name=> $item, -value=>$value,
 															 -style=> 'width: 95%;',
 															 -rows => 3,
@@ -949,7 +960,12 @@ sub doeditTable
 		# Validate
 		my $notvalid = 0;
 		foreach my $prop (keys %$thisentry) {
-			if ($prop !~ /sysDescr|community|authpassword|privpassword|wmipassword/ ) {
+			# http_endpoints is a JSON blob; valid auth.calculate_body strings
+			# legitimately contain semicolons, equals signs, and parens (Perl
+			# expressions) that the generic not_allowed_chars_props regex
+			# would otherwise reject. The setter (Node::_normalize_http_endpoints)
+			# JSON-decodes and validates the structure, so trust it here.
+			if ($prop !~ /sysDescr|community|authpassword|privpassword|wmipassword|http_endpoints/ ) {
 
 				if (ref($thisentry->{$prop}) ne "ARRAY" and ref($thisentry->{$prop}) ne "HASH" and $thisentry->{$prop} ne "") {
 					if ($prop eq "customer" and $thisentry->{$prop} =~ $not_allowed_chars_customer) {

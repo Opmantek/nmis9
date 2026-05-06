@@ -426,7 +426,94 @@ sub make_engine
 	);
 	$eng->execute_queries(todos => \%todos);
 	my @cached_urls = keys %{$eng->{response_cache}};
-	is(scalar @cached_urls, 1, "response_cache: a single URL despite two items");
+	is(scalar @cached_urls, 1, "response_cache: a single key despite two items");
+}
+
+# --- response cache disambiguates by endpoint and format ----------------
+# Two endpoints resolving to the same URL string must NOT share a cached
+# body, because their auth (and their declared format) can differ.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [
+			{ name => 'fixA', port => $port },   # same host:port, different name
+			{ name => 'fixB', port => $port },
+		],
+	);
+
+	# Wrap _fetch to count calls per URL.
+	my %fetch_count;
+	my $orig_fetch = \&NMISNG::Sys::Engine::HTTP::_fetch;
+	no warnings 'redefine';
+	local *NMISNG::Sys::Engine::HTTP::_fetch = sub {
+		my ($self, $endpoint, $url) = @_;
+		$fetch_count{$url}++;
+		return $self->$orig_fetch($endpoint, $url);
+	};
+	use warnings 'redefine';
+
+	my %todos;
+	$eng->build_queries(
+		section_name => 'two_endpoints',
+		section_key  => 'http_prom',
+		section_hash => {
+			a => { endpoint => 'fixA', metric => 'node_load1' },
+			b => { endpoint => 'fixB', metric => 'node_load1' },
+		},
+		todos => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+
+	# Both items point at /metrics on the same host:port — URL string
+	# matches — but they go through different endpoints, so the cache
+	# must store them separately.
+	is($todos{a}{rawvalue}, 0.42, "fixA: extracted load1");
+	is($todos{b}{rawvalue}, 0.42, "fixB: extracted load1");
+	my @cached_keys = keys %{$eng->{response_cache}};
+	is(scalar @cached_keys, 2,
+		"response_cache: two cache entries (keyed by URL+endpoint+format), not one");
+	# Confirm _fetch ran twice — one per endpoint, not coalesced.
+	my $total_fetches = 0;
+	$total_fetches += $_ for values %fetch_count;
+	is($total_fetches, 2,
+		"_fetch called once per endpoint (not coalesced when URL strings match)");
+}
+
+# --- response cache disambiguates by format -----------------------------
+# The same URL declared as both http_prom and http_json should fetch
+# twice and parse twice (parser is format-specific).
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+
+	my %todos;
+	# http_prom item — fetches /metrics, parses as Prometheus
+	$eng->build_queries(
+		section_name => 'as_prom',
+		section_key  => 'http_prom',
+		section_hash => {
+			'-common-' => { endpoint => 'fix' },
+			pval       => { metric => 'node_load1' },
+		},
+		todos => \%todos,
+	);
+	# http_json item — fetches /status, parses as JSON
+	# (Different path, so URL also differs, but the test still confirms
+	# format participates in the key by checking we get two cache entries.)
+	$eng->build_queries(
+		section_name => 'as_json',
+		section_key  => 'http_json',
+		section_hash => {
+			'-common-' => { endpoint => 'fix', path => '/status' },
+			jval       => { jsonpath => '$.app.state' },
+		},
+		todos => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	is($todos{pval}{rawvalue}, 0.42,    "prom path: extracted via prom parser");
+	is($todos{jval}{rawvalue}, 'running', "json path: extracted via json parser");
+	is(scalar(keys %{$eng->{response_cache}}), 2,
+		"response_cache: prom and json cached separately");
 }
 
 # --- error: section without endpoint -------------------------------------

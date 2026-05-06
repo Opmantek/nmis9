@@ -305,21 +305,32 @@ sub execute_queries
 	my @mine = grep { ref $todos->{$_}{extract} eq 'HASH' } keys %$todos;
 	return {} unless @mine;
 
-	# Group by URL (and endpoint, since auth is per-endpoint).
-	my %by_url;
+	# Group by (URL, endpoint, format) so two semantically-distinct fetches
+	# at the same URL string don't share a cached body. Auth lives on the
+	# endpoint, and the parser depends on the format, so keying on URL
+	# alone would let a Bearer-authed JSON response collide with an
+	# anonymous Prometheus scrape that happens to resolve to the same URL.
+	# NUL ("\0") is the join separator since none of the components can
+	# contain it.
+	my %by_key;
 	for my $itemname (@mine)
 	{
 		my $t = $todos->{$itemname};
-		push @{$by_url{$t->{url}}}, $itemname;
+		my $key = join "\0",
+			($t->{url}             // ''),
+			($t->{endpoint}        // ''),
+			($t->{extract}{format} // '');
+		push @{$by_key{$key}}, $itemname;
 	}
 
-	for my $url (keys %by_url)
+	for my $key (keys %by_key)
 	{
-		my $first_item = $by_url{$url}[0];
+		my $first_item = $by_key{$key}[0];
 		my $endpoint_name = $todos->{$first_item}{endpoint};
 		my $endpoint = $self->{endpoints}{$endpoint_name};
+		my $url = $todos->{$first_item}{url};
 
-		my $cached = $self->{response_cache}{$url};
+		my $cached = $self->{response_cache}{$key};
 		if (!$cached)
 		{
 			my ($body, $content_type, $err) = $self->_fetch($endpoint, $url);
@@ -331,15 +342,13 @@ sub execute_queries
 				next;
 			}
 
-			# Parse body once per URL based on the format the FIRST todo using
-			# this URL declared. (All todos using the same URL must agree on
-			# format; engines that mix would need separate URLs.)
+			# Parse body once per (URL, endpoint, format) tuple.
 			my $format = $todos->{$first_item}{extract}{format};
 			$cached = $self->_parse($body, $format);
-			$self->{response_cache}{$url} = $cached;
+			$self->{response_cache}{$key} = $cached;
 		}
 
-		for my $itemname (@{$by_url{$url}})
+		for my $itemname (@{$by_key{$key}})
 		{
 			my $t = $todos->{$itemname};
 			my $value = $self->_extract_value($cached, $t->{extract});

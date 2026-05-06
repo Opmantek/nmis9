@@ -648,14 +648,14 @@ sub init
 		}
 	}
 
-	my $have_snmp_settings = ( $thisnodeconfig->{username} ne "" || $thisnodeconfig->{community} ne "" ) ? 1 : 0;
-	my $have_wmi_settings = ( $thisnodeconfig->{wmiusername} ne "" ) ? 1 : 0;
-	# http_endpoints is either a JSON string (from the GUI textbox) or an
-	# arrayref (when stored structurally); presence of either counts.
-	my $have_http_settings =
-		(ref $thisnodeconfig->{http_endpoints} eq 'ARRAY' && @{$thisnodeconfig->{http_endpoints}})
-		|| (defined $thisnodeconfig->{http_endpoints} && !ref $thisnodeconfig->{http_endpoints} && $thisnodeconfig->{http_endpoints} =~ /\S/)
-		? 1 : 0;
+	# Per-source enabled flags are derived at save time in
+	# Node::_defaults and persisted on the node config. Reading the flag
+	# is cheaper and more honest than re-inferring "are there settings?"
+	# every poll cycle, and a future GUI toggle can override the derived
+	# default to disable a source even when its settings are present.
+	my $have_snmp_settings = $thisnodeconfig->{snmp_enabled} ? 1 : 0;
+	my $have_wmi_settings  = $thisnodeconfig->{wmi_enabled}  ? 1 : 0;
+	my $have_http_settings = $thisnodeconfig->{http_enabled} ? 1 : 0;
 	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings || $have_http_settings ) ? 1 : 0;
 	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings have_http_settings:$have_http_settings");
 	
@@ -725,29 +725,15 @@ sub init
 		require NMISNG::Sys::Engine::WMI;
 		push @{$self->{_engines}}, NMISNG::Sys::Engine::WMI->new(sys => $self);
 	}
-	# http_endpoints may be a Perl arrayref (when stored structurally) or a
-	# JSON-encoded string (when entered via the GUI textbox); accept both.
-	my $http_eps = $thisnodeconfig->{http_endpoints};
-	if (defined $http_eps && !ref $http_eps && $http_eps =~ /\S/)
-	{
-		require JSON::XS;
-		my $decoded = eval { JSON::XS::decode_json($http_eps) };
-		if (ref $decoded eq 'ARRAY')
-		{
-			$http_eps = $decoded;
-		}
-		else
-		{
-			$self->nmisng->log->error(
-				"($self->{name}) http_endpoints failed to JSON-decode: $@");
-			$http_eps = undef;
-		}
-	}
-	if ($wanthttp && ref $http_eps eq 'ARRAY' && @$http_eps)
+	# Gate engine creation on the explicit http_enabled flag (derived at
+	# save time, see Node::_defaults). http_endpoints is canonicalized to
+	# an arrayref by Node::_normalize_http_endpoints — no JSON decode here.
+	if ($wanthttp && $thisnodeconfig->{http_enabled}
+		&& ref $thisnodeconfig->{http_endpoints} eq 'ARRAY')
 	{
 		require NMISNG::Sys::Engine::HTTP;
 		my $http_engine = NMISNG::Sys::Engine::HTTP->new(sys => $self);
-		$http_engine->set_endpoints($http_eps);
+		$http_engine->set_endpoints($thisnodeconfig->{http_endpoints});
 		push @{$self->{_engines}}, $http_engine;
 	}
 
