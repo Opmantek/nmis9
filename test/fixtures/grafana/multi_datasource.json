@@ -1,0 +1,41 @@
+{
+  "title": "Multi-Datasource",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Prom Panel One",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "metric_one" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Prom Panel Two",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "metric_two" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "MySQL Panel",
+      "datasource": { "type": "mysql", "uid": "xyz" },
+      "targets": [
+        { "refId": "A", "rawSql": "SELECT * FROM something" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Influx Panel",
+      "datasource": { "type": "influxdb", "uid": "qrs" },
+      "targets": [
+        { "refId": "A", "query": "SELECT mean(value) FROM something" }
+      ]
+    }
+  ]
+}
