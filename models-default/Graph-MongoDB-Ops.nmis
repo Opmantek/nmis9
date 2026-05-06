@@ -1,0 +1,56 @@
+#
+# Graph-MongoDB-Ops.nmis - per-second op rates by legacy_op_type.
+#
+%hash = (
+	'heading' => 'MongoDB Operations',
+	'title' => {
+		'standard' => '$node MongoDB Ops - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB Ops - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Operations per second',
+		'small'    => 'ops/s',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:insert=$database:insert:AVERAGE',
+			'DEF:query=$database:query:AVERAGE',
+			'DEF:update=$database:update:AVERAGE',
+			'DEF:delete=$database:delete:AVERAGE',
+			'DEF:getmore=$database:getmore:AVERAGE',
+			'DEF:command=$database:command:AVERAGE',
+			'LINE2:insert#1E90FF: Insert',
+			'GPRINT:insert:AVERAGE:Avg %7.2lf',
+			'GPRINT:insert:MAX:Max %7.2lf\\n',
+			'LINE2:query#7CFC00: Query',
+			'GPRINT:query:AVERAGE:Avg %7.2lf',
+			'GPRINT:query:MAX:Max %7.2lf\\n',
+			'LINE2:update#FF8C00: Update',
+			'GPRINT:update:AVERAGE:Avg %7.2lf',
+			'GPRINT:update:MAX:Max %7.2lf\\n',
+			'LINE2:delete#FF0000: Delete',
+			'GPRINT:delete:AVERAGE:Avg %7.2lf',
+			'GPRINT:delete:MAX:Max %7.2lf\\n',
+			'LINE1:getmore#9370DB: Getmore',
+			'GPRINT:getmore:AVERAGE:Avg %7.2lf',
+			'GPRINT:getmore:MAX:Max %7.2lf\\n',
+			'LINE1:command#808080: Command',
+			'GPRINT:command:AVERAGE:Avg %7.2lf',
+			'GPRINT:command:MAX:Max %7.2lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:insert=$database:insert:AVERAGE',
+			'DEF:query=$database:query:AVERAGE',
+			'DEF:update=$database:update:AVERAGE',
+			'DEF:delete=$database:delete:AVERAGE',
+			'DEF:getmore=$database:getmore:AVERAGE',
+			'DEF:command=$database:command:AVERAGE',
+			'LINE1:insert#1E90FF: Ins',
+			'LINE1:query#7CFC00: Qry',
+			'LINE1:update#FF8C00: Upd',
+			'LINE1:delete#FF0000: Del',
+		],
+	},
+);

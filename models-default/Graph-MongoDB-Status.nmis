@@ -1,0 +1,33 @@
+#
+# Graph-MongoDB-Status.nmis - mongodb_up flag (1 = up, 0 = down).
+#
+%hash = (
+	'heading' => 'MongoDB Status',
+	'title' => {
+		'standard' => '$node MongoDB Up - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Up (1=yes 0=no)',
+		'small'    => 'up',
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit', '1',
+			'--lower-limit', '0',
+			'--rigid',
+			'DEF:up=$database:up:AVERAGE',
+			'AREA:up#7CFC00: MongoDB Up',
+			'GPRINT:up:LAST:Now %1.0lf',
+			'GPRINT:up:AVERAGE:Avg %1.2lf',
+			'GPRINT:up:MIN:Min %1.0lf\\n',
+		],
+		'small' => [
+			'--upper-limit', '1',
+			'--lower-limit', '0',
+			'--rigid',
+			'DEF:up=$database:up:AVERAGE',
+			'AREA:up#7CFC00: Up',
+		],
+	},
+);

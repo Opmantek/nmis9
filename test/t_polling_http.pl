@@ -419,6 +419,98 @@ diag("=== Phase 5: HTTP-only collect doesn't stamp SNMP/WMI attempts ===");
 }
 
 # ============================================================
+# Phase 6: Sys::status surfaces http_enabled / http_error
+# ============================================================
+diag("=== Phase 6: Sys::status http surface ===");
+{
+	# Fresh Sys for this node — confirm http_enabled is set after init.
+	my ($cinv) = $node->inventory(concept => "catchall");
+	my $S6 = NMISNG::Sys->new(nmisng => $nmisng);
+	$S6->init(node => $node, snmp => 0, wmi => 0, update => 0, catchall_inventory => $cinv);
+	my $st = $S6->status;
+	is($st->{http_enabled}, 1,
+		"Sys::status: http_enabled set to 1 after init when http_endpoints present");
+	ok(exists $st->{http_error},
+		"Sys::status: http_error key present (undef when no error)");
+	# Also confirm SNMP/WMI flags still surface correctly via the new loop.
+	is($st->{snmp_enabled}, 0, "Sys::status: snmp_enabled=0 when not requested");
+	is($st->{wmi_enabled}, 0,  "Sys::status: wmi_enabled=0 when not requested");
+}
+
+# ============================================================
+# Phase 7: HTTP success stamps last_poll_http and httpresult
+# ============================================================
+diag("=== Phase 7: HTTP success stamps last_poll_http + httpresult ===");
+{
+	my ($pre_inv) = $node->inventory(concept => "catchall");
+	my $pre = $pre_inv->data;
+	# Plant a fake old last_poll_http to verify it advances on success.
+	my $stale = time() - 999;
+	$pre->{last_poll_http} = $stale;
+	$pre_inv->data($pre);
+	$pre_inv->save(node => $node);
+
+	# Run an HTTP-only collect — the per-source loop in Node.pm should
+	# now see http_enabled=1 (Fix 1A) and stamp last_poll_http.
+	$node->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 1, force => 1);
+
+	my ($post_inv) = $node->inventory(concept => "catchall");
+	my $post = $post_inv->data;
+	ok($post->{last_poll_http} > $stale,
+		"HTTP collect: last_poll_http advanced after Fix 1A");
+}
+
+# ============================================================
+# Phase 8: Defensive load — legacy config without *_enabled flags
+# ============================================================
+diag("=== Phase 8: legacy config without *_enabled flags ===");
+{
+	# Build a node config that has SNMP credentials and http_endpoints
+	# but lacks the snmp_enabled / wmi_enabled / http_enabled flags
+	# (mimics a row saved before Node::_defaults wrote them through).
+	# Sys::init must infer enabled-ness from settings.
+	my $legacy = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+	$legacy->cluster_id($C->{cluster_id});
+	$legacy->name("test_legacy_node");
+	$legacy->activated({ NMIS => 1 });
+	$legacy->configuration({
+		host => "127.0.0.1", group => "TestGroup", netType => "default",
+		roleType => "default", model => "TestHTTP", collect => "true",
+		ping => "false",
+		community => "public", version => "snmpv2c",   # SNMP credential
+		http_endpoints => [{ name => 'node_exporter', port => 9100 }],
+	});
+	$legacy->save;
+
+	# Now manually delete the *_enabled flags from the persisted config
+	# to simulate a pre-_defaults DB row.
+	my $coll = $nmisng->nodes_collection;
+	$coll->update_one(
+		{ uuid => $legacy->uuid },
+		{ '$unset' => { 'configuration.snmp_enabled' => 1,
+		                'configuration.wmi_enabled'  => 1,
+		                'configuration.http_enabled' => 1 } }
+	);
+
+	# Reload (bypassing the in-memory Node we already have).
+	my $reloaded = $nmisng->node(uuid => $legacy->uuid);
+	my $cfg = $reloaded->configuration;
+	ok(!exists $cfg->{snmp_enabled} || !defined $cfg->{snmp_enabled},
+		"legacy node really has no snmp_enabled persisted");
+
+	# Sys::init must still wire up the SNMP and HTTP engines via the
+	# settings-fallback path.
+	my ($lci) = $reloaded->inventory(concept => "catchall");
+	my $S8 = NMISNG::Sys->new(nmisng => $nmisng);
+	$S8->init(node => $reloaded, snmp => 1, wmi => 0, update => 0, catchall_inventory => $lci);
+	my $st = $S8->status;
+	is($st->{snmp_enabled}, 1,
+		"defensive read: snmp_enabled inferred from community on legacy config");
+	is($st->{http_enabled}, 1,
+		"defensive read: http_enabled inferred from http_endpoints on legacy config");
+}
+
+# ============================================================
 # Cleanup
 # ============================================================
 diag("=== Cleanup ===");

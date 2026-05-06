@@ -1,0 +1,60 @@
+#
+# Graph-MongoDB-Latencies.nmis - average latency per op_type.
+# Both _ops and _latency are stored as counters; rate gives ops/s and
+# microseconds/s. Average per-op latency = latency-rate / ops-rate.
+#
+%hash = (
+	'heading' => 'MongoDB Op Latencies',
+	'title' => {
+		'standard' => '$node MongoDB Latencies - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB Latency - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Microseconds per operation',
+		'small'    => 'us/op',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:r_ops=$database:reads_ops:AVERAGE',
+			'DEF:r_lat=$database:reads_latency:AVERAGE',
+			'DEF:w_ops=$database:writes_ops:AVERAGE',
+			'DEF:w_lat=$database:writes_latency:AVERAGE',
+			'DEF:c_ops=$database:commands_ops:AVERAGE',
+			'DEF:c_lat=$database:commands_latency:AVERAGE',
+			# Avg per-op latency = latency-rate / ops-rate. Guard against
+			# divide-by-zero with ifelse(ops==0, NaN, lat/ops).
+			'CDEF:r_avg=r_ops,0,EQ,UNKN,r_lat,r_ops,/,IF',
+			'CDEF:w_avg=w_ops,0,EQ,UNKN,w_lat,w_ops,/,IF',
+			'CDEF:c_avg=c_ops,0,EQ,UNKN,c_lat,c_ops,/,IF',
+			'LINE2:r_avg#1E90FF: Reads (us/op)',
+			'GPRINT:r_avg:AVERAGE:Avg %7.0lf',
+			'GPRINT:r_avg:MAX:Max %7.0lf\\n',
+			'LINE2:w_avg#FF8C00: Writes (us/op)',
+			'GPRINT:w_avg:AVERAGE:Avg %7.0lf',
+			'GPRINT:w_avg:MAX:Max %7.0lf\\n',
+			'LINE2:c_avg#9370DB: Commands (us/op)',
+			'GPRINT:c_avg:AVERAGE:Avg %7.0lf',
+			'GPRINT:c_avg:MAX:Max %7.0lf\\n',
+			'COMMENT:Op rates (per second):\\n',
+			'GPRINT:r_ops:AVERAGE:Reads %7.2lf/s',
+			'GPRINT:w_ops:AVERAGE:Writes %7.2lf/s',
+			'GPRINT:c_ops:AVERAGE:Cmds %7.2lf/s\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:r_ops=$database:reads_ops:AVERAGE',
+			'DEF:r_lat=$database:reads_latency:AVERAGE',
+			'DEF:w_ops=$database:writes_ops:AVERAGE',
+			'DEF:w_lat=$database:writes_latency:AVERAGE',
+			'DEF:c_ops=$database:commands_ops:AVERAGE',
+			'DEF:c_lat=$database:commands_latency:AVERAGE',
+			'CDEF:r_avg=r_ops,0,EQ,UNKN,r_lat,r_ops,/,IF',
+			'CDEF:w_avg=w_ops,0,EQ,UNKN,w_lat,w_ops,/,IF',
+			'CDEF:c_avg=c_ops,0,EQ,UNKN,c_lat,c_ops,/,IF',
+			'LINE1:r_avg#1E90FF: Read',
+			'LINE1:w_avg#FF8C00: Write',
+			'LINE1:c_avg#9370DB: Cmd',
+		],
+	},
+);

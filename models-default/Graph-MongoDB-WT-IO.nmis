@@ -1,0 +1,41 @@
+#
+# Graph-MongoDB-WT-IO.nmis - WiredTiger block manager bytes I/O and
+# eviction call rate (eviction calls indicate cache pressure).
+#
+%hash = (
+	'heading' => 'MongoDB WiredTiger I/O',
+	'title' => {
+		'standard' => '$node WT I/O - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node WT I/O - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes per second',
+		'small'    => 'B/s',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'DEF:rd=$database:block_bytes_read:AVERAGE',
+			'DEF:wr=$database:block_bytes_written:AVERAGE',
+			'DEF:ev=$database:evictions:AVERAGE',
+			'CDEF:wr_neg=wr,-1,*',
+			'AREA:rd#1E90FF: Block Read',
+			'GPRINT:rd:AVERAGE:Avg %7.2lf%sB/s',
+			'GPRINT:rd:MAX:Max %7.2lf%sB/s\\n',
+			'AREA:wr_neg#FF8C00: Block Write',
+			'GPRINT:wr:AVERAGE:Avg %7.2lf%sB/s',
+			'GPRINT:wr:MAX:Max %7.2lf%sB/s\\n',
+			'COMMENT:Eviction calls/s',
+			'GPRINT:ev:AVERAGE:Avg %7.2lf',
+			'GPRINT:ev:MAX:Max %7.2lf\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'DEF:rd=$database:block_bytes_read:AVERAGE',
+			'DEF:wr=$database:block_bytes_written:AVERAGE',
+			'CDEF:wr_neg=wr,-1,*',
+			'AREA:rd#1E90FF: Read',
+			'AREA:wr_neg#FF8C00: Write',
+		],
+	},
+);

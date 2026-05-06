@@ -1985,10 +1985,17 @@ sub find_due_nodes
 					}
 				}
 
-				# try only once a day if beyond the grace time, min of snmp/wmi/update policy otherwise;
+				# try only once a day if beyond the grace time, min of
+				# snmp/wmi/http (per-source if configured) or update policy.
+				# Including http_enabled gate avoids the legacy-node "wait
+				# 60s on every cycle" issue we previously fixed in the main
+				# find_due_nodes scheduling branches.
+				my @collect_intervals = ($intervals{$polname}->{snmp}, $intervals{$polname}->{wmi});
+				push @collect_intervals, $intervals{$polname}->{http}
+					if $nodeconfig->{http_enabled};
 				my $normalperiod
 					= $whichop eq "collect"
-					? Statistics::Lite::min( $intervals{$polname}->{snmp}, $intervals{$polname}->{wmi} )
+					? Statistics::Lite::min(@collect_intervals)
 					: $intervals{$polname}->{update};
 
 				# but do make sure to try a newly added node NOW!

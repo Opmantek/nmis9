@@ -241,16 +241,53 @@ sub build_queries
 			# label_match: for indexed sections, the section's `indexed` label
 			# is fixed to the per-row index value; per-item extra labels can
 			# narrow further.
+			#
+			# Composite index support: when section_indexed is an arrayref
+			# (e.g. ['database','collection']) the row's $index is a synthesized
+			# string the engine built in discover_indexes by joining per-label
+			# values with `__`. Split it back here and seed match_labels with
+			# every component, so per-row extraction is implicitly scoped to
+			# its (label1=val1, label2=val2, ...) tuple.
 			my %label_match;
 			if (defined $section_indexed && defined $index)
 			{
-				$label_match{$section_indexed} = $index;
+				if (ref $section_indexed eq 'ARRAY' && @$section_indexed > 1)
+				{
+					my @vars = @$section_indexed;
+					my @vals = split(/__/, $index, scalar @vars);
+					if (@vals == @vars)
+					{
+						@label_match{@vars} = @vals;
+					}
+					else
+					{
+						$sys->nmisng->log->warn(
+							"($sys->{name}) http: composite index '$index' has "
+							. (scalar @vals) . " components but section declares "
+							. (scalar @vars) . " (" . join(',', @vars) . "); "
+							. "label values containing '__' break round-trip.");
+					}
+				}
+				else
+				{
+					my $var = ref $section_indexed eq 'ARRAY'
+						? $section_indexed->[0]
+						: $section_indexed;
+					$label_match{$var} = $index;
+				}
 			}
 			if (ref $thisitem->{match_labels} eq 'HASH')
 			{
 				%label_match = (%label_match, %{$thisitem->{match_labels}});
 			}
 			$extract = { format => 'prom', metric => $metric, labels => \%label_match };
+			# extract_label: instead of returning the matched sample's
+			# value, return the value of one of its OTHER labels. Useful
+			# for surfacing a secondary label (e.g. 'database' on a
+			# collection-indexed section) into inventory so it shows in
+			# System Health columns.
+			$extract->{label} = $thisitem->{extract_label}
+				if defined $thisitem->{extract_label};
 		}
 		elsif ($section_key eq 'http_json')
 		{
@@ -431,23 +468,72 @@ sub discover_indexes
 		$self->{response_cache}{$url} = $cached;
 	}
 
-	# Determine which metric names this section pulls; we only consider those
-	# samples when discovering label values, otherwise unrelated metrics
-	# pollute the index space.
-	my %metrics_of_interest;
+	# Build per-item filter tuples: (metric_name, match_labels). A candidate
+	# index value is accepted only if at least one item's tuple is satisfied
+	# by some sample — i.e. there's a metric we'd actually be able to
+	# extract for that index. Honoring match_labels at discovery time is
+	# what keeps "ghost" inventory rows from appearing for index values
+	# that exist in the metric stream but don't satisfy any item's label
+	# filter.
+	my @item_filters;
 	for my $itemname (keys %$section_hash)
 	{
 		next if $itemname eq '-common-';
-		my $m = $section_hash->{$itemname}{metric};
-		$metrics_of_interest{$m}++ if defined $m;
+		my $thisitem = $section_hash->{$itemname};
+		my $m = $thisitem->{metric};
+		next unless defined $m;
+		push @item_filters, {
+			metric => $m,
+			labels => (ref $thisitem->{match_labels} eq 'HASH'
+				? $thisitem->{match_labels} : {}),
+		};
+	}
+
+	# Composite-index support: $index_var may be an arrayref of label
+	# names (e.g. ['database','collection']) for sections where a single
+	# label can collide across rows. The engine joins per-row label
+	# values with `__` to synthesize a unique identifier; build_queries
+	# splits it back to per-component match constraints during extraction.
+	# Single-label string form is kept as-is for backwards compat.
+	my @index_vars = ref $index_var eq 'ARRAY'
+		? @$index_var
+		: (defined $index_var && length $index_var ? ($index_var) : ());
+	if (!@index_vars)
+	{
+		$self->{_last_error} = "section has no indexed label";
+		return ($self->{_last_error}, undef, undef);
 	}
 
 	my %seen;
-	for my $sample (@{$cached->{samples} // []})
+	SAMPLE: for my $sample (@{$cached->{samples} // []})
 	{
-		next unless $metrics_of_interest{$sample->{name}};
-		my $val = $sample->{labels}{$index_var};
-		$seen{$val}++ if defined $val;
+		# Pull every named label value; skip the sample if any is missing.
+		my @vals = map { $sample->{labels}{$_} } @index_vars;
+		next if grep { !defined $_ } @vals;
+		my $composite = (@index_vars > 1) ? join("__", @vals) : $vals[0];
+
+		# A candidate is reachable if any item's (metric, match_labels)
+		# tuple is satisfied by this sample. Items without match_labels
+		# require only the metric name to match.
+		for my $f (@item_filters)
+		{
+			next unless $sample->{name} eq $f->{metric};
+			my $match = 1;
+			for my $k (keys %{$f->{labels}})
+			{
+				if (!exists $sample->{labels}{$k}
+					|| $sample->{labels}{$k} ne $f->{labels}{$k})
+				{
+					$match = 0;
+					last;
+				}
+			}
+			if ($match)
+			{
+				$seen{$composite}++;
+				next SAMPLE;
+			}
+		}
 	}
 
 	my @candidates = sort keys %seen;
@@ -557,7 +643,15 @@ sub _extract_value
 					last;
 				}
 			}
-			return $s->{value} if $match;
+			if ($match)
+			{
+				# extract_label: caller wants a label's value, not the
+				# sample's metric value. Returns undef if the named
+				# label isn't on this sample.
+				return $extract->{label}
+					? $s->{labels}{$extract->{label}}
+					: $s->{value};
+			}
 		}
 		return undef;
 	}

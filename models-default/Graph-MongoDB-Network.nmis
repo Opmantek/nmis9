@@ -1,0 +1,40 @@
+#
+# Graph-MongoDB-Network.nmis - bytes in/out (mirrored axes) + request rate.
+#
+%hash = (
+	'heading' => 'MongoDB Network',
+	'title' => {
+		'standard' => '$node MongoDB Network - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB Network - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes per second',
+		'small'    => 'B/s',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'DEF:bin=$database:bytes_in:AVERAGE',
+			'DEF:bout=$database:bytes_out:AVERAGE',
+			'DEF:reqs=$database:num_requests:AVERAGE',
+			'CDEF:bout_neg=bout,-1,*',
+			'AREA:bin#1E90FF: In',
+			'GPRINT:bin:AVERAGE:Avg %7.2lf%sB/s',
+			'GPRINT:bin:MAX:Max %7.2lf%sB/s\\n',
+			'AREA:bout_neg#FF8C00: Out',
+			'GPRINT:bout:AVERAGE:Avg %7.2lf%sB/s',
+			'GPRINT:bout:MAX:Max %7.2lf%sB/s\\n',
+			'COMMENT:Requests',
+			'GPRINT:reqs:AVERAGE:Avg %7.2lf/s',
+			'GPRINT:reqs:MAX:Max %7.2lf/s\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'DEF:bin=$database:bytes_in:AVERAGE',
+			'DEF:bout=$database:bytes_out:AVERAGE',
+			'CDEF:bout_neg=bout,-1,*',
+			'AREA:bin#1E90FF: In',
+			'AREA:bout_neg#FF8C00: Out',
+		],
+	},
+);

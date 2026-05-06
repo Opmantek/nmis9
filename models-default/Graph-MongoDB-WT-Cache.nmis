@@ -1,0 +1,52 @@
+#
+# Graph-MongoDB-WT-Cache.nmis - WiredTiger cache fill (current vs max)
+# plus read/write rates into and out of the cache.
+#
+%hash = (
+	'heading' => 'MongoDB WiredTiger Cache',
+	'title' => {
+		'standard' => '$node WT Cache - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node WT Cache - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes',
+		'small'    => 'B',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:now=$database:bytes_now:AVERAGE',
+			'DEF:max=$database:bytes_max:AVERAGE',
+			'DEF:rd=$database:bytes_read:AVERAGE',
+			'DEF:wr=$database:bytes_written:AVERAGE',
+			'DEF:p_rd=$database:pages_read:AVERAGE',
+			'DEF:p_wr=$database:pages_written:AVERAGE',
+			'AREA:now#1E90FF: Cached',
+			'GPRINT:now:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:now:MAX:Max %7.2lf%sB\\n',
+			'LINE2:max#FF0000: Max',
+			'GPRINT:max:LAST:Now %7.2lf%sB\\n',
+			'COMMENT:Bytes read into cache/s',
+			'GPRINT:rd:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:rd:MAX:Max %7.2lf%sB\\n',
+			'COMMENT:Bytes written from cache/s',
+			'GPRINT:wr:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:wr:MAX:Max %7.2lf%sB\\n',
+			'COMMENT:Pages read/s',
+			'GPRINT:p_rd:AVERAGE:Avg %7.2lf',
+			'GPRINT:p_rd:MAX:Max %7.2lf\\n',
+			'COMMENT:Pages written/s',
+			'GPRINT:p_wr:AVERAGE:Avg %7.2lf',
+			'GPRINT:p_wr:MAX:Max %7.2lf\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:now=$database:bytes_now:AVERAGE',
+			'DEF:max=$database:bytes_max:AVERAGE',
+			'AREA:now#1E90FF: Cached',
+			'LINE1:max#FF0000: Max',
+		],
+	},
+);

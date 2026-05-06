@@ -1,0 +1,49 @@
+#
+# Graph-MongoDB-DatabaseSize.nmis - per-database storage breakdown
+# (data + index stacked, total storage capping line).
+#
+%hash = (
+	'heading' => 'MongoDB Database $index',
+	'title' => {
+		'standard' => '$node MongoDB DB $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB $index - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes',
+		'small'    => 'B',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:data=$database:dataSize:AVERAGE',
+			'DEF:idx=$database:indexSize:AVERAGE',
+			'DEF:total=$database:storageSize:AVERAGE',
+			'DEF:objs=$database:objects:AVERAGE',
+			'DEF:colls=$database:collections:AVERAGE',
+			'AREA:data#1E90FF: Data',
+			'GPRINT:data:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:data:MAX:Max %7.2lf%sB\\n',
+			'STACK:idx#FF8C00: Index',
+			'GPRINT:idx:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:idx:MAX:Max %7.2lf%sB\\n',
+			'LINE2:total#FF0000: Storage',
+			'GPRINT:total:LAST:Now %7.2lf%sB\\n',
+			'COMMENT:Documents',
+			'GPRINT:objs:LAST:Now %7.0lf',
+			'GPRINT:objs:MAX:Max %7.0lf\\n',
+			'COMMENT:Collections',
+			'GPRINT:colls:LAST:Now %5.0lf\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:data=$database:dataSize:AVERAGE',
+			'DEF:idx=$database:indexSize:AVERAGE',
+			'DEF:total=$database:storageSize:AVERAGE',
+			'AREA:data#1E90FF: Data',
+			'STACK:idx#FF8C00: Index',
+			'LINE1:total#FF0000: Storage',
+		],
+	},
+);
