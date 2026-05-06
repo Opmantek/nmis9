@@ -23,6 +23,18 @@ working_tests=(
     t_sys_dual.pl
     t_compat_nmis.pl
     t_plugin_contract.pl
+    # Model overrides (Override-Model-* / Override-Common-* discovery)
+    t_model_overrides.pl
+    # HTTP engine + supporting parsers
+    t_prom_text.pl
+    t_jsonpath.pl
+    t_sys_http.pl
+    t_engine_http.pl
+    t_engine_http_auth.pl
+    t_polling_http.pl
+    # Model-scaffolding tools (admin/build_http_model.pl, admin/import_grafana_dashboard.pl)
+    t_build_http_model.pl
+    t_import_grafana_dashboard.pl
 )
 
 for i in "${working_tests[@]}"; do
