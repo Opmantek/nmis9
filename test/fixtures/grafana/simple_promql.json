@@ -1,0 +1,40 @@
+{
+  "title": "Simple PromQL Dashboard",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Up Status",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "myapp_up", "legendFormat": "up" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Filtered Active Connections",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "myapp_connections{state=\"active\"}",
+          "legendFormat": "active"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "graph",
+      "title": "HTTP Request Rate",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(myapp_http_requests_total[5m])",
+          "legendFormat": "requests"
+        }
+      ]
+    }
+  ]
+}
