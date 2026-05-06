@@ -4,7 +4,7 @@
 # Working pattern for "extend a stock model with a Common file on
 # specific nodes". Copy this into models-custom/ as
 #   Override-Model-net-snmp.nmis
-# to activate. See doc/Model-Reference.md, section 19, subsection
+# to activate. See docs/Model-Reference.md, section 19, subsection
 # "Wiring a Common file into an existing model on a single node".
 #
 # What this override does once installed:
