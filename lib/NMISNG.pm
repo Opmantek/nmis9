@@ -171,21 +171,11 @@ sub _threshold_period
 	return "-15 minutes";
 }
 
-# True iff the node config carries at least one HTTP endpoint declaration.
-# Used by find_due_nodes to gate the HTTP cadence; mirrors the live-decode
-# idiom in Sys.pm:643 so the truthiness check matches what the engine itself
-# will see when it tries to use the endpoints.
-# http_endpoints is stored either as an arrayref (when the model has been
-# pre-decoded) or as a JSON string (the raw GUI textbox value).
-sub _has_http_endpoints
-{
-	my ($cfg) = @_;
-	return 0 unless ref $cfg eq 'HASH';
-	my $eps = $cfg->{http_endpoints};
-	return 1 if ref $eps eq 'ARRAY' && @$eps;
-	return 1 if defined $eps && !ref $eps && $eps =~ /\S/;
-	return 0;
-}
+# Per-source enabled flags (snmp_enabled / wmi_enabled / http_enabled) are
+# stored on the node configuration and derived at save time in
+# Node::_defaults. find_due_nodes reads them directly via
+# $nodeconfig->{http_enabled} below — no helper needed; no inference at
+# scheduling time. See Node::_defaults for the derivation rules.
 
 ###########
 # Public:
@@ -1955,7 +1945,7 @@ sub find_due_nodes
 				# HTTP cadence they have no engine for.
 				$flavours{$maybe}->{snmp} = 1;
 				$flavours{$maybe}->{wmi}  = 1;
-				$flavours{$maybe}->{http} = _has_http_endpoints($nodeconfig) ? 1 : 0;
+				$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
 			}
 
 			# logic for dead node demotion/rate-limiting
@@ -2025,7 +2015,7 @@ sub find_due_nodes
 					{
 						$flavours{$maybe}->{snmp} = 1;
 						$flavours{$maybe}->{wmi}  = 1;
-						$flavours{$maybe}->{http} = _has_http_endpoints($nodeconfig) ? 1 : 0;
+						$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
 					}
 				}
 			}
@@ -2084,7 +2074,7 @@ sub find_due_nodes
 				# cadence would just keep re-arming itself.
 				$flavours{$maybe}->{snmp} = 1;
 				$flavours{$maybe}->{wmi}  = 1;
-				$flavours{$maybe}->{http} = _has_http_endpoints($nodeconfig) ? 1 : 0;
+				$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
 			}
 			else
 			{
@@ -2109,7 +2099,7 @@ sub find_due_nodes
 				# spurious HTTP-only collects every cadence interval (default
 				# 60s vs SNMP 300s) because $nexthttp = ($lasthttp // 0) +
 				# 60s is always true on first poll.
-				my $has_http = _has_http_endpoints($nodeconfig);
+				my $has_http = $nodeconfig->{http_enabled} ? 1 : 0;
 				my $nextsnmp = ( $lastsnmp // 0 ) + $intervals{$polname}->{snmp} * $fudgefactor;
 				my $nextwmi  = ( $lastwmi  // 0 ) + $intervals{$polname}->{wmi}  * $fudgefactor;
 				my $nexthttp = $has_http

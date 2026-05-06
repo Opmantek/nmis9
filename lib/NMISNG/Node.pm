@@ -203,7 +203,113 @@ sub _defaults
 	# and let's set the default polling policy if none was given
 	$configuration->{polling_policy} ||= "default";
 
+	# Canonicalize http_endpoints once: decode the GUI's JSON-string form
+	# into a Perl arrayref (or delete the key entirely if empty/invalid).
+	# Subsequent saves see the arrayref and skip the decode work, so this
+	# isn't a per-save tax — it's a one-time cost the first time a fresh
+	# GUI value arrives. strict=1 stashes any decode error so validate()
+	# (and therefore save()) reports it back to the caller instead of
+	# silently dropping the user's JSON.
+	$self->_normalize_http_endpoints($configuration, strict => 1);
+
+	# Re-derive per-source enabled flags from settings presence on every
+	# save. find_due_nodes and Sys::init read these flags directly instead
+	# of re-inspecting credentials/endpoints on every call.
+	#
+	# Always-derive (rather than //=) is the right semantic today: there's
+	# no GUI for the user to toggle a source, so settings presence is the
+	# only signal we have. Adding a community to a previously-credential-
+	# less node flips snmp_enabled to 1; removing it flips back to 0.
+	#
+	# Future GUI work that needs to support "I have credentials but want
+	# SNMP off" will need a separate sticky field (e.g. snmp_enabled_override)
+	# so user intent is distinguishable from auto-derivation. Don't switch
+	# this back to //= for that — that path conflates the two.
+	$configuration->{snmp_enabled} =
+		( ( defined $configuration->{community}  && $configuration->{community}  ne "" )
+		|| ( defined $configuration->{username}   && $configuration->{username}   ne "" ) )
+		? 1 : 0;
+	$configuration->{wmi_enabled} =
+		( defined $configuration->{wmiusername} && $configuration->{wmiusername} ne "" )
+		? 1 : 0;
+	# After _normalize_http_endpoints above, the field is either an
+	# arrayref-with-entries or absent — a one-line check.
+	$configuration->{http_enabled} =
+		( ref $configuration->{http_endpoints} eq 'ARRAY' ) ? 1 : 0;
+
 	return $configuration;
+}
+
+# Normalize $cfg->{http_endpoints} into either an arrayref-with-entries or
+# absent. Accepts an arrayref (left as-is when non-empty), a JSON string
+# (decoded — typical GUI textbox value), an empty array (deleted), or
+# invalid input (warned and deleted). Stores the decoded form back so
+# downstream callers and subsequent saves don't re-decode.
+#
+# Args:
+#   strict => 1  : called from the setter path (user-supplied input).
+#                  Stash any decode/shape error onto $self->{_http_endpoints_error}
+#                  so validate() can surface it back to the caller (GUI / API),
+#                  preventing a save from silently dropping the user's JSON.
+#   (default)    : called from the load path. Log a warning and continue.
+#                  Don't block save — the in-memory bad value has been
+#                  cleaned up so the next save will write valid data.
+sub _normalize_http_endpoints
+{
+	my ( $self, $cfg, %opts ) = @_;
+	my $strict = $opts{strict} ? 1 : 0;
+
+	# Strict mode is a fresh attempt — always reset the stash so a previous
+	# bad value doesn't poison a now-good one.
+	delete $self->{_http_endpoints_error} if $strict;
+	return unless ref $cfg eq 'HASH' && exists $cfg->{http_endpoints};
+
+	my $name = $self->{_name} // '?';
+	my $fail = sub {
+		my ($msg) = @_;
+		$self->nmisng->log->warn("($name) http_endpoints: $msg");
+		$self->{_http_endpoints_error} = $msg if $strict;
+		delete $cfg->{http_endpoints};
+	};
+
+	my $eps = $cfg->{http_endpoints};
+
+	# JSON string (typical GUI textbox value) -> decode once and store
+	if ( !ref $eps )
+	{
+		if ( !defined $eps || $eps !~ /\S/ )
+		{
+			delete $cfg->{http_endpoints};
+			return;
+		}
+		require JSON::XS;
+		my $decoded = eval { JSON::XS::decode_json($eps) };
+		if ($@)
+		{
+			# Strip "at … line …" trailers from JSON::XS error messages so
+			# the surfaced text is clean enough for a UI 'error' row.
+			my $err = $@;
+			$err =~ s/\s+at\s+\S+\s+line\s+\d+\.?\s*$//;
+			return $fail->("failed to JSON-decode: $err");
+		}
+		$eps = $decoded;
+	}
+
+	# Anything other than an arrayref is invalid
+	if ( ref $eps ne 'ARRAY' )
+	{
+		return $fail->("must be a JSON array");
+	}
+
+	# Empty array -> no endpoints; delete so absence is the canonical "none"
+	if ( !@$eps )
+	{
+		delete $cfg->{http_endpoints};
+		return;
+	}
+
+	$cfg->{http_endpoints} = $eps;
+	return;
 }
 
 # mark the object as changed to tell save() that something needs to be done
@@ -282,6 +388,10 @@ sub _load
 		}
 
 		$self->{_configuration} = $entry->{configuration} // {}; # unlikely to be blank
+		# Canonicalize http_endpoints once on load so any code that reads
+		# $self->{_configuration} directly (without going through the
+		# setter) sees the arrayref form, not a raw GUI JSON string.
+		$self->_normalize_http_endpoints($self->{_configuration});
 		$self->{_activated} =
 				(ref($entry->{activated}) eq "HASH"? # but fall back to old style active flag if needed
 				 $entry->{activated} : { NMIS => (exists($self->{_configuration}->{active})?
@@ -586,7 +696,7 @@ sub configuration
 				$newvalue->{$wantarray} = [ map { $_ eq ''? () : $_ } (split(/\s*,\s*/, $newvalue->{$wantarray})) ];
 			}
 		}
-		
+
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
@@ -1805,6 +1915,15 @@ sub validate
 
 	return (-2, "node '".$self->{_name}."' requires cluster_id") if ( !$self->{_cluster_id} );
 	return (-2, "node requires name") if ( !$self->{_name} );
+
+	# A configuration() setter call with malformed http_endpoints stashes
+	# an error here; surface it as a save failure so the GUI/API caller
+	# sees their JSON was rejected instead of silently disappearing.
+	if (defined $self->{_http_endpoints_error})
+	{
+		return (-1, "node '".$self->{_name}."' http_endpoints invalid: "
+			. $self->{_http_endpoints_error});
+	}
 
 	my $configuration = $self->configuration;
 	for my $musthave (qw(host group))
@@ -9300,10 +9419,14 @@ sub collect
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
 	$catchall_data->{last_poll_attempt} = $starttime;
-	if (defined($wantsnmp)) {
+	# Stamp only the flavours we actually attempted. find_due_nodes can
+	# return flavours = {snmp=>0, wmi=>0, http=>1} when only the HTTP
+	# cadence is due; treating those zeroes as attempts (with `defined`)
+	# would push the SNMP/WMI next-due time forward and starve them.
+	if ($wantsnmp) {
 		$catchall_data->{last_poll_snmp_attempt} = $starttime;
 	}
-	if (defined($wantwmi)) {
+	if ($wantwmi) {
 		$catchall_data->{last_poll_wmi_attempt} = $starttime;
 	}
 	if ($wanthttp) {

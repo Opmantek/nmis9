@@ -220,20 +220,124 @@ ok((grep { $_ eq 'http' } @{$S->known_sources}), "'http' in known_sources");
 # ============================================================
 diag("=== Phase 4: HTTP cadence gating ===");
 
-# Direct unit tests for the helper.
+# Per-source enabled flags are derived in Node::_defaults at save time
+# from settings presence, then read directly by find_due_nodes and
+# Sys::init. The flags can be overridden explicitly (future GUI toggle).
 {
-	is(NMISNG::_has_http_endpoints({ http_endpoints => [{ name => 'x' }] }), 1,
-		"_has_http_endpoints: arrayref with entries -> true");
-	is(NMISNG::_has_http_endpoints({ http_endpoints => [] }), 0,
-		"_has_http_endpoints: empty arrayref -> false");
-	is(NMISNG::_has_http_endpoints({ http_endpoints => '[{"name":"x"}]' }), 1,
-		"_has_http_endpoints: non-empty JSON string -> true");
-	is(NMISNG::_has_http_endpoints({ http_endpoints => '   ' }), 0,
-		"_has_http_endpoints: whitespace-only string -> false");
-	is(NMISNG::_has_http_endpoints({}), 0,
-		"_has_http_endpoints: missing key -> false");
-	is(NMISNG::_has_http_endpoints(undef), 0,
-		"_has_http_endpoints: undef -> false");
+	my $flag_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+	$flag_node->cluster_id($C->{cluster_id});
+	$flag_node->name("test_flag_node");
+	$flag_node->activated({ NMIS => 1 });
+
+	# Base config: all three source kinds present.
+	my %base = (host => "127.0.0.1", group => "G", netType => "default",
+		roleType => "default", model => "TestHTTP", collect => "true", ping => "false");
+
+	# 1. SNMP credentials present -> snmp_enabled defaults to 1.
+	$flag_node->configuration({ %base, community => "public", version => "snmpv2c" });
+	is($flag_node->configuration->{snmp_enabled}, 1,
+		"snmp_enabled: derived to 1 when community is set");
+
+	# 2. SNMP credentials absent -> snmp_enabled defaults to 0.
+	$flag_node->configuration({ %base });
+	is($flag_node->configuration->{snmp_enabled}, 0,
+		"snmp_enabled: derived to 0 when no community/username");
+
+	# 3. WMI username -> wmi_enabled=1
+	$flag_node->configuration({ %base, wmiusername => "admin" });
+	is($flag_node->configuration->{wmi_enabled}, 1,
+		"wmi_enabled: derived to 1 when wmiusername is set");
+
+	# 4. No WMI username -> wmi_enabled=0
+	$flag_node->configuration({ %base });
+	is($flag_node->configuration->{wmi_enabled}, 0,
+		"wmi_enabled: derived to 0 when wmiusername absent");
+
+	# 5. http_endpoints arrayref with entries -> http_enabled=1
+	$flag_node->configuration({ %base, http_endpoints => [{ name => 'a', port => 9100 }] });
+	is($flag_node->configuration->{http_enabled}, 1,
+		"http_enabled: derived to 1 from arrayref with entries");
+
+	# 6. http_endpoints JSON string with entries -> http_enabled=1
+	$flag_node->configuration({ %base, http_endpoints => '[{"name":"a","port":9100}]' });
+	is($flag_node->configuration->{http_enabled}, 1,
+		"http_enabled: derived to 1 from JSON string with entries");
+
+	# 7. Empty JSON array -> http_enabled=0 (the empty-JSON regression)
+	$flag_node->configuration({ %base, http_endpoints => '[]' });
+	is($flag_node->configuration->{http_enabled}, 0,
+		"http_enabled: derived to 0 from empty JSON array");
+
+	# 8. Empty arrayref -> http_enabled=0
+	$flag_node->configuration({ %base, http_endpoints => [] });
+	is($flag_node->configuration->{http_enabled}, 0,
+		"http_enabled: derived to 0 from empty arrayref");
+
+	# 9. Invalid JSON -> http_enabled=0
+	$flag_node->configuration({ %base, http_endpoints => 'not json' });
+	is($flag_node->configuration->{http_enabled}, 0,
+		"http_enabled: derived to 0 from invalid JSON");
+
+	# 10. No http_endpoints at all -> http_enabled=0
+	$flag_node->configuration({ %base });
+	is($flag_node->configuration->{http_enabled}, 0,
+		"http_enabled: derived to 0 when http_endpoints absent");
+
+	# 11. Adding a community to a previously-no-community node flips
+	#     snmp_enabled from 0 -> 1. This is the regression case the user
+	#     asked about: with //= semantics the stored 0 would have stuck.
+	$flag_node->configuration({ %base });
+	is($flag_node->configuration->{snmp_enabled}, 0,
+		"snmp_enabled: starts at 0 with no community");
+	$flag_node->configuration({ %base, community => "public", version => "snmpv2c" });
+	is($flag_node->configuration->{snmp_enabled}, 1,
+		"snmp_enabled: flips to 1 when community is added on next save");
+
+	# 12. Removing a community flips snmp_enabled back to 0.
+	$flag_node->configuration({ %base });
+	is($flag_node->configuration->{snmp_enabled}, 0,
+		"snmp_enabled: flips back to 0 when community is removed");
+
+	# 13. Same for http_enabled: add endpoints -> 1, remove -> 0.
+	$flag_node->configuration({ %base });
+	is($flag_node->configuration->{http_enabled}, 0,
+		"http_enabled: starts at 0 with no endpoints");
+	$flag_node->configuration({ %base, http_endpoints => [{ name => 'a' }] });
+	is($flag_node->configuration->{http_enabled}, 1,
+		"http_enabled: flips to 1 when endpoints are added");
+	$flag_node->configuration({ %base });
+	is($flag_node->configuration->{http_enabled}, 0,
+		"http_enabled: flips back to 0 when endpoints are removed");
+
+	# 14. Invalid http_endpoints submitted via setter -> validate() must
+	#     report the error so save() returns failure (and the GUI shows
+	#     it via the standard td.error path in tables.pl). Without this,
+	#     a user typing bad JSON would see "save successful" and then
+	#     find their input had been silently discarded.
+	$flag_node->configuration({ %base, http_endpoints => 'definitely not json' });
+	my ($v_ok, $v_err) = $flag_node->validate();
+	cmp_ok($v_ok, '<=', 0,
+		"validate: returns failure when http_endpoints is invalid JSON");
+	like($v_err, qr/http_endpoints.*invalid/i,
+		"validate: error message names http_endpoints");
+	like($v_err, qr/JSON-decode/i,
+		"validate: error message mentions the decode failure");
+
+	# 15. After supplying a valid value, the stashed error is cleared and
+	#     validate passes. This proves the next setter call is treated as
+	#     a fresh attempt, not as still-broken state from the previous one.
+	$flag_node->configuration({ %base, http_endpoints => [{ name => 'a' }] });
+	($v_ok, $v_err) = $flag_node->validate();
+	cmp_ok($v_ok, '>', 0,
+		"validate: passes after the bad value is replaced with a good one");
+
+	# 16. JSON object (not array) is also rejected.
+	$flag_node->configuration({ %base, http_endpoints => '{"name":"x"}' });
+	($v_ok, $v_err) = $flag_node->validate();
+	cmp_ok($v_ok, '<=', 0,
+		"validate: rejects http_endpoints that decodes to a non-array");
+	like($v_err, qr/JSON array/i,
+		"validate: error message says 'JSON array'");
 }
 
 # End-to-end: create a fresh SNMP-only node (no http_endpoints) alongside the
@@ -283,6 +387,35 @@ diag("=== Phase 4: HTTP cadence gating ===");
 		"SNMP-only node: flavours.http NOT enabled (no http_endpoints config)");
 	is($flavours->{$snmp_uuid}{snmp}, 1,
 		"SNMP-only node: flavours.snmp=1");
+}
+
+# ============================================================
+# Phase 5: Fix 1 — HTTP-only collects must not re-arm SNMP/WMI cadence
+# ============================================================
+diag("=== Phase 5: HTTP-only collect doesn't stamp SNMP/WMI attempts ===");
+{
+	my ($pre_inv, $pre_err) = $node->inventory(concept => "catchall");
+	my $pre = $pre_inv->data;
+	# Plant fake older attempt timestamps for SNMP and WMI.
+	my $stale_time = time() - 999;
+	$pre->{last_poll_snmp_attempt} = $stale_time;
+	$pre->{last_poll_wmi_attempt}  = $stale_time;
+	$pre_inv->data($pre);
+	$pre_inv->save(node => $node);
+
+	# Drive an HTTP-only collect (the case find_due_nodes produces when
+	# only the HTTP cadence is due). Before the fix, defined($wantsnmp=0)
+	# would still stamp last_poll_snmp_attempt to "now".
+	$node->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 1, force => 1);
+
+	my ($post_inv, $post_err) = $node->inventory(concept => "catchall");
+	my $post = $post_inv->data;
+	is($post->{last_poll_snmp_attempt}, $stale_time,
+		"HTTP-only collect: last_poll_snmp_attempt unchanged (truthy gate)");
+	is($post->{last_poll_wmi_attempt}, $stale_time,
+		"HTTP-only collect: last_poll_wmi_attempt unchanged (truthy gate)");
+	ok($post->{last_poll_http_attempt} > $stale_time,
+		"HTTP-only collect: last_poll_http_attempt did advance");
 }
 
 # ============================================================
