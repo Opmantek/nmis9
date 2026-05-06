@@ -265,15 +265,25 @@ sub status
 {
 	my ($self) = @_;
 
-	return {
-		error        => $self->{error},
-		snmp_enabled => $self->{snmp} ? 1 : 0,
-		wmi_enabled  => $self->{wmi} ? 1 : 0,
-		snmp_error   => $self->{snmp_error},
-		wmi_error    => $self->{wmi_error},
-		skipped      => $self->{skipped},
+	my $r = {
+		error    => $self->{error},
+		skipped  => $self->{skipped},
 		fallback => $self->{fallback},
 	};
+	# Per-source enabled + error fans out across known_sources so HTTP
+	# (and any future engine) is treated identically to SNMP/WMI. The
+	# Node.pm per-source reconciliation loop reads these via
+	# $curstate->{"${source}_enabled"} — keeping this generic means new
+	# engines automatically participate in result aggregation, last_poll
+	# stamping, handle_down events, and reachability accounting.
+	# expands to: snmp_enabled, wmi_enabled, http_enabled
+	#             snmp_error,   wmi_error,   http_error
+	for my $source (@{ $self->known_sources })
+	{
+		$r->{"${source}_enabled"} = $self->{$source} ? 1 : 0;
+		$r->{"${source}_error"}   = $self->{"${source}_error"};
+	}
+	return $r;
 }
 
 # initialise the system object for a given node
@@ -653,9 +663,23 @@ sub init
 	# is cheaper and more honest than re-inferring "are there settings?"
 	# every poll cycle, and a future GUI toggle can override the derived
 	# default to disable a source even when its settings are present.
-	my $have_snmp_settings = $thisnodeconfig->{snmp_enabled} ? 1 : 0;
-	my $have_wmi_settings  = $thisnodeconfig->{wmi_enabled}  ? 1 : 0;
-	my $have_http_settings = $thisnodeconfig->{http_enabled} ? 1 : 0;
+	#
+	# Defensive read: prefer the persisted flag, fall back to inferring
+	# from settings if it's undef. This keeps legacy DB rows (saved
+	# before the flag existed) working until the next configuration()
+	# save writes the flag through. Mirrors the derivation in
+	# Node::_defaults exactly.
+	my $cfg = $thisnodeconfig;
+	my $have_snmp_settings = defined $cfg->{snmp_enabled}
+		? ($cfg->{snmp_enabled} ? 1 : 0)
+		: ((  (defined $cfg->{community} && $cfg->{community} ne "")
+		   || (defined $cfg->{username}  && $cfg->{username}  ne "")) ? 1 : 0);
+	my $have_wmi_settings  = defined $cfg->{wmi_enabled}
+		? ($cfg->{wmi_enabled} ? 1 : 0)
+		: ((defined $cfg->{wmiusername} && $cfg->{wmiusername} ne "") ? 1 : 0);
+	my $have_http_settings = defined $cfg->{http_enabled}
+		? ($cfg->{http_enabled} ? 1 : 0)
+		: ((ref $cfg->{http_endpoints} eq 'ARRAY' && @{$cfg->{http_endpoints}}) ? 1 : 0);
 	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings || $have_http_settings ) ? 1 : 0;
 	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings have_http_settings:$have_http_settings");
 	
@@ -728,13 +752,17 @@ sub init
 	# Gate engine creation on the explicit http_enabled flag (derived at
 	# save time, see Node::_defaults). http_endpoints is canonicalized to
 	# an arrayref by Node::_normalize_http_endpoints — no JSON decode here.
-	if ($wanthttp && $thisnodeconfig->{http_enabled}
+	if ($wanthttp && $have_http_settings
 		&& ref $thisnodeconfig->{http_endpoints} eq 'ARRAY')
 	{
 		require NMISNG::Sys::Engine::HTTP;
 		my $http_engine = NMISNG::Sys::Engine::HTTP->new(sys => $self);
 		$http_engine->set_endpoints($thisnodeconfig->{http_endpoints});
 		push @{$self->{_engines}}, $http_engine;
+		# Mirror the SNMP/WMI convention: store the engine ref on a
+		# per-source slot so Sys::status's known_sources loop sees
+		# http_enabled = 1.
+		$self->{http} = $http_engine;
 	}
 
 	return $self->{error} ? 0 : 1;
@@ -998,6 +1026,7 @@ sub loadInfo
 	);
 	$self->{wmi_error}  = $status->{wmi_error};
 	$self->{snmp_error} = $status->{snmp_error};
+	$self->{http_error} = $status->{http_error};
 	$self->{error}      = $status->{error};
 
 	# no data? okish iff marked as skipped
@@ -1151,6 +1180,7 @@ sub getData
 	$self->{error}      = $status->{error};
 	$self->{wmi_error}  = $status->{wmi_error};
 	$self->{snmp_error} = $status->{snmp_error};
+	$self->{http_error} = $status->{http_error};
 	$self->{skipped}    = $status->{skipped} // 0;
 
 	# data? we're happy-ish

@@ -51,6 +51,12 @@ app_queue_depth{queue="orders"} 3
 app_queue_depth{queue="payments"} 1
 app_queue_depth{queue="email"} 7
 app_queue_depth{queue="ignore_me"} 99
+# HELP mock_collstats two-label metric for match_labels-at-discovery tests
+# TYPE mock_collstats gauge
+mock_collstats{collection="events",database="nmisng"} 60
+mock_collstats{collection="orders",database="nmisng"} 5
+mock_collstats{collection="events",database="opevents"} 163
+mock_collstats{collection="eventqueue",database="opevents"} 3
 EOM
 	});
 
@@ -360,6 +366,176 @@ sub make_engine
 		"discover_indexes: no error even with control on section");
 	is_deeply([sort @$idx], [sort qw(orders payments email ignore_me)],
 		"discover_indexes returns ALL candidates; control filters at collection time");
+}
+
+# --- discover_indexes respects match_labels (no ghost rows) -------------
+# When every item in a section declares the same match_labels constraint
+# (e.g. database='nmisng' for MongoDB collstats), candidates whose only
+# samples are in OTHER databases must NOT be returned. Otherwise the
+# caller would create inventory rows for them and try to write RRDs that
+# never get data, producing the "No such file or directory" render error
+# the user hit on dockerhost-snmp-fast.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my ($err, $idx) = $eng->discover_indexes(
+		section_config => {
+			indexed   => 'collection',
+			http_prom => {
+				'-common-' => { endpoint => 'fix' },
+				count      => { metric => 'mock_collstats',
+				                match_labels => { database => 'nmisng' } },
+			},
+		},
+		index_var => 'collection',
+	);
+	is($err, undef, "match_labels-at-discovery: no error");
+	# Fixture has events+orders in nmisng, events+eventqueue in opevents.
+	# With match_labels filter, only nmisng's collection names qualify.
+	is_deeply([sort @$idx], [sort qw(events orders)],
+		"match_labels-at-discovery: only nmisng candidates returned");
+	# Specifically: eventqueue is opevents-only and must NOT appear.
+	ok(!(grep { $_ eq 'eventqueue' } @$idx),
+		"match_labels-at-discovery: eventqueue (opevents-only) NOT in candidates");
+}
+
+# --- discover_indexes still accepts samples that satisfy ANY item ------
+# If items disagree on match_labels (e.g. one wants mode=user, another
+# mode=system on the same metric), the candidate is valid as long as
+# SOME item's tuple matches. This is the existing CPU-modes pattern.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my ($err, $idx) = $eng->discover_indexes(
+		section_config => {
+			indexed   => 'collection',
+			http_prom => {
+				'-common-' => { endpoint => 'fix' },
+				# Two items with different match_labels — index value is
+				# valid if EITHER satisfies.
+				nmisng_count => { metric => 'mock_collstats',
+				                  match_labels => { database => 'nmisng' } },
+				opevents_count => { metric => 'mock_collstats',
+				                    match_labels => { database => 'opevents' } },
+			},
+		},
+		index_var => 'collection',
+	);
+	is_deeply([sort @$idx], [sort qw(events orders eventqueue)],
+		"discover_indexes: ANY-item-matches semantics works (union of constraints)");
+}
+
+# --- extract_label returns a label's value, not the metric value --------
+# Lets a model surface a secondary label (e.g. `database` on a
+# collection-indexed section) into inventory as a regular field so it
+# shows up in the System Health table alongside the index value.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my %todos;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => 'collection',
+		index           => 'orders',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			# Pull the matching sample's `database` label, not its value.
+			db_name => { metric        => 'mock_collstats',
+			             match_labels  => { database => 'nmisng' },
+			             extract_label => 'database' },
+			# Sibling that takes the value as usual, for comparison.
+			cnt     => { metric        => 'mock_collstats',
+			             match_labels  => { database => 'nmisng' } },
+		},
+		todos => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	is($todos{db_name}{rawvalue}, 'nmisng',
+		"extract_label: returned the matched sample's database label");
+	is($todos{cnt}{rawvalue}, 5,
+		"extract_label: sibling without extract_label still returns the value");
+}
+
+# --- composite indexing: indexed=['database','collection'] -----------
+# Two-label composite — the engine joins per-row label values with `__`
+# so collections with the same name in different databases don't
+# collide on a single-label index.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my ($err, $idx) = $eng->discover_indexes(
+		section_config => {
+			indexed   => ['database', 'collection'],
+			http_prom => {
+				'-common-' => { endpoint => 'fix' },
+				count      => { metric => 'mock_collstats' },
+			},
+		},
+		index_var => ['database', 'collection'],
+	);
+	is($err, undef, "composite: discover_indexes succeeded");
+	# Fixture has events+orders in nmisng, events+eventqueue in opevents.
+	# Composite indexing keeps all four candidates distinct.
+	is_deeply([sort @$idx],
+		[sort qw(nmisng__events nmisng__orders opevents__events opevents__eventqueue)],
+		"composite: all four (db, coll) tuples returned distinctly");
+	# In particular, the shared `events` name must appear under BOTH
+	# database prefixes — no collision.
+	ok((grep { $_ eq 'nmisng__events' }   @$idx), "composite: nmisng/events present");
+	ok((grep { $_ eq 'opevents__events' } @$idx), "composite: opevents/events present");
+}
+
+# --- composite extraction round-trips through build_queries -----------
+# The synthesized row index gets split back into per-label match
+# constraints when build_queries runs, so each row extracts only its
+# own (db, coll) sample even though the model declares no match_labels.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my %todos;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => ['database', 'collection'],
+		index           => 'opevents__events',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			cnt        => { metric => 'mock_collstats' },
+			db         => { metric => 'mock_collstats',
+			                extract_label => 'database' },
+			coll       => { metric => 'mock_collstats',
+			                extract_label => 'collection' },
+		},
+		todos => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	is($todos{cnt}{rawvalue},  163,        "composite: opevents/events count");
+	is($todos{db}{rawvalue},   'opevents', "composite: extract_label database");
+	is($todos{coll}{rawvalue}, 'events',   "composite: extract_label collection");
+
+	# A different row in the same fixture — composite scoping picks
+	# the right sample, not the first sibling with the same collection.
+	my %todos2;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => ['database', 'collection'],
+		index           => 'nmisng__events',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			cnt        => { metric => 'mock_collstats' },
+		},
+		todos => \%todos2,
+	);
+	$eng->execute_queries(todos => \%todos2);
+	is($todos2{cnt}{rawvalue}, 60,
+		"composite: nmisng/events count (different DB, same collection name)");
 }
 
 # --- max_rows caps results -----------------------------------------------

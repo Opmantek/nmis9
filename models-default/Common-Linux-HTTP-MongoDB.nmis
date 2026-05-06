@@ -1,0 +1,315 @@
+#
+# Common-Linux-HTTP-MongoDB.nmis
+#
+# MongoDB monitoring via Percona's mongodb_exporter (Prometheus text
+# exposition on port 9216 by default). Activated by adding lh_mongodb
+# to the model's -common-.class hash; on dockerhost this is done by
+# models-custom/Override-Model-net-snmp.nmis.
+#
+# The node config must declare an http_endpoints entry named
+# 'mongodb_exporter' pointing at the live exporter URL. With
+# --collect-all flags Percona produces ~2,300 distinct metric names;
+# this file picks the high-signal subset operators actually need.
+#
+# Scope:
+#   Scalar (system.rrd):
+#     status, connections, ops, latencies, memory, network, asserts,
+#     wt_cache, wt_io
+#   Indexed (systemHealth):
+#     MongoDBDatabases  - per-database storage stats (indexed by 'database')
+#     MongoDBCollections - per-collection stats indexed by the composite
+#                          tuple (database, collection). The HTTP engine
+#                          synthesizes a per-row identifier from the two
+#                          labels so collections with the same name in
+#                          different databases (e.g. 'events' in both
+#                          'nmisng' and 'opevents') don't collide. No
+#                          hardcoded database name; works generically.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'mongodb_status'      => '/nodes/$node/health/mongodb_status.rrd',
+			'mongodb_connections' => '/nodes/$node/health/mongodb_connections.rrd',
+			'mongodb_ops'         => '/nodes/$node/health/mongodb_ops.rrd',
+			'mongodb_latencies'   => '/nodes/$node/health/mongodb_latencies.rrd',
+			'mongodb_memory'      => '/nodes/$node/health/mongodb_memory.rrd',
+			'mongodb_network'     => '/nodes/$node/health/mongodb_network.rrd',
+			'mongodb_asserts'     => '/nodes/$node/health/mongodb_asserts.rrd',
+			'mongodb_wt_cache'    => '/nodes/$node/health/mongodb_wt_cache.rrd',
+			'mongodb_wt_io'       => '/nodes/$node/health/mongodb_wt_io.rrd',
+			'MongoDBDatabases'    => '/nodes/$node/health/mongodb_db-$index.rrd',
+			'MongoDBCollections'  => '/nodes/$node/health/mongodb_coll-$index.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			# 1. up flag (gauge 0 or 1)
+			'mongodb_status' => {
+				'graphtype' => 'MongoDB-Status',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'mongodb_exporter' },
+					'up'       => { 'metric' => 'mongodb_up', 'option' => 'gauge,0:1' },
+				},
+			},
+
+			# 2. connection counts by conn_type label
+			'mongodb_connections' => {
+				'graphtype' => 'MongoDB-Connections',
+				'http_prom' => {
+					'-common-'      => { 'endpoint' => 'mongodb_exporter' },
+					'current'       => { 'metric' => 'mongodb_ss_connections',
+					                     'match_labels' => { 'conn_type' => 'current' },
+					                     'option' => 'gauge,0:U' },
+					'active'        => { 'metric' => 'mongodb_ss_connections',
+					                     'match_labels' => { 'conn_type' => 'active' },
+					                     'option' => 'gauge,0:U' },
+					'available'     => { 'metric' => 'mongodb_ss_connections',
+					                     'match_labels' => { 'conn_type' => 'available' },
+					                     'option' => 'gauge,0:U' },
+					'total_created' => { 'metric' => 'mongodb_ss_connections',
+					                     'match_labels' => { 'conn_type' => 'totalCreated' },
+					                     'option' => 'counter,0:U' },
+				},
+			},
+
+			# 3. legacy op counters (per-second rates)
+			'mongodb_ops' => {
+				'graphtype' => 'MongoDB-Ops',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'mongodb_exporter' },
+					'insert'   => { 'metric' => 'mongodb_ss_opcounters',
+					                'match_labels' => { 'legacy_op_type' => 'insert' },
+					                'option' => 'counter,0:U' },
+					'query'    => { 'metric' => 'mongodb_ss_opcounters',
+					                'match_labels' => { 'legacy_op_type' => 'query' },
+					                'option' => 'counter,0:U' },
+					'update'   => { 'metric' => 'mongodb_ss_opcounters',
+					                'match_labels' => { 'legacy_op_type' => 'update' },
+					                'option' => 'counter,0:U' },
+					'delete'   => { 'metric' => 'mongodb_ss_opcounters',
+					                'match_labels' => { 'legacy_op_type' => 'delete' },
+					                'option' => 'counter,0:U' },
+					'getmore'  => { 'metric' => 'mongodb_ss_opcounters',
+					                'match_labels' => { 'legacy_op_type' => 'getmore' },
+					                'option' => 'counter,0:U' },
+					'command'  => { 'metric' => 'mongodb_ss_opcounters',
+					                'match_labels' => { 'legacy_op_type' => 'command' },
+					                'option' => 'counter,0:U' },
+				},
+			},
+
+			# 4. opLatencies (paired ops + latency-microseconds, per op_type)
+			# Average latency per op = delta(latency) / delta(ops); both are
+			# stored as counters so the operator can compute the ratio in a
+			# graph CDEF or stats expression later.
+			'mongodb_latencies' => {
+				'graphtype' => 'MongoDB-Latencies',
+				'http_prom' => {
+					'-common-'        => { 'endpoint' => 'mongodb_exporter' },
+					'reads_ops'       => { 'metric' => 'mongodb_ss_opLatencies_ops',
+					                       'match_labels' => { 'op_type' => 'reads' },
+					                       'option' => 'counter,0:U' },
+					'reads_latency'   => { 'metric' => 'mongodb_ss_opLatencies_latency',
+					                       'match_labels' => { 'op_type' => 'reads' },
+					                       'option' => 'counter,0:U' },
+					'writes_ops'      => { 'metric' => 'mongodb_ss_opLatencies_ops',
+					                       'match_labels' => { 'op_type' => 'writes' },
+					                       'option' => 'counter,0:U' },
+					'writes_latency'  => { 'metric' => 'mongodb_ss_opLatencies_latency',
+					                       'match_labels' => { 'op_type' => 'writes' },
+					                       'option' => 'counter,0:U' },
+					'commands_ops'    => { 'metric' => 'mongodb_ss_opLatencies_ops',
+					                       'match_labels' => { 'op_type' => 'commands' },
+					                       'option' => 'counter,0:U' },
+					'commands_latency'=> { 'metric' => 'mongodb_ss_opLatencies_latency',
+					                       'match_labels' => { 'op_type' => 'commands' },
+					                       'option' => 'counter,0:U' },
+				},
+			},
+
+			# 5. process memory (resident + virtual), as exposed by the
+			# exporter in MB. Stored in MB; graph CDEFs scale to bytes for
+			# %sB rendering.
+			'mongodb_memory' => {
+				'graphtype' => 'MongoDB-Memory',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'mongodb_exporter' },
+					'resident_mb' => { 'metric' => 'mongodb_ss_mem_resident', 'option' => 'gauge,0:U' },
+					'virtual_mb'  => { 'metric' => 'mongodb_ss_mem_virtual',  'option' => 'gauge,0:U' },
+				},
+			},
+
+			# 6. network bytes + request count (counters)
+			'mongodb_network' => {
+				'graphtype' => 'MongoDB-Network',
+				'http_prom' => {
+					'-common-'     => { 'endpoint' => 'mongodb_exporter' },
+					'bytes_in'     => { 'metric' => 'mongodb_ss_network_bytesIn',     'option' => 'counter,0:U' },
+					'bytes_out'    => { 'metric' => 'mongodb_ss_network_bytesOut',    'option' => 'counter,0:U' },
+					'num_requests' => { 'metric' => 'mongodb_ss_network_numRequests', 'option' => 'counter,0:U' },
+				},
+			},
+
+			# 7. asserts by assert_type label
+			'mongodb_asserts' => {
+				'graphtype' => 'MongoDB-Asserts',
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'mongodb_exporter' },
+					'regular'   => { 'metric' => 'mongodb_ss_asserts',
+					                 'match_labels' => { 'assert_type' => 'regular' },
+					                 'option' => 'counter,0:U' },
+					'warning'   => { 'metric' => 'mongodb_ss_asserts',
+					                 'match_labels' => { 'assert_type' => 'warning' },
+					                 'option' => 'counter,0:U' },
+					'msg'       => { 'metric' => 'mongodb_ss_asserts',
+					                 'match_labels' => { 'assert_type' => 'msg' },
+					                 'option' => 'counter,0:U' },
+					'user'      => { 'metric' => 'mongodb_ss_asserts',
+					                 'match_labels' => { 'assert_type' => 'user' },
+					                 'option' => 'counter,0:U' },
+					'rollovers' => { 'metric' => 'mongodb_ss_asserts',
+					                 'match_labels' => { 'assert_type' => 'rollovers' },
+					                 'option' => 'counter,0:U' },
+					'tripwire'  => { 'metric' => 'mongodb_ss_asserts',
+					                 'match_labels' => { 'assert_type' => 'tripwire' },
+					                 'option' => 'counter,0:U' },
+				},
+			},
+
+			# 8. WiredTiger cache: current/max bytes + read/write rates
+			'mongodb_wt_cache' => {
+				'graphtype' => 'MongoDB-WT-Cache',
+				'http_prom' => {
+					'-common-'      => { 'endpoint' => 'mongodb_exporter' },
+					'bytes_now'     => { 'metric' => 'mongodb_ss_wt_cache_bytes_currently_in_the_cache',
+					                     'option' => 'gauge,0:U' },
+					'bytes_max'     => { 'metric' => 'mongodb_ss_wt_cache_maximum_bytes_configured',
+					                     'option' => 'gauge,0:U' },
+					'bytes_read'    => { 'metric' => 'mongodb_ss_wt_cache_bytes_read_into_cache',
+					                     'option' => 'counter,0:U' },
+					'bytes_written' => { 'metric' => 'mongodb_ss_wt_cache_bytes_written_from_cache',
+					                     'option' => 'counter,0:U' },
+					'pages_read'    => { 'metric' => 'mongodb_ss_wt_cache_pages_read_into_cache',
+					                     'option' => 'counter,0:U' },
+					'pages_written' => { 'metric' => 'mongodb_ss_wt_cache_pages_written_from_cache',
+					                     'option' => 'counter,0:U' },
+				},
+			},
+
+			# 9. WiredTiger I/O: block manager bytes read/written + eviction calls
+			'mongodb_wt_io' => {
+				'graphtype' => 'MongoDB-WT-IO',
+				'http_prom' => {
+					'-common-'           => { 'endpoint' => 'mongodb_exporter' },
+					'block_bytes_read'   => { 'metric' => 'mongodb_ss_wt_block_manager_bytes_read',
+					                          'option' => 'counter,0:U' },
+					'block_bytes_written'=> { 'metric' => 'mongodb_ss_wt_block_manager_bytes_written',
+					                          'option' => 'counter,0:U' },
+					'evictions'          => { 'metric' => 'mongodb_ss_wt_cache_eviction_calls_to_get_a_page',
+					                          'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+
+	'systemHealth' => {
+		# Per-database stats indexed by `database` label (single label, clean
+		# index). Per-collection stats indexed by `collection` but scoped via
+		# match_labels to a single database (default: 'nmisng') to avoid
+		# silent collisions when two databases share a collection name.
+		# 'sections' string lives in the Override that activates this Common.
+		'sys' => {
+			'MongoDBDatabases' => {
+				'indexed'   => 'database',
+				'index_oid' => 'database',
+				'headers'   => 'database,collections,dataSize,indexSize,objects',
+				'max_rows'  => 64,
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'mongodb_exporter' },
+					'database'    => { 'title' => 'Database' }, # index-self
+					'collections' => { 'metric' => 'mongodb_dbstats_collections',
+					                   'title'  => 'Collections' },
+					'dataSize'    => { 'metric' => 'mongodb_dbstats_dataSize',
+					                   'title'  => 'Data size (bytes)' },
+					'indexSize'   => { 'metric' => 'mongodb_dbstats_indexSize',
+					                   'title'  => 'Index size (bytes)' },
+					'objects'     => { 'metric' => 'mongodb_dbstats_objects',
+					                   'title'  => 'Documents' },
+				},
+			},
+
+			'MongoDBCollections' => {
+				# Composite index — per-collection metrics are uniquely
+				# identified by (database, collection). The HTTP engine
+				# joins these with `__` to synthesize a row identifier
+				# (e.g. 'nmisng__events') and decomposes it back into
+				# implicit match_labels at extraction time. Generic
+				# across deployments — no hardcoded database names.
+				'indexed'   => ['database', 'collection'],
+				'index_oid' => ['database', 'collection'],
+				'headers'   => 'database,collection,count,size,storageSize,totalIndexSize',
+				'max_rows'  => 256,
+				'http_prom' => {
+					'-common-'       => { 'endpoint' => 'mongodb_exporter' },
+					# Populate database / collection columns from the row's
+					# matched-sample labels. extract_label returns the named
+					# label's value instead of the metric value.
+					'database'       => { 'metric' => 'mongodb_collstats_storageStats_count',
+					                      'extract_label' => 'database',
+					                      'title' => 'Database' },
+					'collection'     => { 'metric' => 'mongodb_collstats_storageStats_count',
+					                      'extract_label' => 'collection',
+					                      'title' => 'Collection' },
+					'count'          => { 'metric' => 'mongodb_collstats_storageStats_count',
+					                      'title' => 'Document count' },
+					'size'           => { 'metric' => 'mongodb_collstats_storageStats_size',
+					                      'title' => 'Logical size (bytes)' },
+					'storageSize'    => { 'metric' => 'mongodb_collstats_storageStats_storageSize',
+					                      'title' => 'On-disk size (bytes)' },
+					'totalIndexSize' => { 'metric' => 'mongodb_collstats_storageStats_totalIndexSize',
+					                      'title' => 'Total index size (bytes)' },
+				},
+			},
+		},
+
+		'rrd' => {
+			'MongoDBDatabases' => {
+				'graphtype' => 'MongoDB-DatabaseSize',
+				'indexed'   => 'database',
+				# Drop test/temp databases (NMIS test runs spawn t_polling-*
+				# and t_sys_*); inventory still lists them for visibility,
+				# RRDs only get written for "real" databases. Operator can
+				# broaden via Override-Common-Linux-HTTP-MongoDB.nmis.
+				'control'   => 'CVAR=database;$CVAR !~ /^(t_polling|t_sys|test)/',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'mongodb_exporter' },
+					'dataSize'    => { 'metric' => 'mongodb_dbstats_dataSize',    'option' => 'gauge,0:U' },
+					'indexSize'   => { 'metric' => 'mongodb_dbstats_indexSize',   'option' => 'gauge,0:U' },
+					'storageSize' => { 'metric' => 'mongodb_dbstats_storageSize', 'option' => 'gauge,0:U' },
+					'objects'     => { 'metric' => 'mongodb_dbstats_objects',    'option' => 'gauge,0:U' },
+					'collections' => { 'metric' => 'mongodb_dbstats_collections','option' => 'gauge,0:U' },
+				},
+			},
+
+			'MongoDBCollections' => {
+				'graphtype' => 'MongoDB-CollectionSize',
+				# Composite index — see the systemHealth.sys.MongoDBCollections
+				# block above for the full explanation. The engine handles
+				# (database, collection) scoping implicitly per row.
+				'indexed'   => ['database', 'collection'],
+				'http_prom' => {
+					'-common-'       => { 'endpoint' => 'mongodb_exporter' },
+					'count'          => { 'metric' => 'mongodb_collstats_storageStats_count',
+					                      'option' => 'gauge,0:U' },
+					'size'           => { 'metric' => 'mongodb_collstats_storageStats_size',
+					                      'option' => 'gauge,0:U' },
+					'storageSize'    => { 'metric' => 'mongodb_collstats_storageStats_storageSize',
+					                      'option' => 'gauge,0:U' },
+					'totalIndexSize' => { 'metric' => 'mongodb_collstats_storageStats_totalIndexSize',
+					                      'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);
