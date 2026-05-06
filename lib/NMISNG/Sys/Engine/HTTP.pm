@@ -254,15 +254,41 @@ sub build_queries
 				if (ref $section_indexed eq 'ARRAY' && @$section_indexed > 1)
 				{
 					my @vars = @$section_indexed;
-					# Prefer the component map populated by discover_indexes
-					# in the same Sys lifetime. That path is collision-proof
-					# regardless of label content (including labels that
-					# contain the `__` separator).
-					my $components = $self->{_index_components}{$index};
-					my @vals = (ref $components eq 'ARRAY'
-						&& @$components == @vars)
-						? @$components
-						: split(/__/, $index, scalar @vars);
+					my @vals;
+
+					# Primary source: the inventory row itself.
+					# discover_indexes writes per-component values
+					# directly into inventory data, so this path is
+					# lossless across Sys lifetimes -- including
+					# collect-only cycles where discovery did not run
+					# and label values that happen to contain `__`.
+					if ($inventory)
+					{
+						my $data = $inventory->data;
+						my @from_inv = map { $data->{$_} } @vars;
+						@vals = @from_inv
+							if @from_inv == @vars
+							&& !grep { !defined $_ } @from_inv;
+					}
+
+					# Secondary: in-memory component map, populated by
+					# discover_indexes within the current Sys lifetime.
+					# Useful for tests/tools that drive build_queries
+					# without setting up a real inventory row.
+					if (!@vals)
+					{
+						my $components = $self->{_index_components}{$index};
+						@vals = @$components
+							if ref $components eq 'ARRAY'
+							&& @$components == @vars;
+					}
+
+					# Tertiary: split fallback. Ambiguous when label
+					# values contain the `__` separator -- the warn
+					# below fires whenever the count is wrong, but a
+					# silent miscount is still possible here.
+					@vals = split(/__/, $index, scalar @vars) unless @vals;
+
 					if (@vals == @vars)
 					{
 						@label_match{@vars} = @vals;
@@ -270,11 +296,12 @@ sub build_queries
 					else
 					{
 						$sys->nmisng->log->warn(
-							"($sys->{name}) http: composite index '$index' could "
-							. "not be decomposed into " . (scalar @vars) . " "
-							. "components (" . join(',', @vars) . "); split "
-							. "fallback gave " . (scalar @vals) . ". Label "
-							. "values containing '__' may need a richer encoding.");
+							"($sys->{name}) http: composite index '$index' "
+							. "could not be decomposed into "
+							. (scalar @vars) . " components ("
+							. join(',', @vars) . "); inventory had no "
+							. "matching fields, no component map, and "
+							. "split gave " . (scalar @vals) . ".");
 					}
 				}
 				else
@@ -570,7 +597,28 @@ sub discover_indexes
 		@candidates = @candidates[0 .. $cap - 1];
 	}
 
-	my %targets = map { $_ => { index_var => $index_var, index_value => $_ } } @candidates;
+	# Per-row target. For composite-indexed sections, surface each
+	# component value as its own data field on the target hash --
+	# Node.pm::collect_systemhealth_info passes this hash through to
+	# $inventory->data(...), so the per-component values become
+	# persistent fields on the inventory row. build_queries reads them
+	# back via $inventory->data on subsequent collect cycles, which is
+	# lossless regardless of label content (no `__` round-trip needed).
+	my %targets;
+	for my $composite (@candidates)
+	{
+		my %target = (index_var => $index_var, index_value => $composite);
+		if (@index_vars > 1)
+		{
+			my $components = $self->{_index_components}{$composite};
+			if (ref $components eq 'ARRAY' && @$components == @index_vars)
+			{
+				$target{$index_vars[$_]} = $components->[$_]
+					for 0 .. $#index_vars;
+			}
+		}
+		$targets{$composite} = \%target;
+	}
 	return (undef, \@candidates, \%targets);
 }
 

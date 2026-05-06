@@ -739,6 +739,151 @@ sub make_engine
 		"collision: count matches the row identified by the map");
 }
 
+# --- discover_indexes writes per-component fields into targets ----------
+# discover_indexes returns a `targets` hash that Node.pm pipes through to
+# $inventory->data(...). For composite-indexed sections, those targets
+# now include each label component as its own data field, so that the
+# values persist into inventory and survive across Sys lifetimes.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my ($err, $idx, $targets) = $eng->discover_indexes(
+		section_config => {
+			indexed   => ['database', 'collection'],
+			http_prom => {
+				'-common-' => { endpoint => 'fix' },
+				count      => { metric => 'mock_collstats' },
+			},
+		},
+		index_var => ['database', 'collection'],
+	);
+	is($err, undef, "targets: discover succeeded");
+	is($targets->{'nmisng__events'}{database},   'nmisng',
+		"targets: nmisng__events has database='nmisng'");
+	is($targets->{'nmisng__events'}{collection}, 'events',
+		"targets: nmisng__events has collection='events'");
+	is($targets->{'opevents__eventqueue'}{database},   'opevents',
+		"targets: opevents__eventqueue has database='opevents'");
+	is($targets->{'opevents__eventqueue'}{collection}, 'eventqueue',
+		"targets: opevents__eventqueue has collection='eventqueue'");
+	# Existing fields preserved.
+	is_deeply($targets->{'nmisng__events'}{index_var},
+		['database', 'collection'],
+		"targets: index_var preserved as arrayref");
+	is($targets->{'nmisng__events'}{index_value}, 'nmisng__events',
+		"targets: index_value is the joined composite");
+}
+
+# --- single-label sections don't get spurious component fields ----------
+# Backwards-compat guard: a non-composite section's target hash should
+# carry only the existing index_var/index_value pair, no per-component
+# noise.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	my ($err, $idx, $targets) = $eng->discover_indexes(
+		section_config => {
+			indexed   => 'database',
+			http_prom => {
+				'-common-' => { endpoint => 'fix' },
+				count      => { metric => 'mock_collstats' },
+			},
+		},
+		index_var => 'database',
+	);
+	is($err, undef, "single-label targets: discover succeeded");
+	# Pick any candidate; targets should NOT carry an extra `database` key.
+	my ($any) = keys %$targets;
+	ok(defined $any, "single-label targets: at least one row returned");
+	is_deeply([sort keys %{$targets->{$any}}],
+		[sort qw(index_var index_value)],
+		"single-label targets: only index_var and index_value present");
+}
+
+# --- build_queries reads per-component values from inventory.data -------
+# Simulate a collect-only cycle: inventory was populated by a previous
+# discover_indexes pass (and persisted), but the in-memory component
+# map is empty (e.g. fresh Sys instance for this collect cycle).
+# build_queries must scope row extraction by reading the structured
+# fields straight off the inventory row.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	# Wipe the map so only the inventory path can satisfy the lookup.
+	delete $eng->{_index_components};
+	my $fake = FakeInventory->new({
+		index      => 'opevents__eventqueue',
+		database   => 'opevents',
+		collection => 'eventqueue',
+	});
+	my %todos;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => ['database', 'collection'],
+		index           => 'opevents__eventqueue',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			cnt        => { metric => 'mock_collstats' },
+		},
+		inventory => $fake,
+		todos     => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	is($todos{cnt}{rawvalue}, 3,
+		"inventory-first: composite scope sourced from inventory.data");
+}
+
+# --- inventory beats split fallback for `__`-in-value labels ------------
+# The pathological collision case the in-memory map could not fully
+# resolve: same composite string `a__b__c`, two real rows (db=a__b,
+# coll=c) and (db=a, coll=b__c). When inventory tells us which row
+# this index represents, extraction is exact -- no `//=` race, no
+# split ambiguity.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+	delete $eng->{_index_components};
+
+	# Inventory says: this row is (db=a__b, coll=c). The split fallback
+	# would (mis-)decompose 'a__b__c' as (a, b__c) and pick the wrong
+	# sample. The component map is wiped, so it can't help either.
+	my $fake = FakeInventory->new({
+		index      => 'a__b__c',
+		database   => 'a__b',
+		collection => 'c',
+	});
+	my %todos;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => ['database', 'collection'],
+		index           => 'a__b__c',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			cnt        => { metric => 'mock_collstats' },
+			db         => { metric => 'mock_collstats',
+			                extract_label => 'database' },
+			coll       => { metric => 'mock_collstats',
+			                extract_label => 'collection' },
+		},
+		inventory => $fake,
+		todos     => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	# The (db=a__b, coll=c) row carries value 88 in the fixture.
+	is($todos{cnt}{rawvalue},  88,
+		"inventory-first: count comes from the (a__b, c) row, not (a, b__c)");
+	is($todos{db}{rawvalue},   'a__b',
+		"inventory-first: extract_label database returns 'a__b' verbatim");
+	is($todos{coll}{rawvalue}, 'c',
+		"inventory-first: extract_label collection returns 'c'");
+}
+
 # --- max_rows caps results -----------------------------------------------
 {
 	my ($eng, $sys) = make_engine(
