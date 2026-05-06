@@ -1524,7 +1524,7 @@ Important: `models-custom/` is the operator-owned overlay -- nothing in NMIS9 sh
 
 To enable MongoDB monitoring on nodes using `nodeModel=net-snmp`:
 
-1. Copy `doc/examples/Override-Model-net-snmp-mongodb.nmis` to `models-custom/Override-Model-net-snmp.nmis` (rename to drop the `-mongodb` suffix -- the loader expects exactly `Override-Model-<modelname>.nmis`).
+1. Copy `docs/examples/Override-Model-net-snmp-mongodb.nmis` to `models-custom/Override-Model-net-snmp.nmis` (rename to drop the `-mongodb` suffix -- the loader expects exactly `Override-Model-<modelname>.nmis`).
 2. Edit the copy: the override's `system.nodegraph` and `systemHealth.sections` are STRINGS, and `_mergeHash` overwrites scalars (override wins). Both strings restate the BASE model's value verbatim before appending the new entries -- if upstream `Model-net-snmp.nmis` adds new graphs or sections, this override must be updated to match or those upstream additions will be silently shadowed.
 3. Restart `nmisd` (or wait for the model cache to refresh).
 4. Add an `mongodb_exporter` entry to the target node's `http_endpoints` JSON (via the GUI's "HTTP Endpoints (JSON)" field):

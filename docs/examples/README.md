@@ -14,5 +14,5 @@ described in each example's header comment (typically
   `_apply_scoped_override` mechanism, additive hash merge for
   `class`, and the manual restate-and-append pattern for string
   fields like `nodegraph` and `systemHealth.sections`. See
-  `doc/Model-Reference.md`, section 19, "Wiring a Common file into
+  `docs/Model-Reference.md`, section 19, "Wiring a Common file into
   an existing model on a single node".
