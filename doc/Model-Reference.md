@@ -207,16 +207,28 @@ These properties appear at the section level within `sys` or `rrd` blocks.
 
 | | |
 |---|---|
-| **Type** | string |
+| **Type** | string OR arrayref (HTTP composite only) |
 | **Required** | Yes for systemHealth sys sections |
-| **Valid values** | Field name (e.g., `'testSensorName'`) or `'true'` |
-| **Code reference** | `Sys.pm:1211-1222`, `Node.pm:4907`, `Engine/WMI.pm:76,109` |
+| **Valid values** | Field/label name (e.g., `'testSensorName'` or `'collection'`), or `'true'` for SNMP, or arrayref of label names for HTTP composite (e.g. `['database', 'collection']`) |
+| **Code reference** | `Sys.pm:1211-1222`, `Node.pm:4907`, `Engine/WMI.pm:76,109`, `Engine/HTTP.pm:445-501` (composite) |
 
-In `sys` sections: the actual field name used as the index (e.g., `'testSensorName'`).
+In `sys` sections: the actual field/label name used as the index (e.g., `'testSensorName'`).
 
 In `rrd` sections: for SNMP, `'true'` indicates per-index storage. For WMI, **must be the actual field name** (not `'true'`), because it controls whether `gettable` or `get` is used.
 
 `getValues()` uses this to enforce that indexed sections require an `index` parameter and non-indexed sections reject one.
+
+#### Composite indexing (HTTP only)
+
+When a Prometheus metric is uniquely identified by a *combination* of labels — e.g. `mongodb_collstats_*{collection="X", database="Y"}` where the same `collection` name can appear under multiple databases — declare `indexed` as an arrayref naming all the labels:
+
+```perl
+'indexed' => ['database', 'collection'],
+```
+
+The HTTP engine joins per-row label values with `__` to synthesize a unique row identifier (e.g. `nmisng__events`); during extraction it splits the identifier back into per-label `match_labels` constraints automatically. Per-item `match_labels` is no longer needed for the composite scoping — see [Section 9](#9-http-specific-item-properties) `match_labels` for the cases where it still applies.
+
+Caveat: label values must not contain the `__` separator. For typical mongodb collection / database names this is safe.
 
 ### `index_oid`
 
@@ -756,7 +768,31 @@ Without `match_labels` the engine would just take the first sample whose `cpu` m
 |---|---|---|
 | `control` ([Section 5](#5-section-level-properties)) | Whether the row is actively collected | Per-row, in `Sys::getValues` |
 | `match_labels` (this property) | Which of a metric's label-distinguished samples maps to this ds | Per-ds, in `Engine::HTTP::_extract_value` |
+| Composite `indexed` arrayref ([Section 5](#5-section-level-properties)) | Multi-label per-row scoping baked into the section's identity | Per-row, derived from the synthesized index in `build_queries` |
 | `label_filter` (removed) | Was a per-row regex shortcut on the index label; fully replaced by `control`, which preserves inventory for filtered rows. Not coming back. | -- |
+
+When a section uses composite `indexed` (arrayref), the engine seeds `match_labels` automatically from the per-row label tuple — items in that section don't need to repeat the constraint. `match_labels` is still required for *additional* dimensions a metric exposes beyond the section's index (e.g. `mongodb_ss_opcounters{legacy_op_type=...}` on a non-indexed section, or a metric with three labels on a two-label composite section).
+
+### `extract_label`
+
+| | |
+|---|---|
+| **Type** | string (label name) |
+| **Required** | No |
+| **Valid values** | Name of a label present on the matched sample |
+| **Code reference** | `Engine/HTTP.pm:259-260` (build), `Engine/HTTP.pm:541-549` (extract) |
+
+When set, the engine returns the matched sample's *label value* for the named label, instead of the metric's value. Useful for surfacing a secondary label as an inventory column without an extra metric extraction.
+
+```perl
+'database' => { 'metric'        => 'mongodb_collstats_storageStats_count',
+                'extract_label' => 'database',
+                'title'         => 'Database' },
+```
+
+Pairs naturally with composite `indexed` (Section 5): the composite scopes a row to a unique label tuple, then `extract_label` populates inventory columns from those labels so the System Health table can show them as text rather than meaningless metric numbers.
+
+Returns undef (no value stored) if the named label isn't on the matched sample. The metric must still match — `extract_label` reuses the engine's normal sample selection (metric name + match_labels + composite scoping); it just chooses what to return from the matched sample.
 
 `control` and `match_labels` compose -- a model uses `control` on the rrd block to decide which CPU cores are actively collected, and `match_labels` on each item to map the right sample to each mode_* ds.
 
@@ -846,6 +882,20 @@ For the row indexed by `device='eth0'`, the inventory ends up with both `device=
 
 Outside an indexed section, a metric-less item is still an error -- there's no fallback semantics that make sense without a row identifier.
 
+For composite `indexed` (arrayref) sections, the index value the engine writes into a metric-less item is the *synthesized* identifier (e.g. `nmisng__events`). Most callers want the per-component values instead — use [`extract_label`](#extract_label) to pull individual label values out as inventory columns:
+
+```perl
+'indexed'  => ['database', 'collection'],
+'http_prom' => {
+    '-common-'   => { 'endpoint' => 'mongodb_exporter' },
+    'database'   => { 'metric' => 'mongodb_collstats_storageStats_count',
+                      'extract_label' => 'database' },
+    'collection' => { 'metric' => 'mongodb_collstats_storageStats_count',
+                      'extract_label' => 'collection' },
+    'count'      => { 'metric' => 'mongodb_collstats_storageStats_count' },
+}
+```
+
 ### `-common-` Sub-Section
 
 Items without their own `endpoint`, `path`, or `calculate_url` inherit from a `-common-` entry in the same `http_prom` or `http_json` block. The `-common-` key itself is skipped during query building (`Engine/HTTP.pm:148`). Mirrors the WMI convention.
@@ -907,6 +957,22 @@ Five auth mechanisms are supported. All live in `lib/NMISNG/Sys/Engine/HTTP/Auth
 | `retry_on_401` | No | `1` (true) | If the authenticated request returns 401, invalidate the token, refetch, and retry once. | `Engine/HTTP.pm:486` |
 
 The fetched token is written to a per-node, mode-`0600` cache file under `var/nmis_system/http_token_cache/`. It's read back on subsequent runs to avoid logging in every poll cycle.
+
+#### Per-source enabled flags (`snmp_enabled`, `wmi_enabled`, `http_enabled`)
+
+The node configuration also carries one boolean per protocol controlling whether that source is active:
+
+| Field | Default derivation (in `Node::_defaults`) |
+|---|---|
+| `snmp_enabled` | 1 if `community` or `username` is non-empty |
+| `wmi_enabled`  | 1 if `wmiusername` is non-empty |
+| `http_enabled` | 1 if `http_endpoints` is a non-empty array (a JSON string is decoded first) |
+
+Derivation runs every time `configuration()` is set, so adding credentials to a previously-bare node flips the corresponding flag from 0 to 1 on the next save. Removing them flips it back. There's currently no GUI toggle for these — they're auto-derived from settings presence, but the persisted flag means downstream code (`find_due_nodes`, `Sys::init`) reads one cheap boolean instead of re-inspecting credentials every poll.
+
+`Sys::init` also has a defensive read at `Sys.pm:670-687`: when a flag is `undef` (e.g. on a node config that pre-dates the flag), it falls back to inferring from settings, so legacy nodes don't lose polling until their next save flushes the flag through.
+
+References: derivation at `Node.pm:213-235`, defensive read at `Sys.pm:670-687`, scheduling gate at `NMISNG.pm:1948,2018,2077,2102`.
 
 ### Row filtering: use `control`, not a separate property
 
@@ -1449,6 +1515,28 @@ Node-side configuration (entered via the GUI's "HTTP Endpoints (JSON)" field):
 3. For matching rows, the engine extracts each metric from the cached scrape (the scrape is fetched once per URL; all items pointing at the same endpoint share one HTTP roundtrip) and writes the values to the RRD path resolved from `database.type.LinuxDiskIO`.
 4. The `device` index-self item populates each row's inventory `device` field with the row's index value, so the System Health table shows the device name in the header column.
 5. Renaming or filtering is reversible: relax the `control` regex and the next collect cycle starts writing RRDs for previously-suppressed rows -- inventory was preserved, so historical context isn't lost.
+
+### Wiring a Common file into an existing model on a single node
+
+`Common-Linux-HTTP-MongoDB.nmis` is shipped, but no node uses it by default. Stock models (e.g. `Model-net-snmp.nmis`) don't reference it, so MongoDB collection only happens once an operator explicitly opts in. The standard mechanism is `models-custom/Override-Model-<modelname>.nmis`, which `Sys::_apply_scoped_override` auto-discovers and merges over the base model at load time.
+
+Important: `models-custom/` is the operator-owned overlay -- nothing in NMIS9 ships into it. Files placed there apply to **every** node using the matching model.
+
+To enable MongoDB monitoring on nodes using `nodeModel=net-snmp`:
+
+1. Copy `doc/examples/Override-Model-net-snmp-mongodb.nmis` to `models-custom/Override-Model-net-snmp.nmis` (rename to drop the `-mongodb` suffix -- the loader expects exactly `Override-Model-<modelname>.nmis`).
+2. Edit the copy: the override's `system.nodegraph` and `systemHealth.sections` are STRINGS, and `_mergeHash` overwrites scalars (override wins). Both strings restate the BASE model's value verbatim before appending the new entries -- if upstream `Model-net-snmp.nmis` adds new graphs or sections, this override must be updated to match or those upstream additions will be silently shadowed.
+3. Restart `nmisd` (or wait for the model cache to refresh).
+4. Add an `mongodb_exporter` entry to the target node's `http_endpoints` JSON (via the GUI's "HTTP Endpoints (JSON)" field):
+   ```json
+   { "name": "mongodb_exporter",
+     "scheme": "http",
+     "host": "<host>",
+     "port": 9216,
+     "auth": { "type": "none" } }
+   ```
+
+Other nodes using `nodeModel=net-snmp` that DON'T have an `mongodb_exporter` endpoint configured fall through the HTTP engine's soft-skip path: `classify_error` reports `not_present`, the polling cycle isn't poisoned, and only a debug-level log line is emitted. If you need strict per-node opt-in (no soft-skip noise from unrelated nodes), create a custom Model file and set the target node's `model` field to it (see `_load`-time model selection in `Sys.pm`).
 
 ## 20. Cross-Reference Map
 
