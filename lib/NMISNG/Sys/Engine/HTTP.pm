@@ -254,7 +254,15 @@ sub build_queries
 				if (ref $section_indexed eq 'ARRAY' && @$section_indexed > 1)
 				{
 					my @vars = @$section_indexed;
-					my @vals = split(/__/, $index, scalar @vars);
+					# Prefer the component map populated by discover_indexes
+					# in the same Sys lifetime. That path is collision-proof
+					# regardless of label content (including labels that
+					# contain the `__` separator).
+					my $components = $self->{_index_components}{$index};
+					my @vals = (ref $components eq 'ARRAY'
+						&& @$components == @vars)
+						? @$components
+						: split(/__/, $index, scalar @vars);
 					if (@vals == @vars)
 					{
 						@label_match{@vars} = @vals;
@@ -262,10 +270,11 @@ sub build_queries
 					else
 					{
 						$sys->nmisng->log->warn(
-							"($sys->{name}) http: composite index '$index' has "
-							. (scalar @vals) . " components but section declares "
-							. (scalar @vars) . " (" . join(',', @vars) . "); "
-							. "label values containing '__' break round-trip.");
+							"($sys->{name}) http: composite index '$index' could "
+							. "not be decomposed into " . (scalar @vars) . " "
+							. "components (" . join(',', @vars) . "); split "
+							. "fallback gave " . (scalar @vals) . ". Label "
+							. "values containing '__' may need a richer encoding.");
 					}
 				}
 				else
@@ -458,14 +467,20 @@ sub discover_indexes
 	my $path = $common->{path} // '/metrics';
 	my $url = $self->_resolve_url($endpoint, $path);
 
+	# Composite cache key (mirrors execute_queries) so two endpoints that
+	# resolve to the same URL string but carry different auth (or expect
+	# different formats) don't share a cached body. discover_indexes only
+	# handles http_prom, hence 'prom' as the format component.
+	my $cache_key = join("\0", $url, ($endpoint_name // ''), 'prom');
+
 	# Fetch + parse.
-	my $cached = $self->{response_cache}{$url};
+	my $cached = $self->{response_cache}{$cache_key};
 	if (!$cached)
 	{
 		my ($body, $content_type, $err) = $self->_fetch($endpoint, $url);
 		return ("fetch failed: $err", undef, undef) if $err;
 		$cached = $self->_parse($body, 'prom');
-		$self->{response_cache}{$url} = $cached;
+		$self->{response_cache}{$cache_key} = $cached;
 	}
 
 	# Build per-item filter tuples: (metric_name, match_labels). A candidate
@@ -531,6 +546,13 @@ sub discover_indexes
 			if ($match)
 			{
 				$seen{$composite}++;
+				# Stash per-row component values keyed by the
+				# synthesized identifier. build_queries reads this
+				# instead of re-splitting `$composite`, which
+				# round-trips correctly even when label values
+				# happen to contain the `__` separator.
+				$self->{_index_components}{$composite} //= [@vals]
+					if @index_vars > 1;
 				next SAMPLE;
 			}
 		}

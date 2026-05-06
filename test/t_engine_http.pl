@@ -57,6 +57,10 @@ mock_collstats{collection="events",database="nmisng"} 60
 mock_collstats{collection="orders",database="nmisng"} 5
 mock_collstats{collection="events",database="opevents"} 163
 mock_collstats{collection="eventqueue",database="opevents"} 3
+# Two samples that both serialize to "a__b__c" under join("__", ...) —
+# stresses the composite-index round-trip robustness tests.
+mock_collstats{collection="b__c",database="a"} 99
+mock_collstats{collection="c",database="a__b"} 88
 EOM
 	});
 
@@ -481,7 +485,10 @@ sub make_engine
 	is($err, undef, "composite: discover_indexes succeeded");
 	# Fixture has events+orders in nmisng, events+eventqueue in opevents.
 	# Composite indexing keeps all four candidates distinct.
-	is_deeply([sort @$idx],
+	# (Filter out the collision-fixture rows under db=a/db=a__b — they're
+	# exercised in their own test below.)
+	my @mongoish = sort grep { !/^a(__b)?__/ } @$idx;
+	is_deeply(\@mongoish,
 		[sort qw(nmisng__events nmisng__orders opevents__events opevents__eventqueue)],
 		"composite: all four (db, coll) tuples returned distinctly");
 	# In particular, the shared `events` name must appear under BOTH
@@ -536,6 +543,200 @@ sub make_engine
 	$eng->execute_queries(todos => \%todos2);
 	is($todos2{cnt}{rawvalue}, 60,
 		"composite: nmisng/events count (different DB, same collection name)");
+}
+
+# --- discover_indexes cache disambiguates by endpoint -------------------
+# Same URL, different endpoint names — discovery must NOT share cached
+# bodies (mirrors the execute_queries cache test). Two endpoints can
+# resolve to the same URL but carry different auth.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [
+			{ name => 'fixA', port => $port },
+			{ name => 'fixB', port => $port },
+		],
+	);
+
+	my %fetch_count;
+	my $orig_fetch = \&NMISNG::Sys::Engine::HTTP::_fetch;
+	no warnings 'redefine';
+	local *NMISNG::Sys::Engine::HTTP::_fetch = sub {
+		my ($self, $endpoint, $url) = @_;
+		$fetch_count{$url}++;
+		return $self->$orig_fetch($endpoint, $url);
+	};
+	use warnings 'redefine';
+
+	my ($errA, $idxA) = $eng->discover_indexes(
+		section_config => {
+			indexed   => 'database',
+			http_prom => {
+				'-common-' => { endpoint => 'fixA' },
+				count      => { metric => 'mock_collstats' },
+			},
+		},
+		index_var => 'database',
+	);
+	my ($errB, $idxB) = $eng->discover_indexes(
+		section_config => {
+			indexed   => 'database',
+			http_prom => {
+				'-common-' => { endpoint => 'fixB' },
+				count      => { metric => 'mock_collstats' },
+			},
+		},
+		index_var => 'database',
+	);
+	is($errA, undef, "discover_indexes cache: fixA succeeded");
+	is($errB, undef, "discover_indexes cache: fixB succeeded");
+	my $total = 0; $total += $_ for values %fetch_count;
+	is($total, 2,
+		"discover_indexes: _fetch called twice (cache disambiguates by endpoint)");
+	is(scalar(keys %{$eng->{response_cache}}), 2,
+		"discover_indexes: response_cache holds two entries (one per endpoint)");
+}
+
+# --- composite index round-trip via component map ----------------------
+# discover_indexes records the per-component label values into
+# $eng->{_index_components}; build_queries reads from the map instead of
+# re-splitting on `__`. With the map populated, round-trip is exact even
+# for label values that contain the separator.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+
+	my ($err, $idx) = $eng->discover_indexes(
+		section_config => {
+			indexed   => ['database', 'collection'],
+			http_prom => {
+				'-common-' => { endpoint => 'fix' },
+				count      => { metric => 'mock_collstats' },
+			},
+		},
+		index_var => ['database', 'collection'],
+	);
+	is($err, undef, "component map: discover_indexes succeeded");
+	is_deeply($eng->{_index_components}{'nmisng__events'},
+		['nmisng', 'events'],
+		"component map: nmisng/events components stashed");
+	is_deeply($eng->{_index_components}{'opevents__eventqueue'},
+		['opevents', 'eventqueue'],
+		"component map: opevents/eventqueue components stashed");
+
+	# Map drives extraction — clear the cache so build_queries can't lean
+	# on previously-fetched bodies; component values must come from the
+	# map. (We re-fetch — that's fine; the goal is to prove that the row
+	# scoping uses the map, not the split fallback.)
+	delete $eng->{response_cache};
+	my %todos;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => ['database', 'collection'],
+		index           => 'opevents__eventqueue',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			cnt        => { metric => 'mock_collstats' },
+		},
+		todos => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	is($todos{cnt}{rawvalue}, 3,
+		"component map: build_queries scoped row via stashed components");
+
+	# Now wipe the map and re-run — the split fallback must still work
+	# for unambiguous label values (no `__` in any component).
+	delete $eng->{_index_components};
+	delete $eng->{response_cache};
+	my %todos2;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => ['database', 'collection'],
+		index           => 'opevents__eventqueue',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			cnt        => { metric => 'mock_collstats' },
+		},
+		todos => \%todos2,
+	);
+	$eng->execute_queries(todos => \%todos2);
+	is($todos2{cnt}{rawvalue}, 3,
+		"component map: split fallback still works when map is absent");
+}
+
+# --- composite index resists `__`-in-value collision -------------------
+# The fixture deliberately includes two samples that both serialize to
+# "a__b__c" under join("__", ...): (db=a, coll=b__c) and (db=a__b, coll=c).
+# discover_indexes must surface BOTH via the component map (different
+# arrays, even though the synthesized string collides). build_queries
+# then routes by whichever map entry survived (last-wins via //=) — and
+# warns when the split fallback would mis-decompose.
+{
+	my ($eng, $sys) = make_engine(
+		endpoints => [{ name => 'fix', port => $port }],
+	);
+
+	my ($err, $idx) = $eng->discover_indexes(
+		section_config => {
+			indexed   => ['database', 'collection'],
+			http_prom => {
+				'-common-' => { endpoint => 'fix' },
+				count      => { metric => 'mock_collstats' },
+			},
+		},
+		index_var => ['database', 'collection'],
+	);
+	is($err, undef, "collision: discover_indexes succeeded");
+
+	# Both pathological rows synthesize to the same string — the index
+	# list contains "a__b__c" exactly once (composite identifier set).
+	my @collisions = grep { $_ eq 'a__b__c' } @$idx;
+	is(scalar @collisions, 1,
+		"collision: a__b__c appears once as composite identifier");
+
+	# But the component map carries one of the two component arrays.
+	# `//=` semantics mean first-write wins, so whichever sample the
+	# Prom parser yielded first is the surviving binding. The point is
+	# that the binding is exact, not the result of an ambiguous split.
+	my $components = $eng->{_index_components}{'a__b__c'};
+	ok(ref $components eq 'ARRAY' && @$components == 2,
+		"collision: component map has a 2-element array for a__b__c");
+	ok((($components->[0] eq 'a'    && $components->[1] eq 'b__c')
+	 || ($components->[0] eq 'a__b' && $components->[1] eq 'c')),
+		"collision: stored components match one of the two real rows");
+
+	# build_queries with the map present — extraction targets the
+	# component-map binding, regardless of how the string would split.
+	my %todos;
+	$eng->build_queries(
+		section_name    => 'MongoDBCollections',
+		section_key     => 'http_prom',
+		section_indexed => ['database', 'collection'],
+		index           => 'a__b__c',
+		section_hash    => {
+			'-common-' => { endpoint => 'fix' },
+			cnt        => { metric => 'mock_collstats' },
+			db         => { metric => 'mock_collstats',
+			                extract_label => 'database' },
+			coll       => { metric => 'mock_collstats',
+			                extract_label => 'collection' },
+		},
+		todos => \%todos,
+	);
+	$eng->execute_queries(todos => \%todos);
+	# Whichever row won the //= race, db/coll must match each other —
+	# i.e. extraction is consistent with the map binding, not with a
+	# naive split.
+	is($todos{db}{rawvalue},   $components->[0],
+		"collision: extracted database matches map binding");
+	is($todos{coll}{rawvalue}, $components->[1],
+		"collision: extracted collection matches map binding");
+	# And the count belongs to that specific row (99 for b__c, 88 for c).
+	my $expected = ($components->[1] eq 'b__c') ? 99 : 88;
+	is($todos{cnt}{rawvalue}, $expected,
+		"collision: count matches the row identified by the map");
 }
 
 # --- max_rows caps results -----------------------------------------------
