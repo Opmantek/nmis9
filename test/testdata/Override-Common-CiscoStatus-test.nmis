@@ -1,0 +1,29 @@
+#
+# Override-Common-CiscoStatus-test.nmis
+# Demo scoped override used by t_omk12375_traceability.pl Section E.
+# Placed in models-custom/ at test time (via write_nmis_file to $custom_dir).
+#
+# Overrides the fanValue alert from Common-CiscoStatus-test:
+#   level:  Warning -> Critical
+#   test:   < 80    -> < 50
+#
+# Expected effect after loadModel():
+#   $sys->{mdl}{alerts}{fanStatus}{fanValue}{level}        = 'Critical'
+#   $sys->{mdl}{alerts}{fanStatus}{fanValue}{_source_file} = 'Override-Common-CiscoStatus-test'
+#
+%hash = (
+  'alerts' => {
+    'fanStatus' => {
+      'fanValue' => {
+        'element' => 'index',
+        'event'   => 'FAN Status',
+        'level'   => 'Critical',
+        'test'    => 'CVAR1=fanValue;$CVAR1 < 50',
+        'type'    => 'test',
+        'title'   => 'Fan Status',
+        'unit'    => '',
+        'value'   => 'CVAR1=fanValue;int($CVAR1)',
+      }
+    }
+  },
+);

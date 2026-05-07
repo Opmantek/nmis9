@@ -6379,7 +6379,11 @@ sub handle_custom_alerts
 						my $snmp_def = $M->{systemHealth}{rrd}{$sect}{snmp}{$varname}
 						           // $M->{systemHealth}{sys}{$sect}{snmp}{$varname};
 						if (ref($snmp_def) eq 'HASH') {
-							$metric_oid = $snmp_def->{oid} // $snmp_def->{snmpObjectName};
+							# prefer symbolic name (snmpObjectName or sysObjectName) over
+							# oid which may be a dotted numeric string (e.g. 1.3.6.1.2.1.15.3.1.2)
+							$metric_oid = $snmp_def->{snmpObjectName}
+							          // $snmp_def->{sysObjectName}
+							          // $snmp_def->{oid};
 						}
 					}
 					$alert->{metric_oid} = $metric_oid // $alrt;

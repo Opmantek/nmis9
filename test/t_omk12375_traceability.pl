@@ -25,7 +25,6 @@ use NMISNG::Status;
 use NMISNG::Sys;
 use NMISNG::Log;
 use NMISNG::Util;
-
 # =============================================================================
 # Fake NMISNG (Sections A and B — no MongoDB required)
 # =============================================================================
@@ -222,7 +221,7 @@ diag("=== Section B: loadModel inline alert tagging ===");
 	   "B4: primary model inline alert unaffected by scoped Model override");
 }
 
-# B5: Scoped Common override (PR #170) inline alert tagged with scoped Common override filename
+# B5: Scoped Common override inline alert tagged with scoped Common override filename
 {
 	clear_cache();
 	my ($name, $feat) = ("TrB5", "TrB5Feature");
@@ -308,6 +307,7 @@ diag("=== Section B: loadModel inline alert tagging ===");
 		   "B7 pass $pass: inline alert tagged correctly (shared cache not mutated)");
 	}
 }
+
 
 # =============================================================================
 # SECTION C: Runtime integration — getValues + process_alerts (requires MongoDB)
@@ -445,6 +445,122 @@ SKIP: {
 
 	$nmisng->get_db()->drop();
 	ok(1, "C: cleanup complete");
+}
+
+# =============================================================================
+# SECTION E: Common override _source_file tagging (no MongoDB)
+#
+# Uses three fixture models (in test/testdata/) to verify:
+#   E1-E3: without override, fanValue alert comes from Common-CiscoStatus-test
+#   E4-E6: with Override-Common-CiscoStatus-test in models-custom, the
+#           overriding file owns _source_file and its fields win (level=Critical)
+# =============================================================================
+diag("=== Section E: Common override _source_file tagging ===");
+
+my %ios_test_model = (
+	'-common-' => {
+		'class' => {
+			'status' => { 'common-model' => 'CiscoStatus-test' },
+		},
+	},
+	'system' => { 'nodeModel' => 'IOS-test', 'nodeType' => 'router' },
+);
+
+my %cisco_status_common = (
+	'alerts' => {
+		'fanStatus' => {
+			'fanValue' => {
+				'element' => 'index',
+				'event'   => 'FAN Status',
+				'level'   => 'Warning',
+				'test'    => 'CVAR1=fanValue;$CVAR1 < 80',
+				'type'    => 'test',
+				'title'   => 'Fan Status',
+				'unit'    => '',
+				'value'   => 'CVAR1=fanValue;int($CVAR1)',
+			},
+		},
+	},
+	'systemHealth' => {
+		'rrd' => {
+			'fanStatus' => {
+				'graphtype' => 'fan-status',
+				'indexed'   => 'true',
+				'snmp'      => {
+					'fanValue' => {
+						'oid'     => 'ciscoEnvMonFanState',
+						'replace' => { '1'=>'100','2'=>'75','3'=>'0','4'=>'80','5'=>'90','6'=>'50' },
+					},
+				},
+			},
+		},
+		'sys' => {
+			'fanStatus' => {
+				'indexed' => 'ciscoEnvMonFanStatusDescr',
+				'headers' => 'FanStatusDescr',
+				'snmp'    => {
+					'FanStatusDescr' => { 'oid' => 'ciscoEnvMonFanStatusDescr', 'title' => 'Fan Status Descr' },
+					'fanValue'       => {
+						'oid'     => 'ciscoEnvMonFanState',
+						'replace' => { '1'=>'100','2'=>'75','3'=>'0','4'=>'80','5'=>'90','6'=>'50' },
+					},
+				},
+			},
+		},
+	},
+);
+
+my %cisco_status_override = (
+	'alerts' => {
+		'fanStatus' => {
+			'fanValue' => {
+				'element' => 'index',
+				'event'   => 'FAN Status',
+				'level'   => 'Critical',
+				'test'    => 'CVAR1=fanValue;$CVAR1 < 50',
+				'type'    => 'test',
+				'title'   => 'Fan Status',
+				'unit'    => '',
+				'value'   => 'CVAR1=fanValue;int($CVAR1)',
+			},
+		},
+	},
+);
+
+# E1-E3: base common model, no override
+{
+	clear_cache();
+	write_nmis_file("$defaults_dir/Model-IOS-test.nmis",         \%ios_test_model);
+	write_nmis_file("$defaults_dir/Common-CiscoStatus-test.nmis", \%cisco_status_common);
+
+	my $sys = make_sys();
+	ok($sys->loadModel(model => 'Model-IOS-test'), "E1: loadModel(Model-IOS-test) without override succeeded");
+	is($sys->{mdl}{alerts}{fanStatus}{fanValue}{_source_file},
+	   'Common-CiscoStatus-test',
+	   "E2: fanValue _source_file = 'Common-CiscoStatus-test' (no override)");
+	is($sys->{mdl}{alerts}{fanStatus}{fanValue}{level},
+	   'Warning',
+	   "E3: fanValue level = 'Warning' from base Common-CiscoStatus-test");
+}
+
+# E4-E6: Override-Common-CiscoStatus-test in models-custom wins
+{
+	clear_cache();
+	write_nmis_file("$defaults_dir/Model-IOS-test.nmis",          \%ios_test_model);
+	write_nmis_file("$defaults_dir/Common-CiscoStatus-test.nmis",  \%cisco_status_common);
+	write_nmis_file("$custom_dir/Override-Common-CiscoStatus-test.nmis", \%cisco_status_override);
+
+	my $sys = make_sys();
+	ok($sys->loadModel(model => 'Model-IOS-test'), "E4: loadModel(Model-IOS-test) with override succeeded");
+	is($sys->{mdl}{alerts}{fanStatus}{fanValue}{_source_file},
+	   'Override-Common-CiscoStatus-test',
+	   "E5: fanValue _source_file = 'Override-Common-CiscoStatus-test' after override");
+	is($sys->{mdl}{alerts}{fanStatus}{fanValue}{level},
+	   'Critical',
+	   "E6: fanValue level = 'Critical' (override wins over Warning from base Common)");
+
+	# Clean up the override so it doesn't bleed into later tests
+	unlink "$custom_dir/Override-Common-CiscoStatus-test.nmis";
 }
 
 done_testing();
