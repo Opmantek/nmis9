@@ -85,17 +85,18 @@ dev_user_map() {
     -exec chown "$DEV_UID:$DEV_GID" {} +
 }
 
+# Start any services required by NMIS
 start_apps() {
-  services=("snmpd")
-    for service in "${services[@]}"; do
-      echo "Starting $service daemon..."
-      service $service start
-      if [ $? -eq 0 ]; then
-          echo "$service service started successfully."
-      else
-          echo "Failed to start $service service."
-      fi
-    done
+  services=("snmpd" "snmptrapd")
+  for service in "${services[@]}"; do
+    echo "Starting $service daemon..."
+    service $service start
+    if [ $? -eq 0 ]; then
+        echo "$service service started successfully."
+    else
+        echo "Failed to start $service service."
+    fi
+  done
 }
 
 run() {

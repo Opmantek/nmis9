@@ -3,13 +3,16 @@
 set -e
 
 NMIS_HOME=/usr/local/nmis9
+NMIS_LOG=${NMIS_HOME}/logs/nmis.log
+NMIS_USER=nmis
+NMIS_GROUP=nmis
 
 # shellcheck disable=SC1091
 source /etc/profile
 
 setup() {
   # Create data directories
-  for d in assets var/nmis_system models-custom database conf logs
+  for d in assets var/nmis_system models-custom database conf logs htdocs/cache htdocs/nmis9
   do
     dir=${NMIS_HOME}/${d}
 
@@ -35,43 +38,44 @@ setup() {
     done
   fi
 
+  # Remove pid file that gets saved in /var mount, otherwise stops nmisd from running when starting the container
+  rm -f "${NMIS_HOME}/var/nmis_system/nmisd.pid"
 }
 
-
 nmis_frontend() {
-    set -m
-      /usr/local/nmis9/bin/nmisd foreground=1 &
-      /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080" &
+  su -s /bin/bash ${NMIS_USER} -c '
+    /usr/local/nmis9/bin/nmisd foreground=1 &
+    /usr/local/nmis9/script/nmisx daemon -m production -p -l "http://*:8080" &
+  '
 }
 
 setup_db() {
   yes '' | /usr/local/nmis9/admin/setup_mongodb.pl
-	yes '' | /usr/local/omk/bin/setup_mongodb.exe
 }
 
+# Start any services required by NMIS
 start_apps() {
-#start services up
-    services=("omkd" "opchartsd" "opeventsd" "opconfigd")
-
-    for service in "${services[@]}"; do
-        echo "Starting $service daemon..."
-        service $service start
-        if [ $? -eq 0 ]; then
-            echo "$service service started successfully."
-        else
-            echo "Failed to start $service service."
-        fi
-    done
+  services=("snmpd" "snmptrapd")
+  for service in "${services[@]}"; do
+    echo "Starting $service daemon..."
+    service $service start
+    if [ $? -eq 0 ]; then
+        echo "$service service started successfully."
+    else
+        echo "Failed to start $service service."
+    fi
+  done
 }
 
 run() {
   setup
   setup_db
-  nmis_frontend
   start_apps
+  nmis_frontend
 
-#tail omkd out to keep alive, or anything rlly
-  tail -f /usr/local/omk/log/omkd_out.log
+  # Tail NMIS out to keep container alive
+  sleep 5
+  tail -f "${NMIS_LOG}"
 }
 
 run "$@"

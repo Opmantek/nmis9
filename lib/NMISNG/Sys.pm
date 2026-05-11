@@ -1952,7 +1952,7 @@ sub loadModel
 					$self->{error} = "ERROR ($self->{name}) scoped override merge failed for $path!";
 					return 0;
 				}
-				for my $tname (keys %{$data->{threshold}{name} // {}}) {
+			for my $tname (keys %{$data->{threshold}{name} // {}}) {
 					$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
 				}
 				for my $sect (keys %{$data->{alerts} // {}}) {
