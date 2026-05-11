@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# t_omk12375_traceability.pl - Tests for OMK-12375:
+# t_threshold_traceability.pl - Tests for OMK-12375:
 #   Section A: Status.pm known_attrs for new fields (no MongoDB)
 #   Section B: loadModel() inline alert _source_file tagging (no MongoDB)
 #   Section C: getValues() pushes _source_file + process_alerts() Status fields (MongoDB)
@@ -335,7 +335,7 @@ SKIP: {
 	NMISNG::Snmp::Mock->import();
 
 	my $int_C = NMISNG::Util::loadConfTable();
-	$int_C->{db_name} = "t_omk12375-" . time;
+	$int_C->{db_name} = "t_threshold-" . time;
 	my $int_log = NMISNG::Log->new(level => 'info');
 	my $nmisng  = NMISNG->new(config => $int_C, log => $int_log);
 
