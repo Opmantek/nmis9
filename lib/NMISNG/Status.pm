@@ -63,6 +63,7 @@ my %known_attrs = (
 	threshold_source  => 1,
 	threshold_metric  => 1,
 	threshold_key     => 1,
+	threshold_unit    => 1,
 	model_subconcept  => 1
 );
 

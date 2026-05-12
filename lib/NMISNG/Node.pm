@@ -6508,6 +6508,7 @@ sub process_alerts
 			value    => $alert->{value},
 			threshold_source  => $alert->{_source_file},
 			threshold_metric  => $alert->{metric_oid} // $alert->{ds},
+			threshold_unit    => $alert->{unit},
 			model_subconcept  => $alert->{section},
 			threshold_key     => $alert->{alert} // $alert->{ds},
 			inventory_id => $alert->{inventory_id}

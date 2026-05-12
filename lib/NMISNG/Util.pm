@@ -1774,6 +1774,13 @@ sub readFiletoHash
 			}
 			else											# perl
 			{
+				# Decode UTF-8 bytes to Unicode characters before eval so that
+				# string literals containing multi-byte sequences (e.g. '°C') are
+				# stored as proper Perl Unicode strings rather than raw bytes.
+				# Without this, JSON::XS re-encodes each Latin-1 byte, turning
+				# 0xC2 0xB0 into the two-character sequence "Â°" in the cache.
+				require Encode;
+				$data = Encode::decode('UTF-8', $data, Encode::FB_DEFAULT);
 				# convert data to hash. this is really very yucky.
 				%hash = eval $data;
 				if ($@)

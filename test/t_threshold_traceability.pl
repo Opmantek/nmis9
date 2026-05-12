@@ -4,6 +4,8 @@
 #   Section A: Status.pm known_attrs for new fields (no MongoDB)
 #   Section B: loadModel() inline alert _source_file tagging (no MongoDB)
 #   Section C: getValues() pushes _source_file + process_alerts() Status fields (MongoDB)
+#   Section D: applyThresholdToInventory threshold_metric model fallback (MongoDB)
+#   Section E: Common override _source_file tagging (no MongoDB)
 #
 
 use strict;
@@ -127,7 +129,7 @@ sub inline_alert_model {
 # =============================================================================
 diag("=== Section A: Status known_attrs ===");
 
-for my $field (qw(threshold_source threshold_metric threshold_key model_subconcept threshold_select)) {
+for my $field (qw(threshold_source threshold_metric threshold_key threshold_unit model_subconcept threshold_select)) {
 	ok(NMISNG::Status->can($field), "A: Status has getter/setter for $field");
 }
 
@@ -327,7 +329,7 @@ my $can_mongo = eval {
 };
 
 SKIP: {
-	skip "MongoDB not available: $@", 17 unless $can_mongo;
+	skip "MongoDB not available: $@", 18 unless $can_mongo;
 
 	require NMISNG;
 	require NMISNG::Node;
@@ -434,17 +436,139 @@ SKIP: {
 	   "C7: status documents saved to MongoDB for inline sensor alert");
 
   SKIP: {
-		skip "no status docs in MongoDB", 5 unless @status_docs;
+		skip "no status docs in MongoDB", 6 unless @status_docs;
 		my $doc = $status_docs[0];
 		is($doc->{threshold_source},  'Model-TestSnmp',  "C8:  threshold_source persisted to status collection");
 		is($doc->{threshold_metric},  'testSensorValue', "C9:  threshold_metric persisted to status collection");
 		is($doc->{model_subconcept},  'testSensor',      "C10: model_subconcept persisted to status collection");
 		is($doc->{threshold_key},     'testSensorValue', "C11: threshold_key persisted to status collection");
 		ok(!exists $doc->{threshold_source_file},        "C12: obsolete threshold_source_file not in status collection");
+		ok(!defined $doc->{threshold_unit} || $doc->{threshold_unit} eq '',
+		   "C13: threshold_unit absent/empty for inline alert (no unit field in inline alert model)");
 	}
 
 	$nmisng->get_db()->drop();
 	ok(1, "C: cleanup complete");
+}
+
+# =============================================================================
+# SECTION D: applyThresholdToInventory threshold_metric fallback (MongoDB)
+#
+# Verifies when compute_thresholds calls applyThresholdToInventory
+# without an item= arg ($item is undef), threshold_metric in the saved status doc
+# is populated from the threshold definition's own item field in the model.
+#
+# Uses a pre-populated stats table so no RRD I/O is required.
+# =============================================================================
+diag("=== Section D: threshold_metric model fallback (MongoDB) ===");
+
+SKIP: {
+	skip "MongoDB not available: $@", 9 unless $can_mongo;
+
+	require NMISNG;
+	require NMISNG::Node;
+	require NMISNG::Snmp::Mock;
+	NMISNG::Snmp::Mock->import();
+
+	my $d_C = NMISNG::Util::loadConfTable();
+	$d_C->{db_name} = "t_threshold-d-" . time;
+	my $d_log    = NMISNG::Log->new(level => 'info');
+	my $d_nmisng = NMISNG->new(config => $d_C, log => $d_log);
+
+	{
+		no warnings 'redefine';
+		*NMISNG::Sys::create_update_rrd = sub {
+			my ($self, %args) = @_;
+			if (ref($args{inventory})) {
+				$args{inventory}->set_subconcept_type_storage(
+					subconcept => ($args{type} || 'unknown'), type => 'rrd',
+					data       => "/nodes/$self->{name}/mock.rrd");
+			}
+			return 1;
+		};
+	}
+
+	my $d_walk_raw = decode_json(read_file("$FindBin::Bin/testdata/snmpwalk_test.json"));
+	my %d_walk;
+	for my $k (keys %$d_walk_raw) {
+		$d_walk{$k} = $d_walk_raw->{$k} unless $k =~ /^_/;
+	}
+
+	my $d_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $d_nmisng);
+	$d_node->cluster_id($d_C->{cluster_id});
+	$d_node->name("t_tr_thr");
+	$d_node->configuration({
+		host      => "127.0.0.1",
+		group     => "TestGroup",
+		netType   => "default",
+		roleType  => "default",
+		threshold => 1,
+		model     => "TestSnmp",
+		collect   => "true",
+		ping      => "false",
+		community => "public",
+		version   => "snmpv2c",
+	});
+	my (undef, $d_save_err) = $d_node->save();
+	ok(!$d_save_err, "D1: test node saved") or diag($d_save_err);
+
+	my ($d_catchall, $d_cerr) = $d_node->inventory(concept => "catchall", model_class => "system");
+	ok(!$d_cerr, "D2: catchall inventory created");
+
+	my $d_S = NMISNG::Sys->new(nmisng => $d_nmisng);
+	$d_S->init(node => $d_node, snmp => 1, wmi => 0, update => 'true', force => 1,
+			   catchall_inventory => $d_catchall);
+	$d_S->{snmp} = NMISNG::Snmp::Mock->new(nmisng => $d_nmisng, name => "t_tr_thr",
+											walk_data => \%d_walk);
+	$d_S->open();
+	$d_node->update_node_info(sys => $d_S, catchall_inventory => $d_catchall);
+	$d_node->collect_systemhealth_info(sys => $d_S, catchall_inventory => $d_catchall);
+	$d_catchall->save(node => $d_node);
+
+	my $d_ts_all  = $d_node->get_inventory_model(concept => 'testSensor', filter => { historic => 0 });
+	my $d_ts_objs = $d_ts_all->objects;
+	my $d_ts_inv  = ($d_ts_objs->{success} && @{$d_ts_objs->{objects}})
+	                ? $d_ts_objs->{objects}[0] : undef;
+	ok(defined($d_ts_inv), "D3: testSensor inventory instance found in MongoDB");
+
+	SKIP: {
+		skip "no testSensor inventory for D4-D8", 5 unless defined($d_ts_inv);
+
+		my $d_index = $d_ts_inv->data->{index} // '';
+
+		# Call without item= to trigger the $item // model-item fallback (commit bb1f7921).
+		# Pre-populate the stats table (keyed by node name then subconcept) so the function
+		# uses these values directly without needing RRD-derived data.
+		# testSensorUtil=85 exceeds the Warning threshold of 80, so thresholdProcess fires.
+		$d_nmisng->applyThresholdToInventory(
+			sys       => $d_S,
+			table     => { 't_tr_thr' => { testSensor => { testSensorUtil => 85 } } },
+			type      => 'testSensor',
+			thrname   => ['testSensorUtil'],
+			index     => $d_index,
+			inventory => $d_ts_inv,
+		);
+
+		my $d_cursor = NMISNG::DB::find(
+			collection => $d_nmisng->status_collection(),
+			query      => { event => 'Proactive Sensor Utilisation', node_uuid => $d_node->uuid },
+		);
+		my @d_docs = $d_cursor ? $d_cursor->all() : ();
+		ok(scalar(@d_docs) >= 1, "D4: status doc saved for testSensorUtil threshold breach");
+
+		SKIP: {
+			skip "no status docs in MongoDB for D5-D8", 4 unless @d_docs;
+			my $d = $d_docs[0];
+			is($d->{threshold_metric}, 'testSensorUtil',
+			   "D5: threshold_metric populated from model item= when item arg is absent");
+			is($d->{threshold_key},    'testSensorUtil', "D6: threshold_key = thrname");
+			is($d->{model_subconcept}, 'testSensor',     "D7: model_subconcept = type");
+			is($d->{threshold_unit},   '%',              "D8: threshold_unit = '%' from threshold definition");
+		}
+	}
+
+	$d_nmisng->get_db()->drop();
+	ok(1, "D: cleanup complete");
 }
 
 # =============================================================================

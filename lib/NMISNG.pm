@@ -5292,6 +5292,7 @@ sub thresholdProcess
 			threshold_source  => $S->mdl->{threshold}{name}{$args{thrname}}{_source_file},
 			threshold_metric  => $args{threshold_metric},
 			threshold_key     => $args{thrname},
+			threshold_unit    => $S->mdl->{threshold}{name}{$args{thrname}}{unit},
 			model_subconcept  => $args{model_subconcept},
 			inventory_id => NMISNG::DB::make_oid( $args{inventory_id} )
 		);

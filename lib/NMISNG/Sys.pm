@@ -1598,6 +1598,7 @@ sub getValues
 						source  => $thing->{query} ? "wmi" : "snmp",   # not sure we actually need that in the alert context
 						value   => $value,
 						test_result => $result,
+						unit    => $sectiondetails->{alert}{unit},
 						_source_file => $sectiondetails->{alert}{_source_file},
 						calculate_details => (defined($sectiondetails->{alert}{calculate_details}) && $sectiondetails->{alert}{calculate_details} ne '') ? $sectiondetails->{alert}{calculate_details} : undef,
 						inventory_id => ($inventory) ? $inventory->id : undef
