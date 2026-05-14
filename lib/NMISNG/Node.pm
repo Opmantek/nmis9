@@ -5400,19 +5400,28 @@ sub collect_systemhealth_data
 			if( $index_suffix_oid ne '' ) {
 				my $needdot = (substr($index,0,1) ne '.') ? '.' : '';
 				my $oid = $index_suffix_oid . $needdot . $index;
-				my $result = $S->snmp->gettable( $oid );
-				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
-				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
-					# first look for exact match
-					if( defined($result->{$oid}) ) {
-						$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
-						$port = $index . '.' . $result->{$oid};
-					}
-					# if there's only one result let's use it. the returned key/oid may have values appended to it
-					elsif( keys %$result == 1 ) {
-						my ($found_suffix_oid, $found_suffix_value) = each %$result;
-						$data->{index_suffix} = $found_suffix_value; # store so it can be used/displayed
-						$port = $index . '.' . $found_suffix_value;
+			# Try scalar get first (for leaf OIDs like Huawei nqaSchCtrlLastFinIdx).
+				# Fall back to gettable for subtable-column OIDs (e.g. Teldat window index)
+				# where the combined oid is a subtable root, not a scalar.
+				my $result = $S->snmp->get( $oid );
+				if ( $result && defined($result->{$oid}) && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$data->{index_suffix} = $result->{$oid};
+					$port = $index . '.' . $result->{$oid};
+				}
+				else {
+					$result = $S->snmp->gettable( $oid );
+					$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
+					if ( $result ) {
+						if( defined($result->{$oid}) && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+							$data->{index_suffix} = $result->{$oid};
+							$port = $index . '.' . $result->{$oid};
+						}
+						# if there's only one result let's use it. the returned key/oid may have values appended to it
+						elsif( !defined($result->{$oid}) && keys %$result == 1 ) {
+							my ($found_suffix_oid, $found_suffix_value) = each %$result;
+							$data->{index_suffix} = $found_suffix_value;
+							$port = $index . '.' . $found_suffix_value;
+						}
 					}
 				}
 			}
