@@ -48,6 +48,13 @@ use Clone;
 use Carp qw(longmess);
 use Scalar::Util;
 
+# Top-level model sections that hold metadata rather than collectable device
+# data.  Used in two places: the OID-normalisation walk in loadModel and the
+# inline-alert tagging walk in _tag_inline_alert_sections.  Defined once so
+# the two sites cannot drift.
+use constant MODEL_NON_DEVICE_SECTIONS =>
+	qw(-common- alerts database event heading stats summary threshold);
+
 # the sys constructor does next to nothing, just roughly setup the structure
 sub new
 {
@@ -1929,6 +1936,9 @@ sub loadModel
 						if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
 				}
 			}
+			# source == dest here because the primary model has already been
+			# cloned into $self->{mdl} (line ~1912).  If that clone is ever
+			# removed, pass a Clone::clone($self->{mdl}) as source instead.
 			$self->_tag_inline_alert_sections($self->{mdl}, $self->{mdl}, $model);
 
 			# scoped overrides are auto-discovered from models-custom (no config setting required).
@@ -1941,7 +1951,7 @@ sub loadModel
 				my $path = "$custom_models_dir/$name.nmis";
 				return 1 if (!-e $path); # absent is normal/silent
 				my $mtime = (stat($path))[9];
-				my $data = NMISNG::Util::loadTable(dir => "models", name => "$name.nmis", conf => $C);
+				my $data = NMISNG::Util::loadTable(dir => "models", name => "$name.nmis", utf8 => 1, conf => $C);
 				if (ref($data) ne "HASH" or !keys %$data)
 				{
 					$self->{error} = "ERROR ($self->{name}) failed to read scoped override $path: $data";
@@ -1953,7 +1963,7 @@ sub loadModel
 					$self->{error} = "ERROR ($self->{name}) scoped override merge failed for $path!";
 					return 0;
 				}
-			for my $tname (keys %{$data->{threshold}{name} // {}}) {
+				for my $tname (keys %{$data->{threshold}{name} // {}}) {
 					$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
 				}
 				for my $sect (keys %{$data->{alerts} // {}}) {
@@ -2044,9 +2054,9 @@ sub loadModel
 			
 			# this section is deep and scary because that's how models are...
 			foreach my $root_section (keys %{$self->{mdl}}) {
-				# skip sections which we are not interested in at the moment, this should land us with a list that looks 
+				# skip sections which we are not interested in at the moment, this should land us with a list that looks
 				# like system,systemHealth,interface (and then a bunch of stuff tacked on, storage,hrdisk,device,etc)
-				next if( grep( /^$root_section$/, (qw(-common- alerts database event heading stats summary threshold))));
+				next if( grep( /^$root_section$/, MODEL_NON_DEVICE_SECTIONS));
 				# only look at sys and rrd keys in here because these are the only ones that have datasets
 				# other things like nocollect do live in here
 				foreach my $rrd_or_sys (qw(sys rrd)) {
@@ -2244,8 +2254,7 @@ sub _tag_inline_alert_sections
 	my ($self, $source, $dest, $filename) = @_;
 	for my $root_sect (keys %$source)
 	{
-		next if grep { $_ eq $root_sect }
-			qw(-common- alerts database event heading stats summary threshold);
+		next if grep { $_ eq $root_sect } MODEL_NON_DEVICE_SECTIONS;
 		for my $rrd_or_sys (qw(sys rrd))
 		{
 			my $section_map = $source->{$root_sect}{$rrd_or_sys} // {};
@@ -2257,10 +2266,15 @@ sub _tag_inline_alert_sections
 					{
 						next unless ref($section_map->{$sect_key}{$proto}{$ds}) eq 'HASH';
 						next unless ref($section_map->{$sect_key}{$proto}{$ds}{alert}) eq 'HASH';
-						$dest->{$root_sect}{$rrd_or_sys}{$sect_key}{$proto}{$ds}{alert}{_source_file}
-							= $filename
-							if ref(($dest->{$root_sect}{$rrd_or_sys}{$sect_key}{$proto}{$ds} // {})->{alert})
-							   eq 'HASH';
+						# Walk $dest one level at a time to avoid autovivifying
+						# intermediate keys for sections the primary model lacks.
+						my $d = $dest->{$root_sect};
+						my $d2 = ($d  // {})->{$rrd_or_sys};
+						my $d3 = ($d2 // {})->{$sect_key};
+						my $d4 = ($d3 // {})->{$proto};
+						my $dest_ds = ($d4 // {})->{$ds};
+						next unless ref($dest_ds) eq 'HASH' && ref($dest_ds->{alert}) eq 'HASH';
+						$dest_ds->{alert}{_source_file} = $filename;
 					}
 				}
 			}

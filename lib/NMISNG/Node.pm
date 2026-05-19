@@ -6369,8 +6369,9 @@ sub handle_custom_alerts
 					$alert->{inventory_id} = $inventory->id();
 					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
 
-					# Resolve raw SNMP OID for threshold_metric: parse the primary CVAR variable
-					# from the value expression, then look it up in the model's rrd/sys snmp section
+					# Resolve raw SNMP OID for threshold_metric: picks the first CVAR=varname
+					# declaration in the value expression (left-to-right), then looks it up
+					# in the model's rrd/sys snmp section.
 					my $metric_oid;
 					my $value_expr = $CA->{$sect}{$alrt}{value} // '';
 					if ($value_expr =~ /CVAR\d?=(\w+)/) {
@@ -6386,7 +6387,7 @@ sub handle_custom_alerts
 							          // $snmp_def->{oid};
 						}
 					}
-					$alert->{metric_oid} = $metric_oid // $alrt;
+					$alert->{metric_oid} = $metric_oid; # undef when CVAR lookup fails; downstream uses // $alert->{ds}
 
 					push( @{$S->{alerts}}, $alert );
 				}
@@ -6504,7 +6505,7 @@ sub process_alerts
 			section => $alert->{section},
 			source => $alert->{source},
 			# name does not exist for simple alerts, let's synthesize it from ds
-			name => $alert->{alert} || $alert->{ds},
+			name => $alert->{alert} // $alert->{ds},
 			value    => $alert->{value},
 			threshold_source  => $alert->{_source_file},
 			threshold_metric  => $alert->{metric_oid} // $alert->{ds},

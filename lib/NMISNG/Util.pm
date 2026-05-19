@@ -1379,6 +1379,7 @@ sub loadTable
 	my $conf = $args{conf};
 
 	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching and no fallbacks
+	my $utf8 = NMISNG::Util::getbool($args{utf8}); # pass through to readFiletoHash for model files
 
 	# full path -> { data => ..., mtime => ... }
 	state %cache;
@@ -1407,28 +1408,28 @@ sub loadTable
 	my $externalFiles = NMISNG::Util::get_external_files(dir=>$externalDir);
 
 	if ($lock) {
-		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, conf => $conf);
+		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, utf8=>$utf8, conf => $conf);
 
 		foreach (@$externalFiles) {
 			# Read and mix
 			my $lock = NMISNG::Util::getbool($args{lock});
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, conf => $conf);
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, utf8=>$utf8, conf => $conf);
 			$table = {%$table, %$extfile};
-		}		
+		}
 		return $table;
 	}
-	
+
 	# look at the cache, does it have existing non-stale data?
 	my $filetime = stat($file)->mtime;
 
 	if (ref($cache{$file}) ne "HASH"
 			|| $filetime != $cache{$file}->{mtime})
 	{
-		my $table = NMISNG::Util::readFiletoHash(file=>$file, conf => $conf);
+		my $table = NMISNG::Util::readFiletoHash(file=>$file, utf8=>$utf8, conf => $conf);
 
 		foreach (@$externalFiles) {
 			# Read and mix
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, conf => $conf);
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, utf8=>$utf8, conf => $conf);
 			$table = {%$table, %$extfile};
 		}
 		# nope, reread
@@ -1566,7 +1567,7 @@ sub getModelFile
 			return { success => 1, mtime => $age, is_custom => $iscustom } if ($args{only_mtime});
 
 			# loadtable caches, therefore preferred over readfiletohash
-			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn, conf => $C);
+			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn, utf8 => 1, conf => $C);
 			# modeldata has the error in it if there was one
 			return { error => "failed to read file $fn: $! $modeldata" } if (ref($modeldata) ne "HASH"
 																														or !keys %$modeldata);
@@ -1725,6 +1726,7 @@ sub readFiletoHash
 	my $file = $args{file};
 	my $lock = NMISNG::Util::getbool($args{lock}); # option
 	my $json = NMISNG::Util::getbool($args{json}); # also optional
+	my $utf8 = NMISNG::Util::getbool($args{utf8}); # decode Perl-format file as UTF-8
 	my $conf = $args{conf};
 
 	my (%hash, $handle, $line);
@@ -1774,13 +1776,16 @@ sub readFiletoHash
 			}
 			else											# perl
 			{
-				# Decode UTF-8 bytes to Unicode characters before eval so that
-				# string literals containing multi-byte sequences (e.g. '°C') are
-				# stored as proper Perl Unicode strings rather than raw bytes.
-				# Without this, JSON::XS re-encodes each Latin-1 byte, turning
-				# 0xC2 0xB0 into the two-character sequence "Â°" in the cache.
-				require Encode;
-				$data = Encode::decode('UTF-8', $data, Encode::FB_DEFAULT);
+				# Caller passes utf8=>1 for model files (which must be UTF-8) to
+				# ensure multi-byte literals like '°C' survive the eval as proper
+				# Perl Unicode strings and are not re-encoded by JSON::XS later.
+				# FB_CROAK makes invalid bytes a loud error rather than a silent
+				# U+FFFD substitution.  Do NOT apply to config/state files whose
+				# encoding is uncontrolled.
+				if ($utf8) {
+					require Encode;
+					$data = Encode::decode('UTF-8', $data, Encode::FB_CROAK);
+				}
 				# convert data to hash. this is really very yucky.
 				%hash = eval $data;
 				if ($@)
