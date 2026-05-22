@@ -71,6 +71,7 @@ my %DESCRIPTION_FIELDS = (
 
 my @FALLBACK_DESCRIPTION_FIELDS = qw(Description description Name name ifDescr);
 
+# This concept renaming is done because of the reverse compatibility, the list of CPU names is available here.
 my %CONCEPT_RENAME = (
 	'device' => 'cpuLoad',
 );
@@ -261,10 +262,9 @@ my @TOOL_DEFINITIONS = (
 # ---------------------------------------------------------------------------
 
 my %DISPATCH = (
-	'initialize'                => \&handle_initialize,
-	'notifications/initialized' => \&handle_notifications_initialized,
-	'tools/list'                => \&handle_tools_list,
-	'tools/call'                => \&handle_tools_call,
+	'initialize' => \&handle_initialize,
+	'tools/list' => \&handle_tools_list,
+	'tools/call' => \&handle_tools_call,
 );
 
 # ---------------------------------------------------------------------------
@@ -347,7 +347,7 @@ if ($token)
 	my $mcp_config = NMISNG::Util::loadTable(dir => 'conf', name => 'nmis-mcp', conf => $C);
 	if ($mcp_config && ref($mcp_config) eq 'HASH'
 		&& $mcp_config->{api_token} && $mcp_config->{api_token} ne 'change-me-to-a-secure-token'
-		&& $token eq $mcp_config->{api_token})
+		&& _ct_eq($token, $mcp_config->{api_token}))
 	{
 		$authenticated = 1;
 	}
@@ -377,6 +377,19 @@ if (!$authenticated)
 
 # Initialize NMISNG
 my $nmisng = Compat::NMIS::new_nmisng();
+
+# JSON-RPC 2.0: a request without an "id" member is a Notification.
+# Notifications MUST NOT receive any response per the spec, and MCP's
+# notifications/* methods are always notifications.
+my $is_notification = (!exists $request->{id} || $method =~ m{^notifications/});
+
+if ($is_notification)
+{
+	# 204 No Content — no body, no Content-Type. No handler dispatch, since
+	# notifications must not produce response output.
+	print $q->header(-status => '204 No Content');
+	exit 0;
+}
 
 # Print response header
 print $q->header(-type => 'application/json', -charset => 'utf-8');
@@ -413,11 +426,6 @@ sub handle_initialize
 	});
 }
 
-sub handle_notifications_initialized
-{
-	# Notification — no response required. Output empty body.
-}
-
 sub handle_tools_list
 {
 	my ($request, $id, $nmisng) = @_;
@@ -449,10 +457,11 @@ sub handle_tools_call
 	}
 
 	my ($content, $is_error) = eval { $handler->($arguments, $nmisng) };
-	if ($@)
+	if (my $err = $@)
 	{
+		$nmisng->log->error("MCP tool '$tool_name' died: $err");
 		send_json_rpc_result($id, {
-			content => [{ type => "text", text => "Internal error: $@" }],
+			content => [{ type => "text", text => "Internal error" }],
 			isError => JSON::XS::true,
 		});
 		return;
@@ -870,4 +879,16 @@ sub send_json_rpc_error
 		id      => $id,
 		error   => { code => $code + 0, message => $message },
 	});
+}
+
+# Constant-time string equality for token comparison. Protects against
+# CWE-208 (Observable Timing Discrepancy) on the auth path.
+sub _ct_eq
+{
+	my ($a, $b) = @_;
+	return 0 unless defined $a && defined $b;
+	return 0 if length($a) != length($b);
+	my $r = 0;
+	$r |= ord(substr($a, $_, 1)) ^ ord(substr($b, $_, 1)) for 0 .. length($a) - 1;
+	return $r == 0;
 }

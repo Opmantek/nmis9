@@ -57,49 +57,57 @@ sub sendNotification
 	my $password;
 	my $retain;
 	my $retries;
+	my $allow_insecure;
 
 	confess("NMISNG argument required!") if (ref($nmisng) ne "NMISNG");
 	my $C = $nmisng->config;
 	my $mqttConfig = undef;
 
 	# get mqtt config from config file.
-	if (NMISNG::Util::existFile(dir=>'conf',name=>'mqttevent')) {
-		# loadtable falls back to conf-default if conf doesn't have the file
-		$mqttConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'mqttevent');
-
-		if (!$mqttConfig || ref($mqttConfig) ne 'HASH')
-		{
-			$nmisng->log->error("Failed to load mqttevent configuration, mqtt event will not be sent. Please check conf/mqttevent.nmis file.");
-			return 0;
-		}
-
-		if ( defined $mqttConfig->{mqtt} and defined $mqttConfig->{mqtt}{server} and $mqttConfig->{mqtt}{server} 
-			and defined $mqttConfig->{mqtt}{username} and $mqttConfig->{mqtt}{username} 
-			and defined $mqttConfig->{mqtt}{password} and $mqttConfig->{mqtt}{password} 
-		)
-		{
-			$server = $mqttConfig->{mqtt}{server};
-			$username = $mqttConfig->{mqtt}{username};
-			$password = $mqttConfig->{mqtt}{password};
-		}
-		else
-		{
-			$nmisng->log->error("mqtt configuration missing required fields (server, username, password), mqtt event will not be sent. Please check conf/mqttevent.nmis file.");
-			return 0;
-		}
-
-		if ( defined $mqttConfig->{mqtt}{topic} and $mqttConfig->{mqtt}{topic} )
-		{
-			$topic = $mqttConfig->{mqtt}{topic};
-		}
-		else {
-			$topic = "nmis/event";
-		}
-
-		$extraLogging = NMISNG::Util::getbool($mqttConfig->{mqtt}{extra_logging});
-		$retain = int($mqttConfig->{mqtt}{retain} // 1);
-		$retries = int($mqttConfig->{mqtt}{retries} // 1);
+	if (!NMISNG::Util::existFile(dir=>'conf',name=>'mqttevent'))
+	{
+		$nmisng->log->error("conf/mqttevent.nmis not found, mqtt event will not be sent.");
+		return 0;
 	}
+
+	# loadtable falls back to conf-default if conf doesn't have the file
+	$mqttConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'mqttevent');
+
+	if (!$mqttConfig || ref($mqttConfig) ne 'HASH')
+	{
+		$nmisng->log->error("Failed to load mqttevent configuration, mqtt event will not be sent. Please check conf/mqttevent.nmis file.");
+		return 0;
+	}
+
+	if ( defined $mqttConfig->{mqtt} and defined $mqttConfig->{mqtt}{server} and $mqttConfig->{mqtt}{server}
+		and defined $mqttConfig->{mqtt}{username} and $mqttConfig->{mqtt}{username}
+		and defined $mqttConfig->{mqtt}{password} and $mqttConfig->{mqtt}{password}
+	)
+	{
+		$server = $mqttConfig->{mqtt}{server};
+		$username = $mqttConfig->{mqtt}{username};
+		$password = $mqttConfig->{mqtt}{password};
+	}
+	else
+	{
+		$nmisng->log->error("mqtt configuration missing required fields (server, username, password), mqtt event will not be sent. Please check conf/mqttevent.nmis file.");
+		return 0;
+	}
+
+	if ( defined $mqttConfig->{mqtt}{topic} and $mqttConfig->{mqtt}{topic} )
+	{
+		$topic = $mqttConfig->{mqtt}{topic};
+	}
+	else {
+		$topic = "nmis/event";
+	}
+
+	$extraLogging = NMISNG::Util::getbool($mqttConfig->{mqtt}{extra_logging});
+	$retain = int($mqttConfig->{mqtt}{retain} // 1);
+	$retries = int($mqttConfig->{mqtt}{retries} // 1);
+	# Opt-in: must be set in config before we permit plaintext-MQTT auth
+	# (i.e. set MQTT_SIMPLE_ALLOW_INSECURE_LOGIN in Net::MQTT::Simple).
+	$allow_insecure = NMISNG::Util::getbool($mqttConfig->{mqtt}{allow_insecure});
 
 	# get the ignorelist from conf/ or conf-default/
 	# ignore list file in the form of regexes to match against the event 
@@ -110,7 +118,7 @@ sub sendNotification
 	my $ignoreListFileDefault = $C->{'<nmis_conf_default>'}."/mqttIgnoreList.txt";
 	if ( -r $ignoreListFile or -r $ignoreListFileDefault ) {
 		$ignoreListFile = $C->{'<nmis_conf_default>'}."/mqttIgnoreList.txt" if (!-r $ignoreListFile);
-		($errors,@ignoreList) = loadIgnoreList($ignoreListFile);
+		($errors,@ignoreList) = loadIgnoreList($ignoreListFile, $nmisng);
 		$nmisng->log->error($errors) if ($errors);
 	}
 	else {
@@ -122,8 +130,9 @@ sub sendNotification
 	{
 		my $node_name = $event->{node_name};
 
-		# is the node in the ignore list?
-		if (not grep { $event->{event} =~ /$_/ } @ignoreList)
+		# is the event in the ignore list? Patterns are pre-compiled qr//
+		# refs from loadIgnoreList — invalid entries were dropped there.
+		if (not grep { $event->{event} =~ $_ } @ignoreList)
 		{
 			$nmisng->log->info("Processing mqtt event for $node_name $event->{event}");
 
@@ -171,13 +180,14 @@ sub sendNotification
 			# the node name appended, but this could be modified to use any 
 			# topic structure you want.
 			my $error = publishMqtt(
-					topic => "$topic/$node_name", 
-					message => $message, 
+					topic => "$topic/$node_name",
+					message => $message,
 					retain => $retain,
 					retries => $retries,
 					server => $server,
 					username => $username,
-					password => $password
+					password => $password,
+					allow_insecure => $allow_insecure,
 				);
 
 			if ($error)
@@ -193,13 +203,14 @@ sub sendNotification
 			if ( defined $mqttConfig->{mqtt_secondary} and defined $mqttConfig->{mqtt_secondary}{server} and $mqttConfig->{mqtt_secondary}{server} )
 			{
 				my $error = publishMqtt(
-						topic => "$mqttConfig->{mqtt_secondary}{topic}/$node_name", 
-						message => $message, 
+						topic => "$mqttConfig->{mqtt_secondary}{topic}/$node_name",
+						message => $message,
 						retain => $retain,
 						retries => $retries,
 						server => $mqttConfig->{mqtt_secondary}{server},
 						username => $mqttConfig->{mqtt_secondary}{username},
-						password => $mqttConfig->{mqtt_secondary}{password}
+						password => $mqttConfig->{mqtt_secondary}{password},
+						allow_insecure => NMISNG::Util::getbool($mqttConfig->{mqtt_secondary}{allow_insecure}),
 					);
 				
 				if ($error)
@@ -223,20 +234,30 @@ sub sendNotification
 	}
 }
 
-# args: path
-# returns (undef,blacklist items) or (error message)
+# args: path, nmisng (optional, used to log invalid patterns)
+# returns (undef, compiled-qr-list) or (error-message)
+# Blank lines and lines beginning with '#' are skipped. Each surviving
+# line is compiled under eval; entries that fail to compile are logged
+# and skipped so a single bad pattern can't crash the notifier.
 sub loadIgnoreList
 {
-	my $file = shift;
-	my @lines;
+	my ($file, $nmisng) = @_;
+	my @patterns;
 
-	open(IN,$file) or return("cannot open ignore list file $file: $!");
-	while (<IN>) {
-		chomp();
-		push(@lines,$_);
+	open(my $fh, '<', $file) or return("cannot open ignore list file $file: $!");
+	while (my $line = <$fh>) {
+		chomp($line);
+		$line =~ s/^\s+|\s+$//g;
+		next if $line eq '' || $line =~ /^#/;
+		my $compiled = eval { qr/$line/ };
+		if ($@ || !defined $compiled) {
+			$nmisng->log->warn("mqttIgnoreList: skipping invalid pattern '$line': $@") if $nmisng;
+			next;
+		}
+		push(@patterns, $compiled);
 	}
-	close(IN);
-	return (undef,@lines);
+	close($fh);
+	return (undef, @patterns);
 }
 
 # Object oriented (supports subscribing to topics)
@@ -249,8 +270,11 @@ sub publishMqtt {
 	my $server = $arg{server};
 	my $username = $arg{username};
 	my $password = $arg{password};
+	my $allow_insecure = $arg{allow_insecure};
 
-	$ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN} = 1;
+	# Net::MQTT::Simple refuses plaintext-MQTT login() unless this env var
+	# is set. Only opt in when the caller's config explicitly allows it.
+	local $ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN} = $allow_insecure ? 1 : $ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN};
 
 	my $last_error;
 	for my $attempt (0 .. $retries)
