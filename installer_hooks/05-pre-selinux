@@ -29,6 +29,10 @@ and we do therefore STRONGLY recommend that you disable SELinux.
 See "man 8 selinux" for details.
 
 EOF
+						if [ -n "${OPT_ALLOW_SELINUX:-}" ] && [ "${OPT_ALLOW_SELINUX}" != "0" ]; then
+								echolog "SELinux check bypassed via OPT_ALLOW_SELINUX."
+								exit 0
+						fi
 						input_text "Type CONTINUE to continue regardless of SELinux, or any other key to abort:" "7d5c"
 						if [ "$RESPONSE" != "CONTINUE" ]; then
 							echo;

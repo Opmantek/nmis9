@@ -215,6 +215,16 @@
     'Description' => 'A service that NMIS is managing is up but not fully working.',
   },
 
+  'Service Configuration Error' => {
+    'Event' => 'Service Configuration Error',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'Service Configuration Error Closed',
+    'Description' => 'A service configured for this node has an invalid or missing definition.',
+  },
+
   'Proactive Response Time' => {
     'Event' => 'Proactive Response Time',
     'Notify' => 'true',

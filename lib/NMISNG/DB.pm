@@ -41,12 +41,14 @@ use Try::Tiny;
 use boolean;         # do NOT use -truth! deprecated, segfaults in perl 5.20 and impossible with 5.22+
 use MongoDB 1.2.3;	 # we require a reasonably new Mongodb driver
 use Safe::Isa;       # provides $_isa, recommended by MongoDB driver for error handling
+use Time::HiRes ();
 use Time::Moment;    # opCharts needs times (for TTL) and using this is much faster
 use Carp;
 use Mojo::Util;									# for monkey_patch and  b64_encode/decode
 
 use version 0.77;    # needed to check driver version
 
+use NMISNG::Guard;
 use NMISNG::Util;								# for getbool and numify
 
 # this is a little bit unfriendly, but required because mongo uses boolean::true or ::false,
@@ -98,6 +100,7 @@ my $error_string;
 #   - list of ( array of records, count, error ), count is = 0 if not asked for
 sub aggregate
 {
+	my $_timer = _start_time_and_count('aggregate');
 	my (%arg)               = @_;
 	my $collection          = $arg{collection};
 	my $pre_count_pipeline  = $arg{pre_count_pipeline} // [];
@@ -202,6 +205,7 @@ sub aggregate
 # returns: hashref with success/error/count/ids
 sub batch_insert
 {
+	my $_timer = _start_time_and_count('batch_insert');
 	my %arg = @_;
 
 	my $collection = $arg{collection};
@@ -245,6 +249,7 @@ sub batch_insert
 # returns: the bulk op object
 sub begin_bulk
 {
+	my $_timer = _start_time_and_count('begin_bulk');
 	my (%arg) = @_;
 	my $collection = $arg{"collection"};
 	my $ordered = $arg{'ordered'} // 0;
@@ -261,6 +266,7 @@ sub begin_bulk
 # if verbose 1, hashref with keys success, error, count.
 sub count
 {
+	my $_timer = _start_time_and_count('count');
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $query      = $arg{query};
@@ -295,6 +301,7 @@ sub count
 # returns: result record plus error, success fields
 sub coll_stats
 {
+	my $_timer = _start_time_and_count('coll_stats');
 	my %arg        = @_;
 	my $db         = $arg{db};
 	my $collection = $arg{collection};
@@ -431,6 +438,7 @@ sub constrain_record
 # returns: result hash (with success, error, notes, changed, size keys)
 sub create_capped_collection
 {
+	my $_timer = _start_time_and_count('create_capped_collection');
 	my (%arg) = @_;
 	my ( $conn, $db, $collection, $wantsize ) = @arg{"connection", "db", "collection", "size"};
 
@@ -654,6 +662,7 @@ sub create_capped_collection
 # returns undef if there's a fault, listref of values otherwise
 sub distinct
 {
+	my $_timer = _start_time_and_count('distinct');
 	my %arg = @_;
 	my ( $db, $collname, $key, $query ) = @arg{qw(db collection key query)};
 
@@ -687,6 +696,7 @@ sub distinct
 # returns object with success/error and some results
 sub end_bulk
 {
+	my $_timer = _start_time_and_count('end_bulk');
 	my (%arg)   = @_;
 	my $bulk    = $arg{"bulk"};
 	my $success = undef;
@@ -728,6 +738,7 @@ sub end_bulk
 # returns: undef or error message
 sub ensure_index
 {
+	my $_timer = _start_time_and_count('ensure_index');
 	my (%args) = @_;
 
 	my ( $db, $coll, $indexlist ) = @args{"db", "collection", "indices"};
@@ -840,6 +851,7 @@ sub ensure_index
 # sets the error_string if problems are encountered.
 sub find
 {
+	my $_timer = _start_time_and_count('find');
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $query      = $arg{query};
@@ -904,6 +916,7 @@ sub find
 # returns: collection handle or undef on failure (consult getErrorString in that case)
 sub get_collection
 {
+	my $_timer = _start_time_and_count('get_collection');
 	my (%args) = @_;
 	my ( $db, $collname ) = @args{"db", "name"};
 
@@ -1289,6 +1302,7 @@ sub get_query_part
 # returns: hashref, { succes: bool, id: inserted_id, error: message if error }
 sub insert
 {
+	my $_timer = _start_time_and_count('insert');
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $record     = $arg{record};
@@ -1380,6 +1394,7 @@ sub make_oid
 # returns: connection handle or undef, plus sets error_string
 sub reget_db_connection
 {
+	my $_timer = _start_time_and_count('reget_db_connection');
 	my %args      = @_;
 	my $maybelive = $args{connection};
 
@@ -1428,6 +1443,7 @@ sub reget_db_connection
 # from docs: safe If the update fails and safe is set, this function will croak. ( version < 1.0 )
 sub remove
 {
+	my $_timer = _start_time_and_count('remove');
 	my %arg        = @_;
 	my $collection = $arg{collection};
 	my $query      = $arg{query} // {};
@@ -1476,6 +1492,7 @@ sub remove
 # code clones from errmsg, err or error (in that order) - no guarantees with the old driver, may not be hash!
 sub run_command
 {
+	my $_timer = _start_time_and_count('run_command');
 	my (%args) = @_;
 	return {ok => 0, errmsg => "Insufficient arguments"} if ( !$args{db} or !$args{command} );
 	my $result;
@@ -1518,6 +1535,7 @@ sub run_command
 # args: safe, optional allows setting write concern, see http://search.cpan.org/~mongodb/MongoDB-v0.705.0.0/lib/MongoDB/MongoClient.pm#w
 sub update
 {
+	my $_timer = _start_time_and_count('update');
 	my %arg         = @_;
 	my $collection  = $arg{collection};
 	my $query       = $arg{query};
@@ -1582,6 +1600,32 @@ sub update
 		error           => $error,
 		error_type      => $error_type
 	};
+}
+
+# per-function call counters and cumulative time for db operation tracking
+my %_db_stats;
+our %_db_time;
+
+# resets all db operation counters and timers
+sub reset_db_stats { %_db_stats = (); %_db_time = (); }
+
+# returns counts and cumulative times for all tracked functions
+sub get_db_stats {
+	return {
+		counts => { %_db_stats },
+		times  => { %_db_time },
+	};
+}
+
+# increments the call counter and returns a guard object whose DESTROY
+# accumulates elapsed time into %_db_time when the calling scope exits
+sub _start_time_and_count {
+	my ($fname) = @_;
+	$_db_stats{$fname}++;
+	my $start = Time::HiRes::time();
+	return NMISNG::Guard->new(sub {
+		$NMISNG::DB::_db_time{$fname} += Time::HiRes::time() - $start;
+	});
 }
 
 1;

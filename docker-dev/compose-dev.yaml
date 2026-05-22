@@ -1,0 +1,53 @@
+ # compose.yaml file for NMIS
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: mongo
+    platform: linux/amd64
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
+      interval: 60s
+      timeout: 60s
+      retries: 5
+      start_period: 60s
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+      - mongo_log:/var/log/mongodb
+      - ../conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
+    networks:
+      - nmis_net
+  nmis:
+    image: crg.apkg.io/firstwavecloud/nmis-dev:latest
+    container_name: nmis
+    platform: linux/amd64
+    restart: always
+    environment:
+      NMIS_DB_USERNAME: ${MONGODB_USERNAME}
+      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_SERVER: mongo
+      NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
+      NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID}
+      DEV_UID: ${DEV_UID}
+      DEV_GID: ${DEV_GID}
+      CONTAINER: 1
+    depends_on:
+      - mongo
+    volumes:
+      - ../:/usr/local/nmis9
+    ports:
+      - "8080:8080"
+      - "10001:161/udp"
+    networks:
+      - nmis_net
+networks:
+  nmis_net:
+volumes:
+  mongo_data:
+  mongo_log:

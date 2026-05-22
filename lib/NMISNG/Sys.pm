@@ -1802,6 +1802,87 @@ sub loadModel
 					$self->nmisng->log->debug2(sub {"Cached model \"$model\" mtime $cfage compares ok to \"$other\" ($othermtime)."});
 				}
 			}
+
+			# also verify scoped override files (Override-Model-X.nmis and Override-Common-X.nmis)
+			# auto-discovered from models-custom only. Detects adds, edits, and deletes since cache was written.
+			# Cache-tracking metadata lives in a sidecar file alongside $thiscf so $self->{mdl} stays a pure model hash.
+			if (!$isstale)
+			{
+				my $sidecar_path = "$thiscf.meta.json";
+				my $cache_meta = -f $sidecar_path
+					? NMISNG::Util::readFiletoHash(file => $sidecar_path, json => 1, lock => 0, conf => $C)
+					: undef;
+
+				# Strong invariant: cache hit requires a valid sidecar with applied_overrides arrayref.
+				# Without it we cannot distinguish "no overrides ever applied" from "overrides existed but got deleted",
+				# so we cannot trust that the cached merged model still matches the current on-disk state.
+				if (ref($cache_meta) ne "HASH" or ref($cache_meta->{applied_overrides}) ne "ARRAY")
+				{
+					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: missing or invalid sidecar at $sidecar_path."});
+					$isstale = 1;
+				}
+				else
+				{
+					my $custom_models_dir = NMISNG::Util::getDir(dir => "models", conf => $C);
+					my $shortname = $model;
+					$shortname =~ s/^Model-//;
+
+					my @expected_overrides = ("Override-Model-$shortname");
+					if (ref($self->{mdl}->{'-common-'}) eq "HASH"
+							&& ref($self->{mdl}->{'-common-'}->{class}) eq "HASH")
+					{
+						push @expected_overrides,
+							map { "Override-Common-".$self->{mdl}->{'-common-'}->{class}->{$_}->{'common-model'} }
+							(keys %{$self->{mdl}->{'-common-'}->{class}});
+					}
+
+					# what was applied last time, keyed by full path
+					my %was_applied = map { $_->{path} => $_->{mtime} } @{$cache_meta->{applied_overrides}};
+					my %expected_paths;
+
+					for my $name (@expected_overrides)
+					{
+						my $path = "$custom_models_dir/$name.nmis";
+						$expected_paths{$path} = 1;
+						my $exists_now = -e $path;
+						my $current_mtime = $exists_now ? (stat($path))[9] : undef;
+						my $prev_mtime = $was_applied{$path};
+
+						if ($exists_now && !defined $prev_mtime)
+						{
+							$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: scoped override $path appeared since cache."});
+							$isstale = 1;
+							last;
+						}
+						elsif (!$exists_now && defined $prev_mtime)
+						{
+							$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: scoped override $path was deleted since cache."});
+							$isstale = 1;
+							last;
+						}
+						elsif ($exists_now && defined $prev_mtime && $current_mtime != $prev_mtime)
+						{
+							$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: scoped override $path mtime changed."});
+							$isstale = 1;
+							last;
+						}
+					}
+
+					# defensive: catch a previously-applied override whose path no longer matches the current model structure
+					if (!$isstale)
+					{
+						for my $applied_path (keys %was_applied)
+						{
+							if (!$expected_paths{$applied_path})
+							{
+								$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: previously-applied override $applied_path no longer expected."});
+								$isstale = 1;
+								last;
+							}
+						}
+					}
+				}
+			}
 			if ($isstale)
 			{
 				$mustloadfromsource = 1;
@@ -1836,10 +1917,40 @@ sub loadModel
 			$shortname =~ s/^Model-//;
 			$self->{mdl}->{system}->{nodeModel} = $shortname;
 
+			# scoped overrides are auto-discovered from models-custom (no config setting required).
+			# Override-Model-<name>.nmis  applies to Model-<name>.nmis
+			# Override-Common-<feature>.nmis applies to Common-<feature>.nmis (merged right after the matching Common)
+			my $custom_models_dir = NMISNG::Util::getDir(dir => "models", conf => $C);
+			my @applied_overrides;
+			my $apply_scoped_override = sub {
+				my ($name) = @_;
+				my $path = "$custom_models_dir/$name.nmis";
+				return 1 if (!-e $path); # absent is normal/silent
+				my $mtime = (stat($path))[9];
+				my $data = NMISNG::Util::loadTable(dir => "models", name => "$name.nmis", conf => $C);
+				if (ref($data) ne "HASH" or !keys %$data)
+				{
+					$self->{error} = "ERROR ($self->{name}) failed to read scoped override $path: $data";
+					$exit = 0;
+					return 0;
+				}
+				if (!$self->_mergeHash($self->{mdl}, $data))
+				{
+					$self->{error} = "ERROR ($self->{name}) scoped override merge failed for $path!";
+					return 0;
+				}
+				push @applied_overrides, { path => $path, mtime => $mtime };
+				return 1;
+			};
+
+			# apply Override-Model-<shortname> right after the main model is in place
+			return 0 if (!$apply_scoped_override->("Override-Model-$shortname"));
+
 			# continue with loading common Models, sorted using characters because we didn't use numbers here...
 			foreach my $class (sort  {$a cmp $b} keys %{$self->{mdl}{'-common-'}{class}} )
 			{
-				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
+				my $feature = $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
+				my $name = "Common-$feature";
 				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
 				if (!$commonres->{success})
 				{
@@ -1855,6 +1966,8 @@ sub loadModel
 						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
 					}
+					# apply Override-Common-<feature> immediately after its base Common file
+					return 0 if (!$apply_scoped_override->("Override-Common-$feature"));
 				}
 			}
 			# after all models are loaded add in override files
@@ -1915,6 +2028,12 @@ sub loadModel
 			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
 			{
 				NMISNG::Util::writeHashtoFile( file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0, conf => $C );
+				# sidecar with the list of scoped overrides actually merged in. Used by the freshness check
+				# on subsequent cache hits to detect added / edited / deleted scoped override files.
+				# Kept out of the model JSON so $self->{mdl} stays a pure model hash that all walkers can iterate.
+				NMISNG::Util::writeHashtoFile( file => "$thiscf.meta.json",
+											   data => { applied_overrides => \@applied_overrides },
+											   json => 1, pretty => 0, conf => $C );
 			}
 		}
 	}

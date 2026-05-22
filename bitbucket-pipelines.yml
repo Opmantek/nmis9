@@ -1,0 +1,77 @@
+image: atlassian/default-image:4
+clone:
+  depth: 1 # Perform a shallow clone with only the latest commit
+
+pipelines:
+  branches:
+    '**':
+      - step:
+          name: Sanitise Work Environment
+          runs-on:
+            - self.hosted
+            - linux.shell
+            - fwbb.runner2
+          script:
+            - ci/scripts/runner_cleanup.sh
+      - step:
+          name: Setup NMIS
+          runs-on:
+            - self.hosted
+            - linux.shell
+            - fwbb.runner2
+          clone:
+            enabled: false
+          script:
+            - mkdir $WORKING_DIRECTORY/build
+            - cd $WORKING_DIRECTORY/build
+            - git clone --depth 1 --branch $BITBUCKET_BRANCH https://github.com/Opmantek/nmis9
+            - cd nmis9
+            - sed -i "s/^DEV_UID=.*/DEV_UID=$(id -u)/; s/^DEV_GID=.*/DEV_GID=$(id -g)/" docker-dev/.env-dev
+            - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
+            - docker compose --file docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up -d
+      - step:
+          name: Test NMIS
+          runs-on:
+            - self.hosted
+            - linux.shell
+            - fwbb.runner2
+          script:
+            - echo "$HOME/dockerhost.json"
+            - docker cp $HOME/dockerhost.json nmis:/usr/local/nmis9/
+            - docker exec nmis bash -c "ls -la /usr/local/nmis9/dockerhost.json"
+            - docker exec nmis bash -c "/usr/local/nmis9/admin/node_admin.pl act=import file=/usr/local/nmis9/dockerhost.json"
+            - docker exec nmis bash -c "/usr/local/nmis9/ci/scripts/perl_tests.sh"
+          after-script:
+            - ci/scripts/runner_cleanup.sh  
+  custom:
+    release-dev-image:
+      - step:
+          name: Release NMIS Development Image
+          runs-on:
+            - self.hosted
+            - linux.shell
+            - fwbb.runner2
+          script:
+            - SHORT_SHA="$(echo "$BITBUCKET_COMMIT" | cut -c1-7)"
+            - SEM_VER="$(sed -nE 's/.*\$VERSION = "([0-9.]+)";/\1/p' bin/nmisd)"
+            - echo "SHORT_SHA $SHORT_SHA"
+            - echo "SEM_VER $SEM_VER"
+            - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
+            - docker build --no-cache --tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" -f docker-dev/dockerfile-dev .
+            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis-dev:$SEM_VER-$SHORT_SHA"
+            - docker tag "$BB_PKG_REPO/nmis-dev:$SEM_VER" "$BB_PKG_REPO/nmis-dev:latest"
+            - docker push "$BB_PKG_REPO/nmis-dev:$SEM_VER"
+            - docker push "$BB_PKG_REPO/nmis-dev:$SEM_VER-$SHORT_SHA"
+            - docker push "$BB_PKG_REPO/nmis-dev:latest"
+    release-prod-image:
+      - step:
+          name: Release NMIS ECR Image
+          runs-on:
+            - self.hosted
+            - linux.shell
+            - fwbb.runner2
+          script:
+            - SEM_VER="$(sed -nE 's/.*\$VERSION = "([0-9.]+)";/\1/p' bin/nmisd)"
+            - aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$OP_ECR"
+            - docker build --no-cache -t "$OP_ECR/nmis:$SEM_VER" -f docker/docker-prod/dockerfile-prod .
+            - docker push -t "$OP_ECR/nmis:$SEM_VER"

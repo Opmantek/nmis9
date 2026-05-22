@@ -32,7 +32,7 @@
 
 use strict;
 
-my $eventlog = "/usr/local/nmis8/logs/event.log";
+my $eventlog = "/usr/local/nmis9/logs/event.log";
 
 eventlog($eventlog,"meatball","Alert: BGP Peer Down","Warning","192.168.1.249","test evaluated with 0  as Warning");
 

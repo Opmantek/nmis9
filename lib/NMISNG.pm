@@ -1836,6 +1836,10 @@ sub find_due_nodes
 				if ( !exists $intervals{$maybesvc} )
 				{
 					$self->log->warn("Ignoring non-existent service \"$maybesvc\" for node $nodename");
+					# still schedule this node so collect_services() can raise an event
+					$due{$maybe} = $cands{$maybe};
+					$services{$maybe} //= [];
+					push @{$services{$maybe}}, $maybesvc;
 					next;
 				}
 
@@ -5913,7 +5917,11 @@ sub undump_node
 	my @insertme = ({ where => "nodes", what => $noderec});
 	for my $fn (@filenames)
 	{
-		next if ($fn eq $nodefiles[0] or $fn =~ /\.rrd$/);
+		# we decode_json below so we only want to process json files
+		# zip files are supported but the filename is not necessarily indicative of the content, so we have to look at the content (still .json it seems)
+		# this prevents things like .bak files that have been left around from causing problems
+		next if ($fn eq $nodefiles[0] or $fn !~ /\.json$/);
+
 
 		(undef, my $collection, undef) = split(m!/!,$fn); # uuid/collection/oid.json, and oid is embedded
 
@@ -5943,6 +5951,8 @@ sub undump_node
 																 constraints => 1); # constrain_record is vital for $oid, $binary...
 		if( $onething->{where} eq 'events' &&  !$res->{success} && $res->{error} =~ /node_uuid_1_event_1_element_1_active_1/) {
 			print "ignoring failure because events have a duplicity issue: failed to insert record into $onething->{where} collection: $res->{error}\n";
+		} elsif( $onething->{where} eq 'opstatus' &&  !$res->{success} && $res->{error} =~ /_id_/) {
+			print "ignoring failure because opstatus can have multiple nodes so the same record may exist in multiple dumps: failed to insert record into $onething->{where} collection: $res->{error}\n";
 		} elsif (!$res->{success}) {
 			return { error => "failed to insert record into $onething->{where} collection: $res->{error}" };
 		}
@@ -5952,6 +5962,7 @@ sub undump_node
 	my $dbdir = $self->config->{database_root};
 	for my $zippedrrd (@rrdfiles)
 	{
+		next if $zippedrrd !~ /\.rrd$/; # sanity check, needs to be an rrd file extension (some other files have been making it into the zip and causing problems)
 		( my $targetfn = $zippedrrd ) =~ s!^$noderec->{uuid}/rrd!$dbdir!;
 		( my $targetdir = $targetfn ) =~  s!/[^/]+$!!;
 

@@ -32,7 +32,7 @@
 
 use strict;
 
-my $eventlog = "/usr/local/nmis8/logs/event.log";
+my $eventlog = "/usr/local/nmis9/logs/event.log";
 
 eventlog($eventlog,"meatball","Node Down","Major","","");
 eventlog($eventlog,"ASGARD","Node Down","Major","","");

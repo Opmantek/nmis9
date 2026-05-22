@@ -1,0 +1,51 @@
+{
+	"_comment": "SNMP walk data for test node - used by t_polling.pl",
+
+	"_section": "system sys standard OIDs (.0 appended by getValues)",
+	"1.3.6.1.2.1.1.1.0": "Test SNMP Device - Linux Mock 5.4.0",
+	"1.3.6.1.2.1.1.2.0": "1.3.6.1.4.1.99999",
+	"1.3.6.1.2.1.1.3.0": "123456789",
+	"1.3.6.1.2.1.1.4.0": "test@example.com",
+	"1.3.6.1.2.1.1.5.0": "test-snmp-node",
+	"1.3.6.1.2.1.1.6.0": "Test Lab Rack 1",
+	"1.3.6.1.2.1.2.1.0": "2",
+
+	"_section2": "system rrd mib2ip counters (.0 appended)",
+	"1.3.6.1.2.1.4.3.0": "500000",
+	"1.3.6.1.2.1.4.9.0": "480000",
+	"1.3.6.1.2.1.4.10.0": "450000",
+
+	"_section3": "testSensor table - index discovery (gettable on 1.3.6.1.4.1.99999.1.1.1.2)",
+	"1.3.6.1.4.1.99999.1.1.1.2.1": "TempSensor1",
+	"1.3.6.1.4.1.99999.1.1.1.2.2": "TempSensor2",
+
+	"_section4": "testSensor sys data - testSensorStatus per index",
+	"1.3.6.1.4.1.99999.1.1.1.4.1": "ok",
+	"1.3.6.1.4.1.99999.1.1.1.4.2": "ok",
+
+	"_section5": "testSensor rrd data - testSensorValue per index (95 fires alert, 42 does not)",
+	"1.3.6.1.4.1.99999.1.1.1.3.1": "95",
+	"1.3.6.1.4.1.99999.1.1.1.3.2": "42",
+
+	"_section6": "testProcessing rrd data (.0 appended by getValues for non-indexed)",
+	"1.3.6.1.4.1.99999.2.1.0": "1000",
+	"1.3.6.1.4.1.99999.2.2.0": "555",
+	"1.3.6.1.4.1.99999.2.3.0": "3.14159",
+	"1.3.6.1.4.1.99999.2.4.0": "1",
+	"1.3.6.1.4.1.99999.2.5.0": "99",
+	"1.3.6.1.4.1.99999.2.6.0": "42",
+	"1.3.6.1.4.1.99999.2.7.0": "<b>test&value</b>",
+	"1.3.6.1.4.1.99999.2.8.0": "123",
+
+	"_section7": "testSkipped/testSkipCollect (should never be read but present for completeness)",
+	"1.3.6.1.4.1.99999.2.20.0": "999",
+	"1.3.6.1.4.1.99999.2.21.0": "888",
+
+	"_section8": "testCalcOid index discovery table (gettable on 1.3.6.1.4.1.99999.3.2)",
+	"1.3.6.1.4.1.99999.3.2.1": "CalcItem1",
+	"1.3.6.1.4.1.99999.3.2.2": "CalcItem2",
+
+	"_section9": "testCalcOid rrd values (calculate_index appends .0 to index, so OID.index.0)",
+	"1.3.6.1.4.1.99999.3.1.1.0": "777",
+	"1.3.6.1.4.1.99999.3.1.2.0": "888"
+}

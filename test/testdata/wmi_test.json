@@ -1,0 +1,31 @@
+{
+	"_comment": "WMI mock data for test node - used by t_polling.pl",
+
+	"select Caption from Win32_OperatingSystem": [
+		{"Caption": "Microsoft Windows Server 2019 Standard"}
+	],
+	"select Version from Win32_OperatingSystem": [
+		{"Version": "10.0.17763"}
+	],
+	"select BuildNumber from Win32_OperatingSystem": [
+		{"BuildNumber": "17763"}
+	],
+	"select CSName from Win32_OperatingSystem": [
+		{"CSName": "TEST-WMI-NODE"}
+	],
+	"select LocalDateTime from Win32_OperatingSystem": [
+		{"LocalDateTime": "20260328120000.000000+000"}
+	],
+	"select LastBootUpTime from Win32_OperatingSystem": [
+		{"LastBootUpTime": "20260327000000.000000+000"}
+	],
+
+	"select PercentProcessorTime from Win32_PerfFormattedData_PerfOS_Processor where Name='_Total'": [
+		{"PercentProcessorTime": "25"}
+	],
+
+	"select Name,Size,FreeSpace from Win32_LogicalDisk where DriveType=3": [
+		{"Name": "C:", "Size": "107374182400", "FreeSpace": "536870912"},
+		{"Name": "D:", "Size": "214748364800", "FreeSpace": "161061273600"}
+	]
+}

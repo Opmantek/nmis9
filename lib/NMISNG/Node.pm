@@ -635,6 +635,24 @@ sub delete
 		$self->configuration($curcfg);
 		$self->save;
 	}
+	# OMK-12345: Block deletion if this node is listed in another node's configuration.depend.
+	# configuration.depend stores node names (not UUIDs), so we query by name.
+	# MongoDB matches the scalar against the array field automatically (no $elemMatch needed).
+	my $node_name = $self->name;
+	my $depend_nodes = $self->nmisng->get_nodes_model(
+		filter      => { "configuration.depend" => $node_name },
+		fields_hash => { "name" => 1 }
+	);
+
+	if (my $errmsg = $depend_nodes->error)
+	{
+		$self->nmisng->log->error("Failed to look up dependency nodes for \"$node_name\": $errmsg");
+    	return ( 0, "Could not verify node dependencies before deletion. Please try again." );
+	}
+	if ($depend_nodes->count) {
+		my @blocking = map { $_->{name} } @{ $depend_nodes->data() };
+		return (0, "Node \"$node_name\" is referenced in the Depend configuration of: " . join(", ", @blocking) . ". Please remove it from those nodes before deleting.");
+	}
 
 	# then remove any queued jobs for this node, if not in-progess
 	my $result = $self->nmisng->get_queue_model("args.uuid" => [ $self->uuid ]);
@@ -1099,7 +1117,7 @@ sub inventory_datasets_by_subconcept
 	);
 	foreach my $entry (@$entries)
 	{
-		$entry->{indexed} = ( $entry->{indexed} ) ? 1 : 0;
+		$entry->{indexed} = ( defined($entry->{indexed}) ) ? 1 : 0; # if this != null then it's indexed
 		$entry->{subconcept} = $entry->{_id}{subconcept};
 		delete $entry->{_id};
 		$retval->{ $entry->{subconcept} } = $entry;
@@ -1550,6 +1568,17 @@ sub save
 			if ($self->is_new && !$self->_dirty);
 	return ( 0,  undef )          if ( !$self->_dirty() );
 
+	# OMK-12345 this removed N/A if node depend has 'N/A'
+	# N/A used to be allowed in depend setting, it is no longer a valid value
+	my $configuration = $self->configuration;
+	if (defined $configuration->{depend}){
+		my @filtered = grep { $_ ne 'N/A' } @{$configuration->{depend}};
+		# only call setter if the array changed, otherwise the dirty bit will be set unnecessarily
+		if (@filtered != @{$configuration->{depend}}) {
+			$configuration->{depend} = \@filtered;
+			$self->configuration($configuration);
+		}
+	}
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( $valid <= 0 );
 	
@@ -1783,7 +1812,20 @@ sub validate
 		return (-1, "node '".$self->{_name}."' requires $musthave property")
 				if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
-
+	
+	# OMK-12345 this validates if node depend has actual nodes or not.
+	if (defined $configuration->{depend}){
+		foreach my $node (@{$configuration->{depend}}){	
+			my $nodeModel = $self->nmisng->get_nodes_model(name => $node);
+			if (my $errmsg = $nodeModel->error)
+			{
+				$self->nmisng->log->error("Failed to look up node : \"$node\": $errmsg");
+			}			
+			if (!$nodeModel->count){
+				return (-1, "Invalid node name in configuration/depend: $node");
+			}
+		}
+	}
 	# note: this function and sub rename must apply the same restrictions.
 	# '/' is one of the few characters that absolutely cannot work as
 	# node name (b/c of file and dir names)
@@ -4992,7 +5034,7 @@ sub collect_systemhealth_info
 				}
 
 				# save the seen index value
-				my $target = {$index_var => $indexvalue};
+				my $target = { index_var => $index_var, index_value => $indexvalue };
 
 				# then get all data for this indexvalue
 				# Inventory note: for now Sys will populate the nodeinfo section it cares about
@@ -5131,8 +5173,9 @@ sub collect_systemhealth_info
 							next;
 						}
 					}
-
-					$targets->{$index}{$index_var} = $indexvalue;
+					# use predictable keys, index_var as the key is dangerous (dots in it will break things)					
+					$targets->{$index}{index_var} = $index_var;
+					$targets->{$index}{index_value} = $indexvalue;
 				}
 			}
 			else
@@ -5357,19 +5400,28 @@ sub collect_systemhealth_data
 			if( $index_suffix_oid ne '' ) {
 				my $needdot = (substr($index,0,1) ne '.') ? '.' : '';
 				my $oid = $index_suffix_oid . $needdot . $index;
-				my $result = $S->snmp->gettable( $oid );
-				$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
-				if ( $result && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
-					# first look for exact match
-					if( defined($result->{$oid}) ) {
-						$data->{index_suffix} = $result->{$oid}; # store so it can be used/displayed
-						$port = $index . '.' . $result->{$oid};
-					}
-					# if there's only one result let's use it. the returned key/oid may have values appended to it
-					elsif( keys %$result == 1 ) {
-						my ($found_suffix_oid, $found_suffix_value) = each %$result;
-						$data->{index_suffix} = $found_suffix_value; # store so it can be used/displayed
-						$port = $index . '.' . $found_suffix_value;
+			# Try scalar get first (for leaf OIDs like Huawei nqaSchCtrlLastFinIdx).
+				# Fall back to gettable for subtable-column OIDs (e.g. Teldat window index)
+				# where the combined oid is a subtable root, not a scalar.
+				my $result = $S->snmp->get( $oid );
+				if ( $result && defined($result->{$oid}) && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+					$data->{index_suffix} = $result->{$oid};
+					$port = $index . '.' . $result->{$oid};
+				}
+				else {
+					$result = $S->snmp->gettable( $oid );
+					$self->nmisng->log->debug2(sub {"section $section has index_suffix_oid: $index_suffix_oid, got result $result->{$oid}"});
+					if ( $result ) {
+						if( defined($result->{$oid}) && $result->{$oid} !~ /^no(SuchObject|SuchInstance)$/) {
+							$data->{index_suffix} = $result->{$oid};
+							$port = $index . '.' . $result->{$oid};
+						}
+						# if there's only one result let's use it. the returned key/oid may have values appended to it
+						elsif( !defined($result->{$oid}) && keys %$result == 1 ) {
+							my ($found_suffix_oid, $found_suffix_value) = each %$result;
+							$data->{index_suffix} = $found_suffix_value;
+							$port = $index . '.' . $found_suffix_value;
+						}
 					}
 				}
 			}
@@ -8444,6 +8496,23 @@ sub collect_services
 	{
 		my $thisservice = $ST->{$service};
 
+		# Service referenced in node config but not defined in Services table
+		if (!$thisservice)
+		{
+			$self->nmisng->log->warn("Ignoring non-existent service \"$service\" for node $node");
+			Compat::NMIS::notify(
+				sys     => $S,
+				event   => "Service Configuration Error",
+				level   => "Warning",
+				element => $service,
+				details => "Service \"$service\" is configured for this node "
+					. "but not defined in the Services table",
+				context => {type => "service"},
+				conf    => $C
+			);
+			next;
+		}
+
 		# check for invalid service table data
 		next if ( !$service
 							or $service =~ m!^n\/a$!i
@@ -8964,9 +9033,30 @@ sub collect_services
 		else
 		{
 			# no recognised service type found
-			$self->nmisng->log->error("skipping service \"$service\", invalid service type!");
+			$self->nmisng->log->error("skipping service \"$service\", invalid service type \"$servicetype\"!");
+			Compat::NMIS::notify(
+				sys          => $S,
+				event        => "Service Configuration Error",
+				level        => "Warning",
+				element      => $service,
+				details      => "Service \"$service\" has invalid Service_Type "
+					. "\"$servicetype\"",
+				context      => {type => "service"},
+				inventory_id => $inventory->id,
+				conf         => $C
+			);
 			next;    # just do the next one - no alarms
 		}
+
+		# service was dispatched through a valid handler, clear any prior config error event
+		Compat::NMIS::checkEvent(
+			sys          => $S,
+			event        => "Service Configuration Error",
+			level        => "Normal",
+			element      => $service,
+			details      => "",
+			inventory_id => $inventory->id
+		);
 
 		# let external programs set the responsetime if so desired
 		$responsetime = $timer->elapTime if ( !defined $responsetime );

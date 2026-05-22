@@ -1,0 +1,61 @@
+services:
+  nmis:
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis:9.6.5
+    container_name: nmis
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      NMIS_DB_USERNAME: ${MONGODB_USERNAME}
+      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_SERVER: mongo
+      NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
+      NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID}
+      NMIS_DB_PORT: ${NMIS_DB_PORT}
+      CONTAINER: 1
+    depends_on:
+      - mongo
+    volumes:
+      - nmis_log_data:/usr/local/nmis9/logs
+      - nmis_var_data:/usr/local/nmis9/var
+      - nmis_conf_data:/usr/local/nmis9/conf
+      - nmis_database_data:/usr/local/nmis9/database
+      - nmis_models_custom:/usr/local/nmis9/models-custom
+    ports:
+      - "8080:8080" 
+      - "10001:161/udp"
+    entrypoint: ["tini", "--", "/usr/local/nmis9/docker-entrypoint.sh"]
+    networks:
+      - nmis_net
+  mongo:
+    image: mongo:7.0
+    container_name: mongo
+    platform: linux/amd64
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
+      interval: 60s
+      timeout: 60s
+      retries: 5
+      start_period: 60s
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+      - mongo_log:/var/log/mongodb
+      - ./conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
+    networks:
+      - nmis_net
+networks:
+  nmis_net:
+volumes:
+  nmis_log_data:
+  nmis_var_data:
+  nmis_conf_data:
+  nmis_database_data:
+  nmis_models_custom:
+  mongo_data:
+  mongo_log:

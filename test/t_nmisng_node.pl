@@ -98,7 +98,7 @@ $node->configuration( {host => "1.2.3.4",
 											 roleType => "default",
 											threshold => 1 } );
 is( $node->_dirty,   1, "New node some config set is dirty" );
-cmp_deeply( [$node->validate], [-8,'model must not be empty, use automatic'], "New node with no model value is not valid" );
+cmp_deeply( [$node->validate], [1,undef], "New node with no model is set to automatic by NMIS" );
 my $configuration = $node->configuration();
 $configuration->{model} = 'automatic';
 $node->configuration( $configuration );
@@ -108,7 +108,14 @@ cmp_deeply( [$node->save], [1, undef], "Node name is valid, so saved with insert
 is( $node->_dirty, 0, "New node that is saved is not dirty" );
 is( $node->is_new, 0, "New node that is saved is no longer new" );
 
-# now force an update instead of insert
+
+# now add a 'N/A' in depend settings.
+$configuration = $node->configuration();
+$configuration->{depend} = [ 'fake_node' ];
+$node->configuration($configuration);
+cmp_deeply( [$node->validate], [-1,"Invalid node name in configuration/depend: fake_node"], "Node depends checks if the nodes in depend configuration exists." );
+$configuration->{depend} = [ 'N/A' ];
+cmp_deeply( [$node->save], [2, undef], "Node saves checks if node depend has N/A in it and removes it , So after that Node is valid, so saved with update" );# now force an update instead of insert
 $configuration = $node->configuration();
 $configuration->{host} = 'localhost';
 $configuration->{model} = ''; #empty model should be changed to automatic on save when node is updated
@@ -246,6 +253,12 @@ $numb->configuration({host => "2.3.4.5",
 											model => 'automatic' });
 cmp_deeply([$numb->save], [1, undef], "numeric name'd node saved ok");
 
+
+$configuration = $numb->configuration();
+$configuration->{depend} = [ $node_name ];
+$numb->configuration($configuration);
+$numb->save();
+is($node->delete,"Node \"$node_name\" is referenced in the Depend configuration of: 12345. Please remove it from those nodes before deleting.","Users can not delete a node which is dependent on another node.");
 
 # that's us being precise...
 my $res = $nmisng->get_nodes_model(name => NMISNG::DB::make_string("12345"));
