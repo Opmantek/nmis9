@@ -300,7 +300,7 @@
       'Host_Processor' => {
         'graphtype' => 'hrprocload',
         'indexed' => 'true',
-        #'control' => 'CVAR=hrDeviceDescr;$CVAR =~ /(CPU|cpu)/',        
+        #'control' => 'CVAR=hrDeviceDescr;$CVAR =~ /(CPU|cpu)/',
         'snmp' => {
           'hrProcessorLoad' => {
             'oid' => 'hrProcessorLoad',
@@ -333,12 +333,20 @@
         'indexed' => 'hrProcessorLoad',
         'headers' => 'hrDeviceDescr',
         'snmp' => {
+          # collect the device index so the calculate below can reference it;
+          # CVAR can only see other collected fields in this section, not the
+          # bare $index. hrProcessorTable is indexed by hrDeviceIndex, so this
+          # OID returns the same index value used for the per-CPU RRD/inventory.
+          'hrDeviceIndex' => {
+            'oid' => 'hrDeviceIndex',
+          },
           'hrDeviceDescr' => {
             'oid' => 'hrDeviceDescr',
             'title' => 'CPU Description',
-            'replace' => {
-              'noSuchInstance' => 'Processor',
-            },
+            # make the per-CPU description unique by appending the device index,
+            # so each CPU's threshold status/event has a distinct element.
+            # calculate runs before replace, so handle noSuchInstance here.
+            'calculate' => 'CVAR1=hrDeviceIndex; my $d = ($r =~ /noSuch/i) ? "Processor" : $r; "$d (index $CVAR1)"',
           }
         }
       },
