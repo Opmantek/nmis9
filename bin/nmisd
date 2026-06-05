@@ -727,6 +727,8 @@ while (!$exit_marker)
 				$jobargs{wantwmi}  = $duenodes->{flavours}->{$nodeuuid}->{wmi};
 				$jobargs{wantsnmp} = $duenodes->{flavours}->{$nodeuuid}->{snmp};
 				$jobargs{wanthttp} = $duenodes->{flavours}->{$nodeuuid}->{http};
+				$jobargs{wantredis}    = $duenodes->{flavours}->{$nodeuuid}->{redis};
+				$jobargs{redis_run_id} = $duenodes->{flavours}->{$nodeuuid}->{redis_run_id};
 			}
 			elsif ($operation eq "services")
 			{
@@ -2414,7 +2416,9 @@ sub worker_loop
 					{
 						@methodargs = ( wantsnmp => $ourjob->{args}->{wantsnmp},
 														wantwmi  => $ourjob->{args}->{wantwmi},
-														wanthttp => $ourjob->{args}->{wanthttp} );
+														wanthttp => $ourjob->{args}->{wanthttp},
+														wantredis => $ourjob->{args}->{wantredis},
+														redis_run_id => $ourjob->{args}->{redis_run_id} );
 					}
 					elsif ($ourjob->{type} eq "services")
 					{
