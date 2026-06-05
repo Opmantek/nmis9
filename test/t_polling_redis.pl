@@ -252,10 +252,11 @@ SKIP: {
     eval {
         require NMISNG;
         require NMISNG::Node;
+        require NMISNG::Sys;
         require NMISNG::Util;
         require NMISNG::Log;
     };
-    skip "NMISNG/DB not available in this environment", 4 if $@;
+    skip "NMISNG/DB not available in this environment", 5 if $@;
 
     my $C = NMISNG::Util::loadConfTable();
     skip "no config", 4 if !$C;
@@ -283,6 +284,22 @@ SKIP: {
     $n->configuration({ %base, nmisent_engine_type => '' });
     is($n->configuration->{redis_enabled}, 0,
        "redis_enabled: 0 when nmisent_engine_type is empty string");
+
+    # ---- Task 7: Sys::init wires the redis engine ----
+    $n->configuration({ %base, nmisent_engine_type => 'meraki' });
+    my ($sop, $serr) = $n->save();
+    # Create a minimal catchall directly (avoids calling update which requires
+    # RRDs and a live SNMP session). Sys::init needs non-empty catchall data
+    # in collect mode to proceed past the gigo guard.
+    my ($cinv, $cierr) = $n->inventory(
+        concept => "catchall", path_keys => [], create => 1,
+        data => { name => $n->name, nodeType => "generic" });
+    $cinv->save(node => $n) if $cinv;
+    my $S = NMISNG::Sys->new(nmisng => $ng);
+    $S->init(node => $n, snmp => 0, wmi => 0, http => 0, redis => 1,
+             update => 0, catchall_inventory => $cinv);
+    ok((grep { $_->protocol_name eq 'redis' } @{$S->engines}),
+       "redis engine present in Sys when wantredis + redis_enabled");
 
     $ng->get_db()->drop();
 }

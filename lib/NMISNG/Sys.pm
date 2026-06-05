@@ -414,6 +414,14 @@ sub init
 	# are configured. nmisd workers pass an explicit value derived from
 	# the polling policy's http cadence via NMISNG::find_due_nodes.
 	my $wanthttp = NMISNG::Util::getbool( exists $args{http} ? $args{http} : 1 );
+	# redis engine gate. Default true so ad-hoc callers (dev-tools, tests)
+	# get redis collection when the node is redis_enabled. nmisd workers pass
+	# an explicit value from the polling policy's redis cadence and the
+	# completion-hash prompt path via NMISNG::find_due_nodes.
+	my $wantredis = NMISNG::Util::getbool( exists $args{redis} ? $args{redis} : 1 );
+	# Expected run_id for the prompt-path consistency check (undef on the
+	# fallback path). Passed straight through to the engine.
+	my $redis_run_id = $args{redis_run_id};
 	my $catchall_data = {};
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
@@ -680,7 +688,10 @@ sub init
 	my $have_http_settings = defined $cfg->{http_enabled}
 		? ($cfg->{http_enabled} ? 1 : 0)
 		: ((ref $cfg->{http_endpoints} eq 'ARRAY' && @{$cfg->{http_endpoints}}) ? 1 : 0);
-	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings || $have_http_settings ) ? 1 : 0;
+	my $have_redis_settings = defined $cfg->{redis_enabled}
+		? ($cfg->{redis_enabled} ? 1 : 0)
+		: ((defined $cfg->{nmisent_engine_type} && $cfg->{nmisent_engine_type} ne "") ? 1 : 0);
+	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings || $have_http_settings || $have_redis_settings ) ? 1 : 0;
 	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings have_http_settings:$have_http_settings");
 	
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet), 
@@ -763,6 +774,19 @@ sub init
 		# per-source slot so Sys::status's known_sources loop sees
 		# http_enabled = 1.
 		$self->{http} = $http_engine;
+	}
+
+	# Redis (push) engine. Created when wanted and the node is redis_enabled.
+	# Sessionless: the connection is process-level, opened lazily in the engine.
+	if ($wantredis && $have_redis_settings)
+	{
+		require NMISNG::Sys::Engine::Redis;
+		my $redis_engine = NMISNG::Sys::Engine::Redis->new(
+			sys    => $self,
+			run_id => $redis_run_id,
+		);
+		push @{$self->{_engines}}, $redis_engine;
+		$self->{redis} = $redis_engine;
 	}
 
 	return $self->{error} ? 0 : 1;
