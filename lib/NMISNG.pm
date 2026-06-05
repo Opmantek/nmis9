@@ -1687,7 +1687,10 @@ sub _redis_poll_complete
 sub _redis_handle
 {
 	my ($self) = @_;
-	return $self->{_redis_handle} if exists $self->{_redis_handle};
+	# Truthy (not exists) guard: a previous failed connect leaves this undef,
+	# and we want the next scheduler tick to retry rather than caching the
+	# failure for the whole nmisd process lifetime. Matches Engine::Redis::_redis.
+	return $self->{_redis_handle} if $self->{_redis_handle};
 	require Redis;
 	my $cfg = $self->config;
 	my $server = $ENV{NMIS_REDIS_SERVER} // $cfg->{redis_server} // 'localhost';
