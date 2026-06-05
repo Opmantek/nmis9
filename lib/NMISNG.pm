@@ -1664,6 +1664,43 @@ sub events_collection
 
 # this function finds nodes that are due for a given operation;
 # consults the various policies and previous node states,
+# Atomically read+remove this node's completion entry from the nmisent
+# poll-complete hash (prompt path). Returns the decoded entry hashref, or
+# undef when none is present. HGETDEL needs Redis 8.0+; the at-most-once
+# semantics are intentional (see the contract).
+sub _redis_poll_complete
+{
+	my ($self, $node_uuid) = @_;
+	my $redis = $self->_redis_handle;
+	return undef unless $redis;
+	# Redis 8.0 HGETDEL syntax: HGETDEL key FIELDS numfields field [field ...].
+	my $raw = eval { my @r = $redis->hgetdel("nmisent:poll-complete", "FIELDS", 1, $node_uuid); $r[0]; };
+	if ($@) { $self->log->debug("redis hgetdel failed: $@"); return undef; }
+	return undef unless defined $raw;
+	my $entry = eval { JSON::XS::decode_json($raw) };
+	if ($@) { $self->log->warn("redis poll-complete entry for $node_uuid not valid JSON: $@"); return undef; }
+	return (ref $entry eq 'HASH') ? $entry : undef;
+}
+
+# Lazily-opened scheduler-side Redis handle (separate from the per-node engine
+# handle in Sys::Engine::Redis; this one lives on the nmisd scheduler).
+sub _redis_handle
+{
+	my ($self) = @_;
+	return $self->{_redis_handle} if exists $self->{_redis_handle};
+	require Redis;
+	my $cfg = $self->config;
+	my $server = $ENV{NMIS_REDIS_SERVER} // $cfg->{redis_server} // 'localhost';
+	my $port   = $ENV{NMIS_REDIS_PORT}   // $cfg->{redis_port}   // 6379;
+	my $pass   = $ENV{NMIS_REDIS_PASSWORD};
+	$pass = $cfg->{redis_password} if (!defined $pass || $pass eq '');
+	my %newargs = (server => "$server:$port", reconnect => 2, every => 100, cnx_timeout => 5);
+	$newargs{password} = $pass if (defined $pass && $pass ne '');
+	$self->{_redis_handle} = eval { Redis->new(%newargs) };
+	$self->log->debug("scheduler redis connect to $server:$port failed: $@") if (!$self->{_redis_handle});
+	return $self->{_redis_handle};
+}
+
 # and looks up any relevant queued jobs (in_progress and overdue)
 #
 # args: self, type (=one of collect/update/services, required),
@@ -1740,13 +1777,13 @@ sub find_due_nodes
 			dir  => 'conf',
 			name => "Polling-Policy"
 		) || {};
-		%intervals = ( default => {ping => 60, snmp => 300, wmi => 300, http => 60, update => 86400} );
+		%intervals = ( default => {ping => 60, snmp => 300, wmi => 300, http => 60, redis => 300, update => 86400} );
 
 		# translate period specs X.Ys, A.Bm, etc. into seconds
 		for my $polname ( keys %$policies )
 		{
 			next if ( ref( $policies->{$polname} ) ne "HASH" );
-			for my $subtype (qw(snmp wmi http ping update))
+			for my $subtype (qw(snmp wmi http redis ping update))
 			{
 				my $interval = $policies->{$polname}->{$subtype};
 				if ( defined $interval && $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
@@ -1908,9 +1945,11 @@ sub find_due_nodes
 				$self->log->debug2(sub {"Node $nodename is using polling policy \"$polname\""});
 			}
 
-			my $lastsnmp = $ninfo->{last_poll_snmp_attempt};
-			my $lastwmi  = $ninfo->{last_poll_wmi_attempt};
-			my $lasthttp = $ninfo->{last_poll_http_attempt};
+			my $lastsnmp  = $ninfo->{last_poll_snmp_attempt};
+			my $lastwmi   = $ninfo->{last_poll_wmi_attempt};
+			my $lasthttp  = $ninfo->{last_poll_http_attempt};
+			my $lastredis = $ninfo->{last_poll_redis_attempt};
+			my $has_redis = $nodeconfig->{redis_enabled} ? 1 : 0;
 
 			# handle the case of a changed polling policy: move all rrd files
 			# out of the way, and poll now
@@ -1940,12 +1979,13 @@ sub find_due_nodes
 				}
 
 				$due{$maybe} = $cands{$maybe};
-				# ignore the last-xyz markers; force a fresh poll. HTTP gated
+				# ignore the last-xyz markers; force a fresh poll. HTTP and Redis gated
 				# on configured endpoints so legacy nodes don't pick up an
-				# HTTP cadence they have no engine for.
-				$flavours{$maybe}->{snmp} = 1;
-				$flavours{$maybe}->{wmi}  = 1;
-				$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
+				# HTTP/Redis cadence they have no engine for.
+				$flavours{$maybe}->{snmp}  = 1;
+				$flavours{$maybe}->{wmi}   = 1;
+				$flavours{$maybe}->{http}  = $nodeconfig->{http_enabled} ? 1 : 0;
+				$flavours{$maybe}->{redis} = $nodeconfig->{redis_enabled} ? 1 : 0;
 			}
 
 			# logic for dead node demotion/rate-limiting
@@ -2020,9 +2060,10 @@ sub find_due_nodes
 					$due{$maybe} = $cands{$maybe};
 					if ( $whichop eq "collect" )
 					{
-						$flavours{$maybe}->{snmp} = 1;
-						$flavours{$maybe}->{wmi}  = 1;
-						$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
+						$flavours{$maybe}->{snmp}  = 1;
+						$flavours{$maybe}->{wmi}   = 1;
+						$flavours{$maybe}->{http}  = $nodeconfig->{http_enabled} ? 1 : 0;
+						$flavours{$maybe}->{redis} = $nodeconfig->{redis_enabled} ? 1 : 0;
 					}
 				}
 			}
@@ -2072,16 +2113,17 @@ sub find_due_nodes
 			# if no history is known for a source, then disregard it for the now-or-later logic
 			# but DO enable it for trying!
 			# note that collect=false, i.e. ping-only nodes need to be excepted,
-			elsif ( !defined($lastsnmp) && !defined($lastwmi) && !defined($lasthttp) && $nodeconfig->{collect} )
+			elsif ( !defined($lastsnmp) && !defined($lastwmi) && !defined($lasthttp) && !defined($lastredis) && $nodeconfig->{collect} )
 			{
-				$self->log->debug("Node $nodename has no prior poll attempts (snmp/wmi/http), due for poll at $now");
+				$self->log->debug("Node $nodename has no prior poll attempts (snmp/wmi/http/redis), due for poll at $now");
 				$due{$maybe} = $cands{$maybe};
-				# HTTP only triggers if the node has endpoints configured;
+				# HTTP and Redis only trigger if the node has endpoints/engine configured;
 				# otherwise the engine has no work to do and stamping the
 				# cadence would just keep re-arming itself.
-				$flavours{$maybe}->{snmp} = 1;
-				$flavours{$maybe}->{wmi}  = 1;
-				$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
+				$flavours{$maybe}->{snmp}  = 1;
+				$flavours{$maybe}->{wmi}   = 1;
+				$flavours{$maybe}->{http}  = $nodeconfig->{http_enabled} ? 1 : 0;
+				$flavours{$maybe}->{redis} = $nodeconfig->{redis_enabled} ? 1 : 0;
 			}
 			else
 			{
@@ -2112,11 +2154,16 @@ sub find_due_nodes
 				my $nexthttp = $has_http
 					? ( $lasthttp // 0 ) + $intervals{$polname}->{http} * $fudgefactor
 					: undef;
+				$has_redis = $nodeconfig->{redis_enabled} ? 1 : 0;
+				my $nextredis = $has_redis
+					? ( $lastredis // 0 ) + $intervals{$polname}->{redis} * $fudgefactor
+					: undef;
 
 				# only flavours which worked in the past contribute to the now-or-later logic
-				if (   ( defined($lastsnmp) && $nextsnmp <= $now )
-					|| ( defined($lastwmi)  && $nextwmi  <= $now )
-					|| ( $has_http && defined($lasthttp) && $nexthttp <= $now ) )
+				if (   ( defined($lastsnmp)  && $nextsnmp  <= $now )
+					|| ( defined($lastwmi)   && $nextwmi   <= $now )
+					|| ( $has_http  && defined($lasthttp)  && $nexthttp  <= $now )
+					|| ( $has_redis && defined($lastredis) && $nextredis <= $now ) )
 				{
 					$self->log->debug( "Node $nodename is due for poll at $now, last snmp: "
 							. ( $lastsnmp // "never" )
@@ -2134,9 +2181,10 @@ sub find_due_nodes
 
 					# but if we've decided on polling, then DO try flavours that have not worked in the past!
 					# next* <= now also covers the case of undefined last*
-					$flavours{$maybe}->{wmi}  = ( $nextwmi  <= $now ) ? 1 : 0;
-					$flavours{$maybe}->{snmp} = ( $nextsnmp <= $now ) ? 1 : 0;
-					$flavours{$maybe}->{http} = ( $has_http && $nexthttp <= $now ) ? 1 : 0;
+					$flavours{$maybe}->{wmi}   = ( $nextwmi  <= $now ) ? 1 : 0;
+					$flavours{$maybe}->{snmp}  = ( $nextsnmp <= $now ) ? 1 : 0;
+					$flavours{$maybe}->{http}  = ( $has_http  && $nexthttp  <= $now ) ? 1 : 0;
+					$flavours{$maybe}->{redis} = ( $has_redis && $nextredis <= $now ) ? 1 : 0;
 				}
 				else
 				{
@@ -2152,6 +2200,23 @@ sub find_due_nodes
 							. ( $lastwmi ? $nextwmi : "n/a" )
 							. ", next http: "
 							. ( $lasthttp ? $nexthttp : "n/a" ) );
+				}
+			}
+
+			# Redis prompt path: a completion entry in the nmisent hash
+			# means the Go daemon finished a polling cycle for this node.
+			# HGETDEL atomically reads and removes it (at-most-once). When
+			# present, force the node due now and carry the run_id to the
+			# engine for the consistency check. Absent entry -> fall back
+			# to the cadence logic above.
+			if ($has_redis && $whichop eq "collect")
+			{
+				my $entry = $self->_redis_poll_complete($maybe);
+				if ($entry)
+				{
+					$due{$maybe} = $cands{$maybe};
+					$flavours{$maybe}->{redis} = 1;
+					$flavours{$maybe}->{redis_run_id} = $entry->{run_id};
 				}
 			}
 		}

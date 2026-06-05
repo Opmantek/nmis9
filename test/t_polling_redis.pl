@@ -301,6 +301,14 @@ SKIP: {
     ok((grep { $_->protocol_name eq 'redis' } @{$S->engines}),
        "redis engine present in Sys when wantredis + redis_enabled");
 
+    # ---- Task 9: find_due_nodes sets the redis flavour ----
+    $ng->ensure_indexes;
+    my $due = $ng->find_due_nodes(type => 'collect', force => 1);
+    ok($due->{success}, "find_due_nodes success");
+    my $fl = ($due->{flavours} // {})->{ $n->uuid };
+    ok($fl, "redis node present in due list");
+    ok($fl->{redis}, "redis flavour enabled for a redis_enabled node");
+
     $ng->get_db()->drop();
 }
 
