@@ -96,4 +96,12 @@ sub open_session { return 1; }
 # Default: no-op (no persistent session, e.g. WMI).
 sub close_session { return undef; }
 
+# Returns true for engines whose data is gathered by an external daemon and
+# pushed to NMIS (Redis today, future streaming telemetry). Such engines own
+# their inventory lifecycle and must run the systemHealth reconcile during
+# collect, because no update pass will run it for them. SNMP/WMI/HTTP inherit
+# 0 and keep reconciling inventory in update().
+# Default: 0.
+sub manages_own_inventory { return 0; }
+
 1;
