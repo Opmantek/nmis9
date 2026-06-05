@@ -1,0 +1,54 @@
+#
+# Model-TestRedis.nmis - test model used by test/t_polling_redis.pl.
+# Not for real devices. Mirrors Model-CiscoMerakiSDWAN.nmis structure to
+# exercise the redis source-block shape through the full collect/reconcile
+# path using a stubbed Redis client.
+#
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database' => { 'common-model' => 'database' }
+		},
+	},
+	'system' => {
+		'nodegraph' => 'health',
+		'nodeModel' => 'TestRedis',
+		'nodeType'  => 'generic',
+		'sys' => {
+			'standard' => {
+				'redis' => {
+					'-common-' => { 'concept' => 'sdwan_health', 'engine' => 'meraki', 'freshness' => 600 },
+					'status'   => { 'field' => 'status', 'title' => 'Device status' },
+					'cpu'      => { 'field' => 'cpu_load_5min', 'title' => 'CPU load (5m)' },
+					'mem'      => { 'field' => 'memory_used_pct', 'title' => 'Memory used %' },
+				},
+			},
+		},
+	},
+	'systemHealth' => {
+		'sections' => 'sdwan_uplink',
+		'sys' => {
+			'sdwan_uplink' => {
+				'indexed'   => 'wan_interface',
+				'index_oid' => 'wan_interface',
+				'headers'   => 'wan_interface,status,latency',
+				'redis' => {
+					'-common-'      => { 'concept' => 'sdwan_uplink', 'engine' => 'meraki', 'freshness' => 600 },
+					'wan_interface' => { 'field' => 'wan_interface', 'title' => 'WAN interface' },
+					'status'        => { 'field' => 'status', 'title' => 'Status' },
+					'latency'       => { 'field' => 'latency_ms', 'title' => 'Latency (ms)' },
+				},
+			},
+		},
+		'rrd' => {
+			'sdwan_uplink' => {
+				'graphtype' => 'sdwan_uplink',
+				'indexed'   => 'wan_interface',
+				'redis' => {
+					'-common-' => { 'concept' => 'sdwan_uplink', 'engine' => 'meraki', 'freshness' => 600 },
+					'latency'  => { 'field' => 'latency_ms', 'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

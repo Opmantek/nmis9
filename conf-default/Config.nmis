@@ -6,7 +6,10 @@ my %hash = (
 	'db_port' => '27017',
 	'db_query_timeout' => 5000,
 	'db_server' => 'localhost',
-	'db_username' => 'opUserRW'
+	'db_username' => 'opUserRW',
+	'redis_server' => 'localhost',
+	'redis_port' => '6379',
+	'redis_password' => '',
   },
 
   'modules' => {

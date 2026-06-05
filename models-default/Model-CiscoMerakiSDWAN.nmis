@@ -1,0 +1,56 @@
+#
+# Model-CiscoMerakiSDWAN.nmis - reference model for SD-WAN data pushed into
+# Redis by the nmisent Go daemon (engine=meraki) and consumed by
+# NMISNG::Sys::Engine::Redis. Demonstrates the `redis` source-block shape.
+# See docs/superpowers/specs/2026-06-05-nmis9-redis-polling-design.md.
+# Field names are the contract's example set; confirm with the nmisent side
+# before assigning to real devices.
+#
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database' => { 'common-model' => 'database' }
+		},
+	},
+	'system' => {
+		'nodegraph' => 'health',
+		'nodeModel' => 'CiscoMerakiSDWAN',
+		'nodeType'  => 'generic',
+		'sys' => {
+			'standard' => {
+				'redis' => {
+					'-common-' => { 'concept' => 'sdwan_health', 'engine' => 'meraki', 'freshness' => 600 },
+					'status'   => { 'field' => 'status', 'title' => 'Device status' },
+					'cpu'      => { 'field' => 'cpu_load_5min', 'title' => 'CPU load (5m)' },
+					'mem'      => { 'field' => 'memory_used_pct', 'title' => 'Memory used %' },
+				},
+			},
+		},
+	},
+	'systemHealth' => {
+		'sections' => 'sdwan_uplink',
+		'sys' => {
+			'sdwan_uplink' => {
+				'indexed'   => 'wan_interface',
+				'index_oid' => 'wan_interface',
+				'headers'   => 'wan_interface,status,latency',
+				'redis' => {
+					'-common-'      => { 'concept' => 'sdwan_uplink', 'engine' => 'meraki', 'freshness' => 600 },
+					'wan_interface' => { 'field' => 'wan_interface', 'title' => 'WAN interface' },
+					'status'        => { 'field' => 'status', 'title' => 'Status' },
+					'latency'       => { 'field' => 'latency_ms', 'title' => 'Latency (ms)' },
+				},
+			},
+		},
+		'rrd' => {
+			'sdwan_uplink' => {
+				'graphtype' => 'sdwan_uplink',
+				'indexed'   => 'wan_interface',
+				'redis' => {
+					'-common-' => { 'concept' => 'sdwan_uplink', 'engine' => 'meraki', 'freshness' => 600 },
+					'latency'  => { 'field' => 'latency_ms', 'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

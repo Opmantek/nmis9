@@ -6,6 +6,7 @@
     'snmp' => '30m',
     'wmi' => '30m',
     'http' => '30m',
+    'redis' => '30m',
 		'update' => '1d',
   },
   'very_infrequently' => {
@@ -15,6 +16,7 @@
     'snmp' => '1h',
     'wmi' => '1h',
     'http' => '1h',
+    'redis' => '1h',
 		'update' => '2d',
   }
 );

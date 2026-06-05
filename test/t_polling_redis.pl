@@ -15,6 +15,33 @@ use lib "$FindBin::Bin/lib";
 
 use Test::More;
 use NMISNG::Sys::Engine;
+use NMISNG::Sys;
+use Compat::NMIS;
+
+# Skip RRD I/O (RRD lib not linked here) — same approach as t_polling_http.pl.
+{
+    no warnings 'redefine';
+    *NMISNG::Sys::create_update_rrd = sub {
+        my ($self, %args) = @_;
+        if (ref($args{inventory})) {
+            my $type = $args{type} || 'unknown';
+            $args{inventory}->set_subconcept_type_storage(
+                subconcept => $type, type => 'rrd',
+                data => "/nodes/$self->{name}/mock-$type.rrd"
+            );
+        }
+        return 1;
+    };
+}
+require RRDs unless defined &RRDs::info;
+{
+    no warnings 'redefine';
+    *RRDs::info = sub { return {}; };
+}
+{
+    no warnings 'redefine';
+    *Compat::NMIS::getSubconceptStats = sub { return {}; };
+}
 
 # Task 1: the trait exists and defaults to 0 on the base class.
 can_ok('NMISNG::Sys::Engine', 'manages_own_inventory');
@@ -308,6 +335,51 @@ SKIP: {
     my $fl = ($due->{flavours} // {})->{ $n->uuid };
     ok($fl, "redis node present in due list");
     ok($fl->{redis}, "redis flavour enabled for a redis_enabled node");
+
+    # ---- Task 11: end-to-end reconcile via the collect path ----
+    {
+        my $rnode = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $rnode->cluster_id($C->{cluster_id});
+        $rnode->name("t_redis_e2e_node");
+        $rnode->activated({ NMIS => 1 });
+        $rnode->configuration({
+            host => "127.0.0.1", group => "TestGroup", netType => "default",
+            roleType => "default", model => "TestRedis", collect => "true",
+            ping => "false", nmisent_engine_type => "meraki",
+        });
+        my ($rop, $rerr) = $rnode->save();
+        ok(!$rerr, "redis e2e node saved") or diag($rerr);
+
+        # An update creates catchall + loads the model. RRD is stubbed above.
+        $rnode->update(force => 1);
+
+        my $ruuid = $rnode->uuid;
+        $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":['
+            .'{"wan_interface":"wan1","status":"active","latency_ms":24},'
+            .'{"wan_interface":"wan2","status":"ready","latency_ms":12}]}';
+        $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_health"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.23,"memory_used_pct":47.2}}';
+        {
+            no warnings 'redefine';
+            local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+
+            $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1, force => 1);
+
+            my $ids = $rnode->get_inventory_ids(concept => 'sdwan_uplink', filter => { historic => 0 });
+            ok(scalar(@$ids) == 2, "two sdwan_uplink rows after first collect")
+                or diag("got ".scalar(@$ids));
+
+            # Drop wan2; it must go historic, wan1 survives.
+            $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
+                '{"_meta":{"collected_at_epoch":'.time().'},"data":['
+                .'{"wan_interface":"wan1","status":"active","latency_ms":20}]}';
+            $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1, force => 1);
+            my $live = $rnode->get_inventory_ids(concept => 'sdwan_uplink', filter => { historic => 0 });
+            ok(scalar(@$live) == 1, "one live sdwan_uplink row after wan2 dropped")
+                or diag("got ".scalar(@$live));
+        }
+    }
 
     $ng->get_db()->drop();
 }
