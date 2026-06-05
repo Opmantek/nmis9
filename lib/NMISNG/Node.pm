@@ -236,6 +236,14 @@ sub _defaults
 	# arrayref-with-entries or absent — a one-line check.
 	$configuration->{http_enabled} =
 		( ref $configuration->{http_endpoints} eq 'ARRAY' ) ? 1 : 0;
+	# Redis (push) source: derived from the nmisent reconciler's
+	# nmisent_engine_type property, mirroring how http_enabled derives from
+	# http_endpoints. find_due_nodes and Sys::init read this flag directly
+	# rather than re-inspecting the model. Hand-created test nodes set
+	# nmisent_engine_type manually.
+	$configuration->{redis_enabled} =
+		( defined $configuration->{nmisent_engine_type}
+		  && $configuration->{nmisent_engine_type} ne "" ) ? 1 : 0;
 
 	return $configuration;
 }

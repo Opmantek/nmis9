@@ -247,4 +247,44 @@ my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
        "clear -> element is the concept");
 }
 
+# ---- Task 6: redis_enabled derivation ----
+SKIP: {
+    eval {
+        require NMISNG;
+        require NMISNG::Node;
+        require NMISNG::Util;
+        require NMISNG::Log;
+    };
+    skip "NMISNG/DB not available in this environment", 4 if $@;
+
+    my $C = NMISNG::Util::loadConfTable();
+    skip "no config", 4 if !$C;
+    $C->{db_name} = "t_polling_redis-" . time;
+    my $logger = NMISNG::Log->new(level => 'error');
+    my $ng = NMISNG->new(config => $C, log => $logger);
+
+    my $n = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+    $n->cluster_id($C->{cluster_id});
+    $n->name("t_redis_flag_node");
+    $n->activated({ NMIS => 1 });
+
+    my %base = (host => "127.0.0.1", group => "G", netType => "default",
+        roleType => "default", model => "CiscoMerakiCloud", collect => "true", ping => "false");
+
+    $n->configuration({ %base, nmisent_engine_type => 'meraki' });
+    is($n->configuration->{redis_enabled}, 1,
+       "redis_enabled: 1 when nmisent_engine_type set");
+    $n->configuration({ %base });
+    is($n->configuration->{redis_enabled}, 0,
+       "redis_enabled: 0 when nmisent_engine_type absent");
+    $n->configuration({ %base, nmisent_engine_type => 'aruba_central' });
+    is($n->configuration->{redis_enabled}, 1,
+       "redis_enabled: 1 for a different engine type");
+    $n->configuration({ %base, nmisent_engine_type => '' });
+    is($n->configuration->{redis_enabled}, 0,
+       "redis_enabled: 0 when nmisent_engine_type is empty string");
+
+    $ng->get_db()->drop();
+}
+
 done_testing();
