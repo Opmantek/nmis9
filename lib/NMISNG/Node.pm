@@ -9383,9 +9383,10 @@ sub unlock
 sub collect
 {
 	my ($self, %args) = @_;
-	my ($wantsnmp,$wantwmi,$wanthttp,$force,$starttime)
-		= @args{"wantsnmp","wantwmi","wanthttp","force","starttime"};
+	my ($wantsnmp,$wantwmi,$wanthttp,$wantredis,$redis_run_id,$force,$starttime)
+		= @args{"wantsnmp","wantwmi","wanthttp","wantredis","redis_run_id","force","starttime"};
 	$wanthttp //= 1;   # default-on for legacy callers (dev-tools, tests, ad-hoc)
+	$wantredis //= 1;  # default-on for legacy callers; gated by redis_enabled in Sys::init
 	$starttime //= Time::HiRes::time;
 
 	my $name = $self->name;
@@ -9443,6 +9444,11 @@ sub collect
 		# cadence in the policy.
 		$catchall_data->{last_poll_http_attempt} = $starttime;
 	}
+	if ($wantredis) {
+		# Symmetric with snmp/wmi/http so find_due_nodes can compute next-due
+		# against the redis cadence in the policy.
+		$catchall_data->{last_poll_redis_attempt} = $starttime;
+	}
 
 	# if the init fails attempt an update operation instead
 	# Thats initialised to node polling policy
@@ -9450,6 +9456,8 @@ sub collect
 									snmp => $wantsnmp,
 									wmi => $wantwmi,
 									http => $wanthttp,
+									redis => $wantredis,
+									redis_run_id => $redis_run_id,
 									policy => $self->configuration->{polling_policy},
 									catchall_inventory => $catchall_inventory
 			))
@@ -9616,6 +9624,17 @@ sub collect
 			$self->collect_intf_data(sys => $S, catchall_inventory => $catchall_inventory) if( @$ids > 0);
 			$catchall_data->{collect_intf_data_time} = Time::HiRes::time - $time_start;
 
+			# Push engines (Redis, future streaming) own their inventory: no
+			# update pass runs collect_systemhealth_info for them, so run it
+			# here at collect time. Gated on the engine trait so SNMP/WMI/HTTP
+			# are unaffected.
+			if (grep { $_->is_active && $_->manages_own_inventory } @{$S->engines})
+			{
+				$time_start = Time::HiRes::time;
+				$self->collect_systemhealth_info(sys => $S, catchall_inventory => $catchall_inventory)
+					if defined $S->{mdl}{systemHealth};
+				$catchall_data->{collect_systemhealth_info_time} = Time::HiRes::time - $time_start;
+			}
 			$time_start = Time::HiRes::time;
 			$self->collect_systemhealth_data(sys => $S, catchall_inventory => $catchall_inventory);
 			$catchall_data->{collect_systemhealth_data_time} = Time::HiRes::time - $time_start;
