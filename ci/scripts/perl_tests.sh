@@ -32,6 +32,7 @@ working_tests=(
     t_engine_http.pl
     t_engine_http_auth.pl
     t_polling_http.pl
+    t_polling_redis.pl
     # Model-scaffolding tools (admin/build_http_model.pl, admin/import_grafana_dashboard.pl)
     t_build_http_model.pl
     t_import_grafana_dashboard.pl
