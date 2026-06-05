@@ -155,9 +155,42 @@ sub _payload_usable
 	return 1;
 }
 
-# Replaced with real event raise/clear in Task 5.
-sub _raise_stale_event { return; }
-sub _clear_stale_event { return; }
+# Per-concept staleness event, keyed by node + concept (element). Uses the
+# standard NMIS event path (Compat::NMIS::notify / checkEvent) rather than the
+# raw event system, matching how the rest of NMIS creates and clears events.
+# notify/checkEvent take the LIVE sys and resolve the node themselves. Distinct
+# from the node-level handle_down source-down path: one stale concept does not
+# mark the whole node's Redis source down. Compat::NMIS is required lazily to
+# avoid a load-order cycle with the engine.
+my $STALE_EVENT = "Redis Data Stale";
+
+sub _raise_stale_event
+{
+	my ($self, $concept, $age, $freshness_s) = @_;
+	require Compat::NMIS;
+	Compat::NMIS::notify(
+		sys     => $self->sys,
+		event   => $STALE_EVENT,
+		element => $concept,
+		level   => "Warning",
+		details => "Redis concept $concept is stale: ".int($age)."s old, freshness threshold ${freshness_s}s",
+	);
+}
+
+sub _clear_stale_event
+{
+	my ($self, $concept) = @_;
+	require Compat::NMIS;
+	# checkEvent closes the event if one is open for this (node, concept),
+	# and is a no-op when none exists — safe to call every fresh cycle.
+	Compat::NMIS::checkEvent(
+		sys     => $self->sys,
+		event   => $STALE_EVENT,
+		element => $concept,
+		level   => "Normal",
+		details => "Redis concept $concept is fresh",
+	);
+}
 
 # Build %todos entries for one model section. Joins the model's `field` names
 # against the payload `data` block. Because the payload is already in Redis,
@@ -277,6 +310,96 @@ sub execute_queries
 {
 	my ($self, %args) = @_;
 	return {};
+}
+
+# Discover active indexes for an indexed systemHealth concept. Encodes the
+# contract's empty-data semantics:
+#   absent key            -> ($error, undef, undef); classify_error => not_present
+#                            => Node::collect_systemhealth_info soft-skips,
+#                               existing inventory is untouched.
+#   "data": []            -> (undef, [], {})
+#                            => bulk_update_inventory_historic marks all rows
+#                               for the concept historic.
+#   "data": [rows]        -> (undef, \@indices, \%targets)
+# index_var may be a string (single index) or arrayref (composite, joined "__").
+sub discover_indexes
+{
+	my ($self, %args) = @_;
+	my ($section_config, $index_var) = @args{qw(section_config index_var)};
+	my $sys = $self->sys;
+
+	my $section_hash = (ref $section_config->{redis} eq 'HASH') ? $section_config->{redis} : undef;
+	if (!$section_hash)
+	{
+		$self->{_last_error} = "section has no redis subsection";
+		return ($self->{_last_error}, undef, undef);
+	}
+	my $common = (ref $section_hash->{'-common-'} eq 'HASH') ? $section_hash->{'-common-'} : {};
+	my $concept = $common->{concept};
+	if (!defined $concept)
+	{
+		$self->{_last_error} = "redis section has no concept";
+		return ($self->{_last_error}, undef, undef);
+	}
+
+	my ($payload, $err) = $self->_payload($concept);
+	return ("redis discover for $concept failed: $err", undef, undef) if $err;
+
+	# Absent key: no information this cycle. not_present -> soft skip.
+	if (!defined $payload)
+	{
+		$self->{_last_error} = "no key for concept $concept";
+		return ($self->{_last_error}, undef, undef);
+	}
+
+	# run_id mismatch on the prompt path: skip discovery this cycle rather
+	# than retiring inventory against a half-written newer snapshot.
+	my $meta = (ref $payload->{_meta} eq 'HASH') ? $payload->{_meta} : {};
+	if (defined $self->{expected_run_id}
+		&& defined $meta->{run_id}
+		&& $meta->{run_id} ne $self->{expected_run_id})
+	{
+		$self->{_last_error} = "run_id mismatch for concept $concept";
+		return ($self->{_last_error}, undef, undef);
+	}
+	$self->{_last_error} = undef;
+
+	my $data = $payload->{data};
+	# Present but empty array: affirmative "all indices gone".
+	return (undef, [], {}) if (ref $data eq 'ARRAY' && @$data == 0);
+	if (ref $data ne 'ARRAY')
+	{
+		$self->{_last_error} = "concept $concept payload data is not an array (not indexed?)";
+		return ($self->{_last_error}, undef, undef);
+	}
+
+	my @index_vars = (ref $index_var eq 'ARRAY')
+		? @$index_var
+		: (defined $index_var && length $index_var ? ($index_var) : ());
+	if (!@index_vars)
+	{
+		$self->{_last_error} = "concept $concept has no index var";
+		return ($self->{_last_error}, undef, undef);
+	}
+
+	my @candidates;
+	my %targets;
+	for my $entry (@$data)
+	{
+		next unless ref $entry eq 'HASH';
+		my @vals = map { $entry->{$_} } @index_vars;
+		next if grep { !defined $_ } @vals;
+		my $composite = (@index_vars > 1) ? join("__", @vals) : $vals[0];
+		push @candidates, $composite;
+		my %target = (index_var => $index_var, index_value => $composite);
+		if (@index_vars > 1)
+		{
+			$target{$index_vars[$_]} = $vals[$_] for 0 .. $#index_vars;
+		}
+		$targets{$composite} = \%target;
+	}
+
+	return (undef, \@candidates, \%targets);
 }
 
 1;

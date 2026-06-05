@@ -40,17 +40,42 @@ use NMISNG::Sys::Engine::Redis;
     sub config { return $_[0]->{config}; }
 }
 {
+    package FakeNode;
+    sub new  { my ($c,%a)=@_; bless { %a }, $c }
+    sub uuid { return $_[0]->{uuid}; }
+    sub name { return $_[0]->{name} // 'fakenode'; }
+    our $AUTOLOAD;
+    sub AUTOLOAD { return undef; }
+    sub DESTROY  { }
+}
+{
     package FakeSys;
     sub new { my ($c,%a)=@_; bless { %a }, $c }
     sub nmisng      { return $_[0]->{nmisng}; }
     sub nmisng_node { return $_[0]->{node}; }
+    our $AUTOLOAD;
+    sub AUTOLOAD { return undef; }
+    sub DESTROY  { }
 }
 
 my $fake_nmisng = FakeNmisng->new(config => { });
+my $fake_node   = FakeNode->new(uuid => '11111111-2222-3333-4444-555555555555', name => 'fakenode');
 my $fake_sys = FakeSys->new(
     uuid   => '11111111-2222-3333-4444-555555555555',
     nmisng => $fake_nmisng,
+    node   => $fake_node,
 );
+
+# Pre-load Compat::NMIS and install no-op stubs so that the real
+# _raise_stale_event / _clear_stale_event (added in Task 5) don't try to
+# drive the full event system against the fake Sys throughout this test file.
+# The Task 5 event block overrides these locally with capturing stubs.
+require Compat::NMIS;
+{
+    no warnings 'redefine';
+    *Compat::NMIS::notify     = sub { return; };
+    *Compat::NMIS::checkEvent = sub { return; };
+}
 my $eng = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
 
 is($eng->protocol_name, 'redis', "protocol_name is redis");
@@ -159,6 +184,67 @@ my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
     is($todos2{status}{rawvalue}, 'ready', "indexed-row field extracted for wan2");
     ok(exists $todos2{latency} && !defined $todos2{latency}{rawvalue},
        "null field present as undef rawvalue");
+}
+
+# ---- Task 5: discover_indexes empty-data semantics + staleness event ----
+{
+    no warnings 'redefine';
+    local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+
+    # Present array -> active indices.
+    my $engd = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+    my ($e1, $idx1, $tg1) = $engd->discover_indexes(
+        section_config => { redis => { '-common-' => { concept => 'sdwan_uplink' } } },
+        index_var      => 'wan_interface',
+    );
+    ok(!$e1, "discover_indexes: no error on present array");
+    is_deeply([sort @$idx1], ['wan1','wan2'], "discover_indexes: both indices found");
+    is($tg1->{wan1}{index_value}, 'wan1', "discover_indexes: target carries index_value");
+
+    # Empty array -> (undef, [], {}) so the historic pass retires everything.
+    $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_uplink'} =
+        '{"_meta":{"collected_at_epoch":'.time().'},"data":[]}';
+    my $enge = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+    my ($e2, $idx2) = $enge->discover_indexes(
+        section_config => { redis => { '-common-' => { concept => 'sdwan_uplink' } } },
+        index_var      => 'wan_interface',
+    );
+    ok(!$e2 && ref $idx2 eq 'ARRAY' && @$idx2 == 0,
+       "empty array -> no error, empty index list (all historic)");
+
+    # Absent key -> error classified not_present (soft skip, inventory kept).
+    delete $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_uplink'};
+    my $enga = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+    my ($e3) = $enga->discover_indexes(
+        section_config => { redis => { '-common-' => { concept => 'sdwan_uplink' } } },
+        index_var      => 'wan_interface',
+    );
+    ok($e3, "absent key -> discover_indexes error");
+    is($enga->classify_error->{type}, 'not_present', "absent key -> not_present");
+}
+
+# Staleness event uses the standard NMIS event path: Compat::NMIS::notify to
+# raise, Compat::NMIS::checkEvent to clear. Both take sys => $S. Load
+# Compat::NMIS first so our local overrides win over the engine's lazy
+# `require Compat::NMIS` (require is a no-op once the module is in %INC).
+{
+    require Compat::NMIS;
+    our (@notified, @checked);
+    no warnings 'redefine';
+    local *Compat::NMIS::notify     = sub { push @main::notified, {@_}; return; };
+    local *Compat::NMIS::checkEvent = sub { push @main::checked,  {@_}; return; };
+
+    my $enge = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+    $enge->_raise_stale_event('sdwan_health', 5000, 600);
+    ok(@main::notified && $main::notified[0]{event} =~ /stale/i,
+       "raise -> Compat::NMIS::notify with a stale event");
+    is($main::notified[0]{element}, 'sdwan_health',
+       "raise -> element is the concept");
+    $enge->_clear_stale_event('sdwan_health');
+    ok(@main::checked && $main::checked[0]{event} =~ /stale/i,
+       "clear -> Compat::NMIS::checkEvent for the concept");
+    is($main::checked[0]{element}, 'sdwan_health',
+       "clear -> element is the concept");
 }
 
 done_testing();
