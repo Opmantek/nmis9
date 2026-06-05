@@ -1,0 +1,75 @@
+#
+# Common-Linux-HTTP-DiskIO.nmis
+#
+# Per-block-device I/O counters from node_exporter. Indexed by `device`
+# label (sda, sdb1, nvme0n1, dm-0, etc). A `control` expression on the rrd
+# block restricts active polling to whole-disk block devices; inventory is
+# still created for every device the kernel reports (loop, partitions, ram).
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'LinuxDiskIO' => '/nodes/$node/health/diskio-$index.rrd',
+		},
+	},
+
+	'systemHealth' => {
+		# 'sections' string is centralised in Model-Linux-HTTP.nmis
+		'sys' => {
+			'LinuxDiskIO' => {
+				'indexed'      => 'device',
+				'index_oid'    => 'device',
+				'headers'      => 'device,reads,writes,read_bytes,write_bytes',
+				'max_rows'     => 64,
+				'http_prom' => {
+					'-common-'   => { 'endpoint' => 'node_exporter' },
+					'device'      => { 'title' => 'Device' },
+					'reads'       => { 'metric' => 'node_disk_reads_completed_total',
+					                    'title'  => 'Reads completed' },
+					'writes'      => { 'metric' => 'node_disk_writes_completed_total',
+					                    'title'  => 'Writes completed' },
+					'read_bytes'  => { 'metric' => 'node_disk_read_bytes_total',
+					                    'title'  => 'Bytes read' },
+					'write_bytes' => { 'metric' => 'node_disk_written_bytes_total',
+					                    'title'  => 'Bytes written' },
+				},
+			},
+		},
+		'rrd' => {
+			'LinuxDiskIO' => {
+				'graphtype' => 'Linux-DiskIO',
+				'indexed'   => 'device',
+				# Whole-disk block devices: sd[a-z], nvme0n1, vd[a-z], xvd[a-z],
+				# dm-N. Suppresses RRD writes for partitions / loop / ram devices;
+				# inventory still records them so they remain visible.
+				'control'   => 'CVAR=device;$CVAR =~ /^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|xvd[a-z]+|dm-\d+)$/',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'node_exporter' },
+					'reads'        => { 'metric' => 'node_disk_reads_completed_total',
+					                     'option' => 'counter,0:U' },
+					'writes'       => { 'metric' => 'node_disk_writes_completed_total',
+					                     'option' => 'counter,0:U' },
+					'read_bytes'   => { 'metric' => 'node_disk_read_bytes_total',
+					                     'option' => 'counter,0:U' },
+					'write_bytes'  => { 'metric' => 'node_disk_written_bytes_total',
+					                     'option' => 'counter,0:U' },
+					# Fractional-seconds counters: scale to integer milliseconds
+					# via calculate, store as COUNTER (RRD's COUNTER and
+					# DERIVE both reject float input).
+					'io_time'      => { 'metric'    => 'node_disk_io_time_seconds_total',
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option'    => 'counter,0:U' },
+					'read_time'    => { 'metric'    => 'node_disk_read_time_seconds_total',
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option'    => 'counter,0:U' },
+					'write_time'   => { 'metric'    => 'node_disk_write_time_seconds_total',
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option'    => 'counter,0:U' },
+					'io_weighted'  => { 'metric'    => 'node_disk_io_time_weighted_seconds_total',
+					                     'calculate' => 'return int($r * 1000);',
+					                     'option'    => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

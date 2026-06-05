@@ -1,0 +1,41 @@
+#
+# Graph-Linux-APT.nmis — pending apt upgrades.
+# All values are point-in-time package counts; LAST gives the current
+# state, AVG/MAX show how the pile has built up over the window.
+#
+%hash = (
+	'heading' => 'APT Pending Upgrades',
+	'title' => {
+		'standard' => '$node APT - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node APT - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Package Count',
+		'small'    => 'pkgs',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:p=$database:apt_pending:AVERAGE',
+			'DEF:h=$database:apt_held:AVERAGE',
+			'DEF:a=$database:apt_autoremove:AVERAGE',
+			'AREA:p#1E90FF: Pending',
+			'GPRINT:p:AVERAGE:Avg %5.0lf',
+			'GPRINT:p:MAX:Max %5.0lf',
+			'GPRINT:p:LAST:Now %5.0lf\\n',
+			'STACK:h#FFA500: Held',
+			'GPRINT:h:LAST:Now %5.0lf\\n',
+			'LINE2:a#7CFC00: Autoremove',
+			'GPRINT:a:LAST:Now %5.0lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:p=$database:apt_pending:AVERAGE',
+			'DEF:h=$database:apt_held:AVERAGE',
+			'DEF:a=$database:apt_autoremove:AVERAGE',
+			'AREA:p#1E90FF: Pending',
+			'STACK:h#FFA500: Held',
+			'LINE1:a#7CFC00: Auto',
+		],
+	},
+);

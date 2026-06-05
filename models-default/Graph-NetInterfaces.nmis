@@ -1,0 +1,46 @@
+#
+# Graph for indexed Linux network interfaces from a Prometheus endpoint.
+# DS names match Model-Linux-HTTP.nmis systemHealth.NetInterfaces.rrd:
+#   rx_bytes  - cumulative receive bytes (counter)
+#   tx_bytes  - cumulative transmit bytes (counter)
+# RRDtool's COUNTER type derives the rate per second from successive samples.
+#
+
+%hash = (
+	'heading' => 'Network Interface $index',
+	'title' => {
+		'standard' => '$node $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes per second',
+		'small'    => 'B/s',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:rx=$database:rx_bytes:AVERAGE',
+			'DEF:tx=$database:tx_bytes:AVERAGE',
+			# Plot transmit as negative so rx and tx don't overlap visually.
+			'CDEF:tx_neg=tx,-1,*',
+
+			'AREA:rx#00BFFF: Receive (B/s)',
+			'GPRINT:rx:MIN:Min %7.1lf',
+			'GPRINT:rx:AVERAGE:Avg %7.1lf',
+			'GPRINT:rx:MAX:Max %7.1lf\\n',
+
+			'AREA:tx_neg#FF7F50: Transmit (B/s)',
+			'GPRINT:tx:MIN:Min %7.1lf',
+			'GPRINT:tx:AVERAGE:Avg %7.1lf',
+			'GPRINT:tx:MAX:Max %7.1lf\\n',
+		],
+		'small' => [
+			'DEF:rx=$database:rx_bytes:AVERAGE',
+			'DEF:tx=$database:tx_bytes:AVERAGE',
+			'CDEF:tx_neg=tx,-1,*',
+			'AREA:rx#00BFFF: rx',
+			'GPRINT:rx:AVERAGE:Avg %1.0lf\\n',
+			'AREA:tx_neg#FF7F50: tx',
+			'GPRINT:tx:AVERAGE:Avg %1.0lf\\n',
+		],
+	},
+);

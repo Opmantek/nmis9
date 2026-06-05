@@ -404,6 +404,44 @@ diag("=== Test 14: skip_collect ===");
 ok(!exists $rrd_data->{testSkipCollect}, "testSkipCollect section not in getData (skip_collect=true)");
 
 # ============================================================
+# Test 14b: indexed control — inventory created for ALL rows,
+# but per-row collection is gated by the control expression.
+# This is the contract the HTTP engine relies on after we move
+# off `label_filter` (which dropped rows pre-inventory).
+# ============================================================
+diag("=== Test 14b: indexed control ===");
+
+# testFiltered walks the same indices as testSensor (TempSensor1 / TempSensor2)
+# but its rrd block has control='CVAR=testFilteredName;$CVAR eq "TempSensor1"'.
+# After collect_systemhealth_info ran during setup, both rows must be in
+# inventory; only index 1 should produce fresh data via getData.
+my $tf_all = $snmp_node->get_inventory_model(
+	concept => 'testFiltered', filter => { historic => 0 });
+is($tf_all->count, 2,
+	"testFiltered: inventory created for BOTH rows despite control expression");
+
+my %tf_by_index;
+for my $inv (@{$tf_all->objects->{objects} || []}) {
+	$tf_by_index{$inv->data->{index}} = $inv;
+}
+ok($tf_by_index{1}, "testFiltered: index 1 (TempSensor1) has inventory");
+ok($tf_by_index{2}, "testFiltered: index 2 (TempSensor2) has inventory");
+
+# Index 1 matches the control — getData returns the section with data.
+my $tf_data1 = $S->getData(class => 'systemHealth', section => 'testFiltered',
+	index => '1', inventory => $tf_by_index{1});
+ok(ref($tf_data1) eq "HASH", "testFiltered index 1: getData returned hash");
+ok(exists $tf_data1->{testFiltered},
+	"testFiltered index 1: section present in getData (control matched)");
+
+# Index 2 fails the control — getData should NOT include the section's data.
+my $tf_data2 = $S->getData(class => 'systemHealth', section => 'testFiltered',
+	index => '2', inventory => $tf_by_index{2});
+ok(!exists $tf_data2->{testFiltered}{'2'}{filteredValue}
+	|| !defined $tf_data2->{testFiltered}{'2'}{filteredValue}{value},
+	"testFiltered index 2: no fresh per-DS data (control suppressed collection)");
+
+# ============================================================
 # Test 15: indexed getData (systemHealth testSensor)
 # ============================================================
 diag("=== Test 15: indexed getData ===");

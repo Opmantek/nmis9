@@ -1,0 +1,75 @@
+#
+# Common-Linux-HTTP-Filesystem.nmis
+#
+# Per-mountpoint filesystem capacity from node_exporter. Indexed by
+# `mountpoint` (the row key shown in the System Health table). DS names
+# (hrStorageSize, hrStorageUsed) carry over from HOST-RESOURCES-MIB so
+# the hrStorageUtil stats expression in Common-Host_Resources keeps
+# working, but graph rendering uses Graph-Linux-Filesystem* — those
+# treat the values as bytes-direct (node_exporter native), without the
+# hrStorageUnits "bytes per unit" multiplier that Graph-Host_Storage
+# requires for SNMP polling.
+#
+# A `control` expression on the rrd block trims active polling to "real"
+# filesystems, dropping the pseudo-FS mountpoints (/proc, /sys, /dev, /run,
+# /snap, /var/lib/docker/...) that proliferate on container hosts. Inventory
+# is still created for every mountpoint the kernel exposes — only the RRD
+# writes are suppressed for the noisy rows. Operators see the full picture
+# in the System Health table and can relax the regex without losing history.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'LinuxFilesystem' => '/nodes/$node/health/fs-$index.rrd',
+		},
+	},
+
+	'systemHealth' => {
+		# 'sections' string is centralised in Model-Linux-HTTP.nmis
+		'sys' => {
+			'LinuxFilesystem' => {
+				'indexed'      => 'mountpoint',
+				'index_oid'    => 'mountpoint',
+				'headers'      => 'mountpoint,fstype,hrStorageSize,hrStorageUsed,readonly',
+				'max_rows'     => 64,
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'mountpoint'    => { 'title' => 'Mount point' },
+					'fstype'        => { 'metric' => 'node_filesystem_size_bytes',
+					                      # We can't easily extract the fstype label as
+					                      # a value; this slot just records the size,
+					                      # the operator can see fstype in the label
+					                      # filter or the graph metadata.
+					                      'title' => 'Filesystem type marker' },
+					'hrStorageSize' => { 'metric' => 'node_filesystem_size_bytes',
+					                      'title'  => 'Total size (bytes)' },
+					'hrStorageUsed' => { 'metric'    => 'node_filesystem_avail_bytes',
+					                      # hrStorageUsed = size - avail. avail comes
+					                      # from the metric we fetch; size is the
+					                      # 'hrStorageSize' raw value already in todos.
+					                      'calculate' => 'CVAR1=hrStorageSize; return $CVAR1 - $r;',
+					                      'title'     => 'Used (bytes)' },
+					'readonly'      => { 'metric' => 'node_filesystem_readonly',
+					                      'title'  => 'Read-only (1=yes)' },
+				},
+			},
+		},
+		'rrd' => {
+			'LinuxFilesystem' => {
+				'graphtype' => 'Linux-Filesystem,Linux-Filesystem-Util',
+				'indexed'   => 'mountpoint',
+				# Suppresses RRD writes for pseudo-FS mountpoints; inventory still
+				# exists for every row, so they remain visible in System Health.
+				'control'   => 'CVAR=mountpoint;$CVAR !~ m{^/(proc|sys|dev|run|snap)(/|$)} && $CVAR !~ m{^/var/lib/docker/}',
+				'http_prom' => {
+					'-common-'        => { 'endpoint' => 'node_exporter' },
+					'hrStorageSize'  => { 'metric' => 'node_filesystem_size_bytes',
+					                       'option' => 'gauge,0:U' },
+					'hrStorageUsed'  => { 'metric'    => 'node_filesystem_avail_bytes',
+					                       'calculate' => 'CVAR1=hrStorageSize; return $CVAR1 - $r;',
+					                       'option'    => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

@@ -1,0 +1,50 @@
+#
+# Graph-MongoDB-Asserts.nmis - assertion rate per assert_type.
+#
+%hash = (
+	'heading' => 'MongoDB Asserts',
+	'title' => {
+		'standard' => '$node MongoDB Asserts - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB Asserts - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Asserts per second',
+		'small'    => 'asrt/s',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:reg=$database:regular:AVERAGE',
+			'DEF:warn=$database:warning:AVERAGE',
+			'DEF:msg=$database:msg:AVERAGE',
+			'DEF:user=$database:user:AVERAGE',
+			'DEF:roll=$database:rollovers:AVERAGE',
+			'DEF:trip=$database:tripwire:AVERAGE',
+			'LINE2:reg#FF0000: Regular',
+			'GPRINT:reg:AVERAGE:Avg %5.2lf',
+			'GPRINT:reg:MAX:Max %5.2lf\\n',
+			'LINE2:warn#FFA500: Warning',
+			'GPRINT:warn:AVERAGE:Avg %5.2lf',
+			'GPRINT:warn:MAX:Max %5.2lf\\n',
+			'LINE2:msg#FF8C00: Msg',
+			'GPRINT:msg:AVERAGE:Avg %5.2lf',
+			'GPRINT:msg:MAX:Max %5.2lf\\n',
+			'LINE2:user#1E90FF: User',
+			'GPRINT:user:AVERAGE:Avg %5.2lf',
+			'GPRINT:user:MAX:Max %5.2lf\\n',
+			'LINE1:roll#9370DB: Rollovers',
+			'GPRINT:roll:AVERAGE:Avg %5.2lf\\n',
+			'LINE1:trip#808080: Tripwire',
+			'GPRINT:trip:AVERAGE:Avg %5.2lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:reg=$database:regular:AVERAGE',
+			'DEF:warn=$database:warning:AVERAGE',
+			'DEF:user=$database:user:AVERAGE',
+			'LINE1:reg#FF0000: Reg',
+			'LINE1:warn#FFA500: Warn',
+			'LINE1:user#1E90FF: User',
+		],
+	},
+);

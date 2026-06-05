@@ -165,8 +165,20 @@
 		}
 	},
 	'systemHealth' => {
-		'sections' => 'testSensor,testCalcOid',
+		'sections' => 'testSensor,testCalcOid,testFiltered',
 		'sys' => {
+			'testFiltered' => {
+				'indexed'   => 'testFilteredName',
+				'index_oid' => '1.3.6.1.4.1.99999.1.1.1.2',
+				'headers'   => 'testFilteredName',
+				'snmp' => {
+					'testFilteredName' => {
+						'oid'           => '1.3.6.1.4.1.99999.1.1.1.2',
+						'title'         => 'Filtered Sensor Name',
+						'sysObjectName' => 'testFilteredName',
+					},
+				},
+			},
 			'testCalcOid' => {
 				'indexed' => 'testCalcOidName',
 				'index_oid' => '1.3.6.1.4.1.99999.3.2',
@@ -227,7 +239,23 @@
 						'calculate_index' => 'CVAR1=index;return "$CVAR1.0";'
 					}
 				}
-			}
+			},
+			# Indexed section with a per-row control expression. Index walk
+			# returns both TempSensor1 and TempSensor2; control matches only
+			# TempSensor1, so collection (and RRD writes) should be skipped
+			# for TempSensor2 — but inventory must still exist for both rows.
+			'testFiltered' => {
+				'graphtype' => 'testFiltered',
+				'indexed'   => 'true',
+				'control'   => 'CVAR=testFilteredName;$CVAR eq "TempSensor1"',
+				'snmp' => {
+					'filteredValue' => {
+						'oid'    => '1.3.6.1.4.1.99999.1.1.1.3',
+						'option' => 'gauge,0:U',
+						'title'  => 'Filtered Sensor Value',
+					},
+				},
+			},
 		}
 	},
 	'alerts' => {

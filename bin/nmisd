@@ -724,8 +724,9 @@ while (!$exit_marker)
 			my %jobargs = (uuid => $nodeuuid);
 			if( $operation eq "collect")
 			{
-				$jobargs{wantwmi} = $duenodes->{flavours}->{$nodeuuid}->{wmi};
+				$jobargs{wantwmi}  = $duenodes->{flavours}->{$nodeuuid}->{wmi};
 				$jobargs{wantsnmp} = $duenodes->{flavours}->{$nodeuuid}->{snmp};
+				$jobargs{wanthttp} = $duenodes->{flavours}->{$nodeuuid}->{http};
 			}
 			elsif ($operation eq "services")
 			{
@@ -2403,7 +2404,7 @@ sub worker_loop
 				{
 					# required: args with uuid of node to work on,
 					# optional force
-					# collect: also requires wantsnmp and wantwmi
+					# collect: also requires wantsnmp, wantwmi, wanthttp
 					# services: also allows services (=list of preselected service names)
 					my $nodeuuid = $ourjob->{args}->{uuid};
 
@@ -2412,7 +2413,8 @@ sub worker_loop
 					if ($ourjob->{type} eq "collect")
 					{
 						@methodargs = ( wantsnmp => $ourjob->{args}->{wantsnmp},
-														wantwmi => $ourjob->{args}->{wantwmi} );
+														wantwmi  => $ourjob->{args}->{wantwmi},
+														wanthttp => $ourjob->{args}->{wanthttp} );
 					}
 					elsif ($ourjob->{type} eq "services")
 					{

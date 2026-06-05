@@ -1,0 +1,36 @@
+#
+# Graph-Linux-Entropy.nmis — kernel RNG pool depth.
+# Pool size is a static configured maximum; available is what's drawn from
+# during /dev/random reads. Min matters here (low = blocking reads imminent).
+#
+%hash = (
+	'heading' => 'Linux Entropy',
+	'title' => {
+		'standard' => '$node Entropy - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Entropy - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bits in Pool',
+		'small'    => 'bits',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:avail=$database:entropy_avail:AVERAGE',
+			'DEF:pool=$database:entropy_pool:AVERAGE',
+			'AREA:avail#7CFC00: Available',
+			'GPRINT:avail:MIN:Min %5.0lf',
+			'GPRINT:avail:AVERAGE:Avg %5.0lf',
+			'GPRINT:avail:MAX:Max %5.0lf\\n',
+			'LINE2:pool#FF0000: Pool Size',
+			'GPRINT:pool:LAST:Now %5.0lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:avail=$database:entropy_avail:AVERAGE',
+			'DEF:pool=$database:entropy_pool:AVERAGE',
+			'AREA:avail#7CFC00: Avail',
+			'LINE1:pool#FF0000: Pool',
+		],
+	},
+);

@@ -1,0 +1,57 @@
+#
+# Common-Linux-HTTP-VMstat.nmis
+#
+# Virtual-memory subsystem counters from /proc/vmstat. All exporter
+# values are typed `untyped` but they're cumulative; treat as COUNTER
+# so RRD shows per-second rates.
+#   pgfault     - minor page faults (rate)
+#   pgmajfault  - major faults (page faulted in from disk — slow)
+#   pgpgin/out  - pages in/out of memory
+#   pswpin/out  - pages swapped in/out (key swap-pressure indicator)
+#   oom_kill    - out-of-memory kills (counter, hopefully zero)
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_vmstat' => '/nodes/$node/health/linux_vmstat.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_vmstat' => {
+				'graphtype' => 'Linux-VMstat,Linux-OomKill',
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'pgfault'    => { 'metric' => 'node_vmstat_pgfault',    'option' => 'counter,0:U' },
+					'pgmajfault' => { 'metric' => 'node_vmstat_pgmajfault', 'option' => 'counter,0:U' },
+					'pgpgin'     => { 'metric' => 'node_vmstat_pgpgin',     'option' => 'counter,0:U' },
+					'pgpgout'    => { 'metric' => 'node_vmstat_pgpgout',    'option' => 'counter,0:U' },
+					'pswpin'     => { 'metric' => 'node_vmstat_pswpin',     'option' => 'counter,0:U' },
+					'pswpout'    => { 'metric' => 'node_vmstat_pswpout',    'option' => 'counter,0:U' },
+					'oom_kill'   => { 'metric' => 'node_vmstat_oom_kill',   'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+
+	# oom_kill is a cumulative since-boot counter, so once an OOM event
+	# happens the value stays > 0 until reboot. That's deliberate: the
+	# alert sustains until an operator acks it / reboots the box, which
+	# matches "any OOM is significant" semantics. If you'd rather alert
+	# only on fresh kills, switch to a threshold-rising on the rate DS.
+	'alerts' => {
+		'linux_vmstat' => {
+			'OomKilled' => {
+				'type'    => 'test',
+				'test'    => 'CVAR1=oom_kill;$CVAR1 > 0',
+				'value'   => 'CVAR1=oom_kill;$CVAR1',
+				'event'   => 'OOM Kill Detected',
+				'title'   => 'Out-Of-Memory Kill',
+				'unit'    => 'kills',
+				'level'   => 'Critical',
+				'element' => 'oom_kill',
+			},
+		},
+	},
+);

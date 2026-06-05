@@ -1,0 +1,40 @@
+#
+# Graph-Linux-NTP.nmis — clock skew + sync status from /proc/timex.
+# Offset is slow-moving and bidirectional (Min+Avg+Max all useful);
+# sync_status is a 0/1 flag (1 = clock disciplined by NTP).
+#
+%hash = (
+	'heading' => 'Linux NTP / Clock Skew',
+	'title' => {
+		'standard' => '$node Clock - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Clock - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Offset (seconds)',
+		'small'    => 'sec',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:offset=$database:time_offset:AVERAGE',
+			'DEF:sync=$database:sync_status:AVERAGE',
+			'DEF:maxerr=$database:maxerror:AVERAGE',
+			'LINE2:offset#1E90FF: Clock Offset',
+			'GPRINT:offset:MIN:Min %1.6lf',
+			'GPRINT:offset:AVERAGE:Avg %1.6lf',
+			'GPRINT:offset:MAX:Max %1.6lf\\n',
+			'LINE2:maxerr#FFA500: Max Error',
+			'GPRINT:maxerr:AVERAGE:Avg %1.6lf',
+			'GPRINT:maxerr:MAX:Max %1.6lf\\n',
+			'LINE1:sync#7CFC00: Sync (1=ok)',
+			'GPRINT:sync:LAST:Now %1.0lf\\n',
+		],
+		'small' => [
+			'DEF:offset=$database:time_offset:AVERAGE',
+			'DEF:sync=$database:sync_status:AVERAGE',
+			'DEF:maxerr=$database:maxerror:AVERAGE',
+			'LINE1:offset#1E90FF: Offset',
+			'LINE1:maxerr#FFA500: Max Err',
+			'LINE1:sync#7CFC00: Sync',
+		],
+	},
+);

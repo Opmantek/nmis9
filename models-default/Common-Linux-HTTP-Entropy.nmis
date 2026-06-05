@@ -1,0 +1,28 @@
+#
+# Common-Linux-HTTP-Entropy.nmis
+#
+# Kernel RNG pool from /proc/sys/kernel/random/. entropy_avail dropping
+# toward zero means processes wanting /dev/random will block; modern
+# kernels mostly use getrandom() and don't depend on this, but it's
+# diagnostic for older systems and HSM-backed setups.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_entropy' => '/nodes/$node/health/linux_entropy.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_entropy' => {
+				'graphtype' => 'Linux-Entropy',
+				'http_prom' => {
+					'-common-'      => { 'endpoint' => 'node_exporter' },
+					'entropy_avail' => { 'metric' => 'node_entropy_available_bits', 'option' => 'gauge,0:U' },
+					'entropy_pool'  => { 'metric' => 'node_entropy_pool_size_bits', 'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

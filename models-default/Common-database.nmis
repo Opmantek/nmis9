@@ -141,6 +141,8 @@
       'health' => '/nodes/$node/health/reach.rrd',
       'hr' => '/nodes/$node/health/hr.rrd',
       'hrProcessorLoad' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
+      'Host_Memory' => '/nodes/$node/health/host_memory.rrd',
+      'NetInterfaces' => '/nodes/$node/interface/netif-$index.rrd',
       'hrbufmem' => '/nodes/$node/health/hrbufmem.rrd',
       'hrcachemem' => '/nodes/$node/health/hrcachemem.rrd',
       'hrdisk' => '/nodes/$node/health/hrdisk$index.rrd',

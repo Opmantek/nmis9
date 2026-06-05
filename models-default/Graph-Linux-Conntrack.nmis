@@ -1,0 +1,45 @@
+#
+# Graph-Linux-Conntrack.nmis — netfilter connection tracking table size.
+# Entries vs limit on the count axis; util % via CDEF in the legend; drops
+# overlay as a separate line (drop > 0 = table full at some point).
+#
+%hash = (
+	'heading' => 'Linux Conntrack',
+	'title' => {
+		'standard' => '$node Conntrack - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Conntrack - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Conntrack Entries',
+		'small'    => 'entries',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:e=$database:ct_entries:AVERAGE',
+			'DEF:l=$database:ct_limit:AVERAGE',
+			'DEF:d=$database:ct_drop:AVERAGE',
+			'CDEF:util=e,l,/,100,*',
+			'AREA:e#1E90FF: Entries',
+			'GPRINT:e:AVERAGE:Avg %7.0lf',
+			'GPRINT:e:MAX:Max %7.0lf\\n',
+			'LINE2:l#FF0000: Limit',
+			'GPRINT:l:LAST:Now %7.0lf\\n',
+			'COMMENT:Utilisation',
+			'GPRINT:util:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:util:MAX:Max %5.2lf%%\\n',
+			'LINE2:d#000000: Drops',
+			'GPRINT:d:AVERAGE:Avg %5.2lf',
+			'GPRINT:d:MAX:Max %5.2lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:e=$database:ct_entries:AVERAGE',
+			'DEF:l=$database:ct_limit:AVERAGE',
+			'DEF:d=$database:ct_drop:AVERAGE',
+			'AREA:e#1E90FF: Entries',
+			'LINE1:l#FF0000: Limit',
+			'LINE1:d#000000: Drops',
+		],
+	},
+);

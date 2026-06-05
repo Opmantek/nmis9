@@ -1,0 +1,39 @@
+#
+# Common-Linux-HTTP-Netstat.nmis
+#
+# Selected /proc/net/{netstat,snmp} counters from node_exporter — a
+# tractable subset of the very-many TCP/UDP/ICMP metrics. Pulls the
+# headline indicators that spot most operational issues; the full
+# table is huge and noisy.
+#
+# All node_netstat_* metrics are typed `untyped` in the exporter
+# output; ones that are accumulating (InSegs, OutSegs, RetransSegs,
+# datagrams) are stored as RRD COUNTER, gauges (CurrEstab) as GAUGE.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_netstat' => '/nodes/$node/health/linux_netstat.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_netstat' => {
+				'graphtype' => 'Linux-Netstat',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'node_exporter' },
+					'tcp_currest' => { 'metric' => 'node_netstat_Tcp_CurrEstab',  'option' => 'gauge,0:U' },
+					'tcp_in'      => { 'metric' => 'node_netstat_Tcp_InSegs',     'option' => 'counter,0:U' },
+					'tcp_out'     => { 'metric' => 'node_netstat_Tcp_OutSegs',    'option' => 'counter,0:U' },
+					'tcp_retrans' => { 'metric' => 'node_netstat_Tcp_RetransSegs','option' => 'counter,0:U' },
+					'udp_in'      => { 'metric' => 'node_netstat_Udp_InDatagrams','option' => 'counter,0:U' },
+					'udp_out'     => { 'metric' => 'node_netstat_Udp_OutDatagrams','option' => 'counter,0:U' },
+					'udp_in_errs' => { 'metric' => 'node_netstat_Udp_InErrors',   'option' => 'counter,0:U' },
+					'icmp_in'     => { 'metric' => 'node_netstat_Icmp_InMsgs',    'option' => 'counter,0:U' },
+					'icmp_out'    => { 'metric' => 'node_netstat_Icmp_OutMsgs',   'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

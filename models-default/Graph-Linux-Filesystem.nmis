@@ -1,0 +1,43 @@
+#
+# Graph-Linux-Filesystem.nmis — per-mountpoint capacity for the Linux-HTTP
+# model (node_exporter values are already in bytes, so no hrStorageUnits
+# multiplier is needed — unlike the SNMP HOST-RESOURCES-MIB Graph-Host_Storage
+# which expects a separate "bytes per unit" DS).
+#
+%hash = (
+	'heading' => 'Filesystem $index',
+	'title' => {
+		'standard' => '$node $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes',
+		'small'    => 'B',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+			'CDEF:pct=hrStorageUsed,hrStorageSize,/,100,*',
+			'AREA:hrStorageUsed#3277a8: Used',
+			'GPRINT:hrStorageUsed:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:hrStorageUsed:MAX:Max %7.2lf%sB\\n',
+			'LINE2:hrStorageSize#000000: Total',
+			'GPRINT:hrStorageSize:LAST:Now %7.2lf%sB\\n',
+			'COMMENT:Utilisation',
+			'GPRINT:pct:LAST:Now %5.2lf%%',
+			'GPRINT:pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:pct:MAX:Max %5.2lf%%\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+			'AREA:hrStorageUsed#3277a8: Used',
+			'LINE1:hrStorageSize#000000: Total',
+		],
+	},
+);

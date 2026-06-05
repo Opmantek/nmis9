@@ -1,0 +1,50 @@
+{
+  "dashboard": {
+    "title": "Legacy v6/v7 Shape",
+    "rows": [
+      {
+        "title": "Row One",
+        "panels": [
+          {
+            "id": 1,
+            "type": "graph",
+            "title": "Up Status",
+            "datasource": "Prometheus",
+            "targets": [
+              { "refId": "A", "expr": "myapp_up" }
+            ]
+          },
+          {
+            "id": 2,
+            "type": "graph",
+            "title": "Filtered Active Connections",
+            "datasource": "Prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "myapp_connections{state=\"active\"}"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Row Two",
+        "panels": [
+          {
+            "id": 3,
+            "type": "graph",
+            "title": "HTTP Request Rate",
+            "datasource": "Prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "rate(myapp_http_requests_total[5m])"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

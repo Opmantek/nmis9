@@ -158,7 +158,8 @@ ok(!$st->{snmp_error}, "status: no snmp_error before any query");
 ok(!$st->{wmi_error},  "status: no wmi_error before any query");
 
 # known_sources is a hardcoded list; lock it in
-is_deeply($S->known_sources, [qw(snmp wmi)], "known_sources = ['snmp','wmi']");
+is_deeply($S->known_sources, [qw(snmp wmi http)],
+	"known_sources = ['snmp','wmi','http']");
 
 # ============================================================
 # Test B: loadInfo populates BOTH snmp- and wmi-sourced fields in one call

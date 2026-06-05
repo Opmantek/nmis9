@@ -1,0 +1,47 @@
+#
+# Graph-Linux-Filesystem-Util.nmis — percent-used for one mountpoint,
+# y-axis pinned 0–100. Counterpart to Graph-Linux-Filesystem (which shows
+# bytes). Companion to Graph-Host_Storage_Util but works on the bytes-direct
+# DS pair without the hrStorageUnits multiplier.
+#
+%hash = (
+	'heading' => 'Filesystem Utilisation $index',
+	'title' => {
+		'standard' => '$node $index Utilisation - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index Util - $length',
+	},
+	'vlabel' => {
+		'standard' => '% Used',
+		'small'    => '%',
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit', '100',
+			'--lower-limit', '0',
+			'--rigid',
+			'--base', '1024',
+			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+			'CDEF:pct=hrStorageUsed,hrStorageSize,/,100,*',
+			'AREA:pct#42a4f5: % Used',
+			'GPRINT:pct:LAST:Now %5.2lf%%',
+			'GPRINT:pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:pct:MAX:Max %5.2lf%%\\n',
+			'GPRINT:hrStorageSize:LAST:Total Size %7.2lf%sB',
+			'GPRINT:hrStorageUsed:AVERAGE:Avg Used %7.2lf%sB',
+			'GPRINT:hrStorageUsed:MAX:Max Used %7.2lf%sB\\n',
+		],
+		'small' => [
+			'--upper-limit', '100',
+			'--lower-limit', '0',
+			'--rigid',
+			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+			'CDEF:pct=hrStorageUsed,hrStorageSize,/,100,*',
+			'AREA:pct#42a4f5: % Used',
+			'GPRINT:pct:LAST:Now %5.2lf%%',
+			'GPRINT:pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:pct:MAX:Max %5.2lf%%\\n',
+		],
+	},
+);

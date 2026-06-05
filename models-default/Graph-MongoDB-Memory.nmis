@@ -1,0 +1,42 @@
+#
+# Graph-MongoDB-Memory.nmis - resident + virtual memory.
+# The exporter publishes these fields as integer megabytes; we multiply
+# by 1024^2 in CDEFs so the y-axis renders bytes via --base 1024.
+#
+%hash = (
+	'heading' => 'MongoDB Memory',
+	'title' => {
+		'standard' => '$node MongoDB Memory - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB Memory - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes',
+		'small'    => 'B',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:res_mb=$database:resident_mb:AVERAGE',
+			'DEF:virt_mb=$database:virtual_mb:AVERAGE',
+			'CDEF:res=res_mb,1048576,*',   # MB -> bytes
+			'CDEF:virt=virt_mb,1048576,*',
+			'AREA:res#1E90FF: Resident',
+			'GPRINT:res:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:res:MAX:Max %7.2lf%sB\\n',
+			'LINE2:virt#FF8C00: Virtual',
+			'GPRINT:virt:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:virt:MAX:Max %7.2lf%sB\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:res_mb=$database:resident_mb:AVERAGE',
+			'DEF:virt_mb=$database:virtual_mb:AVERAGE',
+			'CDEF:res=res_mb,1048576,*',
+			'CDEF:virt=virt_mb,1048576,*',
+			'AREA:res#1E90FF: Resident',
+			'LINE1:virt#FF8C00: Virtual',
+		],
+	},
+);

@@ -1,0 +1,28 @@
+#
+# Graph-Linux-ARP.nmis — ARP table size.
+#
+%hash = (
+	'heading' => 'Linux ARP Table',
+	'title' => {
+		'standard' => '$node ARP - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node ARP - $length',
+	},
+	'vlabel' => {
+		'standard' => 'ARP Entries',
+		'small'    => 'entries',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:n=$database:arp_entries:AVERAGE',
+			'AREA:n#1E90FF: ARP Entries',
+			'GPRINT:n:AVERAGE:Avg %5.0lf',
+			'GPRINT:n:MAX:Max %5.0lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:n=$database:arp_entries:AVERAGE',
+			'AREA:n#1E90FF: ARP',
+		],
+	},
+);

@@ -1,0 +1,39 @@
+#
+# Graph-Linux-FileDescriptors.nmis — open FDs vs system max + utilisation %.
+# alloc/max are absolute counts on the y-axis; util CDEF is shown via GPRINT
+# only (separate scale) so the y-axis stays in count-units.
+#
+%hash = (
+	'heading' => 'Linux File Descriptors',
+	'title' => {
+		'standard' => '$node File Descriptors - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node FDs - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Open File Descriptors',
+		'small'    => 'FDs',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:alloc=$database:fd_alloc:AVERAGE',
+			'DEF:max=$database:fd_max:AVERAGE',
+			'CDEF:util=alloc,max,/,100,*',
+			'AREA:alloc#1E90FF: Allocated',
+			'GPRINT:alloc:AVERAGE:Avg %7.0lf',
+			'GPRINT:alloc:MAX:Max %7.0lf\\n',
+			'LINE2:max#FF0000: System Max',
+			'GPRINT:max:LAST:Now %7.0lf\\n',
+			'COMMENT:Utilisation',
+			'GPRINT:util:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:util:MAX:Max %5.2lf%%\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:alloc=$database:fd_alloc:AVERAGE',
+			'DEF:max=$database:fd_max:AVERAGE',
+			'AREA:alloc#1E90FF: Allocated',
+			'LINE1:max#FF0000: Max',
+		],
+	},
+);

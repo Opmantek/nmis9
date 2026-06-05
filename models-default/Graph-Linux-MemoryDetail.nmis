@@ -1,0 +1,59 @@
+#
+# Graph-Linux-MemoryDetail.nmis — meminfo deep-dive (Buffers/Cached/Slab/Anon/Dirty).
+# All values are bytes; --base 1024 gives auto-scaled KiB/MiB/GiB units.
+#
+%hash = (
+	'heading' => 'Linux Memory Detail',
+	'title' => {
+		'standard' => '$node Memory Detail - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Memory - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Memory (Bytes)',
+		'small'    => 'Bytes',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'DEF:free=$database:mem_free:AVERAGE',
+			'DEF:bufs=$database:mem_buffers:AVERAGE',
+			'DEF:cache=$database:mem_cached:AVERAGE',
+			'DEF:slab=$database:mem_slab:AVERAGE',
+			'DEF:dirty=$database:mem_dirty:AVERAGE',
+			'DEF:anon=$database:mem_anon:AVERAGE',
+			'AREA:free#90EE90: Free',
+			'GPRINT:free:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:free:MAX:Max %7.2lf%sB\\n',
+			'STACK:bufs#FFD700: Buffers',
+			'GPRINT:bufs:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:bufs:MAX:Max %7.2lf%sB\\n',
+			'STACK:cache#1E90FF: Cached',
+			'GPRINT:cache:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:cache:MAX:Max %7.2lf%sB\\n',
+			'STACK:slab#FFA500: Slab',
+			'GPRINT:slab:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:slab:MAX:Max %7.2lf%sB\\n',
+			'STACK:anon#9370DB: Anonymous',
+			'GPRINT:anon:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:anon:MAX:Max %7.2lf%sB\\n',
+			'LINE2:dirty#FF0000: Dirty',
+			'GPRINT:dirty:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:dirty:MAX:Max %7.2lf%sB\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'DEF:free=$database:mem_free:AVERAGE',
+			'DEF:bufs=$database:mem_buffers:AVERAGE',
+			'DEF:cache=$database:mem_cached:AVERAGE',
+			'DEF:slab=$database:mem_slab:AVERAGE',
+			'DEF:dirty=$database:mem_dirty:AVERAGE',
+			'DEF:anon=$database:mem_anon:AVERAGE',
+			'AREA:free#90EE90: Free',
+			'STACK:bufs#FFD700: Buffers',
+			'STACK:cache#1E90FF: Cached',
+			'STACK:slab#FFA500: Slab',
+			'STACK:anon#9370DB: Anonymous',
+			'LINE1:dirty#FF0000: Dirty',
+		],
+	},
+);

@@ -1,0 +1,54 @@
+#
+# Common-Linux-HTTP-Systemd.nmis  (default-off)
+#
+# Systemd unit health from node_exporter (--collector.systemd). Each
+# unit emits node_systemd_unit_state with one row per (unit, state)
+# pair where the value is 1 for the matching state and 0 otherwise.
+# We filter to state="active" so each unit becomes a single gauge:
+# 1 = active, 0 = anything else (failed, inactive, etc).
+#
+# A `control` expression on the rrd block restricts active polling to
+# .service and .target units (the noisy .timer/.socket/.device units stay
+# in inventory so they remain visible, but RRD writes are suppressed).
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'SystemdUnits' => '/nodes/$node/health/systemd-$index.rrd',
+		},
+	},
+
+	'systemHealth' => {
+		# 'sections' string is centralised in Model-Linux-HTTP.nmis
+		'sys' => {
+			'SystemdUnits' => {
+				'indexed'      => 'name',
+				'index_oid'    => 'name',
+				'headers'      => 'name,active',
+				'max_rows'     => 200,
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'name'    => { 'title' => 'Unit name' },
+					'active'  => { 'metric' => 'node_systemd_unit_state',
+					                'match_labels' => { 'state' => 'active' },
+					                'title'  => 'Active (1/0)' },
+				},
+			},
+		},
+		'rrd' => {
+			'SystemdUnits' => {
+				'graphtype' => 'Linux-Systemd',
+				'indexed'   => 'name',
+				# Suppresses RRD writes for non-service/target units; inventory
+				# still records every unit so they remain visible.
+				'control'   => 'CVAR=name;$CVAR =~ /\.(service|target)$/',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'active' => { 'metric' => 'node_systemd_unit_state',
+					               'match_labels' => { 'state' => 'active' },
+					               'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

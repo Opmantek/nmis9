@@ -1,0 +1,25 @@
+#
+# Common-Linux-HTTP-ARP.nmis
+#
+# ARP table size from node_exporter. Useful for tracking unusually
+# large layer-2 neighbour growth (broadcast storms, network sweeps).
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_arp' => '/nodes/$node/health/linux_arp.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_arp' => {
+				'graphtype' => 'Linux-ARP',
+				'http_prom' => {
+					'-common-'   => { 'endpoint' => 'node_exporter' },
+					'arp_entries' => { 'metric' => 'node_arp_entries', 'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

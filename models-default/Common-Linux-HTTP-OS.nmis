@@ -1,0 +1,26 @@
+#
+# Common-Linux-HTTP-OS.nmis
+#
+# Operating-system metadata + reboot-required flag. These are
+# gauges/info metrics that don't need RRD time-series; they live in
+# the catchall inventory only, so they're shown as scalar properties
+# on the node page.
+#
+# node_reboot_required is the one with operational signal — non-zero
+# means a kernel/security update was applied and a reboot is pending.
+#
+%hash = (
+	'system' => {
+		'sys' => {
+			'standard' => {
+				'http_prom' => {
+					'-common-'         => { 'endpoint' => 'node_exporter' },
+					'selinux_enabled'  => { 'metric' => 'node_selinux_enabled',
+					                         'title'  => 'SELinux enabled (1/0)' },
+					'reboot_required'  => { 'metric' => 'node_reboot_required',
+					                         'title'  => 'Reboot required (1/0)' },
+				},
+			},
+		},
+	},
+);

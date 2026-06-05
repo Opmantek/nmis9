@@ -203,7 +203,113 @@ sub _defaults
 	# and let's set the default polling policy if none was given
 	$configuration->{polling_policy} ||= "default";
 
+	# Canonicalize http_endpoints once: decode the GUI's JSON-string form
+	# into a Perl arrayref (or delete the key entirely if empty/invalid).
+	# Subsequent saves see the arrayref and skip the decode work, so this
+	# isn't a per-save tax — it's a one-time cost the first time a fresh
+	# GUI value arrives. strict=1 stashes any decode error so validate()
+	# (and therefore save()) reports it back to the caller instead of
+	# silently dropping the user's JSON.
+	$self->_normalize_http_endpoints($configuration, strict => 1);
+
+	# Re-derive per-source enabled flags from settings presence on every
+	# save. find_due_nodes and Sys::init read these flags directly instead
+	# of re-inspecting credentials/endpoints on every call.
+	#
+	# Always-derive (rather than //=) is the right semantic today: there's
+	# no GUI for the user to toggle a source, so settings presence is the
+	# only signal we have. Adding a community to a previously-credential-
+	# less node flips snmp_enabled to 1; removing it flips back to 0.
+	#
+	# Future GUI work that needs to support "I have credentials but want
+	# SNMP off" will need a separate sticky field (e.g. snmp_enabled_override)
+	# so user intent is distinguishable from auto-derivation. Don't switch
+	# this back to //= for that — that path conflates the two.
+	$configuration->{snmp_enabled} =
+		( ( defined $configuration->{community}  && $configuration->{community}  ne "" )
+		|| ( defined $configuration->{username}   && $configuration->{username}   ne "" ) )
+		? 1 : 0;
+	$configuration->{wmi_enabled} =
+		( defined $configuration->{wmiusername} && $configuration->{wmiusername} ne "" )
+		? 1 : 0;
+	# After _normalize_http_endpoints above, the field is either an
+	# arrayref-with-entries or absent — a one-line check.
+	$configuration->{http_enabled} =
+		( ref $configuration->{http_endpoints} eq 'ARRAY' ) ? 1 : 0;
+
 	return $configuration;
+}
+
+# Normalize $cfg->{http_endpoints} into either an arrayref-with-entries or
+# absent. Accepts an arrayref (left as-is when non-empty), a JSON string
+# (decoded — typical GUI textbox value), an empty array (deleted), or
+# invalid input (warned and deleted). Stores the decoded form back so
+# downstream callers and subsequent saves don't re-decode.
+#
+# Args:
+#   strict => 1  : called from the setter path (user-supplied input).
+#                  Stash any decode/shape error onto $self->{_http_endpoints_error}
+#                  so validate() can surface it back to the caller (GUI / API),
+#                  preventing a save from silently dropping the user's JSON.
+#   (default)    : called from the load path. Log a warning and continue.
+#                  Don't block save — the in-memory bad value has been
+#                  cleaned up so the next save will write valid data.
+sub _normalize_http_endpoints
+{
+	my ( $self, $cfg, %opts ) = @_;
+	my $strict = $opts{strict} ? 1 : 0;
+
+	# Strict mode is a fresh attempt — always reset the stash so a previous
+	# bad value doesn't poison a now-good one.
+	delete $self->{_http_endpoints_error} if $strict;
+	return unless ref $cfg eq 'HASH' && exists $cfg->{http_endpoints};
+
+	my $name = $self->{_name} // '?';
+	my $fail = sub {
+		my ($msg) = @_;
+		$self->nmisng->log->warn("($name) http_endpoints: $msg");
+		$self->{_http_endpoints_error} = $msg if $strict;
+		delete $cfg->{http_endpoints};
+	};
+
+	my $eps = $cfg->{http_endpoints};
+
+	# JSON string (typical GUI textbox value) -> decode once and store
+	if ( !ref $eps )
+	{
+		if ( !defined $eps || $eps !~ /\S/ )
+		{
+			delete $cfg->{http_endpoints};
+			return;
+		}
+		require JSON::XS;
+		my $decoded = eval { JSON::XS::decode_json($eps) };
+		if ($@)
+		{
+			# Strip "at … line …" trailers from JSON::XS error messages so
+			# the surfaced text is clean enough for a UI 'error' row.
+			my $err = $@;
+			$err =~ s/\s+at\s+\S+\s+line\s+\d+\.?\s*$//;
+			return $fail->("failed to JSON-decode: $err");
+		}
+		$eps = $decoded;
+	}
+
+	# Anything other than an arrayref is invalid
+	if ( ref $eps ne 'ARRAY' )
+	{
+		return $fail->("must be a JSON array");
+	}
+
+	# Empty array -> no endpoints; delete so absence is the canonical "none"
+	if ( !@$eps )
+	{
+		delete $cfg->{http_endpoints};
+		return;
+	}
+
+	$cfg->{http_endpoints} = $eps;
+	return;
 }
 
 # mark the object as changed to tell save() that something needs to be done
@@ -282,6 +388,10 @@ sub _load
 		}
 
 		$self->{_configuration} = $entry->{configuration} // {}; # unlikely to be blank
+		# Canonicalize http_endpoints once on load so any code that reads
+		# $self->{_configuration} directly (without going through the
+		# setter) sees the arrayref form, not a raw GUI JSON string.
+		$self->_normalize_http_endpoints($self->{_configuration});
 		$self->{_activated} =
 				(ref($entry->{activated}) eq "HASH"? # but fall back to old style active flag if needed
 				 $entry->{activated} : { NMIS => (exists($self->{_configuration}->{active})?
@@ -586,7 +696,7 @@ sub configuration
 				$newvalue->{$wantarray} = [ map { $_ eq ''? () : $_ } (split(/\s*,\s*/, $newvalue->{$wantarray})) ];
 			}
 		}
-		
+
 		$self->{_configuration} = $newvalue;
 		$self->_dirty( 1, 'configuration' );
 	}
@@ -1806,6 +1916,15 @@ sub validate
 	return (-2, "node '".$self->{_name}."' requires cluster_id") if ( !$self->{_cluster_id} );
 	return (-2, "node requires name") if ( !$self->{_name} );
 
+	# A configuration() setter call with malformed http_endpoints stashes
+	# an error here; surface it as a save failure so the GUI/API caller
+	# sees their JSON was rejected instead of silently disappearing.
+	if (defined $self->{_http_endpoints_error})
+	{
+		return (-1, "node '".$self->{_name}."' http_endpoints invalid: "
+			. $self->{_http_endpoints_error});
+	}
+
 	my $configuration = $self->configuration;
 	for my $musthave (qw(host group))
 	{
@@ -2239,6 +2358,8 @@ sub update_node_info
 	# Only initialize poll results for sources that are enabled on this node;
 	# leaving disabled sources as undef prevents compute_reachability from
 	# treating them as failed (min of enabled=100 and disabled=0 would be 0).
+	# expands to: ${source}result => snmpresult, wmiresult, httpresult
+	#             ${source}_enabled => snmp_enabled, wmi_enabled, http_enabled
 	for my $source (@{$S->known_sources})
 	{
 		$RI->{"${source}result"} = $S->status->{"${source}_enabled"} ? 0 : undef;
@@ -2264,6 +2385,7 @@ sub update_node_info
 		$curstate = $S->status;
 		push @problems, $curstate->{error} if ($curstate->{error});
 
+		# expands to: ${source}_error => snmp_error, wmi_error, http_error
 		for my $source (@{$S->known_sources})
 		{
 			if ( $curstate->{"${source}_error"} )
@@ -2379,6 +2501,7 @@ sub update_node_info
 
 				# source that hasn't worked? disable immediately
 				$curstate = $S->status;
+				# expands to: ${source}_error => snmp_error, wmi_error, http_error
 				for my $source (@{$S->known_sources})
 				{
 					if ( $curstate->{"${source}_error"} )
@@ -2460,6 +2583,9 @@ sub update_node_info
 	# disable_source changes the state so grab the current state again or we don't see
 	# the affect of the disable call (unless we attempted twice which doesn't always happen)
 	$curstate = $S->status;
+	# expands to: ${source}_enabled => snmp_enabled, wmi_enabled, http_enabled
+	#             ${source}_error   => snmp_error, wmi_error, http_error
+	#             ${source}result   => snmpresult, wmiresult, httpresult
 	for my $source (@{$S->known_sources})
 	{
 		# $curstate should be state as of last loadnodeinfo() op (with update above it is)
@@ -2584,6 +2710,13 @@ sub collect_node_info
 
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
+	# Per-source state and timing reconciliation. The interpolated names below
+	# expand to:
+	#   ${source}_enabled  => snmp_enabled, wmi_enabled, http_enabled
+	#   ${source}_error    => snmp_error, wmi_error, http_error
+	#   ${source}result    => snmpresult, wmiresult, httpresult
+	#   last_poll_$source  => last_poll_snmp, last_poll_wmi, last_poll_http
+	#   last_poll_${source}_attempt => last_poll_snmp_attempt, last_poll_wmi_attempt, last_poll_http_attempt
 	for my $source (@{$S->known_sources})
 	{
 		if ($curstate->{"${source}_enabled"})
@@ -2604,9 +2737,13 @@ sub collect_node_info
 				$self->handle_down( sys => $S, type => $source, details => $curstate->{"${source}_error"}, catchall_inventory => $catchall_inventory );
 				$RI->{"${source}result"} = 0;
 			}
+			# Stamp the attempt time INSIDE the enabled block so disabled
+			# sources don't advance the cadence clock — otherwise
+			# find_due_nodes will keep re-arming this source's next-due
+			# slot every poll and trigger spurious collects (e.g. an
+			# SNMP-only node would get HTTP-cadence collects forever).
+			$catchall_data->{"last_poll_${source}_attempt"} = $time_marker;
 		}
-		# We need to update this time, next attempt will be since this time
-		$catchall_data->{"last_poll_${source}_attempt"} = $time_marker;
 		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
@@ -4855,7 +4992,7 @@ sub collect_systemhealth_info
 	}
 	elsif ( !@{$S->enabled_sources} )
 	{
-		$self->nmisng->log->warn("cannot get systemHealth info, neither SNMP nor WMI enabled!");
+		$self->nmisng->log->warn("cannot get systemHealth info, no enabled data sources!");
 		return 0;
 	}
 
@@ -4944,20 +5081,38 @@ sub collect_systemhealth_info
 			next;
 		}
 
-		# determine if this is an snmp- OR wmi-backed systemhealth section
-		# combination of both cannot work, as there is only one index
-		if ( exists( $thissection->{wmi} ) and exists( $thissection->{snmp} ) )
+		# Determine which engine backs this systemHealth section by finding the
+		# one whose section_keys match a data-source block on the section. Only
+		# one engine may back a given section (the index space is shared).
+		my ($engine, $protocol);
+		my $matched_engines = 0;
+		for my $eng (@{$S->engines})
 		{
-			$self->nmisng->log->error("systemhealth: section=$section cannot have both sources WMI and SNMP enabled!");
+			my $matches_this_engine = 0;
+			for my $sk (@{$eng->section_keys})
+			{
+				if (exists $thissection->{$sk})
+				{
+					$matches_this_engine = 1;
+					last;
+				}
+			}
+			if ($matches_this_engine)
+			{
+				$matched_engines++;
+				$engine = $eng;
+				$protocol = $eng->protocol_name;
+			}
+		}
+		if ($matched_engines > 1)
+		{
+			$self->nmisng->log->error("systemhealth: section=$section cannot be backed by multiple engines simultaneously!");
 			next;
 		}
 
-		my $protocol = exists($thissection->{wmi}) ? 'wmi' : 'snmp';
-		my $engine = $S->engine($protocol);
-
 		if (!$engine || !$engine->is_active)
 		{
-			$self->nmisng->log->debug2(sub {"skipping section $section: source $protocol but node $S->{name} not configured for $protocol"});
+			$self->nmisng->log->debug2(sub {"skipping section $section: no active engine has a data-source block in this section"});
 			next;
 		}
 
@@ -4986,19 +5141,31 @@ sub collect_systemhealth_info
 
 			if ($disc_error)
 			{
-				$self->nmisng->log->error("($S->{name}) failed to get index table for systemHealth $section of model $catchall_data->{nodeModel}: $disc_error");
-				# Classify the error for SNMP (not_present, model_error are non-fatal)
+				# Classify FIRST, then log at the level appropriate to the
+				# classification — the engine's classify_error knows whether
+				# this is a soft-skip (e.g. an optional HTTP endpoint not
+				# configured on this node) or a real failure. Logging at
+				# 'error' before classifying would emit recurring noise
+				# every poll for legitimately-absent sections.
 				my $classified = $engine->classify_error;
-				if ($classified && $classified->{type} eq 'not_present')
+				my $type       = ($classified && $classified->{type}) || '';
+				my $msg = "($S->{name}) failed to get index table for systemHealth $section of model $catchall_data->{nodeModel}: $disc_error";
+
+				if ($type eq 'not_present')
 				{
-					$self->nmisng->log->debug2("Object not present for section $section: $disc_error");
+					# Optional section / endpoint not configured here.
+					# Debug-level only — no operator action required.
+					$self->nmisng->log->debug("$msg (not_present, soft skip)");
 				}
-				elsif ($classified && $classified->{type} eq 'model_error')
+				elsif ($type eq 'model_error')
 				{
+					# Model-side bug; operator should investigate.
 					$self->nmisng->log->error("Model error for section $section: $disc_error");
 				}
-				elsif ($classified && $classified->{type} eq 'no_session')
+				elsif ($type eq 'no_session')
 				{
+					# Connectivity is dead — error + handle_down + abort.
+					$self->nmisng->log->error($msg);
 					$self->handle_down(
 						sys     => $S,
 						type    => $protocol,
@@ -5009,6 +5176,8 @@ sub collect_systemhealth_info
 				}
 				else
 				{
+					# Unclassified / transport_error — keep prior behaviour.
+					$self->nmisng->log->error($msg);
 					$self->handle_down(
 						sys     => $S,
 						type    => $protocol,
@@ -5353,6 +5522,7 @@ sub handle_sys_get_data_error
 		elsif ($classified->{type} eq 'no_session')
 		{
 			# Mark sources with errors as down before stopping (matches original behavior)
+			# expands to: ${source}_error => snmp_error, wmi_error, http_error
 			for my $source (@{$S->known_sources})
 			{
 				$self->handle_down(sys => $S, type => $source,
@@ -5368,6 +5538,7 @@ sub handle_sys_get_data_error
 
 	# Generic error handling: check status-level errors for each known source
 	my $anyerror = $howdiditgo->{error};
+	# expands to: ${source}_error => snmp_error, wmi_error, http_error
 	for my $source (@{$S->known_sources})
 	{
 		$anyerror ||= $howdiditgo->{"${source}_error"};
@@ -6475,13 +6646,18 @@ sub compute_reachability
 	$reach{responsetime} = $RI->{pingavg};
 	$reach{loss}         = $RI->{pingloss};
 
-	# ${polltype}result is not defined if not tried, use the one that is defined
-	my $pollresult = $RI->{snmpresult} // $RI->{wmiresult} // undef;
-	if( defined($RI->{snmpresult}) && defined($RI->{wmiresult}) ) 
+	# Aggregate pollresult across every known source — min of all defined results.
+	# Sources that weren't tried have undef and don't contribute; failed sources
+	# (= 0) pull the aggregate down so reachability degrades correctly.
+	# Iterating known_sources keeps this generic — adding a future engine to
+	# Sys::known_sources makes it participate here automatically.
+	# expands to: snmpresult, wmiresult, httpresult
+	my $pollresult;
+	for my $source (@{ $S->known_sources })
 	{
-		# if they both are use the lower value
-		$pollresult = $RI->{snmpresult};
-		$pollresult = $RI->{wmiresult} if( $RI->{wmiresult} < $RI->{snmpresult} );
+		my $r = $RI->{"${source}result"};
+		next unless defined $r;
+		$pollresult = $r if !defined $pollresult || $r < $pollresult;
 	}
 
 
@@ -7330,9 +7506,9 @@ sub update_concepts
 		$self->nmisng->log->debug2(sub {"No class 'systemHealth' declared in Model."});
 		return 0;
 	}
-	elsif ( !$S->status->{snmp_enabled} && !$S->status->{wmi_enabled} )
+	elsif ( !@{$S->enabled_sources} )
 	{
-		$self->nmisng->log->warn("cannot get systemHealth info, neither SNMP nor WMI enabled!");
+		$self->nmisng->log->warn("cannot get systemHealth info, no enabled data sources!");
 		return 0;
 	}
 
@@ -9188,16 +9364,20 @@ sub unlock
 
 
 # perform collect operation for this one node
-# args: self, wantsnmp and wantwmi (both required),
+# args: self, wantsnmp / wantwmi / wanthttp (per-flavour gates,
+#  passed by nmisd from find_due_nodes; wanthttp defaults to true so
+#  manual / dev-tools calls don't accidentally turn http off),
 #  starttime (optional, default: now),
-#  force (optiona, default 0)
+#  force (optional, default 0)
 #
 # returns: hashref, keys success/error/locked,
 #  success 0 + locked 1 is for early bail-out due to collect/update lock
 sub collect
 {
 	my ($self, %args) = @_;
-	my ($wantsnmp,$wantwmi,$force,$starttime) = @args{"wantsnmp","wantwmi","force","starttime"};
+	my ($wantsnmp,$wantwmi,$wanthttp,$force,$starttime)
+		= @args{"wantsnmp","wantwmi","wanthttp","force","starttime"};
+	$wanthttp //= 1;   # default-on for legacy callers (dev-tools, tests, ad-hoc)
 	$starttime //= Time::HiRes::time;
 
 	my $name = $self->name;
@@ -9205,7 +9385,8 @@ sub collect
 	my $C = $self->nmisng->config;
 
 	$self->nmisng->log->debug("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
-														.", want WMI: ".($wantwmi?"yes":"no"));
+														.", want WMI: ".($wantwmi?"yes":"no")
+														.", want HTTP: ".($wanthttp?"yes":"no"));
 	$0 = "nmisd worker collect $name";
 
 	# try to lock the node (announcing what for)
@@ -9238,18 +9419,29 @@ sub collect
 	# record that we are trying a collect/poll;
 	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
 	$catchall_data->{last_poll_attempt} = $starttime;
-	if (defined($wantsnmp)) {
+	# Stamp only the flavours we actually attempted. find_due_nodes can
+	# return flavours = {snmp=>0, wmi=>0, http=>1} when only the HTTP
+	# cadence is due; treating those zeroes as attempts (with `defined`)
+	# would push the SNMP/WMI next-due time forward and starve them.
+	if ($wantsnmp) {
 		$catchall_data->{last_poll_snmp_attempt} = $starttime;
 	}
-	if (defined($wantwmi)) {
+	if ($wantwmi) {
 		$catchall_data->{last_poll_wmi_attempt} = $starttime;
+	}
+	if ($wanthttp) {
+		# Track http attempts symmetrically with snmp/wmi so
+		# NMISNG::find_due_nodes can compute next-due against the http
+		# cadence in the policy.
+		$catchall_data->{last_poll_http_attempt} = $starttime;
 	}
 
 	# if the init fails attempt an update operation instead
-	# Thats initialised to node polling policy	
+	# Thats initialised to node polling policy
 	if (!$S->init( node => $self,
 									snmp => $wantsnmp,
 									wmi => $wantwmi,
+									http => $wanthttp,
 									policy => $self->configuration->{polling_policy},
 									catchall_inventory => $catchall_inventory
 			))
@@ -9389,6 +9581,7 @@ sub collect
 		elsif ($updatewasok)    # at least some info was retrieved by wmi or snmp
 		{
 			# at this point we need to tell sys that dead sources are to be ignored
+			# expands to: ${source}_error => snmp_error, wmi_error, http_error
 			for my $source (@{$S->known_sources})
 			{
 				if ( $curstate->{"${source}_error"} )

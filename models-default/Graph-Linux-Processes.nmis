@@ -1,0 +1,44 @@
+#
+# Graph-Linux-Processes.nmis — runnable + blocked process counts and fork rate.
+# Running/Blocked are point-in-time gauges (Min+Avg+Max useful for trending);
+# Forks is a per-second rate.
+#
+%hash = (
+	'heading' => 'Linux Processes',
+	'title' => {
+		'standard' => '$node Processes - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node Processes - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Process count / Fork rate',
+		'small'    => 'Procs',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:running=$database:procs_running:AVERAGE',
+			'DEF:blocked=$database:procs_blocked:AVERAGE',
+			'DEF:forks=$database:forks_rate:AVERAGE',
+			'LINE2:running#1E90FF: Running',
+			'GPRINT:running:MIN:Min %5.1lf',
+			'GPRINT:running:AVERAGE:Avg %5.1lf',
+			'GPRINT:running:MAX:Max %5.1lf\\n',
+			'LINE2:blocked#FF6347: Blocked',
+			'GPRINT:blocked:MIN:Min %5.1lf',
+			'GPRINT:blocked:AVERAGE:Avg %5.1lf',
+			'GPRINT:blocked:MAX:Max %5.1lf\\n',
+			'LINE1:forks#FFA500: Forks/s',
+			'GPRINT:forks:AVERAGE:Avg %5.2lf',
+			'GPRINT:forks:MAX:Max %5.2lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:running=$database:procs_running:AVERAGE',
+			'DEF:blocked=$database:procs_blocked:AVERAGE',
+			'DEF:forks=$database:forks_rate:AVERAGE',
+			'LINE2:running#1E90FF: Running',
+			'LINE2:blocked#FF6347: Blocked',
+			'LINE1:forks#FFA500: Forks',
+		],
+	},
+);

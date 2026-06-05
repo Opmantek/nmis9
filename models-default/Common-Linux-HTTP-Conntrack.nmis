@@ -1,0 +1,30 @@
+#
+# Common-Linux-HTTP-Conntrack.nmis  (default-off)
+#
+# Netfilter connection-tracking table from node_exporter
+# (--collector.conntrack). Useful on routers / NAT gateways /
+# firewalls. Catches table exhaustion (conntrack_entries approaching
+# conntrack_entries_limit) which silently drops packets.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'linux_conntrack' => '/nodes/$node/health/linux_conntrack.rrd',
+		},
+	},
+
+	'system' => {
+		'rrd' => {
+			'linux_conntrack' => {
+				'graphtype' => 'Linux-Conntrack',
+				'http_prom' => {
+					'-common-'    => { 'endpoint' => 'node_exporter' },
+					'ct_entries'   => { 'metric' => 'node_nf_conntrack_entries',       'option' => 'gauge,0:U' },
+					'ct_limit'     => { 'metric' => 'node_nf_conntrack_entries_limit', 'option' => 'gauge,0:U' },
+					'ct_drop'      => { 'metric' => 'node_nf_conntrack_stat_drop',     'option' => 'gauge,0:U' },
+					'ct_inv'       => { 'metric' => 'node_nf_conntrack_stat_invalid',  'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

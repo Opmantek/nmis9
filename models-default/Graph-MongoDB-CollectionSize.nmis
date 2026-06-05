@@ -1,0 +1,46 @@
+#
+# Graph-MongoDB-CollectionSize.nmis - per-collection storage breakdown.
+# Scoped to a single database via match_labels in the Common file.
+#
+%hash = (
+	'heading' => 'MongoDB Collection $index',
+	'title' => {
+		'standard' => '$node MongoDB Coll $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Bytes',
+		'small'    => 'B',
+	},
+	'option' => {
+		'standard' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:size=$database:size:AVERAGE',
+			'DEF:store=$database:storageSize:AVERAGE',
+			'DEF:idx=$database:totalIndexSize:AVERAGE',
+			'DEF:cnt=$database:count:AVERAGE',
+			'AREA:size#1E90FF: Logical',
+			'GPRINT:size:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:size:MAX:Max %7.2lf%sB\\n',
+			'STACK:idx#FF8C00: Index',
+			'GPRINT:idx:AVERAGE:Avg %7.2lf%sB',
+			'GPRINT:idx:MAX:Max %7.2lf%sB\\n',
+			'LINE2:store#FF0000: On-disk',
+			'GPRINT:store:LAST:Now %7.2lf%sB\\n',
+			'COMMENT:Documents',
+			'GPRINT:cnt:LAST:Now %7.0lf',
+			'GPRINT:cnt:MAX:Max %7.0lf\\n',
+		],
+		'small' => [
+			'--base', '1024',
+			'--lower-limit', '0',
+			'DEF:size=$database:size:AVERAGE',
+			'DEF:store=$database:storageSize:AVERAGE',
+			'DEF:idx=$database:totalIndexSize:AVERAGE',
+			'AREA:size#1E90FF: Logical',
+			'STACK:idx#FF8C00: Index',
+			'LINE1:store#FF0000: Disk',
+		],
+	},
+);

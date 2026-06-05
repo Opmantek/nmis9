@@ -1,0 +1,46 @@
+#
+# Graph-NetInterfaceErrors.nmis — per-interface rx/tx errors and drops.
+#
+%hash = (
+	'heading' => 'Network Errors $index',
+	'title' => {
+		'standard' => '$node $index Errors - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index Errs - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Events per second',
+		'small'    => 'evt/s',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:re=$database:rx_errs:AVERAGE',
+			'DEF:te=$database:tx_errs:AVERAGE',
+			'DEF:rd=$database:rx_drop:AVERAGE',
+			'DEF:td=$database:tx_drop:AVERAGE',
+			'LINE2:re#FF0000: RX Errors',
+			'GPRINT:re:AVERAGE:Avg %5.2lf',
+			'GPRINT:re:MAX:Max %5.2lf\\n',
+			'LINE2:te#8B0000: TX Errors',
+			'GPRINT:te:AVERAGE:Avg %5.2lf',
+			'GPRINT:te:MAX:Max %5.2lf\\n',
+			'LINE1:rd#FFA500: RX Drops',
+			'GPRINT:rd:AVERAGE:Avg %5.2lf',
+			'GPRINT:rd:MAX:Max %5.2lf\\n',
+			'LINE1:td#FF8C00: TX Drops',
+			'GPRINT:td:AVERAGE:Avg %5.2lf',
+			'GPRINT:td:MAX:Max %5.2lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:re=$database:rx_errs:AVERAGE',
+			'DEF:te=$database:tx_errs:AVERAGE',
+			'DEF:rd=$database:rx_drop:AVERAGE',
+			'DEF:td=$database:tx_drop:AVERAGE',
+			'LINE1:re#FF0000: RX Err',
+			'LINE1:te#8B0000: TX Err',
+			'LINE1:rd#FFA500: RX Drop',
+			'LINE1:td#FF8C00: TX Drop',
+		],
+	},
+);

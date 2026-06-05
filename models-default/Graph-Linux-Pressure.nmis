@@ -1,0 +1,67 @@
+#
+# Graph-Linux-Pressure.nmis — Linux PSI as fraction of time stalled.
+# Each ds is cumulative seconds; rate per second = fraction of time tasks were
+# waiting (some) or fully stalled (full). Multiply by 100 to render as percent
+# and pin the y-axis to 0–100 with --upper-limit / --rigid.
+#
+%hash = (
+	'heading' => 'Linux Pressure (PSI)',
+	'title' => {
+		'standard' => '$node PSI - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node PSI - $length',
+	},
+	'vlabel' => {
+		'standard' => '% Time Stalled',
+		'small'    => '% PSI',
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit', '100',
+			'--lower-limit', '0',
+			'--rigid',
+			'DEF:cpu_w=$database:psi_cpu_wait:AVERAGE',
+			'DEF:io_w=$database:psi_io_wait:AVERAGE',
+			'DEF:io_s=$database:psi_io_stall:AVERAGE',
+			'DEF:mem_w=$database:psi_mem_wait:AVERAGE',
+			'DEF:mem_s=$database:psi_mem_stall:AVERAGE',
+			'CDEF:cpu_pct=cpu_w,100,*',
+			'CDEF:io_w_pct=io_w,100,*',
+			'CDEF:io_s_pct=io_s,100,*',
+			'CDEF:mem_w_pct=mem_w,100,*',
+			'CDEF:mem_s_pct=mem_s,100,*',
+			'LINE2:cpu_pct#FF8C00: CPU Wait',
+			'GPRINT:cpu_pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:cpu_pct:MAX:Max %5.2lf%%\\n',
+			'LINE2:io_w_pct#1E90FF: I/O Wait',
+			'GPRINT:io_w_pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:io_w_pct:MAX:Max %5.2lf%%\\n',
+			'LINE1:io_s_pct#000080: I/O Stall',
+			'GPRINT:io_s_pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:io_s_pct:MAX:Max %5.2lf%%\\n',
+			'LINE2:mem_w_pct#9932CC: Memory Wait',
+			'GPRINT:mem_w_pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:mem_w_pct:MAX:Max %5.2lf%%\\n',
+			'LINE1:mem_s_pct#4B0082: Memory Stall',
+			'GPRINT:mem_s_pct:AVERAGE:Avg %5.2lf%%',
+			'GPRINT:mem_s_pct:MAX:Max %5.2lf%%\\n',
+		],
+		'small' => [
+			'--upper-limit', '100',
+			'--lower-limit', '0',
+			'--rigid',
+			'DEF:cpu_w=$database:psi_cpu_wait:AVERAGE',
+			'DEF:io_w=$database:psi_io_wait:AVERAGE',
+			'DEF:io_s=$database:psi_io_stall:AVERAGE',
+			'DEF:mem_w=$database:psi_mem_wait:AVERAGE',
+			'DEF:mem_s=$database:psi_mem_stall:AVERAGE',
+			'CDEF:cpu_pct=cpu_w,100,*',
+			'CDEF:io_w_pct=io_w,100,*',
+			'CDEF:io_s_pct=io_s,100,*',
+			'CDEF:mem_w_pct=mem_w,100,*',
+			'CDEF:mem_s_pct=mem_s,100,*',
+			'LINE1:cpu_pct#FF8C00: CPU',
+			'LINE1:io_w_pct#1E90FF: I/O',
+			'LINE1:mem_w_pct#9932CC: Mem',
+		],
+	},
+);

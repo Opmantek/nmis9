@@ -1,0 +1,50 @@
+{
+  "title": "Mixed Complexity",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Simple Up",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "myapp_up" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Rate Wrapped",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "rate(myapp_total[5m])" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Aggregated Rate",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (code) (rate(myapp_requests_total[5m]))" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Histogram Quantile",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.99, rate(myapp_dur_bucket[5m]))" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Arithmetic",
+      "datasource": { "type": "prometheus", "uid": "abc" },
+      "targets": [
+        { "refId": "A", "expr": "myapp_a / myapp_b" }
+      ]
+    }
+  ]
+}

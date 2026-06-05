@@ -1,0 +1,55 @@
+#
+# Override-Model-net-snmp-mongodb.nmis  -- EXAMPLE, NOT auto-loaded
+#
+# Working pattern for "extend a stock model with a Common file on
+# specific nodes". Copy this into models-custom/ as
+#   Override-Model-net-snmp.nmis
+# to activate. See docs/Model-Reference.md, section 19, subsection
+# "Wiring a Common file into an existing model on a single node".
+#
+# What this override does once installed:
+#   - the lh_mongodb class entry pulls in Common-Linux-HTTP-MongoDB.nmis
+#   - extends system.nodegraph with the eleven new MongoDB graphtypes
+#     so they render as inline thumbnails on the node-view page
+#   - extends systemHealth.sections so the indexed Databases /
+#     Collections sections are recognised by collect_systemhealth_info
+#
+# String values are NOT merged additively by _mergeHash -- the override
+# wins outright. That's why nodegraph and systemHealth.sections must
+# restate the base's value verbatim before appending the new entries.
+# If Model-net-snmp.nmis upstream changes either string, this override
+# must be updated to match.
+#
+# Nodes with nodeModel=net-snmp that DON'T have an mongodb_exporter
+# http_endpoint configured fall through the HTTP engine's soft-skip
+# path (classify_error => 'not_present', logged at debug only).
+#
+%hash = (
+	'-common-' => {
+		'class' => {
+			# Hash merge is additive, so this adds lh_mongodb to the
+			# base's existing classes (database, summary, threshold,
+			# stats, event, ...) without disturbing them.
+			'lh_mongodb' => { 'common-model' => 'Linux-HTTP-MongoDB' },
+		},
+	},
+
+	'system' => {
+		# String overwrite. Restate Model-net-snmp.nmis's nodegraph
+		# verbatim, then append the eleven MongoDB graphs.
+		'nodegraph' => 'health,combinedCPUload,response,ss-cpu,Host_Memory,'
+		             . 'ss-blocks,hrsystem,ip,tcp-conn,tcp-segs,laload,hrsmpcpu,'
+		             . 'hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem,'
+		             . 'MongoDB-Status,MongoDB-Connections,MongoDB-Ops,'
+		             . 'MongoDB-Latencies,MongoDB-Memory,MongoDB-Network,'
+		             . 'MongoDB-Asserts,MongoDB-WT-Cache,MongoDB-WT-IO',
+	},
+
+	'systemHealth' => {
+		# String overwrite. Restate Model-net-snmp.nmis's sections
+		# verbatim, then append the two indexed MongoDB sections.
+		'sections' => 'diskIOTable,software,Host_Device,Host_Processor,env-temp,'
+		            . 'Host_Storage,Host_Disk_Storage,Host_Partition,Host_File_System,ipCidrRoute,'
+		            . 'MongoDBDatabases,MongoDBCollections',
+	},
+);

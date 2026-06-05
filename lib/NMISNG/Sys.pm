@@ -118,8 +118,21 @@ sub enabled_sources
 	return [ map { $_->protocol_name } grep { $_->is_active } @{$self->engines} ];
 }
 
-# Returns arrayref of all known protocol names (for iterating status checks)
-sub known_sources { return [qw(snmp wmi)]; }
+# Returns arrayref of all known protocol names (for iterating status checks).
+# Many per-source field names are computed via string interpolation against
+# this list — grepping for the concrete names won't always find the source
+# line, so each interpolation site in Node.pm / NMISNG.pm has a comment
+# listing what the names expand to. The concrete fan-out for the current
+# list is:
+#   ${source}_enabled       => snmp_enabled, wmi_enabled, http_enabled
+#   ${source}_error         => snmp_error, wmi_error, http_error
+#   ${source}result         => snmpresult, wmiresult, httpresult
+#   last_poll_$source       => last_poll_snmp, last_poll_wmi, last_poll_http
+#   last_poll_${source}_attempt => last_poll_snmp_attempt, last_poll_wmi_attempt, last_poll_http_attempt
+# When adding/removing a source here, search the codebase for those concrete
+# names too — find_due_nodes, reachability aggregation, and the collect
+# post-processing loop all consume them.
+sub known_sources { return [qw(snmp wmi http)]; }
 sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!
@@ -252,15 +265,25 @@ sub status
 {
 	my ($self) = @_;
 
-	return {
-		error        => $self->{error},
-		snmp_enabled => $self->{snmp} ? 1 : 0,
-		wmi_enabled  => $self->{wmi} ? 1 : 0,
-		snmp_error   => $self->{snmp_error},
-		wmi_error    => $self->{wmi_error},
-		skipped      => $self->{skipped},
+	my $r = {
+		error    => $self->{error},
+		skipped  => $self->{skipped},
 		fallback => $self->{fallback},
 	};
+	# Per-source enabled + error fans out across known_sources so HTTP
+	# (and any future engine) is treated identically to SNMP/WMI. The
+	# Node.pm per-source reconciliation loop reads these via
+	# $curstate->{"${source}_enabled"} — keeping this generic means new
+	# engines automatically participate in result aggregation, last_poll
+	# stamping, handle_down events, and reachability accounting.
+	# expands to: snmp_enabled, wmi_enabled, http_enabled
+	#             snmp_error,   wmi_error,   http_error
+	for my $source (@{ $self->known_sources })
+	{
+		$r->{"${source}_enabled"} = $self->{$source} ? 1 : 0;
+		$r->{"${source}_error"}   = $self->{"${source}_error"};
+	}
+	return $r;
 }
 
 # initialise the system object for a given node
@@ -345,15 +368,15 @@ sub init
 	my $table_policies = NMISNG::Util::loadTable(dir => "conf", name => "Polling-Policy", conf => $C) // NMISNG::Util::loadTable(dir => "conf-default", name => "Polling-Policy", conf => $C);
 	my $policy;
 	my $intervals;
-	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, update => 86400};
+	$intervals->{default} = {ping => 60, snmp => 300, wmi => 300, http => 60, update => 86400};
 	if ($policy_name) {
 		for my $polname ( keys %$table_policies )
 		{
 			next if ( ref( $table_policies->{$polname} ) ne "HASH" );
-			for my $subtype (qw(snmp wmi ping update))
+			for my $subtype (qw(snmp wmi http ping update))
 			{
 					my $interval = $table_policies->{$polname}->{$subtype};
-					if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
+					if ( defined $interval && $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
 					{
 						my ( $rawvalue, $unit ) = ( $1, $3 );
 						$interval = $rawvalue * (
@@ -363,11 +386,18 @@ sub init
 							:                1
 						);
 					}
+					elsif ( !defined $interval || $interval =~ /^\s*$/ )
+					{
+						# A policy that doesn't override this subtype falls back
+						# to the default cadence silently (was always benign;
+						# logging an error here was noise, especially after http
+						# was added as a recognised subtype).
+						$interval = $intervals->{default}->{$subtype};
+					}
 					else
 					{
 						$self->nmisng->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
-						$interval = $intervals->{devault}->{$subtype};
-						#$self->nmisng->log->info(&NMISNG::Log::trace()." nmisng");
+						$interval = $intervals->{default}->{$subtype};
 					}
 					$intervals->{$polname}->{$subtype} = $interval;    # now in seconds
 			}
@@ -379,6 +409,11 @@ sub init
 	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
 	# ditto for wmi, but default from snmp
 	my $wantwmi = NMISNG::Util::getbool( exists $args{wmi} ? $args{wmi} : $snmp );
+	# http engine gate. Default to true so callers that don't pass it
+	# (dev-tools, tests, ad-hoc) still get HTTP collection if endpoints
+	# are configured. nmisd workers pass an explicit value derived from
+	# the polling policy's http cadence via NMISNG::find_due_nodes.
+	my $wanthttp = NMISNG::Util::getbool( exists $args{http} ? $args{http} : 1 );
 	my $catchall_data = {};
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
@@ -454,11 +489,10 @@ sub init
 		}
 	}
 
-	# load node configuration - attention: only done if snmp or wmi are true
-	# and if there's a node
-	if (!$self->{error}
-			and ( $snmp or $wantwmi )
-			and $self->{name} )
+	# load node configuration if we have a node. Previously this was guarded
+	# by ($snmp or $wantwmi) as an optimization, but Engine::HTTP also needs
+	# the node config (http_endpoints) and the read is cheap, so always do it.
+	if (!$self->{error} and $self->{name})
 	{
 		# fixme9: this is truly not good, duplicated, wasteful and mangled data.
 		# sys::ndcfg and this should be eradicated altogether, and replaced by using the node object's
@@ -624,10 +658,30 @@ sub init
 		}
 	}
 
-	my $have_snmp_settings = ( $thisnodeconfig->{username} ne "" || $thisnodeconfig->{community} ne "" ) ? 1 : 0;
-	my $have_wmi_settings = ( $thisnodeconfig->{wmiusername} ne "" ) ? 1 : 0;
-	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings ) ? 1 : 0;
-	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings");
+	# Per-source enabled flags are derived at save time in
+	# Node::_defaults and persisted on the node config. Reading the flag
+	# is cheaper and more honest than re-inferring "are there settings?"
+	# every poll cycle, and a future GUI toggle can override the derived
+	# default to disable a source even when its settings are present.
+	#
+	# Defensive read: prefer the persisted flag, fall back to inferring
+	# from settings if it's undef. This keeps legacy DB rows (saved
+	# before the flag existed) working until the next configuration()
+	# save writes the flag through. Mirrors the derivation in
+	# Node::_defaults exactly.
+	my $cfg = $thisnodeconfig;
+	my $have_snmp_settings = defined $cfg->{snmp_enabled}
+		? ($cfg->{snmp_enabled} ? 1 : 0)
+		: ((  (defined $cfg->{community} && $cfg->{community} ne "")
+		   || (defined $cfg->{username}  && $cfg->{username}  ne "")) ? 1 : 0);
+	my $have_wmi_settings  = defined $cfg->{wmi_enabled}
+		? ($cfg->{wmi_enabled} ? 1 : 0)
+		: ((defined $cfg->{wmiusername} && $cfg->{wmiusername} ne "") ? 1 : 0);
+	my $have_http_settings = defined $cfg->{http_enabled}
+		? ($cfg->{http_enabled} ? 1 : 0)
+		: ((ref $cfg->{http_endpoints} eq 'ARRAY' && @{$cfg->{http_endpoints}}) ? 1 : 0);
+	my $have_any_settings = ( $have_snmp_settings || $have_wmi_settings || $have_http_settings ) ? 1 : 0;
+	$self->nmisng->log->debug("Sys::Init $self->{name} have_any_settings:$have_any_settings have_snmp_settings:$have_snmp_settings have_wmi_settings:$have_wmi_settings have_http_settings:$have_http_settings");
 	
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet), 
 	# to be wanted it needs to have a community or snmpv3 username, default of "public" must be added to config and not
@@ -694,6 +748,21 @@ sub init
 	{
 		require NMISNG::Sys::Engine::WMI;
 		push @{$self->{_engines}}, NMISNG::Sys::Engine::WMI->new(sys => $self);
+	}
+	# Gate engine creation on the explicit http_enabled flag (derived at
+	# save time, see Node::_defaults). http_endpoints is canonicalized to
+	# an arrayref by Node::_normalize_http_endpoints — no JSON decode here.
+	if ($wanthttp && $have_http_settings
+		&& ref $thisnodeconfig->{http_endpoints} eq 'ARRAY')
+	{
+		require NMISNG::Sys::Engine::HTTP;
+		my $http_engine = NMISNG::Sys::Engine::HTTP->new(sys => $self);
+		$http_engine->set_endpoints($thisnodeconfig->{http_endpoints});
+		push @{$self->{_engines}}, $http_engine;
+		# Mirror the SNMP/WMI convention: store the engine ref on a
+		# per-source slot so Sys::status's known_sources loop sees
+		# http_enabled = 1.
+		$self->{http} = $http_engine;
 	}
 
 	return $self->{error} ? 0 : 1;
@@ -957,6 +1026,7 @@ sub loadInfo
 	);
 	$self->{wmi_error}  = $status->{wmi_error};
 	$self->{snmp_error} = $status->{snmp_error};
+	$self->{http_error} = $status->{http_error};
 	$self->{error}      = $status->{error};
 
 	# no data? okish iff marked as skipped
@@ -1110,6 +1180,7 @@ sub getData
 	$self->{error}      = $status->{error};
 	$self->{wmi_error}  = $status->{wmi_error};
 	$self->{snmp_error} = $status->{snmp_error};
+	$self->{http_error} = $status->{http_error};
 	$self->{skipped}    = $status->{skipped} // 0;
 
 	# data? we're happy-ish
@@ -1256,10 +1327,26 @@ sub getValues
 			next;
 		}
 
-		if ( (!defined( $thissection->{snmp} ) || ref $thissection->{snmp} ne "HASH") && (!defined( $thissection->{wmi} ) || ref $thissection->{wmi} ne "HASH")  )
+		# Section needs at least one data-source block matching one of the
+		# active engines' section_keys (e.g. snmp, wmi, http_prom, http_json).
+		# Engine-aware so new engines pick up coverage automatically.
+		my $has_data_source = 0;
+		for my $engine (@{$self->engines})
 		{
-			$self->nmisng->log->debug2(sub {"collection of section $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect"});
-			$status{skipped} = "skipped $sectionname skipped, it does not have snmp entry or it is empty, if this is desired set skip_collect";
+			for my $sk (@{$engine->section_keys})
+			{
+				if (defined($thissection->{$sk}) && ref($thissection->{$sk}) eq "HASH")
+				{
+					$has_data_source = 1;
+					last;
+				}
+			}
+			last if $has_data_source;
+		}
+		if (!$has_data_source)
+		{
+			$self->nmisng->log->debug2(sub {"collection of section $sectionname skipped, it has no data-source block matching any active engine; if this is desired set skip_collect"});
+			$status{skipped} = "skipped $sectionname, no data-source block for any active engine";
 			next;
 		}
 		NMISNG::Util::TODO("GRAPHTYPE: Does full removal of this code make sense?");
@@ -1291,24 +1378,30 @@ sub getValues
 		# 	}
 		# }
 
-		# Delegate query building to protocol engines
+		# Delegate query building to protocol engines. An engine may declare
+		# multiple section keys (e.g. Engine::HTTP handles http_prom + http_json);
+		# we dispatch once per matching section key on the model section.
 		for my $engine (@{$self->engines})
 		{
 			next unless $engine->is_active;
 			my $proto = $engine->protocol_name;
-			my $section_hash = $thissection->{$proto};
-			next unless ref($section_hash) eq "HASH";
+			for my $skey (@{$engine->section_keys})
+			{
+				my $section_hash = $thissection->{$skey};
+				next unless ref($section_hash) eq "HASH";
 
-			my $eng_status = $engine->build_queries(
-				section_name    => $sectionname,
-				section_hash    => $section_hash,
-				section_indexed => $thissection->{indexed},
-				index           => $index,
-				port            => $port,
-				inventory       => $inventory,
-				todos           => \%todos,
-			);
-			$status{"${proto}_error"} = $eng_status->{error} if $eng_status->{error};
+				my $eng_status = $engine->build_queries(
+					section_name    => $sectionname,
+					section_key     => $skey,
+					section_hash    => $section_hash,
+					section_indexed => $thissection->{indexed},
+					index           => $index,
+					port            => $port,
+					inventory       => $inventory,
+					todos           => \%todos,
+				);
+				$status{"${proto}_error"} = $eng_status->{error} if $eng_status->{error};
+			}
 		}
 	}
 
@@ -1651,6 +1744,87 @@ sub loadModel
 					$self->nmisng->log->debug2(sub {"Cached model \"$model\" mtime $cfage compares ok to \"$other\" ($othermtime)."});
 				}
 			}
+
+			# also verify scoped override files (Override-Model-X.nmis and Override-Common-X.nmis)
+			# auto-discovered from models-custom only. Detects adds, edits, and deletes since cache was written.
+			# Cache-tracking metadata lives in a sidecar file alongside $thiscf so $self->{mdl} stays a pure model hash.
+			if (!$isstale)
+			{
+				my $sidecar_path = "$thiscf.meta.json";
+				my $cache_meta = -f $sidecar_path
+					? NMISNG::Util::readFiletoHash(file => $sidecar_path, json => 1, lock => 0, conf => $C)
+					: undef;
+
+				# Strong invariant: cache hit requires a valid sidecar with applied_overrides arrayref.
+				# Without it we cannot distinguish "no overrides ever applied" from "overrides existed but got deleted",
+				# so we cannot trust that the cached merged model still matches the current on-disk state.
+				if (ref($cache_meta) ne "HASH" or ref($cache_meta->{applied_overrides}) ne "ARRAY")
+				{
+					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: missing or invalid sidecar at $sidecar_path."});
+					$isstale = 1;
+				}
+				else
+				{
+					my $custom_models_dir = NMISNG::Util::getDir(dir => "models", conf => $C);
+					my $shortname = $model;
+					$shortname =~ s/^Model-//;
+
+					my @expected_overrides = ("Override-Model-$shortname");
+					if (ref($self->{mdl}->{'-common-'}) eq "HASH"
+							&& ref($self->{mdl}->{'-common-'}->{class}) eq "HASH")
+					{
+						push @expected_overrides,
+							map { "Override-Common-".$self->{mdl}->{'-common-'}->{class}->{$_}->{'common-model'} }
+							(keys %{$self->{mdl}->{'-common-'}->{class}});
+					}
+
+					# what was applied last time, keyed by full path
+					my %was_applied = map { $_->{path} => $_->{mtime} } @{$cache_meta->{applied_overrides}};
+					my %expected_paths;
+
+					for my $name (@expected_overrides)
+					{
+						my $path = "$custom_models_dir/$name.nmis";
+						$expected_paths{$path} = 1;
+						my $exists_now = -e $path;
+						my $current_mtime = $exists_now ? (stat($path))[9] : undef;
+						my $prev_mtime = $was_applied{$path};
+
+						if ($exists_now && !defined $prev_mtime)
+						{
+							$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: scoped override $path appeared since cache."});
+							$isstale = 1;
+							last;
+						}
+						elsif (!$exists_now && defined $prev_mtime)
+						{
+							$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: scoped override $path was deleted since cache."});
+							$isstale = 1;
+							last;
+						}
+						elsif ($exists_now && defined $prev_mtime && $current_mtime != $prev_mtime)
+						{
+							$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: scoped override $path mtime changed."});
+							$isstale = 1;
+							last;
+						}
+					}
+
+					# defensive: catch a previously-applied override whose path no longer matches the current model structure
+					if (!$isstale)
+					{
+						for my $applied_path (keys %was_applied)
+						{
+							if (!$expected_paths{$applied_path})
+							{
+								$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: previously-applied override $applied_path no longer expected."});
+								$isstale = 1;
+								last;
+							}
+						}
+					}
+				}
+			}
 			if ($isstale)
 			{
 				$mustloadfromsource = 1;
@@ -1685,10 +1859,40 @@ sub loadModel
 			$shortname =~ s/^Model-//;
 			$self->{mdl}->{system}->{nodeModel} = $shortname;
 
+			# scoped overrides are auto-discovered from models-custom (no config setting required).
+			# Override-Model-<name>.nmis  applies to Model-<name>.nmis
+			# Override-Common-<feature>.nmis applies to Common-<feature>.nmis (merged right after the matching Common)
+			my $custom_models_dir = NMISNG::Util::getDir(dir => "models", conf => $C);
+			my @applied_overrides;
+			my $apply_scoped_override = sub {
+				my ($name) = @_;
+				my $path = "$custom_models_dir/$name.nmis";
+				return 1 if (!-e $path); # absent is normal/silent
+				my $mtime = (stat($path))[9];
+				my $data = NMISNG::Util::loadTable(dir => "models", name => "$name.nmis", conf => $C);
+				if (ref($data) ne "HASH" or !keys %$data)
+				{
+					$self->{error} = "ERROR ($self->{name}) failed to read scoped override $path: $data";
+					$exit = 0;
+					return 0;
+				}
+				if (!$self->_mergeHash($self->{mdl}, $data))
+				{
+					$self->{error} = "ERROR ($self->{name}) scoped override merge failed for $path!";
+					return 0;
+				}
+				push @applied_overrides, { path => $path, mtime => $mtime };
+				return 1;
+			};
+
+			# apply Override-Model-<shortname> right after the main model is in place
+			return 0 if (!$apply_scoped_override->("Override-Model-$shortname"));
+
 			# continue with loading common Models, sorted using characters because we didn't use numbers here...
 			foreach my $class (sort  {$a cmp $b} keys %{$self->{mdl}{'-common-'}{class}} )
 			{
-				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
+				my $feature = $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
+				my $name = "Common-$feature";
 				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
 				if (!$commonres->{success})
 				{
@@ -1704,6 +1908,8 @@ sub loadModel
 						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
 					}
+					# apply Override-Common-<feature> immediately after its base Common file
+					return 0 if (!$apply_scoped_override->("Override-Common-$feature"));
 				}
 			}
 			# after all models are loaded add in override files
@@ -1764,6 +1970,12 @@ sub loadModel
 			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
 			{
 				NMISNG::Util::writeHashtoFile( file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0, conf => $C );
+				# sidecar with the list of scoped overrides actually merged in. Used by the freshness check
+				# on subsequent cache hits to detect added / edited / deleted scoped override files.
+				# Kept out of the model JSON so $self->{mdl} stays a pure model hash that all walkers can iterate.
+				NMISNG::Util::writeHashtoFile( file => "$thiscf.meta.json",
+											   data => { applied_overrides => \@applied_overrides },
+											   json => 1, pretty => 0, conf => $C );
 			}
 		}
 	}

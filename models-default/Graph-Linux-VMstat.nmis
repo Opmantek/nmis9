@@ -1,0 +1,49 @@
+#
+# Graph-Linux-VMstat.nmis — page faults / page in-out / swap in-out per second.
+# oom_kill lives in the dedicated Linux-OomKill graph (the same RRD) so the
+# y-axis here can scale to the dominant page-fault range without OOM-kill
+# rates of <0.001/s flattening the others into invisibility.
+#
+%hash = (
+	'heading' => 'Linux VM Stats',
+	'title' => {
+		'standard' => '$node VMstat - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node VMstat - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Pages per second',
+		'small'    => 'pgs/s',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:fault=$database:pgfault:AVERAGE',
+			'DEF:major=$database:pgmajfault:AVERAGE',
+			'DEF:swp_in=$database:pswpin:AVERAGE',
+			'DEF:swp_out=$database:pswpout:AVERAGE',
+			'LINE2:fault#1E90FF: Page Faults',
+			'GPRINT:fault:AVERAGE:Avg %7.2lf',
+			'GPRINT:fault:MAX:Max %7.2lf\\n',
+			'LINE2:major#FF8C00: Major Faults',
+			'GPRINT:major:AVERAGE:Avg %5.2lf',
+			'GPRINT:major:MAX:Max %5.2lf\\n',
+			'LINE2:swp_in#FF0000: Swap In',
+			'GPRINT:swp_in:AVERAGE:Avg %5.2lf',
+			'GPRINT:swp_in:MAX:Max %5.2lf\\n',
+			'LINE2:swp_out#8B0000: Swap Out',
+			'GPRINT:swp_out:AVERAGE:Avg %5.2lf',
+			'GPRINT:swp_out:MAX:Max %5.2lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:fault=$database:pgfault:AVERAGE',
+			'DEF:major=$database:pgmajfault:AVERAGE',
+			'DEF:swp_in=$database:pswpin:AVERAGE',
+			'DEF:swp_out=$database:pswpout:AVERAGE',
+			'LINE1:fault#1E90FF: Faults',
+			'LINE1:major#FF8C00: Major',
+			'LINE1:swp_in#FF0000: Swp In',
+			'LINE1:swp_out#8B0000: Swp Out',
+		],
+	},
+);

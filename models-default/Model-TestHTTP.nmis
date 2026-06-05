@@ -1,0 +1,75 @@
+#
+# Model-TestHTTP.nmis - Test model for HTTP polling pipeline validation.
+# Used by test/t_sys_http.pl and test/t_polling_http.pl. Should not be
+# assigned to real devices.
+#
+# Exercises:
+#   - sys.standard.http_prom   scalar Prometheus metric extraction
+#   - sys.standard.http_json   scalar JSON path extraction
+#   - rrd.load.http_prom       RRD path
+#   - systemHealth.AppQueues   label-as-index Prometheus systemHealth
+#
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database' => { 'common-model' => 'database' }
+		},
+	},
+	'system' => {
+		'nodegraph' => 'health,response',
+		'nodeModel' => 'TestHTTP',
+		'nodeType'  => 'server',
+		'sys' => {
+			'standard' => {
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'load1'    => { 'metric' => 'node_load1', 'title' => '1m load' },
+					'memfree'  => { 'metric' => 'node_memory_MemFree_bytes', 'title' => 'Free memory' },
+				},
+				'http_json' => {
+					'-common-' => { 'endpoint' => 'app_status', 'path' => '/status' },
+					'state'    => { 'jsonpath' => '$.app.state',          'title' => 'App state' },
+					'uptime'   => { 'jsonpath' => '$.app.uptime_seconds', 'title' => 'App uptime' },
+				},
+			},
+		},
+		'rrd' => {
+			'load' => {
+				'graphtype' => 'laload',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'load1'    => { 'metric' => 'node_load1',  'option' => 'gauge,0:U' },
+					'load5'    => { 'metric' => 'node_load5',  'option' => 'gauge,0:U' },
+					'load15'   => { 'metric' => 'node_load15', 'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+	'systemHealth' => {
+		'sections' => 'AppQueues',
+		'sys' => {
+			'AppQueues' => {
+				'indexed'   => 'queue',
+				'index_oid' => 'queue',
+				'headers'   => 'queue,depth,processed',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'app_metrics' },
+					'queue'     => { 'metric' => 'app_queue_depth',          'title' => 'Queue' },
+					'depth'     => { 'metric' => 'app_queue_depth',          'title' => 'Depth' },
+					'processed' => { 'metric' => 'app_queue_processed_total', 'title' => 'Processed' },
+				},
+			},
+		},
+		'rrd' => {
+			'AppQueues' => {
+				'graphtype' => 'AppQueues',
+				'indexed'   => 'queue',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'app_metrics' },
+					'depth'     => { 'metric' => 'app_queue_depth',          'option' => 'gauge,0:U' },
+					'processed' => { 'metric' => 'app_queue_processed_total', 'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

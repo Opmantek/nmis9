@@ -1,0 +1,47 @@
+#
+# Common-Linux-HTTP-Hardware.nmis  (default-off)
+#
+# Hardware sensor data from node_exporter (--collector.hwmon). Indexed
+# by `chip` + `sensor` label — the engine doesn't currently support
+# composite indexes, so we use `sensor` alone (chip can be filtered via a
+# `control` expression on the rrd block, or per-host overrides).
+#
+# This section is mostly empty on cloud VMs (no hardware sensors
+# exposed). Off by default; enable on bare-metal hosts.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'HardwareSensors' => '/nodes/$node/health/hwmon-$index.rrd',
+		},
+	},
+
+	'systemHealth' => {
+		# 'sections' string is centralised in Model-Linux-HTTP.nmis
+		'sys' => {
+			'HardwareSensors' => {
+				'indexed'   => 'sensor',
+				'index_oid' => 'sensor',
+				'headers'   => 'sensor,temp_celsius',
+				'max_rows'  => 64,
+				'http_prom' => {
+					'-common-'  => { 'endpoint' => 'node_exporter' },
+					'sensor'      => { 'title' => 'Sensor' },
+					'temp_celsius' => { 'metric' => 'node_hwmon_temp_celsius',
+					                     'title'  => 'Temperature (°C)' },
+				},
+			},
+		},
+		'rrd' => {
+			'HardwareSensors' => {
+				'graphtype' => 'Linux-Hardware',
+				'indexed'   => 'sensor',
+				'http_prom' => {
+					'-common-'   => { 'endpoint' => 'node_exporter' },
+					'temp_celsius' => { 'metric' => 'node_hwmon_temp_celsius',
+					                     'option' => 'gauge,U:U' },
+				},
+			},
+		},
+	},
+);

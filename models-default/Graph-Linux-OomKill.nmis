@@ -1,0 +1,35 @@
+#
+# Graph-Linux-OomKill.nmis — dedicated OOM-kill counter graph.
+# Reads the same RRD as Linux-VMstat (database.type.linux_vmstat) but
+# focuses solely on oom_kill so a single non-zero event is immediately
+# visible — in the composite VMstat graph it gets dwarfed by page-fault
+# rates that are orders of magnitude larger.
+#
+%hash = (
+	'heading' => 'Linux OOM Kills',
+	'title' => {
+		'standard' => '$node OOM Kills - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node OOM Kills - $length',
+	},
+	'vlabel' => {
+		'standard' => 'OOM Kills per second',
+		'small'    => 'oom/s',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:oom=$database:oom_kill:AVERAGE',
+			'AREA:oom#FF000080: OOM Kill Rate',
+			'LINE2:oom#8B0000',
+			'GPRINT:oom:AVERAGE:Avg %8.4lf',
+			'GPRINT:oom:MAX:Max %8.4lf\\n',
+			'COMMENT:Counter is cumulative since boot - any non-zero rate means at least one OOM kill occurred.\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:oom=$database:oom_kill:AVERAGE',
+			'AREA:oom#FF000080: OOM',
+			'LINE2:oom#8B0000',
+		],
+	},
+);

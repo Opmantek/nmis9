@@ -1,0 +1,81 @@
+#
+# Common-Linux-HTTP-Network.nmis
+#
+# Per-interface network counters from node_exporter. Indexed by the
+# `device` Prometheus label (filesystem-safe — ens18, docker0, br-...).
+# Reuses the existing NetInterfaces RRD path / Graph-NetInterfaces
+# graph; rx and tx counters are stored as RRD COUNTER ds-types so the
+# rate is derived between successive samples.
+#
+%hash = (
+	'database' => {
+		'type' => {
+			'NetInterfaces' => '/nodes/$node/interface/netif-$index.rrd',
+		},
+	},
+
+	'systemHealth' => {
+		# The aggregate sections list lives in Model-Linux-HTTP.nmis
+		# (it's a string, so per-Common-file declarations would
+		# overwrite each other rather than merge).
+		'sys'      => {
+			'NetInterfaces' => {
+				'indexed'      => 'device',
+				'index_oid'    => 'device',
+				'headers'      => 'device,rx_bytes,tx_bytes,rx_errs,tx_errs,rx_drop,tx_drop,up',
+				'max_rows'     => 100,
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					# Index-self: an item with no metric/jsonpath/calculate_url
+					# in an indexed section records the row's index value.
+					'device'    => { 'title' => 'Interface name' },
+					'rx_bytes'  => { 'metric' => 'node_network_receive_bytes_total',
+					                  'title' => 'Receive bytes (total)' },
+					'tx_bytes'  => { 'metric' => 'node_network_transmit_bytes_total',
+					                  'title' => 'Transmit bytes (total)' },
+					'rx_errs'   => { 'metric' => 'node_network_receive_errs_total',
+					                  'title' => 'Receive errors' },
+					'tx_errs'   => { 'metric' => 'node_network_transmit_errs_total',
+					                  'title' => 'Transmit errors' },
+					'rx_drop'   => { 'metric' => 'node_network_receive_drop_total',
+					                  'title' => 'Receive drops' },
+					'tx_drop'   => { 'metric' => 'node_network_transmit_drop_total',
+					                  'title' => 'Transmit drops' },
+					'up'        => { 'metric' => 'node_network_up',
+					                  'title' => 'Link up (1/0)' },
+				},
+			},
+		},
+		'rrd' => {
+			'NetInterfaces' => {
+				'graphtype' => 'NetInterfaces,NetInterfaceErrors',
+				'indexed'   => 'device',
+				# Default keeps physical/named interfaces, docker0, and named
+				# docker bridges. Suppresses RRD writes for veth* pairs and lo
+				# (node_exporter doesn't emit rx/tx counters for loopback on
+				# most distros, so it would error anyway). Inventory still
+				# records every interface; relax the regex per-node to widen.
+				'control'   => 'CVAR=device;$CVAR =~ /^(en[a-z0-9]+|eth\d+|docker0|br-[0-9a-f]+)$/',
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'node_exporter' },
+					'rx_bytes' => { 'metric' => 'node_network_receive_bytes_total',
+					                 'option' => 'counter,0:U' },
+					'tx_bytes' => { 'metric' => 'node_network_transmit_bytes_total',
+					                 'option' => 'counter,0:U' },
+					'rx_packets' => { 'metric' => 'node_network_receive_packets_total',
+					                   'option' => 'counter,0:U' },
+					'tx_packets' => { 'metric' => 'node_network_transmit_packets_total',
+					                   'option' => 'counter,0:U' },
+					'rx_errs'    => { 'metric' => 'node_network_receive_errs_total',
+					                   'option' => 'counter,0:U' },
+					'tx_errs'    => { 'metric' => 'node_network_transmit_errs_total',
+					                   'option' => 'counter,0:U' },
+					'rx_drop'    => { 'metric' => 'node_network_receive_drop_total',
+					                   'option' => 'counter,0:U' },
+					'tx_drop'    => { 'metric' => 'node_network_transmit_drop_total',
+					                   'option' => 'counter,0:U' },
+				},
+			},
+		},
+	},
+);

@@ -1,0 +1,45 @@
+#
+# Graph-MongoDB-Connections.nmis - active/current/available connection counts.
+# total_created is a counter (per-second rate) shown alongside as a line.
+#
+%hash = (
+	'heading' => 'MongoDB Connections',
+	'title' => {
+		'standard' => '$node MongoDB Connections - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node MongoDB Connections - $length',
+	},
+	'vlabel' => {
+		'standard' => 'Open Connections',
+		'small'    => 'conns',
+	},
+	'option' => {
+		'standard' => [
+			'--lower-limit', '0',
+			'DEF:current=$database:current:AVERAGE',
+			'DEF:active=$database:active:AVERAGE',
+			'DEF:available=$database:available:AVERAGE',
+			'DEF:created=$database:total_created:AVERAGE',
+			'AREA:active#1E90FF: Active',
+			'GPRINT:active:AVERAGE:Avg %5.0lf',
+			'GPRINT:active:MAX:Max %5.0lf\\n',
+			'STACK:current#7CFC00: Current',
+			'GPRINT:current:AVERAGE:Avg %5.0lf',
+			'GPRINT:current:MAX:Max %5.0lf\\n',
+			'LINE2:available#FFA500: Available',
+			'GPRINT:available:AVERAGE:Avg %5.0lf',
+			'GPRINT:available:MAX:Max %5.0lf\\n',
+			'COMMENT:Newly created/s',
+			'GPRINT:created:AVERAGE:Avg %5.2lf',
+			'GPRINT:created:MAX:Max %5.2lf\\n',
+		],
+		'small' => [
+			'--lower-limit', '0',
+			'DEF:current=$database:current:AVERAGE',
+			'DEF:active=$database:active:AVERAGE',
+			'DEF:available=$database:available:AVERAGE',
+			'AREA:active#1E90FF: Active',
+			'STACK:current#7CFC00: Current',
+			'LINE1:available#FFA500: Avail',
+		],
+	},
+);

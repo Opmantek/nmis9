@@ -171,6 +171,12 @@ sub _threshold_period
 	return "-15 minutes";
 }
 
+# Per-source enabled flags (snmp_enabled / wmi_enabled / http_enabled) are
+# stored on the node configuration and derived at save time in
+# Node::_defaults. find_due_nodes reads them directly via
+# $nodeconfig->{http_enabled} below — no helper needed; no inference at
+# scheduling time. See Node::_defaults for the derivation rules.
+
 ###########
 # Public:
 ###########
@@ -1734,16 +1740,16 @@ sub find_due_nodes
 			dir  => 'conf',
 			name => "Polling-Policy"
 		) || {};
-		%intervals = ( default => {ping => 60, snmp => 300, wmi => 300, update => 86400} );
+		%intervals = ( default => {ping => 60, snmp => 300, wmi => 300, http => 60, update => 86400} );
 
 		# translate period specs X.Ys, A.Bm, etc. into seconds
 		for my $polname ( keys %$policies )
 		{
 			next if ( ref( $policies->{$polname} ) ne "HASH" );
-			for my $subtype (qw(snmp wmi ping update))
+			for my $subtype (qw(snmp wmi http ping update))
 			{
 				my $interval = $policies->{$polname}->{$subtype};
-				if ( $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
+				if ( defined $interval && $interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/ )
 				{
 					my ( $rawvalue, $unit ) = ( $1, $3 );
 					$interval = $rawvalue * (
@@ -1753,10 +1759,18 @@ sub find_due_nodes
 						:                1
 					);
 				}
+				elsif ( !defined $interval || $interval =~ /^\s*$/ )
+				{
+					# A policy that doesn't override this subtype falls back
+					# to the default cadence silently (mirrors the same fix
+					# applied in Sys.pm, prevents log noise after http was
+					# added to the recognised subtype list).
+					$interval = $intervals{default}->{$subtype};
+				}
 				else
 				{
 					$self->log->error("Polling policy \"$polname\" has invalid interval \"$interval\" for $subtype! Ignoring.");
-					$interval = $intervals{devault}->{$subtype};
+					$interval = $intervals{default}->{$subtype};
 				}
 				$intervals{$polname}->{$subtype} = $interval;    # now in seconds
 			}
@@ -1896,6 +1910,7 @@ sub find_due_nodes
 
 			my $lastsnmp = $ninfo->{last_poll_snmp_attempt};
 			my $lastwmi  = $ninfo->{last_poll_wmi_attempt};
+			my $lasthttp = $ninfo->{last_poll_http_attempt};
 
 			# handle the case of a changed polling policy: move all rrd files
 			# out of the way, and poll now
@@ -1925,7 +1940,12 @@ sub find_due_nodes
 				}
 
 				$due{$maybe} = $cands{$maybe};
-				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;    # and ignore the last-xyz markers
+				# ignore the last-xyz markers; force a fresh poll. HTTP gated
+				# on configured endpoints so legacy nodes don't pick up an
+				# HTTP cadence they have no engine for.
+				$flavours{$maybe}->{snmp} = 1;
+				$flavours{$maybe}->{wmi}  = 1;
+				$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
 			}
 
 			# logic for dead node demotion/rate-limiting
@@ -1965,10 +1985,17 @@ sub find_due_nodes
 					}
 				}
 
-				# try only once a day if beyond the grace time, min of snmp/wmi/update policy otherwise;
+				# try only once a day if beyond the grace time, min of
+				# snmp/wmi/http (per-source if configured) or update policy.
+				# Including http_enabled gate avoids the legacy-node "wait
+				# 60s on every cycle" issue we previously fixed in the main
+				# find_due_nodes scheduling branches.
+				my @collect_intervals = ($intervals{$polname}->{snmp}, $intervals{$polname}->{wmi});
+				push @collect_intervals, $intervals{$polname}->{http}
+					if $nodeconfig->{http_enabled};
 				my $normalperiod
 					= $whichop eq "collect"
-					? Statistics::Lite::min( $intervals{$polname}->{snmp}, $intervals{$polname}->{wmi} )
+					? Statistics::Lite::min(@collect_intervals)
 					: $intervals{$polname}->{update};
 
 				# but do make sure to try a newly added node NOW!
@@ -1991,7 +2018,12 @@ sub find_due_nodes
 				if ( $nexttry <= $now )
 				{
 					$due{$maybe} = $cands{$maybe};
-					$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1 if ( $whichop eq "collect" );
+					if ( $whichop eq "collect" )
+					{
+						$flavours{$maybe}->{snmp} = 1;
+						$flavours{$maybe}->{wmi}  = 1;
+						$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
+					}
 				}
 			}
 
@@ -2040,11 +2072,16 @@ sub find_due_nodes
 			# if no history is known for a source, then disregard it for the now-or-later logic
 			# but DO enable it for trying!
 			# note that collect=false, i.e. ping-only nodes need to be excepted,
-			elsif ( !defined($lastsnmp) && !defined($lastwmi) && $nodeconfig->{collect} )
+			elsif ( !defined($lastsnmp) && !defined($lastwmi) && !defined($lasthttp) && $nodeconfig->{collect} )
 			{
-				$self->log->debug("Node $nodename has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
+				$self->log->debug("Node $nodename has no prior poll attempts (snmp/wmi/http), due for poll at $now");
 				$due{$maybe} = $cands{$maybe};
-				$flavours{$maybe}->{wmi} = $flavours{$maybe}->{snmp} = 1;
+				# HTTP only triggers if the node has endpoints configured;
+				# otherwise the engine has no work to do and stamping the
+				# cadence would just keep re-arming itself.
+				$flavours{$maybe}->{snmp} = 1;
+				$flavours{$maybe}->{wmi}  = 1;
+				$flavours{$maybe}->{http} = $nodeconfig->{http_enabled} ? 1 : 0;
 			}
 			else
 			{
@@ -2052,7 +2089,7 @@ sub find_due_nodes
 				# and the 'snmp' policy is applied
 				if ( !$nodeconfig->{collect} )
 				{
-					# We don't care if the last poll was successful or not, so use _attempt. 
+					# We don't care if the last poll was successful or not, so use _attempt.
 					# there is no last_wmi_attempt. And, for non collect nodes we don't really care
 					$lastsnmp = $ninfo->{last_poll_attempt} // 0;
 					$lastwmi = $ninfo->{last_poll_attempt} // 0;
@@ -2064,27 +2101,42 @@ sub find_due_nodes
 				# strict 100% would mean that we might skip a full interval when polling takes longer
 				my $fudgefactor = ($self->config->{polling_interval_factor} || 0.95);
 
+				# Gate HTTP cadence on the node actually having endpoints
+				# configured. Without this, a SNMP/WMI-only node would get
+				# spurious HTTP-only collects every cadence interval (default
+				# 60s vs SNMP 300s) because $nexthttp = ($lasthttp // 0) +
+				# 60s is always true on first poll.
+				my $has_http = $nodeconfig->{http_enabled} ? 1 : 0;
 				my $nextsnmp = ( $lastsnmp // 0 ) + $intervals{$polname}->{snmp} * $fudgefactor;
-				my $nextwmi  = ( $lastwmi  // 0 ) + $intervals{$polname}->{wmi} * $fudgefactor;
+				my $nextwmi  = ( $lastwmi  // 0 ) + $intervals{$polname}->{wmi}  * $fudgefactor;
+				my $nexthttp = $has_http
+					? ( $lasthttp // 0 ) + $intervals{$polname}->{http} * $fudgefactor
+					: undef;
 
 				# only flavours which worked in the past contribute to the now-or-later logic
 				if (   ( defined($lastsnmp) && $nextsnmp <= $now )
-					|| ( defined($lastwmi) && $nextwmi <= $now ) )
+					|| ( defined($lastwmi)  && $nextwmi  <= $now )
+					|| ( $has_http && defined($lasthttp) && $nexthttp <= $now ) )
 				{
 					$self->log->debug( "Node $nodename is due for poll at $now, last snmp: "
 							. ( $lastsnmp // "never" )
 							. ", last wmi: "
 							. ( $lastwmi // "never" )
+							. ", last http: "
+							. ( $has_http ? ( $lasthttp // "never" ) : "n/a (no endpoints)" )
 							. ", next snmp: "
 							. ( $lastsnmp ? sprintf( "%.1fs ago", $now - $nextsnmp ) : "n/a" )
 							. ", next wmi: "
-							. ( $lastwmi ? sprintf( "%.1fs ago", $now - $nextwmi ) : "n/a" ) );
+							. ( $lastwmi ? sprintf( "%.1fs ago", $now - $nextwmi ) : "n/a" )
+							. ", next http: "
+							. ( $has_http && $lasthttp ? sprintf( "%.1fs ago", $now - $nexthttp ) : "n/a" ) );
 					$due{$maybe} = $cands{$maybe};
 
 					# but if we've decided on polling, then DO try flavours that have not worked in the past!
-					# nextwmi <= now also covers the case of undefined lastwmi...
-					$flavours{$maybe}->{wmi}  = ( $nextwmi <= $now )  ? 1 : 0;
+					# next* <= now also covers the case of undefined last*
+					$flavours{$maybe}->{wmi}  = ( $nextwmi  <= $now ) ? 1 : 0;
 					$flavours{$maybe}->{snmp} = ( $nextsnmp <= $now ) ? 1 : 0;
+					$flavours{$maybe}->{http} = ( $has_http && $nexthttp <= $now ) ? 1 : 0;
 				}
 				else
 				{
@@ -2092,10 +2144,14 @@ sub find_due_nodes
 							. ( $lastsnmp // "never" )
 							. ", last wmi: "
 							. ( $lastwmi // "never" )
+							. ", last http: "
+							. ( $lasthttp // "never" )
 							. ", next snmp: "
 							. ( $lastsnmp ? $nextsnmp : "n/a" )
 							. ", next wmi: "
-							. ( $lastwmi ? $nextwmi : "n/a" ) );
+							. ( $lastwmi ? $nextwmi : "n/a" )
+							. ", next http: "
+							. ( $lasthttp ? $nexthttp : "n/a" ) );
 				}
 			}
 		}
