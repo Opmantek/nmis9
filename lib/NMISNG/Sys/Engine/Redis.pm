@@ -159,4 +159,124 @@ sub _payload_usable
 sub _raise_stale_event { return; }
 sub _clear_stale_event { return; }
 
+# Build %todos entries for one model section. Joins the model's `field` names
+# against the payload `data` block. Because the payload is already in Redis,
+# extraction happens here and todos are marked done; execute_queries is a
+# no-op. Args match the engine contract (see Sys::getValues dispatch).
+sub build_queries
+{
+	my ($self, %args) = @_;
+	my ($section_name, $section_hash, $section_indexed, $index, $todos)
+		= @args{qw(section_name section_hash section_indexed index todos)};
+
+	my $sys = $self->sys;
+	my %status;
+
+	my $common = (ref $section_hash->{'-common-'} eq 'HASH') ? $section_hash->{'-common-'} : {};
+	my $concept = $common->{concept};
+	unless (defined $concept)
+	{
+		$status{error} = "($sys->{name}) redis: section $section_name has no concept in -common-";
+		$sys->nmisng->log->error($status{error});
+		return \%status;
+	}
+
+	my ($payload, $err) = $self->_payload($concept);
+	if ($err)
+	{
+		$status{error} = $err;
+		return \%status;
+	}
+	# Absent key: nothing to record this cycle. Leave todos untouched.
+	return \%status if (!defined $payload);
+
+	# run_id / freshness gate (freshness declared per-section in -common-).
+	return \%status unless $self->_payload_usable($concept, $payload, $common->{freshness});
+
+	# Resolve the data row: an indexed concept's data is an array; pick the
+	# row whose index field equals $index. A scalar concept's data is the
+	# object itself.
+	my $row;
+	if (defined $section_indexed && defined $index)
+	{
+		my $index_field = (ref $section_indexed eq 'ARRAY') ? undef : $section_indexed;
+		my $data = $payload->{data};
+		if (ref $data eq 'ARRAY' && defined $index_field)
+		{
+			for my $entry (@$data)
+			{
+				next unless ref $entry eq 'HASH';
+				if (defined $entry->{$index_field} && $entry->{$index_field} eq $index)
+				{
+					$row = $entry;
+					last;
+				}
+			}
+		}
+		# No matching row this cycle: nothing to record (the index will be
+		# retired by the historic-mark pass in collect_systemhealth_info).
+		return \%status unless ref $row eq 'HASH';
+	}
+	else
+	{
+		$row = (ref $payload->{data} eq 'HASH') ? $payload->{data} : {};
+	}
+
+	for my $itemname (keys %$section_hash)
+	{
+		next if $itemname eq '-common-';
+		my $thisitem = $section_hash->{$itemname};
+		next unless ref $thisitem eq 'HASH';
+
+		# Index-self item: an indexed-section item that declares no `field`
+		# records the row's own index value (same role ifDescr fills for SNMP).
+		if (defined $section_indexed && defined $index && !defined $thisitem->{field})
+		{
+			$todos->{$itemname} = {
+				section  => [$section_name],
+				item     => $itemname,
+				details  => [$thisitem],
+				rawvalue => $index,
+				done     => 1,
+			};
+			next;
+		}
+
+		my $field = $thisitem->{field};
+		unless (defined $field)
+		{
+			$status{error} = "($sys->{name}) redis: section $section_name item $itemname has no field";
+			$sys->nmisng->log->error($status{error});
+			next;
+		}
+
+		# Contract: the daemon emits every declared field, using null for
+		# unavailable values. A missing field name is writer schema drift —
+		# log it but don't fail the collect.
+		if (!exists $row->{$field})
+		{
+			$sys->nmisng->log->debug(
+				"($sys->{name}) redis: concept $concept field '$field' (item $itemname) absent from payload row");
+		}
+
+		$todos->{$itemname} = {
+			section  => [$section_name],
+			item     => $itemname,
+			details  => [$thisitem],
+			rawvalue => $row->{$field},   # may be undef (null in the payload)
+			done     => 1,
+		};
+	}
+
+	return \%status;
+}
+
+# Redis extraction happens in build_queries (the data is already local), so
+# there is nothing to execute. Kept for engine-contract symmetry.
+sub execute_queries
+{
+	my ($self, %args) = @_;
+	return {};
+}
+
 1;

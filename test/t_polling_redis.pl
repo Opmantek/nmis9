@@ -106,4 +106,59 @@ is($eng->_payload_usable('c', $mismatch, 600), 1, "fallback path ignores run_id"
 my $stale = { _meta => { collected_at_epoch => time() - 5000 } };
 is($eng->_payload_usable('c', $stale, 600), 0, "stale payload -> not usable");
 
+# ---- Task 4: build_queries (scalar + indexed) ----
+
+# Scalar concept: data is an object; fields map by name.
+$REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_health'} =
+    '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.23}}';
+my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+{
+    no warnings 'redefine';
+    local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+
+    my %todos;
+    my $section_hash = {
+        '-common-' => { concept => 'sdwan_health', engine => 'meraki', freshness => 600 },
+        'status'   => { field => 'status', title => 'Device status' },
+        'cpu'      => { field => 'cpu_load_5min', title => 'CPU load (5m)' },
+    };
+    $eng4->build_queries(
+        section_name => 'standard', section_key => 'redis',
+        section_hash => $section_hash, section_indexed => undef,
+        index => undef, todos => \%todos,
+    );
+    is($todos{status}{rawvalue}, 'online', "scalar field status extracted");
+    ok($todos{status}{done}, "scalar field marked done");
+    is($todos{cpu}{rawvalue}, '0.23', "scalar field cpu extracted");
+
+    # execute_queries is a no-op success for redis.
+    my $st = $eng4->execute_queries(todos => \%todos);
+    ok(!$st->{error}, "execute_queries returns no error");
+
+    # Indexed concept: data is an array; build_queries called per index.
+    $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_uplink'} =
+        '{"_meta":{"collected_at_epoch":'.time().'},"data":['
+        .'{"wan_interface":"wan1","status":"active","latency_ms":24},'
+        .'{"wan_interface":"wan2","status":"ready","latency_ms":null}]}';
+    my $eng4b = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+    no warnings 'redefine';
+    local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+    my %todos2;
+    my $sh2 = {
+        '-common-'      => { concept => 'sdwan_uplink', engine => 'meraki', freshness => 600 },
+        'wan_interface' => { field => 'wan_interface', title => 'WAN interface' },
+        'status'        => { field => 'status', title => 'Status' },
+        'latency'       => { field => 'latency_ms', title => 'Latency (ms)' },
+    };
+    $eng4b->build_queries(
+        section_name => 'sdwan_uplink', section_key => 'redis',
+        section_hash => $sh2, section_indexed => 'wan_interface',
+        index => 'wan2', todos => \%todos2,
+    );
+    is($todos2{wan_interface}{rawvalue}, 'wan2', "index-self item records the index value");
+    is($todos2{status}{rawvalue}, 'ready', "indexed-row field extracted for wan2");
+    ok(exists $todos2{latency} && !defined $todos2{latency}{rawvalue},
+       "null field present as undef rawvalue");
+}
+
 done_testing();
