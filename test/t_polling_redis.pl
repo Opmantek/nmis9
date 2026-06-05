@@ -81,4 +81,29 @@ my ($p_ok, $e_ok) = $eng->_payload('sdwan_health');
 ok(!$e_ok, "present key: no error");
 is($p_ok->{data}{status}, 'online', "present key: payload decoded");
 
+# ---- Task 3: classify_error + usable gate ----
+
+# classify_error maps the last error to a lifecycle type.
+$eng->{_last_error} = "redis connect to x:6379 failed: refused";
+is($eng->classify_error->{type}, 'no_session', "connect failure -> no_session");
+$eng->{_last_error} = "no key for concept";
+is($eng->classify_error->{type}, 'not_present', "missing key -> not_present");
+$eng->{_last_error} = undef;
+ok(!defined $eng->classify_error, "no error -> undef classification");
+
+# run_id gate: prompt path skips a mismatching payload.
+$eng->{expected_run_id} = 'R-expected';
+my $mismatch = { _meta => { run_id => 'R-other', collected_at_epoch => time() } };
+is($eng->_payload_usable('c', $mismatch, 600), 0, "run_id mismatch -> not usable");
+my $match = { _meta => { run_id => 'R-expected', collected_at_epoch => time() } };
+is($eng->_payload_usable('c', $match, 600), 1, "run_id match + fresh -> usable");
+
+# fallback path (no expected run_id): run_id is not checked.
+$eng->{expected_run_id} = undef;
+is($eng->_payload_usable('c', $mismatch, 600), 1, "fallback path ignores run_id");
+
+# freshness: a payload older than freshness_s is not usable.
+my $stale = { _meta => { collected_at_epoch => time() - 5000 } };
+is($eng->_payload_usable('c', $stale, 600), 0, "stale payload -> not usable");
+
 done_testing();

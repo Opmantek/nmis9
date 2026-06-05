@@ -109,4 +109,54 @@ sub _payload
 	return ($payload, undef);
 }
 
+# Classify the last error for Node::collect_systemhealth_info's gate.
+#   connect failure   -> no_session    (lifecycle calls handle_down, aborts)
+#   missing key       -> not_present   (soft skip, inventory untouched)
+#   anything else     -> transport_error
+sub classify_error
+{
+	my ($self) = @_;
+	my $err = $self->{_last_error};
+	return undef unless defined $err;
+	return { type => 'no_session',  message => $err } if $err =~ /connect/i;
+	return { type => 'not_present', message => $err } if $err =~ /no key|missing key|run_id mismatch/i;
+	return { type => 'transport_error', message => $err };
+}
+
+# Decide whether a payload should be consumed this cycle.
+# Returns 1 to consume, 0 to skip. Skips on run_id mismatch (prompt path only)
+# and when the payload is older than freshness_s, raising/clearing the
+# per-concept staleness event (see Task 5).
+sub _payload_usable
+{
+	my ($self, $concept, $payload, $freshness_s) = @_;
+	my $meta = (ref $payload->{_meta} eq 'HASH') ? $payload->{_meta} : {};
+
+	if (defined $self->{expected_run_id}
+		&& defined $meta->{run_id}
+		&& $meta->{run_id} ne $self->{expected_run_id})
+	{
+		$self->sys->nmisng->log->debug(
+			"redis: concept $concept run_id '$meta->{run_id}' != expected '$self->{expected_run_id}', skipping");
+		return 0;
+	}
+
+	my $collected = $meta->{collected_at_epoch};
+	if (defined $freshness_s && defined $collected)
+	{
+		my $age = time() - $collected;
+		if ($age > $freshness_s)
+		{
+			$self->_raise_stale_event($concept, $age, $freshness_s);
+			return 0;
+		}
+	}
+	$self->_clear_stale_event($concept);
+	return 1;
+}
+
+# Replaced with real event raise/clear in Task 5.
+sub _raise_stale_event { return; }
+sub _clear_stale_event { return; }
+
 1;
