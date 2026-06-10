@@ -1,0 +1,34 @@
+#
+# Model-TestRedisNoSys.nmis - push (redis) test model that deliberately has NO
+# system-level redis section, only a systemHealth section. Used by
+# test/t_polling_redis.pl to verify the "Model File Invalid" model-error path.
+# Not for real devices.
+#
+%hash = (
+	'-common-' => {
+		'class' => {
+			'database' => { 'common-model' => 'database' }
+		},
+	},
+	'system' => {
+		'nodegraph' => 'health',
+		'nodeModel' => 'TestRedisNoSys',
+		'nodeType'  => 'generic',
+	},
+	'systemHealth' => {
+		'sections' => 'sdwan_uplink',
+		'sys' => {
+			'sdwan_uplink' => {
+				'indexed'   => 'wan_interface',
+				'index_oid' => 'wan_interface',
+				'headers'   => 'wan_interface,status,latency',
+				'redis' => {
+					'-common-'      => { 'concept' => 'sdwan_uplink', 'engine' => 'meraki', 'freshness' => 600 },
+					'wan_interface' => { 'field' => 'wan_interface', 'title' => 'WAN interface' },
+					'status'        => { 'field' => 'status', 'title' => 'Status' },
+					'latency'       => { 'field' => 'latency_ms', 'title' => 'Latency (ms)' },
+				},
+			},
+		},
+	},
+);

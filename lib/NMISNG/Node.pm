@@ -2339,6 +2339,25 @@ sub makesysuptime
 }
 
 
+# Returns true if an active push (manages_own_inventory) engine is present on
+# $S but the loaded model declares no system-level redis section. Such a model
+# can never make loadInfo(class=>'system') succeed, so collect never reaches
+# the data/RRD pass — that is a model error.
+# args: sys (required)
+sub _push_model_missing_system_section
+{
+	my ($self, %args) = @_;
+	my $S = $args{sys};
+	return 0 unless grep { $_->is_active && $_->manages_own_inventory } @{$S->engines};
+	my $sysblk = $S->{mdl}{system}{sys};
+	if (ref $sysblk eq 'HASH') {
+		for my $sec (values %$sysblk) {
+			return 0 if (ref $sec eq 'HASH' && ref $sec->{redis} eq 'HASH');
+		}
+	}
+	return 1;
+}
+
 # gets node info by snmp/wmi, run during update type operations
 # also determines node model if it can
 #
@@ -2492,11 +2511,11 @@ sub update_node_info
 					Compat::NMIS::checkEvent(
 						sys     => $S,
 						event   => "Model File Invalid",
-						level   => "Normal",						
+						level   => "Normal",
 						details => "Model $catchall_data->{nodeModel} loaded",
 						inventory_id => $catchall_inventory->{_id}{hex}
 					);
-				}	
+				}
 	
 				# now we know more about the host, nodetype and model have been positively determined,
 				# so we'll force-overwrite those values
@@ -2555,6 +2574,22 @@ sub update_node_info
 				my $maybeuseful = "Model-$catchall_data->{nodeModel}";
 				$maybeuseful = "Model" if ($maybeuseful eq "Model-Model");
 				$S->loadModel( model => $maybeuseful )
+			}
+
+			# loadNodeInfo (first pass) failed. For a push (redis) node the usual
+			# cause is a model with no system-level redis section, which can never
+			# satisfy loadInfo(class=>'system'). Surface it as a model error.
+			if ($self->_push_model_missing_system_section(sys => $S)) {
+				my $model_name = $catchall_data->{nodeModel}
+					|| $self->configuration->{model}
+					|| 'unknown';
+				Compat::NMIS::notify(
+					sys     => $S,
+					event   => "Model File Invalid",
+					details => "Model $model_name is push-sourced (redis) but declares no system-level redis section",
+					context => {type => "node"},
+					inventory_id => $catchall_inventory->{_id}{hex}
+				);
 			}
 		}
 	}

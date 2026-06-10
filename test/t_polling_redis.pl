@@ -387,6 +387,31 @@ SKIP: {
         }
     }
 
+    # ---- Model error: push model with no system-level redis section ----
+    {
+        my @notified;
+        no warnings 'redefine';
+        # capture notify calls (the file's top-level stub is a no-op; override
+        # it locally so we can see what event update_node_info raises).
+        local *Compat::NMIS::notify = sub { push @notified, {@_}; return; };
+
+        my $bad = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $bad->cluster_id($C->{cluster_id});
+        $bad->name("t_redis_nosys_node");
+        $bad->activated({ NMIS => 1 });
+        $bad->configuration({
+            host => "127.0.0.1", group => "TestGroup", netType => "default",
+            roleType => "default", model => "TestRedisNoSys", collect => "true",
+            ping => "false", nmisent_engine_type => "meraki",
+        });
+        $bad->save();
+        $bad->update(force => 1);
+
+        ok((grep { ($_->{event} // '') eq "Model File Invalid" } @notified),
+           "push model with no system-level redis section raises Model File Invalid")
+            or diag("notify events: ".join(",", map { $_->{event} // '?' } @notified));
+    }
+
     $ng->get_db()->drop();
 }
 
