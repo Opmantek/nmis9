@@ -18,11 +18,19 @@ use NMISNG::Sys::Engine;
 use NMISNG::Sys;
 use Compat::NMIS;
 
-# Skip RRD I/O (RRD lib not linked here) — same approach as t_polling_http.pl.
+# Skip RRD I/O (RRD lib not linked here) — same approach as t_polling_http.pl —
+# but RECORD each call so a test can assert the RRD writer is actually invoked
+# for redis-sourced data.
+our @RRD_CALLS;
 {
     no warnings 'redefine';
     *NMISNG::Sys::create_update_rrd = sub {
         my ($self, %args) = @_;
+        push @main::RRD_CALLS, {
+            type  => $args{type},
+            index => $args{index},
+            data  => { map { $_ => $args{data}{$_}{value} } keys %{ $args{data} // {} } },
+        };
         if (ref($args{inventory})) {
             my $type = $args{type} || 'unknown';
             $args{inventory}->set_subconcept_type_storage(
@@ -370,11 +378,37 @@ SKIP: {
             no warnings 'redefine';
             local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
 
+            # Plant last_update so collect proceeds to the data/RRD pass instead
+            # of diverting to update (the !last_update divert is intentionally
+            # unchanged by this work; we are testing the proceed path).
+            # Also restore nodeModel: update() above found no SNMP session and
+            # fell back to 'Generic', which would cause collect to load Model-Generic
+            # (SNMP-keyed standard section) instead of the TestRedis model.
+            {
+                my ($ci, $cierr) = $rnode->inventory(concept => "catchall");
+                my $cd = $ci->data();
+                $cd->{last_update} = time();
+                $cd->{nodeModel}   = 'TestRedis';
+                $ci->data($cd);
+                $ci->save(node => $rnode);
+            }
+
+            @main::RRD_CALLS = ();
             $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1, force => 1);
 
             my $ids = $rnode->get_inventory_ids(concept => 'sdwan_uplink', filter => { historic => 0 });
             ok(scalar(@$ids) == 2, "two sdwan_uplink rows after first collect")
                 or diag("got ".scalar(@$ids));
+
+            # The point of polling: redis data must reach the RRD writer.
+            my @uplink_rrd = grep { ($_->{type} // '') eq 'sdwan_uplink' } @main::RRD_CALLS;
+            ok(scalar(@uplink_rrd) >= 1,
+               "create_update_rrd called for sdwan_uplink (redis -> RRD path)")
+                or diag("RRD calls: ".join(",", map { ($_->{type}//'?')."[".($_->{index}//'')."]" } @main::RRD_CALLS));
+            my %lat = map { ($_->{index} // '') => $_->{data}{latency} } @uplink_rrd;
+            ok((defined $lat{wan1} && $lat{wan1} == 24),
+               "wan1 latency (24) reached the RRD writer")
+                or diag("wan1 latency at RRD writer: ".(defined $lat{wan1} ? $lat{wan1} : 'undef'));
 
             # Drop wan2; it must go historic, wan1 survives.
             $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
