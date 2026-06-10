@@ -1048,10 +1048,10 @@ sub loadInfo
 		port    => $port,
 		inventory => $inventory
 	);
-	$self->{wmi_error}  = $status->{wmi_error};
-	$self->{snmp_error} = $status->{snmp_error};
-	$self->{http_error} = $status->{http_error};
-	$self->{error}      = $status->{error};
+	# propagate per-source errors for every known source, or a failed
+	# source (e.g. redis) is recorded as a successful poll downstream
+	$self->{"${_}_error"} = $status->{"${_}_error"} for (@{$self->known_sources});
+	$self->{error} = $status->{error};
 
 	# no data? okish iff marked as skipped
 	if ( !keys %$result )
@@ -1201,12 +1201,9 @@ sub getData
 		port    => $port,
 		inventory => $inventory
 	);
-	$self->{error}       = $status->{error};
-	$self->{wmi_error}   = $status->{wmi_error};
-	$self->{snmp_error}  = $status->{snmp_error};
-	$self->{http_error}  = $status->{http_error};
-	$self->{redis_error} = $status->{redis_error};
-	$self->{skipped}     = $status->{skipped} // 0;
+	$self->{error} = $status->{error};
+	$self->{"${_}_error"} = $status->{"${_}_error"} for (@{$self->known_sources});
+	$self->{skipped} = $status->{skipped} // 0;
 
 	# data? we're happy-ish
 	if ( keys %$result )

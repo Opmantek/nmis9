@@ -502,6 +502,22 @@ SKIP: {
             ok(defined $lossrrd && $lossrrd =~ /sdwan_uplink.*wan1/,
                "graphtype sdwan_loss resolves to the shared sdwan_uplink RRD")
                 or diag("makeRRDname(sdwan_loss) returned: ".(defined $lossrrd ? $lossrrd : 'undef'));
+
+            # loadInfo must propagate redis_error into Sys status. It used to
+            # copy only wmi/snmp/http_error, so a redis failure during
+            # loadInfo(system) was recorded downstream as a successful poll
+            # (redisresult=100, last_poll_redis stamped).
+            {
+                local *FakeRedisClient::get = sub { die "connection lost\n" };
+                my $Se = NMISNG::Sys->new(nmisng => $ng);
+                $Se->init(node => $rnode, snmp => 0, wmi => 0, http => 0, redis => 1,
+                          update => 0, catchall_inventory => $gci);
+                $Se->loadInfo(class => 'system', inventory => $gci, target => {});
+                ok($Se->status->{redis_error},
+                   "loadInfo propagates redis_error into Sys status")
+                    or diag("status redis_error: ".($Se->status->{redis_error} // 'undef')
+                            .", error: ".($Se->status->{error} // 'undef'));
+            }
         }
     }
 
