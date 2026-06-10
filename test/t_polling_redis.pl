@@ -376,10 +376,13 @@ SKIP: {
 
         $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
             '{"_meta":{"collected_at_epoch":'.time().'},"data":['
-            .'{"wan_interface":"wan1","status":"active","latency_ms":24},'
-            .'{"wan_interface":"wan2","status":"ready","latency_ms":12}]}';
+            .'{"wan_interface":"wan1","status":"active","latency_ms":24,"loss_pct":0.5,'
+            .'"ip":"192.168.0.4","gateway":"192.168.0.1","public_ip":"201.141.126.57",'
+            .'"primary_dns":"8.8.8.8","secondary_dns":"8.8.4.4","ip_assigned_by":"dhcp"},'
+            .'{"wan_interface":"wan2","status":"ready","latency_ms":12,"loss_pct":1.0}]}';
         $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_health"} =
-            '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.23,"memory_used_pct":47.2}}';
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.23,"memory_used_pct":47.2,'
+            .'"ha_role":"primary","ha_enabled":false,"last_reported_at":"2026-06-10T05:12:19Z"}}';
 
         $rnode->update(force => 1);
 
@@ -402,6 +405,21 @@ SKIP: {
             ok((defined $lat{wan1} && $lat{wan1} == 24),
                "wan1 latency (24) reached the RRD writer")
                 or diag("wan1 latency at RRD writer: ".(defined $lat{wan1} ? $lat{wan1} : 'undef'));
+            # loss is the new time-series field — it must reach the RRD writer too.
+            my %loss = map { ($_->{index} // '') => $_->{data}{loss} } @uplink_rrd;
+            ok((defined $loss{wan1} && $loss{wan1} == 0.5),
+               "wan1 loss (0.5) reached the RRD writer")
+                or diag("wan1 loss at RRD writer: ".(defined $loss{wan1} ? $loss{wan1} : 'undef'));
+            # new inventory string fields must land on the inventory row.
+            my $ipseen;
+            for my $id (@$ids) {
+                my ($iv) = $rnode->inventory(_id => $id);
+                next unless $iv;
+                $ipseen = $iv->data->{ip} if (($iv->data->{index} // '') eq 'wan1');
+            }
+            ok((defined $ipseen && $ipseen eq '192.168.0.4'),
+               "wan1 inventory captured the uplink ip field")
+                or diag("wan1 inventory ip: ".(defined $ipseen ? $ipseen : 'undef'));
 
             # Drop wan2; it must go historic, wan1 survives.
             $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
