@@ -2339,16 +2339,16 @@ sub makesysuptime
 }
 
 
-# Returns true if an active push (manages_own_inventory) engine is present on
-# $S but the loaded model declares no system-level redis section. Such a model
-# can never make loadInfo(class=>'system') succeed, so collect never reaches
-# the data/RRD pass — that is a model error.
+# Returns true if the loaded model declares no system-level redis section.
+# A push (manages_own_inventory) node with such a model can never make
+# loadInfo(class=>'system') succeed, so collect never reaches the data/RRD
+# pass — that is a model error. The push-engine gate is applied by the caller
+# so it can both raise (missing) and clear (present) the model-error event.
 # args: sys (required)
-sub _push_model_missing_system_section
+sub _model_missing_system_redis_section
 {
 	my ($self, %args) = @_;
 	my $S = $args{sys};
-	return 0 unless grep { $_->is_active && $_->manages_own_inventory } @{$S->engines};
 	my $sysblk = $S->{mdl}{system}{sys};
 	if (ref $sysblk eq 'HASH') {
 		for my $sec (values %$sysblk) {
@@ -2588,20 +2588,35 @@ sub update_node_info
 				$S->loadModel( model => $maybeuseful )
 			}
 
-			# loadNodeInfo (first pass) failed. For a push (redis) node the usual
-			# cause is a model with no system-level redis section, which can never
-			# satisfy loadInfo(class=>'system'). Surface it as a model error.
-			if ($self->_push_model_missing_system_section(sys => $S)) {
+			# loadNodeInfo (first pass) failed. For a push (redis) node, raise or
+			# clear the model-error event by the model's structure — symmetric so
+			# a corrected model clears the event even before its first data
+			# arrives (a successful update on the firstloadok path also clears).
+			if (grep { $_->is_active && $_->manages_own_inventory } @{$S->engines})
+			{
 				my $model_name = $catchall_data->{nodeModel}
 					|| $self->configuration->{model}
 					|| 'unknown';
-				Compat::NMIS::notify(
-					sys     => $S,
-					event   => "Model File Invalid",
-					details => "Model $model_name is push-sourced (redis) but declares no system-level redis section",
-					context => {type => "node"},
-					inventory_id => $catchall_inventory->{_id}{hex}
-				);
+				if ($self->_model_missing_system_redis_section(sys => $S))
+				{
+					Compat::NMIS::notify(
+						sys     => $S,
+						event   => "Model File Invalid",
+						details => "Model $model_name is push-sourced (redis) but declares no system-level redis section",
+						context => {type => "node"},
+						inventory_id => $catchall_inventory->{_id}{hex}
+					);
+				}
+				else
+				{
+					Compat::NMIS::checkEvent(
+						sys     => $S,
+						event   => "Model File Invalid",
+						level   => "Normal",
+						details => "Model $model_name has a system-level redis section",
+						inventory_id => $catchall_inventory->{_id}{hex}
+					);
+				}
 			}
 		}
 	}

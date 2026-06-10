@@ -507,6 +507,44 @@ SKIP: {
             or diag("checkEvent events: ".join(",", map { $_->{event} // '?' } @checked));
     }
 
+    # ---- Model File Invalid clears when fixed even before data arrives ----
+    # (symmetric clear on the !firstloadok branch). Raise via a section-less
+    # model, then correct the model with NO data seeded — update stays on the
+    # !firstloadok path, which must still clear the event.
+    {
+        my (@notified, @checked);
+        no warnings 'redefine';
+        local *Compat::NMIS::notify     = sub { push @notified, {@_}; return; };
+        local *Compat::NMIS::checkEvent = sub { push @checked,  {@_}; return; };
+        local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+
+        my $nd = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $nd->cluster_id($C->{cluster_id});
+        $nd->name("t_redis_fixnodata_node");
+        $nd->activated({ NMIS => 1 });
+        # 1. broken model, no data -> raise
+        $nd->configuration({
+            host => "127.0.0.1", group => "G", netType => "default", roleType => "default",
+            model => "TestRedisNoSys", collect => "true", ping => "false", nmisent_engine_type => "meraki",
+        });
+        $nd->save();
+        $nd->update(force => 1);
+        ok((grep { ($_->{event} // '') eq "Model File Invalid" } @notified),
+           "fix-nodata: broken push model raises Model File Invalid");
+
+        # 2. correct the model but seed NO data (firstloadok stays false) -> must clear
+        $nd->configuration({
+            host => "127.0.0.1", group => "G", netType => "default", roleType => "default",
+            model => "TestRedis", collect => "true", ping => "false", nmisent_engine_type => "meraki",
+        });
+        $nd->save();
+        @checked = ();
+        $nd->update(force => 1);
+        ok((grep { ($_->{event} // '') eq "Model File Invalid" } @checked),
+           "fix-nodata: corrected model clears Model File Invalid even with no data yet")
+            or diag("checkEvent events: ".join(",", map { $_->{event} // '?' } @checked));
+    }
+
     $ng->get_db()->drop();
 }
 
