@@ -2427,6 +2427,18 @@ sub update_node_info
 			}
 		}
 
+		# Honor an explicitly configured model: its nodeModel is fixed to the
+		# configured value and must never fall back to Generic/Default — even
+		# when the first loadInfo collected nothing (e.g. a push/redis node whose
+		# data has not arrived yet, so loadInfo(system) is empty and firstloadok
+		# is false). Auto-model nodes ('automatic'/'') are still resolved by
+		# selectNodeModel inside the firstloadok branch below.
+		my $cfgmodel = $self->configuration->{model};
+		if (defined $cfgmodel && $cfgmodel ne '' && $cfgmodel ne 'automatic')
+		{
+			$catchall_data->{nodeModel} = $cfgmodel;
+		}
+
 		if ($firstloadok)
 		{
 			# snmp: continue processing if at least a couple of entries are valid.

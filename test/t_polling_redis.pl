@@ -446,6 +446,37 @@ SKIP: {
             or diag("notify events: ".join(",", map { $_->{event} // '?' } @notified));
     }
 
+    # ---- Explicit configured model is honored, even with no data yet ----
+    # A correctly-configured push node whose redis data has not arrived yet
+    # (update's loadInfo collects nothing) must keep its configured nodeModel,
+    # NOT fall back to Generic, and must NOT raise a spurious model error.
+    {
+        my @notified;
+        no warnings 'redefine';
+        local *Compat::NMIS::notify = sub { push @notified, {@_}; return; };
+
+        my $boot = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $boot->cluster_id($C->{cluster_id});
+        $boot->name("t_redis_bootstrap_node");
+        $boot->activated({ NMIS => 1 });
+        $boot->configuration({
+            host => "127.0.0.1", group => "TestGroup", netType => "default",
+            roleType => "default", model => "TestRedis", collect => "true",
+            ping => "false", nmisent_engine_type => "meraki",
+        });
+        $boot->save();
+        # deliberately NO redis data seeded — update's loadInfo(system) finds nothing
+        $boot->update(force => 1);
+
+        my ($bci) = $boot->inventory(concept => "catchall");
+        is($bci->data->{nodeModel}, 'TestRedis',
+           "explicit model honored: nodeModel stays TestRedis with no data (not Generic)")
+            or diag("got nodeModel=".($bci->data->{nodeModel}//'undef'));
+        ok(!(grep { ($_->{event} // '') eq "Model File Invalid" } @notified),
+           "correctly-configured push model awaiting data does NOT raise Model File Invalid")
+            or diag("notify events: ".join(",", map { $_->{event} // '?' } @notified));
+    }
+
     $ng->get_db()->drop();
 }
 
