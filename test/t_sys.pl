@@ -765,6 +765,18 @@ is_deeply([sort keys %$wtargets1], [qw(A: B: M: Z:)],
 	"WMI discover_indexes: targets hash keys match returned indexes");
 
 # ============================================================
+# class-level source section keys: must reflect the engines' real model
+# block keys (http models use http_prom/http_json, NOT 'http'), usable
+# without instantiated engines (the GUI calls this on the class).
+{
+	my %sk = map { $_ => 1 } @{ NMISNG::Sys->known_source_section_keys };
+	ok($sk{$_}, "known_source_section_keys includes $_")
+		for (qw(snmp wmi http_prom http_json redis));
+	ok(!$sk{http},
+		"known_source_section_keys does not contain the bogus plain 'http' key");
+}
+
+# ============================================================
 # Cleanup
 # ============================================================
 diag("=== Cleanup ===");

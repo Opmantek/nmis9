@@ -2040,20 +2040,26 @@ nodeVendor sysObjectName roleType netType );
 	}
 
 	# Check model specific values if collected, across every polling-source
-	# block (snmp/wmi/http/redis) so push-engine fields (e.g. redis sdwan_health)
-	# surface in the overview too. The '-common-' entry and any untitled items
-	# are skipped by the 'title' check below.
+	# block so push/http-engine fields (e.g. redis sdwan_health, http_prom
+	# metrics) surface in the overview too. The block keys come from the
+	# engine classes via Sys — http models key their blocks http_prom/
+	# http_json, not 'http'. The '-common-' entry and any untitled items are
+	# skipped by the 'title' check below. %seen prevents a field titled in
+	# several source blocks (or already in the default list) showing twice.
+	my %seen = map { ref($_) ? () : ($_ => 1) } @shouldshow;
 	my $possibles = $S->{mdl}->{'system'}->{'sys'};
 	foreach my $key (keys %{$possibles})
 	{
-		for my $src (qw(snmp wmi http redis))
+		for my $src (@{NMISNG::Sys->known_source_section_keys})
 		{
 			my $srcblock = $possibles->{$key}->{$src};
 			next unless ref($srcblock) eq 'HASH';
 			foreach my $key2 (keys %{$srcblock}) {
+				next if ($seen{$key2});
 				if (defined($catchall_data->{$key2}) and defined($srcblock->{$key2}->{'title'})
-					 and !(grep { $key2 eq $_ } @shouldshow) and ($key2 ne "configLastChanged" and $key2 ne "configLastSaved"
-																  and $key2 ne "bootConfigLastChanged")) {
+					 and ($key2 ne "configLastChanged" and $key2 ne "configLastSaved"
+						  and $key2 ne "bootConfigLastChanged")) {
+					$seen{$key2} = 1;
 					push @shouldshow, {
 						title => $srcblock->{$key2}->{'title'},
 						value => $catchall_data->{$key2}

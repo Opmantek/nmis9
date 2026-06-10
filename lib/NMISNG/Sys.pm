@@ -133,6 +133,22 @@ sub enabled_sources
 # names too — find_due_nodes, reachability aggregation, and the collect
 # post-processing loop all consume them.
 sub known_sources { return [qw(snmp wmi http redis)]; }
+
+# The model data-source block keys across all known engine classes (snmp,
+# wmi, http_prom, http_json, redis) — derived from the engines themselves so
+# it cannot drift, and usable without instantiated engines (e.g. by the GUI
+# scanning model system sections for titled fields).
+sub known_source_section_keys
+{
+	my @keys;
+	for my $shortclass (qw(SNMP WMI HTTP Redis))
+	{
+		my $class = "NMISNG::Sys::Engine::$shortclass";
+		next unless eval "require $class; 1";
+		push @keys, @{$class->section_keys};
+	}
+	return \@keys;
+}
 sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!
