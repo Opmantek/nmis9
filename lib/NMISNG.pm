@@ -1675,7 +1675,7 @@ sub _redis_poll_complete_batch
 	my %entries;
 	return \%entries if (ref($node_uuids) ne 'ARRAY' or !@$node_uuids);
 	my $redis = $self->_redis_handle;
-	return \%entries unless $redis;
+	return \%entries if (!$redis);
 
 	# Redis 8.0 HGETDEL syntax: HGETDEL key FIELDS numfields field [field ...].
 	# One atomic call covers all fields; chunked to keep command size bounded
@@ -1692,7 +1692,7 @@ sub _redis_poll_complete_batch
 
 		for my $i (0 .. $#fields)
 		{
-			next unless defined $raw[$i];
+			next if (!defined $raw[$i]);
 			my $entry = eval { JSON::XS::decode_json($raw[$i]) };
 			if ($@)
 			{

@@ -2053,7 +2053,7 @@ nodeVendor sysObjectName roleType netType );
 		for my $src (@{NMISNG::Sys->known_source_section_keys})
 		{
 			my $srcblock = $possibles->{$key}->{$src};
-			next unless ref($srcblock) eq 'HASH';
+			next if (ref($srcblock) ne 'HASH');
 			foreach my $key2 (keys %{$srcblock}) {
 				next if ($seen{$key2});
 				if (defined($catchall_data->{$key2}) and defined($srcblock->{$key2}->{'title'})

@@ -144,7 +144,7 @@ sub known_source_section_keys
 	for my $shortclass (qw(SNMP WMI HTTP Redis))
 	{
 		my $class = "NMISNG::Sys::Engine::$shortclass";
-		next unless eval "require $class; 1";
+		next if (!eval "require $class; 1");
 		push @keys, @{$class->section_keys};
 	}
 	return \@keys;
