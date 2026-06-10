@@ -2220,8 +2220,11 @@ sub find_due_nodes
 			# HGETDEL atomically reads and removes it (at-most-once). When
 			# present, force the node due now and carry the run_id to the
 			# engine for the consistency check. Absent entry -> fall back
-			# to the cadence logic above.
-			if ($has_redis && $whichop eq "collect")
+			# to the cadence logic above. Only for collect-enabled nodes:
+			# a ping-only node must not be force-collected at the push rate
+			# (and its entry is left unconsumed, since nothing would use it).
+			if ($has_redis && $whichop eq "collect"
+				&& NMISNG::Util::getbool($nodeconfig->{collect}))
 			{
 				my $entry = $self->_redis_poll_complete($maybe);
 				if ($entry)
@@ -2229,6 +2232,12 @@ sub find_due_nodes
 					$due{$maybe} = $cands{$maybe};
 					$flavours{$maybe}->{redis} = 1;
 					$flavours{$maybe}->{redis_run_id} = $entry->{run_id};
+					# A prompt is a redis-only collect: keep whatever the
+					# cadence logic above decided for the other sources, but
+					# pin still-undef ones to 0 — Node::collect treats undef
+					# wanthttp as legacy default-on, which would otherwise
+					# poll HTTP endpoints at the push rate on hybrid nodes.
+					$flavours{$maybe}->{$_} //= 0 for (qw(snmp wmi http));
 				}
 			}
 		}

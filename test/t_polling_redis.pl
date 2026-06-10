@@ -124,6 +124,9 @@ our %REDIS_KV;
     package FakeRedisClient;
     sub new { bless {}, shift }
     sub get { my ($s,$k)=@_; return $main::REDIS_KV{$k}; }
+    # scheduler prompt path: HGETDEL key FIELDS n field — destructive read
+    # of the poll-complete hash, faked via %main::REDIS_HASH (field => json).
+    sub hgetdel { my ($s, $key, $kw, $n, $field) = @_; return delete $main::REDIS_HASH{$field}; }
 }
 no warnings 'redefine';
 local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
@@ -517,6 +520,70 @@ SKIP: {
                    "loadInfo propagates redis_error into Sys status")
                     or diag("status redis_error: ".($Se->status->{redis_error} // 'undef')
                             .", error: ".($Se->status->{error} // 'undef'));
+            }
+
+            # ---- prompt path: redis-only flavours, at-most-once, collect gate ----
+            {
+                local *NMISNG::_redis_handle = sub { return FakeRedisClient->new; };
+
+                # make the node not cadence-due: fresh redis attempt marker,
+                # no snmp/wmi/http history (those sources are disabled).
+                my $cd = $gci->data_live;
+                $cd->{last_poll_redis_attempt} = time;
+                $gci->save(node => $rnode);
+
+                # a completion entry must force the node due with a
+                # redis-ONLY flavour set: snmp/wmi/http pinned to 0, not
+                # left undef (Node::collect treats undef wanthttp as
+                # legacy default-on and would poll HTTP at the push rate).
+                $main::REDIS_HASH{$ruuid} = '{"run_id":"R42"}';
+                my $pdue = $ng->find_due_nodes(type => 'collect');
+                ok($pdue->{success}, "prompt-path find_due_nodes success");
+                ok(exists $pdue->{nodes}{$ruuid},
+                   "completion entry forces non-cadence-due node due");
+                my $pfl = ($pdue->{flavours} // {})->{$ruuid} // {};
+                is($pfl->{redis}, 1, "prompt: redis flavour on");
+                is($pfl->{redis_run_id} // '', 'R42', "prompt: run_id carried");
+                ok((defined $pfl->{snmp} && !$pfl->{snmp}
+                    && defined $pfl->{wmi} && !$pfl->{wmi}
+                    && defined $pfl->{http} && !$pfl->{http}),
+                   "prompt: snmp/wmi/http explicitly 0, not undef")
+                    or diag("flavours: ".join(",", map {"$_=".($pfl->{$_}//'undef')} qw(snmp wmi http redis)));
+                ok(!exists $main::REDIS_HASH{$ruuid},
+                   "prompt entry consumed (at-most-once)");
+
+                # without an entry the node is not due (cadence fresh).
+                my $ndue = $ng->find_due_nodes(type => 'collect');
+                ok(!exists $ndue->{nodes}{$ruuid},
+                   "no entry, fresh cadence: node not due");
+
+                # collect=false (ping-only) node: prompt must not force a
+                # collect, and its entry must be left unconsumed.
+                my $ping = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+                $ping->cluster_id($C->{cluster_id});
+                $ping->name("t_redis_pingonly_node");
+                $ping->activated({ NMIS => 1 });
+                $ping->configuration({
+                    host => "127.0.0.1", group => "TestGroup", netType => "default",
+                    roleType => "default", model => "TestRedis", collect => "false",
+                    ping => "true", nmisent_engine_type => "meraki",
+                });
+                $ping->save();
+                my ($pci) = $ping->inventory(
+                    concept => "catchall", path_keys => [], create => 1,
+                    data => { name => $ping->name, nodeType => "generic" });
+                my $pcd = $pci->data_live;
+                $pcd->{nodeModel} = "TestRedis";       # skip the demotion branch
+                $pcd->{last_poll_attempt} = time;      # generic pingonly cadence fresh
+                $pci->save(node => $ping);
+
+                $main::REDIS_HASH{$ping->uuid} = '{"run_id":"R43"}';
+                my $gdue = $ng->find_due_nodes(type => 'collect');
+                ok(!exists $gdue->{nodes}{$ping->uuid},
+                   "collect=false node: prompt does not force a collect");
+                ok(exists $main::REDIS_HASH{$ping->uuid},
+                   "collect=false node: entry left unconsumed");
+                delete $main::REDIS_HASH{$ping->uuid};
             }
         }
     }
