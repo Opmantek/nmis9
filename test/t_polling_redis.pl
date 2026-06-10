@@ -18,38 +18,13 @@ use NMISNG::Sys::Engine;
 use NMISNG::Sys;
 use Compat::NMIS;
 
-# Skip RRD I/O (RRD lib not linked here) — same approach as t_polling_http.pl —
-# but RECORD each call so a test can assert the RRD writer is actually invoked
-# for redis-sourced data.
+# Skip RRD I/O via the shared recording stub (test/lib/NMISNG/Test/RRDStub.pm);
+# tests assert on the recorded calls so redis-sourced data provably reaches
+# the RRD writer. Alias keeps the existing @main::RRD_CALLS references.
+use NMISNG::Test::RRDStub;
+NMISNG::Test::RRDStub::install();
 our @RRD_CALLS;
-{
-    no warnings 'redefine';
-    *NMISNG::Sys::create_update_rrd = sub {
-        my ($self, %args) = @_;
-        push @main::RRD_CALLS, {
-            type  => $args{type},
-            index => $args{index},
-            data  => { map { $_ => $args{data}{$_}{value} } keys %{ $args{data} // {} } },
-        };
-        if (ref($args{inventory})) {
-            my $type = $args{type} || 'unknown';
-            $args{inventory}->set_subconcept_type_storage(
-                subconcept => $type, type => 'rrd',
-                data => "/nodes/$self->{name}/mock-$type.rrd"
-            );
-        }
-        return 1;
-    };
-}
-require RRDs unless defined &RRDs::info;
-{
-    no warnings 'redefine';
-    *RRDs::info = sub { return {}; };
-}
-{
-    no warnings 'redefine';
-    *Compat::NMIS::getSubconceptStats = sub { return {}; };
-}
+*RRD_CALLS = \@NMISNG::Test::RRDStub::CALLS;
 
 # Task 1: the trait exists and defaults to 0 on the base class.
 can_ok('NMISNG::Sys::Engine', 'manages_own_inventory');
@@ -61,41 +36,12 @@ use NMISNG::Sys::Engine::Redis;
 
 # A minimal fake Sys: the engine only needs ->sys->{uuid},
 # ->sys->nmisng->log, ->sys->nmisng->config, and ->sys->nmisng_node.
-{
-    package FakeLog;
-    sub new { bless {}, shift }
-    our $AUTOLOAD;
-    sub AUTOLOAD { return 1; }   # swallow debug/info/warn/error/etc.
-    sub DESTROY { }
-}
-{
-    package FakeNmisng;
-    sub new { my ($c,%a)=@_; bless { %a, _log => FakeLog->new }, $c }
-    sub log    { return $_[0]->{_log}; }
-    sub config { return $_[0]->{config}; }
-}
-{
-    package FakeNode;
-    sub new  { my ($c,%a)=@_; bless { %a }, $c }
-    sub uuid { return $_[0]->{uuid}; }
-    sub name { return $_[0]->{name} // 'fakenode'; }
-    our $AUTOLOAD;
-    sub AUTOLOAD { return undef; }
-    sub DESTROY  { }
-}
-{
-    package FakeSys;
-    sub new { my ($c,%a)=@_; bless { %a }, $c }
-    sub nmisng      { return $_[0]->{nmisng}; }
-    sub nmisng_node { return $_[0]->{node}; }
-    our $AUTOLOAD;
-    sub AUTOLOAD { return undef; }
-    sub DESTROY  { }
-}
+# Shared fakes from test/lib/NMISNG/Test/Fakes.pm.
+use NMISNG::Test::Fakes;
 
-my $fake_nmisng = FakeNmisng->new(config => { });
-my $fake_node   = FakeNode->new(uuid => '11111111-2222-3333-4444-555555555555', name => 'fakenode');
-my $fake_sys = FakeSys->new(
+my $fake_nmisng = NMISNG::Test::FakeNmisng->new(config => { });
+my $fake_node   = NMISNG::Test::FakeNode->new(uuid => '11111111-2222-3333-4444-555555555555', name => 'fakenode');
+my $fake_sys = NMISNG::Test::FakeSys->new(
     uuid   => '11111111-2222-3333-4444-555555555555',
     nmisng => $fake_nmisng,
     node   => $fake_node,

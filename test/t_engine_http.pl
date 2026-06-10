@@ -9,6 +9,7 @@ use warnings;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/lib";
 
 use Test::More;
 use File::Temp qw(tempfile);
@@ -129,79 +130,14 @@ diag("fixture listening on port $port");
 require NMISNG::Sys::Engine::HTTP;
 NMISNG::Sys::Engine::HTTP->import;
 
-package FakeLog;
-sub new { return bless {}, shift; }
-sub error { shift; my $m = shift; print STDERR "ERROR: $m\n" if $ENV{DEBUG}; }
-sub warn  { shift; my $m = shift; print STDERR "WARN: $m\n"  if $ENV{DEBUG}; }
-sub info  { shift; }
-sub debug  { shift; } sub debug2 { shift; }
-sub debug3 { shift; } sub debug4 { shift; }
-
-package FakeNmisng;
-sub new { return bless { config => {} }, shift; }
-sub log { $_[0]{log} //= FakeLog->new(); return $_[0]{log}; }
-sub config { return $_[0]{config}; }
-
-package FakeSys;
-sub new
-{
-	my ($class, %a) = @_;
-	return bless {
-		name   => $a{name} // 'testnode',
-		cfg    => { node => $a{node_cfg} // {
-			host => '127.0.0.1', uuid => 'test-uuid', name => 'testnode',
-		}},
-		nmisng => FakeNmisng->new(),
-	}, $class;
-}
-sub nmisng { return $_[0]{nmisng}; }
-sub eval_string
-{
-	my ($self, %args) = @_;
-	my $input = $args{string};
-	my $vars  = $args{variables} // [];
-	my %cvar;
-	my $consume = $input;
-	my $rebuilt = '';
-	while ($consume =~ s/^(.*?)(CVAR(\d)?=(\w+);|\$CVAR(\d)?)//)
-	{
-		$rebuilt .= $1;
-		my ($n, $decl, $use) = ($3, $4, $5);
-		$n = 0 unless defined $n;
-		if (defined $decl)
-		{
-			for my $src (@$vars)
-			{
-				next unless ref $src eq 'HASH' && exists $src->{$decl};
-				$cvar{$n} = $src->{$decl};
-				last;
-			}
-			return ("CVAR$n: unknown name '$decl'") unless exists $cvar{$n};
-		}
-		else
-		{
-			return ("CVAR$use undefined") unless exists $cvar{$use};
-			$rebuilt .= $cvar{$use};
-		}
-	}
-	$rebuilt .= $consume;
-	my $r = $args{context};
-	$r = eval $rebuilt;
-	return ("eval failed: $@") if $@;
-	return (undef, $r);
-}
-
-package FakeInventory;
-sub new { my ($c, $d) = @_; return bless { data => $d }, $c; }
-sub data { return $_[0]{data}; }
-
-package main;
+# shared fakes (FakeSys carries the eval_string CVAR support this file needs)
+require NMISNG::Test::Fakes;
 
 # Helper: make engine + fake sys; caller must keep both alive (engine weak-refs sys).
 sub make_engine
 {
 	my (%args) = @_;
-	my $sys = FakeSys->new(node_cfg => $args{node_cfg});
+	my $sys = NMISNG::Test::FakeSys->new(node_cfg => $args{node_cfg});
 	my $eng = NMISNG::Sys::Engine::HTTP->new(sys => $sys);
 	$eng->set_endpoints($args{endpoints});
 	return ($eng, $sys);
@@ -814,7 +750,7 @@ sub make_engine
 	);
 	# Wipe the map so only the inventory path can satisfy the lookup.
 	delete $eng->{_index_components};
-	my $fake = FakeInventory->new({
+	my $fake = NMISNG::Test::FakeInventory->new({
 		index      => 'opevents__eventqueue',
 		database   => 'opevents',
 		collection => 'eventqueue',
@@ -852,7 +788,7 @@ sub make_engine
 	# Inventory says: this row is (db=a__b, coll=c). The split fallback
 	# would (mis-)decompose 'a__b__c' as (a, b__c) and pick the wrong
 	# sample. The component map is wiped, so it can't help either.
-	my $fake = FakeInventory->new({
+	my $fake = NMISNG::Test::FakeInventory->new({
 		index      => 'a__b__c',
 		database   => 'a__b',
 		collection => 'c',
@@ -920,7 +856,7 @@ sub make_engine
 				jsonpath      => '$.members[0].value',
 			},
 		},
-		inventory => FakeInventory->new({ statsPath => "/pool/abc/stats" }),
+		inventory => NMISNG::Test::FakeInventory->new({ statsPath => "/pool/abc/stats" }),
 		index     => 'abc',
 		todos     => \%todos,
 	);

@@ -8,6 +8,7 @@ use warnings;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/lib";
 
 use Test::More;
 use File::Temp qw(tempdir tempfile);
@@ -129,79 +130,16 @@ diag("auth fixture on port $port");
 # --- Sys stub (with var dir overridden so token cache lives in $tmpdir) ---
 require NMISNG::Sys::Engine::HTTP;
 
-package FakeLog;
-sub new { return bless {}, shift; }
-sub error { shift; my $m = shift; print STDERR "ERROR: $m\n" if $ENV{DEBUG}; }
-sub warn  { shift; my $m = shift; print STDERR "WARN: $m\n"  if $ENV{DEBUG}; }
-sub info  { shift; } sub debug { shift; }
-sub debug2 { shift; } sub debug3 { shift; } sub debug4 { shift; }
-
-package FakeNmisng;
-sub new
-{
-	my ($class, $vardir) = @_;
-	return bless { config => { '<nmis_var>' => $vardir } }, $class;
-}
-sub log { $_[0]{log} //= FakeLog->new(); return $_[0]{log}; }
-sub config { return $_[0]{config}; }
-
-package FakeSys;
-sub new
-{
-	my ($class, %a) = @_;
-	return bless {
-		name   => 'authnode',
-		cfg    => { node => $a{node_cfg} },
-		nmisng => FakeNmisng->new($a{vardir}),
-	}, $class;
-}
-sub nmisng { return $_[0]{nmisng}; }
-
-# Same eval_string copy used in t_engine_http.pl
-sub eval_string
-{
-	my ($self, %args) = @_;
-	my $input = $args{string};
-	my $vars  = $args{variables} // [];
-	my %cvar;
-	my $consume = $input;
-	my $rebuilt = '';
-	while ($consume =~ s/^(.*?)(CVAR(\d)?=(\w+);|\$CVAR(\d)?)//)
-	{
-		$rebuilt .= $1;
-		my ($n, $decl, $use) = ($3, $4, $5);
-		$n = 0 unless defined $n;
-		if (defined $decl)
-		{
-			for my $src (@$vars)
-			{
-				next unless ref $src eq 'HASH' && exists $src->{$decl};
-				$cvar{$n} = $src->{$decl};
-				last;
-			}
-			return ("CVAR$n: unknown name '$decl'") unless exists $cvar{$n};
-		}
-		else
-		{
-			return ("CVAR$use undefined") unless exists $cvar{$use};
-			$rebuilt .= $cvar{$use};
-		}
-	}
-	$rebuilt .= $consume;
-	my $r = $args{context};
-	$r = eval $rebuilt;
-	return ("eval failed: $@") if $@;
-	return (undef, $r);
-}
-
-package main;
+# shared fakes; vardir routes the token cache into the throwaway dir
+require NMISNG::Test::Fakes;
 
 sub make_engine
 {
 	my (%args) = @_;
 	# Use a fresh var dir per engine to keep token caches isolated between tests.
 	my $vardir = tempdir(CLEANUP => 1, DIR => $tmpdir);
-	my $sys = FakeSys->new(
+	my $sys = NMISNG::Test::FakeSys->new(
+		name     => 'authnode',
 		node_cfg => $args{node_cfg} // {
 			host => '127.0.0.1', uuid => 'auth-uuid', name => 'authnode',
 			api_user => 'alice', api_pass => 's3cr3t',

@@ -48,42 +48,13 @@ sub cleanup
 	remove_tree($tmp_rrd_dir) if -d $tmp_rrd_dir;
 }
 
-# Skip RRD I/O — same monkey-patch t_polling.pl uses.
-{
-	no warnings 'redefine';
-	*NMISNG::Sys::create_update_rrd = sub {
-		my ($self, %args) = @_;
-		if (ref($args{inventory})) {
-			my $type = $args{type} || 'unknown';
-			$args{inventory}->set_subconcept_type_storage(
-				subconcept => $type, type => 'rrd',
-				data => "/nodes/$self->{name}/mock-$type.rrd"
-			);
-		}
-		return 1;
-	};
-}
-
-# Stub RRDs::info — Node::compute_reachability reads the previous polltime
-# from the health.rrd; with no real RRD this would die otherwise.
-require RRDs unless defined &RRDs::info;
-{
-	no warnings 'redefine';
-	*RRDs::info = sub { return {}; };
-}
-
-# Stub stats so threshold computations don't blow up
-my %mock_stats;
-{
-	no warnings 'redefine';
-	*Compat::NMIS::getSubconceptStats = sub {
-		my %args = @_;
-		my $key = $args{stats_section} // $args{subconcept};
-		return exists $mock_stats{$key} ? { %{$mock_stats{$key}} } : {};
-	};
-}
-$mock_stats{health}    = { reachability => 100, availability => 100 };
-$mock_stats{AppQueues} = { depth => 5, processed => 100 };
+# Skip RRD I/O and stub stats via the shared module
+# (test/lib/NMISNG/Test/RRDStub.pm); entries in %STATS feed
+# getSubconceptStats so threshold computations don't blow up.
+use NMISNG::Test::RRDStub;
+NMISNG::Test::RRDStub::install();
+$NMISNG::Test::RRDStub::STATS{health}    = { reachability => 100, availability => 100 };
+$NMISNG::Test::RRDStub::STATS{AppQueues} = { depth => 5, processed => 100 };
 
 # ============================================================
 # HTTP fixture: monkey-patch _fetch to return canned bodies by URL.
