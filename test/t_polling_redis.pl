@@ -327,6 +327,12 @@ SKIP: {
              update => 0, catchall_inventory => $cinv);
     ok((grep { $_->protocol_name eq 'redis' } @{$S->engines}),
        "redis engine present in Sys when wantredis + redis_enabled");
+    ok((grep { $_ eq 'redis' } @{$S->known_sources}),
+       "redis is in Sys::known_sources");
+    is($S->status->{redis_enabled}, 1,
+       "Sys::status surfaces redis_enabled=1 when the engine is active");
+    ok(exists $S->status->{redis_error},
+       "Sys::status surfaces a redis_error key (undef when no error)");
 
     # ---- Task 9: find_due_nodes sets the redis flavour ----
     $ng->ensure_indexes;

@@ -132,7 +132,7 @@ sub enabled_sources
 # When adding/removing a source here, search the codebase for those concrete
 # names too — find_due_nodes, reachability aggregation, and the collect
 # post-processing loop all consume them.
-sub known_sources { return [qw(snmp wmi http)]; }
+sub known_sources { return [qw(snmp wmi http redis)]; }
 sub initialised { my $self = shift; return $self->{_initialised} }; # my $I = $S->initialised
 
 # attention: that thing has an extra static 'node' outer wrapper!
