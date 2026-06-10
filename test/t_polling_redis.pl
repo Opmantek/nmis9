@@ -286,6 +286,47 @@ my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
        "clear -> element is the concept");
 }
 
+# An absent key must clear an open stale alarm (the key vanishing is a
+# normal state — optional concept, reset store — not a frozen payload),
+# and raise/clear must hit the event system once per concept per engine
+# lifetime, not once per index.
+{
+    our (@notified2, @checked2);
+    no warnings 'redefine';
+    local *Compat::NMIS::notify     = sub { push @notified2, {@_}; return; };
+    local *Compat::NMIS::checkEvent = sub { push @checked2,  {@_}; return; };
+
+    delete $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_health'};
+    my $enga = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+    my $st = $enga->build_queries(
+        section_name => 'sdwan_health',
+        section_hash => { '-common-' => { concept => 'sdwan_health' } },
+        todos        => {},
+    );
+    ok(!$st->{error}, "absent key: no error from build_queries");
+    is(scalar(@checked2), 1, "absent key clears any open stale event");
+    is($checked2[0]{element} // '', 'sdwan_health', "clear is for the right concept");
+
+    # second call in the same engine lifetime: guarded, no extra round trip
+    $enga->build_queries(
+        section_name => 'sdwan_health',
+        section_hash => { '-common-' => { concept => 'sdwan_health' } },
+        todos        => {},
+    );
+    is(scalar(@checked2), 1, "clear runs once per concept per engine lifetime");
+
+    # raise guard: a stale payload gated three times raises once
+    $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_health'} =
+        '{"_meta":{"collected_at_epoch":'.(time()-9999).'},"data":{"status":"online"}}';
+    my $engb = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+    for (1..3) {
+        my ($pl) = $engb->_payload('sdwan_health');
+        $engb->_payload_usable('sdwan_health', $pl, 600);
+    }
+    is(scalar(@notified2), 1, "stale raise runs once per concept per engine lifetime");
+    delete $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_health'};
+}
+
 # ---- Task 6: redis_enabled derivation ----
 SKIP: {
     eval {
@@ -605,6 +646,29 @@ SKIP: {
                 $ng->{_redis_handle} = FakeRedisClient->new;
                 isa_ok($ng->_redis_handle, 'FakeRedisClient',
                        "cached handle is reused");
+            }
+
+            # ---- orphan sweep: stale events for concepts dropped from model ----
+            {
+                require NMISNG::ModelData;
+                our @checked3;
+                no warnings 'redefine';
+                local *Compat::NMIS::checkEvent = sub { push @checked3, {@_}; return; };
+                local *NMISNG::Node::get_events_model = sub {
+                    return NMISNG::ModelData->new(data => [
+                        { element => 'ghost_concept' },
+                        { element => 'sdwan_uplink'  },
+                    ]);
+                };
+                my ($sweep) = grep { $_->protocol_name eq 'redis' } @{$Sg->engines};
+                ok($sweep, "redis engine available for sweep");
+                my %mc = map { $_ => 1 } @{ $sweep->model_concepts };
+                ok($mc{sdwan_uplink} && $mc{sdwan_health},
+                   "model_concepts finds the TestRedis concepts");
+                $sweep->close_orphaned_stale_events;
+                is(scalar(@checked3), 1, "sweep clears exactly one event");
+                is($checked3[0]{element} // '', 'ghost_concept',
+                   "swept event is the concept no longer in the model");
             }
         }
     }

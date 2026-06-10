@@ -167,6 +167,10 @@ my $STALE_EVENT = "Redis Data Stale";
 sub _raise_stale_event
 {
 	my ($self, $concept, $age, $freshness_s) = @_;
+	# Once per concept per engine lifetime (one collect): the gate runs per
+	# index, and notify costs a MongoDB lookup per call. The payload (and
+	# so the verdict) cannot change within one cycle — _payload_cache.
+	return if $self->{_stale_raised}{$concept}++;
 	require Compat::NMIS;
 	Compat::NMIS::notify(
 		sys     => $self->sys,
@@ -180,6 +184,8 @@ sub _raise_stale_event
 sub _clear_stale_event
 {
 	my ($self, $concept) = @_;
+	# Same once-per-cycle guard as _raise_stale_event, same reasoning.
+	return if $self->{_stale_cleared}{$concept}++;
 	require Compat::NMIS;
 	# checkEvent closes the event if one is open for this (node, concept),
 	# and is a no-op when none exists — safe to call every fresh cycle.
@@ -190,6 +196,63 @@ sub _clear_stale_event
 		level   => "Normal",
 		details => "Redis concept $concept is fresh",
 	);
+}
+
+# Close open stale events whose concept the model no longer declares.
+# Without this, removing a concept from the model (or switching models)
+# leaves its 'Redis Data Stale' event open forever: nothing queries the
+# concept anymore, so the normal clear in _payload_usable never runs.
+# Called once per collect from the own-inventory pass in Node::collect.
+sub close_orphaned_stale_events
+{
+	my ($self) = @_;
+	my $node = $self->sys->nmisng_node;
+	return unless ref $node;
+
+	my %live = map { $_ => 1 } @{ $self->model_concepts };
+	my $open = $node->get_events_model(
+		filter => { event => $STALE_EVENT, historic => 0 } );
+	return if (!$open or $open->error or !$open->count);
+
+	for my $ev (@{$open->data})
+	{
+		my $element = $ev->{element};
+		next if (!defined $element or $element eq '' or $live{$element});
+		$self->_clear_stale_event($element);
+	}
+	return;
+}
+
+# All concepts this model sources from this engine's section blocks
+# (system and systemHealth alike, sys and rrd parts).
+sub model_concepts
+{
+	my ($self) = @_;
+	my $mdl = $self->sys->mdl;
+	my %concepts;
+	return [] unless ref $mdl eq 'HASH';
+	for my $class (values %$mdl)
+	{
+		next unless ref $class eq 'HASH';
+		for my $kind (qw(sys rrd))
+		{
+			my $sections = $class->{$kind};
+			next unless ref $sections eq 'HASH';
+			for my $section (values %$sections)
+			{
+				next unless ref $section eq 'HASH';
+				for my $sk (@{$self->section_keys})
+				{
+					my $block = $section->{$sk};
+					next unless ref $block eq 'HASH';
+					my $common = $block->{'-common-'};
+					$concepts{$common->{concept}} = 1
+						if (ref $common eq 'HASH' && defined $common->{concept});
+				}
+			}
+		}
+	}
+	return [keys %concepts];
 }
 
 # Build %todos entries for one model section. Joins the model's `field` names
@@ -220,8 +283,15 @@ sub build_queries
 		$status{error} = $err;
 		return \%status;
 	}
-	# Absent key: nothing to record this cycle. Leave todos untouched.
-	return \%status if (!defined $payload);
+	# Absent key: nothing to record this cycle. Leave todos untouched —
+	# but close any open staleness alarm for the concept: absence is a
+	# normal state (optional concept, reset store), and without this a
+	# previously raised stale event would stay open until the key returned.
+	if (!defined $payload)
+	{
+		$self->_clear_stale_event($concept);
+		return \%status;
+	}
 
 	# run_id / freshness gate (freshness declared per-section in -common-).
 	return \%status unless $self->_payload_usable($concept, $payload, $common->{freshness});

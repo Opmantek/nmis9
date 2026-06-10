@@ -9710,12 +9710,19 @@ sub collect
 			# here at collect time — restricted to their own sections, so the
 			# SNMP/WMI/HTTP sections of a hybrid model keep doing discovery
 			# and retirement at update time only.
-			if (grep { $_->is_active && $_->manages_own_inventory } @{$S->engines})
+			if (my @own = grep { $_->is_active && $_->manages_own_inventory } @{$S->engines})
 			{
 				$time_start = Time::HiRes::time;
 				$self->collect_systemhealth_info(sys => $S, catchall_inventory => $catchall_inventory,
 					own_inventory_only => 1)
 					if defined $S->{mdl}{systemHealth};
+				# concepts dropped from the model can't clear their own
+				# staleness events anymore; sweep the orphans
+				for my $engine (@own)
+				{
+					$engine->close_orphaned_stale_events
+						if ($engine->can('close_orphaned_stale_events'));
+				}
 				$catchall_data->{collect_systemhealth_info_time} = Time::HiRes::time - $time_start;
 			}
 			$time_start = Time::HiRes::time;
