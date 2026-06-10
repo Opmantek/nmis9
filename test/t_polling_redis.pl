@@ -124,9 +124,10 @@ our %REDIS_KV;
     package FakeRedisClient;
     sub new { bless {}, shift }
     sub get { my ($s,$k)=@_; return $main::REDIS_KV{$k}; }
-    # scheduler prompt path: HGETDEL key FIELDS n field — destructive read
-    # of the poll-complete hash, faked via %main::REDIS_HASH (field => json).
-    sub hgetdel { my ($s, $key, $kw, $n, $field) = @_; return delete $main::REDIS_HASH{$field}; }
+    # scheduler prompt path: HGETDEL key FIELDS n field [field ...] —
+    # destructive batch read of the poll-complete hash, faked via
+    # %main::REDIS_HASH (field => json). Positional results, undef gaps.
+    sub hgetdel { my ($s, $key, $kw, $n, @fields) = @_; return map { delete $main::REDIS_HASH{$_} } @fields; }
 }
 no warnings 'redefine';
 local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
@@ -584,6 +585,26 @@ SKIP: {
                 ok(exists $main::REDIS_HASH{$ping->uuid},
                    "collect=false node: entry left unconsumed");
                 delete $main::REDIS_HASH{$ping->uuid};
+            }
+
+            # ---- scheduler redis handle: cached failures + connect holdoff ----
+            # (the real _redis_handle, not the stub above — these states must
+            # short-circuit before any require/connect attempt)
+            {
+                local $ng->{_redis_handle};
+                local $ng->{_redis_module_missing} = 1;
+                local $ng->{_redis_connect_failed_at};
+                is($ng->_redis_handle, undef,
+                   "missing-module failure is cached: returns undef, no die");
+
+                $ng->{_redis_module_missing} = 0;
+                $ng->{_redis_connect_failed_at} = Time::HiRes::time;
+                is($ng->_redis_handle, undef,
+                   "recent connect failure: holdoff returns undef without reconnecting");
+
+                $ng->{_redis_handle} = FakeRedisClient->new;
+                isa_ok($ng->_redis_handle, 'FakeRedisClient',
+                       "cached handle is reused");
             }
         }
     }

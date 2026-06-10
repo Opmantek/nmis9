@@ -1664,22 +1664,45 @@ sub events_collection
 
 # this function finds nodes that are due for a given operation;
 # consults the various policies and previous node states,
-# Atomically read+remove this node's completion entry from the nmisent
-# poll-complete hash (prompt path). Returns the decoded entry hashref, or
-# undef when none is present. HGETDEL needs Redis 8.0+; the at-most-once
-# semantics are intentional (see the contract).
-sub _redis_poll_complete
+# Atomically read+remove the completion entries for the given node uuids
+# from the nmisent poll-complete hash (prompt path), in one round trip per
+# chunk rather than one per node. Returns a hashref of uuid => decoded
+# entry, holding only uuids that had an entry. HGETDEL needs Redis 8.0+;
+# the at-most-once semantics are intentional (see the contract).
+sub _redis_poll_complete_batch
 {
-	my ($self, $node_uuid) = @_;
+	my ($self, $node_uuids) = @_;
+	my %entries;
+	return \%entries if (ref($node_uuids) ne 'ARRAY' or !@$node_uuids);
 	my $redis = $self->_redis_handle;
-	return undef unless $redis;
+	return \%entries unless $redis;
+
 	# Redis 8.0 HGETDEL syntax: HGETDEL key FIELDS numfields field [field ...].
-	my $raw = eval { my @r = $redis->hgetdel("nmisent:poll-complete", "FIELDS", 1, $node_uuid); $r[0]; };
-	if ($@) { $self->log->debug("redis hgetdel failed: $@"); return undef; }
-	return undef unless defined $raw;
-	my $entry = eval { JSON::XS::decode_json($raw) };
-	if ($@) { $self->log->warn("redis poll-complete entry for $node_uuid not valid JSON: $@"); return undef; }
-	return (ref $entry eq 'HASH') ? $entry : undef;
+	# One atomic call covers all fields; chunked to keep command size bounded
+	# on very large installs.
+	my $chunksize = 1000;
+	for (my $offset = 0; $offset < @$node_uuids; $offset += $chunksize)
+	{
+		my $end = $offset + $chunksize - 1;
+		$end = $#{$node_uuids} if ($end > $#{$node_uuids});
+		my @fields = @{$node_uuids}[$offset .. $end];
+
+		my @raw = eval { $redis->hgetdel("nmisent:poll-complete", "FIELDS", scalar(@fields), @fields) };
+		if ($@) { $self->log->debug("redis hgetdel failed: $@"); return \%entries; }
+
+		for my $i (0 .. $#fields)
+		{
+			next unless defined $raw[$i];
+			my $entry = eval { JSON::XS::decode_json($raw[$i]) };
+			if ($@)
+			{
+				$self->log->warn("redis poll-complete entry for $fields[$i] not valid JSON: $@");
+				next;
+			}
+			$entries{$fields[$i]} = $entry if (ref $entry eq 'HASH');
+		}
+	}
+	return \%entries;
 }
 
 # Lazily-opened scheduler-side Redis handle (separate from the per-node engine
@@ -1687,20 +1710,26 @@ sub _redis_poll_complete
 sub _redis_handle
 {
 	my ($self) = @_;
-	# Truthy (not exists) guard: a previous failed connect leaves this undef,
-	# and we want the next scheduler tick to retry rather than caching the
-	# failure for the whole nmisd process lifetime. Matches Engine::Redis::_redis.
 	return $self->{_redis_handle} if $self->{_redis_handle};
 	# A missing Redis perl module can't heal without a process restart, so cache
-	# that failure (unlike failed connects, which deliberately retry) — and never
+	# that failure (unlike failed connects, which retry below) — and never
 	# let it die here, or it takes down the whole nmisd scheduler.
 	return undef if $self->{_redis_module_missing};
+	# Failed connects do retry (unlike the module check above), but with a
+	# holdoff: each attempt blocks up to cnx_timeout seconds, and without a
+	# holdoff a down/unreachable redis would stall the scheduler on every
+	# pass. Matches Engine::Redis::_redis in settings, not in caching: the
+	# engine object lives for one collect, this handle for the nmisd process.
+	my $holdoff = 30;
+	return undef if ($self->{_redis_connect_failed_at}
+		&& (Time::HiRes::time - $self->{_redis_connect_failed_at}) < $holdoff);
 	if (!eval { require Redis; 1 })
 	{
 		$self->{_redis_module_missing} = 1;
 		$self->log->error("redis prompt path disabled: Redis perl module not loadable: $@");
 		return undef;
 	}
+
 	my $cfg = $self->config;
 	my $server = $ENV{NMIS_REDIS_SERVER} // $cfg->{redis_server} // 'localhost';
 	my $port   = $ENV{NMIS_REDIS_PORT}   // $cfg->{redis_port}   // 6379;
@@ -1709,7 +1738,15 @@ sub _redis_handle
 	my %newargs = (server => "$server:$port", reconnect => 2, every => 100, cnx_timeout => 5);
 	$newargs{password} = $pass if (defined $pass && $pass ne '');
 	$self->{_redis_handle} = eval { Redis->new(%newargs) };
-	$self->log->debug("scheduler redis connect to $server:$port failed: $@") if (!$self->{_redis_handle});
+	if ($self->{_redis_handle})
+	{
+		delete $self->{_redis_connect_failed_at};
+	}
+	else
+	{
+		$self->{_redis_connect_failed_at} = Time::HiRes::time;
+		$self->log->debug("scheduler redis connect to $server:$port failed: $@");
+	}
 	return $self->{_redis_handle};
 }
 
@@ -1862,6 +1899,21 @@ sub find_due_nodes
 	# dynamic node information, by node uuid
 	my %node_info_ro = map { ( $_->{node_uuid} => $_->{data} ) } ( @{$accessor->data} );
 
+	# Prompt-path prefetch: consume the nmisent completion entries for all
+	# collect-enabled redis nodes in one round trip, instead of one HGETDEL
+	# per node per pass. Only nodes passing the same gate as the per-node
+	# prompt check below are consumed; ping-only nodes' entries stay put.
+	my $redis_prompts = {};
+	if ($whichop eq "collect")
+	{
+		my @prompt_cands = grep {
+			$cands{$_}->{configuration}->{redis_enabled}
+				&& NMISNG::Util::getbool($cands{$_}->{configuration}->{collect})
+		} keys %cands;
+		$redis_prompts = $self->_redis_poll_complete_batch(\@prompt_cands)
+			if (@prompt_cands);
+	}
+
 	my $now = Time::HiRes::time;
 	my ( %due, %flavours, %procs, %services, %newnodes );
 	for my $maybe ( keys %cands )    # nodes by uuid
@@ -1961,7 +2013,6 @@ sub find_due_nodes
 			my $lastwmi   = $ninfo->{last_poll_wmi_attempt};
 			my $lasthttp  = $ninfo->{last_poll_http_attempt};
 			my $lastredis = $ninfo->{last_poll_redis_attempt};
-			my $has_redis = $nodeconfig->{redis_enabled} ? 1 : 0;
 
 			# handle the case of a changed polling policy: move all rrd files
 			# out of the way, and poll now
@@ -2166,7 +2217,7 @@ sub find_due_nodes
 				my $nexthttp = $has_http
 					? ( $lasthttp // 0 ) + $intervals{$polname}->{http} * $fudgefactor
 					: undef;
-				$has_redis = $nodeconfig->{redis_enabled} ? 1 : 0;
+				my $has_redis = $nodeconfig->{redis_enabled} ? 1 : 0;
 				my $nextredis = $has_redis
 					? ( $lastredis // 0 ) + $intervals{$polname}->{redis} * $fudgefactor
 					: undef;
@@ -2217,28 +2268,23 @@ sub find_due_nodes
 
 			# Redis prompt path: a completion entry in the nmisent hash
 			# means the Go daemon finished a polling cycle for this node.
-			# HGETDEL atomically reads and removes it (at-most-once). When
-			# present, force the node due now and carry the run_id to the
-			# engine for the consistency check. Absent entry -> fall back
-			# to the cadence logic above. Only for collect-enabled nodes:
-			# a ping-only node must not be force-collected at the push rate
-			# (and its entry is left unconsumed, since nothing would use it).
-			if ($has_redis && $whichop eq "collect"
-				&& NMISNG::Util::getbool($nodeconfig->{collect}))
+			# The prefetch above HGETDELed the entries atomically
+			# (at-most-once), only for collect-enabled redis nodes — a
+			# ping-only node must not be force-collected at the push rate,
+			# and its entry is left unconsumed. When an entry is present,
+			# force the node due now and carry the run_id to the engine for
+			# the consistency check. Absent entry -> the cadence logic above.
+			if (my $entry = $redis_prompts->{$maybe})
 			{
-				my $entry = $self->_redis_poll_complete($maybe);
-				if ($entry)
-				{
-					$due{$maybe} = $cands{$maybe};
-					$flavours{$maybe}->{redis} = 1;
-					$flavours{$maybe}->{redis_run_id} = $entry->{run_id};
-					# A prompt is a redis-only collect: keep whatever the
-					# cadence logic above decided for the other sources, but
-					# pin still-undef ones to 0 — Node::collect treats undef
-					# wanthttp as legacy default-on, which would otherwise
-					# poll HTTP endpoints at the push rate on hybrid nodes.
-					$flavours{$maybe}->{$_} //= 0 for (qw(snmp wmi http));
-				}
+				$due{$maybe} = $cands{$maybe};
+				$flavours{$maybe}->{redis} = 1;
+				$flavours{$maybe}->{redis_run_id} = $entry->{run_id};
+				# A prompt is a redis-only collect: keep whatever the
+				# cadence logic above decided for the other sources, but
+				# pin still-undef ones to 0 — Node::collect treats undef
+				# wanthttp as legacy default-on, which would otherwise
+				# poll HTTP endpoints at the push rate on hybrid nodes.
+				$flavours{$maybe}->{$_} //= 0 for (qw(snmp wmi http));
 			}
 		}
 	}
