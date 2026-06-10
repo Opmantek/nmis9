@@ -5194,6 +5194,17 @@ sub collect_systemhealth_info
 			next;
 		}
 
+		# The collect-time reconcile pass is only for engines that own their
+		# inventory (push sources have no update pass doing this work). The
+		# poll-based sections still do discovery/retirement at update time
+		# only — without this filter a hybrid model would re-walk all its
+		# SNMP/WMI/HTTP sections every collect.
+		if ($args{own_inventory_only} && !$engine->manages_own_inventory)
+		{
+			$self->nmisng->log->debug2(sub {"skipping section $section: engine $protocol does not manage its own inventory"});
+			next;
+		}
+
 		$self->nmisng->log->debug2(sub {"systemhealth: section=$section, source $protocol, index_var=$index_var"});
 		$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, $protocol );
 
@@ -9696,12 +9707,14 @@ sub collect
 
 			# Push engines (Redis, future streaming) own their inventory: no
 			# update pass runs collect_systemhealth_info for them, so run it
-			# here at collect time. Gated on the engine trait so SNMP/WMI/HTTP
-			# are unaffected.
+			# here at collect time — restricted to their own sections, so the
+			# SNMP/WMI/HTTP sections of a hybrid model keep doing discovery
+			# and retirement at update time only.
 			if (grep { $_->is_active && $_->manages_own_inventory } @{$S->engines})
 			{
 				$time_start = Time::HiRes::time;
-				$self->collect_systemhealth_info(sys => $S, catchall_inventory => $catchall_inventory)
+				$self->collect_systemhealth_info(sys => $S, catchall_inventory => $catchall_inventory,
+					own_inventory_only => 1)
 					if defined $S->{mdl}{systemHealth};
 				$catchall_data->{collect_systemhealth_info_time} = Time::HiRes::time - $time_start;
 			}
