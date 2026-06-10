@@ -58,7 +58,7 @@
 		},
 		'rrd' => {
 			'sdwan_uplink' => {
-				'graphtype' => 'sdwan_uplink',
+				'graphtype' => 'sdwan_uplink,sdwan_loss',
 				'indexed'   => 'wan_interface',
 				'redis' => {
 					'-common-' => { 'concept' => 'sdwan_uplink', 'engine' => 'meraki', 'freshness' => 600 },

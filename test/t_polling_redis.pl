@@ -445,6 +445,11 @@ SKIP: {
             ok(defined $rrdname && $rrdname =~ /sdwan_uplink.*wan1/,
                "graphtype sdwan_uplink resolves to an RRD path (database.type present)")
                 or diag("makeRRDname returned: ".(defined $rrdname ? $rrdname : 'undef'));
+            # the loss graphtype shares the same per-uplink RRD (second DS).
+            my $lossrrd = $Sg->makeRRDname(graphtype => 'sdwan_loss', index => 'wan1', relative => 1);
+            ok(defined $lossrrd && $lossrrd =~ /sdwan_uplink.*wan1/,
+               "graphtype sdwan_loss resolves to the shared sdwan_uplink RRD")
+                or diag("makeRRDname(sdwan_loss) returned: ".(defined $lossrrd ? $lossrrd : 'undef'));
         }
     }
 

@@ -1,0 +1,34 @@
+#
+# Graph-sdwan_loss.nmis - graph for the sdwan_uplink 'loss' DS (uplink packet
+# loss %), one RRD per WAN uplink (indexed by wan_interface). Referenced via the
+# 'sdwan_loss' graphtype on the sdwan_uplink rrd block; reads the 'loss' DS from
+# the same sdwan_uplink-<wan_interface>.rrd as the latency graph. Loss (%) and
+# latency (ms) are separate graphs because their scales differ.
+#
+%hash = (
+	'heading' => 'SD-WAN Uplink Packet Loss',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Packet loss %',
+		'short' => 'Loss %'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:loss=$database:loss:AVERAGE',
+			'DEF:mloss=$database:loss:MAX',
+			'LINE1:loss#ff0000: Loss\\n',
+			'GPRINT:loss:AVERAGE:Avg Loss %1.2lf %%',
+			'GPRINT:mloss:MAX:Max Loss %1.2lf %%'
+		],
+		'small' => [
+			'DEF:loss=$database:loss:AVERAGE',
+			'DEF:mloss=$database:loss:MAX',
+			'LINE1:loss#ff0000: Loss %.',
+			'GPRINT:loss:AVERAGE:Avg %1.2lf %%',
+			'GPRINT:mloss:MAX:Max %1.2lf %%\\n'
+		]
+	}
+);
