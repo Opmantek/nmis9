@@ -12,6 +12,14 @@
 			'database' => { 'common-model' => 'database' }
 		},
 	},
+	# RRD path for the indexed sdwan_uplink concept. Without this database.type
+	# entry, makeRRDname cannot resolve a file for graphtype 'sdwan_uplink' and
+	# both RRD creation and graphing fail ("failed to find database for graphtype").
+	'database' => {
+		'type' => {
+			'sdwan_uplink' => '/nodes/$node/health/sdwan_uplink-$index.rrd',
+		},
+	},
 	'system' => {
 		'nodegraph' => 'health',
 		'nodeModel' => 'CiscoMerakiSDWAN',

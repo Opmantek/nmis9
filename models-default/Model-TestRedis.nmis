@@ -10,6 +10,12 @@
 			'database' => { 'common-model' => 'database' }
 		},
 	},
+	# RRD path for the indexed sdwan_uplink concept (see Model-CiscoMerakiSDWAN).
+	'database' => {
+		'type' => {
+			'sdwan_uplink' => '/nodes/$node/health/sdwan_uplink-$index.rrd',
+		},
+	},
 	'system' => {
 		'nodegraph' => 'health',
 		'nodeModel' => 'TestRedis',

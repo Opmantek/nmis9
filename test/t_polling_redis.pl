@@ -413,6 +413,20 @@ SKIP: {
             my $live = $rnode->get_inventory_ids(concept => 'sdwan_uplink', filter => { historic => 0 });
             ok(scalar(@$live) == 1, "one live sdwan_uplink row after wan2 dropped")
                 or diag("got ".scalar(@$live));
+
+            # The graphtype must resolve to an RRD database path (a
+            # database.type.sdwan_uplink template), else both RRD creation and
+            # the GUI fail with "failed to find database for graphtype". The
+            # e2e above stubs create_update_rrd, so assert the resolution
+            # directly via makeRRDname.
+            my $Sg = NMISNG::Sys->new(nmisng => $ng);
+            my ($gci) = $rnode->inventory(concept => "catchall");
+            $Sg->init(node => $rnode, snmp => 0, wmi => 0, http => 0, redis => 1,
+                      update => 0, catchall_inventory => $gci);
+            my $rrdname = $Sg->makeRRDname(graphtype => 'sdwan_uplink', index => 'wan1', relative => 1);
+            ok(defined $rrdname && $rrdname =~ /sdwan_uplink.*wan1/,
+               "graphtype sdwan_uplink resolves to an RRD path (database.type present)")
+                or diag("makeRRDname returned: ".(defined $rrdname ? $rrdname : 'undef'));
         }
     }
 
