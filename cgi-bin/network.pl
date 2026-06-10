@@ -2039,21 +2039,29 @@ nodeVendor sysObjectName roleType netType );
 												color => $color };
 	}
 
-	# Check model specific values if collected
+	# Check model specific values if collected, across every polling-source
+	# block (snmp/wmi/http/redis) so push-engine fields (e.g. redis sdwan_health)
+	# surface in the overview too. The '-common-' entry and any untitled items
+	# are skipped by the 'title' check below.
 	my $possibles = $S->{mdl}->{'system'}->{'sys'};
-	foreach my $key (keys %{$possibles}) 
+	foreach my $key (keys %{$possibles})
 	{
-		foreach my $key2 (keys %{$possibles->{$key}->{'snmp'}}) {
-			if (defined($catchall_data->{$key2}) and defined($possibles->{$key}->{'snmp'}->{$key2}->{'title'})
-				 and !(grep { $key2 eq $_ } @shouldshow) and ($key2 ne "configLastChanged" and $key2 ne "configLastSaved"
-															  and $key2 ne "bootConfigLastChanged")) {
-				push @shouldshow, {
-					title => $possibles->{$key}->{'snmp'}->{$key2}->{'title'},
-					value => $catchall_data->{$key2}
-				};	
+		for my $src (qw(snmp wmi http redis))
+		{
+			my $srcblock = $possibles->{$key}->{$src};
+			next unless ref($srcblock) eq 'HASH';
+			foreach my $key2 (keys %{$srcblock}) {
+				if (defined($catchall_data->{$key2}) and defined($srcblock->{$key2}->{'title'})
+					 and !(grep { $key2 eq $_ } @shouldshow) and ($key2 ne "configLastChanged" and $key2 ne "configLastSaved"
+																  and $key2 ne "bootConfigLastChanged")) {
+					push @shouldshow, {
+						title => $srcblock->{$key2}->{'title'},
+						value => $catchall_data->{$key2}
+					};
+				}
 			}
 		}
-	} 
+	}
 	# second, collect values for the normal items and massage the ones in need
 	# for some items the model has no title; configuration items are untitled as well, so hardcoded here
 	my %untitled = ( nodestatus => "Node Status",
