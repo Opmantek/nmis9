@@ -36,6 +36,27 @@
 					'last_reported_at' => { 'field' => 'last_reported_at', 'title' => 'Last reported' },
 				},
 			},
+			# Display-only device info. nmisent writes these nmisent_* properties to
+			# the node configuration and catchall at discovery time (NOT via the
+			# metrics payload), so there is nothing to collect here. skip_collect makes
+			# loadInfo(system) skip the whole section before the Redis engine runs,
+			# while the node-view overview loop (cgi-bin/network.pl) still reads these
+			# titles and shows whatever value is present in catchall. device_type,
+			# vendor and dashboard_url are intentionally absent: nmisent maps those to
+			# the standard nodeType / nodeVendor / node_context_url, already displayed.
+			'nodeinfo' => {
+				'skip_collect' => 'true',
+				'redis' => {
+					'nmisent_hw_model'       => { 'title' => 'HW model' },
+					'nmisent_serial'         => { 'title' => 'Serial' },
+					'nmisent_mac'            => { 'title' => 'MAC' },
+					'nmisent_firmware'       => { 'title' => 'Firmware' },
+					'nmisent_network_id'     => { 'title' => 'Network ID' },
+					'nmisent_product_type'   => { 'title' => 'Product type' },
+					'nmisent_address'        => { 'title' => 'Address' },
+					'nmisent_config_updated' => { 'title' => 'Config updated' },
+				},
+			},
 		},
 	},
 	'systemHealth' => {
