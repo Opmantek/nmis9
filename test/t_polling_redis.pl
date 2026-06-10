@@ -260,6 +260,40 @@ my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
     );
     ok($e3, "absent key -> discover_indexes error");
     is($enga->classify_error->{type}, 'not_present', "absent key -> not_present");
+
+    # Stale payload: discovery must refuse it like the data path does (and
+    # raise the stale alarm), instead of creating/retiring inventory from
+    # data the engine itself classifies unusable.
+    {
+        our @notified_d;
+        no warnings 'redefine';
+        local *Compat::NMIS::notify = sub { push @notified_d, {@_}; return; };
+        $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_uplink'} =
+            '{"_meta":{"collected_at_epoch":'.(time()-9999).'},"data":[{"wan_interface":"wan1"}]}';
+        my $engs = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my ($es) = $engs->discover_indexes(
+            section_config => { redis => { '-common-' => { concept => 'sdwan_uplink', freshness => 600 } } },
+            index_var      => 'wan_interface',
+        );
+        ok($es, "stale payload -> discover_indexes refuses");
+        is($engs->classify_error->{type}, 'not_present',
+           "stale payload -> not_present (soft skip, inventory untouched)");
+        ok(@notified_d && $notified_d[0]{event} =~ /stale/i,
+           "stale payload at discovery raises the stale event");
+        delete $main::REDIS_KV{'nmisent:metrics:11111111-2222-3333-4444-555555555555:sdwan_uplink'};
+    }
+
+    # classify_error must not mistake a concept named like 'connect' for a
+    # connection failure (no_session aborts the whole systemHealth collect).
+    {
+        my $engc = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        $engc->{_last_error} = "no key for concept vpn_connections";
+        is($engc->classify_error->{type}, 'not_present',
+           "concept named *connect* with missing key stays not_present");
+        $engc->{_last_error} = "redis connect to localhost:6379 failed: timeout";
+        is($engc->classify_error->{type}, 'no_session',
+           "real connect failure still classifies no_session");
+    }
 }
 
 # Staleness event uses the standard NMIS event path: Compat::NMIS::notify to

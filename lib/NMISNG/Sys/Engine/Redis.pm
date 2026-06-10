@@ -118,8 +118,11 @@ sub classify_error
 	my ($self) = @_;
 	my $err = $self->{_last_error};
 	return undef unless defined $err;
-	return { type => 'no_session',  message => $err } if $err =~ /connect/i;
-	return { type => 'not_present', message => $err } if $err =~ /no key|missing key|run_id mismatch/i;
+	# anchored to _redis's actual failure message — a bare /connect/ would
+	# also match concept names (e.g. 'vpn_connections') embedded in
+	# missing-key errors and abort the whole systemHealth collect
+	return { type => 'no_session',  message => $err } if $err =~ /redis connect to/i;
+	return { type => 'not_present', message => $err } if $err =~ /no key|missing key|run_id mismatch|not usable/i;
 	return { type => 'transport_error', message => $err };
 }
 
@@ -207,7 +210,7 @@ sub close_orphaned_stale_events
 {
 	my ($self) = @_;
 	my $node = $self->sys->nmisng_node;
-	return unless ref $node;
+	return if (!ref $node);
 
 	my %live = map { $_ => 1 } @{ $self->model_concepts };
 	my $open = $node->get_events_model(
@@ -230,21 +233,21 @@ sub model_concepts
 	my ($self) = @_;
 	my $mdl = $self->sys->mdl;
 	my %concepts;
-	return [] unless ref $mdl eq 'HASH';
+	return [] if (ref $mdl ne 'HASH');
 	for my $class (values %$mdl)
 	{
-		next unless ref $class eq 'HASH';
+		next if (ref $class ne 'HASH');
 		for my $kind (qw(sys rrd))
 		{
 			my $sections = $class->{$kind};
-			next unless ref $sections eq 'HASH';
+			next if (ref $sections ne 'HASH');
 			for my $section (values %$sections)
 			{
-				next unless ref $section eq 'HASH';
+				next if (ref $section ne 'HASH');
 				for my $sk (@{$self->section_keys})
 				{
 					my $block = $section->{$sk};
-					next unless ref $block eq 'HASH';
+					next if (ref $block ne 'HASH');
 					my $common = $block->{'-common-'};
 					$concepts{$common->{concept}} = 1
 						if (ref $common eq 'HASH' && defined $common->{concept});
@@ -306,15 +309,20 @@ sub build_queries
 		my $data = $payload->{data};
 		if (ref $data eq 'ARRAY' && defined $index_field)
 		{
-			for my $entry (@$data)
-			{
-				next unless ref $entry eq 'HASH';
-				if (defined $entry->{$index_field} && $entry->{$index_field} eq $index)
+			# one pass per concept+field per cycle, then O(1) per index:
+			# getValues calls build_queries once per inventory row, and the
+			# payload is fixed for the engine's lifetime (_payload_cache) —
+			# a linear scan here made large sections O(rows^2) per collect
+			my $rowmap = $self->{_row_index_cache}{$concept}{$index_field} //= do {
+				my %m;
+				for my $entry (@$data)
 				{
-					$row = $entry;
-					last;
+					next if (ref $entry ne 'HASH' || !defined $entry->{$index_field});
+					$m{$entry->{$index_field}} //= $entry;    # first match wins, as before
 				}
-			}
+				\%m;
+			};
+			$row = $rowmap->{$index};
 		}
 		# No matching row this cycle: nothing to record (the index will be
 		# retired by the historic-mark pass in collect_systemhealth_info).
@@ -422,14 +430,15 @@ sub discover_indexes
 		return ($self->{_last_error}, undef, undef);
 	}
 
-	# run_id mismatch on the prompt path: skip discovery this cycle rather
-	# than retiring inventory against a half-written newer snapshot.
-	my $meta = (ref $payload->{_meta} eq 'HASH') ? $payload->{_meta} : {};
-	if (defined $self->{expected_run_id}
-		&& defined $meta->{run_id}
-		&& $meta->{run_id} ne $self->{expected_run_id})
+	# Same gate as the data path (run_id mismatch on the prompt path, and
+	# freshness): skip discovery this cycle rather than creating/retiring
+	# inventory against a half-written newer snapshot or a payload the data
+	# path refuses as stale. A stale payload raises the per-concept stale
+	# event here too (once per cycle, the raise is guarded), since a
+	# soft-skipped section never reaches the data path's gate.
+	if (!$self->_payload_usable($concept, $payload, $common->{freshness}))
 	{
-		$self->{_last_error} = "run_id mismatch for concept $concept";
+		$self->{_last_error} = "payload for concept $concept not usable (stale or run_id mismatch)";
 		return ($self->{_last_error}, undef, undef);
 	}
 	$self->{_last_error} = undef;
