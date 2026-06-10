@@ -350,6 +350,58 @@ SKIP: {
     ok($fl, "redis node present in due list");
     ok($fl->{redis}, "redis flavour enabled for a redis_enabled node");
 
+    # ---- handle_down: per-source down/up events for push + http sources ----
+    # The type gate in Node::handle_down used to silently drop 'redis' and
+    # 'http', so a dead source raised no event at all. Pin the contract:
+    # these sources map to a stateful "<X> Down" event raised via
+    # Compat::NMIS::notify and cleared via checkEvent, and unknown source
+    # types stay no-ops.
+    {
+        no warnings 'redefine';
+        my (@notified, @checked);
+        local *Compat::NMIS::notify     = sub { push @notified, {@_}; return; };
+        local *Compat::NMIS::checkEvent = sub { push @checked,  {@_}; return; };
+
+        for my $case ([redis => 'Redis Down'], [http => 'HTTP Down'])
+        {
+            my ($type, $eventname) = @$case;
+            @notified = @checked = ();
+            $n->handle_down(sys => $S, type => $type,
+                details => "$type test failure", catchall_inventory => $cinv);
+            is(scalar(@notified), 1, "handle_down($type) raises one event");
+            is($notified[0]{event} // '', $eventname,
+               "handle_down($type) raises '$eventname'");
+            $n->handle_down(sys => $S, type => $type, up => 1,
+                details => "$type ok", catchall_inventory => $cinv);
+            is(scalar(@checked), 1, "handle_down($type, up) clears via checkEvent");
+            is($checked[0]{event} // '', $eventname,
+               "handle_down($type) clear targets '$eventname'");
+        }
+
+        @notified = @checked = ();
+        $n->handle_down(sys => $S, type => 'bogus',
+            details => "x", catchall_inventory => $cinv);
+        ok(!@notified && !@checked, "unknown source type stays a no-op");
+
+        # Both events must ship registered as stateful in conf-default,
+        # or notify/checkEvent pairing degrades to the Default entry.
+        my %events;
+        {
+            open(my $fh, '<', "$FindBin::Bin/../conf-default/Events.nmis")
+                or die "cannot read Events.nmis: $!";
+            my $content = do { local $/; <$fh> };
+            my %hash;
+            eval $content;
+            die "Events.nmis parse failed: $@" if $@;
+            %events = %hash;
+        }
+        for my $ev ('Redis Down', 'HTTP Down')
+        {
+            is(($events{$ev}{Stateful} // ''), 'true',
+               "$ev registered stateful in conf-default/Events.nmis");
+        }
+    }
+
     # ---- Task 11: end-to-end reconcile via the collect path ----
     {
         my $rnode = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);

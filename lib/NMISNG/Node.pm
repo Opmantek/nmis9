@@ -2246,6 +2246,8 @@ sub handle_down_eventnames
 	return {
 		'snmp' => "SNMP Down",
 		'wmi'  => "WMI Down",
+		'http' => "HTTP Down",
+		'redis' => "Redis Down",
 		'node' => "Node Down",
 		'failover' => "Node Polling Failover",
 		'backup' => "Backup Host Down",
@@ -2256,7 +2258,7 @@ sub handle_down_eventnames
 # args: self, sys, type (all required), details (optional),
 # up (optional, set to clear event, default is create)
 #
-# currently understands snmp, wmi, node (=the whole node),
+# currently understands snmp, wmi, http, redis, node (=the whole node),
 #  failover (=primary down, switching to backup address),
 #  backup (=the host_backup address is down)
 #
@@ -2268,7 +2270,7 @@ sub handle_down
 	my ($self, %args) = @_;
 
 	my ($S, $typeofdown, $details, $goingup, $catchall_inventory) = @args{"sys", "type", "details", "up","catchall_inventory"};
-	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|node|failover|backup)$/ );
+	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|http|redis|node|failover|backup)$/ );
 
 	$goingup = NMISNG::Util::getbool($goingup);
 	my $eventname = &handle_down_eventnames->{$typeofdown};

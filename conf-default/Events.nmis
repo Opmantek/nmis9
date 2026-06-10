@@ -195,6 +195,22 @@
     'CancelingEvent' => 'SNMP Up',
     'Description' => 'SNMP communication to the node has a problem.',
   },
+  'HTTP Down' => {
+    'Event' => 'HTTP Down',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'Description' => 'The HTTP polling engine could not reach the node\'s configured endpoints during collect. Raised and cleared per node through the same source up/down path as SNMP Down and WMI Down.',
+  },
+  'Redis Down' => {
+    'Event' => 'Redis Down',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'Description' => 'The Redis server holding push-engine polling data is unreachable or returned a connection-level error during collect. Raised and cleared per node through the same source up/down path as SNMP Down and WMI Down.',
+  },
   'Redis Data Stale' => {
     'Event' => 'Redis Data Stale',
     'Notify' => 'true',
