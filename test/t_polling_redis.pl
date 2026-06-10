@@ -575,6 +575,30 @@ SKIP: {
         ok(!(grep { ($_->{event} // '') eq "Model File Invalid" } @notified),
            "correctly-configured push model awaiting data does NOT raise Model File Invalid")
             or diag("notify events: ".join(",", map { $_->{event} // '?' } @notified));
+
+        # Contrast case: a poll-based node (no push engine) with an explicit
+        # model whose first load fails must NOT have the configured model
+        # stamped into nodeModel. Upstream semantics: nodeModel reflects what
+        # discovery found — update()'s 'Generic' fallback when it found
+        # nothing — and reachability weighting keys on that.
+        my $dead = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $dead->cluster_id($C->{cluster_id});
+        $dead->name("t_dead_snmp_node");
+        $dead->activated({ NMIS => 1 });
+        $dead->configuration({
+            host => "127.0.0.1", group => "TestGroup", netType => "default",
+            roleType => "default", model => "TestSnmp", collect => "true",
+            ping => "false",
+        });
+        $dead->save();
+        $dead->update(force => 1);
+
+        my ($dci) = $dead->inventory(concept => "catchall");
+        my $deadmodel = $dci ? $dci->data->{nodeModel} : undef;
+        isnt($deadmodel // '', 'TestSnmp',
+           "poll-based node with failed load does not get the configured model stamped");
+        is($deadmodel // '', 'Generic',
+           "poll-based node with failed load keeps update()'s Generic fallback (base parity)");
     }
 
     # ---- Model File Invalid clears once the push model is fixed ----

@@ -2429,14 +2429,20 @@ sub update_node_info
 			}
 		}
 
-		# Honor an explicitly configured model: its nodeModel is fixed to the
-		# configured value and must never fall back to Generic/Default — even
-		# when the first loadInfo collected nothing (e.g. a push/redis node whose
-		# data has not arrived yet, so loadInfo(system) is empty and firstloadok
-		# is false). Auto-model nodes ('automatic'/'') are still resolved by
+		# Honor an explicitly configured model on push-sourced nodes: their
+		# nodeModel is fixed to the configured value and must never fall back
+		# to Generic/Default — even when the first loadInfo collected nothing
+		# (a push/redis node whose data has not arrived yet, so
+		# loadInfo(system) is empty and firstloadok is false). Only for nodes
+		# with an active own-inventory (push) engine: on poll-based nodes
+		# nodeModel must keep reflecting what discovery found (update()'s
+		# 'Generic' fallback when it found nothing), since reachability
+		# weighting and dead-node handling key on that, not on the configured
+		# model. Auto-model nodes ('automatic'/'') are still resolved by
 		# selectNodeModel inside the firstloadok branch below.
 		my $cfgmodel = $self->configuration->{model};
-		if (defined $cfgmodel && $cfgmodel ne '' && $cfgmodel ne 'automatic')
+		if (defined $cfgmodel && $cfgmodel ne '' && $cfgmodel ne 'automatic'
+			&& grep { $_->is_active && $_->manages_own_inventory } @{$S->engines})
 		{
 			$catchall_data->{nodeModel} = $cfgmodel;
 		}
