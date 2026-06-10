@@ -364,35 +364,26 @@ SKIP: {
         my ($rop, $rerr) = $rnode->save();
         ok(!$rerr, "redis e2e node saved") or diag($rerr);
 
-        # An update creates catchall + loads the model. RRD is stubbed above.
-        $rnode->update(force => 1);
-
         my $ruuid = $rnode->uuid;
+
+        # Faithful end-to-end: stub the engine's redis client (covering update
+        # too) and seed the data BEFORE update. update then sees the data,
+        # loadInfo(system) succeeds, nodeModel settles to TestRedis and
+        # last_update is set — so collect proceeds to the RRD pass with NO
+        # planted catchall state.
+        no warnings 'redefine';
+        local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+
         $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
             '{"_meta":{"collected_at_epoch":'.time().'},"data":['
             .'{"wan_interface":"wan1","status":"active","latency_ms":24},'
             .'{"wan_interface":"wan2","status":"ready","latency_ms":12}]}';
         $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_health"} =
             '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.23,"memory_used_pct":47.2}}';
+
+        $rnode->update(force => 1);
+
         {
-            no warnings 'redefine';
-            local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
-
-            # Plant last_update so collect proceeds to the data/RRD pass instead
-            # of diverting to update (the !last_update divert is intentionally
-            # unchanged by this work; we are testing the proceed path).
-            # Also restore nodeModel: update() above found no SNMP session and
-            # fell back to 'Generic', which would cause collect to load Model-Generic
-            # (SNMP-keyed standard section) instead of the TestRedis model.
-            {
-                my ($ci, $cierr) = $rnode->inventory(concept => "catchall");
-                my $cd = $ci->data();
-                $cd->{last_update} = time();
-                $cd->{nodeModel}   = 'TestRedis';
-                $ci->data($cd);
-                $ci->save(node => $rnode);
-            }
-
             @main::RRD_CALLS = ();
             $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1, force => 1);
 
