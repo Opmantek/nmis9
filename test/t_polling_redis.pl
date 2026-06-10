@@ -385,7 +385,9 @@ SKIP: {
 
         {
             @main::RRD_CALLS = ();
-            $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1, force => 1);
+            # No force: routine scheduled polling runs collect without it (force
+            # is only set for operator-triggered jobs). Proves the prod path.
+            $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
 
             my $ids = $rnode->get_inventory_ids(concept => 'sdwan_uplink', filter => { historic => 0 });
             ok(scalar(@$ids) == 2, "two sdwan_uplink rows after first collect")
@@ -405,7 +407,9 @@ SKIP: {
             $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
                 '{"_meta":{"collected_at_epoch":'.time().'},"data":['
                 .'{"wan_interface":"wan1","status":"active","latency_ms":20}]}';
-            $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1, force => 1);
+            # No force: routine scheduled polling runs collect without it (force
+            # is only set for operator-triggered jobs). Proves the prod path.
+            $rnode->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
             my $live = $rnode->get_inventory_ids(concept => 'sdwan_uplink', filter => { historic => 0 });
             ok(scalar(@$live) == 1, "one live sdwan_uplink row after wan2 dropped")
                 or diag("got ".scalar(@$live));
