@@ -31,6 +31,37 @@ can_ok('NMISNG::Sys::Engine', 'manages_own_inventory');
 is(NMISNG::Sys::Engine::manages_own_inventory(), 0,
    "base engine manages_own_inventory defaults to 0");
 
+# ---- shared connection settings resolver (NMISNG::Util) ----
+# one source of endpoint truth for the engine and the scheduler prompt path
+{
+    require NMISNG::Util;
+    local @ENV{qw(NMIS_REDIS_SERVER NMIS_REDIS_PORT NMIS_REDIS_PASSWORD)};
+    delete @ENV{qw(NMIS_REDIS_SERVER NMIS_REDIS_PORT NMIS_REDIS_PASSWORD)};
+
+    my ($args, $disp) = NMISNG::Util::redis_connect_args({});
+    is($disp, 'localhost:6379', "resolver defaults to localhost:6379");
+    is($args->{server}, 'localhost:6379', "Redis->new server arg matches");
+    ok(!exists $args->{password}, "no password arg by default");
+
+    ($args, $disp) = NMISNG::Util::redis_connect_args(
+        { redis_server => 'redis.example', redis_port => 7000, redis_password => 'cfgpass' });
+    is($disp, 'redis.example:7000', "config overrides defaults");
+    is($args->{password}, 'cfgpass', "config password used");
+
+    local $ENV{NMIS_REDIS_SERVER}   = 'envhost';
+    local $ENV{NMIS_REDIS_PORT}     = 7777;
+    local $ENV{NMIS_REDIS_PASSWORD} = 'envpass';
+    ($args, $disp) = NMISNG::Util::redis_connect_args(
+        { redis_server => 'redis.example', redis_port => 7000, redis_password => 'cfgpass' });
+    is($disp, 'envhost:7777', "env overrides config");
+    is($args->{password}, 'envpass', "env password wins");
+
+    # empty env password falls through to the config one
+    $ENV{NMIS_REDIS_PASSWORD} = '';
+    ($args) = NMISNG::Util::redis_connect_args({ redis_password => 'cfgpass' });
+    is($args->{password}, 'cfgpass', "empty env password falls through to config");
+}
+
 # ---- Task 2: engine identity + payload fetch ----
 use NMISNG::Sys::Engine::Redis;
 

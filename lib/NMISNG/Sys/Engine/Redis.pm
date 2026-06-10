@@ -17,6 +17,7 @@ use parent 'NMISNG::Sys::Engine';
 
 use Redis;
 use JSON::XS qw(decode_json);
+use NMISNG::Util;
 
 our $VERSION = "9.6.5";
 
@@ -42,27 +43,19 @@ sub new
 # the node is push-polled. No per-node endpoint config to check (unlike HTTP).
 sub is_active { return 1; }
 
-# Resolve the shared Redis connection. Env first (the deploy exports these),
-# then an optional Config.nmis override block, then localhost:6379. One
-# process-level connection, opened lazily, reused for the engine's lifetime.
+# Open the Redis connection, lazily, reused for the engine's lifetime.
+# Endpoint resolution (env > Config.nmis > localhost:6379) is shared with
+# the scheduler via NMISNG::Util::redis_connect_args.
 sub _redis
 {
 	my ($self) = @_;
 	return $self->{_redis} if $self->{_redis};
 
-	my $cfg = $self->sys->nmisng->config;
-	my $server = $ENV{NMIS_REDIS_SERVER} // $cfg->{redis_server} // 'localhost';
-	my $port   = $ENV{NMIS_REDIS_PORT}   // $cfg->{redis_port}   // 6379;
-	my $pass   = $ENV{NMIS_REDIS_PASSWORD};
-	$pass = $cfg->{redis_password} if (!defined $pass || $pass eq '');
-
-	my %newargs = (server => "$server:$port", reconnect => 2, every => 100, cnx_timeout => 5);
-	$newargs{password} = $pass if (defined $pass && $pass ne '');
-
-	$self->{_redis} = eval { Redis->new(%newargs) };
+	my ($newargs, $display) = NMISNG::Util::redis_connect_args($self->sys->nmisng->config);
+	$self->{_redis} = eval { Redis->new(%$newargs) };
 	if (!$self->{_redis})
 	{
-		$self->{_last_error} = "redis connect to $server:$port failed: $@";
+		$self->{_last_error} = "redis connect to $display failed: $@";
 		$self->sys->nmisng->log->error("redis: ".$self->{_last_error});
 	}
 	return $self->{_redis};

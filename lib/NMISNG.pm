@@ -1730,14 +1730,10 @@ sub _redis_handle
 		return undef;
 	}
 
-	my $cfg = $self->config;
-	my $server = $ENV{NMIS_REDIS_SERVER} // $cfg->{redis_server} // 'localhost';
-	my $port   = $ENV{NMIS_REDIS_PORT}   // $cfg->{redis_port}   // 6379;
-	my $pass   = $ENV{NMIS_REDIS_PASSWORD};
-	$pass = $cfg->{redis_password} if (!defined $pass || $pass eq '');
-	my %newargs = (server => "$server:$port", reconnect => 2, every => 100, cnx_timeout => 5);
-	$newargs{password} = $pass if (defined $pass && $pass ne '');
-	$self->{_redis_handle} = eval { Redis->new(%newargs) };
+	# endpoint resolution (env > Config.nmis > localhost:6379) is shared
+	# with the engine via NMISNG::Util::redis_connect_args
+	my ($newargs, $display) = NMISNG::Util::redis_connect_args($self->config);
+	$self->{_redis_handle} = eval { Redis->new(%$newargs) };
 	if ($self->{_redis_handle})
 	{
 		delete $self->{_redis_connect_failed_at};
@@ -1745,7 +1741,7 @@ sub _redis_handle
 	else
 	{
 		$self->{_redis_connect_failed_at} = Time::HiRes::time;
-		$self->log->debug("scheduler redis connect to $server:$port failed: $@");
+		$self->log->debug("scheduler redis connect to $display failed: $@");
 	}
 	return $self->{_redis_handle};
 }

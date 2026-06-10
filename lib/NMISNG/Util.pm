@@ -4879,5 +4879,28 @@ sub spew_file
     }
 }
 
+# Resolve the redis connection settings shared by the scheduler prompt path
+# (NMISNG::_redis_handle) and the push engine (NMISNG::Sys::Engine::Redis::_redis):
+# environment first (NMIS_REDIS_SERVER/PORT/PASSWORD — the deploy exports
+# these), then the Config.nmis overrides (redis_server/redis_port/
+# redis_password), then localhost:6379. Both callers keep their own
+# require/connect/caching policies; only the endpoint knowledge lives here.
+# args: config hash ref
+# returns: (hashref of Redis->new args, "server:port" display string)
+sub redis_connect_args
+{
+	my ($config) = @_;
+	$config = {} if (ref $config ne 'HASH');
+
+	my $server = $ENV{NMIS_REDIS_SERVER} // $config->{redis_server} // 'localhost';
+	my $port   = $ENV{NMIS_REDIS_PORT}   // $config->{redis_port}   // 6379;
+	my $pass   = $ENV{NMIS_REDIS_PASSWORD};
+	$pass = $config->{redis_password} if (!defined $pass || $pass eq '');
+
+	my %newargs = (server => "$server:$port", reconnect => 2, every => 100, cnx_timeout => 5);
+	$newargs{password} = $pass if (defined $pass && $pass ne '');
+	return (\%newargs, "$server:$port");
+}
+
 
 1;
