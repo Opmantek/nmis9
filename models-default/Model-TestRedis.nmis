@@ -1,8 +1,22 @@
 #
 # Model-TestRedis.nmis - test model used by test/t_polling_redis.pl.
-# Not for real devices. Mirrors Model-CiscoMerakiSDWAN.nmis structure to
-# exercise the redis source-block shape through the full collect/reconcile
-# path using a stubbed Redis client.
+# Not for real devices. A coverage fixture: every element exists to force a
+# distinct part of the redis engine/processing code through the full
+# collect/reconcile path (stubbed Redis client), and each is asserted by the
+# test. Don't add same-path duplicates; if a new engine branch appears, add
+# the one element that drives it plus its assertion.
+#
+# Element -> code path map:
+#   system.sys.standard.redis        scalar loadInfo extraction (string + numeric field)
+#   system.sys.nodeinfo              skip_collect: section skipped before the engine
+#                                    (no concept declared, so a failure to skip errors)
+#   system.rrd.device_health.redis   scalar time-series: collect_node_data ->
+#                                    build_queries scalar -> RRD writer
+#   systemHealth sdwan_uplink sys    indexed discovery + per-row extraction;
+#                                    wan_interface has NO field -> index-self branch
+#   systemHealth sdwan_uplink rrd    indexed time-series, two ds, two graphtypes
+#                                    sharing one RRD (sdwan_uplink + sdwan_loss)
+#   database.type entries            makeRRDname resolution for both concepts
 #
 %hash = (
 	'-common-' => {
@@ -10,10 +24,10 @@
 			'database' => { 'common-model' => 'database' }
 		},
 	},
-	# RRD path for the indexed sdwan_uplink concept (see Model-CiscoMerakiSDWAN).
 	'database' => {
 		'type' => {
-			'sdwan_uplink' => '/nodes/$node/health/sdwan_uplink-$index.rrd',
+			'sdwan_uplink'  => '/nodes/$node/health/sdwan_uplink-$index.rrd',
+			'device_health' => '/nodes/$node/health/device_health.rrd',
 		},
 	},
 	'system' => {
@@ -26,27 +40,27 @@
 					'-common-' => { 'concept' => 'sdwan_health', 'engine' => 'meraki', 'freshness' => 600 },
 					'status'   => { 'field' => 'status', 'title' => 'Device status' },
 					'cpu'      => { 'field' => 'cpu_load_5min', 'title' => 'CPU load (5m)' },
-					'mem'      => { 'field' => 'memory_used_pct', 'title' => 'Memory used %' },
-					'ha_role'          => { 'field' => 'ha_role',          'title' => 'HA role' },
-					'ha_enabled'       => { 'field' => 'ha_enabled',       'title' => 'HA enabled' },
-					'last_reported_at' => { 'field' => 'last_reported_at', 'title' => 'Last reported' },
 				},
 			},
-			# Display-only device info; mirrors Model-CiscoMerakiSDWAN. skip_collect
-			# keeps the Redis engine away from the section (no field mappings), the
-			# node-view loop still surfaces the titles from catchall. See that model
-			# for the full rationale.
+			# skip_collect display-only section: loadInfo must skip it before the
+			# engine runs — it declares no concept, so if the skip breaks,
+			# build_queries fails loudly with "no concept in -common-".
 			'nodeinfo' => {
 				'skip_collect' => 'true',
 				'redis' => {
-					'nmisent_hw_model'       => { 'title' => 'HW model' },
-					'nmisent_serial'         => { 'title' => 'Serial' },
-					'nmisent_mac'            => { 'title' => 'MAC' },
-					'nmisent_firmware'       => { 'title' => 'Firmware' },
-					'nmisent_network_id'     => { 'title' => 'Network ID' },
-					'nmisent_product_type'   => { 'title' => 'Product type' },
-					'nmisent_address'        => { 'title' => 'Address' },
-					'nmisent_config_updated' => { 'title' => 'Config updated' },
+					'nmisent_serial' => { 'title' => 'Serial' },
+				},
+			},
+		},
+		# Scalar time-series: device-level health values to RRD via
+		# collect_node_data (class=system rrd) — the only model-driven
+		# exercise of the engine's scalar RRD path.
+		'rrd' => {
+			'device_health' => {
+				'redis' => {
+					'-common-' => { 'concept' => 'sdwan_health', 'engine' => 'meraki', 'freshness' => 600 },
+					'cpu' => { 'field' => 'cpu_load_5min',   'option' => 'gauge,0:U' },
+					'mem' => { 'field' => 'memory_used_pct', 'option' => 'gauge,0:100' },
 				},
 			},
 		},
@@ -57,19 +71,15 @@
 			'sdwan_uplink' => {
 				'indexed'   => 'wan_interface',
 				'index_oid' => 'wan_interface',
-				'headers'   => 'wan_interface,status,latency,loss,ip,gateway,public_ip,primary_dns,secondary_dns,ip_assigned_by',
+				'headers'   => 'wan_interface,status,latency,loss,ip',
 				'redis' => {
 					'-common-'      => { 'concept' => 'sdwan_uplink', 'engine' => 'meraki', 'freshness' => 600 },
-					'wan_interface' => { 'field' => 'wan_interface', 'title' => 'WAN interface' },
+					# no 'field': index-self item, records the row's index value
+					'wan_interface' => { 'title' => 'WAN interface' },
 					'status'        => { 'field' => 'status', 'title' => 'Status' },
 					'latency'       => { 'field' => 'latency_ms', 'title' => 'Latency (ms)' },
-					'loss'           => { 'field' => 'loss_pct',       'title' => 'Loss (%)' },
-					'ip'             => { 'field' => 'ip',             'title' => 'Uplink IP' },
-					'gateway'        => { 'field' => 'gateway',        'title' => 'Gateway' },
-					'public_ip'      => { 'field' => 'public_ip',      'title' => 'Public IP' },
-					'primary_dns'    => { 'field' => 'primary_dns',    'title' => 'Primary DNS' },
-					'secondary_dns'  => { 'field' => 'secondary_dns',  'title' => 'Secondary DNS' },
-					'ip_assigned_by' => { 'field' => 'ip_assigned_by', 'title' => 'IP assigned by' },
+					'loss'          => { 'field' => 'loss_pct', 'title' => 'Loss (%)' },
+					'ip'            => { 'field' => 'ip', 'title' => 'Uplink IP' },
 				},
 			},
 		},

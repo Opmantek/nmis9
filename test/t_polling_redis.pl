@@ -271,6 +271,99 @@ my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
         is($engc->classify_error->{type}, 'no_session',
            "real connect failure still classifies no_session");
     }
+
+    # ---- malformed-shape branches (deliberately NOT in the test model: a
+    # permanently broken section would poison every e2e collect; the model
+    # carries the working shapes, these pin the error handling) ----
+    {
+        my $kv = 'nmisent:metrics:11111111-2222-3333-4444-555555555555:';
+
+        # invalid JSON payload -> error, classified transport_error
+        $main::REDIS_KV{"${kv}sdwan_uplink"} = '{not json';
+        my $engj = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my ($pj, $ej) = $engj->_payload('sdwan_uplink');
+        ok(!defined $pj && $ej, "invalid JSON -> payload error");
+        is($engj->classify_error->{type}, 'transport_error',
+           "invalid JSON -> transport_error");
+
+        # indexed section whose payload data is an object, not an array
+        $main::REDIS_KV{"${kv}sdwan_uplink"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":{"oops":"scalar shape"}}';
+        my $engh = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my ($eh) = $engh->discover_indexes(
+            section_config => { redis => { '-common-' => { concept => 'sdwan_uplink' } } },
+            index_var      => 'wan_interface',
+        );
+        like($eh // '', qr/not an array/, "non-array data for indexed section -> error");
+
+        # missing index var
+        $main::REDIS_KV{"${kv}sdwan_uplink"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":[{"wan_interface":"wan1"}]}';
+        my $engnv = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my ($env_) = $engnv->discover_indexes(
+            section_config => { redis => { '-common-' => { concept => 'sdwan_uplink' } } },
+            index_var      => '',
+        );
+        like($env_ // '', qr/no index var/, "missing index var -> error");
+
+        # section without a concept in -common- -> build_queries model error.
+        # This is also why skip_collect display sections (model nodeinfo) must
+        # be skipped before the engine runs.
+        my $engnc = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my %tnc;
+        my $snc = $engnc->build_queries(
+            section_name => 'nodeinfo', section_key => 'redis',
+            section_hash => { 'nmisent_serial' => { title => 'Serial' } },
+            todos => \%tnc,
+        );
+        like($snc->{error} // '', qr/no concept/, "section without concept -> model error");
+
+        # scalar-section item without a field: error logged, item skipped,
+        # sibling items still extracted
+        $main::REDIS_KV{"${kv}sdwan_health"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online"}}';
+        my $engnf = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my %tnf;
+        my $snf = $engnf->build_queries(
+            section_name => 'standard', section_key => 'redis',
+            section_hash => {
+                '-common-' => { concept => 'sdwan_health', freshness => 600 },
+                'broken'   => { title => 'no field here' },
+                'status'   => { field => 'status', title => 'Device status' },
+            },
+            todos => \%tnf,
+        );
+        like($snf->{error} // '', qr/has no field/, "scalar item without field -> model error");
+        ok(!exists $tnf{broken}, "field-less scalar item not recorded");
+        is($tnf{status}{rawvalue} // '', 'online', "sibling item still extracted");
+        delete $main::REDIS_KV{"${kv}sdwan_health"};
+
+        # composite index discovery: arrayref index_var joins with '__' and
+        # records per-component values in the targets. NOTE: only DISCOVERY
+        # supports composites; the redis data path (build_queries) cannot
+        # resolve a composite row (unlike Engine::HTTP, which round-trips via
+        # the inventory argument redis doesn't receive) — don't declare
+        # composite-indexed redis sections in real models yet.
+        $main::REDIS_KV{"${kv}sdwan_tunnel"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":['
+            .'{"peer":"siteA","tunnel":"t1","state":"up"},'
+            .'{"peer":"siteA","tunnel":"t2","state":"down"},'
+            .'{"peer":"siteB","state":"up"}]}';
+        my $engt = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my ($et, $idxt, $tgt) = $engt->discover_indexes(
+            section_config => { redis => { '-common-' => { concept => 'sdwan_tunnel' } } },
+            index_var      => ['peer', 'tunnel'],
+        );
+        ok(!$et, "composite discovery: no error");
+        is_deeply([sort @$idxt], ['siteA__t1', 'siteA__t2'],
+           "composite indices joined with '__', row missing a component skipped");
+        is($tgt->{'siteA__t1'}{peer} // '', 'siteA',
+           "composite target carries the per-component value (peer)");
+        is($tgt->{'siteA__t1'}{tunnel} // '', 't1',
+           "composite target carries the per-component value (tunnel)");
+        delete $main::REDIS_KV{"${kv}sdwan_tunnel"};
+        delete $main::REDIS_KV{"${kv}sdwan_uplink"};
+    }
 }
 
 # Staleness event uses the standard NMIS event path: Compat::NMIS::notify to
@@ -518,16 +611,33 @@ SKIP: {
             ok((defined $loss{wan1} && $loss{wan1} == 0.5),
                "wan1 loss (0.5) reached the RRD writer")
                 or diag("wan1 loss at RRD writer: ".(defined $loss{wan1} ? $loss{wan1} : 'undef'));
-            # new inventory string fields must land on the inventory row.
-            my $ipseen;
+            # the scalar time-series path: device_health (system rrd redis
+            # block) must reach the RRD writer with the sdwan_health values.
+            my ($dh) = grep { ($_->{type} // '') eq 'device_health' } @main::RRD_CALLS;
+            ok($dh, "create_update_rrd called for device_health (scalar redis -> RRD path)")
+                or diag("RRD calls: ".join(",", map { $_->{type}//'?' } @main::RRD_CALLS));
+            ok(($dh && defined $dh->{data}{cpu} && $dh->{data}{cpu} == 0.23
+                    && defined $dh->{data}{mem} && $dh->{data}{mem} == 47.2),
+               "device_health cpu (0.23) and mem (47.2) reached the RRD writer")
+                or diag("device_health data: ".join(",", map {"$_=".($dh->{data}{$_}//'undef')} qw(cpu mem)));
+
+            # inventory row fields: a plain mapped string (ip) and the
+            # index-self item (wan_interface, no 'field' in the model).
+            my ($ipseen, $wiseen);
             for my $id (@$ids) {
                 my ($iv) = $rnode->inventory(_id => $id);
                 next unless $iv;
-                $ipseen = $iv->data->{ip} if (($iv->data->{index} // '') eq 'wan1');
+                if (($iv->data->{index} // '') eq 'wan1') {
+                    $ipseen = $iv->data->{ip};
+                    $wiseen = $iv->data->{wan_interface};
+                }
             }
             ok((defined $ipseen && $ipseen eq '192.168.0.4'),
                "wan1 inventory captured the uplink ip field")
                 or diag("wan1 inventory ip: ".(defined $ipseen ? $ipseen : 'undef'));
+            ok((defined $wiseen && $wiseen eq 'wan1'),
+               "index-self item landed the index value on the inventory row")
+                or diag("wan1 inventory wan_interface: ".(defined $wiseen ? $wiseen : 'undef'));
 
             # Drop wan2; it must go historic, wan1 survives.
             $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
