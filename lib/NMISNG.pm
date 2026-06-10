@@ -1691,7 +1691,16 @@ sub _redis_handle
 	# and we want the next scheduler tick to retry rather than caching the
 	# failure for the whole nmisd process lifetime. Matches Engine::Redis::_redis.
 	return $self->{_redis_handle} if $self->{_redis_handle};
-	require Redis;
+	# A missing Redis perl module can't heal without a process restart, so cache
+	# that failure (unlike failed connects, which deliberately retry) — and never
+	# let it die here, or it takes down the whole nmisd scheduler.
+	return undef if $self->{_redis_module_missing};
+	if (!eval { require Redis; 1 })
+	{
+		$self->{_redis_module_missing} = 1;
+		$self->log->error("redis prompt path disabled: Redis perl module not loadable: $@");
+		return undef;
+	}
 	my $cfg = $self->config;
 	my $server = $ENV{NMIS_REDIS_SERVER} // $cfg->{redis_server} // 'localhost';
 	my $port   = $ENV{NMIS_REDIS_PORT}   // $cfg->{redis_port}   // 6379;
