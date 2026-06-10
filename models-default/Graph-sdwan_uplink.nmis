@@ -1,0 +1,34 @@
+#
+# Graph-sdwan_uplink.nmis - graph for the sdwan_uplink systemHealth concept
+# (one RRD per WAN uplink, indexed by wan_interface). Referenced by the
+# 'graphtype => sdwan_uplink' rrd block in Model-CiscoMerakiSDWAN.nmis and
+# Model-TestRedis.nmis. The RRD carries one gauge DS, 'latency' (latency_ms),
+# named after the model's rrd item key.
+#
+%hash = (
+	'heading' => 'SD-WAN Uplink Latency',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Latency in ms',
+		'short' => 'Latency (ms)'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:latency=$database:latency:AVERAGE',
+			'DEF:mlatency=$database:latency:MAX',
+			'LINE1:latency#4169E1: Latency\\n',
+			'GPRINT:latency:AVERAGE:Avg Latency %1.2lf ms',
+			'GPRINT:mlatency:MAX:Max Latency %1.2lf ms'
+		],
+		'small' => [
+			'DEF:latency=$database:latency:AVERAGE',
+			'DEF:mlatency=$database:latency:MAX',
+			'LINE1:latency#4169E1: Latency ms.',
+			'GPRINT:latency:AVERAGE:Avg %1.2lf ms',
+			'GPRINT:mlatency:MAX:Max %1.2lf ms\\n'
+		]
+	}
+);
