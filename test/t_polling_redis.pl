@@ -468,6 +468,45 @@ SKIP: {
             or diag("notify events: ".join(",", map { $_->{event} // '?' } @notified));
     }
 
+    # ---- Model File Invalid clears once the push model is fixed ----
+    {
+        my (@notified, @checked);
+        no warnings 'redefine';
+        local *Compat::NMIS::notify     = sub { push @notified, {@_}; return; };
+        local *Compat::NMIS::checkEvent = sub { push @checked,  {@_}; return; };
+        local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+
+        my $fx = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $fx->cluster_id($C->{cluster_id});
+        $fx->name("t_redis_fixclear_node");
+        $fx->activated({ NMIS => 1 });
+
+        # 1. misconfigured push model (no system-level redis section) -> raises
+        $fx->configuration({
+            host => "127.0.0.1", group => "G", netType => "default", roleType => "default",
+            model => "TestRedisNoSys", collect => "true", ping => "false", nmisent_engine_type => "meraki",
+        });
+        $fx->save();
+        $fx->update(force => 1);
+        ok((grep { ($_->{event} // '') eq "Model File Invalid" } @notified),
+           "fix-clear: misconfigured push model raises Model File Invalid");
+
+        # 2. fix it: correct model + data present -> the event must be cleared
+        my $fu = $fx->uuid;
+        $main::REDIS_KV{"nmisent:metrics:$fu:sdwan_health"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.1,"memory_used_pct":30}}';
+        $fx->configuration({
+            host => "127.0.0.1", group => "G", netType => "default", roleType => "default",
+            model => "TestRedis", collect => "true", ping => "false", nmisent_engine_type => "meraki",
+        });
+        $fx->save();
+        @checked = ();
+        $fx->update(force => 1);
+        ok((grep { ($_->{event} // '') eq "Model File Invalid" } @checked),
+           "fix-clear: correcting the model clears Model File Invalid (checkEvent)")
+            or diag("checkEvent events: ".join(",", map { $_->{event} // '?' } @checked));
+    }
+
     $ng->get_db()->drop();
 }
 
