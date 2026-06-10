@@ -1201,11 +1201,12 @@ sub getData
 		port    => $port,
 		inventory => $inventory
 	);
-	$self->{error}      = $status->{error};
-	$self->{wmi_error}  = $status->{wmi_error};
-	$self->{snmp_error} = $status->{snmp_error};
-	$self->{http_error} = $status->{http_error};
-	$self->{skipped}    = $status->{skipped} // 0;
+	$self->{error}       = $status->{error};
+	$self->{wmi_error}   = $status->{wmi_error};
+	$self->{snmp_error}  = $status->{snmp_error};
+	$self->{http_error}  = $status->{http_error};
+	$self->{redis_error} = $status->{redis_error};
+	$self->{skipped}     = $status->{skipped} // 0;
 
 	# data? we're happy-ish
 	if ( keys %$result )
