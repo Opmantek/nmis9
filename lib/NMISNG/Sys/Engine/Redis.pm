@@ -258,8 +258,8 @@ sub model_concepts
 sub build_queries
 {
 	my ($self, %args) = @_;
-	my ($section_name, $section_hash, $section_indexed, $index, $todos)
-		= @args{qw(section_name section_hash section_indexed index todos)};
+	my ($section_name, $section_hash, $section_indexed, $index, $inventory, $todos)
+		= @args{qw(section_name section_hash section_indexed index inventory todos)};
 
 	my $sys = $self->sys;
 	my %status;
@@ -293,19 +293,19 @@ sub build_queries
 	return \%status unless $self->_payload_usable($concept, $payload, $common->{freshness});
 
 	# Resolve the data row: an indexed concept's data is an array; pick the
-	# row whose index field equals $index. A scalar concept's data is the
-	# object itself.
+	# row whose index field(s) match $index. A scalar concept's data is the
+	# object itself. Row maps are built once per concept per cycle, then
+	# O(1) per index: getValues calls build_queries once per inventory row,
+	# and the payload is fixed for the engine's lifetime (_payload_cache) —
+	# a linear scan here made large sections O(rows^2) per collect.
 	my $row;
 	if (defined $section_indexed && defined $index)
 	{
-		my $index_field = (ref $section_indexed eq 'ARRAY') ? undef : $section_indexed;
 		my $data = $payload->{data};
-		if (ref $data eq 'ARRAY' && defined $index_field)
+		my @vars = (ref $section_indexed eq 'ARRAY') ? @$section_indexed : ($section_indexed);
+		if (ref $data eq 'ARRAY' && @vars == 1)
 		{
-			# one pass per concept+field per cycle, then O(1) per index:
-			# getValues calls build_queries once per inventory row, and the
-			# payload is fixed for the engine's lifetime (_payload_cache) —
-			# a linear scan here made large sections O(rows^2) per collect
+			my $index_field = $vars[0];
 			my $rowmap = $self->{_row_index_cache}{$concept}{$index_field} //= do {
 				my %m;
 				for my $entry (@$data)
@@ -317,9 +317,35 @@ sub build_queries
 			};
 			$row = $rowmap->{$index};
 		}
+		elsif (ref $data eq 'ARRAY' && @vars > 1)
+		{
+			# Composite-indexed row: $index is the '__'-joined string the
+			# engine synthesized in discover_indexes. Resolve the per-
+			# component values losslessly (inventory row first, like
+			# Engine::HTTP), then look the row up in a tuple-keyed map.
+			# \x00 as the internal tuple separator cannot collide with
+			# component values that contain '__' themselves.
+			my @vals = $self->_composite_components($index, \@vars, $inventory);
+			if (@vals == @vars)
+			{
+				my $sep = "\x00";
+				my $rowmap = $self->{_row_tuple_cache}{$concept}{join($sep, @vars)} //= do {
+					my %m;
+					for my $entry (@$data)
+					{
+						next if (ref $entry ne 'HASH');
+						my @evals = map { $entry->{$_} } @vars;
+						next if (grep { !defined $_ } @evals);
+						$m{join($sep, @evals)} //= $entry;    # first match wins
+					}
+					\%m;
+				};
+				$row = $rowmap->{join($sep, @vals)};
+			}
+		}
 		# No matching row this cycle: nothing to record (the index will be
 		# retired by the historic-mark pass in collect_systemhealth_info).
-		return \%status unless ref $row eq 'HASH';
+		return \%status if (ref $row ne 'HASH');
 	}
 	else
 	{
@@ -373,6 +399,43 @@ sub build_queries
 	}
 
 	return \%status;
+}
+
+# Decompose a synthesized composite index back into its per-component
+# values, mirroring Engine::HTTP's three-tier resolution:
+#   1. the inventory row — discover_indexes persisted each component as its
+#      own data field, lossless across Sys lifetimes (collect-only cycles,
+#      component values containing '__');
+#   2. the in-memory map discover_indexes populated within this Sys
+#      lifetime (the reconcile pass calls loadInfo before the inventory
+#      object exists);
+#   3. split on '__' — ambiguous when a component contains the separator,
+#      so only a last resort; warns when the count comes out wrong.
+# args: composite index string, arrayref of component names, optional inventory.
+# returns: list of component values, or the empty list when unresolvable.
+sub _composite_components
+{
+	my ($self, $index, $vars, $inventory) = @_;
+
+	if ($inventory)
+	{
+		my $data = $inventory->data;
+		my @from_inv = map { $data->{$_} } @$vars;
+		return @from_inv if (@from_inv == @$vars && !grep { !defined $_ } @from_inv);
+	}
+
+	my $components = $self->{_index_components}{$index};
+	return @$components if (ref $components eq 'ARRAY' && @$components == @$vars);
+
+	my @vals = split(/__/, $index, scalar @$vars);
+	return @vals if (@vals == @$vars);
+
+	$self->sys->nmisng->log->warn(
+		"(".$self->sys->{name}.") redis: composite index '$index' could not be "
+		. "decomposed into ".(scalar @$vars)." components (".join(',', @$vars)."); "
+		. "inventory had no matching fields, no component map, and split gave "
+		. (scalar @vals) . ".");
+	return ();
 }
 
 # Redis extraction happens in build_queries (the data is already local), so
@@ -456,13 +519,24 @@ sub discover_indexes
 
 	my @candidates;
 	my %targets;
+	my %seen;
 	for my $entry (@$data)
 	{
-		next unless ref $entry eq 'HASH';
+		next if (ref $entry ne 'HASH');
 		my @vals = map { $entry->{$_} } @index_vars;
-		next if grep { !defined $_ } @vals;
+		next if (grep { !defined $_ } @vals);
 		my $composite = (@index_vars > 1) ? join("__", @vals) : $vals[0];
+		# first row wins on a composite collision ('a__b'+'c' and 'a'+'b__c'
+		# both serialize to 'a__b__c') — same dedup as Engine::HTTP; the
+		# inventory path is keyed by the composite string, so only one row
+		# can exist for it.
+		next if ($seen{$composite}++);
 		push @candidates, $composite;
+		# Stash per-row component values keyed by the synthesized identifier.
+		# build_queries reads this (or the same values persisted on the
+		# inventory row) instead of re-splitting $composite, which
+		# round-trips correctly even when a component contains '__'.
+		$self->{_index_components}{$composite} //= [@vals] if (@index_vars > 1);
 		my %target = (index_var => $index_var, index_value => $composite);
 		if (@index_vars > 1)
 		{

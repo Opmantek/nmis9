@@ -16,7 +16,11 @@
 #                                    wan_interface has NO field -> index-self branch
 #   systemHealth sdwan_uplink rrd    indexed time-series, two ds, two graphtypes
 #                                    sharing one RRD (sdwan_uplink + sdwan_loss)
-#   database.type entries            makeRRDname resolution for both concepts
+#   systemHealth sdwan_tunnel sys    composite index (['peer','tunnel'] ->
+#                                    'peer__tunnel'): composite discovery,
+#                                    per-component values on the inventory row,
+#                                    composite row resolution in build_queries
+#   database.type entries            makeRRDname resolution for both RRD concepts
 #
 %hash = (
 	'-common-' => {
@@ -66,8 +70,19 @@
 		},
 	},
 	'systemHealth' => {
-		'sections' => 'sdwan_uplink',
+		'sections' => 'sdwan_uplink,sdwan_tunnel',
 		'sys' => {
+			# composite-indexed section: two component fields synthesize the
+			# inventory index ('siteA__t1'); the engine persists peer/tunnel
+			# as their own inventory fields and resolves rows by the tuple.
+			'sdwan_tunnel' => {
+				'indexed' => ['peer', 'tunnel'],
+				'headers' => 'peer,tunnel,state',
+				'redis' => {
+					'-common-' => { 'concept' => 'sdwan_tunnel', 'engine' => 'meraki', 'freshness' => 600 },
+					'state'    => { 'field' => 'state', 'title' => 'Tunnel state' },
+				},
+			},
 			'sdwan_uplink' => {
 				'indexed'   => 'wan_interface',
 				'index_oid' => 'wan_interface',

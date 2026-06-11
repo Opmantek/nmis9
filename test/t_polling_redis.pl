@@ -338,12 +338,10 @@ my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
         is($tnf{status}{rawvalue} // '', 'online', "sibling item still extracted");
         delete $main::REDIS_KV{"${kv}sdwan_health"};
 
-        # composite index discovery: arrayref index_var joins with '__' and
-        # records per-component values in the targets. NOTE: only DISCOVERY
-        # supports composites; the redis data path (build_queries) cannot
-        # resolve a composite row (unlike Engine::HTTP, which round-trips via
-        # the inventory argument redis doesn't receive) — don't declare
-        # composite-indexed redis sections in real models yet.
+        # composite index: arrayref index_var joins with '__'; discovery
+        # records per-component values in the targets (and an in-memory map),
+        # and build_queries resolves rows back via the same three-tier
+        # lookup Engine::HTTP uses (inventory row, component map, split).
         $main::REDIS_KV{"${kv}sdwan_tunnel"} =
             '{"_meta":{"collected_at_epoch":'.time().'},"data":['
             .'{"peer":"siteA","tunnel":"t1","state":"up"},'
@@ -361,6 +359,64 @@ my $eng4 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
            "composite target carries the per-component value (peer)");
         is($tgt->{'siteA__t1'}{tunnel} // '', 't1',
            "composite target carries the per-component value (tunnel)");
+
+        my $tunnel_sh = {
+            '-common-' => { concept => 'sdwan_tunnel', freshness => 600 },
+            'state'    => { field => 'state', title => 'Tunnel state' },
+        };
+
+        # tier 2: same engine lifetime as discovery, no inventory — the
+        # in-memory component map resolves the row (the reconcile pass calls
+        # loadInfo before the inventory object exists).
+        my %tt2;
+        $engt->build_queries(
+            section_name => 'sdwan_tunnel', section_key => 'redis',
+            section_hash => $tunnel_sh, section_indexed => ['peer', 'tunnel'],
+            index => 'siteA__t2', todos => \%tt2,
+        );
+        is($tt2{state}{rawvalue} // '', 'down',
+           "composite row resolved via the discovery component map (tier 2)");
+
+        # tier 3: fresh engine, no inventory, no map — split fallback.
+        my $engt3 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my %tt3;
+        $engt3->build_queries(
+            section_name => 'sdwan_tunnel', section_key => 'redis',
+            section_hash => $tunnel_sh, section_indexed => ['peer', 'tunnel'],
+            index => 'siteA__t1', todos => \%tt3,
+        );
+        is($tt3{state}{rawvalue} // '', 'up',
+           "composite row resolved via the split fallback (tier 3)");
+
+        # tier 1 + losslessness: component values containing '__' collide as
+        # composite strings ('a__b'+'c' and 'a'+'b__c' both give 'a__b__c').
+        # Discovery dedupes to one index (first row wins); the inventory
+        # row's persisted components pick the exact tuple, where a split
+        # would always pick the first.
+        $main::REDIS_KV{"${kv}sdwan_tunnel"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":['
+            .'{"peer":"a","tunnel":"b__c","state":"first"},'
+            .'{"peer":"a__b","tunnel":"c","state":"second"}]}';
+        my $engamb = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my ($ea, $idxa) = $engamb->discover_indexes(
+            section_config => { redis => { '-common-' => { concept => 'sdwan_tunnel' } } },
+            index_var      => ['peer', 'tunnel'],
+        );
+        ok(!$ea && @$idxa == 1 && $idxa->[0] eq 'a__b__c',
+           "colliding composites dedupe to one index (first row wins)")
+            or diag("indices: ".join(",", @{$idxa // []}));
+
+        my $amb_inv = NMISNG::Test::FakeInventory->new({ peer => 'a__b', tunnel => 'c' });
+        my $engamb2 = NMISNG::Sys::Engine::Redis->new(sys => $fake_sys);
+        my %tamb;
+        $engamb2->build_queries(
+            section_name => 'sdwan_tunnel', section_key => 'redis',
+            section_hash => $tunnel_sh, section_indexed => ['peer', 'tunnel'],
+            index => 'a__b__c', inventory => $amb_inv, todos => \%tamb,
+        );
+        is($tamb{state}{rawvalue} // '', 'second',
+           "inventory components resolve the exact tuple where split would mis-pick (tier 1)");
+
         delete $main::REDIS_KV{"${kv}sdwan_tunnel"};
         delete $main::REDIS_KV{"${kv}sdwan_uplink"};
     }
@@ -584,6 +640,10 @@ SKIP: {
         $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_health"} =
             '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.23,"memory_used_pct":47.2,'
             .'"ha_role":"primary","ha_enabled":false,"last_reported_at":"2026-06-10T05:12:19Z"}}';
+        $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_tunnel"} =
+            '{"_meta":{"collected_at_epoch":'.time().'},"data":['
+            .'{"peer":"siteA","tunnel":"t1","state":"up"},'
+            .'{"peer":"siteA","tunnel":"t2","state":"down"}]}';
 
         $rnode->update(force => 1);
 
@@ -638,6 +698,28 @@ SKIP: {
             ok((defined $wiseen && $wiseen eq 'wan1'),
                "index-self item landed the index value on the inventory row")
                 or diag("wan1 inventory wan_interface: ".(defined $wiseen ? $wiseen : 'undef'));
+
+            # composite-indexed section through the full collect: discovery
+            # creates one row per (peer, tunnel) tuple, persists the
+            # components as inventory fields, and the data path resolves
+            # each row's values by the tuple.
+            my $tids = $rnode->get_inventory_ids(concept => 'sdwan_tunnel', filter => { historic => 0 });
+            ok(scalar(@$tids) == 2, "two sdwan_tunnel rows after collect (composite index)")
+                or diag("got ".scalar(@$tids));
+            my %tunnels;
+            for my $id (@$tids) {
+                my ($iv) = $rnode->inventory(_id => $id);
+                next unless $iv;
+                $tunnels{ $iv->data->{index} // '' } = $iv->data;
+            }
+            is($tunnels{'siteA__t1'}{peer} // '', 'siteA',
+               "composite row persisted its peer component");
+            is($tunnels{'siteA__t1'}{tunnel} // '', 't1',
+               "composite row persisted its tunnel component");
+            is($tunnels{'siteA__t1'}{state} // '', 'up',
+               "composite data path: t1 state extracted for the right tuple");
+            is($tunnels{'siteA__t2'}{state} // '', 'down',
+               "composite data path: t2 state extracted for the right tuple");
 
             # Drop wan2; it must go historic, wan1 survives.
             $main::REDIS_KV{"nmisent:metrics:$ruuid:sdwan_uplink"} =
