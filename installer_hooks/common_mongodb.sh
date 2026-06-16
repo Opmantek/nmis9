@@ -87,12 +87,21 @@ add_mongo_7_repository () {
 				curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --yes -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
 
 				if [ "$OSFLAVOUR" = "debian" ] ; then
-						# MongoDB 7.0 is supported on Debian 12 bookworm and Debian 11 bullseye
+						# MongoDB 7.0 is supported on Debian 11 bullseye, Debian 12 bookworm and Debian 13 trixie
 						if [ "$OS_MAJOR" = 11 ]; then
 							# debian 11 bullseye
 							echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/7.0 main" | sudo tee ${SOURCESFILE}
-						else
+						elif [ "$OS_MAJOR" = 12 ]; then
 							# debian 12 bookworm
+							echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" | sudo tee ${SOURCESFILE}
+						elif [ "$OS_MAJOR" = 13 ]; then
+							# debian 13 trixie
+							# sqv (trixie's default apt verifier) rejects MongoDB 7.0's SHA1 subkey binding
+							# signature; force apt to use gpgv which accepts legacy key formats
+							echo 'APT::Key::GPGVCommand "gpgv";' | sudo tee /etc/apt/apt.conf.d/99mongodb-gpgv > /dev/null
+							echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] http://repo.mongodb.org/apt/debian trixie/mongodb-org/7.0 main" | sudo tee ${SOURCESFILE}
+						else
+							# fallback to bookworm
 							echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" | sudo tee ${SOURCESFILE}
 						fi;
 				else
