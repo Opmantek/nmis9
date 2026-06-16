@@ -20,6 +20,7 @@ working_tests=(
     nmisng_log.t
     t_sys.pl
     t_polling.pl
+    t_node_lock_stale.pl
 )
 
 for i in "${working_tests[@]}"; do

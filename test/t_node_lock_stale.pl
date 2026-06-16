@@ -15,6 +15,8 @@ use lib "$FindBin::Bin/../lib";
 
 use Test::More;
 use File::Temp qw(tempdir);
+use Fcntl qw(:flock);
+use POSIX ();
 
 use NMISNG;
 use NMISNG::Node;
@@ -82,6 +84,69 @@ sub read_lock
 	close $fh;
 	chomp $line if defined $line;
 	return $line;
+}
+
+# Read just the holder PID out of an arbitrary file written by a forked helper.
+sub _slurp_pid
+{
+	my ($f) = @_;
+	open my $h, '<', $f or return undef;
+	my $x = <$h>;
+	close $h;
+	chomp $x if defined $x;
+	return $x;
+}
+
+# Child PIDs that hold an inherited lock fd; killed in END as a backstop so a
+# failed assertion can't leave a 30s sleeper holding a lock.
+my @orphan_children;
+END { kill 9, $_ for grep { $_ } @orphan_children; }
+
+# Build the real production stuck-lock: a worker acquires the node lock, forks a
+# child that inherits the lock fd (an external poller / wmic / plugin), then the
+# worker dies WITHOUT unlocking (nmisd killed -9). The child stays alive holding
+# the fd, so flock remains held while the recorded holder PID is dead — the only
+# state in which a leftover .lock actually blocks the next collect.
+# Returns ($node, $worker_pid_now_dead, $child_pid_still_alive).
+sub make_orphan_stuck_lock
+{
+	my ($name) = @_;
+	my $node = make_node($name);
+	my $w = fork();
+	die "fork failed: $!" if !defined $w;
+	if ($w == 0)
+	{
+		my $r = $node->lock(type => "update");
+		POSIX::_exit(1) if !$r->{handle};
+		my $c = fork();
+		if (defined $c && $c == 0)
+		{
+			open my $f, '>', "$vardir/${name}_c"; print $f $$; close $f;
+			sleep 30;                 # keep the inherited fd open
+			POSIX::_exit(0);
+		}
+		open my $f, '>', "$vardir/${name}_w"; print $f $$; close $f;
+		POSIX::_exit(0);              # worker dies without unlock
+	}
+	waitpid($w, 0);
+	my $t = 0;
+	until (-e "$vardir/${name}_c") { select(undef,undef,undef,0.02); die "timeout setting up $name\n" if (($t += 0.02) > 15); }
+	select(undef, undef, undef, 0.2);
+	my $cpid = _slurp_pid("$vardir/${name}_c");
+	push @orphan_children, $cpid if $cpid;
+	return ($node, _slurp_pid("$vardir/${name}_w"), $cpid);
+}
+
+# Is the node's lock file currently blocking acquisition (someone holds flock)?
+sub lock_blocked
+{
+	my ($name) = @_;
+	my $fn = "$vardir/$name.lock";
+	return 0 if !-f $fn;
+	open my $fh, '+<', $fn or return 0;
+	my $got = flock($fh, LOCK_EX | LOCK_NB);
+	close $fh;                       # releases only our probe handle
+	return $got ? 0 : 1;
 }
 
 # Pick a PID that is almost certainly dead. We use 999999 — even if it
@@ -188,6 +253,61 @@ diag("=== Part 2: NMISNG->clear_stale_node_locks() sweep ===");
 
 	# Cleanup the live one we left behind.
 	unlink("$vardir/sweep_live.lock");
+}
+
+# ============================================================
+# Part 3: orphaned-fd stuck lock — the real production scenario
+# (nmisd/worker killed mid-collect while a child still holds the lock fd).
+# This is the only case where a leftover .lock actually blocks polling;
+# a plain death with no surviving fd releases flock and never sticks.
+# ============================================================
+diag("=== Part 3: orphaned-fd stuck lock (nmisd killed mid-collect) ===");
+{
+	# 3a: a child holds the inherited fd; recorded worker PID is dead.
+	my ($node, $wpid, $cpid) = make_orphan_stuck_lock("orphan_stuck");
+	ok(lock_blocked("orphan_stuck"), "3a: orphaned-fd lock blocks acquisition (collect would be skipped)");
+	ok(NMISNG::Node::_is_pid_stale($wpid),
+		"3a: recorded holder PID ($wpid) is dead while child ($cpid) holds the fd");
+
+	# 3b: the sweep clears it by dead recorded PID, even though flock is still held.
+	#     (A flock-before-unlink sweep could NOT, because $cpid holds the lock.)
+	my $cleaned = $nmisng->clear_stale_node_locks();
+	ok($cleaned >= 1, "3b: sweep removed the stale lock despite the held flock");
+	ok(!-f "$vardir/orphan_stuck.lock", "3b: lock file removed");
+	my $r = $node->lock(type => "update");
+	ok($r->{handle} && !$r->{conflict}, "3b: collect can acquire again after the sweep");
+	$node->unlock(lock => $r) if $r->{handle};
+	kill 9, $cpid if $cpid;
+}
+{
+	# 3c: Node::lock()'s in-acquire self-heal clears the same state with no sweep.
+	my ($node, $wpid, $cpid) = make_orphan_stuck_lock("orphan_heal");
+	ok(lock_blocked("orphan_heal"), "3c: stuck lock present before acquire");
+	my $r = $node->lock(type => "update");
+	ok($r->{handle} && !$r->{conflict}, "3c: lock() self-healed and acquired");
+	$node->unlock(lock => $r) if $r->{handle};
+	kill 9, $cpid if $cpid;
+}
+{
+	# 3d: boundary — if NO fd-holder survives the kill, the kernel releases flock
+	# on death, so the leftover file does not block. This is the all-processes-
+	# killed case: the startup sweep tidies the file, but it was never blocking.
+	my $node = make_node("orphan_clean");
+	my $w = fork();
+	die "fork failed: $!" if !defined $w;
+	if ($w == 0)
+	{
+		my $r = $node->lock(type => "update");
+		POSIX::_exit(1) if !$r->{handle};
+		open my $f, '>', "$vardir/orphan_clean_ready"; print $f $$; close $f;
+		sleep 30; POSIX::_exit(0);
+	}
+	my $t = 0;
+	until (-e "$vardir/orphan_clean_ready") { select(undef,undef,undef,0.02); last if (($t += 0.02) > 15); }
+	kill 9, $w; waitpid($w, 0);
+	select(undef, undef, undef, 0.2);
+	ok(!lock_blocked("orphan_clean"),
+		"3d: no surviving fd-holder -> leftover lock does NOT block (flock released on death)");
 }
 
 # ============================================================
