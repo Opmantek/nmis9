@@ -99,7 +99,7 @@ add_mongo_7_repository () {
 							# sqv (trixie's default apt verifier) rejects MongoDB 7.0's SHA1 subkey binding
 							# signature; force apt to use gpgv which accepts legacy key formats
 							echo 'APT::Key::GPGVCommand "gpgv";' | sudo tee /etc/apt/apt.conf.d/99mongodb-gpgv > /dev/null
-							echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] http://repo.mongodb.org/apt/debian trixie/mongodb-org/7.0 main" | sudo tee ${SOURCESFILE}
+							echo "deb [ arch=amd64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" | sudo tee ${SOURCESFILE}
 						else
 							# fallback to bookworm
 							echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" | sudo tee ${SOURCESFILE}
