@@ -2256,8 +2256,14 @@ sub notify
 	# this is only called when things are going down, validate with ~normal anyway
 	my $thisevent_up =  $thisevent_control->{CancelingEvent} // undef;
 	if( $thisevent_up && $thisevent_up ne 'N/A' && $level !~ /Normal/i ) {
-		my $eventobjUP = $S->nmisng_node->event( event => $thisevent_up, element => $element, historic => 0 ); # no search for active, really no active up events should exist
-		$eventobjUP->delete() if( $eventobjUP );
+		# OMK-12622: load with ignore_active so that resolved (active=0) Up events are also
+		# found and deleted. Without this, a stale "Interface Up, active=0" doc left by a
+		# previous outage occupies the unique index slot and causes a duplicate key error when
+		# the next outage is resolved, silently preventing the save of active=0 and causing
+		# a second Interface Up to be logged on the following poll.
+		my $eventobjUP = $S->nmisng_node->event( event => $thisevent_up, element => $element, historic => 0 );
+		$eventobjUP->load( ignore_active => 1 );
+		$eventobjUP->delete() if( $eventobjUP->exists() );
 	}
 
 
