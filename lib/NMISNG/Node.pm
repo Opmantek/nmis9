@@ -2496,7 +2496,17 @@ sub update_node_info
 			}
 
 			# but if neither worked, do not continue processing anything model-related!
-			if ( $catchall_data->{sysDescr} or !$catchall_data->{nodeVendor} )
+			# Exception: a push node (active manages_own_inventory engine) with an
+			# explicitly configured model has its model determined by config, not by
+			# the sysDescr/vendor probing it can never satisfy. Without this a push
+			# node whose nodeVendor is set (e.g. by nmisent discovery) can never pass
+			# model determination, so update never stamps last_update, and collect
+			# perpetually diverts to a failing update — the redis reconcile never runs.
+			my $push_model_determined = ( defined $self->configuration->{model}
+				&& $self->configuration->{model} ne ''
+				&& $self->configuration->{model} ne 'automatic'
+				&& grep { $_->is_active && $_->manages_own_inventory } @{$S->engines} );
+			if ( $catchall_data->{sysDescr} or !$catchall_data->{nodeVendor} or $push_model_determined )
 			{
 				# fixme9: the auto-model decision should be made FIRST, before doing any loading
 				# this function's logic needs a complete rewrite
@@ -2564,8 +2574,8 @@ sub update_node_info
 					# it's also mangled on the go
 					$self->makesysuptime($catchall_data);
 
-					# pull / from VPN3002 system descr
-					$catchall_data->{sysDescr} =~ s/\// /g;
+					# pull / from VPN3002 system descr (snmp-only; a push node has none)
+					$catchall_data->{sysDescr} =~ s/\// /g if defined $catchall_data->{sysDescr};
 
 					# collect DNS location info.
 					$self->get_dns_location($catchall_data);

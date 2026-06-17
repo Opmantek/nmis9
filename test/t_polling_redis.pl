@@ -954,6 +954,52 @@ SKIP: {
            "poll-based node with failed load does not get the configured model stamped");
         is($deadmodel // '', 'Generic',
            "poll-based node with failed load keeps update()'s Generic fallback (base parity)");
+
+        # Stuck-loop regression (the live Q2KN scenario): a push node WITH data
+        # present (so loadInfo succeeds, firstloadok true) whose nodeVendor is
+        # already set (as nmisent discovery does) has no sysDescr, so the
+        # snmp-style model gate (sysDescr or !nodeVendor) is false.
+        # update_node_info must still treat the explicitly-configured model on
+        # an active push engine as determined, complete, and stamp last_update.
+        # Without that, update fails at "cannot determine model", last_update is
+        # never set, and collect perpetually diverts to a failing update so
+        # redis data never lands.
+        {
+            no warnings 'redefine';
+            local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+
+            my $stuck = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+            $stuck->cluster_id($C->{cluster_id});
+            $stuck->name("t_redis_vendorset_node");
+            $stuck->activated({ NMIS => 1 });
+            $stuck->configuration({
+                host => "127.0.0.1", group => "TestGroup", netType => "default",
+                roleType => "default", model => "TestRedis", collect => "true",
+                ping => "false", nmisent_engine_type => "meraki",
+                nodeVendor => "Cisco Meraki",   # the trigger: vendor already known
+            });
+            $stuck->save();
+            my $suuid = $stuck->uuid;
+            $main::REDIS_KV{"nmisent:metrics:$suuid:sdwan_health"} =
+                '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"online","cpu_load_5min":0.1,"memory_used_pct":20}}';
+            $main::REDIS_KV{"nmisent:metrics:$suuid:sdwan_uplink"} =
+                '{"_meta":{"collected_at_epoch":'.time().'},"data":[{"wan_interface":"wan1","status":"active","latency_ms":5,"loss_pct":0}]}';
+            $stuck->update(force => 1);
+
+            my ($sci) = $stuck->inventory(concept => "catchall");
+            my $sd = $sci ? $sci->data : {};
+            ok($sci && $sd->{last_update},
+               "push node with data + nodeVendor set completes update and stamps last_update")
+                or diag("last_update=".($sd->{last_update}//'unset'));
+            is($sd->{nodeModel} // '', 'TestRedis',
+               "push node with nodeVendor set keeps its configured model");
+            my $sup = $stuck->get_inventory_ids(concept => 'sdwan_uplink', filter => { historic => 0 });
+            ok(scalar(@{$sup//[]}) == 1,
+               "push node with nodeVendor set lands its sdwan_uplink inventory")
+                or diag("sdwan_uplink rows=".scalar(@{$sup//[]}));
+            delete $main::REDIS_KV{"nmisent:metrics:$suuid:sdwan_health"};
+            delete $main::REDIS_KV{"nmisent:metrics:$suuid:sdwan_uplink"};
+        }
     }
 
     # ---- Model File Invalid clears once the push model is fixed ----
