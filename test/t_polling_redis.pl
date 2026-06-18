@@ -1108,10 +1108,21 @@ SKIP: {
         }
         $C->{nmisent_producer_node} = "t_nmisent_producer";
 
+        # add a row with only index, no last_success_epoch or interval
+        my $target = { index => 'fielddrop_engine' };
+        my $pk = ['index'];
+        my $path = $prod->inventory_path(concept => 'nmisent_poll', data => $target, path_keys => $pk);
+        my ($iv) = $prod->inventory(concept => 'nmisent_poll', model_class => 'systemHealth',
+            path => $path, path_keys => $pk, create => 1);
+        $iv->data($target);
+        $iv->path(recalculate => 1);
+        $iv->save(node => $prod);
+
         is(($dev->producer_state('meraki'))[0], 'up',
            'fresh row -> up');
         is(($dev->producer_state('hpe_greenlake'))[0], 'stale', 'aged row -> stale');
         is(($dev->producer_state('no_such_engine'))[0], 'unknown', 'missing engine row -> unknown');
+        is(($dev->producer_state('fielddrop_engine'))[0], 'unknown', 'row present but fields missing -> unknown');
     }
 
     $ng->get_db()->drop();
