@@ -2309,6 +2309,41 @@ sub handle_down
 	return;
 }
 
+# Tri-state nmisent producer liveness for an engine, read live from the
+# configured producer node's nmisent_poll inventory.
+# returns: ('up'|'stale'|'unknown', detail). 'unknown' is indeterminate
+# (no config, node/row/fields missing). The caller is responsible for
+# raising the nmisent Producer Misconfigured event on 'unknown'.
+sub producer_state
+{
+	my ($self, $engine) = @_;
+	my $C = $self->nmisng->config;
+	my $prodname = $C->{nmisent_producer_node};
+	return ('unknown', 'nmisent_producer_node not configured')
+		if (!defined $prodname || $prodname eq '');
+
+	my $prod = $self->nmisng->node(name => $prodname);
+	return ('unknown', "producer node '$prodname' not found") if (!$prod);
+
+	my $ids = $prod->get_inventory_ids(concept => 'nmisent_poll');
+	my ($lse, $interval);
+	for my $id (@$ids)
+	{
+		my ($inv) = $prod->inventory(_id => $id);
+		next if (!$inv);
+		my $d = $inv->data;
+		next if (($d->{index} // '') ne $engine);
+		($lse, $interval) = ($d->{last_success_epoch}, $d->{interval});
+		last;
+	}
+	return ('unknown', "no nmisent_poll row for engine '$engine'")
+		if (!defined $lse || !defined $interval || $interval <= 0);
+
+	my $age = time - $lse;
+	return ('up', "age ${age}s within 2x ${interval}s") if ($age <= 2 * $interval);
+	return ('stale', "age ${age}s exceeds 2x ${interval}s");
+}
+
 # sysUpTime under nodeinfo is a mess: not only is nmis overwriting it with
 # in nonreversible format on the go,
 # it's also used by and scribbled over in various places, and needs synthesizing

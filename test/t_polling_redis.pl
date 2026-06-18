@@ -1079,6 +1079,41 @@ SKIP: {
             or diag("checkEvent events: ".join(",", map { $_->{event} // '?' } @checked));
     }
 
+    # ---- producer_state tri-state ----
+    {
+        # no producer node configured -> unknown
+        local $C->{nmisent_producer_node};
+        delete $C->{nmisent_producer_node};
+        my $dev = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        my ($st) = $dev->producer_state('meraki');
+        is($st, 'unknown', 'no producer node configured -> unknown');
+
+        # provision a producer node with one fresh and one stale engine row
+        my $prod = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $prod->cluster_id($C->{cluster_id});
+        $prod->name("t_nmisent_producer");
+        $prod->activated({ NMIS => 1 });
+        $prod->configuration({ host => "127.0.0.1", group => "TestGroup", netType => "default",
+            roleType => "default", model => "nmisent", collect => "true", ping => "false" });
+        $prod->save();
+        for my $row ([ 'meraki', time, 60 ], [ 'hpe_greenlake', time - 10000, 60 ]) {
+            my $target = { index => $row->[0], last_success_epoch => $row->[1], interval => $row->[2] };
+            my $pk = ['index'];
+            my $path = $prod->inventory_path(concept => 'nmisent_poll', data => $target, path_keys => $pk);
+            my ($iv) = $prod->inventory(concept => 'nmisent_poll', model_class => 'systemHealth',
+                path => $path, path_keys => $pk, create => 1);
+            $iv->data($target);
+            $iv->path(recalculate => 1);
+            $iv->save(node => $prod);
+        }
+        $C->{nmisent_producer_node} = "t_nmisent_producer";
+
+        is(($dev->producer_state('meraki'))[0], 'up',
+           'fresh row -> up');
+        is(($dev->producer_state('hpe_greenlake'))[0], 'stale', 'aged row -> stale');
+        is(($dev->producer_state('no_such_engine'))[0], 'unknown', 'missing engine row -> unknown');
+    }
+
     $ng->get_db()->drop();
 }
 

@@ -227,6 +227,14 @@
     'Stateful' => 'true',
     'Description' => 'nmisent has not completed a successful poll for an engine within 2x its configured interval. Raised per engine on the nmisent producer node.',
   },
+  'nmisent Producer Misconfigured' => {
+    'Event' => 'nmisent Producer Misconfigured',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'Description' => 'The nmisent producer node or its config pointer (nmisent_producer_node) is not set up, so producer liveness cannot be determined and redis reachability is held. Distinct from nmisent Producer Stale, which means nmisent stopped polling.',
+  },
   'Service Down' => {
     'Event' => 'Service Down',
     'Notify' => 'true',

@@ -10,6 +10,7 @@ my %hash = (
 	'redis_server' => 'localhost',
 	'redis_port' => '6379',
 	'redis_password' => '',
+	'nmisent_producer_node' => '',
   },
 
   'modules' => {
