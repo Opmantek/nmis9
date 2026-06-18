@@ -18,6 +18,14 @@ ok($sec->{http_prom}{last_success_epoch}{metric} eq 'nmisent_poll_last_success_e
    'last_success_epoch sources the right prom metric');
 ok($hash{database}{type}{nmisent_poll}, 'database.type.nmisent_poll present');
 
+# A system.sys section is required, or loadInfo(class=>'system') aborts with
+# "found no sections to collect" and update_node_info never settles the model
+# (caught in live validation 2026-06-18, not by the parse/discovery checks).
+ok(ref $hash{system}{sys} eq 'HASH' && keys %{$hash{system}{sys}},
+   'system.sys section present (loadInfo(system) has something to collect)');
+ok($hash{system}{sys}{standard}{http_prom}{nmisent_up}{metric} eq 'nmisent_up',
+   'system.sys collects a node-level liveness metric (nmisent_up)');
+
 # label discovery: one row per engine from a fixture body
 my $body = join("\n",
   '# TYPE nmisent_poll_last_success_epoch gauge',

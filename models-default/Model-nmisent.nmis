@@ -14,6 +14,20 @@
 		'nodegraph' => 'health',
 		'nodeModel' => 'nmisent',
 		'nodeType'  => 'generic',
+		# A system-level sys section is required: loadInfo(class=>'system')
+		# must find a section to collect or update_node_info aborts with
+		# "found no sections to collect" and the model never settles. These
+		# node-level liveness gauges come from the same :9464 endpoint.
+		'sys' => {
+			'standard' => {
+				'http_prom' => {
+					'-common-' => { 'endpoint' => 'nmisent' },
+					'nmisent_up' => { 'metric' => 'nmisent_up',       'title' => 'nmisent up' },
+					'redis_up'   => { 'metric' => 'nmisent_redis_up', 'title' => 'Redis up' },
+					'mongo_up'   => { 'metric' => 'nmisent_mongo_up', 'title' => 'Mongo up' },
+				},
+			},
+		},
 	},
 	'systemHealth' => {
 		'sections' => 'nmisent_poll',
