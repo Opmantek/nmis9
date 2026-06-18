@@ -8,6 +8,7 @@ package nmisentProducer;
 use strict;
 use warnings;
 use NMISNG::Util;
+use Compat::NMIS;
 
 # pure: is this engine's poll stale? age = now - last_success_epoch, vs 2x interval.
 # missing inputs are NOT stale here (indeterminate is handled by producer_state).
@@ -22,7 +23,7 @@ sub collect_plugin
 {
 	my (%args) = @_;
 	my ($node, $S, $C, $nmisng) = @args{qw(node sys config nmisng)};
-	my $nobj = $nmisng->node(name => $node);
+	my $nobj = $S->nmisng_node;
 	return (0, undef) if (!$nobj);
 	return (0, undef) if (($nobj->configuration->{model} // '') ne 'nmisent');
 
