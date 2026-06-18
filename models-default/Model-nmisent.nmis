@@ -1,0 +1,46 @@
+#
+# Model-nmisent.nmis - the nmisent producer, modelled as an HTTP node polling
+# its Prometheus endpoint (:9464). One systemHealth row per {engine} label
+# carrying poll-success epoch, configured interval, and partial-poll count.
+# Provision one node with model => 'nmisent' and an http_endpoints entry
+# named 'nmisent' pointing at the nmisent host:9464.
+#
+%hash = (
+	'-common-' => { 'class' => { 'database' => { 'common-model' => 'database' } } },
+	'database' => {
+		'type' => { 'nmisent_poll' => '/nodes/$node/health/nmisent_poll-$index.rrd' },
+	},
+	'system' => {
+		'nodegraph' => 'health',
+		'nodeModel' => 'nmisent',
+		'nodeType'  => 'generic',
+	},
+	'systemHealth' => {
+		'sections' => 'nmisent_poll',
+		'sys' => {
+			'nmisent_poll' => {
+				'indexed'   => 'engine',
+				'index_oid' => 'engine',
+				'headers'   => 'engine,last_success_epoch,interval,partial_total',
+				'http_prom' => {
+					'-common-'           => { 'endpoint' => 'nmisent' },
+					'engine'             => { 'title' => 'Engine' },
+					'last_success_epoch' => { 'metric' => 'nmisent_poll_last_success_epoch', 'title' => 'Last success (epoch)' },
+					'interval'           => { 'metric' => 'nmisent_poll_interval_seconds',   'title' => 'Poll interval (s)' },
+					'partial_total'      => { 'metric' => 'nmisent_poll_partial_total',      'title' => 'Partial polls' },
+				},
+			},
+		},
+		'rrd' => {
+			'nmisent_poll' => {
+				'graphtype' => 'nmisent_poll_age',
+				'indexed'   => 'engine',
+				'http_prom' => {
+					'-common-'           => { 'endpoint' => 'nmisent' },
+					'last_success_epoch' => { 'metric' => 'nmisent_poll_last_success_epoch', 'option' => 'gauge,0:U' },
+					'interval'           => { 'metric' => 'nmisent_poll_interval_seconds',   'option' => 'gauge,0:U' },
+				},
+			},
+		},
+	},
+);

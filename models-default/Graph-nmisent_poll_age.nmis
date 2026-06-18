@@ -1,0 +1,27 @@
+#
+# Graph-nmisent_poll_age.nmis - per-engine seconds since the last successful
+# nmisent poll, derived from now - last_success_epoch at render time.
+#
+%hash = (
+	'heading' => 'nmisent Poll Age',
+	'title'   => {
+		'standard' => '$node $index - $length from $datestamp_start to $datestamp_end',
+		'short'    => '$node $index - $length',
+	},
+	'vlabel' => { 'standard' => 'Seconds since last success', 'short' => 'Age (s)' },
+	'option' => {
+		'standard' => [
+			'DEF:lse=$database:last_success_epoch:AVERAGE',
+			'CDEF:age=TIME,lse,-',
+			'LINE1:age#1E90FF: Poll age (s)\\n',
+			'GPRINT:age:LAST:Now %1.0lf s',
+			'GPRINT:age:MAX:Max %1.0lf s',
+		],
+		'small' => [
+			'DEF:lse=$database:last_success_epoch:AVERAGE',
+			'CDEF:age=TIME,lse,-',
+			'LINE1:age#1E90FF: Poll age',
+			'GPRINT:age:LAST:Now %1.0lf s\\n',
+		],
+	},
+);
