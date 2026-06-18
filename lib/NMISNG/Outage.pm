@@ -595,7 +595,11 @@ sub check_outages
 					{
 						# $rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
 
-						if (! List::Util::any { $actual eq $_ } @$expected){
+						if (! List::Util::any {
+									/^iregex:(.+)$/ ? ($actual =~ qr{$1}i) :
+									/^regex:(.+)$/  ? ($actual =~ qr{$1})  :
+									($actual eq $_)
+								} @$expected){
 							$rulematches = 0;
 						}
 						else{
