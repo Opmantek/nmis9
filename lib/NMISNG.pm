@@ -5014,12 +5014,12 @@ sub clear_active_queue
 
 # Sweep <nmis_var>/*.lock files; remove any whose recorded holder PID is no
 # longer alive. Idempotent and safe to call at any time. Used by nmisd at
-# startup, act=stop, and act=abort to leave a clean slate; the per-Node
-# lock() function also self-heals on each acquisition, so this sweep is
-# belt-and-suspenders rather than the only safety net.
+# startup, act=stop, and act=abort to leave a tidy initial state. This only
+# removes lock files left by a dead holder; a lock still held by a live
+# process is left alone (its recorded PID is alive).
 #
-# Liveness check matches Node::_is_pid_stale: only ESRCH counts as "dead";
-# EPERM (cross-user, signaling not allowed) means alive and is left alone.
+# Liveness check: only ESRCH counts as "dead"; EPERM (cross-user, signaling
+# not allowed) means the holder is alive and the lock file is left in place.
 #
 # Can be invoked as either:
 #   $nmisng->clear_stale_node_locks();

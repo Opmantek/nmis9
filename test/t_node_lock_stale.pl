@@ -1,14 +1,19 @@
 #!/usr/bin/perl
 #
-# t_node_lock_stale.pl — tests the self-healing stale-lock fix.
+# t_node_lock_stale.pl — tests per-node lock cleanup.
 #
-# Part 1: Node::lock() detects a dead holder PID and recovers automatically.
-# Part 2: NMISNG::clear_stale_node_locks() sweeps stale .lock files.
+# Part 2: NMISNG::clear_stale_node_locks() sweeps stale .lock files (removes
+#         those whose recorded holder PID is dead, leaves live ones).
+# Part 3: the production scenario — a worker killed mid-collect while a child
+#         holds the inherited lock fd, and how the sweep recovers it. lock()
+#         itself does NOT self-heal; orphaned workers are cleared at the process
+#         layer (nmisd kills leftover workers at startup, systemd KillMode), and
+#         the sweep tidies the lock files they leave behind.
 #
 
 use strict;
 use warnings;
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -74,18 +79,6 @@ sub plant_lock
 	return $path;
 }
 
-sub read_lock
-{
-	my ($name) = @_;
-	my $path = "$vardir/$name.lock";
-	return undef unless -f $path;
-	open my $fh, '<', $path or return undef;
-	my $line = <$fh>;
-	close $fh;
-	chomp $line if defined $line;
-	return $line;
-}
-
 # Read just the holder PID out of an arbitrary file written by a forked helper.
 sub _slurp_pid
 {
@@ -102,7 +95,7 @@ sub _slurp_pid
 my @orphan_children;
 END { kill 9, $_ for grep { $_ } @orphan_children; }
 
-# Build the real production stuck-lock: a worker acquires the node lock, forks a
+# Build the production stuck-lock: a worker acquires the node lock, forks a
 # child that inherits the lock fd (an external poller / wmic / plugin), then the
 # worker dies WITHOUT unlocking (nmisd killed -9). The child stays alive holding
 # the fd, so flock remains held while the recorded holder PID is dead — the only
@@ -155,73 +148,6 @@ sub lock_blocked
 my $DEAD_PID = 999999;
 
 # ============================================================
-# Part 1a: dead PID -> stale, lock acquired
-# ============================================================
-diag("=== Part 1a: dead holder PID -> self-heal ===");
-{
-	my $node = make_node("test_lock_dead");
-	plant_lock("test_lock_dead", $DEAD_PID, "update");
-
-	my $r = $node->lock(type => "update");
-	ok(!$r->{error},    "no error on stale-lock acquisition") or diag("err: $r->{error}");
-	ok(!$r->{conflict}, "no conflict reported (was treated as stale)");
-	ok($r->{handle},    "got a live file handle");
-
-	# After acquisition, the file should record our PID.
-	my $line = read_lock("test_lock_dead");
-	like($line, qr/^$$ update/, "lock file now records our own PID + op");
-
-	$node->unlock(lock => $r);
-	ok(!-f "$vardir/test_lock_dead.lock", "lock file removed by unlock");
-}
-
-# ============================================================
-# Part 1b: _is_pid_stale helper directly
-# (Testing live conflict end-to-end through lock() requires a second
-# process holding flock; the helper is the core liveness logic and is
-# what lock() actually consults. Direct testing covers all the edge
-# cases without needing fork.)
-# ============================================================
-diag("=== Part 1b: Node::_is_pid_stale liveness check ===");
-{
-	# Live PID — this very test process — must NOT be flagged stale.
-	ok(!NMISNG::Node::_is_pid_stale($$),  "self PID (live) -> not stale");
-
-	# Dead PID — almost certainly nothing at PID 999999.
-	ok(NMISNG::Node::_is_pid_stale($DEAD_PID), "dead PID -> stale");
-
-	# Malformed / sentinel values must all be stale.
-	ok(NMISNG::Node::_is_pid_stale(undef),     "undef -> stale");
-	ok(NMISNG::Node::_is_pid_stale(""),        "empty string -> stale");
-	ok(NMISNG::Node::_is_pid_stale(0),         "zero -> stale");
-	ok(NMISNG::Node::_is_pid_stale(-1),        "negative -> stale");
-	ok(NMISNG::Node::_is_pid_stale("garbage"), "non-numeric -> stale");
-
-	# Init PID 1 is essentially always alive on a Linux host.
-	# (If somehow not, that's a system-level oddity, not a fix issue.)
-	ok(!NMISNG::Node::_is_pid_stale(1), "PID 1 (init) -> not stale");
-}
-
-# ============================================================
-# Part 1c: non-numeric / -1 / 0 holder -> stale
-# ============================================================
-diag("=== Part 1c: malformed holder -> treated as stale ===");
-{
-	for my $bad ("-1", "0", "garbage") {
-		my $name = "test_lock_bad_$bad";
-		$name =~ s/[^a-zA-Z0-9_]/_/g;     # filename-safe
-		my $node = make_node($name);
-		plant_lock($name, $bad, "update");
-
-		my $r = $node->lock(type => "update");
-		ok(!$r->{conflict}, "[$bad holder] no conflict, treated as stale")
-			or diag("got conflict=$r->{conflict}");
-		ok($r->{handle}, "[$bad holder] acquired live handle");
-		$node->unlock(lock => $r) if $r->{handle};
-	}
-}
-
-# ============================================================
 # Part 2: clear_stale_node_locks() sweep
 # ============================================================
 diag("=== Part 2: NMISNG->clear_stale_node_locks() sweep ===");
@@ -266,7 +192,7 @@ diag("=== Part 3: orphaned-fd stuck lock (nmisd killed mid-collect) ===");
 	# 3a: a child holds the inherited fd; recorded worker PID is dead.
 	my ($node, $wpid, $cpid) = make_orphan_stuck_lock("orphan_stuck");
 	ok(lock_blocked("orphan_stuck"), "3a: orphaned-fd lock blocks acquisition (collect would be skipped)");
-	ok(NMISNG::Node::_is_pid_stale($wpid),
+	ok(!kill(0, $wpid),
 		"3a: recorded holder PID ($wpid) is dead while child ($cpid) holds the fd");
 
 	# 3b: the sweep clears it by dead recorded PID, even though flock is still held.
@@ -280,12 +206,13 @@ diag("=== Part 3: orphaned-fd stuck lock (nmisd killed mid-collect) ===");
 	kill 9, $cpid if $cpid;
 }
 {
-	# 3c: Node::lock()'s in-acquire self-heal clears the same state with no sweep.
-	my ($node, $wpid, $cpid) = make_orphan_stuck_lock("orphan_heal");
-	ok(lock_blocked("orphan_heal"), "3c: stuck lock present before acquire");
+	# 3c: lock() does NOT steal a live-held lock — it reports the conflict.
+	# With the self-heal removed, a held flock always yields a conflict rather
+	# than an unlink+retry, so the live holder is left untouched.
+	my ($node, $wpid, $cpid) = make_orphan_stuck_lock("orphan_conflict");
 	my $r = $node->lock(type => "update");
-	ok($r->{handle} && !$r->{conflict}, "3c: lock() self-healed and acquired");
-	$node->unlock(lock => $r) if $r->{handle};
+	ok(!$r->{handle},  "3c: lock() did not acquire a live-held lock");
+	ok($r->{conflict}, "3c: lock() reported the conflict instead of stealing it");
 	kill 9, $cpid if $cpid;
 }
 {

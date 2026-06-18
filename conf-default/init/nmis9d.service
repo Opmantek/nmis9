@@ -17,6 +17,11 @@ Restart=no
 EnvironmentFile=-/etc/environment
 PIDFile=/usr/local/nmis9/var/nmis_system/nmisd.pid
 TimeoutSec=90s
-KillMode=process
+# mixed: SIGTERM to the master only (it shuts its workers down gracefully via
+# its own signal handler), then SIGKILL to the whole control group after the
+# timeout. This guarantees no worker survives a stop/restart/crash holding a
+# per-node lock. KillMode=process left orphaned workers alive, which stranded
+# nodes behind a live lock until the lock file was cleared manually.
+KillMode=mixed
 ExecStart=/usr/local/nmis9/bin/nmisd
 

@@ -595,6 +595,36 @@ $nmisng->clear_active_queue();
 
 &NMISNG::rrdfunc::require_RRDs;
 
+# A previous run may have left workers alive (master killed -9, OOM, crash, or
+# systemd KillMode=process). Such orphans run stale in-memory code and config
+# and must never be adopted into this run, so kill any still-alive processes
+# recorded in the loaded state before starting a fresh pool. Start time is
+# verified so a recycled PID can't hit an unrelated process. We cannot waitpid
+# these (they are reparented to init), so poll for exit with a ~1s ceiling.
+if (ref($scheduler_state->{zoo}) eq "HASH" && keys %{$scheduler_state->{zoo}})
+{
+	my $pt = Proc::ProcessTable->new(enable_ttys => 0);
+	my %bypid = map { ($_->pid => $_) } @{$pt->table};
+	my @leftover = grep { exists $bypid{$_}
+												&& kill(0, $_)
+												&& $scheduler_state->{zoo}->{$_}->{starttime} == $bypid{$_}->start
+											} keys %{$scheduler_state->{zoo}};
+	if (@leftover)
+	{
+		$logger->warn("Killing ".scalar(@leftover)." leftover worker(s) from a previous run: @leftover");
+		kill("TERM", @leftover);
+		my @alive = @leftover;
+		for (1..20)							# 20 * 50ms = 1s ceiling, exits early when all gone
+		{
+			@alive = grep { kill(0, $_) } @alive;
+			last if (!@alive);
+			Time::HiRes::sleep(0.05);
+		}
+		kill("KILL", @alive) if (@alive);	# SIGKILL only the ones that ignored TERM
+	}
+}
+$scheduler_state->{zoo} = {};			# always start with a clean worker pool
+
 my $zoo = ($scheduler_state->{zoo} //= {}); # process state structure for manage_processes
 my $exit_marker;							# signal handler scribbles here
 
