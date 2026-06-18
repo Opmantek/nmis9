@@ -142,10 +142,18 @@ sub lock_blocked
 	return $got ? 0 : 1;
 }
 
-# Pick a PID that is almost certainly dead. We use 999999 — even if it
-# happens to exist, it's outside any normal range and a probe failure
-# would be noise, not a real test failure.
-my $DEAD_PID = 999999;
+# A guaranteed-dead, already-reaped PID: fork a child that exits immediately
+# and waitpid it, then reuse its PID. Deterministic, unlike a hard-coded number
+# that could in theory belong to a live process.
+sub dead_pid
+{
+	my $pid = fork();
+	die "fork failed: $!" if !defined $pid;
+	POSIX::_exit(0) if $pid == 0;
+	waitpid($pid, 0);
+	return $pid;
+}
+my $DEAD_PID = dead_pid();
 
 # ============================================================
 # Part 2: clear_stale_node_locks() sweep
@@ -153,8 +161,8 @@ my $DEAD_PID = 999999;
 diag("=== Part 2: NMISNG->clear_stale_node_locks() sweep ===");
 {
 	# Plant a mix: two dead, one live, plus a non-.lock file that should be ignored.
-	plant_lock("sweep_dead_a", $DEAD_PID,     "update");
-	plant_lock("sweep_dead_b", $DEAD_PID + 1, "collect");
+	plant_lock("sweep_dead_a", $DEAD_PID,   "update");
+	plant_lock("sweep_dead_b", dead_pid(),  "collect");
 	plant_lock("sweep_live",   $$,            "update");
 	open my $fh, '>', "$vardir/not_a_lock.txt" or die;
 	print $fh "irrelevant";

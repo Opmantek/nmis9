@@ -5072,8 +5072,12 @@ sub clear_stale_node_locks
 		chomp $line;
 		my ($pid, $op) = split /\s+/, $line;
 
-		# Only ESRCH counts as stale; non-numeric / undef / <=0 also stale
-		# (treated as "no live owner recorded"). Mirrors Node::_is_pid_stale.
+		# Only ESRCH counts as stale; non-numeric / undef / <=0 also stale.
+		# An unreadable or corrupt lock file is removed too, on purpose: the
+		# sweep runs at startup (and stop/abort) when no process holds a lock,
+		# and Node::lock() can't use a file it can't open either (it returns an
+		# error and never acquires), so leaving it would wedge the node forever.
+		# Removing it lets lock() recreate a clean file on the next acquire.
 		my $stale;
 		if (!defined $pid || $pid !~ /^\d+$/ || $pid <= 0)
 		{
