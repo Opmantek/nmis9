@@ -2344,6 +2344,70 @@ sub producer_state
 	return ('stale', "age ${age}s exceeds 2x ${interval}s");
 }
 
+# Producer-gated reachability for a redis push node: map the canonical
+# device status onto Node Down, but only when the engine's producer is up
+# AND this device's node-level health payload is fresh. Otherwise hold (no
+# reachability change). Called from collect after collect_node_info, gated on
+# an active redis engine.
+# args: sys (live Sys), catchall_inventory. returns: nothing.
+sub apply_redis_reachability
+{
+	my ($self, %args) = @_;
+	my $S   = $args{sys};
+	my $cat = $args{catchall_inventory};
+	my $cfg = $self->configuration;
+	my $engine = $cfg->{nmisent_engine_type};
+	return if (!defined $engine || $engine eq '');
+
+	my ($eng) = grep { $_->protocol_name eq 'redis' } @{$S->engines};
+	return if (!$eng);
+
+	# Resolve the node-level health concept from the loaded model rather than
+	# hardcoding it, so this works for sdwan_health / device_health /
+	# wifi_ap_health alike. Nothing to do if the model declares none.
+	my $concept = $S->{mdl}{system}{sys}{standard}{redis}{'-common-'}{concept};
+	return if (!defined $concept);
+
+	my ($pstate, $detail) = $self->producer_state($engine);
+	if ($pstate eq 'unknown')
+	{
+		Compat::NMIS::notify(
+			sys => $S, event => "nmisent Producer Misconfigured",
+			element => $engine, level => "Warning", details => $detail,
+			context => { type => "node" }, inventory_id => $cat->id);
+		return;     # hold: producer indeterminate
+	}
+	Compat::NMIS::checkEvent(
+		sys => $S, event => "nmisent Producer Misconfigured",
+		element => $engine, level => "Normal", details => "producer determinable",
+		inventory_id => $cat->id);
+
+	return if ($pstate ne 'up');                   # stale -> hold
+	return if (!$eng->concept_fresh($concept));    # device data stale/absent -> hold (went dark)
+
+	my $raw = $cat->data_live->{status};
+	require NMISNG::Sys::Engine::Redis::Status;
+	my $canon = NMISNG::Sys::Engine::Redis::Status::canonical($engine, $raw);
+	if ($canon eq 'down')
+	{
+		$self->handle_down(sys => $S, type => 'node',
+			details => "device reported status '".($raw // 'undef')."'",
+			catchall_inventory => $cat);
+	}
+	elsif ($canon eq 'up')
+	{
+		$self->handle_down(sys => $S, type => 'node', up => 1,
+			details => "device reported status '".($raw // 'undef')."'",
+			catchall_inventory => $cat);
+	}
+	else
+	{
+		$self->nmisng->log->info($self->name.": redis status '".($raw // 'undef')
+			."' canonical=$canon for engine $engine, holding (no reachability change)");
+	}
+	return;
+}
+
 # sysUpTime under nodeinfo is a mess: not only is nmis overwriting it with
 # in nonreversible format on the go,
 # it's also used by and scribbled over in various places, and needs synthesizing
@@ -9706,6 +9770,16 @@ sub collect
 		my $updatewasok = $self->collect_node_info(sys=>$S, time_marker => $starttime, catchall_inventory => $catchall_inventory );
 		$catchall_data->{collect_node_info_time} = Time::HiRes::time - $collect_node_info_start;
 		my $curstate = $S->status;  # collect_node_info does NOT disable faulty sources!
+
+		# Producer-gated reachability: a redis push node's Node Down state is
+		# driven by the device's reported status, but only when the engine's
+		# producer is up and this device's health payload is fresh (set by the
+		# freshness gate during collect_node_info above). Separate from the
+		# own-inventory systemHealth reconcile below.
+		if (grep { $_->is_active && $_->protocol_name eq 'redis' } @{$S->engines})
+		{
+			$self->apply_redis_reachability(sys => $S, catchall_inventory => $catchall_inventory);
+		}
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply
 		# to ALL sources being down simultaneously, NOT just snmp.

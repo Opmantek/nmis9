@@ -82,9 +82,15 @@ my $fake_sys = NMISNG::Test::FakeSys->new(
 # _raise_stale_event / _clear_stale_event (added in Task 5) don't try to
 # drive the full event system against the fake Sys throughout this test file.
 # The Task 5 event block overrides these locally with capturing stubs.
+# Stash the real implementations first: the producer-gated reachability
+# truth table needs the live event path (handle_down -> notify/checkEvent)
+# so it can assert via eventExist that Node Down was actually raised/cleared.
+our ($REAL_NOTIFY, $REAL_CHECKEVENT);
 require Compat::NMIS;
 {
     no warnings 'redefine';
+    $REAL_NOTIFY     = \&Compat::NMIS::notify;
+    $REAL_CHECKEVENT = \&Compat::NMIS::checkEvent;
     *Compat::NMIS::notify     = sub { return; };
     *Compat::NMIS::checkEvent = sub { return; };
 }
@@ -873,6 +879,98 @@ SKIP: {
                 is($checked3[0]{element} // '', 'ghost_concept',
                    "swept event is the concept no longer in the model");
             }
+        }
+
+        # ---- Task 5: producer-gated reachability truth table ----
+        # Map the canonical device status onto Node Down through the live
+        # collect path, but only when the engine's producer is up AND this
+        # device's health payload is fresh. Otherwise hold (no reachability
+        # change). Drive each row by setting the node-level health status and
+        # the producer freshness; assert via the real event system.
+        {
+            no warnings 'redefine';
+            local *NMISNG::Sys::Engine::Redis::_redis = sub { return FakeRedisClient->new; };
+            # restore the live event path so handle_down actually raises/clears
+            local *Compat::NMIS::notify     = $main::REAL_NOTIFY;
+            local *Compat::NMIS::checkEvent = $main::REAL_CHECKEVENT;
+
+            # producer node: one fresh meraki row (up), one aged hpe_greenlake
+            # row (stale) — same idiom as the producer_state test below.
+            my $prod = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+            $prod->cluster_id($C->{cluster_id});
+            $prod->name("t_nmisent_producer_e2e");
+            $prod->activated({ NMIS => 1 });
+            $prod->configuration({ host => "127.0.0.1", group => "TestGroup", netType => "default",
+                roleType => "default", model => "nmisent", collect => "true", ping => "false" });
+            $prod->save();
+            for my $row ([ 'meraki', time, 60 ], [ 'hpe_greenlake', time - 10000, 60 ]) {
+                my $target = { index => $row->[0], last_success_epoch => $row->[1], interval => $row->[2] };
+                my $pk = ['index'];
+                my $path = $prod->inventory_path(concept => 'nmisent_poll', data => $target, path_keys => $pk);
+                my ($iv) = $prod->inventory(concept => 'nmisent_poll', model_class => 'systemHealth',
+                    path => $path, path_keys => $pk, create => 1);
+                $iv->data($target);
+                $iv->path(recalculate => 1);
+                $iv->save(node => $prod);
+            }
+            local $C->{nmisent_producer_node} = "t_nmisent_producer_e2e";
+
+            my $n = $rnode;             # the existing meraki e2e node
+            my $u = $n->uuid;
+            my $set = sub {
+                $main::REDIS_KV{"nmisent:metrics:$u:sdwan_health"} =
+                    '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"'.$_[0]
+                    .'","cpu_load_5min":0.1,"memory_used_pct":20}}';
+            };
+
+            # producer up + fresh + offline -> Node Down raised
+            $set->('offline');
+            $n->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+            ok($n->eventExist("Node Down"), 'producer up + fresh + offline -> Node Down raised');
+
+            # producer up + fresh + online -> Node Down cleared
+            $set->('online');
+            $n->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+            ok(!$n->eventExist("Node Down"), 'producer up + fresh + online -> Node Down cleared');
+
+            # degraded status (meraki 'dormant') -> no Node Down (held in v1)
+            $set->('dormant');
+            $n->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+            ok(!$n->eventExist("Node Down"), 'degraded status (dormant) -> no Node Down (held)');
+
+            # producer stale -> hold: precondition that the engine reads stale,
+            # and an offline device must NOT (re)raise Node Down while stale.
+            is(($n->producer_state('hpe_greenlake'))[0], 'stale',
+               'precondition: hpe_greenlake producer row is stale');
+
+            # ---- unit gate: producer not 'up' skips handle_down entirely ----
+            # Drive apply_redis_reachability directly with a stubbed producer
+            # state and a captured handle_down, proving the gate holds for
+            # stale/unknown without touching reachability.
+            {
+                my @hd;
+                no warnings 'redefine';
+                local *NMISNG::Node::handle_down = sub { my ($s,%a)=@_; push @hd, \%a; return; };
+                local *NMISNG::Node::producer_state = sub { return ('stale', 'aged'); };
+                $set->('offline');
+                my ($gci2) = $n->inventory(concept => "catchall");
+                my $Sg2 = NMISNG::Sys->new(nmisng => $ng);
+                $Sg2->init(node => $n, snmp => 0, wmi => 0, http => 0, redis => 1,
+                           update => 0, catchall_inventory => $gci2);
+                # prime concept freshness via a loadInfo so concept_fresh is set
+                $Sg2->loadInfo(class => 'system', inventory => $gci2, target => {});
+                $n->apply_redis_reachability(sys => $Sg2, catchall_inventory => $gci2);
+                ok(!@hd, 'producer stale: gate holds, handle_down not called');
+            }
+
+            # ---- ping does not drive Node Down on its own ----
+            # A redis push node with ping=false never pings; reachability is
+            # purely producer+status driven. With producer up + online, no
+            # Node Down exists despite ping never succeeding.
+            $set->('online');
+            $n->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+            ok(!$n->eventExist("Node Down"),
+               'ping=0/none does not raise Node Down on its own (online + producer up)');
         }
     }
 

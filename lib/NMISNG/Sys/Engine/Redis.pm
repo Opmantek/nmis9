@@ -134,6 +134,7 @@ sub _payload_usable
 	{
 		$self->sys->nmisng->log->debug(
 			"redis: concept $concept run_id '$meta->{run_id}' != expected '$self->{expected_run_id}', skipping");
+		$self->{_concept_fresh}{$concept} = 0;
 		return 0;
 	}
 
@@ -144,12 +145,19 @@ sub _payload_usable
 		if ($age > $freshness_s)
 		{
 			$self->_raise_stale_event($concept, $age, $freshness_s);
+			$self->{_concept_fresh}{$concept} = 0;
 			return 0;
 		}
 	}
 	$self->_clear_stale_event($concept);
+	$self->{_concept_fresh}{$concept} = 1;
 	return 1;
 }
+
+# Per-concept freshness verdict recorded by _payload_usable.
+# returns: 1 fresh, 0 stale-or-skipped, undef if the concept was not evaluated
+# this cycle (e.g. the key was absent so the gate never ran).
+sub concept_fresh { return $_[0]->{_concept_fresh}{ $_[1] }; }
 
 # Per-concept staleness event, keyed by node + concept (element). Uses the
 # standard NMIS event path (Compat::NMIS::notify / checkEvent) rather than the
