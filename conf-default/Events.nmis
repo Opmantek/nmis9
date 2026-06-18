@@ -219,6 +219,14 @@
     'Stateful' => 'true',
     'Description' => 'Redis-pushed polling data for a concept is older than its freshness threshold; the external poller may be down or not writing fresh data. Raised per (node, concept) by the redis engine and cleared on the next fresh collect.',
   },
+  'nmisent Producer Stale' => {
+    'Event' => 'nmisent Producer Stale',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'Description' => 'nmisent has not completed a successful poll for an engine within 2x its configured interval. Raised per engine on the nmisent producer node.',
+  },
   'Service Down' => {
     'Event' => 'Service Down',
     'Notify' => 'true',
