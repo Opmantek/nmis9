@@ -77,7 +77,8 @@ elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
     libexcel-writer-xlsx-perl libsnmp-session-perl libcgi-pm-perl \
     libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl \
     libtext-csv-perl libtext-csv-xs-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl libpath-tiny-perl libconfig-autoconf-perl \
-    libcgi-session-perl libcrypt-cbc-perl libcryptx-perl libyaml-libyaml-perl libsyntax-keyword-try-perl libmath-random-secure-perl"
+    libcgi-session-perl libcrypt-cbc-perl libcryptx-perl libyaml-libyaml-perl libsyntax-keyword-try-perl libmath-random-secure-perl \
+    libipc-run3-perl"
 
 		# ubuntu 16.04 needs a mongodb perl driver >= 1.2.3: we load this from cpanm
 		# debian8 can't load a mongodb perl driver >= 1.2.3 from cpanm and is therefore not NMIS9 compatible
