@@ -3734,7 +3734,7 @@ sub replace_files_recursive {
 	}
 			
 	if ( !-d $replaced and $replaced ne "" ) {
-		make_path($replaced);
+		mkpath($replaced, { verbose => 0, mode => 0755 });
 		system("chown", "-R", "$C->{nmis_user}:$C->{nmis_group}", $replaced);
 		$nmisng->log->debug("Create dir $replaced");
 	}
@@ -3751,14 +3751,9 @@ sub replace_files_recursive {
 			$nmisng->log->debug("Replacing $fh = $replaced if not equals ");
 			if ($fh ne $replaced) {
 				$total++;
-				my $output;
-				
-				if ($force) {
-					move($fh, $replaced) or $nmisng->log->error("move $fh -> $replaced: $!");
-				} else {
-					move($fh, $replaced) or $nmisng->log->error("move $fh -> $replaced: $!")
-						unless -e $replaced;
-				}
+				my $mv_err;
+				run3( ['mv', ($force ? () : '-n'), $fh, $replaced], \undef, \undef, \$mv_err );
+				$nmisng->log->error("move $fh -> $replaced: $mv_err") if $?;
 				system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $replaced);
 				system("chmod","-R","g+rw", $replaced);
 				$nmisng->log->info("mv $fh into $replaced  ");
@@ -4054,13 +4049,17 @@ sub isEOSAvailable
 		{
 			my $unit_src = '';
 			run3( ['grep', 'ExecStart=', '/etc/systemd/system/omkd.service'], \undef, \$unit_src, \undef );
-			($omkDir = (split(/=/, $unit_src, 2))[1] // '') =~ s{/script/opmantek\.pl}{};
+			my $unit_exec = (split(' ', (split(/=/, $unit_src, 2))[1] // '', 2))[0] // '';
+			$unit_exec =~ s{^["']|["']$}{}g;
+			($omkDir = $unit_exec) =~ s{/script/opmantek\.pl}{};
 		}
 		elsif ( -f "/etc/init.d/omkd" )
 		{
 			my $init_src = '';
 			run3( ['grep', 'DAEMON=', '/etc/init.d/omkd'], \undef, \$init_src, \undef );
-			($omkDir = (split(/=/, $init_src, 2))[1] // '') =~ s{/script/opmantek\.pl}{};
+			my $init_exec = (split(' ', (split(/=/, $init_src, 2))[1] // '', 2))[0] // '';
+			$init_exec =~ s{^["']|["']$}{}g;
+			($omkDir = $init_exec) =~ s{/script/opmantek\.pl}{};
 		}
 		chomp($omkDir);
 		if ( "$omkDir" eq "" && -f "/usr/local/omk" )
