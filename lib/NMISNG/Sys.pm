@@ -55,6 +55,12 @@ use Scalar::Util;
 use constant MODEL_NON_DEVICE_SECTIONS =>
 	qw(-common- alerts database event heading stats summary threshold);
 
+# Bump when the cached merged model's structure changes, so caches written by
+# older code are treated as stale and rebuilt rather than served as-is.
+# v1 introduced the _source_file threshold/alert traceability tags: a valid
+# pre-v1 sidecar would otherwise keep an untagged cache "fresh" forever.
+use constant MODEL_CACHE_VERSION => 1;
+
 # the sys constructor does next to nothing, just roughly setup the structure
 sub new
 {
@@ -1814,7 +1820,9 @@ sub loadModel
 
 			# also verify scoped override files (Override-Model-X.nmis and Override-Common-X.nmis)
 			# auto-discovered from models-custom only. Detects adds, edits, and deletes since cache was written.
-			# Cache-tracking metadata lives in a sidecar file alongside $thiscf so $self->{mdl} stays a pure model hash.
+			# Cache-tracking metadata (applied overrides, cache_version) lives in a sidecar file alongside
+			# $thiscf, so $self->{mdl} stays structurally a pure model hash (aside from the nested
+			# _source_file traceability tags inside threshold/alerts sections, which walkers skip).
 			if (!$isstale)
 			{
 				my $sidecar_path = "$thiscf.meta.json";
@@ -1828,6 +1836,15 @@ sub loadModel
 				if (ref($cache_meta) ne "HASH" or ref($cache_meta->{applied_overrides}) ne "ARRAY")
 				{
 					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: missing or invalid sidecar at $sidecar_path."});
+					$isstale = 1;
+				}
+				# cache format version mismatch: the cached model was written by code whose
+				# merged-model structure differs from ours (e.g. before _source_file tagging),
+				# so it must be rebuilt even though every mtime still looks current.
+				elsif (($cache_meta->{cache_version} // 0) != MODEL_CACHE_VERSION)
+				{
+					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: cache_version "
+						. ($cache_meta->{cache_version} // "missing") . " != " . MODEL_CACHE_VERSION . "."});
 					$isstale = 1;
 				}
 				else
@@ -2084,11 +2101,13 @@ sub loadModel
 			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
 			{
 				NMISNG::Util::writeHashtoFile( file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0, conf => $C );
-				# sidecar with the list of scoped overrides actually merged in. Used by the freshness check
-				# on subsequent cache hits to detect added / edited / deleted scoped override files.
-				# Kept out of the model JSON so $self->{mdl} stays a pure model hash that all walkers can iterate.
+				# sidecar with the list of scoped overrides actually merged in, plus the cache format
+				# version. Used by the freshness check on subsequent cache hits to detect added / edited /
+				# deleted scoped override files and a structure-version change. Kept out of the model JSON
+				# (the model itself carries only the nested _source_file tags, which walkers skip).
 				NMISNG::Util::writeHashtoFile( file => "$thiscf.meta.json",
-											   data => { applied_overrides => \@applied_overrides },
+											   data => { applied_overrides => \@applied_overrides,
+														 cache_version    => MODEL_CACHE_VERSION },
 											   json => 1, pretty => 0, conf => $C );
 			}
 		}

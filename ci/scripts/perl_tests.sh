@@ -21,6 +21,7 @@ working_tests=(
     t_sys.pl
     t_polling.pl
     t_threshold_traceability.pl
+    t_model_overrides.pl
 )
 
 for i in "${working_tests[@]}"; do

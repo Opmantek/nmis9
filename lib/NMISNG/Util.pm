@@ -1779,12 +1779,19 @@ sub readFiletoHash
 				# Caller passes utf8=>1 for model files (which must be UTF-8) to
 				# ensure multi-byte literals like '°C' survive the eval as proper
 				# Perl Unicode strings and are not re-encoded by JSON::XS later.
-				# FB_CROAK makes invalid bytes a loud error rather than a silent
-				# U+FFFD substitution.  Do NOT apply to config/state files whose
-				# encoding is uncontrolled.
+				# Try strict UTF-8 first (FB_CROAK), but fall back to latin1 if the
+				# file isn't valid UTF-8 -- a model with stray bytes still loads
+				# instead of dying mid-load, matching the JSON branch above. The
+				# encoding problem is surfaced as a warning rather than silenced.
+				# Do NOT apply to config/state files whose encoding is uncontrolled.
 				if ($utf8) {
 					require Encode;
-					$data = Encode::decode('UTF-8', $data, Encode::FB_CROAK);
+					my $decoded = eval { Encode::decode('UTF-8', $data, Encode::FB_CROAK) };
+					if ($@) {
+						warn("readFiletoHash: $file is not valid UTF-8, falling back to latin1: $@");
+						$decoded = Encode::decode('iso-8859-1', $data);
+					}
+					$data = $decoded;
 				}
 				# convert data to hash. this is really very yucky.
 				%hash = eval $data;

@@ -6,6 +6,10 @@
 #   Section C: getValues() pushes _source_file + process_alerts() Status fields (MongoDB)
 #   Section D: applyThresholdToInventory threshold_metric model fallback (MongoDB)
 #   Section E: Common override _source_file tagging (no MongoDB)
+#   Section F: model cache version invalidation (no MongoDB)
+#   Section G: _metric_name_from_value custom-alert metric derivation (no MongoDB)
+#   Section H: UTF-8 unit symbol round-trip through loadModel + JSON cache (no MongoDB)
+#   Section I: invalid-UTF-8 model file falls back to latin1 instead of dying (no MongoDB)
 #
 
 use strict;
@@ -685,6 +689,157 @@ my %cisco_status_override = (
 
 	# Clean up the override so it doesn't bleed into later tests
 	unlink "$custom_dir/Override-Common-CiscoStatus-test.nmis";
+}
+
+# =============================================================================
+# SECTION F: model cache version invalidation (no MongoDB)
+#   Guards against a valid sidecar built by pre-_source_file code keeping an
+#   untagged cache "fresh" forever (the cache_version freshness check).
+# =============================================================================
+diag("=== Section F: model cache version invalidation ===");
+
+{
+	clear_cache();
+	my $name      = "TrF1";
+	my $cachefile = "$var_dir/nmis_system/model_cache/Model-$name.json";
+	my $sidecar   = "$cachefile.meta.json";
+
+	write_nmis_file("$defaults_dir/Model-$name.nmis",
+		inline_alert_model("mySection", "myDs", "F1 Alert"));
+
+	# first load builds the cache + sidecar
+	my $sys1 = make_sys();
+	ok($sys1->loadModel(model => "Model-$name"), "F1: initial loadModel succeeded");
+
+	# F1: the sidecar carries the current cache_version stamp
+	my $meta = decode_json(scalar read_file($sidecar));
+	is($meta->{cache_version}, NMISNG::Sys->MODEL_CACHE_VERSION,
+	   "F1: sidecar stamped with current cache_version");
+
+	# Simulate a pre-upgrade cache: a valid sidecar with NO cache_version, and a
+	# cached model that was never _source_file-tagged. Touch neither the model
+	# source nor leave any other staleness trigger, so only the version mismatch
+	# can force a reload.
+	delete $meta->{cache_version};
+	{ open(my $fh, '>', $sidecar) or die "open $sidecar: $!"; print $fh encode_json($meta); close($fh); }
+
+	my $cached = NMISNG::Util::readFiletoHash(file => $cachefile, json => 1, conf => $C);
+	delete $cached->{mySection}{rrd}{testSection}{snmp}{myDs}{alert}{_source_file};
+	NMISNG::Util::writeHashtoFile(file => $cachefile, data => $cached, json => 1, conf => $C);
+	ok(!exists $cached->{mySection}{rrd}{testSection}{snmp}{myDs}{alert}{_source_file},
+	   "F2: cached model de-tagged to mimic a pre-upgrade cache");
+
+	# second load must treat the un-versioned cache as stale, reload from source,
+	# and re-tag. Without the cache_version check it would serve the untagged cache.
+	my $sys2 = make_sys();
+	ok($sys2->loadModel(model => "Model-$name"), "F3: reload after de-version succeeded");
+	is($sys2->{mdl}{mySection}{rrd}{testSection}{snmp}{myDs}{alert}{_source_file},
+	   "Model-$name",
+	   "F4: stale (un-versioned) cache was rebuilt and re-tagged with _source_file");
+
+	# and the rewritten sidecar carries the current version again
+	my $meta2 = decode_json(scalar read_file($sidecar));
+	is($meta2->{cache_version}, NMISNG::Sys->MODEL_CACHE_VERSION,
+	   "F5: rebuilt sidecar re-stamped with current cache_version");
+}
+
+# =============================================================================
+# SECTION G: _metric_name_from_value (custom-alert threshold_metric derivation, no MongoDB)
+#   Verifies the CVAR-parse logic used by handle_custom_alerts directly, incl.
+#   the documented limitations (multi-CVAR -> first operand; no CVAR -> undef).
+# =============================================================================
+diag("=== Section G: _metric_name_from_value ===");
+
+{
+	require NMISNG::Node;
+
+	is(NMISNG::Node::_metric_name_from_value('CVAR1=hrStorageUsed;$CVAR1 > 90'),
+	   'hrStorageUsed', "G1: single CVAR returns its varname");
+
+	is(NMISNG::Node::_metric_name_from_value('CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100'),
+	   'hrStorageSize', "G2: multi-CVAR returns the first operand (documented limitation)");
+
+	is(NMISNG::Node::_metric_name_from_value('CVAR=fanState;$CVAR > 1'),
+	   'fanState', "G3: CVAR without an index digit is matched");
+
+	is(NMISNG::Node::_metric_name_from_value('$r > 100'),
+	   undef, "G4: expression with no CVAR returns undef (falls back to ds downstream)");
+
+	is(NMISNG::Node::_metric_name_from_value(undef),
+	   undef, "G5: undef value expression returns undef");
+}
+
+# =============================================================================
+# SECTION H: UTF-8 unit symbol round-trip through loadModel + JSON cache (no MongoDB)
+#   A model file containing a real multi-byte '°C' literal must decode to a 2-char
+#   Perl string on load (not 3-byte mojibake like 'Â°C'), and survive the JSON
+#   model-cache write/read unchanged.
+# =============================================================================
+diag("=== Section H: UTF-8 unit symbol round-trip ===");
+
+{
+	require Encode;
+	clear_cache();
+	my $name      = "TrH1";
+	my $modelfile = "$defaults_dir/Model-$name.nmis";
+	my $degree    = "\x{00B0}";                                # U+00B0 DEGREE SIGN (1 char)
+	my $deg_bytes = Encode::encode('UTF-8', $degree);          # 0xC2 0xB0 (2 bytes)
+
+	# Write the model as raw UTF-8 bytes so the file holds a genuine multi-byte
+	# literal, exactly as a real model would -- not a \x{} escape the eval expands.
+	my $src = "\%hash = (\n"
+		. "  systemHealth => { rrd => { tempSensor => { snmp => { tempValue => {\n"
+		. "    oid => 'tempValue', option => 'gauge,0:U',\n"
+		. "    alert => { test => '\$r > 50', event => 'High Temp', level => 'Warning', unit => '${deg_bytes}C' },\n"
+		. "  } } } } },\n"
+		. ");\n";
+	{ open(my $fh, '>:raw', $modelfile) or die "open $modelfile: $!"; print $fh $src; close($fh); }
+	my $now = time(); utime($now, $now, $modelfile);
+
+	my $path = sub { $_[0]->{mdl}{systemHealth}{rrd}{tempSensor}{snmp}{tempValue}{alert}{unit} };
+
+	# first load: from source, via the UTF-8 decode path
+	my $sys1 = make_sys();
+	ok($sys1->loadModel(model => "Model-$name"), "H1: loadModel (from source) succeeded");
+	is($path->($sys1), "${degree}C", "H2: unit decoded to proper '°C' character string");
+	is(length($path->($sys1)), 2, "H3: unit is 2 characters (not 3-byte mojibake)");
+
+	# second load: served from the JSON model cache (encode_json/decode_json round-trip)
+	my $sys2 = make_sys();
+	ok($sys2->loadModel(model => "Model-$name"), "H4: loadModel (from cache) succeeded");
+	is($path->($sys2), "${degree}C", "H5: '°C' survives the JSON cache round-trip");
+	is(length($path->($sys2)), 2, "H6: cached unit still 2 characters");
+}
+
+# =============================================================================
+# SECTION I: invalid-UTF-8 model file falls back to latin1 instead of dying (no MongoDB)
+#   A model containing stray non-UTF-8 bytes must still load (regression guard for
+#   the strict-decode change), degrading to latin1 rather than aborting the load.
+# =============================================================================
+diag("=== Section I: invalid-UTF-8 model falls back to latin1 ===");
+
+{
+	clear_cache();
+	my $name      = "TrI1";
+	my $modelfile = "$defaults_dir/Model-$name.nmis";
+
+	# A lone 0xB0 byte is a latin1 degree sign but invalid UTF-8 (a continuation
+	# byte with no lead byte), so strict UTF-8 decoding would croak.
+	my $src = "\%hash = (\n"
+		. "  systemHealth => { rrd => { tempSensor => { snmp => { tempValue => {\n"
+		. "    oid => 'tempValue', option => 'gauge,0:U',\n"
+		. "    alert => { test => '\$r > 50', event => 'High Temp', level => 'Warning', unit => '\xB0C' },\n"
+		. "  } } } } },\n"
+		. ");\n";
+	{ open(my $fh, '>:raw', $modelfile) or die "open $modelfile: $!"; print $fh $src; close($fh); }
+	my $now = time(); utime($now, $now, $modelfile);
+
+	my $sys = make_sys();
+	my $ok  = eval { $sys->loadModel(model => "Model-$name") };
+	ok($ok, "I1: model with invalid UTF-8 bytes still loads (latin1 fallback, no croak)");
+	is($sys->{mdl}{systemHealth}{rrd}{tempSensor}{snmp}{tempValue}{alert}{unit},
+	   "\x{00B0}C",
+	   "I2: stray 0xB0 byte decoded as latin1 degree sign");
 }
 
 done_testing();

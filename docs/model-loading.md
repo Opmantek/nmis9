@@ -70,9 +70,9 @@ Loaded models are cached as JSON in `<nmis_var>/nmis_system/model_cache/`. Two f
 | File | Contents |
 |---|---|
 | `<modelname>.json` | The fully-merged model hash. This is what `$self->{mdl}` becomes on a cache hit. |
-| `<modelname>.json.meta.json` | Sidecar metadata: `{ applied_overrides => [ { path, mtime }, ... ] }`. Used only by the cache freshness check. |
+| `<modelname>.json.meta.json` | Sidecar metadata: `{ applied_overrides => [ { path, mtime }, ... ], cache_version => N }`. Used only by the cache freshness check. |
 
-The cached model hash is a pure model -- it contains exactly the merged Model + Common + override data, with no metadata sentinels. Code that walks `$self->{mdl}` can treat every top-level value as a section hashref.
+The cached model hash is the merged Model + Common + override data. It is a pure model in structure -- code that walks `$self->{mdl}` can treat every top-level value as a section hashref -- with one exception: threshold and alert entries carry a nested `_source_file` tag recording which file defined them. The tags live inside the `threshold` and `alerts` sections, which are not device sections, so the section walkers skip them.
 
 ### Freshness check
 
@@ -82,6 +82,7 @@ On a cache hit, the cached model is verified against the current state of disk. 
 - `Model-<name>.nmis` or any referenced `Common-<feature>.nmis` was modified more recently than the cache file.
 - Any file listed in `global_model_overrides` was modified more recently than the cache file.
 - **The sidecar is missing, unreadable, or doesn't contain a valid `applied_overrides` arrayref.** This is the strong invariant: without trustworthy metadata about what was applied last time, the cache cannot be trusted.
+- **The sidecar's `cache_version` does not match the current `MODEL_CACHE_VERSION`.** This forces a rebuild when the merged-model structure changes between releases (for example when `_source_file` tagging was introduced) even though every file mtime still looks current. Bump the constant whenever the cached structure changes.
 - A scoped override file (`Override-Model-<name>.nmis` or `Override-Common-<feature>.nmis`) appeared, was edited, or was deleted relative to what the sidecar recorded.
 
 Reloading from source rewrites both files atomically.

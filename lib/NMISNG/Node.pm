@@ -6198,6 +6198,20 @@ sub collect_cbqos_data
 	return $happy? 1 : 0;
 }
 
+# threshold_metric for a custom alert is the first CVAR=<varname> declaration in
+# the alert's value expression (left-to-right). The varname is the model's data
+# source / SNMP object name (e.g. hrStorageUsed) -- what opCharts keys on -- so it
+# is stored as-is rather than resolved to a dotted numeric OID.
+# Limitation: for computed multi-CVAR alerts this is only the first operand, and
+# where an alert's value displays a different metric than its test triggers on, it
+# reflects the displayed value. Returns undef when the expression has no CVAR.
+sub _metric_name_from_value
+{
+	my ($value_expr) = @_;
+	my ($metric_name) = (($value_expr // '') =~ /CVAR\d?=(\w+)/);
+	return $metric_name;
+}
+
 # this function finds and handles custom alerts for this node,
 # and runs process_alerts when any are found.
 # args: self, sys
@@ -6378,25 +6392,9 @@ sub handle_custom_alerts
 					$alert->{inventory_id} = $inventory->id();
 					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
 
-					# Resolve raw SNMP OID for threshold_metric: picks the first CVAR=varname
-					# declaration in the value expression (left-to-right), then looks it up
-					# in the model's rrd/sys snmp section.
-					my $metric_oid;
-					my $value_expr = $CA->{$sect}{$alrt}{value} // '';
-					if ($value_expr =~ /CVAR\d?=(\w+)/) {
-						
-						my $varname = $1;
-						my $snmp_def = $M->{systemHealth}{rrd}{$sect}{snmp}{$varname}
-						           // $M->{systemHealth}{sys}{$sect}{snmp}{$varname};
-						if (ref($snmp_def) eq 'HASH') {
-							# prefer symbolic name (snmpObjectName or sysObjectName) over
-							# oid which may be a dotted numeric string (e.g. 1.3.6.1.2.1.15.3.1.2)
-							$metric_oid = $snmp_def->{snmpObjectName}
-							          // $snmp_def->{sysObjectName}
-							          // $snmp_def->{oid};
-						}
-					}
-					$alert->{metric_oid} = $metric_oid; # undef when CVAR lookup fails; downstream uses // $alert->{ds}
+					# threshold_metric: first CVAR varname from the alert's value expression
+					# (see _metric_name_from_value for rationale and limitations). undef -> // ds.
+					$alert->{metric_name} = _metric_name_from_value($CA->{$sect}{$alrt}{value});
 
 					push( @{$S->{alerts}}, $alert );
 				}
@@ -6517,7 +6515,7 @@ sub process_alerts
 			name => $alert->{alert} // $alert->{ds},
 			value    => $alert->{value},
 			threshold_source  => $alert->{_source_file},
-			threshold_metric  => $alert->{metric_oid} // $alert->{ds},
+			threshold_metric  => $alert->{metric_name} // $alert->{ds},
 			threshold_unit    => $alert->{unit},
 			model_subconcept  => $alert->{section},
 			threshold_key     => $alert->{alert} // $alert->{ds},
