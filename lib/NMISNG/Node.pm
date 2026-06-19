@@ -47,6 +47,7 @@ use Statistics::Lite;
 use URI::Escape;
 use POSIX qw(:sys_wait_h :signal_h);
 use Fcntl qw(:DEFAULT :flock :mode); # for flock
+use Errno qw(ESRCH EPERM);           # for stale-lock detection + holder diagnostics in lock()
 use Net::SNMP;									# for oid_lex_sort
 use File::Temp;
 
@@ -9285,6 +9286,13 @@ sub collect_services
 # type is set from conflict or arg, handle is the open fh, file
 #
 # note: mostly irrelevant, nmisd workers normally don't start jobs if clashing
+#
+# On a flock conflict this returns { conflict => holder_pid } and logs a
+# diagnostic describing the holder (liveness + command). It does NOT remove a
+# held lock: a held flock means a live process owns it, and stale lock files
+# left by a dead holder are cleaned up at the process layer instead (nmisd
+# kills leftover workers at startup and sweeps stale lock files; systemd
+# KillMode=mixed reaps the worker cgroup on stop/restart).
 sub lock
 {
 	my ($self, %args) = @_;
@@ -9323,6 +9331,18 @@ sub lock
 		{
 			my ($pid,$op) = split(/\s+/, <$fhandle>);
 			close($fhandle);
+
+			# Diagnostic: log who holds the lock. Cleanup of orphaned locks is
+			# handled at the process layer (nmisd kills leftover workers at
+			# startup; systemd KillMode=mixed reaps the cgroup) plus the startup
+			# sweep, so lock() only reports the conflict here. The holder's
+			# liveness and command tell a genuinely-running worker apart from an
+			# orphan that survived a restart or a PID that is already gone.
+			$self->nmisng->log->info("Lock conflict for ".$self->name
+				.": "._lock_holder_diag($pid)
+				." (holder op=".(defined $op ? $op : 'N/A')
+				.", requested op=".(defined $args{type} ? $args{type} : '?').")");
+
 			return { conflict => ($pid || -1), type => ($op || "N/A") };
 		}
 	}
@@ -9334,6 +9354,45 @@ sub lock
 	$fhandle->autoflush;
 
 	return $lock;
+}
+
+# Diagnostic helper for lock(): describe the recorded holder PID on conflict.
+# Reports liveness (alive / dead / cross-user) and, on Linux, the holding
+# process's command, so an operator can tell a live nmisd worker apart from an
+# orphan or a PID that is already gone. Best-effort and side-effect free.
+# Note: this reports the PID recorded in the lock file; with fd inheritance the
+# process actually holding the flock may differ (use fuser/lsof to be certain).
+sub _lock_holder_diag
+{
+	my ($pid) = @_;
+	return "no usable holder PID recorded"
+		if (!defined $pid || $pid !~ /^\d+$/ || $pid <= 0);
+
+	my $liveness;
+	$! = 0;
+	if    (kill(0, $pid)) { $liveness = "ALIVE"; }
+	elsif ($! == ESRCH)   { $liveness = "DEAD (no such process)"; }
+	elsif ($! == EPERM)   { $liveness = "alive, owned by another user"; }
+	else                  { $liveness = "indeterminate ($!)"; }
+
+	# best-effort process identity from /proc (Linux); never fatal
+	my $cmd;
+	if (open(my $fh, '<', "/proc/$pid/cmdline"))
+	{
+		local $/;
+		my $raw = <$fh>;
+		close $fh;
+		if (defined $raw && length $raw) { $raw =~ s/\0/ /g; $raw =~ s/\s+$//; $cmd = $raw; }
+	}
+	if (!defined $cmd && open(my $fh, '<', "/proc/$pid/comm"))
+	{
+		my $c = <$fh>;
+		close $fh;
+		chomp $c if defined $c;
+		$cmd = $c if (defined $c && length $c);
+	}
+
+	return "holder PID $pid is $liveness" . (defined $cmd ? " (cmd: $cmd)" : "");
 }
 
 # unlock an existing lock and cleans up the lockfile afterwards

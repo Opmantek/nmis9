@@ -5012,6 +5012,103 @@ sub clear_active_queue
 	return $all_good;
 }
 
+# Sweep <nmis_var>/*.lock files; remove any whose recorded holder PID is no
+# longer alive. Idempotent and safe to call at any time. Used by nmisd at
+# startup, act=stop, and act=abort to leave a tidy initial state. This only
+# removes lock files left by a dead holder; a lock still held by a live
+# process is left alone (its recorded PID is alive).
+#
+# Liveness check: only ESRCH counts as "dead"; EPERM (cross-user, signaling
+# not allowed) means the holder is alive and the lock file is left in place.
+#
+# Can be invoked as either:
+#   $nmisng->clear_stale_node_locks();
+#   NMISNG->clear_stale_node_locks(config => \%config, log => $logger);
+#
+# The class-method form is used by nmisd's act=stop / act=abort paths where
+# no NMISNG instance has been built yet (avoiding an unnecessary DB
+# connection during what may be an emergency shutdown).
+#
+# returns: number of stale lock files removed.
+sub clear_stale_node_locks
+{
+	my ($self_or_class, %args) = @_;
+
+	my ($config, $log);
+	if (ref $self_or_class)
+	{
+		$config = $self_or_class->config;
+		$log    = $self_or_class->log;
+	}
+	else
+	{
+		$config = $args{config};
+		$log    = $args{log};
+	}
+
+	my $vardir = $config && $config->{'<nmis_var>'};
+	return 0 unless defined $vardir && -d $vardir;
+
+	my $cleaned = 0;
+	my $dh;
+	if (!opendir($dh, $vardir))
+	{
+		$log->warn("clear_stale_node_locks: cannot open $vardir: $!") if $log;
+		return 0;
+	}
+
+	while (my $name = readdir $dh)
+	{
+		next unless $name =~ /\.lock$/;
+		my $path = "$vardir/$name";
+		next unless -f $path;
+
+		my $line = '';
+		if (open my $fh, '<', $path)
+		{
+			$line = <$fh> // '';
+			close $fh;
+		}
+		chomp $line;
+		my ($pid, $op) = split /\s+/, $line;
+
+		# Only ESRCH counts as stale; non-numeric / undef / <=0 also stale.
+		# An unreadable or corrupt lock file is removed too, on purpose: the
+		# sweep runs at startup (and stop/abort) when no process holds a lock,
+		# and Node::lock() can't use a file it can't open either (it returns an
+		# error and never acquires), so leaving it would wedge the node forever.
+		# Removing it lets lock() recreate a clean file on the next acquire.
+		my $stale;
+		if (!defined $pid || $pid !~ /^\d+$/ || $pid <= 0)
+		{
+			$stale = 1;
+		}
+		else
+		{
+			$! = 0;
+			$stale = (!kill(0, $pid) && $! == ESRCH) ? 1 : 0;
+		}
+
+		if ($stale)
+		{
+			if (unlink $path)
+			{
+				$log->info("clear_stale_node_locks: removed stale $path"
+					. " (holder PID " . (defined $pid ? $pid : 'undef')
+					. ", op=" . (defined $op ? $op : 'N/A') . ")") if $log;
+				$cleaned++;
+			}
+			else
+			{
+				$log->warn("clear_stale_node_locks: failed to remove $path: $!") if $log;
+			}
+		}
+	}
+	closedir $dh;
+
+	return $cleaned;
+}
+
 # records/updates the status of an operation
 # args: id (optional but required for updating an existing record)
 #  time (defaults to now),
