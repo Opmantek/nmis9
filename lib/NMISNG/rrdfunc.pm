@@ -40,6 +40,7 @@ use Carp;
 use POSIX qw();									# for strftime
 
 use NMISNG::Util;
+use IPC::Run3 qw(run3);
 
 # This function should be called if using any RRDS:: functionality directly
 # Functions in this file will also call it for you
@@ -398,12 +399,14 @@ sub addDStoRRD
 	confess("addDStoRRD requires rrd argument!") if (!$rrd);
 	&require_RRDs;
 
-	my $rrdtool = ($^O =~ /win32/i)? "rrdtool.exe" : "rrdtool";
-	my $info = `$rrdtool`;
+	my $rrdtool = ($^O =~ /win32/i) ? "rrdtool.exe" : "rrdtool";
+	my $info    = '';
+	run3( [$rrdtool], \undef, \$info, \undef );
 	if ($info eq "")
 	{
 		$rrdtool = "/usr/local/rrdtool/bin/rrdtool"; # maybe this
-		$info = `$rrdtool`;
+		$info    = '';
+		run3( [$rrdtool], \undef, \$info, \undef );
 		return "rrdtool executable not found!"
 				if ($info eq "");
 	}
@@ -419,8 +422,8 @@ sub addDStoRRD
 
 	$nmisng->log->debug("Preparing to update RRD file $rrd with DS @ds");
 	# Get XML Output
-	my $qrrd = quotemeta($rrd);
-	my $xml = `$rrdtool dump $qrrd`;
+	my $xml = '';
+	run3( [$rrdtool, 'dump', $rrd], \undef, \$xml, \undef );
 
 	return "could not dump $rrd!" if ($xml !~ /Round Robin Archives/);
 

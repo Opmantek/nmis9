@@ -62,6 +62,7 @@ use NMISNG::NetworkStatus;
 use NMISNG::SQoS;
 
 use Compat::Timing;
+use IPC::Run3 qw(run3);
 
 # params:
 #  config - hash containing object
@@ -4697,16 +4698,17 @@ LABEL_ESC:
 				{
 					$self->log->debug2(sub {"netsend $msgTable{$method}{$target}{$serial}{message} to $target"});
 
-					# read any stdout messages and throw them away
+					my $msg  = $msgTable{$method}{$target}{$serial}{message};
+					my $dump = '';
 					if ( $^O =~ /win32/i )
 					{
 						# win32 platform
-						my $dump = `net send $target $msgTable{$method}{$target}{$serial}{message}`;
+						run3( ['net', 'send', $target, $msg], \undef, \$dump, \$dump );
 					}
 					else
 					{
 						# Linux box
-						my $dump = `echo $msgTable{$method}{$target}{$serial}{message}|smbclient -M $target`;
+						run3( ['smbclient', '-M', $target], \$msg, \$dump, \$dump );
 					}
 				}    # end netsend
 			}
