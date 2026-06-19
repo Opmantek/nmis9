@@ -1646,6 +1646,7 @@ elsif ($cmdline->{act} eq "delete" && $server_role ne "POLLER")
 			{
 				print STDERR "Deleting Node Name: $_->{name} (UUID: $_->{uuid})\n" if (-t \*STDERR);
 				$logger->info("User $me: Deleting Node Name: $_->{name} (UUID: $_->{uuid})");
+				push(@data, $_->{uuid}); #OMK-12629. node_admin.pl unable to delete node by UUID
 				$nodeNames{$_->{uuid}} = $_->{name};
 				$deletedNodes{$_->{uuid}} = 0;
 			}

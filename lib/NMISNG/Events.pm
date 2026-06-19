@@ -106,8 +106,18 @@ sub cleanNodeEvents
 				or ref( $events_config->{$eventname} ) ne "HASH"
 				or !NMISNG::Util::getbool( $events_config->{$eventname}->{Log}, "invert" ) )
 			{
+				# OMK-12622: Proactive and Alert events close with a " Closed" suffix, not a
+				# Down/Up swap. Without this branch the clearing entry keeps the open-state
+				# name, which opEvents reads as another down occurrence rather than a recovery.
 				my $closeevent = $eventname;
-				$closeevent =~ s/Down/Up/;
+				if ( $closeevent =~ /^(Proactive|Alert)\b/ && $closeevent !~ /\s+Closed$/ )
+				{
+					$closeevent .= " Closed";
+				}
+				else
+				{
+					$closeevent =~ s/Down/Up/;
+				}
 				
 				$self->logEvent(
 					node_name => $node->name,

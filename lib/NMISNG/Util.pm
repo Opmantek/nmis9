@@ -1190,9 +1190,10 @@ sub setFileProtDiag
     }
 
 	my (%args) = @_;
-	my $C; # = $args{conf} // NMISNG::Util::loadConfTable();
-	(ref($args{conf}) eq "HASH" ? $C = $args{conf}
-                                : $C = NMISNG::Util::loadConfTable());
+	# note: the ?: form is a precedence trap here (parses as
+	# (cond ? $C=.. : $C) = loadConfTable()), so loadConfTable always ran and
+	# the passed conf was ignored. use an explicit if/else.
+	my $C = (ref($args{conf}) eq "HASH") ? $args{conf} : NMISNG::Util::loadConfTable();
 
 	my $filename = $args{file};
 	my $username = $args{username} || $C->{nmis_user} || "nmis";
@@ -2485,7 +2486,8 @@ sub setFileProtDirectory
 			{
 				push @problems, $error;
 			}
-			push @problems, NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse, conf => $conf);
+			# conf is the third positional arg, not a named pair, so pass it as-is
+			push @problems, NMISNG::Util::setFileProtDirectory("$dir/$file", $recurse, $conf);
 		}
 	}
 	return @problems;
@@ -2693,6 +2695,13 @@ sub selftest
 		# code is same as type=audit (checkConfig), but better error handling
 		my @permproblems;
 
+		# report what this run force-fixes vs only audits, so it's clear which
+		# files and directories are affected (force-fix already ran above)
+		$nmisng->log->info("permission_test: force-fixed ownership and perms on "
+											 ."$config->{'<nmis_conf>'} (recursive), "
+											 ."$config->{'<nmis_var>'} (top level only), "
+											 ."$config->{'<nmis_models>'} (top level only)");
+
 		# flat dirs first
 		my %done;
 		for my $location ($config->{'<nmis_data>'}, # commonly same as base
@@ -2708,6 +2717,7 @@ sub selftest
 		{
 			my $where = Cwd::abs_path($location);
 			next if ($done{$where});
+			$nmisng->log->info("permission_test: auditing ".($where // $location)." (read-only, non-recursive)");
 
 			my ($status, @msgs) = NMISNG::Util::checkDirectoryFiles($location,
 																								recurse => "false",
@@ -2732,6 +2742,7 @@ sub selftest
 		{
 			my $where = Cwd::abs_path($location);
 			next if ($done{$where});
+			$nmisng->log->info("permission_test: auditing ".($where // $location)." (read-only, recursive)");
 
 			my ($status, @msgs) = NMISNG::Util::checkDirectoryFiles($location,
 																								recurse => "true",

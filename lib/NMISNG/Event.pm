@@ -260,8 +260,9 @@ sub acknowledge
 			{
 				if ($error =~ /duplicate key error/)
 				{
-					# TODO How do we handle this?
+					# OMK-12622: save failed — do not log the ack for a transition that did not persist.
 					$self->nmisng->log->error("Duplicate event id: ".$self->_id.": $error");
+					return;
 				}
 				else
 				{
@@ -447,8 +448,10 @@ sub check
 		{
 			if ($error =~ /duplicate key error/)
 			{
-				# TODO How do we handle this?
+				# OMK-12622: save failed — a stale Up event still occupies the unique index slot.
+				# Do not send syslog; notifying for a transition that did not persist is incorrect.
 				$self->nmisng->log->fatal("Duplicate event id: ".$self->_id.": $error");
+				return;
 			}
 			else
 			{
@@ -504,10 +507,10 @@ sub data
 #
 sub delete
 {
-	my ($self) = @_;
+	my ($self, %args) = @_;
 
 	my $ret;
-	my $q = $self->_query();
+	my $q = $self->_query( ignore_active => $args{ignore_active} );
 	if ( !NMISNG::Util::getbool( $self->nmisng->config->{"keep_event_history"}, "invert" ) )
 	{
 		# mark it inactive/historic, and make it go away eventually

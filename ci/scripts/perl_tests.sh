@@ -22,6 +22,8 @@ working_tests=(
     t_polling.pl
     t_threshold_traceability.pl
     t_model_overrides.pl
+    t_node_lock_stale.pl
+    t_duplicate_event.pl
 )
 
 for i in "${working_tests[@]}"; do
