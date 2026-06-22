@@ -1,7 +1,7 @@
 # compose.yaml file for NMIS Suite
 services:
   nmis:
-    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9:9.6.5
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9:9.6.6
     restart: always
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}

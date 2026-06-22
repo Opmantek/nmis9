@@ -1,6 +1,6 @@
 services:
   nmis:
-    image: public.ecr.aws/n2x4v8j4/firstwave/nmis:9.6.5
+    image: public.ecr.aws/n2x4v8j4/firstwave/nmis:9.6.6
     container_name: nmis
     platform: linux/amd64
     restart: unless-stopped

@@ -32,7 +32,7 @@
 # or directly via the object
 package NMISNG;
 
-our $VERSION = "9.6.5";
+our $VERSION = "9.6.6";
 
 use strict;
 use Data::Dumper;
