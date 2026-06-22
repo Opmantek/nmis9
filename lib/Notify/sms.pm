@@ -54,29 +54,19 @@ sub sendNotification
 	{
 		my $smstime = dateString($event->{startdate});
 
-		my $msgstr = "$event->{node_name} $event->{level} $event->{event} $event->{element} $event->{details}";
+		my $msgstr  = "$event->{node_name} $event->{level} $event->{event} $event->{element} $event->{details}";
 		my $message = "$smstime: $msgstr";
-		my $to = $contact->{Mobile};
-		my $from = "NMIS";
+		my $to      = $contact->{Mobile};
+		my $from    = "NMIS";
 
-		$from =~ s/\ $//g;
-		$from =~ s/\ /+/g;
-
-		$message =~ s/\ $//g;
-		$message =~ s/\ /+/g;
-
-		my $exec = "curl http://ntpappsweb0005/wspSMS/WebService.asmx/SendSMS?Message=$message\\&From=$from\\&to=$to";
-		my $out = `$exec 2>/dev/null`;
-
-		my $error = 0;
-		if ( $out =~ /Bad Request/ ) {
-			$error = 1;
-		}
+		my $sms = Notify::wspSMS->new;
+		my $out = eval { $sms->SendSMS($message, $from, $to) } // '';
+		my $error = $@ ? 1 : ( $out =~ /Bad Request/ ? 1 : 0 );
 
 		open(LOG,">>$smslog") or $nmisng->log->error("Notify::sms can not write to $smslog: $!");
 		print LOG qq|$smstime $to $msgstr\n|;
-		print LOG qq|DEBUG: $exec\n| if $debug or $error;
-		print LOG qq|DEBUG: $out\n| if $debug or $error;
+		print LOG qq|DEBUG: SOAP SendSMS to=$to\n| if $debug or $error;
+		print LOG qq|DEBUG: $out\n|                if $debug or $error;
 		close LOG;
 		# good to set permissions on file.....
 	}
