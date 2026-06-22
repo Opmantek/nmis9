@@ -398,12 +398,24 @@ sub addDStoRRD
 	confess("addDStoRRD requires rrd argument!") if (!$rrd);
 	&require_RRDs;
 
-	my $rrdtool = ($^O =~ /win32/i)? "rrdtool.exe" : "rrdtool";
-	my $info = `$rrdtool`;
+	my $rrdtool = ($^O =~ /win32/i) ? "rrdtool.exe" : "rrdtool";
+	my $info    = '';
+	if (open(my $pipe, '-|', $rrdtool))
+	{
+		local $/;
+		$info = <$pipe> // '';
+		close $pipe;
+	}
 	if ($info eq "")
 	{
 		$rrdtool = "/usr/local/rrdtool/bin/rrdtool"; # maybe this
-		$info = `$rrdtool`;
+		$info    = '';
+		if (open(my $pipe, '-|', $rrdtool))
+		{
+			local $/;
+			$info = <$pipe> // '';
+			close $pipe;
+		}
 		return "rrdtool executable not found!"
 				if ($info eq "");
 	}
@@ -419,8 +431,13 @@ sub addDStoRRD
 
 	$nmisng->log->debug("Preparing to update RRD file $rrd with DS @ds");
 	# Get XML Output
-	my $qrrd = quotemeta($rrd);
-	my $xml = `$rrdtool dump $qrrd`;
+	my $xml = '';
+	if (open(my $pipe, '-|', $rrdtool, 'dump', $rrd))
+	{
+		local $/;
+		$xml = <$pipe> // '';
+		close $pipe;
+	}
 
 	return "could not dump $rrd!" if ($xml !~ /Round Robin Archives/);
 

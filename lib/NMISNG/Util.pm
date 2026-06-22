@@ -2637,7 +2637,14 @@ sub selftest
 		$fs_ids{$statresult->dev} = 1;
 
 		my $testname = "Free space in $dir";
-		my @df = `df -mP $dir 2>/dev/null`;
+		my $df_out = '';
+		if (open(my $pipe, '-|', 'df', '-mP', $dir))
+		{
+			local $/;
+			$df_out = <$pipe> // '';
+			close $pipe;
+		}
+		my @df = split( /\n/, $df_out );
 		if ($? >> 8)
 		{
 			push @details, [$testname, "Could not determine free space: $!"];
@@ -3731,8 +3738,8 @@ sub replace_files_recursive {
 	}
 			
 	if ( !-d $replaced and $replaced ne "" ) {
-		my $output = `mkdir $replaced`;
-		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $output);
+		mkpath($replaced, { verbose => 0, mode => 0755 });
+		system("chown", "-R", "$C->{nmis_user}:$C->{nmis_group}", $replaced);
 		$nmisng->log->debug("Create dir $replaced");
 	}
 
@@ -3748,13 +3755,8 @@ sub replace_files_recursive {
 			$nmisng->log->debug("Replacing $fh = $replaced if not equals ");
 			if ($fh ne $replaced) {
 				$total++;
-				my $output;
-				
-				if ($force) {
-					$output = `mv $fh $replaced`;
-				} else {
-					$output = `mv -n $fh $replaced`;
-				}
+				system('mv', ($force ? () : '-n'), $fh, $replaced);
+				$nmisng->log->error("move $fh -> $replaced failed") if $?;
 				system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $replaced);
 				system("chmod","-R","g+rw", $replaced);
 				$nmisng->log->info("mv $fh into $replaced  ");
@@ -3864,23 +3866,23 @@ sub shutdownAllDaemons {
 	try {
 		if (-d "/etc/systemd")
 		{
-	    	print(`systemctl stop nmis9d.service`);
-			print(`systemctl stop omkd.service`)      if (-f "/etc/systemd/system/omkd.service");
-			print(`systemctl stop opchartsd.service`) if (-f "/etc/systemd/system/opchartsd.service");
-			print(`systemctl stop opconfigd.service`) if (-f "/etc/systemd/system/opconfigd.service");
-			print(`systemctl stop opeventsd.service`) if (-f "/etc/systemd/system/opeventsd.service");
-			print(`systemctl stop optrend.service`)   if (-f "/etc/systemd/system/optrend.service");
-			print(`systemctl stop opflowd.service`)   if (-f "/etc/systemd/system/opflowd.service");
+	    	system('systemctl', 'stop', 'nmis9d.service');
+			system('systemctl', 'stop', 'omkd.service')      if (-f "/etc/systemd/system/omkd.service");
+			system('systemctl', 'stop', 'opchartsd.service') if (-f "/etc/systemd/system/opchartsd.service");
+			system('systemctl', 'stop', 'opconfigd.service') if (-f "/etc/systemd/system/opconfigd.service");
+			system('systemctl', 'stop', 'opeventsd.service') if (-f "/etc/systemd/system/opeventsd.service");
+			system('systemctl', 'stop', 'optrend.service')   if (-f "/etc/systemd/system/optrend.service");
+			system('systemctl', 'stop', 'opflowd.service')   if (-f "/etc/systemd/system/opflowd.service");
 		}
 		else
 		{
-	    	print(`service nmis9d stop `);
-			print(`service omkd stop `)      if (-f "/etc/init.d/system/omkd");
-			print(`service opchartsd stop `) if (-f "/etc/init.d/system/opchartsd");
-			print(`service opconfigd stop `) if (-f "/etc/init.d/system/opconfigd");
-			print(`service opeventsd stop `) if (-f "/etc/init.d/system/opeventsd");
-			print(`service optrend stop `)   if (-f "/etc/init.d/system/optrend");
-			print(`service opflowd stop `)   if (-f "/etc/init.d/system/opflowd");
+	    	system('service', 'nmis9d', 'stop');
+			system('service', 'omkd',      'stop') if (-f "/etc/init.d/system/omkd");
+			system('service', 'opchartsd', 'stop') if (-f "/etc/init.d/system/opchartsd");
+			system('service', 'opconfigd', 'stop') if (-f "/etc/init.d/system/opconfigd");
+			system('service', 'opeventsd', 'stop') if (-f "/etc/init.d/system/opeventsd");
+			system('service', 'optrend',   'stop') if (-f "/etc/init.d/system/optrend");
+			system('service', 'opflowd',   'stop') if (-f "/etc/init.d/system/opflowd");
 		}
 	}
 	catch
@@ -3909,23 +3911,23 @@ sub startAllDaemons {
 	try {
 		if (-d "/etc/systemd")
 		{
-	    	print(`systemctl start nmis9d.service`);
-			print(`systemctl start omkd.service`)      if (-f "/etc/systemd/system/omkd.service");
-			print(`systemctl start opchartsd.service`) if (-f "/etc/systemd/system/opchartsd.service");
-			print(`systemctl start opconfigd.service`) if (-f "/etc/systemd/system/opconfigd.service");
-			print(`systemctl start opeventsd.service`) if (-f "/etc/systemd/system/opeventsd.service");
-			print(`systemctl start optrend.service`)   if (-f "/etc/systemd/system/optrend.service");
-			print(`systemctl start opflowd.service`)   if (-f "/etc/systemd/system/opflowd.service");
+	    	system('systemctl', 'start', 'nmis9d.service');
+			system('systemctl', 'start', 'omkd.service')      if (-f "/etc/systemd/system/omkd.service");
+			system('systemctl', 'start', 'opchartsd.service') if (-f "/etc/systemd/system/opchartsd.service");
+			system('systemctl', 'start', 'opconfigd.service') if (-f "/etc/systemd/system/opconfigd.service");
+			system('systemctl', 'start', 'opeventsd.service') if (-f "/etc/systemd/system/opeventsd.service");
+			system('systemctl', 'start', 'optrend.service')   if (-f "/etc/systemd/system/optrend.service");
+			system('systemctl', 'start', 'opflowd.service')   if (-f "/etc/systemd/system/opflowd.service");
 		}
 		else
 		{
-	    	print(`service nmis9d start `);
-			print(`service omkd start `)      if (-f "/etc/init.d/system/omkd");
-			print(`service opchartsd start `) if (-f "/etc/init.d/system/opchartsd");
-			print(`service opconfigd start `) if (-f "/etc/init.d/system/opconfigd");
-			print(`service opeventsd start `) if (-f "/etc/init.d/system/opeventsd");
-			print(`service optrend start `)   if (-f "/etc/init.d/system/optrend");
-			print(`service opflowd start `)   if (-f "/etc/init.d/system/opflowd");
+	    	system('service', 'nmis9d', 'start');
+			system('service', 'omkd',      'start') if (-f "/etc/init.d/system/omkd");
+			system('service', 'opchartsd', 'start') if (-f "/etc/init.d/system/opchartsd");
+			system('service', 'opconfigd', 'start') if (-f "/etc/init.d/system/opconfigd");
+			system('service', 'opeventsd', 'start') if (-f "/etc/init.d/system/opeventsd");
+			system('service', 'optrend',   'start') if (-f "/etc/init.d/system/optrend");
+			system('service', 'opflowd',   'start') if (-f "/etc/init.d/system/opflowd");
 		}
 	}
 	catch
@@ -4032,7 +4034,15 @@ sub isEOSAvailable
 		my $omkSystemState;
 		$output = sprintf("   Product          Current Version    Required Version      EOS supported?\n");
 		$output = sprintf("${output}================================================================================\n");
-		my $nmisVersion = qx{$config->{'<nmis_bin>'}/nmis-cli --version | cut -f2 -d=};
+		my $nmis_cli = $config->{'<nmis_bin>'} . '/nmis-cli';
+		my $ver_raw = '';
+		if (open(my $pipe, '-|', $nmis_cli, '--version'))
+		{
+			local $/;
+			$ver_raw = <$pipe> // '';
+			close $pipe;
+		}
+		my $nmisVersion = (split(/=/, $ver_raw, 2))[1] // '';
 		chomp($nmisVersion);
 		$eosCurrentVers{"NMIS"} = $nmisVersion;
 
@@ -4045,11 +4055,29 @@ sub isEOSAvailable
 		$output = sprintf("${output}   %10s%20s%20s%10s\n", "NMIS", $eosCurrentVers{NMIS}, $eosMinVersions{NMIS},$eosEOSVersion{NMIS});
 		if ( -f "/etc/systemd/system/omkd.service" )
 		{
-			$omkDir  = qx{grep ExecStart= /etc/systemd/system/omkd.service | awk '{ print \$1 }' | cut -f2 -d= | sed 's#/script/opmantek.pl##'};
+			my $unit_src = '';
+			if (open(my $pipe, '-|', 'grep', 'ExecStart=', '/etc/systemd/system/omkd.service'))
+			{
+				local $/;
+				$unit_src = <$pipe> // '';
+				close $pipe;
+			}
+			my $unit_exec = (split(' ', (split(/=/, $unit_src, 2))[1] // '', 2))[0] // '';
+			$unit_exec =~ s{^["']|["']$}{}g;
+			($omkDir = $unit_exec) =~ s{/script/opmantek\.pl}{};
 		}
 		elsif ( -f "/etc/init.d/omkd" )
 		{
-			$omkDir  = qx{grep 'DAEMON=' /etc/init.d/omkd | cut -f2 -d=  | sed 's#/script/opmantek.pl##'};
+			my $init_src = '';
+			if (open(my $pipe, '-|', 'grep', 'DAEMON=', '/etc/init.d/omkd'))
+			{
+				local $/;
+				$init_src = <$pipe> // '';
+				close $pipe;
+			}
+			my $init_exec = (split(' ', (split(/=/, $init_src, 2))[1] // '', 2))[0] // '';
+			$init_exec =~ s{^["']|["']$}{}g;
+			($omkDir = $init_exec) =~ s{/script/opmantek\.pl}{};
 		}
 		chomp($omkDir);
 		if ( "$omkDir" eq "" && -f "/usr/local/omk" )
