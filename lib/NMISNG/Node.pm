@@ -7166,9 +7166,43 @@ sub save_dashnode_data {
 			return 0;
 		}
 		# clear context after save so it doesn't get reused incorrectly
-		delete $self->nmisng->config->{dashnode_context};		
+		delete $self->nmisng->config->{dashnode_context};
 	}
 	return 1;
+}
+
+# Writes active "Node Polling Failover" and "Backup Host Down" event data into
+# dashnode_context{data}{status} so they appear in the per-node dashnode JSON file.
+# Clears the status key when the event is not currently active.
+# Called in both update() and collect() before save_dashnode_data().
+sub _populate_event_status_in_dashnode
+{
+	my ($self) = @_;
+
+	return unless NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file});
+	return unless defined $self->nmisng->{dashnode_context};
+
+	my $status = $self->nmisng->{dashnode_context}{data}{status} //= {};
+
+	for my $event_name ("Node Polling Failover", "Backup Host Down")
+	{
+		my $key = "$event_name--";
+		my ($error, $event) = $self->eventLoad(event => $event_name, historic => 0);
+
+		if (!$error && defined($event) && !$event->is_new && $event->active)
+		{
+			my $edata = { %{$event->data} };
+			$edata->{_id}          = $edata->{_id}->hex          if ref($edata->{_id});
+			$edata->{inventory_id} = $edata->{inventory_id}->hex  if ref($edata->{inventory_id});
+			$edata->{expire_at}    = $edata->{expire_at}->to_string if ref($edata->{expire_at});
+			$status->{$key} = $edata;
+		}
+		else
+		{
+			delete $status->{$key};
+		}
+	}
+	return;
 }
 
 # perform update operation for this one node
@@ -7470,6 +7504,7 @@ sub update
 		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
 	}
 	$catchall_inventory->save( node => $self );
+	$self->_populate_event_status_in_dashnode();
 	$self->save_dashnode_data();
 	if (my $issues = $self->unlock(lock => $lock))
 	{
@@ -9776,6 +9811,7 @@ sub collect
 	{
 		$self->nmisng->log->error($self->name.": Failed to update catchall inventory during save: $save_error");
 	}
+	$self->_populate_event_status_in_dashnode();
 	$self->save_dashnode_data();
 	if (my $issues = $self->unlock(lock => $lock))
 	{
