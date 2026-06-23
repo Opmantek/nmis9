@@ -4702,16 +4702,20 @@ LABEL_ESC:
 				{
 					$self->log->debug2(sub {"netsend $msgTable{$method}{$target}{$serial}{message} to $target"});
 
-					# read any stdout messages and throw them away
+					my $msg  = $msgTable{$method}{$target}{$serial}{message};
 					if ( $^O =~ /win32/i )
 					{
 						# win32 platform
-						my $dump = `net send $target $msgTable{$method}{$target}{$serial}{message}`;
+						system('net', 'send', $target, $msg);
 					}
 					else
 					{
 						# Linux box
-						my $dump = `echo $msgTable{$method}{$target}{$serial}{message}|smbclient -M $target`;
+						if (open(my $smb, '|-', 'smbclient', '-M', $target))
+						{
+							print $smb $msg;
+							close $smb;
+						}
 					}
 				}    # end netsend
 			}
