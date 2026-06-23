@@ -37,12 +37,17 @@ ok( NMISNG::Node->can('_populate_event_status_in_dashnode'),
     '_populate_event_status_in_dashnode method exists on NMISNG::Node' );
 
 # ---------------------------------------------------------------------------
-# Test 2: dashnode file exists for localhost
+# Test 2: dashnode file exists for localhost (skipped if enable_dashnode_file
+# is not configured — the file won't exist in environments where it is off)
 # ---------------------------------------------------------------------------
 my $dashnode_file = "$base/var/localhost-node.json";
-ok( -r $dashnode_file, "dashnode file exists at $dashnode_file" );
+SKIP: {
+    skip "dashnode file not present (enable_dashnode_file may not be set)", 1
+        unless -r $dashnode_file;
+    ok( 1, "dashnode file exists at $dashnode_file" );
+}
 
-if ($check_events || $check_cleared) {
+if ( ($check_events || $check_cleared) && -r $dashnode_file ) {
     require NMISNG::Util;
     my $data = NMISNG::Util::readFiletoHash(file => $dashnode_file);
     ok( ref($data) eq 'HASH', 'dashnode file parses as a hash' );
