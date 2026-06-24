@@ -3881,39 +3881,10 @@ sub collect_intf_data
 
 	# 1. get the interface inventories for this node, but only the bits we need (so far)
 	$self->nmisng->log->debug5(sub {"collect_intf_data phase 1"});
-	my $ifNumber     = $catchall_data->{ifNumber} // 10; # default to 10 if not set
-	my $max_interfaces_before_cutback = $self->nmisng->config->{max_interfaces_before_cutback} // 100;
-	# if there are a lot of interfaces, only get the fields we really need
-	# if there are only a few, get everything, it's handy for custom properties in calculate_index/oid
-	my $which_fields = ($ifNumber < $max_interfaces_before_cutback) ?
-		{
-			'_id' => 1,
-			'concept' => 1,
-			'cluster_id' => 1,
-			'node_uuid' => 1,
-			'data' => 1,
-			'enabled' => 1,
-			'historic' => 1
-		} 
-	: 
-		{
-			'_id' => 1,
-			'concept' => 1,
-			'cluster_id' => 1,
-			'node_uuid' => 1,
-			'data.collect' => 1,
-			'data.ifAdminStatus' => 1,
-			'data.ifOperStatus' => 1,
-			'data.ifDescr' => 1,
-			'data.ifDescr_orig' => 1,
-			'data.ifDescr_duplicate' => 1,
-			'data.ifIndex' => 1,
-			'data.ifLastChangeSec' => 1, # ifLastChange is textual and NO GOOD
-			'data.real' => 1,
-			'enabled' => 1,
-			'historic' => 1
-	};
-	my $result = $self->get_inventory_model('concept' => 'interface',	fields_hash => $which_fields );
+	# Load full interface records once: phase 8 reuses these objects instead of
+	# reloading each interface by _id (OMK-12375). The previous field cutback only
+	# trimmed this phase-1 read, which did not prevent the per-interface reloads.
+	my $result = $self->get_inventory_model('concept' => 'interface');
 	if (my $error = $result->error)
 	{
 		$self->nmisng->log->error("get inventory model failed: $error");
