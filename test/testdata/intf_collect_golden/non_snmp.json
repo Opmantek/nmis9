@@ -1,0 +1,41 @@
+{
+   "captured" : {
+      "db" : [
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000011",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 1
+               }
+            },
+            "upsert" : null
+         },
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000011",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 0
+               }
+            },
+            "upsert" : null
+         }
+      ],
+      "events" : [],
+      "rrd" : []
+   },
+   "final" : []
+}

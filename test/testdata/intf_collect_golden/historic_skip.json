@@ -1,0 +1,90 @@
+{
+   "captured" : {
+      "db" : [
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000007",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 1
+               }
+            },
+            "upsert" : null
+         },
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000007",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 0
+               }
+            },
+            "upsert" : null
+         }
+      ],
+      "events" : [],
+      "rrd" : []
+   },
+   "final" : [
+      {
+         "cluster_id" : "<CLUSTER_ID>",
+         "concept" : "interface",
+         "configuration" : {
+            "group" : "NMIS9"
+         },
+         "data" : {
+            "collect" : "true",
+            "enabled" : 1,
+            "historic" : 1,
+            "ifAdminStatus" : "up",
+            "ifDescr" : "GigabitEthernet0/1",
+            "ifIndex" : 1,
+            "ifOperStatus" : "up",
+            "index" : "1",
+            "ip" : []
+         },
+         "data_info" : [
+            {
+               "data_tags" : [],
+               "display_keys" : [],
+               "enabled" : 1,
+               "subconcept" : "interface"
+            }
+         ],
+         "dataset_info" : [],
+         "description" : "concept interface on node UNKNOWN and server <CLUSTER_ID>",
+         "enabled" : 1,
+         "historic" : 1,
+         "model_class" : "interface",
+         "node_name" : "intftest7",
+         "node_uuid" : "c0ffee00-0000-0000-0000-000000000007",
+         "path" : [
+            "<CLUSTER_ID>",
+            "c0ffee00-0000-0000-0000-000000000007",
+            "interface",
+            1,
+            "GigabitEthernet0/1"
+         ],
+         "path_keys" : [
+            "index",
+            "ifDescr"
+         ],
+         "protocol" : null,
+         "server_name" : "nmis",
+         "storage" : null,
+         "subconcepts" : []
+      }
+   ]
+}

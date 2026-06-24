@@ -1,0 +1,526 @@
+{
+   "captured" : {
+      "db" : [
+         {
+            "just_one" : null,
+            "multiple" : null,
+            "op" : "insert",
+            "query" : null,
+            "record" : {
+               "$set" : {},
+               "cluster_id" : "<CLUSTER_ID>",
+               "configuration" : {
+                  "group" : "NMIS9"
+               },
+               "node_uuid" : "c0ffee00-0000-0000-0000-000000000004",
+               "subconcepts" : [
+                  {
+                     "data" : {
+                        "ifInOctets" : 0,
+                        "ifInOctets_raw" : "noSuchInstance",
+                        "ifOperStatus" : 100,
+                        "ifOutOctets" : 0,
+                        "ifOutOctets_raw" : "noSuchInstance"
+                     },
+                     "derived_data" : {},
+                     "subconcept" : "interface"
+                  },
+                  {
+                     "data" : {
+                        "ifInDiscards" : 0,
+                        "ifInDiscards_raw" : "noSuchInstance",
+                        "ifInErrors" : 0,
+                        "ifInErrors_raw" : "noSuchInstance",
+                        "ifInNUcastPkts" : 0,
+                        "ifInNUcastPkts_raw" : "noSuchInstance",
+                        "ifInOctets" : 0,
+                        "ifInOctets_raw" : "noSuchInstance",
+                        "ifInUcastPkts" : 0,
+                        "ifInUcastPkts_raw" : "noSuchInstance",
+                        "ifOutDiscards" : 0,
+                        "ifOutDiscards_raw" : "noSuchInstance",
+                        "ifOutErrors" : 0,
+                        "ifOutErrors_raw" : "noSuchInstance",
+                        "ifOutNUcastPkts" : 0,
+                        "ifOutNUcastPkts_raw" : "noSuchInstance",
+                        "ifOutOctets" : 0,
+                        "ifOutOctets_raw" : "noSuchInstance",
+                        "ifOutUcastPkts" : 0,
+                        "ifOutUcastPkts_raw" : "noSuchInstance"
+                     },
+                     "derived_data" : {},
+                     "subconcept" : "pkts"
+                  }
+               ]
+            },
+            "upsert" : null
+         },
+         {
+            "just_one" : null,
+            "multiple" : 0,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000004",
+               "path.2" : "interface",
+               "path.3" : 1,
+               "path.4" : "GigabitEthernet0/1"
+            },
+            "record" : {
+               "cluster_id" : "<CLUSTER_ID>",
+               "concept" : "interface",
+               "configuration" : {
+                  "group" : "NMIS9"
+               },
+               "data" : {
+                  "Description" : "noSuchInstance",
+                  "collect" : "true",
+                  "event" : "true",
+                  "ifAdminStatus" : "up",
+                  "ifDescr" : "GigabitEthernet0/1",
+                  "ifIndex" : "1",
+                  "ifLastChange" : "0:00:05",
+                  "ifLastChangeSec" : 5,
+                  "ifOperStatus" : "up",
+                  "ifPhysAddress" : "00 11 22 00 00 01",
+                  "ifSpeed" : "1000000000",
+                  "ifType" : "ethernetCsmacd",
+                  "index" : "1",
+                  "interface" : "gigabitethernet0-1",
+                  "ip" : [],
+                  "nocollect" : "Collecting: Collection Policy",
+                  "real" : "true",
+                  "setlimits" : "normal",
+                  "threshold" : "true"
+               },
+               "data_info" : [
+                  {
+                     "data_tags" : [],
+                     "display_keys" : [],
+                     "enabled" : 1,
+                     "subconcept" : "interface"
+                  },
+                  {
+                     "data_tags" : [],
+                     "display_keys" : [],
+                     "enabled" : 0,
+                     "subconcept" : "pkts"
+                  },
+                  {
+                     "data_tags" : [],
+                     "display_keys" : [],
+                     "enabled" : 0,
+                     "subconcept" : "pkts_hc"
+                  }
+               ],
+               "dataset_info" : [],
+               "description" : "GigabitEthernet0/1",
+               "enabled" : 1,
+               "historic" : 0,
+               "model_class" : "interface",
+               "node_name" : "intftest4",
+               "node_uuid" : "c0ffee00-0000-0000-0000-000000000004",
+               "path" : [
+                  "<CLUSTER_ID>",
+                  "c0ffee00-0000-0000-0000-000000000004",
+                  "interface",
+                  1,
+                  "GigabitEthernet0/1"
+               ],
+               "path_keys" : [
+                  "index",
+                  "ifDescr"
+               ],
+               "protocol" : "snmp",
+               "server_name" : "nmis",
+               "storage" : null,
+               "subconcepts" : []
+            },
+            "upsert" : 1
+         },
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000004",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 1
+               }
+            },
+            "upsert" : null
+         },
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000004",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 0
+               }
+            },
+            "upsert" : null
+         },
+         {
+            "just_one" : null,
+            "multiple" : null,
+            "op" : "update",
+            "query" : {},
+            "record" : {
+               "$set" : {
+                  "dataset_info" : [
+                     {
+                        "dataset_tags" : [],
+                        "datasets" : [
+                           "ifInOctets",
+                           "ifInOctets_raw",
+                           "ifOperStatus",
+                           "ifOutOctets",
+                           "ifOutOctets_raw"
+                        ],
+                        "subconcept" : "interface"
+                     },
+                     {
+                        "dataset_tags" : [],
+                        "datasets" : [
+                           "ifInDiscards",
+                           "ifInDiscards_raw",
+                           "ifInErrors",
+                           "ifInErrors_raw",
+                           "ifInNUcastPkts",
+                           "ifInNUcastPkts_raw",
+                           "ifInOctets",
+                           "ifInOctets_raw",
+                           "ifInUcastPkts",
+                           "ifInUcastPkts_raw",
+                           "ifOutDiscards",
+                           "ifOutDiscards_raw",
+                           "ifOutErrors",
+                           "ifOutErrors_raw",
+                           "ifOutNUcastPkts",
+                           "ifOutNUcastPkts_raw",
+                           "ifOutOctets",
+                           "ifOutOctets_raw",
+                           "ifOutUcastPkts",
+                           "ifOutUcastPkts_raw"
+                        ],
+                        "subconcept" : "pkts"
+                     }
+                  ],
+                  "storage" : {
+                     "interface" : {
+                        "rrd" : "/nodes/intftest4/mock-interface.rrd"
+                     },
+                     "pkts" : {
+                        "rrd" : "/nodes/intftest4/mock-pkts.rrd"
+                     }
+                  },
+                  "subconcepts" : [
+                     "interface",
+                     "pkts"
+                  ]
+               }
+            },
+            "upsert" : null
+         },
+         {
+            "just_one" : null,
+            "multiple" : null,
+            "op" : "update",
+            "query" : {},
+            "record" : {
+               "$set" : {},
+               "cluster_id" : "<CLUSTER_ID>",
+               "configuration" : {
+                  "group" : "NMIS9"
+               },
+               "node_uuid" : "c0ffee00-0000-0000-0000-000000000004",
+               "subconcepts" : [
+                  {
+                     "data" : {
+                        "ifInOctets" : 0,
+                        "ifInOctets_raw" : "noSuchInstance",
+                        "ifOperStatus" : 100,
+                        "ifOutOctets" : 0,
+                        "ifOutOctets_raw" : "noSuchInstance"
+                     },
+                     "derived_data" : {},
+                     "subconcept" : "interface"
+                  },
+                  {
+                     "data" : {
+                        "ifInDiscards" : 0,
+                        "ifInDiscards_raw" : "noSuchInstance",
+                        "ifInErrors" : 0,
+                        "ifInErrors_raw" : "noSuchInstance",
+                        "ifInNUcastPkts" : 0,
+                        "ifInNUcastPkts_raw" : "noSuchInstance",
+                        "ifInOctets" : 0,
+                        "ifInOctets_raw" : "noSuchInstance",
+                        "ifInUcastPkts" : 0,
+                        "ifInUcastPkts_raw" : "noSuchInstance",
+                        "ifOutDiscards" : 0,
+                        "ifOutDiscards_raw" : "noSuchInstance",
+                        "ifOutErrors" : 0,
+                        "ifOutErrors_raw" : "noSuchInstance",
+                        "ifOutNUcastPkts" : 0,
+                        "ifOutNUcastPkts_raw" : "noSuchInstance",
+                        "ifOutOctets" : 0,
+                        "ifOutOctets_raw" : "noSuchInstance",
+                        "ifOutUcastPkts" : 0,
+                        "ifOutUcastPkts_raw" : "noSuchInstance"
+                     },
+                     "derived_data" : {},
+                     "subconcept" : "pkts"
+                  }
+               ]
+            },
+            "upsert" : 1
+         }
+      ],
+      "events" : [],
+      "rrd" : [
+         {
+            "data" : {
+               "ifInOctets" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifOperStatus" : {
+                  "option" : "gauge,0:100",
+                  "value" : 100
+               },
+               "ifOutOctets" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               }
+            },
+            "node" : "intftest4",
+            "type" : "interface"
+         },
+         {
+            "data" : {
+               "ifInDiscards" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifInErrors" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifInNUcastPkts" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifInOctets" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifInUcastPkts" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifOutDiscards" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifOutErrors" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifOutNUcastPkts" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifOutOctets" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               },
+               "ifOutUcastPkts" : {
+                  "option" : "counter,0:U",
+                  "value" : "noSuchInstance"
+               }
+            },
+            "node" : "intftest4",
+            "type" : "pkts"
+         }
+      ]
+   },
+   "final" : [
+      {
+         "cluster_id" : "<CLUSTER_ID>",
+         "concept" : "interface",
+         "configuration" : {
+            "group" : "NMIS9"
+         },
+         "data" : {
+            "Description" : "noSuchInstance",
+            "collect" : "true",
+            "event" : "true",
+            "ifAdminStatus" : "up",
+            "ifDescr" : "GigabitEthernet0/1",
+            "ifIndex" : 1,
+            "ifLastChange" : "0:00:05",
+            "ifLastChangeSec" : 5,
+            "ifOperStatus" : "up",
+            "ifPhysAddress" : "00 11 22 00 00 01",
+            "ifSpeed" : 1000000000,
+            "ifType" : "ethernetCsmacd",
+            "index" : "1",
+            "interface" : "gigabitethernet0-1",
+            "ip" : [],
+            "nocollect" : "Collecting: Collection Policy",
+            "real" : "true",
+            "setlimits" : "normal",
+            "threshold" : "true"
+         },
+         "data_info" : [
+            {
+               "data_tags" : [],
+               "display_keys" : [],
+               "enabled" : 1,
+               "subconcept" : "interface"
+            },
+            {
+               "data_tags" : [],
+               "display_keys" : [],
+               "enabled" : 0,
+               "subconcept" : "pkts"
+            },
+            {
+               "data_tags" : [],
+               "display_keys" : [],
+               "enabled" : 0,
+               "subconcept" : "pkts_hc"
+            }
+         ],
+         "dataset_info" : [
+            {
+               "dataset_tags" : [],
+               "datasets" : [
+                  "ifInOctets",
+                  "ifInOctets_raw",
+                  "ifOperStatus",
+                  "ifOutOctets",
+                  "ifOutOctets_raw"
+               ],
+               "subconcept" : "interface"
+            },
+            {
+               "dataset_tags" : [],
+               "datasets" : [
+                  "ifInDiscards",
+                  "ifInDiscards_raw",
+                  "ifInErrors",
+                  "ifInErrors_raw",
+                  "ifInNUcastPkts",
+                  "ifInNUcastPkts_raw",
+                  "ifInOctets",
+                  "ifInOctets_raw",
+                  "ifInUcastPkts",
+                  "ifInUcastPkts_raw",
+                  "ifOutDiscards",
+                  "ifOutDiscards_raw",
+                  "ifOutErrors",
+                  "ifOutErrors_raw",
+                  "ifOutNUcastPkts",
+                  "ifOutNUcastPkts_raw",
+                  "ifOutOctets",
+                  "ifOutOctets_raw",
+                  "ifOutUcastPkts",
+                  "ifOutUcastPkts_raw"
+               ],
+               "subconcept" : "pkts"
+            }
+         ],
+         "description" : "GigabitEthernet0/1",
+         "enabled" : 1,
+         "historic" : 0,
+         "model_class" : "interface",
+         "node_name" : "intftest4",
+         "node_uuid" : "c0ffee00-0000-0000-0000-000000000004",
+         "path" : [
+            "<CLUSTER_ID>",
+            "c0ffee00-0000-0000-0000-000000000004",
+            "interface",
+            1,
+            "GigabitEthernet0/1"
+         ],
+         "path_keys" : [
+            "index",
+            "ifDescr"
+         ],
+         "protocol" : "snmp",
+         "server_name" : "nmis",
+         "storage" : {
+            "interface" : {
+               "rrd" : "/nodes/intftest4/mock-interface.rrd"
+            },
+            "pkts" : {
+               "rrd" : "/nodes/intftest4/mock-pkts.rrd"
+            }
+         },
+         "subconcepts" : [
+            "interface",
+            "pkts"
+         ]
+      },
+      {
+         "cluster_id" : "<CLUSTER_ID>",
+         "concept" : "interface",
+         "configuration" : {
+            "group" : "NMIS9"
+         },
+         "data" : {
+            "collect" : "true",
+            "enabled" : 1,
+            "historic" : 0,
+            "ifAdminStatus" : "up",
+            "ifDescr" : "OldName0/1",
+            "ifIndex" : 1,
+            "ifOperStatus" : "up",
+            "index" : "1",
+            "ip" : []
+         },
+         "data_info" : [
+            {
+               "data_tags" : [],
+               "display_keys" : [],
+               "enabled" : 1,
+               "subconcept" : "interface"
+            }
+         ],
+         "dataset_info" : [],
+         "description" : "concept interface on node UNKNOWN and server <CLUSTER_ID>",
+         "enabled" : 1,
+         "historic" : 1,
+         "model_class" : "interface",
+         "node_name" : "intftest4",
+         "node_uuid" : "c0ffee00-0000-0000-0000-000000000004",
+         "path" : [
+            "<CLUSTER_ID>",
+            "c0ffee00-0000-0000-0000-000000000004",
+            "interface",
+            1,
+            "OldName0/1"
+         ],
+         "path_keys" : [
+            "index",
+            "ifDescr"
+         ],
+         "protocol" : null,
+         "server_name" : "nmis",
+         "storage" : null,
+         "subconcepts" : []
+      }
+   ]
+}
