@@ -487,14 +487,16 @@ git commit -m "OMK-12375. Add 12 interface-collect coverage cases with golden ba
 
 ## Deliverable B: phase-8 reuse (gated behind Deliverable A goldens)
 
-### Task B1: Phase 1 loads full fields and instantiates via the standard path
+### Task B1: Phase 1 loads full fields and builds reusable objects (no extra queries)
 
 **Files:**
 - Modify: `lib/NMISNG/Node.pm` (`~3888-3957`)
 
 **Interfaces:**
 - Consumes: golden suite from A4.
-- Produces: `%if_inventory_map` populated with full, standard-instantiated `NMISNG::Inventory` objects keyed by ifIndex.
+- Produces: `%if_inventory_map` populated with fully-populated `NMISNG::Inventory` objects keyed by ifIndex, built from the single phase-1 result with no additional DB queries.
+
+**Critical constraint:** phase 1 must issue exactly one interface `find` (the existing `get_inventory_model`). Do NOT add any per-interface `inventory(_id=>…)` or `get_inventory_model` call here — that would reintroduce the N-query pattern this whole change exists to remove, and it would survive B3. Objects must be built from the already-fetched phase-1 data.
 
 - [ ] **Step 1: Confirm the golden baseline is green before changing code**
 
@@ -514,31 +516,21 @@ Replace the `$which_fields` ternary block (`Node.pm:3888-3916`) so the query loa
 
 (Delete the `$ifNumber`/`$max_interfaces_before_cutback`/`$which_fields` lines that fed the old call.)
 
-- [ ] **Step 3: Build the phase-1 objects via the standard instantiation path**
+- [ ] **Step 3: Keep the in-loop object build, now fed full fields (no extra query)**
 
-Replace the manual build at `Node.pm:3952-3956`:
-
-```perl
-		# OLD:
-		# my $class = NMISNG::Inventory::get_inventory_class( "interface" );
-		# Module::Load::load $class;
-		# $maybeevil->{nmisng} = $self->nmisng;
-		# my $no_save_inventory = $class->new(%$maybeevil);
-		# $if_inventory_map{$thisindex} = $no_save_inventory;
-```
-
-with a load through the same path phase 8 used (so reused objects are identical to a fresh `inventory(_id=>…)` load):
+The existing manual build at `Node.pm:3952-3956` already constructs the object from the in-hand row `$maybeevil` with no DB call:
 
 ```perl
-		my ($inv_obj, $inv_err) = $self->inventory( _id => $maybeevil->{_id} );
-		if ($inv_obj) {
-			$if_inventory_map{$thisindex} = $inv_obj;
-		} else {
-			$self->nmisng->log->error("collect_intf_data: failed to instantiate interface inventory _id $maybeevil->{_id}: $inv_err");
-		}
+		my $class = NMISNG::Inventory::get_inventory_class( "interface" );
+		Module::Load::load $class;
+		$maybeevil->{nmisng} = $self->nmisng;
+		my $no_save_inventory = $class->new(%$maybeevil); # this doesn't report errors!
+		$if_inventory_map{$thisindex} = $no_save_inventory;
 ```
 
-Note: this temporarily reintroduces a per-interface load in phase 1; B3 removes the phase-8 load so the net is one load per interface, not two. (If a single bulk `->objects()` instantiation proves equivalent in the golden diff, prefer it in B3 cleanup; keep this simple and correct first.)
+With Step 2 removing the field restriction, `$maybeevil` is now the full record, so this build already yields a fully-populated object. Leave this block as-is (it is query-free and is exactly what phase 8 will reuse). The job of proving this reused object behaves identically to the old fresh `inventory(_id=>…)` reload belongs to the golden gate in B3, not to inspection here.
+
+Contingency (only if the B3 golden gate shows a diff on an interface that did NOT go through `update_intf_info`, i.e. an instantiation-path difference): replace the `$class->new(%$maybeevil)` line with a query-free instantiation through `ModelData`, reading the standard-load object out of the same already-fetched result, e.g. capture `$result->objects` once after the loop and map its objects by `data->{ifIndex}` with first-wins semantics matching the clash handling. Still no per-interface DB query. Record which path was used in the task report.
 
 - [ ] **Step 4: Run the golden suite**
 
@@ -549,7 +541,7 @@ Expected: PASS, all 13 (no behaviour change yet, only how phase-1 objects are bu
 
 ```bash
 git add lib/NMISNG/Node.pm
-git commit -m "OMK-12375. collect_intf_data phase 1: load full interface records via standard instantiation."
+git commit -m "OMK-12375. collect_intf_data phase 1: load full interface records, build reusable object map (no extra query)."
 ```
 
 ---
@@ -666,7 +658,7 @@ git commit -m "OMK-12375. collect_intf_data phase 8: reuse loaded interface obje
 - Write-stream capture (spec 1): Task A1 (DB/RRD/event patches, normalise).
 - Harness architecture + walk generator (spec 2): A1, A2; `t_polling` refactor to share the helper is optional cleanup and intentionally not forced here to limit blast radius (note this deviation to the user).
 - Coverage suite, all 13 cases (spec 3): A3 (case 1), A4 (cases 2-13).
-- Phase-8 reuse mechanism + risk handling (spec 4): B1 (full load + standard instantiation), B2 (refresh `_was_updated`), B3 (reuse + fallback).
+- Phase-8 reuse mechanism + risk handling (spec 4): B1 (full load + query-free reusable object map), B2 (refresh `_was_updated`), B3 (reuse + fallback).
 - Error handling (spec 5): B3 fallback + warning; existing error paths untouched.
 - Success criteria: B3 Step 2 (empty diffs) and Step 3 (find-count drop).
 
