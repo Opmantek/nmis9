@@ -4095,6 +4095,10 @@ sub collect_intf_data
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
 		}
+		# keep the reusable object map in step with the updated inventory so
+		# phase 8 reuses the post-update object (recomputed tags + correct _id),
+		# matching the old reload-by-id behaviour (OMK-12375).
+		$if_inventory_map{$needsmust} = $maybenew if (ref($maybenew));
 	}
 
 	# 5. collect modelled data for enabled, nonhistoric, collectable interfaces
@@ -4289,6 +4293,10 @@ sub collect_intf_data
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
 		}
+		# keep the reusable object map in step with the updated inventory so
+		# phase 8 reuses the post-update object (recomputed tags + correct _id),
+		# matching the old reload-by-id behaviour (OMK-12375).
+		$if_inventory_map{$needsmust} = $maybenew if (ref($maybenew));
 	}
 
 	# 8. do something with the stashed rrd data; now if_data_map should have
