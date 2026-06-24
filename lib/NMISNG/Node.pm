@@ -3923,7 +3923,11 @@ sub collect_intf_data
 		my $class = NMISNG::Inventory::get_inventory_class( "interface" );
 		Module::Load::load $class;
 		$maybeevil->{nmisng} = $self->nmisng;
-		my $no_save_inventory = $class->new(%$maybeevil); # this doesn't report errors!		
+		# clone data so $if_inventory_map entry has an independent copy: $if_data_map gets
+		# transient working fields (_rrd_data etc.) added during collect phases 2-7, and
+		# Inventory::new() stores data by ref, so without a clone the inventory object's
+		# _data would share the same hash and pick up those transient fields (OMK-12375).
+		my $no_save_inventory = $class->new(%$maybeevil, data => Clone::clone($maybeevil->{data}));
 		$if_inventory_map{$thisindex} = $no_save_inventory;
 		
 	}
@@ -4316,12 +4320,21 @@ sub collect_intf_data
 	{
 		my $thisif = $if_data_map{$index};
 
-		# instantiate inventory
-		my ($inventory, $error_message) = $self->inventory( _id => $thisif->{_id} );
+		# reuse the object loaded in phase 1 / refreshed in phases 4-7 instead of
+		# reloading each interface from the db (OMK-12375). fall back to a load only
+		# if the map is unexpectedly missing this index, and log it so gaps are visible.
+		my $inventory = $if_inventory_map{$index};
 		if (!$inventory)
 		{
-			$self->nmisng->log->error("Failed to get interface inventory, _id: $thisif->{_id}: $error_message");
-			next;
+			my $error_message;
+			($inventory, $error_message) = $self->inventory( _id => $thisif->{_id} );
+			$self->nmisng->log->warn("collect_intf_data phase 8: object map miss for index $index, fell back to reload"
+				. ($error_message ? ": $error_message" : ""));
+			if (!$inventory)
+			{
+				$self->nmisng->log->error("Failed to get interface inventory, _id: $thisif->{_id}: $error_message");
+				next;
+			}
 		}
 		$leftovers{$inventory->id} = 0; # clearly an interface we're handling, so not dead
 
