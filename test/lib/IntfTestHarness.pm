@@ -4,6 +4,7 @@ use Clone qw(clone);
 use JSON::XS;
 use File::Path qw(make_path);
 use FindBin;
+use Scalar::Util;
 use Test::More;
 
 our (@DB, @RRD, @EVENTS);
@@ -57,18 +58,43 @@ sub install_capture {
 sub reset_capture { @DB = (); @RRD = (); @EVENTS = (); }
 sub captured { return { db => clone(\@DB), rrd => clone(\@RRD), events => clone(\@EVENTS) }; }
 
+our $CLUSTER_SENTINEL = "<CLUSTER_ID>";
+
 my %VOLATILE = map { $_ => 1 } qw(lastupdate lastupdate_utc expire_at _id time _ts);
+
+# recursively: drop volatile keys, and replace every occurrence of the run's
+# cluster_id (in hash values, array elements, and substrings of scalar strings,
+# including the values of "path.N" query keys) with a fixed sentinel so goldens
+# are portable across environments with different cluster_ids.
+# node_uuid is already deterministic in tests, so it is left alone.
 sub _strip {
-    my ($node) = @_;
+    my ($node, $cluster_id) = @_;
     if (ref($node) eq 'HASH') {
         for my $k (keys %$node) {
             if ($VOLATILE{$k}) { delete $node->{$k}; next; }
-            _strip($node->{$k});
+            $node->{$k} = _strip($node->{$k}, $cluster_id);
         }
-    } elsif (ref($node) eq 'ARRAY') { _strip($_) for @$node; }
+    } elsif (ref($node) eq 'ARRAY') {
+        $_ = _strip($_, $cluster_id) for @$node;
+    } elsif (defined($node) && !ref($node) && defined($cluster_id) && length($cluster_id)
+             && !Scalar::Util::looks_like_number($node)) {
+        # only touch non-numeric scalars; the cluster_id is a UUID (never numeric)
+        # and any value containing it is a string, so numeric values keep their
+        # JSON number type (looks_like_number does not stringify the scalar).
+        $node =~ s/\Q$cluster_id\E/$CLUSTER_SENTINEL/g;
+    }
     return $node;
 }
-sub normalise { my ($self, $cap) = @_; return _strip(clone($cap)); }
+
+# resolve the run's cluster_id from the nmisng config (empty/undef -> no substitution)
+sub _cluster_id {
+    my ($self) = @_;
+    return undef unless ($self->{nmisng} && $self->{nmisng}->can('config'));
+    my $c = $self->{nmisng}->config;
+    return (ref($c) eq 'HASH') ? $c->{cluster_id} : undef;
+}
+
+sub normalise { my ($self, $cap) = @_; return _strip(clone($cap), $self->_cluster_id); }
 
 sub golden_path {
     my ($self, $case) = @_;
@@ -77,8 +103,9 @@ sub golden_path {
 
 sub assert_golden {
     my ($self, $case, $captured, $final) = @_;
+    my $cluster_id = $self->_cluster_id;
     my $payload = { captured => $self->normalise($captured),
-                    final    => _strip(clone($final)) };
+                    final    => _strip(clone($final), $cluster_id) };
     my $path = $self->golden_path($case);
     if ($ENV{RECORD_GOLDEN}) {
         make_path("$FindBin::Bin/testdata/intf_collect_golden");

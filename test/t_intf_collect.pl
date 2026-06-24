@@ -4,15 +4,20 @@ use strict; use warnings;
 use FindBin; use lib "$FindBin::Bin/lib"; use lib "$FindBin::Bin/../lib";
 use Test::More;
 use Clone qw(clone);
+use File::Path qw(remove_tree);
 use NMISNG; use NMISNG::Sys; use NMISNG::Util; use NMISNG::Log;
 use NMISNG::Snmp::Mock;
 use IntfTestHarness;
 
-my $C = NMISNG::Util::loadConfTable(dir => "/usr/local/nmis9/conf");
+my $C = NMISNG::Util::loadConfTable();              # FindBin-relative: $Bin/../conf
+$C = NMISNG::Util::loadConfTable(dir => "$FindBin::Bin/../conf")
+    if (!$C || ref($C) ne "HASH" || !keys %$C);     # explicit portable fallback
+die "Cannot load config" if (!$C || ref($C) ne "HASH" || !keys %$C);
 $C->{db_name} = "t_intf_collect-$$";
 my $logger = NMISNG::Log->new(level => 'error');
 my $nmisng = NMISNG->new(config => $C, log => $logger);
-my $h = IntfTestHarness->new(nmisng => $nmisng, rrd_dir => "/tmp/t_intf_rrd_$$");
+my $rrd_dir = "/tmp/t_intf_rrd_$$";
+my $h = IntfTestHarness->new(nmisng => $nmisng, rrd_dir => $rrd_dir);
 $h->install_capture();
 
 my $node_seq = 0;
@@ -72,4 +77,5 @@ run_case({ name => "steady_state",
            walk => { count => 1 } });
 
 $nmisng->get_db()->drop();
+remove_tree($rrd_dir) if -d $rrd_dir;
 done_testing;
