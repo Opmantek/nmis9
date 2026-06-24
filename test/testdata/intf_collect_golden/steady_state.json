@@ -1,0 +1,91 @@
+{
+   "captured" : {
+      "db" : [
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "86d83a45-e22e-4da9-b540-83e871480a22",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000001",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 1
+               }
+            },
+            "upsert" : null
+         },
+         {
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "86d83a45-e22e-4da9-b540-83e871480a22",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000001",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : 0
+               }
+            },
+            "upsert" : null
+         }
+      ],
+      "events" : [],
+      "rrd" : []
+   },
+   "final" : [
+      {
+         "cluster_id" : "86d83a45-e22e-4da9-b540-83e871480a22",
+         "concept" : "interface",
+         "configuration" : {
+            "group" : "NMIS9"
+         },
+         "data" : {
+            "collect" : "true",
+            "enabled" : 1,
+            "historic" : 0,
+            "ifAdminStatus" : "up",
+            "ifDescr" : "GigabitEthernet0/1",
+            "ifIndex" : 1,
+            "ifOperStatus" : "up",
+            "index" : "1",
+            "ip" : [],
+            "real" : "true"
+         },
+         "data_info" : [
+            {
+               "data_tags" : [],
+               "display_keys" : [],
+               "enabled" : 1,
+               "subconcept" : "interface"
+            }
+         ],
+         "dataset_info" : [],
+         "description" : "concept interface on node UNKNOWN and server 86d83a45-e22e-4da9-b540-83e871480a22",
+         "enabled" : 1,
+         "historic" : 0,
+         "model_class" : "interface",
+         "node_name" : "intftest1",
+         "node_uuid" : "c0ffee00-0000-0000-0000-000000000001",
+         "path" : [
+            "86d83a45-e22e-4da9-b540-83e871480a22",
+            "c0ffee00-0000-0000-0000-000000000001",
+            "interface",
+            1,
+            "GigabitEthernet0/1"
+         ],
+         "path_keys" : [
+            "index",
+            "ifDescr"
+         ],
+         "protocol" : null,
+         "server_name" : "nmis",
+         "storage" : null,
+         "subconcepts" : []
+      }
+   ]
+}
