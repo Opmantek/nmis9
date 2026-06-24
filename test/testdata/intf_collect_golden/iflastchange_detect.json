@@ -2,92 +2,7 @@
    "captured" : {
       "db" : [
          {
-            "just_one" : null,
-            "multiple" : null,
-            "op" : "insert",
-            "query" : null,
-            "record" : {
-               "$set" : {},
-               "cluster_id" : "<CLUSTER_ID>",
-               "configuration" : {
-                  "group" : "NMIS9"
-               },
-               "node_uuid" : "c0ffee00-0000-0000-0000-000000000010",
-               "subconcepts" : [
-                  {
-                     "data" : {
-                        "ifInOctets" : 0,
-                        "ifInOctets_raw" : "noSuchInstance",
-                        "ifOperStatus" : 100,
-                        "ifOutOctets" : 0,
-                        "ifOutOctets_raw" : "noSuchInstance"
-                     },
-                     "derived_data" : {},
-                     "subconcept" : "interface"
-                  },
-                  {
-                     "data" : {
-                        "ifInDiscards" : 0,
-                        "ifInDiscards_raw" : "noSuchInstance",
-                        "ifInErrors" : 0,
-                        "ifInErrors_raw" : "noSuchInstance",
-                        "ifInNUcastPkts" : 0,
-                        "ifInNUcastPkts_raw" : "noSuchInstance",
-                        "ifInOctets" : 0,
-                        "ifInOctets_raw" : "noSuchInstance",
-                        "ifInUcastPkts" : 0,
-                        "ifInUcastPkts_raw" : "noSuchInstance",
-                        "ifOutDiscards" : 0,
-                        "ifOutDiscards_raw" : "noSuchInstance",
-                        "ifOutErrors" : 0,
-                        "ifOutErrors_raw" : "noSuchInstance",
-                        "ifOutNUcastPkts" : 0,
-                        "ifOutNUcastPkts_raw" : "noSuchInstance",
-                        "ifOutOctets" : 0,
-                        "ifOutOctets_raw" : "noSuchInstance",
-                        "ifOutUcastPkts" : 0,
-                        "ifOutUcastPkts_raw" : "noSuchInstance"
-                     },
-                     "derived_data" : {},
-                     "subconcept" : "pkts"
-                  }
-               ]
-            },
-            "upsert" : null
-         },
-         {
-            "just_one" : null,
-            "multiple" : 1,
-            "op" : "update",
-            "query" : {
-               "path.0" : "<CLUSTER_ID>",
-               "path.1" : "c0ffee00-0000-0000-0000-000000000010",
-               "path.2" : "interface"
-            },
-            "record" : {
-               "$set" : {
-                  "historic" : 1
-               }
-            },
-            "upsert" : null
-         },
-         {
-            "just_one" : null,
-            "multiple" : 1,
-            "op" : "update",
-            "query" : {
-               "path.0" : "<CLUSTER_ID>",
-               "path.1" : "c0ffee00-0000-0000-0000-000000000010",
-               "path.2" : "interface"
-            },
-            "record" : {
-               "$set" : {
-                  "historic" : 0
-               }
-            },
-            "upsert" : null
-         },
-         {
+            "bulk_used" : 0,
             "just_one" : null,
             "multiple" : null,
             "op" : "update",
@@ -138,6 +53,7 @@
             "upsert" : null
          },
          {
+            "bulk_used" : 0,
             "just_one" : null,
             "multiple" : null,
             "op" : "update",
@@ -200,12 +116,66 @@
             "upsert" : null
          },
          {
+            "bulk_used" : 1,
+            "just_one" : null,
+            "multiple" : null,
+            "op" : "insert",
+            "query" : null,
+            "record" : {
+               "cluster_id" : "<CLUSTER_ID>",
+               "configuration" : {
+                  "group" : "NMIS9"
+               },
+               "node_uuid" : "c0ffee00-0000-0000-0000-000000000010",
+               "subconcepts" : [
+                  {
+                     "data" : {
+                        "ifInOctets" : 0,
+                        "ifInOctets_raw" : "noSuchInstance",
+                        "ifOperStatus" : 100,
+                        "ifOutOctets" : 0,
+                        "ifOutOctets_raw" : "noSuchInstance"
+                     },
+                     "derived_data" : {},
+                     "subconcept" : "interface"
+                  },
+                  {
+                     "data" : {
+                        "ifInDiscards" : 0,
+                        "ifInDiscards_raw" : "noSuchInstance",
+                        "ifInErrors" : 0,
+                        "ifInErrors_raw" : "noSuchInstance",
+                        "ifInNUcastPkts" : 0,
+                        "ifInNUcastPkts_raw" : "noSuchInstance",
+                        "ifInOctets" : 0,
+                        "ifInOctets_raw" : "noSuchInstance",
+                        "ifInUcastPkts" : 0,
+                        "ifInUcastPkts_raw" : "noSuchInstance",
+                        "ifOutDiscards" : 0,
+                        "ifOutDiscards_raw" : "noSuchInstance",
+                        "ifOutErrors" : 0,
+                        "ifOutErrors_raw" : "noSuchInstance",
+                        "ifOutNUcastPkts" : 0,
+                        "ifOutNUcastPkts_raw" : "noSuchInstance",
+                        "ifOutOctets" : 0,
+                        "ifOutOctets_raw" : "noSuchInstance",
+                        "ifOutUcastPkts" : 0,
+                        "ifOutUcastPkts_raw" : "noSuchInstance"
+                     },
+                     "derived_data" : {},
+                     "subconcept" : "pkts"
+                  }
+               ]
+            },
+            "upsert" : null
+         },
+         {
+            "bulk_used" : 1,
             "just_one" : null,
             "multiple" : null,
             "op" : "update",
             "query" : {},
             "record" : {
-               "$set" : {},
                "cluster_id" : "<CLUSTER_ID>",
                "configuration" : {
                   "group" : "NMIS9"
@@ -252,6 +222,40 @@
                ]
             },
             "upsert" : 1
+         },
+         {
+            "bulk_used" : 0,
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000010",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : "1"
+               }
+            },
+            "upsert" : null
+         },
+         {
+            "bulk_used" : 0,
+            "just_one" : null,
+            "multiple" : 1,
+            "op" : "update",
+            "query" : {
+               "path.0" : "<CLUSTER_ID>",
+               "path.1" : "c0ffee00-0000-0000-0000-000000000010",
+               "path.2" : "interface"
+            },
+            "record" : {
+               "$set" : {
+                  "historic" : "0"
+               }
+            },
+            "upsert" : null
          }
       ],
       "events" : [],

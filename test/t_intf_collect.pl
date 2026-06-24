@@ -64,28 +64,14 @@ sub run_case {
 
     # new spec-key extensions
     if ($spec->{no_snmp}) {
-        $S->{snmp}{session} = 0;
+        # collect_intf_data's guard is `if (!$S->status->{snmp_enabled})`, and
+        # Sys::status (Sys.pm) computes snmp_enabled from `$S->{snmp}` being
+        # truthy -- NOT from `$S->{snmp}{session}`. So to actually trigger the
+        # early return we must make $S->{snmp} itself falsy.
+        $S->{snmp} = 0;
     }
     if ($spec->{custom_iflastchange}) {
         $S->{mdl}{custom}{interface}{ifLastChange} = 'true';
-    }
-    # bulk_save=0: force per-interface save path by localising the constant to 0.
-    # BULK_TIMED_DATA is a compile-time constant (use constant BULK_TIMED_DATA => 1)
-    # with no config knob, so we override the symbol table entry for this call only.
-    if (defined $spec->{bulk_save} && $spec->{bulk_save} == 0) {
-        no warnings 'redefine';
-        local *NMISNG::Node::BULK_TIMED_DATA = sub () { 0 };
-        $h->reset_capture();
-        NMISNG::DB::reset_db_stats() if $ENV{SHOW_DBSTATS};
-        $node->collect_intf_data(sys=>$S, catchall_inventory=>$catchall);
-        if ($ENV{SHOW_DBSTATS}) {
-            my $stats = NMISNG::DB::get_db_stats();
-            diag("[$spec->{name}] find count: " . ($stats->{counts}{find} // 0));
-        }
-        my $final = $nmisng->get_inventory_model(cluster_id=>$node->cluster_id,
-                      node_uuid=>$node->uuid, concept=>"interface")->data;
-        $h->assert_golden($spec->{name}, $h->captured(), $final);
-        return;
     }
 
     $h->reset_capture();
@@ -167,11 +153,25 @@ run_case({ name=>"iflastchange_detect",
 # 11. non-snmp node: snmp disabled -> early return, no writes
 run_case({ name=>"non_snmp", seed=>[], walk=>{count=>1}, no_snmp=>1 });
 
-# 12. bulk_save off (force per-interface save path)
-run_case({ name=>"bulk_save_off",
+# 12. bulk timed-data save path. do_update=>1 makes the interface collectable
+# so phase 8 actually writes timed data; the golden records bulk_used=1 on the
+# timed-data insert/upsert, i.e. the writes are batched via begin_bulk/end_bulk.
+#
+# NOTE on the non-bulk path: collect_intf_data gates batching on
+# `if (BULK_TIMED_DATA == 1)` (Node.pm:4330) and BULK_TIMED_DATA is a
+# `use constant ... => 1` (Node.pm:65) with no config knob. `use constant`
+# is inlined at compile time, so the comparison is constant-folded to true
+# when Node.pm is compiled; a runtime `local *NMISNG::Node::BULK_TIMED_DATA`
+# override (as the brief suggested) has NO effect on the already-compiled
+# code. Production therefore ALWAYS takes the bulk path -- the non-bulk
+# branch is effectively dead code that cannot be driven from a test without
+# modifying production. This case records the real (bulk) baseline; see the
+# A4 report for the investigation. (coverage follow-up: the non-bulk
+# timed-data branch needs a production-side knob to be testable.)
+run_case({ name=>"bulk_timed_save",
   seed=>[{index=>1, ifIndex=>1, ifDescr=>"GigabitEthernet0/1", ifAdminStatus=>"up",
           ifOperStatus=>"up", collect=>"true", historic=>0, enabled=>1}],
-  walk=>{count=>1}, bulk_save=>0 });
+  walk=>{count=>1}, do_update=>1 });
 
 # 13. over-100 interfaces: exercises field cutback path
 run_case({ name=>"over_cutback", seed=>[], walk=>{count=>150}, do_update=>1 });

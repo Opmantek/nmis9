@@ -52,9 +52,16 @@ sub install_capture {
         no strict 'refs';
         *{"NMISNG::DB::$op"} = sub {
             my %args = @_;
+            # bulk_used: whether this write was routed through a bulk batch
+            # (bulk_save path) vs a direct collection op. The bulk object
+            # itself is not serialisable, so we record only its presence as a
+            # boolean -- this is what makes BULK_TIMED_DATA on/off observable
+            # in the golden (the timed-data insert/upsert carries bulk_used=1
+            # under bulk, 0 when saved directly).
             push @DB, clone({ op => $op, query => $args{query}, record => $args{record},
                               upsert => $args{upsert}, multiple => $args{multiple},
-                              just_one => $args{just_one} });
+                              just_one => $args{just_one},
+                              bulk_used => ($args{bulk} ? 1 : 0) });
             return $orig->(@_);
         };
     }
@@ -124,32 +131,55 @@ sub _cluster_id {
     return (ref($c) eq 'HASH') ? $c->{cluster_id} : undef;
 }
 
-# Produce a stable sort key for a DB-op or final-inventory entry so the
-# golden is reproducible across runs regardless of hash-iteration order.
-sub _sort_key {
+my $_canon_json = JSON::XS->new->canonical(1)->allow_nonref(1);
+
+# Phase signature for a DB op: op-class + which query keys are present +
+# which record top-level keys are present. This is mostly VALUE-FREE (it
+# ignores the ifDescr/index/OID that vary per interface) so that all ops
+# belonging to the same collect_intf_data phase that differ ONLY in interface
+# identity share a signature -- those are the genuinely non-deterministic
+# (hash-iteration-ordered) phase-4 writes that we then sort. Ops from
+# different phases (different query/record shape) get different signatures and
+# act as ordering barriers, so the overall phase sequence is preserved.
+#
+# Exception: a "$set" carrying a single fixed semantic flag (historic) is a
+# deterministic, fixed-order write (e.g. the phase-9 historic pair always
+# emits historic=1 then historic=0 from one bulk_update_inventory_historic
+# call). We fold that flag's VALUE into the signature so the two ops get
+# distinct signatures, become length-1 runs, and keep their real emission
+# order instead of being sorted against each other.
+my %FIXED_FLAG = (historic => 1);
+sub _phase_sig {
     my ($v) = @_;
     return '' unless ref($v) eq 'HASH';
-    # For DB ops: use op + canonical JSON of the query (minus OID values).
-    # For final inventory entries: use data.ifDescr or description.
-    my $op    = $v->{op} // '';
-    my $ifD   = (ref($v->{data}) eq 'HASH') ? ($v->{data}{ifDescr} // $v->{data}{ifIndex} // '') : '';
-    my $desc  = $v->{description} // $ifD;
-    # Extract a stable path fragment from query if present
-    my $qpath = '';
-    if (ref($v->{query}) eq 'HASH') {
-        for my $k (sort keys %{$v->{query}}) {
-            my $val = $v->{query}{$k} // '';
-            $qpath .= "$k=$val;";
-        }
-    }
-    # For record data, try to grab ifDescr or description
-    my $rdesc = '';
+    my $op = $v->{op} // '';
+    my $qk = (ref($v->{query}) eq 'HASH') ? join(',', sort keys %{$v->{query}}) : '';
+    my $rk = '';
     if (ref($v->{record}) eq 'HASH') {
-        my $d = $v->{record}{data} // $v->{record}{'$set'}{data} // {};
-        $rdesc = (ref($d) eq 'HASH') ? ($d->{ifDescr} // $d->{description} // '') : '';
-        $rdesc ||= $v->{record}{description} // '';
+        # include top-level record keys, plus the keys under $set if present,
+        # so a "$set:{historic}" op is distinguished from a "$set:{dataset_info}" op
+        my @top = sort keys %{$v->{record}};
+        my $set = $v->{record}{'$set'};
+        my $setk = '';
+        if (ref($set) eq 'HASH') {
+            my @sk = sort keys %$set;
+            $setk = '{'.join(',', @sk).'}';
+            # fold the value of a single fixed-flag $set into the signature
+            if (@sk == 1 && $FIXED_FLAG{$sk[0]} && !ref($set->{$sk[0]})) {
+                $setk .= '='.$set->{$sk[0]};
+            }
+        }
+        $rk = join(',', @top) . $setk;
     }
-    return "$op|$desc|$qpath|$rdesc";
+    return "$op|q[$qk]|r[$rk]";
+}
+
+# Total ordering key for a DB op: canonical JSON of the whole op. Guarantees
+# two distinct ops never collide on key (no reliance on sort stability for
+# ties), so the within-run ordering is fully deterministic.
+sub _total_key {
+    my ($v) = @_;
+    return $_canon_json->encode($v);
 }
 
 # Sort any subconcepts/data_info/dataset_info arrays within a hash (and recurse).
@@ -184,15 +214,40 @@ sub _sort_inner_arrays {
     return $v;
 }
 
+# Stabilise ONLY the non-deterministic ordering (collect_intf_data phase 4
+# iterates interfaces in hash order) while preserving the overall phase
+# sequence. We do this by sorting within maximal contiguous runs of ops that
+# share a phase signature; phase transitions act as barriers and are never
+# reordered. The phase-9 historic pair (always the last block) and the
+# index-ordered phase-5/8 saves keep their real execution position.
+sub _stabilise_db_stream {
+    my ($db) = @_;
+    return unless ref($db) eq 'ARRAY' && @$db;
+    my @out;
+    my $i = 0;
+    while ($i < @$db) {
+        my $sig = _phase_sig($db->[$i]);
+        my $j = $i;
+        $j++ while ($j < @$db && _phase_sig($db->[$j]) eq $sig);
+        # contiguous run [$i, $j): sort by total key (canonical JSON)
+        my @run = @{$db}[$i .. $j-1];
+        @run = sort { _total_key($a) cmp _total_key($b) } @run if (@run > 1);
+        push @out, @run;
+        $i = $j;
+    }
+    @$db = @out;
+}
+
 sub _canonicalise {
     my ($payload) = @_;
-    # Sort inner arrays (subconcepts, data_info) within each DB op record
-    # and within final inventory entries, since array element order is
-    # hash-iteration-dependent and varies between runs.
+    # Sort inner arrays (subconcepts, data_info, dataset_info, datasets) within
+    # each DB op record and within final inventory entries, since their element
+    # order is hash-iteration-dependent and varies between runs. This must run
+    # BEFORE _stabilise_db_stream so the total-key (canonical JSON) is itself
+    # stable.
     if (ref($payload->{captured}{db}) eq 'ARRAY') {
         _sort_inner_arrays($_) for @{$payload->{captured}{db}};
-        # Sort the DB write stream so interface-processing order does not affect the golden.
-        @{$payload->{captured}{db}} = sort { _sort_key($a) cmp _sort_key($b) } @{$payload->{captured}{db}};
+        _stabilise_db_stream($payload->{captured}{db});
     }
     # Sort the final inventory list by ifDescr for stability, and sort inner arrays.
     if (ref($payload->{final}) eq 'ARRAY') {

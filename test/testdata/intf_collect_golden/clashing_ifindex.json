@@ -2,6 +2,7 @@
    "captured" : {
       "db" : [
          {
+            "bulk_used" : 0,
             "just_one" : null,
             "multiple" : 1,
             "op" : "update",
@@ -12,12 +13,13 @@
             },
             "record" : {
                "$set" : {
-                  "historic" : 1
+                  "historic" : "1"
                }
             },
             "upsert" : null
          },
          {
+            "bulk_used" : 0,
             "just_one" : null,
             "multiple" : 1,
             "op" : "update",
@@ -28,7 +30,7 @@
             },
             "record" : {
                "$set" : {
-                  "historic" : 0
+                  "historic" : "0"
                }
             },
             "upsert" : null
