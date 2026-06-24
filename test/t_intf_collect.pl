@@ -85,6 +85,12 @@ sub run_case {
     # final state: all interface inventory docs for this node
     my $final = $nmisng->get_inventory_model(cluster_id=>$node->cluster_id,
                   node_uuid=>$node->uuid, concept=>"interface")->data;
+
+    # optional white-box assertions run against the captured stream + persisted final
+    # docs BEFORE the golden compare (so a focused invariant can be gated directly even
+    # when it is invisible to / identical across the golden, e.g. db pollution checks).
+    $spec->{post_check}->($node, $h->captured(), $final) if (ref($spec->{post_check}) eq 'CODE');
+
     $h->assert_golden($spec->{name}, $h->captured(), $final);
 }
 
@@ -175,6 +181,47 @@ run_case({ name=>"bulk_timed_save",
 
 # 13. over-100 interfaces: exercises field cutback path
 run_case({ name=>"over_cutback", seed=>[], walk=>{count=>150}, do_update=>1 });
+
+# 14. B1-object phase-8 dirty save (OMK-12375 reuse path gate).
+# A SEEDED, collectable interface whose admin/ifDescr match the walk so it does NOT
+# need update_intf_info -> phase 8 reuses the hand-built phase-1 ("B1") inventory
+# object rather than the clean $maybenew from update_intf_info. The walk flips oper
+# up->dormant (5): dormant is NOT a relevant transition (it stays within the
+# up/ok/dormant set) so it does not trigger _needs_update, but phase 8 DOES write the
+# new ifOperStatus -> a real per-interface inventory dirty save on the reused object.
+# counters=>1 makes the interface genuinely collectable (real traffic values).
+#
+# This case is the gate for the phase-1 clone being taken BEFORE the _id/enabled/
+# historic injection: a post-injection clone leaves a nested data._id on the reused
+# object. The behavioural golden is recorded against PRE-REFACTOR code (commit
+# 5180093e, whose phase 8 freshly reloads by _id) so it pins this path to the old
+# reload behaviour; the white-box post_check directly asserts the persisted inventory
+# data carries no _id (the pollution invariant, which the golden alone cannot see
+# because save() dirty-tracking cancels a nested data._id either way).
+run_case({ name=>"b1_object_dirty_save",
+  seed=>[{index=>1, ifIndex=>1, ifDescr=>"GigabitEthernet0/1", ifAdminStatus=>"up",
+          ifOperStatus=>"up", collect=>"true", real=>"true", historic=>0, enabled=>1}],
+  walk=>{count=>1, oper=>{1=>5}, counters=>1}, do_update=>1,
+  post_check => sub {
+      my ($node, $cap, $final) = @_;
+      # (a) prove this case actually exercised a per-interface inventory dirty save on
+      #     the reused object: there must be an op whose $set carries a data.* key
+      #     (not just the phase-9 historic pair / timed-data inserts).
+      my $saw_data_save = 0;
+      for my $op (@{$cap->{db}}) {
+          next unless (ref($op->{record}) eq 'HASH' && ref($op->{record}{'$set'}) eq 'HASH');
+          $saw_data_save = 1 if (grep { /^data\./ } keys %{$op->{record}{'$set'}});
+      }
+      ok($saw_data_save, "b1_object_dirty_save: phase 8 did a per-interface inventory data save");
+      # (b) the pollution invariant: persisted interface inventory data must have no _id
+      #     (matches a fresh reload; would fail if a post-injection clone leaked data._id).
+      my $clean = 1;
+      for my $raw (@$final) {
+          $clean = 0 if (ref($raw->{data}) eq 'HASH' && exists $raw->{data}{_id});
+      }
+      ok($clean, "b1_object_dirty_save: persisted inventory data has no nested _id");
+  },
+});
 
 $nmisng->get_db()->drop();
 remove_tree($rrd_dir) if -d $rrd_dir;

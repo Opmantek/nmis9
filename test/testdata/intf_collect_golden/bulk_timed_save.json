@@ -358,7 +358,7 @@
             "ifDescr"
          ],
          "protocol" : null,
-         "server_name" : "nmis",
+         "server_name" : "<SERVER_NAME>",
          "storage" : {
             "interface" : {
                "rrd" : "/nodes/intftest12/mock-interface.rrd"

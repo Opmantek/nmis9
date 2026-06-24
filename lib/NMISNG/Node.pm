@@ -3913,21 +3913,32 @@ sub collect_intf_data
 			next;
 		}
 
+		# clone the inventory data BEFORE we inject the convenience fields below, so the
+		# $if_inventory_map object's _data is identical to what a fresh inventory(_id=>) load
+		# would hold (OMK-12375). two reasons this is a pre-injection clone:
+		#  - CORRECTNESS: if_data_map gets transient working fields (_rrd_data etc.) added
+		#    during collect phases 2-7, and Inventory::new() stores data by ref, so without an
+		#    independent copy the object's _data would share the same hash and pick those up.
+		#    (this is what the original B3 clone fixed; the only behavioural requirement.)
+		#  - CLEANLINESS: the _id/enabled/historic injected below are if_data_map conveniences,
+		#    not part of a fresh-loaded inventory's data, so we keep them out of the reused
+		#    object's _data to stay byte-identical to a reload. NB this is NOT load-bearing for
+		#    the db: Inventory::save dirty-tracking captures _data_orig from the same _data, so
+		#    a nested data._id would also sit in _data_orig and cancel out (verified - a post-
+		#    injection clone does NOT persist data._id). pre-injection is simply the clean form.
+		my $clean_data = Clone::clone($maybeevil->{data});
+
 		# move these over into data for simplicity
 		for my $thing (qw(_id enabled historic))
 		{
 			$maybeevil->{data}->{$thing} = $maybeevil->{$thing};
 		}
 		$if_data_map{ $thisindex } = $maybeevil->{data};
-		
+
 		my $class = NMISNG::Inventory::get_inventory_class( "interface" );
 		Module::Load::load $class;
 		$maybeevil->{nmisng} = $self->nmisng;
-		# clone data so $if_inventory_map entry has an independent copy: $if_data_map gets
-		# transient working fields (_rrd_data etc.) added during collect phases 2-7, and
-		# Inventory::new() stores data by ref, so without a clone the inventory object's
-		# _data would share the same hash and pick up those transient fields (OMK-12375).
-		my $no_save_inventory = $class->new(%$maybeevil, data => Clone::clone($maybeevil->{data}));
+		my $no_save_inventory = $class->new(%$maybeevil, data => $clean_data);
 		$if_inventory_map{$thisindex} = $no_save_inventory;
 		
 	}

@@ -91,34 +91,48 @@ sub reset_capture { @DB = (); @RRD = (); @EVENTS = (); }
 sub captured { return { db => clone(\@DB), rrd => clone(\@RRD), events => clone(\@EVENTS) }; }
 
 our $CLUSTER_SENTINEL = "<CLUSTER_ID>";
+our $SERVER_SENTINEL  = "<SERVER_NAME>";
 our $OID_SENTINEL     = "<OID>";
 
 # Keys that are per-run ephemeral: stripped before golden comparison.
 # inventory_id is a BSON::OID assigned at insert time, so varies per run.
 my %VOLATILE = map { $_ => 1 } qw(lastupdate lastupdate_utc expire_at _id time _ts inventory_id);
 
-# recursively: drop volatile keys, and replace every occurrence of the run's
+# recursively: drop volatile keys, replace every occurrence of the run's
 # cluster_id (in hash values, array elements, and substrings of scalar strings,
-# including the values of "path.N" query keys) with a fixed sentinel so goldens
-# are portable across environments with different cluster_ids.
-# node_uuid is already deterministic in tests, so it is left alone.
+# including the values of "path.N" query keys) with a fixed sentinel, and replace
+# the run's server_name with a sentinel so goldens are portable across environments
+# with different cluster_ids/server_names. node_uuid is already deterministic in
+# tests, so it is left alone.
+#
+# cluster_id is a UUID (globally unique) so it is safe to substring-replace anywhere.
+# server_name is a short, arbitrary config string (e.g. "nmis"), so a blind substring
+# replace could corrupt unrelated values that happen to contain it (a node name, an
+# rrd path). We therefore substitute server_name ONLY where it is the *value of a
+# "server_name" key* ($under_server_key), which is exactly where it is written into
+# records, and is robust regardless of what the server_name string is.
 sub _strip {
-    my ($node, $cluster_id) = @_;
+    my ($node, $cluster_id, $server_name, $under_server_key) = @_;
     # Convert BSON typed objects to plain Perl values before further processing.
     $node = _debless($node) if Scalar::Util::blessed($node);
     if (ref($node) eq 'HASH') {
         for my $k (keys %$node) {
             if ($VOLATILE{$k}) { delete $node->{$k}; next; }
-            $node->{$k} = _strip($node->{$k}, $cluster_id);
+            $node->{$k} = _strip($node->{$k}, $cluster_id, $server_name, ($k eq 'server_name'));
         }
     } elsif (ref($node) eq 'ARRAY') {
-        $_ = _strip($_, $cluster_id) for @$node;
-    } elsif (defined($node) && !ref($node) && defined($cluster_id) && length($cluster_id)
-             && !Scalar::Util::looks_like_number($node)) {
-        # only touch non-numeric scalars; the cluster_id is a UUID (never numeric)
-        # and any value containing it is a string, so numeric values keep their
-        # JSON number type (looks_like_number does not stringify the scalar).
-        $node =~ s/\Q$cluster_id\E/$CLUSTER_SENTINEL/g;
+        $_ = _strip($_, $cluster_id, $server_name, $under_server_key) for @$node;
+    } elsif (defined($node) && !ref($node) && !Scalar::Util::looks_like_number($node)) {
+        # only touch non-numeric scalars so numeric values keep their JSON number
+        # type (looks_like_number does not stringify the scalar).
+        if (defined($cluster_id) && length($cluster_id)) {
+            $node =~ s/\Q$cluster_id\E/$CLUSTER_SENTINEL/g;
+        }
+        # server_name: only when this scalar is the value of a server_name key
+        if ($under_server_key && defined($server_name) && length($server_name)
+            && $node eq $server_name) {
+            $node = $SERVER_SENTINEL;
+        }
     }
     return $node;
 }
@@ -129,6 +143,16 @@ sub _cluster_id {
     return undef unless ($self->{nmisng} && $self->{nmisng}->can('config'));
     my $c = $self->{nmisng}->config;
     return (ref($c) eq 'HASH') ? $c->{cluster_id} : undef;
+}
+
+# resolve the run's server_name from the nmisng config (empty/undef -> no substitution).
+# server_name comes from config->{server_name} (same value get_server_name returns for
+# the local cluster_id), which is what gets written onto inventory records.
+sub _server_name {
+    my ($self) = @_;
+    return undef unless ($self->{nmisng} && $self->{nmisng}->can('config'));
+    my $c = $self->{nmisng}->config;
+    return (ref($c) eq 'HASH') ? $c->{server_name} : undef;
 }
 
 my $_canon_json = JSON::XS->new->canonical(1)->allow_nonref(1);
@@ -261,7 +285,7 @@ sub _canonicalise {
     return $payload;
 }
 
-sub normalise { my ($self, $cap) = @_; return _strip(clone($cap), $self->_cluster_id); }
+sub normalise { my ($self, $cap) = @_; return _strip(clone($cap), $self->_cluster_id, $self->_server_name); }
 
 sub golden_path {
     my ($self, $case) = @_;
@@ -271,12 +295,23 @@ sub golden_path {
 sub assert_golden {
     my ($self, $case, $captured, $final) = @_;
     my $cluster_id = $self->_cluster_id;
+    my $server_name = $self->_server_name;
     my $payload = _canonicalise({
         captured => $self->normalise($captured),
-        final    => _strip(clone($final), $cluster_id),
+        final    => _strip(clone($final), $cluster_id, $server_name),
     });
     my $path = $self->golden_path($case);
     if ($ENV{RECORD_GOLDEN}) {
+        # RECORD_ONLY=<case>[,<case>...] restricts recording to the named case(s) so a
+        # single golden can be (re)baselined without rewriting the others (used to record
+        # the B1-object dirty-save case against pre-refactor code).
+        if ($ENV{RECORD_ONLY}) {
+            my %only = map { $_ => 1 } split(/,/, $ENV{RECORD_ONLY});
+            if (!$only{$case}) {
+                pass("skipped recording $case (RECORD_ONLY)");
+                return;
+            }
+        }
         make_path("$FindBin::Bin/testdata/intf_collect_golden");
         open my $fh, ">", $path or die "cannot write golden $path: $!";
         print $fh JSON::XS->new->canonical(1)->pretty(1)->encode($payload);
@@ -288,6 +323,27 @@ sub assert_golden {
     local $/; my $want = JSON::XS->new->decode(<$fh>); close $fh;
     is_deeply($payload, $want, "golden matches for $case");
 }
+
+# IF-MIB / ifXTable counter OIDs that the Generic model's interface + pkts rrd
+# sections read (verified against Model-Generic / Common-Cisco-* interface defs).
+# Used when a case asks for counters => 1 so getData returns real (non-noSuchInstance)
+# traffic values, which makes the interface genuinely collectable.
+my %COUNTER_OID = (
+    ifInOctets       => '1.3.6.1.2.1.2.2.1.10',
+    ifInUcastPkts    => '1.3.6.1.2.1.2.2.1.11',
+    ifInNUcastPkts   => '1.3.6.1.2.1.2.2.1.12',
+    ifInDiscards     => '1.3.6.1.2.1.2.2.1.13',
+    ifInErrors       => '1.3.6.1.2.1.2.2.1.14',
+    ifOutOctets      => '1.3.6.1.2.1.2.2.1.16',
+    ifOutUcastPkts   => '1.3.6.1.2.1.2.2.1.17',
+    ifOutNUcastPkts  => '1.3.6.1.2.1.2.2.1.18',
+    ifOutDiscards    => '1.3.6.1.2.1.2.2.1.19',
+    ifOutErrors      => '1.3.6.1.2.1.2.2.1.20',
+    ifHCInOctets     => '1.3.6.1.2.1.31.1.1.1.6',
+    ifHCInUcastPkts  => '1.3.6.1.2.1.31.1.1.1.7',
+    ifHCOutOctets    => '1.3.6.1.2.1.31.1.1.1.10',
+    ifHCOutUcastPkts => '1.3.6.1.2.1.31.1.1.1.11',
+);
 
 sub generate_interface_walk {
     my (%a) = @_;
@@ -304,6 +360,17 @@ sub generate_interface_walk {
         # ifLastChange (1.3.6.1.2.1.2.2.1.9): emit a non-zero value so iflastchange_detect
         # sees a changed value vs. a seeded ifLastChangeSec of 0.
         $w{"1.3.6.1.2.1.2.2.1.9.$i"} = 500;  # 5 seconds in 1/100s ticks
+
+        # counters => 1: emit interface/pkts traffic counters so the interface is
+        # genuinely collectable (getData returns numeric values, not noSuchInstance).
+        if ($a{counters}) {
+            my $base = $a{counter_base} // 1000;
+            my $j = 0;
+            for my $name (sort keys %COUNTER_OID) {
+                # deterministic, per-index, per-ds distinct values
+                $w{"$COUNTER_OID{$name}.$i"} = $base + $i * 100 + $j++;
+            }
+        }
     }
 
     # _reindex: move per-index OIDs from old ifIndex to new ifIndex (same ifDescr).

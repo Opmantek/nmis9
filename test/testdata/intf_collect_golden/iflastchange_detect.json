@@ -431,7 +431,7 @@
             "ifDescr"
          ],
          "protocol" : "snmp",
-         "server_name" : "nmis",
+         "server_name" : "<SERVER_NAME>",
          "storage" : {
             "interface" : {
                "rrd" : "/nodes/intftest10/mock-interface.rrd"
