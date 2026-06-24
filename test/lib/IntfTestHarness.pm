@@ -92,4 +92,20 @@ sub assert_golden {
     local $/; my $want = JSON::XS->new->decode(<$fh>); close $fh;
     is_deeply($payload, $want, "golden matches for $case");
 }
+
+sub generate_interface_walk {
+    my (%a) = @_;
+    my $n = $a{count} // 5;
+    my %w = ('1.3.6.1.2.1.2.1.0' => $n);
+    for my $i (1 .. $n) {
+        $w{"1.3.6.1.2.1.2.2.1.1.$i"} = $i;
+        $w{"1.3.6.1.2.1.2.2.1.2.$i"} = "GigabitEthernet0/$i";
+        $w{"1.3.6.1.2.1.2.2.1.3.$i"} = 6;
+        $w{"1.3.6.1.2.1.2.2.1.5.$i"} = 1000000000;
+        $w{"1.3.6.1.2.1.2.2.1.6.$i"} = sprintf("00 11 22 %02x %02x %02x", ($i>>16)&255, ($i>>8)&255, $i&255);
+        $w{"1.3.6.1.2.1.2.2.1.7.$i"} = ($a{admin} && defined $a{admin}{$i}) ? $a{admin}{$i} : 1;
+        $w{"1.3.6.1.2.1.2.2.1.8.$i"} = ($a{oper}  && defined $a{oper}{$i})  ? $a{oper}{$i}  : 1;
+    }
+    return \%w;
+}
 1;
