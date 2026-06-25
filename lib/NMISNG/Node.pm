@@ -4949,6 +4949,11 @@ sub collect_systemhealth_info
 			next;    # fixme: or is this completely terminal for this model?
 		}
 
+		# Collects (index, description, inventory) from whichever protocol runs below.
+		# After the protocol block, descriptions that appear more than once get the
+		# index appended so callers can tell items apart without breaking unique ones.
+		my @_desc_dedup = ();
+
 		if ( exists( $thissection->{wmi} ) )
 		{
 			my $protocol = 'wmi';
@@ -5086,9 +5091,10 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						$inventory->description( $description ) if($description);
+						push @_desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory }
+							if ($description);
 					}
-	
+
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save( node => $self , sys => $S, update => 1 );
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
@@ -5271,9 +5277,10 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						$inventory->description( $description ) if($description);
+						push @_desc_dedup, { index => $index, description => $description, inventory => $inventory }
+							if ($description);
 					}
-					
+
 					# Regenerate storage: If db name has changed, we need this
 					$self->nmisng->log->debug("collect_systemhealth_info check storage $section");
 					if ($inventory->find_subconcept_type_storage(type => "rrd",
@@ -5308,6 +5315,20 @@ sub collect_systemhealth_info
 				}
 			}
 		}
+
+			# Set inventory descriptions: plain when unique, append "(index)" only if duplicated.
+			{
+				my %desc_count;
+				$desc_count{$_->{description}}++ for @_desc_dedup;
+				for my $item (@_desc_dedup)
+				{
+					my $final = $desc_count{$item->{description}} > 1
+						? "$item->{description} ($item->{index})"
+						: $item->{description};
+					$item->{inventory}->description($final);
+					$item->{inventory}->save(node => $self, update => 1);
+				}
+			}
 	}
 		
 	$self->nmisng->log->debug("Finished with collect_systemhealth_info");
