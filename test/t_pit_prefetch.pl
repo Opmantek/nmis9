@@ -4,6 +4,7 @@ use strict; use warnings;
 use FindBin; use lib "$FindBin::Bin/lib"; use lib "$FindBin::Bin/../lib";
 use Test::More;
 use NMISNG; use NMISNG::Util; use NMISNG::Log; use NMISNG::DB;
+use NMISNG::Sys; use NMISNG::Snmp::Mock; use IntfTestHarness;
 
 my $C = NMISNG::Util::loadConfTable();
 $C->{db_name} = "t_pitpf-$$";
@@ -111,7 +112,6 @@ $nmisng->config->{pit_prefetch_enabled} = 1;
 }
 
 # --- integration: find-count drop, teardown, teardown-on-exception ---
-use NMISNG::Sys; use NMISNG::Snmp::Mock; use IntfTestHarness;
 {
   my $iuuid = "cccc3333-0000-0000-0000-000000000003";
   my $node = $nmisng->node(uuid=>$iuuid, create=>1);
@@ -133,7 +133,8 @@ use NMISNG::Sys; use NMISNG::Snmp::Mock; use IntfTestHarness;
   $ca->data_live->{ifNumber}=$N; $ca->save(node=>$node);
 
   # count latest_data finds during collect_intf_data, prefetch ON
-  my @lf; { no warnings 'redefine'; my $orig=\&NMISNG::DB::find;
+  my @lf; my $orig=\&NMISNG::DB::find;
+  { no warnings 'redefine';
     *NMISNG::DB::find = sub { my %a=@_; my $n=(ref($a{collection})&&$a{collection}->can("name"))?$a{collection}->name:"$a{collection}"; push @lf,1 if $n=~/latest_data/; return $orig->(@_); }; }
   my $S=NMISNG::Sys->new(nmisng=>$nmisng);
   $S->init(node=>$node,snmp=>1,wmi=>0,catchall_inventory=>$ca);
@@ -142,6 +143,7 @@ use NMISNG::Sys; use NMISNG::Snmp::Mock; use IntfTestHarness;
   my $guard = $nmisng->pit_prefetch_begin(node_uuid => $iuuid);   # 1 latest_data find here
   @lf=();
   $node->collect_intf_data(sys=>$S, catchall_inventory=>$ca);
+  { no warnings 'redefine'; *NMISNG::DB::find = $orig; }   # restore: don't leak the counting wrapper
   ok(scalar(@lf) <= 1, "with prefetch, collect_intf_data issues <=1 latest_data find for $N interfaces (got ".scalar(@lf).")");
   undef $guard;
   ok(!exists $nmisng->{_pit_prefetch}{$iuuid}, "buffer torn down after cycle");
