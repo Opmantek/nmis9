@@ -643,6 +643,9 @@ sub add_timed_data
 		# OMK-12375 write-through: keep the per-cycle prefetch buffer current so a later
 		# same-cycle reader (e.g. thresholds) sees this reading, not the prefetched previous one.
 		# No-op when no buffer is active. Stored shape matches the latest_data find projection.
+		# The stored {time,subconcepts} deliberately shares refs with $timedrecord; this is safe
+		# because the read path (get_newest_timed_data) Clone::clones before returning, and the DB
+		# layer below does not stamp _id/anything into this shared substructure.
 		$self->nmisng->pit_prefetch_store( $self->node_uuid, $self->id,
 			{ time => $timedrecord->{time}, subconcepts => $timedrecord->{subconcepts} } );
 		# get bulk is supplied make sure we have a bulk operation for this timed collection
@@ -722,7 +725,13 @@ sub get_newest_timed_data
 	{
 		# OMK-12375: serve the previous reading from the per-cycle prefetch buffer if active.
 		# Clone so the caller can never mutate the shared buffer entry.
-		my $cached = $self->nmisng->pit_prefetch_lookup( $self->node_uuid, $self->id );
+		# The 'ping' concept is exempt: its latest_data is written out-of-process by the
+		# separate fastping worker (bin/nmisd), which cannot write through to this collect
+		# worker's in-memory buffer. A buffered ping reading would be frozen at collect-start,
+		# so we always do a live find for ping to pick up fastping's newer reading.
+		my $cached = ($self->concept() ne 'ping')
+			? $self->nmisng->pit_prefetch_lookup( $self->node_uuid, $self->id )
+			: undef;
 		if ($cached)
 		{
 			$reading = Clone::clone($cached);

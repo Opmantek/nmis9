@@ -152,5 +152,50 @@ $nmisng->config->{pit_prefetch_enabled} = 1;
   eval { my $g = $nmisng->pit_prefetch_begin(node_uuid => $iuuid); die "boom\n"; };
   ok(!exists $nmisng->{_pit_prefetch}{$iuuid}, "buffer torn down even when scope exits via die");
 }
+
+# --- ping bypass: ping is written out-of-process by fastping, so it must NOT be served
+#     from the buffer (would be stale); other concepts in the same buffer still serve. ---
+{
+  my $puuid = "dddd4444-0000-0000-0000-000000000004";
+  my $node = $nmisng->node(uuid=>$puuid, create=>1);
+  $node->cluster_id($C->{cluster_id}); $node->name("pf_ping");
+  $node->configuration({host=>"127.0.0.1",group=>"NMIS9",active=>1,collect=>1}); $node->save();
+
+  # a ping inventory + an interface inventory, both for this node (so both land in the buffer)
+  my $pp = $node->inventory_path(concept=>"ping", data=>{}, path_keys=>[]);
+  my ($pinginv) = $node->inventory(concept=>"ping", path=>$pp, path_keys=>[], create=>1);
+  $pinginv->data({}); $pinginv->save(node=>$node);
+  $pinginv->add_timed_data(data=>{loss=>0, avg=>5}, derived_data=>{},
+                           subconcept=>"ping", time=>1000, node=>$node);   # value A (buffered)
+
+  my $ip = $node->inventory_path(concept=>"interface", data=>{ifDescr=>"e0"}, path_keys=>["ifDescr"]);
+  my ($intf) = $node->inventory(concept=>"interface", path=>$ip, path_keys=>["ifDescr"], model_class=>"interface", create=>1);
+  $intf->data({index=>1, ifIndex=>1, ifDescr=>"e0"}); $intf->save(node=>$node);
+  $intf->add_timed_data(data=>{ifInOctets=>100}, derived_data=>{},
+                        subconcept=>"interface", time=>1000, node=>$node);
+
+  my $guard = $nmisng->pit_prefetch_begin(node_uuid => $puuid);   # buffer holds ping=A, interface=100
+  is($pinginv->get_newest_timed_data->{data}{ping}{avg}, 5, "buffer seeded ping value A");
+
+  # simulate the out-of-band fastping update: write a NEWER reading straight to latest_data,
+  # bypassing add_timed_data so there is NO write-through to the in-memory buffer.
+  my $upd = NMISNG::DB::update(
+    collection => $nmisng->latest_data_collection,
+    query      => { inventory_id => $pinginv->id },
+    record     => { inventory_id => $pinginv->id, node_uuid => $puuid, time => 2000,
+                    subconcepts => [{subconcept=>"ping", data=>{loss=>50, avg=>99}, derived_data=>{}}] },
+    upsert     => 1 );
+  ok($upd->{success}, "out-of-band fastping write to latest_data ok");
+
+  # ping must bypass the buffer and return the LIVE value B (99), not the buffered A (5)
+  my $pr = $pinginv->get_newest_timed_data;
+  is($pr->{data}{ping}{avg}, 99, "ping read bypasses buffer, returns live fastping value B");
+  is($pr->{time}, 2000, "ping read returns the newer live time, not the buffered time");
+
+  # the interface in the SAME buffer is still served from the buffer (bypass is ping-specific)
+  is($intf->get_newest_timed_data->{data}{interface}{ifInOctets}, 100, "interface still served from buffer (ping bypass is not a blanket disable)");
+  undef $guard;
+}
+
 $nmisng->get_db()->drop();
 done_testing;
