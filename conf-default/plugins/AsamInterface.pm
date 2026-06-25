@@ -46,6 +46,7 @@ my $node;
 my $S;
 my $C;
 my $NG;
+my $node_obj;
 my $NI;
 my $interestingInterfaces = qr/atm Interface/;
 
@@ -59,7 +60,7 @@ my $ignoreAvaibleInterfaces = 1;
 sub update_plugin
 {
 	my (%args) = @_;
-	($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 	$NI               = $S->nmisng_node;
 
 	my $intfData             = undef;
@@ -609,7 +610,7 @@ sub update_plugin
 		}
 
 		# The above has added data to the inventory, that we now save.
-		my ( $op, $subError ) = $inventory->save( node => $node, update => 1 );
+		my ( $op, $subError ) = $inventory->save( node => $node_obj, update => 1 );
 		$NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		if ($subError)
 		{

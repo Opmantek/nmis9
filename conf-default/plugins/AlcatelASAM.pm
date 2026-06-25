@@ -53,6 +53,7 @@ my $node;
 my $S;
 my $C;
 my $NG;
+my $node_obj;
 
 # *****************************************************************************
 # Set this to disable collection on Interfaces set to 'available'.
@@ -64,7 +65,7 @@ my $ignoreAvaibleInterfaces = 1;
 sub update_plugin
 {
 	my (%args) = @_;
-	($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 	my $NI            = $S->nmisng_node;
 
 	my $intfData             = undef;
@@ -346,7 +347,7 @@ sub update_plugin
 				}
 				# The above has added data to the inventory, that we now save.
 				$inventory->data( $customerData );
-				my ( $op, $subError ) = $inventory->save( node => $node );
+				my ( $op, $subError ) = $inventory->save( node => $node_obj );
 				$NG->log->debug2(sub { "Saved ".join(',', @$path)."; op: $op"});
 				if ($subError)
 				{
@@ -505,7 +506,7 @@ sub update_plugin
 			}
 			# The above has added data to the inventory, that we now save.
 			$inventory->data( $atmVclData );
-			my ( $op, $subError ) = $inventory->save( node => $node, update => 1 );
+			my ( $op, $subError ) = $inventory->save( node => $node_obj, update => 1 );
 			$NG->log->debug2(sub { "Saved ".join(',', @$path)."; op: $op"});
 			if ($subError)
 			{
@@ -722,7 +723,7 @@ sub update_plugin
 				}
 				# The above has added data to the inventory, that we now save.
 				$inventory->data( $ifDslamData );
-				my ( $op, $subError ) = $inventory->save( node => $node );
+				my ( $op, $subError ) = $inventory->save( node => $node_obj );
 				$NG->log->debug2(sub { "Saved ".join(',', @$path)."; op: $op"});
 				if ($subError)
 				{

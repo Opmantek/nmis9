@@ -51,7 +51,7 @@ my $changesweremade = 0;
 sub collect_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 	my $intfData = undef;
 	my $intfInfo = undef;
@@ -228,7 +228,7 @@ sub collect_plugin
 			}		
 
 			# The above has added data to the inventory, that we now save.
-			my ( $op, $saveError ) = $inventory->save( node => $node ); # update => 1 not required
+			my ( $op, $saveError ) = $inventory->save( node => $node_obj ); # update => 1 not required
 			$NG->log->debug2(sub { "saved op: $op"});
 			if ($saveError)
 			{

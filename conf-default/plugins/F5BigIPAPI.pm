@@ -61,7 +61,7 @@ our $poolConcept    = "F5_Pools";
 sub collect_plugin
 {
 	my (%args) = @_;
-	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
+	my ($node, $S, $C, $NG, $node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 	# is the node down or is SNMP down?
 	my ($inventory,$error) = $S->inventory(concept => 'catchall');
@@ -180,7 +180,7 @@ sub collect_plugin
 
             # Save the data so it appears in the GUI
             $serv_inventory->data($data); # set changed info
-			my ( $op, $subError ) = $serv_inventory->save( node => $node );
+			my ( $op, $subError ) = $serv_inventory->save( node => $node_obj );
 			if ($subError)
 			{
 				$NG->log->error("Failed to save inventory for Virtual Server '$name'; Error: $subError");
@@ -258,7 +258,7 @@ sub collect_plugin
 						$data->{pktsOut}                    = $f5SubData->{pktsOut};
 						$pool_inventory->data($data); # set changed info
 						# the above will put data into inventory, so save
-						my ( $op, $subError ) = $pool_inventory->save( node => $node );
+						my ( $op, $subError ) = $pool_inventory->save( node => $node_obj );
 						$NG->log->debug( "saved '$poolName' op: $op");
 						if ($subError)
 						{
@@ -285,7 +285,7 @@ sub collect_plugin
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 	# is the node down or is SNMP down?
 	my ($inventory,$error) = $S->inventory(concept => 'catchall');
@@ -410,7 +410,7 @@ sub update_plugin
 													data => $dbname) if ($dbname);
 
 		# the above will put data into inventory, so save
-		my ( $op, $subError ) = $subInventory->save( node => $node, update => 1 );
+		my ( $op, $subError ) = $subInventory->save( node => $node_obj, update => 1 );
 		if ($subError)
 		{
 			$NG->log->error("Failed to save Concept '$virtSvrConcept' inventory for Virtual Server '$name': $subError");
@@ -497,7 +497,7 @@ sub update_plugin
 																	subconcept => $poolConcept,
 																	data => $dbname) if ($dbname);
 					# the above will put data into inventory, so save
-					my ( $op, $subError ) = $subMemberInventory->save( node => $node, update => 1 );
+					my ( $op, $subError ) = $subMemberInventory->save( node => $node_obj, update => 1 );
 					if ($subError)
 					{
 						$NG->log->error("Failed to save '$poolConcept' inventory for Virtual Server Pool '$poolName'; Member '$memberName'; Error: $subError");

@@ -20,7 +20,7 @@ sub update_plugin
 {	
 	my $changesweremade = 0;
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
     $NG->log->info("Running update_plugin ZXR10 for node $node");
     
@@ -85,7 +85,7 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  ($sub_index >> 16) & 0x7FF;
 
 				$inventory->data($data);
-				$inventory->save(node => $node);				
+				$inventory->save(node => $node_obj);
 			}
 		}
 		
@@ -108,7 +108,7 @@ sub update_plugin
 				$data->{'zxAnCardMemUsage'} =  $MemUsage->{$index};
 				$data->{'zxAnCardCpuLoad'} = $CPULoad->{$index};				
 				$inventory->data($data);
-				$inventory->save(node => $node);				
+				$inventory->save(node => $node_obj);
 			}
 		}
 
@@ -132,7 +132,7 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  (( 0 + $sub_index) >> 16) & 0x7FF;
 								
 				$inventory->data($data);
-				$inventory->save(node => $node);				
+				$inventory->save(node => $node_obj);
 			}
 		}
 
@@ -168,7 +168,7 @@ sub update_plugin
 					$data->{zxAnGponSrvOnuLastOfflineTime} = snmp_hex_to_datetime($NG,$data->{zxAnGponSrvOnuLastOfflineTime});								
 				}
 					$inventory->data($data);
-					$inventory->save(node => $node);
+					$inventory->save(node => $node_obj);
 			}
 		}
 

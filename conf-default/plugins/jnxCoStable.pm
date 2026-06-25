@@ -51,7 +51,7 @@ my $deleteCOSForUnmanagedInterfaces = 1;
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 	my $NI              = $S->nmisng_node;
 	my $nodeobj         = $NG->node(name => $node);
@@ -147,7 +147,7 @@ sub update_plugin
 						subconcept => "Juniper_CoS",
 						enabled => 0
 					);
-					my ( $op, $subError ) = $inventory->save( node => $node ); # update not required
+					my ( $op, $subError ) = $inventory->save( node => $node_obj ); # update not required
 					if ($subError)
 					{
 						$NG->log->error("Failed to unmanage inventory for Class of Service Index '$index': $subError");
@@ -183,7 +183,7 @@ sub update_plugin
 			$NG->log->debug2(sub {"jnxCoStable: cosDescription = '$juniperCoSData->{cosDescription}'"});
 			$NG->log->debug("jnxCoStable: update_plugin: Found COS Entry with interface '$juniperCoSData->{IntName}' and '$juniperCoSData->{jnxCosFcName}'.");
 			# The above has added data to the inventory, that we now save.
-			my ( $op, $subError ) = $inventory->save( node => $node ); # update not required
+			my ( $op, $subError ) = $inventory->save( node => $node_obj ); # update not required
 			if ($subError)
 			{
 				$NG->log->error("Failed to save inventory for Class of Service Index '$index': $subError");
