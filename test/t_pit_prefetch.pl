@@ -85,5 +85,30 @@ $nmisng->config->{pit_prefetch_enabled} = 1;
   undef $guard;
 }
 
+# --- write-through: read-after-write returns the NEW reading (thresholds case) ---
+{
+  my $wuuid = "bbbb2222-0000-0000-0000-000000000002";
+  my $node = $nmisng->node(uuid=>$wuuid, create=>1);
+  $node->cluster_id($C->{cluster_id}); $node->name("pf_write");
+  $node->configuration({host=>"127.0.0.1",group=>"NMIS9",active=>1,collect=>1}); $node->save();
+  my $path = $node->inventory_path(concept=>"interface", data=>{ifDescr=>"e1"}, path_keys=>["ifDescr"]);
+  my ($inv) = $node->inventory(concept=>"interface", path=>$path, path_keys=>["ifDescr"], model_class=>"interface", create=>1);
+  $inv->data({index=>1, ifIndex=>1, ifDescr=>"e1"}); $inv->save(node=>$node);
+  # add_timed_data API: singular subconcept scalar + data = that subconcept's metrics hash
+  # (NOT a plural subconcepts array, NOT data keyed by subconcept), no flush for a direct write.
+  $inv->add_timed_data(data=>{ifInOctets=>100}, derived_data=>{},
+                       subconcept=>"interface", time=>1000, node=>$node);  # previous
+
+  my $guard = $nmisng->pit_prefetch_begin(node_uuid => $wuuid);
+  is($inv->get_newest_timed_data->{data}{interface}{ifInOctets}, 100, "buffer holds previous before write-through");
+
+  # new reading this cycle -> write-through must update the buffer in memory
+  $inv->add_timed_data(data=>{ifInOctets=>250}, derived_data=>{},
+                       subconcept=>"interface", time=>2000, node=>$node);
+  is($inv->get_newest_timed_data->{data}{interface}{ifInOctets}, 250, "buffer reflects new reading after write-through (read-after-write)");
+  is($inv->get_newest_timed_data->{time}, 2000, "write-through updated the time too");
+  undef $guard;
+}
+
 $nmisng->get_db()->drop();
 done_testing;

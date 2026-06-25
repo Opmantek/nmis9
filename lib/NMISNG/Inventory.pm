@@ -640,6 +640,11 @@ sub add_timed_data
 		$timedrecord->{subconcepts} = \@subconcepts;
 		delete $timedrecord->{data};
 		delete $timedrecord->{derived_data};
+		# OMK-12375 write-through: keep the per-cycle prefetch buffer current so a later
+		# same-cycle reader (e.g. thresholds) sees this reading, not the prefetched previous one.
+		# No-op when no buffer is active. Stored shape matches the latest_data find projection.
+		$self->nmisng->pit_prefetch_store( $self->node_uuid, $self->id,
+			{ time => $timedrecord->{time}, subconcepts => $timedrecord->{subconcepts} } );
 		# get bulk is supplied make sure we have a bulk operation for this timed collection
 		my $timed_bulk;
 		my $latest_bulk;
