@@ -349,15 +349,17 @@ git commit -m "OMK-12375. get_newest_timed_data serves the previous reading from
   my $path = $node->inventory_path(concept=>"interface", data=>{ifDescr=>"e1"}, path_keys=>["ifDescr"]);
   my ($inv) = $node->inventory(concept=>"interface", path=>$path, path_keys=>["ifDescr"], model_class=>"interface", create=>1);
   $inv->data({index=>1, ifIndex=>1, ifDescr=>"e1"}); $inv->save(node=>$node);
-  $inv->add_timed_data(data=>{interface=>{ifInOctets=>100}}, derived_data=>{interface=>{}},
-                       subconcepts=>["interface"], time=>1000, flush=>1, node=>$node);  # previous
+  # add_timed_data API: singular subconcept scalar + data = that subconcept's metrics hash
+  # (NOT a plural subconcepts array, NOT data keyed by subconcept), no flush for a direct write.
+  $inv->add_timed_data(data=>{ifInOctets=>100}, derived_data=>{},
+                       subconcept=>"interface", time=>1000, node=>$node);  # previous
 
   my $guard = $nmisng->pit_prefetch_begin(node_uuid => $wuuid);
   is($inv->get_newest_timed_data->{data}{interface}{ifInOctets}, 100, "buffer holds previous before write-through");
 
   # new reading this cycle -> write-through must update the buffer in memory
-  $inv->add_timed_data(data=>{interface=>{ifInOctets=>250}}, derived_data=>{interface=>{}},
-                       subconcepts=>["interface"], time=>2000, flush=>1, node=>$node);
+  $inv->add_timed_data(data=>{ifInOctets=>250}, derived_data=>{},
+                       subconcept=>"interface", time=>2000, node=>$node);
   is($inv->get_newest_timed_data->{data}{interface}{ifInOctets}, 250, "buffer reflects new reading after write-through (read-after-write)");
   is($inv->get_newest_timed_data->{time}, 2000, "write-through updated the time too");
   undef $guard;
@@ -449,8 +451,9 @@ use NMISNG::Sys; use NMISNG::Snmp::Mock; use IntfTestHarness;
     $inv->data({index=>$i,ifIndex=>$i,ifDescr=>"if$i",collect=>"true",real=>"true"});
     $inv->data_info(subconcept=>"interface",enabled=>1); $inv->enabled(1); $inv->historic(0); $inv->save(node=>$node);
     # seed a previous latest_data reading per interface (steady-state)
-    $inv->add_timed_data(data=>{interface=>{ifInOctets=>$i}}, derived_data=>{interface=>{}},
-                         subconcepts=>["interface"], time=>1, flush=>1, node=>$node);
+    # add_timed_data API: singular subconcept scalar + data = metrics hash, no flush.
+    $inv->add_timed_data(data=>{ifInOctets=>$i}, derived_data=>{},
+                         subconcept=>"interface", time=>1, node=>$node);
   }
   my $cp=$node->inventory_path(concept=>"catchall",data=>{},path_keys=>[]);
   my ($ca)=$node->inventory(concept=>"catchall",model_class=>"system",path=>$cp,path_keys=>[],create=>1);
