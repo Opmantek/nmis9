@@ -53,5 +53,37 @@ is($g2, undef, "begin returns undef when pit_prefetch_enabled is false");
 ok(!exists $nmisng->{_pit_prefetch}{$node_uuid}, "no buffer created when disabled");
 $nmisng->config->{pit_prefetch_enabled} = 1;
 
+# --- read path: buffer hit returns SAME structure as a live find ---
+{
+  my $ruuid = "aaaa1111-0000-0000-0000-000000000001";
+  my $node = $nmisng->node(uuid=>$ruuid, create=>1);
+  $node->cluster_id($C->{cluster_id}); $node->name("pf_read");
+  $node->configuration({host=>"127.0.0.1",group=>"NMIS9",active=>1,collect=>1}); $node->save();
+  my $path = $node->inventory_path(concept=>"interface", data=>{ifDescr=>"e0"}, path_keys=>["ifDescr"]);
+  my ($inv) = $node->inventory(concept=>"interface", path=>$path, path_keys=>["ifDescr"], model_class=>"interface", create=>1);
+  $inv->data({index=>1, ifIndex=>1, ifDescr=>"e0"}); $inv->save(node=>$node);
+  # write one real latest_data reading via the normal pit path
+  $inv->add_timed_data(data=>{ifInOctets=>100}, derived_data=>{ifInUtil=>10},
+                       subconcept=>"interface", time=>1234, node=>$node);
+
+  my $live = $inv->get_newest_timed_data();          # no buffer -> live find
+  ok($live->{success}, "live read ok");
+  is($live->{data}{interface}{ifInOctets}, 100, "live read has data");
+
+  my $guard = $nmisng->pit_prefetch_begin(node_uuid => $ruuid);
+  my $cached = $inv->get_newest_timed_data();        # buffer active -> served from buffer
+  is_deeply($cached, $live, "buffer hit returns identical structure to live find");
+
+  # mutating the returned cached structure must NOT corrupt the buffer (clone-on-read)
+  $cached->{data}{interface}{ifInOctets} = -1;
+  my $again = $inv->get_newest_timed_data();
+  is($again->{data}{interface}{ifInOctets}, 100, "buffer entry unaffected by caller mutation (clone-on-read)");
+
+  # from_timed bypasses the buffer (reads timed_<concept>)
+  my $ft = $inv->get_newest_timed_data(from_timed => 1);
+  ok($ft->{success}, "from_timed read still works (bypasses buffer)");
+  undef $guard;
+}
+
 $nmisng->get_db()->drop();
 done_testing;

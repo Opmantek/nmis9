@@ -700,35 +700,45 @@ sub get_newest_timed_data
 	# inventory not saved certainly means no pit data, but  that's no error
 	return {success => 1} if ( $self->is_new );
 
-	my $cursor;
+	my $reading;
 	if( $from_timed )
 	{
-		$cursor = NMISNG::DB::find(
+		my $cursor = NMISNG::DB::find(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
 			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
 			limit => 1,
 			sort        => {time => -1},
 			fields_hash => {time => 1, subconcepts => 1}
 		);
+		return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
+		$reading = $cursor->next;
 	}
 	else
 	{
-		$cursor = NMISNG::DB::find(
-			collection => $self->nmisng->latest_data_collection,
-			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
-			fields_hash => {time => 1, subconcepts => 1}
-		);
+		# OMK-12375: serve the previous reading from the per-cycle prefetch buffer if active.
+		# Clone so the caller can never mutate the shared buffer entry.
+		my $cached = $self->nmisng->pit_prefetch_lookup( $self->node_uuid, $self->id );
+		if ($cached)
+		{
+			$reading = Clone::clone($cached);
+		}
+		else
+		{
+			my $cursor = NMISNG::DB::find(
+				collection => $self->nmisng->latest_data_collection,
+				query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
+				fields_hash => {time => 1, subconcepts => 1}
+			);
+			return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
+			$reading = $cursor->next;
+		}
 	}
-	return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
 
-	my $reading = $cursor->next;
 	# new driver doesn't offer cursor->count anymore...
 	return {success => 1} if (!defined $reading);
 
 	# data/derived data are stored for optimal searching (arrays of hashes),
 	# turn them back into hashes (which are much handier for use in perl)
-	# data goes from subconcepts => [{ subconcept=>$,data=>{},derived_data =>{}}]
-	# to  data=>{$subconcept}{...},derived_data=>{$subconcept}{...}}
 	foreach my $entry (@{$reading->{subconcepts}})
 	{
 		$reading->{data}{$entry->{subconcept}} = $entry->{data};
