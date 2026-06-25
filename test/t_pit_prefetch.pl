@@ -110,5 +110,45 @@ $nmisng->config->{pit_prefetch_enabled} = 1;
   undef $guard;
 }
 
+# --- integration: find-count drop, teardown, teardown-on-exception ---
+use NMISNG::Sys; use NMISNG::Snmp::Mock; use IntfTestHarness;
+{
+  my $iuuid = "cccc3333-0000-0000-0000-000000000003";
+  my $node = $nmisng->node(uuid=>$iuuid, create=>1);
+  $node->cluster_id($C->{cluster_id}); $node->name("pf_int");
+  $node->configuration({host=>"127.0.0.1",group=>"NMIS9",active=>1,collect=>1,model=>"Generic"}); $node->save();
+  my $N = 20;
+  for my $i (1..$N) {
+    my $p=$node->inventory_path(concept=>"interface",data=>{ifDescr=>"if$i"},path_keys=>["ifDescr"]);
+    my ($inv)=$node->inventory(concept=>"interface",path=>$p,path_keys=>["ifDescr"],model_class=>"interface",create=>1);
+    $inv->data({index=>$i,ifIndex=>$i,ifDescr=>"if$i",collect=>"true",real=>"true"});
+    $inv->data_info(subconcept=>"interface",enabled=>1); $inv->enabled(1); $inv->historic(0); $inv->save(node=>$node);
+    # seed a previous latest_data reading per interface (steady-state)
+    # add_timed_data API: singular subconcept scalar + data = metrics hash, no flush.
+    $inv->add_timed_data(data=>{ifInOctets=>$i}, derived_data=>{},
+                         subconcept=>"interface", time=>1, node=>$node);
+  }
+  my $cp=$node->inventory_path(concept=>"catchall",data=>{},path_keys=>[]);
+  my ($ca)=$node->inventory(concept=>"catchall",model_class=>"system",path=>$cp,path_keys=>[],create=>1);
+  $ca->data_live->{ifNumber}=$N; $ca->save(node=>$node);
+
+  # count latest_data finds during collect_intf_data, prefetch ON
+  my @lf; { no warnings 'redefine'; my $orig=\&NMISNG::DB::find;
+    *NMISNG::DB::find = sub { my %a=@_; my $n=(ref($a{collection})&&$a{collection}->can("name"))?$a{collection}->name:"$a{collection}"; push @lf,1 if $n=~/latest_data/; return $orig->(@_); }; }
+  my $S=NMISNG::Sys->new(nmisng=>$nmisng);
+  $S->init(node=>$node,snmp=>1,wmi=>0,catchall_inventory=>$ca);
+  $S->{snmp}=NMISNG::Snmp::Mock->new(nmisng=>$nmisng,name=>$node->name,walk_data=>IntfTestHarness::generate_interface_walk(count=>$N));
+  $S->{snmp}{session}=1;
+  my $guard = $nmisng->pit_prefetch_begin(node_uuid => $iuuid);   # 1 latest_data find here
+  @lf=();
+  $node->collect_intf_data(sys=>$S, catchall_inventory=>$ca);
+  ok(scalar(@lf) <= 1, "with prefetch, collect_intf_data issues <=1 latest_data find for $N interfaces (got ".scalar(@lf).")");
+  undef $guard;
+  ok(!exists $nmisng->{_pit_prefetch}{$iuuid}, "buffer torn down after cycle");
+
+  # teardown on exception
+  eval { my $g = $nmisng->pit_prefetch_begin(node_uuid => $iuuid); die "boom\n"; };
+  ok(!exists $nmisng->{_pit_prefetch}{$iuuid}, "buffer torn down even when scope exits via die");
+}
 $nmisng->get_db()->drop();
 done_testing;

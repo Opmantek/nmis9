@@ -7206,8 +7206,11 @@ sub update
 		$self->nmisng->log->$severity("skipping update for node $name: active $lock->{type} lock held by $lock->{conflict}");
 		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
-	
-	# update will always force dashnode to be regenerated so old things can be removed 
+
+	# OMK-12375: prefetch this node's latest_data once; guard tears down on scope exit.
+	my $pit_guard = $self->nmisng->pit_prefetch_begin(node_uuid => $self->uuid);
+
+	# update will always force dashnode to be regenerated so old things can be removed
 	# because mongo auto expire won't work in the file
 	$self->load_dashnode_data(op => "update", force => 1);
 
@@ -9452,6 +9455,10 @@ sub collect
 		$self->nmisng->log->$severity("skipping collect for node $name: active $lock->{type} lock held by $lock->{conflict}");
 		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
+
+	# OMK-12375: prefetch this node's latest_data once; $pit_guard tears the buffer down
+	# on scope exit (normal return OR exception), capping the worker memory high-water.
+	my $pit_guard = $self->nmisng->pit_prefetch_begin(node_uuid => $self->uuid);
 
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
 	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => "system" );
