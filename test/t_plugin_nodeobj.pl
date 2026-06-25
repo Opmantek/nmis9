@@ -4,7 +4,7 @@ use strict; use warnings;
 use FindBin; use lib "$FindBin::Bin/lib"; use lib "$FindBin::Bin/../lib";
 use Test::More;
 use NMISNG; use NMISNG::Util; use NMISNG::Log; use NMISNG::DB; use NMISNG::Sys;
-use Compat::NMIS;
+use Compat::NMIS;  # required: collect() calls Compat::NMIS::notify internally
 
 my $C = NMISNG::Util::loadConfTable();
 $C->{db_name} = "t_plugnodeobj-$$";
@@ -60,7 +60,7 @@ $nmisng->{_plugins} = ['NodeObjProbe'];   # short-circuits NMISNG::plugins() (it
 my $cp = $node->inventory_path(concept=>"catchall", data=>{}, path_keys=>[]);
 my ($catchall_inv, $cerr) = $node->inventory(concept=>"catchall", model_class=>"system",
                                               path=>$cp, path_keys=>[], create=>1);
-die "Could not create catchall: $cerr" if $cerr;
+BAIL_OUT("setup failed: could not create catchall inventory: $cerr") if $cerr;
 my $cdata = $catchall_inv->data_live();
 $cdata->{nodedown}   = "false";
 $cdata->{snmpdown}   = "false";
@@ -79,5 +79,8 @@ ok(defined $NodeObjProbe::SEEN{node_obj}, "collect_plugin received a node_obj ar
 is(ref($NodeObjProbe::SEEN{node_obj}), "NMISNG::Node", "node_obj is an NMISNG::Node object");
 is($NodeObjProbe::SEEN{node}, $node->name, "node argument is still the name string (back-compat)");
 $nmisng->{_plugins} = undef;
+
+# drop the temp db so repeated runs (Tasks 2-5) start clean (idiom from test/t_nmisng.pl)
+$nmisng->get_db()->drop();
 
 done_testing;
