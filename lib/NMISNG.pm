@@ -52,6 +52,7 @@ use Archive::Zip 1.36;					# for dump()/undump()
 
 use NMISNG::DB;
 use NMISNG::Events;
+use NMISNG::Guard;
 use NMISNG::Status;
 use NMISNG::Log;
 use NMISNG::ModelData;
