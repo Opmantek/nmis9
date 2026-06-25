@@ -83,4 +83,19 @@ $nmisng->{_plugins} = undef;
 # drop the temp db so repeated runs (Tasks 2-5) start clean (idiom from test/t_nmisng.pl)
 $nmisng->get_db()->drop();
 
+# STATIC GUARD: after the fixups, no in-tree plugin may pass the bare $node name string to save,
+# nor re-resolve the current node with node(name => $node). \$node\b does not match \$node_obj.
+{
+  my $dir = "$FindBin::Bin/../conf-default/plugins";
+  for my $file (sort glob("$dir/*.pm")) {
+    open my $fh, "<", $file or next;
+    local $/; my $src = <$fh>; close $fh;
+    my $base = $file; $base =~ s{.*/}{};
+    ok($src !~ /->\s*save\s*\(\s*node\s*=>\s*\$node\b/,
+       "$base: no save(node => \$node) with the bare name string");
+    ok($src !~ /->\s*node\s*\(\s*name\s*=>\s*\$node\b/,
+       "$base: no \$NG->node(name => \$node) re-resolve of the current node");
+  }
+}
+
 done_testing;
