@@ -41,7 +41,7 @@ sub update_plugin
 	my (%args) = @_;
 	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
-	my $nodeobj = $node_obj;
+	my $nodeobj = $node_obj // $S->nmisng_node;
 	my $IF = $nodeobj->ifinfo;
 
 	my $changesweremade = 0;

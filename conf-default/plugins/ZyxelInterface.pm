@@ -56,7 +56,7 @@ sub update_plugin
 
 
 	my $NI = $S->nmisng_node;
-	my $nodeobj = $node_obj;
+	my $nodeobj = $node_obj // $S->nmisng_node;
 	my $NC = $nodeobj->configuration;
 	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
 	my $IFT = NMISNG::Util::loadTable(dir => "conf", name => "ifTypes", conf => $C);

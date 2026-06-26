@@ -21,7 +21,7 @@ sub getTeldatInventory {
 	my ($node,$S,$C,$NG,$section,$thissection,$node_obj) = @args{qw(node sys config nmisng section thissection node_obj)};
 	$NG->log->info("Running getTeldatInventory RS420 for node $node");
 
-	my $nodeobj = $node_obj;
+	my $nodeobj = $node_obj // $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $IF = $nodeobj->ifinfo;	
@@ -130,7 +130,7 @@ sub update_plugin
     $NG->log->info("Running update_plugin RS420 for node $node");
 
 	#my $S = NMISNG::Sys->new(nmisng => $NG);
-	my $nodeobj = $node_obj;
+	my $nodeobj = $node_obj // $S->nmisng_node;
 	#$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 

@@ -82,7 +82,7 @@ sub collect_plugin
 
 	my $changesweremade = 0;
 
-	my $nodeobj = $node_obj;
+	my $nodeobj = $node_obj // $S->nmisng_node;
 
 	$NG->log->info("Working on '$node' getting API data now");
 	my ($errmsg, $f5Data, $f5Info) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);
@@ -305,7 +305,7 @@ sub update_plugin
 	}
 
 	my $changesweremade = 0;
-	my $nodeobj         = $node_obj;
+	my $nodeobj         = $node_obj // $S->nmisng_node;
 
 	$NG->log->info("Working on '$node'");
 	my ($errmsg, $f5Data, $f5Info) = getF5Data(deviceName => $node, NG => $NG, C => $C, nodeObj => $nodeobj);

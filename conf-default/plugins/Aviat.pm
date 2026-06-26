@@ -50,7 +50,7 @@ sub update_plugin
 	my $concept = 'ifTable';
 	my $inventory_data_key = 'index';
 
-    my $nodeobj = $node_obj;
+    my $nodeobj = $node_obj // $S->nmisng_node;
     my $inv = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $inv->data;
 

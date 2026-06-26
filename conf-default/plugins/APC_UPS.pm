@@ -64,7 +64,7 @@ sub collect_plugin
 
 	return (0,undef) if ($S->{mdl}->{system}->{nodeModel} ne "APC-ups" or !NMISNG::Util::getbool($catchall->{collect}));
 	my $changesweremade = 0;
-	my $nodeobj        = $node_obj;
+	my $nodeobj        = $node_obj // $S->nmisng_node;
 	my $NC             = $nodeobj->configuration;
 	my $upsAdvBatteryReplaceIndicator  = ".1.3.6.1.4.1.318.1.1.1.2.2.4.0";
 	my $upsBasicBatteryLastReplaceDate = ".1.3.6.1.4.1.318.1.1.1.2.1.3.0";

@@ -80,6 +80,17 @@ is(ref($NodeObjProbe::SEEN{node_obj}), "NMISNG::Node", "node_obj is an NMISNG::N
 is($NodeObjProbe::SEEN{node}, $node->name, "node argument is still the name string (back-compat)");
 $nmisng->{_plugins} = undef;
 
+# BACK-COMPAT: a converted plugin invoked with the OLD documented args (node/sys/config/nmisng,
+# WITHOUT node_obj) must still resolve the current node via $S->nmisng_node (find-free) and not die
+# on the node-object deref. AdtranInterface derefs $nodeobj->configuration immediately, then returns
+# early for the non-Adtran test node. Before the `// $S->nmisng_node` fallback this died on undef.
+{
+  require "$FindBin::Bin/../conf-default/plugins/AdtranInterface.pm";
+  eval { AdtranInterface::update_plugin(
+      node => $node->name, sys => $S, config => $C, nmisng => $nmisng ); };  # deliberately no node_obj
+  is($@, '', "converted plugin runs with old args (no node_obj) via \$S->nmisng_node fallback");
+}
+
 # drop the temp db so repeated runs (Tasks 2-5) start clean (idiom from test/t_nmisng.pl)
 $nmisng->get_db()->drop();
 
