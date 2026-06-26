@@ -18,10 +18,10 @@ use Net::SNMP qw(oid_lex_sort);
 sub getTeldatInventory {
 
 	my (%args) = @_;
-	my ($node,$S,$C,$NG,$section,$thissection) = @args{qw(node sys config nmisng section thissection)};
+	my ($node,$S,$C,$NG,$section,$thissection,$node_obj) = @args{qw(node sys config nmisng section thissection node_obj)};
 	$NG->log->info("Running getTeldatInventory RS420 for node $node");
 
-	my $nodeobj = $NG->node(name => $node);
+	my $nodeobj = $node_obj;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $IF = $nodeobj->ifinfo;	
@@ -125,12 +125,12 @@ sub update_plugin
 {	
 	my $changesweremade = 0;
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
     $NG->log->info("Running update_plugin RS420 for node $node");
-    
+
 	#my $S = NMISNG::Sys->new(nmisng => $NG);
-	my $nodeobj = $NG->node(name => $node);
+	my $nodeobj = $node_obj;
 	#$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 

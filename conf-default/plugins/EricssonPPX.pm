@@ -56,7 +56,7 @@ sub collect_plugin
 	my $intfData = undef;
 	my $intfInfo = undef;
 
-	my $nodeobj    = $NG->node(name => $node);
+	my $nodeobj    = $node_obj;
 	my %nodeconfig = %{$S->nmisng_node->configuration};
 	my $NC         = $nodeobj->configuration;
 	my $catchall   = $S->inventory( concept => 'catchall' )->data_live();

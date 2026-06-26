@@ -59,12 +59,12 @@ use NMISNG::Snmp;
 sub collect_plugin
 {
 	my (%args) = @_;
-	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
+	my ($node, $S, $C, $NG, $node_obj) = @args{qw(node sys config nmisng node_obj)};
 	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
-	
+
 	return (0,undef) if ($S->{mdl}->{system}->{nodeModel} ne "APC-ups" or !NMISNG::Util::getbool($catchall->{collect}));
 	my $changesweremade = 0;
-	my $nodeobj        = $NG->node(name => $node);
+	my $nodeobj        = $node_obj;
 	my $NC             = $nodeobj->configuration;
 	my $upsAdvBatteryReplaceIndicator  = ".1.3.6.1.4.1.318.1.1.1.2.2.4.0";
 	my $upsBasicBatteryLastReplaceDate = ".1.3.6.1.4.1.318.1.1.1.2.1.3.0";

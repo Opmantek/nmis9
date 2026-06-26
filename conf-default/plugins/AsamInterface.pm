@@ -79,7 +79,7 @@ sub update_plugin
 
 	$NG->log->debug("Max Interfaces are: '$interface_max_number'");
 
-	my $nodeobj    = $NG->node(name => $node);
+	my $nodeobj    = $node_obj;
 	my $NC         = $nodeobj->configuration;
 	my $catchall   = $S->inventory( concept => 'catchall' )->data_live();
 	my %nodeconfig = %{$S->nmisng_node->configuration};

@@ -25,11 +25,11 @@ sub update_plugin
     $NG->log->info("Running update_plugin ZXR10 for node $node");
     
 	#my $S = NMISNG::Sys->new(nmisng => $NG);
-	my $nodeobj = $NG->node(name => $node);
+	my $nodeobj = $node_obj;
 	#$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
-	my $IF = $nodeobj->ifinfo;	
+	my $IF = $nodeobj->ifinfo;
 	my $MDL = $S->mdl;
             
 	my $NC = $nodeobj->configuration;

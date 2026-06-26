@@ -50,7 +50,7 @@ sub update_plugin
 	my $concept = 'ifTable';
 	my $inventory_data_key = 'index';
 
-    my $nodeobj = $NG->node(name => $node);
+    my $nodeobj = $node_obj;
     my $inv = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $inv->data;
 

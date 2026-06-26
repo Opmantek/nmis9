@@ -52,7 +52,7 @@ sub update_plugin
 
 	$NG->log->info("$plugin:$sub: Running for node $node");
 
-    my $nodeobj = $NG->node(name => $node);
+    my $nodeobj = $node_obj;
     my $inv = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $inv->data;
 

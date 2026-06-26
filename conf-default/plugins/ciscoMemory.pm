@@ -134,7 +134,7 @@ sub collect_plugin
 	my $intfInfo = undef;
 
 	my $NI       = $S->nmisng_node;
-	my $nodeobj  = $NG->node(name => $node);
+	my $nodeobj  = $node_obj;
 	my $NC       = $nodeobj->configuration;
 	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall = $catchall_inventory->data_live();
