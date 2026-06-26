@@ -15,7 +15,10 @@ my $nodename = $ENV{NMIS_REALNODE};
 plan skip_all => "real-node acceptance measurement; set NMIS_REALNODE=<nodename> to run"
 	unless $nodename;
 
-use NMISNG; use NMISNG::Util; use NMISNG::Log; use NMISNG::DB; use Compat::NMIS;
+# Loaded only when opted in. These pull the full NMIS stack (and deps such as boolean.pm),
+# so we require() them AFTER the skip above — a compile-time `use` would load them before the
+# skip can fire and break the default skip where those deps are absent (e.g. broad prove runs).
+require NMISNG; require NMISNG::Util; require NMISNG::Log; require NMISNG::DB; require Compat::NMIS;
 
 my $C = NMISNG::Util::loadConfTable();
 my $nmisng = NMISNG->new(config=>$C, log=>NMISNG::Log->new(level=>'error'));
