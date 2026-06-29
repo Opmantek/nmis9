@@ -1,14 +1,33 @@
 #!/usr/bin/perl
-# Tests for the per-node latest_data prefetch buffer (OMK-12375).
+# Tests for the per-node latest_data prefetch buffer (OMK-12668).
 use strict; use warnings;
 use FindBin; use lib "$FindBin::Bin/lib"; use lib "$FindBin::Bin/../lib";
 use Test::More;
 use NMISNG; use NMISNG::Util; use NMISNG::Log; use NMISNG::DB;
-use NMISNG::Sys; use NMISNG::Snmp::Mock; use IntfTestHarness;
+use NMISNG::Sys; use NMISNG::Snmp::Mock;
 
 my $C = NMISNG::Util::loadConfTable();
 $C->{db_name} = "t_pitpf-$$";
 my $nmisng = NMISNG->new(config=>$C, log=>NMISNG::Log->new(level=>'error'));
+
+# Self-contained interface SNMP walk for the integration block below. Inlined (was
+# IntfTestHarness::generate_interface_walk) so this prefetch test does not depend on the
+# collect-intf branch's harness, letting OMK-12668 stand alone on nmis9_dev.
+sub _iface_walk {
+  my $n = shift;
+  my %w = ('1.3.6.1.2.1.2.1.0' => $n);
+  for my $i (1..$n) {
+    $w{"1.3.6.1.2.1.2.2.1.1.$i"} = $i;
+    $w{"1.3.6.1.2.1.2.2.1.2.$i"} = "GigabitEthernet0/$i";
+    $w{"1.3.6.1.2.1.2.2.1.3.$i"} = 6;
+    $w{"1.3.6.1.2.1.2.2.1.5.$i"} = 1000000000;
+    $w{"1.3.6.1.2.1.2.2.1.6.$i"} = sprintf("00 11 22 %02x %02x %02x", ($i>>16)&255, ($i>>8)&255, $i&255);
+    $w{"1.3.6.1.2.1.2.2.1.7.$i"} = 1;
+    $w{"1.3.6.1.2.1.2.2.1.8.$i"} = 1;
+    $w{"1.3.6.1.2.1.2.2.1.9.$i"} = 500;
+  }
+  return \%w;
+}
 
 # --- _pit_oid_str consistency ---
 {
@@ -182,7 +201,7 @@ $nmisng->config->{pit_prefetch_enabled} = 1;
     *NMISNG::DB::find = sub { my %a=@_; my $n=(ref($a{collection})&&$a{collection}->can("name"))?$a{collection}->name:"$a{collection}"; push @lf,1 if $n=~/latest_data/; return $orig->(@_); }; }
   my $S=NMISNG::Sys->new(nmisng=>$nmisng);
   $S->init(node=>$node,snmp=>1,wmi=>0,catchall_inventory=>$ca);
-  $S->{snmp}=NMISNG::Snmp::Mock->new(nmisng=>$nmisng,name=>$node->name,walk_data=>IntfTestHarness::generate_interface_walk(count=>$N));
+  $S->{snmp}=NMISNG::Snmp::Mock->new(nmisng=>$nmisng,name=>$node->name,walk_data=>_iface_walk($N));
   $S->{snmp}{session}=1;
   my $guard = $nmisng->pit_prefetch_begin(node_uuid => $iuuid);   # 1 latest_data find here
   @lf=();
