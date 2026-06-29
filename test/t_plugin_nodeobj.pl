@@ -96,6 +96,9 @@ $nmisng->get_db()->drop();
 
 # STATIC GUARD: after the fixups, no in-tree plugin may pass the bare $node name string to save,
 # nor re-resolve the current node with node(name => $node). \$node\b does not match \$node_obj.
+# Saves must also use the fallback-resolved $nodeobj (= $node_obj // $S->nmisng_node), not the
+# raw $node_obj argument: an old-style caller that omits node_obj would otherwise pass undef and
+# force Inventory::save to re-resolve the node from MongoDB, defeating the whole optimization.
 {
   my $dir = "$FindBin::Bin/../conf-default/plugins";
   for my $file (sort glob("$dir/*.pm")) {
@@ -106,6 +109,8 @@ $nmisng->get_db()->drop();
        "$base: no save(node => \$node) with the bare name string");
     ok($src !~ /->\s*node\s*\(\s*name\s*=>\s*\$node\b/,
        "$base: no \$NG->node(name => \$node) re-resolve of the current node");
+    ok($src !~ /->\s*save\s*\(\s*node\s*=>\s*\$node_obj\b/,
+       "$base: no save(node => \$node_obj) raw arg; use the \$nodeobj fallback");
   }
 }
 

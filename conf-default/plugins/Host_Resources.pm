@@ -43,6 +43,7 @@ sub collect_plugin
 {
 	my (%args) = @_;
 	my ($node, $S, $C, $NG, $node_obj) = @args{qw(node sys config nmisng node_obj)};
+	my $nodeobj = $node_obj // $S->nmisng_node;
 
 	# is the node down or is SNMP down?
 	my ($inventory,$error) = $S->inventory(concept => 'catchall');
@@ -260,7 +261,7 @@ sub collect_plugin
 				
 				# Save the data				
 	            $host_inventory->data($data); # set changed info
-	            (undef,$error) = $host_inventory->save( node => $node_obj ); # and save to the db
+	            (undef,$error) = $host_inventory->save( node => $nodeobj ); # and save to the db
 	            $NG->log->error("Failed to save inventory for ".$data->{hrStorageTypeName}. " : $error")
                 if ($error);
 		}
@@ -311,6 +312,7 @@ sub update_plugin
 {
 	my (%args) = @_;
 	my ($node, $S, $C, $NG, $node_obj) = @args{qw(node sys config nmisng node_obj)};
+	my $nodeobj = $node_obj // $S->nmisng_node;
 
 	# anything to do?
 	my $changesweremade = 0;
@@ -361,7 +363,7 @@ sub update_plugin
 				$changesweremade = 1;
                 # Save the data
                 $host_inventory->data($data); # set changed info
-                (undef,$error) = $host_inventory->save(node => $node_obj); # and save to the db
+                (undef,$error) = $host_inventory->save(node => $nodeobj); # and save to the db
                 $NG->log->error("Failed to save inventory for ".$data->{index}. " : $error")
                         if ($error);
 			}
@@ -429,7 +431,7 @@ sub update_plugin
             
             if ($changed) {
                 $host_inventory->data($data); # set changed info
-                (undef,$error) = $host_inventory->save(node => $node_obj); # and save to the db, update not required
+                (undef,$error) = $host_inventory->save(node => $nodeobj); # and save to the db, update not required
                 $NG->log->error("Failed to save inventory for ".$data->{index}. " : $error")
                         if ($error);
             }
@@ -472,7 +474,7 @@ sub update_plugin
 				$changesweremade = 1;
 
                 $host_inventory->data($data); # set changed info
-                (undef,$error) = $host_inventory->save(node => $node_obj); # and save to the db, update not required
+                (undef,$error) = $host_inventory->save(node => $nodeobj); # and save to the db, update not required
                 $NG->log->error("Failed to save inventory for ".$data->{index}. " : $error")
                         if ($error);
 
@@ -486,7 +488,7 @@ sub update_plugin
                 my $data_hs = $host_inventory_d->data();
                 $data_hs->{hrPartitionLabel} = $data->{hrPartitionLabel};
                 $host_inventory_d->data($data_hs); # set changed info
-                (undef,$error) = $host_inventory_d->save(node => $node_obj); # and save to the db, update not required
+                (undef,$error) = $host_inventory_d->save(node => $nodeobj); # and save to the db, update not required
                 $NG->log->error("Failed to save inventory for ".$data_hs->{$hrFSStorageIndex}. " : $error")
                         if ($error);
 			}

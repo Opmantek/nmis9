@@ -85,7 +85,7 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  ($sub_index >> 16) & 0x7FF;
 
 				$inventory->data($data);
-				$inventory->save(node => $node_obj);
+				$inventory->save(node => $nodeobj);
 			}
 		}
 		
@@ -108,7 +108,7 @@ sub update_plugin
 				$data->{'zxAnCardMemUsage'} =  $MemUsage->{$index};
 				$data->{'zxAnCardCpuLoad'} = $CPULoad->{$index};				
 				$inventory->data($data);
-				$inventory->save(node => $node_obj);
+				$inventory->save(node => $nodeobj);
 			}
 		}
 
@@ -132,7 +132,7 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  (( 0 + $sub_index) >> 16) & 0x7FF;
 								
 				$inventory->data($data);
-				$inventory->save(node => $node_obj);
+				$inventory->save(node => $nodeobj);
 			}
 		}
 
@@ -168,7 +168,7 @@ sub update_plugin
 					$data->{zxAnGponSrvOnuLastOfflineTime} = snmp_hex_to_datetime($NG,$data->{zxAnGponSrvOnuLastOfflineTime});								
 				}
 					$inventory->data($data);
-					$inventory->save(node => $node_obj);
+					$inventory->save(node => $nodeobj);
 			}
 		}
 
