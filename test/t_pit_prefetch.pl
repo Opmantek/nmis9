@@ -47,11 +47,24 @@ NMISNG::DB::insert(collection => $nmisng->latest_data_collection,
 }
 ok(!exists $nmisng->{_pit_prefetch}{$node_uuid}, "guard teardown removed the node buffer");
 
-# --- kill switch: flag off => undef, no buffer ---
-$nmisng->config->{pit_prefetch_enabled} = 0;
-my $g2 = $nmisng->pit_prefetch_begin(node_uuid => $node_uuid);
-is($g2, undef, "begin returns undef when pit_prefetch_enabled is false");
-ok(!exists $nmisng->{_pit_prefetch}{$node_uuid}, "no buffer created when disabled");
+# --- kill switch: parsed as an NMIS boolean (getbool), not raw Perl truthiness ---
+# the string "false" is TRUTHY in Perl, so a raw `// 1` check would leave it enabled.
+for my $off (0, "0", "false", "no", "f", "") {
+  $nmisng->config->{pit_prefetch_enabled} = $off;
+  is($nmisng->pit_prefetch_begin(node_uuid => $node_uuid), undef,
+     "begin disabled when pit_prefetch_enabled='$off'");
+  ok(!exists $nmisng->{_pit_prefetch}{$node_uuid}, "no buffer created when disabled ('$off')");
+}
+for my $on (1, "1", "true", "yes", "t") {
+  $nmisng->config->{pit_prefetch_enabled} = $on;
+  my $g = $nmisng->pit_prefetch_begin(node_uuid => $node_uuid);
+  isa_ok($g, "NMISNG::Guard", "begin enabled when pit_prefetch_enabled='$on'");
+  undef $g;
+}
+delete $nmisng->config->{pit_prefetch_enabled};
+my $gdef = $nmisng->pit_prefetch_begin(node_uuid => $node_uuid);
+isa_ok($gdef, "NMISNG::Guard", "begin defaults ON when pit_prefetch_enabled unset");
+undef $gdef;
 $nmisng->config->{pit_prefetch_enabled} = 1;
 
 # --- read path: buffer hit returns SAME structure as a live find ---
@@ -108,6 +121,37 @@ $nmisng->config->{pit_prefetch_enabled} = 1;
                        subconcept=>"interface", time=>2000, node=>$node);
   is($inv->get_newest_timed_data->{data}{interface}{ifInOctets}, 250, "buffer reflects new reading after write-through (read-after-write)");
   is($inv->get_newest_timed_data->{time}, 2000, "write-through updated the time too");
+  undef $guard;
+}
+
+# --- write-through must NOT update the buffer when the DB write fails (store runs post-commit) ---
+{
+  my $fuuid = "eeee5555-0000-0000-0000-000000000005";
+  my $node = $nmisng->node(uuid=>$fuuid, create=>1);
+  $node->cluster_id($C->{cluster_id}); $node->name("pf_failwrite");
+  $node->configuration({host=>"127.0.0.1",group=>"NMIS9",active=>1,collect=>1}); $node->save();
+  my $path = $node->inventory_path(concept=>"interface", data=>{ifDescr=>"e2"}, path_keys=>["ifDescr"]);
+  my ($inv) = $node->inventory(concept=>"interface", path=>$path, path_keys=>["ifDescr"], model_class=>"interface", create=>1);
+  $inv->data({index=>1, ifIndex=>1, ifDescr=>"e2"}); $inv->save(node=>$node);
+  $inv->add_timed_data(data=>{ifInOctets=>100}, derived_data=>{},
+                       subconcept=>"interface", time=>1000, node=>$node);  # committed previous
+
+  my $guard = $nmisng->pit_prefetch_begin(node_uuid => $fuuid);
+  is($inv->get_newest_timed_data->{data}{interface}{ifInOctets}, 100, "buffer holds committed reading before the failing write");
+
+  # force the latest_data upsert to fail; with the store placed post-commit it must NOT run
+  my $orig = \&NMISNG::DB::update;
+  my $err;
+  { no warnings 'redefine';
+    *NMISNG::DB::update = sub { return { success => 0, error => "boom" }; };
+    $err = $inv->add_timed_data(data=>{ifInOctets=>999}, derived_data=>{},
+                                subconcept=>"interface", time=>2000, node=>$node);
+    *NMISNG::DB::update = $orig;   # restore: don't leak the failing stub
+  }
+  ok($err, "add_timed_data returns an error when the latest_data write fails (got: ".($err//'undef').")");
+  my $after = $inv->get_newest_timed_data;
+  is($after->{data}{interface}{ifInOctets}, 100, "buffer NOT updated after failed write (stays at committed reading)");
+  is($after->{time}, 1000, "buffer time NOT advanced after failed write");
   undef $guard;
 }
 

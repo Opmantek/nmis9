@@ -92,7 +92,7 @@ bulked and flushed later. Buffer absent => no-op.
 
 - **The read-after-write (thresholds):** `collect_intf_data:4449` reads each interface's previous
   reading BEFORE that interface's `save` (so before write-through updates the buffer) => it gets the
-  previous value. `compute_thresholds` (collect:9707, via applyThresholdToInventory -> 
+  previous value. `compute_thresholds` (collect:9707, via applyThresholdToInventory ->
   get_newest_timed_data, NMISNG.pm:224) runs AFTER the interface was saved => the buffer holds the
   current reading via write-through. Both correct, order-independent. This mirrors the behaviour
   already verified for the bulk-save path: end_bulk (collect_intf_data:4526, synchronous

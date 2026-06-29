@@ -6216,7 +6216,7 @@ sub pit_prefetch_begin
 	my ($self, %args) = @_;
 	my $node_uuid = $args{node_uuid};
 	return undef if (!$node_uuid);
-	return undef if (!($self->config->{pit_prefetch_enabled} // 1));   # kill switch, default on
+	return undef if (!NMISNG::Util::getbool($self->config->{pit_prefetch_enabled} // 1));   # kill switch, default on (NMIS boolean: "false"/"0"/0 disable)
 
 	my $cursor = NMISNG::DB::find(
 		collection  => $self->latest_data_collection,

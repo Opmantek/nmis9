@@ -640,14 +640,6 @@ sub add_timed_data
 		$timedrecord->{subconcepts} = \@subconcepts;
 		delete $timedrecord->{data};
 		delete $timedrecord->{derived_data};
-		# OMK-12375 write-through: keep the per-cycle prefetch buffer current so a later
-		# same-cycle reader (e.g. thresholds) sees this reading, not the prefetched previous one.
-		# No-op when no buffer is active. Stored shape matches the latest_data find projection.
-		# The stored {time,subconcepts} deliberately shares refs with $timedrecord; this is safe
-		# because the read path (get_newest_timed_data) Clone::clones before returning, and the DB
-		# layer below does not stamp _id/anything into this shared substructure.
-		$self->nmisng->pit_prefetch_store( $self->node_uuid, $self->id,
-			{ time => $timedrecord->{time}, subconcepts => $timedrecord->{subconcepts} } );
 		# get bulk is supplied make sure we have a bulk operation for this timed collection
 		my $timed_bulk;
 		my $latest_bulk;
@@ -681,6 +673,21 @@ sub add_timed_data
 			bulk   => $latest_bulk
 		);
 		return "failed to upsert data record: $dbres->{error}" if ( !$dbres->{success} );
+
+		# OMK-12375 write-through: keep the per-cycle prefetch buffer current so a later same-cycle
+		# reader (e.g. thresholds) sees this reading, not the prefetched previous one. Placed AFTER
+		# the timed insert and latest_data upsert have reported success: a failed write returns
+		# earlier (above), leaving the buffer at the last committed reading, identical to
+		# prefetch-off. No-op when no buffer is active. Stored shape matches the latest_data find
+		# projection. The stored {time,subconcepts} deliberately shares refs with $timedrecord; this
+		# is safe because the read path (get_newest_timed_data) Clone::clones before returning, and
+		# the DB layer does not stamp _id into this substructure.
+		# NOTE: on the bulk path the upsert above only ENQUEUES (reporting success on enqueue); if a
+		# later bulk flush fails, the buffer can hold a reading the DB never committed. That residual
+		# window equals the pre-existing "bulk flush failed = cycle data lost" state and cannot be
+		# closed here, since the flush runs in the caller.
+		$self->nmisng->pit_prefetch_store( $self->node_uuid, $self->id,
+			{ time => $timedrecord->{time}, subconcepts => $timedrecord->{subconcepts} } );
 
 		# if the datasets were modified they need to be saved, only if we're not flushing
 		# which should only come from save (so don't start a recursive loop)
