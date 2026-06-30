@@ -209,5 +209,114 @@ is($nmisng->event_prefetch_active($TUUID), 0, "raise->read: buffer torn down");
   $nmisng->config->{non_stateful_events} = $saved_nse;
 }
 
+# ---------------------------------------------------------------------------
+# Task 6: Adversarial cross-process tests (OMK-12677).
+# Each test simulates an out-of-cycle process by writing DIRECTLY to the
+# events collection via NMISNG::DB primitives (bypassing the buffer and its
+# write-through), then confirms eventExist returns the DOCUMENTED outcome.
+#
+# ensure_indexes primes the unique partial index on events
+# (node_uuid,event,element where historic<=0). NMISNG->new does NOT call it;
+# nmisd does. The per-PID test DB needs it primed explicitly for xp3.
+$nmisng->ensure_indexes();
+
+my $X1 = "cccccccc-0000-0000-0000-000000000001";  # uuid for cross-process tests
+my $xnode = T5::Node->new($X1);
+
+# Cross-process test 1: exempt class tracks the DB despite the buffer (M1/M2).
+# External process raises Node Down directly into the DB while the buffer is
+# active. eventExist must return 1 (exempt -> live read -> sees the external
+# raise). Then the external process clears it (sets active=0); eventExist must
+# return 0 (exempt -> live read -> sees the clear). The buffer is never
+# consulted for this event class.
+{
+  NMISNG::DB::remove(collection => $nmisng->events_collection, query => { node_uuid => $X1 }, just_one => 0);
+  my $g = $nmisng->event_prefetch_begin(node_uuid => $X1);
+  is($nmisng->event_prefetch_active($X1), 1, "xp1: buffer active");
+
+  # External raise: insert an active Node Down directly (no write-through).
+  NMISNG::DB::insert(collection => $nmisng->events_collection,
+    record => { node_uuid => $X1, event => "Node Down", element => "",
+                active => 1, historic => 0, cluster_id => $C->{cluster_id} });
+  # Buffer has no knowledge of this row; but exempt -> live read -> sees it.
+  is($nmisng->events->eventExist($xnode, "Node Down", ""), 1,
+    "xp1 M1/M2: exempt Node Down raised externally -> live read -> 1 (correct, not stale)");
+
+  # External clear: update directly in the DB (active=0), still no write-through.
+  NMISNG::DB::update(collection => $nmisng->events_collection,
+    query => { node_uuid => $X1, event => "Node Down", element => "", historic => 0 },
+    record => { active => 0 });
+  # Exempt -> live read -> sees the clear immediately (not one-cycle-stale).
+  is($nmisng->events->eventExist($xnode, "Node Down", ""), 0,
+    "xp1 M1/M2: exempt Node Down cleared externally -> live read -> 0 (correct, not stale)");
+}
+
+# Cross-process test 2: accepted one-cycle-stale for a NON-exempt class (M11/M13, audit §7).
+# Phase A: buffer shows Interface Down/eth0 active; external process clears it in
+#           the DB mid-cycle. eventExist must STILL return 1 from the buffer
+#           (documented one-cycle-stale residual, not a bug).
+# Phase B: simulate the next cycle with a fresh event_prefetch_begin, which
+#           reloads from the DB. eventExist must now return 0 (self-corrected).
+{
+  NMISNG::DB::remove(collection => $nmisng->events_collection, query => { node_uuid => $X1 }, just_one => 0);
+
+  # Seed an active Interface Down into the DB and open a buffer (it loads it).
+  NMISNG::DB::insert(collection => $nmisng->events_collection,
+    record => { node_uuid => $X1, event => "Interface Down", element => "eth0",
+                active => 1, historic => 0, cluster_id => $C->{cluster_id} });
+  {
+    my $g = $nmisng->event_prefetch_begin(node_uuid => $X1);
+    my $buf = $nmisng->event_prefetch_lookup($X1, "Interface Down", "eth0");
+    is(($buf && $buf->{active}), 1, "xp2 phase-A: buffer loaded the active event at cycle start");
+
+    # External clear mid-cycle: update directly, bypassing the buffer.
+    NMISNG::DB::update(collection => $nmisng->events_collection,
+      query => { node_uuid => $X1, event => "Interface Down", element => "eth0", historic => 0 },
+      record => { active => 0, historic => 1 });
+
+    # Non-exempt -> buffer is consulted -> returns the stale active answer.
+    # This is the DOCUMENTED one-cycle-stale residual (audit §7, M11/M13): not a bug.
+    is($nmisng->events->eventExist($xnode, "Interface Down", "eth0"), 1,
+      "xp2 M11/M13 phase-A: non-exempt Interface Down cleared externally -> buffer returns stale 1 (documented residual)");
+  } # guard drops: buffer cleared
+
+  # Phase B: next cycle opens a fresh buffer. The DB now has historic=1 (cleared).
+  {
+    my $g2 = $nmisng->event_prefetch_begin(node_uuid => $X1);
+    # Buffer reloaded from live DB; the cleared event is historic so not loaded.
+    is($nmisng->events->eventExist($xnode, "Interface Down", "eth0"), 0,
+      "xp2 M11/M13 phase-B: next cycle reloads -> self-corrected to 0");
+  }
+}
+
+# Cross-process test 3: unique partial index prevents a duplicate active row (residual safety net).
+# The unique partial index on (node_uuid, event, element) where historic<=0 means
+# that even if a stale buffer led collect to re-raise an event the DB already has
+# active, the second insert is rejected with a duplicate-key error.
+# This proves the safety net the audit relies on for the residual-window rows.
+{
+  NMISNG::DB::remove(collection => $nmisng->events_collection, query => { node_uuid => $X1 }, just_one => 0);
+
+  # Insert the first active row for (X1, Interface Down, eth0).
+  my $r1 = NMISNG::DB::insert(collection => $nmisng->events_collection,
+    record => { node_uuid => $X1, event => "Interface Down", element => "eth0",
+                active => 1, historic => 0, cluster_id => $C->{cluster_id} });
+  is($r1->{success}, 1, "xp3: first active row inserted successfully");
+
+  # Attempt to insert a SECOND active row for the same (node_uuid, event, element).
+  my $r2 = NMISNG::DB::insert(collection => $nmisng->events_collection,
+    record => { node_uuid => $X1, event => "Interface Down", element => "eth0",
+                active => 1, historic => 0, cluster_id => $C->{cluster_id} });
+  is($r2->{success}, 0, "xp3 safety net: duplicate active row rejected by the unique partial index");
+  ok(defined $r2->{error} && length($r2->{error}) > 0,
+    "xp3 safety net: rejection carries a duplicate-key error message");
+
+  # Confirm exactly ONE active row remains in the DB.
+  my $md = $nmisng->events->get_events_model(
+    filter => { node_uuid => $X1, event => "Interface Down", element => "eth0", historic => 0 });
+  my $active_rows = scalar grep { $_->{active} } @{ $md->data() // [] };
+  is($active_rows, 1, "xp3 safety net: exactly one active row in the DB after rejected duplicate");
+}
+
 $nmisng->get_db()->drop();
 done_testing;
