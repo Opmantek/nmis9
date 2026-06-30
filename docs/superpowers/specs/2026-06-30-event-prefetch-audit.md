@@ -327,3 +327,72 @@ All 10 runs completed and printed a count. No `Undefined subroutine` / `RRDs::in
 **Variability interpretation:** the SNMP source at `172.20.0.1:1161` is the live Docker host, not a static simulator. Docker veth interfaces appear and disappear between runs as containers start and stop, which causes `update_intf_info` to run inside collect when interface topology changes. Each call to `update_intf_info` for a changed interface adds more event existence checks (per-interface events). The count therefore scales with the number of collected interfaces and how many changed since the last poll. The range 77–78 reflects current host state; the brief's expected ~52 was the lower bound seen when fewer interfaces had changed. The point is that per-event reads scale with interface count. The buffer collapses them to approximately 1 batch find — Task 7 proves that using a fixed-size synthetic node for a controlled comparison.
 
 **Update find-count (secondary data point):** 40 across 3 consecutive runs. The fixed script applied to `$node->update(...)` in place of `$node->collect(...)` gives 40 consistently. The `update` path unconditionally calls `update_intf_info`, so the verbatim script always crashed on update runs. With `use RRDs` the update path completes cleanly.
+
+## Load-reduction measurement (Task 7)
+
+**Date:** 2026-06-30
+**Gate criteria addressed:** criterion 1 (load reduction) and criterion 4 (contained change).
+
+### Real-node measurement — buffer OFF vs ON
+
+Same script (`test/t_event_prefetch_realnode.pl`), same `realnode188` node. Buffer toggled via `NMIS_EVENT_PREFETCH_ENABLED=1` (env var read by the config loader; `event_prefetch_begin` exits early when the flag is absent or falsy). Five paired runs, alternating OFF/ON:
+
+| Run | OFF (baseline) | ON (buffer active) |
+|-----|----------------|--------------------|
+| 1   | 48             | 9                  |
+| 2   | 37             | 9                  |
+| 3   | 37             | 9                  |
+| 4   | 37             | 9                  |
+| 5   | 37             | 9                  |
+
+OFF range: 37–48 (same live-topology variability documented in Task 2; see baseline note). ON: 9, perfectly constant across all runs.
+
+**Reduction:** ~76–81% fewer events-collection `find()` calls per collect cycle on this node. The ON count is NOT 1 because:
+
+1. `event_prefetch_begin` itself issues 1 batch find to load all current events. That find is counted.
+2. Events in the exempt class (`Node Down`, `Node Polling Failover`, `Node Polling Failover Closed`, `Backup Host Down`, stateless events) bypass the buffer and go to the DB. `handle_down` in collect calls `eventExist` on these names live (`lib/NMISNG/Node.pm:1345-1351`), producing one DB find per exempt existence check.
+3. `Event::save` (called by every in-cycle notify/checkEvent path) calls `self->load()` internally, which issues a find to resolve the pre-existing state before writing. These load() finds are inside the write funnel, not in the existence-check path, and are not eliminated by the buffer.
+
+The per-interface existence reads (`eventExist("Interface Down", $ifDescr)` for each collected interface) are the bulk of the OFF count and all collapse to zero DB hits with the buffer on.
+
+### Synthetic scaling — O(N) → O(1) proof
+
+**Script:** `test/t_event_prefetch_synthetic.pl` (committed). Seeds N distinct active `Interface Down` events (one per "eth0".."ethN-1") for a throwaway node UUID in a per-PID test database (`t_evtpf_synth_$$`), then calls `eventExist("Interface Down", "ethI")` once per event while counting `events`-collection finds. Drops the test database on exit. "Interface Down" is not exempt, so with the buffer on every existence check is answered from RAM.
+
+| N   | OFF finds | ON finds |
+|-----|-----------|----------|
+| 50  | 50        | 1        |
+| 150 | 150       | 1        |
+
+**Interpretation:** buffer OFF, each `eventExist` call issues one DB find — count scales exactly with N. Buffer ON, `event_prefetch_begin` issues one batch find regardless of N — count stays at 1. This is the O(N) → O(1) collapse. The proof is deterministic (fixed synthetic data, no live SNMP, no interface-topology noise).
+
+### Contained-change evidence
+
+**Lib diff stat** (`git diff --stat 0b19dd6b HEAD -- lib/`, where `0b19dd6b` is the implementation-plan commit immediately before any code was written):
+
+```
+lib/NMISNG.pm        |  49 insertions(+)
+lib/NMISNG/Event.pm  |  75 insertions(+), 2 deletions(-)
+lib/NMISNG/Events.pm |  43 insertions(+)
+lib/NMISNG/Node.pm   |   6 insertions(+), 1 deletion(-)
+4 files changed, 170 insertions(+), 3 deletions(-)
+```
+
+**Full branch stat** (`git diff --stat 158e2c34 HEAD`, merge-base with `origin/nmis9_dev`):
+
+```
+docs/superpowers/plans/2026-06-30-event-prefetch.md |  404 insertions(+)
+docs/superpowers/specs/2026-06-30-event-prefetch-audit.md | 329+ insertions(+)
+docs/superpowers/specs/2026-06-30-event-prefetch-design.md | 125 insertions(+)
+lib/NMISNG.pm                                      |   49 insertions(+)
+lib/NMISNG/Event.pm                                |   75 insertions(+), 2 deletions(-)
+lib/NMISNG/Events.pm                               |   43 insertions(+)
+lib/NMISNG/Node.pm                                 |    6 insertions(+), 1 deletion(-)
+test/t_event_prefetch.pl                           |  321 insertions(+)
+test/t_event_prefetch_realnode.pl                  |   15 insertions(+)
+(test/t_event_prefetch_synthetic.pl                |   ~80 insertions, Task 7 addition)
+```
+
+**No new locking primitives.** `git diff 0b19dd6b HEAD -- lib/ | grep '^+.*\(flock\|LOCK_EX\)'` returns two comment lines only (references to the existing flock in prose explanations). No `flock()` calls, no `LOCK_EX` constants, no lock files, no semaphores added anywhere in the lib diff.
+
+**Reuses OMK-12668 patterns.** The buffer lifecycle uses `NMISNG::Guard->new(sub { ... })` for deterministic teardown — the same Guard module introduced for OMK-12668. The kill switch reads the flag via `NMISNG::Util::getbool($self->config->{event_prefetch_enabled} // 0)` — the same `getbool` + config-key pattern used by every other feature flag in the codebase (e.g. `threshold_poll_node`, `keep_event_history`). Default is OFF (`// 0`), so the spike is inert unless explicitly enabled.
