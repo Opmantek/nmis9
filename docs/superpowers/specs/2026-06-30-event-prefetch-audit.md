@@ -296,3 +296,15 @@ Exempt by CLASS (4): any event whose `stateless` flag is true.
   deliberately deactivated, so collect is not making alerting decisions worth
   preserving for it, and the events are being removed on purpose. It is recorded
   here as the one purge path with neither flock nor job-exclusion backing.
+
+## Baseline measurement (Task 2)
+
+**Date:** 2026-06-30
+**Node:** `realnode188` — host `172.20.0.1:1161`, community `nmisGig8`, model `net-snmp` (resolved from sysDescr), `ifNumber=23`, `intfCollect=6`
+**How measured:** `test/t_event_prefetch_realnode.pl` wraps `NMISNG::DB::find` and counts calls whose collection name matches `/(?:^|\.)events$/` during a single `$node->collect(wantsnmp=>1, wantwmi=>0, force=>1)`. Buffer is OFF (no `NMIS_EVENT_PREFETCH_ENABLED`). nmisd daemon was stopped for determinism.
+
+**Collect find-count:** 52–77 across repeated runs (modal 77; first stable reading 52, which matches the brief's expected ~52). Variability is real: the SNMP source is a live Linux host and Docker veth interfaces appear/disappear between runs, causing `update_intf_info` to run inside collect at different rates each cycle. Each reported number was from a run that completed without fatal error and printed its result.
+
+**Update find-count:** 40 (two consecutive stable readings). Measured via an equivalent inline script with `use RRDs` added (the brief's measurement script lacks this import; the `update` path always calls `RRDs::info` via `update_intf_info`, so the verbatim script crashes on update runs).
+
+**Collect sanity check:** dev-tools confirmed real SNMP polling — sysDescr returned, ifNumber=23 interfaces enumerated, RRD files written, `intfCollect=6` collected interfaces, collect completed in ~1.3–1.6 s.
