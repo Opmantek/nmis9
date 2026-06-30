@@ -199,16 +199,11 @@ sub _event_exempt
 	}
 	return 1 if ( $event eq "Node Polling Failover Closed" );    # failover-close literal, Node.pm:2156
 
-	# stateless events: match the configured non_stateful_events list
+	# stateless events: substring match congruent with Compat::NMIS::notify
+	# (which tests $C->{non_stateful_events} !~ /$event/). Using \Q...\E so
+	# the event name is matched literally, not as a regex.
 	my $nse = $self->nmisng->config->{non_stateful_events};
-	if ( defined $nse && length $nse )
-	{
-		for my $name ( split( /\s*,\s*/, $nse ) )
-		{
-			next if ( $name eq '' );
-			return 1 if ( $event eq $name );
-		}
-	}
+	return 1 if ( defined $nse && length($nse) && $event ne '' && $nse =~ /\Q$event\E/ );
 	return 0;
 }
 

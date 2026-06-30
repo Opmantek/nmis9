@@ -189,5 +189,25 @@ is($nmisng->event_prefetch_active($TUUID), 0, "raise->read: buffer torn down");
     "exempt: non-exempt Interface Down trusts the buffer (control)");
 }
 
+# Assertion 5: stateless-match alignment — _event_exempt must use substring
+# semantics (congruent with Compat::NMIS::notify) not exact comma-split eq.
+# Set non_stateful_events to "Custom Power Alarm"; raise event "Power Alarm".
+# notify treats "Power Alarm" as stateless (substring hit).
+# _event_exempt must also treat it as exempt (substring hit), so eventExist
+# reads LIVE and returns 0 (DB absent). Before the fix it returns 1 (buffer).
+{
+  my $saved_nse = $nmisng->config->{non_stateful_events};
+  $nmisng->config->{non_stateful_events} = "Custom Power Alarm";
+  NMISNG::DB::remove(collection => $nmisng->events_collection, query => { node_uuid => $TUUID }, just_one => 0);
+  my $g = $nmisng->event_prefetch_begin(node_uuid => $TUUID);
+  # seed a buffer row saying "Power Alarm" is active; DB has no such row
+  $nmisng->event_prefetch_store($TUUID,"Power Alarm","",
+    {event=>"Power Alarm", element=>"", active=>1, historic=>0});
+  # expected: exempt -> read live -> DB absent -> 0
+  is($nmisng->events->eventExist($tnode,"Power Alarm",""), 0,
+    "stateless substring: Power Alarm exempt (substring of Custom Power Alarm) -> live read -> 0");
+  $nmisng->config->{non_stateful_events} = $saved_nse;
+}
+
 $nmisng->get_db()->drop();
 done_testing;
