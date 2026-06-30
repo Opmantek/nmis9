@@ -174,6 +174,44 @@ sub eventDelete
 	return $event->delete();
 }
 
+# OMK-12677 event-prefetch: events that MUST be read live, never served from the
+# per-node buffer. An external, non-flock-holding process can flip the
+# (historic=0,active=1) state of these classes mid-cycle with a real alert flip,
+# so a buffered answer for them can be wrong. The audited exempt set is in
+# docs/superpowers/specs/2026-06-30-event-prefetch-audit.md section 6:
+#   - the node-down family (raised AND cleared by the nmisd fping_loop with no
+#     flock, concurrently with a same-node collect): the node/failover/backup
+#     names of NMISNG::Node::handle_down_eventnames plus the failover-close
+#     literal "Node Polling Failover Closed" (Node.pm:2156). NOT snmp/wmi.
+#   - any stateless event (process_escalations deletes these mid-cycle past
+#     dampening): names matching config non_stateful_events (Config.nmis).
+# returns 1 if the named event must be read live, 0 otherwise.
+sub _event_exempt
+{
+	my ( $self, $event ) = @_;
+	return 0 if ( !defined $event );
+
+	# node-down family by name (read the hash rather than re-typing the strings)
+	my $names = NMISNG::Node::handle_down_eventnames();
+	for my $type (qw(node failover backup))
+	{
+		return 1 if ( defined $names->{$type} && $event eq $names->{$type} );
+	}
+	return 1 if ( $event eq "Node Polling Failover Closed" );    # failover-close literal, Node.pm:2156
+
+	# stateless events: match the configured non_stateful_events list
+	my $nse = $self->nmisng->config->{non_stateful_events};
+	if ( defined $nse && length $nse )
+	{
+		for my $name ( split( /\s*,\s*/, $nse ) )
+		{
+			next if ( $name eq '' );
+			return 1 if ( $event eq $name );
+		}
+	}
+	return 0;
+}
+
 # this function checks if a particular event exists and is both active and non-historic
 #
 # args: node (object), event(name), element (element may be missing)
@@ -181,6 +219,16 @@ sub eventDelete
 sub eventExist
 {
 	my ( $self, $node, $event, $element ) = @_;
+
+	# OMK-12677 event-prefetch: when a per-node buffer is active and the event is
+	# not exempt, answer from the buffer with no DB hit. eventExist is true only
+	# for a non-historic, active event, so apply that same test to the buffered row.
+	my $uuid = ref($node) ? $node->uuid : $node;
+	if ( !$self->_event_exempt($event) && $self->nmisng->event_prefetch_active($uuid) )
+	{
+		my $row = $self->nmisng->event_prefetch_lookup( $uuid, $event, $element );
+		return ( $row && $row->{active} && ( ( $row->{historic} // 0 ) <= 0 ) ) ? 1 : 0;
+	}
 
 	# we only want non-historic events which are active
 	# non-historic is default, but active is ignored by event::load!

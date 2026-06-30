@@ -297,10 +297,26 @@ sub check
 	my ( $self, %args ) = @_;
 	my $S = $args{sys};
 
+	my $nmisng = $self->nmisng;
+
+	# OMK-12677 event-prefetch: checkEvent's existence read is served from the
+	# per-node buffer when active and the event is not exempt. check() only does
+	# work when the down event is present and active (see the "if ($exists &&
+	# $self->active)" guard below); if the buffer shows it absent/inactive there
+	# is nothing to clear, so return early with no DB read. When the buffer shows
+	# it present we still fall through to load the full row from the db, because
+	# the clear below needs the loaded _id/startdate/level to write the up event.
+	my $uuid = $self->node_uuid;
+	if (   $uuid
+		&& !$nmisng->events->_event_exempt( $self->event )
+		&& $nmisng->event_prefetch_active($uuid) )
+	{
+		my $brow = $nmisng->event_prefetch_lookup( $uuid, $self->event, $self->element );
+		return if ( !( $brow && $brow->{active} && ( ( $brow->{historic} // 0 ) <= 0 ) ) );
+	}
+
 	# cause this thing to load itself with
 	my $exists = $self->exists();
-
-	my $nmisng = $self->nmisng;
 
 	my $details = $args{details} // $self->details;
 	my $level   = $args{level}   // $self->level;
@@ -539,6 +555,11 @@ sub delete
 		$ret = "event delete failed: $result->{error}" if ( !$result->{success} );
 	}
 	$self->nmisng->log->error($ret) if ($ret);
+
+	# OMK-12677 event-prefetch: a successful delete removes/deactivates the event,
+	# so drop it from the buffer (write through only on success).
+	$self->_event_prefetch_write_through(1) if ( !$ret );
+
 	return $ret;
 }
 
@@ -871,6 +892,53 @@ sub nmisng
 	return $self->{_nmisng};
 }
 
+# OMK-12677 event-prefetch: write-through to the per-node buffer AFTER a DB write
+# succeeds, so a raise->read / clear->read within the same buffered cycle is
+# correct. A no-op unless a buffer is active for this node (event_prefetch_store
+# itself ignores stores when no buffer is loaded), so this is safe to call from
+# every mutation funnel. Exempt events are never buffered, so skip them here too.
+# args: $removed (true => this write removed/cleared the event for read purposes).
+# When the event was renamed in place (down->up, the check() path sets
+# event_previous), the OLD name's key must also be cleared so a stale active row
+# can't keep answering eventExist true under the down name.
+sub _event_prefetch_write_through
+{
+	my ( $self, $removed ) = @_;
+	my $nmisng = $self->nmisng;
+	return if ( !$nmisng || !$nmisng->can("event_prefetch_active") );
+
+	my $uuid = $self->node_uuid;
+	return if ( !$uuid || !$nmisng->event_prefetch_active($uuid) );
+
+	my $event = $self->event;
+	return if ( $nmisng->events->_event_exempt($event) );
+
+	# clear the prior name's key if the event was renamed in place
+	my $prev = $self->event_previous;
+	if ( defined $prev && $prev ne ( $event // '' ) )
+	{
+		$nmisng->event_prefetch_store( $uuid, $prev, $self->element, undef );
+	}
+
+	if ( $removed || !$self->active || $self->historic )
+	{
+		# cleared/deactivated/historic -> not present for eventExist purposes
+		$nmisng->event_prefetch_store( $uuid, $event, $self->element, undef );
+	}
+	else
+	{
+		$nmisng->event_prefetch_store(
+			$uuid, $event, $self->element,
+			{   event    => $event,
+				element  => $self->element,
+				active   => $self->active,
+				historic => $self->historic // 0,
+			}
+		);
+	}
+	return;
+}
+
 # save this thing, will be created in db if it does
 # not already exist
 # args: update -> set to 1 when the event is just being updated, not trying
@@ -981,6 +1049,9 @@ sub save
 
 	# now that we've updated the db, update what we think is in the db
 	$self->{_data_from_db} = {%data};
+
+	# OMK-12677 event-prefetch: write through only after the DB write succeeded.
+	$self->_event_prefetch_write_through() if ( !$error );
 
 	return $error;
 }
