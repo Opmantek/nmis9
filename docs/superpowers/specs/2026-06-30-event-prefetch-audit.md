@@ -396,3 +396,36 @@ test/t_event_prefetch_realnode.pl                  |   15 insertions(+)
 **No new locking primitives.** `git diff 0b19dd6b HEAD -- lib/ | grep '^+.*\(flock\|LOCK_EX\)'` returns two comment lines only (references to the existing flock in prose explanations). No `flock()` calls, no `LOCK_EX` constants, no lock files, no semaphores added anywhere in the lib diff.
 
 **Reuses OMK-12668 patterns.** The buffer lifecycle uses `NMISNG::Guard->new(sub { ... })` for deterministic teardown — the same Guard module introduced for OMK-12668. The kill switch reads the flag via `NMISNG::Util::getbool($self->config->{event_prefetch_enabled} // 0)` — the same `getbool` + config-key pattern used by every other feature flag in the codebase (e.g. `threshold_poll_node`, `keep_event_history`). Default is OFF (`// 0`), so the spike is inert unless explicitly enabled.
+
+---
+
+## Gate decision (Task 8) — GO
+
+**Decision: GO.** All four go/no-go criteria are met, verified independently against the source (not only the per-task reports). The spike is correct, contained, and inert by default. Phase 2 (productionisation, Tasks 9-10) may proceed — subject to the one residual below being closed or formally risk-accepted before the kill switch is ever enabled in production.
+
+### Criterion 1 — Load reduction (real + synthetic): MET
+- Synthetic, deterministic (`test/t_event_prefetch_synthetic.pl`): N=50 → OFF 50 / ON 1; N=150 → OFF 150 / ON 1. Per-event existence reads collapse to a single batch find regardless of interface count — clean O(N) → O(1).
+- Real node `realnode188`: OFF 37-48 finds (varies with live-host Docker veth topology) → ON 9 finds (constant), ~76-81% reduction. ON is 9 not 1 because exempt-class events are read live, plus `Event::save`'s internal `load()`, plus the single batch load.
+
+### Criterion 2 — Byte-identical event-write stream, incl. in-cycle raise→read / clear→read: MET
+- Golden test (`t_event_prefetch.pl` assertions 16-17): the real `Event::save`/`Event::delete` write stream is non-empty and `is_deeply`-identical with the buffer OFF vs ON.
+- raise→read returns TRUE (assertions 20-21); clear→read returns FALSE via both the rename+save funnel (24) and the delete funnel (26).
+- Structural guarantee (verified against source): `Event::load`/`exists` have no buffer branch, so raise/clear decisions are always live; `Event::check`'s buffer early-return only short-circuits the "nothing to clear" case, where the live path also does nothing (including the `expire_at` write). The buffer changes reads only, never which writes happen.
+- 39/39 deterministic assertions pass (pristine); the real `notify`/`checkEvent` regression `t_duplicate_event.pl` passes 9/9 with the buffer OFF.
+
+### Criterion 3 — Inventory + matrix + lock analysis + exemptions applied: MET
+- Complete external-mutation inventory (W1-W16), state-transition matrix (M1-M16), per-writer lock analysis (§1-§4), and residual documentation (§7).
+- The §6 exemption list — Node Down, Node Polling Failover (+ Closed), Backup Host Down (the node/failover/backup values of `handle_down_eventnames`, NOT snmp/wmi), plus any stateless event — is applied in code via `_event_exempt`, which gates BOTH buffer-serving and write-through consistently.
+- Independently verified: the fping loop mutates only node/failover/backup (never snmp/wmi); `process_escalations` never raises a non-exempt event from absent, so the dangerous stale-ABSENT direction (buffer says absent → collect misses a clear) is closed for every non-exempt class; `_event_exempt`'s stateless test is a superset of `notify`'s (substring match).
+- The unique partial index `node_uuid_1_event_1_element_1_active_1` (unique, partial `historic<=0`) is real production code (`NMISNG.pm:1467`, primed at daemon startup) and structurally prevents a duplicate active row — verified by an E11000 rejection (assertions 37-39).
+
+### Criterion 4 — Contained change: MET
+- Lib diff: 4 files, 170 insertions / 3 deletions (NMISNG.pm +49, Event.pm +75/-2, Events.pm +43, Node.pm +6/-1). Reviewable in one sitting.
+- No new locking primitives added (no flock/LOCK_EX/semaphore).
+- Reuses the OMK-12668 `NMISNG::Guard` teardown + `getbool` kill-switch pattern; default OFF (structural — no config default entry).
+
+### Residual to close or risk-accept before production-enable
+Node rename (M8/M12) and manual `clean-node-events` (M13) hold no flock and are not in the `nmisd:1552` job-exclusion set, so they can overlap a same-node collect and bulk-clear non-exempt events mid-cycle. The buffer then serves a stale-PRESENT answer, which can make collect skip re-raising for ONE cycle; it self-corrects on the next cycle's reload. This is the documented, accepted one-cycle-stale residual (§7). Cheap hardening (future work): drop/disable the node's buffer while a rename/clean is in flight. Acceptable for the spike behind a default-OFF flag; Phase 2 Task 10 flips the default to ON, so this residual must be closed or formally risk-accepted by the owner at that point.
+
+### Verification basis
+Phase 1 was executed task-by-task with a spec+quality review after each, plus a final independent adversarial assessment that re-verified the load-bearing safety claims against source and re-ran the deterministic suites (39/39 + 9/9 + synthetic). No blocking defect was found.
