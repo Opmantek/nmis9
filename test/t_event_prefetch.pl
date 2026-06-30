@@ -308,14 +308,13 @@ my $xnode = T5::Node->new($X1);
     record => { node_uuid => $X1, event => "Interface Down", element => "eth0",
                 active => 1, historic => 0, cluster_id => $C->{cluster_id} });
   is($r2->{success}, 0, "xp3 safety net: duplicate active row rejected by the unique partial index");
-  ok(defined $r2->{error} && length($r2->{error}) > 0,
-    "xp3 safety net: rejection carries a duplicate-key error message");
+  like($r2->{error}, qr/E11000/,
+    "xp3 safety net: rejection is a duplicate-key error (E11000)");
 
   # Confirm exactly ONE active row remains in the DB.
   my $md = $nmisng->events->get_events_model(
-    filter => { node_uuid => $X1, event => "Interface Down", element => "eth0", historic => 0 });
-  my $active_rows = scalar grep { $_->{active} } @{ $md->data() // [] };
-  is($active_rows, 1, "xp3 safety net: exactly one active row in the DB after rejected duplicate");
+    filter => { node_uuid => $X1, event => "Interface Down", element => "eth0", historic => 0, active => 1 });
+  is(scalar(@{ $md->data() // [] }), 1, "xp3: exactly one active row survives (index blocked the duplicate)");
 }
 
 $nmisng->get_db()->drop();
