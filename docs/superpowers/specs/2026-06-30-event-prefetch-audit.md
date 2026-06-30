@@ -299,12 +299,31 @@ Exempt by CLASS (4): any event whose `stateless` flag is true.
 
 ## Baseline measurement (Task 2)
 
-**Date:** 2026-06-30
+**Date:** 2026-06-30 (re-measured 2026-06-30 after script reliability fix — see note below)
 **Node:** `realnode188` — host `172.20.0.1:1161`, community `nmisGig8`, model `net-snmp` (resolved from sysDescr), `ifNumber=23`, `intfCollect=6`
-**How measured:** `test/t_event_prefetch_realnode.pl` wraps `NMISNG::DB::find` and counts calls whose collection name matches `/(?:^|\.)events$/` during a single `$node->collect(wantsnmp=>1, wantwmi=>0, force=>1)`. Buffer is OFF (no `NMIS_EVENT_PREFETCH_ENABLED`). nmisd daemon was stopped for determinism.
+**How measured:** `test/t_event_prefetch_realnode.pl` wraps `NMISNG::DB::find` and counts calls whose collection name matches `/(?:^|\.)events$/` during a single `$node->collect(wantsnmp=>1, wantwmi=>0, force=>1)`. Buffer is OFF (no `NMIS_EVENT_PREFETCH_ENABLED`). nmisd daemon stopped for determinism.
 
-**Collect find-count:** 52–77 across repeated runs (modal 77; first stable reading 52, which matches the brief's expected ~52). Variability is real: the SNMP source is a live Linux host and Docker veth interfaces appear/disappear between runs, causing `update_intf_info` to run inside collect at different rates each cycle. Each reported number was from a run that completed without fatal error and printed its result.
+**Script note — deliberate one-line deviation from the plan's verbatim listing:** the committed script now includes `use RRDs;` alongside the other `use` lines. This is not part of what is measured; it is required for collect to complete. `collect` calls `RRDs::info(...)` directly at `Node.pm:3774` (and other sites) when interface topology changes between runs. Without `use RRDs`, those runs die with `Undefined subroutine &RRDs::info`, producing no output. The original verbatim script therefore gave a biased sample (only runs that happened to avoid the RRD path printed a count). The measured quantity — events-collection `find()` calls — is unchanged.
 
-**Update find-count:** 40 (two consecutive stable readings). Measured via an equivalent inline script with `use RRDs` added (the brief's measurement script lacks this import; the `update` path always calls `RRDs::info` via `update_intf_info`, so the verbatim script crashes on update runs).
+**Re-measured baseline (10 consecutive clean runs, fixed script):**
 
-**Collect sanity check:** dev-tools confirmed real SNMP polling — sysDescr returned, ifNumber=23 interfaces enumerated, RRD files written, `intfCollect=6` collected interfaces, collect completed in ~1.3–1.6 s.
+| Run | Collect find-count |
+|-----|--------------------|
+| 1   | 77                 |
+| 2   | 78                 |
+| 3   | 78                 |
+| 4   | 78                 |
+| 5   | 78                 |
+| 6   | 78                 |
+| 7   | 78                 |
+| 8   | 78                 |
+| 9   | 78                 |
+| 10  | 78                 |
+
+All 10 runs completed and printed a count. No `Undefined subroutine` / `RRDs::info` crash on any run.
+
+**Collect find-count range:** 77–78. Modal value: 78.
+
+**Variability interpretation:** the SNMP source at `172.20.0.1:1161` is the live Docker host, not a static simulator. Docker veth interfaces appear and disappear between runs as containers start and stop, which causes `update_intf_info` to run inside collect when interface topology changes. Each call to `update_intf_info` for a changed interface adds more event existence checks (per-interface events). The count therefore scales with the number of collected interfaces and how many changed since the last poll. The range 77–78 reflects current host state; the brief's expected ~52 was the lower bound seen when fewer interfaces had changed. The point is that per-event reads scale with interface count. The buffer collapses them to approximately 1 batch find — Task 7 proves that using a fixed-size synthetic node for a controlled comparison.
+
+**Update find-count (secondary data point):** 40 across 3 consecutive runs. The fixed script applied to `$node->update(...)` in place of `$node->collect(...)` gives 40 consistently. The `update` path unconditionally calls `update_intf_info`, so the verbatim script always crashed on update runs. With `use RRDs` the update path completes cleanly.

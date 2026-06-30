@@ -2,7 +2,7 @@
 # Count events-collection finds during a real collect, attributing by caller.
 use strict; use warnings;
 use FindBin; use lib "$FindBin::Bin/lib"; use lib "$FindBin::Bin/../lib";
-use NMISNG; use NMISNG::Util; use NMISNG::Log; use Compat::NMIS;
+use NMISNG; use NMISNG::Util; use NMISNG::Log; use Compat::NMIS; use RRDs;
 my $C = NMISNG::Util::loadConfTable();
 my $nmisng = NMISNG->new(config=>$C, log=>NMISNG::Log->new(level=>'error'));
 my $TOTAL=0; my $ON=0; my $orig=\&NMISNG::DB::find;
