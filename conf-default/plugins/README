@@ -45,11 +45,22 @@ the calling interface is the same for both functions:
 
 sub update_plugin(node => nodename, sys => live sys object,
 		config => read-only configuration object/hash,
-		nmisng => live nmisng object)
+		nmisng => live nmisng object,
+		node_obj => the NMISNG::Node object for this node)
 
 sub collect_plugin(node => nodename, sys => live sys object,
 		config => configuration object/hash, treat as read-only,
-		nmisng => live nmisng object)
+		nmisng => live nmisng object,
+		node_obj => the NMISNG::Node object for this node)
+
+node_obj is the already-loaded NMISNG::Node object for the node being
+processed. prefer it over re-resolving the node yourself (e.g. via
+nmisng->node(name => node) or inventory->save(node => nodename)): passing
+the object avoids an extra MongoDB lookup per save. node (the name string)
+is retained for backward compatibility. if you support being called by
+older code that does not supply node_obj, fall back to the sys object's
+already-loaded node, which costs no lookup:
+		my $nodeobj = $node_obj // $sys->nmisng_node;
 
 the plugin can modify node attributes via sys and nmisng where required.
 it may call other nmis code (but care needs to be taken of

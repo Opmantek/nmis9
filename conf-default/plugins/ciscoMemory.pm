@@ -45,7 +45,8 @@ use NMISNG::Snmp;						# for snmp-related access
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
+	my $nodeobj          = $node_obj // $S->nmisng_node;
 	my $changesweremade  = 0;
 
 	# Node must have have data for both entityMib and cempMemPool to be relevant
@@ -100,7 +101,7 @@ sub update_plugin
 			# set the inventory description to a nice string.
 			$cempinventory->description( "$emibdata{$entityIndex}->{entPhysicalName} - $cempdata->{MemPoolName}");
 
-			my ( $op, $error ) = $cempinventory->save( node => $node );
+			my ( $op, $error ) = $cempinventory->save( node => $nodeobj );
 			$NG->log->debug2(sub { "saved op: $op"});
 			if ($error)
 			{
@@ -128,13 +129,13 @@ sub update_plugin
 sub collect_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 	my $intfData = undef;
 	my $intfInfo = undef;
 
 	my $NI       = $S->nmisng_node;
-	my $nodeobj  = $NG->node(name => $node);
+	my $nodeobj  = $node_obj // $S->nmisng_node;
 	my $NC       = $nodeobj->configuration;
 	my $catchall_inventory = $S->inventory( concept => 'catchall' );
 	my $catchall = $catchall_inventory->data_live();
@@ -441,9 +442,9 @@ sub collect_plugin
 					data       => $rrdData,
 					item       => undef);
 	
-	my ( $op, $error ) = $inventory->save( node => $node );
+	my ( $op, $error ) = $inventory->save( node => $nodeobj );
 	# The above has added data to the inventory, that we now save.
-	my ( $op, $error ) = $inventory->save( node => $node, update => 1 );
+	my ( $op, $error ) = $inventory->save( node => $nodeobj, update => 1 );
 	$NG->log->debug2(sub {"saved inventory for Node '$node'; op: $op"});
 	if ($error)
 	{
@@ -459,7 +460,7 @@ sub collect_plugin
 					index      => undef,
 					data       => $rrdData,
 					item       => undef);
-	my ( $op, $error ) = $inventory->save( node => $node );
+	my ( $op, $error ) = $inventory->save( node => $nodeobj );
 	$NG->log->debug( "saved op: $op");
 	if ($error)
 	{

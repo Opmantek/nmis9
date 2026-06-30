@@ -47,7 +47,7 @@ my $interestingInterfaces = qr/ten-gigabit-ethernet|^muxponder-highspeed/;
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 	my $intfData = undef;
 	my $interface_max_number = $C->{interface_max_number} || 5000;
@@ -55,7 +55,7 @@ sub update_plugin
 
 
 	my $NI = $S->nmisng_node;
-	my $nodeobj = $NG->node(name => $node);
+	my $nodeobj = $node_obj // $S->nmisng_node;
 	my $NC = $nodeobj->configuration;
 	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
 
@@ -507,7 +507,7 @@ sub update_plugin
 		}
 
 		# The above has added data to the inventory, that we now save.
-		my ( $op, $subError ) = $inventory->save( node => $node, update => 1 );
+		my ( $op, $subError ) = $inventory->save( node => $nodeobj, update => 1 );
 		$NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
 		if ($subError)
 		{

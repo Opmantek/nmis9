@@ -227,6 +227,7 @@ elsif ($Q->{act} =~ /^plugin/)
 				next if ( !$funcname );
 				$ran_something = 1;
 				eval { ( $status, @errors ) = &$funcname( node => $node,
+										node_obj => $nodeobj,
 										sys => $S,
 										config => $C,
 										nmisng => $nmisng, ); };

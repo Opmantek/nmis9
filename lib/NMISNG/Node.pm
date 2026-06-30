@@ -4898,6 +4898,7 @@ sub collect_systemhealth_info
 							$self->nmisng->log->logprefix("$plugin\[$$\] ");
 				
 							eval { ( $plugin_healthIndexTable, @errors ) = &$can_funcname( node => $name,
+																			node_obj => $self,
 																			sys => $S,
 																			config => $C,
 																			thissection => $thissection,
@@ -7405,6 +7406,7 @@ sub update
 			my $prevprefix = $self->nmisng->log->logprefix;
 			$self->nmisng->log->logprefix("$plugin\[$$\] ");
 			eval { ( $status, @errors ) = &$funcname( node => $name,
+																								node_obj => $self,
 																								sys => $S,
 																								config => $C,
 																								nmisng => $self->nmisng, ); };
@@ -9715,6 +9717,7 @@ sub collect
 		my $prevprefix = $self->nmisng->log->logprefix;
 		$self->nmisng->log->logprefix("$plugin\[$$\] ");
 		eval { ( $status, @errors ) = &$funcname( node => $name,
+																							node_obj => $self,
 																							sys => $S,
 																							config => $C,
 																							nmisng => $self->nmisng ); };

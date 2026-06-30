@@ -20,16 +20,16 @@ sub update_plugin
 {	
 	my $changesweremade = 0;
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
 
     $NG->log->info("Running update_plugin ZXR10 for node $node");
     
 	#my $S = NMISNG::Sys->new(nmisng => $NG);
-	my $nodeobj = $NG->node(name => $node);
+	my $nodeobj = $node_obj // $S->nmisng_node;
 	#$S->init(node => $nodeobj, snmp => 0); # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
-	my $IF = $nodeobj->ifinfo;	
+	my $IF = $nodeobj->ifinfo;
 	my $MDL = $S->mdl;
             
 	my $NC = $nodeobj->configuration;
@@ -85,7 +85,7 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  ($sub_index >> 16) & 0x7FF;
 
 				$inventory->data($data);
-				$inventory->save(node => $node);				
+				$inventory->save(node => $nodeobj);
 			}
 		}
 		
@@ -108,7 +108,7 @@ sub update_plugin
 				$data->{'zxAnCardMemUsage'} =  $MemUsage->{$index};
 				$data->{'zxAnCardCpuLoad'} = $CPULoad->{$index};				
 				$inventory->data($data);
-				$inventory->save(node => $node);				
+				$inventory->save(node => $nodeobj);
 			}
 		}
 
@@ -132,7 +132,7 @@ sub update_plugin
 				$data->{zxAnSubIfIndex} =  (( 0 + $sub_index) >> 16) & 0x7FF;
 								
 				$inventory->data($data);
-				$inventory->save(node => $node);				
+				$inventory->save(node => $nodeobj);
 			}
 		}
 
@@ -168,7 +168,7 @@ sub update_plugin
 					$data->{zxAnGponSrvOnuLastOfflineTime} = snmp_hex_to_datetime($NG,$data->{zxAnGponSrvOnuLastOfflineTime});								
 				}
 					$inventory->data($data);
-					$inventory->save(node => $node);
+					$inventory->save(node => $nodeobj);
 			}
 		}
 
