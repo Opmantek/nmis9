@@ -297,6 +297,59 @@ Exempt by CLASS (4): any event whose `stateless` flag is true.
   preserving for it, and the events are being removed on purpose. It is recorded
   here as the one purge path with neither flock nor job-exclusion backing.
 
+### Residual verification (Task 9)
+
+The rename/manual-clean residual described above (M8/M12/M13: `cleanNodeEvents`
+/ `eventsClean`, reached via node rename or `node_admin.pl act=clean-node-events`)
+is now verified to cause NO wrong alerting action, not merely assumed benign by
+"self-corrects next cycle." The verification rests on two structural invariants
+in the existing code, independent of the buffer:
+
+- **(a) Raise decisions read live.** `Compat::NMIS::notify` decides raise-vs-update
+  from a live `$event_obj->load()` / `->exists()` (`lib/Compat/NMIS.pm:2272-2273`).
+  `NMISNG::Event::load` (`lib/NMISNG/Event.pm:743-859`) and `NMISNG::Event::exists`
+  (`lib/NMISNG/Event.pm:722-734`) contain no buffer branch at all — neither method
+  references `event_prefetch_active`/`event_prefetch_lookup` anywhere. No raise is
+  ever gated on the buffer, so a stale buffer can never suppress or duplicate a
+  raise.
+- **(b) Clear decisions re-read live.** `NMISNG::Event::check`
+  (`lib/NMISNG/Event.pm:295-316`) consults the buffer only to early-return when the
+  buffer says the event is ABSENT (`:314-315` — nothing to clear, no DB read
+  needed). When the buffer says PRESENT, `check()` still falls through to a live
+  `$self->exists()` (`:319`), and the entire clear/Up-event/save body is gated on
+  that live result: `if ($exists && $self->active)` (`:342`) has no `else`. So a
+  stale-PRESENT buffer answer reaches `check()`, but the live re-read finds the
+  already-cleared row absent, `$exists` is false, and `check()` does nothing — no
+  spurious Up event, no notification, no write. This is identical external
+  behaviour to running with the buffer off.
+
+The only non-exempt buffer-gated write site reached in collect is
+`lib/NMISNG/Node.pm:4495` (an Interface Down clear guarded on `eventExist`), which
+under a stale-PRESENT buffer answer is exactly the `check()` no-op path just
+described. The dangerous direction — a stale-ABSENT buffer answer causing collect
+to miss a clear or a raise — cannot arise for a non-exempt event: nothing
+out-of-cycle raises a non-exempt event from absent (the audited out-of-cycle
+writers either clear/delete, W1/W2, or belong to the exempt classes, M1/M2), and
+any in-cycle raise writes through the buffer (Task 5), so the buffer is never
+stale-absent for an event collect itself just raised.
+
+Consequently, the residual staleness is confined to cosmetic status/metrics
+fields for the single affected cycle (e.g. a display still reporting the old
+active-event count) and self-corrects on the next cycle's `event_prefetch_begin`
+reload — it never drives a wrong write, notification, or escalation.
+
+**Caveat — this is conditional, not permanent.** The benign property depends
+entirely on invariants (a) and (b) continuing to hold. A future change that
+either (i) makes a non-exempt raise decision consult `eventExist`/the buffer
+instead of `Event::load`/`exists`, or (ii) removes `Event::check`'s live
+`$self->exists()` re-read (e.g. by trusting the buffer's PRESENT answer as
+sufficient to proceed with the clear), would silently reopen the stale-PRESENT
+window into a real spurious-clear or missed-clear bug. This is exactly what the
+Task 9 regression tests in `test/t_event_prefetch.pl` (assertions 40-47, the
+"pin(b)" and "pin(a)" blocks) are designed to catch: pin(b) fails if `check()`
+is changed to trust a stale-present buffer row, and pin(a) fails if
+`Event::load`/`Event::exists` grow an `event_prefetch` reference.
+
 ## Baseline measurement (Task 2)
 
 **Date:** 2026-06-30 (re-measured 2026-06-30 after script reliability fix — see note below)

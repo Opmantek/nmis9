@@ -177,8 +177,10 @@ sub eventDelete
 # OMK-12677 event-prefetch: events that MUST be read live, never served from the
 # per-node buffer. An external, non-flock-holding process can flip the
 # (historic=0,active=1) state of these classes mid-cycle with a real alert flip,
-# so a buffered answer for them can be wrong. The audited exempt set is in
-# docs/superpowers/specs/2026-06-30-event-prefetch-audit.md section 6:
+# so a buffered answer for them can be wrong. Source of truth for this list is
+# docs/superpowers/specs/2026-06-30-event-prefetch-audit.md, "Section 6 - Step 6
+# - exemption list (the deliverable)" (Task 9: this list matches that audit;
+# logic unchanged since Task 5/6):
 #   - the node-down family (raised AND cleared by the nmisd fping_loop with no
 #     flock, concurrently with a same-node collect): the node/failover/backup
 #     names of NMISNG::Node::handle_down_eventnames plus the failover-close

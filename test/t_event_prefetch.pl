@@ -317,5 +317,111 @@ my $xnode = T5::Node->new($X1);
   is(scalar(@{ $md->data() // [] }), 1, "xp3: exactly one active row survives (index blocked the duplicate)");
 }
 
+# ---------------------------------------------------------------------------
+# Task 9: pin the two structural invariants that make the documented residual
+# (node-wide clean/rename racing a same-node collect, audit §7) verified-benign.
+# See docs/superpowers/specs/2026-06-30-event-prefetch-audit.md, "Residual
+# verification" subsection under §7, for the narrative this pins.
+# ---------------------------------------------------------------------------
+
+# PRIMARY — invariant (b): Event::check() re-reads live and is gated on the
+# LIVE result, so a stale-PRESENT buffer answer for a non-exempt event can
+# never cause a spurious clear/Up-event when the row has actually been
+# cleared out-of-cycle (Event.pm:~309-316 buffer early-return only fires on
+# buffer-ABSENT; Event.pm:319 self->exists() re-reads live; Event.pm:342
+# "if ($exists && $self->active)" with no else gates the entire clear body on
+# that live result). We call Event::check() directly (the same entry point
+# Compat::NMIS::checkEvent uses, Compat/NMIS.pm:2208) rather than going through
+# checkEvent/notify, because those require a full live Sys object this harness
+# cannot build; Event::check's own no-op path never touches $args{sys} — sys is
+# assigned to $S at Event.pm:298 but not dereferenced until inside the
+# "if ($exists && $self->active)" body at Event.pm:342+, which this scenario
+# never enters. So sys=>undef faithfully exercises the real decision code
+# (the buffer peek, the live exists() re-read, and the gate) without needing a
+# node/sys stub. If Event::check were changed to trust a stale-present buffer
+# row instead of re-reading live, this test would go from PASS to FAIL: it
+# would see $exists effectively short-circuited by the buffer and take the
+# clear branch, producing an "Interface Up" write that this test asserts does
+# NOT happen.
+{
+  NMISNG::DB::remove(collection => $nmisng->events_collection, query => { node_uuid => $X1 }, just_one => 0);
+
+  # DB has NO active row for (X1, Interface Down, eth0) -- i.e. it has already
+  # been cleared out-of-cycle (historic=1), simulating a node-wide
+  # cleanNodeEvents/eventsClean race per the residual.
+  NMISNG::DB::insert(collection => $nmisng->events_collection,
+    record => { node_uuid => $X1, event => "Interface Down", element => "eth0",
+                active => 0, historic => 1, cluster_id => $C->{cluster_id} });
+
+  my $g = $nmisng->event_prefetch_begin(node_uuid => $X1);
+  is($nmisng->event_prefetch_active($X1), 1, "pin(b): buffer active");
+
+  # Force a stale-PRESENT buffer row for this NON-exempt event, disagreeing
+  # with the DB (which has no active row -- see above). This is exactly the
+  # documented residual shape: buffer says present, DB says cleared.
+  $nmisng->event_prefetch_store($X1, "Interface Down", "eth0",
+    { event => "Interface Down", element => "eth0", active => 1, historic => 0 });
+  my $stale = $nmisng->event_prefetch_lookup($X1, "Interface Down", "eth0");
+  is(($stale && $stale->{active}), 1, "pin(b): buffer holds the stale-PRESENT row");
+
+  # Invoke the clear decision the way Node.pm:4495's guarded checkEvent call
+  # does: build an Event for the down-event and call ->check directly.
+  my $down_ev = $nmisng->events->event(
+    node_uuid => $X1, node_name => "t9", event => "Interface Down",
+    element => "eth0", cluster_id => $C->{cluster_id});
+
+  $cap_on = 1;
+  @STREAM = ();
+  $down_ev->check(sys => undef, details => "pin(b) probe", level => "Normal");
+  $cap_on = 0;
+
+  is(scalar(@STREAM), 0,
+    "pin(b): Event::check on stale-PRESENT/live-ABSENT is a NO-OP -- no save/delete write happened");
+  ok(!(grep { /Interface Up/ } @STREAM),
+    "pin(b): no spurious 'Interface Up' clear-event was written");
+
+  # Confirm the DB itself is untouched: still exactly the one historic=1 row,
+  # no new active=1/historic=0 row (which a spurious clear-then-save could add).
+  my $after = $nmisng->events->get_events_model(
+    filter => { node_uuid => $X1, event => "Interface Down", element => "eth0", historic => 0 });
+  is(scalar(@{ $after->data() // [] }), 0,
+    "pin(b): DB has no live (historic=0) row after check() -- confirms the no-op reached no write path");
+}
+
+# SECONDARY — invariant (a): raise decisions are decided from a LIVE
+# $event_obj->load()/exists() (Compat/NMIS.pm:2272-2273), and Event::load /
+# Event::exists (Event.pm:722-734, 743-859) have no buffer branch at all --
+# grep confirms neither method references event_prefetch anywhere. So a
+# raise can never be gated on/suppressed by a stale buffer answer.
+#
+# We cannot drive Compat::NMIS::notify itself here: notify requires a live Sys
+# object (node model, mdl, config wiring for getLogLevel/outageCheck/etc) that
+# this harness's minimal T5::Node stub does not provide, and building a real
+# one is out of scope for a unit test. What we CAN and do assert, honestly:
+# 1. Structural fact, mechanically checked: Event::load and Event::exists
+#    contain no reference to event_prefetch_active/_lookup -- i.e. there is no
+#    code path by which a raise's existence check could consult the buffer.
+# 2. The existing golden test (assertions 1-2 above, "golden: event-write
+#    stream is identical buffer-OFF vs buffer-ON") already demonstrates
+#    end-to-end that the real save-funnel write stream -- which is what a raise
+#    ultimately produces -- is byte-identical with the buffer on or off, i.e.
+#    raises are not buffer-affected in practice, not just in theory.
+# This is deliberately narrower than the primary pin: it is a structural
+# regression guard (a future change wiring the buffer into load/exists would
+# be caught here) plus a pointer to the existing behavioural evidence, not a
+# new behavioural test of notify() itself. See report for this caveat in full.
+{
+  my $load_src   = do { local $@; local $/; open(my $fh, '<', "$FindBin::Bin/../lib/NMISNG/Event.pm") or die $!; <$fh> };
+  # isolate just the load() and exists() sub bodies to avoid false negatives/positives from unrelated code.
+  # Bound each sub by the START of the NEXT top-level "sub " line (not by the
+  # first "\n}", which would wrongly stop at an inner block's closing brace,
+  # e.g. exists()'s own nested "if (...) { ... }").
+  my ($exists_body) = $load_src =~ /(^sub exists\b.*?)(?=^sub )/ms;
+  my ($load_body)   = $load_src =~ /(^sub load\b.*?)(?=^sub )/ms;
+  ok(defined($exists_body) && defined($load_body), "pin(a): located Event::exists and Event::load sub bodies");
+  ok($exists_body !~ /event_prefetch/, "pin(a): Event::exists has no event_prefetch buffer branch (raise-decision path is live)");
+  ok($load_body !~ /event_prefetch/, "pin(a): Event::load has no event_prefetch buffer branch (raise-decision path is live)");
+}
+
 $nmisng->get_db()->drop();
 done_testing;
