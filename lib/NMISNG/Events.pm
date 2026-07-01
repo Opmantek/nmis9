@@ -187,6 +187,13 @@ sub eventDelete
 #     literal "Node Polling Failover Closed" (Node.pm:2156). NOT snmp/wmi.
 #   - any stateless event (process_escalations deletes these mid-cycle past
 #     dampening): names matching config non_stateful_events (Config.nmis).
+#
+# Maintenance invariant: the buffer's safety for non-exempt events depends on
+# no out-of-cycle process raising them mid-cycle. If a NEW out-of-cycle event
+# RAISER is added (a writer outside collect/update that can set a non-exempt
+# event to active), it MUST be re-evaluated against this exemption list and
+# against the audit (docs/superpowers/specs/2026-06-30-event-prefetch-audit.md
+# §3b/§7) before it ships.
 # returns 1 if the named event must be read live, 0 otherwise.
 sub _event_exempt
 {
@@ -221,7 +228,7 @@ sub eventExist
 	# not exempt, answer from the buffer with no DB hit. eventExist is true only
 	# for a non-historic, active event, so apply that same test to the buffered row.
 	my $uuid = ref($node) ? $node->uuid : $node;
-	if ( !$self->_event_exempt($event) && $self->nmisng->event_prefetch_active($uuid) )
+	if ( $self->nmisng->event_prefetch_active($uuid) && !$self->_event_exempt($event) )
 	{
 		my $row = $self->nmisng->event_prefetch_lookup( $uuid, $event, $element );
 		return ( $row && $row->{active} && ( ( $row->{historic} // 0 ) <= 0 ) ) ? 1 : 0;
