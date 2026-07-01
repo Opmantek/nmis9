@@ -338,17 +338,37 @@ fields for the single affected cycle (e.g. a display still reporting the old
 active-event count) and self-corrects on the next cycle's `event_prefetch_begin`
 reload — it never drives a wrong write, notification, or escalation.
 
-**Caveat — this is conditional, not permanent.** The benign property depends
-entirely on invariants (a) and (b) continuing to hold. A future change that
-either (i) makes a non-exempt raise decision consult `eventExist`/the buffer
-instead of `Event::load`/`exists`, or (ii) removes `Event::check`'s live
-`$self->exists()` re-read (e.g. by trusting the buffer's PRESENT answer as
-sufficient to proceed with the clear), would silently reopen the stale-PRESENT
-window into a real spurious-clear or missed-clear bug. This is exactly what the
-Task 9 regression tests in `test/t_event_prefetch.pl` (assertions 40-47, the
-"pin(b)" and "pin(a)" blocks) are designed to catch: pin(b) fails if `check()`
-is changed to trust a stale-present buffer row, and pin(a) fails if
-`Event::load`/`Event::exists` grow an `event_prefetch` reference.
+**Caveat — this is conditional, not permanent.** The benign property depends on
+three things continuing to hold, not two:
+
+1. **Invariant (a)** — raise decisions read live.
+2. **Invariant (b)** — clear decisions re-read live.
+3. **Stale-ABSENT cannot arise for a non-exempt event.** This is the claim made
+   two paragraphs above ("The dangerous direction ... cannot arise for a
+   non-exempt event"). It rests on the audit's external-writer classification
+   (§3b's out-of-cycle writer inventory, W1-W16, and §5's state-transition
+   matrix, M1-M16): no out-of-cycle writer raises a non-exempt event from
+   absent, so a non-exempt event is never buffer-stale-absent for collect to
+   wrongly skip.
+   Unlike (a) and (b), this dependency is **not guarded by the Task 9
+   regression assertions (40-47)** — those pin the live-read behaviour of
+   `Event::check`/`Event::load`/`Event::exists` in-process, but do not
+   exercise or re-verify the writer inventory itself. It rests on the audit's
+   external-mutation review (Task 1) continuing to hold, not on any executable
+   test in this repo.
+
+A future change that either (i) makes a non-exempt raise decision consult
+`eventExist`/the buffer instead of `Event::load`/`exists`, (ii) removes
+`Event::check`'s live `$self->exists()` re-read (e.g. by trusting the buffer's
+PRESENT answer as sufficient to proceed with the clear), or (iii) introduces a
+new out-of-cycle writer that can raise a non-exempt event from absent, would
+reopen a real spurious-clear, missed-clear, or missed-raise bug. Of these,
+(i) and (ii) are caught by the Task 9 regression tests in
+`test/t_event_prefetch.pl` (assertions 40-47, the "pin(b)" and "pin(a)"
+blocks): pin(b) fails if `check()` is changed to trust a stale-present buffer
+row, and pin(a) fails if `Event::load`/`Event::exists` grow an
+`event_prefetch` reference. (iii) is **not** caught by any test — a
+regression there would require re-auditing the writer inventory by hand.
 
 ## Baseline measurement (Task 2)
 

@@ -1670,7 +1670,7 @@ sub event_prefetch_begin
 	my ($self, %args) = @_;
 	my $node_uuid = $args{node_uuid};
 	return undef if (!$node_uuid);
-	return undef if (!NMISNG::Util::getbool($self->config->{event_prefetch_enabled} // 0));  # default OFF in the spike
+	return undef if (!NMISNG::Util::getbool($self->config->{event_prefetch_enabled} // 1));  # default ON; kill switch: set event_prefetch_enabled false to disable
 	my $md = $self->events->get_events_model(filter => { node_uuid => $node_uuid, historic => 0 });
 	my %bykey;
 	if (!$md->error) {

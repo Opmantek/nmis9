@@ -423,5 +423,33 @@ my $xnode = T5::Node->new($X1);
   ok($load_body !~ /event_prefetch/, "pin(a): Event::load has no event_prefetch buffer branch (raise-decision path is live)");
 }
 
+# ---------------------------------------------------------------------------
+# Task 10: default-ON flag test. event_prefetch_begin's kill switch now reads
+# `// 1` (default ON) instead of `// 0` (default OFF in the spike). $U already
+# has a seeded "Node Down" event (line 31 above) so begin() has something to
+# load. Delete/override the config key within this block's own scope only,
+# then restore it, so the rest of the suite (which explicitly sets
+# event_prefetch_enabled=1 at the top, line 9) is unaffected.
+# ---------------------------------------------------------------------------
+{
+  my $had_key = exists($nmisng->config->{event_prefetch_enabled});
+  my $saved   = $nmisng->config->{event_prefetch_enabled};
+
+  # (a) UNSET -> default ON via `// 1`.
+  delete $nmisng->config->{event_prefetch_enabled};
+  my $g = $nmisng->event_prefetch_begin(node_uuid => $U);
+  isa_ok($g, "NMISNG::Guard", "Task 10: begin() with event_prefetch_enabled UNSET defaults ON");
+  undef $g;
+
+  # (b) explicitly 'false' -> disabled.
+  $nmisng->config->{event_prefetch_enabled} = 'false';
+  is($nmisng->event_prefetch_begin(node_uuid => $U), undef,
+    "Task 10: begin() with event_prefetch_enabled='false' returns undef");
+
+  # restore
+  if ($had_key) { $nmisng->config->{event_prefetch_enabled} = $saved; }
+  else          { delete $nmisng->config->{event_prefetch_enabled}; }
+}
+
 $nmisng->get_db()->drop();
 done_testing;
