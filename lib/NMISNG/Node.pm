@@ -5093,8 +5093,11 @@ sub collect_systemhealth_info
 						$description = $target->{ $keys[0] };
 						if ($description)
 						{
-							$inventory->description($description);
-							push @desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory };
+							# sticky: once disambiguated with this index's suffix, never revert to
+							# plain, even if the duplicate that caused it isn't seen this run
+							my $sticky = ( defined($inventory->description) && $inventory->description eq "$description ($indexvalue)" );
+							$inventory->description($description) if (!$sticky);
+							push @desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory, sticky => $sticky };
 						}
 					}
 
@@ -5282,8 +5285,11 @@ sub collect_systemhealth_info
 						$description = $target->{ $keys[0] };
 						if ($description)
 						{
-							$inventory->description($description);
-							push @desc_dedup, { index => $index, description => $description, inventory => $inventory };
+							# sticky: once disambiguated with this index's suffix, never revert to
+							# plain, even if the duplicate that caused it isn't seen this run
+							my $sticky = ( defined($inventory->description) && $inventory->description eq "$description ($index)" );
+							$inventory->description($description) if (!$sticky);
+							push @desc_dedup, { index => $index, description => $description, inventory => $inventory, sticky => $sticky };
 						}
 					}
 
@@ -5323,11 +5329,13 @@ sub collect_systemhealth_info
 		}
 
 			# Descriptions were already saved plain above; only duplicates need a second save with the index appended.
+			# Items already carrying their sticky suffix from a prior run are left alone.
 			{
 				my %desc_count;
 				$desc_count{$_->{description}}++ for @desc_dedup;
 				for my $item (@desc_dedup)
 				{
+					next if ($item->{sticky});
 					next unless $desc_count{$item->{description}} > 1;
 					$item->{inventory}->description("$item->{description} ($item->{index})");
 					my ($op, $error) = $item->{inventory}->save(node => $self, update => 1);
